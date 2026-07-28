@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Confidentialité et sécurité.
+  Écusson + cadenas, dessin original (aucune forme copiée de la référence,
+  seule l'idée générale — écusson/cadenas — est un symbole de sécurité
+  universel, pas une création propre à qui que ce soit).
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen ;
+  l'écusson porte donc la couleur choisie par l'utilisateur, comme les
+  autres icônes teintables (files, zip, share…).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Confidentialité et sécurité — LexOS">
+  <!-- Écusson -->
+  <path d="M256 40
+           L 392 92
+           C 392 240, 350 356, 256 428
+           C 162 356, 120 240, 120 92
+           Z"
+        fill="#E8590C"/>
+  <path d="M256 40
+           L 392 92
+           C 392 240, 350 356, 256 428
+           C 162 356, 120 240, 120 92
+           Z"
+        fill="#FFFFFF" opacity="0.14"
+        clip-path="polygon(0 0, 100% 0, 100% 42%, 0 42%)"/>
+  <path d="M256 72
+           L 366 114
+           C 366 240, 330 340, 256 400
+           C 182 340, 146 240, 146 114
+           Z"
+        fill="#1A1A1D"/>
+
+  <!-- Cadenas -->
+  <rect x="200" y="248" width="112" height="92" rx="14" fill="#FFFFFF"/>
+  <path d="M222 248 v-30 a34 34 0 0 1 68 0 v30" fill="none"
+        stroke="#FFFFFF" stroke-width="18"/>
+  <circle cx="256" cy="284" r="15" fill="#1A1A1D"/>
+  <rect x="249" y="290" width="14" height="26" rx="6" fill="#1A1A1D"/>
+</svg>

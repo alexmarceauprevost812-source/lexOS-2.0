@@ -187,6 +187,20 @@ Categories=System;Utility;
 Keywords=ia;ai;intelligence artificielle;agent;ollama;assistant;
 EOF
 
+cat > /usr/share/applications/lexos-secure.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Sécurité
+Name[en]=Security
+Comment=Pare-feu, antivirus, anti-intrusion, anti-rootkit
+Exec=xfce4-terminal --title="Sécurité — LexOS" --hold -e "lexos secure; bash"
+Icon=lexos-secure
+Terminal=false
+Categories=System;Security;
+Keywords=securite;security;pare-feu;firewall;antivirus;confidentialite;privacy;
+EOF
+
 cat > /usr/share/applications/lexos-avion.desktop <<EOF
 [Desktop Entry]
 Type=Application
