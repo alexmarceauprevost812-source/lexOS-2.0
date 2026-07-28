@@ -1,0 +1,6 @@
+# Découpe de sujet en autocollant (lexos sticker) — mode IA avancé.
+# Le mode rapide (fond uni) marche déjà avec imagemagick, déjà dans 00-core.
+# Ceci n'est qu'un bonus : si le paquet n'existe pas dans les dépôts, il est
+# simplement ignoré (voir 0250-lexos-optional.hook.chroot) — lexos-sticker
+# retombe alors sur le mode rapide sans rien casser.
+python3-rembg

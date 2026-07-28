@@ -122,6 +122,10 @@ ${B}USB${R}
   ${A}usb import${R}          Tout copier depuis un téléphone ou une clé USB ${D}(1 clic)${R}
   ${A}format${R} [cible]      Formater une clé USB ou un téléphone ${D}(confirmation exigée)${R}
 
+${B}IMAGES${R}
+  ${A}sticker${R} <image…>     Découpe le sujet en autocollant (PNG transparent)
+                      ${D}IA (rembg) si installée, sinon fond uni (ImageMagick)${R}
+
 ${B}DÉMO & INSTALLATION${R}
   ${A}demo${R}                Où en est-on : clé USB (démo) ou disque dur ?
   ${A}install-disk${R}        Installer sur le disque ${D}(confirmation exigée)${R}
@@ -135,6 +139,7 @@ ${B}EXEMPLES${R}
   ${D}${PROG} share photo.jpg${R}
   ${D}${PROG} usb import${R}
   ${D}${PROG} lang quebecois${R}
+  ${D}${PROG} sticker photo.jpg${R}
 
 EOF
 	[[ -n "$LEXOS_HOME_URL" ]] && printf '%s%s%s\n\n' "$D" "$LEXOS_HOME_URL" "$R"
@@ -558,6 +563,7 @@ case "$CMD" in
 	receive|recevoir)     exec lexos-share receive ;;
 	usb)                  exec lexos-usb "$@" ;;
 	format)               exec lexos-format "$@" ;;
+	sticker|autocollant)  exec lexos-sticker "$@" ;;
 	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;

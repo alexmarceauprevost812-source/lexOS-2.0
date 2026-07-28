@@ -364,6 +364,25 @@ lexos share devices     # ce qui est joignable, par quel moyen
 lexos receive           # ouvrir une boîte de réception
 ```
 
+### Autocollants — découper le sujet d'une photo
+
+Comme la fonction « Autocollants » d'un téléphone Samsung, mais 100% locale :
+
+```bash
+lexos sticker photo.jpg
+```
+
+Le sujet est découpé du fond et enregistré comme un vrai fichier PNG à fond
+transparent, dans `~/Images/Autocollants/`. Deux méthodes, choisies toutes
+seules :
+
+- **Mode IA** (`rembg`, si installé) — découpe même sur un fond compliqué.
+- **Mode rapide** (ImageMagick, toujours disponible) — retire un fond à peu
+  près uni, comme sur une photo prise devant un mur clair.
+
+Dans le gestionnaire de fichiers : clic droit sur une image → **Créer un
+autocollant**.
+
 ---
 
 ## Mot de passe sur le disque dur
@@ -439,6 +458,9 @@ RÉSEAU
 PARTAGE
   share <fichiers…>   Envoyer vers un téléphone
   receive             Recevoir depuis un téléphone
+
+IMAGES
+  sticker <image…>    Découpe le sujet en autocollant (PNG transparent)
 
 DÉMO & INSTALLATION
   demo                Clé USB (démo) ou disque dur ?

@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-sticker — découpe le sujet d'une photo et l'enregistre comme
+#  autocollant (PNG à fond transparent), façon « Autocollants » Samsung.
+# =============================================================================
+#  Deux méthodes, choisies automatiquement :
+#    - Mode IA   : rembg (réseau de neurones U2-Net), si installé — découpe
+#                  le sujet même sur un fond complexe.
+#    - Mode rapide : ImageMagick, retire un fond à peu près uni par
+#                  remplissage depuis les coins (ou un point cliqué) — marche
+#                  sans rien installer de plus, hors-ligne, tout de suite.
+#  Le résultat est toujours un vrai fichier PNG écrit sur le disque.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+GUI=0
+MODE="auto"
+FUZZ=10
+SEED=""
+OUT=""
+FILES=()
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; G=$'\033[32m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; E=''; G=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+err()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; }
+die()  { err "$*"; [[ "$GUI" -eq 1 ]] && command -v zenity >/dev/null 2>&1 && \
+         zenity --error --width=420 --title="LexOS" --text="$*" 2>/dev/null; exit 1; }
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — autocollants (découpe de sujet), façon Samsung, en local
+
+Usage : $PROG [options] <image> [image...]
+
+Options :
+  --fuzz N        Sensibilité du fond à retirer, 0-100 (défaut : $FUZZ)
+  --seed X,Y       Point de départ du fond (pixel), sinon les 4 coins
+  --ia            Forcer le mode IA (rembg) — meilleure découpe, fond complexe
+  --rapide        Forcer le mode rapide (ImageMagick) — fond uni, sans rien installer
+  -o, --sortie F  Fichier de sortie (une seule image en entrée)
+  --gui           Choisir la sensibilité dans une fenêtre, ouvrir le résultat
+  -h, --help      Cette aide
+
+Sans --ia ni --rapide : $PROG utilise l'IA (rembg) si elle est installée,
+sinon le mode rapide automatiquement — toujours un résultat, jamais bloqué.
+
+Mode IA avancé (facultatif, télécharge un petit modèle une seule fois) :
+  pip3 install --user "rembg[cpu]"
+EOF
+}
+
+has_rembg() { command -v python3 >/dev/null 2>&1 && python3 -c "import rembg" >/dev/null 2>&1; }
+has_magick() { command -v convert >/dev/null 2>&1 && command -v identify >/dev/null 2>&1; }
+
+out_for() {
+	local in="$1" dir base name
+	if [[ -n "$OUT" ]]; then printf '%s\n' "$OUT"; return; fi
+	dir="$(dirname -- "$in")"
+	base="$(basename -- "$in")"
+	name="${base%.*}"
+	if [[ -d "$HOME/Images" ]] || mkdir -p "$HOME/Images/Autocollants" 2>/dev/null; then
+		dir="$HOME/Images/Autocollants"
+	fi
+	printf '%s/%s-autocollant.png\n' "$dir" "$name"
+}
+
+cut_ia() {
+	local in="$1" out="$2"
+	say "Découpe IA (rembg) : $(basename -- "$in")"
+	python3 -m rembg i "$in" "$out" >/dev/null 2>&1
+}
+
+cut_rapide() {
+	local in="$1" out="$2" w h
+	say "Découpe rapide (fond uni) : $(basename -- "$in")"
+	read -r w h < <(identify -format "%w %h" "${in}[0]" 2>/dev/null) || true
+	[[ -z "${w:-}" || -z "${h:-}" ]] && { err "Impossible de lire les dimensions de l'image."; return 1; }
+	local pts=()
+	if [[ -n "$SEED" ]]; then
+		pts+=("${SEED}")
+	else
+		pts+=("0,0" "$((w-1)),0" "0,$((h-1))" "$((w-1)),$((h-1))")
+	fi
+	local draws=()
+	for p in "${pts[@]}"; do draws+=(-draw "color $p floodfill"); done
+	convert "$in" -alpha set -fuzz "${FUZZ}%" -fill none "${draws[@]}" "$out"
+}
+
+do_one() {
+	local in="$1" out mode
+	[[ -f "$in" ]] || { err "Introuvable : $in"; return 1; }
+	out="$(out_for "$in")"
+	mode="$MODE"
+	if [[ "$mode" == "auto" ]]; then
+		if has_rembg; then mode="ia"; else mode="rapide"; fi
+	fi
+	if [[ "$mode" == "ia" ]] && ! has_rembg; then
+		err "Mode IA demandé mais rembg n'est pas installé — bascule en mode rapide."
+		err "Pour l'installer : pip3 install --user \"rembg[cpu]\""
+		mode="rapide"
+	fi
+	if [[ "$mode" == "rapide" ]] && ! has_magick; then
+		die "ImageMagick (convert/identify) n'est pas installé — impossible de découper."
+	fi
+	case "$mode" in
+		ia)     cut_ia "$in" "$out" || { err "Découpe IA échouée, essai en mode rapide."; cut_rapide "$in" "$out"; } ;;
+		rapide) cut_rapide "$in" "$out" ;;
+	esac
+	if [[ -s "$out" ]]; then
+		ok "Autocollant enregistré : $out"
+		printf '%s\n' "$out"
+	else
+		die "La découpe a échoué pour $in"
+	fi
+}
+
+for a in "$@"; do
+	case "${prev:-}" in
+		--fuzz) FUZZ="$a"; prev=""; continue ;;
+		--seed) SEED="$a"; prev=""; continue ;;
+		-o|--sortie) OUT="$a"; prev=""; continue ;;
+	esac
+	case "$a" in
+		--fuzz|--seed|-o|--sortie) prev="$a" ;;
+		--ia) MODE="ia" ;;
+		--rapide) MODE="rapide" ;;
+		--gui) GUI=1 ;;
+		-h|--help) usage; exit 0 ;;
+		-*) err "Option inconnue : $a" ;;
+		*) FILES+=("$a") ;;
+	esac
+done
+
+[[ "${#FILES[@]}" -eq 0 ]] && { usage; exit 1; }
+
+if [[ "$GUI" -eq 1 ]] && command -v zenity >/dev/null 2>&1; then
+	if ! has_rembg; then
+		FUZZ="$(zenity --scale --title="Autocollant — LexOS" \
+			--text="Sensibilité du fond à retirer (plus haut = enlève plus)" \
+			--min-value=0 --max-value=60 --value="$FUZZ" --step=2 2>/dev/null || printf '%s' "$FUZZ")"
+	fi
+fi
+
+RESULTS=()
+for f in "${FILES[@]}"; do
+	r="$(do_one "$f")" && RESULTS+=("$r")
+done
+
+if [[ "$GUI" -eq 1 ]] && [[ "${#RESULTS[@]}" -gt 0 ]]; then
+	if command -v zenity >/dev/null 2>&1; then
+		zenity --info --title="LexOS" --width=420 \
+			--text="Autocollant créé :\n${RESULTS[0]}" 2>/dev/null || true
+	fi
+	if command -v xdg-open >/dev/null 2>&1; then
+		setsid xdg-open "${RESULTS[0]}" >/dev/null 2>&1 &
+	fi
+fi
+
+[[ "${#RESULTS[@]}" -eq "${#FILES[@]}" ]]
