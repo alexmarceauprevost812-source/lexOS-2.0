@@ -93,14 +93,15 @@ sudo apt install -y live-build debootstrap xorriso squashfs-tools \
 ```
 
 > **Pas de machine Linux sous la main ?** GitHub la construit pour toi.
-> Pousse une étiquette dont le nom commence par `iso-` :
+> Édite [`.iso-build-request`](.iso-build-request) et pousse :
 >
-> ```bash
-> git tag iso-standard-1 && git push origin iso-standard-1
+> ```
+> flavour: standard      # minimal | standard | dev | full
+> suite: trixie          # trixie | bookworm
+> build: 2               # incrémenter pour relancer
 > ```
 >
-> La saveur est lue dans le nom de l'étiquette (`iso-full-2`, `iso-dev-3`,
-> `iso-minimal-4`). Une heure plus tard, l'ISO est téléchargeable dans
+> Une heure plus tard, l'ISO est téléchargeable dans
 > **Actions → la construction → Artifacts**.
 > Voir [`build-iso.yml`](.github/workflows/build-iso.yml).
 

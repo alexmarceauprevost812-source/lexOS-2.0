@@ -1,14 +1,18 @@
 name: Construire l'ISO
 
-# Deux façons de lancer une construction :
+# Trois façons de lancer une construction :
 #
-#   1. Onglet Actions → « Construire l'ISO » → Run workflow
+#   1. Modifier .iso-build-request et pousser.
+#      C'est la méthode qui marche toujours, depuis n'importe quelle branche,
+#      sans rien fusionner ni aucun droit particulier. Incrémente « build: »
+#      pour redemander une construction avec les mêmes réglages.
+#
+#   2. Onglet Actions → « Construire l'ISO » → Run workflow
 #      (disponible une fois ce fichier présent sur la branche par défaut)
 #
-#   2. Pousser une étiquette commençant par « iso- » :
-#         git tag iso-standard-1 && git push origin iso-standard-1
-#      La saveur est lue dans le nom de l'étiquette. C'est la méthode qui
-#      fonctionne depuis n'importe quelle branche, sans rien fusionner.
+#   Note : un workflow en workflow_dispatch seul n'est pas déclenchable tant
+#   qu'il n'a jamais tourné, et l'onglet Actions ne le propose que depuis la
+#   branche par défaut. D'où la méthode 1, qui ne dépend de rien.
 on:
   workflow_dispatch:
     inputs:
@@ -24,8 +28,10 @@ on:
         default: 'trixie'
         type: string
   push:
-    tags:
-      - 'iso-*'
+    branches: ['**']
+    paths:
+      - '.iso-build-request'
+      - '.github/workflows/build-iso.yml'
 
 permissions:
   contents: read
@@ -40,8 +46,8 @@ jobs:
       - uses: actions/checkout@v4
 
       # ------------------------------------------------------------------
-      #  Que construit-on ? Selon le déclencheur, les paramètres viennent
-      #  des entrées du workflow ou du nom de l'étiquette.
+      #  Que construit-on ? Les paramètres viennent des entrées du workflow
+      #  quand il est lancé à la main, sinon de .iso-build-request.
       # ------------------------------------------------------------------
       - name: Déterminer la saveur et la suite
         id: quoi
@@ -49,23 +55,20 @@ jobs:
           FLAVOUR="${{ inputs.flavour }}"
           SUITE="${{ inputs.suite }}"
 
-          if [ -z "$FLAVOUR" ]; then
-            # Déclenché par une étiquette : on lit la saveur dans son nom.
-            TAG="${GITHUB_REF_NAME}"
-            case "$TAG" in
-              *minimal*) FLAVOUR=minimal ;;
-              *dev*)     FLAVOUR=dev ;;
-              *full*)    FLAVOUR=full ;;
-              *)         FLAVOUR=standard ;;
-            esac
-            case "$TAG" in
-              *bookworm*) SUITE=bookworm ;;
-              *)          SUITE=trixie ;;
-            esac
-            echo "Étiquette « $TAG » → saveur $FLAVOUR, suite $SUITE"
+          # Déclenché par un push : on lit .iso-build-request.
+          if [ -z "$FLAVOUR" ] && [ -r .iso-build-request ]; then
+            FLAVOUR="$(sed -n 's/^[[:space:]]*flavour:[[:space:]]*//p' .iso-build-request | head -1)"
+            SUITE="${SUITE:-$(sed -n 's/^[[:space:]]*suite:[[:space:]]*//p' .iso-build-request | head -1)}"
+            echo "Demande lue dans .iso-build-request → saveur ${FLAVOUR:-standard}"
           fi
 
-          [ -n "$SUITE" ] || SUITE=trixie
+          [ -n "$FLAVOUR" ] || FLAVOUR=standard
+          [ -n "$SUITE" ]   || SUITE=trixie
+
+          case "$FLAVOUR" in
+            minimal|standard|dev|full) ;;
+            *) echo "::error::Saveur invalide dans .iso-build-request : '$FLAVOUR'"; exit 1 ;;
+          esac
 
           echo "flavour=$FLAVOUR" >> "$GITHUB_OUTPUT"
           echo "suite=$SUITE"     >> "$GITHUB_OUTPUT"

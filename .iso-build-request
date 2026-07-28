@@ -1,0 +1,18 @@
+# =============================================================================
+#  LexOS — demande de construction d'ISO
+# =============================================================================
+#  Modifie ce fichier et pousse : GitHub Actions construit l'ISO et la dépose
+#  en artefact téléchargeable (Actions → la construction → Artifacts).
+#
+#  Pour redemander une construction sans rien changer d'autre, incrémente
+#  simplement « build ». Un fichier inchangé ne déclenche rien.
+# =============================================================================
+
+# minimal | standard | dev | full
+flavour: standard
+
+# trixie (Debian 13) | bookworm (Debian 12)
+suite: trixie
+
+# Compteur de demandes — incrémenter pour relancer.
+build: 1
