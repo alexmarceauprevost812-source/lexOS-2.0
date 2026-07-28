@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Musique.
+  Un globe filaire : la musique vient de partout. Les méridiens sont groupés
+  à part pour pouvoir TOURNER — la démo les anime, l'icône fixe de l'ISO les
+  laisse en place.
+
+  Dessin original : ni mot-symbole, ni bandeau, ni palette empruntés à une
+  marque existante. #E8590C est un JETON, remplacé par lexos-theme-gen.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Musique — LexOS">
+  <circle cx="256" cy="256" r="196" fill="#1A1A1D"/>
+  <circle cx="256" cy="256" r="150" fill="#E8590C" opacity="0.16"/>
+
+  <g class="globe-mer" fill="none" stroke="#E8590C" stroke-width="9" opacity="0.9">
+      <ellipse cx="256" cy="256" rx="150.0" ry="150"/>
+      <ellipse cx="256" cy="256" rx="121.4" ry="150"/>
+      <ellipse cx="256" cy="256" rx="46.4" ry="150"/>
+      <ellipse cx="256" cy="256" rx="46.4" ry="150"/>
+      <ellipse cx="256" cy="256" rx="121.4" ry="150"/>
+  </g>
+  <g fill="none" stroke="#E8590C" stroke-width="9" opacity="0.9">
+      <ellipse cx="256" cy="374.2" rx="92.3" ry="15.7"/>
+      <ellipse cx="256" cy="321.8" rx="134.8" ry="22.9"/>
+      <ellipse cx="256" cy="256.0" rx="150.0" ry="25.5"/>
+      <ellipse cx="256" cy="190.2" rx="134.8" ry="22.9"/>
+      <ellipse cx="256" cy="137.8" rx="92.3" ry="15.7"/>
+  </g>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#E8590C" stroke-width="12"/>
+
+  <!-- Note de musique, posée par-dessus le globe -->
+  <g fill="#FFFFFF">
+    <path d="M300 150 L300 300 a44 34 0 1 1 -26 -31 L274 196 L180 220 L180 340
+             a44 34 0 1 1 -26 -31 L154 190 Z"/>
+  </g>
+</svg>

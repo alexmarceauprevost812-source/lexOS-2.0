@@ -91,7 +91,7 @@ mkdir -p /usr/share/icons/hicolor/scalable/apps
 #  Elles ne contiennent pas le jeton #E8590C, la substitution les ignore.
 for NAME in files zip share wifi wifi-ok wifi-warn wifi-off bluetooth \
              perf-petit perf-medium perf-performant perf-max \
-             folder-ferme folder-ouvert; do
+             folder-ferme folder-ouvert musique usb; do
 	SRC="$BRAND/icon-${NAME}.svg"
 	[ -r "$SRC" ] || continue
 	for SIZE in 16 22 24 32 48 64 128 256; do
