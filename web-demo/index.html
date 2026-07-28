@@ -95,6 +95,39 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 #wall .ver{margin-top:10px;font:400 12px/1 ui-monospace,monospace;
   letter-spacing:.35em;color:#6e6e74}
 
+/* --- Icônes de bureau : glisser une appli depuis « Applications » --------
+   Note : la classe s'appelle « .deskicon » (et non « .dicon ») car « .dicon »
+   désigne déjà les icônes du dock (voir plus haut) — même préfixe, autre rôle,
+   il ne faut pas les confondre. Empilé au-dessus du fond d'écran mais bien en
+   dessous du panneau (900), du dock (900) et de la grille Applications (1200)
+   pour que ceux-ci restent toujours par-dessus. */
+#deskIcons{position:absolute;inset:0;z-index:5}
+.deskicon{position:absolute;width:76px;display:flex;flex-direction:column;
+  align-items:center;gap:4px;padding:8px 4px;border-radius:10px;cursor:pointer;
+  user-select:none;touch-action:none;transition:background .12s ease}
+.deskicon .ai{width:44px;height:44px;display:flex;align-items:center;
+  justify-content:center;font-size:26px;
+  filter:drop-shadow(0 2px 5px rgba(0,0,0,.75))}
+.deskicon .an{font-size:11.5px;text-align:center;line-height:1.25;color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 8px rgba(0,0,0,.6);
+  max-width:76px;overflow-wrap:break-word}
+.deskicon:hover{background:rgba(255,255,255,.08)}
+.deskicon.sel{background:rgba(255,255,255,.16);outline:1px solid rgba(255,255,255,.35)}
+.deskicon .rm{position:absolute;top:-4px;right:-4px;width:18px;height:18px;
+  border-radius:50%;background:#000;color:#fff;font-size:12px;line-height:18px;
+  text-align:center;opacity:0;transition:opacity .15s}
+.deskicon:hover .rm{opacity:.9}
+.deskicon .rm:hover{background:var(--ac)}
+@media (prefers-reduced-motion:reduce){
+  .deskicon{transition:none} .deskicon .rm{transition:none}
+}
+/*  Fantôme suivant le curseur pendant qu'on glisse une tuile hors de la
+    grille Applications — purement visuel, jamais interactif. */
+.dragghost{position:fixed;z-index:2000;pointer-events:none;opacity:.85}
+#deskIcons .hint{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);
+  max-width:min(420px,80vw);text-align:center;font-size:12.5px;
+  color:var(--fg-dim);opacity:.75;pointer-events:none}
+
 /* --- Barre du haut ------------------------------------------------------ */
 #panel{position:fixed;top:0;left:0;right:0;height:32px;z-index:900;
   display:flex;align-items:center;background:#000;
@@ -601,6 +634,7 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
       <div class="brand">T I · L E X · A L</div>
       <div class="ver">1.0 — NOMAD</div>
     </div>
+    <div id="deskIcons"></div>
   </div>
 
   <div id="panel">
@@ -648,7 +682,8 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 filesFav:false, wifi:true, bt:true, wifiIssue:false,
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
                 qsCompact:false, dockHidden:false, zTop:100, majDispo:false, wallpaper:"defaut", police:"defaut",
-                periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false} };
+                periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
+                deskIcons:[] /* icônes épinglées au bureau : {idx, x, y} — idx = index dans APPS */ };
 function setWallpaper(key){
   state.wallpaper = key;
   const d = document.getElementById("desktop");
@@ -2299,8 +2334,54 @@ function renderApps(filter){
   appGrid.innerHTML=list.map((a,i)=>
     `<button class="app" data-i="${APPS.indexOf(a)}"><span class="ai">${a.ic}</span><span class="an">${a.label}</span></button>`
   ).join("");
-  appGrid.querySelectorAll(".app").forEach(b=>b.onclick=()=>{
-    const app=APPS[+b.dataset.i]; closeApps(); app.fn();
+  appGrid.querySelectorAll(".app").forEach(b=>{
+    b.onclick=()=>{
+      const app=APPS[+b.dataset.i]; closeApps(); app.fn();
+    };
+    /*  Glisser une tuile hors de la grille pour l'épingler au bureau — mêmes
+        pointer events que dragify(), pas le drag-and-drop HTML5 (ce fichier
+        ne l'utilise nulle part). Un vrai clic (déplacement < 6px) ne fait
+        rien ici : le onclick ci-dessus garde son comportement normal. */
+    b.addEventListener("pointerdown", e=>{
+      if(e.button && e.button!==0) return;
+      const idx=+b.dataset.i, sx=e.clientX, sy=e.clientY;
+      let moved=false, ghost=null;
+      const onMove=ev=>{
+        const dx=ev.clientX-sx, dy=ev.clientY-sy;
+        if(!moved){
+          if(Math.hypot(dx,dy) < 6) return;
+          moved=true;
+          //  Referme la grille dès qu'un vrai glisser démarre : le bureau
+          //  redevient visible sous le curseur, comme sur un vrai environnement
+          //  de bureau qui découvre le fond d'écran pendant le glisser d'une icône.
+          closeApps();
+          ghost=document.createElement("div");
+          ghost.className="deskicon dragghost";
+          ghost.innerHTML=`<span class="ai">${APPS[idx].ic}</span><span class="an">${esc(APPS[idx].label)}</span>`;
+          document.body.appendChild(ghost);
+        }
+        if(ghost){ ghost.style.left=(ev.clientX-38)+"px"; ghost.style.top=(ev.clientY-30)+"px"; }
+      };
+      const onUp=ev=>{
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+        if(ghost) ghost.remove();
+        if(!moved) return;   // simple clic : le onclick natif gère l'ouverture
+        const d=document.getElementById("desktop");
+        const r=d.getBoundingClientRect();
+        const x=Math.max(8, Math.min(r.width-84,  ev.clientX-r.left-38));
+        const y=Math.max(40, Math.min(r.height-90, ev.clientY-r.top-30));
+        state.deskIcons.push({idx, x, y});
+        renderDeskIcons();
+        const added=document.querySelectorAll("#deskIcons .deskicon");
+        if(added.length) bump(added[added.length-1]);
+      };
+      //  Écouteurs sur document (pas sur la tuile) : closeApps() ci-dessus
+      //  passe #appsview — et donc la tuile — en display:none en cours de
+      //  glisser, ce qui couperait des écouteurs posés sur la tuile elle-même.
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+    });
   });
 }
 function openApps(){
@@ -2310,6 +2391,69 @@ function openApps(){
 }
 function closeApps(){ appsView.classList.remove("on"); }
 function toggleApps(){ appsView.classList.contains("on") ? closeApps() : openApps(); }
+
+/* --- Icônes de bureau : épinglées depuis la grille Applications ---------
+   state.deskIcons = [{idx, x, y}, ...] — idx est l'index dans APPS (on ne
+   sérialise jamais les fn, on les retrouve à chaque rendu via APPS[idx]). */
+function renderDeskIcons(){
+  const box=document.getElementById("deskIcons");
+  if(!state.deskIcons.length){
+    box.innerHTML=`<div class="hint">Glisse une application ici depuis le menu Applications pour l'épingler au bureau</div>`;
+    return;
+  }
+  box.innerHTML=state.deskIcons.map((d,n)=>{
+    const a=APPS[d.idx];
+    return `<div class="deskicon" style="left:${d.x}px;top:${d.y}px" data-n="${n}">`+
+      `<span class="ai">${a ? a.ic : "❔"}</span><span class="an">${esc(a ? a.label : "?")}</span>`+
+      `<button class="rm" title="Retirer">✕</button></div>`;
+  }).join("");
+  box.querySelectorAll(".deskicon").forEach(el=>{
+    const entry=state.deskIcons[+el.dataset.n];
+    const app=APPS[entry.idx];
+    el.querySelector(".rm").addEventListener("click", e=>{
+      e.stopPropagation();
+      state.deskIcons.splice(+el.dataset.n, 1);
+      renderDeskIcons();
+    });
+    el.addEventListener("dblclick", e=>{
+      if(e.target.closest(".rm") || !app) return;
+      bump(el); setTimeout(()=>app.fn(), 420);
+    });
+    let sx,sy,ox,oy,drag=false,moved=false;
+    el.addEventListener("pointerdown", e=>{
+      if(e.target.closest(".rm")) return;
+      drag=true; moved=false; sx=e.clientX; sy=e.clientY;
+      ox=el.offsetLeft; oy=el.offsetTop;
+      el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener("pointermove", e=>{
+      if(!drag) return;
+      const dx=e.clientX-sx, dy=e.clientY-sy;
+      if(!moved && Math.hypot(dx,dy) < 6) return;
+      moved=true;
+      const d=document.getElementById("desktop");
+      const nx=Math.max(8, Math.min(d.clientWidth-84,  ox+dx));
+      const ny=Math.max(40, Math.min(d.clientHeight-90, oy+dy));
+      el.style.left=nx+"px"; el.style.top=ny+"px";
+    });
+    el.addEventListener("pointerup", ()=>{
+      if(!drag) return;
+      drag=false;
+      if(moved){
+        entry.x=el.offsetLeft; entry.y=el.offsetTop;
+      } else {
+        box.querySelectorAll(".deskicon.sel").forEach(s=>s.classList.remove("sel"));
+        el.classList.add("sel");
+      }
+    });
+  });
+}
+//  Clic sur le fond d'écran lui-même (pas sur une icône) : désélectionne
+//  toutes les icônes de bureau, comme sur un vrai environnement de bureau.
+document.getElementById("desktop").addEventListener("click", e=>{
+  if(e.target.closest(".deskicon")) return;
+  document.querySelectorAll("#deskIcons .deskicon.sel").forEach(s=>s.classList.remove("sel"));
+});
 
 appSearch.addEventListener("input",()=>renderApps(appSearch.value));
 appSearch.addEventListener("keydown",e=>{
@@ -2498,6 +2642,7 @@ function tick(){
 setInterval(tick,1000); tick();
 applyDock();   // pose la flèche et l'infobulle de la poignée dès le départ
 renderDevTray();
+renderDeskIcons();   // affiche l'indice vide dès le premier chargement
 
 function boot(){
   document.querySelectorAll(".win").forEach(w=>w.remove());
