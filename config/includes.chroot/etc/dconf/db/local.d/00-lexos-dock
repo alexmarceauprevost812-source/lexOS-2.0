@@ -22,4 +22,4 @@ pressure-reveal=true
 show-dock-item=false
 lock-items=false
 monitor=''
-dock-items=['00-firefox.dockitem','01-terminal.dockitem','02-files.dockitem','03-editor.dockitem','04-appfinder.dockitem','05-partage.dockitem','06-install.dockitem','07-about.dockitem']
+dock-items=['00-firefox.dockitem','01-terminal.dockitem','02-files.dockitem','03-editor.dockitem','04-appfinder.dockitem','05-partage.dockitem','08-settings.dockitem','06-install.dockitem','07-about.dockitem']

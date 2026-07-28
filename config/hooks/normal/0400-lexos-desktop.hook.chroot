@@ -177,6 +177,18 @@ cat > /etc/skel/.config/Thunar/uca.xml <<'EOF'
     <directories/>
   </action>
   <action>
+    <icon>lexos-zip</icon>
+    <name>Extraire ici</name>
+    <submenu></submenu>
+    <unique-id>lexos-unzip-1</unique-id>
+    <command>lexos-unzip %F</command>
+    <description>Extraire l'archive dans un dossier à côté d'elle</description>
+    <range>*</range>
+    <patterns>*.zip;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz2;*.tar.xz;*.txz;*.7z;*.rar</patterns>
+    <startup-notify/>
+    <other-files/>
+  </action>
+  <action>
     <icon>utilities-terminal</icon>
     <name>Ouvrir un terminal ici</name>
     <submenu></submenu>

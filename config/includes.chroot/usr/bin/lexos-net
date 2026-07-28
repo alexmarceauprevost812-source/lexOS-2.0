@@ -219,6 +219,30 @@ cmd_forget() {
 		|| die "Réseau « ${ssid} » inconnu."
 }
 
+cmd_password() {
+	need_nm
+	need_root password "$@"
+	local ssid="${1:-}"
+
+	if [[ -z "$ssid" ]]; then
+		ssid="$(nmcli -t -f NAME,TYPE,DEVICE connection show --active 2>/dev/null \
+			| awk -F: '$2=="802-11-wireless" {print $1; exit}')"
+		[[ -n "$ssid" ]] || die "Aucun Wi-Fi actif — précise le réseau : ${PROG} password \"<réseau>\""
+	fi
+
+	nmcli -t -f NAME connection show 2>/dev/null | grep -qxF "$ssid" \
+		|| die "Réseau inconnu : « ${ssid} »  (voir : ${PROG} list)"
+
+	local pass
+	pass="$(nmcli -s -g 802-11-wireless-security.psk connection show "$ssid" 2>/dev/null)"
+	if [[ -n "$pass" ]]; then
+		printf '  %-20s %s\n' "Réseau" "$ssid"
+		printf '  %-20s %s%s%s\n' "Mot de passe" "$B$G" "$pass" "$R"
+	else
+		warn "« ${ssid} » n'a pas de mot de passe enregistré (réseau ouvert, ou entreprise/802.1x)."
+	fi
+}
+
 cmd_list() {
 	need_nm
 	printf '\n  %-32s %-12s %s\n' "RÉSEAU ENREGISTRÉ" "TYPE" "AUTO"
@@ -512,6 +536,7 @@ ${B}WI-FI${R}
   ${A}connect "<réseau>" [mdp]${R}  Se connecte ${D}(demande le mot de passe si besoin)${R}
   ${A}disconnect${R}            Se déconnecte
   ${A}forget "<réseau>"${R}     Oublie un réseau et son mot de passe
+  ${A}password ["<réseau>"]${R} Retrouve le mot de passe enregistré ${D}(mot de passe oublié)${R}
   ${A}list${R}                  Réseaux enregistrés
   ${A}wifi on|off${R}           Allume ou éteint la carte Wi-Fi
 
@@ -551,6 +576,7 @@ case "$CMD" in
 	connect|co)              cmd_connect "$@" ;;
 	disconnect|deco)         cmd_disconnect ;;
 	forget|oublie)           cmd_forget "$@" ;;
+	password|mdp|mot-de-passe) cmd_password "$@" ;;
 	list|ls)                 cmd_list ;;
 	bt|bluetooth)            cmd_bt "$@" ;;
 	auto|auto-ouvert)        cmd_auto "$@" ;;

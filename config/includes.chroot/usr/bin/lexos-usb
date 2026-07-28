@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-usb — appareils USB : liste, détails, surveillance en direct
+# =============================================================================
+#  S'appuie sur lsusb (paquet usbutils, déjà essentiel) et udevadm.
+#  Le montage automatique des clés USB de stockage est déjà géré par udisks2 /
+#  gvfs (installés par défaut) : ce script ne fait pas ce travail, il aide à
+#  voir ce qui est branché et à comprendre pourquoi un appareil ne répond pas.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8*|*utf8*|*UTF8*|*utf-8*) ;;
+	*) locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$' && export LC_ALL=C.UTF-8 ;;
+esac
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+need_lsusb() {
+	command -v lsusb >/dev/null 2>&1 \
+		|| die "lsusb introuvable — installe usbutils : lexos install usbutils"
+}
+
+# --- Classe d'appareil en clair, à partir du nom donné par lsusb ------------
+guess_kind() {
+	local n="${1,,}"
+	case "$n" in
+		*hub*)                                    printf '🔌 concentrateur' ;;
+		*mouse*|*souris*)                          printf '🖱 souris' ;;
+		*keyboard*|*clavier*)                      printf '⌨ clavier' ;;
+		*storage*|*disk*|*flash*|*sd\ card*|*card\ reader*)
+		                                           printf '💾 stockage' ;;
+		*webcam*|*camera*)                         printf '📷 caméra' ;;
+		*audio*|*headset*|*micro*)                 printf '🎧 audio' ;;
+		*wireless*|*bluetooth*)                    printf '📶 sans fil' ;;
+		*printer*|*imprimante*)                    printf '🖨 imprimante' ;;
+		*phone*|*android*)                         printf '📱 téléphone' ;;
+		*)                                         printf '🔧 appareil' ;;
+	esac
+}
+
+# =============================================================================
+#  Liste des appareils branchés
+# =============================================================================
+cmd_list() {
+	need_lsusb
+	local rows
+	rows="$(lsusb 2>/dev/null)"
+	[[ -n "$rows" ]] || { warn "Aucun appareil USB détecté."; return 0; }
+
+	printf '\n  %-9s %-11s %-15s %s\n' "BUS" "ID" "TYPE" "APPAREIL"
+	printf '  %s\n' "$(printf '─%.0s' {1..70})"
+
+	local bus dev rest id name kind
+	while read -r _ bus _ dev _ id rest; do
+		name="$rest"
+		[[ -n "$name" ]] || name="(nom inconnu)"
+		kind="$(guess_kind "$name")"
+		dev="${dev%:}"
+		printf '  %-9s %-11s %-15s %s\n' "${bus}/${dev}" "$id" "$kind" "$name"
+	done <<< "$rows"
+
+	printf '\n  %s%s info <id>%s      détails d'"'"'un appareil (ex. : 1d6b:0002)\n' "$D" "$PROG" "$R"
+	printf '  %s%s watch%s           suit les branchements en direct\n\n' "$D" "$PROG" "$R"
+}
+
+# =============================================================================
+#  Détails d'un appareil
+# =============================================================================
+cmd_info() {
+	need_lsusb
+	local id="${1:-}"
+	[[ -n "$id" ]] || die "Usage : ${PROG} info <identifiant>  (ex. : 1d6b:0002 — voir ${PROG} list)"
+
+	local out
+	out="$(lsusb -d "$id" -v 2>/dev/null)"
+	[[ -n "$out" ]] || die "Appareil introuvable : ${id}  (débranché entre-temps ?)"
+
+	local fab prod cls
+	fab="$(grep -m1 'iManufacturer' <<< "$out" | sed 's/.*iManufacturer *[0-9]* //')"
+	prod="$(grep -m1 'iProduct' <<< "$out" | sed 's/.*iProduct *[0-9]* //')"
+	cls="$(grep -m1 'bDeviceClass' <<< "$out" | sed 's/.*bDeviceClass *[0-9]* //')"
+
+	printf '\n%s%s%s\n' "$B$O" "${prod:-Appareil ${id}}" "$R"
+	[[ -n "$fab" ]] && printf '  Fabricant : %s\n' "$fab"
+	printf '  Identifiant : %s\n' "$id"
+	[[ -n "$cls" ]] && printf '  Classe      : %s\n' "$cls"
+
+	if command -v udevadm >/dev/null 2>&1; then
+		local node
+		node="$(lsusb -d "$id" 2>/dev/null | head -n1 \
+			| sed -n 's/Bus \([0-9]*\) Device \([0-9]*\).*/\/dev\/bus\/usb\/\1\/\2/p')"
+		if [[ -n "$node" && -e "$node" ]]; then
+			printf '\n%sChemin système : %s%s\n' "$D" "$node" "$R"
+			udevadm info -q property -n "$node" 2>/dev/null \
+				| grep -E '^ID_(VENDOR|MODEL|SERIAL|FS_LABEL|FS_TYPE)=' \
+				| sed 's/^/  /'
+		fi
+	fi
+	printf '\n'
+}
+
+# =============================================================================
+#  Surveillance en direct (branchement / débranchement)
+# =============================================================================
+cmd_watch() {
+	command -v udevadm >/dev/null 2>&1 || die "udevadm introuvable."
+	say "En écoute des branchements USB — Ctrl+C pour arrêter."
+	printf '\n'
+	udevadm monitor --udev --subsystem-match=usb 2>/dev/null \
+		| while read -r _ event _; do
+			case "$event" in
+				add)    printf '  %s🔌 branché%s   à %s\n'    "$G" "$R" "$(date '+%H:%M:%S')" ;;
+				remove) printf '  %s⏏ débranché%s à %s\n'     "$Y" "$R" "$(date '+%H:%M:%S')" ;;
+			esac
+		done
+}
+
+cmd_help() {
+	cat <<EOF
+
+${B}${O}${PROG}${R} — appareils USB
+
+${B}USAGE${R}
+  ${PROG} <commande> [arguments]
+
+${B}COMMANDES${R}
+  ${A}list${R}                  Appareils branchés ${D}(défaut)${R}
+  ${A}info${R} <identifiant>    Détails d'un appareil ${D}(ex. : 1d6b:0002)${R}
+  ${A}watch${R}                 Suit les branchements et débranchements en direct
+  ${A}import${R} [cible]        Copie tout le contenu d'un téléphone ou d'une clé USB
+
+${B}À SAVOIR${R}
+  Les clés USB et disques externes se montent tout seuls et apparaissent
+  dans le gestionnaire de fichiers — ce n'est pas ${PROG} qui fait ce travail,
+  mais udisks2, déjà actif. ${PROG} sert à voir ce qui est branché et à
+  diagnostiquer quand quelque chose ne répond pas.
+
+  Un branchement affiche aussi une notification, même sans lancer
+  ${D}${PROG} watch${R} — voir lexos-usb-notify.service.
+
+EOF
+}
+
+# =============================================================================
+#  Import en un clic : tout copier depuis un téléphone (MTP/iPhone) ou une clé
+# =============================================================================
+cmd_import() {
+	local gvfs="/run/user/${UID}/gvfs"
+	local dest_root="${HOME}/Téléchargements"
+	mkdir -p "$dest_root"
+
+	local -a sources=()
+	local -a labels=()
+
+	# --- Téléphones / appareils montés via GVFS (MTP, iPhone/AFC) -----------
+	if [[ -d "$gvfs" ]]; then
+		local d name
+		for d in "$gvfs"/*/; do
+			[[ -d "$d" ]] || continue
+			name="$(basename "$d")"
+			sources+=("$d")
+			case "$name" in
+				mtp:*)  labels+=("téléphone (${name#mtp:host=})") ;;
+				afc:*)  labels+=("iPhone / iPad") ;;
+				*)      labels+=("$name") ;;
+			esac
+		done
+	fi
+
+	# --- Clés USB / disques externes montés (udisks2) ------------------------
+	local base
+	for base in "/media/${USER:-$(id -un)}" "/run/media/${USER:-$(id -un)}"; do
+		[[ -d "$base" ]] || continue
+		local d
+		for d in "$base"/*/; do
+			[[ -d "$d" ]] || continue
+			sources+=("$d")
+			labels+=("clé USB ($(basename "$d"))")
+		done
+	done
+
+	if [[ ${#sources[@]} -eq 0 ]]; then
+		warn "Rien à importer pour l'instant."
+		printf '  · Téléphone Android : branche-le puis choisis « Transfert de fichiers (MTP) »\n'
+		printf '    dessus, débloque l'"'"'écran si demandé.\n'
+		printf '  · iPhone / iPad : branche-le, débloque-le, appuie sur « Faire confiance à cet\n'
+		printf '    ordinateur » puis entre ton code — relance ensuite : %s import\n' "$PROG"
+		printf '  · Clé USB : branche-la, elle se monte toute seule en quelques secondes.\n'
+		return 1
+	fi
+
+	local rsync_bin="rsync"
+	command -v rsync >/dev/null 2>&1 || rsync_bin=""
+
+	local i src label stamp dest fail_any=0
+	stamp="$(date '+%Y-%m-%d_%H%M%S')"
+	for i in "${!sources[@]}"; do
+		src="${sources[$i]}"
+		label="${labels[$i]}"
+		dest="${dest_root}/LexOS-import-$(basename "$src" | tr -c 'a-zA-Z0-9._-' '-')-${stamp}"
+		say "Import depuis ${label}…"
+		mkdir -p "$dest"
+		if [[ -n "$rsync_bin" ]]; then
+			if "$rsync_bin" -a --info=progress2 "$src" "$dest/" 2>/dev/null; then
+				ok "Copié dans ${dest}"
+			else
+				err "Échec de la copie depuis ${label} — appareil verrouillé ou débranché ?"
+				fail_any=1
+			fi
+		else
+			if cp -a "$src." "$dest/" 2>/dev/null; then
+				ok "Copié dans ${dest}"
+			else
+				err "Échec de la copie depuis ${label}"
+				fail_any=1
+			fi
+		fi
+	done
+
+	command -v notify-send >/dev/null 2>&1 && \
+		notify-send -i media-removable "LexOS — import terminé" "Fichiers copiés dans ${dest_root}" 2>/dev/null
+
+	return $fail_any
+}
+
+CMD="${1:-list}"
+[[ $# -gt 0 ]] && shift
+case "$CMD" in
+	help|--help|-h)  cmd_help ;;
+	list|ls|'')      cmd_list ;;
+	info|show)       cmd_info "$@" ;;
+	watch|suivre)    cmd_watch ;;
+	import|importer) cmd_import "$@" ;;
+	*) die "Commande inconnue : ${CMD}  (essaie : ${PROG} help)" ;;
+esac

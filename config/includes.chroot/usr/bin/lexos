@@ -75,6 +75,7 @@ ${B}PAQUETS${R}
   ${A}clean${R}               Libérer de l'espace (caches, orphelins, journaux)
 
 ${B}APPARENCE${R}
+  ${A}theme${R} <sombre|clair> LexOS Noir (défaut) ou thème de jour ${D}(crème, pas blanc pur)${R}
   ${A}accent${R} <couleur>    Couleur des boutons et des sélections
                       ${D}orange (défaut) · bleu · rouge · vert · gris · violet${R}
   ${A}dock${R} <position>     Barre d'outils : ${D}droite (défaut) · gauche · bas · haut${R}
@@ -97,16 +98,23 @@ ${B}PARTAGE${R}
   ${A}share${R} <fichiers…>   Envoyer vers un téléphone ${D}(QR code, KDE Connect, Bluetooth)${R}
   ${A}receive${R}             Recevoir des fichiers depuis un téléphone
 
+${B}USB${R}
+  ${A}usb${R}                 Appareils branchés
+  ${A}usb watch${R}           Suivre les branchements en direct
+  ${A}usb import${R}          Tout copier depuis un téléphone ou une clé USB ${D}(1 clic)${R}
+
 ${B}DÉMO & INSTALLATION${R}
   ${A}demo${R}                Où en est-on : clé USB (démo) ou disque dur ?
   ${A}install-disk${R}        Installer sur le disque ${D}(confirmation exigée)${R}
 
 ${B}EXEMPLES${R}
   ${D}${PROG} install neovim tmux${R}
+  ${D}${PROG} install chrome${R}      ${D}(ajoute Google Chrome — dépôt officiel Google)${R}
   ${D}${PROG} accent violet${R}
   ${D}${PROG} dock gauche${R}
   ${D}${PROG} perf max${R}
   ${D}${PROG} share photo.jpg${R}
+  ${D}${PROG} usb import${R}
 
 EOF
 	[[ -n "$LEXOS_HOME_URL" ]] && printf '%s%s%s\n\n' "$D" "$LEXOS_HOME_URL" "$R"
@@ -152,6 +160,12 @@ cmd_upgrade() {
 
 cmd_install() {
 	[[ $# -gt 0 ]] || die "Usage : ${PROG} install <paquet> [paquet…]"
+	case "${1,,}" in
+		chrome|google-chrome|chrome-navigateur)
+			need_root install chrome
+			exec /usr/bin/lexos-install-chrome
+			;;
+	esac
 	need_root install "$@"
 	say "Installation : $*"
 	apt-get update -qq
@@ -400,19 +414,23 @@ cmd_dock() {
 
 cmd_theme() {
 	local mode="${1:-}"
-	command -v xfconf-query >/dev/null 2>&1 \
-		|| die "xfconf-query absent — cette commande demande le bureau XFCE."
-	local gtk icons
+	local gtk icons lexos_mode
 	case "$mode" in
-		dark)  gtk="Arc-Dark";  icons="Papirus-Dark" ;;
-		light) gtk="Arc";       icons="Papirus" ;;
+		dark|sombre|nuit)   gtk="Arc-Dark"; icons="Papirus-Dark"; lexos_mode="sombre" ;;
+		light|clair|jour)   gtk="Arc";      icons="Papirus";      lexos_mode="clair"  ;;
 		accent) shift; cmd_accent "$@"; return ;;
-		*) die "Usage : ${PROG} theme <dark|light>  ·  ${PROG} accent <couleur>" ;;
+		*) die "Usage : ${PROG} theme <sombre|clair>  ·  ${PROG} accent <couleur>" ;;
 	esac
-	xfconf-query -c xsettings -p /Net/ThemeName        -s "$gtk"
-	xfconf-query -c xsettings -p /Net/IconThemeName    -s "$icons"
-	xfconf-query -c xfwm4     -p /general/theme        -s "$gtk"
-	ok "Thème : ${mode} (${gtk} / ${icons})"
+
+	command -v lexos-theme-gen >/dev/null 2>&1 \
+		&& lexos-theme-gen --mode "$lexos_mode" >/dev/null
+
+	if command -v xfconf-query >/dev/null 2>&1; then
+		xfconf-query -c xsettings -p /Net/ThemeName        -s "$gtk"
+		xfconf-query -c xsettings -p /Net/IconThemeName    -s "$icons"
+		xfconf-query -c xfwm4     -p /general/theme        -s "$gtk"
+	fi
+	ok "Thème : ${lexos_mode} (${gtk} / ${icons})"
 }
 
 # =============================================================================
@@ -445,6 +463,7 @@ case "$CMD" in
 	bt|bluetooth)         exec lexos-net bt "$@" ;;
 	share|partage)        exec lexos-share "$@" ;;
 	receive|recevoir)     exec lexos-share receive ;;
+	usb)                  exec lexos-usb "$@" ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

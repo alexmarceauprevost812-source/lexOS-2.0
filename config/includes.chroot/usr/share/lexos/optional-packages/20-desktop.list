@@ -1,8 +1,10 @@
 # Bureau — saveurs standard, dev, full.
 xfce4-goodies
+fish
 xfce4-power-manager
 xfce4-screenshooter
 xfce4-notifyd
+libnotify-bin
 xfce4-taskmanager
 xfce4-whiskermenu-plugin
 xfce4-appfinder
@@ -32,6 +34,8 @@ cups
 system-config-printer
 printer-driver-all
 firefox-esr-l10n-fr
+chromium
+chromium-l10n
 mousepad
 ristretto
 xarchiver
@@ -48,3 +52,4 @@ x11-xserver-utils
 arandr
 autorandr
 xfce4-settings
+gnome-system-tools

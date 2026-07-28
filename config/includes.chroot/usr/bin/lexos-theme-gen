@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  lexos-theme-gen — génère le thème LexOS Noir (GTK + terminal) pour un accent
+#  lexos-theme-gen — génère le thème LexOS (GTK + terminal) pour un accent
 # =============================================================================
 #  Usage :
-#     lexos-theme-gen                      # accent courant, utilisateur courant
+#     lexos-theme-gen                      # accent et mode courants
 #     lexos-theme-gen orange               # change l'accent
 #     lexos-theme-gen bleu --target /etc/skel
+#     lexos-theme-gen --mode clair         # thème de jour (fond blanchâtre)
+#     lexos-theme-gen --mode sombre        # LexOS Noir — défaut
 # =============================================================================
 set -euo pipefail
 
 ACCENT_NAME=""
+MODE=""
 TARGET="$HOME"
 
 # --- Arguments ---------------------------------------------------------------
@@ -17,6 +20,10 @@ while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--target)
 			TARGET="${2:-$HOME}"
+			shift 2
+			;;
+		--mode)
+			MODE="${2:-}"
 			shift 2
 			;;
 		--list)
@@ -38,6 +45,14 @@ CONF_DIR="$TARGET/.config/lexos"
 [[ -z "$ACCENT_NAME" && -r "$CONF_DIR/accent" ]] && ACCENT_NAME="$(cat "$CONF_DIR/accent")"
 [[ -z "$ACCENT_NAME" ]] && ACCENT_NAME="orange"
 
+# --- Mode : sombre (LexOS Noir, défaut) ou clair (thème de jour) -----------
+[[ -z "$MODE" && -r "$CONF_DIR/mode" ]] && MODE="$(cat "$CONF_DIR/mode")"
+[[ -z "$MODE" ]] && MODE="sombre"
+case "${MODE,,}" in
+	clair|jour|light|day)     MODE="clair" ;;
+	sombre|nuit|dark|night|*) MODE="sombre" ;;
+esac
+
 # --- Palette des accents -----------------------------------------------------
 case "${ACCENT_NAME,,}" in
 	orange|ambre)          ACCENT="#E8873A"; ACCENT_HI="#FFA45C"; ACCENT_LO="#B4551C" ;;
@@ -54,19 +69,36 @@ case "${ACCENT_NAME,,}" in
 esac
 ACCENT_NAME="${ACCENT_NAME,,}"
 
-# --- Palette LexOS Noir (invariante) ----------------------------------------
-BG="#000000"        # fond principal : noir pur
-BG_ALT="#0A0A0B"    # surfaces
-BG_HI="#141416"     # survol / lignes
-BORDER="#232326"
-FG="#FFFFFF"        # écriture blanche
-FG_DIM="#B8B8BC"
-TERM_FG="#23A55A"   # vert dark du terminal
+# --- Palette du bureau : LexOS Noir (sombre, défaut) ou thème de jour ------
+#  BTN_FG reste toujours blanc : les boutons sont peints à l'accent dans les
+#  deux modes, et du texte blanc reste lisible dessus quel que soit le mode.
+BTN_FG="#FFFFFF"
+TERM_BG="#000000"       # le terminal reste toujours noir, même en thème de jour
+TERM_FG="#23A55A"       # vert dark du terminal
 TERM_FG_HI="#2ECC71"
+
+if [[ "$MODE" == "clair" ]]; then
+	# Thème de jour : blanc cassé/crème, jamais blanc pur — texte noir.
+	BG="#F7F5F0"
+	BG_ALT="#EFEBE3"
+	BG_HI="#E5DFD3"
+	BORDER="#D9D2C3"
+	FG="#1B1A17"
+	FG_DIM="#6B675E"
+else
+	# LexOS Noir : noir pur, écriture blanche.
+	BG="#000000"
+	BG_ALT="#0A0A0B"
+	BG_HI="#141416"
+	BORDER="#232326"
+	FG="#FFFFFF"
+	FG_DIM="#B8B8BC"
+fi
 
 mkdir -p "$CONF_DIR" "$TARGET/.config/gtk-3.0" "$TARGET/.config/gtk-4.0" \
          "$TARGET/.config/xfce4/terminal"
 printf '%s\n' "$ACCENT_NAME" > "$CONF_DIR/accent"
+printf '%s\n' "$MODE" > "$CONF_DIR/mode"
 
 # =============================================================================
 #  1. Feuille de style GTK 3
@@ -90,14 +122,14 @@ cat <<EOF
 @define-color theme_fg_color            ${FG};
 @define-color theme_text_color          ${FG};
 @define-color theme_selected_bg_color   ${ACCENT};
-@define-color theme_selected_fg_color   ${FG};
+@define-color theme_selected_fg_color   ${BTN_FG};
 @define-color insensitive_bg_color      ${BG_ALT};
 @define-color insensitive_fg_color      ${FG_DIM};
 @define-color borders                   ${BORDER};
 @define-color unfocused_borders         ${BORDER};
 @define-color accent_color              ${ACCENT};
 @define-color accent_bg_color           ${ACCENT};
-@define-color accent_fg_color           ${FG};
+@define-color accent_fg_color           ${BTN_FG};
 @define-color window_bg_color           ${BG};
 @define-color window_fg_color           ${FG};
 @define-color view_bg_color             ${BG};
@@ -136,7 +168,7 @@ button, button.text-button, button.image-button,
 .linked > button, headerbar button, toolbar button {
     background-image: none;
     background-color: ${ACCENT};
-    color: ${FG};
+    color: ${BTN_FG};
     border: 1px solid ${ACCENT_LO};
     border-radius: 6px;
     text-shadow: none;
@@ -183,14 +215,14 @@ entry:focus, spinbutton:focus {
 }
 selection, ::selection {
     background-color: ${ACCENT};
-    color: ${FG};
+    color: ${BTN_FG};
 }
 
 /* --- Sélection dans les listes ------------------------------------------ */
 row:selected, list row:selected, treeview.view:selected,
 iconview:selected, flowboxchild:selected, menuitem:hover, .menuitem:hover {
     background-color: ${ACCENT};
-    color: ${FG};
+    color: ${BTN_FG};
 }
 row:hover, list row:hover { background-color: ${BG_HI}; }
 
@@ -214,7 +246,7 @@ switch { background-color: ${BG_HI}; border: 1px solid ${BORDER}; }
 check:checked, radio:checked {
     background-color: ${ACCENT};
     border-color: ${ACCENT_LO};
-    color: ${FG};
+    color: ${BTN_FG};
 }
 
 /* --- Onglets -------------------------------------------------------------- */
@@ -260,8 +292,8 @@ menu, .menu, .context-menu, popover.menu {
     border-radius: 8px;
 }
 
-/* --- Terminal XFCE : noir + vert foncé ----------------------------------- */
-terminal-window, vte-terminal { background-color: ${BG}; color: ${TERM_FG}; }
+/* --- Terminal XFCE : toujours noir + vert foncé, même en thème de jour --- */
+terminal-window, vte-terminal { background-color: ${TERM_BG}; color: ${TERM_FG}; }
 
 /* --- Liens ---------------------------------------------------------------- */
 link, *:link { color: ${ACCENT_HI}; }
@@ -274,10 +306,12 @@ gen_gtk_css > "$TARGET/.config/gtk-4.0/gtk.css"
 # =============================================================================
 #  2. GTK 2 (vieilles applications)
 # =============================================================================
+GTK2_THEME="Arc-Dark"; GTK2_ICONS="Papirus-Dark"
+[[ "$MODE" == "clair" ]] && { GTK2_THEME="Arc"; GTK2_ICONS="Papirus"; }
 cat > "$TARGET/.gtkrc-2.0" <<EOF
-# LexOS Noir — généré par lexos-theme-gen
-gtk-theme-name="Arc-Dark"
-gtk-icon-theme-name="Papirus-Dark"
+# LexOS — généré par lexos-theme-gen (mode : ${MODE})
+gtk-theme-name="${GTK2_THEME}"
+gtk-icon-theme-name="${GTK2_ICONS}"
 gtk-font-name="Noto Sans 10"
 gtk-cursor-theme-name="Adwaita"
 style "lexos-default" {
@@ -288,13 +322,13 @@ style "lexos-default" {
     bg[INSENSITIVE] = "${BG_ALT}"
     fg[NORMAL]      = "${FG}"
     fg[PRELIGHT]    = "${FG}"
-    fg[SELECTED]    = "${FG}"
+    fg[SELECTED]    = "${BTN_FG}"
     fg[ACTIVE]      = "${FG}"
     fg[INSENSITIVE] = "${FG_DIM}"
     base[NORMAL]    = "${BG}"
     base[SELECTED]  = "${ACCENT}"
     text[NORMAL]    = "${FG}"
-    text[SELECTED]  = "${FG}"
+    text[SELECTED]  = "${BTN_FG}"
 }
 class "GtkWidget" style "lexos-default"
 style "lexos-button" = "lexos-default" {
@@ -324,38 +358,41 @@ MiscConfirmClose=FALSE
 MiscShowUnsafePasteDialog=FALSE
 ScrollingUnlimited=TRUE
 ColorForeground=${TERM_FG}
-ColorBackground=${BG}
+ColorBackground=${TERM_BG}
 ColorCursor=${ACCENT}
-ColorCursorForeground=${BG}
+ColorCursorForeground=${TERM_BG}
 ColorBold=${TERM_FG_HI}
 ColorBoldUseDefault=FALSE
-ColorSelection=${FG}
+ColorSelection=${BTN_FG}
 ColorSelectionBackground=${ACCENT}
 TabActivityColor=${ACCENT}
-ColorPalette=#0B0B0C;#E5484D;${TERM_FG};${ACCENT};#3D8BFD;#8B5CF6;#2AA9A0;#C8C8CC;#4A4A50;#FF6B6F;${TERM_FG_HI};${ACCENT_HI};#6EA8FE;#A78BFA;#4FD6CC;${FG}
+ColorPalette=#0B0B0C;#E5484D;${TERM_FG};${ACCENT};#3D8BFD;#8B5CF6;#2AA9A0;#C8C8CC;#4A4A50;#FF6B6F;${TERM_FG_HI};${ACCENT_HI};#6EA8FE;#A78BFA;#4FD6CC;${BTN_FG}
 BackgroundMode=TERMINAL_BACKGROUND_TRANSPARENT
 BackgroundDarkness=0.94
 EOF
 
 # =============================================================================
-#  4. Icônes teintées à l'accent (outils fichiers)
+#  4. Icônes teintées à l'accent (outils fichiers, archives ZIP…)
 # =============================================================================
-#  Le SVG source contient l'orange par défaut comme jeton ; on le remplace
-#  par l'accent courant puis on rend les tailles usuelles dans le thème
-#  d'icônes de l'utilisateur, qui a priorité sur celui du système.
-ICON_SRC="/usr/share/lexos/branding/icon-files.svg"
-if [[ -r "$ICON_SRC" ]] && command -v rsvg-convert >/dev/null 2>&1; then
+#  Chaque SVG source contient l'orange par défaut comme jeton ; on le
+#  remplace par l'accent courant puis on rend les tailles usuelles dans le
+#  thème d'icônes de l'utilisateur, qui a priorité sur celui du système.
+if command -v rsvg-convert >/dev/null 2>&1; then
 	ICON_DIR="$TARGET/.local/share/icons/hicolor"
-	TMP_SVG="$(mktemp -t lexos-icon-XXXXXX.svg)"
-	sed "s/#E8873A/${ACCENT}/gI" "$ICON_SRC" > "$TMP_SVG"
-	for S in 24 32 48 64 128 256; do
-		mkdir -p "$ICON_DIR/${S}x${S}/apps"
-		rsvg-convert -w "$S" -h "$S" \
-			-o "$ICON_DIR/${S}x${S}/apps/lexos-files.png" "$TMP_SVG" 2>/dev/null || true
+	for ICON_NAME in files zip; do
+		ICON_SRC="/usr/share/lexos/branding/icon-${ICON_NAME}.svg"
+		[[ -r "$ICON_SRC" ]] || continue
+		TMP_SVG="$(mktemp -t lexos-icon-XXXXXX.svg)"
+		sed "s/#E8873A/${ACCENT}/gI" "$ICON_SRC" > "$TMP_SVG"
+		for S in 24 32 48 64 128 256; do
+			mkdir -p "$ICON_DIR/${S}x${S}/apps"
+			rsvg-convert -w "$S" -h "$S" \
+				-o "$ICON_DIR/${S}x${S}/apps/lexos-${ICON_NAME}.png" "$TMP_SVG" 2>/dev/null || true
+		done
+		mkdir -p "$ICON_DIR/scalable/apps"
+		cp "$TMP_SVG" "$ICON_DIR/scalable/apps/lexos-${ICON_NAME}.svg"
+		rm -f "$TMP_SVG"
 	done
-	mkdir -p "$ICON_DIR/scalable/apps"
-	cp "$TMP_SVG" "$ICON_DIR/scalable/apps/lexos-files.svg"
-	rm -f "$TMP_SVG"
 	command -v gtk-update-icon-cache >/dev/null 2>&1 && \
 		gtk-update-icon-cache -f "$ICON_DIR" >/dev/null 2>&1 || true
 fi
@@ -364,13 +401,19 @@ fi
 #  5. Mémoriser l'accent pour les autres outils
 # =============================================================================
 cat > "$CONF_DIR/theme.conf" <<EOF
+LEXOS_MODE=${MODE}
 LEXOS_ACCENT_NAME=${ACCENT_NAME}
 LEXOS_ACCENT=${ACCENT}
 LEXOS_ACCENT_HI=${ACCENT_HI}
 LEXOS_ACCENT_LO=${ACCENT_LO}
 LEXOS_BG=${BG}
 LEXOS_FG=${FG}
+LEXOS_BTN_FG=${BTN_FG}
 LEXOS_TERM_FG=${TERM_FG}
 EOF
 
-printf 'Thème LexOS Noir généré — accent : %s (%s)\n' "$ACCENT_NAME" "$ACCENT"
+if [[ "$MODE" == "clair" ]]; then
+	printf 'Thème LexOS — jour (clair) généré — accent : %s (%s)\n' "$ACCENT_NAME" "$ACCENT"
+else
+	printf 'Thème LexOS Noir généré — accent : %s (%s)\n' "$ACCENT_NAME" "$ACCENT"
+fi

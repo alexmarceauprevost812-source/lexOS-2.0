@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Réseau (Wi-Fi, filaire, avion)
+Comment=Icône réseau dans la barre du haut, comme Ubuntu
+Exec=nm-applet
+Icon=network-wireless
+X-GNOME-Autostart-enabled=true
+NoDisplay=true

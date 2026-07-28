@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-install-chrome — installe Google Chrome (dépôt officiel Google)
+# =============================================================================
+#  Chrome n'est pas un logiciel libre et n'est pas dans les dépôts Debian :
+#  ce script ajoute le dépôt officiel de Google (avec sa clé de signature)
+#  puis installe google-chrome-stable. Nécessite une connexion internet.
+#  Appelé via : lexos install chrome
+# =============================================================================
+set -uo pipefail
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; E=$'\033[31m'; R=$'\033[0m'
+else
+	O=''; G=''; E=''; R=''
+fi
+say() { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()  { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+die() { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+[[ $EUID -eq 0 ]] || die "Cette commande demande les droits administrateur (root)."
+
+command -v curl >/dev/null 2>&1 || apt-get install -y curl >/dev/null 2>&1
+
+KEYRING=/usr/share/keyrings/google-chrome.gpg
+REPO_LIST=/etc/apt/sources.list.d/google-chrome.list
+
+say "Ajout du dépôt Google Chrome…"
+curl -fsSL https://dl.google.com/linux/linux_signing_key.pub 2>/dev/null \
+	| gpg --dearmor 2>/dev/null > "$KEYRING" \
+	|| die "Impossible de récupérer la clé Google — vérifie ta connexion internet."
+
+printf 'deb [arch=amd64 signed-by=%s] https://dl.google.com/linux/chrome/deb/ stable main\n' \
+	"$KEYRING" > "$REPO_LIST"
+
+say "Installation de Google Chrome…"
+apt-get update -qq || die "Échec de la mise à jour des listes — dépôt Google injoignable ?"
+apt-get install -y google-chrome-stable \
+	|| die "Installation échouée. Le dépôt reste configuré, réessaie : apt-get install google-chrome-stable"
+
+ok "Google Chrome installé — cherche-le dans le menu Applications."

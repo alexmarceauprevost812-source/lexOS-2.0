@@ -78,17 +78,19 @@ done
 mkdir -p /usr/share/icons/hicolor/scalable/apps
 [ -r "$BRAND/logo.svg" ] && cp "$BRAND/logo.svg" /usr/share/icons/hicolor/scalable/apps/lexos.svg
 
-# --- Icône « outils fichiers » (lexos-files) — orange par défaut ------------
+# --- Icônes teintables (lexos-files, lexos-zip) — orange par défaut --------
 #  À l'exécution, lexos-theme-gen en produit une version à la couleur
 #  d'accent dans ~/.local/share/icons, qui a priorité sur celle-ci.
-if [ -r "$BRAND/icon-files.svg" ]; then
+for NAME in files zip; do
+	SRC="$BRAND/icon-${NAME}.svg"
+	[ -r "$SRC" ] || continue
 	for SIZE in 16 22 24 32 48 64 128 256; do
 		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
 		mkdir -p "$DIR"
-		render "$BRAND/icon-files.svg" "$SIZE" "$SIZE" "$DIR/lexos-files.png"
+		render "$SRC" "$SIZE" "$SIZE" "$DIR/lexos-${NAME}.png"
 	done
-	cp "$BRAND/icon-files.svg" /usr/share/icons/hicolor/scalable/apps/lexos-files.svg
-fi
+	cp "$SRC" "/usr/share/icons/hicolor/scalable/apps/lexos-${NAME}.svg"
+done
 
 if [ -n "$LOGO_SRC" ]; then
 	case "$LOGO_SRC" in

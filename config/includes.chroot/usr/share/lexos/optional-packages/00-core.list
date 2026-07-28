@@ -11,6 +11,12 @@ hwinfo
 btrfs-progs
 exfatprogs
 gvfs-backends
+libmtp-common
+mtp-tools
+libimobiledevice6
+usbmuxd
+ifuse
+curl
 vim-tiny
 p7zip-full
 jq

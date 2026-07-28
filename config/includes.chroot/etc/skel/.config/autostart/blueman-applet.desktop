@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Bluetooth
+Comment=Icône Bluetooth dans la barre du haut, comme Ubuntu
+Exec=blueman-applet
+Icon=bluetooth
+X-GNOME-Autostart-enabled=true
+NoDisplay=true

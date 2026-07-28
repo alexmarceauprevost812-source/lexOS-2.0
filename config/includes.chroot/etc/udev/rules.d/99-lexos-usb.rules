@@ -1,0 +1,9 @@
+# =============================================================================
+#  LexOS — notification de bureau au branchement/débranchement d'un appareil USB
+# =============================================================================
+#  Ne concerne que les appareils USB de premier niveau (usb_device), pas
+#  chaque interface qu'ils exposent — sinon une seule souris ou clé USB
+#  déclencherait plusieurs notifications identiques.
+# =============================================================================
+SUBSYSTEM=="usb", ACTION=="add",    ENV{DEVTYPE}=="usb_device", RUN+="/usr/bin/lexos-usb-notify"
+SUBSYSTEM=="usb", ACTION=="remove", ENV{DEVTYPE}=="usb_device", RUN+="/usr/bin/lexos-usb-notify"

@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-unzip — extraire une ou plusieurs archives en un clic
+# =============================================================================
+#  Appelé par l'action « Extraire ici » du clic droit (Thunar), ou en ligne
+#  de commande. Extrait chaque archive à côté d'elle, dans un dossier portant
+#  son nom, et notifie le résultat.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8*|*utf8*|*UTF8*|*utf-8*) ;;
+	*) locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$' && export LC_ALL=C.UTF-8 ;;
+esac
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; E=$'\033[31m'; R=$'\033[0m'
+else
+	O=''; G=''; E=''; R=''
+fi
+say() { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()  { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+err() { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; }
+
+notify() { command -v notify-send >/dev/null 2>&1 && notify-send -i lexos-zip "$@" 2>/dev/null || true; }
+
+[[ $# -gt 0 ]] || { err "Usage : ${PROG} <archive.zip> [archive2.zip …]"; exit 1; }
+
+extract_one() { # extract_one <archive>
+	local src="$1" dir base tool
+	[[ -f "$src" ]] || { err "Introuvable : $src"; return 1; }
+
+	base="$(basename "$src")"
+	case "${src,,}" in
+		*.tar.gz|*.tar.bz2|*.tar.xz) dir="${src%.*.*}" ;;
+		*)                           dir="${src%.*}" ;;
+	esac
+	# Nom déjà pris : on numérote plutôt que d'écraser des fichiers existants.
+	local candidate="$dir" i=1
+	while [[ -e "$candidate" ]]; do candidate="${dir} (${i})"; i=$((i + 1)); done
+	dir="$candidate"
+
+	say "Extraction : ${base}"
+	mkdir -p "$dir"
+
+	case "${src,,}" in
+		*.zip)
+			tool="unzip"
+			command -v unzip >/dev/null 2>&1 && unzip -oq "$src" -d "$dir" ;;
+		*.tar.gz|*.tgz)
+			tool="tar"; tar -xzf "$src" -C "$dir" ;;
+		*.tar.bz2|*.tbz2)
+			tool="tar"; tar -xjf "$src" -C "$dir" ;;
+		*.tar.xz|*.txz)
+			tool="tar"; tar -xJf "$src" -C "$dir" ;;
+		*.tar)
+			tool="tar"; tar -xf "$src" -C "$dir" ;;
+		*.7z)
+			tool="7z"; command -v 7z >/dev/null 2>&1 && 7z x -y -o"$dir" "$src" >/dev/null ;;
+		*.rar)
+			tool="unrar"; command -v unrar >/dev/null 2>&1 && unrar x -y "$src" "$dir/" >/dev/null ;;
+		*)
+			err "Format non reconnu : ${base}"
+			rmdir "$dir" 2>/dev/null || true
+			return 1
+			;;
+	esac
+	local rc=$?
+
+	if ! command -v "$tool" >/dev/null 2>&1; then
+		err "Outil manquant pour ce format : ${tool} (lexos install ${tool})"
+		rmdir "$dir" 2>/dev/null || true
+		return 1
+	fi
+
+	if (( rc == 0 )); then
+		ok "Extrait dans : $(basename "$dir")/"
+		notify "LexOS" "« ${base} » extrait dans $(basename "$dir")/"
+		return 0
+	else
+		err "Échec de l'extraction : ${base}"
+		notify "LexOS — échec" "Extraction impossible : ${base}"
+		return 1
+	fi
+}
+
+fail=0
+for f in "$@"; do
+	extract_one "$f" || fail=1
+done
+exit $fail

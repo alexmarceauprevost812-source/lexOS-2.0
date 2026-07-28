@@ -1,0 +1,31 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-usb-notify — notification de bureau au branchement/débranchement USB
+# =============================================================================
+#  Appelé par udev (voir /etc/udev/rules.d/99-lexos-usb.rules), jamais par la
+#  main. udev fournit ACTION et les variables ID_* dans l'environnement.
+#  Une notification atteint chaque session graphique ouverte, quel que soit
+#  l'utilisateur connecté.
+# =============================================================================
+set -eu
+
+ACTION="${ACTION:-add}"
+NAME="${ID_MODEL:-appareil USB}"
+NAME="$(printf '%s' "$NAME" | tr '_' ' ')"
+VENDOR="${ID_VENDOR:-}"
+VENDOR="$(printf '%s' "$VENDOR" | tr '_' ' ')"
+[ -n "$VENDOR" ] && [ "$VENDOR" != "$NAME" ] && NAME="$VENDOR $NAME"
+
+case "$ACTION" in
+	add)    TITLE="LexOS — appareil branché";     ICON="media-removable" ;;
+	remove) TITLE="LexOS — appareil débranché";   ICON="media-eject" ;;
+	*)      exit 0 ;;
+esac
+
+for bus in /run/user/*/bus; do
+	[ -S "$bus" ] || continue
+	uid="$(basename "$(dirname "$bus")")"
+	sudo -u "#${uid}" \
+		DBUS_SESSION_BUS_ADDRESS="unix:path=${bus}" \
+		notify-send -i "$ICON" "$TITLE" "$NAME" 2>/dev/null || true
+done
