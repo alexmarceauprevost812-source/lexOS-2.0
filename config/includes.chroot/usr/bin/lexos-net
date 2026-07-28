@@ -200,6 +200,35 @@ cmd_connect() {
 		|| die "Connexion refusée — mot de passe incorrect, ou réseau hors de portée."
 }
 
+# =============================================================================
+#  Réseau caché (SSID non diffusé) : n'apparaît jamais dans un scan normal —
+#  il faut connaître son nom exact et s'y connecter directement.
+# =============================================================================
+cmd_hidden() {
+	need_nm
+	local ssid="${1:-}" pass="${2:-}"
+	[[ -n "$ssid" ]] || die "Usage : ${PROG} hidden \"<nom exact du réseau>\" [mot de passe]"
+
+	[[ "$(nmcli -t radio wifi 2>/dev/null)" == "enabled" ]] \
+		|| die "Le Wi-Fi est éteint. Rallume-le : ${PROG} wifi on  (ou ${PROG} avion off)"
+
+	if [[ -z "$pass" ]]; then
+		printf 'Mot de passe pour le réseau caché « %s » (vide si ouvert) : ' "$ssid"
+		read -r -s pass
+		printf '\n'
+	fi
+
+	say "Connexion au réseau caché « ${ssid} »…"
+	if [[ -n "$pass" ]]; then
+		nmcli device wifi connect "$ssid" password "$pass" hidden yes >/dev/null 2>&1 \
+			&& { ok "Connecté à « ${ssid} »"; return 0; }
+	else
+		nmcli device wifi connect "$ssid" hidden yes >/dev/null 2>&1 \
+			&& { ok "Connecté à « ${ssid} » (sans mot de passe)"; return 0; }
+	fi
+	die "Connexion à « ${ssid} » impossible — vérifie le nom exact (sensible à la casse) et le mot de passe."
+}
+
 cmd_disconnect() {
 	need_nm
 	local dev
@@ -240,6 +269,43 @@ cmd_password() {
 		printf '  %-20s %s%s%s\n' "Mot de passe" "$B$G" "$pass" "$R"
 	else
 		warn "« ${ssid} » n'a pas de mot de passe enregistré (réseau ouvert, ou entreprise/802.1x)."
+	fi
+}
+
+# =============================================================================
+#  Qui est sur le réseau : appareils détectés sur le même réseau local
+# =============================================================================
+cmd_devices() {
+	need_nm
+	local iface subnet
+	iface="$(nmcli -t -f DEVICE,STATE,TYPE device 2>/dev/null \
+		| awk -F: '$2=="connected" && ($3=="wifi" || $3=="ethernet") {print $1; exit}')"
+	[[ -n "$iface" ]] || die "Aucune connexion réseau active."
+
+	subnet="$(ip -4 -o addr show "$iface" 2>/dev/null | awk '{print $4; exit}')"
+	[[ -n "$subnet" ]] || die "Impossible de déterminer le réseau local sur ${iface}."
+
+	say "Recherche des appareils sur ${subnet} (${iface})…"
+
+	if command -v arp-scan >/dev/null 2>&1; then
+		local out
+		out="$(arp-scan --interface="$iface" --localnet 2>/dev/null \
+			| awk '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/{print}')"
+		[[ -n "$out" ]] || { warn "Aucun appareil trouvé (ou arp-scan a besoin des droits root : sudo ${PROG} devices)."; return 0; }
+		printf '\n  %-16s %-19s %s\n' "IP" "MAC" "FABRICANT"
+		printf '  %s\n' "$(printf '─%.0s' {1..70})"
+		printf '%s\n' "$out" | awk -F'\t' '{printf "  %-16s %-19s %s\n", $1, $2, $3}'
+		printf '\n  %s appareil(s) trouvé(s)\n\n' "$(printf '%s\n' "$out" | grep -c .)"
+	elif command -v nmap >/dev/null 2>&1; then
+		local out
+		out="$(nmap -sn "$subnet" 2>/dev/null | grep -E 'Nmap scan report|MAC Address')"
+		[[ -n "$out" ]] || { warn "Aucun appareil trouvé."; return 0; }
+		printf '\n%s\n\n' "$out"
+	else
+		warn "arp-scan et nmap absents — liste limitée au cache ARP (appareils déjà vus) :"
+		printf '\n  %-16s %-19s %s\n' "IP" "MAC" "ÉTAT"
+		ip neigh show 2>/dev/null | awk '{printf "  %-16s %-19s %s\n", $1, $5, $NF}'
+		printf '\n  %sPour un vrai scan : lexos install arp-scan%s\n\n' "$D" "$R"
 	fi
 }
 
@@ -534,10 +600,12 @@ ${B}MODE AVION${R}
 ${B}WI-FI${R}
   ${A}scan${R}                  Cherche les réseaux à portée
   ${A}connect "<réseau>" [mdp]${R}  Se connecte ${D}(demande le mot de passe si besoin)${R}
+  ${A}hidden "<réseau>" [mdp]${R}   Réseau caché ${D}(SSID non diffusé, invisible dans scan)${R}
   ${A}disconnect${R}            Se déconnecte
   ${A}forget "<réseau>"${R}     Oublie un réseau et son mot de passe
   ${A}password ["<réseau>"]${R} Retrouve le mot de passe enregistré ${D}(mot de passe oublié)${R}
   ${A}list${R}                  Réseaux enregistrés
+  ${A}devices${R}               Qui est sur ton réseau : appareils détectés
   ${A}wifi on|off${R}           Allume ou éteint la carte Wi-Fi
 
 ${B}BLUETOOTH${R}
@@ -574,10 +642,12 @@ case "$CMD" in
 	scan|search|cherche)     cmd_scan ;;
 	wifi)                    cmd_wifi "$@" ;;
 	connect|co)              cmd_connect "$@" ;;
+	hidden|cache|cachee)     cmd_hidden "$@" ;;
 	disconnect|deco)         cmd_disconnect ;;
 	forget|oublie)           cmd_forget "$@" ;;
 	password|mdp|mot-de-passe) cmd_password "$@" ;;
 	list|ls)                 cmd_list ;;
+	devices|appareils|qui)   cmd_devices ;;
 	bt|bluetooth)            cmd_bt "$@" ;;
 	auto|auto-ouvert)        cmd_auto "$@" ;;
 	*) die "Commande inconnue : ${CMD}  (essaie : ${PROG} help)" ;;

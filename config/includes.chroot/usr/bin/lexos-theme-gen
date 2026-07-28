@@ -387,7 +387,7 @@ EOF
 #  thème d'icônes de l'utilisateur, qui a priorité sur celui du système.
 if command -v rsvg-convert >/dev/null 2>&1; then
 	ICON_DIR="$TARGET/.local/share/icons/hicolor"
-	for ICON_NAME in files zip; do
+	for ICON_NAME in files zip wifi bluetooth; do
 		ICON_SRC="/usr/share/lexos/branding/icon-${ICON_NAME}.svg"
 		[[ -r "$ICON_SRC" ]] || continue
 		TMP_SVG="$(mktemp -t lexos-icon-XXXXXX.svg)"

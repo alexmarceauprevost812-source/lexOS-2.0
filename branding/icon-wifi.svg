@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — icône Wi-Fi. Carré arrondi + symbole Wi-Fi (arcs + point) blanc.
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen
+  avant le rendu des PNG — comme icon-files.svg et icon-zip.svg.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Wi-Fi LexOS">
+
+  <!-- Fond : carré arrondi -->
+  <rect x="40" y="40" width="432" height="432" rx="96" fill="#E8590C"/>
+  <rect x="40" y="40" width="432" height="216" rx="96" fill="#FFFFFF" opacity="0.08"/>
+
+  <!-- Symbole Wi-Fi : trois arcs concentriques + point -->
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
+    <path d="M 308.6 347.5 A 58 58 0 0 0 203.4 347.5" stroke-width="26"/>
+    <path d="M 353.9 326.4 A 108 108 0 0 0 158.1 326.4" stroke-width="26"/>
+    <path d="M 399.2 305.2 A 158 158 0 0 0 112.8 305.2" stroke-width="26"/>
+  </g>
+  <circle cx="256" cy="372" r="20" fill="#FFFFFF"/>
+</svg>

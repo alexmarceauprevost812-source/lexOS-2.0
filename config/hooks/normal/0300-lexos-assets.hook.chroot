@@ -86,7 +86,7 @@ mkdir -p /usr/share/icons/hicolor/scalable/apps
 # --- Icônes teintables (lexos-files, lexos-zip) — orange par défaut --------
 #  À l'exécution, lexos-theme-gen en produit une version à la couleur
 #  d'accent dans ~/.local/share/icons, qui a priorité sur celle-ci.
-for NAME in files zip; do
+for NAME in files zip wifi bluetooth; do
 	SRC="$BRAND/icon-${NAME}.svg"
 	[ -r "$SRC" ] || continue
 	for SIZE in 16 22 24 32 48 64 128 256; do
