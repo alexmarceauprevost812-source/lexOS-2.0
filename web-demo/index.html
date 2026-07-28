@@ -143,6 +143,12 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .gly-bt{-webkit-mask-image:var(--m-bt);mask-image:var(--m-bt)}
 .gly-wifi{-webkit-mask-image:var(--m-wifi);mask-image:var(--m-wifi)}
 .gly-avion{-webkit-mask-image:var(--m-avion);mask-image:var(--m-avion)}
+/*  L'aiguille balaie jusqu'à sa nouvelle valeur — léger dépassement, comme
+    une vraie aiguille lancée. Respecte « animations réduites » du système. */
+.gauge{display:block}
+.gauge .needle{transform-box:view-box;transform-origin:256px 256px;
+  transition:transform .9s cubic-bezier(.34,1.28,.44,1)}
+@media (prefers-reduced-motion:reduce){ .gauge .needle{transition:none} }
 .gly-share{-webkit-mask-image:var(--m-share);mask-image:var(--m-share)}
 /*  Le Wi-Fi dit son état par sa couleur : vert connecté, orange connecté mais
     sans accès à internet, rouge pas de connexion. Ces couleurs portent le
@@ -716,6 +722,54 @@ const PERF_LABEL = {petit:"Petit — machine modeste, autonomie maximale",
   performant:"Performant — priorité à la vitesse",
   max:"Performance max — tout à fond, secteur recommandé"};
 
+/* --- Compte-tours de performance ----------------------------------------
+   Un vrai cadran plutôt qu'une image figée : seule l'aiguille tourne, et la
+   transition CSS la fait BALAYER jusqu'à la nouvelle valeur au lieu de sauter.
+   Échelle 0-9, comme un compte-tours : petit 2 · medium 4 · performant 6 ·
+   max 9, zone rouge à partir de 8. */
+const PERF_RPM = {petit:2, medium:4, performant:6, max:9};
+const G_A0 = -125, G_A1 = 125, G_VMAX = 9;
+function gaugeAngle(v){ return G_A0 + (G_A1-G_A0)*(v/G_VMAX); }
+function gaugePt(a, r){
+  const t=(a-90)*Math.PI/180;
+  return [256+r*Math.cos(t), 256+r*Math.sin(t)];
+}
+function gaugeArc(v0, v1, r){
+  const [x0,y0]=gaugePt(gaugeAngle(v0),r), [x1,y1]=gaugePt(gaugeAngle(v1),r);
+  return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r} ${r} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+}
+function gaugeDial(){
+  let tk="", nb="";
+  for(let i=0;i<=9;i++){
+    const a=gaugeAngle(i);
+    const [x0,y0]=gaugePt(a,126), [x1,y1]=gaugePt(a,152);
+    tk+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke-width="13"/>`;
+    const [mx,my]=gaugePt(a,100);
+    nb+=`<text x="${mx.toFixed(1)}" y="${(my+13).toFixed(1)}" text-anchor="middle">${i}</text>`;
+    if(i<9){
+      const a2=gaugeAngle(i+0.5);
+      const [u0,v0]=gaugePt(a2,139), [u1,v1]=gaugePt(a2,152);
+      tk+=`<line x1="${u0.toFixed(1)}" y1="${v0.toFixed(1)}" x2="${u1.toFixed(1)}" y2="${v1.toFixed(1)}" stroke-width="7"/>`;
+    }
+  }
+  return `<path d="${gaugeArc(0,9,150)}" fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round" opacity=".35"/>`+
+         `<path d="${gaugeArc(8,9,150)}" fill="none" stroke="#FF3B30" stroke-width="11" stroke-linecap="round"/>`+
+         `<g stroke="currentColor" stroke-linecap="round" opacity=".85">${tk}</g>`+
+         `<g fill="currentColor" opacity=".85" font-family="ui-monospace,monospace" font-weight="700" font-size="38">${nb}</g>`;
+}
+//  size : côté en pixels. profil : clé de PERF_RPM (défaut : profil courant).
+function perfGauge(size, profil){
+  const v = PERF_RPM[profil || state.perf] ?? 4;
+  return `<svg class="gauge" viewBox="0 0 512 512" width="${size}" height="${size}" aria-hidden="true">`+
+    gaugeDial()+
+    `<g class="needle" style="transform:rotate(${gaugeAngle(v)}deg)">`+
+      `<line x1="256" y1="284" x2="256" y2="138" stroke="currentColor" stroke-width="17" stroke-linecap="round"/>`+
+    `</g>`+
+    `<circle cx="256" cy="256" r="25" fill="currentColor"/>`+
+    `<circle cx="256" cy="256" r="10" fill="var(--bg)"/>`+
+  `</svg>`;
+}
+
 function termHTML(){
   return `<div class="term" id="tout"></div>`;
 }
@@ -1255,7 +1309,11 @@ function settingsSection(key){
     case "energie": return `<h2>Énergie</h2><div class="sub">Profil de performance</div>
       <div class="row">${["petit","medium","performant","max"].map(p=>
         `<button class="btn ${p===state.perf?"":"ghost"}" onclick="setPerf('${p}')">${p}</button>`).join("")}</div>
-      <p class="sub" style="margin-top:8px">${PERF_LABEL[state.perf]}</p>
+      <div style="display:flex;align-items:center;gap:18px;margin-top:12px">
+        <span style="color:var(--ac)">${perfGauge(132)}</span>
+        <div><div class="t" style="font-weight:600">${state.perf} — ${PERF_RPM[state.perf]}000 tr/min</div>
+        <div class="d">${PERF_LABEL[state.perf]}</div></div>
+      </div>
       <p class="notice">Sur la vraie ISO, chaque profil règle vraiment le gouverneur CPU, zram,
       compositing et services (<code>lexos perf</code>).</p>`;
     case "usb": return `<h2>Appareils USB</h2><div class="sub">Branchements détectés</div>
@@ -1371,7 +1429,26 @@ function toggleWifiAuto(){ state.wifiAuto=!state.wifiAuto; showSettingsSection()
 function toggleWifiIssue(){ state.wifiIssue=!state.wifiIssue; showSettingsSection(); qsRefreshIfOpen(); }
 //  Le panneau rapide, s'il est ouvert, doit refléter le changement tout de suite.
 function qsRefreshIfOpen(){ const p=document.querySelector(".qs-panel"); if(p) p.innerHTML=qsRender(); }
-function setPerf(p){ state.perf=p; setCrt(p==="performant"||p==="max"); showSettingsSection(); }
+function setPerf(p){
+  const avant = state.perf;
+  state.perf = p;
+  setCrt(p==="performant"||p==="max");
+  showSettingsSection();
+  qsRefreshIfOpen();
+  //  showSettingsSection() recrée le SVG : un élément neuf n'a pas d'état de
+  //  départ, l'aiguille sauterait donc à sa place sans transition. On la
+  //  repositionne d'abord sur l'ANCIENNE valeur, sans transition, puis on
+  //  lance la nouvelle à l'image suivante — ce qui donne le balayage.
+  requestAnimationFrame(()=>{
+    document.querySelectorAll(".gauge .needle").forEach(n=>{
+      n.style.transition = "none";
+      n.style.transform  = `rotate(${gaugeAngle(PERF_RPM[avant] ?? 4)}deg)`;
+      void n.getBoundingClientRect();          // force le navigateur à appliquer
+      n.style.transition = "";
+      n.style.transform  = `rotate(${gaugeAngle(PERF_RPM[p] ?? 4)}deg)`;
+    });
+  });
+}
 function renderSettingsNav(cur){
   return SETTINGS_NAV.map(g=>
     `<div class="grp">${g.grp}</div>`+
@@ -1529,7 +1606,7 @@ function qsRender(){
   ];
   if(!compact){
     tiles.push(
-      qsTileHTML("perf","◈","Performance", PERF_LABEL[state.perf].split(" —")[0], state.perf==="performant"||state.perf==="max", false, false),
+      qsTileHTML("perf",perfGauge(19),"Performance", PERF_LABEL[state.perf].split(" —")[0], state.perf==="performant"||state.perf==="max", false, false),
       qsTileHTML("theme", state.mode==="clair"?"☀":"🌑", state.mode==="clair"?"Style clair":"Style sombre",
         state.mode==="clair"?"Thème de jour":"LexOS Noir", state.mode==="clair", false, false),
       qsTileHTML("clavier","⌨","Clavier", "Français (Québec)", false, false, false),
