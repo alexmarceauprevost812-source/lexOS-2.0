@@ -297,6 +297,20 @@ body.light .btn{color:var(--btn-fg)}
 #screen.on{animation:crtPowerOn .8s ease-out}
 body.off #screen{animation:crtOff .5s ease-in forwards}
 
+/* --- Verrouillage / mise en veille / extinction -------------------------- */
+#powerOverlay{position:fixed;inset:0;z-index:2100;background:#000;display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:18px;
+  cursor:pointer;color:#fff;text-align:center}
+#powerOverlay.on{display:flex;animation:fadeIn .25s ease-out}
+#powerOverlay .picto{font-size:52px;opacity:.9}
+#powerOverlay .msg{font-size:15px;color:#c8c8cc}
+#powerOverlay .msg b{color:#fff}
+#powerOverlay .hint{font-size:12px;color:#6e6e74;letter-spacing:.05em}
+#powerOverlay.suspend{transition:opacity .4s ease}
+
+/* --- Menu de démarrage/veille/extinction --------------------------------- */
+.pw-menu button .picto{width:18px;display:inline-block;text-align:center}
+
 /* Bandeau démo */
 #demobar{position:fixed;bottom:8px;left:8px;z-index:950;font-size:11.5px;
   color:var(--fg-dim);background:rgba(10,10,11,.8);border:1px solid var(--bd);
@@ -326,7 +340,7 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
     <span id="clock"></span>
     <div id="tray">
       <button id="qsBtn"  title="Paramètres rapides">▲</button>
-      <button id="offBtn" title="Éteindre">⏻</button>
+      <button id="offBtn" title="Marche, veille, redémarrer, éteindre">⏻</button>
     </div>
   </div>
 
@@ -344,6 +358,8 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
   <div class="bar"><i></i></div>
   <div class="sub">TI·LEX·AL — 1.0 NOMAD</div>
 </div>
+
+<div id="powerOverlay" onclick="powerOverlayClick()"></div>
 
 <script>
 "use strict";
@@ -1191,11 +1207,65 @@ document.addEventListener("keydown",e=>{
 });
 document.getElementById("appsBtn").onclick=e=>{ e.stopPropagation(); toggleApps(); };
 document.getElementById("qsBtn").onclick=e=>{ e.stopPropagation(); qsToggle(); };
-document.getElementById("offBtn").onclick=()=>{
-  if(!confirm("Éteindre la démo LexOS ?")) return;
+
+/* ======================= Menu de démarrage ======================= */
+let pwMenuEl=null, powerState=null;   // powerState: null | "lock" | "off"
+function pwClose(){ if(pwMenuEl){ pwMenuEl.remove(); pwMenuEl=null; } }
+function pwToggle(btn){
+  if(pwMenuEl){ pwClose(); return; }
+  const r=btn.getBoundingClientRect();
+  pwMenuEl=document.createElement("div");
+  pwMenuEl.className="menu pw-menu";
+  pwMenuEl.style.top=(r.bottom+6)+"px"; pwMenuEl.style.left="auto";
+  pwMenuEl.style.right=Math.max(8, innerWidth-r.right)+"px";
+  pwMenuEl.innerHTML=
+    `<button onclick="pwLock()"><span class="picto">🔒</span> Verrouiller l'écran</button>`+
+    `<div class="msep"></div>`+
+    `<button onclick="pwSuspend()"><span class="picto">🌙</span> Mettre en veille</button>`+
+    `<button onclick="pwRestart()"><span class="picto">↻</span> Redémarrer</button>`+
+    `<button onclick="pwShutdown()"><span class="picto">⏻</span> Éteindre</button>`;
+  document.body.appendChild(pwMenuEl);
+}
+document.addEventListener("click", e=>{
+  if(pwMenuEl && !e.target.closest(".pw-menu,#offBtn")) pwClose();
+});
+
+function showPowerOverlay(kind, picto, msg, hint){
+  pwClose();
+  const el=document.getElementById("powerOverlay");
+  el.className="on"; el.classList.toggle("suspend", kind==="suspend");
+  el.innerHTML=`<div class="picto">${picto}</div><div class="msg">${msg}</div>`+
+    (hint?`<div class="hint">${hint}</div>`:"");
+  powerState=kind;
+}
+function pwLock(){
+  showPowerOverlay("lock","🔒","Session verrouillée — <b>lex</b>","Clique pour déverrouiller");
+}
+function pwSuspend(){
+  showPowerOverlay("suspend","🌙","Mise en veille…","");
+  setTimeout(()=>{
+    if(powerState!=="suspend") return;
+    document.getElementById("powerOverlay").className="";
+    powerState=null;
+  }, 1400);
+}
+function pwRestart(){
+  pwClose();
+  document.querySelectorAll(".win").forEach(w=>w.remove());
   document.body.classList.add("off");
   setTimeout(()=>{ document.body.classList.remove("off"); boot(); }, 700);
-};
+}
+function pwShutdown(){
+  showPowerOverlay("off","⏻","Système éteint","Clique pour rallumer");
+}
+function powerOverlayClick(){
+  if(powerState==="lock" || powerState==="off"){
+    document.getElementById("powerOverlay").className="";
+    const was=powerState; powerState=null;
+    if(was==="off") boot();
+  }
+}
+document.getElementById("offBtn").onclick=e=>{ e.stopPropagation(); pwToggle(e.currentTarget); };
 
 /* ======================= Horloge & démarrage ======================= */
 function tick(){
