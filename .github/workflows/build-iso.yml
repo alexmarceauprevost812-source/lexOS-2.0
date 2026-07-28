@@ -1,7 +1,14 @@
 name: Construire l'ISO
 
-# Lancement manuel uniquement : une construction consomme beaucoup de temps
-# et de bande passante. Onglet « Actions » → « Construire l'ISO » → « Run workflow ».
+# Deux façons de lancer une construction :
+#
+#   1. Onglet Actions → « Construire l'ISO » → Run workflow
+#      (disponible une fois ce fichier présent sur la branche par défaut)
+#
+#   2. Pousser une étiquette commençant par « iso- » :
+#         git tag iso-standard-1 && git push origin iso-standard-1
+#      La saveur est lue dans le nom de l'étiquette. C'est la méthode qui
+#      fonctionne depuis n'importe quelle branche, sans rien fusionner.
 on:
   workflow_dispatch:
     inputs:
@@ -12,27 +19,78 @@ on:
         type: choice
         options: [minimal, standard, dev, full]
       suite:
-        description: 'Suite Debian (bookworm = stable)'
+        description: 'Suite Debian (trixie = Debian 13)'
         required: false
-        default: 'bookworm'
+        default: 'trixie'
         type: string
+  push:
+    tags:
+      - 'iso-*'
+
+permissions:
+  contents: read
 
 jobs:
   iso:
-    name: ISO ${{ inputs.flavour }}
+    name: ISO LexOS
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 300
 
     steps:
       - uses: actions/checkout@v4
 
+      # ------------------------------------------------------------------
+      #  Que construit-on ? Selon le déclencheur, les paramètres viennent
+      #  des entrées du workflow ou du nom de l'étiquette.
+      # ------------------------------------------------------------------
+      - name: Déterminer la saveur et la suite
+        id: quoi
+        run: |
+          FLAVOUR="${{ inputs.flavour }}"
+          SUITE="${{ inputs.suite }}"
+
+          if [ -z "$FLAVOUR" ]; then
+            # Déclenché par une étiquette : on lit la saveur dans son nom.
+            TAG="${GITHUB_REF_NAME}"
+            case "$TAG" in
+              *minimal*) FLAVOUR=minimal ;;
+              *dev*)     FLAVOUR=dev ;;
+              *full*)    FLAVOUR=full ;;
+              *)         FLAVOUR=standard ;;
+            esac
+            case "$TAG" in
+              *bookworm*) SUITE=bookworm ;;
+              *)          SUITE=trixie ;;
+            esac
+            echo "Étiquette « $TAG » → saveur $FLAVOUR, suite $SUITE"
+          fi
+
+          [ -n "$SUITE" ] || SUITE=trixie
+
+          echo "flavour=$FLAVOUR" >> "$GITHUB_OUTPUT"
+          echo "suite=$SUITE"     >> "$GITHUB_OUTPUT"
+          echo "## LexOS — saveur \`$FLAVOUR\` sur Debian \`$SUITE\`" >> "$GITHUB_STEP_SUMMARY"
+
+      # ------------------------------------------------------------------
+      #  Le runner GitHub arrive avec ~25 Go occupés par des SDK dont on
+      #  n'a aucun usage. Une ISO complète en réclame bien plus.
+      # ------------------------------------------------------------------
       - name: Libérer de l'espace disque
         run: |
-          echo "Avant :"; df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost
-          sudo docker image prune --all --force || true
-          echo "Après :"; df -h /
+          echo "Avant :"; df -h / | tail -1
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            /usr/local/share/powershell \
+            /usr/lib/jvm \
+            /usr/share/swift || true
+          sudo docker image prune --all --force >/dev/null 2>&1 || true
+          sudo apt-get clean
+          echo "Après :"; df -h / | tail -1
 
       - name: Installer live-build
         run: |
@@ -40,48 +98,69 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             live-build debootstrap xorriso squashfs-tools \
             rsync wget gnupg ca-certificates \
-            syslinux-common isolinux grub-efi-amd64-bin grub-pc-bin \
+            syslinux-common isolinux \
+            grub-efi-amd64-bin grub-pc-bin \
             mtools dosfstools librsvg2-bin
+          echo "live-build $(dpkg-query -W -f='${Version}' live-build)"
 
-      - name: Construire
+      - name: Construire l'ISO
+        id: build
         run: |
-          sudo ./build.sh --flavour "${{ inputs.flavour }}" --suite "${{ inputs.suite }}"
+          sudo ./build.sh \
+            --flavour "${{ steps.quoi.outputs.flavour }}" \
+            --suite   "${{ steps.quoi.outputs.suite }}"
 
-      - name: Résumé
+      # ------------------------------------------------------------------
+      #  Un rapport lisible, que la construction ait réussi ou non.
+      # ------------------------------------------------------------------
+      - name: Rapport
         if: always()
         run: |
           {
-            echo "## LexOS — ${{ inputs.flavour }} (${{ inputs.suite }})"
-            echo
             if ls ./*.iso >/dev/null 2>&1; then
+              echo "### ✅ ISO construite"
+              echo
               echo '```'
-              ls -lh ./*.iso
+              ls -lh ./*.iso | awk '{print $9, $5}'
               cat ./*.iso.sha256 2>/dev/null || true
               echo '```'
+              echo
+              echo "Télécharge-la dans **Artifacts**, au bas de cette page."
             else
-              echo "Aucune ISO produite — voir le journal ci-dessous."
+              echo "### ❌ Aucune ISO produite"
+              echo
+              echo "Les 120 dernières lignes du journal :"
+              echo
               echo '```'
-              tail -n 80 build.log 2>/dev/null || echo "(pas de build.log)"
+              tail -n 120 build.log 2>/dev/null || echo "(pas de build.log)"
               echo '```'
             fi
+            echo
+            echo "Espace disque restant :"
+            echo '```'
+            df -h / | tail -1
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Téléverser l'ISO
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: lexos-${{ inputs.flavour }}-iso
+          name: lexos-${{ steps.quoi.outputs.flavour }}-iso
           path: |
             *.iso
             *.iso.sha256
-          retention-days: 7
+          retention-days: 14
           compression-level: 0
+          if-no-files-found: error
 
       - name: Téléverser le journal en cas d'échec
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log-${{ inputs.flavour }}
-          path: build.log
-          retention-days: 7
+          name: build-log-${{ steps.quoi.outputs.flavour }}
+          path: |
+            build.log
+            config/includes.chroot/etc/lexos/build.conf
+          retention-days: 14
           if-no-files-found: ignore

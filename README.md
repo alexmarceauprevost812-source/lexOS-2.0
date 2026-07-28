@@ -92,9 +92,17 @@ sudo apt install -y live-build debootstrap xorriso squashfs-tools \
                     grub-pc-bin mtools dosfstools librsvg2-bin
 ```
 
-> Pas de machine Linux sous la main ? Le workflow GitHub Actions
-> [`build-iso.yml`](.github/workflows/build-iso.yml) construit l'ISO pour toi
-> dans le nuage et la dépose en artefact téléchargeable.
+> **Pas de machine Linux sous la main ?** GitHub la construit pour toi.
+> Pousse une étiquette dont le nom commence par `iso-` :
+>
+> ```bash
+> git tag iso-standard-1 && git push origin iso-standard-1
+> ```
+>
+> La saveur est lue dans le nom de l'étiquette (`iso-full-2`, `iso-dev-3`,
+> `iso-minimal-4`). Une heure plus tard, l'ISO est téléchargeable dans
+> **Actions → la construction → Artifacts**.
+> Voir [`build-iso.yml`](.github/workflows/build-iso.yml).
 
 ### Vérifier puis construire
 
