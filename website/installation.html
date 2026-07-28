@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installer LexOS — du fichier ISO à la machine</title>
+<meta name="description" content="Guide complet d'installation de LexOS : machine virtuelle, clé USB, Ventoy, boucle GRUB, session démo sans risque, puis installation sur le disque avec confirmation explicite.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap bar">
+    <a class="brand" href="index.html"><img src="../branding/logo-ti-lex-al-icon.png" alt=""> Lex<b>OS</b></a>
+    <nav>
+      <a href="index.html">Accueil</a>
+      <a href="fonctionnalites.html">Fonctionnalités</a>
+      <a href="telecharger.html">Télécharger</a>
+      <a class="on" href="installation.html">Installation</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <a class="cta" href="telecharger.html">Télécharger</a>
+  </div>
+</header>
+
+<main class="wrap narrow" style="padding-top:50px">
+  <p class="kicker">Installation</p>
+  <h1 class="mt0">Du fichier ISO à la machine</h1>
+  <p class="lede">Ce guide suit l'ordre prudent : <b>on essaie d'abord, on
+  efface après.</b> Les trois premières étapes ne touchent jamais ton disque
+  dur. Seule la dernière peut effacer des données, et elle te le demandera
+  clairement.</p>
+
+  <pre><code>ISO  →  clé USB  →  session DÉMO (sans risque)  →  installation (optionnelle)</code></pre>
+
+  <h2>Quel chemin prendre ?</h2>
+  <table>
+    <tr><th>Tu veux…</th><th>Prends</th><th>Touche à ton disque ?</th></tr>
+    <tr><td>Juste voir à quoi ça ressemble, tout de suite</td><td><a href="#vm">Machine virtuelle</a></td><td>Non, jamais</td></tr>
+    <tr><td>Essayer sur ta vraie machine (vrai matériel, vraie vitesse)</td><td><a href="#usb">Clé USB</a></td><td>Non</td></tr>
+    <tr><td>Garder plusieurs ISO sur une seule clé</td><td><a href="#ventoy">Ventoy</a></td><td>Non</td></tr>
+    <tr><td>Démarrer l'ISO sans aucune clé USB</td><td><a href="#grub">Boucle GRUB</a></td><td>Non (lecture seule)</td></tr>
+    <tr><td>LexOS <b>à côté</b> de Windows, pour de bon</td><td><a href="#installer">Installer à côté</a></td><td>Oui — repartitionne</td></tr>
+    <tr><td>LexOS <b>seul</b> sur la machine</td><td><a href="#installer">Effacer le disque</a></td><td>Oui — efface tout</td></tr>
+  </table>
+  <p class="dim">Aucune ISO encore ? Commence par <a href="telecharger.html">la télécharger</a>.</p>
+
+  <h2 id="vm">Machine virtuelle — le moyen le plus sûr</h2>
+  <p>LexOS s'ouvre dans une fenêtre, comme n'importe quel programme. Ton
+  disque dur n'est jamais touché, aucune partition n'est modifiée.</p>
+
+  <h3>Windows ou macOS — VirtualBox</h3>
+  <ol class="steps">
+    <li><h3>Installer <a href="https://www.virtualbox.org/" target="_blank" rel="noopener">VirtualBox</a></h3><p class="dim">Gratuit, libre.</p></li>
+    <li><h3>Nouvelle machine</h3><p class="dim">Nom <code>LexOS</code>, type
+    <i>Linux</i>, version <i>Debian (64-bit)</i>.</p></li>
+    <li><h3>Mémoire</h3><p class="dim"><b>4096 Mio</b> (2048 minimum pour la
+    saveur <code>minimal</code>).</p></li>
+    <li><h3>Disque virtuel</h3><p class="dim"><b>25 Go</b> dynamiquement
+    alloué — un fichier sur ton disque, pas une partition.</p></li>
+    <li><h3>Activer l'EFI</h3><p class="dim">Configuration → Système →
+    Carte mère → coche <b>Activer l'EFI</b>.</p></li>
+    <li><h3>Monter l'ISO</h3><p class="dim">Configuration → Stockage →
+    lecteur optique vide → ton fichier <code>.iso</code>.</p></li>
+    <li><h3>Démarrer</h3><p class="dim">Le menu LexOS apparaît : prends
+    <b>Live</b>.</p></li>
+  </ol>
+  <p class="dim">Pour installer LexOS <i>dans</i> la machine virtuelle, lance
+  <code>lexos install-disk</code> à l'intérieur de la fenêtre : il n'écrit
+  alors que dans le disque virtuel de 25 Go, jamais sur ton vrai disque.</p>
+
+  <h3>Linux — QEMU, sans rien installer de plus</h3>
+  <pre><code>make test           # démarrage BIOS
+make test-uefi      # démarrage UEFI (exige le paquet ovmf)</code></pre>
+
+  <h2 id="usb">Clé USB</h2>
+  <p>Il te faut une clé d'au moins <b>4 Go</b> (8 Go pour la saveur
+  <code>full</code>). <b>Tout ce qu'elle contient sera effacé.</b></p>
+
+  <h3>Depuis Linux</h3>
+  <pre><code>lsblk               # identifie la clé — regarde bien la taille !</code></pre>
+  <pre><code>NAME   SIZE TYPE MOUNTPOINTS
+sda    477G disk               ← disque dur interne : NE PAS TOUCHER
+├─sda1   1G part /boot/efi
+└─sda2  476G part /
+sdb     15G disk               ← la clé USB, c'est celle-là
+└─sdb1   15G part /media/lex/USB</code></pre>
+  <pre><code>make usb DEVICE=/dev/sdb</code></pre>
+  <p class="dim">La commande affiche le périphérique visé et attend que tu
+  tapes <code>OUI</code>. Sans le Makefile :</p>
+  <pre><code>sudo umount /dev/sdb* 2>/dev/null
+sudo dd if=lexos-1.0-standard-amd64.iso of=/dev/sdb bs=4M status=progress oflag=sync
+sync</code></pre>
+  <div class="notice warn"><code>of=</code> prend le <b>disque entier</b>
+  (<code>/dev/sdb</code>), jamais une partition (<code>/dev/sdb1</code>).
+  Relis la ligne avant d'appuyer sur Entrée : <code>dd</code> ne demande
+  aucune confirmation.</div>
+
+  <h3>Depuis Windows ou macOS</h3>
+  <p>Utilise <a href="https://etcher.balena.io/" target="_blank" rel="noopener">balenaEtcher</a> :
+  sélectionne l'ISO, sélectionne la clé, clique sur <i>Flash</i>. Il refuse
+  par sécurité d'écrire sur un disque système.</p>
+
+  <h2 id="ventoy">Ventoy — la clé sans rien graver</h2>
+  <p>Avec <a href="https://www.ventoy.net/" target="_blank" rel="noopener">Ventoy</a>,
+  tu prépares la clé <b>une seule fois</b>, puis tu copies-colles les fichiers
+  <code>.iso</code> dessus comme des fichiers ordinaires. Tu peux en garder
+  plusieurs et choisir au démarrage.</p>
+  <ol class="steps">
+    <li><h3>Installer Ventoy sur la clé</h3><p class="dim">⚠ cette étape-là
+    efface la clé, une fois.</p></li>
+    <li><h3>Copier l'ISO</h3><p class="dim">Glisse-dépose
+    <code>lexos-1.0-standard-amd64.iso</code> sur la clé, comme un fichier.</p></li>
+    <li><h3>Démarrer</h3><p class="dim">Choisis la clé dans le menu de
+    démarrage, puis LexOS dans la liste que Ventoy affiche.</p></li>
+  </ol>
+  <p class="dim">Avantage : pour tester une nouvelle version, tu remplaces
+  juste le fichier. Pas besoin de regraver.</p>
+
+  <h2 id="grub">Boucle GRUB — sans clé USB</h2>
+  <p>Si tu as <b>déjà un Linux avec GRUB</b> sur la machine, tu peux démarrer
+  l'ISO posée sur ton disque dur, sans aucune clé. GRUB la lit <b>en lecture
+  seule</b> — rien n'est écrit, rien n'est effacé.</p>
+  <ol class="steps">
+    <li><h3>Poser l'ISO</h3><p class="dim">Quelque part de stable, par
+    exemple <code>/boot/iso/lexos.iso</code>.</p></li>
+    <li><h3>Ajouter une entrée GRUB</h3>
+      <pre><code>menuentry "LexOS 1.0 (démo depuis le disque)" {
+    set isofile="/boot/iso/lexos.iso"
+    loopback loop $isofile
+    linux (loop)/live/vmlinuz boot=live findiso=$isofile components quiet splash
+    initrd (loop)/live/initrd.img
+}</code></pre>
+    </li>
+    <li><h3>Mettre à jour GRUB</h3><p class="dim"><code>sudo update-grub</code>,
+    puis redémarre et choisis l'entrée.</p></li>
+  </ol>
+  <div class="notice warn">Ça ne marche <b>pas</b> depuis Windows seul (pas de
+  GRUB), et le chemin <code>/boot/iso/</code> doit être sur une partition que
+  GRUB sait lire (ext4 ou FAT32 conviennent ; un <code>/boot</code> chiffré, non).</div>
+
+  <h2>Démarrer en session démo</h2>
+  <ol class="steps">
+    <li><h3>Redémarrer avec la clé branchée</h3></li>
+    <li><h3>Ouvrir le menu de démarrage</h3><p class="dim">Touche répétée au
+    tout début : souvent <code>F12</code>, parfois <code>F11</code>,
+    <code>F9</code>, <code>Échap</code> ou <code>Suppr</code>.</p></li>
+    <li><h3>Choisir la clé</h3><p class="dim">La ligne qui correspond à ta
+    clé (<code>USB</code>, <code>UEFI: SanDisk…</code>).</p></li>
+    <li><h3>Prendre « Live »</h3></li>
+  </ol>
+  <p>Après quelques secondes, tu es sur le bureau LexOS, connecté en tant que
+  <code>lex</code>.</p>
+  <h3>Ce que tu peux faire sans aucun risque</h3>
+  <ul>
+    <li>Ouvrir un terminal et taper <code>lexfetch</code>, <code>lexos doctor</code>, <code>lexos help</code>.</li>
+    <li>Changer la couleur des boutons : <code>lexos accent violet</code>.</li>
+    <li>Vérifier que le Wi-Fi, le son, l'écran et le pavé tactile fonctionnent.</li>
+    <li>Installer des logiciels, ouvrir tes fichiers, naviguer sur le web.</li>
+  </ul>
+  <p>Tout disparaît au redémarrage. <b>Ton disque dur n'a pas été ouvert.</b>
+  Pour t'en assurer : <code>lexos demo</code>.</p>
+
+  <h3>Si le démarrage échoue</h3>
+  <table>
+    <tr><th>Symptôme</th><th>Piste</th></tr>
+    <tr><td>La clé n'apparaît pas dans le menu</td><td>Désactive Secure Boot dans le BIOS/UEFI, ou active le mode Legacy/CSM</td></tr>
+    <tr><td>Écran noir après le menu</td><td>Rechoisis l'entrée Live et ajoute <code>nomodeset</code> aux options de démarrage (touche <code>e</code>)</td></tr>
+    <tr><td>Bureau très lent</td><td>Normal en démo : tout tourne depuis l'USB. Plus rapide une fois installé</td></tr>
+    <tr><td>Pas de Wi-Fi</td><td>Certaines cartes ont besoin d'un firmware absent. Câble réseau puis <code>lexos update</code></td></tr>
+  </table>
+
+  <h2 id="installer">Installer sur le disque</h2>
+  <p><i>Seulement si tu es convaincu.</i></p>
+  <h3>Avant de cliquer</h3>
+  <ul>
+    <li>Tu as <b>essayé</b> la session démo et tout fonctionne.</li>
+    <li>Tu as <b>sauvegardé</b> tes fichiers importants sur un disque externe.</li>
+    <li>L'ordinateur est <b>branché sur le secteur</b>.</li>
+    <li>Tu sais si tu veux <b>effacer le disque</b> ou <b>installer à côté</b>.</li>
+  </ul>
+  <pre><code>lexos install-disk</code></pre>
+  <p class="dim">Ou double-clique sur « Installer LexOS sur le disque » depuis
+  le bureau. Un avertissement s'affiche avec la liste des disques détectés —
+  il faut cliquer <b>« J'ai compris, installer »</b> ou taper <code>EFFACER</code>
+  en toutes lettres. N'importe quoi d'autre annule.</p>
+
+  <table>
+    <tr><th>Choix</th><th>Ce que ça fait</th></tr>
+    <tr><td><b>Effacer le disque</b></td><td>Supprime tout et installe LexOS seul. Irréversible.</td></tr>
+    <tr><td><b>Installer à côté</b></td><td>Réduit la partition existante et installe LexOS à côté. Menu au démarrage.</td></tr>
+    <tr><td><b>Partitionnement manuel</b></td><td>Tu décides de chaque partition. Réservé à ceux qui savent.</td></tr>
+  </table>
+  <p class="dim">En cas de doute : <b>installer à côté</b>. Tu gardes ton
+  système actuel et tu peux revenir en arrière.</p>
+
+  <h3>Après l'installation</h3>
+  <ol class="steps">
+    <li><h3>Retirer la clé USB</h3><p class="dim">Éteins, retire, rallume.</p></li>
+    <li><h3>Se connecter</h3><p class="dim">Avec le compte créé pendant l'installation.</p></li>
+    <li><h3>Mettre à jour</h3><pre><code>lexos update
+lexos upgrade</code></pre></li>
+    <li><h3>Vérifier</h3><pre><code>lexos doctor</code></pre></li>
+  </ol>
+
+  <h2>Désinstaller LexOS</h2>
+  <p>Il n'y a pas de « désinstalleur ». Selon ton cas :</p>
+  <ul>
+    <li><b>LexOS seul sur le disque</b> — démarre l'installateur d'un autre
+    système et laisse-le reformater le disque.</li>
+    <li><b>LexOS à côté d'un autre système</b> — supprime ses partitions avec
+    GParted depuis une clé live, puis restaure le chargeur de démarrage de
+    l'autre système.</li>
+  </ul>
+  <p class="dim">Sauvegarde avant, dans les deux cas.</p>
+
+  <h2>Aide</h2>
+  <ul>
+    <li><code>lexos doctor</code> — diagnostic automatique</li>
+    <li><code>lexos logs</code> — dernières erreurs du système</li>
+    <li><a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/issues" target="_blank" rel="noopener">Ouvrir un ticket</a>
+    en joignant la sortie de <code>lexos doctor</code> et <code>lexos version</code></li>
+  </ul>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="links">
+      <a href="fonctionnalites.html">Fonctionnalités</a>
+      <a href="telecharger.html">Télécharger</a>
+      <a href="installation.html">Installation</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">Code source</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/issues" target="_blank" rel="noopener">Signaler un problème</a>
+    </div>
+    <p>LexOS 1.0 « Nomad » — TI·LEX·AL. Basé sur Debian, bureau XFCE. Licence MIT
+    pour le travail original — voir <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>

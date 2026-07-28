@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LexOS 1.0 « Nomad » — une distribution Linux complète, noire, à ta sauce</title>
+<meta name="description" content="LexOS 1.0 « Nomad » : distribution Linux basée sur Debian trixie, bureau XFCE façon Ubuntu, thème noir, effets « TV 1980 », partage par QR code, IA locale. Télécharge et essaie sans rien installer.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap bar">
+    <a class="brand" href="index.html"><img src="../branding/logo-ti-lex-al-icon.png" alt=""> Lex<b>OS</b></a>
+    <nav>
+      <a class="on" href="index.html">Accueil</a>
+      <a href="fonctionnalites.html">Fonctionnalités</a>
+      <a href="telecharger.html">Télécharger</a>
+      <a href="installation.html">Installation</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <a class="cta" href="telecharger.html">Télécharger</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <img class="logo" src="../branding/logo-ti-lex-al-icon.png" alt="TI-LEX-AL">
+    <h1>Lex<b>OS</b> 1.0 « Nomad »</h1>
+    <p class="tag">Explore. Build. Own your machine.</p>
+    <p class="sub">Debian trixie · Bureau XFCE façon Ubuntu · Licence MIT · amd64</p>
+    <div class="row">
+      <a class="btn big" href="telecharger.html">⬇ Télécharger LexOS</a>
+      <a class="btn ghost big" href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">Voir le code source</a>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+
+  <section>
+    <p class="kicker">C'est quoi, exactement</p>
+    <h2 class="mt0">Une vraie distribution Linux, pas un thème</h2>
+    <p class="lede">Ce dépôt contient tout ce qu'il faut pour fabriquer une <b>image ISO
+    amorçable</b> que tu graves sur une clé USB, que tu essaies sans risque, et que tu
+    installes seulement si elle te plaît. Le socle est <b>Debian 13 « trixie »</b> —
+    noyau 6.12 LTS, systemd 257, Mesa 25, la même génération de composants qu'Ubuntu
+    26.04. Par-dessus, LexOS pose son identité : nom, logo, écran de démarrage, thème
+    noir, dock, profils de performance, outils réseau et de partage.</p>
+
+    <table>
+      <tr><th>Nom</th><td>LexOS 1.0 « Nomad »</td></tr>
+      <tr><th>Socle</th><td>Debian trixie — noyau 6.12 LTS, systemd 257, Mesa 25</td></tr>
+      <tr><th>Bureau</th><td>XFCE — barre en haut, dock à droite, façon Ubuntu</td></tr>
+      <tr><th>Thème</th><td>LexOS Noir : fond noir pur, écriture blanche, boutons accentués</td></tr>
+      <tr><th>Terminal</th><td>Fond noir, écriture vert néon, curseur à l'accent</td></tr>
+      <tr><th>Effets</th><td>Ouverture/fermeture de fenêtres façon téléviseur 1980</td></tr>
+      <tr><th>Performance</th><td>4 profils : petit · médium · performant · max</td></tr>
+      <tr><th>Réseau</th><td>Mode avion, Wi-Fi, Bluetooth, partage par QR code, écran du téléphone</td></tr>
+      <tr><th>Sécurité</th><td>Chiffrement du disque proposé à l'installation (LUKS2)</td></tr>
+      <tr><th>Architecture</th><td>amd64 (64 bits)</td></tr>
+      <tr><th>Licence</th><td>MIT pour le travail original</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <p class="kicker">La règle d'or</p>
+    <h2 class="mt0">Essayer avant d'effacer</h2>
+    <div class="notice ok">
+      <b>Aucune commande de ce projet n'efface ton disque dur sans que tu l'aies
+      confirmé explicitement.</b>
+    </div>
+    <ol class="steps">
+      <li><h3>Construire ou récupérer l'ISO</h3><p class="dim">Toi-même avec <code>make build</code>,
+      ou GitHub qui la construit à ta place.</p></li>
+      <li><h3>Graver sur une clé USB</h3><p class="dim"><code>make usb DEVICE=/dev/sdX</code>,
+      ou balenaEtcher sur Windows/macOS.</p></li>
+      <li><h3>Démarrer sur la clé — session <b style="color:var(--fg)">DÉMO</b></h3>
+      <p class="dim">Tout tourne depuis la clé USB et la mémoire vive. Ton disque dur
+      n'est pas touché.</p></li>
+      <li><h3>Essayer, tester, jouer</h3><p class="dim">Autant de temps que tu veux.
+      Installe des logiciels, change les couleurs, casse des choses : au redémarrage,
+      tout est remis à neuf.</p></li>
+      <li><h3>Seulement si convaincu</h3><p class="dim"><code>lexos install-disk</code>
+      — avertissement clair, puis confirmation explicite exigée avant toute écriture.</p></li>
+    </ol>
+  </section>
+
+  <section>
+    <p class="kicker">Aperçu</p>
+    <h2 class="mt0">Ce que tu trouves dans LexOS</h2>
+    <div class="grid cols-3">
+      <div class="card">
+        <h3>🖤 LexOS Noir</h3>
+        <p>Fond noir pur, écriture blanche, 7 couleurs d'accent (orange, bleu, rouge,
+        vert, gris, violet, néon) — instantané, retenu d'une session à l'autre.</p>
+      </div>
+      <div class="card">
+        <h3>📺 Effets « TV 1980 »</h3>
+        <p>Les fenêtres s'ouvrent et se ferment comme un téléviseur cathodique. Repli
+        automatique sur une machine sans accélération 3D — jamais d'écran noir.</p>
+      </div>
+      <div class="card">
+        <h3>⚡ 4 profils de performance</h3>
+        <p>petit · medium · performant · max — gouverneur CPU, zram, ordonnanceur
+        disque et effets du bureau, réglés ensemble. <code>lexos perf auto</code>
+        choisit d'après ton matériel.</p>
+      </div>
+      <div class="card">
+        <h3>📶 Réseau honnête</h3>
+        <p>Mode avion, Wi-Fi, Bluetooth. La connexion automatique aux réseaux ouverts
+        est <b>désactivée par défaut</b> et prévient des risques avant de s'activer.</p>
+      </div>
+      <div class="card">
+        <h3>📤 Partage en 3 façons</h3>
+        <p>QR code (rien à installer sur le téléphone), KDE Connect, Bluetooth — et
+        <code>scrcpy</code> pour afficher et contrôler l'écran du téléphone.</p>
+      </div>
+      <div class="card">
+        <h3>🤖 IA locale</h3>
+        <p>Un agent autonome dans le terminal (Ollama). Tourne sur la machine : rien
+        ne sort sur internet. Lecture seule sans confirmation, jamais de <code>sudo</code>
+        par défaut, refuse sèchement les commandes destructrices connues.</p>
+      </div>
+      <div class="card">
+        <h3>🔒 Chiffrement du disque</h3>
+        <p>LUKS2 proposé à l'installation — jamais imposé. La seule vraie protection
+        contre le vol de la machine.</p>
+      </div>
+      <div class="card">
+        <h3>🖼 Autocollants</h3>
+        <p>Découpe le sujet d'une photo en PNG à fond transparent, 100% local —
+        comme la fonction d'un téléphone Samsung.</p>
+      </div>
+      <div class="card">
+        <h3>🖥 Multi-écrans</h3>
+        <p>Étendre, dupliquer, écran principal — reconnaît la combinaison d'écrans
+        au branchement et réapplique la bonne disposition.</p>
+      </div>
+    </div>
+    <p class="center" style="margin-top:24px"><a href="fonctionnalites.html">Voir toutes les fonctionnalités en détail →</a></p>
+  </section>
+
+  <section>
+    <p class="kicker">Cinq saveurs</p>
+    <h2 class="mt0">Une ISO adaptée à ta machine</h2>
+    <table>
+      <tr><th>Saveur</th><th>Contenu</th><th>Taille approx.</th></tr>
+      <tr><td><code>minimal</code></td><td>Console seule, aucun bureau</td><td>~700 Mio</td></tr>
+      <tr><td><code>standard</code></td><td>Bureau XFCE, Firefox, dock, effets — <b>défaut</b></td><td>~2,5 Gio</td></tr>
+      <tr><td><code>dev</code></td><td>standard + compilateurs, langages, conteneurs, Neovim</td><td>~4 Gio</td></tr>
+      <tr><td><code>full</code></td><td>dev + LibreOffice, GIMP, Inkscape, VLC, Krita</td><td>~6 Gio</td></tr>
+      <tr><td><code>gaming</code></td><td>dev + Steam, Lutris, Wine, gamemode, MangoHud, Vulkan</td><td>~5 Gio</td></tr>
+    </table>
+    <p class="center"><a class="btn" href="telecharger.html">Comparer et télécharger →</a></p>
+  </section>
+
+  <section class="center" style="padding:50px 0 70px">
+    <h2 class="mt0">Prêt à essayer ?</h2>
+    <p class="lede center" style="margin:0 auto 22px">Rien n'est effacé tant que tu ne
+    l'as pas décidé. Le pire qui puisse arriver : tu redémarres, et la clé USB
+    redevient une clé USB.</p>
+    <a class="btn big" href="telecharger.html">⬇ Télécharger LexOS 1.0</a>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="links">
+      <a href="fonctionnalites.html">Fonctionnalités</a>
+      <a href="telecharger.html">Télécharger</a>
+      <a href="installation.html">Installation</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">Code source</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/issues" target="_blank" rel="noopener">Signaler un problème</a>
+    </div>
+    <p>LexOS 1.0 « Nomad » — TI·LEX·AL. Basé sur Debian, bureau XFCE. Licence MIT
+    pour le travail original — voir <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>

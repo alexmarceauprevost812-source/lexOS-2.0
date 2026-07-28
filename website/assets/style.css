@@ -1,0 +1,128 @@
+/* =============================================================================
+   LexOS 1.0 « Nomad » — site de téléchargement
+   Style partagé par toutes les pages de website/. Noir pur + accent orange,
+   même palette que le vrai système (voir branding/wallpaper.svg,
+   lexos-theme-gen) — pas un habillage à part.
+   ============================================================================= */
+:root{
+  --bg:#000; --bg-alt:#0c0c0e; --bg-hi:#151517;
+  --fg:#f3f3f3; --fg-dim:#9a9a9f; --bd:#232326;
+  --ac:#E8590C; --ac-hi:#FF7A2E; --ac-lo:#A83D07;
+  --ok:#22C55E; --warn:#F59E0B;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  -webkit-font-smoothing:antialiased}
+a{color:var(--ac-hi)}
+a:hover{color:var(--ac)}
+code{font-family:ui-monospace,"Fira Code",monospace;background:var(--bg-hi);
+  border:1px solid var(--bd);border-radius:4px;padding:.1em .4em;font-size:.92em}
+pre{background:var(--bg-hi);border:1px solid var(--bd);border-radius:10px;
+  padding:14px 16px;overflow-x:auto}
+pre code{background:none;border:0;padding:0}
+h1,h2,h3{line-height:1.25;font-weight:700}
+h1{font-size:clamp(32px,5vw,52px)}
+h2{font-size:clamp(22px,3vw,30px);margin-top:2.4em}
+h3{font-size:19px}
+.wrap{max-width:980px;margin:0 auto;padding:0 20px}
+.narrow{max-width:760px}
+
+/* --- Entête ------------------------------------------------------------- */
+header.site{position:sticky;top:0;z-index:50;background:rgba(0,0,0,.86);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--bd)}
+header.site .bar{display:flex;align-items:center;gap:22px;height:64px}
+header.site .brand{display:flex;align-items:center;gap:10px;font-weight:700;
+  font-size:18px;letter-spacing:-.01em;text-decoration:none;color:var(--fg);flex:none}
+header.site .brand img{width:32px;height:32px;object-fit:contain}
+header.site .brand b{color:var(--ac)}
+header.site nav{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+header.site nav a{color:var(--fg-dim);text-decoration:none;font-size:14.5px;
+  font-weight:600;padding:8px 12px;border-radius:8px}
+header.site nav a:hover{color:var(--fg);background:var(--bg-hi)}
+header.site nav a.on{color:var(--fg);background:var(--bg-hi)}
+header.site .cta{background:var(--ac);color:#000;font-weight:700;
+  padding:9px 16px;border-radius:8px;text-decoration:none;font-size:14.5px;flex:none}
+header.site .cta:hover{background:var(--ac-hi);color:#000}
+
+/* --- Hero ----------------------------------------------------------------- */
+.hero{position:relative;padding:84px 0 64px;text-align:center;overflow:hidden;
+  background:
+    radial-gradient(55% 45% at 50% 20%, rgba(232,89,12,.18), transparent 70%),
+    repeating-linear-gradient(0deg, transparent 0 63px, rgba(232,135,58,.045) 63px 64px),
+    repeating-linear-gradient(90deg, transparent 0 63px, rgba(232,135,58,.045) 63px 64px),
+    #000}
+.hero img.logo{width:min(260px,60vw);display:block;margin:0 auto 22px}
+.hero h1{margin:0 0 6px}
+.hero h1 b{color:var(--ac)}
+.hero p.tag{color:var(--fg-dim);font-size:18px;margin:0 0 8px}
+.hero p.sub{color:var(--fg-dim);font-size:14.5px;letter-spacing:.06em;
+  text-transform:uppercase;margin:0 0 30px}
+.hero .row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+/* --- Boutons -------------------------------------------------------------- */
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--ac);color:#000;
+  font-weight:700;font-size:15px;padding:13px 22px;border-radius:10px;
+  text-decoration:none;border:0;cursor:pointer}
+.btn:hover{background:var(--ac-hi);color:#000}
+.btn.ghost{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd)}
+.btn.ghost:hover{border-color:var(--ac)}
+.btn.big{padding:16px 28px;font-size:16.5px}
+
+/* --- Cartes / grille -------------------------------------------------------*/
+.grid{display:grid;gap:16px}
+.grid.cols-2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.grid.cols-3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.grid.cols-5{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.card{background:var(--bg-alt);border:1px solid var(--bd);border-radius:14px;
+  padding:20px}
+.card h3{margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.card p{color:var(--fg-dim);margin:0;font-size:14.5px}
+.card.accent{border-color:var(--ac)}
+.card .big-num{font:700 30px/1 ui-monospace,monospace;color:var(--ac)}
+
+/* --- Tableaux --------------------------------------------------------------*/
+table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14.5px}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--bd)}
+th{color:var(--fg-dim);font-weight:600;font-size:12.5px;text-transform:uppercase;
+  letter-spacing:.04em}
+td code{white-space:nowrap}
+tr:hover td{background:var(--bg-alt)}
+
+/* --- Avertissements / notices ---------------------------------------------*/
+.notice{background:rgba(232,89,12,.08);border:1px solid rgba(232,89,12,.35);
+  border-radius:10px;padding:14px 16px;font-size:14.5px;margin:18px 0}
+.notice.warn{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.4)}
+.notice.ok{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.4)}
+.notice b{color:var(--ac)}
+
+/* --- Étapes numérotées -------------------------------------------------- */
+.steps{counter-reset:step;list-style:none;margin:0;padding:0}
+.steps li{counter-increment:step;position:relative;padding:0 0 26px 44px;
+  border-left:2px solid var(--bd);margin-left:15px}
+.steps li:last-child{border-color:transparent;padding-bottom:0}
+.steps li::before{content:counter(step);position:absolute;left:-16px;top:0;
+  width:30px;height:30px;border-radius:50%;background:var(--ac);color:#000;
+  font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center}
+.steps h3{margin:0 0 6px}
+
+/* --- Pied de page ----------------------------------------------------------*/
+footer.site{border-top:1px solid var(--bd);padding:40px 0 60px;
+  color:var(--fg-dim);font-size:13.5px;text-align:center}
+footer.site a{color:var(--fg-dim)}
+footer.site a:hover{color:var(--ac)}
+footer.site .links{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;
+  margin-bottom:14px}
+
+/* --- Divers ----------------------------------------------------------------*/
+.kicker{color:var(--ac);font-weight:700;font-size:13px;letter-spacing:.08em;
+  text-transform:uppercase;margin:0 0 8px}
+.lede{color:var(--fg-dim);font-size:17px;max-width:640px}
+.dim{color:var(--fg-dim)}
+.center{text-align:center}
+.mt0{margin-top:0}
+@media (max-width:760px){
+  header.site nav{display:none}
+  .steps li{padding-left:38px;margin-left:10px}
+}

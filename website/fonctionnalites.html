@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fonctionnalités — LexOS 1.0 « Nomad »</title>
+<meta name="description" content="Tour complet des fonctionnalités de LexOS : thème LexOS Noir, effets TV 1980, profils de performance, réseau, partage, IA locale, sécurité, personnalisation, et tous les outils lexos.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap bar">
+    <a class="brand" href="index.html"><img src="../branding/logo-ti-lex-al-icon.png" alt=""> Lex<b>OS</b></a>
+    <nav>
+      <a href="index.html">Accueil</a>
+      <a class="on" href="fonctionnalites.html">Fonctionnalités</a>
+      <a href="telecharger.html">Télécharger</a>
+      <a href="installation.html">Installation</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <a class="cta" href="telecharger.html">Télécharger</a>
+  </div>
+</header>
+
+<main class="wrap narrow" style="padding-top:50px">
+  <p class="kicker">Fonctionnalités</p>
+  <h1 class="mt0">Tout ce que fait LexOS</h1>
+  <p class="lede">Rien de ce qui suit n'est un mockup : chaque fonctionnalité
+  tourne pour de vrai sur l'ISO, avec sa propre commande <code>lexos</code>.</p>
+
+  <h2 id="theme">LexOS Noir</h2>
+  <p>Fond <b>noir pur</b> (<code>#000000</code>), écriture <b>blanche</b>, et
+  une couleur d'accent qui habille les boutons, les sélections, le curseur et
+  les barres de progression.</p>
+  <table>
+    <tr><th>Accent</th><th>Code</th><th>Commande</th></tr>
+    <tr><td>Orange <i>(défaut)</i></td><td><code>#E8590C</code></td><td><code>lexos accent orange</code></td></tr>
+    <tr><td>Bleu</td><td><code>#3D8BFD</code></td><td><code>lexos accent bleu</code></td></tr>
+    <tr><td>Rouge</td><td><code>#E5484D</code></td><td><code>lexos accent rouge</code></td></tr>
+    <tr><td>Vert foncé</td><td><code>#1F8F4E</code></td><td><code>lexos accent vert</code></td></tr>
+    <tr><td>Gris</td><td><code>#8A8A8A</code></td><td><code>lexos accent gris</code></td></tr>
+    <tr><td>Violet</td><td><code>#8B5CF6</code></td><td><code>lexos accent violet</code></td></tr>
+    <tr><td>Vert néon</td><td><code>#39FF14</code></td><td><code>lexos accent neon</code></td></tr>
+  </table>
+  <p class="dim">Le changement est instantané et se retient d'une session à
+  l'autre. Le terminal a son propre habillage fixe : fond noir, écriture
+  <b>vert néon</b>, curseur à la couleur d'accent, police Fira Code.</p>
+
+  <h2 id="crt">Effets de fenêtres « TV 1980 »</h2>
+  <p>Les fenêtres s'ouvrent et se ferment comme un téléviseur cathodique
+  qu'on allume et qu'on coupe : l'image s'écrase en une ligne horizontale
+  puis s'éteint (l'effet <i>Glide 2</i> de Compiz).</p>
+  <div class="notice ok"><b>Repli automatique</b> : Compiz exige une vraie
+  accélération 3D. Sur une machine qui n'en a pas (ou en rendu logiciel),
+  <code>lexos-wm</code> le détecte et démarre <code>xfwm4</code> à la place —
+  fondus plus simples, mais jamais d'écran noir.</div>
+  <pre><code>lexos crt status    # ce qui tourne réellement, et pourquoi
+lexos crt off       # revenir à xfwm4
+lexos crt on        # réactiver</code></pre>
+
+  <h2>Disposition, façon Ubuntu</h2>
+  <ul>
+    <li><b>Barre en haut</b> — menu Applications à gauche, horloge au centre,
+    réseau / son / batterie / session à droite.</li>
+    <li><b>Dock à droite</b> — icônes zoomantes, masquage intelligent.
+    Déplaçable : <code>lexos dock gauche</code> · <code>bas</code> · <code>haut</code> · <code>droite</code>.</li>
+    <li><b>Bureau</b> — raccourcis « Essayer LexOS (démo) » et « Installer LexOS ».</li>
+  </ul>
+
+  <h2 id="perf">Performance de la machine</h2>
+  <p>Quatre profils, du plus économe au plus agressif. Chacun agit sur le
+  gouverneur du processeur, les réglages du noyau, l'ordonnanceur disque, les
+  services et les effets du bureau.</p>
+  <table>
+    <tr><th>Profil</th><th>Pour qui</th><th>Ce qui change</th></tr>
+    <tr><td><code>petit</code></td><td>Vieille machine, batterie à ménager</td><td>Gouverneur <code>powersave</code>, turbo coupé, zram, Bluetooth et impression arrêtés, aucun effet</td></tr>
+    <tr><td><code>medium</code></td><td>La plupart des machines — <b>défaut</b></td><td>Gouverneur adaptatif, compositing simple, réglages noyau équilibrés</td></tr>
+    <tr><td><code>performant</code></td><td>Machine récente, branchée</td><td>Gouverneur <code>performance</code>, swappiness basse, TCP BBR, effets CRT actifs</td></tr>
+    <tr><td><code>max</code></td><td>Tout donner</td><td><code>performance</code> sans compromis, cache disque agressif, E/S à faible latence</td></tr>
+  </table>
+  <pre><code>lexos perf              # liste les profils
+lexos perf auto         # choisit d'après la RAM et le nombre de cœurs
+lexos perf max          # applique
+lexos perf status       # ce que fait VRAIMENT la machine</code></pre>
+  <p class="dim"><code>lexos perf status</code> compare ce qui est demandé et
+  ce qui tourne. Sur une VM sans pilote <code>cpufreq</code>, il le dit
+  plutôt que de prétendre avoir réglé quelque chose. Sélecteur graphique :
+  <b>Performance de la machine</b> (ou <code>Super+P</code>).</p>
+
+  <h2 id="reseau">Réseau : mode avion, Wi-Fi, Bluetooth</h2>
+  <pre><code>lexos avion on          # coupe Wi-Fi, Bluetooth et données mobiles
+lexos avion toggle      # bascule — aussi Super+A et la touche Fn Wi-Fi
+lexos wifi              # cherche les réseaux à portée
+lexos net connect "Café du coin"
+lexos bt scan           # appareils Bluetooth à portée
+lexos bt pair "Casque"  # appaire, approuve et connecte
+lexos net status        # vue d'ensemble</code></pre>
+  <p>Le scan Wi-Fi montre le signal en barres, la bande, et signale en clair
+  les réseaux <b>OUVERT</b> — ceux sans mot de passe.</p>
+  <div class="notice warn">
+  <b>Connexion automatique aux réseaux ouverts — désactivée par défaut.</b>
+  L'activer demande de taper <code>OUI</code> après un avertissement : un
+  réseau ouvert n'est pas chiffré, et n'importe qui peut créer un faux point
+  d'accès portant le nom d'un réseau connu. Une fois active, LexOS ne se
+  connecte que si tu es réellement hors ligne, jamais par-dessus une connexion
+  filaire, et prévient à chaque fois.</div>
+
+  <h2 id="ecrans">Plusieurs écrans</h2>
+  <pre><code>lexos ecran                      # ce qui est branché, résolution, position
+lexos ecran etendre droite       # bureau étendu — aussi gauche, haut, bas
+lexos ecran miroir               # la même image partout (projecteur)
+lexos ecran principal HDMI-1     # le grand écran porte la barre et le dock
+lexos ecran resolution HDMI-1 2560x1440
+lexos ecran gui                  # réglage à la souris</code></pre>
+  <p class="dim">Le fond d'écran est réappliqué automatiquement sur tout écran
+  qui vient de s'allumer. Avec <code>autorandr</code>, LexOS reconnaît la
+  combinaison d'écrans au branchement et réapplique la bonne disposition sans
+  rien demander (<code>lexos ecran profil save bureau</code>).</p>
+
+  <h2 id="partage">Partager des fichiers, des images et l'écran du téléphone</h2>
+  <h3>QR code — rien à installer sur le téléphone</h3>
+  <pre><code>lexos share photo.jpg</code></pre>
+  <p>Un QR code s'affiche : tu le scannes avec l'appareil photo du téléphone,
+  le fichier se télécharge. La même page permet de <b>t'envoyer</b> des
+  fichiers depuis le téléphone — ils arrivent dans
+  <code>~/Téléchargements/LexOS-reçus</code>. Le partage s'arrête tout seul
+  au bout de 15 minutes, et chaque partage a son <b>jeton d'accès</b> tiré au
+  hasard : sur un wifi partagé, personne d'autre ne peut lire tes fichiers ni
+  t'en déposer — sans la bonne adresse, le serveur répond <code>404</code>.</p>
+  <h3>Écran du téléphone — voir et contrôler depuis l'ordinateur</h3>
+  <pre><code>lexos ecran-telephone</code></pre>
+  <p><code>scrcpy</code> affiche <b>et contrôle</b> l'écran d'un téléphone
+  Android sur l'ordinateur — câble USB avec le débogage activé, ou Wi-Fi via
+  <code>adb tcpip</code>.</p>
+  <h3>KDE Connect et Bluetooth</h3>
+  <p>Avec l'application KDE Connect sur le téléphone, les deux appareils
+  appairés sur le même Wi-Fi : <code>lexos share</code> envoie directement,
+  sans QR code. Sans réseau : <code>lexos share bt document.pdf</code>.</p>
+  <h3>Autocollants — découper le sujet d'une photo</h3>
+  <pre><code>lexos sticker photo.jpg</code></pre>
+  <p class="dim">Le sujet est découpé du fond et enregistré comme un vrai
+  fichier PNG à fond transparent, dans <code>~/Images/Autocollants/</code> —
+  mode IA (<code>rembg</code>, si installé) ou mode rapide (ImageMagick,
+  toujours disponible). Clic droit sur une image → <b>Créer un autocollant</b>.</p>
+
+  <h2 id="ia">IA locale — agent autonome dans le terminal</h2>
+  <pre><code>lexos ia setup                            # installe Ollama + un petit modèle, une fois
+lexos ia                                  # conversation libre
+lexos ia "libère 2 Gio d'espace disque"   # agent autonome</code></pre>
+  <p>Le moteur (Ollama) tourne <b>sur la machine</b> : une fois le modèle
+  téléchargé, plus rien ne sort sur internet, même en mode agent. En mode
+  agent, LexOS propose une commande, te la montre, l'exécute, regarde le
+  résultat, et recommence jusqu'à avoir fini la tâche.</p>
+  <ul>
+    <li>Seules les commandes de <b>lecture</b> connues (<code>ls</code>, <code>df</code>,
+    <code>cat</code>, <code>journalctl</code>…) tournent sans rien demander.
+    Tout le reste attend ton accord, même avec <code>--auto</code>.</li>
+    <li>Quelques formes notoires (<code>rm -rf /</code>, <code>mkfs</code>,
+    <code>dd of=/dev/…</code>) sont refusées sèchement, sans même proposer.</li>
+    <li>Jamais <code>sudo</code> par défaut (<code>lexos ia --sudo "…"</code> pour l'autoriser).</li>
+    <li>Sans terminal (script, tâche planifiée), rien qui demanderait une
+    confirmation ne s'exécute.</li>
+  </ul>
+
+  <h2 id="securite">Chiffrement du disque dur</h2>
+  <p>À l'installation, l'installateur propose de <b>chiffrer le disque
+  entier</b> (LUKS2). Une phrase secrète est alors demandée à chaque
+  démarrage, avant même que le système ne se charge. Sans elle, le contenu du
+  disque est illisible — y compris pour quelqu'un qui sortirait le disque de
+  la machine.</p>
+  <div class="notice warn"><b>Le revers :</b> phrase secrète oubliée =
+  données perdues, définitivement. Il n'existe aucune porte dérobée. Note-la
+  ailleurs qu'à l'intérieur de la machine.</div>
+
+  <h2 id="outils">Les outils maison</h2>
+  <h3><code>lexfetch</code></h3>
+  <p class="dim">La fiche technique de la machine, avec le masque LexOS en
+  art ASCII : OS, base Debian, noyau, temps de fonctionnement, paquets,
+  bureau, CPU, mémoire.</p>
+  <h3><code>lexos</code> — toutes les commandes</h3>
+  <pre><code>SYSTÈME
+  info · version · doctor · logs [n]
+
+PAQUETS
+  update / upgrade · install &lt;paquets…&gt; · remove &lt;paquets…&gt; · search &lt;terme&gt; · clean
+
+APPARENCE
+  accent &lt;couleur&gt; · dock &lt;position&gt; · ecran · wallpaper [chemin] · crt &lt;on|off|status&gt;
+
+PERFORMANCE
+  perf &lt;profil&gt; · perf status · perf auto
+
+RÉSEAU
+  avion &lt;on|off&gt; · wifi · bt · net · ecran-telephone
+
+PARTAGE
+  share &lt;fichiers…&gt; · receive
+
+IMAGES
+  sticker &lt;image…&gt;
+
+IA
+  ia setup · ia "&lt;tâche&gt;"
+
+DÉMO & INSTALLATION
+  demo · install-disk</code></pre>
+  <p class="dim"><code>lexos doctor</code> en dit long en cinq lignes :
+  disque, mémoire, dépôts joignables, services en échec, mises à jour
+  disponibles.</p>
+
+  <h2 id="personnaliser">Personnaliser ta version</h2>
+  <p>Tout part de <code>lexos.conf</code>, unique source de vérité. Change
+  une valeur, relance <code>make build</code>, et l'ISO entière suit — nom,
+  écran de démarrage, installateur, <code>/etc/os-release</code>, thème.</p>
+  <pre><code>LEXOS_NAME="LexOS"
+LEXOS_VERSION="1.0"
+LEXOS_CODENAME="Nomad"
+LEXOS_ACCENT_NAME="orange"      # couleur des boutons
+LEXOS_CRT_EFFECTS="on"          # effets TV 1980
+LEXOS_DEBIAN_SUITE="trixie"     # ou bookworm (plus ancien, plus éprouvé)
+LEXOS_KERNEL_CHANNEL="stock"    # ou backports (noyau plus récent)
+LEXOS_PERF_PROFILE="auto"       # petit | medium | performant | max
+LEXOS_DOCK_POSITION="right"     # right | left | bottom | top
+LEXOS_TIMEZONE="America/Toronto"
+LEXOS_KEYBOARD_LAYOUT="ca"</code></pre>
+  <p class="dim">Ajouter des logiciels : ouvre la liste correspondante et
+  écris un nom de paquet par ligne (<code>config/package-lists/lexos-core.list.chroot</code>
+  pour toutes les saveurs, <code>flavours/&lt;saveur&gt;/*.list.chroot</code>
+  pour une saveur précise). Changer les visuels : remplace les fichiers de
+  <code>branding/</code>.</p>
+
+  <p class="center" style="margin:44px 0"><a class="btn big" href="telecharger.html">⬇ Télécharger LexOS 1.0</a></p>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="links">
+      <a href="fonctionnalites.html">Fonctionnalités</a>
+      <a href="telecharger.html">Télécharger</a>
+      <a href="installation.html">Installation</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">Code source</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/issues" target="_blank" rel="noopener">Signaler un problème</a>
+    </div>
+    <p>LexOS 1.0 « Nomad » — TI·LEX·AL. Basé sur Debian, bureau XFCE. Licence MIT
+    pour le travail original — voir <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>

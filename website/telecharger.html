@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Télécharger LexOS 1.0 « Nomad »</title>
+<meta name="description" content="Télécharger LexOS 1.0 « Nomad » : cinq saveurs (minimal, standard, dev, full, gaming), configuration requise, vérification du fichier ISO par empreinte SHA-256.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap bar">
+    <a class="brand" href="index.html"><img src="../branding/logo-ti-lex-al-icon.png" alt=""> Lex<b>OS</b></a>
+    <nav>
+      <a href="index.html">Accueil</a>
+      <a href="fonctionnalites.html">Fonctionnalités</a>
+      <a class="on" href="telecharger.html">Télécharger</a>
+      <a href="installation.html">Installation</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <a class="cta" href="#saveurs">Télécharger</a>
+  </div>
+</header>
+
+<main class="wrap narrow" style="padding-top:50px">
+  <p class="kicker">Télécharger</p>
+  <h1 class="mt0">LexOS 1.0 « Nomad »</h1>
+  <p class="lede">Il n'y a pas (encore) de bouton « Télécharger » unique : LexOS
+  est un projet en construction, sans version officielle publiée. Il existe
+  <b>deux façons honnêtes</b> d'obtenir le fichier <code>.iso</code>, toutes les
+  deux gratuites et toutes les deux décrites ci-dessous.</p>
+
+  <div class="notice">
+    <b>Aucune inscription, aucun compte, aucune donnée personnelle.</b> Le
+    dépôt est public, le code est sous licence MIT, et rien n'est envoyé
+    nulle part pendant la construction ou l'utilisation de l'ISO.
+  </div>
+
+  <h2>Option A — la faire construire par GitHub (le plus simple)</h2>
+  <p>Pas besoin d'installer quoi que ce soit sur ta machine.</p>
+  <ol class="steps">
+    <li><h3>Ouvrir l'onglet Actions</h3>
+    <p class="dim">Sur la page du <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">dépôt GitHub</a>,
+    onglet <b>Actions</b> → workflow <b>« Construire l'ISO »</b>.</p></li>
+    <li><h3>Lancer la construction</h3>
+    <p class="dim">Bouton <b>Run workflow</b>, choisis la saveur (voir le
+    tableau plus bas), puis <b>Run</b>.</p></li>
+    <li><h3>Attendre environ une heure</h3>
+    <p class="dim">GitHub construit l'ISO de A à Z — même noyau, mêmes
+    paquets, exactement ce que tu obtiendrais en la construisant toi-même.</p></li>
+    <li><h3>Récupérer le fichier</h3>
+    <p class="dim">Au bas de la page du job terminé, section <b>Artifacts</b> :
+    <code>lexos-&lt;saveur&gt;-iso</code>. Conservé <b>14 jours</b>.</p></li>
+  </ol>
+
+  <h2>Option B — la construire toi-même</h2>
+  <p>Pour qui a déjà une machine Linux (Debian ou Ubuntu de préférence), <b>12
+  Go</b> de disque libre et une connexion correcte — la construction télécharge
+  plusieurs gigaoctets de paquets Debian.</p>
+  <pre><code>sudo apt update
+sudo apt install -y live-build debootstrap xorriso squashfs-tools \
+                    rsync wget gnupg ca-certificates \
+                    syslinux-common isolinux grub-efi-amd64-bin \
+                    grub-pc-bin mtools dosfstools librsvg2-bin
+
+git clone https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-.git
+cd logiciel-ti-lex-
+
+make check      # contrôle que tous les outils sont là
+make build      # construit l'ISO (saveur standard)</code></pre>
+  <p class="dim">Compte 20 à 60 minutes selon ta connexion. À la fin :</p>
+  <pre><code>  ok  ISO      : lexos-1.0-standard-amd64.iso
+  ok  Taille   : 2.4G
+  ok  SHA-256  : lexos-1.0-standard-amd64.iso.sha256</code></pre>
+
+  <h2 id="saveurs">Cinq saveurs</h2>
+  <p>Choisis avant de construire — <code>make build FLAVOUR=dev</code>, ou
+  directement <code>make dev</code> (idem pour <code>minimal</code>,
+  <code>standard</code>, <code>full</code>, <code>gaming</code>).</p>
+  <table>
+    <tr><th>Saveur</th><th>Contenu</th><th>Taille approx.</th><th>Commande</th></tr>
+    <tr><td><b>minimal</b></td><td>Console seule, aucun bureau</td><td>~700 Mio</td><td><code>make minimal</code></td></tr>
+    <tr><td><b>standard</b></td><td>Bureau XFCE, Firefox, dock, effets — défaut</td><td>~2,5 Gio</td><td><code>make standard</code></td></tr>
+    <tr><td><b>dev</b></td><td>standard + compilateurs, langages, conteneurs, Neovim</td><td>~4 Gio</td><td><code>make dev</code></td></tr>
+    <tr><td><b>full</b></td><td>dev + LibreOffice, GIMP, Inkscape, VLC, Krita</td><td>~6 Gio</td><td><code>make full</code></td></tr>
+    <tr><td><b>gaming</b></td><td>dev + Steam, Lutris, Wine, gamemode, MangoHud, Vulkan</td><td>~5 Gio</td><td><code>make gaming</code></td></tr>
+  </table>
+  <p class="dim">Pas sûr laquelle prendre ? <b>standard</b> convient à la
+  majorité des machines — les autres saveurs partent toutes de là et ajoutent.</p>
+
+  <h2>Configuration requise</h2>
+  <div class="grid cols-3">
+    <div class="card"><h3>💾 Espace disque</h3><p>Au moins <b>4 Go</b> pour la
+    clé USB (<b>8 Go</b> pour la saveur <code>full</code>). Prévoir <b>12 Go</b>
+    de libre sur la machine qui construit l'ISO.</p></div>
+    <div class="card"><h3>🧠 Mémoire vive</h3><p><b>2 Go minimum</b> pour la
+    saveur <code>minimal</code>, <b>4 Go recommandés</b> pour les autres —
+    machine réelle ou virtuelle.</p></div>
+    <div class="card"><h3>🖥 Processeur</h3><p>Tout processeur <b>amd64
+    (64 bits)</b> — LexOS ne construit pas d'image pour ARM à l'heure
+    actuelle.</p></div>
+  </div>
+
+  <h2>Vérifier l'intégrité du fichier</h2>
+  <p>Chaque ISO construite est accompagnée d'une empreinte SHA-256. Avant de la
+  graver, vérifie que le téléchargement n'a pas été corrompu :</p>
+  <pre><code>sha256sum -c lexos-1.0-standard-amd64.iso.sha256</code></pre>
+  <p class="dim">Si la réponse n'est pas <code>OK</code>, l'ISO est corrompue :
+  recommence le téléchargement plutôt que de graver un fichier abîmé.</p>
+
+  <div class="notice warn">
+    <b>Aucune commande de ce projet n'efface ton disque dur sans confirmation
+    explicite.</b> L'ISO démarre en <b>session démo</b> par défaut — ton
+    disque n'est touché que si tu lances toi-même <code>lexos install-disk</code>.
+  </div>
+
+  <p class="center" style="margin:40px 0"><a class="btn big" href="installation.html">Étape suivante : écrire l'ISO et démarrer →</a></p>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="links">
+      <a href="fonctionnalites.html">Fonctionnalités</a>
+      <a href="telecharger.html">Télécharger</a>
+      <a href="installation.html">Installation</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">Code source</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/issues" target="_blank" rel="noopener">Signaler un problème</a>
+    </div>
+    <p>LexOS 1.0 « Nomad » — TI·LEX·AL. Basé sur Debian, bureau XFCE. Licence MIT
+    pour le travail original — voir <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>

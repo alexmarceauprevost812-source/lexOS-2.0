@@ -8,6 +8,9 @@
 
 Basée sur Debian · Bureau XFCE façon Ubuntu · Licence MIT
 
+[**Site web et téléchargement**](website/index.html) — présentation, cinq
+saveurs, configuration requise, guide d'installation complet.
+
 </div>
 
 ---
