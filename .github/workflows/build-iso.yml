@@ -95,16 +95,34 @@ jobs:
           sudo apt-get clean
           echo "Après :"; df -h / | tail -1
 
-      - name: Installer live-build
+      - name: Installer live-build (version Debian)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            live-build debootstrap xorriso squashfs-tools \
+            debootstrap debian-archive-keyring \
+            xorriso squashfs-tools \
             rsync wget gnupg ca-certificates \
             syslinux-common isolinux \
             grub-efi-amd64-bin grub-pc-bin \
             mtools dosfstools librsvg2-bin
+
+          # Le live-build de l'archive Ubuntu est un fork figé en 3.0~a57 :
+          # il ne connaît ni --updates, ni --bootloaders, ni --uefi-secure-boot,
+          # ni --image-name. On installe celui de Debian trixie — l'outil
+          # officiel, celui pour lequel auto/config est écrit.
+          FILE="$(wget -qO- https://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.gz \
+                  | zcat | awk '/^Package: live-build$/{f=1} f && /^Filename:/{print $2; exit}')"
+          test -n "$FILE" || { echo "::error::live-build introuvable dans l'index Debian"; exit 1; }
+          wget -q "https://deb.debian.org/debian/${FILE}" -O /tmp/live-build.deb
+          sudo apt-get install -y --allow-downgrades /tmp/live-build.deb
           echo "live-build $(dpkg-query -W -f='${Version}' live-build)"
+
+          # Le debootstrap d'Ubuntu peut ignorer le nom « trixie » : on pointe
+          # alors sur le script générique sid, identique dans les faits.
+          if [ ! -e /usr/share/debootstrap/scripts/trixie ]; then
+            sudo ln -s sid /usr/share/debootstrap/scripts/trixie
+            echo "debootstrap : script trixie ajouté (lien vers sid)"
+          fi
 
       - name: Construire l'ISO
         id: build
