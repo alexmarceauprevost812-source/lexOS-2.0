@@ -13,9 +13,9 @@
    sans clé USB. Palette identique : noir pur, blanc, accent réglable.
    ========================================================================= */
 :root{
-  --ac:#E8873A; --ac-hi:#FFA45C; --ac-lo:#B4551C;
+  --ac:#E8590C; --ac-hi:#FF7A33; --ac-lo:#A84007;
   --bg:#000; --bg-alt:#0a0a0b; --bg-hi:#141416; --bd:#232326;
-  --fg:#fff; --fg-dim:#b8b8bc; --term-fg:#23A55A; --term-hi:#2ECC71;
+  --fg:#fff; --fg-dim:#b8b8bc; --term-fg:#39FF14; --term-hi:#7BFF5C;
   --crt-open:.24s; --crt-close:.28s;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -260,9 +260,10 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
 "use strict";
 /* ======================= État global ======================= */
 const ACCENTS = {
-  orange:["#E8873A","#FFA45C","#B4551C"], bleu:["#3D8BFD","#6EA8FE","#0A58CA"],
+  orange:["#E8590C","#FF7A33","#A84007"], bleu:["#3D8BFD","#6EA8FE","#0A58CA"],
   rouge:["#E5484D","#FF6B6F","#A32B2F"],  vert:["#1F8F4E","#2DBF6B","#125C32"],
   gris:["#8A8A8A","#B4B4B4","#5A5A5A"],   violet:["#8B5CF6","#A78BFA","#6234D1"],
+  neon:["#39FF14","#7BFF5C","#1FA30A"],
 };
 const LANGS = { fr_CA:"Français (Québec)", fr_FR:"Français (France)",
   en_US:"English (US)", en_CA:"English (Canada)", es_ES:"Español", de_DE:"Deutsch" };
@@ -409,7 +410,7 @@ const HELP = `
 <span class='w'>LexOS 1.0 « Nomad » — démo web</span>
 
 <span class='a'>lexfetch</span>              fiche technique
-<span class='a'>lexos accent</span> &lt;c&gt;      orange · bleu · rouge · vert · gris · violet
+<span class='a'>lexos accent</span> &lt;c&gt;      orange · bleu · rouge · vert · gris · violet · neon
 <span class='a'>lexos dock</span> &lt;p&gt;        droite · gauche · bas · haut
 <span class='a'>lexos perf</span> [profil]   petit · medium · performant · max
 <span class='a'>lexos crt</span> on|off      effets de fenêtres façon TV 1980
@@ -436,7 +437,7 @@ function runCmd(raw){
   else if(c0==="echo") out=esc(arg)+"\n";
   else if(line.startsWith("lexos accent")){
     const a=rest[1];
-    if(!a) out=`Accent courant : <span class='a'>${state.accent}</span>\nDisponibles    : orange bleu rouge vert gris violet\n`;
+    if(!a) out=`Accent courant : <span class='a'>${state.accent}</span>\nDisponibles    : orange bleu rouge vert gris violet neon\n`;
     else if(setAccent(a)) out=`<span class='p'>✓</span> Accent : ${a}\n`;
     else out=`<span class='err'>✗ Accent inconnu : ${esc(a)}</span>\n`;
   }

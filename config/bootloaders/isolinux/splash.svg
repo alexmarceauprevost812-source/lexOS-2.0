@@ -19,10 +19,10 @@
   <path d="M0,398 L92,352 L164,392 L262,330 L354,394 L448,344 L540,398 L640,356
            L640,480 L0,480 Z" fill="#171210"/>
   <path d="M0,398 L92,352 L164,392 L262,330 L354,394 L448,344 L540,398 L640,356"
-        fill="none" stroke="#E8873A" stroke-opacity="0.35" stroke-width="1.5"/>
+        fill="none" stroke="#E8590C" stroke-opacity="0.35" stroke-width="1.5"/>
 
   <!-- Boussole -->
-  <g transform="translate(320,150)" fill="none" stroke="#E8873A" stroke-opacity="0.20">
+  <g transform="translate(320,150)" fill="none" stroke="#E8590C" stroke-opacity="0.20">
     <circle r="86" stroke-width="1.2"/>
     <circle r="112" stroke-width="1" stroke-dasharray="2 10"/>
   </g>
@@ -37,5 +37,5 @@
         font-family="'DejaVu Sans',sans-serif" font-size="13" letter-spacing="4"
         fill="#B9A899">EXPLORE &#183; BUILD &#183; OWN YOUR MACHINE</text>
 
-  <rect x="230" y="222" width="180" height="1.5" fill="#E8873A" opacity="0.4"/>
+  <rect x="230" y="222" width="180" height="1.5" fill="#E8590C" opacity="0.4"/>
 </svg>

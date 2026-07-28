@@ -152,7 +152,7 @@ TransitionDuration=0.0
 BackgroundStartColor=0x000000
 BackgroundEndColor=0x000000
 ProgressBarBackgroundColor=0x1A1A1C
-ProgressBarForegroundColor=0xE8873A
+ProgressBarForegroundColor=0xE8590C
 DialogClearsFirmwareBackground=true
 MessageBelowAnimation=true
 

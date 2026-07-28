@@ -5,7 +5,7 @@
   <defs>
     <linearGradient id="ember" x1="0" y1="0" x2="0.7" y2="1">
       <stop offset="0%"   stop-color="#FFC287"/>
-      <stop offset="45%"  stop-color="#E8873A"/>
+      <stop offset="45%"  stop-color="#E8590C"/>
       <stop offset="100%" stop-color="#A84C17"/>
     </linearGradient>
     <linearGradient id="visor" x1="0" y1="0" x2="1" y2="1">
@@ -22,7 +22,7 @@
   <!-- Fond -->
   <rect width="512" height="512" rx="112" fill="#141110"/>
   <rect width="512" height="512" rx="112" fill="none"
-        stroke="#E8873A" stroke-opacity="0.30" stroke-width="4"/>
+        stroke="#E8590C" stroke-opacity="0.30" stroke-width="4"/>
 
   <!-- Casquette : dôme -->
   <path d="M118 196 C118 106 178 56 256 56 C334 56 394 106 394 196 Z"
@@ -52,10 +52,10 @@
 
   <!-- Filtre central -->
   <ellipse cx="256" cy="372" rx="34" ry="40" fill="#2E251F"/>
-  <ellipse cx="256" cy="372" rx="20" ry="25" fill="#E8873A" opacity="0.85"/>
+  <ellipse cx="256" cy="372" rx="20" ry="25" fill="#E8590C" opacity="0.85"/>
 
   <!-- Aérations -->
-  <g fill="#E8873A" opacity="0.55">
+  <g fill="#E8590C" opacity="0.55">
     <circle cx="196" cy="342" r="7"/><circle cx="316" cy="342" r="7"/>
     <circle cx="204" cy="376" r="6"/><circle cx="308" cy="376" r="6"/>
     <circle cx="220" cy="408" r="5"/><circle cx="292" cy="408" r="5"/>

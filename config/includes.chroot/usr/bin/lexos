@@ -77,7 +77,7 @@ ${B}PAQUETS${R}
 ${B}APPARENCE${R}
   ${A}theme${R} <sombre|clair> LexOS Noir (défaut) ou thème de jour ${D}(crème, pas blanc pur)${R}
   ${A}accent${R} <couleur>    Couleur des boutons et des sélections
-                      ${D}orange (défaut) · bleu · rouge · vert · gris · violet${R}
+                      ${D}orange (défaut) · bleu · rouge · vert · gris · violet · neon${R}
   ${A}dock${R} <position>     Barre d'outils : ${D}droite (défaut) · gauche · bas · haut${R}
   ${A}ecran${R}               Plusieurs écrans : étendre, dupliquer, principal
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
@@ -312,7 +312,7 @@ cmd_accent() {
 		local cur="orange"
 		[[ -r "$HOME/.config/lexos/accent" ]] && cur="$(cat "$HOME/.config/lexos/accent")"
 		printf 'Accent courant : %s%s%s\n' "$O" "$cur" "$R"
-		printf 'Disponibles    : orange bleu rouge vert gris violet\n'
+		printf 'Disponibles    : orange bleu rouge vert gris violet neon\n'
 		return 0
 	fi
 	command -v lexos-theme-gen >/dev/null 2>&1 \

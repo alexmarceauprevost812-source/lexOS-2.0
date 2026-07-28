@@ -19,12 +19,13 @@ lexos accent violet     # applique immédiatement
 
 | Nom | Code | Variante claire | Variante foncée |
 |---|---|---|---|
-| `orange` *(défaut)* | `#E8873A` | `#FFA45C` | `#B4551C` |
+| `orange` *(défaut)* | `#E8590C` | `#FF7A33` | `#A84007` |
 | `bleu` | `#3D8BFD` | `#6EA8FE` | `#0A58CA` |
 | `rouge` | `#E5484D` | `#FF6B6F` | `#A32B2F` |
 | `vert` | `#1F8F4E` | `#2DBF6B` | `#125C32` |
 | `gris` | `#8A8A8A` | `#B4B4B4` | `#5A5A5A` |
 | `violet` | `#8B5CF6` | `#A78BFA` | `#6234D1` |
+| `neon` (vert néon) | `#39FF14` | `#7BFF5C` | `#1FA30A` |
 
 Le choix est écrit dans `~/.config/lexos/accent` et rejoué à chaque session.
 Les applications déjà ouvertes gardent l'ancienne couleur : ferme-les et
@@ -120,7 +121,7 @@ Valeurs par défaut :
 
 ```ini
 ColorBackground=#000000     ; noir pur
-ColorForeground=#23A55A     ; vert foncé
+ColorForeground=#39FF14     ; vert néon
 ColorCursor=<accent>        ; orange par défaut
 FontName=Fira Code 11
 ```

@@ -35,7 +35,7 @@ body {
 }
 .wrap { max-width: 640px; margin: 0 auto; }
 h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -.5px; }
-h1 span { color: #E8873A; }
+h1 span { color: #E8590C; }
 .sub { color: #8A8A90; font-size: 14px; margin: 0 0 28px; }
 h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1.5px;
      color: #8A8A90; margin: 32px 0 12px; font-weight: 600; }
@@ -52,11 +52,11 @@ a.file .size { color: #8A8A90; font-size: 13px; white-space: nowrap; }
 form { border: 1px dashed #2A2A30; border-radius: 10px; padding: 20px; }
 input[type=file] { width: 100%; color: #B8B8BC; margin-bottom: 14px; }
 button {
-  background: #E8873A; color: #fff; border: 1px solid #B4551C;
+  background: #E8590C; color: #fff; border: 1px solid #A84007;
   border-radius: 6px; padding: 11px 20px; font-size: 15px; font-weight: 600;
   cursor: pointer; width: 100%;
 }
-button:hover { background: #FFA45C; }
+button:hover { background: #FF7A33; }
 .msg { background: #0E1A10; border: 1px solid #1F8F4E; color: #2DBF6B;
        border-radius: 8px; padding: 12px 14px; margin-bottom: 20px; font-size: 15px; }
 .empty { color: #8A8A90; padding: 14px 4px; }

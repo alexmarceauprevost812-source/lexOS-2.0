@@ -113,7 +113,7 @@ jobs:
 
       - name: Chaque accent produit un thème complet
         run: |
-          for accent in orange bleu rouge vert gris violet; do
+          for accent in orange bleu rouge vert gris violet neon; do
             out="/tmp/theme-$accent"
             mkdir -p "$out"
             HOME="$out" ./config/includes.chroot/usr/bin/lexos-theme-gen "$accent" --target "$out"
@@ -122,7 +122,7 @@ jobs:
             test -s "$out/.gtkrc-2.0"
             grep -q '#000000' "$out/.config/gtk-3.0/gtk.css"
           done
-          echo "6 accents validés."
+          echo "7 accents validés."
 
       - name: Un accent inconnu est refusé
         run: |

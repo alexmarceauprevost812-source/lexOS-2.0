@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
 			shift 2
 			;;
 		--list)
-			printf 'orange bleu rouge vert gris violet\n'
+			printf 'orange bleu rouge vert gris violet neon\n'
 			exit 0
 			;;
 		-*)
@@ -55,15 +55,16 @@ esac
 
 # --- Palette des accents -----------------------------------------------------
 case "${ACCENT_NAME,,}" in
-	orange|ambre)          ACCENT="#E8873A"; ACCENT_HI="#FFA45C"; ACCENT_LO="#B4551C" ;;
+	orange|ambre)          ACCENT="#E8590C"; ACCENT_HI="#FF7A33"; ACCENT_LO="#A84007" ;;
 	bleu|blue)             ACCENT="#3D8BFD"; ACCENT_HI="#6EA8FE"; ACCENT_LO="#0A58CA" ;;
 	rouge|red)             ACCENT="#E5484D"; ACCENT_HI="#FF6B6F"; ACCENT_LO="#A32B2F" ;;
 	vert|green|vert-dark)  ACCENT="#1F8F4E"; ACCENT_HI="#2DBF6B"; ACCENT_LO="#125C32" ;;
 	gris|grey|gray|grid)   ACCENT="#8A8A8A"; ACCENT_HI="#B4B4B4"; ACCENT_LO="#5A5A5A" ;;
 	violet|purple)         ACCENT="#8B5CF6"; ACCENT_HI="#A78BFA"; ACCENT_LO="#6234D1" ;;
+	neon|vert-neon|vertneon) ACCENT="#39FF14"; ACCENT_HI="#7BFF5C"; ACCENT_LO="#1FA30A" ;;
 	*)
 		printf 'Accent inconnu : %s\n' "$ACCENT_NAME" >&2
-		printf 'Disponibles : orange bleu rouge vert gris violet\n' >&2
+		printf 'Disponibles : orange bleu rouge vert gris violet neon\n' >&2
 		exit 1
 		;;
 esac
@@ -74,8 +75,8 @@ ACCENT_NAME="${ACCENT_NAME,,}"
 #  deux modes, et du texte blanc reste lisible dessus quel que soit le mode.
 BTN_FG="#FFFFFF"
 TERM_BG="#000000"       # le terminal reste toujours noir, même en thème de jour
-TERM_FG="#23A55A"       # vert dark du terminal
-TERM_FG_HI="#2ECC71"
+TERM_FG="#39FF14"       # vert du terminal
+TERM_FG_HI="#7BFF5C"
 
 if [[ "$MODE" == "clair" ]]; then
 	# Thème de jour : blanc cassé/crème, jamais blanc pur — texte noir.
@@ -383,7 +384,7 @@ if command -v rsvg-convert >/dev/null 2>&1; then
 		ICON_SRC="/usr/share/lexos/branding/icon-${ICON_NAME}.svg"
 		[[ -r "$ICON_SRC" ]] || continue
 		TMP_SVG="$(mktemp -t lexos-icon-XXXXXX.svg)"
-		sed "s/#E8873A/${ACCENT}/gI" "$ICON_SRC" > "$TMP_SVG"
+		sed "s/#E8590C/${ACCENT}/gI" "$ICON_SRC" > "$TMP_SVG"
 		for S in 24 32 48 64 128 256; do
 			mkdir -p "$ICON_DIR/${S}x${S}/apps"
 			rsvg-convert -w "$S" -h "$S" \

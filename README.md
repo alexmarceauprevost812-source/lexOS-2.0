@@ -30,7 +30,7 @@ profils de performance, outils réseau et de partage.
 | **Socle** | Debian trixie — noyau 6.12 LTS, systemd 257, Mesa 25 |
 | **Bureau** | XFCE — barre en haut, dock à droite, façon Ubuntu |
 | **Thème** | LexOS Noir : fond noir pur, écriture blanche, boutons accentués |
-| **Terminal** | Fond noir, écriture vert foncé, curseur orange |
+| **Terminal** | Fond noir, écriture vert néon, curseur orange |
 | **Effets** | Ouverture/fermeture de fenêtres façon téléviseur 1980 |
 | **Performance** | 4 profils : petit · médium · performant · max |
 | **Réseau** | Mode avion, Wi-Fi, Bluetooth, partage par QR code |
@@ -174,18 +174,19 @@ progression.
 
 | Accent | Code | Commande |
 |---|---|---|
-| Orange *(défaut)* | `#E8873A` | `lexos accent orange` |
+| Orange *(défaut)* | `#E8590C` | `lexos accent orange` |
 | Bleu | `#3D8BFD` | `lexos accent bleu` |
 | Rouge | `#E5484D` | `lexos accent rouge` |
 | Vert foncé | `#1F8F4E` | `lexos accent vert` |
 | Gris | `#8A8A8A` | `lexos accent gris` |
 | Violet | `#8B5CF6` | `lexos accent violet` |
+| Vert néon | `#39FF14` | `lexos accent neon` |
 
 Le changement est instantané et se retient d'une session à l'autre.
 
 ### Le terminal
 
-Fond noir, écriture **vert foncé** (`#23A55A`), curseur à la couleur d'accent,
+Fond noir, écriture **vert néon** (`#39FF14`), curseur à la couleur d'accent,
 police Fira Code, invite sur deux lignes avec la branche Git courante.
 
 ### Effets de fenêtres « TV 1980 »
@@ -417,7 +418,7 @@ PAQUETS
   clean               Libérer de l'espace
 
 APPARENCE
-  accent <couleur>    orange · bleu · rouge · vert · gris · violet
+  accent <couleur>    orange · bleu · rouge · vert · gris · violet · neon
   dock <position>     droite (défaut) · gauche · bas · haut
   ecran               Plusieurs écrans : étendre, dupliquer, principal
   wallpaper [chemin]  Changer le fond d'écran
