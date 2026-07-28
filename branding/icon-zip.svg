@@ -43,5 +43,5 @@
   <!-- Étiquette ZIP -->
   <text x="256" y="470" text-anchor="middle"
         font-family="'DejaVu Sans',Arial,sans-serif" font-weight="700"
-        font-size="34" letter-spacing="2" fill="#2A1D12" opacity="0.85">ZIP</text>
+        font-size="34" letter-spacing="2" fill="#000000">ZIP</text>
 </svg>

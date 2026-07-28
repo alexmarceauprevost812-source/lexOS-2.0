@@ -29,7 +29,7 @@ cat > /etc/lightdm/lightdm.conf.d/50-lexos.conf <<EOF
 greeter-session=lightdm-gtk-greeter
 user-session=xfce
 greeter-hide-users=false
-allow-guest=false
+allow-guest=true
 EOF
 
 cat > /etc/lightdm/lightdm-gtk-greeter.conf <<EOF
@@ -66,6 +66,26 @@ cat > /etc/sudoers.d/lexos-live <<EOF
 ${LEXOS_LIVE_USER} ALL=(ALL) NOPASSWD: ALL
 EOF
 chmod 0440 /etc/sudoers.d/lexos-live
+
+# --- Compte « invite » : repli pour la session invité -----------------------
+# allow-guest=true (ci-dessus) laisse LightDM proposer sa propre session
+# invité via le paquet lightdm-guest-session — ajouté en best-effort dans
+# optional-packages/20-desktop.list, car sa disponibilité dans les dépôts
+# Debian n'est pas garantie. En complément (deux paliers, comme ailleurs dans
+# LexOS), on crée ici un vrai compte « invite » qui existe toujours, que ce
+# paquet soit installé ou non : sans mot de passe utilisable (compte
+# verrouillé), et surtout sans sudo ni groupe d'administration.
+# Note : un vrai nettoyage du $HOME à la déconnexion demanderait un script de
+# session PAM (pam_exec) — hors périmètre ici ; ce compte n'est qu'une cible
+# de connexion de repli, sûre par construction.
+id invite >/dev/null 2>&1 || \
+	useradd -m -s /bin/bash -c "Invité LexOS — session limitée, sans mot de passe, sans droits admin" invite
+passwd -l invite >/dev/null 2>&1 || true
+
+if [ -r /usr/share/lexos/branding/mascot.png ]; then
+	mkdir -p /var/lib/AccountsService/icons
+	cp /usr/share/lexos/branding/mascot.png /var/lib/AccountsService/icons/invite
+fi
 
 # --- Navigateur et applications par défaut ----------------------------------
 mkdir -p /etc/xdg
@@ -140,6 +160,20 @@ Categories=Settings;HardwareSettings;
 Keywords=ecran;moniteur;display;hdmi;projecteur;multi;
 EOF
 
+cat > /usr/share/applications/lexos-ia.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=IA locale
+Name[en]=Local AI
+Comment=Assistant IA 100% local (Ollama) — rien n'est envoyé sur internet
+Exec=xfce4-terminal --title="IA locale — LexOS" -e "lexos ia"
+Icon=lexos
+Terminal=false
+Categories=System;Utility;
+Keywords=ia;ai;intelligence artificielle;agent;ollama;assistant;
+EOF
+
 cat > /usr/share/applications/lexos-avion.desktop <<EOF
 [Desktop Entry]
 Type=Application
@@ -211,6 +245,18 @@ cat > /etc/skel/.config/Thunar/uca.xml <<'EOF'
     <patterns>*</patterns>
     <startup-notify/>
     <directories/>
+  </action>
+  <action>
+    <icon>insert-image</icon>
+    <name>Créer un autocollant</name>
+    <submenu></submenu>
+    <unique-id>lexos-sticker-1</unique-id>
+    <command>lexos-sticker --gui %f</command>
+    <description>Découper le sujet de la photo en autocollant (PNG à fond transparent)</description>
+    <range>*</range>
+    <patterns>*.png;*.PNG;*.jpg;*.JPG;*.jpeg;*.JPEG;*.webp;*.WEBP;*.bmp;*.BMP</patterns>
+    <startup-notify/>
+    <image-files/>
   </action>
 </actions>
 EOF

@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-ia — assistant IA en ligne de commande, 100% local et hors-ligne
+# =============================================================================
+#  Moteur : Ollama (open-source, tourne le modèle sur la machine — rien
+#  n'est envoyé sur internet une fois le modèle téléchargé). Deux modes :
+#    - lexos ia               : conversation normale (comme un chat)
+#    - lexos ia "<tâche>"      : agent AUTONOME — lit le résultat de chaque
+#                                commande et enchaîne tout seul jusqu'à finir
+#  Règle de la maison, comme pour lexos-format : jamais de commande destructrice
+#  sans confirmation explicite, et jamais les droits root sans le demander.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+OLLAMA_HOST="${LEXOS_IA_HOST:-127.0.0.1:11434}"
+DEFAULT_MODEL="qwen2.5:3b"
+STATE_DIR="$HOME/.config/lexos"
+MODEL_FILE="$STATE_DIR/ia-modele"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+err()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; }
+die()  { err "$*"; exit 1; }
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — assistant IA local (Ollama), rien n'est envoyé sur internet
+
+Usage :
+  $PROG setup                Installe Ollama + télécharge le modèle par défaut
+  $PROG                      Conversation libre (chat)
+  $PROG "<tâche>"            Agent AUTONOME : exécute des commandes, enchaîne
+                              tout seul jusqu'à répondre à la tâche
+  $PROG modele [nom]         Voir / changer le modèle utilisé
+  $PROG --auto "<tâche>"     Agent autonome SANS demander de confirmation
+                              à chaque commande (toujours refuse le destructeur)
+  $PROG --sudo "<tâche>"     Autorise l'agent à utiliser sudo (désactivé par défaut)
+
+Exemples :
+  $PROG setup
+  $PROG "combien d'espace disque reste-t-il ?"
+  $PROG "trouve les 5 plus gros fichiers de mon dossier Téléchargements"
+  $PROG modele llama3.2:3b
+EOF
+}
+
+has_ollama() { command -v ollama >/dev/null 2>&1; }
+
+current_model() {
+	if [[ -r "$MODEL_FILE" ]]; then cat "$MODEL_FILE"; else printf '%s' "$DEFAULT_MODEL"; fi
+}
+
+cmd_setup() {
+	if has_ollama; then
+		ok "Ollama est déjà installé."
+	else
+		say "Installation d'Ollama (moteur d'IA locale — installeur officiel ollama.com)…"
+		command -v curl >/dev/null 2>&1 || die "curl est requis pour l'installation."
+		curl -fsSL https://ollama.com/install.sh | sh || die "Échec de l'installation d'Ollama."
+	fi
+	command -v systemctl >/dev/null 2>&1 && systemctl enable --now ollama >/dev/null 2>&1
+	sleep 1
+	local m; m="$(current_model)"
+	say "Téléchargement du modèle par défaut : ${m} (une fois — ensuite tout tourne hors-ligne)…"
+	ollama pull "$m" || die "Échec du téléchargement du modèle. Réessaie : ${PROG} setup"
+	ok "Prêt — essaie : ${PROG} \"quels services ont échoué ?\""
+}
+
+cmd_modele() {
+	local m="${1:-}"
+	if [[ -z "$m" ]]; then
+		printf 'Modèle courant : %s%s%s\n' "$O" "$(current_model)" "$R"
+		if has_ollama; then
+			printf '\nModèles déjà téléchargés :\n'
+			ollama list 2>/dev/null || true
+		fi
+		return 0
+	fi
+	mkdir -p "$STATE_DIR"
+	printf '%s\n' "$m" > "$MODEL_FILE"
+	ok "Modèle par défaut : $m"
+	has_ollama && say "Si besoin, télécharge-le : ollama pull $m"
+}
+
+cmd_chat() {
+	has_ollama || die "Ollama n'est pas installé — lance d'abord : ${PROG} setup"
+	exec ollama run "$(current_model)"
+}
+
+cmd_agent() {
+	has_ollama || die "Ollama n'est pas installé — lance d'abord : ${PROG} setup"
+	local auto=0 allow_sudo=0
+	while [[ "${1:-}" == --* ]]; do
+		case "$1" in
+			--auto) auto=1 ;;
+			--sudo) allow_sudo=1 ;;
+			*) die "Option inconnue : $1" ;;
+		esac
+		shift
+	done
+	[[ $# -gt 0 ]] || { usage; exit 1; }
+	LEXOS_IA_AUTO="$auto" LEXOS_IA_SUDO="$allow_sudo" LEXOS_IA_MODEL="$(current_model)" \
+		LEXOS_IA_HOST="$OLLAMA_HOST" LEXOS_IA_TASK="$*" \
+		python3 "$(dirname -- "$(readlink -f -- "$0")")/lexos-ia-agent.py"
+}
+
+AUTO=0
+SUDO_OK=0
+ARGS=()
+for a in "$@"; do
+	case "$a" in
+		--auto) AUTO=1 ;;
+		--sudo) SUDO_OK=1 ;;
+		*) ARGS+=("$a") ;;
+	esac
+done
+
+if [[ "${#ARGS[@]}" -eq 0 ]]; then
+	cmd_chat
+	exit $?
+fi
+
+case "${ARGS[0]}" in
+	-h|--help)  usage ;;
+	setup)      cmd_setup ;;
+	modele|model) cmd_modele "${ARGS[1]:-}" ;;
+	chat)       cmd_chat ;;
+	*)
+		OPTS=()
+		[[ "$AUTO" -eq 1 ]] && OPTS+=(--auto)
+		[[ "$SUDO_OK" -eq 1 ]] && OPTS+=(--sudo)
+		cmd_agent "${OPTS[@]}" "${ARGS[@]}"
+		;;
+esac

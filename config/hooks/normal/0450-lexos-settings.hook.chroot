@@ -5,10 +5,11 @@
 #  Objectif : retrouver dans LexOS toutes les sections d'Ubuntu Settings —
 #  Wi-Fi, Réseau, Bluetooth, Écrans, Son, Énergie, Multi-tâches, Apparence,
 #  Bureau, Applications, Notifications, Recherche, Comptes en ligne, Partage,
-#  Bien-être, Confidentialité et sécurité, Mises à jour, Accessibilité,
-#  Utilisateurs, Région et langue, Clavier, À propos — chacune raccordée à
-#  l'outil LexOS qui fait le vrai travail (lexos-net, lexos-display,
-#  lexos-perf, lexos-theme-gen…), ou au panneau XFCE natif qui s'en charge.
+#  Bien-être, Souris et pavé tactile, Gestion des couleurs, Imprimantes,
+#  Confidentialité et sécurité, Mises à jour, Accessibilité, Utilisateurs,
+#  Région et langue, Clavier, À propos — chacune raccordée à l'outil LexOS
+#  qui fait le vrai travail (lexos-net, lexos-display, lexos-perf,
+#  lexos-theme-gen…), ou au panneau XFCE natif qui s'en charge.
 # =============================================================================
 set -e
 
@@ -127,10 +128,26 @@ case "$SECTION" in
 	                              -e "lexos net status; echo; lexos secure; bash" ;;
 	usb)                      exec xfce4-terminal --title="USB — LexOS" --hold \
 	                              -e "lexos usb; echo; echo 'Formater un support : lexos format'; bash" ;;
+	souris|pavetactile|touchpad|mouse)
+	                          command -v xfce4-mouse-settings >/dev/null 2>&1 \
+	                              && exec xfce4-mouse-settings \
+	                              || open_xfce pointers ;;
+	couleurs|gestion-couleurs|color|colormanagement)
+	                          command -v gcm-viewer >/dev/null 2>&1 \
+	                              && exec gcm-viewer \
+	                              || info "Gestion des couleurs : installe gnome-color-manager (lexos install gnome-color-manager) pour gérer les profils ICC." ;;
+	imprimantes|printers|imprimante)
+	                          command -v system-config-printer >/dev/null 2>&1 \
+	                              && exec system-config-printer \
+	                              || { command -v xdg-open >/dev/null 2>&1 \
+	                                     && exec xdg-open http://localhost:631 \
+	                                     || info "Imprimantes : lexos install system-config-printer, ou http://localhost:631 (CUPS)." ; } ;;
 	clavier|keyboard)         open_xfce keyboard ;;
 	langue|region|locale)     langue_gui ;;
 	accessibilite|a11y)       open_xfce accessibility ;;
-	utilisateurs|users)       exec xfce4-terminal --title="Utilisateurs" -e "users-admin" ;;
+	utilisateurs|users)
+	                          exec xfce4-terminal --title="Utilisateurs — LexOS" --hold \
+	                              -e "printf '%s\n' 'Comptes locaux de LexOS :' '' '  lex     — Principal, administrateur' '  invite  — Invité, session limitée sans mot de passe' ''; bash" ;;
 	maj|updates)              exec xfce4-terminal --title="Mises à jour — LexOS" --hold -e "lexos doctor; bash" ;;
 	partage|share)            exec lexos-share devices ;;
 	apropos|about)            exec lexos-welcome --about ;;
@@ -151,7 +168,7 @@ Exec=lexos-settings
 Icon=preferences-system
 Terminal=false
 Categories=Settings;
-Keywords=parametres;settings;wifi;reseau;bluetooth;ecrans;son;energie;performance;apparence;bureau;applications;notifications;recherche;comptes;partage;bien-etre;confidentialite;securite;mises a jour;accessibilite;utilisateurs;langue;clavier;a propos;
+Keywords=parametres;settings;wifi;reseau;bluetooth;ecrans;son;energie;performance;apparence;bureau;applications;notifications;recherche;comptes;partage;bien-etre;souris;pave tactile;touchpad;couleurs;imprimantes;confidentialite;securite;mises a jour;accessibilite;utilisateurs;langue;clavier;a propos;
 EOF
 
 echo "[lexos] hook 0450 : ok"

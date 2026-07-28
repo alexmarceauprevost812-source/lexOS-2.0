@@ -124,6 +124,8 @@ fi
 # --- Thème Plymouth ----------------------------------------------------------
 PLY_SRC="/usr/share/plymouth/themes/spinner"
 PLY_DST="/usr/share/plymouth/themes/lexos"
+FRAME_DIR="$BRAND/mascot-anim-frames"
+FRAME_FIRST="$FRAME_DIR/mascot-anim-00.png"
 
 if [ -d "$PLY_SRC" ]; then
 	rm -rf "$PLY_DST"
@@ -134,7 +136,120 @@ if [ -d "$PLY_SRC" ]; then
 		convert "$LOGO_SRC" -resize 200x200 "$PLY_DST/watermark.png" || true
 	fi
 
-	cat > "$PLY_DST/lexos.plymouth" <<'EOF'
+	if [ -r "$FRAME_FIRST" ] && have convert; then
+		# --- Mascotte animée (16 images, ~90ms/frame) : thème "script" ------
+		for F in "$FRAME_DIR"/mascot-anim-*.png; do
+			[ -e "$F" ] || continue
+			cp "$F" "$PLY_DST/$(basename "$F")"
+		done
+
+		convert -size 1x1 xc:'#1A1A1C' "$PLY_DST/progress-bg.png" || true
+		convert -size 1x1 xc:'#E8590C' "$PLY_DST/progress-fg.png" || true
+
+		cat > "$PLY_DST/lexos.script" <<'SCRIPT_EOF'
+// LexOS — thème Plymouth animé (mascotte, 16 images)
+// Généré par config/hooks/normal/0300-lexos-assets.hook.chroot — ne pas éditer à la main.
+
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
+
+frame_count = 16;
+frame_delay = 0.09;
+frame_index = 0;
+frame_start_time = -1;
+
+frame_image[0]  = Image("mascot-anim-00.png");
+frame_image[1]  = Image("mascot-anim-01.png");
+frame_image[2]  = Image("mascot-anim-02.png");
+frame_image[3]  = Image("mascot-anim-03.png");
+frame_image[4]  = Image("mascot-anim-04.png");
+frame_image[5]  = Image("mascot-anim-05.png");
+frame_image[6]  = Image("mascot-anim-06.png");
+frame_image[7]  = Image("mascot-anim-07.png");
+frame_image[8]  = Image("mascot-anim-08.png");
+frame_image[9]  = Image("mascot-anim-09.png");
+frame_image[10] = Image("mascot-anim-10.png");
+frame_image[11] = Image("mascot-anim-11.png");
+frame_image[12] = Image("mascot-anim-12.png");
+frame_image[13] = Image("mascot-anim-13.png");
+frame_image[14] = Image("mascot-anim-14.png");
+frame_image[15] = Image("mascot-anim-15.png");
+
+mascot_sprite = Sprite();
+mascot_sprite.SetImage(frame_image[0]);
+mascot_sprite.SetX(Window.GetWidth() / 2 - frame_image[0].GetWidth() / 2);
+mascot_sprite.SetY(Window.GetHeight() * 0.38 - frame_image[0].GetHeight() / 2);
+mascot_sprite.SetZ(10);
+mascot_sprite.SetOpacity(1);
+
+fun refresh_callback() {
+    now = Plymouth.GetTime();
+
+    if (frame_start_time < 0) {
+        frame_start_time = now;
+    }
+
+    if (now - frame_start_time >= frame_delay) {
+        frame_start_time = now;
+        frame_index = frame_index + 1;
+        if (frame_index >= frame_count) {
+            frame_index = 0;
+        }
+        mascot_sprite.SetImage(frame_image[frame_index]);
+    }
+}
+
+Plymouth.SetRefreshFunction(refresh_callback);
+
+// Barre de progression (fond gris ProgressBarBackgroundColor=0x1A1A1C,
+// remplissage orange ProgressBarForegroundColor=0xE8590C), redessinée par
+// mise à l'échelle d'un pixel de couleur unie — le module "script" ne
+// fournit pas de barre de progression native comme "two-step".
+progress_bg_image = Image("progress-bg.png");
+progress_fg_image = Image("progress-fg.png");
+progress_bg_sprite = Sprite();
+progress_fg_sprite = Sprite();
+progress_bg_sprite.SetImage(progress_bg_image);
+progress_fg_sprite.SetImage(progress_fg_image);
+progress_bg_sprite.SetZ(20);
+progress_fg_sprite.SetZ(21);
+
+fun progress_callback(duration, progress) {
+    bar_width = Window.GetWidth() * 0.3;
+    bar_height = 4;
+    bar_x = Window.GetWidth() / 2 - bar_width / 2;
+    bar_y = Window.GetHeight() * 0.72;
+
+    progress_bg_sprite.SetImage(progress_bg_image.Scale(bar_width, bar_height));
+    progress_bg_sprite.SetX(bar_x);
+    progress_bg_sprite.SetY(bar_y);
+
+    fg_width = bar_width * progress;
+    if (fg_width < 1) {
+        fg_width = 1;
+    }
+
+    progress_fg_sprite.SetImage(progress_fg_image.Scale(fg_width, bar_height));
+    progress_fg_sprite.SetX(bar_x);
+    progress_fg_sprite.SetY(bar_y);
+}
+
+Plymouth.SetBootProgressFunction(progress_callback);
+SCRIPT_EOF
+
+		cat > "$PLY_DST/lexos.plymouth" <<'EOF'
+[Plymouth Theme]
+Name=LexOS
+Description=Ecran de demarrage LexOS (mascotte animee)
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/lexos
+ScriptFile=/usr/share/plymouth/themes/lexos/lexos.script
+EOF
+	else
+		echo "[lexos]   images d'animation absentes ou convert manquant — thème Plymouth statique (watermark)"
+		cat > "$PLY_DST/lexos.plymouth" <<'EOF'
 [Plymouth Theme]
 Name=LexOS
 Description=Ecran de demarrage LexOS
@@ -173,6 +288,7 @@ UseFirmwareBackground=false
 UseEndAnimation=false
 UseFirmwareBackground=false
 EOF
+	fi
 
 	have plymouth-set-default-theme && \
 		plymouth-set-default-theme lexos >/dev/null 2>&1 \

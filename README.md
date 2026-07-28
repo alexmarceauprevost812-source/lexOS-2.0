@@ -385,6 +385,29 @@ autocollant**.
 
 ---
 
+## IA locale — agent autonome dans le terminal
+
+```bash
+lexos ia setup                      # installe Ollama + un petit modèle, une fois
+lexos ia                            # conversation libre
+lexos ia "libère 2 Gio d'espace disque"   # agent autonome
+```
+
+Le moteur (Ollama) tourne **sur la machine** : une fois le modèle téléchargé,
+plus rien ne sort sur internet, même en mode agent.
+
+En mode agent, LexOS propose une commande, te la montre, l'exécute, regarde
+le résultat, et recommence jusqu'à avoir fini la tâche. Les mêmes règles que
+`lexos format` s'appliquent :
+
+- Jamais de commande qui efface, formate ou écrase un disque — refusée
+  automatiquement, sans exception.
+- Jamais `sudo` par défaut (`lexos ia --sudo "…"` pour l'autoriser).
+- Chaque commande s'affiche avant d'être lancée ; `lexos ia --auto "…"` saute
+  la confirmation, mais le refus des commandes destructrices reste actif.
+
+---
+
 ## Mot de passe sur le disque dur
 
 À l'installation, Calamares propose de **chiffrer le disque entier** (LUKS2).
@@ -461,6 +484,10 @@ PARTAGE
 
 IMAGES
   sticker <image…>    Découpe le sujet en autocollant (PNG transparent)
+
+IA
+  ia setup            Installe l'IA locale (Ollama) + un petit modèle
+  ia "<tâche>"         Agent autonome — rien n'est envoyé sur internet
 
 DÉMO & INSTALLATION
   demo                Clé USB (démo) ou disque dur ?

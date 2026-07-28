@@ -14,6 +14,7 @@ thunar-open-terminal
 tumbler
 file-roller
 lightdm-gtk-greeter-settings
+lightdm-guest-session
 arc-theme
 papirus-icon-theme
 fonts-noto-core

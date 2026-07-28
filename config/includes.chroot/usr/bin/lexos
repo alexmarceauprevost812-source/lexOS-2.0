@@ -126,6 +126,12 @@ ${B}IMAGES${R}
   ${A}sticker${R} <image…>     Découpe le sujet en autocollant (PNG transparent)
                       ${D}IA (rembg) si installée, sinon fond uni (ImageMagick)${R}
 
+${B}IA${R}
+  ${A}ia setup${R}             Installe l'IA locale (Ollama) + un petit modèle
+  ${A}ia${R}                   Conversation libre avec l'IA locale
+  ${A}ia${R} "<tâche>"          Agent AUTONOME : exécute des commandes tout seul
+                      ${D}rien n'est envoyé sur internet, jamais sudo par défaut${R}
+
 ${B}DÉMO & INSTALLATION${R}
   ${A}demo${R}                Où en est-on : clé USB (démo) ou disque dur ?
   ${A}install-disk${R}        Installer sur le disque ${D}(confirmation exigée)${R}
@@ -140,6 +146,7 @@ ${B}EXEMPLES${R}
   ${D}${PROG} usb import${R}
   ${D}${PROG} lang quebecois${R}
   ${D}${PROG} sticker photo.jpg${R}
+  ${D}${PROG} ia "libère 2 Gio d'espace disque"${R}
 
 EOF
 	[[ -n "$LEXOS_HOME_URL" ]] && printf '%s%s%s\n\n' "$D" "$LEXOS_HOME_URL" "$R"
@@ -564,6 +571,7 @@ case "$CMD" in
 	usb)                  exec lexos-usb "$@" ;;
 	format)               exec lexos-format "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
+	ia|agent)             exec lexos-ia "$@" ;;
 	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;
