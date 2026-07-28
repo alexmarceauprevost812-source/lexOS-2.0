@@ -103,4 +103,15 @@ mkdir -p /etc/lexos
 
 echo "[lexos]   ${OK_COUNT} installés, ${KO_COUNT} indisponibles (détail : ${REPORT})"
 rm -f "$WANTED"
+
+# --- Vérification quotidienne des mises à jour (notification seulement) ----
+#  Les mises à jour de SÉCURITÉ s'installent déjà toutes seules
+#  (unattended-upgrades, /etc/apt/apt.conf.d/20auto-upgrades). Ce minuteur ne
+#  fait que prévenir quand il en reste d'autres à appliquer à la main.
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl enable lexos-update-check.timer >/dev/null 2>&1 \
+		&& echo "[lexos]   lexos-update-check.timer activé" \
+		|| echo "[lexos]   !! lexos-update-check.timer non activé"
+fi
+
 echo "[lexos] hook 0250 : ok"

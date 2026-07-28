@@ -1,0 +1,13 @@
+[Unit]
+Description=LexOS — vérification quotidienne des mises à jour
+Documentation=https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-
+
+[Timer]
+OnBootSec=10min
+OnUnitInactiveSec=1d
+AccuracySec=1h
+Persistent=true
+Unit=lexos-update-check.service
+
+[Install]
+WantedBy=timers.target

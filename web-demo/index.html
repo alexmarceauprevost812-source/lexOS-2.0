@@ -905,7 +905,10 @@ function settingsSection(key){
       <p class="notice">Rien n'efface jamais le disque sans confirmation : voir « Installer LexOS ».</p>`;
     case "maj": return `<h2>Mises à jour</h2><div class="sub">Système à jour</div>
       <div class="srow"><div class="t">LexOS 1.0 « Nomad »</div><div class="d">Base Debian trixie</div></div>
-      <p class="notice">Sur la vraie ISO : <code>lexos update</code> puis <code>lexos upgrade</code>.</p>`;
+      ${swRow("Mises à jour de sécurité automatiques","Chaque jour, sans rien demander (unattended-upgrades)",true,"")}
+      <p class="notice">Sur la vraie ISO : les mises à jour de sécurité s'installent seules tous les
+      jours. Pour le reste, une notification prévient quand il y en a — <code>lexos upgrade</code>
+      les applique, ou <code>lexos update</code> pour juste vérifier.</p>`;
     case "accessibilite": return `<h2>Accessibilité</h2><div class="sub">Confort visuel et clavier</div>
       ${swRow("Contraste élevé",false,"")}
       ${swRow("Curseur large",false,"")}`;

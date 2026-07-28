@@ -1,0 +1,7 @@
+// LexOS — mises à jour de sécurité automatiques (unattended-upgrades).
+// Rafraîchit la liste des paquets et installe les mises à jour de sécurité
+// tout seul, tous les jours. Le reste (nouvelles fonctionnalités, etc.)
+// continue de passer par « lexos upgrade », à la demande.
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";

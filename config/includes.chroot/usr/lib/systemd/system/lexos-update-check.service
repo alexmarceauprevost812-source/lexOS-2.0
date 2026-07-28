@@ -1,0 +1,10 @@
+[Unit]
+Description=LexOS — vérifie s'il y a des mises à jour disponibles
+Documentation=https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/lexos-update-check
+TimeoutStartSec=300

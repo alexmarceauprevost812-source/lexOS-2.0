@@ -22,6 +22,8 @@ p7zip-full
 jq
 manpages
 gnupg
+unattended-upgrades
+apt-listchanges
 plymouth
 plymouth-themes
 webp

@@ -73,6 +73,8 @@ ${B}PAQUETS${R}
   ${A}remove${R}  <paquets…>  Désinstaller des paquets
   ${A}search${R}  <terme>     Chercher un paquet
   ${A}clean${R}               Libérer de l'espace (caches, orphelins, journaux)
+                      ${D}Les mises à jour de sécurité s'installent seules chaque jour
+                      (unattended-upgrades) ; une notification prévient pour le reste.${R}
 
 ${B}APPARENCE${R}
   ${A}theme${R} <sombre|clair> LexOS Noir (défaut) ou thème de jour ${D}(crème, pas blanc pur)${R}
