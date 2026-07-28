@@ -107,6 +107,7 @@ ${B}USB${R}
   ${A}usb${R}                 Appareils branchés
   ${A}usb watch${R}           Suivre les branchements en direct
   ${A}usb import${R}          Tout copier depuis un téléphone ou une clé USB ${D}(1 clic)${R}
+  ${A}format${R} [cible]      Formater une clé USB ou un téléphone ${D}(confirmation exigée)${R}
 
 ${B}DÉMO & INSTALLATION${R}
   ${A}demo${R}                Où en est-on : clé USB (démo) ou disque dur ?
@@ -543,6 +544,7 @@ case "$CMD" in
 	share|partage)        exec lexos-share "$@" ;;
 	receive|recevoir)     exec lexos-share receive ;;
 	usb)                  exec lexos-usb "$@" ;;
+	format)               exec lexos-format "$@" ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

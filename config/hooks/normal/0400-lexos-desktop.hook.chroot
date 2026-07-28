@@ -200,6 +200,18 @@ cat > /etc/skel/.config/Thunar/uca.xml <<'EOF'
     <startup-notify/>
     <directories/>
   </action>
+  <action>
+    <icon>drive-removable-media</icon>
+    <name>Formater ce support…</name>
+    <submenu></submenu>
+    <unique-id>lexos-format-1</unique-id>
+    <command>lexos-format --gui %f</command>
+    <description>Formater une clé USB ou un téléphone (jamais le disque système)</description>
+    <range></range>
+    <patterns>*</patterns>
+    <startup-notify/>
+    <directories/>
+  </action>
 </actions>
 EOF
 

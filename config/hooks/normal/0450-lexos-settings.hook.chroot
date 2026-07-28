@@ -122,7 +122,8 @@ case "$SECTION" in
 	confidentialite|securite|privacy)
 	                          exec xfce4-terminal --title="Confidentialité — LexOS" --hold \
 	                              -e "lexos net status; echo; echo 'Connexion auto réseaux ouverts, mode avion : voir ci-dessus.'; bash" ;;
-	usb)                      exec xfce4-terminal --title="USB — LexOS" --hold -e "lexos usb; bash" ;;
+	usb)                      exec xfce4-terminal --title="USB — LexOS" --hold \
+	                              -e "lexos usb; echo; echo 'Formater un support : lexos format'; bash" ;;
 	clavier|keyboard)         open_xfce keyboard ;;
 	langue|region|locale)     langue_gui ;;
 	accessibilite|a11y)       open_xfce accessibility ;;

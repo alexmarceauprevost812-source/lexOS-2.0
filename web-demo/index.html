@@ -515,6 +515,7 @@ const HELP = `
 <span class='a'>lexos demo</span>            où tourne cette session ?
 <span class='a'>lexos avion</span> on|off    mode avion (simulé)
 <span class='a'>lexos lang</span> [code]     fr_CA · fr_FR · en_US · en_CA · es_ES · de_DE (simulé)
+<span class='a'>lexos format</span>         formater une clé USB/téléphone (vraie ISO seulement)
 <span class='a'>clear</span> · <span class='a'>date</span> · <span class='a'>whoami</span> · <span class='a'>echo</span> · <span class='a'>uname -a</span>
 
 <span class='d'>Le vrai système a bien plus : wifi, bluetooth, partage QR,
@@ -585,6 +586,9 @@ function runCmd(raw){
   }
   else if(line.startsWith("lexos install")||c0==="calamares"){
     out=`<span class='err'>✗</span> L'installation sur disque n'existe que sur la vraie ISO.\n  Ici, ton disque est parfaitement tranquille.\n`;
+  }
+  else if(line.startsWith("lexos format")){
+    out=`<span class='err'>✗</span> Formater un support n'existe que sur la vraie ISO.\n  Là-bas : jamais le disque système, et confirmation exigée (taper <b>FORMATER</b>).\n`;
   }
   else if(c0==="sudo") out=`<span class='d'>Pas besoin de sudo dans la démo — essaie la commande sans lui.</span>\n`;
   else out=`<span class='err'>✗ Commande inconnue : ${esc(c0)}</span>\n  Essaie : <span class='a'>help</span>\n`;
@@ -842,7 +846,10 @@ function settingsSection(key){
       <p class="set-soon">Aucun appareil USB accessible depuis un navigateur.</p>
       <p class="notice">Sur la vraie ISO : <code>lexos usb</code> liste les appareils,
       <code>lexos usb watch</code> les suit en direct, et <code>lexos usb import</code>
-      copie en un clic tout le contenu d'un téléphone (MTP/iPhone) ou d'une clé USB.</p>`;
+      copie en un clic tout le contenu d'un téléphone (MTP/iPhone) ou d'une clé USB.</p>
+      <p class="notice"><code>lexos format</code> (ou clic droit → « Formater ce support… »
+      dans le gestionnaire de fichiers) formate une clé USB ou un téléphone — jamais le
+      disque système, et seulement après confirmation explicite.</p>`;
     case "apparence": return `<h2>Apparence</h2><div class="sub">Thème, accent, dock, effets</div>
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Thème du bureau</div>

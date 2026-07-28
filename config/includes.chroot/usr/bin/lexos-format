@@ -1,0 +1,236 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-format — formate une clé USB ou un téléphone (stockage de masse),
+#  APRÈS confirmation explicite. Jamais le disque système.
+# =============================================================================
+#  Règle de la maison : comme pour l'installation sur disque, on n'efface
+#  jamais rien sans un avertissement clair et une confirmation explicite.
+#  Ce script refuse tout support qui n'est pas amovible, et refuse en
+#  particulier le disque qui héberge /, /home, /boot ou /usr.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+GUI=0
+TARGET=""
+FSTYPE=""
+
+for a in "$@"; do
+	case "$a" in
+		--gui) GUI=1 ;;
+		--fs=*) FSTYPE="${a#--fs=}" ;;
+		-*) ;;
+		*) [[ -z "$TARGET" ]] && TARGET="$a" ;;
+	esac
+done
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; Y=$'\033[33m'; G=$'\033[32m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; E=''; Y=''; G=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+err()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; }
+die()  { err "$*"; [[ "$GUI" -eq 1 ]] && command -v zenity >/dev/null 2>&1 && \
+         zenity --error --width=420 --title="LexOS" --text="$*" 2>/dev/null; exit 1; }
+
+cmd_help() {
+	cat <<EOF
+
+${B}${O}${PROG}${R} — formater une clé USB ou un téléphone
+
+${B}USAGE${R}
+  ${PROG} [cible]           Cible : /media/lex/CLÉ, /dev/sdb1, /dev/sdb…
+  ${PROG}                   Sans cible : choisis parmi les supports détectés
+
+${B}À SAVOIR${R}
+  Uniquement les supports amovibles — jamais le disque système. Tout le
+  contenu du support est perdu ; confirmation explicite exigée.
+
+EOF
+}
+[[ "${TARGET:-}" == "help" || "${TARGET:-}" == "--help" || "${TARGET:-}" == "-h" ]] && { cmd_help; exit 0; }
+
+need() { command -v "$1" >/dev/null 2>&1 || die "Outil manquant : $1"; }
+need lsblk
+need findmnt
+
+# =============================================================================
+#  Détection des supports amovibles (jamais le disque système)
+# =============================================================================
+root_disk() {
+	local src
+	src="$(findmnt -no SOURCE / 2>/dev/null)"
+	[[ -n "$src" ]] || { printf ''; return; }
+	lsblk -no PKNAME "$src" 2>/dev/null || basename "$src" | sed -E 's/p?[0-9]+$//'
+}
+ROOT_DISK="$(root_disk)"
+
+list_removable() {
+	lsblk -dno NAME,SIZE,MODEL,RM 2>/dev/null | awk -v root="$ROOT_DISK" \
+		'$4=="1" && $1!=root {printf "%-10s %-9s %s\n",$1,$2,$3}'
+}
+
+resolve_disk() { # <chemin ou /dev/x> -> nom de disque (sans /dev/)
+	local target="$1" dev disk
+	if [[ -b "$target" ]]; then
+		dev="$target"
+	else
+		dev="$(findmnt -no SOURCE --target "$target" 2>/dev/null)"
+	fi
+	[[ -n "$dev" && -b "$dev" ]] || return 1
+	disk="$(lsblk -no PKNAME "$dev" 2>/dev/null)"
+	[[ -n "$disk" ]] || disk="$(basename "$dev" | sed -E 's/p?[0-9]+$//')"
+	printf '%s' "$disk"
+}
+
+is_removable() {
+	local rm; rm="$(lsblk -dno RM "/dev/$1" 2>/dev/null)"
+	[[ "$rm" == "1" ]]
+}
+
+# --- Choix de la cible -------------------------------------------------------
+if [[ -z "$TARGET" ]]; then
+	CANDIDATES="$(list_removable)"
+	[[ -n "$CANDIDATES" ]] || die "Aucun support amovible détecté. Branche une clé USB ou un téléphone (en mode stockage de masse), puis réessaie."
+
+	if [[ "$GUI" -eq 1 ]] && command -v zenity >/dev/null 2>&1; then
+		LIST_ARGS=()
+		while IFS= read -r line; do
+			LIST_ARGS+=("/dev/$(awk '{print $1}' <<< "$line")" "$line")
+		done <<< "$CANDIDATES"
+		DISK_PATH="$(zenity --list --title="Formater — choisir le support" \
+			--column="Support" --column="Détails" "${LIST_ARGS[@]}" \
+			--width=520 --height=280 2>/dev/null)"
+		[[ -n "$DISK_PATH" ]] || exit 0
+		DISK="$(basename "$DISK_PATH")"
+	else
+		printf '\n%sSupports amovibles détectés :%s\n\n' "$B$O" "$R"
+		printf '%s\n' "$CANDIDATES"
+		printf '\n%sNom du disque à formater (ex. : sdb) : %s' "$Y" "$R"
+		read -r DISK || exit 1
+		[[ -n "$DISK" ]] || exit 1
+	fi
+else
+	DISK="$(resolve_disk "$TARGET")" \
+		|| die "Impossible de trouver le support pour : ${TARGET}"
+fi
+DISK="${DISK#/dev/}"
+
+[[ -b "/dev/$DISK" ]] || die "Support introuvable : /dev/${DISK}"
+[[ "$DISK" != "$ROOT_DISK" ]] \
+	|| die "Impossible de formater /dev/${DISK} : c'est le disque système. Refusé."
+is_removable "$DISK" \
+	|| die "/dev/${DISK} n'est pas un support amovible. Par sécurité, seuls les supports amovibles peuvent être formatés ici."
+
+# --- Aucune partition de ce disque ne doit être un point de montage critique -
+for MP in / /home /boot /usr /var; do
+	SRC="$(findmnt -no SOURCE "$MP" 2>/dev/null)" || continue
+	SRC_DISK="$(lsblk -no PKNAME "$SRC" 2>/dev/null)"
+	[[ "$SRC_DISK" == "$DISK" ]] && die "/dev/${DISK} héberge ${MP} — refusé par sécurité."
+done
+
+INFO="$(lsblk -no NAME,SIZE,LABEL,MOUNTPOINT "/dev/$DISK" 2>/dev/null)"
+
+# =============================================================================
+#  Système de fichiers
+# =============================================================================
+if [[ -z "$FSTYPE" ]]; then
+	if [[ "$GUI" -eq 1 ]] && command -v zenity >/dev/null 2>&1; then
+		FSTYPE="$(zenity --list --title="Formater /dev/${DISK}" --radiolist \
+			--column="" --column="Système de fichiers" --column="Description" \
+			TRUE  vfat  "FAT32 — compatible partout, y compris téléphones (fichiers < 4 Go)" \
+			FALSE exfat "exFAT — comme FAT32, mais sans limite de taille de fichier" \
+			FALSE ext4  "ext4 — Linux seulement, pas de limite" \
+			--width=560 --height=260 2>/dev/null)"
+		[[ -n "$FSTYPE" ]] || exit 0
+	else
+		printf '\n%sSystème de fichiers%s ${D}(vfat = FAT32, exfat, ext4)%s — défaut : vfat\n> ' "$B$O" "$R" "$R"
+		read -r FSTYPE || exit 1
+		[[ -z "$FSTYPE" ]] && FSTYPE="vfat"
+	fi
+fi
+case "${FSTYPE,,}" in
+	vfat|fat32) FSTYPE="vfat" ;;
+	exfat)      FSTYPE="exfat" ;;
+	ext4)       FSTYPE="ext4" ;;
+	*) die "Système de fichiers inconnu : ${FSTYPE} (vfat, exfat ou ext4)" ;;
+esac
+case "$FSTYPE" in
+	vfat)  need mkfs.vfat ;;
+	exfat) command -v mkfs.exfat >/dev/null 2>&1 || die "mkfs.exfat introuvable — installe exfatprogs : lexos install exfatprogs" ;;
+	ext4)  need mkfs.ext4 ;;
+esac
+need parted
+
+# =============================================================================
+#  Confirmation
+# =============================================================================
+WARN="⚠ Tout le contenu de /dev/${DISK} sera définitivement effacé.
+
+${INFO}
+
+Système de fichiers choisi : ${FSTYPE}
+
+Cette opération est irréversible."
+
+if [[ "$GUI" -eq 1 ]] && command -v zenity >/dev/null 2>&1; then
+	zenity --question --width=520 --title="Formater /dev/${DISK} ?" \
+		--text="$WARN" --ok-label="Tout effacer et formater" --cancel-label="Annuler" 2>/dev/null \
+		|| { say "Annulé — rien n'a été modifié."; exit 0; }
+else
+	printf '\n%s%s%s\n\n' "$B$E" "$WARN" "$R"
+	printf '%sPour confirmer, tape exactement :%s FORMATER\n' "$Y" "$R"
+	printf 'Sinon, appuie sur Entrée pour annuler.\n\n> '
+	ANSWER=""
+	read -r ANSWER || true
+	[[ "$ANSWER" == "FORMATER" ]] || { say "Annulé — rien n'a été modifié."; exit 0; }
+fi
+
+# =============================================================================
+#  Formatage
+# =============================================================================
+say "Démontage de /dev/${DISK}…"
+if command -v udisksctl >/dev/null 2>&1; then
+	for PART in /dev/"${DISK}"?*; do
+		[[ -b "$PART" ]] || continue
+		udisksctl unmount -b "$PART" >/dev/null 2>&1 || true
+	done
+else
+	umount "/dev/${DISK}"?* 2>/dev/null || true
+fi
+
+need_root() {
+	if [[ $EUID -ne 0 ]]; then
+		command -v pkexec >/dev/null 2>&1 && exec pkexec "$0" "/dev/${DISK}" "--fs=${FSTYPE}" ${GUI:+--gui}
+		command -v sudo >/dev/null 2>&1 && exec sudo -E "$0" "/dev/${DISK}" "--fs=${FSTYPE}" ${GUI:+--gui}
+		die "Droits administrateur requis pour formater /dev/${DISK}."
+	fi
+}
+need_root
+
+say "Effacement de la table de partitions…"
+wipefs -a "/dev/${DISK}" >/dev/null 2>&1 || true
+
+say "Nouvelle table de partitions…"
+parted -s "/dev/${DISK}" mklabel gpt mkpart primary 0% 100% \
+	|| die "Échec du partitionnement de /dev/${DISK}"
+udevadm settle 2>/dev/null || true
+sleep 1
+
+NEWPART="/dev/${DISK}1"
+[[ -b "$NEWPART" ]] || NEWPART="/dev/${DISK}p1"
+[[ -b "$NEWPART" ]] || die "Partition introuvable après le partitionnement."
+
+say "Formatage en ${FSTYPE}…"
+case "$FSTYPE" in
+	vfat)  mkfs.vfat -F32 -n LEXOS "$NEWPART" ;;
+	exfat) mkfs.exfat -n LEXOS "$NEWPART" ;;
+	ext4)  mkfs.ext4 -F -L LEXOS "$NEWPART" ;;
+esac || die "Échec du formatage de ${NEWPART}."
+
+udevadm settle 2>/dev/null || true
+command -v notify-send >/dev/null 2>&1 && \
+	notify-send -i media-removable "LexOS" "/dev/${DISK} formaté (${FSTYPE})" 2>/dev/null
+ok "/dev/${DISK} formaté en ${FSTYPE} — prêt à l'emploi."
