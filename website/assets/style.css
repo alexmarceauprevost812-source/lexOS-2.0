@@ -46,6 +46,8 @@ header.site .cta{background:var(--ac);color:#000;font-weight:700;
   padding:9px 16px;border-radius:8px;text-decoration:none;font-size:14.5px;flex:none}
 header.site .cta:hover{background:var(--ac-hi);color:#000}
 
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+
 /* --- Hero ----------------------------------------------------------------- */
 .hero{position:relative;padding:84px 0 64px;text-align:center;overflow:hidden;
   background:
