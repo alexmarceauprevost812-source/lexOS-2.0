@@ -26,6 +26,11 @@
     <clipPath id="faceClip"><rect x="98" y="218" width="224" height="152"/></clipPath>
   </defs>
 
+  <!-- Groupe agrandi : fait mieux remplir le carré 512x512 — la boîte
+       était centrée mais assez plate (65% de hauteur, contre 75%+ pour
+       les autres icônes). Étirement vertical dominant, léger sur la
+       largeur : elle est déjà proche du bord (88%). -->
+  <g transform="translate(260,258) scale(1.03,1.30) translate(-260,-258)">
   <!-- Rabats ouverts, derrière la boîte -->
   <g stroke="#7E7A6F" stroke-width="5" stroke-linejoin="round">
     <path d="M 96 216 L 190 162 L 118 92 L 34 152 Z"  fill="url(#rabat)"/>
@@ -59,4 +64,5 @@
   </g>
   <rect x="96" y="216" width="228" height="208" rx="6" fill="none"
         stroke="#7E7A6F" stroke-width="5"/>
+  </g>
 </svg>

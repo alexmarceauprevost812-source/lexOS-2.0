@@ -10,6 +10,9 @@
 -->
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
      viewBox="0 0 512 512" role="img" aria-label="Clé USB — LexOS">
+  <!-- Agrandie autour du même centre que la rotation (256,256) : la clé
+       n'occupait que 64%x55% du carré, contre 75%+ pour les autres icônes. -->
+  <g transform="translate(256,256) scale(1.4) translate(-256,-256)">
   <g transform="rotate(-38 256 256)">
     <!-- Connecteur métallique -->
     <rect x="352" y="228" width="82" height="56" rx="6" fill="#B9BCC2"/>
@@ -27,5 +30,6 @@
     <text x="232" y="272" text-anchor="middle" fill="#000000"
           font-family="'DejaVu Sans',Arial,sans-serif" font-weight="700"
           font-size="52" letter-spacing="4">USB</text>
+  </g>
   </g>
 </svg>

@@ -250,7 +250,7 @@ cat > /etc/skel/.config/Thunar/uca.xml <<'EOF'
     <other-files/>
   </action>
   <action>
-    <icon>utilities-terminal</icon>
+    <icon>lexos-terminal</icon>
     <name>Ouvrir un terminal ici</name>
     <submenu></submenu>
     <unique-id>lexos-terminal-1</unique-id>
