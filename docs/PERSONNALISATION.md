@@ -170,6 +170,13 @@ LEXOS_DISK_ENCRYPTION="proposed" # chiffrement proposé à l'installation
 LEXOS_FLAVOUR="standard"
 ```
 
+`LEXOS_LOCALE` ne fixe que la langue par défaut au premier démarrage : LexOS
+installe `locales-all` (toutes les langues de glibc, déjà compilées), donc
+n'importe qui peut changer de langue à tout moment sans rien réinstaller —
+`lexos lang quebecois`, `lexos lang fr_FR.UTF-8`, `lexos lang anglais`, ou
+Paramètres → Région et langue. `lexos lang toutes` liste vraiment tout ce
+qui est installé.
+
 ### Ajouter ou retirer des logiciels
 
 Une ligne = un nom de paquet Debian. Les lignes vides et celles commençant par

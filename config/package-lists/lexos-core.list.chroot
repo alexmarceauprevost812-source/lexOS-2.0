@@ -65,7 +65,9 @@ psmisc
 procps
 
 # --- Localisation ------------------------------------------------------------
-locales
+# locales-all embarque TOUTES les langues supportées par glibc, déjà compilées :
+# aucune génération requise, chaque langue est utilisable dès l'installation.
+locales-all
 console-setup
 keyboard-configuration
 tzdata

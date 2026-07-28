@@ -264,8 +264,10 @@ const ACCENTS = {
   rouge:["#E5484D","#FF6B6F","#A32B2F"],  vert:["#1F8F4E","#2DBF6B","#125C32"],
   gris:["#8A8A8A","#B4B4B4","#5A5A5A"],   violet:["#8B5CF6","#A78BFA","#6234D1"],
 };
+const LANGS = { fr_CA:"Français (Québec)", fr_FR:"Français (France)",
+  en_US:"English (US)", en_CA:"English (Canada)", es_ES:"Español", de_DE:"Deutsch" };
 const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
-                avion:false, mode:"sombre", wifiAuto:false, zTop:100 };
+                avion:false, mode:"sombre", wifiAuto:false, lang:"fr_CA", zTop:100 };
 
 function setAccent(name){
   const c = ACCENTS[name]; if(!c) return false;
@@ -286,6 +288,7 @@ function setCrt(on){ state.crt = on; document.body.classList.toggle("crt",on); }
 function setMode(mode){
   state.mode = mode; document.body.classList.toggle("light", mode==="clair");
 }
+function setLang(code){ if(!LANGS[code]) return; state.lang=code; showSettingsSection("region"); }
 
 /* ======================= Fenêtres ======================= */
 const winsRoot = document.getElementById("screen");
@@ -390,6 +393,7 @@ function fetchOut(){
     ["Perf     ",state.perf],
     ["Effets   ","CRT "+(state.crt?"on":"off")],
     ["Dock     ",{right:"droite",left:"gauche",bottom:"bas",top:"haut"}[state.dock]],
+    ["Langue   ",LANGS[state.lang]],
     ["",""],
     ["","<span class='d'>lexos help — la liste des commandes</span>"]];
   let out="";
@@ -411,6 +415,7 @@ const HELP = `
 <span class='a'>lexos crt</span> on|off      effets de fenêtres façon TV 1980
 <span class='a'>lexos demo</span>            où tourne cette session ?
 <span class='a'>lexos avion</span> on|off    mode avion (simulé)
+<span class='a'>lexos lang</span> [code]     fr_CA · fr_FR · en_US · en_CA · es_ES · de_DE (simulé)
 <span class='a'>clear</span> · <span class='a'>date</span> · <span class='a'>whoami</span> · <span class='a'>echo</span> · <span class='a'>uname -a</span>
 
 <span class='d'>Le vrai système a bien plus : wifi, bluetooth, partage QR,
@@ -464,6 +469,13 @@ function runCmd(raw){
       out=`<span class='p'>✓</span> Mode avion ${m==="on"?"activé — radios coupées":"désactivé — radios rallumées"} <span class='d'>(simulé)</span>\n`;
       document.getElementById("netBtn").textContent = state.avion?"✈":"▲";
     } else out=`Mode avion : <span class='a'>${state.avion?"ACTIVÉ":"désactivé"}</span>\n`;
+  }
+  else if(line.startsWith("lexos lang")){
+    const l=rest[1];
+    if(!l) out=`Langue courante : <span class='a'>${state.lang}</span> (${esc(LANGS[state.lang])})\n`+
+      `Disponibles     : ${Object.keys(LANGS).join(" · ")}\n<span class='d'>Sur la vraie ISO : locales-all installe TOUTES les langues.</span>\n`;
+    else if(LANGS[l]){ state.lang=l; out=`<span class='p'>✓</span> Langue : ${l} (${esc(LANGS[l])})\n`; }
+    else out=`<span class='err'>✗ Langue inconnue ou non simulée ici : ${esc(l)}</span>\n  Essaie : ${Object.keys(LANGS).join(" · ")}\n`;
   }
   else if(line==="lexos demo"||c0==="demo"){
     out=`\n  <span class='a'>Session DÉMO WEB</span> — tu es dans ton navigateur.\n`+
@@ -672,8 +684,14 @@ function settingsSection(key){
       ${swRow("Curseur large",false,"")}`;
     case "utilisateurs": return `<h2>Utilisateurs</h2><div class="sub">Comptes locaux</div>
       <div class="srow"><div class="t">lex</div><div class="d">Administrateur — compte de la session démo</div></div>`;
-    case "region": return `<h2>Région et langue</h2><div class="sub">Langue, format, fuseau</div>
-      <div class="srow"><div class="t">Langue</div><div class="d">Français (Canada)</div></div>`;
+    case "region": return `<h2>Région et langue</h2><div class="sub">Langue du système</div>
+      <div class="row">${Object.entries(LANGS).map(([c,l])=>
+        `<button class="btn ${c===state.lang?"":"ghost"}" onclick="setLang('${c}')">${l}</button>`).join("")}
+      </div>
+      <p class="notice">Démo : change juste l'étiquette ci-dessus. Sur la vraie ISO, LexOS installe
+      <code>locales-all</code> — toutes les langues de glibc, déjà prêtes — et
+      <code>lexos lang quebecois</code> (ou tout code : <code>fr_FR.UTF-8</code>, <code>en_US.UTF-8</code>…)
+      change la langue du système entier. <code>lexos lang toutes</code> les liste toutes.</p>`;
     case "clavier": return `<h2>Clavier</h2><div class="sub">Disposition, raccourcis</div>
       <div class="srow"><div class="t">Disposition</div><div class="d">Français (Canada)</div></div>`;
     case "apropos": return `<h2>À propos de LexOS</h2><div class="sub">1.0 « Nomad »</div>

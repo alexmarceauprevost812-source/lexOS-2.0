@@ -2,6 +2,12 @@
 # =============================================================================
 #  LexOS — langue, clavier, fuseau horaire
 # =============================================================================
+#  locales-all (paquet essentiel) fournit déjà toutes les langues de glibc,
+#  précompilées : rien à générer. LANG et consorts ci-dessous ne fixent que
+#  la langue par défaut du système — l'utilisateur peut en choisir une autre
+#  à tout moment avec « lexos lang <code> » (voir /usr/bin/lexos), ou via
+#  Paramètres → Région et langue.
+# =============================================================================
 set -e
 
 echo "[lexos] hook 0110 : localisation"
@@ -17,16 +23,7 @@ if [ -r /etc/lexos/build.conf ]; then
 fi
 
 # --- Locales -----------------------------------------------------------------
-cat > /etc/locale.gen <<'EOF'
-fr_CA.UTF-8 UTF-8
-fr_FR.UTF-8 UTF-8
-en_US.UTF-8 UTF-8
-EOF
-
-if command -v locale-gen >/dev/null 2>&1; then
-	locale-gen || echo "[lexos] locale-gen a échoué (non bloquant)"
-fi
-
+# locales-all fournit déjà toutes les locales précompilées : rien à générer.
 cat > /etc/default/locale <<EOF
 LANG=${LEXOS_LOCALE}
 LC_ADDRESS=${LEXOS_LOCALE}

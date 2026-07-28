@@ -83,6 +83,11 @@ ${B}APPARENCE${R}
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
   ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
 
+${B}LANGUE${R}
+  ${A}lang${R}                 Langue actuelle et langues courantes ${D}(français, québécois, anglais…)${R}
+  ${A}lang${R} <code>          Change la langue ${D}(ex. : fr_CA.UTF-8, en_US.UTF-8, anglais)${R}
+  ${A}lang toutes${R}          Liste TOUTES les langues installées ${D}(locales-all)${R}
+
 ${B}PERFORMANCE${R}
   ${A}perf${R} <profil>       ${D}petit · medium · performant · max${R}
   ${A}perf status${R}         Ce que fait vraiment la machine
@@ -115,6 +120,7 @@ ${B}EXEMPLES${R}
   ${D}${PROG} perf max${R}
   ${D}${PROG} share photo.jpg${R}
   ${D}${PROG} usb import${R}
+  ${D}${PROG} lang quebecois${R}
 
 EOF
 	[[ -n "$LEXOS_HOME_URL" ]] && printf '%s%s%s\n\n' "$D" "$LEXOS_HOME_URL" "$R"
@@ -434,6 +440,78 @@ cmd_theme() {
 }
 
 # =============================================================================
+#  Langue système — locales-all fournit déjà toutes les langues de glibc
+# =============================================================================
+LANG_COMMON=(
+	"fr_CA.UTF-8:Français (Québec)"     "fr_FR.UTF-8:Français (France)"
+	"en_US.UTF-8:English (US)"          "en_CA.UTF-8:English (Canada)"
+	"en_GB.UTF-8:English (UK)"          "es_ES.UTF-8:Español (España)"
+	"es_MX.UTF-8:Español (México)"      "de_DE.UTF-8:Deutsch"
+	"it_IT.UTF-8:Italiano"              "pt_BR.UTF-8:Português (Brasil)"
+	"pt_PT.UTF-8:Português (Portugal)"  "nl_NL.UTF-8:Nederlands"
+	"ru_RU.UTF-8:Русский"               "zh_CN.UTF-8:中文（简体）"
+	"zh_TW.UTF-8:中文（繁體）"           "ja_JP.UTF-8:日本語"
+	"ko_KR.UTF-8:한국어"                 "ar_SA.UTF-8:العربية"
+	"hi_IN.UTF-8:हिन्दी"                "pl_PL.UTF-8:Polski"
+)
+
+cmd_lang() {
+	local sub="${1:-}"
+	case "${sub,,}" in
+	list|liste|ls|'')
+		local cur; cur="$(awk -F= '/^LANG=/{print $2}' /etc/default/locale 2>/dev/null)"
+		printf '\n%s%s — langues%s\n' "$B$O" "$PROG" "$R"
+		printf 'Langue actuelle : %s%s%s\n\n' "$O" "${cur:-${LANG:-inconnue}}" "$R"
+		local entry code label
+		for entry in "${LANG_COMMON[@]}"; do
+			code="${entry%%:*}"; label="${entry#*:}"
+			printf '  %-16s %s\n' "$code" "$label"
+		done
+		printf '\n  %s%s toutes les langues installées (locales-all) : %s lang toutes%s\n' "$D" "$R" "$PROG" "$R"
+		printf '  %sChanger : %s lang <code>%s  (ex. : %s lang fr_CA.UTF-8, %s lang anglais)\n\n' \
+			"$D" "$PROG" "$R" "$PROG" "$PROG"
+		;;
+	toutes|all|complete)
+		command -v locale >/dev/null 2>&1 || die "commande 'locale' introuvable."
+		locale -a
+		;;
+	*)
+		local code="$sub"
+		case "${sub,,}" in
+			francais|français|french|fr)         code="fr_FR.UTF-8" ;;
+			quebecois|québécois|fr-ca|fr_ca)      code="fr_CA.UTF-8" ;;
+			anglais|english|en)                  code="en_US.UTF-8" ;;
+			espagnol|spanish|es)                  code="es_ES.UTF-8" ;;
+			allemand|german|de)                   code="de_DE.UTF-8" ;;
+			italien|italian|it)                   code="it_IT.UTF-8" ;;
+		esac
+		# « locale -a » liste les locales sous une forme normalisée (ex. fr_ca.utf8)
+		# qui diffère de la forme conventionnelle utilisée dans LANG (fr_CA.UTF-8) :
+		# on compare les deux en ignorant casse et tirets.
+		if command -v locale >/dev/null 2>&1; then
+			local norm_code norm_have
+			norm_code="$(printf '%s' "$code" | tr '[:upper:]' '[:lower:]' | tr -d '-')"
+			norm_have="$(locale -a 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -d '-')"
+			grep -qxF "$norm_code" <<< "$norm_have" \
+				|| die "Langue inconnue ou non installée : '${sub}'  (voir : ${PROG} lang list)"
+		fi
+
+		need_root lang "$sub"
+		if grep -q '^LANG=' /etc/default/locale 2>/dev/null; then
+			sed -i "s/^LANG=.*/LANG=${code}/" /etc/default/locale
+		else
+			printf 'LANG=%s\n' "$code" >> /etc/default/locale
+		fi
+		local k
+		for k in LC_ADDRESS LC_MEASUREMENT LC_MONETARY LC_NAME LC_NUMERIC LC_PAPER LC_TELEPHONE LC_TIME; do
+			grep -q "^${k}=" /etc/default/locale 2>/dev/null && sed -i "s/^${k}=.*/${k}=${code}/" /etc/default/locale
+		done
+		ok "Langue système : ${code} — reconnecte-toi (ou redémarre) pour l'appliquer partout."
+		;;
+	esac
+}
+
+# =============================================================================
 #  Répartiteur
 # =============================================================================
 CMD="${1:-help}"
@@ -454,6 +532,7 @@ case "$CMD" in
 	wallpaper|bg)         cmd_wallpaper "$@" ;;
 	theme)                cmd_theme "$@" ;;
 	accent)               cmd_accent "$@" ;;
+	lang|langue)          cmd_lang "$@" ;;
 	dock|barre)           cmd_dock "$@" ;;
 	ecran|écran|display|screen) exec lexos-display "$@" ;;
 	perf|performance)     exec lexos-perf "$@" ;;

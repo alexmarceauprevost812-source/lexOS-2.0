@@ -60,6 +60,42 @@ apparence_gui() {
 	open_xfce appearance
 }
 
+langue_gui() {
+	if command -v zenity >/dev/null 2>&1; then
+		local choix
+		choix="$(zenity --list --title="Région et langue — LexOS" \
+			--text="Langue du système — locales-all fournit déjà toutes les langues" \
+			--column="Langue" \
+			"Français (Québec)" "Français (France)" "English (US)" "English (Canada)" \
+			"English (UK)" "Español (España)" "Español (México)" "Deutsch" "Italiano" \
+			"Português (Brasil)" "Русский" "中文（简体）" "日本語" "한국어" "العربية" \
+			"Autre — voir tout (locale -a)" \
+			--width=420 --height=440 2>/dev/null)"
+		case "$choix" in
+			"Français (Québec)")   lexos lang fr_CA.UTF-8 ;;
+			"Français (France)")   lexos lang fr_FR.UTF-8 ;;
+			"English (US)")        lexos lang en_US.UTF-8 ;;
+			"English (Canada)")    lexos lang en_CA.UTF-8 ;;
+			"English (UK)")        lexos lang en_GB.UTF-8 ;;
+			"Español (España)")    lexos lang es_ES.UTF-8 ;;
+			"Español (México)")    lexos lang es_MX.UTF-8 ;;
+			Deutsch)               lexos lang de_DE.UTF-8 ;;
+			Italiano)              lexos lang it_IT.UTF-8 ;;
+			"Português (Brasil)")  lexos lang pt_BR.UTF-8 ;;
+			Русский)               lexos lang ru_RU.UTF-8 ;;
+			中文（简体）)           lexos lang zh_CN.UTF-8 ;;
+			日本語)                lexos lang ja_JP.UTF-8 ;;
+			한국어)                lexos lang ko_KR.UTF-8 ;;
+			العربية)               lexos lang ar_SA.UTF-8 ;;
+			"Autre — voir tout (locale -a)")
+				exec xfce4-terminal --title="Toutes les langues — LexOS" --hold -e "lexos lang toutes; bash" ;;
+		esac
+		[ -n "$choix" ] && zenity --info --title="LexOS" \
+			--text="Langue changée — reconnecte-toi (ou redémarre) pour l'appliquer partout." 2>/dev/null
+	fi
+	open_xfce keyboard
+}
+
 SECTION="${1:-}"
 case "$SECTION" in
 	wifi|reseau|bluetooth|avion)
@@ -88,7 +124,7 @@ case "$SECTION" in
 	                              -e "lexos net status; echo; echo 'Connexion auto réseaux ouverts, mode avion : voir ci-dessus.'; bash" ;;
 	usb)                      exec xfce4-terminal --title="USB — LexOS" --hold -e "lexos usb; bash" ;;
 	clavier|keyboard)         open_xfce keyboard ;;
-	langue|region|locale)     open_xfce keyboard ;;
+	langue|region|locale)     langue_gui ;;
 	accessibilite|a11y)       open_xfce accessibility ;;
 	utilisateurs|users)       exec xfce4-terminal --title="Utilisateurs" -e "users-admin" ;;
 	maj|updates)              exec xfce4-terminal --title="Mises à jour — LexOS" --hold -e "lexos doctor; bash" ;;
