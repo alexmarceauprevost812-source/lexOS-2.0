@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-brightness — luminosité de l'écran
+# =============================================================================
+#  Trois moyens, essayés dans cet ordre, parce qu'aucun ne marche partout :
+#
+#    1. brightnessctl        — propre, sans droits root, mais pas toujours là
+#    2. /sys/class/backlight — le rétroéclairage réel ; demande les droits
+#    3. xrandr --brightness  — assombrissement LOGICIEL : ça n'économise pas
+#                              de batterie, mais c'est le seul recours sur un
+#                              écran de bureau ou dans une machine virtuelle,
+#                              qui n'ont pas de rétroéclairage pilotable.
+#
+#  Le troisième est annoncé comme tel : promettre une économie d'énergie qui
+#  n'existe pas serait mentir à l'utilisateur.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — luminosité de l'écran
+
+Usage :
+  $PROG                Luminosité actuelle et moyen utilisé
+  $PROG <0-100>        Régler la luminosité, en pourcentage
+  $PROG +10 / -10      Monter ou baisser de 10 points
+  $PROG eco            Passer à 40% — confort en intérieur, moins de batterie
+
+Exemples :
+  $PROG 60
+  $PROG -15
+EOF
+}
+
+# --- Repérage du matériel ----------------------------------------------------
+BL=""
+for d in /sys/class/backlight/*; do
+	[[ -r "$d/max_brightness" ]] && { BL="$d"; break; }
+done
+
+moyen() {
+	if command -v brightnessctl >/dev/null 2>&1 && [[ -n "$BL" ]]; then echo "brightnessctl"
+	elif [[ -n "$BL" ]]; then echo "sysfs"
+	elif command -v xrandr >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then echo "xrandr"
+	else echo "aucun"; fi
+}
+
+lire() {
+	case "$(moyen)" in
+		brightnessctl) brightnessctl -m 2>/dev/null | cut -d, -f4 | tr -d '%' ;;
+		sysfs)
+			local cur max
+			cur="$(cat "$BL/brightness" 2>/dev/null)"; max="$(cat "$BL/max_brightness" 2>/dev/null)"
+			[[ -n "$cur" && -n "$max" && "$max" -gt 0 ]] && echo $(( cur * 100 / max )) ;;
+		xrandr)
+			local v
+			v="$(xrandr --verbose 2>/dev/null | awk '/Brightness/{print $2; exit}')"
+			[[ -n "$v" ]] && awk -v v="$v" 'BEGIN{printf "%d", v*100}' ;;
+	esac
+}
+
+ecrire() { # ecrire <pourcentage>
+	local p="$1"
+	(( p < 5 ))   && p=5            # jamais un écran totalement noir
+	(( p > 100 )) && p=100
+	case "$(moyen)" in
+		brightnessctl)
+			brightnessctl -q set "${p}%" 2>/dev/null || die "brightnessctl a refusé le réglage." ;;
+		sysfs)
+			local max val
+			max="$(cat "$BL/max_brightness")"
+			val=$(( max * p / 100 ))
+			if [[ -w "$BL/brightness" ]]; then
+				printf '%s\n' "$val" > "$BL/brightness"
+			elif command -v sudo >/dev/null 2>&1; then
+				printf '%s\n' "$val" | sudo tee "$BL/brightness" >/dev/null \
+					|| die "Écriture refusée sur $BL/brightness"
+			else
+				die "Droits insuffisants pour régler le rétroéclairage."
+			fi ;;
+		xrandr)
+			local sorties
+			sorties="$(xrandr --query 2>/dev/null | awk '/ connected/{print $1}')"
+			[[ -n "$sorties" ]] || die "Aucun écran détecté par xrandr."
+			local s
+			for s in $sorties; do
+				xrandr --output "$s" --brightness "$(awk -v p="$p" 'BEGIN{printf "%.2f", p/100}')" \
+					2>/dev/null || warn "Échec sur la sortie $s"
+			done
+			warn "Assombrissement logiciel : l'image est plus sombre, mais la"
+			warn "consommation ne baisse pas — cet écran n'a pas de rétroéclairage pilotable." ;;
+		*)
+			die "Aucun moyen de régler la luminosité sur cette machine." ;;
+	esac
+	ok "Luminosité : ${p}%"
+}
+
+# --- Répartiteur -------------------------------------------------------------
+ARG="${1:-}"
+case "$ARG" in
+	""|status|etat)
+		M="$(moyen)"
+		[[ "$M" == "aucun" ]] && die "Aucun moyen de régler la luminosité sur cette machine."
+		CUR="$(lire)"
+		printf 'Luminosité : %s%s%%%s\n' "$O" "${CUR:-?}" "$R"
+		printf 'Moyen      : %s\n' "$M"
+		[[ "$M" == "xrandr" ]] && printf '  %sAssombrissement logiciel — aucune économie de batterie.%s\n' "$D" "$R"
+		printf '\nRégler : %s <0-100>   ·   %s +10   ·   %s eco\n' "$PROG" "$PROG" "$PROG"
+		;;
+	-h|--help|help) usage ;;
+	eco|economie)   ecrire 40 ;;
+	+*|-*)
+		DELTA="${ARG#+}"
+		[[ "$DELTA" =~ ^-?[0-9]+$ ]] || { usage; exit 1; }
+		CUR="$(lire)"; [[ -n "$CUR" ]] || die "Luminosité actuelle illisible."
+		ecrire $(( CUR + DELTA ))
+		;;
+	*)
+		[[ "$ARG" =~ ^[0-9]+$ ]] || { usage; exit 1; }
+		ecrire "$ARG"
+		;;
+esac

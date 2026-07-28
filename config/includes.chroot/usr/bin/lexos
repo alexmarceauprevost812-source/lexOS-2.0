@@ -90,8 +90,9 @@ ${B}LANGUE${R}
   ${A}lang${R} <code>          Change la langue ${D}(ex. : fr_CA.UTF-8, en_US.UTF-8, anglais)${R}
   ${A}lang toutes${R}          Liste TOUTES les langues installées ${D}(locales-all)${R}
 
-${B}PERFORMANCE${R}
+${B}ÉNERGIE${R}
   ${A}perf${R} <profil>       ${D}petit · medium · performant · max${R}
+  ${A}lumiere${R} <0-100>     Luminosité de l'écran ${D}(aussi : lumiere eco, lumiere +10)${R}
   ${A}perf status${R}         Ce que fait vraiment la machine
   ${A}perf auto${R}           Choisir d'après le matériel détecté
 
@@ -562,6 +563,7 @@ case "$CMD" in
 	dock|barre)           cmd_dock "$@" ;;
 	ecran|écran|display|screen) exec lexos-display "$@" ;;
 	perf|performance)     exec lexos-perf "$@" ;;
+	lumiere|luminosite|brightness) exec lexos-brightness "$@" ;;
 	net|reseau)           exec lexos-net "$@" ;;
 	avion|airplane)       exec lexos-net avion "$@" ;;
 	wifi)                 exec lexos-net "${1:-scan}" "${@:2}" ;;

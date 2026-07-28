@@ -2,6 +2,8 @@
 xfce4-goodies
 fish
 xfce4-power-manager
+brightnessctl
+tlp
 xfce4-screenshooter
 xfce4-notifyd
 libnotify-bin

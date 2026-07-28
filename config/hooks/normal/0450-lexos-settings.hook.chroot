@@ -107,7 +107,14 @@ case "$SECTION" in
 	vpn)
 		exec xfce4-terminal --title="VPN — LexOS" --hold -e "lexos vpn; bash" ;;
 	ecrans|displays)          exec lexos-display gui ;;
-	energie|performance|perf) exec lexos-perf --gui ;;
+	energie|performance|perf)
+	                          command -v xfce4-terminal >/dev/null 2>&1 \
+	                              && exec xfce4-terminal --title="Énergie — LexOS" --hold \
+	                                   -e "lexos perf status; echo; lexos lumiere; bash" \
+	                              || exec lexos-perf --gui ;;
+	lumiere|luminosite|brightness)
+	                          exec xfce4-terminal --title="Luminosité — LexOS" --hold \
+	                              -e "lexos lumiere; bash" ;;
 	multitaches|workspaces)   open_xfce workspaces ;;
 	son|sound)                open_xfce mixer ;;
 	apparence|appearance)     apparence_gui ;;
