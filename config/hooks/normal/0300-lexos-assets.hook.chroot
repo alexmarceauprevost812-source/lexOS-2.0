@@ -49,6 +49,16 @@ render "$BRAND/wallpaper-crt.svg" 1920 1080 "$BG/wallpaper-crt.png"
 render "$BRAND/wallpaper-secu.svg" 1920 1080 "$BG/wallpaper-secu.png"
 render "$BRAND/wallpaper-secu.svg" 3840 2160 "$BG/wallpaper-secu-4k.png"
 
+# Fond d'écran « LexOS 1.0 » : le logo TI-LEX-AL, posé sur fond noir — même
+# composition que le sélecteur de la démo web (Paramètres → Bureau LexOS).
+if [ -r "$BRAND/logo-ti-lex-al-icon.png" ] && have convert; then
+	convert -size 1920x1080 xc:black \
+		"$BRAND/logo-ti-lex-al-icon.png" -resize 620x620 -gravity north -geometry +0+90 -composite \
+		"$BG/wallpaper-demon.png" \
+		&& echo "[lexos]   -> $BG/wallpaper-demon.png" \
+		|| echo "[lexos]   !! échec : wallpaper-demon.png"
+fi
+
 # Les mascottes servent aussi de fonds d'écran alternatifs.
 for M in "$BRAND"/mascot*.png; do
 	[ -e "$M" ] || continue
