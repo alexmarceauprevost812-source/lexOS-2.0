@@ -71,16 +71,22 @@ esac
 ACCENT_NAME="${ACCENT_NAME,,}"
 
 # --- Palette du bureau : LexOS Noir (sombre, défaut) ou thème de jour ------
-#  Les boutons sont peints à l'accent dans les deux modes : le texte doit
-#  rester blanc la plupart du temps, mais bascule en noir sur un accent
-#  très clair (neon) où du blanc devient illisible.
+#  Les boutons sont peints à l'accent dans les deux modes. Plutôt qu'un seuil
+#  approximatif, on calcule le VRAI contraste WCAG du noir et du blanc sur
+#  l'accent, et on garde celui qui contraste le mieux.
+#  L'ancienne formule (299r+587g+114b > 150) choisissait le blanc sur le bleu
+#  et sur l'orange, où le noir contraste pourtant nettement mieux : mesuré,
+#  ça donnait 3,3 au lieu de 5,4 — sous le seuil lisible de 4,5.
 r=$((16#${ACCENT:1:2})); g=$((16#${ACCENT:3:2})); b=$((16#${ACCENT:5:2}))
-LUMINANCE=$(( (299*r + 587*g + 114*b) / 1000 ))
-if (( LUMINANCE > 150 )); then
-	BTN_FG="#000000"
-else
-	BTN_FG="#FFFFFF"
-fi
+BTN_FG="$(awk -v r="$r" -v g="$g" -v b="$b" '
+	function lin(v){ v/=255; return (v<=0.03928) ? v/12.92 : ((v+0.055)/1.055)^2.4 }
+	BEGIN{
+		L  = 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)
+		cw = 1.05 / (L + 0.05)      # contraste du blanc
+		cb = (L + 0.05) / 0.05      # contraste du noir
+		print (cb >= cw) ? "#000000" : "#FFFFFF"
+	}')"
+[[ -n "$BTN_FG" ]] || BTN_FG="#FFFFFF"   # filet si awk venait à manquer
 TERM_BG="#000000"       # le terminal reste toujours noir, même en thème de jour
 TERM_FG="#39FF14"       # vert du terminal
 TERM_FG_HI="#7BFF5C"

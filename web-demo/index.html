@@ -127,7 +127,11 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .btn:hover{background:var(--ac-hi)}
 .btn.ghost{background:transparent;border-color:var(--bd);color:var(--fg)}
 .btn.ghost:hover{background:var(--bg-hi)}
-.btn.danger{background:#E5484D;border-color:#A32B2F}
+/*  Le rouge de « danger » est fixe : son texte doit l'être aussi. Sans ça, il
+    héritait de --btn-fg, calculé d'après l'ACCENT — avec un accent clair
+    (néon), on obtenait du noir sur rouge, illisible. */
+.btn.danger{background:#E5484D;border-color:#A32B2F;color:#fff}
+.btn.danger:hover{background:#F05257}
 
 /* --- Terminal ------------------------------------------------------------ */
 .term{background:#000;color:var(--term-fg);
@@ -287,7 +291,14 @@ body.light{--bg:#F7F5F0;--bg-alt:#EFEBE3;--bg-hi:#E5DFD3;--bd:#D9D2C3;--fg:#1B1A
 body.light #panel{background:var(--bg-alt);border-color:var(--bd)}
 body.light #dock{background:rgba(239,235,227,.85)}
 body.light .menu{background:var(--bg-alt)}
-body.light .btn{color:var(--btn-fg)}
+/*  Cette règle ne doit PAS toucher les boutons « ghost » (non sélectionnés).
+    Sans le :not(), elle l'emportait sur .btn.ghost — plus spécifique — et
+    leur imposait --btn-fg, calculé d'après l'accent : en thème de jour, du
+    texte blanc sur fond clair, illisible (« Sombre », « Gauche », « petit »…). */
+body.light .btn:not(.ghost){color:var(--btn-fg)}
+/*  Encadrés : le fond sombre en dur restait noir en thème de jour. */
+body.light .notice{background:#FDF1E5;color:#7A3B08;border-color:var(--ac-lo)}
+body.light .warnbox{background:#FDECEC;color:#8A2226;border-color:#D98B8E}
 
 /* --- Démarrage / extinction --------------------------------------------- */
 #boot{position:fixed;inset:0;z-index:2000;background:#000;display:flex;
@@ -416,17 +427,29 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 avion:false, mode:"sombre", wifiAuto:false, lang:"fr_CA",
                 filesFav:false, wifi:true, bt:true, qsCompact:false, zTop:100 };
 
-function luminance(hex){
+/*  Même calcul que lexos-theme-gen sur la vraie ISO : on ne devine pas avec un
+    seuil, on calcule le VRAI contraste WCAG du noir et du blanc sur l'accent
+    et on garde le meilleur. L'ancien seuil (299r+587g+114b > 150) mettait du
+    blanc sur le bleu et sur l'orange, où le noir contraste bien mieux —
+    mesuré : 3,3 au lieu de 5,4, sous le seuil lisible de 4,5. */
+function relLum(hex){
   const n=parseInt(hex.slice(1),16);
-  const r=(n>>16)&255, g=(n>>8)&255, b=n&255;
-  return (299*r + 587*g + 114*b) / 1000;
+  const ch=[(n>>16)&255,(n>>8)&255,n&255].map(v=>{
+    v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4);
+  });
+  return 0.2126*ch[0] + 0.7152*ch[1] + 0.0722*ch[2];
+}
+/*  Renvoie true si le NOIR est le plus lisible sur cette couleur. */
+function preferBlackOn(hex){
+  const L = relLum(hex);
+  return (L + 0.05) / 0.05 >= 1.05 / (L + 0.05);
 }
 function setAccent(name){
   const c = ACCENTS[name]; if(!c) return false;
   state.accent = name;
   const r = document.documentElement.style;
   r.setProperty("--ac",c[0]); r.setProperty("--ac-hi",c[1]); r.setProperty("--ac-lo",c[2]);
-  const dark = luminance(c[0])>150;
+  const dark = preferBlackOn(c[0]);
   r.setProperty("--btn-fg", dark ? "#000" : "#fff");
   r.setProperty("--btn-fg-dim", dark ? "rgba(0,0,0,.65)" : "rgba(255,255,255,.82)");
   document.querySelectorAll(".swatch").forEach(s=>
@@ -460,6 +483,7 @@ function openWin(id, title, icon, html, w, h, x, y){
   el.innerHTML =
     `<div class="tbar"><span class="ticon">${icon}</span>`+
     `<span class="ttitle">${title}</span>`+
+    `<button class="tbtn wmenu" title="Plus d'options">⋮</button>`+
     `<button class="tbtn maxi" title="Agrandir (double-clic sur la barre)">⛶</button>`+
     `<button class="tbtn close" title="Fermer">✕</button></div>`+
     `<div class="wbody">${html}</div>`;
@@ -469,6 +493,7 @@ function openWin(id, title, icon, html, w, h, x, y){
   });
   el.querySelector(".close").onclick = ()=>closeWin(el);
   el.querySelector(".maxi").onclick = e=>{ e.stopPropagation(); toggleMax(el); };
+  el.querySelector(".wmenu").onclick = e=>{ e.stopPropagation(); toggleWinMenu(el, e.currentTarget); };
   el.querySelector(".tbar").addEventListener("dblclick", e=>{
     if(e.target.closest(".tbtn")) return;
     toggleMax(el);
@@ -531,6 +556,65 @@ function toggleMax(el, force){
 // Une fenêtre agrandie suit la taille de l'écran (rotation, redimensionnement).
 addEventListener("resize", ()=>{
   document.querySelectorAll(".win.max").forEach(applyMax);
+});
+
+/* --- Menu « ⋮ » de la barre de titre ------------------------------------- */
+//  Même dessin que le menu ⋮ du gestionnaire de fichiers. Les entrées propres
+//  à une fenêtre (terminal, fichiers…) s'ajoutent au-dessus des entrées
+//  communes à toutes les fenêtres.
+let winMenuEl = null;
+function closeWinMenu(){ if(winMenuEl){ winMenuEl.remove(); winMenuEl = null; } }
+const WIN_MENU_EXTRA = {
+  term: el => (
+    `<button onclick="termNewWindow()">▮ Nouveau terminal</button>`+
+    `<button onclick="termClearFromMenu()">↻ Effacer l'écran<span class="kbd">clear</span></button>`+
+    `<button onclick="termCopyAll()">⧉ Copier tout le texte</button>`+
+    `<div class="msep"></div>`),
+  files: () => (
+    `<button onclick="closeWinMenu();openTerminal()">▮ Ouvrir un terminal</button>`+
+    `<div class="msep"></div>`),
+};
+function toggleWinMenu(el, btn){
+  const wasOpen = winMenuEl && winMenuEl.dataset.forWin === el.id;
+  closeWinMenu();
+  if(wasOpen) return;
+  const id = el.id.replace(/^win-/, "");
+  const r  = btn.getBoundingClientRect();
+  const m  = document.createElement("div");
+  m.className = "menu";
+  m.dataset.forWin = el.id;
+  m.style.top   = (r.bottom + 6) + "px";
+  m.style.left  = "auto";
+  m.style.right = Math.max(8, innerWidth - r.right) + "px";
+  const isMax = el.classList.contains("max");
+  m.innerHTML =
+    (WIN_MENU_EXTRA[id] ? WIN_MENU_EXTRA[id](el) : "")+
+    `<button onclick="winMenuAct('${el.id}','max')">${isMax?"🗗 Restaurer la taille":"⛶ Agrandir l'écran"}`+
+      `<span class="kbd">${isMax?"Super+↓":"Super+↑"}</span></button>`+
+    `<button onclick="winMenuAct('${el.id}','center')">⊹ Recentrer la fenêtre</button>`+
+    `<div class="msep"></div>`+
+    `<button onclick="closeWinMenu();openSettings()">⚙ Paramètres</button>`+
+    `<button onclick="closeWinMenu();openApps()">▦ Toutes les applications</button>`+
+    `<div class="msep"></div>`+
+    `<button onclick="winMenuAct('${el.id}','close')">✕ Fermer<span class="kbd">Alt+F4</span></button>`;
+  document.body.appendChild(m);
+  winMenuEl = m;
+}
+function winMenuAct(winId, what){
+  const el = document.getElementById(winId);
+  closeWinMenu();
+  if(!el) return;
+  if(what === "max")   toggleMax(el);
+  if(what === "close") closeWin(el);
+  if(what === "center"){
+    toggleMax(el, false);
+    el.style.left = Math.max(8, (innerWidth  - el.offsetWidth)/2) + "px";
+    el.style.top  = Math.max(40, (innerHeight - el.offsetHeight)/2) + "px";
+    focusWin(el);
+  }
+}
+document.addEventListener("click", e=>{
+  if(winMenuEl && !e.target.closest(".menu,.tbtn.wmenu")) closeWinMenu();
 });
 function closeWin(el){
   el.classList.add("closing");
@@ -720,6 +804,40 @@ function runCmd(raw){
   else out=`<span class='err'>✗ Commande inconnue : ${esc(c0)}</span>\n  Essaie : <span class='a'>help</span>\n`;
   tPrint(esc("")+out);
   tNewPrompt();
+}
+/* --- Actions du menu ⋮ du terminal --------------------------------------- */
+function termClearFromMenu(){
+  closeWinMenu();
+  if(!tEl) return;
+  tEl.innerHTML = ""; tNewPrompt();
+}
+function termCopyAll(){
+  closeWinMenu();
+  if(!tEl) return;
+  const txt = tEl.innerText;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(
+      ()=>toast("⧉ Texte du terminal copié"),
+      ()=>{ selectAllText(tEl); toast("Texte sélectionné — Ctrl+C pour copier"); });
+  }else{
+    selectAllText(tEl); toast("Texte sélectionné — Ctrl+C pour copier");
+  }
+}
+//  Une deuxième fenêtre de terminal : openWin réutilise une fenêtre déjà
+//  ouverte si l'identifiant est le même, il faut donc un identifiant neuf.
+let termSeq = 0;
+function termNewWindow(){
+  closeWinMenu();
+  const id = "term-" + (++termSeq);
+  const el = openWin(id, "Terminal — lex@lexos", "▮", termHTML(), 640, 420);
+  const out = el.querySelector("#tout");
+  if(out){
+    out.removeAttribute("id");         // un seul #tout : celui du terminal actif
+    out.innerHTML =
+      `<span class='d'>LexOS 1.0 « Nomad » — cette fenêtre est une copie de démonstration.</span>\n`+
+      `<span class='d'>Le terminal qui répond aux commandes est le premier.</span>\n`;
+  }
+  toast("▮ Nouvelle fenêtre de terminal");
 }
 function openTerminal(){
   const el = openWin("term","Terminal — lex@lexos","▮",termHTML(),640,420);
