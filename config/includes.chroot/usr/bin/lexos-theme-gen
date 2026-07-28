@@ -71,9 +71,16 @@ esac
 ACCENT_NAME="${ACCENT_NAME,,}"
 
 # --- Palette du bureau : LexOS Noir (sombre, défaut) ou thème de jour ------
-#  BTN_FG reste toujours blanc : les boutons sont peints à l'accent dans les
-#  deux modes, et du texte blanc reste lisible dessus quel que soit le mode.
-BTN_FG="#FFFFFF"
+#  Les boutons sont peints à l'accent dans les deux modes : le texte doit
+#  rester blanc la plupart du temps, mais bascule en noir sur un accent
+#  très clair (neon) où du blanc devient illisible.
+r=$((16#${ACCENT:1:2})); g=$((16#${ACCENT:3:2})); b=$((16#${ACCENT:5:2}))
+LUMINANCE=$(( (299*r + 587*g + 114*b) / 1000 ))
+if (( LUMINANCE > 150 )); then
+	BTN_FG="#000000"
+else
+	BTN_FG="#FFFFFF"
+fi
 TERM_BG="#000000"       # le terminal reste toujours noir, même en thème de jour
 TERM_FG="#39FF14"       # vert du terminal
 TERM_FG_HI="#7BFF5C"
