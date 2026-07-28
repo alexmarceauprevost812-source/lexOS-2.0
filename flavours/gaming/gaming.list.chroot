@@ -1,0 +1,11 @@
+# =============================================================================
+#  LexOS — socle jeu, base stricte  (saveur : gaming)
+# =============================================================================
+#  Steam, Lutris, Wine (32 bits inclus) sont plus incertains d'une suite
+#  Debian à l'autre : ils vivent dans les paquets optionnels (70-gaming.list),
+#  installés en best-effort. Ici, seulement ce qui existe partout.
+# =============================================================================
+mesa-vulkan-drivers
+vulkan-tools
+gamemode
+mangohud

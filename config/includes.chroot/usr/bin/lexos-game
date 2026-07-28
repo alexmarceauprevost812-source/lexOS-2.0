@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-game — lance un jeu avec les réglages adaptés à la machine
+# =============================================================================
+#  Bascule temporairement sur le profil de performance « performant » (sauf
+#  si la machine tourne déjà en performant/max), enveloppe la commande avec
+#  gamemode et MangoHud s'ils sont installés, puis remet le profil d'avant
+#  une fois le jeu fermé. Rien de tout ça n'est requis : chaque brique est
+#  utilisée seulement si elle est présente.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+PERF_STATE="/etc/lexos/performance"
+
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8*|*utf8*|*UTF8*|*utf-8*) ;;
+	*) locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$' && export LC_ALL=C.UTF-8 ;;
+esac
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+current_profile() {
+	[[ -r "$PERF_STATE" ]] && cat "$PERF_STATE" || printf 'medium'
+}
+
+gpu_info() {
+	command -v lspci >/dev/null 2>&1 || { printf 'inconnu (pciutils absent)'; return; }
+	lspci -mm 2>/dev/null | grep -Ei '"(VGA|3D|Display) controller"' \
+		| sed -E 's/.*"[^"]*"[[:space:]]*"([^"]*)"[[:space:]]*"[^"]*"[[:space:]]*"([^"]*)".*/\1 \2/' \
+		| head -n1 \
+		|| printf 'inconnu'
+}
+
+vulkan_ok() {
+	command -v vulkaninfo >/dev/null 2>&1 && vulkaninfo --summary >/dev/null 2>&1
+}
+
+# =============================================================================
+#  Informations sur la machine
+# =============================================================================
+cmd_info() {
+	printf '\n%s%s — matériel détecté%s\n\n' "$B$O" "$PROG" "$R"
+	printf '  %-22s %s\n' "Carte graphique" "$(gpu_info)"
+	printf '  %-22s %s\n' "Vulkan" "$(vulkan_ok && echo 'oui' || echo 'non (ou vulkan-tools absent)')"
+	printf '  %-22s %s\n' "GameMode" "$(command -v gamemoderun >/dev/null 2>&1 && echo 'installé' || echo 'absent')"
+	printf '  %-22s %s\n' "MangoHud" "$(command -v mangohud >/dev/null 2>&1 && echo 'installé' || echo 'absent')"
+	printf '  %-22s %s\n' "Profil actuel" "$(current_profile)"
+	printf '\n  %s%s <commande>%s   lance un jeu avec les réglages adaptés\n\n' "$D" "$PROG" "$R"
+}
+
+# =============================================================================
+#  Lancement d'un jeu
+# =============================================================================
+cmd_run() {
+	[[ $# -gt 0 ]] || die "Usage : ${PROG} <commande> [arguments…]  (ex. : ${PROG} steam)"
+
+	local prev; prev="$(current_profile)"
+	local bumped=0
+	case "$prev" in
+		performant|max) say "Profil déjà ${prev} — inchangé." ;;
+		*)
+			say "Passage temporaire au profil performant pour la partie…"
+			if command -v lexos >/dev/null 2>&1 && lexos perf performant >/dev/null 2>&1; then
+				bumped=1
+			else
+				warn "Impossible de changer de profil — la partie tourne avec le profil actuel (${prev})."
+			fi
+			;;
+	esac
+
+	local -a wrap=()
+	if command -v gamemoderun >/dev/null 2>&1; then
+		wrap=(gamemoderun)
+		say "GameMode activé."
+	fi
+	if command -v mangohud >/dev/null 2>&1; then
+		export MANGOHUD=1
+		say "MangoHud activé (overlay de performance)."
+	fi
+
+	say "Lancement : $*"
+	"${wrap[@]}" "$@"
+	local rc=$?
+
+	if [[ "$bumped" -eq 1 ]]; then
+		say "Retour au profil ${prev}…"
+		lexos perf "$prev" >/dev/null 2>&1 || true
+	fi
+
+	exit "$rc"
+}
+
+cmd_help() {
+	cat <<EOF
+
+${B}${O}${PROG}${R} — lance un jeu avec les réglages adaptés à la machine
+
+${B}USAGE${R}
+  ${PROG} info               Matériel détecté : GPU, Vulkan, GameMode, MangoHud
+  ${PROG} <commande>…        Lance la commande avec les réglages adaptés
+
+${B}À SAVOIR${R}
+  Bascule sur le profil « performant » le temps de la partie (sauf si déjà
+  sur performant/max), puis revient au profil précédent à la fermeture.
+  Utilise GameMode et MangoHud automatiquement si installés.
+
+${B}EXEMPLES${R}
+  ${D}${PROG} steam${R}
+  ${D}${PROG} lutris${R}
+  ${D}${PROG} /usr/games/monjeu.x86_64${R}
+
+EOF
+}
+
+CMD="${1:-help}"
+case "$CMD" in
+	help|--help|-h|'') cmd_help ;;
+	info)              cmd_info ;;
+	*)                 cmd_run "$@" ;;
+esac

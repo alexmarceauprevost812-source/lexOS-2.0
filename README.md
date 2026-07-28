@@ -96,7 +96,7 @@ sudo apt install -y live-build debootstrap xorriso squashfs-tools \
 > Édite [`.iso-build-request`](.iso-build-request) et pousse :
 >
 > ```
-> flavour: standard      # minimal | standard | dev | full
+> flavour: standard      # minimal | standard | dev | full | gaming
 > suite: trixie          # trixie | bookworm
 > build: 2               # incrémenter pour relancer
 > ```
@@ -123,7 +123,7 @@ Compte **20 à 60 minutes** selon ta connexion. À la fin :
   ok  SHA-256  : lexos-1.0-standard-amd64.iso.sha256
 ```
 
-### Les quatre saveurs
+### Les cinq saveurs
 
 | Saveur | Contenu | Taille approx. |
 |---|---|---|
@@ -131,9 +131,10 @@ Compte **20 à 60 minutes** selon ta connexion. À la fin :
 | `standard` | Bureau XFCE, Firefox, dock, effets — **défaut** | ~2,5 Gio |
 | `dev` | standard + compilateurs, langages, conteneurs, Neovim | ~4 Gio |
 | `full` | dev + LibreOffice, GIMP, Inkscape, VLC, Krita | ~6 Gio |
+| `gaming` | dev + Steam, Lutris, Wine, gamemode, MangoHud, Vulkan | ~5 Gio |
 
 ```bash
-make minimal        # ou : make standard / make dev / make full
+make minimal        # ou : make standard / make dev / make full / make gaming
 make build FLAVOUR=dev
 ```
 

@@ -93,6 +93,10 @@ ${B}PERFORMANCE${R}
   ${A}perf status${R}         Ce que fait vraiment la machine
   ${A}perf auto${R}           Choisir d'après le matériel détecté
 
+${B}JEUX${R} ${D}(saveur gaming)${R}
+  ${A}game info${R}            Matériel détecté : GPU, Vulkan, GameMode, MangoHud
+  ${A}game${R} <commande>      Lance un jeu avec les réglages adaptés à la machine
+
 ${B}RÉSEAU${R}
   ${A}avion${R} <on|off>      Mode avion : coupe toutes les radios
   ${A}wifi${R}                Chercher et rejoindre un réseau Wi-Fi
@@ -545,6 +549,7 @@ case "$CMD" in
 	receive|recevoir)     exec lexos-share receive ;;
 	usb)                  exec lexos-usb "$@" ;;
 	format)               exec lexos-format "$@" ;;
+	game)                 exec lexos-game "$@" ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

@@ -57,7 +57,7 @@ while [[ $# -gt 0 ]]; do
 			LexOS — construction de l'ISO
 
 			  sudo ./build.sh                     saveur par défaut (lexos.conf)
-			  sudo ./build.sh --flavour full      minimal | standard | dev | full
+			  sudo ./build.sh --flavour full      minimal | standard | dev | full | gaming
 			  sudo ./build.sh --suite trixie      change la base Debian
 			  sudo ./build.sh --arch amd64        architecture cible
 			  sudo ./build.sh --check             vérifie l'environnement et sort
@@ -84,8 +84,8 @@ source ./lexos.conf
 export LEXOS_FLAVOUR LEXOS_DEBIAN_SUITE LEXOS_ARCH
 
 case "$LEXOS_FLAVOUR" in
-	minimal|standard|dev|full) ;;
-	*) die "Saveur inconnue : '$LEXOS_FLAVOUR' (minimal | standard | dev | full)" ;;
+	minimal|standard|dev|full|gaming) ;;
+	*) die "Saveur inconnue : '$LEXOS_FLAVOUR' (minimal | standard | dev | full | gaming)" ;;
 esac
 
 info "Distribution : ${LEXOS_NAME} ${LEXOS_VERSION} « ${LEXOS_CODENAME} »"
@@ -226,6 +226,7 @@ case "$LEXOS_FLAVOUR" in
 	standard) apply_flavour standard ;;
 	dev)      apply_flavour standard; apply_flavour dev ;;
 	full)     apply_flavour standard; apply_flavour dev; apply_flavour full ;;
+	gaming)   apply_flavour standard; apply_flavour dev; apply_flavour gaming ;;
 esac
 
 TOTAL_PKGS="$(cat config/package-lists/*.list.chroot 2>/dev/null \

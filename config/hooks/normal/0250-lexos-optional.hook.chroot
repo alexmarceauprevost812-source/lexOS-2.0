@@ -37,6 +37,9 @@ case "$FLAVOUR" in
 	standard)   LISTS="$LISTS 20-desktop.list 30-dock-effets.list 40-partage.list" ;;
 	dev)        LISTS="$LISTS 20-desktop.list 30-dock-effets.list 40-partage.list 50-dev.list" ;;
 	full)       LISTS="$LISTS 20-desktop.list 30-dock-effets.list 40-partage.list 50-dev.list 60-full.list" ;;
+	gaming)     LISTS="$LISTS 20-desktop.list 30-dock-effets.list 40-partage.list 50-dev.list 70-gaming.list"
+	            # Steam et Wine ont besoin des paquets 32 bits (i386) — non bloquant si indisponible.
+	            dpkg --add-architecture i386 2>/dev/null || true ;;
 esac
 
 # --- Collecte des noms -------------------------------------------------------

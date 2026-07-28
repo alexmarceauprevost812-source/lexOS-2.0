@@ -8,7 +8,7 @@
 #  simplement « build ». Un fichier inchangé ne déclenche rien.
 # =============================================================================
 
-# minimal | standard | dev | full
+# minimal | standard | dev | full | gaming
 flavour: standard
 
 # trixie (Debian 13) | bookworm (Debian 12)

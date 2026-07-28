@@ -1,0 +1,9 @@
+# Jeux — saveur gaming. Installés si disponibles (contrib/non-free requis
+# pour steam-installer, déjà activés dans auto/config).
+steam-installer
+lutris
+wine
+winetricks
+gamescope
+protontricks
+goverlay

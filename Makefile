@@ -23,10 +23,10 @@ check: ## Vérifie que l'environnement de build est complet
 	@sudo ./build.sh --check
 
 .PHONY: build
-build: ## Construit l'ISO (FLAVOUR=minimal|standard|dev|full)
+build: ## Construit l'ISO (FLAVOUR=minimal|standard|dev|full|gaming)
 	@sudo ./build.sh --flavour $(FLAVOUR) --arch $(ARCH)
 
-.PHONY: minimal standard dev full
+.PHONY: minimal standard dev full gaming
 minimal:  ## ISO sans bureau (console seule, ~700 Mio)
 	@sudo ./build.sh --flavour minimal
 standard: ## ISO bureau XFCE + navigateur (défaut, ~2,5 Gio)
@@ -35,6 +35,8 @@ dev:      ## ISO standard + atelier développeur (~4 Gio)
 	@sudo ./build.sh --flavour dev
 full:     ## Tout : bureautique, multimédia, création (~6 Gio)
 	@sudo ./build.sh --flavour full
+gaming:   ## ISO standard + atelier développeur + jeux (~5 Gio)
+	@sudo ./build.sh --flavour gaming
 
 .PHONY: clean
 clean: ## Supprime les artefacts de build (garde l'ISO)

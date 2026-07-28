@@ -154,6 +154,7 @@ minimal   →  (rien)
 standard  →  flavours/standard/
 dev       →  flavours/standard/ + flavours/dev/
 full      →  flavours/standard/ + flavours/dev/ + flavours/full/
+gaming    →  flavours/standard/ + flavours/dev/ + flavours/gaming/
 ```
 
 Le préfixe `zz-` garantit qu'elles sont traitées après les listes de base.

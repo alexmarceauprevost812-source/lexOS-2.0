@@ -186,9 +186,10 @@ Une ligne = un nom de paquet Debian. Les lignes vides et celles commençant par
 | Fichier | Portée |
 |---|---|
 | `config/package-lists/lexos-core.list.chroot` | Toutes les saveurs |
-| `flavours/standard/desktop.list.chroot` | standard, dev, full |
-| `flavours/dev/devtools.list.chroot` | dev, full |
+| `flavours/standard/desktop.list.chroot` | standard, dev, full, gaming |
+| `flavours/dev/devtools.list.chroot` | dev, full, gaming |
 | `flavours/full/office-media.list.chroot` | full |
+| `flavours/gaming/gaming.list.chroot` | gaming |
 
 Pour vérifier qu'un paquet existe avant de l'ajouter :
 
@@ -196,15 +197,14 @@ Pour vérifier qu'un paquet existe avant de l'ajouter :
 apt-cache search --names-only '^neovim$'
 ```
 
-Créer une saveur à toi :
+Créer une saveur à toi (ici, une saveur « retro » avec des émulateurs) :
 
 ```bash
-mkdir -p flavours/gaming
-cat > flavours/gaming/jeux.list.chroot <<'EOF'
-steam-installer
-lutris
-gamemode
-mangohud
+mkdir -p flavours/retro
+cat > flavours/retro/emulateurs.list.chroot <<'EOF'
+retroarch
+dosbox
+scummvm
 EOF
 ```
 
