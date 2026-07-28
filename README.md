@@ -359,7 +359,10 @@ Un QR code s'affiche dans le terminal. Tu le scannes avec l'appareil photo du
 téléphone, le fichier se télécharge. La même page permet de **t'envoyer** des
 fichiers depuis le téléphone — ils arrivent dans `~/Téléchargements/LexOS-reçus`.
 
-Le partage s'arrête tout seul au bout de 15 minutes.
+Le partage s'arrête tout seul au bout de 15 minutes, et chaque partage a son
+**jeton d'accès** tiré au hasard, inclus dans le QR code : sur un wifi
+partagé (café, hôtel), personne d'autre ne peut lire tes fichiers ni t'en
+déposer — sans la bonne adresse, le serveur répond `404`.
 
 Dans le gestionnaire de fichiers : clic droit → **Partager avec LexOS**.
 

@@ -244,6 +244,31 @@ lexos-install
 Le raccourci du bureau et l'entrée du dock pointent sur `lexos-install`, pas
 sur `calamares` : le garde-fou ne peut pas être contourné par accident.
 
+### Le sudo de la démo ne survit pas à l'installation
+
+En session démo, `lex` a un sudo sans mot de passe (`/etc/sudoers.d/lexos-live`).
+C'est volontaire : il n'y a rien à protéger sur une clé USB, et l'installateur
+en a besoin.
+
+Le piège : Calamares recopie le système de fichiers **tel quel** sur le disque,
+ce fichier compris. Sur la machine installée il reste là — et quelqu'un qui
+nomme son compte `lex`, le nom qu'il a sous les yeux depuis le début de la
+démo, hériterait en silence d'un sudo sans mot de passe qu'il n'a jamais
+demandé.
+
+`lexos-live-sudo-guard.service` ferme ça au démarrage, avant l'écran de
+connexion :
+
+```
+/proc/cmdline contient « boot=live » ?
+    ├─ oui  → session démo, on garde le fichier
+    └─ non  → système installé, rm -f /etc/sudoers.d/lexos-live
+```
+
+Le choix de ne dépendre d'aucun réglage de Calamares est délibéré : une
+installation faite autrement — clonage de disque, copie manuelle, image
+restaurée — est rattrapée de la même façon.
+
 ---
 
 ## Deux niveaux de paquets
@@ -314,6 +339,27 @@ deux côtés. La réponse tient en trois pièces :
 
 Le serveur s'arrête tout seul après quinze minutes. Rien ne sort du réseau
 local, rien n'est téléversé nulle part.
+
+**Un jeton dans l'adresse.** Le serveur écoute sur toutes les interfaces —
+il le faut, le téléphone doit pouvoir le joindre. Mais « réseau local » ne
+veut pas dire « gens de confiance » : dans un café, c'est tout le monde.
+Chaque partage tire donc un jeton aléatoire (`secrets.token_urlsafe`) qui
+devient le début du chemin :
+
+```
+http://192.168.1.42:8080/kJ3nR7pQxW2vLa/
+                         └── jeton du partage, à usage unique
+```
+
+Toute requête sans ce jeton reçoit un `404` — pas un `403`, qui confirmerait
+qu'un partage tourne ici. Le QR code contient l'adresse complète : scanner ne
+change pas, deviner devient impossible. La comparaison passe par
+`secrets.compare_digest`, à temps constant. Un jeton vide ferme tout : un
+oubli de configuration doit verrouiller la porte, pas l'ouvrir.
+
+`tests/test_share_server.py` couvre les deux côtés : sans jeton, la page, les
+fichiers et l'envoi renvoient `404` et rien n'est écrit ; avec le bon jeton,
+tout fonctionne.
 
 Le parseur multipart est écrit à la main plutôt que d'utiliser le module
 `cgi` de Python : celui-ci disparaît en Python 3.13, donc dans Debian trixie.

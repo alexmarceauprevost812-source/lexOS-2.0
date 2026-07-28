@@ -1,5 +1,5 @@
 """Test du serveur de partage : téléchargement, envoi, sécurité des chemins."""
-import importlib.util, os, shutil, tempfile, threading, urllib.request, uuid, sys
+import importlib.util, os, shutil, tempfile, threading, urllib.request, urllib.error, uuid, sys
 
 spec = importlib.util.spec_from_file_location(
     "share", "config/includes.chroot/usr/lib/lexos/share-server.py")
@@ -14,10 +14,15 @@ open(os.path.join(out, "gros.bin"), "wb").write(big)
 open(os.path.join(out, "photo.png"), "wb").write(b"\x89PNG\r\n\x1a\n" + os.urandom(50_000))
 
 share.Handler.share_dir, share.Handler.recv_dir = out, inbox
+# Le serveur exige un jeton dans l'adresse (main() en tire un au hasard) :
+# on en pose un fixe ici pour que les tests soient reproductibles.
+TOKEN = "jeton-de-test"
+share.Handler.token = TOKEN
 httpd = share.Server(("127.0.0.1", 0), share.Handler)
 port = httpd.server_address[1]
 threading.Thread(target=httpd.serve_forever, daemon=True).start()
-U = f"http://127.0.0.1:{port}"
+BASE = f"http://127.0.0.1:{port}"
+U = f"{BASE}/{TOKEN}"
 
 fails = []
 def check(name, cond, extra=""):
@@ -88,6 +93,36 @@ post([("../../../../" + os.path.relpath(evil, "/"), b"pwn")])
 check("nom d'envoi malveillant neutralisé", not os.path.exists(evil))
 check("écrit dans le dossier de réception",
       any(f.startswith("EVIL") for f in os.listdir(inbox)))
+
+print("\n— Sécurité : jeton d'accès —")
+def status(url, data=None, ctype=None):
+    """Code HTTP renvoyé, sans lever d'exception sur 4xx."""
+    req = urllib.request.Request(url, data=data)
+    if ctype:
+        req.add_header("Content-Type", ctype)
+    try:
+        return urllib.request.urlopen(req, timeout=10).status
+    except urllib.error.HTTPError as e:
+        return e.code
+    except Exception:
+        return 0
+
+# Ce que voit un inconnu sur le même réseau : rien.
+for chemin in ["/", "/index.html", "/gros.bin", "/mauvais-jeton/gros.bin"]:
+    check(f"sans jeton, {chemin} refusé", status(BASE + chemin) == 404)
+
+b = "----lexos" + uuid.uuid4().hex
+corps = (f"--{b}\r\nContent-Disposition: form-data; name=\"fichier\"; "
+         f"filename=\"intrus.txt\"\r\nContent-Type: application/octet-stream\r\n\r\n"
+         ).encode() + b"intrus" + f"\r\n--{b}--\r\n".encode()
+check("sans jeton, envoi refusé",
+      status(BASE + "/", corps, f"multipart/form-data; boundary={b}") == 404)
+check("aucun fichier déposé sans jeton",
+      not any(f.startswith("intrus") for f in os.listdir(inbox)))
+
+# Et le bon jeton continue de marcher.
+check("avec le bon jeton, la page répond", status(U + "/") == 200)
+check("avec le bon jeton, le fichier se télécharge", status(U + "/gros.bin") == 200)
 
 httpd.shutdown(); shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{'TOUS LES TESTS PASSENT' if not fails else 'ÉCHECS : ' + ', '.join(fails)}\n")

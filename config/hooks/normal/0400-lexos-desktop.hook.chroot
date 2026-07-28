@@ -62,10 +62,23 @@ EOF
 # (le thème GTK est produit par le hook 0600 — LexOS Noir)
 
 # --- Le live user peut utiliser sudo sans mot de passe ----------------------
+#  Voulu en session démo : rien à protéger sur une clé USB, et l'installateur
+#  en a besoin. Mais Calamares recopie le système tel quel sur le disque, ce
+#  fichier compris : sur la machine installée, quelqu'un qui nomme son compte
+#  « lex » hériterait en silence d'un sudo sans mot de passe.
+#  D'où le garde-fou ci-dessous, qui efface le fichier à tout démarrage qui
+#  n'est pas une session live.
 cat > /etc/sudoers.d/lexos-live <<EOF
 ${LEXOS_LIVE_USER} ALL=(ALL) NOPASSWD: ALL
 EOF
 chmod 0440 /etc/sudoers.d/lexos-live
+
+chmod 0755 /usr/lib/lexos/live-sudo-guard 2>/dev/null || true
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl enable lexos-live-sudo-guard.service >/dev/null 2>&1 \
+		&& echo "[lexos]   garde-fou sudo activé" \
+		|| echo "[lexos]   !! garde-fou sudo non activé"
+fi
 
 # --- Compte « invite » : repli pour la session invité -----------------------
 # allow-guest=true (ci-dessus) laisse LightDM proposer sa propre session

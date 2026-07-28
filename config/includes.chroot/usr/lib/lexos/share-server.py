@@ -18,6 +18,7 @@ import argparse
 import html
 import http.server
 import os
+import secrets
 import socket
 import socketserver
 import sys
@@ -101,9 +102,44 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     recv_dir = None
     minutes = 15
     message = ""
+    token = ""
 
     def log_message(self, fmt, *args):
         sys.stderr.write("  %s %s\n" % (self.address_string(), fmt % args))
+
+    # --- Jeton d'accès -------------------------------------------------------
+    #  Le serveur écoute sur tout le réseau local : sans jeton, n'importe qui
+    #  sur le même wifi (un café, une salle d'attente) lirait les fichiers
+    #  partagés et pourrait en déposer. Le jeton vit dans l'adresse encodée
+    #  par le QR code : scanner marche toujours, deviner ne marche pas.
+    def _strip_token(self):
+        """Renvoie le chemin sans le jeton, ou None si le jeton est absent/faux.
+
+        Jeton vide = tout est refusé. Un oubli de configuration doit fermer la
+        porte, jamais l'ouvrir : main() en pose toujours un.
+        """
+        if not self.token:
+            return None
+        path = urllib.parse.urlparse(self.path).path
+        prefix = "/" + self.token
+        if path == prefix:
+            return "/"
+        if path.startswith(prefix + "/"):
+            # compare_digest : comparaison à temps constant, pas de fuite par
+            # mesure du temps de réponse.
+            got = path[1:len(self.token) + 1]
+            if secrets.compare_digest(got, self.token):
+                return path[len(prefix):]
+        return None
+
+    def _deny(self):
+        """Répond 404 — ne confirme jamais qu'un partage tourne ici."""
+        body = b"404"
+        self.send_response(404)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     # --- Page d'accueil ------------------------------------------------------
     def render_index(self):
@@ -152,7 +188,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if urllib.parse.urlparse(self.path).path in ("/", "/index.html"):
+        inner = self._strip_token()
+        if inner is None:
+            self._deny()
+            return
+        if inner in ("/", "/index.html"):
             self.render_index()
             return
         super().do_GET()
@@ -266,6 +306,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return dest
 
     def do_POST(self):
+        if self._strip_token() is None:
+            self._deny()
+            return
         if not self.recv_dir:
             self.send_error(403, "Reception desactivee")
             return
@@ -322,12 +365,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             "Reçu : " + ", ".join(saved) if saved else "Aucun fichier reçu."
         )
         self.send_response(303)
-        self.send_header("Location", "/")
+        self.send_header("Location", "/" + self.token + "/")
         self.send_header("Content-Length", "0")
         self.end_headers()
 
     def translate_path(self, path):
-        # Sert exclusivement depuis le dossier de partage.
+        # Sert exclusivement depuis le dossier de partage. basename() écrase
+        # toute tentative de remontée (« ../../etc/passwd ») ; le jeton, lui,
+        # a déjà été vérifié par do_GET avant d'arriver ici.
         path = urllib.parse.urlparse(path).path
         name = os.path.basename(urllib.parse.unquote(path))
         return os.path.join(self.share_dir, name)
@@ -378,10 +423,13 @@ def main():
     Handler.share_dir = os.path.abspath(args.dir)
     Handler.recv_dir = os.path.abspath(args.recv) if args.recv else None
     Handler.minutes = args.minutes
+    # ~13 caractères tirés de os.urandom : deviner l'adresse est hors de portée
+    # pendant les quinze minutes où le partage vit.
+    Handler.token = secrets.token_urlsafe(10)
 
     httpd = Server(("0.0.0.0", args.port), Handler)
     port = httpd.server_address[1]
-    url = f"http://{local_ip()}:{port}/"
+    url = f"http://{local_ip()}:{port}/{Handler.token}/"
 
     print(url, flush=True)
 

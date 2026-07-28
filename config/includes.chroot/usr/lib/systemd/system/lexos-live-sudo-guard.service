@@ -1,0 +1,15 @@
+[Unit]
+Description=LexOS — retire le sudo sans mot de passe hors session démo
+Documentation=file:/usr/lib/lexos/live-sudo-guard
+DefaultDependencies=no
+After=local-fs.target
+Before=sysinit.target display-manager.service lightdm.service
+ConditionPathExists=/etc/sudoers.d/lexos-live
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/lexos/live-sudo-guard
+
+[Install]
+WantedBy=sysinit.target
