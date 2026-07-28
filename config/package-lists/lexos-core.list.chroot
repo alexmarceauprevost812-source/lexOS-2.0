@@ -13,7 +13,6 @@
 linux-image-amd64
 live-boot
 live-config
-live-config-systemd
 systemd-sysv
 init
 
@@ -27,7 +26,7 @@ network-manager
 wpasupplicant
 iproute2
 iputils-ping
-dnsutils
+bind9-dnsutils
 ca-certificates
 openssh-client
 curl

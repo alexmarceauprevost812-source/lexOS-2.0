@@ -25,4 +25,6 @@ lightdm-gtk-greeter
 firefox-esr
 
 # --- Politique d'autorisations ----------------------------------------------
-policykit-1
+# (« policykit-1 » n'existe plus dans trixie — le paquet réel est polkitd)
+polkitd
+pkexec
