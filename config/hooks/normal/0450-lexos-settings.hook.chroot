@@ -100,8 +100,11 @@ SECTION="${1:-}"
 case "$SECTION" in
 	wifi|reseau|bluetooth|avion)
 		command -v xfce4-terminal >/dev/null 2>&1 \
-			&& exec xfce4-terminal --title="Réseau — LexOS" --hold -e "lexos net status; echo; bash" \
+			&& exec xfce4-terminal --title="Réseau — LexOS" --hold \
+			     -e "lexos net status; echo; lexos vpn; bash" \
 			|| exec lexos net status ;;
+	vpn)
+		exec xfce4-terminal --title="VPN — LexOS" --hold -e "lexos vpn; bash" ;;
 	ecrans|displays)          exec lexos-display gui ;;
 	energie|performance|perf) exec lexos-perf --gui ;;
 	multitaches|workspaces)   open_xfce workspaces ;;

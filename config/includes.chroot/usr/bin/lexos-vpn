@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-vpn — VPN (OpenVPN, WireGuard) via NetworkManager
+# =============================================================================
+#  Importe un fichier .ovpn ou .conf WireGuard tel quel, sans ré-explication :
+#  NetworkManager fait tout le travail, ce script est un raccourci propre.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8*|*utf8*|*UTF8*|*utf-8*) ;;
+	*) locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$' && export LC_ALL=C.UTF-8 ;;
+esac
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+need_nm() {
+	command -v nmcli >/dev/null 2>&1 || die "nmcli introuvable — NetworkManager n'est pas installé."
+	nmcli general status >/dev/null 2>&1 || die "NetworkManager ne répond pas (service arrêté ?)."
+}
+need_root() {
+	if [[ $EUID -ne 0 ]]; then
+		command -v sudo >/dev/null 2>&1 || die "Droits administrateur nécessaires."
+		exec sudo -E "$0" "$@"
+	fi
+}
+
+vpn_names() {
+	nmcli -t -f NAME,TYPE connection show 2>/dev/null \
+		| awk -F: '$2=="vpn" || $2=="wireguard" {print $1}'
+}
+
+# =============================================================================
+#  Importer une configuration (.ovpn ou WireGuard .conf)
+# =============================================================================
+cmd_import() {
+	need_nm
+	need_root import "$@"
+	local file="${1:-}" name="${2:-}"
+	[[ -n "$file" ]] || die "Usage : ${PROG} import <fichier.ovpn ou fichier.conf> [nom]"
+	[[ -r "$file" ]] || die "Fichier introuvable : ${file}"
+
+	local kind
+	case "${file,,}" in
+		*.ovpn)  kind="openvpn" ;;
+		*.conf)
+			if grep -q '^\[Interface\]' "$file" 2>/dev/null; then
+				kind="wireguard"
+			else
+				die "Fichier .conf non reconnu comme WireGuard (pas de [Interface])."
+			fi
+			;;
+		*) die "Format inconnu : ${file}  (attendu : .ovpn ou .conf WireGuard)" ;;
+	esac
+
+	say "Import ${kind} : $(basename "$file")…"
+	local out
+	if out="$(nmcli connection import type "$kind" file "$file" 2>&1)"; then
+		local conn_name
+		conn_name="$(sed -n "s/.*'\(.*\)'.*/\1/p" <<< "$out" | head -n1)"
+		[[ -n "$name" && -n "$conn_name" ]] && nmcli connection modify "$conn_name" connection.id "$name" >/dev/null 2>&1
+		ok "VPN importé : ${name:-$conn_name}"
+		printf '  %s%s connect "%s"%s\n' "$D" "$PROG" "${name:-$conn_name}" "$R"
+	else
+		die "Échec de l'import : ${out}"
+	fi
+}
+
+cmd_list() {
+	need_nm
+	local names; names="$(vpn_names)"
+	[[ -n "$names" ]] || { warn "Aucun VPN importé — ${PROG} import <fichier>"; return 0; }
+
+	printf '\n  %-28s %-10s %s\n' "VPN" "TYPE" "ÉTAT"
+	printf '  %s\n' "$(printf '─%.0s' {1..56})"
+	local active; active="$(nmcli -t -f NAME connection show --active 2>/dev/null)"
+	while IFS= read -r n; do
+		[[ -n "$n" ]] || continue
+		local type state
+		type="$(nmcli -t -f connection.type connection show "$n" 2>/dev/null | cut -d: -f2)"
+		state="—"; grep -qxF "$n" <<< "$active" && state="${G}connecté${R}"
+		printf '  %-28s %-10s %b\n' "$n" "${type#*-}" "$state"
+	done <<< "$names"
+	printf '\n'
+}
+
+cmd_connect() {
+	need_nm
+	local name="${1:-}"
+	[[ -n "$name" ]] || die "Usage : ${PROG} connect \"<nom>\"  (voir : ${PROG} list)"
+	nmcli connection up id "$name" >/dev/null 2>&1 \
+		&& ok "Connecté à « ${name} »" \
+		|| die "Connexion à « ${name} » impossible."
+}
+
+cmd_disconnect() {
+	need_nm
+	local name="${1:-}"
+	if [[ -z "$name" ]]; then
+		name="$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null \
+			| awk -F: '$2=="vpn" || $2=="wireguard" {print $1; exit}')"
+		[[ -n "$name" ]] || { warn "Aucun VPN actif."; return 0; }
+	fi
+	nmcli connection down id "$name" >/dev/null 2>&1 \
+		&& ok "Déconnecté de « ${name} »" \
+		|| die "Déconnexion de « ${name} » impossible."
+}
+
+cmd_remove() {
+	need_nm
+	need_root remove "$@"
+	local name="${1:-}"
+	[[ -n "$name" ]] || die "Usage : ${PROG} remove \"<nom>\""
+	nmcli connection delete id "$name" >/dev/null 2>&1 \
+		&& ok "VPN « ${name} » supprimé." \
+		|| die "VPN « ${name} » inconnu."
+}
+
+cmd_status() {
+	need_nm
+	local active
+	active="$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null \
+		| awk -F: '$2=="vpn" || $2=="wireguard" {print $1}')"
+	if [[ -n "$active" ]]; then
+		printf 'VPN : %sconnecté%s (%s)\n' "$G" "$R" "$active"
+	else
+		printf 'VPN : %saucun actif%s\n' "$D" "$R"
+	fi
+	printf '  %s%s list%s          VPN importés\n' "$D" "$PROG" "$R"
+	printf '  %s%s import <fichier>%s   importer un .ovpn ou un .conf WireGuard\n' "$D" "$PROG" "$R"
+}
+
+cmd_help() {
+	cat <<EOF
+
+${B}${O}${PROG}${R} — VPN (OpenVPN, WireGuard)
+
+${B}USAGE${R}
+  ${PROG} <commande> [arguments]
+
+${B}COMMANDES${R}
+  ${D}(défaut)${R}                     État du VPN
+  ${D}import${R} <fichier> [nom]       Importe un .ovpn ou un .conf WireGuard
+  ${D}list${R}                         VPN importés
+  ${D}connect${R} "<nom>"              Se connecte
+  ${D}disconnect${R} ["<nom>"]         Se déconnecte ${D}(le VPN actif si omis)${R}
+  ${D}remove${R} "<nom>"               Supprime un VPN importé
+
+${B}EXEMPLES${R}
+  ${D}${PROG} import ~/Téléchargements/mon-fournisseur.ovpn${R}
+  ${D}${PROG} import ~/Téléchargements/wg0.conf "Maison"${R}
+  ${D}${PROG} connect "Maison"${R}
+
+EOF
+}
+
+CMD="${1:-status}"
+[[ $# -gt 0 ]] && shift
+case "$CMD" in
+	help|--help|-h) cmd_help ;;
+	status|'')      cmd_status ;;
+	import)         cmd_import "$@" ;;
+	list|ls)        cmd_list ;;
+	connect|co)     cmd_connect "$@" ;;
+	disconnect|deco) cmd_disconnect "$@" ;;
+	remove|rm)      cmd_remove "$@" ;;
+	*) die "Commande inconnue : ${CMD}  (essaie : ${PROG} help)" ;;
+esac

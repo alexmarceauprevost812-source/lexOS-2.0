@@ -104,6 +104,8 @@ ${B}RÉSEAU${R}
   ${A}wifi${R}                Chercher et rejoindre un réseau Wi-Fi
   ${A}bt${R}                  Bluetooth : appairer, connecter
   ${A}net${R}                 Toutes les commandes réseau ${D}(réseau caché, appareils du LAN…)${R}
+  ${A}vpn${R} import <fichier> Importe un VPN ${D}(.ovpn ou WireGuard .conf)${R}
+  ${A}vpn connect${R} "<nom>"  Se connecte au VPN
 
 ${B}SÉCURITÉ${R}
   ${A}secure${R}               État : pare-feu, antivirus, anti-intrusion, anti-rootkit
@@ -558,6 +560,7 @@ case "$CMD" in
 	format)               exec lexos-format "$@" ;;
 	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
+	vpn)                  exec lexos-vpn "$@" ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

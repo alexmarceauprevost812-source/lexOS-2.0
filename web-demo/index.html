@@ -834,9 +834,12 @@ function settingsSection(key){
       ${swRow("Connexion auto. aux réseaux ouverts","Désactivée par défaut pour ta sécurité — demande confirmation",state.wifiAuto,"toggleWifiAuto()")}
       <p class="notice">Démo : réseaux et mots de passe réels vivent sur la vraie ISO
       (<code>lexos wifi</code>, <code>lexos net password "&lt;réseau&gt;"</code> pour un mot de passe oublié).</p>`;
-    case "reseau": return `<h2>Réseau</h2><div class="sub">Filaire, mode avion</div>
+    case "reseau": return `<h2>Réseau</h2><div class="sub">Filaire, mode avion, VPN</div>
       ${swRow("Mode avion","Coupe Wi-Fi, Bluetooth et données",state.avion,"toggleAvion()")}
-      <p class="notice">Câble Ethernet non simulé ici — priorité automatique au filaire sur le vrai LexOS.</p>`;
+      <p class="notice">Câble Ethernet non simulé ici — priorité automatique au filaire sur le vrai LexOS.</p>
+      <div class="srow"><div class="t">VPN</div><div class="d">OpenVPN et WireGuard, importés depuis un fichier</div></div>
+      <p class="notice">Sur la vraie ISO : <code>lexos vpn import fichier.ovpn</code> ou un
+      <code>.conf</code> WireGuard, puis <code>lexos vpn connect "&lt;nom&gt;"</code>.</p>`;
     case "bluetooth": return `<h2>Bluetooth</h2><div class="sub">Appareils appairés</div>
       ${swRow("Bluetooth",  "Visible, prêt à appairer",true,"")}
       <p class="set-soon">Aucun appareil appairé dans la démo. Sur la vraie ISO : <code>lexos bt scan</code>.</p>`;
