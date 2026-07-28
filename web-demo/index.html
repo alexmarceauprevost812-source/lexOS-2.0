@@ -2249,11 +2249,11 @@ const APPS = [
         de la taille de police — la même chaîne que le dock (46px, texte ~22px)
         paraît donc petite dans les tuiles bien plus grandes de cette grille
         (52px) : on la redessine ici à une taille propre à cette vue. */
-    label==="Terminal" ? {ic:terminalGlyph(34), label, fn} :
-    label==="Fichiers" ? {ic:filesAppGlyph(34), label, fn} : {ic,label,fn}),
-  {ic:zipGlyph(34), label:"Archives ZIP", fn:openFiles},
-  {ic:musiqueGlobe(30), label:"Musique", fn:openMusique},
-  {ic:'<i class="gly gly-usb" style="width:34px;height:34px"></i>', label:"Appareils USB", fn:()=>openSettings("usb")},
+    label==="Terminal" ? {ic:terminalGlyph(38), label, fn} :
+    label==="Fichiers" ? {ic:filesAppGlyph(38), label, fn} : {ic,label,fn}),
+  {ic:zipGlyph(42), label:"Archives ZIP", fn:openFiles},
+  {ic:musiqueGlobe(38), label:"Musique", fn:openMusique},
+  {ic:'<i class="gly gly-usb" style="width:42px;height:42px"></i>', label:"Appareils USB", fn:()=>openSettings("usb")},
   {ic:'<i class="gly gly-wifi"></i>', label:"Wi-Fi", fn:()=>openSettings("wifi")},
   {ic:'<i class="gly gly-bt"></i>', label:"Bluetooth", fn:()=>openSettings("bluetooth")},
   {ic:"🖥", label:"Écrans",       fn:()=>openSettings("ecrans")},
