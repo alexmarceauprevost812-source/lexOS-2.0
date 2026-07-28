@@ -61,6 +61,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   background-image:var(--logo-icon);background-size:contain;background-repeat:no-repeat;
   background-position:center}
 #clock{position:absolute;left:50%;transform:translateX(-50%);color:var(--fg-dim)}
+/*  Chaque caractère de l'heure occupe une cellule de largeur FIXE : les
+    idéogrammes du brouillage sont bien plus larges qu'un chiffre, sans ça
+    toute la barre sursauterait à chaque minute. La date, elle, reste du
+    texte normal — des cellules fixes abîmeraient son espacement. */
+#clktime .ck{display:inline-block;width:.62em;text-align:center;
+  font-variant-numeric:tabular-nums}
+#clktime .ck.mtx{color:#39FF14;text-shadow:0 0 9px rgba(57,255,20,.55);
+  font-size:.8em;vertical-align:baseline}
+@media (prefers-reduced-motion:reduce){ #clktime .ck.mtx{color:inherit;text-shadow:none} }
 #tray{margin-left:auto;display:flex;gap:4px;color:var(--fg-dim)}
 #tray button{padding:3px 8px;border-radius:6px}
 #tray button:hover{background:var(--bg-hi);color:var(--fg)}
@@ -445,7 +454,7 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
 
   <div id="panel">
     <button class="apps" id="appsBtn"><span class="glyph"></span>Applications</button>
-    <span id="clock"></span>
+    <span id="clock"><span id="clkdate"></span><span id="clktime"></span></span>
     <div id="tray">
       <button id="qsBtn"  title="Paramètres rapides">▲</button>
       <button id="offBtn" title="Marche, veille, redémarrer, éteindre">⏻</button>
@@ -2006,13 +2015,53 @@ function powerOverlayClick(){
 document.getElementById("offBtn").onclick=e=>{ e.stopPropagation(); pwToggle(e.currentTarget); };
 
 /* ======================= Horloge & démarrage ======================= */
-function tick(){
-  const d=new Date();
-  document.getElementById("clock").textContent =
-    d.toLocaleDateString("fr-CA",{weekday:"short",day:"2-digit",month:"short"})
-    +"  "+d.toLocaleTimeString("fr-CA",{hour:"2-digit",minute:"2-digit"});
+/*  Effet « Matrix » sur l'horloge : quand un chiffre de l'heure change, il
+    défile sur trois idéogrammes avant d'afficher le vrai chiffre. Seuls les
+    caractères qui CHANGENT sont animés — sinon toute l'heure clignoterait
+    chaque minute. */
+const MTX_GLYPHES = "日月火水木金土山川田人大小上中下一二三四五六七八九十百千万時分秒天空雷風零";
+function mtxRandom(){ return MTX_GLYPHES[Math.floor(Math.random()*MTX_GLYPHES.length)]; }
+function heureCellules(t){
+  return [...t].map(ch=>`<span class="ck">${ch===" "?"&nbsp;":esc(ch)}</span>`).join("");
 }
-setInterval(tick,10000); tick();
+function mtxScramble(cell, final){
+  if(cell._mtx) clearInterval(cell._mtx);       // un changement peut en chasser un autre
+  let n = 0;
+  cell.classList.add("mtx");
+  cell._mtx = setInterval(()=>{
+    n++;
+    if(n > 3){                                   // trois glyphes, puis le vrai
+      clearInterval(cell._mtx); cell._mtx = null;
+      cell.classList.remove("mtx");
+      cell.innerHTML = final===" " ? "&nbsp;" : esc(final);
+      return;
+    }
+    cell.textContent = mtxRandom();
+  }, 78);
+}
+let heurePrec = "";
+function tick(){
+  const d = new Date();
+  const date  = d.toLocaleDateString("fr-CA",{weekday:"short",day:"2-digit",month:"short"});
+  const heure = d.toLocaleTimeString("fr-CA",{hour:"2-digit",minute:"2-digit"});
+  document.getElementById("clkdate").textContent = date + "  ";
+  const zone = document.getElementById("clktime");
+
+  //  Premier affichage, ou format de longueur différente : on pose tel quel.
+  if(heurePrec.length !== heure.length){
+    zone.innerHTML = heureCellules(heure); heurePrec = heure; return;
+  }
+  if(heure === heurePrec) return;
+  const cells = zone.querySelectorAll(".ck");
+  [...heure].forEach((ch,i)=>{
+    if(ch !== heurePrec[i] && cells[i]) mtxScramble(cells[i], ch);
+  });
+  heurePrec = heure;
+}
+//  Une seconde : sans ça le changement de minute serait vu jusqu'à 10 s trop
+//  tard et l'effet tomberait à côté. La fonction ne fait rien tant que
+//  l'heure affichée n'a pas changé.
+setInterval(tick,1000); tick();
 
 function boot(){
   document.querySelectorAll(".win").forEach(w=>w.remove());
