@@ -1,6 +1,10 @@
 """Test du serveur de partage : téléchargement, envoi, sécurité des chemins."""
 import importlib.util, os, shutil, tempfile, threading, urllib.request, urllib.error, uuid, sys
 
+# Sans ça, l'import écrit un __pycache__ dans config/includes.chroot, que
+# live-build recopierait tel quel dans l'ISO si on construit après un test.
+sys.dont_write_bytecode = True
+
 spec = importlib.util.spec_from_file_location(
     "share", "config/includes.chroot/usr/lib/lexos/share-server.py")
 share = importlib.util.module_from_spec(spec); spec.loader.exec_module(share)

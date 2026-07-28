@@ -13,6 +13,9 @@
 set -uo pipefail
 
 PROG="${0##*/}"
+# La boucle d'agent vit dans /usr/lib/lexos, comme share-server.py : ce n'est
+# pas une commande que l'utilisateur lance, c'est un rouage interne.
+AGENT="/usr/lib/lexos/ia-agent.py"
 OLLAMA_HOST="${LEXOS_IA_HOST:-127.0.0.1:11434}"
 DEFAULT_MODEL="qwen2.5:3b"
 STATE_DIR="$HOME/.config/lexos"
@@ -107,9 +110,10 @@ cmd_agent() {
 		shift
 	done
 	[[ $# -gt 0 ]] || { usage; exit 1; }
+	[[ -r "$AGENT" ]] || die "Rouage interne introuvable : $AGENT — réinstalle LexOS ou signale le problème."
 	LEXOS_IA_AUTO="$auto" LEXOS_IA_SUDO="$allow_sudo" LEXOS_IA_MODEL="$(current_model)" \
 		LEXOS_IA_HOST="$OLLAMA_HOST" LEXOS_IA_TASK="$*" \
-		python3 "$(dirname -- "$(readlink -f -- "$0")")/lexos-ia-agent.py"
+		python3 "$AGENT"
 }
 
 AUTO=0

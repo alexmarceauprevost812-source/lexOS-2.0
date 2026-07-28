@@ -32,6 +32,27 @@ jobs:
             head -n1 "$f" | grep -q bash && bash -n "$f"
           done
 
+      - name: Syntaxe Python des rouages internes
+        run: |
+          # ast.parse plutôt que py_compile : vérifie la syntaxe sans écrire de
+          # __pycache__ dans config/includes.chroot, qui partirait dans l'ISO.
+          for f in config/includes.chroot/usr/lib/lexos/*.py; do
+            python3 -c "import ast,sys; ast.parse(open(sys.argv[1], encoding='utf-8').read(), sys.argv[1])" "$f"
+            echo "  ok $f"
+          done
+
+      - name: Pas de script Python dans /usr/bin
+        run: |
+          # /usr/bin ne contient que des commandes shell — shellcheck les passe
+          # toutes en revue et s'étrangle sur un fichier Python. Les aides en
+          # Python vivent dans /usr/lib/lexos, comme share-server.py.
+          for f in config/includes.chroot/usr/bin/*; do
+            case "$f" in
+              *.py) echo "::error file=$f::les scripts Python vont dans /usr/lib/lexos, pas /usr/bin"; exit 1 ;;
+            esac
+          done
+          echo "  ok — aucun script Python dans /usr/bin"
+
       - name: Validité des SVG
         run: |
           for f in branding/*.svg config/bootloaders/isolinux/*.svg; do
