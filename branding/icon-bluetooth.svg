@@ -2,6 +2,15 @@
 <!--
   LexOS — icône Bluetooth. Carré arrondi + rune Bluetooth blanche.
 
+  La rune est la bind-rune officielle (Hagall + Bjarkan, les initiales de
+  Harald Blåtand), tracée d'un seul trait, comme le logo d'origine :
+
+      (-2,-2) ─→ (2,2) ─→ (0,4) ─→ (0,-4) ─→ (2,-2) ─→ (-2,2)
+
+  Les deux triangles naissent du croisement des diagonales avec le fût
+  vertical — ils ne sont pas dessinés séparément. Jointures en pointe
+  (miter) pour garder les sommets aigus, extrémités coupées net.
+
   #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen
   avant le rendu des PNG — comme icon-files.svg et icon-zip.svg.
 -->
@@ -12,8 +21,8 @@
   <rect x="40" y="40" width="432" height="432" rx="96" fill="#E8590C"/>
   <rect x="40" y="40" width="432" height="216" rx="96" fill="#FFFFFF" opacity="0.08"/>
 
-  <!-- Rune Bluetooth -->
-  <g transform="translate(106.5,100) scale(13)" fill="#FFFFFF" fill-rule="evenodd">
-    <path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/>
-  </g>
+  <!-- Rune Bluetooth, tracée d'un seul trait -->
+  <path d="M 174,174 L 338,338 L 256,420 L 256,92 L 338,174 L 174,338"
+        fill="none" stroke="#FFFFFF" stroke-width="30"
+        stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="10"/>
 </svg>

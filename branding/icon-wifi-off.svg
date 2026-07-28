@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Wi-Fi (deconnecte).
+  Arcs en diagonale partant de la pastille, comme le pictogramme d'origine.
+  Rouge : pas de connexion.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Wi-Fi deconnecte LexOS">
+  <circle cx="256" cy="256" r="212" fill="#2E2E33"/>
+  <g fill="none">
+    <path d="M 200 248 A 92 92 0 0 1 292 340" stroke="#EF4444" stroke-width="34" stroke-linecap="butt"/>
+    <path d="M 200 184 A 156 156 0 0 1 356 340" stroke="#EF4444" stroke-width="34" stroke-linecap="butt"/>
+    <path d="M 200 120 A 220 220 0 0 1 420 340" stroke="#EF4444" stroke-width="34" stroke-linecap="butt"/>
+  </g>
+  <circle cx="200" cy="340" r="31" fill="#EF4444"/>
+</svg>
