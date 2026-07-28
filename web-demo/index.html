@@ -89,6 +89,10 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   border:1px solid var(--bd);border-radius:10px;overflow:hidden;z-index:100;
   box-shadow:0 18px 60px rgba(0,0,0,.85);display:flex;flex-direction:column}
 .win.active{border-color:#3a3a40}
+/* Fenêtre agrandie : coins droits et ombre plus discrète, comme un vrai
+   gestionnaire de fenêtres qui colle la fenêtre aux bords de l'écran. */
+.win.max{border-radius:6px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+.win.max .tbar{cursor:default}
 .tbar{height:34px;display:flex;align-items:center;gap:8px;padding:0 10px;
   background:var(--bg-alt);border-bottom:1px solid var(--bd);cursor:grab;
   font-weight:600;font-size:13px}
@@ -456,6 +460,7 @@ function openWin(id, title, icon, html, w, h, x, y){
   el.innerHTML =
     `<div class="tbar"><span class="ticon">${icon}</span>`+
     `<span class="ttitle">${title}</span>`+
+    `<button class="tbtn maxi" title="Agrandir (double-clic sur la barre)">⛶</button>`+
     `<button class="tbtn close" title="Fermer">✕</button></div>`+
     `<div class="wbody">${html}</div>`;
   winsRoot.appendChild(el);
@@ -463,11 +468,70 @@ function openWin(id, title, icon, html, w, h, x, y){
     if(e.animationName==="crtOn"||e.animationName==="fadeIn") el.classList.remove("opening");
   });
   el.querySelector(".close").onclick = ()=>closeWin(el);
+  el.querySelector(".maxi").onclick = e=>{ e.stopPropagation(); toggleMax(el); };
+  el.querySelector(".tbar").addEventListener("dblclick", e=>{
+    if(e.target.closest(".tbtn")) return;
+    toggleMax(el);
+  });
   el.addEventListener("mousedown", ()=>focusWin(el));
   dragify(el);
   focusWin(el);
   return el;
 }
+/* --- Agrandir / restaurer, façon gestionnaire de fenêtres ---------------- */
+//  La zone « plein écran » s'arrête au panneau du haut et au dock : une
+//  fenêtre agrandie ne doit jamais recouvrir les barres du système, quel que
+//  soit le côté où le dock est posé.
+function maxArea(){
+  const m = 8, box = {l:m, t:40, r:m, b:m};
+  const d = document.getElementById("dock");
+  if(d){
+    const rc = d.getBoundingClientRect();
+    switch(state.dock){
+      case "right":  box.r = innerWidth  - rc.left   + m; break;
+      case "left":   box.l = rc.right    + m;             break;
+      case "bottom": box.b = innerHeight - rc.top    + m; break;
+      case "top":    box.t = rc.bottom   + m;             break;
+    }
+  }
+  return box;
+}
+function applyMax(el){
+  const b = maxArea();
+  el.style.left   = b.l + "px";
+  el.style.top    = b.t + "px";
+  el.style.width  = Math.max(280, innerWidth  - b.l - b.r) + "px";
+  el.style.height = Math.max(200, innerHeight - b.t - b.b) + "px";
+}
+function toggleMax(el, force){
+  const isMax = el.classList.contains("max");
+  const want  = force === undefined ? !isMax : force;
+  if(want === isMax) return;
+  const btn = el.querySelector(".maxi");
+  if(want){
+    // On garde la taille d'avant pour pouvoir revenir exactement dessus.
+    el.dataset.geo = JSON.stringify({
+      left:el.style.left, top:el.style.top,
+      width:el.style.width, height:el.style.height});
+    el.classList.add("max");
+    applyMax(el);
+    if(btn){ btn.textContent="🗗"; btn.title="Restaurer la taille"; }
+  }else{
+    let g={};
+    try{ g = JSON.parse(el.dataset.geo || "{}"); }catch(_){}
+    el.style.left   = g.left   || "80px";
+    el.style.top    = g.top    || "80px";
+    el.style.width  = g.width  || "520px";
+    el.style.height = g.height || "";
+    el.classList.remove("max");
+    if(btn){ btn.textContent="⛶"; btn.title="Agrandir (double-clic sur la barre)"; }
+  }
+  focusWin(el);
+}
+// Une fenêtre agrandie suit la taille de l'écran (rotation, redimensionnement).
+addEventListener("resize", ()=>{
+  document.querySelectorAll(".win.max").forEach(applyMax);
+});
 function closeWin(el){
   el.classList.add("closing");
   el.addEventListener("animationend", ()=>el.remove(), {once:true});
@@ -488,6 +552,16 @@ function dragify(el){
   });
   bar.addEventListener("pointermove", e=>{
     if(!drag) return;
+    // Tirer une fenêtre agrandie la restaure et la met sous le curseur,
+    // comme sur un vrai bureau.
+    if(el.classList.contains("max")){
+      const w = parseInt(el.dataset.geo ? (JSON.parse(el.dataset.geo).width||"520") : "520", 10) || 520;
+      toggleMax(el, false);
+      ox = Math.max(0, e.clientX - w/2); oy = 40;
+      sx = e.clientX; sy = e.clientY;
+      el.style.left = ox+"px"; el.style.top = oy+"px";
+      return;
+    }
     el.style.left=Math.max(-el.offsetWidth+90, ox+e.clientX-sx)+"px";
     el.style.top =Math.max(32, oy+e.clientY-sy)+"px";
   });

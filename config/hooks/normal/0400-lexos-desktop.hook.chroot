@@ -294,6 +294,19 @@ cat > "$SKEL_XFCONF/xfce4-keyboard-shortcuts.xml" <<'EOF'
       <property name="override" type="bool" value="true"/>
     </property>
   </property>
+  <!-- Agrandir les fenêtres : bouton de la barre de titre, double-clic sur la
+       barre, et ces raccourcis. Pas de « override » ici, volontairement — il
+       remplacerait TOUS les raccourcis de fenêtre par défaut (Alt+Tab,
+       Alt+F4, changement de bureau…) au lieu de s'y ajouter. -->
+  <property name="xfwm4" type="empty">
+    <property name="custom" type="empty">
+      <property name="&lt;Super&gt;Up"    type="string" value="maximize_window_key"/>
+      <property name="&lt;Super&gt;Down"  type="string" value="unmaximize_window_key"/>
+      <property name="&lt;Super&gt;Left"  type="string" value="tile_left_key"/>
+      <property name="&lt;Super&gt;Right" type="string" value="tile_right_key"/>
+      <property name="F11"                type="string" value="fullscreen_key"/>
+    </property>
+  </property>
 </channel>
 EOF
 
