@@ -265,6 +265,11 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 @keyframes majSpin{from{transform:rotate(0deg)} to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){ .gly-maj{animation:none} }
 .gly-files{-webkit-mask-image:var(--m-files);mask-image:var(--m-files)}
+/*  Gestion des couleurs : l'arc-en-ciel VIT — ses couleurs défilent en
+    boucle (filter:hue-rotate sur un arc dessiné en 6 bandes). */
+.arcciel-ic{display:block;animation:arcCiel 6s linear infinite}
+@keyframes arcCiel{from{filter:hue-rotate(0deg)} to{filter:hue-rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){ .arcciel-ic{animation:none} }
 /*  Aperçu décoratif de « miroir » d'écran de téléphone, dans Partager. */
 .phone-mock{width:180px;margin:14px auto 4px;padding:12px 10px;
   border:3px solid var(--bd);border-radius:20px;background:var(--bg-alt);text-align:center}
@@ -626,13 +631,30 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 avion:false, mode:"sombre", wifiAuto:false, lang:"fr_CA",
                 filesFav:false, wifi:true, bt:true, wifiIssue:false,
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
-                qsCompact:false, dockHidden:false, zTop:100, majDispo:false, wallpaper:"defaut",
+                qsCompact:false, dockHidden:false, zTop:100, majDispo:false, wallpaper:"defaut", police:"defaut",
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false} };
 function setWallpaper(key){
   state.wallpaper = key;
   const d = document.getElementById("desktop");
   d.classList.toggle("papier-secu", key==="secu");
   d.classList.toggle("papier-demon", key==="demon");
+  showSettingsSection();
+}
+/* --- Police d'écriture de l'interface ------------------------------------
+   Familles GÉNÉRIQUES (system-ui, serif, monospace…) : elles existent dans
+   tout navigateur, donc le changement marche vraiment partout — pas de
+   promesse de police qui ne serait pas installée. Le terminal garde sa
+   police à lui (monospace), comme sur le vrai système. */
+const POLICES = {
+  defaut:  ["Défaut du système", "system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans',sans-serif"],
+  classique:["Classique (serif)", "Georgia,'Times New Roman',serif"],
+  mono:    ["Machine (mono)",    "ui-monospace,'Fira Code','Cascadia Code',Consolas,monospace"],
+  ronde:   ["Ronde (cursive)",   "'Comic Sans MS','Segoe Print',cursive"],
+};
+function setPolice(key){
+  if(!POLICES[key]) return;
+  state.police = key;
+  document.body.style.fontFamily = POLICES[key][1];
   showSettingsSection();
 }
 
@@ -1171,7 +1193,7 @@ hidden.addEventListener("keydown",e=>{
 
 /* ======================= Applications ======================= */
 function openFiles(){
-  openWin("files","Fichiers — /home/lex",'<i class="gly gly-files"></i>',
+  openWin("files","Fichiers — /home/lex",filesAppGlyph(17),
   `<div class="ftoolbar">
      <span class="fpath">Dossier personnel / Téléchargements</span>
      <span class="dl-mascot" id="dlMascotBadge" aria-hidden="true"></span>
@@ -1259,7 +1281,7 @@ function filesOpenWith(){
     <p class="sub" style="color:var(--fg-dim);font-size:12.5px;margin-bottom:10px">Choisir une application</p>
     <div class="row">
       <button class="btn ghost">📝 Éditeur de texte</button>
-      <button class="btn ghost"><i class="gly gly-files"></i> Gestionnaire de fichiers</button>
+      <button class="btn ghost">${filesAppGlyph(16)} Gestionnaire de fichiers</button>
       <button class="btn ghost">${terminalGlyph(16)} Terminal</button>
     </div>
     <p class="notice">Démo : ces choix sont décoratifs ici. Sur la vraie ISO,
@@ -1443,6 +1465,29 @@ function folderSVG(f){
         ` font-family="ui-monospace,monospace" font-weight="700" font-size="104">${esc(f.court)}</text>`+
       `</g>`+
     `</g></svg>`;
+}
+/*  Icône de l'application Fichiers elle-même : le dossier générique (même
+    dessin que branding/icon-folder-ferme.svg, à la couleur d'accent
+    courante) — un vrai symbole de gestionnaire de fichiers, contrairement
+    au document+trombone de --m-files (qui reste pour le partage/pièces
+    jointes, son usage d'origine). */
+function filesAppGlyph(size){
+  // var(--ac)/var(--ac-lo) plutôt qu'une couleur figée : l'icône suit le
+  // changement d'accent SANS re-rendu — le dock n'est construit qu'une fois.
+  return `<svg class="files-ic" viewBox="16 112 474 328" width="${size}" height="${size}" aria-hidden="true">`+
+    `<path d="${FOLD_BACK}" fill="var(--ac-lo)"/>`+
+    `<path d="${FOLD_FRONT}" fill="var(--ac)"/>`+
+  `</svg>`;
+}
+/*  Gestion des couleurs : arc-en-ciel en 6 bandes concentriques, animé par
+    la classe .arcciel-ic (les teintes défilent en boucle — hue-rotate). */
+function arcCielGlyph(size){
+  const bandes = ["#FF3B30","#FF9500","#FFCC00","#34C759","#007AFF","#AF52DE"];
+  return `<svg class="arcciel-ic" viewBox="0 96 512 260" width="${size}" height="${size}" aria-hidden="true">`+
+    bandes.map((c,i)=>
+      `<path d="M ${36+i*30} 340 A ${220-i*30} ${220-i*30} 0 0 1 ${476-i*30} 340" fill="none" stroke="${c}" stroke-width="30"/>`
+    ).join("")+
+  `</svg>`;
 }
 function renderFolders(){
   return `<div class="fgrid" id="fgrid">`+ FOLDERS.map((f,i)=>
@@ -1693,7 +1738,7 @@ const SETTINGS_NAV = [
     ["comptes","👤","Comptes en ligne"], ["partage",'<i class="gly gly-share"></i>',"Partage"],
     ["bienetre","🌱","Bien-être numérique"]]},
   {grp:"Périphériques", items:[
-    ["souris","🖱","Souris et pavé tactile"], ["couleurs","🌈","Gestion des couleurs"],
+    ["souris","🖱","Souris et pavé tactile"], ["couleurs",()=>arcCielGlyph(16),"Gestion des couleurs"],
     ["imprimantes","🖨","Imprimantes"]]},
   {grp:"Système", items:[
     ["confidentialite",'<i class="gly gly-secure"></i>',"Confidentialité et sécurité"],
@@ -1820,6 +1865,15 @@ function settingsSection(key){
           ${[["droite","Droite"],["gauche","Gauche"],["bas","Bas"],["haut","Haut"]].map(([v,l])=>
             `<button class="btn ${state.dock===({droite:"right",gauche:"left",bas:"bottom",haut:"top"}[v])?"":"ghost"}" onclick="setDock('${v}');openSettings()">${l}</button>`).join("")}
         </div>
+      </div>
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Police d'écriture</div>
+        <div class="row">
+          ${Object.entries(POLICES).map(([k,[nom,fam]])=>
+            `<button class="btn ${k===state.police?"":"ghost"}" style="font-family:${esc(fam)}" onclick="setPolice('${k}')">${nom}</button>`).join("")}
+        </div>
+        <div class="d" style="margin-top:6px">Change tout le bureau, sauf le terminal — il garde sa police à lui,
+        comme sur le vrai système.</div>
       </div>
       ${swRow("Masquer la barre d'outils","Elle glisse hors de l'écran ; la poignée du bord la ramène",state.dockHidden,"toggleDock();showSettingsSection()")}
       ${swRow("Effets d'ouverture/fermeture (TV 1980)","Fenêtres façon téléviseur cathodique",state.crt,"setCrt(!state.crt);openSettings()")}`;
@@ -2175,7 +2229,7 @@ document.addEventListener("click", e=>{
 /* ======================= Dock & menu ======================= */
 const DOCK = [
   ["🌐","Navigateur",openBrowser], [terminalGlyph(24),"Terminal",openTerminal],
-  ['<i class="gly gly-files"></i>',"Fichiers",openFiles], ["📝","Éditeur",openEditor],
+  [filesAppGlyph(24),"Fichiers",openFiles], ["📝","Éditeur",openEditor],
   ['<i class="gly gly-share"></i>',"Partager",openShare], ["⚙","Paramètres",openSettings],
   ["💽","Installer LexOS",openInstall], ["◆","À propos",openAbout],
   ["logo","Applications",()=>toggleApps()]];
@@ -2195,7 +2249,8 @@ const APPS = [
         de la taille de police — la même chaîne que le dock (46px, texte ~22px)
         paraît donc petite dans les tuiles bien plus grandes de cette grille
         (52px) : on la redessine ici à une taille propre à cette vue. */
-    label==="Terminal" ? {ic:terminalGlyph(34), label, fn} : {ic,label,fn}),
+    label==="Terminal" ? {ic:terminalGlyph(34), label, fn} :
+    label==="Fichiers" ? {ic:filesAppGlyph(34), label, fn} : {ic,label,fn}),
   {ic:zipGlyph(34), label:"Archives ZIP", fn:openFiles},
   {ic:musiqueGlobe(30), label:"Musique", fn:openMusique},
   {ic:'<i class="gly gly-usb" style="width:34px;height:34px"></i>', label:"Appareils USB", fn:()=>openSettings("usb")},
@@ -2206,7 +2261,7 @@ const APPS = [
   {ic:"🔋", label:"Énergie",      fn:()=>openSettings("energie")},
   {ic:"🎨", label:"Apparence",    fn:()=>openSettings("apparence")},
   {ic:"🖱", label:"Souris et pavé tactile", fn:()=>openSettings("souris")},
-  {ic:"🌈", label:"Gestion des couleurs", fn:()=>openSettings("couleurs")},
+  {ic:arcCielGlyph(30), label:"Gestion des couleurs", fn:()=>openSettings("couleurs")},
   {ic:"🖨", label:"Imprimantes",  fn:()=>openSettings("imprimantes")},
   {ic:"🌍", label:"Région et langue", fn:()=>openSettings("region")},
   {ic:"⌨", label:"Clavier",      fn:()=>openSettings("clavier")},
