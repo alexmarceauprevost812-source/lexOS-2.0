@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — icône « Partager ». Pastille ronde + pictogramme de partage.
+
+  Trois nœuds reliés par deux traits : le signe universel du partage, celui
+  qu'on retrouve sur les téléphones. Il ne désigne aucun format en
+  particulier — fichier, photo, lien web, dossier — ce qui est exactement le
+  propos de lexos-share (QR code, KDE Connect, Bluetooth).
+
+  Les traits sont dessinés AVANT les nœuds : ils passent donc sous les
+  disques, et les jonctions restent nettes sans avoir à les raccourcir.
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen
+  avant le rendu des PNG — comme icon-files.svg et icon-zip.svg.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Partager — LexOS">
+
+  <!-- Fond : pastille ronde -->
+  <circle cx="256" cy="256" r="212" fill="#E8590C"/>
+  <path d="M 256 44 A 212 212 0 0 1 468 256 A 212 212 0 0 0 256 44 Z"
+        fill="#FFFFFF" opacity="0.10"/>
+
+  <!-- Liens entre les nœuds -->
+  <g stroke="#FFFFFF" stroke-width="30" stroke-linecap="round">
+    <line x1="190" y1="266" x2="330" y2="182"/>
+    <line x1="190" y1="266" x2="330" y2="350"/>
+  </g>
+
+  <!-- Nœuds -->
+  <g fill="#FFFFFF">
+    <circle cx="182" cy="266" r="56"/>
+    <circle cx="336" cy="176" r="44"/>
+    <circle cx="336" cy="356" r="44"/>
+  </g>
+</svg>
