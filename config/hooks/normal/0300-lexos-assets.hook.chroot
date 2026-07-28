@@ -46,6 +46,8 @@ render "$BRAND/wallpaper.svg"     1920 1080 "$BG/wallpaper.png"
 render "$BRAND/wallpaper.svg"     3840 2160 "$BG/wallpaper-4k.png"
 render "$BRAND/wallpaper.svg"     1366  768 "$BG/wallpaper-hd.png"
 render "$BRAND/wallpaper-crt.svg" 1920 1080 "$BG/wallpaper-crt.png"
+render "$BRAND/wallpaper-secu.svg" 1920 1080 "$BG/wallpaper-secu.png"
+render "$BRAND/wallpaper-secu.svg" 3840 2160 "$BG/wallpaper-secu-4k.png"
 
 # Les mascottes servent aussi de fonds d'écran alternatifs.
 for M in "$BRAND"/mascot*.png; do

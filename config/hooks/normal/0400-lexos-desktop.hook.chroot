@@ -145,6 +145,20 @@ Keywords=partage;share;qr;telephone;photo;image;
 MimeType=image/png;image/jpeg;image/gif;image/webp;application/pdf;
 EOF
 
+cat > /usr/share/applications/lexos-ecran-telephone.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Écran du téléphone
+Name[en]=Phone screen
+Comment=Afficher et contrôler l'écran d'un téléphone Android sur l'ordinateur (scrcpy)
+Exec=xfce4-terminal --title="Écran du téléphone — LexOS" --hold -e "lexos ecran-telephone"
+Icon=lexos-share
+Terminal=false
+Categories=Utility;FileTransfer;
+Keywords=telephone;phone;ecran;screen;mirroring;scrcpy;android;
+EOF
+
 cat > /usr/share/applications/lexos-perf.desktop <<EOF
 [Desktop Entry]
 Type=Application

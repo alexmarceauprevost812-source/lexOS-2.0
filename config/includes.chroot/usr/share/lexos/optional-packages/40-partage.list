@@ -4,3 +4,8 @@
 qrencode
 kdeconnect
 arp-scan
+
+# scrcpy affiche ET contrôle l'écran d'un téléphone Android sur l'ordinateur
+# (câble USB avec débogage activé, ou Wi-Fi via adb tcpip). Le paquet Debian
+# tire android-tools-adb automatiquement — rien à ajouter à la main ici.
+scrcpy

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-ecran-telephone — afficher et contrôler l'écran d'un téléphone
+#  Android sur l'ordinateur
+# =============================================================================
+#  scrcpy fait le vrai travail (câble USB avec débogage activé, ou Wi-Fi via
+#  adb tcpip) ; ce script ne fait que vérifier qu'il est là et donner un
+#  message clair sinon, au lieu du « command not found » brut du terminal.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; E=''; B=''; R=''
+fi
+say() { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+die() { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+	cat <<EOF
+${B}$PROG${R} — écran du téléphone sur l'ordinateur (scrcpy)
+
+Branche le téléphone en USB avec le débogage USB activé (Options
+développeur), ou passe en Wi-Fi avec « adb tcpip 5555 » puis
+« adb connect <ip-du-téléphone> ». Ensuite :
+
+  $PROG          Lance scrcpy avec les réglages par défaut
+EOF
+	exit 0
+fi
+
+command -v scrcpy >/dev/null 2>&1 || die \
+	"scrcpy n'est pas installé — paquet optionnel manquant (apt install scrcpy)."
+
+say "Recherche d'un téléphone (USB ou Wi-Fi déjà connecté en adb)…"
+exec scrcpy

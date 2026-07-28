@@ -116,6 +116,7 @@ ${B}SÉCURITÉ${R}
 ${B}PARTAGE${R}
   ${A}share${R} <fichiers…>   Envoyer vers un téléphone ${D}(QR code, KDE Connect, Bluetooth)${R}
   ${A}receive${R}             Recevoir des fichiers depuis un téléphone
+  ${A}ecran-telephone${R}     Afficher et contrôler l'écran du téléphone ${D}(scrcpy, USB ou Wi-Fi)${R}
 
 ${B}USB${R}
   ${A}usb${R}                 Appareils branchés
@@ -570,6 +571,7 @@ case "$CMD" in
 	bt|bluetooth)         exec lexos-net bt "$@" ;;
 	share|partage)        exec lexos-share "$@" ;;
 	receive|recevoir)     exec lexos-share receive ;;
+	ecran-telephone)      exec lexos-ecran-telephone "$@" ;;
 	usb)                  exec lexos-usb "$@" ;;
 	format)               exec lexos-format "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
