@@ -59,6 +59,16 @@ if [ -r "$BRAND/logo-ti-lex-al-icon.png" ] && have convert; then
 		|| echo "[lexos]   !! échec : wallpaper-demon.png"
 fi
 
+# Fond d'écran « Explorateur » : la photo-affiche lexos-1.0-keyart.png, posée
+# sur fond noir — même composition que le sélecteur de la démo web (Paramètres → Bureau LexOS).
+if [ -r "$BRAND/lexos-1.0-keyart.png" ] && have convert; then
+	convert -size 1920x1080 xc:black \
+		"$BRAND/lexos-1.0-keyart.png" -resize 480x480 -gravity north -geometry +0+70 -composite \
+		"$BG/wallpaper-keyart.png" \
+		&& echo "[lexos]   -> $BG/wallpaper-keyart.png" \
+		|| echo "[lexos]   !! échec : wallpaper-keyart.png"
+fi
+
 # Les mascottes servent aussi de fonds d'écran alternatifs.
 for M in "$BRAND"/mascot*.png; do
 	[ -e "$M" ] || continue
