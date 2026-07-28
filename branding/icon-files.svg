@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — icône des outils fichiers (partage, pièces jointes).
+  Reprise vectorielle du visuel officiel : document au coin plié + trombone.
+
+  La couleur #E8873A est un JETON : lexos-theme-gen la remplace par la
+  couleur d'accent courante avant de rendre les PNG. Ne pas la changer ici
+  sans adapter la substitution dans lexos-theme-gen.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Fichiers LexOS">
+
+  <!-- Document : contour épais, coin supérieur droit plié -->
+  <g fill="none" stroke="#E8873A" stroke-width="34"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M196 132 H336 L448 244 V444 a26 26 0 0 1 -26 26 H196
+             a26 26 0 0 1 -26 -26 V158 a26 26 0 0 1 26 -26 Z"/>
+  </g>
+
+  <!-- Pli du coin : plein -->
+  <path d="M336 132 L448 244 H336 Z" fill="#E8873A"/>
+
+  <!-- Trombone, à cheval sur le bord gauche du document -->
+  <g fill="none" stroke="#E8873A" stroke-width="30"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M112 322 V150 a58 58 0 0 1 116 0 V352 a36 36 0 0 1 -72 0 V190"/>
+  </g>
+</svg>

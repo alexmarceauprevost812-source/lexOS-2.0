@@ -78,6 +78,18 @@ done
 mkdir -p /usr/share/icons/hicolor/scalable/apps
 [ -r "$BRAND/logo.svg" ] && cp "$BRAND/logo.svg" /usr/share/icons/hicolor/scalable/apps/lexos.svg
 
+# --- Icône « outils fichiers » (lexos-files) — orange par défaut ------------
+#  À l'exécution, lexos-theme-gen en produit une version à la couleur
+#  d'accent dans ~/.local/share/icons, qui a priorité sur celle-ci.
+if [ -r "$BRAND/icon-files.svg" ]; then
+	for SIZE in 16 22 24 32 48 64 128 256; do
+		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		render "$BRAND/icon-files.svg" "$SIZE" "$SIZE" "$DIR/lexos-files.png"
+	done
+	cp "$BRAND/icon-files.svg" /usr/share/icons/hicolor/scalable/apps/lexos-files.svg
+fi
+
 if [ -n "$LOGO_SRC" ]; then
 	case "$LOGO_SRC" in
 		*.png) cp "$LOGO_SRC" /usr/share/pixmaps/lexos.png ;;

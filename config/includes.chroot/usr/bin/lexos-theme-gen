@@ -338,7 +338,30 @@ BackgroundDarkness=0.94
 EOF
 
 # =============================================================================
-#  4. Mémoriser l'accent pour les autres outils
+#  4. Icônes teintées à l'accent (outils fichiers)
+# =============================================================================
+#  Le SVG source contient l'orange par défaut comme jeton ; on le remplace
+#  par l'accent courant puis on rend les tailles usuelles dans le thème
+#  d'icônes de l'utilisateur, qui a priorité sur celui du système.
+ICON_SRC="/usr/share/lexos/branding/icon-files.svg"
+if [[ -r "$ICON_SRC" ]] && command -v rsvg-convert >/dev/null 2>&1; then
+	ICON_DIR="$TARGET/.local/share/icons/hicolor"
+	TMP_SVG="$(mktemp -t lexos-icon-XXXXXX.svg)"
+	sed "s/#E8873A/${ACCENT}/gI" "$ICON_SRC" > "$TMP_SVG"
+	for S in 24 32 48 64 128 256; do
+		mkdir -p "$ICON_DIR/${S}x${S}/apps"
+		rsvg-convert -w "$S" -h "$S" \
+			-o "$ICON_DIR/${S}x${S}/apps/lexos-files.png" "$TMP_SVG" 2>/dev/null || true
+	done
+	mkdir -p "$ICON_DIR/scalable/apps"
+	cp "$TMP_SVG" "$ICON_DIR/scalable/apps/lexos-files.svg"
+	rm -f "$TMP_SVG"
+	command -v gtk-update-icon-cache >/dev/null 2>&1 && \
+		gtk-update-icon-cache -f "$ICON_DIR" >/dev/null 2>&1 || true
+fi
+
+# =============================================================================
+#  5. Mémoriser l'accent pour les autres outils
 # =============================================================================
 cat > "$CONF_DIR/theme.conf" <<EOF
 LEXOS_ACCENT_NAME=${ACCENT_NAME}

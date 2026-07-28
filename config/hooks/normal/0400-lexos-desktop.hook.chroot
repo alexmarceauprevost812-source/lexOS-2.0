@@ -105,7 +105,7 @@ Name=Partager un fichier
 Name[en]=Share a file
 Comment=Envoyer des photos et des fichiers vers un téléphone (QR code, KDE Connect, Bluetooth)
 Exec=xfce4-terminal --title="Partage LexOS" --command="lexos-share qr %F"
-Icon=lexos
+Icon=lexos-files
 Terminal=false
 Categories=Utility;FileTransfer;
 Keywords=partage;share;qr;telephone;photo;image;
@@ -160,7 +160,7 @@ cat > /etc/skel/.config/Thunar/uca.xml <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <actions>
   <action>
-    <icon>lexos</icon>
+    <icon>lexos-files</icon>
     <name>Partager avec LexOS</name>
     <submenu></submenu>
     <unique-id>lexos-share-1</unique-id>
