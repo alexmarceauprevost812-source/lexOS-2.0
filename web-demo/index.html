@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LexOS 1.0 « Nomad » — démo web</title>
+<meta name="description" content="Démo dans le navigateur du bureau LexOS — le vrai système est une ISO Linux amorçable.">
+<style>
+/* =========================================================================
+   LexOS Web — démo du bureau dans le navigateur.
+   Le vrai LexOS est une distribution Linux complète (ISO amorçable) ;
+   cette page en reproduit l'apparence et les outils pour l'essayer
+   sans clé USB. Palette identique : noir pur, blanc, accent réglable.
+   ========================================================================= */
+:root{
+  --ac:#E8873A; --ac-hi:#FFA45C; --ac-lo:#B4551C;
+  --bg:#000; --bg-alt:#0a0a0b; --bg-hi:#141416; --bd:#232326;
+  --fg:#fff; --fg-dim:#b8b8bc; --term-fg:#23A55A; --term-hi:#2ECC71;
+  --crt-open:.24s; --crt-close:.28s;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--fg);
+  font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  -webkit-user-select:none;user-select:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+
+/* --- Fond d'écran ------------------------------------------------------- */
+#desktop{position:fixed;inset:0;
+  background:
+    radial-gradient(60% 45% at 50% 55%, rgba(232,135,58,.14), transparent 70%),
+    repeating-linear-gradient(0deg, transparent 0 63px, rgba(232,135,58,.05) 63px 64px),
+    repeating-linear-gradient(90deg, transparent 0 63px, rgba(232,135,58,.05) 63px 64px),
+    #000}
+#wall{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;pointer-events:none;text-align:center}
+#wall .mark{font:700 clamp(48px,9vw,110px)/1 "Fira Code",ui-monospace,monospace;
+  letter-spacing:-.04em}
+#wall .mark b{color:var(--ac);font-weight:700}
+#wall .rule{width:min(420px,60vw);height:2px;margin:18px 0 14px;
+  background:linear-gradient(90deg,transparent,var(--ac),transparent)}
+#wall .brand{font:400 clamp(11px,1.6vw,16px)/1 ui-monospace,monospace;
+  letter-spacing:.7em;color:var(--fg-dim)}
+#wall .ver{margin-top:10px;font:400 12px/1 ui-monospace,monospace;
+  letter-spacing:.35em;color:#6e6e74}
+
+/* --- Barre du haut ------------------------------------------------------ */
+#panel{position:fixed;top:0;left:0;right:0;height:32px;z-index:900;
+  display:flex;align-items:center;background:#000;
+  border-bottom:1px solid var(--bd);padding:0 10px;font-size:13px}
+#panel .apps{display:flex;align-items:center;gap:7px;padding:3px 10px;border-radius:6px}
+#panel .apps:hover{background:var(--bg-hi)}
+#panel .apps .glyph{width:16px;height:16px;border-radius:4px;
+  background:linear-gradient(135deg,var(--ac-hi),var(--ac-lo))}
+#clock{position:absolute;left:50%;transform:translateX(-50%);color:var(--fg-dim)}
+#tray{margin-left:auto;display:flex;gap:4px;color:var(--fg-dim)}
+#tray button{padding:3px 8px;border-radius:6px}
+#tray button:hover{background:var(--bg-hi);color:var(--fg)}
+
+/* --- Dock --------------------------------------------------------------- */
+#dock{position:fixed;z-index:900;display:flex;gap:8px;padding:8px;
+  background:rgba(10,10,11,.72);border:1px solid var(--bd);border-radius:16px;
+  backdrop-filter:blur(8px)}
+#dock.right{right:10px;top:50%;transform:translateY(-50%);flex-direction:column}
+#dock.left {left:10px; top:50%;transform:translateY(-50%);flex-direction:column}
+#dock.bottom{bottom:10px;left:50%;transform:translateX(-50%);flex-direction:row}
+#dock.top{top:42px;left:50%;transform:translateX(-50%);flex-direction:row}
+.dicon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;
+  justify-content:center;font-size:22px;background:var(--bg-hi);
+  border:1px solid var(--bd);transition:transform .13s ease,border-color .13s ease;
+  position:relative}
+.dicon:hover{transform:scale(1.22);border-color:var(--ac);z-index:2}
+.dicon:active{transform:scale(1.05)}
+.dicon .tip{position:absolute;white-space:nowrap;font-size:12px;color:var(--fg);
+  background:var(--bg-alt);border:1px solid var(--ac);border-radius:8px;
+  padding:4px 10px;opacity:0;pointer-events:none;transition:opacity .12s}
+#dock.right .tip{right:120%;top:50%;transform:translateY(-50%)}
+#dock.left  .tip{left:120%;top:50%;transform:translateY(-50%)}
+#dock.bottom .tip{bottom:120%;left:50%;transform:translateX(-50%)}
+#dock.top    .tip{top:120%;left:50%;transform:translateX(-50%)}
+.dicon:hover .tip{opacity:1}
+
+/* --- Fenêtres ----------------------------------------------------------- */
+.win{position:fixed;min-width:300px;background:var(--bg);
+  border:1px solid var(--bd);border-radius:10px;overflow:hidden;z-index:100;
+  box-shadow:0 18px 60px rgba(0,0,0,.85);display:flex;flex-direction:column}
+.win.active{border-color:#3a3a40}
+.tbar{height:34px;display:flex;align-items:center;gap:8px;padding:0 10px;
+  background:var(--bg-alt);border-bottom:1px solid var(--bd);cursor:grab;
+  font-weight:600;font-size:13px}
+.tbar .ticon{font-size:15px}
+.tbar .ttitle{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbtn{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;
+  justify-content:center;font-size:12px;color:var(--fg-dim)}
+.tbtn:hover{background:var(--bg-hi);color:var(--fg)}
+.tbtn.close:hover{background:#E5484D;color:#fff}
+.wbody{flex:1;overflow:auto;-webkit-user-select:text;user-select:text}
+
+/* Effet TV 1980 : la fenêtre s'écrase en une ligne puis s'éteint */
+@keyframes crtOn{
+  0%{transform:scale(1,.004);opacity:0;filter:brightness(4)}
+  45%{transform:scale(1,.004);opacity:1;filter:brightness(4)}
+  100%{transform:scale(1,1);opacity:1;filter:brightness(1)}}
+@keyframes crtOff{
+  0%{transform:scale(1,1);opacity:1;filter:brightness(1)}
+  55%{transform:scale(1,.004);opacity:1;filter:brightness(4)}
+  100%{transform:scale(.35,.004);opacity:0;filter:brightness(6)}}
+body.crt .win.opening{animation:crtOn var(--crt-open) ease-out}
+body.crt .win.closing{animation:crtOff var(--crt-close) ease-in forwards}
+body:not(.crt) .win.opening{animation:fadeIn .15s ease-out}
+body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
+@keyframes fadeIn{from{opacity:0;transform:scale(.97)}to{opacity:1}}
+@keyframes fadeOut{from{opacity:1}to{opacity:0;transform:scale(.97)}}
+
+/* --- Boutons LexOS Noir -------------------------------------------------- */
+.btn{background:var(--ac);border:1px solid var(--ac-lo);color:#fff;
+  border-radius:6px;padding:7px 14px;font-weight:600;font-size:13px;
+  transition:background .14s}
+.btn:hover{background:var(--ac-hi)}
+.btn.ghost{background:transparent;border-color:var(--bd);color:var(--fg)}
+.btn.ghost:hover{background:var(--bg-hi)}
+.btn.danger{background:#E5484D;border-color:#A32B2F}
+
+/* --- Terminal ------------------------------------------------------------ */
+.term{background:#000;color:var(--term-fg);
+  font:13px/1.5 "Fira Code",ui-monospace,Menlo,Consolas,monospace;
+  padding:10px 12px;height:100%;overflow-y:auto;white-space:pre-wrap;
+  overflow-wrap:anywhere;cursor:text}
+.term .p{color:var(--term-hi)}
+.term .path{color:var(--ac)}
+.term .w{color:#fff}.term .d{color:#7a7a80}.term .a{color:var(--ac)}
+.term .err{color:#FF6B6F}
+.term .in{display:inline}
+.caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
+  background:var(--ac);animation:blink 1.05s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* --- Contenus divers ----------------------------------------------------- */
+.pad{padding:18px}
+.pad h2{font-size:17px;margin-bottom:10px}
+.pad p{color:var(--fg-dim);margin-bottom:10px}
+.pad code,.kbd{font-family:ui-monospace,monospace;background:var(--bg-hi);
+  border:1px solid var(--bd);border-radius:5px;padding:1px 6px;font-size:12px;
+  color:var(--fg)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.swatch{width:34px;height:34px;border-radius:8px;border:2px solid transparent}
+.swatch.sel{border-color:#fff}
+.files li{list-style:none;display:flex;align-items:center;gap:10px;
+  padding:9px 12px;border-bottom:1px solid var(--bg-hi);color:var(--fg)}
+.files li:hover{background:var(--bg-hi)}
+.files .sz{margin-left:auto;color:var(--fg-dim);font-size:12px}
+.warnbox{border:1px solid #A32B2F;background:#1a0d0e;border-radius:8px;
+  padding:12px;color:#ffb4b6;font-size:13px;margin:10px 0}
+.notice{border:1px solid var(--ac-lo);background:#170f08;border-radius:8px;
+  padding:12px;color:var(--ac-hi);font-size:13px;margin:10px 0}
+.menu{position:fixed;top:34px;left:8px;z-index:950;background:var(--bg-alt);
+  border:1px solid var(--bd);border-radius:10px;padding:6px;min-width:230px;
+  box-shadow:0 14px 40px rgba(0,0,0,.8)}
+.menu button{display:flex;gap:10px;width:100%;padding:8px 10px;border-radius:7px;
+  text-align:left}
+.menu button:hover{background:var(--ac);color:#fff}
+
+/* --- Démarrage / extinction --------------------------------------------- */
+#boot{position:fixed;inset:0;z-index:2000;background:#000;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:22px}
+#boot .mark{font:700 54px/1 ui-monospace,monospace;letter-spacing:-.03em}
+#boot .mark b{color:var(--ac)}
+#boot .bar{width:220px;height:4px;background:#1a1a1c;border-radius:4px;overflow:hidden}
+#boot .bar i{display:block;height:100%;width:0;background:var(--ac);
+  animation:load 2.1s ease-out forwards}
+@keyframes load{to{width:100%}}
+#boot .sub{color:#6e6e74;font:12px/1 ui-monospace,monospace;letter-spacing:.3em}
+@keyframes crtPowerOn{
+  0%{transform:scale(1,.002);filter:brightness(6)}
+  40%{transform:scale(1,.002);filter:brightness(6)}
+  100%{transform:scale(1,1);filter:brightness(1)}}
+#screen{position:fixed;inset:0}
+#screen.on{animation:crtPowerOn .8s ease-out}
+body.off #screen{animation:crtOff .5s ease-in forwards}
+
+/* Bandeau démo */
+#demobar{position:fixed;bottom:8px;left:8px;z-index:950;font-size:11.5px;
+  color:var(--fg-dim);background:rgba(10,10,11,.8);border:1px solid var(--bd);
+  border-radius:8px;padding:5px 10px}
+#demobar b{color:var(--ac)}
+@media (max-width:640px){
+  #dock.right,#dock.left{right:6px;left:auto;padding:6px;gap:6px}
+  .dicon{width:38px;height:38px;font-size:18px}
+  .win{min-width:260px}
+}
+</style>
+</head>
+<body class="crt">
+
+<div id="screen">
+  <div id="desktop">
+    <div id="wall">
+      <div class="mark">Lex<b>OS</b></div>
+      <div class="rule"></div>
+      <div class="brand">T I · L E X · A L</div>
+      <div class="ver">1.0 — NOMAD</div>
+    </div>
+  </div>
+
+  <div id="panel">
+    <button class="apps" id="appsBtn"><span class="glyph"></span>Applications</button>
+    <span id="clock"></span>
+    <div id="tray">
+      <button id="netBtn"  title="Réseau">▲</button>
+      <button id="perfBtn" title="Performance">◈</button>
+      <button id="offBtn"  title="Éteindre">⏻</button>
+    </div>
+  </div>
+
+  <div id="dock" class="right"></div>
+  <div id="demobar"><b>Démo web</b> — le vrai LexOS est une ISO Linux amorçable (clé USB)</div>
+</div>
+
+<div id="boot">
+  <div class="mark">Lex<b>OS</b></div>
+  <div class="bar"><i></i></div>
+  <div class="sub">TI·LEX·AL — 1.0 NOMAD</div>
+</div>
+
+<script>
+"use strict";
+/* ======================= État global ======================= */
+const ACCENTS = {
+  orange:["#E8873A","#FFA45C","#B4551C"], bleu:["#3D8BFD","#6EA8FE","#0A58CA"],
+  rouge:["#E5484D","#FF6B6F","#A32B2F"],  vert:["#1F8F4E","#2DBF6B","#125C32"],
+  gris:["#8A8A8A","#B4B4B4","#5A5A5A"],   violet:["#8B5CF6","#A78BFA","#6234D1"],
+};
+const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
+                avion:false, zTop:100 };
+
+function setAccent(name){
+  const c = ACCENTS[name]; if(!c) return false;
+  state.accent = name;
+  const r = document.documentElement.style;
+  r.setProperty("--ac",c[0]); r.setProperty("--ac-hi",c[1]); r.setProperty("--ac-lo",c[2]);
+  document.querySelectorAll(".swatch").forEach(s=>
+    s.classList.toggle("sel", s.dataset.a===name));
+  return true;
+}
+function setDock(pos){
+  const map={droite:"right",gauche:"left",bas:"bottom",haut:"top",
+             right:"right",left:"left",bottom:"bottom",top:"top"};
+  const p = map[pos]; if(!p) return false;
+  state.dock = p; document.getElementById("dock").className = p; return true;
+}
+function setCrt(on){ state.crt = on; document.body.classList.toggle("crt",on); }
+
+/* ======================= Fenêtres ======================= */
+const winsRoot = document.getElementById("screen");
+function openWin(id, title, icon, html, w, h, x, y){
+  const old = document.getElementById("win-"+id);
+  if(old){ focusWin(old); return old; }
+  const el = document.createElement("div");
+  el.className = "win opening"; el.id = "win-"+id;
+  el.style.width = (w||520)+"px";
+  if(h) el.style.height = h+"px";
+  const vw=innerWidth, vh=innerHeight;
+  el.style.left = Math.max(8, x ?? (vw/2-(w||520)/2 + (Math.random()*60-30)))+"px";
+  el.style.top  = Math.max(40, y ?? (vh/2-(h||360)/2 + (Math.random()*40-20)))+"px";
+  el.innerHTML =
+    `<div class="tbar"><span class="ticon">${icon}</span>`+
+    `<span class="ttitle">${title}</span>`+
+    `<button class="tbtn close" title="Fermer">✕</button></div>`+
+    `<div class="wbody">${html}</div>`;
+  winsRoot.appendChild(el);
+  el.addEventListener("animationend", e=>{
+    if(e.animationName==="crtOn"||e.animationName==="fadeIn") el.classList.remove("opening");
+  });
+  el.querySelector(".close").onclick = ()=>closeWin(el);
+  el.addEventListener("mousedown", ()=>focusWin(el));
+  dragify(el);
+  focusWin(el);
+  return el;
+}
+function closeWin(el){
+  el.classList.add("closing");
+  el.addEventListener("animationend", ()=>el.remove(), {once:true});
+  setTimeout(()=>el.remove(), 600);   /* filet si l'animation est coupée */
+}
+function focusWin(el){
+  document.querySelectorAll(".win").forEach(w=>w.classList.remove("active"));
+  el.classList.add("active"); el.style.zIndex = ++state.zTop;
+}
+function dragify(el){
+  const bar = el.querySelector(".tbar");
+  let sx,sy,ox,oy,drag=false;
+  bar.addEventListener("pointerdown", e=>{
+    if(e.target.closest(".tbtn")) return;
+    drag=true; sx=e.clientX; sy=e.clientY;
+    ox=el.offsetLeft; oy=el.offsetTop;
+    bar.setPointerCapture(e.pointerId);
+  });
+  bar.addEventListener("pointermove", e=>{
+    if(!drag) return;
+    el.style.left=Math.max(-el.offsetWidth+90, ox+e.clientX-sx)+"px";
+    el.style.top =Math.max(32, oy+e.clientY-sy)+"px";
+  });
+  bar.addEventListener("pointerup", ()=>drag=false);
+}
+
+/* ======================= Terminal ======================= */
+const FETCH_ART = [
+"        ▄▄██████████▄▄",
+"     ▄██████████████████▄",
+"  ▄████████████████████████▄",
+"  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+"   ███▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄███",
+"    ██ ▐████▌    ▐████▌ ██",
+"    ██ ▐████▌    ▐████▌ ██",
+"   ███▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀███",
+"    ███████▄▄▄▄▄▄▄▄███████",
+"    █████  ▄  ▄  ▄  █████",
+"    ████   █  █  █   ████",
+"    ▀███▄  ▀  ▀  ▀  ▄███▀",
+"      ▀███▄▄▄▄▄▄▄▄▄▄███▀",
+"         ▀▀████████▀▀"];
+const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+const PERF_LABEL = {petit:"Petit — machine modeste, autonomie maximale",
+  medium:"Médium — équilibre, réglage par défaut",
+  performant:"Performant — priorité à la vitesse",
+  max:"Performance max — tout à fond, secteur recommandé"};
+
+function termHTML(){
+  return `<div class="term" id="tout"></div>`;
+}
+let tEl=null, tBuf="";
+function tPrompt(){
+  return `<span class="p">lex</span><span class="d">@</span><span class="p">lexos</span> `+
+         `<span class="path">~</span>\n<span class="a">❯</span> `;
+}
+function tPrint(html){
+  const c = tEl.querySelector("#cur"); if(c) c.remove();
+  tEl.innerHTML += html;
+}
+function tNewPrompt(){
+  tPrint(tPrompt()+`<span id="cur"><span class="in" id="tin"></span><span class="caret"></span></span>`);
+  tEl.scrollTop = tEl.scrollHeight;
+}
+function fetchOut(){
+  const info = [
+    ["","<b class='p'>lex</b><span class='d'>@</span><b class='p'>lexos</b>"],
+    ["","<span class='d'>────────────────────────────</span>"],
+    ["OS       ","LexOS 1.0 (Nomad) x86_64 — démo web"],
+    ["Base     ","Debian trixie"],
+    ["Noyau    ","6.12 LTS"],
+    ["Bureau   ","XFCE + LexOS Noir"],
+    ["Accent   ",state.accent],
+    ["Perf     ",state.perf],
+    ["Effets   ","CRT "+(state.crt?"on":"off")],
+    ["Dock     ",{right:"droite",left:"gauche",bottom:"bas",top:"haut"}[state.dock]],
+    ["",""],
+    ["","<span class='d'>lexos help — la liste des commandes</span>"]];
+  let out="";
+  const rows = Math.max(FETCH_ART.length, info.length);
+  for(let i=0;i<rows;i++){
+    const a=(FETCH_ART[i]||"").padEnd(30);
+    const inf = info[i] ? (info[i][0] ? `<span class='a'>${info[i][0]}</span><span class='d'>:</span> <span class='w'>${info[i][1]}</span>` : info[i][1]) : "";
+    out += `<span class='a'>${a}</span> ${inf}\n`;
+  }
+  return out;
+}
+const HELP = `
+<span class='w'>LexOS 1.0 « Nomad » — démo web</span>
+
+<span class='a'>lexfetch</span>              fiche technique
+<span class='a'>lexos accent</span> &lt;c&gt;      orange · bleu · rouge · vert · gris · violet
+<span class='a'>lexos dock</span> &lt;p&gt;        droite · gauche · bas · haut
+<span class='a'>lexos perf</span> [profil]   petit · medium · performant · max
+<span class='a'>lexos crt</span> on|off      effets de fenêtres façon TV 1980
+<span class='a'>lexos demo</span>            où tourne cette session ?
+<span class='a'>lexos avion</span> on|off    mode avion (simulé)
+<span class='a'>clear</span> · <span class='a'>date</span> · <span class='a'>whoami</span> · <span class='a'>echo</span> · <span class='a'>uname -a</span>
+
+<span class='d'>Le vrai système a bien plus : wifi, bluetooth, partage QR,
+plusieurs écrans, installation chiffrée… Il vit sur l'ISO.</span>
+`;
+function runCmd(raw){
+  const line = raw.trim();
+  const [c0,...rest] = line.split(/\s+/);
+  const arg = rest.join(" ");
+  let out="";
+  if(!line){ }
+  else if(c0==="help"||line==="lexos help"||line==="lexos") out=HELP;
+  else if(c0==="lexfetch"||line==="lexos info") out="\n"+fetchOut();
+  else if(c0==="clear"){ tEl.innerHTML=""; tNewPrompt(); return; }
+  else if(c0==="date") out=new Date().toLocaleString("fr-CA")+"\n";
+  else if(c0==="whoami") out="lex\n";
+  else if(line==="uname -a"||c0==="uname") out="Linux lexos 6.12-lexos #1 SMP LexOS 1.0 x86_64 GNU/Linux\n";
+  else if(c0==="echo") out=esc(arg)+"\n";
+  else if(line.startsWith("lexos accent")){
+    const a=rest[1];
+    if(!a) out=`Accent courant : <span class='a'>${state.accent}</span>\nDisponibles    : orange bleu rouge vert gris violet\n`;
+    else if(setAccent(a)) out=`<span class='p'>✓</span> Accent : ${a}\n`;
+    else out=`<span class='err'>✗ Accent inconnu : ${esc(a)}</span>\n`;
+  }
+  else if(line.startsWith("lexos dock")){
+    const p=rest[1];
+    if(!p) out=`Position du dock : <span class='a'>${{right:"droite",left:"gauche",bottom:"bas",top:"haut"}[state.dock]}</span>\n`;
+    else if(setDock(p)) out=`<span class='p'>✓</span> Dock déplacé : ${p}\n`;
+    else out=`<span class='err'>✗ Position inconnue : ${esc(p)} (droite | gauche | bas | haut)</span>\n`;
+  }
+  else if(line.startsWith("lexos crt")){
+    const m=rest[1];
+    if(m==="on"||m==="off"){ setCrt(m==="on"); out=`<span class='p'>✓</span> Effets CRT : ${m}\n`; }
+    else out=`Effets CRT : <span class='a'>${state.crt?"on":"off"}</span>  <span class='d'>(lexos crt on|off)</span>\n`;
+  }
+  else if(line.startsWith("lexos perf")){
+    const p=rest[1];
+    if(!p||p==="status"){
+      out=`\n<span class='w'>Performance — profil <span class='a'>${state.perf}</span></span>\n<span class='d'>${PERF_LABEL[state.perf]}</span>\n\n`+
+          `  Gouverneur CPU     ${ {petit:"powersave",medium:"schedutil",performant:"performance",max:"performance"}[state.perf] }\n`+
+          `  Effets CRT         ${state.crt?"on":"off"}\n`+
+          `  <span class='d'>(simulation — le vrai lexos-perf règle le noyau, zram, services)</span>\n`;
+    } else if(PERF_LABEL[p]){
+      state.perf=p; setCrt(p==="performant"||p==="max");
+      out=`<span class='p'>✓</span> Profil <span class='a'>${p}</span> appliqué — ${PERF_LABEL[p]}\n`;
+    } else out=`<span class='err'>✗ Profil inconnu : ${esc(p)} (petit | medium | performant | max)</span>\n`;
+  }
+  else if(line.startsWith("lexos avion")){
+    const m=rest[1];
+    if(m==="on"||m==="off"){ state.avion=(m==="on");
+      out=`<span class='p'>✓</span> Mode avion ${m==="on"?"activé — radios coupées":"désactivé — radios rallumées"} <span class='d'>(simulé)</span>\n`;
+      document.getElementById("netBtn").textContent = state.avion?"✈":"▲";
+    } else out=`Mode avion : <span class='a'>${state.avion?"ACTIVÉ":"désactivé"}</span>\n`;
+  }
+  else if(line==="lexos demo"||c0==="demo"){
+    out=`\n  <span class='a'>Session DÉMO WEB</span> — tu es dans ton navigateur.\n`+
+        `  Rien n'est installé, rien n'est écrit nulle part.\n\n`+
+        `  Le vrai LexOS est une <span class='w'>ISO Linux amorçable</span> : on la grave sur\n`+
+        `  une clé USB, on démarre dessus, et on a un vrai système —\n`+
+        `  wifi, bluetooth, fichiers, installation chiffrée.\n`;
+  }
+  else if(line.startsWith("lexos install")||c0==="calamares"){
+    out=`<span class='err'>✗</span> L'installation sur disque n'existe que sur la vraie ISO.\n  Ici, ton disque est parfaitement tranquille.\n`;
+  }
+  else if(c0==="sudo") out=`<span class='d'>Pas besoin de sudo dans la démo — essaie la commande sans lui.</span>\n`;
+  else out=`<span class='err'>✗ Commande inconnue : ${esc(c0)}</span>\n  Essaie : <span class='a'>help</span>\n`;
+  tPrint(esc("")+out);
+  tNewPrompt();
+}
+function openTerminal(){
+  const el = openWin("term","Terminal — lex@lexos","▮",termHTML(),640,420);
+  tEl = el.querySelector("#tout");
+  if(!tEl.innerHTML){
+    tPrint(`<span class='d'>LexOS 1.0 « Nomad » — tape</span> <span class='a'>help</span> <span class='d'>pour commencer.</span>\n\n`);
+    tNewPrompt();
+  }
+  el.querySelector(".term").addEventListener("click",()=>hidden.focus());
+  hidden.focus();
+}
+/* Saisie clavier via champ caché (mobile inclus) */
+const hidden = document.createElement("input");
+hidden.style.cssText="position:fixed;opacity:0;left:-999px;top:0";
+hidden.autocapitalize="off"; hidden.autocomplete="off"; hidden.spellcheck=false;
+document.body.appendChild(hidden);
+hidden.addEventListener("input",()=>{
+  tBuf = hidden.value;
+  const i=document.getElementById("tin"); if(i) i.textContent=tBuf;
+});
+hidden.addEventListener("keydown",e=>{
+  if(e.key==="Enter"){
+    const i=document.getElementById("tin");
+    if(i){ tPrint(""); const c=document.getElementById("cur");
+      if(c){ c.outerHTML=esc(tBuf)+"\n"; } runCmd(tBuf); }
+    tBuf=""; hidden.value="";
+    tEl && (tEl.scrollTop=tEl.scrollHeight);
+  }
+});
+
+/* ======================= Applications ======================= */
+function openFiles(){
+  openWin("files","Fichiers — /home/lex","🗂",
+  `<ul class="files">
+    <li>🖼 <span>mascot.png</span><span class="sz">304 Ko</span></li>
+    <li>🖼 <span>logo-ti-lex-al.png</span><span class="sz">131 Ko</span></li>
+    <li>🌄 <span>wallpaper-crt.png</span><span class="sz">2,1 Mo</span></li>
+    <li>📄 <span>notes.txt</span><span class="sz">1 Ko</span></li>
+    <li>🎵 <span>demo-mix.ogg</span><span class="sz">4,8 Mo</span></li>
+   </ul>
+   <div class="pad">
+     <button class="btn" onclick="openShare()">📎 Partager avec LexOS</button>
+   </div>`,460,360);
+}
+function openShare(){
+  openWin("share","Partager un fichier","📎",
+  `<div class="pad">
+    <h2>Partage par QR code</h2>
+    <p>Sur le vrai LexOS, <code>lexos share photo.jpg</code> affiche un QR code :
+    tu le scannes avec le téléphone et le fichier se télécharge —
+    <b>aucune application à installer</b>, rien ne sort du réseau local.</p>
+    <div style="display:flex;justify-content:center;margin:14px 0">
+      <svg width="140" height="140" viewBox="0 0 7 7" style="image-rendering:pixelated">
+        <rect width="7" height="7" fill="#fff"/>
+        <path fill="#000" d="M0 0h3v3H0zM4 0h3v3H4zM0 4h3v3H0zM1 1v1h1V1zM5 1v1h1V1zM1 5v1h1V5zM4 4h1v1h-1zM6 4h1v1h-1zM5 5h1v1h-1zM4 6h1v1h-1zM6 6h1v1h-1z"/>
+      </svg>
+    </div>
+    <p class="notice">Démo web : le QR ci-dessus est décoratif. Le vrai partage
+    exige le vrai système (serveur local + réseau wifi).</p>
+  </div>`,430);
+}
+function openSettings(){
+  const el = openWin("set","Paramètres LexOS","⚙",
+  `<div class="pad">
+    <h2>Couleur d'accent</h2>
+    <div class="row">${Object.entries(ACCENTS).map(([n,c])=>
+      `<button class="swatch${n===state.accent?" sel":""}" data-a="${n}"
+        style="background:${c[0]}" title="${n}" onclick="setAccent('${n}')"></button>`).join("")}
+    </div>
+    <h2>Position du dock</h2>
+    <div class="row">
+      <button class="btn ghost" onclick="setDock('droite')">Droite</button>
+      <button class="btn ghost" onclick="setDock('gauche')">Gauche</button>
+      <button class="btn ghost" onclick="setDock('bas')">Bas</button>
+      <button class="btn ghost" onclick="setDock('haut')">Haut</button>
+    </div>
+    <h2>Effets TV 1980</h2>
+    <div class="row">
+      <button class="btn" onclick="setCrt(true)">CRT on</button>
+      <button class="btn ghost" onclick="setCrt(false)">CRT off</button>
+    </div>
+    <h2>Performance</h2>
+    <div class="row">
+      ${["petit","medium","performant","max"].map(p=>
+        `<button class="btn ghost" onclick="state.perf='${p}'">${p}</button>`).join("")}
+    </div>
+  </div>`,470);
+}
+function openInstall(){
+  openWin("inst","Installer LexOS sur le disque","💽",
+  `<div class="pad">
+    <h2>⚠ Ici, rien à installer</h2>
+    <p>Tu es dans la <b>démo web</b> : ton disque dur n'est pas accessible,
+    et c'est très bien comme ça.</p>
+    <div class="warnbox">Sur la vraie ISO, ce bouton ouvre un garde-fou :
+    liste des disques, avertissement « l'effacement est irréversible », et il
+    faut taper <b>EFFACER</b> ou cliquer « J'ai compris » avant que
+    l'installateur ne se lance. Jamais d'effacement sans confirmation.</div>
+    <p>Le parcours réel : <code>ISO → clé USB → session démo → installation</code></p>
+  </div>`,470);
+}
+function openAbout(){
+  openWin("about","À propos de LexOS","◆",
+  `<div class="pad" style="text-align:center">
+    <div style="font:700 40px/1 ui-monospace,monospace;margin:8px 0">
+      Lex<span style="color:var(--ac)">OS</span></div>
+    <p style="letter-spacing:.4em;font-size:11px">T I · L E X · A L</p>
+    <p><b>1.0 « Nomad »</b> — base Debian trixie<br>
+    noyau 6.12 LTS · XFCE · LexOS Noir</p>
+    <p class="notice" style="text-align:left">Ceci est la <b>démo web</b>.
+    Le système complet se construit depuis le dépôt GitHub
+    (<code>make build</code>) et se grave sur une clé USB.</p>
+    <p style="color:#6e6e74;font-size:12px">Explore. Build. Own your machine.<br>Licence MIT</p>
+  </div>`,420);
+}
+function openBrowser(){
+  openWin("web","Navigateur","🌐",
+  `<div class="pad">
+    <h2>Ici, c'est déjà un navigateur 🙂</h2>
+    <p>Sur la vraie ISO, cette icône ouvre <b>Firefox</b>. Dans la démo web,
+    ce serait un navigateur dans un navigateur — on va s'arrêter là.</p>
+  </div>`,420);
+}
+function openEditor(){
+  openWin("edit","Éditeur — notes.txt","📝",
+  `<textarea style="width:100%;height:100%;min-height:250px;background:#000;
+     color:#fff;border:0;outline:0;padding:12px;resize:none;
+     font:13px/1.5 ui-monospace,monospace"
+   >LexOS 1.0 « Nomad »
+──────────────────────
+À essayer dans le terminal :
+
+  lexfetch
+  lexos accent violet
+  lexos dock bas
+  lexos perf max
+  lexos crt off
+
+Tout se remet à zéro quand tu recharges la page :
+comme une vraie session live.</textarea>`,480,340);
+}
+function openWelcome(){
+  openWin("hello","Bienvenue sur LexOS","👋",
+  `<div class="pad">
+    <h2>Bienvenue dans la démo web ✨</h2>
+    <p>Tu regardes le bureau de <b>LexOS 1.0 « Nomad »</b> — thème noir pur,
+    dock à droite, effets de fenêtres façon téléviseur 1980
+    <span style="color:var(--fg-dim)">(ferme cette fenêtre pour voir ✕)</span>.</p>
+    <p>Le vrai LexOS est une <b>distribution Linux complète</b> : cette page
+    n'en montre que l'ambiance, sans rien installer.</p>
+    <div class="row">
+      <button class="btn" onclick="openTerminal()">▮ Ouvrir le terminal</button>
+      <button class="btn ghost" onclick="openSettings()">⚙ Paramètres</button>
+    </div>
+    <p style="font-size:12px;color:#6e6e74">Astuce : <span class="kbd">lexos accent violet</span>,
+    <span class="kbd">lexos dock bas</span>, <span class="kbd">lexfetch</span></p>
+  </div>`,470);
+}
+
+/* ======================= Dock & menu ======================= */
+const DOCK = [
+  ["🌐","Navigateur",openBrowser], ["▮","Terminal",openTerminal],
+  ["🗂","Fichiers",openFiles], ["📝","Éditeur",openEditor],
+  ["📎","Partager",openShare], ["⚙","Paramètres",openSettings],
+  ["💽","Installer LexOS",openInstall], ["◆","À propos",openAbout]];
+const dock = document.getElementById("dock");
+DOCK.forEach(([ic,label,fn])=>{
+  const b=document.createElement("button");
+  b.className="dicon"; b.innerHTML=`${ic}<span class="tip">${label}</span>`;
+  b.onclick=fn; dock.appendChild(b);
+});
+let menuEl=null;
+document.getElementById("appsBtn").onclick=e=>{
+  e.stopPropagation();
+  if(menuEl){ menuEl.remove(); menuEl=null; return; }
+  menuEl=document.createElement("div"); menuEl.className="menu";
+  menuEl.innerHTML=DOCK.map(([ic,label],i)=>
+    `<button data-i="${i}">${ic}<span>${label}</span></button>`).join("");
+  menuEl.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    DOCK[+b.dataset.i][2](); menuEl.remove(); menuEl=null; });
+  document.body.appendChild(menuEl);
+};
+document.addEventListener("click",e=>{
+  if(menuEl && !e.target.closest(".menu,#appsBtn")){ menuEl.remove(); menuEl=null; }
+});
+document.getElementById("perfBtn").onclick=openSettings;
+document.getElementById("netBtn").onclick=()=>{
+  state.avion=!state.avion;
+  document.getElementById("netBtn").textContent=state.avion?"✈":"▲";
+};
+document.getElementById("offBtn").onclick=()=>{
+  if(!confirm("Éteindre la démo LexOS ?")) return;
+  document.body.classList.add("off");
+  setTimeout(()=>{ document.body.classList.remove("off"); boot(); }, 700);
+};
+
+/* ======================= Horloge & démarrage ======================= */
+function tick(){
+  const d=new Date();
+  document.getElementById("clock").textContent =
+    d.toLocaleDateString("fr-CA",{weekday:"short",day:"2-digit",month:"short"})
+    +"  "+d.toLocaleTimeString("fr-CA",{hour:"2-digit",minute:"2-digit"});
+}
+setInterval(tick,10000); tick();
+
+function boot(){
+  document.querySelectorAll(".win").forEach(w=>w.remove());
+  const b=document.getElementById("boot");
+  b.style.display="flex";
+  const bar=b.querySelector(".bar i");
+  bar.style.animation="none"; void bar.offsetWidth; bar.style.animation="";
+  setTimeout(()=>{
+    b.style.display="none";
+    const s=document.getElementById("screen");
+    s.classList.remove("on"); void s.offsetWidth; s.classList.add("on");
+    setTimeout(openWelcome, 900);
+  }, 2300);
+}
+boot();
+</script>
+</body>
+</html>
