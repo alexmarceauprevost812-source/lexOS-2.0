@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexfetch — carte d'identité du système, façon LexOS
+# =============================================================================
+set -uo pipefail
+
+# L'art ASCII est en UTF-8 : sans locale multi-octets, ${#chaine} compte les
+# octets et l'alignement des colonnes part en vrille. On force un repli sûr.
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8*|*utf8*|*UTF8*|*utf-8*) ;;
+	*)
+		if locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$'; then
+			export LC_ALL=C.UTF-8
+		fi
+		;;
+esac
+
+# --- Couleurs ----------------------------------------------------------------
+if [[ -t 1 ]] && [[ "${TERM:-dumb}" != "dumb" ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'   # orange
+	A=$'\033[38;5;215m'   # ambre
+	W=$'\033[38;5;253m'   # texte
+	D=$'\033[2m'          # atténué
+	B=$'\033[1m'
+	R=$'\033[0m'
+else
+	O=''; A=''; W=''; D=''; B=''; R=''
+fi
+
+# --- Art ASCII ---------------------------------------------------------------
+IFS= read -r -d '' ART <<'EOF' || true
+        ▄▄██████████▄▄
+     ▄██████████████████▄
+  ▄████████████████████████▄
+  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+   ███▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄███
+    ██ ▐████▌    ▐████▌ ██
+    ██ ▐████▌    ▐████▌ ██
+   ███▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀███
+    ███████▄▄▄▄▄▄▄▄███████
+    █████  ▄  ▄  ▄  █████
+    ████   █  █  █   ████
+    ▀███▄  ▀  ▀  ▀  ▄███▀
+      ▀███▄▄▄▄▄▄▄▄▄▄███▀
+         ▀▀████████▀▀
+EOF
+
+ART="${ART%$'\n'}"
+mapfile -t ART_LINES <<< "$ART"
+
+# --- Collecte des informations ----------------------------------------------
+os_pretty=""; base=""
+if [[ -r /etc/os-release ]]; then
+	# shellcheck disable=SC1091
+	. /etc/os-release
+	os_pretty="${PRETTY_NAME:-${NAME:-Linux}}"
+	base="${DEBIAN_BASE:-}"
+fi
+[[ -z "$os_pretty" ]] && os_pretty="$(uname -o 2>/dev/null || echo Linux)"
+
+host_name="$(hostnamectl --static 2>/dev/null || cat /etc/hostname 2>/dev/null || uname -n)"
+user_name="${USER:-$(id -un)}"
+
+kernel="$(uname -r)"
+arch="$(uname -m)"
+
+uptime_h=""
+if command -v uptime >/dev/null 2>&1; then
+	uptime_h="$(uptime -p 2>/dev/null | sed 's/^up //')"
+fi
+if [[ -z "$uptime_h" && -r /proc/uptime ]]; then
+	secs="$(cut -d. -f1 /proc/uptime)"
+	uptime_h="$(( secs / 86400 ))j $(( (secs % 86400) / 3600 ))h $(( (secs % 3600) / 60 ))m"
+fi
+
+pkgs="?"
+if command -v dpkg-query >/dev/null 2>&1; then
+	pkgs="$(dpkg-query -f '.\n' -W 2>/dev/null | wc -l) (dpkg)"
+fi
+
+shell_name="$(basename "${SHELL:-sh}")"
+if [[ "$shell_name" == "bash" ]]; then
+	shell_name="bash ${BASH_VERSION%%(*}"
+fi
+
+de="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-console}}"
+term_name="${TERM_PROGRAM:-}"
+[[ -z "$term_name" ]] && term_name="$(ps -o comm= -p "${PPID:-$$}" 2>/dev/null || echo "${TERM:-tty}")"
+
+cpu="inconnu"
+if [[ -r /proc/cpuinfo ]]; then
+	cpu="$(awk -F: '/model name/{gsub(/^ +| +$/,"",$2); print $2; exit}' /proc/cpuinfo)"
+	[[ -z "$cpu" ]] && cpu="$(awk -F: '/Model/{gsub(/^ +| +$/,"",$2); print $2; exit}' /proc/cpuinfo)"
+	cores="$(nproc 2>/dev/null || echo '?')"
+	cpu="${cpu} (${cores} cœurs)"
+fi
+
+gpu=""
+if command -v lspci >/dev/null 2>&1; then
+	gpu="$(lspci 2>/dev/null | grep -Ei 'vga|3d|display' \
+		| head -n1 | sed 's/.*: //; s/ (rev .*//')"
+fi
+[[ -z "$gpu" ]] && gpu="—"
+
+mem="?"
+if [[ -r /proc/meminfo ]]; then
+	mem_total_kb="$(awk '/MemTotal/{print $2}' /proc/meminfo)"
+	mem_avail_kb="$(awk '/MemAvailable/{print $2}' /proc/meminfo)"
+	mem_used_mb=$(( (mem_total_kb - mem_avail_kb) / 1024 ))
+	mem_total_mb=$(( mem_total_kb / 1024 ))
+	mem="${mem_used_mb} Mio / ${mem_total_mb} Mio"
+fi
+
+disk="$(df -h / 2>/dev/null | awk 'NR==2{print $3" / "$2" ("$5")"}')"
+[[ -z "$disk" ]] && disk="—"
+
+res="—"
+if command -v xrandr >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+	res="$(xrandr --current 2>/dev/null | awk '/\*/{printf "%s ", $1}' | sed 's/ $//')"
+	[[ -z "$res" ]] && res="—"
+fi
+
+# --- Construction du panneau d'infos ----------------------------------------
+INFO=()
+INFO+=("${B}${O}${user_name}${W}@${B}${O}${host_name}${R}")
+INFO+=("${D}────────────────────────────────${R}")
+add() { INFO+=("${A}${1}${R}${D}:${R} ${W}${2}${R}"); }
+
+add "OS       " "$os_pretty $arch"
+[[ -n "$base" ]] && add "Base     " "Debian $base"
+add "Noyau    " "$kernel"
+add "Uptime   " "${uptime_h:-—}"
+add "Paquets  " "$pkgs"
+add "Shell    " "$shell_name"
+add "Bureau   " "$de"
+[[ "$res" != "—" ]] && add "Écran    " "$res"
+add "Terminal " "$term_name"
+add "CPU      " "$cpu"
+[[ "$gpu" != "—" ]] && add "GPU      " "$gpu"
+add "Mémoire  " "$mem"
+add "Disque / " "$disk"
+INFO+=("")
+INFO+=("${O}███${A}███${W}███${D}███${R}   ${D}lexos help${R}")
+
+# --- Rendu côte à côte -------------------------------------------------------
+art_w=0
+for l in "${ART_LINES[@]}"; do
+	(( ${#l} > art_w )) && art_w=${#l}
+done
+
+rows=$(( ${#ART_LINES[@]} > ${#INFO[@]} ? ${#ART_LINES[@]} : ${#INFO[@]} ))
+top_pad=$(( (${#ART_LINES[@]} - ${#INFO[@]}) / 2 ))
+(( top_pad < 0 )) && top_pad=0
+
+echo
+for (( i = 0; i < rows; i++ )); do
+	art="${ART_LINES[i]:-}"
+	pad=$(( art_w - ${#art} ))
+	(( pad < 0 )) && pad=0
+	printf '%s%s%s%*s   ' "$O" "$art" "$R" "$pad" ""
+
+	idx=$(( i - top_pad ))
+	if (( idx >= 0 && idx < ${#INFO[@]} )); then
+		printf '%s' "${INFO[idx]}"
+	fi
+	printf '\n'
+done
+echo

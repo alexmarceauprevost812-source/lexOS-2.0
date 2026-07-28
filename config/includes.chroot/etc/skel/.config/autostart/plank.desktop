@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Dock LexOS
+Comment=Barre de lancement verticale
+Exec=sh -c 'sleep 2; exec plank'
+Icon=plank
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Phase=Applications

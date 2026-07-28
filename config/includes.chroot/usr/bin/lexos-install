@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-install — lance l'installation sur disque, APRÈS confirmation explicite
+# =============================================================================
+#  Règle de la maison : on essaie d'abord LexOS depuis la clé USB (mode démo),
+#  et on ne touche au disque dur que si l'utilisateur le demande clairement.
+#  Ce script ne formate rien lui-même : il vérifie, avertit, puis passe la main
+#  à Calamares qui gère le partitionnement.
+# =============================================================================
+set -uo pipefail
+
+FORCE=0
+for a in "$@"; do
+	[[ "$a" == "--yes" || "$a" == "-y" ]] && FORCE=1
+done
+
+if [[ -t 1 ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; Y=$'\033[33m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; E=''; Y=''; B=''; R=''
+fi
+
+NAME="LexOS"; VER="1.0"
+if [[ -r /etc/os-release ]]; then
+	# shellcheck disable=SC1091
+	. /etc/os-release
+	NAME="${NAME:-LexOS}"; VER="${VERSION_ID:-1.0}"
+fi
+
+# --- Sommes-nous en session démo (live) ? -----------------------------------
+IS_LIVE=0
+grep -qa 'boot=live' /proc/cmdline 2>/dev/null && IS_LIVE=1
+
+# --- Sur quel support tourne-t-on ? -----------------------------------------
+boot_media() {
+	local src
+	src="$(findmnt -no SOURCE / 2>/dev/null || true)"
+	if [[ "$IS_LIVE" -eq 1 ]]; then
+		local dev
+		dev="$(findmnt -no SOURCE /run/live/medium 2>/dev/null || true)"
+		[[ -n "$dev" ]] && { printf '%s' "$dev"; return; }
+	fi
+	printf '%s' "${src:-inconnu}"
+}
+
+# --- Liste des disques qui seraient concernés -------------------------------
+list_disks() {
+	if command -v lsblk >/dev/null 2>&1; then
+		lsblk -dno NAME,SIZE,MODEL,TRAN 2>/dev/null \
+			| grep -Ev '^(loop|sr|ram|zram)' \
+			| awk '{printf "  /dev/%-8s %-9s %s %s\n", $1, $2, $3, $4}'
+	else
+		printf '  (lsblk indisponible)\n'
+	fi
+}
+
+WARN_TITLE="Installer ${NAME} ${VER} sur le disque dur"
+WARN_BODY="Tu es sur le point d'installer ${NAME} sur un disque interne.
+
+Si tu choisis « effacer le disque » dans l'installateur, TOUT ce
+qu'il contient sera définitivement perdu : fichiers, photos, autre
+système d'exploitation. Il n'y a pas de retour en arrière.
+
+Avant de continuer :
+  1. Essaie ${NAME} depuis la clé USB — la session démo ne touche
+     à rien sur ton disque.
+  2. Sauvegarde ce qui compte sur un disque externe.
+  3. Branche l'ordinateur sur le secteur.
+
+Disques détectés sur cette machine :"
+
+# =============================================================================
+#  Mode graphique
+# =============================================================================
+gui_confirm() {
+	local disks; disks="$(list_disks)"
+
+	if command -v yad >/dev/null 2>&1; then
+		yad --title="$WARN_TITLE" \
+			--window-icon=lexos --image=dialog-warning --image-on-top \
+			--width=640 --center --borders=16 \
+			--text="<span size='large' weight='bold'>⚠ Cette opération peut effacer ton disque dur</span>
+
+$(sed 's/&/\&amp;/g; s/</\&lt;/g' <<< "$WARN_BODY")
+<tt>${disks}</tt>" \
+			--button="Annuler — rester en démo:1" \
+			--button="J'ai compris, installer:0"
+		return $?
+	fi
+
+	if command -v zenity >/dev/null 2>&1; then
+		zenity --question --width=560 \
+			--title="$WARN_TITLE" \
+			--text="⚠ Cette opération peut effacer ton disque dur.
+
+${WARN_BODY}
+${disks}
+
+Continuer ?" \
+			--ok-label="Installer" --cancel-label="Annuler"
+		return $?
+	fi
+	return 2
+}
+
+# =============================================================================
+#  Mode console
+# =============================================================================
+tty_confirm() {
+	printf '\n%s%s⚠  %s%s\n\n' "$B" "$E" "$WARN_TITLE" "$R"
+	printf '%s\n' "$WARN_BODY"
+	list_disks
+	printf '\n%sPour confirmer, tape exactement :%s EFFACER\n' "$Y" "$R"
+	printf 'Sinon, appuie sur Entrée pour annuler.\n\n> '
+	local answer=""
+	read -r answer || true
+	[[ "$answer" == "EFFACER" ]]
+}
+
+# =============================================================================
+#  Déroulement
+# =============================================================================
+if (( ! IS_LIVE )); then
+	printf '%s%s%s %s\n' "$Y" "!" "$R" \
+		"Tu n'es pas en session démo : ${NAME} semble déjà installé sur ce disque."
+	printf '  Relance l'\''installateur depuis la clé USB si tu veux réinstaller.\n'
+	if [[ -z "${DISPLAY:-}" ]]; then
+		exit 1
+	fi
+	command -v zenity >/dev/null 2>&1 && zenity --warning --width=460 \
+		--text="Tu n'es pas en session démo.\nDémarre depuis la clé USB ${NAME} pour installer." 2>/dev/null
+	exit 1
+fi
+
+printf '%s»%s Support de démarrage : %s\n' "$O" "$R" "$(boot_media)"
+
+if (( FORCE )); then
+	CONFIRMED=0
+elif [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+	gui_confirm; RC=$?
+	if (( RC == 2 )); then tty_confirm; CONFIRMED=$?; else CONFIRMED=$RC; fi
+else
+	tty_confirm; CONFIRMED=$?
+fi
+
+if (( CONFIRMED != 0 )); then
+	printf '%s»%s Installation annulée — tu restes en session démo. Rien n'\''a été modifié.\n' \
+		"$O" "$R"
+	exit 0
+fi
+
+if ! command -v calamares >/dev/null 2>&1; then
+	printf '%s✗%s Installateur (calamares) introuvable sur cette image.\n' "$E" "$R"
+	exit 1
+fi
+
+printf '%s»%s Lancement de l'\''installateur…\n' "$O" "$R"
+if [[ $EUID -ne 0 ]]; then
+	exec sudo -E calamares -d
+fi
+exec calamares -d

@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-firstrun — applique l'apparence LexOS à la première ouverture de session
+# =============================================================================
+#  Les noms d'écrans XFCE ne sont connus qu'une fois la session ouverte : c'est
+#  pourquoi le fond d'écran est appliqué ici plutôt que dans un fichier statique.
+# =============================================================================
+set -uo pipefail
+
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+STAMP="$CONF_DIR/firstrun-done"
+mkdir -p "$CONF_DIR"
+
+FORCE=0
+[[ "${1:-}" == "--force" ]] && FORCE=1
+
+if (( ! FORCE )) && [[ -f "$STAMP" ]]; then
+	exit 0
+fi
+
+# Laisse xfdesktop/xfsettingsd s'enregistrer avant de les piloter.
+for _ in $(seq 1 20); do
+	xfconf-query -c xfce4-desktop -l >/dev/null 2>&1 && break
+	sleep 0.5
+done
+
+# --- Accent et thème ---------------------------------------------------------
+ACCENT="orange"
+[[ -r /etc/lexos/build.conf ]] && ACCENT="$(
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf 2>/dev/null; printf '%s' "${LEXOS_ACCENT_NAME:-orange}"
+)"
+[[ -r "$CONF_DIR/accent" ]] && ACCENT="$(cat "$CONF_DIR/accent")"
+
+command -v lexos-theme-gen >/dev/null 2>&1 && lexos-theme-gen "$ACCENT" >/dev/null 2>&1
+
+if command -v xfconf-query >/dev/null 2>&1; then
+	BASE_THEME="Arc-Dark"; ICONS="Papirus-Dark"
+	[[ -r /etc/lexos/build.conf ]] && eval "$(
+		# shellcheck disable=SC1091
+		. /etc/lexos/build.conf 2>/dev/null
+		printf 'BASE_THEME=%q; ICONS=%q' \
+			"${LEXOS_GTK_BASE_THEME:-Arc-Dark}" "${LEXOS_ICON_THEME:-Papirus-Dark}"
+	)"
+	xfconf-query -c xsettings -p /Net/ThemeName     -s "$BASE_THEME" 2>/dev/null || true
+	xfconf-query -c xsettings -p /Net/IconThemeName -s "$ICONS"      2>/dev/null || true
+	xfconf-query -c xfwm4     -p /general/theme     -s "$BASE_THEME" 2>/dev/null || true
+fi
+
+# --- Fond d'écran sur tous les écrans détectés ------------------------------
+WALL="/usr/share/backgrounds/lexos/wallpaper.png"
+[[ -r "$WALL" ]] || WALL="/usr/share/lexos/branding/wallpaper.svg"
+
+if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
+	found=0
+	while read -r prop; do
+		[[ "$prop" == *last-image ]] || continue
+		xfconf-query -c xfce4-desktop -p "$prop" -s "$WALL" 2>/dev/null && found=1
+		style="${prop%last-image}image-style"
+		xfconf-query -c xfce4-desktop -p "$style" -s 5 2>/dev/null || true
+	done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null)
+
+	# Aucun écran encore déclaré : on crée l'entrée par défaut.
+	if (( ! found )); then
+		xfconf-query -c xfce4-desktop -n -t string \
+			-p /backdrop/screen0/monitor0/workspace0/last-image -s "$WALL" 2>/dev/null || true
+	fi
+fi
+
+date -u '+%Y-%m-%dT%H:%M:%SZ' > "$STAMP"

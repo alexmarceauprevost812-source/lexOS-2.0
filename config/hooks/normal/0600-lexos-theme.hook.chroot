@@ -1,0 +1,62 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS Noir — thème par défaut (noir pur, écriture blanche, boutons accentués)
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0600 : thème LexOS Noir"
+
+ACCENT_NAME="orange"
+GTK_BASE="Arc-Dark"
+ICONS="Papirus-Dark"
+
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+	ACCENT_NAME="${LEXOS_ACCENT_NAME:-orange}"
+	GTK_BASE="${LEXOS_GTK_BASE_THEME:-Arc-Dark}"
+	ICONS="${LEXOS_ICON_THEME:-Papirus-Dark}"
+fi
+
+# --- Génère le thème dans /etc/skel (hérité par tout nouveau compte) --------
+if [ -x /usr/bin/lexos-theme-gen ]; then
+	mkdir -p /etc/skel
+	HOME=/etc/skel /usr/bin/lexos-theme-gen "$ACCENT_NAME" --target /etc/skel \
+		|| echo "[lexos]   !! génération du thème échouée (non bloquant)"
+	# Même thème pour root, utile en console de secours.
+	HOME=/root /usr/bin/lexos-theme-gen "$ACCENT_NAME" --target /root >/dev/null 2>&1 || true
+else
+	echo "[lexos]   !! lexos-theme-gen absent"
+fi
+
+# --- Réglages GTK système ----------------------------------------------------
+mkdir -p /etc/gtk-3.0
+cat > /etc/gtk-3.0/settings.ini <<EOF
+[Settings]
+gtk-theme-name=${GTK_BASE}
+gtk-icon-theme-name=${ICONS}
+gtk-font-name=Noto Sans 10
+gtk-cursor-theme-name=Adwaita
+gtk-cursor-theme-size=24
+gtk-application-prefer-dark-theme=true
+gtk-xft-antialias=1
+gtk-xft-hinting=1
+gtk-xft-hintstyle=hintslight
+gtk-xft-rgba=rgb
+gtk-menu-images=1
+gtk-button-images=1
+EOF
+
+# --- Terminal : noir + vert dark, aussi pour les autres émulateurs ---------
+mkdir -p /etc/skel/.config/xfce4/terminal
+
+# --- Base de données dconf (dock Plank + effets Compiz) ---------------------
+if command -v dconf >/dev/null 2>&1; then
+	dconf update >/dev/null 2>&1 \
+		&& echo "[lexos]   base dconf mise à jour" \
+		|| echo "[lexos]   !! dconf update a échoué (non bloquant)"
+else
+	echo "[lexos]   dconf absent — réglages du dock non compilés"
+fi
+
+echo "[lexos] hook 0600 : ok"

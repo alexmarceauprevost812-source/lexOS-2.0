@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LexOS — logo / marque (512x512). Motif : casque + masque + lunettes. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="LexOS">
+  <defs>
+    <linearGradient id="ember" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0%"   stop-color="#FFC287"/>
+      <stop offset="45%"  stop-color="#E8873A"/>
+      <stop offset="100%" stop-color="#A84C17"/>
+    </linearGradient>
+    <linearGradient id="visor" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#2C2622"/>
+      <stop offset="50%"  stop-color="#5A4C41"/>
+      <stop offset="100%" stop-color="#1A1614"/>
+    </linearGradient>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#4A3B31"/>
+      <stop offset="100%" stop-color="#241C17"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fond -->
+  <rect width="512" height="512" rx="112" fill="#141110"/>
+  <rect width="512" height="512" rx="112" fill="none"
+        stroke="#E8873A" stroke-opacity="0.30" stroke-width="4"/>
+
+  <!-- Casquette : dôme -->
+  <path d="M118 196 C118 106 178 56 256 56 C334 56 394 106 394 196 Z"
+        fill="url(#ember)"/>
+  <!-- Casquette : couture -->
+  <path d="M256 58 V196" stroke="#8E3F12" stroke-opacity="0.45" stroke-width="5"/>
+  <!-- Casquette : visière -->
+  <path d="M96 196 C96 176 140 166 256 166 C372 166 416 176 416 196
+           C416 212 372 220 256 220 C140 220 96 212 96 196 Z"
+        fill="#A84C17"/>
+
+  <!-- Lunettes -->
+  <rect x="112" y="200" width="288" height="104" rx="46" fill="url(#plate)"/>
+  <rect x="128" y="214" width="256" height="76"  rx="36" fill="url(#visor)"/>
+  <!-- Reflet -->
+  <path d="M150 282 L206 216 L236 216 L172 290 Z" fill="#F0E4D8" opacity="0.16"/>
+  <path d="M188 288 L242 218 L258 218 L204 290 Z" fill="#F0E4D8" opacity="0.09"/>
+  <!-- Sangle -->
+  <rect x="92"  y="230" width="26" height="44" rx="10" fill="#A84C17"/>
+  <rect x="394" y="230" width="26" height="44" rx="10" fill="#A84C17"/>
+
+  <!-- Masque bas -->
+  <path d="M144 300 C144 300 168 460 256 460 C344 460 368 300 368 300 Z"
+        fill="url(#plate)"/>
+  <path d="M160 312 C160 312 180 440 256 440 C332 440 352 312 352 312 Z"
+        fill="#1B1512"/>
+
+  <!-- Filtre central -->
+  <ellipse cx="256" cy="372" rx="34" ry="40" fill="#2E251F"/>
+  <ellipse cx="256" cy="372" rx="20" ry="25" fill="#E8873A" opacity="0.85"/>
+
+  <!-- Aérations -->
+  <g fill="#E8873A" opacity="0.55">
+    <circle cx="196" cy="342" r="7"/><circle cx="316" cy="342" r="7"/>
+    <circle cx="204" cy="376" r="6"/><circle cx="308" cy="376" r="6"/>
+    <circle cx="220" cy="408" r="5"/><circle cx="292" cy="408" r="5"/>
+  </g>
+</svg>

@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Scripts et configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer les outils d'analyse
+        run: sudo apt-get update -qq && sudo apt-get install -y shellcheck libxml2-utils
+
+      - name: shellcheck
+        run: |
+          shellcheck -S warning \
+            build.sh \
+            auto/config auto/build auto/clean \
+            tools/render-branding.sh \
+            config/hooks/normal/*.hook.chroot \
+            config/includes.chroot/usr/bin/* \
+            config/includes.chroot/etc/profile.d/lexos.sh
+
+      - name: Syntaxe bash des outils embarqués
+        run: |
+          for f in config/includes.chroot/usr/bin/*; do
+            head -n1 "$f" | grep -q bash && bash -n "$f"
+          done
+
+      - name: Validité des SVG
+        run: |
+          for f in branding/*.svg config/bootloaders/isolinux/*.svg; do
+            xmllint --noout "$f" && echo "ok  $f"
+          done
+
+      - name: Validité des XML de configuration XFCE
+        run: |
+          for f in $(find config/includes.chroot -name '*.xml'); do
+            xmllint --noout "$f" && echo "ok  $f"
+          done
+
+      - name: Listes de paquets bien formées
+        run: |
+          bad=0
+          for f in config/package-lists/*.list.chroot flavours/*/*.list.chroot; do
+            while IFS= read -r line; do
+              case "$line" in
+                ''|\#*) continue ;;
+              esac
+              if ! printf '%s' "$line" | grep -qE '^[a-z0-9][a-z0-9+.:-]*$'; then
+                echo "::error file=$f::nom de paquet suspect : '$line'"
+                bad=1
+              fi
+            done < "$f"
+          done
+          exit $bad
+
+      - name: Bits d'exécution présents
+        run: |
+          bad=0
+          for f in build.sh auto/config auto/build auto/clean \
+                   tools/render-branding.sh \
+                   config/hooks/normal/*.hook.chroot \
+                   config/includes.chroot/usr/bin/*; do
+            [ -x "$f" ] || { echo "::error file=$f::doit être exécutable (chmod +x)"; bad=1; }
+          done
+          exit $bad
+
+      - name: Cohérence de lexos.conf
+        run: |
+          # shellcheck disable=SC1091
+          . ./lexos.conf
+          test -n "$LEXOS_NAME"    || { echo "LEXOS_NAME vide"; exit 1; }
+          test -n "$LEXOS_VERSION" || { echo "LEXOS_VERSION vide"; exit 1; }
+          case "$LEXOS_FLAVOUR" in
+            minimal|standard|dev|full) ;;
+            *) echo "LEXOS_FLAVOUR invalide : $LEXOS_FLAVOUR"; exit 1 ;;
+          esac
+          case "$LEXOS_ACCENT_NAME" in
+            orange|bleu|rouge|vert|gris|violet) ;;
+            *) echo "LEXOS_ACCENT_NAME invalide : $LEXOS_ACCENT_NAME"; exit 1 ;;
+          esac
+          echo "lexos.conf : $LEXOS_NAME $LEXOS_VERSION ($LEXOS_FLAVOUR / $LEXOS_ACCENT_NAME)"
+
+  theme:
+    name: Génération du thème
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Chaque accent produit un thème complet
+        run: |
+          for accent in orange bleu rouge vert gris violet; do
+            out="/tmp/theme-$accent"
+            mkdir -p "$out"
+            HOME="$out" ./config/includes.chroot/usr/bin/lexos-theme-gen "$accent" --target "$out"
+            test -s "$out/.config/gtk-3.0/gtk.css"
+            test -s "$out/.config/xfce4/terminal/terminalrc"
+            test -s "$out/.gtkrc-2.0"
+            grep -q '#000000' "$out/.config/gtk-3.0/gtk.css"
+          done
+          echo "6 accents validés."
+
+      - name: Un accent inconnu est refusé
+        run: |
+          if HOME=/tmp/x ./config/includes.chroot/usr/bin/lexos-theme-gen mauve 2>/dev/null; then
+            echo "Un accent invalide aurait dû être rejeté"; exit 1
+          fi
+          echo "ok"

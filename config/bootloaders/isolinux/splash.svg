@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LexOS — écran du menu de démarrage (isolinux, 640x480) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"
+     viewBox="0 0 640 480" role="img" aria-label="LexOS boot">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0%"   stop-color="#1c1512"/>
+      <stop offset="100%" stop-color="#0a0908"/>
+    </linearGradient>
+    <linearGradient id="ember" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#FFB067"/>
+      <stop offset="100%" stop-color="#C0601F"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="480" fill="url(#bg)"/>
+
+  <!-- Crête décorative en bas -->
+  <path d="M0,398 L92,352 L164,392 L262,330 L354,394 L448,344 L540,398 L640,356
+           L640,480 L0,480 Z" fill="#171210"/>
+  <path d="M0,398 L92,352 L164,392 L262,330 L354,394 L448,344 L540,398 L640,356"
+        fill="none" stroke="#E8873A" stroke-opacity="0.35" stroke-width="1.5"/>
+
+  <!-- Boussole -->
+  <g transform="translate(320,150)" fill="none" stroke="#E8873A" stroke-opacity="0.20">
+    <circle r="86" stroke-width="1.2"/>
+    <circle r="112" stroke-width="1" stroke-dasharray="2 10"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="320" y="168" text-anchor="middle"
+        font-family="'DejaVu Sans Mono',monospace" font-size="62"
+        font-weight="700" letter-spacing="-2"
+        fill="#F4EFEA">Lex<tspan fill="url(#ember)">OS</tspan></text>
+
+  <text x="320" y="204" text-anchor="middle"
+        font-family="'DejaVu Sans',sans-serif" font-size="13" letter-spacing="4"
+        fill="#B9A899">EXPLORE &#183; BUILD &#183; OWN YOUR MACHINE</text>
+
+  <rect x="230" y="222" width="180" height="1.5" fill="#E8873A" opacity="0.4"/>
+</svg>

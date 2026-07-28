@@ -1,0 +1,41 @@
+# =============================================================================
+#  LexOS — effets de fenêtres « téléviseur 1980 » (Compiz)
+# =============================================================================
+#  « Glide 2 » écrase la fenêtre en une ligne horizontale puis l'éteint :
+#  c'est exactement le geste d'un tube cathodique qu'on coupe.
+#  Ces réglages ne s'appliquent que si Compiz démarre réellement (voir lexos-wm).
+# =============================================================================
+
+[org/compiz/profiles/Default/plugins/core]
+active-plugins=['core','composite','opengl','compiztoolbox','decor','mousepoll','vpswitch','snap','regex','animation','fade','workarounds','scale','expo','ezoom','imgpng','move','place','resize','session','wall','ccp']
+
+[org/compiz/profiles/Default/plugins/animation]
+open-effects=['animation:Glide 2','animation:Glide 2','animation:Fade']
+open-durations=[220,220,150]
+open-matches=['(type=Normal | type=Dialog | type=ModalDialog | type=Unknown)','(type=Menu | type=PopupMenu | type=DropdownMenu)','(type=Tooltip | type=Notification | type=Utility)']
+close-effects=['animation:Glide 2','animation:Glide 2','animation:Fade']
+close-durations=[260,220,150]
+close-matches=['(type=Normal | type=Dialog | type=ModalDialog | type=Unknown)','(type=Menu | type=PopupMenu | type=DropdownMenu)','(type=Tooltip | type=Notification | type=Utility)']
+minimize-effects=['animation:Magic Lamp']
+minimize-durations=[300]
+minimize-matches=['(type=Normal | type=Dialog | type=ModalDialog | type=Unknown)']
+unminimize-effects=['animation:Magic Lamp']
+unminimize-durations=[300]
+unminimize-matches=['(type=Normal | type=Dialog | type=ModalDialog | type=Unknown)']
+focus-effects=['animation:None']
+
+[org/compiz/profiles/Default/plugins/decor]
+command='/usr/bin/gtk-window-decorator --replace'
+active-shadow-radius=9.0
+active-shadow-opacity=0.6
+active-shadow-color='#000000ff'
+
+[org/compiz/profiles/Default/plugins/fade]
+fade-time=180.0
+
+[org/compiz/profiles/Default/plugins/opengl]
+texture-filter=2
+sync-to-vblank=true
+
+[org/compiz/profiles/Default/plugins/scale]
+overlay-icon=1

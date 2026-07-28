@@ -1,0 +1,39 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — allègement de l'image avant compression
+# =============================================================================
+set -e
+
+echo "[lexos] hook 9900 : nettoyage"
+
+BEFORE="$(du -sm / 2>/dev/null | cut -f1 || echo 0)"
+
+# --- Droits d'exécution sur nos outils --------------------------------------
+for T in /usr/bin/lexos /usr/bin/lexfetch /usr/bin/lexos-welcome \
+         /usr/bin/lexos-theme-gen /usr/bin/lexos-wm /usr/bin/lexos-install \
+         /usr/bin/lexos-firstrun; do
+	[ -f "$T" ] && chmod 0755 "$T"
+done
+
+# --- Caches APT --------------------------------------------------------------
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+rm -f  /var/cache/apt/*.bin
+
+# --- Journaux et fichiers temporaires ---------------------------------------
+rm -rf /var/log/journal/* /var/tmp/* /tmp/* 2>/dev/null || true
+find /var/log -type f -exec truncate -s 0 {} \; 2>/dev/null || true
+
+# --- Identifiants qui doivent être régénérés au premier démarrage -----------
+: > /etc/machine-id
+rm -f /var/lib/dbus/machine-id
+ln -sf /etc/machine-id /var/lib/dbus/machine-id
+rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub 2>/dev/null || true
+
+# --- Traces de construction --------------------------------------------------
+rm -f /root/.bash_history /root/.wget-hsts 2>/dev/null || true
+rm -rf /var/cache/fontconfig/* 2>/dev/null || true
+
+AFTER="$(du -sm / 2>/dev/null | cut -f1 || echo 0)"
+echo "[lexos]   image : ${BEFORE} Mio -> ${AFTER} Mio"
+echo "[lexos] hook 9900 : ok"

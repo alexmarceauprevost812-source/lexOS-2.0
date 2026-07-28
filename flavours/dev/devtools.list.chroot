@@ -1,0 +1,62 @@
+# =============================================================================
+#  LexOS — Atelier développeur  (saveurs : dev, full)
+# =============================================================================
+
+# --- Compilation -------------------------------------------------------------
+build-essential
+gcc
+g++
+make
+cmake
+pkg-config
+gdb
+valgrind
+
+# --- Langages ----------------------------------------------------------------
+python3
+python3-pip
+python3-venv
+python3-dev
+nodejs
+npm
+default-jdk
+golang-go
+rustc
+cargo
+php-cli
+
+# --- Outils ------------------------------------------------------------------
+git
+git-lfs
+tig
+vim
+neovim
+tmux
+screen
+zsh
+fzf
+ripgrep
+fd-find
+bat
+shellcheck
+jq
+httpie
+sqlite3
+meld
+diffutils
+
+# --- Conteneurs & virtualisation --------------------------------------------
+podman
+buildah
+qemu-system-x86
+qemu-utils
+
+# --- Réseau / debug ----------------------------------------------------------
+net-tools
+nmap
+tcpdump
+traceroute
+socat
+netcat-openbsd
+strace
+ltrace

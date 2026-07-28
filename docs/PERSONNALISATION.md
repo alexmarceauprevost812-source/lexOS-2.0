@@ -1,0 +1,281 @@
+# Personnaliser LexOS
+
+Deux niveaux : **à chaud** sur un système qui tourne, ou **à la source** dans
+l'ISO que tu construis. Les deux sont documentés ici.
+
+---
+
+## 1. À chaud — changer sans reconstruire
+
+### La couleur d'accent
+
+Elle habille les boutons, les sélections, le curseur du terminal, les barres de
+progression et le liseré du dock.
+
+```bash
+lexos accent            # affiche l'accent courant et la liste
+lexos accent violet     # applique immédiatement
+```
+
+| Nom | Code | Variante claire | Variante foncée |
+|---|---|---|---|
+| `orange` *(défaut)* | `#E8873A` | `#FFA45C` | `#B4551C` |
+| `bleu` | `#3D8BFD` | `#6EA8FE` | `#0A58CA` |
+| `rouge` | `#E5484D` | `#FF6B6F` | `#A32B2F` |
+| `vert` | `#1F8F4E` | `#2DBF6B` | `#125C32` |
+| `gris` | `#8A8A8A` | `#B4B4B4` | `#5A5A5A` |
+| `violet` | `#8B5CF6` | `#A78BFA` | `#6234D1` |
+
+Le choix est écrit dans `~/.config/lexos/accent` et rejoué à chaque session.
+Les applications déjà ouvertes gardent l'ancienne couleur : ferme-les et
+rouvre-les.
+
+### Le fond d'écran
+
+```bash
+lexos wallpaper                                              # celui par défaut
+lexos wallpaper /usr/share/backgrounds/lexos/wallpaper-crt.png
+lexos wallpaper ~/Images/mon-fond.png
+```
+
+Fonds livrés dans `/usr/share/backgrounds/lexos/` :
+
+| Fichier | Description |
+|---|---|
+| `wallpaper.png` | Noir pur, braise orange, marque LexOS |
+| `wallpaper-crt.png` | Variante avec lignes de balayage et masque de phosphore |
+| `wallpaper-4k.png` | Même visuel en 3840×2160 |
+| `mascot*.png` | Les illustrations du masque |
+
+### Les effets de fenêtres
+
+```bash
+lexos crt status    # dit ce qui tourne réellement et pourquoi
+lexos crt off       # xfwm4 seul : fondus simples, très léger
+lexos crt on        # Compiz : effet téléviseur (redémarrer la session)
+```
+
+Réglage fin des effets : `ccsm` (CompizConfig Settings Manager) →
+**Effects** → **Animations**. Les effets utilisés par défaut :
+
+| Événement | Effet | Durée |
+|---|---|---|
+| Ouverture | Glide 2 | 220 ms |
+| Fermeture | Glide 2 | 260 ms |
+| Réduction | Magic Lamp | 300 ms |
+| Menus | Glide 2 | 220 ms |
+| Infobulles | Fade | 150 ms |
+
+### Le terminal
+
+Le fichier `~/.config/xfce4/terminal/terminalrc` est régénéré par
+`lexos-theme-gen` à chaque changement d'accent. Pour figer tes propres
+couleurs, édite-le puis évite `lexos accent` — ou modifie plutôt
+`lexos-theme-gen` (voir plus bas).
+
+Valeurs par défaut :
+
+```ini
+ColorBackground=#000000     ; noir pur
+ColorForeground=#23A55A     ; vert foncé
+ColorCursor=<accent>        ; orange par défaut
+FontName=Fira Code 11
+```
+
+### Le dock
+
+Clic droit sur le dock → **Préférences** : position, taille des icônes, zoom,
+masquage. Pour ajouter une application, glisse son icône depuis le menu.
+
+Les valeurs par défaut de l'image sont dans
+`/etc/dconf/db/local.d/00-lexos-dock`.
+
+---
+
+## 2. À la source — reconstruire ton ISO
+
+### `lexos.conf` : la seule source de vérité
+
+Tout part de là. Modifie, relance `make build`, et l'ISO entière suit :
+`/etc/os-release`, la bannière de console, le menu de démarrage,
+l'installateur, le thème.
+
+```bash
+LEXOS_NAME="LexOS"              # le nom partout dans le système
+LEXOS_VERSION="1.0"
+LEXOS_CODENAME="Nomad"
+LEXOS_BRAND="TI-LEX-AL"
+LEXOS_TAGLINE="Explore. Build. Own your machine."
+
+LEXOS_DEBIAN_SUITE="bookworm"   # bookworm (stable) ou trixie (testing)
+LEXOS_ARCH="amd64"
+
+LEXOS_LIVE_USER="lex"           # nom du compte en session démo
+LEXOS_HOSTNAME="lexos"
+LEXOS_TIMEZONE="America/Toronto"
+LEXOS_LOCALE="fr_CA.UTF-8"
+LEXOS_KEYBOARD_LAYOUT="ca"
+LEXOS_KEYBOARD_VARIANT="fr"
+
+LEXOS_ACCENT_NAME="orange"      # accent par défaut du système construit
+LEXOS_CRT_EFFECTS="on"          # effets TV activés par défaut
+LEXOS_FLAVOUR="standard"
+```
+
+### Ajouter ou retirer des logiciels
+
+Une ligne = un nom de paquet Debian. Les lignes vides et celles commençant par
+`#` sont ignorées.
+
+| Fichier | Portée |
+|---|---|
+| `config/package-lists/lexos-core.list.chroot` | Toutes les saveurs |
+| `flavours/standard/desktop.list.chroot` | standard, dev, full |
+| `flavours/dev/devtools.list.chroot` | dev, full |
+| `flavours/full/office-media.list.chroot` | full |
+
+Pour vérifier qu'un paquet existe avant de l'ajouter :
+
+```bash
+apt-cache search --names-only '^neovim$'
+```
+
+Créer une saveur à toi :
+
+```bash
+mkdir -p flavours/gaming
+cat > flavours/gaming/jeux.list.chroot <<'EOF'
+steam-installer
+lutris
+gamemode
+mangohud
+EOF
+```
+
+Puis déclare-la dans `build.sh` (fonction de sélection de saveur) et dans le
+`case` de validation.
+
+### Remplacer les visuels
+
+Le dossier `branding/` contient les sources. Garde les mêmes noms de fichiers
+et tout suit automatiquement.
+
+| Fichier | Où ça apparaît | Format conseillé |
+|---|---|---|
+| `logo-ti-lex-al.png` | Icônes système, Plymouth, Calamares | PNG carré ≥ 512 px |
+| `logo.svg` | Icône vectorielle (menus, panneau) | SVG 512×512 |
+| `wallpaper.svg` | Fond d'écran par défaut, LightDM, GRUB | SVG 16:9 |
+| `wallpaper-crt.svg` | Fond alternatif | SVG 16:9 |
+| `mascot.webp` | Avatar de session, écran d'accueil | WebP ou PNG portrait |
+| `config/bootloaders/isolinux/splash.svg` | Menu de démarrage | SVG 640×480 |
+
+Regarder le résultat sans construire l'ISO complète :
+
+```bash
+make preview        # rend les SVG en PNG dans ./preview/
+```
+
+Les `.webp` sont convertis en `.png` pendant la construction (hook 0300),
+parce que peu de composants GTK savent lire le WebP nativement.
+
+### Modifier le thème lui-même
+
+Le générateur est
+[`config/includes.chroot/usr/bin/lexos-theme-gen`](../config/includes.chroot/usr/bin/lexos-theme-gen).
+C'est un script Bash lisible qui produit :
+
+* `~/.config/gtk-3.0/gtk.css` et `gtk-4.0/gtk.css`
+* `~/.gtkrc-2.0` (vieilles applications)
+* `~/.config/xfce4/terminal/terminalrc`
+* `~/.config/lexos/theme.conf` (variables réutilisables)
+
+Ajouter une couleur d'accent, par exemple un cyan :
+
+```bash
+# dans lexos-theme-gen, section « Palette des accents »
+cyan|turquoise)  ACCENT="#22B8CF"; ACCENT_HI="#4DD4E8"; ACCENT_LO="#0B7285" ;;
+```
+
+Puis autorise-la dans la validation de `.github/workflows/ci.yml` et dans
+`lexos.conf`.
+
+Changer le noir pur pour un gris très sombre :
+
+```bash
+BG="#0B0B0D"        # au lieu de #000000
+```
+
+### Modifier la disposition du bureau
+
+| Quoi | Fichier |
+|---|---|
+| Barre du haut | `config/includes.chroot/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml` |
+| Gestionnaire de fenêtres | `.../xfwm4.xml` |
+| Polices, thème, curseur | `.../xsettings.xml` |
+| Programmes lancés à l'ouverture | `.../xfce4-session.xml` |
+| Dock (icônes) | `config/includes.chroot/etc/skel/.config/plank/dock1/launchers/` |
+| Dock (comportement) | `config/includes.chroot/etc/dconf/db/local.d/00-lexos-dock` |
+| Effets Compiz | `config/includes.chroot/etc/dconf/db/local.d/01-lexos-compiz` |
+
+Le plus simple : configure le bureau à la main dans une session live, puis
+recopie les fichiers obtenus (`~/.config/xfce4/xfconf/…`) dans `etc/skel/`.
+
+### Ajouter un hook
+
+Les hooks s'exécutent **dans le système en construction**, dans l'ordre de
+leur numéro.
+
+```bash
+cat > config/hooks/normal/0700-mon-hook.hook.chroot <<'EOF'
+#!/bin/sh
+set -e
+echo "[lexos] hook 0700 : ma personnalisation"
+
+# Ici tu es root, à l'intérieur du futur système.
+systemctl disable bluetooth.service || true
+echo "monserveur.local" >> /etc/hosts
+
+echo "[lexos] hook 0700 : ok"
+EOF
+chmod +x config/hooks/normal/0700-mon-hook.hook.chroot
+```
+
+Numérotation utilisée :
+
+| Plage | Usage |
+|---|---|
+| 0100–0199 | Identité et localisation |
+| 0300–0399 | Visuels |
+| 0400–0499 | Bureau |
+| 0500–0599 | Installateur |
+| 0600–0699 | Thème |
+| 0700–8999 | **Libre pour toi** |
+| 9900+ | Nettoyage final |
+
+> Un hook qui retourne autre chose que 0 **interrompt la construction**.
+> Termine les commandes non essentielles par `|| true`.
+
+### Ajouter des fichiers tels quels
+
+Tout ce qui est sous `config/includes.chroot/` est copié à l'identique à la
+racine du système :
+
+```
+config/includes.chroot/etc/motd            →  /etc/motd
+config/includes.chroot/usr/bin/mon-script  →  /usr/bin/mon-script
+config/includes.chroot/etc/skel/.vimrc     →  hérité par chaque nouveau compte
+```
+
+N'oublie pas `chmod +x` sur les scripts : les permissions sont préservées.
+
+---
+
+## Vérifier avant de construire
+
+```bash
+make lint       # shellcheck sur tous les scripts
+make check      # environnement de build complet ?
+```
+
+Le workflow CI rejoue ces contrôles à chaque poussée, plus la validation des
+SVG, des XML XFCE, des noms de paquets et la génération des six accents.

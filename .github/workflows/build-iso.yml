@@ -1,0 +1,87 @@
+name: Construire l'ISO
+
+# Lancement manuel uniquement : une construction consomme beaucoup de temps
+# et de bande passante. Onglet « Actions » → « Construire l'ISO » → « Run workflow ».
+on:
+  workflow_dispatch:
+    inputs:
+      flavour:
+        description: 'Saveur à construire'
+        required: true
+        default: 'standard'
+        type: choice
+        options: [minimal, standard, dev, full]
+      suite:
+        description: 'Suite Debian (bookworm = stable)'
+        required: false
+        default: 'bookworm'
+        type: string
+
+jobs:
+  iso:
+    name: ISO ${{ inputs.flavour }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Libérer de l'espace disque
+        run: |
+          echo "Avant :"; df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force || true
+          echo "Après :"; df -h /
+
+      - name: Installer live-build
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            live-build debootstrap xorriso squashfs-tools \
+            rsync wget gnupg ca-certificates \
+            syslinux-common isolinux grub-efi-amd64-bin grub-pc-bin \
+            mtools dosfstools librsvg2-bin
+
+      - name: Construire
+        run: |
+          sudo ./build.sh --flavour "${{ inputs.flavour }}" --suite "${{ inputs.suite }}"
+
+      - name: Résumé
+        if: always()
+        run: |
+          {
+            echo "## LexOS — ${{ inputs.flavour }} (${{ inputs.suite }})"
+            echo
+            if ls ./*.iso >/dev/null 2>&1; then
+              echo '```'
+              ls -lh ./*.iso
+              cat ./*.iso.sha256 2>/dev/null || true
+              echo '```'
+            else
+              echo "Aucune ISO produite — voir le journal ci-dessous."
+              echo '```'
+              tail -n 80 build.log 2>/dev/null || echo "(pas de build.log)"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Téléverser l'ISO
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lexos-${{ inputs.flavour }}-iso
+          path: |
+            *.iso
+            *.iso.sha256
+          retention-days: 7
+          compression-level: 0
+
+      - name: Téléverser le journal en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ inputs.flavour }}
+          path: build.log
+          retention-days: 7
+          if-no-files-found: ignore

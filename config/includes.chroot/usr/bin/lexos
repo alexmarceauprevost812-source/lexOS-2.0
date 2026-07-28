@@ -1,0 +1,388 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos — couteau suisse en ligne de commande de LexOS
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+# --- Couleurs ----------------------------------------------------------------
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+err()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; }
+die()  { err "$*"; exit 1; }
+
+need_root() {
+	if [[ $EUID -ne 0 ]]; then
+		if command -v sudo >/dev/null 2>&1; then
+			exec sudo -E "$0" "$@"
+		fi
+		die "Cette commande demande les droits administrateur (root)."
+	fi
+}
+
+load_release() {
+	LEXOS_NAME="LexOS"; LEXOS_VERSION="?"; LEXOS_CODENAME="?"
+	LEXOS_FLAVOUR="?"; LEXOS_BUILD_DATE="?"; LEXOS_BUILD_ID="?"
+	LEXOS_HOME_URL=""; DEBIAN_BASE="?"
+	if [[ -r /etc/os-release ]]; then
+		# shellcheck disable=SC1091
+		. /etc/os-release
+		LEXOS_NAME="${NAME:-LexOS}"
+		LEXOS_VERSION="${VERSION_ID:-?}"
+		LEXOS_CODENAME="${VERSION_CODENAME:-?}"
+		LEXOS_HOME_URL="${HOME_URL:-}"
+		DEBIAN_BASE="${DEBIAN_BASE:-?}"
+		LEXOS_FLAVOUR="${LEXOS_FLAVOUR:-?}"
+		LEXOS_BUILD_DATE="${LEXOS_BUILD_DATE:-?}"
+		LEXOS_BUILD_ID="${LEXOS_BUILD_ID:-?}"
+	fi
+}
+
+# =============================================================================
+#  Commandes
+# =============================================================================
+
+cmd_help() {
+	load_release
+	cat <<EOF
+
+${B}${O}${LEXOS_NAME}${R} ${D}${LEXOS_VERSION} « ${LEXOS_CODENAME} »${R}
+
+${B}USAGE${R}
+  ${PROG} <commande> [arguments]
+
+${B}SYSTÈME${R}
+  ${A}info${R}                Résumé du système (alias : ${D}lexfetch${R})
+  ${A}version${R}             Version de LexOS
+  ${A}doctor${R}              Diagnostic : disque, réseau, services, mises à jour
+  ${A}logs${R} [n]            ${D}n${R} dernières erreurs du journal (défaut : 40)
+
+${B}PAQUETS${R}
+  ${A}update${R}              Rafraîchir la liste des paquets
+  ${A}upgrade${R}             Mettre à jour tout le système
+  ${A}install${R} <paquets…>  Installer des paquets
+  ${A}remove${R}  <paquets…>  Désinstaller des paquets
+  ${A}search${R}  <terme>     Chercher un paquet
+  ${A}clean${R}               Libérer de l'espace (caches, orphelins, journaux)
+
+${B}APPARENCE${R}
+  ${A}accent${R} <couleur>    Couleur des boutons et des sélections
+                      ${D}orange (défaut) · bleu · rouge · vert · gris · violet${R}
+  ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
+  ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
+
+${B}DÉMO & INSTALLATION${R}
+  ${A}demo${R}                Où en est-on : clé USB (démo) ou disque dur ?
+  ${A}install-disk${R}        Installer sur le disque ${D}(confirmation exigée)${R}
+
+${B}EXEMPLES${R}
+  ${D}${PROG} install neovim tmux${R}
+  ${D}${PROG} accent violet${R}
+  ${D}${PROG} crt off${R}
+
+EOF
+	[[ -n "$LEXOS_HOME_URL" ]] && printf '%s%s%s\n\n' "$D" "$LEXOS_HOME_URL" "$R"
+}
+
+cmd_version() {
+	load_release
+	printf '%s%s%s %s (%s)\n' "$B$O" "$LEXOS_NAME" "$R" "$LEXOS_VERSION" "$LEXOS_CODENAME"
+	printf '  saveur   : %s\n' "$LEXOS_FLAVOUR"
+	printf '  build    : %s (%s)\n' "$LEXOS_BUILD_DATE" "$LEXOS_BUILD_ID"
+	printf '  base     : Debian %s\n' "$DEBIAN_BASE"
+	printf '  noyau    : %s\n' "$(uname -r)"
+}
+
+cmd_info() {
+	if command -v lexfetch >/dev/null 2>&1; then
+		exec lexfetch
+	fi
+	cmd_version
+}
+
+cmd_update() {
+	need_root update
+	say "Rafraîchissement des dépôts…"
+	apt-get update && ok "Listes à jour" || die "Échec de la mise à jour des listes"
+	local n
+	n="$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst ')"
+	if [[ "$n" -gt 0 ]]; then
+		say "${n} paquet(s) peuvent être mis à jour — lance : ${D}${PROG} upgrade${R}"
+	else
+		ok "Système déjà à jour"
+	fi
+}
+
+cmd_upgrade() {
+	need_root upgrade
+	say "Mise à jour du système…"
+	apt-get update || die "Échec de la mise à jour des listes"
+	DEBIAN_FRONTEND=noninteractive apt-get -y full-upgrade || die "Échec de la mise à jour"
+	apt-get -y autoremove --purge
+	ok "Système à jour"
+}
+
+cmd_install() {
+	[[ $# -gt 0 ]] || die "Usage : ${PROG} install <paquet> [paquet…]"
+	need_root install "$@"
+	say "Installation : $*"
+	apt-get update -qq
+	apt-get install -y "$@" || die "Installation échouée"
+	ok "Installé : $*"
+}
+
+cmd_remove() {
+	[[ $# -gt 0 ]] || die "Usage : ${PROG} remove <paquet> [paquet…]"
+	need_root remove "$@"
+	say "Désinstallation : $*"
+	apt-get remove --purge -y "$@" || die "Désinstallation échouée"
+	apt-get -y autoremove --purge
+	ok "Désinstallé : $*"
+}
+
+cmd_search() {
+	[[ $# -gt 0 ]] || die "Usage : ${PROG} search <terme>"
+	apt-cache search --names-only "$1" | head -n 40
+}
+
+cmd_clean() {
+	need_root clean
+	local before after
+	before="$(df -Pk / | awk 'NR==2{print $4}')"
+
+	say "Nettoyage du cache APT…"
+	apt-get clean
+	apt-get -y autoremove --purge >/dev/null
+
+	say "Rotation des journaux systemd…"
+	journalctl --vacuum-time=7d >/dev/null 2>&1 || true
+
+	say "Vidage des caches miniatures…"
+	rm -rf /home/*/.cache/thumbnails/* /root/.cache/thumbnails/* 2>/dev/null || true
+
+	after="$(df -Pk / | awk 'NR==2{print $4}')"
+	local freed=$(( (after - before) / 1024 ))
+	(( freed < 0 )) && freed=0
+	ok "Terminé — ${freed} Mio libérés"
+}
+
+cmd_doctor() {
+	load_release
+	printf '\n%s%s — diagnostic%s\n\n' "$B$O" "$LEXOS_NAME" "$R"
+
+	# Disque
+	local use
+	use="$(df -Ph / | awk 'NR==2{gsub(/%/,"",$5); print $5}')"
+	if (( use >= 90 )); then
+		err "Disque / rempli à ${use}% — fais du ménage (${PROG} clean)"
+	elif (( use >= 75 )); then
+		warn "Disque / rempli à ${use}%"
+	else
+		ok "Disque / : ${use}% utilisé"
+	fi
+
+	# Mémoire
+	if [[ -r /proc/meminfo ]]; then
+		local t a p
+		t="$(awk '/MemTotal/{print $2}' /proc/meminfo)"
+		a="$(awk '/MemAvailable/{print $2}' /proc/meminfo)"
+		p=$(( 100 - (a * 100 / t) ))
+		if (( p >= 90 )); then warn "Mémoire utilisée à ${p}%"
+		else ok "Mémoire : ${p}% utilisée"; fi
+	fi
+
+	# Réseau
+	if ping -c1 -W3 deb.debian.org >/dev/null 2>&1; then
+		ok "Réseau : dépôts Debian joignables"
+	else
+		warn "Réseau : impossible de joindre deb.debian.org"
+	fi
+
+	# Services en échec
+	if command -v systemctl >/dev/null 2>&1; then
+		local failed
+		failed="$(systemctl --failed --no-legend --plain 2>/dev/null | wc -l)"
+		if (( failed > 0 )); then
+			warn "${failed} service(s) en échec :"
+			systemctl --failed --no-legend --plain 2>/dev/null | awk '{print "    - "$1}'
+		else
+			ok "Aucun service en échec"
+		fi
+	fi
+
+	# Mises à jour
+	if command -v apt-get >/dev/null 2>&1; then
+		local n
+		n="$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst ')"
+		if (( n > 0 )); then
+			warn "${n} mise(s) à jour disponible(s) — ${PROG} upgrade"
+		else
+			ok "Aucune mise à jour en attente"
+		fi
+	fi
+
+	# Redémarrage requis
+	if [[ -f /var/run/reboot-required ]]; then
+		warn "Un redémarrage est requis"
+	fi
+
+	printf '\n'
+}
+
+cmd_logs() {
+	local n="${1:-40}"
+	if command -v journalctl >/dev/null 2>&1; then
+		journalctl -p err -n "$n" --no-pager
+	else
+		tail -n "$n" /var/log/syslog 2>/dev/null || die "Aucun journal disponible"
+	fi
+}
+
+cmd_wallpaper() {
+	local img="${1:-/usr/share/backgrounds/lexos/wallpaper.png}"
+	[[ -r "$img" ]] || die "Image introuvable : $img"
+	command -v xfconf-query >/dev/null 2>&1 \
+		|| die "xfconf-query absent — cette commande demande le bureau XFCE."
+	[[ -n "${DISPLAY:-}" ]] || die "Aucune session graphique détectée."
+
+	local prop count=0
+	while read -r prop; do
+		[[ "$prop" == *last-image ]] || continue
+		xfconf-query -c xfce4-desktop -p "$prop" -s "$img" && count=$((count + 1))
+	done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null)
+
+	if (( count > 0 )); then
+		ok "Fond d'écran appliqué sur ${count} écran(s) : $img"
+	else
+		die "Aucune propriété de fond d'écran trouvée."
+	fi
+}
+
+cmd_accent() {
+	local name="${1:-}"
+	if [[ -z "$name" ]]; then
+		local cur="orange"
+		[[ -r "$HOME/.config/lexos/accent" ]] && cur="$(cat "$HOME/.config/lexos/accent")"
+		printf 'Accent courant : %s%s%s\n' "$O" "$cur" "$R"
+		printf 'Disponibles    : orange bleu rouge vert gris violet\n'
+		return 0
+	fi
+	command -v lexos-theme-gen >/dev/null 2>&1 \
+		|| die "lexos-theme-gen introuvable."
+	lexos-theme-gen "$name" || exit 1
+
+	# Recharge à chaud ce qui peut l'être.
+	if command -v xfconf-query >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+		local t
+		t="$(xfconf-query -c xsettings -p /Net/ThemeName 2>/dev/null || echo Arc-Dark)"
+		xfconf-query -c xsettings -p /Net/ThemeName -s "Adwaita"  2>/dev/null || true
+		xfconf-query -c xsettings -p /Net/ThemeName -s "$t"       2>/dev/null || true
+	fi
+	ok "Ferme et rouvre tes fenêtres pour que tout prenne la nouvelle couleur."
+}
+
+cmd_crt() {
+	local mode="${1:-status}"
+	local state_dir="$HOME/.config/lexos"
+	mkdir -p "$state_dir"
+	case "$mode" in
+		on|off)
+			printf '%s\n' "$mode" > "$state_dir/crt"
+			ok "Effets CRT : ${mode} — déconnecte-toi et reconnecte-toi pour appliquer."
+			;;
+		status)
+			local cur="on"
+			[[ -r "$state_dir/crt" ]] && cur="$(cat "$state_dir/crt")"
+			printf 'Effets CRT demandés : %s%s%s\n' "$O" "$cur" "$R"
+			if pgrep -x compiz >/dev/null 2>&1; then
+				ok "Compiz tourne — les effets sont actifs."
+			else
+				warn "Compiz ne tourne pas (repli xfwm4, sûrement pas d'accélération 3D)."
+				[[ -r "$state_dir/wm.log" ]] && tail -n 5 "$state_dir/wm.log"
+			fi
+			;;
+		*) die "Usage : ${PROG} crt <on|off|status>" ;;
+	esac
+}
+
+cmd_demo() {
+	load_release
+	local live=0
+	grep -qa 'boot=live' /proc/cmdline 2>/dev/null && live=1
+	printf '\n'
+	if (( live )); then
+		printf '  %sSession DÉMO%s — tu tournes depuis la clé USB.\n' "$G" "$R"
+		printf '  Ton disque dur n'\''est %spas%s touché : essaie tout ce que tu veux.\n' "$B" "$R"
+		local medium
+		medium="$(findmnt -no SOURCE /run/live/medium 2>/dev/null || echo 'inconnu')"
+		printf '  Support     : %s\n' "$medium"
+		printf '\n  Quand tu es convaincu : %s%s install%s\n' "$O" "$PROG" "$R"
+	else
+		printf '  %s%s est installé sur ce disque%s (pas une session démo).\n' "$B" "$LEXOS_NAME" "$R"
+		printf '  Disque racine : %s\n' "$(findmnt -no SOURCE / 2>/dev/null || echo '?')"
+	fi
+	printf '\n'
+}
+
+cmd_install_disk() {
+	command -v lexos-install >/dev/null 2>&1 \
+		|| die "lexos-install introuvable sur cette image."
+	exec lexos-install "$@"
+}
+
+cmd_theme() {
+	local mode="${1:-}"
+	command -v xfconf-query >/dev/null 2>&1 \
+		|| die "xfconf-query absent — cette commande demande le bureau XFCE."
+	local gtk icons
+	case "$mode" in
+		dark)  gtk="Arc-Dark";  icons="Papirus-Dark" ;;
+		light) gtk="Arc";       icons="Papirus" ;;
+		accent) shift; cmd_accent "$@"; return ;;
+		*) die "Usage : ${PROG} theme <dark|light>  ·  ${PROG} accent <couleur>" ;;
+	esac
+	xfconf-query -c xsettings -p /Net/ThemeName        -s "$gtk"
+	xfconf-query -c xsettings -p /Net/IconThemeName    -s "$icons"
+	xfconf-query -c xfwm4     -p /general/theme        -s "$gtk"
+	ok "Thème : ${mode} (${gtk} / ${icons})"
+}
+
+# =============================================================================
+#  Répartiteur
+# =============================================================================
+CMD="${1:-help}"
+[[ $# -gt 0 ]] && shift
+
+case "$CMD" in
+	help|--help|-h)       cmd_help ;;
+	version|--version|-V) cmd_version ;;
+	info|status)          cmd_info ;;
+	update)               cmd_update ;;
+	upgrade|up)           cmd_upgrade ;;
+	install|add)          cmd_install "$@" ;;
+	remove|rm|uninstall)  cmd_remove "$@" ;;
+	search|find)          cmd_search "$@" ;;
+	clean|cleanup)        cmd_clean ;;
+	doctor|check)         cmd_doctor ;;
+	logs|log)             cmd_logs "$@" ;;
+	wallpaper|bg)         cmd_wallpaper "$@" ;;
+	theme)                cmd_theme "$@" ;;
+	accent)               cmd_accent "$@" ;;
+	crt)                  cmd_crt "$@" ;;
+	demo|live)            cmd_demo ;;
+	install-disk|setup)   cmd_install_disk "$@" ;;
+	*)
+		err "Commande inconnue : ${CMD}"
+		printf '  Essaie : %s help\n' "$PROG" >&2
+		exit 1
+		;;
+esac

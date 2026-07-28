@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LexOS — mise en place
+Comment=Applique le thème et le fond d'écran LexOS à la première session
+Exec=lexos-firstrun
+Icon=lexos
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Phase=Applications

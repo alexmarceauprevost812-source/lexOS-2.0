@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — barre du haut, façon Ubuntu.
+  Le dock vertical de gauche est géré par Plank (voir ~/.config/plank).
+-->
+<channel name="xfce4-panel" version="1.0">
+  <property name="configver" type="int" value="2"/>
+  <property name="dark-mode" type="bool" value="true"/>
+
+  <property name="panels" type="array">
+    <value type="int" value="1"/>
+
+    <property name="panel-1" type="empty">
+      <property name="position"        type="string" value="p=6;x=0;y=0"/>
+      <property name="position-locked" type="bool"   value="true"/>
+      <property name="length"          type="uint"   value="100"/>
+      <property name="length-adjust"   type="bool"   value="true"/>
+      <property name="size"            type="uint"   value="30"/>
+      <property name="icon-size"       type="uint"   value="16"/>
+      <property name="mode"            type="uint"   value="0"/>
+      <property name="autohide-behavior" type="uint" value="0"/>
+      <property name="enter-opacity"   type="uint"   value="100"/>
+      <property name="leave-opacity"   type="uint"   value="100"/>
+      <property name="background-style" type="uint"  value="1"/>
+      <property name="background-rgba" type="array">
+        <value type="double" value="0.000000"/>
+        <value type="double" value="0.000000"/>
+        <value type="double" value="0.000000"/>
+        <value type="double" value="1.000000"/>
+      </property>
+      <property name="plugin-ids" type="array">
+        <value type="int" value="1"/>
+        <value type="int" value="2"/>
+        <value type="int" value="3"/>
+        <value type="int" value="4"/>
+        <value type="int" value="5"/>
+        <value type="int" value="6"/>
+        <value type="int" value="7"/>
+        <value type="int" value="8"/>
+      </property>
+    </property>
+  </property>
+
+  <property name="plugins" type="empty">
+
+    <!-- 1 · Menu principal (équivalent « Activités ») -->
+    <property name="plugin-1" type="string" value="whiskermenu">
+      <property name="button-title"      type="string" value="Applications"/>
+      <property name="button-icon"       type="string" value="lexos"/>
+      <property name="show-button-title" type="bool"   value="true"/>
+      <property name="show-button-icon"  type="bool"   value="true"/>
+      <property name="show-app-icons"    type="bool"   value="true"/>
+      <property name="load-hierarchy"    type="bool"   value="false"/>
+      <property name="category-icon-size" type="int"   value="1"/>
+      <property name="item-icon-size"    type="int"    value="2"/>
+      <property name="menu-width"        type="int"    value="500"/>
+      <property name="menu-height"       type="int"    value="560"/>
+      <property name="position-search-alternate" type="bool" value="true"/>
+      <property name="position-commands-alternate" type="bool" value="true"/>
+      <property name="position-categories-horizontal" type="bool" value="false"/>
+      <property name="favorites" type="array">
+        <value type="string" value="firefox-esr.desktop"/>
+        <value type="string" value="xfce4-terminal.desktop"/>
+        <value type="string" value="thunar.desktop"/>
+        <value type="string" value="org.xfce.mousepad.desktop"/>
+        <value type="string" value="lexos-about.desktop"/>
+      </property>
+    </property>
+
+    <!-- 2 · Espace élastique -->
+    <property name="plugin-2" type="string" value="separator">
+      <property name="expand" type="bool" value="true"/>
+      <property name="style"  type="uint" value="0"/>
+    </property>
+
+    <!-- 3 · Horloge centrale -->
+    <property name="plugin-3" type="string" value="clock">
+      <property name="mode"         type="uint"   value="2"/>
+      <property name="digital-format" type="string" value="%a %d %b  %H:%M"/>
+      <property name="digital-time-format" type="string" value="%a %d %b  %H:%M"/>
+      <property name="tooltip-format" type="string" value="%A %d %B %Y"/>
+    </property>
+
+    <!-- 4 · Espace élastique -->
+    <property name="plugin-4" type="string" value="separator">
+      <property name="expand" type="bool" value="true"/>
+      <property name="style"  type="uint" value="0"/>
+    </property>
+
+    <!-- 5 · Zone de notification -->
+    <property name="plugin-5" type="string" value="systray">
+      <property name="square-icons"  type="bool" value="true"/>
+      <property name="symbolic-icons" type="bool" value="true"/>
+    </property>
+
+    <!-- 6 · Son -->
+    <property name="plugin-6" type="string" value="pulseaudio">
+      <property name="enable-keyboard-shortcuts" type="bool" value="true"/>
+      <property name="show-notifications"        type="bool" value="true"/>
+    </property>
+
+    <!-- 7 · Batterie / énergie -->
+    <property name="plugin-7" type="string" value="power-manager-plugin"/>
+
+    <!-- 8 · Session (verrouiller, éteindre) -->
+    <property name="plugin-8" type="string" value="actions">
+      <property name="appearance" type="int" value="0"/>
+      <property name="items" type="array">
+        <value type="string" value="+lock-screen"/>
+        <value type="string" value="+switch-user"/>
+        <value type="string" value="+separator"/>
+        <value type="string" value="+suspend"/>
+        <value type="string" value="+restart"/>
+        <value type="string" value="+shutdown"/>
+        <value type="string" value="+separator"/>
+        <value type="string" value="+logout"/>
+      </property>
+    </property>
+
+  </property>
+</channel>

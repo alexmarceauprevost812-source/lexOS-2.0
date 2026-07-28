@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-welcome — écran de bienvenue (première session) et « À propos »
+# =============================================================================
+set -uo pipefail
+
+STAMP="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/welcome-done"
+BRAND="/usr/share/lexos/branding"
+ABOUT_ONLY=0
+FIRST_RUN=0
+
+for arg in "$@"; do
+	case "$arg" in
+		--about)     ABOUT_ONLY=1 ;;
+		--first-run) FIRST_RUN=1 ;;
+	esac
+done
+
+# Au démarrage automatique : on ne montre rien si l'utilisateur a déjà répondu.
+if (( FIRST_RUN )) && [[ -f "$STAMP" ]]; then
+	exit 0
+fi
+
+# --- Informations système ----------------------------------------------------
+NAME="LexOS"; VER="?"; CODE="?"; FLAV="?"; BUILD="?"; URL=""
+if [[ -r /etc/os-release ]]; then
+	# shellcheck disable=SC1091
+	. /etc/os-release
+	NAME="${NAME:-LexOS}"
+	VER="${VERSION_ID:-?}"
+	CODE="${VERSION_CODENAME:-?}"
+	URL="${HOME_URL:-}"
+	FLAV="${LEXOS_FLAVOUR:-?}"
+	BUILD="${LEXOS_BUILD_DATE:-?}"
+fi
+
+LIVE=0
+grep -qa 'boot=live' /proc/cmdline 2>/dev/null && LIVE=1
+
+# --- Repli console -----------------------------------------------------------
+tty_fallback() {
+	printf '\n  %s %s (%s) — saveur %s, build %s\n' "$NAME" "$VER" "$CODE" "$FLAV" "$BUILD"
+	printf '  %s\n\n' "$URL"
+	printf '  lexos help    liste des commandes\n'
+	printf '  lexfetch      infos système\n\n'
+	if (( LIVE )); then
+		printf '  Session live : « sudo calamares » pour installer sur le disque.\n\n'
+	fi
+}
+
+if [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+	tty_fallback
+	exit 0
+fi
+
+# --- Texte du dialogue -------------------------------------------------------
+if (( LIVE )); then
+	INTRO="Tu es en <b>session live</b> : rien n'est écrit sur ton disque.\nEssaie le système, puis installe-le quand tu es prêt."
+else
+	INTRO="Bienvenue sur ton système.\nTout est configuré, il n'y a plus qu'à s'en servir."
+fi
+
+MARKUP="<span size='xx-large' weight='bold'>${NAME} ${VER}</span>  <span alpha='60%'>« ${CODE} »</span>
+
+${INTRO}
+
+<span alpha='70%'>saveur ${FLAV}  ·  build ${BUILD}</span>
+
+<b>Pour commencer</b>
+  <tt>lexos help</tt>       les commandes du système
+  <tt>lexfetch</tt>          la fiche technique de ta machine
+  <tt>lexos doctor</tt>   un diagnostic rapide
+  <tt>lexos theme light</tt>  passer en thème clair"
+
+open_terminal() {
+	for t in xfce4-terminal x-terminal-emulator gnome-terminal xterm; do
+		if command -v "$t" >/dev/null 2>&1; then
+			setsid "$t" >/dev/null 2>&1 &
+			return 0
+		fi
+	done
+	return 1
+}
+
+open_url() {
+	[[ -n "$URL" ]] || return 0
+	command -v xdg-open >/dev/null 2>&1 && setsid xdg-open "$URL" >/dev/null 2>&1 &
+}
+
+start_installer() {
+	if command -v calamares >/dev/null 2>&1; then
+		setsid sudo -E calamares >/dev/null 2>&1 &
+	else
+		notify-send "LexOS" "Installateur introuvable." 2>/dev/null || true
+	fi
+}
+
+mark_done() {
+	mkdir -p "$(dirname "$STAMP")"
+	date -u '+%Y-%m-%dT%H:%M:%SZ' > "$STAMP"
+}
+
+# --- Dialogue ----------------------------------------------------------------
+ICON="$BRAND/mascot.png"
+[[ -r "$ICON" ]] || ICON="/usr/share/pixmaps/lexos.png"
+
+if command -v yad >/dev/null 2>&1; then
+	BTNS=(--button="Fermer:0" --button="Ouvrir un terminal:2" --button="Documentation:3")
+	(( LIVE && ! ABOUT_ONLY )) && BTNS+=(--button="Installer ${NAME}:4")
+
+	OUT="$(yad --form \
+		--title="Bienvenue sur ${NAME}" \
+		--window-icon=lexos \
+		--image="$ICON" --image-on-top \
+		--width=620 --height=430 \
+		--center --borders=18 \
+		--text="$MARKUP" \
+		--field="Ne plus afficher ce message:CHK" false \
+		"${BTNS[@]}" 2>/dev/null)"
+	RC=$?
+
+	[[ "$OUT" == TRUE* ]] && mark_done
+
+	case $RC in
+		2) open_terminal ;;
+		3) open_url ;;
+		4) start_installer ;;
+	esac
+	exit 0
+fi
+
+if command -v zenity >/dev/null 2>&1; then
+	zenity --info --no-markup=false \
+		--title="Bienvenue sur ${NAME}" \
+		--width=520 \
+		--text="$MARKUP" 2>/dev/null
+	mark_done
+	exit 0
+fi
+
+tty_fallback

@@ -1,0 +1,165 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — rendu des visuels : logo TI-LEX-AL, mascotte, fonds d'écran, Plymouth
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0300 : visuels"
+
+BRAND="/usr/share/lexos/branding"
+BG="/usr/share/backgrounds/lexos"
+mkdir -p "$BG" "$BRAND" /usr/share/pixmaps
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# --- WebP -> PNG -------------------------------------------------------------
+# Les mascottes sont livrées en .webp : peu d'outils GTK savent les lire.
+for W in "$BRAND"/*.webp; do
+	[ -e "$W" ] || continue
+	OUT="${W%.webp}.png"
+	if have dwebp; then
+		dwebp -quiet "$W" -o "$OUT" && echo "[lexos]   webp -> $OUT"
+	elif have convert; then
+		convert "$W" "$OUT" && echo "[lexos]   webp -> $OUT"
+	else
+		echo "[lexos]   !! ni dwebp ni convert : $W non converti"
+	fi
+done
+
+# --- Rendu SVG ---------------------------------------------------------------
+render() { # render <src.svg> <w> <h> <dest.png>
+	if [ ! -r "$1" ]; then
+		echo "[lexos]   !! source absente : $1"
+		return 0
+	fi
+	if have rsvg-convert; then
+		rsvg-convert -w "$2" -h "$3" -o "$4" "$1" \
+			&& echo "[lexos]   -> $4" || echo "[lexos]   !! échec : $1"
+	elif have convert; then
+		convert -background none -resize "${2}x${3}" "$1" "$4" \
+			&& echo "[lexos]   -> $4" || echo "[lexos]   !! échec : $1"
+	fi
+}
+
+# --- Fonds d'écran -----------------------------------------------------------
+render "$BRAND/wallpaper.svg"     1920 1080 "$BG/wallpaper.png"
+render "$BRAND/wallpaper.svg"     3840 2160 "$BG/wallpaper-4k.png"
+render "$BRAND/wallpaper.svg"     1366  768 "$BG/wallpaper-hd.png"
+render "$BRAND/wallpaper-crt.svg" 1920 1080 "$BG/wallpaper-crt.png"
+
+# Les mascottes servent aussi de fonds d'écran alternatifs.
+for M in "$BRAND"/mascot*.png; do
+	[ -e "$M" ] || continue
+	cp "$M" "$BG/$(basename "$M")"
+done
+
+# --- Logo TI-LEX-AL : icône officielle du système ---------------------------
+LOGO_SRC=""
+if [ -r "$BRAND/logo-ti-lex-al.png" ]; then
+	LOGO_SRC="$BRAND/logo-ti-lex-al.png"
+elif [ -r "$BRAND/logo.svg" ]; then
+	LOGO_SRC="$BRAND/logo.svg"
+fi
+
+for SIZE in 16 22 24 32 48 64 128 256 512; do
+	DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+	mkdir -p "$DIR"
+	case "$LOGO_SRC" in
+		*.svg) render "$LOGO_SRC" "$SIZE" "$SIZE" "$DIR/lexos.png" ;;
+		*.png)
+			if have convert; then
+				convert "$LOGO_SRC" -resize "${SIZE}x${SIZE}" "$DIR/lexos.png" \
+					&& echo "[lexos]   -> $DIR/lexos.png"
+			fi
+			;;
+	esac
+done
+
+mkdir -p /usr/share/icons/hicolor/scalable/apps
+[ -r "$BRAND/logo.svg" ] && cp "$BRAND/logo.svg" /usr/share/icons/hicolor/scalable/apps/lexos.svg
+
+if [ -n "$LOGO_SRC" ]; then
+	case "$LOGO_SRC" in
+		*.png) cp "$LOGO_SRC" /usr/share/pixmaps/lexos.png ;;
+		*.svg) render "$LOGO_SRC" 256 256 /usr/share/pixmaps/lexos.png ;;
+	esac
+fi
+
+have gtk-update-icon-cache && \
+	gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+
+# --- Avatar de session (mascotte) -------------------------------------------
+FACE=""
+for CAND in "$BRAND/mascot.png" "$BRAND/mascot-portrait.png" "$BRAND/mascot-rock.png"; do
+	[ -r "$CAND" ] && { FACE="$CAND"; break; }
+done
+
+if [ -n "$FACE" ]; then
+	mkdir -p /usr/share/lexos/faces /var/lib/AccountsService/icons /etc/skel
+	cp "$FACE" /usr/share/lexos/faces/lexos.png
+	cp "$FACE" /etc/skel/.face
+	cp "$FACE" /var/lib/AccountsService/icons/lex
+	echo "[lexos]   avatar : $FACE"
+fi
+
+# --- Thème Plymouth ----------------------------------------------------------
+PLY_SRC="/usr/share/plymouth/themes/spinner"
+PLY_DST="/usr/share/plymouth/themes/lexos"
+
+if [ -d "$PLY_SRC" ]; then
+	rm -rf "$PLY_DST"
+	cp -a "$PLY_SRC" "$PLY_DST"
+	rm -f "$PLY_DST/spinner.plymouth"
+
+	if [ -n "$LOGO_SRC" ] && have convert; then
+		convert "$LOGO_SRC" -resize 200x200 "$PLY_DST/watermark.png" || true
+	fi
+
+	cat > "$PLY_DST/lexos.plymouth" <<'EOF'
+[Plymouth Theme]
+Name=LexOS
+Description=Ecran de demarrage LexOS
+ModuleName=two-step
+
+[two-step]
+Font=Noto Sans 12
+TitleFont=Noto Sans Bold 14
+ImageDir=/usr/share/plymouth/themes/lexos
+DialogHorizontalAlignment=.5
+DialogVerticalAlignment=.382
+TitleHorizontalAlignment=.5
+TitleVerticalAlignment=.382
+HorizontalAlignment=.5
+VerticalAlignment=.72
+WatermarkHorizontalAlignment=.5
+WatermarkVerticalAlignment=.38
+Transition=none
+TransitionDuration=0.0
+BackgroundStartColor=0x000000
+BackgroundEndColor=0x000000
+ProgressBarBackgroundColor=0x1A1A1C
+ProgressBarForegroundColor=0xE8873A
+DialogClearsFirmwareBackground=true
+MessageBelowAnimation=true
+
+[boot-up]
+UseEndAnimation=false
+UseFirmwareBackground=false
+
+[shutdown]
+UseEndAnimation=false
+UseFirmwareBackground=false
+
+[reboot]
+UseEndAnimation=false
+UseFirmwareBackground=false
+EOF
+
+	have plymouth-set-default-theme && \
+		plymouth-set-default-theme lexos >/dev/null 2>&1 \
+		&& echo "[lexos]   thème Plymouth : lexos" || true
+else
+	echo "[lexos]   thème 'spinner' absent — Plymouth non personnalisé"
+fi
+
+echo "[lexos] hook 0300 : ok"

@@ -1,0 +1,215 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — habillage de l'installateur Calamares
+# =============================================================================
+set -e
+
+if [ ! -x /usr/bin/calamares ]; then
+	echo "[lexos] hook 0500 : Calamares absent, ignoré"
+	exit 0
+fi
+
+echo "[lexos] hook 0500 : installateur"
+
+LEXOS_NAME="LexOS"
+LEXOS_VERSION="1.0"
+LEXOS_CODENAME="Nomad"
+LEXOS_HOME_URL="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-"
+LEXOS_BUG_URL="${LEXOS_HOME_URL}/issues"
+
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+fi
+
+BRANDING_DIR="/usr/share/calamares/branding/lexos"
+mkdir -p "$BRANDING_DIR"
+
+# --- Visuels de l'installateur ----------------------------------------------
+if command -v rsvg-convert >/dev/null 2>&1; then
+	SRC="/usr/share/lexos/branding"
+	[ -r "$SRC/logo.svg" ] && rsvg-convert -w 160 -h 160 \
+		-o "$BRANDING_DIR/logo.png" "$SRC/logo.svg" || true
+	[ -r "$SRC/wallpaper.svg" ] && rsvg-convert -w 1280 -h 720 \
+		-o "$BRANDING_DIR/welcome.png" "$SRC/wallpaper.svg" || true
+fi
+
+cat > "$BRANDING_DIR/branding.desc" <<EOF
+---
+componentName: lexos
+
+welcomeStyleCalamares: false
+welcomeExpandingLogo: true
+
+windowExpanding: normal
+windowSize: 800px,520px
+windowPlacement: center
+
+navigation: widget
+sidebar: widget
+
+strings:
+    productName:         "${LEXOS_NAME} ${LEXOS_VERSION}"
+    shortProductName:    "${LEXOS_NAME}"
+    version:             "${LEXOS_VERSION} ${LEXOS_CODENAME}"
+    shortVersion:        "${LEXOS_VERSION}"
+    versionedName:       "${LEXOS_NAME} ${LEXOS_VERSION} ${LEXOS_CODENAME}"
+    shortVersionedName:  "${LEXOS_NAME} ${LEXOS_VERSION}"
+    bootloaderEntryName: "${LEXOS_NAME}"
+    productUrl:          "${LEXOS_HOME_URL}"
+    supportUrl:          "${LEXOS_HOME_URL}"
+    knownIssuesUrl:      "${LEXOS_BUG_URL}"
+    releaseNotesUrl:     "${LEXOS_HOME_URL}/releases"
+
+images:
+    productLogo:         "logo.png"
+    productIcon:         "logo.png"
+    productWelcome:      "welcome.png"
+
+slideshow:               "show.qml"
+slideshowAPI:            2
+
+style:
+    sidebarBackground:    "#141110"
+    sidebarText:          "#F4EFEA"
+    sidebarTextSelect:    "#E8873A"
+    sidebarTextCurrent:   "#FFB067"
+EOF
+
+# --- Diaporama pendant l'installation ---------------------------------------
+cat > "$BRANDING_DIR/show.qml" <<EOF
+import QtQuick 2.0
+import calamares.slideshow 1.0
+
+Presentation {
+    id: presentation
+
+    Timer {
+        interval: 12000
+        running: true
+        repeat: true
+        onTriggered: presentation.goToNextSlide()
+    }
+
+    Slide {
+        Rectangle {
+            anchors.fill: parent
+            color: "#141110"
+            Column {
+                anchors.centerIn: parent
+                spacing: 18
+                Text {
+                    text: "${LEXOS_NAME} ${LEXOS_VERSION}"
+                    color: "#E8873A"
+                    font.pixelSize: 34
+                    font.bold: true
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+                Text {
+                    text: "Installation en cours — ça ne prend que quelques minutes."
+                    color: "#F4EFEA"
+                    font.pixelSize: 16
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+            }
+        }
+    }
+
+    Slide {
+        Rectangle {
+            anchors.fill: parent
+            color: "#141110"
+            Column {
+                anchors.centerIn: parent
+                spacing: 14
+                Text {
+                    text: "Tout est à toi"
+                    color: "#E8873A"
+                    font.pixelSize: 30
+                    font.bold: true
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+                Text {
+                    text: "Pas de télémétrie, pas de compte obligatoire, pas de pub."
+                    color: "#F4EFEA"
+                    font.pixelSize: 16
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+            }
+        }
+    }
+
+    Slide {
+        Rectangle {
+            anchors.fill: parent
+            color: "#141110"
+            Column {
+                anchors.centerIn: parent
+                spacing: 14
+                Text {
+                    text: "Après l'installation"
+                    color: "#E8873A"
+                    font.pixelSize: 30
+                    font.bold: true
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+                Text {
+                    text: "Ouvre un terminal et tape « lexos help »."
+                    color: "#F4EFEA"
+                    font.pixelSize: 16
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+            }
+        }
+    }
+
+    function onActivate()  { presentation.currentSlide = 0 }
+    function onLeave()     { }
+}
+EOF
+
+# --- Activer notre branding --------------------------------------------------
+if [ -f /etc/calamares/settings.conf ]; then
+	sed -i 's/^branding:.*/branding: lexos/' /etc/calamares/settings.conf
+fi
+
+# --- Raccourci « Installer LexOS » ------------------------------------------
+#  Exec pointe sur lexos-install, PAS directement sur calamares : ce wrapper
+#  vérifie qu'on est bien en session démo et exige une confirmation avant
+#  toute opération susceptible d'effacer le disque dur.
+mkdir -p /usr/share/applications /etc/skel/Bureau /etc/skel/Desktop
+cat > /usr/share/applications/lexos-install.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Installer ${LEXOS_NAME} sur le disque
+Name[en]=Install ${LEXOS_NAME} to disk
+Comment=Essaie d'abord la démo depuis la clé USB — l'installation peut effacer le disque dur
+Exec=lexos-install
+Icon=lexos
+Terminal=false
+Categories=System;
+Keywords=install;installer;calamares;disque;
+EOF
+
+cat > /usr/share/applications/lexos-demo.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Essayer ${LEXOS_NAME} (démo)
+Name[en]=Try ${LEXOS_NAME} (demo)
+Comment=Session live : rien n'est écrit sur ton disque dur
+Exec=lexos-welcome
+Icon=lexos
+Terminal=false
+Categories=System;
+Keywords=demo;live;essai;
+EOF
+
+for D in /etc/skel/Bureau /etc/skel/Desktop; do
+	cp /usr/share/applications/lexos-demo.desktop    "$D/"
+	cp /usr/share/applications/lexos-install.desktop "$D/"
+	chmod +x "$D"/*.desktop
+done
+
+echo "[lexos] hook 0500 : ok"

@@ -1,0 +1,116 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — identité système (os-release, issue, motd, GRUB)
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0100 : identité système"
+
+# Valeurs de repli si build.conf n'a pas été généré (build manuel via `lb build`)
+LEXOS_NAME="LexOS"
+LEXOS_ID="lexos"
+LEXOS_VERSION="1.0"
+LEXOS_CODENAME="Nomad"
+LEXOS_TAGLINE="Explore. Build. Own your machine."
+LEXOS_HOME_URL="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-"
+LEXOS_BUG_URL="${LEXOS_HOME_URL}/issues"
+LEXOS_BUILD_DATE="unknown"
+LEXOS_BUILD_ID="nogit"
+LEXOS_FLAVOUR="standard"
+LEXOS_DEBIAN_SUITE="bookworm"
+
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+else
+	echo "[lexos] avertissement : /etc/lexos/build.conf absent, valeurs par défaut"
+	mkdir -p /etc/lexos
+fi
+
+DEBIAN_VERSION="$(cat /etc/debian_version 2>/dev/null || echo 'unknown')"
+VERSION_CODENAME_LOWER="$(echo "$LEXOS_CODENAME" | tr '[:upper:]' '[:lower:]')"
+
+# --- os-release --------------------------------------------------------------
+cat > /usr/lib/os-release <<EOF
+PRETTY_NAME="${LEXOS_NAME} ${LEXOS_VERSION} (${LEXOS_CODENAME})"
+NAME="${LEXOS_NAME}"
+VERSION_ID="${LEXOS_VERSION}"
+VERSION="${LEXOS_VERSION} (${LEXOS_CODENAME})"
+VERSION_CODENAME=${VERSION_CODENAME_LOWER}
+ID=${LEXOS_ID}
+ID_LIKE=debian
+HOME_URL="${LEXOS_HOME_URL}"
+SUPPORT_URL="${LEXOS_HOME_URL}"
+BUG_REPORT_URL="${LEXOS_BUG_URL}"
+LOGO=${LEXOS_ID}
+ANSI_COLOR="1;38;5;208"
+DEBIAN_BASE="${LEXOS_DEBIAN_SUITE} (${DEBIAN_VERSION})"
+LEXOS_FLAVOUR="${LEXOS_FLAVOUR}"
+LEXOS_BUILD_DATE="${LEXOS_BUILD_DATE}"
+LEXOS_BUILD_ID="${LEXOS_BUILD_ID}"
+EOF
+
+rm -f /etc/os-release
+ln -s ../usr/lib/os-release /etc/os-release
+
+# --- lsb-release -------------------------------------------------------------
+cat > /etc/lsb-release <<EOF
+DISTRIB_ID=${LEXOS_NAME}
+DISTRIB_RELEASE=${LEXOS_VERSION}
+DISTRIB_CODENAME=${VERSION_CODENAME_LOWER}
+DISTRIB_DESCRIPTION="${LEXOS_NAME} ${LEXOS_VERSION} (${LEXOS_CODENAME})"
+EOF
+
+# --- Bannière de console (issue) --------------------------------------------
+# \e ne s'interprète pas dans issue : on utilise printf pour insérer ESC.
+ESC="$(printf '\033')"
+O="${ESC}[38;5;208m"   # orange
+D="${ESC}[2m"          # atténué
+R="${ESC}[0m"          # reset
+
+cat > /etc/issue <<EOF
+${O}   __         _____ _____ ${R}
+${O}  / /  _____ / __  |  ___|${R}
+${O} / /  / _ \\ \\/ / | | |___ ${R}
+${O}/ /__|  __/>  <  | |___  |${R}
+${O}\\____/\\___/_/\\_\\ |_____/  ${R}
+
+ ${LEXOS_NAME} ${LEXOS_VERSION} « ${LEXOS_CODENAME} »  ${D}(\\l sur \\n)${R}
+ ${D}${LEXOS_TAGLINE}${R}
+
+EOF
+
+cat > /etc/issue.net <<EOF
+${LEXOS_NAME} ${LEXOS_VERSION} (${LEXOS_CODENAME})
+EOF
+
+# --- Message du jour ---------------------------------------------------------
+cat > /etc/motd <<EOF
+
+  ${O}${LEXOS_NAME} ${LEXOS_VERSION}${R} « ${LEXOS_CODENAME} » — saveur ${LEXOS_FLAVOUR}
+  ${D}build ${LEXOS_BUILD_DATE} (${LEXOS_BUILD_ID}) · base Debian ${LEXOS_DEBIAN_SUITE}${R}
+
+  ${D}lexfetch${R}        infos système
+  ${D}lexos help${R}      outils LexOS
+  ${D}lexos update${R}    mettre à jour le système
+
+EOF
+
+# --- GRUB du système installé ------------------------------------------------
+mkdir -p /etc/default/grub.d
+cat > /etc/default/grub.d/lexos.cfg <<EOF
+GRUB_DISTRIBUTOR="${LEXOS_NAME}"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+GRUB_BACKGROUND="/usr/share/backgrounds/lexos/wallpaper.png"
+GRUB_GFXMODE=auto
+EOF
+
+# --- Métadonnées internes ----------------------------------------------------
+mkdir -p /etc/lexos
+printf '%s\n' "${LEXOS_VERSION}" > /etc/lexos/version
+printf '%s %s (%s) — flavour=%s build=%s %s\n' \
+	"${LEXOS_NAME}" "${LEXOS_VERSION}" "${LEXOS_CODENAME}" \
+	"${LEXOS_FLAVOUR}" "${LEXOS_BUILD_DATE}" "${LEXOS_BUILD_ID}" \
+	> /etc/lexos/release
+
+echo "[lexos] hook 0100 : ok"

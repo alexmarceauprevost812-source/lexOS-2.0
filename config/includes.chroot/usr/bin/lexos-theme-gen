@@ -1,0 +1,353 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-theme-gen — génère le thème LexOS Noir (GTK + terminal) pour un accent
+# =============================================================================
+#  Usage :
+#     lexos-theme-gen                      # accent courant, utilisateur courant
+#     lexos-theme-gen orange               # change l'accent
+#     lexos-theme-gen bleu --target /etc/skel
+# =============================================================================
+set -euo pipefail
+
+ACCENT_NAME=""
+TARGET="$HOME"
+
+# --- Arguments ---------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		--target)
+			TARGET="${2:-$HOME}"
+			shift 2
+			;;
+		--list)
+			printf 'orange bleu rouge vert gris violet\n'
+			exit 0
+			;;
+		-*)
+			printf 'Option inconnue : %s\n' "$1" >&2
+			exit 1
+			;;
+		*)
+			ACCENT_NAME="$1"
+			shift
+			;;
+	esac
+done
+
+CONF_DIR="$TARGET/.config/lexos"
+[[ -z "$ACCENT_NAME" && -r "$CONF_DIR/accent" ]] && ACCENT_NAME="$(cat "$CONF_DIR/accent")"
+[[ -z "$ACCENT_NAME" ]] && ACCENT_NAME="orange"
+
+# --- Palette des accents -----------------------------------------------------
+case "${ACCENT_NAME,,}" in
+	orange|ambre)          ACCENT="#E8873A"; ACCENT_HI="#FFA45C"; ACCENT_LO="#B4551C" ;;
+	bleu|blue)             ACCENT="#3D8BFD"; ACCENT_HI="#6EA8FE"; ACCENT_LO="#0A58CA" ;;
+	rouge|red)             ACCENT="#E5484D"; ACCENT_HI="#FF6B6F"; ACCENT_LO="#A32B2F" ;;
+	vert|green|vert-dark)  ACCENT="#1F8F4E"; ACCENT_HI="#2DBF6B"; ACCENT_LO="#125C32" ;;
+	gris|grey|gray|grid)   ACCENT="#8A8A8A"; ACCENT_HI="#B4B4B4"; ACCENT_LO="#5A5A5A" ;;
+	violet|purple)         ACCENT="#8B5CF6"; ACCENT_HI="#A78BFA"; ACCENT_LO="#6234D1" ;;
+	*)
+		printf 'Accent inconnu : %s\n' "$ACCENT_NAME" >&2
+		printf 'Disponibles : orange bleu rouge vert gris violet\n' >&2
+		exit 1
+		;;
+esac
+ACCENT_NAME="${ACCENT_NAME,,}"
+
+# --- Palette LexOS Noir (invariante) ----------------------------------------
+BG="#000000"        # fond principal : noir pur
+BG_ALT="#0A0A0B"    # surfaces
+BG_HI="#141416"     # survol / lignes
+BORDER="#232326"
+FG="#FFFFFF"        # écriture blanche
+FG_DIM="#B8B8BC"
+TERM_FG="#23A55A"   # vert dark du terminal
+TERM_FG_HI="#2ECC71"
+
+mkdir -p "$CONF_DIR" "$TARGET/.config/gtk-3.0" "$TARGET/.config/gtk-4.0" \
+         "$TARGET/.config/xfce4/terminal"
+printf '%s\n' "$ACCENT_NAME" > "$CONF_DIR/accent"
+
+# =============================================================================
+#  1. Feuille de style GTK 3
+# =============================================================================
+gen_gtk_css() {
+cat <<EOF
+/* =========================================================================
+   LexOS Noir — accent : ${ACCENT_NAME} (${ACCENT})
+   Généré par lexos-theme-gen. Ne pas éditer : sera écrasé.
+   ========================================================================= */
+
+@define-color lexos_accent      ${ACCENT};
+@define-color lexos_accent_hi   ${ACCENT_HI};
+@define-color lexos_accent_lo   ${ACCENT_LO};
+@define-color lexos_bg          ${BG};
+@define-color lexos_bg_alt      ${BG_ALT};
+@define-color lexos_fg          ${FG};
+
+@define-color theme_bg_color            ${BG};
+@define-color theme_base_color          ${BG};
+@define-color theme_fg_color            ${FG};
+@define-color theme_text_color          ${FG};
+@define-color theme_selected_bg_color   ${ACCENT};
+@define-color theme_selected_fg_color   ${FG};
+@define-color insensitive_bg_color      ${BG_ALT};
+@define-color insensitive_fg_color      ${FG_DIM};
+@define-color borders                   ${BORDER};
+@define-color unfocused_borders         ${BORDER};
+@define-color accent_color              ${ACCENT};
+@define-color accent_bg_color           ${ACCENT};
+@define-color accent_fg_color           ${FG};
+@define-color window_bg_color           ${BG};
+@define-color window_fg_color           ${FG};
+@define-color view_bg_color             ${BG};
+@define-color view_fg_color             ${FG};
+@define-color headerbar_bg_color        ${BG_ALT};
+@define-color headerbar_fg_color        ${FG};
+@define-color popover_bg_color          ${BG_ALT};
+@define-color popover_fg_color          ${FG};
+
+/* --- Fonds : noir pur --------------------------------------------------- */
+window, dialog, .background, popover, popover.background,
+notebook, notebook > stack, paned, box, grid, viewport,
+scrolledwindow, frame, list, listbox, flowbox, .view, textview,
+treeview.view, iconview, stack, overlay, assistant, messagedialog {
+    background-color: ${BG};
+    color: ${FG};
+}
+
+headerbar, .titlebar, toolbar, actionbar, searchbar, infobar,
+.csd .titlebar, menubar, .menubar {
+    background-color: ${BG_ALT};
+    background-image: none;
+    color: ${FG};
+    border-color: ${BORDER};
+}
+
+/* --- Écriture blanche partout ------------------------------------------- */
+label, .label, textview text, entry, spinbutton, checkbutton, radiobutton,
+menuitem, .menuitem, treeview.view, cellrenderertext {
+    color: ${FG};
+}
+label:disabled, .dim-label, .subtitle { color: ${FG_DIM}; }
+
+/* --- Boutons : accent par défaut ---------------------------------------- */
+button, button.text-button, button.image-button,
+.linked > button, headerbar button, toolbar button {
+    background-image: none;
+    background-color: ${ACCENT};
+    color: ${FG};
+    border: 1px solid ${ACCENT_LO};
+    border-radius: 6px;
+    text-shadow: none;
+    padding: 4px 12px;
+    transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+button:hover, headerbar button:hover, toolbar button:hover {
+    background-color: ${ACCENT_HI};
+    border-color: ${ACCENT};
+}
+button:active, button:checked {
+    background-color: ${ACCENT_LO};
+    border-color: ${ACCENT_LO};
+}
+button:disabled {
+    background-color: ${BG_HI};
+    color: ${FG_DIM};
+    border-color: ${BORDER};
+}
+button.flat, button.titlebutton, button.close, button.minimize,
+button.maximize, notebook button, .titlebar button.titlebutton {
+    background-color: transparent;
+    border-color: transparent;
+    color: ${FG};
+}
+button.flat:hover, button.titlebutton:hover {
+    background-color: ${BG_HI};
+    border-color: ${BORDER};
+}
+button.destructive-action { background-color: #E5484D; border-color: #A32B2F; }
+button.suggested-action   { background-color: ${ACCENT}; border-color: ${ACCENT_LO}; }
+
+/* --- Champs de saisie ---------------------------------------------------- */
+entry, spinbutton, .entry, searchbar entry {
+    background-color: ${BG_ALT};
+    color: ${FG};
+    border: 1px solid ${BORDER};
+    border-radius: 6px;
+    caret-color: ${ACCENT};
+}
+entry:focus, spinbutton:focus {
+    border-color: ${ACCENT};
+    box-shadow: inset 0 0 0 1px ${ACCENT};
+}
+selection, ::selection {
+    background-color: ${ACCENT};
+    color: ${FG};
+}
+
+/* --- Sélection dans les listes ------------------------------------------ */
+row:selected, list row:selected, treeview.view:selected,
+iconview:selected, flowboxchild:selected, menuitem:hover, .menuitem:hover {
+    background-color: ${ACCENT};
+    color: ${FG};
+}
+row:hover, list row:hover { background-color: ${BG_HI}; }
+
+/* --- Barres de défilement ------------------------------------------------ */
+scrollbar { background-color: ${BG}; border-color: ${BORDER}; }
+scrollbar slider {
+    background-color: ${BORDER};
+    border-radius: 8px;
+    min-width: 8px;
+    min-height: 8px;
+}
+scrollbar slider:hover { background-color: ${ACCENT}; }
+
+/* --- Progression, curseurs, interrupteurs -------------------------------- */
+progressbar progress, levelbar block.filled { background-color: ${ACCENT}; }
+progressbar trough, levelbar block.empty, scale trough { background-color: ${BG_HI}; }
+scale highlight { background-color: ${ACCENT}; }
+scale slider { background-color: ${ACCENT}; border: 1px solid ${ACCENT_LO}; }
+switch:checked { background-color: ${ACCENT}; }
+switch { background-color: ${BG_HI}; border: 1px solid ${BORDER}; }
+check:checked, radio:checked {
+    background-color: ${ACCENT};
+    border-color: ${ACCENT_LO};
+    color: ${FG};
+}
+
+/* --- Onglets -------------------------------------------------------------- */
+notebook > header { background-color: ${BG_ALT}; border-color: ${BORDER}; }
+notebook > header > tabs > tab { color: ${FG_DIM}; }
+notebook > header > tabs > tab:checked {
+    color: ${FG};
+    box-shadow: inset 0 -3px ${ACCENT};
+}
+
+/* --- Panneau XFCE (barre du haut + dock) --------------------------------- */
+#XfcePanelWindow {
+    background-color: ${BG};
+    border: none;
+    color: ${FG};
+}
+#XfcePanelWindow button, .xfce4-panel button {
+    background-color: transparent;
+    border-color: transparent;
+    border-radius: 6px;
+    color: ${FG};
+}
+#XfcePanelWindow button:hover, .xfce4-panel button:hover {
+    background-color: ${BG_HI};
+}
+#XfcePanelWindow button:checked, .xfce4-panel button:checked {
+    background-color: ${BG_HI};
+    box-shadow: inset 3px 0 ${ACCENT};
+}
+
+/* --- Notifications -------------------------------------------------------- */
+#XfceNotifyWindow {
+    background-color: ${BG_ALT};
+    color: ${FG};
+    border: 1px solid ${ACCENT};
+    border-radius: 10px;
+}
+
+/* --- Menus ---------------------------------------------------------------- */
+menu, .menu, .context-menu, popover.menu {
+    background-color: ${BG_ALT};
+    border: 1px solid ${BORDER};
+    border-radius: 8px;
+}
+
+/* --- Terminal XFCE : noir + vert foncé ----------------------------------- */
+terminal-window, vte-terminal { background-color: ${BG}; color: ${TERM_FG}; }
+
+/* --- Liens ---------------------------------------------------------------- */
+link, *:link { color: ${ACCENT_HI}; }
+EOF
+}
+
+gen_gtk_css > "$TARGET/.config/gtk-3.0/gtk.css"
+gen_gtk_css > "$TARGET/.config/gtk-4.0/gtk.css"
+
+# =============================================================================
+#  2. GTK 2 (vieilles applications)
+# =============================================================================
+cat > "$TARGET/.gtkrc-2.0" <<EOF
+# LexOS Noir — généré par lexos-theme-gen
+gtk-theme-name="Arc-Dark"
+gtk-icon-theme-name="Papirus-Dark"
+gtk-font-name="Noto Sans 10"
+gtk-cursor-theme-name="Adwaita"
+style "lexos-default" {
+    bg[NORMAL]      = "${BG}"
+    bg[PRELIGHT]    = "${BG_HI}"
+    bg[SELECTED]    = "${ACCENT}"
+    bg[ACTIVE]      = "${BG_ALT}"
+    bg[INSENSITIVE] = "${BG_ALT}"
+    fg[NORMAL]      = "${FG}"
+    fg[PRELIGHT]    = "${FG}"
+    fg[SELECTED]    = "${FG}"
+    fg[ACTIVE]      = "${FG}"
+    fg[INSENSITIVE] = "${FG_DIM}"
+    base[NORMAL]    = "${BG}"
+    base[SELECTED]  = "${ACCENT}"
+    text[NORMAL]    = "${FG}"
+    text[SELECTED]  = "${FG}"
+}
+class "GtkWidget" style "lexos-default"
+style "lexos-button" = "lexos-default" {
+    bg[NORMAL]   = "${ACCENT}"
+    bg[PRELIGHT] = "${ACCENT_HI}"
+    bg[ACTIVE]   = "${ACCENT_LO}"
+}
+class "GtkButton" style "lexos-button"
+EOF
+
+# =============================================================================
+#  3. Terminal XFCE — noir, écriture vert dark, curseur accent
+# =============================================================================
+cat > "$TARGET/.config/xfce4/terminal/terminalrc" <<EOF
+[Configuration]
+FontName=Fira Code 11
+FontAllowBold=TRUE
+MiscAlwaysShowTabs=FALSE
+MiscBell=FALSE
+MiscBordersDefault=TRUE
+MiscCursorBlinks=TRUE
+MiscCursorShape=TERMINAL_CURSOR_SHAPE_BLOCK
+MiscDefaultGeometry=100x28
+MiscMenubarDefault=FALSE
+MiscToolbarDefault=FALSE
+MiscConfirmClose=FALSE
+MiscShowUnsafePasteDialog=FALSE
+ScrollingUnlimited=TRUE
+ColorForeground=${TERM_FG}
+ColorBackground=${BG}
+ColorCursor=${ACCENT}
+ColorCursorForeground=${BG}
+ColorBold=${TERM_FG_HI}
+ColorBoldUseDefault=FALSE
+ColorSelection=${FG}
+ColorSelectionBackground=${ACCENT}
+TabActivityColor=${ACCENT}
+ColorPalette=#0B0B0C;#E5484D;${TERM_FG};${ACCENT};#3D8BFD;#8B5CF6;#2AA9A0;#C8C8CC;#4A4A50;#FF6B6F;${TERM_FG_HI};${ACCENT_HI};#6EA8FE;#A78BFA;#4FD6CC;${FG}
+BackgroundMode=TERMINAL_BACKGROUND_TRANSPARENT
+BackgroundDarkness=0.94
+EOF
+
+# =============================================================================
+#  4. Mémoriser l'accent pour les autres outils
+# =============================================================================
+cat > "$CONF_DIR/theme.conf" <<EOF
+LEXOS_ACCENT_NAME=${ACCENT_NAME}
+LEXOS_ACCENT=${ACCENT}
+LEXOS_ACCENT_HI=${ACCENT_HI}
+LEXOS_ACCENT_LO=${ACCENT_LO}
+LEXOS_BG=${BG}
+LEXOS_FG=${FG}
+LEXOS_TERM_FG=${TERM_FG}
+EOF
+
+printf 'Thème LexOS Noir généré — accent : %s (%s)\n' "$ACCENT_NAME" "$ACCENT"

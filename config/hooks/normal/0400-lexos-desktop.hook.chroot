@@ -1,0 +1,98 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — configuration du bureau (LightDM, XFCE, PolicyKit)
+#  Ne fait rien si la saveur est « minimal » (pas de serveur X).
+# =============================================================================
+set -e
+
+if [ ! -x /usr/sbin/lightdm ] && [ ! -x /usr/bin/startxfce4 ]; then
+	echo "[lexos] hook 0400 : pas de bureau installé, ignoré"
+	exit 0
+fi
+
+echo "[lexos] hook 0400 : bureau"
+
+LEXOS_NAME="LexOS"
+LEXOS_GTK_BASE_THEME="Arc-Dark"
+LEXOS_ICON_THEME="Papirus-Dark"
+LEXOS_LIVE_USER="lex"
+
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+fi
+
+# --- LightDM : écran de connexion -------------------------------------------
+mkdir -p /etc/lightdm/lightdm.conf.d
+cat > /etc/lightdm/lightdm.conf.d/50-lexos.conf <<EOF
+[Seat:*]
+greeter-session=lightdm-gtk-greeter
+user-session=xfce
+greeter-hide-users=false
+allow-guest=false
+EOF
+
+cat > /etc/lightdm/lightdm-gtk-greeter.conf <<EOF
+[greeter]
+background=/usr/share/backgrounds/lexos/wallpaper.png
+theme-name=${LEXOS_GTK_BASE_THEME}
+icon-theme-name=${LEXOS_ICON_THEME}
+font-name=Noto Sans 11
+xft-antialias=true
+xft-hintstyle=hintslight
+xft-rgba=rgb
+indicators=~host;~spacer;~clock;~spacer;~layout;~session;~a11y;~power
+clock-format=%A %d %B — %H:%M
+position=50%,center 55%,center
+default-user-image=/usr/share/lexos/branding/mascot.png
+user-background=false
+hide-user-image=false
+round-user-image=true
+EOF
+
+# --- Session live : autologin ------------------------------------------------
+# live-config gère déjà l'autologin ; on renforce pour LightDM.
+cat > /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf <<EOF
+[Seat:*]
+autologin-user=${LEXOS_LIVE_USER}
+autologin-user-timeout=0
+autologin-session=xfce
+EOF
+
+# (le thème GTK est produit par le hook 0600 — LexOS Noir)
+
+# --- Le live user peut utiliser sudo sans mot de passe ----------------------
+cat > /etc/sudoers.d/lexos-live <<EOF
+${LEXOS_LIVE_USER} ALL=(ALL) NOPASSWD: ALL
+EOF
+chmod 0440 /etc/sudoers.d/lexos-live
+
+# --- Navigateur et applications par défaut ----------------------------------
+mkdir -p /etc/xdg
+cat > /etc/xdg/mimeapps.list <<'EOF'
+[Default Applications]
+text/html=firefox-esr.desktop
+x-scheme-handler/http=firefox-esr.desktop
+x-scheme-handler/https=firefox-esr.desktop
+text/plain=org.xfce.mousepad.desktop
+inode/directory=thunar.desktop
+image/png=org.xfce.ristretto.desktop
+image/jpeg=org.xfce.ristretto.desktop
+EOF
+
+# --- Entrée « À propos de LexOS » -------------------------------------------
+cat > /usr/share/applications/lexos-about.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=À propos de ${LEXOS_NAME}
+Name[en]=About ${LEXOS_NAME}
+Comment=Informations sur le système
+Exec=lexos-welcome --about
+Icon=lexos
+Terminal=false
+Categories=System;
+Keywords=lexos;about;systeme;
+EOF
+
+echo "[lexos] hook 0400 : ok"

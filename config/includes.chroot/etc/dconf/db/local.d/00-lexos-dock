@@ -1,0 +1,21 @@
+# =============================================================================
+#  LexOS — réglages par défaut du dock Plank (barre verticale de gauche)
+# =============================================================================
+
+[net/launchpad/plank/docks/dock1]
+position='left'
+alignment='center'
+items-alignment='center'
+offset=0
+icon-size=48
+hide-mode='intelligent'
+hide-delay=0
+unhide-delay=0
+theme='Transparent'
+zoom-enabled=true
+zoom-percent=150
+pressure-reveal=true
+show-dock-item=false
+lock-items=false
+monitor=''
+dock-items=['00-firefox.dockitem','01-terminal.dockitem','02-files.dockitem','03-editor.dockitem','04-appfinder.dockitem','05-install.dockitem','06-about.dockitem']

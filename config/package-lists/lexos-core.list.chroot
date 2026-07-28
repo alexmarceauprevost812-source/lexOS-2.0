@@ -1,0 +1,92 @@
+# =============================================================================
+#  LexOS — Noyau système (présent dans TOUTES les saveurs)
+# =============================================================================
+
+# --- Boot & live -------------------------------------------------------------
+linux-image-amd64
+live-boot
+live-config
+live-config-systemd
+live-tools
+systemd-sysv
+init
+
+# --- Firmware & matériel -----------------------------------------------------
+firmware-linux
+firmware-linux-nonfree
+firmware-iwlwifi
+firmware-realtek
+firmware-atheros
+firmware-misc-nonfree
+intel-microcode
+amd64-microcode
+pciutils
+usbutils
+lshw
+hwinfo
+
+# --- Réseau ------------------------------------------------------------------
+network-manager
+wpasupplicant
+iproute2
+iputils-ping
+dnsutils
+ca-certificates
+openssh-client
+curl
+wget
+
+# --- Disques & systèmes de fichiers -----------------------------------------
+parted
+gdisk
+dosfstools
+exfatprogs
+ntfs-3g
+btrfs-progs
+e2fsprogs
+udisks2
+gvfs
+gvfs-backends
+cryptsetup
+lvm2
+
+# --- Outils de base ----------------------------------------------------------
+sudo
+bash-completion
+less
+man-db
+manpages
+nano
+vim-tiny
+git
+htop
+tree
+rsync
+zip
+unzip
+p7zip-full
+xz-utils
+file
+lsof
+psmisc
+procps
+jq
+
+# --- Localisation ------------------------------------------------------------
+locales
+console-setup
+keyboard-configuration
+tzdata
+
+# --- Branding & apparence bas niveau ----------------------------------------
+plymouth
+plymouth-themes
+librsvg2-bin
+librsvg2-common
+webp
+imagemagick
+
+# --- Installateur ------------------------------------------------------------
+# (le menu de boot expose aussi l'installateur Debian classique)
+calamares
+calamares-settings-debian

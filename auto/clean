@@ -1,0 +1,14 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — auto/clean
+#  Retire les artefacts de build ET les fichiers générés par build.sh.
+# =============================================================================
+set -e
+
+lb clean noauto "${@}"
+
+rm -f config/binary config/bootstrap config/chroot config/common config/source
+rm -f build.log
+rm -f config/package-lists/zz-flavour-*.list.chroot
+rm -f config/includes.chroot/etc/lexos/build.conf
+rm -rf config/includes.chroot/usr/share/lexos/branding

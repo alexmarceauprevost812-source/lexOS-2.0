@@ -1,0 +1,39 @@
+# =============================================================================
+#  LexOS — fichiers produits par la construction
+# =============================================================================
+
+# --- Sorties de live-build ---------------------------------------------------
+*.iso
+*.iso.sha256
+*.img
+*.contents
+*.files
+*.packages
+build.log
+binary/
+chroot/
+chroot.files
+cache/
+local/
+.build/
+
+# --- Fichiers que `lb config` génère à la racine de config/ -----------------
+config/binary
+config/bootstrap
+config/chroot
+config/common
+config/source
+config/source-*
+
+# --- Fichiers générés par build.sh ------------------------------------------
+config/package-lists/zz-flavour-*.list.chroot
+config/includes.chroot/etc/lexos/build.conf
+config/includes.chroot/usr/share/lexos/branding/
+
+# --- Aperçus locaux ----------------------------------------------------------
+preview/
+
+# --- Divers ------------------------------------------------------------------
+*.swp
+*~
+.DS_Store

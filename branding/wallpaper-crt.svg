@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LexOS — variante « CRT » : lignes de balayage façon téléviseur 1980 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"
+     viewBox="0 0 1920 1080" role="img" aria-label="LexOS CRT">
+  <defs>
+    <radialGradient id="tube" cx="0.5" cy="0.5" r="0.72">
+      <stop offset="0%"   stop-color="#1A0F06"/>
+      <stop offset="60%"  stop-color="#0A0603"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+
+    <linearGradient id="fire" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%"   stop-color="#B4230A"/>
+      <stop offset="50%"  stop-color="#F0761A"/>
+      <stop offset="100%" stop-color="#FFC53D"/>
+    </linearGradient>
+
+    <!-- Lignes de balayage -->
+    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="2" fill="#000000" opacity="0.36"/>
+    </pattern>
+
+    <!-- Masque de phosphore -->
+    <pattern id="phosphor" width="3" height="3" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="1" height="3" fill="#FF3B00" opacity="0.045"/>
+      <rect x="1" y="0" width="1" height="3" fill="#00FF66" opacity="0.045"/>
+      <rect x="2" y="0" width="1" height="3" fill="#0066FF" opacity="0.045"/>
+    </pattern>
+
+    <filter id="bloom" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#tube)"/>
+
+  <!-- Marque avec halo de tube -->
+  <g text-anchor="middle" filter="url(#bloom)">
+    <text x="960" y="566"
+          font-family="'Fira Code','DejaVu Sans Mono',monospace"
+          font-size="168" font-weight="700" letter-spacing="-6"
+          fill="#FFFFFF">Lex<tspan fill="url(#fire)">OS</tspan></text>
+    <text x="960" y="632"
+          font-family="'Fira Code','DejaVu Sans Mono',monospace"
+          font-size="24" letter-spacing="10" fill="#23A55A">
+      T I &#183; L E X &#183; A L
+    </text>
+  </g>
+
+  <!-- Ligne de retour vidéo -->
+  <rect x="0" y="252" width="1920" height="3" fill="#FFFFFF" opacity="0.05"/>
+  <rect x="0" y="806" width="1920" height="2" fill="#FFFFFF" opacity="0.035"/>
+
+  <!-- Couches CRT -->
+  <rect width="1920" height="1080" fill="url(#phosphor)"/>
+  <rect width="1920" height="1080" fill="url(#scan)"/>
+
+  <!-- Bombement du tube -->
+  <radialGradient id="curve" cx="0.5" cy="0.5" r="0.75">
+    <stop offset="62%"  stop-color="#000000" stop-opacity="0"/>
+    <stop offset="100%" stop-color="#000000" stop-opacity="0.88"/>
+  </radialGradient>
+  <rect width="1920" height="1080" fill="url(#curve)"/>
+</svg>

@@ -1,0 +1,56 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — auto/config
+#  Appelé par `lb config`. Traduit lexos.conf en options live-build.
+# =============================================================================
+set -e
+
+. ./lexos.conf
+
+BOOTAPPEND="boot=live components quiet splash"
+BOOTAPPEND="${BOOTAPPEND} username=${LEXOS_LIVE_USER}"
+BOOTAPPEND="${BOOTAPPEND} user-fullname=${LEXOS_NAME}\\ Live"
+BOOTAPPEND="${BOOTAPPEND} hostname=${LEXOS_HOSTNAME}"
+BOOTAPPEND="${BOOTAPPEND} locales=${LEXOS_LOCALE}"
+BOOTAPPEND="${BOOTAPPEND} keyboard-layouts=${LEXOS_KEYBOARD_LAYOUT}"
+BOOTAPPEND="${BOOTAPPEND} keyboard-variants=${LEXOS_KEYBOARD_VARIANT}"
+BOOTAPPEND="${BOOTAPPEND} timezone=${LEXOS_TIMEZONE}"
+
+lb config noauto \
+	--mode debian \
+	--distribution "${LEXOS_DEBIAN_SUITE}" \
+	--architectures "${LEXOS_ARCH}" \
+	--linux-flavours "${LEXOS_ARCH}" \
+	--archive-areas "main contrib non-free non-free-firmware" \
+	--parent-archive-areas "main contrib non-free non-free-firmware" \
+	--mirror-bootstrap "${LEXOS_MIRROR}" \
+	--mirror-chroot "${LEXOS_MIRROR}" \
+	--mirror-chroot-security "${LEXOS_MIRROR_SECURITY}" \
+	--mirror-binary "${LEXOS_MIRROR}" \
+	--mirror-binary-security "${LEXOS_MIRROR_SECURITY}" \
+	--security true \
+	--updates true \
+	--backports false \
+	--apt-recommends true \
+	--apt-indices false \
+	--firmware-chroot true \
+	--firmware-binary true \
+	--binary-images iso-hybrid \
+	--bootloaders "syslinux,grub-efi" \
+	--uefi-secure-boot enable \
+	--memtest none \
+	--debian-installer live \
+	--debian-installer-gui true \
+	--debian-installer-distribution "${LEXOS_DEBIAN_SUITE}" \
+	--win32-loader false \
+	--iso-application "${LEXOS_NAME}" \
+	--iso-publisher "${LEXOS_PUBLISHER}" \
+	--iso-preparer "${LEXOS_NAME} build system; ${LEXOS_HOME_URL}" \
+	--iso-volume "${LEXOS_NAME} ${LEXOS_VERSION}" \
+	--image-name "${LEXOS_ID}-${LEXOS_VERSION}-${LEXOS_FLAVOUR}-${LEXOS_ARCH}" \
+	--bootappend-live "${BOOTAPPEND}" \
+	--bootappend-install "${BOOTAPPEND}" \
+	--compression xz \
+	--zsync false \
+	--checksums sha256 \
+	"${@}"

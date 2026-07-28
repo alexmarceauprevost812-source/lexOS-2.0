@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-wm — démarre le gestionnaire de fenêtres avec les effets CRT
+# =============================================================================
+#  Compiz donne l'ouverture/fermeture « tube cathodique » (effet Glide 2).
+#  Il exige une accélération 3D : sans elle, on reste sur xfwm4 pour ne PAS
+#  risquer un écran noir. Le repli est automatique et silencieux.
+# =============================================================================
+set -uo pipefail
+
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+STATE="$CONF_DIR/crt"
+LOG="$CONF_DIR/wm.log"
+mkdir -p "$CONF_DIR"
+
+log() { printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" >> "$LOG"; }
+
+# --- Effets demandés ? -------------------------------------------------------
+WANT="on"
+[[ -r /etc/lexos/build.conf ]] && WANT="$(
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf 2>/dev/null; printf '%s' "${LEXOS_CRT_EFFECTS:-on}"
+)"
+[[ -r "$STATE" ]] && WANT="$(cat "$STATE")"
+
+if [[ "$WANT" != "on" ]]; then
+	log "effets CRT désactivés — xfwm4"
+	exec xfwm4 --replace
+fi
+
+# --- L'accélération 3D est-elle réelle ? ------------------------------------
+has_3d() {
+	command -v compiz >/dev/null 2>&1 || { log "compiz absent"; return 1; }
+	command -v glxinfo >/dev/null 2>&1 || { log "glxinfo absent"; return 1; }
+
+	local info
+	info="$(timeout 10 glxinfo 2>/dev/null)" || { log "glxinfo a échoué"; return 1; }
+
+	grep -q 'direct rendering: Yes' <<< "$info" || { log "pas de rendu direct"; return 1; }
+
+	# llvmpipe / softpipe / swrast = rendu logiciel : Compiz ramerait.
+	if grep -Ei 'OpenGL renderer string.*(llvmpipe|softpipe|swrast)' <<< "$info" >/dev/null; then
+		log "rendu logiciel détecté — repli xfwm4"
+		return 1
+	fi
+	return 0
+}
+
+if has_3d; then
+	log "démarrage de Compiz (effets CRT)"
+	# Si Compiz meurt dans les 5 s, on rattrape avec xfwm4.
+	compiz --replace ccp >>"$LOG" 2>&1 &
+	CPID=$!
+	sleep 5
+	if kill -0 "$CPID" 2>/dev/null; then
+		wait "$CPID"
+		log "Compiz s'est arrêté — reprise par xfwm4"
+	else
+		log "Compiz a échoué au démarrage — repli xfwm4"
+	fi
+else
+	log "accélération 3D indisponible — xfwm4"
+fi
+
+exec xfwm4 --replace

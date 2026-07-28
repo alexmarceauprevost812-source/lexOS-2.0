@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LexOS — fond d'écran par défaut : noir pur + braise orange (1920x1080) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"
+     viewBox="0 0 1920 1080" role="img" aria-label="LexOS">
+  <defs>
+    <radialGradient id="ember" cx="0.5" cy="0.52" r="0.55">
+      <stop offset="0%"   stop-color="#FF8A1F" stop-opacity="0.30"/>
+      <stop offset="38%"  stop-color="#C4460D" stop-opacity="0.13"/>
+      <stop offset="75%"  stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="fire" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%"   stop-color="#B4230A"/>
+      <stop offset="45%"  stop-color="#F0761A"/>
+      <stop offset="100%" stop-color="#FFC53D"/>
+    </linearGradient>
+
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#E8873A" stop-opacity="0"/>
+      <stop offset="30%"  stop-color="#E8873A" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#E8873A" stop-opacity="0"/>
+    </linearGradient>
+
+    <filter id="soft" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="26"/>
+    </filter>
+
+    <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse">
+      <path d="M72 0 H0 V72" fill="none" stroke="#E8873A"
+            stroke-opacity="0.045" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <!-- Noir pur -->
+  <rect width="1920" height="1080" fill="#000000"/>
+  <rect width="1920" height="1080" fill="url(#grid)"/>
+  <rect width="1920" height="1080" fill="url(#ember)"/>
+
+  <!-- Aile gauche -->
+  <path d="M300,600 C210,520 190,420 236,330 C250,430 300,470 352,500
+           C330,430 340,368 392,318 C392,404 432,452 486,492
+           C470,432 486,382 528,350 C520,430 566,470 612,506 L612,600 Z"
+        fill="url(#fire)" opacity="0.16"/>
+  <!-- Aile droite (miroir) -->
+  <g transform="translate(1920,0) scale(-1,1)">
+    <path d="M300,600 C210,520 190,420 236,330 C250,430 300,470 352,500
+             C330,430 340,368 392,318 C392,404 432,452 486,492
+             C470,432 486,382 528,350 C520,430 566,470 612,506 L612,600 Z"
+          fill="url(#fire)" opacity="0.16"/>
+  </g>
+
+  <!-- Braises -->
+  <g fill="#FFA45C">
+    <circle cx="742"  cy="322" r="2.6" opacity="0.55"/>
+    <circle cx="1198" cy="286" r="2.0" opacity="0.42"/>
+    <circle cx="640"  cy="470" r="1.8" opacity="0.36"/>
+    <circle cx="1320" cy="452" r="2.4" opacity="0.46"/>
+    <circle cx="860"  cy="228" r="1.6" opacity="0.30"/>
+    <circle cx="1060" cy="196" r="2.2" opacity="0.40"/>
+    <circle cx="1444" cy="618" r="1.8" opacity="0.28"/>
+    <circle cx="470"  cy="642" r="2.0" opacity="0.30"/>
+  </g>
+
+  <!-- Halo derrière le titre -->
+  <ellipse cx="960" cy="560" rx="430" ry="120" fill="#E8873A"
+           opacity="0.10" filter="url(#soft)"/>
+
+  <!-- Marque -->
+  <g text-anchor="middle">
+    <text x="960" y="588"
+          font-family="'Fira Code','DejaVu Sans Mono',monospace"
+          font-size="168" font-weight="700" letter-spacing="-6"
+          fill="#FFFFFF">Lex<tspan fill="url(#fire)">OS</tspan></text>
+
+    <rect x="600" y="628" width="720" height="2" fill="url(#rule)"/>
+
+    <text x="960" y="684"
+          font-family="'Fira Code','DejaVu Sans Mono',monospace"
+          font-size="26" letter-spacing="11" fill="#B8B8BC">
+      T I &#183; L E X &#183; A L
+    </text>
+
+    <text x="960" y="736"
+          font-family="'Fira Code','DejaVu Sans Mono',monospace"
+          font-size="19" letter-spacing="5" fill="#6E6E74">
+      1.0 &#8212; NOMAD
+    </text>
+  </g>
+
+  <!-- Vignette -->
+  <radialGradient id="vig" cx="0.5" cy="0.5" r="0.78">
+    <stop offset="55%"  stop-color="#000000" stop-opacity="0"/>
+    <stop offset="100%" stop-color="#000000" stop-opacity="0.65"/>
+  </radialGradient>
+  <rect width="1920" height="1080" fill="url(#vig)"/>
+</svg>

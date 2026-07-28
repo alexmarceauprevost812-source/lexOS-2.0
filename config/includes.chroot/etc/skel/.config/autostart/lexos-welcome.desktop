@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Bienvenue sur LexOS
+Comment=Écran d'accueil de la session démo
+Exec=sh -c 'sleep 4; exec lexos-welcome --first-run'
+Icon=lexos
+Terminal=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Phase=Applications

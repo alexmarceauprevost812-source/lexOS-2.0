@@ -1,0 +1,69 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — langue, clavier, fuseau horaire
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0110 : localisation"
+
+LEXOS_LOCALE="fr_CA.UTF-8"
+LEXOS_TIMEZONE="America/Toronto"
+LEXOS_KEYBOARD_LAYOUT="ca"
+LEXOS_KEYBOARD_VARIANT="fr"
+
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+fi
+
+# --- Locales -----------------------------------------------------------------
+cat > /etc/locale.gen <<'EOF'
+fr_CA.UTF-8 UTF-8
+fr_FR.UTF-8 UTF-8
+en_US.UTF-8 UTF-8
+EOF
+
+if command -v locale-gen >/dev/null 2>&1; then
+	locale-gen || echo "[lexos] locale-gen a échoué (non bloquant)"
+fi
+
+cat > /etc/default/locale <<EOF
+LANG=${LEXOS_LOCALE}
+LC_ADDRESS=${LEXOS_LOCALE}
+LC_MEASUREMENT=${LEXOS_LOCALE}
+LC_MONETARY=${LEXOS_LOCALE}
+LC_NAME=${LEXOS_LOCALE}
+LC_NUMERIC=${LEXOS_LOCALE}
+LC_PAPER=${LEXOS_LOCALE}
+LC_TELEPHONE=${LEXOS_LOCALE}
+LC_TIME=${LEXOS_LOCALE}
+EOF
+
+# --- Clavier -----------------------------------------------------------------
+cat > /etc/default/keyboard <<EOF
+XKBMODEL="pc105"
+XKBLAYOUT="${LEXOS_KEYBOARD_LAYOUT}"
+XKBVARIANT="${LEXOS_KEYBOARD_VARIANT}"
+XKBOPTIONS="grp:alt_shift_toggle"
+BACKSPACE="guess"
+EOF
+
+# --- Console -----------------------------------------------------------------
+cat > /etc/default/console-setup <<'EOF'
+ACTIVE_CONSOLES="/dev/tty[1-6]"
+CHARMAP="UTF-8"
+CODESET="Lat15"
+FONTFACE="TerminusBold"
+FONTSIZE="16x32"
+EOF
+
+# --- Fuseau horaire ----------------------------------------------------------
+if [ -e "/usr/share/zoneinfo/${LEXOS_TIMEZONE}" ]; then
+	printf '%s\n' "${LEXOS_TIMEZONE}" > /etc/timezone
+	rm -f /etc/localtime
+	ln -sf "/usr/share/zoneinfo/${LEXOS_TIMEZONE}" /etc/localtime
+else
+	echo "[lexos] fuseau '${LEXOS_TIMEZONE}' inconnu, conservation du défaut"
+fi
+
+echo "[lexos] hook 0110 : ok"
