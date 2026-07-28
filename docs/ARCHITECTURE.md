@@ -368,16 +368,32 @@ qui peuvent contenir des noms de fichiers ou des adresses réseau. Un service
 distant aurait été plus simple à brancher, mais aurait fait sortir ces
 données de la machine à chaque question.
 
-Le mode agent applique trois limites, dans cet ordre :
+Le mode agent applique quatre limites, dans cet ordre :
 
-1. Une liste noire d'expressions régulières (`rm -rf /`, `mkfs`, `dd of=/dev/…`,
-   `parted`, `shutdown`, `curl … | sh`…) — refus, sans exécution.
-2. `sudo` refusé sauf `--sudo` explicite.
-3. Chaque commande affichée et confirmée, sauf `--auto` — qui lève la
-   confirmation mais **jamais** la liste noire.
+1. **Liste noire** — refus sec de quelques formes notoires (`rm -rf /`,
+   `mkfs`, `dd of=/dev/…`, `parted`…). C'est un filet, jamais la protection
+   principale : voir l'encadré ci-dessous.
+2. **Liste blanche** — seules les commandes de **lecture** reconnues (`ls`,
+   `df`, `cat`, `grep`, `systemctl --failed`, `journalctl`…) tournent sans
+   rien demander. Tout le reste exige un accord humain.
+3. `sudo` refusé sauf `--sudo` explicite.
+4. Sans terminal (script, cron), une commande qui exigerait une confirmation
+   n'est **pas** exécutée — elle est refusée.
 
 Le tout plafonne à vingt étapes : un modèle qui tourne en rond s'arrête au
 lieu de consommer la machine.
+
+> **Pourquoi une liste blanche et pas une liste noire.**
+> Une liste noire ne protège rien, et c'est mesurable : la première version de
+> cet agent bloquait `rm -rf /` mais laissait passer `rm -rf /home`,
+> `rm -rf /*`, `find / -delete`, `mv /home/lex /tmp`, `chmod -R 000 /home`,
+> `echo <base64> | base64 -d | sh`, et même `r''m -rf /` — quatorze
+> commandes destructrices testées, quatorze qui passaient. On ne peut pas
+> énumérer à l'avance toutes les façons d'abîmer une machine.
+> La liste blanche renverse la charge : ce qui n'est pas reconnu comme une
+> lecture est suspect par défaut. `--auto` accélère les diagnostics
+> (« pourquoi mon disque est plein ? ») sans jamais donner le droit d'écrire
+> en silence.
 
 ### Le repli à deux moteurs des autocollants
 

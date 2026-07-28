@@ -39,8 +39,9 @@ Usage :
   $PROG "<tâche>"            Agent AUTONOME : exécute des commandes, enchaîne
                               tout seul jusqu'à répondre à la tâche
   $PROG modele [nom]         Voir / changer le modèle utilisé
-  $PROG --auto "<tâche>"     Agent autonome SANS demander de confirmation
-                              à chaque commande (toujours refuse le destructeur)
+  $PROG --auto "<tâche>"     Enchaîne les commandes de LECTURE sans demander.
+                              Tout ce qui pourrait modifier la machine reste
+                              soumis à ta confirmation, même avec --auto.
   $PROG --sudo "<tâche>"     Autorise l'agent à utiliser sudo (désactivé par défaut)
 
 Exemples :

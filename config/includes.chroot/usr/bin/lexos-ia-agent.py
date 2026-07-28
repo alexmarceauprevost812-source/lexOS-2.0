@@ -45,11 +45,72 @@ BLOCKLIST = [
 ]
 BLOCKLIST_RE = [re.compile(p, re.IGNORECASE) for p in BLOCKLIST]
 
+# -----------------------------------------------------------------------------
+#  Liste BLANCHE — le vrai garde-fou.
+# -----------------------------------------------------------------------------
+#  Une liste noire ne protège rien : « rm -rf /home », « rm -rf /* », « find /
+#  -delete » ou « echo <base64> | base64 -d | sh » la contournent tous sans
+#  effort, et on ne peut pas énumérer à l'avance toutes les façons d'abîmer une
+#  machine. On inverse donc la logique : seules les commandes de LECTURE
+#  connues tournent sans rien demander. Tout le reste passe par une
+#  confirmation humaine, même en mode --auto.
+READONLY_COMMANDS = {
+    "ls", "cat", "head", "tail", "wc", "grep", "egrep", "fgrep", "find",
+    "stat", "file", "du", "df", "pwd", "whoami", "id", "uname", "hostname",
+    "date", "uptime", "free", "ps", "top", "lsblk", "lscpu", "lsusb", "lspci",
+    "lsmod", "mount", "env", "printenv", "echo", "printf", "sort", "uniq",
+    "cut", "awk", "sed", "tr", "column", "less", "more", "readlink", "dirname",
+    "basename", "realpath", "which", "type", "command", "apt-cache", "dpkg-query",
+    "systemctl", "journalctl", "ip", "nmcli", "ping", "dig", "host", "sha256sum",
+    "md5sum", "locale", "lexfetch", "true", "false", "test",
+}
+# Sous-commandes qui écrivent, pour des binaires par ailleurs inoffensifs.
+WRITING_SUBCOMMANDS = {
+    "systemctl": {"start", "stop", "restart", "reload", "enable", "disable",
+                  "mask", "unmask", "isolate", "kill", "set-property"},
+    "ip": {"add", "del", "delete", "set", "flush", "change", "replace"},
+    "nmcli": {"add", "delete", "modify", "edit", "up", "down", "import"},
+}
+SPLIT_RE = re.compile(r"\|\||&&|[;|\n]")
+REDIRECT_RE = re.compile(r"(?<![0-9<>])>{1,2}(?!&)|(?<![0-9<>])>\|")
+SUBSHELL_RE = re.compile(r"\$\(|`|<\(")
+
 
 def blocked_reason(cmd):
+    """Refus dur — deuxième filet, jamais le seul."""
     for rx in BLOCKLIST_RE:
         if rx.search(cmd):
             return "commande jugée destructrice ou dangereuse, refusée par mesure de sécurité"
+    return None
+
+
+def needs_confirmation(cmd):
+    """Renvoie None si la commande est une lecture sûre, sinon la raison du doute.
+
+    Tout ce qui n'est pas explicitement reconnu comme lecture seule exige une
+    confirmation humaine — y compris en mode --auto.
+    """
+    if SUBSHELL_RE.search(cmd):
+        return "contient une substitution de commande"
+    if REDIRECT_RE.search(cmd):
+        return "écrit dans un fichier (redirection)"
+    for segment in SPLIT_RE.split(cmd):
+        parts = segment.split()
+        if not parts:
+            continue
+        # Ignore les VAR=valeur en tête de commande.
+        while parts and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", parts[0]):
+            parts = parts[1:]
+        if not parts:
+            continue
+        prog = os.path.basename(parts[0])
+        if prog not in READONLY_COMMANDS:
+            return f"« {prog} » n'est pas une commande de lecture connue"
+        writing = WRITING_SUBCOMMANDS.get(prog)
+        if writing and any(a in writing for a in parts[1:]):
+            return f"« {prog} » est utilisé pour modifier quelque chose"
+        if prog == "find" and re.search(r"-(delete|exec|execdir|ok|okdir|fls|fprint)\b", segment):
+            return "« find » est utilisé pour agir sur les fichiers, pas seulement les lister"
     return None
 
 
@@ -176,12 +237,25 @@ def main():
         print(f"\033[2m[{step}/{MAX_STEPS}]\033[0m {raison}")
         print(f"  $ {cmd}")
 
-        if not auto:
+        # --auto ne lève la confirmation que pour les commandes de LECTURE
+        # reconnues. Tout ce qui pourrait modifier la machine reste soumis à
+        # un accord humain explicite, quelles que soient les options.
+        doubt = needs_confirmation(cmd)
+        if not auto or doubt:
+            if doubt:
+                print(f"  \033[33m!\033[0m Cette commande peut modifier ta machine — {doubt}.")
+            if not sys.stdin.isatty():
+                err("Confirmation impossible (pas de terminal) — commande non exécutée.")
+                messages.append({"role": "assistant", "content": content})
+                messages.append({"role": "user",
+                                  "content": "Commande non exécutée : elle exige une confirmation "
+                                             "humaine, impossible ici. Propose une commande de lecture seule."})
+                continue
             try:
-                reply = input("  Exécuter ? [Entrée=oui / n=non] ").strip().lower()
+                reply = input("  Exécuter ? [o = oui / Entrée = non] ").strip().lower()
             except EOFError:
                 reply = ""
-            if reply == "n":
+            if reply not in ("o", "oui", "y", "yes"):
                 messages.append({"role": "assistant", "content": content})
                 messages.append({"role": "user", "content": "Refusé par l'utilisateur. Propose autre chose."})
                 continue

@@ -415,11 +415,14 @@ En mode agent, LexOS propose une commande, te la montre, l'exécute, regarde
 le résultat, et recommence jusqu'à avoir fini la tâche. Les mêmes règles que
 `lexos format` s'appliquent :
 
-- Jamais de commande qui efface, formate ou écrase un disque — refusée
-  automatiquement, sans exception.
+- Seules les commandes de **lecture** connues (`ls`, `df`, `cat`, `journalctl`…)
+  tournent sans rien demander. **Tout le reste attend ton accord**, même avec
+  `--auto`.
+- Quelques formes notoires (`rm -rf /`, `mkfs`, `dd of=/dev/…`) sont refusées
+  sèchement, sans même proposer.
 - Jamais `sudo` par défaut (`lexos ia --sudo "…"` pour l'autoriser).
-- Chaque commande s'affiche avant d'être lancée ; `lexos ia --auto "…"` saute
-  la confirmation, mais le refus des commandes destructrices reste actif.
+- Sans terminal (script, tâche planifiée), rien qui demanderait une
+  confirmation ne s'exécute.
 
 ---
 
