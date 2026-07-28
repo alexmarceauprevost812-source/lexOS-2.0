@@ -111,7 +111,8 @@ une image cohérente.
 | `0200-lexos-performance` | initramfs zstd, oomd, irqbalance, service de profil | Oui |
 | `0250-lexos-optional` | Paquets de confort, un par un, tolérant | Oui — c'est son rôle |
 | `0300-lexos-assets` | WebP→PNG, SVG→PNG, icônes, avatar, Plymouth | Oui — dégradation propre |
-| `0400-lexos-desktop` | LightDM, menus, clic droit, raccourcis clavier | Sauté si pas de bureau |
+| `0400-lexos-desktop` | LightDM, compte invité, menus, clic droit, raccourcis | Sauté si pas de bureau |
+| `0450-lexos-settings` | Panneau Paramètres (routeur vers les outils LexOS) | Sauté si pas de bureau |
 | `0500-lexos-installer` | Calamares + chiffrement du disque (LUKS2) | Sauté si pas de Calamares |
 | `0600-lexos-theme` | LexOS Noir dans `/etc/skel`, dock, base dconf | Oui |
 | `9900-lexos-cleanup` | Caches, journaux, machine-id, clés SSH | Non |
@@ -321,6 +322,77 @@ Il lit en flux, borné par `Content-Length`, et ne garde jamais plus de
 reçu est réduit à son nom de base : impossible d'écrire ailleurs que dans le
 dossier de réception. `tests/test_share_server.py` vérifie les seize cas,
 remontées de chemin comprises.
+
+---
+
+## Les autres outils, et ce qu'ils délèguent
+
+La règle est la même partout : LexOS **n'écrit pas un moteur de plus** quand
+Debian en fournit déjà un bon. Chaque outil `lexos-*` est une façade en
+français au-dessus d'un logiciel éprouvé, avec les garde-fous de la maison.
+
+| Outil | Délègue à | Ce que LexOS ajoute |
+|---|---|---|
+| `lexos-format` | `wipefs`, `parted`, `mkfs.*` | Refuse tout disque non amovible, et tout disque hébergeant `/`, `/home`, `/boot`, `/usr` ou `/var`. Confirmation exigée. |
+| `lexos-vpn` | `nmcli connection import` | Détecte seul si le fichier est OpenVPN (`.ovpn`) ou WireGuard (`[Interface]`) et choisit le bon type. |
+| `lexos-secure` | `ufw`, ClamAV, `fail2ban`, `rkhunter` | Un seul tableau de bord, et `secure enable` qui applique des réglages sûrs d'un coup. |
+| `lexos-game` | `gamemoderun`, MangoHud | Bascule le profil de performance avant le jeu et **le remet comme avant** après. |
+| `lexos-sticker` | `rembg` (IA) ou ImageMagick | Choisit seul le meilleur moteur disponible ; jamais bloqué si l'IA est absente. |
+| `lexos-ia` | Ollama | Boucle d'agent, liste noire de commandes destructrices, `sudo` refusé par défaut. |
+| `lexos-update-check` | `apt-get -s upgrade` | Prévient chaque jour les utilisateurs connectés, sans jamais installer de force. |
+
+### Le garde-fou du formatage
+
+`lexos-format` suit exactement la logique de `lexos-install` — vérifier,
+avertir, puis seulement agir :
+
+```
+lexos-format /dev/sdX
+    │
+    ├─ le disque héberge / /home /boot /usr /var ?  → refus, sans appel
+    ├─ le disque n'est pas amovible (lsblk RM=0) ?  → refus
+    ├─ affiche taille, modèle, contenu actuel
+    ├─ demande confirmation
+    │     graphique : bouton clairement étiqueté
+    │     console   : taper FORMATER en toutes lettres
+    ├─ refus ou autre saisie                        → sortie, rien n'est touché
+    └─ confirmation                                 → wipefs + parted + mkfs
+```
+
+### Pourquoi l'IA tourne en local
+
+`lexos-ia` s'appuie sur **Ollama**, qui exécute le modèle sur la machine.
+Une fois le modèle téléchargé (une seule fois, ~2 Gio), plus rien ne sort sur
+internet — y compris en mode agent, où le modèle voit la sortie de commandes
+qui peuvent contenir des noms de fichiers ou des adresses réseau. Un service
+distant aurait été plus simple à brancher, mais aurait fait sortir ces
+données de la machine à chaque question.
+
+Le mode agent applique trois limites, dans cet ordre :
+
+1. Une liste noire d'expressions régulières (`rm -rf /`, `mkfs`, `dd of=/dev/…`,
+   `parted`, `shutdown`, `curl … | sh`…) — refus, sans exécution.
+2. `sudo` refusé sauf `--sudo` explicite.
+3. Chaque commande affichée et confirmée, sauf `--auto` — qui lève la
+   confirmation mais **jamais** la liste noire.
+
+Le tout plafonne à vingt étapes : un modèle qui tourne en rond s'arrête au
+lieu de consommer la machine.
+
+### Le repli à deux moteurs des autocollants
+
+`lexos-sticker` illustre le principe du repli propre appliqué ailleurs (CRT,
+gouverneurs CPU, thème Plymouth) :
+
+| Moteur | Quand | Qualité |
+|---|---|---|
+| `rembg` (réseau U2-Net) | S'il est installé | Découpe même sur fond complexe |
+| ImageMagick, remplissage depuis les coins | Toujours disponible | Bon sur fond uni |
+
+Aucun des deux n'est obligatoire à la construction : `python3-rembg` vit dans
+`optional-packages/90-decoupe-image.list`, donc en « best effort », et
+`imagemagick` est déjà dans `00-core.list`. Si l'IA manque, l'outil bascule
+sans rien dire et rend quand même un PNG à fond transparent.
 
 ---
 

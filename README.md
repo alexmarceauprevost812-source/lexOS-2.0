@@ -163,6 +163,21 @@ disque dur.
 Redémarre ensuite en choisissant la clé dans le menu de démarrage de ton
 ordinateur (souvent `F12`, `F11`, `Échap` ou `Suppr` au démarrage).
 
+### Sans clé USB, ou depuis Windows
+
+Trois autres chemins mènent au bureau LexOS, détaillés dans
+[`docs/INSTALLATION.md`](docs/INSTALLATION.md) :
+
+| Moyen | Pour qui | Touche au disque ? |
+|---|---|---|
+| **VirtualBox** — LexOS dans une fenêtre, comme un logiciel | Windows, macOS | Non, jamais |
+| **Ventoy** — copier-coller l'ISO sur la clé, sans graver | Tout le monde | Non |
+| **Boucle GRUB** — démarrer l'ISO posée sur le disque dur | Linux déjà installé | Non (lecture seule) |
+
+Pour garder LexOS **à côté** de Windows pour de bon, c'est l'installation
+normale : session démo → `lexos install-disk` → **« Installer à côté »**, qui
+rétrécit la partition Windows sans l'effacer.
+
 ---
 
 ## À quoi ça ressemble

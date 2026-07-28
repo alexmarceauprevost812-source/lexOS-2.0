@@ -6,7 +6,7 @@
 #  Règle de la maison : comme pour l'installation sur disque, on n'efface
 #  jamais rien sans un avertissement clair et une confirmation explicite.
 #  Ce script refuse tout support qui n'est pas amovible, et refuse en
-#  particulier le disque qui héberge /, /home, /boot ou /usr.
+#  particulier le disque qui héberge /, /home, /boot, /usr ou /var.
 # =============================================================================
 set -uo pipefail
 
