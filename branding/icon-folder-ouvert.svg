@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — dossier (ouvert).
+  Deux pièces : le dos avec sa languette, et le rabat avant. Les séparer
+  permet de faire pivoter le rabat pour ouvrir le dossier — c'est ce qui
+  produit l'animation au survol dans la démo.
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen ;
+  l'utilisateur peut aussi recolorer un dossier par un clic droit.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Dossier ouvert — LexOS">
+  <g transform="translate(0,26)">
+    <path d="M 44 148 a 26 26 0 0 1 26 -26 h 132 a 26 26 0 0 1 18 8 l 34 34 h 184 a 26 26 0 0 1 26 26 v 214 a 26 26 0 0 1 -26 26 H 70 a 26 26 0 0 1 -26 -26 Z" fill="#A84007"/>
+    <g transform="rotate(-13 256 412)" opacity="1">
+      <path d="M 78 206 h 378 a 24 24 0 0 1 23 30 l -38 156 a 26 26 0 0 1 -25 20 H 90 a 26 26 0 0 1 -25 -20 L 27 236 a 24 24 0 0 1 23 -30 Z" fill="#E8590C"/>
+    </g>
+  </g>
+</svg>

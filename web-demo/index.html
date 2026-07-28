@@ -135,6 +135,29 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
    Posés en masque : le glyphe prend la couleur du texte courant, donc il
    reste lisible en thème sombre comme en thème de jour, et sur un bouton
    peint à l'accent. */
+/* --- Dossiers ------------------------------------------------------------
+   Le dossier est en deux pièces : le dos et le rabat avant. Faire pivoter le
+   rabat au survol, c'est le dossier qui s'ouvre. */
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(94px,1fr));
+  gap:6px;padding:10px 12px}
+.fold{display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:8px 4px 10px;border-radius:10px;cursor:pointer;
+  -webkit-user-select:none;user-select:none;transition:background .12s}
+.fold:hover,.fold:focus-visible{background:var(--bg-hi);outline:none}
+.fold svg{width:62px;height:62px;display:block;overflow:visible}
+.fold .ff-g{transform-box:view-box;transform-origin:256px 438px;
+  transition:transform .3s cubic-bezier(.34,1.25,.5,1)}
+.fold:hover .ff-g,.fold:focus-visible .ff-g{transform:rotate(-15deg)}
+/*  Petit rebond au clic — court, pour ne pas retarder l'ouverture. */
+.fold.bounce svg{animation:foldBounce .4s ease}
+@keyframes foldBounce{
+  0%{transform:scale(1)} 28%{transform:scale(.86)}
+  58%{transform:scale(1.08)} 100%{transform:scale(1)} }
+@media (prefers-reduced-motion:reduce){
+  .fold .ff-g{transition:none} .fold.bounce svg{animation:none} }
+/*  Le nom complet sous l'image, sur autant de lignes qu'il faut. */
+.fold .fname{font-size:11.5px;line-height:1.25;text-align:center;
+  color:var(--fg);overflow-wrap:anywhere}
 .gly{display:inline-block;width:1.05em;height:1.05em;vertical-align:-.17em;
   background-color:currentColor;flex:none;
   -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
@@ -972,6 +995,7 @@ function openFiles(){
      <span class="dl-mascot" id="dlMascotBadge" aria-hidden="true"></span>
      <button class="ficonbtn" id="filesMenuBtn" onclick="toggleFilesMenu(this)" title="Menu">⋮</button>
    </div>
+   ${renderFolders()}
    <ul class="files" id="filesList">
     <li style="cursor:pointer" title="Clique : ouvrir l'outil autocollant · Presse 2 secondes : découper et enregistrer tout de suite"
         onpointerdown="stickerPressStart('mascot.png',event)" onpointerup="stickerPressEnd()" onpointerleave="stickerPressEnd()"
@@ -989,7 +1013,7 @@ function openFiles(){
        Astuce : clique le <span style="color:var(--ac)">.zip</span> pour l'extraire —
        comme « Extraire ici » au clic droit sur la vraie ISO (3 clics ou moins).</p>
      <button class="btn" onclick="openShare()"><i class="gly gly-share"></i> Partager avec LexOS</button>
-   </div>`,460,400);
+   </div>`,540,470);
 }
 
 /* --- Menu ⋮ du gestionnaire de fichiers, façon GNOME Fichiers ------------ */
@@ -1120,6 +1144,99 @@ function extractZip(){
     setTimeout(()=>badge.classList.remove("show"), 2600);
   }
 }
+/* --- Dossiers du gestionnaire de fichiers -------------------------------- */
+//  Chaque dossier porte un nom court écrit SUR l'image et son nom complet
+//  dessous. La couleur suit l'accent choisi dans les Paramètres, sauf si
+//  l'utilisateur en a fixé une par le clic droit.
+const FOLDERS = [
+  {nom:"Téléchargements",  court:"DL",    couleur:null},
+  {nom:"Images",           court:"IMG",   couleur:null},
+  {nom:"Documents",        court:"DOC",   couleur:null},
+  {nom:"Musique",          court:"MUS",   couleur:null},
+  {nom:"Vidéos",           court:"VID",   couleur:null},
+  {nom:"Projets LexOS",    court:"PROJ",  couleur:null},
+];
+//  Assombrit une couleur : sert au dos du dossier, pour le relief.
+function shade(hex, k){
+  const n=parseInt(hex.slice(1),16);
+  const c=[(n>>16)&255,(n>>8)&255,n&255].map(v=>Math.max(0,Math.min(255,Math.round(v*k))));
+  return "#"+c.map(v=>v.toString(16).padStart(2,"0")).join("");
+}
+const FOLD_BACK  = "M 44 148 a 26 26 0 0 1 26 -26 h 132 a 26 26 0 0 1 18 8 l 34 34 h 184 "+
+                   "a 26 26 0 0 1 26 26 v 214 a 26 26 0 0 1 -26 26 H 70 a 26 26 0 0 1 -26 -26 Z";
+const FOLD_FRONT = "M 78 206 h 378 a 24 24 0 0 1 23 30 l -38 156 a 26 26 0 0 1 -25 20 H 90 "+
+                   "a 26 26 0 0 1 -25 -20 L 27 236 a 24 24 0 0 1 23 -30 Z";
+function folderColor(f){ return f.couleur || (ACCENTS[state.accent] || ACCENTS.orange)[0]; }
+function folderSVG(f){
+  const c = folderColor(f);
+  const txt = preferBlackOn(c) ? "#000" : "#fff";
+  return `<svg viewBox="0 0 512 512" aria-hidden="true">`+
+    `<g transform="translate(0,26)">`+
+      `<path d="${FOLD_BACK}" fill="${shade(c,0.62)}"/>`+
+      `<g class="ff-g">`+
+        `<path d="${FOLD_FRONT}" fill="${c}"/>`+
+        `<text x="256" y="345" text-anchor="middle" fill="${txt}" opacity=".95"`+
+        ` font-family="ui-monospace,monospace" font-weight="700" font-size="104">${esc(f.court)}</text>`+
+      `</g>`+
+    `</g></svg>`;
+}
+function renderFolders(){
+  return `<div class="fgrid" id="fgrid">`+ FOLDERS.map((f,i)=>
+    `<div class="fold" tabindex="0" data-i="${i}" title="${esc(f.nom)} — clic droit pour la couleur"`+
+    ` onclick="folderOpen(${i},this)"`+
+    ` oncontextmenu="folderMenu(event,${i})"`+
+    ` onkeydown="if(event.key==='Enter'){folderOpen(${i},this)}">`+
+      folderSVG(f)+
+      `<span class="fname">${esc(f.nom)}</span>`+
+    `</div>`).join("") + `</div>`;
+}
+function folderOpen(i, el){
+  el.classList.remove("bounce");
+  void el.offsetWidth;                    // relance l'animation même en double-clic
+  el.classList.add("bounce");
+  setTimeout(()=>el.classList.remove("bounce"), 420);
+  toast("📂 " + FOLDERS[i].nom);
+}
+/* --- Clic droit : changer la couleur du dossier -------------------------- */
+let foldMenuEl = null;
+function closeFolderMenu(){ if(foldMenuEl){ foldMenuEl.remove(); foldMenuEl=null; } }
+function folderMenu(e, i){
+  e.preventDefault(); e.stopPropagation();
+  closeFolderMenu();
+  const m=document.createElement("div");
+  m.className="menu";
+  m.style.top=Math.min(innerHeight-260, e.clientY)+"px";
+  m.style.left=Math.min(innerWidth-250, e.clientX)+"px";
+  m.style.right="auto";
+  const puce=c=>`<span style="width:13px;height:13px;border-radius:3px;background:${c};`+
+                `display:inline-block;border:1px solid rgba(255,255,255,.25)"></span>`;
+  m.innerHTML =
+    `<button onclick="folderOpenFromMenu(${i})">📂 Ouvrir</button>`+
+    `<div class="msep"></div>`+
+    `<div style="padding:6px 10px 4px;font-size:11px;color:var(--fg-dim)">Couleur du dossier</div>`+
+    Object.entries(ACCENTS).map(([n,c])=>
+      `<button onclick="folderSetColor(${i},'${c[0]}')">${puce(c[0])} ${n}</button>`).join("")+
+    `<div class="msep"></div>`+
+    `<button onclick="folderSetColor(${i},null)">↺ Couleur du thème</button>`;
+  document.body.appendChild(m);
+  foldMenuEl=m;
+}
+function folderOpenFromMenu(i){
+  closeFolderMenu();
+  const el=document.querySelector(`.fold[data-i="${i}"]`);
+  if(el) folderOpen(i, el);
+}
+function folderSetColor(i, c){
+  closeFolderMenu();
+  FOLDERS[i].couleur = c;
+  const el=document.querySelector(`.fold[data-i="${i}"]`);
+  if(el) el.innerHTML = folderSVG(FOLDERS[i]) + `<span class="fname">${esc(FOLDERS[i].nom)}</span>`;
+  toast(c ? "Couleur changée — " + FOLDERS[i].nom : "Couleur du thème rétablie");
+}
+document.addEventListener("click", e=>{
+  if(foldMenuEl && !e.target.closest(".menu")) closeFolderMenu();
+});
+
 /* --- Autocollants : découpe du sujet, façon Samsung, en local ------------ */
 function floodCutout(ctx,w,h,fuzzPct){
   const data=ctx.getImageData(0,0,w,h);
