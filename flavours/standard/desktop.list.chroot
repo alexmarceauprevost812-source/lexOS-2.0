@@ -1,5 +1,10 @@
 # =============================================================================
-#  LexOS — Bureau XFCE + applications courantes  (saveurs : standard, dev, full)
+#  LexOS — Bureau ESSENTIEL  (saveurs : standard, dev, full)
+# =============================================================================
+#  Le strict nécessaire pour obtenir une session graphique utilisable.
+#  Le reste (thèmes, son, Bluetooth, impression, dock, effets) est dans
+#  config/includes.chroot/usr/share/lexos/optional-packages/ et installé
+#  en best effort par le hook 0250.
 # =============================================================================
 
 # --- Serveur graphique -------------------------------------------------------
@@ -7,82 +12,17 @@ xorg
 xserver-xorg-input-all
 xserver-xorg-video-all
 
-# --- Bureau XFCE -------------------------------------------------------------
+# --- Bureau ------------------------------------------------------------------
 xfce4
-xfce4-goodies
 xfce4-terminal
-xfce4-power-manager
-xfce4-screenshooter
-xfce4-notifyd
-xfce4-taskmanager
-xfce4-whiskermenu-plugin
 thunar
-thunar-archive-plugin
-thunar-volman
-tumbler
-file-roller
 
-# --- Gestionnaire de connexion ----------------------------------------------
+# --- Connexion ---------------------------------------------------------------
 lightdm
 lightdm-gtk-greeter
-lightdm-gtk-greeter-settings
 
-# --- Dock façon Ubuntu -------------------------------------------------------
-plank
-dconf-cli
-dconf-gsettings-backend
-
-# --- Effets de fenêtres « TV 1980 » (Compiz) --------------------------------
-compiz
-compiz-core
-compiz-gtk
-compiz-plugins-default
-compiz-plugins-extra
-compizconfig-settings-manager
-compizconfig-backend-gsettings
-python3-compizconfig
-mesa-utils
-
-# --- Thèmes, icônes, polices -------------------------------------------------
-arc-theme
-papirus-icon-theme
-fonts-noto-core
-fonts-noto-color-emoji
-fonts-firacode
-fonts-dejavu
-adwaita-icon-theme
-
-# --- Son ---------------------------------------------------------------------
-pipewire
-pipewire-audio
-pipewire-pulse
-wireplumber
-pavucontrol
-alsa-utils
-
-# --- Réseau & Bluetooth (GUI) ------------------------------------------------
-network-manager-gnome
-blueman
-bluez
-
-# --- Impression --------------------------------------------------------------
-cups
-system-config-printer
-printer-driver-all
-
-# --- Applications de base ----------------------------------------------------
+# --- Navigateur --------------------------------------------------------------
 firefox-esr
-firefox-esr-l10n-fr
-mousepad
-ristretto
-xarchiver
-galculator
-gnome-disk-utility
-synaptic
-gdebi
-zenity
-yad
-xdg-utils
-xdg-user-dirs
-xdg-user-dirs-gtk
+
+# --- Politique d'autorisations ----------------------------------------------
 policykit-1

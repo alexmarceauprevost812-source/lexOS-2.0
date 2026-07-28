@@ -1,0 +1,5 @@
+# Partage de fichiers et d'images vers un téléphone.
+# qrencode est le plus important : c'est lui qui rend « lexos share » utilisable
+# sans rien installer côté téléphone.
+qrencode
+kdeconnect

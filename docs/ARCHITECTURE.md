@@ -108,10 +108,12 @@ une image cohérente.
 |---|---|---|
 | `0100-lexos-identity` | `os-release`, `lsb-release`, `issue`, `motd`, GRUB | Non — c'est l'identité |
 | `0110-lexos-locale` | Locales, clavier, fuseau, police console | Partiellement |
+| `0200-lexos-performance` | initramfs zstd, oomd, irqbalance, service de profil | Oui |
+| `0250-lexos-optional` | Paquets de confort, un par un, tolérant | Oui — c'est son rôle |
 | `0300-lexos-assets` | WebP→PNG, SVG→PNG, icônes, avatar, Plymouth | Oui — dégradation propre |
-| `0400-lexos-desktop` | LightDM, autologin, sudo, applications par défaut | Sauté si pas de bureau |
-| `0500-lexos-installer` | Branding Calamares, raccourcis bureau | Sauté si pas de Calamares |
-| `0600-lexos-theme` | LexOS Noir dans `/etc/skel`, base dconf | Oui |
+| `0400-lexos-desktop` | LightDM, menus, clic droit, raccourcis clavier | Sauté si pas de bureau |
+| `0500-lexos-installer` | Calamares + chiffrement du disque (LUKS2) | Sauté si pas de Calamares |
+| `0600-lexos-theme` | LexOS Noir dans `/etc/skel`, dock, base dconf | Oui |
 | `9900-lexos-cleanup` | Caches, journaux, machine-id, clés SSH | Non |
 
 ### Pourquoi cet ordre
@@ -242,6 +244,85 @@ sur `calamares` : le garde-fou ne peut pas être contourné par accident.
 
 ---
 
+## Deux niveaux de paquets
+
+live-build interrompt la construction dès qu'un nom de paquet n'existe pas.
+C'est le bon réflexe pour le noyau — beaucoup moins pour un thème d'icônes
+renommé entre deux versions de Debian.
+
+D'où la séparation :
+
+| | Où | Comportement si absent |
+|---|---|---|
+| **Essentiels** | `config/package-lists/`, `flavours/*/` | La construction s'arrête |
+| **Confort** | `config/includes.chroot/usr/share/lexos/optional-packages/` | Noté et ignoré |
+
+Le hook `0250` tente d'abord d'installer tous les paquets de confort d'un
+bloc — c'est bien plus rapide. Si ça échoue, il reprend un par un pour
+identifier précisément le fautif, et écrit le bilan dans
+`/etc/lexos/optional-report` :
+
+```
+# Paquets optionnels — saveur standard
+# Installés : 84    Indisponibles : 2
+
+# Non installés (nom absent de l'archive, ou conflit) :
+plank
+compiz-plugins-extra
+```
+
+Le code qui dépend de ces paquets s'y attend : `lexos-wm` retombe sur xfwm4
+sans Compiz, le dock ne démarre simplement pas sans Plank, `lexos share`
+affiche l'URL sans QR code sans `qrencode`. Aucun de ces cas ne casse la
+session.
+
+---
+
+## Le moteur de performance
+
+`lexos-perf` agit sur deux plans, parce que la moitié des réglages exige root
+et l'autre moitié une session ouverte :
+
+| Plan | Exécuté par | Ce qu'il touche |
+|---|---|---|
+| Système | `lexos-perf.service` au démarrage, ou `sudo` | Gouverneur CPU, EPP, turbo, sysctl, ordonnanceur E/S, zram, services |
+| Session | `lexos-firstrun`, ou la commande directe | Compositing, effets CRT, zoom du dock, miniatures |
+
+Un seul `case` définit les quatre profils, avec les mêmes variables partout :
+pour comprendre ce que fait `max`, il n'y a qu'un bloc de quinze lignes à
+lire.
+
+Les réglages CPU dégradent proprement. `schedutil` n'existe pas sur tous les
+noyaux : le script lit `scaling_available_governors` et retombe sur
+`ondemand`, puis `conservative`. Dans une machine virtuelle sans `cpufreq`,
+il l'annonce au lieu de prétendre avoir agi.
+
+---
+
+## Le partage par QR code
+
+Le besoin : envoyer une photo au téléphone sans installer d'application des
+deux côtés. La réponse tient en trois pièces :
+
+1. `lexos-share qr` crée un dossier temporaire et y fait des liens durs vers
+   les fichiers — pas de copie, même pour une vidéo de 2 Go.
+2. `share-server.py` sert ce dossier en HTTP sur le réseau local, avec une
+   page dans les couleurs de LexOS et un formulaire d'envoi.
+3. `qrencode` affiche l'adresse en QR code dans le terminal.
+
+Le serveur s'arrête tout seul après quinze minutes. Rien ne sort du réseau
+local, rien n'est téléversé nulle part.
+
+Le parseur multipart est écrit à la main plutôt que d'utiliser le module
+`cgi` de Python : celui-ci disparaît en Python 3.13, donc dans Debian trixie.
+Il lit en flux, borné par `Content-Length`, et ne garde jamais plus de
+64 Kio en mémoire — un envoi de 4 Go passe sans problème. Le nom de fichier
+reçu est réduit à son nom de base : impossible d'écrire ailleurs que dans le
+dossier de réception. `tests/test_share_server.py` vérifie les seize cas,
+remontées de chemin comprises.
+
+---
+
 ## Pourquoi ces choix
 
 **Debian plutôt qu'Ubuntu comme socle.** `live-build` est l'outil officiel
@@ -260,6 +341,18 @@ proche d'Ubuntu.
 **Calamares plutôt que l'installateur Debian seul.** Calamares s'habille aux
 couleurs de la distribution et se pilote à la souris. L'installateur Debian
 reste disponible depuis le menu de démarrage, comme filet de sécurité.
+
+**Debian trixie plutôt que bookworm.** Noyau 6.12 LTS, systemd 257, Mesa 25 :
+la même génération de composants qu'Ubuntu 26.04. Le matériel récent est
+reconnu, et les performances graphiques suivent. `LEXOS_KERNEL_CHANNEL=backports`
+va chercher un noyau encore plus neuf quand la machine l'exige.
+
+**Connexion automatique aux réseaux ouverts : désactivée.** La fonctionnalité
+est là parce qu'elle a été demandée, mais l'activer par défaut reviendrait à
+faire circuler le trafic de l'utilisateur en clair sans qu'il l'ait choisi.
+Elle demande donc `OUI` en toutes lettres après un avertissement, ne se
+déclenche que hors ligne, et notifie à chaque connexion. La CI vérifie que le
+défaut reste `off`.
 
 **MIT plutôt que GPL.** Le travail original ici, ce sont des scripts de
 construction. MIT laisse le maximum de liberté à qui veut partir de ce dépôt.

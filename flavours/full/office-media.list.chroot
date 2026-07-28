@@ -1,43 +1,7 @@
 # =============================================================================
-#  LexOS — Bureautique, multimédia, création  (saveur : full)
-#  Attention : ajoute ~2 Go à l'ISO.
+#  LexOS — Bureautique et multimédia, base stricte  (saveur : full)
 # =============================================================================
-
-# --- Bureautique -------------------------------------------------------------
 libreoffice
-libreoffice-l10n-fr
-libreoffice-help-fr
-hunspell-fr
-thunderbird
-thunderbird-l10n-fr
-evince
-
-# --- Multimédia --------------------------------------------------------------
 vlc
-mpv
-audacity
-ffmpeg
-handbrake
-rhythmbox
-
-# --- Création graphique ------------------------------------------------------
 gimp
-gimp-data-extras
-inkscape
-krita
-darktable
-
-# --- Codecs & polices supplémentaires ---------------------------------------
-gstreamer1.0-plugins-good
-gstreamer1.0-plugins-bad
-gstreamer1.0-plugins-ugly
-gstreamer1.0-libav
-fonts-liberation2
-fonts-crosextra-carlito
-fonts-crosextra-caladea
-
-# --- Divers ------------------------------------------------------------------
-transmission-gtk
-remmina
-gparted
-timeshift
+ffmpeg

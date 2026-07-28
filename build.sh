@@ -89,7 +89,7 @@ case "$LEXOS_FLAVOUR" in
 esac
 
 info "Distribution : ${LEXOS_NAME} ${LEXOS_VERSION} « ${LEXOS_CODENAME} »"
-info "Socle        : Debian ${LEXOS_DEBIAN_SUITE} / ${LEXOS_ARCH}"
+info "Socle        : Debian ${LEXOS_DEBIAN_SUITE} / ${LEXOS_ARCH} (noyau ${LEXOS_KERNEL_CHANNEL})"
 info "Saveur       : ${LEXOS_FLAVOUR}"
 
 # --- Vérification de l'environnement ----------------------------------------
@@ -189,6 +189,11 @@ LEXOS_TERM_FG="${LEXOS_TERM_FG}"
 LEXOS_GTK_BASE_THEME="${LEXOS_GTK_BASE_THEME}"
 LEXOS_ICON_THEME="${LEXOS_ICON_THEME}"
 LEXOS_CRT_EFFECTS="${LEXOS_CRT_EFFECTS}"
+LEXOS_DOCK_POSITION="${LEXOS_DOCK_POSITION}"
+LEXOS_PERF_PROFILE="${LEXOS_PERF_PROFILE}"
+LEXOS_WIFI_AUTO_OPEN="${LEXOS_WIFI_AUTO_OPEN}"
+LEXOS_DISK_ENCRYPTION="${LEXOS_DISK_ENCRYPTION}"
+LEXOS_KERNEL_CHANNEL="${LEXOS_KERNEL_CHANNEL}"
 LEXOS_BUILD_DATE="${BUILD_DATE}"
 LEXOS_BUILD_ID="${BUILD_ID}"
 EOF
@@ -225,7 +230,9 @@ esac
 
 TOTAL_PKGS="$(cat config/package-lists/*.list.chroot 2>/dev/null \
 	| grep -Ev '^\s*(#|$)' | sort -u | wc -l)"
-ok "${TOTAL_PKGS} paquets uniques demandés"
+OPT_DIR="config/includes.chroot/usr/share/lexos/optional-packages"
+OPT_PKGS="$(cat "$OPT_DIR"/*.list 2>/dev/null | grep -Evc '^\s*(#|$)' || echo 0)"
+ok "${TOTAL_PKGS} paquets stricts + ${OPT_PKGS} optionnels (best effort)"
 
 # --- Droits d'exécution ------------------------------------------------------
 chmod +x auto/config auto/build auto/clean 2>/dev/null || true

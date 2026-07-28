@@ -1,0 +1,14 @@
+# Dock façon Ubuntu et effets de fenêtres « TV 1980 ».
+# Absents : le dock ne s'affiche pas et lexos-wm reste sur xfwm4.
+plank
+dconf-cli
+dconf-gsettings-backend
+compiz
+compiz-core
+compiz-gtk
+compiz-plugins-default
+compiz-plugins-extra
+compizconfig-settings-manager
+compizconfig-backend-gsettings
+python3-compizconfig
+mesa-utils

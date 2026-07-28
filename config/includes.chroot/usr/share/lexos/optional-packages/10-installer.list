@@ -1,0 +1,4 @@
+# Installateur graphique. Sans lui, l'installateur Debian du menu de
+# démarrage reste disponible.
+calamares
+calamares-settings-debian

@@ -19,18 +19,22 @@ Linux**. Ce dépôt contient tout ce qu'il faut pour fabriquer une **image ISO
 amorçable** que tu graves sur une clé USB, que tu essaies sans risque, et que
 tu installes si elle te plaît.
 
-Le socle est Debian (stable, éprouvé, plus de 60 000 paquets). Par-dessus,
+Le socle est **Debian 13 « trixie »** : noyau 6.12 LTS, systemd 257, Mesa 25 —
+la même génération de composants qu'Ubuntu 26.04, le même moteur. Par-dessus,
 LexOS pose son identité : nom, logo, écran de démarrage, thème noir, dock,
-outils maison et effets de fenêtres.
+profils de performance, outils réseau et de partage.
 
 | | |
 |---|---|
 | **Nom** | LexOS 1.0 « Nomad » |
-| **Socle** | Debian bookworm (modifiable) |
-| **Bureau** | XFCE — barre en haut, dock à gauche, comme Ubuntu |
+| **Socle** | Debian trixie — noyau 6.12 LTS, systemd 257, Mesa 25 |
+| **Bureau** | XFCE — barre en haut, dock à droite, façon Ubuntu |
 | **Thème** | LexOS Noir : fond noir pur, écriture blanche, boutons accentués |
 | **Terminal** | Fond noir, écriture vert foncé, curseur orange |
 | **Effets** | Ouverture/fermeture de fenêtres façon téléviseur 1980 |
+| **Performance** | 4 profils : petit · médium · performant · max |
+| **Réseau** | Mode avion, Wi-Fi, Bluetooth, partage par QR code |
+| **Sécurité** | Chiffrement du disque proposé à l'installation (LUKS2) |
 | **Architecture** | amd64 (64 bits) |
 | **Licence** | MIT pour le travail original — voir [LICENSE](LICENSE) |
 
@@ -199,8 +203,172 @@ livré : `/usr/share/backgrounds/lexos/wallpaper-crt.png`.
 
 * **Barre en haut** — menu Applications à gauche, horloge au centre, réseau /
   son / batterie / session à droite.
-* **Dock à gauche** — Plank, icônes zoomantes, masquage intelligent.
+* **Dock à droite** — Plank, icônes zoomantes, masquage intelligent.
+  Déplaçable : `lexos dock gauche` · `bas` · `haut` · `droite`.
 * **Bureau** — raccourcis « Essayer LexOS (démo) » et « Installer LexOS ».
+
+---
+
+## Performance de la machine
+
+Quatre profils, du plus économe au plus agressif. Chacun agit sur le
+gouverneur du processeur, les réglages du noyau, l'ordonnanceur disque, les
+services et les effets du bureau.
+
+| Profil | Pour qui | Ce qui change |
+|---|---|---|
+| `petit` | Vieille machine, batterie à ménager | Gouverneur `powersave`, turbo coupé, zram, journal en mémoire, Bluetooth et impression arrêtés, aucun effet de fenêtre |
+| `medium` | La plupart des machines — **défaut** | Gouverneur adaptatif, compositing simple, réglages noyau équilibrés |
+| `performant` | Machine récente, branchée | Gouverneur `performance`, swappiness basse, TCP BBR, effets CRT actifs |
+| `max` | Tout donner | `performance` sans compromis, cache disque agressif, ordonnanceur E/S à faible latence |
+
+```bash
+lexos perf              # liste les profils
+lexos perf auto         # choisit d'après la RAM et le nombre de cœurs
+lexos perf max          # applique
+lexos perf status       # ce que fait VRAIMENT la machine
+```
+
+`lexos perf status` compare ce qui est demandé et ce qui tourne. Sur une
+machine virtuelle sans pilote `cpufreq`, il le dit plutôt que de prétendre
+avoir réglé quelque chose.
+
+Le profil est rejoué à chaque démarrage par `lexos-perf.service`. Sans profil
+enregistré, LexOS choisit tout seul au premier allumage.
+
+Un sélecteur graphique est aussi dans le menu : **Performance de la machine**
+(ou `Super+P`).
+
+---
+
+## Réseau : mode avion, Wi-Fi, Bluetooth
+
+```bash
+lexos avion on          # coupe Wi-Fi, Bluetooth et données mobiles
+lexos avion toggle      # bascule — aussi sur Super+A et la touche Fn Wi-Fi
+lexos wifi              # cherche les réseaux à portée
+lexos net connect "Café du coin"
+lexos bt scan           # appareils Bluetooth à portée
+lexos bt pair "Casque"  # appaire, approuve et connecte
+lexos net status        # vue d'ensemble
+```
+
+Le scan Wi-Fi montre le signal en barres, la bande, et signale en clair les
+réseaux **OUVERT** — ceux sans mot de passe.
+
+### Connexion automatique aux réseaux ouverts
+
+LexOS sait se raccrocher tout seul à un réseau sans mot de passe quand tu n'as
+plus de connexion. **Cette option est désactivée par défaut**, et l'activer
+demande de taper `OUI` après un avertissement :
+
+> Un réseau ouvert n'est pas chiffré. Toute personne à portée peut lire ce qui
+> y circule en clair, et n'importe qui peut créer un faux point d'accès portant
+> le nom d'un réseau connu.
+
+```bash
+lexos net auto on       # avertit, puis demande confirmation
+lexos net auto status
+lexos net auto off
+```
+
+Quand c'est actif, LexOS ne se connecte que si tu es réellement hors ligne,
+jamais par-dessus une connexion filaire, et affiche une notification à chaque
+fois. Rien ne se fait en douce.
+
+---
+
+## Plusieurs écrans
+
+Portable + écran externe, projecteur, triple écran : tout se règle depuis
+**Écrans** dans le menu (ou `Super+D`), et en ligne de commande.
+
+```bash
+lexos ecran                      # ce qui est branché, résolution, position
+lexos ecran etendre droite       # bureau étendu — aussi gauche, haut, bas
+lexos ecran miroir               # la même image partout (projecteur)
+lexos ecran principal HDMI-1     # le grand écran porte la barre et le dock
+lexos ecran seul eDP-1           # n'allumer que celui-là
+lexos ecran resolution HDMI-1 2560x1440
+lexos ecran gui                  # réglage à la souris
+```
+
+`lexos ecran` affiche l'état réel :
+
+```
+  SORTIE       RÉSOLUTION     POSITION     PRINCIPAL ÉTAT
+  ──────────────────────────────────────────────────────────
+  eDP-1        1920x1080      +0+0         ●         actif
+  HDMI-1       2560x1440      +1920+0                actif
+
+  2 écran(s) branché(s), 2 allumé(s).
+```
+
+Le fond d'écran est réappliqué automatiquement sur tout écran qui vient de
+s'allumer — pas de bureau gris sur le second moniteur.
+
+### Retrouver sa disposition tout seul
+
+```bash
+lexos ecran profil save bureau   # mémorise la configuration actuelle
+lexos ecran profil list
+```
+
+Avec `autorandr`, LexOS reconnaît la combinaison d'écrans au branchement et
+réapplique la bonne disposition sans rien demander.
+
+---
+
+## Partager des fichiers et des images
+
+Trois moyens, du plus universel au plus spécialisé.
+
+### QR code — rien à installer sur le téléphone
+
+```bash
+lexos share photo.jpg
+```
+
+Un QR code s'affiche dans le terminal. Tu le scannes avec l'appareil photo du
+téléphone, le fichier se télécharge. La même page permet de **t'envoyer** des
+fichiers depuis le téléphone — ils arrivent dans `~/Téléchargements/LexOS-reçus`.
+
+Le partage s'arrête tout seul au bout de 15 minutes.
+
+Dans le gestionnaire de fichiers : clic droit → **Partager avec LexOS**.
+
+### KDE Connect — façon AirDrop
+
+Avec l'application KDE Connect sur le téléphone, les deux appareils appairés
+sur le même Wi-Fi : `lexos share` envoie directement, sans QR code.
+
+### Bluetooth — quand il n'y a pas de réseau
+
+```bash
+lexos share bt document.pdf
+```
+
+```bash
+lexos share devices     # ce qui est joignable, par quel moyen
+lexos receive           # ouvrir une boîte de réception
+```
+
+---
+
+## Mot de passe sur le disque dur
+
+À l'installation, Calamares propose de **chiffrer le disque entier** (LUKS2).
+Une phrase secrète est alors demandée à chaque démarrage, avant même que le
+système ne se charge.
+
+Sans elle, le contenu du disque est illisible — y compris pour quelqu'un qui
+sortirait le disque de la machine pour le brancher ailleurs. C'est la seule
+protection réelle contre le vol de l'ordinateur ; une simple session
+verrouillée ne protège rien.
+
+> **Le revers :** phrase secrète oubliée = données perdues, définitivement.
+> Il n'existe aucune porte dérobée. Note-la ailleurs qu'à l'intérieur de
+> la machine.
 
 ---
 
@@ -241,8 +409,25 @@ PAQUETS
 
 APPARENCE
   accent <couleur>    orange · bleu · rouge · vert · gris · violet
+  dock <position>     droite (défaut) · gauche · bas · haut
+  ecran               Plusieurs écrans : étendre, dupliquer, principal
   wallpaper [chemin]  Changer le fond d'écran
   crt <on|off|status> Effets d'ouverture/fermeture façon TV 1980
+
+PERFORMANCE
+  perf <profil>       petit · medium · performant · max
+  perf status         Ce que fait vraiment la machine
+  perf auto           Choisir d'après le matériel
+
+RÉSEAU
+  avion <on|off>      Mode avion : coupe toutes les radios
+  wifi                Chercher et rejoindre un réseau
+  bt                  Bluetooth : appairer, connecter
+  net                 Toutes les commandes réseau
+
+PARTAGE
+  share <fichiers…>   Envoyer vers un téléphone
+  receive             Recevoir depuis un téléphone
 
 DÉMO & INSTALLATION
   demo                Clé USB (démo) ou disque dur ?
@@ -273,7 +458,10 @@ LEXOS_VERSION="1.0"
 LEXOS_CODENAME="Nomad"
 LEXOS_ACCENT_NAME="orange"      # couleur des boutons
 LEXOS_CRT_EFFECTS="on"          # effets TV 1980
-LEXOS_DEBIAN_SUITE="bookworm"   # ou trixie
+LEXOS_DEBIAN_SUITE="trixie"     # ou bookworm (plus ancien, plus éprouvé)
+LEXOS_KERNEL_CHANNEL="stock"    # ou backports (noyau plus récent)
+LEXOS_PERF_PROFILE="auto"       # petit | medium | performant | max
+LEXOS_DOCK_POSITION="right"     # right | left | bottom | top
 LEXOS_TIMEZONE="America/Toronto"
 LEXOS_KEYBOARD_LAYOUT="ca"
 ```
@@ -317,22 +505,29 @@ Makefile                    Raccourcis (build, test, usb, lint, clean)
 
 auto/                       Points d'entrée live-build (config, build, clean)
 config/
-  package-lists/            Paquets présents dans toutes les saveurs
+  package-lists/            Paquets ESSENTIELS — un nom manquant casse le build
   hooks/normal/             Personnalisation exécutée dans le chroot
     0100 identité           os-release, issue, motd, GRUB
     0110 localisation       langue, clavier, fuseau
-    0300 visuels            SVG→PNG, icônes, avatar, Plymouth
-    0400 bureau             LightDM, sudo, applications par défaut
-    0500 installateur       Habillage Calamares + raccourcis
-    0600 thème              LexOS Noir + base dconf
+    0200 performance        initramfs zstd, oomd, service de profil
+    0250 optionnels         paquets de confort, tolérants aux absences
+    0300 visuels            WebP/SVG→PNG, icônes, avatar, Plymouth
+    0400 bureau             LightDM, menus, raccourcis clavier, clic droit
+    0500 installateur       Calamares + chiffrement du disque
+    0600 thème              LexOS Noir + dock + base dconf
     9900 nettoyage          Allègement de l'image
   includes.chroot/          Fichiers copiés tels quels dans le système
-    usr/bin/                lexos, lexfetch, lexos-install, lexos-wm…
+    usr/bin/                lexos, lexfetch, lexos-perf, lexos-net,
+                            lexos-share, lexos-display, lexos-install…
+    usr/lib/lexos/          share-server.py (partage par QR code)
+    usr/lib/systemd/system/ lexos-perf.service, lexos-autoconnect.timer
+    usr/share/lexos/        Listes de paquets optionnels
     etc/skel/               Configuration héritée par chaque compte
     etc/dconf/db/local.d/   Dock Plank + effets Compiz
   bootloaders/isolinux/     Écran du menu de démarrage
 
-flavours/                   Paquets optionnels par saveur
+flavours/                   Paquets essentiels par saveur
+tests/                      Tests exécutables (serveur de partage)
 branding/                   Logo, mascottes, fonds d'écran (sources)
 tools/                      Utilitaires de développement
 docs/                       Documentation détaillée
@@ -360,6 +555,22 @@ Debian. Tu peux changer de suite avec `LEXOS_DEBIAN_SUITE`.
 `lexos crt status` te dira pourquoi. La cause la plus fréquente est l'absence
 d'accélération 3D — courant dans une machine virtuelle sans pilote graphique.
 LexOS retombe alors sur xfwm4 exprès, pour ne pas te laisser sans bureau.
+
+**Un paquet a disparu de Debian, ma construction va casser ?**
+Non. Seuls les paquets vitaux (noyau, serveur X, XFCE, Firefox) sont
+obligatoires. Tout le confort est installé en « best effort » par le hook
+0250 : ce qui manque est noté dans `/etc/lexos/optional-report` et la
+construction continue.
+
+**Le partage par QR code, ça passe par internet ?**
+Non. Le fichier ne quitte jamais ton réseau local : ton ordinateur sert une
+page web, le téléphone la lit. Rien n'est téléversé nulle part, et le serveur
+s'éteint tout seul au bout de 15 minutes.
+
+**J'ai oublié le mot de passe du disque chiffré.**
+Les données sont perdues. Il n'y a pas de récupération, pas de porte dérobée —
+c'est précisément ce qui rend le chiffrement utile. Note la phrase secrète
+ailleurs qu'à l'intérieur de la machine.
 
 **Comment je remets tout à zéro ?**
 `make distclean` supprime les artefacts et les ISO. Le dépôt redevient propre.

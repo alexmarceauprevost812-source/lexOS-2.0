@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-net-autoconnect — se raccrocher à un réseau Wi-Fi ouvert
+# =============================================================================
+#  Appelé par lexos-autoconnect.timer. Ne fait RIEN tant que l'utilisateur n'a
+#  pas activé l'option explicitement (lexos net auto on).
+#
+#  Garde-fous volontaires :
+#    · ne tourne que si /etc/lexos/wifi-auto-open contient « on »
+#    · ne tente rien si une connexion (filaire ou Wi-Fi) fonctionne déjà
+#    · ne tente rien en mode avion
+#    · ne se connecte qu'aux réseaux SANS chiffrement et au signal correct
+#    · journalise chaque connexion : rien ne se fait en douce
+# =============================================================================
+set -uo pipefail
+
+AUTO_STATE="/etc/lexos/wifi-auto-open"
+MIN_SIGNAL=35          # en dessous, la connexion serait inutilisable
+LOG_TAG="lexos-autoconnect"
+
+log() {
+	if command -v logger >/dev/null 2>&1; then
+		logger -t "$LOG_TAG" -- "$*"
+	fi
+	printf '%s\n' "$*"
+}
+
+# --- L'utilisateur a-t-il activé l'option ? ---------------------------------
+[[ -r "$AUTO_STATE" ]] || exit 0
+[[ "$(cat "$AUTO_STATE" 2>/dev/null)" == "on" ]] || exit 0
+
+command -v nmcli >/dev/null 2>&1 || exit 0
+nmcli general status >/dev/null 2>&1 || exit 0
+
+# --- Mode avion : on ne réveille rien ---------------------------------------
+[[ "$(nmcli -t radio wifi 2>/dev/null)" == "enabled" ]] || exit 0
+
+# --- Déjà en ligne ? Alors on ne touche à rien ------------------------------
+if nmcli networking connectivity 2>/dev/null | grep -q '^full$'; then
+	exit 0
+fi
+
+# Une connexion filaire active a toujours la priorité.
+if nmcli -t -f TYPE,STATE device 2>/dev/null | grep -q '^ethernet:connected$'; then
+	exit 0
+fi
+
+# --- Chercher le meilleur réseau ouvert -------------------------------------
+nmcli device wifi rescan >/dev/null 2>&1 || true
+sleep 3
+
+BEST_SSID=""
+BEST_SIGNAL=0
+
+while IFS=: read -r ssid signal sec; do
+	[[ -n "$ssid" ]] || continue
+	# Uniquement les réseaux réellement ouverts.
+	[[ -z "$sec" || "$sec" == "--" ]] || continue
+	[[ "$signal" =~ ^[0-9]+$ ]] || continue
+	(( signal < MIN_SIGNAL )) && continue
+	if (( signal > BEST_SIGNAL )); then
+		BEST_SIGNAL="$signal"
+		BEST_SSID="$ssid"
+	fi
+done <<< "$(nmcli -t -f SSID,SIGNAL,SECURITY device wifi list 2>/dev/null)"
+
+[[ -n "$BEST_SSID" ]] || exit 0
+
+log "réseau ouvert retenu : « ${BEST_SSID} » (signal ${BEST_SIGNAL}%)"
+
+if nmcli device wifi connect "$BEST_SSID" >/dev/null 2>&1; then
+	log "connecté à « ${BEST_SSID} » — réseau NON CHIFFRÉ, trafic lisible par des tiers"
+	if command -v notify-send >/dev/null 2>&1; then
+		for bus in /run/user/*/bus; do
+			[[ -S "$bus" ]] || continue
+			uid="$(basename "$(dirname "$bus")")"
+			sudo -u "#${uid}" \
+				DBUS_SESSION_BUS_ADDRESS="unix:path=${bus}" \
+				notify-send -u critical -i network-wireless \
+				"LexOS — réseau ouvert" \
+				"Connecté à « ${BEST_SSID} » sans chiffrement. Évite les mots de passe et la banque." \
+				2>/dev/null || true
+		done
+	fi
+else
+	log "échec de la connexion à « ${BEST_SSID} »"
+fi

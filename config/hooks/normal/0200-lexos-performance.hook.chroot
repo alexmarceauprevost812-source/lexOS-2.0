@@ -1,0 +1,95 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — moteur de performance
+# =============================================================================
+#  Met en place ce qu'un système moderne fait par défaut pour rester réactif :
+#  initramfs compressé en zstd, systemd-oomd contre les gels sous pression
+#  mémoire, équilibrage des interruptions, gestion thermique.
+#  Le profil (petit / medium / performant / max) est appliqué au démarrage
+#  par lexos-perf.service.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0200 : moteur de performance"
+
+LEXOS_PERF_PROFILE="auto"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+fi
+
+# --- Noyau plus récent que celui de la suite (option) -----------------------
+if [ "${LEXOS_KERNEL_CHANNEL:-stock}" = "backports" ]; then
+	SUITE="${LEXOS_DEBIAN_SUITE:-trixie}"
+	echo "[lexos]   noyau : tentative depuis ${SUITE}-backports"
+	export DEBIAN_FRONTEND=noninteractive
+	apt-get update -qq || true
+	if apt-get install -y -t "${SUITE}-backports" \
+	     linux-image-amd64 firmware-linux >/dev/null 2>&1; then
+		echo "[lexos]   noyau backports installé"
+	else
+		echo "[lexos]   !! backports indisponible — on garde le noyau de ${SUITE}"
+	fi
+fi
+
+# --- initramfs en zstd : démarrage nettement plus rapide --------------------
+if [ -d /etc/initramfs-tools ]; then
+	mkdir -p /etc/initramfs-tools/conf.d
+	cat > /etc/initramfs-tools/conf.d/lexos-perf.conf <<'EOF'
+# LexOS — zstd décompresse bien plus vite que gzip pour une taille voisine.
+COMPRESS=zstd
+COMPRESSLEVEL=9
+EOF
+	echo "[lexos]   initramfs : compression zstd"
+fi
+
+# --- Réactivité sous pression mémoire ---------------------------------------
+if command -v systemctl >/dev/null 2>&1; then
+	if systemctl list-unit-files systemd-oomd.service >/dev/null 2>&1; then
+		systemctl enable systemd-oomd.service >/dev/null 2>&1 \
+			&& echo "[lexos]   systemd-oomd activé" || true
+	fi
+	for S in irqbalance.service thermald.service; do
+		systemctl list-unit-files "$S" >/dev/null 2>&1 || continue
+		systemctl enable "$S" >/dev/null 2>&1 \
+			&& echo "[lexos]   ${S%.service} activé" || true
+	done
+fi
+
+# --- Limites plus généreuses pour les sessions graphiques -------------------
+mkdir -p /etc/systemd/system.conf.d
+cat > /etc/systemd/system.conf.d/lexos-perf.conf <<'EOF'
+[Manager]
+DefaultLimitNOFILE=1024:1048576
+DefaultTimeoutStopSec=10s
+EOF
+
+# --- Profil de performance rejoué à chaque démarrage ------------------------
+mkdir -p /etc/lexos
+if [ "$LEXOS_PERF_PROFILE" = "auto" ]; then
+	# Le matériel réel n'est connu qu'au premier démarrage : lexos-perf.service
+	# passera en mode « auto » puisqu'aucun profil n'est encore figé.
+	rm -f /etc/lexos/performance
+	echo "[lexos]   profil : détection automatique au premier démarrage"
+else
+	printf '%s\n' "$LEXOS_PERF_PROFILE" > /etc/lexos/performance
+	echo "[lexos]   profil figé : ${LEXOS_PERF_PROFILE}"
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl enable lexos-perf.service >/dev/null 2>&1 \
+		&& echo "[lexos]   lexos-perf.service activé" \
+		|| echo "[lexos]   !! lexos-perf.service non activé"
+fi
+
+# --- Connexion automatique aux réseaux ouverts : désactivée par défaut ------
+printf '%s\n' "${LEXOS_WIFI_AUTO_OPEN:-off}" > /etc/lexos/wifi-auto-open
+if command -v systemctl >/dev/null 2>&1; then
+	if [ "${LEXOS_WIFI_AUTO_OPEN:-off}" = "on" ]; then
+		systemctl enable lexos-autoconnect.timer >/dev/null 2>&1 || true
+	else
+		systemctl disable lexos-autoconnect.timer >/dev/null 2>&1 || true
+	fi
+fi
+
+echo "[lexos] hook 0200 : ok"

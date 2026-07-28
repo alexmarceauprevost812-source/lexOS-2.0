@@ -1,0 +1,304 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-share — partager des fichiers avec un téléphone ou un autre appareil
+# =============================================================================
+#  Trois moyens, du plus universel au plus spécialisé :
+#
+#    qr    QR code + page web locale — marche avec N'IMPORTE QUEL téléphone,
+#          sans rien installer. Scanner le code suffit.
+#    kde   KDE Connect — appareils appairés, transfert direct, façon AirDrop.
+#    bt    Bluetooth — quand il n'y a pas de réseau du tout.
+#
+#  Le partage web s'arrête tout seul au bout de quelques minutes.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+SERVER="/usr/lib/lexos/share-server.py"
+RECV_DIR="${XDG_DOWNLOAD_DIR:-$HOME/Téléchargements}"
+[[ -d "$RECV_DIR" ]] || RECV_DIR="$HOME/Downloads"
+[[ -d "$RECV_DIR" ]] || RECV_DIR="$HOME"
+RECV_DIR="$RECV_DIR/LexOS-reçus"
+
+MINUTES=15
+
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8*|*utf8*|*UTF8*|*utf-8*) ;;
+	*) locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$' && export LC_ALL=C.UTF-8 ;;
+esac
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+# =============================================================================
+#  Partage par QR code (aucune application requise sur le téléphone)
+# =============================================================================
+cmd_qr() {
+	[[ -r "$SERVER" ]] || die "Serveur de partage introuvable : $SERVER"
+	command -v python3 >/dev/null 2>&1 || die "python3 est requis."
+
+	local stage
+	stage="$(mktemp -d -t lexos-share-XXXXXX)" || die "Dossier temporaire impossible."
+	# shellcheck disable=SC2064
+	trap "rm -rf '$stage'" EXIT
+
+	local n=0 f
+	for f in "$@"; do
+		[[ -f "$f" ]] || { warn "Ignoré (pas un fichier) : $f"; continue; }
+		ln "$f" "$stage/$(basename "$f")" 2>/dev/null \
+			|| cp "$f" "$stage/$(basename "$f")" \
+			|| { warn "Copie impossible : $f"; continue; }
+		n=$((n + 1))
+	done
+
+	mkdir -p "$RECV_DIR"
+
+	if (( n == 0 )) && [[ $# -gt 0 ]]; then
+		die "Aucun fichier partageable."
+	fi
+
+	say "Démarrage du partage local…"
+	local out url
+	out="$(mktemp -t lexos-share-url-XXXXXX)"
+	python3 "$SERVER" --dir "$stage" --recv "$RECV_DIR" --minutes "$MINUTES" \
+		> >(tee "$out") 2>/dev/null &
+	local pid=$!
+
+	# La première ligne écrite par le serveur est l'URL.
+	local tries=0
+	while [[ ! -s "$out" ]] && (( tries < 50 )); do sleep 0.1; tries=$((tries + 1)); done
+	url="$(head -n1 "$out")"
+	rm -f "$out"
+
+	if [[ -z "$url" ]]; then
+		kill "$pid" 2>/dev/null
+		die "Le serveur de partage n'a pas démarré."
+	fi
+
+	printf '\n'
+	if command -v qrencode >/dev/null 2>&1; then
+		qrencode -t ANSIUTF8 -m 2 "$url"
+	else
+		warn "qrencode absent — installe-le pour afficher le QR code."
+	fi
+
+	printf '\n  %s%s%s\n\n' "$B$O" "$url" "$R"
+	if (( n > 0 )); then
+		printf '  %s fichier(s) partagé(s).\n' "$n"
+	fi
+	printf '  Scanne le code avec l%sappareil photo du téléphone,\n' "'"
+	printf '  ou tape l%sadresse dans son navigateur.\n\n' "'"
+	printf '  %sTu peux aussi t%senvoyer des fichiers DEPUIS le téléphone :%s\n' "$D" "'" "$R"
+	printf '  %sils arrivent dans %s%s\n\n' "$D" "$RECV_DIR" "$R"
+	printf '  %sArrêt automatique dans %s min — ou Ctrl+C tout de suite.%s\n\n' \
+		"$D" "$MINUTES" "$R"
+
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -i network-wireless "LexOS — partage ouvert" "$url" 2>/dev/null || true
+	fi
+
+	wait "$pid" 2>/dev/null
+	printf '\n'
+	ok "Partage fermé."
+}
+
+# =============================================================================
+#  KDE Connect
+# =============================================================================
+kde_devices() {
+	kdeconnect-cli --list-available --id-name-only 2>/dev/null
+}
+
+cmd_kde() {
+	command -v kdeconnect-cli >/dev/null 2>&1 \
+		|| die "KDE Connect n'est pas installé (paquet kdeconnect)."
+
+	local files=() target=""
+	local a
+	for a in "$@"; do
+		if [[ -f "$a" ]]; then files+=("$a"); else target="$a"; fi
+	done
+
+	local devices; devices="$(kde_devices)"
+	if [[ -z "$devices" ]]; then
+		warn "Aucun appareil KDE Connect joignable."
+		printf '  1. Installe « KDE Connect » sur le téléphone (Android/iOS, gratuit).\n'
+		printf '  2. Mets les deux appareils sur le %sMÊME réseau Wi-Fi%s.\n' "$B" "$R"
+		printf '  3. Appaire-les, puis relance cette commande.\n'
+		return 1
+	fi
+
+	if [[ -z "$target" ]]; then
+		local count; count="$(wc -l <<< "$devices")"
+		if (( count == 1 )); then
+			target="$(awk '{print $1}' <<< "$devices")"
+		else
+			printf '\nPlusieurs appareils disponibles :\n\n'
+			printf '%s\n' "$devices" | sed 's/^/  /'
+			printf '\n  %s%s kde <fichier> <identifiant>%s\n\n' "$D" "$PROG" "$R"
+			return 1
+		fi
+	fi
+
+	(( ${#files[@]} )) || die "Aucun fichier à envoyer."
+
+	local f rc=0
+	for f in "${files[@]}"; do
+		if kdeconnect-cli --device "$target" --share "$f" >/dev/null 2>&1; then
+			ok "Envoyé : $(basename "$f")"
+		else
+			warn "Échec : $(basename "$f")"; rc=1
+		fi
+	done
+	return $rc
+}
+
+# =============================================================================
+#  Bluetooth
+# =============================================================================
+cmd_bt() {
+	command -v bluetooth-sendto >/dev/null 2>&1 \
+		|| command -v obexctl >/dev/null 2>&1 \
+		|| die "Envoi Bluetooth indisponible (paquets blueman ou bluez-obexd)."
+
+	local files=() target=""
+	local a
+	for a in "$@"; do
+		if [[ -f "$a" ]]; then files+=("$a"); else target="$a"; fi
+	done
+	(( ${#files[@]} )) || die "Aucun fichier à envoyer."
+
+	if command -v bluetooth-sendto >/dev/null 2>&1; then
+		say "Ouverture de l'assistant Bluetooth…"
+		if [[ -n "$target" ]]; then
+			bluetooth-sendto --device="$target" "${files[@]}" &
+		else
+			bluetooth-sendto "${files[@]}" &
+		fi
+		ok "Choisis l'appareil dans la fenêtre qui s'ouvre."
+		return 0
+	fi
+	die "Utilise l'assistant graphique : bluetooth-sendto"
+}
+
+# =============================================================================
+#  Appareils connus
+# =============================================================================
+cmd_devices() {
+	printf '\n%sAppareils joignables%s\n' "$B$O" "$R"
+
+	printf '\n  %sKDE Connect%s  %s(Wi-Fi, application à installer sur le téléphone)%s\n' \
+		"$A" "$R" "$D" "$R"
+	if command -v kdeconnect-cli >/dev/null 2>&1; then
+		local d; d="$(kde_devices)"
+		if [[ -n "$d" ]]; then
+			printf '%s\n' "$d" | sed 's/^/    /'
+		else
+			printf '    %saucun appareil appairé et joignable%s\n' "$D" "$R"
+		fi
+	else
+		printf '    %snon installé%s\n' "$D" "$R"
+	fi
+
+	printf '\n  %sBluetooth%s  %s(appareils appairés)%s\n' "$A" "$R" "$D" "$R"
+	if command -v bluetoothctl >/dev/null 2>&1; then
+		local b
+		b="$(bluetoothctl devices Paired 2>/dev/null || bluetoothctl paired-devices 2>/dev/null)"
+		if [[ -n "$b" ]]; then
+			printf '%s\n' "$b" | sed 's/^Device /    /'
+		else
+			printf '    %saucun appareil appairé%s  %s(lexos net bt scan)%s\n' "$D" "$R" "$D" "$R"
+		fi
+	else
+		printf '    %snon installé%s\n' "$D" "$R"
+	fi
+
+	printf '\n  %sQR code%s  %s(marche avec tout téléphone, rien à installer)%s\n' \
+		"$A" "$R" "$D" "$R"
+	printf '    %s%s qr <fichier…>%s\n\n' "$D" "$PROG" "$R"
+}
+
+# =============================================================================
+#  Réception seule
+# =============================================================================
+cmd_receive() {
+	mkdir -p "$RECV_DIR"
+	say "Ouverture d'une boîte de réception."
+	cmd_qr
+}
+
+# =============================================================================
+#  Choix automatique du meilleur moyen
+# =============================================================================
+cmd_auto() {
+	local files=("$@")
+	(( ${#files[@]} )) || die "Usage : ${PROG} <fichier…>"
+
+	# Un seul appareil KDE Connect joignable : c'est le plus direct.
+	if command -v kdeconnect-cli >/dev/null 2>&1; then
+		local d; d="$(kde_devices)"
+		if [[ -n "$d" ]] && (( $(wc -l <<< "$d") == 1 )); then
+			say "Appareil KDE Connect détecté — envoi direct."
+			cmd_kde "${files[@]}" && return 0
+			warn "Bascule sur le partage par QR code."
+		fi
+	fi
+	cmd_qr "${files[@]}"
+}
+
+cmd_help() {
+	cat <<EOF
+
+${B}${O}${PROG}${R} — partager des fichiers et des images
+
+${B}USAGE${R}
+  ${PROG} <fichier…>            Choisit tout seul le meilleur moyen
+  ${PROG} qr <fichier…>         QR code + page web locale
+  ${PROG} kde <fichier…> [id]   Via KDE Connect
+  ${PROG} bt  <fichier…>        Via Bluetooth
+  ${PROG} devices               Appareils joignables
+  ${PROG} receive               Recevoir depuis un téléphone
+
+${B}LE PLUS SIMPLE — LE QR CODE${R}
+  ${D}Aucune application à installer sur le téléphone.${R}
+
+    ${A}${PROG} qr photo.jpg${R}
+
+  Un QR code s'affiche dans le terminal. Tu le scannes avec l'appareil
+  photo du téléphone, le fichier se télécharge. La même page permet de
+  t'envoyer des fichiers DEPUIS le téléphone.
+
+  Les fichiers reçus arrivent dans :
+    ${D}${RECV_DIR}${R}
+
+${B}CONDITIONS${R}
+  Les deux appareils doivent être sur le ${B}même réseau Wi-Fi${R}.
+  Le partage s'arrête tout seul après ${MINUTES} minutes.
+
+EOF
+}
+
+# =============================================================================
+#  Répartiteur
+# =============================================================================
+CMD="${1:-help}"
+
+case "$CMD" in
+	help|--help|-h) cmd_help ;;
+	qr|code)        shift; cmd_qr "$@" ;;
+	kde|kdeconnect) shift; cmd_kde "$@" ;;
+	bt|bluetooth)   shift; cmd_bt "$@" ;;
+	devices|list)   cmd_devices ;;
+	receive|recevoir) cmd_receive ;;
+	--minutes)      shift; MINUTES="${1:-15}"; shift; cmd_auto "$@" ;;
+	*)              cmd_auto "$@" ;;
+esac

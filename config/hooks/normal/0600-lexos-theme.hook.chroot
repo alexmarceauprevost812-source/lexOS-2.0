@@ -9,6 +9,7 @@ echo "[lexos] hook 0600 : thème LexOS Noir"
 ACCENT_NAME="orange"
 GTK_BASE="Arc-Dark"
 ICONS="Papirus-Dark"
+LEXOS_DOCK_POSITION="right"
 
 if [ -r /etc/lexos/build.conf ]; then
 	# shellcheck disable=SC1091
@@ -49,6 +50,18 @@ EOF
 
 # --- Terminal : noir + vert dark, aussi pour les autres émulateurs ---------
 mkdir -p /etc/skel/.config/xfce4/terminal
+
+# --- Position du dock demandée dans lexos.conf ------------------------------
+DOCK_DB="/etc/dconf/db/local.d/00-lexos-dock"
+if [ -f "$DOCK_DB" ] && [ -n "${LEXOS_DOCK_POSITION:-}" ]; then
+	case "$LEXOS_DOCK_POSITION" in
+		right|left|bottom|top)
+			sed -i "s/^position=.*/position='${LEXOS_DOCK_POSITION}'/" "$DOCK_DB"
+			echo "[lexos]   dock : ${LEXOS_DOCK_POSITION}"
+			;;
+		*) echo "[lexos]   !! position de dock invalide : ${LEXOS_DOCK_POSITION}" ;;
+	esac
+fi
 
 # --- Base de données dconf (dock Plank + effets Compiz) ---------------------
 if command -v dconf >/dev/null 2>&1; then

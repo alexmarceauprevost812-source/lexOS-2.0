@@ -1,0 +1,17 @@
+[Unit]
+Description=LexOS — applique le profil de performance
+Documentation=man:lexos-perf(1)
+After=sysinit.target local-fs.target
+Wants=sysinit.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Sans profil enregistré, on laisse LexOS choisir d'après le matériel.
+ExecStart=/bin/sh -c 'test -s /etc/lexos/performance \
+  && exec /usr/bin/lexos-perf apply --system-only --quiet \
+  || exec /usr/bin/lexos-perf auto --system-only --quiet'
+ExecStop=/bin/true
+
+[Install]
+WantedBy=multi-user.target

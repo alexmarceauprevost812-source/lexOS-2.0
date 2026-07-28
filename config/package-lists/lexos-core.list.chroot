@@ -1,5 +1,12 @@
 # =============================================================================
-#  LexOS — Noyau système (présent dans TOUTES les saveurs)
+#  LexOS — Noyau système ESSENTIEL (présent dans TOUTES les saveurs)
+# =============================================================================
+#  Ces paquets DOIVENT exister : si l'un d'eux manque, la construction
+#  s'arrête. On n'y met donc que des noms stables depuis des années.
+#
+#  Tout ce qui est agréable mais non vital vit dans optional-packages/ :
+#  ces paquets-là sont installés en « best effort » par le hook 0250 et un
+#  nom disparu de l'archive ne casse plus l'ISO.
 # =============================================================================
 
 # --- Boot & live -------------------------------------------------------------
@@ -7,23 +14,13 @@ linux-image-amd64
 live-boot
 live-config
 live-config-systemd
-live-tools
 systemd-sysv
 init
 
 # --- Firmware & matériel -----------------------------------------------------
-firmware-linux
-firmware-linux-nonfree
-firmware-iwlwifi
-firmware-realtek
-firmware-atheros
-firmware-misc-nonfree
-intel-microcode
-amd64-microcode
+firmware-linux-free
 pciutils
 usbutils
-lshw
-hwinfo
 
 # --- Réseau ------------------------------------------------------------------
 network-manager
@@ -35,19 +32,18 @@ ca-certificates
 openssh-client
 curl
 wget
+rfkill
 
 # --- Disques & systèmes de fichiers -----------------------------------------
 parted
 gdisk
 dosfstools
-exfatprogs
 ntfs-3g
-btrfs-progs
 e2fsprogs
 udisks2
 gvfs
-gvfs-backends
 cryptsetup
+cryptsetup-initramfs
 lvm2
 
 # --- Outils de base ----------------------------------------------------------
@@ -55,22 +51,19 @@ sudo
 bash-completion
 less
 man-db
-manpages
 nano
-vim-tiny
 git
 htop
 tree
 rsync
 zip
 unzip
-p7zip-full
 xz-utils
+zstd
 file
 lsof
 psmisc
 procps
-jq
 
 # --- Localisation ------------------------------------------------------------
 locales
@@ -78,15 +71,9 @@ console-setup
 keyboard-configuration
 tzdata
 
-# --- Branding & apparence bas niveau ----------------------------------------
-plymouth
-plymouth-themes
+# --- Rendu des visuels de marque (hooks 0300 / 0500) ------------------------
 librsvg2-bin
 librsvg2-common
-webp
-imagemagick
 
-# --- Installateur ------------------------------------------------------------
-# (le menu de boot expose aussi l'installateur Debian classique)
-calamares
-calamares-settings-debian
+# --- Réactivité sous pression mémoire (comme Ubuntu) ------------------------
+systemd-oomd

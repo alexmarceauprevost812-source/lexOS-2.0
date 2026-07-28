@@ -47,7 +47,8 @@ jobs:
       - name: Listes de paquets bien formées
         run: |
           bad=0
-          for f in config/package-lists/*.list.chroot flavours/*/*.list.chroot; do
+          for f in config/package-lists/*.list.chroot flavours/*/*.list.chroot \
+                   config/includes.chroot/usr/share/lexos/optional-packages/*.list; do
             while IFS= read -r line; do
               case "$line" in
                 ''|\#*) continue ;;
@@ -85,6 +86,23 @@ jobs:
             orange|bleu|rouge|vert|gris|violet) ;;
             *) echo "LEXOS_ACCENT_NAME invalide : $LEXOS_ACCENT_NAME"; exit 1 ;;
           esac
+          case "$LEXOS_DOCK_POSITION" in
+            right|left|bottom|top) ;;
+            *) echo "LEXOS_DOCK_POSITION invalide : $LEXOS_DOCK_POSITION"; exit 1 ;;
+          esac
+          case "$LEXOS_PERF_PROFILE" in
+            auto|petit|medium|performant|max) ;;
+            *) echo "LEXOS_PERF_PROFILE invalide : $LEXOS_PERF_PROFILE"; exit 1 ;;
+          esac
+          case "$LEXOS_KERNEL_CHANNEL" in
+            stock|backports) ;;
+            *) echo "LEXOS_KERNEL_CHANNEL invalide : $LEXOS_KERNEL_CHANNEL"; exit 1 ;;
+          esac
+          if [ "$LEXOS_WIFI_AUTO_OPEN" != "off" ]; then
+            echo "::error::LEXOS_WIFI_AUTO_OPEN doit rester 'off' par défaut :"
+            echo "::error::se connecter seul à un réseau non chiffré ne doit pas être imposé."
+            exit 1
+          fi
           echo "lexos.conf : $LEXOS_NAME $LEXOS_VERSION ($LEXOS_FLAVOUR / $LEXOS_ACCENT_NAME)"
 
   theme:
@@ -112,3 +130,73 @@ jobs:
             echo "Un accent invalide aurait dû être rejeté"; exit 1
           fi
           echo "ok"
+
+  outils:
+    name: Outils embarqués
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Profils de performance — tous chargeables
+        run: |
+          for p in petit medium performant max; do
+            ./config/includes.chroot/usr/bin/lexos-perf "$p" --user-only --quiet \
+              || { echo "profil $p en échec"; exit 1; }
+          done
+          ./config/includes.chroot/usr/bin/lexos-perf list
+          echo "4 profils validés."
+
+      - name: Profil inconnu refusé
+        run: |
+          if ./config/includes.chroot/usr/bin/lexos-perf turbo 2>/dev/null; then
+            echo "un profil invalide aurait dû être rejeté"; exit 1
+          fi
+          echo ok
+
+      - name: Commande d'écran inconnue refusée
+        run: |
+          if ./config/includes.chroot/usr/bin/lexos-display teleporter 2>/dev/null; then
+            echo "une commande invalide aurait dû être rejetée"; exit 1
+          fi
+          echo ok
+
+      - name: Position de dock inconnue refusée
+        run: |
+          if ./config/includes.chroot/usr/bin/lexos dock diagonale 2>/dev/null; then
+            echo "une position invalide aurait dû être rejetée"; exit 1
+          fi
+          echo ok
+
+      - name: Aides affichables sans erreur
+        run: |
+          for t in lexos lexfetch lexos-perf lexos-net lexos-share lexos-display; do
+            ./config/includes.chroot/usr/bin/$t help >/dev/null \
+              || ./config/includes.chroot/usr/bin/$t >/dev/null \
+              || { echo "$t help en échec"; exit 1; }
+          done
+          echo ok
+
+      - name: Alignement des colonnes hors locale UTF-8
+        run: |
+          # lexfetch aligne ses colonnes avec ${#chaine}. Sans locale
+          # multi-octets, bash compte les octets et l'art ASCII décale tout.
+          # Le script force un repli C.UTF-8 : on vérifie que ça tient.
+          LC_ALL=C ./config/includes.chroot/usr/bin/lexfetch > /tmp/fetch.txt
+          NO_COLOR=1 python3 - <<'EOF'
+          import sys
+          lines = [l.rstrip("\n") for l in open("/tmp/fetch.txt", encoding="utf-8")]
+          cols = {l.index(":") for l in lines if " : " in l}
+          print("\n".join(lines[:6]))
+          if len(cols) > 1:
+              sys.exit(f"colonnes désalignées : positions {sorted(cols)}")
+          print(f"ok — colonne unique à {cols.pop() if cols else '?'}")
+          EOF
+
+  partage:
+    name: Serveur de partage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Téléchargement, envoi, collisions, remontée de chemin
+        run: python3 tests/test_share_server.py

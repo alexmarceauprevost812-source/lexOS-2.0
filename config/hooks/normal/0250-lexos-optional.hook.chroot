@@ -1,0 +1,103 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — installation « best effort » des paquets non essentiels
+# =============================================================================
+#  live-build interrompt la construction dès qu'un paquet d'une liste
+#  n'existe pas. C'est le bon comportement pour le noyau ou le serveur X.
+#  Ça l'est beaucoup moins pour un thème d'icônes ou un lecteur vidéo :
+#  un nom qui change entre deux versions de Debian ne devrait pas coûter
+#  une heure de construction.
+#
+#  Ce hook installe donc les paquets de confort un par un, tolère les
+#  absences, et laisse un rapport dans /etc/lexos/optional-report.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0250 : paquets optionnels"
+
+DIR="/usr/share/lexos/optional-packages"
+REPORT="/etc/lexos/optional-report"
+FLAVOUR="standard"
+
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+	FLAVOUR="${LEXOS_FLAVOUR:-standard}"
+fi
+
+if [ ! -d "$DIR" ]; then
+	echo "[lexos]   aucun dossier de paquets optionnels — rien à faire"
+	exit 0
+fi
+
+# --- Quelles listes s'appliquent à cette saveur ? ---------------------------
+LISTS="00-core.list 10-installer.list"
+case "$FLAVOUR" in
+	minimal)    ;;
+	standard)   LISTS="$LISTS 20-desktop.list 30-dock-effets.list 40-partage.list" ;;
+	dev)        LISTS="$LISTS 20-desktop.list 30-dock-effets.list 40-partage.list 50-dev.list" ;;
+	full)       LISTS="$LISTS 20-desktop.list 30-dock-effets.list 40-partage.list 50-dev.list 60-full.list" ;;
+esac
+
+# --- Collecte des noms -------------------------------------------------------
+WANTED="$(mktemp)"
+for L in $LISTS; do
+	[ -r "$DIR/$L" ] || { echo "[lexos]   liste absente : $L"; continue; }
+	grep -Ev '^[[:space:]]*(#|$)' "$DIR/$L" >> "$WANTED" || true
+done
+sort -u "$WANTED" -o "$WANTED"
+
+TOTAL="$(wc -l < "$WANTED")"
+echo "[lexos]   saveur ${FLAVOUR} : ${TOTAL} paquets optionnels envisagés"
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq || echo "[lexos]   !! apt-get update a échoué, on continue"
+
+# --- Première passe : tout d'un coup, c'est bien plus rapide ---------------
+# shellcheck disable=SC2046
+if apt-get install -y --no-install-recommends $(tr '\n' ' ' < "$WANTED") >/dev/null 2>&1; then
+	echo "[lexos]   tous les paquets optionnels installés d'un bloc"
+	mkdir -p /etc/lexos
+	{
+		echo "# Paquets optionnels — saveur ${FLAVOUR}"
+		echo "# Tous installés."
+		cat "$WANTED"
+	} > "$REPORT"
+	rm -f "$WANTED"
+	echo "[lexos] hook 0250 : ok"
+	exit 0
+fi
+
+echo "[lexos]   au moins un paquet pose problème — reprise un par un"
+
+# --- Seconde passe : un par un, on note ce qui manque -----------------------
+OK_COUNT=0
+KO_LIST=""
+
+while IFS= read -r PKG; do
+	[ -n "$PKG" ] || continue
+	if apt-get install -y --no-install-recommends "$PKG" >/dev/null 2>&1; then
+		OK_COUNT=$((OK_COUNT + 1))
+	else
+		KO_LIST="${KO_LIST}${PKG}
+"
+		echo "[lexos]   !! indisponible : ${PKG}"
+	fi
+done < "$WANTED"
+
+KO_COUNT="$(printf '%s' "$KO_LIST" | grep -c . || true)"
+
+mkdir -p /etc/lexos
+{
+	echo "# Paquets optionnels — saveur ${FLAVOUR}"
+	echo "# Installés : ${OK_COUNT}    Indisponibles : ${KO_COUNT}"
+	echo
+	if [ -n "$KO_LIST" ]; then
+		echo "# Non installés (nom absent de l'archive, ou conflit) :"
+		printf '%s' "$KO_LIST"
+	fi
+} > "$REPORT"
+
+echo "[lexos]   ${OK_COUNT} installés, ${KO_COUNT} indisponibles (détail : ${REPORT})"
+rm -f "$WANTED"
+echo "[lexos] hook 0250 : ok"

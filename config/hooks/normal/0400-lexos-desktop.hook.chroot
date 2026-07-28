@@ -80,7 +80,9 @@ image/png=org.xfce.ristretto.desktop
 image/jpeg=org.xfce.ristretto.desktop
 EOF
 
-# --- Entrée « À propos de LexOS » -------------------------------------------
+# --- Entrées de menu LexOS ---------------------------------------------------
+mkdir -p /usr/share/applications
+
 cat > /usr/share/applications/lexos-about.desktop <<EOF
 [Desktop Entry]
 Type=Application
@@ -93,6 +95,123 @@ Icon=lexos
 Terminal=false
 Categories=System;
 Keywords=lexos;about;systeme;
+EOF
+
+cat > /usr/share/applications/lexos-share.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Partager un fichier
+Name[en]=Share a file
+Comment=Envoyer des photos et des fichiers vers un téléphone (QR code, KDE Connect, Bluetooth)
+Exec=xfce4-terminal --title="Partage LexOS" --command="lexos-share qr %F"
+Icon=lexos
+Terminal=false
+Categories=Utility;FileTransfer;
+Keywords=partage;share;qr;telephone;photo;image;
+MimeType=image/png;image/jpeg;image/gif;image/webp;application/pdf;
+EOF
+
+cat > /usr/share/applications/lexos-perf.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Performance de la machine
+Name[en]=Machine performance
+Comment=Petit, médium, performant ou performance max
+Exec=lexos-perf --gui
+Icon=lexos
+Terminal=false
+Categories=Settings;System;
+Keywords=performance;batterie;vitesse;cpu;profil;
+EOF
+
+cat > /usr/share/applications/lexos-display.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Écrans
+Name[en]=Displays
+Comment=Plusieurs écrans : étendre, dupliquer, choisir l'écran principal
+Exec=lexos-display gui
+Icon=video-display
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=ecran;moniteur;display;hdmi;projecteur;multi;
+EOF
+
+cat > /usr/share/applications/lexos-avion.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Mode avion
+Name[en]=Airplane mode
+Comment=Couper ou rallumer Wi-Fi, Bluetooth et données mobiles
+Exec=lexos-net avion toggle
+Icon=airplane-mode
+Terminal=false
+Categories=Settings;System;
+Keywords=avion;airplane;wifi;bluetooth;radio;
+EOF
+
+# --- Action « Partager » dans le clic droit du gestionnaire de fichiers -----
+mkdir -p /etc/skel/.config/Thunar
+cat > /etc/skel/.config/Thunar/uca.xml <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<actions>
+  <action>
+    <icon>lexos</icon>
+    <name>Partager avec LexOS</name>
+    <submenu></submenu>
+    <unique-id>lexos-share-1</unique-id>
+    <command>xfce4-terminal --title=&quot;Partage LexOS&quot; --hold --command=&quot;lexos-share qr %F&quot;</command>
+    <description>Envoyer vers un téléphone par QR code</description>
+    <range>*</range>
+    <patterns>*</patterns>
+    <startup-notify/>
+    <image-files/>
+    <other-files/>
+    <text-files/>
+    <audio-files/>
+    <video-files/>
+    <directories/>
+  </action>
+  <action>
+    <icon>utilities-terminal</icon>
+    <name>Ouvrir un terminal ici</name>
+    <submenu></submenu>
+    <unique-id>lexos-terminal-1</unique-id>
+    <command>xfce4-terminal --working-directory=%f</command>
+    <description>Ouvrir un terminal dans ce dossier</description>
+    <range></range>
+    <patterns>*</patterns>
+    <startup-notify/>
+    <directories/>
+  </action>
+</actions>
+EOF
+
+# --- Raccourcis clavier ------------------------------------------------------
+SKEL_XFCONF="/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"
+mkdir -p "$SKEL_XFCONF"
+cat > "$SKEL_XFCONF/xfce4-keyboard-shortcuts.xml" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfce4-keyboard-shortcuts" version="1.0">
+  <property name="commands" type="empty">
+    <property name="custom" type="empty">
+      <property name="&lt;Super&gt;Return"  type="string" value="xfce4-terminal"/>
+      <property name="&lt;Super&gt;e"       type="string" value="thunar"/>
+      <property name="&lt;Super&gt;a"       type="string" value="lexos-net avion toggle"/>
+      <property name="&lt;Super&gt;p"       type="string" value="lexos-perf --gui"/>
+      <property name="&lt;Super&gt;s"       type="string" value="xfce4-appfinder"/>
+      <property name="&lt;Super&gt;d"       type="string" value="lexos-display gui"/>
+      <property name="XF86Display"          type="string" value="lexos-display gui"/>
+      <property name="XF86WLAN"             type="string" value="lexos-net avion toggle"/>
+      <property name="Print"                type="string" value="xfce4-screenshooter"/>
+      <property name="override" type="bool" value="true"/>
+    </property>
+  </property>
+</channel>
 EOF
 
 echo "[lexos] hook 0400 : ok"

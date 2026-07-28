@@ -1,0 +1,310 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-display — plusieurs écrans : disposition, écran principal, profils
+# =============================================================================
+#  S'appuie sur xrandr. Les profils de branchement automatique passent par
+#  autorandr quand il est installé.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8*|*utf8*|*UTF8*|*utf-8*) ;;
+	*) locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$' && export LC_ALL=C.UTF-8 ;;
+esac
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+need_x() {
+	[[ -n "${DISPLAY:-}" ]] || die "Aucune session graphique — lance ceci depuis le bureau."
+	command -v xrandr >/dev/null 2>&1 \
+		|| die "xrandr introuvable (paquet x11-xserver-utils)."
+}
+
+# --- Sorties branchées, dans l'ordre où xrandr les voit ---------------------
+connected()  { xrandr --query 2>/dev/null | awk '/ connected/{print $1}'; }
+primary_out() { xrandr --query 2>/dev/null | awk '/ connected primary/{print $1; exit}'; }
+active()     { xrandr --query 2>/dev/null | awk '/ connected/ && /[0-9]+x[0-9]+\+/{print $1}'; }
+
+best_mode() { # best_mode <sortie>
+	xrandr --query 2>/dev/null | awk -v out="$1" '
+		$1 == out { found = 1; next }
+		found && /^[A-Z]/ { exit }
+		found && /^ +[0-9]+x[0-9]+/ { print $1; exit }'
+}
+
+# =============================================================================
+#  État
+# =============================================================================
+cmd_list() {
+	need_x
+	local prim; prim="$(primary_out)"
+
+	printf '\n%sÉcrans%s\n\n' "$B$O" "$R"
+	printf '  %-12s %-14s %-12s %-9s %s\n' "SORTIE" "RÉSOLUTION" "POSITION" "PRINCIPAL" "ÉTAT"
+	printf '  %s\n' "$(printf '─%.0s' {1..66})"
+
+	local out rest geom res pos state star
+	while read -r out _ rest; do
+		[[ -n "$out" ]] || continue
+		geom="$(grep -oE '[0-9]+x[0-9]+\+[0-9]+\+[0-9]+' <<< "$rest" | head -n1)"
+		if [[ -n "$geom" ]]; then
+			res="${geom%%+*}"
+			pos="+${geom#*+}"
+			state="${G}actif${R}"
+		else
+			res="$(best_mode "$out")"
+			res="${res:-—}"
+			pos="—"
+			state="${D}éteint${R}"
+		fi
+		star=" "; [[ "$out" == "$prim" ]] && star="●"
+		printf '  %-12s %-14s %-12s %-9s %b\n' "$out" "$res" "$pos" "$star" "$state"
+	done < <(xrandr --query 2>/dev/null | grep ' connected')
+
+	local n; n="$(connected | wc -l)"
+	printf '\n  %s écran(s) branché(s), %s allumé(s).\n' "$n" "$(active | wc -l)"
+
+	if (( n > 1 )); then
+		printf '\n  %s%s etendre droite%s   deuxième écran à droite du principal\n' "$D" "$PROG" "$R"
+		printf '  %s%s miroir%s           la même image partout\n' "$D" "$PROG" "$R"
+		printf '  %s%s gui%s              réglage à la souris\n' "$D" "$PROG" "$R"
+	fi
+	printf '\n'
+}
+
+# =============================================================================
+#  Dispositions
+# =============================================================================
+apply_wallpaper() {
+	# Un écran qui vient de s'allumer n'a pas encore de fond d'écran.
+	command -v lexos >/dev/null 2>&1 && lexos wallpaper >/dev/null 2>&1 || true
+}
+
+cmd_etendre() {
+	need_x
+	local sens="${1:-droite}"
+	local flag
+	case "$(printf '%s' "$sens" | tr '[:upper:]' '[:lower:]')" in
+		droite|right|d) flag="--right-of" ;;
+		gauche|left|g)  flag="--left-of" ;;
+		haut|top|above|h) flag="--above" ;;
+		bas|bottom|below|b) flag="--below" ;;
+		*) die "Sens inconnu : '$sens' (droite | gauche | haut | bas)" ;;
+	esac
+
+	local outs=(); mapfile -t outs < <(connected)
+	(( ${#outs[@]} >= 2 )) || die "Un seul écran branché — rien à étendre."
+
+	local base="${outs[0]}"
+	local prim; prim="$(primary_out)"
+	[[ -n "$prim" ]] && base="$prim"
+
+	local args=(--output "$base" --auto --primary)
+	local prev="$base" out
+	for out in "${outs[@]}"; do
+		[[ "$out" == "$base" ]] && continue
+		args+=(--output "$out" --auto "$flag" "$prev")
+		prev="$out"
+	done
+
+	xrandr "${args[@]}" || die "xrandr a refusé cette disposition."
+	ok "Bureau étendu vers la ${sens} — écran principal : ${base}"
+	apply_wallpaper
+}
+
+cmd_miroir() {
+	need_x
+	local outs=(); mapfile -t outs < <(connected)
+	(( ${#outs[@]} >= 2 )) || die "Un seul écran branché — rien à dupliquer."
+
+	local base="${outs[0]}"
+	local mode; mode="$(best_mode "$base")"
+
+	local args=(--output "$base" --auto --primary)
+	local out
+	for out in "${outs[@]}"; do
+		[[ "$out" == "$base" ]] && continue
+		args+=(--output "$out" --auto --same-as "$base")
+	done
+
+	if ! xrandr "${args[@]}" 2>/dev/null; then
+		# Résolutions incompatibles : on force la plus petite commune.
+		warn "Résolutions différentes — passage en ${mode} partout."
+		args=(--output "$base" --mode "$mode" --primary)
+		for out in "${outs[@]}"; do
+			[[ "$out" == "$base" ]] && continue
+			args+=(--output "$out" --mode "$mode" --same-as "$base")
+		done
+		xrandr "${args[@]}" || die "Duplication impossible sur ce matériel."
+	fi
+	ok "Même image sur tous les écrans."
+	apply_wallpaper
+}
+
+cmd_seul() {
+	need_x
+	local keep="${1:-}"
+	[[ -n "$keep" ]] || die "Usage : ${PROG} seul <sortie>   (voir ${PROG} list)"
+	connected | grep -qx "$keep" || die "Sortie inconnue ou débranchée : ${keep}"
+
+	local args=(--output "$keep" --auto --primary) out
+	while read -r out; do
+		[[ "$out" == "$keep" ]] && continue
+		args+=(--output "$out" --off)
+	done < <(xrandr --query 2>/dev/null | awk '/ connected| disconnected/{print $1}')
+
+	xrandr "${args[@]}" || die "xrandr a refusé."
+	ok "Seul ${keep} est allumé."
+	apply_wallpaper
+}
+
+cmd_principal() {
+	need_x
+	local out="${1:-}"
+	[[ -n "$out" ]] || die "Usage : ${PROG} principal <sortie>"
+	connected | grep -qx "$out" || die "Sortie inconnue ou débranchée : ${out}"
+	xrandr --output "$out" --primary || die "xrandr a refusé."
+	ok "Écran principal : ${out}"
+	say "La barre du haut et le dock suivent l'écran principal."
+}
+
+cmd_resolution() {
+	need_x
+	local out="${1:-}" mode="${2:-}"
+	if [[ -z "$out" ]]; then
+		printf '\nRésolutions disponibles :\n\n'
+		xrandr --query 2>/dev/null | sed -n '/ connected/,/^[A-Z]/p' | sed 's/^/  /'
+		printf '\n  %s%s resolution <sortie> <largeurxhauteur>%s\n\n' "$D" "$PROG" "$R"
+		return 0
+	fi
+	[[ -n "$mode" ]] || die "Usage : ${PROG} resolution <sortie> <1920x1080>"
+	xrandr --output "$out" --mode "$mode" \
+		&& ok "${out} : ${mode}" || die "Mode ${mode} refusé pour ${out}."
+}
+
+cmd_auto() {
+	need_x
+	local n; n="$(connected | wc -l)"
+	if (( n <= 1 )); then
+		xrandr --auto
+		ok "Un seul écran — configuration automatique appliquée."
+	else
+		say "${n} écrans détectés — extension vers la droite."
+		cmd_etendre droite
+	fi
+}
+
+# =============================================================================
+#  Profils (autorandr)
+# =============================================================================
+cmd_profil() {
+	local action="${1:-list}"
+	command -v autorandr >/dev/null 2>&1 || {
+		warn "autorandr n'est pas installé — les profils ne sont pas disponibles."
+		printf '  %sInstalle-le : lexos install autorandr%s\n' "$D" "$R"
+		return 1
+	}
+	case "$action" in
+		save|enregistrer)
+			local nom="${2:-$(date +%Y%m%d-%H%M)}"
+			autorandr --save "$nom" --force \
+				&& ok "Disposition enregistrée sous « ${nom} »" \
+				|| die "Enregistrement impossible."
+			say "Elle sera réappliquée seule au prochain branchement identique."
+			;;
+		load|charger)
+			[[ -n "${2:-}" ]] || die "Usage : ${PROG} profil charger <nom>"
+			autorandr --load "$2" && ok "Profil « $2 » appliqué." && apply_wallpaper
+			;;
+		list|'')
+			printf '\nProfils enregistrés :\n\n'
+			autorandr 2>/dev/null | sed 's/^/  /'
+			printf '\n'
+			;;
+		*) die "Usage : ${PROG} profil <list|save|load> [nom]" ;;
+	esac
+}
+
+# =============================================================================
+#  Réglage à la souris
+# =============================================================================
+cmd_gui() {
+	need_x
+	local t
+	for t in xfce4-display-settings arandr; do
+		if command -v "$t" >/dev/null 2>&1; then
+			setsid "$t" >/dev/null 2>&1 &
+			ok "Ouverture de ${t}"
+			return 0
+		fi
+	done
+	die "Aucun réglage graphique installé (xfce4-settings ou arandr)."
+}
+
+cmd_help() {
+	cat <<EOF
+
+${B}${O}${PROG}${R} — plusieurs écrans
+
+${B}USAGE${R}
+  ${PROG} <commande> [arguments]
+
+${B}VOIR${R}
+  ${A}list${R}                      Écrans branchés, résolution, position ${D}(défaut)${R}
+  ${A}resolution${R}                Résolutions possibles pour chaque écran
+
+${B}DISPOSER${R}
+  ${A}auto${R}                      Configuration automatique
+  ${A}etendre${R} <sens>            Bureau étendu : ${D}droite · gauche · haut · bas${R}
+  ${A}miroir${R}                    La même image sur tous les écrans
+  ${A}seul${R} <sortie>             N'allumer que celui-là
+  ${A}principal${R} <sortie>        Choisir l'écran qui porte la barre et le dock
+  ${A}resolution${R} <sortie> <WxH> Forcer une résolution
+
+${B}PROFILS${R}
+  ${A}profil save${R} [nom]         Mémoriser la disposition actuelle
+  ${A}profil load${R} <nom>         La réappliquer
+  ${A}profil list${R}               Profils connus
+
+${B}À LA SOURIS${R}
+  ${A}gui${R}                       Réglage graphique ${D}(aussi : Super+D)${R}
+
+${B}EXEMPLES${R}
+  ${D}${PROG} etendre droite${R}      portable + écran externe à droite
+  ${D}${PROG} principal HDMI-1${R}    le grand écran devient le principal
+  ${D}${PROG} profil save bureau${R}  retrouvé seul au prochain branchement
+
+EOF
+}
+
+# =============================================================================
+#  Répartiteur
+# =============================================================================
+CMD="${1:-list}"
+[[ $# -gt 0 ]] && shift
+
+case "$CMD" in
+	help|--help|-h)           cmd_help ;;
+	list|ls|'')               cmd_list ;;
+	auto)                     cmd_auto ;;
+	etendre|extend|étendre)   cmd_etendre "$@" ;;
+	miroir|mirror|dupliquer)  cmd_miroir ;;
+	seul|only|unique)         cmd_seul "$@" ;;
+	principal|primary)        cmd_principal "$@" ;;
+	resolution|résolution)    cmd_resolution "$@" ;;
+	profil|profile)           cmd_profil "$@" ;;
+	gui|reglages)             cmd_gui ;;
+	*) die "Commande inconnue : ${CMD}  (essaie : ${PROG} help)" ;;
+esac

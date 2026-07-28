@@ -7,6 +7,9 @@ set -e
 
 . ./lexos.conf
 
+BACKPORTS="false"
+[ "${LEXOS_KERNEL_CHANNEL:-stock}" = "backports" ] && BACKPORTS="true"
+
 BOOTAPPEND="boot=live components quiet splash"
 BOOTAPPEND="${BOOTAPPEND} username=${LEXOS_LIVE_USER}"
 BOOTAPPEND="${BOOTAPPEND} user-fullname=${LEXOS_NAME}\\ Live"
@@ -30,7 +33,7 @@ lb config noauto \
 	--mirror-binary-security "${LEXOS_MIRROR_SECURITY}" \
 	--security true \
 	--updates true \
-	--backports false \
+	--backports "${BACKPORTS}" \
 	--apt-recommends true \
 	--apt-indices false \
 	--firmware-chroot true \

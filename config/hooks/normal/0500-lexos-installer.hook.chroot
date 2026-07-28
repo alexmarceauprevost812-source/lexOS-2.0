@@ -173,6 +173,34 @@ if [ -f /etc/calamares/settings.conf ]; then
 	sed -i 's/^branding:.*/branding: lexos/' /etc/calamares/settings.conf
 fi
 
+# --- Chiffrement du disque : « mot de passe sur le disque dur » --------------
+#  Coché, l'installateur demande une phrase secrète et chiffre TOUT le disque
+#  (LUKS2). Sans elle, le contenu est illisible même en sortant le disque de
+#  la machine. C'est la vraie protection contre le vol de l'ordinateur.
+if [ -f /etc/calamares/modules/partition.conf ]; then
+	CONF="/etc/calamares/modules/partition.conf"
+
+	set_opt() { # set_opt <clé> <valeur>
+		if grep -qE "^[#[:space:]]*$1:" "$CONF"; then
+			sed -i "s|^[#[:space:]]*$1:.*|$1: $2|" "$CONF"
+		else
+			printf '%s: %s\n' "$1" "$2" >> "$CONF"
+		fi
+	}
+
+	set_opt enableLuksAutomatedPartitioning true
+	set_opt luksGeneration luks2
+	echo "[lexos]   chiffrement du disque proposé à l'installation (LUKS2)"
+else
+	echo "[lexos]   !! partition.conf absent — chiffrement non préconfiguré"
+fi
+
+# Le déverrouillage au démarrage exige les outils dans l'initramfs.
+if [ -d /etc/initramfs-tools ]; then
+	mkdir -p /etc/initramfs-tools/conf.d
+	printf 'CRYPTSETUP=y\n' > /etc/initramfs-tools/conf.d/lexos-crypt.conf
+fi
+
 # --- Raccourci « Installer LexOS » ------------------------------------------
 #  Exec pointe sur lexos-install, PAS directement sur calamares : ce wrapper
 #  vérifie qu'on est bien en session démo et exige une confirmation avant

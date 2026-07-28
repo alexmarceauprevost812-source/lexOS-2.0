@@ -1,0 +1,26 @@
+# Confort et matériel — toutes saveurs. Installés si disponibles.
+firmware-linux-nonfree
+firmware-iwlwifi
+firmware-realtek
+firmware-atheros
+firmware-misc-nonfree
+intel-microcode
+amd64-microcode
+lshw
+hwinfo
+btrfs-progs
+exfatprogs
+gvfs-backends
+vim-tiny
+p7zip-full
+jq
+manpages
+gnupg
+plymouth
+plymouth-themes
+webp
+imagemagick
+irqbalance
+thermald
+zram-tools
+linux-cpupower

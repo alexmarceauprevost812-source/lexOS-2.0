@@ -1,0 +1,12 @@
+[Unit]
+Description=LexOS — raccrochage à un réseau Wi-Fi ouvert
+Documentation=https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-
+After=NetworkManager.service
+Wants=NetworkManager.service
+ConditionPathExists=/etc/lexos/wifi-auto-open
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/lexos-net-autoconnect
+# Rien à faire si l'option est désactivée : le script sort immédiatement.
+TimeoutStartSec=90

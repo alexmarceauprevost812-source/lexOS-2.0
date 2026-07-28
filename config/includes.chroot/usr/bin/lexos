@@ -77,8 +77,25 @@ ${B}PAQUETS${R}
 ${B}APPARENCE${R}
   ${A}accent${R} <couleur>    Couleur des boutons et des sélections
                       ${D}orange (défaut) · bleu · rouge · vert · gris · violet${R}
+  ${A}dock${R} <position>     Barre d'outils : ${D}droite (défaut) · gauche · bas · haut${R}
+  ${A}ecran${R}               Plusieurs écrans : étendre, dupliquer, principal
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
   ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
+
+${B}PERFORMANCE${R}
+  ${A}perf${R} <profil>       ${D}petit · medium · performant · max${R}
+  ${A}perf status${R}         Ce que fait vraiment la machine
+  ${A}perf auto${R}           Choisir d'après le matériel détecté
+
+${B}RÉSEAU${R}
+  ${A}avion${R} <on|off>      Mode avion : coupe toutes les radios
+  ${A}wifi${R}                Chercher et rejoindre un réseau Wi-Fi
+  ${A}bt${R}                  Bluetooth : appairer, connecter
+  ${A}net${R}                 Toutes les commandes réseau
+
+${B}PARTAGE${R}
+  ${A}share${R} <fichiers…>   Envoyer vers un téléphone ${D}(QR code, KDE Connect, Bluetooth)${R}
+  ${A}receive${R}             Recevoir des fichiers depuis un téléphone
 
 ${B}DÉMO & INSTALLATION${R}
   ${A}demo${R}                Où en est-on : clé USB (démo) ou disque dur ?
@@ -87,7 +104,9 @@ ${B}DÉMO & INSTALLATION${R}
 ${B}EXEMPLES${R}
   ${D}${PROG} install neovim tmux${R}
   ${D}${PROG} accent violet${R}
-  ${D}${PROG} crt off${R}
+  ${D}${PROG} dock gauche${R}
+  ${D}${PROG} perf max${R}
+  ${D}${PROG} share photo.jpg${R}
 
 EOF
 	[[ -n "$LEXOS_HOME_URL" ]] && printf '%s%s%s\n\n' "$D" "$LEXOS_HOME_URL" "$R"
@@ -339,6 +358,46 @@ cmd_install_disk() {
 	exec lexos-install "$@"
 }
 
+cmd_dock() {
+	local pos="${1:-}"
+	local schema="net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
+
+	command -v gsettings >/dev/null 2>&1 \
+		|| die "gsettings absent — le dock Plank n'est pas installé."
+
+	if [[ -z "$pos" ]]; then
+		local cur; cur="$(gsettings get "$schema" position 2>/dev/null | tr -d "'")"
+		case "$cur" in
+			right)  cur="droite (défaut)" ;;
+			left)   cur="gauche" ;;
+			bottom) cur="bas" ;;
+			top)    cur="haut" ;;
+		esac
+		printf 'Position du dock : %s%s%s\n' "$O" "$cur" "$R"
+		printf 'Disponibles      : droite · gauche · bas · haut\n'
+		return 0
+	fi
+
+	local target
+	case "$(printf '%s' "$pos" | tr '[:upper:]' '[:lower:]')" in
+		droite|right|d)         target="right" ;;
+		gauche|left|g)          target="left" ;;
+		bas|bottom|b)           target="bottom" ;;
+		haut|top|h)             target="top" ;;
+		*) die "Position inconnue : '$pos' (droite | gauche | bas | haut)" ;;
+	esac
+
+	gsettings set "$schema" position "$target" 2>/dev/null \
+		|| die "Impossible de déplacer le dock."
+	ok "Dock déplacé : ${pos}"
+
+	# Plank applique la position à chaud, mais un redémarrage lève tout doute.
+	if pgrep -x plank >/dev/null 2>&1; then
+		pkill -x plank 2>/dev/null
+		( sleep 1; setsid plank >/dev/null 2>&1 & ) 2>/dev/null
+	fi
+}
+
 cmd_theme() {
 	local mode="${1:-}"
 	command -v xfconf-query >/dev/null 2>&1 \
@@ -377,6 +436,15 @@ case "$CMD" in
 	wallpaper|bg)         cmd_wallpaper "$@" ;;
 	theme)                cmd_theme "$@" ;;
 	accent)               cmd_accent "$@" ;;
+	dock|barre)           cmd_dock "$@" ;;
+	ecran|écran|display|screen) exec lexos-display "$@" ;;
+	perf|performance)     exec lexos-perf "$@" ;;
+	net|reseau)           exec lexos-net "$@" ;;
+	avion|airplane)       exec lexos-net avion "$@" ;;
+	wifi)                 exec lexos-net "${1:-scan}" "${@:2}" ;;
+	bt|bluetooth)         exec lexos-net bt "$@" ;;
+	share|partage)        exec lexos-share "$@" ;;
+	receive|recevoir)     exec lexos-share receive ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

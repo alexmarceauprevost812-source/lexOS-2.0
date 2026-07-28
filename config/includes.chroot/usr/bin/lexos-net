@@ -1,0 +1,558 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-net — réseau LexOS : mode avion, Wi-Fi, connexion automatique
+# =============================================================================
+#  S'appuie sur NetworkManager (nmcli) et rfkill.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+AUTO_STATE="/etc/lexos/wifi-auto-open"
+
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8*|*utf8*|*UTF8*|*utf-8*) ;;
+	*) locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$' && export LC_ALL=C.UTF-8 ;;
+esac
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+need_nm() {
+	command -v nmcli >/dev/null 2>&1 \
+		|| die "nmcli introuvable — NetworkManager n'est pas installé."
+	nmcli general status >/dev/null 2>&1 \
+		|| die "NetworkManager ne répond pas (service arrêté ?)."
+}
+
+need_root() {
+	if [[ $EUID -ne 0 ]]; then
+		command -v sudo >/dev/null 2>&1 || die "Droits administrateur nécessaires."
+		exec sudo -E "$0" "$@"
+	fi
+}
+
+# =============================================================================
+#  Mode avion
+# =============================================================================
+avion_state() {
+	local wifi wwan
+	wifi="$(nmcli -t radio wifi 2>/dev/null || echo '?')"
+	wwan="$(nmcli -t radio wwan 2>/dev/null || echo '?')"
+	if [[ "$wifi" == "disabled" && ( "$wwan" == "disabled" || "$wwan" == "missing" ) ]]; then
+		printf 'on'
+	else
+		printf 'off'
+	fi
+}
+
+cmd_avion() {
+	need_nm
+	local action="${1:-status}"
+	[[ "$action" == "toggle" ]] && {
+		[[ "$(avion_state)" == "on" ]] && action="off" || action="on"
+	}
+
+	case "$action" in
+	on)
+		need_root avion on
+		nmcli radio all off >/dev/null 2>&1 || true
+		command -v rfkill >/dev/null 2>&1 && rfkill block all 2>/dev/null || true
+		ok "Mode avion ${B}activé${R} — Wi-Fi, Bluetooth et données mobiles coupés."
+		command -v notify-send >/dev/null 2>&1 && \
+			notify-send -i airplane-mode-symbolic "LexOS" "Mode avion activé" 2>/dev/null || true
+		;;
+	off)
+		need_root avion off
+		command -v rfkill >/dev/null 2>&1 && rfkill unblock all 2>/dev/null || true
+		nmcli radio all on >/dev/null 2>&1 || true
+		ok "Mode avion ${B}désactivé${R} — les radios sont rallumées."
+		command -v notify-send >/dev/null 2>&1 && \
+			notify-send -i network-wireless "LexOS" "Mode avion désactivé" 2>/dev/null || true
+		;;
+	status)
+		local s; s="$(avion_state)"
+		if [[ "$s" == "on" ]]; then
+			printf '%sMode avion : ACTIVÉ%s — toutes les radios sont coupées.\n' "$Y" "$R"
+		else
+			printf 'Mode avion : %sdésactivé%s\n' "$G" "$R"
+		fi
+		printf '  %-12s %s\n' "Wi-Fi"    "$(nmcli -t radio wifi 2>/dev/null || echo '?')"
+		printf '  %-12s %s\n' "WWAN"     "$(nmcli -t radio wwan 2>/dev/null || echo '?')"
+		if command -v rfkill >/dev/null 2>&1; then
+			printf '  %-12s %s\n' "Bluetooth" \
+				"$(rfkill list bluetooth 2>/dev/null | grep -c 'Soft blocked: yes' \
+				   | sed 's/^0$/actif/; s/^[1-9].*/bloqué/')"
+		fi
+		;;
+	*) die "Usage : ${PROG} avion <on|off|toggle|status>" ;;
+	esac
+}
+
+# =============================================================================
+#  Wi-Fi
+# =============================================================================
+cmd_scan() {
+	need_nm
+	[[ "$(nmcli -t radio wifi 2>/dev/null)" == "enabled" ]] \
+		|| die "Le Wi-Fi est éteint. Rallume-le : ${PROG} wifi on  (ou ${PROG} avion off)"
+
+	say "Recherche des réseaux…"
+	nmcli device wifi rescan >/dev/null 2>&1 || true
+	sleep 2
+
+	local rows
+	rows="$(nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY,FREQ device wifi list 2>/dev/null)"
+	[[ -n "$rows" ]] || { warn "Aucun réseau détecté."; return 0; }
+
+	printf '\n  %-2s %-30s %-8s %-16s %s\n' "" "RÉSEAU" "SIGNAL" "SÉCURITÉ" "BANDE"
+	printf '  %s\n' "$(printf '─%.0s' {1..76})"
+
+	local inuse ssid signal sec freq bars mark band
+	while IFS=: read -r inuse ssid signal sec freq; do
+		[[ -n "$ssid" ]] || continue
+		mark=" "; [[ "$inuse" == "*" ]] && mark="●"
+
+		# Barres de signal
+		if   (( signal >= 75 )); then bars="▂▄▆█"
+		elif (( signal >= 50 )); then bars="▂▄▆${D}█${R}"
+		elif (( signal >= 25 )); then bars="▂▄${D}▆█${R}"
+		else                          bars="▂${D}▄▆█${R}"
+		fi
+
+		band="2,4 GHz"; [[ "${freq:-0}" -gt 4000 ]] 2>/dev/null && band="5 GHz"
+
+		if [[ -z "$sec" || "$sec" == "--" ]]; then
+			printf '  %s%s%s %-30s %s %3s%%  %s%-16s%s %s\n' \
+				"$G" "$mark" "$R" "$ssid" "$bars" "$signal" "$Y" "OUVERT" "$R" "$band"
+		else
+			printf '  %s%s%s %-30s %s %3s%%  %-16s %s\n' \
+				"$G" "$mark" "$R" "$ssid" "$bars" "$signal" "$sec" "$band"
+		fi
+	done <<< "$rows"
+
+	printf '\n  %sOUVERT = sans mot de passe : pratique, mais tout le monde peut\n' "$D"
+	printf '  lire ce qui n%s%sy circule en clair.%s\n\n' "'" "$D" "$R"
+	printf '  %s%s connect "<réseau>" [mot de passe]%s\n\n' "$D" "$PROG" "$R"
+}
+
+cmd_wifi() {
+	need_nm
+	case "${1:-status}" in
+		on)  need_root wifi on;  nmcli radio wifi on;  ok "Wi-Fi allumé" ;;
+		off) need_root wifi off; nmcli radio wifi off; ok "Wi-Fi éteint" ;;
+		status|'') printf 'Wi-Fi : %s\n' "$(nmcli -t radio wifi 2>/dev/null || echo '?')" ;;
+		*) die "Usage : ${PROG} wifi <on|off|status>" ;;
+	esac
+}
+
+cmd_connect() {
+	need_nm
+	local ssid="${1:-}" pass="${2:-}"
+	[[ -n "$ssid" ]] || die "Usage : ${PROG} connect \"<réseau>\" [mot de passe]"
+
+	# Le réseau est-il déjà connu ?
+	if nmcli -t -f NAME connection show 2>/dev/null | grep -qxF "$ssid"; then
+		say "Réseau déjà enregistré — reconnexion…"
+		nmcli connection up id "$ssid" >/dev/null 2>&1 \
+			&& { ok "Connecté à « ${ssid} »"; return 0; }
+		warn "La reconnexion a échoué, nouvelle tentative avec les identifiants fournis."
+	fi
+
+	nmcli device wifi rescan >/dev/null 2>&1 || true
+	sleep 1
+
+	local sec
+	sec="$(nmcli -t -f SSID,SECURITY device wifi list 2>/dev/null \
+	       | awk -F: -v s="$ssid" '$1 == s {print $2; exit}')"
+
+	if [[ -z "$sec" || "$sec" == "--" ]]; then
+		if [[ -n "$pass" ]]; then
+			warn "« ${ssid} » est un réseau ouvert : le mot de passe est ignoré."
+		fi
+		printf '\n%s!%s « %s » est un réseau %sOUVERT%s (sans chiffrement).\n' \
+			"$Y" "$R" "$ssid" "$B" "$R"
+		printf '  Toute personne à portée peut lire ce qui y circule en clair.\n'
+		printf '  Évite d%s%sy taper des mots de passe ou des données bancaires.\n\n' "'" ""
+		nmcli device wifi connect "$ssid" >/dev/null 2>&1 \
+			&& ok "Connecté à « ${ssid} » (non chiffré)" \
+			|| die "Connexion à « ${ssid} » impossible."
+		return 0
+	fi
+
+	if [[ -z "$pass" ]]; then
+		printf 'Mot de passe pour « %s » (%s) : ' "$ssid" "$sec"
+		read -r -s pass
+		printf '\n'
+	fi
+	[[ -n "$pass" ]] || die "Aucun mot de passe fourni."
+
+	nmcli device wifi connect "$ssid" password "$pass" >/dev/null 2>&1 \
+		&& ok "Connecté à « ${ssid} »" \
+		|| die "Connexion refusée — mot de passe incorrect, ou réseau hors de portée."
+}
+
+cmd_disconnect() {
+	need_nm
+	local dev
+	dev="$(nmcli -t -f DEVICE,TYPE,STATE device 2>/dev/null \
+	       | awk -F: '$2=="wifi" && $3=="connected" {print $1; exit}')"
+	[[ -n "$dev" ]] || { warn "Aucune connexion Wi-Fi active."; return 0; }
+	nmcli device disconnect "$dev" >/dev/null 2>&1 \
+		&& ok "Déconnecté de « ${dev} »" || die "Déconnexion impossible."
+}
+
+cmd_forget() {
+	need_nm
+	local ssid="${1:-}"
+	[[ -n "$ssid" ]] || die "Usage : ${PROG} forget \"<réseau>\""
+	nmcli connection delete id "$ssid" >/dev/null 2>&1 \
+		&& ok "Réseau « ${ssid} » oublié (mot de passe effacé)" \
+		|| die "Réseau « ${ssid} » inconnu."
+}
+
+cmd_list() {
+	need_nm
+	printf '\n  %-32s %-12s %s\n' "RÉSEAU ENREGISTRÉ" "TYPE" "AUTO"
+	printf '  %s\n' "$(printf '─%.0s' {1..60})"
+	nmcli -t -f NAME,TYPE,AUTOCONNECT connection show 2>/dev/null \
+		| while IFS=: read -r name type auto; do
+			printf '  %-32s %-12s %s\n' "$name" "${type##*-}" "$auto"
+		done
+	printf '\n'
+}
+
+# =============================================================================
+#  Bluetooth
+# =============================================================================
+need_bt() {
+	command -v bluetoothctl >/dev/null 2>&1 \
+		|| die "bluetoothctl introuvable — le paquet bluez n'est pas installé."
+	if command -v systemctl >/dev/null 2>&1; then
+		systemctl is-active bluetooth.service >/dev/null 2>&1 && return 0
+		warn "Le service Bluetooth est arrêté."
+		printf '  %sLe profil « petit » le coupe pour économiser la batterie.%s\n' "$D" "$R"
+		printf '  %sLe relancer : sudo systemctl enable --now bluetooth%s\n' "$D" "$R"
+		return 1
+	fi
+	return 0
+}
+
+bt_powered() {
+	bluetoothctl show 2>/dev/null | grep -q 'Powered: yes'
+}
+
+# Accepte une adresse MAC ou un nom d'appareil et renvoie toujours la MAC.
+bt_resolve() {
+	local q="${1:-}"
+	[[ "$q" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] && { printf '%s' "$q"; return 0; }
+	bluetoothctl devices 2>/dev/null \
+		| awk -v n="$q" 'BEGIN{IGNORECASE=1} { mac=$2; $1=""; $2=""; sub(/^ +/,"");
+		     if (tolower($0) == tolower(n)) { print mac; exit } }'
+}
+
+cmd_bt() {
+	local action="${1:-status}"
+	[[ $# -gt 0 ]] && shift
+
+	case "$action" in
+	on)
+		need_root bt on
+		command -v rfkill >/dev/null 2>&1 && rfkill unblock bluetooth 2>/dev/null || true
+		command -v systemctl >/dev/null 2>&1 && \
+			systemctl start bluetooth.service >/dev/null 2>&1 || true
+		need_bt || return 1
+		bluetoothctl power on >/dev/null 2>&1 \
+			&& ok "Bluetooth allumé" || die "Impossible d'allumer le Bluetooth."
+		;;
+	off)
+		need_root bt off
+		command -v bluetoothctl >/dev/null 2>&1 && bluetoothctl power off >/dev/null 2>&1 || true
+		command -v rfkill >/dev/null 2>&1 && rfkill block bluetooth 2>/dev/null || true
+		ok "Bluetooth éteint"
+		;;
+	scan)
+		need_bt || return 1
+		bt_powered || die "Le Bluetooth est éteint. Allume-le : ${PROG} bt on"
+		say "Recherche d'appareils pendant 12 secondes…"
+		bluetoothctl --timeout 12 scan on >/dev/null 2>&1 || true
+
+		local rows; rows="$(bluetoothctl devices 2>/dev/null)"
+		[[ -n "$rows" ]] || { warn "Aucun appareil trouvé."; return 0; }
+
+		printf '\n  %-19s %-30s %s\n' "ADRESSE" "APPAREIL" "ÉTAT"
+		printf '  %s\n' "$(printf '─%.0s' {1..64})"
+		local mac name info state
+		while read -r _ mac name; do
+			[[ -n "$mac" ]] || continue
+			info="$(bluetoothctl info "$mac" 2>/dev/null)"
+			state=""
+			grep -q 'Connected: yes' <<< "$info" && state="${G}connecté${R}"
+			[[ -z "$state" ]] && grep -q 'Paired: yes' <<< "$info" && state="${D}appairé${R}"
+			[[ -z "$state" ]] && state="${D}—${R}"
+			printf '  %-19s %-30s %b\n' "$mac" "${name:0:30}" "$state"
+		done <<< "$rows"
+		printf '\n  %s%s bt pair <adresse ou nom>%s\n\n' "$D" "$PROG" "$R"
+		;;
+	pair|appairer)
+		need_bt || return 1
+		local target; target="$(bt_resolve "${1:-}")"
+		[[ -n "$target" ]] || die "Usage : ${PROG} bt pair <adresse MAC ou nom>  (fais un ${PROG} bt scan d'abord)"
+
+		say "Appairage de ${target}…"
+		bluetoothctl --timeout 20 scan on >/dev/null 2>&1 &
+		sleep 3
+		if bluetoothctl pair "$target" 2>&1 | grep -qiE 'successful|already paired'; then
+			bluetoothctl trust "$target"   >/dev/null 2>&1
+			bluetoothctl connect "$target" >/dev/null 2>&1
+			ok "Appareil ${target} appairé, approuvé et connecté."
+		else
+			die "Appairage échoué — mets l'appareil en mode appairage et réessaie."
+		fi
+		wait 2>/dev/null || true
+		;;
+	connect|co)
+		need_bt || return 1
+		local target; target="$(bt_resolve "${1:-}")"
+		[[ -n "$target" ]] || die "Usage : ${PROG} bt connect <adresse MAC ou nom>"
+		bluetoothctl connect "$target" >/dev/null 2>&1 \
+			&& ok "Connecté à ${target}" || die "Connexion à ${target} impossible."
+		;;
+	disconnect|deco)
+		need_bt || return 1
+		local target; target="$(bt_resolve "${1:-}")"
+		[[ -n "$target" ]] || die "Usage : ${PROG} bt disconnect <adresse MAC ou nom>"
+		bluetoothctl disconnect "$target" >/dev/null 2>&1 \
+			&& ok "Déconnecté de ${target}" || die "Déconnexion impossible."
+		;;
+	forget|oublie|remove)
+		need_bt || return 1
+		local target; target="$(bt_resolve "${1:-}")"
+		[[ -n "$target" ]] || die "Usage : ${PROG} bt forget <adresse MAC ou nom>"
+		bluetoothctl remove "$target" >/dev/null 2>&1 \
+			&& ok "Appareil ${target} oublié." || die "Appareil inconnu."
+		;;
+	list|ls)
+		need_bt || return 1
+		printf '\n  %-19s %-30s %s\n' "ADRESSE" "APPAREIL APPAIRÉ" "ÉTAT"
+		printf '  %s\n' "$(printf '─%.0s' {1..64})"
+		local mac name
+		while read -r _ mac name; do
+			[[ -n "$mac" ]] || continue
+			if bluetoothctl info "$mac" 2>/dev/null | grep -q 'Connected: yes'; then
+				printf '  %-19s %-30s %sconnecté%s\n' "$mac" "${name:0:30}" "$G" "$R"
+			else
+				printf '  %-19s %-30s %s—%s\n' "$mac" "${name:0:30}" "$D" "$R"
+			fi
+		done <<< "$(bluetoothctl devices Paired 2>/dev/null || bluetoothctl paired-devices 2>/dev/null)"
+		printf '\n'
+		;;
+	status|'')
+		if ! command -v bluetoothctl >/dev/null 2>&1; then
+			printf 'Bluetooth : %snon installé%s\n' "$D" "$R"; return 0
+		fi
+		if bt_powered; then
+			printf 'Bluetooth : %sallumé%s\n' "$G" "$R"
+			local n
+			n="$(bluetoothctl devices Connected 2>/dev/null | wc -l)"
+			printf '  %-24s %s\n' "Appareils connectés" "$n"
+		else
+			printf 'Bluetooth : %séteint%s\n' "$Y" "$R"
+			printf '  %sAllumer : %s bt on%s\n' "$D" "$PROG" "$R"
+		fi
+		;;
+	*) die "Usage : ${PROG} bt <status|on|off|scan|pair|connect|disconnect|forget|list>" ;;
+	esac
+}
+
+# =============================================================================
+#  Connexion automatique aux réseaux ouverts
+# =============================================================================
+auto_state() {
+	[[ -r "$AUTO_STATE" ]] && cat "$AUTO_STATE" || printf 'off'
+}
+
+cmd_auto() {
+	local action="${1:-status}"
+	case "$action" in
+	on)
+		need_root auto on
+		printf '\n%s%s⚠  Connexion automatique aux réseaux ouverts%s\n\n' "$B" "$Y" "$R"
+		cat <<-'EOF'
+		  Un réseau « ouvert » n'a pas de mot de passe, donc pas de chiffrement.
+		  En activant cette option, LexOS s'y connectera tout seul dès que tu
+		  n'auras plus d'autre réseau. Concrètement :
+
+		    · Toute personne à portée peut lire ce qui circule en clair.
+		    · N'importe qui peut créer un faux point d'accès portant le nom
+		      d'un réseau connu et intercepter ta connexion.
+		    · Les sites en HTTPS restent chiffrés ; le reste, non.
+
+		  À n'activer que si tu sais ce que tu fais, et à éviter pour
+		  la banque, les courriels et les mots de passe.
+
+		EOF
+		printf '  Tape %sOUI%s pour activer, autre chose pour annuler : ' "$B" "$R"
+		local a=""; read -r a || true
+		[[ "$a" == "OUI" ]] || { say "Annulé — l'option reste désactivée."; return 0; }
+
+		mkdir -p /etc/lexos
+		printf 'on\n' > "$AUTO_STATE"
+		if command -v systemctl >/dev/null 2>&1; then
+			systemctl enable --now lexos-autoconnect.timer >/dev/null 2>&1 \
+				&& ok "Connexion automatique activée (vérification toutes les 2 min)" \
+				|| warn "Le minuteur lexos-autoconnect n'a pas pu démarrer."
+		fi
+		;;
+	off)
+		need_root auto off
+		mkdir -p /etc/lexos
+		printf 'off\n' > "$AUTO_STATE"
+		command -v systemctl >/dev/null 2>&1 && \
+			systemctl disable --now lexos-autoconnect.timer >/dev/null 2>&1
+		ok "Connexion automatique aux réseaux ouverts désactivée."
+		;;
+	status|'')
+		local s; s="$(auto_state)"
+		if [[ "$s" == "on" ]]; then
+			printf 'Connexion auto aux réseaux ouverts : %sACTIVÉE%s\n' "$Y" "$R"
+			printf '  %sTon trafic non-HTTPS peut être lu sur ces réseaux.%s\n' "$D" "$R"
+			printf '  %sDésactiver : %s auto off%s\n' "$D" "$PROG" "$R"
+		else
+			printf 'Connexion auto aux réseaux ouverts : %sdésactivée%s %s(recommandé)%s\n' \
+				"$G" "$R" "$D" "$R"
+			printf '  %sActiver : %s auto on%s\n' "$D" "$PROG" "$R"
+		fi
+		;;
+	*) die "Usage : ${PROG} auto <on|off|status>" ;;
+	esac
+}
+
+# =============================================================================
+#  État général
+# =============================================================================
+cmd_status() {
+	need_nm
+	printf '\n%sRéseau%s\n\n' "$B$O" "$R"
+
+	local conn
+	conn="$(nmcli -t -f NAME,TYPE,DEVICE connection show --active 2>/dev/null)"
+	if [[ -n "$conn" ]]; then
+		while IFS=: read -r name type dev; do
+			[[ -n "$name" ]] || continue
+			printf '  %s✓%s %-28s %s %s\n' "$G" "$R" "$name" "${type##*-}" "${D}${dev}${R}"
+		done <<< "$conn"
+	else
+		printf '  %s✗%s Aucune connexion active\n' "$E" "$R"
+	fi
+
+	local ip
+	ip="$(nmcli -g IP4.ADDRESS device show 2>/dev/null | grep -v '^$' | head -n1)"
+	[[ -n "$ip" ]] && printf '  %-30s %s\n' "Adresse IP" "$ip"
+
+	printf '\n'
+	local av; av="$(avion_state)"
+	if [[ "$av" == "on" ]]; then
+		printf '  %-30s %sACTIVÉ%s\n' "Mode avion" "$Y" "$R"
+	else
+		printf '  %-30s %s\n' "Mode avion" "désactivé"
+	fi
+	printf '  %-30s %s\n' "Wi-Fi" "$(nmcli -t radio wifi 2>/dev/null || echo '?')"
+
+	if command -v bluetoothctl >/dev/null 2>&1; then
+		if bt_powered; then
+			printf '  %-30s %sallumé%s (%s connecté·s)\n' "Bluetooth" "$G" "$R" \
+				"$(bluetoothctl devices Connected 2>/dev/null | wc -l)"
+		else
+			printf '  %-30s %s\n' "Bluetooth" "éteint"
+		fi
+	fi
+
+	local au; au="$(auto_state)"
+	if [[ "$au" == "on" ]]; then
+		printf '  %-30s %sactivée%s %s(risqué)%s\n' \
+			"Connexion auto réseaux ouverts" "$Y" "$R" "$D" "$R"
+	else
+		printf '  %-30s %s\n' "Connexion auto réseaux ouverts" "désactivée"
+	fi
+
+	if nmcli networking connectivity 2>/dev/null | grep -q full; then
+		printf '  %-30s %sinternet accessible%s\n' "Connectivité" "$G" "$R"
+	else
+		printf '  %-30s %s\n' "Connectivité" \
+			"$(nmcli networking connectivity 2>/dev/null || echo '?')"
+	fi
+	printf '\n'
+}
+
+cmd_help() {
+	cat <<EOF
+
+${B}${O}${PROG}${R} — réseau LexOS
+
+${B}USAGE${R}
+  ${PROG} <commande> [arguments]
+
+${B}MODE AVION${R}
+  ${A}avion on${R}              Coupe Wi-Fi, Bluetooth et données mobiles
+  ${A}avion off${R}             Rallume tout
+  ${A}avion toggle${R}          Bascule ${D}(raccourci clavier : Fn+F2 ou Super+A)${R}
+  ${A}avion status${R}          État des radios
+
+${B}WI-FI${R}
+  ${A}scan${R}                  Cherche les réseaux à portée
+  ${A}connect "<réseau>" [mdp]${R}  Se connecte ${D}(demande le mot de passe si besoin)${R}
+  ${A}disconnect${R}            Se déconnecte
+  ${A}forget "<réseau>"${R}     Oublie un réseau et son mot de passe
+  ${A}list${R}                  Réseaux enregistrés
+  ${A}wifi on|off${R}           Allume ou éteint la carte Wi-Fi
+
+${B}BLUETOOTH${R}
+  ${A}bt status${R}             Allumé ? combien d'appareils connectés ?
+  ${A}bt on${R} / ${A}bt off${R}         Allume ou éteint la puce
+  ${A}bt scan${R}               Cherche les appareils à portée (12 s)
+  ${A}bt pair <appareil>${R}    Appaire, approuve et connecte ${D}(MAC ou nom)${R}
+  ${A}bt connect${R} / ${A}disconnect${R}
+  ${A}bt list${R}               Appareils déjà appairés
+  ${A}bt forget <appareil>${R}  Oublie un appareil
+
+${B}CONNEXION AUTOMATIQUE${R}
+  ${A}auto on${R}               Se connecter seul aux réseaux ${B}sans mot de passe${R}
+                        ${D}désactivé par défaut — demande confirmation${R}
+  ${A}auto off${R}              Revenir au comportement sûr
+  ${A}auto status${R}           État de l'option
+
+${B}ÉTAT${R}
+  ${A}status${R}                Vue d'ensemble ${D}(commande par défaut)${R}
+
+EOF
+}
+
+# =============================================================================
+#  Répartiteur
+# =============================================================================
+CMD="${1:-status}"
+[[ $# -gt 0 ]] && shift
+
+case "$CMD" in
+	help|--help|-h)          cmd_help ;;
+	status|'')               cmd_status ;;
+	avion|airplane|vol)      cmd_avion "$@" ;;
+	scan|search|cherche)     cmd_scan ;;
+	wifi)                    cmd_wifi "$@" ;;
+	connect|co)              cmd_connect "$@" ;;
+	disconnect|deco)         cmd_disconnect ;;
+	forget|oublie)           cmd_forget "$@" ;;
+	list|ls)                 cmd_list ;;
+	bt|bluetooth)            cmd_bt "$@" ;;
+	auto|auto-ouvert)        cmd_auto "$@" ;;
+	*) die "Commande inconnue : ${CMD}  (essaie : ${PROG} help)" ;;
+esac

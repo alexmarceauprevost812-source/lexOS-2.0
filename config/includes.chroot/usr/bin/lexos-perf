@@ -1,0 +1,607 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-perf — profils de performance de la machine
+# =============================================================================
+#  Quatre niveaux, du plus économe au plus agressif :
+#
+#     petit         machine modeste, autonomie maximale
+#     medium        équilibre (défaut)
+#     performant    priorité à la vitesse
+#     max           tout à fond, secteur recommandé
+#
+#  Chaque profil agit sur deux plans :
+#     système  (root)    gouverneur CPU, sysctl, ordonnanceur E/S, services, zram
+#     session  (user)    compositing, effets CRT, zoom du dock, miniatures
+#
+#  Le profil retenu est écrit dans /etc/lexos/performance et rejoué à chaque
+#  démarrage par lexos-perf.service.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+# Les libellés sont accentués : sans locale multi-octets, printf %-Ns aligne sur
+# les octets et les colonnes se décalent. Même garde-fou que dans lexfetch.
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8*|*utf8*|*UTF8*|*utf-8*) ;;
+	*) locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$' && export LC_ALL=C.UTF-8 ;;
+esac
+
+STATE="/etc/lexos/performance"
+SYSCTL_FILE="/etc/sysctl.d/99-lexos-perf.conf"
+USER_STATE="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+
+QUIET=0
+SCOPE="both"          # both | system | user
+
+# --- Couleurs ----------------------------------------------------------------
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+
+say()  { (( QUIET )) || printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { (( QUIET )) || printf '  %s✓%s %s\n' "$G" "$R" "$*"; }
+skip() { (( QUIET )) || printf '  %s·%s %s\n' "$D" "$R" "$*"; }
+warn() { printf '  %s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+# =============================================================================
+#  Profils
+# =============================================================================
+normalize() {
+	case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+		petit|small|eco|economie|économie|leger|léger|low)   printf 'petit' ;;
+		medium|médium|moyen|equilibre|équilibré|balanced)    printf 'medium' ;;
+		performant|perf|rapide|fast|high)                    printf 'performant' ;;
+		max|maximum|ultra|extreme|extrême|'performance max') printf 'max' ;;
+		*) return 1 ;;
+	esac
+}
+
+label() {
+	case "$1" in
+		petit)      printf 'Petit — machine modeste, autonomie maximale' ;;
+		medium)     printf 'Médium — équilibre, réglage par défaut' ;;
+		performant) printf 'Performant — priorité à la vitesse' ;;
+		max)        printf 'Performance max — tout à fond, secteur recommandé' ;;
+	esac
+}
+
+# Chaque profil définit ces variables. Un seul endroit à relire pour tout
+# comprendre — c'est volontaire.
+load_profile() {
+	case "$1" in
+	petit)
+		P_GOVERNOR="powersave";    P_EPP="power";                P_NO_TURBO=1
+		P_SWAPPINESS=100;          P_CACHE_PRESSURE=200
+		P_DIRTY=10;                P_DIRTY_BG=5
+		P_SCHED_ROT="bfq";         P_SCHED_SSD="none"
+		P_AUTOGROUP=1;             P_BBR=0
+		P_ZRAM=60                  # % de la RAM, 0 = désactivé
+		P_COMPOSITING=0;           P_CRT="off"
+		P_DOCK_ZOOM=false;         P_THUMBNAILS=0
+		P_TRIM_SERVICES=1
+		;;
+	medium)
+		P_GOVERNOR="schedutil";    P_EPP="balance_power";        P_NO_TURBO=0
+		P_SWAPPINESS=60;           P_CACHE_PRESSURE=100
+		P_DIRTY=20;                P_DIRTY_BG=10
+		P_SCHED_ROT="bfq";         P_SCHED_SSD="none"
+		P_AUTOGROUP=1;             P_BBR=0
+		P_ZRAM=0
+		P_COMPOSITING=1;           P_CRT="off"
+		P_DOCK_ZOOM=true;          P_THUMBNAILS=1
+		P_TRIM_SERVICES=0
+		;;
+	performant)
+		P_GOVERNOR="performance";  P_EPP="balance_performance";  P_NO_TURBO=0
+		P_SWAPPINESS=20;           P_CACHE_PRESSURE=50
+		P_DIRTY=20;                P_DIRTY_BG=10
+		P_SCHED_ROT="bfq";         P_SCHED_SSD="none"
+		P_AUTOGROUP=1;             P_BBR=1
+		P_ZRAM=0
+		P_COMPOSITING=1;           P_CRT="on"
+		P_DOCK_ZOOM=true;          P_THUMBNAILS=1
+		P_TRIM_SERVICES=0
+		;;
+	max)
+		P_GOVERNOR="performance";  P_EPP="performance";          P_NO_TURBO=0
+		P_SWAPPINESS=10;           P_CACHE_PRESSURE=50
+		P_DIRTY=30;                P_DIRTY_BG=15
+		P_SCHED_ROT="mq-deadline"; P_SCHED_SSD="none"
+		P_AUTOGROUP=1;             P_BBR=1
+		P_ZRAM=0
+		P_COMPOSITING=1;           P_CRT="on"
+		P_DOCK_ZOOM=true;          P_THUMBNAILS=1
+		P_TRIM_SERVICES=0
+		;;
+	*) return 1 ;;
+	esac
+}
+
+current_profile() {
+	if [[ -r "$STATE" ]]; then
+		cat "$STATE"
+	elif [[ -r /etc/lexos/build.conf ]]; then
+		# shellcheck disable=SC1091
+		( . /etc/lexos/build.conf 2>/dev/null; printf '%s' "${LEXOS_PERF_PROFILE:-medium}" )
+	else
+		printf 'medium'
+	fi
+}
+
+# =============================================================================
+#  Application — plan système (exige root)
+# =============================================================================
+apply_cpu() {
+	local d applied=0 avail
+	for d in /sys/devices/system/cpu/cpu[0-9]*/cpufreq; do
+		[[ -d "$d" ]] || continue
+		if [[ -w "$d/scaling_governor" ]]; then
+			avail="$(cat "$d/scaling_available_governors" 2>/dev/null || echo '')"
+			local gov="$P_GOVERNOR"
+			# schedutil n'existe pas partout : replis raisonnables.
+			if [[ -n "$avail" && " $avail " != *" $gov "* ]]; then
+				case "$gov" in
+					schedutil)   for f in ondemand conservative powersave; do
+					                [[ " $avail " == *" $f "* ]] && { gov="$f"; break; }
+					             done ;;
+					performance) [[ " $avail " == *" ondemand "* ]] && gov="ondemand" ;;
+					powersave)   [[ " $avail " == *" conservative "* ]] && gov="conservative" ;;
+				esac
+			fi
+			[[ -n "$avail" && " $avail " != *" $gov "* ]] && continue
+			printf '%s' "$gov" > "$d/scaling_governor" 2>/dev/null && applied=$((applied + 1))
+			LAST_GOV="$gov"
+		fi
+		[[ -w "$d/energy_performance_preference" ]] && \
+			printf '%s' "$P_EPP" > "$d/energy_performance_preference" 2>/dev/null
+	done
+
+	if (( applied )); then
+		ok "gouverneur CPU : ${LAST_GOV:-$P_GOVERNOR} (${applied} cœurs)"
+	else
+		skip "gouverneur CPU : pilote cpufreq absent (machine virtuelle ?)"
+	fi
+
+	local t
+	for t in /sys/devices/system/cpu/intel_pstate/no_turbo \
+	         /sys/devices/system/cpu/cpufreq/boost; do
+		[[ -w "$t" ]] || continue
+		case "$t" in
+			*no_turbo) printf '%s' "$P_NO_TURBO" > "$t" 2>/dev/null \
+			           && ok "turbo : $(( P_NO_TURBO ? 0 : 1 )) " ;;
+			*boost)    printf '%s' "$(( P_NO_TURBO ? 0 : 1 ))" > "$t" 2>/dev/null \
+			           && ok "boost CPU : $(( P_NO_TURBO ? 0 : 1 ))" ;;
+		esac
+	done
+	return 0
+}
+
+apply_sysctl() {
+	{
+		printf '# Généré par lexos-perf — profil : %s\n' "$PROFILE"
+		printf '# Ne pas éditer : réécrit à chaque changement de profil.\n\n'
+		printf 'vm.swappiness = %s\n'              "$P_SWAPPINESS"
+		printf 'vm.vfs_cache_pressure = %s\n'      "$P_CACHE_PRESSURE"
+		printf 'vm.dirty_ratio = %s\n'             "$P_DIRTY"
+		printf 'vm.dirty_background_ratio = %s\n'  "$P_DIRTY_BG"
+		printf 'kernel.sched_autogroup_enabled = %s\n' "$P_AUTOGROUP"
+		if (( P_BBR )); then
+			printf 'net.core.default_qdisc = fq\n'
+			printf 'net.ipv4.tcp_congestion_control = bbr\n'
+		fi
+		if [[ "$PROFILE" == "max" ]]; then
+			printf 'vm.max_map_count = 2147483642\n'
+		fi
+	} > "$SYSCTL_FILE"
+
+	if command -v sysctl >/dev/null 2>&1; then
+		sysctl -p "$SYSCTL_FILE" >/dev/null 2>&1 \
+			&& ok "noyau : swappiness=${P_SWAPPINESS}, cache=${P_CACHE_PRESSURE}" \
+			|| warn "certains réglages sysctl ont été refusés (conteneur ?)"
+	fi
+	return 0
+}
+
+apply_io() {
+	local dev name rot sched target done=0
+	for dev in /sys/block/*; do
+		name="$(basename "$dev")"
+		case "$name" in loop*|ram*|zram*|sr*|dm-*|md*) continue ;; esac
+		[[ -w "$dev/queue/scheduler" ]] || continue
+
+		rot="$(cat "$dev/queue/rotational" 2>/dev/null || echo 1)"
+		if [[ "$rot" == "1" ]]; then target="$P_SCHED_ROT"; else target="$P_SCHED_SSD"; fi
+
+		sched="$(cat "$dev/queue/scheduler" 2>/dev/null || echo '')"
+		if [[ "$sched" != *"$target"* ]]; then
+			# L'ordonnanceur voulu n'est pas proposé pour ce périphérique.
+			case "$sched" in
+				*mq-deadline*) target="mq-deadline" ;;
+				*none*)        target="none" ;;
+				*) continue ;;
+			esac
+		fi
+		printf '%s' "$target" > "$dev/queue/scheduler" 2>/dev/null \
+			&& { ok "E/S ${name} : ${target}"; done=$((done + 1)); }
+	done
+	(( done )) || skip "ordonnanceur E/S : aucun disque modifiable"
+	return 0
+}
+
+apply_zram() {
+	if (( P_ZRAM > 0 )); then
+		if [[ -d /etc/default ]] && command -v systemctl >/dev/null 2>&1 \
+		   && systemctl list-unit-files zramswap.service >/dev/null 2>&1; then
+			printf 'ALGO=zstd\nPERCENT=%s\nPRIORITY=100\n' "$P_ZRAM" > /etc/default/zramswap
+			systemctl enable --now zramswap.service >/dev/null 2>&1 \
+				&& ok "zram : ${P_ZRAM}% de la RAM en swap compressé" \
+				|| warn "zram : activation refusée"
+		else
+			skip "zram : paquet zram-tools absent"
+		fi
+	else
+		if command -v systemctl >/dev/null 2>&1 \
+		   && systemctl is-enabled zramswap.service >/dev/null 2>&1; then
+			systemctl disable --now zramswap.service >/dev/null 2>&1 \
+				&& ok "zram : désactivé"
+		fi
+	fi
+	return 0
+}
+
+apply_services() {
+	command -v systemctl >/dev/null 2>&1 || return 0
+	local s
+	# Services confortables mais coûteux sur une machine modeste.
+	local trimmable="bluetooth.service cups.service cups-browsed.service ModemManager.service"
+
+	for s in $trimmable; do
+		systemctl list-unit-files "$s" >/dev/null 2>&1 || continue
+		if (( P_TRIM_SERVICES )); then
+			if systemctl is-enabled "$s" >/dev/null 2>&1; then
+				systemctl disable --now "$s" >/dev/null 2>&1 \
+					&& ok "service arrêté : ${s%.service}"
+			fi
+		else
+			if ! systemctl is-enabled "$s" >/dev/null 2>&1; then
+				systemctl enable --now "$s" >/dev/null 2>&1 \
+					&& ok "service relancé : ${s%.service}"
+			fi
+		fi
+	done
+
+	# Journal en mémoire vive sur une petite machine : moins d'écritures disque.
+	mkdir -p /etc/systemd/journald.conf.d
+	if (( P_TRIM_SERVICES )); then
+		printf '[Journal]\nStorage=volatile\nRuntimeMaxUse=32M\n' \
+			> /etc/systemd/journald.conf.d/99-lexos-perf.conf
+	else
+		rm -f /etc/systemd/journald.conf.d/99-lexos-perf.conf
+	fi
+	return 0
+}
+
+apply_system() {
+	[[ $EUID -eq 0 ]] || die "Le plan système exige les droits root."
+	mkdir -p /etc/lexos
+	printf '%s\n' "$PROFILE" > "$STATE"
+
+	say "Plan système — profil ${B}${PROFILE}${R}"
+	apply_cpu
+	apply_sysctl
+	apply_io
+	apply_zram
+	apply_services
+	return 0
+}
+
+# =============================================================================
+#  Application — plan session (utilisateur, exige un affichage)
+# =============================================================================
+apply_user() {
+	mkdir -p "$USER_STATE"
+	printf '%s\n' "$PROFILE" > "$USER_STATE/perf"
+	printf '%s\n' "$P_CRT"   > "$USER_STATE/crt"
+
+	if [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+		skip "plan session : pas d'affichage, sera appliqué à la connexion"
+		return 0
+	fi
+
+	say "Plan session — profil ${B}${PROFILE}${R}"
+
+	if command -v xfconf-query >/dev/null 2>&1; then
+		local comp="true"; (( P_COMPOSITING )) || comp="false"
+		xfconf-query -c xfwm4 -p /general/use_compositing -s "$comp" 2>/dev/null \
+			&& ok "compositing xfwm4 : ${comp}"
+
+		# Fenêtres pleines pendant le déplacement : coûteux sur machine modeste.
+		local box="false"; (( P_COMPOSITING )) || box="true"
+		xfconf-query -c xfwm4 -p /general/box_move   -s "$box" 2>/dev/null || true
+		xfconf-query -c xfwm4 -p /general/box_resize -s "$box" 2>/dev/null || true
+
+		local thumbs="THUMBNAIL_MODE_ONLY_LOCAL"
+		(( P_THUMBNAILS )) || thumbs="THUMBNAIL_MODE_NEVER"
+		xfconf-query -c thunar -p /misc-thumbnail-mode -s "$thumbs" 2>/dev/null \
+			&& ok "miniatures : $( (( P_THUMBNAILS )) && echo activées || echo désactivées )"
+	else
+		skip "xfconf-query absent — réglages XFCE ignorés"
+	fi
+
+	if command -v gsettings >/dev/null 2>&1; then
+		local schema="net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
+		gsettings set "$schema" zoom-enabled "$P_DOCK_ZOOM" 2>/dev/null \
+			&& ok "zoom du dock : ${P_DOCK_ZOOM}"
+	fi
+
+	ok "effets CRT : ${P_CRT} (prend effet à la prochaine session)"
+	return 0
+}
+
+# =============================================================================
+#  Détection automatique
+# =============================================================================
+detect_profile() {
+	local ram_kb ram_gb cores suggestion
+	ram_kb="$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+	ram_gb=$(( ram_kb / 1024 / 1024 ))
+	cores="$(nproc 2>/dev/null || echo 1)"
+
+	if (( ram_gb < 3 || cores <= 2 )); then
+		suggestion="petit"
+	elif (( ram_gb < 8 )); then
+		suggestion="medium"
+	elif (( ram_gb < 16 )); then
+		suggestion="performant"
+	else
+		suggestion="max"
+	fi
+	printf '%s' "$suggestion"
+}
+
+on_battery() {
+	local b
+	for b in /sys/class/power_supply/BAT*; do
+		[[ -e "$b" ]] && return 0
+	done
+	return 1
+}
+
+# =============================================================================
+#  Affichage
+# =============================================================================
+cmd_list() {
+	local cur; cur="$(current_profile)"
+	printf '\n%sProfils de performance%s\n\n' "$B$O" "$R"
+	local p
+	for p in petit medium performant max; do
+		if [[ "$p" == "$cur" ]]; then
+			printf '  %s●%s %-11s %s\n' "$G" "$R" "$p" "$(label "$p")"
+		else
+			printf '    %s%-11s %s%s\n' "$D" "$p" "$(label "$p")" "$R"
+		fi
+	done
+	printf '\n  %s%s <profil>%s      pour changer  %s(ou : lexos perf <profil>)%s\n' \
+		"$D" "$PROG" "$R" "$D" "$R"
+	printf '  %s%s auto%s          pour laisser LexOS choisir\n\n' "$D" "$PROG" "$R"
+}
+
+cmd_status() {
+	local cur; cur="$(current_profile)"
+	load_profile "$cur" || die "Profil enregistré invalide : $cur"
+
+	printf '\n%sPerformance — profil %s%s%s\n' "$B" "$O" "$cur" "$R"
+	printf '%s%s%s\n\n' "$D" "$(label "$cur")" "$R"
+
+	# --- Ce qui est demandé vs ce qui tourne vraiment ------------------------
+	local gov="—" freq="—"
+	if [[ -r /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor ]]; then
+		gov="$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor)"
+	fi
+	if [[ -r /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq ]]; then
+		freq="$(( $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq) / 1000 )) MHz"
+	fi
+
+	printf '  %-26s %s %s\n' "Gouverneur CPU" "$gov" \
+		"$( [[ "$gov" == "$P_GOVERNOR" || "$gov" == "—" ]] && printf '' || printf "%s(demandé : %s)%s" "$D" "$P_GOVERNOR" "$R" )"
+	printf '  %-26s %s\n' "Fréquence cœur 0" "$freq"
+	printf '  %-26s %s cœurs\n' "Processeur" "$(nproc 2>/dev/null || echo '?')"
+
+	local ram_kb ram_gb
+	ram_kb="$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+	ram_gb=$(( ram_kb / 1024 / 1024 ))
+	printf '  %-26s %s Gio\n' "Mémoire vive" "$ram_gb"
+
+	printf '  %-26s %s\n' "vm.swappiness" "$(sysctl -n vm.swappiness 2>/dev/null || echo '—')"
+	printf '  %-26s %s\n' "vm.vfs_cache_pressure" \
+		"$(sysctl -n vm.vfs_cache_pressure 2>/dev/null || echo '—')"
+
+	local dev name sched
+	for dev in /sys/block/*; do
+		name="$(basename "$dev")"
+		case "$name" in loop*|ram*|zram*|sr*|dm-*|md*) continue ;; esac
+		[[ -r "$dev/queue/scheduler" ]] || continue
+		sched="$(sed -n 's/.*\[\(.*\)\].*/\1/p' "$dev/queue/scheduler")"
+		printf '  %-26s %s\n' "E/S ${name}" "${sched:-?}"
+	done
+
+	if swapon --show=NAME --noheadings 2>/dev/null | grep -q zram; then
+		printf '  %-26s %s\n' "zram" "actif"
+	fi
+
+	local comp="—"
+	if pgrep -x compiz >/dev/null 2>&1; then
+		comp="compiz (effets CRT)"
+	elif pgrep -x xfwm4 >/dev/null 2>&1; then
+		comp="xfwm4"
+	fi
+	printf '  %-26s %s\n' "Gestionnaire de fenêtres" "$comp"
+
+	on_battery && printf '  %-26s %s\n' "Alimentation" "batterie présente"
+
+	local sugg; sugg="$(detect_profile)"
+	if [[ "$sugg" != "$cur" ]]; then
+		printf '\n  %s!%s Cette machine correspondrait plutôt à %s%s%s (%s perf auto)\n' \
+			"$Y" "$R" "$B" "$sugg" "$R" "$PROG"
+	fi
+	printf '\n'
+}
+
+# =============================================================================
+#  Interface graphique
+# =============================================================================
+cmd_gui() {
+	command -v yad >/dev/null 2>&1 || die "yad n'est pas installé."
+	local cur sugg
+	cur="$(current_profile)"; sugg="$(detect_profile)"
+
+	local rows=() p
+	for p in petit medium performant max; do
+		local mark=""
+		[[ "$p" == "$cur" ]]  && mark=" (actuel)"
+		[[ "$p" == "$sugg" ]] && mark="${mark} ★ conseillé"
+		rows+=( "$([[ "$p" == "$cur" ]] && echo TRUE || echo FALSE)" "$p" "$(label "$p")${mark}" )
+	done
+
+	local sel
+	sel="$(yad --list --radiolist \
+		--title="Performance de la machine" \
+		--window-icon=lexos --width=680 --height=300 --center --borders=14 \
+		--text="<b>Choisis le profil de performance</b>
+Le changement s'applique tout de suite ; les effets de fenêtres à la prochaine session." \
+		--column="" --column="Profil" --column="Description" \
+		--print-column=2 --separator="" \
+		"${rows[@]}" \
+		--button="Annuler:1" --button="Appliquer:0" 2>/dev/null)" || return 0
+
+	[[ -n "$sel" ]] || return 0
+	set_profile "$sel"
+}
+
+# =============================================================================
+#  Changement de profil
+# =============================================================================
+set_profile() {
+	local want
+	want="$(normalize "${1:-}")" || die "Profil inconnu : '${1:-}' (petit | medium | performant | max)"
+	PROFILE="$want"
+	load_profile "$PROFILE" || die "Profil invalide : $PROFILE"
+
+	if [[ "$SCOPE" != "user" ]]; then
+		if [[ $EUID -ne 0 ]]; then
+			# On délègue le plan système à sudo, puis on fait le plan session ici.
+			if command -v sudo >/dev/null 2>&1; then
+				sudo -n true 2>/dev/null || say "Droits administrateur nécessaires pour le plan système."
+				sudo "$0" apply-system "$PROFILE" || die "Le plan système a échoué."
+			else
+				warn "sudo absent : seul le plan session sera appliqué."
+			fi
+		else
+			apply_system
+		fi
+	fi
+
+	[[ "$SCOPE" != "system" ]] && apply_user
+
+	(( QUIET )) || printf '\n%s✓%s Profil %s%s%s appliqué.\n\n' \
+		"$G" "$R" "$B" "$PROFILE" "$R"
+	return 0
+}
+
+# =============================================================================
+#  Aide
+# =============================================================================
+cmd_help() {
+	cat <<EOF
+
+${B}${O}${PROG}${R} — profils de performance de la machine
+
+${B}USAGE${R}
+  ${PROG} <profil>          applique un profil
+  ${PROG} status            état détaillé de la machine
+  ${PROG} list              liste les profils
+  ${PROG} auto              choisit d'après le matériel détecté
+  ${PROG} apply             réapplique le profil enregistré
+  ${PROG} --gui             sélecteur graphique
+
+${B}PROFILS${R}
+  ${A}petit${R}         $(label petit)
+                ${D}gouverneur powersave, turbo coupé, zram, journal en RAM,
+                Bluetooth et impression arrêtés, aucun effet de fenêtre${R}
+
+  ${A}medium${R}        $(label medium)
+                ${D}gouverneur adaptatif, compositing simple, réglages du noyau
+                par défaut — convient à la grande majorité des machines${R}
+
+  ${A}performant${R}    $(label performant)
+                ${D}gouverneur performance, swappiness basse, TCP BBR,
+                effets de fenêtres CRT activés${R}
+
+  ${A}max${R}           $(label max)
+                ${D}gouverneur performance sans compromis, cache disque agressif,
+                ordonnanceur E/S à faible latence${R}
+
+${B}OPTIONS${R}
+  --system-only     n'agit que sur le plan système (root)
+  --user-only       n'agit que sur la session courante
+  --quiet           silencieux (utilisé par le service au démarrage)
+
+EOF
+}
+
+# =============================================================================
+#  Répartiteur
+# =============================================================================
+ARGS=()
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		--quiet|-q)     QUIET=1;        shift ;;
+		--system-only)  SCOPE="system"; shift ;;
+		--user-only)    SCOPE="user";   shift ;;
+		--gui)          ARGS+=("gui");  shift ;;
+		--help|-h)      ARGS+=("help"); shift ;;
+		*)              ARGS+=("$1");   shift ;;
+	esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
+CMD="${1:-status}"
+[[ $# -gt 0 ]] && shift
+
+case "$CMD" in
+	help)    cmd_help ;;
+	list)    cmd_list ;;
+	status)  cmd_status ;;
+	gui)     cmd_gui ;;
+	auto)
+		SUGG="$(detect_profile)"
+		say "Matériel détecté → profil ${B}${SUGG}${R}"
+		on_battery && say "Machine sur batterie : l'autonomie baissera au-delà de « medium »."
+		set_profile "$SUGG"
+		;;
+	apply)
+		PROFILE="$(current_profile)"
+		load_profile "$PROFILE" || die "Profil enregistré invalide : $PROFILE"
+		[[ "$SCOPE" != "user"   ]] && [[ $EUID -eq 0 ]] && apply_system
+		[[ "$SCOPE" != "system" ]] && apply_user
+		;;
+	apply-system)
+		# Point d'entrée interne, appelé via sudo par set_profile.
+		PROFILE="$(normalize "${1:-}")" || die "Profil inconnu : ${1:-}"
+		load_profile "$PROFILE" || die "Profil invalide"
+		SCOPE="system"
+		apply_system
+		;;
+	*)
+		if NORM="$(normalize "$CMD")"; then
+			set_profile "$NORM"
+		else
+			die "Commande ou profil inconnu : ${CMD}  (essaie : ${PROG} help)"
+		fi
+		;;
+esac

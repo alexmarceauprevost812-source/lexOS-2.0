@@ -47,6 +47,49 @@ Fonds livrés dans `/usr/share/backgrounds/lexos/` :
 | `wallpaper-4k.png` | Même visuel en 3840×2160 |
 | `mascot*.png` | Les illustrations du masque |
 
+### La position du dock
+
+```bash
+lexos dock              # position courante
+lexos dock droite       # défaut
+lexos dock gauche
+lexos dock bas
+lexos dock haut
+```
+
+Le dock se replace immédiatement. Pour changer le défaut de l'ISO, modifie
+`LEXOS_DOCK_POSITION` dans `lexos.conf` (`right`, `left`, `bottom`, `top`).
+
+Clic droit sur le dock → **Préférences** pour la taille des icônes, le zoom et
+le masquage.
+
+### Les écrans
+
+```bash
+lexos ecran                    # ce qui est branché
+lexos ecran etendre droite     # ou gauche, haut, bas
+lexos ecran miroir
+lexos ecran principal HDMI-1   # l'écran qui porte la barre et le dock
+lexos ecran gui                # réglage à la souris (Super+D)
+lexos ecran profil save bureau # mémoriser cette disposition
+```
+
+### Le profil de performance
+
+```bash
+lexos perf              # liste
+lexos perf auto         # d'après la RAM et les cœurs
+lexos perf performant
+lexos perf status       # ce qui tourne réellement
+```
+
+Pour figer un profil dans l'ISO : `LEXOS_PERF_PROFILE` dans `lexos.conf`
+(`auto`, `petit`, `medium`, `performant`, `max`).
+
+Le détail des quatre profils est dans
+[`lexos-perf`](../config/includes.chroot/usr/bin/lexos-perf), fonction
+`load_profile` — un seul bloc à lire pour tout comprendre.
+
 ### Les effets de fenêtres
 
 ```bash
@@ -107,7 +150,8 @@ LEXOS_CODENAME="Nomad"
 LEXOS_BRAND="TI-LEX-AL"
 LEXOS_TAGLINE="Explore. Build. Own your machine."
 
-LEXOS_DEBIAN_SUITE="bookworm"   # bookworm (stable) ou trixie (testing)
+LEXOS_DEBIAN_SUITE="trixie"     # trixie (Debian 13) ou bookworm (Debian 12)
+LEXOS_KERNEL_CHANNEL="stock"    # ou backports : noyau plus récent
 LEXOS_ARCH="amd64"
 
 LEXOS_LIVE_USER="lex"           # nom du compte en session démo
@@ -118,7 +162,11 @@ LEXOS_KEYBOARD_LAYOUT="ca"
 LEXOS_KEYBOARD_VARIANT="fr"
 
 LEXOS_ACCENT_NAME="orange"      # accent par défaut du système construit
+LEXOS_DOCK_POSITION="right"     # right | left | bottom | top
 LEXOS_CRT_EFFECTS="on"          # effets TV activés par défaut
+LEXOS_PERF_PROFILE="auto"       # auto | petit | medium | performant | max
+LEXOS_WIFI_AUTO_OPEN="off"      # connexion auto aux réseaux ouverts
+LEXOS_DISK_ENCRYPTION="proposed" # chiffrement proposé à l'installation
 LEXOS_FLAVOUR="standard"
 ```
 
@@ -166,7 +214,7 @@ et tout suit automatiquement.
 | `logo.svg` | Icône vectorielle (menus, panneau) | SVG 512×512 |
 | `wallpaper.svg` | Fond d'écran par défaut, LightDM, GRUB | SVG 16:9 |
 | `wallpaper-crt.svg` | Fond alternatif | SVG 16:9 |
-| `mascot.webp` | Avatar de session, écran d'accueil | WebP ou PNG portrait |
+| `mascot.png` | Avatar de session, écran d'accueil | PNG portrait, fond transparent |
 | `config/bootloaders/isolinux/splash.svg` | Menu de démarrage | SVG 640×480 |
 
 Regarder le résultat sans construire l'ISO complète :
