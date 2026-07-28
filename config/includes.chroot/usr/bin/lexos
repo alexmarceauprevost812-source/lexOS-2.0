@@ -101,7 +101,12 @@ ${B}RÉSEAU${R}
   ${A}avion${R} <on|off>      Mode avion : coupe toutes les radios
   ${A}wifi${R}                Chercher et rejoindre un réseau Wi-Fi
   ${A}bt${R}                  Bluetooth : appairer, connecter
-  ${A}net${R}                 Toutes les commandes réseau
+  ${A}net${R}                 Toutes les commandes réseau ${D}(réseau caché, appareils du LAN…)${R}
+
+${B}SÉCURITÉ${R}
+  ${A}secure${R}               État : pare-feu, antivirus, anti-intrusion, anti-rootkit
+  ${A}secure enable${R}        Active pare-feu (ufw) + fail2ban, réglages sûrs
+  ${A}secure scan${R} [dossier] Analyse antivirus (ClamAV) + anti-rootkit
 
 ${B}PARTAGE${R}
   ${A}share${R} <fichiers…>   Envoyer vers un téléphone ${D}(QR code, KDE Connect, Bluetooth)${R}
@@ -550,6 +555,7 @@ case "$CMD" in
 	usb)                  exec lexos-usb "$@" ;;
 	format)               exec lexos-format "$@" ;;
 	game)                 exec lexos-game "$@" ;;
+	secure|securite)      exec lexos-secure "$@" ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

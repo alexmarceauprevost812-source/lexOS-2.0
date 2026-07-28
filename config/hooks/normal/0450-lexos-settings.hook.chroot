@@ -120,8 +120,8 @@ case "$SECTION" in
 	comptes|online-accounts)  info "Comptes en ligne : pas encore disponible dans LexOS 1.0. Prévu pour une prochaine version." ;;
 	bienetre|wellbeing)       info "Bien-être numérique : pas encore disponible dans LexOS 1.0. Prévu pour une prochaine version." ;;
 	confidentialite|securite|privacy)
-	                          exec xfce4-terminal --title="Confidentialité — LexOS" --hold \
-	                              -e "lexos net status; echo; echo 'Connexion auto réseaux ouverts, mode avion : voir ci-dessus.'; bash" ;;
+	                          exec xfce4-terminal --title="Confidentialité et sécurité — LexOS" --hold \
+	                              -e "lexos net status; echo; lexos secure; bash" ;;
 	usb)                      exec xfce4-terminal --title="USB — LexOS" --hold \
 	                              -e "lexos usb; echo; echo 'Formater un support : lexos format'; bash" ;;
 	clavier|keyboard)         open_xfce keyboard ;;

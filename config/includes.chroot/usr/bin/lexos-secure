@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-secure — pare-feu, antivirus, anti-intrusion, anti-rootkit
+# =============================================================================
+#  Assemble ufw (pare-feu), ClamAV (antivirus), fail2ban (anti-intrusion) et
+#  rkhunter/chkrootkit (anti-rootkit) — chacun best-effort, utilisé seulement
+#  s'il est installé. Rien ici ne bloque une connexion sortante par défaut :
+#  ufw est activé en « refuser entrant, autoriser sortant », le réglage sûr
+#  qui casse le moins de choses.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8*|*utf8*|*UTF8*|*utf-8*) ;;
+	*) locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$' && export LC_ALL=C.UTF-8 ;;
+esac
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+need_root() {
+	if [[ $EUID -ne 0 ]]; then
+		command -v sudo >/dev/null 2>&1 || die "Droits administrateur nécessaires."
+		exec sudo -E "$0" "$@"
+	fi
+}
+
+# =============================================================================
+#  État général
+# =============================================================================
+cmd_status() {
+	printf '\n%s%s — sécurité%s\n\n' "$B$O" "$PROG" "$R"
+
+	if command -v ufw >/dev/null 2>&1; then
+		local fw; fw="$(ufw status 2>/dev/null | head -n1)"
+		if [[ "$fw" == *"active"* ]]; then
+			ok "Pare-feu (ufw) : actif"
+		else
+			warn "Pare-feu (ufw) : inactif — ${PROG} enable"
+		fi
+	else
+		printf '  %-28s %s\n' "Pare-feu" "non installé (ufw)"
+	fi
+
+	if command -v freshclam >/dev/null 2>&1 || command -v clamscan >/dev/null 2>&1; then
+		local dbdate
+		dbdate="$(find /var/lib/clamav \( -name '*.cvd' -o -name '*.cld' \) -print0 2>/dev/null \
+			| xargs -r -0 stat -c '%Y' 2>/dev/null | sort -n | tail -n1)"
+		if [[ -n "$dbdate" ]]; then
+			local age_days=$(( ( $(date +%s) - dbdate ) / 86400 ))
+			if (( age_days > 14 )); then
+				warn "Antivirus (ClamAV) : base vieille de ${age_days} jours — sudo freshclam"
+			else
+				ok "Antivirus (ClamAV) : base à jour (${age_days} j)"
+			fi
+		else
+			warn "Antivirus (ClamAV) : base de signatures introuvable — sudo freshclam"
+		fi
+	else
+		printf '  %-28s %s\n' "Antivirus" "non installé (clamav)"
+	fi
+
+	if command -v fail2ban-client >/dev/null 2>&1; then
+		if systemctl is-active fail2ban >/dev/null 2>&1; then
+			local n; n="$(fail2ban-client status 2>/dev/null | grep -oP '(?<=Number of jail:\s)\d+' || echo '?')"
+			ok "Anti-intrusion (fail2ban) : actif (${n} prison(s))"
+		else
+			warn "Anti-intrusion (fail2ban) : installé mais arrêté — ${PROG} enable"
+		fi
+	else
+		printf '  %-28s %s\n' "Anti-intrusion" "non installé (fail2ban)"
+	fi
+
+	if command -v rkhunter >/dev/null 2>&1; then
+		printf '  %-28s %s\n' "Anti-rootkit" "rkhunter installé — ${PROG} scan"
+	else
+		printf '  %-28s %s\n' "Anti-rootkit" "non installé (rkhunter)"
+	fi
+
+	printf '\n  %s%s enable%s     active pare-feu + anti-intrusion (réglages sûrs)\n' "$D" "$PROG" "$R"
+	printf '  %s%s scan%s       antivirus + anti-rootkit (peut prendre plusieurs minutes)\n\n' "$D" "$PROG" "$R"
+}
+
+# =============================================================================
+#  Activation (réglages sûrs par défaut)
+# =============================================================================
+cmd_enable() {
+	need_root enable
+
+	if command -v ufw >/dev/null 2>&1; then
+		say "Pare-feu : refuser tout entrant, autoriser tout sortant…"
+		ufw default deny incoming >/dev/null 2>&1
+		ufw default allow outgoing >/dev/null 2>&1
+		command -v sshd >/dev/null 2>&1 && ufw allow OpenSSH >/dev/null 2>&1
+		ufw --force enable >/dev/null 2>&1 \
+			&& ok "Pare-feu actif." \
+			|| warn "Échec de l'activation du pare-feu."
+	else
+		warn "ufw absent — lexos install ufw"
+	fi
+
+	if command -v fail2ban-client >/dev/null 2>&1; then
+		systemctl enable --now fail2ban >/dev/null 2>&1 \
+			&& ok "fail2ban actif — protège SSH et les services surveillés par défaut." \
+			|| warn "Échec du démarrage de fail2ban."
+	else
+		warn "fail2ban absent — lexos install fail2ban"
+	fi
+
+	if command -v freshclam >/dev/null 2>&1; then
+		say "Mise à jour des signatures ClamAV (peut prendre un moment)…"
+		systemctl stop clamav-freshclam >/dev/null 2>&1 || true
+		freshclam >/dev/null 2>&1 && ok "Base ClamAV à jour." || warn "Échec de la mise à jour ClamAV (pas de réseau ?)."
+		systemctl enable --now clamav-freshclam >/dev/null 2>&1 || true
+	fi
+}
+
+# =============================================================================
+#  Analyse : antivirus + anti-rootkit
+# =============================================================================
+cmd_scan() {
+	local target="${1:-$HOME}"
+	local any=0
+
+	if command -v clamscan >/dev/null 2>&1; then
+		any=1
+		say "Analyse antivirus de ${target}…"
+		clamscan -r --bell -i "$target" 2>/dev/null
+		ok "Analyse antivirus terminée."
+	fi
+
+	if command -v rkhunter >/dev/null 2>&1; then
+		any=1
+		need_root scan "$target"
+		say "Recherche de rootkits (rkhunter)…"
+		rkhunter --check --sk --quiet 2>/dev/null
+		ok "Analyse rkhunter terminée — détail : /var/log/rkhunter.log"
+	fi
+
+	if command -v chkrootkit >/dev/null 2>&1; then
+		any=1
+		need_root scan "$target"
+		say "Recherche de rootkits (chkrootkit)…"
+		chkrootkit 2>/dev/null | grep -Ei 'infected|warning' || ok "chkrootkit : rien de suspect."
+	fi
+
+	(( any )) || die "Aucun outil d'analyse installé — ${PROG} enable, ou lexos install clamav rkhunter"
+}
+
+cmd_help() {
+	cat <<EOF
+
+${B}${O}${PROG}${R} — pare-feu, antivirus, anti-intrusion, anti-rootkit
+
+${B}USAGE${R}
+  ${PROG} <commande>
+
+${B}COMMANDES${R}
+  ${D}(défaut)${R}    État de la protection
+  ${D}enable${R}      Active pare-feu (ufw) + anti-intrusion (fail2ban), réglages sûrs
+  ${D}scan${R} [dossier]  Analyse antivirus + anti-rootkit ${D}(défaut : \$HOME)${R}
+
+${B}À SAVOIR${R}
+  Le pare-feu bloque tout ce qui entre, laisse sortir tout ce qui sort — le
+  réglage le plus sûr qui casse le moins de choses. Rien n'est activé tout
+  seul : ${PROG} enable le fait explicitement.
+
+EOF
+}
+
+CMD="${1:-status}"
+[[ $# -gt 0 ]] && shift
+case "$CMD" in
+	help|--help|-h) cmd_help ;;
+	status|'')      cmd_status ;;
+	enable|on)      cmd_enable ;;
+	scan)           cmd_scan "$@" ;;
+	*) die "Commande inconnue : ${CMD}  (essaie : ${PROG} help)" ;;
+esac

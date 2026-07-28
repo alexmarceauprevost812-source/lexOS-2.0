@@ -892,10 +892,16 @@ function settingsSection(key){
       <div class="row"><button class="btn" onclick="openShare()">📎 Ouvrir Partager</button></div>`;
     case "bienetre": return `<h2>Bien-être numérique</h2><div class="sub">Pas encore disponible</div>
       <p class="set-soon">Prévu pour une prochaine version de LexOS.</p>`;
-    case "confidentialite": return `<h2>Confidentialité et sécurité</h2><div class="sub">Réseaux ouverts, chiffrement</div>
+    case "confidentialite": return `<h2>Confidentialité et sécurité</h2><div class="sub">Réseaux ouverts, chiffrement, autodéfense</div>
       ${swRow("Connexion auto. aux réseaux ouverts","Désactivée par défaut",state.wifiAuto,"toggleWifiAuto()")}
       <div class="srow"><div class="t">Chiffrement du disque (LUKS2)</div>
         <div class="d">Proposé à l'installation, jamais imposé silencieusement</div></div>
+      <div class="srow"><div class="t">Pare-feu (ufw)</div><div class="d">Refuse tout entrant, laisse sortir — activable en un clic</div></div>
+      <div class="srow"><div class="t">Antivirus (ClamAV)</div><div class="d">Le meilleur antivirus libre pour Linux</div></div>
+      <div class="srow"><div class="t">Anti-intrusion (fail2ban)</div><div class="d">Bannit les tentatives de connexion répétées</div></div>
+      <div class="srow"><div class="t">Anti-rootkit (rkhunter, chkrootkit)</div><div class="d">Recherche de logiciels malveillants cachés</div></div>
+      <p class="notice">Sur la vraie ISO : <code>lexos secure</code> (état), <code>lexos secure enable</code>
+      (active tout avec des réglages sûrs), <code>lexos secure scan</code> (analyse complète).</p>
       <p class="notice">Rien n'efface jamais le disque sans confirmation : voir « Installer LexOS ».</p>`;
     case "maj": return `<h2>Mises à jour</h2><div class="sub">Système à jour</div>
       <div class="srow"><div class="t">LexOS 1.0 « Nomad »</div><div class="d">Base Debian trixie</div></div>

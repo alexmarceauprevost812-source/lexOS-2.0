@@ -1,0 +1,11 @@
+# Autodéfense — pare-feu, antivirus, anti-intrusion, anti-rootkit.
+# Best-effort : ces paquets et leurs dépendances varient d'une suite Debian
+# à l'autre (ClamAV en particulier est gros et son ABI change souvent).
+ufw
+gufw
+clamav
+clamav-daemon
+clamtk
+fail2ban
+rkhunter
+chkrootkit
