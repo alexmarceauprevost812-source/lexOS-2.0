@@ -56,7 +56,8 @@ esac
 # --- Palette des accents -----------------------------------------------------
 case "${ACCENT_NAME,,}" in
 	orange|ambre)          ACCENT="#E8590C"; ACCENT_HI="#FF7A33"; ACCENT_LO="#A84007" ;;
-	bleu|blue)             ACCENT="#3D8BFD"; ACCENT_HI="#6EA8FE"; ACCENT_LO="#0A58CA" ;;
+	# Bleu 5 de la palette Adwaita — le bleu profond des bureaux Linux.
+	bleu|blue)             ACCENT="#1A5FB4"; ACCENT_HI="#3584E4"; ACCENT_LO="#10375F" ;;
 	rouge|red)             ACCENT="#E5484D"; ACCENT_HI="#FF6B6F"; ACCENT_LO="#A32B2F" ;;
 	vert|green|vert-dark)  ACCENT="#1F8F4E"; ACCENT_HI="#2DBF6B"; ACCENT_LO="#125C32" ;;
 	gris|grey|gray|grid)   ACCENT="#8A8A8A"; ACCENT_HI="#B4B4B4"; ACCENT_LO="#5A5A5A" ;;
