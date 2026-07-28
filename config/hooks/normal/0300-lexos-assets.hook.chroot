@@ -54,8 +54,13 @@ for M in "$BRAND"/mascot*.png; do
 done
 
 # --- Logo TI-LEX-AL : icône officielle du système ---------------------------
+#  La version détourée (fond transparent) est privilégiée pour l'icône : elle
+#  se fond dans le panneau, le dock et le menu Applications quel que soit le
+#  thème, contrairement à la version sur fond noir (posters, Plymouth).
 LOGO_SRC=""
-if [ -r "$BRAND/logo-ti-lex-al.png" ]; then
+if [ -r "$BRAND/logo-ti-lex-al-icon.png" ]; then
+	LOGO_SRC="$BRAND/logo-ti-lex-al-icon.png"
+elif [ -r "$BRAND/logo-ti-lex-al.png" ]; then
 	LOGO_SRC="$BRAND/logo-ti-lex-al.png"
 elif [ -r "$BRAND/logo.svg" ]; then
 	LOGO_SRC="$BRAND/logo.svg"
