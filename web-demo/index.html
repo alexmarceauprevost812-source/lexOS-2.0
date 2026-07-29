@@ -571,9 +571,18 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .dl-mascot.show img{opacity:1;transform:scale(1)}
 
 /* --- Vue Applications : grille plein écran, façon « Activités » ---------- */
-#appsview{position:fixed;inset:0;z-index:1200;display:none;flex-direction:column;
-  align-items:center;padding:44px 24px 24px;
-  background:rgba(0,0,0,.82);backdrop-filter:blur(22px)}
+/*  La vue Applications ne couvre plus tout l'écran : elle s'arrête sous la
+    barre du haut et au-dessus du bandeau du bas. Pleine page, elle cachait
+    le bouton d'extinction et l'horloge — il fallait fermer le menu pour
+    éteindre la machine. Elle devient donc un panneau, avec ses coins
+    arrondis, et la barre reste utilisable pendant qu'il est ouvert.
+    Le z-index passe SOUS celui de la barre (900) sur ce point précis :
+    voir #panel plus haut, qui garde le sien. */
+#appsview{position:fixed;top:38px;left:10px;right:10px;bottom:38px;
+  z-index:880;display:none;flex-direction:column;
+  align-items:center;padding:26px 24px 20px;border-radius:18px;
+  border:1px solid var(--bd);box-shadow:0 24px 70px rgba(0,0,0,.72);
+  background:rgba(0,0,0,.86);backdrop-filter:blur(22px)}
 #appsview.on{display:flex;animation:avIn .18s ease-out}
 @keyframes avIn{from{opacity:0;transform:scale(1.04)}to{opacity:1;transform:scale(1)}}
 #appsview .search{width:min(420px,90vw);padding:9px 16px;border-radius:999px;
@@ -582,7 +591,7 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 #appsview .search:focus{border-color:var(--ac)}
 #appsview .search::placeholder{color:var(--fg-dim)}
 #appgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));
-  gap:14px 8px;width:min(880px,94vw);max-height:calc(100vh - 150px);overflow-y:auto;
+  gap:14px 8px;width:min(880px,94vw);max-height:calc(100vh - 210px);overflow-y:auto;
   align-content:start;padding:4px 10px 4px 4px;
   /*  Réserve la gouttière en permanence : sans ça, la grille se réorganise
       d'un cran dès que la barre apparaît en cours de frappe dans la
@@ -4670,6 +4679,24 @@ appSearch.addEventListener("keydown",e=>{
   }
 });
 appsView.addEventListener("click",e=>{ if(e.target===appsView) closeApps(); });
+
+/* --- Clic molette : ouvrir ou fermer le menu Applications ----------------
+   Le bouton du milieu n'a aucun autre rôle dans la démo — il est donc
+   libre, et c'est le geste le plus court possible : ni déplacement vers
+   le coin, ni raccourci à mémoriser.
+
+   Tout se joue sur « mousedown », pas sur « auxclick » : le navigateur
+   amorce son défilement automatique dès l'appui, et le preventDefault()
+   qui le coupe supprime AUSSI l'auxclick qui suivait. Écouter les deux
+   revenait donc à n'en écouter aucun — le menu ne s'ouvrait jamais. */
+addEventListener("mousedown", e=>{
+  if(e.button !== 1) return;
+  //  Pas dans une fenêtre, le dock ou un menu : là, le clic molette peut
+  //  vouloir dire autre chose (coller sous X11, fermer un onglet…).
+  if(e.target.closest(".win, #dock, .menu, #capZone")) return;
+  e.preventDefault();     // coupe le curseur de défilement automatique
+  toggleApps();
+});
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape" && appsView.classList.contains("on")) closeApps();
   //  Mêmes touches que sur la vraie ISO (xfce4-keyboard-shortcuts.xml), pour
