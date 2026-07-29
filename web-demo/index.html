@@ -166,8 +166,10 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
     avec le transform de centrage, il ne le remplace pas — sinon la barre
     partirait aussi de travers en glissant. */
 #dock.hidden{opacity:0;pointer-events:none}
-#dock.right.hidden {transform:translateY(-50%) translateX(calc(100% + 20px))}
-#dock.left.hidden  {transform:translateY(-50%) translateX(calc(-100% - 20px))}
+/*  Plus de translateY(-50%) à composer : le centrage se fait maintenant
+    par les marges, la barre sort donc simplement sur le côté. */
+#dock.right.hidden {transform:translateX(calc(100% + 20px))}
+#dock.left.hidden  {transform:translateX(calc(-100% - 20px))}
 #dock.bottom.hidden{transform:translateX(-50%) translateY(calc(100% + 20px))}
 #dock.top.hidden   {transform:translateX(-50%) translateY(calc(-100% - 50px))}
 /*  La poignée reste TOUJOURS visible, collée au bord : sans elle, une barre
@@ -184,10 +186,46 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 body.light #dock{background:rgba(239,235,227,.85)}
 body.light #dockTab{background:rgba(239,235,227,.9)}
 @media (prefers-reduced-motion:reduce){ #dock{transition:none} }
-#dock.right{right:10px;top:50%;transform:translateY(-50%);flex-direction:column}
-#dock.left {left:10px; top:50%;transform:translateY(-50%);flex-direction:column}
+/*  Verticale, la barre est bornée à la bande LIBRE de l'écran : sous la
+    barre du haut, au-dessus du bandeau du bas. « top + bottom + height
+    auto + margin auto » la centre dans cette bande sans translateY(-50%),
+    qui la centrait sur l'écran ENTIER et la faisait mordre sur la zone
+    d'état en haut à droite dès que l'écran était court. */
+#dock.right{right:10px;top:52px;bottom:52px;height:fit-content;margin:auto 0;
+  flex-direction:column}
+#dock.left {left:10px; top:52px;bottom:52px;height:fit-content;margin:auto 0;
+  flex-direction:column}
 #dock.bottom{bottom:10px;left:50%;transform:translateX(-50%);flex-direction:row}
 #dock.top{top:42px;left:50%;transform:translateX(-50%);flex-direction:row}
+/*  La barre déborde de l'écran dès qu'on ajoute des applications : elle se
+    fait donc défiler à la molette. La hauteur (ou la largeur) est bornée à
+    ce que l'écran peut montrer, marges comprises — barre du haut et
+    bandeau du bas inclus, sinon les icônes des extrémités passeraient
+    dessous sans qu'on puisse les atteindre. */
+#dock.right,#dock.left{max-height:calc(100vh - 104px);overflow-y:auto;overflow-x:hidden}
+#dock.bottom,#dock.top{max-width:calc(100vw - 40px);overflow-x:auto;overflow-y:hidden}
+/*  Les icônes ne doivent pas s'écraser quand la barre est pleine :
+    flex-shrink:0 leur garde leur taille et laisse le défilement faire son
+    travail. Sans ça, elles rétrécissaient jusqu'à devenir illisibles. */
+#dock .dicon{flex-shrink:0}
+/*  Barre de défilement cachée : elle mangerait la largeur de la barre et
+    ferait sauter les icônes. Le dégradé ci-dessous annonce le débordement. */
+#dock::-webkit-scrollbar{width:0;height:0}
+#dock{scrollbar-width:none}
+/*  Dégradé aux extrémités : dit qu'il reste des icônes au-delà, sans
+    barre de défilement visible. Les classes sont posées par majFondsDock(). */
+#dock.deborde-haut.right,#dock.deborde-haut.left{
+  mask-image:linear-gradient(transparent,#000 26px)}
+#dock.deborde-bas.right,#dock.deborde-bas.left{
+  mask-image:linear-gradient(#000 calc(100% - 26px),transparent)}
+#dock.deborde-haut.deborde-bas.right,#dock.deborde-haut.deborde-bas.left{
+  mask-image:linear-gradient(transparent,#000 26px,#000 calc(100% - 26px),transparent)}
+#dock.deborde-haut.bottom,#dock.deborde-haut.top{
+  mask-image:linear-gradient(90deg,transparent,#000 26px)}
+#dock.deborde-bas.bottom,#dock.deborde-bas.top{
+  mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent)}
+#dock.deborde-haut.deborde-bas.bottom,#dock.deborde-haut.deborde-bas.top{
+  mask-image:linear-gradient(90deg,transparent,#000 26px,#000 calc(100% - 26px),transparent)}
 .dicon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;
   justify-content:center;font-size:22px;background:var(--bg-hi);
   border:1px solid var(--bd);transition:transform .13s ease,border-color .13s ease;
@@ -4905,6 +4943,31 @@ const DOCK = [
   ["💽","Installer LexOS",openInstall], ["◆","À propos",openAbout],
   ["logo","Applications",()=>toggleApps()]];
 const dock = document.getElementById("dock");
+/*  La molette fait défiler la barre. En position verticale, le navigateur
+    ne défile pas tout seul avec deltaY sur un conteneur en colonne quand le
+    pointeur est sur une icône : on le fait donc à la main. */
+dock.addEventListener("wheel", e=>{
+  const vertical = dock.classList.contains("right") || dock.classList.contains("left");
+  const trop = vertical ? dock.scrollHeight > dock.clientHeight
+                        : dock.scrollWidth  > dock.clientWidth;
+  if(!trop) return;
+  e.preventDefault();
+  //  deltaY même en horizontal : c'est la molette classique, celle que
+  //  presque tout le monde a. deltaX reste pris en compte pour les pavés.
+  const pas = e.deltaY || e.deltaX;
+  if(vertical) dock.scrollTop += pas; else dock.scrollLeft += pas;
+  majFondsDock();
+}, {passive:false});
+dock.addEventListener("scroll", ()=>majFondsDock(), {passive:true});
+addEventListener("resize", ()=>majFondsDock());
+function majFondsDock(){
+  const vertical = dock.classList.contains("right") || dock.classList.contains("left");
+  const pos   = vertical ? dock.scrollTop : dock.scrollLeft;
+  const reste = vertical ? dock.scrollHeight - dock.clientHeight
+                         : dock.scrollWidth  - dock.clientWidth;
+  dock.classList.toggle("deborde-haut", reste > 4 && pos > 4);
+  dock.classList.toggle("deborde-bas",  reste > 4 && pos < reste - 4);
+}
 DOCK.forEach(([ic,label,fn])=>{
   const b=document.createElement("button");
   b.className="dicon";
@@ -4913,6 +4976,7 @@ DOCK.forEach(([ic,label,fn])=>{
     : `${ic}<span class="tip">${label}</span>`;
   b.onclick=fn; dock.appendChild(b);
 });
+majFondsDock();
 /* --- Vue Applications : grille plein écran ------------------------------- */
 const APPS = [
   ...DOCK.filter(([ic])=>ic!=="logo").map(([ic,label,fn])=>
