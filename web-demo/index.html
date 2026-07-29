@@ -681,6 +681,15 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .btn.mini{display:inline-flex;align-items:center;justify-content:center;
   padding:5px 8px;font-size:11.5px;text-decoration:none;width:100%}
 .cap-vide{color:var(--fg-dim);font-size:13px;padding:24px;text-align:center}
+.cap-raccourcis{margin:12px 0 0;padding:10px 12px;border:1px solid var(--bd);
+  border-radius:10px;background:var(--bg-alt);font-size:12.5px;line-height:1.9}
+.cap-rt{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--fg-dim);margin-bottom:3px}
+.cap-rs{margin-top:4px;color:var(--fg-dim);font-size:11.5px}
+.cap-raccourcis kbd{display:inline-block;min-width:19px;text-align:center;
+  padding:1px 6px;border:1px solid var(--bd);border-bottom-width:2px;
+  border-radius:5px;background:var(--bg-hi);color:var(--fg);
+  font:600 11px/1.6 ui-monospace,monospace}
 
 /* --- Logithèque : installer des applications en un clic ------------------ */
 .lgt-top{display:flex;gap:8px;align-items:center;margin-bottom:10px}
@@ -900,9 +909,9 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
     <!--  Accès rapide en haut à gauche : photo et vidéo de l'écran sans
           passer par le menu Applications ni par le dock. -->
     <span id="quickcap">
-      <button id="qcPhoto" title="Capture d'écran (Impr écr)" onclick="capPhoto()"></button>
-      <button id="qcZone" title="Cadrer une zone (Maj+Impr écr)" onclick="capZone()">⛶</button>
-      <button id="qcVideo" title="Enregistrer l'écran en vidéo (Ctrl+Maj+R)" onclick="capBascule()"></button>
+      <button id="qcPhoto" title="Capture d'écran (Espace+1, ou Impr écr)" onclick="capPhoto()"></button>
+      <button id="qcZone" title="Cadrer une zone (Espace+2, ou Maj+Impr écr)" onclick="capZone()">⛶</button>
+      <button id="qcVideo" title="Enregistrer l'écran en vidéo (Espace+3, ou Ctrl+Maj+R)" onclick="capBascule()"></button>
     </span>
     <span id="clock"><span id="clkdate"></span><span id="clktime"></span></span>
     <div id="tray">
@@ -3123,11 +3132,19 @@ function openCapture(){
   `<div class="pad">
      <div class="cap-bar" id="capBar"></div>
      <div class="cap-list" id="capList"></div>
+     <div class="cap-raccourcis">
+       <div class="cap-rt">Raccourcis</div>
+       <div><kbd>␣</kbd>+<kbd>1</kbd> capture d'écran</div>
+       <div><kbd>␣</kbd>+<kbd>2</kbd> cadrer une zone</div>
+       <div><kbd>␣</kbd>+<kbd>3</kbd> vidéo (démarrer / arrêter)</div>
+       <div class="cap-rs"><kbd>Impr écr</kbd> · <kbd>Maj</kbd>+<kbd>Impr écr</kbd>
+         · <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>R</kbd></div>
+     </div>
      <p class="notice">Les captures ci-dessus sont réelles : le bouton
-     <b>Enregistrer</b> télécharge le fichier. Sur la vraie ISO, la touche
-     <b>Impr écr</b> appelle <code>lexos capture</code> (xfce4-screenshooter),
-     et <b>Ctrl+Maj+R</b> lance l'enregistrement vidéo (ffmpeg, avec le son
-     du système).</p>
+     <b>Enregistrer</b> télécharge le fichier. Sur la vraie ISO, ces mêmes
+     gestes passent par <code>lexos capture</code> — l'accord Espace+chiffre
+     y devient <b>Super+1/2/3</b>, XFCE ne sachant pas décrire un accord
+     avec une touche maintenue.</p>
    </div>`, 560, 480);
   renderCaptures();
 }
@@ -3739,6 +3756,45 @@ document.addEventListener("keydown",e=>{
     e.preventDefault(); capBascule();
   }
 });
+
+/* --- Accord « Espace + chiffre » : capture en un geste -------------------
+   Espace maintenue, puis 1, 2 ou 3. Plus rapide qu'Impr écr, qui est loin
+   sous les doigts et que le système garde parfois pour lui.
+
+   Trois précautions, sans lesquelles l'accord casserait la saisie :
+     · rien ne se déclenche si le curseur est dans un champ de texte —
+       sinon impossible d'écrire une espace dans la recherche ;
+     · l'espace n'est neutralisée QUE si un chiffre suit vraiment, donc
+       elle continue d'actionner le bouton qui a le focus ;
+     · la répétition automatique est ignorée : garder 1 enfoncé ne doit
+       pas mitrailler des captures. */
+const CAP_ACCORD = { "1":["Capture d'écran", ()=>capPhoto()],
+                     "2":["Cadrage d'une zone", ()=>capZone()],
+                     "3":["Enregistrement vidéo", ()=>capBascule()] };
+let capEspace = false;
+function capSaisieEnCours(){
+  const a=document.activeElement;
+  if(!a) return false;
+  const t=(a.tagName||"").toLowerCase();
+  return t==="input" || t==="textarea" || t==="select" || a.isContentEditable;
+}
+addEventListener("keydown", e=>{
+  if(e.repeat) return;
+  if(capSaisieEnCours()) return;
+  if(e.code==="Space"){ capEspace=true; return; }
+  if(capEspace && CAP_ACCORD[e.key]){
+    //  Pendant le cadrage, Entrée et Échap règnent : on ne superpose pas.
+    if(document.getElementById("capZone")) return;
+    e.preventDefault();
+    const [nom, agir] = CAP_ACCORD[e.key];
+    toast("␣+" + e.key + " — " + nom);
+    agir();
+  }
+});
+addEventListener("keyup", e=>{ if(e.code==="Space") capEspace=false; });
+//  Fenêtre quittée espace enfoncée : sans ça l'accord resterait « armé »
+//  au retour, et la prochaine frappe d'un chiffre partirait toute seule.
+addEventListener("blur", ()=>{ capEspace=false; });
 document.getElementById("appsBtn").onclick=e=>{ e.stopPropagation(); toggleApps(); };
 document.getElementById("qsBtn").onclick=e=>{ e.stopPropagation(); qsToggle(); };
 

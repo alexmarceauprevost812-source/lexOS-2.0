@@ -26,6 +26,16 @@
       <property name="&lt;Primary&gt;&lt;Shift&gt;r" type="string"
                 value="xfce4-terminal --title=Enregistrement --hold -e &quot;lexos capture video&quot;"/>
 
+      <!-- Capture rapide : Super + chiffre, sous le pouce et l'index.
+           La démo web propose l'accord « Espace maintenue + chiffre », qui
+           est plus rapide encore ; xfconf ne sait décrire qu'un raccourci
+           à modificateurs, pas un accord avec une touche maintenue, d'où
+           Super ici. Le geste et l'ordre des chiffres restent les mêmes. -->
+      <property name="&lt;Super&gt;1"       type="string" value="lexos capture"/>
+      <property name="&lt;Super&gt;2"       type="string" value="lexos capture zone"/>
+      <property name="&lt;Super&gt;3"       type="string"
+                value="xfce4-terminal --title=Enregistrement --hold -e &quot;lexos capture video&quot;"/>
+
       <!-- Outils LexOS courants -->
       <property name="&lt;Super&gt;e"       type="string" value="thunar"/>
       <property name="&lt;Super&gt;t"       type="string" value="xfce4-terminal"/>
