@@ -379,12 +379,67 @@ respecter, sinon l'installateur s'arrête sur :
 Ce message ne veut pas dire que ton disque est petit. Il veut dire qu'il n'y
 a **aucun espace libre** : le système déjà installé occupe tout.
 
-### 1. Libérer de la place — depuis la session live, pas depuis l'autre système
+### 1. Libérer de la place — sans quitter l'installateur
 
-Le piège : **on ne peut pas rétrécir une partition qu'on est en train
-d'utiliser**. Redimensionner Ubuntu depuis Ubuntu ne marchera pas.
+**Tu n'as pas besoin de redémarrer, ni d'installer quoi que ce soit.**
+L'installateur Debian sait rétrécir une partition ext4 lui-même. Il travaille
+depuis la clé USB, donc la partition de l'autre système n'est pas montée —
+c'est exactement la condition qui manque quand on essaie de redimensionner
+Ubuntu depuis Ubuntu.
 
-Démarre donc sur la clé LexOS en mode **Live**, puis :
+Depuis l'écran d'erreur, reviens au menu principal, puis :
+
+1. **Partitionner les disques** → **Manuel**.
+2. La table s'affiche. Repère la **grande partition ext4** de l'autre système
+   — celle qui fait presque toute la taille du disque. Sur un portable avec
+   Ubuntu, ça ressemble à ça :
+
+   ```
+   SCSI2 (0,0,0) (sda) - 256.1 GB ATA SAMSUNG MZ7LN256
+        n° 1     1.1 GB   ext4     ← /boot d'Ubuntu
+        n° 2     1.1 GB   fat32    ← partition EFI, commune aux deux systèmes
+        n° 3     2.1 GB   ext4     ← récupération
+        n° 4   251.7 GB   ext4     ← Ubuntu : c'est celle-ci qu'on rétrécit
+   ```
+
+   Le deuxième disque de la liste (`sdb`, quelques dizaines de Go) est **ta
+   clé USB**. N'y touche jamais.
+3. Sélectionne la grande partition, **Entrée**, puis **« Redimensionner la
+   partition »**.
+4. Donne une taille plus petite — laisse **au moins 40 Go** libres pour LexOS.
+   Rien n'est effacé : l'autre système garde tous ses fichiers.
+5. Une ligne **« Espace libre »** apparaît alors dans la table.
+
+**Ne touche pas à la partition fat32 (EFI).** Elle est prévue pour être
+partagée : LexOS y ajoute son propre chargeur à côté de celui d'Ubuntu.
+
+> **Sauvegarde tes fichiers importants avant.** Redimensionner une partition
+> est l'opération la plus risquée de toute l'installation : une coupure de
+> courant au mauvais moment peut coûter les deux systèmes. Ça se passe bien
+> presque toujours — mais « presque » n'est pas « toujours ».
+
+#### Si « Redimensionner la partition » n'apparaît pas
+
+L'option est absente dans deux cas, et chacun a sa réponse :
+
+* **Le système de fichiers est « sale »** — l'autre système n'a pas été éteint
+  proprement (ou Windows a laissé son *démarrage rapide* actif). L'installateur
+  refuse de toucher une partition dont le journal n'est pas propre. Redémarre
+  dessus, éteins-le normalement, et reviens.
+* **La partition est du LVM ou est chiffrée** — la colonne du format est vide
+  au lieu d'afficher `ext4`. Le redimensionnement passe alors par
+  « Configurer le gestionnaire de volumes logiques », qui est une autre marche
+  à suivre ; le plus simple est la solution de repli ci-dessous.
+
+**Windows en plus ?** Réduis-le depuis Windows (Gestion des disques), pas
+depuis Linux : lui seul sait déplacer ses propres fichiers système. Et
+désactive le *démarrage rapide*, qui laisse la partition dans un état que
+Linux refuse de toucher.
+
+#### Solution de repli : GParted depuis la session live
+
+Si l'installateur ne peut pas faire le redimensionnement, redémarre sur la clé
+LexOS en mode **Live**, puis :
 
 ```bash
 sudo apt install gparted
@@ -392,26 +447,22 @@ sudo gparted
 ```
 
 Clic droit sur la partition de l'autre système → **Redimensionner** → laisse
-**au moins 40 Go** d'espace non alloué → applique.
+**au moins 40 Go** d'espace non alloué → applique, puis relance l'installation.
 
-> **Sauvegarde tes fichiers importants avant.** Redimensionner une partition
-> est l'opération la plus risquée de toute l'installation : une coupure de
-> courant au mauvais moment peut coûter les deux systèmes. Ça se passe bien
-> presque toujours — mais « presque » n'est pas « toujours ».
+GParted voit le LVM et le chiffrement, et son affichage graphique rend l'état
+du disque plus lisible. C'est le seul avantage qu'il a ici : dans le cas
+ordinaire, l'installateur fait la même chose sans redémarrage.
 
-**Windows en plus ?** Réduis-le depuis Windows (Gestion des disques), pas
-depuis Linux : lui seul sait déplacer ses propres fichiers système. Et
-désactive le *démarrage rapide*, qui laisse la partition dans un état que
-Linux refuse de toucher.
+### 2. Remplir l'espace libéré
 
-### 2. Relancer l'installation
+Toujours dans le partitionnement, remonte sur **« Partitionnement assisté »**
+et choisis **« Utiliser le plus grand espace continu disponible »**. C'est la
+seule des options qui ne touche pas aux partitions existantes.
 
-Au partitionnement, choisis **« Assisté — utiliser le plus grand espace
-disponible »**. C'est la seule des quatre options qui ne touche pas aux
-partitions existantes.
+Les autres commencent par « utiliser **tout** un disque » — et *tout* veut
+dire tout, l'autre système compris.
 
-Les trois autres commencent par « utiliser **tout** un disque » — et *tout*
-veut dire tout, l'autre système compris.
+Puis **« Terminer le partitionnement et appliquer les changements »**.
 
 ### 3. Au démarrage suivant
 
