@@ -570,3 +570,38 @@ jamais la machine. `lexos bienetre demarrer` l'allume, `oublier` efface tout.
 
 **Les pauses** (`workrave`) et **la lumière du soir** (`redshift`) sont des
 logiciels tiers ; LexOS ne fait que les allumer et les éteindre proprement.
+
+## Ce qu'un bureau complet doit avoir
+
+`config/includes.chroot/usr/share/lexos/optional-packages/15-essentiel.list`
+vient d'une comparaison poste à poste avec ce qu'Ubuntu 24.04 livre par
+défaut. Vingt-cinq manques ont été trouvés ; ils sont comblés. Les plus
+importants, parce qu'ils ne se rattrapent pas facilement à la main :
+
+* **`fwupd`** — met à jour le BIOS, les SSD et les périphériques depuis le
+  bureau. Sans lui, il faut une clé USB de constructeur, souvent Windows.
+* **`orca`** et **`onboard`** — lecteur d'écran et clavier visuel. Un système
+  sans lecteur d'écran n'est pas utilisable par une personne aveugle : ce
+  n'est pas du confort.
+* **`libavcodec-extra`** — sans ces codecs, une vidéo H.264 téléchargée ne
+  s'ouvre pas, et le message d'erreur ne dit pas qu'il manque un paquet.
+* **`deja-dup`** — sauvegarde des *fichiers*, chiffrée. Timeshift, déjà
+  présent, restaure le *système*. Les deux ne se remplacent pas.
+* **`needrestart`** — prévient quand un service tourne encore sur une
+  bibliothèque mise à jour ; sans lui, un correctif de sécurité peut rester
+  sans effet jusqu'au prochain redémarrage, sans que personne le sache.
+
+Trois noms diffèrent volontairement de ceux d'Ubuntu :
+
+| Ubuntu | LexOS | Pourquoi |
+|---|---|---|
+| `cups-pdf` | `printer-driver-cups-pdf` | C'est le nom Debian |
+| `mlocate` | `plocate` seul | plocate le remplace ; les deux ensemble se disputent le même index |
+| `policykit-1-gnome` | `xfce-polkit` | L'agent de mot de passe de GNOME n'a rien à faire sous XFCE |
+
+Et `apt-transport-https` est écarté : intégré à apt depuis des années, le
+paquet n'est plus qu'une coquille de transition.
+
+**Ce que LexOS ne reprend pas d'Ubuntu, et l'assume** : `snapd` (Flatpak
+occupe ce rôle, et n'impose pas un magasin unique), `apport` (envoi de
+rapports de plantage), `ubuntu-advantage-tools` et `ubuntu-report`.

@@ -4726,12 +4726,31 @@ function settingsSection(key){
       </div>
       ${swRow("Mises à jour de sécurité automatiques","Chaque jour, sans rien demander (unattended-upgrades)",true,"")}
       ${swRow("Simuler une mise à jour disponible","Pour voir l'icône passer au rouge — sinon elle reste verte : système à jour",state.majDispo,"toggleMajDispo()")}
+      <div class="srow"><div><div class="t">Micrologiciel (BIOS, SSD, périphériques)</div>
+        <div class="d">fwupd met à jour le matériel lui-même depuis le bureau —
+        sans clé USB de constructeur, sans redémarrer sous Windows</div></div>
+        <button class="btn ghost mini" style="width:auto"
+                onclick="toast('Sur la vraie ISO : fwupdmgr refresh &amp;&amp; fwupdmgr update')">Rechercher</button></div>
       <p class="notice">Sur la vraie ISO : les mises à jour de sécurité s'installent seules tous les
       jours. Pour le reste, une notification prévient quand il y en a — <code>lexos upgrade</code>
       les applique, ou <code>lexos update</code> pour juste vérifier.</p>`;
-    case "accessibilite": return `<h2>Accessibilité</h2><div class="sub">Confort visuel et clavier</div>
-      ${swRow("Contraste élevé",false,"")}
-      ${swRow("Curseur large",false,"")}`;
+    case "accessibilite": return `<h2>Accessibilité</h2><div class="sub">Voir, entendre, taper</div>
+      ${swRow("Contraste élevé","Renforce la séparation entre le texte et le fond",false,"")}
+      ${swRow("Curseur large","Pointeur agrandi, plus facile à suivre",false,"")}
+      <div class="srow"><div><div class="t">Lecteur d'écran (Orca)</div>
+        <div class="d">Lit à voix haute ce qui est à l'écran, et permet de piloter
+        le système au clavier</div></div>
+        <span class="d">Super + Alt + S</span></div>
+      <div class="srow"><div><div class="t">Clavier visuel (Onboard)</div>
+        <div class="d">Taper à la souris ou au doigt, sans clavier physique</div></div></div>
+      <div class="srow"><div><div class="t">Loupe</div>
+        <div class="d">Agrandit une portion de l'écran</div></div>
+        <span class="d">Super + =</span></div>
+      <p class="notice">Un système sans lecteur d'écran n'est pas utilisable par
+        une personne aveugle&nbsp;: ce n'est pas une option de confort, et Orca
+        est installé par défaut. Sur la vraie ISO&nbsp;:
+        <code>orca</code>, <code>onboard</code>, et les réglages XFCE
+        d'accessibilité.</p>`;
     case "utilisateurs": return `<h2>Utilisateurs</h2><div class="sub">Comptes locaux</div>
       <div class="srow"><div class="t">lex</div><div class="d">Administrateur — compte de la session démo</div></div>`;
     case "region": return `<h2>Région et langue</h2><div class="sub">Langue du système</div>

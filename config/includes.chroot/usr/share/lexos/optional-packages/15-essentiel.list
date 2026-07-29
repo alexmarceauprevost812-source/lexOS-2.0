@@ -1,0 +1,85 @@
+# =============================================================================
+#  Ce qu'un bureau complet a, et qui manquait
+# =============================================================================
+#  Liste établie en comparant LexOS à ce qu'Ubuntu livre par défaut. Rien
+#  ici n'est du confort : ce sont des choses dont l'absence se remarque le
+#  jour où on en a besoin, et qui sont alors pénibles à retrouver.
+#
+#  Deux noms diffèrent de ceux d'Ubuntu, et c'est volontaire :
+#    · printer-driver-cups-pdf, et non « cups-pdf » — c'est le nom Debian ;
+#    · plocate seul, sans mlocate : plocate le remplace et les deux
+#      installés ensemble se disputent la même base d'index.
+#  Deux autres ont été écartés :
+#    · apt-transport-https est intégré à apt depuis des années, le paquet
+#      n'est plus qu'une coquille de transition ;
+#    · policykit-1-gnome est l'agent de GNOME ; sous XFCE c'est xfce-polkit
+#      qui affiche les demandes de mot de passe.
+
+# --- Micrologiciel ------------------------------------------------------
+# fwupd met à jour le BIOS, les SSD et les périphériques depuis le bureau,
+# sans clé USB de constructeur ni redémarrage sous Windows. C'est une des
+# rares choses qu'on ne peut PAS rattraper à la main facilement.
+fwupd
+
+# --- Numériser et photographier -----------------------------------------
+simple-scan
+sane-utils
+cheese
+
+# --- Sauvegarde ----------------------------------------------------------
+# Chiffrée, incrémentale, vers un disque externe ou un nuage. Timeshift
+# (déjà présent) restaure le SYSTÈME ; deja-dup sauvegarde tes FICHIERS.
+# Les deux ne font pas le même travail et ne se remplacent pas.
+deja-dup
+
+# --- Petits outils qu'on cherche le premier jour ------------------------
+gnome-calculator
+gnome-font-viewer
+ncdu
+inxi
+smartmontools
+plocate
+
+# --- Archives ------------------------------------------------------------
+unrar-free
+
+# --- Lecture vidéo -------------------------------------------------------
+# Sans ces codecs, une vidéo H.264 téléchargée ne s'ouvre pas — et le
+# message d'erreur ne dit pas qu'il manque un paquet.
+libavcodec-extra
+
+# --- Accessibilité -------------------------------------------------------
+# Un système sans lecteur d'écran n'est pas utilisable par une personne
+# aveugle. Ce n'est pas une option de confort.
+orca
+onboard
+
+# --- Énergie -------------------------------------------------------------
+# Les applications modernes demandent le profil d'énergie par ce service ;
+# sans lui, le sélecteur « économie / équilibré / performance » reste
+# inerte dans les logiciels qui le proposent.
+power-profiles-daemon
+
+# --- Impression ----------------------------------------------------------
+# « Imprimer vers PDF » depuis n'importe quelle application.
+printer-driver-cups-pdf
+
+# --- Rouages du bureau ---------------------------------------------------
+# Sans shared-mime-info, le système ne sait plus quel fichier est quoi ;
+# sans desktop-file-utils, les applications installées n'apparaissent pas
+# dans le menu. Ils sont presque toujours tirés par une dépendance, mais
+# les nommer garantit qu'ils sont là.
+shared-mime-info
+desktop-file-utils
+# L'agent qui affiche les demandes de mot de passe sous XFCE.
+xfce-polkit
+# Le sélecteur de fichiers des applications Flatpak, qui sinon n'en ont pas.
+xdg-desktop-portal-gtk
+
+# --- Administration ------------------------------------------------------
+# Prévient quand un service tourne encore sur une bibliothèque mise à jour
+# — sinon un correctif de sécurité peut rester sans effet jusqu'au
+# prochain redémarrage, sans que personne le sache.
+needrestart
+# add-apt-repository, pour ajouter un dépôt proprement.
+software-properties-common
