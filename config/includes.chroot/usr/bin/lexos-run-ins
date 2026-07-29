@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-run-ins — installer une application livrée dans une archive
+# =============================================================================
+#  Beaucoup de logiciels se distribuent en .zip contenant un .deb, un
+#  AppImage ou un script d'installation. Les extraire à la main puis
+#  chercher quoi lancer est fastidieux ; ce script le fait.
+#
+#  ── Pourquoi il DEMANDE toujours avant de lancer ────────────────────────
+#  Une archive téléchargée est du code venu d'ailleurs. Exécuter son script
+#  d'installation, c'est lui donner tes droits — tes fichiers, ta session,
+#  et root si le script demande sudo. C'est précisément ainsi que se
+#  propagent les logiciels malveillants sous Linux.
+#
+#  Donc, sans exception :
+#    · l'archive est extraite dans un dossier temporaire, jamais chez toi ;
+#    · ce qui a été trouvé est LISTÉ avant toute exécution ;
+#    · le script est AFFICHÉ en entier, et il faut taper « lancer » pour
+#      qu'il parte. Pas « o », pas Entrée : un mot, pour qu'aucune frappe
+#      distraite ne suffise ;
+#    · un .deb passe par apt, qui vérifie au moins la cohérence du paquet.
+#  Il n'y a pas de mode « ne plus demander ». Ce serait la seule option
+#  vraiment dangereuse de tout LexOS.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'; Y=$'\033[33m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; V=''; Y=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*"; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+TMP=""
+nettoie(){ [[ -n "$TMP" && -d "$TMP" ]] && rm -rf "$TMP"; }
+trap nettoie EXIT INT TERM
+
+sudo_cmd() {
+	if [[ "$(id -u)" -eq 0 ]]; then "$@"
+	elif command -v sudo >/dev/null 2>&1; then sudo "$@"
+	elif command -v pkexec >/dev/null 2>&1; then pkexec "$@"
+	else die "Droits d'administration indisponibles (ni sudo ni pkexec)."
+	fi
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — installer une application livrée dans une archive
+
+  ${O}$PROG${R} <archive.zip>     Extrait, montre ce qu'il y a, puis demande
+  ${O}$PROG --lister${R} <archive> Se contente d'afficher le contenu
+
+Formats reconnus dans l'archive : ${B}.deb${R}, ${B}AppImage${R},
+${B}install.sh${R} / ${B}setup.sh${R}, ${B}Makefile${R} (make install).
+
+${D}Rien n'est jamais exécuté sans que tu aies vu quoi, et confirmé en
+tapant « lancer ». Une archive vient d'ailleurs : son script d'installation
+hérite de tes droits.${R}
+EOF
+}
+
+lister_contenu() {
+	local zip="$1"
+	command -v unzip >/dev/null 2>&1 || die "unzip n'est pas installé (apt install unzip)."
+	say "Contenu de $(basename "$zip") :"
+	unzip -l "$zip" | sed -n '4,${/^ *---/q;p}' | head -60
+}
+
+extraire() {
+	local zip="$1"
+	TMP="$(mktemp -d /tmp/lexos-run-ins.XXXXXX)" || die "Dossier temporaire impossible."
+	#  -o : pas de question sur les écrasements DANS le temporaire.
+	#  Le zip ne peut pas écrire ailleurs : unzip refuse les chemins
+	#  absolus et les « .. » par défaut, ce qui bloque le zip-slip.
+	unzip -q -o "$zip" -d "$TMP" || die "Extraction impossible — archive abîmée ?"
+}
+
+#  Cherche un installeur, du plus sûr au moins sûr.
+trouver_installeur() {
+	local f
+	f="$(find "$TMP" -maxdepth 3 -name '*.deb' -type f | head -1)"
+	[[ -n "$f" ]] && { printf 'deb\t%s\n' "$f"; return; }
+	f="$(find "$TMP" -maxdepth 3 -iname '*.AppImage' -type f | head -1)"
+	[[ -n "$f" ]] && { printf 'appimage\t%s\n' "$f"; return; }
+	f="$(find "$TMP" -maxdepth 3 \( -name 'install.sh' -o -name 'setup.sh' -o -name 'installer.sh' \) -type f | head -1)"
+	[[ -n "$f" ]] && { printf 'script\t%s\n' "$f"; return; }
+	f="$(find "$TMP" -maxdepth 2 -name 'Makefile' -type f | head -1)"
+	[[ -n "$f" ]] && { printf 'make\t%s\n' "$f"; return; }
+	return 1
+}
+
+confirmer() {
+	local mot=""
+	printf '\n%sPour lancer, tape le mot %slancer%s puis Entrée (autre chose = annuler) : %s' \
+		"$B" "$O" "$R$B" "$R"
+	read -r mot || true
+	[[ "$mot" == "lancer" ]]
+}
+
+cmd_install() {
+	local zip="$1"
+	[[ -f "$zip" ]] || die "Fichier introuvable : $zip"
+	case "$zip" in
+		*.zip|*.ZIP) ;;
+		*) die "Ce n'est pas une archive .zip : $(basename "$zip")" ;;
+	esac
+
+	lister_contenu "$zip"
+	extraire "$zip"
+
+	local ligne type chemin
+	if ! ligne="$(trouver_installeur)"; then
+		warn "Aucun installeur reconnu dans cette archive."
+		say  "Rien n'a été exécuté. Le contenu est extrait dans : $TMP"
+		say  "Regarde-le, puis lance à la main ce que tu juges sûr."
+		#  On garde le dossier pour l'inspection : c'est le seul cas où
+		#  le nettoyage automatique dessert l'utilisateur.
+		trap - EXIT
+		exit 0
+	fi
+	IFS=$'\t' read -r type chemin <<< "$ligne"
+
+	printf '\n'
+	case "$type" in
+		deb)
+			say "Paquet Debian trouvé : ${B}$(basename "$chemin")${R}"
+			command -v dpkg-deb >/dev/null 2>&1 && dpkg-deb -I "$chemin" 2>/dev/null | head -14
+			printf '\n%sIl sera installé par apt, qui vérifie la cohérence du paquet\net signalera ses dépendances.%s\n' "$D" "$R"
+			confirmer || { say "Annulé. Rien n'a été installé."; exit 0; }
+			sudo_cmd apt-get install -y "$chemin" && ok "Installé." || die "L'installation a échoué."
+			;;
+		appimage)
+			say "AppImage trouvée : ${B}$(basename "$chemin")${R}"
+			local dest="$HOME/Applications"
+			printf '%sElle sera copiée dans %s et rendue exécutable.\nUne AppImage ne s'"'"'installe pas : elle se lance telle quelle.%s\n' "$D" "$dest" "$R"
+			confirmer || { say "Annulé."; exit 0; }
+			mkdir -p "$dest"
+			cp "$chemin" "$dest/" && chmod +x "$dest/$(basename "$chemin")" \
+				&& ok "Copiée dans $dest — lance-la depuis Fichiers."
+			;;
+		script)
+			say "Script d'installation trouvé : ${B}${chemin#"$TMP"/}${R}"
+			printf '\n%s┌─ contenu du script ─────────────────────────────%s\n' "$Y" "$R"
+			#  Affiché EN ENTIER jusqu'à 200 lignes : c'est le moment où
+			#  l'utilisateur peut encore dire non en connaissance de cause.
+			nl -ba "$chemin" | head -200
+			local total; total="$(wc -l < "$chemin")"
+			[[ "$total" -gt 200 ]] && warn "… $((total - 200)) lignes de plus, non affichées."
+			printf '%s└─────────────────────────────────────────────────%s\n' "$Y" "$R"
+			warn "Ce script s'exécutera avec TES droits."
+			warn "S'il appelle sudo, il aura les droits d'administration."
+			confirmer || { say "Annulé. Rien n'a été exécuté."; exit 0; }
+			( cd "$(dirname "$chemin")" && bash "$(basename "$chemin")" ) \
+				&& ok "Terminé." || die "Le script s'est arrêté sur une erreur."
+			;;
+		make)
+			say "Makefile trouvé : ${B}${chemin#"$TMP"/}${R}"
+			printf '\n%sCibles disponibles :%s\n' "$D" "$R"
+			grep -E '^[a-zA-Z0-9_.-]+:' "$chemin" | cut -d: -f1 | sort -u | head -20 | sed 's/^/  /'
+			warn "« make install » écrit hors de ton dossier personnel."
+			confirmer || { say "Annulé."; exit 0; }
+			( cd "$(dirname "$chemin")" && make && sudo_cmd make install ) \
+				&& ok "Installé." || die "La compilation ou l'installation a échoué."
+			;;
+	esac
+}
+
+case "${1:-}" in
+	""|-h|--help|aide) usage ;;
+	--lister|-l)       shift; [[ $# -gt 0 ]] || die "Donne une archive."; lister_contenu "$1" ;;
+	*)                 cmd_install "$1" ;;
+esac

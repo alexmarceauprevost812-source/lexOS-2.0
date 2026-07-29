@@ -586,6 +586,12 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .files li:hover{background:var(--bg-hi)}
 /* --- Fil d'Ariane et dossier vide ---------------------------------------- */
 .files li.sel{background:var(--bg-hi);box-shadow:inset 2px 0 0 var(--ac)}
+.ri-etape{margin:12px 0 6px;font-size:12.5px;color:var(--fg-dim)}
+.ri-etape b{color:var(--ac)}
+.ri-liste,.ri-script{margin:0;padding:10px 12px;border-radius:9px;background:#000;
+  border:1px solid var(--bd);color:#d8d8d8;max-height:200px;overflow:auto;
+  font:11.5px/1.6 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word}
+.ri-script{border-color:var(--ac-lo)}
 .ctx-menu{max-height:80vh;overflow-y:auto;min-width:248px}
 .ctx-menu .picto{display:inline-flex;align-items:center;justify-content:center;
   width:18px;flex:none}
@@ -1979,6 +1985,85 @@ function ligneFichier(f, i, racine){
          `<span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
 }
 
+/* --- « Run ins » : installer une application livrée dans une archive ------
+   Reproduit le déroulement de lexos-run-ins, garde-fou compris. Ce
+   garde-fou n'est pas décoratif : une archive téléchargée est du code
+   venu d'ailleurs, et son script d'installation hérite des droits de
+   celui qui le lance. D'où l'ordre imposé — lister, AFFICHER le script,
+   puis exiger un mot tapé en toutes lettres. Pas de case « ne plus
+   demander » : ce serait la seule option réellement dangereuse ici. */
+const RUNINS_SCRIPT =
+`#!/bin/bash
+# DemoApp 2.1 — installation
+set -e
+DEST="$HOME/.local/bin"
+echo "Installation de DemoApp dans $DEST…"
+mkdir -p "$DEST" "$HOME/.local/share/applications"
+install -m 755 bin/demoapp "$DEST/demoapp"
+install -m 644 share/demoapp.desktop "$HOME/.local/share/applications/"
+update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+echo "Terminé — lance « demoapp » ou cherche-le dans le menu."`;
+
+function ficRunIns(i, racine){
+  const f = ficListe(!!racine)[i]; if(!f) return;
+  openWin("runins","Run ins — " + f.nom,"⚙",
+    `<div class="pad">
+       <p>Archive : <code>${esc(f.nom)}</code> · ${esc(f.taille)}</p>
+       <div class="ri-etape"><b>1.</b> Contenu de l'archive</div>
+       <pre class="ri-liste">app/
+app/bin/demoapp
+app/share/demoapp.desktop
+app/share/icons/demoapp.png
+app/install.sh
+app/LISEZ-MOI.txt</pre>
+       <div class="ri-etape"><b>2.</b> Installeur trouvé — <code>app/install.sh</code></div>
+       <pre class="ri-script">${esc(RUNINS_SCRIPT)}</pre>
+       <div class="warnbox">Ce script s'exécutera avec <b>tes droits</b>.
+       S'il appelle <code>sudo</code>, il aura les droits d'administration.
+       Une archive vient d'ailleurs — lis-la avant de la lancer.</div>
+       <div class="ri-etape"><b>3.</b> Pour lancer, tape <b>lancer</b> :</div>
+       <input class="lgt-search" id="riMot" style="width:100%" placeholder="lancer"
+              autocomplete="off" oninput="riVerifie()">
+       <div class="row" style="margin-top:10px">
+         <button class="btn" id="riGo" disabled onclick="riLance()">⚙ Installer</button>
+         <button class="btn ghost" onclick="closeWin(document.getElementById('win-runins'))">Annuler</button>
+       </div>
+       <p class="lgt-poids" id="riEtat"></p>
+       <p class="notice">Sur la vraie ISO : clic droit sur un <code>.zip</code> →
+       « Run ins », ou <code>lexos run-ins archive.zip</code>. Le déroulement
+       est le même, garde-fou compris.</p>
+     </div>`,
+    //  Hauteur bornée : le contenu (liste + script + avertissement +
+    //  confirmation) dépassait le bas de l'écran, et le bouton
+    //  « Installer » devenait inatteignable. Le corps défile désormais.
+    560, Math.min(620, innerHeight - 90));
+  riVerifie();
+}
+function riVerifie(){
+  const b=document.getElementById("riGo"), m=document.getElementById("riMot");
+  if(b && m) b.disabled = m.value.trim() !== "lancer";
+}
+function riLance(){
+  const e=document.getElementById("riEtat"); if(!e) return;
+  document.getElementById("riGo").disabled=true;
+  const pas=["Extraction dans un dossier temporaire…",
+             "Vérification de l'installeur…",
+             "Exécution de install.sh…",
+             "Mise à jour du menu des applications…"];
+  let i=0;
+  const suite=()=>{
+    if(!document.getElementById("riEtat")) return;
+    if(i>=pas.length){
+      e.textContent="✓ DemoApp installé — il apparaît dans le menu Applications.";
+      toast("⚙ Installé depuis l'archive (démo)");
+      return;
+    }
+    e.textContent=pas[i++];
+    setTimeout(suite, 750);
+  };
+  suite();
+}
+
 /* --- Menu contextuel général --------------------------------------------
    Un seul constructeur pour tous les clics droits — bureau, tuiles du
    menu Applications, icônes de la barre d'outils, icônes épinglées,
@@ -2044,10 +2129,36 @@ function ctxApp(e, i){
       : {ic:"📌", txt:"Épingler au bureau", act:`ctxEpingle(${i})`},
     {ic:"⚓", txt:"Ajouter à la barre d'outils", act:`ctxAuDock(${i})`},
     "-",
+    {ic:"✎", txt:"Renommer l'application", act:`ctxRenommeApp(${i})`, kbd:"F2"},
+    {ic:terminalGlyph(14), txt:"Ouvrir un terminal", act:"closeApps();openTerminal()"},
+    "-",
     {ic:"🔎", txt:"Chercher dans la Logithèque",
      act:`closeApps();openLogitheque();setTimeout(()=>lgtFiltre(${JSON.stringify(a.label)}),60)`},
   ]);
 }
+/*  Renommer une application : le nom est celui affiché partout — grille,
+    barre d'outils, icônes du bureau — donc on re-rend les trois. */
+function ctxRenommeApp(i){
+  const a=APPS[i]; if(!a) return;
+  const neuf = prompt("Nouveau nom pour cette application :", a.label);
+  if(neuf===null) return;
+  const n = neuf.trim();
+  if(!n){ toast("Un nom vide n'est pas accepté"); return; }
+  if(APPS.some((x,j)=>j!==i && x.label===n)){
+    toast("Une application porte déjà ce nom"); return;
+  }
+  const avant = a.label;
+  a.label = n;
+  //  La barre d'outils affiche le nom dans son infobulle : elle doit
+  //  suivre, sinon le survol annoncerait encore l'ancien nom.
+  const b=[...dock.querySelectorAll(".dicon")].find(x=>
+    x.querySelector(".tip") && x.querySelector(".tip").textContent===avant);
+  if(b) b.querySelector(".tip").textContent = n;
+  renderApps(appSearch ? appSearch.value : "");
+  renderDeskIcons();
+  toast("Renommé : " + n);
+}
+
 function ctxEpingle(i){
   //  Posée en haut à gauche, décalée pour ne pas empiler les icônes
   //  ajoutées à la suite les unes sur les autres.
@@ -2174,7 +2285,10 @@ function fichierMenu(e, i, racine){
     add(bouton("✂","Créer un autocollant",`ficAutocollant(${i},${racine?1:0})`));
   }
   if(estAudio(f.nom)) add(bouton("🎵","Ouvrir dans Musique","openMusique()"));
-  if(/\.zip$/i.test(f.nom)) add(bouton("📦","Extraire ici","extractZip()"));
+  if(/\.zip$/i.test(f.nom)){
+    add(bouton("📦","Extraire ici","extractZip()"));
+    add(bouton("⚙","Run ins — installer depuis l'archive",`ficRunIns(${i},${racine?1:0})`));
+  }
   if(/\.(txt|conf|sh|md)$/i.test(f.nom)) add(bouton("📝","Ouvrir dans Note perso","openEditor()"));
   if(items.length) add(`<div class="msep"></div>`);
 
@@ -2185,6 +2299,7 @@ function fichierMenu(e, i, racine){
   add(bouton("✂","Couper",`ficCopie(${i},${racine?1:0},true)`,"Ctrl+X"));
   if(pressePapier) add(bouton("📋","Coller ici","ficColle()","Ctrl+V"));
   add(`<div class="msep"></div>`);
+  add(bouton(terminalGlyph(14),"Ouvrir un terminal ici","openTerminal()"));
   add(bouton('<i class="gly gly-share"></i>',"Partager avec LexOS","openShare()"));
   add(bouton("ℹ","Propriétés",`ficProprietes(${i},${racine?1:0})`));
   add(`<div class="msep"></div>`);

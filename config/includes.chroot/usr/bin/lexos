@@ -142,6 +142,10 @@ ${B}STUDIO+${R}
   ${A}studio ouvrir${R} <atelier>  photo · peinture · vectoriel · video · capture · son
                       ${D}propose d'installer l'atelier s'il manque${R}
 
+${B}ARCHIVES${R}
+  ${A}run-ins${R} <archive.zip> Installe une application livrée en .zip
+                      ${D}montre ce qu'elle contient et demande avant d'exécuter${R}
+
 ${B}IMAGES${R}
   ${A}sticker${R} <image…>     Découpe le sujet en autocollant (PNG transparent)
                       ${D}IA (rembg) si installée, sinon fond uni (ImageMagick)${R}
@@ -596,6 +600,7 @@ case "$CMD" in
 	terminal-appareil)    exec lexos-usb terminal ;;
 	format)               exec lexos-format "$@" ;;
 	capture|capture-ecran) exec lexos-capture "$@" ;;
+	run-ins|runins)       exec lexos-run-ins "$@" ;;
 	studio)               exec lexos-studio "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
 	ia|agent)             exec lexos-ia "$@" ;;

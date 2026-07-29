@@ -359,6 +359,18 @@ cat > /etc/skel/.config/Thunar/uca.xml <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <actions>
   <action>
+    <icon>package-x-generic</icon>
+    <name>Run ins — installer depuis cette archive</name>
+    <submenu></submenu>
+    <unique-id>lexos-run-ins-1</unique-id>
+    <command>xfce4-terminal --title=&quot;Run ins — LexOS&quot; --hold --command=&quot;lexos run-ins %f&quot;</command>
+    <description>Extrait l'archive, montre ce qu'elle contient, et demande avant d'exécuter quoi que ce soit</description>
+    <range>1</range>
+    <patterns>*.zip;*.ZIP</patterns>
+    <startup-notify/>
+    <other-files/>
+  </action>
+  <action>
     <icon>lexos-share</icon>
     <name>Partager avec LexOS</name>
     <submenu></submenu>
