@@ -12,11 +12,14 @@ xfce4-whiskermenu-plugin
 xfce4-appfinder
 thunar-archive-plugin
 thunar-volman
-thunar-open-terminal
+# thunar-open-terminal RETIRÉ : fondu dans Thunar depuis la version 4.18.
+# « Ouvrir un terminal ici » est là sans paquet supplémentaire.
 tumbler
 file-roller
 lightdm-gtk-greeter-settings
-lightdm-guest-session
+# lightdm-guest-session RETIRÉ : ce nom n'existe pas dans Debian, la
+# session invité est intégrée à lightdm et s'active par sa configuration
+# (déjà faite dans le hook 0400).
 arc-theme
 papirus-icon-theme
 fonts-noto-core

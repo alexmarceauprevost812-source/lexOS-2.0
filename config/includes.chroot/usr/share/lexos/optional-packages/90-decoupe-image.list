@@ -3,4 +3,8 @@
 # Ceci n'est qu'un bonus : si le paquet n'existe pas dans les dépôts, il est
 # simplement ignoré (voir 0250-lexos-optional.hook.chroot) — lexos-sticker
 # retombe alors sur le mode rapide sans rien casser.
+# python3-rembg n'est PAS dans Debian et ne l'a jamais été — c'est attendu,
+# pas une erreur. lexos-sticker s'en passe et découpe avec ImageMagick ;
+# le résultat est moins fin sur un sujet complexe, mais il est là.
+# La ligne reste au cas où Debian l'empaquetterait.
 python3-rembg

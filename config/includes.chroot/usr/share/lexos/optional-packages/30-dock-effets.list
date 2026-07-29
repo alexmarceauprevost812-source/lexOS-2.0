@@ -5,10 +5,11 @@ dconf-cli
 dconf-gsettings-backend
 compiz
 compiz-core
-compiz-gtk
-compiz-plugins-default
+# Compiz a été RETIRÉ de Debian trixie — les trois paquets ci-dessous
+# n'existent plus. Les effets de fenêtres façon téléviseur retombent sur
+# le compositeur de xfwm4, ce que lexos-wm gère déjà : « lexos crt on »
+# fonctionne, avec des effets plus sobres.
 compiz-plugins-extra
 compizconfig-settings-manager
-compizconfig-backend-gsettings
 python3-compizconfig
 mesa-utils

@@ -8,6 +8,11 @@ arp-scan
 # scrcpy affiche ET contrôle l'écran d'un téléphone Android sur l'ordinateur
 # (câble USB avec débogage activé, ou Wi-Fi via adb tcpip). Le paquet Debian
 # tire android-tools-adb automatiquement — rien à ajouter à la main ici.
+# scrcpy a été signalé absent lors de la construction 8. Il est gardé :
+# c'est un paquet Debian de longue date, l'absence est probablement
+# passagère (transition en cours dans l'archive), et une ligne qui échoue
+# ne coûte qu'un mot dans /etc/lexos/optional-report. Si elle persiste,
+# « lexos ecran-telephone » le dira et proposera l'installation manuelle.
 scrcpy
 
 # android-tools-adb à part : « lexos usb terminal » (un shell SUR le

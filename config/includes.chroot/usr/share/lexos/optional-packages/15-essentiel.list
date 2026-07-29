@@ -72,7 +72,11 @@ printer-driver-cups-pdf
 shared-mime-info
 desktop-file-utils
 # L'agent qui affiche les demandes de mot de passe sous XFCE.
-xfce-polkit
+# xfce-polkit RETIRÉ : ce nom n'existe pas dans Debian (journal de la
+# construction 8). L'agent qui affiche les demandes de mot de passe arrive
+# par les Recommends de xfce4-session, et --apt-recommends est à true dans
+# auto/config : il est donc déjà là. Le nommer ici ne servait qu'à faire
+# échouer une ligne.
 # Le sélecteur de fichiers des applications Flatpak, qui sinon n'en ont pas.
 xdg-desktop-portal-gtk
 
@@ -82,4 +86,7 @@ xdg-desktop-portal-gtk
 # prochain redémarrage, sans que personne le sache.
 needrestart
 # add-apt-repository, pour ajouter un dépôt proprement.
-software-properties-common
+# software-properties-common RETIRÉ : absent de trixie (journal de la
+# construction 8). Il fournissait add-apt-repository ; sans lui, on écrit
+# le fichier .sources à la main dans /etc/apt/sources.list.d/, ce que fait
+# déjà « lexos install chrome ».

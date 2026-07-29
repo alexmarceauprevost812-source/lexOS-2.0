@@ -13,7 +13,10 @@ exfatprogs
 gvfs-backends
 libmtp-common
 mtp-tools
-libimobiledevice6
+# libimobiledevice6 RETIRÉ : le numéro de la bibliothèque a changé, et de
+# toute façon libimobiledevice-utils et ifuse (ci-dessous) la tirent en
+# dépendance. Nommer une bibliothèque par son soname, c'est se condamner à
+# corriger à chaque version de Debian.
 usbmuxd
 ifuse
 curl

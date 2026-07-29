@@ -8,11 +8,13 @@
 #  simplement « build ». Un fichier inchangé ne déclenche rien.
 # =============================================================================
 
-# minimal | standard | dev | full | gaming
-flavour: standard
+# minimal | standard | dev | full | gaming | pro
+#   pro = TI-LEX-OS Pro, l'édition pour jouer : Vulkan, Wine, Steam/Proton,
+#         Lutris, GameMode, MangoHud, manettes, émulateurs, jeux libres.
+flavour: pro
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
-build: 8
+build: 9

@@ -222,7 +222,17 @@ EOF
 EOF
 			;;
 		riseup|calyx)
+			#  Seul Riseup est empaqueté dans Debian ; Calyx ne l'est pas
+			#  (vérifié au journal de la construction 8). Les deux font
+			#  tourner le même client Bitmask, qui se télécharge chez eux.
 			local paquet="${cle}-vpn"
+			if [[ "$cle" == "calyx" ]]; then
+				warn "Calyx n'est pas empaqueté dans Debian."
+				say  "Le client Bitmask se télécharge sur ${O}https://calyx.net/vpn${R}"
+				say  "C'est le même logiciel que celui de Riseup, avec leurs serveurs."
+				say  "${D}Riseup, lui, s'installe par apt : ${PROG} gratuit riseup${R}"
+				return
+			fi
 			printf '  Paquet Debian : %s%s%s\n\n' "$B" "$paquet" "$R"
 			if dpkg -s "$paquet" >/dev/null 2>&1; then
 				ok "$paquet est déjà installé — lance-le depuis le menu Applications."

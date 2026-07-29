@@ -17,4 +17,6 @@ chkrootkit
 # dépôt tiers dans le dos de l'utilisateur — « lexos vpn gratuit proton »
 # passe par une configuration WireGuard, que NetworkManager sait importer.
 riseup-vpn
-calyx-vpn
+# calyx-vpn RETIRÉ : absent de l'archive Debian (vérifié dans le journal de
+# la construction 8). Riseup, lui, y est. Calyx fait tourner le même client
+# Bitmask ; « lexos vpn gratuit calyx » renvoie donc vers leur site.
