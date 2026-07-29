@@ -286,6 +286,65 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .globe-mer ellipse:nth-child(4){animation-delay:-3s}
 .globe-mer ellipse:nth-child(5){animation-delay:-4s}
 @media (prefers-reduced-motion:reduce){ .globe-mer ellipse{animation:none} }
+/* --- Appareil photo : deux petits flashs qui se déclenchent --------------
+   Le cycle est long (4,2 s) et l'éclat très bref : dans un dock toujours
+   affiché, un clignotement continu deviendrait vite pénible. Les deux
+   impulsions rapprochées font lire « flash d'appareil photo » plutôt que
+   « voyant d'alerte ».
+   L'éclat déborde du cadre de l'icône, d'où overflow:visible — sinon il
+   serait coupé net en carré, ce qui trahit le truc. */
+.cam-gly{overflow:visible}
+.cam-temoin{animation:camTemoin 4.2s ease-out infinite}
+.cam-eclat{animation:camEclat 4.2s ease-out infinite;
+  transform-box:fill-box;transform-origin:center}
+@keyframes camTemoin{
+  0%,70%,100%{opacity:0}
+  73%{opacity:.95} 77%{opacity:0}
+  81%{opacity:.95} 85%{opacity:0}}
+@keyframes camEclat{
+  0%,71%,100%{opacity:0;transform:scale(.12)}
+  74%{opacity:.5;transform:scale(.55)}
+  78%{opacity:0;transform:scale(.85)}
+  82%{opacity:.38;transform:scale(.5)}
+  87%{opacity:0;transform:scale(.8)}}
+/*  Au survol, le flash part tout de suite et plus souvent. */
+.dicon:hover .cam-temoin,.app:hover .cam-temoin{animation-duration:1.4s}
+.dicon:hover .cam-eclat,.app:hover .cam-eclat{animation-duration:1.4s}
+@media (prefers-reduced-motion:reduce){
+  .cam-temoin,.cam-eclat{animation:none}}
+
+/* --- Dossier « Fichiers » : la poche bascule de côté au survol -----------
+   transform-box:fill-box rend transform-origin relatif au tracé lui-même :
+   sans lui, l'origine se calcule sur la boîte du <svg> entier et la poche
+   pivote autour d'un point qui n'a rien à voir avec sa charnière.
+   La charnière est en bas à gauche de la poche, comme sur un vrai dossier
+   qu'on ouvre en le pinçant par le coin. */
+.files-front,.files-page{transform-box:fill-box;
+  transition:transform .28s cubic-bezier(.34,1.35,.5,1)}
+.files-front{transform-origin:6% 94%}
+.files-page{transform-origin:50% 100%;transform:translateY(26%)}
+.dicon:hover .files-front,.app:hover .files-front,
+.deskicon:hover .files-front,.win:hover .files-front{transform:rotate(-17deg)}
+.dicon:hover .files-page,.app:hover .files-page,
+.deskicon:hover .files-page,.win:hover .files-page{transform:translateY(-17%)}
+@media (prefers-reduced-motion:reduce){
+  .files-front,.files-page{transition:none}
+  .dicon:hover .files-front,.app:hover .files-front,
+  .deskicon:hover .files-front,.win:hover .files-front{transform:none}}
+
+/* --- Paramètres : la couronne et l'engrenage tournent en sens inverse ---- */
+.reg-ic{display:block;color:var(--ac)}
+.reg-couronne,.reg-roue{transform-box:fill-box;transform-origin:center}
+.reg-couronne{animation:regTour 14s linear infinite}
+.reg-roue{animation:regTourInv 9s linear infinite}
+@keyframes regTour{ from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+@keyframes regTourInv{ from{transform:rotate(0deg)} to{transform:rotate(-360deg)} }
+/*  Au survol, tout accélère — l'icône répond au pointeur comme les autres. */
+.dicon:hover .reg-couronne,.app:hover .reg-couronne{animation-duration:3.5s}
+.dicon:hover .reg-roue,.app:hover .reg-roue{animation-duration:2.2s}
+@media (prefers-reduced-motion:reduce){
+  .reg-couronne,.reg-roue{animation:none}}
+
 /* --- Globe du Navigateur : tour complet, et éclat au survol --------------
    La rotation porte sur le GROUPE des méridiens, pas sur le <svg> entier :
    le cercle de contour et les parallèles doivent rester immobiles, sinon
@@ -1693,6 +1752,30 @@ function musiqueGlobe(size){
   `</svg>`;
 }
 
+/* --- Icône des Paramètres : engrenage et couronne de nœuds --------------
+   Dessin original, au style trait de LexOS. Deux rotations en sens
+   INVERSE : la couronne de nœuds tourne dans un sens, l'engrenage dans
+   l'autre. Les faire tourner ensemble donnerait un bloc qui pivote ; en
+   sens contraire, on lit deux pièces qui s'engrènent.
+
+   Les 8 dents et les 12 nœuds sont calculés géométriquement, pas placés à
+   l'œil : à ce nombre de répétitions, un écart d'un degré se voit. */
+const REG_GEAR = "M 232.1 140.5 L 279.9 140.5 L 271.7 173.5 L 303.2 186.5 L 320.8 157.4 L 354.6 191.2 L 325.5 208.8 L 338.5 240.3 L 371.5 232.1 L 371.5 279.9 L 338.5 271.7 L 325.5 303.2 L 354.6 320.8 L 320.8 354.6 L 303.2 325.5 L 271.7 338.5 L 279.9 371.5 L 232.1 371.5 L 240.3 338.5 L 208.8 325.5 L 191.2 354.6 L 157.4 320.8 L 186.5 303.2 L 173.5 271.7 L 140.5 279.9 L 140.5 232.1 L 173.5 240.3 L 186.5 208.8 L 157.4 191.2 L 191.2 157.4 L 208.8 186.5 L 240.3 173.5 Z";
+const REG_NOEUDS = `<path d="M 256.0 88.0 L 256.0 60.0"/><circle cx="256.0" cy="40.0" r="24"/><path d="M 340.0 110.5 L 354.0 86.3"/><circle cx="364.0" cy="68.9" r="24"/><path d="M 401.5 172.0 L 425.7 158.0"/><circle cx="443.1" cy="148.0" r="24"/><path d="M 424.0 256.0 L 452.0 256.0"/><circle cx="472.0" cy="256.0" r="24"/><path d="M 401.5 340.0 L 425.7 354.0"/><circle cx="443.1" cy="364.0" r="24"/><path d="M 340.0 401.5 L 354.0 425.7"/><circle cx="364.0" cy="443.1" r="24"/><path d="M 256.0 424.0 L 256.0 452.0"/><circle cx="256.0" cy="472.0" r="24"/><path d="M 172.0 401.5 L 158.0 425.7"/><circle cx="148.0" cy="443.1" r="24"/><path d="M 110.5 340.0 L 86.3 354.0"/><circle cx="68.9" cy="364.0" r="24"/><path d="M 88.0 256.0 L 60.0 256.0"/><circle cx="40.0" cy="256.0" r="24"/><path d="M 110.5 172.0 L 86.3 158.0"/><circle cx="68.9" cy="148.0" r="24"/><path d="M 172.0 110.5 L 158.0 86.3"/><circle cx="148.0" cy="68.9" r="24"/>`;
+function reglagesGlyph(size){
+  return `<svg class="reg-ic" viewBox="0 0 512 512" width="${size}" height="${size}"
+     aria-hidden="true" focusable="false">
+    <g class="reg-couronne" fill="currentColor" stroke="currentColor"
+       stroke-width="13" stroke-linecap="round">${REG_NOEUDS}</g>
+    <circle cx="256" cy="256" r="152" fill="none" stroke="currentColor" stroke-width="15"/>
+    <g class="reg-roue">
+      <path d="${REG_GEAR}" fill="currentColor"/>
+      <circle cx="256" cy="256" r="40" fill="#0a0a0b"/>
+      <circle cx="256" cy="256" r="40" fill="none" stroke="currentColor" stroke-width="13"/>
+    </g>
+  </svg>`;
+}
+
 /* --- Icône du Navigateur : un globe qui fait un tour complet -------------
    Deux mouvements distincts. En continu, les méridiens tournent de 0 à
    360° autour de l'axe du globe — un vrai tour, pas un va-et-vient. Au
@@ -1838,9 +1921,14 @@ function folderSVG(f){
 function filesAppGlyph(size){
   // var(--ac)/var(--ac-lo) plutôt qu'une couleur figée : l'icône suit le
   // changement d'accent SANS re-rendu — le dock n'est construit qu'une fois.
+  //  La feuille est glissée ENTRE le dos et la poche : au repos elle est
+  //  poussée vers le bas, donc entièrement masquée par la poche ; au survol
+  //  elle remonte pendant que la poche bascule, et le dossier s'ouvre.
   return `<svg class="files-ic" viewBox="16 112 474 328" width="${size}" height="${size}" aria-hidden="true">`+
     `<path d="${FOLD_BACK}" fill="var(--ac-lo)"/>`+
-    `<path d="${FOLD_FRONT}" fill="var(--ac)"/>`+
+    `<rect class="files-page" x="150" y="150" width="220" height="200" rx="12"`+
+    ` fill="#F2EDE4"/>`+
+    `<path class="files-front" d="${FOLD_FRONT}" fill="var(--ac)"/>`+
   `</svg>`;
 }
 /*  Gestion des couleurs : arc-en-ciel en 6 bandes concentriques, animé par
@@ -2772,6 +2860,10 @@ function cameraGlyph(size){
       <circle cx="256" cy="322" r="92"/>
     </g>
     <circle cx="410" cy="246" r="17" fill="currentColor"/>
+    <!-- Le flash : le témoin s'allume, puis l'éclat blanc part de lui.
+         Deux impulsions rapprochées, comme un vrai flash qui se déclenche. -->
+    <circle class="cam-temoin" cx="410" cy="246" r="17" fill="#fff" opacity="0"/>
+    <circle class="cam-eclat" cx="410" cy="246" r="150" fill="#fff" opacity="0"/>
   </svg>`;
 }
 
@@ -3529,7 +3621,7 @@ const DOCK = [
   ['<i class="gly gly-share"></i>',"Partager",openShare], [cameraGlyph(24),"Capture d'écran",openCapture],
   [studioGlyph(24),"Studio+ LexOS",openStudio],
   ["📦","Logithèque",openLogitheque],
-  ["⚙","Paramètres",openSettings],
+  [reglagesGlyph(25),"Paramètres",openSettings],
   ["💽","Installer LexOS",openInstall], ["◆","À propos",openAbout],
   ["logo","Applications",()=>toggleApps()]];
 const dock = document.getElementById("dock");
@@ -3552,7 +3644,8 @@ const APPS = [
     label==="Fichiers" ? {ic:filesAppGlyph(38), label, fn} :
     label==="Capture d'écran" ? {ic:cameraGlyph(40), label, fn} :
     label==="Studio+ LexOS" ? {ic:studioGlyph(40), label, fn} :
-    label==="Navigateur" ? {ic:navGlyph(42), label, fn} : {ic,label,fn}),
+    label==="Navigateur" ? {ic:navGlyph(42), label, fn} :
+    label==="Paramètres" ? {ic:reglagesGlyph(40), label, fn} : {ic,label,fn}),
   {ic:zipGlyph(42), label:"Archives ZIP", fn:openFiles},
   {ic:musiqueGlobe(38), label:"Musique", fn:openMusique},
   {ic:'<i class="gly gly-usb" style="width:42px;height:42px"></i>', label:"Appareils USB", fn:()=>openSettings("usb")},
