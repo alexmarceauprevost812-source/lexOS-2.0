@@ -213,6 +213,28 @@ body.light #dockTab{background:rgba(239,235,227,.9)}
 /* Fenêtre agrandie : coins droits et ombre plus discrète, comme un vrai
    gestionnaire de fenêtres qui colle la fenêtre aux bords de l'écran. */
 .win.max{border-radius:6px;box-shadow:0 8px 30px rgba(0,0,0,.6)}
+/* --- Poignées de redimensionnement ---------------------------------------
+   Invisibles mais saisissables : 6 px sur les bords, 14 px aux coins, ce
+   qui suffit à les attraper sans viser. Le curseur change et annonce le
+   geste avant même le clic.
+   overflow:hidden sur .win rognerait des poignées débordantes : elles
+   restent donc À L'INTÉRIEUR du cadre. */
+.wrs{position:absolute;z-index:5;touch-action:none}
+.win.max .wrs{display:none}      /* agrandie : rien à redimensionner */
+.wrs-n{top:0;left:12px;right:12px;height:6px;cursor:ns-resize}
+.wrs-s{bottom:0;left:12px;right:12px;height:6px;cursor:ns-resize}
+.wrs-w{left:0;top:12px;bottom:12px;width:6px;cursor:ew-resize}
+.wrs-e{right:0;top:12px;bottom:12px;width:6px;cursor:ew-resize}
+.wrs-nw{top:0;left:0;width:14px;height:14px;cursor:nwse-resize}
+.wrs-ne{top:0;right:0;width:14px;height:14px;cursor:nesw-resize}
+.wrs-sw{bottom:0;left:0;width:14px;height:14px;cursor:nesw-resize}
+.wrs-se{bottom:0;right:0;width:14px;height:14px;cursor:nwse-resize}
+/*  Le coin bas-droit porte une marque discrète : c'est celui qu'on cherche
+    d'instinct, autant qu'il se voie. */
+.wrs-se::after{content:"";position:absolute;right:3px;bottom:3px;width:7px;height:7px;
+  border-right:2px solid var(--fg-dim);border-bottom:2px solid var(--fg-dim);
+  border-radius:0 0 3px 0;opacity:.5}
+.win:hover .wrs-se::after{opacity:.9}
 .win.max .tbar{cursor:default}
 .tbar{height:34px;display:flex;align-items:center;gap:8px;padding:0 10px;
   background:var(--bg-alt);border-bottom:1px solid var(--bd);cursor:grab;
@@ -1364,6 +1386,7 @@ function openWin(id, title, icon, html, w, h, x, y){
   });
   el.addEventListener("mousedown", ()=>focusWin(el));
   dragify(el);
+  resizify(el);
   focusWin(el);
   return el;
 }
@@ -1489,6 +1512,63 @@ function focusWin(el){
   document.querySelectorAll(".win").forEach(w=>w.classList.remove("active"));
   el.classList.add("active"); el.style.zIndex = ++state.zTop;
 }
+/* --- Redimensionnement des fenêtres -------------------------------------
+   Huit poignées : quatre bords, quatre coins. Mêmes pointer events que
+   dragify() — pointerdown / pointermove / pointerup avec capture — pas de
+   drag-and-drop HTML5, que ce fichier n'utilise nulle part.
+
+   Les poignées sont des éléments à part plutôt qu'un resize CSS natif :
+   `resize:both` ne fonctionne que sur un coin, seulement en bas à droite,
+   et ignore les tailles minimales qu'on veut imposer. */
+const WIN_MIN_L = 300, WIN_MIN_H = 180;
+function resizify(el){
+  const cotes = ["n","s","e","w","ne","nw","se","sw"];
+  cotes.forEach(c=>{
+    const p = document.createElement("span");
+    p.className = "wrs wrs-" + c;
+    el.appendChild(p);
+    p.addEventListener("pointerdown", e=>{
+      //  Une fenêtre agrandie n'a pas de taille propre à modifier : on la
+      //  restaure d'abord, sinon le redimensionnement se battrait avec la
+      //  règle CSS qui la colle aux bords.
+      if(el.classList.contains("max")) toggleMax(el, false);
+      e.preventDefault(); e.stopPropagation();
+      focusWin(el);
+      const r = el.getBoundingClientRect();
+      const sx = e.clientX, sy = e.clientY;
+      const d = {l:r.left, t:r.top, w:r.width, h:r.height};
+      p.setPointerCapture(e.pointerId);
+      const bouge = ev=>{
+        const dx = ev.clientX - sx, dy = ev.clientY - sy;
+        let {l,t,w,h} = d;
+        if(c.includes("e")) w = d.w + dx;
+        if(c.includes("s")) h = d.h + dy;
+        if(c.includes("w")){ w = d.w - dx; l = d.l + dx; }
+        if(c.includes("n")){ h = d.h - dy; t = d.t + dy; }
+        //  En tirant par le haut ou par la gauche, la largeur bloquée au
+        //  minimum doit FIGER le bord opposé : sans ce rattrapage, la
+        //  fenêtre continuait de glisser une fois la taille minimale
+        //  atteinte, au lieu de s'arrêter.
+        if(w < WIN_MIN_L){ if(c.includes("w")) l = d.l + (d.w - WIN_MIN_L); w = WIN_MIN_L; }
+        if(h < WIN_MIN_H){ if(c.includes("n")) t = d.t + (d.h - WIN_MIN_H); h = WIN_MIN_H; }
+        //  La barre du haut reste atteignable : une fenêtre poussée
+        //  au-dessus de 32 px ne se rattraperait plus à la souris.
+        t = Math.max(32, t);
+        el.style.left = l+"px"; el.style.top = t+"px";
+        el.style.width = w+"px"; el.style.height = h+"px";
+      };
+      const fin = ()=>{
+        p.removeEventListener("pointermove", bouge);
+        p.removeEventListener("pointerup", fin);
+        p.removeEventListener("pointercancel", fin);
+      };
+      p.addEventListener("pointermove", bouge);
+      p.addEventListener("pointerup", fin);
+      p.addEventListener("pointercancel", fin);
+    });
+  });
+}
+
 function dragify(el){
   const bar = el.querySelector(".tbar");
   let sx,sy,ox,oy,drag=false;
