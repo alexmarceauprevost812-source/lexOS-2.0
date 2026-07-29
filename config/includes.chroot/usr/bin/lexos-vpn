@@ -141,6 +141,100 @@ cmd_status() {
 	printf '  %s%s import <fichier>%s   importer un .ovpn ou un .conf WireGuard\n' "$D" "$PROG" "$R"
 }
 
+# =============================================================================
+#  VPN gratuits — lesquels valent quelque chose, et pourquoi
+# =============================================================================
+#  Faire tourner un VPN coûte cher : des serveurs, de la bande passante, du
+#  personnel. Quand c'est gratuit et que personne d'autre ne paie, ce sont
+#  tes données qui règlent la facture — publicités injectées, historique
+#  revendu, bande passante louée à d'autres. Ce n'est pas une supposition :
+#  c'est ce qu'on retrouve à chaque étude sur les applications VPN
+#  gratuites des magasins d'applications.
+#
+#  Les exceptions sont celles financées AUTREMENT. C'est le seul critère
+#  qui tienne, et c'est pourquoi chaque entrée ci-dessous dit d'où vient
+#  l'argent. Si tu ne vois pas qui paie, ne l'installe pas.
+#
+#  nom|financement|ce que ça vaut|comment l'installer
+GRATUITS="proton|Les abonnements payants de Proton (Suisse)|Données illimitées, sans publicité, sans journalisation (audité). Trois pays au niveau gratuit.|compte gratuit sur protonvpn.com, puis télécharge une configuration WireGuard
+riseup|Dons — collectif militant Riseup, sans but lucratif|Sans journalisation, sans compte à créer. Débit modeste : c'est de l'infrastructure militante, pas un service commercial.|paquet riseup-vpn
+calyx|L'Institut Calyx, organisme sans but lucratif|Même technologie que Riseup (Bitmask). Gratuit, sans compte.|paquet calyx-vpn"
+
+#  Mentionné à part : ce n'est pas gratuit, mais c'est l'option honnête
+#  quand on veut du sérieux sans se faire recruter comme produit.
+cmd_gratuit() {
+	local choix="${1:-}"
+
+	if [[ -z "$choix" ]]; then
+		printf '\n%sVPN gratuits qui ne se paient pas sur ton dos%s\n\n' "$B" "$R"
+		#  « %s\n » et non « %s » : sans saut de ligne final, `read` renvoie
+		#  faux sur la DERNIÈRE entrée et la boucle l'avale en silence.
+		printf '%s\n' "$GRATUITS" | while IFS='|' read -r cle argent vaut _comment; do
+			printf '  %s%-8s%s %s\n' "$O" "$cle" "$R" "$vaut"
+			printf '           %sfinancé par : %s%s\n\n' "$D" "$argent" "$R"
+		done
+		cat <<EOF
+  ${B}Ce qu'un VPN fait, et ce qu'il ne fait pas${R}
+    ${G}Il cache${R}    à ton fournisseur d'accès et au réseau local
+                quels sites tu visites.
+    ${E}Il ne cache pas${R} qui tu es aux sites où tu ouvres une session.
+                Connecté à ton courriel, tu es identifié, VPN ou pas.
+    ${E}Il ne rend pas anonyme.${R} Pour ça, c'est Tor, et c'est autre chose.
+
+  ${D}Sur un réseau public, HTTPS protège déjà le CONTENU de ce que tu
+  envoies. Le VPN, lui, cache la LISTE des sites. C'est utile, mais plus
+  modeste que ce que la publicité des VPN laisse croire.${R}
+
+  ${B}Payant, mais honnête${R}
+    ${O}Mullvad${R} — 5 € par mois, aucun compte, aucun courriel demandé. Un
+    numéro suffit. Si le gratuit ne convient pas, c'est là qu'il faut aller
+    plutôt que vers un « gratuit » qui n'en est pas un.
+
+  ${B}Installer${R}
+    ${O}${PROG} gratuit proton${R}   ${D}·${R}   ${O}${PROG} gratuit riseup${R}   ${D}·${R}   ${O}${PROG} gratuit calyx${R}
+EOF
+		return
+	fi
+
+	local ligne
+	ligne="$(printf '%s' "$GRATUITS" | grep "^${choix}|" || true)"
+	[[ -n "$ligne" ]] || die "Inconnu : $choix  (essaie : ${PROG} gratuit)"
+
+	local cle argent vaut _comment
+	IFS='|' read -r cle argent vaut _comment <<< "$ligne"
+	printf '\n%s%s%s\n  %s\n  %sfinancé par : %s%s\n\n' "$B" "$cle" "$R" "$vaut" "$D" "$argent" "$R"
+
+	case "$cle" in
+		proton)
+			cat <<EOF
+  Proton ne se met pas en place par un paquet Debian : leur dépôt à eux
+  devrait être ajouté à ton système, ce que LexOS ne fera pas dans ton dos.
+  Le chemin sans dépôt tiers, qui marche avec ce qui est déjà installé :
+
+    1. Crée un compte gratuit sur ${O}https://protonvpn.com${R}
+    2. Dans le tableau de bord : ${B}Downloads${R} → ${B}WireGuard configuration${R}
+    3. Choisis un serveur, télécharge le fichier ${B}.conf${R}
+    4. ${O}${PROG} import ~/Téléchargements/le-fichier.conf "Proton"${R}
+    5. ${O}${PROG} connect "Proton"${R}
+
+  ${D}NetworkManager s'occupe du reste. Aucun logiciel supplémentaire, et
+  rien d'ajouté à tes sources de paquets.${R}
+EOF
+			;;
+		riseup|calyx)
+			local paquet="${cle}-vpn"
+			printf '  Paquet Debian : %s%s%s\n\n' "$B" "$paquet" "$R"
+			if dpkg -s "$paquet" >/dev/null 2>&1; then
+				ok "$paquet est déjà installé — lance-le depuis le menu Applications."
+			else
+				say "À installer : ${D}sudo apt install ${paquet}${R}"
+				say "S'il est absent de l'archive, le client Bitmask de ${cle} se télécharge"
+				say "sur leur site — ${D}c'est le même logiciel${R}."
+			fi
+			;;
+	esac
+}
+
 cmd_help() {
 	cat <<EOF
 
@@ -156,6 +250,8 @@ ${B}COMMANDES${R}
   ${D}connect${R} "<nom>"              Se connecte
   ${D}disconnect${R} ["<nom>"]         Se déconnecte ${D}(le VPN actif si omis)${R}
   ${D}remove${R} "<nom>"               Supprime un VPN importé
+  ${D}gratuit${R}                      VPN gratuits dignes de confiance
+  ${D}gratuit${R} <nom>                 ...et comment mettre celui-là en place
 
 ${B}EXEMPLES${R}
   ${D}${PROG} import ~/Téléchargements/mon-fournisseur.ovpn${R}
@@ -175,5 +271,6 @@ case "$CMD" in
 	connect|co)     cmd_connect "$@" ;;
 	disconnect|deco) cmd_disconnect "$@" ;;
 	remove|rm)      cmd_remove "$@" ;;
+	gratuit|free)   cmd_gratuit "$@" ;;
 	*) die "Commande inconnue : ${CMD}  (essaie : ${PROG} help)" ;;
 esac

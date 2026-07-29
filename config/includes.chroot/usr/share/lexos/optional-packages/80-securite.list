@@ -9,3 +9,12 @@ clamtk
 fail2ban
 rkhunter
 chkrootkit
+
+# --- VPN gratuits dignes de confiance ----------------------------------
+# Riseup et Calyx font tourner la même technologie (Bitmask) et sont
+# financés par des dons plutôt que par la revente du trafic. Proton n'est
+# pas ici : son client vit dans un dépôt à eux, et LexOS n'ajoute pas de
+# dépôt tiers dans le dos de l'utilisateur — « lexos vpn gratuit proton »
+# passe par une configuration WireGuard, que NetworkManager sait importer.
+riseup-vpn
+calyx-vpn

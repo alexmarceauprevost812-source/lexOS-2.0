@@ -1,0 +1,293 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-clavier — plusieurs dispositions de clavier, et de quoi passer
+#                  de l'une à l'autre
+# =============================================================================
+#  Une disposition, ce n'est pas une langue : c'est ce que produit chaque
+#  touche. Quelqu'un qui écrit en français ET en anglais n'a souvent qu'un
+#  seul clavier physique — il lui faut deux dispositions et un raccourci
+#  pour basculer, pas deux ordinateurs.
+#
+#  Trois choses se règlent ici, et elles sont distinctes :
+#
+#   · la LISTE des dispositions actives — l'ordre compte, la première est
+#     celle qui s'applique à l'ouverture de session ;
+#   · la BASCULE — quelles touches font passer à la suivante ;
+#   · la disposition COURANTE — celle qui est active tout de suite.
+#
+#  Ce qui est réglé ici est appliqué immédiatement (setxkbmap) ET conservé
+#  (xfconf, plus un fichier à nous). Les deux, parce que setxkbmap seul est
+#  oublié au redémarrage, et que xfconf seul ne change rien avant la
+#  prochaine session — chacun ne fait que la moitié du travail.
+#
+#  ── Crochets de test ────────────────────────────────────────────────────
+#     LEXOS_CLAVIER_CONF  fichier de la liste (défaut ~/.config/lexos/claviers)
+#     LEXOS_SANS_X        n'essaie ni setxkbmap ni xfconf
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos clavier"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'; Y=$'\033[33m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; V=''; Y=''; B=''; D=''; R=''
+fi
+say()   { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()    { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+warn()  { printf '%s!%s %s\n' "$Y" "$R" "$*"; }
+titre() { printf '\n%s%s%s\n' "$B" "$*" "$R"; }
+die()   { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+CONF="${LEXOS_CLAVIER_CONF:-${XDG_CONFIG_HOME:-$HOME/.config}/lexos/claviers}"
+mkdir -p "$(dirname "$CONF")" 2>/dev/null
+
+# =============================================================================
+#  Catalogue
+# =============================================================================
+#  clé|disposition xkb|variante xkb|nom|famille
+#  La « clé » est ce que tape l'utilisateur ; les deux champs xkb sont ce
+#  que comprend setxkbmap. Les séparer évite d'avoir à écrire « ca(multix) »
+#  à la main, notation exacte mais que personne ne retient.
+CATALOGUE="ca-fr|ca|fr|Français (Canada)|qwerty
+ca-multi|ca|multix|Canadien multilingue|qwerty
+ca-en|ca|eng|Anglais (Canada)|qwerty
+fr|fr||Français (AZERTY)|azerty
+be|be||Belge (AZERTY)|azerty
+ch-fr|ch|fr|Suisse romand|qwertz
+us|us||Anglais (États-Unis)|qwerty
+us-intl|us|intl|Anglais international (accents)|qwerty
+gb|gb||Anglais (Royaume-Uni)|qwerty
+de|de||Allemand (QWERTZ)|qwertz
+es|es||Espagnol|qwerty
+it|it||Italien|qwerty
+pt|pt||Portugais|qwerty
+br|br||Portugais (Brésil)|qwerty
+ru|ru||Russe (ЙЦУКЕН)|jcuken
+ar|ara||Arabe|arabe
+gr|gr||Grec|grec
+jp|jp||Japonais|qwerty
+dvorak|us|dvorak|Dvorak (anglais)|dvorak
+colemak|us|colemak|Colemak (anglais)|colemak"
+
+#  Les bascules que xkb sait faire, avec leur nom d'option.
+BASCULES="alt-maj|grp:alt_shift_toggle|Alt + Maj
+ctrl-maj|grp:ctrl_shift_toggle|Ctrl + Maj
+super-espace|grp:win_space_toggle|Super + Espace
+majuscule|grp:caps_toggle|Verr. Maj
+deux-maj|grp:shifts_toggle|Les deux Maj ensemble
+alt-espace|grp:alt_space_toggle|Alt + Espace"
+
+cat_ligne() {
+	printf '%s\n' "$CATALOGUE" | while IFS='|' read -r cle xkb var nom fam; do
+		[[ "$cle" == "$1" ]] && printf '%s|%s|%s|%s\n' "$xkb" "$var" "$nom" "$fam"
+	done
+}
+nom_de() { local l; l="$(cat_ligne "$1")"; [[ -n "$l" ]] && printf '%s' "$(cut -d'|' -f3 <<< "$l")" || printf '%s' "$1"; }
+
+bascule_option() {
+	printf '%s\n' "$BASCULES" | while IFS='|' read -r cle opt _nom; do
+		[[ "$cle" == "$1" ]] && printf '%s' "$opt"
+	done
+}
+bascule_nom() {
+	printf '%s\n' "$BASCULES" | while IFS='|' read -r cle _opt nom; do
+		[[ "$cle" == "$1" ]] && printf '%s' "$nom"
+	done
+}
+
+# =============================================================================
+#  Lecture / écriture de la liste
+# =============================================================================
+#  Fichier : une ligne « LISTE=… » et une ligne « BASCULE=… ».
+LISTE="ca-fr"
+BASCULE="alt-maj"
+charge() {
+	# shellcheck disable=SC1090
+	[[ -r "$CONF" ]] && . "$CONF" 2>/dev/null
+	[[ -n "$LISTE" ]] || LISTE="ca-fr"
+}
+enregistre() {
+	printf '# Écrit par « %s ». LISTE : clés séparées par des virgules, la\n# première est celle du démarrage.\nLISTE=%s\nBASCULE=%s\n' \
+		"$PROG" "$LISTE" "$BASCULE" > "$CONF"
+}
+
+en_liste() {
+	local c
+	IFS=',' read -ra c <<< "$LISTE"
+	for x in "${c[@]}"; do [[ "$x" == "$1" ]] && return 0; done
+	return 1
+}
+
+# =============================================================================
+#  Application
+# =============================================================================
+#  setxkbmap agit tout de suite mais oublie ; xfconf conserve mais n'agit
+#  qu'à la session suivante. Il faut les deux.
+applique() {
+	[[ -n "${LEXOS_SANS_X:-}" ]] && return 0
+
+	local xkbs="" vars="" cle l xkb var
+	IFS=',' read -ra _c <<< "$LISTE"
+	for cle in "${_c[@]}"; do
+		l="$(cat_ligne "$cle")"; [[ -n "$l" ]] || continue
+		xkb="$(cut -d'|' -f1 <<< "$l")"; var="$(cut -d'|' -f2 <<< "$l")"
+		xkbs="${xkbs:+$xkbs,}$xkb"; vars="${vars:+$vars,}$var"
+	done
+	[[ -n "$xkbs" ]] || return 1
+
+	local opt; opt="$(bascule_option "$BASCULE")"
+
+	if command -v setxkbmap >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+		setxkbmap -layout "$xkbs" -variant "$vars" ${opt:+-option "$opt"} 2>/dev/null \
+			|| warn "setxkbmap a refusé — disposition inconnue de X ?"
+	fi
+	if command -v xfconf-query >/dev/null 2>&1; then
+		xfconf-query -c keyboard-layout -p /Default/XkbDisableAll -n -t bool -s false 2>/dev/null || true
+		xfconf-query -c keyboard-layout -p /Default/XkbLayout  -n -t string -s "$xkbs" 2>/dev/null || true
+		xfconf-query -c keyboard-layout -p /Default/XkbVariant -n -t string -s "$vars" 2>/dev/null || true
+		[[ -n "$opt" ]] && xfconf-query -c keyboard-layout -p /Default/XkbOptions/Group \
+			-n -t string -s "$opt" 2>/dev/null || true
+	fi
+	return 0
+}
+
+# =============================================================================
+#  Commandes
+# =============================================================================
+cmd_etat() {
+	charge
+	titre "Dispositions actives"
+	local i=1 cle
+	IFS=',' read -ra _c <<< "$LISTE"
+	for cle in "${_c[@]}"; do
+		if (( i == 1 )); then
+			printf '  %s%d.%s %-30s %s← au démarrage%s\n' "$V" "$i" "$R" "$(nom_de "$cle")" "$D" "$R"
+		else
+			printf '  %s%d.%s %s\n' "$O" "$i" "$R" "$(nom_de "$cle")"
+		fi
+		i=$(( i + 1 ))
+	done
+	(( ${#_c[@]} == 1 )) && say "Une seule — ${D}${PROG} ajouter us${R} pour en mettre une deuxième."
+
+	titre "Bascule"
+	if (( ${#_c[@]} > 1 )); then
+		ok "$(bascule_nom "$BASCULE") fait passer à la suivante."
+	else
+		say "Sans effet tant qu'il n'y a qu'une disposition. ($(bascule_nom "$BASCULE"))"
+	fi
+
+	if [[ -z "${LEXOS_SANS_X:-}" ]] && command -v setxkbmap >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+		titre "Ce que X applique en ce moment"
+		setxkbmap -query 2>/dev/null | sed 's/^/  /'
+	fi
+	printf '\n  %s%s liste%s pour voir les %d dispositions reconnues\n' \
+		"$D" "$PROG" "$R" "$(printf '%s\n' "$CATALOGUE" | grep -c .)"
+}
+
+cmd_liste() {
+	charge
+	titre "Dispositions reconnues"
+	printf '%s\n' "$CATALOGUE" | while IFS='|' read -r cle _x _v nom fam; do
+		local marque="  "
+		printf '%s' "$LISTE" | tr ',' '\n' | grep -qx "$cle" && marque="${V}✓${R} "
+		printf '  %b%s%-10s%s %-30s %s%s%s\n' "$marque" "$O" "$cle" "$R" "$nom" "$D" "$fam" "$R"
+	done
+	printf '\n  %s%s ajouter <clé>%s\n' "$B" "$PROG" "$R"
+}
+
+cmd_ajouter() {
+	charge
+	local cle="${1:-}"
+	[[ -n "$cle" ]] || { cmd_liste; exit 0; }
+	[[ -n "$(cat_ligne "$cle")" ]] || die "Disposition inconnue : $cle  (essaie : $PROG liste)"
+	en_liste "$cle" && { say "$(nom_de "$cle") est déjà dans la liste."; return; }
+
+	#  Quatre dispositions est la limite de xkb : au-delà, il ignore les
+	#  suivantes en silence. Autant le dire plutôt que le laisser arriver.
+	local n; n="$(printf '%s' "$LISTE" | tr ',' '\n' | grep -c .)"
+	(( n >= 4 )) && die "Quatre dispositions au maximum — X ignore les suivantes. Retires-en une d'abord."
+
+	LISTE="${LISTE},${cle}"
+	enregistre; applique
+	ok "$(nom_de "$cle") ajoutée."
+	(( n == 1 )) && say "${B}$(bascule_nom "$BASCULE")${R} fait maintenant passer de l'une à l'autre."
+}
+
+cmd_retirer() {
+	charge
+	local cle="${1:-}"
+	[[ -n "$cle" ]] || die "Usage : $PROG retirer <clé>"
+	en_liste "$cle" || die "$cle n'est pas dans la liste."
+	local n; n="$(printf '%s' "$LISTE" | tr ',' '\n' | grep -c .)"
+	(( n <= 1 )) && die "C'est la seule disposition — il en faut au moins une."
+
+	LISTE="$(printf '%s' "$LISTE" | tr ',' '\n' | grep -vx "$cle" | paste -sd, -)"
+	enregistre; applique
+	ok "$(nom_de "$cle") retirée."
+}
+
+#  Mettre une disposition en tête, c'est en faire celle du démarrage —
+#  et c'est aussi ce qu'on veut dire par « passe à celle-là maintenant ».
+cmd_dabord() {
+	charge
+	local cle="${1:-}"
+	[[ -n "$cle" ]] || die "Usage : $PROG dabord <clé>"
+	en_liste "$cle" || die "$cle n'est pas dans la liste ($PROG ajouter $cle)."
+	LISTE="$cle,$(printf '%s' "$LISTE" | tr ',' '\n' | grep -vx "$cle" | paste -sd, -)"
+	LISTE="${LISTE%,}"
+	enregistre; applique
+	ok "$(nom_de "$cle") passe en premier — c'est elle au démarrage."
+}
+
+cmd_bascule() {
+	charge
+	local v="${1:-}"
+	if [[ -z "$v" ]]; then
+		titre "Bascule entre dispositions"
+		printf '%s\n' "$BASCULES" | while IFS='|' read -r cle _opt nom; do
+			if [[ "$cle" == "$BASCULE" ]]; then printf '  %s✓%s %-14s %s\n' "$V" "$R" "$cle" "$nom"
+			else printf '    %s%-14s%s %s\n' "$O" "$cle" "$R" "$nom"; fi
+		done
+		printf '\n  %s%s bascule ctrl-maj%s\n' "$B" "$PROG" "$R"
+		return
+	fi
+	[[ -n "$(bascule_option "$v")" ]] || die "Bascule inconnue : $v  ($PROG bascule)"
+	BASCULE="$v"
+	enregistre; applique
+	ok "$(bascule_nom "$v") fait passer à la disposition suivante."
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — plusieurs dispositions, et de quoi passer de l'une à l'autre
+
+  ${O}$PROG${R}                  Ce qui est actif
+  ${O}$PROG liste${R}            Les 20 dispositions reconnues
+  ${O}$PROG ajouter${R} <clé>    En ajouter une ${D}(4 au maximum : limite de X)${R}
+  ${O}$PROG retirer${R} <clé>    En retirer une
+  ${O}$PROG dabord${R} <clé>     La mettre en premier ${D}(= celle du démarrage)${R}
+  ${O}$PROG bascule${R} [touches] Quelles touches font passer à la suivante
+
+${B}EXEMPLES${R}
+  ${D}$PROG ajouter us${R}          français canadien + anglais
+  ${D}$PROG bascule ctrl-maj${R}    Ctrl+Maj pour basculer
+  ${D}$PROG dabord us${R}           ouvrir la session en anglais
+
+${D}Le réglage s'applique tout de suite (setxkbmap) et se conserve (xfconf) :
+setxkbmap seul serait oublié au redémarrage, xfconf seul ne changerait rien
+avant la prochaine session.${R}
+EOF
+}
+
+case "${1:-}" in
+	""|etat|état|status)     cmd_etat ;;
+	-h|--help|aide|help)     usage ;;
+	liste|list|dispositions) cmd_liste ;;
+	ajouter|add)             shift; cmd_ajouter "${1:-}" ;;
+	retirer|remove|rm)       shift; cmd_retirer "${1:-}" ;;
+	dabord|premier|first)    shift; cmd_dabord "${1:-}" ;;
+	bascule|toggle)          shift; cmd_bascule "${1:-}" ;;
+	*) die "Sous-commande inconnue : $1  (essaie : $PROG --help)" ;;
+esac

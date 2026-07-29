@@ -634,6 +634,41 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .btn.danger{background:var(--off);border-color:var(--off);color:#fff}
 .btn.danger:hover{filter:brightness(1.12)}
 
+/* --- VPN gratuit --------------------------------------------------------
+   « Qui paie » est en accent, pas en gris : sur cette page c'est
+   l'information qui décide, pas une note de bas de page. */
+.vpn-pays{font-size:11px;color:var(--fg-dim);font-weight:400;
+  border:1px solid var(--bd);border-radius:5px;padding:1px 6px;margin-left:6px}
+.vpn-argent{font-size:12px;color:var(--ac-hi);margin-top:5px}
+.vpn-verite{background:var(--bg-alt);border:1px solid var(--bd);
+  border-radius:12px;padding:15px 17px;margin:14px 0}
+.vpn-v-t{font-weight:700;font-size:13.5px;margin-bottom:11px}
+.vpn-v-l{font-size:13px;line-height:1.6;margin-bottom:7px;color:var(--fg-dim)}
+.vpn-oui{color:var(--ok);font-weight:700}
+.vpn-non{color:var(--off);font-weight:700}
+
+/* --- Panneau « Clavier » -------------------------------------------------
+   L'aperçu montre les caractères réellement produits. Le décalage des
+   rangées vient du clavier physique : c'est ce qui le rend reconnaissable
+   sans avoir à lire chaque touche. */
+.clv-rang{display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;flex:none;border-radius:6px;font-size:11px;
+  font-weight:700;background:var(--ac-lo);color:var(--ac-hi)}
+.clv-apercu{background:var(--bg-alt);border:1px solid var(--bd);
+  border-radius:12px;padding:14px;margin:14px 0}
+.clv-apercu-t{font-size:12.5px;color:var(--fg-dim);margin-bottom:11px}
+.clv-clavier{display:flex;flex-direction:column;gap:5px;overflow-x:auto;padding-bottom:2px}
+.clv-rangee{display:flex;gap:5px;min-width:max-content}
+.clv-touche{display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;flex:none;border-radius:6px;font-size:13px;
+  background:var(--bg-hi);border:1px solid var(--bd);color:var(--fg)}
+.clv-touche.clv-espace{width:210px;font-size:11px;color:var(--fg-dim)}
+.clv-onglets{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.clv-onglet{background:none;border:1px solid var(--bd);border-radius:7px;
+  padding:5px 11px;font:inherit;font-size:12px;color:var(--fg-dim);cursor:pointer}
+.clv-onglet:hover{border-color:var(--ac)}
+.clv-onglet.on{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}
+
 /* --- Panneau « Comptes en ligne » ---------------------------------------- */
 .cpt-h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;
   color:var(--fg-dim);margin:22px 0 10px;font-weight:600}
@@ -1382,6 +1417,8 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
                 qsCompact:false, dockHidden:false, zTop:100, majDispo:false, wallpaper:"defaut", police:"defaut",
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
+                vpn:null,
+                claviers:["ca-fr"], clavierVu:0, clvBascule:"alt-maj",
                 comptes:[] /* comptes en ligne reliés : {cle, nom, monte} */,
                 bienetre:{compte:false, secondes:0, limite:0, alerte:false, pauses:false, nuit:false},
                 deskIcons:[] /* icônes épinglées au bureau : {idx, x, y} — idx = index dans APPS */ };
@@ -1494,7 +1531,18 @@ function setCrt(on){ state.crt = on; document.body.classList.toggle("crt",on); }
 function setMode(mode){
   state.mode = mode; document.body.classList.toggle("light", mode==="clair");
 }
-function setLang(code){ if(!LANGS[code]) return; state.lang=code; showSettingsSection("region"); }
+function setLang(code){
+  if(!LANGS[code]) return;
+  state.lang = code;
+  //  L'attribut lang du document n'est pas décoratif : c'est lui que
+  //  lisent le correcteur orthographique du navigateur et les lecteurs
+  //  d'écran pour choisir la bonne voix.
+  document.documentElement.lang = code.replace("_","-");
+  showSettingsSection();
+  i18nApplique();
+  toast(state.lang==="fr_CA" ? "Interface en français (Québec)"
+                             : "Interface : "+LANGS[code]);
+}
 
 /* ======================= Fenêtres ======================= */
 const winsRoot = document.getElementById("screen");
@@ -3411,6 +3459,226 @@ function togglePhoneMirror(){
   }, 1200);
 }
 /* --- Paramètres façon Ubuntu Settings : volet + contenu ----------------- */
+/* ===== Traduction de l'interface =========================================
+   Les boutons de langue ne changeaient que leur propre étiquette. Ils
+   traduisent maintenant l'interface pour de bon.
+
+   Le mécanisme : plutôt que de truffer huit cents chaînes de `t("…")` —
+   travail immense et occasion de fautes à chaque oubli — on traduit APRÈS
+   le rendu, en parcourant les nœuds de texte. Chaque nœud garde sa version
+   française d'origine ; la traduction repart toujours de celle-là, jamais
+   du texte déjà traduit, sinon deux changements de langue de suite
+   dériveraient sans retour possible.
+
+   Ce qui n'est JAMAIS traduit : le contenu de <code>, <pre>, <kbd> et du
+   terminal. Une commande traduite est une commande fausse — « lexos accent
+   violet » ne s'écrit pas autrement en anglais, et le laisser croire
+   serait pire que de ne rien traduire du tout.
+
+   Seules les correspondances EXACTES et entières comptent. Aucun
+   remplacement partiel : c'est ce qui empêche « Son » (le panneau audio)
+   d'aller corrompre le mot « Son » à l'intérieur d'une phrase. */
+const I18N = {
+ en: {
+  // — navigation des Paramètres —
+  "Réseau":"Network", "Matériel":"Hardware", "Personnalisation":"Personalisation",
+  "Comptes":"Accounts", "Périphériques":"Devices", "Système":"System",
+  "Écrans":"Displays", "Son":"Sound", "Énergie":"Power", "Appareils USB":"USB devices",
+  "Apparence":"Appearance", "Bureau LexOS":"LexOS desktop", "Multi-tâches":"Multitasking",
+  "Applications":"Applications", "Notifications":"Notifications", "Recherche":"Search",
+  "Comptes en ligne":"Online accounts", "Partage":"Sharing",
+  "Bien-être numérique":"Digital wellbeing", "Souris et pavé tactile":"Mouse and touchpad",
+  "Gestion des couleurs":"Colour management", "Imprimantes":"Printers",
+  "Supports amovibles":"Removable media", "Tablette graphique":"Graphics tablet",
+  "Confidentialité et sécurité":"Privacy and security", "Mises à jour":"Updates",
+  "Accessibilité":"Accessibility", "Utilisateurs":"Users", "Région et langue":"Region and language",
+  "Clavier":"Keyboard", "Date et heure":"Date and time",
+  "Applications par défaut":"Default applications", "Bureau à distance":"Remote desktop",
+  "À propos":"About", "À propos de LexOS":"About LexOS", "Mac (Apple)":"Mac (Apple)",
+  // — sous-titres —
+  "Langue du système":"System language", "Disposition, raccourcis":"Layout, shortcuts",
+  "Réseaux, connexion automatique":"Networks, automatic connection",
+  "Filaire, mode avion, VPN":"Wired, aeroplane mode, VPN",
+  "Appareils appairés":"Paired devices", "Disposition multi-écrans":"Multi-display layout",
+  "Volume, périphériques":"Volume, devices", "Profil de performance":"Performance profile",
+  "Branchements détectés":"Detected connections", "Thème, accent, dock, effets":"Theme, accent, dock, effects",
+  "Fond d'écran, icônes":"Wallpaper, icons", "Bureaux virtuels":"Virtual desktops",
+  "Alertes système":"System alerts", "Menu Applications":"Applications menu",
+  "Fichiers, QR code, Bluetooth":"Files, QR code, Bluetooth",
+  "Temps d'écran, pauses, lumière du soir":"Screen time, breaks, evening light",
+  "Vitesse, boutons, défilement":"Speed, buttons, scrolling",
+  "Profils ICC des écrans et imprimantes":"ICC profiles for displays and printers",
+  "Appareils installés":"Installed devices",
+  "Ce que LexOS fait quand tu branches quelque chose":"What LexOS does when you plug something in",
+  "Stylet, zone active, boutons":"Stylus, active area, buttons",
+  "Réseaux ouverts, chiffrement, autodéfense":"Open networks, encryption, self-defence",
+  "Confort visuel et clavier":"Visual and keyboard comfort", "Comptes locaux":"Local accounts",
+  "Fuseau, format, synchronisation":"Time zone, format, synchronisation",
+  "Ce qui s'ouvre pour chaque type de fichier":"What opens for each file type",
+  "Voir et contrôler cet ordinateur depuis un autre":"View and control this computer from another",
+  "Drive, OneDrive, Nextcloud… dans ton gestionnaire de fichiers":"Drive, OneDrive, Nextcloud… in your file manager",
+  // — bureau et fenêtres —
+  "Fichiers":"Files", "Terminal":"Terminal", "Paramètres":"Settings", "Musique":"Music",
+  "Navigateur":"Browser", "Notes":"Notes", "Logithèque":"Software", "Studio+":"Studio+",
+  "Bienvenue sur LexOS":"Welcome to LexOS", "Ouvrir le terminal":"Open terminal",
+  "Éteindre":"Shut down", "Redémarrer":"Restart", "Veille":"Sleep",
+  "Verrouiller":"Lock", "Fermer la session":"Log out",
+  "Annuler":"Cancel", "Confirmer":"Confirm", "Fermer":"Close", "Ouvrir":"Open",
+  "Enregistrer":"Save", "Supprimer":"Delete", "Renommer":"Rename", "Copier":"Copy",
+  "Coller":"Paste", "Couper":"Cut", "Dupliquer":"Duplicate", "Propriétés":"Properties",
+  "Nouveau dossier":"New folder", "Extraire ici":"Extract here",
+  "Ajouter un compte":"Add an account", "Les sept derniers jours":"The last seven days",
+  "Monter":"Mount", "Démonter":"Unmount", "Oublier":"Forget",
+  "Limite du jour":"Daily limit", "Rappels de pause":"Break reminders",
+  "Lumière du soir":"Evening light", "Compter le temps d'écran":"Count screen time",
+  "aucune":"none", "Disposition":"Layout", "Dispositions actives":"Active layouts",
+  "Ajouter une disposition":"Add a layout", "Bascule":"Switch key",
+ },
+ es: {
+  "Réseau":"Red", "Matériel":"Hardware", "Personnalisation":"Personalización",
+  "Comptes":"Cuentas", "Périphériques":"Dispositivos", "Système":"Sistema",
+  "Écrans":"Pantallas", "Son":"Sonido", "Énergie":"Energía", "Appareils USB":"Dispositivos USB",
+  "Apparence":"Apariencia", "Bureau LexOS":"Escritorio LexOS", "Multi-tâches":"Multitarea",
+  "Applications":"Aplicaciones", "Notifications":"Notificaciones", "Recherche":"Búsqueda",
+  "Comptes en ligne":"Cuentas en línea", "Partage":"Compartir",
+  "Bien-être numérique":"Bienestar digital", "Souris et pavé tactile":"Ratón y panel táctil",
+  "Gestion des couleurs":"Gestión del color", "Imprimantes":"Impresoras",
+  "Supports amovibles":"Medios extraíbles", "Tablette graphique":"Tableta gráfica",
+  "Confidentialité et sécurité":"Privacidad y seguridad", "Mises à jour":"Actualizaciones",
+  "Accessibilité":"Accesibilidad", "Utilisateurs":"Usuarios", "Région et langue":"Región e idioma",
+  "Clavier":"Teclado", "Date et heure":"Fecha y hora",
+  "Applications par défaut":"Aplicaciones predeterminadas", "Bureau à distance":"Escritorio remoto",
+  "À propos":"Acerca de", "À propos de LexOS":"Acerca de LexOS", "Mac (Apple)":"Mac (Apple)",
+  "Langue du système":"Idioma del sistema", "Disposition, raccourcis":"Distribución, atajos",
+  "Réseaux, connexion automatique":"Redes, conexión automática",
+  "Filaire, mode avion, VPN":"Cableado, modo avión, VPN",
+  "Appareils appairés":"Dispositivos emparejados", "Volume, périphériques":"Volumen, dispositivos",
+  "Profil de performance":"Perfil de rendimiento", "Bureaux virtuels":"Escritorios virtuales",
+  "Alertes système":"Alertas del sistema", "Menu Applications":"Menú de aplicaciones",
+  "Temps d'écran, pauses, lumière du soir":"Tiempo de pantalla, pausas, luz nocturna",
+  "Comptes locaux":"Cuentas locales", "Appareils installés":"Dispositivos instalados",
+  "Fichiers":"Archivos", "Terminal":"Terminal", "Paramètres":"Configuración", "Musique":"Música",
+  "Navigateur":"Navegador", "Notes":"Notas", "Logithèque":"Aplicaciones",
+  "Bienvenue sur LexOS":"Bienvenido a LexOS", "Ouvrir le terminal":"Abrir la terminal",
+  "Éteindre":"Apagar", "Redémarrer":"Reiniciar", "Veille":"Suspender",
+  "Verrouiller":"Bloquear", "Fermer la session":"Cerrar sesión",
+  "Annuler":"Cancelar", "Confirmer":"Confirmar", "Fermer":"Cerrar", "Ouvrir":"Abrir",
+  "Enregistrer":"Guardar", "Supprimer":"Eliminar", "Renommer":"Renombrar", "Copier":"Copiar",
+  "Coller":"Pegar", "Couper":"Cortar", "Dupliquer":"Duplicar", "Propriétés":"Propiedades",
+  "Nouveau dossier":"Nueva carpeta", "Extraire ici":"Extraer aquí",
+  "Ajouter un compte":"Añadir una cuenta", "Les sept derniers jours":"Los últimos siete días",
+  "Monter":"Montar", "Démonter":"Desmontar", "Oublier":"Olvidar",
+  "Limite du jour":"Límite diario", "Rappels de pause":"Recordatorios de pausa",
+  "Lumière du soir":"Luz nocturna", "Compter le temps d'écran":"Contar el tiempo de pantalla",
+  "aucune":"ninguno", "Disposition":"Distribución", "Dispositions actives":"Distribuciones activas",
+  "Ajouter une disposition":"Añadir una distribución", "Bascule":"Tecla de cambio",
+ },
+ de: {
+  "Réseau":"Netzwerk", "Matériel":"Hardware", "Personnalisation":"Personalisierung",
+  "Comptes":"Konten", "Périphériques":"Geräte", "Système":"System",
+  "Écrans":"Bildschirme", "Son":"Ton", "Énergie":"Energie", "Appareils USB":"USB-Geräte",
+  "Apparence":"Erscheinungsbild", "Bureau LexOS":"LexOS-Desktop", "Multi-tâches":"Multitasking",
+  "Applications":"Anwendungen", "Notifications":"Benachrichtigungen", "Recherche":"Suche",
+  "Comptes en ligne":"Online-Konten", "Partage":"Freigabe",
+  "Bien-être numérique":"Digitales Wohlbefinden", "Souris et pavé tactile":"Maus und Touchpad",
+  "Gestion des couleurs":"Farbverwaltung", "Imprimantes":"Drucker",
+  "Supports amovibles":"Wechselmedien", "Tablette graphique":"Grafiktablett",
+  "Confidentialité et sécurité":"Datenschutz und Sicherheit", "Mises à jour":"Aktualisierungen",
+  "Accessibilité":"Barrierefreiheit", "Utilisateurs":"Benutzer", "Région et langue":"Region und Sprache",
+  "Clavier":"Tastatur", "Date et heure":"Datum und Uhrzeit",
+  "Applications par défaut":"Standardanwendungen", "Bureau à distance":"Fernzugriff",
+  "À propos":"Über", "À propos de LexOS":"Über LexOS", "Mac (Apple)":"Mac (Apple)",
+  "Langue du système":"Systemsprache", "Disposition, raccourcis":"Belegung, Tastenkürzel",
+  "Réseaux, connexion automatique":"Netzwerke, automatische Verbindung",
+  "Filaire, mode avion, VPN":"Kabel, Flugmodus, VPN",
+  "Appareils appairés":"Gekoppelte Geräte", "Volume, périphériques":"Lautstärke, Geräte",
+  "Profil de performance":"Leistungsprofil", "Bureaux virtuels":"Virtuelle Arbeitsflächen",
+  "Alertes système":"Systemmeldungen", "Menu Applications":"Anwendungsmenü",
+  "Temps d'écran, pauses, lumière du soir":"Bildschirmzeit, Pausen, Abendlicht",
+  "Comptes locaux":"Lokale Konten", "Appareils installés":"Installierte Geräte",
+  "Fichiers":"Dateien", "Terminal":"Terminal", "Paramètres":"Einstellungen", "Musique":"Musik",
+  "Navigateur":"Browser", "Notes":"Notizen", "Logithèque":"Software",
+  "Bienvenue sur LexOS":"Willkommen bei LexOS", "Ouvrir le terminal":"Terminal öffnen",
+  "Éteindre":"Herunterfahren", "Redémarrer":"Neu starten", "Veille":"Bereitschaft",
+  "Verrouiller":"Sperren", "Fermer la session":"Abmelden",
+  "Annuler":"Abbrechen", "Confirmer":"Bestätigen", "Fermer":"Schließen", "Ouvrir":"Öffnen",
+  "Enregistrer":"Speichern", "Supprimer":"Löschen", "Renommer":"Umbenennen", "Copier":"Kopieren",
+  "Coller":"Einfügen", "Couper":"Ausschneiden", "Dupliquer":"Duplizieren", "Propriétés":"Eigenschaften",
+  "Nouveau dossier":"Neuer Ordner", "Extraire ici":"Hier entpacken",
+  "Ajouter un compte":"Konto hinzufügen", "Les sept derniers jours":"Die letzten sieben Tage",
+  "Monter":"Einhängen", "Démonter":"Aushängen", "Oublier":"Vergessen",
+  "Limite du jour":"Tageslimit", "Rappels de pause":"Pausenerinnerungen",
+  "Lumière du soir":"Abendlicht", "Compter le temps d'écran":"Bildschirmzeit zählen",
+  "aucune":"keines", "Disposition":"Belegung", "Dispositions actives":"Aktive Belegungen",
+  "Ajouter une disposition":"Belegung hinzufügen", "Bascule":"Umschalttaste",
+ },
+ //  Le français de France diffère peu de celui du Québec ; ce qui change,
+ //  ce sont les mots que l'Office québécois a francisés et que la France
+ //  emploie en anglais. Traduire n'est pas seulement changer de langue.
+ fr_FR: { "Courriel":"E-mail", "Clavarder":"Chatter", "Baladodiffusion":"Podcast",
+          "Fin de semaine":"Week-end", "Magasiner":"Faire les boutiques" },
+};
+//  en_US et en_CA partagent le même dictionnaire : les différences
+//  (colour/color) ne valent pas deux tables à tenir à jour.
+function i18nTable(code){
+  if(code==="fr_CA") return null;
+  if(code==="fr_FR") return I18N.fr_FR;
+  if(code.startsWith("en")) return I18N.en;
+  if(code.startsWith("es")) return I18N.es;
+  if(code.startsWith("de")) return I18N.de;
+  return null;
+}
+//  Là où traduire ferait plus de mal que de bien.
+const I18N_INTACT = new Set(["CODE","PRE","KBD","SCRIPT","STYLE","TEXTAREA","SVG","OPTION"]);
+const I18N_ORIG = new WeakMap();          // nœud → sa version française
+
+function i18nTraduisNoeud(n, table){
+  let fr = I18N_ORIG.get(n);
+  if(fr === undefined){ fr = n.nodeValue; I18N_ORIG.set(n, fr); }
+  const clef = fr.trim();
+  if(!clef) return;
+  const t = table && table[clef];
+  //  On réinjecte l'espacement d'origine autour du mot : le supprimer
+  //  collerait les mots à leurs voisins dans les phrases mises en forme.
+  const v = t ? fr.replace(clef, t) : fr;
+  if(n.nodeValue !== v) n.nodeValue = v;
+}
+
+function i18nApplique(racine){
+  const table = i18nTable(state.lang);
+  const it = document.createTreeWalker(racine || document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(n){
+      const p = n.parentNode;
+      if(!p) return NodeFilter.FILTER_REJECT;
+      if(I18N_INTACT.has(p.nodeName)) return NodeFilter.FILTER_REJECT;
+      if(p.closest && p.closest(".term,.terminal,code,pre,.std-scene")) return NodeFilter.FILTER_REJECT;
+      return n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    }
+  });
+  const lot = [];
+  for(let n = it.nextNode(); n; n = it.nextNode()) lot.push(n);
+  lot.forEach(n => i18nTraduisNoeud(n, table));
+
+  //  Les infobulles aussi : une interface à moitié traduite est pire
+  //  qu'une interface qui ne l'est pas, on ne sait plus quoi croire.
+  (racine || document.body).querySelectorAll?.("[title]").forEach(el=>{
+    if(!I18N_ORIG.has(el)) I18N_ORIG.set(el, el.getAttribute("title"));
+    const fr = I18N_ORIG.get(el);
+    el.setAttribute("title", (table && table[fr.trim()]) || fr);
+  });
+}
+
+/*  Le rendu de la démo est reconstruit à chaque clic. Plutôt que d'aller
+    appeler la traduction depuis quarante fonctions d'affichage — et d'en
+    oublier une —, on observe le DOM : tout ce qui apparaît est traduit.
+    Le délai groupe les rafales de mutations en un seul passage. */
+let i18nMinuteur = null;
+new MutationObserver(()=>{
+  if(state.lang === "fr_CA") return;
+  clearTimeout(i18nMinuteur);
+  i18nMinuteur = setTimeout(()=>i18nApplique(), 40);
+}).observe(document.documentElement, {childList:true, subtree:true});
+
 /* --- Boîte de confirmation ------------------------------------------------
    Le geste destructeur ne doit pas se jouer au même endroit que le geste
    ordinaire : ici il faut viser un autre bouton, dans une autre boîte, où
@@ -3436,6 +3704,136 @@ function ctxConfirme(titre, texte, onOui, motOui){
   addEventListener("keydown", esc);
   document.body.appendChild(f);
   f.querySelector("[data-non]").focus();   // le refus est le choix par défaut
+}
+
+/* ===== VPN gratuits ======================================================
+   Faire tourner un VPN coûte cher. Quand c'est gratuit et que personne
+   d'autre ne paie, ce sont les données de l'utilisateur qui règlent la
+   facture — c'est ce que retrouve chaque étude sur les applications VPN
+   gratuites des magasins d'applications.
+
+   Les trois ci-dessous sont financés AUTREMENT, et c'est le seul critère
+   qui tienne. D'où la colonne « qui paie » : elle n'est pas un détail de
+   présentation, c'est l'information qui permet de décider. Mêmes entrées
+   que « lexos vpn gratuit » sur l'ISO ; une vérification les compare. */
+const VPN_GRATUITS = [
+  {cle:"proton", nom:"Proton VPN", pays:"Suisse",
+   argent:"Les abonnements payants de Proton",
+   vaut:"Données illimitées, sans publicité, sans journalisation (audité). Trois pays au niveau gratuit.",
+   comment:"Compte gratuit, puis une configuration WireGuard à importer — aucun dépôt tiers à ajouter."},
+  {cle:"riseup", nom:"Riseup VPN", pays:"États-Unis",
+   argent:"Des dons — collectif militant, sans but lucratif",
+   vaut:"Sans journalisation, sans compte à créer. Débit modeste : c'est de l'infrastructure militante, pas un service commercial.",
+   comment:"Paquet riseup-vpn."},
+  {cle:"calyx", nom:"Calyx VPN", pays:"États-Unis",
+   argent:"L'Institut Calyx, organisme sans but lucratif",
+   vaut:"Même technologie que Riseup (Bitmask). Gratuit, sans compte.",
+   comment:"Paquet calyx-vpn."},
+];
+function vpnBranche(cle){
+  const v = VPN_GRATUITS.find(x=>x.cle===cle); if(!v) return;
+  if(state.vpn === cle){ state.vpn = null; showSettingsSection();
+    toast("VPN déconnecté — ton trafic repasse en direct"); return; }
+  toast("→ Négociation de la clé avec "+v.nom+"…");
+  setTimeout(()=>{ state.vpn = cle; showSettingsSection();
+    toast("🔒 "+v.nom+" — ton fournisseur d'accès ne voit plus quels sites tu visites"); }, 900);
+}
+
+/* ===== Dispositions de clavier ===========================================
+   Les mêmes clés que « lexos clavier liste » sur l'ISO, avec la même
+   disposition xkb et la même variante — c'est ce couple que setxkbmap
+   attend, et une faute d'un seul côté donnerait à l'utilisateur une
+   commande qui échoue. Une vérification d'intégration les compare.
+
+   Les quatre rangées ne sont pas décoratives : ce sont les caractères que
+   produit RÉELLEMENT chaque touche. C'est la seule façon honnête de
+   montrer une disposition — dire « AZERTY » ne dit pas où est le M. */
+const CLAVIERS = [
+ {cle:"ca-fr", xkb:"ca", var:"fr", nom:"Français (Canada)", fam:"QWERTY", dr:"CA", r:[
+  "1234567890-=","qwertyuiop^¸","asdfghjkl;èà","zxcvbnm,.é"]},
+ {cle:"ca-multi", xkb:"ca", var:"multix", nom:"Canadien multilingue", fam:"QWERTY", dr:"CA", r:[
+  "1234567890-=","qwertyuiop^ç","asdfghjkl;èà","zxcvbnm,.é"]},
+ {cle:"ca-en", xkb:"ca", var:"eng", nom:"Anglais (Canada)", fam:"QWERTY", dr:"CA", r:[
+  "1234567890-=","qwertyuiop[]","asdfghjkl;'","zxcvbnm,./"]},
+ {cle:"fr", xkb:"fr", var:"", nom:"Français (AZERTY)", fam:"AZERTY", dr:"FR", r:[
+  "&é\"'(-è_çà)=","azertyuiop^$","qsdfghjklmù*","wxcvbn,;:!"]},
+ {cle:"be", xkb:"be", var:"", nom:"Belge (AZERTY)", fam:"AZERTY", dr:"BE", r:[
+  "&é\"'(§è!çà)-","azertyuiop^$","qsdfghjklmùµ","wxcvbn,;:="]},
+ {cle:"ch-fr", xkb:"ch", var:"fr", nom:"Suisse romand", fam:"QWERTZ", dr:"CH", r:[
+  "1234567890'^","qwertzuiopè¨","asdfghjkléà$","yxcvbnm,.-"]},
+ {cle:"us", xkb:"us", var:"", nom:"Anglais (États-Unis)", fam:"QWERTY", dr:"US", r:[
+  "1234567890-=","qwertyuiop[]","asdfghjkl;'","zxcvbnm,./"]},
+ {cle:"us-intl", xkb:"us", var:"intl", nom:"Anglais international", fam:"QWERTY + accents", dr:"US", r:[
+  "1234567890-=","qwertyuiop[]","asdfghjkl;'","zxcvbnm,./"]},
+ {cle:"gb", xkb:"gb", var:"", nom:"Anglais (Royaume-Uni)", fam:"QWERTY", dr:"GB", r:[
+  "1234567890-=","qwertyuiop[]","asdfghjkl;'#","zxcvbnm,./"]},
+ {cle:"de", xkb:"de", var:"", nom:"Allemand (QWERTZ)", fam:"QWERTZ", dr:"DE", r:[
+  "1234567890ß´","qwertzuiopü+","asdfghjklöä#","yxcvbnm,.-"]},
+ {cle:"es", xkb:"es", var:"", nom:"Espagnol", fam:"QWERTY", dr:"ES", r:[
+  "1234567890'¡","qwertyuiop`+","asdfghjklñ´ç","zxcvbnm,.-"]},
+ {cle:"it", xkb:"it", var:"", nom:"Italien", fam:"QWERTY", dr:"IT", r:[
+  "1234567890'ì","qwertyuiopè+","asdfghjklòàù","zxcvbnm,.-"]},
+ {cle:"pt", xkb:"pt", var:"", nom:"Portugais", fam:"QWERTY", dr:"PT", r:[
+  "1234567890'«","qwertyuiop+´","asdfghjklçº~","zxcvbnm,.-"]},
+ {cle:"br", xkb:"br", var:"", nom:"Portugais (Brésil)", fam:"QWERTY", dr:"BR", r:[
+  "1234567890-=","qwertyuiop´[","asdfghjklç~]","zxcvbnm,.;"]},
+ {cle:"ru", xkb:"ru", var:"", nom:"Russe (ЙЦУКЕН)", fam:"ЙЦУКЕН", dr:"RU", r:[
+  "1234567890-=","йцукенгшщзхъ","фывапролджэ","ячсмитьбю."]},
+ {cle:"ar", xkb:"ara", var:"", nom:"Arabe", fam:"عربي", dr:"AR", r:[
+  "١٢٣٤٥٦٧٨٩٠-=","ضصثقفغعهخحجد","شسيبلاتنمكط","ئءؤرىةوزظ"]},
+ {cle:"gr", xkb:"gr", var:"", nom:"Grec", fam:"Ελληνικά", dr:"GR", r:[
+  "1234567890-=",";ςερτυθιοπ[]","ασδφγηξκλ΄'","ζχψωβνμ,./"]},
+ {cle:"jp", xkb:"jp", var:"", nom:"Japonais", fam:"QWERTY + kana", dr:"JP", r:[
+  "1234567890-^","qwertyuiop@[","asdfghjkl;:]","zxcvbnm,./"]},
+ {cle:"dvorak", xkb:"us", var:"dvorak", nom:"Dvorak (anglais)", fam:"Dvorak", dr:"DV", r:[
+  "1234567890[]","',.pyfgcrl/=","aoeuidhtns-",";qjkxbmwvz"]},
+ {cle:"colemak", xkb:"us", var:"colemak", nom:"Colemak (anglais)", fam:"Colemak", dr:"CM", r:[
+  "1234567890-=","qwfpgjluy;[]","arstdhneio'","zxcvbkm,./"]},
+];
+const CLV_BASCULES = [["alt-maj","Alt + Maj"],["ctrl-maj","Ctrl + Maj"],
+  ["super-espace","Super + Espace"],["majuscule","Verr. Maj"],
+  ["deux-maj","Les deux Maj ensemble"],["alt-espace","Alt + Espace"]];
+function clavierDe(cle){ return CLAVIERS.find(k=>k.cle===cle) || CLAVIERS[0]; }
+function clavierDessin(cle){
+  const k = clavierDe(cle);
+  //  Le décalage des rangées est ce qui rend un clavier reconnaissable
+  //  d'un coup d'oeil ; sans lui on ne lirait qu'une grille de lettres.
+  const dec = [0, 14, 22, 34];
+  return `<div class="clv-clavier" dir="${cle==="ar"?"rtl":"ltr"}">
+    ${k.r.map((rang,i)=>`<div class="clv-rangee" style="padding-left:${dec[i]}px">
+      ${[...rang].map(c=>`<span class="clv-touche">${c==="&"?"&amp;":c==="<"?"&lt;":c}</span>`).join("")}
+    </div>`).join("")}
+    <div class="clv-rangee" style="padding-left:${dec[3]+18}px">
+      <span class="clv-touche clv-espace">espace</span></div>
+  </div>`;
+}
+function clvAjoute(cle){
+  if(state.claviers.length >= 4){ toast("Quatre dispositions au maximum"); return; }
+  if(state.claviers.includes(cle)) return;
+  state.claviers.push(cle);
+  state.clavierVu = state.claviers.length - 1;
+  showSettingsSection();
+  toast("✓ "+clavierDe(cle).nom+(state.claviers.length===2
+      ? " — "+(CLV_BASCULES.find(b=>b[0]===state.clvBascule)||[])[1]+" pour basculer" : ""));
+}
+function clvRetire(cle){
+  if(state.claviers.length <= 1){ toast("Il en faut au moins une"); return; }
+  state.claviers = state.claviers.filter(x=>x!==cle);
+  state.clavierVu = Math.min(state.clavierVu, state.claviers.length-1);
+  showSettingsSection();
+  toast(clavierDe(cle).nom+" retirée");
+}
+function clvDabord(cle){
+  state.claviers = [cle, ...state.claviers.filter(x=>x!==cle)];
+  state.clavierVu = 0;
+  showSettingsSection();
+  toast(clavierDe(cle).nom+" — c'est elle à l'ouverture de session");
+}
+function clvVoir(i){ state.clavierVu = i; showSettingsSection(); }
+function clvBascule(v){
+  state.clvBascule = v;
+  const n = (CLV_BASCULES.find(b=>b[0]===v)||[])[1];
+  toast(n+" fait passer à la disposition suivante");
 }
 
 /* ===== Comptes en ligne ==================================================
@@ -4001,7 +4399,48 @@ function settingsSection(key){
       <div class="srow"><div class="t">Anti-rootkit (rkhunter, chkrootkit)</div><div class="d">Recherche de logiciels malveillants cachés</div></div>
       <p class="notice">Sur la vraie ISO : <code>lexos secure</code> (état), <code>lexos secure enable</code>
       (active tout avec des réglages sûrs), <code>lexos secure scan</code> (analyse complète).</p>
-      <p class="notice">Rien n'efface jamais le disque sans confirmation : voir « Installer LexOS ».</p>`;
+      <p class="notice">Rien n'efface jamais le disque sans confirmation : voir « Installer LexOS ».</p>
+
+      <h3 class="cpt-h3">VPN gratuit</h3>
+      <div class="warnbox">Un VPN gratuit coûte cher à faire tourner. Si personne
+        d'autre ne paie, <b>ce sont tes données qui règlent la facture</b> — publicités
+        injectées, historique revendu, bande passante louée à d'autres. Les trois
+        ci-dessous sont financés autrement, et c'est le seul critère qui tienne&nbsp;:
+        chacun dit d'où vient son argent. <b>Si tu ne vois pas qui paie, n'installe pas.</b></div>
+
+      ${VPN_GRATUITS.map(v=>`<div class="srow">
+        <div style="min-width:0">
+          <div class="t">${v.nom} <span class="vpn-pays">${v.pays}</span></div>
+          <div class="d">${v.vaut}</div>
+          <div class="vpn-argent">Qui paie&nbsp;: ${v.argent}</div>
+          <div class="d" style="margin-top:5px">${v.comment}</div></div>
+        <button class="btn ${state.vpn===v.cle?"":"ghost"} mini" style="width:auto;flex:none"
+                onclick="vpnBranche('${v.cle}')">${state.vpn===v.cle?"Déconnecter":"Connecter"}</button>
+      </div>`).join("")}
+
+      <div class="vpn-verite">
+        <div class="vpn-v-t">Ce qu'un VPN fait — et ce qu'il ne fait pas</div>
+        <div class="vpn-v-l"><span class="vpn-oui">Il cache</span>
+          à ton fournisseur d'accès et au réseau local <b>quels sites tu visites</b>.</div>
+        <div class="vpn-v-l"><span class="vpn-non">Il ne cache pas</span>
+          qui tu es aux sites où tu ouvres une session. Connecté à ton courriel,
+          tu es identifié, VPN ou pas.</div>
+        <div class="vpn-v-l"><span class="vpn-non">Il ne rend pas anonyme.</span>
+          Pour ça c'est Tor, et c'est un autre outil pour un autre besoin.</div>
+        <div class="d" style="margin-top:10px">Sur un réseau public, HTTPS protège
+          déjà le <b>contenu</b> de ce que tu envoies. Le VPN, lui, cache la
+          <b>liste</b> des sites. C'est utile, mais plus modeste que ce que la
+          publicité des VPN laisse croire.</div>
+      </div>
+
+      <p class="notice"><b>Payant, mais honnête&nbsp;:</b> Mullvad — 5&nbsp;€ par mois,
+        aucun compte, aucun courriel demandé, un numéro suffit. Si le gratuit ne
+        convient pas, c'est là qu'il faut aller plutôt que vers un « gratuit » qui
+        n'en est pas un.</p>
+      <p class="notice">Sur la vraie ISO&nbsp;: <code>lexos vpn gratuit</code> pour la
+        liste, <code>lexos vpn gratuit proton</code> pour la marche à suivre,
+        <code>lexos vpn import fichier.conf</code> puis <code>lexos vpn connect</code>.
+        Tout passe par NetworkManager — rien n'est ajouté à tes sources de paquets.</p>`;
     case "maj": return `<h2>Mises à jour</h2><div class="sub">${state.majDispo?"Une mise à jour est disponible":"Système à jour"}</div>
       <div style="display:flex;align-items:center;gap:14px;margin:10px 0">
         <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center">${majGlyph()}</span>
@@ -4025,8 +4464,56 @@ function settingsSection(key){
       <code>locales-all</code> — toutes les langues de glibc, déjà prêtes — et
       <code>lexos lang quebecois</code> (ou tout code : <code>fr_FR.UTF-8</code>, <code>en_US.UTF-8</code>…)
       change la langue du système entier. <code>lexos lang toutes</code> les liste toutes.</p>`;
-    case "clavier": return `<h2>Clavier</h2><div class="sub">Disposition, raccourcis</div>
-      <div class="srow"><div class="t">Disposition</div><div class="d">Français (Canada)</div></div>`;
+    case "clavier": {
+      const act = state.claviers;
+      const dispo = CLAVIERS.filter(k=>!act.includes(k.cle));
+      return `<h2>Clavier</h2><div class="sub">Disposition, raccourcis</div>
+
+      <h3 class="cpt-h3">Dispositions actives</h3>
+      ${act.map((cle,i)=>{
+        const k = clavierDe(cle);
+        return `<div class="srow">
+          <div style="display:flex;align-items:center;gap:11px;min-width:0">
+            <span class="clv-rang">${i+1}</span>
+            <div><div class="t">${k.nom}</div>
+              <div class="d">${i===0 ? "S'applique à l'ouverture de session"
+                                     : "Accessible par la bascule"} · <code>${k.xkb}${k.var?"("+k.var+")":""}</code></div></div></div>
+          <div style="display:flex;gap:6px;flex:none">
+            ${i>0?`<button class="btn ghost mini" style="width:auto" onclick="clvDabord('${cle}')">Mettre en premier</button>`:""}
+            ${act.length>1?`<button class="btn ghost mini" style="width:auto" onclick="clvRetire('${cle}')">Retirer</button>`:""}
+          </div></div>`;
+      }).join("")}
+
+      <div class="clv-apercu">
+        <div class="clv-apercu-t">Aperçu de <b>${clavierDe(act[state.clavierVu]||act[0]).nom}</b></div>
+        ${clavierDessin(act[state.clavierVu]||act[0])}
+        ${act.length>1?`<div class="clv-onglets">${act.map((cle,i)=>
+          `<button class="clv-onglet${i===state.clavierVu?" on":""}" onclick="clvVoir(${i})">${clavierDe(cle).nom}</button>`).join("")}</div>`:""}
+      </div>
+
+      ${act.length>1 ? `<div class="srow"><div><div class="t">Bascule</div>
+        <div class="d">Les touches qui font passer à la disposition suivante</div></div>
+        <select class="mac-sel" style="max-width:200px" onchange="clvBascule(this.value)">
+          ${CLV_BASCULES.map(([c,n])=>`<option value="${c}"${c===state.clvBascule?" selected":""}>${n}</option>`).join("")}
+        </select></div>` : ""}
+
+      ${dispo.length && act.length<4 ? `<h3 class="cpt-h3">Ajouter une disposition</h3>
+      <div class="cpt-grille">
+        ${dispo.map(k=>`<button class="cpt-carte" onclick="clvAjoute('${k.cle}')">
+            <span class="cpt-ic">${k.dr}</span>
+            <span class="cpt-nom">${k.nom}</span>
+            <span class="cpt-type">${k.fam}</span></button>`).join("")}
+      </div>` : act.length>=4 ? `<div class="warnbox">Quatre dispositions au maximum&nbsp;:
+        au-delà, X ignore les suivantes <b>en silence</b>. Retires-en une pour
+        pouvoir en ajouter une autre.</div>` : ""}
+
+      <p class="notice">Sur la vraie ISO&nbsp;: <code>lexos clavier</code> pour l'état,
+        <code>lexos clavier ajouter us</code> pour en ajouter une,
+        <code>lexos clavier bascule ctrl-maj</code> pour choisir les touches.
+        Le réglage est appliqué tout de suite (<code>setxkbmap</code>) <b>et</b> conservé
+        (<code>xfconf</code>)&nbsp;: le premier serait oublié au redémarrage, le second
+        ne changerait rien avant la prochaine session.</p>`;
+    }
     /*  Panneaux repris de GNOME Paramètres, tel qu'Ubuntu le livre :
         ils manquaient à l'appel alors que le reste y était. */
     case "amovibles": return `<h2>Supports amovibles</h2>
@@ -4221,7 +4708,9 @@ function renderSettingsNav(cur){
       // rendu, pour que le Wi-Fi affiche son état courant et non celui du
       // chargement de la page.
       const glyph = (typeof ic === "function") ? ic() : ic;
-      return `<button class="${k===cur?"on":""}" onclick="showSettingsSection('${k}')">${glyph} ${label}</button>`;
+      //  Le libellé est enveloppé : collé à l'icône il formerait un seul
+      //  nœud de texte (« 🌐 Réseau »), que la traduction ne reconnaîtrait pas.
+      return `<button class="${k===cur?"on":""}" onclick="showSettingsSection('${k}')">${glyph} <span class="set-lbl">${label}</span></button>`;
     }).join("")
   ).join("");
 }

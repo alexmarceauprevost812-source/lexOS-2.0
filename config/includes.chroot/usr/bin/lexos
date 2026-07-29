@@ -146,6 +146,12 @@ ${B}ARCHIVES${R}
   ${A}run-ins${R} <archive.zip> Installe une application livrée en .zip
                       ${D}montre ce qu'elle contient et demande avant d'exécuter${R}
 
+${B}CLAVIER${R}
+  ${A}clavier${R}             Dispositions actives et bascule
+  ${A}clavier liste${R}       Les 20 dispositions reconnues
+  ${A}clavier ajouter${R} <c> En ajouter une ${D}(4 au maximum : limite de X)${R}
+  ${A}clavier bascule${R} <t> Quelles touches font passer à la suivante
+
 ${B}COMPTES EN LIGNE${R}
   ${A}comptes${R}             Ce qui est relié, ce qui est monté
   ${A}comptes services${R}    Drive · OneDrive · Dropbox · Nextcloud · Proton · S3…
@@ -194,6 +200,7 @@ ${B}EXEMPLES${R}
   ${D}${PROG} lang quebecois${R}
   ${D}${PROG} sticker photo.jpg${R}
   ${D}${PROG} mac demarrage${R}
+  ${D}${PROG} clavier ajouter us${R}
   ${D}${PROG} comptes ajouter google${R}
   ${D}${PROG} bienetre semaine${R}
   ${D}${PROG} ia "libère 2 Gio d'espace disque"${R}
@@ -633,6 +640,7 @@ case "$CMD" in
 	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;
+	clavier|keyboard)     exec lexos-clavier "$@" ;;
 	comptes|compte)       exec lexos-comptes "$@" ;;
 	bienetre|bien-etre|bien-être) exec lexos-bienetre "$@" ;;
 	mac|apple)            exec lexos-mac "$@" ;;
