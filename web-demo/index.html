@@ -620,6 +620,40 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   max-height:100%;overflow:auto;font:12.5px/1.55 ui-monospace,monospace;
   white-space:pre-wrap;word-break:break-word}
 
+/* --- Musique : lecteur de fichiers réels --------------------------------- */
+.mus-tete{display:flex;align-items:center;gap:13px;margin-bottom:10px}
+.mus-globe{flex:none;width:74px;height:74px;display:block}
+/*  Le globe ne tourne QUE pendant la lecture : c'est l'indicateur d'état
+    le plus lisible, et il évite une animation permanente de plus. */
+.mus-globe .globe-mer ellipse{animation-play-state:paused}
+.mus-globe.mus-tourne .globe-mer ellipse{animation-play-state:running}
+.mus-info{flex:1;min-width:0}
+.mus-titre{display:block;font-size:13.5px;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mus-sous{display:block;font-size:11.5px;color:var(--fg-dim);
+  font-family:ui-monospace,monospace;margin-top:3px}
+.mus-seek{width:100%;accent-color:var(--ac);margin:2px 0 8px}
+.mus-cmd{display:flex;align-items:center;gap:7px;margin-bottom:11px}
+.mus-cmd .btn{padding:6px 13px;font-size:14px}
+.mus-vol{display:flex;align-items:center;gap:5px;margin-left:auto;font-size:12px}
+.mus-vol input{width:74px;accent-color:var(--ac)}
+.mus-liste{display:flex;flex-direction:column;gap:3px;margin-bottom:10px;
+  max-height:190px;overflow-y:auto}
+.mus-p{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:8px;
+  border:1px solid var(--bd);background:var(--bg-alt);font-size:12.5px;cursor:pointer}
+.mus-p:hover{border-color:var(--ac-lo)}
+.mus-p.on{border-color:var(--ac);background:var(--bg-hi)}
+.mus-i{width:16px;flex:none;text-align:center;color:var(--fg-dim);font-size:11px}
+.mus-p.on .mus-i{color:var(--ac)}
+.mus-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mus-d{flex:none;color:var(--fg-dim);font-size:11px;font-family:ui-monospace,monospace}
+.mus-x{flex:none;width:16px;height:16px;border-radius:4px;color:var(--fg-dim);
+  font-size:9px;line-height:1}
+.mus-x:hover{background:#C62828;color:#fff}
+.mus-vide{color:var(--fg-dim);font-size:12.5px;padding:18px 6px;text-align:center;
+  line-height:1.5}
+.win.mus-drop{outline:2px dashed var(--ac);outline-offset:-6px}
+
 /* --- Studio+ LexOS : retouche d'image ------------------------------------ */
 .std-logo{display:inline-block;vertical-align:middle;background-image:var(--logo-icon);
   background-size:contain;background-repeat:no-repeat;background-position:center}
@@ -1960,7 +1994,21 @@ function filesAppGlyph(size){
     `<path d="${FOLD_BACK}" fill="var(--ac-lo)"/>`+
     `<rect class="files-page" x="150" y="150" width="220" height="200" rx="12"`+
     ` fill="#F2EDE4"/>`+
-    `<path class="files-front" d="${FOLD_FRONT}" fill="var(--ac)"/>`+
+    //  La maison est DANS le groupe de la poche : elle bascule avec elle au
+    //  survol. Posée à côté, elle resterait droite pendant que le dossier
+    //  s'ouvre, et l'illusion tomberait.
+    `<g class="files-front">`+
+      `<path d="${FOLD_FRONT}" fill="var(--ac)"/>`+
+      //  Noir franc et trait épais : le repère doit se lire à 24 px dans le
+      //  dock, pas seulement en grand.
+      `<g fill="none" stroke="#0B0B0C" stroke-width="26"`+
+      ` stroke-linejoin="round" stroke-linecap="round">`+
+        `<path d="M 214 316 L 276 258 L 338 316"/>`+
+        `<path d="M 232 306 V 372 H 320 V 306"/>`+
+      `</g>`+
+      `<rect x="258" y="326" width="36" height="34" fill="#0B0B0C"/>`+
+      `<path d="M 276 326 V 360 M 258 343 H 294" stroke="var(--ac)" stroke-width="7"/>`+
+    `</g>`+
   `</svg>`;
 }
 /*  Gestion des couleurs : arc-en-ciel en 6 bandes concentriques, animé par
@@ -2162,16 +2210,167 @@ function stickerSave(){
   if(!c || !c.width) return;
   stickerDownload(c,"autocollant.png");
 }
+/* --- Musique : un vrai lecteur pour les fichiers de l'ordinateur ---------
+   La fenêtre ne montrait qu'un globe et un nom de piste inventé. Elle lit
+   maintenant de VRAIS fichiers : ceux que tu ajoutes depuis le disque, ou
+   ceux déposés sur la fenêtre. C'est <audio> qui décode — donc tout ce que
+   le navigateur sait lire (mp3, ogg, flac, wav, m4a…).
+
+   Aucun fichier n'est téléversé nulle part : URL.createObjectURL ne fait
+   que donner une adresse locale au fichier déjà sur la machine. */
+const musListe = [];            // {nom, url, duree} — vidée au rechargement
+let musIndex = -1, musAudio = null;
+
+function musInit(){
+  if(musAudio) return musAudio;
+  musAudio = new Audio();
+  musAudio.addEventListener("timeupdate", musMajTemps);
+  musAudio.addEventListener("loadedmetadata", ()=>{
+    if(musListe[musIndex]) musListe[musIndex].duree = musAudio.duration;
+    musMajTemps(); musRendListe();
+  });
+  musAudio.addEventListener("ended", ()=>musSuivant());
+  musAudio.addEventListener("play",  musMajBoutons);
+  musAudio.addEventListener("pause", musMajBoutons);
+  //  Un format que le navigateur ne sait pas décoder échouerait en silence :
+  //  sans ce message, la piste resterait figée à 0:00 sans explication.
+  musAudio.addEventListener("error", ()=>{
+    const t = musListe[musIndex];
+    if(t) toast("Format non lisible ici : " + t.nom);
+  });
+  return musAudio;
+}
+function musTemps(s){
+  if(!isFinite(s) || s<0) return "0:00";
+  const m=Math.floor(s/60), r=Math.floor(s%60);
+  return m + ":" + String(r).padStart(2,"0");
+}
+function musAjoute(fichiers){
+  let n=0;
+  for(const f of fichiers){
+    //  On accepte aussi les fichiers dont le type MIME est vide : certains
+    //  systèmes ne le renseignent pas, et refuser sur ce seul critère
+    //  écarterait des pistes parfaitement lisibles.
+    if(f.type && !f.type.startsWith("audio/")) continue;
+    musListe.push({nom:f.name, url:URL.createObjectURL(f), duree:NaN});
+    n++;
+  }
+  if(!n){ toast("Aucun fichier audio dans la sélection"); return; }
+  toast(n===1 ? "Ajouté : "+fichiers[0].name : n+" morceaux ajoutés");
+  musRendListe();
+  if(musIndex<0) musJoue(musListe.length-n);
+}
+function musOuvre(){
+  const inp=document.createElement("input");
+  inp.type="file"; inp.accept="audio/*"; inp.multiple=true;
+  inp.onchange=()=>{ if(inp.files) musAjoute(inp.files); };
+  inp.click();
+}
+function musJoue(i){
+  const t=musListe[i]; if(!t) return;
+  musInit();
+  musIndex=i;
+  musAudio.src=t.url;
+  musAudio.play().catch(()=>toast("Lecture refusée par le navigateur"));
+  musRendListe(); musMajBoutons();
+}
+function musBascule(){
+  musInit();
+  if(musIndex<0){ if(musListe.length) musJoue(0); else musOuvre(); return; }
+  musAudio.paused ? musAudio.play().catch(()=>{}) : musAudio.pause();
+}
+function musSuivant(){ if(musListe.length) musJoue((musIndex+1) % musListe.length); }
+function musPrecedent(){
+  if(!musListe.length) return;
+  //  Après 3 secondes, « précédent » revient au début de la piste — c'est
+  //  ce que font tous les lecteurs, et ça évite de sauter par mégarde.
+  if(musAudio && musAudio.currentTime > 3){ musAudio.currentTime = 0; return; }
+  musJoue((musIndex-1+musListe.length) % musListe.length);
+}
+function musRetire(i){
+  const t=musListe[i]; if(!t) return;
+  URL.revokeObjectURL(t.url);
+  musListe.splice(i,1);
+  if(i===musIndex){
+    if(musAudio) musAudio.pause();
+    musIndex=-1;
+  }else if(i<musIndex){ musIndex--; }
+  musRendListe(); musMajBoutons(); musMajTemps();
+}
+function musMajTemps(){
+  const b=document.getElementById("musBarre"), t=document.getElementById("musTemps");
+  if(!b || !musAudio) return;
+  const d=musAudio.duration;
+  b.value = isFinite(d) && d>0 ? (musAudio.currentTime/d)*100 : 0;
+  if(t) t.textContent = musTemps(musAudio.currentTime) + " / " + musTemps(d);
+}
+function musCherche(v){
+  if(!musAudio || !isFinite(musAudio.duration)) return;
+  musAudio.currentTime = musAudio.duration * (v/100);
+}
+function musVolume(v){ musInit().volume = v/100; }
+function musMajBoutons(){
+  const b=document.getElementById("musPlay");
+  if(b) b.textContent = (musAudio && !musAudio.paused) ? "⏸" : "▶";
+  const n=document.getElementById("musNom");
+  if(n) n.textContent = musListe[musIndex] ? musListe[musIndex].nom
+                                           : "Aucun morceau chargé";
+  const g=document.getElementById("musGlobe");
+  if(g) g.classList.toggle("mus-tourne", !!(musAudio && !musAudio.paused));
+}
+function musRendListe(){
+  const box=document.getElementById("musListe"); if(!box) return;
+  if(!musListe.length){
+    box.innerHTML=`<div class="mus-vide">Aucun morceau. Ajoute des fichiers,
+      ou dépose-les sur cette fenêtre.</div>`;
+    return;
+  }
+  box.innerHTML=musListe.map((t,i)=>
+    `<div class="mus-p${i===musIndex?" on":""}" onclick="musJoue(${i})">
+       <span class="mus-i">${i===musIndex?"♪":(i+1)}</span>
+       <span class="mus-n">${esc(t.nom)}</span>
+       <span class="mus-d">${isFinite(t.duree)?musTemps(t.duree):"--:--"}</span>
+       <button class="mus-x" title="Retirer"
+               onclick="event.stopPropagation();musRetire(${i})">✕</button>
+     </div>`).join("");
+}
 function openMusique(){
   openWin("mus","Musique","♪",
-  `<div class="pad" style="text-align:center">
-     <div style="display:flex;justify-content:center;margin:6px 0 14px">${musiqueGlobe(150)}</div>
-     <div style="font-weight:600;font-size:15px">demo-mix.ogg</div>
-     <div class="sub" style="margin-bottom:12px">LexOS — piste de démonstration</div>
-     <p class="notice">Le globe tourne tant que la fenêtre est ouverte.
-     Sur la vraie ISO, la lecture passe par le lecteur installé ; cette
-     fenêtre ne montre que l'habillage.</p>
-   </div>`,330,400);
+  `<div class="pad mus">
+     <div class="mus-tete">
+       <span id="musGlobe" class="mus-globe">${musiqueGlobe(74)}</span>
+       <span class="mus-info">
+         <span class="mus-titre" id="musNom">Aucun morceau chargé</span>
+         <span class="mus-sous" id="musTemps">0:00 / 0:00</span>
+       </span>
+     </div>
+     <input class="mus-seek" id="musBarre" type="range" min="0" max="100" value="0"
+            oninput="musCherche(this.value)">
+     <div class="mus-cmd">
+       <button class="btn ghost" onclick="musPrecedent()" title="Précédent">⏮</button>
+       <button class="btn" id="musPlay" onclick="musBascule()" title="Lecture / pause">▶</button>
+       <button class="btn ghost" onclick="musSuivant()" title="Suivant">⏭</button>
+       <label class="mus-vol">🔊<input type="range" min="0" max="100" value="100"
+              oninput="musVolume(this.value)"></label>
+     </div>
+     <div class="mus-liste" id="musListe"></div>
+     <button class="btn ghost" onclick="musOuvre()">📂 Ajouter de la musique…</button>
+     <p class="notice">Lecture <b>réelle</b> : ce sont tes fichiers, décodés
+     par le navigateur, et rien n'est envoyé nulle part. Sur la vraie ISO,
+     <code>lexos logitheque install vlc</code> installe un lecteur complet
+     (bibliothèque, égaliseur, pochettes).</p>
+   </div>`,380,520);
+  musRendListe(); musMajBoutons(); musMajTemps();
+  //  Dépôt de fichiers sur la fenêtre.
+  const w=document.getElementById("win-mus");
+  if(w){
+    w.addEventListener("dragover", e=>{ e.preventDefault(); w.classList.add("mus-drop"); });
+    w.addEventListener("dragleave", ()=>w.classList.remove("mus-drop"));
+    w.addEventListener("drop", e=>{
+      e.preventDefault(); w.classList.remove("mus-drop");
+      if(e.dataTransfer && e.dataTransfer.files) musAjoute(e.dataTransfer.files);
+    });
+  }
 }
 function openShare(){
   openWin("share","Partager un fichier",'<i class="gly gly-share"></i>',
