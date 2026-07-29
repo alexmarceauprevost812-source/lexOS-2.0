@@ -35,6 +35,13 @@ BOOTAPPEND="${BOOTAPPEND} keyboard-layouts=${LEXOS_KEYBOARD_LAYOUT}"
 BOOTAPPEND="${BOOTAPPEND} keyboard-variants=${LEXOS_KEYBOARD_VARIANT}"
 BOOTAPPEND="${BOOTAPPEND} timezone=${LEXOS_TIMEZONE}"
 
+#  ── Réponses préremplies de l'installateur ──────────────────────────────
+#  config/includes.installer/preseed.cfg est recopié à la racine du support
+#  par live-build ; l'installateur le trouve sous /cdrom. Il ne contient que
+#  des questions sans conséquence (domaine réseau, horloge en UTC) — RIEN
+#  qui touche au disque, qui reste entièrement manuel.
+BOOTAPPEND_INSTALL="${BOOTAPPEND} file=/cdrom/preseed.cfg"
+
 lb config noauto \
 	--mode debian \
 	--distribution "${LEXOS_DEBIAN_SUITE}" \
@@ -70,7 +77,7 @@ lb config noauto \
 	 #  l'architecture ici donnait lexos-1.0-standard-amd64-amd64.hybrid.iso.` \
 	--image-name "${LEXOS_ID}-${LEXOS_VERSION}-${LEXOS_FLAVOUR}" \
 	--bootappend-live "${BOOTAPPEND}" \
-	--bootappend-install "${BOOTAPPEND}" \
+	--bootappend-install "${BOOTAPPEND_INSTALL}" \
 	--compression xz \
 	--zsync false \
 	--checksums sha256 \

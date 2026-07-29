@@ -367,6 +367,59 @@ Ce qui reste possible :
 
 ---
 
+## Installer LexOS À CÔTÉ d'un autre Linux (ou de Windows)
+
+C'est possible, et c'est même le cas le plus courant. Mais il y a un ordre à
+respecter, sinon l'installateur s'arrête sur :
+
+> **Échec du partitionnement du disque choisi** — Le disque ou l'espace
+> disponible sont probablement trop petits pour que le partitionnement
+> automatique puisse fonctionner.
+
+Ce message ne veut pas dire que ton disque est petit. Il veut dire qu'il n'y
+a **aucun espace libre** : le système déjà installé occupe tout.
+
+### 1. Libérer de la place — depuis la session live, pas depuis l'autre système
+
+Le piège : **on ne peut pas rétrécir une partition qu'on est en train
+d'utiliser**. Redimensionner Ubuntu depuis Ubuntu ne marchera pas.
+
+Démarre donc sur la clé LexOS en mode **Live**, puis :
+
+```bash
+sudo apt install gparted
+sudo gparted
+```
+
+Clic droit sur la partition de l'autre système → **Redimensionner** → laisse
+**au moins 40 Go** d'espace non alloué → applique.
+
+> **Sauvegarde tes fichiers importants avant.** Redimensionner une partition
+> est l'opération la plus risquée de toute l'installation : une coupure de
+> courant au mauvais moment peut coûter les deux systèmes. Ça se passe bien
+> presque toujours — mais « presque » n'est pas « toujours ».
+
+**Windows en plus ?** Réduis-le depuis Windows (Gestion des disques), pas
+depuis Linux : lui seul sait déplacer ses propres fichiers système. Et
+désactive le *démarrage rapide*, qui laisse la partition dans un état que
+Linux refuse de toucher.
+
+### 2. Relancer l'installation
+
+Au partitionnement, choisis **« Assisté — utiliser le plus grand espace
+disponible »**. C'est la seule des quatre options qui ne touche pas aux
+partitions existantes.
+
+Les trois autres commencent par « utiliser **tout** un disque » — et *tout*
+veut dire tout, l'autre système compris.
+
+### 3. Au démarrage suivant
+
+GRUB propose la liste : LexOS, l'autre système, et les outils de secours.
+Les deux cohabitent sans se gêner et gardent chacun leurs fichiers.
+
+---
+
 ## Étape 4 — Installer sur le disque (seulement si tu es convaincu)
 
 ### Avant de cliquer
