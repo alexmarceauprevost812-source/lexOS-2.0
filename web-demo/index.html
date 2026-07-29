@@ -586,6 +586,10 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .files li:hover{background:var(--bg-hi)}
 /* --- Fil d'Ariane et dossier vide ---------------------------------------- */
 .files li.sel{background:var(--bg-hi);box-shadow:inset 2px 0 0 var(--ac)}
+.ctx-menu{max-height:80vh;overflow-y:auto;min-width:248px}
+.ctx-menu .picto{display:inline-flex;align-items:center;justify-content:center;
+  width:18px;flex:none}
+.ctx-menu .picto svg{display:block}
 .fic-menu{max-height:80vh;overflow-y:auto;min-width:248px}
 .fnom-edit{outline:1px solid var(--ac);border-radius:4px;padding:0 4px;
   background:var(--bg-hi)}
@@ -1217,7 +1221,7 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
 <body class="crt">
 
 <div id="screen">
-  <div id="desktop">
+  <div id="desktop" oncontextmenu="ctxBureau(event)">
     <div id="wall">
       <div class="mark">Lex<b>OS</b></div>
       <div class="rule"></div>
@@ -1418,6 +1422,7 @@ function openWin(id, title, icon, html, w, h, x, y){
   el.querySelector(".close").onclick = ()=>closeWin(el);
   el.querySelector(".maxi").onclick = e=>{ e.stopPropagation(); toggleMax(el); };
   el.querySelector(".wmenu").onclick = e=>{ e.stopPropagation(); toggleWinMenu(el, e.currentTarget); };
+  el.querySelector(".tbar").addEventListener("contextmenu", e=>ctxFenetre(e, el));
   el.querySelector(".tbar").addEventListener("dblclick", e=>{
     if(e.target.closest(".tbtn")) return;
     toggleMax(el);
@@ -1961,6 +1966,159 @@ function ligneFichier(f, i, racine){
   }
   return `<li ${attrs} title="Clic droit pour le menu">${f.ic} `+
          `<span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
+}
+
+/* --- Menu contextuel général --------------------------------------------
+   Un seul constructeur pour tous les clics droits — bureau, tuiles du
+   menu Applications, icônes de la barre d'outils, icônes épinglées,
+   barres de titre. Les fichiers gardent le leur (fichierMenu), plus
+   fourni, et les dossiers le leur (couleurs).
+
+   Placer le menu APRÈS l'avoir mesuré : près d'un bord, il sortirait de
+   l'écran s'il gardait bêtement la position du curseur. */
+let ctxEl = null;
+function ctxFerme(){ if(ctxEl){ ctxEl.remove(); ctxEl=null; } }
+addEventListener("pointerdown", e=>{
+  if(ctxEl && !ctxEl.contains(e.target)) ctxFerme();
+}, true);
+addEventListener("keydown", e=>{ if(e.key==="Escape") ctxFerme(); });
+
+/*  items : tableau de {ic, txt, act, kbd} ; la chaîne "-" fait un séparateur. */
+function ctxOuvre(e, items){
+  e.preventDefault(); e.stopPropagation();
+  ctxFerme(); closeFilesMenu(); fermeFichierMenu(); closeFolderMenu();
+  const el = document.createElement("div");
+  el.className = "menu ctx-menu";
+  el.innerHTML = items.map(it=> it==="-" ? `<div class="msep"></div>` :
+    `<button onclick="ctxFerme();${it.act}"><span class="picto">${it.ic||""}</span> ${it.txt}`+
+    (it.kbd ? `<span class="kbd">${it.kbd}</span>` : "")+`</button>`).join("");
+  document.body.appendChild(el);
+  const r = el.getBoundingClientRect();
+  el.style.left  = Math.max(6, Math.min(e.clientX, innerWidth  - r.width  - 8)) + "px";
+  el.style.top   = Math.max(6, Math.min(e.clientY, innerHeight - r.height - 8)) + "px";
+  el.style.right = "auto";
+  ctxEl = el;
+}
+
+/* --- Bureau -------------------------------------------------------------- */
+function ctxBureau(e){
+  //  Une icône épinglée ou le menu Applications ont leur propre menu :
+  //  on ne veut pas celui du bureau par-dessus.
+  if(e.target.closest(".deskicon, .win, #dock, #appsview, .menu")) return;
+  ctxOuvre(e, [
+    {ic:"⊞", txt:"Applications", act:"openApps()", kbd:"Clic molette"},
+    {ic:terminalGlyph(14), txt:"Ouvrir un terminal ici", act:"openTerminal()", kbd:"Super+T"},
+    {ic:filesAppGlyph(14), txt:"Ouvrir le dossier personnel", act:"openFiles()", kbd:"Super+E"},
+    "-",
+    {ic:cameraGlyph(14), txt:"Capture d'écran", act:"capPhoto()", kbd:"␣+1"},
+    {ic:"⛶", txt:"Cadrer une zone", act:"capZone()", kbd:"␣+2"},
+    "-",
+    {ic:"🖼", txt:"Changer le fond d'écran", act:"openSettings('bureau')"},
+    {ic:reglagesGlyph(14), txt:"Apparence", act:"openSettings('apparence')"},
+    {ic:"🖥", txt:"Écrans", act:"openSettings('ecrans')"},
+    "-",
+    {ic:"⏻", txt:"Marche, veille, éteindre", act:"pwToggle(document.getElementById('offBtn'))"},
+  ]);
+}
+
+/* --- Tuile du menu Applications ----------------------------------------- */
+function ctxApp(e, i){
+  const a = APPS[i]; if(!a) return;
+  const deja = state.deskIcons.some(d=>d.idx===i);
+  ctxOuvre(e, [
+    {ic:"▸", txt:"Ouvrir", act:`closeApps();APPS[${i}].fn()`},
+    "-",
+    deja
+      ? {ic:"📌", txt:"Retirer du bureau", act:`ctxRetireBureau(${i})`}
+      : {ic:"📌", txt:"Épingler au bureau", act:`ctxEpingle(${i})`},
+    {ic:"⚓", txt:"Ajouter à la barre d'outils", act:`ctxAuDock(${i})`},
+    "-",
+    {ic:"🔎", txt:"Chercher dans la Logithèque",
+     act:`closeApps();openLogitheque();setTimeout(()=>lgtFiltre(${JSON.stringify(a.label)}),60)`},
+  ]);
+}
+function ctxEpingle(i){
+  //  Posée en haut à gauche, décalée pour ne pas empiler les icônes
+  //  ajoutées à la suite les unes sur les autres.
+  const n = state.deskIcons.length;
+  state.deskIcons.push({idx:i, x:24 + (n%4)*92, y:60 + Math.floor(n/4)*84});
+  renderDeskIcons(); closeApps();
+  toast("📌 " + APPS[i].label + " épinglé au bureau");
+}
+function ctxRetireBureau(i){
+  state.deskIcons = state.deskIcons.filter(d=>d.idx!==i);
+  renderDeskIcons();
+  toast(APPS[i].label + " retiré du bureau");
+}
+function ctxAuDock(i){
+  const a = APPS[i]; if(!a) return;
+  if([...dock.querySelectorAll(".tip")].some(t=>t.textContent===a.label)){
+    toast(a.label + " est déjà dans la barre"); return;
+  }
+  const b = document.createElement("button");
+  b.className = "dicon";
+  b.innerHTML = `${a.ic}<span class="tip">${esc(a.label)}</span>`;
+  b.onclick = a.fn;
+  b.oncontextmenu = ev=>ctxDock(ev, b, a.label);
+  dock.appendChild(b);
+  majFondsDock(); closeApps();
+  toast("⚓ " + a.label + " ajouté à la barre d'outils");
+}
+
+/* --- Icône de la barre d'outils ----------------------------------------- */
+function ctxDock(e, b, nom){
+  ctxOuvre(e, [
+    {ic:"▸", txt:"Ouvrir", act:"(()=>{})()"},
+    "-",
+    {ic:"✕", txt:"Retirer de la barre", act:`ctxRetireDock(${JSON.stringify(nom)})`},
+    {ic:"⚙", txt:"Position de la barre", act:"openSettings('bureau')"},
+    {ic:"👁", txt:"Masquer la barre", act:"toggleDock()"},
+  ]);
+  //  « Ouvrir » doit lancer l'application : on remplace l'action inerte
+  //  posée ci-dessus par le vrai gestionnaire du bouton.
+  const prem = ctxEl && ctxEl.querySelector("button");
+  if(prem) prem.onclick = ()=>{ ctxFerme(); b.onclick && b.onclick(); };
+}
+function ctxRetireDock(nom){
+  const b = [...dock.querySelectorAll(".dicon")].find(x=>
+    x.querySelector(".tip") && x.querySelector(".tip").textContent === nom);
+  if(!b){ toast("Introuvable dans la barre"); return; }
+  b.remove(); majFondsDock();
+  toast(nom + " retiré de la barre");
+}
+
+/* --- Icône épinglée au bureau -------------------------------------------- */
+function ctxDeskIcon(e, k){
+  const d = state.deskIcons[k]; if(!d) return;
+  const a = APPS[d.idx];
+  ctxOuvre(e, [
+    {ic:"▸", txt:"Ouvrir", act:`APPS[${d.idx}].fn()`},
+    "-",
+    {ic:"✕", txt:"Retirer du bureau", act:`state.deskIcons.splice(${k},1);renderDeskIcons();toast(${JSON.stringify((a&&a.label)||"Icône")}+" retiré du bureau")`},
+    {ic:"⊞", txt:"Tout ranger", act:"ctxRangeBureau()"},
+  ]);
+}
+function ctxRangeBureau(){
+  state.deskIcons.forEach((d,n)=>{ d.x = 24 + (n%4)*92; d.y = 60 + Math.floor(n/4)*84; });
+  renderDeskIcons(); toast("Icônes rangées");
+}
+
+/* --- Barre de titre d'une fenêtre ---------------------------------------- */
+function ctxFenetre(e, el){
+  if(e.target.closest(".tbtn")) return;
+  const max = el.classList.contains("max");
+  ctxOuvre(e, [
+    {ic:max?"🗗":"⛶", txt:max?"Restaurer la taille":"Agrandir", act:`toggleMax(document.getElementById('${el.id}'))`},
+    {ic:"↕", txt:"Pleine hauteur", act:`ctxPleineHauteur('${el.id}')`},
+    "-",
+    {ic:"✕", txt:"Fermer", act:`closeWin(document.getElementById('${el.id}'))`, kbd:"Alt+F4"},
+  ]);
+}
+function ctxPleineHauteur(id){
+  const el = document.getElementById(id); if(!el) return;
+  if(el.classList.contains("max")) toggleMax(el, false);
+  el.style.top = "40px";
+  el.style.height = (innerHeight - 88) + "px";
 }
 
 /* --- Clic droit sur un fichier : le menu complet -------------------------
@@ -4974,7 +5132,9 @@ DOCK.forEach(([ic,label,fn])=>{
   b.innerHTML = ic==="logo"
     ? `<span class="applogo"></span><span class="tip">${label}</span>`
     : `${ic}<span class="tip">${label}</span>`;
-  b.onclick=fn; dock.appendChild(b);
+  b.onclick=fn;
+  b.oncontextmenu = ev=>ctxDock(ev, b, label);
+  dock.appendChild(b);
 });
 majFondsDock();
 /* --- Vue Applications : grille plein écran ------------------------------- */
@@ -5025,7 +5185,8 @@ function renderApps(filter){
   const list=q ? APPS.filter(a=>a.label.toLowerCase().includes(q)) : APPS;
   if(!list.length){ appGrid.innerHTML=`<div class="empty">Aucune application ne correspond à « ${esc(q)} ».</div>`; return; }
   appGrid.innerHTML=list.map((a,i)=>
-    `<button class="app" data-i="${APPS.indexOf(a)}"><span class="ai">${a.ic}</span><span class="an">${a.label}</span></button>`
+    `<button class="app" data-i="${APPS.indexOf(a)}" oncontextmenu="ctxApp(event,${APPS.indexOf(a)})">`+
+    `<span class="ai">${a.ic}</span><span class="an">${a.label}</span></button>`
   ).join("");
   majFondusGrille();
   appGrid.querySelectorAll(".app").forEach(b=>{
@@ -5120,7 +5281,8 @@ function renderDeskIcons(){
   }
   box.innerHTML=state.deskIcons.map((d,n)=>{
     const a=APPS[d.idx];
-    return `<div class="deskicon" style="left:${d.x}px;top:${d.y}px" data-n="${n}">`+
+    return `<div class="deskicon" style="left:${d.x}px;top:${d.y}px" data-n="${n}"`+
+      ` oncontextmenu="ctxDeskIcon(event,${n})">`+
       `<span class="ai">${a ? a.ic : "❔"}</span><span class="an">${esc(a ? a.label : "?")}</span>`+
       `<button class="rm" title="Retirer">✕</button></div>`;
   }).join("");
