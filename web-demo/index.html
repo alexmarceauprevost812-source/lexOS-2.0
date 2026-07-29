@@ -3341,6 +3341,9 @@ const NAV_IA = [
   {nom:"Copilot",    url:"https://copilot.microsoft.com", ic:"◈", desc:"Microsoft — conversation et code"},
 ];
 const NAV_FAVORIS_DEF = [
+  //  Claude en tête de la barre : accessible d'un clic depuis n'importe
+  //  quelle page, sans passer par le panneau des assistants.
+  {titre:"Claude", url:"https://claude.ai", ic:"✳"},
   {titre:"Wikipédia", url:"https://fr.wikipedia.org", ic:"📖"},
   {titre:"DuckDuckGo",url:"https://duckduckgo.com",   ic:"🦆"},
   {titre:"GitHub",    url:"https://github.com",       ic:"💻"},
@@ -3398,6 +3401,17 @@ function openBrowser(){
    </div>`, 720, 520);
   navRendTout();
 }
+/*  Ouvre le navigateur directement sur un assistant. Sert aux entrées de
+    la grille Applications : depuis le bureau, on veut Claude en un clic,
+    pas « ouvrir le navigateur puis chercher l'assistant ». */
+function openIA(url){
+  openBrowser();
+  //  openWin() rend la main avant que le corps soit peuplé si la fenêtre
+  //  vient d'être créée : on laisse passer une image avant de naviguer.
+  requestAnimationFrame(()=>navVa(url || "lexos://ia"));
+}
+function openClaude(){ openIA("https://claude.ai"); }
+
 function navNouvelOnglet(url, muet){
   url = url || "lexos://nouvel-onglet";
   const r = navResout(url);
@@ -4850,6 +4864,8 @@ const APPS = [
   {ic:'<i class="gly gly-secure"></i>', label:"Confidentialité", fn:()=>openSettings("confidentialite")},
   {ic:majGlyph(), label:"Mises à jour", fn:()=>openSettings("maj")},
   {ic:"🧑‍💻", label:"Utilisateurs", fn:()=>openSettings("utilisateurs")},
+  {ic:"✳", label:"Claude", fn:openClaude},
+  {ic:"✳", label:"Assistants IA", fn:()=>openIA()},
   {ic:"⛶", label:"Cadrer une zone", fn:capZone},
   {ic:"📥", label:"Vide mémoire +", fn:videMemoire},
   {ic:terminalGlyph(38), label:"Terminal de l'appareil", fn:terminalAppareil},
