@@ -9,3 +9,7 @@ arp-scan
 # (câble USB avec débogage activé, ou Wi-Fi via adb tcpip). Le paquet Debian
 # tire android-tools-adb automatiquement — rien à ajouter à la main ici.
 scrcpy
+
+# android-tools-adb à part : « lexos usb terminal » (un shell SUR le
+# téléphone) en a besoin même quand scrcpy n'est pas installé.
+android-tools-adb

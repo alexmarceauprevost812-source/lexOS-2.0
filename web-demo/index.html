@@ -521,6 +521,21 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 #qcVideo.rec::before{border-radius:2px;animation:capPulse 1.1s ease-in-out infinite}
 @media (max-width:640px){ #quickcap{display:none} }
 
+/* --- Appareils : vide mémoire, terminal, formatage ----------------------- */
+.vm-list{display:flex;flex-direction:column;gap:4px;margin:10px 0}
+.vm-row{display:flex;align-items:center;gap:10px;padding:6px 9px;border-radius:8px;
+  background:var(--bg-alt);border:1px solid var(--bd);font-size:12.5px}
+.vm-row.en-cours{border-color:var(--ac)}
+.vm-n{flex:1;font-family:ui-monospace,monospace;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.vm-c{color:var(--fg-dim);font-size:11.5px;white-space:nowrap}
+.vm-s{width:56px;text-align:right;color:var(--fg-dim);
+  font-family:ui-monospace,monospace;font-size:11.5px}
+.vm-ok{width:14px;text-align:center;color:var(--ok,#22C55E);font-weight:700}
+.term-app{margin:0;padding:12px 14px;background:#000;color:#d8d8d8;min-height:260px;
+  max-height:100%;overflow:auto;font:12.5px/1.55 ui-monospace,monospace;
+  white-space:pre-wrap;word-break:break-word}
+
 /* --- Capture d'écran et enregistrement vidéo ----------------------------- */
 .cap-flash{position:fixed;inset:0;z-index:3000;background:#fff;pointer-events:none;
   animation:capFlash .4s ease-out forwards}
@@ -2019,10 +2034,23 @@ function settingsSection(key){
       </div>
       ${swRow("Clé USB branchée","Apparaît dans la barre du haut, à côté de l'heure",state.periph.usb,"togglePeriph('usb')")}
       ${swRow("Disque dur externe branché","Apparaît dans la barre du haut, à côté de l'heure",state.periph.disque,"togglePeriph('disque')")}
-      <p class="set-soon">Aucun appareil USB accessible depuis un navigateur.</p>
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:3px">Actions sur l'appareil</div>
+        <div class="d" style="margin-bottom:10px">Ces trois boutons rejouent le
+        déroulement exact des commandes de la vraie ISO.</div>
+        <div class="row">
+          <button class="btn" onclick="videMemoire()">📥 Vide mémoire +</button>
+          <button class="btn ghost" onclick="terminalAppareil()">▸ Terminal de l'appareil</button>
+          <button class="btn ghost dgr" onclick="formaterSupport()">⚠ Formater…</button>
+        </div>
+      </div>
+      <p class="set-soon">Aucun appareil USB n'est accessible depuis un navigateur :
+      ces trois actions sont une mise en scène. Sur la vraie ISO, elles agissent.</p>
       <p class="notice">Sur la vraie ISO : <code>lexos usb</code> liste les appareils,
-      <code>lexos usb watch</code> les suit en direct, et <code>lexos usb import</code>
-      copie en un clic tout le contenu d'un téléphone (MTP/iPhone) ou d'une clé USB.</p>
+      <code>lexos usb watch</code> les suit en direct, <code>lexos vide-memoire</code>
+      copie en un clic tout le contenu d'un téléphone (MTP/iPhone) ou d'une clé USB,
+      et <code>lexos usb terminal</code> ouvre un terminal <b>sur le téléphone</b>
+      (adb, débogage USB requis).</p>
       <p class="notice"><code>lexos format</code> (ou clic droit → « Formater ce support… »
       dans le gestionnaire de fichiers) formate une clé USB ou un téléphone — jamais le
       disque système, et seulement après confirmation explicite.</p>`;
@@ -2407,6 +2435,150 @@ document.addEventListener("click", e=>{
 });
 
 /* ======================= Dock & menu ======================= */
+/* --- Appareils : vide mémoire, terminal, formatage -----------------------
+   Trois mises en scène des commandes réelles (lexos vide-memoire,
+   lexos usb terminal, lexos format). Le navigateur n'a accès à aucun
+   périphérique : rien n'est copié ni effacé ici. Le déroulement, lui,
+   est celui de la vraie ISO — y compris le garde-fou du formatage, qui
+   exige de taper FORMATER et ne propose jamais le disque système. */
+const VIDE_MEM = [
+  ["DCIM/Camera",         "1 284 photos",  "3,7 Go"],
+  ["Pictures/Screenshots","216 images",    "412 Mo"],
+  ["Movies",              "38 vidéos",     "6,1 Go"],
+  ["Download",            "97 fichiers",   "820 Mo"],
+  ["Documents",           "143 fichiers",  "96 Mo"],
+  ["WhatsApp/Media",      "3 902 fichiers","2,4 Go"],
+];
+function videMemoire(){
+  openWin("vidmem","Vide mémoire +","📥",
+    `<div class="pad">
+       <p>Extraction de <b>Téléphone Android — 128 Go</b> vers
+       <code>~/Téléchargements/Appareil</code>.</p>
+       <div class="vm-list" id="vmList"></div>
+       <div class="lgt-prog" style="margin-top:10px"><i id="vmBar"></i></div>
+       <p class="lgt-poids" id="vmEtat">Préparation…</p>
+       <p class="notice">Sur la vraie ISO : <code>lexos vide-memoire</code>
+       (ou <code>lexos usb import</code>). Rien n'est effacé sur l'appareil —
+       « vide la mémoire » au sens de « la récupère en entier ».</p>
+     </div>`, 520);
+  const liste=document.getElementById("vmList");
+  liste.innerHTML=VIDE_MEM.map((d,i)=>
+    `<div class="vm-row" id="vm-${i}"><span class="vm-n">${esc(d[0])}</span>`+
+    `<span class="vm-c">${esc(d[1])}</span><span class="vm-s">${esc(d[2])}</span>`+
+    `<span class="vm-ok"></span></div>`).join("");
+  let i=0;
+  const pas=()=>{
+    if(!document.getElementById("vmList")) return;   // fenêtre fermée entre-temps
+    if(i>0){
+      const prec=document.getElementById("vm-"+(i-1));
+      if(prec){ prec.classList.remove("en-cours"); prec.querySelector(".vm-ok").textContent="✓"; }
+    }
+    if(i>=VIDE_MEM.length){
+      document.getElementById("vmBar").style.width="100%";
+      document.getElementById("vmEtat").textContent=
+        "Terminé — 5 680 fichiers, 13,5 Go copiés. Rien n'a été effacé sur l'appareil.";
+      toast("📥 Vide mémoire + terminé");
+      return;
+    }
+    const cur=document.getElementById("vm-"+i);
+    if(cur) cur.classList.add("en-cours");
+    document.getElementById("vmBar").style.width=Math.round(100*i/VIDE_MEM.length)+"%";
+    document.getElementById("vmEtat").textContent="Copie de "+VIDE_MEM[i][0]+"…";
+    i++;
+    setTimeout(pas, 850);
+  };
+  setTimeout(pas, 400);
+}
+
+function terminalAppareil(){
+  openWin("termapp","Terminal de l'appareil — adb shell",terminalGlyph(18),
+    `<pre class="term-app" id="termApp"></pre>`, 560, 340);
+  const el=document.getElementById("termApp");
+  const lignes=[
+    "$ adb devices",
+    "List of devices attached",
+    "R58M42XKPQZ\tdevice",
+    "",
+    "$ adb shell",
+    "sm-a536b:/ $ getprop ro.product.model",
+    "SM-A536B",
+    "sm-a536b:/ $ df -h /sdcard",
+    "Filesystem      Size  Used Avail Use% Mounted on",
+    "/dev/fuse       113G   87G   26G  78% /storage/emulated",
+    "sm-a536b:/ $ ls /sdcard",
+    "Android  DCIM  Download  Documents  Movies  Music  Pictures",
+    "sm-a536b:/ $ ",
+  ];
+  let i=0;
+  const tape=()=>{
+    if(!document.getElementById("termApp")) return;
+    el.textContent += lignes[i] + "\n";
+    el.scrollTop = el.scrollHeight;
+    if(++i < lignes.length) setTimeout(tape, i<4 ? 300 : 420);
+  };
+  tape();
+}
+
+function formaterSupport(){
+  openWin("format","Formater un support","⚠",
+    `<div class="pad">
+       <div class="warnbox"><b>Cette opération efface tout</b> sur le support
+       choisi. Elle est irréversible.</div>
+       <div class="srow" style="display:block">
+         <div class="t" style="margin-bottom:8px">Support</div>
+         <select class="lgt-search" id="fmtCible" style="width:100%">
+           <option>Clé USB — LEXOS-USB, 32 Go</option>
+           <option>Téléphone Android — 128 Go</option>
+         </select>
+       </div>
+       <div class="srow" style="display:block">
+         <div class="t" style="margin-bottom:8px">Système de fichiers</div>
+         <select class="lgt-search" id="fmtFs" style="width:100%">
+           <option value="exfat">exFAT — lisible partout (Windows, Mac, Linux)</option>
+           <option value="fat32">FAT32 — universel, fichiers de 4 Go maximum</option>
+           <option value="ext4">ext4 — Linux seulement, droits Unix</option>
+         </select>
+       </div>
+       <p>Pour confirmer, tape <b>FORMATER</b> en majuscules :</p>
+       <input class="lgt-search" id="fmtMot" style="width:100%"
+              placeholder="FORMATER" autocomplete="off" oninput="fmtVerifie()">
+       <div class="row" style="margin-top:12px">
+         <button class="btn" id="fmtGo" disabled onclick="fmtLance()">Formater</button>
+       </div>
+       <p class="lgt-poids" id="fmtEtat"></p>
+       <p class="notice">Le disque système n'apparaît jamais dans cette liste :
+       <code>lexos format</code> le refuse, sur la vraie ISO comme ici.</p>
+     </div>`, 480);
+  fmtVerifie();
+}
+function fmtVerifie(){
+  const b=document.getElementById("fmtGo"), m=document.getElementById("fmtMot");
+  if(b && m) b.disabled = m.value !== "FORMATER";
+}
+function fmtLance(){
+  const cible=document.getElementById("fmtCible");
+  const fs=document.getElementById("fmtFs");
+  const etat=document.getElementById("fmtEtat");
+  const nom=cible.options[cible.selectedIndex].text;
+  document.getElementById("fmtGo").disabled=true;
+  const etapes=["Démontage du support…","Écriture de la table de partition…",
+                `Création du système de fichiers ${fs.value.toUpperCase()}…`,
+                "Vérification…"];
+  let i=0;
+  const pas=()=>{
+    if(!document.getElementById("fmtEtat")) return;
+    if(i>=etapes.length){
+      etat.textContent=`✓ Terminé — ${nom} est formaté en ${fs.value.toUpperCase()}.`;
+      toast("Support formaté (démo)");
+      return;
+    }
+    etat.textContent=etapes[i++];
+    setTimeout(pas, 800);
+  };
+  pas();
+}
+
+
 /* --- Capture d'écran et enregistrement vidéo -----------------------------
    Ici, c'est une VRAIE capture : html2canvas n'est pas embarqué, alors on
    redessine le bureau dans un <canvas> via une image SVG <foreignObject>,
@@ -2852,6 +3024,9 @@ const APPS = [
   {ic:'<i class="gly gly-secure"></i>', label:"Confidentialité", fn:()=>openSettings("confidentialite")},
   {ic:majGlyph(), label:"Mises à jour", fn:()=>openSettings("maj")},
   {ic:"🧑‍💻", label:"Utilisateurs", fn:()=>openSettings("utilisateurs")},
+  {ic:"📥", label:"Vide mémoire +", fn:videMemoire},
+  {ic:terminalGlyph(38), label:"Terminal de l'appareil", fn:terminalAppareil},
+  {ic:"⚠", label:"Formater un support", fn:formaterSupport},
   {ic:"👋", label:"Bienvenue",    fn:openWelcome},
 ];
 const appsView=document.getElementById("appsview");

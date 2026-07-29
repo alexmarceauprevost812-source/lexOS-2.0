@@ -159,6 +159,48 @@ Categories=Utility;FileTransfer;
 Keywords=telephone;phone;ecran;screen;mirroring;scrcpy;android;
 EOF
 
+cat > /usr/share/applications/lexos-vide-memoire.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Vide mémoire +
+Name[en]=Empty memory +
+Comment=Extraire TOUS les fichiers et photos d'un téléphone ou d'une clé USB en une fois
+Exec=xfce4-terminal --title="Vide mémoire + — LexOS" --hold -e "lexos vide-memoire"
+Icon=lexos-usb
+Terminal=false
+Categories=Utility;FileTransfer;
+Keywords=vide;memoire;extraire;copier;import;telephone;usb;photos;sauvegarde;
+EOF
+
+cat > /usr/share/applications/lexos-terminal-appareil.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Terminal de l'appareil
+Name[en]=Device shell
+Comment=Ouvrir un terminal SUR le téléphone Android (adb shell, débogage USB requis)
+Exec=xfce4-terminal --title="Terminal de l'appareil — LexOS" --hold -e "lexos terminal-appareil"
+Icon=lexos-terminal
+Terminal=false
+Categories=Utility;TerminalEmulator;
+Keywords=terminal;shell;adb;telephone;android;appareil;console;
+EOF
+
+cat > /usr/share/applications/lexos-format.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Formater une clé USB ou un téléphone
+Name[en]=Format a USB key or phone
+Comment=Effacer et reformater un support amovible — jamais le disque système, confirmation exigée
+Exec=xfce4-terminal --title="Formater — LexOS" --hold -e "lexos format"
+Icon=lexos-usb
+Terminal=false
+Categories=System;Filesystem;
+Keywords=formater;format;effacer;cle;usb;telephone;disque;
+EOF
+
 cat > /usr/share/applications/lexos-capture.desktop <<EOF
 [Desktop Entry]
 Type=Application

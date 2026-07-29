@@ -140,6 +140,8 @@ ${B}COMMANDES${R}
   ${A}info${R} <identifiant>    Détails d'un appareil ${D}(ex. : 1d6b:0002)${R}
   ${A}watch${R}                 Suit les branchements et débranchements en direct
   ${A}import${R} [cible]        Copie tout le contenu d'un téléphone ou d'une clé USB
+  ${A}vide-memoire${R}          Synonyme d'import — « Vide mémoire + »
+  ${A}terminal${R}              Ouvre un terminal SUR le téléphone ${D}(adb shell)${R}
 
 ${B}À SAVOIR${R}
   Les clés USB et disques externes se montent tout seuls et apparaissent
@@ -235,6 +237,34 @@ cmd_import() {
 	return $fail_any
 }
 
+# --- Terminal de l'appareil ---------------------------------------------------
+#  Un shell SUR le téléphone, pas sur l'ordinateur : adb shell. Demande le
+#  débogage USB activé (Options développeur) et l'autorisation affichée sur
+#  l'écran du téléphone au premier branchement.
+cmd_terminal() {
+	command -v adb >/dev/null 2>&1 \
+		|| die "adb n'est pas installé (apt install android-tools-adb)."
+
+	say "Recherche d'un appareil…"
+	adb start-server >/dev/null 2>&1 || true
+
+	#  « adb devices » liste aussi les appareils « unauthorized » et
+	#  « offline » : les compter comme prêts enverrait droit dans un shell
+	#  qui refuse de s'ouvrir, sans explication.
+	local prets
+	prets="$(adb devices 2>/dev/null | awk 'NR>1 && $2=="device"' | wc -l)"
+
+	if [[ "$prets" -eq 0 ]]; then
+		if adb devices 2>/dev/null | awk 'NR>1 && $2=="unauthorized"' | grep -q .; then
+			die "Appareil branché mais NON AUTORISÉ — déverrouille l'écran du téléphone et accepte « Autoriser le débogage USB ? »."
+		fi
+		die "Aucun appareil détecté. Branche le téléphone en USB avec le débogage USB activé (Options développeur)."
+	fi
+
+	say "Ouverture du terminal de l'appareil (${B}exit${R} pour revenir)…"
+	exec adb shell
+}
+
 CMD="${1:-list}"
 [[ $# -gt 0 ]] && shift
 case "$CMD" in
@@ -242,6 +272,7 @@ case "$CMD" in
 	list|ls|'')      cmd_list ;;
 	info|show)       cmd_info "$@" ;;
 	watch|suivre)    cmd_watch ;;
-	import|importer) cmd_import "$@" ;;
+	import|importer|vide-memoire) cmd_import "$@" ;;
+	terminal|shell)  cmd_terminal ;;
 	*) die "Commande inconnue : ${CMD}  (essaie : ${PROG} help)" ;;
 esac
