@@ -3218,12 +3218,16 @@ const SETTINGS_NAV = [
     ["bienetre","🌱","Bien-être numérique"]]},
   {grp:"Périphériques", items:[
     ["souris","🖱","Souris et pavé tactile"], ["couleurs",()=>arcCielGlyph(16),"Gestion des couleurs"],
-    ["imprimantes","🖨","Imprimantes"]]},
+    ["imprimantes","🖨","Imprimantes"],
+    ["amovibles",'<i class="gly gly-usb"></i>',"Supports amovibles"],
+    ["tablette","🖊","Tablette graphique"]]},
   {grp:"Système", items:[
     ["confidentialite",'<i class="gly gly-secure"></i>',"Confidentialité et sécurité"],
     ["maj",majGlyph,"Mises à jour"], ["accessibilite","♿","Accessibilité"],
     ["utilisateurs","🧑‍💻","Utilisateurs"], ["region","🌍","Région et langue"],
-    ["clavier","⌨","Clavier"], ["apropos","◆","À propos"]]},
+    ["clavier","⌨","Clavier"], ["datetime","🕒","Date et heure"],
+    ["defaut","🧭","Applications par défaut"],
+    ["distant","🖥","Bureau à distance"], ["apropos","◆","À propos"]]},
 ];
 function swRow(title, desc, on, fn){
   return `<div class="srow"><div><div class="t">${title}</div>${desc?`<div class="d">${desc}</div>`:""}</div>
@@ -3454,6 +3458,93 @@ function settingsSection(key){
       change la langue du système entier. <code>lexos lang toutes</code> les liste toutes.</p>`;
     case "clavier": return `<h2>Clavier</h2><div class="sub">Disposition, raccourcis</div>
       <div class="srow"><div class="t">Disposition</div><div class="d">Français (Canada)</div></div>`;
+    /*  Panneaux repris de GNOME Paramètres, tel qu'Ubuntu le livre :
+        ils manquaient à l'appel alors que le reste y était. */
+    case "amovibles": return `<h2>Supports amovibles</h2>
+      <div class="sub">Ce que LexOS fait quand tu branches quelque chose</div>
+      ${swRow("Ouvrir le gestionnaire de fichiers","À l'insertion d'une clé USB ou d'une carte",true,"")}
+      ${swRow("Proposer d'importer les photos","Quand l'appareil contient un dossier DCIM",true,"")}
+      ${swRow("Lancer la musique","Pour un CD audio ou un lecteur reconnu",false,"")}
+      ${swRow("Monter automatiquement","Sinon il faut cliquer le support dans Fichiers",true,"")}
+      ${swRow("Ne rien faire pour les médias","Ignore tout ce qui est branché",false,"")}
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Actions rapides</div>
+        <div class="row">
+          <button class="btn" onclick="videMemoire()">📥 Vide mémoire +</button>
+          <button class="btn ghost dgr" onclick="formaterSupport()">⚠ Formater…</button>
+        </div>
+      </div>
+      <p class="notice">Sur la vraie ISO, ces réglages sont ceux d'<b>udisks2</b>
+      et de Thunar (montage automatique, actions à l'insertion) —
+      <code>lexos usb</code> montre ce qui est branché.</p>`;
+
+    case "tablette": return `<h2>Tablette graphique</h2>
+      <div class="sub">Stylet, zone active, boutons</div>
+      <p class="set-soon">Aucune tablette détectée.</p>
+      ${swRow("Suivre l'écran principal","La zone du stylet épouse l'écran actif",true,"")}
+      ${swRow("Mode gaucher","Retourne la tablette de 180°",false,"")}
+      <div class="srow"><div><div class="t">Pression du stylet</div>
+        <div class="d">Souple ↔ ferme</div></div>
+        <input type="range" min="0" max="100" value="55" style="width:150px;accent-color:var(--ac)"></div>
+      <p class="notice">Sur la vraie ISO, les tablettes Wacom et compatibles
+      fonctionnent d'office (pilote noyau + <code>xf86-input-wacom</code>) ;
+      ce panneau reprend celui de GNOME.</p>`;
+
+    case "datetime": return `<h2>Date et heure</h2>
+      <div class="sub">Fuseau, format, synchronisation</div>
+      <div class="srow"><div><div class="t">Maintenant</div>
+        <div class="d" id="setHorloge">${new Date().toLocaleString("fr-CA")}</div></div></div>
+      ${swRow("Date et heure automatiques","Synchronisées par le réseau (NTP)",true,"")}
+      ${swRow("Fuseau horaire automatique","D'après la position approximative",false,"")}
+      <div class="srow"><div><div class="t">Fuseau horaire</div>
+        <div class="d">America/Toronto — UTC−05:00</div></div></div>
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Format de l'heure</div>
+        <div class="row">
+          <button class="btn" onclick="toast('Format 24 h')">24 heures</button>
+          <button class="btn ghost" onclick="toast('Format 12 h (AM/PM)')">12 heures</button>
+        </div>
+      </div>
+      ${swRow("Afficher les secondes","Dans la barre du haut",false,"")}
+      ${swRow("Afficher le jour de la semaine","Dans la barre du haut",true,"")}
+      <p class="notice">Sur la vraie ISO : <code>timedatectl</code> et
+      <b>systemd-timesyncd</b> font le travail — <code>lexos lang</code>
+      règle en même temps le format de date de la langue choisie.</p>`;
+
+    case "defaut": return `<h2>Applications par défaut</h2>
+      <div class="sub">Ce qui s'ouvre pour chaque type de fichier</div>
+      ${[["Navigateur web","Firefox","🌐"],["Courriel","Thunderbird","✉"],
+         ["Calendrier","GNOME Agenda","📅"],["Musique","VLC","🎵"],
+         ["Vidéo","VLC","🎬"],["Photos","Ristretto","🖼"],
+         ["Documents PDF","Evince","📕"],["Texte brut","Note perso","📝"],
+         ["Archives","Gestionnaire d'archives","📦"],["Terminal","xfce4-terminal","▸"]]
+        .map(([quoi,appli,ic])=>
+        `<div class="srow"><div><div class="t">${quoi}</div>
+           <div class="d">${ic} ${appli}</div></div>
+           <button class="btn ghost mini" style="width:auto"
+                   onclick="openLogitheque()">Changer</button></div>`).join("")}
+      <p class="notice">Sur la vraie ISO, ces associations vivent dans
+      <code>/etc/xdg/mimeapps.list</code> — le hook 0400 y pose les valeurs
+      de départ, et un clic droit → « Ouvrir avec » les modifie ensuite.</p>`;
+
+    case "distant": return `<h2>Bureau à distance</h2>
+      <div class="sub">Voir et contrôler cet ordinateur depuis un autre</div>
+      ${swRow("Bureau à distance","Autoriser la connexion depuis le réseau local",false,"")}
+      ${swRow("Contrôle à distance","Le poste distant peut aussi cliquer et taper",false,"")}
+      <div class="srow"><div><div class="t">Adresse de connexion</div>
+        <div class="d"><code>lex@192.168.0.42:3389</code></div></div></div>
+      <div class="srow"><div><div class="t">Mot de passe</div>
+        <div class="d">Généré à l'activation, jamais réutilisé</div></div>
+        <button class="btn ghost mini" style="width:auto"
+                onclick="toast('Un nouveau mot de passe serait généré')">Régénérer</button></div>
+      <div class="warnbox">Activer le bureau à distance ouvre un port sur le
+      réseau. À ne laisser allumé que le temps nécessaire, et jamais sur un
+      réseau public.</div>
+      <p class="notice">Sur la vraie ISO : <b>xrdp</b> côté serveur, et
+      <code>lexos logitheque install distant</code> installe <b>Remmina</b>
+      pour se connecter à d'autres machines. <code>lexos secure</code>
+      montre si le pare-feu laisse passer le port.</p>`;
+
     case "apropos": return `<h2>À propos de LexOS</h2><div class="sub">1.0 « Nomad »</div>
       <p>Base Debian trixie · noyau 6.12 LTS · XFCE · LexOS Noir</p>
       <p class="notice">Licence MIT (branding TI-LEX-AL excepté). Construit avec
