@@ -167,7 +167,7 @@ Name=Capture d'écran
 Name[en]=Screenshot
 Comment=Photographier l'écran, une fenêtre ou une zone (Impr écr)
 Exec=lexos capture
-Icon=applets-screenshooter
+Icon=lexos-camera
 Terminal=false
 Categories=Graphics;Utility;
 Keywords=capture;ecran;screenshot;photo;image;impression;
@@ -194,7 +194,7 @@ Name=Enregistreur d'écran
 Name[en]=Screen recorder
 Comment=Enregistrer l'écran en vidéo avec le son du système (Ctrl+Maj+R)
 Exec=xfce4-terminal --title="Enregistrement — LexOS" --hold -e "lexos capture video"
-Icon=camera-video
+Icon=lexos-camera
 Terminal=false
 Categories=AudioVideo;Recorder;
 Keywords=enregistrer;video;ecran;record;screencast;ffmpeg;

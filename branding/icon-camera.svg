@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — icône « Capture d'écran ». Appareil photo au trait.
+
+  Contrairement à icon-share.svg ou icon-zip.svg, pas de pastille pleine
+  ici : le boîtier est dessiné d'un seul trait fermé, bosse du viseur
+  comprise, comme sur les icônes d'appareil photo des téléphones. Le
+  contour, l'objectif et le témoin partagent la même couleur — c'est ce
+  qui donne son unité au dessin quand l'accent change.
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen
+  avant le rendu des PNG — même mécanique que icon-files.svg.
+
+  stroke-linejoin="round" arrondit les jonctions de la bosse : sans lui,
+  les deux angles au-dessus des pentes ressortent en pointes sèches.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Capture d'écran — LexOS">
+
+  <g fill="none" stroke="#E8590C" stroke-width="34"
+     stroke-linejoin="round" stroke-linecap="round">
+
+    <!-- Boîtier + bosse du viseur, tracé continu -->
+    <path d="M 88,196
+             H 152 C 166,196 174,190 180,178
+             L 196,140 C 202,126 212,118 226,118
+             H 290 C 304,118 314,126 320,140
+             L 336,178 C 342,190 350,196 364,196
+             H 424 A 44,44 0 0 1 468,240
+             V 396 A 44,44 0 0 1 424,440
+             H 88  A 44,44 0 0 1 44,396
+             V 240 A 44,44 0 0 1 88,196 Z"/>
+
+    <!-- Barre du viseur, dans la bosse -->
+    <path d="M 234,166 H 306" stroke-width="30"/>
+
+    <!-- Objectif -->
+    <circle cx="256" cy="322" r="92"/>
+  </g>
+
+  <!-- Témoin lumineux : plein, il ne se confond pas avec l'objectif -->
+  <circle cx="410" cy="246" r="17" fill="#E8590C"/>
+</svg>
