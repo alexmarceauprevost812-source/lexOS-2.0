@@ -60,3 +60,11 @@ arandr
 autorandr
 xfce4-settings
 gnome-system-tools
+
+# --- Fond d'écran animé ------------------------------------------------
+# mpv décode la vidéo ; python3-xlib crée la fenêtre de fond dans laquelle
+# il dessine. Voir « lexos wallpaper video » — qui met la lecture en pause
+# dès le passage sur batterie, un fond animé coûtant une à deux heures
+# d'autonomie sur un portable.
+mpv
+python3-xlib

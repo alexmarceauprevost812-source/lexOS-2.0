@@ -84,6 +84,7 @@ ${B}APPARENCE${R}
   ${A}ecran${R}               Plusieurs écrans : étendre, dupliquer, principal
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
   ${A}wallpaper${R} <image> <cadrage>  remplir · ajuster · etirer · centrer · mosaique
+  ${A}wallpaper video${R} <fichier> Une vidéo en fond ${D}(en pause sur batterie, sans son)${R}
   ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
 
 ${B}LANGUE${R}
@@ -389,6 +390,13 @@ wallpaper_style() {
 }
 
 cmd_wallpaper() {
+	#  « wallpaper video … » part vers l'outil dédié : une vidéo de fond
+	#  n'est pas une propriété xfconf mais un processus qui tourne, avec sa
+	#  surveillance de batterie et son arrêt propre.
+	if [[ "${1:-}" == "video" || "${1:-}" == "vidéo" ]]; then
+		shift; exec lexos-fond-video "$@"
+	fi
+
 	local img="${1:-/usr/share/backgrounds/lexos/wallpaper.png}"
 	local cadrage="${2:-remplir}"
 

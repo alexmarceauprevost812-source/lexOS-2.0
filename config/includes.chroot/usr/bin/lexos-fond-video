@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-fond-video — une vidéo en fond d'écran
+# =============================================================================
+#  ── Ce que ça coûte, avant ce que ça fait ───────────────────────────────
+#  Un fond animé, c'est un décodeur vidéo qui tourne SANS ARRÊT, même quand
+#  le bureau est entièrement recouvert par une fenêtre. Sur un portable,
+#  c'est une à deux heures d'autonomie en moins ; sur une machine modeste,
+#  c'est du processeur pris à ce que tu fais vraiment.
+#
+#  D'où deux garde-fous qui ne se désactivent pas par oubli :
+#    · sur batterie, la lecture se met en pause d'elle-même — l'image se
+#      fige sur la dernière trame, ce qui ne coûte plus rien ;
+#    · la vidéo est lue SANS SON. Un fond d'écran qui parle est
+#      insupportable au bout de dix minutes, et personne ne pense à
+#      couper le son avant d'essayer.
+#
+#  ── Comment ça tient techniquement ──────────────────────────────────────
+#  Une fenêtre à nous (voir /usr/lib/lexos/fond-video.py), déclarée comme
+#  fond d'écran et placée sous tout le reste, dans laquelle mpv dessine.
+#  On ne détourne pas la fenêtre de xfdesktop : elle se redessine au retour
+#  de veille ou au branchement d'un écran, et effacerait la vidéo.
+#
+#  ── Ce qui n'a PAS été vérifié ──────────────────────────────────────────
+#  Le comportement sur un vrai serveur X n'a pas pu être essayé pendant
+#  l'écriture : la machine de construction n'a pas d'affichage. La logique
+#  de fichiers, d'états et de garde-fous, elle, est testée. Si la fenêtre
+#  se comporte mal sur ton matériel, « lexos wallpaper video off » remet
+#  tout en place.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos wallpaper video"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'; Y=$'\033[33m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; V=''; Y=''; B=''; D=''; R=''
+fi
+say()   { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()    { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+warn()  { printf '%s!%s %s\n' "$Y" "$R" "$*"; }
+titre() { printf '\n%s%s%s\n' "$B" "$*" "$R"; }
+die()   { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+ETAT="${XDG_RUNTIME_DIR:-/tmp}/lexos-fond-video"
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/fond-video.conf"
+AUTO="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/lexos-fond-video.desktop"
+FENETRE="/usr/lib/lexos/fond-video.py"
+mkdir -p "$ETAT" "$(dirname "$CONF")" 2>/dev/null
+
+PID_FEN="$ETAT/fenetre.pid"
+PID_MPV="$ETAT/mpv.pid"
+PID_BAT="$ETAT/batterie.pid"
+
+vivant() { local f="$1"; [[ -r "$f" ]] && kill -0 "$(cat "$f" 2>/dev/null)" 2>/dev/null; }
+
+# =============================================================================
+#  Batterie
+# =============================================================================
+#  On lit /sys plutôt que d'appeler upower : c'est le même renseignement,
+#  sans dépendance et sans processus à lancer toutes les dix secondes.
+sur_batterie() {
+	local f
+	for f in /sys/class/power_supply/*/status; do
+		[[ -r "$f" ]] || continue
+		[[ "$(cat "$f" 2>/dev/null)" == "Discharging" ]] && return 0
+	done
+	return 1
+}
+
+#  SIGSTOP fige mpv sur sa dernière trame : plus une seule image décodée,
+#  et le bureau garde quand même une image. C'est exactement ce qu'on veut,
+#  et ça ne demande ni socket de commande ni configuration de mpv.
+surveille_batterie() {
+	local etat="marche"
+	while vivant "$PID_MPV"; do
+		if sur_batterie; then
+			[[ "$etat" == "marche" ]] && { kill -STOP "$(cat "$PID_MPV")" 2>/dev/null; etat="pause"; }
+		else
+			[[ "$etat" == "pause" ]] && { kill -CONT "$(cat "$PID_MPV")" 2>/dev/null; etat="marche"; }
+		fi
+		sleep 20
+	done
+}
+
+# =============================================================================
+#  Démarrage et arrêt
+# =============================================================================
+cmd_arreter() {
+	local quelquechose=0
+	for f in "$PID_BAT" "$PID_MPV" "$PID_FEN"; do
+		if vivant "$f"; then
+			#  CONT avant TERM : un processus arrêté par SIGSTOP ne traite
+			#  pas SIGTERM, il resterait figé indéfiniment.
+			kill -CONT "$(cat "$f")" 2>/dev/null
+			kill -TERM "$(cat "$f")" 2>/dev/null
+			quelquechose=1
+		fi
+		rm -f "$f"
+	done
+	rm -f "$AUTO"
+	if (( quelquechose )); then
+		ok "Fond animé arrêté. Le fond d'écran fixe reprend sa place."
+	else
+		say "Aucun fond animé ne tournait."
+	fi
+}
+
+cmd_demarrer() {
+	local video="$1"
+	[[ -r "$video" ]] || die "Fichier introuvable ou illisible : $video"
+	[[ -f "$video" ]] || die "Ce n'est pas un fichier : $video"
+
+	#  Vérifier le type AVANT de lancer quoi que ce soit : mpv ouvrirait une
+	#  fenêtre noire sur un fichier texte, sans dire pourquoi.
+	if command -v file >/dev/null 2>&1; then
+		local genre; genre="$(file -b --mime-type "$video" 2>/dev/null)"
+		case "$genre" in
+			video/*|application/octet-stream) ;;
+			*) die "Ce fichier n'est pas une vidéo (${genre:-type inconnu}) : $(basename "$video")" ;;
+		esac
+	fi
+
+	command -v mpv >/dev/null 2>&1 || die "mpv n'est pas installé (sudo apt install mpv)."
+	[[ -r "$FENETRE" ]] || die "Fichier manquant : $FENETRE"
+	[[ -n "${DISPLAY:-}" ]] || die "Aucune session graphique détectée."
+	python3 -c "import Xlib" >/dev/null 2>&1 \
+		|| die "python3-xlib n'est pas installé (sudo apt install python3-xlib)."
+
+	cmd_arreter >/dev/null 2>&1
+	video="$(readlink -f "$video")"
+
+	#  La fenêtre d'abord : mpv a besoin de son identifiant.
+	local tube; tube="$ETAT/wid"
+	rm -f "$tube"
+	python3 "$FENETRE" > "$tube" 2>"$ETAT/fenetre.log" &
+	echo $! > "$PID_FEN"
+
+	#  Quatre secondes d'attente au plus : au-delà, la fenêtre ne
+	#  viendra pas, et attendre davantage ne ferait que retarder le
+	#  message d'erreur.
+	local wid="" essais=0
+	while (( essais < 40 )); do
+		essais=$(( essais + 1 ))
+		wid="$(head -1 "$tube" 2>/dev/null || true)"
+		[[ "$wid" =~ ^[0-9]+$ ]] && break
+		sleep 0.1
+	done
+	if [[ ! "$wid" =~ ^[0-9]+$ ]]; then
+		cmd_arreter >/dev/null 2>&1
+		die "La fenêtre de fond n'a pas démarré. Détail : $ETAT/fenetre.log"
+	fi
+
+	#  --loop-file=inf   : un fond d'écran qui s'arrête n'en est plus un.
+	#  --no-audio        : voir l'en-tête. Ce n'est pas une option, c'est la règle.
+	#  --no-osd-bar, --no-input-default-bindings : rien ne doit réagir au clic
+	#                      ni afficher d'indicateur par-dessus le bureau.
+	#  --panscan=1       : remplit l'écran en recadrant, comme « remplir »
+	#                      pour une image fixe, plutôt que des bandes noires.
+	mpv --wid="$wid" --loop-file=inf --no-audio --really-quiet \
+	    --no-osd-bar --no-input-default-bindings --no-input-cursor \
+	    --panscan=1 --keepaspect=yes --cursor-autohide=no \
+	    --profile=low-latency --vo=gpu \
+	    "$video" >"$ETAT/mpv.log" 2>&1 &
+	echo $! > "$PID_MPV"
+
+	sleep 1
+	if ! vivant "$PID_MPV"; then
+		cmd_arreter >/dev/null 2>&1
+		die "mpv s'est arrêté tout de suite. Détail : $ETAT/mpv.log"
+	fi
+
+	surveille_batterie >/dev/null 2>&1 &
+	echo $! > "$PID_BAT"
+
+	printf 'VIDEO=%s\n' "$video" > "$CONF"
+
+	#  Reprendre à la prochaine ouverture de session, sinon il faudrait
+	#  retaper la commande chaque matin.
+	mkdir -p "$(dirname "$AUTO")"
+	cat > "$AUTO" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Fond d'écran animé LexOS
+Comment=Relance la vidéo de fond à l'ouverture de session
+Exec=lexos-fond-video "$video"
+Terminal=false
+X-GNOME-Autostart-Delay=4
+EOF
+
+	ok "Fond animé : $(basename "$video")"
+	say "Sans son, en boucle, et ${B}en pause dès que tu passes sur batterie${R}."
+	say "Pour l'arrêter : ${O}${PROG} off${R}"
+}
+
+cmd_etat() {
+	titre "Fond d'écran animé"
+	if vivant "$PID_MPV"; then
+		local v="?"; [[ -r "$CONF" ]] && v="$(sed -n 's/^VIDEO=//p' "$CONF")"
+		ok "En marche : $(basename "$v")"
+		if sur_batterie; then
+			warn "Sur batterie — la lecture est en pause, l'image est figée."
+		else
+			say "Sur secteur — la vidéo tourne."
+		fi
+		[[ -e "$AUTO" ]] && say "Reprend à chaque ouverture de session."
+	else
+		say "Aucun fond animé."
+		printf '  %s%s ~/Vidéos/boucle.mp4%s\n' "$O" "$PROG" "$R"
+	fi
+
+	titre "Ce qu'il faut"
+	command -v mpv >/dev/null 2>&1 && ok "mpv" || warn "mpv absent (sudo apt install mpv)"
+	python3 -c "import Xlib" >/dev/null 2>&1 && ok "python3-xlib" \
+		|| warn "python3-xlib absent (sudo apt install python3-xlib)"
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — une vidéo en fond d'écran
+
+  ${O}$PROG${R} <fichier>     Lance la vidéo en fond
+  ${O}$PROG off${R}           L'arrête et remet le fond fixe
+  ${O}$PROG${R}               Où ça en est
+
+${B}Ce que ça coûte${R}
+Un décodeur vidéo tourne sans arrêt, même quand le bureau est entièrement
+recouvert. Sur un portable, compte une à deux heures d'autonomie en moins.
+
+C'est pourquoi LexOS ${B}met la lecture en pause dès que tu passes sur
+batterie${R} — l'image se fige, et ne coûte plus rien — et lit la vidéo
+${B}sans le son${R}, sans possibilité de l'activer.
+
+${D}Une boucle courte (10 à 30 secondes) et légère fatigue beaucoup moins
+la machine qu'un film. Le format importe peu, la définition beaucoup :
+une boucle en 1080p suffit sur un écran 4K, personne ne verra la
+différence sur un fond.${R}
+EOF
+}
+
+case "${1:-}" in
+	""|etat|état|status)  cmd_etat ;;
+	-h|--help|aide|help)  usage ;;
+	off|stop|arreter|arrêter) cmd_arreter ;;
+	*)                    cmd_demarrer "$1" ;;
+esac

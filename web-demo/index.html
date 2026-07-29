@@ -651,8 +651,14 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .wall-parcourir:focus-within{outline:2px solid var(--ac);outline-offset:2px}
 .wall-perso{display:flex;align-items:center;gap:12px;margin-bottom:11px;
   background:var(--bg-alt);border:1px solid var(--bd);border-radius:10px;padding:9px}
-.wall-perso img{width:92px;height:56px;object-fit:cover;border-radius:6px;
-  flex:none;background:var(--bg)}
+.wall-perso img,.wall-perso video{width:92px;height:56px;object-fit:cover;
+  border-radius:6px;flex:none;background:var(--bg)}
+/*  La vidéo de fond occupe tout le bureau, derrière le reste. z-index 0 et
+    pas -1 : à -1 elle passerait DERRIÈRE le fond du bureau lui-même et
+    resterait invisible. */
+#wallVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  z-index:0;pointer-events:none}
+#desktop > *:not(#wallVideo){position:relative;z-index:1}
 .wall-perso-i{min-width:0;flex:1}
 .wall-perso-n{font-size:13px;font-weight:600;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
@@ -1440,7 +1446,7 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
                 qsCompact:false, dockHidden:false, zTop:100, majDispo:false, wallpaper:"defaut", police:"defaut",
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
-                wallPerso:null, wallPersoNom:"", wallCadrage:"remplir",
+                wallPerso:null, wallPersoNom:"", wallCadrage:"remplir", wallVideoURL:null,
                 vpn:null,
                 claviers:["ca-fr"], clavierVu:0, clvBascule:"alt-maj",
                 comptes:[] /* comptes en ligne reliés : {cle, nom, monte} */,
@@ -1456,7 +1462,17 @@ function setWallpaper(key){
   //  classe : son adresse n'est connue qu'au moment du choix, et une règle
   //  CSS ne peut pas la contenir d'avance.
   d.classList.toggle("papier-perso", key==="perso");
-  if(key === "perso" && state.wallPerso){
+  //  Une vidéo qui continuerait à tourner derrière un fond fixe
+  //  consommerait du processeur pour rien, invisible.
+  if(key !== "video") wallVideoStop();
+  if(key === "video" && state.wallVideoURL){
+    const v = wallVideoElement();
+    if(v.src !== state.wallVideoURL) v.src = state.wallVideoURL;
+    v.style.objectFit = state.wallCadrage==="ajuster" ? "contain"
+                      : state.wallCadrage==="etirer"  ? "fill" : "cover";
+    v.play().catch(()=>toast("Le navigateur a refusé la lecture automatique"));
+    d.style.backgroundImage = d.style.backgroundSize = "";
+  } else if(key === "perso" && state.wallPerso){
     d.style.backgroundImage = `url("${state.wallPerso}")`;
     d.style.backgroundSize = WALL_CADRAGE[state.wallCadrage] || "cover";
     d.style.backgroundPosition = "center";
@@ -1484,8 +1500,21 @@ const WALL_CADRAGE_NOM = {remplir:"Remplir l'écran (recadre)",
 function wallChoisirFichier(input){
   const f = input.files && input.files[0];
   if(!f) return;
-  if(!f.type.startsWith("image/")){
-    toast("Ce n'est pas une image : "+(f.type || "type inconnu")); return;
+  const estVideo = f.type.startsWith("video/");
+  if(!f.type.startsWith("image/") && !estVideo){
+    toast("Ni une image ni une vidéo : "+(f.type || "type inconnu")); return;
+  }
+  //  Une vidéo n'est pas convertie en base64 : createObjectURL donne au
+  //  navigateur une référence vers le fichier, qu'il lit à mesure. Passer
+  //  100 Mo de vidéo par une chaîne base64 figerait l'onglet.
+  if(estVideo){
+    if(state.wallVideoURL) URL.revokeObjectURL(state.wallVideoURL);
+    state.wallVideoURL = URL.createObjectURL(f);
+    state.wallPersoNom = f.name;
+    state.wallPerso = null;
+    setWallpaper("video");
+    toast("🎬 Fond animé : "+f.name+" — sans son, en boucle");
+    return;
   }
   //  Au-delà de quelques mégaoctets, la conversion en base64 fige l'onglet
   //  plusieurs secondes. Mieux vaut refuser en expliquant que ramer.
@@ -1503,14 +1532,42 @@ function wallChoisirFichier(input){
   fr.onerror = () => toast("Lecture impossible");
   fr.readAsDataURL(f);
 }
+
+/*  La vidéo de fond est un vrai <video> glissé sous tout le contenu du
+    bureau, pas une image animée : muet et en boucle, comme sur l'ISO.
+    « muted » n'est pas un détail — sans lui, le navigateur REFUSE de
+    lancer la lecture automatique, et le fond resterait noir. */
+function wallVideoElement(){
+  let v = document.getElementById("wallVideo");
+  if(!v){
+    v = document.createElement("video");
+    v.id = "wallVideo";
+    v.muted = true; v.loop = true; v.autoplay = true;
+    v.playsInline = true;
+    v.setAttribute("aria-hidden","true");
+    document.getElementById("desktop").prepend(v);
+  }
+  return v;
+}
+function wallVideoStop(){
+  const v = document.getElementById("wallVideo");
+  if(v){ v.pause(); v.removeAttribute("src"); v.load(); v.remove(); }
+}
 function wallCadrage(v){
   state.wallCadrage = v;
-  if(state.wallpaper === "perso") setWallpaper("perso"); else showSettingsSection();
+  //  « perso » ET « video » : le cadrage vaut pour les deux, et ne tester
+  //  que le premier laissait la vidéo bloquée sur « remplir » sans que
+  //  rien ne le signale — le menu changeait, l'image non.
+  if(state.wallpaper === "perso" || state.wallpaper === "video") setWallpaper(state.wallpaper);
+  else showSettingsSection();
 }
 function wallRetire(){
+  //  revokeObjectURL libère le fichier : sans lui, le navigateur garde une
+  //  référence vivante vers une vidéo que plus rien n'affiche.
+  if(state.wallVideoURL){ URL.revokeObjectURL(state.wallVideoURL); state.wallVideoURL = null; }
   state.wallPerso = null; state.wallPersoNom = "";
   setWallpaper("defaut");
-  toast("Image retirée — fond par défaut");
+  toast("Fond retiré — retour au fond par défaut");
 }
 /* --- Police d'écriture de l'interface ------------------------------------
    Familles GÉNÉRIQUES (system-ui, serif, monospace…) : elles existent dans
@@ -4351,35 +4408,53 @@ function settingsSection(key){
         </div>
       </div>
       <div class="srow" style="display:block">
-        <div class="t" style="margin-bottom:4px">Une image à toi</div>
-        <div class="d" style="margin-bottom:10px">Choisis une photo sur cette
-          machine. Elle ne part nulle part&nbsp;: le navigateur la lit sur place.</div>
-        ${state.wallPerso ? `<div class="wall-perso">
-            <img src="${state.wallPerso}" alt="Aperçu du fond d'écran choisi">
+        <div class="t" style="margin-bottom:4px">Une image ou une vidéo à toi</div>
+        <div class="d" style="margin-bottom:10px">Choisis un fichier sur cette
+          machine. Il ne part nulle part&nbsp;: le navigateur le lit sur place.</div>
+        ${(state.wallPerso || state.wallVideoURL) ? `<div class="wall-perso">
+            ${state.wallVideoURL
+              ? `<video src="${state.wallVideoURL}" muted loop autoplay playsinline
+                        aria-label="Aperçu de la vidéo de fond"></video>`
+              : `<img src="${state.wallPerso}" alt="Aperçu du fond d'écran choisi">`}
             <div class="wall-perso-i">
               <div class="wall-perso-n">${esc(state.wallPersoNom)}</div>
-              <div class="d">${state.wallpaper==="perso" ? "Appliquée" : "Choisie, mais un autre fond est actif"}</div>
+              <div class="d">${(state.wallpaper==="perso"||state.wallpaper==="video")
+                  ? (state.wallVideoURL ? "En lecture — sans son, en boucle" : "Appliquée")
+                  : "Choisie, mais un autre fond est actif"}</div>
             </div>
             <div style="display:flex;gap:6px;flex:none">
-              ${state.wallpaper!=="perso"
-                ? `<button class="btn ghost mini" style="width:auto" onclick="setWallpaper('perso')">Appliquer</button>` : ""}
+              ${(state.wallpaper!=="perso" && state.wallpaper!=="video")
+                ? `<button class="btn ghost mini" style="width:auto"
+                     onclick="setWallpaper('${state.wallVideoURL?"video":"perso"}')">Appliquer</button>` : ""}
               <button class="btn ghost mini" style="width:auto" onclick="wallRetire()">Retirer</button>
             </div>
           </div>` : ""}
         <label class="wall-parcourir">
-          <input type="file" accept="image/*" onchange="wallChoisirFichier(this)" hidden>
-          <span>🖼 Parcourir mes images…</span>
+          <input type="file" accept="image/*,video/*" onchange="wallChoisirFichier(this)" hidden>
+          <span>🖼 Parcourir mes images et vidéos…</span>
         </label>
       </div>
 
-      ${state.wallPerso ? `<div class="srow"><div><div class="t">Cadrage</div>
+      ${(state.wallPerso || state.wallVideoURL) ? `<div class="srow"><div><div class="t">Cadrage</div>
         <div class="d">${WALL_CADRAGE_NOM[state.wallCadrage]}</div></div>
         <select class="mac-sel" style="max-width:220px" onchange="wallCadrage(this.value)">
           ${Object.entries(WALL_CADRAGE_NOM).map(([k,n])=>
             `<option value="${k}"${k===state.wallCadrage?" selected":""}>${n}</option>`).join("")}
         </select></div>` : ""}
 
+      ${state.wallVideoURL ? `<div class="warnbox"><b>Un fond animé coûte cher.</b>
+        Le décodeur vidéo tourne sans arrêt, même quand le bureau est entièrement
+        recouvert par une fenêtre. Sur un portable, compte <b>une à deux heures
+        d'autonomie en moins</b>. C'est pourquoi la vraie ISO met la lecture
+        <b>en pause dès le passage sur batterie</b> — l'image se fige, et ne coûte
+        plus rien. Le son, lui, ne peut pas être activé du tout&nbsp;: un fond
+        d'écran qui parle devient insupportable au bout de dix minutes.
+        <br><br>Une boucle courte (10 à 30&nbsp;secondes) en 1080p fatigue
+        beaucoup moins la machine qu'un film — et sur un fond, personne ne verra
+        la différence.</div>` : ""}
+
       <p class="notice">Sur la vraie ISO&nbsp;: <code>lexos wallpaper ~/Images/photo.jpg</code>,
+      <code>lexos wallpaper video ~/Vidéos/boucle.mp4</code> pour une vidéo,
       ou un <b>clic droit sur l'image</b> dans Fichiers →
       « Définir comme fond d'écran ». Sans argument, <code>lexos wallpaper</code>
       remet celui par défaut. Les quatre fonds ci-dessus vivent dans
@@ -4765,6 +4840,40 @@ function settingsSection(key){
 
     case "apropos": return `<h2>À propos de LexOS</h2><div class="sub">1.0 « Nomad »</div>
       <p>Base Debian trixie · noyau 6.12 LTS · XFCE · LexOS Noir</p>
+
+      <h3 class="cpt-h3">100 % Linux</h3>
+      <div class="vpn-verite">
+        <div class="vpn-v-l"><span class="vpn-oui">Zéro Windows.</span>
+          LexOS n'a besoin d'aucun composant Microsoft, d'aucune licence, et ne
+          démarre jamais rien de Windows. Le système entier est assemblé à partir
+          des paquets Debian.</div>
+        <div class="vpn-v-l"><span class="vpn-oui">Wine non plus.</span>
+          Beaucoup croient que Wine réclame une copie de Windows. C'est faux&nbsp;:
+          <b>Wine Is Not an Emulator</b> — c'est une réécriture libre des fonctions
+          de Windows, faite de zéro, qui tourne nativement sur Linux. Pas une ligne
+          de code Microsoft, pas de licence à posséder. Un jeu Windows lancé par
+          Wine s'exécute sur du Linux, du début à la fin.</div>
+      </div>
+
+      <h3 class="cpt-h3">Ce qui n'est pas libre, et pourquoi</h3>
+      <p class="d" style="font-size:13px;line-height:1.6;margin:0 0 10px">Dire
+        « 100 % Linux » serait malhonnête sans préciser ceci. Trois choses dans
+        l'ISO ne sont pas du logiciel libre, et tu peux t'en passer&nbsp;:</p>
+      <div class="srow"><div><div class="t">Micrologiciels (<code>non-free-firmware</code>)</div>
+        <div class="d">Des petits fichiers chargés <b>dans le matériel</b> — carte
+        Wi-Fi, carte graphique — pas des programmes qui tournent sur ton
+        processeur. Sans eux, beaucoup de portables n'ont tout simplement pas de
+        Wi-Fi. C'est le compromis que fait Debian elle-même depuis la version 12.</div></div></div>
+      <div class="srow"><div><div class="t">Steam</div>
+        <div class="d">Le client de Valve est propriétaire. Il n'est installé que
+        si tu le demandes, et l'édition Pro le propose sans l'imposer.</div></div></div>
+      <div class="srow"><div><div class="t">Pilote Wi-Fi Broadcom</div>
+        <div class="d">Certaines cartes n'ont pas de pilote libre qui fonctionne.
+        <code>lexos mac wifi</code> ne le propose que quand la carte l'exige
+        vraiment.</div></div></div>
+      <p class="notice">Tout le reste — noyau, bureau, navigateur, outils LexOS —
+        est du logiciel libre. Le code de LexOS lui-même est sous licence MIT,
+        lisible et modifiable, le branding TI-LEX-AL excepté.</p>
       <p class="notice">Licence MIT (branding TI-LEX-AL excepté). Construit avec
       <code>make build</code> depuis le dépôt GitHub.</p>`;
     default: return `<p class="set-soon">Section indisponible.</p>`;
