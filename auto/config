@@ -5,7 +5,23 @@
 # =============================================================================
 set -e
 
+#  ── Pourquoi on ne se contente pas de sourcer lexos.conf ────────────────
+#  build.sh exporte LEXOS_FLAVOUR, LEXOS_DEBIAN_SUITE et LEXOS_ARCH d'après
+#  ses options de ligne de commande. « . ./lexos.conf » les écrasait par les
+#  valeurs du fichier : « --flavour pro » produisait une ISO contenant bien
+#  les paquets de la saveur pro — build.sh assemble les listes lui-même —
+#  mais NOMMÉE « standard ». Un fichier qui ment sur son contenu est pire
+#  qu'une erreur bruyante : on télécharge 6 Gio en croyant s'être trompé.
+#  On garde donc ce qui vient de l'environnement quand il y en a.
+_ENV_FLAVOUR="${LEXOS_FLAVOUR:-}"
+_ENV_SUITE="${LEXOS_DEBIAN_SUITE:-}"
+_ENV_ARCH="${LEXOS_ARCH:-}"
+
 . ./lexos.conf
+
+[ -n "$_ENV_FLAVOUR" ] && LEXOS_FLAVOUR="$_ENV_FLAVOUR"
+[ -n "$_ENV_SUITE" ]   && LEXOS_DEBIAN_SUITE="$_ENV_SUITE"
+[ -n "$_ENV_ARCH" ]    && LEXOS_ARCH="$_ENV_ARCH"
 
 BACKPORTS="false"
 [ "${LEXOS_KERNEL_CHANNEL:-stock}" = "backports" ] && BACKPORTS="true"
@@ -50,7 +66,9 @@ lb config noauto \
 	--iso-publisher "${LEXOS_PUBLISHER}" \
 	--iso-preparer "${LEXOS_NAME} build system; ${LEXOS_HOME_URL}" \
 	--iso-volume "${LEXOS_NAME} ${LEXOS_VERSION}" \
-	--image-name "${LEXOS_ID}-${LEXOS_VERSION}-${LEXOS_FLAVOUR}-${LEXOS_ARCH}" \
+	`#  live-build ajoute lui-même « -<arch>.hybrid.iso » : répéter
+	 #  l'architecture ici donnait lexos-1.0-standard-amd64-amd64.hybrid.iso.` \
+	--image-name "${LEXOS_ID}-${LEXOS_VERSION}-${LEXOS_FLAVOUR}" \
 	--bootappend-live "${BOOTAPPEND}" \
 	--bootappend-install "${BOOTAPPEND}" \
 	--compression xz \

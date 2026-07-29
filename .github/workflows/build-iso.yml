@@ -147,6 +147,32 @@ jobs:
               echo '```'
               echo
               echo "Télécharge-la dans **Artifacts**, au bas de cette page."
+              echo
+
+              # Le hook 0250 installe les paquets de confort un par un et note
+              # ceux que l'archive n'a pas. Ce rapport vit DANS l'ISO, à
+              # /etc/lexos/optional-report — donc invisible sans télécharger
+              # plusieurs gigaoctets. On le recopie ici, où il se lit d'un
+              # coup d'oeil : un nom de paquet qui a changé entre deux
+              # versions de Debian se voit alors tout de suite.
+              RAPPORT="chroot/etc/lexos/optional-report"
+              if [ -r "$RAPPORT" ]; then
+                echo "### Paquets optionnels"
+                echo
+                echo '```'
+                head -3 "$RAPPORT"
+                echo '```'
+                if grep -q '^[a-z0-9]' "$RAPPORT" 2>/dev/null; then
+                  echo
+                  echo "<details><summary>Paquets non installés</summary>"
+                  echo
+                  echo '```'
+                  sed -n '/# Non install/,$p' "$RAPPORT" | tail -n +2
+                  echo '```'
+                  echo
+                  echo "</details>"
+                fi
+              fi
             else
               echo "### ❌ Aucune ISO produite"
               echo
