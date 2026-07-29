@@ -615,6 +615,21 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   padding:12px;color:#ffb4b6;font-size:13px;margin:10px 0}
 .notice{border:1px solid var(--ac-lo);background:#170f08;border-radius:8px;
   padding:12px;color:var(--ac-hi);font-size:13px;margin:10px 0}
+/* --- Panneau « Mac (Apple) » ---------------------------------------------
+   Le verdict porte la couleur de sa propre conclusion : la bordure gauche
+   suffit à savoir, avant même de lire, si la machine est jouable. */
+.mac-sel{background:var(--bg-alt);color:var(--fg);border:1px solid var(--bd);
+  border-radius:8px;padding:7px 9px;font:inherit;font-size:13px;max-width:min(60%,290px)}
+.mac-sel:focus{outline:2px solid var(--accent);outline-offset:1px}
+.mac-verdict{border:1px solid var(--bd);border-left-width:4px;border-radius:8px;
+  padding:12px 14px;margin:12px 0;background:var(--bg-alt)}
+.mac-v-t{font-weight:700;font-size:14px;margin-bottom:4px}
+.mac-v-s{font-size:13px;color:var(--fg-dim);line-height:1.5}
+.mac-steps{margin:10px 0 10px 20px;padding:0;font-size:13px;line-height:1.75}
+.mac-steps li{margin-bottom:4px}
+.mac-steps code.blk{display:block;margin:5px 0;padding:7px 9px;
+  background:var(--bg);border:1px solid var(--bd);border-radius:6px;
+  font-size:12px;overflow-x:auto;white-space:pre}
 .menu{position:fixed;top:34px;left:8px;z-index:950;background:var(--bg-alt);
   border:1px solid var(--bd);border-radius:10px;padding:6px;min-width:230px;
   box-shadow:0 14px 40px rgba(0,0,0,.8)}
@@ -3328,13 +3343,117 @@ function togglePhoneMirror(){
   }, 1200);
 }
 /* --- Paramètres façon Ubuntu Settings : volet + contenu ----------------- */
+/* ===== Matériel Apple ====================================================
+   « Est-ce que ça tourne sur un Mac ? » n'a pas UNE réponse : il y a trois
+   familles de Mac qui n'ont presque rien en commun. Plutôt qu'un paragraphe
+   qui noierait la nuance, ce panneau rejoue exactement le classement de
+   `lexos mac` — même tables, mêmes verdicts — sur le modèle qu'on choisit.
+   Les deux doivent rester d'accord : c'est vérifié à chaque intégration. */
+const MAC_T2 = ["iMacPro1,1","MacBookPro15,1","MacBookPro15,2","MacBookPro15,3",
+  "MacBookPro15,4","MacBookPro16,1","MacBookPro16,2","MacBookPro16,3",
+  "MacBookPro16,4","MacBookAir8,1","MacBookAir8,2","MacBookAir9,1",
+  "Macmini8,1","MacPro7,1","iMac20,1","iMac20,2"];
+const MAC_EFI32 = ["MacBook2,1","MacBook3,1","MacBook4,1","MacBookPro2,1",
+  "MacBookPro2,2","MacBookPro3,1","MacBookAir1,1","iMac5,1","iMac5,2",
+  "iMac6,1","iMac7,1","Macmini2,1","MacPro1,1","MacPro2,1","Xserve1,1"];
+const MAC_CPU32 = ["MacBook1,1","MacBookPro1,1","MacBookPro1,2","iMac4,1",
+  "iMac4,2","Macmini1,1"];
+const MAC_SILICON = ["MacBookAir10,1","MacBookPro17,1","MacBookPro18,1",
+  "MacBookPro18,2","MacBookPro18,3","MacBookPro18,4","Macmini9,1",
+  "iMac21,1","iMac21,2"];
+function macClasse(m){
+  //  Mac13,x et au-delà : nomenclature courte, uniquement Apple Silicon.
+  if(MAC_SILICON.includes(m) || /^Mac(1[3-9]|[2-9][0-9]),[0-9]+$/.test(m)) return "silicon";
+  if(MAC_CPU32.includes(m))  return "cpu32";
+  if(MAC_EFI32.includes(m))  return "efi32";
+  if(MAC_T2.includes(m))     return "t2";
+  return "intel";
+}
+const MAC_CHOIX = [
+  ["MacBook Pro 15\" 2013-2015 (Retina)","MacBookPro11,3"],
+  ["MacBook Pro 13\" 2012","MacBookPro9,2"],
+  ["MacBook Air 13\" 2015","MacBookAir7,2"],
+  ["MacBook Pro 2017 (dernier sans T2)","MacBookPro14,3"],
+  ["iMac 27\" 2017","iMac18,3"],
+  ["Mac mini 2014","Macmini7,1"],
+  ["MacBook Pro 2018-2019 (Touch Bar, T2)","MacBookPro15,1"],
+  ["MacBook Pro 16\" 2019 (T2)","MacBookPro16,1"],
+  ["MacBook Air 2018-2020 (T2)","MacBookAir8,1"],
+  ["Mac mini 2018 (T2)","Macmini8,1"],
+  ["iMac Pro 2017 (T2)","iMacPro1,1"],
+  ["MacBook 2008 (EFI 32 bits)","MacBook4,1"],
+  ["iMac 2007 (EFI 32 bits)","iMac7,1"],
+  ["MacBook 2006 (Core Duo)","MacBook1,1"],
+  ["MacBook Air M1 2020","MacBookAir10,1"],
+  ["MacBook Pro 14\"/16\" M1 Pro/Max","MacBookPro18,3"],
+  ["Mac mini M2 2023","Mac14,3"],
+  ["MacBook Pro M4 2024","Mac16,1"],
+];
+const MAC_VERDICT = {
+  intel:{c:"var(--ok)",   t:"LexOS démarre et s'installe normalement",
+    s:"Un Mac Intel de cette génération est un PC x86_64 avec un firmware UEFI 64 bits. Rien de particulier à contourner."},
+  t2:{c:"var(--warn)",    t:"LexOS démarre, mais clavier et souris USB obligatoires",
+    s:"La puce T2 gère le clavier, le pavé tactile, le son et le SSD internes. Le noyau Debian d'origine ne sait pas lui parler."},
+  efi32:{c:"var(--warn)", t:"Uniquement en mode BIOS",
+    s:"Processeur 64 bits, mais firmware EFI 32 bits : l'amorceur UEFI de LexOS ne sera pas chargé. Le mode BIOS de ces Mac, lui, fonctionne."},
+  cpu32:{c:"var(--off)",  t:"Trop ancien : processeur 32 bits",
+    s:"Les Mac Core Duo de 2006 n'exécutent pas de code 64 bits. Aucune ISO amd64 n'y démarrera, la nôtre pas plus qu'une autre."},
+  silicon:{c:"var(--off)",t:"Impossible : ce n'est pas un processeur x86",
+    s:"Les Mac M1, M2, M3 et M4 ont un processeur ARM. Le firmware ne saura même pas lire une ISO amd64. Ce n'est pas un réglage à trouver."},
+};
+const MAC_DETAIL = {
+  intel:`<ol class="mac-steps">
+      <li>Écris l'ISO sur une clé USB avec <code>dd</code>&nbsp;:
+        <code class="blk">sudo dd if=lexos-1.0-standard-amd64.iso of=/dev/diskN bs=4m</code></li>
+      <li>Redémarre en tenant <b>Option&nbsp;(⌥)</b>.</li>
+      <li>Choisis <b>EFI&nbsp;Boot</b>.</li></ol>
+    <p class="notice">Pour installer à côté de macOS, réduis d'abord la partition
+      depuis l'Utilitaire de disque <i>de macOS</i> : redimensionner de l'APFS
+      depuis Linux n'est pas fiable.</p>`,
+  t2:`<ol class="mac-steps">
+      <li>Redémarre en tenant <b>Commande&nbsp;+&nbsp;R</b> → Utilitaires →
+        <b>Utilitaire de sécurité au démarrage</b>.</li>
+      <li>Sécurité au démarrage&nbsp;: <b>Aucune sécurité</b>.</li>
+      <li>Démarrage externe&nbsp;: <b>Autoriser</b>.</li>
+      <li>Redémarre en tenant <b>Option&nbsp;(⌥)</b>, choisis <b>EFI&nbsp;Boot</b>.</li></ol>
+    <div class="warnbox">Sans les étapes 2 et 3, le Mac refuse la clé sans rien
+      expliquer. Et même après&nbsp;: clavier et pavé tactile internes, son,
+      Wi-Fi interne et parfois le SSD restent invisibles — il faut un clavier
+      et une souris USB. Ces quatre points demandent le noyau modifié du projet
+      t2linux&nbsp;; LexOS livre le noyau Debian d'origine, celui qui reçoit les
+      correctifs de sécurité.</div>`,
+  efi32:`<ol class="mac-steps">
+      <li>Écris l'ISO sur une clé USB avec <code>dd</code>.</li>
+      <li>Redémarre en tenant <b>Option&nbsp;(⌥)</b>.</li>
+      <li>Choisis l'entrée <b>Windows</b> — c'est ainsi que le firmware nomme
+        toute clé amorçable en mode BIOS. Ce n'est pas une erreur.</li></ol>`,
+  cpu32:`<p class="notice">Il faudrait une ISO i386. LexOS n'en construit pas&nbsp;:
+    Debian a arrêté d'en publier un noyau.</p>`,
+  silicon:`<p class="notice">La seule façon de faire tourner Linux sur ces Mac
+    aujourd'hui, c'est <b>Asahi Linux</b>, qui a dû écrire son propre amorceur
+    (m1n1) et une bonne part des pilotes par rétro-ingénierie. LexOS ne se pose
+    pas dessus&nbsp;: ce serait une distribution entièrement différente, à
+    recompiler pour arm64 sur leur noyau.</p>
+    <div class="warnbox">Ce qui reste possible sur un Mac Apple Silicon&nbsp;:
+      LexOS dans une machine virtuelle x86 (lent, c'est de l'émulation), ou
+      Debian arm64 dans UTM — rapide et complet, mais ce n'est pas LexOS.</div>`,
+};
+function macChoisis(m){ state.macModele = m; showSettingsSection(); }
+function macGlyph(s=16){
+  //  Un portable vu de face : le sujet, c'est la machine, pas la marque.
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="4" y="4" width="16" height="11" rx="1.6" stroke="var(--accent)" stroke-width="1.7"/>
+    <path d="M2 18.5h20l-1.2-1.9H3.2z" fill="var(--accent)" opacity=".85"/>
+    <path d="M9.6 17.2h4.8" stroke="var(--bg)" stroke-width="1.1" stroke-linecap="round"/></svg>`;
+}
 const SETTINGS_NAV = [
   {grp:"Réseau", items:[
     ["wifi",wifiGlyph,"Wi-Fi"], ["reseau","🌐","Réseau"],
     ["bluetooth",'<i class="gly gly-bt"></i>',"Bluetooth"]]},
   {grp:"Matériel", items:[
     ["ecrans","🖥","Écrans"], ["son","🔊","Son"], ["energie","🔋","Énergie"],
-    ["usb",'<i class="gly gly-usb"></i>',"Appareils USB"]]},
+    ["usb",'<i class="gly gly-usb"></i>',"Appareils USB"],
+    ["mac",()=>macGlyph(16),"Mac (Apple)"]]},
   {grp:"Personnalisation", items:[
     ["apparence","🎨","Apparence"], ["bureau","🖼","Bureau LexOS"],
     ["multitaches","🗔","Multi-tâches"], ["applications","🧩","Applications"],
@@ -3670,6 +3789,32 @@ function settingsSection(key){
       <code>lexos logitheque install distant</code> installe <b>Remmina</b>
       pour se connecter à d'autres machines. <code>lexos secure</code>
       montre si le pare-feu laisse passer le port.</p>`;
+
+    case "mac": {
+      const m = state.macModele || "MacBookPro11,3";
+      const cl = macClasse(m), v = MAC_VERDICT[cl];
+      const opts = MAC_CHOIX.map(([nom,id])=>
+        `<option value="${id}"${id===m?" selected":""}>${nom}</option>`).join("");
+      return `<h2>Mac (Apple)</h2>
+      <div class="sub">Est-ce que LexOS tourne sur cette machine&nbsp;?</div>
+      <div class="srow"><div><div class="t">Modèle</div>
+        <div class="d">Identifiant Apple&nbsp;: <code>${m}</code></div></div>
+        <select class="mac-sel" onchange="macChoisis(this.value)">${opts}</select></div>
+      <div class="mac-verdict" style="border-color:${v.c}">
+        <div class="mac-v-t" style="color:${v.c}">${v.t}</div>
+        <div class="mac-v-s">${v.s}</div></div>
+      ${MAC_DETAIL[cl]}
+      ${cl==="intel"||cl==="t2" ? `<p class="notice">Une fois LexOS ouvert&nbsp;:
+        <code>lexos mac</code> fait le bilan de la machine,
+        <code>lexos mac wifi</code> reconnaît la carte Broadcom par son
+        identifiant PCI et dit quel pilote installer,
+        <code>lexos mac clavier fonction</code> rend F1..F12 aux vraies touches F,
+        <code>lexos mac ventilateur</code> les fait accélérer quand ça chauffe —
+        sous Linux ils restent au ralenti tant que rien ne les pilote.</p>` : ""}
+      <p class="notice">Ce classement est le même code que <code>lexos mac</code>
+        sur la vraie ISO&nbsp;: mêmes tables de modèles, mêmes verdicts. Une
+        vérification d'intégration refuse toute divergence entre les deux.</p>`;
+    }
 
     case "apropos": return `<h2>À propos de LexOS</h2><div class="sub">1.0 « Nomad »</div>
       <p>Base Debian trixie · noyau 6.12 LTS · XFCE · LexOS Noir</p>

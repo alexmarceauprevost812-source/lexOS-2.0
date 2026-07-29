@@ -146,6 +146,14 @@ ${B}ARCHIVES${R}
   ${A}run-ins${R} <archive.zip> Installe une application livrée en .zip
                       ${D}montre ce qu'elle contient et demande avant d'exécuter${R}
 
+${B}MATÉRIEL APPLE${R}
+  ${A}mac${R}                 Bilan : ce Mac peut-il faire tourner LexOS ?
+  ${A}mac demarrage${R}       Comment démarrer LexOS sur ce Mac précisément
+  ${A}mac wifi${R}            Quel pilote Broadcom il faut ${D}(déduit de l'identifiant PCI)${R}
+  ${A}mac clavier${R} <mode>  F1..F12 : ${B}fonction${R} ou ${B}multimedia${R}
+  ${A}mac ventilateur${R}     Pour qu'ils accélèrent quand ça chauffe
+                      ${D}Mac Intel : oui. Mac M1/M2/M3/M4 : non, autre processeur.${R}
+
 ${B}IMAGES${R}
   ${A}sticker${R} <image…>     Découpe le sujet en autocollant (PNG transparent)
                       ${D}IA (rembg) si installée, sinon fond uni (ImageMagick)${R}
@@ -170,6 +178,7 @@ ${B}EXEMPLES${R}
   ${D}${PROG} usb import${R}
   ${D}${PROG} lang quebecois${R}
   ${D}${PROG} sticker photo.jpg${R}
+  ${D}${PROG} mac demarrage${R}
   ${D}${PROG} ia "libère 2 Gio d'espace disque"${R}
 
 EOF
@@ -607,6 +616,7 @@ case "$CMD" in
 	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;
+	mac|apple)            exec lexos-mac "$@" ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

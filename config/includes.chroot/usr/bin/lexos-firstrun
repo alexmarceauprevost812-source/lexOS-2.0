@@ -67,4 +67,10 @@ if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
 	fi
 fi
 
+# --- Matériel Apple ---------------------------------------------------------
+#  Sur un Mac, quelques réglages ne se devinent pas : les ventilateurs qui
+#  restent au ralenti, la rangée F qui pilote la luminosité. « --auto »
+#  n'affiche rien et sort immédiatement si la machine n'est pas un Mac.
+command -v lexos-mac >/dev/null 2>&1 && lexos-mac --auto >/dev/null 2>&1 || true
+
 date -u '+%Y-%m-%dT%H:%M:%SZ' > "$STAMP"

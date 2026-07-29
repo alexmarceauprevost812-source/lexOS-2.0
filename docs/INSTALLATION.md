@@ -223,6 +223,102 @@ lexos demo
 
 ---
 
+## Sur un Mac
+
+« Est-ce que ça tourne sur du Apple ? » n'a pas une seule réponse. Il y a
+trois familles de Mac, et elles n'ont presque rien en commun.
+
+| Machine | LexOS démarre ? | Ce qu'il faut savoir |
+|---|---|---|
+| **Mac Intel 2008-2017** | Oui | Comme sur un PC UEFI. Wi-Fi Broadcom à régler |
+| **Mac Intel 2018-2020** (puce T2) | Oui, avec réserves | Clavier et souris **USB** obligatoires |
+| **Mac Intel 2006-2008** (EFI 32 bits) | Oui, en mode BIOS | Choisir l'entrée « Windows » dans le menu ⌥ |
+| **Mac 2006** (Core Duo) | Non | Processeur 32 bits |
+| **Mac M1 · M2 · M3 · M4** | **Non** | Ce n'est pas un processeur x86 |
+
+Pour savoir dans quelle case tombe une machine précise, sans rien installer :
+le panneau **Paramètres → Matériel → Mac (Apple)** de la
+[démo en ligne](https://alexmarceauprevost812-source.github.io/logiciel-ti-lex-/)
+donne le verdict modèle par modèle. Une fois LexOS démarré, `lexos mac` fait le
+même travail sur la machine réelle.
+
+### Mac Intel (2008-2017) — le cas simple
+
+1. Écris l'ISO sur une clé USB avec `dd` — pas un copier-coller :
+
+   ```bash
+   diskutil list                     # trouver le numéro N de la clé
+   diskutil unmountDisk /dev/diskN
+   sudo dd if=lexos-1.0-standard-amd64.iso of=/dev/rdiskN bs=4m status=progress
+   ```
+
+2. Redémarre en tenant **Option (⌥)**.
+3. Choisis **EFI Boot**.
+
+Une fois sur le bureau :
+
+```bash
+lexos mac              # bilan de la machine
+lexos mac wifi         # quel pilote Broadcom il faut, d'après l'identifiant PCI
+lexos mac clavier fonction   # F1..F12 redeviennent de vraies touches F
+lexos mac ventilateur        # qu'ils accélèrent quand ça chauffe
+```
+
+Les deux derniers comptent plus qu'ils n'en ont l'air. Sous Linux, **rien ne
+pilote les ventilateurs d'un Mac** tant que `mbpfan` n'est pas lancé : la
+machine chauffe en silence. Et la rangée F d'Apple pilote la luminosité, pas
+les touches F — ce que la plupart des raccourcis Linux attendent.
+
+Pour installer à côté de macOS, réduis d'abord la partition depuis
+l'Utilitaire de disque **de macOS**. Redimensionner de l'APFS depuis Linux
+n'est pas fiable.
+
+### Mac à puce T2 (2018-2020) — ça marche, mais lis d'abord
+
+Avant même de brancher la clé :
+
+1. Redémarre en tenant **Commande + R** → Utilitaires →
+   **Utilitaire de sécurité au démarrage**.
+2. Sécurité au démarrage : **Aucune sécurité**.
+3. Démarrage externe : **Autoriser**.
+
+Sans ces deux réglages, le Mac refuse la clé sans rien expliquer.
+
+Ensuite, **avec le noyau Debian d'origine que livre LexOS**, ceci ne
+fonctionnera pas :
+
+* le clavier et le pavé tactile internes → il faut un clavier et une souris USB ;
+* le son interne ;
+* le Wi-Fi interne (son micrologiciel est propre à la machine et vit dans macOS) ;
+* le SSD interne peut rester invisible — donc pas d'installation dessus.
+
+Ces quatre points demandent le noyau modifié du projet
+[t2linux](https://t2linux.org). LexOS ne le livre pas : c'est un noyau à part,
+qui suit son propre calendrier de correctifs. Nous préférons un noyau Debian
+qui reçoit les mises à jour de sécurité, et le dire franchement, plutôt qu'une
+promesse tenue par un noyau figé.
+
+### Mac Apple Silicon (M1, M2, M3, M4) — non
+
+Ce n'est pas un manque de réglage, c'est un autre processeur. Les puces M sont
+en ARM ; l'ISO de LexOS est compilée pour amd64. Le firmware ne saura même pas
+la lire.
+
+La seule façon de faire tourner Linux sur ces machines aujourd'hui est
+[Asahi Linux](https://asahilinux.org), qui a dû écrire son propre amorceur
+(m1n1) et une bonne part des pilotes par rétro-ingénierie. LexOS ne se pose pas
+dessus : ce serait une distribution entièrement différente, à recompiler pour
+arm64 et à rebâtir sur leur noyau.
+
+Ce qui reste possible :
+
+* **LexOS dans une machine virtuelle x86** (UTM en mode émulation) — ça marche,
+  c'est lent, tout est traduit instruction par instruction ;
+* **Debian arm64 dans UTM ou Parallels** — rapide et complet, mais ce n'est
+  pas LexOS.
+
+---
+
 ## Étape 4 — Installer sur le disque (seulement si tu es convaincu)
 
 ### Avant de cliquer

@@ -214,6 +214,23 @@ Categories=Utility;TerminalEmulator;
 Keywords=terminal;shell;adb;telephone;android;appareil;console;
 EOF
 
+#  N'apparaît que sur un Mac : ailleurs, un lanceur « Mac (Apple) » serait
+#  du bruit. OnlyShowIn ne sait pas filtrer par matériel, alors le lanceur
+#  vérifie lui-même et s'explique s'il n'a rien à faire.
+cat > /usr/share/applications/lexos-mac.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Mac (Apple)
+Name[en]=Mac (Apple)
+Comment=Ce Mac : Wi-Fi Broadcom, ventilateurs, touches F1-F12
+Exec=xfce4-terminal --title="Mac (Apple) — LexOS" --hold -e "lexos mac"
+Icon=computer-laptop
+Terminal=false
+Categories=System;HardwareSettings;
+Keywords=mac;apple;macbook;imac;broadcom;wifi;ventilateur;fnmode;clavier;t2;
+EOF
+
 cat > /usr/share/applications/lexos-format.desktop <<EOF
 [Desktop Entry]
 Type=Application

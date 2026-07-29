@@ -1,0 +1,45 @@
+# Matériel Apple — ce qu'il faut pour qu'un Mac Intel se comporte
+# correctement sous LexOS.
+#
+# ── Ce qui n'est PAS ici, et pourquoi ──────────────────────────────────
+# firmware-b43-installer et broadcom-sta-dkms sont les deux paquets dont
+# ont besoin les Mac à carte Broadcom ancienne (b43) ou BCM4360 (wl).
+# Ils sont volontairement absents de cette liste : le premier TÉLÉCHARGE
+# son micrologiciel pendant l'installation, le second COMPILE un module.
+# Les deux peuvent échouer au milieu de la construction de l'ISO et
+# laisser dpkg à moitié configuré — ce qui ferait tomber tous les paquets
+# suivants, pas seulement eux.
+# « lexos mac wifi » identifie la carte et propose le bon des deux, sur la
+# vraie machine, où l'échec ne coûte qu'un message.
+
+# --- Capteurs et ventilateurs ------------------------------------------
+# Le capteur applesmc est dans le noyau, mais personne ne pilote la
+# vitesse : sans mbpfan un MacBook chauffe, ventilateurs au ralenti.
+mbpfan
+
+# macfanctld vise les MacBook Air et Pro que mbpfan gère mal.
+macfanctld
+
+# lm-sensors donne les températures que mbpfan surveille.
+lm-sensors
+
+# --- Identification du matériel ----------------------------------------
+# lspci est ce qui permet à « lexos mac wifi » de reconnaître la carte
+# Broadcom par son identifiant PCI plutôt que par l'année du Mac.
+pciutils
+
+# --- Disques Apple ------------------------------------------------------
+# hfsprogs lit et vérifie les partitions HFS+ : celle de macOS sur les
+# Mac d'avant 2017, et la partition de restauration sur presque tous.
+# (APFS, plus récent, reste en lecture seule et expérimentale sous Linux.)
+hfsprogs
+
+# efibootmgr sert à ranger l'entrée de démarrage LexOS dans le firmware
+# après une installation à côté de macOS.
+efibootmgr
+
+# --- Micrologiciel Wi-Fi sans script -----------------------------------
+# Fichiers seulement : rien à télécharger ni à compiler, donc sans risque
+# pour la construction. Couvre les cartes brcmfmac (BCM43602, BCM4350,
+# BCM4356) qu'on trouve sur les Mac de 2013 à 2017.
+firmware-brcm80211

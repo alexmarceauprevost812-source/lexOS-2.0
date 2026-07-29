@@ -215,9 +215,62 @@ jobs:
           print(f"ok — {len(demo)} paquets, mêmes noms des deux côtés")
           EOF
 
+      - name: Classement du matériel Apple
+        run: |
+          # 36 machines dont on connaît la réponse : Mac Intel, T2, EFI 32
+          # bits, Core Duo, Apple Silicon, et des PC qui ne sont pas des Mac.
+          # « lexos mac » décide si quelqu'un écrit une clé USB pour rien —
+          # une table qui glisse doit casser la CI, pas une soirée.
+          bash tests/test_lexos_mac.sh
+
+      - name: Tables de modèles Mac identiques
+        run: |
+          # Le panneau « Mac (Apple) » de la démo répond exactement à la même
+          # question que « lexos mac » sur l'ISO : cette machine peut-elle
+          # démarrer LexOS ? Deux tables séparées, donc deux occasions de se
+          # contredire — et un utilisateur à qui la démo promet un démarrage
+          # que la vraie ISO refusera. On les compare, modèle par modèle.
+          python3 - <<'EOF'
+          import re, sys
+
+          def tables(texte, motif):
+              out = {}
+              for cle, corps in re.findall(motif, texte, re.S):
+                  out[cle.lower()] = set(corps.replace("\n", " ").replace('"', "")
+                                         .replace(",", " ,").split())
+              return out
+
+          sh = open("config/includes.chroot/usr/bin/lexos-mac", encoding="utf-8").read()
+          shells = {}
+          for cle in ("T2", "EFI32", "CPU32", "SILICON"):
+              b = re.search(r'MODELES_%s="(.*?)"' % cle, sh, re.S)
+              if not b:
+                  sys.exit("table MODELES_%s introuvable" % cle)
+              shells[cle.lower()] = set(b.group(1).split())
+
+          js = open("web-demo/index.html", encoding="utf-8").read()
+          demos = {}
+          for cle in ("T2", "EFI32", "CPU32", "SILICON"):
+              b = re.search(r'const MAC_%s = \[(.*?)\];' % cle, js, re.S)
+              if not b:
+                  sys.exit("table MAC_%s introuvable dans la démo" % cle)
+              demos[cle.lower()] = set(re.findall(r'"([^"]+)"', b.group(1)))
+
+          faute = 0
+          for cle in shells:
+              if shells[cle] != demos[cle]:
+                  print("%s — ISO seulement : %s" % (cle, sorted(shells[cle] - demos[cle])))
+                  print("%s — démo seulement : %s" % (cle, sorted(demos[cle] - shells[cle])))
+                  faute = 1
+              else:
+                  print("ok  %-8s %d modèles" % (cle, len(shells[cle])))
+          if faute:
+              sys.exit("les tables de modèles Mac ont divergé entre la démo et l'ISO")
+          EOF
+
       - name: Aides affichables sans erreur
         run: |
-          for t in lexos lexfetch lexos-perf lexos-net lexos-share lexos-display; do
+          for t in lexos lexfetch lexos-perf lexos-net lexos-share lexos-display lexos-mac; do
             ./config/includes.chroot/usr/bin/$t help >/dev/null \
               || ./config/includes.chroot/usr/bin/$t >/dev/null \
               || { echo "$t help en échec"; exit 1; }

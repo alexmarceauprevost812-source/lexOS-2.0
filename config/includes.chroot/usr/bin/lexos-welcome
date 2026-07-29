@@ -60,6 +60,18 @@ else
 	INTRO="Bienvenue sur ton système.\nTout est configuré, il n'y a plus qu'à s'en servir."
 fi
 
+#  Sur un Mac, deux réglages ne se devinent pas — les ventilateurs que rien
+#  ne pilote, la rangée F qui commande la luminosité. Autant le dire ici
+#  plutôt que d'attendre que la machine chauffe. Sur tout autre matériel
+#  cette ligne n'apparaît pas.
+MAC_LIGNE=""
+if command -v lexos-mac >/dev/null 2>&1; then
+	case "$(lexos-mac classe 2>/dev/null)" in
+		intel|t2|efi32) MAC_LIGNE="
+  <tt>lexos mac</tt>        ce Mac : Wi-Fi, ventilateurs, touches F" ;;
+	esac
+fi
+
 MARKUP="<span size='xx-large' weight='bold'>${NAME} ${VER}</span>  <span alpha='60%'>« ${CODE} »</span>
 
 ${INTRO}
@@ -70,7 +82,7 @@ ${INTRO}
   <tt>lexos help</tt>       les commandes du système
   <tt>lexfetch</tt>          la fiche technique de ta machine
   <tt>lexos doctor</tt>   un diagnostic rapide
-  <tt>lexos theme light</tt>  passer en thème clair"
+  <tt>lexos theme light</tt>  passer en thème clair${MAC_LIGNE}"
 
 open_terminal() {
 	for t in xfce4-terminal x-terminal-emulator gnome-terminal xterm; do

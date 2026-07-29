@@ -1,0 +1,520 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-mac — faire tourner LexOS sur du matériel Apple
+# =============================================================================
+#  « Apple », côté Linux, ce n'est pas une seule machine mais trois mondes
+#  qui n'ont presque rien en commun :
+#
+#   1. Mac Intel 2008-2017 — un PC x86_64 avec un firmware UEFI. LexOS y
+#      démarre et s'y installe comme sur n'importe quel portable. Ce qui
+#      demande un coup de main : le Wi-Fi Broadcom, la rangée de touches F,
+#      les ventilateurs.
+#
+#   2. Mac Intel 2018-2020 (puce T2) — même processeur, mais le clavier, le
+#      pavé tactile, le son et le disque interne passent par la puce T2. Le
+#      noyau Debian d'origine ne sait pas lui parler : LexOS démarre, mais
+#      avec un clavier et une souris USB. C'est utilisable, ce n'est pas
+#      confortable, et il faut le dire au lieu de le cacher.
+#
+#   3. Mac Apple Silicon (M1, M2, M3, M4) — ce n'est plus du x86 du tout.
+#      Aucune ISO amd64 ne démarrera dessus, la nôtre pas plus qu'une autre.
+#      Il n'y a pas de réglage à trouver : c'est un autre processeur et un
+#      autre firmware. Voir « lexos mac demarrage » pour la seule voie
+#      existante (Asahi Linux), qui n'est pas LexOS.
+#
+#  Ce script dit à laquelle des trois familles appartient la machine, puis
+#  applique ce qui peut l'être.
+#
+#  ── Crochets de test ────────────────────────────────────────────────────
+#  Pour pouvoir vérifier le raisonnement sans posséder onze Mac, trois
+#  variables remplacent les sources d'information matérielles :
+#     LEXOS_DMI_DIR   dossier façon /sys/class/dmi/id
+#     LEXOS_MACHINE   remplace `uname -m`
+#     LEXOS_LSPCI     fichier contenant une sortie `lspci -nn`
+#  Elles ne servent qu'aux tests ; en usage normal rien n'est défini.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos mac"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'; Y=$'\033[33m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; V=''; Y=''; B=''; D=''; R=''
+fi
+say()   { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()    { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+warn()  { printf '%s!%s %s\n' "$Y" "$R" "$*"; }
+nope()  { printf '%s✗%s %s\n' "$E" "$R" "$*"; }
+titre() { printf '\n%s%s%s\n' "$B" "$*" "$R"; }
+die()   { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+sudo_cmd() {
+	if [[ "$(id -u)" -eq 0 ]]; then "$@"
+	elif command -v sudo >/dev/null 2>&1; then sudo "$@"
+	elif command -v pkexec >/dev/null 2>&1; then pkexec "$@"
+	else die "Droits d'administration indisponibles (ni sudo ni pkexec)."
+	fi
+}
+
+# --- Sources d'information --------------------------------------------------
+DMI="${LEXOS_DMI_DIR:-/sys/class/dmi/id}"
+
+dmi() {
+	local f="$DMI/$1"
+	[[ -r "$f" ]] && tr -d '\n' < "$f" || printf ''
+}
+
+machine() { printf '%s' "${LEXOS_MACHINE:-$(uname -m)}"; }
+
+lspci_out() {
+	if [[ -n "${LEXOS_LSPCI:-}" ]]; then
+		cat "$LEXOS_LSPCI" 2>/dev/null
+	elif command -v lspci >/dev/null 2>&1; then
+		lspci -nn 2>/dev/null
+	fi
+}
+
+# =============================================================================
+#  Tables de modèles
+# =============================================================================
+#  Écrites en clair plutôt que devinées par un motif : Apple n'a jamais
+#  numéroté ses machines de façon régulière, et un « supérieur à 15 »
+#  rangerait un iMac de 2011 avec un MacBook Pro de 2019.
+
+#  Puce T2 (2017-2020) : clavier, pavé tactile, son et SSD internes
+#  passent par elle. Le noyau Debian d'origine ne les voit pas.
+MODELES_T2="iMacPro1,1
+MacBookPro15,1 MacBookPro15,2 MacBookPro15,3 MacBookPro15,4
+MacBookPro16,1 MacBookPro16,2 MacBookPro16,3 MacBookPro16,4
+MacBookAir8,1 MacBookAir8,2 MacBookAir9,1
+Macmini8,1 MacPro7,1 iMac20,1 iMac20,2"
+
+#  Processeur 64 bits mais firmware EFI 32 bits (2006-2008) : un noyau
+#  amd64 ne peut pas être chargé par l'UEFI. Reste l'amorçage BIOS (CSM),
+#  que ces machines possèdent toutes.
+MODELES_EFI32="MacBook2,1 MacBook3,1 MacBook4,1
+MacBookPro2,1 MacBookPro2,2 MacBookPro3,1
+MacBookAir1,1
+iMac5,1 iMac5,2 iMac6,1 iMac7,1
+Macmini2,1 MacPro1,1 MacPro2,1 Xserve1,1"
+
+#  Processeur 32 bits (Core Duo, 2006) : aucun système amd64 n'y tournera.
+MODELES_CPU32="MacBook1,1 MacBookPro1,1 MacBookPro1,2
+iMac4,1 iMac4,2 Macmini1,1"
+
+#  Apple Silicon. Les modèles récents perdent le préfixe : « Mac14,3 » est
+#  un Mac mini M2. Tous les « MacN,M » à partir de Mac13 sont ARM.
+MODELES_SILICON="MacBookAir10,1 MacBookPro17,1
+MacBookPro18,1 MacBookPro18,2 MacBookPro18,3 MacBookPro18,4
+Macmini9,1 iMac21,1 iMac21,2"
+
+dans_liste() {
+	local cible="$1" liste="$2" m
+	for m in $liste; do
+		[[ "$m" == "$cible" ]] && return 0
+	done
+	return 1
+}
+
+est_silicon() {
+	local modele="$1"
+	dans_liste "$modele" "$MODELES_SILICON" && return 0
+	#  Mac13,x et au-delà : nomenclature courte, uniquement Apple Silicon.
+	[[ "$modele" =~ ^Mac(1[3-9]|[2-9][0-9]),[0-9]+$ ]] && return 0
+	return 1
+}
+
+# =============================================================================
+#  Classement de la machine
+# =============================================================================
+#  Renvoie sur la sortie standard une des étiquettes :
+#     pas-apple · silicon · t2 · efi32 · cpu32 · intel
+classer() {
+	local vendeur modele arch
+	vendeur="$(dmi sys_vendor)"
+	modele="$(dmi product_name)"
+	arch="$(machine)"
+
+	#  Apple Silicon sous Linux n'expose pas de DMI : c'est l'arbre de
+	#  périphériques qui identifie la machine. On regarde donc d'abord
+	#  l'architecture, qui tranche à elle seule.
+	if [[ "$arch" == "aarch64" || "$arch" == "arm64" ]]; then
+		if [[ "$vendeur" == *Apple* ]] || est_silicon "$modele" \
+		   || grep -qs 'apple,' /proc/device-tree/compatible 2>/dev/null; then
+			printf 'silicon'; return
+		fi
+	fi
+
+	if [[ "$vendeur" != *Apple* ]]; then
+		#  Certaines cartes déclarent Apple au niveau carte mère seulement.
+		[[ "$(dmi board_vendor)" == *Apple* ]] || { printf 'pas-apple'; return; }
+	fi
+
+	est_silicon "$modele"                       && { printf 'silicon'; return; }
+	dans_liste "$modele" "$MODELES_CPU32"       && { printf 'cpu32';   return; }
+	dans_liste "$modele" "$MODELES_EFI32"       && { printf 'efi32';   return; }
+	dans_liste "$modele" "$MODELES_T2"          && { printf 't2';      return; }
+	printf 'intel'
+}
+
+# =============================================================================
+#  Wi-Fi Broadcom
+# =============================================================================
+#  Presque tous les Mac Intel ont une carte Broadcom, et Broadcom a livré
+#  quatre générations qui ne se pilotent pas du tout pareil. Le bon pilote
+#  se déduit de l'identifiant PCI, pas de l'année de la machine.
+#  Trois champs séparés par une tabulation : pilote, paquet, explication.
+#  Le champ « paquet » vaut « - » quand il n'y en a pas — surtout pas vide :
+#  la tabulation est un séparateur blanc, deux d'affilée n'en font qu'un, et
+#  le champ manquant décalerait silencieusement l'explication.
+wifi_conseil() {
+	local id="$1"
+	case "$id" in
+		14e4:4311|14e4:4312|14e4:4315|14e4:4318|14e4:4319|14e4:4320|14e4:4331|14e4:4353|14e4:432b)
+			printf 'b43\tfirmware-b43-installer\tPilote b43 — le micrologiciel se télécharge à la première connexion filaire.' ;;
+		14e4:43a0|14e4:43a3|14e4:4360|14e4:4365)
+			printf "wl\tbroadcom-sta-dkms\tPilote propriétaire wl — se compile au moment de l’installation (dkms)." ;;
+		14e4:43ba|14e4:43ec|14e4:4350|14e4:4356)
+			printf 'brcmfmac\tfirmware-brcm80211\tPilote brcmfmac — le micrologiciel est dans Debian.' ;;
+		14e4:4364|14e4:4464|14e4:4488|14e4:4425)
+			printf "brcmfmac-t2\t-\tCarte de Mac à puce T2 : le micrologiciel est propre à ta machine et vit dans macOS. Il faut l’en extraire." ;;
+		*)  printf 'inconnu\t-\tCarte Broadcom non répertoriée ici.' ;;
+	esac
+}
+
+cmd_wifi() {
+	titre "Wi-Fi"
+	local lignes
+	lignes="$(lspci_out | grep -Ei 'network|wireless' || true)"
+
+	if [[ -z "$lignes" ]]; then
+		if [[ -z "${LEXOS_LSPCI:-}" ]] && ! command -v lspci >/dev/null 2>&1; then
+			warn "lspci absent — installe pciutils pour le diagnostic Wi-Fi."
+		else
+			say "Aucune carte réseau sans fil sur le bus PCI."
+			say "Sur les Mac récents, c’est normal si la carte est derrière la puce T2."
+		fi
+		return
+	fi
+
+	local ligne id pilote paquet texte trouve=0
+	while IFS= read -r ligne; do
+		[[ -n "$ligne" ]] || continue
+		printf '  %s%s%s\n' "$D" "$ligne" "$R"
+		id="$(printf '%s' "$ligne" | grep -oE '\[[0-9a-f]{4}:[0-9a-f]{4}\]' | tail -1 | tr -d '[]')"
+		[[ "$id" == 14e4:* ]] || continue
+		trouve=1
+		IFS=$'\t' read -r pilote paquet texte <<< "$(wifi_conseil "$id")"
+		printf '    → %s\n' "$texte"
+		case "$pilote" in
+			brcmfmac-t2)
+				warn "Extraction depuis macOS nécessaire (dossier /usr/share/firmware sous macOS)."
+				say  "Sans elle, branche un câble Ethernet ou un adaptateur Wi-Fi USB." ;;
+			inconnu) ;;
+			*)
+				if [[ -n "$paquet" && "$paquet" != "-" ]]; then
+					if dpkg -s "$paquet" >/dev/null 2>&1; then
+						ok "$paquet est déjà installé."
+					else
+						say "Paquet à installer : ${B}${paquet}${R}"
+						say "   ${D}sudo apt install ${paquet}${R}"
+					fi
+				fi ;;
+		esac
+	done <<< "$lignes"
+
+	(( trouve )) || say "Pas de carte Broadcom : le pilote Linux d’origine devrait suffire."
+}
+
+# =============================================================================
+#  Clavier
+# =============================================================================
+#  Sur un clavier Apple, F1..F12 pilotent par défaut la luminosité et le son,
+#  et il faut tenir Fn pour obtenir la vraie touche F. fnmode inverse ce
+#  comportement. 2 = touches F d'abord, 1 = multimédia d'abord.
+FNCONF="/etc/modprobe.d/lexos-apple.conf"
+
+cmd_clavier() {
+	local mode="${1:-}"
+	local param="/sys/module/hid_apple/parameters/fnmode"
+
+	if [[ -z "$mode" ]]; then
+		titre "Clavier Apple"
+		if [[ -r "$param" ]]; then
+			local cur; cur="$(cat "$param" 2>/dev/null)"
+			case "$cur" in
+				0) say "Fn désactivée." ;;
+				1) say "Réglage actuel : ${B}multimédia${R} — F1..F12 pilotent luminosité et son." ;;
+				2) say "Réglage actuel : ${B}fonction${R} — F1..F12 sont de vraies touches F." ;;
+				*) say "Réglage actuel : $cur" ;;
+			esac
+		else
+			say "Le module hid_apple n’est pas chargé (clavier Apple absent ?)."
+		fi
+		printf "\n  %s%s clavier fonction%s   F1..F12 d’abord\n" "$O" "$PROG" "$R"
+		printf "  %s%s clavier multimedia%s  luminosité et son d’abord\n" "$O" "$PROG" "$R"
+		return
+	fi
+
+	local val
+	case "${mode,,}" in
+		fonction|f|fn|touches) val=2 ;;
+		multimedia|multimédia|media|m) val=1 ;;
+		*) die "Usage : $PROG clavier <fonction|multimedia>" ;;
+	esac
+
+	#  Immédiat…
+	if [[ -w "$param" ]] || [[ "$(id -u)" -eq 0 ]]; then
+		printf '%s' "$val" > "$param" 2>/dev/null && ok "Appliqué tout de suite."
+	elif [[ -e "$param" ]]; then
+		printf '%s' "$val" | sudo_cmd tee "$param" >/dev/null 2>&1 && ok "Appliqué tout de suite."
+	fi
+
+	#  …et au prochain démarrage.
+	local contenu="# Écrit par « $PROG clavier ». fnmode : 2 = touches F, 1 = multimédia.
+options hid_apple fnmode=${val}"
+	if printf '%s\n' "$contenu" | sudo_cmd tee "$FNCONF" >/dev/null; then
+		ok "Conservé pour les prochains démarrages ($FNCONF)."
+		command -v update-initramfs >/dev/null 2>&1 \
+			&& sudo_cmd update-initramfs -u >/dev/null 2>&1 || true
+	else
+		warn "Réglage non conservé — droits d’administration refusés ?"
+	fi
+}
+
+# =============================================================================
+#  Ventilateurs
+# =============================================================================
+#  Le capteur applesmc est dans le noyau, mais rien ne pilote la vitesse :
+#  sous Linux un MacBook chauffe donc plus qu'il ne devrait, ventilateurs
+#  au ralenti. mbpfan corrige cela.
+cmd_ventilateur() {
+	titre "Ventilateurs"
+
+	if [[ -d /sys/devices/platform/applesmc.768 ]] || lsmod 2>/dev/null | grep -q '^applesmc'; then
+		ok "Capteur applesmc présent."
+	else
+		warn "applesmc non chargé — tente : sudo modprobe applesmc"
+	fi
+
+	local f
+	for f in /sys/devices/platform/applesmc.768/fan*_input; do
+		[[ -r "$f" ]] || continue
+		printf '  %s : %s tr/min\n' "$(basename "$f" _input)" "$(cat "$f")"
+	done
+
+	if command -v mbpfan >/dev/null 2>&1 || dpkg -s mbpfan >/dev/null 2>&1; then
+		if systemctl is-active --quiet mbpfan 2>/dev/null; then
+			ok "mbpfan tourne : la vitesse suit la température."
+		else
+			warn "mbpfan est installé mais arrêté."
+			say  "   ${D}sudo systemctl enable --now mbpfan${R}"
+		fi
+	else
+		warn "Aucun pilote de ventilateur : ils resteront au ralenti même à chaud."
+		say  "   ${D}sudo apt install mbpfan && sudo systemctl enable --now mbpfan${R}"
+	fi
+}
+
+# =============================================================================
+#  Démarrage
+# =============================================================================
+cmd_demarrage() {
+	local classe; classe="$(classer)"
+	titre "Démarrer LexOS sur ce Mac"
+
+	case "$classe" in
+		silicon)
+			nope "Impossible, et aucun réglage n’y changera rien."
+			cat <<EOF
+
+  Les Mac M1, M2, M3 et M4 n’ont pas de processeur x86. L’ISO de LexOS est
+  compilée pour amd64 : le firmware ne saura même pas la lire. Ce n’est pas
+  un défaut de configuration, c’est une autre machine.
+
+  La seule façon de faire tourner Linux sur ces Mac aujourd’hui, c’est
+  ${B}Asahi Linux${R}, qui a dû écrire son propre amorceur (m1n1) et une bonne
+  part des pilotes par rétro-ingénierie. LexOS ne se pose pas dessus : ce
+  serait une distribution entièrement différente, à recompiler pour arm64
+  et à reconstruire sur leur noyau.
+
+  ${D}Ce que tu peux faire sur un Mac Apple Silicon :${R}
+    · faire tourner LexOS dans une machine virtuelle x86 (lente : émulation) ;
+    · faire tourner Debian arm64 dans UTM ou Parallels — ce n’est pas LexOS,
+      mais c’est du Linux rapide et complet.
+EOF
+			;;
+		cpu32)
+			nope "Ce Mac a un processeur 32 bits (Core Duo, 2006)."
+			say  "Aucun système amd64 n’y tournera. Il faudrait une ISO i386."
+			;;
+		efi32)
+			warn "Ce Mac a un firmware EFI 32 bits avec un processeur 64 bits."
+			cat <<EOF
+
+  L’amorçage UEFI de LexOS est en 64 bits : ce firmware ne le chargera pas.
+  Mais ces Mac possèdent tous un mode BIOS (celui qui servait à Boot Camp),
+  et l’ISO de LexOS est hybride : elle contient aussi un amorceur BIOS.
+
+  ${B}Marche à suivre${R}
+    1. Écris l’ISO sur une clé USB avec ${O}dd${R} (pas un simple copier-coller).
+    2. Redémarre en tenant ${B}Option (⌥)${R}.
+    3. Choisis l’entrée ${B}Windows${R} — c’est ainsi que le firmware nomme
+       toute clé amorçable en mode BIOS. Ce n’est pas une erreur.
+EOF
+			;;
+		t2)
+			warn "Ce Mac a une puce T2 : LexOS démarre, avec des réserves."
+			cat <<EOF
+
+  ${B}Avant de démarrer${R}
+    1. Redémarre en tenant ${B}Commande + R${R} → Utilitaires → ${B}Utilitaire de
+       sécurité au démarrage${R}.
+    2. Sécurité au démarrage : ${B}Aucune sécurité${R}.
+    3. Démarrage externe : ${B}Autoriser${R}.
+       ${D}Sans ces deux réglages, le Mac refusera la clé sans rien expliquer.${R}
+    4. Redémarre en tenant ${B}Option (⌥)${R}, choisis ${B}EFI Boot${R}.
+
+  ${B}Ce qui ne marchera pas avec le noyau d’origine${R}
+    · clavier et pavé tactile internes → il faut un clavier et une souris USB ;
+    · son interne ;
+    · Wi-Fi interne (micrologiciel propre à la machine, dans macOS) ;
+    · le SSD interne peut rester invisible — donc pas d’installation dessus.
+
+  ${D}Ces quatre points demandent le noyau modifié du projet t2linux. LexOS
+  livre le noyau Debian d’origine : c’est celui qui reçoit les mises à jour
+  de sécurité. Mieux vaut une session live honnête qu’un noyau figé.${R}
+EOF
+			;;
+		intel)
+			ok "Ce Mac est un x86_64 avec UEFI 64 bits : LexOS y démarre normalement."
+			cat <<EOF
+
+  ${B}Marche à suivre${R}
+    1. Écris l’ISO sur une clé USB avec ${O}dd${R} :
+       ${D}sudo dd if=lexos-1.0-standard-amd64.iso of=/dev/diskN bs=4m status=progress${R}
+       ${D}(sous macOS : diskutil list pour trouver N, puis diskutil unmountDisk)${R}
+    2. Redémarre en tenant ${B}Option (⌥)${R}.
+    3. Choisis ${B}EFI Boot${R}.
+
+  ${B}Une fois LexOS ouvert${R}
+    ${O}lexos mac${R}            le bilan de cette machine
+    ${O}lexos mac wifi${R}       quel pilote Broadcom il te faut
+    ${O}lexos mac clavier fonction${R}   F1..F12 en vraies touches F
+    ${O}lexos mac ventilateur${R}        pour qu’ils accélèrent quand ça chauffe
+
+  ${D}Installer à côté de macOS : réduis d’abord la partition macOS depuis
+  l’Utilitaire de disque de macOS, puis installe LexOS dans l’espace libre.
+  Redimensionner APFS depuis Linux ne fonctionne pas de façon fiable.${R}
+EOF
+			;;
+		pas-apple)
+			say "Cette machine n’est pas un Mac — rien à préparer de particulier."
+			;;
+	esac
+}
+
+# =============================================================================
+#  Bilan
+# =============================================================================
+cmd_bilan() {
+	local classe vendeur modele arch
+	classe="$(classer)"
+	vendeur="$(dmi sys_vendor)"; modele="$(dmi product_name)"; arch="$(machine)"
+
+	titre "Matériel"
+	printf '  Fabricant   : %s\n' "${vendeur:-inconnu}"
+	printf '  Modèle      : %s\n' "${modele:-inconnu}"
+	printf '  Processeur  : %s\n' "$arch"
+
+	titre "Verdict"
+	case "$classe" in
+		pas-apple) ok   "Ce n’est pas un Mac. LexOS n’a besoin d’aucun réglage Apple." ; return ;;
+		silicon)   nope "Mac Apple Silicon — LexOS ne peut pas démarrer dessus." ;;
+		cpu32)     nope "Mac à processeur 32 bits — trop ancien pour une ISO amd64." ;;
+		efi32)     warn "Mac à EFI 32 bits — démarre en mode BIOS uniquement." ;;
+		t2)        warn "Mac à puce T2 — démarre, mais clavier et souris USB obligatoires." ;;
+		intel)     ok   "Mac Intel — pris en charge." ;;
+	esac
+	printf '  %sDétail complet : %s demarrage%s\n' "$D" "$PROG" "$R"
+
+	case "$classe" in
+		intel|t2)
+			cmd_wifi
+			cmd_clavier
+			cmd_ventilateur ;;
+	esac
+}
+
+# =============================================================================
+#  Application silencieuse au premier démarrage
+# =============================================================================
+#  Appelé par lexos-firstrun. Ne parle pas, ne demande rien, et ne touche
+#  à rien si la machine n'est pas un Mac.
+#  Jamais de mot de passe ici : lexos-firstrun tourne pendant l'ouverture
+#  de session, sortie redirigée. Un sudo qui demande le mot de passe
+#  attendrait une réponse que personne ne verra — la session resterait
+#  bloquée sur un écran vide. On n'agit donc que si on a déjà les droits.
+sudo_muet() {
+	if [[ "$(id -u)" -eq 0 ]]; then "$@"
+	elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then sudo -n "$@"
+	else return 1
+	fi
+}
+
+cmd_auto() {
+	local classe; classe="$(classer)"
+	case "$classe" in
+		intel|t2|efi32) ;;
+		*) exit 0 ;;
+	esac
+
+	#  Touches F d'abord : c'est ce qu'attend quelqu'un qui vient de Windows
+	#  ou d'une autre distribution. Le réglage inverse reste à un mot près.
+	#  Le fichier est normalement déjà livré par l'ISO ; ceci ne sert qu'au
+	#  cas où il aurait été supprimé.
+	if [[ ! -e "$FNCONF" ]]; then
+		printf '# Écrit au premier démarrage par lexos-mac.\noptions hid_apple fnmode=2\n' \
+			| sudo_muet tee "$FNCONF" >/dev/null 2>&1 || true
+	fi
+	[[ -w /sys/module/hid_apple/parameters/fnmode ]] \
+		&& printf '2' > /sys/module/hid_apple/parameters/fnmode 2>/dev/null
+
+	#  Ventilateurs : le paquet est optionnel, il peut manquer.
+	if dpkg -s mbpfan >/dev/null 2>&1; then
+		sudo_muet systemctl enable --now mbpfan >/dev/null 2>&1 || true
+	fi
+	exit 0
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — LexOS sur du matériel Apple
+
+  ${O}$PROG${R}                   Bilan de cette machine
+  ${O}$PROG demarrage${R}         Comment démarrer LexOS sur ce Mac
+  ${O}$PROG wifi${R}              Quel pilote Broadcom il faut
+  ${O}$PROG clavier${R} [mode]    F1..F12 : ${B}fonction${R} ou ${B}multimedia${R}
+  ${O}$PROG ventilateur${R}       État des ventilateurs
+  ${O}$PROG classe${R}            Une étiquette, pour les scripts
+
+${B}Les trois familles${R}
+  ${V}Mac Intel 2008-2017${R}   pris en charge, comme un PC UEFI
+  ${Y}Mac Intel T2 2018-2020${R} démarre, mais clavier et souris USB obligatoires
+  ${E}Mac Apple Silicon${R}      impossible : ce n’est pas un processeur x86
+EOF
+}
+
+case "${1:-}" in
+	""|bilan|info|status)        cmd_bilan ;;
+	-h|--help|aide|help)         usage ;;
+	demarrage|démarrage|boot)    cmd_demarrage ;;
+	wifi|sansfil)                cmd_wifi ;;
+	clavier|keyboard)            shift; cmd_clavier "${1:-}" ;;
+	ventilateur|ventilateurs|fan) cmd_ventilateur ;;
+	classe|class)                classer; printf '\n' ;;
+	--auto)                      cmd_auto ;;
+	*) die "Sous-commande inconnue : $1  (essaie : $PROG --help)" ;;
+esac
