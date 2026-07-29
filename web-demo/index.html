@@ -825,10 +825,21 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 /* --- Musique : lecteur de fichiers réels --------------------------------- */
 .mus-tete{display:flex;align-items:center;gap:13px;margin-bottom:10px}
 .mus-globe{flex:none;width:74px;height:74px;display:block}
-/*  Le globe ne tourne QUE pendant la lecture : c'est l'indicateur d'état
-    le plus lisible, et il évite une animation permanente de plus. */
-.mus-globe .globe-mer ellipse{animation-play-state:paused}
-.mus-globe.mus-tourne .globe-mer ellipse{animation-play-state:running}
+/*  La planète tourne toujours — lentement à l'arrêt, franchement pendant
+    la lecture. Complètement figée, elle avait l'air d'une image morte ;
+    c'est ce que montrait la fenêtre tant qu'aucun morceau n'était chargé.
+
+    Le mouvement vient des méridiens : leur demi-largeur passe de 150 à 0
+    puis revient, chacun décalé d'un cinquième de cycle. C'est ce
+    balayage qui fait lire une SPHÈRE qui tourne plutôt qu'un disque. */
+.mus-globe .globe-mer ellipse{animation-duration:14s}
+.mus-globe.mus-tourne .globe-mer ellipse{animation-duration:5s}
+/*  Pas de reflet ajouté par-dessus : une passe blanche en pseudo-élément
+    laissait un croissant sombre sur le bord gauche du cadre — vérifié en
+    la masquant, l'artefact disparaissait avec elle. Le balayage des
+    méridiens suffit d'ailleurs à faire lire une sphère qui tourne. */
+@media (prefers-reduced-motion:reduce){
+  .mus-globe .globe-mer ellipse{animation:none}}
 .mus-info{flex:1;min-width:0}
 .mus-titre{display:block;font-size:13.5px;font-weight:600;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
