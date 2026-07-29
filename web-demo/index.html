@@ -632,9 +632,41 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .std-collants{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-bottom:9px}
 .std-col{font-size:16px;line-height:1;padding:4px 0;border-radius:6px}
 .std-col:hover{background:var(--bg-hi)}
+.std-mes{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:8px}
+.std-mescol{padding:2px;border-radius:6px;border:1px solid var(--bd);
+  background:repeating-conic-gradient(#1a1a1c 0 25%,#111113 0 50%) 0 0/8px 8px;
+  line-height:0}
+.std-mescol:hover{border-color:var(--ac)}
+.std-mescol img{width:100%;height:30px;object-fit:contain;display:block}
+.std-vide{font-size:11px;color:var(--fg-dim);line-height:1.5;padding:4px 0 8px}
+.std-img{display:block;width:100%;height:auto;pointer-events:none;
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,.45))}
 .std-rg{display:block;font-size:11.5px;color:var(--fg-dim);margin-bottom:8px}
 .std-rg input{width:100%;accent-color:var(--ac);margin-top:3px}
 .std-rail .btn{width:100%;margin-bottom:7px}
+.std-centre{flex:1;display:flex;flex-direction:column;min-width:0}
+.std-barre{display:flex;align-items:center;gap:5px;padding:7px 9px;
+  border-bottom:1px solid var(--bd);background:var(--bg-alt);flex:none}
+/*  .btn.mini impose width:100% et est déclarée plus loin : à spécificité
+    égale c'est elle qui gagnerait, d'où la classe supplémentaire ici. */
+.std-barre .btn.mini{width:auto;margin:0;padding:5px 10px}
+.std-barre .btn:disabled{opacity:.35;cursor:default}
+.std-sep{width:1px;height:18px;background:var(--bd);margin:0 3px}
+.std-calques{width:186px;flex:none;padding:12px 10px;overflow-y:auto;
+  border-left:1px solid var(--bd);background:var(--bg-alt)}
+.std-cal{display:flex;align-items:center;gap:5px;padding:4px 5px;margin-bottom:4px;
+  border:1px solid var(--bd);border-radius:8px;background:var(--bg);cursor:pointer}
+.std-cal:hover{border-color:var(--ac-lo)}
+.std-cal.sel{border-color:var(--ac);background:var(--bg-hi)}
+.std-cap{width:24px;height:24px;flex:none;display:flex;align-items:center;
+  justify-content:center;font-size:15px;line-height:1;overflow:hidden;
+  border-radius:4px;background:var(--bg-hi)}
+.std-cap img{max-width:100%;max-height:100%;object-fit:contain}
+.std-can{flex:1;min-width:0;font-size:11px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.std-cal button{flex:none;width:15px;height:16px;font-size:9px;border-radius:3px;
+  color:var(--fg-dim);line-height:1}
+.std-cal button:hover{background:var(--ac);color:var(--btn-fg)}
 .std-scene{flex:1;display:flex;align-items:center;justify-content:center;
   padding:14px;background:
     repeating-conic-gradient(#1a1a1c 0 25%,#111113 0 50%) 0 0/22px 22px;
@@ -2033,6 +2065,20 @@ function floodCutout(ctx,w,h,fuzzPct){
   ctx.putImageData(data,0,0);
 }
 function stickerSourceFor(file){ return file==="mascot.png" ? MASCOT_URI : null; }
+/*  Les autocollants découpés vivaient l'espace d'un téléchargement puis
+    disparaissaient. Ils sont désormais gardés pour la session et
+    réutilisables dans Studio+ — c'est tout l'intérêt d'en découper un. */
+const mesAutocollants = [];   // {nom, url, ratio} — vidés au rechargement
+function stickerGarde(canvas, nom){
+  const url = canvas.toDataURL("image/png");
+  //  Un même sujet redécoupé ne doit pas s'empiler en double dans le rail.
+  const i = mesAutocollants.findIndex(a=>a.nom===nom);
+  const item = {nom, url, ratio: canvas.height/canvas.width};
+  if(i>=0) mesAutocollants[i]=item; else mesAutocollants.unshift(item);
+  studioRendCollants();
+  return item;
+}
+
 function stickerDownload(canvas,name){
   canvas.toBlob(blob=>{
     const a=document.createElement("a");
@@ -2066,7 +2112,10 @@ function stickerInstant(file){
     const ctx=c.getContext("2d");
     ctx.drawImage(img,0,0);
     floodCutout(ctx,c.width,c.height,10);
-    stickerDownload(c,"autocollant-"+file.replace(/\.[a-z]+$/i,"")+".png");
+    const nom="autocollant-"+file.replace(/\.[a-z]+$/i,"")+".png";
+    stickerGarde(c,nom);
+    stickerDownload(c,nom);
+    toast("✂ Découpé — disponible dans Studio+");
   };
   img.src=uri;
 }
@@ -2105,7 +2154,8 @@ function stickerCut(){
   floodCutout(c.getContext("2d"),c.width,c.height,10);
   const b=document.getElementById("stkSaveBtn");
   if(b) b.style.display="";
-  toast("✂ Sujet découpé — fond transparent");
+  stickerGarde(c,"autocollant.png");
+  toast("✂ Sujet découpé — disponible dans Studio+");
 }
 function stickerSave(){
   const c=document.getElementById("stkCanvas");
@@ -3258,6 +3308,107 @@ function openCapture(){
 const STUDIO_COLLANTS = ["😎","🔥","💀","⭐","❤","👾","🚀","💡","🎯","👑",
                          "🐧","⚡","💰","🎮","📌","✅","❌","💬"];
 const studio = { objs:[], sel:null, img:null, filtres:{lum:100, con:100, sat:100, flou:0} };
+/*  Les autocollants posés sont dessinés au canvas à l'export : il faut une
+    <img> DÉJÀ décodée, sinon drawImage ne trace rien. On garde donc une
+    image par URL, préchargée dès que l'autocollant est posé. */
+const studioImages = {};
+/*  Moteur d'édition : pile d'annulation, calques, import de fichier.
+    L'historique garde des INSTANTANÉS du tableau d'objets plutôt qu'une
+    liste d'actions inverses : à cette taille c'est négligeable en mémoire,
+    et surtout impossible à désynchroniser — une commande inverse oubliée
+    corrompt un historique en silence, une copie ne se trompe jamais. */
+const studioHist = { pile:[], pos:-1 };
+function studioSnap(){
+  //  On coupe tout ce qui suivait : repartir d'un état passé efface le futur.
+  studioHist.pile.length = studioHist.pos + 1;
+  studioHist.pile.push(JSON.stringify({objs:studio.objs, filtres:studio.filtres}));
+  if(studioHist.pile.length > 60) studioHist.pile.shift();   // garde-fou mémoire
+  studioHist.pos = studioHist.pile.length - 1;
+  studioMajHist();
+}
+function studioRestaure(i){
+  const e = studioHist.pile[i];
+  if(!e) return;
+  const d = JSON.parse(e);
+  studio.objs = d.objs;
+  studio.filtres = d.filtres;
+  studioHist.pos = i;
+  //  Les images des autocollants restaurés doivent être re-préchargées :
+  //  JSON ne transporte que l'URL, pas l'<img> décodée dont a besoin l'export.
+  studio.objs.forEach(o=>{
+    if(o.type==="image" && !studioImages[o.contenu]){
+      const im=new Image(); im.src=o.contenu; studioImages[o.contenu]=im;
+    }
+  });
+  studio.sel = null;
+  studioRend(); studioApplique(); studioMajRegs(); studioMajHist();
+}
+function studioAnnule(){ if(studioHist.pos>0) studioRestaure(studioHist.pos-1); else toast("Rien à annuler"); }
+function studioRefais(){ if(studioHist.pos<studioHist.pile.length-1) studioRestaure(studioHist.pos+1); else toast("Rien à refaire"); }
+function studioMajHist(){
+  const a=document.getElementById("stdAnnule"), r=document.getElementById("stdRefais");
+  if(a) a.disabled = studioHist.pos<=0;
+  if(r) r.disabled = studioHist.pos>=studioHist.pile.length-1;
+}
+function studioMajRegs(){
+  const w=document.getElementById("win-studio"); if(!w) return;
+  const f=studio.filtres;
+  w.querySelectorAll(".std-rg input").forEach((el,i)=>
+    el.value=[f.lum,f.con,f.sat,f.flou][i]);
+}
+
+/* --- Calques : l'ordre du tableau EST l'ordre d'empilement -------------- */
+function studioMonte(id){
+  const i=studio.objs.findIndex(o=>o.id===id);
+  if(i<0 || i===studio.objs.length-1) return;
+  [studio.objs[i],studio.objs[i+1]]=[studio.objs[i+1],studio.objs[i]];
+  studioSnap(); studioRend(); studioSelectionne(id); studioRendCalques();
+}
+function studioDescend(id){
+  const i=studio.objs.findIndex(o=>o.id===id);
+  if(i<=0) return;
+  [studio.objs[i],studio.objs[i-1]]=[studio.objs[i-1],studio.objs[i]];
+  studioSnap(); studioRend(); studioSelectionne(id); studioRendCalques();
+}
+function studioDuplique(id){
+  const o=studio.objs.find(x=>x.id===id); if(!o) return;
+  const c={...o, id:++studioSeq, x:Math.min(.95,o.x+.05), y:Math.min(.95,o.y+.05)};
+  studio.objs.push(c);
+  studioSnap(); studioRend(); studioSelectionne(c.id); studioRendCalques();
+}
+function studioRendCalques(){
+  const box=document.getElementById("stdCalques"); if(!box) return;
+  if(!studio.objs.length){
+    box.innerHTML=`<div class="std-vide">Aucun calque.</div>`; return;
+  }
+  //  Affichage du haut vers le bas : le dernier posé est au-dessus.
+  box.innerHTML=[...studio.objs].reverse().map(o=>{
+    const apercu = o.type==="image"
+      ? `<img src="${o.contenu}" alt="">`
+      : `<span>${esc(o.type==="texte" ? o.contenu : o.contenu)}</span>`;
+    return `<div class="std-cal${studio.sel===o.id?" sel":""}" onclick="studioSelectionne(${o.id});studioRendCalques()">
+      <span class="std-cap">${apercu}</span>
+      <span class="std-can">${esc(o.type==="texte"?o.contenu:(o.nom||o.contenu))}</span>
+      <button title="Monter"      onclick="event.stopPropagation();studioMonte(${o.id})">▲</button>
+      <button title="Descendre"   onclick="event.stopPropagation();studioDescend(${o.id})">▼</button>
+      <button title="Dupliquer"   onclick="event.stopPropagation();studioDuplique(${o.id})">⧉</button>
+      <button title="Supprimer"   onclick="event.stopPropagation();studioSupprime(${o.id})">✕</button>
+    </div>`;
+  }).join("");
+}
+
+/* --- Ouvrir une image du disque ----------------------------------------- */
+function studioOuvre(){
+  const inp=document.createElement("input");
+  inp.type="file"; inp.accept="image/*";
+  inp.onchange=()=>{
+    const f=inp.files && inp.files[0]; if(!f) return;
+    const url=URL.createObjectURL(f);
+    const img=document.getElementById("stdImg");
+    if(img){ img.src=url; toast("Image ouverte : "+f.name); }
+  };
+  inp.click();
+}
 let studioSeq = 0;
 
 function openStudio(){
@@ -3268,28 +3419,53 @@ function openStudio(){
          <div class="std-collants">${STUDIO_COLLANTS.map(c=>
            `<button class="std-col" onclick="studioAjoute('${c}')">${c}</button>`).join("")}</div>
          <button class="btn ghost mini" onclick="studioTexte()">✎ Ajouter du texte</button>
+         <div class="std-tt">Mes autocollants</div>
+         <div class="std-mes" id="stdMes"></div>
+         <button class="btn ghost mini" onclick="studioDecoupe()">✂ Découper l'image en autocollant</button>
          <div class="std-tt">Réglages</div>
          ${[["lum","Luminosité",0,200],["con","Contraste",0,200],
             ["sat","Saturation",0,200],["flou","Flou",0,10]].map(([k,n,a,b])=>
            `<label class="std-rg"><span>${n}</span>
               <input type="range" min="${a}" max="${b}" value="${studio.filtres[k]}"
-                     oninput="studioFiltre('${k}',this.value)"></label>`).join("")}
+                     oninput="studioFiltre('${k}',this.value)"
+                     onchange="studioSnap()"></label>`).join("")}
          <button class="btn ghost mini" onclick="studioReinit()">Réinitialiser</button>
          <div class="std-tt">Image</div>
          <button class="btn ghost mini" onclick="studioSource()">↻ Changer d'image</button>
-         <button class="btn mini" onclick="studioExporte()">⬇ Exporter en PNG</button>
+         <button class="btn ghost mini" onclick="studioOuvre()">📂 Ouvrir un fichier</button>
        </div>
-       <div class="std-scene" id="stdScene">
-         <div class="std-plan" id="stdPlan">
-           <img id="stdImg" alt="">
+       <div class="std-centre">
+         <div class="std-barre">
+           <button class="btn ghost mini" id="stdAnnule" onclick="studioAnnule()"
+                   title="Annuler (Ctrl+Z)">↶</button>
+           <button class="btn ghost mini" id="stdRefais" onclick="studioRefais()"
+                   title="Refaire (Ctrl+Maj+Z)">↷</button>
+           <span class="std-sep"></span>
+           <button class="btn ghost mini" onclick="studioOuvre()" title="Ouvrir une image">📂</button>
+           <button class="btn ghost mini" onclick="studioSource()" title="Reprendre la dernière capture">↻</button>
+           <span class="std-sep"></span>
+           <button class="btn mini" onclick="studioExporte()" title="Exporter en PNG">⬇ Exporter</button>
+         </div>
+         <div class="std-scene" id="stdScene">
+           <div class="std-plan" id="stdPlan">
+             <img id="stdImg" alt="">
+           </div>
          </div>
        </div>
+       <div class="std-calques">
+         <div class="std-tt">Calques</div>
+         <div id="stdCalques"></div>
+       </div>
      </div>
-     <p class="std-aide">Clique un autocollant pour le poser. Glisse-le pour le
-     déplacer, la poignée ● pour le tourner et le redimensionner,
-     <b>Suppr</b> pour l'effacer. Sur la vraie ISO, <code>lexos studio</code>
-     ouvre GIMP, Krita, Inkscape ou Kdenlive.</p>`, 800, 560);
+     <p class="std-aide">Clique un autocollant pour le poser · glisse pour
+     déplacer · poignée ● pour tourner et redimensionner ·
+     <b>Suppr</b> efface · <b>Ctrl+Z</b> annule · <b>Ctrl+Maj+Z</b> refait.
+     Sur la vraie ISO, <code>lexos studio</code> ouvre GIMP, Krita, Inkscape
+     ou Kdenlive.</p>`, 940, 580);
+  studio.objs=[]; studio.sel=null;
+  studioHist.pile=[]; studioHist.pos=-1;
   studioSource(true);
+  studioRendCollants(); studioRendCalques(); studioSnap();
 }
 
 /*  Source : la dernière capture d'écran si elle existe — c'est le geste
@@ -3321,13 +3497,45 @@ function studioSource(silencieux){
   studioApplique();
 }
 
+/*  Rail des autocollants découpés. Appelé aussi par stickerGarde(), pour
+    qu'un sujet découpé pendant que Studio+ est ouvert y apparaisse tout
+    de suite, sans avoir à rouvrir la fenêtre. */
+function studioRendCollants(){
+  const box=document.getElementById("stdMes"); if(!box) return;
+  if(!mesAutocollants.length){
+    box.innerHTML=`<div class="std-vide">Aucun pour l'instant — découpe
+      une image ici ou depuis Fichiers.</div>`;
+    return;
+  }
+  box.innerHTML=mesAutocollants.map((a,i)=>
+    `<button class="std-mescol" title="${esc(a.nom)}" onclick="studioAjouteImage(${i})">
+       <img src="${a.url}" alt="${esc(a.nom)}"></button>`).join("");
+}
+/*  Découpe l'image affichée dans Studio+ et range le résultat dans le
+    rail : le même floodCutout que l'outil Autocollant de Fichiers, donc
+    aucun second algorithme à maintenir. */
+function studioDecoupe(){
+  const img=document.getElementById("stdImg");
+  if(!img || !img.naturalWidth){ toast("Aucune image à découper"); return; }
+  const c=document.createElement("canvas");
+  c.width=img.naturalWidth; c.height=img.naturalHeight;
+  c.getContext("2d").drawImage(img,0,0);
+  floodCutout(c.getContext("2d"), c.width, c.height, 10);
+  stickerGarde(c, "studio-" + capHorodatage() + ".png");
+  toast("✂ Autocollant créé — clique-le pour le poser");
+}
+function studioAjouteImage(i){
+  const a=mesAutocollants[i]; if(!a) return;
+  studioAjoute(a.url, "image");
+  const o=studio.objs[studio.objs.length-1];
+  o.ratio=a.ratio; o.nom=a.nom;
+  studioRend(); studioSelectionne(o.id);
+}
+
 function studioFiltre(k, v){ studio.filtres[k]=+v; studioApplique(); }
 function studioReinit(){
   studio.filtres={lum:100, con:100, sat:100, flou:0};
-  const w=document.getElementById("win-studio");
-  if(w) w.querySelectorAll(".std-rg input").forEach((el,i)=>
-    el.value=[100,100,100,0][i]);
-  studioApplique();
+  studioMajRegs(); studioApplique(); studioSnap();
 }
 function studioCssFiltre(){
   const f=studio.filtres;
@@ -3343,7 +3551,11 @@ function studioAjoute(contenu, type){
   const o={id:++studioSeq, type:type||"collant", contenu,
            x:.5, y:.5, taille:.16, rot:0, couleur:"#ffffff"};
   studio.objs.push(o);
-  studioRend();
+  if(type==="image" && !studioImages[contenu]){
+    const im=new Image(); im.src=contenu; studioImages[contenu]=im;
+  }
+  studioSnap();
+  studioRend(); studioRendCalques();
   studioSelectionne(o.id);
 }
 function studioTexte(){
@@ -3354,10 +3566,11 @@ function studioTexte(){
 function studioSupprime(id){
   studio.objs=studio.objs.filter(o=>o.id!==id);
   if(studio.sel===id) studio.sel=null;
-  studioRend();
+  studioSnap(); studioRend(); studioRendCalques();
 }
 function studioSelectionne(id){
   studio.sel=id;
+  studioRendCalques();
   const plan=document.getElementById("stdPlan"); if(!plan) return;
   plan.querySelectorAll(".std-obj").forEach(e=>
     e.classList.toggle("sel", +e.dataset.id===id));
@@ -3374,7 +3587,13 @@ function studioRend(){
     el.style.transform=`translate(-50%,-50%) rotate(${o.rot}deg)`;
     el.style.fontSize=Math.max(10, o.taille*r.height)+"px";
     if(o.type==="texte") el.style.color=o.couleur;
-    el.innerHTML=`<span class="std-c">${esc(o.contenu)}</span>`+
+    //  Un autocollant est une image : sa largeur suit la même fraction de
+    //  hauteur que la taille de police des autres objets, pour que la
+    //  poignée de redimensionnement se comporte pareil dans les deux cas.
+    if(o.type==="image") el.style.width=Math.max(14, o.taille*r.height*1.5)+"px";
+    el.innerHTML=(o.type==="image"
+      ? `<img class="std-c std-img" src="${o.contenu}" alt="${esc(o.nom||"")}" draggable="false">`
+      : `<span class="std-c">${esc(o.contenu)}</span>`)+
                  `<span class="std-h" data-h="1"></span>`+
                  `<span class="std-x" title="Supprimer">✕</span>`;
     plan.appendChild(el);
@@ -3410,8 +3629,12 @@ function studioGestes(el,o){
       el.style.left=(o.x*100)+"%"; el.style.top=(o.y*100)+"%";
       el.style.transform=`translate(-50%,-50%) rotate(${o.rot}deg)`;
       el.style.fontSize=Math.max(10, o.taille*r.height)+"px";
+      if(o.type==="image") el.style.width=Math.max(14, o.taille*r.height*1.5)+"px";
     };
-    const up=()=>{ removeEventListener("pointermove",move); removeEventListener("pointerup",up); };
+    //  Un instantané par GESTE, pas par pixel : sinon un simple glisser
+    //  remplirait l'historique de centaines d'états intermédiaires.
+    const up=()=>{ removeEventListener("pointermove",move); removeEventListener("pointerup",up);
+                   studioSnap(); studioRendCalques(); };
     addEventListener("pointermove",move); addEventListener("pointerup",up);
   };
   el.addEventListener("pointerdown", e=>{
@@ -3443,7 +3666,13 @@ async function studioExporte(){
     g.translate(o.x*L, o.y*H);
     g.rotate(o.rot*Math.PI/180);
     g.textAlign="center"; g.textBaseline="middle";
-    if(o.type==="texte"){
+    if(o.type==="image"){
+      //  Même largeur que dans l'éditeur (taille × 1,5), hauteur déduite du
+      //  rapport de l'image : un autocollant ne doit pas s'écraser à l'export.
+      const l=px*1.5, h2=l*(o.ratio||1);
+      const im=studioImages[o.contenu];
+      if(im && im.complete) g.drawImage(im, -l/2, -h2/2, l, h2);
+    }else if(o.type==="texte"){
       g.font=`700 ${px}px system-ui,-apple-system,"Segoe UI",sans-serif`;
       g.lineWidth=Math.max(2, px*.09); g.strokeStyle="rgba(0,0,0,.55)";
       g.strokeText(o.contenu,0,0);
@@ -3885,6 +4114,26 @@ addEventListener("keydown", e=>{
   }
 });
 addEventListener("keyup", e=>{ if(e.code==="Space") capEspace=false; });
+
+/*  Raccourcis de Studio+ : ils ne s'appliquent QUE si sa fenêtre est
+    ouverte, sinon Ctrl+Z arracherait l'annulation aux champs de texte
+    du reste de la démo. */
+addEventListener("keydown", e=>{
+  if(!document.getElementById("win-studio")) return;
+  if(capSaisieEnCours()) return;
+  const z = e.key==="z" || e.key==="Z";
+  if((e.ctrlKey||e.metaKey) && z){
+    e.preventDefault();
+    e.shiftKey ? studioRefais() : studioAnnule();
+    return;
+  }
+  if((e.ctrlKey||e.metaKey) && (e.key==="y"||e.key==="Y")){
+    e.preventDefault(); studioRefais(); return;
+  }
+  if((e.key==="Delete"||e.key==="Backspace") && studio.sel!=null){
+    e.preventDefault(); studioSupprime(studio.sel);
+  }
+});
 //  Fenêtre quittée espace enfoncée : sans ça l'accord resterait « armé »
 //  au retour, et la prochaine frappe d'un chiffre partirait toute seule.
 addEventListener("blur", ()=>{ capEspace=false; });
