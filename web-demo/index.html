@@ -447,6 +447,16 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   transition:transform .9s cubic-bezier(.34,1.28,.44,1)}
 @media (prefers-reduced-motion:reduce){ .gauge .needle{transition:none} }
 .gly-share{-webkit-mask-image:var(--m-share);mask-image:var(--m-share)}
+/*  Partager : un tour complet, lent. Les trois nœuds du pictogramme
+    tournent autour de leur centre — c'est ce qui donne l'impression que
+    quelque chose circule, ce que dit précisément le symbole du partage.
+    12 s, plus lent que le globe du Navigateur : trois icônes qui tournent
+    dans un même dock deviendraient vite du bruit si elles allaient toutes
+    à la même vitesse. */
+.gly-share{animation:partageTour 12s linear infinite;transform-origin:50% 50%}
+@keyframes partageTour{ from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+.dicon:hover .gly-share,.app:hover .gly-share{animation-duration:2s}
+@media (prefers-reduced-motion:reduce){ .gly-share{animation:none} }
 /*  La boîte d'archive est une IMAGE, pas un masque : elle est en couleurs
     (carton gris, démon en flammes), donc pas de teinte à appliquer. */
 /*  La boîte ZIP est un SVG vivant (comme les dossiers) : au survol, les deux rabats s'écartent davantage — la boîte "s'ouvre" — et le clic redéclenche le même rebond que les dossiers et la clé USB. */
@@ -507,6 +517,13 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   padding:9px 12px;border-bottom:1px solid var(--bg-hi);color:var(--fg)}
 .files li:hover{background:var(--bg-hi)}
 /* --- Fil d'Ariane et dossier vide ---------------------------------------- */
+.files li.sel{background:var(--bg-hi);box-shadow:inset 2px 0 0 var(--ac)}
+.fic-menu{max-height:80vh;overflow-y:auto;min-width:248px}
+.fnom-edit{outline:1px solid var(--ac);border-radius:4px;padding:0 4px;
+  background:var(--bg-hi)}
+.props{width:100%;border-collapse:collapse;font-size:13px}
+.props td{padding:6px 4px;border-bottom:1px solid var(--bd);vertical-align:top}
+.props td:first-child{color:var(--fg-dim);width:110px;white-space:nowrap}
 .fbc{padding:2px 6px;border-radius:6px;color:var(--fg-dim);font-size:12.5px}
 .fbc:hover{background:var(--bg-hi);color:var(--fg)}
 .fbc.on{color:var(--fg);font-weight:600;padding:2px 6px}
@@ -1677,27 +1694,251 @@ function openFiles(){
 /*  Contenu du dossier personnel : conservé tel quel, car ces lignes portent
     des démonstrations (l'autocollant au clic long, la boîte ZIP qui s'ouvre)
     qu'il n'y a pas lieu de dupliquer dans chaque sous-dossier. */
+/*  Les fichiers de la racine sont des DONNÉES, pas du balisage figé : sans
+    ça, renommer ou supprimer n'aurait aucun effet durable — la ligne
+    réapparaîtrait au premier rendu. Le champ « special » porte les deux
+    démonstrations attachées à des fichiers précis. */
+const FICHIERS_RACINE = [
+  {nom:"mascot.png",          ic:"🖼", taille:"304 Ko", special:"sticker"},
+  {nom:"logo-ti-lex-al.png",  ic:"🖼", taille:"131 Ko"},
+  {nom:"wallpaper-crt.png",   ic:"🌄", taille:"2,1 Mo"},
+  {nom:"notes.txt",           ic:"📄", taille:"1 Ko"},
+  {nom:"demo-mix.ogg",        ic:"🎵", taille:"4,8 Mo"},
+  {nom:"photos-vacances.zip", ic:null, taille:"12,4 Mo", special:"zip"},
+];
 function filesRacineHTML(){
-  return `<ul class="files" id="filesList">
-    <li style="cursor:pointer" title="Clique : ouvrir l'outil autocollant · Presse 2 secondes : découper et enregistrer tout de suite"
-        onpointerdown="stickerPressStart('mascot.png',event)" onpointerup="stickerPressEnd()" onpointerleave="stickerPressEnd()"
-        onclick="stickerPressClick('mascot.png',event)">
-      🖼 <span>mascot.png</span><span class="sz">304 Ko</span></li>
-    <li>🖼 <span>logo-ti-lex-al.png</span><span class="sz">131 Ko</span></li>
-    <li>🌄 <span>wallpaper-crt.png</span><span class="sz">2,1 Mo</span></li>
-    <li>📄 <span>notes.txt</span><span class="sz">1 Ko</span></li>
-    <li>🎵 <span>demo-mix.ogg</span><span class="sz">4,8 Mo</span></li>
-    <li id="zipRow" style="cursor:pointer" title="Extraire ici (1 clic) — survole pour voir la boîte s'ouvrir">
-      <span class="zip-box" tabindex="0" onclick="bump(this.querySelector('svg'));setTimeout(extractZip,420)"
-       onkeydown="if(event.key==='Enter'){bump(this.querySelector('svg'));setTimeout(extractZip,420)}">${zipGlyph(20)}</span>
-      <span>photos-vacances.zip</span><span class="sz">12,4 Mo</span></li>
-   </ul>
+  return `<ul class="files" id="filesList">` +
+    FICHIERS_RACINE.map((f,i)=>ligneFichier(f,i,true)).join("") +
+   `</ul>
    <div class="pad">
      <p class="sub" style="color:var(--fg-dim);font-size:12px;margin-bottom:8px">
        Astuce : clique le <span style="color:var(--ac)">.zip</span> pour l'extraire —
-       comme « Extraire ici » au clic droit sur la vraie ISO (3 clics ou moins).</p>
+       comme « Extraire ici » au clic droit sur la vraie ISO. Le <b>clic droit</b>
+       ouvre le menu complet ; une fois un fichier sélectionné,
+       <b>F2</b> renomme, <b>Ctrl+D</b> duplique, <b>Suppr</b> efface.</p>
      <button class="btn" onclick="openShare()"><i class="gly gly-share"></i> Partager avec LexOS</button>
    </div>`;
+}
+/*  Une seule fonction de ligne pour la racine ET les sous-dossiers : le
+    menu contextuel, le renommage et la suppression se comportent donc
+    pareil partout, sans code dupliqué à garder synchronisé. */
+function ligneFichier(f, i, racine){
+  const attrs = `data-i="${i}" data-r="${racine?1:0}"`+
+    ` oncontextmenu="fichierMenu(event,${i},${racine?1:0})"`+
+    ` onpointerdown="ficSelectionne(${i},${racine?1:0})"`;
+  if(f.special==="sticker"){
+    return `<li ${attrs} style="cursor:pointer" title="Clique : outil autocollant · Presse 2 s : découper tout de suite · Clic droit : menu"
+      onpointerdown="stickerPressStart('mascot.png',event)" onpointerup="stickerPressEnd()" onpointerleave="stickerPressEnd()"
+      onclick="stickerPressClick('mascot.png',event)">
+      ${f.ic} <span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
+  }
+  if(f.special==="zip"){
+    return `<li id="zipRow" ${attrs} style="cursor:pointer" title="Extraire ici (1 clic) — clic droit pour le menu">
+      <span class="zip-box" tabindex="0" onclick="bump(this.querySelector('svg'));setTimeout(extractZip,420)"
+       onkeydown="if(event.key==='Enter'){bump(this.querySelector('svg'));setTimeout(extractZip,420)}">${zipGlyph(20)}</span>
+      <span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
+  }
+  return `<li ${attrs} title="Clic droit pour le menu">${f.ic} `+
+         `<span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
+}
+
+/* --- Clic droit sur un fichier : le menu complet -------------------------
+   Renommer, copier, coller, dupliquer, extraire, découper en autocollant,
+   partager, propriétés, supprimer. Les entrées sans objet sont MASQUÉES
+   plutôt que grisées : « Extraire ici » sur un .txt n'apprend rien.
+
+   Toutes les actions agissent sur les DONNÉES (FICHIERS_RACINE ou le nœud
+   de l'arborescence), donc elles survivent au rendu suivant. */
+let ficMenuEl = null;
+let pressePapier = null;      // {fichier, couper:bool}
+let ficSel = null;            // {i, racine} — le fichier sur lequel portent les raccourcis
+
+function fermeFichierMenu(){ if(ficMenuEl){ ficMenuEl.remove(); ficMenuEl=null; } }
+addEventListener("pointerdown", e=>{
+  if(ficMenuEl && !ficMenuEl.contains(e.target)) fermeFichierMenu();
+}, true);
+
+function ficListe(racine){
+  if(racine) return FICHIERS_RACINE;
+  const n = filesNoeud(filesChemin);
+  return n && n.fichiers ? n.fichiers : [];
+}
+function estImage(nom){ return /\.(png|jpe?g|gif|webp|bmp)$/i.test(nom); }
+function estAudio(nom){ return /\.(mp3|ogg|wav|flac|m4a|opus)$/i.test(nom); }
+
+function fichierMenu(e, i, racine){
+  e.preventDefault(); e.stopPropagation();
+  fermeFichierMenu(); closeFilesMenu();
+  const liste = ficListe(!!racine);
+  const f = liste[i]; if(!f) return;
+  ficSelectionne(i, racine);
+
+  const items = [];
+  const add = (html)=>items.push(html);
+  const bouton = (ic, txt, act, kbd)=>
+    `<button onclick="fermeFichierMenu();${act}"><span class="picto">${ic}</span> ${txt}`+
+    (kbd?`<span class="kbd">${kbd}</span>`:"")+`</button>`;
+
+  if(estImage(f.nom)){
+    add(bouton("🖼","Ouvrir dans Studio+",`ficStudio(${i},${racine?1:0})`));
+    add(bouton("✂","Créer un autocollant",`ficAutocollant(${i},${racine?1:0})`));
+  }
+  if(estAudio(f.nom)) add(bouton("🎵","Ouvrir dans Musique","openMusique()"));
+  if(/\.zip$/i.test(f.nom)) add(bouton("📦","Extraire ici","extractZip()"));
+  if(/\.(txt|conf|sh|md)$/i.test(f.nom)) add(bouton("📝","Ouvrir dans Note perso","openEditor()"));
+  if(items.length) add(`<div class="msep"></div>`);
+
+  add(bouton("✎","Renommer…",`ficRenomme(${i},${racine?1:0})`,"F2"));
+  add(bouton("⧉","Dupliquer",`ficDuplique(${i},${racine?1:0})`,"Ctrl+D"));
+  add(`<div class="msep"></div>`);
+  add(bouton("⎘","Copier",`ficCopie(${i},${racine?1:0},false)`,"Ctrl+C"));
+  add(bouton("✂","Couper",`ficCopie(${i},${racine?1:0},true)`,"Ctrl+X"));
+  if(pressePapier) add(bouton("📋","Coller ici","ficColle()","Ctrl+V"));
+  add(`<div class="msep"></div>`);
+  add(bouton('<i class="gly gly-share"></i>',"Partager avec LexOS","openShare()"));
+  add(bouton("ℹ","Propriétés",`ficProprietes(${i},${racine?1:0})`));
+  add(`<div class="msep"></div>`);
+  add(bouton("🗑","Supprimer",`ficSupprime(${i},${racine?1:0})`,"Suppr"));
+
+  const el = document.createElement("div");
+  el.className = "menu fic-menu";
+  el.innerHTML = items.join("");
+  document.body.appendChild(el);
+  //  Le menu est posé APRÈS mesure : près du bord droit ou bas de l'écran,
+  //  il se replierait hors de la vue s'il gardait la position du curseur.
+  const r = el.getBoundingClientRect();
+  el.style.left = Math.min(e.clientX, innerWidth  - r.width  - 8) + "px";
+  el.style.top  = Math.min(e.clientY, innerHeight - r.height - 8) + "px";
+  el.style.right = "auto";
+  ficMenuEl = el;
+}
+
+/*  Sélection : les raccourcis affichés dans le menu doivent MARCHER.
+    Afficher « F2 » à côté de « Renommer » sans le brancher serait une
+    promesse en l'air. */
+function ficSelectionne(i, racine){
+  ficSel = {i, racine:!!racine};
+  document.querySelectorAll(".files li").forEach(li=>
+    li.classList.toggle("sel",
+      +li.dataset.i === i && (li.dataset.r === "1") === !!racine));
+}
+addEventListener("keydown", e=>{
+  if(!document.getElementById("win-files")) return;
+  if(capSaisieEnCours()) return;          // renommage en cours, ou champ de texte
+  const mod = e.ctrlKey || e.metaKey;
+  if(mod && (e.key==="v"||e.key==="V")){ e.preventDefault(); ficColle(); return; }
+  if(!ficSel) return;
+  const {i, racine} = ficSel;
+  if(e.key==="F2"){ e.preventDefault(); ficRenomme(i, racine); }
+  else if(e.key==="Delete"){ e.preventDefault(); ficSupprime(i, racine); ficSel=null; }
+  else if(mod && (e.key==="d"||e.key==="D")){ e.preventDefault(); ficDuplique(i, racine); }
+  else if(mod && (e.key==="c"||e.key==="C")){ e.preventDefault(); ficCopie(i, racine, false); }
+  else if(mod && (e.key==="x"||e.key==="X")){ e.preventDefault(); ficCopie(i, racine, true); ficSel=null; }
+});
+
+/* --- Renommage sur place ------------------------------------------------- */
+function ficRenomme(i, racine){
+  const liste = ficListe(!!racine);
+  const f = liste[i]; if(!f) return;
+  const li = document.querySelector(`.files li[data-i="${i}"][data-r="${racine?1:0}"]`);
+  const span = li && li.querySelector(".fnom");
+  if(!span) return;
+  const avant = f.nom;
+  span.contentEditable = "true";
+  span.classList.add("fnom-edit");
+  span.focus(); selectAllText(span);
+  const valide = ()=>{
+    span.contentEditable = "false";
+    span.classList.remove("fnom-edit");
+    span.removeEventListener("keydown", onKey);
+    span.removeEventListener("blur", valide);
+    const neuf = span.textContent.trim();
+    //  Nom vide ou déjà pris : on revient à l'ancien plutôt que de créer
+    //  deux fichiers indistinguables ou un fichier sans nom.
+    if(!neuf){ span.textContent = avant; return; }
+    if(neuf !== avant && liste.some((x,j)=>j!==i && x.nom===neuf)){
+      toast("Un fichier porte déjà ce nom"); span.textContent = avant; return;
+    }
+    f.nom = neuf;
+    if(neuf !== avant) toast("Renommé : " + neuf);
+    filesRend();
+  };
+  const onKey = ev=>{
+    if(ev.key === "Enter"){ ev.preventDefault(); span.blur(); }
+    else if(ev.key === "Escape"){ ev.preventDefault(); span.textContent = avant; span.blur(); }
+  };
+  span.addEventListener("keydown", onKey);
+  span.addEventListener("blur", valide);
+}
+
+/* --- Les autres actions -------------------------------------------------- */
+function ficNomLibre(liste, nom){
+  if(!liste.some(x=>x.nom===nom)) return nom;
+  const m = nom.match(/^(.*?)(\.[^.]+)?$/);
+  const base = m[1], ext = m[2] || "";
+  let n = 2, essai;
+  do { essai = `${base} (${n++})${ext}`; } while(liste.some(x=>x.nom===essai));
+  return essai;
+}
+function ficDuplique(i, racine){
+  const liste = ficListe(!!racine), f = liste[i]; if(!f) return;
+  //  La copie perd son « special » : une deuxième boîte ZIP qui s'extrait
+  //  ou un second autocollant sur la même image n'aurait pas de sens.
+  const {special, ...reste} = f;
+  liste.splice(i+1, 0, {...reste, ic: f.ic || "📄", nom: ficNomLibre(liste, f.nom)});
+  filesRend(); toast("Dupliqué");
+}
+function ficCopie(i, racine, couper){
+  const liste = ficListe(!!racine), f = liste[i]; if(!f) return;
+  pressePapier = {fichier:{...f}, couper:!!couper, source:{racine:!!racine, i}};
+  toast((couper ? "Coupé : " : "Copié : ") + f.nom);
+}
+function ficColle(){
+  if(!pressePapier){ toast("Presse-papiers vide"); return; }
+  const dest = filesChemin.length ? filesNoeud(filesChemin) : null;
+  const liste = filesChemin.length ? (dest.fichiers || (dest.fichiers=[])) : FICHIERS_RACINE;
+  if(pressePapier.couper){
+    const src = ficListe(pressePapier.source.racine);
+    const j = src.findIndex(x=>x.nom===pressePapier.fichier.nom);
+    if(j>=0) src.splice(j,1);
+  }
+  const {special, ...reste} = pressePapier.fichier;
+  liste.push({...reste, ic: reste.ic || "📄", nom: ficNomLibre(liste, reste.nom)});
+  if(pressePapier.couper) pressePapier = null;
+  filesRend(); toast("Collé");
+}
+function ficSupprime(i, racine){
+  const liste = ficListe(!!racine), f = liste[i]; if(!f) return;
+  liste.splice(i,1);
+  filesRend(); toast("🗑 " + f.nom + " supprimé");
+}
+function ficProprietes(i, racine){
+  const f = ficListe(!!racine)[i]; if(!f) return;
+  const chemin = "/home/lex" + (filesChemin.length ? "/" + filesChemin.join("/") : "") + "/" + f.nom;
+  const ext = (f.nom.match(/\.([^.]+)$/) || [,"—"])[1];
+  openWin("props","Propriétés — " + f.nom,"ℹ",
+    `<div class="pad">
+       <table class="props">
+         <tr><td>Nom</td><td>${esc(f.nom)}</td></tr>
+         <tr><td>Type</td><td>${esc(ext.toUpperCase())}</td></tr>
+         <tr><td>Taille</td><td>${esc(f.taille)}</td></tr>
+         <tr><td>Emplacement</td><td><code>${esc(chemin)}</code></td></tr>
+         <tr><td>Propriétaire</td><td>lex</td></tr>
+         <tr><td>Droits</td><td><code>rw-r--r--</code></td></tr>
+       </table>
+       <p class="notice">Sur la vraie ISO, ces valeurs viennent de
+       <code>stat</code> ; ici elles décrivent le fichier de démonstration.</p>
+     </div>`, 380);
+}
+function ficStudio(i, racine){
+  const f = ficListe(!!racine)[i]; if(!f) return;
+  openStudio();
+  toast("Studio+ — « Ouvrir un fichier » pour charger " + f.nom);
+}
+function ficAutocollant(i, racine){
+  const f = ficListe(!!racine)[i]; if(!f) return;
+  if(f.nom === "mascot.png"){ openSticker("mascot.png"); return; }
+  toast("Sur la vraie ISO : clic droit → Créer un autocollant, sur n'importe quelle image.");
 }
 
 /* --- Menu ⋮ du gestionnaire de fichiers, façon GNOME Fichiers ------------ */
@@ -2092,9 +2333,7 @@ function filesRend(){
         `<span class="fname">${esc(nom)}</span></div>`).join("") + `</div>`;
   }
   if(fic.length){
-    html += `<ul class="files">` + fic.map(f=>
-      `<li>${f.ic} <span>${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`
-    ).join("") + `</ul>`;
+    html += `<ul class="files">` + fic.map((f,i)=>ligneFichier(f,i,false)).join("") + `</ul>`;
   }
   if(!sous.length && !fic.length){
     html = `<div class="fvide">
