@@ -21,7 +21,7 @@ on:
         required: true
         default: 'standard'
         type: choice
-        options: [minimal, standard, dev, full, gaming]
+        options: [minimal, standard, dev, full, gaming, pro]
       suite:
         description: 'Suite Debian (trixie = Debian 13)'
         required: false

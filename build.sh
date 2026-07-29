@@ -227,6 +227,7 @@ case "$LEXOS_FLAVOUR" in
 	dev)      apply_flavour standard; apply_flavour dev ;;
 	full)     apply_flavour standard; apply_flavour dev; apply_flavour full ;;
 	gaming)   apply_flavour standard; apply_flavour dev; apply_flavour gaming ;;
+	pro)      apply_flavour standard; apply_flavour dev; apply_flavour gaming; apply_flavour pro ;;
 esac
 
 TOTAL_PKGS="$(cat config/package-lists/*.list.chroot 2>/dev/null \
