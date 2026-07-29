@@ -286,6 +286,30 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .globe-mer ellipse:nth-child(4){animation-delay:-3s}
 .globe-mer ellipse:nth-child(5){animation-delay:-4s}
 @media (prefers-reduced-motion:reduce){ .globe-mer ellipse{animation:none} }
+/* --- Globe du Navigateur : tour complet, et éclat au survol --------------
+   La rotation porte sur le GROUPE des méridiens, pas sur le <svg> entier :
+   le cercle de contour et les parallèles doivent rester immobiles, sinon
+   c'est toute l'icône qui tourne et on ne lit plus un globe. */
+.nav-ic{display:block;overflow:visible}
+.nav-mer{transform-box:fill-box;transform-origin:center;
+  animation:navTour 9s linear infinite}
+@keyframes navTour{ from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+/*  L'éclat traverse de gauche à droite. Il ne part QU'au survol : une
+    animation permanente distrairait dans un dock toujours affiché. */
+.nav-eclat{opacity:0}
+.dicon:hover .nav-eclat,.app:hover .nav-eclat,
+.win:hover .nav-eclat,.nav-ic:hover .nav-eclat{animation:navEclat .62s ease-out}
+@keyframes navEclat{
+  0%  {transform:rotate(24deg) translateX(0);    opacity:0}
+  35% {opacity:.5}
+  100%{transform:rotate(24deg) translateX(820px); opacity:0}}
+/*  Au survol, le globe accélère aussi : le geste répond au pointeur. */
+.dicon:hover .nav-mer,.app:hover .nav-mer{animation-duration:2.4s}
+@media (prefers-reduced-motion:reduce){
+  .nav-mer{animation:none}
+  .dicon:hover .nav-eclat,.app:hover .nav-eclat,
+  .win:hover .nav-eclat,.nav-ic:hover .nav-eclat{animation:none}}
+
 /* --- Chevron du Terminal : clignote en balayant de gauche à droite -------
    Le clip-path découvre le chevron de gauche à droite (comme un tracé),
    pendant que l'opacité clignote — un seul keyframes pour les deux. */
@@ -1660,6 +1684,44 @@ function musiqueGlobe(size){
   `</svg>`;
 }
 
+/* --- Icône du Navigateur : un globe qui fait un tour complet -------------
+   Deux mouvements distincts. En continu, les méridiens tournent de 0 à
+   360° autour de l'axe du globe — un vrai tour, pas un va-et-vient. Au
+   survol, un éclat balaie l'icône en diagonale.
+
+   L'éclat est un rectangle incliné qui traverse un <clipPath> circulaire :
+   sans ce découpage il déborderait du globe et baverait sur la tuile
+   voisine dans le dock. */
+function navGlyph(size){
+  //  L'identifiant du clip doit être unique : le glyphe est inséré
+  //  plusieurs fois (dock, grille, barre de titre) et des identifiants
+  //  identiques feraient pointer tous les <use> vers le premier.
+  const id = "navclip" + (++navGlyphSeq);
+  return `<svg class="nav-ic" viewBox="0 0 512 512" width="${size}" height="${size}"
+     aria-hidden="true" focusable="false">
+    <defs><clipPath id="${id}"><circle cx="256" cy="256" r="196"/></clipPath></defs>
+    <circle cx="256" cy="256" r="196" fill="#12121a"/>
+    <circle cx="256" cy="256" r="196" fill="var(--ac)" opacity=".14"/>
+    <g clip-path="url(#${id})">
+      <!-- Parallèles : fixes, ils donnent l'axe autour duquel tout tourne -->
+      <g fill="none" stroke="var(--ac)" stroke-width="11" opacity=".55">
+        <path d="M 76,196 H 436"/><path d="M 60,256 H 452"/><path d="M 76,316 H 436"/>
+      </g>
+      <!-- Méridiens : c'est ce groupe qui fait le tour complet -->
+      <g class="nav-mer" fill="none" stroke="var(--ac)" stroke-width="12">
+        <ellipse cx="256" cy="256" rx="196" ry="196"/>
+        <ellipse cx="256" cy="256" rx="98"  ry="196"/>
+        <ellipse cx="256" cy="256" rx="196" ry="98"/>
+      </g>
+      <!-- Éclat de survol -->
+      <rect class="nav-eclat" x="-260" y="-120" width="150" height="760"
+            fill="#fff" opacity="0" transform="rotate(24 256 256)"/>
+    </g>
+    <circle cx="256" cy="256" r="196" fill="none" stroke="var(--ac)" stroke-width="16"/>
+  </svg>`;
+}
+let navGlyphSeq = 0;
+
 /* --- Icône du Terminal : le chevron ">" clignote en balayant de gauche à
    droite (voir @keyframes termClignote plus haut). Icône vivante (SVG
    inline), donc utilisable partout où une chaîne HTML est attendue comme
@@ -2401,7 +2463,7 @@ function openAbout(){
   </div>`,420);
 }
 function openBrowser(){
-  openWin("web","Navigateur","🌐",
+  openWin("web","Navigateur",navGlyph(18),
   `<div class="pad">
     <h2>Ici, c'est déjà un navigateur 🙂</h2>
     <p>Sur la vraie ISO, cette icône ouvre <b>Firefox</b>. Dans la démo web,
@@ -3445,7 +3507,7 @@ function lgtRetireDesApps(a){
 }
 
 const DOCK = [
-  ["🌐","Navigateur",openBrowser], [terminalGlyph(24),"Terminal",openTerminal],
+  [navGlyph(26),"Navigateur",openBrowser], [terminalGlyph(24),"Terminal",openTerminal],
   [filesAppGlyph(24),"Fichiers",openFiles], ["📝","Éditeur",openEditor],
   ['<i class="gly gly-share"></i>',"Partager",openShare], [cameraGlyph(24),"Capture d'écran",openCapture],
   [studioGlyph(24),"Studio+ LexOS",openStudio],
@@ -3472,7 +3534,8 @@ const APPS = [
     label==="Terminal" ? {ic:terminalGlyph(38), label, fn} :
     label==="Fichiers" ? {ic:filesAppGlyph(38), label, fn} :
     label==="Capture d'écran" ? {ic:cameraGlyph(40), label, fn} :
-    label==="Studio+ LexOS" ? {ic:studioGlyph(40), label, fn} : {ic,label,fn}),
+    label==="Studio+ LexOS" ? {ic:studioGlyph(40), label, fn} :
+    label==="Navigateur" ? {ic:navGlyph(42), label, fn} : {ic,label,fn}),
   {ic:zipGlyph(42), label:"Archives ZIP", fn:openFiles},
   {ic:musiqueGlobe(38), label:"Musique", fn:openMusique},
   {ic:'<i class="gly gly-usb" style="width:42px;height:42px"></i>', label:"Appareils USB", fn:()=>openSettings("usb")},
