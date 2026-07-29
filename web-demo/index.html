@@ -675,10 +675,18 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   border-radius:6px;flex:none;background:var(--bg)}
 /*  La vidéo de fond occupe tout le bureau, derrière le reste. z-index 0 et
     pas -1 : à -1 elle passerait DERRIÈRE le fond du bureau lui-même et
-    resterait invisible. */
+    resterait invisible.
+
+    Elle est insérée en PREMIER enfant, et c'est tout ce qu'il faut : à
+    niveau égal, l'ordre du document décide de qui passe devant. Une règle
+    « #desktop > *:not(#wallVideo){position:relative} » avait été essayée
+    pour forcer l'empilement — elle écrasait le position:absolute de #wall
+    et de #deskIcons, qui se remettaient alors à suivre le flux du texte :
+    la marque LexOS remontait hors de l'écran et chevauchait l'invite du
+    bureau. Corriger un empilement ne doit pas passer par le
+    positionnement des voisins. */
 #wallVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
   z-index:0;pointer-events:none}
-#desktop > *:not(#wallVideo){position:relative;z-index:1}
 .wall-perso-i{min-width:0;flex:1}
 .wall-perso-n{font-size:13px;font-weight:600;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
