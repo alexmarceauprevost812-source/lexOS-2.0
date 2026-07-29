@@ -585,6 +585,32 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
       transparent 33.5% 66.2%,rgba(255,255,255,.28) 66.2% 66.5%,transparent 66.5%),
     linear-gradient(to bottom,transparent 33.2%,rgba(255,255,255,.28) 33.2% 33.5%,
       transparent 33.5% 66.2%,rgba(255,255,255,.28) 66.2% 66.5%,transparent 66.5%)}
+/*  Courant électrique qui circule autour du cadre : quatre rails, un par
+    côté, chacun portant un éclat qui se déplace. Les positions de fond
+    tournent dans le même sens (droite, bas, gauche, haut) pour que l'éclat
+    fasse le tour au lieu de rebondir. Les rails débordent de 3 px pour
+    encadrer le trait de sélection plutôt que de le recouvrir. */
+#capZone .cz-courant{position:absolute;inset:-4px;pointer-events:none;
+  background:
+    linear-gradient(90deg,transparent,var(--ac-hi),#fff,var(--ac-hi),transparent) no-repeat,
+    linear-gradient(90deg,transparent,var(--ac-hi),#fff,var(--ac-hi),transparent) no-repeat,
+    linear-gradient(180deg,transparent,var(--ac-hi),#fff,var(--ac-hi),transparent) no-repeat,
+    linear-gradient(180deg,transparent,var(--ac-hi),#fff,var(--ac-hi),transparent) no-repeat;
+  background-size:45% 3px, 45% 3px, 3px 45%, 3px 45%;
+  filter:drop-shadow(0 0 5px var(--ac-hi));
+  animation:czCourant 2.6s linear infinite}
+@keyframes czCourant{
+  0%   {background-position:-45% 0,   145% 100%, 0 145%,  100% -45%}
+  100% {background-position:145% 0,  -45% 100%, 0 -45%,  100% 145%}}
+/*  La sélection respire aussi : un halo qui bat rappelle que le cadre est
+    vivant même quand on ne le touche pas. */
+#capZone .cz-sel{animation:czHalo 2.6s ease-in-out infinite}
+@keyframes czHalo{
+  0%,100%{filter:drop-shadow(0 0 0 rgba(232,89,12,0))}
+  50%    {filter:drop-shadow(0 0 12px rgba(232,89,12,.55))}}
+@media (prefers-reduced-motion:reduce){
+  #capZone .cz-courant,#capZone .cz-sel{animation:none}}
+
 #capZone .cz-dim{position:absolute;top:-27px;left:0;padding:2px 8px;border-radius:6px;
   background:var(--ac);color:var(--btn-fg);font:600 12px/1.5 ui-monospace,monospace;
   white-space:nowrap;pointer-events:none}
@@ -2835,6 +2861,7 @@ async function capZone(){
     `<img class="cz-fond" src="${cv.toDataURL("image/png")}" alt="">`+
     `<div class="cz-voile"></div>`+
     `<div class="cz-sel" id="czSel">`+
+      `<span class="cz-courant"></span>`+
       `<span class="cz-dim" id="czDim"></span>`+
       ["nw","n","ne","e","se","s","sw","w"].map(p=>
         `<span class="cz-p cz-${p}" data-p="${p}"></span>`).join("")+
