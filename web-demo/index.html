@@ -537,6 +537,43 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   max-height:100%;overflow:auto;font:12.5px/1.55 ui-monospace,monospace;
   white-space:pre-wrap;word-break:break-word}
 
+/* --- Studio+ LexOS : retouche d'image ------------------------------------ */
+.std-logo{display:inline-block;vertical-align:middle;background-image:var(--logo-icon);
+  background-size:contain;background-repeat:no-repeat;background-position:center}
+.std{display:flex;gap:0;height:calc(100% - 44px);min-height:380px}
+.std-rail{width:194px;flex:none;padding:12px;overflow-y:auto;
+  border-right:1px solid var(--bd);background:var(--bg-alt)}
+.std-tt{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--fg-dim);margin:12px 0 7px}
+.std-tt:first-child{margin-top:0}
+.std-collants{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-bottom:9px}
+.std-col{font-size:16px;line-height:1;padding:4px 0;border-radius:6px}
+.std-col:hover{background:var(--bg-hi)}
+.std-rg{display:block;font-size:11.5px;color:var(--fg-dim);margin-bottom:8px}
+.std-rg input{width:100%;accent-color:var(--ac);margin-top:3px}
+.std-rail .btn{width:100%;margin-bottom:7px}
+.std-scene{flex:1;display:flex;align-items:center;justify-content:center;
+  padding:14px;background:
+    repeating-conic-gradient(#1a1a1c 0 25%,#111113 0 50%) 0 0/22px 22px;
+  overflow:hidden}
+.std-plan{position:relative;max-width:100%;max-height:100%;line-height:0;
+  box-shadow:0 10px 34px rgba(0,0,0,.6)}
+.std-plan img{display:block;max-width:100%;max-height:100%;
+  /*  L'export lit naturalWidth : l'image doit rester entière, jamais rognée. */
+  object-fit:contain}
+.std-obj{position:absolute;cursor:move;line-height:1;white-space:nowrap;
+  user-select:none;touch-action:none}
+.std-obj .std-c{display:block;text-shadow:0 2px 6px rgba(0,0,0,.5)}
+.std-obj .std-h,.std-obj .std-x{display:none;position:absolute;border-radius:50%}
+.std-obj.sel{outline:1.5px dashed var(--ac);outline-offset:5px}
+.std-obj.sel .std-h,.std-obj.sel .std-x{display:block}
+.std-obj .std-h{right:-11px;bottom:-11px;width:15px;height:15px;
+  background:var(--ac);border:2px solid #fff;cursor:nwse-resize}
+.std-obj .std-x{left:-11px;top:-11px;width:15px;height:15px;background:#C62828;
+  color:#fff;font:700 10px/13px system-ui,sans-serif;text-align:center;cursor:pointer}
+.std-aide{margin:0;padding:9px 12px;font-size:11.5px;color:var(--fg-dim);
+  border-top:1px solid var(--bd);background:var(--bg-alt)}
+
 /* --- Cadrage de la capture (sélecteur de zone) --------------------------- */
 #capZone{position:fixed;inset:0;z-index:2600;cursor:crosshair;user-select:none}
 #capZone .cz-fond{position:absolute;inset:0;width:100%;height:100%;display:block}
@@ -2644,6 +2681,13 @@ function cameraGlyph(size){
 //  Le script est en fin de <body> : la barre du haut existe déjà.
 document.getElementById("qcPhoto").innerHTML = cameraGlyph(17);
 
+/*  Studio+ porte le logo de marque TI-LEX-AL, pas un pictogramme à part :
+    c'est l'atelier maison. Même image que le lanceur Applications
+    (--logo-icon), donc aucun octet supplémentaire dans le fichier. */
+function studioGlyph(size){
+  return `<span class="std-logo" style="width:${size}px;height:${size}px"></span>`;
+}
+
 const captures = [];      /* {type, nom, url, taille} — vidé au rechargement */
 let capRec = null, capChrono = null, capDebut = 0;
 
@@ -2999,6 +3043,231 @@ function openCapture(){
   renderCaptures();
 }
 
+/* --- Studio+ LexOS : retouche d'image dans la démo -----------------------
+   Un vrai éditeur, pas une mise en scène : l'image de départ vient des
+   captures d'écran prises plus tôt (ou du fond d'écran à défaut), les
+   autocollants et les textes se posent, se déplacent, se redimensionnent
+   et se tournent, les réglages agissent sur les pixels, et l'export
+   produit un PNG téléchargeable.
+
+   Les objets vivent en DOM pendant l'édition — le pointer capture et le
+   survol sont gratuits — et ne sont dessinés dans un <canvas> qu'à
+   l'export. Faire l'inverse obligerait à écrire soi-même la détection de
+   clic sur des objets tournés, pour le même résultat.
+
+   Côté vraie ISO, « lexos studio » ouvre GIMP, Krita, Inkscape ou
+   Kdenlive : la retouche sérieuse et le montage vidéo sont leur métier. */
+const STUDIO_COLLANTS = ["😎","🔥","💀","⭐","❤","👾","🚀","💡","🎯","👑",
+                         "🐧","⚡","💰","🎮","📌","✅","❌","💬"];
+const studio = { objs:[], sel:null, img:null, filtres:{lum:100, con:100, sat:100, flou:0} };
+let studioSeq = 0;
+
+function openStudio(){
+  openWin("studio","Studio+ LexOS",studioGlyph(18),
+    `<div class="std">
+       <div class="std-rail">
+         <div class="std-tt">Autocollants</div>
+         <div class="std-collants">${STUDIO_COLLANTS.map(c=>
+           `<button class="std-col" onclick="studioAjoute('${c}')">${c}</button>`).join("")}</div>
+         <button class="btn ghost mini" onclick="studioTexte()">✎ Ajouter du texte</button>
+         <div class="std-tt">Réglages</div>
+         ${[["lum","Luminosité",0,200],["con","Contraste",0,200],
+            ["sat","Saturation",0,200],["flou","Flou",0,10]].map(([k,n,a,b])=>
+           `<label class="std-rg"><span>${n}</span>
+              <input type="range" min="${a}" max="${b}" value="${studio.filtres[k]}"
+                     oninput="studioFiltre('${k}',this.value)"></label>`).join("")}
+         <button class="btn ghost mini" onclick="studioReinit()">Réinitialiser</button>
+         <div class="std-tt">Image</div>
+         <button class="btn ghost mini" onclick="studioSource()">↻ Changer d'image</button>
+         <button class="btn mini" onclick="studioExporte()">⬇ Exporter en PNG</button>
+       </div>
+       <div class="std-scene" id="stdScene">
+         <div class="std-plan" id="stdPlan">
+           <img id="stdImg" alt="">
+         </div>
+       </div>
+     </div>
+     <p class="std-aide">Clique un autocollant pour le poser. Glisse-le pour le
+     déplacer, la poignée ● pour le tourner et le redimensionner,
+     <b>Suppr</b> pour l'effacer. Sur la vraie ISO, <code>lexos studio</code>
+     ouvre GIMP, Krita, Inkscape ou Kdenlive.</p>`, 800, 560);
+  studioSource(true);
+}
+
+/*  Source : la dernière capture d'écran si elle existe — c'est le geste
+    naturel après avoir cadré une zone — sinon un dégradé aux couleurs du
+    système, pour que le Studio ne s'ouvre jamais sur du vide. */
+function studioSource(silencieux){
+  const img = document.getElementById("stdImg");
+  if(!img) return;
+  const photo = captures.find(c=>c.type==="image");
+  if(photo){
+    img.src = photo.url;
+    if(!silencieux) toast("Image : " + photo.nom);
+  }else{
+    const cv=document.createElement("canvas"); cv.width=880; cv.height=520;
+    const g=cv.getContext("2d");
+    const cs=getComputedStyle(document.body);
+    const d=g.createLinearGradient(0,0,880,520);
+    d.addColorStop(0,"#0a0a0b");
+    d.addColorStop(1,cs.getPropertyValue("--ac-lo").trim()||"#A84007");
+    g.fillStyle=d; g.fillRect(0,0,880,520);
+    g.fillStyle="rgba(255,255,255,.9)";
+    g.font="600 34px system-ui,sans-serif"; g.textAlign="center";
+    g.fillText("Studio+ LexOS", 440, 258);
+    g.font="16px system-ui,sans-serif"; g.fillStyle="rgba(255,255,255,.55)";
+    g.fillText("Prends une capture d'écran, puis « Changer d'image »", 440, 292);
+    img.src=cv.toDataURL("image/png");
+    if(!silencieux) toast("Aucune capture — image d'exemple");
+  }
+  studioApplique();
+}
+
+function studioFiltre(k, v){ studio.filtres[k]=+v; studioApplique(); }
+function studioReinit(){
+  studio.filtres={lum:100, con:100, sat:100, flou:0};
+  const w=document.getElementById("win-studio");
+  if(w) w.querySelectorAll(".std-rg input").forEach((el,i)=>
+    el.value=[100,100,100,0][i]);
+  studioApplique();
+}
+function studioCssFiltre(){
+  const f=studio.filtres;
+  return `brightness(${f.lum}%) contrast(${f.con}%) saturate(${f.sat}%) blur(${f.flou}px)`;
+}
+function studioApplique(){
+  const img=document.getElementById("stdImg");
+  if(img) img.style.filter = studioCssFiltre();
+}
+
+function studioAjoute(contenu, type){
+  const plan=document.getElementById("stdPlan"); if(!plan) return;
+  const o={id:++studioSeq, type:type||"collant", contenu,
+           x:.5, y:.5, taille:.16, rot:0, couleur:"#ffffff"};
+  studio.objs.push(o);
+  studioRend();
+  studioSelectionne(o.id);
+}
+function studioTexte(){
+  const t=prompt("Texte à poser sur l'image :", "LexOS 1.0");
+  if(t===null || !t.trim()) return;
+  studioAjoute(t.trim(), "texte");
+}
+function studioSupprime(id){
+  studio.objs=studio.objs.filter(o=>o.id!==id);
+  if(studio.sel===id) studio.sel=null;
+  studioRend();
+}
+function studioSelectionne(id){
+  studio.sel=id;
+  const plan=document.getElementById("stdPlan"); if(!plan) return;
+  plan.querySelectorAll(".std-obj").forEach(e=>
+    e.classList.toggle("sel", +e.dataset.id===id));
+}
+function studioRend(){
+  const plan=document.getElementById("stdPlan"); if(!plan) return;
+  plan.querySelectorAll(".std-obj").forEach(e=>e.remove());
+  const r=plan.getBoundingClientRect();
+  studio.objs.forEach(o=>{
+    const el=document.createElement("div");
+    el.className="std-obj"+(studio.sel===o.id?" sel":"");
+    el.dataset.id=o.id;
+    el.style.left=(o.x*100)+"%"; el.style.top=(o.y*100)+"%";
+    el.style.transform=`translate(-50%,-50%) rotate(${o.rot}deg)`;
+    el.style.fontSize=Math.max(10, o.taille*r.height)+"px";
+    if(o.type==="texte") el.style.color=o.couleur;
+    el.innerHTML=`<span class="std-c">${esc(o.contenu)}</span>`+
+                 `<span class="std-h" data-h="1"></span>`+
+                 `<span class="std-x" title="Supprimer">✕</span>`;
+    plan.appendChild(el);
+    studioGestes(el,o);
+  });
+}
+function studioGestes(el,o){
+  const plan=document.getElementById("stdPlan");
+  el.querySelector(".std-x").addEventListener("pointerdown", e=>{
+    e.stopPropagation(); studioSupprime(o.id);
+  });
+  const debut=(e, rotation)=>{
+    e.preventDefault(); e.stopPropagation();
+    studioSelectionne(o.id);
+    const r=plan.getBoundingClientRect();
+    const cx=r.left+o.x*r.width, cy=r.top+o.y*r.height;
+    const d0={...o};
+    const ang0=Math.atan2(e.clientY-cy, e.clientX-cx);
+    const dist0=Math.hypot(e.clientX-cx, e.clientY-cy) || 1;
+    const sx=e.clientX, sy=e.clientY;
+    const move=ev=>{
+      if(rotation){
+        //  La poignée fait les deux à la fois, comme dans les applis de
+        //  retouche du téléphone : l'angle tourne, la distance redimensionne.
+        const a=Math.atan2(ev.clientY-cy, ev.clientX-cx);
+        o.rot = d0.rot + (a-ang0)*180/Math.PI;
+        const d=Math.hypot(ev.clientX-cx, ev.clientY-cy);
+        o.taille = Math.max(.03, Math.min(1.4, d0.taille*(d/dist0)));
+      }else{
+        o.x = Math.max(0, Math.min(1, d0.x + (ev.clientX-sx)/r.width));
+        o.y = Math.max(0, Math.min(1, d0.y + (ev.clientY-sy)/r.height));
+      }
+      el.style.left=(o.x*100)+"%"; el.style.top=(o.y*100)+"%";
+      el.style.transform=`translate(-50%,-50%) rotate(${o.rot}deg)`;
+      el.style.fontSize=Math.max(10, o.taille*r.height)+"px";
+    };
+    const up=()=>{ removeEventListener("pointermove",move); removeEventListener("pointerup",up); };
+    addEventListener("pointermove",move); addEventListener("pointerup",up);
+  };
+  el.addEventListener("pointerdown", e=>{
+    if(e.target.classList.contains("std-h") || e.target.classList.contains("std-x")) return;
+    debut(e,false);
+  });
+  el.querySelector(".std-h").addEventListener("pointerdown", e=>debut(e,true));
+}
+
+/*  Export : le canvas rejoue exactement ce que montre l'écran — le filtre
+    CSS a son équivalent ctx.filter, et chaque objet est retracé à sa
+    position, sa taille et son angle. */
+async function studioExporte(){
+  const img=document.getElementById("stdImg");
+  const plan=document.getElementById("stdPlan");
+  if(!img || !img.naturalWidth){ toast("Aucune image à exporter"); return; }
+  const L=img.naturalWidth, H=img.naturalHeight;
+  const cv=document.createElement("canvas"); cv.width=L; cv.height=H;
+  const g=cv.getContext("2d");
+  g.filter = studioCssFiltre();
+  g.drawImage(img,0,0,L,H);
+  g.filter = "none";
+  //  La taille des objets est exprimée en fraction de la HAUTEUR affichée :
+  //  la reporter sur la hauteur réelle garde les proportions quel que soit
+  //  le zoom de la fenêtre.
+  studio.objs.forEach(o=>{
+    const px=Math.max(8, o.taille*H);
+    g.save();
+    g.translate(o.x*L, o.y*H);
+    g.rotate(o.rot*Math.PI/180);
+    g.textAlign="center"; g.textBaseline="middle";
+    if(o.type==="texte"){
+      g.font=`700 ${px}px system-ui,-apple-system,"Segoe UI",sans-serif`;
+      g.lineWidth=Math.max(2, px*.09); g.strokeStyle="rgba(0,0,0,.55)";
+      g.strokeText(o.contenu,0,0);
+      g.fillStyle=o.couleur; g.fillText(o.contenu,0,0);
+    }else{
+      g.font=`${px}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`;
+      g.fillText(o.contenu,0,0);
+    }
+    g.restore();
+  });
+  const blob=await new Promise(res=>cv.toBlob(res,"image/png"));
+  if(!blob){ toast("L'export a échoué"); return; }
+  captures.unshift({type:"image", nom:`studio_${capHorodatage()}.png`,
+                    url:URL.createObjectURL(blob), taille:blob.size});
+  renderCaptures();
+  //  Téléchargement immédiat : c'est le but du bouton.
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=`studio_${capHorodatage()}.png`;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast(`🎨 Exporté — ${L} × ${H}`);
+}
+
 /* --- Logithèque : installer des applications en quelques clics -----------
    Sur la vraie ISO c'est GNOME Logiciels (gnome-software) branché sur les
    dépôts Debian + Flathub, et « lexos logitheque install <nom> » en ligne
@@ -3152,6 +3421,7 @@ const DOCK = [
   ["🌐","Navigateur",openBrowser], [terminalGlyph(24),"Terminal",openTerminal],
   [filesAppGlyph(24),"Fichiers",openFiles], ["📝","Éditeur",openEditor],
   ['<i class="gly gly-share"></i>',"Partager",openShare], [cameraGlyph(24),"Capture d'écran",openCapture],
+  [studioGlyph(24),"Studio+ LexOS",openStudio],
   ["📦","Logithèque",openLogitheque],
   ["⚙","Paramètres",openSettings],
   ["💽","Installer LexOS",openInstall], ["◆","À propos",openAbout],
@@ -3174,7 +3444,8 @@ const APPS = [
         (52px) : on la redessine ici à une taille propre à cette vue. */
     label==="Terminal" ? {ic:terminalGlyph(38), label, fn} :
     label==="Fichiers" ? {ic:filesAppGlyph(38), label, fn} :
-    label==="Capture d'écran" ? {ic:cameraGlyph(40), label, fn} : {ic,label,fn}),
+    label==="Capture d'écran" ? {ic:cameraGlyph(40), label, fn} :
+    label==="Studio+ LexOS" ? {ic:studioGlyph(40), label, fn} : {ic,label,fn}),
   {ic:zipGlyph(42), label:"Archives ZIP", fn:openFiles},
   {ic:musiqueGlobe(38), label:"Musique", fn:openMusique},
   {ic:'<i class="gly gly-usb" style="width:42px;height:42px"></i>', label:"Appareils USB", fn:()=>openSettings("usb")},

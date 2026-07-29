@@ -1,0 +1,16 @@
+# Studio+ LexOS — atelier image, vidéo et son.
+#
+# lexos-studio ne fait qu'ouvrir le bon outil : ce sont ces paquets qui
+# travaillent. GIMP est le plus utile des six, d'où sa présence ici même
+# dans la saveur standard ; les autres ne coûtent rien s'ils manquent,
+# lexos-studio propose alors de les installer à la demande.
+gimp
+
+# ImageMagick sert au détourage de repli de lexos-sticker (autocollants)
+# quand l'IA rembg n'est pas là. Déjà dans 45-capture.list, répété ici
+# parce que Studio+ ne marche pas sans — les listes sont dédoublonnées
+# par le hook 0250 avant l'installation.
+imagemagick
+
+# ffmpeg : conversion et export vidéo, y compris depuis Kdenlive.
+ffmpeg

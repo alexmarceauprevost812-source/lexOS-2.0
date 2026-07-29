@@ -124,6 +124,15 @@ for NAME in files zip share wifi wifi-ok wifi-warn wifi-off bluetooth \
 	cp "$SRC" "/usr/share/icons/hicolor/scalable/apps/lexos-${NAME}.svg"
 done
 
+#  Studio+ LexOS porte le logo de marque TI-LEX-AL, pas une icône à part :
+#  c'est l'atelier maison, il s'annonce sous l'enseigne. On recopie donc
+#  lexos.png déjà rendu plus haut, à chaque taille, sous le nom attendu par
+#  lexos-studio.desktop.
+for SIZE in 16 22 24 32 48 64 128 256; do
+	DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+	[ -r "$DIR/lexos.png" ] && cp "$DIR/lexos.png" "$DIR/lexos-studio.png"
+done
+
 if [ -n "$LOGO_SRC" ]; then
 	case "$LOGO_SRC" in
 		*.png) cp "$LOGO_SRC" /usr/share/pixmaps/lexos.png ;;

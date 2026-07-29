@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-studio — Studio+ LexOS : retouche d'image, montage vidéo, autocollants
+# =============================================================================
+#  LexOS n'écrit pas son propre éditeur d'image : GIMP, Krita, Inkscape et
+#  Kdenlive font déjà ce travail mieux que n'importe quoi qu'on pourrait
+#  bricoler. Studio+ est l'atelier qui les rassemble : il ouvre le bon outil
+#  pour le travail demandé, et propose d'installer ce qui manque au lieu de
+#  se contenter d'un « command not found ».
+#
+#  Le seul morceau vraiment maison est l'autocollant : lexos-sticker découpe
+#  le sujet d'une photo sur fond transparent (IA rembg si installée, sinon
+#  détourage ImageMagick).
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; E=$'\033[31m'; V=$'\033[32m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; A=''; E=''; V=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+#  « atelier | paquet | commande | à quoi ça sert »
+#  La commande peut différer du paquet (gimp → gimp, mais code-oss → code) ;
+#  on teste toujours la COMMANDE, jamais le paquet, pour savoir si c'est là.
+ATELIERS="
+photo|gimp|gimp|Retouche photo, calques, masques
+peinture|krita|krita|Peinture numérique, bandes dessinées
+vectoriel|inkscape|inkscape|Dessin vectoriel, logos, affiches
+video|kdenlive|kdenlive|Montage vidéo multipiste
+capture|obs-studio|obs|Capture d'écran et diffusion en direct
+son|audacity|audacity|Enregistrement et montage audio
+"
+
+ligne_atelier() {
+	local cle="$1"
+	while IFS='|' read -r c pkg cmd desc; do
+		[[ -n "$c" ]] || continue
+		[[ "$c" == "$cle" ]] && { printf '%s|%s|%s\n' "$pkg" "$cmd" "$desc"; return 0; }
+	done <<< "$ATELIERS"
+	return 1
+}
+
+sudo_cmd() {
+	if [[ "$(id -u)" -eq 0 ]]; then "$@"
+	elif command -v sudo >/dev/null 2>&1; then sudo "$@"
+	elif command -v pkexec >/dev/null 2>&1; then pkexec "$@"
+	else die "Droits d'administration indisponibles (ni sudo ni pkexec)."
+	fi
+}
+
+cmd_liste() {
+	printf '\n%s%sStudio+ LexOS%s %s— ateliers%s\n\n' "$B" "$O" "$R" "$D" "$R"
+	while IFS='|' read -r cle pkg cmd desc; do
+		[[ -n "$cle" ]] || continue
+		if command -v "$cmd" >/dev/null 2>&1; then
+			printf '  %s✓%s %s%-11s%s %s%-12s%s %s\n' "$V" "$R" "$A" "$cle" "$R" "$D" "$pkg" "$R" "$desc"
+		else
+			printf '    %s%-11s%s %s%-12s%s %s%s(non installé)%s\n' \
+				"$A" "$cle" "$R" "$D" "$pkg" "$R" "$D" "" "$R"
+			printf '    %s%-11s  %-12s %s%s\n' "" "" "" "$desc" "$R"
+		fi
+	done <<< "$ATELIERS"
+	printf '\n  %s✓%s = installé   ·   %s%s ouvrir <atelier>%s pour lancer\n\n' \
+		"$V" "$R" "$A" "$PROG" "$R"
+}
+
+cmd_ouvrir() {
+	local cle="${1:-}"
+	[[ -n "$cle" ]] || die "Quel atelier ? Essaie « $PROG liste »."
+	shift || true
+
+	local info pkg cmd desc
+	info="$(ligne_atelier "$cle")" \
+		|| die "Atelier inconnu : $cle  (voir « $PROG liste »)"
+	IFS='|' read -r pkg cmd desc <<< "$info"
+
+	if command -v "$cmd" >/dev/null 2>&1; then
+		say "Ouverture de ${B}${cle}${R} — ${desc}"
+		exec "$cmd" "$@"
+	fi
+
+	say "${cle} : ${desc}"
+	say "Le paquet ${B}${pkg}${R} n'est pas installé."
+	printf '  L\''installer maintenant ? [o/N] '
+	local rep=""
+	read -r rep || true
+	case "$rep" in
+		o|O|y|Y|oui|Oui)
+			sudo_cmd apt-get update -qq || say "apt-get update a échoué, on tente quand même"
+			sudo_cmd apt-get install -y "$pkg" \
+				|| die "Installation impossible. Essaie « lexos logitheque » pour la boutique graphique."
+			ok "Installé. Ouverture…"
+			exec "$cmd" "$@"
+			;;
+		*) say "Rien d'installé. « lexos logitheque » ouvre la boutique graphique." ;;
+	esac
+}
+
+#  Autocollant : le seul atelier réellement maison.
+cmd_autocollant() {
+	command -v lexos-sticker >/dev/null 2>&1 \
+		|| die "lexos-sticker est introuvable."
+	[[ $# -gt 0 ]] || die "Donne une image : $PROG autocollant photo.jpg"
+	exec lexos-sticker "$@"
+}
+
+usage() {
+	cat <<EOF
+
+${B}${O}Studio+ LexOS${R} ${D}— retouche d'image, montage vidéo, autocollants${R}
+
+  ${A}$PROG${R}                     Liste les ateliers et ce qui est installé
+  ${A}$PROG ouvrir${R} <atelier>    Lance l'atelier ${D}(propose de l'installer s'il manque)${R}
+  ${A}$PROG autocollant${R} <image…> Découpe le sujet sur fond transparent
+
+${B}ATELIERS${R}
+  ${A}photo${R}       GIMP        ${A}peinture${R}   Krita       ${A}vectoriel${R}  Inkscape
+  ${A}video${R}       Kdenlive    ${A}capture${R}    OBS Studio  ${A}son${R}        Audacity
+
+${D}Exemples :
+  $PROG ouvrir photo photo.jpg
+  $PROG ouvrir video
+  $PROG autocollant chat.jpg${R}
+
+${D}Studio+ ne remplace pas ces outils : il les rassemble, les installe au
+besoin, et laisse chacun faire ce qu'il fait le mieux.${R}
+EOF
+}
+
+case "${1:-}" in
+	""|liste|list|ls)        cmd_liste ;;
+	ouvrir|open|lancer)      shift; cmd_ouvrir "$@" ;;
+	autocollant|sticker)     shift; cmd_autocollant "$@" ;;
+	-h|--help|aide)          usage ;;
+	#  « lexos studio photo » sans « ouvrir » : raccourci naturel.
+	*)                       cmd_ouvrir "$@" ;;
+esac

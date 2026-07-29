@@ -137,6 +137,11 @@ ${B}CAPTURE${R}
   ${A}capture zone${R}        Capture une zone à la souris ${D}(Maj+Impr écr)${R}
   ${A}capture video${R}       Enregistre l'écran en vidéo ${D}(Ctrl+Maj+R, Ctrl+C pour arrêter)${R}
 
+${B}STUDIO+${R}
+  ${A}studio${R}              Studio+ LexOS : ateliers image, vidéo et son
+  ${A}studio ouvrir${R} <atelier>  photo · peinture · vectoriel · video · capture · son
+                      ${D}propose d'installer l'atelier s'il manque${R}
+
 ${B}IMAGES${R}
   ${A}sticker${R} <image…>     Découpe le sujet en autocollant (PNG transparent)
                       ${D}IA (rembg) si installée, sinon fond uni (ImageMagick)${R}
@@ -591,6 +596,7 @@ case "$CMD" in
 	terminal-appareil)    exec lexos-usb terminal ;;
 	format)               exec lexos-format "$@" ;;
 	capture|capture-ecran) exec lexos-capture "$@" ;;
+	studio)               exec lexos-studio "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
 	ia|agent)             exec lexos-ia "$@" ;;
 	game)                 exec lexos-game "$@" ;;

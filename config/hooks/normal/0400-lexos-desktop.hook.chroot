@@ -159,6 +159,33 @@ Categories=Utility;FileTransfer;
 Keywords=telephone;phone;ecran;screen;mirroring;scrcpy;android;
 EOF
 
+cat > /usr/share/applications/lexos-studio.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Studio+ LexOS
+Name[en]=Studio+ LexOS
+Comment=Atelier image, vidéo et son — retouche, montage, autocollants
+Exec=xfce4-terminal --title="Studio+ LexOS" --hold -e "lexos studio"
+Icon=lexos-studio
+Terminal=false
+Categories=Graphics;AudioVideo;
+Keywords=studio;image;photo;video;montage;retouche;autocollant;gimp;kdenlive;
+Actions=Photo;Video;Autocollant;
+
+[Desktop Action Photo]
+Name=Retouche photo (GIMP)
+Exec=xfce4-terminal --title="Studio+ — photo" --hold -e "lexos studio ouvrir photo"
+
+[Desktop Action Video]
+Name=Montage vidéo (Kdenlive)
+Exec=xfce4-terminal --title="Studio+ — vidéo" --hold -e "lexos studio ouvrir video"
+
+[Desktop Action Autocollant]
+Name=Découper un autocollant
+Exec=xfce4-terminal --title="Studio+ — autocollant" --hold -e "lexos studio liste"
+EOF
+
 cat > /usr/share/applications/lexos-vide-memoire.desktop <<EOF
 [Desktop Entry]
 Type=Application
