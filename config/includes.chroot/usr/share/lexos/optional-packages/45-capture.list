@@ -20,3 +20,9 @@ imagemagick
 # xdpyinfo donne la taille réelle de l'écran : sans lui, l'enregistrement
 # vidéo retombe sur 1920x1080 et tronque l'image sur un autre affichage.
 x11-utils
+
+# flameshot donne au cadrage le geste attendu aujourd'hui : rectangle
+# redimensionnable par ses poignées, dimensions affichées en direct, flèches
+# et surlignage avant d'enregistrer. lexos-capture le préfère pour le mode
+# « zone » et retombe sur xfce4-screenshooter -r s'il manque.
+flameshot

@@ -513,6 +513,7 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 #quickcap button{display:flex;align-items:center;justify-content:center;
   width:26px;height:24px;border-radius:6px;color:var(--ac);line-height:0}
 #quickcap button:hover{background:var(--bg-hi)}
+#qcZone{font-size:13px}
 #qcVideo::before{content:"";width:11px;height:11px;border-radius:50%;
   background:currentColor}
 /*  Pendant l'enregistrement, le bouton devient un carré « arrêter » rouge
@@ -535,6 +536,37 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .term-app{margin:0;padding:12px 14px;background:#000;color:#d8d8d8;min-height:260px;
   max-height:100%;overflow:auto;font:12.5px/1.55 ui-monospace,monospace;
   white-space:pre-wrap;word-break:break-word}
+
+/* --- Cadrage de la capture (sélecteur de zone) --------------------------- */
+#capZone{position:fixed;inset:0;z-index:2600;cursor:crosshair;user-select:none}
+#capZone .cz-fond{position:absolute;inset:0;width:100%;height:100%;display:block}
+#capZone .cz-sel{position:absolute;cursor:move;
+  outline:2px solid var(--ac);
+  /*  Le quadrillage de tiers, comme dans un recadrage photo. */
+  background-image:
+    linear-gradient(to right,transparent 33.2%,rgba(255,255,255,.28) 33.2% 33.5%,
+      transparent 33.5% 66.2%,rgba(255,255,255,.28) 66.2% 66.5%,transparent 66.5%),
+    linear-gradient(to bottom,transparent 33.2%,rgba(255,255,255,.28) 33.2% 33.5%,
+      transparent 33.5% 66.2%,rgba(255,255,255,.28) 66.2% 66.5%,transparent 66.5%)}
+#capZone .cz-dim{position:absolute;top:-27px;left:0;padding:2px 8px;border-radius:6px;
+  background:var(--ac);color:var(--btn-fg);font:600 12px/1.5 ui-monospace,monospace;
+  white-space:nowrap;pointer-events:none}
+#capZone .cz-p{position:absolute;width:13px;height:13px;background:var(--ac);
+  border:2px solid #fff;border-radius:3px}
+#capZone .cz-nw{left:-7px;top:-7px;cursor:nwse-resize}
+#capZone .cz-n {left:calc(50% - 7px);top:-7px;cursor:ns-resize}
+#capZone .cz-ne{right:-7px;top:-7px;cursor:nesw-resize}
+#capZone .cz-e {right:-7px;top:calc(50% - 7px);cursor:ew-resize}
+#capZone .cz-se{right:-7px;bottom:-7px;cursor:nwse-resize}
+#capZone .cz-s {left:calc(50% - 7px);bottom:-7px;cursor:ns-resize}
+#capZone .cz-sw{left:-7px;bottom:-7px;cursor:nesw-resize}
+#capZone .cz-w {left:-7px;top:calc(50% - 7px);cursor:ew-resize}
+#capZone .cz-barre{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);
+  display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;
+  background:rgba(10,10,11,.94);border:1px solid var(--bd);cursor:default;
+  box-shadow:0 14px 40px rgba(0,0,0,.7);max-width:94vw;flex-wrap:wrap}
+#capZone .cz-aide{font-size:12px;color:#b8b8bc}
+#capZone .cz-aide b{color:#fff}
 
 /* --- Capture d'écran et enregistrement vidéo ----------------------------- */
 .cap-flash{position:fixed;inset:0;z-index:3000;background:#fff;pointer-events:none;
@@ -782,6 +814,7 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
           passer par le menu Applications ni par le dock. -->
     <span id="quickcap">
       <button id="qcPhoto" title="Capture d'écran (Impr écr)" onclick="capPhoto()"></button>
+      <button id="qcZone" title="Cadrer une zone (Maj+Impr écr)" onclick="capZone()">⛶</button>
       <button id="qcVideo" title="Enregistrer l'écran en vidéo (Ctrl+Maj+R)" onclick="capBascule()"></button>
     </span>
     <span id="clock"><span id="clkdate"></span><span id="clktime"></span></span>
@@ -2728,6 +2761,140 @@ async function capPhoto(){
   toast("📸 Capture enregistrée");
   renderCaptures();
 }
+/* --- Cadrage : choisir exactement la zone à capturer ---------------------
+   Le geste de l'outil de capture d'Ubuntu : l'écran est figé, un
+   rectangle réglable se pose dessus, ses huit poignées l'ajustent, et
+   les dimensions s'affichent en direct. On capture le bureau AVANT
+   d'afficher la surcouche, sinon on photographierait la surcouche.
+   Sur la vraie ISO c'est flameshot (« lexos capture zone »). */
+let capZoneCv = null, capZoneRect = null;
+
+async function capZone(){
+  const win = document.getElementById("win-capture");
+  if(win) win.style.visibility="hidden";
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+  let cv;
+  try { cv = await capDessine(); }
+  catch(e){ toast("La capture a échoué"); return; }
+  finally { if(win) win.style.visibility=""; }
+  capZoneCv = cv;
+
+  const l = innerWidth, h = innerHeight;
+  //  Rectangle de départ : centré, 60 % de l'écran — assez grand pour se
+  //  saisir tout de suite, assez petit pour qu'on voie qu'il est réglable.
+  capZoneRect = { x:Math.round(l*0.2), y:Math.round(h*0.2),
+                  w:Math.round(l*0.6), h:Math.round(h*0.6) };
+
+  const ov = document.createElement("div");
+  ov.id = "capZone";
+  ov.innerHTML =
+    `<img class="cz-fond" src="${cv.toDataURL("image/png")}" alt="">`+
+    `<div class="cz-voile"></div>`+
+    `<div class="cz-sel" id="czSel">`+
+      `<span class="cz-dim" id="czDim"></span>`+
+      ["nw","n","ne","e","se","s","sw","w"].map(p=>
+        `<span class="cz-p cz-${p}" data-p="${p}"></span>`).join("")+
+    `</div>`+
+    `<div class="cz-barre">`+
+      `<span class="cz-aide">Glisse le cadre, ajuste-le par ses poignées. `+
+      `<b>Entrée</b> pour capturer, <b>Échap</b> pour annuler.</span>`+
+      `<button class="btn" onclick="capZoneValide()">Capturer la zone</button>`+
+      `<button class="btn ghost" onclick="capZoneFerme()">Annuler</button>`+
+    `</div>`;
+  document.body.appendChild(ov);
+  capZoneMaj();
+  capZoneGestes();
+  document.addEventListener("keydown", capZoneTouche);
+}
+function capZoneMaj(){
+  const s=document.getElementById("czSel"); if(!s) return;
+  const r=capZoneRect;
+  s.style.left=r.x+"px"; s.style.top=r.y+"px";
+  s.style.width=r.w+"px"; s.style.height=r.h+"px";
+  //  Le voile est percé par une ombre portée démesurée : pas de quatre
+  //  bandes à recalculer, et le trou suit exactement le rectangle.
+  s.style.boxShadow="0 0 0 100vmax rgba(0,0,0,.62)";
+  const d=document.getElementById("czDim");
+  if(d) d.textContent=`${Math.round(r.w)} × ${Math.round(r.h)}`;
+}
+function capZoneGestes(){
+  const sel=document.getElementById("czSel");
+  const ov=document.getElementById("capZone");
+  const MIN=24;
+  const debut=(e, poignee)=>{
+    e.preventDefault(); e.stopPropagation();
+    const sx=e.clientX, sy=e.clientY, d={...capZoneRect};
+    const move=ev=>{
+      const dx=ev.clientX-sx, dy=ev.clientY-sy;
+      let {x,y,w,h}=d;
+      if(!poignee){ x=d.x+dx; y=d.y+dy; }
+      else{
+        if(poignee.includes("w")){ x=d.x+dx; w=d.w-dx; }
+        if(poignee.includes("e")){ w=d.w+dx; }
+        if(poignee.includes("n")){ y=d.y+dy; h=d.h-dy; }
+        if(poignee.includes("s")){ h=d.h+dy; }
+        //  Tiré au-delà du bord opposé, le rectangle se retourne : on
+        //  renormalise plutôt que de bloquer, comme tout éditeur d'image.
+        if(w<0){ x+=w; w=-w; }
+        if(h<0){ y+=h; h=-h; }
+        w=Math.max(MIN,w); h=Math.max(MIN,h);
+      }
+      x=Math.max(0, Math.min(innerWidth-w,  x));
+      y=Math.max(0, Math.min(innerHeight-h, y));
+      capZoneRect={x,y,w,h}; capZoneMaj();
+    };
+    const up=()=>{ removeEventListener("pointermove",move); removeEventListener("pointerup",up); };
+    addEventListener("pointermove",move); addEventListener("pointerup",up);
+  };
+  sel.addEventListener("pointerdown", e=>{
+    if(e.target.classList.contains("cz-p")) return;    // géré ci-dessous
+    debut(e, null);
+  });
+  sel.querySelectorAll(".cz-p").forEach(p=>
+    p.addEventListener("pointerdown", e=>debut(e, p.dataset.p)));
+  //  Un glisser à partir du voile trace un nouveau rectangle depuis zéro.
+  ov.addEventListener("pointerdown", e=>{
+    if(e.target.closest(".cz-sel") || e.target.closest(".cz-barre")) return;
+    const sx=e.clientX, sy=e.clientY;
+    capZoneRect={x:sx,y:sy,w:MIN,h:MIN}; capZoneMaj();
+    debut({clientX:sx, clientY:sy, preventDefault(){}, stopPropagation(){}}, "se");
+  });
+}
+function capZoneTouche(e){
+  if(!document.getElementById("capZone")) return;
+  if(e.key==="Escape"){ e.preventDefault(); capZoneFerme(); }
+  else if(e.key==="Enter"){ e.preventDefault(); capZoneValide(); }
+}
+function capZoneFerme(){
+  const ov=document.getElementById("capZone");
+  if(ov) ov.remove();
+  document.removeEventListener("keydown", capZoneTouche);
+  capZoneCv=null; capZoneRect=null;
+}
+async function capZoneValide(){
+  if(!capZoneCv || !capZoneRect){ capZoneFerme(); return; }
+  const r={...capZoneRect}, src=capZoneCv;
+  //  Le canvas est rendu à la taille CSS du bureau : le rectangle, lu en
+  //  pixels CSS lui aussi, se reporte tel quel. Un facteur d'échelle
+  //  s'appliquerait ici si le rendu passait un jour en devicePixelRatio.
+  const ech = src.width / innerWidth;
+  const cv=document.createElement("canvas");
+  cv.width=Math.max(1,Math.round(r.w*ech));
+  cv.height=Math.max(1,Math.round(r.h*ech));
+  cv.getContext("2d").drawImage(src,
+    Math.round(r.x*ech), Math.round(r.y*ech),
+    Math.round(r.w*ech), Math.round(r.h*ech),
+    0, 0, cv.width, cv.height);
+  capZoneFerme();
+  capFlash();
+  const blob=await new Promise(res=>cv.toBlob(res,"image/png"));
+  if(!blob){ toast("La capture a échoué"); return; }
+  captures.unshift({type:"image", nom:`zone_${capHorodatage()}.png`,
+                    url:URL.createObjectURL(blob), taille:blob.size});
+  toast(`📸 Zone ${cv.width} × ${cv.height} capturée`);
+  renderCaptures();
+}
+
 function capVideoDemarre(){
   if(capRec) return;
   if(typeof MediaRecorder === "undefined"){
@@ -2795,6 +2962,7 @@ function renderCaptures(){
       ? `<button class="btn cap-stop" onclick="capBascule()">⏹ Arrêter</button>
          <span class="cap-rec"><i></i><span id="capChrono">00:00</span></span>`
       : `<button class="btn" onclick="capPhoto()">📸 Capturer l'écran</button>
+         <button class="btn ghost" onclick="capZone()">⛶ Cadrer une zone</button>
          <button class="btn ghost" onclick="capBascule()">⏺ Enregistrer une vidéo</button>`;
   }
   const box=document.getElementById("capList"); if(!box) return;
@@ -3024,6 +3192,7 @@ const APPS = [
   {ic:'<i class="gly gly-secure"></i>', label:"Confidentialité", fn:()=>openSettings("confidentialite")},
   {ic:majGlyph(), label:"Mises à jour", fn:()=>openSettings("maj")},
   {ic:"🧑‍💻", label:"Utilisateurs", fn:()=>openSettings("utilisateurs")},
+  {ic:"⛶", label:"Cadrer une zone", fn:capZone},
   {ic:"📥", label:"Vide mémoire +", fn:videMemoire},
   {ic:terminalGlyph(38), label:"Terminal de l'appareil", fn:terminalAppareil},
   {ic:"⚠", label:"Formater un support", fn:formaterSupport},
@@ -3200,7 +3369,11 @@ document.addEventListener("keydown",e=>{
   //  que l'infobulle de l'accès rapide ne promette rien qu'elle ne tienne.
   //  Impr écr n'atteint pas toujours la page — le navigateur ou le système
   //  peut la garder pour lui — d'où le bouton dans la barre du haut.
-  if(e.key==="PrintScreen"){ e.preventDefault(); capPhoto(); return; }
+  if(e.key==="PrintScreen"){
+    e.preventDefault();
+    e.shiftKey ? capZone() : capPhoto();
+    return;
+  }
   if(e.ctrlKey && e.shiftKey && (e.key==="R" || e.key==="r")){
     e.preventDefault(); capBascule();
   }

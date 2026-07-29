@@ -59,6 +59,26 @@ cmd_photo() {
 	mkdir -p "$dest" || die "Impossible de créer $dest"
 	local fichier; fichier="$(nom_libre "$dest/capture_$(horodatage)" png)"
 
+	#  Cadrage : flameshot ouvre un vrai sélecteur — rectangle redimensionnable
+	#  par ses poignées, dimensions affichées en direct, annotations — soit le
+	#  même geste que l'outil de capture d'Ubuntu. xfce4-screenshooter -r ne
+	#  propose qu'un glisser d'un seul trait, sans rattrapage possible.
+	if [[ "$mode" == "zone" ]] && command -v flameshot >/dev/null 2>&1; then
+		say "Cadre la zone à la souris — les poignées ajustent, Entrée valide."
+		#  flameshot gui écrit lui-même le fichier avec --path ; il sort en
+		#  code non nul si l'utilisateur annule, d'où le test sur le fichier.
+		flameshot gui --path "$fichier" >/dev/null 2>&1 || true
+		if [[ ! -s "$fichier" ]]; then
+			say "Capture annulée."
+			exit 0
+		fi
+		ok "Image : $fichier"
+		command -v notify-send >/dev/null 2>&1 \
+			&& notify-send "Capture d'écran" "$(basename "$fichier")" -i "$fichier" 2>/dev/null
+		printf '%s\n' "$fichier"
+		return 0
+	fi
+
 	if command -v xfce4-screenshooter >/dev/null 2>&1; then
 		local drapeau
 		case "$mode" in
