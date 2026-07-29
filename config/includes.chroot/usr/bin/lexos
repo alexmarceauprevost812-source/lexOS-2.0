@@ -118,6 +118,11 @@ ${B}PARTAGE${R}
   ${A}receive${R}             Recevoir des fichiers depuis un téléphone
   ${A}ecran-telephone${R}     Afficher et contrôler l'écran du téléphone ${D}(scrcpy, USB ou Wi-Fi)${R}
 
+${B}LOGITHÈQUE${R}
+  ${A}logitheque${R}          Boutique d'applications ${D}(GNOME Logiciels, dépôts Debian + Flathub)${R}
+  ${A}logitheque liste${R}    Catalogue des applications courantes
+  ${A}logitheque install${R} <nom…>  Installe en une commande ${D}(ex. : vlc, photo, bureautique)${R}
+
 ${B}USB${R}
   ${A}usb${R}                 Appareils branchés
   ${A}usb watch${R}           Suivre les branchements en direct
@@ -572,6 +577,7 @@ case "$CMD" in
 	share|partage)        exec lexos-share "$@" ;;
 	receive|recevoir)     exec lexos-share receive ;;
 	ecran-telephone)      exec lexos-ecran-telephone "$@" ;;
+	logitheque|boutique|store) exec lexos-logitheque "$@" ;;
 	usb)                  exec lexos-usb "$@" ;;
 	format)               exec lexos-format "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;

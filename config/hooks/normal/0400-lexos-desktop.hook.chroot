@@ -159,6 +159,20 @@ Categories=Utility;FileTransfer;
 Keywords=telephone;phone;ecran;screen;mirroring;scrcpy;android;
 EOF
 
+cat > /usr/share/applications/lexos-logitheque.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Logithèque
+Name[en]=Software
+Comment=Installer des applications en quelques clics (dépôts Debian et Flathub)
+Exec=lexos logitheque
+Icon=system-software-install
+Terminal=false
+Categories=System;PackageManager;
+Keywords=logitheque;boutique;applications;installer;paquets;software;store;flatpak;
+EOF
+
 cat > /usr/share/applications/lexos-perf.desktop <<EOF
 [Desktop Entry]
 Type=Application

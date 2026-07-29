@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-logitheque — installer des applications en quelques clics
+# =============================================================================
+#  Sans argument, ouvre GNOME Logiciels (gnome-software) : c'est une vraie
+#  boutique graphique branchée sur les dépôts Debian et, si Flatpak est là,
+#  sur Flathub. Rien n'est réinventé ici.
+#
+#  En ligne de commande, ce script sert de raccourci : un catalogue de noms
+#  simples (« vlc », « photo », « bureautique ») vers les vrais noms de
+#  paquets Debian, pour ne pas avoir à les deviner. Tout le reste est délégué
+#  à apt.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; V=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+#  Catalogue : « nom simple | paquet Debian | catégorie | description »
+#  Les mêmes entrées alimentent la Logithèque de la démo web
+#  (web-demo/index.html, const LOGITHEQUE) — un seul catalogue, deux vitrines.
+CATALOGUE="
+firefox|firefox-esr|Internet|Navigateur web libre de Mozilla
+chromium|chromium|Internet|Le navigateur libre derrière Chrome
+courriel|thunderbird|Internet|Courriel, agenda et contacts
+torrent|transmission-gtk|Internet|Client BitTorrent léger
+bureautique|libreoffice|Bureautique|Texte, tableur, présentation
+pdf|evince|Bureautique|Ouvrir et annoter des PDF
+vlc|vlc|Multimédia|Lit à peu près n'importe quelle vidéo
+son|audacity|Multimédia|Enregistrer et monter du son
+capture|obs-studio|Multimédia|Capture d'écran et diffusion en direct
+video|kdenlive|Multimédia|Montage vidéo multipiste
+photo|gimp|Création|Retouche photo et dessin matriciel
+vectoriel|inkscape|Création|Dessin vectoriel (SVG)
+peinture|krita|Création|Peinture numérique et bandes dessinées
+3d|blender|Création|Modélisation et animation 3D
+code|code-oss|Développement|Éditeur de code, version libre
+git|git|Développement|Gestion de versions
+docker|docker.io|Développement|Conteneurs applicatifs
+steam|steam-installer|Jeux|Boutique et lanceur de jeux Valve
+lutris|lutris|Jeux|Jeux Windows, GOG, émulateurs
+kart|supertuxkart|Jeux|Course de karting libre
+partitions|gparted|Utilitaires|Partitionner les disques
+sauvegarde|timeshift|Utilitaires|Points de restauration du système
+distant|remmina|Utilitaires|Bureau à distance (RDP, VNC, SSH)
+paquets|synaptic|Utilitaires|Gestionnaire de paquets détaillé
+"
+
+# --- Résolution d'un nom simple vers un paquet Debian ------------------------
+#  Un nom inconnu n'est pas une erreur : c'est peut-être un vrai paquet Debian
+#  que le catalogue ne connaît pas. On le laisse passer tel quel à apt.
+resoudre() {
+	local nom="$1"
+	while IFS='|' read -r cle pkg _cat _desc; do
+		[[ -n "$cle" ]] || continue
+		if [[ "$cle" == "$nom" || "$pkg" == "$nom" ]]; then
+			printf '%s\n' "$pkg"
+			return 0
+		fi
+	done <<< "$CATALOGUE"
+	printf '%s\n' "$nom"
+}
+
+# --- Élévation de privilèges -------------------------------------------------
+sudo_cmd() {
+	if [[ "$(id -u)" -eq 0 ]]; then
+		"$@"
+	elif command -v sudo >/dev/null 2>&1; then
+		sudo "$@"
+	elif command -v pkexec >/dev/null 2>&1; then
+		pkexec "$@"
+	else
+		die "Impossible d'obtenir les droits d'administration (ni sudo ni pkexec)."
+	fi
+}
+
+cmd_liste() {
+	printf '%s%sCatalogue de la Logithèque%s\n\n' "$B" "$O" "$R"
+	local cat_courante=""
+	while IFS='|' read -r cle pkg cat desc; do
+		[[ -n "$cle" ]] || continue
+		if [[ "$cat" != "$cat_courante" ]]; then
+			cat_courante="$cat"
+			printf '\n%s%s%s\n' "$B" "$cat" "$R"
+		fi
+		if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "ok installed"; then
+			printf '  %s✓%s %-14s %s%-18s%s %s\n' "$V" "$R" "$cle" "$D" "$pkg" "$R" "$desc"
+		else
+			printf '    %-14s %s%-18s%s %s\n' "$cle" "$D" "$pkg" "$R" "$desc"
+		fi
+	done <<< "$CATALOGUE"
+	printf '\n%sInstaller :%s %s install <nom>   %s(✓ = déjà installé)%s\n' \
+		"$B" "$R" "$PROG" "$D" "$R"
+}
+
+cmd_install() {
+	[[ $# -gt 0 ]] || die "Rien à installer. Essaie « $PROG liste » pour voir le catalogue."
+	local pkgs=() nom pkg
+	for nom in "$@"; do
+		pkg="$(resoudre "$nom")"
+		pkgs+=("$pkg")
+		[[ "$pkg" == "$nom" ]] || say "« $nom » → paquet ${B}${pkg}${R}"
+	done
+	say "Installation : ${pkgs[*]}"
+	sudo_cmd apt-get update -qq || say "apt-get update a échoué — on tente quand même"
+	if sudo_cmd apt-get install -y "${pkgs[@]}"; then
+		ok "Terminé. Les applications apparaissent dans le menu Applications."
+	else
+		die "L'installation a échoué. Vérifie le nom du paquet (« $PROG chercher <mot> »)."
+	fi
+}
+
+cmd_retirer() {
+	[[ $# -gt 0 ]] || die "Rien à désinstaller."
+	local pkgs=() nom
+	for nom in "$@"; do pkgs+=("$(resoudre "$nom")"); done
+	say "Désinstallation : ${pkgs[*]}"
+	sudo_cmd apt-get remove -y "${pkgs[@]}" && ok "Terminé."
+}
+
+cmd_chercher() {
+	[[ $# -gt 0 ]] || die "Donne un mot à chercher."
+	command -v apt-cache >/dev/null 2>&1 || die "apt-cache est introuvable."
+	apt-cache search "$@" | head -40
+}
+
+# --- Ouverture de la boutique graphique --------------------------------------
+cmd_boutique() {
+	#  Flathub multiplie par dix le catalogue disponible ; on l'ajoute au
+	#  premier lancement si Flatpak est là mais que le dépôt manque.
+	if command -v flatpak >/dev/null 2>&1; then
+		flatpak remotes 2>/dev/null | grep -q flathub || {
+			say "Ajout du dépôt Flathub…"
+			sudo_cmd flatpak remote-add --if-not-exists flathub \
+				https://dl.flathub.org/repo/flathub.flatpakrepo >/dev/null 2>&1 \
+				|| say "Flathub non ajouté (pas de réseau ?) — les dépôts Debian restent disponibles"
+		}
+	fi
+	if command -v gnome-software >/dev/null 2>&1; then
+		say "Ouverture de GNOME Logiciels…"
+		exec gnome-software
+	fi
+	if command -v plasma-discover >/dev/null 2>&1; then
+		exec plasma-discover
+	fi
+	if command -v synaptic >/dev/null 2>&1; then
+		say "GNOME Logiciels n'est pas installé — ouverture de Synaptic."
+		#  sudo_cmd est une fonction : pas d'exec possible ici.
+		sudo_cmd synaptic
+		exit $?
+	fi
+	say "Aucune boutique graphique installée."
+	say "Installe-la avec : ${B}sudo apt install gnome-software${R}"
+	printf '\n'
+	cmd_liste
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — installer des applications en quelques clics
+
+  ${O}$PROG${R}                    Ouvre la boutique graphique (GNOME Logiciels)
+  ${O}$PROG liste${R}              Catalogue des applications courantes
+  ${O}$PROG install${R} <nom…>     Installe (nom simple ou paquet Debian)
+  ${O}$PROG retirer${R} <nom…>     Désinstalle
+  ${O}$PROG chercher${R} <mot>     Cherche dans tous les paquets Debian
+
+${D}Exemples :
+  $PROG install vlc photo bureautique
+  $PROG install firefox
+  $PROG chercher editeur video${R}
+EOF
+}
+
+case "${1:-}" in
+	""|boutique|gui)  cmd_boutique ;;
+	liste|list|ls)    cmd_liste ;;
+	install|installer|ajouter) shift; cmd_install "$@" ;;
+	retirer|remove|desinstaller) shift; cmd_retirer "$@" ;;
+	chercher|search)  shift; cmd_chercher "$@" ;;
+	-h|--help|aide)   usage ;;
+	*)                say "Commande inconnue : $1"; printf '\n'; usage; exit 1 ;;
+esac

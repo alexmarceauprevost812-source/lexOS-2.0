@@ -1,0 +1,19 @@
+# Logithèque : installer des applications en quelques clics.
+#
+# gnome-software est la boutique graphique (recherche, captures d'écran,
+# bouton « Installer »). PackageKit est le moteur qui lui permet d'installer
+# des paquets sans passer par le terminal.
+gnome-software
+packagekit
+
+# Flatpak + le greffon Flathub multiplient le catalogue disponible : les
+# applications récentes absentes de Debian stable (ou trop vieilles dedans)
+# s'installent alors en un clic, isolées du système.
+# Le dépôt Flathub lui-même est ajouté par lexos-logitheque au premier
+# lancement — pas ici, pour ne pas faire dépendre la construction du réseau.
+flatpak
+gnome-software-plugin-flatpak
+
+# Synaptic reste le filet de sécurité : léger, sans dépendance GNOME, il
+# ouvre l'intégralité de l'archive Debian quand gnome-software cale.
+synaptic
