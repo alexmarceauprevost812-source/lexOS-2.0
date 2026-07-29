@@ -15,4 +15,4 @@ flavour: standard
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
-build: 7
+build: 8
