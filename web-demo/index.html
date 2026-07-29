@@ -672,6 +672,92 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   max-height:100%;overflow:auto;font:12.5px/1.55 ui-monospace,monospace;
   white-space:pre-wrap;word-break:break-word}
 
+/* --- Navigateur LexOS ---------------------------------------------------- */
+.nav{display:flex;flex-direction:column;height:100%;min-height:380px}
+.nav-onglets{display:flex;align-items:center;gap:2px;padding:5px 6px 0;
+  background:var(--bg-alt);overflow-x:auto}
+.nav-onglet{display:flex;align-items:center;gap:6px;padding:6px 8px 6px 11px;
+  border-radius:9px 9px 0 0;background:var(--bg);border:1px solid var(--bd);
+  border-bottom:none;font-size:12px;max-width:180px;cursor:pointer;flex:none}
+.nav-onglet.on{background:var(--bg-hi);border-color:var(--ac-lo)}
+.nav-ot{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-ox{width:15px;height:15px;border-radius:4px;color:var(--fg-dim);font-size:9px;
+  flex:none;line-height:1}
+.nav-ox:hover{background:#C62828;color:#fff}
+.nav-plus{width:24px;height:24px;border-radius:7px;color:var(--fg-dim);
+  border:1px dashed var(--bd);flex:none;margin-left:3px}
+.nav-plus:hover{color:var(--fg);border-color:var(--ac)}
+.nav-barre{display:flex;align-items:center;gap:4px;padding:7px 8px;
+  background:var(--bg-hi);border-top:1px solid var(--bd);border-bottom:1px solid var(--bd)}
+.nav-b{width:26px;height:26px;border-radius:7px;color:var(--fg-dim);font-size:14px;
+  flex:none;line-height:1}
+.nav-b:hover:not(:disabled){background:var(--bg-alt);color:var(--fg)}
+.nav-b:disabled{opacity:.3;cursor:default}
+.nav-b.on{color:var(--ac)}
+.nav-omni{flex:1;display:flex;align-items:center;gap:6px;padding:3px 5px 3px 10px;
+  border-radius:999px;background:var(--bg);border:1px solid var(--bd);min-width:0}
+.nav-omni:focus-within{border-color:var(--ac)}
+.nav-cadenas{font-size:11px;flex:none;color:var(--fg-dim)}
+.nav-omni input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--fg);
+  font-size:12.5px}
+.nav-fav{display:flex;gap:4px;padding:5px 8px;background:var(--bg-alt);
+  border-bottom:1px solid var(--bd);overflow-x:auto}
+.nav-f{padding:3px 9px;border-radius:7px;font-size:11.5px;color:var(--fg-dim);
+  white-space:nowrap;flex:none}
+.nav-f:hover{background:var(--bg-hi);color:var(--fg)}
+.nav-page{flex:1;min-height:0;position:relative;background:#fff}
+.nav-page.interne{background:var(--bg);overflow-y:auto}
+.nav-cadre{position:absolute;inset:0;width:100%;height:100%;border:0;z-index:2}
+/*  Le repli est SOUS le cadre : si la page s'affiche, elle le recouvre ;
+    si le site refuse d'être encadré, le cadre reste vide et c'est le repli
+    qu'on voit. Aucune détection à écrire — l'empilement suffit. */
+.nav-repli{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:8px;padding:30px;text-align:center;
+  background:var(--bg);color:var(--fg-dim)}
+.nav-repli-ic{font-size:38px}
+.nav-repli h3{margin:0;color:var(--fg);font-size:15px}
+.nav-repli p{margin:0;max-width:400px;font-size:12.5px;line-height:1.55}
+.nav-int{padding:20px 22px}
+.nav-int h2{margin:0 0 6px;font-size:17px}
+.nav-sous{color:var(--fg-dim);font-size:12.5px;margin:0 0 14px;line-height:1.55}
+.nav-liste{display:flex;flex-direction:column;gap:3px}
+.nav-li{display:flex;align-items:baseline;gap:10px;padding:7px 10px;border-radius:8px;
+  text-align:left;width:100%;font-size:12.5px}
+.nav-li:hover{background:var(--bg-hi)}
+.nav-li-t{flex:none;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-li-u{flex:1;min-width:0;color:var(--fg-dim);font-size:11px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-li-h{flex:none;color:var(--fg-dim);font-size:11px;font-family:ui-monospace,monospace}
+.nav-vide{color:var(--fg-dim);font-size:12.5px}
+.nav-nt{display:flex;flex-direction:column;align-items:center;padding:44px 20px}
+.nav-nt-logo{margin-bottom:10px}
+.nav-nt-marque{font-size:13px;font-weight:700;letter-spacing:.06em;
+  color:var(--fg-dim);margin-bottom:20px}
+.nav-nt-rech{display:flex;gap:6px;width:min(480px,92%)}
+.nav-nt-rech select{padding:8px 9px;border-radius:9px;background:var(--bg-hi);
+  border:1px solid var(--bd);color:var(--fg);font-size:12px}
+.nav-nt-rech input{flex:1;min-width:0;padding:8px 14px;border-radius:999px;
+  background:var(--bg-hi);border:1px solid var(--bd);color:var(--fg);
+  font-size:13px;outline:0}
+.nav-nt-rech input:focus{border-color:var(--ac)}
+.nav-nt-raccourcis{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;
+  margin-top:22px}
+.nav-rc{display:flex;flex-direction:column;align-items:center;gap:5px;width:78px;
+  padding:11px 4px;border-radius:11px;font-size:11px;color:var(--fg-dim)}
+.nav-rc:hover{background:var(--bg-hi);color:var(--fg)}
+.nav-rc-ic{font-size:21px}
+.nav-ia{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+.nav-ia-c{display:flex;align-items:center;gap:11px;padding:10px 12px;
+  border:1px solid var(--bd);border-radius:11px;background:var(--bg-alt)}
+.nav-ia-c:hover{border-color:var(--ac-lo)}
+.nav-ia-ic{width:34px;height:34px;flex:none;display:flex;align-items:center;
+  justify-content:center;border-radius:9px;background:var(--bg-hi);
+  border:1px solid var(--bd);color:var(--ac);font-size:16px}
+.nav-ia-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:13px}
+.nav-ia-t span{font-size:11.5px;color:var(--fg-dim)}
+.nav-ia-b{flex:none;display:flex;gap:5px}
+.nav-ia-b .btn{width:auto;padding:5px 10px}
+
 /* --- Musique : lecteur de fichiers réels --------------------------------- */
 .mus-tete{display:flex;align-items:center;gap:13px;margin-bottom:10px}
 .mus-globe{flex:none;width:74px;height:74px;display:block}
@@ -3224,13 +3310,269 @@ function openAbout(){
     <p style="color:var(--fg-dim);font-size:12px">Explore. Build. Own your machine.<br>Licence MIT</p>
   </div>`,420);
 }
+/* --- Navigateur LexOS ----------------------------------------------------
+   Repris du navigateur que tu as écrit (lesOS 1.0), réhabillé aux couleurs
+   de LexOS et branché sur ses fenêtres : onglets, barre d'adresse qui
+   accepte une URL OU une recherche, favoris, historique, page de nouvel
+   onglet, et un panneau des assistants IA.
+
+   Ce qu'un navigateur DANS un navigateur peut et ne peut pas faire :
+   la page distante s'affiche dans un <iframe>, mais la plupart des grands
+   sites (Google, YouTube, et tous les services d'IA) refusent d'être
+   encadrés — c'est une protection contre le détournement de clic, pas un
+   défaut d'ici. Pour ceux-là, le bouton « Ouvrir dans un vrai onglet »
+   passe la main au navigateur hôte, où ta session et ton abonnement
+   s'appliquent normalement. On le dit au lieu d'afficher un cadre vide. */
+const NAV_MOTEURS = {
+  duckduckgo:{nom:"DuckDuckGo", url:"https://duckduckgo.com/?q="},
+  google:    {nom:"Google",     url:"https://www.google.com/search?q="},
+  ecosia:    {nom:"Ecosia",     url:"https://www.ecosia.org/search?q="},
+  wikipedia: {nom:"Wikipédia",  url:"https://fr.wikipedia.org/w/index.php?search="},
+};
+/*  Assistants IA : chacun s'ouvre sur SON site, où c'est le compte et
+    l'abonnement de l'utilisateur qui font foi. LexOS ne stocke aucune clé,
+    aucun identifiant, et ne s'interpose pas — il ouvre la porte, c'est tout. */
+const NAV_IA = [
+  {nom:"Claude",     url:"https://claude.ai",        ic:"✳", desc:"Anthropic — conversation, code, documents"},
+  {nom:"ChatGPT",    url:"https://chatgpt.com",      ic:"◎", desc:"OpenAI — conversation, images, analyse"},
+  {nom:"Gemini",     url:"https://gemini.google.com",ic:"✦", desc:"Google — conversation et recherche"},
+  {nom:"Perplexity", url:"https://perplexity.ai",    ic:"⌕", desc:"Recherche avec sources citées"},
+  {nom:"Mistral",    url:"https://chat.mistral.ai",  ic:"▲", desc:"Le Chat — modèles européens"},
+  {nom:"Copilot",    url:"https://copilot.microsoft.com", ic:"◈", desc:"Microsoft — conversation et code"},
+];
+const NAV_FAVORIS_DEF = [
+  {titre:"Wikipédia", url:"https://fr.wikipedia.org", ic:"📖"},
+  {titre:"DuckDuckGo",url:"https://duckduckgo.com",   ic:"🦆"},
+  {titre:"GitHub",    url:"https://github.com",       ic:"💻"},
+  {titre:"Debian",    url:"https://www.debian.org",   ic:"🌀"},
+];
+const NAV_INTERNES = {
+  "lexos://nouvel-onglet":"Nouvel onglet", "lexos://ia":"Assistants IA",
+  "lexos://historique":"Historique", "lexos://favoris":"Favoris",
+};
+const nav = { onglets:[], actif:0, moteur:"duckduckgo",
+              favoris:[...NAV_FAVORIS_DEF], histo:[], seq:0 };
+
+function navInterne(u){ return /^lexos:\/\//.test(u||""); }
+function navHote(u){ try{ return new URL(u).hostname.replace(/^www\./,""); }catch(e){ return u; } }
+function navResout(brut){
+  brut=(brut||"").trim();
+  if(!brut) return {url:"lexos://nouvel-onglet", titre:"Nouvel onglet"};
+  if(navInterne(brut)) return {url:brut, titre:NAV_INTERNES[brut]||"LexOS"};
+  //  Une chaîne sans espace qui ressemble à un domaine est traitée comme
+  //  une adresse ; tout le reste part vers le moteur de recherche.
+  const ressembleURL = /^https?:\/\//i.test(brut) ||
+    (/^[a-z0-9-]+(\.[a-z0-9]{2,})+([\/:?#].*)?$/i.test(brut) && !brut.includes(" "));
+  if(ressembleURL){
+    const url = /^https?:\/\//i.test(brut) ? brut : "https://"+brut;
+    return {url, titre:navHote(url)};
+  }
+  const m = NAV_MOTEURS[nav.moteur] || NAV_MOTEURS.duckduckgo;
+  return {url:m.url+encodeURIComponent(brut),
+          titre:brut.length>32 ? brut.slice(0,32)+"…" : brut};
+}
+function navOngletActif(){ return nav.onglets[nav.actif]; }
+
 function openBrowser(){
+  if(!nav.onglets.length) navNouvelOnglet("lexos://nouvel-onglet", true);
   openWin("web","Navigateur",navGlyph(18),
-  `<div class="pad">
-    <h2>Ici, c'est déjà un navigateur 🙂</h2>
-    <p>Sur la vraie ISO, cette icône ouvre <b>Firefox</b>. Dans la démo web,
-    ce serait un navigateur dans un navigateur — on va s'arrêter là.</p>
-  </div>`,420);
+  `<div class="nav">
+     <div class="nav-onglets" id="navOnglets"></div>
+     <div class="nav-barre">
+       <button class="nav-b" onclick="navRecule()" id="navPrec" title="Reculer">‹</button>
+       <button class="nav-b" onclick="navAvance()" id="navSuiv" title="Avancer">›</button>
+       <button class="nav-b" onclick="navRecharge()" title="Recharger">⟳</button>
+       <button class="nav-b" onclick="navVa('lexos://nouvel-onglet')" title="Accueil">⌂</button>
+       <span class="nav-omni">
+         <span class="nav-cadenas" id="navCadenas">🔒</span>
+         <input id="navURL" placeholder="Adresse ou recherche…" autocomplete="off"
+                spellcheck="false" onkeydown="if(event.key==='Enter')navSoumet()">
+         <button class="nav-b" onclick="navSoumet()" title="Aller">→</button>
+       </span>
+       <button class="nav-b" onclick="navVa('lexos://ia')" title="Assistants IA">✳</button>
+       <button class="nav-b" onclick="navFavoriBascule()" id="navEtoile" title="Ajouter aux favoris">☆</button>
+       <button class="nav-b" onclick="navVa('lexos://historique')" title="Historique">🕘</button>
+     </div>
+     <div class="nav-fav" id="navFav"></div>
+     <div class="nav-page" id="navPage"></div>
+   </div>`, 720, 520);
+  navRendTout();
+}
+function navNouvelOnglet(url, muet){
+  url = url || "lexos://nouvel-onglet";
+  const r = navResout(url);
+  nav.onglets.push({id:++nav.seq, url:r.url, titre:r.titre, histo:[r.url], pos:0});
+  nav.actif = nav.onglets.length-1;
+  if(!muet) navRendTout();
+}
+function navFermeOnglet(i, ev){
+  if(ev) ev.stopPropagation();
+  nav.onglets.splice(i,1);
+  if(!nav.onglets.length) navNouvelOnglet("lexos://nouvel-onglet", true);
+  if(nav.actif >= nav.onglets.length) nav.actif = nav.onglets.length-1;
+  navRendTout();
+}
+function navChangeOnglet(i){ nav.actif=i; navRendTout(); }
+
+function navVa(url){
+  const t = navOngletActif(); if(!t) return;
+  const r = navResout(url);
+  //  Naviguer depuis un point du passé coupe le futur, comme un vrai
+  //  navigateur : sinon « avancer » renverrait sur une page abandonnée.
+  t.histo = t.histo.slice(0, t.pos+1);
+  t.histo.push(r.url); t.pos = t.histo.length-1;
+  t.url = r.url; t.titre = r.titre;
+  if(!navInterne(r.url)){
+    nav.histo.unshift({url:r.url, titre:r.titre, quand:new Date().toLocaleTimeString("fr-CA",{hour:"2-digit",minute:"2-digit"})});
+    nav.histo = nav.histo.slice(0,60);
+  }
+  navRendTout();
+}
+function navSoumet(){
+  const i = document.getElementById("navURL"); if(!i) return;
+  navVa(i.value);
+}
+function navRecule(){ const t=navOngletActif(); if(t && t.pos>0){ t.pos--; navSyncHisto(); } }
+function navAvance(){ const t=navOngletActif(); if(t && t.pos<t.histo.length-1){ t.pos++; navSyncHisto(); } }
+function navSyncHisto(){
+  const t=navOngletActif();
+  t.url=t.histo[t.pos]; t.titre=navResout(t.url).titre;
+  navRendTout();
+}
+function navRecharge(){ navRendPage(true); toast("Rechargé"); }
+function navOuvreVrai(url){
+  //  Le seul chemin honnête pour les sites qui refusent d'être encadrés.
+  window.open(url, "_blank", "noopener");
+  toast("Ouvert dans un onglet du navigateur");
+}
+function navEstFavori(u){ return nav.favoris.some(f=>f.url===u); }
+function navFavoriBascule(){
+  const t=navOngletActif(); if(!t || navInterne(t.url)){ toast("Rien à mettre en favori ici"); return; }
+  const i = nav.favoris.findIndex(f=>f.url===t.url);
+  if(i>=0){ nav.favoris.splice(i,1); toast("Retiré des favoris"); }
+  else { nav.favoris.push({titre:t.titre, url:t.url, ic:"🔖"}); toast("Ajouté aux favoris"); }
+  navRendTout();
+}
+
+/* --- Rendu --------------------------------------------------------------- */
+function navRendTout(){ navRendOnglets(); navRendFav(); navRendBarre(); navRendPage(); }
+function navRendOnglets(){
+  const b=document.getElementById("navOnglets"); if(!b) return;
+  b.innerHTML = nav.onglets.map((t,i)=>
+    `<span class="nav-onglet${i===nav.actif?" on":""}" onclick="navChangeOnglet(${i})" title="${esc(t.titre)}">
+       <span class="nav-ot">${esc(t.titre)}</span>
+       <button class="nav-ox" onclick="navFermeOnglet(${i},event)" title="Fermer">✕</button>
+     </span>`).join("") +
+    `<button class="nav-plus" onclick="navNouvelOnglet()" title="Nouvel onglet">+</button>`;
+}
+function navRendFav(){
+  const b=document.getElementById("navFav"); if(!b) return;
+  b.innerHTML = nav.favoris.map(f=>
+    `<button class="nav-f" onclick="navVa('${f.url}')" title="${esc(f.url)}">${f.ic} ${esc(f.titre)}</button>`).join("");
+}
+function navRendBarre(){
+  const t=navOngletActif(); if(!t) return;
+  const i=document.getElementById("navURL");
+  //  La barre est mise à jour même si elle a le focus : navRendBarre() n'est
+  //  appelée qu'à une navigation ou un changement d'onglet, jamais à chaque
+  //  frappe. La garder inchangée laissait l'adresse de la page PRÉCÉDENTE
+  //  affichée après un saut déclenché ailleurs (favori, bouton IA, retour).
+  if(i){
+    i.value = navInterne(t.url) ? "" : t.url;
+    i.placeholder = navInterne(t.url) ? "Adresse ou recherche…" : "";
+  }
+  const c=document.getElementById("navCadenas");
+  if(c) c.textContent = navInterne(t.url) ? "◆" : (t.url.startsWith("https://") ? "🔒" : "⚠");
+  const e=document.getElementById("navEtoile");
+  if(e){ e.textContent = navEstFavori(t.url) ? "★" : "☆";
+         e.classList.toggle("on", navEstFavori(t.url)); }
+  const p=document.getElementById("navPrec"), s=document.getElementById("navSuiv");
+  if(p) p.disabled = t.pos<=0;
+  if(s) s.disabled = t.pos>=t.histo.length-1;
+}
+function navRendPage(force){
+  const z=document.getElementById("navPage"); const t=navOngletActif();
+  if(!z || !t) return;
+  if(navInterne(t.url)){ z.className="nav-page interne"; z.innerHTML=navPageInterne(t.url); return; }
+  z.className="nav-page";
+  z.innerHTML =
+    `<iframe class="nav-cadre" src="${esc(t.url)}" referrerpolicy="no-referrer-when-downgrade"
+       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+     <div class="nav-repli">
+       <div class="nav-repli-ic">🌐</div>
+       <h3>Cette page ne s'affiche pas ici</h3>
+       <p>La plupart des grands sites refusent d'être affichés à l'intérieur
+       d'un autre site — c'est une protection, pas une panne. Ouvre-la dans
+       un vrai onglet : ta session et tes abonnements y fonctionnent.</p>
+       <button class="btn" onclick="navOuvreVrai('${esc(t.url)}')">↗ Ouvrir dans un vrai onglet</button>
+     </div>`;
+}
+function navPageInterne(u){
+  if(u==="lexos://ia") return navPageIA();
+  if(u==="lexos://historique"){
+    return `<div class="nav-int"><h2>Historique</h2>` +
+      (nav.histo.length
+        ? `<div class="nav-liste">` + nav.histo.map(h=>
+            `<button class="nav-li" onclick="navVa('${h.url}')">
+               <span class="nav-li-t">${esc(h.titre)}</span>
+               <span class="nav-li-u">${esc(h.url)}</span>
+               <span class="nav-li-h">${esc(h.quand)}</span></button>`).join("") + `</div>`
+        : `<p class="nav-vide">Aucune page visitée pour l'instant.</p>`) + `</div>`;
+  }
+  if(u==="lexos://favoris"){
+    return `<div class="nav-int"><h2>Favoris</h2><div class="nav-liste">` +
+      nav.favoris.map(f=>`<button class="nav-li" onclick="navVa('${f.url}')">
+        <span class="nav-li-t">${f.ic} ${esc(f.titre)}</span>
+        <span class="nav-li-u">${esc(f.url)}</span></button>`).join("") + `</div></div>`;
+  }
+  //  Nouvel onglet
+  return `<div class="nav-nt">
+    <div class="nav-nt-logo">${navGlyph(56)}</div>
+    <div class="nav-nt-marque">Navigateur LexOS</div>
+    <div class="nav-nt-rech">
+      <select id="navMoteur" onchange="nav.moteur=this.value">
+        ${Object.entries(NAV_MOTEURS).map(([k,m])=>
+          `<option value="${k}"${k===nav.moteur?" selected":""}>${m.nom}</option>`).join("")}
+      </select>
+      <input id="navRech" placeholder="Rechercher ou saisir une adresse…"
+             onkeydown="if(event.key==='Enter')navVa(this.value)">
+      <button class="btn" onclick="navVa(document.getElementById('navRech').value)">→</button>
+    </div>
+    <div class="nav-nt-raccourcis">
+      ${nav.favoris.map(f=>`<button class="nav-rc" onclick="navVa('${f.url}')">
+         <span class="nav-rc-ic">${f.ic}</span><span>${esc(f.titre)}</span></button>`).join("")}
+    </div>
+    <button class="btn ghost" style="margin-top:18px;width:auto"
+            onclick="navVa('lexos://ia')">✳ Assistants IA</button>
+  </div>`;
+}
+function navPageIA(){
+  return `<div class="nav-int">
+    <h2>Assistants IA</h2>
+    <p class="nav-sous">Chacun s'ouvre sur son site officiel, où <b>ton compte et
+    ton abonnement</b> font foi. LexOS ne conserve aucune clé, aucun identifiant,
+    et ne s'interpose pas entre toi et le service.</p>
+    <div class="nav-ia">
+      ${NAV_IA.map(a=>`<div class="nav-ia-c">
+        <span class="nav-ia-ic">${a.ic}</span>
+        <span class="nav-ia-t">
+          <b>${esc(a.nom)}</b>
+          <span>${esc(a.desc)}</span>
+        </span>
+        <span class="nav-ia-b">
+          <button class="btn mini" onclick="navOuvreVrai('${a.url}')">↗ Ouvrir</button>
+          <button class="btn ghost mini" onclick="navVa('${a.url}')">Ici</button>
+        </span>
+      </div>`).join("")}
+    </div>
+    <p class="notice">« Ouvrir » passe la main à ton vrai navigateur : c'est le
+    seul chemin où ta session reste valide, ces sites refusant d'être encadrés.
+    « Ici » tente l'affichage dans l'onglet — utile pour voir le comportement,
+    mais la plupart afficheront le message de repli.</p>
+    <p class="notice">Sur la vraie ISO, <code>lexos ia</code> fait tourner une IA
+    <b>locale</b> (Ollama), sans compte ni internet — complémentaire de ces
+    services en ligne, pas concurrente.</p>
+  </div>`;
 }
 function openEditor(){
   openWin("edit","Note perso — notes.txt",noteGlyph(18),
