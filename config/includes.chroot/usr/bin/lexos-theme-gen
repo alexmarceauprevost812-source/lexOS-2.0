@@ -58,7 +58,10 @@ case "${ACCENT_NAME,,}" in
 	orange|ambre)          ACCENT="#E8590C"; ACCENT_HI="#FF7A33"; ACCENT_LO="#A84007" ;;
 	# Bleu 5 de la palette Adwaita — le bleu profond des bureaux Linux.
 	bleu|blue)             ACCENT="#1A5FB4"; ACCENT_HI="#3584E4"; ACCENT_LO="#10375F" ;;
-	rouge|red)             ACCENT="#E5484D"; ACCENT_HI="#FF6B6F"; ACCENT_LO="#A32B2F" ;;
+	# Rouge brique, celui de la référence fournie : plus profond et moins
+	# rosé que le #E5484D d'avant, et son texte blanc passe de 3,91:1 à
+	# 5,86:1 — au-dessus du seuil AA, ce que l'ancien ne tenait pas.
+	rouge|red)             ACCENT="#C4211E"; ACCENT_HI="#D8352E"; ACCENT_LO="#8A1512" ;;
 	vert|green|vert-dark)  ACCENT="#1F8F4E"; ACCENT_HI="#2DBF6B"; ACCENT_LO="#125C32" ;;
 	gris|grey|gray|grid)   ACCENT="#8A8A8A"; ACCENT_HI="#B4B4B4"; ACCENT_LO="#5A5A5A" ;;
 	violet|purple)         ACCENT="#8B5CF6"; ACCENT_HI="#A78BFA"; ACCENT_LO="#6234D1" ;;
