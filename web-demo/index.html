@@ -447,14 +447,22 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   transition:transform .9s cubic-bezier(.34,1.28,.44,1)}
 @media (prefers-reduced-motion:reduce){ .gauge .needle{transition:none} }
 .gly-share{-webkit-mask-image:var(--m-share);mask-image:var(--m-share)}
-/*  Partager : un tour complet, lent. Les trois nœuds du pictogramme
-    tournent autour de leur centre — c'est ce qui donne l'impression que
-    quelque chose circule, ce que dit précisément le symbole du partage.
-    12 s, plus lent que le globe du Navigateur : trois icônes qui tournent
-    dans un même dock deviendraient vite du bruit si elles allaient toutes
-    à la même vitesse. */
+/*  Partager : un tour complet AUTOUR DE L'AXE VERTICAL — le pictogramme
+    pivote horizontalement, comme une carte qu'on retourne, au lieu de
+    tourner à plat dans son propre plan.
+
+    perspective() est indispensable : sans elle, rotateY se projette
+    orthogonalement et l'icône se contente de s'aplatir puis de se rouvrir,
+    sans jamais donner l'impression de tourner. La valeur est mise DANS la
+    transformation plutôt que sur le parent, pour que chaque icône ait son
+    propre point de fuite quelle que soit sa taille.
+
+    12 s, plus lent que le globe du Navigateur : plusieurs icônes tournant
+    à la même vitesse dans un même dock deviendraient du bruit. */
 .gly-share{animation:partageTour 12s linear infinite;transform-origin:50% 50%}
-@keyframes partageTour{ from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+@keyframes partageTour{
+  from{transform:perspective(320px) rotateY(0deg)}
+  to  {transform:perspective(320px) rotateY(360deg)}}
 .dicon:hover .gly-share,.app:hover .gly-share{animation-duration:2s}
 @media (prefers-reduced-motion:reduce){ .gly-share{animation:none} }
 /*  La boîte d'archive est une IMAGE, pas un masque : elle est en couleurs
