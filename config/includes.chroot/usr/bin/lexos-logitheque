@@ -43,7 +43,7 @@ photo|gimp|Création|Retouche photo et dessin matriciel
 vectoriel|inkscape|Création|Dessin vectoriel (SVG)
 peinture|krita|Création|Peinture numérique et bandes dessinées
 3d|blender|Création|Modélisation et animation 3D
-code|code-oss|Développement|Éditeur de code, version libre
+editeur|geany|Développement|Éditeur de code léger avec coloration
 git|git|Développement|Gestion de versions
 docker|docker.io|Développement|Conteneurs applicatifs
 steam|steam-installer|Jeux|Boutique et lanceur de jeux Valve

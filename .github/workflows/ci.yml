@@ -188,6 +188,33 @@ jobs:
           fi
           echo ok
 
+      - name: Catalogues de la Logithèque identiques
+        run: |
+          # La démo web annonce les VRAIS noms de paquets Debian, ceux que
+          # « lexos logitheque install » utilise. Si les deux catalogues
+          # divergent, la démo se met à montrer des applications qui ne
+          # s'installeront pas — exactement ce qu'on veut éviter.
+          python3 - <<'EOF'
+          import re, sys
+
+          demo = set(re.findall(
+              r'\{pkg:"([^"]+)"',
+              open("web-demo/index.html", encoding="utf-8").read()))
+
+          src = open("config/includes.chroot/usr/bin/lexos-logitheque",
+                     encoding="utf-8").read()
+          bloc = re.search(r'CATALOGUE="\n(.*?)\n"', src, re.S)
+          if not bloc:
+              sys.exit("catalogue introuvable dans lexos-logitheque")
+          cli = {l.split("|")[1] for l in bloc.group(1).splitlines() if l.strip()}
+
+          if demo != cli:
+              print("démo seulement :", sorted(demo - cli))
+              print("CLI  seulement :", sorted(cli - demo))
+              sys.exit("les deux catalogues de la Logithèque ont divergé")
+          print(f"ok — {len(demo)} paquets, mêmes noms des deux côtés")
+          EOF
+
       - name: Aides affichables sans erreur
         run: |
           for t in lexos lexfetch lexos-perf lexos-net lexos-share lexos-display; do
