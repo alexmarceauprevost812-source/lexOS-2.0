@@ -420,16 +420,47 @@ partagée : LexOS y ajoute son propre chargeur à côté de celui d'Ubuntu.
 
 #### Si « Redimensionner la partition » n'apparaît pas
 
-L'option est absente dans deux cas, et chacun a sa réponse :
+Le menu ne propose alors que « Effacer les données de cette partition » et
+« Supprimer la partition ». **Ne choisis ni l'une ni l'autre** — les deux
+détruisent l'autre système. Sors par « Fin du paramétrage de cette partition »,
+qui ne modifie rien, et va d'abord voir ce qu'il y a vraiment dans cette
+partition.
 
-* **Le système de fichiers est « sale »** — l'autre système n'a pas été éteint
-  proprement (ou Windows a laissé son *démarrage rapide* actif). L'installateur
-  refuse de toucher une partition dont le journal n'est pas propre. Redémarre
-  dessus, éteins-le normalement, et reviens.
-* **La partition est du LVM ou est chiffrée** — la colonne du format est vide
-  au lieu d'afficher `ext4`. Le redimensionnement passe alors par
-  « Configurer le gestionnaire de volumes logiques », qui est une autre marche
-  à suivre ; le plus simple est la solution de repli ci-dessous.
+##### Regarder avant d'agir
+
+Depuis le menu principal de l'installateur, tout en bas :
+**« Exécuter un shell (ligne de commande) »** → **Continuer**, puis :
+
+```sh
+blkid
+```
+
+Une ligne par partition. Celle qui compte est la grande — `/dev/sda4` dans
+l'exemple ci-dessus :
+
+```
+/dev/sda1: TYPE="ext4"
+/dev/sda2: TYPE="vfat"
+/dev/sda3: TYPE="ext4"
+/dev/sda4: TYPE="crypto_LUKS"          ← c'est cette ligne qui décide
+/dev/sdb1: LABEL="LexOS 1.0" TYPE="iso9660"   ← la clé USB, ne pas y toucher
+```
+
+`exit` pour revenir au menu.
+
+| `TYPE=` | Ce que c'est | Ce qu'il faut faire |
+|---|---|---|
+| `ext4` mais pas d'option « Redimensionner » | Système de fichiers « sale » | Voir juste en dessous |
+| `LVM2_member` | LVM non chiffré | GParted depuis la session live |
+| `crypto_LUKS` | **Chiffré** | Voir « Et si l'autre système est chiffré ? » |
+| *(la partition n'apparaît pas)* | Réellement vide | Rien à rétrécir, utilise-la directement |
+
+##### Système de fichiers « sale »
+
+L'autre système n'a pas été éteint proprement (ou Windows a laissé son
+*démarrage rapide* actif). L'installateur refuse de toucher une partition dont
+le journal n'est pas propre. Redémarre dessus, éteins-le normalement, et
+reviens.
 
 **Windows en plus ?** Réduis-le depuis Windows (Gestion des disques), pas
 depuis Linux : lui seul sait déplacer ses propres fichiers système. Et
@@ -452,6 +483,75 @@ Clic droit sur la partition de l'autre système → **Redimensionner** → laiss
 GParted voit le LVM et le chiffrement, et son affichage graphique rend l'état
 du disque plus lisible. C'est le seul avantage qu'il a ici : dans le cas
 ordinaire, l'installateur fait la même chose sans redémarrage.
+
+#### Et si l'autre système est chiffré ? (`crypto_LUKS`)
+
+C'est le cas le plus difficile, et il vaut mieux le savoir avant de commencer
+plutôt qu'au milieu.
+
+Une partition `crypto_LUKS` est un coffre fermé. Tant qu'il n'est pas ouvert,
+aucun outil — ni partman, ni GParted — ne voit ce qu'il y a dedans, donc aucun
+ne peut le rétrécir. Et le contenu est, en général, un LVM : il y a donc
+**trois couches** empilées à réduire, dans cet ordre, de l'intérieur vers
+l'extérieur.
+
+**Trois options, par risque croissant :**
+
+##### 1. Installer LexOS sur une autre clé USB ou un disque externe *(recommandé)*
+
+Une installation complète et persistante, qui démarre à part. On ne touche
+jamais au disque interne, donc **le risque pour l'autre système est nul**.
+
+Il faut une clé de **32 Go minimum** (64 Go confortable) ou un petit SSD
+externe — en plus de la clé d'installation. Au partitionnement, choisis
+« Assisté — utiliser un disque entier » et **sélectionne bien le nouveau
+disque**. Vérifie sa taille dans la liste avant de valider : c'est le seul
+garde-fou.
+
+##### 2. Rester en session Live
+
+LexOS tourne depuis la clé sans rien installer. Les changements sont perdus à
+chaque redémarrage, mais tout est essayable immédiatement et sans risque.
+
+##### 3. Rétrécir le coffre chiffré
+
+Possible, mais à ne tenter qu'en sachant ce qu'on fait :
+
+- **Il faut le mot de passe de chiffrement** — celui demandé au tout début du
+  démarrage, avant l'écran de connexion. Sans lui, rien n'est possible : c'est
+  précisément à quoi sert le chiffrement.
+- La dernière étape recrée la partition en saisissant des numéros de secteurs.
+  **Une erreur de chiffre et le système chiffré est perdu** — et chiffré veut
+  dire qu'aucun outil de récupération ne rattrapera quoi que ce soit.
+- **Sauvegarde complète obligatoire.** Pas « les documents importants » : tout
+  ce qui ne doit pas disparaître.
+
+Depuis une session live LexOS, l'ordre est le suivant — l'intérieur d'abord,
+l'extérieur en dernier :
+
+```bash
+sudo cryptsetup luksOpen /dev/sda4 coffre    # demande le mot de passe
+sudo vgchange -ay                            # active le LVM qui est dedans
+sudo lvs                                     # note le nom exact du volume
+
+sudo e2fsck -f /dev/mapper/<vg>-<lv>         # obligatoire avant resize2fs
+sudo resize2fs /dev/mapper/<vg>-<lv> 150G    # 1. le système de fichiers
+sudo lvreduce -L 155G /dev/mapper/<vg>-<lv>  # 2. le volume logique
+sudo pvresize --setphysicalvolumesize 160G /dev/mapper/coffre   # 3. le volume physique
+
+sudo vgchange -an
+sudo cryptsetup luksClose coffre
+```
+
+Puis seulement, avec `parted` ou `fdisk`, supprimer et recréer `sda4` **au même
+secteur de départ** et avec une fin plus petite. Le début doit être identique
+au *secteur* près : l'en-tête LUKS est là, et le déplacer d'un seul secteur rend
+le coffre illisible.
+
+Les marges croissantes (150 → 155 → 160 Go) ne sont pas de la décoration :
+chaque couche doit rester strictement plus grande que celle qu'elle contient.
+Une couche qu'on rétrécit en dessous de son contenu, c'est la perte des
+données, sans avertissement.
 
 ### 2. Remplir l'espace libéré
 
