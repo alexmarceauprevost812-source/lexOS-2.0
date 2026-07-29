@@ -83,6 +83,7 @@ ${B}APPARENCE${R}
   ${A}dock${R} <position>     Barre d'outils : ${D}droite (défaut) · gauche · bas · haut${R}
   ${A}ecran${R}               Plusieurs écrans : étendre, dupliquer, principal
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
+  ${A}wallpaper${R} <image> <cadrage>  remplir · ajuster · etirer · centrer · mosaique
   ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
 
 ${B}LANGUE${R}
@@ -373,21 +374,61 @@ cmd_logs() {
 	fi
 }
 
+#  Les cinq cadrages de XFCE, avec leur numéro dans xfconf. Les nommer
+#  évite d'avoir à retenir que « 5 » veut dire « recadrer pour remplir » —
+#  et c'est ce chiffre-là qu'on veut presque toujours.
+wallpaper_style() {
+	case "${1,,}" in
+		remplir|zoom|cover|"")  printf '5' ;;   # recadre, ne déforme pas
+		ajuster|contain|fit)    printf '4' ;;   # image entière, bandes possibles
+		etirer|étirer|stretch)  printf '3' ;;   # déforme
+		centrer|center)         printf '1' ;;
+		mosaique|mosaïque|tile) printf '2' ;;
+		*) return 1 ;;
+	esac
+}
+
 cmd_wallpaper() {
 	local img="${1:-/usr/share/backgrounds/lexos/wallpaper.png}"
-	[[ -r "$img" ]] || die "Image introuvable : $img"
+	local cadrage="${2:-remplir}"
+
+	[[ -r "$img" ]] || die "Image introuvable ou illisible : $img"
+	[[ -f "$img" ]] || die "Ce n'est pas un fichier : $img"
+
+	#  Vérifier que c'est bien une image AVANT de la poser : xfconf accepte
+	#  n'importe quelle chaîne sans broncher, et un chemin qui ne pointe pas
+	#  sur une image donne un bureau noir sans le moindre message. Mieux vaut
+	#  refuser ici, en disant pourquoi.
+	if command -v file >/dev/null 2>&1; then
+		local genre; genre="$(file -b --mime-type "$img" 2>/dev/null)"
+		case "$genre" in
+			image/*) ;;
+			*) die "Ce fichier n'est pas une image (${genre:-type inconnu}) : $(basename "$img")" ;;
+		esac
+	fi
+
+	local style; style="$(wallpaper_style "$cadrage")" \
+		|| die "Cadrage inconnu : $cadrage  (remplir | ajuster | etirer | centrer | mosaique)"
+
 	command -v xfconf-query >/dev/null 2>&1 \
 		|| die "xfconf-query absent — cette commande demande le bureau XFCE."
 	[[ -n "${DISPLAY:-}" ]] || die "Aucune session graphique détectée."
+
+	#  Chemin absolu : xfconf garde la chaîne telle quelle, et un chemin
+	#  relatif ne voudrait plus rien dire à la prochaine ouverture de session.
+	img="$(readlink -f "$img")"
 
 	local prop count=0
 	while read -r prop; do
 		[[ "$prop" == *last-image ]] || continue
 		xfconf-query -c xfce4-desktop -p "$prop" -s "$img" && count=$((count + 1))
+		#  Le style vit sur une propriété voisine, au même emplacement.
+		xfconf-query -c xfce4-desktop -p "${prop%last-image}image-style" \
+			-n -t int -s "$style" 2>/dev/null || true
 	done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null)
 
 	if (( count > 0 )); then
-		ok "Fond d'écran appliqué sur ${count} écran(s) : $img"
+		ok "Fond d'écran appliqué sur ${count} écran(s) : $(basename "$img")"
 	else
 		die "Aucune propriété de fond d'écran trouvée."
 	fi

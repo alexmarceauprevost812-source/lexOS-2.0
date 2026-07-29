@@ -643,6 +643,20 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .lgt-liens a.lgt-deb:hover{color:var(--ac-hi);border-color:var(--ac)}
 .lgt-liens a:hover{text-decoration:underline}
 
+/* --- Fond d'écran personnel ---------------------------------------------- */
+.wall-parcourir{display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+  background:var(--bg-alt);border:1px dashed var(--bd);border-radius:10px;
+  padding:11px 16px;font-size:13px;transition:border-color .13s,color .13s}
+.wall-parcourir:hover{border-color:var(--ac);color:var(--ac-hi)}
+.wall-parcourir:focus-within{outline:2px solid var(--ac);outline-offset:2px}
+.wall-perso{display:flex;align-items:center;gap:12px;margin-bottom:11px;
+  background:var(--bg-alt);border:1px solid var(--bd);border-radius:10px;padding:9px}
+.wall-perso img{width:92px;height:56px;object-fit:cover;border-radius:6px;
+  flex:none;background:var(--bg)}
+.wall-perso-i{min-width:0;flex:1}
+.wall-perso-n{font-size:13px;font-weight:600;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+
 /* --- VPN gratuit --------------------------------------------------------
    « Qui paie » est en accent, pas en gris : sur cette page c'est
    l'information qui décide, pas une note de bas de page. */
@@ -1426,6 +1440,7 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
                 qsCompact:false, dockHidden:false, zTop:100, majDispo:false, wallpaper:"defaut", police:"defaut",
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
+                wallPerso:null, wallPersoNom:"", wallCadrage:"remplir",
                 vpn:null,
                 claviers:["ca-fr"], clavierVu:0, clvBascule:"alt-maj",
                 comptes:[] /* comptes en ligne reliés : {cle, nom, monte} */,
@@ -1437,7 +1452,65 @@ function setWallpaper(key){
   d.classList.toggle("papier-secu", key==="secu");
   d.classList.toggle("papier-demon", key==="demon");
   d.classList.toggle("papier-keyart", key==="keyart");
+  //  Une image personnelle passe par un style en ligne plutôt que par une
+  //  classe : son adresse n'est connue qu'au moment du choix, et une règle
+  //  CSS ne peut pas la contenir d'avance.
+  d.classList.toggle("papier-perso", key==="perso");
+  if(key === "perso" && state.wallPerso){
+    d.style.backgroundImage = `url("${state.wallPerso}")`;
+    d.style.backgroundSize = WALL_CADRAGE[state.wallCadrage] || "cover";
+    d.style.backgroundPosition = "center";
+    d.style.backgroundRepeat = state.wallCadrage==="mosaique" ? "repeat" : "no-repeat";
+  } else {
+    d.style.backgroundImage = d.style.backgroundSize =
+      d.style.backgroundPosition = d.style.backgroundRepeat = "";
+  }
   showSettingsSection();
+}
+
+/*  Les quatre cadrages que propose XFCE, avec le nom CSS qui donne le même
+    résultat. « Remplir » recadre pour couvrir sans déformer ; « Ajuster »
+    montre l'image entière quitte à laisser des bandes. Les confondre est
+    la façon la plus courante de se retrouver avec une photo étirée. */
+const WALL_CADRAGE = {remplir:"cover", ajuster:"contain",
+                      etirer:"100% 100%", mosaique:"auto", centrer:"auto"};
+const WALL_CADRAGE_NOM = {remplir:"Remplir l'écran (recadre)",
+  ajuster:"Ajuster (image entière)", etirer:"Étirer (déforme)",
+  mosaique:"Mosaïque", centrer:"Centrer à sa taille"};
+
+/*  Lire l'image choisie SANS l'envoyer nulle part : FileReader travaille
+    dans le navigateur, le fichier ne quitte pas la machine. C'est aussi
+    ce que fait la vraie ISO — xfconf ne fait que retenir un chemin. */
+function wallChoisirFichier(input){
+  const f = input.files && input.files[0];
+  if(!f) return;
+  if(!f.type.startsWith("image/")){
+    toast("Ce n'est pas une image : "+(f.type || "type inconnu")); return;
+  }
+  //  Au-delà de quelques mégaoctets, la conversion en base64 fige l'onglet
+  //  plusieurs secondes. Mieux vaut refuser en expliquant que ramer.
+  if(f.size > 12 * 1024 * 1024){
+    toast("Image trop lourde pour la démo ("+Math.round(f.size/1048576)+" Mo, maximum 12)");
+    return;
+  }
+  const fr = new FileReader();
+  fr.onload = () => {
+    state.wallPerso = fr.result;
+    state.wallPersoNom = f.name;
+    setWallpaper("perso");
+    toast("✓ Fond d'écran : "+f.name);
+  };
+  fr.onerror = () => toast("Lecture impossible");
+  fr.readAsDataURL(f);
+}
+function wallCadrage(v){
+  state.wallCadrage = v;
+  if(state.wallpaper === "perso") setWallpaper("perso"); else showSettingsSection();
+}
+function wallRetire(){
+  state.wallPerso = null; state.wallPersoNom = "";
+  setWallpaper("defaut");
+  toast("Image retirée — fond par défaut");
 }
 /* --- Police d'écriture de l'interface ------------------------------------
    Familles GÉNÉRIQUES (system-ui, serif, monospace…) : elles existent dans
@@ -2407,6 +2480,28 @@ function ficListe(racine){
 function estImage(nom){ return /\.(png|jpe?g|gif|webp|bmp)$/i.test(nom); }
 function estAudio(nom){ return /\.(mp3|ogg|wav|flac|m4a|opus)$/i.test(nom); }
 
+/*  Le clic droit sur une image en fait le fond d'écran — le même geste que
+    sur la vraie ISO, où l'action Thunar appelle « lexos wallpaper ».
+    Les fichiers de la démo n'ont pas de contenu : ils portent un nom et une
+    taille, pas de pixels. On le dit plutôt que d'afficher un fond noir en
+    laissant croire à un défaut. Une vraie image se choisit dans
+    Paramètres → Bureau LexOS, où le navigateur peut la lire pour de bon. */
+function ficFond(i, racine){
+  const f = ficListe(!!racine)[i]; if(!f) return;
+  if(f.src){
+    state.wallPerso = f.src; state.wallPersoNom = f.nom;
+    setWallpaper("perso");
+    toast("🏞 Fond d'écran : "+f.nom);
+    return;
+  }
+  ctxConfirme("« "+f.nom+" » n'a pas de contenu dans la démo",
+    "Les fichiers d'exemple portent un nom et une taille, pas de pixels — il "+
+    "n'y a rien à afficher. Sur la vraie ISO, ce clic droit appelle "+
+    "<code>lexos wallpaper</code> et l'image apparaît aussitôt. Pour essayer "+
+    "ici avec une de tes photos, ouvre Paramètres → Bureau LexOS.",
+    ()=>{ openSettings("bureau"); }, "Ouvrir les Paramètres");
+}
+
 function fichierMenu(e, i, racine){
   e.preventDefault(); e.stopPropagation();
   fermeFichierMenu(); closeFilesMenu();
@@ -2423,6 +2518,7 @@ function fichierMenu(e, i, racine){
   if(estImage(f.nom)){
     add(bouton("🖼","Ouvrir dans Studio+",`ficStudio(${i},${racine?1:0})`));
     add(bouton("✂","Créer un autocollant",`ficAutocollant(${i},${racine?1:0})`));
+    add(bouton("🏞","Définir comme fond d'écran",`ficFond(${i},${racine?1:0})`));
   }
   if(estAudio(f.nom)) add(bouton("🎵","Ouvrir dans Musique","openMusique()"));
   if(/\.zip$/i.test(f.nom)){
@@ -4254,9 +4350,40 @@ function settingsSection(key){
           <button class="wall-swatch keyart${state.wallpaper==="keyart"?" sel":""}" title="Explorateur" onclick="setWallpaper('keyart')"></button>
         </div>
       </div>
-      <p class="notice">Sur la vraie ISO : <code>lexos wallpaper [chemin]</code>
-      (sans argument, remet celui par défaut). Les quatre fonds ci-dessus vivent
-      dans <code>/usr/share/backgrounds/lexos/</code>.</p>`;
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:4px">Une image à toi</div>
+        <div class="d" style="margin-bottom:10px">Choisis une photo sur cette
+          machine. Elle ne part nulle part&nbsp;: le navigateur la lit sur place.</div>
+        ${state.wallPerso ? `<div class="wall-perso">
+            <img src="${state.wallPerso}" alt="Aperçu du fond d'écran choisi">
+            <div class="wall-perso-i">
+              <div class="wall-perso-n">${esc(state.wallPersoNom)}</div>
+              <div class="d">${state.wallpaper==="perso" ? "Appliquée" : "Choisie, mais un autre fond est actif"}</div>
+            </div>
+            <div style="display:flex;gap:6px;flex:none">
+              ${state.wallpaper!=="perso"
+                ? `<button class="btn ghost mini" style="width:auto" onclick="setWallpaper('perso')">Appliquer</button>` : ""}
+              <button class="btn ghost mini" style="width:auto" onclick="wallRetire()">Retirer</button>
+            </div>
+          </div>` : ""}
+        <label class="wall-parcourir">
+          <input type="file" accept="image/*" onchange="wallChoisirFichier(this)" hidden>
+          <span>🖼 Parcourir mes images…</span>
+        </label>
+      </div>
+
+      ${state.wallPerso ? `<div class="srow"><div><div class="t">Cadrage</div>
+        <div class="d">${WALL_CADRAGE_NOM[state.wallCadrage]}</div></div>
+        <select class="mac-sel" style="max-width:220px" onchange="wallCadrage(this.value)">
+          ${Object.entries(WALL_CADRAGE_NOM).map(([k,n])=>
+            `<option value="${k}"${k===state.wallCadrage?" selected":""}>${n}</option>`).join("")}
+        </select></div>` : ""}
+
+      <p class="notice">Sur la vraie ISO&nbsp;: <code>lexos wallpaper ~/Images/photo.jpg</code>,
+      ou un <b>clic droit sur l'image</b> dans Fichiers →
+      « Définir comme fond d'écran ». Sans argument, <code>lexos wallpaper</code>
+      remet celui par défaut. Les quatre fonds ci-dessus vivent dans
+      <code>/usr/share/backgrounds/lexos/</code>.</p>`;
     case "multitaches": return `<h2>Multi-tâches</h2><div class="sub">Bureaux virtuels</div>
       ${swRow("Bureaux virtuels multiples","Non simulés dans la démo web",false,"")}`;
     case "applications": return `<h2>Applications</h2><div class="sub">Applications par défaut</div>
