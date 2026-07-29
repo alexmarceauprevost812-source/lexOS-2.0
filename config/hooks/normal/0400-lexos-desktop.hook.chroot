@@ -159,6 +159,47 @@ Categories=Utility;FileTransfer;
 Keywords=telephone;phone;ecran;screen;mirroring;scrcpy;android;
 EOF
 
+cat > /usr/share/applications/lexos-capture.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Capture d'écran
+Name[en]=Screenshot
+Comment=Photographier l'écran, une fenêtre ou une zone (Impr écr)
+Exec=lexos capture
+Icon=applets-screenshooter
+Terminal=false
+Categories=Graphics;Utility;
+Keywords=capture;ecran;screenshot;photo;image;impression;
+Actions=Fenetre;Zone;Video;
+
+[Desktop Action Fenetre]
+Name=Capturer la fenêtre active
+Exec=lexos capture fenetre
+
+[Desktop Action Zone]
+Name=Capturer une zone
+Exec=lexos capture zone
+
+[Desktop Action Video]
+Name=Enregistrer l'écran en vidéo
+Exec=xfce4-terminal --title="Enregistrement — LexOS" --hold -e "lexos capture video"
+EOF
+
+cat > /usr/share/applications/lexos-capture-video.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Enregistreur d'écran
+Name[en]=Screen recorder
+Comment=Enregistrer l'écran en vidéo avec le son du système (Ctrl+Maj+R)
+Exec=xfce4-terminal --title="Enregistrement — LexOS" --hold -e "lexos capture video"
+Icon=camera-video
+Terminal=false
+Categories=AudioVideo;Recorder;
+Keywords=enregistrer;video;ecran;record;screencast;ffmpeg;
+EOF
+
 cat > /usr/share/applications/lexos-logitheque.desktop <<EOF
 [Desktop Entry]
 Type=Application

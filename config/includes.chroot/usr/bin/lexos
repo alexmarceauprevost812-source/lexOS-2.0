@@ -129,6 +129,12 @@ ${B}USB${R}
   ${A}usb import${R}          Tout copier depuis un téléphone ou une clé USB ${D}(1 clic)${R}
   ${A}format${R} [cible]      Formater une clé USB ou un téléphone ${D}(confirmation exigée)${R}
 
+${B}CAPTURE${R}
+  ${A}capture${R}             Capture tout l'écran ${D}(Impr écr)${R}
+  ${A}capture fenetre${R}     Capture la fenêtre active ${D}(Alt+Impr écr)${R}
+  ${A}capture zone${R}        Capture une zone à la souris ${D}(Maj+Impr écr)${R}
+  ${A}capture video${R}       Enregistre l'écran en vidéo ${D}(Ctrl+Maj+R, Ctrl+C pour arrêter)${R}
+
 ${B}IMAGES${R}
   ${A}sticker${R} <image…>     Découpe le sujet en autocollant (PNG transparent)
                       ${D}IA (rembg) si installée, sinon fond uni (ImageMagick)${R}
@@ -580,6 +586,7 @@ case "$CMD" in
 	logitheque|boutique|store) exec lexos-logitheque "$@" ;;
 	usb)                  exec lexos-usb "$@" ;;
 	format)               exec lexos-format "$@" ;;
+	capture|capture-ecran) exec lexos-capture "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
 	ia|agent)             exec lexos-ia "$@" ;;
 	game)                 exec lexos-game "$@" ;;

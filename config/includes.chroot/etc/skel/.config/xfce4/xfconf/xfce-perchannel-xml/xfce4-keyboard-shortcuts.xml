@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — raccourcis clavier.
+
+  Les touches de capture passent toutes par « lexos capture » plutôt que
+  d'appeler xfce4-screenshooter en direct : c'est lui qui range les fichiers
+  dans ~/Images/Captures avec un nom horodaté et qui évite d'écraser une
+  capture précédente. Un appel direct déposerait les images au petit bonheur.
+
+  Les raccourcis de fenêtres (xfwm4) restent ceux de XFCE : on ne réinvente
+  pas Alt+Tab.
+-->
+<channel name="xfce4-keyboard-shortcuts" version="1.0">
+  <property name="commands" type="empty">
+    <property name="default" type="empty"/>
+    <property name="custom" type="empty">
+      <property name="override" type="bool" value="true"/>
+
+      <!-- Captures d'écran -->
+      <property name="Print"                type="string" value="lexos capture"/>
+      <property name="&lt;Alt&gt;Print"     type="string" value="lexos capture fenetre"/>
+      <property name="&lt;Shift&gt;Print"   type="string" value="lexos capture zone"/>
+
+      <!-- Enregistrement vidéo : la fenêtre du terminal reste ouverte, c'est
+           elle qui porte le Ctrl+C qui arrête l'enregistrement. -->
+      <property name="&lt;Primary&gt;&lt;Shift&gt;r" type="string"
+                value="xfce4-terminal --title=Enregistrement --hold -e &quot;lexos capture video&quot;"/>
+
+      <!-- Outils LexOS courants -->
+      <property name="&lt;Super&gt;e"       type="string" value="thunar"/>
+      <property name="&lt;Super&gt;t"       type="string" value="xfce4-terminal"/>
+      <property name="&lt;Super&gt;a"       type="string" value="lexos logitheque"/>
+    </property>
+  </property>
+</channel>

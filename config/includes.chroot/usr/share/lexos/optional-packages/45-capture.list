@@ -1,0 +1,22 @@
+# Captures d'écran et enregistrement vidéo de l'écran.
+#
+# xfce4-screenshooter (photo) est déjà dans 20-desktop.list — il sert aussi
+# aux raccourcis Impr écr du bureau.
+#
+# ffmpeg est le moteur de « lexos capture video » : x11grab pour l'image,
+# PulseAudio pour le son, x264 pour l'encodage. C'est le seul paquet
+# réellement indispensable ici.
+ffmpeg
+
+# SimpleScreenRecorder, pour qui préfère une fenêtre avec des boutons plutôt
+# qu'un Ctrl+C dans un terminal : choix de la zone, du débit, aperçu en direct.
+simplescreenrecorder
+
+# scrot et ImageMagick servent de replis à la capture photo si
+# xfce4-screenshooter venait à manquer (voir lexos-capture).
+scrot
+imagemagick
+
+# xdpyinfo donne la taille réelle de l'écran : sans lui, l'enregistrement
+# vidéo retombe sur 1920x1080 et tronque l'image sur un autre affichage.
+x11-utils

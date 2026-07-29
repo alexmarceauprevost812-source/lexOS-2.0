@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-capture — captures d'écran et enregistrement vidéo de l'écran
+# =============================================================================
+#  Photo : xfce4-screenshooter fait le travail (il est déjà dans la saveur
+#  standard). Repli sur scrot puis sur « import » d'ImageMagick.
+#
+#  Vidéo : ffmpeg avec x11grab, qui enregistre l'écran ET le son du système
+#  s'il trouve PulseAudio. SimpleScreenRecorder prend le relais si on préfère
+#  une interface graphique.
+#
+#  Tout atterrit dans ~/Images/Captures et ~/Vidéos/Captures, avec un nom
+#  horodaté — jamais d'écrasement silencieux.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; V=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+#  Les dossiers français de XDG existent sur LexOS (locale fr_CA), mais on ne
+#  parie pas dessus : xdg-user-dir donne le bon chemin quelle que soit la langue.
+dossier() {
+	local cle="$1" repli="$2" chemin=""
+	if command -v xdg-user-dir >/dev/null 2>&1; then
+		chemin="$(xdg-user-dir "$cle" 2>/dev/null)"
+	fi
+	[[ -n "$chemin" && "$chemin" != "$HOME" ]] || chemin="$HOME/$repli"
+	printf '%s\n' "$chemin/Captures"
+}
+
+horodatage() { date +%Y-%m-%d_%Hh%Mm%Ss; }
+
+#  L'horodatage descend à la seconde : deux captures rapprochées (raccourci
+#  clavier martelé, rafale de zones) tomberaient sur le même nom et la
+#  seconde écraserait la première sans rien dire. On suffixe alors _2, _3…
+nom_libre() {
+	local base="$1" ext="$2" candidat="${1}.${2}" n=2
+	while [[ -e "$candidat" ]]; do
+		candidat="${base}_${n}.${ext}"
+		n=$((n + 1))
+	done
+	printf '%s\n' "$candidat"
+}
+
+# --- Photo -------------------------------------------------------------------
+#  mode : plein | fenetre | zone
+cmd_photo() {
+	local mode="${1:-plein}"
+	local dest; dest="$(dossier PICTURES Images)"
+	mkdir -p "$dest" || die "Impossible de créer $dest"
+	local fichier; fichier="$(nom_libre "$dest/capture_$(horodatage)" png)"
+
+	if command -v xfce4-screenshooter >/dev/null 2>&1; then
+		local drapeau
+		case "$mode" in
+			plein)   drapeau="-f" ;;
+			fenetre) drapeau="-w" ;;
+			zone)    drapeau="-r" ;;
+			*)       die "Mode inconnu : $mode (plein, fenetre ou zone)" ;;
+		esac
+		say "Capture ${mode}…"
+		xfce4-screenshooter "$drapeau" -s "$fichier" >/dev/null 2>&1 \
+			|| die "xfce4-screenshooter a échoué."
+	elif command -v scrot >/dev/null 2>&1; then
+		case "$mode" in
+			plein)   scrot "$fichier" ;;
+			fenetre) scrot -u "$fichier" ;;
+			zone)    scrot -s "$fichier" ;;
+			*)       die "Mode inconnu : $mode" ;;
+		esac || die "scrot a échoué."
+	elif command -v import >/dev/null 2>&1; then
+		#  « import » sans argument demande de cliquer une fenêtre ;
+		#  -window root prend tout l'écran.
+		if [[ "$mode" == "plein" ]]; then
+			import -window root "$fichier"
+		else
+			import "$fichier"
+		fi || die "import (ImageMagick) a échoué."
+	else
+		die "Aucun outil de capture installé (apt install xfce4-screenshooter)."
+	fi
+
+	[[ -s "$fichier" ]] || die "Capture annulée — aucun fichier écrit."
+	ok "Image : $fichier"
+	command -v notify-send >/dev/null 2>&1 \
+		&& notify-send "Capture d'écran" "$(basename "$fichier")" -i "$fichier" 2>/dev/null
+	printf '%s\n' "$fichier"
+}
+
+# --- Vidéo -------------------------------------------------------------------
+cmd_video() {
+	local dest; dest="$(dossier VIDEOS Vidéos)"
+	mkdir -p "$dest" || die "Impossible de créer $dest"
+	local fichier; fichier="$(nom_libre "$dest/ecran_$(horodatage)" mp4)"
+
+	#  Interface graphique demandée explicitement, ou ffmpeg absent.
+	if [[ "${1:-}" == "gui" ]]; then
+		command -v simplescreenrecorder >/dev/null 2>&1 \
+			&& exec simplescreenrecorder
+		die "SimpleScreenRecorder n'est pas installé (apt install simplescreenrecorder)."
+	fi
+
+	command -v ffmpeg >/dev/null 2>&1 \
+		|| die "ffmpeg n'est pas installé (apt install ffmpeg)."
+	[[ -n "${DISPLAY:-}" ]] || die "Pas de session graphique (DISPLAY vide)."
+
+	#  Taille réelle de l'écran : x11grab exige une géométrie explicite, et
+	#  une valeur codée en dur tronquerait l'image sur tout autre écran.
+	local taille=""
+	if command -v xdpyinfo >/dev/null 2>&1; then
+		taille="$(xdpyinfo | awk '/dimensions:/{print $2; exit}')"
+	fi
+	[[ -n "$taille" ]] || taille="1920x1080"
+
+	#  Le son du système si PulseAudio répond, sinon vidéo muette : mieux vaut
+	#  un enregistrement sans son qu'un ffmpeg qui refuse de démarrer.
+	local son=()
+	if command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+		son=(-f pulse -ac 2 -i default)
+		say "Son du système : activé"
+	else
+		say "Son du système : indisponible — vidéo muette"
+	fi
+
+	say "Enregistrement de l'écran (${taille})…"
+	say "${B}Ctrl+C pour arrêter.${R}"
+	ffmpeg -loglevel error -stats \
+		-f x11grab -framerate 30 -video_size "$taille" -i "${DISPLAY}" \
+		"${son[@]}" \
+		-c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p \
+		-movflags +faststart \
+		"$fichier"
+
+	#  Ctrl+C fait sortir ffmpeg en code non nul alors que le fichier est bon :
+	#  on juge sur le fichier, pas sur le code de retour.
+	if [[ -s "$fichier" ]]; then
+		ok "Vidéo : $fichier"
+		command -v notify-send >/dev/null 2>&1 \
+			&& notify-send "Enregistrement terminé" "$(basename "$fichier")" 2>/dev/null
+		printf '%s\n' "$fichier"
+	else
+		die "Aucune vidéo écrite."
+	fi
+}
+
+cmd_dossier() {
+	local img vid
+	img="$(dossier PICTURES Images)"; vid="$(dossier VIDEOS Vidéos)"
+	printf '%sImages :%s %s\n%sVidéos :%s %s\n' "$B" "$R" "$img" "$B" "$R" "$vid"
+	if command -v xdg-open >/dev/null 2>&1; then
+		mkdir -p "$img"; xdg-open "$img" >/dev/null 2>&1 &
+	fi
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — captures d'écran et enregistrement vidéo
+
+${B}PHOTO${R}
+  ${O}$PROG${R}                  Capture tout l'écran
+  ${O}$PROG fenetre${R}          Capture la fenêtre active
+  ${O}$PROG zone${R}             Capture une zone choisie à la souris
+
+${B}VIDÉO${R}
+  ${O}$PROG video${R}            Enregistre l'écran ${D}(Ctrl+C pour arrêter)${R}
+  ${O}$PROG video gui${R}        Ouvre SimpleScreenRecorder
+
+${B}DIVERS${R}
+  ${O}$PROG dossier${R}          Où sont rangées les captures
+
+${D}Raccourcis clavier du bureau :
+  Impr écr           tout l'écran
+  Alt + Impr écr     fenêtre active
+  Maj + Impr écr     zone au choix
+  Ctrl + Maj + R     démarrer un enregistrement vidéo${R}
+EOF
+}
+
+case "${1:-}" in
+	""|plein|ecran|photo) cmd_photo plein ;;
+	fenetre|window)       cmd_photo fenetre ;;
+	zone|region|select)   cmd_photo zone ;;
+	video|enregistrer)    shift; cmd_video "${1:-}" ;;
+	dossier|ou|where)     cmd_dossier ;;
+	-h|--help|aide)       usage ;;
+	*)                    say "Commande inconnue : $1"; printf '\n'; usage; exit 1 ;;
+esac

@@ -470,6 +470,33 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 #appsview .hint{margin-top:18px;font-size:11.5px;color:var(--fg-dim)}
 #appsview .empty{color:var(--fg-dim);font-size:13px;padding:30px}
 
+/* --- Capture d'écran et enregistrement vidéo ----------------------------- */
+.cap-flash{position:fixed;inset:0;z-index:3000;background:#fff;pointer-events:none;
+  animation:capFlash .4s ease-out forwards}
+@keyframes capFlash{0%{opacity:.85}100%{opacity:0}}
+.cap-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.cap-stop{background:#C62828;border-color:#8E1F1F;color:#fff}
+.cap-stop:hover{background:#E33B3B}
+.cap-rec{display:flex;align-items:center;gap:7px;font-size:13px;
+  font-family:ui-monospace,monospace;color:var(--fg-dim)}
+.cap-rec i{width:9px;height:9px;border-radius:50%;background:#E33B3B;
+  animation:capPulse 1.1s ease-in-out infinite}
+@keyframes capPulse{0%,100%{opacity:1}50%{opacity:.25}}
+.cap-list{display:flex;flex-direction:column;gap:8px}
+.cap-item{display:flex;align-items:center;gap:11px;padding:9px 10px;
+  border:1px solid var(--bd);border-radius:11px;background:var(--bg-alt)}
+.cap-vig{width:78px;height:48px;flex:none;object-fit:cover;border-radius:7px;
+  border:1px solid var(--bd);background:#000}
+.cap-txt{flex:1;min-width:0}
+.cap-nom{display:block;font-size:12.5px;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cap-poids{display:block;font-size:11px;color:var(--fg-dim);
+  font-family:ui-monospace,monospace;margin-top:2px}
+.cap-act{flex:none;display:flex;flex-direction:column;gap:5px;width:104px}
+.btn.mini{display:inline-flex;align-items:center;justify-content:center;
+  padding:5px 8px;font-size:11.5px;text-decoration:none;width:100%}
+.cap-vide{color:var(--fg-dim);font-size:13px;padding:24px;text-align:center}
+
 /* --- Logithèque : installer des applications en un clic ------------------ */
 .lgt-top{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .lgt-search{flex:1;padding:8px 13px;border-radius:999px;background:var(--bg-hi);
@@ -2323,6 +2350,227 @@ document.addEventListener("click", e=>{
 });
 
 /* ======================= Dock & menu ======================= */
+/* --- Capture d'écran et enregistrement vidéo -----------------------------
+   Ici, c'est une VRAIE capture : html2canvas n'est pas embarqué, alors on
+   redessine le bureau dans un <canvas> via une image SVG <foreignObject>,
+   qui sait afficher du HTML. Le résultat se télécharge en PNG.
+   La vidéo, elle, utilise MediaRecorder sur le flux du canvas rafraîchi —
+   pas getDisplayMedia, qui exige une permission que la page ne peut pas
+   obtenir dans tous les contextes (iframe d'artefact notamment).
+   Sur la vraie ISO, c'est « lexos capture » : xfce4-screenshooter pour la
+   photo, ffmpeg x11grab + PulseAudio pour la vidéo. */
+const captures = [];      /* {type, nom, url, taille} — vidé au rechargement */
+let capRec = null, capChrono = null, capDebut = 0;
+
+/*  Rendu du bureau vers un canvas. On sérialise le DOM visible dans un SVG
+    <foreignObject> : les styles doivent être recopiés en ligne, une feuille
+    de style externe n'existe pas pour l'image générée. */
+/*  Dans un <foreignObject>, le contenu n'est PAS le document : ni `:root`
+    ni `body` ne désignent quoi que ce soit. Recopier la feuille de style
+    telle quelle donne donc une image entièrement noire — toutes les
+    variables de thème restent indéfinies. Deux corrections, toutes deux
+    nécessaires :
+      1. les sélecteurs `body…` sont réécrits vers la div englobante ;
+      2. les variables `--…` sont relues sur le vrai document et posées
+         en style en ligne sur cette div, d'où elles héritent partout. */
+function capNomsDeVariables(css){
+  const noms = new Set();
+  const re = /(--[\w-]+)\s*:/g;
+  let m; while((m = re.exec(css))) noms.add(m[1]);
+  return [...noms];
+}
+function capCssPortable(css){
+  return css
+    .replace(/\bbody(\.[\w-]+)/g, ".capdoc$1")   // body.light → .capdoc.light
+    .replace(/\bbody\b(?![\w-])/g, ".capdoc")    // body       → .capdoc
+    .replace(/:root\b/g, ".capdoc")
+    //  position:fixed n'a pas de fenêtre à laquelle se rattacher dans un
+    //  <foreignObject> : #screen et #desktop s'écrasent alors sur une ligne
+    //  d'un pixel. La boîte englobante couvrant exactement le viewport,
+    //  « absolute » par rapport à elle donne le même résultat que « fixed ».
+    .replace(/position\s*:\s*fixed/g, "position:absolute")
+    //  Le clone repart à la première image de ses animations : l'allumage
+    //  façon TV cathodique (#screen.on, scale(1,.002)) écrasait tout le
+    //  bureau sur une ligne de 1,6 px. On fige donc l'état final partout.
+    + "\n.capdoc, .capdoc *{animation:none !important;transition:none !important}";
+}
+async function capDessine(){
+  const cible = document.getElementById("screen") || document.body;
+  const r = cible.getBoundingClientRect();
+  const l = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+  const clone = cible.cloneNode(true);
+  //  Les champs de saisie se sérialisent sans leur contenu : on fige la
+  //  valeur dans l'attribut pour qu'elle survive à outerHTML.
+  clone.querySelectorAll("input").forEach(i=>i.setAttribute("value", i.value||""));
+  const cssBrut = [...document.querySelectorAll("style")].map(s=>s.textContent).join("\n");
+  const css = capCssPortable(cssBrut);
+  const cs = getComputedStyle(document.body);
+  const vars = capNomsDeVariables(cssBrut)
+    .map(n=>`${n}:${cs.getPropertyValue(n).trim()}`)
+    .filter(d=>!d.endsWith(":"))
+    .join(";");
+  const fond = cs.backgroundColor && cs.backgroundColor!=="rgba(0, 0, 0, 0)"
+             ? cs.backgroundColor : "#000";
+  //  outerHTML produit du HTML, pas du XML : « <br> » et surtout les entités
+  //  comme &nbsp; (indéfinie hors HTML) font échouer l'analyse du SVG, et
+  //  l'image sort entièrement noire. XMLSerializer, lui, ferme les balises
+  //  et résout les entités en vrais caractères.
+  const sx = new XMLSerializer();
+  const boite = document.createElement("div");
+  boite.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+  boite.setAttribute("class", "capdoc " + document.body.className);
+  boite.setAttribute("style",
+    `${vars};width:${l}px;height:${h}px;margin:0;`+
+    `position:relative;overflow:hidden;`+   // ancre des position:absolute réécrits
+    `background:${fond};color:${cs.color};font:${cs.font||""}`);
+  const styleEl = document.createElement("style");
+  styleEl.textContent = css;          // textContent : l'échappement XML est fait par sx
+  boite.appendChild(styleEl);
+  boite.appendChild(clone);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${l}" height="${h}">`+
+              `<foreignObject width="100%" height="100%">`+
+              sx.serializeToString(boite)+
+              `</foreignObject></svg>`;
+  const cv = document.createElement("canvas");
+  cv.width = l; cv.height = h;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = fond;
+  ctx.fillRect(0,0,l,h);
+  const dessine = await new Promise(res=>{
+    const img = new Image();
+    img.onload = ()=>{ try{ ctx.drawImage(img,0,0); res(true); }catch(e){ res(false); } };
+    img.onerror = ()=>res(false);
+    img.src = "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);
+  });
+  //  Un échec silencieux rendrait une image noire qu'on croirait valide :
+  //  mieux vaut le dire tout de suite.
+  if(!dessine) throw new Error("rendu du bureau impossible");
+  return cv;
+}
+function capFlash(){
+  const f=document.createElement("div"); f.className="cap-flash";
+  document.body.appendChild(f);
+  setTimeout(()=>f.remove(), 420);
+}
+function capOctets(n){
+  return n > 1048576 ? (n/1048576).toFixed(1)+" Mo" : Math.max(1,Math.round(n/1024))+" ko";
+}
+function capHorodatage(){
+  const d=new Date(), p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_`+
+         `${p(d.getHours())}h${p(d.getMinutes())}m${p(d.getSeconds())}s`;
+}
+async function capPhoto(){
+  const win = document.getElementById("win-capture");
+  if(win) win.style.visibility="hidden";   // la fenêtre ne se photographie pas elle-même
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+  let cv;
+  try { cv = await capDessine(); }
+  catch(e){ toast("La capture a échoué"); return; }
+  finally { if(win) win.style.visibility=""; }
+  capFlash();
+  const blob = await new Promise(res=>cv.toBlob(res,"image/png"));
+  if(!blob){ toast("La capture a échoué"); return; }
+  captures.unshift({type:"image", nom:`capture_${capHorodatage()}.png`,
+                    url:URL.createObjectURL(blob), taille:blob.size});
+  toast("📸 Capture enregistrée");
+  renderCaptures();
+}
+function capVideoDemarre(){
+  if(capRec) return;
+  if(typeof MediaRecorder === "undefined"){
+    toast("Ce navigateur ne sait pas enregistrer de vidéo"); return;
+  }
+  const cv = document.createElement("canvas");
+  const r = (document.getElementById("screen")||document.body).getBoundingClientRect();
+  cv.width = Math.round(r.width); cv.height = Math.round(r.height);
+  const ctx = cv.getContext("2d");
+  const flux = cv.captureStream(12);
+  let mime = "";
+  for(const m of ["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"]){
+    if(MediaRecorder.isTypeSupported(m)){ mime=m; break; }
+  }
+  let rec;
+  try { rec = new MediaRecorder(flux, mime?{mimeType:mime}:undefined); }
+  catch(e){ toast("Enregistrement impossible ici"); return; }
+  const morceaux=[];
+  rec.ondataavailable = e=>{ if(e.data && e.data.size) morceaux.push(e.data); };
+  rec.onstop = ()=>{
+    clearInterval(capChrono); capChrono=null;
+    const blob = new Blob(morceaux, {type: mime || "video/webm"});
+    captures.unshift({type:"video", nom:`ecran_${capHorodatage()}.webm`,
+                      url:URL.createObjectURL(blob), taille:blob.size});
+    capRec=null; toast("⏹ Enregistrement terminé"); renderCaptures();
+  };
+  //  Le canvas est repeint en boucle : c'est ce qui donne l'animation à
+  //  captureStream(). Sans ce rafraîchissement, la vidéo serait figée.
+  const peindre = async ()=>{
+    if(!capRec) return;
+    try{
+      const src = await capDessine();
+      ctx.drawImage(src, 0, 0, cv.width, cv.height);
+    }catch(e){}
+    if(capRec) setTimeout(peindre, 340);
+  };
+  rec.start(1000); capRec=rec; capDebut=Date.now();
+  peindre();
+  capChrono = setInterval(()=>{
+    const el=document.getElementById("capChrono");
+    if(!el) return;
+    const s=Math.floor((Date.now()-capDebut)/1000);
+    el.textContent=`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  }, 250);
+  renderCaptures();
+}
+function capVideoArrete(){ if(capRec && capRec.state!=="inactive") capRec.stop(); }
+function capBascule(){ capRec ? capVideoArrete() : capVideoDemarre(); }
+function capSupprime(i){
+  const c=captures[i]; if(!c) return;
+  URL.revokeObjectURL(c.url); captures.splice(i,1); renderCaptures();
+}
+function renderCaptures(){
+  const bar=document.getElementById("capBar");
+  if(bar){
+    bar.innerHTML = capRec
+      ? `<button class="btn cap-stop" onclick="capBascule()">⏹ Arrêter</button>
+         <span class="cap-rec"><i></i><span id="capChrono">00:00</span></span>`
+      : `<button class="btn" onclick="capPhoto()">📸 Capturer l'écran</button>
+         <button class="btn ghost" onclick="capBascule()">⏺ Enregistrer une vidéo</button>`;
+  }
+  const box=document.getElementById("capList"); if(!box) return;
+  if(!captures.length){
+    box.innerHTML=`<div class="cap-vide">Aucune capture pour l'instant.</div>`;
+    return;
+  }
+  box.innerHTML=captures.map((c,i)=>`
+    <div class="cap-item">
+      ${c.type==="image"
+        ? `<img class="cap-vig" src="${c.url}" alt="${esc(c.nom)}">`
+        : `<video class="cap-vig" src="${c.url}" muted playsinline></video>`}
+      <span class="cap-txt">
+        <span class="cap-nom">${c.type==="image"?"🖼":"🎬"} ${esc(c.nom)}</span>
+        <span class="cap-poids">${capOctets(c.taille)}</span>
+      </span>
+      <span class="cap-act">
+        <a class="btn mini" href="${c.url}" download="${esc(c.nom)}">⬇ Enregistrer</a>
+        <button class="btn ghost mini" onclick="capSupprime(${i})">Supprimer</button>
+      </span>
+    </div>`).join("");
+}
+function openCapture(){
+  openWin("capture","Capture d'écran","📸",
+  `<div class="pad">
+     <div class="cap-bar" id="capBar"></div>
+     <div class="cap-list" id="capList"></div>
+     <p class="notice">Les captures ci-dessus sont réelles : le bouton
+     <b>Enregistrer</b> télécharge le fichier. Sur la vraie ISO, la touche
+     <b>Impr écr</b> appelle <code>lexos capture</code> (xfce4-screenshooter),
+     et <b>Ctrl+Maj+R</b> lance l'enregistrement vidéo (ffmpeg, avec le son
+     du système).</p>
+   </div>`, 560, 480);
+  renderCaptures();
+}
+
 /* --- Logithèque : installer des applications en quelques clics -----------
    Sur la vraie ISO c'est GNOME Logiciels (gnome-software) branché sur les
    dépôts Debian + Flathub, et « lexos logitheque install <nom> » en ligne
@@ -2475,7 +2723,8 @@ function lgtRetireDesApps(a){
 const DOCK = [
   ["🌐","Navigateur",openBrowser], [terminalGlyph(24),"Terminal",openTerminal],
   [filesAppGlyph(24),"Fichiers",openFiles], ["📝","Éditeur",openEditor],
-  ['<i class="gly gly-share"></i>',"Partager",openShare], ["📦","Logithèque",openLogitheque],
+  ['<i class="gly gly-share"></i>',"Partager",openShare], ["📸","Capture d'écran",openCapture],
+  ["📦","Logithèque",openLogitheque],
   ["⚙","Paramètres",openSettings],
   ["💽","Installer LexOS",openInstall], ["◆","À propos",openAbout],
   ["logo","Applications",()=>toggleApps()]];
