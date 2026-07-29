@@ -146,6 +146,21 @@ ${B}ARCHIVES${R}
   ${A}run-ins${R} <archive.zip> Installe une application livrée en .zip
                       ${D}montre ce qu'elle contient et demande avant d'exécuter${R}
 
+${B}COMPTES EN LIGNE${R}
+  ${A}comptes${R}             Ce qui est relié, ce qui est monté
+  ${A}comptes services${R}    Drive · OneDrive · Dropbox · Nextcloud · Proton · S3…
+  ${A}comptes ajouter${R} <s> Relier un compte ${D}(autorisation par le navigateur)${R}
+  ${A}comptes monter${R} <n>  L'ouvrir comme un disque dans ~/Nuage
+                      ${D}aucun mot de passe conservé — un jeton révocable, c'est tout${R}
+
+${B}BIEN-ÊTRE NUMÉRIQUE${R}
+  ${A}bienetre${R}            Temps d'écran du jour, limite, confort
+  ${A}bienetre semaine${R}    Les sept derniers jours en un coup d'oeil
+  ${A}bienetre demarrer${R}   Commencer à compter ${D}(arrêté par défaut, exprès)${R}
+  ${A}bienetre limite${R} <m> Prévenir au-delà de N minutes
+  ${A}bienetre pauses on${R}  Rappels de pause ${D}(workrave)${R}
+  ${A}bienetre nuit on${R}    Réchauffer l'écran le soir ${D}(redshift)${R}
+
 ${B}MATÉRIEL APPLE${R}
   ${A}mac${R}                 Bilan : ce Mac peut-il faire tourner LexOS ?
   ${A}mac demarrage${R}       Comment démarrer LexOS sur ce Mac précisément
@@ -179,6 +194,8 @@ ${B}EXEMPLES${R}
   ${D}${PROG} lang quebecois${R}
   ${D}${PROG} sticker photo.jpg${R}
   ${D}${PROG} mac demarrage${R}
+  ${D}${PROG} comptes ajouter google${R}
+  ${D}${PROG} bienetre semaine${R}
   ${D}${PROG} ia "libère 2 Gio d'espace disque"${R}
 
 EOF
@@ -616,6 +633,8 @@ case "$CMD" in
 	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;
+	comptes|compte)       exec lexos-comptes "$@" ;;
+	bienetre|bien-etre|bien-être) exec lexos-bienetre "$@" ;;
 	mac|apple)            exec lexos-mac "$@" ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;

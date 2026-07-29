@@ -1,0 +1,11 @@
+[Unit]
+Description=LexOS — un battement du compteur de temps d'écran
+Documentation=man:lexos(1)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/lexos-bienetre --tic
+# Le compteur lit l'inactivité de la session X et écrit un entier dans le
+# dossier personnel. Rien d'autre ne lui est nécessaire.
+PrivateNetwork=yes
+NoNewPrivileges=yes

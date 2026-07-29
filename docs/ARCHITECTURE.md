@@ -525,3 +525,48 @@ Pour repartir de zéro (changement de suite Debian, corruption) :
 ```bash
 make distclean
 ```
+
+## Comptes en ligne — `lexos-comptes`
+
+Deux mécanismes coexistent sous Linux et ne font pas la même chose :
+
+| | GVFS (via GNOME Online Accounts) | rclone |
+|---|---|---|
+| Ce que ça donne | Le compte **dans Fichiers** | Un **disque monté**, ou une **copie locale** |
+| Hors ligne | Non — chaque ouverture télécharge | Oui, avec `rclone sync` |
+| Services | Google, WebDAV, SMB, SFTP | ~50, dont OneDrive, Dropbox, Proton, S3 |
+
+`lexos-comptes` pilote **rclone**, le plus complet, et laisse GVFS faire ce
+qu'il fait bien : afficher les mêmes comptes dans la barre latérale de Thunar.
+
+**Aucun mot de passe de compte n'est conservé.** L'autorisation passe par le
+navigateur ; le fournisseur remet un jeton révocable, que rclone garde dans un
+fichier passé en `chmod 600` par le script. Révoquer l'accès côté fournisseur
+suffit à tout couper.
+
+Le catalogue des services (clé + type rclone) est dupliqué dans la démo web ;
+une étape de CI, *« Services de comptes en ligne identiques »*, refuse toute
+divergence — une faute de type d'un seul côté ferait taper à l'utilisateur un
+`unknown remote type`.
+
+## Bien-être numérique — `lexos-bienetre`
+
+Trois choses réunies parce qu'elles servent la même intention.
+
+**Le temps d'écran** est mesuré par un minuteur systemd *utilisateur*
+(`lexos-bienetre.timer`) qui appelle `lexos-bienetre --tic` chaque minute. Le
+battement n'incrémente le compteur que si `xprintidle` rapporte **moins de 90
+secondes d'inactivité** : sans ce garde-fou, un écran laissé allumé la nuit
+compterait huit heures d'usage et rendrait le chiffre inutilisable. Une valeur
+par jour, en texte, dans `~/.local/share/lexos/bienetre/AAAA-MM-JJ`.
+
+Le service tourne avec `PrivateNetwork=yes` — non par précaution
+rédactionnelle, mais parce que rien n'a à sortir d'ici, et qu'une interdiction
+vérifiable vaut mieux qu'une promesse.
+
+**Le compteur est arrêté par défaut.** Mesurer le temps que quelqu'un passe
+devant sa machine ne se décide pas à sa place, même quand la mesure ne quitte
+jamais la machine. `lexos bienetre demarrer` l'allume, `oublier` efface tout.
+
+**Les pauses** (`workrave`) et **la lumière du soir** (`redshift`) sont des
+logiciels tiers ; LexOS ne fait que les allumer et les éteindre proprement.

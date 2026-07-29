@@ -615,12 +615,78 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   padding:12px;color:#ffb4b6;font-size:13px;margin:10px 0}
 .notice{border:1px solid var(--ac-lo);background:#170f08;border-radius:8px;
   padding:12px;color:var(--ac-hi);font-size:13px;margin:10px 0}
+/* --- Boîte de confirmation ------------------------------------------------
+   Assombrir le fond n'est pas décoratif : c'est ce qui empêche de cliquer
+   « à côté » par réflexe sur le geste qu'on allait faire. */
+.cfm-fond{position:fixed;inset:0;z-index:1400;background:rgba(0,0,0,.62);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+  animation:cfmFond .14s ease-out}
+@keyframes cfmFond{from{opacity:0}to{opacity:1}}
+.cfm{background:var(--bg-alt);border:1px solid var(--bd);border-radius:14px;
+  padding:20px 22px;max-width:430px;width:100%;
+  box-shadow:0 18px 50px rgba(0,0,0,.6);animation:cfmBoite .17s cubic-bezier(.2,.9,.3,1)}
+@keyframes cfmBoite{from{transform:translateY(10px) scale(.97);opacity:0}
+                    to{transform:none;opacity:1}}
+.cfm-t{font-weight:700;font-size:15px;margin-bottom:8px}
+.cfm-d{font-size:13px;color:var(--fg-dim);line-height:1.55}
+.cfm-btns{display:flex;gap:9px;justify-content:flex-end;margin-top:18px}
+.cfm-btns .btn{width:auto;padding:8px 16px}
+.btn.danger{background:var(--off);border-color:var(--off);color:#fff}
+.btn.danger:hover{filter:brightness(1.12)}
+
+/* --- Panneau « Comptes en ligne » ---------------------------------------- */
+.cpt-h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--fg-dim);margin:22px 0 10px;font-weight:600}
+.cpt-ic{display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;flex:none;border-radius:8px;font-size:14px;
+  background:var(--ac-lo);color:var(--ac-hi)}
+.cpt-grille{display:grid;gap:8px;
+  grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+/*  Grille plutôt que flex : les cartes d'une même rangée s'étirent à la
+    plus haute, et « align-content:space-between » colle alors la ligne
+    « rclone : … » au bas de chacune. En flex, un nom passant sur deux
+    lignes décalait l'étiquette de ses voisines. */
+.cpt-carte{display:grid;grid-template-columns:30px 1fr;gap:5px 10px;
+  align-content:space-between;text-align:left;
+  background:var(--bg-alt);border:1px solid var(--bd);border-radius:10px;
+  padding:11px 12px;color:var(--fg);font:inherit;cursor:pointer;
+  transition:border-color .13s,transform .13s}
+.cpt-carte:hover{border-color:var(--ac);transform:translateY(-1px)}
+.cpt-carte:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.cpt-carte .cpt-ic{grid-row:1}
+.cpt-nom{font-size:13px;font-weight:600;align-self:center;line-height:1.3}
+.cpt-type{font-size:11px;color:var(--fg-dim);grid-column:2/-1}
+
+/* --- Panneau « Bien-être numérique » ------------------------------------- */
+.bn-carte{background:var(--bg-alt);border:1px solid var(--bd);border-radius:12px;
+  padding:20px;text-align:center;margin:14px 0}
+.bn-chiffre{font-size:38px;font-weight:700;line-height:1;
+  font-variant-numeric:tabular-nums;color:var(--ac)}
+.bn-sous{font-size:12.5px;color:var(--fg-dim);margin-top:7px}
+.bn-piste{height:6px;border-radius:3px;background:var(--bd);
+  margin:15px auto 0;max-width:280px;overflow:hidden}
+.bn-jauge{height:100%;border-radius:3px;transition:width .4s ease}
+.bn-piste-txt{font-size:11.5px;color:var(--fg-dim);margin-top:6px}
+.bn-semaine{display:flex;gap:8px;align-items:flex-end;height:96px;margin:12px 0 6px}
+.bn-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%}
+.bn-bar-piste{flex:1;width:100%;display:flex;align-items:flex-end;
+  background:var(--bg-hi);border-radius:5px;overflow:hidden}
+.bn-bar{width:100%;background:var(--ac);border-radius:5px;
+  transition:height .5s cubic-bezier(.2,.9,.3,1);min-height:0}
+.bn-jour{font-size:11px;color:var(--fg-dim)}
+.bn-jour.auj{color:var(--ac);font-weight:700}
+
+/*  Lumière du soir : la même intention que redshift — retirer du bleu, pas
+    assombrir. Une simple baisse de luminosité fatiguerait autant. */
+#desktop.nuit-chaude{filter:sepia(.24) saturate(1.22) hue-rotate(-14deg)}
+#desktop.nuit-chaude{transition:filter .8s ease}
+
 /* --- Panneau « Mac (Apple) » ---------------------------------------------
    Le verdict porte la couleur de sa propre conclusion : la bordure gauche
    suffit à savoir, avant même de lire, si la machine est jouable. */
 .mac-sel{background:var(--bg-alt);color:var(--fg);border:1px solid var(--bd);
   border-radius:8px;padding:7px 9px;font:inherit;font-size:13px;max-width:min(60%,290px)}
-.mac-sel:focus{outline:2px solid var(--accent);outline-offset:1px}
+.mac-sel:focus{outline:2px solid var(--ac);outline-offset:1px}
 .mac-verdict{border:1px solid var(--bd);border-left-width:4px;border-radius:8px;
   padding:12px 14px;margin:12px 0;background:var(--bg-alt)}
 .mac-v-t{font-weight:700;font-size:14px;margin-bottom:4px}
@@ -1316,6 +1382,8 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
                 qsCompact:false, dockHidden:false, zTop:100, majDispo:false, wallpaper:"defaut", police:"defaut",
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
+                comptes:[] /* comptes en ligne reliés : {cle, nom, monte} */,
+                bienetre:{compte:false, secondes:0, limite:0, alerte:false, pauses:false, nuit:false},
                 deskIcons:[] /* icônes épinglées au bureau : {idx, x, y} — idx = index dans APPS */ };
 function setWallpaper(key){
   state.wallpaper = key;
@@ -3343,6 +3411,157 @@ function togglePhoneMirror(){
   }, 1200);
 }
 /* --- Paramètres façon Ubuntu Settings : volet + contenu ----------------- */
+/* --- Boîte de confirmation ------------------------------------------------
+   Le geste destructeur ne doit pas se jouer au même endroit que le geste
+   ordinaire : ici il faut viser un autre bouton, dans une autre boîte, où
+   la conséquence est écrite. C'est le pendant graphique du mot à taper
+   qu'exigent « lexos run-ins » et « lexos format » en ligne de commande.
+   Échap et le fond cliquable annulent — jamais l'inverse. */
+function ctxConfirme(titre, texte, onOui, motOui){
+  document.querySelector(".cfm-fond")?.remove();
+  const f = document.createElement("div");
+  f.className = "cfm-fond";
+  f.innerHTML = `<div class="cfm" role="alertdialog" aria-modal="true">
+      <div class="cfm-t">${titre}</div>
+      <div class="cfm-d">${texte}</div>
+      <div class="cfm-btns">
+        <button class="btn ghost" data-non>Annuler</button>
+        <button class="btn danger" data-oui>${motOui||"Confirmer"}</button>
+      </div></div>`;
+  const ferme = ()=>{ f.remove(); removeEventListener("keydown", esc); };
+  const esc = e=>{ if(e.key==="Escape"){ e.stopPropagation(); ferme(); } };
+  f.addEventListener("mousedown", e=>{ if(e.target===f) ferme(); });
+  f.querySelector("[data-non]").onclick = ferme;
+  f.querySelector("[data-oui]").onclick = ()=>{ ferme(); onOui(); };
+  addEventListener("keydown", esc);
+  document.body.appendChild(f);
+  f.querySelector("[data-non]").focus();   // le refus est le choix par défaut
+}
+
+/* ===== Comptes en ligne ==================================================
+   Les mêmes services que « lexos comptes services » sur la vraie ISO, avec
+   le type rclone exact — c'est lui qui fait la différence entre une
+   commande qui marche et une qui s'arrête sur « unknown remote type ».
+   Une vérification d'intégration refuse toute divergence entre les deux. */
+const CPT_SERVICES = [
+  {cle:"google",    type:"drive",       nom:"Google Drive",           ic:"▲", note:"Autorisation par le navigateur, aucun mot de passe conservé."},
+  {cle:"onedrive",  type:"onedrive",    nom:"Microsoft OneDrive",     ic:"☁", note:"Comptes personnels et professionnels."},
+  {cle:"dropbox",   type:"dropbox",     nom:"Dropbox",                ic:"❑", note:"Autorisation par le navigateur."},
+  {cle:"nextcloud", type:"webdav",      nom:"Nextcloud / ownCloud",   ic:"◍", note:"Adresse du serveur + mot de passe d'application."},
+  {cle:"proton",    type:"protondrive", nom:"Proton Drive",           ic:"⛨", note:"Chiffré de bout en bout."},
+  {cle:"pcloud",    type:"pcloud",      nom:"pCloud",                 ic:"◑", note:"Autorisation par le navigateur."},
+  {cle:"mega",      type:"mega",        nom:"MEGA",                   ic:"◈", note:"Identifiant et mot de passe du compte."},
+  {cle:"webdav",    type:"webdav",      nom:"WebDAV (générique)",     ic:"⌘", note:"Tout serveur qui parle WebDAV."},
+  {cle:"sftp",      type:"sftp",        nom:"SFTP / SSH",             ic:"⇄", note:"Un serveur à toi, par clé ou mot de passe."},
+  {cle:"s3",        type:"s3",          nom:"S3 (Amazon, Wasabi…)", ic:"▤", note:"Clé d'accès et clé secrète."},
+];
+function cptService(cle){ return CPT_SERVICES.find(s=>s.cle===cle); }
+
+/*  L'ajout rejoue les trois temps de la vraie autorisation OAuth — départ
+    vers le fournisseur, retour du jeton, écriture protégée — parce que
+    c'est ce qui explique pourquoi aucun mot de passe n'est conservé. Un
+    bouton qui bascule instantanément le ferait oublier. */
+function cptAjoute(cle){
+  const s = cptService(cle); if(!s) return;
+  if(state.comptes.some(c=>c.cle===cle)){ toast("Ce compte est déjà relié"); return; }
+  toast("→ Ouverture de "+s.nom+" pour autoriser LexOS…");
+  setTimeout(()=>{
+    toast("← Jeton reçu. Aucun mot de passe n'a transité.");
+    setTimeout(()=>{
+      state.comptes.push({cle, nom:s.cle, monte:false});
+      showSettingsSection();
+      toast("✓ "+s.nom+" relié — configuration en lecture seule pour toi");
+    }, 700);
+  }, 900);
+}
+function cptMonte(nom){
+  const c = state.comptes.find(x=>x.nom===nom); if(!c) return;
+  c.monte = !c.monte;
+  showSettingsSection();
+  toast(c.monte ? "✓ Monté sur ~/Nuage/"+nom+" — visible dans Fichiers"
+                : "Démonté. Le compte reste relié.");
+}
+function cptRetire(nom){
+  const c = state.comptes.find(x=>x.nom===nom); if(!c) return;
+  ctxConfirme("Oublier le compte « "+nom+" » ?",
+    "Rien n'est supprimé chez le fournisseur : seul le jeton d'accès part. "+
+    "Sur la vraie ISO, il faut retaper le nom du compte pour confirmer.",
+    ()=>{ state.comptes = state.comptes.filter(x=>x.nom!==nom);
+          showSettingsSection(); toast("Compte oublié"); });
+}
+
+/* ===== Bien-être numérique ===============================================
+   Le compteur ci-dessous mesure POUR DE VRAI le temps passé sur la démo,
+   avec la règle exacte du compteur de la vraie ISO : une seconde ne compte
+   que si l'onglet est visible ET que quelqu'un a bougé dans les 90
+   dernières secondes. Un onglet laissé ouvert toute la nuit ne gonfle donc
+   rien — ce qui est précisément ce qui rend le chiffre utilisable. */
+let bnDerniereActivite = Date.now();
+["pointerdown","keydown","wheel","pointermove"].forEach(ev=>
+  addEventListener(ev, ()=>{ bnDerniereActivite = Date.now(); }, {passive:true}));
+
+function bnTic(){
+  const b = state.bienetre;
+  if(!b.compte) return;
+  if(document.visibilityState !== "visible") return;
+  if(Date.now() - bnDerniereActivite > 90000) return;
+  b.secondes++;
+
+  //  L'avertissement ne part qu'une fois : le répéter chaque seconde
+  //  n'apprendrait qu'à l'ignorer.
+  if(b.limite > 0 && b.secondes >= b.limite*60 && !b.alerte){
+    b.alerte = true;
+    toast("⏳ Limite du jour atteinte : "+bnDuree(b.secondes)+" d'écran");
+  }
+  const el = document.getElementById("bnCompteur");
+  if(el) el.textContent = bnDuree(b.secondes);
+  const j = document.getElementById("bnJauge");
+  if(j && b.limite>0) j.style.width = Math.min(100, b.secondes/(b.limite*60)*100)+"%";
+}
+setInterval(bnTic, 1000);
+
+function bnDuree(sec){
+  const m = Math.floor(sec/60), h = Math.floor(m/60);
+  if(sec < 60) return sec+" s";
+  if(m < 60)   return m+" min";
+  return h+" h "+String(m%60).padStart(2,"0");
+}
+function bnCompteur(){
+  const b = state.bienetre; b.compte = !b.compte;
+  showSettingsSection();
+  toast(b.compte ? "✓ Compteur démarré — seul l'usage réel compte"
+                 : "Compteur arrêté. Les mesures déjà prises restent.");
+}
+function bnLimite(v){
+  const b = state.bienetre;
+  b.limite = parseInt(v,10) || 0;
+  b.alerte = b.limite>0 && b.secondes >= b.limite*60;
+  const t = document.getElementById("bnLimiteTxt");
+  if(t) t.textContent = b.limite ? bnDuree(b.limite*60) : "aucune";
+  const j = document.getElementById("bnJauge");
+  if(j) j.style.width = b.limite>0 ? Math.min(100, b.secondes/(b.limite*60)*100)+"%" : "0%";
+}
+//  Les pauses et la lumière du soir AGISSENT vraiment sur la démo : un
+//  rappel qui apparaît pour de bon, un écran qui se réchauffe pour de bon.
+//  Une case à cocher sans effet n'apprendrait rien de ce que fait l'ISO.
+let bnPauseTimer = null;
+function bnPauses(){
+  const b = state.bienetre; b.pauses = !b.pauses;
+  clearInterval(bnPauseTimer); bnPauseTimer = null;
+  if(b.pauses){
+    bnPauseTimer = setInterval(()=>toast("👁 Micro-pause : lève les yeux 20 secondes"), 180000);
+    toast("✓ Rappels actifs — un toutes les 3 minutes dans la démo");
+  } else toast("Rappels de pause arrêtés");
+  showSettingsSection();
+}
+function bnNuit(){
+  const b = state.bienetre; b.nuit = !b.nuit;
+  document.getElementById("desktop").classList.toggle("nuit-chaude", b.nuit);
+  showSettingsSection();
+  toast(b.nuit ? "🌙 Lumière du soir — les bleus sont adoucis"
+               : "Couleurs remises à zéro");
+}
+
 /* ===== Matériel Apple ====================================================
    « Est-ce que ça tourne sur un Mac ? » n'a pas UNE réponse : il y a trois
    familles de Mac qui n'ont presque rien en commun. Plutôt qu'un paragraphe
@@ -3442,8 +3661,8 @@ function macChoisis(m){ state.macModele = m; showSettingsSection(); }
 function macGlyph(s=16){
   //  Un portable vu de face : le sujet, c'est la machine, pas la marque.
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <rect x="4" y="4" width="16" height="11" rx="1.6" stroke="var(--accent)" stroke-width="1.7"/>
-    <path d="M2 18.5h20l-1.2-1.9H3.2z" fill="var(--accent)" opacity=".85"/>
+    <rect x="4" y="4" width="16" height="11" rx="1.6" stroke="var(--ac)" stroke-width="1.7"/>
+    <path d="M2 18.5h20l-1.2-1.9H3.2z" fill="var(--ac)" opacity=".85"/>
     <path d="M9.6 17.2h4.8" stroke="var(--bg)" stroke-width="1.1" stroke-linecap="round"/></svg>`;
 }
 const SETTINGS_NAV = [
@@ -3641,12 +3860,117 @@ function settingsSection(key){
       ${swRow("Notifications","Branchements USB, réseau, mises à jour",true,"")}`;
     case "recherche": return `<h2>Recherche</h2><div class="sub">Menu Applications</div>
       <p class="set-soon">Ouvre le menu Applications (icône en haut à gauche) pour chercher.</p>`;
-    case "comptes": return `<h2>Comptes en ligne</h2><div class="sub">Pas encore disponible</div>
-      <p class="set-soon">Prévu pour une prochaine version de LexOS.</p>`;
+    case "comptes": {
+      const relies = state.comptes.map(c=>{
+        const s2 = cptService(c.cle);
+        return `<div class="srow">
+          <div style="display:flex;align-items:center;gap:11px;min-width:0">
+            <span class="cpt-ic">${s2.ic}</span>
+            <div style="min-width:0">
+              <div class="t">${s2.nom}</div>
+              <div class="d">${c.monte
+                 ? `Monté sur <code>~/Nuage/${c.nom}</code>`
+                 : "Relié, non monté"}</div></div></div>
+          <div style="display:flex;gap:6px;flex:none">
+            <button class="btn ghost mini" style="width:auto" onclick="cptMonte('${c.nom}')">${c.monte?"Démonter":"Monter"}</button>
+            <button class="btn ghost mini" style="width:auto" onclick="cptRetire('${c.nom}')">Oublier</button>
+          </div></div>`;
+      }).join("");
+      const dispo = CPT_SERVICES.filter(x=>!state.comptes.some(c=>c.cle===x.cle));
+      return `<h2>Comptes en ligne</h2>
+      <div class="sub">Drive, OneDrive, Nextcloud… dans ton gestionnaire de fichiers</div>
+      ${relies || `<p class="set-soon">Aucun compte relié pour l'instant.</p>`}
+      <h3 class="cpt-h3">Ajouter un compte</h3>
+      <div class="cpt-grille">
+        ${dispo.map(x=>`<button class="cpt-carte" onclick="cptAjoute('${x.cle}')" title="${x.note}">
+            <span class="cpt-ic">${x.ic}</span>
+            <span class="cpt-nom">${x.nom}</span>
+            <span class="cpt-type">rclone : ${x.type}</span>
+          </button>`).join("") ||
+          `<p class="set-soon">Tous les services reconnus sont déjà reliés.</p>`}
+      </div>
+      <div class="warnbox">Un compte monté est un <b>accès direct</b>, pas une copie&nbsp;:
+        supprimer un fichier dans <code>~/Nuage</code> le supprime chez le fournisseur.
+        Pour une vraie copie locale, utilisable hors ligne, c'est la synchronisation
+        qu'il faut — <code>rclone sync</code>, ou le client Nextcloud.</div>
+      <p class="notice"><b>Aucun mot de passe de compte n'est conservé.</b>
+        L'autorisation passe par le navigateur, chaque service remet un jeton
+        révocable, et c'est ce jeton que <code>rclone</code> garde dans un fichier
+        que LexOS met en lecture seule pour toi (<code>chmod 600</code>).
+        Révoquer l'accès chez le fournisseur suffit à tout couper.</p>
+      <p class="notice">Sur la vraie ISO&nbsp;: <code>lexos comptes</code> pour l'état,
+        <code>lexos comptes ajouter google</code> pour relier,
+        <code>lexos comptes monter &lt;nom&gt;</code> pour l'ouvrir comme un disque.
+        Les mêmes comptes apparaissent aussi dans la barre latérale de Fichiers,
+        via GVFS.</p>`;
+    }
     case "partage": return `<h2>Partage</h2><div class="sub">Fichiers, QR code, Bluetooth</div>
       <div class="row"><button class="btn" onclick="openShare()"><i class="gly gly-share"></i> Ouvrir Partager</button></div>`;
-    case "bienetre": return `<h2>Bien-être numérique</h2><div class="sub">Pas encore disponible</div>
-      <p class="set-soon">Prévu pour une prochaine version de LexOS.</p>`;
+    case "bienetre": {
+      const b = state.bienetre;
+      const pct = b.limite>0 ? Math.min(100, b.secondes/(b.limite*60)*100) : 0;
+      return `<h2>Bien-être numérique</h2>
+      <div class="sub">Temps d'écran, pauses, lumière du soir</div>
+
+      <div class="bn-carte">
+        <div class="bn-chiffre" id="bnCompteur">${bnDuree(b.secondes)}</div>
+        <div class="bn-sous">${b.compte
+          ? "d'écran depuis le début de cette démo"
+          : "— le compteur est à l'arrêt"}</div>
+        ${b.limite>0 ? `<div class="bn-piste"><div class="bn-jauge" id="bnJauge"
+             style="width:${pct}%;background:${pct>=100?"var(--off)":"var(--ac)"}"></div></div>
+           <div class="bn-piste-txt">limite : <span id="bnLimiteTxt">${bnDuree(b.limite*60)}</span></div>` : ""}
+      </div>
+
+      ${swRow("Compter le temps d'écran",
+        b.compte ? "Une seconde ne compte que si tu es vraiment là"
+                 : "Arrêté par défaut — mesurer ton temps ne se décide pas à ta place",
+        b.compte, "bnCompteur()")}
+
+      <div class="srow"><div><div class="t">Limite du jour</div>
+        <div class="d">Un avertissement au-delà, une seule fois</div></div>
+        <select class="mac-sel" style="max-width:170px" onchange="bnLimite(this.value)">
+          <option value="0"${b.limite===0?" selected":""}>aucune</option>
+          <option value="1"${b.limite===1?" selected":""}>1 min (essai)</option>
+          <option value="60"${b.limite===60?" selected":""}>1 h</option>
+          <option value="120"${b.limite===120?" selected":""}>2 h</option>
+          <option value="240"${b.limite===240?" selected":""}>4 h</option>
+          <option value="480"${b.limite===480?" selected":""}>8 h</option>
+        </select></div>
+
+      ${swRow("Rappels de pause",
+        b.pauses ? "Un rappel toutes les 3 minutes dans la démo"
+                 : "Micro-pauses et pauses longues (workrave sur l'ISO)",
+        b.pauses, "bnPauses()")}
+      ${swRow("Lumière du soir",
+        b.nuit ? "Les bleus sont adoucis — regarde le fond d'écran"
+               : "Réchauffe les couleurs quand le soleil se couche (redshift)",
+        b.nuit, "bnNuit()")}
+
+      <h3 class="cpt-h3">Les sept derniers jours</h3>
+      <div class="bn-semaine">
+        ${["jeu","ven","sam","dim","lun","mar","mer"].map((j,i)=>{
+          const aujourdhui = i===6;
+          const h = aujourdhui ? Math.max(4, Math.min(100, b.secondes/60/240*100)) : 0;
+          return `<div class="bn-col">
+            <div class="bn-bar-piste"><div class="bn-bar" style="height:${h}%"></div></div>
+            <div class="bn-jour${aujourdhui?" auj":""}">${j}</div></div>`;
+        }).join("")}
+      </div>
+      <p class="set-soon">Seule la journée en cours est mesurée&nbsp;: la démo
+        redémarre à zéro à chaque ouverture de page. Sur la vraie ISO l'historique
+        se garde, un fichier texte par jour.</p>
+
+      <p class="notice"><b>Rien ne quitte la machine.</b> Les mesures vivent en
+        clair dans <code>~/.local/share/lexos/bienetre</code>, un fichier par jour.
+        Il n'y a pas une ligne de code, dans <code>lexos-bienetre</code>, qui ouvre
+        une connexion réseau — et son service systemd tourne avec
+        <code>PrivateNetwork=yes</code>, ce qui le lui interdit matériellement.</p>
+      <p class="notice">Sur la vraie ISO&nbsp;: <code>lexos bienetre</code> pour la
+        journée, <code>lexos bienetre semaine</code> pour le graphique,
+        <code>lexos bienetre demarrer</code> pour lancer le compteur,
+        <code>lexos bienetre oublier</code> pour tout effacer.</p>`;
+    }
     case "souris": return `<h2>Souris et pavé tactile</h2><div class="sub">Vitesse, boutons, défilement</div>
       <div class="srow"><div class="t">Vitesse du pointeur</div>
         <input type="range" min="0" max="100" value="55" style="accent-color:var(--ac)"></div>

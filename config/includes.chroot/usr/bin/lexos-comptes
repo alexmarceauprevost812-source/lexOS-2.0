@@ -1,0 +1,288 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-comptes — relier LexOS à tes comptes en ligne
+# =============================================================================
+#  Sous Linux, « comptes en ligne » recouvre deux mécanismes qui ne font pas
+#  la même chose, et les confondre mène à des surprises :
+#
+#   · GNOME Online Accounts (GOA) + GVFS — ouvre le compte DANS le
+#     gestionnaire de fichiers. Rien n'est copié : ouvrir un document le
+#     télécharge à la volée. Idéal pour consulter, mauvais hors ligne.
+#
+#   · rclone — parle à une cinquantaine de services (Drive, OneDrive,
+#     Dropbox, Nextcloud, pCloud, S3…) et sait aussi bien SYNCHRONISER
+#     (copie locale, disponible hors ligne) que MONTER comme un disque.
+#     C'est le plus complet, et c'est celui que ce script privilégie.
+#
+#  Ce que LexOS n'a pas et n'aura pas : un mot de passe de compte stocké en
+#  clair quelque part. L'autorisation passe par le navigateur, chaque
+#  service remet un jeton révocable, et c'est ce jeton que rclone garde
+#  dans son fichier de configuration — que ce script met en 0600.
+#
+#  ── Crochets de test ────────────────────────────────────────────────────
+#     LEXOS_RCLONE_REMOTES  fichier remplaçant « rclone listremotes »
+#     LEXOS_GIO_MOUNTS      fichier remplaçant « gio mount -l »
+#     LEXOS_NUAGE           dossier de montage (défaut ~/Nuage)
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos comptes"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'; Y=$'\033[33m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; V=''; Y=''; B=''; D=''; R=''
+fi
+say()   { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()    { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+warn()  { printf '%s!%s %s\n' "$Y" "$R" "$*"; }
+titre() { printf '\n%s%s%s\n' "$B" "$*" "$R"; }
+die()   { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+NUAGE="${LEXOS_NUAGE:-$HOME/Nuage}"
+
+# =============================================================================
+#  Catalogue des services
+# =============================================================================
+#  nom|type rclone|étiquette|note
+#  Le « type rclone » est le nom exact attendu par « rclone config » : c'est
+#  lui qui fait la différence entre une commande qui marche et une qui
+#  s'arrête sur « unknown remote type ».
+SERVICES="google|drive|Google Drive|Autorisation par le navigateur, aucun mot de passe conservé.
+onedrive|onedrive|Microsoft OneDrive|Comptes personnels et professionnels.
+dropbox|dropbox|Dropbox|Autorisation par le navigateur.
+nextcloud|webdav|Nextcloud / ownCloud|Adresse du serveur + mot de passe d'application.
+proton|protondrive|Proton Drive|Chiffré de bout en bout.
+pcloud|pcloud|pCloud|Autorisation par le navigateur.
+mega|mega|MEGA|Identifiant et mot de passe du compte.
+webdav|webdav|WebDAV (générique)|Tout serveur qui parle WebDAV.
+sftp|sftp|SFTP / SSH|Un serveur à toi, par clé ou mot de passe.
+s3|s3|S3 (Amazon, Wasabi…)|Clé d'accès et clé secrète."
+
+service_ligne() {
+	printf '%s\n' "$SERVICES" | while IFS='|' read -r cle type nom note; do
+		[[ "$cle" == "$1" ]] && printf '%s|%s|%s\n' "$type" "$nom" "$note"
+	done
+}
+
+# =============================================================================
+#  Lecture de l'état
+# =============================================================================
+remotes() {
+	if [[ -n "${LEXOS_RCLONE_REMOTES:-}" ]]; then
+		cat "$LEXOS_RCLONE_REMOTES" 2>/dev/null
+	elif command -v rclone >/dev/null 2>&1; then
+		rclone listremotes 2>/dev/null
+	fi
+}
+
+montages_gvfs() {
+	if [[ -n "${LEXOS_GIO_MOUNTS:-}" ]]; then
+		cat "$LEXOS_GIO_MOUNTS" 2>/dev/null
+	elif command -v gio >/dev/null 2>&1; then
+		gio mount -l 2>/dev/null | grep -E '^Mount\(' || true
+	fi
+}
+
+#  Un remote est « monté » si son dossier dans ~/Nuage est un point de
+#  montage. C'est la seule vérification qui ne mente pas : un dossier vide
+#  laissé par un démontage brutal ressemble sinon à un montage vivant.
+est_monte() { mountpoint -q "$NUAGE/$1" 2>/dev/null; }
+
+cmd_etat() {
+	titre "Outils"
+	local rc=0
+	if command -v rclone >/dev/null 2>&1; then
+		ok "rclone $(rclone version 2>/dev/null | head -1 | awk '{print $2}')"
+		rc=1
+	else
+		warn "rclone absent — c'est lui qui parle aux services de nuage."
+		say  "   ${D}sudo apt install rclone${R}"
+	fi
+	if command -v gio >/dev/null 2>&1; then
+		ok "GVFS — les comptes s'ouvrent aussi depuis Fichiers"
+	else
+		warn "GVFS absent (paquet gvfs-backends)."
+	fi
+
+	titre "Comptes configurés"
+	local liste; liste="$(remotes)"
+	if [[ -z "$liste" ]]; then
+		say "Aucun pour l'instant."
+		(( rc )) && say "   ${D}${PROG} ajouter google${R}   ${D}(ou : ${PROG} services)${R}"
+	else
+		local nom
+		while IFS= read -r nom; do
+			[[ -n "$nom" ]] || continue
+			nom="${nom%:}"
+			if est_monte "$nom"; then
+				ok "$nom  ${D}→ monté sur $NUAGE/$nom${R}"
+			else
+				printf '  %s·%s %s  %s(non monté)%s\n' "$O" "$R" "$nom" "$D" "$R"
+			fi
+		done <<< "$liste"
+	fi
+
+	local gv; gv="$(montages_gvfs)"
+	if [[ -n "$gv" ]]; then
+		titre "Ouverts dans Fichiers (GVFS)"
+		printf '%s\n' "$gv" | sed 's/^/  /'
+	fi
+}
+
+cmd_services() {
+	titre "Services reconnus"
+	printf '%s\n' "$SERVICES" | while IFS='|' read -r cle _type nom note; do
+		printf '  %s%-11s%s %-26s %s%s%s\n' "$O" "$cle" "$R" "$nom" "$D" "$note" "$R"
+	done
+	printf '\n  %s%s ajouter <service>%s\n' "$B" "$PROG" "$R"
+}
+
+# =============================================================================
+#  Ajout d'un compte
+# =============================================================================
+cmd_ajouter() {
+	local cle="${1:-}"
+	[[ -n "$cle" ]] || { cmd_services; exit 0; }
+
+	command -v rclone >/dev/null 2>&1 \
+		|| die "rclone n'est pas installé (sudo apt install rclone)."
+
+	local infos; infos="$(service_ligne "$cle")"
+	[[ -n "$infos" ]] || die "Service inconnu : $cle  (essaie : $PROG services)"
+
+	local type nom note
+	IFS='|' read -r type nom note <<< "$infos"
+
+	titre "Ajouter $nom"
+	printf '  %s%s%s\n\n' "$D" "$note" "$R"
+	cat <<EOF
+  rclone va poser ses questions. Deux réponses comptent vraiment :
+    · le ${B}nom${R} du compte — court et sans espace, il servira de dossier
+      dans $NUAGE ;
+    · le ${B}type${R} — réponds ${O}${type}${R}.
+
+  Pour tout le reste, la touche Entrée prend la valeur par défaut, qui
+  convient presque toujours.
+
+EOF
+	read -rp "  Entrée pour lancer rclone, Ctrl+C pour renoncer " _ || exit 0
+
+	rclone config || die "rclone s'est arrêté sur une erreur."
+
+	#  Le fichier contient des jetons d'accès : personne d'autre n'a à le lire.
+	local conf; conf="$(rclone config file 2>/dev/null | tail -1)"
+	if [[ -f "$conf" ]]; then
+		chmod 600 "$conf" 2>/dev/null && ok "Configuration protégée (lecture par toi seul)."
+	fi
+	ok "Terminé. ${D}${PROG} monter <nom>${R} pour l'ouvrir comme un disque."
+}
+
+# =============================================================================
+#  Montage
+# =============================================================================
+cmd_monter() {
+	local nom="${1:-}"
+	[[ -n "$nom" ]] || die "Usage : $PROG monter <nom du compte>"
+	command -v rclone >/dev/null 2>&1 || die "rclone n'est pas installé."
+
+	remotes | grep -qx "${nom}:" \
+		|| die "Compte inconnu : $nom  (essaie : $PROG  pour voir la liste)"
+
+	if est_monte "$nom"; then
+		ok "$nom est déjà monté sur $NUAGE/$nom"
+		return
+	fi
+
+	mkdir -p "$NUAGE/$nom" || die "Impossible de créer $NUAGE/$nom"
+
+	#  --daemon rend la main tout de suite ; --vfs-cache-mode writes est ce
+	#  qui permet d'ENREGISTRER depuis un éditeur : sans lui, la plupart des
+	#  logiciels échouent à réécrire un fichier ouvert.
+	if rclone mount "${nom}:" "$NUAGE/$nom" \
+			--daemon --vfs-cache-mode writes \
+			--dir-cache-time 30s --poll-interval 15s 2>/dev/null; then
+		sleep 1
+		if est_monte "$nom"; then
+			ok "$nom monté sur ${B}$NUAGE/$nom${R}"
+			say "Il apparaît maintenant dans Fichiers."
+		else
+			warn "rclone est parti mais le montage n'est pas visible."
+			say  "Regarde : rclone mount ${nom}: $NUAGE/$nom --vfs-cache-mode writes"
+		fi
+	else
+		die "Le montage a échoué. FUSE est-il installé (paquet fuse3) ?"
+	fi
+}
+
+cmd_demonter() {
+	local nom="${1:-}"
+	[[ -n "$nom" ]] || die "Usage : $PROG demonter <nom du compte>"
+	est_monte "$nom" || { say "$nom n'est pas monté."; return; }
+
+	if fusermount -u "$NUAGE/$nom" 2>/dev/null || umount "$NUAGE/$nom" 2>/dev/null; then
+		ok "$nom démonté."
+	else
+		die "Démontage refusé — un fichier y est peut-être encore ouvert."
+	fi
+}
+
+cmd_retirer() {
+	local nom="${1:-}"
+	[[ -n "$nom" ]] || die "Usage : $PROG retirer <nom du compte>"
+	command -v rclone >/dev/null 2>&1 || die "rclone n'est pas installé."
+
+	est_monte "$nom" && cmd_demonter "$nom"
+
+	warn "Le compte « $nom » va être retiré de LexOS."
+	say  "Rien n'est supprimé chez le fournisseur : seul le jeton d'accès part."
+	local rep=""
+	read -rp "  Taper le nom du compte pour confirmer : " rep || true
+	[[ "$rep" == "$nom" ]] || { say "Annulé."; return; }
+
+	rclone config delete "$nom" && ok "Retiré." || die "rclone a refusé."
+	say "Pense à révoquer l'accès côté fournisseur si tu ne comptes plus revenir."
+}
+
+cmd_ouvrir() {
+	#  Le panneau GNOME sait gérer les comptes que GVFS montre dans Fichiers.
+	if command -v gnome-control-center >/dev/null 2>&1; then
+		setsid gnome-control-center online-accounts >/dev/null 2>&1 &
+		ok "Panneau des comptes en ligne ouvert."
+	else
+		warn "gnome-control-center n'est pas installé."
+		say  "   ${D}sudo apt install gnome-control-center gnome-online-accounts${R}"
+		say  "En attendant, ${O}${PROG} ajouter <service>${R} fait le même travail en texte."
+	fi
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — relier LexOS à tes comptes en ligne
+
+  ${O}$PROG${R}                     Ce qui est configuré, ce qui est monté
+  ${O}$PROG services${R}            Les services reconnus
+  ${O}$PROG ajouter${R} <service>   Relier un compte ${D}(autorisation par le navigateur)${R}
+  ${O}$PROG monter${R} <nom>        L'ouvrir comme un disque dans $NUAGE
+  ${O}$PROG demonter${R} <nom>      Le refermer
+  ${O}$PROG retirer${R} <nom>       Oublier le compte ${D}(confirmation exigée)${R}
+  ${O}$PROG panneau${R}             Ouvrir le panneau graphique
+
+${D}Aucun mot de passe de compte n'est conservé : chaque service remet un
+jeton révocable, gardé dans la configuration de rclone en lecture seule
+pour toi. Révoquer l'accès côté fournisseur suffit à tout couper.${R}
+EOF
+}
+
+case "${1:-}" in
+	""|etat|état|status)   cmd_etat ;;
+	-h|--help|aide|help)   usage ;;
+	services|liste)        cmd_services ;;
+	ajouter|add)           shift; cmd_ajouter "${1:-}" ;;
+	monter|mount)          shift; cmd_monter "${1:-}" ;;
+	demonter|démonter|umount) shift; cmd_demonter "${1:-}" ;;
+	retirer|supprimer)     shift; cmd_retirer "${1:-}" ;;
+	panneau|gui)           cmd_ouvrir ;;
+	*) die "Sous-commande inconnue : $1  (essaie : $PROG --help)" ;;
+esac

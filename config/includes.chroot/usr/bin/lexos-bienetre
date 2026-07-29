@@ -1,0 +1,321 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-bienetre — temps d'écran, pauses, lumière du soir
+# =============================================================================
+#  Trois choses distinctes, réunies parce qu'elles servent la même intention :
+#
+#   · Le TEMPS D'ÉCRAN — combien de temps la machine a réellement servi
+#     aujourd'hui. Pas depuis l'allumage : depuis la dernière fois que
+#     quelqu'un a bougé. Un ordinateur laissé ouvert toute la nuit ne
+#     compte pas huit heures d'usage, et un compteur qui prétendrait le
+#     contraire ne vaudrait rien.
+#
+#   · Les PAUSES — workrave, qui rappelle de lever les yeux. Le vrai
+#     travail (détecter la frappe, imposer une micro-pause) est le sien ;
+#     LexOS ne fait que l'allumer et l'éteindre proprement.
+#
+#   · La LUMIÈRE DU SOIR — redshift, qui réchauffe les couleurs de l'écran
+#     quand le soleil se couche.
+#
+#  ── Rien n'est allumé sans qu'on le demande ─────────────────────────────
+#  Le compteur de temps d'écran est ARRÊTÉ par défaut. Mesurer combien de
+#  temps quelqu'un passe devant sa machine, même sans jamais rien envoyer
+#  ailleurs, ne se décide pas à sa place. « lexos bienetre demarrer »
+#  l'allume, « arreter » l'éteint, « oublier » efface tout l'historique.
+#
+#  Les mesures restent dans ton dossier personnel, en texte clair, un
+#  fichier par jour. Rien ne part sur le réseau — il n'y a pas une ligne de
+#  code ici qui ouvre une connexion.
+#
+#  ── Crochets de test ────────────────────────────────────────────────────
+#     LEXOS_BIENETRE_DIR  dossier des mesures
+#     LEXOS_IDLE_MS       remplace xprintidle (millisecondes d'inactivité)
+#     LEXOS_DATE          remplace la date du jour (AAAA-MM-JJ)
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos bienetre"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'; Y=$'\033[33m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; V=''; Y=''; B=''; D=''; R=''
+fi
+say()   { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()    { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+warn()  { printf '%s!%s %s\n' "$Y" "$R" "$*"; }
+titre() { printf '\n%s%s%s\n' "$B" "$*" "$R"; }
+die()   { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+DIR="${LEXOS_BIENETRE_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/lexos/bienetre}"
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/bienetre.conf"
+mkdir -p "$DIR" "$(dirname "$CONF")" 2>/dev/null
+
+LIMITE=0          # minutes ; 0 = pas de limite
+jour() { printf '%s' "${LEXOS_DATE:-$(date +%F)}"; }
+
+charge_conf() {
+	# shellcheck disable=SC1090
+	[[ -r "$CONF" ]] && . "$CONF" 2>/dev/null
+	[[ "$LIMITE" =~ ^[0-9]+$ ]] || LIMITE=0
+}
+ecris_conf() {
+	printf '# Écrit par « %s ». LIMITE en minutes, 0 = aucune.\nLIMITE=%s\n' \
+		"$PROG" "$LIMITE" > "$CONF"
+}
+
+minutes_de() { local f="$DIR/$1"; [[ -r "$f" ]] && cat "$f" 2>/dev/null || printf '0'; }
+
+hhmm() {
+	local m="$1"
+	if (( m < 60 )); then printf '%d min' "$m"
+	else printf '%d h %02d' $((m / 60)) $((m % 60))
+	fi
+}
+
+# =============================================================================
+#  Le battement : appelé chaque minute par le minuteur systemd utilisateur
+# =============================================================================
+#  Une minute ne compte que si quelqu'un était là. xprintidle donne le temps
+#  écoulé depuis la dernière frappe ou le dernier mouvement ; au-delà de
+#  90 secondes on considère que la session est simplement ouverte, pas
+#  utilisée. Sans ce garde-fou, un écran laissé allumé la nuit gonflerait
+#  le compteur de huit heures et le rendrait bon à jeter.
+inactivite_ms() {
+	if [[ -n "${LEXOS_IDLE_MS:-}" ]]; then printf '%s' "$LEXOS_IDLE_MS"
+	elif command -v xprintidle >/dev/null 2>&1; then xprintidle 2>/dev/null || printf '0'
+	else printf '0'
+	fi
+}
+
+cmd_tic() {
+	charge_conf
+	local idle; idle="$(inactivite_ms)"
+	[[ "$idle" =~ ^[0-9]+$ ]] || idle=0
+	(( idle > 90000 )) && exit 0
+
+	local j f n
+	j="$(jour)"; f="$DIR/$j"
+	n="$(minutes_de "$j")"; n=$(( n + 1 ))
+	printf '%s' "$n" > "$f"
+
+	#  Alerte une seule fois par jour : répéter la même chose toutes les
+	#  minutes ne ferait qu'apprendre à ignorer la notification.
+	if (( LIMITE > 0 && n >= LIMITE )) && [[ ! -e "$DIR/.alerte-$j" ]]; then
+		: > "$DIR/.alerte-$j"
+		command -v notify-send >/dev/null 2>&1 && notify-send \
+			-i appointment-soon "LexOS — bien-être" \
+			"Limite du jour atteinte : $(hhmm "$n") d'écran." 2>/dev/null
+	fi
+	exit 0
+}
+
+# =============================================================================
+#  Le minuteur
+# =============================================================================
+actif() { systemctl --user is-active --quiet lexos-bienetre.timer 2>/dev/null; }
+
+cmd_demarrer() {
+	command -v systemctl >/dev/null 2>&1 || die "systemd absent : le compteur ne peut pas tourner."
+	command -v xprintidle >/dev/null 2>&1 \
+		|| warn "xprintidle absent — sans lui, tout le temps compte, même l'inactif. (sudo apt install xprintidle)"
+	systemctl --user enable --now lexos-bienetre.timer 2>/dev/null \
+		&& ok "Compteur démarré. Il ajoute une minute par minute d'usage réel." \
+		|| die "Le minuteur n'a pas démarré (unité lexos-bienetre.timer absente ?)."
+}
+
+cmd_arreter() {
+	systemctl --user disable --now lexos-bienetre.timer 2>/dev/null \
+		&& ok "Compteur arrêté. Les mesures déjà prises restent." \
+		|| warn "Le minuteur n'était pas actif."
+}
+
+cmd_oublier() {
+	local rep=""
+	warn "Tout l'historique de temps d'écran va être effacé."
+	read -rp "  Taper « effacer » pour confirmer : " rep || true
+	[[ "$rep" == "effacer" ]] || { say "Annulé."; return; }
+	rm -f "$DIR"/[0-9]* "$DIR"/.alerte-* 2>/dev/null
+	ok "Historique effacé."
+}
+
+# =============================================================================
+#  Limite, pauses, lumière
+# =============================================================================
+cmd_limite() {
+	charge_conf
+	local v="${1:-}"
+	if [[ -z "$v" ]]; then
+		if (( LIMITE > 0 )); then say "Limite du jour : ${B}$(hhmm "$LIMITE")${R}"
+		else say "Aucune limite."
+		fi
+		printf '  %s%s limite 240%s   %sou :%s %s%s limite off%s\n' \
+			"$O" "$PROG" "$R" "$D" "$R" "$O" "$PROG" "$R"
+		return
+	fi
+	case "${v,,}" in
+		off|aucune|0) LIMITE=0; ecris_conf; ok "Limite retirée." ;;
+		*[!0-9]*) die "Donne un nombre de minutes, ou « off »." ;;
+		*) LIMITE="$v"; ecris_conf
+		   ok "Limite du jour : $(hhmm "$LIMITE"). Une notification préviendra." ;;
+	esac
+}
+
+cmd_pauses() {
+	local v="${1:-}"
+	if [[ -z "$v" ]]; then
+		if pgrep -x workrave >/dev/null 2>&1; then ok "Rappels de pause actifs (workrave)."
+		elif command -v workrave >/dev/null 2>&1; then say "workrave est installé mais arrêté."
+		else warn "workrave n'est pas installé (sudo apt install workrave)."
+		fi
+		printf '  %s%s pauses on%s  ·  %s%s pauses off%s\n' "$O" "$PROG" "$R" "$O" "$PROG" "$R"
+		return
+	fi
+	case "${v,,}" in
+		on|oui|active|activer)
+			command -v workrave >/dev/null 2>&1 || die "workrave n'est pas installé."
+			pgrep -x workrave >/dev/null 2>&1 && { ok "Déjà actif."; return; }
+			setsid workrave >/dev/null 2>&1 &
+			sleep 1
+			pgrep -x workrave >/dev/null 2>&1 \
+				&& ok "Rappels de pause actifs : micro-pauses, pauses longues, limite quotidienne." \
+				|| warn "workrave ne semble pas avoir démarré." ;;
+		off|non|desactive|arreter) pkill -x workrave 2>/dev/null && ok "Rappels arrêtés." || say "Ils ne tournaient pas." ;;
+		*) die "Usage : $PROG pauses <on|off>" ;;
+	esac
+}
+
+cmd_nuit() {
+	local v="${1:-}"
+	if [[ -z "$v" ]]; then
+		if pgrep -x redshift >/dev/null 2>&1; then ok "Lumière du soir active (redshift)."
+		elif command -v redshift >/dev/null 2>&1; then say "redshift est installé mais arrêté."
+		else warn "redshift n'est pas installé (sudo apt install redshift)."
+		fi
+		printf '  %s%s nuit on%s  ·  %s%s nuit off%s\n' "$O" "$PROG" "$R" "$O" "$PROG" "$R"
+		return
+	fi
+	case "${v,,}" in
+		on|oui)
+			command -v redshift >/dev/null 2>&1 || die "redshift n'est pas installé."
+			pgrep -x redshift >/dev/null 2>&1 && { ok "Déjà actif."; return; }
+			#  -l 46.8:-71.2 (Québec) : sans position, redshift refuse de
+			#  démarrer plutôt que de deviner. La valeur se change dans
+			#  ~/.config/redshift.conf.
+			setsid redshift -l "${LEXOS_LATLON:-46.8:-71.2}" -t 6500:3400 >/dev/null 2>&1 &
+			sleep 1
+			pgrep -x redshift >/dev/null 2>&1 \
+				&& ok "L'écran se réchauffera au coucher du soleil." \
+				|| warn "redshift n'a pas démarré — vérifie la position dans ~/.config/redshift.conf" ;;
+		off|non)
+			pkill -x redshift 2>/dev/null && { command -v redshift >/dev/null 2>&1 && redshift -x >/dev/null 2>&1; ok "Couleurs remises à zéro."; } \
+				|| say "redshift ne tournait pas." ;;
+		*) die "Usage : $PROG nuit <on|off>" ;;
+	esac
+}
+
+# =============================================================================
+#  Affichage
+# =============================================================================
+#  Le nom du jour vient d'une table plutôt que de « date +%a » : la sortie
+#  reste française même si la locale du moment ne l'est pas — dans un
+#  conteneur de test, sur une session en anglais, ou avant que les locales
+#  soient générées.
+JOURS_FR=(dim lun mar mer jeu ven sam)
+jour_fr() { printf '%s' "${JOURS_FR[$(date -d "$1" +%w 2>/dev/null || printf 0)]}"; }
+
+barre() {
+	local m="$1" max="$2" n=0 i
+	(( max > 0 )) && n=$(( m * 24 / max ))
+	(( n > 24 )) && n=24
+	for (( i = 0; i < n; i++ )); do printf '█'; done
+	for (( i = n; i < 24; i++ )); do printf '%s·%s' "$D" "$R"; done
+}
+
+cmd_semaine() {
+	charge_conf
+	titre "Les sept derniers jours"
+	local i j m max=1 total=0
+	for (( i = 6; i >= 0; i-- )); do
+		j="$(date -d "${LEXOS_DATE:-today} -$i day" +%F 2>/dev/null)" || j="$(jour)"
+		m="$(minutes_de "$j")"
+		(( m > max )) && max="$m"
+	done
+	for (( i = 6; i >= 0; i-- )); do
+		j="$(date -d "${LEXOS_DATE:-today} -$i day" +%F 2>/dev/null)" || j="$(jour)"
+		m="$(minutes_de "$j")"
+		total=$(( total + m ))
+		printf '  %s %s  ' "$(jour_fr "$j")" "$(date -d "$j" +%d 2>/dev/null)"
+		barre "$m" "$max"
+		printf '  %s\n' "$(hhmm "$m")"
+	done
+	printf '\n  %sTotal : %s   ·   moyenne : %s par jour%s\n' \
+		"$D" "$(hhmm "$total")" "$(hhmm $(( total / 7 )))" "$R"
+}
+
+cmd_etat() {
+	charge_conf
+	local j m; j="$(jour)"; m="$(minutes_de "$j")"
+
+	titre "Aujourd'hui"
+	printf "  Temps d’écran : %s%s%s\n" "$B" "$(hhmm "$m")" "$R"
+	if (( LIMITE > 0 )); then
+		local reste=$(( LIMITE - m ))
+		if (( reste > 0 )); then
+			printf '  Limite        : %s  %s(il reste %s)%s\n' "$(hhmm "$LIMITE")" "$D" "$(hhmm "$reste")" "$R"
+		else
+			printf '  Limite        : %s  %s(dépassée de %s)%s\n' "$(hhmm "$LIMITE")" "$Y" "$(hhmm $(( -reste )))" "$R"
+		fi
+	else
+		printf '  Limite        : %saucune%s\n' "$D" "$R"
+	fi
+
+	titre "Compteur"
+	if actif; then ok "En marche — une minute comptée par minute d’usage réel."
+	else
+		say "À l’arrêt. ${D}Rien n’est mesuré tant qu’il n’est pas démarré.${R}"
+		printf '  %s%s demarrer%s\n' "$O" "$PROG" "$R"
+	fi
+
+	titre "Confort"
+	if pgrep -x workrave >/dev/null 2>&1; then ok "Rappels de pause actifs."
+	else printf '  %s·%s Rappels de pause arrêtés  %s(%s pauses on)%s\n' "$O" "$R" "$D" "$PROG" "$R"; fi
+	if pgrep -x redshift >/dev/null 2>&1; then ok "Lumière du soir active."
+	else printf '  %s·%s Lumière du soir arrêtée   %s(%s nuit on)%s\n' "$O" "$R" "$D" "$PROG" "$R"; fi
+
+	printf '\n  %sTout reste sur cette machine, en texte, dans %s%s\n' "$D" "$DIR" "$R"
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — temps d’écran, pauses, lumière du soir
+
+  ${O}$PROG${R}                   Où en est la journée
+  ${O}$PROG semaine${R}           Les sept derniers jours
+  ${O}$PROG demarrer${R}          Commencer à compter le temps d’écran
+  ${O}$PROG arreter${R}           Arrêter de compter
+  ${O}$PROG limite${R} <min|off>  Prévenir au-delà de N minutes
+  ${O}$PROG pauses${R} <on|off>   Rappels de pause ${D}(workrave)${R}
+  ${O}$PROG nuit${R} <on|off>     Réchauffer l’écran le soir ${D}(redshift)${R}
+  ${O}$PROG oublier${R}           Effacer tout l’historique
+
+${D}Le compteur est arrêté par défaut : mesurer le temps de quelqu’un ne se
+décide pas à sa place. Les mesures ne quittent jamais la machine — un
+fichier texte par jour, et pas une ligne de code qui ouvre une connexion.${R}
+EOF
+}
+
+case "${1:-}" in
+	""|etat|état|status)    cmd_etat ;;
+	-h|--help|aide|help)    usage ;;
+	--tic)                  cmd_tic ;;
+	semaine|week)           cmd_semaine ;;
+	demarrer|démarrer|start) cmd_demarrer ;;
+	arreter|arrêter|stop)   cmd_arreter ;;
+	limite|limit)           shift; cmd_limite "${1:-}" ;;
+	pauses|pause)           shift; cmd_pauses "${1:-}" ;;
+	nuit|night)             shift; cmd_nuit "${1:-}" ;;
+	oublier|effacer)        cmd_oublier ;;
+	*) die "Sous-commande inconnue : $1  (essaie : $PROG --help)" ;;
+esac

@@ -1,0 +1,28 @@
+# Comptes en ligne — relier LexOS à Drive, OneDrive, Nextcloud, Dropbox…
+#
+# rclone est le cœur : un seul outil pour une cinquantaine de services,
+# capable de synchroniser (copie locale, utilisable hors ligne) comme de
+# monter le compte à la façon d'un disque. C'est lui que « lexos comptes »
+# pilote.
+rclone
+
+# rclone mount passe par FUSE : sans ce paquet, le montage échoue avec un
+# message peu parlant sur /dev/fuse.
+fuse3
+
+# GVFS ouvre les mêmes comptes DANS Fichiers, sans rien copier : Google
+# Drive, WebDAV, SMB, SFTP apparaissent dans la barre latérale de Thunar.
+gvfs-backends
+gvfs-fuse
+
+# Le service GNOME qui garde les autorisations (jetons OAuth) et que le
+# panneau graphique des comptes vient interroger.
+gnome-online-accounts
+
+# Le panneau graphique lui-même. « lexos comptes panneau » l'ouvre ;
+# tout marche aussi sans lui, en ligne de commande.
+gnome-control-center
+
+# Client de synchronisation Nextcloud, pour qui veut une vraie copie
+# locale tenue à jour plutôt qu'un montage réseau.
+nextcloud-desktop

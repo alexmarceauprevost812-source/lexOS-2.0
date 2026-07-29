@@ -268,9 +268,64 @@ jobs:
               sys.exit("les tables de modèles Mac ont divergé entre la démo et l'ISO")
           EOF
 
+      - name: Services de comptes en ligne identiques
+        run: |
+          # Le « type rclone » est ce que la démo affiche sous chaque service
+          # et ce que « lexos comptes ajouter » dit de répondre. Une faute
+          # d'un côté seulement, et l'utilisateur tape un type que rclone
+          # refuse avec « unknown remote type ». On compare clé et type.
+          python3 - <<'EOF'
+          import re, sys
+
+          sh = open("config/includes.chroot/usr/bin/lexos-comptes", encoding="utf-8").read()
+          bloc = re.search(r'SERVICES="\n?(.*?)"\n', sh, re.S)
+          if not bloc:
+              sys.exit("catalogue SERVICES introuvable dans lexos-comptes")
+          cli = {}
+          for l in bloc.group(1).splitlines():
+              if not l.strip():
+                  continue
+              p = l.split("|")
+              cli[p[0]] = p[1]
+
+          js = open("web-demo/index.html", encoding="utf-8").read()
+          b = re.search(r'const CPT_SERVICES = \[(.*?)\n\];', js, re.S)
+          if not b:
+              sys.exit("CPT_SERVICES introuvable dans la démo")
+          demo = dict(re.findall(r'cle:"([^"]+)",\s*type:"([^"]+)"', b.group(1)))
+
+          if demo != cli:
+              print("ISO  :", sorted(cli.items()))
+              print("démo :", sorted(demo.items()))
+              sys.exit("les services de comptes en ligne ont divergé")
+          print("ok — %d services, mêmes types rclone des deux côtés" % len(cli))
+          EOF
+
+      - name: Aucune variable CSS fantôme dans la démo
+        run: |
+          # Une var(--nom) qui n'existe pas ne provoque aucune erreur : la
+          # propriété est simplement ignorée. Une bordure devient invisible,
+          # une barre de graphique transparente, et rien ne le signale — ni
+          # la console, ni un test qui vérifie la géométrie. C'est le genre
+          # de défaut qu'on ne voit qu'en regardant, donc autant le refuser.
+          python3 - <<'EOF'
+          import re, sys
+
+          s = open("web-demo/index.html", encoding="utf-8").read()
+          style = s[: s.find("</style>")]
+          definies = set(re.findall(r'(--[a-z0-9-]+)\s*:', style))
+          employees = set(re.findall(r'var\((--[a-z0-9-]+)\)', s))
+          manque = sorted(employees - definies)
+          if manque:
+              for v in manque:
+                  print("::error::var(%s) est employée mais jamais définie" % v)
+              sys.exit("variable CSS fantôme")
+          print("ok — %d variables employées, toutes définies" % len(employees))
+          EOF
+
       - name: Aides affichables sans erreur
         run: |
-          for t in lexos lexfetch lexos-perf lexos-net lexos-share lexos-display lexos-mac; do
+          for t in lexos lexfetch lexos-perf lexos-net lexos-share lexos-display lexos-mac lexos-comptes lexos-bienetre; do
             ./config/includes.chroot/usr/bin/$t help >/dev/null \
               || ./config/includes.chroot/usr/bin/$t >/dev/null \
               || { echo "$t help en échec"; exit 1; }

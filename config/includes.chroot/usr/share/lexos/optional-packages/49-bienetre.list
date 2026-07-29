@@ -1,0 +1,18 @@
+# Bien-être numérique — temps d'écran, pauses, lumière du soir.
+#
+# xprintidle dit depuis combien de temps personne n'a touché la machine.
+# C'est LA pièce qui rend le compteur honnête : sans elle, un écran laissé
+# allumé toute la nuit compterait huit heures d'usage.
+xprintidle
+
+# workrave impose les micro-pauses et les pauses longues. Le travail fin
+# (détecter la frappe, verrouiller l'écran le temps de la pause) est le
+# sien ; « lexos bienetre pauses » ne fait que l'allumer et l'éteindre.
+workrave
+
+# redshift réchauffe les couleurs de l'écran au coucher du soleil.
+redshift
+
+# libnotify-bin fournit notify-send, par lequel passe l'avertissement
+# quand la limite du jour est atteinte.
+libnotify-bin

@@ -1,0 +1,13 @@
+[Unit]
+Description=LexOS — compter le temps d'écran, une minute à la fois
+
+[Timer]
+# Une minute d'intervalle : c'est la granularité du compteur. Plus fin
+# n'apporterait rien de lisible, plus grossier raterait les usages courts.
+OnStartupSec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Unit=lexos-bienetre.service
+
+[Install]
+WantedBy=timers.target
