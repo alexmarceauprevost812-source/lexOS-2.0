@@ -159,6 +159,27 @@ Categories=Utility;FileTransfer;
 Keywords=telephone;phone;ecran;screen;mirroring;scrcpy;android;
 EOF
 
+# --- Cartes LexOS ------------------------------------------------------------
+#  Une vraie fenêtre graphique, pas un terminal : Terminal=false et pas de
+#  xfce4-terminal dans Exec, contrairement aux outils en ligne de commande
+#  ci-dessus.
+cat > /usr/share/applications/lexos-cartes.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Cartes LexOS
+Name[en]=LexOS Maps
+Comment=Carte du monde : position, fuseau horaire, météo, thème jour/nuit
+Comment[en]=World map: position, time zone, weather, day/night theme
+Exec=lexos-cartes
+Icon=/usr/share/lexos/cartes/icone.png
+Terminal=false
+StartupNotify=true
+StartupWMClass=Cartes LexOS
+Categories=Utility;Education;Geography;
+Keywords=carte;cartes;map;maps;gps;position;météo;meteo;fuseau;monde;osm;
+EOF
+
 cat > /usr/share/applications/lexos-studio.desktop <<EOF
 [Desktop Entry]
 Type=Application

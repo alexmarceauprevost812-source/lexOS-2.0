@@ -1,0 +1,26 @@
+# =============================================================================
+#  TI-LEX-OS Pro — l'édition pour jouer
+# =============================================================================
+#  Ce que la saveur « gaming » installait déjà, plus tout ce qu'il faut
+#  pour que les jeux Windows tournent : Wine, ses bibliothèques, et de quoi
+#  régler une manette. Les paquets vraiment indispensables sont ici (une
+#  absence arrête la construction) ; le confort est dans les listes
+#  optionnelles, où un nom qui change entre deux versions de Debian ne
+#  coûte pas une heure de compilation.
+# =============================================================================
+
+# Pilotes graphiques : sans Vulkan et sans Mesa à jour, rien ne tourne.
+mesa-vulkan-drivers
+libvulkan1
+vulkan-tools
+mesa-utils
+
+# Wine : le traducteur d'appels Windows vers Linux. C'est LUI qui fait
+# tourner les jeux Windows — Proton, dans Steam, en est une variante.
+wine
+wine64
+
+# Le son : sans lui les jeux se lancent en silence.
+pipewire
+pipewire-pulse
+wireplumber

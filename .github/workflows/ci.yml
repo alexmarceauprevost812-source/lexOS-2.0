@@ -100,7 +100,7 @@ jobs:
           test -n "$LEXOS_NAME"    || { echo "LEXOS_NAME vide"; exit 1; }
           test -n "$LEXOS_VERSION" || { echo "LEXOS_VERSION vide"; exit 1; }
           case "$LEXOS_FLAVOUR" in
-            minimal|standard|dev|full|gaming) ;;
+            minimal|standard|dev|full|gaming|pro) ;;
             *) echo "LEXOS_FLAVOUR invalide : $LEXOS_FLAVOUR"; exit 1 ;;
           esac
           case "$LEXOS_ACCENT_NAME" in

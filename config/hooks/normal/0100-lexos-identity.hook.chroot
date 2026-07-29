@@ -27,6 +27,17 @@ else
 	mkdir -p /etc/lexos
 fi
 
+# --- TI-LEX-OS Pro -----------------------------------------------------------
+#  L'édition pour jouer porte son propre nom, partout où le système
+#  s'annonce : écran de démarrage, « À propos », lexfetch, GRUB. Ce n'est
+#  pas un habillage — c'est une autre ISO, avec Wine, Proton, les pilotes
+#  Vulkan et l'arsenal du joueur déjà en place. Autant qu'elle se présente
+#  comme telle plutôt que de laisser croire à un LexOS ordinaire.
+if [ "$LEXOS_FLAVOUR" = "pro" ]; then
+	LEXOS_NAME="TI-LEX-OS Pro"
+	LEXOS_TAGLINE="Play. Build. Own your machine."
+fi
+
 DEBIAN_VERSION="$(cat /etc/debian_version 2>/dev/null || echo 'unknown')"
 VERSION_CODENAME_LOWER="$(echo "$LEXOS_CODENAME" | tr '[:upper:]' '[:lower:]')"
 

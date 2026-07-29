@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-cartes — Cartes LexOS
+# =============================================================================
+#  Une fenêtre Qt qui contient une vraie carte : MapLibre GL, tuiles
+#  OpenFreeMap (données OpenStreetMap), météo par Open-Meteo. Position,
+#  fuseau horaire, thème jour/nuit qui suit l'heure du lieu regardé.
+#
+#  ── Pourquoi un serveur HTTP local ──────────────────────────────────────
+#  Ouvrir les fichiers en file:// ne marcherait pas, pour deux raisons
+#  qui n'ont rien à voir entre elles :
+#    · les modules ES (import/export) sont bloqués par la politique
+#      d'origine de Chromium sous file:// ;
+#    · navigator.geolocation exige un « contexte sécurisé » — https ou
+#      localhost — et file:// n'en est pas un.
+#  D'où un serveur minimal sur 127.0.0.1, sur un port libre tiré au
+#  moment du lancement. Il n'écoute que la boucle locale : rien de ce
+#  dossier n'est visible depuis le réseau.
+#
+#  ── Ce qui sort vers internet ───────────────────────────────────────────
+#  Les tuiles de carte (tiles.openfreemap.org), la bibliothèque MapLibre
+#  (unpkg.com) et la météo (api.open-meteo.com). Aucun compte, aucune clé
+#  d'interface, et la position ne quitte la machine que sous forme de
+#  coordonnées envoyées au service météo — c'est ce qu'il faut pour qu'il
+#  réponde. Sans internet, la fenêtre s'ouvre mais la carte reste vide.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; Y=$'\033[33m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; Y=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+CODE="/usr/lib/lexos/cartes.py"
+DONNEES="${LEXOS_CARTES_DIR:-/usr/share/lexos/cartes}"
+
+case "${1:-}" in
+	-h|--help|aide|help)
+		cat <<AIDE
+${PROG} — Cartes LexOS
+
+  ${O}${PROG}${R}          Ouvre la carte
+
+Position, fuseau horaire, météo et thème jour/nuit du lieu regardé.
+Données OpenStreetMap via OpenFreeMap, météo par Open-Meteo.
+
+${D}Une connexion à internet est nécessaire : les tuiles de la carte sont
+téléchargées à mesure du déplacement. Aucun compte, aucune clé.${R}
+AIDE
+		exit 0 ;;
+esac
+
+[[ -r "$CODE" ]]        || die "Fichier manquant : $CODE"
+[[ -d "$DONNEES/web" ]] || die "Fichiers de la carte introuvables : $DONNEES/web"
+
+#  PySide6 vient des paquets Debian, jamais de « pip --break-system-packages » :
+#  ce commutateur écrase des fichiers appartenant à dpkg et finit par casser
+#  des logiciels sans rapport. Si le paquet manque, on le dit et on s'arrête.
+if ! python3 -c "import PySide6.QtWebEngineWidgets" >/dev/null 2>&1; then
+	warn "Le composant Qt WebEngine de PySide6 est absent."
+	say  "   ${D}sudo apt install python3-pyside6.qtwebenginewidgets python3-pyside6.qtwidgets${R}"
+	say  "N'installe pas PySide6 par pip : il écraserait des fichiers gérés par dpkg."
+	exit 1
+fi
+
+exec python3 "$CODE" "$@"

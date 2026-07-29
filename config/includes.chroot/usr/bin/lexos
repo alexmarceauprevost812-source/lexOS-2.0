@@ -146,6 +146,10 @@ ${B}ARCHIVES${R}
   ${A}run-ins${R} <archive.zip> Installe une application livrée en .zip
                       ${D}montre ce qu'elle contient et demande avant d'exécuter${R}
 
+${B}CARTES${R}
+  ${A}cartes${R}              Carte du monde : position, fuseau, météo
+                      ${D}données OpenStreetMap · aucun compte, aucune clé${R}
+
 ${B}CLAVIER${R}
   ${A}clavier${R}             Dispositions actives et bascule
   ${A}clavier liste${R}       Les 20 dispositions reconnues
@@ -640,6 +644,7 @@ case "$CMD" in
 	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;
+	cartes|carte|maps)    exec lexos-cartes "$@" ;;
 	clavier|keyboard)     exec lexos-clavier "$@" ;;
 	comptes|compte)       exec lexos-comptes "$@" ;;
 	bienetre|bien-etre|bien-être) exec lexos-bienetre "$@" ;;

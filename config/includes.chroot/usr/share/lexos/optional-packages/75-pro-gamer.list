@@ -1,0 +1,55 @@
+# TI-LEX-OS Pro — l'arsenal du joueur.
+#
+# Tout ce qui rend une machine de jeu agréable sous Linux, au-delà des
+# pilotes et de Wine que la liste obligatoire installe déjà.
+
+# --- Lanceurs et boutiques ---------------------------------------------
+# Steam apporte Proton : la version de Wine que Valve entretient, et qui
+# fait tourner une bonne partie du catalogue Windows sans rien régler.
+steam-installer
+# Lutris rassemble GOG, Epic, les émulateurs et les jeux Windows sous une
+# seule fenêtre, avec des scripts d'installation faits par la communauté.
+lutris
+
+# --- Faire tourner Windows ---------------------------------------------
+# winetricks installe les bibliothèques Windows qu'un jeu réclame
+# (DirectX, polices, .NET) sans avoir à les chercher soi-même.
+winetricks
+# protontricks fait la même chose, mais pour les jeux lancés par Steam.
+protontricks
+# gamescope : un compositeur dédié au jeu. Il règle le plein écran, la
+# mise à l'échelle et le taux de rafraîchissement là où le bureau échoue.
+gamescope
+
+# --- Performance et mesure ---------------------------------------------
+# GameMode bascule le processeur en mode course le temps de la partie et
+# le remet comme avant en sortant. Un jeu qui l'appelle en profite seul.
+gamemode
+# MangoHud affiche par-dessus le jeu les images par seconde, la
+# température et la charge — sans lui, « ça rame » reste une impression.
+mangohud
+goverlay
+
+# --- Manettes et souris ------------------------------------------------
+# Les règles udev qui font reconnaître les manettes Steam, Xbox et PS.
+steam-devices
+# Tester chaque bouton et chaque axe avant d'accuser le jeu.
+jstest-gtk
+# Faire passer une manette pour un clavier, quand un jeu ne la gère pas.
+antimicrox
+# Régler les boutons, la sensibilité et les couleurs d'une souris de jeu.
+piper
+
+# --- Émulation ----------------------------------------------------------
+retroarch
+dolphin-emu
+ppsspp-qt
+mgba-qt
+scummvm
+
+# --- Jeux libres, pour avoir quelque chose à lancer tout de suite -------
+supertuxkart
+0ad
+minetest
+openttd
+xonotic

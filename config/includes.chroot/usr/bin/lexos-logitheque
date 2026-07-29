@@ -29,30 +29,107 @@ die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
 #  Les mêmes entrées alimentent la Logithèque de la démo web
 #  (web-demo/index.html, const LOGITHEQUE) — un seul catalogue, deux vitrines.
 CATALOGUE="
-firefox|firefox-esr|Internet|Navigateur web libre de Mozilla
-chromium|chromium|Internet|Le navigateur libre derrière Chrome
-courriel|thunderbird|Internet|Courriel, agenda et contacts
-torrent|transmission-gtk|Internet|Client BitTorrent léger
-bureautique|libreoffice|Bureautique|Texte, tableur, présentation
-pdf|evince|Bureautique|Ouvrir et annoter des PDF
-vlc|vlc|Multimédia|Lit à peu près n'importe quelle vidéo
-son|audacity|Multimédia|Enregistrer et monter du son
-capture|obs-studio|Multimédia|Capture d'écran et diffusion en direct
-video|kdenlive|Multimédia|Montage vidéo multipiste
-photo|gimp|Création|Retouche photo et dessin matriciel
-vectoriel|inkscape|Création|Dessin vectoriel (SVG)
-peinture|krita|Création|Peinture numérique et bandes dessinées
-3d|blender|Création|Modélisation et animation 3D
-editeur|geany|Développement|Éditeur de code léger avec coloration
-git|git|Développement|Gestion de versions
-docker|docker.io|Développement|Conteneurs applicatifs
-steam|steam-installer|Jeux|Boutique et lanceur de jeux Valve
-lutris|lutris|Jeux|Jeux Windows, GOG, émulateurs
-kart|supertuxkart|Jeux|Course de karting libre
-partitions|gparted|Utilitaires|Partitionner les disques
-sauvegarde|timeshift|Utilitaires|Points de restauration du système
-distant|remmina|Utilitaires|Bureau à distance (RDP, VNC, SSH)
-paquets|synaptic|Utilitaires|Gestionnaire de paquets détaillé
+firefox|firefox-esr|Internet|Navigateur web libre de Mozilla|https://www.mozilla.org/firefox/
+chromium|chromium|Internet|Le navigateur libre derrière Chrome|https://www.chromium.org
+thunderbird|thunderbird|Internet|Courriel, agenda et contacts|https://www.thunderbird.net
+transmission|transmission-gtk|Internet|Client BitTorrent léger|https://transmissionbt.com
+libreoffice|libreoffice|Bureautique|Texte, tableur, présentation — suite complète|https://www.libreoffice.org
+lecteurpdf|evince|Bureautique|Ouvrir et annoter des PDF|https://apps.gnome.org/Evince/
+vlc|vlc|Multimédia|Lit à peu près n'importe quelle vidéo|https://www.videolan.org
+audacity|audacity|Multimédia|Enregistrer et monter du son|https://www.audacityteam.org
+obsstudio|obs-studio|Multimédia|Capture d'écran et diffusion en direct|https://obsproject.com
+kdenlive|kdenlive|Multimédia|Montage vidéo multipiste|https://kdenlive.org
+gimp|gimp|Création|Retouche photo et dessin matriciel|https://www.gimp.org
+inkscape|inkscape|Création|Dessin vectoriel (SVG)|https://inkscape.org
+krita|krita|Création|Peinture numérique et bandes dessinées|https://krita.org
+blender|blender|Création|Modélisation et animation 3D|https://www.blender.org
+geany|geany|Développement|Éditeur de code léger avec coloration syntaxique|https://www.geany.org
+neovim|neovim|Développement|Vim modernisé : greffons en Lua, serveur de langage intégré|https://neovim.io
+vim|vim|Développement|L'éditeur modal, présent sur toutes les machines du monde|https://www.vim.org
+gnuemacs|emacs|Développement|Éditeur extensible en Lisp — et beaucoup plus|https://www.gnu.org/software/emacs/
+micro|micro|Développement|Terminal, mais avec Ctrl+S et Ctrl+Z comme partout ailleurs|https://micro-editor.github.io
+bluefish|bluefish|Développement|Éditeur pour le web : HTML, CSS, PHP, gabarits|https://bluefish.openoffice.nl
+codeblocks|codeblocks|Développement|Environnement complet pour C et C++|https://www.codeblocks.org
+qtcreator|qtcreator|Développement|Environnement Qt : interface graphique, débogueur, profileur|https://www.qt.io/product/development-tools
+glade|glade|Développement|Dessiner des interfaces GTK à la souris|https://glade.gnome.org
+git|git|Développement|Gestion de versions|https://git-scm.com
+gitlfs|git-lfs|Développement|Versionner de gros fichiers sans étouffer le dépôt|https://git-lfs.com
+tig|tig|Développement|Parcourir l'historique Git dans le terminal|https://jonas.github.io/tig/
+gitg|gitg|Développement|Voir l'historique Git en fenêtre|https://apps.gnome.org/Gitg/
+meld|meld|Développement|Comparer et fusionner fichiers et dossiers|https://meldmerge.org
+compilateurcc|build-essential|Développement|gcc, g++, make et les en-têtes — la base de tout le reste|https://packages.debian.org/trixie/build-essential
+clangllvm|clang|Développement|Compilateur C/C++ aux messages d'erreur lisibles|https://clang.llvm.org
+cmake|cmake|Développement|Décrire une compilation une fois, la lancer partout|https://cmake.org
+ninja|ninja-build|Développement|Le moteur de compilation le plus rapide|https://ninja-build.org
+gdb|gdb|Développement|Débogueur : arrêter un programme et regarder dedans|https://www.sourceware.org/gdb/
+valgrind|valgrind|Développement|Trouver les fuites de mémoire et les accès invalides|https://valgrind.org
+docker|docker.io|Développement|Conteneurs applicatifs|https://www.docker.com
+podman|podman|Développement|Conteneurs sans démon ni droits root|https://podman.io
+ansible|ansible|Développement|Configurer des machines à distance, de façon reproductible|https://www.ansible.com
+machinesvirtue|virt-manager|Développement|Créer et piloter des machines virtuelles (KVM/QEMU)|https://virt-manager.org
+wireshark|wireshark|Développement|Voir passer chaque paquet du réseau|https://www.wireshark.org
+httpie|httpie|Développement|curl, mais lisible : requêtes HTTP colorées|https://httpie.io
+jq|jq|Développement|Interroger et transformer du JSON en ligne de commande|https://jqlang.github.io/jq/
+shellcheck|shellcheck|Développement|Relit tes scripts shell et signale les pièges|https://www.shellcheck.net
+ripgrep|ripgrep|Développement|Chercher dans le code, très vite, en respectant .gitignore|https://github.com/BurntSushi/ripgrep
+fzf|fzf|Développement|Filtrer n'importe quelle liste au clavier|https://github.com/junegunn/fzf
+tmux|tmux|Développement|Plusieurs terminaux dans un seul, qui survivent à la déconnexion|https://github.com/tmux/tmux
+pandoc|pandoc|Développement|Convertir entre Markdown, HTML, PDF, DOCX, LaTeX…|https://pandoc.org
+hugo|hugo|Développement|Générateur de sites statiques, très rapide|https://gohugo.io
+nodejs|nodejs|Langages|JavaScript hors du navigateur|https://nodejs.org
+npm|npm|Langages|Le gestionnaire de paquets de Node.js|https://www.npmjs.com
+pippython|python3-pip|Langages|Installer des bibliothèques Python|https://pip.pypa.io
+environnements|python3-venv|Langages|Un jeu de bibliothèques par projet, sans se marcher dessus|https://docs.python.org/3/library/venv.html
+jupyter|jupyter-notebook|Langages|Carnets de code : Python et résultats sur la même page|https://jupyter.org
+javajdk|default-jdk|Langages|Compilateur et machine virtuelle Java|https://openjdk.org
+maven|maven|Langages|Construire et gérer les dépendances d'un projet Java|https://maven.apache.org
+gradle|gradle|Langages|L'autre système de construction Java, aussi utilisé par Android|https://gradle.org
+go|golang-go|Langages|Compilé, rapide, une seule façon de formater le code|https://go.dev
+rust|rustc|Langages|La sécurité mémoire vérifiée à la compilation|https://www.rust-lang.org
+cargo|cargo|Langages|Construction et paquets pour Rust|https://doc.rust-lang.org/cargo/
+php|php-cli|Langages|Le langage derrière une bonne moitié du web|https://www.php.net
+composer|composer|Langages|Le gestionnaire de dépendances de PHP|https://getcomposer.org
+ruby|ruby-full|Langages|Élégant et expressif — le langage de Rails|https://www.ruby-lang.org
+lua|lua5.4|Langages|Minuscule et embarquable : jeux, Neovim, Redis|https://www.lua.org
+julia|julia|Langages|Calcul scientifique à la vitesse du C|https://julialang.org
+r|r-base|Langages|Statistiques et graphiques|https://www.r-project.org
+haskellghc|ghc|Langages|Purement fonctionnel, typage fort|https://www.haskell.org/ghc/
+erlang|erlang|Langages|Bâti pour les systèmes qui ne s'arrêtent jamais|https://www.erlang.org
+elixir|elixir|Langages|La robustesse d'Erlang, avec une syntaxe agréable|https://elixir-lang.org
+sqlite|sqlite3|Données|Une base de données entière dans un seul fichier|https://www.sqlite.org
+dbbrowsersqlit|sqlitebrowser|Données|Ouvrir et modifier une base SQLite à la souris|https://sqlitebrowser.org
+postgresql|postgresql|Données|La base relationnelle la plus complète du libre|https://www.postgresql.org
+mariadb|mariadb-server|Données|Le successeur libre de MySQL|https://mariadb.org
+redis|redis-server|Données|Base clé-valeur en mémoire, très rapide|https://redis.io
+nginx|nginx|Données|Serveur web léger, aussi mandataire inverse|https://nginx.org
+apache|apache2|Données|Le serveur web historique, très configurable|https://httpd.apache.org
+steam|steam-installer|Jeux|Boutique et lanceur de jeux Valve|https://store.steampowered.com
+lutris|lutris|Jeux|Jeux Windows, GOG, émulateurs|https://lutris.net
+wine|wine|Jeux|Faire tourner les logiciels et jeux Windows|https://www.winehq.org
+winetricks|winetricks|Jeux|Installe les bibliothèques Windows qui manquent à un jeu|https://github.com/Winetricks/winetricks
+gamemode|gamemode|Jeux|Bascule le processeur en mode course le temps d'une partie|https://github.com/FeralInteractive/gamemode
+mangohud|mangohud|Jeux|Images par seconde, température et charge, par-dessus le jeu|https://github.com/flightlessmango/MangoHud
+outilsvulkan|vulkan-tools|Jeux|Vérifier que la carte graphique gère bien Vulkan|https://www.vulkan.org
+infoopengl|mesa-utils|Jeux|glxinfo et glxgears : l'accélération 3D marche-t-elle ?|https://www.mesa3d.org
+antimicrox|antimicrox|Jeux|Faire passer une manette pour un clavier|https://github.com/AntiMicroX/antimicrox
+testdemanette|jstest-gtk|Jeux|Vérifier chaque bouton et chaque axe|https://jstest-gtk.gitlab.io
+piper|piper|Jeux|Régler les boutons et la sensibilité d'une souris de jeu|https://github.com/libratbag/piper
+retroarch|retroarch|Jeux|Émulation : des dizaines de consoles sous une seule interface|https://www.retroarch.com
+dolphin|dolphin-emu|Jeux|Émulateur GameCube et Wii|https://dolphin-emu.org
+ppsspp|ppsspp-qt|Jeux|Émulateur PlayStation Portable|https://www.ppsspp.org
+mgba|mgba-qt|Jeux|Émulateur Game Boy Advance|https://mgba.io
+scummvm|scummvm|Jeux|Rejouer les jeux d'aventure des années 90|https://www.scummvm.org
+0ad|0ad|Jeux|Stratégie en temps réel dans l'Antiquité|https://play0ad.com
+minetest|minetest|Jeux|Monde ouvert en blocs, modifiable à l'infini|https://www.minetest.net
+openttd|openttd|Jeux|Bâtir un empire du transport|https://www.openttd.org
+wesnoth|wesnoth|Jeux|Stratégie au tour par tour, en campagnes|https://www.wesnoth.org
+xonotic|xonotic|Jeux|Tir à la première personne, nerveux et libre|https://xonotic.org
+supertuxkart|supertuxkart|Jeux|Course de karting libre|https://supertuxkart.net
+carteslexos|lexos-cartes|Utilitaires|Carte du monde : position, fuseau horaire, météo — données OpenStreetMap|https://openfreemap.org
+gparted|gparted|Utilitaires|Partitionner les disques|https://gparted.org
+timeshift|timeshift|Utilitaires|Points de restauration du système|https://github.com/linuxmint/timeshift
+remmina|remmina|Utilitaires|Bureau à distance (RDP, VNC, SSH)|https://remmina.org
+synaptic|synaptic|Utilitaires|Gestionnaire de paquets détaillé|https://www.nongnu.org/synaptic/
 "
 
 # --- Résolution d'un nom simple vers un paquet Debian ------------------------
@@ -60,7 +137,7 @@ paquets|synaptic|Utilitaires|Gestionnaire de paquets détaillé
 #  que le catalogue ne connaît pas. On le laisse passer tel quel à apt.
 resoudre() {
 	local nom="$1"
-	while IFS='|' read -r cle pkg _cat _desc; do
+	while IFS='|' read -r cle pkg _cat _desc _lien; do
 		[[ -n "$cle" ]] || continue
 		if [[ "$cle" == "$nom" || "$pkg" == "$nom" ]]; then
 			printf '%s\n' "$pkg"
@@ -83,10 +160,41 @@ sudo_cmd() {
 	fi
 }
 
+# --- Le site officiel d'une application --------------------------------------
+#  Le catalogue porte l'adresse du projet lui-même, pas celle d'un
+#  intermédiaire : c'est là qu'on trouve le code, les notes de version et
+#  la façon de signaler un défaut. Un miroir de téléchargement n'apprend
+#  rien de tout ça.
+cmd_site() {
+	local nom="${1:-}"
+	[[ -n "$nom" ]] || die "Usage : $PROG site <nom>"
+	local cle pkg cat desc lien
+	while IFS='|' read -r cle pkg cat desc lien; do
+		[[ -n "$cle" ]] || continue
+		if [[ "$cle" == "$nom" || "$pkg" == "$nom" ]]; then
+			printf '\n%s%s%s  %s(%s)%s\n  %s\n\n' \
+				"$B" "$cle" "$R" "$D" "$pkg" "$R" "$desc"
+			#  Deux adresses, deux usages : le site du projet dit ce qu'est
+			#  le logiciel et qui le fait ; la page Debian dit quelle version
+			#  est empaquetée dans trixie, avec quelles dépendances, et
+			#  propose le téléchargement direct pour chaque architecture.
+			printf '  %sProjet%s  %s%s%s\n' "$B" "$R" "$O" "$lien" "$R"
+			printf '  %sDebian%s  %shttps://packages.debian.org/trixie/%s%s\n\n' \
+				"$B" "$R" "$O" "$pkg" "$R"
+			if command -v xdg-open >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+				setsid xdg-open "$lien" >/dev/null 2>&1 &
+				printf '  %sle site du projet est ouvert dans le navigateur%s\n' "$D" "$R"
+			fi
+			return 0
+		fi
+	done <<< "$CATALOGUE"
+	die "Inconnu du catalogue : $nom  ($PROG liste)"
+}
+
 cmd_liste() {
 	printf '%s%sCatalogue de la Logithèque%s\n\n' "$B" "$O" "$R"
 	local cat_courante=""
-	while IFS='|' read -r cle pkg cat desc; do
+	while IFS='|' read -r cle pkg cat desc _lien; do
 		[[ -n "$cle" ]] || continue
 		if [[ "$cat" != "$cat_courante" ]]; then
 			cat_courante="$cat"
@@ -178,6 +286,7 @@ ${D}Exemples :
   $PROG install vlc photo bureautique
   $PROG install firefox
   $PROG chercher editeur video${R}
+  ${O}$PROG site rust${R}          ${D}le site officiel du projet${R}
 EOF
 }
 
@@ -188,5 +297,6 @@ case "${1:-}" in
 	retirer|remove|desinstaller) shift; cmd_retirer "$@" ;;
 	chercher|search)  shift; cmd_chercher "$@" ;;
 	-h|--help|aide)   usage ;;
+	site|lien)        shift; cmd_site "$@" ;;
 	*)                say "Commande inconnue : $1"; printf '\n'; usage; exit 1 ;;
 esac

@@ -1,0 +1,13 @@
+# Cartes LexOS — la fenêtre Qt qui contient la carte.
+#
+# PySide6 vient des paquets Debian et non de pip : « pip install
+# --break-system-packages » écrase des fichiers appartenant à dpkg et
+# finit par casser des logiciels sans rapport avec les cartes.
+python3-pyside6.qtwidgets
+python3-pyside6.qtwebenginewidgets
+python3-pyside6.qtcore
+python3-pyside6.qtgui
+
+# xdg-user-dirs donne le vrai dossier de téléchargement (« Téléchargements »
+# sur une session française) pour l'export d'image.
+xdg-user-dirs

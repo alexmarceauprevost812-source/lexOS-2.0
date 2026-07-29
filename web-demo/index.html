@@ -634,6 +634,15 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .btn.danger{background:var(--off);border-color:var(--off);color:#fff}
 .btn.danger:hover{filter:brightness(1.12)}
 
+.lgt-liens{display:flex;align-items:center;gap:9px;margin-top:4px;flex-wrap:wrap}
+.lgt-liens code{font-size:11px;color:var(--fg-dim);background:var(--bg);
+  border:1px solid var(--bd);border-radius:4px;padding:1px 5px}
+.lgt-liens a{font-size:11px;color:var(--ac-hi);text-decoration:none}
+.lgt-liens a.lgt-deb{color:var(--fg-dim);background:var(--bg);
+  border:1px solid var(--bd);border-radius:4px;padding:1px 6px}
+.lgt-liens a.lgt-deb:hover{color:var(--ac-hi);border-color:var(--ac)}
+.lgt-liens a:hover{text-decoration:underline}
+
 /* --- VPN gratuit --------------------------------------------------------
    « Qui paie » est en accent, pas en gris : sur cette page c'est
    l'information qui décide, pas une note de bas de page. */
@@ -6126,37 +6135,152 @@ async function studioExporte(){
    `pkg` sert de clé unique ; `poids` est la taille réelle approximative
    d'installation, arrondie. */
 const LOGITHEQUE = [
-  {pkg:"firefox-esr",      nom:"Firefox",        ic:"🦊", cat:"Internet",     poids:"250 Mo", desc:"Navigateur web libre de Mozilla", fn:openBrowser},
-  {pkg:"chromium",         nom:"Chromium",       ic:"🌐", cat:"Internet",     poids:"310 Mo", desc:"Le navigateur libre derrière Chrome", fn:openBrowser},
-  {pkg:"thunderbird",      nom:"Thunderbird",    ic:"✉",  cat:"Internet",     poids:"280 Mo", desc:"Courriel, agenda et contacts"},
-  {pkg:"transmission-gtk", nom:"Transmission",   ic:"⇄",  cat:"Internet",     poids:"12 Mo",  desc:"Client BitTorrent léger"},
-  {pkg:"libreoffice",      nom:"LibreOffice",    ic:"📄", cat:"Bureautique",  poids:"780 Mo", desc:"Texte, tableur, présentation — suite complète"},
-  {pkg:"evince",           nom:"Lecteur PDF",    ic:"📕", cat:"Bureautique",  poids:"22 Mo",  desc:"Ouvrir et annoter des PDF"},
-  {pkg:"vlc",              nom:"VLC",            ic:"🎬", cat:"Multimédia",   poids:"95 Mo",  desc:"Lit à peu près n'importe quelle vidéo"},
-  {pkg:"audacity",         nom:"Audacity",       ic:"🎚", cat:"Multimédia",   poids:"60 Mo",  desc:"Enregistrer et monter du son", fn:openMusique},
-  {pkg:"obs-studio",       nom:"OBS Studio",     ic:"⏺",  cat:"Multimédia",   poids:"140 Mo", desc:"Capture d'écran et diffusion en direct"},
-  {pkg:"kdenlive",         nom:"Kdenlive",       ic:"🎞", cat:"Multimédia",   poids:"330 Mo", desc:"Montage vidéo multipiste"},
-  {pkg:"gimp",             nom:"GIMP",           ic:"🖌", cat:"Création",     poids:"270 Mo", desc:"Retouche photo et dessin matriciel"},
-  {pkg:"inkscape",         nom:"Inkscape",       ic:"✒",  cat:"Création",     poids:"420 Mo", desc:"Dessin vectoriel (SVG)"},
-  {pkg:"krita",            nom:"Krita",          ic:"🎨", cat:"Création",     poids:"520 Mo", desc:"Peinture numérique et bandes dessinées"},
-  {pkg:"blender",          nom:"Blender",        ic:"🧊", cat:"Création",     poids:"690 Mo", desc:"Modélisation et animation 3D"},
-  {pkg:"geany",            nom:"Geany",          ic:"⌨",  cat:"Développement",poids:"20 Mo",  desc:"Éditeur de code léger avec coloration syntaxique", fn:openEditor},
-  {pkg:"git",              nom:"Git",            ic:"⑂",  cat:"Développement",poids:"48 Mo",  desc:"Gestion de versions", fn:openTerminal},
-  {pkg:"docker.io",        nom:"Docker",         ic:"🐳", cat:"Développement",poids:"420 Mo", desc:"Conteneurs applicatifs"},
-  {pkg:"steam-installer",  nom:"Steam",          ic:"🎮", cat:"Jeux",         poids:"3,2 Go", desc:"Boutique et lanceur de jeux Valve"},
-  {pkg:"lutris",           nom:"Lutris",         ic:"🕹", cat:"Jeux",         poids:"85 Mo",  desc:"Lance les jeux Windows, GOG, émulateurs"},
-  {pkg:"supertuxkart",     nom:"SuperTuxKart",   ic:"🏁", cat:"Jeux",         poids:"780 Mo", desc:"Course de karting libre"},
-  {pkg:"gparted",          nom:"GParted",        ic:"💽", cat:"Utilitaires",  poids:"18 Mo",  desc:"Partitionner les disques"},
-  {pkg:"timeshift",        nom:"Timeshift",      ic:"🕘", cat:"Utilitaires",  poids:"14 Mo",  desc:"Points de restauration du système"},
-  {pkg:"remmina",          nom:"Remmina",        ic:"🖥", cat:"Utilitaires",  poids:"26 Mo",  desc:"Bureau à distance (RDP, VNC, SSH)"},
-  {pkg:"synaptic",         nom:"Synaptic",       ic:"📦", cat:"Utilitaires",  poids:"11 Mo",  desc:"Gestionnaire de paquets détaillé"},
+  {pkg:"firefox-esr", nom:"Firefox", ic:"🦊", cat:"Internet", poids:"250 Mo", desc:"Navigateur web libre de Mozilla", lien:"https://www.mozilla.org/firefox/", fn:openBrowser},
+  {pkg:"chromium", nom:"Chromium", ic:"🌐", cat:"Internet", poids:"310 Mo", desc:"Le navigateur libre derrière Chrome", lien:"https://www.chromium.org", fn:openBrowser},
+  {pkg:"thunderbird", nom:"Thunderbird", ic:"✉", cat:"Internet", poids:"280 Mo", desc:"Courriel, agenda et contacts", lien:"https://www.thunderbird.net"},
+  {pkg:"transmission-gtk", nom:"Transmission", ic:"⇄", cat:"Internet", poids:"12 Mo", desc:"Client BitTorrent léger", lien:"https://transmissionbt.com"},
+  {pkg:"libreoffice", nom:"LibreOffice", ic:"📄", cat:"Bureautique", poids:"780 Mo", desc:"Texte, tableur, présentation — suite complète", lien:"https://www.libreoffice.org"},
+  {pkg:"evince", nom:"Lecteur PDF", ic:"📕", cat:"Bureautique", poids:"22 Mo", desc:"Ouvrir et annoter des PDF", lien:"https://apps.gnome.org/Evince/"},
+  {pkg:"vlc", nom:"VLC", ic:"▶", cat:"Multimédia", poids:"95 Mo", desc:"Lit à peu près n'importe quelle vidéo", lien:"https://www.videolan.org"},
+  {pkg:"audacity", nom:"Audacity", ic:"🎚", cat:"Multimédia", poids:"65 Mo", desc:"Enregistrer et monter du son", lien:"https://www.audacityteam.org"},
+  {pkg:"obs-studio", nom:"OBS Studio", ic:"⏺", cat:"Multimédia", poids:"120 Mo", desc:"Capture d'écran et diffusion en direct", lien:"https://obsproject.com"},
+  {pkg:"kdenlive", nom:"Kdenlive", ic:"🎬", cat:"Multimédia", poids:"210 Mo", desc:"Montage vidéo multipiste", lien:"https://kdenlive.org"},
+  {pkg:"gimp", nom:"GIMP", ic:"🖌", cat:"Création", poids:"330 Mo", desc:"Retouche photo et dessin matriciel", lien:"https://www.gimp.org"},
+  {pkg:"inkscape", nom:"Inkscape", ic:"✒", cat:"Création", poids:"290 Mo", desc:"Dessin vectoriel (SVG)", lien:"https://inkscape.org"},
+  {pkg:"krita", nom:"Krita", ic:"🎨", cat:"Création", poids:"420 Mo", desc:"Peinture numérique et bandes dessinées", lien:"https://krita.org"},
+  {pkg:"blender", nom:"Blender", ic:"🧊", cat:"Création", poids:"520 Mo", desc:"Modélisation et animation 3D", lien:"https://www.blender.org"},
+  {pkg:"geany", nom:"Geany", ic:"⌨", cat:"Développement", poids:"20 Mo", desc:"Éditeur de code léger avec coloration syntaxique", lien:"https://www.geany.org", fn:openEditor},
+  {pkg:"neovim", nom:"Neovim", ic:"N", cat:"Développement", poids:"32 Mo", desc:"Vim modernisé : greffons en Lua, serveur de langage intégré", lien:"https://neovim.io", fn:openTerminal},
+  {pkg:"vim", nom:"Vim", ic:"V", cat:"Développement", poids:"38 Mo", desc:"L'éditeur modal, présent sur toutes les machines du monde", lien:"https://www.vim.org", fn:openTerminal},
+  {pkg:"emacs", nom:"GNU Emacs", ic:"E", cat:"Développement", poids:"180 Mo", desc:"Éditeur extensible en Lisp — et beaucoup plus", lien:"https://www.gnu.org/software/emacs/"},
+  {pkg:"micro", nom:"Micro", ic:"µ", cat:"Développement", poids:"14 Mo", desc:"Terminal, mais avec Ctrl+S et Ctrl+Z comme partout ailleurs", lien:"https://micro-editor.github.io", fn:openTerminal},
+  {pkg:"bluefish", nom:"Bluefish", ic:"🌊", cat:"Développement", poids:"28 Mo", desc:"Éditeur pour le web : HTML, CSS, PHP, gabarits", lien:"https://bluefish.openoffice.nl"},
+  {pkg:"codeblocks", nom:"Code::Blocks", ic:"⬢", cat:"Développement", poids:"95 Mo", desc:"Environnement complet pour C et C++", lien:"https://www.codeblocks.org"},
+  {pkg:"qtcreator", nom:"Qt Creator", ic:"◈", cat:"Développement", poids:"310 Mo", desc:"Environnement Qt : interface graphique, débogueur, profileur", lien:"https://www.qt.io/product/development-tools"},
+  {pkg:"glade", nom:"Glade", ic:"🪟", cat:"Développement", poids:"18 Mo", desc:"Dessiner des interfaces GTK à la souris", lien:"https://glade.gnome.org"},
+  {pkg:"git", nom:"Git", ic:"⑂", cat:"Développement", poids:"48 Mo", desc:"Gestion de versions", lien:"https://git-scm.com", fn:openTerminal},
+  {pkg:"git-lfs", nom:"Git LFS", ic:"⑂", cat:"Développement", poids:"12 Mo", desc:"Versionner de gros fichiers sans étouffer le dépôt", lien:"https://git-lfs.com"},
+  {pkg:"tig", nom:"Tig", ic:"🌲", cat:"Développement", poids:"1 Mo", desc:"Parcourir l'historique Git dans le terminal", lien:"https://jonas.github.io/tig/", fn:openTerminal},
+  {pkg:"gitg", nom:"Gitg", ic:"⑂", cat:"Développement", poids:"9 Mo", desc:"Voir l'historique Git en fenêtre", lien:"https://apps.gnome.org/Gitg/"},
+  {pkg:"meld", nom:"Meld", ic:"⇋", cat:"Développement", poids:"8 Mo", desc:"Comparer et fusionner fichiers et dossiers", lien:"https://meldmerge.org"},
+  {pkg:"build-essential", nom:"Compilateur C/C++", ic:"⚙", cat:"Développement", poids:"220 Mo", desc:"gcc, g++, make et les en-têtes — la base de tout le reste", lien:"https://packages.debian.org/trixie/build-essential"},
+  {pkg:"clang", nom:"Clang / LLVM", ic:"🦙", cat:"Développement", poids:"140 Mo", desc:"Compilateur C/C++ aux messages d'erreur lisibles", lien:"https://clang.llvm.org"},
+  {pkg:"cmake", nom:"CMake", ic:"🔧", cat:"Développement", poids:"42 Mo", desc:"Décrire une compilation une fois, la lancer partout", lien:"https://cmake.org"},
+  {pkg:"ninja-build", nom:"Ninja", ic:"⚡", cat:"Développement", poids:"0,5 Mo", desc:"Le moteur de compilation le plus rapide", lien:"https://ninja-build.org"},
+  {pkg:"gdb", nom:"GDB", ic:"🐞", cat:"Développement", poids:"28 Mo", desc:"Débogueur : arrêter un programme et regarder dedans", lien:"https://www.sourceware.org/gdb/", fn:openTerminal},
+  {pkg:"valgrind", nom:"Valgrind", ic:"🔬", cat:"Développement", poids:"78 Mo", desc:"Trouver les fuites de mémoire et les accès invalides", lien:"https://valgrind.org"},
+  {pkg:"docker.io", nom:"Docker", ic:"🐳", cat:"Développement", poids:"420 Mo", desc:"Conteneurs applicatifs", lien:"https://www.docker.com"},
+  {pkg:"podman", nom:"Podman", ic:"🦭", cat:"Développement", poids:"95 Mo", desc:"Conteneurs sans démon ni droits root", lien:"https://podman.io"},
+  {pkg:"ansible", nom:"Ansible", ic:"📋", cat:"Développement", poids:"62 Mo", desc:"Configurer des machines à distance, de façon reproductible", lien:"https://www.ansible.com"},
+  {pkg:"virt-manager", nom:"Machines virtuelles", ic:"🖥", cat:"Développement", poids:"24 Mo", desc:"Créer et piloter des machines virtuelles (KVM/QEMU)", lien:"https://virt-manager.org"},
+  {pkg:"wireshark", nom:"Wireshark", ic:"🦈", cat:"Développement", poids:"145 Mo", desc:"Voir passer chaque paquet du réseau", lien:"https://www.wireshark.org"},
+  {pkg:"httpie", nom:"HTTPie", ic:"🌐", cat:"Développement", poids:"2 Mo", desc:"curl, mais lisible : requêtes HTTP colorées", lien:"https://httpie.io", fn:openTerminal},
+  {pkg:"jq", nom:"jq", ic:"{}", cat:"Développement", poids:"1 Mo", desc:"Interroger et transformer du JSON en ligne de commande", lien:"https://jqlang.github.io/jq/", fn:openTerminal},
+  {pkg:"shellcheck", nom:"ShellCheck", ic:"✓", cat:"Développement", poids:"22 Mo", desc:"Relit tes scripts shell et signale les pièges", lien:"https://www.shellcheck.net", fn:openTerminal},
+  {pkg:"ripgrep", nom:"ripgrep", ic:"🔎", cat:"Développement", poids:"4 Mo", desc:"Chercher dans le code, très vite, en respectant .gitignore", lien:"https://github.com/BurntSushi/ripgrep", fn:openTerminal},
+  {pkg:"fzf", nom:"fzf", ic:"⌕", cat:"Développement", poids:"3 Mo", desc:"Filtrer n'importe quelle liste au clavier", lien:"https://github.com/junegunn/fzf", fn:openTerminal},
+  {pkg:"tmux", nom:"tmux", ic:"▤", cat:"Développement", poids:"1 Mo", desc:"Plusieurs terminaux dans un seul, qui survivent à la déconnexion", lien:"https://github.com/tmux/tmux", fn:openTerminal},
+  {pkg:"pandoc", nom:"Pandoc", ic:"📑", cat:"Développement", poids:"110 Mo", desc:"Convertir entre Markdown, HTML, PDF, DOCX, LaTeX…", lien:"https://pandoc.org", fn:openTerminal},
+  {pkg:"hugo", nom:"Hugo", ic:"🏗", cat:"Développement", poids:"58 Mo", desc:"Générateur de sites statiques, très rapide", lien:"https://gohugo.io"},
+  {pkg:"nodejs", nom:"Node.js", ic:"⬢", cat:"Langages", poids:"98 Mo", desc:"JavaScript hors du navigateur", lien:"https://nodejs.org", fn:openTerminal},
+  {pkg:"npm", nom:"npm", ic:"📦", cat:"Langages", poids:"12 Mo", desc:"Le gestionnaire de paquets de Node.js", lien:"https://www.npmjs.com", fn:openTerminal},
+  {pkg:"python3-pip", nom:"pip (Python)", ic:"🐍", cat:"Langages", poids:"8 Mo", desc:"Installer des bibliothèques Python", lien:"https://pip.pypa.io", fn:openTerminal},
+  {pkg:"python3-venv", nom:"Environnements Python", ic:"🐍", cat:"Langages", poids:"3 Mo", desc:"Un jeu de bibliothèques par projet, sans se marcher dessus", lien:"https://docs.python.org/3/library/venv.html"},
+  {pkg:"jupyter-notebook", nom:"Jupyter", ic:"📓", cat:"Langages", poids:"180 Mo", desc:"Carnets de code : Python et résultats sur la même page", lien:"https://jupyter.org"},
+  {pkg:"default-jdk", nom:"Java (JDK)", ic:"☕", cat:"Langages", poids:"390 Mo", desc:"Compilateur et machine virtuelle Java", lien:"https://openjdk.org"},
+  {pkg:"maven", nom:"Maven", ic:"Ⓜ", cat:"Langages", poids:"12 Mo", desc:"Construire et gérer les dépendances d'un projet Java", lien:"https://maven.apache.org"},
+  {pkg:"gradle", nom:"Gradle", ic:"🐘", cat:"Langages", poids:"98 Mo", desc:"L'autre système de construction Java, aussi utilisé par Android", lien:"https://gradle.org"},
+  {pkg:"golang-go", nom:"Go", ic:"🐹", cat:"Langages", poids:"420 Mo", desc:"Compilé, rapide, une seule façon de formater le code", lien:"https://go.dev", fn:openTerminal},
+  {pkg:"rustc", nom:"Rust", ic:"🦀", cat:"Langages", poids:"180 Mo", desc:"La sécurité mémoire vérifiée à la compilation", lien:"https://www.rust-lang.org", fn:openTerminal},
+  {pkg:"cargo", nom:"Cargo", ic:"📦", cat:"Langages", poids:"28 Mo", desc:"Construction et paquets pour Rust", lien:"https://doc.rust-lang.org/cargo/", fn:openTerminal},
+  {pkg:"php-cli", nom:"PHP", ic:"🐘", cat:"Langages", poids:"32 Mo", desc:"Le langage derrière une bonne moitié du web", lien:"https://www.php.net", fn:openTerminal},
+  {pkg:"composer", nom:"Composer", ic:"🎼", cat:"Langages", poids:"3 Mo", desc:"Le gestionnaire de dépendances de PHP", lien:"https://getcomposer.org"},
+  {pkg:"ruby-full", nom:"Ruby", ic:"💎", cat:"Langages", poids:"95 Mo", desc:"Élégant et expressif — le langage de Rails", lien:"https://www.ruby-lang.org", fn:openTerminal},
+  {pkg:"lua5.4", nom:"Lua", ic:"🌙", cat:"Langages", poids:"1 Mo", desc:"Minuscule et embarquable : jeux, Neovim, Redis", lien:"https://www.lua.org", fn:openTerminal},
+  {pkg:"julia", nom:"Julia", ic:"∮", cat:"Langages", poids:"520 Mo", desc:"Calcul scientifique à la vitesse du C", lien:"https://julialang.org"},
+  {pkg:"r-base", nom:"R", ic:"📊", cat:"Langages", poids:"210 Mo", desc:"Statistiques et graphiques", lien:"https://www.r-project.org"},
+  {pkg:"ghc", nom:"Haskell (GHC)", ic:"λ", cat:"Langages", poids:"1,2 Go", desc:"Purement fonctionnel, typage fort", lien:"https://www.haskell.org/ghc/"},
+  {pkg:"erlang", nom:"Erlang", ic:"☎", cat:"Langages", poids:"180 Mo", desc:"Bâti pour les systèmes qui ne s'arrêtent jamais", lien:"https://www.erlang.org"},
+  {pkg:"elixir", nom:"Elixir", ic:"💧", cat:"Langages", poids:"28 Mo", desc:"La robustesse d'Erlang, avec une syntaxe agréable", lien:"https://elixir-lang.org"},
+  {pkg:"sqlite3", nom:"SQLite", ic:"🗄", cat:"Données", poids:"2 Mo", desc:"Une base de données entière dans un seul fichier", lien:"https://www.sqlite.org", fn:openTerminal},
+  {pkg:"sqlitebrowser", nom:"DB Browser SQLite", ic:"🗃", cat:"Données", poids:"32 Mo", desc:"Ouvrir et modifier une base SQLite à la souris", lien:"https://sqlitebrowser.org"},
+  {pkg:"postgresql", nom:"PostgreSQL", ic:"🐘", cat:"Données", poids:"95 Mo", desc:"La base relationnelle la plus complète du libre", lien:"https://www.postgresql.org"},
+  {pkg:"mariadb-server", nom:"MariaDB", ic:"🐬", cat:"Données", poids:"180 Mo", desc:"Le successeur libre de MySQL", lien:"https://mariadb.org"},
+  {pkg:"redis-server", nom:"Redis", ic:"⚡", cat:"Données", poids:"12 Mo", desc:"Base clé-valeur en mémoire, très rapide", lien:"https://redis.io"},
+  {pkg:"nginx", nom:"nginx", ic:"🌍", cat:"Données", poids:"6 Mo", desc:"Serveur web léger, aussi mandataire inverse", lien:"https://nginx.org"},
+  {pkg:"apache2", nom:"Apache", ic:"🪶", cat:"Données", poids:"24 Mo", desc:"Le serveur web historique, très configurable", lien:"https://httpd.apache.org"},
+  {pkg:"steam-installer", nom:"Steam", ic:"🎮", cat:"Jeux", poids:"5 Mo", desc:"Boutique et lanceur de jeux Valve", lien:"https://store.steampowered.com"},
+  {pkg:"lutris", nom:"Lutris", ic:"🕹", cat:"Jeux", poids:"28 Mo", desc:"Jeux Windows, GOG, émulateurs", lien:"https://lutris.net"},
+  {pkg:"wine", nom:"Wine", ic:"🍷", cat:"Jeux", poids:"1,1 Go", desc:"Faire tourner les logiciels et jeux Windows", lien:"https://www.winehq.org"},
+  {pkg:"winetricks", nom:"Winetricks", ic:"🧪", cat:"Jeux", poids:"2 Mo", desc:"Installe les bibliothèques Windows qui manquent à un jeu", lien:"https://github.com/Winetricks/winetricks"},
+  {pkg:"gamemode", nom:"GameMode", ic:"🚀", cat:"Jeux", poids:"1 Mo", desc:"Bascule le processeur en mode course le temps d'une partie", lien:"https://github.com/FeralInteractive/gamemode"},
+  {pkg:"mangohud", nom:"MangoHud", ic:"📈", cat:"Jeux", poids:"3 Mo", desc:"Images par seconde, température et charge, par-dessus le jeu", lien:"https://github.com/flightlessmango/MangoHud"},
+  {pkg:"vulkan-tools", nom:"Outils Vulkan", ic:"🔺", cat:"Jeux", poids:"2 Mo", desc:"Vérifier que la carte graphique gère bien Vulkan", lien:"https://www.vulkan.org", fn:openTerminal},
+  {pkg:"mesa-utils", nom:"Info OpenGL", ic:"🔻", cat:"Jeux", poids:"1 Mo", desc:"glxinfo et glxgears : l'accélération 3D marche-t-elle ?", lien:"https://www.mesa3d.org", fn:openTerminal},
+  {pkg:"antimicrox", nom:"AntiMicroX", ic:"🎛", cat:"Jeux", poids:"8 Mo", desc:"Faire passer une manette pour un clavier", lien:"https://github.com/AntiMicroX/antimicrox"},
+  {pkg:"jstest-gtk", nom:"Test de manette", ic:"🕹", cat:"Jeux", poids:"1 Mo", desc:"Vérifier chaque bouton et chaque axe", lien:"https://jstest-gtk.gitlab.io"},
+  {pkg:"piper", nom:"Piper", ic:"🖱", cat:"Jeux", poids:"3 Mo", desc:"Régler les boutons et la sensibilité d'une souris de jeu", lien:"https://github.com/libratbag/piper"},
+  {pkg:"retroarch", nom:"RetroArch", ic:"👾", cat:"Jeux", poids:"95 Mo", desc:"Émulation : des dizaines de consoles sous une seule interface", lien:"https://www.retroarch.com"},
+  {pkg:"dolphin-emu", nom:"Dolphin", ic:"🐬", cat:"Jeux", poids:"62 Mo", desc:"Émulateur GameCube et Wii", lien:"https://dolphin-emu.org"},
+  {pkg:"ppsspp-qt", nom:"PPSSPP", ic:"🎴", cat:"Jeux", poids:"38 Mo", desc:"Émulateur PlayStation Portable", lien:"https://www.ppsspp.org"},
+  {pkg:"mgba-qt", nom:"mGBA", ic:"🎮", cat:"Jeux", poids:"12 Mo", desc:"Émulateur Game Boy Advance", lien:"https://mgba.io"},
+  {pkg:"scummvm", nom:"ScummVM", ic:"🗝", cat:"Jeux", poids:"42 Mo", desc:"Rejouer les jeux d'aventure des années 90", lien:"https://www.scummvm.org"},
+  {pkg:"0ad", nom:"0 A.D.", ic:"🏛", cat:"Jeux", poids:"2,5 Go", desc:"Stratégie en temps réel dans l'Antiquité", lien:"https://play0ad.com"},
+  {pkg:"minetest", nom:"Minetest", ic:"⛏", cat:"Jeux", poids:"28 Mo", desc:"Monde ouvert en blocs, modifiable à l'infini", lien:"https://www.minetest.net"},
+  {pkg:"openttd", nom:"OpenTTD", ic:"🚂", cat:"Jeux", poids:"38 Mo", desc:"Bâtir un empire du transport", lien:"https://www.openttd.org"},
+  {pkg:"wesnoth", nom:"Wesnoth", ic:"⚔", cat:"Jeux", poids:"480 Mo", desc:"Stratégie au tour par tour, en campagnes", lien:"https://www.wesnoth.org"},
+  {pkg:"xonotic", nom:"Xonotic", ic:"💥", cat:"Jeux", poids:"990 Mo", desc:"Tir à la première personne, nerveux et libre", lien:"https://xonotic.org"},
+  {pkg:"supertuxkart", nom:"SuperTuxKart", ic:"🏎", cat:"Jeux", poids:"680 Mo", desc:"Course de karting libre", lien:"https://supertuxkart.net"},
+  {pkg:"lexos-cartes", nom:"Cartes LexOS", ic:"🗺", cat:"Utilitaires", poids:"1 Mo", desc:"Carte du monde : position, fuseau horaire, météo — données OpenStreetMap", lien:"https://openfreemap.org", fn:openCartes},
+  {pkg:"gparted", nom:"GParted", ic:"💽", cat:"Utilitaires", poids:"14 Mo", desc:"Partitionner les disques", lien:"https://gparted.org"},
+  {pkg:"timeshift", nom:"Timeshift", ic:"⏱", cat:"Utilitaires", poids:"18 Mo", desc:"Points de restauration du système", lien:"https://github.com/linuxmint/timeshift"},
+  {pkg:"remmina", nom:"Remmina", ic:"🖥", cat:"Utilitaires", poids:"22 Mo", desc:"Bureau à distance (RDP, VNC, SSH)", lien:"https://remmina.org"},
+  {pkg:"synaptic", nom:"Synaptic", ic:"📦", cat:"Utilitaires", poids:"12 Mo", desc:"Gestionnaire de paquets détaillé", lien:"https://www.nongnu.org/synaptic/"},
 ];
-const LGT_CATS = ["Toutes","Internet","Bureautique","Multimédia","Création","Développement","Jeux","Utilitaires"];
+const LGT_CATS = ["Toutes","Internet","Bureautique","Multimédia","Création","Développement","Langages","Données","Jeux","Utilitaires"];
 /*  Un paquet installé garde son état pour toute la session (pas de
     localStorage dans ce fichier — tout repart à zéro au rechargement). */
 const lgtInstalles = new Set();
 let lgtCat = "Toutes", lgtQ = "";
 
+/* --- Cartes LexOS ---------------------------------------------------------
+   La vraie application est une fenêtre Qt qui charge MapLibre et les
+   tuiles OpenStreetMap. Ici, aucune tuile ne peut être téléchargée : la
+   démo publiée interdit toute requête vers un autre serveur. Plutôt que
+   de simuler une carte — un dessin figé qui ne se déplacerait pas et
+   mentirait sur ce que fait le logiciel —, cette fenêtre explique ce
+   qu'est l'application et où la trouver. */
+function openCartes(){
+  openWin("cartes","Cartes LexOS","🗺",
+  `<div class="pad">
+     <div style="text-align:center;padding:18px 0 6px">
+       <div style="font-size:54px;line-height:1">🗺</div>
+       <div style="font-size:17px;font-weight:700;margin-top:8px">Cartes LexOS</div>
+       <div style="color:var(--fg-dim);font-size:13px;margin-top:4px">
+         Position · fuseau horaire · météo · thème jour/nuit</div>
+     </div>
+     <div class="warnbox">Cette fenêtre ne montre pas de carte, et c'est
+       volontaire. La démo publiée n'a le droit de contacter aucun autre
+       serveur — or une carte, ce sont des tuiles téléchargées à mesure
+       qu'on se déplace. Dessiner une fausse carte figée mentirait sur ce
+       que fait le logiciel.</div>
+     <div class="srow"><div><div class="t">Ce que c'est</div>
+       <div class="d">Une fenêtre Qt (PySide6) qui charge MapLibre GL et les
+       tuiles OpenFreeMap — de vraies données OpenStreetMap. Le thème de
+       l'interface suit l'heure du lieu que tu regardes, pas la tienne.</div></div></div>
+     <div class="srow"><div><div class="t">Ce qui sort vers internet</div>
+       <div class="d">Les tuiles (<code>tiles.openfreemap.org</code>), la
+       bibliothèque MapLibre (<code>unpkg.com</code>) et la météo
+       (<code>api.open-meteo.com</code>). Aucun compte, aucune clé. Tes
+       coordonnées ne partent qu'au service météo — c'est ce qu'il lui faut
+       pour répondre.</div></div></div>
+     <div class="srow"><div><div class="t">La position</div>
+       <div class="d">L'autorisation de géolocalisation n'est accordée qu'au
+       serveur local qui sert la carte, et à personne d'autre.</div></div></div>
+     <p class="notice">Sur la vraie ISO&nbsp;: <code>lexos cartes</code>, ou
+       l'entrée <b>Cartes LexOS</b> du menu Applications.</p>
+   </div>`, 560, 520);
+}
 function openLogitheque(){
   openWin("logitheque","Logithèque","📦",
   `<div class="pad">
@@ -6169,7 +6293,10 @@ function openLogitheque(){
      <p class="notice">Sur la vraie ISO, ces boutons appellent
      <b>GNOME Logiciels</b> (dépôts Debian + Flathub) ou
      <code>lexos logitheque install &lt;nom&gt;</code>. Ici, l'installation
-     est simulée — mais les noms de paquets sont les vrais.</p>
+     est simulée — mais les noms de paquets sont les vrais, et
+     <b>chaque lien mène au vrai site du projet</b> : celui où vivent le code,
+     les notes de version et la façon de signaler un défaut. Pas un miroir de
+     téléchargement, pas un intermédiaire.</p>
    </div>`, 640, 560);
   lgtCat="Toutes"; lgtQ="";
   renderLgtCats(); renderLgt();
@@ -6180,13 +6307,26 @@ function renderLgtCats(){
     `<button class="lgt-cat${k===lgtCat?" on":""}" onclick="lgtSetCat('${k}')">${k}</button>`).join("");
 }
 function lgtSetCat(k){ lgtCat=k; renderLgtCats(); renderLgt(); }
+//  Deux liens par application, parce qu'ils ne servent pas à la même chose :
+//  le SITE DU PROJET pour savoir ce que c'est et qui le fait, la PAGE
+//  DEBIAN pour la version exactement empaquetée dans trixie, ses
+//  dépendances et le téléchargement direct par architecture.
+//  On n'affiche que le nom d'hôte : « rust-lang.org » se lit d'un coup,
+//  l'adresse entière encombrerait la carte sans rien apprendre de plus.
+//  Le lien, lui, part vers l'adresse complète.
+function lgtHote(url){
+  try { return new URL(url).hostname.replace(/^www\./,""); }
+  catch(e){ return url; }
+}
 function lgtFiltre(v){ lgtQ=(v||"").trim().toLowerCase(); renderLgt(); }
 function renderLgt(){
   const box=document.getElementById("lgtList"); if(!box) return;
   const list=LOGITHEQUE.filter(a=>
     (lgtCat==="Toutes" || a.cat===lgtCat) &&
     (!lgtQ || a.nom.toLowerCase().includes(lgtQ) || a.pkg.includes(lgtQ)
-           || a.desc.toLowerCase().includes(lgtQ)));
+           || a.desc.toLowerCase().includes(lgtQ)
+           || a.cat.toLowerCase().includes(lgtQ)
+           || a.lien.toLowerCase().includes(lgtQ)));
   if(!list.length){
     box.innerHTML=`<div class="lgt-vide">Aucune application ne correspond à « ${esc(lgtQ)} ».</div>`;
     return;
@@ -6198,6 +6338,12 @@ function renderLgt(){
       <span class="lgt-txt">
         <span class="lgt-nom">${esc(a.nom)}${pose?'<span class="lgt-pose">INSTALLÉ</span>':""}</span>
         <span class="lgt-desc">${esc(a.desc)}</span>
+        <span class="lgt-liens">
+          <a href="${a.lien}" target="_blank" rel="noopener noreferrer"
+             title="Le site du projet : code, notes de version, signalement de défauts">${lgtHote(a.lien)} ↗</a>
+          <a href="https://packages.debian.org/trixie/${esc(a.pkg)}" target="_blank" rel="noopener noreferrer"
+             class="lgt-deb" title="La page Debian du paquet : la version Linux exactement empaquetée dans trixie, ses dépendances, et le téléchargement direct par architecture">⤓ Télécharger · Linux</a>
+        </span>
       </span>
       <span class="lgt-act">${pose
         ? `<button class="lgt-btn" onclick="lgtOuvrir('${a.pkg}')">Ouvrir</button>

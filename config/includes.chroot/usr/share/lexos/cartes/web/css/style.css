@@ -1,0 +1,150 @@
+/* style.css — LexOS Maps
+   Thèmes jour/nuit pilotés par [data-theme] sur <body>.
+   Les couleurs des chemins (autoroute/route/forestier) sont appliquées sur
+   la carte elle-même par js/theme.js ; les variables ci-dessous ne servent
+   qu'à l'habillage de l'interface (barres, boutons, légende). */
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, Cantarell, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+body[data-theme="night"] {
+  --bg: #0d1420;
+  --panel-bg: rgba(13, 20, 32, 0.90);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --text: #e8e4da;
+  --text-dim: #a9a396;
+  --accent: #2e78e4;
+  --road-motorway: #2a4d8f;
+  --road-normal: #e8871e;
+  --road-forest: #ac1e22;
+}
+
+body[data-theme="day"] {
+  --bg: #413a2d;
+  --panel-bg: rgba(65, 58, 45, 0.90);
+  --panel-border: rgba(255, 255, 255, 0.10);
+  --text: #f2ecd9;
+  --text-dim: #cfc6ac;
+  --accent: #e8dcc4;
+  --road-motorway: #f2d9a1;
+  --road-normal: #e8dcc4;
+  --road-forest: #c8bc9f;
+}
+
+/* ---------- Écran de chargement (globe rotatif) ---------- */
+.lexos-loader {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px;
+  background: var(--bg);
+  perspective: 500px;
+  transition: opacity 1s ease;
+}
+.lexos-loader--hidden { opacity: 0; pointer-events: none; }
+.lexos-loader__globe { width: 84px; height: 84px; }
+@keyframes lexos-spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+@keyframes lexos-settle { from { transform: rotateY(0deg); } to { transform: rotateY(300deg); } }
+.lexos-loader__globe--spin { animation: lexos-spin 1.35s linear infinite; }
+.lexos-loader__globe--settling { animation: lexos-settle 1.8s cubic-bezier(0.19, 1, 0.22, 1) 1; }
+.lexos-loader__label { margin: 0; font-size: 1.3rem; font-weight: 600; letter-spacing: 0.02em; }
+.lexos-loader__label span { color: var(--text-dim); font-weight: 400; }
+.lexos-loader__sub { margin: 0; font-size: 0.85rem; color: var(--text-dim); }
+
+/* ---------- Mise en page générale ---------- */
+.lexos-app { height: 100%; display: flex; flex-direction: column; }
+
+.lexos-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 8px 16px;
+  background: var(--panel-bg); border-bottom: 1px solid var(--panel-border);
+  backdrop-filter: blur(6px);
+  z-index: 10;
+}
+.lexos-brand { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.lexos-brand__icon { width: 22px; height: 22px; }
+.lexos-brand small { color: var(--text-dim); font-weight: 400; margin-left: 2px; }
+
+.lexos-clocks { font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--text-dim); display: flex; gap: 6px; align-items: center; }
+.lexos-clocks__sep { opacity: 0.5; }
+#lexos-clock-device { color: var(--text); }
+
+.lexos-actions { display: flex; gap: 8px; }
+.lexos-btn {
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--panel-border); border-radius: 999px;
+  padding: 6px 12px; font-size: 0.85rem; cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.lexos-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+.lexos-btn--active { color: var(--text); border-color: var(--accent); }
+
+/* ---------- Carte ---------- */
+.lexos-main { position: relative; flex: 1; min-height: 0; }
+.lexos-map { position: absolute; inset: 0; }
+
+.lexos-position-readout {
+  position: absolute; top: 12px; left: 12px; z-index: 5;
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  padding: 6px 10px; border-radius: 8px;
+  font-size: 0.8rem; font-variant-numeric: tabular-nums; color: var(--text-dim);
+}
+
+.lexos-fab-stack {
+  position: absolute; right: 14px; bottom: 90px; z-index: 5;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.lexos-fab {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--panel-bg); border: 1px solid var(--panel-border); color: var(--text);
+  font-size: 1.1rem; cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+  transition: transform 0.12s ease;
+}
+.lexos-fab:hover { transform: scale(1.06); }
+.lexos-fab:active { transform: scale(0.96); }
+
+.lexos-legend {
+  position: absolute; left: 12px; bottom: 14px; z-index: 5; margin: 0;
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  padding: 6px 10px; border-radius: 8px;
+  font-size: 0.75rem; color: var(--text-dim);
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.lexos-legend__swatch { display: inline-block; width: 16px; height: 3px; border-radius: 2px; margin-left: 8px; }
+.lexos-legend__swatch:first-child { margin-left: 0; }
+.lexos-legend__swatch--motorway { background: var(--road-motorway); }
+.lexos-legend__swatch--road { background: var(--road-normal); }
+.lexos-legend__swatch--forest { background: var(--road-forest); }
+
+/* ---------- Météo par secteur ---------- */
+.lexos-weather-badge {
+  display: flex; align-items: center; gap: 3px;
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  border-radius: 999px; padding: 3px 8px; font-size: 0.78rem; color: var(--text);
+  cursor: pointer; white-space: nowrap;
+}
+.lexos-weather-badge__icon { font-size: 0.95rem; }
+.lexos-weather-popup { font-size: 0.8rem; line-height: 1.4; color: #1c1c1c; }
+
+/* ---------- Toast ---------- */
+#lexos-toast {
+  position: fixed; left: 50%; bottom: 28px; z-index: 50;
+  transform: translate(-50%, 12px);
+  background: var(--panel-bg); border: 1px solid var(--panel-border); color: var(--text);
+  padding: 10px 18px; border-radius: 999px; font-size: 0.85rem;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  max-width: 80vw; text-align: center;
+}
+#lexos-toast.lexos-toast--visible { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+#lexos-toast.lexos-toast--error { border-color: var(--road-forest); }
+
+/* MapLibre : gomme le fond blanc par défaut des popups pour rester sobre */
+.maplibregl-popup-content { border-radius: 10px; padding: 10px 12px; }

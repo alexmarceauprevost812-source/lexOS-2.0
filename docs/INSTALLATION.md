@@ -223,6 +223,54 @@ lexos demo
 
 ---
 
+## TI-LEX-OS Pro — l'édition pour jouer
+
+Une **ISO à part**, pas une option à cocher. Même socle que LexOS, mais
+assemblée pour une machine de jeu :
+
+| | LexOS standard | TI-LEX-OS Pro |
+|---|---|---|
+| Pilotes Vulkan et Mesa | à installer | **déjà là** |
+| Wine (jeux Windows) | à installer | **déjà là** |
+| Steam + Proton | à installer | **déjà là** |
+| Lutris, GameMode, MangoHud | à installer | **déjà là** |
+| Manettes (Steam, Xbox, PS) | règles à ajouter | **reconnues au branchement** |
+| Émulateurs | à installer | RetroArch, Dolphin, PPSSPP, mGBA, ScummVM |
+| Jeux libres pour démarrer | aucun | SuperTuxKart, 0 A.D., Minetest, OpenTTD, Xonotic |
+
+Le système s'annonce sous son propre nom — écran de démarrage, « À propos »,
+`lexfetch` — parce que ce n'est pas le même produit.
+
+### Faire construire l'ISO Pro
+
+Dans `.iso-build-request`, mets `flavour: pro` et incrémente `build:` :
+
+```yaml
+flavour: pro
+build: 8
+```
+
+Pousse : GitHub Actions produit `lexos-1.0-pro-amd64.iso`, à côté de
+l'édition standard. En local : `sudo ./build.sh --flavour pro`.
+
+### Les jeux Windows
+
+Deux chemins, et ils ne se valent pas :
+
+* **Steam → Proton.** Le plus simple. Steam installe Proton tout seul ; dans
+  les propriétés d'un jeu, coche *Forcer l'utilisation d'un outil de
+  compatibilité*. La plupart des jeux démarrent sans autre réglage.
+* **Lutris.** Pour ce qui n'est pas sur Steam — GOG, Epic, un installeur
+  `.exe` trouvé ailleurs. Lutris applique des scripts écrits par d'autres
+  joueurs pour chaque jeu.
+
+Ce qui ne marchera pas, et il vaut mieux le savoir avant d'essayer : les
+jeux en ligne dont l'anti-triche refuse Linux — c'est un refus délibéré de
+leur éditeur, pas une limite technique de LexOS. `lexos game info` affiche
+ce que la machine sait faire (Vulkan, GameMode, MangoHud) avant de lancer.
+
+---
+
 ## Sur un Mac
 
 « Est-ce que ça tourne sur du Apple ? » n'a pas une seule réponse. Il y a

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LexOS 1.0.0 — Cartes</title>
+  <link rel="icon" href="assets/globe.svg" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.0.0/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body data-theme="night">
+
+  <!-- Écran de chargement : globe qui tourne à l'horizontale puis ralentit -->
+  <div id="lexos-loader" class="lexos-loader">
+    <img id="lexos-loader-globe" class="lexos-loader__globe lexos-loader__globe--spin" src="assets/globe.svg" alt="" />
+    <p class="lexos-loader__label">LexOS <span>1.0.0</span></p>
+    <p class="lexos-loader__sub">Chargement de la carte…</p>
+  </div>
+
+  <div id="app" class="lexos-app">
+    <header class="lexos-topbar">
+      <div class="lexos-brand">
+        <img src="assets/globe.svg" alt="" class="lexos-brand__icon" />
+        <span>LexOS <small>1.0.0</small></span>
+      </div>
+
+      <div class="lexos-clocks" title="Heure de l'appareil · Heure au centre de la carte">
+        <span id="lexos-clock-device">--:--</span>
+        <span class="lexos-clocks__sep">/</span>
+        <span id="lexos-clock-map">--:-- · —</span>
+      </div>
+
+      <div class="lexos-actions">
+        <button id="lexos-weather-toggle" class="lexos-btn lexos-btn--active" type="button">🌦️ Météo</button>
+        <button id="lexos-theme-toggle" class="lexos-btn" type="button">🌓 Thème</button>
+      </div>
+    </header>
+
+    <main class="lexos-main">
+      <div id="map" class="lexos-map"></div>
+
+      <div id="lexos-position-readout" class="lexos-position-readout">Position en attente…</div>
+
+      <div class="lexos-fab-stack">
+        <button id="lexos-locate-btn" class="lexos-fab" type="button" title="Centrer sur ma position">📍</button>
+        <button id="lexos-share-link-btn" class="lexos-fab" type="button" title="Partager un lien de position">🔗</button>
+        <button id="lexos-share-image-btn" class="lexos-fab" type="button" title="Exporter une image de la carte">🖼️</button>
+      </div>
+
+      <p class="lexos-legend">
+        <span class="lexos-legend__swatch lexos-legend__swatch--motorway"></span>Autoroute
+        <span class="lexos-legend__swatch lexos-legend__swatch--road"></span>Route
+        <span class="lexos-legend__swatch lexos-legend__swatch--forest"></span>Chemin forestier
+      </p>
+    </main>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
