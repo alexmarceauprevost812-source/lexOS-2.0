@@ -506,6 +506,15 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .files li{list-style:none;display:flex;align-items:center;gap:10px;
   padding:9px 12px;border-bottom:1px solid var(--bg-hi);color:var(--fg)}
 .files li:hover{background:var(--bg-hi)}
+/* --- Fil d'Ariane et dossier vide ---------------------------------------- */
+.fbc{padding:2px 6px;border-radius:6px;color:var(--fg-dim);font-size:12.5px}
+.fbc:hover{background:var(--bg-hi);color:var(--fg)}
+.fbc.on{color:var(--fg);font-weight:600;padding:2px 6px}
+.fbcsep{color:var(--fg-dim);opacity:.5;margin:0 1px}
+.fvide{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;padding:44px 20px;color:var(--fg-dim);font-size:13px;text-align:center}
+.fvide-ic{width:74px;opacity:.32}
+.fvide-ic svg{width:100%;height:auto;display:block}
 .files .sz{margin-left:auto;color:var(--fg-dim);font-size:12px}
 .warnbox{border:1px solid #A32B2F;background:#1a0d0e;border-radius:8px;
   padding:12px;color:#ffb4b6;font-size:13px;margin:10px 0}
@@ -1655,12 +1664,21 @@ hidden.addEventListener("keydown",e=>{
 function openFiles(){
   openWin("files","Fichiers — /home/lex",filesAppGlyph(17),
   `<div class="ftoolbar">
-     <span class="fpath">Dossier personnel / Téléchargements</span>
+     <button class="ficonbtn" id="filesRetour" onclick="filesRemonte()"
+             title="Dossier parent" style="visibility:hidden">←</button>
+     <span class="fpath" id="filesFil"></span>
      <span class="dl-mascot" id="dlMascotBadge" aria-hidden="true"></span>
      <button class="ficonbtn" id="filesMenuBtn" onclick="toggleFilesMenu(this)" title="Menu">⋮</button>
    </div>
-   ${renderFolders()}
-   <ul class="files" id="filesList">
+   <div id="filesZone"></div>`,540,470);
+  filesChemin = [];
+  filesRend();
+}
+/*  Contenu du dossier personnel : conservé tel quel, car ces lignes portent
+    des démonstrations (l'autocollant au clic long, la boîte ZIP qui s'ouvre)
+    qu'il n'y a pas lieu de dupliquer dans chaque sous-dossier. */
+function filesRacineHTML(){
+  return `<ul class="files" id="filesList">
     <li style="cursor:pointer" title="Clique : ouvrir l'outil autocollant · Presse 2 secondes : découper et enregistrer tout de suite"
         onpointerdown="stickerPressStart('mascot.png',event)" onpointerup="stickerPressEnd()" onpointerleave="stickerPressEnd()"
         onclick="stickerPressClick('mascot.png',event)">
@@ -1679,7 +1697,7 @@ function openFiles(){
        Astuce : clique le <span style="color:var(--ac)">.zip</span> pour l'extraire —
        comme « Extraire ici » au clic droit sur la vraie ISO (3 clics ou moins).</p>
      <button class="btn" onclick="openShare()"><i class="gly gly-share"></i> Partager avec LexOS</button>
-   </div>`,540,470);
+   </div>`;
 }
 
 /* --- Menu ⋮ du gestionnaire de fichiers, façon GNOME Fichiers ------------ */
@@ -1720,18 +1738,20 @@ function selectAllText(el){
 }
 function filesNewFolder(){
   closeFilesMenu();
-  const ul=document.getElementById("filesList"); if(!ul) return;
-  const li=document.createElement("li");
-  li.innerHTML=`📁 <span class="fedit" contenteditable="true" `+
-    `style="outline:1px solid var(--ac);border-radius:4px;padding:0 4px">Nouveau dossier</span><span class="sz"></span>`;
-  ul.insertBefore(li, ul.firstChild);
-  const span=li.querySelector(".fedit");
-  requestAnimationFrame(()=>{ span.focus(); selectAllText(span); });
-  const commit=()=>{ span.contentEditable="false"; span.style.outline="none";
-    span.removeEventListener("keydown",onKey); span.removeEventListener("blur",commit); };
-  const onKey=e=>{ if(e.key==="Enter"){ e.preventDefault(); commit(); } };
-  span.addEventListener("keydown",onKey);
-  span.addEventListener("blur",commit);
+  //  Le dossier est créé dans l'ARBORESCENCE, pas seulement dans la liste
+  //  affichée : c'est ce qui permet d'entrer dedans juste après, et de le
+  //  retrouver en revenant. Avant, la ligne disparaissait au premier rendu.
+  const parent = filesNoeud(filesChemin);
+  if(!parent){ toast("Impossible de créer ici"); return; }
+  if(!parent.dossiers) parent.dossiers = {};
+  let nom = "Nouveau dossier", n = 2;
+  while(parent.dossiers[nom]) nom = "Nouveau dossier " + (n++);
+  parent.dossiers[nom] = {dossiers:{}, fichiers:[]};
+  //  À la racine, la grille vient de FOLDERS : il faut l'y ajouter aussi,
+  //  sinon le dossier existerait dans l'arbre sans jamais s'afficher.
+  if(!filesChemin.length) FOLDERS.push({nom, court:nom.slice(0,4).toUpperCase(), couleur:null});
+  filesRend();
+  toast("📁 " + nom + " — clique pour entrer");
 }
 function filesOpenWith(){
   closeFilesMenu();
@@ -1979,6 +1999,113 @@ function diskGlyph(size){
 //  Chaque dossier porte un nom court écrit SUR l'image et son nom complet
 //  dessous. La couleur suit l'accent choisi dans les Paramètres, sauf si
 //  l'utilisateur en a fixé une par le clic droit.
+/* --- Navigation dans les dossiers ---------------------------------------
+   Un clic sur un dossier entre dedans, y compris s'il est vide : c'est
+   justement quand un dossier est vide qu'on a besoin de le voir pour le
+   croire. Le fil d'Ariane ramène en arrière.
+
+   L'arborescence est un simple objet : chaque dossier porte ses
+   sous-dossiers et ses fichiers. Les dossiers créés par « Nouveau
+   dossier » s'y ajoutent vraiment, et on peut entrer dedans aussitôt. */
+const ARBO = {
+  "Téléchargements": { dossiers:{"Pilotes":{dossiers:{},fichiers:[]}}, fichiers:[
+    {nom:"lexos-1.0-standard-amd64.iso", ic:"💽", taille:"2,4 Go"},
+    {nom:"debian-trixie-notes.pdf",      ic:"📕", taille:"820 Ko"},
+  ]},
+  "Images": { dossiers:{"Captures":{dossiers:{},fichiers:[]},
+                        "Autocollants":{dossiers:{},fichiers:[]}}, fichiers:[
+    {nom:"fond-secu.png",   ic:"🌄", taille:"1,8 Mo"},
+    {nom:"keyart.jpg",      ic:"🖼", taille:"640 Ko"},
+  ]},
+  "Documents": { dossiers:{"Factures":{dossiers:{},fichiers:[]}}, fichiers:[
+    {nom:"lettre.odt", ic:"📄", taille:"22 Ko"},
+  ]},
+  //  Volontairement vide : le cas que la démo ne savait pas montrer.
+  "Musique":      { dossiers:{}, fichiers:[] },
+  "Vidéos":       { dossiers:{}, fichiers:[] },
+  "Projets LexOS":{ dossiers:{"branding":{dossiers:{},fichiers:[]},
+                              "config":{dossiers:{},fichiers:[]}}, fichiers:[
+    {nom:"build.sh",   ic:"⚙", taille:"9 Ko"},
+    {nom:"lexos.conf", ic:"📄", taille:"2 Ko"},
+  ]},
+};
+let filesChemin = [];        // [] = dossier personnel
+
+function filesNoeud(chemin){
+  let n = {dossiers:ARBO, fichiers:null};
+  for(const seg of chemin){
+    if(!n.dossiers || !n.dossiers[seg]) return null;
+    n = n.dossiers[seg];
+  }
+  return n;
+}
+function filesEntre(nom){
+  const n = filesNoeud(filesChemin.concat(nom));
+  if(!n){ toast("Dossier introuvable"); return; }
+  filesChemin = filesChemin.concat(nom);
+  filesRend();
+}
+function filesVa(niveau){       // -1 = dossier personnel
+  filesChemin = niveau < 0 ? [] : filesChemin.slice(0, niveau+1);
+  filesRend();
+}
+function filesRemonte(){ if(filesChemin.length){ filesChemin.pop(); filesRend(); } }
+
+function filesFilAriane(){
+  const parts = [`<button class="fbc" onclick="filesVa(-1)">Dossier personnel</button>`];
+  filesChemin.forEach((seg,i)=>{
+    parts.push(`<span class="fbcsep">/</span>`);
+    parts.push(i===filesChemin.length-1
+      ? `<span class="fbc on">${esc(seg)}</span>`
+      : `<button class="fbc" onclick="filesVa(${i})">${esc(seg)}</button>`);
+  });
+  return parts.join("");
+}
+
+/*  Rendu du contenu courant. La racine garde ses lignes spéciales
+    (l'autocollant sur mascot.png, la boîte ZIP) : ce sont elles qui
+    portent les démonstrations, les recréer dans chaque sous-dossier
+    n'aurait aucun sens. */
+function filesRend(){
+  const fil = document.getElementById("filesFil");
+  if(fil) fil.innerHTML = filesFilAriane();
+  const ret = document.getElementById("filesRetour");
+  if(ret) ret.style.visibility = filesChemin.length ? "visible" : "hidden";
+
+  const zone = document.getElementById("filesZone");
+  if(!zone) return;
+
+  if(!filesChemin.length){ zone.innerHTML = renderFolders() + filesRacineHTML(); return; }
+
+  const n = filesNoeud(filesChemin);
+  if(!n){ zone.innerHTML = `<div class="fvide">Ce dossier n'existe plus.</div>`; return; }
+
+  const sous = Object.keys(n.dossiers||{});
+  const fic  = n.fichiers || [];
+  let html = "";
+  if(sous.length){
+    html += `<div class="fgrid">` + sous.map(nom=>
+      `<div class="fold" tabindex="0" title="${esc(nom)}"
+            onclick="filesEntre('${nom.replace(/'/g,"\\\\'")}')"
+            onkeydown="if(event.key==='Enter'){filesEntre('${nom.replace(/'/g,"\\\\'")}')}">`+
+        folderSVG({nom, court:nom.slice(0,4).toUpperCase(), couleur:null})+
+        `<span class="fname">${esc(nom)}</span></div>`).join("") + `</div>`;
+  }
+  if(fic.length){
+    html += `<ul class="files">` + fic.map(f=>
+      `<li>${f.ic} <span>${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`
+    ).join("") + `</ul>`;
+  }
+  if(!sous.length && !fic.length){
+    html = `<div class="fvide">
+      <div class="fvide-ic">${folderSVG({nom:"vide",court:"",couleur:null})}</div>
+      <div>Ce dossier est vide.</div>
+      <button class="btn ghost mini" style="width:auto;margin-top:10px"
+              onclick="filesNewFolder()">📁 Créer un dossier ici</button></div>`;
+  }
+  zone.innerHTML = html;
+}
+
 const FOLDERS = [
   {nom:"Téléchargements",  court:"DL",    couleur:null},
   {nom:"Images",           court:"IMG",   couleur:null},
@@ -2073,8 +2200,9 @@ function folderOpen(i, el){
   el.classList.remove("bounce");
   void el.offsetWidth;                    // relance l'animation même en double-clic
   el.classList.add("bounce");
-  setTimeout(()=>el.classList.remove("bounce"), 420);
-  toast("📂 " + FOLDERS[i].nom);
+  //  L'entrée est retardée du temps du rebond : sans ça la tuile est
+  //  remplacée avant que l'animation ait eu le temps de se voir.
+  setTimeout(()=>{ el.classList.remove("bounce"); filesEntre(FOLDERS[i].nom); }, 260);
 }
 /* --- Clic droit : changer la couleur du dossier -------------------------- */
 let foldMenuEl = null;
