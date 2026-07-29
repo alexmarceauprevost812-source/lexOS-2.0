@@ -643,6 +643,26 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .lgt-liens a.lgt-deb:hover{color:var(--ac-hi);border-color:var(--ac)}
 .lgt-liens a:hover{text-decoration:underline}
 
+/* --- Sous-menu des paramètres, dans tous les menus contextuels ----------
+   Le survol suffit à l'ouvrir : exiger un clic pour un menu qui ne fait
+   qu'en révéler un autre ajoute un geste sans rien apporter. */
+.ctx-parent{position:relative}
+.ctx-parent > button{width:100%}
+.ctx-fleche{margin-left:auto;padding-left:12px;color:var(--fg-dim);font-size:11px}
+.ctx-sous{display:none;position:absolute;left:100%;top:-6px;z-index:1;
+  background:var(--bg-alt);border:1px solid var(--bd);border-radius:10px;
+  padding:6px;min-width:236px;max-height:min(70vh,520px);overflow-y:auto;
+  box-shadow:0 12px 34px rgba(0,0,0,.55)}
+.ctx-parent:hover > .ctx-sous,
+.ctx-parent:focus-within > .ctx-sous{display:block}
+/*  Près du bord droit, le sous-menu part de l'autre côté : le laisser
+    déborder le rendrait inatteignable à la souris. */
+.ctx-vers-gauche .ctx-sous{left:auto;right:100%}
+.ctx-sous-grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--fg-dim);padding:8px 10px 4px;font-weight:600}
+.ctx-sous-grp:first-child{padding-top:3px}
+.ctx-sous button{width:100%}
+
 /* --- Fond d'écran personnel ---------------------------------------------- */
 .wall-parcourir{display:inline-flex;align-items:center;gap:8px;cursor:pointer;
   background:var(--bg-alt);border:1px dashed var(--bd);border-radius:10px;
@@ -2355,15 +2375,52 @@ function ctxOuvre(e, items){
   ctxFerme(); closeFilesMenu(); fermeFichierMenu(); closeFolderMenu();
   const el = document.createElement("div");
   el.className = "menu ctx-menu";
-  el.innerHTML = items.map(it=> it==="-" ? `<div class="msep"></div>` :
-    `<button onclick="ctxFerme();${it.act}"><span class="picto">${it.ic||""}</span> ${it.txt}`+
-    (it.kbd ? `<span class="kbd">${it.kbd}</span>` : "")+`</button>`).join("");
+  el.innerHTML = items.map(it=>{
+    if(it === "-") return `<div class="msep"></div>`;
+    //  Un élément qui porte « sous » ouvre un second panneau au survol
+    //  plutôt que d'agir : c'est ce qui permet de garder TOUS les
+    //  paramètres à un clic sans allonger le menu principal de trente
+    //  lignes, où plus rien ne se trouverait.
+    if(it.sous) return `<div class="ctx-parent">
+        <button type="button"><span class="picto">${it.ic||""}</span> ${it.txt}
+          <span class="ctx-fleche">▸</span></button>
+        <div class="ctx-sous">${it.sous}</div></div>`;
+    return `<button onclick="ctxFerme();${it.act}"><span class="picto">${it.ic||""}</span> ${it.txt}`+
+      (it.kbd ? `<span class="kbd">${it.kbd}</span>` : "")+`</button>`;
+  }).join("");
   document.body.appendChild(el);
   const r = el.getBoundingClientRect();
   el.style.left  = Math.max(6, Math.min(e.clientX, innerWidth  - r.width  - 8)) + "px";
   el.style.top   = Math.max(6, Math.min(e.clientY, innerHeight - r.height - 8)) + "px";
   el.style.right = "auto";
+  //  Le sous-menu s'ouvre à droite, sauf s'il sortirait de l'écran — auquel
+  //  cas il part à gauche. Le laisser déborder le rendrait inatteignable.
+  if(parseFloat(el.style.left) + r.width + 250 > innerWidth) el.classList.add("ctx-vers-gauche");
   ctxEl = el;
+}
+
+/* --- « Tous les paramètres », partout ------------------------------------
+   Le sous-menu est fabriqué à partir de SETTINGS_NAV : ajouter un panneau
+   aux Paramètres le fait apparaître ici automatiquement. Une liste écrite
+   à part aurait fini par oublier la moitié des entrées. */
+function ctxParamHTML(){
+  return SETTINGS_NAV.map(g =>
+    `<div class="ctx-sous-grp">${g.grp}</div>` +
+    g.items.map(([k,ic,label])=>{
+      const glyph = (typeof ic === "function") ? ic() : ic;
+      return `<button onclick="ctxFerme();openSettings('${k}')">
+        <span class="picto">${glyph}</span> <span class="set-lbl">${label}</span></button>`;
+    }).join("")
+  ).join("");
+}
+//  Le bloc commun à TOUS les menus contextuels : le séparateur, l'accès
+//  direct au panneau le plus pertinent, et la totalité des paramètres.
+function ctxParametres(panneauProche, etiquette){
+  const items = ["-"];
+  if(panneauProche) items.push({ic:reglagesGlyph(14), txt:etiquette,
+                                act:`openSettings('${panneauProche}')`});
+  items.push({ic:"⚙", txt:"Tous les paramètres", sous:ctxParamHTML()});
+  return items;
 }
 
 /* --- Bureau -------------------------------------------------------------- */
@@ -2380,8 +2437,7 @@ function ctxBureau(e){
     {ic:"⛶", txt:"Cadrer une zone", act:"capZone()", kbd:"␣+2"},
     "-",
     {ic:"🖼", txt:"Changer le fond d'écran", act:"openSettings('bureau')"},
-    {ic:reglagesGlyph(14), txt:"Apparence", act:"openSettings('apparence')"},
-    {ic:"🖥", txt:"Écrans", act:"openSettings('ecrans')"},
+    ...ctxParametres("apparence", "Apparence"),
     "-",
     {ic:"⏻", txt:"Marche, veille, éteindre", act:"pwToggle(document.getElementById('offBtn'))"},
   ]);
@@ -2404,6 +2460,7 @@ function ctxApp(e, i){
     "-",
     {ic:"🔎", txt:"Chercher dans la Logithèque",
      act:`closeApps();openLogitheque();setTimeout(()=>lgtFiltre(${JSON.stringify(a.label)}),60)`},
+    ...ctxParametres("applications", "Paramètres des applications"),
   ]);
 }
 /*  Renommer une application : le nom est celui affiché partout — grille,
@@ -2465,6 +2522,7 @@ function ctxDock(e, b, nom){
     {ic:"✕", txt:"Retirer de la barre", act:`ctxRetireDock(${JSON.stringify(nom)})`},
     {ic:"⚙", txt:"Position de la barre", act:"openSettings('bureau')"},
     {ic:"👁", txt:"Masquer la barre", act:"toggleDock()"},
+    ...ctxParametres("bureau", "Paramètres de la barre d'outils"),
   ]);
   //  « Ouvrir » doit lancer l'application : on remplace l'action inerte
   //  posée ci-dessus par le vrai gestionnaire du bouton.
@@ -2488,6 +2546,7 @@ function ctxDeskIcon(e, k){
     "-",
     {ic:"✕", txt:"Retirer du bureau", act:`state.deskIcons.splice(${k},1);renderDeskIcons();toast(${JSON.stringify((a&&a.label)||"Icône")}+" retiré du bureau")`},
     {ic:"⊞", txt:"Tout ranger", act:"ctxRangeBureau()"},
+    ...ctxParametres("bureau", "Paramètres du bureau"),
   ]);
 }
 function ctxRangeBureau(){
@@ -2504,6 +2563,7 @@ function ctxFenetre(e, el){
     {ic:"↕", txt:"Pleine hauteur", act:`ctxPleineHauteur('${el.id}')`},
     "-",
     {ic:"✕", txt:"Fermer", act:`closeWin(document.getElementById('${el.id}'))`, kbd:"Alt+F4"},
+    ...ctxParametres("multitaches", "Paramètres des fenêtres"),
   ]);
 }
 function ctxPleineHauteur(id){
@@ -2597,6 +2657,13 @@ function fichierMenu(e, i, racine){
   add(bouton("ℹ","Propriétés",`ficProprietes(${i},${racine?1:0})`));
   add(`<div class="msep"></div>`);
   add(bouton("🗑","Supprimer",`ficSupprime(${i},${racine?1:0})`,"Suppr"));
+  //  Le même sous-menu que partout ailleurs : depuis n'importe quel clic
+  //  droit, tous les Paramètres sont à un clic.
+  add(`<div class="msep"></div>`);
+  add(`<div class="ctx-parent">
+        <button type="button"><span class="picto">${reglagesGlyph(14)}</span> Paramètres du fichier
+          <span class="ctx-fleche">▸</span></button>
+        <div class="ctx-sous">${ctxParamHTML()}</div></div>`);
 
   const el = document.createElement("div");
   el.className = "menu fic-menu";
