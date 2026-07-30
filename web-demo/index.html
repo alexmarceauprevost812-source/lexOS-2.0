@@ -204,7 +204,19 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 #panel .apps .glyph{width:29px;height:29px;border-radius:4px;
   background-image:var(--logo-icon);background-size:contain;background-repeat:no-repeat;
   background-position:center}
-#clock{position:absolute;left:50%;transform:translateX(-50%);color:var(--fg-dim)}
+#clock{position:absolute;left:50%;transform:translateX(-50%);color:var(--fg-dim);
+  display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 8px;border-radius:8px;
+  transition:background .15s}
+#clock:hover{background:var(--bg-hi)}
+/*  Globe qui tourne sur lui-même (360°) à gauche du nom du projet — le
+    « logo » cliquable qui ouvre l'agenda. */
+#clock .clk-globe{font-size:15px;line-height:1;display:inline-block;
+  animation:spin360 7s linear infinite;filter:drop-shadow(0 0 5px rgba(60,140,240,.5))}
+@keyframes spin360{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){ #clock .clk-globe{animation:none} }
+#clock .clk-brand{font-weight:700;color:var(--fg);letter-spacing:.02em}
+#clock .clk-brand .zap{color:var(--amber,#ffb238)}
+#clock #clkdate{color:var(--fg-dim)}
 /*  Chaque caractère de l'heure occupe une cellule de largeur FIXE : les
     idéogrammes du brouillage sont bien plus larges qu'un chiffre, sans ça
     toute la barre sursauterait à chaque minute. La date, elle, reste du
@@ -214,6 +226,28 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 #clktime .ck.mtx{color:#39FF14;text-shadow:0 0 9px rgba(57,255,20,.55);
   font-size:.8em;vertical-align:baseline}
 @media (prefers-reduced-motion:reduce){ #clktime .ck.mtx{color:inherit;text-shadow:none} }
+/* --- Agenda / Calendrier ------------------------------------------------- */
+.ag-tete{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--bd)}
+.ag-titre{font-weight:700;font-size:15px;text-transform:capitalize;min-width:150px}
+.ag-grille{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:12px 14px}
+.ag-ej{text-align:center;font-size:11px;color:var(--fg-dim);padding:2px 0;text-transform:uppercase;letter-spacing:.04em}
+.ag-c{position:relative;aspect-ratio:1;border:0;background:transparent;color:var(--fg);
+  border-radius:9px;font:600 13px/1 inherit;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ag-c:hover{background:var(--bg-hi)}
+.ag-c.vide{cursor:default}
+.ag-c.aujourdhui{color:var(--ac);box-shadow:inset 0 0 0 2px var(--ac)}
+.ag-c.sel{background:var(--ac);color:#fff}
+.ag-pt{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--ac)}
+.ag-c.sel .ag-pt{background:#fff}
+.ag-jour{border-top:1px solid var(--bd);padding:12px 14px;max-height:190px;overflow:auto}
+.ag-jt{font-weight:700;margin-bottom:8px;text-transform:capitalize}
+.ag-evt{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg-hi);border-radius:8px;margin-bottom:6px}
+.ag-h{font-variant-numeric:tabular-nums;color:var(--ac);font-weight:600;min-width:44px}
+.ag-x{flex:1}
+.ag-sup{background:transparent;border:0;color:var(--fg-dim);cursor:pointer;font-size:13px}
+.ag-sup:hover{color:var(--off,#E5484D)}
+.ag-ajout{display:flex;gap:8px;margin-top:10px}
+.ag-ajout input{background:var(--bg-hi);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;color:var(--fg)}
 #tray{margin-left:auto;display:flex;gap:4px;color:var(--fg-dim)}
 #tray button{padding:3px 8px;border-radius:6px}
 #tray button:hover{background:var(--bg-hi);color:var(--fg)}
@@ -1487,9 +1521,13 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
       les deux se chevauchent (texte illisible). En dessous de 640px, on
       remet l'horloge dans le flux flex normal, juste après Applications,
       et on masque la date pour ne garder que l'heure. */
-  #clock{position:static;transform:none;margin-left:8px;order:0;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34vw}
+  #clock{position:static;transform:none;margin-left:8px;order:0;gap:5px;
+    white-space:nowrap;overflow:hidden;max-width:40vw}
   #clkdate{display:none}
+  /*  Sur téléphone, la place manque : on garde le globe cliquable et
+      l'heure, mais on cache le nom « lexOS⚡Pro » (il reste sur grand
+      écran). Le globe ouvre toujours l'agenda. */
+  #clock .clk-brand{display:none}
   #panel{padding:0 6px;gap:0}
   #panel .apps{padding:1px 6px;gap:5px;flex-shrink:0}
 }
@@ -1519,7 +1557,11 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
       <button id="qcZone" title="Cadrer une zone (Espace+2, ou Maj+Impr écr)" onclick="capZone()">⛶</button>
       <button id="qcVideo" title="Enregistrer l'écran en vidéo (Espace+3, ou Ctrl+Maj+R)" onclick="capBascule()"></button>
     </span>
-    <span id="clock"><span id="clkdate"></span><span id="clktime"></span></span>
+    <span id="clock" title="Ouvrir l'agenda" role="button" tabindex="0"
+          onclick="openAgenda()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAgenda()}">
+      <span class="clk-globe" aria-hidden="true">🌐</span>
+      <span class="clk-brand">lexOS<span class="zap">⚡</span>Pro</span>
+      <span id="clkdate"></span><span id="clktime"></span></span>
     <div id="tray">
       <div id="devtray" title="Outils de travail branchés"></div>
       <button id="qsBtn"  title="Paramètres rapides">▲</button>
@@ -1562,6 +1604,7 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 filesFav:false, wifi:true, bt:true, wifiIssue:false,
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
                 qsCompact:false, dockHidden:false, zTop:100, majDispo:false, majSecuAuto:true, majAuto:false, wallpaper:"defaut", police:"defaut",
+                agendaEvts:{}, agendaVue:null,
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
                 wallPerso:null, wallPersoNom:"", wallCadrage:"remplir", wallVideoURL:null,
                 vpn:null,
@@ -7187,6 +7230,7 @@ const APPS = [
   {ic:"📥", label:"Vide mémoire +", fn:videMemoire},
   {ic:terminalGlyph(38), label:"Terminal de l'appareil", fn:terminalAppareil},
   {ic:"⚠", label:"Formater un support", fn:formaterSupport},
+  {ic:"📅", label:"Agenda",       fn:openAgenda},
   {ic:"👋", label:"Bienvenue",    fn:openWelcome},
   {ic:"🖼", label:"Fonds d'écran", fn:openFonds},
 ];
@@ -7599,6 +7643,95 @@ function mtxScramble(cell, final){
     cell.textContent = mtxRandom();
   }, 78);
 }
+/* ======================= Agenda / Calendrier ============================
+   Horloge cliquable -> calendrier mensuel façon téléphone (Samsung) : grille
+   de 7 colonnes, jour du jour souligné à l'accent, clic sur un jour pour voir
+   et ajouter des événements. Les événements tiennent dans state.agendaEvts,
+   remis à zéro au rechargement comme le reste de la session live. */
+const AG_MOIS = ["janvier","février","mars","avril","mai","juin","juillet",
+  "août","septembre","octobre","novembre","décembre"];
+const AG_JOURS = ["lun","mar","mer","jeu","ven","sam","dim"];
+function agCle(a,m,j){ return `${a}-${String(m+1).padStart(2,"0")}-${String(j).padStart(2,"0")}`; }
+function openAgenda(){
+  const now = new Date();
+  if(!state.agendaVue) state.agendaVue = {a:now.getFullYear(), m:now.getMonth(), sel:agCle(now.getFullYear(),now.getMonth(),now.getDate())};
+  openWin("agenda","Agenda — Calendrier","📅", agendaHTML(), 560, 560);
+  agendaRend();
+}
+function agendaHTML(){
+  return `<div class="pad" id="agBody" style="padding:0">
+    <div class="ag-tete">
+      <button class="btn ghost mini" style="width:auto" onclick="agMois(-1)">‹</button>
+      <div class="ag-titre" id="agTitre"></div>
+      <button class="btn ghost mini" style="width:auto" onclick="agMois(1)">›</button>
+      <button class="btn mini" style="width:auto;margin-left:auto" onclick="agAujourdhui()">Aujourd'hui</button>
+    </div>
+    <div class="ag-grille" id="agGrille"></div>
+    <div class="ag-jour" id="agJour"></div>
+  </div>`;
+}
+function agMois(d){
+  let {a,m}=state.agendaVue; m+=d;
+  if(m<0){m=11;a--;} if(m>11){m=0;a++;}
+  state.agendaVue.a=a; state.agendaVue.m=m; agendaRend();
+}
+function agAujourdhui(){
+  const n=new Date();
+  state.agendaVue={a:n.getFullYear(),m:n.getMonth(),sel:agCle(n.getFullYear(),n.getMonth(),n.getDate())};
+  agendaRend();
+}
+function agSelect(cle){ state.agendaVue.sel=cle; agendaRend(); }
+function agendaRend(){
+  const w=document.getElementById("agGrille"); if(!w) return;
+  const {a,m,sel}=state.agendaVue;
+  document.getElementById("agTitre").textContent = `${AG_MOIS[m]} ${a}`;
+  const premier = (new Date(a,m,1).getDay()+6)%7;   // lundi = 0
+  const nb = new Date(a,m+1,0).getDate();
+  const now = new Date(); const cleJour = agCle(now.getFullYear(),now.getMonth(),now.getDate());
+  let html = AG_JOURS.map(j=>`<div class="ag-ej">${j}</div>`).join("");
+  for(let i=0;i<premier;i++) html += `<div class="ag-c vide"></div>`;
+  for(let j=1;j<=nb;j++){
+    const cle=agCle(a,m,j);
+    const cls=["ag-c"];
+    if(cle===cleJour) cls.push("aujourdhui");
+    if(cle===sel) cls.push("sel");
+    const pastille = (state.agendaEvts[cle]&&state.agendaEvts[cle].length) ? `<span class="ag-pt"></span>` : "";
+    html += `<button class="${cls.join(" ")}" onclick="agSelect('${cle}')">${j}${pastille}</button>`;
+  }
+  w.innerHTML = html;
+  agendaJour();
+}
+function agendaJour(){
+  const z=document.getElementById("agJour"); if(!z) return;
+  const cle=state.agendaVue.sel;
+  const [a,m,j]=cle.split("-").map(Number);
+  const evts=state.agendaEvts[cle]||[];
+  z.innerHTML = `<div class="ag-jt">${j} ${AG_MOIS[m-1]} ${a}</div>`+
+    (evts.length ? evts.map((e,i)=>
+      `<div class="ag-evt"><span class="ag-h">${e.h||"—"}</span><span class="ag-x">${esc(e.t)}</span>`+
+      `<button class="ag-sup" title="Supprimer" onclick="agSupprime('${cle}',${i})">✕</button></div>`).join("")
+      : `<div class="d" style="padding:8px 2px">Aucun événement — ajoute-en un ci-dessous.</div>`)+
+    `<div class="ag-ajout">
+       <input id="agH" type="time" value="09:00" style="width:auto">
+       <input id="agT" type="text" placeholder="Nouvel événement…" style="flex:1"
+              onkeydown="if(event.key==='Enter')agAjoute()">
+       <button class="btn mini" style="width:auto" onclick="agAjoute()">Ajouter</button>
+     </div>`;
+}
+function agAjoute(){
+  const cle=state.agendaVue.sel;
+  const t=document.getElementById("agT").value.trim();
+  const h=document.getElementById("agH").value;
+  if(!t) return;
+  (state.agendaEvts[cle]=state.agendaEvts[cle]||[]).push({h,t});
+  state.agendaEvts[cle].sort((x,y)=>(x.h||"").localeCompare(y.h||""));
+  agendaRend(); toast("📅 Événement ajouté");
+}
+function agSupprime(cle,i){
+  if(state.agendaEvts[cle]){ state.agendaEvts[cle].splice(i,1); if(!state.agendaEvts[cle].length) delete state.agendaEvts[cle]; }
+  agendaRend();
+}
+
 let heurePrec = "";
 function tick(){
   const d = new Date();
