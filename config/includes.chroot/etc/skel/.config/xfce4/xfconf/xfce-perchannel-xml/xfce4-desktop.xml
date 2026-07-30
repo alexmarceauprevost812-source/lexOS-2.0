@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — bureau (clic droit).
+  Le fond d'écran est appliqué à la première session par lexos-firstrun,
+  qui seul connaît les noms des écrans réellement branchés.
+-->
+<channel name="xfce4-desktop" version="1.0">
+  <property name="desktop-menu" type="empty">
+    <!--  Comme ctxBureau() dans la démo : le clic droit sur le bureau donne
+          la priorité aux réglages, pas à une liste de toutes les applications
+          installées (déjà à un clic, dans le bouton Applications du panneau). -->
+    <property name="show" type="bool" value="false"/>
+  </property>
+</channel>

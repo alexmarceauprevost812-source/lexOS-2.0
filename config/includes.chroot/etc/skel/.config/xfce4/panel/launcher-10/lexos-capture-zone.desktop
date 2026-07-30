@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Cadrer une zone
+Comment=Capturer une zone choisie de l'écran (Espace+2, ou Maj+Impr écr)
+Exec=lexos capture zone
+Icon=lexos-camera
+Terminal=false
+Categories=Graphics;Utility;
