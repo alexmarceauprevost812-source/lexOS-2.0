@@ -1405,6 +1405,17 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
   #dock.right,#dock.left{right:6px;left:auto;padding:6px;gap:6px}
   .dicon{width:38px;height:38px;font-size:18px}
   .win{min-width:260px}
+  /*  #clock est centré en position:absolute, hors du flux flex de #panel —
+      pensé pour un écran large avec de la place des deux côtés. Sur un
+      téléphone, ce centrage ignore la largeur du bouton Applications et
+      les deux se chevauchent (texte illisible). En dessous de 640px, on
+      remet l'horloge dans le flux flex normal, juste après Applications,
+      et on masque la date pour ne garder que l'heure. */
+  #clock{position:static;transform:none;margin-left:8px;order:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34vw}
+  #clkdate{display:none}
+  #panel{padding:0 6px;gap:0}
+  #panel .apps{padding:1px 6px;gap:5px;flex-shrink:0}
 }
 </style>
 </head>
@@ -1718,11 +1729,33 @@ function openWin(id, title, icon, html, w, h, x, y){
   if(old){ focusWin(old); return old; }
   const el = document.createElement("div");
   el.className = "win opening"; el.id = "win-"+id;
-  el.style.width = (w||520)+"px";
-  if(h) el.style.height = h+"px";
   const vw=innerWidth, vh=innerHeight;
-  el.style.left = Math.max(8, x ?? (vw/2-(w||520)/2 + (Math.random()*60-30)))+"px";
-  el.style.top  = Math.max(40, y ?? (vh/2-(h||360)/2 + (Math.random()*40-20)))+"px";
+  /*  Sur un petit écran (téléphone), une fenêtre de 520px de large déborde :
+      son texte est alors coupé au bord de l'écran et le reste de l'interface
+      devient inatteignable sous elle. On la réduit à la largeur disponible
+      et on s'assure que left+largeur (et top+hauteur) restent visibles,
+      pas seulement left/top eux-mêmes.
+
+      Le dock est en position:fixed avec un z-index plus élevé que la
+      fenêtre : même entièrement à l'écran, une fenêtre peut se retrouver
+      visuellement recouverte par le dock sur le côté où il est ancré (son
+      texte semble alors amputé). maxArea() fait déjà ce calcul pour une
+      fenêtre agrandie ; on l'applique ici à l'ouverture de toute fenêtre. */
+  let reserveL=0, reserveR=0;
+  const dockEl = document.getElementById("dock");
+  if(dockEl && !state.dockHidden && (state.dock==="right"||state.dock==="left")){
+    const dr = dockEl.getBoundingClientRect();
+    if(state.dock==="right") reserveR = Math.max(0, vw-dr.left) + 4;
+    else                     reserveL = Math.max(0, dr.right)   + 4;
+  }
+  const ww = Math.min(w||520, vw-reserveL-reserveR-16);
+  const wh = h ? Math.min(h, vh-56) : null;
+  el.style.width = ww+"px";
+  if(wh) el.style.height = wh+"px";
+  const maxLeft = Math.max(8+reserveL, vw-reserveR-ww-8);
+  const maxTop  = Math.max(40, vh-(wh||360)-8);
+  el.style.left = Math.min(maxLeft, Math.max(8+reserveL, x ?? (vw/2-ww/2 + (Math.random()*60-30))))+"px";
+  el.style.top  = Math.min(maxTop,  Math.max(40, y ?? (vh/2-(wh||360)/2 + (Math.random()*40-20))))+"px";
   el.innerHTML =
     `<div class="tbar"><span class="ticon">${icon}</span>`+
     `<span class="ttitle">${title}</span>`+
