@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-settings — Paramètres LexOS
+# =============================================================================
+#  Une seule fenêtre, une barre latérale, toutes les sections — comme
+#  Paramètres → (n'importe quelle section) dans web-demo/index.html.
+#  Même patron que lexos-cartes : une fenêtre Qt (PySide6) affiche une page
+#  web servie en local ; le pont settings.py exécute les vraies commandes
+#  LexOS (lexos net, lexos-perf, lexos theme…) derrière une liste blanche.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; Y=$'\033[33m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; Y=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+CODE="/usr/lib/lexos/settings.py"
+DONNEES="${LEXOS_SETTINGS_DIR:-/usr/share/lexos/settings}"
+
+case "${1:-}" in
+	-h|--help|aide|help)
+		cat <<AIDE
+${PROG} — Paramètres LexOS
+
+  ${O}${PROG}${R}                Ouvre les Paramètres
+  ${O}${PROG}${R} <section>      Ouvre directement sur une section (ex. wifi, apparence)
+
+Réseau, matériel, personnalisation, comptes, périphériques, système —
+tout dans une seule fenêtre, comme Paramètres → dans la démo web.
+AIDE
+		exit 0 ;;
+esac
+
+[[ -r "$CODE" ]]        || die "Fichier manquant : $CODE"
+[[ -d "$DONNEES/web" ]] || die "Fichiers de l'interface introuvables : $DONNEES/web"
+
+#  PySide6 vient des paquets Debian, jamais de « pip --break-system-packages » :
+#  ce commutateur écrase des fichiers appartenant à dpkg et finit par casser
+#  des logiciels sans rapport. Si le paquet manque, on le dit et on s'arrête.
+if ! python3 -c "import PySide6.QtWebEngineWidgets" >/dev/null 2>&1; then
+	warn "Le composant Qt WebEngine de PySide6 est absent."
+	say  "   ${D}sudo apt install python3-pyside6.qtwebenginewidgets python3-pyside6.qtwidgets${R}"
+	say  "N'installe pas PySide6 par pip : il écraserait des fichiers gérés par dpkg."
+	exit 1
+fi
+
+exec python3 "$CODE" "$@"
