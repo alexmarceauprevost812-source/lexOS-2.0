@@ -627,6 +627,12 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .term .path{color:var(--ac)}
 .term .w{color:#fff}.term .d{color:#7a7a80}.term .a{color:var(--ac)}
 .term .err{color:#FF6B6F}
+/*  Couleurs de commande, façon Kali : l'étiquette [lexOS] et le cadre de
+    l'invite en bleu Kali, sudo en rouge, help en jaune. Les mots sont
+    colorés pendant la frappe ET dans l'écho de la ligne validée. */
+.term .kali{color:#367BF0;font-weight:700}
+.term .tk-sudo{color:#FF4B4B;font-weight:700}
+.term .tk-help{color:#FFD23F;font-weight:700}
 .term .in{display:inline}
 .caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
   background:var(--ac);animation:blink 1.05s steps(1) infinite}
@@ -2146,9 +2152,25 @@ function termHTML(){
   return `<div class="term" id="tout"></div>`;
 }
 let tEl=null, tBuf="";
+/*  Invite sur deux lignes, façon Kali Linux : le cadre ┌──└─ et
+    l'étiquette [lexOS] en bleu Kali, l'utilisateur en vert, le chemin
+    en accent. */
 function tPrompt(){
-  return `<span class="p">lex</span><span class="d">@</span><span class="p">lexos</span> `+
-         `<span class="path">~</span>\n<span class="a">❯</span> `;
+  return `<span class="kali">┌──[lexOS]─(</span><span class="p">lex</span><span class="kali">㉿</span><span class="p">lexos</span><span class="kali">)-[</span><span class="path">~</span><span class="kali">]</span>`+
+         `\n<span class="kali">└─</span><span class="a">❯</span> `;
+}
+/*  Coloration des commandes tapées : sudo en rouge, help en jaune,
+    lexos/lexfetch en bleu Kali, les options (-x, --xyz) en estompé.
+    Reçoit du texte BRUT et l'échappe elle-même. */
+function tColore(cmd){
+  return esc(cmd).split(/(\s+)/).map(tok=>{
+    if(/^\s+$/.test(tok) || !tok) return tok;
+    if(tok==="sudo") return `<span class="tk-sudo">${tok}</span>`;
+    if(tok==="help"||tok==="aide") return `<span class="tk-help">${tok}</span>`;
+    if(tok==="lexos"||tok==="lexfetch") return `<span class="kali">${tok}</span>`;
+    if(tok.startsWith("-")) return `<span class="d">${tok}</span>`;
+    return tok;
+  }).join("");
 }
 function tPrint(html){
   const c = tEl.querySelector("#cur"); if(c) c.remove();
@@ -2326,13 +2348,15 @@ hidden.autocapitalize="off"; hidden.autocomplete="off"; hidden.spellcheck=false;
 document.body.appendChild(hidden);
 hidden.addEventListener("input",()=>{
   tBuf = hidden.value;
-  const i=document.getElementById("tin"); if(i) i.textContent=tBuf;
+  const i=document.getElementById("tin"); if(i) i.innerHTML=tColore(tBuf);
 });
 hidden.addEventListener("keydown",e=>{
   if(e.key==="Enter"){
     const i=document.getElementById("tin");
-    if(i){ tPrint(""); const c=document.getElementById("cur");
-      if(c){ c.outerHTML=esc(tBuf)+"\n"; } runCmd(tBuf); }
+    //  L'écho AVANT tout tPrint : tPrint retire #cur, et l'ancien ordre
+    //  (tPrint puis échO) faisait disparaître la ligne tapée de l'historique.
+    if(i){ const c=document.getElementById("cur");
+      if(c){ c.outerHTML=tColore(tBuf)+"\n"; } runCmd(tBuf); }
     tBuf=""; hidden.value="";
     tEl && (tEl.scrollTop=tEl.scrollHeight);
   }
