@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LexOS sur téléphone — démo, clé USB et terminal</title>
+<meta name="description" content="Ce qu'un téléphone (Samsung, Android) peut vraiment faire avec LexOS : la démo web en app, créer la clé USB d'installation avec EtchDroid, et un vrai terminal Debian avec Termux. Et pourquoi l'ISO elle-même ne s'installe pas sur un téléphone.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap bar">
+    <a class="brand" href="index.html"><img src="../branding/logo-ti-lex-al-icon.png" alt=""> Lex<b>OS</b></a>
+    <nav>
+      <a href="index.html">Accueil</a>
+      <a href="fonctionnalites.html">Fonctionnalités</a>
+      <a href="telecharger.html">Télécharger</a>
+      <a href="installation.html">Installation</a>
+      <a class="on" href="telephone.html">Téléphone</a>
+      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <a class="cta" href="telecharger.html">Télécharger</a>
+  </div>
+</header>
+
+<main class="wrap narrow" style="padding-top:50px">
+  <p class="kicker">Téléphone</p>
+  <h1 class="mt0">LexOS sur un téléphone — ce qui est vrai, ce qui ne l'est pas</h1>
+  <p class="lede">L'ISO LexOS est construite pour les processeurs
+  <b>Intel/AMD (x86_64)</b> — ceux des ordinateurs. Un téléphone Android
+  (Samsung S25 Ultra compris) tourne sur un processeur <b>ARM</b>, une
+  architecture différente, derrière un démarrage verrouillé par le
+  constructeur : <b>l'ISO ne peut pas s'y installer, et aucun réglage ne
+  change ça.</b> Mais le téléphone a trois vrais rôles à jouer.</p>
+
+  <div class="notice">
+    <b>En résumé :</b> le téléphone ne <i>remplace</i> pas le PC LexOS —
+    il sert de <b>démo de poche</b>, d'<b>outil d'installation</b>, et de
+    <b>terminal Linux d'appoint</b>. Les trois sont gratuits.
+  </div>
+
+  <h2>1 — La démo web, comme une app</h2>
+  <p>Le bureau LexOS complet (fenêtres, terminal, paramètres, logithèque)
+  tourne dans le navigateur du téléphone, sans rien installer.</p>
+  <ol class="steps">
+    <li><h3>Ouvrir la démo</h3>
+    <p class="dim">Dans Chrome ou Samsung Internet, ouvre la démo web LexOS
+    (le fichier <code>web-demo/index.html</code> du dépôt, ou le lien de
+    démo que tu utilises déjà).</p></li>
+    <li><h3>L'épingler à l'écran d'accueil</h3>
+    <p class="dim">Menu <b>⋮</b> → <b>« Ajouter à l'écran d'accueil »</b>.
+    Une icône LexOS apparaît, qui ouvre le bureau en plein écran, comme
+    une application.</p></li>
+    <li><h3>Essayer le terminal</h3>
+    <p class="dim">Ouvre le Terminal de la démo et tape
+    <code>help</code> — les commandes <code>lexos accent</code>,
+    <code>lexos dock</code>, <code>lexfetch</code> répondent comme sur le
+    vrai système.</p></li>
+  </ol>
+
+  <h2>2 — Le téléphone fabrique la clé USB d'installation</h2>
+  <p>Pas besoin d'un deuxième ordinateur pour préparer la clé qui
+  installera LexOS sur un PC : le téléphone s'en charge.</p>
+  <ol class="steps">
+    <li><h3>Télécharger l'ISO sur le téléphone</h3>
+    <p class="dim">Depuis la page <a href="telecharger.html">Télécharger</a>
+    (artefact GitHub, ~6,4 Go pour l'édition Pro — Wi-Fi recommandé).
+    Dézippe le fichier <code>.zip</code> pour obtenir le
+    <code>.iso</code>.</p></li>
+    <li><h3>Brancher une clé USB-C</h3>
+    <p class="dim">Une clé USB-C directe, ou une clé USB-A avec un
+    adaptateur OTG. Minimum 8 Go — <b>tout son contenu sera effacé</b>.</p></li>
+    <li><h3>Flasher avec EtchDroid</h3>
+    <p class="dim"><a href="https://etchdroid.app" target="_blank"
+    rel="noopener">EtchDroid</a> (Play Store, gratuit, sans root) :
+    choisis « Écrire une image », prends le <code>.iso</code>, choisis la
+    clé, confirme. Environ 10–20 minutes.</p></li>
+    <li><h3>Démarrer le PC avec la clé</h3>
+    <p class="dim">La suite est sur la page
+    <a href="installation.html">Installation</a> — session démo d'abord,
+    installation sur le disque seulement quand tu le décides.</p></li>
+  </ol>
+
+  <h2>3 — Les outils du terminal, directement sur le téléphone</h2>
+  <p>Pour avoir un <b>vrai</b> Linux en ligne de commande dans la poche —
+  pas la démo, pas une image : un Debian ARM complet, le même monde de
+  paquets que LexOS.</p>
+  <ol class="steps">
+    <li><h3>Installer Termux</h3>
+    <p class="dim">Depuis <a href="https://f-droid.org/fr/packages/com.termux/"
+    target="_blank" rel="noopener">F-Droid</a> (version recommandée) ou le
+    Play Store. C'est un terminal Linux natif, sans root.</p></li>
+    <li><h3>Installer Debian dans Termux</h3>
+    <p class="dim">Dans Termux, tape :</p>
+    <pre><code>pkg update
+pkg install proot-distro
+proot-distro install debian
+proot-distro login debian</code></pre>
+    <p class="dim">Te voilà dans un Debian trixie ARM — le même socle que
+    LexOS. <code>apt install</code> fonctionne comme sur le vrai
+    système.</p></li>
+    <li><h3>Retrouver les réflexes LexOS</h3>
+    <p class="dim">Les outils du terminal LexOS sont des scripts bash du
+    dépôt (<code>config/includes.chroot/usr/bin/</code>) : plusieurs
+    fonctionnent tels quels dans ce Debian. Par exemple, copier
+    <code>lexfetch</code> dans <code>/usr/local/bin</code> et le lancer.</p></li>
+  </ol>
+
+  <div class="notice">
+    <b>Honnêteté d'architecte :</b> ce Debian dans Termux est un vrai
+    Linux, mais en ARM et sans le bureau LexOS — pas de dock, pas d'effets
+    TV 1980, pas de saveur Pro (Steam/Proton exigent un PC x86_64). Pour
+    l'expérience complète, c'est l'ISO sur un ordinateur.
+  </div>
+
+  <p class="center" style="margin:44px 0"><a class="btn big" href="telecharger.html">⬇ Télécharger LexOS 1.0.2</a></p>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <p>LexOS 1.0.2 « Nomad » — TI·LEX·AL. Basé sur Debian, bureau XFCE. Licence MIT
+    (branding excepté).</p>
+  </div>
+</footer>
+
+</body>
+</html>
