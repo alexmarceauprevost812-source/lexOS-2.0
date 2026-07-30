@@ -633,6 +633,13 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .term .kali{color:#367BF0;font-weight:700}
 .term .tk-sudo{color:#FF4B4B;font-weight:700}
 .term .tk-help{color:#FFD23F;font-weight:700}
+/*  Palette du « help », choisie par l'auteur : lexos en blanc, les
+    commandes en jaune, les arguments en orange (la couleur de son
+    clavier), et le reste du texte en rose. */
+.term .tk-lexos{color:#fff;font-weight:700}
+.term .tk-cmd{color:#FFD23F}
+.term .tk-arg{color:#FF8C1A}
+.term .tk-rose{color:#FF7EB6}
 .term .in{display:inline}
 .caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
   background:var(--ac);animation:blink 1.05s steps(1) infinite}
@@ -2163,12 +2170,16 @@ function tPrompt(){
     lexos/lexfetch en bleu Kali, les options (-x, --xyz) en estompé.
     Reçoit du texte BRUT et l'échappe elle-même. */
 function tColore(cmd){
+  //  Mêmes couleurs que le « help » : lexos blanc, commandes jaunes,
+  //  options orange — sudo garde son rouge d'avertissement.
+  const CMDS = new Set(["help","aide","lexfetch","clear","date","whoami","echo","uname",
+    "accent","dock","perf","crt","demo","avion","lang","format","info"]);
   return esc(cmd).split(/(\s+)/).map(tok=>{
     if(/^\s+$/.test(tok) || !tok) return tok;
     if(tok==="sudo") return `<span class="tk-sudo">${tok}</span>`;
-    if(tok==="help"||tok==="aide") return `<span class="tk-help">${tok}</span>`;
-    if(tok==="lexos"||tok==="lexfetch") return `<span class="kali">${tok}</span>`;
-    if(tok.startsWith("-")) return `<span class="d">${tok}</span>`;
+    if(tok==="lexos") return `<span class="tk-lexos">${tok}</span>`;
+    if(CMDS.has(tok)) return `<span class="tk-cmd">${tok}</span>`;
+    if(tok.startsWith("-")) return `<span class="tk-arg">${tok}</span>`;
     return tok;
   }).join("");
 }
@@ -2207,18 +2218,18 @@ function fetchOut(){
 const HELP = `
 <span class='w'>LexOS 1.0.2 « Nomad » — démo web</span>
 
-<span class='a'>lexfetch</span>              fiche technique
-<span class='a'>lexos accent</span> &lt;c&gt;      orange · bleu · rouge · vert · gris · violet · neon
-<span class='a'>lexos dock</span> &lt;p&gt;        droite · gauche · bas · haut
-<span class='a'>lexos perf</span> [profil]   petit · medium · performant · max
-<span class='a'>lexos crt</span> on|off      effets de fenêtres façon TV 1980
-<span class='a'>lexos demo</span>            où tourne cette session ?
-<span class='a'>lexos avion</span> on|off    mode avion (simulé)
-<span class='a'>lexos lang</span> [code]     fr_CA · fr_FR · en_US · en_CA · es_ES · de_DE (simulé)
-<span class='a'>lexos format</span>         formater une clé USB/téléphone (vraie ISO seulement)
-<span class='a'>clear</span> · <span class='a'>date</span> · <span class='a'>whoami</span> · <span class='a'>echo</span> · <span class='a'>uname -a</span>
+<span class='tk-cmd'>lexfetch</span>              <span class='tk-rose'>fiche technique</span>
+<span class='tk-lexos'>lexos</span> <span class='tk-cmd'>accent</span> <span class='tk-arg'>&lt;c&gt;</span>      <span class='tk-rose'>orange · bleu · rouge · vert · gris · violet · neon</span>
+<span class='tk-lexos'>lexos</span> <span class='tk-cmd'>dock</span> <span class='tk-arg'>&lt;p&gt;</span>        <span class='tk-rose'>droite · gauche · bas · haut</span>
+<span class='tk-lexos'>lexos</span> <span class='tk-cmd'>perf</span> <span class='tk-arg'>[profil]</span>   <span class='tk-rose'>petit · medium · performant · max</span>
+<span class='tk-lexos'>lexos</span> <span class='tk-cmd'>crt</span> <span class='tk-arg'>on|off</span>      <span class='tk-rose'>effets de fenêtres façon TV 1980</span>
+<span class='tk-lexos'>lexos</span> <span class='tk-cmd'>demo</span>            <span class='tk-rose'>où tourne cette session ?</span>
+<span class='tk-lexos'>lexos</span> <span class='tk-cmd'>avion</span> <span class='tk-arg'>on|off</span>    <span class='tk-rose'>mode avion (simulé)</span>
+<span class='tk-lexos'>lexos</span> <span class='tk-cmd'>lang</span> <span class='tk-arg'>[code]</span>     <span class='tk-rose'>fr_CA · fr_FR · en_US · en_CA · es_ES · de_DE (simulé)</span>
+<span class='tk-lexos'>lexos</span> <span class='tk-cmd'>format</span>         <span class='tk-rose'>formater une clé USB/téléphone (vraie ISO seulement)</span>
+<span class='tk-cmd'>clear</span> · <span class='tk-cmd'>date</span> · <span class='tk-cmd'>whoami</span> · <span class='tk-cmd'>echo</span> · <span class='tk-cmd'>uname <span class='tk-arg'>-a</span></span>
 
-<span class='d'>Le vrai système a bien plus : wifi, bluetooth, partage QR,
+<span class='tk-rose'>Le vrai système a bien plus : wifi, bluetooth, partage QR,
 plusieurs écrans, installation chiffrée… Il vit sur l'ISO.</span>
 `;
 function runCmd(raw){
