@@ -48,7 +48,11 @@ if command -v xfconf-query >/dev/null 2>&1; then
 fi
 
 # --- Fond d'écran sur tous les écrans détectés ------------------------------
-WALL="/usr/share/backgrounds/lexos/wallpaper.png"
+#  Le fond officiel est celui de marque (logo TI-LEX-AL sur fond noir,
+#  "LexOS 1.0" dans le sélecteur de Paramètres → Bureau LexOS) — pas le
+#  dégradé braise abstrait, qui n'est qu'une des quatre variantes proposées.
+WALL="/usr/share/backgrounds/lexos/wallpaper-demon.png"
+[[ -r "$WALL" ]] || WALL="/usr/share/backgrounds/lexos/wallpaper.png"
 [[ -r "$WALL" ]] || WALL="/usr/share/lexos/branding/wallpaper.svg"
 
 if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then

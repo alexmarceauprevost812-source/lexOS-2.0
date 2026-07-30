@@ -134,6 +134,17 @@ for NAME in files zip share wifi wifi-ok wifi-warn wifi-off bluetooth \
 	cp "$SRC" "/usr/share/icons/hicolor/scalable/apps/lexos-${NAME}.svg"
 done
 
+#  Icône GitHub — source déjà en PNG (pas de version vectorielle), redimensionnée
+#  directement plutôt que passée par render() qui suppose un SVG en entrée.
+if [ -r "$BRAND/icon-github.png" ] && have convert; then
+	for SIZE in 16 22 24 32 48 64 128 256; do
+		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		convert "$BRAND/icon-github.png" -resize "${SIZE}x${SIZE}" "$DIR/lexos-github.png" \
+			&& echo "[lexos]   -> $DIR/lexos-github.png"
+	done
+fi
+
 #  Studio+ LexOS porte le logo de marque TI-LEX-AL, pas une icône à part :
 #  c'est l'atelier maison, il s'annonce sous l'enseigne. On recopie donc
 #  lexos.png déjà rendu plus haut, à chaque taille, sous le nom attendu par

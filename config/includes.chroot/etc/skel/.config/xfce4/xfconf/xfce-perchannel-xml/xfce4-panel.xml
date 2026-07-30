@@ -69,6 +69,7 @@
         <value type="string" value="xfce4-terminal.desktop"/>
         <value type="string" value="thunar.desktop"/>
         <value type="string" value="org.xfce.mousepad.desktop"/>
+        <value type="string" value="lexos-github.desktop"/>
         <value type="string" value="lexos-about.desktop"/>
       </property>
     </property>
