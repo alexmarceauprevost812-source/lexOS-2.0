@@ -1,6 +1,6 @@
 <div align="center">
 
-# LexOS 1.0 « Nomad »
+# LexOS 1.0.2 « Nomad »
 
 **TI·LEX·AL** — une distribution Linux complète, noire, à ma sauce.
 
@@ -29,7 +29,7 @@ profils de performance, outils réseau et de partage.
 
 | | |
 |---|---|
-| **Nom** | LexOS 1.0 « Nomad » |
+| **Nom** | LexOS 1.0.2 « Nomad » |
 | **Socle** | Debian trixie — noyau 6.12 LTS, systemd 257, Mesa 25 |
 | **Bureau** | XFCE — barre en haut, dock à droite, façon Ubuntu |
 | **Thème** | LexOS Noir : fond noir pur, écriture blanche, boutons accentués |
@@ -121,9 +121,9 @@ make build      # construit l'ISO (saveur standard)
 Compte **20 à 60 minutes** selon ta connexion. À la fin :
 
 ```
-  ok  ISO      : lexos-1.0-standard-amd64.iso
+  ok  ISO      : lexos-1.0.2-standard-amd64.iso
   ok  Taille   : 2.4G
-  ok  SHA-256  : lexos-1.0-standard-amd64.iso.sha256
+  ok  SHA-256  : lexos-1.0.2-standard-amd64.iso.sha256
 ```
 
 ### Les cinq saveurs
@@ -458,7 +458,7 @@ La fiche technique de la machine, avec le masque LexOS en art ASCII.
 ```
         ▄▄██████████▄▄         lex@lexos
      ▄██████████████████▄      ────────────────────────────────
-  ▄████████████████████████▄   OS       : LexOS 1.0 (Nomad) x86_64
+  ▄████████████████████████▄   OS       : LexOS 1.0.2 (Nomad) x86_64
   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀   Base     : Debian bookworm (12.5)
    ███▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄███    Noyau    : 6.1.0-18-amd64
     ██ ▐████▌    ▐████▌ ██     Uptime   : 14 minutes
@@ -538,7 +538,7 @@ démarrage, installateur, `/etc/os-release`, thème.
 
 ```bash
 LEXOS_NAME="LexOS"
-LEXOS_VERSION="1.0"
+LEXOS_VERSION="1.0.2"
 LEXOS_CODENAME="Nomad"
 LEXOS_ACCENT_NAME="orange"      # couleur des boutons
 LEXOS_CRT_EFFECTS="on"          # effets TV 1980
@@ -677,6 +677,6 @@ LexOS n'est ni affilié à, ni approuvé par le projet Debian.
 
 <div align="center">
 
-**TI·LEX·AL** — LexOS 1.0 « Nomad »
+**TI·LEX·AL** — LexOS 1.0.2 « Nomad »
 
 </div>
