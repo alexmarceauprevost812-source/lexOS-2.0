@@ -394,7 +394,7 @@ EOF
 
   ${B}Marche à suivre${R}
     1. Écris l’ISO sur une clé USB avec ${O}dd${R} :
-       ${D}sudo dd if=lexos-1.0-standard-amd64.iso of=/dev/diskN bs=4m status=progress${R}
+       ${D}sudo dd if=lexos-1.0.2-standard-amd64.iso of=/dev/diskN bs=4m status=progress${R}
        ${D}(sous macOS : diskutil list pour trouver N, puis diskutil unmountDisk)${R}
     2. Redémarre en tenant ${B}Option (⌥)${R}.
     3. Choisis ${B}EFI Boot${R}.
