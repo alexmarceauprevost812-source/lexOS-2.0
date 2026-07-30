@@ -107,9 +107,26 @@ fi
 #  2. Entrées de menu — Paramètres (hook 0450, sûr en entier) et GitHub
 # =============================================================================
 titre "2/6 · Entrées de menu"
-sh config/hooks/normal/0450-lexos-settings.hook.chroot
-
+#  On écrit ces .desktop nous-mêmes plutôt que d'appeler le hook 0450 : ce
+#  hook s'arrête sans rien faire s'il ne détecte ni lightdm ni startxfce4
+#  (garde-fou pensé pour la construction de l'ISO, pas pour une machine où
+#  le bureau tourne déjà) — pas de raison de dépendre de cette condition ici.
 mkdir -p /usr/share/applications
+cat > /usr/share/applications/lexos-settings.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Paramètres
+Name[en]=Settings
+Comment=Wi-Fi, écrans, performance, apparence, comptes, mises à jour…
+Exec=lexos-settings
+Icon=lexos-reglages
+Terminal=false
+StartupNotify=true
+StartupWMClass=Paramètres LexOS
+Categories=Settings;
+Keywords=parametres;settings;wifi;reseau;bluetooth;ecrans;son;energie;performance;apparence;bureau;applications;notifications;recherche;comptes;partage;bien-etre;souris;pave tactile;touchpad;couleurs;imprimantes;confidentialite;securite;mises a jour;accessibilite;utilisateurs;langue;clavier;a propos;
+EOF
 cat > /usr/share/applications/lexos-github.desktop <<'EOF'
 [Desktop Entry]
 Type=Application
