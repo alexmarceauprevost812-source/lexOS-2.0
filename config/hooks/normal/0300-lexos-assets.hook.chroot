@@ -103,7 +103,14 @@ for SIZE in 16 22 24 32 48 64 128 256 512; do
 done
 
 mkdir -p /usr/share/icons/hicolor/scalable/apps
-[ -r "$BRAND/logo.svg" ] && cp "$BRAND/logo.svg" /usr/share/icons/hicolor/scalable/apps/lexos.svg
+#  logo.svg (casque/masque) n'est PAS le même dessin que le logo TI-LEX-AL :
+#  l'installer comme version vectorielle de « lexos » faisait CHANGER l'icône
+#  sous la souris — au zoom du dock, GTK basculait des PNG (emblème TI-LEX-AL)
+#  vers ce SVG. Il ne sert de source que si c'est lui qui a rendu les PNG.
+case "$LOGO_SRC" in
+	*.svg) cp "$LOGO_SRC" /usr/share/icons/hicolor/scalable/apps/lexos.svg ;;
+	*)     rm -f /usr/share/icons/hicolor/scalable/apps/lexos.svg ;;
+esac
 
 # --- Icônes teintables (lexos-files, lexos-zip) — orange par défaut --------
 #  À l'exécution, lexos-theme-gen en produit une version à la couleur

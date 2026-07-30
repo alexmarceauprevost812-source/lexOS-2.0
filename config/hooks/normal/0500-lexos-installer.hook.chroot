@@ -26,12 +26,15 @@ BRANDING_DIR="/usr/share/calamares/branding/lexos"
 mkdir -p "$BRANDING_DIR"
 
 # --- Visuels de l'installateur ----------------------------------------------
-if command -v rsvg-convert >/dev/null 2>&1; then
-	SRC="/usr/share/lexos/branding"
-	[ -r "$SRC/logo.svg" ] && rsvg-convert -w 160 -h 160 \
-		-o "$BRANDING_DIR/logo.png" "$SRC/logo.svg" || true
-	[ -r "$SRC/wallpaper.svg" ] && rsvg-convert -w 1280 -h 720 \
-		-o "$BRANDING_DIR/welcome.png" "$SRC/wallpaper.svg" || true
+SRC="/usr/share/lexos/branding"
+#  Même logo que le dock et le menu : l'emblème TI-LEX-AL, pas logo.svg.
+if [ -r "$SRC/logo-ti-lex-al-icon.png" ] && command -v convert >/dev/null 2>&1; then
+	convert "$SRC/logo-ti-lex-al-icon.png" -resize 160x160 "$BRANDING_DIR/logo.png" || true
+elif [ -r "$SRC/logo.svg" ] && command -v rsvg-convert >/dev/null 2>&1; then
+	rsvg-convert -w 160 -h 160 -o "$BRANDING_DIR/logo.png" "$SRC/logo.svg" || true
+fi
+if [ -r "$SRC/wallpaper.svg" ] && command -v rsvg-convert >/dev/null 2>&1; then
+	rsvg-convert -w 1280 -h 720 -o "$BRANDING_DIR/welcome.png" "$SRC/wallpaper.svg" || true
 fi
 
 cat > "$BRANDING_DIR/branding.desc" <<EOF
