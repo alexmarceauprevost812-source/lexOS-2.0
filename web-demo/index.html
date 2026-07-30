@@ -91,9 +91,37 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
     testant le thème clair — le mot LexOS était presque invisible). */
 #wall{position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;pointer-events:none;text-align:center}
-#wall .mark{font:700 clamp(48px,9vw,110px)/1 "Fira Code",ui-monospace,monospace;
-  letter-spacing:-.04em;color:#fff}
-#wall .mark b{color:var(--ac);font-weight:700}
+/*  La marque est le logo ASCII de build.sh (le même que la bannière du
+    terminal de construction), en orange. Couleur FIXE var(--ac) : l'accent
+    reste lisible sur le fond noir dans les deux thèmes. À l'arrivée sur le
+    bureau, chaque ligne TOMBE en place (translateY négatif -> 0, en
+    cascade) — elle vient « remplacer » le mot LexOS. */
+#wall .mark-ascii{margin:0;color:var(--ac);text-align:left;
+  font:700 clamp(11px,2.2vw,27px)/1.16 "Fira Code",ui-monospace,monospace;
+  text-shadow:0 0 24px rgba(232,89,12,.35)}
+#wall .mark-ascii span{display:block;opacity:0;transform:translateY(-52px);
+  animation:markTombe .6s cubic-bezier(.3,1.35,.45,1) forwards}
+#wall .mark-ascii span:nth-child(1){animation-delay:.15s}
+#wall .mark-ascii span:nth-child(2){animation-delay:.28s}
+#wall .mark-ascii span:nth-child(3){animation-delay:.41s}
+#wall .mark-ascii span:nth-child(4){animation-delay:.54s}
+#wall .mark-ascii span:nth-child(5){animation-delay:.67s}
+@keyframes markTombe{
+  0%{opacity:0;transform:translateY(-52px)}
+  72%{opacity:1;transform:translateY(5px)}
+  100%{opacity:1;transform:translateY(0)}
+}
+@media (prefers-reduced-motion:reduce){
+  #wall .mark-ascii span{animation:none;opacity:1;transform:none}}
+/*  Code d'arrière-plan du fond d'écran : le script lexos-settings s'écrit
+    en boucle derrière la marque, visible à 40 %. Décoratif seulement —
+    pointer-events:none (le clic droit bureau et les icônes passent au
+    travers), aria-hidden (rien à lire pour un lecteur d'écran). Couleur
+    FIXE claire, même règle que le reste de #wall. */
+#wallCode{position:absolute;inset:0;margin:0;padding:46px 30px 30px;
+  font:12.5px/1.7 ui-monospace,monospace;color:#b8b8bc;opacity:.4;
+  overflow:hidden;pointer-events:none;user-select:none;
+  white-space:pre-wrap;word-break:break-all}
 #wall .rule{width:min(420px,60vw);height:2px;margin:18px 0 14px;
   background:linear-gradient(90deg,transparent,var(--ac),transparent)}
 #wall .brand{font:400 clamp(11px,1.6vw,16px)/1 ui-monospace,monospace;
@@ -1423,8 +1451,9 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
 
 <div id="screen">
   <div id="desktop" oncontextmenu="ctxBureau(event)">
+    <pre id="wallCode" aria-hidden="true"></pre>
     <div id="wall">
-      <div class="mark">Lex<b>OS</b></div>
+      <pre class="mark-ascii" role="img" aria-label="LexOS"><span>   __         _____ _____</span><span>  / /  _____ / __  |  ___|</span><span> / /  / _ \ \/ / | | |___</span><span>/ /__|  __/&gt;  &lt;  | |___  |</span><span>\____/\___/_/\_\ |_____/</span></pre>
       <div class="rule"></div>
       <div class="brand">T I · L E X · A L</div>
       <div class="ver">1.0.2 — NOMAD</div>
@@ -5713,6 +5742,67 @@ function cameraGlyph(size){
 
 //  Le script est en fin de <body> : la barre du haut existe déjà.
 document.getElementById("qcPhoto").innerHTML = cameraGlyph(17);
+
+/* --- Code d'arrière-plan du fond d'écran ---------------------------------
+   L'en-tête du vrai script « lexos-settings » s'écrit caractère par
+   caractère derrière la marque, à 40 % d'opacité, et recommence quand la
+   page d'écran est pleine. Une seule minuterie, une seule mise à jour de
+   textContent par tic : assez léger pour tourner en permanence. */
+const WALLCODE_SRC = `#!/usr/bin/env bash
+# =====================================================================
+#  lexos-settings — Paramètres LexOS
+# =====================================================================
+#  Une seule fenêtre, une barre latérale, toutes les sections :
+#  Paramètres -> (n'importe quelle section) dans web-demo.
+#  Même patron que lexos-cartes : une fenêtre Qt (PySide6),
+#  web servie en local ; le pont settings.py exécute les vraies
+#  commandes LexOS (lexos net, lexos-perf, lexos theme…) derrière.
+# =====================================================================
+set -uo pipefail
+
+PROG="\${0##*/}"
+if [[ -t 1 ]] && [[ "\${NO_COLOR:-}" == "" ]]; then
+  O=$'\\033[38;5;208m'; E=$'\\033[31m'; Y=$'\\033[33m'; R=$'\\033[0m'
+else
+  O=''; E=''; Y=''; R=''
+fi
+say()  { printf '%s»%s %s\\n' "$O" "$R" "$*"; }
+warn() { printf '%s!%s %s\\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%sx%s %s\\n' "$E" "$R" "$*" >&2; exit 1; }
+
+CODE="/usr/lib/lexos/settings.py"
+DONNEES="\${LEXOS_SETTINGS_DIR:-/usr/share/lexos/settings}"
+
+case "\${1:-}" in
+  -h|--help|aide|help)
+    cat <<AIDE
+\${PROG} — Paramètres LexOS
+
+  \${O}\${PROG}\${R}             Ouvre les Paramètres
+  \${O}\${PROG}\${R} <section>   Ouvre directement une section
+
+Réseau, matériel, personnalisation, comptes, périphériques :
+tout dans une seule fenêtre, comme Paramètres -> dans la démo.
+AIDE
+    ;;
+esac
+`;
+{
+  const el = document.getElementById("wallCode");
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches){
+    el.textContent = WALLCODE_SRC;      // statique, mais présent
+  } else {
+    let pos = 0;
+    setInterval(()=>{
+      pos++;
+      if (pos > WALLCODE_SRC.length) pos = 1;
+      el.textContent = WALLCODE_SRC.slice(0, pos) + "▌";
+      //  Écran plein avant la fin du texte (petite fenêtre, gros zoom) :
+      //  on repart du début plutôt que d'écrire hors de vue.
+      if (el.scrollHeight > el.clientHeight + 8) pos = 0;
+    }, 34);
+  }
+}
 
 /*  Studio+ porte le logo de marque TI-LEX-AL, pas un pictogramme à part :
     c'est l'atelier maison. Même image que le lanceur Applications
