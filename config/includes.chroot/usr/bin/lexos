@@ -397,11 +397,7 @@ cmd_wallpaper() {
 		shift; exec lexos-fond-video "$@"
 	fi
 
-	#  Sans argument : le fond officiel (logo TI-LEX-AL), pas le dégradé
-	#  abstrait — c'est lui qui est réellement de marque LexOS.
-	local defaut="/usr/share/backgrounds/lexos/wallpaper-demon.png"
-	[[ -r "$defaut" ]] || defaut="/usr/share/backgrounds/lexos/wallpaper.png"
-	local img="${1:-$defaut}"
+	local img="${1:-/usr/share/backgrounds/lexos/wallpaper.png}"
 	local cadrage="${2:-remplir}"
 
 	[[ -r "$img" ]] || die "Image introuvable ou illisible : $img"
