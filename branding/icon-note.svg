@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Note / éditeur de texte.
+  Feuille au coin plié (même construction que icon-files.svg) avec des
+  lignes de texte et un crayon en diagonale. Dessin original.
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Note — LexOS">
+  <!-- Cadre -->
+  <rect x="40" y="40" width="432" height="432" rx="96" fill="#E8590C"/>
+  <rect x="40" y="40" width="432" height="200" rx="96" fill="#FFFFFF" opacity="0.12"/>
+
+  <!-- Feuille, coin supérieur droit plié -->
+  <path d="M156 116 H300 L376 192 V396 a20 20 0 0 1 -20 20 H156
+           a20 20 0 0 1 -20 -20 V136 a20 20 0 0 1 20 -20 Z" fill="#FFFFFF"/>
+  <path d="M300 116 L376 192 H300 Z" fill="#FFFFFF" opacity="0.55"/>
+
+  <!-- Lignes de texte -->
+  <g stroke="#E8590C" stroke-width="18" stroke-linecap="round">
+    <line x1="176" y1="240" x2="336" y2="240"/>
+    <line x1="176" y1="288" x2="336" y2="288"/>
+    <line x1="176" y1="336" x2="292" y2="336"/>
+  </g>
+</svg>

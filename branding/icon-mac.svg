@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Disposition clavier Mac.
+  Clavier stylisé + touche « pomme » mise en évidence, portant le symbole
+  générique de la touche Commande (quatre anneaux reliés par une croix —
+  un caractère Unicode courant, U+2318, pas un logo de marque), construit
+  ici en formes géométriques plutôt qu'en texte pour un rendu net à toutes
+  les tailles. Dessin original.
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Disposition clavier Mac — LexOS">
+  <!-- Cadre -->
+  <rect x="40" y="40" width="432" height="432" rx="96" fill="#E8590C"/>
+  <rect x="40" y="40" width="432" height="200" rx="96" fill="#FFFFFF" opacity="0.12"/>
+
+  <!-- Corps du clavier -->
+  <rect x="86" y="190" width="340" height="170" rx="26" fill="#FFFFFF"/>
+
+  <!-- Touches génériques -->
+  <g fill="#E8590C">
+    <rect x="108" y="208" width="60" height="26" rx="7"/>
+    <rect x="182" y="208" width="60" height="26" rx="7"/>
+    <rect x="256" y="208" width="60" height="26" rx="7"/>
+    <rect x="108" y="244" width="60" height="26" rx="7"/>
+    <rect x="182" y="244" width="60" height="26" rx="7"/>
+    <rect x="256" y="244" width="60" height="26" rx="7"/>
+    <rect x="108" y="282" width="190" height="26" rx="8"/>
+  </g>
+
+  <!-- Touche « Commande », mise en évidence -->
+  <rect x="318" y="284" width="120" height="120" rx="22" fill="#1A1A1D"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round">
+    <circle cx="352" cy="344" r="12"/>
+    <circle cx="404" cy="344" r="12"/>
+    <circle cx="378" cy="318" r="12"/>
+    <circle cx="378" cy="370" r="12"/>
+  </g>
+  <g fill="#FFFFFF">
+    <rect x="346" y="338" width="64" height="12" rx="6"/>
+    <rect x="372" y="312" width="12" height="64" rx="6"/>
+  </g>
+</svg>

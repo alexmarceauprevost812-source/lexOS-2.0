@@ -111,9 +111,12 @@ mkdir -p /usr/share/icons/hicolor/scalable/apps
 #  wifi-ok / wifi-warn / wifi-off portent une couleur FIXE (vert, orange,
 #  rouge) : elle dit l'état du réseau, elle ne doit donc pas suivre l'accent.
 #  Elles ne contiennent pas le jeton #E8590C, la substitution les ignore.
+#  couleurs (gestion des couleurs) est dans le même cas : ses six teintes
+#  d'arc-en-ciel sont fixes, pas de jeton non plus.
 for NAME in files zip share wifi wifi-ok wifi-warn wifi-off bluetooth \
              perf-petit perf-medium perf-performant perf-max \
-             folder-ferme folder-ouvert musique usb secure terminal camera; do
+             folder-ferme folder-ouvert musique usb secure terminal camera \
+             reglages navigateur note couleurs maj disque mac; do
 	SRC="$BRAND/icon-${NAME}.svg"
 	[ -r "$SRC" ] || continue
 	for SIZE in 16 22 24 32 48 64 128 256; do

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Gestion des couleurs.
+  Arc-en-ciel : six bandes concentriques, dessin original. Cette icône
+  représente la couleur elle-même : contrairement aux autres icônes de la
+  famille, elle NE porte PAS le jeton #E8590C — ses six teintes sont FIXES,
+  au même titre que wifi-ok/wifi-warn/wifi-off.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Gestion des couleurs — LexOS">
+  <circle cx="256" cy="256" r="212" fill="#1A1A1D"/>
+
+  <g fill="none" stroke-linecap="round" stroke-width="24">
+    <path d="M 76 345 A 180 180 0 0 1 436 345" stroke="#E64545"/>
+    <path d="M 103 345 A 153 153 0 0 1 409 345" stroke="#E8822E"/>
+    <path d="M 130 345 A 126 126 0 0 1 382 345" stroke="#E0C93C"/>
+    <path d="M 157 345 A 99  99  0 0 1 355 345" stroke="#3AAE58"/>
+    <path d="M 184 345 A 72  72  0 0 1 328 345" stroke="#3E8EDE"/>
+    <path d="M 211 345 A 45  45  0 0 1 301 345" stroke="#9155D6"/>
+  </g>
+</svg>

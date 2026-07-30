@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Navigateur web.
+  Globe filaire (méridiens + parallèles) sur pastille sombre : le symbole
+  universel du web, dessin original (même technique que icon-musique.svg,
+  sans la note de musique par-dessus).
+
+  Dans la démo web, les méridiens tournent (voir navGlyph()) ; dans le vrai
+  système, cette icône reste statique (thème d'icônes GTK/Xfce).
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Navigateur — LexOS">
+  <circle cx="256" cy="256" r="212" fill="#1A1A1D"/>
+  <circle cx="256" cy="256" r="166" fill="#E8590C" opacity="0.14"/>
+
+  <g fill="none" stroke="#E8590C" stroke-width="10">
+    <!-- Méridiens -->
+    <ellipse cx="256" cy="256" rx="166" ry="166"/>
+    <ellipse cx="256" cy="256" rx="88"  ry="166"/>
+    <ellipse cx="256" cy="256" rx="0"   ry="166"/>
+    <!-- Parallèles -->
+    <ellipse cx="256" cy="180.7" rx="147.9" ry="25.2"/>
+    <ellipse cx="256" cy="256.0" rx="166.0" ry="28.2"/>
+    <ellipse cx="256" cy="331.3" rx="147.9" ry="25.2"/>
+    <!-- Équateur -->
+    <line x1="90" y1="256" x2="422" y2="256"/>
+  </g>
+</svg>
