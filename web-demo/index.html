@@ -1561,7 +1561,7 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 avion:false, mode:"sombre", wifiAuto:false, lang:"fr_CA",
                 filesFav:false, wifi:true, bt:true, wifiIssue:false,
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
-                qsCompact:false, dockHidden:false, zTop:100, majDispo:false, wallpaper:"defaut", police:"defaut",
+                qsCompact:false, dockHidden:false, zTop:100, majDispo:false, majSecuAuto:true, majAuto:false, wallpaper:"defaut", police:"defaut",
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
                 wallPerso:null, wallPersoNom:"", wallCadrage:"remplir", wallVideoURL:null,
                 vpn:null,
@@ -1733,7 +1733,33 @@ function majGlyph(){
   const t = state.majDispo ? "Mise à jour disponible" : "Système à jour";
   return `<i class="gly gly-maj ${s}" title="${t}"></i>`;
 }
-function toggleMajDispo(){ state.majDispo=!state.majDispo; showSettingsSection(); }
+function toggleMajDispo(){ state.majDispo=!state.majDispo; showSettingsSection(); majAutoApplique(); }
+/* --- Mises à jour automatiques ------------------------------------------- */
+function toggleMajSecu(){
+  state.majSecuAuto = !state.majSecuAuto;
+  showSettingsSection();
+  toast(state.majSecuAuto ? "Sécurité : installation automatique chaque jour"
+                          : "Sécurité : installation à la main — déconseillé");
+}
+function toggleMajAuto(){
+  state.majAuto = !state.majAuto;
+  showSettingsSection();
+  toast(state.majAuto ? "Mises à jour automatiques activées"
+                      : "Mises à jour automatiques désactivées");
+  majAutoApplique();
+}
+/*  L'automatique fait ce qu'il promet : une mise à jour en attente
+    s'installe toute seule quelques secondes plus tard, sans clic. */
+function majAutoApplique(){
+  if(!state.majAuto || !state.majDispo) return;
+  clearTimeout(majAutoApplique._t);
+  majAutoApplique._t = setTimeout(()=>{
+    if(!state.majAuto || !state.majDispo) return;
+    state.majDispo = false;
+    showSettingsSection();
+    toast("⬇ Mise à jour installée automatiquement — système à jour");
+  }, 4000);
+}
 
 /*  Même calcul que lexos-theme-gen sur la vraie ISO : on ne devine pas avec un
     seuil, on calcule le VRAI contraste WCAG du noir et du blanc sur l'accent
@@ -4910,7 +4936,8 @@ function settingsSection(key){
         <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center">${majGlyph()}</span>
         <div><div class="t" style="font-weight:600">LexOS 1.0.2 « Nomad »</div><div class="d">Base Debian trixie</div></div>
       </div>
-      ${swRow("Mises à jour de sécurité automatiques","Chaque jour, sans rien demander (unattended-upgrades)",true,"")}
+      ${swRow("Mises à jour de sécurité automatiques","Chaque jour, sans rien demander (unattended-upgrades)",state.majSecuAuto,"toggleMajSecu()")}
+      ${swRow("Tout mettre à jour automatiquement","Applications et système : dès qu'une mise à jour paraît, elle s'installe toute seule",state.majAuto,"toggleMajAuto()")}
       ${swRow("Simuler une mise à jour disponible","Pour voir l'icône passer au rouge — sinon elle reste verte : système à jour",state.majDispo,"toggleMajDispo()")}
       <div class="srow"><div><div class="t">Micrologiciel (BIOS, SSD, périphériques)</div>
         <div class="d">fwupd met à jour le matériel lui-même depuis le bureau —
