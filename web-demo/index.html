@@ -588,6 +588,16 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   transition:opacity .25s ease,transform .25s ease}
 #devtray .dev-ic.on{opacity:1;transform:scale(1)}
 @media (prefers-reduced-motion:reduce){ #devtray .dev-ic{transition:none} }
+/*  Zone d'état à droite du panneau : Wi-Fi, Bluetooth, son, batterie. */
+#statusicons{display:flex;align-items:center;gap:4px;margin-right:4px;color:var(--fg)}
+#statusicons .st-ic{display:inline-flex;align-items:center;gap:3px;background:none;
+  border:0;color:inherit;cursor:pointer;padding:3px 5px;border-radius:7px;
+  font-size:14px;line-height:1;transition:background .15s}
+#statusicons .st-ic:hover{background:rgba(255,255,255,.12)}
+#statusicons .st-ic .gly{width:15px;height:15px}
+#statusicons .st-batt svg{display:block}
+#statusicons .st-n{font-size:11px;opacity:.85;font-variant-numeric:tabular-nums}
+@media (max-width:640px){ #statusicons .st-n{display:none} #statusicons{gap:1px} }
 /*  Le disque dur est un SVG vivant (pas un masque) : tout le dessin suit
     la couleur du panneau (currentColor), sauf le petit témoin d'activité,
     qui reste vert et clignote — comme une vraie diode de disque. */
@@ -1564,6 +1574,7 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
       <span id="clkdate"></span><span id="clktime"></span></span>
     <div id="tray">
       <div id="devtray" title="Outils de travail branchés"></div>
+      <span id="statusicons" title="État : Wi-Fi, Bluetooth, son, batterie"></span>
       <button id="qsBtn"  title="Paramètres rapides">▲</button>
       <button id="offBtn" title="Marche, veille, redémarrer, éteindre">⏻</button>
     </div>
@@ -1602,6 +1613,7 @@ const LANGS = { fr_CA:"Français (Québec)", fr_FR:"Français (France)",
 const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 avion:false, mode:"sombre", wifiAuto:false, lang:"fr_CA",
                 filesFav:false, wifi:true, bt:true, wifiIssue:false,
+                son:72, batt:72, charging:false,
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
                 qsCompact:false, dockHidden:false, zTop:100, majDispo:false, majSecuAuto:true, majAuto:false, wallpaper:"defaut", police:"defaut",
                 agendaEvts:{}, agendaVue:null,
@@ -1768,6 +1780,39 @@ function wifiGlyph(){
 function avionGlyph(){
   const s = state.avion ? "gly-ok" : "gly-warn";
   return `<i class="gly gly-avion ${s}" title="Mode avion ${state.avion?"activé":"désactivé"}"></i>`;
+}
+/*  Groupe d'état en haut à droite du panneau : Wi-Fi, Bluetooth, son et
+    batterie, comme la zone d'état d'un vrai bureau. Chaque icône ouvre le
+    réglage correspondant d'un clic, et se met à jour quand l'état change
+    (majStatus, appelée par les bascules et l'ouverture des réglages). */
+function volGlyph(){
+  const on = !state.avion;
+  const v = state.son;
+  const e = v===0 ? "🔇" : v<40 ? "🔈" : v<75 ? "🔉" : "🔊";
+  return `<button class="st-ic" title="Son ${v}%" onclick="openSettings('son')" style="${on?"":"opacity:.45"}">${e}</button>`;
+}
+function battGlyph(){
+  const lvl = Math.max(0,Math.min(100,state.batt)), ch = state.charging;
+  const col = lvl<=15 ? "#e5534b" : lvl<=30 ? "#e0a021" : "currentColor";
+  const w = Math.max(1.5, (lvl/100)*16);
+  return `<button class="st-ic st-batt" title="Batterie ${lvl}%${ch?" — en charge":""}" onclick="openSettings('energie')">`+
+    `<svg width="27" height="13" viewBox="0 0 27 13" aria-hidden="true">`+
+      `<rect x="1" y="1.6" width="22" height="9.8" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.3" opacity=".7"/>`+
+      `<rect x="23.6" y="4.4" width="2.2" height="4.2" rx="1" fill="currentColor" opacity=".7"/>`+
+      `<rect x="2.6" y="3.1" width="${w}" height="6.8" rx="1.1" fill="${col}"/>`+
+      (ch?`<path d="M13 1.6 L9.8 7 h2.6 l-1 4.4 4.4-5.4 h-2.6 z" fill="#ffd23f" stroke="#0006" stroke-width=".3"/>`:"")+
+    `</svg><span class="st-n">${lvl}%</span></button>`;
+}
+function statusIcons(){
+  const btOn = !state.avion && state.bt;
+  return `<button class="st-ic" title="Wi-Fi" onclick="openSettings('wifi')">${wifiGlyph()}</button>`+
+    `<button class="st-ic" title="Bluetooth ${btOn?"activé":"désactivé"}" onclick="openSettings('bluetooth')"><i class="gly gly-bt ${btOn?"gly-ok":"gly-off"}"></i></button>`+
+    volGlyph()+
+    battGlyph();
+}
+function majStatus(){
+  const el = document.getElementById("statusicons");
+  if(el) el.innerHTML = statusIcons();
 }
 //  Mises à jour : vert tourne doucement quand tout est à jour, rouge quand
 //  une mise à jour attend — même mécanique de couleur d'état que le Wi-Fi.
@@ -4621,7 +4666,8 @@ function settingsSection(key){
       écrans avec <code>lexos ecran</code> (étendre, dupliquer, principal, résolution).</p>`;
     case "son": return `<h2>Son</h2><div class="sub">Volume, périphériques</div>
       <div class="srow"><div class="t">Volume de sortie</div>
-        <input type="range" min="0" max="100" value="72" style="accent-color:var(--ac)"></div>
+        <input type="range" min="0" max="100" value="${state.son}" style="accent-color:var(--ac)"
+               oninput="state.son=+this.value; majStatus()"></div>
       ${swRow("Sourdine",false,"")}
       ${swRow("Casque audio branché","Apparaît dans la barre du haut, à côté de l'heure",state.periph.casque,"togglePeriph('casque')")}`;
     case "energie": return `<h2>Énergie</h2><div class="sub">Profil de performance</div>
@@ -5231,7 +5277,7 @@ function settingsSection(key){
     default: return `<p class="set-soon">Section indisponible.</p>`;
   }
 }
-function updateTrayIcon(){ const b=document.getElementById("qsBtn"); if(b) b.textContent=state.avion?"✈":"▲"; }
+function updateTrayIcon(){ const b=document.getElementById("qsBtn"); if(b) b.textContent=state.avion?"✈":"▲"; majStatus(); }
 /* --- Barre des outils de travail branchés (haut à droite) ----------------
    Une icône par appareil « connecté » dans la démo — elle apparaît/
    disparaît avec un petit fondu quand on bascule l'état dans les
@@ -5257,7 +5303,7 @@ function togglePeriph(key){
 }
 function toggleAvion(){ state.avion=!state.avion; updateTrayIcon(); showSettingsSection(); }
 function toggleWifiAuto(){ state.wifiAuto=!state.wifiAuto; showSettingsSection(); }
-function toggleWifiIssue(){ state.wifiIssue=!state.wifiIssue; showSettingsSection(); qsRefreshIfOpen(); }
+function toggleWifiIssue(){ state.wifiIssue=!state.wifiIssue; showSettingsSection(); qsRefreshIfOpen(); majStatus(); }
 //  Le panneau rapide, s'il est ouvert, doit refléter le changement tout de suite.
 function qsRefreshIfOpen(){ const p=document.querySelector(".qs-panel"); if(p) p.innerHTML=qsRender(); }
 function setLum(v){
@@ -5710,7 +5756,7 @@ function qsToggle(){
   qsEl.innerHTML=qsRender();
   document.body.appendChild(qsEl);
 }
-function qsRefresh(){ if(qsEl) qsEl.innerHTML=qsRender(); }
+function qsRefresh(){ if(qsEl) qsEl.innerHTML=qsRender(); majStatus(); }
 function qsToggleCompact(){ state.qsCompact=!state.qsCompact; qsExpanded=null; qsRefresh(); }
 
 function qsTileHTML(key,icon,title,sub,on,disabled,hasChev){
@@ -7922,6 +7968,7 @@ function tick(){
 //  tard et l'effet tomberait à côté. La fonction ne fait rien tant que
 //  l'heure affichée n'a pas changé.
 setInterval(tick,1000); tick();
+majStatus();   // pose les icônes d'état (Wi-Fi, Bluetooth, son, batterie) au démarrage
 applyDock();   // pose la flèche et l'infobulle de la poignée dès le départ
 renderDevTray();
 renderDeskIcons();   // affiche l'indice vide dès le premier chargement
