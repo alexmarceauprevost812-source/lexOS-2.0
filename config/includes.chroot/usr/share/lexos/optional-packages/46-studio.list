@@ -1,16 +1,72 @@
 # Studio+ LexOS — atelier image, vidéo et son.
 #
 # lexos-studio ne fait qu'ouvrir le bon outil : ce sont ces paquets qui
-# travaillent. GIMP est le plus utile des six, d'où sa présence ici même
+# travaillent. GIMP est le plus utile de tous, d'où sa présence ici même
 # dans la saveur standard ; les autres ne coûtent rien s'ils manquent,
-# lexos-studio propose alors de les installer à la demande.
-gimp
+# lexos-studio propose alors de les installer à la demande. Tout ce qui
+# suit est dans l'archive Debian — aucun AppImage, aucun binaire externe.
 
-# ImageMagick sert au détourage de repli de lexos-sticker (autocollants)
-# quand l'IA rembg n'est pas là. Déjà dans 45-capture.list, répété ici
-# parce que Studio+ ne marche pas sans — les listes sont dédoublonnées
-# par le hook 0250 avant l'installation.
+# --- Photo et image -----------------------------------------------------
+# GIMP : la retouche photo de référence sous Linux (calques, masques,
+# détourage). L'équivalent libre de Photoshop.
+gimp
+gimp-data-extras
+# Krita : peinture et dessin numérique, pensé pour la tablette graphique.
+krita
+# Inkscape : dessin vectoriel (logos, affiches) — l'équivalent d'Illustrator.
+inkscape
+# Darktable : développement des photos RAW et gestion de la photothèque,
+# à la manière de Lightroom.
+darktable
+# RawTherapee : autre développeur RAW, complémentaire de Darktable.
+rawtherapee
+# Shotwell : ranger, trier et retoucher vite fait sa photothèque.
+shotwell
+# ImageMagick : conversion et traitement d'images en ligne de commande ;
+# sert aussi au détourage de repli de lexos-sticker (autocollants).
 imagemagick
 
+# --- Musique et son -----------------------------------------------------
+# Audacity : enregistrer et monter du son (podcast, voix, nettoyage).
+audacity
+# Ardour : station de travail audio complète (multipiste, mixage, MAO).
+ardour
+# LMMS : composer de la musique à la façon de FL Studio (boîte à rythmes,
+# séquenceur, synthés).
+lmms
+# Hydrogen : boîte à rythmes avancée.
+hydrogen
+# MuseScore : écrire des partitions et les jouer.
+musescore3
+# Mixxx : mixer comme un DJ (deux platines, BPM, effets).
+mixxx
+# Rhythmbox : lecteur et bibliothèque musicale.
+rhythmbox
+
+# --- Vidéo --------------------------------------------------------------
+# Kdenlive : montage vidéo complet (multipiste, effets, titres) — l'outil
+# de montage de référence sous Linux.
+kdenlive
+# Shotcut : montage vidéo simple et rapide, bon pour débuter.
+shotcut
+# OpenShot : montage vidéo à la timeline claire.
+openshot-qt
 # ffmpeg : conversion et export vidéo, y compris depuis Kdenlive.
 ffmpeg
+# HandBrake : convertir et compresser une vidéo pour le téléphone ou le web.
+handbrake
+
+# --- 3D, publication, lecture ------------------------------------------
+# Blender : modélisation et animation 3D, montage et compositing vidéo.
+blender
+# Scribus : mise en page (magazine, affiche, PDF) — l'équivalent d'InDesign.
+scribus
+# VLC et mpv : lire n'importe quelle vidéo ou musique.
+vlc
+mpv
+# Les greffons GStreamer : sans eux, certains formats audio/vidéo restent
+# muets dans les logiciels du bureau.
+gstreamer1.0-plugins-good
+gstreamer1.0-plugins-bad
+gstreamer1.0-plugins-ugly
+gstreamer1.0-libav

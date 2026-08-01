@@ -29,22 +29,58 @@ gamemode
 # température et la charge — sans lui, « ça rame » reste une impression.
 mangohud
 goverlay
+# CoreCtrl : régler le processeur et la carte graphique (fréquences,
+# courbe des ventilateurs, mode « performance ») avec des profils qui
+# s'activent tout seuls quand un jeu se lance. L'outil d'overclocking de
+# référence sous Linux.
+corectrl
+# vkBasalt : effets de post-traitement (netteté, correction des couleurs)
+# par-dessus n'importe quel jeu Vulkan, à la manière de ReShade.
+vkbasalt
+
+# --- Enregistrer et diffuser -------------------------------------------
+# OBS Studio : capturer ses parties, faire du montage minute et diffuser
+# en direct (Twitch, YouTube). L'outil que tout le monde utilise.
+obs-studio
 
 # --- Manettes et souris ------------------------------------------------
 # Les règles udev qui font reconnaître les manettes Steam, Xbox et PS.
 steam-devices
+# Pilote des manettes Xbox sans fil (One, Series) — meilleure prise en
+# charge que le pilote générique, vibrations comprises.
+xpadneo-dkms
 # Tester chaque bouton et chaque axe avant d'accuser le jeu.
 jstest-gtk
+evtest
 # Faire passer une manette pour un clavier, quand un jeu ne la gère pas.
 antimicrox
+# Remapper touches, boutons et axes de n'importe quel périphérique, avec
+# des profils par appareil (input-remapper).
+input-remapper
 # Régler les boutons, la sensibilité et les couleurs d'une souris de jeu.
 piper
+# Piloter l'éclairage RGB du clavier, de la souris et du boîtier.
+openrgb
+
+# --- Windows : lancer un .exe d'un double-clic -------------------------
+# wine-binfmt enregistre les .exe auprès du système : double-cliquer un
+# installeur Windows le lance par Wine, sans passer par le terminal.
+wine-binfmt
 
 # --- Émulation ----------------------------------------------------------
 retroarch
+# Cœurs RetroArch prêts à l'emploi (SNES, NES, Mega Drive, PlayStation,
+# Game Boy Advance) — sans eux, RetroArch démarre sans pouvoir rien lancer.
+libretro-snes9x
+libretro-nestopia
+libretro-genesisplusgx
+libretro-beetle-psx
+libretro-mgba
 dolphin-emu
+pcsx2
 ppsspp-qt
 mgba-qt
+mupen64plus-qt
 scummvm
 
 # --- Jeux libres, pour avoir quelque chose à lancer tout de suite -------
