@@ -48,6 +48,11 @@ if command -v xfconf-query >/dev/null 2>&1; then
 fi
 
 # --- Fond d'écran sur tous les écrans détectés ------------------------------
+#  wallpaper.png (rendu de branding/wallpaper.svg) EST le fond de marque
+#  officiel : la marque « LexOS », « TI · LEX · AL », « 1.0 — NOMAD » y sont
+#  déjà, avec la grille et les braises — pas juste un dégradé abstrait.
+#  wallpaper-demon.png (icône seule, sans texte) n'est qu'une des quatre
+#  variantes du sélecteur Paramètres → Bureau LexOS, pas le défaut.
 WALL="/usr/share/backgrounds/lexos/wallpaper.png"
 [[ -r "$WALL" ]] || WALL="/usr/share/lexos/branding/wallpaper.svg"
 

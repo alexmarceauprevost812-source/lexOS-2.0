@@ -103,7 +103,14 @@ for SIZE in 16 22 24 32 48 64 128 256 512; do
 done
 
 mkdir -p /usr/share/icons/hicolor/scalable/apps
-[ -r "$BRAND/logo.svg" ] && cp "$BRAND/logo.svg" /usr/share/icons/hicolor/scalable/apps/lexos.svg
+#  logo.svg (casque/masque) n'est PAS le même dessin que le logo TI-LEX-AL :
+#  l'installer comme version vectorielle de « lexos » faisait CHANGER l'icône
+#  sous la souris — au zoom du dock, GTK basculait des PNG (emblème TI-LEX-AL)
+#  vers ce SVG. Il ne sert de source que si c'est lui qui a rendu les PNG.
+case "$LOGO_SRC" in
+	*.svg) cp "$LOGO_SRC" /usr/share/icons/hicolor/scalable/apps/lexos.svg ;;
+	*)     rm -f /usr/share/icons/hicolor/scalable/apps/lexos.svg ;;
+esac
 
 # --- Icônes teintables (lexos-files, lexos-zip) — orange par défaut --------
 #  À l'exécution, lexos-theme-gen en produit une version à la couleur
@@ -126,6 +133,17 @@ for NAME in files zip share wifi wifi-ok wifi-warn wifi-off bluetooth \
 	done
 	cp "$SRC" "/usr/share/icons/hicolor/scalable/apps/lexos-${NAME}.svg"
 done
+
+#  Icône GitHub — source déjà en PNG (pas de version vectorielle), redimensionnée
+#  directement plutôt que passée par render() qui suppose un SVG en entrée.
+if [ -r "$BRAND/icon-github.png" ] && have convert; then
+	for SIZE in 16 22 24 32 48 64 128 256; do
+		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		convert "$BRAND/icon-github.png" -resize "${SIZE}x${SIZE}" "$DIR/lexos-github.png" \
+			&& echo "[lexos]   -> $DIR/lexos-github.png"
+	done
+fi
 
 #  Studio+ LexOS porte le logo de marque TI-LEX-AL, pas une icône à part :
 #  c'est l'atelier maison, il s'annonce sous l'enseigne. On recopie donc

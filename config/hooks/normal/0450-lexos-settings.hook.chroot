@@ -1,15 +1,12 @@
 #!/bin/sh
 # =============================================================================
-#  LexOS — panneau de Paramètres complet (façon Ubuntu Settings)
+#  LexOS — entrée de menu de Paramètres LexOS
 # =============================================================================
-#  Objectif : retrouver dans LexOS toutes les sections d'Ubuntu Settings —
-#  Wi-Fi, Réseau, Bluetooth, Écrans, Son, Énergie, Multi-tâches, Apparence,
-#  Bureau, Applications, Notifications, Recherche, Comptes en ligne, Partage,
-#  Bien-être, Souris et pavé tactile, Gestion des couleurs, Imprimantes,
-#  Confidentialité et sécurité, Mises à jour, Accessibilité, Utilisateurs,
-#  Région et langue, Clavier, À propos — chacune raccordée à l'outil LexOS
-#  qui fait le vrai travail (lexos-net, lexos-display, lexos-perf,
-#  lexos-theme-gen…), ou au panneau XFCE natif qui s'en charge.
+#  L'application elle-même (une seule fenêtre, une barre latérale, comme
+#  Paramètres → dans web-demo/index.html) est du code statique, pas générée
+#  ici : /usr/bin/lexos-settings, /usr/lib/lexos/settings.py et
+#  /usr/share/lexos/settings/web/ viennent tous de config/includes.chroot —
+#  même patron que Cartes LexOS. Ce hook ne fait que poser l'entrée de menu.
 # =============================================================================
 set -e
 
@@ -18,152 +15,9 @@ if [ ! -x /usr/sbin/lightdm ] && [ ! -x /usr/bin/startxfce4 ]; then
 	exit 0
 fi
 
-echo "[lexos] hook 0450 : paramètres complets"
+echo "[lexos] hook 0450 : entrée de menu Paramètres"
 
 mkdir -p /usr/share/applications
-
-# =============================================================================
-#  Le panneau « Paramètres LexOS » : une fenêtre à deux volets, comme sur la
-#  capture Ubuntu, qui appelle soit un outil LexOS (Wi-Fi, Écrans, Énergie…),
-#  soit le module XFCE natif (Son, Clavier, Région et langue…) quand il existe
-#  déjà et fait très bien le travail.
-# =============================================================================
-cat > /usr/bin/lexos-settings <<'SCRIPT'
-#!/usr/bin/env bash
-# =============================================================================
-#  lexos-settings — panneau de paramètres façon Ubuntu Settings
-# =============================================================================
-#  Chaque section ouvre l'outil LexOS qui gère réellement ce réglage.
-#  Rien n'est dupliqué : ce script est un routeur, pas une réimplémentation.
-# =============================================================================
-set -uo pipefail
-
-open_xfce() { # open_xfce <module>
-	command -v xfce4-settings-manager >/dev/null 2>&1 || \
-		{ zenity --info --text="Module XFCE indisponible." 2>/dev/null; return 1; }
-	setsid xfce4-settings-manager -s "$1" >/dev/null 2>&1 &
-}
-
-info() { zenity --info --title="LexOS" --text="$1" 2>/dev/null || printf '%s\n' "$1"; }
-
-apparence_gui() {
-	if command -v zenity >/dev/null 2>&1; then
-		local mode
-		mode="$(zenity --list --title="Apparence — LexOS" --text="Thème du bureau" \
-			--radiolist --column="" --column="Thème" \
-			TRUE "Sombre — LexOS Noir" FALSE "Clair — thème de jour (crème)" \
-			--width=380 --height=220 2>/dev/null)"
-		case "$mode" in
-			*Clair*)  lexos theme clair ;;
-			*Sombre*) lexos theme sombre ;;
-		esac
-	fi
-	open_xfce appearance
-}
-
-langue_gui() {
-	if command -v zenity >/dev/null 2>&1; then
-		local choix
-		choix="$(zenity --list --title="Région et langue — LexOS" \
-			--text="Langue du système — locales-all fournit déjà toutes les langues" \
-			--column="Langue" \
-			"Français (Québec)" "Français (France)" "English (US)" "English (Canada)" \
-			"English (UK)" "Español (España)" "Español (México)" "Deutsch" "Italiano" \
-			"Português (Brasil)" "Русский" "中文（简体）" "日本語" "한국어" "العربية" \
-			"Autre — voir tout (locale -a)" \
-			--width=420 --height=440 2>/dev/null)"
-		case "$choix" in
-			"Français (Québec)")   lexos lang fr_CA.UTF-8 ;;
-			"Français (France)")   lexos lang fr_FR.UTF-8 ;;
-			"English (US)")        lexos lang en_US.UTF-8 ;;
-			"English (Canada)")    lexos lang en_CA.UTF-8 ;;
-			"English (UK)")        lexos lang en_GB.UTF-8 ;;
-			"Español (España)")    lexos lang es_ES.UTF-8 ;;
-			"Español (México)")    lexos lang es_MX.UTF-8 ;;
-			Deutsch)               lexos lang de_DE.UTF-8 ;;
-			Italiano)              lexos lang it_IT.UTF-8 ;;
-			"Português (Brasil)")  lexos lang pt_BR.UTF-8 ;;
-			Русский)               lexos lang ru_RU.UTF-8 ;;
-			中文（简体）)           lexos lang zh_CN.UTF-8 ;;
-			日本語)                lexos lang ja_JP.UTF-8 ;;
-			한국어)                lexos lang ko_KR.UTF-8 ;;
-			العربية)               lexos lang ar_SA.UTF-8 ;;
-			"Autre — voir tout (locale -a)")
-				exec xfce4-terminal --title="Toutes les langues — LexOS" --hold -e "lexos lang toutes; bash" ;;
-		esac
-		[ -n "$choix" ] && zenity --info --title="LexOS" \
-			--text="Langue changée — reconnecte-toi (ou redémarre) pour l'appliquer partout." 2>/dev/null
-	fi
-	open_xfce keyboard
-}
-
-SECTION="${1:-}"
-case "$SECTION" in
-	wifi|reseau|bluetooth|avion)
-		command -v xfce4-terminal >/dev/null 2>&1 \
-			&& exec xfce4-terminal --title="Réseau — LexOS" --hold \
-			     -e "lexos net status; echo; lexos vpn; bash" \
-			|| exec lexos net status ;;
-	vpn)
-		exec xfce4-terminal --title="VPN — LexOS" --hold -e "lexos vpn; bash" ;;
-	ecrans|displays)          exec lexos-display gui ;;
-	energie|performance|perf)
-	                          command -v xfce4-terminal >/dev/null 2>&1 \
-	                              && exec xfce4-terminal --title="Énergie — LexOS" --hold \
-	                                   -e "lexos perf status; echo; lexos lumiere; bash" \
-	                              || exec lexos-perf --gui ;;
-	lumiere|luminosite|brightness)
-	                          exec xfce4-terminal --title="Luminosité — LexOS" --hold \
-	                              -e "lexos lumiere; bash" ;;
-	multitaches|workspaces)   open_xfce workspaces ;;
-	son|sound)                open_xfce mixer ;;
-	apparence|appearance)     apparence_gui ;;
-	bureau|desktop)           open_xfce xfdesktop ;;
-	applications|apps)        command -v exo-preferred-applications >/dev/null 2>&1 \
-	                              && exec exo-preferred-applications \
-	                              || info "Applications par défaut : utilise le Gestionnaire de paquets (Synaptic) pour installer, lexos install <paquet> en ligne de commande." ;;
-	notifications)            command -v xfce4-notifyd-config >/dev/null 2>&1 \
-	                              && exec xfce4-notifyd-config \
-	                              || open_xfce notifications ;;
-	recherche|search)         command -v xfce4-appfinder >/dev/null 2>&1 \
-	                              && exec xfce4-appfinder --collapsed \
-	                              || info "Recherche : Super pour ouvrir le menu Applications." ;;
-	comptes|online-accounts)  info "Comptes en ligne : pas encore disponible dans LexOS 1.0. Prévu pour une prochaine version." ;;
-	bienetre|wellbeing)       info "Bien-être numérique : pas encore disponible dans LexOS 1.0. Prévu pour une prochaine version." ;;
-	confidentialite|securite|privacy)
-	                          exec xfce4-terminal --title="Confidentialité et sécurité — LexOS" --hold \
-	                              -e "lexos net status; echo; lexos secure; bash" ;;
-	usb)                      exec xfce4-terminal --title="USB — LexOS" --hold \
-	                              -e "lexos usb; echo; echo 'Formater un support : lexos format'; bash" ;;
-	souris|pavetactile|touchpad|mouse)
-	                          command -v xfce4-mouse-settings >/dev/null 2>&1 \
-	                              && exec xfce4-mouse-settings \
-	                              || open_xfce pointers ;;
-	couleurs|gestion-couleurs|color|colormanagement)
-	                          command -v gcm-viewer >/dev/null 2>&1 \
-	                              && exec gcm-viewer \
-	                              || info "Gestion des couleurs : installe gnome-color-manager (lexos install gnome-color-manager) pour gérer les profils ICC." ;;
-	imprimantes|printers|imprimante)
-	                          command -v system-config-printer >/dev/null 2>&1 \
-	                              && exec system-config-printer \
-	                              || { command -v xdg-open >/dev/null 2>&1 \
-	                                     && exec xdg-open http://localhost:631 \
-	                                     || info "Imprimantes : lexos install system-config-printer, ou http://localhost:631 (CUPS)." ; } ;;
-	clavier|keyboard)         open_xfce keyboard ;;
-	langue|region|locale)     langue_gui ;;
-	accessibilite|a11y)       open_xfce accessibility ;;
-	utilisateurs|users)
-	                          exec xfce4-terminal --title="Utilisateurs — LexOS" --hold \
-	                              -e "printf '%s\n' 'Comptes locaux de LexOS :' '' '  lex     — Principal, administrateur' '  invite  — Invité, session limitée sans mot de passe' ''; bash" ;;
-	maj|updates)              exec xfce4-terminal --title="Mises à jour — LexOS" --hold -e "lexos doctor; bash" ;;
-	partage|share)            exec lexos-share devices ;;
-	apropos|about)            exec lexos-welcome --about ;;
-	*)                        open_xfce main ;;
-esac
-SCRIPT
-chmod 0755 /usr/bin/lexos-settings
-
-# --- Entrée de menu unique : « Paramètres LexOS » ---------------------------
 cat > /usr/share/applications/lexos-settings.desktop <<EOF
 [Desktop Entry]
 Type=Application
@@ -172,8 +26,10 @@ Name=Paramètres
 Name[en]=Settings
 Comment=Wi-Fi, écrans, performance, apparence, comptes, mises à jour…
 Exec=lexos-settings
-Icon=preferences-system
+Icon=lexos-reglages
 Terminal=false
+StartupNotify=true
+StartupWMClass=Paramètres LexOS
 Categories=Settings;
 Keywords=parametres;settings;wifi;reseau;bluetooth;ecrans;son;energie;performance;apparence;bureau;applications;notifications;recherche;comptes;partage;bien-etre;souris;pave tactile;touchpad;couleurs;imprimantes;confidentialite;securite;mises a jour;accessibilite;utilisateurs;langue;clavier;a propos;
 EOF

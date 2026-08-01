@@ -30,12 +30,16 @@
       </property>
       <property name="plugin-ids" type="array">
         <value type="int" value="1"/>
+        <value type="int" value="9"/>
+        <value type="int" value="10"/>
+        <value type="int" value="11"/>
         <value type="int" value="2"/>
         <value type="int" value="3"/>
         <value type="int" value="4"/>
         <value type="int" value="5"/>
         <value type="int" value="6"/>
         <value type="int" value="7"/>
+        <value type="int" value="12"/>
         <value type="int" value="8"/>
       </property>
     </property>
@@ -51,6 +55,8 @@
       <property name="show-button-icon"  type="bool"   value="true"/>
       <property name="show-app-icons"    type="bool"   value="true"/>
       <property name="load-hierarchy"    type="bool"   value="false"/>
+      <!-- Grille d'icônes façon démo (APPS / renderApps()), recherche en avant. -->
+      <property name="view-mode"         type="int"    value="1"/>
       <property name="category-icon-size" type="int"   value="1"/>
       <property name="item-icon-size"    type="int"    value="2"/>
       <property name="menu-width"        type="int"    value="500"/>
@@ -63,7 +69,25 @@
         <value type="string" value="xfce4-terminal.desktop"/>
         <value type="string" value="thunar.desktop"/>
         <value type="string" value="org.xfce.mousepad.desktop"/>
+        <value type="string" value="lexos-github.desktop"/>
         <value type="string" value="lexos-about.desktop"/>
+      </property>
+    </property>
+
+    <!-- 9-11 · Capture rapide (#quickcap de la démo), à côté du bouton Applications -->
+    <property name="plugin-9" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="lexos-capture-photo.desktop"/>
+      </property>
+    </property>
+    <property name="plugin-10" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="lexos-capture-zone.desktop"/>
+      </property>
+    </property>
+    <property name="plugin-11" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="lexos-capture-video.desktop"/>
       </property>
     </property>
 
@@ -101,6 +125,13 @@
 
     <!-- 7 · Batterie / énergie -->
     <property name="plugin-7" type="string" value="power-manager-plugin"/>
+
+    <!-- 12 · Réglages rapides (#qsBtn de la démo) -->
+    <property name="plugin-12" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="lexos-settings.desktop"/>
+      </property>
+    </property>
 
     <!-- 8 · Session (verrouiller, éteindre) -->
     <property name="plugin-8" type="string" value="actions">

@@ -425,6 +425,19 @@ Categories=Settings;System;
 Keywords=avion;airplane;wifi;bluetooth;radio;
 EOF
 
+cat > /usr/share/applications/lexos-github.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=GitHub
+Comment=Ouvrir GitHub dans le navigateur
+Exec=xdg-open https://github.com
+Icon=lexos-github
+Terminal=false
+Categories=Network;Development;
+Keywords=github;git;code;depot;repository;
+EOF
+
 # --- Action « Partager » dans le clic droit du gestionnaire de fichiers -----
 mkdir -p /etc/skel/.config/Thunar
 cat > /etc/skel/.config/Thunar/uca.xml <<'EOF'

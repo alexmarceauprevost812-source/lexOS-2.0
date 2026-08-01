@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Paramètres
+Comment=Réglages rapides — Wi-Fi, écrans, performance, apparence, comptes, mises à jour…
+Exec=lexos-settings
+Icon=preferences-system
+Terminal=false
+Categories=Settings;
