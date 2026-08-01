@@ -50,14 +50,10 @@ header.site .cta:hover{background:var(--ac-hi);color:#000}
 
 /* --- Hero ----------------------------------------------------------------- */
 .hero{position:relative;padding:84px 0 64px;text-align:center;overflow:hidden;
-  background:
-    radial-gradient(55% 45% at 50% 20%, rgba(232,89,12,.18), transparent 70%),
-    repeating-linear-gradient(0deg, transparent 0 63px, rgba(232,135,58,.045) 63px 64px),
-    repeating-linear-gradient(90deg, transparent 0 63px, rgba(232,135,58,.045) 63px 64px),
-    #000}
+  background:#000}                    /* fond bien noir, uni */
 .hero img.logo{width:min(260px,60vw);display:block;margin:0 auto 22px}
-.hero h1{margin:0 0 6px}
-.hero h1 b{color:var(--ac)}
+.hero h1{margin:0 0 6px;color:#fff;font-size:clamp(30px,6vw,52px)}  /* « Lex » en blanc pur */
+.hero h1 b{color:var(--ac);font-weight:800}                        /* « OS » en orange */
 .hero p.tag{color:var(--fg-dim);font-size:18px;margin:0 0 8px}
 .hero p.sub{color:var(--fg-dim);font-size:14.5px;letter-spacing:.06em;
   text-transform:uppercase;margin:0 0 30px}

@@ -2548,7 +2548,7 @@ function ligneFichier(f, i, racine){
     ` oncontextmenu="fichierMenu(event,${i},${racine?1:0})"`;
   const sel = `ficSelectionne(${i},${racine?1:0})`;
   if(f.special==="sticker"){
-    return `<li ${attrs} style="cursor:pointer" title="Clique : outil autocollant · Presse 2 s : découper tout de suite · Clic droit : menu"
+    return `<li ${attrs} style="cursor:pointer" title="Clique : outil autocollant · Maintiens le clic gauche 3 s : découper tout de suite · Clic droit : menu"
       onpointerdown="${sel};stickerPressStart('mascot.png',event)" onpointerup="stickerPressEnd()" onpointerleave="stickerPressEnd()"
       onclick="stickerPressClick('mascot.png',event)">
       ${f.ic} <span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
@@ -3715,7 +3715,7 @@ function stickerPressStart(file,e){
   e.stopPropagation();
   stkLongFired=false;
   clearTimeout(stkPressTimer);
-  stkPressTimer=setTimeout(()=>{ stkLongFired=true; stickerInstant(file); }, 2000);
+  stkPressTimer=setTimeout(()=>{ stkLongFired=true; stickerInstant(file); }, 3000);
 }
 function stickerPressEnd(){ clearTimeout(stkPressTimer); }
 function stickerPressClick(file,e){
@@ -3756,8 +3756,8 @@ function openSticker(file){
       <button class="btn" onclick="stickerCut()">✂ Découper</button>
       <button class="btn ghost" id="stkSaveBtn" style="display:none" onclick="stickerSave()">💾 Enregistrer le fichier</button>
     </div>
-    <p class="notice" style="margin-top:10px">Astuce : dans Fichiers, presse 2 secondes sur une
-    image pour découper et enregistrer tout de suite, sans passer par cette fenêtre.</p>
+    <p class="notice" style="margin-top:10px">Astuce : dans Fichiers, maintiens le clic gauche 3 secondes sur une
+    image pour la découper en autocollant tout de suite, sans passer par cette fenêtre.</p>
   </div>`,320,380);
   requestAnimationFrame(()=>{
     const c=document.getElementById("stkCanvas");

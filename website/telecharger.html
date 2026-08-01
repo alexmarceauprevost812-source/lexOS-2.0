@@ -27,17 +27,63 @@
 <main class="wrap narrow" style="padding-top:50px">
   <p class="kicker">Télécharger</p>
   <h1 class="mt0">LexOS 1.0.2 « Nomad »</h1>
-  <p class="lede"><b>L'édition Pro 1.0.2 est construite.</b> La dernière ISO
-  (<code>lexos-1.0.2-pro-amd64.hybrid.iso</code>, saveur pour jouer : Vulkan,
-  Wine, Steam/Proton, Lutris, manettes, émulateurs) est disponible dans les
-  artefacts de la
-  <a href="https://github.com/alexmarceauprevost812-source/lexos-1.0v-/actions/runs/30530380944"
-     target="_blank" rel="noopener">construction GitHub du 30 juillet 2026</a>
-  — section <b>Artifacts</b> au bas de la page, artefact
-  <code>lexos-pro-iso</code> (6,4 Go, conservé 14 jours). Pour une autre
-  saveur, ou après expiration, <b>deux façons honnêtes</b> d'obtenir le
-  fichier <code>.iso</code>, toutes les deux gratuites et décrites
-  ci-dessous.</p>
+  <p class="lede"><b>L'édition Pro 1.0.2 est prête.</b> Elle réunit tout :
+  jouer aux jeux Windows (Steam/Proton, Lutris, Wine), le studio création
+  (photo, musique, vidéo), Claude et Claude Code, les émulateurs, les
+  manettes. Comme l'ISO fait plus de 2&nbsp;Go, GitHub la livre en
+  <b>plusieurs morceaux</b> dans une <b>Release</b> — le guide ci-dessous te
+  tient par la main du téléchargement jusqu'au bureau, sans erreur.</p>
+
+  <div class="notice" style="border-color:var(--ac);background:rgba(230,126,34,.08)">
+    <h2 class="mt0">⭐ Guide 100&nbsp;% : télécharger et installer l'édition Pro</h2>
+    <ol class="steps">
+      <li><h3>Ouvrir la page des Releases</h3>
+      <p class="dim">Va sur les
+      <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.0.2/releases"
+         target="_blank" rel="noopener">Releases du dépôt</a> et ouvre la plus
+      récente : <code>LexOS pro — build&nbsp;14</code>.</p></li>
+
+      <li><h3>Télécharger tous les morceaux</h3>
+      <p class="dim">Dans la section <b>Assets</b>, télécharge <b>TOUS</b> les
+      fichiers <code>…iso.part-00</code>, <code>…part-01</code>, etc. <b>ET</b>
+      le fichier <code>…iso.sha256</code> — le tout dans <b>un même dossier</b>
+      (par exemple ton dossier Téléchargements).</p></li>
+
+      <li><h3>Recoller les morceaux en une seule ISO</h3>
+      <p class="dim">Ouvre un terminal <b>dans ce dossier</b> et lance une
+      seule commande :</p>
+      <pre><code># Linux ou Mac
+cat lexos-1.0.2-pro*.iso.part-* &gt; lexos-1.0.2-pro-amd64.hybrid.iso</code></pre>
+      <pre><code># Windows (PowerShell, dans le dossier des morceaux)
+cmd /c copy /b ((Get-ChildItem 'lexos-1.0.2-pro*.iso.part-*' | Sort-Object Name | ForEach-Object Name) -join '+') lexos-1.0.2-pro-amd64.hybrid.iso</code></pre></li>
+
+      <li><h3>Vérifier que le fichier est intact</h3>
+      <pre><code>sha256sum -c lexos-1.0.2-pro-amd64.hybrid.iso.sha256</code></pre>
+      <p class="dim">La réponse doit contenir <b>« Réussi » / « OK »</b>. Si ce
+      n'est pas le cas, un morceau a mal été téléchargé — reprends l'étape 2.</p></li>
+
+      <li><h3>Graver l'ISO sur une clé USB</h3>
+      <p class="dim">Il te faut une clé de <b>8&nbsp;Go ou plus</b> (son contenu
+      sera effacé). <b>Sur téléphone Android :</b> l'appli <b>EtchDroid</b>
+      (gratuite) — voir la <a href="telephone.html">page Téléphone</a>.
+      <b>Sur ordinateur :</b> <b>balenaEtcher</b> (Windows/Mac/Linux) — choisis
+      l'ISO recollée, choisis la clé, « Flash ».</p></li>
+
+      <li><h3>Démarrer sur la clé et installer</h3>
+      <p class="dim">Branche la clé, allume l'ordinateur en appuyant sur la
+      touche de démarrage (souvent <b>F12</b>, <b>F9</b>, <b>Échap</b> ou
+      <b>F2</b>) et choisis la clé USB. Au menu LexOS, choisis
+      <b>« Live system »</b> : le bureau s'ouvre tout seul. Double-clique
+      <b>« Installer LexOS »</b> et laisse-toi guider. Si on te demande un
+      mot de passe, le compte de secours est <b>lex</b> / <b>lex</b>.</p></li>
+    </ol>
+    <p class="dim" style="margin-bottom:0">Rien n'est touché sur ton disque tant
+    que tu ne lances pas toi-même l'installation : l'ISO démarre en session
+    d'essai.</p>
+  </div>
+
+  <p class="dim">Tu préfères une autre saveur, ou construire l'ISO toi-même ?
+  Les <b>deux façons</b> ci-dessous marchent aussi, gratuitement.</p>
 
   <div class="notice">
     <b>Aucune inscription, aucun compte, aucune donnée personnelle.</b> Le
