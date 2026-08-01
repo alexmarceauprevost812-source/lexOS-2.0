@@ -1896,6 +1896,9 @@ function openWin(id, title, icon, html, w, h, x, y){
   }
   const el = document.createElement("div");
   el.className = "win opening"; el.id = "win-"+id;
+  //  Regroupement par application : « edit#2 » appartient à l'appli « edit ».
+  //  Sert au sélecteur de fenêtres du dock (voir dockActivate).
+  el.dataset.app = String(id).split("#")[0];
   const vw=innerWidth, vh=innerHeight;
   /*  Sur un petit écran (téléphone), une fenêtre de 520px de large déborde :
       son texte est alors coupé au bord de l'écran et le reste de l'interface
@@ -2032,8 +2035,12 @@ function toggleWinMenu(el, btn){
   m.style.left  = "auto";
   m.style.right = Math.max(8, innerWidth - r.right) + "px";
   const isMax = el.classList.contains("max");
+  const appKey = id.split("#")[0];
   m.innerHTML =
     (WIN_MENU_EXTRA[id] ? WIN_MENU_EXTRA[id](el) : "")+
+    (MULTI_WINDOW[appKey]
+      ? `<button onclick="closeWinMenu();nouvelleFenetre('${appKey}')">⊞ Nouvelle fenêtre</button><div class="msep"></div>`
+      : "")+
     `<button onclick="winMenuAct('${el.id}','max')">${isMax?"🗗 Restaurer la taille":"⛶ Agrandir l'écran"}`+
       `<span class="kbd">${isMax?"Super+↓":"Super+↑"}</span></button>`+
     `<button onclick="winMenuAct('${el.id}','center')">⊹ Recentrer la fenêtre</button>`+
@@ -2757,9 +2764,12 @@ function ctxAuDock(i){
 }
 
 /* --- Icône de la barre d'outils ----------------------------------------- */
-function ctxDock(e, b, nom){
+function ctxDock(e, b, nom, appKey){
   ctxOuvre(e, [
     {ic:"▸", txt:"Ouvrir", act:"(()=>{})()"},
+    ...(appKey && MULTI_WINDOW[appKey]
+        ? [{ic:"⊞", txt:"Nouvelle fenêtre", act:`nouvelleFenetre(${JSON.stringify(appKey)})`}]
+        : []),
     "-",
     {ic:"✕", txt:"Retirer de la barre", act:`ctxRetireDock(${JSON.stringify(nom)})`},
     {ic:"⚙", txt:"Position de la barre", act:"openSettings('bureau')"},
@@ -5455,8 +5465,9 @@ function openClaude(){ openIA("https://claude.ai"); }
 /*  Claude Code : l'assistant de programmation d'Anthropic, qui vit dans le
     terminal. Dans la vraie LexOS, « lexos claude » le lance ; ici on montre
     à quoi ça ressemble — un aperçu, pas un vrai Claude branché sur internet. */
-function openClaudeCode(){
-  openWin("claude-code","Claude Code",'<span style="color:#d97757">✳</span>',
+function openClaudeCode(nouvelle){
+  const id = nouvelle ? "claude-code#"+(++winSeq) : "claude-code";
+  openWin(id,"Claude Code",'<span style="color:#d97757">✳</span>',
   `<div style="background:#0b0b0d;color:#e8e6e3;font-family:ui-monospace,'JetBrains Mono',Menlo,monospace;height:100%;padding:16px 18px;overflow:auto;font-size:13px;line-height:1.7;box-sizing:border-box">
      <div style="color:#d97757;font-weight:600">✳ Claude Code</div>
      <div style="opacity:.65;margin-bottom:12px">Assistant de programmation d'Anthropic — dans le terminal.</div>
@@ -5647,12 +5658,13 @@ function navPageIA(){
     services en ligne, pas concurrente.</p>
   </div>`;
 }
-function openEditor(){
-  openWin("edit","Note perso — notes.txt",noteGlyph(18),
-  `<textarea style="width:100%;height:100%;min-height:250px;background:#000;
-     color:#fff;border:0;outline:0;padding:12px;resize:none;
-     font:13px/1.5 ui-monospace,monospace"
-   >LexOS 1.0.2 « Nomad »
+function openEditor(nouvelle){
+  //  Note perso accepte PLUSIEURS fenêtres : chaque « Nouvelle fenêtre » ouvre
+  //  une note indépendante (id « edit », « edit#2 », « edit#3 »…). Un clic sur
+  //  l'icône du dock quand plusieurs sont ouvertes montre le sélecteur.
+  const id = nouvelle ? "edit#"+(++winSeq) : "edit";
+  const titre = nouvelle ? `Note perso — sans-titre-${winSeq}.txt` : "Note perso — notes.txt";
+  const contenu = nouvelle ? "" : `LexOS 1.0.2 « Nomad »
 ──────────────────────
 À essayer dans le terminal :
 
@@ -5663,7 +5675,12 @@ function openEditor(){
   lexos crt off
 
 Tout se remet à zéro quand tu recharges la page :
-comme une vraie session live.</textarea>`,480,340);
+comme une vraie session live.`;
+  openWin(id,titre,noteGlyph(18),
+  `<textarea style="width:100%;height:100%;min-height:250px;background:#000;
+     color:#fff;border:0;outline:0;padding:12px;resize:none;
+     font:13px/1.5 ui-monospace,monospace"
+   >${contenu}</textarea>`,480,340);
 }
 function openWelcome(){
   openWin("hello","Bienvenue sur LexOS","👋",
@@ -6260,7 +6277,7 @@ async function capZone(){
     `</div>`+
     `<div class="cz-barre">`+
       `<span class="cz-aide">Glisse le cadre, ajuste-le par ses poignées. `+
-      `<b>Entrée</b> pour capturer, <b>Échap</b> pour annuler.</span>`+
+      `<b>Espace</b> ou <b>Entrée</b> pour capturer, <b>Échap</b> pour annuler.</span>`+
       `<button class="btn" onclick="capZoneValide()">Capturer la zone</button>`+
       `<button class="btn ghost" onclick="capZoneFerme()">Annuler</button>`+
     `</div>`;
@@ -6326,7 +6343,9 @@ function capZoneGestes(){
 function capZoneTouche(e){
   if(!document.getElementById("capZone")) return;
   if(e.key==="Escape"){ e.preventDefault(); capZoneFerme(); }
-  else if(e.key==="Enter"){ e.preventDefault(); capZoneValide(); }
+  //  Espace prend la photo, comme Entrée : une fois la zone cadrée, la barre
+  //  d'espace est la plus grande touche et la plus facile à trouver.
+  else if(e.key==="Enter" || e.key===" " || e.code==="Space"){ e.preventDefault(); capZoneValide(); }
 }
 function capZoneFerme(){
   const ov=document.getElementById("capZone");
@@ -7202,17 +7221,145 @@ function majFondsDock(){
   dock.classList.toggle("deborde-haut", reste > 4 && pos > 4);
   dock.classList.toggle("deborde-bas",  reste > 4 && pos < reste - 4);
 }
+/*  Quelle application (id de fenêtre) se cache derrière chaque bouton du
+    dock ? Sert au sélecteur de fenêtres : compter les fenêtres ouvertes de
+    la même appli, et les regrouper. */
+const DOCK_APP = {
+  "Navigateur":"web", "Terminal":"term", "Fichiers":"files", "Note perso":"edit",
+  "Claude":"web", "Claude Code":"claude-code", "Partager":"share",
+  "Capture d'écran":"capture", "Studio+ LexOS":"studio", "Logithèque":"logitheque",
+  "Paramètres":"set", "Installer LexOS":"inst", "À propos":"about"};
+//  Applications qui acceptent plusieurs fenêtres à la fois (contenu autonome,
+//  sans état global partagé). Terminal et Fichiers n'y sont pas : une seule
+//  fenêtre chacun dans cette démo.
+const MULTI_WINDOW = { edit:1, "claude-code":1 };
 DOCK.forEach(([ic,label,fn])=>{
   const b=document.createElement("button");
   b.className="dicon";
   b.innerHTML = ic==="logo"
     ? `<span class="applogo"></span><span class="tip">${label}</span>`
     : `${ic}<span class="tip">${label}</span>`;
-  b.onclick=fn;
-  b.oncontextmenu = ev=>ctxDock(ev, b, label);
+  const appKey = DOCK_APP[label];
+  b.onclick = ()=> dockActivate(appKey, fn);
+  //  Clic du milieu (molette) : ouvre une NOUVELLE fenêtre, pour les applis
+  //  qui le permettent — comme sur un vrai bureau.
+  b.addEventListener("auxclick", ev=>{
+    if(ev.button===1 && appKey && MULTI_WINDOW[appKey]){ ev.preventDefault(); nouvelleFenetre(appKey); }
+  });
+  b.oncontextmenu = ev=>ctxDock(ev, b, label, appKey);
   dock.appendChild(b);
 });
 majFondsDock();
+
+/* --- Sélecteur de fenêtres d'une même application ------------------------
+   Clic sur une icône du dock :
+     · aucune fenêtre  → on lance l'application ;
+     · une fenêtre     → on la met au premier plan ;
+     · plusieurs       → on montre toutes les fenêtres de cette appli, on en
+                         choisit une à la souris, et la ROULETTE fait défiler
+                         la sélection. (Note perso et Claude Code acceptent
+                         plusieurs fenêtres — clic du milieu ou « Nouvelle
+                         fenêtre » pour en ouvrir une de plus.) */
+let winSeq = 0;
+function winsOfApp(appKey){
+  return [...winsRoot.querySelectorAll(".win")]
+    .filter(w=>w.dataset.app===appKey && !w.classList.contains("closing"));
+}
+function dockActivate(appKey, opener){
+  if(!appKey) return opener();
+  const wins = winsOfApp(appKey);
+  if(!wins.length)      return opener();
+  if(wins.length===1)   return focusWin(wins[0]);
+  ouvreSelecteurFenetres(appKey);
+}
+function nouvelleFenetre(appKey){
+  if(appKey==="edit")        return openEditor(true);
+  if(appKey==="claude-code") return openClaudeCode(true);
+}
+let peekSel = 0, peekEl = null;
+function ouvreSelecteurFenetres(appKey){
+  fermeSelecteurFenetres();
+  const wins = winsOfApp(appKey);
+  if(wins.length<2) { if(wins[0]) focusWin(wins[0]); return; }
+  //  Sélection de départ : la fenêtre déjà active, sinon la première.
+  peekSel = Math.max(0, wins.findIndex(w=>w.classList.contains("active")));
+
+  const ov = document.createElement("div");
+  ov.className = "winpeek";
+  ov.innerHTML =
+    wins.map((w,i)=>{
+      const ic = w.querySelector(".ticon") ? w.querySelector(".ticon").innerHTML : "";
+      const ti = w.querySelector(".ttitle") ? w.querySelector(".ttitle").textContent : "Fenêtre";
+      const corps = w.querySelector(".wbody");
+      const prev = corps ? corps.cloneNode(true) : null;
+      const box = document.createElement("div");
+      box.className = "winpeek-card"+(i===peekSel?" sel":"");
+      box.dataset.i = i;
+      box.innerHTML = `<div class="winpeek-prev"></div>`+
+        `<div class="winpeek-head"><span class="wp-ic">${ic}</span><span class="wp-ti">${esc(ti)}</span></div>`;
+      if(prev){ prev.removeAttribute("id"); prev.style.pointerEvents="none"; box.querySelector(".winpeek-prev").appendChild(prev); }
+      return box.outerHTML;
+    }).join("")+
+    `<div class="winpeek-hint">Roulette pour défiler · clic pour choisir · Échap pour annuler</div>`;
+  document.body.appendChild(ov);
+  peekEl = ov;
+
+  const choisir = i=>{ const w=winsOfApp(appKey)[i]; fermeSelecteurFenetres(); if(w) focusWin(w); };
+  ov.querySelectorAll(".winpeek-card").forEach(c=>{
+    c.onclick = ()=>choisir(+c.dataset.i);
+    c.onmouseenter = ()=>majPeekSel(+c.dataset.i);
+  });
+  //  La molette fait défiler la sélection, en boucle.
+  ov.addEventListener("wheel", e=>{
+    e.preventDefault();
+    const n = ov.querySelectorAll(".winpeek-card").length;
+    majPeekSel((peekSel + (e.deltaY>0?1:-1) + n) % n);
+  }, {passive:false});
+  ov.addEventListener("click", e=>{ if(e.target===ov) fermeSelecteurFenetres(); });
+  document.addEventListener("keydown", peekTouche);
+}
+function majPeekSel(i){
+  peekSel = i;
+  if(!peekEl) return;
+  peekEl.querySelectorAll(".winpeek-card").forEach(c=>
+    c.classList.toggle("sel", +c.dataset.i===i));
+}
+function peekTouche(e){
+  if(!peekEl) return;
+  const cards = peekEl.querySelectorAll(".winpeek-card");
+  const n = cards.length;
+  if(e.key==="Escape"){ e.preventDefault(); fermeSelecteurFenetres(); }
+  else if(e.key==="ArrowRight"||e.key==="ArrowDown"){ e.preventDefault(); majPeekSel((peekSel+1)%n); }
+  else if(e.key==="ArrowLeft"||e.key==="ArrowUp"){ e.preventDefault(); majPeekSel((peekSel-1+n)%n); }
+  else if(e.key==="Enter"||e.key===" "){ e.preventDefault(); cards[peekSel] && cards[peekSel].click(); }
+}
+function fermeSelecteurFenetres(){
+  document.removeEventListener("keydown", peekTouche);
+  if(peekEl){ peekEl.remove(); peekEl=null; }
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.winpeek{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.58);
+  backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;
+  gap:20px;flex-wrap:wrap;padding:48px 32px;box-sizing:border-box}
+.winpeek-card{width:220px;max-width:42vw;background:var(--panel,#141414);
+  border:2px solid rgba(255,255,255,.16);border-radius:12px;overflow:hidden;
+  cursor:pointer;transition:transform .12s,border-color .12s,box-shadow .12s;
+  display:flex;flex-direction:column}
+.winpeek-card.sel{border-color:var(--ac,#e67e22);
+  transform:translateY(-6px) scale(1.03);box-shadow:0 12px 34px rgba(0,0,0,.5)}
+.winpeek-prev{height:132px;overflow:hidden;background:#000;position:relative}
+.winpeek-prev>*{transform:scale(.42);transform-origin:top left;width:238%;
+  height:238%;pointer-events:none}
+.winpeek-head{display:flex;align-items:center;gap:8px;padding:9px 11px;
+  font-size:13px;color:#fff;background:rgba(255,255,255,.06);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.winpeek-head .wp-ic{width:18px;height:18px;display:inline-flex;align-items:center;
+  justify-content:center;flex:0 0 auto}
+.winpeek-head .wp-ti{overflow:hidden;text-overflow:ellipsis}
+.winpeek-hint{position:fixed;bottom:22px;left:0;right:0;text-align:center;
+  color:rgba(255,255,255,.72);font-size:13px;pointer-events:none}
+</style>`);
+
 /* --- Vue Applications : grille plein écran ------------------------------- */
 const APPS = [
   ...DOCK.filter(([ic])=>ic!=="logo").map(([ic,label,fn])=>
