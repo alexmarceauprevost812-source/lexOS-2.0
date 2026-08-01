@@ -35,6 +35,7 @@ on:
 
 permissions:
   contents: read
+  actions: write          # requis pour supprimer les anciens artefacts
 
 jobs:
   iso:
@@ -44,6 +45,25 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      #  Libère le quota de stockage AVANT de construire : une ISO Pro pèse
+      #  ~6,4 Go et le stockage Actions d'un dépôt privé est vite plein. Sans
+      #  ça, l'ISO se construit mais l'envoi échoue (« Artifact storage quota
+      #  has been hit »). On supprime donc tous les artefacts déjà stockés —
+      #  ils sont de toute façon remplacés par la construction en cours.
+      # ------------------------------------------------------------------
+      - name: Libérer le stockage — supprimer les anciens artefacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ids=$(gh api --paginate "repos/${{ github.repository }}/actions/artifacts" \
+                  --jq '.artifacts[].id' 2>/dev/null || true)
+          for id in $ids; do
+            gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id" \
+              && echo "artefact $id supprimé" || echo "artefact $id : non supprimé (ignoré)"
+          done
+          echo "Nettoyage terminé."
 
       # ------------------------------------------------------------------
       #  Que construit-on ? Les paramètres viennent des entrées du workflow
