@@ -34,7 +34,7 @@ on:
       - '.github/workflows/build-iso.yml'
 
 permissions:
-  contents: read
+  contents: write         # requis pour publier l'ISO en Release GitHub
   actions: write          # requis pour supprimer les anciens artefacts
 
 jobs:
@@ -209,20 +209,81 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Téléverser l'ISO
+      # ------------------------------------------------------------------
+      #  Livraison par RELEASE GitHub, pas par artefact.
+      #
+      #  Une ISO Pro pèse ~6,4 Go. Le stockage d'ARTEFACTS d'un dépôt privé
+      #  gratuit est plafonné à 500 Mo : aucune ISO n'y tient, quota recalculé
+      #  ou non. Les RELEASES, elles, ont un stockage séparé, gratuit et sans
+      #  limite de taille totale — la seule contrainte est 2 Gio par fichier.
+      #  On découpe donc l'ISO en morceaux < 2 Gio et on fournit la commande
+      #  pour la reconstituer. C'est fiable et ça ne touche jamais au quota.
+      # ------------------------------------------------------------------
+      - name: Publier l'ISO en Release GitHub
         if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lexos-${{ steps.quoi.outputs.flavour }}-iso
-          path: |
-            *.iso
-            *.iso.sha256
-          retention-days: 14
-          compression-level: 0
-          if-no-files-found: error
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          ISO="$(ls ./*.iso 2>/dev/null | head -1)"
+          [ -n "$ISO" ] || { echo "::error::Aucune ISO à publier"; exit 1; }
+          ISO="$(basename "$ISO")"
+          BUILD="$(sed -n 's/^[[:space:]]*build:[[:space:]]*//p' .iso-build-request | head -1)"
+          TAG="iso-${{ steps.quoi.outputs.flavour }}-build${BUILD:-0}"
+
+          # Empreinte de l'ISO ENTIÈRE (à vérifier après reconstitution).
+          sha256sum "$ISO" | tee "${ISO}.sha256"
+
+          # Découpe en morceaux de 1900 Mio (< 2 Gio, limite d'un asset).
+          split -b 1900M -d --suffix-length=2 "$ISO" "${ISO}.part-"
+          echo "Morceaux produits :"; ls -lh "${ISO}.part-"*
+
+          # Notes de version : mode d'emploi pour reconstituer l'ISO.
+          {
+            echo "## ${ISO}"
+            echo
+            echo "L'ISO fait plus de 2 Gio, la taille maximale d'un fichier sur"
+            echo "GitHub. Elle est donc livrée en morceaux. Télécharge **tous** les"
+            echo "fichiers \`.part-XX\` **et** le \`.sha256\`, dans un même dossier,"
+            echo "puis reconstitue l'ISO d'une commande :"
+            echo
+            echo '**Linux / Mac** (Terminal) :'
+            echo '```'
+            echo "cat ${ISO}.part-* > ${ISO}"
+            echo "sha256sum -c ${ISO}.sha256"
+            echo '```'
+            echo
+            echo '**Windows** (PowerShell, dans le dossier des morceaux) :'
+            echo '```'
+            echo "cmd /c copy /b ((Get-ChildItem '${ISO}.part-*' | Sort-Object Name | ForEach-Object Name) -join '+') ${ISO}"
+            echo '```'
+            echo
+            echo "La vérification doit afficher « Réussi / OK ». Ensuite, grave"
+            echo "l'ISO sur une clé USB (EtchDroid sur téléphone, ou balenaEtcher"
+            echo "sur ordinateur) et démarre dessus."
+          } > NOTES-release.md
+
+          # Idempotent : on remplace une éventuelle Release du même build.
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" \
+            --title "LexOS ${{ steps.quoi.outputs.flavour }} — build ${BUILD}" \
+            --notes-file NOTES-release.md \
+            "${ISO}.part-"* "${ISO}.sha256"
+
+          {
+            echo "### ✅ ISO publiée en Release"
+            echo
+            echo "**[Télécharger la Release \`$TAG\`](https://github.com/${{ github.repository }}/releases/tag/$TAG)**"
+            echo
+            echo "Télécharge tous les morceaux + le .sha256, puis reconstitue :"
+            echo '```'
+            echo "cat ${ISO}.part-* > ${ISO}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Téléverser le journal en cas d'échec
         if: failure()
+        continue-on-error: true    # le quota d'artefacts ne doit jamais masquer l'erreur réelle
         uses: actions/upload-artifact@v4
         with:
           name: build-log-${{ steps.quoi.outputs.flavour }}
