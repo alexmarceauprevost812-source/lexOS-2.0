@@ -50,6 +50,29 @@ hide-user-image=false
 round-user-image=true
 EOF
 
+# --- Compte de session live : créé DÈS LA CONSTRUCTION -----------------------
+#  Correctif (construction 12) : on comptait sur live-config pour créer le
+#  compte « ${LEXOS_LIVE_USER} » à l'amorçage à partir du paramètre noyau
+#  « username=… ». Sur Debian trixie ce paramètre nu n'était pas honoré de
+#  façon fiable : le compte n'existait pas, l'autologin du tty (login -f)
+#  échouait en boucle (« Authentication failure ») et LightDM ne proposait
+#  que la session invité — impossible d'atteindre le bureau ni Calamares.
+#  On crée donc le compte ICI, dans le chroot, pour qu'il existe TOUJOURS :
+#  autologin du tty, écran de connexion LightDM et connexion en console
+#  fonctionnent alors tous les trois.
+if ! id "${LEXOS_LIVE_USER}" >/dev/null 2>&1; then
+	useradd -m -s /bin/bash -c "${LEXOS_NAME} Live" "${LEXOS_LIVE_USER}"
+fi
+#  Groupes utiles au bureau (ignore ceux qui n'existent pas encore).
+for g in sudo audio video plugdev netdev cdrom dip users bluetooth lpadmin scanner; do
+	getent group "$g" >/dev/null 2>&1 && adduser "${LEXOS_LIVE_USER}" "$g" >/dev/null 2>&1 || true
+done
+#  Mot de passe de secours = le nom du compte (ex. « lex » / « lex ») : sert
+#  à la connexion manuelle si l'autologin est un jour désactivé. Le compte
+#  n'est PAS verrouillé, sinon « login -f » échouerait comme avant.
+echo "${LEXOS_LIVE_USER}:${LEXOS_LIVE_USER}" | chpasswd
+passwd -u "${LEXOS_LIVE_USER}" >/dev/null 2>&1 || true
+
 # --- Session live : autologin ------------------------------------------------
 # live-config gère déjà l'autologin ; on renforce pour LightDM.
 cat > /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf <<EOF
@@ -57,6 +80,17 @@ cat > /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf <<EOF
 autologin-user=${LEXOS_LIVE_USER}
 autologin-user-timeout=0
 autologin-session=xfce
+EOF
+
+# --- Autologin aussi en console (tty1) : le compte existe désormais ----------
+#  Renfort du même correctif : on pose l'autologin getty nous-mêmes, sans
+#  dépendre de live-config, pour que la première console ouvre une session
+#  « ${LEXOS_LIVE_USER} » même si live-config ne l'a pas configuré.
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/lexos-autologin.conf <<EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin ${LEXOS_LIVE_USER} --noclear %I \$TERM
 EOF
 
 # (le thème GTK est produit par le hook 0600 — LexOS Noir)
