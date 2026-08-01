@@ -1,0 +1,98 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — Claude (IA d'Anthropic) et Claude Code, préinstallés dans l'ISO
+# =============================================================================
+#  Deux applications d'un coup :
+#    - Claude Code : l'assistant de programmation d'Anthropic, en terminal.
+#                    On l'installe ICI, à la construction, pour qu'il soit
+#                    déjà là au premier démarrage (canal officiel npm).
+#    - Claude      : l'appli claude.ai, ouverte en fenêtre dédiée par le
+#                    lanceur « lexos claude app ».
+#
+#  Rien n'est bloquant : si npm manque ou si le réseau tombe pendant la
+#  construction, le lanceur « lexos claude » réinstalle Claude Code tout seul
+#  au premier lancement. Les deux icônes de bureau, elles, sont toujours là.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0420 : Claude et Claude Code"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# --- Icône Claude (le « burst » orange) ------------------------------------
+SVG="/usr/share/lexos/branding/claude-icon.svg"
+[ -r "$SVG" ] || SVG="branding/claude-icon.svg"          # selon le contexte du hook
+if [ -r "$SVG" ]; then
+	for SIZE in 32 48 64 128 256; do
+		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		if have rsvg-convert; then
+			rsvg-convert -w "$SIZE" -h "$SIZE" "$SVG" -o "$DIR/lexos-claude.png" 2>/dev/null \
+				&& echo "[lexos]   icône ${SIZE}px" || true
+		elif have convert; then
+			convert -background none -resize "${SIZE}x${SIZE}" "$SVG" "$DIR/lexos-claude.png" 2>/dev/null || true
+		fi
+	done
+	# La version SVG elle-même, pour les thèmes vectoriels.
+	VDIR="/usr/share/icons/hicolor/scalable/apps"
+	mkdir -p "$VDIR"; cp "$SVG" "$VDIR/lexos-claude.svg" 2>/dev/null || true
+	have gtk-update-icon-cache && \
+		gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+else
+	echo "[lexos]   !! icône Claude introuvable — les lanceurs utiliseront une icône générique"
+fi
+
+# --- Préinstaller Claude Code (best effort) --------------------------------
+if have claude; then
+	echo "[lexos]   Claude Code déjà présent."
+elif have npm; then
+	echo "[lexos]   installation de Claude Code via npm…"
+	if npm install -g @anthropic-ai/claude-code >/dev/null 2>&1; then
+		echo "[lexos]   Claude Code installé ($(command -v claude 2>/dev/null || echo 'npm global'))."
+	else
+		echo "[lexos]   !! Claude Code non installé à la construction — le lanceur le fera au 1er lancement."
+	fi
+else
+	echo "[lexos]   !! npm absent — Claude Code sera installé au 1er lancement par le lanceur."
+fi
+
+# --- Lanceurs de bureau -----------------------------------------------------
+mkdir -p /usr/share/applications
+
+cat > /usr/share/applications/lexos-claude-code.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Claude Code
+Name[en]=Claude Code
+Comment=Assistant de programmation d'Anthropic, dans le terminal
+Comment[en]=Anthropic's coding assistant, in the terminal
+Exec=xfce4-terminal --title="Claude Code — LexOS" -e "lexos claude"
+Icon=lexos-claude
+Terminal=false
+StartupNotify=true
+Categories=Development;Utility;
+Keywords=claude;code;ia;ai;anthropic;assistant;programmation;developpement;cli;terminal;
+EOF
+
+cat > /usr/share/applications/lexos-claude.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Claude
+Name[en]=Claude
+Comment=L'application Claude (claude.ai) — l'IA d'Anthropic, en fenêtre
+Comment[en]=The Claude app (claude.ai) — Anthropic's AI, in its own window
+Exec=lexos claude app
+Icon=lexos-claude
+Terminal=false
+StartupNotify=true
+StartupWMClass=Claude
+Categories=Network;Utility;
+Keywords=claude;ia;ai;anthropic;chat;assistant;conversation;
+EOF
+
+have update-desktop-database && \
+	update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+
+echo "[lexos] hook 0420 : ok"

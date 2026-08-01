@@ -5452,6 +5452,24 @@ function openIA(url){
   requestAnimationFrame(()=>navVa(url || "lexos://ia"));
 }
 function openClaude(){ openIA("https://claude.ai"); }
+/*  Claude Code : l'assistant de programmation d'Anthropic, qui vit dans le
+    terminal. Dans la vraie LexOS, « lexos claude » le lance ; ici on montre
+    à quoi ça ressemble — un aperçu, pas un vrai Claude branché sur internet. */
+function openClaudeCode(){
+  openWin("claude-code","Claude Code",'<span style="color:#d97757">✳</span>',
+  `<div style="background:#0b0b0d;color:#e8e6e3;font-family:ui-monospace,'JetBrains Mono',Menlo,monospace;height:100%;padding:16px 18px;overflow:auto;font-size:13px;line-height:1.7;box-sizing:border-box">
+     <div style="color:#d97757;font-weight:600">✳ Claude Code</div>
+     <div style="opacity:.65;margin-bottom:12px">Assistant de programmation d'Anthropic — dans le terminal.</div>
+     <div><span style="color:#7aa2f7">[lex@lexos]</span> <span style="color:#e0af68">lexos claude</span></div>
+     <div style="opacity:.75;margin:6px 0 12px">» Connexion au navigateur au premier lancement…</div>
+     <div style="color:#9ece6a">✓ Connecté. Bonjour ! En quoi puis-je aider avec ton code ?</div>
+     <div style="margin-top:10px"><span style="color:#7aa2f7">&gt;</span> <span style="opacity:.85">explique-moi ce dossier</span></div>
+     <div style="opacity:.75;margin-top:6px">Claude lit tes fichiers, propose des changements et lance les commandes —
+     toujours avec ta confirmation. Tourne dans le nuage (Anthropic) : connexion
+     et compte requis. Pour une IA 100&nbsp;% locale, vois plutôt « Assistants IA ».</div>
+     <div style="margin-top:14px;opacity:.5;font-size:12px">Ceci est un aperçu de la démo. Sur une vraie LexOS : ouvre un terminal et tape <b>lexos claude</b>.</div>
+   </div>`, 640, 460);
+}
 
 function navNouvelOnglet(url, muet){
   url = url || "lexos://nouvel-onglet";
@@ -7147,6 +7165,8 @@ function lgtRetireDesApps(a){
 const DOCK = [
   [navGlyph(26),"Navigateur",openBrowser], [terminalGlyph(24),"Terminal",openTerminal],
   [filesAppGlyph(24),"Fichiers",openFiles], [noteGlyph(25),"Note perso",openEditor],
+  ['<span style="color:#d97757;font-size:22px">✳</span>',"Claude",openClaude],
+  ['<span style="color:#d97757;font-size:22px">✳</span>',"Claude Code",openClaudeCode],
   ['<i class="gly gly-share"></i>',"Partager",openShare], [cameraGlyph(24),"Capture d'écran",openCapture],
   [studioGlyph(24),"Studio+ LexOS",openStudio],
   ["📦","Logithèque",openLogitheque],
@@ -7206,7 +7226,8 @@ const APPS = [
     label==="Studio+ LexOS" ? {ic:studioGlyph(40), label, fn} :
     label==="Navigateur" ? {ic:navGlyph(42), label, fn} :
     label==="Paramètres" ? {ic:reglagesGlyph(40), label, fn} :
-    label==="Note perso" ? {ic:noteGlyph(40), label, fn} : {ic,label,fn}),
+    label==="Note perso" ? {ic:noteGlyph(40), label, fn} :
+    (label==="Claude"||label==="Claude Code") ? {ic:'<span style="color:#d97757;font-size:40px">✳</span>', label, fn} : {ic,label,fn}),
   {ic:zipGlyph(42), label:"Archives ZIP", fn:openFiles},
   {ic:musiqueGlobe(38), label:"Musique", fn:openMusique},
   {ic:'<i class="gly gly-usb" style="width:42px;height:42px"></i>', label:"Appareils USB", fn:()=>openSettings("usb")},
@@ -7224,7 +7245,6 @@ const APPS = [
   {ic:'<i class="gly gly-secure"></i>', label:"Confidentialité", fn:()=>openSettings("confidentialite")},
   {ic:majGlyph(), label:"Mises à jour", fn:()=>openSettings("maj")},
   {ic:"🧑‍💻", label:"Utilisateurs", fn:()=>openSettings("utilisateurs")},
-  {ic:"✳", label:"Claude", fn:openClaude},
   {ic:"✳", label:"Assistants IA", fn:()=>openIA()},
   {ic:"⛶", label:"Cadrer une zone", fn:capZone},
   {ic:"📥", label:"Vide mémoire +", fn:videMemoire},

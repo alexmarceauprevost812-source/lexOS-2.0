@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Icône Claude pour LexOS — le « burst » d'Anthropic, orange argile sur fond
+     crème. Reproduction stylisée, non officielle, pour un lanceur de bureau. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="56" fill="#F4F0EC"/>
+  <g transform="translate(128,128)" fill="#D97757">
+    <!-- 16 pétales rayonnants, effilés, façon étincelle Claude -->
+    <g id="p">
+      <path d="M0,-84 C7,-52 7,-52 0,-20 C-7,-52 -7,-52 0,-84 Z"/>
+    </g>
+    <use href="#p" transform="rotate(22.5)"/>
+    <use href="#p" transform="rotate(45)"/>
+    <use href="#p" transform="rotate(67.5)"/>
+    <use href="#p" transform="rotate(90)"/>
+    <use href="#p" transform="rotate(112.5)"/>
+    <use href="#p" transform="rotate(135)"/>
+    <use href="#p" transform="rotate(157.5)"/>
+    <use href="#p" transform="rotate(180)"/>
+    <use href="#p" transform="rotate(202.5)"/>
+    <use href="#p" transform="rotate(225)"/>
+    <use href="#p" transform="rotate(247.5)"/>
+    <use href="#p" transform="rotate(270)"/>
+    <use href="#p" transform="rotate(292.5)"/>
+    <use href="#p" transform="rotate(315)"/>
+    <use href="#p" transform="rotate(337.5)"/>
+    <circle r="14"/>
+  </g>
+</svg>
