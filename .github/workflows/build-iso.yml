@@ -45,12 +45,15 @@ on:
       - 'branding/**'
       - 'auto/**'
 
-#  Une seule construction à la fois par branche : si on pousse plusieurs
-#  changements coup sur coup, seule la plus récente se construit, les
-#  précédentes sont annulées (on ne garde que l'ISO la plus à jour).
+#  Une seule construction à la fois par branche, mais on n'ANNULE JAMAIS
+#  celle qui tourne : une ISO prend plus d'une heure, et l'annuler à chaque
+#  nouveau changement voulait dire ne jamais en livrer aucune (constaté :
+#  la construction 20, qui portait le correctif NVIDIA, a été tuée par le
+#  changement suivant). Les demandes font donc la file : celle en cours va
+#  au bout et se publie, la suivante démarre juste après.
 concurrency:
   group: iso-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write         # requis pour publier l'ISO en Release GitHub
