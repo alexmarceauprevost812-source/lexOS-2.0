@@ -96,29 +96,43 @@
     <circle cx="470"  cy="642" r="2.0" opacity="0.30"/>
   </g>
 
-  <!-- Halo derrière le titre -->
-  <ellipse cx="960" cy="560" rx="430" ry="120" fill="#E8590C"
-           opacity="0.10" filter="url(#soft)"/>
+  <!--  Voile sombre derrière la marque : sans lui, les colonnes de code
+        passent au travers du logo et le rendent illisible. -->
+  <ellipse cx="960" cy="600" rx="620" ry="300" fill="#000000"
+           opacity="0.72" filter="url(#soft)"/>
+  <!-- Halo derrière le logo ASCII -->
+  <ellipse cx="960" cy="580" rx="430" ry="150" fill="#E8590C"
+           opacity="0.13" filter="url(#soft)"/>
 
-  <!-- Marque -->
+  <!--  Marque — le logo ASCII, celui du terminal et de la démo web. Dessiné
+        en texte monospace ligne à ligne : c'est la même signature que
+        « lexfetch » affiche au démarrage, pas une police de titre. Aligné à
+        gauche dans un bloc centré, sinon les barres obliques se décalent.
+        Taille calée pour que la plus longue ligne (26 caractères) tienne
+        largement dans les 1920 pixels. -->
+  <g font-family="'Fira Code','DejaVu Sans Mono',monospace"
+     font-size="64" font-weight="700" fill="url(#fire)"
+     text-anchor="start" xml:space="preserve">
+    <text x="472" y="452">   __         _____ _____</text>
+    <text x="472" y="526">  / /  _____ / __  |  ___|</text>
+    <text x="472" y="600"> / /  / _ \ \/ / | | |___</text>
+    <text x="472" y="674">/ /__|  __/&gt;  &lt;  | |___  |</text>
+    <text x="472" y="748">\____/\___/_/\_\ |_____/</text>
+  </g>
+
   <g text-anchor="middle">
-    <text x="960" y="588"
-          font-family="'Fira Code','DejaVu Sans Mono',monospace"
-          font-size="168" font-weight="700" letter-spacing="-6"
-          fill="#FFFFFF">Lex<tspan fill="url(#fire)">OS</tspan></text>
+    <rect x="600" y="796" width="720" height="2" fill="url(#rule)"/>
 
-    <rect x="600" y="628" width="720" height="2" fill="url(#rule)"/>
-
-    <text x="960" y="684"
+    <text x="960" y="852"
           font-family="'Fira Code','DejaVu Sans Mono',monospace"
           font-size="26" letter-spacing="11" fill="#B8B8BC">
       T I &#183; L E X &#183; A L
     </text>
 
-    <text x="960" y="736"
+    <text x="960" y="904"
           font-family="'Fira Code','DejaVu Sans Mono',monospace"
           font-size="19" letter-spacing="5" fill="#6E6E74">
-      1.0 &#8212; NOMAD
+      1.0.2 &#8212; NOMAD
     </text>
   </g>
 
