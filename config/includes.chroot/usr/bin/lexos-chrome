@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-chrome — Google Chrome, comme une application du système
+# =============================================================================
+#  Chrome n'est pas un logiciel libre : Google ne permet pas de le
+#  redistribuer, il ne peut donc pas être copié dans l'ISO. Ce lanceur fait
+#  la seule chose honnête possible : l'icône est là dès le premier
+#  démarrage, dans le dock et dans le menu, et le premier clic propose
+#  l'installation depuis le dépôt officiel de Google. Les clics suivants
+#  ouvrent Chrome, directement.
+#
+#  Usage :
+#    lexos chrome                 ouvre Chrome (l'installe si besoin)
+#    lexos chrome <adresse…>      ouvre ces pages dans Chrome
+#    lexos chrome --incognito     fenêtre de navigation privée
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos-chrome"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; V=$'\033[32m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; V=''; E=''; B=''; D=''; R=''
+fi
+say() { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()  { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+err() { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; }
+
+#  Graphique ou terminal ? Les deux chemins existent : on peut cliquer sur
+#  l'icône comme lancer « lexos chrome » depuis un shell sans bureau.
+GUI=0
+if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1; then
+	GUI=1
+fi
+
+dialogue_erreur() {
+	err "$*"
+	[[ "$GUI" -eq 1 ]] && zenity --error --width=460 --title="Google Chrome — LexOS" \
+		--text="$1" 2>/dev/null
+	exit 1
+}
+
+# --- Chrome est-il déjà là ? -------------------------------------------------
+chrome_bin() {
+	local b
+	for b in google-chrome-stable google-chrome google-chrome-beta google-chrome-unstable; do
+		if command -v "$b" >/dev/null 2>&1; then printf '%s\n' "$b"; return 0; fi
+	done
+	return 1
+}
+
+if BIN="$(chrome_bin)"; then
+	exec "$BIN" "$@"
+fi
+
+# --- Chrome n'existe pas pour cette machine ---------------------------------
+#  Google ne publie Chrome que pour amd64 sous Linux. Sur ARM (Raspberry Pi,
+#  Mac M1/M2/M3/M4…) il n'y aura jamais de paquet : autant le dire tout de
+#  suite plutôt que de faire échouer une installation de 100 Mio.
+ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
+case "$ARCH" in
+	amd64|x86_64) ;;
+	*)
+		dialogue_erreur "Google ne publie pas Chrome pour cette architecture ($ARCH).
+
+Chromium — le navigateur libre sur lequel Chrome est construit — est déjà installé et fait le même travail : ouvre-le depuis le menu Applications."
+		;;
+esac
+
+# --- Proposer l'installation -------------------------------------------------
+LIVE=0
+grep -qs 'boot=live' /proc/cmdline && LIVE=1
+[ -d /run/live/medium ] && LIVE=1
+
+NOTE_LIVE=""
+if [[ "$LIVE" -eq 1 ]]; then
+	NOTE_LIVE="
+
+⚠ Tu es sur la session de démonstration (clé USB) : Chrome sera installé en mémoire vive et disparaîtra au redémarrage. Pour le garder, installe d'abord LexOS sur le disque."
+fi
+
+TEXTE="Google Chrome n'est pas installé.
+
+Chrome n'est pas un logiciel libre et n'est pas dans les dépôts Debian : LexOS n'a pas le droit de le livrer dans l'ISO. Il peut en revanche l'installer depuis le <b>dépôt officiel de Google</b> — c'est exactement ce que fait ce bouton.
+
+  · téléchargement : environ 110 Mio
+  · connexion internet nécessaire
+  · les mises à jour arriveront ensuite avec celles du système${NOTE_LIVE}"
+
+if [[ "$GUI" -eq 1 ]]; then
+	zenity --question --width=560 --title="Installer Google Chrome ?" \
+		--icon-name=lexos-chrome --text="$TEXTE" \
+		--ok-label="Installer Chrome" --cancel-label="Annuler" 2>/dev/null || exit 0
+else
+	printf '\n%sGoogle Chrome n'"'"'est pas installé.%s\n\n' "$B" "$R"
+	printf '  Chrome n'"'"'est pas libre et n'"'"'est pas dans les dépôts Debian :\n'
+	printf '  LexOS peut l'"'"'installer depuis le dépôt officiel de Google\n'
+	printf '  %s(environ 110 Mio, connexion internet nécessaire)%s\n\n' "$D" "$R"
+	[[ "$LIVE" -eq 1 ]] && printf '  %s⚠ Session de démonstration : Chrome disparaîtra au redémarrage.%s\n\n' "$D" "$R"
+	if [[ -t 0 ]]; then
+		read -r -p "  Installer maintenant ? [o/N] " REP
+		case "${REP,,}" in o|oui|y|yes) ;; *) say "Annulé."; exit 0 ;; esac
+	else
+		err "Pas de terminal interactif — lance : sudo lexos install chrome"
+		exit 1
+	fi
+fi
+
+# --- Élévation des droits ----------------------------------------------------
+#  En graphique, pkexec demande le mot de passe dans une fenêtre ; en
+#  terminal, sudo reste le chemin naturel.
+eleve() {
+	if [[ "$(id -u)" -eq 0 ]]; then
+		"$@"
+	elif [[ "$GUI" -eq 1 ]] && command -v pkexec >/dev/null 2>&1; then
+		pkexec "$@"
+	elif command -v sudo >/dev/null 2>&1; then
+		sudo "$@"
+	elif command -v pkexec >/dev/null 2>&1; then
+		pkexec "$@"
+	else
+		return 127
+	fi
+}
+
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+CODE="$TMP/code"
+
+if [[ "$GUI" -eq 1 ]]; then
+	#  zenity --progress affiche les lignes préfixées par « # » : on lui
+	#  donne donc le journal de l'installateur, en direct.
+	{
+		eleve /usr/bin/lexos-install-chrome 2>&1
+		printf '%s\n' "$?" > "$CODE"
+	} | sed -u 's/^/#/' | zenity --progress --pulsate --auto-close --no-cancel \
+		--width=480 --title="Installation de Google Chrome" \
+		--text="#Téléchargement depuis le dépôt de Google…" 2>/dev/null
+else
+	eleve /usr/bin/lexos-install-chrome
+	printf '%s\n' "$?" > "$CODE"
+fi
+
+STATUS="$(cat "$CODE" 2>/dev/null || echo 1)"
+
+if [[ "$STATUS" != "0" ]] || ! BIN="$(chrome_bin)"; then
+	dialogue_erreur "L'installation de Google Chrome a échoué.
+
+Vérifie ta connexion internet, puis réessaie. En ligne de commande :  sudo lexos install chrome"
+fi
+
+ok "Google Chrome est installé."
+exec "$BIN" "$@"

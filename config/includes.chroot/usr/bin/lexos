@@ -120,6 +120,12 @@ ${B}PARTAGE${R}
   ${A}receive${R}             Recevoir des fichiers depuis un téléphone
   ${A}ecran-telephone${R}     Afficher et contrôler l'écran du téléphone ${D}(scrcpy, USB ou Wi-Fi)${R}
 
+${B}NAVIGATEURS${R}
+  ${D}Firefox et Chromium sont préinstallés. Chrome, lui, n'est pas libre :${R}
+  ${D}Google interdit de le redistribuer, l'ISO ne peut donc pas le contenir.${R}
+  ${A}chrome${R}              Ouvre Google Chrome ${D}(propose de l'installer au 1er lancement)${R}
+  ${A}install chrome${R}      Installe Chrome tout de suite ${D}(dépôt officiel Google, ~110 Mio)${R}
+
 ${B}LOGITHÈQUE${R}
   ${A}logitheque${R}          Boutique d'applications ${D}(GNOME Logiciels, dépôts Debian + Flathub)${R}
   ${A}logitheque liste${R}    Catalogue des applications courantes
@@ -201,6 +207,7 @@ ${B}DÉMO & INSTALLATION${R}
 
 ${B}EXEMPLES${R}
   ${D}${PROG} install neovim tmux${R}
+  ${D}${PROG} chrome${R}             ${D}(ouvre Google Chrome, l'installe au besoin)${R}
   ${D}${PROG} install chrome${R}      ${D}(ajoute Google Chrome — dépôt officiel Google)${R}
   ${D}${PROG} accent violet${R}
   ${D}${PROG} dock gauche${R}
@@ -696,6 +703,7 @@ case "$CMD" in
 	ia|agent)             exec lexos-ia "$@" ;;
 	claude|cc)            exec lexos-claude "$@" ;;
 	musique|music)        exec lexos-musique "$@" ;;
+	chrome|google-chrome) exec lexos-chrome "$@" ;;
 	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;

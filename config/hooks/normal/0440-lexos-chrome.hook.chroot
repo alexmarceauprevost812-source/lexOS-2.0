@@ -1,0 +1,80 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — Google Chrome comme application du système
+# =============================================================================
+#  Chrome ne peut pas être copié dans l'ISO : Google ne permet pas de
+#  redistribuer son navigateur. Ce que ce hook installe, c'est l'APPLICATION —
+#  son icône, son lanceur, sa place dans le dock et dans le menu. Au premier
+#  clic, lexos-chrome propose l'installation depuis le dépôt officiel de
+#  Google ; ensuite l'icône ouvre Chrome, comme n'importe quelle autre.
+#
+#  Rien n'est bloquant ici : aucun réseau n'est nécessaire à la construction.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0440 : Google Chrome"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# --- Icône (remplacée par le vrai logo dès l'installation de Chrome) --------
+SVG="/usr/share/lexos/branding/chrome-icon.svg"
+[ -r "$SVG" ] || SVG="branding/chrome-icon.svg"
+if [ -r "$SVG" ]; then
+	for SIZE in 32 48 64 128 256; do
+		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		if have rsvg-convert; then
+			rsvg-convert -w "$SIZE" -h "$SIZE" "$SVG" -o "$DIR/lexos-chrome.png" 2>/dev/null || true
+		elif have convert; then
+			convert -background none -resize "${SIZE}x${SIZE}" "$SVG" "$DIR/lexos-chrome.png" 2>/dev/null || true
+		fi
+	done
+	VDIR="/usr/share/icons/hicolor/scalable/apps"
+	mkdir -p "$VDIR"; cp "$SVG" "$VDIR/lexos-chrome.svg" 2>/dev/null || true
+	have gtk-update-icon-cache && \
+		gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+else
+	echo "[lexos]   !! icône Chrome introuvable — icône générique utilisée"
+fi
+
+# --- Lanceur ----------------------------------------------------------------
+#  Les MimeType sont déclarés pour que Chrome apparaisse dans « Ouvrir avec »
+#  et dans le choix du navigateur par défaut. Il n'est PAS mis par défaut :
+#  Firefox le reste tant que l'utilisateur n'en décide pas autrement.
+mkdir -p /usr/share/applications
+
+cat > /usr/share/applications/lexos-chrome.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Google Chrome
+Name[en]=Google Chrome
+GenericName=Navigateur web
+GenericName[en]=Web Browser
+Comment=Le navigateur de Google — installé depuis le dépôt officiel au premier lancement
+Comment[en]=Google's web browser — installed from the official repository on first launch
+Exec=lexos-chrome %U
+Icon=lexos-chrome
+Terminal=false
+StartupNotify=true
+StartupWMClass=Google-chrome
+Categories=Network;WebBrowser;
+Keywords=chrome;google;navigateur;browser;web;internet;
+MimeType=text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
+Actions=NouvelleFenetre;Privee;
+
+[Desktop Action NouvelleFenetre]
+Name=Nouvelle fenêtre
+Name[en]=New Window
+Exec=lexos-chrome
+
+[Desktop Action Privee]
+Name=Nouvelle fenêtre de navigation privée
+Name[en]=New Incognito Window
+Exec=lexos-chrome --incognito
+EOF
+
+have update-desktop-database && \
+	update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+
+echo "[lexos] hook 0440 : ok"

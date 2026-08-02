@@ -5,7 +5,11 @@
 #  Chrome n'est pas un logiciel libre et n'est pas dans les dépôts Debian :
 #  ce script ajoute le dépôt officiel de Google (avec sa clé de signature)
 #  puis installe google-chrome-stable. Nécessite une connexion internet.
-#  Appelé via : lexos install chrome
+#
+#  Appelé via : lexos install chrome  —  ou par le lanceur graphique
+#  lexos-chrome au premier clic sur l'icône Chrome (dock et menu). C'est
+#  pourquoi il ne pose aucune question et écrit tout sur la sortie standard :
+#  le lanceur affiche ce journal dans sa fenêtre de progression.
 # =============================================================================
 set -uo pipefail
 
@@ -20,22 +24,78 @@ die() { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "Cette commande demande les droits administrateur (root)."
 
+ARCH="$(dpkg --print-architecture 2>/dev/null || echo inconnue)"
+[[ "$ARCH" == "amd64" ]] || \
+	die "Google ne publie pas Chrome pour cette architecture ($ARCH) — Chromium, déjà installé, fait le même travail."
+
+export DEBIAN_FRONTEND=noninteractive
+
 command -v curl >/dev/null 2>&1 || apt-get install -y curl >/dev/null 2>&1
 
 KEYRING=/usr/share/keyrings/google-chrome.gpg
 REPO_LIST=/etc/apt/sources.list.d/google-chrome.list
 
 say "Ajout du dépôt Google Chrome…"
-curl -fsSL https://dl.google.com/linux/linux_signing_key.pub 2>/dev/null \
-	| gpg --dearmor 2>/dev/null > "$KEYRING" \
-	|| die "Impossible de récupérer la clé Google — vérifie ta connexion internet."
+#  La clé est écrite dans un fichier temporaire puis déplacée : un
+#  téléchargement interrompu ne doit pas laisser un trousseau vide en place,
+#  qui ferait échouer tous les « apt-get update » suivants.
+TMPKEY="$(mktemp)"
+if curl -fsSL https://dl.google.com/linux/linux_signing_key.pub 2>/dev/null \
+	| gpg --dearmor > "$TMPKEY" 2>/dev/null && [[ -s "$TMPKEY" ]]; then
+	install -m 0644 "$TMPKEY" "$KEYRING"
+	rm -f "$TMPKEY"
+else
+	rm -f "$TMPKEY"
+	die "Impossible de récupérer la clé Google — vérifie ta connexion internet."
+fi
 
 printf 'deb [arch=amd64 signed-by=%s] https://dl.google.com/linux/chrome/deb/ stable main\n' \
 	"$KEYRING" > "$REPO_LIST"
 
-say "Installation de Google Chrome…"
+say "Mise à jour des listes de paquets…"
 apt-get update -qq || die "Échec de la mise à jour des listes — dépôt Google injoignable ?"
+
+say "Installation de Google Chrome (environ 110 Mio)…"
 apt-get install -y google-chrome-stable \
 	|| die "Installation échouée. Le dépôt reste configuré, réessaie : apt-get install google-chrome-stable"
 
-ok "Google Chrome installé — cherche-le dans le menu Applications."
+# --- Finitions : une seule entrée Chrome, avec le vrai logo ------------------
+#  L'icône du lanceur LexOS s'appelle « lexos-chrome » : on la remplace par
+#  le logo livré par Google, pour que le dock et le menu affichent le vrai
+#  Chrome dès maintenant, sans toucher aux fichiers .desktop.
+if [ -d /opt/google/chrome ]; then
+	for SIZE in 16 24 32 48 64 128 256; do
+		SRC="/opt/google/chrome/product_logo_${SIZE}.png"
+		[ -r "$SRC" ] || continue
+		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		cp -f "$SRC" "$DIR/lexos-chrome.png" 2>/dev/null || true
+	done
+	rm -f /usr/share/icons/hicolor/scalable/apps/lexos-chrome.svg
+	command -v gtk-update-icon-cache >/dev/null 2>&1 && \
+		gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+fi
+
+#  Chrome installe son propre lanceur. Sans rien faire, le menu afficherait
+#  alors DEUX « Google Chrome » — celui de LexOS et celui de Google, qui
+#  ouvrent le même navigateur. On masque celui de Google : /usr/local/share
+#  passe avant /usr/share dans XDG_DATA_DIRS, un fichier de même nom y
+#  masque donc l'original sans le modifier (rien à défaire à la
+#  désinstallation, et la mise à jour de Chrome n'y touche pas).
+if [ -r /usr/share/applications/lexos-chrome.desktop ] && \
+   [ -r /usr/share/applications/google-chrome.desktop ]; then
+	mkdir -p /usr/local/share/applications
+	cat > /usr/local/share/applications/google-chrome.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Google Chrome
+NoDisplay=true
+Exec=/usr/bin/google-chrome-stable %U
+Icon=google-chrome
+Comment=Doublon masqué par LexOS — le lanceur affiché est lexos-chrome.desktop
+EOF
+	command -v update-desktop-database >/dev/null 2>&1 && \
+		update-desktop-database /usr/local/share/applications >/dev/null 2>&1 || true
+fi
+
+ok "Google Chrome installé — il est dans le dock et dans le menu Applications."

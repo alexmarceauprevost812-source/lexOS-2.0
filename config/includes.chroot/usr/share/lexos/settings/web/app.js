@@ -205,8 +205,11 @@ function contenu(cle){
     case "applications": return `<h2>Applications</h2><div class="sub">Applications par défaut</div>
       ${srow("Navigateur, courrier, gestionnaire de fichiers","Quelle application ouvre quoi")}
       ${btnOuvrir("applications")}
-      <p class="notice">Chrome n'est pas dans les dépôts Debian :
-      <code>lexos install chrome</code> ajoute le dépôt officiel puis l'installe.</p>`;
+      <p class="notice">Firefox et Chromium sont installés. Google Chrome, lui,
+      n'est pas libre : il ne peut pas être livré dans l'ISO. Son icône est
+      quand même dans le dock — le premier clic l'installe depuis le dépôt
+      officiel de Google (aussi : <code>lexos chrome</code>, ou
+      <code>lexos install chrome</code>).</p>`;
     case "notifications": return `<h2>Notifications</h2><div class="sub">Alertes système</div>
       ${srow("Notifications","Position, durée, applications autorisées")}
       ${btnOuvrir("notifications")}`;

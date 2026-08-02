@@ -2337,7 +2337,7 @@ function tColore(cmd){
   //  options orange — sudo garde son rouge d'avertissement.
   const CMDS = new Set(["help","aide","lexfetch","clear","date","whoami","echo","uname",
     "accent","dock","perf","crt","demo","avion","lang","format","info",
-    "musique","claude","studio","capture","logitheque","partage"]);
+    "musique","claude","studio","capture","logitheque","partage","chrome"]);
   return esc(cmd).split(/(\s+)/).map(tok=>{
     if(/^\s+$/.test(tok) || !tok) return tok;
     if(tok==="sudo") return `<span class="tk-sudo">${tok}</span>`;
@@ -2360,6 +2360,7 @@ const TERM_SUGGESTIONS = [
   ["lexos perf max",    "profil de performance (petit · medium · performant · max)"],
   ["lexos crt off",     "coupe l'effet écran de télé 1980"],
   ["lexos musique",     "ouvre lexOS_musique, le lecteur audio local"],
+  ["lexos chrome",      "ouvre Google Chrome (propose de l'installer au 1er lancement)"],
   ["lexos claude",      "ouvre Claude Code, l'assistant de programmation"],
   ["lexos studio",      "ouvre Studio+ : photo, vidéo et son"],
   ["lexos avion on",    "coupe Wi-Fi et Bluetooth (mode avion)"],
@@ -4099,6 +4100,81 @@ function openLexosMusique(){
         rel="noopener">💿 Ouvrir lexOS_musique</a></div>
    </div>`, 460, 430);
 }
+/*  Google Chrome — même dessin que branding/chrome-icon.svg : trois arcs
+    autour d'un globe, aux couleurs de LexOS. Ce n'est PAS le logo de Google
+    (marque déposée) ; sur la vraie ISO, cette icône est d'ailleurs remplacée
+    par le vrai logo dès que Chrome est installé. */
+function chromeGlyph(size){
+  return `<svg viewBox="0 0 512 512" width="${size}" height="${size}"
+     aria-hidden="true" focusable="false" style="vertical-align:middle">
+    <circle cx="256" cy="256" r="204" fill="#12121a"/>
+    <g fill="none" stroke-width="68">
+      <path d="M267.2 96.4 A160 160 0 0 1 399.8 326.1" stroke="var(--ac)"/>
+      <path d="M388.6 345.5 A160 160 0 0 1 123.4 345.5" stroke="#F59F00"/>
+      <path d="M112.2 326.1 A160 160 0 0 1 244.8 96.4"  stroke="#37B24D"/>
+    </g>
+    <circle cx="256" cy="256" r="98" fill="#12121a"/>
+    <circle cx="256" cy="256" r="76" fill="var(--ac)" opacity=".16"/>
+    <g fill="none" stroke="var(--ac)" stroke-width="8">
+      <circle cx="256" cy="256" r="76"/>
+      <ellipse cx="256" cy="256" rx="40" ry="76"/>
+      <path d="M180 256 H332"/>
+    </g>
+  </svg>`;
+}
+/*  Chrome n'est pas libre : Google interdit de le redistribuer, l'ISO ne
+    peut donc pas le contenir. Ce que LexOS livre, c'est l'APPLICATION —
+    l'icône est dans le dock dès le premier démarrage, et le premier clic
+    propose l'installation depuis le dépôt officiel de Google. La démo
+    montre ce parcours exactement, sans rien installer. */
+function openChrome(){
+  openWin("chrome","Google Chrome",chromeGlyph(17),
+  `<div class="pad" id="chromePane" style="line-height:1.65">${chromeAvant()}</div>`, 480, 500);
+}
+function chromeAvant(){
+  return `<p class="sub" style="margin-top:0">Google Chrome n'est pas installé.</p>
+     <p><b>Chrome n'est pas un logiciel libre</b> et n'est dans aucun dépôt Debian :
+     LexOS n'a pas le droit de le livrer dans l'ISO. Il peut en revanche l'installer
+     depuis le <b>dépôt officiel de Google</b> — c'est ce que fait le bouton
+     ci-dessous, au premier clic sur l'icône.</p>
+     <div class="srow"><div><div class="t">📦 Environ 110 Mio</div>
+       <div class="d">Connexion internet nécessaire.</div></div></div>
+     <div class="srow"><div><div class="t">🔄 Mises à jour</div>
+       <div class="d">Elles arrivent ensuite avec celles du système, comme le reste.</div></div></div>
+     <div class="srow"><div><div class="t">🦊 En attendant</div>
+       <div class="d">Firefox et Chromium — le navigateur libre dont Chrome est
+       tiré — sont déjà installés.</div></div></div>
+     <div class="row"><button class="btn" onclick="chromeInstalle()">Installer Chrome</button></div>
+     <p class="notice">Sur une vraie LexOS : clique l'icône Chrome du dock, ou tape
+     <code>lexos chrome</code>. Une fois installé, l'icône ouvre Chrome directement.</p>`;
+}
+function chromeInstalle(){
+  const pane = document.getElementById("chromePane");
+  if(!pane) return;
+  pane.innerHTML = `<p class="sub" style="margin-top:0">Installation de Google Chrome…</p>
+     <div class="srow"><div style="width:100%"><div class="t" id="chromeEtape">Ajout du dépôt de Google…</div>
+       <div class="d">Démonstration : rien n'est téléchargé ni installé ici.</div></div></div>`;
+  const etapes = ["Ajout du dépôt de Google…","Mise à jour des listes de paquets…",
+                  "Téléchargement de google-chrome-stable (110 Mio)…","Installation…"];
+  let i = 0;
+  const t = setInterval(()=>{
+    i++;
+    const el = document.getElementById("chromeEtape");
+    if(!el){ clearInterval(t); return; }        // fenêtre fermée entre-temps
+    if(i < etapes.length){ el.textContent = etapes[i]; return; }
+    clearInterval(t);
+    toast("Google Chrome installé");
+    const p = document.getElementById("chromePane");
+    if(p) p.innerHTML = `<p class="sub" style="margin-top:0">Google Chrome est installé.</p>
+       <p>Sur une vraie LexOS, Chrome s'ouvrirait maintenant, et l'icône du dock
+       porterait le vrai logo de Google — <code>lexos-install-chrome</code> le
+       récupère dans le paquet installé.</p>
+       <div class="srow"><div><div class="t">🖱 Les clics suivants</div>
+         <div class="d">L'icône ouvre Chrome directement, sans plus rien demander.</div></div></div>
+       <div class="row"><button class="btn" onclick="openBrowser()">Ouvrir le navigateur de la démo</button></div>
+       <p class="notice">Pour le retirer : <code>lexos remove google-chrome-stable</code>.</p>`;
+  }, 900);
+}
 function openMusique(){
   openWin("mus","Musique","♪",
   `<div class="pad mus">
@@ -5031,9 +5107,11 @@ function settingsSection(key){
     case "multitaches": return `<h2>Multi-tâches</h2><div class="sub">Bureaux virtuels</div>
       ${swRow("Bureaux virtuels multiples","Non simulés dans la démo web",false,"")}`;
     case "applications": return `<h2>Applications</h2><div class="sub">Applications par défaut</div>
-      <div class="srow"><div class="t">Navigateur web</div><div class="d">Firefox (défaut) · Chromium</div></div>
-      <p class="notice">Chrome n'est pas libre et n'est pas dans les dépôts Debian : sur la vraie
-      ISO, <code>lexos install chrome</code> ajoute le dépôt officiel de Google puis l'installe.</p>`;
+      <div class="srow"><div class="t">Navigateur web</div><div class="d">Firefox (défaut) · Chromium · Google Chrome</div></div>
+      <p class="notice">Chrome n'est pas libre : Google interdit de le redistribuer, l'ISO ne
+      peut donc pas le contenir. Son icône est quand même dans le dock dès le premier
+      démarrage — le premier clic l'installe depuis le dépôt officiel de Google
+      (aussi : <code>lexos chrome</code>).</p>`;
     case "notifications": return `<h2>Notifications</h2><div class="sub">Alertes système</div>
       ${swRow("Notifications","Branchements USB, réseau, mises à jour",true,"")}`;
     case "recherche": return `<h2>Recherche</h2><div class="sub">Menu Applications</div>
@@ -7143,6 +7221,7 @@ async function studioExporte(){
 const LOGITHEQUE = [
   {pkg:"firefox-esr", nom:"Firefox", ic:"🦊", cat:"Internet", poids:"250 Mo", desc:"Navigateur web libre de Mozilla", lien:"https://www.mozilla.org/firefox/", fn:openBrowser},
   {pkg:"chromium", nom:"Chromium", ic:"🌐", cat:"Internet", poids:"310 Mo", desc:"Le navigateur libre derrière Chrome", lien:"https://www.chromium.org", fn:openBrowser},
+  {pkg:"google-chrome-stable", nom:"Google Chrome", ic:chromeGlyph(26), cat:"Internet", poids:"110 Mo", desc:"Le navigateur de Google — non libre, installé depuis le dépôt officiel", lien:"https://www.google.com/chrome/", fn:openChrome},
   {pkg:"thunderbird", nom:"Thunderbird", ic:"✉", cat:"Internet", poids:"280 Mo", desc:"Courriel, agenda et contacts", lien:"https://www.thunderbird.net"},
   {pkg:"transmission-gtk", nom:"Transmission", ic:"⇄", cat:"Internet", poids:"12 Mo", desc:"Client BitTorrent léger", lien:"https://transmissionbt.com"},
   {pkg:"libreoffice", nom:"LibreOffice", ic:"📄", cat:"Bureautique", poids:"780 Mo", desc:"Texte, tableur, présentation — suite complète", lien:"https://www.libreoffice.org"},
@@ -7419,7 +7498,8 @@ function lgtRetireDesApps(a){
 }
 
 const DOCK = [
-  [navGlyph(26),"Navigateur",openBrowser], [terminalGlyph(24),"Terminal",openTerminal],
+  [navGlyph(26),"Navigateur",openBrowser], [chromeGlyph(26),"Google Chrome",openChrome],
+  [terminalGlyph(24),"Terminal",openTerminal],
   [filesAppGlyph(24),"Fichiers",openFiles], [noteGlyph(25),"Note perso",openEditor],
   ['<span style="color:#d97757;font-size:22px">✳</span>',"Claude",openClaude],
   ['<span style="color:#d97757;font-size:22px">✳</span>',"Claude Code",openClaudeCode],
@@ -7462,7 +7542,8 @@ function majFondsDock(){
     dock ? Sert au sélecteur de fenêtres : compter les fenêtres ouvertes de
     la même appli, et les regrouper. */
 const DOCK_APP = {
-  "Navigateur":"web", "Terminal":"term", "Fichiers":"files", "Note perso":"edit",
+  "Navigateur":"web", "Google Chrome":"chrome", "Terminal":"term",
+  "Fichiers":"files", "Note perso":"edit",
   "Claude":"web", "Claude Code":"claude-code", "Partager":"share",
   "Capture d'écran":"capture", "Studio+ LexOS":"studio", "Logithèque":"logitheque",
   "Paramètres":"set", "Installer LexOS":"inst", "À propos":"about"};
@@ -7609,6 +7690,7 @@ const APPS = [
     label==="Capture d'écran" ? {ic:cameraGlyph(40), label, fn} :
     label==="Studio+ LexOS" ? {ic:studioGlyph(40), label, fn} :
     label==="Navigateur" ? {ic:navGlyph(42), label, fn} :
+    label==="Google Chrome" ? {ic:chromeGlyph(40), label, fn} :
     label==="Paramètres" ? {ic:reglagesGlyph(40), label, fn} :
     label==="Note perso" ? {ic:noteGlyph(40), label, fn} :
     (label==="Claude"||label==="Claude Code") ? {ic:'<span style="color:#d97757;font-size:40px">✳</span>', label, fn} : {ic,label,fn}),
