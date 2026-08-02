@@ -3908,6 +3908,27 @@ function musRendListe(){
                onclick="event.stopPropagation();musRetire(${i})">✕</button>
      </div>`).join("");
 }
+/*  lexOS_musique : l'application de la vraie ISO. Dans la démo on ne peut pas
+    lire les fichiers de la machine, alors on montre à quoi elle sert et on
+    renvoie vers la page complète, qui elle marche pour de bon. */
+function openLexosMusique(){
+  openWin("lexmus","lexOS_musique","💿",
+  `<div class="pad" style="line-height:1.65">
+     <p class="sub" style="margin-top:0">Ton lecteur audio <b>local</b> : tes fichiers,
+     ta machine, rien qui part sur internet.</p>
+     <div class="srow"><div><div class="t">🎵 Ton crate</div>
+       <div class="d">Dépose tes fichiers audio, ils rejoignent ta collection.</div></div></div>
+     <div class="srow"><div><div class="t">📀 Playlists</div>
+       <div class="d">Fabrique tes listes de lecture et range tes morceaux.</div></div></div>
+     <div class="srow"><div><div class="t">🌍 Musique gratuite</div>
+       <div class="d">Bandcamp, Jamendo, Free Music Archive, Musopen, FreePD —
+       de quoi se faire une collection légalement.</div></div></div>
+     <p class="notice">Sur une vraie LexOS : ouvre-la depuis le dock, ou tape
+     <code>lexos musique</code> dans le terminal.</p>
+     <div class="row"><a class="btn" href="../website/musique.html" target="_blank"
+        rel="noopener">💿 Ouvrir lexOS_musique</a></div>
+   </div>`, 460, 430);
+}
 function openMusique(){
   openWin("mus","Musique","♪",
   `<div class="pad mus">
@@ -7423,6 +7444,7 @@ const APPS = [
     (label==="Claude"||label==="Claude Code") ? {ic:'<span style="color:#d97757;font-size:40px">✳</span>', label, fn} : {ic,label,fn}),
   {ic:zipGlyph(42), label:"Archives ZIP", fn:openFiles},
   {ic:musiqueGlobe(38), label:"Musique", fn:openMusique},
+  {ic:'<span style="font-size:38px">💿</span>', label:"lexOS_musique", fn:openLexosMusique},
   {ic:'<i class="gly gly-usb" style="width:42px;height:42px"></i>', label:"Appareils USB", fn:()=>openSettings("usb")},
   {ic:'<i class="gly gly-wifi"></i>', label:"Wi-Fi", fn:()=>openSettings("wifi")},
   {ic:'<i class="gly gly-bt"></i>', label:"Bluetooth", fn:()=>openSettings("bluetooth")},

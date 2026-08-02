@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Icône lexOS_musique : un vinyle qui tourne, aux couleurs de la maison. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="disque" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#2a2a2a"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </radialGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="#111"/>
+  <circle cx="128" cy="128" r="92" fill="url(#disque)" stroke="#E8590C" stroke-width="3"/>
+  <!-- Sillons -->
+  <g fill="none" stroke="#ffffff" stroke-opacity=".14">
+    <circle cx="128" cy="128" r="78"/>
+    <circle cx="128" cy="128" r="68"/>
+    <circle cx="128" cy="128" r="58"/>
+    <circle cx="128" cy="128" r="48"/>
+  </g>
+  <!-- Étiquette centrale -->
+  <circle cx="128" cy="128" r="30" fill="#E8590C"/>
+  <circle cx="128" cy="128" r="7" fill="#111"/>
+  <!-- Reflet -->
+  <path d="M60 92 A 92 92 0 0 1 128 36" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="6" stroke-linecap="round"/>
+</svg>

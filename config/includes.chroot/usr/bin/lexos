@@ -140,6 +140,7 @@ ${B}CAPTURE${R}
   ${A}capture video${R}       Enregistre l'écran en vidéo ${D}(Ctrl+Maj+R, Ctrl+C pour arrêter)${R}
 
 ${B}STUDIO+${R}
+  ${A}musique${R}             lexOS_musique : lecteur audio local ${D}(crate, playlists)${R}
   ${A}studio${R}              Studio+ LexOS : ateliers image, vidéo et son
   ${A}studio ouvrir${R} <atelier>  photo · peinture · vectoriel · video · capture · son
                       ${D}propose d'installer l'atelier s'il manque${R}
@@ -694,6 +695,7 @@ case "$CMD" in
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
 	ia|agent)             exec lexos-ia "$@" ;;
 	claude|cc)            exec lexos-claude "$@" ;;
+	musique|music)        exec lexos-musique "$@" ;;
 	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;
