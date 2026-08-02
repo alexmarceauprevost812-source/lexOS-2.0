@@ -201,6 +201,53 @@ apt-get install -y nvidia-detect >/dev/null 2>&1 \
 	&& echo "[lexos]   nvidia-detect installé" \
 	|| echo "[lexos]   nvidia-detect indisponible (sans gravité)"
 
+# --- LE RÉGLAGE QUI MANQUAIT : le kernel modesetting ------------------------
+#  Constaté sur l'Alienware Aurora, RTX 5060, pilote 610 installé avec succès
+#  (module compilé, alternative enregistrée) : le splash LexOS s'affiche, la
+#  roue tourne, puis l'écran perd le signal — au moment précis où la session
+#  graphique démarre. C'est la signature d'un pilote NVIDIA sans kernel
+#  modesetting (KMS) actif.
+#
+#  Par défaut, le module nvidia-drm ne pilote PAS l'affichage tant que
+#  « modeset=1 » ne le lui dit pas explicitement — c'est le cas depuis
+#  toujours, proprio comme ouvert. Le splash de démarrage (Plymouth) passe
+#  par le framebuffer que l'UEFI a déjà configuré (simpledrm/efifb), ce qui
+#  explique qu'il s'affiche très bien ; mais dès que Xorg tente de prendre la
+#  main sur le VRAI pilote NVIDIA sans KMS, il ne trouve aucune sortie
+#  utilisable — et sur une machine de bureau où la carte NVIDIA EST la seule
+#  sortie vidéo (pas de puce graphique Intel/AMD de secours), ça donne
+#  exactement « no signal » : plus rien, nulle part.
+#
+#  Un fichier modprobe.d, pas un paramètre GRUB : le paramètre de démarrage
+#  ne vivrait que dans CETTE session live — l'installateur Debian ne le
+#  recopie pas dans le GRUB du système installé. Un fichier dans
+#  /etc/modprobe.d/, lui, est un fichier normal : il est copié sur le disque
+#  à l'installation, comme n'importe quel autre réglage.
+#  $REUSSITE n'est renseigné que si un pilote a RÉELLEMENT été installé (le
+#  module vérifié présent) : /proc/driver/nvidia n'existerait pas ici de
+#  toute façon, on est dans le chroot de construction, sans GPU réel ni
+#  module chargé.
+if [ -n "$REUSSITE" ]; then
+	mkdir -p /etc/modprobe.d
+	cat > /etc/modprobe.d/lexos-nvidia-drm.conf <<'EOF'
+# LexOS — active le kernel modesetting de nvidia-drm.
+#
+# Sans ce réglage, une carte NVIDIA qui est la SEULE sortie vidéo de la
+# machine (aucune puce graphique Intel/AMD en secours, le cas de la plupart
+# des tours de bureau) affiche le splash de démarrage — servi par l'UEFI,
+# pas par NVIDIA — puis perd le signal au lancement de la session graphique :
+# le pilote NVIDIA n'a alors aucun moyen de piloter l'écran.
+# Constaté et corrigé sur une GeForce RTX 5060 (Alienware Aurora ACT1250).
+options nvidia-drm modeset=1
+EOF
+	#  Répercuter tout de suite sur l'initramfs : les kernels déjà présents
+	#  dans l'ISO doivent embarquer ce réglage, pas seulement le prochain à
+	#  être construit.
+	update-initramfs -u -k all >/dev/null 2>&1 \
+		&& echo "[lexos]   nvidia-drm.modeset=1 activé, initramfs mis à jour" \
+		|| echo "[lexos]   !! nvidia-drm.modeset=1 écrit, mais update-initramfs a échoué"
+fi
+
 VERSION="$(dpkg-query -W -f='${Version}' nvidia-open 2>/dev/null \
 	|| dpkg-query -W -f='${Version}' cuda-drivers 2>/dev/null \
 	|| dpkg-query -W -f='${Version}' nvidia-driver 2>/dev/null \

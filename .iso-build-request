@@ -17,8 +17,8 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
-# build 17 : pilote NVIDIA depuis le dépôt OFFICIEL de NVIDIA. backports ne
-# fournit que du 550 — trop vieux pour une RTX 5060, et son module ouvert ne
-# compile même pas contre le noyau 6.12.100 de l'ISO. La construction 16 en
-# est morte, et ses débris ont fait échouer le hook 5040 de live-build.
-build: 17
+# build 18 : nvidia-drm.modeset=1. Le pilote 610 (build 17, RÉUSSI) s'est
+# installé et compilé correctement, mais l'écran perdait quand même le signal
+# au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
+# l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
+build: 18
