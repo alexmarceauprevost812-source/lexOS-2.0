@@ -244,6 +244,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
+          #  build.sh tourne en root (sudo) : l'ISO et le dossier de travail
+          #  appartiennent alors à root, et cette étape (utilisateur normal) ne
+          #  peut pas y écrire le .sha256 ni les morceaux (« Permission denied »).
+          #  On récupère donc la propriété du dossier avant d'écrire quoi que ce
+          #  soit — sans ça, la construction réussit mais la publication échoue.
+          sudo chown -R "$(id -u):$(id -g)" . 2>/dev/null || true
           ISO="$(ls ./*.iso 2>/dev/null | head -1)"
           [ -n "$ISO" ] || { echo "::error::Aucune ISO à publier"; exit 1; }
           ISO="$(basename "$ISO")"
