@@ -29,9 +29,28 @@ on:
         type: string
   push:
     branches: ['**']
+    #  Construction AUTOMATIQUE : dès qu'on ajoute ou change quelque chose qui
+    #  entre dans l'ISO (un paquet, un réglage, un hook, un script, le
+    #  branding…), une nouvelle ISO se construit et se publie toute seule en
+    #  Release. Les changements qui ne touchent PAS l'ISO (site web, démo,
+    #  documentation) ne déclenchent rien — inutile de reconstruire 6 Go pour
+    #  une retouche de page.
     paths:
       - '.iso-build-request'
       - '.github/workflows/build-iso.yml'
+      - 'build.sh'
+      - 'lexos.conf'
+      - 'config/**'
+      - 'flavours/**'
+      - 'branding/**'
+      - 'auto/**'
+
+#  Une seule construction à la fois par branche : si on pousse plusieurs
+#  changements coup sur coup, seule la plus récente se construit, les
+#  précédentes sont annulées (on ne garde que l'ISO la plus à jour).
+concurrency:
+  group: iso-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write         # requis pour publier l'ISO en Release GitHub
@@ -229,7 +248,12 @@ jobs:
           [ -n "$ISO" ] || { echo "::error::Aucune ISO à publier"; exit 1; }
           ISO="$(basename "$ISO")"
           BUILD="$(sed -n 's/^[[:space:]]*build:[[:space:]]*//p' .iso-build-request | head -1)"
-          TAG="iso-${{ steps.quoi.outputs.flavour }}-build${BUILD:-0}"
+          #  Tag STABLE par saveur : « latest-pro », « latest-standard »… La
+          #  Release est remplacée à chaque construction, donc ce lien pointe
+          #  TOUJOURS vers l'ISO la plus récente. Idéal pour un signet et pour
+          #  le guide du site, qui n'ont jamais à changer d'adresse.
+          TAG="latest-${{ steps.quoi.outputs.flavour }}"
+          SHORT="$(echo "${GITHUB_SHA:-0000000}" | cut -c1-7)"
 
           # Empreinte de l'ISO ENTIÈRE (à vérifier après reconstitution).
           sha256sum "$ISO" | tee "${ISO}.sha256"
@@ -263,11 +287,13 @@ jobs:
             echo "sur ordinateur) et démarre dessus."
           } > NOTES-release.md
 
-          # Idempotent : on remplace une éventuelle Release du même build.
+          # Idempotent : on remplace la Release précédente de cette saveur, pour
+          # que « latest-<saveur> » soit toujours la dernière ISO en date.
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" \
-            --title "LexOS ${{ steps.quoi.outputs.flavour }} — build ${BUILD}" \
+            --title "LexOS ${{ steps.quoi.outputs.flavour }} — dernière ISO (build ${BUILD}, ${SHORT})" \
             --notes-file NOTES-release.md \
+            --latest \
             "${ISO}.part-"* "${ISO}.sha256"
 
           {
