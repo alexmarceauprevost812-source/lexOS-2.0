@@ -34,10 +34,12 @@ set -e
 echo "[lexos] hook 0260 : pilote NVIDIA (backports)"
 
 FLAVOUR="standard"
+SUITE=""
 if [ -r /etc/lexos/build.conf ]; then
 	# shellcheck disable=SC1091
 	. /etc/lexos/build.conf
 	FLAVOUR="${LEXOS_FLAVOUR:-standard}"
+	SUITE="${LEXOS_DEBIAN_SUITE:-}"
 fi
 
 case "$FLAVOUR" in
@@ -54,14 +56,15 @@ if [ "$ARCH" != "amd64" ]; then
 	exit 0
 fi
 
-CODENAME=""
-if [ -r /etc/os-release ]; then
-	# shellcheck disable=SC1091
-	. /etc/os-release
-	CODENAME="${VERSION_CODENAME:-}"
-fi
+#  PAS /etc/os-release : le hook 0100-lexos-identity s'exécute AVANT celui-ci
+#  et y écrit déjà le nom de code de LexOS lui-même (VERSION_CODENAME=nomad,
+#  pas trixie) — le lire ici a fait chercher un dépôt « nomad-backports »
+#  inexistant (404) et arrêté toute la construction avant qu'un seul paquet
+#  ne s'installe. LEXOS_DEBIAN_SUITE, dans build.conf, porte le VRAI nom de
+#  code Debian ; c'est la même variable que lit auto/config pour --distribution.
+CODENAME="$SUITE"
 if [ -z "$CODENAME" ]; then
-	echo "[lexos]   !! nom de code Debian introuvable — on garde le pilote stable"
+	echo "[lexos]   !! LEXOS_DEBIAN_SUITE introuvable dans build.conf — on garde le pilote stable"
 	CODENAME="trixie"
 fi
 BP="${CODENAME}-backports"

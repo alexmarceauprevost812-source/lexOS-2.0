@@ -17,5 +17,7 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
-# build 15 : pilote NVIDIA depuis les backports (RTX 50 — écran noir corrigé)
-build: 15
+# build 16 : correctif du hook NVIDIA — il lisait le nom de code LexOS
+# (« nomad ») au lieu du nom de code Debian (« trixie »), et cherchait donc
+# un dépôt « nomad-backports » inexistant (404, construction 15 en échec).
+build: 16
