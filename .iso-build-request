@@ -17,8 +17,16 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 19 : correctif HDMI/TV pour la régression 610.43.02/03 (NVIDIA
+# open-gpu-kernel-modules#1238) trouvée après tests réels sur l'Alienware
+# Aurora (Secure Boot déjà désactivé, modeset=1 déjà tenté à la main : le
+# signal se perdait quand même, y compris en mode texte pur). Ajout de
+# nvidia-drm.fbdev=1 et nvidia-modeset.hdmi_deepcolor=0 (fichier modprobe.d
+# + ligne de démarrage), et le mode fail-safe bloque maintenant TOUT
+# composant NVIDIA au niveau noyau (module_blacklist=, pas juste nvidia_drm)
+# pour offrir un vrai filet de secours garanti.
 # build 18 : nvidia-drm.modeset=1. Le pilote 610 (build 17, RÉUSSI) s'est
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 18
+build: 19

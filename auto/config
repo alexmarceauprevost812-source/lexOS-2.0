@@ -35,6 +35,36 @@ BOOTAPPEND="${BOOTAPPEND} keyboard-layouts=${LEXOS_KEYBOARD_LAYOUT}"
 BOOTAPPEND="${BOOTAPPEND} keyboard-variants=${LEXOS_KEYBOARD_VARIANT}"
 BOOTAPPEND="${BOOTAPPEND} timezone=${LEXOS_TIMEZONE}"
 
+#  ── NVIDIA (RTX 50 / Blackwell) : garder la console visible ─────────────
+#  Constaté sur une Alienware Aurora, RTX 5060, pilote 610.43.02 (dépôt
+#  officiel NVIDIA) : la TV (HDMI) perd le signal pile quand nvidia.ko
+#  initialise le firmware GSP, AVANT même que Xorg ne démarre — un bug de
+#  régression documenté par NVIDIA elle-même pour cette version exacte
+#  (« TV shows No Signal », open-gpu-kernel-modules#1238, apparu pile à
+#  610.43.02, encore présent en 610.43.03). Deux filets de sécurité, sans
+#  effet sur une machine sans carte NVIDIA (options ignorées) :
+#    · modeset=1 fbdev=1 : ré-enregistrent une console framebuffer côté
+#      nvidia_drm dès qu'il se charge, au lieu de laisser le framebuffer
+#      UEFI mort sans rien pour le remplacer.
+#    · hdmi_deepcolor=0 : force une sortie HDMI 8 bits — correctif connu
+#      (ArchWiki NVIDIA/Troubleshooting) pour les « no signal » sur TV,
+#      dont les puces HDMI sont souvent plus strictes qu'un vrai moniteur.
+BOOTAPPEND="${BOOTAPPEND} nvidia-drm.modeset=1 nvidia-drm.fbdev=1 nvidia-modeset.hdmi_deepcolor=0"
+
+#  ── Mode fail-safe : un VRAI filet, garanti sans NVIDIA ─────────────────
+#  Avant : live-build donnait son propre défaut (memtest, noapic…) sans
+#  toucher aux pilotes — ce mode perdait donc le signal exactement comme le
+#  mode normal, puisque nvidia-persistenced/nvidia-powerd chargent nvidia.ko
+#  (et initialisent le GSP) même sans bureau graphique. Ici, module_blacklist=
+#  agit au niveau du noyau : il bloque TOUT chargement, y compris un modprobe
+#  explicite par un service — contrairement à modprobe.blacklist= qui ne
+#  bloque que le chargement automatique par alias. C'est donc la seule façon
+#  de garantir qu'aucun composant NVIDIA ne touche l'écran dans ce mode.
+#  On repart du défaut live-build de trixie (boot=live … vga=788) : cette
+#  option REMPLACE la chaîne, elle ne s'ajoute pas au défaut.
+BOOTAPPEND_FAILSAFE="boot=live components memtest noapic noapm nodma nomce nosmp nosplash vga=788"
+BOOTAPPEND_FAILSAFE="${BOOTAPPEND_FAILSAFE} module_blacklist=nvidia,nvidia_drm,nvidia_modeset,nvidia_uvm"
+
 #  ── Réponses préremplies de l'installateur ──────────────────────────────
 #  config/includes.installer/preseed.cfg est recopié à la racine du support
 #  par live-build ; l'installateur le trouve sous /cdrom. Il ne contient que
@@ -77,6 +107,7 @@ lb config noauto \
 	 #  l'architecture ici donnait lexos-1.0-standard-amd64-amd64.hybrid.iso.` \
 	--image-name "${LEXOS_ID}-${LEXOS_VERSION}-${LEXOS_FLAVOUR}" \
 	--bootappend-live "${BOOTAPPEND}" \
+	--bootappend-live-failsafe "${BOOTAPPEND_FAILSAFE}" \
 	--bootappend-install "${BOOTAPPEND_INSTALL}" \
 	--compression xz \
 	--zsync false \

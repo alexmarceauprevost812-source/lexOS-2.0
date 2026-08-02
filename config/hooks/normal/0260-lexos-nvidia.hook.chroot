@@ -201,22 +201,32 @@ apt-get install -y nvidia-detect >/dev/null 2>&1 \
 	&& echo "[lexos]   nvidia-detect installé" \
 	|| echo "[lexos]   nvidia-detect indisponible (sans gravité)"
 
-# --- LE RÉGLAGE QUI MANQUAIT : le kernel modesetting ------------------------
+# --- LE RÉGLAGE QUI MANQUAIT : le kernel modesetting + le bug HDMI 610 ------
 #  Constaté sur l'Alienware Aurora, RTX 5060, pilote 610 installé avec succès
 #  (module compilé, alternative enregistrée) : le splash LexOS s'affiche, la
-#  roue tourne, puis l'écran perd le signal — au moment précis où la session
-#  graphique démarre. C'est la signature d'un pilote NVIDIA sans kernel
-#  modesetting (KMS) actif.
+#  roue tourne, puis l'écran (une TV, en HDMI) perd le signal — au moment
+#  précis où nvidia.ko initialise le firmware GSP, avant même que Xorg ne
+#  démarre. Deux causes cumulées, trouvées après investigation :
 #
-#  Par défaut, le module nvidia-drm ne pilote PAS l'affichage tant que
-#  « modeset=1 » ne le lui dit pas explicitement — c'est le cas depuis
-#  toujours, proprio comme ouvert. Le splash de démarrage (Plymouth) passe
-#  par le framebuffer que l'UEFI a déjà configuré (simpledrm/efifb), ce qui
-#  explique qu'il s'affiche très bien ; mais dès que Xorg tente de prendre la
-#  main sur le VRAI pilote NVIDIA sans KMS, il ne trouve aucune sortie
-#  utilisable — et sur une machine de bureau où la carte NVIDIA EST la seule
-#  sortie vidéo (pas de puce graphique Intel/AMD de secours), ça donne
-#  exactement « no signal » : plus rien, nulle part.
+#  1. Le kernel modesetting (KMS) : par défaut sur les versions anciennes du
+#     module nvidia-drm, il ne pilote pas l'affichage tant que « modeset=1 »
+#     ne le lui dit pas explicitement. Le splash de démarrage (Plymouth)
+#     passe par le framebuffer que l'UEFI a déjà configuré (simpledrm/efifb),
+#     ce qui explique qu'il s'affiche très bien ; mais dès que quelque chose
+#     tente de prendre la main sur le VRAI pilote NVIDIA sans KMS, il ne
+#     trouve aucune sortie utilisable — et sur une machine où la carte NVIDIA
+#     EST la seule sortie vidéo, ça donne exactement « no signal ».
+#     (Sur le pilote 610 spécifiquement, modeset=1 et fbdev=1 sont déjà les
+#     défauts — mais on les force quand même, au cas où la cascade plus haut
+#     retombe sur un pilote plus ancien où ce n'est pas encore le cas.)
+#
+#  2. Une régression connue de NVIDIA elle-même : sur les pilotes 610.43.02
+#     et 610.43.03, plusieurs utilisateurs rapportent un « No Signal » sur TV
+#     HDMI apparu pile à cette version (issue officielle
+#     NVIDIA/open-gpu-kernel-modules#1238) — indépendant du modesetting.
+#     Le correctif documenté (ArchWiki NVIDIA/Troubleshooting) : forcer une
+#     sortie HDMI en 8 bits avec hdmi_deepcolor=0, les puces HDMI des TV
+#     étant souvent plus strictes qu'un vrai moniteur sur le deep color.
 #
 #  Un fichier modprobe.d, pas un paramètre GRUB : le paramètre de démarrage
 #  ne vivrait que dans CETTE session live — l'installateur Debian ne le
@@ -230,22 +240,28 @@ apt-get install -y nvidia-detect >/dev/null 2>&1 \
 if [ -n "$REUSSITE" ]; then
 	mkdir -p /etc/modprobe.d
 	cat > /etc/modprobe.d/lexos-nvidia-drm.conf <<'EOF'
-# LexOS — active le kernel modesetting de nvidia-drm.
+# LexOS — active le kernel modesetting de nvidia-drm, et corrige un « No
+# Signal » HDMI connu des pilotes 610.43.02/610.43.03 (open-gpu-kernel-
+# modules#1238).
 #
-# Sans ce réglage, une carte NVIDIA qui est la SEULE sortie vidéo de la
-# machine (aucune puce graphique Intel/AMD en secours, le cas de la plupart
-# des tours de bureau) affiche le splash de démarrage — servi par l'UEFI,
-# pas par NVIDIA — puis perd le signal au lancement de la session graphique :
-# le pilote NVIDIA n'a alors aucun moyen de piloter l'écran.
-# Constaté et corrigé sur une GeForce RTX 5060 (Alienware Aurora ACT1250).
-options nvidia-drm modeset=1
+# Sans modeset=1/fbdev=1, une carte NVIDIA qui est la SEULE sortie vidéo de
+# la machine (aucune puce graphique Intel/AMD en secours, le cas de la
+# plupart des tours de bureau) affiche le splash de démarrage — servi par
+# l'UEFI, pas par NVIDIA — puis perd le signal au lancement de la session
+# graphique : le pilote NVIDIA n'a alors aucun moyen de piloter l'écran.
+# hdmi_deepcolor=0 force une sortie 8 bits : la régression 610.x fait perdre
+# le signal sur certaines TV même avec le modesetting actif.
+# Constaté et corrigé sur une GeForce RTX 5060 (Alienware Aurora ACT1250)
+# branchée en HDMI sur une TV Hisense.
+options nvidia-drm modeset=1 fbdev=1
+options nvidia-modeset hdmi_deepcolor=0
 EOF
 	#  Répercuter tout de suite sur l'initramfs : les kernels déjà présents
 	#  dans l'ISO doivent embarquer ce réglage, pas seulement le prochain à
 	#  être construit.
 	update-initramfs -u -k all >/dev/null 2>&1 \
-		&& echo "[lexos]   nvidia-drm.modeset=1 activé, initramfs mis à jour" \
-		|| echo "[lexos]   !! nvidia-drm.modeset=1 écrit, mais update-initramfs a échoué"
+		&& echo "[lexos]   nvidia-drm.modeset=1 fbdev=1, hdmi_deepcolor=0, initramfs mis à jour" \
+		|| echo "[lexos]   !! réglages écrits, mais update-initramfs a échoué"
 fi
 
 VERSION="$(dpkg-query -W -f='${Version}' nvidia-open 2>/dev/null \
