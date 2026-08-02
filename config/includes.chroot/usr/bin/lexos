@@ -375,6 +375,50 @@ cmd_doctor() {
 		fi
 	fi
 
+	# Python : ce dont les applications de LexOS ont besoin
+	#  Plusieurs applications de LexOS SONT des programmes Python. Quand un
+	#  module manque, elles s'arrêtent sur un « ModuleNotFoundError » qui ne
+	#  dit pas quel PAQUET installer — c'est ce que cette section répond, un
+	#  module par ligne, avec le nom Debian à taper.
+	if command -v python3 >/dev/null 2>&1; then
+		local manquants=() ligne module paquet quoi
+		for ligne in \
+			"gi|python3-gi gir1.2-gtk-3.0|fonds d'écran animés" \
+			"cairo|python3-cairo|fonds d'écran animés" \
+			"Xlib|python3-xlib|fond d'écran vidéo" \
+			"PySide6.QtWebEngineWidgets|python3-pyside6.qtwebenginewidgets|Paramètres et Cartes" \
+			"tkinter|python3-tk|programmes Python à interface Tk" \
+			"requests|python3-requests|programmes Python qui vont sur le web" \
+			"PIL|python3-pil|programmes Python qui touchent aux images" \
+			"numpy|python3-numpy|calcul, science, images"
+		do
+			module="${ligne%%|*}"; quoi="${ligne##*|}"
+			paquet="${ligne#*|}"; paquet="${paquet%|*}"
+			python3 -c "import ${module}" >/dev/null 2>&1 || \
+				manquants+=("${paquet}|${quoi}")
+		done
+		if (( ${#manquants[@]} == 0 )); then
+			ok "Python : tous les modules attendus sont là"
+		else
+			warn "Python : ${#manquants[@]} module(s) manquant(s)"
+			for ligne in "${manquants[@]}"; do
+				printf '    - %s%s%s  %s(%s)%s\n' \
+					"$O" "${ligne%%|*}" "$R" "$D" "${ligne##*|}" "$R"
+			done
+			printf '    %ssudo apt install %s%s\n' "$D" \
+				"$(printf '%s ' "${manquants[@]%%|*}")" "$R"
+		fi
+		#  pipx, et non pip : depuis Debian 12, « pip install » à l'échelle
+		#  du système est refusé (externally-managed-environment). pipx pose
+		#  chaque application Python dans son propre environnement.
+		if command -v pipx >/dev/null 2>&1; then
+			ok "pipx : les applications Python s'installent avec « pipx install <nom> »"
+		else
+			warn "pipx absent — c'est lui qui installe une application Python sur Debian 13"
+			printf '    %ssudo apt install pipx%s\n' "$D" "$R"
+		fi
+	fi
+
 	# Redémarrage requis
 	if [[ -f /var/run/reboot-required ]]; then
 		warn "Un redémarrage est requis"

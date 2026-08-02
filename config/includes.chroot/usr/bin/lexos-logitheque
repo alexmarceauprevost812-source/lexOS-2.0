@@ -80,6 +80,7 @@ hugo|hugo|Développement|Générateur de sites statiques, très rapide|https://g
 nodejs|nodejs|Langages|JavaScript hors du navigateur|https://nodejs.org
 npm|npm|Langages|Le gestionnaire de paquets de Node.js|https://www.npmjs.com
 pippython|python3-pip|Langages|Installer des bibliothèques Python|https://pip.pypa.io
+pipx|pipx|Langages|Installer une application Python sans rien casser (Debian refuse pip à l'échelle du système)|https://pipx.pypa.io
 environnements|python3-venv|Langages|Un jeu de bibliothèques par projet, sans se marcher dessus|https://docs.python.org/3/library/venv.html
 jupyter|jupyter-notebook|Langages|Carnets de code : Python et résultats sur la même page|https://jupyter.org
 javajdk|default-jdk|Langages|Compilateur et machine virtuelle Java|https://openjdk.org

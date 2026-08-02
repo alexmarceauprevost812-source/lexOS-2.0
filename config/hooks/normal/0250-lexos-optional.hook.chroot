@@ -34,13 +34,13 @@ fi
 LISTS="00-core.list 10-installer.list"
 case "$FLAVOUR" in
 	minimal)    ;;
-	standard)   LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
-	dev)        LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 50-dev.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
-	full)       LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 50-dev.list 60-full.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
-	gaming)     LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 50-dev.list 70-gaming.list 80-securite.list 90-decoupe-image.list 95-logitheque.list"
+	standard)   LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 57-python.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
+	dev)        LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 57-python.list 50-dev.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
+	full)       LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 57-python.list 50-dev.list 60-full.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
+	gaming)     LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 57-python.list 50-dev.list 70-gaming.list 80-securite.list 90-decoupe-image.list 95-logitheque.list"
 	            # Steam et Wine ont besoin des paquets 32 bits (i386) — non bloquant si indisponible.
 	            dpkg --add-architecture i386 2>/dev/null || true ;;
-	pro)        LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 50-dev.list 70-gaming.list 75-pro-gamer.list 80-securite.list 90-decoupe-image.list 95-logitheque.list"
+	pro)        LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 57-python.list 50-dev.list 70-gaming.list 75-pro-gamer.list 80-securite.list 90-decoupe-image.list 95-logitheque.list"
 	            # Steam et Wine ont besoin des paquets 32 bits (i386) — non bloquant si indisponible.
 	            dpkg --add-architecture i386 2>/dev/null || true ;;
 esac
