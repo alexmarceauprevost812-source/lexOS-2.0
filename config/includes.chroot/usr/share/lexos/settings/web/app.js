@@ -198,9 +198,12 @@ function contenu(cle){
       <p class="notice">Aussi : clic droit sur une image dans Fichiers →
       « Définir comme fond d'écran », ou <code>lexos wallpaper ~/Images/photo.jpg</code>.
       Vidéo en fond : <code>lexos wallpaper video ~/Vidéos/boucle.mp4</code>.
-      Le fond qui s'écrit tout seul — du vrai code, caractère par caractère,
-      figé sur batterie : <code>lexos wallpaper code</code>
-      (<code>lexos wallpaper code off</code> remet le fond fixe).</p>
+      <b>Fonds animés</b> — dessinés en direct, figés dès le passage sur batterie :
+      <code>lexos wallpaper anime</code> (code · pluie · braises · ciel · atelier),
+      ou l'application « Fonds animés » du menu. Pour en fabriquer un :
+      <code>lexos wallpaper anime nouveau mon-fond</code> — un fichier de couches
+      commenté, avec <code>… apercu mon-fond</code> pour voir avant de poser.
+      <code>lexos wallpaper anime off</code> remet le fond fixe.</p>
       ${btnOuvrir("bureau","Réglages fins (XFCE)")}`;
     case "multitaches": return `<h2>Multi-tâches</h2><div class="sub">Bureaux virtuels</div>
       ${srow("Bureaux virtuels","Nombre et noms des espaces de travail")}

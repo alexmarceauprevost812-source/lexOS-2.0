@@ -72,6 +72,19 @@ if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
 	fi
 fi
 
+# --- Fond animé par défaut : le code qui s'écrit ----------------------------
+#  Le fond fixe ci-dessus reste posé DESSOUS : c'est lui qu'on retrouve dès
+#  qu'on arrête l'animation (« lexos wallpaper anime off »), et c'est lui
+#  qu'on voit si l'animation ne peut pas démarrer — pas de bureau noir.
+#
+#  lexos-fond-anime refuse tout seul quand il manque quelque chose (pas de
+#  compositeur, python3-gi absent, pas de session graphique) : d'où le
+#  « || true ». Un fond d'écran ne doit jamais faire échouer une ouverture
+#  de session.
+if command -v lexos-fond-anime >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+	lexos-fond-anime start code >/dev/null 2>&1 || true
+fi
+
 # --- Matériel Apple ---------------------------------------------------------
 #  Sur un Mac, quelques réglages ne se devinent pas : les ventilateurs qui
 #  restent au ralenti, la rangée F qui pilote la luminosité. « --auto »

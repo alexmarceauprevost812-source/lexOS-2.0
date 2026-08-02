@@ -1,0 +1,13 @@
+{
+  "nom": "Le code s'écrit",
+  "description": "La source d'un vrai programme de LexOS s'écrit derrière la marque, caractère par caractère, curseur compris. Mode économe : seules les lignes qui changent sont repeintes.",
+  "ips": 10,
+  "couches": [
+    { "type": "fond",     "couleur": "#000000" },
+    { "type": "braises",  "couleur": "#FF8A1F", "couleur2": "#C4460D", "opacite": 0.30 },
+    { "type": "grille",   "pas": 72, "couleur": "accent", "opacite": 0.045 },
+    { "type": "code",     "couleur": "#B8B8BC", "opacite": 0.40, "vitesse": 30 },
+    { "type": "vignette", "opacite": 0.65 },
+    { "type": "marque" }
+  ]
+}

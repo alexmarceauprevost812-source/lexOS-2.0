@@ -1,0 +1,12 @@
+{
+  "nom": "Ciel",
+  "description": "Un ciel qui scintille lentement. La dérive est de l'ordre du pixel par seconde : on la voit sans la remarquer.",
+  "ips": 8,
+  "couches": [
+    { "type": "fond",     "couleur": "#05070F", "couleur2": "#000000", "sens": "radial" },
+    { "type": "etoiles",  "couleur": "#FFFFFF", "nombre": 300, "vitesse": 0.01 },
+    { "type": "braises",  "couleur": "accent", "opacite": 0.12, "y": 0.62, "rayon": 0.5 },
+    { "type": "vignette", "opacite": 0.6 },
+    { "type": "marque" }
+  ]
+}

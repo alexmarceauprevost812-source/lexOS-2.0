@@ -1,0 +1,441 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-fond-anime — les fonds d'écran animés de LexOS
+# =============================================================================
+#  Un fond animé n'est pas une vidéo : c'est une SCÈNE, décrite dans un petit
+#  fichier JSON, dessinée en direct par /usr/lib/lexos/fond-anime.py. Cette
+#  commande choisit la scène, la pose, la retire, et sert d'atelier pour en
+#  fabriquer d'autres.
+#
+#  ── Ce que ça coûte ─────────────────────────────────────────────────────
+#  « code » (la scène par défaut) est en mode économe : seules les lignes qui
+#  changent sont repeintes. Les scènes à pluie, étoiles ou braises redessinent
+#  l'image entière, une dizaine de fois par seconde — ça se voit sur un vieux
+#  processeur. Dans tous les cas, SUR BATTERIE TOUT SE FIGE : l'image reste,
+#  plus rien n'est calculé.
+#
+#  ── Pourquoi on rend le bureau de XFCE transparent ──────────────────────
+#  Notre fenêtre se place SOUS celle du bureau (xfdesktop), qui dessine le
+#  fond fixe par-dessus, opaque : sans rien faire, on ne verrait rien. On
+#  demande donc à xfdesktop de ne plus peindre d'image et d'utiliser une
+#  couleur transparente — ce qui exige un compositeur, sinon le bureau
+#  deviendrait noir. Les icônes, elles, restent dessinées par xfdesktop :
+#  visibles et cliquables. C'est tout l'intérêt par rapport à une fenêtre
+#  posée par-dessus, qui les cacherait.
+#
+#  « lexos wallpaper <image> » et « lexos wallpaper anime off » remettent
+#  tout en place, y compris le fond fixe d'avant.
+#
+#  ── Ce qui n'a PAS pu être vérifié ──────────────────────────────────────
+#  Le comportement sur un vrai serveur X : la machine de construction n'a pas
+#  d'affichage. Le dessin, lui, est vérifié image par image (« apercu »).
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos wallpaper anime"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'; Y=$'\033[33m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; V=''; Y=''; B=''; D=''; R=''
+fi
+say()   { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()    { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+warn()  { printf '%s!%s %s\n' "$Y" "$R" "$*"; }
+titre() { printf '\n%s%s%s\n' "$B" "$*" "$R"; }
+die()   { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+#  LEXOS_FOND_MOTEUR et LEXOS_FONDS_DIR servent à essayer le moteur et des
+#  scènes sans les installer — c'est ce que fait la vérification pendant la
+#  construction. Même idée que LEXOS_SETTINGS_DIR pour les Paramètres.
+MOTEUR="${LEXOS_FOND_MOTEUR:-/usr/lib/lexos/fond-anime.py}"
+FONDS_SYS="${LEXOS_FONDS_DIR:-/usr/share/lexos/fonds}"
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+FONDS_UTIL="$CONF_DIR/fonds"
+CONF="$CONF_DIR/fond-anime.conf"
+AUTO="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/lexos-fond-anime.desktop"
+ETAT="${XDG_RUNTIME_DIR:-/tmp}/lexos-fond-anime"
+PID="$ETAT/fond.pid"
+SAUV="$ETAT/xfdesktop.sauv"
+mkdir -p "$ETAT" "$CONF_DIR" 2>/dev/null
+
+vivant() { [[ -r "$PID" ]] && kill -0 "$(cat "$PID" 2>/dev/null)" 2>/dev/null; }
+
+sur_batterie() {
+	local f
+	for f in /sys/class/power_supply/*/status; do
+		[[ -r "$f" ]] || continue
+		[[ "$(cat "$f" 2>/dev/null)" == "Discharging" ]] && return 0
+	done
+	return 1
+}
+
+graphique() { [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; }
+
+# =============================================================================
+#  Le bureau de XFCE : le rendre transparent, et le remettre comme avant
+# =============================================================================
+compositeur_actif() {
+	pgrep -x compiz    >/dev/null 2>&1 && return 0
+	pgrep -x picom     >/dev/null 2>&1 && return 0
+	pgrep -x xcompmgr  >/dev/null 2>&1 && return 0
+	[[ "$(xfconf-query -c xfwm4 -p /general/use_compositing 2>/dev/null)" == "true" ]] \
+		&& return 0
+	return 1
+}
+
+props_fond() {
+	xfconf-query -c xfce4-desktop -l 2>/dev/null | grep 'last-image$' || true
+}
+
+bureau_transparent() {
+	command -v xfconf-query >/dev/null 2>&1 || return 1
+	local prop base
+	: > "$SAUV"
+	while read -r prop; do
+		[[ -n "$prop" ]] || continue
+		base="${prop%last-image}"
+		#  On garde le chemin de l'image d'avant : c'est tout ce qu'il faut
+		#  pour remettre le bureau exactement comme on l'a trouvé.
+		printf '%s\t%s\n' "$prop" \
+			"$(xfconf-query -c xfce4-desktop -p "$prop" 2>/dev/null)" >> "$SAUV"
+		xfconf-query -c xfce4-desktop -p "${base}image-style" -n -t int -s 0 2>/dev/null
+		xfconf-query -c xfce4-desktop -p "${base}color-style" -n -t int -s 0 2>/dev/null
+		#  Couleur du bureau : entièrement transparente. « rgba1 » est le nom
+		#  actuel, « color1 » celui des vieilles versions — on ne pose que le
+		#  premier, le second n'étant plus lu par xfdesktop depuis 4.14.
+		xfconf-query -c xfce4-desktop -p "${base}rgba1" -n \
+			-t double -t double -t double -t double \
+			-s 0 -s 0 -s 0 -s 0 2>/dev/null
+	done < <(props_fond)
+	[[ -s "$SAUV" ]]
+}
+
+bureau_rendu() {
+	command -v xfconf-query >/dev/null 2>&1 || return 0
+	[[ -r "$SAUV" ]] || return 0
+	local prop image base
+	while IFS=$'\t' read -r prop image; do
+		[[ -n "$prop" ]] || continue
+		base="${prop%last-image}"
+		xfconf-query -c xfce4-desktop -p "${base}rgba1" -n \
+			-t double -t double -t double -t double \
+			-s 0 -s 0 -s 0 -s 1 2>/dev/null
+		xfconf-query -c xfce4-desktop -p "${base}image-style" -n -t int -s 5 2>/dev/null
+		[[ -n "$image" ]] && \
+			xfconf-query -c xfce4-desktop -p "$prop" -n -t string -s "$image" 2>/dev/null
+	done < "$SAUV"
+	rm -f "$SAUV"
+}
+
+# =============================================================================
+#  Le catalogue des scènes
+# =============================================================================
+#  Une scène = un fichier JSON. Celles de l'utilisateur masquent celles du
+#  système : « editer code » fabrique une copie personnelle sans rien casser.
+scene_chemin() {
+	local nom="$1"
+	[[ -r "$FONDS_UTIL/$nom.json" ]] && { printf '%s\n' "$FONDS_UTIL/$nom.json"; return 0; }
+	[[ -r "$FONDS_SYS/$nom.json"  ]] && { printf '%s\n' "$FONDS_SYS/$nom.json";  return 0; }
+	[[ -f "$nom" ]] && { printf '%s\n' "$nom"; return 0; }
+	return 1
+}
+
+scenes_noms() {
+	{
+		ls "$FONDS_SYS"/*.json  2>/dev/null
+		ls "$FONDS_UTIL"/*.json 2>/dev/null
+	} | while read -r f; do basename "$f" .json; done | sort -u
+}
+
+scene_champ() { # <fichier> <champ>
+	python3 - "$1" "$2" <<'EOF' 2>/dev/null || true
+import json, sys
+try:
+    d = json.load(open(sys.argv[1], encoding="utf-8"))
+    print(str(d.get(sys.argv[2], ""))[:140])
+except Exception:
+    pass
+EOF
+}
+
+cmd_liste() {
+	titre "Fonds animés"
+	local nom chemin desc marque affiche courant=""
+	[[ -r "$CONF" ]] && courant="$(sed -n 's/^SCENE=//p' "$CONF")"
+	while read -r nom; do
+		[[ -n "$nom" ]] || continue
+		[[ "$nom" == "modele" ]] && continue
+		chemin="$(scene_chemin "$nom")" || continue
+		desc="$(scene_champ "$chemin" description)"
+		marque="  "
+		if [[ "$nom" == "$courant" ]] && vivant; then marque="${V}✓ ${R}"; fi
+		affiche="$nom"
+		[[ "$chemin" == "$FONDS_UTIL/"* ]] && affiche="$nom ${D}(à toi)${R}"
+		printf '%b%-30b %s%s%s\n' "$marque" "$affiche" "$D" "$desc" "$R"
+	done < <(scenes_noms)
+	printf '\n  %s%s <nom>%s pour le poser · %s%s apercu <nom>%s pour voir avant\n' \
+		"$O" "$PROG" "$R" "$O" "$PROG" "$R"
+	printf '  %s%s nouveau <nom>%s pour en fabriquer un\n\n' "$O" "$PROG" "$R"
+}
+
+# =============================================================================
+#  Poser et retirer
+# =============================================================================
+arrete_moteur() {
+	if vivant; then
+		kill -TERM "$(cat "$PID")" 2>/dev/null
+		rm -f "$PID"
+		return 0
+	fi
+	rm -f "$PID"
+	return 1
+}
+
+cmd_demarrer() {
+	local scene="${1:-}"
+	if [[ -z "$scene" ]]; then
+		scene="$(sed -n 's/^SCENE=//p' "$CONF" 2>/dev/null)"
+		scene="${scene:-code}"
+	fi
+	local chemin
+	chemin="$(scene_chemin "$scene")" \
+		|| die "Fond inconnu : $scene   (${PROG} liste)"
+
+	[[ -r "$MOTEUR" ]] || die "Fichier manquant : $MOTEUR"
+	graphique || die "Aucune session graphique détectée."
+	python3 -c "import cairo" >/dev/null 2>&1 \
+		|| die "python3-cairo n'est pas installé (sudo apt install python3-cairo)."
+	python3 -c "import gi; gi.require_version('Gtk','3.0'); from gi.repository import Gtk" \
+		>/dev/null 2>&1 \
+		|| die "python3-gi n'est pas installé (sudo apt install python3-gi gir1.2-gtk-3.0)."
+
+	#  Sans compositeur, rendre le bureau transparent le rendrait NOIR : on
+	#  refuse plutôt que d'abîmer un bureau qui marchait.
+	if ! compositeur_actif; then
+		printf '%s✗%s Le compositeur est éteint : le bureau deviendrait noir.\n' "$E" "$R" >&2
+		printf '  Allume-le, puis réessaie :\n' >&2
+		printf '    %sxfconf-query -c xfwm4 -p /general/use_compositing -s true%s\n' "$O" "$R" >&2
+		printf '  %s(ou Paramètres → Peaufinage des fenêtres → Compositeur)%s\n' "$D" "$R" >&2
+		exit 1
+	fi
+
+	#  Une vidéo de fond et une scène animée se recouvriraient : on arrête la
+	#  vidéo, sans bruit si elle ne tournait pas.
+	command -v lexos-fond-video >/dev/null 2>&1 && \
+		lexos-fond-video off >/dev/null 2>&1 || true
+
+	arrete_moteur
+
+	setsid python3 "$MOTEUR" "$chemin" >"$ETAT/moteur.log" 2>&1 &
+	echo $! > "$PID"
+	sleep 1
+	vivant || { rm -f "$PID"; die "Le fond animé n'a pas démarré. Détail : $ETAT/moteur.log"; }
+
+	bureau_transparent || \
+		warn "Le bureau XFCE n'a pas pu être rendu transparent — le fond animé peut rester invisible."
+
+	printf 'SCENE=%s\n' "$scene" > "$CONF"
+
+	#  Reprendre à la prochaine ouverture de session : un fond d'écran qui
+	#  disparaît au redémarrage n'est pas un fond d'écran.
+	mkdir -p "$(dirname "$AUTO")"
+	cat > "$AUTO" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Fond d'écran animé LexOS
+Comment=Repose le fond animé à l'ouverture de session
+Exec=lexos-fond-anime start
+Terminal=false
+X-GNOME-Autostart-Delay=4
+EOF
+
+	ok "Fond animé : $(scene_champ "$chemin" nom)"
+	if sur_batterie; then
+		warn "Sur batterie — l'image est posée, mais figée. Elle repartira sur secteur."
+	fi
+	say "Pour l'arrêter : ${O}${PROG} off${R}"
+}
+
+cmd_arreter() {
+	local quelquechose=0
+	arrete_moteur && quelquechose=1
+	bureau_rendu
+	rm -f "$AUTO"
+	if (( quelquechose )); then
+		ok "Fond animé arrêté. Le fond d'écran fixe reprend sa place."
+	else
+		say "Aucun fond animé ne tournait."
+	fi
+}
+
+cmd_etat() {
+	titre "Fond d'écran animé"
+	local scene=""
+	[[ -r "$CONF" ]] && scene="$(sed -n 's/^SCENE=//p' "$CONF")"
+	if vivant; then
+		ok "En marche : ${scene:-?}"
+		if sur_batterie; then
+			warn "Sur batterie — l'image est figée, plus rien n'est calculé."
+		else
+			say "Sur secteur — ça bouge."
+		fi
+		[[ -e "$AUTO" ]] && say "Reprend à chaque ouverture de session."
+	else
+		say "Aucun fond animé."
+		printf '  %s%s code%s\n' "$O" "$PROG" "$R"
+	fi
+
+	titre "Ce qu'il faut"
+	python3 -c "import cairo" >/dev/null 2>&1 && ok "python3-cairo" \
+		|| warn "python3-cairo absent (sudo apt install python3-cairo)"
+	python3 -c "import gi; gi.require_version('Gtk','3.0')" >/dev/null 2>&1 \
+		&& ok "python3-gi" || warn "python3-gi absent (sudo apt install python3-gi gir1.2-gtk-3.0)"
+	compositeur_actif && ok "compositeur actif" \
+		|| warn "compositeur éteint — le fond animé ne pourrait pas s'afficher"
+}
+
+# =============================================================================
+#  L'atelier : voir, fabriquer, modifier
+# =============================================================================
+cmd_apercu() {
+	local scene="${1:-code}" sortie="${2:-}"
+	local chemin
+	chemin="$(scene_chemin "$scene")" || die "Fond inconnu : $scene   (${PROG} liste)"
+	python3 -c "import cairo" >/dev/null 2>&1 \
+		|| die "python3-cairo n'est pas installé (sudo apt install python3-cairo)."
+	[[ -n "$sortie" ]] || sortie="${TMPDIR:-/tmp}/lexos-fond-${scene##*/}.png"
+
+	#  L'aperçu déroule la scène pour de bon, avec le même pas de temps qu'à
+	#  l'écran — et ne demande AUCUN serveur X : on peut donc regarder à quoi
+	#  ressemble un fond depuis un terminal, en SSH, ou pendant qu'on l'écrit.
+	[[ -r "$MOTEUR" ]] || die "Fichier manquant : $MOTEUR"
+	local journal
+	#  On garde ce que le moteur a écrit sur sa sortie d'erreur : « scène mal
+	#  formée », « image ignorée »… C'est exactement ce qu'on veut lire quand
+	#  on est en train d'écrire son fond.
+	journal="$(LEXOS_FOND_APERCU="$sortie" python3 "$MOTEUR" "$chemin" 2>&1 >/dev/null)" \
+		|| die "L'aperçu a échoué : ${journal:-raison inconnue}"
+	[[ -n "$journal" ]] && warn "$journal"
+	ok "Aperçu : $sortie"
+	if graphique && command -v xdg-open >/dev/null 2>&1; then
+		setsid xdg-open "$sortie" >/dev/null 2>&1 &
+	fi
+}
+
+editeur() {
+	if graphique && command -v xdg-open >/dev/null 2>&1; then
+		setsid xdg-open "$1" >/dev/null 2>&1 &
+	elif [[ -n "${EDITOR:-}" ]]; then
+		"$EDITOR" "$1"
+	elif command -v nano >/dev/null 2>&1; then
+		nano "$1"
+	else
+		say "Ouvre-le avec ton éditeur : $1"
+	fi
+}
+
+cmd_nouveau() {
+	local nom="${1:-}"
+	[[ -n "$nom" ]] || die "Usage : ${PROG} nouveau <nom>"
+	[[ "$nom" =~ ^[a-zA-Z0-9_-]+$ ]] \
+		|| die "Un nom simple, sans espace ni accent (lettres, chiffres, - et _)."
+	mkdir -p "$FONDS_UTIL"
+	local dest="$FONDS_UTIL/$nom.json"
+	[[ -e "$dest" ]] && die "Il existe déjà : $dest   (${PROG} editer $nom)"
+	cp "$FONDS_SYS/modele.json" "$dest" 2>/dev/null \
+		|| die "Modèle introuvable : $FONDS_SYS/modele.json"
+	ok "Créé : $dest"
+	say "Le fichier explique chaque couche, dans « _aide »."
+	say "Pour voir : ${O}${PROG} apercu ${nom}${R}   ·   pour poser : ${O}${PROG} ${nom}${R}"
+	editeur "$dest"
+}
+
+cmd_editer() {
+	local nom="${1:-}"
+	[[ -n "$nom" ]] || die "Usage : ${PROG} editer <nom>"
+	mkdir -p "$FONDS_UTIL"
+	local dest="$FONDS_UTIL/$nom.json"
+	if [[ ! -e "$dest" ]]; then
+		#  Modifier un fond de LexOS n'écrase jamais l'original : on en fait
+		#  d'abord une copie à soi, qui le masquera.
+		[[ -r "$FONDS_SYS/$nom.json" ]] || die "Fond inconnu : $nom   (${PROG} liste)"
+		cp "$FONDS_SYS/$nom.json" "$dest"
+		say "Copie personnelle créée : $dest ${D}(l'original de LexOS reste intact)${R}"
+	fi
+	editeur "$dest"
+}
+
+# =============================================================================
+#  Choisir à la souris
+# =============================================================================
+cmd_choisir() {
+	if ! graphique || ! command -v zenity >/dev/null 2>&1; then
+		cmd_liste
+		return 0
+	fi
+	local lignes=() nom chemin
+	while read -r nom; do
+		[[ -n "$nom" ]] || continue
+		[[ "$nom" == "modele" ]] && continue
+		chemin="$(scene_chemin "$nom")" || continue
+		lignes+=("$nom" "$(scene_champ "$chemin" nom)" "$(scene_champ "$chemin" description)")
+	done < <(scenes_noms)
+	lignes+=("(aucun)" "Fond d'écran fixe" "Arrête l'animation et remet l'image fixe")
+
+	local choix
+	choix="$(zenity --list --title="Fonds animés — LexOS" --width=780 --height=440 \
+		--text="Le fond d'écran est dessiné en direct. Sur batterie, tout se fige." \
+		--column="clé" --column="Fond" --column="Ce que c'est" \
+		--hide-column=1 --print-column=1 "${lignes[@]}" 2>/dev/null)" || return 0
+	[[ -n "$choix" ]] || return 0
+	if [[ "$choix" == "(aucun)" ]]; then
+		cmd_arreter
+	else
+		cmd_demarrer "$choix"
+	fi
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — les fonds d'écran animés de LexOS
+
+  ${O}$PROG${R}                    Choisir à la souris ${D}(liste en terminal)${R}
+  ${O}$PROG${R} <nom>              Poser ce fond
+  ${O}$PROG liste${R}              Les fonds disponibles
+  ${O}$PROG apercu${R} <nom> [png] Une image, sans rien poser ${D}(marche sans écran)${R}
+  ${O}$PROG nouveau${R} <nom>      Fabriquer le sien ${D}(modèle commenté)${R}
+  ${O}$PROG editer${R} <nom>       Le modifier ${D}(copie perso si c'est un fond LexOS)${R}
+  ${O}$PROG off${R}                Arrêter et remettre le fond fixe
+  ${O}$PROG etat${R}               Où ça en est
+
+${B}Comment c'est fait${R}
+Chaque fond est un fichier JSON : une pile de couches. Un fond, une grille,
+des braises, du code qui s'écrit, une pluie de caractères, des étoiles, une
+horloge, la marque LexOS — chacune avec ses réglages. Aucun programme à
+écrire : ${O}${PROG} nouveau mon-fond${R} crée le fichier, commenté, et l'ouvre.
+
+${B}Ce que ça coûte${R}
+« code » est en mode ${B}économe${R} : seules les lignes qui changent sont
+repeintes. Les scènes à pluie, étoiles ou braises redessinent toute l'image
+une dizaine de fois par seconde. Et dans tous les cas, ${B}sur batterie tout se
+fige${R} — l'image reste, plus rien n'est calculé.
+
+${D}Les fonds de LexOS sont dans ${FONDS_SYS},
+les tiens dans ${FONDS_UTIL} — et les tiens gagnent, à nom égal.${R}
+EOF
+}
+
+case "${1:-}" in
+	"")                       cmd_choisir ;;
+	liste|list|ls)            cmd_liste ;;
+	start|demarrer|démarrer)  shift; cmd_demarrer "${1:-}" ;;
+	off|stop|arreter|arrêter) cmd_arreter ;;
+	etat|état|status)         cmd_etat ;;
+	apercu|aperçu|voir)       shift; cmd_apercu "${1:-code}" "${2:-}" ;;
+	nouveau|new|creer|créer)  shift; cmd_nouveau "${1:-}" ;;
+	editer|éditer|edit)       shift; cmd_editer "${1:-}" ;;
+	-h|--help|aide|help)      usage ;;
+	*)                        cmd_demarrer "$1" ;;
+esac
