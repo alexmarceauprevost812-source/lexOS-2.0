@@ -85,6 +85,8 @@ ${B}APPARENCE${R}
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
   ${A}wallpaper${R} <image> <cadrage>  remplir · ajuster · etirer · centrer · mosaique
   ${A}wallpaper video${R} <fichier> Une vidéo en fond ${D}(en pause sur batterie, sans son)${R}
+  ${A}wallpaper code${R}      Le fond s'écrit tout seul : du vrai code, caractère
+                      par caractère ${D}(figé sur batterie — « wallpaper code off »)${R}
   ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
 
 ${B}LANGUE${R}
@@ -408,6 +410,13 @@ cmd_wallpaper() {
 		shift; exec lexos-fond-video "$@"
 	fi
 
+	#  « wallpaper code » : le fond qui s'écrit. Même raison que la vidéo —
+	#  ce n'est pas une propriété xfconf mais un programme qui tourne, avec
+	#  sa surveillance de batterie.
+	if [[ "${1:-}" == "code" || "${1:-}" == "ecriture" || "${1:-}" == "écriture" ]]; then
+		shift; exec lexos-fond-code "$@"
+	fi
+
 	local img="${1:-/usr/share/backgrounds/lexos/wallpaper.png}"
 	local cadrage="${2:-remplir}"
 
@@ -447,6 +456,11 @@ cmd_wallpaper() {
 	done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null)
 
 	if (( count > 0 )); then
+		#  Un fond animé recouvre le fond fixe : poser une image sans
+		#  l'arrêter ne changerait rien à l'écran, et personne ne
+		#  comprendrait pourquoi.
+		command -v lexos-fond-code >/dev/null 2>&1 && \
+			lexos-fond-code off >/dev/null 2>&1 || true
 		ok "Fond d'écran appliqué sur ${count} écran(s) : $(basename "$img")"
 	else
 		die "Aucune propriété de fond d'écran trouvée."

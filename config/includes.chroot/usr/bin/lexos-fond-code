@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-fond-code — le fond d'écran qui s'écrit tout seul
+# =============================================================================
+#  Le fond fixe de LexOS porte des colonnes de code derrière la marque. Elles
+#  ne bougent pas : c'est une image. Cette commande les remplace par la même
+#  scène VIVANTE — le code s'écrit caractère par caractère, curseur compris,
+#  comme dans la démo web. Et c'est du vrai code : la source d'un programme
+#  de LexOS, lue sur le disque.
+#
+#  ── Ce que ça coûte ─────────────────────────────────────────────────────
+#  Beaucoup moins qu'une vidéo de fond : il n'y a pas de décodeur, seulement
+#  quelques centaines de pixels repeints dix fois par seconde. Et comme pour
+#  la vidéo, sur batterie l'écriture se fige d'elle-même — plus une seule
+#  image produite tant que la machine n'est pas rebranchée.
+#
+#  ── Si ça se passe mal ──────────────────────────────────────────────────
+#  Le rendu n'a pas pu être essayé sur un vrai serveur X (la machine de
+#  construction n'a pas d'affichage). « lexos wallpaper code off » remet le
+#  fond fixe en place, et l'écriture ne revient pas toute seule.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos wallpaper code"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'; Y=$'\033[33m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; V=''; Y=''; B=''; D=''; R=''
+fi
+say()   { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()    { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+warn()  { printf '%s!%s %s\n' "$Y" "$R" "$*"; }
+titre() { printf '\n%s%s%s\n' "$B" "$*" "$R"; }
+die()   { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+ETAT="${XDG_RUNTIME_DIR:-/tmp}/lexos-fond-code"
+AUTO="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/lexos-fond-code.desktop"
+MOTEUR="/usr/lib/lexos/fond-code.py"
+mkdir -p "$ETAT" 2>/dev/null
+
+PID="$ETAT/fond.pid"
+
+vivant() { [[ -r "$PID" ]] && kill -0 "$(cat "$PID" 2>/dev/null)" 2>/dev/null; }
+
+sur_batterie() {
+	local f
+	for f in /sys/class/power_supply/*/status; do
+		[[ -r "$f" ]] || continue
+		[[ "$(cat "$f" 2>/dev/null)" == "Discharging" ]] && return 0
+	done
+	return 1
+}
+
+cmd_arreter() {
+	local quelquechose=0
+	if vivant; then
+		kill -TERM "$(cat "$PID")" 2>/dev/null && quelquechose=1
+	fi
+	rm -f "$PID" "$AUTO"
+	if (( quelquechose )); then
+		ok "Écriture arrêtée. Le fond d'écran fixe reprend sa place."
+	else
+		say "Aucune écriture ne tournait."
+	fi
+}
+
+cmd_demarrer() {
+	[[ -r "$MOTEUR" ]] || die "Fichier manquant : $MOTEUR"
+	[[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || die "Aucune session graphique détectée."
+	python3 -c "import cairo" >/dev/null 2>&1 \
+		|| die "python3-cairo n'est pas installé (sudo apt install python3-cairo)."
+	python3 - <<'EOF' >/dev/null 2>&1 || die "python3-gi n'est pas installé (sudo apt install python3-gi gir1.2-gtk-3.0)."
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk
+EOF
+
+	#  Une vidéo de fond et une écriture de fond se recouvriraient l'une
+	#  l'autre : on arrête la vidéo avant, sans bruit si elle ne tournait pas.
+	command -v lexos-fond-video >/dev/null 2>&1 && \
+		lexos-fond-video off >/dev/null 2>&1 || true
+
+	cmd_arreter >/dev/null 2>&1
+
+	setsid python3 "$MOTEUR" >"$ETAT/moteur.log" 2>&1 &
+	echo $! > "$PID"
+
+	sleep 1
+	vivant || { rm -f "$PID"; die "L'écriture n'a pas démarré. Détail : $ETAT/moteur.log"; }
+
+	#  Reprendre à la prochaine ouverture de session : un fond d'écran qui
+	#  disparaît au redémarrage n'est pas un fond d'écran.
+	mkdir -p "$(dirname "$AUTO")"
+	cat > "$AUTO" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Fond d'écran qui s'écrit — LexOS
+Comment=Relance l'écriture de code en fond à l'ouverture de session
+Exec=lexos-fond-code start
+Terminal=false
+X-GNOME-Autostart-Delay=4
+EOF
+
+	ok "Le fond d'écran s'écrit."
+	say "En pause dès que tu passes sur batterie, comme la vidéo de fond."
+	say "Pour l'arrêter : ${O}${PROG} off${R}"
+}
+
+cmd_etat() {
+	titre "Fond d'écran qui s'écrit"
+	if vivant; then
+		ok "En marche (pid $(cat "$PID"))"
+		if sur_batterie; then
+			warn "Sur batterie — l'écriture est figée sur son dernier caractère."
+		else
+			say "Sur secteur — le code s'écrit."
+		fi
+		[[ -e "$AUTO" ]] && say "Reprend à chaque ouverture de session."
+	else
+		say "Aucune écriture en cours."
+		printf '  %s%s%s\n' "$O" "$PROG" "$R"
+	fi
+
+	titre "Ce qu'il faut"
+	python3 -c "import cairo" >/dev/null 2>&1 && ok "python3-cairo" \
+		|| warn "python3-cairo absent (sudo apt install python3-cairo)"
+	python3 -c "import gi; gi.require_version('Gtk','3.0')" >/dev/null 2>&1 \
+		&& ok "python3-gi" || warn "python3-gi absent (sudo apt install python3-gi gir1.2-gtk-3.0)"
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — le fond d'écran qui s'écrit tout seul
+
+  ${O}$PROG${R}               Lance l'écriture
+  ${O}$PROG off${R}           L'arrête et remet le fond fixe
+  ${O}$PROG etat${R}          Où ça en est
+
+${B}Ce que c'est${R}
+La même scène que le fond fixe — grille, braises, logo ASCII — mais le code
+derrière la marque s'écrit caractère par caractère, curseur compris. Ce n'est
+pas du faux code : c'est la source d'un vrai programme de LexOS.
+
+${B}Ce que ça coûte${R}
+Quelques centaines de pixels repeints dix fois par seconde : rien à voir avec
+une vidéo de fond, qui fait tourner un décodeur en continu. Et ${B}sur batterie
+l'écriture se fige d'elle-même${R} — plus une seule image produite.
+
+${D}Le rendu n'a pas pu être essayé sur un vrai serveur X pendant l'écriture du
+programme. Si le bureau se comporte mal, « $PROG off » remet tout en place.${R}
+EOF
+}
+
+case "${1:-}" in
+	""|start|demarrer|démarrer) cmd_demarrer ;;
+	off|stop|arreter|arrêter)   cmd_arreter ;;
+	etat|état|status)           cmd_etat ;;
+	-h|--help|aide|help)        usage ;;
+	*)                          say "Option inconnue : $1"; printf '\n'; usage; exit 1 ;;
+esac

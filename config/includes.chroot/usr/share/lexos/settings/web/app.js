@@ -197,7 +197,10 @@ function contenu(cle){
       </div>
       <p class="notice">Aussi : clic droit sur une image dans Fichiers →
       « Définir comme fond d'écran », ou <code>lexos wallpaper ~/Images/photo.jpg</code>.
-      Vidéo en fond : <code>lexos wallpaper video ~/Vidéos/boucle.mp4</code>.</p>
+      Vidéo en fond : <code>lexos wallpaper video ~/Vidéos/boucle.mp4</code>.
+      Le fond qui s'écrit tout seul — du vrai code, caractère par caractère,
+      figé sur batterie : <code>lexos wallpaper code</code>
+      (<code>lexos wallpaper code off</code> remet le fond fixe).</p>
       ${btnOuvrir("bureau","Réglages fins (XFCE)")}`;
     case "multitaches": return `<h2>Multi-tâches</h2><div class="sub">Bureaux virtuels</div>
       ${srow("Bureaux virtuels","Nombre et noms des espaces de travail")}

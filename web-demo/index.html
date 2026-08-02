@@ -2361,6 +2361,7 @@ const TERM_SUGGESTIONS = [
   ["lexos crt off",     "coupe l'effet écran de télé 1980"],
   ["lexos musique",     "ouvre lexOS_musique, le lecteur audio local"],
   ["lexos chrome",      "ouvre Google Chrome (propose de l'installer au 1er lancement)"],
+  ["lexos wallpaper code", "le fond d'écran s'écrit tout seul, comme derrière cette fenêtre"],
   ["lexos claude",      "ouvre Claude Code, l'assistant de programmation"],
   ["lexos studio",      "ouvre Studio+ : photo, vidéo et son"],
   ["lexos avion on",    "coupe Wi-Fi et Bluetooth (mode avion)"],
@@ -5098,7 +5099,11 @@ function settingsSection(key){
         beaucoup moins la machine qu'un film — et sur un fond, personne ne verra
         la différence.</div>` : ""}
 
-      <p class="notice">Sur la vraie ISO&nbsp;: <code>lexos wallpaper ~/Images/photo.jpg</code>,
+      <p class="notice"><b>Le code qui s'écrit derrière la marque, ici, existe aussi sur
+      la vraie ISO</b>&nbsp;: <code>lexos wallpaper code</code> écrit la source d'un vrai
+      programme de LexOS, caractère par caractère, curseur compris — et fige tout dès le
+      passage sur batterie. <code>lexos wallpaper code off</code> remet le fond fixe.
+      <br>Sur la vraie ISO&nbsp;: <code>lexos wallpaper ~/Images/photo.jpg</code>,
       <code>lexos wallpaper video ~/Vidéos/boucle.mp4</code> pour une vidéo,
       ou un <b>clic droit sur l'image</b> dans Fichiers →
       « Définir comme fond d'écran ». Sans argument, <code>lexos wallpaper</code>
