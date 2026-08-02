@@ -17,4 +17,5 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
-build: 14
+# build 15 : pilote NVIDIA depuis les backports (RTX 50 — écran noir corrigé)
+build: 15

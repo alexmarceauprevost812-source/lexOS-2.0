@@ -1,0 +1,127 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — pilote NVIDIA : la version RÉCENTE, depuis les backports
+# =============================================================================
+#  Constaté sur une Alienware Aurora ACT1250 avec GeForce RTX 5060 : GRUB et
+#  le splash s'affichent, puis l'écran perd le signal PILE au lancement du
+#  bureau. La carte est de la génération 2025 (Blackwell) : le pilote NVIDIA
+#  de Debian stable est trop ancien pour la connaître, et le pilote libre
+#  « nouveau » ne sait pas encore piloter son affichage. Résultat : plus
+#  aucun pilote capable d'allumer l'écran — bureau noir, machine en vie.
+#
+#  Le remède est dans <suite>-backports : la branche récente du pilote, qui
+#  connaît les RTX 50. Deux subtilités, apprises à la dure :
+#    · sur ces cartes, seul le module noyau OUVERT (nvidia-open-kernel-dkms)
+#      fonctionne — le module propriétaire historique s'arrête aux RTX 40 ;
+#    · le micrologiciel GSP (firmware-nvidia-gsp) est exigé par le module
+#      ouvert — apt le tire tout seul, c'est une dépendance stricte.
+#
+#  Le dépôt backports ne peut pas être vérifié depuis la machine qui a écrit
+#  ce hook (réseau filtré) : on essaie donc EN CASCADE, du meilleur au
+#  minimum, et la première combinaison qui s'installe gagne :
+#    1. backports + module ouvert   (RTX 20 → RTX 50)
+#    2. backports, choix par défaut (si le nom du paquet ouvert change)
+#    3. stable, comme avant         (RTX 40 et antérieures)
+#  Rien n'est bloquant : sans carte NVIDIA les paquets s'installent et ne
+#  s'activent pas ; si tout échoue, l'ISO reste celle d'avant ce hook.
+#
+#  Anciennes GeForce (GTX 10xx et avant) : la branche récente ne les gère
+#  plus. Elles retombent sur « nouveau »… qui les gère très bien — c'est
+#  précisément sur les cartes récentes qu'il cale.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0260 : pilote NVIDIA (backports)"
+
+FLAVOUR="standard"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+	FLAVOUR="${LEXOS_FLAVOUR:-standard}"
+fi
+
+case "$FLAVOUR" in
+	pro) ;;
+	*)
+		echo "[lexos]   saveur ${FLAVOUR} : pas de pilote NVIDIA embarqué — rien à faire"
+		exit 0
+		;;
+esac
+
+ARCH="$(dpkg --print-architecture 2>/dev/null || echo inconnue)"
+if [ "$ARCH" != "amd64" ]; then
+	echo "[lexos]   architecture ${ARCH} : NVIDIA ne publie pas pour elle — rien à faire"
+	exit 0
+fi
+
+CODENAME=""
+if [ -r /etc/os-release ]; then
+	# shellcheck disable=SC1091
+	. /etc/os-release
+	CODENAME="${VERSION_CODENAME:-}"
+fi
+if [ -z "$CODENAME" ]; then
+	echo "[lexos]   !! nom de code Debian introuvable — on garde le pilote stable"
+	CODENAME="trixie"
+fi
+BP="${CODENAME}-backports"
+
+export DEBIAN_FRONTEND=noninteractive
+mkdir -p /etc/lexos
+REPORT=/etc/lexos/nvidia-report
+
+# --- Le dépôt backports, gardé dans l'ISO -----------------------------------
+#  Il sert à la construction ET reste dans le système installé : les mises à
+#  jour suivantes du pilote arriveront par « lexos upgrade », comme le reste.
+#  backports est « NotAutomatic » : il ne remplace JAMAIS un paquet stable de
+#  lui-même, seuls les paquets déjà installés depuis lui se mettent à jour.
+LISTE=/etc/apt/sources.list.d/lexos-backports.list
+if [ ! -r "$LISTE" ]; then
+	printf 'deb http://deb.debian.org/debian %s main contrib non-free non-free-firmware\n' \
+		"$BP" > "$LISTE"
+	echo "[lexos]   dépôt ajouté : ${BP}"
+fi
+apt-get update -qq || echo "[lexos]   !! apt-get update a échoué, on tente quand même"
+
+# --- Les en-têtes du noyau : sans eux, DKMS ne compile rien -----------------
+#  Le noyau de l'ISO vient de stable ; ses en-têtes aussi, donc PAS de -t.
+apt-get install -y linux-headers-amd64 \
+	|| echo "[lexos]   !! linux-headers-amd64 refusé — la compilation DKMS échouera"
+
+# --- La cascade -------------------------------------------------------------
+REUSSITE=""
+
+if apt-get install -y -t "$BP" nvidia-open-kernel-dkms nvidia-driver nvidia-settings; then
+	REUSSITE="backports (${BP}), module noyau OUVERT — RTX 20 à RTX 50"
+elif apt-get install -y -t "$BP" nvidia-driver nvidia-settings; then
+	REUSSITE="backports (${BP}), module par défaut"
+elif apt-get install -y nvidia-driver nvidia-settings; then
+	REUSSITE="stable — RTX 40 et antérieures (les RTX 50 resteront sans affichage)"
+else
+	echo "[lexos]   !! aucun pilote NVIDIA installable — l'ISO reste sur « nouveau »"
+	{
+		echo "# Pilote NVIDIA — échec de l'installation à la construction"
+		echo "# Les trois tentatives (backports ouvert, backports, stable) ont échoué."
+		echo "# Sur une carte NVIDIA récente, utiliser le mode fail-safe du menu"
+		echo "# de démarrage, puis : sudo apt install -t ${BP} nvidia-open-kernel-dkms nvidia-driver"
+	} > "$REPORT"
+	echo "[lexos] hook 0260 : terminé (sans pilote)"
+	exit 0
+fi
+
+#  nvidia-detect (contrib) : « quelle carte, quel pilote ? » en une commande.
+#  Précieux au premier dépannage ; jamais bloquant.
+apt-get install -y nvidia-detect >/dev/null 2>&1 \
+	&& echo "[lexos]   nvidia-detect installé" \
+	|| echo "[lexos]   nvidia-detect indisponible (sans gravité)"
+
+VERSION="$(dpkg-query -W -f='${Version}' nvidia-driver 2>/dev/null || echo '?')"
+{
+	echo "# Pilote NVIDIA embarqué dans cette ISO"
+	echo "# Version : ${VERSION}"
+	echo "# Source  : ${REUSSITE}"
+	echo "# Mises à jour : via ${BP} (déjà configuré), avec « lexos upgrade »."
+} > "$REPORT"
+
+echo "[lexos]   pilote installé : ${VERSION} — ${REUSSITE}"
+echo "[lexos] hook 0260 : ok"

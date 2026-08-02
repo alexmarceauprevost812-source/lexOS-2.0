@@ -3,17 +3,14 @@
 # Tout ce qui rend une machine de jeu agréable sous Linux, au-delà des
 # pilotes et de Wine que la liste obligatoire installe déjà.
 
-# --- Carte graphique NVIDIA : le pilote officiel ------------------------
-# Sur les GeForce récentes (RTX), le pilote libre « nouveau » ne sait pas
-# encore piloter l'affichage : l'écran perd le signal PILE au lancement du
-# bureau (constaté sur une Alienware Aurora — GRUB et le splash s'affichent,
-# puis plus rien). Le pilote propriétaire NVIDIA règle ça. Sans carte
-# NVIDIA, ces paquets ne s'activent tout simplement pas — aucun risque pour
-# les machines AMD/Intel. linux-headers est requis pour compiler le module
-# (DKMS) pendant la construction de l'ISO.
-linux-headers-amd64
-nvidia-driver
-nvidia-settings
+# --- Carte graphique NVIDIA -----------------------------------------------
+# DÉPLACÉ dans le hook 0260-lexos-nvidia.hook.chroot. Le pilote de Debian
+# stable est trop ancien pour les RTX 50 (constaté sur une RTX 5060 :
+# l'écran perd le signal au lancement du bureau) : le hook installe la
+# branche récente depuis <suite>-backports, avec le module noyau ouvert —
+# une transaction apt cohérente, impossible dans cette liste best-effort
+# qui installe paquet par paquet. Seul reste ici le micrologiciel divers,
+# utile au-delà de NVIDIA.
 firmware-misc-nonfree
 
 # --- Lanceurs et boutiques ---------------------------------------------
