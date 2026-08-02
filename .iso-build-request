@@ -17,7 +17,8 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
-# build 16 : correctif du hook NVIDIA — il lisait le nom de code LexOS
-# (« nomad ») au lieu du nom de code Debian (« trixie »), et cherchait donc
-# un dépôt « nomad-backports » inexistant (404, construction 15 en échec).
-build: 16
+# build 17 : pilote NVIDIA depuis le dépôt OFFICIEL de NVIDIA. backports ne
+# fournit que du 550 — trop vieux pour une RTX 5060, et son module ouvert ne
+# compile même pas contre le noyau 6.12.100 de l'ISO. La construction 16 en
+# est morte, et ses débris ont fait échouer le hook 5040 de live-build.
+build: 17
