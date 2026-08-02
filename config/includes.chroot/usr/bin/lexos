@@ -164,6 +164,8 @@ ${B}ARCHIVES${R}
 ${B}CARTES${R}
   ${A}cartes${R}              Carte du monde : position, fuseau, météo
                       ${D}données OpenStreetMap · aucun compte, aucune clé${R}
+  ${A}gps${R}                 GPS d'Alex : itinéraires, adresses, points d'intérêt
+                      ${D}Map IA · données OpenStreetMap · itinéraires OSRM${R}
 
 ${B}CLAVIER${R}
   ${A}clavier${R}             Dispositions actives et bascule
@@ -779,6 +781,7 @@ case "$CMD" in
 	secure|securite)      exec lexos-secure "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;
 	cartes|carte|maps)    exec lexos-cartes "$@" ;;
+	gps|navigation)       exec lexos-gps "$@" ;;
 	clavier|keyboard)     exec lexos-clavier "$@" ;;
 	comptes|compte)       exec lexos-comptes "$@" ;;
 	bienetre|bien-etre|bien-être) exec lexos-bienetre "$@" ;;

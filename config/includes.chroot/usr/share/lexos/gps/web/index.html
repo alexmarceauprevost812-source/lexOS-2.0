@@ -1,0 +1,2903 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TI-LEX-AL | Map IA d'Alex - Canada & USA</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#ff6a00">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Alex GPS">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0a;--card:#141414;--card2:#1a1a1a;--input:#222;
+  --orange:#ff6a00;--orange2:#ff9000;--orange-dim:#cc5500;
+  --glow:rgba(255,106,0,.25);--glow2:rgba(255,144,0,.15);
+  --text:#f5e6d0;--text2:#bba88a;--text3:#8a7a60;
+  --border:#2a2a2a;--danger:#ff4757;--success:#2ed573;
+}
+html,body{height:100%;font-family:'Rajdhani',sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
+
+/* ===== MAP FULL SCREEN ===== */
+#map{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1}
+
+/* ===== ACTIVATION BUTTON ===== */
+.fab{
+  position:fixed;bottom:28px;right:28px;z-index:2000;
+  width:58px;height:58px;border-radius:50%;border:none;cursor:pointer;
+  background:radial-gradient(circle at 35% 35%,#ff9000,#ff6a00 60%,#cc5500);
+  color:#fff;font-family:'Orbitron',sans-serif;font-weight:900;font-size:14px;
+  box-shadow:0 4px 24px rgba(255,106,0,.4),0 0 0 0 rgba(255,106,0,0);
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1),box-shadow .4s ease;
+  display:flex;align-items:center;justify-content:center;
+  letter-spacing:1px;
+}
+.fab:hover{transform:scale(1.08);box-shadow:0 6px 32px rgba(255,106,0,.55),0 0 0 8px rgba(255,106,0,.12)}
+.fab.active{
+  transform:rotate(135deg) scale(1);
+  background:radial-gradient(circle at 35% 35%,#ff4757,#cc2233);
+  box-shadow:0 4px 24px rgba(255,71,87,.4);
+}
+.fab-ripple{
+  position:fixed;bottom:28px;right:28px;z-index:1999;
+  width:58px;height:58px;border-radius:50%;
+  pointer-events:none;opacity:0;
+}
+.fab-ripple.ping{
+  animation:fabRipple .8s cubic-bezier(.25,.46,.45,.94) forwards;
+}
+@keyframes fabRipple{
+  0%{opacity:.5;transform:scale(1);box-shadow:0 0 0 0 rgba(255,106,0,.5)}
+  100%{opacity:0;transform:scale(2.5);box-shadow:0 0 0 30px rgba(255,106,0,0)}
+}
+
+/* ===== HUD ELEMENTS (hidden by default) ===== */
+.hud{
+  pointer-events:none;opacity:0;
+  transform:scale(.85) translateY(12px);
+  filter:blur(6px);
+  transition:
+    opacity .45s cubic-bezier(.4,0,.2,1),
+    transform .55s cubic-bezier(.34,1.56,.64,1),
+    filter .45s cubic-bezier(.4,0,.2,1);
+}
+.hud.show{
+  pointer-events:auto;opacity:1;
+  transform:scale(1) translateY(0);
+  filter:blur(0);
+}
+/* Staggered delays for liquid cascade */
+.hud-d1{transition-delay:0s}      .hud-d1.show{transition-delay:.02s}
+.hud-d2{transition-delay:0s}      .hud-d2.show{transition-delay:.06s}
+.hud-d3{transition-delay:0s}      .hud-d3.show{transition-delay:.10s}
+.hud-d4{transition-delay:0s}      .hud-d4.show{transition-delay:.14s}
+.hud-d5{transition-delay:0s}      .hud-d5.show{transition-delay:.18s}
+.hud-d6{transition-delay:0s}      .hud-d6.show{transition-delay:.22s}
+/* Closing: reverse cascade (last closes first) */
+.hud-d1:not(.show){transition-delay:.18s}
+.hud-d2:not(.show){transition-delay:.14s}
+.hud-d3:not(.show){transition-delay:.10s}
+.hud-d4:not(.show){transition-delay:.08s}
+.hud-d5:not(.show){transition-delay:.04s}
+.hud-d6:not(.show){transition-delay:0s}
+
+
+/* ===== SEARCH ===== */
+.search-box{position:fixed;top:14px;left:50%;z-index:600;width:min(480px,90vw);
+  transform:translateX(-50%) scale(.85) translateY(12px);/* override for centered */
+}
+.search-box.show{transform:translateX(-50%) scale(1) translateY(0)}
+.search-input-wrap{display:flex;background:rgba(20,20,20,.95);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:28px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.search-input-wrap:focus-within{border-color:var(--orange);box-shadow:0 8px 32px var(--glow)}
+.search-input{flex:1;background:none;border:none;color:var(--text);padding:12px 20px;font-size:15px;font-family:'Rajdhani',sans-serif;outline:none}
+.search-input::placeholder{color:var(--text3)}
+.search-btn{background:none;border:none;color:var(--orange);padding:12px 16px;cursor:pointer;font-size:18px}
+.search-results{background:rgba(20,20,20,.97);border:1px solid var(--border);border-radius:16px;margin-top:6px;max-height:320px;overflow-y:auto;display:none}
+.search-results.show{display:block}
+.sr-item{padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--border);transition:.15s}
+.sr-item:hover{background:var(--glow2)}
+.sr-item:last-child{border-bottom:none}
+.sr-item-name{font-weight:600;font-size:14px;color:var(--text)}
+.sr-item-addr{font-size:12px;color:var(--text3);margin-top:2px}
+
+/* ===== POI BAR ===== */
+.poi-bar{position:fixed;top:66px;left:0;right:0;z-index:500;display:flex;gap:5px;padding:0 12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  opacity:0;transform:translateY(12px);filter:blur(6px);pointer-events:none;
+  transition:opacity .45s cubic-bezier(.4,0,.2,1),transform .55s cubic-bezier(.34,1.56,.64,1),filter .45s cubic-bezier(.4,0,.2,1);
+}
+.poi-bar::-webkit-scrollbar{display:none}
+.poi-bar.show{opacity:1;transform:translateY(0);filter:blur(0);pointer-events:auto}
+.poi-chip{background:rgba(20,20,20,.9);backdrop-filter:blur(8px);border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px;transition:background .2s,color .2s,border-color .2s;white-space:nowrap;flex-shrink:0}
+.poi-chip:hover,.poi-chip.active{background:var(--orange);color:#000;border-color:var(--orange)}
+.poi-chip.mega{background:linear-gradient(135deg,#ff6a00,#ff9000);color:#000;border-color:#ff9000;font-weight:700;font-size:12px}
+.poi-chip.mega:hover{background:linear-gradient(135deg,#ffaa33,#ffcc00)}
+/* ===== LOADING OVERLAY ===== */
+.load-overlay{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:3000;background:rgba(10,10,10,.92);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:16px;padding:20px 32px;display:none;align-items:center;gap:12px;font-family:'Orbitron',sans-serif;font-size:13px;color:var(--orange)}
+.load-overlay.show{display:flex}
+.load-spin{width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.poi-count{position:fixed;top:98px;right:16px;z-index:500;background:rgba(14,14,14,.9);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:10px;padding:4px 12px;font-size:11px;color:var(--orange);font-family:'Orbitron',sans-serif;display:none}
+.poi-count.show{display:block;animation:dropIn .3s ease}
+
+
+/* ===== MAP CONTROLS ===== */
+.map-controls{position:fixed;bottom:100px;left:16px;z-index:600;display:flex;flex-direction:column;gap:8px}
+.ctrl-btn{width:44px;height:44px;border-radius:14px;background:rgba(14,14,14,.92);backdrop-filter:blur(10px);border:1px solid var(--border);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:.25s cubic-bezier(.4,0,.2,1)}
+.ctrl-btn:hover{background:var(--orange);color:#000;border-color:var(--orange);transform:scale(1.08)}
+.ctrl-btn.active{background:var(--orange);color:#000;border-color:var(--orange)}
+
+/* ===== FRIENDS SYSTEM ===== */
+.friends-btn{
+  position:fixed;bottom:28px;right:100px;z-index:2000;
+  width:50px;height:50px;border-radius:50%;border:2px solid #4a9eff;cursor:pointer;
+  background:radial-gradient(circle at 35% 35%,#5b9eff,#2a6eff 60%,#1a4ecc);
+  color:#fff;font-size:20px;
+  box-shadow:0 4px 20px rgba(74,158,255,.3);
+  display:flex;align-items:center;justify-content:center;
+  transition:.3s;
+}
+.friends-btn:hover{transform:scale(1.08)}
+.friends-btn .badge{
+  position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;
+  background:#ff4757;color:#fff;font-size:10px;font-weight:700;
+  display:none;align-items:center;justify-content:center;
+  font-family:'Orbitron',sans-serif;
+}
+.friends-btn .badge.show{display:flex}
+
+.friends-panel{
+  position:fixed;bottom:90px;right:16px;z-index:3000;
+  width:min(340px,90vw);max-height:70vh;
+  background:rgba(10,10,10,.97);backdrop-filter:blur(20px);
+  border:1px solid #4a9eff;border-radius:20px;
+  padding:0;display:none;flex-direction:column;
+  box-shadow:0 12px 48px rgba(74,158,255,.2);overflow:hidden;
+}
+.friends-panel.show{display:flex;animation:dropIn .4s cubic-bezier(.34,1.56,.64,1)}
+.friends-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.friends-header h3{font-family:'Orbitron',sans-serif;font-size:13px;color:#4a9eff;flex:1;margin:0}
+.friends-close{background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer}
+
+.friends-body{flex:1;overflow-y:auto;padding:12px}
+.friends-section{margin-bottom:16px}
+.friends-section-title{font-size:11px;color:var(--text3);font-family:'Orbitron',sans-serif;margin-bottom:8px;letter-spacing:1px}
+
+.friend-card{
+  background:var(--card2);border:1px solid var(--border);border-radius:12px;
+  padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:10px;
+  transition:.2s;
+}
+.friend-card:hover{border-color:#4a9eff}
+.friend-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#4a9eff,#2a6eff);
+  display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.friend-info{flex:1;min-width:0}
+.friend-name{font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.friend-status{font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px}
+.friend-status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.friend-status-dot.online{background:#2ed573}
+.friend-status-dot.nearby{background:#ff9000;animation:gpsBlink 1.5s infinite}
+.friend-status-dot.offline{background:var(--text3)}
+.friend-action{background:none;border:1px solid var(--border);color:var(--text2);border-radius:8px;
+  padding:4px 10px;font-size:10px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;transition:.2s}
+.friend-action:hover{border-color:#4a9eff;color:#4a9eff}
+
+.friends-toggle-row{display:flex;align-items:center;justify-content:space-between;
+  background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:10px}
+.friends-toggle-label{font-size:12px;color:var(--text);font-weight:600}
+.friends-toggle{width:44px;height:24px;border-radius:12px;background:var(--border);
+  position:relative;cursor:pointer;transition:.3s;border:none}
+.friends-toggle.on{background:#2ed573}
+.friends-toggle::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;
+  border-radius:50%;background:#fff;transition:.3s}
+.friends-toggle.on::after{left:23px}
+
+.friends-invite{
+  display:flex;gap:6px;margin-bottom:10px;
+}
+.friends-invite-input{flex:1;background:var(--input);border:1px solid var(--border);border-radius:10px;
+  padding:8px 12px;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:13px;outline:none}
+.friends-invite-input:focus{border-color:#4a9eff}
+.friends-invite-btn{background:#4a9eff;color:#fff;border:none;border-radius:10px;
+  padding:8px 14px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;cursor:pointer}
+
+.friend-notif{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.8);z-index:7000;
+  width:min(340px,90vw);
+  background:linear-gradient(135deg,rgba(10,10,10,.98),rgba(20,20,30,.98));
+  backdrop-filter:blur(20px);border:2px solid #4a9eff;border-radius:22px;
+  padding:24px;display:none;flex-direction:column;align-items:center;gap:12px;
+  box-shadow:0 16px 64px rgba(74,158,255,.3);
+  opacity:0;transition:opacity .4s,transform .4s cubic-bezier(.34,1.56,.64,1);
+}
+.friend-notif.show{display:flex;opacity:1;transform:translate(-50%,-50%) scale(1)}
+.friend-notif-avatar{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#4a9eff,#2a6eff);
+  display:flex;align-items:center;justify-content:center;font-size:32px;
+  box-shadow:0 0 24px rgba(74,158,255,.4)}
+.friend-notif-name{font-family:'Orbitron',sans-serif;font-size:16px;color:#fff;text-align:center}
+.friend-notif-msg{font-size:14px;color:var(--text2);text-align:center;line-height:1.5}
+.friend-notif-dist{font-family:'Orbitron',sans-serif;font-size:20px;color:#4a9eff}
+.friend-notif-btns{display:flex;gap:8px;width:100%;margin-top:4px}
+.friend-notif-btn{flex:1;padding:12px;border-radius:14px;border:none;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;transition:.2s}
+.friend-notif-btn.msg{background:#4a9eff;color:#fff}
+.friend-notif-btn.dismiss{background:var(--card2);color:var(--text3);border:1px solid var(--border)}
+
+/* Notification sound selector */
+.sound-row{display:flex;align-items:center;justify-content:space-between;
+  background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:6px}
+.sound-label{font-size:12px;color:var(--text)}
+.sound-select{background:var(--input);border:1px solid var(--border);border-radius:8px;
+  padding:4px 8px;color:var(--text);font-size:11px;font-family:'Rajdhani',sans-serif;outline:none}
+
+/* ===== INSTALL APP + DOWNLOAD MAP ===== */
+.install-prompt{
+  position:fixed;bottom:100px;left:50%;transform:translateX(-50%);z-index:8000;
+  background:linear-gradient(135deg,rgba(14,14,14,.98),rgba(20,16,10,.98));
+  backdrop-filter:blur(20px);border:1px solid var(--orange);border-radius:18px;
+  padding:16px 20px;width:min(360px,92vw);display:none;flex-direction:column;gap:10px;
+  box-shadow:0 12px 48px rgba(255,106,0,.25);
+}
+.install-prompt.show{display:flex;animation:dropIn .5s cubic-bezier(.34,1.56,.64,1)}
+.install-title{font-family:'Orbitron',sans-serif;font-size:13px;color:var(--orange);text-align:center}
+.install-text{font-size:12px;color:var(--text2);text-align:center;line-height:1.5}
+.install-btn{background:linear-gradient(135deg,var(--orange),#ffcc00);color:#000;border:none;
+  border-radius:14px;padding:14px;font-family:'Orbitron',sans-serif;font-size:14px;
+  font-weight:700;cursor:pointer;transition:.2s;letter-spacing:1px}
+.install-btn:active{transform:scale(.96)}
+.install-dismiss{background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;text-align:center;padding:4px}
+
+.download-panel{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:8500;
+  background:rgba(10,10,10,.98);backdrop-filter:blur(20px);
+  border:1px solid var(--orange);border-radius:22px;
+  padding:24px;width:min(400px,92vw);display:none;flex-direction:column;gap:14px;
+  box-shadow:0 16px 64px rgba(255,106,0,.2);
+}
+.download-panel.show{display:flex;animation:dropIn .4s ease}
+.download-title{font-family:'Orbitron',sans-serif;font-size:14px;color:var(--orange);text-align:center}
+.download-option{
+  background:var(--card2);border:1px solid var(--border);border-radius:14px;
+  padding:14px;cursor:pointer;transition:.2s;
+}
+.download-option:hover{border-color:var(--orange)}
+.download-option-name{font-weight:700;font-size:14px;color:var(--text)}
+.download-option-desc{font-size:11px;color:var(--text3);margin-top:4px}
+.download-option-size{font-family:'Orbitron',sans-serif;font-size:11px;color:var(--orange);margin-top:4px}
+.download-progress{height:6px;background:var(--border);border-radius:6px;overflow:hidden;display:none}
+.download-progress.show{display:block}
+.download-progress-bar{height:100%;background:linear-gradient(90deg,var(--orange),#ffcc00);border-radius:6px;width:0%;transition:width .3s}
+.download-status{font-size:12px;color:var(--text2);text-align:center;display:none}
+.download-status.show{display:block}
+.download-close{background:var(--card2);color:var(--text3);border:1px solid var(--border);border-radius:12px;
+  padding:10px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;cursor:pointer;text-align:center}
+
+/* ===== OFFLINE GPS — MODE HORS-LIGNE ===== */
+.offline-banner{
+  position:fixed;top:0;left:0;right:0;z-index:9000;
+  background:linear-gradient(135deg,#cc0000,#990000);
+  padding:6px 16px;display:none;align-items:center;justify-content:center;gap:8px;
+  font-family:'Orbitron',sans-serif;font-size:11px;color:#fff;
+  box-shadow:0 4px 16px rgba(255,0,0,.3);
+}
+.offline-banner.show{display:flex}
+.offline-banner-dot{width:10px;height:10px;border-radius:50%;background:#ff4757;animation:gpsBlink 1s infinite}
+
+.offline-gps{
+  position:fixed;bottom:50%;right:0;transform:translateY(50%);z-index:850;
+  background:rgba(10,10,10,.95);backdrop-filter:blur(14px);
+  border:2px solid #ff4757;border-right:none;border-radius:16px 0 0 16px;
+  padding:12px 14px;display:none;flex-direction:column;align-items:center;gap:6px;
+  box-shadow:-4px 0 20px rgba(255,0,0,.2);
+}
+.offline-gps.show{display:flex;animation:dropIn .4s ease}
+.offline-gps-title{font-family:'Orbitron',sans-serif;font-size:9px;color:#ff4757;letter-spacing:1px}
+.offline-gps-coords{font-family:'Share Tech Mono',monospace;font-size:13px;color:#fff;font-weight:700;text-align:center;line-height:1.4}
+.offline-gps-time{font-size:10px;color:var(--text3)}
+.offline-gps-accuracy{font-size:9px;color:var(--orange)}
+.offline-gps-share{background:#ff4757;color:#fff;border:none;border-radius:10px;
+  padding:8px 14px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;cursor:pointer;width:100%}
+
+/* ===== TRIP TRACKER ===== */
+.trip-bar{
+  position:fixed;top:14px;left:14px;z-index:750;
+  background:rgba(10,10,10,.93);backdrop-filter:blur(14px);
+  border:1px solid var(--success);border-radius:14px;
+  padding:10px 14px;display:none;flex-direction:column;gap:4px;
+  box-shadow:0 4px 20px rgba(46,213,115,.2);
+  max-width:220px;
+}
+.trip-bar.show{display:flex;animation:dropIn .4s cubic-bezier(.34,1.56,.64,1)}
+.trip-bar-title{font-family:'Orbitron',sans-serif;font-size:10px;color:var(--success);display:flex;align-items:center;gap:6px}
+.trip-bar-dot{width:8px;height:8px;border-radius:50%;background:var(--success);animation:gpsBlink 1.5s infinite}
+.trip-bar-clock{font-family:'Share Tech Mono',monospace;font-size:20px;color:#fff;font-weight:700;letter-spacing:1px}
+.trip-bar-info{font-size:11px;color:var(--text2);line-height:1.4}
+.trip-bar-info strong{color:var(--text);font-size:12px}
+.trip-bar-km{font-family:'Orbitron',sans-serif;font-size:13px;color:var(--orange);margin-top:2px}
+.trip-summary{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:6000;
+  background:rgba(10,10,10,.97);backdrop-filter:blur(20px);
+  border:1px solid var(--orange);border-radius:20px;
+  padding:24px;width:min(380px,90vw);display:none;flex-direction:column;gap:12px;
+  box-shadow:0 12px 48px rgba(255,106,0,.25);
+}
+.trip-summary.show{display:flex;animation:dropIn .5s cubic-bezier(.34,1.56,.64,1)}
+.trip-summary-title{font-family:'Orbitron',sans-serif;font-size:14px;color:var(--orange);text-align:center}
+.trip-summary-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.trip-summary-row:last-of-type{border-bottom:none}
+.trip-summary-label{font-size:12px;color:var(--text3)}
+.trip-summary-val{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--text);text-align:right}
+.trip-summary-big{font-family:'Orbitron',sans-serif;font-size:22px;color:var(--orange);text-align:center;padding:8px 0}
+.trip-summary-close{background:var(--orange);color:#000;border:none;border-radius:12px;padding:12px;
+  font-family:'Rajdhani',sans-serif;font-weight:700;font-size:15px;cursor:pointer;margin-top:4px}
+
+/* ===== TRACER — CHEMIN PERSONNEL ===== */
+.tracer-btn{
+  position:fixed;bottom:28px;left:100px;z-index:2000;
+  width:50px;height:50px;border-radius:50%;border:2px solid #88ccff;cursor:pointer;
+  background:radial-gradient(circle at 35% 35%,#88ccff,#4488cc 60%,#336699);
+  color:#fff;font-size:18px;
+  box-shadow:0 4px 20px rgba(136,204,255,.3);
+  display:flex;align-items:center;justify-content:center;
+  transition:.3s;
+}
+.tracer-btn:hover{transform:scale(1.08)}
+.tracer-btn.active{background:radial-gradient(circle at 35% 35%,#ff6a00,#cc5500);border-color:#ff6a00;box-shadow:0 4px 20px rgba(255,106,0,.4)}
+
+.tracer-panel{
+  position:fixed;bottom:90px;left:16px;z-index:3000;
+  width:min(320px,88vw);max-height:65vh;
+  background:rgba(10,10,10,.97);backdrop-filter:blur(20px);
+  border:1px solid #88ccff;border-radius:20px;
+  padding:0;display:none;flex-direction:column;
+  box-shadow:0 12px 48px rgba(136,204,255,.15);overflow:hidden;
+}
+.tracer-panel.show{display:flex;animation:dropIn .4s cubic-bezier(.34,1.56,.64,1)}
+.tracer-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.tracer-header h3{font-family:'Orbitron',sans-serif;font-size:13px;color:#88ccff;flex:1;margin:0}
+.tracer-close{background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer}
+
+.tracer-body{flex:1;overflow-y:auto;padding:12px}
+.tracer-actions{display:flex;gap:6px;margin-bottom:12px}
+.tracer-action-btn{
+  flex:1;padding:10px 8px;border-radius:12px;border:1px solid var(--border);
+  background:var(--card2);color:var(--text2);cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  transition:.2s;
+}
+.tracer-action-btn:hover{border-color:#88ccff;color:#88ccff}
+.tracer-action-btn.drawing{background:#88ccff;color:#000;border-color:#88ccff;animation:gpsBlink 1.5s infinite}
+
+.tracer-name-row{display:flex;gap:6px;margin-bottom:12px;display:none}
+.tracer-name-row.show{display:flex}
+.tracer-name-input{flex:1;background:var(--input);border:1px solid var(--border);border-radius:10px;
+  padding:8px 12px;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:13px;outline:none}
+.tracer-name-input:focus{border-color:#88ccff}
+.tracer-save-btn{background:#88ccff;color:#000;border:none;border-radius:10px;
+  padding:8px 14px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;cursor:pointer}
+
+.tracer-list-title{font-size:11px;color:var(--text3);font-family:'Orbitron',sans-serif;margin-bottom:8px;letter-spacing:1px}
+.tracer-item{
+  background:var(--card2);border:1px solid var(--border);border-radius:12px;
+  padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:10px;
+  transition:.2s;cursor:pointer;
+}
+.tracer-item:hover{border-color:#88ccff}
+.tracer-item-color{width:12px;height:12px;border-radius:50%;background:#88ccff;flex-shrink:0}
+.tracer-item-info{flex:1;min-width:0}
+.tracer-item-name{font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tracer-item-meta{font-size:10px;color:var(--text3)}
+.tracer-item-del{background:none;border:1px solid var(--border);color:var(--text3);border-radius:8px;
+  padding:4px 8px;font-size:10px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;transition:.2s}
+.tracer-item-del:hover{border-color:var(--danger);color:var(--danger)}
+
+.tracer-empty{text-align:center;padding:20px;color:var(--text3);font-size:12px}
+.tracer-hint{font-size:11px;color:var(--text3);text-align:center;padding:8px;line-height:1.5;display:none}
+.tracer-hint.show{display:block}
+
+/* ===== LAYERS ===== */
+.layers-panel{position:fixed;bottom:200px;left:16px;z-index:600;background:rgba(14,14,14,.95);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:14px;padding:12px;width:200px;display:none}
+.layers-panel.show{display:block;animation:dropIn .35s cubic-bezier(.34,1.56,.64,1)}
+@keyframes dropIn{from{opacity:0;transform:scale(.8) translateY(-8px);filter:blur(4px)}to{opacity:1;transform:scale(1) translateY(0);filter:blur(0)}}
+.layer-opt{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;cursor:pointer;font-size:13px;transition:.15s}
+.layer-opt:hover{background:var(--glow2)}
+.layer-opt.active{color:var(--orange)}
+.layer-radio{width:14px;height:14px;border-radius:50%;border:2px solid var(--text3)}
+.layer-opt.active .layer-radio{border-color:var(--orange);background:var(--orange);box-shadow:inset 0 0 0 3px var(--bg)}
+
+/* ===== ROUTE INFO ===== */
+.route-info{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);z-index:600;background:rgba(14,14,14,.95);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:16px;padding:14px 20px;display:none;align-items:center;gap:20px;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.route-info.show{display:flex;animation:dropIn .4s cubic-bezier(.34,1.56,.64,1)}
+.route-stat{text-align:center}
+.route-stat-val{font-family:'Orbitron',sans-serif;font-size:18px;color:var(--orange)}
+.route-stat-label{font-size:11px;color:var(--text3);margin-top:2px}
+.route-close{background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;margin-left:8px}
+.route-close:hover{color:var(--danger)}
+
+/* ===== SIDEBAR ===== */
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:360px;background:rgba(10,10,10,.96);backdrop-filter:blur(20px);border-right:1px solid var(--border);z-index:1500;transform:translateX(-105%);transition:transform .5s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;overflow:hidden}
+.sidebar.open{transform:translateX(0)}
+.sidebar-header{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.sidebar-header h2{font-family:'Orbitron',sans-serif;font-size:15px;color:var(--orange);flex:1}
+.sidebar-close{background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;padding:4px 8px}
+.sidebar-close:hover{color:var(--orange)}
+.sidebar-body{flex:1;overflow-y:auto;padding:12px}
+.sidebar-body::-webkit-scrollbar{width:4px}
+.sidebar-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+/* ===== SIDEBAR BUTTONS ===== */
+.header-btn{
+  background:var(--card2);border:1px solid var(--border);color:var(--text2);
+  cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;
+  transition:.2s;display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.header-btn:hover,.header-btn.active{background:var(--orange);color:#000;border-color:var(--orange)}
+
+/* ===== EVENT NOTIFICATION TOAST ===== */
+.event-toast{
+  position:fixed;top:50%;right:-400px;transform:translateY(-50%);z-index:5000;
+  width:min(320px,85vw);
+  background:linear-gradient(135deg,rgba(14,14,14,.97),rgba(20,20,20,.97));
+  backdrop-filter:blur(20px);
+  border:1px solid var(--orange);border-radius:18px;
+  padding:14px 16px;
+  box-shadow:0 8px 40px rgba(255,106,0,.3),0 0 0 1px rgba(255,106,0,.15);
+  transition:right .6s cubic-bezier(.34,1.56,.64,1);
+  display:flex;flex-direction:column;gap:8px;
+}
+.event-toast.show{right:16px}
+.event-toast-header{display:flex;align-items:center;gap:8px}
+.event-toast-bell{font-size:20px;animation:bellRing .5s ease 3}
+@keyframes bellRing{0%,100%{transform:rotate(0)}25%{transform:rotate(15deg)}75%{transform:rotate(-15deg)}}
+.event-toast-title{font-family:'Orbitron',sans-serif;font-size:12px;color:var(--orange);flex:1}
+.event-toast-timer{width:24px;height:24px;border-radius:50%;border:2px solid var(--orange);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--orange);font-family:'Orbitron',sans-serif;font-weight:700}
+.event-toast-body{font-size:13px;color:var(--text);line-height:1.4}
+.event-toast-place{font-weight:700;color:#fff}
+.event-toast-desc{color:var(--text2);font-size:11px;margin-top:2px}
+.event-toast-btns{display:flex;gap:8px;margin-top:4px}
+.event-toast-btn{flex:1;padding:8px;border-radius:12px;border:none;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;transition:.2s}
+.event-toast-btn.yes{background:var(--orange);color:#000}
+.event-toast-btn.yes:hover{background:#ffaa33}
+.event-toast-btn.no{background:var(--card2);color:var(--text3);border:1px solid var(--border)}
+.event-toast-btn.no:hover{background:var(--border);color:var(--text)}
+.event-toast-progress{height:3px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:2px}
+.event-toast-progress-bar{height:100%;background:var(--orange);border-radius:3px;transition:width .1s linear}
+
+/* ===== RADAR GPS PULSE ===== */
+.radar-ring{
+  position:absolute;width:100%;height:100%;border-radius:50%;
+  border:2px solid rgba(255,106,0,.6);
+  animation:radarPulse 3s cubic-bezier(.2,.6,.4,1) infinite;
+  pointer-events:none;
+}
+.radar-ring:nth-child(2){animation-delay:.8s}
+.radar-ring:nth-child(3){animation-delay:1.6s}
+@keyframes radarPulse{
+  0%{transform:scale(1);opacity:.8}
+  100%{transform:scale(8);opacity:0}
+}
+.radar-core{
+  width:18px;height:18px;background:radial-gradient(circle,#ffaa33,#ff6a00);
+  border:3px solid #fff;border-radius:50%;
+  box-shadow:0 0 16px #ff6a00,0 0 40px rgba(255,106,0,.3);
+  position:relative;
+}
+.radar-container{position:relative;display:flex;align-items:center;justify-content:center}
+
+/* ===== GPS LIVE COORDINATES — TOUT PETIT, HAUT DROIT ===== */
+.gps-live{
+  position:fixed;top:8px;right:-220px;z-index:800;
+  background:rgba(10,10,10,.75);backdrop-filter:blur(8px);
+  border:1px solid var(--border);border-radius:8px 0 0 8px;
+  padding:4px 8px;display:none;flex-direction:row;align-items:center;gap:5px;
+  box-shadow:-2px 0 8px rgba(0,0,0,.3);
+  cursor:pointer;
+  transition:right .4s cubic-bezier(.34,1.56,.64,1);
+}
+.gps-live.show{display:flex;right:0}
+.gps-live-row{display:flex;align-items:center;gap:4px}
+.gps-live-dot{width:5px;height:5px;border-radius:50%;background:#2ed573;flex-shrink:0;animation:gpsBlink 2s infinite}
+@keyframes gpsBlink{0%,100%{opacity:1;box-shadow:0 0 4px #2ed573}50%{opacity:.4;box-shadow:none}}
+.gps-live-text{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.3px}
+.gps-live-share{background:var(--orange);color:#000;border:none;border-radius:6px;padding:2px 6px;
+  font-family:'Rajdhani',sans-serif;font-weight:700;font-size:9px;cursor:pointer;transition:.2s;white-space:nowrap}
+.gps-live-share:active{transform:scale(.9)}
+
+/* ===== LANDSCAPE / ROTATION ECRAN ===== */
+@media (orientation:landscape) and (max-height:500px){
+  .gps-live{top:4px;padding:3px 6px}
+  .gps-live-text{font-size:8px}
+  .gps-live-share{display:none}
+  .fab{bottom:12px;right:12px;width:46px;height:46px;font-size:11px}
+  .sos-btn{bottom:12px;left:12px;width:46px;height:46px;font-size:9px}
+  .friends-btn{bottom:12px;right:70px;width:40px;height:40px;font-size:16px}
+  .map-controls{bottom:70px;left:8px;gap:4px}
+  .ctrl-btn{width:36px;height:36px;font-size:14px;border-radius:10px}
+  .search-box{top:6px;width:min(380px,85vw)}
+  .poi-bar{top:52px;padding:0 8px;gap:3px}
+  .poi-chip{padding:3px 8px;font-size:10px}
+  .speed-hud{bottom:70px;right:70px;width:60px;height:60px}
+  .speed-val{font-size:17px}
+  .trip-bar{top:6px;left:6px;max-width:160px;padding:6px 10px}
+  .trip-bar-clock{font-size:16px}
+  .sidebar{width:280px}
+  .offline-gps{top:28px;padding:8px 10px}
+}
+
+/* ===== SPEED HUD ===== */
+.speed-hud{
+  position:fixed;bottom:100px;right:100px;z-index:700;
+  width:80px;height:80px;border-radius:50%;
+  background:radial-gradient(circle,rgba(14,14,14,.95),rgba(10,10,10,.98));
+  backdrop-filter:blur(12px);border:2px solid var(--border);
+  display:none;align-items:center;justify-content:center;flex-direction:column;
+  box-shadow:0 4px 24px rgba(0,0,0,.6);
+}
+.speed-hud.show{display:flex;animation:dropIn .3s ease}
+.speed-val{font-family:'Orbitron',sans-serif;font-size:22px;font-weight:900;color:var(--orange);line-height:1}
+.speed-unit{font-size:9px;color:var(--text3);font-family:'Orbitron',sans-serif;margin-top:2px}
+.speed-limit{font-size:9px;color:var(--danger);font-family:'Rajdhani',sans-serif;font-weight:700;margin-top:1px}
+
+/* ===== SOS URGENCE — TOUJOURS VISIBLE ===== */
+.sos-btn{
+  position:fixed;bottom:28px;left:28px;z-index:2000;
+  width:58px;height:58px;border-radius:50%;border:3px solid #ff1a1a;cursor:pointer;
+  background:radial-gradient(circle at 35% 35%,#ff4444,#cc0000 60%,#990000);
+  color:#fff;font-family:'Orbitron',sans-serif;font-weight:900;font-size:10px;
+  box-shadow:0 4px 24px rgba(255,0,0,.4);
+  display:flex;align-items:center;justify-content:center;
+  letter-spacing:1px;
+  animation:sosPulse 3s ease infinite;
+}
+.sos-btn:active{transform:scale(.92)}
+@keyframes sosPulse{0%,100%{box-shadow:0 4px 24px rgba(255,0,0,.4)}50%{box-shadow:0 4px 32px rgba(255,0,0,.7),0 0 0 8px rgba(255,0,0,.1)}}
+
+.sos-panel{
+  position:fixed;bottom:100px;left:16px;z-index:3500;
+  width:min(340px,90vw);
+  background:linear-gradient(135deg,rgba(14,14,14,.98),rgba(20,10,10,.98));
+  backdrop-filter:blur(20px);
+  border:2px solid #ff1a1a;border-radius:20px;
+  padding:18px;display:none;flex-direction:column;gap:10px;
+  box-shadow:0 8px 48px rgba(255,0,0,.25);
+}
+.sos-panel.show{display:flex;animation:dropIn .4s cubic-bezier(.34,1.56,.64,1)}
+.sos-title{font-family:'Orbitron',sans-serif;font-size:14px;color:#ff4444;display:flex;align-items:center;gap:8px}
+.sos-addr{font-size:13px;color:var(--text);line-height:1.5;background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.sos-addr strong{color:#fff;font-size:15px}
+.sos-coords{font-size:11px;color:var(--text3);font-family:'Share Tech Mono',monospace}
+.sos-call-btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  border-radius:14px;border:none;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-weight:700;
+  transition:.2s;text-decoration:none;
+}
+.sos-call-btn:active{transform:scale(.95)}
+/* CAA — GROS BOUTON, couleurs Canadiens de Montreal */
+.sos-call-caa{
+  padding:18px;font-size:20px;
+  background:linear-gradient(135deg,#af1e2d,#192168 50%,#af1e2d);
+  color:#fff;border:3px solid #fff;
+  box-shadow:0 4px 20px rgba(175,30,45,.4);
+  letter-spacing:1px;
+}
+.sos-call-caa:hover{box-shadow:0 0 28px rgba(175,30,45,.6),0 0 0 4px rgba(255,255,255,.15)}
+/* SQ — moyen */
+.sos-call-sq{padding:14px;font-size:15px;background:linear-gradient(135deg,#1a6bff,#0044cc);color:#fff}
+.sos-call-sq:hover{box-shadow:0 0 20px rgba(26,107,255,.5)}
+/* 911 — plus petit pour eviter les fausses alertes */
+.sos-call-911{padding:10px;font-size:13px;background:linear-gradient(135deg,#ff1a1a,#cc0000);color:#fff;opacity:.85}
+.sos-call-911:hover{opacity:1;box-shadow:0 0 16px rgba(255,0,0,.4)}
+.sos-close{padding:10px;background:var(--card2);color:var(--text3);border:1px solid var(--border);font-size:12px}
+
+/* ===== PAYWALL USA ===== */
+.paywall{
+  position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;
+  background:rgba(0,0,0,.92);backdrop-filter:blur(20px);
+  display:none;align-items:center;justify-content:center;flex-direction:column;
+}
+.paywall.show{display:flex}
+.paywall-box{
+  width:min(420px,90vw);background:linear-gradient(135deg,#111,#1a1a1a);
+  border:1px solid var(--border);border-radius:24px;padding:32px 28px;
+  text-align:center;box-shadow:0 16px 64px rgba(0,0,0,.8);
+}
+.paywall-logo{font-family:'Orbitron',sans-serif;font-size:24px;font-weight:900;
+  background:linear-gradient(135deg,var(--orange),#ffcc00);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  margin-bottom:8px}
+.paywall-flag{font-size:28px;margin-bottom:12px}
+.paywall-title{font-family:'Rajdhani',sans-serif;font-size:18px;color:var(--text);margin-bottom:16px;line-height:1.4}
+.paywall-price{font-family:'Orbitron',sans-serif;font-size:36px;color:var(--orange);margin:12px 0}
+.paywall-price span{font-size:14px;color:var(--text3)}
+.paywall-features{text-align:left;margin:16px 0;padding:0 12px}
+.paywall-feat{padding:6px 0;font-size:13px;color:var(--text2);display:flex;align-items:center;gap:8px}
+.paywall-feat::before{content:'✓';color:var(--success);font-weight:700}
+.paywall-sub-btn{
+  display:block;width:100%;padding:16px;border:none;border-radius:16px;cursor:pointer;
+  background:linear-gradient(135deg,var(--orange),#ffcc00);color:#000;
+  font-family:'Orbitron',sans-serif;font-size:16px;font-weight:700;
+  margin-top:16px;transition:.2s;letter-spacing:1px;
+}
+.paywall-sub-btn:hover{transform:scale(1.02);box-shadow:0 8px 32px rgba(255,106,0,.4)}
+.paywall-free{margin-top:12px;font-size:12px;color:var(--text3)}
+.paywall-free a{color:var(--orange);cursor:pointer;text-decoration:underline}
+
+/* ===== TRAFFIC ALERT ===== */
+.traffic-toast{
+  position:fixed;top:50%;right:-400px;transform:translateY(calc(-50% - 80px));z-index:4500;
+  width:min(300px,85vw);
+  background:linear-gradient(135deg,rgba(14,14,14,.97),rgba(30,10,10,.97));
+  backdrop-filter:blur(20px);
+  border:1px solid #ff4757;border-radius:16px;
+  padding:12px 14px;
+  box-shadow:0 8px 32px rgba(255,71,87,.2);
+  transition:right .5s cubic-bezier(.34,1.56,.64,1);
+  display:flex;flex-direction:column;gap:6px;
+}
+.traffic-toast.show{right:16px}
+.traffic-title{font-family:'Orbitron',sans-serif;font-size:11px;color:#ff4757;display:flex;align-items:center;gap:6px}
+.traffic-body{font-size:12px;color:var(--text);line-height:1.4}
+.traffic-btns{display:flex;gap:6px}
+.traffic-btn{flex:1;padding:8px;border-radius:10px;border:none;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;transition:.2s}
+.traffic-btn.reroute{background:#ff4757;color:#fff}
+.traffic-btn.ignore{background:var(--card2);color:var(--text3);border:1px solid var(--border)}
+
+/* ===== SIGNATURE ===== */
+.signature{
+  position:fixed;bottom:6px;left:50%;transform:translateX(-50%);z-index:500;
+  font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(255,106,0,.35);
+  white-space:nowrap;pointer-events:none;letter-spacing:1px;
+}
+
+/* ===== MOBILE — BOUTONS FACILES AU POUCE ===== */
+@media(max-width:600px){
+  .sidebar{width:100%}
+  .search-box{width:calc(100% - 20px);top:10px}
+  .search-input{padding:14px 18px;font-size:17px}
+  .search-btn{padding:14px 16px;font-size:20px}
+  .poi-bar{top:64px;gap:5px;padding:0 6px}
+  .poi-chip{padding:8px 14px;font-size:14px;border-radius:22px;min-height:44px}
+  /* TL + SOS — GROS, facile a taper, pas derangeant */
+  .fab{bottom:22px;right:22px;width:68px;height:68px;font-size:17px}
+  .sos-btn{bottom:22px;left:22px;width:68px;height:68px;font-size:12px;border-width:3px}
+  /* Map controls — gros boutons tactiles */
+  .ctrl-btn{width:54px;height:54px;border-radius:16px;font-size:22px;min-height:44px}
+  /* SOS Panel — gros boutons appel */
+  .sos-panel{bottom:104px;left:8px;width:calc(100% - 16px)}
+  .sos-call-btn.sos-call-caa{padding:20px;font-size:20px;min-height:56px}
+  .sos-call-btn.sos-call-sq{padding:16px;font-size:16px;min-height:50px}
+  .sos-call-btn.sos-call-911{padding:12px;font-size:14px;min-height:44px}
+  .sos-close{padding:12px;font-size:14px;min-height:44px}
+  .sos-title{font-size:15px}
+  .sos-addr{font-size:15px;padding:12px}
+  .sos-addr strong{font-size:17px}
+  .layers-panel{width:240px;padding:14px;bottom:220px}
+  .layer-opt{padding:12px;font-size:15px;min-height:44px}
+  .event-toast-btn{padding:12px;font-size:14px;min-height:44px}
+  .traffic-btn{padding:12px;font-size:13px;min-height:44px}
+  .paywall-sub-btn{padding:18px;font-size:17px;min-height:56px}
+  .gps-live{top:6px;right:-220px;padding:3px 7px;border-radius:8px 0 0 8px}
+  .gps-live.show{right:0}
+  .gps-live-text{font-size:9px}
+  .gps-live-share{padding:3px 8px;font-size:9px;min-height:auto}
+  .offline-gps{bottom:auto;top:36px;right:0;padding:10px 12px;border-radius:14px 0 0 14px}
+  .offline-gps-share{padding:10px;font-size:14px;min-height:44px}
+  .offline-banner{font-size:10px;padding:8px 12px}
+  .friends-btn{bottom:22px;right:96px;width:54px;height:54px}
+  .friends-panel{right:8px;left:8px;width:auto;bottom:84px;max-height:65vh}
+  .friend-notif{width:calc(100% - 32px)}
+  .friend-notif-btn{min-height:48px;font-size:15px}
+  .trip-bar{top:10px;left:10px;max-width:180px;padding:8px 12px}
+  .trip-bar-clock{font-size:18px}
+  .trip-summary{width:calc(100% - 24px);padding:20px}
+  .trip-summary-close{min-height:48px;font-size:16px}
+}
+
+/* ===== CUSTOM LEAFLET ===== */
+.leaflet-container{background:#0a0a0a!important;font-family:'Rajdhani',sans-serif}
+/* Labels BLANC PROJECTEUR IA — visible plein soleil */
+.leaflet-labels-pane{
+  filter:invert(1) brightness(2.5) contrast(3) drop-shadow(0 0 3px rgba(255,255,255,.9))!important;
+  mix-blend-mode:screen!important;
+}
+.leaflet-labels-pane img{
+  filter:invert(1) brightness(2.5) contrast(3)!important;
+}
+/* Themes labels couleur */
+.leaflet-labels-pane.theme-blanc{filter:invert(1) brightness(2.5) contrast(3) drop-shadow(0 0 3px rgba(255,255,255,.9))!important}
+.leaflet-labels-pane.theme-blanc img{filter:invert(1) brightness(2.5) contrast(3)!important}
+.leaflet-labels-pane.theme-creme{filter:invert(1) brightness(2.2) contrast(2.5) sepia(.3) drop-shadow(0 0 3px rgba(255,240,200,.8))!important}
+.leaflet-labels-pane.theme-creme img{filter:invert(1) brightness(2.2) contrast(2.5) sepia(.3)!important}
+.leaflet-labels-pane.theme-orange{filter:invert(1) brightness(2) contrast(2.5) sepia(.6) saturate(3) drop-shadow(0 0 3px rgba(255,150,0,.8))!important}
+.leaflet-labels-pane.theme-orange img{filter:invert(1) brightness(2) contrast(2.5) sepia(.6) saturate(3)!important}
+.leaflet-labels-pane.theme-cyan{filter:invert(1) brightness(2) contrast(2.5) hue-rotate(160deg) drop-shadow(0 0 3px rgba(0,255,255,.8))!important}
+.leaflet-labels-pane.theme-cyan img{filter:invert(1) brightness(2) contrast(2.5) hue-rotate(160deg)!important}
+.leaflet-labels-pane.theme-lime{filter:invert(1) brightness(2) contrast(2.5) hue-rotate(80deg) drop-shadow(0 0 3px rgba(160,255,0,.8))!important}
+.leaflet-labels-pane.theme-lime img{filter:invert(1) brightness(2) contrast(2.5) hue-rotate(80deg)!important}
+.leaflet-labels-pane.theme-rose{filter:invert(1) brightness(2) contrast(2.5) hue-rotate(300deg) drop-shadow(0 0 3px rgba(255,100,200,.8))!important}
+.leaflet-labels-pane.theme-rose img{filter:invert(1) brightness(2) contrast(2.5) hue-rotate(300deg)!important}
+.leaflet-control-zoom{display:none!important}
+.leaflet-control-zoom.show{display:flex!important;flex-direction:column}
+.leaflet-control-zoom a{background:rgba(14,14,14,.9)!important;color:var(--orange)!important;border-color:var(--border)!important}
+.leaflet-control-zoom a:hover{background:var(--orange)!important;color:#000!important}
+.leaflet-popup-content-wrapper{background:rgba(14,14,14,.97)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:14px!important;box-shadow:0 8px 32px rgba(0,0,0,.6)!important}
+.leaflet-popup-tip{background:rgba(14,14,14,.97)!important;border:1px solid var(--border)!important}
+.leaflet-popup-close-button{color:var(--text3)!important}
+.leaflet-routing-container{background:rgba(14,14,14,.95)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:12px!important;max-height:200px;overflow-y:auto;font-family:'Rajdhani',sans-serif}
+.leaflet-bar{border:1px solid var(--border)!important;border-radius:10px!important;overflow:hidden}
+</style>
+</head>
+<body>
+
+<!-- ===== PAYWALL USA ===== -->
+<div class="paywall" id="paywall">
+  <div class="paywall-box">
+    <div class="paywall-flag">&#127482;&#127480;</div>
+    <div class="paywall-logo">TI-LEX-AL PRO</div>
+    <div class="paywall-title">GPS Map IA — Canada &amp; USA<br>by Alex Marceau-Prevost</div>
+    <div class="paywall-price">$4.99 <span>USD / mois</span></div>
+    <div class="paywall-features">
+      <div class="paywall-feat">GPS temps reel + vitesse + limites</div>
+      <div class="paywall-feat">Restos, Bars, Motels, Banques, Gyms, SAQ</div>
+      <div class="paywall-feat">Routes gravel tracees en rouge</div>
+      <div class="paywall-feat">SOS Urgence — 911, Police, CAA</div>
+      <div class="paywall-feat">Alertes trafic toutes les 25 secondes</div>
+      <div class="paywall-feat">Itineraires intelligents Canada &amp; USA</div>
+      <div class="paywall-feat">Notifications evenements a proximite</div>
+    </div>
+    <button class="paywall-sub-btn" onclick="startCheckout()">&#128274; S'ABONNER — $4.99/mois</button>
+    <div class="paywall-free">&#127464;&#127462; Canadien? <a onclick="bypassPaywall()">Acces gratuit ici</a></div>
+  </div>
+</div>
+
+<!-- ===== ACTIVATION BUTTON ===== -->
+<button class="fab" id="fab" onclick="toggleHUD()">TL</button>
+<div class="fab-ripple" id="fabRipple"></div>
+
+<!-- ===== SOS URGENCE — TOUJOURS VISIBLE ===== -->
+<button class="sos-btn" id="sosBtn" onclick="toggleSOS()">SOS</button>
+<div class="sos-panel" id="sosPanel">
+  <div class="sos-title">&#128680; URGENCE — Position actuelle</div>
+  <div class="sos-addr" id="sosAddr">
+    <strong>Localisation en cours...</strong>
+  </div>
+  <div class="sos-coords" id="sosCoords"></div>
+  <a class="sos-call-btn sos-call-caa" href="tel:18002224357" id="sosCAA">&#128663; CAA QUEBEC — 1-800-222-4357</a>
+  <a class="sos-call-btn sos-call-sq" href="tel:*4141" id="sosSQ">&#128658; Surete du Quebec — *4141</a>
+  <a class="sos-call-btn sos-call-911" href="tel:911" id="sos911">&#9888; 911 (urgence vitale)</a>
+  <button class="sos-call-btn" onclick="shareGPS()" style="background:var(--orange);color:#000;padding:14px;font-size:16px">&#128279; PARTAGER MA POSITION EXACTE</button>
+  <button class="sos-call-btn sos-close" onclick="closeSOS()">Fermer</button>
+</div>
+
+<!-- ===== TRAFFIC ALERT ===== -->
+<div class="traffic-toast" id="trafficToast">
+  <div class="traffic-title">&#128679; ALERTE TRAFIC</div>
+  <div class="traffic-body" id="trafficBody">Ralentissement detecte</div>
+  <div class="traffic-btns">
+    <button class="traffic-btn reroute" onclick="trafficReroute()">&#128260; Contourner</button>
+    <button class="traffic-btn ignore" onclick="trafficDismiss()">Ignorer</button>
+  </div>
+</div>
+
+<!-- ===== SEARCH (hidden) ===== -->
+<div class="search-box hud hud-d1" id="hudSearch">
+  <div class="search-input-wrap">
+    <input class="search-input" id="searchInput" placeholder="Rechercher — Canada & USA..." autocomplete="off">
+    <button class="search-btn" onclick="doSearch()">&#128269;</button>
+  </div>
+  <div class="search-results" id="searchResults"></div>
+</div>
+
+<!-- ===== POI ROW (hidden) ===== -->
+<div class="poi-bar hud hud-d2" id="hudPoi">
+  <div class="poi-chip" data-poi="restaurant" onclick="searchPOI(this,'restaurant')">&#127860; Restos</div>
+  <div class="poi-chip" data-poi="bar" onclick="searchPOI(this,'bar')">&#127866; Bars</div>
+  <div class="poi-chip" data-poi="motel" onclick="searchPOI(this,'motel')">&#128716; Motels</div>
+  <div class="poi-chip" data-poi="bank" onclick="searchPOI(this,'bank')">&#127974; Banques</div>
+  <div class="poi-chip" data-poi="gym" onclick="searchPOI(this,'gym')">&#127947; Gyms</div>
+  <div class="poi-chip" data-poi="saq" onclick="searchPOI(this,'saq')">&#127863; SAQ</div>
+  <div class="poi-chip" data-poi="gravel" onclick="toggleGravel(this)" style="border-color:#ff2222">&#128739; Gravel</div>
+</div>
+<!-- ===== LOADING ===== -->
+<div class="load-overlay" id="loadOverlay"><div class="load-spin"></div><span id="loadText">Chargement...</span></div>
+<div class="poi-count" id="poiCount"></div>
+
+<!-- ===== OFFLINE GPS — HORS RESEAU ===== -->
+<div class="offline-banner" id="offlineBanner">
+  <div class="offline-banner-dot"></div>
+  HORS RESEAU — GPS ACTIF
+</div>
+<div class="offline-gps" id="offlineGps">
+  <div class="offline-gps-title">&#128752; GPS HORS-LIGNE</div>
+  <div class="offline-gps-coords" id="offlineCoords">--</div>
+  <div class="offline-gps-time" id="offlineTime">--</div>
+  <div class="offline-gps-accuracy" id="offlineAccuracy">--</div>
+  <button class="offline-gps-share" onclick="copyOfflineGPS()">&#128203; Copier position</button>
+</div>
+
+<!-- ===== FRIENDS SYSTEM ===== -->
+<button class="friends-btn" id="friendsBtn" onclick="toggleFriendsPanel()">&#128101;<div class="badge" id="friendsBadge">0</div></button>
+
+<div class="friends-panel" id="friendsPanel">
+  <div class="friends-header">
+    <h3>&#128101; AMIS PROCHES</h3>
+    <button class="friends-close" onclick="toggleFriendsPanel()">&times;</button>
+  </div>
+  <div class="friends-body">
+    <!-- Share toggle -->
+    <div class="friends-toggle-row">
+      <span class="friends-toggle-label">&#128205; Partager ma position</span>
+      <button class="friends-toggle" id="shareToggle" onclick="toggleSharePosition()"></button>
+    </div>
+
+    <!-- Sound selector -->
+    <div class="sound-row">
+      <span class="sound-label">&#128276; Son notification</span>
+      <select class="sound-select" id="notifSound" onchange="previewSound()">
+        <option value="gentle">Doux</option>
+        <option value="bell" selected>Cloche</option>
+        <option value="chime">Carillon</option>
+        <option value="pop">Pop</option>
+        <option value="cosmic">Cosmique</option>
+        <option value="alert">Alerte</option>
+      </select>
+    </div>
+
+    <!-- Invite -->
+    <div class="friends-section">
+      <div class="friends-section-title">INVITER UN AMI</div>
+      <div class="friends-invite">
+        <input class="friends-invite-input" id="friendNameInput" placeholder="Nom de l'ami...">
+        <button class="friends-invite-btn" onclick="addFriend()">+ Ajouter</button>
+      </div>
+      <button class="friends-invite-btn" onclick="shareInviteLink()" style="width:100%;background:linear-gradient(135deg,#4a9eff,#2a6eff);padding:10px;border-radius:12px;font-size:13px">&#128279; Partager mon lien d'invitation</button>
+    </div>
+
+    <!-- Friends list -->
+    <div class="friends-section">
+      <div class="friends-section-title">MES AMIS</div>
+      <div id="friendsList"></div>
+      <div id="noFriends" style="text-align:center;padding:20px;color:var(--text3);font-size:12px">Aucun ami encore — invite du monde!</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FRIEND NEARBY NOTIFICATION ===== -->
+<div class="friend-notif" id="friendNotif">
+  <div class="friend-notif-avatar" id="friendNotifAvatar">&#128075;</div>
+  <div class="friend-notif-name" id="friendNotifName">--</div>
+  <div class="friend-notif-msg">passe dans ton coin!</div>
+  <div class="friend-notif-dist" id="friendNotifDist">~5 km</div>
+  <div class="friend-notif-msg" style="font-size:12px;color:var(--text3)">Envoie-lui un petit coucou!</div>
+  <div class="friend-notif-btns">
+    <button class="friend-notif-btn msg" onclick="messageFriend()">&#128172; Salut!</button>
+    <button class="friend-notif-btn dismiss" onclick="dismissFriendNotif()">Plus tard</button>
+  </div>
+</div>
+
+<!-- ===== TRACER — CHEMIN PERSONNEL ===== -->
+<button class="tracer-btn" id="tracerBtn" onclick="toggleTracerPanel()">&#9998;</button>
+
+<div class="tracer-panel" id="tracerPanel">
+  <div class="tracer-header">
+    <h3>&#9998; MES TRACES</h3>
+    <button class="tracer-close" onclick="toggleTracerPanel()">&times;</button>
+  </div>
+  <div class="tracer-body">
+    <div class="tracer-actions">
+      <button class="tracer-action-btn" id="tracerDrawBtn" onclick="toggleTracerDraw()">&#128396; Dessiner</button>
+      <button class="tracer-action-btn" onclick="undoTracerPoint()">&#8617; Annuler</button>
+      <button class="tracer-action-btn" onclick="clearTracerDraw()">&#128465; Effacer</button>
+    </div>
+    <div class="tracer-hint" id="tracerHint">Clique sur la carte pour placer tes points. Chaque clic ajoute un point a ton trace.</div>
+    <div class="tracer-name-row" id="tracerNameRow">
+      <input class="tracer-name-input" id="tracerNameInput" placeholder="Nom du trace...">
+      <button class="tracer-save-btn" onclick="saveTracer()">Sauver</button>
+    </div>
+    <div class="tracer-list-title">MES TRACES SAUVEGARDES</div>
+    <div id="tracerList"></div>
+    <div class="tracer-empty" id="tracerEmpty">Aucun trace sauvegarde — dessine ton premier chemin!</div>
+  </div>
+</div>
+
+<!-- ===== TRIP TRACKER LIVE ===== -->
+<div class="trip-bar" id="tripBar">
+  <div class="trip-bar-title"><div class="trip-bar-dot"></div> TRAJET EN COURS</div>
+  <div class="trip-bar-clock" id="tripClock">00:00:00</div>
+  <div class="trip-bar-info"><strong id="tripFrom">--</strong></div>
+  <div class="trip-bar-km" id="tripKm">0.0 km</div>
+</div>
+
+<!-- ===== TRIP SUMMARY (after stop) ===== -->
+<div class="trip-summary" id="tripSummary">
+  <div class="trip-summary-title">&#128203; RESUME DU TRAJET</div>
+  <div class="trip-summary-row"><span class="trip-summary-label">&#128205; Depart</span><span class="trip-summary-val" id="sumFrom">--</span></div>
+  <div class="trip-summary-row"><span class="trip-summary-label">&#128336; Heure depart</span><span class="trip-summary-val" id="sumTimeStart">--</span></div>
+  <div class="trip-summary-row"><span class="trip-summary-label">&#127937; Arrivee</span><span class="trip-summary-val" id="sumTo">--</span></div>
+  <div class="trip-summary-row"><span class="trip-summary-label">&#128336; Heure arrivee</span><span class="trip-summary-val" id="sumTimeEnd">--</span></div>
+  <div class="trip-summary-big" id="sumDistance">--</div>
+  <div class="trip-summary-row"><span class="trip-summary-label">&#9201; Duree totale</span><span class="trip-summary-val" id="sumDuration">--</span></div>
+  <div class="trip-summary-row"><span class="trip-summary-label">&#128168; Vitesse moyenne</span><span class="trip-summary-val" id="sumAvgSpeed">--</span></div>
+  <button class="trip-summary-close" onclick="closeTripSummary()">&#10003; Fermer</button>
+</div>
+
+<!-- ===== MAP CONTROLS (hidden) ===== -->
+<div class="map-controls hud hud-d3" id="hudControls">
+  <button class="ctrl-btn" onclick="locateMe()" title="Ma position">&#128205;</button>
+  <button class="ctrl-btn" onclick="toggleTracking()" id="btnTrack" title="Suivi GPS">&#128225;</button>
+  <button class="ctrl-btn" onclick="toggleTrip()" id="btnTrip" title="Trajet" style="font-size:14px">&#128203;</button>
+  <button class="ctrl-btn" onclick="toggleLayers()" title="Couches">&#128506;</button>
+  <button class="ctrl-btn" onclick="showDownloadPanel()" title="Telecharger cartes" style="font-size:16px">&#128229;</button>
+</div>
+
+<!-- ===== LAYERS ===== -->
+<div class="layers-panel" id="layersPanel">
+  <div class="layer-opt active" onclick="setLayer('dark',this)"><div class="layer-radio"></div> Sombre</div>
+  <div class="layer-opt" onclick="setLayer('streets',this)"><div class="layer-radio"></div> Rues</div>
+  <div class="layer-opt" onclick="setLayer('satellite',this)"><div class="layer-radio"></div> Satellite</div>
+  <div class="layer-opt" onclick="setLayer('topo',this)"><div class="layer-radio"></div> Topographique</div>
+  <div class="layer-opt" onclick="setLayer('cyclosm',this)"><div class="layer-radio"></div> &#128739; Forestier/Gravel</div>
+</div>
+
+<!-- ===== ROUTE INFO ===== -->
+<div class="route-info" id="routeInfo">
+  <div class="route-stat"><div class="route-stat-val" id="routeDist">--</div><div class="route-stat-label">Distance</div></div>
+  <div class="route-stat"><div class="route-stat-val" id="routeTime">--</div><div class="route-stat-label">Duree</div></div>
+  <button class="route-close" onclick="clearRoute()">&times;</button>
+</div>
+
+<!-- ===== SIDEBAR ===== -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h2>&#128506; NAVIGATION</h2>
+    <button class="sidebar-close" onclick="toggleSidebar()">&times;</button>
+  </div>
+  <div class="sidebar-body">
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px">DEPART</div>
+      <input class="search-input" id="routeFrom" placeholder="Point de depart..." style="width:100%;background:var(--input);border:1px solid var(--border);border-radius:10px;padding:10px 14px">
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px">DESTINATION</div>
+      <input class="search-input" id="routeTo" placeholder="Destination..." style="width:100%;background:var(--input);border:1px solid var(--border);border-radius:10px;padding:10px 14px">
+    </div>
+    <button class="header-btn active" style="width:100%;padding:12px;font-size:15px;border-radius:12px" onclick="calcRoute()">&#128668; Calculer l'itineraire</button>
+    <button class="header-btn" style="width:100%;padding:10px;font-size:13px;border-radius:12px;margin-top:8px" onclick="useMyLocAsStart()">&#128205; Ma position = depart</button>
+    <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:16px">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">LIEUX SAUVEGARDES</div>
+      <div id="savedPlaces"></div>
+      <button class="header-btn" style="width:100%;margin-top:8px;padding:8px;border-radius:10px" onclick="saveCurrentView()">+ Sauvegarder ce lieu</button>
+    </div>
+    <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:16px">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">HISTORIQUE</div>
+      <div id="searchHistory"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== EVENT NOTIFICATION ===== -->
+<div class="event-toast" id="eventToast">
+  <div class="event-toast-header">
+    <div class="event-toast-bell">&#128276;</div>
+    <div class="event-toast-title" id="eventTitle">EVENEMENT A PROXIMITE</div>
+    <div class="event-toast-timer" id="eventTimer">5</div>
+  </div>
+  <div class="event-toast-body">
+    <div class="event-toast-place" id="eventPlace">--</div>
+    <div class="event-toast-desc" id="eventDesc">--</div>
+  </div>
+  <div class="event-toast-btns">
+    <button class="event-toast-btn yes" onclick="eventAccept()">&#128077; Interesse</button>
+    <button class="event-toast-btn no" onclick="eventDismiss()">&#10005; Ignorer</button>
+  </div>
+  <div class="event-toast-progress"><div class="event-toast-progress-bar" id="eventProgress" style="width:100%"></div></div>
+</div>
+
+<!-- ===== GPS LIVE COORDINATES — PETIT, HAUT DROIT ===== -->
+<div class="gps-live" id="gpsLive" onclick="copyGPS()">
+  <div class="gps-live-dot"></div>
+  <div class="gps-live-text" id="gpsLiveText">GPS...</div>
+  <div class="gps-live-text" id="gpsLiveRoad" style="color:var(--orange);font-weight:700"></div>
+</div>
+
+<!-- ===== SPEED HUD ===== -->
+<div class="speed-hud" id="speedHud">
+  <div class="speed-val" id="speedVal">0</div>
+  <div class="speed-unit">km/h</div>
+  <div class="speed-limit" id="speedLimit"></div>
+</div>
+
+<!-- ===== INSTALL APP PROMPT ===== -->
+<div class="install-prompt" id="installPrompt">
+  <div class="install-title">&#128242; INSTALLER TI-LEX-AL</div>
+  <div class="install-text">Installe l'app sur ton telephone pour un acces rapide et l'utiliser hors-ligne dans le bois!</div>
+  <button class="install-btn" id="installBtn" onclick="installApp()">&#11015; INSTALLER L'APPLICATION</button>
+  <button class="install-dismiss" onclick="dismissInstall()">Plus tard</button>
+</div>
+
+<!-- ===== DOWNLOAD MAP PANEL ===== -->
+<div class="download-panel" id="downloadPanel">
+  <div class="download-title">&#128229; TELECHARGER LES CARTES</div>
+
+  <div class="download-option" onclick="downloadRegion('nearby')">
+    <div class="download-option-name">&#128205; Autour de moi (50km)</div>
+    <div class="download-option-desc">Cache les tuiles dans un rayon de 50km — ideal pour le bois</div>
+    <div class="download-option-size">~150 MB</div>
+  </div>
+
+  <div class="download-option" onclick="downloadRegion('quebec')">
+    <div class="download-option-name">&#9968; Quebec complet</div>
+    <div class="download-option-desc">Tout le Quebec — routes, gravel, villes, Saguenay, Abitibi...</div>
+    <div class="download-option-size">~800 MB</div>
+  </div>
+
+  <div class="download-option" onclick="downloadRegion('ontario')">
+    <div class="download-option-name">&#127809; Ontario</div>
+    <div class="download-option-desc">Toronto, Ottawa et toute la province</div>
+    <div class="download-option-size">~600 MB</div>
+  </div>
+
+  <div class="download-option" onclick="downloadRegion('canada')">
+    <div class="download-option-name">&#127464;&#127462; Tout le Canada</div>
+    <div class="download-option-desc">Toutes les provinces et territoires</div>
+    <div class="download-option-size">~2 GB</div>
+  </div>
+
+  <div class="download-option" onclick="downloadRegion('usa')">
+    <div class="download-option-name">&#127482;&#127480; USA</div>
+    <div class="download-option-desc">Tous les etats americains</div>
+    <div class="download-option-size">~2.5 GB</div>
+  </div>
+
+  <div class="download-progress" id="dlProgress">
+    <div class="download-progress-bar" id="dlProgressBar"></div>
+  </div>
+  <div class="download-status" id="dlStatus"></div>
+
+  <button class="download-close" onclick="closeDownloadPanel()">Fermer</button>
+</div>
+
+<!-- ===== SIGNATURE ===== -->
+<div class="signature">Map IA d'Alex &bull; Alex Marceau-Prevost &bull; Quebecois de Normandin &bull; Natif de Girardville &bull; TI-LEX-AL 2026</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
+<script>
+// ============ PAYWALL — USA = $4.99/mois, CANADA = GRATUIT ============
+const STRIPE_PUBLIC_KEY = 'pk_test_REMPLACE_PAR_TA_CLE_STRIPE';
+const STRIPE_PRICE_ID = 'price_REMPLACE_PAR_TON_PRICE_ID';
+
+let userCountry = null;
+let isPremium = false;
+
+async function detectCountry(){
+  if(localStorage.getItem('tilex_pro')==='active'){isPremium=true;return}
+  try{
+    const r=await fetch('https://ipapi.co/json/');
+    const d=await r.json();
+    userCountry=d.country_code||null;
+    if(userCountry&&userCountry!=='CA'){
+      document.getElementById('paywall').classList.add('show');
+    }
+  }catch(e){
+    console.log('Country detection failed, allowing access');
+  }
+}
+detectCountry();
+
+function startCheckout(){
+  const paymentLink='https://buy.stripe.com/REMPLACE_PAR_TON_PAYMENT_LINK';
+  if(paymentLink.includes('REMPLACE')){
+    alert('Configure ta cle Stripe! Va sur stripe.com, cree un compte, et remplace les cles dans le code.');
+    return;
+  }
+  window.open(paymentLink,'_blank');
+}
+
+function bypassPaywall(){
+  document.getElementById('paywall').classList.remove('show');
+  localStorage.setItem('tilex_country','CA');
+}
+
+if(window.location.search.includes('success=true')){
+  localStorage.setItem('tilex_pro','active');
+  isPremium=true;
+  document.getElementById('paywall')?.classList.remove('show');
+}
+
+// ============ HUD TOGGLE ============
+let hudActive = false;
+const fab = document.getElementById('fab');
+const fabRipple = document.getElementById('fabRipple');
+
+function toggleHUD(){
+  hudActive = !hudActive;
+  fab.classList.toggle('active', hudActive);
+  fab.textContent = hudActive ? '+' : 'TL';
+  fabRipple.classList.remove('ping');
+  void fabRipple.offsetWidth;
+  fabRipple.classList.add('ping');
+  document.querySelectorAll('.hud').forEach(el => {
+    if(hudActive) el.classList.add('show');
+    else el.classList.remove('show');
+  });
+  const zoomCtrl = document.querySelector('.leaflet-control-zoom');
+  if(zoomCtrl){ if(hudActive) zoomCtrl.classList.add('show'); else zoomCtrl.classList.remove('show'); }
+  if(!hudActive){
+    document.getElementById('layersPanel').classList.remove('show');
+  }
+}
+
+// ============ MAP INIT ============
+const QC_CENTER = [45, -80];
+
+const tileLayers = {
+  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',{attribution:'&copy; CARTO &bull; Map IA d\'Alex 2026',maxZoom:19}),
+  streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OSM &bull; Map IA d\'Alex 2026',maxZoom:19}),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'&copy; Esri &bull; Map IA d\'Alex 2026',maxZoom:18}),
+  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenTopoMap &bull; Map IA d\'Alex 2026',maxZoom:17}),
+  cyclosm: L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',{attribution:'&copy; CyclOSM &bull; Map IA d\'Alex 2026',maxZoom:18})
+};
+
+const map = L.map('map',{center:QC_CENTER,zoom:4,zoomControl:true,layers:[tileLayers.dark]});
+
+// Labels overlay — orange TI-LEX officiel
+map.createPane('labels');
+map.getPane('labels').style.zIndex = 450;
+map.getPane('labels').style.pointerEvents = 'none';
+const labelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',{pane:'labels',maxZoom:19,attribution:''});
+labelsLayer.addTo(map);
+let labelTheme='orange';
+map.getPane('labels').classList.add('theme-orange');
+
+let currentLayer='dark',myMarker=null,myCircle=null,trackingActive=false,watchId=null;
+let routeControl=null,poiMarkers=[],myLat=null,myLng=null;
+let trailCoords=[];
+let trailLine=null;
+let trailWhiteLine=null;
+let lastSpeed=0;
+let lastSpeedLimitCheck=0;
+let currentSpeedLimit=null;
+
+// Radar GPS icon
+const iconMe=L.divIcon({
+  html:`<div class="radar-container" style="width:80px;height:80px">
+    <div class="radar-ring"></div>
+    <div class="radar-ring"></div>
+    <div class="radar-ring"></div>
+    <div class="radar-core"></div>
+  </div>`,
+  iconSize:[80,80],iconAnchor:[40,40],className:''
+});
+function poiIcon(e){return L.divIcon({html:`<div style="font-size:22px;text-shadow:0 2px 6px rgba(0,0,0,.8)">${e}</div>`,iconSize:[28,28],iconAnchor:[14,14],className:''})}
+
+// ============ OFFLINE MODE — GPS FONCTIONNE SANS INTERNET ============
+// Le GPS du telephone utilise les SATELLITES, pas internet.
+// Il continue de fonctionner meme sans reseau cellulaire.
+// On sauvegarde la position dans localStorage en permanence.
+
+let isOffline=!navigator.onLine;
+let offlinePositions=JSON.parse(localStorage.getItem('tilex_offline_pos')||'[]');
+let offlineWatchId=null;
+let lastSavedPos=null;
+
+// Detect online/offline
+window.addEventListener('online',()=>{
+  isOffline=false;
+  document.getElementById('offlineBanner').classList.remove('show');
+  document.getElementById('offlineGps').classList.remove('show');
+  // Sync saved offline positions
+  if(offlinePositions.length>0){
+    console.log('Back online! '+offlinePositions.length+' positions saved offline.');
+    // Keep positions for history
+    localStorage.setItem('tilex_offline_history',JSON.stringify(offlinePositions));
+    offlinePositions=[];
+    localStorage.removeItem('tilex_offline_pos');
+  }
+});
+
+window.addEventListener('offline',()=>{
+  isOffline=true;
+  document.getElementById('offlineBanner').classList.add('show');
+  document.getElementById('offlineGps').classList.add('show');
+  // GPS continues via satellite — start dedicated offline tracking
+  startOfflineGPS();
+  // Play alert sound
+  playNotifSound('alert');
+});
+
+// If already offline on load
+if(!navigator.onLine){
+  document.getElementById('offlineBanner').classList.add('show');
+  document.getElementById('offlineGps').classList.add('show');
+  startOfflineGPS();
+}
+
+function startOfflineGPS(){
+  if(offlineWatchId)return;// Already running
+  if(!navigator.geolocation)return;
+  offlineWatchId=navigator.geolocation.watchPosition(pos=>{
+    const lat=pos.coords.latitude;
+    const lng=pos.coords.longitude;
+    const acc=pos.coords.accuracy;
+    const alt=pos.coords.altitude;
+    const time=new Date();
+    myLat=lat;myLng=lng;
+    // Update offline display
+    document.getElementById('offlineCoords').innerHTML=
+      `${lat.toFixed(6)}<br>${lng.toFixed(6)}`;
+    document.getElementById('offlineTime').textContent=
+      'Mise a jour: '+time.toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    document.getElementById('offlineAccuracy').textContent=
+      'Precision: '+Math.round(acc)+'m'+(alt!==null?' | Alt: '+Math.round(alt)+'m':'');
+    // Update GPS live bar too
+    if(typeof updateGPSDisplay==='function')updateGPSDisplay();
+    // Update marker on map (tiles cached by browser if viewed before)
+    if(myMarker)myMarker.setLatLng([lat,lng]);
+    else if(typeof iconMe!=='undefined'){
+      myMarker=L.marker([lat,lng],{icon:iconMe}).addTo(map);
+    }
+    map.setView([lat,lng],map.getZoom());
+    // Save position to localStorage (survives app close)
+    const posData={lat,lng,acc,alt,time:time.toISOString(),speed:pos.coords.speed};
+    offlinePositions.push(posData);
+    // Keep only last 500 positions to avoid localStorage overflow
+    if(offlinePositions.length>500)offlinePositions=offlinePositions.slice(-500);
+    localStorage.setItem('tilex_offline_pos',JSON.stringify(offlinePositions));
+    lastSavedPos=posData;
+    // Continue trail if tracking
+    if(trackingActive){
+      trailCoords.push([lat,lng]);
+      if(trailLine)map.removeLayer(trailLine);
+      trailLine=L.polyline(trailCoords.slice(-20),{color:'#ff4757',weight:4,opacity:.9,lineCap:'round',dashArray:'8,6'}).addTo(map);
+      // Speed from GPS chip (works offline)
+      if(pos.coords.speed!==null&&pos.coords.speed>=0){
+        lastSpeed=Math.round(pos.coords.speed*3.6);
+        document.getElementById('speedVal').textContent=lastSpeed;
+      }
+    }
+  },err=>{
+    document.getElementById('offlineCoords').textContent='GPS indisponible';
+    console.warn('Offline GPS error:',err.message);
+  },{enableHighAccuracy:true,maximumAge:2000,timeout:30000});
+}
+
+// Stop offline GPS when back online
+function stopOfflineGPS(){
+  if(offlineWatchId){navigator.geolocation.clearWatch(offlineWatchId);offlineWatchId=null}
+}
+
+function copyOfflineGPS(){
+  if(!myLat){alert('Position pas encore disponible');return}
+  const text=`POSITION GPS (HORS RESEAU)\nLat: ${myLat.toFixed(6)}\nLng: ${myLng.toFixed(6)}\nHeure: ${new Date().toLocaleString('fr-CA')}\nGoogle Maps: https://www.google.com/maps?q=${myLat},${myLng}`;
+  navigator.clipboard?.writeText(text).then(()=>{
+    document.getElementById('offlineCoords').innerHTML='COPIE!';
+    setTimeout(()=>{
+      if(myLat)document.getElementById('offlineCoords').innerHTML=`${myLat.toFixed(6)}<br>${myLng.toFixed(6)}`;
+    },2000);
+  }).catch(()=>{
+    // Clipboard might not work offline in some browsers, show alert instead
+    alert('Ta position:\n'+myLat.toFixed(6)+', '+myLng.toFixed(6)+'\nNote-la sur papier!');
+  });
+}
+
+// ============ PWA — SERVICE WORKER + INSTALL + DOWNLOAD CARTES ============
+let deferredPrompt=null;
+let swRegistration=null;
+
+// Register Service Worker
+if('serviceWorker' in navigator){
+  window.addEventListener('load',async()=>{
+    try{
+      swRegistration=await navigator.serviceWorker.register('/sw.js');
+      console.log('[APP] Service Worker enregistre!');
+      // Listen for tile download progress from SW
+      navigator.serviceWorker.addEventListener('message',evt=>{
+        if(evt.data.type==='TILE_PROGRESS'){
+          updateDownloadProgress(evt.data.done,evt.data.total);
+        }
+      });
+      // Auto-prefetch nearby tiles when online
+      if(navigator.onLine&&myLat){
+        prefetchNearbyTiles(myLat,myLng,map.getZoom());
+      }
+    }catch(err){
+      console.warn('[APP] SW registration echouee:',err);
+    }
+  });
+}
+
+// Intercept install prompt
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  deferredPrompt=e;
+  // Show install prompt after 8 seconds if not already installed/dismissed
+  const lastDismiss=localStorage.getItem('tilex_install_dismiss');
+  const dayAgo=Date.now()-86400000;
+  if(!localStorage.getItem('tilex_installed')&&(!lastDismiss||parseInt(lastDismiss)<dayAgo)){
+    setTimeout(()=>{
+      if(deferredPrompt){
+        document.getElementById('installPrompt').classList.add('show');
+      }
+    },8000);
+  }
+});
+
+window.addEventListener('appinstalled',()=>{
+  localStorage.setItem('tilex_installed','true');
+  document.getElementById('installPrompt').classList.remove('show');
+  deferredPrompt=null;
+  console.log('[APP] TI-LEX-AL installe!');
+});
+
+function installApp(){
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(choice=>{
+      if(choice.outcome==='accepted'){
+        console.log('[APP] User a accepte l\'installation');
+      }
+      deferredPrompt=null;
+      document.getElementById('installPrompt').classList.remove('show');
+    });
+  }else{
+    alert('Pour installer: utilise le menu de ton navigateur > "Ajouter a l\'ecran d\'accueil"');
+  }
+}
+
+function dismissInstall(){
+  document.getElementById('installPrompt').classList.remove('show');
+  localStorage.setItem('tilex_install_dismiss',Date.now().toString());
+}
+
+// ============ MAP DOWNLOAD — REGIONS HORS-LIGNE ============
+const REGIONS={
+  nearby:{
+    name:'Autour de moi (50km)',
+    bounds:null,
+    zooms:[8,9,10,11,12,13,14]
+  },
+  quebec:{
+    name:'Quebec',
+    bounds:{latMin:44.9,latMax:62.5,lngMin:-80.0,lngMax:-56.9},
+    zooms:[5,6,7,8,9,10,11,12]
+  },
+  ontario:{
+    name:'Ontario',
+    bounds:{latMin:41.7,latMax:56.8,lngMin:-95.2,lngMax:-74.3},
+    zooms:[5,6,7,8,9,10,11,12]
+  },
+  canada:{
+    name:'Canada',
+    bounds:{latMin:41.7,latMax:83.1,lngMin:-141.0,lngMax:-52.6},
+    zooms:[3,4,5,6,7,8,9,10]
+  },
+  usa:{
+    name:'USA',
+    bounds:{latMin:24.4,latMax:49.4,lngMin:-125.0,lngMax:-66.9},
+    zooms:[3,4,5,6,7,8,9,10]
+  }
+};
+
+let isDownloading=false;
+
+function showDownloadPanel(){
+  document.getElementById('downloadPanel').classList.add('show');
+}
+function closeDownloadPanel(){
+  document.getElementById('downloadPanel').classList.remove('show');
+}
+
+function downloadRegion(regionKey){
+  if(isDownloading){
+    alert('Un telechargement est deja en cours...');
+    return;
+  }
+  if(!navigator.serviceWorker||!navigator.serviceWorker.controller){
+    alert('Service Worker pas encore pret. Recharge la page et reessaye.');
+    return;
+  }
+  const region=REGIONS[regionKey];
+  let bounds=region.bounds;
+
+  // For "nearby", dynamic bounds from current position
+  if(regionKey==='nearby'){
+    if(!myLat){alert('Position GPS pas encore detectee.');return;}
+    const deg50=0.45;// ~50km
+    const lngOff=deg50/Math.cos(myLat*Math.PI/180);
+    bounds={latMin:myLat-deg50,latMax:myLat+deg50,lngMin:myLng-lngOff,lngMax:myLng+lngOff};
+  }
+
+  isDownloading=true;
+  const dlProgress=document.getElementById('dlProgress');
+  const dlStatus=document.getElementById('dlStatus');
+  const dlBar=document.getElementById('dlProgressBar');
+
+  dlProgress.classList.add('show');
+  dlStatus.classList.add('show');
+  dlBar.style.width='0%';
+  dlStatus.textContent='Preparation des tuiles '+region.name+'...';
+
+  // Generate tile URLs — 2 layers (base dark + labels)
+  const servers=[
+    'https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+    'https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png'
+  ];
+  const urls=[];
+  region.zooms.forEach(z=>{
+    const n=Math.pow(2,z);
+    const xMin=Math.max(0,Math.floor((bounds.lngMin+180)/360*n));
+    const xMax=Math.min(n-1,Math.floor((bounds.lngMax+180)/360*n));
+    const yA=(1-Math.log(Math.tan(bounds.latMax*Math.PI/180)+1/Math.cos(bounds.latMax*Math.PI/180))/Math.PI)/2*n;
+    const yB=(1-Math.log(Math.tan(bounds.latMin*Math.PI/180)+1/Math.cos(bounds.latMin*Math.PI/180))/Math.PI)/2*n;
+    const yMin=Math.max(0,Math.floor(Math.min(yA,yB)));
+    const yMax=Math.min(n-1,Math.floor(Math.max(yA,yB)));
+    for(let x=xMin;x<=xMax;x++){
+      for(let y=yMin;y<=yMax;y++){
+        servers.forEach(s=>{
+          urls.push(s.replace('{z}',z).replace('{x}',x).replace('{y}',y));
+        });
+      }
+    }
+  });
+
+  dlStatus.textContent=urls.length+' tuiles a telecharger pour '+region.name+'...';
+
+  // Send to Service Worker in batches to avoid flooding
+  const BATCH=100;
+  let sent=0;
+  function sendBatch(){
+    if(sent>=urls.length)return;
+    const batch=urls.slice(sent,sent+BATCH);
+    sent+=batch.length;
+    navigator.serviceWorker.controller.postMessage({type:'CACHE_TILES',urls:batch});
+    if(sent<urls.length)setTimeout(sendBatch,300);
+  }
+  sendBatch();
+}
+
+function updateDownloadProgress(done,total){
+  const pct=Math.round(done/total*100);
+  document.getElementById('dlProgressBar').style.width=pct+'%';
+  document.getElementById('dlStatus').textContent=done+' / '+total+' tuiles ('+pct+'%)';
+  if(done>=total){
+    document.getElementById('dlStatus').textContent='Termine! '+total+' tuiles en cache hors-ligne.';
+    isDownloading=false;
+    setTimeout(()=>{document.getElementById('dlProgress').classList.remove('show')},5000);
+  }
+}
+
+// Prefetch tiles around current position automatically
+function prefetchNearbyTiles(lat,lng,zoom){
+  const tileUrl='https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png';
+  const labelUrl='https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png';
+  const prefetchUrls=[];
+  [zoom,Math.max(zoom-1,1)].forEach(z=>{
+    const nz=Math.pow(2,z);
+    const tx=Math.floor((lng+180)/360*nz);
+    const ty=Math.floor((1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*nz);
+    for(let dx=-2;dx<=2;dx++){
+      for(let dy=-2;dy<=2;dy++){
+        const x=tx+dx,y=ty+dy;
+        if(x>=0&&x<nz&&y>=0&&y<nz){
+          prefetchUrls.push(tileUrl.replace('{z}',z).replace('{x}',x).replace('{y}',y));
+          prefetchUrls.push(labelUrl.replace('{z}',z).replace('{x}',x).replace('{y}',y));
+        }
+      }
+    }
+  });
+  // If SW is active, use it for caching; otherwise use Image preload
+  if(navigator.serviceWorker&&navigator.serviceWorker.controller){
+    navigator.serviceWorker.controller.postMessage({type:'CACHE_TILES',urls:prefetchUrls});
+  }else{
+    prefetchUrls.forEach(u=>{const img=new Image();img.src=u;});
+  }
+}
+
+// Auto-prefetch every 2km of movement
+let lastPrefetchLat=null,lastPrefetchLng=null;
+function maybePrefetch(){
+  if(!navigator.onLine||!myLat)return;
+  if(lastPrefetchLat===null||map.distance([lastPrefetchLat,lastPrefetchLng],[myLat,myLng])>2000){
+    lastPrefetchLat=myLat;lastPrefetchLng=myLng;
+    prefetchNearbyTiles(myLat,myLng,map.getZoom());
+  }
+}
+
+// ============ GEOLOCATION — LIVE GPS TOUJOURS ACTIF ============
+const gpsLiveEl=document.getElementById('gpsLive');
+const gpsLiveText=document.getElementById('gpsLiveText');
+const gpsLiveRoad=document.getElementById('gpsLiveRoad');
+
+// Reverse-geocode for road name display
+let lastRoadLat=null,lastRoadLng=null;
+let roadLookupTimer=null;
+function updateRoadName(){
+  if(!myLat||!navigator.onLine)return;
+  // Only lookup every 500m of movement
+  if(lastRoadLat!==null&&map.distance([lastRoadLat,lastRoadLng],[myLat,myLng])<500)return;
+  lastRoadLat=myLat;lastRoadLng=myLng;
+  clearTimeout(roadLookupTimer);
+  roadLookupTimer=setTimeout(()=>{
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myLat}&lon=${myLng}&zoom=18&addressdetails=1`,{headers:{'Accept-Language':'fr'}})
+    .then(r=>r.json())
+    .then(d=>{
+      const a=d.address||{};
+      const road=a.road||a.pedestrian||a.path||a.track||'';
+      const ref=d.name&&d.name!==road?d.name:'';
+      if(road){
+        gpsLiveRoad.textContent=road;
+      }else{
+        gpsLiveRoad.textContent='';
+      }
+    }).catch(()=>{});
+  },1000);
+}
+
+function updateGPSDisplay(){
+  if(myLat!==null&&myLng!==null){
+    gpsLiveText.textContent=`${myLat.toFixed(5)}, ${myLng.toFixed(5)}`;
+    gpsLiveEl.classList.add('show');
+    updateRoadName();
+  }
+}
+
+// Auto-locate on app start — position is critical for safety
+(function autoLocate(){
+  if(!navigator.geolocation)return;
+  navigator.geolocation.getCurrentPosition(pos=>{
+    myLat=pos.coords.latitude;myLng=pos.coords.longitude;
+    updateGPSDisplay();
+  },()=>{},{enableHighAccuracy:true,timeout:10000});
+})();
+
+function locateMe(){
+  if(!navigator.geolocation){alert("Geolocalisation non supportee");return}
+  gpsLiveText.textContent='Localisation...';gpsLiveEl.classList.add('show');
+  navigator.geolocation.getCurrentPosition(pos=>{
+    myLat=pos.coords.latitude;myLng=pos.coords.longitude;const acc=pos.coords.accuracy;
+    if(myMarker)map.removeLayer(myMarker);if(myCircle)map.removeLayer(myCircle);
+    myMarker=L.marker([myLat,myLng],{icon:iconMe}).addTo(map).bindPopup(`<b>Ma position</b><br>Precision: ${Math.round(acc)}m`);
+    myCircle=L.circle([myLat,myLng],{radius:acc,color:'#ff6a00',fillColor:'#ff6a00',fillOpacity:.1,weight:1}).addTo(map);
+    map.setView([myLat,myLng],14);
+    updateGPSDisplay();
+    addHistory(`Ma position (${myLat.toFixed(3)}, ${myLng.toFixed(3)})`);
+  },err=>{
+    gpsLiveText.textContent='Erreur GPS';
+    alert("Position impossible: "+err.message);
+  },{enableHighAccuracy:true,timeout:15000});
+}
+
+// GPS SHARE — critical for emergencies
+function shareGPS(){
+  if(!myLat||!myLng){alert('GPS pas encore actif. Appuie sur le bouton localisation.');locateMe();return}
+  const url=`https://www.google.com/maps?q=${myLat},${myLng}`;
+  const text=`URGENCE — Ma position GPS: ${myLat.toFixed(6)}, ${myLng.toFixed(6)} — ${url}`;
+  // Try native share (mobile)
+  if(navigator.share){
+    navigator.share({title:'Position GPS urgence',text:text,url:url}).catch(()=>{});
+  } else {
+    // Fallback: copy to clipboard
+    navigator.clipboard?.writeText(text).then(()=>{
+      alert('Position copiee! Colle-la dans un SMS ou message.');
+    }).catch(()=>{
+      prompt('Copie cette position:',text);
+    });
+  }
+}
+
+function copyGPS(){
+  if(!myLat||!myLng)return;
+  const text=`${myLat.toFixed(6)}, ${myLng.toFixed(6)}`;
+  navigator.clipboard?.writeText(text).then(()=>{
+    gpsLiveText.textContent='Copie!';
+    setTimeout(updateGPSDisplay,1500);
+  }).catch(()=>{});
+}
+
+function toggleTracking(){
+  const btn=document.getElementById('btnTrack');
+  if(trackingActive){
+    if(watchId)navigator.geolocation.clearWatch(watchId);
+    trackingActive=false;btn.classList.remove('active');
+    document.getElementById('speedHud').classList.remove('show');
+    return;
+  }
+  trackingActive=true;btn.classList.add('active');
+  document.getElementById('speedHud').classList.add('show');
+  gpsLiveEl.classList.add('show');
+  trailCoords=[];
+  watchId=navigator.geolocation.watchPosition(pos=>{
+    const prevLat=myLat,prevLng=myLng;
+    myLat=pos.coords.latitude;myLng=pos.coords.longitude;
+    updateGPSDisplay();
+    if(myMarker)myMarker.setLatLng([myLat,myLng]);
+    else myMarker=L.marker([myLat,myLng],{icon:iconMe}).addTo(map);
+    if(myCircle)myCircle.setLatLng([myLat,myLng]).setRadius(pos.coords.accuracy);
+    map.setView([myLat,myLng],map.getZoom());
+    // === SPEED ===
+    let speed=pos.coords.speed;
+    if(speed!==null&&speed>=0){
+      lastSpeed=Math.round(speed*3.6);
+    } else if(prevLat!==null){
+      const d=map.distance([prevLat,prevLng],[myLat,myLng]);
+      lastSpeed=Math.round(d*3.6);
+    }
+    document.getElementById('speedVal').textContent=lastSpeed;
+    const sv=document.getElementById('speedVal');
+    if(lastSpeed>90)sv.style.color='#ff4757';
+    else if(lastSpeed>50)sv.style.color='#ff9000';
+    else sv.style.color='#2ed573';
+    // === SPEED LIMIT + EVENTS + TRAFFIC (every 8s) ===
+    const now=Date.now();
+    if(now-lastSpeedLimitCheck>8000){
+      lastSpeedLimitCheck=now;
+      fetchSpeedLimit(myLat,myLng);
+      checkNearbyEvents(myLat,myLng);
+      checkTraffic(myLat,myLng,lastSpeed);
+      maybePrefetch();// Cache tiles for offline
+    }
+    // === TRAIL ===
+    trailCoords.push([myLat,myLng]);
+    if(trailCoords.length>1){
+      if(trailLine)map.removeLayer(trailLine);
+      if(trailWhiteLine)map.removeLayer(trailWhiteLine);
+      if(trailCoords.length>3){
+        const oldPart=trailCoords.slice(0,Math.max(1,trailCoords.length-3));
+        trailWhiteLine=L.polyline(oldPart,{color:'rgba(255,255,255,.5)',weight:6,opacity:.4,lineCap:'round',lineJoin:'round'}).addTo(map);
+      }
+      trailLine=L.polyline(trailCoords.slice(-10),{color:'#a8ff00',weight:4,opacity:.9,lineCap:'round',lineJoin:'round'}).addTo(map);
+    }
+  },()=>{},{enableHighAccuracy:true,maximumAge:1000});
+}
+
+// === SPEED LIMIT FETCH ===
+async function fetchSpeedLimit(lat,lng){
+  try{
+    const q=`[out:json][timeout:5];way(around:10,${lat},${lng})["maxspeed"];out tags 1;`;
+    const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q)});
+    const data=await res.json();
+    const el=document.getElementById('speedLimit');
+    if(data.elements&&data.elements.length>0){
+      const ms=data.elements[0].tags?.maxspeed||'';
+      currentSpeedLimit=parseInt(ms)||null;
+      if(currentSpeedLimit){
+        el.textContent='MAX '+currentSpeedLimit;
+        el.style.color=lastSpeed>currentSpeedLimit?'#ff4757':'#8a7a60';
+      } else {
+        el.textContent=ms||'';
+      }
+    } else {
+      el.textContent='';
+      currentSpeedLimit=null;
+    }
+  }catch(e){/* silent */}
+}
+
+// ============ EVENT NOTIFICATION SYSTEM ============
+let eventActive=false;
+let eventCountdown=null;
+let lastEventCheck=0;
+let dismissedEvents=new Set();
+let lastVillageName='';
+
+async function checkNearbyEvents(lat,lng){
+  const now=Date.now();
+  if(now-lastEventCheck<15000||eventActive)return;
+  lastEventCheck=now;
+  try{
+    const revRes=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14`);
+    const revData=await revRes.json();
+    const village=revData.address?.village||revData.address?.town||revData.address?.city||revData.address?.hamlet||'';
+    if(village&&village!==lastVillageName){
+      lastVillageName=village;
+    }
+    const bbox=`${lat-0.008},${lng-0.012},${lat+0.008},${lng+0.012}`;
+    const q=`[out:json][timeout:8];(
+      node["amenity"~"bar|pub|restaurant|cafe|nightclub|community_centre|theatre|cinema|arts_centre"](${bbox});
+      node["tourism"~"attraction|museum|gallery|viewpoint|information"](${bbox});
+      node["leisure"~"park|sports_centre|swimming_pool|ice_rink|bowling_alley|stadium"](${bbox});
+    );out body 15;`;
+    const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q)});
+    const data=await res.json();
+    if(!data.elements)return;
+    const interesting=data.elements.filter(e=>e.tags?.name&&!dismissedEvents.has(e.tags.name));
+    if(interesting.length>0){
+      const pick=interesting[Math.floor(Math.random()*interesting.length)];
+      const t=pick.tags;
+      const name=t.name;
+      const type=t.amenity||t.tourism||t.leisure||'lieu';
+      let desc='';
+      const typeLabels={bar:'Bar',pub:'Pub',restaurant:'Restaurant',cafe:'Cafe',nightclub:'Club',community_centre:'Centre communautaire',theatre:'Theatre',cinema:'Cinema',arts_centre:'Centre d\'arts',attraction:'Attraction',museum:'Musee',gallery:'Galerie',viewpoint:'Point de vue',park:'Parc',sports_centre:'Centre sportif',swimming_pool:'Piscine',ice_rink:'Arena',bowling_alley:'Bowling',stadium:'Stade',information:'Info tourisme'};
+      desc=typeLabels[type]||type;
+      if(t.cuisine)desc+=' &bull; '+t.cuisine;
+      if(t.opening_hours)desc+=' &bull; '+t.opening_hours;
+      if(t.phone)desc+=' &bull; &#128222; '+t.phone;
+      const villeStr=village?` a ${village}`:'';
+      showEventToast(name,desc+villeStr,pick.lat,pick.lon);
+    }
+  }catch(e){/* silent */}
+}
+
+function showEventToast(name,desc,lat,lon){
+  eventActive=true;
+  document.getElementById('eventPlace').textContent=name;
+  document.getElementById('eventDesc').innerHTML=desc;
+  document.getElementById('eventTimer').textContent='5';
+  document.getElementById('eventProgress').style.width='100%';
+  document.getElementById('eventToast').classList.add('show');
+  // 3 DING DING DING
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const notes=[1200,1400,1600];
+    notes.forEach((freq,i)=>{
+      const t=ctx.currentTime+i*0.25;
+      const osc=ctx.createOscillator();const gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.frequency.value=freq;osc.type='sine';
+      gain.gain.setValueAtTime(0.3,t);
+      gain.gain.exponentialRampToValueAtTime(0.01,t+0.4);
+      osc.start(t);osc.stop(t+0.4);
+      const osc2=ctx.createOscillator();const gain2=ctx.createGain();
+      osc2.connect(gain2);gain2.connect(ctx.destination);
+      osc2.frequency.value=freq*2.5;osc2.type='sine';
+      gain2.gain.setValueAtTime(0.1,t);
+      gain2.gain.exponentialRampToValueAtTime(0.001,t+0.2);
+      osc2.start(t);osc2.stop(t+0.2);
+    });
+  }catch(e){}
+  window._eventLat=lat;window._eventLon=lon;window._eventName=name;
+  let remaining=50;
+  clearInterval(eventCountdown);
+  eventCountdown=setInterval(()=>{
+    remaining--;
+    document.getElementById('eventProgress').style.width=(remaining/50*100)+'%';
+    document.getElementById('eventTimer').textContent=Math.ceil(remaining/10);
+    if(remaining<=0){
+      eventDismiss();
+    }
+  },100);
+}
+
+function eventAccept(){
+  clearInterval(eventCountdown);
+  document.getElementById('eventToast').classList.remove('show');
+  eventActive=false;
+  if(window._eventLat&&myLat){
+    routeTo(window._eventLat,window._eventLon,window._eventName);
+  }
+}
+
+function eventDismiss(){
+  clearInterval(eventCountdown);
+  document.getElementById('eventToast').classList.remove('show');
+  eventActive=false;
+  if(window._eventName)dismissedEvents.add(window._eventName);
+}
+
+// ============ SEARCH ============
+let searchTimeout;
+let searchController=null;
+const searchInput=document.getElementById('searchInput');
+const searchResults=document.getElementById('searchResults');
+searchInput.addEventListener('input',()=>{clearTimeout(searchTimeout);searchTimeout=setTimeout(doSearch,400)});
+searchInput.addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(searchTimeout);doSearch()}});
+
+async function doSearch(){
+  const q=searchInput.value.trim();
+  if(q.length<2){searchResults.classList.remove('show');return}
+  // Cancel previous search
+  if(searchController){searchController.abort();searchController=null}
+  const ctrl=new AbortController();searchController=ctrl;
+  try{
+    const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=8&addressdetails=1&countrycodes=ca,us`,{signal:ctrl.signal});
+    if(ctrl.signal.aborted)return;
+    const data=await res.json();
+    if(!data.length){searchResults.innerHTML='<div class="sr-item"><div class="sr-item-name">Aucun resultat</div></div>';searchResults.classList.add('show');return}
+    searchResults.innerHTML=data.map((d,i)=>`<div class="sr-item" onclick="selectResult(${i})"><div class="sr-item-name">${d.display_name.split(',').slice(0,2).join(', ')}</div><div class="sr-item-addr">${d.display_name}</div></div>`).join('');
+    searchResults.classList.add('show');window._searchData=data;
+  }catch(e){
+    if(e.name==='AbortError')return;
+    console.warn('Search error:',e);
+  }
+  searchController=null;
+}
+
+function selectResult(i){
+  const d=window._searchData[i];const lat=parseFloat(d.lat),lng=parseFloat(d.lon);
+  map.setView([lat,lng],15);
+  L.marker([lat,lng]).addTo(map).bindPopup(`<b>${d.display_name.split(',')[0]}</b><br><span style="color:#bba88a;font-size:12px">${d.display_name}</span>`).openPopup();
+  searchResults.classList.remove('show');searchInput.value=d.display_name.split(',')[0];
+  addHistory(d.display_name.split(',').slice(0,2).join(', '));
+}
+
+// ============ POI SYSTEM ============
+const POI_DB = {
+  restaurant:   {q:'node["amenity"="restaurant"]',e:'&#127860;',label:'Restaurant'},
+  fast_food:    {q:'node["amenity"="fast_food"]',e:'&#127828;',label:'Fast-Food'},
+  cafe:         {q:'node["amenity"="cafe"]',e:'&#9749;',label:'Cafe'},
+  bar:          {q:'node["amenity"="bar"]',e:'&#127866;',label:'Bar'},
+  pub:          {q:'node["amenity"="pub"]',e:'&#127867;',label:'Pub'},
+  depanneur:    {q:'node["shop"="convenience"]',e:'&#127974;',label:'Depanneur'},
+  fuel:         {q:'node["amenity"="fuel"]',e:'&#9981;',label:'Station-service'},
+  hotel:        {q:'node["tourism"="hotel"]',e:'&#127976;',label:'Hotel'},
+  motel:        {q:'node["tourism"="motel"]',e:'&#128716;',label:'Motel'},
+  hospital:     {q:'node["amenity"="hospital"]',e:'&#127973;',label:'Hopital'},
+  pharmacy:     {q:'node["amenity"="pharmacy"]',e:'&#128138;',label:'Pharmacie'},
+  supermarket:  {q:'node["shop"~"supermarket|grocery"]',e:'&#128722;',label:'Epicerie'},
+  saq:          {q:'node["shop"~"alcohol|wine|beverages"]',e:'&#127863;',label:'SAQ/Alcool'},
+  bank:         {q:'node["amenity"="bank"]',e:'&#127974;',label:'Banque'},
+  atm:          {q:'node["amenity"="atm"]',e:'&#128179;',label:'Guichet'},
+  gym:          {q:'node["leisure"="fitness_centre"]',e:'&#127947;',label:'Gym'},
+  car_repair:   {q:'node["shop"~"car_repair|car_parts|tyres"]',e:'&#128295;',label:'Garage'}
+};
+
+function showLoading(text){document.getElementById('loadText').textContent=text;document.getElementById('loadOverlay').classList.add('show')}
+function hideLoading(){document.getElementById('loadOverlay').classList.remove('show')}
+function showCount(n){const el=document.getElementById('poiCount');el.textContent=n+' lieux';el.classList.add('show')}
+function hideCount(){document.getElementById('poiCount').classList.remove('show')}
+
+// Smart fetch abort to prevent stacking
+let activePOIController=null;
+
+async function searchPOI(el,type){
+  if(activePOIController){activePOIController.abort();activePOIController=null}
+  const ctrl=new AbortController();activePOIController=ctrl;
+  document.querySelectorAll('.poi-chip:not([data-poi="gravel"])').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');clearPOI();hideCount();
+  const poi=POI_DB[type];if(!poi){hideLoading();return}
+  if(map.getZoom()<11){alert('Zoome au niveau 11+ pour chercher!');return}
+  const b=map.getBounds(),bbox=`${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+  showLoading('Recherche '+poi.label+'...');
+  try{
+    const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(`[out:json][timeout:15];(${poi.q}(${bbox}););out body 200;`),signal:ctrl.signal});
+    if(ctrl.signal.aborted)return;
+    const data=await res.json();
+    if(!data.elements){hideLoading();return}
+    data.elements.forEach(item=>{
+      if(!item.lat||!item.lon)return;
+      const n=item.tags?.name||poi.label;
+      const safeName=n.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      const addr=[item.tags?.['addr:housenumber'],item.tags?.['addr:street'],item.tags?.['addr:city']].filter(Boolean).join(', ');
+      const phone=item.tags?.phone||item.tags?.['contact:phone']||'';
+      const web=item.tags?.website||item.tags?.['contact:website']||'';
+      const hours=item.tags?.opening_hours||'';
+      const cuisine=item.tags?.cuisine||'';
+      let popup=`<b>${n}</b>`;
+      if(addr)popup+=`<br><span style="color:#bba88a;font-size:12px">${addr}</span>`;
+      if(cuisine)popup+=`<br><span style="color:#ff9000;font-size:11px">${cuisine}</span>`;
+      if(phone)popup+=`<br><span style="font-size:11px">&#128222; ${phone}</span>`;
+      if(hours)popup+=`<br><span style="color:#8a7a60;font-size:10px">&#128336; ${hours}</span>`;
+      if(web)popup+=`<br><a href="${web}" target="_blank" style="color:#ff6a00;font-size:11px">&#127760; Site web</a>`;
+      popup+=`<br><button onclick="routeTo(${item.lat},${item.lon},'${safeName}')" style="margin-top:6px;background:#ff6a00;color:#000;border:none;padding:4px 12px;border-radius:8px;cursor:pointer;font-family:Rajdhani;font-weight:600">&#128668; Y aller</button>`;
+      const m=L.marker([item.lat,item.lon],{icon:poiIcon(poi.e)}).addTo(map).bindPopup(popup);
+      poiMarkers.push(m);
+    });
+    hideLoading();
+    if(data.elements.length)showCount(data.elements.length);
+    else{hideLoading();alert('Aucun resultat ici. Deplace la carte ou zoome au niveau 12+.')}
+  }catch(e){
+    hideLoading();
+    if(e.name==='AbortError')return;
+    console.warn('POI search error:',e);
+  }
+  activePOIController=null;
+}
+
+function clearPOI(){poiMarkers.forEach(m=>map.removeLayer(m));poiMarkers=[];hideCount()}
+
+// ============ FRIENDS SYSTEM — PARTAGE DE POSITION ============
+let sharingPosition=false;
+let friendsPanelOpen=false;
+let friendsList=JSON.parse(localStorage.getItem('tilex_friends')||'[]');
+let myUserId=localStorage.getItem('tilex_userid');
+if(!myUserId){myUserId='user_'+Math.random().toString(36).substr(2,9);localStorage.setItem('tilex_userid',myUserId)}
+let friendCheckInterval=null;
+let friendNotifShown=false;
+
+function toggleFriendsPanel(){
+  friendsPanelOpen=!friendsPanelOpen;
+  document.getElementById('friendsPanel').classList.toggle('show',friendsPanelOpen);
+  if(friendsPanelOpen)renderFriendsList();
+}
+
+function toggleSharePosition(){
+  sharingPosition=!sharingPosition;
+  const btn=document.getElementById('shareToggle');
+  btn.classList.toggle('on',sharingPosition);
+  localStorage.setItem('tilex_sharing',sharingPosition?'on':'off');
+  if(sharingPosition){
+    // Start checking for nearby friends every 30s
+    if(!friendCheckInterval){
+      friendCheckInterval=setInterval(checkNearbyFriends,30000);
+      checkNearbyFriends();// Check immediately
+    }
+  } else {
+    if(friendCheckInterval){clearInterval(friendCheckInterval);friendCheckInterval=null}
+  }
+}
+
+// Init sharing state
+if(localStorage.getItem('tilex_sharing')==='on'){
+  sharingPosition=true;
+  document.getElementById('shareToggle').classList.add('on');
+  friendCheckInterval=setInterval(checkNearbyFriends,30000);
+}
+
+function addFriend(){
+  const input=document.getElementById('friendNameInput');
+  const name=input.value.trim();
+  if(!name){alert('Entre le nom de ton ami!');return}
+  const friend={
+    id:'friend_'+Math.random().toString(36).substr(2,9),
+    name:name,
+    addedAt:new Date().toISOString(),
+    online:false,
+    sharing:false,
+    lat:null,lng:null,
+    lastSeen:null,
+    notified:false
+  };
+  friendsList.push(friend);
+  saveFriends();
+  input.value='';
+  renderFriendsList();
+  playNotifSound('pop');
+}
+
+function removeFriend(id){
+  friendsList=friendsList.filter(f=>f.id!==id);
+  saveFriends();
+  renderFriendsList();
+}
+
+function saveFriends(){localStorage.setItem('tilex_friends',JSON.stringify(friendsList))}
+
+function renderFriendsList(){
+  const el=document.getElementById('friendsList');
+  const noEl=document.getElementById('noFriends');
+  if(!friendsList.length){el.innerHTML='';noEl.style.display='block';return}
+  noEl.style.display='none';
+  // Update badge
+  const nearby=friendsList.filter(f=>f.nearby).length;
+  const badge=document.getElementById('friendsBadge');
+  if(nearby>0){badge.textContent=nearby;badge.classList.add('show')}else{badge.classList.remove('show')}
+
+  el.innerHTML=friendsList.map(f=>{
+    const statusClass=f.nearby?'nearby':f.online?'online':'offline';
+    const statusText=f.nearby?'A proximite!':f.online?'En ligne':f.lastSeen?'Vu '+new Date(f.lastSeen).toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}):'Jamais connecte';
+    return `<div class="friend-card">
+      <div class="friend-avatar">&#128100;</div>
+      <div class="friend-info">
+        <div class="friend-name">${f.name}</div>
+        <div class="friend-status"><div class="friend-status-dot ${statusClass}"></div>${statusText}</div>
+      </div>
+      <button class="friend-action" onclick="removeFriend('${f.id}')">&#128465;</button>
+    </div>`;
+  }).join('');
+}
+
+function shareInviteLink(){
+  const link=`https://ti-lex-al.vercel.app?invite=${myUserId}`;
+  const text=`Salut! Ajoute-moi sur Alex IA GPS pour qu'on partage nos positions! ${link}`;
+  if(navigator.share){
+    navigator.share({title:'Invitation Alex IA GPS',text:text,url:link}).catch(()=>{});
+  } else {
+    navigator.clipboard?.writeText(text).then(()=>{
+      alert('Lien d\'invitation copie! Envoie-le a tes amis.');
+    }).catch(()=>{prompt('Copie ce lien:',text)});
+  }
+}
+
+// Check if a friend is within 15km
+function checkNearbyFriends(){
+  if(!myLat||!sharingPosition||!friendsList.length)return;
+  // Simulate friends nearby for demo (in production, this would check a real-time database)
+  // For now: randomly make a friend "appear" nearby to test the notification
+  friendsList.forEach(f=>{
+    // In real version: fetch friend's position from server
+    // Demo: simulate occasional nearby friend
+    if(!f.lat&&Math.random()<0.03){// 3% chance each check
+      // Place friend within 5-15km
+      const dist=(5+Math.random()*10)/111;// approx degrees
+      f.lat=myLat+((Math.random()-.5)*2*dist);
+      f.lng=myLng+((Math.random()-.5)*2*dist);
+      f.online=true;f.sharing=true;f.lastSeen=new Date().toISOString();
+    }
+    if(f.lat&&myLat){
+      const d=haversineKm(myLat,myLng,f.lat,f.lng);
+      f.nearby=d<=15;
+      f.distKm=d;
+      if(f.nearby&&!f.notified&&!friendNotifShown){
+        f.notified=true;
+        showFriendNotification(f);
+      }
+    }
+  });
+  saveFriends();
+  if(friendsPanelOpen)renderFriendsList();
+}
+
+function haversineKm(lat1,lon1,lat2,lon2){
+  const R=6371;
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function showFriendNotification(friend){
+  friendNotifShown=true;
+  document.getElementById('friendNotifName').textContent=friend.name;
+  document.getElementById('friendNotifDist').textContent='~'+Math.round(friend.distKm)+' km';
+  document.getElementById('friendNotif').classList.add('show');
+  window._notifFriend=friend;
+  // Play notification sound
+  const soundType=document.getElementById('notifSound').value;
+  playNotifSound(soundType);
+  // Auto dismiss after 20s
+  setTimeout(()=>{if(friendNotifShown)dismissFriendNotif()},20000);
+}
+
+function messageFriend(){
+  dismissFriendNotif();
+  const f=window._notifFriend;
+  if(!f)return;
+  // Open SMS/message with a friendly text
+  const text=encodeURIComponent(`Salut ${f.name}! Je vois que tu passes dans le coin. Ca fait longtemps! On se voit? - Envoye via Alex IA GPS`);
+  // Try SMS first (mobile)
+  window.open(`sms:?body=${text}`,'_blank');
+}
+
+function dismissFriendNotif(){
+  friendNotifShown=false;
+  document.getElementById('friendNotif').classList.remove('show');
+}
+
+// ============ NOTIFICATION SOUNDS — SAMSUNG 2026 STYLE ============
+function playNotifSound(type){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const now=ctx.currentTime;
+    switch(type){
+      case 'gentle':
+        // Soft ascending tones
+        [523,659,784].forEach((f,i)=>{
+          const t=now+i*0.15;
+          const o=ctx.createOscillator();const g=ctx.createGain();
+          o.connect(g);g.connect(ctx.destination);
+          o.frequency.value=f;o.type='sine';
+          g.gain.setValueAtTime(0.2,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.3);
+          o.start(t);o.stop(t+0.3);
+        });
+        break;
+      case 'bell':
+        // Clear bell tones
+        [1200,1400,1600].forEach((f,i)=>{
+          const t=now+i*0.2;
+          const o=ctx.createOscillator();const g=ctx.createGain();
+          o.connect(g);g.connect(ctx.destination);
+          o.frequency.value=f;o.type='sine';
+          g.gain.setValueAtTime(0.25,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.4);
+          o.start(t);o.stop(t+0.4);
+          // Harmonic
+          const o2=ctx.createOscillator();const g2=ctx.createGain();
+          o2.connect(g2);g2.connect(ctx.destination);
+          o2.frequency.value=f*2.5;o2.type='sine';
+          g2.gain.setValueAtTime(0.08,t);g2.gain.exponentialRampToValueAtTime(0.001,t+0.2);
+          o2.start(t);o2.stop(t+0.2);
+        });
+        break;
+      case 'chime':
+        // Wind chime — descending with reverb feel
+        [880,784,659,523].forEach((f,i)=>{
+          const t=now+i*0.12;
+          const o=ctx.createOscillator();const g=ctx.createGain();
+          o.connect(g);g.connect(ctx.destination);
+          o.frequency.value=f;o.type='sine';
+          g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.005,t+0.5);
+          o.start(t);o.stop(t+0.5);
+        });
+        break;
+      case 'pop':
+        // Short bubbly pop
+        [0,80,160].forEach((d,i)=>{
+          const t=now+d/1000;
+          const o=ctx.createOscillator();const g=ctx.createGain();
+          o.connect(g);g.connect(ctx.destination);
+          o.frequency.setValueAtTime(800+i*200,t);
+          o.frequency.exponentialRampToValueAtTime(400,t+0.1);
+          o.type='sine';
+          g.gain.setValueAtTime(0.3,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.12);
+          o.start(t);o.stop(t+0.12);
+        });
+        break;
+      case 'cosmic':
+        // Sci-fi sweep
+        const osc=ctx.createOscillator();const gain=ctx.createGain();
+        osc.connect(gain);gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(200,now);
+        osc.frequency.exponentialRampToValueAtTime(1200,now+0.3);
+        osc.frequency.exponentialRampToValueAtTime(600,now+0.6);
+        osc.type='sawtooth';
+        gain.gain.setValueAtTime(0.15,now);gain.gain.exponentialRampToValueAtTime(0.01,now+0.7);
+        osc.start(now);osc.stop(now+0.7);
+        // Sparkle on top
+        const o2=ctx.createOscillator();const g2=ctx.createGain();
+        o2.connect(g2);g2.connect(ctx.destination);
+        o2.frequency.value=2400;o2.type='sine';
+        g2.gain.setValueAtTime(0.1,now+0.2);g2.gain.exponentialRampToValueAtTime(0.001,now+0.5);
+        o2.start(now+0.2);o2.stop(now+0.5);
+        break;
+      case 'alert':
+        // Urgent double beep
+        [0,200].forEach(d=>{
+          const t=now+d/1000;
+          const o=ctx.createOscillator();const g=ctx.createGain();
+          o.connect(g);g.connect(ctx.destination);
+          o.frequency.value=1000;o.type='square';
+          g.gain.setValueAtTime(0.2,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.1);
+          o.start(t);o.stop(t+0.1);
+        });
+        break;
+    }
+  }catch(e){}
+}
+
+function previewSound(){
+  playNotifSound(document.getElementById('notifSound').value);
+}
+
+// Check invite from URL
+(function checkInvite(){
+  const params=new URLSearchParams(window.location.search);
+  const inviteId=params.get('invite');
+  if(inviteId&&inviteId!==myUserId){
+    const name=prompt('Quelqu\'un t\'invite sur Alex IA GPS! Entre ton nom:');
+    if(name){
+      // In real version: register on server. For now, add locally
+      alert('Invitation acceptee! Tu es maintenant connecte.');
+      // Clean URL
+      window.history.replaceState({},'',window.location.pathname);
+    }
+  }
+})();
+
+renderFriendsList();
+
+// ============ TRIP TRACKER ============
+let tripActive=false;
+let tripStartTime=null;
+let tripStartLat=null,tripStartLng=null;
+let tripStartName='';
+let tripDistance=0;
+let tripLastLat=null,tripLastLng=null;
+let tripTimer=null;
+let tripSpeedSamples=[];
+
+async function toggleTrip(){
+  const btn=document.getElementById('btnTrip');
+  if(tripActive){
+    // === STOP TRIP ===
+    tripActive=false;
+    btn.classList.remove('active');
+    clearInterval(tripTimer);
+    document.getElementById('tripBar').classList.remove('show');
+    // Get end location name
+    let endName='Position actuelle';
+    if(myLat){
+      try{
+        const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myLat}&lon=${myLng}&zoom=16`);
+        const d=await r.json();
+        endName=d.display_name?.split(',').slice(0,2).join(', ')||endName;
+      }catch(e){}
+    }
+    // Calculate summary
+    const endTime=new Date();
+    const durationMs=endTime-tripStartTime;
+    const durationMin=Math.round(durationMs/60000);
+    const h=Math.floor(durationMin/60),m=durationMin%60;
+    const durationStr=h>0?`${h}h ${m}min`:`${m} min`;
+    const avgSpeed=durationMs>0?Math.round((tripDistance/1000)/(durationMs/3600000)):0;
+    // Show summary
+    document.getElementById('sumFrom').textContent=tripStartName;
+    document.getElementById('sumTimeStart').textContent=tripStartTime.toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('sumTo').textContent=endName;
+    document.getElementById('sumTimeEnd').textContent=endTime.toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('sumDistance').textContent=(tripDistance/1000).toFixed(1)+' km';
+    document.getElementById('sumDuration').textContent=durationStr;
+    document.getElementById('sumAvgSpeed').textContent=avgSpeed+' km/h';
+    document.getElementById('tripSummary').classList.add('show');
+    return;
+  }
+  // === START TRIP ===
+  if(!myLat){alert('Active le GPS d\'abord!');locateMe();return}
+  tripActive=true;
+  btn.classList.add('active');
+  tripStartTime=new Date();
+  tripStartLat=myLat;tripStartLng=myLng;
+  tripDistance=0;
+  tripLastLat=myLat;tripLastLng=myLng;
+  tripSpeedSamples=[];
+  // Get start location name
+  tripStartName='...';
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${myLat}&lon=${myLng}&zoom=16`);
+    const d=await r.json();
+    tripStartName=d.display_name?.split(',').slice(0,2).join(', ')||`${myLat.toFixed(4)}, ${myLng.toFixed(4)}`;
+  }catch(e){tripStartName=`${myLat.toFixed(4)}, ${myLng.toFixed(4)}`}
+  document.getElementById('tripFrom').textContent=tripStartName;
+  document.getElementById('tripBar').classList.add('show');
+  // Start clock + distance tracking
+  tripTimer=setInterval(updateTrip,1000);
+  // Auto-start GPS tracking if not active
+  if(!trackingActive){toggleTracking()}
+}
+
+function updateTrip(){
+  if(!tripActive||!tripStartTime)return;
+  // Update clock
+  const elapsed=Date.now()-tripStartTime.getTime();
+  const sec=Math.floor(elapsed/1000)%60;
+  const min=Math.floor(elapsed/60000)%60;
+  const hr=Math.floor(elapsed/3600000);
+  document.getElementById('tripClock').textContent=
+    String(hr).padStart(2,'0')+':'+String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+  // Update distance
+  if(myLat&&tripLastLat){
+    const d=map.distance([tripLastLat,tripLastLng],[myLat,myLng]);
+    if(d>2&&d<500){// Filter GPS jitter (>2m, <500m per second)
+      tripDistance+=d;
+      tripLastLat=myLat;tripLastLng=myLng;
+    }
+  }
+  document.getElementById('tripKm').textContent=(tripDistance/1000).toFixed(1)+' km';
+}
+
+function closeTripSummary(){
+  document.getElementById('tripSummary').classList.remove('show');
+}
+
+// ============ GRAVEL ROADS ============
+// ============ TRACER — CHEMIN PERSONNEL PRIVE ============
+let tracerDrawing=false;
+let tracerPoints=[];
+let tracerTempLine=null;
+let tracerTempMarkers=[];
+let savedTracers=JSON.parse(localStorage.getItem('tilex_tracers')||'[]');
+let tracerLayers=[];
+
+function toggleTracerPanel(){
+  document.getElementById('tracerPanel').classList.toggle('show');
+  renderTracerList();
+}
+
+function toggleTracerDraw(){
+  tracerDrawing=!tracerDrawing;
+  const btn=document.getElementById('tracerDrawBtn');
+  const hint=document.getElementById('tracerHint');
+  const nameRow=document.getElementById('tracerNameRow');
+  if(tracerDrawing){
+    btn.classList.add('drawing');
+    btn.innerHTML='&#128308; En cours...';
+    hint.classList.add('show');
+    nameRow.classList.remove('show');
+    tracerPoints=[];
+    clearTempTracer();
+    map.getContainer().style.cursor='crosshair';
+    map.on('click',onTracerClick);
+  }else{
+    btn.classList.remove('drawing');
+    btn.innerHTML='&#128396; Dessiner';
+    hint.classList.remove('show');
+    map.getContainer().style.cursor='';
+    map.off('click',onTracerClick);
+    if(tracerPoints.length>=2){
+      nameRow.classList.add('show');
+      document.getElementById('tracerNameInput').focus();
+    }
+  }
+}
+
+function onTracerClick(e){
+  if(!tracerDrawing)return;
+  tracerPoints.push([e.latlng.lat,e.latlng.lng]);
+  // Small dot marker
+  const dot=L.circleMarker(e.latlng,{radius:4,color:'#88ccff',fillColor:'#88ccff',fillOpacity:1,weight:1}).addTo(map);
+  tracerTempMarkers.push(dot);
+  // Update temp line
+  if(tracerTempLine)map.removeLayer(tracerTempLine);
+  if(tracerPoints.length>=2){
+    tracerTempLine=L.polyline(tracerPoints,{color:'#88ccff',weight:3,opacity:.85,dashArray:'6,4'}).addTo(map);
+  }
+}
+
+function undoTracerPoint(){
+  if(tracerPoints.length===0)return;
+  tracerPoints.pop();
+  const m=tracerTempMarkers.pop();
+  if(m)map.removeLayer(m);
+  if(tracerTempLine)map.removeLayer(tracerTempLine);
+  if(tracerPoints.length>=2){
+    tracerTempLine=L.polyline(tracerPoints,{color:'#88ccff',weight:3,opacity:.85,dashArray:'6,4'}).addTo(map);
+  }else{tracerTempLine=null}
+}
+
+function clearTempTracer(){
+  tracerTempMarkers.forEach(m=>map.removeLayer(m));tracerTempMarkers=[];
+  if(tracerTempLine){map.removeLayer(tracerTempLine);tracerTempLine=null}
+  tracerPoints=[];
+}
+
+function clearTracerDraw(){
+  clearTempTracer();
+  if(tracerDrawing)toggleTracerDraw();
+  document.getElementById('tracerNameRow').classList.remove('show');
+}
+
+function saveTracer(){
+  if(tracerPoints.length<2){alert('Il faut au moins 2 points pour sauver un trace.');return}
+  const name=document.getElementById('tracerNameInput').value.trim()||'Trace '+new Date().toLocaleDateString('fr-CA');
+  // Calculate distance
+  let dist=0;
+  for(let i=1;i<tracerPoints.length;i++){
+    dist+=map.distance(tracerPoints[i-1],tracerPoints[i]);
+  }
+  const trace={
+    id:Date.now(),
+    name:name,
+    points:[...tracerPoints],
+    dist:Math.round(dist),
+    date:new Date().toISOString(),
+    color:'#88ccff'
+  };
+  savedTracers.push(trace);
+  localStorage.setItem('tilex_tracers',JSON.stringify(savedTracers));
+  // Clear temp drawing
+  clearTempTracer();
+  document.getElementById('tracerNameRow').classList.remove('show');
+  document.getElementById('tracerNameInput').value='';
+  if(tracerDrawing)toggleTracerDraw();
+  // Render saved line on map
+  addTracerToMap(trace);
+  renderTracerList();
+}
+
+function addTracerToMap(trace){
+  const line=L.polyline(trace.points,{color:trace.color||'#88ccff',weight:3.5,opacity:.9}).addTo(map);
+  line.bindPopup(`<b style="color:#88ccff">${trace.name}</b><br><span style="color:#bba88a;font-size:12px">${formatTracerDist(trace.dist)}</span><br><span style="color:#8a7a60;font-size:10px">${new Date(trace.date).toLocaleDateString('fr-CA')}</span>`);
+  tracerLayers.push({id:trace.id,layer:line});
+}
+
+function formatTracerDist(m){
+  return m>=1000?(m/1000).toFixed(1)+' km':m+' m';
+}
+
+function deleteTracer(id){
+  savedTracers=savedTracers.filter(t=>t.id!==id);
+  localStorage.setItem('tilex_tracers',JSON.stringify(savedTracers));
+  const idx=tracerLayers.findIndex(l=>l.id===id);
+  if(idx>=0){map.removeLayer(tracerLayers[idx].layer);tracerLayers.splice(idx,1)}
+  renderTracerList();
+}
+
+function showTracer(id){
+  const trace=savedTracers.find(t=>t.id===id);
+  if(trace&&trace.points.length>=2){
+    map.fitBounds(L.latLngBounds(trace.points),{padding:[40,40]});
+  }
+}
+
+function renderTracerList(){
+  const list=document.getElementById('tracerList');
+  const empty=document.getElementById('tracerEmpty');
+  if(savedTracers.length===0){
+    list.innerHTML='';
+    empty.style.display='block';
+    return;
+  }
+  empty.style.display='none';
+  list.innerHTML=savedTracers.map(t=>`
+    <div class="tracer-item" onclick="showTracer(${t.id})">
+      <div class="tracer-item-color"></div>
+      <div class="tracer-item-info">
+        <div class="tracer-item-name">${t.name}</div>
+        <div class="tracer-item-meta">${formatTracerDist(t.dist)} &bull; ${new Date(t.date).toLocaleDateString('fr-CA')}</div>
+      </div>
+      <button class="tracer-item-del" onclick="event.stopPropagation();deleteTracer(${t.id})">&#128465;</button>
+    </div>
+  `).join('');
+}
+
+// Load saved traces on app start
+function loadSavedTracers(){
+  savedTracers.forEach(t=>addTracerToMap(t));
+}
+loadSavedTracers();
+
+// ============ GRAVEL ROADS ============
+let gravelLines=[];
+let gravelActive=false;
+let gravelLoading=false;
+
+async function toggleGravel(el){
+  if(gravelActive){
+    gravelActive=false;el.classList.remove('active');el.style.borderColor='#ff2222';
+    gravelLines.forEach(l=>map.removeLayer(l));gravelLines=[];
+    map.off('moveend',onGravelMove);
+    return;
+  }
+  gravelActive=true;el.classList.add('active');el.style.borderColor='';
+  loadGravel();
+  map.on('moveend',onGravelMove);
+}
+
+function onGravelMove(){if(gravelActive&&!gravelLoading)loadGravel()}
+
+async function loadGravel(){
+  if(gravelLoading)return;
+  if(map.getZoom()<10){return}
+  gravelLoading=true;
+  const b=map.getBounds();
+  const bbox=`${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+  // Request gravel roads WITH ref, name, and all road tags
+  const query=`[out:json][timeout:25];(way["surface"~"gravel|unpaved|dirt|compacted|fine_gravel|ground|earth|mud|sand"](${bbox});way["highway"="track"](${bbox}););out body geom 2000;`;
+  try{
+    gravelLines.forEach(l=>map.removeLayer(l));gravelLines=[];
+    const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(query)});
+    const data=await res.json();
+    if(!data.elements){gravelLoading=false;return}
+    data.elements.forEach(item=>{
+      if(!item.geometry||item.geometry.length<2)return;
+      const coords=item.geometry.map(g=>[g.lat,g.lon]);
+      const name=item.tags?.name||'';
+      const ref=item.tags?.ref||'';
+      const surface=item.tags?.surface||'gravel';
+      const highway=item.tags?.highway||'road';
+      const tracktype=item.tags?.tracktype||'';
+      const label=highway==='track'||highway==='path'?'Chemin forestier':highway==='residential'?'Chemin residentiel':'Route de gravel';
+      // Determine display name: ref number > name > label
+      const displayName=ref?(name?`${ref} — ${name}`:ref):(name||label);
+      // Color: red for tracks, orange for gravel roads
+      const col=highway==='track'||highway==='path'?'#ff2222':'#ff6a00';
+      const w=highway==='track'?2.5:3;
+      const line=L.polyline(coords,{
+        color:col,weight:w,opacity:.8,
+        dashArray:surface==='gravel'||surface==='fine_gravel'?null:'6,4'
+      }).addTo(map);
+      // Popup with full info
+      const speedTip=highway==='track'?'20-40':'40-70';
+      let popupHtml=`<b style="color:${col};font-size:14px">${displayName}</b>`;
+      if(ref&&name)popupHtml+=`<br><span style="color:#fff;font-size:12px">Ref: ${ref}</span>`;
+      popupHtml+=`<br><span style="color:#bba88a;font-size:11px">Surface: ${surface}`;
+      if(tracktype)popupHtml+=` (${tracktype})`;
+      popupHtml+=`<br>Type: ${label}</span>`;
+      popupHtml+=`<br><span style="color:#ff4757;font-size:10px">Vitesse: ~${speedTip} km/h</span>`;
+      line.bindPopup(popupHtml);
+      gravelLines.push(line);
+      // Label on map for named/ref roads at zoom 12+
+      if((ref||name)&&map.getZoom()>=12){
+        const mid=Math.floor(coords.length/2);
+        const lbl=ref||name;
+        const marker=L.marker(coords[mid],{icon:L.divIcon({
+          html:`<div style="font-size:9px;color:${col};font-family:Share Tech Mono,monospace;font-weight:700;text-shadow:0 0 4px #000,0 0 8px #000;white-space:nowrap;pointer-events:none">${lbl}</div>`,
+          iconAnchor:[0,-6],className:''
+        })}).addTo(map);
+        gravelLines.push(marker);
+      }
+    });
+  }catch(e){console.warn('Gravel error:',e)}
+  gravelLoading=false;
+}
+
+// ============ ROUTING ============
+async function calcRoute(){
+  const fQ=document.getElementById('routeFrom').value.trim(),tQ=document.getElementById('routeTo').value.trim();
+  if(!fQ||!tQ){alert('Depart et destination requis');return}
+  try{
+    const[fR,tR]=await Promise.all([fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fQ)}&limit=1&countrycodes=ca,us`).then(r=>r.json()),fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(tQ)}&limit=1&countrycodes=ca,us`).then(r=>r.json())]);
+    if(!fR.length||!tR.length){alert('Lieu introuvable');return}
+    createRoute(L.latLng(+fR[0].lat,+fR[0].lon),L.latLng(+tR[0].lat,+tR[0].lon));
+  }catch(e){alert('Erreur geocodage')}
+}
+
+function routeTo(lat,lng,name){
+  if(!myLat){alert('Active le GPS');locateMe();return}
+  createRoute(L.latLng(myLat,myLng),L.latLng(lat,lng));
+  document.getElementById('routeFrom').value='Ma position';document.getElementById('routeTo').value=name;
+}
+
+function createRoute(from,to){
+  clearRoute();
+  routeControl=L.Routing.control({waypoints:[from,to],routeWhileDragging:true,lineOptions:{styles:[{color:'#a8ff00',weight:5,opacity:.85},{color:'rgba(255,255,255,.25)',weight:12,opacity:.3}]},show:true,addWaypoints:false,
+    createMarker:(i,wp)=>L.marker(wp.latLng,{icon:L.divIcon({html:`<div style="width:16px;height:16px;background:${i===0?'#a8ff00':'#ff4757'};border:2px solid #fff;border-radius:50%;box-shadow:0 0 12px ${i===0?'#a8ff00':'#ff4757'}"></div>`,iconSize:[16,16],iconAnchor:[8,8],className:''})})
+  }).addTo(map);
+  routeControl.on('routesfound',e=>{const r=e.routes[0],km=(r.summary.totalDistance/1000).toFixed(1),min=Math.round(r.summary.totalTime/60),h=Math.floor(min/60),m=min%60;
+    document.getElementById('routeDist').textContent=km+' km';document.getElementById('routeTime').textContent=h>0?`${h}h ${m}min`:`${m} min`;document.getElementById('routeInfo').classList.add('show')});
+}
+function clearRoute(){if(routeControl){map.removeControl(routeControl);routeControl=null}document.getElementById('routeInfo').classList.remove('show')}
+function useMyLocAsStart(){if(!myLat){alert('Active le GPS');locateMe();return}document.getElementById('routeFrom').value='Ma position'}
+
+// ============ PANELS ============
+function setLayer(name,el){
+  map.removeLayer(tileLayers[currentLayer]);
+  tileLayers[name].addTo(map);
+  currentLayer=name;
+  document.querySelectorAll('.layer-opt').forEach(o=>o.classList.remove('active'));
+  el.classList.add('active');
+  if(name==='dark'||name==='satellite'){if(!map.hasLayer(labelsLayer))labelsLayer.addTo(map)}
+  else if(name==='cyclosm'||name==='streets'||name==='topo'){if(map.hasLayer(labelsLayer))map.removeLayer(labelsLayer)}
+}
+function toggleLayers(){document.getElementById('layersPanel').classList.toggle('show')}
+function setLabelTheme(theme){
+  const pane=map.getPane('labels');
+  if(!pane)return;
+  pane.className=pane.className.replace(/theme-\w+/g,'').trim();
+  pane.classList.add('theme-'+theme);
+  labelTheme=theme;
+  document.querySelectorAll('#layersPanel [onclick^="setLabelTheme"]').forEach(s=>{
+    s.style.border='2px solid var(--border)';s.style.boxShadow='none';
+  });
+  const sel=document.querySelector('#layersPanel [onclick="setLabelTheme(\''+theme+'\')"]');
+  if(sel){sel.style.border='2px solid var(--orange)';sel.style.boxShadow='0 0 8px rgba(255,255,255,.5)';}
+}
+function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open')}
+function goHome(){map.setView(QC_CENTER,4)}
+function toggleFullscreen(){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen()}
+function shareLocation(){if(!myLat){alert('Active le GPS');return}const url=`https://www.openstreetmap.org/?mlat=${myLat}&mlon=${myLng}#map=15/${myLat}/${myLng}`;navigator.clipboard?.writeText(url).then(()=>alert('Lien copie!')).catch(()=>prompt('Copie:',url))}
+
+// ============ SOS URGENCE ============
+let sosOpen=false;
+
+function toggleSOS(){
+  if(sosOpen){closeSOS();return}
+  sosOpen=true;
+  document.getElementById('sosPanel').classList.add('show');
+  if(myLat){
+    showSOSAddress(myLat,myLng);
+  } else {
+    document.getElementById('sosAddr').innerHTML='<strong>Localisation en cours...</strong>';
+    navigator.geolocation.getCurrentPosition(pos=>{
+      myLat=pos.coords.latitude;myLng=pos.coords.longitude;
+      showSOSAddress(myLat,myLng);
+    },()=>{
+      document.getElementById('sosAddr').innerHTML='<strong style="color:#ff4757">GPS non disponible — Active ta localisation</strong>';
+    },{enableHighAccuracy:true,timeout:10000});
+  }
+}
+
+async function showSOSAddress(lat,lng){
+  document.getElementById('sosCoords').textContent=`GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+    const d=await r.json();
+    const a=d.address||{};
+    const rue=d.display_name?.split(',').slice(0,2).join(', ')||'';
+    const ville=a.city||a.town||a.village||a.hamlet||a.municipality||'';
+    const region=a.state||'Quebec';
+    const code=a.postcode||'';
+    document.getElementById('sosAddr').innerHTML=`
+      <strong>&#128205; ${rue}</strong><br>
+      <span style="color:var(--text2)">${ville}${code?' — '+code:''}</span><br>
+      <span style="color:var(--text3)">${region}</span><br>
+      <span style="color:#ff9000;font-size:11px;margin-top:4px;display:block">Dis cette adresse au 911 ou aux secours</span>`;
+  }catch(e){
+    document.getElementById('sosAddr').innerHTML=`<strong>&#128205; ${lat.toFixed(6)}, ${lng.toFixed(6)}</strong><br><span style="color:var(--text2)">Donne ces coordonnees aux secours</span>`;
+  }
+}
+
+function closeSOS(){
+  sosOpen=false;
+  document.getElementById('sosPanel').classList.remove('show');
+}
+
+// ============ TRAFFIC MONITORING (every 25s) ============
+let trafficAlertShown=false;
+let lastTrafficCheck=0;
+let speedHistory=[];
+let lastRoadName='';
+
+function checkTraffic(lat,lng,speed){
+  const now=Date.now();
+  if(now-lastTrafficCheck<25000)return;
+  lastTrafficCheck=now;
+  speedHistory.push({speed,time:now});
+  if(speedHistory.length>12)speedHistory.shift();
+  if(currentSpeedLimit&&currentSpeedLimit>=50&&speedHistory.length>=3){
+    const recent=speedHistory.slice(-3);
+    const avgSpeed=recent.reduce((s,e)=>s+e.speed,0)/recent.length;
+    if(avgSpeed<15&&!trafficAlertShown){
+      detectTrafficJam(lat,lng,avgSpeed);
+    } else if(avgSpeed>40){
+      trafficAlertShown=false;
+    }
+  }
+  checkRoadConditions(lat,lng);
+}
+
+async function detectTrafficJam(lat,lng,avgSpeed){
+  trafficAlertShown=true;
+  let roadName='la route';
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=17`);
+    const d=await r.json();
+    roadName=d.display_name?.split(',')[0]||'la route';
+    lastRoadName=roadName;
+  }catch(e){}
+
+  document.getElementById('trafficBody').innerHTML=`
+    <b style="color:#ff4757">Ralentissement sur ${roadName}</b><br>
+    <span style="color:var(--text2)">Vitesse moyenne: ${Math.round(avgSpeed)} km/h (limite: ${currentSpeedLimit} km/h)</span><br>
+    <span style="color:var(--text3);font-size:11px">Embouteillage probable — contourner?</span>`;
+  document.getElementById('trafficToast').classList.add('show');
+
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    [0,300,600].forEach((d,i)=>{
+      const t=ctx.currentTime+d/1000;
+      const osc=ctx.createOscillator();const gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.frequency.value=600;osc.type='triangle';
+      gain.gain.setValueAtTime(0.25,t);
+      gain.gain.exponentialRampToValueAtTime(0.01,t+0.3);
+      osc.start(t);osc.stop(t+0.3);
+    });
+  }catch(e){}
+
+  setTimeout(()=>{if(trafficAlertShown)trafficDismiss()},15000);
+}
+
+async function checkRoadConditions(lat,lng){
+  try{
+    const bbox=`${lat-0.01},${lng-0.015},${lat+0.01},${lng+0.015}`;
+    const q=`[out:json][timeout:5];(
+      node["highway"="construction"](${bbox});
+      way["highway"="construction"](${bbox});
+    );out body 3;`;
+    const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q)});
+    const data=await res.json();
+    if(data.elements&&data.elements.length>0&&!trafficAlertShown){
+      const el=data.elements[0];
+      const name=el.tags?.name||'Construction/Fermeture';
+      document.getElementById('trafficBody').innerHTML=`
+        <b style="color:#ff4757">&#128679; ${name}</b><br>
+        <span style="color:var(--text2)">Route en construction ou fermee a proximite</span><br>
+        <span style="color:var(--text3);font-size:11px">Contourner cet obstacle?</span>`;
+      document.getElementById('trafficToast').classList.add('show');
+      trafficAlertShown=true;
+      setTimeout(()=>{if(trafficAlertShown)trafficDismiss()},15000);
+    }
+  }catch(e){}
+}
+
+function trafficReroute(){
+  trafficDismiss();
+  if(routeControl&&myLat){
+    const waypoints=routeControl.getWaypoints();
+    const dest=waypoints[waypoints.length-1]?.latLng;
+    if(dest){
+      const avoidLat=myLat+(dest.lat>myLat?0.01:-0.01);
+      const avoidLng=myLng+(dest.lng>myLng?0.02:-0.02);
+      clearRoute();
+      routeControl=L.Routing.control({
+        waypoints:[L.latLng(myLat,myLng),L.latLng(avoidLat,avoidLng),dest],
+        routeWhileDragging:true,
+        lineOptions:{styles:[{color:'#a8ff00',weight:5,opacity:.85},{color:'rgba(255,255,255,.25)',weight:12,opacity:.3}]},
+        show:true,addWaypoints:false,
+        createMarker:(i,wp)=>L.marker(wp.latLng,{icon:L.divIcon({html:`<div style="width:16px;height:16px;background:${i===0?'#a8ff00':'#ff4757'};border:2px solid #fff;border-radius:50%;box-shadow:0 0 12px ${i===0?'#a8ff00':'#ff4757'}"></div>`,iconSize:[16,16],iconAnchor:[8,8],className:''})})
+      }).addTo(map);
+      routeControl.on('routesfound',e=>{
+        const r=e.routes[0],km=(r.summary.totalDistance/1000).toFixed(1),min=Math.round(r.summary.totalTime/60),h=Math.floor(min/60),m=min%60;
+        document.getElementById('routeDist').textContent=km+' km';
+        document.getElementById('routeTime').textContent=h>0?`${h}h ${m}min`:`${m} min`;
+        document.getElementById('routeInfo').classList.add('show');
+      });
+    }
+  }
+}
+
+function trafficDismiss(){
+  document.getElementById('trafficToast').classList.remove('show');
+  trafficAlertShown=false;
+}
+
+// ============ SAVED / HISTORY ============
+function getSavedPlaces(){return JSON.parse(localStorage.getItem('tilexPlaces')||'[]')}
+function savePlaces(p){localStorage.setItem('tilexPlaces',JSON.stringify(p))}
+function saveCurrentView(){const c=map.getCenter(),z=map.getZoom(),name=prompt('Nom du lieu:');if(!name)return;const p=getSavedPlaces();p.push({name,lat:c.lat,lng:c.lng,zoom:z});savePlaces(p);renderSaved()}
+function renderSaved(){const el=document.getElementById('savedPlaces'),p=getSavedPlaces();el.innerHTML=p.map(p=>`<div style="padding:8px 12px;border-radius:10px;margin-bottom:4px;background:var(--card2);border:1px solid var(--border);cursor:pointer" onclick="map.setView([${p.lat},${p.lng}],${p.zoom})"><div style="font-weight:600;font-size:14px">&#128204; ${p.name}</div><div style="font-size:12px;color:var(--text3)">${p.lat.toFixed(3)}, ${p.lng.toFixed(3)}</div></div>`).join('')}
+renderSaved();
+
+function addHistory(text){let h=JSON.parse(localStorage.getItem('tilexHistory')||'[]');h.unshift({text,time:new Date().toLocaleString('fr-CA')});if(h.length>20)h=h.slice(0,20);localStorage.setItem('tilexHistory',JSON.stringify(h));renderHistory()}
+function renderHistory(){const el=document.getElementById('searchHistory'),h=JSON.parse(localStorage.getItem('tilexHistory')||'[]');el.innerHTML=h.slice(0,8).map(i=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="color:var(--text)">${i.text}</span><br><span style="color:var(--text3);font-size:10px">${i.time}</span></div>`).join('')}
+renderHistory();
+
+// ============ MAP EVENTS ============
+map.on('click',async e=>{
+  try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}&zoom=18`);const d=await r.json();
+    if(d.display_name){
+      const safeName=d.display_name.split(',')[0].replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      L.popup().setLatLng(e.latlng).setContent(`<b>${d.display_name.split(',')[0]}</b><br><span style="color:#bba88a;font-size:12px">${d.display_name}</span><br><span style="color:#8a7a60;font-size:11px">${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}</span><br><button onclick="routeTo(${e.latlng.lat},${e.latlng.lng},'${safeName}')" style="margin-top:6px;background:#ff6a00;color:#000;border:none;padding:4px 12px;border-radius:8px;cursor:pointer;font-family:Rajdhani;font-weight:600">&#128668; Itineraire</button>`).openOn(map);
+    }
+  }catch(e){}
+});
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.search-box'))searchResults.classList.remove('show');
+  if(!e.target.closest('.layers-panel')&&!e.target.closest('.ctrl-btn'))document.getElementById('layersPanel').classList.remove('show');
+});
+
+// Quebec outline
+L.polyline([[45,-79.8],[45.5,-74.5],[45,-71.5],[47,-69],[47.5,-68],[48,-67],[48.5,-66],[49,-65.5],[49.5,-64.5],[50,-64],[50.5,-63.5],[51,-63],[51.5,-62.5],[52,-62],[52.5,-61.5],[53,-61],[54,-59.5],[55,-58],[56,-57],[58,-56.5],[60,-65],[62.5,-74],[55.5,-77.5],[53,-79],[52,-79.5],[51,-79.5],[50,-79.8],[49,-79.5],[48.5,-79.5],[47.5,-79.5],[46.5,-79.8],[45,-79.8]],{color:'#ff6a0044',weight:2,dashArray:'6,6'}).addTo(map);
+
+// === ALL MAJOR CANADIAN + USA CITIES ===
+const allCities=[
+  // QUEBEC
+  {n:'Montreal',la:45.5017,ln:-73.5673,p:'1.8M',prov:'QC'},
+  {n:'Quebec',la:46.8139,ln:-71.208,p:'542k',prov:'QC'},
+  {n:'Laval',la:45.6066,ln:-73.7124,p:'438k',prov:'QC'},
+  {n:'Gatineau',la:45.4765,ln:-75.7013,p:'291k',prov:'QC'},
+  {n:'Longueuil',la:45.5312,ln:-73.5185,p:'253k',prov:'QC'},
+  {n:'Sherbrooke',la:45.4042,ln:-71.8929,p:'168k',prov:'QC'},
+  {n:'Saguenay',la:48.4279,ln:-71.0548,p:'148k',prov:'QC'},
+  {n:'Levis',la:46.8028,ln:-71.178,p:'147k',prov:'QC'},
+  {n:'Trois-Rivieres',la:46.3432,ln:-72.5418,p:'137k',prov:'QC'},
+  {n:'Terrebonne',la:45.6969,ln:-73.6473,p:'119k',prov:'QC'},
+  {n:'Saint-Jean-sur-Richelieu',la:45.3071,ln:-73.2529,p:'100k',prov:'QC'},
+  {n:'Drummondville',la:45.8838,ln:-72.4843,p:'79k',prov:'QC'},
+  {n:'Granby',la:45.4001,ln:-72.7329,p:'69k',prov:'QC'},
+  {n:'Saint-Hyacinthe',la:45.6307,ln:-72.9571,p:'57k',prov:'QC'},
+  {n:'Shawinigan',la:46.5666,ln:-72.7490,p:'50k',prov:'QC'},
+  {n:'Rimouski',la:48.4489,ln:-68.5247,p:'49k',prov:'QC'},
+  {n:'Victoriaville',la:46.0592,ln:-71.9662,p:'47k',prov:'QC'},
+  {n:'Rouyn-Noranda',la:48.239,ln:-79.0231,p:'43k',prov:'QC'},
+  {n:'Sorel-Tracy',la:46.0471,ln:-73.1121,p:'35k',prov:'QC'},
+  {n:"Val-d'Or",la:48.0975,ln:-77.7836,p:'33k',prov:'QC'},
+  {n:'Sept-Iles',la:50.2162,ln:-66.3682,p:'26k',prov:'QC'},
+  {n:'Baie-Comeau',la:49.2217,ln:-68.1492,p:'21k',prov:'QC'},
+  {n:'Thetford Mines',la:46.0918,ln:-71.3018,p:'26k',prov:'QC'},
+  {n:'Alma',la:48.5497,ln:-71.6512,p:'32k',prov:'QC'},
+  {n:'Riviere-du-Loup',la:47.8349,ln:-69.5405,p:'20k',prov:'QC'},
+  {n:'Matane',la:48.8486,ln:-67.5273,p:'14k',prov:'QC'},
+  {n:'Gaspe',la:48.8328,ln:-64.4856,p:'15k',prov:'QC'},
+  {n:'Amos',la:48.5688,ln:-78.1189,p:'13k',prov:'QC'},
+  {n:'La Tuque',la:47.4333,ln:-72.7833,p:'11k',prov:'QC'},
+  {n:'Mont-Tremblant',la:46.2095,ln:-74.5960,p:'10k',prov:'QC'},
+  {n:'Magog',la:45.2669,ln:-72.1513,p:'27k',prov:'QC'},
+  {n:'Joliette',la:46.0214,ln:-73.4260,p:'21k',prov:'QC'},
+  {n:'Saint-Georges',la:46.1173,ln:-70.6714,p:'34k',prov:'QC'},
+  {n:'Chibougamau',la:49.9166,ln:-74.3683,p:'7k',prov:'QC'},
+  // ONTARIO
+  {n:'Toronto',la:43.6532,ln:-79.3832,p:'2.9M',prov:'ON'},
+  {n:'Ottawa',la:45.4215,ln:-75.6972,p:'1M',prov:'ON'},
+  {n:'Mississauga',la:43.5890,ln:-79.6441,p:'717k',prov:'ON'},
+  {n:'Brampton',la:43.7315,ln:-79.7624,p:'656k',prov:'ON'},
+  {n:'Hamilton',la:43.2557,ln:-79.8711,p:'569k',prov:'ON'},
+  {n:'London',la:42.9849,ln:-81.2453,p:'404k',prov:'ON'},
+  {n:'Markham',la:43.8561,ln:-79.3370,p:'338k',prov:'ON'},
+  {n:'Vaughan',la:43.8361,ln:-79.4983,p:'323k',prov:'ON'},
+  {n:'Kitchener',la:43.4516,ln:-80.4925,p:'256k',prov:'ON'},
+  {n:'Windsor',la:42.3149,ln:-83.0364,p:'229k',prov:'ON'},
+  {n:'Richmond Hill',la:43.8828,ln:-79.4403,p:'202k',prov:'ON'},
+  {n:'Burlington',la:43.3255,ln:-79.7990,p:'186k',prov:'ON'},
+  {n:'Oshawa',la:43.8971,ln:-78.8658,p:'175k',prov:'ON'},
+  {n:'Barrie',la:44.3894,ln:-79.6903,p:'153k',prov:'ON'},
+  {n:'St. Catharines',la:43.1594,ln:-79.2469,p:'133k',prov:'ON'},
+  {n:'Guelph',la:43.5448,ln:-80.2482,p:'143k',prov:'ON'},
+  {n:'Kingston',la:44.2312,ln:-76.4860,p:'132k',prov:'ON'},
+  {n:'Thunder Bay',la:48.3809,ln:-89.2477,p:'108k',prov:'ON'},
+  {n:'Sudbury',la:46.4917,ln:-80.9930,p:'164k',prov:'ON'},
+  {n:'North Bay',la:46.3091,ln:-79.4608,p:'52k',prov:'ON'},
+  {n:'Sault Ste. Marie',la:46.5136,ln:-84.3358,p:'73k',prov:'ON'},
+  {n:'Peterborough',la:44.3091,ln:-78.3197,p:'83k',prov:'ON'},
+  {n:'Belleville',la:44.1628,ln:-77.3832,p:'55k',prov:'ON'},
+  {n:'Cornwall',la:45.0275,ln:-74.7280,p:'47k',prov:'ON'},
+  {n:'Timmins',la:48.4758,ln:-81.3305,p:'42k',prov:'ON'},
+  // COLOMBIE-BRITANNIQUE
+  {n:'Vancouver',la:49.2827,ln:-123.1207,p:'662k',prov:'BC'},
+  {n:'Surrey',la:49.1913,ln:-122.8490,p:'568k',prov:'BC'},
+  {n:'Burnaby',la:49.2488,ln:-122.9805,p:'249k',prov:'BC'},
+  {n:'Victoria',la:48.4284,ln:-123.3656,p:'92k',prov:'BC'},
+  {n:'Kelowna',la:49.8880,ln:-119.4960,p:'144k',prov:'BC'},
+  {n:'Kamloops',la:50.6745,ln:-120.3273,p:'100k',prov:'BC'},
+  {n:'Prince George',la:53.9171,ln:-122.7497,p:'76k',prov:'BC'},
+  {n:'Nanaimo',la:49.1659,ln:-123.9401,p:'99k',prov:'BC'},
+  // ALBERTA
+  {n:'Calgary',la:51.0447,ln:-114.0719,p:'1.3M',prov:'AB'},
+  {n:'Edmonton',la:53.5461,ln:-113.4938,p:'1M',prov:'AB'},
+  {n:'Red Deer',la:52.2681,ln:-113.8112,p:'100k',prov:'AB'},
+  {n:'Lethbridge',la:49.6956,ln:-112.8451,p:'101k',prov:'AB'},
+  {n:'Medicine Hat',la:50.0405,ln:-110.6764,p:'63k',prov:'AB'},
+  {n:'Grande Prairie',la:55.1707,ln:-118.7946,p:'69k',prov:'AB'},
+  {n:'Fort McMurray',la:56.7264,ln:-111.3803,p:'68k',prov:'AB'},
+  // MANITOBA
+  {n:'Winnipeg',la:49.8951,ln:-97.1384,p:'749k',prov:'MB'},
+  {n:'Brandon',la:49.8440,ln:-99.9539,p:'51k',prov:'MB'},
+  {n:'Thompson',la:55.7432,ln:-97.8558,p:'13k',prov:'MB'},
+  // SASKATCHEWAN
+  {n:'Saskatoon',la:52.1332,ln:-106.6700,p:'266k',prov:'SK'},
+  {n:'Regina',la:50.4452,ln:-104.6189,p:'226k',prov:'SK'},
+  {n:'Prince Albert',la:53.2033,ln:-105.7531,p:'36k',prov:'SK'},
+  // MARITIMES
+  {n:'Halifax',la:44.6488,ln:-63.5752,p:'403k',prov:'NS'},
+  {n:'Sydney',la:46.1368,ln:-60.1942,p:'30k',prov:'NS'},
+  {n:'Fredericton',la:45.9636,ln:-66.6431,p:'63k',prov:'NB'},
+  {n:'Moncton',la:46.0878,ln:-64.7782,p:'79k',prov:'NB'},
+  {n:'Saint John',la:45.2733,ln:-66.0633,p:'70k',prov:'NB'},
+  {n:'Charlottetown',la:46.2382,ln:-63.1311,p:'38k',prov:'PE'},
+  {n:"St. John's",la:47.5615,ln:-52.7126,p:'110k',prov:'NL'},
+  {n:'Corner Brook',la:48.9500,ln:-57.9500,p:'19k',prov:'NL'},
+  // TERRITOIRES
+  {n:'Whitehorse',la:60.7212,ln:-135.0568,p:'28k',prov:'YT'},
+  {n:'Yellowknife',la:62.4540,ln:-114.3718,p:'20k',prov:'NT'},
+  {n:'Iqaluit',la:63.7467,ln:-68.5170,p:'8k',prov:'NU'},
+  // ===== USA =====
+  {n:'New York',la:40.7128,ln:-74.0060,p:'8.3M',prov:'NY'},
+  {n:'Los Angeles',la:34.0522,ln:-118.2437,p:'3.9M',prov:'CA'},
+  {n:'Chicago',la:41.8781,ln:-87.6298,p:'2.7M',prov:'IL'},
+  {n:'Houston',la:29.7604,ln:-95.3698,p:'2.3M',prov:'TX'},
+  {n:'Phoenix',la:33.4484,ln:-112.0740,p:'1.6M',prov:'AZ'},
+  {n:'Philadelphia',la:39.9526,ln:-75.1652,p:'1.6M',prov:'PA'},
+  {n:'San Antonio',la:29.4241,ln:-98.4936,p:'1.5M',prov:'TX'},
+  {n:'San Diego',la:32.7157,ln:-117.1611,p:'1.4M',prov:'CA'},
+  {n:'Dallas',la:32.7767,ln:-96.7970,p:'1.3M',prov:'TX'},
+  {n:'San Jose',la:37.3382,ln:-121.8863,p:'1M',prov:'CA'},
+  {n:'Austin',la:30.2672,ln:-97.7431,p:'978k',prov:'TX'},
+  {n:'Jacksonville',la:30.3322,ln:-81.6557,p:'950k',prov:'FL'},
+  {n:'Fort Worth',la:32.7555,ln:-97.3308,p:'918k',prov:'TX'},
+  {n:'Columbus',la:39.9612,ln:-82.9988,p:'905k',prov:'OH'},
+  {n:'Charlotte',la:35.2271,ln:-80.8431,p:'874k',prov:'NC'},
+  {n:'San Francisco',la:37.7749,ln:-122.4194,p:'874k',prov:'CA'},
+  {n:'Indianapolis',la:39.7684,ln:-86.1581,p:'867k',prov:'IN'},
+  {n:'Seattle',la:47.6062,ln:-122.3321,p:'737k',prov:'WA'},
+  {n:'Denver',la:39.7392,ln:-104.9903,p:'715k',prov:'CO'},
+  {n:'Washington DC',la:38.9072,ln:-77.0369,p:'689k',prov:'DC'},
+  {n:'Nashville',la:36.1627,ln:-86.7816,p:'689k',prov:'TN'},
+  {n:'Oklahoma City',la:35.4676,ln:-97.5164,p:'681k',prov:'OK'},
+  {n:'El Paso',la:31.7619,ln:-106.4850,p:'678k',prov:'TX'},
+  {n:'Boston',la:42.3601,ln:-71.0589,p:'675k',prov:'MA'},
+  {n:'Portland',la:45.5152,ln:-122.6784,p:'652k',prov:'OR'},
+  {n:'Las Vegas',la:36.1699,ln:-115.1398,p:'641k',prov:'NV'},
+  {n:'Memphis',la:35.1495,ln:-90.0490,p:'633k',prov:'TN'},
+  {n:'Louisville',la:38.2527,ln:-85.7585,p:'625k',prov:'KY'},
+  {n:'Baltimore',la:39.2904,ln:-76.6122,p:'585k',prov:'MD'},
+  {n:'Milwaukee',la:43.0389,ln:-87.9065,p:'577k',prov:'WI'},
+  {n:'Albuquerque',la:35.0844,ln:-106.6504,p:'564k',prov:'NM'},
+  {n:'Tucson',la:32.2226,ln:-110.9747,p:'542k',prov:'AZ'},
+  {n:'Fresno',la:36.7378,ln:-119.7871,p:'542k',prov:'CA'},
+  {n:'Miami',la:25.7617,ln:-80.1918,p:'442k',prov:'FL'},
+  {n:'Atlanta',la:33.7490,ln:-84.3880,p:'498k',prov:'GA'},
+  {n:'New Orleans',la:29.9511,ln:-90.0715,p:'383k',prov:'LA'},
+  {n:'Cleveland',la:41.4993,ln:-81.6944,p:'372k',prov:'OH'},
+  {n:'Minneapolis',la:44.9778,ln:-93.2650,p:'429k',prov:'MN'},
+  {n:'Detroit',la:42.3314,ln:-83.0458,p:'639k',prov:'MI'},
+  {n:'Tampa',la:27.9506,ln:-82.4572,p:'384k',prov:'FL'},
+  {n:'Salt Lake City',la:40.7608,ln:-111.8910,p:'200k',prov:'UT'},
+  {n:'Pittsburgh',la:40.4406,ln:-79.9959,p:'302k',prov:'PA'},
+  {n:'St. Louis',la:38.6270,ln:-90.1994,p:'301k',prov:'MO'},
+  {n:'Orlando',la:28.5383,ln:-81.3792,p:'307k',prov:'FL'},
+  {n:'Buffalo',la:42.8864,ln:-78.8784,p:'278k',prov:'NY'},
+  {n:'Honolulu',la:21.3069,ln:-157.8583,p:'350k',prov:'HI'},
+  {n:'Anchorage',la:61.2181,ln:-149.9003,p:'291k',prov:'AK'}
+];
+const CA_PROVS=['QC','ON','BC','AB','MB','SK','NS','NB','PE','NL','YT','NT','NU'];
+allCities.forEach(c=>{
+  const isQC=c.prov==='QC';
+  const isCA=CA_PROVS.includes(c.prov);
+  const col=isQC?'#ff6a00':isCA?'#ff9000':'#4a9eff';
+  const r=isQC?6:isCA?5:4;
+  L.circleMarker([c.la,c.ln],{radius:r,color:col,fillColor:col,fillOpacity:.8,weight:2}).addTo(map)
+    .bindPopup(`<b>${c.n}</b> <span style="color:#8a7a60;font-size:11px">${c.prov}${isCA?' &#127464;&#127462;':' &#127482;&#127480;'}</span><br>Pop: ~${c.p}<br><button onclick="routeTo(${c.la},${c.ln},'${c.n}')" style="margin-top:4px;background:#ff6a00;color:#000;border:none;padding:3px 10px;border-radius:8px;cursor:pointer;font-family:Rajdhani;font-weight:600">&#128668; Itineraire</button>`);
+  L.marker([c.la,c.ln],{icon:L.divIcon({html:`<div style="font-size:${isQC?'11':'10'}px;color:${col};font-family:Rajdhani;font-weight:700;text-shadow:0 1px 4px #000;white-space:nowrap">${c.n}</div>`,iconAnchor:[-8,8],className:''})}).addTo(map);
+});
+</script>
+</body>
+</html>

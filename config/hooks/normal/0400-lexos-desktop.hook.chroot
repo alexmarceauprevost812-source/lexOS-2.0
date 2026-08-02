@@ -214,6 +214,27 @@ Categories=Utility;Education;Geography;
 Keywords=carte;cartes;map;maps;gps;position;météo;meteo;fuseau;monde;osm;
 EOF
 
+# --- GPS d'Alex (Map IA) -----------------------------------------------------
+#  La carte de navigation écrite par Alex : itinéraires, adresses, points
+#  d'intérêt. Fenêtre graphique comme « Cartes LexOS », dont elle réutilise
+#  le programme (mêmes besoins : serveur local pour la géolocalisation).
+cat > /usr/share/applications/lexos-gps.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=GPS d'Alex
+Name[en]=Alex's GPS
+Comment=Navigation : itinéraires, adresses, points d'intérêt, vue satellite
+Comment[en]=Navigation: routes, addresses, points of interest, satellite view
+Exec=lexos-gps
+Icon=/usr/share/lexos/gps/icone.png
+Terminal=false
+StartupNotify=true
+StartupWMClass=GPS d'Alex
+Categories=Utility;Education;Geography;
+Keywords=gps;navigation;itineraire;itinéraire;route;carte;map;adresse;satellite;trajet;
+EOF
+
 cat > /usr/share/applications/lexos-studio.desktop <<EOF
 [Desktop Entry]
 Type=Application
