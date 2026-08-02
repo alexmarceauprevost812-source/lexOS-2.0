@@ -674,16 +674,32 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 /*  Couleurs de commande, façon Kali : l'étiquette [lexOS] et le cadre de
     l'invite en bleu Kali, sudo en rouge, help en jaune. Les mots sont
     colorés pendant la frappe ET dans l'écho de la ligne validée. */
-.term .kali{color:#367BF0;font-weight:700}
+.term .kali{color:#3BE07A;font-weight:700}     /* le cadre et [lexOS] : vert */
 .term .tk-sudo{color:#FF4B4B;font-weight:700}
 .term .tk-help{color:#FFD23F;font-weight:700}
-/*  Palette du « help », choisie par l'auteur : lexos en blanc, les
-    commandes en jaune, les arguments en orange (la couleur de son
-    clavier), et le reste du texte en rose. */
-.term .tk-lexos{color:#fff;font-weight:700}
-.term .tk-cmd{color:#FFD23F}
-.term .tk-arg{color:#FF8C1A}
+/*  Palette choisie par l'auteur : lexOS en VERT (la marque), les commandes
+    en ORANGE (la couleur de la maison), les arguments en jaune et les
+    explications en rose. sudo garde son rouge d'avertissement. */
+.term .tk-lexos{color:#3BE07A;font-weight:700}
+.term .tk-cmd{color:#FF8C1A;font-weight:600}
+.term .tk-arg{color:#FFD23F}
 .term .tk-rose{color:#FF7EB6}
+/*  Menu de suggestions : la liste des commandes possibles, qu'on parcourt
+    aux flèches ↑ ↓ et qu'on valide par Tab ou Entrée. Pensé pour débuter —
+    plus besoin de connaître les commandes par coeur. */
+.term-sug{position:absolute;z-index:30;left:14px;right:14px;bottom:14px;
+  max-height:190px;overflow:auto;background:#0d0d10;border:1px solid #2a2a30;
+  border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.55);padding:5px;
+  font:12.5px/1.5 ui-monospace,"JetBrains Mono",monospace}
+.term-sug .sg{display:flex;gap:10px;align-items:baseline;padding:5px 9px;
+  border-radius:7px;cursor:pointer;white-space:nowrap}
+.term-sug .sg:hover{background:rgba(255,255,255,.06)}
+.term-sug .sg.on{background:rgba(59,224,122,.16);outline:1px solid #3BE07A}
+.term-sug .sg-c{color:#FF8C1A;font-weight:600;flex:0 0 auto}
+.term-sug .sg-d{color:#9a9aa2;overflow:hidden;text-overflow:ellipsis}
+.term-sug .sg-aide{color:#3BE07A;padding:4px 9px 6px;border-top:1px solid #26262c;
+  margin-top:3px;white-space:normal}
+.term{position:relative}
 .term .in{display:inline}
 .caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
   background:var(--ac);animation:blink 1.05s steps(1) infinite}
@@ -2294,7 +2310,8 @@ function tColore(cmd){
   //  Mêmes couleurs que le « help » : lexos blanc, commandes jaunes,
   //  options orange — sudo garde son rouge d'avertissement.
   const CMDS = new Set(["help","aide","lexfetch","clear","date","whoami","echo","uname",
-    "accent","dock","perf","crt","demo","avion","lang","format","info"]);
+    "accent","dock","perf","crt","demo","avion","lang","format","info",
+    "musique","claude","studio","capture","logitheque","partage"]);
   return esc(cmd).split(/(\s+)/).map(tok=>{
     if(/^\s+$/.test(tok) || !tok) return tok;
     if(tok==="sudo") return `<span class="tk-sudo">${tok}</span>`;
@@ -2303,6 +2320,77 @@ function tColore(cmd){
     if(tok.startsWith("-")) return `<span class="tk-arg">${tok}</span>`;
     return tok;
   }).join("");
+}
+/* --- Suggestions de commandes, pour débuter ------------------------------
+   Chaque entrée : la commande, et ce qu'elle fait EN FRANÇAIS SIMPLE. La
+   liste s'affiche pendant la frappe ; ↑ ↓ pour choisir, Tab ou Entrée pour
+   valider. C'est ce qui rend le terminal utilisable sans rien connaître. */
+const TERM_SUGGESTIONS = [
+  ["help",              "affiche toutes les commandes disponibles"],
+  ["lexfetch",          "la fiche technique de la machine"],
+  ["lexos info",        "résumé du système"],
+  ["lexos accent vert", "change la couleur du système (orange · bleu · rouge · vert · gris · violet · neon)"],
+  ["lexos dock bas",    "déplace la barre d'outils (droite · gauche · bas · haut)"],
+  ["lexos perf max",    "profil de performance (petit · medium · performant · max)"],
+  ["lexos crt off",     "coupe l'effet écran de télé 1980"],
+  ["lexos musique",     "ouvre lexOS_musique, le lecteur audio local"],
+  ["lexos claude",      "ouvre Claude Code, l'assistant de programmation"],
+  ["lexos studio",      "ouvre Studio+ : photo, vidéo et son"],
+  ["lexos avion on",    "coupe Wi-Fi et Bluetooth (mode avion)"],
+  ["lexos lang fr_CA",  "change la langue du système"],
+  ["lexos demo",        "où tourne cette session ?"],
+  ["date",              "la date et l'heure"],
+  ["whoami",            "qui suis-je sur cette machine ?"],
+  ["uname -a",          "version du noyau Linux"],
+  ["clear",             "efface l'écran"],
+];
+let sugEl=null, sugSel=0, sugListe=[];
+function sugFerme(){ if(sugEl){ sugEl.remove(); sugEl=null; } sugListe=[]; sugSel=0; }
+/*  Quelles suggestions pour ce qui est tapé ? Rien de tapé → tout ; sinon
+    celles qui commencent par le texte, puis celles qui le contiennent. */
+function sugFiltre(txt){
+  const q = txt.trim().toLowerCase();
+  if(!q) return TERM_SUGGESTIONS.slice(0, 8);
+  const debut = TERM_SUGGESTIONS.filter(([c])=>c.toLowerCase().startsWith(q));
+  const dedans= TERM_SUGGESTIONS.filter(([c,d])=>!c.toLowerCase().startsWith(q) &&
+                 (c.toLowerCase().includes(q) || d.toLowerCase().includes(q)));
+  return [...debut, ...dedans].slice(0, 8);
+}
+function sugRend(){
+  if(!tEl) return;
+  sugListe = sugFiltre(tBuf);
+  if(!sugListe.length){ sugFerme(); return; }
+  if(sugSel >= sugListe.length) sugSel = 0;
+  if(!sugEl){
+    sugEl = document.createElement("div");
+    sugEl.className = "term-sug";
+    tEl.parentElement.appendChild(sugEl);
+  }
+  sugEl.innerHTML = sugListe.map(([c,d],i)=>
+      `<div class="sg${i===sugSel?" on":""}" data-i="${i}">`+
+      `<span class="sg-c">${esc(c)}</span><span class="sg-d">${esc(d)}</span></div>`).join("")
+    + `<div class="sg-aide">↑ ↓ pour choisir · Tab ou Entrée pour valider · Échap pour fermer</div>`;
+  sugEl.querySelectorAll(".sg").forEach(el=>{
+    el.onmousedown = ev=>{ ev.preventDefault(); sugSel=+el.dataset.i; sugValide(); };
+  });
+  const on = sugEl.querySelector(".sg.on");
+  if(on) on.scrollIntoView({block:"nearest"});
+}
+function sugBouge(pas){
+  if(!sugListe.length) return false;
+  sugSel = (sugSel + pas + sugListe.length) % sugListe.length;
+  sugRend();
+  return true;
+}
+//  Valider : la commande choisie remplace ce qui est tapé, prête à lancer.
+function sugValide(){
+  if(!sugListe.length) return false;
+  tBuf = sugListe[sugSel][0];
+  hidden.value = tBuf;
+  const i=document.getElementById("tin"); if(i) i.innerHTML=tColore(tBuf);
+  sugFerme();
+  hidden.focus();
+  return true;
 }
 function tPrint(html){
   const c = tEl.querySelector("#cur"); if(c) c.remove();
@@ -2467,7 +2555,9 @@ function openTerminal(){
   const el = openWin("term","Terminal — lex@lexos",terminalGlyph(17),termHTML(),640,420);
   tEl = el.querySelector("#tout");
   if(!tEl.innerHTML){
-    tPrint(`<span class='d'>LexOS 1.0.2 « Nomad » — tape</span> <span class='a'>help</span> <span class='d'>pour commencer.</span>\n\n`);
+    tPrint(`<span class='d'>LexOS 1.0.2 « Nomad » — tape</span> <span class='tk-cmd'>help</span> <span class='d'>pour commencer.</span>\n`+
+           `<span class='tk-lexos'>Débutant ?</span> <span class='d'>Appuie sur</span> <span class='tk-cmd'>↓</span> <span class='d'>: la liste des commandes s'affiche,`+
+           ` choisis avec</span> <span class='tk-cmd'>↑ ↓</span> <span class='d'>et valide avec</span> <span class='tk-cmd'>Tab</span><span class='d'>.</span>\n\n`);
     tNewPrompt();
   }
   el.querySelector(".term").addEventListener("click",()=>hidden.focus());
@@ -2481,9 +2571,24 @@ document.body.appendChild(hidden);
 hidden.addEventListener("input",()=>{
   tBuf = hidden.value;
   const i=document.getElementById("tin"); if(i) i.innerHTML=tColore(tBuf);
+  sugSel = 0;
+  sugRend();          // les suggestions suivent la frappe
 });
 hidden.addEventListener("keydown",e=>{
+  //  Les flèches parcourent les suggestions ; Tab valide le choix ; Échap
+  //  ferme la liste. Tout ça avant Entrée, pour ne pas lancer par mégarde.
+  if(e.key==="ArrowDown"){ if(sugListe.length){ e.preventDefault(); sugBouge(1); } else { e.preventDefault(); sugRend(); } return; }
+  if(e.key==="ArrowUp"){   if(sugListe.length){ e.preventDefault(); sugBouge(-1); } else { e.preventDefault(); sugRend(); } return; }
+  if(e.key==="Tab"){ e.preventDefault(); if(!sugValide()) sugRend(); return; }
+  if(e.key==="Escape"){ if(sugEl){ e.preventDefault(); sugFerme(); } return; }
   if(e.key==="Enter"){
+    //  Une suggestion est ouverte ET choisie à la flèche : Entrée la pose
+    //  dans la ligne. Un second Entrée la lance — on ne devine jamais à la
+    //  place de l'utilisateur.
+    if(sugEl && sugListe.length && tBuf.trim() !== sugListe[sugSel][0]){
+      e.preventDefault(); sugValide(); return;
+    }
+    sugFerme();
     const i=document.getElementById("tin");
     //  L'écho AVANT tout tPrint : tPrint retire #cur, et l'ancien ordre
     //  (tPrint puis échO) faisait disparaître la ligne tapée de l'historique.
