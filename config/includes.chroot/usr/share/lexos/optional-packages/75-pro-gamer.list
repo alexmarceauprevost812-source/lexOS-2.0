@@ -3,6 +3,19 @@
 # Tout ce qui rend une machine de jeu agréable sous Linux, au-delà des
 # pilotes et de Wine que la liste obligatoire installe déjà.
 
+# --- Carte graphique NVIDIA : le pilote officiel ------------------------
+# Sur les GeForce récentes (RTX), le pilote libre « nouveau » ne sait pas
+# encore piloter l'affichage : l'écran perd le signal PILE au lancement du
+# bureau (constaté sur une Alienware Aurora — GRUB et le splash s'affichent,
+# puis plus rien). Le pilote propriétaire NVIDIA règle ça. Sans carte
+# NVIDIA, ces paquets ne s'activent tout simplement pas — aucun risque pour
+# les machines AMD/Intel. linux-headers est requis pour compiler le module
+# (DKMS) pendant la construction de l'ISO.
+linux-headers-amd64
+nvidia-driver
+nvidia-settings
+firmware-misc-nonfree
+
 # --- Lanceurs et boutiques ---------------------------------------------
 # Steam apporte Proton : la version de Wine que Valve entretient, et qui
 # fait tourner une bonne partie du catalogue Windows sans rien régler.
