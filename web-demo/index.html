@@ -227,6 +227,31 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   font-size:.8em;vertical-align:baseline}
 @media (prefers-reduced-motion:reduce){ #clktime .ck.mtx{color:inherit;text-shadow:none} }
 /* --- Agenda / Calendrier ------------------------------------------------- */
+/*  Notifications, en haut du panneau de l'heure — l'historique de ce que le
+    système a annoncé, que les messages fugaces perdaient jusqu'ici. */
+.nf-tete{display:flex;align-items:center;gap:9px;padding:12px 14px;
+  border-bottom:1px solid var(--bd)}
+.nf-titre{font-weight:600;font-size:14px}
+.nf-cpt{background:var(--ac);color:#000;font-weight:700;font-size:11px;
+  border-radius:9px;padding:1px 7px;min-width:18px;text-align:center}
+.nf-cpt:empty{display:none}
+.nf-liste{max-height:210px;overflow:auto}
+.nf{display:flex;gap:10px;align-items:baseline;padding:9px 14px;
+  border-bottom:1px solid rgba(255,255,255,.05);font-size:13px}
+.nf:hover{background:rgba(255,255,255,.04)}
+.nf-ic{flex:0 0 auto;color:var(--ac)}
+.nf-t{flex:1;color:var(--fg);word-break:break-word}
+.nf-h{flex:0 0 auto;color:var(--fg-dim);font-size:11.5px;
+  font-variant-numeric:tabular-nums}
+.nf-vide{padding:20px 16px;color:var(--fg-dim);font-size:13px;text-align:center}
+.nf-sep{display:flex;align-items:center;gap:10px;padding:10px 14px 8px;
+  color:var(--fg-dim);font-size:12.5px;font-weight:600;
+  border-top:1px solid var(--bd);background:rgba(255,255,255,.02)}
+/*  Pastille sur l'heure : il y a du nouveau à lire. */
+#clock.a-lire{position:relative}
+#clock.a-lire::after{content:"";position:absolute;top:2px;right:-2px;
+  width:7px;height:7px;border-radius:50%;background:var(--ac);
+  box-shadow:0 0 0 2px rgba(0,0,0,.55)}
 .ag-tete{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--bd)}
 .ag-titre{font-weight:700;font-size:15px;text-transform:capitalize;min-width:150px}
 .ag-grille{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:12px 14px}
@@ -1583,7 +1608,7 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
       <button id="qcZone" title="Cadrer une zone (Espace+2, ou Maj+Impr écr)" onclick="capZone()">⛶</button>
       <button id="qcVideo" title="Enregistrer l'écran en vidéo (Espace+3, ou Ctrl+Maj+R)" onclick="capBascule()"></button>
     </span>
-    <span id="clock" title="Ouvrir l'agenda" role="button" tabindex="0"
+    <span id="clock" title="Notifications et agenda" role="button" tabindex="0"
           onclick="openAgenda()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAgenda()}">
       <span class="clk-globe" aria-hidden="true">🌐</span>
       <span class="clk-brand">lexOS<span class="zap">⚡</span>Pro</span>
@@ -1633,6 +1658,7 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
                 qsCompact:false, dockHidden:false, zTop:100, majDispo:false, majSecuAuto:true, majAuto:false, wallpaper:"defaut", police:"defaut",
                 agendaEvts:{}, agendaVue:null,
+                notifs:[] /* historique des notifications : {txt, h, ic} */,
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
                 wallPerso:null, wallPersoNom:"", wallCadrage:"remplir", wallVideoURL:null,
                 vpn:null,
@@ -3332,6 +3358,45 @@ function toast(msg){
   el.textContent=msg; el.classList.add("on");
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>el.classList.remove("on"), 2200);
+  //  Un message qui disparaît au bout de deux secondes est perdu pour qui
+  //  regardait ailleurs : on le garde aussi dans l'historique, consultable
+  //  d'un clic sur l'heure. Les 40 derniers suffisent — au-delà, plus
+  //  personne ne remonte.
+  notifAjoute(msg);
+}
+/*  Historique des notifications — celui qu'ouvre le clic sur l'heure. */
+function notifAjoute(txt, ic){
+  const d = new Date();
+  //  Date ET heure : une notification d'hier doit se distinguer d'une de ce
+  //  matin, sinon l'historique devient illisible au bout d'une journée.
+  state.notifs.unshift({txt:String(txt), ic: ic || "•",
+    h: d.toLocaleDateString("fr-CA",{day:"2-digit",month:"short"}) + " · " +
+       d.toLocaleTimeString("fr-CA",{hour:"2-digit",minute:"2-digit"})});
+  if(state.notifs.length > 40) state.notifs.length = 40;
+  majPastilleNotif();
+  //  Panneau ouvert : il se met à jour tout de suite, sinon on afficherait
+  //  une liste périmée pendant que les messages continuent d'arriver.
+  if(document.getElementById("agBody")) notifRend();
+}
+function notifVide(){ state.notifs = []; majPastilleNotif(); notifRend(); }
+//  Une pastille sur l'heure dit qu'il y a du nouveau, sans rien ouvrir.
+function majPastilleNotif(){
+  const c = document.getElementById("clock");
+  if(c) c.classList.toggle("a-lire", state.notifs.length > 0);
+}
+function notifRend(){
+  const z = document.getElementById("notifListe");
+  if(!z) return;
+  const n = state.notifs.length;
+  const cpt = document.getElementById("notifCompte");
+  if(cpt) cpt.textContent = n ? `${n}` : "";
+  z.innerHTML = n
+    ? state.notifs.map(o=>
+        `<div class="nf"><span class="nf-ic">${esc(o.ic)}</span>`+
+        `<span class="nf-t">${esc(o.txt)}</span>`+
+        `<span class="nf-h">${esc(o.h)}</span></div>`).join("")
+    : `<div class="nf-vide">Aucune notification. Les messages du système
+        s'afficheront ici.</div>`;
 }
 let zipExtracted=false;
 function extractZip(){
@@ -7995,11 +8060,23 @@ function agCle(a,m,j){ return `${a}-${String(m+1).padStart(2,"0")}-${String(j).p
 function openAgenda(){
   const now = new Date();
   if(!state.agendaVue) state.agendaVue = {a:now.getFullYear(), m:now.getMonth(), sel:agCle(now.getFullYear(),now.getMonth(),now.getDate())};
-  openWin("agenda","Agenda — Calendrier","📅", agendaHTML(), 560, 560);
+  openWin("agenda","Notifications et agenda","🔔", agendaHTML(), 560, 660);
+  notifRend();
   agendaRend();
 }
 function agendaHTML(){
+  //  Un clic sur l'heure ouvre les DEUX : les notifications d'abord (c'est
+  //  ce qu'on vient consulter), le calendrier dessous — comme le fait le
+  //  panneau d'un téléphone.
   return `<div class="pad" id="agBody" style="padding:0">
+    <div class="nf-tete">
+      <span class="nf-titre">🔔 Notifications</span>
+      <span class="nf-cpt" id="notifCompte"></span>
+      <button class="btn ghost mini" style="width:auto;margin-left:auto"
+              onclick="notifVide()">Tout effacer</button>
+    </div>
+    <div class="nf-liste" id="notifListe"></div>
+    <div class="nf-sep"><span>📅 Agenda</span></div>
     <div class="ag-tete">
       <button class="btn ghost mini" style="width:auto" onclick="agMois(-1)">‹</button>
       <div class="ag-titre" id="agTitre"></div>
