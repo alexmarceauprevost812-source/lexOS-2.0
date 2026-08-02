@@ -42,6 +42,15 @@ header.site nav a{color:var(--fg-dim);text-decoration:none;font-size:14.5px;
   font-weight:600;padding:8px 12px;border-radius:8px}
 header.site nav a:hover{color:var(--fg);background:var(--bg-hi)}
 header.site nav a.on{color:var(--fg);background:var(--bg-hi)}
+/*  Icône GitHub avec effet de survol : elle grossit, pivote un peu, passe au
+    bleu GitHub et s'illumine. Tout en CSS — ça marche partout, sans script. */
+.gh-icon{display:inline-flex;align-items:center;gap:6px}
+.gh-icon svg{transition:transform .3s ease,color .3s ease,filter .3s ease}
+.gh-icon:hover svg{color:#2f81f7;transform:scale(1.28) rotate(-8deg);
+  filter:drop-shadow(0 0 7px rgba(47,129,247,.75))}
+.gh-icon:active svg{transform:scale(1.1) rotate(-8deg)}
+@media (prefers-reduced-motion:reduce){ .gh-icon svg{transition:color .3s ease}
+  .gh-icon:hover svg{transform:none} }
 header.site .cta{background:var(--ac);color:#000;font-weight:700;
   padding:9px 16px;border-radius:8px;text-decoration:none;font-size:14.5px;flex:none}
 header.site .cta:hover{background:var(--ac-hi);color:#000}
