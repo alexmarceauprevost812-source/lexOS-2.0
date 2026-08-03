@@ -826,6 +826,15 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .mt-j-i{font-size:24px;line-height:1;margin-bottom:5px}
 .mt-j-t{font:700 17px/1 ui-monospace,monospace;color:var(--fg)}
 .mt-j-d{font-size:11px;color:var(--fg-dim);margin-top:5px;line-height:1.35}
+/*  Icône en cours de déplacement dans la barre : soulevée et translucide,
+    pour qu'on voie où elle va se poser. Le survol qui agrandit est neutralisé
+    pendant l'opération — deux effets d'échelle en même temps donnaient une
+    icône qui saute. */
+.dicon-porte{opacity:.55;transform:scale(1.08)!important;cursor:grabbing;
+  box-shadow:0 8px 22px rgba(0,0,0,.5);z-index:5}
+#dock.dock-reorg .dicon{transition:transform .12s ease}
+#dock.dock-reorg .dicon:hover{transform:none}
+#dock.dock-reorg .dicon .tip{opacity:0!important}
 .term{position:relative}
 .term .in{display:inline}
 .caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
@@ -3280,9 +3289,89 @@ function ctxAuDock(i){
   b.innerHTML = `${a.ic}<span class="tip">${esc(a.label)}</span>`;
   b.onclick = a.fn;
   b.oncontextmenu = ev=>ctxDock(ev, b, a.label);
+  dockDeplacable(b);
   dock.appendChild(b);
   majFondsDock(); closeApps();
   toast("⚓ " + a.label + " ajouté à la barre d'outils");
+}
+
+/*  Replacer une icône : on la prend et on la glisse le long de la barre.
+    Pointer events et pas le glisser-déposer HTML5 — ce fichier n'utilise
+    que ça (dragify, resizify), et le DnD natif ne marche pas au doigt.
+
+    Un seuil de 6 px sépare le clic du déplacement : sans lui, un simple
+    clic pour lancer l'application partirait en glissement au moindre
+    tremblement, et l'application ne s'ouvrirait jamais. */
+function dockDeplacable(b){
+  b.addEventListener("pointerdown", e=>{
+    if(e.button !== 0) return;
+    const d = document.getElementById("dock");
+    if(!d) return;
+    const vertical = d.classList.contains("right") || d.classList.contains("left");
+    const x0 = e.clientX, y0 = e.clientY;
+    let actif = false;
+
+    const bouge = ev=>{
+      if(!actif){
+        if(Math.abs(ev.clientX-x0) < 6 && Math.abs(ev.clientY-y0) < 6) return;
+        actif = true;
+        b.classList.add("dicon-porte");
+        d.classList.add("dock-reorg");
+      }
+      const pos = vertical ? ev.clientY : ev.clientX;
+      const freres = [...d.querySelectorAll(".dicon")].filter(x=>x !== b);
+      let cible = null;
+      for(const f of freres){
+        const r = f.getBoundingClientRect();
+        const centre = vertical ? r.top + r.height/2 : r.left + r.width/2;
+        if(pos < centre){ cible = f; break; }
+      }
+      if(cible) d.insertBefore(b, cible); else d.appendChild(b);
+    };
+    const lache = ()=>{
+      removeEventListener("pointermove", bouge);
+      removeEventListener("pointerup", lache);
+      removeEventListener("pointercancel", lache);
+      if(!actif) return;
+      b.classList.remove("dicon-porte");
+      d.classList.remove("dock-reorg");
+      //  Avaler le clic qui suit un déplacement : sinon lâcher l'icône
+      //  lancerait l'application, ce que personne n'a demandé.
+      b.addEventListener("click", ev=>{ ev.stopPropagation(); ev.preventDefault(); },
+                         {capture:true, once:true});
+      majFondsDock();
+      toast("⚓ Position enregistrée");
+    };
+    addEventListener("pointermove", bouge);
+    addEventListener("pointerup", lache);
+    addEventListener("pointercancel", lache);
+  });
+}
+//  Déplacer d'un cran par le menu : au doigt sur un écran tactile, ou
+//  simplement pour qui ne veut pas glisser.
+function dockDecale(nom, pas){
+  const d = document.getElementById("dock"); if(!d) return;
+  const icones = [...d.querySelectorAll(".dicon")];
+  const b = icones.find(x=>{
+    const t = x.querySelector(".tip"); return t && t.textContent === nom;
+  });
+  if(!b) return;
+  const i = icones.indexOf(b), j = i + pas;
+  if(j < 0 || j >= icones.length) return;
+  if(pas < 0) d.insertBefore(b, icones[j]);
+  else d.insertBefore(b, icones[j].nextSibling);
+  majFondsDock();
+  toast("⚓ " + nom + " déplacé");
+}
+function dockBout(nom, fin){
+  const d = document.getElementById("dock"); if(!d) return;
+  const b = [...d.querySelectorAll(".dicon")].find(x=>{
+    const t = x.querySelector(".tip"); return t && t.textContent === nom;
+  });
+  if(!b) return;
+  if(fin) d.appendChild(b); else d.insertBefore(b, d.firstChild);
+  majFondsDock();
+  toast("⚓ " + nom + (fin ? " placé à la fin" : " placé au début"));
 }
 
 /* --- Icône de la barre d'outils ----------------------------------------- */
@@ -3292,6 +3381,11 @@ function ctxDock(e, b, nom, appKey){
     ...(appKey && MULTI_WINDOW[appKey]
         ? [{ic:"⊞", txt:"Nouvelle fenêtre", act:`nouvelleFenetre(${JSON.stringify(appKey)})`}]
         : []),
+    "-",
+    {ic:"⇱", txt:"Placer au début", act:`dockBout(${JSON.stringify(nom)},false)`},
+    {ic:"↑", txt:"Reculer d'un cran", act:`dockDecale(${JSON.stringify(nom)},-1)`},
+    {ic:"↓", txt:"Avancer d'un cran", act:`dockDecale(${JSON.stringify(nom)},1)`},
+    {ic:"⇲", txt:"Placer à la fin", act:`dockBout(${JSON.stringify(nom)},true)`},
     "-",
     {ic:"✕", txt:"Retirer de la barre", act:`ctxRetireDock(${JSON.stringify(nom)})`},
     {ic:"⚙", txt:"Position de la barre", act:"openSettings('bureau')"},
@@ -8252,6 +8346,7 @@ DOCK.forEach(([ic,label,fn])=>{
     if(ev.button===1 && appKey && MULTI_WINDOW[appKey]){ ev.preventDefault(); nouvelleFenetre(appKey); }
   });
   b.oncontextmenu = ev=>ctxDock(ev, b, label, appKey);
+  dockDeplacable(b);
   dock.appendChild(b);
 });
 majFondsDock();
@@ -8406,7 +8501,10 @@ const APPS = [
   {ic:"⚠", label:"Formater un support", fn:formaterSupport},
   {ic:"📅", label:"Agenda",       fn:openAgenda},
   {ic:"👋", label:"Bienvenue",    fn:openWelcome},
-  {ic:"🖼", label:"Fonds d'écran", fn:openFonds},
+  //  « Fonds d'écran » (les autocollants) retiré du menu Applications à la
+  //  demande d'Alex. La fonction reste : le clic droit sur le bureau garde
+  //  son entrée « Autocollants du bureau », et le choix du fond d'écran
+  //  proprement dit vit dans Paramètres ▸ Bureau LexOS.
 ];
 const appsView=document.getElementById("appsview");
 const appGrid=document.getElementById("appgrid");
