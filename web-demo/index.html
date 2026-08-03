@@ -874,33 +874,42 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 @media (prefers-reduced-motion:reduce){ .claude-pales{animation:none;opacity:1} }
 /*  L'appli Claude Code : une conversation, pas un texte figé. Colonne en
     hauteur pleine — journal qui défile, suggestions, saisie collée en bas. */
-.cc{display:flex;flex-direction:column;height:100%;background:#0b0b0d;
+.cc{display:flex;flex-direction:column;height:100%;
+  background:radial-gradient(120% 90% at 50% 0,#160f0c 0,#0b0b0d 62%);
   color:#e8e6e3;font-size:13px;line-height:1.65;box-sizing:border-box}
 .cc-tete{display:flex;align-items:center;gap:9px;padding:11px 15px;
-  border-bottom:1px solid #23232a;color:#d97757;flex:none}
+  border-bottom:1px solid #3a251d;color:#d97757;flex:none;
+  background:linear-gradient(180deg,rgba(217,119,87,.10),transparent)}
 .cc-tete-ic{display:inline-flex;align-items:center}
 .cc-badge{margin-left:auto;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
-  color:#9a9aa2;border:1px solid #33333c;border-radius:20px;padding:2px 9px;cursor:help}
+  color:#d97757;border:1px solid #d97757;border-radius:20px;padding:2px 9px;cursor:help;
+  background:rgba(217,119,87,.12)}
 .cc-log{flex:1;overflow-y:auto;padding:15px;display:flex;flex-direction:column;gap:13px}
 .cc-msg{max-width:88%}
-.cc-moi{align-self:flex-end;background:#1d1d23;border:1px solid #2c2c34;
-  border-radius:13px 13px 3px 13px;padding:8px 13px;white-space:pre-wrap;word-break:break-word}
+/*  Les couleurs de Claude portées dans toute l'appli, pas seulement sur le
+    logo : la bulle de l'utilisateur en rouge plein, celle des réponses
+    marquée d'un trait rouge à gauche, et un fond très légèrement teinté.
+    Le rouge de la marque est #d97757 ; le texte posé dessus est sombre,
+    parce que du blanc sur cet orange-rouge ne passe pas au contraste. */
+.cc-moi{align-self:flex-end;background:#d97757;border:1px solid #d97757;color:#1a0f0a;
+  border-radius:13px 13px 3px 13px;padding:8px 13px;white-space:pre-wrap;
+  word-break:break-word;font-weight:500}
 .cc-lui{align-self:flex-start;display:flex;gap:9px;align-items:flex-start}
 .cc-lui .cc-ic{flex:none;margin-top:1px}
-.cc-lui .cc-txt{background:#131318;border:1px solid #23232a;border-radius:13px 13px 13px 3px;
-  padding:10px 14px;min-width:0}
+.cc-lui .cc-txt{background:#17110f;border:1px solid #3a251d;border-left:3px solid #d97757;
+  border-radius:13px 13px 13px 3px;padding:10px 14px;min-width:0}
 .cc-txt ul,.cc-txt ol{margin:8px 0;padding-left:20px}
 .cc-txt li{margin:3px 0}
-.cc-txt code{background:#0a0a0d;border:1px solid #2a2a32;border-radius:4px;
-  padding:.08em .38em;font-size:.9em;color:#e0af68;word-break:break-word}
+.cc-txt code{background:#0d0908;border:1px solid #4a2e24;border-radius:4px;
+  padding:.08em .38em;font-size:.9em;color:#f0a882;word-break:break-word}
 .cc-txt b{color:#fff}
 .cc-sugg{display:flex;gap:6px;flex-wrap:wrap;padding:0 15px 10px;flex:none}
-.cc-sugg button{font:inherit;font-size:11.5px;color:#c9c6bf;background:#15151a;
-  border:1px solid #2a2a32;border-radius:20px;padding:5px 11px;cursor:pointer;
+.cc-sugg button{font:inherit;font-size:11.5px;color:#e0b3a0;background:rgba(217,119,87,.08);
+  border:1px solid #4a2e24;border-radius:20px;padding:5px 11px;cursor:pointer;
   transition:border-color .12s,color .12s,background .12s}
-.cc-sugg button:hover{border-color:#d97757;color:#fff;background:#1c1c22}
-.cc-saisie{display:flex;gap:8px;padding:11px 15px;border-top:1px solid #23232a;flex:none}
-.cc-in{flex:1;min-width:0;background:#131318;border:1px solid #2a2a32;border-radius:9px;
+.cc-sugg button:hover{border-color:#d97757;color:#fff;background:rgba(217,119,87,.20)}
+.cc-saisie{display:flex;gap:8px;padding:11px 15px;border-top:1px solid #3a251d;flex:none}
+.cc-in{flex:1;min-width:0;background:#17110f;border:1px solid #4a2e24;border-radius:9px;
   padding:9px 12px;color:#e8e6e3;font:inherit;outline:none}
 .cc-in:focus{border-color:#d97757}
 .cc-env{font:inherit;font-weight:600;color:#0b0b0d;background:#d97757;border:0;
