@@ -776,21 +776,45 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .wall-essai-b{display:flex;gap:7px;flex-wrap:wrap;flex:none}
 .wall-essai-b .btn[disabled]{opacity:.42;pointer-events:none}
 .win.wall-efface{opacity:0;pointer-events:none;transition:opacity .18s ease}
-/*  Les pastilles des bureaux virtuels, dans la barre du haut. Un point sous
-    la pastille signale un bureau qui contient des fenêtres : on sait où on a
-    laissé son travail sans avoir à y aller. */
-#bureaux{display:flex;align-items:center;gap:3px;margin-left:8px}
-#bureaux .bur{position:relative;width:22px;height:22px;border-radius:6px;
-  border:1px solid var(--bd);background:transparent;color:var(--fg-dim);
-  font:600 11px/1 ui-monospace,monospace;cursor:pointer;padding:0;
-  display:flex;align-items:center;justify-content:center;
-  transition:background .12s,color .12s,border-color .12s}
-#bureaux .bur:hover{background:var(--bg-hi);color:var(--fg)}
-#bureaux .bur.on{background:var(--ac);border-color:var(--ac);color:var(--btn-fg)}
-#bureaux .bur.plein::after{content:"";position:absolute;bottom:2px;left:50%;
-  transform:translateX(-50%);width:4px;height:2px;border-radius:1px;
-  background:currentColor;opacity:.85}
-@media (max-width:640px){ #bureaux{display:none} }
+/*  La vue d'ensemble, façon Ubuntu : les bureaux en vignettes sur une
+    rangée, les fenêtres du bureau courant en aperçus dessous. Ouverte par
+    la touche Super, ou par le clic droit sur le bureau. */
+#apercu{position:fixed;inset:0;z-index:2400;background:rgba(6,6,8,.9);
+  backdrop-filter:blur(9px);display:flex;flex-direction:column;
+  align-items:center;gap:26px;padding:44px 26px 26px;overflow:auto;
+  animation:apercuIn .16s ease-out}
+@keyframes apercuIn{from{opacity:0}to{opacity:1}}
+.ap-vigs{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;flex:none}
+.ap-vig{position:relative;width:168px;height:98px;border-radius:9px;padding:0;
+  border:2px solid var(--bd);background:var(--bg-alt);cursor:pointer;
+  overflow:hidden;transition:border-color .13s,transform .13s}
+.ap-vig:hover{border-color:var(--ac-hi);transform:translateY(-2px)}
+.ap-vig.on{border-color:var(--ac);box-shadow:0 0 0 3px rgba(232,89,12,.22)}
+.ap-vig.vise{border-color:var(--ac);background:rgba(232,89,12,.16)}
+.ap-vig-in{position:absolute;inset:0;display:block}
+.ap-vig-in i{position:absolute;background:rgba(255,255,255,.26);
+  border:1px solid rgba(255,255,255,.4);border-radius:2px}
+.ap-vig-n{position:absolute;right:6px;bottom:4px;font:700 12px/1 ui-monospace,monospace;
+  color:var(--fg-dim)}
+.ap-vig.on .ap-vig-n{color:var(--ac)}
+.ap-wins{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
+  max-width:min(1000px,92vw)}
+.ap-win{display:flex;flex-direction:column;align-items:center;gap:9px;
+  width:150px;padding:16px 10px;border-radius:12px;border:1px solid var(--bd);
+  background:var(--bg-alt);color:var(--fg);cursor:pointer;
+  transition:border-color .13s,transform .13s,background .13s;touch-action:none}
+.ap-win:hover{border-color:var(--ac);background:var(--bg-hi);transform:translateY(-3px)}
+.ap-win-ic{font-size:26px;line-height:1;display:flex;align-items:center;justify-content:center;
+  width:34px;height:34px}
+.ap-win-t{font-size:12px;text-align:center;line-height:1.35;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ap-win-porte{opacity:.75;z-index:10;position:relative;pointer-events:none;
+  box-shadow:0 14px 34px rgba(0,0,0,.55)}
+.ap-vide{color:var(--fg-dim);font-size:13.5px;text-align:center;line-height:1.7}
+.ap-vide span{display:block;font-size:12.5px;opacity:.75;margin-top:5px}
+.ap-aide{color:var(--fg-dim);font-size:12px;text-align:center;line-height:1.7;
+  max-width:640px;margin-top:auto}
+.ap-aide b{color:var(--fg)}
 /*  Les trois couleurs de Chrome tournent lentement, comme les pales d'un
     ventilateur. Seuls les arcs tournent : le moyeu central reste fixe,
     sinon le petit disque du milieu donnerait le tournis au lieu de laisser
@@ -1695,10 +1719,6 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
     <div id="panel-g">
       <button class="apps" id="appsBtn" title="Applications"
               aria-label="Applications"><span class="glyph"></span></button>
-      <!--  Bureaux virtuels : plusieurs écrans sur le même écran. Chaque
-            pastille est un bureau ; celle qui porte un point contient au
-            moins une fenêtre. -->
-      <span id="bureaux" title="Bureaux virtuels — Ctrl+Alt+← →"></span>
       <!--  Accès rapide : photo et vidéo de l'écran sans passer par le menu
             Applications ni par le dock. -->
       <span id="quickcap">
@@ -1758,7 +1778,7 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 filesFav:false, wifi:true, bt:true, wifiIssue:false,
                 son:72, batt:72, charging:false,
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
-                qsCompact:false, dockHidden:false, zTop:100, bureau:0, majDispo:false, majSecuAuto:true, majAuto:false, wallpaper:"defaut", police:"defaut",
+                qsCompact:false, dockHidden:false, zTop:100, bureau:0, coinActif:true, majDispo:false, majSecuAuto:true, majAuto:false, wallpaper:"defaut", police:"defaut",
                 agendaEvts:{}, agendaVue:null,
                 notifs:[] /* historique des notifications : {txt, h, ic} */,
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
@@ -2363,15 +2383,11 @@ function bureauApplique(){
   bureauRend();
   if(typeof majDock === "function") try{ majDock(); }catch(e){}
 }
+//  La barre du haut n'affiche plus les bureaux : c'est la vue d'ensemble
+//  (touche Super, comme sous Ubuntu) qui les montre. Il reste à rafraîchir
+//  cette vue quand elle est ouverte et qu'une fenêtre naît ou meurt.
 function bureauRend(){
-  const el = document.getElementById("bureaux");
-  if(!el) return;
-  el.innerHTML = Array.from({length:BUREAUX_N}, (_,n)=>{
-    const occupe = bureauCompte(n) > 0;
-    return `<button class="bur${n===state.bureau?" on":""}${occupe?" plein":""}"
-      onclick="bureauVa(${n})" title="Bureau ${n+1}${occupe?` — ${bureauCompte(n)} fenêtre(s)`:" — vide"}"
-      aria-label="Bureau ${n+1}" aria-current="${n===state.bureau}">${n+1}</button>`;
-  }).join("");
+  if(typeof apercuEl !== "undefined" && apercuEl) apercuRend();
 }
 function bureauVa(n){
   if(n < 0 || n >= BUREAUX_N || n === state.bureau) return;
@@ -2383,6 +2399,192 @@ function bureauVa(n){
   if(visibles.length) focusWin(visibles[visibles.length-1]);
   toast("🗔 Bureau " + (n+1) + (visibles.length ? "" : " — vide"));
 }
+/* ---- Vue d'ensemble, façon GNOME (Ubuntu) ---------------------------
+   Le geste d'Ubuntu : la touche Super écarte tout, montre les bureaux en
+   vignettes sur une rangée et les fenêtres du bureau courant en aperçus.
+   On clique une vignette pour changer de bureau, un aperçu pour aller à
+   la fenêtre, et on peut faire glisser un aperçu sur une vignette pour
+   déménager la fenêtre. Échap ou un clic dans le vide referme.     */
+let apercuEl = null;
+
+function apercuVignette(n){
+  //  Les fenêtres du bureau n, dessinées à l'échelle dans la vignette :
+  //  on reconnaît la disposition d'un coup d'oeil, sans rien lire.
+  const wins = [...document.querySelectorAll(".win")].filter(w=>winBureau(w) === n);
+  //  ATTENTION : les fenêtres des bureaux qu'on ne regarde pas sont en
+  //  display:none — getBoundingClientRect() y renvoie des zéros, et toutes
+  //  leurs vignettes se retrouvaient empilées dans le coin à la taille
+  //  minimale. On lit donc la géométrie posée en style, et on ne mesure que
+  //  pour le bureau affiché (où une fenêtre agrandie n'a pas de style
+  //  left/top à jour).
+  const px = v => parseFloat(v) || 0;
+  const blocs = wins.map(w=>{
+    let L, T, W, H;
+    if(n === state.bureau){
+      const r = w.getBoundingClientRect();
+      L = r.left; T = r.top; W = r.width; H = r.height;
+    } else {
+      L = px(w.style.left); T = px(w.style.top);
+      W = px(w.style.width)  || 520;
+      H = px(w.style.height) || 380;
+    }
+    return `<i style="left:${Math.max(0, L/innerWidth*100).toFixed(1)}%;`+
+           `top:${Math.max(0, T/innerHeight*100).toFixed(1)}%;`+
+           `width:${Math.min(100, Math.max(6, W/innerWidth*100)).toFixed(1)}%;`+
+           `height:${Math.min(100, Math.max(6, H/innerHeight*100)).toFixed(1)}%"></i>`;
+  }).join("");
+  return `<button class="ap-vig${n===state.bureau?" on":""}" data-bureau="${n}"
+      onclick="apercuVaBureau(${n})" title="Bureau ${n+1}"
+      aria-label="Bureau ${n+1}, ${wins.length} fenêtre(s)">
+      <span class="ap-vig-in">${blocs}</span>
+      <span class="ap-vig-n">${n+1}</span></button>`;
+}
+
+function apercuRend(){
+  if(!apercuEl) return;
+  const wins = [...document.querySelectorAll(".win")].filter(w=>winBureau(w) === state.bureau);
+  const cartes = wins.length ? wins.map(w=>{
+    const ic = w.querySelector(".ticon");
+    const ti = w.querySelector(".ttitle");
+    return `<button class="ap-win" data-id="${w.id}" draggable="false"
+        onclick="apercuVaFenetre('${w.id}')" title="${ti?esc(ti.textContent):""}">
+        <span class="ap-win-ic">${ic?ic.innerHTML:"🗔"}</span>
+        <span class="ap-win-t">${ti?esc(ti.textContent):"Fenêtre"}</span></button>`;
+  }).join("") : `<div class="ap-vide">Aucune fenêtre sur le bureau ${state.bureau+1}.
+      <span>Ouvre une application, ou passe à un autre bureau ci-dessus.</span></div>`;
+
+  apercuEl.innerHTML =
+    `<div class="ap-vigs">${Array.from({length:BUREAUX_N},(_,n)=>apercuVignette(n)).join("")}</div>
+     <div class="ap-wins">${cartes}</div>
+     <div class="ap-aide">Clique un bureau pour y aller · une fenêtre pour l'ouvrir ·
+       glisse une fenêtre sur un bureau pour l'y déménager · <b>Échap</b> pour fermer</div>`;
+  apercuGlisser();
+}
+
+//  Glisser un aperçu de fenêtre sur une vignette pour la déménager — le
+//  geste d'Ubuntu. Pointer events, comme le reste du fichier.
+function apercuGlisser(){
+  apercuEl.querySelectorAll(".ap-win").forEach(carte=>{
+    carte.addEventListener("pointerdown", e=>{
+      if(e.button !== 0) return;
+      const x0=e.clientX, y0=e.clientY;
+      let actif=false;
+      const bouge = ev=>{
+        if(!actif){
+          if(Math.abs(ev.clientX-x0) < 8 && Math.abs(ev.clientY-y0) < 8) return;
+          actif = true; carte.classList.add("ap-win-porte");
+        }
+        carte.style.transform = `translate(${ev.clientX-x0}px,${ev.clientY-y0}px)`;
+        apercuEl.querySelectorAll(".ap-vig").forEach(v=>{
+          const r = v.getBoundingClientRect();
+          v.classList.toggle("vise", ev.clientX>=r.left && ev.clientX<=r.right &&
+                                     ev.clientY>=r.top  && ev.clientY<=r.bottom);
+        });
+      };
+      const lache = ev=>{
+        removeEventListener("pointermove", bouge);
+        removeEventListener("pointerup", lache);
+        removeEventListener("pointercancel", lache);
+        if(!actif) return;
+        carte.classList.remove("ap-win-porte");
+        carte.style.transform = "";
+        const cible = apercuEl.querySelector(".ap-vig.vise");
+        apercuEl.querySelectorAll(".ap-vig").forEach(v=>v.classList.remove("vise"));
+        //  Avaler le clic qui suit, sinon lâcher la carte ouvrirait la fenêtre.
+        carte.addEventListener("click", e2=>{ e2.stopPropagation(); e2.preventDefault(); },
+                               {capture:true, once:true});
+        if(!cible) return;
+        const n = parseInt(cible.dataset.bureau, 10);
+        const w = document.getElementById(carte.dataset.id);
+        if(!w || !Number.isInteger(n)) return;
+        w.dataset.bureau = String(n);
+        bureauApplique(); apercuRend();
+        toast("🗔 Fenêtre envoyée au bureau " + (n+1));
+      };
+      addEventListener("pointermove", bouge);
+      addEventListener("pointerup", lache);
+      addEventListener("pointercancel", lache);
+    });
+  });
+}
+
+function apercuVaBureau(n){
+  bureauVa(n);
+  apercuRend();
+}
+function apercuVaFenetre(id){
+  const w = document.getElementById(id);
+  apercuFerme();
+  if(w){ focusWin(w); }
+}
+function apercuOuvre(){
+  if(apercuEl) return;
+  apercuEl = document.createElement("div");
+  apercuEl.id = "apercu";
+  apercuEl.setAttribute("role","dialog");
+  apercuEl.setAttribute("aria-label","Vue d'ensemble des bureaux");
+  document.body.appendChild(apercuEl);
+  apercuRend();
+  apercuEl.addEventListener("pointerdown", e=>{
+    //  Un clic dans le vide referme — mais pas un clic sur une vignette,
+    //  un aperçu, ou pendant un glissement.
+    if(e.target === apercuEl) apercuFerme();
+  });
+}
+function apercuFerme(){ if(apercuEl){ apercuEl.remove(); apercuEl = null; } }
+function toggleCoinActif(){
+  state.coinActif = !state.coinActif;
+  showSettingsSection();
+  toast(state.coinActif ? "Coin actif allumé" : "Coin actif éteint");
+}
+function apercuBascule(){ apercuEl ? apercuFerme() : apercuOuvre(); }
+
+/*  LE COIN ACTIF, comme sous Ubuntu : pousser la souris dans le coin
+    HAUT-GAUCHE ouvre la vue d'ensemble, sans rien cliquer.
+
+    Deux précautions, parce que ce coin porte déjà le bouton Applications :
+    · il faut être à moins de 5 px des DEUX bords à la fois — le coin
+      extrême, pas le bord gauche entier. On n'y arrive qu'en poussant
+      volontairement la souris dedans, pas en visant le logo ;
+    · il faut y rester 140 ms. Un passage en diagonale vers le logo
+      traverse le coin en quelques millisecondes et n'ouvre rien.
+    Le coin se réarme seulement après que la souris en est ressortie :
+    sans ça, refermer la vue en laissant le curseur dans le coin la
+    rouvrirait aussitôt, en boucle. */
+let coinArme = true, coinTimer = null;
+addEventListener("pointermove", e=>{
+  if(!state.coinActif) return;
+  const dedans = e.clientX < 5 && e.clientY < 5;
+  if(!dedans){
+    coinArme = true;
+    if(coinTimer){ clearTimeout(coinTimer); coinTimer = null; }
+    return;
+  }
+  if(!coinArme || coinTimer || apercuEl) return;
+  coinTimer = setTimeout(()=>{
+    coinTimer = null;
+    coinArme = false;            // réarmé à la sortie du coin
+    if(!apercuEl) apercuOuvre();
+  }, 140);
+}, {passive:true});
+
+//  Super seul ouvre la vue d'ensemble, comme sous Ubuntu : on n'agit qu'au
+//  RELÂCHEMENT, et seulement si aucune autre touche n'a été pressée entre
+//  temps — sinon Super+1 (aller au bureau 1) l'ouvrirait aussi.
+let superSeul = false;
+addEventListener("keydown", e=>{
+  if(e.key === "Meta"){ superSeul = true; return; }
+  superSeul = false;
+  if(e.key === "Escape" && apercuEl){ e.preventDefault(); apercuFerme(); }
+});
+addEventListener("keyup", e=>{
+  if(e.key === "Meta" && superSeul){
+    superSeul = false;
+    if(typeof capSaisieEnCours === "function" && capSaisieEnCours()) return;
+    apercuBascule();
+  }
+});
+
 function bureauSuivant(pas){
   bureauVa((state.bureau + pas + BUREAUX_N) % BUREAUX_N);
 }
@@ -3216,6 +3418,7 @@ function ctxBureau(e){
     "-",
     {ic:"🖼", txt:"Changer le fond d'écran", act:"openSettings('bureau')"},
     {ic:"😎", txt:"Autocollants du bureau", act:"openFonds()"},
+    {ic:"🗔", txt:"Vue d'ensemble des bureaux", act:"apercuOuvre()", kbd:"Super"},
     ...ctxReseauItems(),
     ...ctxParametres("apparence", "Apparence"),
     "-",
@@ -5849,6 +6052,9 @@ function settingsSection(key){
             `<button class="btn ${n===state.bureau?"":"ghost"} mini" style="width:auto"
                onclick="bureauVa(${n});showSettingsSection()">${n+1}</button>`).join("")}
         </div></div>
+      ${swRow("Coin actif (haut-gauche)",
+        "Pousser la souris dans le coin ouvre la vue d'ensemble — comme sous Ubuntu",
+        state.coinActif, "toggleCoinActif()")}
       <div class="srow"><div><div class="t">Fenêtres par bureau</div>
         <div class="d">${Array.from({length:BUREAUX_N}, (_,n)=>
           `Bureau ${n+1} : ${bureauCompte(n)}`).join(" · ")}</div></div></div>
