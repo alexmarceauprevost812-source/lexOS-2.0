@@ -2901,6 +2901,48 @@ function ctxParametres(panneauProche, etiquette){
   return items;
 }
 
+/*  Wi-Fi et Bluetooth dans le menu du clic droit — les mêmes bascules que
+    le panneau rapide en haut à droite, mais à portée de clic n'importe où
+    sur le bureau. On passe par qsTileClick() : une seule logique pour les
+    deux chemins, et l'icône de la barre suit toute seule. Les libellés
+    portent l'état, pour qu'on sache ce qu'on va faire AVANT de cliquer. */
+function ctxReseauItems(){
+  const avion = state.avion;
+  const wifiOn = !avion && state.wifi;
+  const btOn   = !avion && state.bt;
+  const btIc   = `<i class="gly gly-bt ${btOn?"gly-ok":"gly-off"}"></i>`;
+  return [
+    "-",
+    {ic: wifiGlyph(),
+     txt: avion ? "Wi-Fi — coupé (mode avion)"
+                : (wifiOn ? "Wi-Fi — connecté, cliquer pour couper"
+                          : "Wi-Fi — éteint, cliquer pour allumer"),
+     act: "ctxReseauBascule('wifi')"},
+    {ic: reglagesGlyph(14), txt:"Réseaux Wi-Fi…", act:"openSettings('wifi')"},
+    {ic: btIc,
+     txt: avion ? "Bluetooth — coupé (mode avion)"
+                : (btOn ? "Bluetooth — activé, cliquer pour couper"
+                        : "Bluetooth — éteint, cliquer pour allumer"),
+     act: "ctxReseauBascule('bt')"},
+    {ic: reglagesGlyph(14), txt:"Appareils Bluetooth…", act:"openSettings('bluetooth')"},
+    {ic:"✈", txt: avion ? "Mode avion — activé, cliquer pour quitter"
+                        : "Mode avion", act:"ctxReseauBascule('avion')"},
+  ];
+}
+//  Le mode avion coupe les deux radios : le dire, sinon un clic sans effet
+//  passe pour un bogue.
+function ctxReseauBascule(cle){
+  if(state.avion && (cle === "wifi" || cle === "bt")){
+    toast("✈ Mode avion actif — quitte-le d'abord");
+    return;
+  }
+  qsTileClick(cle);
+  majStatus();
+  const nom = cle === "wifi" ? "Wi-Fi" : cle === "bt" ? "Bluetooth" : "Mode avion";
+  const on  = cle === "wifi" ? state.wifi : cle === "bt" ? state.bt : state.avion;
+  toast(nom + (on ? " activé" : " coupé"));
+}
+
 /* --- Bureau -------------------------------------------------------------- */
 function ctxBureau(e){
   //  Une icône épinglée ou le menu Applications ont leur propre menu :
@@ -2916,6 +2958,7 @@ function ctxBureau(e){
     "-",
     {ic:"🖼", txt:"Changer le fond d'écran", act:"openSettings('bureau')"},
     {ic:"😎", txt:"Autocollants du bureau", act:"openFonds()"},
+    ...ctxReseauItems(),
     ...ctxParametres("apparence", "Apparence"),
     "-",
     {ic:"⏻", txt:"Marche, veille, éteindre", act:"pwToggle(document.getElementById('offBtn'))"},
