@@ -749,6 +749,16 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .term-nav .tnav-ic{font-size:13px;line-height:1}
 /*  La liste remonte au-dessus de la barre, sinon elle la recouvrirait. */
 .term-sug{bottom:56px}
+/*  La barre « essayer / enregistrer » du panneau Fond d'écran, et l'effacement
+    momentané de la fenêtre pour regarder le bureau derrière. */
+.wall-essai{display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+  justify-content:space-between;padding:11px 13px;margin:0 0 14px;
+  border:1px solid var(--bd);border-radius:10px;background:var(--bg-hi)}
+.wall-essai-t{flex:1 1 260px;font-size:12.5px;line-height:1.55;color:var(--fg-dim)}
+.wall-essai-t b{color:var(--fg)}
+.wall-essai-b{display:flex;gap:7px;flex-wrap:wrap;flex:none}
+.wall-essai-b .btn[disabled]{opacity:.42;pointer-events:none}
+.win.wall-efface{opacity:0;pointer-events:none;transition:opacity .18s ease}
 .term{position:relative}
 .term .in{display:inline}
 .caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
@@ -1663,6 +1673,69 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 deskIcons:[] /* icônes épinglées au bureau : {idx, x, y} — idx = index dans APPS */,
                 wallStickers:[] /* autocollants posés sur le fond : {cle, x, y, w} en % du bureau */,
                 codePct:40 /* visibilité du code d'arrière-plan : 100, 40, 20 ou 0 */ };
+/*  Choisir un fond, c'est essayer — pas s'engager. On garde donc l'état
+    d'AVANT en entrant dans le panneau : le bureau change en direct pendant
+    qu'on tâtonne, et rien n'est retenu tant qu'on n'a pas dit « Enregistrer ».
+    « Annuler » remet exactement ce qui était là. Sans ce filet, un fond
+    essayé par curiosité remplaçait définitivement le précédent, sans
+    prévenir et sans moyen de revenir. */
+let wallAvant = null;
+
+function wallInstantane(){
+  return {wallpaper:state.wallpaper, wallPerso:state.wallPerso,
+          wallVideoURL:state.wallVideoURL, wallPersoNom:state.wallPersoNom,
+          wallCadrage:state.wallCadrage};
+}
+//  Appelée au rendu du panneau : elle mémorise au PREMIER passage seulement,
+//  sinon chaque changement effacerait le point de retour. Renvoie "" pour
+//  pouvoir s'insérer dans le gabarit sans rien afficher.
+function wallMemorise(){
+  if(wallAvant === null) wallAvant = wallInstantane();
+  return "";
+}
+function wallModifie(){
+  if(!wallAvant) return false;
+  const m = wallInstantane();
+  return Object.keys(m).some(k => m[k] !== wallAvant[k]);
+}
+function wallEnregistre(){
+  wallAvant = wallInstantane();
+  showSettingsSection();
+  toast("🖼 Fond d'écran enregistré");
+}
+function wallAnnule(){
+  if(!wallAvant) return;
+  const a = wallAvant;
+  state.wallPerso    = a.wallPerso;
+  state.wallVideoURL = a.wallVideoURL;
+  state.wallPersoNom = a.wallPersoNom;
+  state.wallCadrage  = a.wallCadrage;
+  setWallpaper(a.wallpaper);
+  wallAvant = wallInstantane();
+  showSettingsSection();
+  toast("↺ Fond d'écran remis comme avant");
+}
+//  « Voir le bureau » : la fenêtre s'efface le temps de regarder, au lieu
+//  d'obliger à la déplacer ou à la fermer — on reste DANS l'application.
+let wallVoirTimer = null;
+function wallVoirBureau(){
+  const w = document.getElementById("win-set");
+  if(!w){ toast("Fenêtre introuvable"); return; }
+  if(wallVoirTimer){ clearTimeout(wallVoirTimer); wallVoirTimer=null; }
+  w.classList.add("wall-efface");
+  const rendre = ()=>{
+    w.classList.remove("wall-efface");
+    wallVoirTimer=null;
+    removeEventListener("pointerdown", rendre, true);
+    removeEventListener("keydown", rendre, true);
+  };
+  //  Un clic, une touche, ou 4 secondes : le premier qui vient la ramène.
+  addEventListener("pointerdown", rendre, true);
+  addEventListener("keydown", rendre, true);
+  wallVoirTimer = setTimeout(rendre, 4000);
+  toast("👁 Clique n'importe où pour revenir");
+}
+
 function setWallpaper(key){
   state.wallpaper = key;
   const d = document.getElementById("desktop");
@@ -5404,6 +5477,22 @@ function settingsSection(key){
       ${swRow("Masquer la barre d'outils","Elle glisse hors de l'écran ; la poignée du bord la ramène",state.dockHidden,"toggleDock();showSettingsSection()")}
       ${swRow("Effets d'ouverture/fermeture (TV 1980)","Fenêtres façon téléviseur cathodique",state.crt,"setCrt(!state.crt);openSettings()")}`;
     case "bureau": return `<h2>Bureau LexOS</h2><div class="sub">Fond d'écran, icônes</div>
+      ${wallMemorise()}
+      <div class="wall-essai">
+        <div class="wall-essai-t">
+          <b>Essaie sans t'engager.</b> Change de fond autant que tu veux : le
+          bureau suit tout de suite. Rien n'est retenu tant que tu n'as pas
+          enregistré${wallModifie() ? " — et tu as des changements en attente" : ""}.
+        </div>
+        <div class="wall-essai-b">
+          <button class="btn ghost mini" style="width:auto" onclick="wallVoirBureau()"
+            title="Efface la fenêtre le temps de regarder">👁 Voir le bureau</button>
+          <button class="btn ghost mini" style="width:auto"
+            onclick="wallAnnule()"${wallModifie()?"":" disabled"}>↺ Annuler</button>
+          <button class="btn mini" style="width:auto"
+            onclick="wallEnregistre()"${wallModifie()?"":" disabled"}>✓ Enregistrer</button>
+        </div>
+      </div>
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Fond d'écran</div>
         <div class="row">
