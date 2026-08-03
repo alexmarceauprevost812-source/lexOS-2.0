@@ -82,6 +82,20 @@ piper
 # installeur Windows le lance par Wine, sans passer par le terminal.
 wine-binfmt
 
+# --- La moitié 32 bits, celle qu'on oublie ------------------------------
+# Une grande partie des jeux Windows — et presque tous leurs installeurs —
+# sont des programmes 32 bits. Sans wine32, ils ne se LANCENT pas ; sans
+# le chargeur Vulkan et le Mesa 32 bits, ils tournent en rendu logiciel,
+# à une image par seconde, même avec une RTX dans la machine. Le pilote
+# NVIDIA 32 bits (nvidia-driver-libs:i386), lui, arrive déjà par le hook
+# 0260. L'architecture i386 est activée par le hook 0250 avant cette
+# liste ; ces noms suffixés :i386 s'installent donc normalement ici.
+wine32:i386
+libvulkan1:i386
+mesa-vulkan-drivers:i386
+libgl1-mesa-dri:i386
+libglx-mesa0:i386
+
 # --- Émulation ----------------------------------------------------------
 retroarch
 # Cœurs RetroArch prêts à l'emploi (SNES, NES, Mega Drive, PlayStation,
