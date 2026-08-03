@@ -699,7 +699,14 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 /*  Couleurs de commande, façon Kali : l'étiquette [lexOS] et le cadre de
     l'invite en bleu Kali, sudo en rouge, help en jaune. Les mots sont
     colorés pendant la frappe ET dans l'écho de la ligne validée. */
-.term .kali{color:#3BE07A;font-weight:700}     /* le cadre et [lexOS] : vert */
+.term .kali{color:#3BE07A;font-weight:700}
+/*  Les trois teintes de l'invite : lexOS vert, le ㉿ jaune, l'utilisateur
+    rouge. Couleurs écrites en dur — la démo n'a pas de variable pour du
+    rouge ni du jaune, et en inventer une ferait échouer le contrôle CI
+    « Aucune variable CSS fantôme dans la démo ». */
+.pr-lexos{color:#3BE07A;font-weight:700}
+.pr-at{color:#FFC83D;font-weight:700}
+.pr-user{color:#FF4D4D;font-weight:700}     /* le cadre et [lexOS] : vert */
 .term .tk-sudo{color:#FF4B4B;font-weight:700}
 .term .tk-help{color:#FFD23F;font-weight:700}
 /*  Palette choisie par l'auteur : lexOS en VERT (la marque), les commandes
@@ -724,6 +731,24 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .term-sug .sg-d{color:#9a9aa2;overflow:hidden;text-overflow:ellipsis}
 .term-sug .sg-aide{color:#3BE07A;padding:4px 9px 6px;border-top:1px solid #26262c;
   margin-top:3px;white-space:normal}
+/*  La barre de choix cliquable, sous le terminal. Elle rend accessible à la
+    souris (et au doigt) ce qui n'existait qu'aux flèches du clavier. */
+.term-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+  padding:7px 10px;border-top:1px solid #26262c;background:#0b0b0e}
+.term-nav .tnav{font:600 12px/1 ui-monospace,"JetBrains Mono",monospace;
+  color:#cfcfd6;background:#17171c;border:1px solid #2e2e36;border-radius:8px;
+  padding:7px 11px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  transition:background .12s,border-color .12s,color .12s}
+.term-nav .tnav:hover{background:#212128;border-color:#3d3d47;color:#fff}
+.term-nav .tnav:active{transform:translateY(1px)}
+.term-nav .tnav-fl{min-width:38px;justify-content:center;font-size:13px}
+.term-nav .tnav-ok{border-color:#3BE07A55;color:#3BE07A}
+.term-nav .tnav-ok:hover{background:rgba(59,224,122,.12);border-color:#3BE07A}
+.term-nav .tnav-go{border-color:#FF8C1A55;color:#FF8C1A}
+.term-nav .tnav-go:hover{background:rgba(255,140,26,.12);border-color:#FF8C1A}
+.term-nav .tnav-ic{font-size:13px;line-height:1}
+/*  La liste remonte au-dessus de la barre, sinon elle la recouvrirait. */
+.term-sug{bottom:56px}
 .term{position:relative}
 .term .in{display:inline}
 .caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
@@ -2289,14 +2314,64 @@ function perfGauge(size, profil){
 }
 
 function termHTML(){
-  return `<div class="term" id="tout"></div>`;
+  //  La barre du bas : les mêmes gestes qu'aux flèches du clavier, mais
+  //  cliquables. Pour qui ne connaît pas les commandes par coeur — et pour
+  //  qui n'a pas de clavier sous la main (télé, tablette).
+  return `<div class="term" id="tout"></div>`+
+    `<div class="term-nav">`+
+      `<button class="tnav" onclick="sugOuvreTout()" title="Voir toutes les commandes">`+
+        `<span class="tnav-ic">☰</span> Commandes</button>`+
+      `<button class="tnav tnav-fl" onclick="sugClicFleche(-1)" title="Choix précédent">▲</button>`+
+      `<button class="tnav tnav-fl" onclick="sugClicFleche(1)" title="Choix suivant">▼</button>`+
+      `<button class="tnav tnav-ok" onclick="sugClicPose()" title="Mettre dans la ligne">`+
+        `Choisir</button>`+
+      `<button class="tnav tnav-go" onclick="sugClicLance()" title="Lancer la commande">`+
+        `▶ Lancer</button>`+
+    `</div>`;
+}
+
+/*  Les cinq boutons de la barre. Ils passent tous par les mêmes fonctions
+    que le clavier : une seule logique à maintenir, et le comportement est
+    identique qu'on clique ou qu'on tape. */
+function sugOuvreTout(){
+  sugTout = !sugTout;              // deuxième clic : on referme
+  if(!sugTout){ sugFerme(); hidden.focus(); return; }
+  sugSel = 0; sugRend(); hidden.focus();
+}
+function sugClicFleche(pas){
+  if(!sugListe.length){ sugSel = 0; sugRend(); hidden.focus(); return; }
+  sugBouge(pas); hidden.focus();
+}
+function sugClicPose(){
+  if(!sugListe.length){ sugRend(); hidden.focus(); return; }
+  sugValide(); hidden.focus();
+}
+//  « Lancer » : pose la commande choisie ET l'exécute, en un seul geste.
+function sugClicLance(){
+  if(sugListe.length) sugValide();
+  const cmd = tBuf.trim();
+  if(!cmd){ hidden.focus(); return; }
+  const cur = document.getElementById("cur");
+  if(cur) cur.outerHTML = tColore(tBuf) + "\n";
+  runCmd(tBuf);
+  tBuf = ""; hidden.value = "";
+  const i = document.getElementById("tin"); if(i) i.innerHTML = "";
+  if(tEl) tEl.scrollTop = tEl.scrollHeight;
+  hidden.focus();
 }
 let tEl=null, tBuf="";
 /*  Invite sur deux lignes, façon Kali Linux : le cadre ┌──└─ et
     l'étiquette [lexOS] en bleu Kali, l'utilisateur en vert, le chemin
     en accent. */
 function tPrompt(){
-  return `<span class="kali">┌──[lexOS]─(</span><span class="p">lex</span><span class="kali">㉿</span><span class="p">lexos</span><span class="kali">)-[</span><span class="path">~</span><span class="kali">]</span>`+
+  //  Couleurs demandées : « lexOS » en vert, le ㉿ (le @) en jaune, le nom
+  //  d'utilisateur en rouge. Le cadre reste vert, la machine et le chemin
+  //  gardent leurs teintes — sans quoi la ligne devient illisible à force
+  //  de couleurs qui se disputent l'attention.
+  return `<span class="kali">┌──[</span><span class="pr-lexos">lexOS</span><span class="kali">]─(</span>`+
+         `<span class="pr-user">lex</span><span class="pr-at">㉿</span>`+
+         `<span class="p">lexos</span><span class="kali">)-[</span>`+
+         `<span class="path">~</span><span class="kali">]</span>`+
          `\n<span class="kali">└─</span><span class="a">❯</span> `;
 }
 /*  Coloration des commandes tapées : sudo en rouge, help en jaune,
@@ -2343,12 +2418,15 @@ const TERM_SUGGESTIONS = [
   ["uname -a",          "version du noyau Linux"],
   ["clear",             "efface l'écran"],
 ];
-let sugEl=null, sugSel=0, sugListe=[];
-function sugFerme(){ if(sugEl){ sugEl.remove(); sugEl=null; } sugListe=[]; sugSel=0; }
+let sugEl=null, sugSel=0, sugListe=[], sugTout=false;
+function sugFerme(){ if(sugEl){ sugEl.remove(); sugEl=null; } sugListe=[]; sugSel=0; sugTout=false; }
 /*  Quelles suggestions pour ce qui est tapé ? Rien de tapé → tout ; sinon
     celles qui commencent par le texte, puis celles qui le contiennent. */
 function sugFiltre(txt){
   const q = txt.trim().toLowerCase();
+  //  Bouton « Commandes » : on montre TOUT, pas les huit premières. C'est
+  //  la demande de départ — ne pas avoir à connaître les commandes.
+  if(sugTout && !q) return TERM_SUGGESTIONS.slice();
   if(!q) return TERM_SUGGESTIONS.slice(0, 8);
   const debut = TERM_SUGGESTIONS.filter(([c])=>c.toLowerCase().startsWith(q));
   const dedans= TERM_SUGGESTIONS.filter(([c,d])=>!c.toLowerCase().startsWith(q) &&
@@ -2368,7 +2446,10 @@ function sugRend(){
   sugEl.innerHTML = sugListe.map(([c,d],i)=>
       `<div class="sg${i===sugSel?" on":""}" data-i="${i}">`+
       `<span class="sg-c">${esc(c)}</span><span class="sg-d">${esc(d)}</span></div>`).join("")
-    + `<div class="sg-aide">↑ ↓ pour choisir · Tab ou Entrée pour valider · Échap pour fermer</div>`;
+    + `<div class="sg-aide">↑ ↓ ou les boutons <b>▲ ▼</b> pour choisir · `
+      + `<b>Choisir</b> (Tab) met la commande dans la ligne · `
+      + `<b>▶ Lancer</b> l'exécute · Échap ferme`
+      + (sugTout ? ` · ${sugListe.length} commandes` : "") + `</div>`;
   sugEl.querySelectorAll(".sg").forEach(el=>{
     el.onmousedown = ev=>{ ev.preventDefault(); sugSel=+el.dataset.i; sugValide(); };
   });
@@ -3643,11 +3724,16 @@ function filesRend(){
   const fic  = n.fichiers || [];
   let html = "";
   if(sous.length){
+    //  data-nom porte le nom : les guillemets d'un dossier « L'été » ne
+    //  peuvent alors plus casser l'attribut, contrairement à une chaîne
+    //  écrite dans onclick. Le clic droit ouvre le MÊME menu qu'à la racine.
     html += `<div class="fgrid">` + sous.map(nom=>
-      `<div class="fold" tabindex="0" title="${esc(nom)}"
-            onclick="filesEntre('${nom.replace(/'/g,"\\\\'")}')"
-            onkeydown="if(event.key==='Enter'){filesEntre('${nom.replace(/'/g,"\\\\'")}')}">`+
-        folderSVG({nom, court:nom.slice(0,4).toUpperCase(), couleur:null})+
+      `<div class="fold" tabindex="0" title="${esc(nom)}" data-nom="${esc(nom)}"
+            onclick="filesEntre(this.dataset.nom)"
+            oncontextmenu="dossierMenu(event, this.dataset.nom, -1)"
+            onkeydown="if(event.key==='Enter'){filesEntre(this.dataset.nom)}">`+
+        folderSVG({nom, court:nom.slice(0,4).toUpperCase(),
+                   couleur: COULEURS_SOUS[filesChemin.concat(nom).join("/")] || null})+
         `<span class="fname">${esc(nom)}</span></div>`).join("") + `</div>`;
   }
   if(fic.length){
@@ -3764,31 +3850,291 @@ function folderOpen(i, el){
 /* --- Clic droit : changer la couleur du dossier -------------------------- */
 let foldMenuEl = null;
 function closeFolderMenu(){ if(foldMenuEl){ foldMenuEl.remove(); foldMenuEl=null; } }
-function folderMenu(e, i){
-  e.preventDefault(); e.stopPropagation();
-  closeFolderMenu();
-  const m=document.createElement("div");
-  m.className="menu";
-  m.style.top=Math.min(innerHeight-260, e.clientY)+"px";
-  m.style.left=Math.min(innerWidth-250, e.clientX)+"px";
-  m.style.right="auto";
-  const puce=c=>`<span style="width:13px;height:13px;border-radius:3px;background:${c};`+
-                `display:inline-block;border:1px solid rgba(255,255,255,.25)"></span>`;
-  m.innerHTML =
-    `<button onclick="folderOpenFromMenu(${i})">📂 Ouvrir</button>`+
-    `<div class="msep"></div>`+
-    `<div style="padding:6px 10px 4px;font-size:11px;color:var(--fg-dim)">Couleur du dossier</div>`+
-    Object.entries(ACCENTS).map(([n,c])=>
-      `<button onclick="folderSetColor(${i},'${c[0]}')">${puce(c[0])} ${n}</button>`).join("")+
-    `<div class="msep"></div>`+
-    `<button onclick="folderSetColor(${i},null)">↺ Couleur du thème</button>`;
-  document.body.appendChild(m);
-  foldMenuEl=m;
+/*  Le menu du clic droit sur un dossier — calqué sur celui d'Ubuntu.
+    Ubuntu utilise Fichiers (Nautilus) : ouvrir, terminal, couper/copier/
+    coller, renommer, dupliquer, lien, compresser, corbeille, propriétés.
+    On reprend la même liste et le même ordre, PLUS la couleur de dossier
+    qui est propre à LexOS. Chaque entrée fait vraiment quelque chose :
+    une ligne de menu qui ne répond pas est pire que pas de ligne du tout.
+
+    La cible est gardée dans une variable au lieu d'être écrite dans le HTML
+    des boutons : un dossier nommé « L'été » ou « a"b » casserait l'attribut
+    onclick, et ce genre de bogue ne se voit qu'une fois le dossier créé. */
+let dossierCible = null;          // {nom, iRacine}  iRacine <0 = sous-dossier
+const COULEURS_SOUS = {};         // couleur des sous-dossiers, par chemin complet
+
+function dossierChemin(nom){ return filesChemin.concat(nom).join("/"); }
+
+//  Le conteneur « dossiers » du répertoire courant — ARBO à la racine.
+function dossierParent(){
+  if(!filesChemin.length) return ARBO;
+  const n = filesNoeud(filesChemin);
+  return n ? (n.dossiers || (n.dossiers = {})) : null;
 }
-function folderOpenFromMenu(i){
+
+//  « Documents » existe déjà ? → « Documents (copie) », puis « (copie 2) »…
+function dossierNomLibre(parent, nom){
+  if(!parent[nom]) return nom;
+  let base = nom + " (copie)";
+  if(!parent[base]) return base;
+  let k = 2;
+  while(parent[nom + " (copie " + k + ")"]) k++;
+  return nom + " (copie " + k + ")";
+}
+
+function dossierCompteContenu(nom){
+  const n = filesNoeud(filesChemin.concat(nom));
+  if(!n) return {dossiers:0, fichiers:0};
+  return {dossiers:Object.keys(n.dossiers||{}).length, fichiers:(n.fichiers||[]).length};
+}
+
+function folderMenu(e, i){ dossierMenu(e, FOLDERS[i].nom, i); }
+
+function dossierMenu(e, nom, iRacine){
+  e.preventDefault(); e.stopPropagation();
+  closeFolderMenu(); fermeFichierMenu(); closeFilesMenu();
+  dossierCible = {nom, iRacine: (typeof iRacine === "number" ? iRacine : -1)};
+
+  const m = document.createElement("div");
+  m.className = "menu";
+  //  Le menu est long (les actions d'Ubuntu PLUS les couleurs) : il faut
+  //  qu'il tienne à l'écran, sinon « Propriétés », tout en bas, est coupé —
+  //  et rien ne laisse deviner qu'il manque quelque chose.
+  const hMax = Math.min(innerHeight * 0.78, 620);
+  m.style.maxHeight = hMax + "px";
+  m.style.overflowY = "auto";
+  m.style.top  = Math.max(8, Math.min(innerHeight - hMax - 8, e.clientY))+"px";
+  m.style.left = Math.min(innerWidth-260,  e.clientX)+"px";
+  m.style.right= "auto";
+
+  const puce = c=>`<span style="width:13px;height:13px;border-radius:3px;background:${c};`+
+                  `display:inline-block;border:1px solid rgba(255,255,255,.25)"></span>`;
+  const bouton = (ic, txt, act, kbd)=>
+    `<button onclick="closeFolderMenu();${act}"><span class="picto">${ic}</span> ${txt}`+
+    (kbd?`<span class="kbd">${kbd}</span>`:"")+`</button>`;
+  const sep = `<div class="msep"></div>`;
+  const titre = t=>`<div style="padding:6px 10px 4px;font-size:11px;color:var(--fg-dim)">${t}</div>`;
+
+  m.innerHTML =
+    bouton("📂","Ouvrir","dossierOuvre()","Entrée")+
+    bouton(terminalGlyph(14),"Ouvrir un terminal ici","openTerminal()")+
+    sep+
+    bouton("⎘","Copier","dossierCopie(false)","Ctrl+C")+
+    bouton("✂","Couper","dossierCopie(true)","Ctrl+X")+
+    (pressePapier ? bouton("📋","Coller dans le dossier","dossierColleDedans()") : "")+
+    sep+
+    bouton("✎","Renommer…","dossierRenomme()","F2")+
+    bouton("⧉","Dupliquer","dossierDuplique()","Ctrl+D")+
+    bouton("🔗","Créer un lien","dossierLien()","Ctrl+M")+
+    bouton("📦","Compresser…","dossierCompresse()")+
+    sep+
+    bouton("🗑","Déplacer vers la corbeille","dossierSupprime()","Suppr")+
+    sep+
+    titre("Couleur du dossier")+
+    Object.entries(ACCENTS).map(([n,c])=>
+      `<button onclick="dossierSetColor('${c[0]}')">${puce(c[0])} ${n}</button>`).join("")+
+    `<button onclick="dossierSetColor(null)">↺ Couleur du thème</button>`+
+    sep+
+    bouton("ℹ","Propriétés","dossierProprietes()","Ctrl+I");
+
+  document.body.appendChild(m);
+  foldMenuEl = m;
+}
+
+function dossierOuvre(){
+  if(!dossierCible) return;
+  const {nom, iRacine} = dossierCible;
+  if(iRacine >= 0){
+    const el = document.querySelector(`.fold[data-i="${iRacine}"]`);
+    if(el){ folderOpen(iRacine, el); return; }
+  }
+  filesEntre(nom);
+}
+
+function dossierCopie(couper){
+  if(!dossierCible) return;
+  const {nom} = dossierCible;
+  const parent = dossierParent();
+  if(!parent || !parent[nom]) return;
+  pressePapier = {dossier:nom, couper:!!couper, srcParent:parent,
+                  srcRacine: !filesChemin.length};
+  toast((couper ? "Coupé : " : "Copié : ") + nom);
+}
+
+//  Coller DANS le dossier visé (et non à côté) — « Coller dans le dossier »
+//  d'Ubuntu. Le dossier cible doit exister et ne pas être sa propre cible.
+function dossierColleDedans(){
+  if(!pressePapier){ toast("Presse-papiers vide"); return; }
+  if(!dossierCible) return;
+  const cible = filesNoeud(filesChemin.concat(dossierCible.nom));
+  if(!cible){ toast("Dossier introuvable"); return; }
+
+  if(pressePapier.dossier){
+    if(pressePapier.dossier === dossierCible.nom && pressePapier.srcParent === dossierParent()){
+      toast("Un dossier ne peut pas se coller dans lui-même"); return;
+    }
+    const src = pressePapier.srcParent[pressePapier.dossier];
+    if(!src){ toast("La source a disparu"); pressePapier=null; return; }
+    const dst = cible.dossiers || (cible.dossiers = {});
+    const nom = dossierNomLibre(dst, pressePapier.dossier);
+    dst[nom] = JSON.parse(JSON.stringify(src));
+    if(pressePapier.couper){
+      delete pressePapier.srcParent[pressePapier.dossier];
+      if(pressePapier.srcRacine){
+        const k = FOLDERS.findIndex(f=>f.nom===pressePapier.dossier);
+        if(k>=0) FOLDERS.splice(k,1);
+      }
+      pressePapier = null;
+    }
+    filesRend(); toast("📁 Collé dans " + dossierCible.nom);
+    return;
+  }
+
+  //  Un FICHIER collé dans le dossier visé.
+  const liste = cible.fichiers || (cible.fichiers = []);
+  if(pressePapier.couper && pressePapier.srcListe){
+    const j = pressePapier.srcListe.findIndex(x=>x.nom===pressePapier.fichier.nom);
+    if(j>=0) pressePapier.srcListe.splice(j,1);
+  }
+  const {special, ...reste} = pressePapier.fichier;
+  liste.push({...reste, ic: reste.ic || "📄", nom: ficNomLibre(liste, reste.nom)});
+  if(pressePapier.couper) pressePapier = null;
+  filesRend(); toast("Collé dans " + dossierCible.nom);
+}
+
+//  Renommage sur place, dans la tuile — comme F2 sur un fichier.
+function dossierRenomme(){
+  if(!dossierCible) return;
+  const {nom, iRacine} = dossierCible;
+  const parent = dossierParent();
+  const tuile = iRacine >= 0
+    ? document.querySelector(`.fold[data-i="${iRacine}"]`)
+    : [...document.querySelectorAll(".fold")].find(el=>{
+        const s = el.querySelector(".fname"); return s && s.textContent === nom; });
+  const span = tuile && tuile.querySelector(".fname");
+  if(!span){ toast("Renommage impossible ici"); return; }
+
+  span.contentEditable = "true";
+  span.classList.add("fnom-edit");
+  span.focus(); selectAllText(span);
+
+  const valide = ()=>{
+    span.contentEditable = "false";
+    span.classList.remove("fnom-edit");
+    span.removeEventListener("keydown", onKey);
+    span.removeEventListener("blur", valide);
+    const neuf = span.textContent.trim();
+    if(!neuf || neuf === nom){ filesRend(); return; }
+    if(parent && parent[neuf]){ toast("« " + neuf + " » existe déjà"); filesRend(); return; }
+    if(parent && parent[nom]){
+      //  Recréer les clés dans l'ordre : sans ça le dossier renommé saute
+      //  en fin de grille, ce qui donne l'impression qu'il a bougé.
+      const copie = {};
+      for(const k of Object.keys(parent)){ copie[k === nom ? neuf : k] = parent[k]; }
+      for(const k of Object.keys(parent)) delete parent[k];
+      Object.assign(parent, copie);
+    }
+    if(iRacine >= 0 && FOLDERS[iRacine]){
+      FOLDERS[iRacine].nom = neuf;
+      FOLDERS[iRacine].court = neuf.slice(0,4).toUpperCase();
+    }
+    const ancienChemin = dossierChemin(nom);
+    if(COULEURS_SOUS[ancienChemin] !== undefined){
+      COULEURS_SOUS[dossierChemin(neuf)] = COULEURS_SOUS[ancienChemin];
+      delete COULEURS_SOUS[ancienChemin];
+    }
+    filesRend(); toast("Renommé : " + neuf);
+  };
+  const onKey = ev=>{
+    if(ev.key === "Enter"){ ev.preventDefault(); span.blur(); }
+    if(ev.key === "Escape"){ span.textContent = nom; span.blur(); }
+  };
+  span.addEventListener("keydown", onKey);
+  span.addEventListener("blur", valide);
+}
+
+function dossierDuplique(){
+  if(!dossierCible) return;
+  const {nom, iRacine} = dossierCible;
+  const parent = dossierParent();
+  if(!parent || !parent[nom]){ toast("Dossier introuvable"); return; }
+  const neuf = dossierNomLibre(parent, nom);
+  parent[neuf] = JSON.parse(JSON.stringify(parent[nom]));
+  if(iRacine >= 0){
+    FOLDERS.push({nom:neuf, court:neuf.slice(0,4).toUpperCase(),
+                  couleur: FOLDERS[iRacine] ? FOLDERS[iRacine].couleur : null});
+  }
+  filesRend(); toast("📁 Dupliqué : " + neuf);
+}
+
+function dossierLien(){
+  if(!dossierCible) return;
+  const {nom, iRacine} = dossierCible;
+  const parent = dossierParent();
+  if(!parent || !parent[nom]) return;
+  const neuf = dossierNomLibre(parent, "Lien vers " + nom);
+  parent[neuf] = {dossiers:{}, fichiers:[]};
+  if(iRacine >= 0) FOLDERS.push({nom:neuf, court:"LIEN", couleur:null});
+  filesRend(); toast("🔗 " + neuf);
+}
+
+//  Compresser : le .zip apparaît à côté du dossier, comme sous Ubuntu.
+function dossierCompresse(){
+  if(!dossierCible) return;
+  const {nom} = dossierCible;
+  const c = dossierCompteContenu(nom);
+  const liste = filesChemin.length
+    ? (filesNoeud(filesChemin).fichiers || (filesNoeud(filesChemin).fichiers = []))
+    : FICHIERS_RACINE;
+  const poids = Math.max(1, c.fichiers * 3 + c.dossiers) / 10;
+  liste.push({nom: ficNomLibre(liste, nom + ".zip"), ic:"🗜",
+              taille: poids.toFixed(1).replace(".", ",") + " Mo"});
+  filesRend(); toast("📦 " + nom + ".zip créé");
+}
+
+function dossierSupprime(){
+  if(!dossierCible) return;
+  const {nom, iRacine} = dossierCible;
+  const parent = dossierParent();
+  if(!parent || !parent[nom]){ toast("Dossier introuvable"); return; }
+  delete parent[nom];
+  if(iRacine >= 0){
+    const k = FOLDERS.findIndex(f=>f.nom===nom);
+    if(k>=0) FOLDERS.splice(k,1);
+  }
+  delete COULEURS_SOUS[dossierChemin(nom)];
+  filesRend(); toast("🗑 " + nom + " mis à la corbeille");
+}
+
+function dossierProprietes(){
+  if(!dossierCible) return;
+  const {nom} = dossierCible;
+  const c = dossierCompteContenu(nom);
+  const chemin = "/home/lex" + (filesChemin.length ? "/" + filesChemin.join("/") : "") + "/" + nom;
+  openWin("props","Propriétés — " + nom,"ℹ",
+    `<div class="pad">
+       <table class="props">
+         <tr><td>Nom</td><td>${esc(nom)}</td></tr>
+         <tr><td>Type</td><td>Dossier</td></tr>
+         <tr><td>Contenu</td><td>${c.dossiers} dossier${c.dossiers>1?"s":""}, ${c.fichiers} fichier${c.fichiers>1?"s":""}</td></tr>
+         <tr><td>Emplacement</td><td><code>${esc(chemin)}</code></td></tr>
+         <tr><td>Propriétaire</td><td>lex</td></tr>
+         <tr><td>Droits</td><td><code>rwxr-xr-x</code></td></tr>
+       </table>
+       <p class="notice">Sur la vraie ISO, ces valeurs viennent de
+       <code>stat</code> — ici la démo les reconstitue.</p>
+     </div>`);
+}
+
+function dossierSetColor(couleur){
+  if(!dossierCible) return;
   closeFolderMenu();
-  const el=document.querySelector(`.fold[data-i="${i}"]`);
-  if(el) folderOpen(i, el);
+  const {nom, iRacine} = dossierCible;
+  if(iRacine >= 0 && FOLDERS[iRacine]) FOLDERS[iRacine].couleur = couleur;
+  else if(couleur) COULEURS_SOUS[dossierChemin(nom)] = couleur;
+  else delete COULEURS_SOUS[dossierChemin(nom)];
+  filesRend();
+  toast(couleur ? "Couleur changée — " + nom : "Couleur du thème rétablie");
 }
 function folderSetColor(i, c){
   closeFolderMenu();
@@ -6417,6 +6763,29 @@ function studioGlyph(size){
 }
 
 const captures = [];      /* {type, nom, url, taille} — vidé au rechargement */
+
+/*  Une capture atterrit DANS le dossier, comme sous Ubuntu — pas dans une
+    fenêtre qui s'ouvre par-dessus. GNOME range les siennes dans
+    Images/Captures d'écran ; ici c'est Images ▸ Captures, et les vidéos
+    dans Vidéos. La fenêtre de l'appli Capture reste la galerie de tout ce
+    qui a été pris, mais elle ne s'invite plus toute seule à l'écran. */
+function capTailleTexte(o){
+  if(o >= 1048576) return (o/1048576).toFixed(1).replace(".", ",") + " Mo";
+  return Math.max(1, Math.round(o/1024)) + " Ko";
+}
+function capRange(nom, octets, video){
+  const cible = video
+    ? ARBO["Vidéos"]
+    : (ARBO["Images"] && ARBO["Images"].dossiers ? ARBO["Images"].dossiers["Captures"] : null);
+  if(!cible) return null;
+  const liste = cible.fichiers || (cible.fichiers = []);
+  const libre = ficNomLibre(liste, nom);
+  liste.push({nom:libre, ic: video ? "🎬" : "🖼", taille: capTailleTexte(octets)});
+  //  Si le gestionnaire de fichiers est ouvert sur ce dossier, le fichier
+  //  doit apparaître sans avoir à ressortir puis rentrer.
+  if(document.getElementById("win-files")) filesRend();
+  return libre;
+}
 let capRec = null, capChrono = null, capDebut = 0;
 
 /*  Rendu du bureau vers un canvas. On sérialise le DOM visible dans un SVG
@@ -6522,13 +6891,11 @@ async function capPhoto(){
   finally { if(win) win.style.visibility=""; }
   const blob = await new Promise(res=>cv.toBlob(res,"image/png"));
   if(!blob){ toast("La capture a échoué"); return; }
-  captures.unshift({type:"image", nom:`capture_${capHorodatage()}.png`,
-                    url:URL.createObjectURL(blob), taille:blob.size});
-  toast("📸 Capture enregistrée");
+  const nom = `capture_${capHorodatage()}.png`;
+  captures.unshift({type:"image", nom, url:URL.createObjectURL(blob), taille:blob.size});
+  capRange(nom, blob.size, false);
+  toast("📸 Rangée dans Images ▸ Captures");
   renderCaptures();
-  //  Montrer le résultat tout de suite : sans ça, la capture n'était
-  //  visible qu'en ouvrant soi-même l'appli — et rien ne l'indiquait.
-  openCapture();
 }
 /* --- Cadrage : choisir exactement la zone à capturer ---------------------
    Le geste de l'outil de capture d'Ubuntu : l'écran est figé, un
@@ -6659,11 +7026,11 @@ async function capZoneValide(){
   capZoneFerme();
   const blob=await new Promise(res=>cv.toBlob(res,"image/png"));
   if(!blob){ toast("La capture a échoué"); return; }
-  captures.unshift({type:"image", nom:`zone_${capHorodatage()}.png`,
-                    url:URL.createObjectURL(blob), taille:blob.size});
-  toast(`📸 Zone ${cv.width} × ${cv.height} capturée`);
+  const nomZone = `zone_${capHorodatage()}.png`;
+  captures.unshift({type:"image", nom:nomZone, url:URL.createObjectURL(blob), taille:blob.size});
+  capRange(nomZone, blob.size, false);
+  toast(`📸 Zone ${cv.width} × ${cv.height} — rangée dans Images ▸ Captures`);
   renderCaptures();
-  openCapture();     // montrer le résultat tout de suite
 }
 
 function capVideoDemarre(){
@@ -6688,10 +7055,11 @@ function capVideoDemarre(){
   rec.onstop = ()=>{
     clearInterval(capChrono); capChrono=null;
     const blob = new Blob(morceaux, {type: mime || "video/webm"});
-    captures.unshift({type:"video", nom:`ecran_${capHorodatage()}.webm`,
+    const nomVid = `ecran_${capHorodatage()}.webm`;
+    captures.unshift({type:"video", nom:nomVid,
                       url:URL.createObjectURL(blob), taille:blob.size});
-    capRec=null; toast("⏹ Enregistrement terminé"); renderCaptures();
-    openCapture();   // montrer le résultat tout de suite
+    capRange(nomVid, blob.size, true);
+    capRec=null; toast("⏹ Enregistré dans Vidéos"); renderCaptures();
   };
   //  Le canvas est repeint en boucle : c'est ce qui donne l'animation à
   //  captureStream(). Sans ce rafraîchissement, la vidéo serait figée.
@@ -6757,6 +7125,19 @@ function renderCaptures(){
       </span>
     </div>`).join("");
 }
+/*  Espace déclenche la photo quand l'appli Capture est ouverte — le geste
+    d'un appareil photo, sans viser un bouton. Gardes-fous : pas pendant une
+    saisie, pas pendant le cadrage d'une zone (qui a son propre Espace pour
+    valider le rectangle), et pas de répétition si la touche reste enfoncée. */
+addEventListener("keydown", e=>{
+  if(e.repeat) return;
+  if(!document.getElementById("win-capture")) return;
+  if(capZoneCv) return;                 // le cadrage gère Espace lui-même
+  if(capSaisieEnCours()) return;
+  if(e.ctrlKey || e.altKey || e.metaKey) return;
+  if(e.key === " " || e.code === "Space"){ e.preventDefault(); capPhoto(); }
+});
+
 function openCapture(){
   openWin("capture","Capture d'écran",cameraGlyph(18),
   `<div class="pad">
@@ -6764,6 +7145,7 @@ function openCapture(){
      <div class="cap-list" id="capList"></div>
      <div class="cap-raccourcis">
        <div class="cap-rt">Raccourcis</div>
+       <div><kbd>Espace</kbd> capture d'écran (fenêtre ouverte)</div>
        <div><kbd>␣</kbd>+<kbd>1</kbd> capture d'écran</div>
        <div><kbd>␣</kbd>+<kbd>2</kbd> cadrer une zone</div>
        <div><kbd>␣</kbd>+<kbd>3</kbd> vidéo (démarrer / arrêter)</div>
