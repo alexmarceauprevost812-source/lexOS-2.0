@@ -37,11 +37,13 @@ echo "[lexos] hook 0260 : pilote NVIDIA (dépôt officiel)"
 
 FLAVOUR="standard"
 SUITE=""
+BRANCHE=""
 if [ -r /etc/lexos/build.conf ]; then
 	# shellcheck disable=SC1091
 	. /etc/lexos/build.conf
 	FLAVOUR="${LEXOS_FLAVOUR:-standard}"
 	SUITE="${LEXOS_DEBIAN_SUITE:-}"
+	BRANCHE="${LEXOS_NVIDIA_BRANCH:-}"
 fi
 
 case "$FLAVOUR" in
@@ -154,22 +156,49 @@ depot_nvidia() {
 }
 
 # --- La cascade -------------------------------------------------------------
+#  LA LEÇON DU PREMIER ESSAI SUR VRAIE MACHINE : « le plus récent » n'est pas
+#  « le meilleur ». Le dépôt NVIDIA sert par défaut la branche 610, et c'est
+#  précisément elle qui coupe le signal HDMI sur la TV d'essai. La preuve est
+#  venue de la machine elle-même : sur cette Alienware, cette RTX 5060 et
+#  cette TV, Ubuntu 26.04 affiche son bureau sans le moindre réglage
+#  particulier — et « modinfo nvidia » y répond nvidia-595-open. Une branche
+#  plus ancienne, donc, mais celle qui MARCHE sur ce matériel.
+#  D'où l'ordre ci-dessous : la branche épinglée (LEXOS_NVIDIA_BRANCH)
+#  d'abord, le défaut du dépôt seulement en repli. Une tentative n'est
+#  déclarée réussie que si le module noyau est réellement compilé.
 REUSSITE=""
+
+essaie() {
+	#  $1 = paquet, $2 = description pour le rapport
+	[ -r "$NV_LISTE" ] || return 1
+	echo "[lexos]   tentative : $1"
+	if apt-get install -y "$1" && verifie_module; then
+		REUSSITE="$2"
+		return 0
+	fi
+	echo "[lexos]   $1 : échec — nettoyage"
+	nettoie
+	depot_nvidia >/dev/null 2>&1 || true
+	return 1
+}
 
 if depot_nvidia; then
 	echo "[lexos]   dépôt NVIDIA ajouté (${NV_DIST})"
-	if apt-get install -y nvidia-open && verifie_module; then
-		REUSSITE="dépôt officiel NVIDIA (nvidia-open) — module ouvert, RTX 20 à RTX 50"
-	else
-		echo "[lexos]   nvidia-open : échec — nettoyage puis cuda-drivers"
-		nettoie; depot_nvidia >/dev/null 2>&1 || true
-		if [ -r "$NV_LISTE" ] && apt-get install -y cuda-drivers && verifie_module; then
-			REUSSITE="dépôt officiel NVIDIA (cuda-drivers)"
-		else
-			echo "[lexos]   cuda-drivers : échec — nettoyage puis pilote Debian stable"
-			nettoie
-		fi
+	if [ -n "$BRANCHE" ]; then
+		essaie "nvidia-open-${BRANCHE}" \
+			"dépôt officiel NVIDIA, branche ${BRANCHE} épinglée (nvidia-open-${BRANCHE}) — celle qu'Ubuntu 26.04 fait tourner sur RTX 5060 + TV HDMI" \
+			|| essaie "cuda-drivers-${BRANCHE}" \
+				"dépôt officiel NVIDIA, branche ${BRANCHE} épinglée (cuda-drivers-${BRANCHE})" \
+			|| echo "[lexos]   !! branche ${BRANCHE} indisponible dans le dépôt — repli sur le défaut"
 	fi
+	if [ -z "$REUSSITE" ]; then
+		essaie nvidia-open \
+			"dépôt officiel NVIDIA, version par défaut (nvidia-open) — module ouvert, RTX 20 à RTX 50" \
+			|| essaie cuda-drivers \
+				"dépôt officiel NVIDIA, version par défaut (cuda-drivers)" \
+			|| echo "[lexos]   dépôt NVIDIA épuisé — pilote Debian stable"
+	fi
+	[ -n "$REUSSITE" ] || nettoie
 else
 	echo "[lexos]   dépôt NVIDIA injoignable — pilote Debian stable directement"
 	nettoie

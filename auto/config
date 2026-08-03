@@ -56,6 +56,15 @@ BOOTAPPEND="${BOOTAPPEND_BASE} quiet splash"
 #    · hdmi_deepcolor=0 : force une sortie HDMI 8 bits — correctif connu
 #      (ArchWiki NVIDIA/Troubleshooting) pour les « no signal » sur TV,
 #      dont les puces HDMI sont souvent plus strictes qu'un vrai moniteur.
+#
+#  CE QUE L'ESSAI SUR VRAIE MACHINE A APPRIS ENSUITE : ces deux filets n'ont
+#  pas suffi — la 610 coupait le signal malgré eux. Le vrai correctif n'est
+#  pas ici mais dans lexos.conf, LEXOS_NVIDIA_BRANCH : on installe désormais
+#  la branche 595, celle qu'Ubuntu 26.04 fait tourner sur ce même matériel
+#  sans aucun réglage particulier. Les options ci-dessous restent, en
+#  ceinture et bretelles : elles sont déjà les défauts des pilotes récents,
+#  et forcer le HDMI en 8 bits ne peut pas faire perdre un signal — au pire
+#  ça retire des nuances de couleur que la plupart des TV n'affichent pas.
 BOOTAPPEND="${BOOTAPPEND} nvidia-drm.modeset=1 nvidia-drm.fbdev=1 nvidia-modeset.hdmi_deepcolor=0"
 
 #  ── Mode fail-safe : un VRAI filet, garanti sans NVIDIA ─────────────────
