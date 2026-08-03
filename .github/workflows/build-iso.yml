@@ -176,6 +176,19 @@ jobs:
       # ------------------------------------------------------------------
       #  Un rapport lisible, que la construction ait réussi ou non.
       # ------------------------------------------------------------------
+      #  Le pilote NVIDIA, dans le JOURNAL et pas seulement dans le résumé.
+      #  Le résumé part dans $GITHUB_STEP_SUMMARY, que l'API ne rend pas :
+      #  trois constructions de suite ont été diagnostiquées à l'aveugle
+      #  faute de pouvoir lire cet inventaire. Sur stdout, il atterrit dans
+      #  le journal du job, lisible par l'API.
+      - name: Pilote NVIDIA — inventaire et version retenue
+        if: always()
+        run: |
+          echo "===== RAPPORT PILOTE NVIDIA ====="
+          cat chroot/etc/lexos/nvidia-report 2>/dev/null \
+            || echo "(pas de rapport : le chroot a été nettoyé ou le hook n'a pas tourné)"
+          echo "===== FIN RAPPORT PILOTE NVIDIA ====="
+
       - name: Rapport
         if: always()
         run: |

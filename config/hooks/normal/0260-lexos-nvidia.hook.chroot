@@ -132,8 +132,11 @@ EOF
 #  étiquette. C'est cette vérification qui manquait : sans elle, « nvidia-open
 #  595 » et « pilote 610 » se ressemblent dans un journal.
 version_pilote_reel() {
+	#  ATTENTION : sans \n dans le format, un paquet installé en amd64 ET en
+	#  i386 rend « 610.43.02-1610.43.02-1 » d'un seul tenant — c'est ce qui
+	#  s'est affiché au build précédent. D'où le \n et le head -1.
 	for p in nvidia-driver-cuda libnvidia-ml1 nvidia-kernel-common nvidia-open; do
-		v="$(dpkg-query -W -f='${Version}' "$p" 2>/dev/null)" || continue
+		v="$(dpkg-query -W -f='${Version}\n' "$p" 2>/dev/null | head -1)" || continue
 		[ -n "$v" ] && { echo "$v"; return 0; }
 	done
 	return 1
@@ -177,6 +180,7 @@ apt-get install -y linux-headers-amd64 \
 #  ligne de dépôt exige cette clé (signed-by) : rien n'entre sans signature.
 depot_nvidia() {
 	[ -n "$NV_DIST" ] || return 1
+	NV_URL="https://developer.download.nvidia.com/compute/cuda/repos/${NV_DIST}/x86_64"
 	command -v wget >/dev/null 2>&1 || apt-get install -y wget ca-certificates >/dev/null 2>&1 \
 		|| return 1
 	KEYDEB="$(wget -qO- "${NV_URL}/" 2>/dev/null \
@@ -309,7 +313,36 @@ if depot_nvidia; then
 				"dépôt officiel NVIDIA, branche ${BRANCHE} épinglée (cuda-drivers-${BRANCHE})" \
 			|| echo "[lexos]   !! aucun méta-paquet de branche ${BRANCHE} dans ce dépôt"
 	fi
-	#  2. La branche la plus récente d'avant la 610, choisie dans l'inventaire
+	#  2. SI debian13 n'a rien avant la 610, on va voir chez debian12.
+	#     Constaté à la construction du 3 août : le dépôt debian13 ne publie
+	#     la 595 que pour le méta-paquet nvidia-open (2,5 ko) — aucun paquet
+	#     de PILOTE en 595. Le dépôt debian12, plus ancien, garde en général
+	#     davantage de branches. Les bibliothèques NVIDIA sont autonomes et
+	#     ne dépendent que d'une glibc plus vieille que celle de trixie :
+	#     l'installation reste cohérente. Si ça ne passe pas, apt refusera
+	#     franchement et on repartira sur le défaut, comme avant.
+	if [ -z "$REUSSITE" ] && [ -z "$(version_avant_610)" ] && [ "$NV_DIST" = "debian13" ]; then
+		echo "[lexos]   debian13 n'a aucun pilote avant la 610 — on regarde debian12"
+		NV_DIST_SECOURS="debian12"
+		NV_DIST_INITIAL="$NV_DIST"
+		NV_DIST="$NV_DIST_SECOURS"
+		if depot_nvidia; then
+			echo "[lexos]   dépôt NVIDIA de secours ajouté (${NV_DIST})"
+			inventaire
+			if [ -z "$(version_avant_610)" ]; then
+				echo "[lexos]   !! debian12 non plus ne propose rien avant la 610 — retour à ${NV_DIST_INITIAL}"
+				NV_DIST="$NV_DIST_INITIAL"
+				depot_nvidia >/dev/null 2>&1 || true
+				inventaire >/dev/null 2>&1 || true
+			fi
+		else
+			echo "[lexos]   !! dépôt debian12 injoignable — retour à ${NV_DIST_INITIAL}"
+			NV_DIST="$NV_DIST_INITIAL"
+			depot_nvidia >/dev/null 2>&1 || true
+			inventaire >/dev/null 2>&1 || true
+		fi
+	fi
+	#  3. La branche la plus récente d'avant la 610, choisie dans l'inventaire
 	#     et imposée à TOUTE la pile par les préférences apt — pas seulement
 	#     au méta-paquet, qui ne décide de rien.
 	if [ -z "$REUSSITE" ]; then
@@ -340,7 +373,7 @@ if depot_nvidia; then
 			echo "[lexos]   !! le dépôt ne propose rien avant la branche 610"
 		fi
 	fi
-	#  3. Le défaut du dépôt — la 610, avec les contournements modprobe plus bas.
+	#  4. Le défaut du dépôt — la 610, avec les contournements modprobe plus bas.
 	if [ -z "$REUSSITE" ]; then
 		essaie nvidia-open \
 			"dépôt officiel NVIDIA, version par défaut (nvidia-open) — module ouvert, RTX 20 à RTX 50" \
