@@ -197,6 +197,20 @@ jobs:
               # plusieurs gigaoctets. On le recopie ici, où il se lit d'un
               # coup d'oeil : un nom de paquet qui a changé entre deux
               # versions de Debian se voit alors tout de suite.
+              # Le pilote NVIDIA, en clair et tout de suite. Deux ISO ont été
+              # livrées avec la 610 buggée alors qu'on croyait avoir épinglé
+              # une autre branche : le journal le disait, mais noyé dans des
+              # centaines de milliers de lignes. Ici, ça se lit d'un coup.
+              NVREPORT="chroot/etc/lexos/nvidia-report"
+              if [ -r "$NVREPORT" ]; then
+                echo "### Pilote NVIDIA"
+                echo
+                echo '```'
+                cat "$NVREPORT"
+                echo '```'
+                echo
+              fi
+
               RAPPORT="chroot/etc/lexos/optional-report"
               if [ -r "$RAPPORT" ]; then
                 echo "### Paquets optionnels"

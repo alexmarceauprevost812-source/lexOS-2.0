@@ -163,13 +163,23 @@ depot_nvidia() {
 #  cette TV, Ubuntu 26.04 affiche son bureau sans le moindre réglage
 #  particulier — et « modinfo nvidia » y répond nvidia-595-open. Une branche
 #  plus ancienne, donc, mais celle qui MARCHE sur ce matériel.
-#  D'où l'ordre ci-dessous : la branche épinglée (LEXOS_NVIDIA_BRANCH)
-#  d'abord, le défaut du dépôt seulement en repli. Une tentative n'est
-#  déclarée réussie que si le module noyau est réellement compilé.
+#
+#  LA LEÇON DES DEUX CONSTRUCTIONS SUIVANTES : on a épinglé « nvidia-open-595 »,
+#  puis « nvidia-open-580 » — deux noms de paquets DEVINÉS d'après ce qui
+#  existe chez Ubuntu. Aucun des deux n'existe dans le dépôt debian13 : les
+#  deux fois, la cascade est retombée sans bruit sur le défaut, donc sur la
+#  610 buggée, et deux ISO de trois heures ont été livrées identiques à celle
+#  qu'elles devaient corriger. Le journal ne disait « pilote installé : 610 »
+#  qu'à la toute fin, sans jamais nommer ce que le dépôt proposait vraiment.
+#  ON NE DEVINE PLUS. On demande au dépôt son inventaire, on l'écrit dans le
+#  journal ET dans le rapport embarqué, et on choisit DEDANS : la version la
+#  plus récente d'avant la branche 610. Une tentative n'est déclarée réussie
+#  que si le module noyau est réellement compilé.
 REUSSITE=""
+VERSIONS_DISPO=""
 
 essaie() {
-	#  $1 = paquet, $2 = description pour le rapport
+	#  $1 = paquet (éventuellement « paquet=version »), $2 = description
 	[ -r "$NV_LISTE" ] || return 1
 	echo "[lexos]   tentative : $1"
 	if apt-get install -y "$1" && verifie_module; then
@@ -182,15 +192,72 @@ essaie() {
 	return 1
 }
 
+#  L'inventaire du dépôt, écrit en toutes lettres dans le journal. C'est CE
+#  bloc qui manquait : sans lui, un nom de paquet inexistant est indiscernable
+#  d'un pilote qui refuse de compiler.
+inventaire() {
+	[ -r "$NV_LISTE" ] || return 0
+	VERSIONS_DISPO="$(apt-cache madison nvidia-open 2>/dev/null \
+		| awk -F'|' '{gsub(/[ \t]/,"",$2); if ($2 != "") print $2}' \
+		| sort -Vr | uniq)"
+	if [ -n "$VERSIONS_DISPO" ]; then
+		echo "[lexos]   versions de nvidia-open proposées par le dépôt :"
+		echo "$VERSIONS_DISPO" | sed 's/^/[lexos]     · /'
+	else
+		echo "[lexos]   !! le dépôt ne liste aucune version de nvidia-open"
+	fi
+	METAS="$(apt-cache --names-only search '^nvidia-open' 2>/dev/null \
+		| awk '{print $1}' | sort -V | tr '\n' ' ')"
+	[ -n "$METAS" ] && echo "[lexos]   méta-paquets nvidia-open* : ${METAS}"
+	METAS_CUDA="$(apt-cache --names-only search '^cuda-drivers' 2>/dev/null \
+		| awk '{print $1}' | sort -V | tr '\n' ' ')"
+	[ -n "$METAS_CUDA" ] && echo "[lexos]   méta-paquets cuda-drivers* : ${METAS_CUDA}"
+	return 0
+}
+
+#  La version la plus récente STRICTEMENT antérieure à la branche 610 — celle
+#  qui porte la régression HDMI. On ne vise plus un numéro précis (595, 580) :
+#  on prend ce que le dépôt a de plus proche, en dessous de 610.
+version_avant_610() {
+	[ -n "$VERSIONS_DISPO" ] || return 0
+	echo "$VERSIONS_DISPO" | while read -r v; do
+		[ -n "$v" ] || continue
+		maj="${v%%.*}"
+		case "$maj" in
+			''|*[!0-9]*) continue ;;
+		esac
+		if [ "$maj" -lt 610 ]; then
+			echo "$v"
+			break
+		fi
+	done
+}
+
 if depot_nvidia; then
 	echo "[lexos]   dépôt NVIDIA ajouté (${NV_DIST})"
+	inventaire
+	#  1. Un méta-paquet de branche, SI l'utilisateur en a épinglé un et qu'il
+	#     existe vraiment. Vide par défaut : c'est le choix par version, plus
+	#     bas, qui fait le travail.
 	if [ -n "$BRANCHE" ]; then
 		essaie "nvidia-open-${BRANCHE}" \
-			"dépôt officiel NVIDIA, branche ${BRANCHE} épinglée (nvidia-open-${BRANCHE}) — celle qu'Ubuntu 26.04 fait tourner sur RTX 5060 + TV HDMI" \
+			"dépôt officiel NVIDIA, branche ${BRANCHE} épinglée (nvidia-open-${BRANCHE})" \
 			|| essaie "cuda-drivers-${BRANCHE}" \
 				"dépôt officiel NVIDIA, branche ${BRANCHE} épinglée (cuda-drivers-${BRANCHE})" \
-			|| echo "[lexos]   !! branche ${BRANCHE} indisponible dans le dépôt — repli sur le défaut"
+			|| echo "[lexos]   !! aucun méta-paquet de branche ${BRANCHE} dans ce dépôt"
 	fi
+	#  2. La version la plus récente d'avant la 610, choisie dans l'inventaire.
+	if [ -z "$REUSSITE" ]; then
+		V610="$(version_avant_610)"
+		if [ -n "$V610" ]; then
+			essaie "nvidia-open=${V610}" \
+				"dépôt officiel NVIDIA, version ${V610} épinglée — la plus récente d'avant la branche 610 et sa régression HDMI sur téléviseur" \
+				|| echo "[lexos]   !! version ${V610} refusée par apt"
+		else
+			echo "[lexos]   !! le dépôt ne propose rien avant la branche 610"
+		fi
+	fi
+	#  3. Le défaut du dépôt — la 610, avec les contournements modprobe plus bas.
 	if [ -z "$REUSSITE" ]; then
 		essaie nvidia-open \
 			"dépôt officiel NVIDIA, version par défaut (nvidia-open) — module ouvert, RTX 20 à RTX 50" \
@@ -304,6 +371,13 @@ VERSION="$(dpkg-query -W -f='${Version}' nvidia-open 2>/dev/null \
 	if [ -r "$NV_LISTE" ]; then
 		echo "# Mises à jour : via le dépôt officiel NVIDIA (déjà configuré),"
 		echo "# avec « lexos upgrade »."
+	fi
+	#  L'inventaire du dépôt au moment de la construction. Il répond d'un coup
+	#  d'oeil à « pourquoi cette version-là ? » — et, si un jour il faut
+	#  épingler autre chose, il donne les noms exacts sans reconstruire.
+	if [ -n "$VERSIONS_DISPO" ]; then
+		echo "# Versions de nvidia-open proposées par le dépôt à la construction :"
+		echo "$VERSIONS_DISPO" | sed 's/^/#   · /'
 	fi
 } > "$REPORT"
 
