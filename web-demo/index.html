@@ -759,6 +759,34 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .wall-essai-b{display:flex;gap:7px;flex-wrap:wrap;flex:none}
 .wall-essai-b .btn[disabled]{opacity:.42;pointer-events:none}
 .win.wall-efface{opacity:0;pointer-events:none;transition:opacity .18s ease}
+/*  Les pastilles des bureaux virtuels, dans la barre du haut. Un point sous
+    la pastille signale un bureau qui contient des fenêtres : on sait où on a
+    laissé son travail sans avoir à y aller. */
+#bureaux{display:flex;align-items:center;gap:3px;margin-left:8px}
+#bureaux .bur{position:relative;width:22px;height:22px;border-radius:6px;
+  border:1px solid var(--bd);background:transparent;color:var(--fg-dim);
+  font:600 11px/1 ui-monospace,monospace;cursor:pointer;padding:0;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .12s,color .12s,border-color .12s}
+#bureaux .bur:hover{background:var(--bg-hi);color:var(--fg)}
+#bureaux .bur.on{background:var(--ac);border-color:var(--ac);color:var(--btn-fg)}
+#bureaux .bur.plein::after{content:"";position:absolute;bottom:2px;left:50%;
+  transform:translateX(-50%);width:4px;height:2px;border-radius:1px;
+  background:currentColor;opacity:.85}
+@media (max-width:640px){ #bureaux{display:none} }
+/*  Les trois couleurs de Chrome tournent lentement, comme les pales d'un
+    ventilateur. Seuls les arcs tournent : le moyeu central reste fixe,
+    sinon le petit disque du milieu donnerait le tournis au lieu de laisser
+    lire l'icône.
+    transform-box:view-box est indispensable — sans lui, transform-origin
+    se rapporte à la boîte des arcs, qui n'est PAS centrée sur 256,256 :
+    l'icône partirait en vrille au lieu de tourner sur elle-même. */
+.chrome-pales{transform-box:view-box;transform-origin:256px 256px;
+  animation:chromeVentilo 9s linear infinite}
+@keyframes chromeVentilo{ to{ transform:rotate(360deg) } }
+/*  Au survol, le ventilateur accélère — comme une machine qui se réveille. */
+.dock button:hover .chrome-pales,.app:hover .chrome-pales{animation-duration:2.2s}
+@media (prefers-reduced-motion:reduce){ .chrome-pales{animation:none} }
 .term{position:relative}
 .term .in{display:inline}
 .caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
@@ -1608,6 +1636,10 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
     <button class="apps" id="appsBtn"><span class="glyph"></span>Applications</button>
     <!--  Accès rapide en haut à gauche : photo et vidéo de l'écran sans
           passer par le menu Applications ni par le dock. -->
+    <!--  Bureaux virtuels : plusieurs écrans sur le même écran. Chaque
+          pastille est un bureau ; celle qui porte un point contient au
+          moins une fenêtre. -->
+    <span id="bureaux" title="Bureaux virtuels — Ctrl+Alt+← →"></span>
     <span id="quickcap">
       <button id="qcPhoto" title="Capture d'écran (Espace+1, ou Impr écr)" onclick="capPhoto()"></button>
       <button id="qcZone" title="Cadrer une zone (Espace+2, ou Maj+Impr écr)" onclick="capZone()">⛶</button>
@@ -1661,7 +1693,7 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 filesFav:false, wifi:true, bt:true, wifiIssue:false,
                 son:72, batt:72, charging:false,
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
-                qsCompact:false, dockHidden:false, zTop:100, majDispo:false, majSecuAuto:true, majAuto:false, wallpaper:"defaut", police:"defaut",
+                qsCompact:false, dockHidden:false, zTop:100, bureau:0, majDispo:false, majSecuAuto:true, majAuto:false, wallpaper:"defaut", police:"defaut",
                 agendaEvts:{}, agendaVue:null,
                 notifs:[] /* historique des notifications : {txt, h, ic} */,
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
@@ -2054,6 +2086,9 @@ function openWin(id, title, icon, html, w, h, x, y){
   //  Regroupement par application : « edit#2 » appartient à l'appli « edit ».
   //  Sert au sélecteur de fenêtres du dock (voir dockActivate).
   el.dataset.app = String(id).split("#")[0];
+  //  Une fenêtre naît sur le bureau qu'on regarde — sans ça elle
+  //  s'ouvrirait ailleurs et paraîtrait ne pas s'être ouverte du tout.
+  el.dataset.bureau = String(state.bureau);
   const vw=innerWidth, vh=innerHeight;
   /*  Sur un petit écran (téléphone), une fenêtre de 520px de large déborde :
       son texte est alors coupé au bord de l'écran et le reste de l'interface
@@ -2089,6 +2124,7 @@ function openWin(id, title, icon, html, w, h, x, y){
     `<button class="tbtn close" title="Fermer">✕</button></div>`+
     `<div class="wbody">${html}</div>`;
   winsRoot.appendChild(el);
+  if(typeof bureauRend === "function") bureauRend();
   el.addEventListener("animationend", e=>{
     if(e.animationName==="crtOn"||e.animationName==="fadeIn") el.classList.remove("opening");
   });
@@ -2225,9 +2261,93 @@ document.addEventListener("click", e=>{
 });
 function closeWin(el){
   el.classList.add("closing");
-  el.addEventListener("animationend", ()=>el.remove(), {once:true});
-  setTimeout(()=>el.remove(), 600);   /* filet si l'animation est coupée */
+  //  Les pastilles des bureaux comptent les fenêtres : elles doivent suivre
+  //  la fermeture, sinon un bureau vidé garderait son point « occupé ».
+  const rafraichir = ()=>{ el.remove(); if(typeof bureauRend==="function") bureauRend(); };
+  el.addEventListener("animationend", rafraichir, {once:true});
+  setTimeout(rafraichir, 600);   /* filet si l'animation est coupée */
 }
+/* ===================== Bureaux virtuels =============================
+   « Plusieurs écrans sur le même écran » : quatre bureaux, chacun avec ses
+   fenêtres. Changer de bureau ne ferme rien — les fenêtres des autres sont
+   simplement mises de côté, et retrouvées telles quelles au retour.
+   Le fond d'écran, le dock et les icônes du bureau restent communs : ce
+   sont des bureaux virtuels, pas des sessions séparées.            */
+const BUREAUX_N = 4;
+
+//  À quel bureau appartient une fenêtre ? Celles ouvertes avant l'arrivée
+//  de cette fonctionnalité n'ont pas d'étiquette : on les rattache au
+//  bureau courant plutôt que de les faire disparaître.
+function winBureau(el){
+  const v = parseInt(el.dataset.bureau, 10);
+  if(Number.isInteger(v) && v >= 0 && v < BUREAUX_N) return v;
+  el.dataset.bureau = String(state.bureau);
+  return state.bureau;
+}
+function bureauCompte(n){
+  return [...document.querySelectorAll(".win")].filter(w=>winBureau(w) === n).length;
+}
+function bureauApplique(){
+  document.querySelectorAll(".win").forEach(w=>{
+    const dessus = winBureau(w) === state.bureau;
+    w.style.display = dessus ? "" : "none";
+    //  aria-hidden en plus de display:none : un lecteur d'écran ne doit pas
+    //  annoncer les fenêtres d'un bureau qu'on ne regarde pas.
+    w.setAttribute("aria-hidden", dessus ? "false" : "true");
+  });
+  bureauRend();
+  if(typeof majDock === "function") try{ majDock(); }catch(e){}
+}
+function bureauRend(){
+  const el = document.getElementById("bureaux");
+  if(!el) return;
+  el.innerHTML = Array.from({length:BUREAUX_N}, (_,n)=>{
+    const occupe = bureauCompte(n) > 0;
+    return `<button class="bur${n===state.bureau?" on":""}${occupe?" plein":""}"
+      onclick="bureauVa(${n})" title="Bureau ${n+1}${occupe?` — ${bureauCompte(n)} fenêtre(s)`:" — vide"}"
+      aria-label="Bureau ${n+1}" aria-current="${n===state.bureau}">${n+1}</button>`;
+  }).join("");
+}
+function bureauVa(n){
+  if(n < 0 || n >= BUREAUX_N || n === state.bureau) return;
+  state.bureau = n;
+  bureauApplique();
+  //  Donner le focus à une fenêtre du bureau d'arrivée, sinon les raccourcis
+  //  clavier continueraient de viser une fenêtre devenue invisible.
+  const visibles = [...document.querySelectorAll(".win")].filter(w=>winBureau(w)===n);
+  if(visibles.length) focusWin(visibles[visibles.length-1]);
+  toast("🗔 Bureau " + (n+1) + (visibles.length ? "" : " — vide"));
+}
+function bureauSuivant(pas){
+  bureauVa((state.bureau + pas + BUREAUX_N) % BUREAUX_N);
+}
+//  Déplacer la fenêtre visée vers un autre bureau, et l'y suivre : rester
+//  sur place donnerait l'impression que la fenêtre a été fermée.
+function bureauDeplace(id, n){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.dataset.bureau = String(n);
+  bureauVa(n);
+  if(state.bureau === n) focusWin(el);
+  bureauApplique();
+  toast("🗔 Fenêtre déplacée au bureau " + (n+1));
+}
+//  Ctrl+Alt+flèches pour changer de bureau, Super+chiffre pour y aller
+//  directement — les mêmes raccourcis que GNOME et XFCE.
+//  PAS de garde « saisie en cours » ici : Ctrl+Alt+flèche et Super+chiffre
+//  ne produisent aucun caractère. Le premier essai les bloquait dès qu'un
+//  terminal était ouvert — or c'est précisément quand on travaille qu'on
+//  veut changer de bureau.
+addEventListener("keydown", e=>{
+  if(e.ctrlKey && e.altKey && (e.key === "ArrowRight" || e.key === "ArrowLeft")){
+    e.preventDefault(); bureauSuivant(e.key === "ArrowRight" ? 1 : -1); return;
+  }
+  if(e.metaKey && !e.ctrlKey && !e.altKey && /^[1-9]$/.test(e.key)){
+    const n = parseInt(e.key,10) - 1;
+    if(n < BUREAUX_N){ e.preventDefault(); bureauVa(n); }
+  }
+});
+
 function focusWin(el){
   document.querySelectorAll(".win").forEach(w=>w.classList.remove("active"));
   el.classList.add("active"); el.style.zIndex = ++state.zTop;
@@ -3159,6 +3279,13 @@ function ctxFenetre(e, el){
   ctxOuvre(e, [
     {ic:max?"🗗":"⛶", txt:max?"Restaurer la taille":"Agrandir", act:`toggleMax(document.getElementById('${el.id}'))`},
     {ic:"↕", txt:"Pleine hauteur", act:`ctxPleineHauteur('${el.id}')`},
+    "-",
+    "-",
+    {ic:"🗔", txt:"Déplacer vers un bureau", sous:
+      Array.from({length:BUREAUX_N}, (_,n)=>
+        `<button onclick="ctxFerme();bureauDeplace('${el.id}',${n})"`+
+        `${n===winBureau(el)?' style="opacity:.5"':''}>`+
+        `Bureau ${n+1}${n===winBureau(el)?" (ici)":""}</button>`).join("")},
     "-",
     {ic:"✕", txt:"Fermer", act:`closeWin(document.getElementById('${el.id}'))`, kbd:"Alt+F4"},
     ...ctxParametres("multitaches", "Paramètres des fenêtres"),
@@ -4542,7 +4669,7 @@ function chromeGlyph(size){
   return `<svg viewBox="0 0 512 512" width="${size}" height="${size}"
      aria-hidden="true" focusable="false" style="vertical-align:middle">
     <circle cx="256" cy="256" r="204" fill="#12121a"/>
-    <g fill="none" stroke-width="68">
+    <g class="chrome-pales" fill="none" stroke-width="68">
       <path d="M267.2 96.4 A160 160 0 0 1 399.8 326.1" stroke="var(--ac)"/>
       <path d="M388.6 345.5 A160 160 0 0 1 123.4 345.5" stroke="#F59F00"/>
       <path d="M112.2 326.1 A160 160 0 0 1 244.8 96.4"  stroke="#37B24D"/>
@@ -5564,7 +5691,23 @@ function settingsSection(key){
       remet celui par défaut. Les quatre fonds ci-dessus vivent dans
       <code>/usr/share/backgrounds/lexos/</code>.</p>`;
     case "multitaches": return `<h2>Multi-tâches</h2><div class="sub">Bureaux virtuels</div>
-      ${swRow("Bureaux virtuels multiples","Non simulés dans la démo web",false,"")}`;
+      <div class="srow"><div><div class="t">Bureaux virtuels</div>
+        <div class="d">${BUREAUX_N} bureaux — plusieurs écrans sur le même écran.
+        Tu es sur le bureau <b>${state.bureau+1}</b>.</div></div>
+        <div class="row" style="gap:6px;flex:none">
+          ${Array.from({length:BUREAUX_N}, (_,n)=>
+            `<button class="btn ${n===state.bureau?"":"ghost"} mini" style="width:auto"
+               onclick="bureauVa(${n});showSettingsSection()">${n+1}</button>`).join("")}
+        </div></div>
+      <div class="srow"><div><div class="t">Fenêtres par bureau</div>
+        <div class="d">${Array.from({length:BUREAUX_N}, (_,n)=>
+          `Bureau ${n+1} : ${bureauCompte(n)}`).join(" · ")}</div></div></div>
+      <p class="notice">Les pastilles numérotées en haut à gauche changent de
+      bureau. <b>Ctrl+Alt+←</b> et <b>Ctrl+Alt+→</b> passent au précédent ou au
+      suivant, <b>Super+1</b> à <b>Super+${BUREAUX_N}</b> vont directement à l'un
+      d'eux. Pour envoyer une fenêtre ailleurs : clic droit sur sa barre de
+      titre → <b>Déplacer vers un bureau</b>. Rien n'est fermé en changeant de
+      bureau — les fenêtres sont mises de côté et retrouvées telles quelles.</p>`;
     case "applications": return `<h2>Applications</h2><div class="sub">Applications par défaut</div>
       <div class="srow"><div class="t">Navigateur web</div><div class="d">Firefox (défaut) · Chromium · Google Chrome</div></div>
       <p class="notice">Chrome n'est pas libre : Google interdit de le redistribuer, l'ISO ne
@@ -8743,6 +8886,7 @@ function tick(){
 //  l'heure affichée n'a pas changé.
 setInterval(tick,1000); tick();
 majStatus();   // pose les icônes d'état (Wi-Fi, Bluetooth, son, batterie) au démarrage
+bureauRend();  // pose les pastilles des bureaux virtuels
 applyDock();   // pose la flèche et l'infobulle de la poignée dès le départ
 renderDevTray();
 renderDeskIcons();   // affiche l'indice vide dès le premier chargement
