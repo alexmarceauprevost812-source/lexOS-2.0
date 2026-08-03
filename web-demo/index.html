@@ -872,6 +872,40 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .dicon:hover .claude-pales,.app:hover .claude-pales,
 .ap-win:hover .claude-pales{animation-duration:3.5s,1.6s}
 @media (prefers-reduced-motion:reduce){ .claude-pales{animation:none;opacity:1} }
+/*  L'appli Claude Code : une conversation, pas un texte figé. Colonne en
+    hauteur pleine — journal qui défile, suggestions, saisie collée en bas. */
+.cc{display:flex;flex-direction:column;height:100%;background:#0b0b0d;
+  color:#e8e6e3;font-size:13px;line-height:1.65;box-sizing:border-box}
+.cc-tete{display:flex;align-items:center;gap:9px;padding:11px 15px;
+  border-bottom:1px solid #23232a;color:#d97757;flex:none}
+.cc-tete-ic{display:inline-flex;align-items:center}
+.cc-badge{margin-left:auto;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:#9a9aa2;border:1px solid #33333c;border-radius:20px;padding:2px 9px;cursor:help}
+.cc-log{flex:1;overflow-y:auto;padding:15px;display:flex;flex-direction:column;gap:13px}
+.cc-msg{max-width:88%}
+.cc-moi{align-self:flex-end;background:#1d1d23;border:1px solid #2c2c34;
+  border-radius:13px 13px 3px 13px;padding:8px 13px;white-space:pre-wrap;word-break:break-word}
+.cc-lui{align-self:flex-start;display:flex;gap:9px;align-items:flex-start}
+.cc-lui .cc-ic{flex:none;margin-top:1px}
+.cc-lui .cc-txt{background:#131318;border:1px solid #23232a;border-radius:13px 13px 13px 3px;
+  padding:10px 14px;min-width:0}
+.cc-txt ul,.cc-txt ol{margin:8px 0;padding-left:20px}
+.cc-txt li{margin:3px 0}
+.cc-txt code{background:#0a0a0d;border:1px solid #2a2a32;border-radius:4px;
+  padding:.08em .38em;font-size:.9em;color:#e0af68;word-break:break-word}
+.cc-txt b{color:#fff}
+.cc-sugg{display:flex;gap:6px;flex-wrap:wrap;padding:0 15px 10px;flex:none}
+.cc-sugg button{font:inherit;font-size:11.5px;color:#c9c6bf;background:#15151a;
+  border:1px solid #2a2a32;border-radius:20px;padding:5px 11px;cursor:pointer;
+  transition:border-color .12s,color .12s,background .12s}
+.cc-sugg button:hover{border-color:#d97757;color:#fff;background:#1c1c22}
+.cc-saisie{display:flex;gap:8px;padding:11px 15px;border-top:1px solid #23232a;flex:none}
+.cc-in{flex:1;min-width:0;background:#131318;border:1px solid #2a2a32;border-radius:9px;
+  padding:9px 12px;color:#e8e6e3;font:inherit;outline:none}
+.cc-in:focus{border-color:#d97757}
+.cc-env{font:inherit;font-weight:600;color:#0b0b0d;background:#d97757;border:0;
+  border-radius:9px;padding:9px 16px;cursor:pointer}
+.cc-env:hover{background:#e08a6d}
 .term{position:relative}
 .term .in{display:inline}
 .caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
@@ -6776,23 +6810,281 @@ function claudeGlyph(size){
    </svg>`;
 }
 
-function openClaudeCode(nouvelle){
-  const id = nouvelle ? "claude-code#"+(++winSeq) : "claude-code";
-  openWin(id,"Claude Code",claudeGlyph(17),
-  `<div style="background:#0b0b0d;color:#e8e6e3;font-family:ui-monospace,'JetBrains Mono',Menlo,monospace;height:100%;padding:16px 18px;overflow:auto;font-size:13px;line-height:1.7;box-sizing:border-box">
-     <div style="color:#d97757;font-weight:600;display:flex;align-items:center;gap:8px">${claudeGlyph(20)} Claude Code</div>
-     <div style="opacity:.65;margin-bottom:12px">Assistant de programmation d'Anthropic — dans le terminal.</div>
-     <div><span style="color:#7aa2f7">[lex@lexos]</span> <span style="color:#e0af68">lexos claude</span></div>
-     <div style="opacity:.75;margin:6px 0 12px">» Connexion au navigateur au premier lancement…</div>
-     <div style="color:#9ece6a">✓ Connecté. Bonjour ! En quoi puis-je aider avec ton code ?</div>
-     <div style="margin-top:10px"><span style="color:#7aa2f7">&gt;</span> <span style="opacity:.85">explique-moi ce dossier</span></div>
-     <div style="opacity:.75;margin-top:6px">Claude lit tes fichiers, propose des changements et lance les commandes —
-     toujours avec ta confirmation. Tourne dans le nuage (Anthropic) : connexion
-     et compte requis. Pour une IA 100&nbsp;% locale, vois plutôt « Assistants IA ».</div>
-     <div style="margin-top:14px;opacity:.5;font-size:12px">Ceci est un aperçu de la démo. Sur une vraie LexOS : ouvre un terminal et tape <b>lexos claude</b>.</div>
-   </div>`, 640, 460);
+
+/* ================= Claude Code — l'appli interactive ==================
+   ELLE NE PARLE À AUCUNE IA. Une page publiée est servie avec une
+   politique qui bloque tout appel au réseau : impossible d'y brancher un
+   vrai modèle. Ce qu'on peut faire honnêtement, c'est répondre à partir de
+   ce que LexOS sait de lui-même — les commandes, les saveurs, le pilote,
+   les jeux, l'installation. Les réponses ci-dessous sont tirées du dépôt.
+   L'appli le dit d'entrée de jeu et le redit sous chaque réponse : on ne
+   laisse personne croire qu'il parle à Claude.                        */
+const CC_SAVOIR = [
+  {c:["bonjour","salut","allo","hey","coucou","bonsoir"], r:
+   `Bonjour Alex ! Je réponds ici à partir de ce que LexOS sait de lui-même :
+    les commandes, l'installation, les jeux, le pilote graphique, les saveurs.
+    Demande-moi par exemple <b>« comment installer LexOS ? »</b> ou
+    <b>« quelles commandes existent ? »</b>`},
+
+  {c:["quoi","c'est quoi","lexos","systeme","distribution","presente"], r:
+   `<b>LexOS 1.2.1 « Nomad »</b> est une distribution Linux complète, bâtie sur
+    <b>Debian 13 (trixie)</b> avec le bureau <b>XFCE</b>. Ce n'est pas un thème
+    posé sur autre chose : c'est une vraie ISO amorçable qu'on grave sur une
+    clé USB et qui démarre sur n'importe quel PC 64 bits.
+    <br><br>Cette page-ci n'en est que la <b>démo</b> — l'apparence et les
+    outils, dans le navigateur, sans rien installer.`},
+
+  {c:["installer","installation","usb","cle","graver","balena","etcher","demarrer"], r:
+   `<b>Installer LexOS, du début à la fin :</b>
+    <ol>
+      <li>Télécharge tous les morceaux <code>.part-XX</code> <b>et</b> le
+          <code>.sha256</code>, dans un même dossier.</li>
+      <li>Recolle-les :<br>
+          <code>cat lexos-1.2.1-pro*.iso.part-* &gt; lexos-1.2.1-pro-amd64.hybrid.iso</code></li>
+      <li>Vérifie : <code>sha256sum</code> sur l'ISO, puis compare à l'œil avec
+          le contenu du fichier <code>.sha256</code>.</li>
+      <li>Grave avec <b>balenaEtcher</b> (ordinateur) ou <b>EtchDroid</b> (téléphone).</li>
+      <li>Démarre sur la clé (touche <b>F12</b>, <b>F9</b>, <b>Échap</b> ou <b>F2</b>
+          selon la machine), choisis <b>« Live system »</b>, puis double-clique
+          <b>« Installer LexOS »</b>.</li>
+    </ol>
+    Le compte de secours est <b>lex</b> / <b>lex</b>. Rien n'est touché sur ton
+    disque tant que tu ne lances pas l'installation toi-même.`},
+
+  {c:["saveur","saveurs","edition","versions","minimal","standard","dev","full","gaming","pro"], r:
+   `LexOS se construit en <b>six saveurs</b> :
+    <ul>
+      <li><b>minimal</b> — console seule, ~700 Mio</li>
+      <li><b>standard</b> — bureau XFCE, Firefox, dock, effets (~2,5 Gio)</li>
+      <li><b>dev</b> — standard + compilateurs, langages, conteneurs, Neovim</li>
+      <li><b>full</b> — dev + LibreOffice, GIMP, Inkscape, VLC, Krita</li>
+      <li><b>gaming</b> — dev + Steam, Lutris, Wine, GameMode, MangoHud</li>
+      <li><b>pro</b> — tout : les jeux, le studio création, Claude Code, les
+          émulateurs, les manettes, le pilote NVIDIA récent</li>
+    </ul>
+    C'est la <b>pro</b> que tu construis.`},
+
+  {c:["jeu","jeux","game","steam","proton","windows","lutris","wine","jouer"], r:
+   `Oui — l'édition <b>pro</b> est faite pour ça.
+    <ul>
+      <li><b>Steam + Proton</b> : ta voie principale. Proton est la version de
+          Wine entretenue par Valve ; une grosse partie du catalogue Windows se
+          lance sans rien régler. Va dans Paramètres → Compatibilité et coche
+          « Activer Proton pour tous les titres ».</li>
+      <li><b>Lutris</b> pour GOG, Epic et les jeux hors Steam.</li>
+      <li><b>Wine</b> + <b>winetricks</b> / <b>protontricks</b> pour les
+          bibliothèques qu'un jeu réclame (DirectX, .NET).</li>
+      <li><b>wine-binfmt</b> : tu double-cliques un <code>.exe</code>, il se lance.</li>
+      <li><b>GameMode</b>, <b>MangoHud</b>, <b>CoreCtrl</b> pour la performance et
+          les images par seconde à l'écran.</li>
+      <li><b>Émulateurs</b> : RetroArch, Dolphin, PCSX2, PPSSPP, ScummVM.</li>
+    </ul>`},
+
+  {c:["nvidia","carte","graphique","gpu","rtx","pilote","driver","5060","affichage","signal","ecran noir"], r:
+   `Le pilote NVIDIA vient du <b>dépôt officiel de NVIDIA</b>, pas de Debian :
+    celui de Debian est trop ancien pour les cartes RTX 50 (Blackwell), qui
+    réclament une branche 570 ou plus récente.
+    <br><br>Une fois démarré, le rapport est dans
+    <code>/etc/lexos/nvidia-report</code> : version réellement installée, source,
+    et la liste de ce que le dépôt proposait à la construction.
+    <br><br>Si l'écran perd le signal au lancement du bureau sur un téléviseur,
+    c'est une régression connue de la branche 610 — LexOS force
+    <code>nvidia-drm.modeset=1</code>, <code>fbdev=1</code> et
+    <code>hdmi_deepcolor=0</code> pour la contourner.`},
+
+  {c:["commande","commandes","terminal","lexos","aide","help"], r:
+   `Les commandes maison, toutes préfixées <code>lexos</code> :
+    <ul>
+      <li><code>lexfetch</code> — la fiche technique de la machine</li>
+      <li><code>lexos accent &lt;couleur&gt;</code> — orange, bleu, rouge, vert, gris, violet, neon</li>
+      <li><code>lexos dock &lt;position&gt;</code> — droite, gauche, bas, haut</li>
+      <li><code>lexos perf &lt;profil&gt;</code> — petit, medium, performant, max</li>
+      <li><code>lexos crt on|off</code> — les effets de fenêtres façon téléviseur 1980</li>
+      <li><code>lexos wallpaper anime</code> — les fonds animés</li>
+      <li><code>lexos claude</code> — Claude Code</li>
+      <li><code>lexos studio</code> — Studio+ (photo, vidéo, son)</li>
+      <li><code>lexos musique</code> — le lecteur audio</li>
+      <li><code>lexos avion on|off</code>, <code>lexos lang &lt;code&gt;</code>,
+          <code>lexos format</code>, <code>lexos demo</code></li>
+    </ul>
+    Dans le terminal de cette démo, le bouton <b>☰ Commandes</b> les liste toutes.`},
+
+  {c:["bureau","bureaux","virtuel","virtuels","espace","workspace","super","coin","apercu"], r:
+   `LexOS a <b>quatre bureaux virtuels</b> — plusieurs écrans sur le même écran.
+    <ul>
+      <li><b>Super</b> ouvre la vue d'ensemble : les bureaux en vignettes, les
+          fenêtres en aperçus.</li>
+      <li><b>Le coin actif</b> — pousse la souris dans le coin haut-gauche et la
+          vue s'ouvre, comme sous Ubuntu.</li>
+      <li><b>Ctrl+Alt+←/→</b> pour passer au bureau voisin, <b>Super+1..4</b> pour
+          y aller directement.</li>
+      <li>Glisse un aperçu sur une vignette pour déménager la fenêtre.</li>
+    </ul>`},
+
+  {c:["capture","photo","screenshot","impr","ecran"], r:
+   `Trois façons de capturer :
+    <ul>
+      <li><b>Espace</b> quand l'appli Capture est ouverte, ou <b>Impr écran</b></li>
+      <li><b>⛶ Cadrer une zone</b> pour choisir le rectangle</li>
+      <li><b>Ctrl+Maj+R</b> pour enregistrer l'écran en vidéo</li>
+    </ul>
+    Les images atterrissent directement dans <b>Images ▸ Captures</b>, les vidéos
+    dans <b>Vidéos</b> — sans fenêtre qui s'ouvre par-dessus.`},
+
+  {c:["fond","wallpaper","papier peint","fond d'ecran"], r:
+   `Va dans <b>Paramètres ▸ Bureau LexOS</b>. Tu peux <b>essayer sans t'engager</b> :
+    le bureau change en direct, <b>👁 Voir le bureau</b> efface la fenêtre le
+    temps de regarder, et rien n'est retenu tant que tu n'as pas cliqué
+    <b>✓ Enregistrer</b> — <b>↺ Annuler</b> remet ce qui était là.
+    <br><br>Au terminal : <code>lexos wallpaper anime</code> pour les fonds
+    animés (code, pluie, braises, ciel, atelier), et
+    <code>lexos wallpaper anime nouveau mon-fond</code> pour fabriquer le sien.`},
+
+  {c:["telephone","android","samsung","mobile","portable","arm"], r:
+   `<b>L'ISO ne s'installera jamais sur un téléphone</b> — elle est x86_64, et un
+    Android est ARM à démarrage verrouillé. Mais un téléphone sert quand même :
+    <ul>
+      <li>il peut <b>fabriquer la clé USB</b> avec <b>EtchDroid</b> (gratuit, sans root)</li>
+      <li>il peut faire tourner un <b>vrai Debian ARM</b> dans Termux
+          (<code>proot-distro install debian</code>) — même socle, sans le bureau</li>
+      <li>et cette démo s'épingle à l'écran d'accueil comme une application</li>
+    </ul>`},
+
+  {c:["construire","compiler","build","soi-meme","github","actions","iso"], r:
+   `Deux façons de fabriquer l'ISO :
+    <ul>
+      <li><b>Par GitHub</b> : onglet Actions → « Construire l'ISO » → Run workflow.
+          Environ une heure et demie, rien à installer chez toi.</li>
+      <li><b>Chez toi</b> : il faut <code>live-build</code>, <code>debootstrap</code>,
+          <code>xorriso</code>, <code>squashfs-tools</code> et ~12 Go libres. Puis
+          <code>make check</code> et <code>make build</code>.</li>
+    </ul>`},
+
+  {c:["vie privee","donnee","donnees","compte","inscription","telemetrie","licence","mit","securite"], r:
+   `<b>Aucune inscription, aucun compte, aucune donnée personnelle.</b> Le dépôt
+    est public, le code est sous licence <b>MIT</b>, et rien n'est envoyé nulle
+    part pendant la construction ou l'utilisation de l'ISO. L'installation peut
+    être <b>chiffrée</b> (LUKS) si tu le demandes à l'installateur.`},
+
+  {c:["configuration","requis","memoire","ram","espace","disque","minimum"], r:
+   `<b>Pour la clé USB :</b> 8 Go (4 Go suffisent pour les saveurs légères).
+    <br><b>Mémoire vive :</b> 2 Go minimum en minimal, 4 Go recommandés ailleurs.
+    <br><b>Processeur :</b> tout amd64 (64 bits). Pas d'image ARM pour l'instant.
+    <br><b>Pour construire l'ISO :</b> ~12 Go libres sur la machine.`},
+
+  {c:["claude","toi","assistant","ia","intelligence"], r:
+   `Sur la <b>vraie</b> LexOS, <code>lexos claude</code> lance Claude Code : il lit
+    tes fichiers, propose des changements et lance les commandes — toujours avec
+    ta confirmation. Il tourne dans le nuage (Anthropic) : connexion et compte
+    requis. Pour une IA <b>100 % locale</b>, regarde plutôt « Assistants IA ».
+    <br><br>Ici, dans la démo, <b>je ne suis pas Claude</b> : je pioche dans la
+    documentation de LexOS. Une page publiée ne peut joindre aucun service.`},
+
+  {c:["musique","audio","son","lecteur","mp3"], r:
+   `<b>lexOS_musique</b> est le lecteur audio local — au terminal :
+    <code>lexos musique</code>. Pour la création (photo, vidéo, son), c'est
+    <b>Studio+</b> : <code>lexos studio</code>.`},
+
+  {c:["partage","partager","qr","reseau","fichier"], r:
+   `<b>Partager avec LexOS</b> monte un petit serveur local et affiche un
+    <b>QR code</b> : l'autre appareil le scanne et récupère le fichier, sans
+    passer par internet ni par un compte. Ça marche entre un PC et un téléphone
+    sur le même réseau.`},
+];
+
+//  Comparer sans se soucier des accents ni de la casse : « écran » et
+//  « ecran » doivent mener à la même réponse.
+function ccNorm(s){
+  return (s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+}
+function ccCherche(q){
+  const t = ccNorm(q);
+  if(!t.trim()) return null;
+  let meilleur = null, score = 0;
+  for(const e of CC_SAVOIR){
+    let s = 0;
+    for(const mot of e.c){
+      const m = ccNorm(mot);
+      if(t.includes(m)) s += m.length;      // un mot long pèse plus qu'un court
+    }
+    if(s > score){ score = s; meilleur = e; }
+  }
+  return score >= 3 ? meilleur : null;
+}
+const CC_SUGGESTIONS = [
+  "C'est quoi LexOS ?", "Comment installer LexOS ?", "Puis-je jouer aux jeux Windows ?",
+  "Quelles commandes existent ?", "Ma carte NVIDIA est-elle gérée ?",
+  "Comment changer le fond d'écran ?", "Les bureaux virtuels", "Ça marche sur téléphone ?",
+];
+
+function ccEcrit(zone, qui, html){
+  const d = document.createElement("div");
+  d.className = "cc-msg cc-" + qui;
+  d.innerHTML = qui === "moi" ? esc(html)
+    : `<span class="cc-ic">${claudeGlyph(16)}</span><div class="cc-txt">${html}</div>`;
+  zone.appendChild(d);
+  zone.scrollTop = zone.scrollHeight;
+}
+function ccDemande(winId, texte){
+  const w = document.getElementById(winId); if(!w) return;
+  const zone = w.querySelector(".cc-log");
+  const champ = w.querySelector(".cc-in");
+  const q = (texte !== undefined ? texte : champ.value).trim();
+  if(!q) return;
+  champ.value = "";
+  ccEcrit(zone, "moi", q);
+  const e = ccCherche(q);
+  //  Un court délai : une réponse instantanée donne l'impression d'un
+  //  formulaire, pas d'une conversation.
+  setTimeout(()=>{
+    if(e) ccEcrit(zone, "lui", e.r);
+    else ccEcrit(zone, "lui",
+      `Je n'ai pas ça dans la documentation de LexOS. Je sais répondre sur :
+       l'installation, les saveurs, les jeux Windows, la carte NVIDIA, les
+       commandes, les bureaux virtuels, la capture d'écran, le fond d'écran,
+       le téléphone, la construction de l'ISO, la vie privée et la
+       configuration requise.
+       <br><br>Sur la <b>vraie</b> LexOS, <code>lexos claude</code> lance le vrai
+       Claude Code, qui lui répond à tout.`);
+  }, 260);
+}
+function ccTouche(ev, winId){
+  if(ev.key === "Enter"){ ev.preventDefault(); ccDemande(winId); }
 }
 
+function openClaudeCode(nouvelle){
+  const id = nouvelle ? "claude-code#"+(++winSeq) : "claude-code";
+  const winId = "win-" + id;
+  const el = openWin(id,"Claude Code",claudeGlyph(17),
+  `<div class="cc">
+     <div class="cc-tete">
+       <span class="cc-tete-ic">${claudeGlyph(19)}</span>
+       <b>Claude Code</b>
+       <span class="cc-badge" title="Aucune IA n'est jointe : les réponses viennent de la documentation de LexOS">démo</span>
+     </div>
+     <div class="cc-log"></div>
+     <div class="cc-sugg">${CC_SUGGESTIONS.map(s=>
+        `<button onclick="ccDemande('${winId}', this.textContent)">${esc(s)}</button>`).join("")}</div>
+     <div class="cc-saisie">
+       <input class="cc-in" type="text" autocomplete="off" spellcheck="false"
+              placeholder="Pose ta question sur LexOS…"
+              onkeydown="ccTouche(event,'${winId}')">
+       <button class="cc-env" onclick="ccDemande('${winId}')">Envoyer</button>
+     </div>
+   </div>`, 620, 520);
+  //  Le mot d'accueil dit tout de suite ce que c'est — et ce que ce n'est pas.
+  const zone = el.querySelector(".cc-log");
+  ccEcrit(zone, "lui",
+    `Bonjour Alex. Je réponds à partir de <b>ce que LexOS sait de lui-même</b> :
+     l'installation, les jeux, la carte graphique, les commandes, les bureaux…
+     <br><br><b>Je ne suis pas Claude.</b> Cette page est publiée avec une
+     politique qui bloque tout appel au réseau : aucune IA n'est jointe. Sur la
+     vraie LexOS, <code>lexos claude</code> lance le vrai Claude Code.
+     <br><br>Choisis une question ci-dessous, ou écris la tienne.`);
+  const champ = el.querySelector(".cc-in");
+  if(champ) setTimeout(()=>champ.focus(), 60);
+  return el;
+}
 function navNouvelOnglet(url, muet){
   url = url || "lexos://nouvel-onglet";
   const r = navResout(url);
