@@ -859,6 +859,19 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 #dock.dock-reorg .dicon{transition:transform .12s ease}
 #dock.dock-reorg .dicon:hover{transform:none}
 #dock.dock-reorg .dicon .tip{opacity:0!important}
+/*  Le logo de Claude « au travail » : les pales tournent lentement et
+    respirent, comme le témoin de Claude Code pendant qu'il réfléchit.
+    18 s par tour — assez lent pour qu'on le remarque à peine, assez vivant
+    pour que l'icône ne soit pas morte. Au survol, il s'anime franchement.
+    transform-box:view-box, sinon l'origine se cale sur la boîte des traits
+    et l'étoile décrit un cercle au lieu de tourner sur elle-même. */
+.claude-pales{transform-box:view-box;transform-origin:50px 50px;
+  animation:claudeTourne 18s linear infinite, claudeSouffle 4.5s ease-in-out infinite}
+@keyframes claudeTourne{ to{ transform:rotate(360deg) } }
+@keyframes claudeSouffle{ 0%,100%{ opacity:.82 } 50%{ opacity:1 } }
+.dicon:hover .claude-pales,.app:hover .claude-pales,
+.ap-win:hover .claude-pales{animation-duration:3.5s,1.6s}
+@media (prefers-reduced-motion:reduce){ .claude-pales{animation:none;opacity:1} }
 .term{position:relative}
 .term .in{display:inline}
 .caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
@@ -6738,11 +6751,36 @@ function openClaude(){ openIA("https://claude.ai"); }
 /*  Claude Code : l'assistant de programmation d'Anthropic, qui vit dans le
     terminal. Dans la vraie LexOS, « lexos claude » le lance ; ici on montre
     à quoi ça ressemble — un aperçu, pas un vrai Claude branché sur internet. */
+/*  Le logo de Claude : une étoile à douze pales aux bouts arrondis, dans
+    l'orange-rouge de la marque (#d97757). Dessiné en SVG plutôt qu'écrit
+    avec le caractère « ✳ » — ce caractère change de forme d'une police à
+    l'autre, et sur une machine sans police emoji il tombait sur un
+    astérisque quelconque.
+    Les pales tournent lentement, comme le témoin de Claude Code quand il
+    travaille : le mouvement dit « ça réfléchit » sans rien clignoter.  */
+function claudeGlyph(size){
+  const N = 12, R = 46, r = 13;
+  const pales = Array.from({length:N}, (_,i)=>{
+    const a = (i * 360 / N) * Math.PI / 180;
+    //  Une pale sur deux un peu plus courte : c'est ce qui donne à l'étoile
+    //  sa silhouette reconnaissable plutôt qu'une roue régulière.
+    const L = i % 2 ? R * 0.72 : R;
+    return `<line x1="${(50 + Math.cos(a)*r).toFixed(2)}" y1="${(50 + Math.sin(a)*r).toFixed(2)}"`+
+           ` x2="${(50 + Math.cos(a)*L).toFixed(2)}" y2="${(50 + Math.sin(a)*L).toFixed(2)}"/>`;
+  }).join("");
+  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}"
+     class="claude-logo" aria-hidden="true" focusable="false"
+     style="vertical-align:middle;overflow:visible">
+     <g class="claude-pales" stroke="#d97757" stroke-width="7.5"
+        stroke-linecap="round" fill="none">${pales}</g>
+   </svg>`;
+}
+
 function openClaudeCode(nouvelle){
   const id = nouvelle ? "claude-code#"+(++winSeq) : "claude-code";
-  openWin(id,"Claude Code",'<span style="color:#d97757">✳</span>',
+  openWin(id,"Claude Code",claudeGlyph(17),
   `<div style="background:#0b0b0d;color:#e8e6e3;font-family:ui-monospace,'JetBrains Mono',Menlo,monospace;height:100%;padding:16px 18px;overflow:auto;font-size:13px;line-height:1.7;box-sizing:border-box">
-     <div style="color:#d97757;font-weight:600">✳ Claude Code</div>
+     <div style="color:#d97757;font-weight:600;display:flex;align-items:center;gap:8px">${claudeGlyph(20)} Claude Code</div>
      <div style="opacity:.65;margin-bottom:12px">Assistant de programmation d'Anthropic — dans le terminal.</div>
      <div><span style="color:#7aa2f7">[lex@lexos]</span> <span style="color:#e0af68">lexos claude</span></div>
      <div style="opacity:.75;margin:6px 0 12px">» Connexion au navigateur au premier lancement…</div>
@@ -8488,8 +8526,8 @@ const DOCK = [
   [navGlyph(26),"Navigateur",openBrowser], [chromeGlyph(26),"Google Chrome",openChrome],
   [terminalGlyph(24),"Terminal",openTerminal],
   [filesAppGlyph(24),"Fichiers",openFiles], [noteGlyph(25),"Note perso",openEditor],
-  ['<span style="color:#d97757;font-size:22px">✳</span>',"Claude",openClaude],
-  ['<span style="color:#d97757;font-size:22px">✳</span>',"Claude Code",openClaudeCode],
+  [claudeGlyph(26),"Claude",openClaude],
+  [claudeGlyph(26),"Claude Code",openClaudeCode],
   ['<i class="gly gly-share"></i>',"Partager",openShare], [cameraGlyph(24),"Capture d'écran",openCapture],
   [studioGlyph(24),"Studio+ LexOS",openStudio],
   ["📦","Logithèque",openLogitheque],
@@ -8681,7 +8719,7 @@ const APPS = [
     label==="Google Chrome" ? {ic:chromeGlyph(40), label, fn} :
     label==="Paramètres" ? {ic:reglagesGlyph(40), label, fn} :
     label==="Note perso" ? {ic:noteGlyph(40), label, fn} :
-    (label==="Claude"||label==="Claude Code") ? {ic:'<span style="color:#d97757;font-size:40px">✳</span>', label, fn} : {ic,label,fn}),
+    (label==="Claude"||label==="Claude Code") ? {ic:claudeGlyph(40), label, fn} : {ic,label,fn}),
   {ic:zipGlyph(42), label:"Archives ZIP", fn:openFiles},
   {ic:musiqueGlobe(38), label:"Musique", fn:openMusique},
   {ic:'<span style="font-size:38px">💿</span>', label:"lexOS_musique", fn:openLexosMusique},
