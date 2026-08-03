@@ -1279,45 +1279,18 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 /* --- Cadrage de la capture (sélecteur de zone) --------------------------- */
 #capZone{position:fixed;inset:0;z-index:2600;cursor:crosshair;user-select:none}
 #capZone .cz-fond{position:absolute;inset:0;width:100%;height:100%;display:block}
+/*  Le cadre : un trait blanc fin, rien d'autre. Pas de quadrillage, pas de
+    halo, pas de courant qui tourne — le cadrage doit se faire oublier au
+    profit de ce qu'on cadre. */
 #capZone .cz-sel{position:absolute;cursor:move;
-  outline:2px solid var(--ac);
-  /*  Le quadrillage de tiers, comme dans un recadrage photo. */
-  background-image:
-    linear-gradient(to right,transparent 33.2%,rgba(255,255,255,.28) 33.2% 33.5%,
-      transparent 33.5% 66.2%,rgba(255,255,255,.28) 66.2% 66.5%,transparent 66.5%),
-    linear-gradient(to bottom,transparent 33.2%,rgba(255,255,255,.28) 33.2% 33.5%,
-      transparent 33.5% 66.2%,rgba(255,255,255,.28) 66.2% 66.5%,transparent 66.5%)}
-/*  Courant électrique qui circule autour du cadre : quatre rails, un par
-    côté, chacun portant un éclat qui se déplace. Les positions de fond
-    tournent dans le même sens (droite, bas, gauche, haut) pour que l'éclat
-    fasse le tour au lieu de rebondir. Les rails débordent de 3 px pour
-    encadrer le trait de sélection plutôt que de le recouvrir. */
-#capZone .cz-courant{position:absolute;inset:-4px;pointer-events:none;
-  background:
-    linear-gradient(90deg,transparent,var(--ac-hi),#fff,var(--ac-hi),transparent) no-repeat,
-    linear-gradient(90deg,transparent,var(--ac-hi),#fff,var(--ac-hi),transparent) no-repeat,
-    linear-gradient(180deg,transparent,var(--ac-hi),#fff,var(--ac-hi),transparent) no-repeat,
-    linear-gradient(180deg,transparent,var(--ac-hi),#fff,var(--ac-hi),transparent) no-repeat;
-  background-size:45% 3px, 45% 3px, 3px 45%, 3px 45%;
-  filter:drop-shadow(0 0 5px var(--ac-hi));
-  animation:czCourant 2.6s linear infinite}
-@keyframes czCourant{
-  0%   {background-position:-45% 0,   145% 100%, 0 145%,  100% -45%}
-  100% {background-position:145% 0,  -45% 100%, 0 -45%,  100% 145%}}
-/*  La sélection respire aussi : un halo qui bat rappelle que le cadre est
-    vivant même quand on ne le touche pas. */
-#capZone .cz-sel{animation:czHalo 2.6s ease-in-out infinite}
-@keyframes czHalo{
-  0%,100%{filter:drop-shadow(0 0 0 rgba(232,89,12,0))}
-  50%    {filter:drop-shadow(0 0 12px rgba(232,89,12,.55))}}
-@media (prefers-reduced-motion:reduce){
-  #capZone .cz-courant,#capZone .cz-sel{animation:none}}
-
+  outline:1.5px solid rgba(255,255,255,.92)}
 #capZone .cz-dim{position:absolute;top:-27px;left:0;padding:2px 8px;border-radius:6px;
   background:var(--ac);color:var(--btn-fg);font:600 12px/1.5 ui-monospace,monospace;
   white-space:nowrap;pointer-events:none}
-#capZone .cz-p{position:absolute;width:13px;height:13px;background:var(--ac);
-  border:2px solid #fff;border-radius:3px}
+/*  Poignées : des pastilles blanches rondes, comme sur l'outil de capture
+    du système. Elles se voient sur n'importe quel fond grâce à l'ombre. */
+#capZone .cz-p{position:absolute;width:13px;height:13px;background:#fff;
+  border:none;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.55)}
 #capZone .cz-nw{left:-7px;top:-7px;cursor:nwse-resize}
 #capZone .cz-n {left:calc(50% - 7px);top:-7px;cursor:ns-resize}
 #capZone .cz-ne{right:-7px;top:-7px;cursor:nesw-resize}
@@ -1334,9 +1307,6 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 #capZone .cz-aide b{color:#fff}
 
 /* --- Capture d'écran et enregistrement vidéo ----------------------------- */
-.cap-flash{position:fixed;inset:0;z-index:3000;background:#fff;pointer-events:none;
-  animation:capFlash .4s ease-out forwards}
-@keyframes capFlash{0%{opacity:.85}100%{opacity:0}}
 .cap-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .cap-stop{background:#C62828;border-color:#8E1F1F;color:#fff}
 .cap-stop:hover{background:#E33B3B}
@@ -6534,11 +6504,6 @@ async function capDessine(){
   if(!dessine) throw new Error("rendu du bureau impossible");
   return cv;
 }
-function capFlash(){
-  const f=document.createElement("div"); f.className="cap-flash";
-  document.body.appendChild(f);
-  setTimeout(()=>f.remove(), 420);
-}
 function capOctets(n){
   return n > 1048576 ? (n/1048576).toFixed(1)+" Mo" : Math.max(1,Math.round(n/1024))+" ko";
 }
@@ -6555,7 +6520,6 @@ async function capPhoto(){
   try { cv = await capDessine(); }
   catch(e){ toast("La capture a échoué"); return; }
   finally { if(win) win.style.visibility=""; }
-  capFlash();
   const blob = await new Promise(res=>cv.toBlob(res,"image/png"));
   if(!blob){ toast("La capture a échoué"); return; }
   captures.unshift({type:"image", nom:`capture_${capHorodatage()}.png`,
@@ -6596,7 +6560,6 @@ async function capZone(){
     `<img class="cz-fond" src="${cv.toDataURL("image/png")}" alt="">`+
     `<div class="cz-voile"></div>`+
     `<div class="cz-sel" id="czSel">`+
-      `<span class="cz-courant"></span>`+
       `<span class="cz-dim" id="czDim"></span>`+
       ["nw","n","ne","e","se","s","sw","w"].map(p=>
         `<span class="cz-p cz-${p}" data-p="${p}"></span>`).join("")+
@@ -6694,7 +6657,6 @@ async function capZoneValide(){
     Math.round(r.w*ech), Math.round(r.h*ech),
     0, 0, cv.width, cv.height);
   capZoneFerme();
-  capFlash();
   const blob=await new Promise(res=>cv.toBlob(res,"image/png"));
   if(!blob){ toast("La capture a échoué"); return; }
   captures.unshift({type:"image", nom:`zone_${capHorodatage()}.png`,
