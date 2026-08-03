@@ -1655,7 +1655,12 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
   </div>
 
   <div id="panel">
-    <button class="apps" id="appsBtn"><span class="glyph"></span>Applications</button>
+    <!--  L'icône seule, sans le mot « Applications » : elle suffit à dire
+          ce qu'elle ouvre, et la barre respire à gauche. Le nom reste dans
+          le title et l'aria-label — un lecteur d'écran, lui, a besoin de
+          l'entendre. -->
+    <button class="apps" id="appsBtn" title="Applications"
+            aria-label="Applications"><span class="glyph"></span></button>
     <!--  Accès rapide en haut à gauche : photo et vidéo de l'écran sans
           passer par le menu Applications ni par le dock. -->
     <!--  Bureaux virtuels : plusieurs écrans sur le même écran. Chaque
