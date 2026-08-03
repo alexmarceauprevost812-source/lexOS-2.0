@@ -26,14 +26,21 @@ _ENV_ARCH="${LEXOS_ARCH:-}"
 BACKPORTS="false"
 [ "${LEXOS_KERNEL_CHANNEL:-stock}" = "backports" ] && BACKPORTS="true"
 
-BOOTAPPEND="boot=live components quiet splash"
-BOOTAPPEND="${BOOTAPPEND} username=${LEXOS_LIVE_USER}"
-BOOTAPPEND="${BOOTAPPEND} user-fullname=${LEXOS_NAME}\\ Live"
-BOOTAPPEND="${BOOTAPPEND} hostname=${LEXOS_HOSTNAME}"
-BOOTAPPEND="${BOOTAPPEND} locales=${LEXOS_LOCALE}"
-BOOTAPPEND="${BOOTAPPEND} keyboard-layouts=${LEXOS_KEYBOARD_LAYOUT}"
-BOOTAPPEND="${BOOTAPPEND} keyboard-variants=${LEXOS_KEYBOARD_VARIANT}"
-BOOTAPPEND="${BOOTAPPEND} timezone=${LEXOS_TIMEZONE}"
+#  ── Le socle commun aux deux modes ──────────────────────────────────────
+#  Tout ce qui décrit la SESSION (compte, nom de machine, langue, clavier,
+#  fuseau) doit valoir aussi bien en mode normal qu'en mode secours : un
+#  filet de sécurité qui démarre en clavier américain et en anglais est un
+#  filet dans lequel on ne sait plus taper son mot de passe.
+BOOTAPPEND_BASE="boot=live components"
+BOOTAPPEND_BASE="${BOOTAPPEND_BASE} username=${LEXOS_LIVE_USER}"
+BOOTAPPEND_BASE="${BOOTAPPEND_BASE} user-fullname=${LEXOS_NAME}\\ Live"
+BOOTAPPEND_BASE="${BOOTAPPEND_BASE} hostname=${LEXOS_HOSTNAME}"
+BOOTAPPEND_BASE="${BOOTAPPEND_BASE} locales=${LEXOS_LOCALE}"
+BOOTAPPEND_BASE="${BOOTAPPEND_BASE} keyboard-layouts=${LEXOS_KEYBOARD_LAYOUT}"
+BOOTAPPEND_BASE="${BOOTAPPEND_BASE} keyboard-variants=${LEXOS_KEYBOARD_VARIANT}"
+BOOTAPPEND_BASE="${BOOTAPPEND_BASE} timezone=${LEXOS_TIMEZONE}"
+
+BOOTAPPEND="${BOOTAPPEND_BASE} quiet splash"
 
 #  ── NVIDIA (RTX 50 / Blackwell) : garder la console visible ─────────────
 #  Constaté sur une Alienware Aurora, RTX 5060, pilote 610.43.02 (dépôt
@@ -52,18 +59,43 @@ BOOTAPPEND="${BOOTAPPEND} timezone=${LEXOS_TIMEZONE}"
 BOOTAPPEND="${BOOTAPPEND} nvidia-drm.modeset=1 nvidia-drm.fbdev=1 nvidia-modeset.hdmi_deepcolor=0"
 
 #  ── Mode fail-safe : un VRAI filet, garanti sans NVIDIA ─────────────────
-#  Avant : live-build donnait son propre défaut (memtest, noapic…) sans
-#  toucher aux pilotes — ce mode perdait donc le signal exactement comme le
-#  mode normal, puisque nvidia-persistenced/nvidia-powerd chargent nvidia.ko
-#  (et initialisent le GSP) même sans bureau graphique. Ici, module_blacklist=
-#  agit au niveau du noyau : il bloque TOUT chargement, y compris un modprobe
-#  explicite par un service — contrairement à modprobe.blacklist= qui ne
-#  bloque que le chargement automatique par alias. C'est donc la seule façon
-#  de garantir qu'aucun composant NVIDIA ne touche l'écran dans ce mode.
-#  On repart du défaut live-build de trixie (boot=live … vga=788) : cette
-#  option REMPLACE la chaîne, elle ne s'ajoute pas au défaut.
-BOOTAPPEND_FAILSAFE="boot=live components memtest noapic noapm nodma nomce nosmp nosplash vga=788"
-BOOTAPPEND_FAILSAFE="${BOOTAPPEND_FAILSAFE} module_blacklist=nvidia,nvidia_drm,nvidia_modeset,nvidia_uvm"
+#  module_blacklist= agit au niveau du noyau : il bloque TOUT chargement, y
+#  compris un modprobe explicite par un service — contrairement à
+#  modprobe.blacklist= qui ne bloque que le chargement automatique par alias.
+#  C'est la seule façon de garantir qu'aucun composant NVIDIA ne touche
+#  l'écran dans ce mode.
+#
+#  DEUX CORRECTIFS, après le premier essai réel de ce mode (Alienware Aurora
+#  ACT1250, RTX 5060, TV Hisense en HDMI, construction 19) : le mode NORMAL
+#  affichait le bureau, et c'est le mode secours — celui censé ne jamais
+#  échouer — qui restait noir. Deux causes, toutes deux dans la chaîne qu'on
+#  avait reprise du défaut live-build :
+#
+#  1. « nouveau » n'était pas bloqué. Bloquer la pile NVIDIA propriétaire ne
+#     laisse pas l'écran tranquille : le pilote libre nouveau, lui, est dans
+#     le noyau, et rien ne l'empêchait alors de se lier à la carte. Sur une
+#     Blackwell (RTX 50) il échoue — mais il a déjà évincé le framebuffer
+#     UEFI en essayant, et il ne reste plus rien pour afficher quoi que ce
+#     soit. D'où « nomodeset », qui interdit à TOUT pilote DRM réel de
+#     prendre la main et laisse en place le framebuffer que l'UEFI a déjà
+#     configuré — exactement celui qui affiche GRUB, donc un affichage dont
+#     on a la preuve qu'il fonctionne sur cet écran. nouveau est aussi nommé
+#     dans la liste noire, pour que ce soit vrai même sans nomodeset.
+#
+#  2. Les vieilles options de dépannage du défaut live-build — noapic,
+#     nosmp, nodma, nomce, vga=788 — datent des années 2000. Sur une machine
+#     récente elles ne réparent rien et cassent : noapic désorganise les
+#     interruptions, nosmp réduit un processeur moderne à un seul cœur, et
+#     vga=788 (un mode VESA) n'a aucun sens en démarrage UEFI, où il est
+#     purement ignoré. Un mode secours doit changer le MINIMUM de choses.
+#
+#  Et on garde les messages visibles (ni quiet ni splash) : quand ce mode
+#  sert, c'est qu'on cherche déjà pourquoi quelque chose ne marche pas.
+#  Le marqueur lexos.failsafe=1 ne fait rien par lui-même — il permet de
+#  reconnaître le mode dans /proc/cmdline au moment d'un diagnostic.
+BOOTAPPEND_FAILSAFE="${BOOTAPPEND_BASE} nosplash nomodeset"
+BOOTAPPEND_FAILSAFE="${BOOTAPPEND_FAILSAFE} module_blacklist=nvidia,nvidia_drm,nvidia_modeset,nvidia_uvm,nouveau"
+BOOTAPPEND_FAILSAFE="${BOOTAPPEND_FAILSAFE} lexos.failsafe=1"
 
 #  ── Réponses préremplies de l'installateur ──────────────────────────────
 #  config/includes.installer/preseed.cfg est recopié à la racine du support

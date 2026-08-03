@@ -132,7 +132,7 @@ def accent_courant():
 
 
 def version_systeme():
-    """« 1.0.2 — NOMAD », lu dans /etc/os-release plutôt que recopié ici."""
+    """« 1.2.0 — NOMAD », lu dans /etc/os-release plutôt que recopié ici."""
     version = codename = ""
     try:
         with open("/etc/os-release", encoding="utf-8") as f:

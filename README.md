@@ -1,6 +1,6 @@
 <div align="center">
 
-# LexOS 1.0.2 « Nomad »
+# LexOS 1.2.0 « Nomad »
 
 **TI·LEX·AL** — une distribution Linux complète, noire, à ma sauce.
 
@@ -29,7 +29,7 @@ profils de performance, outils réseau et de partage.
 
 | | |
 |---|---|
-| **Nom** | LexOS 1.0.2 « Nomad » |
+| **Nom** | LexOS 1.2.0 « Nomad » |
 | **Socle** | Debian trixie — noyau 6.12 LTS, systemd 257, Mesa 25 |
 | **Bureau** | XFCE — barre en haut, dock à droite, façon Ubuntu |
 | **Thème** | LexOS Noir : fond noir pur, écriture blanche, boutons accentués |
@@ -121,9 +121,9 @@ make build      # construit l'ISO (saveur standard)
 Compte **20 à 60 minutes** selon ta connexion. À la fin :
 
 ```
-  ok  ISO      : lexos-1.0.2-standard-amd64.iso
+  ok  ISO      : lexos-1.2.0-standard-amd64.iso
   ok  Taille   : 2.4G
-  ok  SHA-256  : lexos-1.0.2-standard-amd64.iso.sha256
+  ok  SHA-256  : lexos-1.2.0-standard-amd64.iso.sha256
 ```
 
 ### Les cinq saveurs
@@ -165,6 +165,28 @@ disque dur.
 
 Redémarre ensuite en choisissant la clé dans le menu de démarrage de ton
 ordinateur (souvent `F12`, `F11`, `Échap` ou `Suppr` au démarrage).
+
+### Les deux lignes du menu de démarrage
+
+| Ligne | Ce qu'elle fait |
+|---|---|
+| **Live system (amd64)** | Le vrai LexOS : pilote de la carte graphique actif, 3D, jeux. C'est celle qu'on prend. |
+| **Live system (amd64 fail-safe mode)** | Le filet de sécurité, si l'écran reste noir avec la première. |
+
+Le mode fail-safe change le **minimum** de choses, et rien d'autre : il
+interdit à tout pilote graphique de prendre la main (`nomodeset`, plus les
+modules NVIDIA et `nouveau` bloqués au niveau du noyau) et laisse l'écran
+exactement dans l'état où l'UEFI l'a allumé — celui qui affiche déjà le
+menu de démarrage, donc un affichage dont on a la preuve qu'il marche sur
+cet écran-là. Les messages de démarrage restent visibles, sans habillage :
+quand ce mode sert, c'est qu'on cherche déjà pourquoi quelque chose cloche.
+
+Compte, langue, clavier et fuseau horaire sont les mêmes que dans le mode
+normal — un filet de sécurité qui démarre en clavier américain est un filet
+dans lequel on ne sait plus taper son mot de passe.
+
+En contrepartie : pas d'accélération 3D, pas de jeux, une image moins fine.
+C'est un mode pour réparer, pas pour vivre dedans.
 
 ### Sans clé USB, ou depuis Windows
 
@@ -458,7 +480,7 @@ La fiche technique de la machine, avec le masque LexOS en art ASCII.
 ```
         ▄▄██████████▄▄         lex@lexos
      ▄██████████████████▄      ────────────────────────────────
-  ▄████████████████████████▄   OS       : LexOS 1.0.2 (Nomad) x86_64
+  ▄████████████████████████▄   OS       : LexOS 1.2.0 (Nomad) x86_64
   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀   Base     : Debian bookworm (12.5)
    ███▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄███    Noyau    : 6.1.0-18-amd64
     ██ ▐████▌    ▐████▌ ██     Uptime   : 14 minutes
@@ -538,7 +560,7 @@ démarrage, installateur, `/etc/os-release`, thème.
 
 ```bash
 LEXOS_NAME="LexOS"
-LEXOS_VERSION="1.0.2"
+LEXOS_VERSION="1.2.0"
 LEXOS_CODENAME="Nomad"
 LEXOS_ACCENT_NAME="orange"      # couleur des boutons
 LEXOS_CRT_EFFECTS="on"          # effets TV 1980
@@ -677,6 +699,6 @@ LexOS n'est ni affilié à, ni approuvé par le projet Debian.
 
 <div align="center">
 
-**TI·LEX·AL** — LexOS 1.0.2 « Nomad »
+**TI·LEX·AL** — LexOS 1.2.0 « Nomad »
 
 </div>

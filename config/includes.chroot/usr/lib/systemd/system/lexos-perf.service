@@ -1,8 +1,10 @@
 [Unit]
 Description=LexOS — applique le profil de performance
-Documentation=man:lexos-perf(1)
+#  « man:lexos-perf(1) » promettait une page de manuel que LexOS n'installe
+#  pas : « systemctl status lexos-perf » affichait donc un lien mort. On
+#  pointe le script lui-même, comme lexos-live-sudo-guard.service.
+Documentation=file:/usr/bin/lexos-perf
 After=sysinit.target local-fs.target
-Wants=sysinit.target
 
 [Service]
 Type=oneshot
@@ -11,7 +13,6 @@ RemainAfterExit=yes
 ExecStart=/bin/sh -c 'test -s /etc/lexos/performance \
   && exec /usr/bin/lexos-perf apply --system-only --quiet \
   || exec /usr/bin/lexos-perf auto --system-only --quiet'
-ExecStop=/bin/true
 
 [Install]
 WantedBy=multi-user.target
