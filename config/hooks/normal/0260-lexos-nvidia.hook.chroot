@@ -74,6 +74,7 @@ export DEBIAN_FRONTEND=noninteractive
 mkdir -p /etc/lexos
 REPORT=/etc/lexos/nvidia-report
 NV_LISTE=/etc/apt/sources.list.d/lexos-nvidia.list
+NV_PIN=/etc/apt/preferences.d/lexos-nvidia-pin
 NV_URL="https://developer.download.nvidia.com/compute/cuda/repos/${NV_DIST}/x86_64"
 
 # --- Nettoyage : effacer TOUTE trace d'une tentative ratée ------------------
@@ -98,6 +99,44 @@ nettoie() {
 	update-alternatives --remove-all nvidia >/dev/null 2>&1 || true
 	rm -rf /usr/lib/nvidia
 	rm -f "$NV_LISTE"
+	rm -f "$NV_PIN"
+}
+
+#  L'ÉPINGLE — la leçon de la construction qui a suivi l'inventaire.
+#  On avait demandé « nvidia-open=595.71.05-1 » et apt a dit oui. Sauf que
+#  nvidia-open est un méta-paquet de 2,5 ko : seule L'ÉTIQUETTE était en 595,
+#  pendant que le pilote réel — nvidia-driver-cuda, libcuda1, libnvidia-*,
+#  le module noyau — s'installait en 610.43.02, la version buggée. Épingler
+#  un méta-paquet n'épingle rien du tout.
+#  On épingle donc TOUTE la pile NVIDIA sur la branche voulue, par les
+#  préférences apt, AVANT d'installer. À priorité 1001, apt refuse la 610 :
+#  soit il installe la branche demandée en entier, soit il échoue franchement
+#  — et un échec franc, on le voit, contrairement à un repli silencieux.
+pin_branche() {
+	#  $1 = numéro de branche (595, 580…)
+	mkdir -p /etc/apt/preferences.d
+	cat > "$NV_PIN" <<EOF
+# LexOS — toute la pile NVIDIA sur la branche $1.
+# La branche 610 (610.43.02/610.43.03) coupe le signal HDMI sur téléviseur :
+# NVIDIA/open-gpu-kernel-modules#1238. Priorité 1001 = apt préfère cette
+# branche même s'il faut refuser une version plus récente.
+# Pour repasser au plus récent : supprimer ce fichier, puis « lexos upgrade ».
+Package: nvidia-* libnvidia-* cuda-* libcuda* libcudadebugger* libnvcuvid* libnvoptix* libnvfatbin* libnvjitlink* xserver-xorg-video-nvidia*
+Pin: version $1.*
+Pin-Priority: 1001
+EOF
+	echo "[lexos]   pile NVIDIA épinglée sur la branche $1 (préférences apt)"
+}
+
+#  Ce qui est VRAIMENT installé — sur un paquet qui est le pilote, pas son
+#  étiquette. C'est cette vérification qui manquait : sans elle, « nvidia-open
+#  595 » et « pilote 610 » se ressemblent dans un journal.
+version_pilote_reel() {
+	for p in nvidia-driver-cuda libnvidia-ml1 nvidia-kernel-common nvidia-open; do
+		v="$(dpkg-query -W -f='${Version}' "$p" 2>/dev/null)" || continue
+		[ -n "$v" ] && { echo "$v"; return 0; }
+	done
+	return 1
 }
 
 #  LE GARDE-FOU QUI A MANQUÉ À LA CONSTRUCTION 29.
@@ -177,6 +216,8 @@ depot_nvidia() {
 #  que si le module noyau est réellement compilé.
 REUSSITE=""
 VERSIONS_DISPO=""
+VERSIONS_PILOTE=""
+PAQUET_PILOTE=""
 
 essaie() {
 	#  $1 = paquet (éventuellement « paquet=version »), $2 = description
@@ -195,17 +236,37 @@ essaie() {
 #  L'inventaire du dépôt, écrit en toutes lettres dans le journal. C'est CE
 #  bloc qui manquait : sans lui, un nom de paquet inexistant est indiscernable
 #  d'un pilote qui refuse de compiler.
+versions_de() {
+	apt-cache madison "$1" 2>/dev/null \
+		| awk -F'|' '{gsub(/[ \t]/,"",$2); if ($2 != "") print $2}' \
+		| sort -Vr | uniq
+}
+
 inventaire() {
 	[ -r "$NV_LISTE" ] || return 0
-	VERSIONS_DISPO="$(apt-cache madison nvidia-open 2>/dev/null \
-		| awk -F'|' '{gsub(/[ \t]/,"",$2); if ($2 != "") print $2}' \
-		| sort -Vr | uniq)"
+	#  Le méta-paquet, pour mémoire — c'est lui qui nous a menés en bateau.
+	VERSIONS_DISPO="$(versions_de nvidia-open)"
 	if [ -n "$VERSIONS_DISPO" ]; then
-		echo "[lexos]   versions de nvidia-open proposées par le dépôt :"
+		echo "[lexos]   versions du méta-paquet nvidia-open :"
 		echo "$VERSIONS_DISPO" | sed 's/^/[lexos]     · /'
 	else
 		echo "[lexos]   !! le dépôt ne liste aucune version de nvidia-open"
 	fi
+	#  ET LE VRAI PILOTE. C'est sur CETTE liste qu'on choisit : le méta-paquet
+	#  peut proposer une 595 dont le pilote correspondant n'existe pas, et
+	#  c'est exactement le piège dans lequel la construction précédente est
+	#  tombée (étiquette 595, pilote 610).
+	for p in nvidia-driver-cuda libnvidia-ml1 nvidia-kernel-common; do
+		VERSIONS_PILOTE="$(versions_de "$p")"
+		if [ -n "$VERSIONS_PILOTE" ]; then
+			PAQUET_PILOTE="$p"
+			echo "[lexos]   versions du pilote réel (${p}) :"
+			echo "$VERSIONS_PILOTE" | sed 's/^/[lexos]     · /'
+			break
+		fi
+	done
+	[ -n "$VERSIONS_PILOTE" ] \
+		|| echo "[lexos]   !! aucun paquet de pilote listé — choix sur le méta-paquet seul"
 	METAS="$(apt-cache --names-only search '^nvidia-open' 2>/dev/null \
 		| awk '{print $1}' | sort -V | tr '\n' ' ')"
 	[ -n "$METAS" ] && echo "[lexos]   méta-paquets nvidia-open* : ${METAS}"
@@ -217,10 +278,12 @@ inventaire() {
 
 #  La version la plus récente STRICTEMENT antérieure à la branche 610 — celle
 #  qui porte la régression HDMI. On ne vise plus un numéro précis (595, 580) :
-#  on prend ce que le dépôt a de plus proche, en dessous de 610.
+#  on prend ce que le dépôt a de plus proche en dessous de 610, choisi sur la
+#  liste du VRAI pilote quand elle existe.
 version_avant_610() {
-	[ -n "$VERSIONS_DISPO" ] || return 0
-	echo "$VERSIONS_DISPO" | while read -r v; do
+	LISTE="${VERSIONS_PILOTE:-$VERSIONS_DISPO}"
+	[ -n "$LISTE" ] || return 0
+	echo "$LISTE" | while read -r v; do
 		[ -n "$v" ] || continue
 		maj="${v%%.*}"
 		case "$maj" in
@@ -246,13 +309,33 @@ if depot_nvidia; then
 				"dépôt officiel NVIDIA, branche ${BRANCHE} épinglée (cuda-drivers-${BRANCHE})" \
 			|| echo "[lexos]   !! aucun méta-paquet de branche ${BRANCHE} dans ce dépôt"
 	fi
-	#  2. La version la plus récente d'avant la 610, choisie dans l'inventaire.
+	#  2. La branche la plus récente d'avant la 610, choisie dans l'inventaire
+	#     et imposée à TOUTE la pile par les préférences apt — pas seulement
+	#     au méta-paquet, qui ne décide de rien.
 	if [ -z "$REUSSITE" ]; then
 		V610="$(version_avant_610)"
 		if [ -n "$V610" ]; then
-			essaie "nvidia-open=${V610}" \
-				"dépôt officiel NVIDIA, version ${V610} épinglée — la plus récente d'avant la branche 610 et sa régression HDMI sur téléviseur" \
-				|| echo "[lexos]   !! version ${V610} refusée par apt"
+			BR610="${V610%%.*}"
+			pin_branche "$BR610"
+			if essaie nvidia-open \
+				"dépôt officiel NVIDIA, branche ${BR610} imposée à toute la pile (version ${V610}) — la plus récente d'avant la 610 et sa régression HDMI sur téléviseur"
+			then
+				#  Et on VÉRIFIE. Deux ISO ont été livrées sur la foi d'un
+				#  « apt a dit oui » qui cachait un pilote 610.
+				REEL="$(version_pilote_reel || echo '?')"
+				if [ "${REEL%%.*}" = "$BR610" ]; then
+					echo "[lexos]   vérifié : le pilote réel est bien en ${REEL}"
+				else
+					echo "[lexos]   !! l'épingle n'a pas tenu — pilote réel ${REEL}, attendu ${BR610}.x"
+					REUSSITE=""
+					nettoie
+					depot_nvidia >/dev/null 2>&1 || true
+				fi
+			else
+				echo "[lexos]   !! branche ${BR610} refusée par apt — épingle retirée"
+				rm -f "$NV_PIN"
+				apt-get update -qq || true
+			fi
 		else
 			echo "[lexos]   !! le dépôt ne propose rien avant la branche 610"
 		fi
@@ -360,14 +443,26 @@ EOF
 		|| echo "[lexos]   !! réglages écrits, mais update-initramfs a échoué"
 fi
 
-VERSION="$(dpkg-query -W -f='${Version}' nvidia-open 2>/dev/null \
-	|| dpkg-query -W -f='${Version}' cuda-drivers 2>/dev/null \
-	|| dpkg-query -W -f='${Version}' nvidia-driver 2>/dev/null \
-	|| echo '?')"
+#  LA VERSION QUI COMPTE est celle du pilote, pas celle du méta-paquet : ils
+#  ont divergé (nvidia-open 595.71.05 par-dessus un pilote 610.43.02) et c'est
+#  ce qui a fait passer une ISO buggée pour corrigée.
+VERSION="$(version_pilote_reel || echo '?')"
+META="$(dpkg-query -W -f='${Version}' nvidia-open 2>/dev/null || echo '')"
 {
 	echo "# Pilote NVIDIA embarqué dans cette ISO"
-	echo "# Version : ${VERSION}"
+	echo "# Version : ${VERSION}   (relevée sur le pilote lui-même)"
+	if [ -n "$META" ] && [ "$META" != "$VERSION" ]; then
+		echo "# Méta-paquet nvidia-open : ${META} — étiquette seule, ne dit PAS"
+		echo "# quelle version du pilote est réellement installée."
+	fi
 	echo "# Source  : ${REUSSITE}"
+	if [ -r "$NV_PIN" ]; then
+		echo "# Épingle : toute la pile NVIDIA est tenue sur cette branche par"
+		echo "#   ${NV_PIN}"
+		echo "#   C'est volontaire : la branche 610 coupe le signal HDMI sur"
+		echo "#   certains téléviseurs (open-gpu-kernel-modules#1238). Supprimer"
+		echo "#   ce fichier pour repasser au plus récent."
+	fi
 	if [ -r "$NV_LISTE" ]; then
 		echo "# Mises à jour : via le dépôt officiel NVIDIA (déjà configuré),"
 		echo "# avec « lexos upgrade »."
@@ -375,8 +470,12 @@ VERSION="$(dpkg-query -W -f='${Version}' nvidia-open 2>/dev/null \
 	#  L'inventaire du dépôt au moment de la construction. Il répond d'un coup
 	#  d'oeil à « pourquoi cette version-là ? » — et, si un jour il faut
 	#  épingler autre chose, il donne les noms exacts sans reconstruire.
+	if [ -n "$VERSIONS_PILOTE" ]; then
+		echo "# Versions du pilote (${PAQUET_PILOTE}) proposées par le dépôt :"
+		echo "$VERSIONS_PILOTE" | sed 's/^/#   · /'
+	fi
 	if [ -n "$VERSIONS_DISPO" ]; then
-		echo "# Versions de nvidia-open proposées par le dépôt à la construction :"
+		echo "# Versions du méta-paquet nvidia-open proposées par le dépôt :"
 		echo "$VERSIONS_DISPO" | sed 's/^/#   · /'
 	fi
 } > "$REPORT"
