@@ -197,15 +197,27 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 /* --- Barre du haut ------------------------------------------------------ */
 #panel{position:fixed;top:0;left:0;right:0;height:32px;z-index:900;
-  display:flex;align-items:center;background:#000;
-  border-bottom:1px solid var(--bd);padding:0 10px;font-size:13px}
+  /*  minmax(0,…) sur les trois colonnes : sans le minimum à 0, une colonne
+      refuse de descendre sous la largeur de son contenu et le déborde sur
+      la voisine — l'heure passait alors par-dessus la batterie. */
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto) minmax(0,1fr);
+  align-items:center;
+  background:#000;border-bottom:1px solid var(--bd);padding:0 10px;font-size:13px}
+/*  Les deux colonnes latérales : min-width:0 pour qu'elles acceptent de
+    rétrécir au lieu de pousser le centre, et overflow caché pour qu'un
+    contenu trop long soit coupé plutôt que de déborder sur l'heure. */
+#panel-g{display:flex;align-items:center;gap:0;min-width:0;overflow:hidden}
 #panel .apps{display:flex;align-items:center;gap:7px;padding:1px 10px;border-radius:6px}
 #panel .apps:hover{background:var(--bg-hi)}
 #panel .apps .glyph{width:29px;height:29px;border-radius:4px;
   background-image:var(--logo-icon);background-size:contain;background-repeat:no-repeat;
   background-position:center}
-#clock{position:absolute;left:50%;transform:translateX(-50%);color:var(--fg-dim);
+/*  Plus de left:50% + translateX : c'est la colonne du milieu de la grille
+    qui centre, et elle centre sur la BARRE — pas sur la place qui reste
+    après les autres éléments. C'était tout le problème. */
+#clock{grid-column:2;justify-self:center;color:var(--fg-dim);
   display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 8px;border-radius:8px;
+  white-space:nowrap;min-width:0;max-width:100%;overflow:hidden;
   transition:background .15s}
 #clock:hover{background:var(--bg-hi)}
 /*  Globe qui tourne sur lui-même (360°) à gauche du nom du projet — le
@@ -273,7 +285,12 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .ag-sup:hover{color:var(--off,#E5484D)}
 .ag-ajout{display:flex;gap:8px;margin-top:10px}
 .ag-ajout input{background:var(--bg-hi);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;color:var(--fg)}
-#tray{margin-left:auto;display:flex;gap:4px;color:var(--fg-dim)}
+/*  justify-self:end donnait au plateau sa largeur naturelle : plus large
+    que sa colonne, il débordait vers la GAUCHE, par-dessus l'heure. En
+    stretch, sa boîte fait exactement la colonne, le contenu se range à
+    droite, et ce qui dépasse est coupé au lieu de recouvrir le centre. */
+#tray{grid-column:3;justify-self:stretch;display:flex;justify-content:flex-end;
+  gap:4px;color:var(--fg-dim);min-width:0;overflow:hidden}
 #tray button{padding:3px 8px;border-radius:6px}
 #tray button:hover{background:var(--bg-hi);color:var(--fg)}
 
@@ -1627,8 +1644,9 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
       les deux se chevauchent (texte illisible). En dessous de 640px, on
       remet l'horloge dans le flux flex normal, juste après Applications,
       et on masque la date pour ne garder que l'heure. */
-  #clock{position:static;transform:none;margin-left:8px;order:0;gap:5px;
-    white-space:nowrap;overflow:hidden;max-width:40vw}
+  /*  La grille centre déjà : il n'y a plus à remettre l'horloge dans le
+      flux. On se contente de la resserrer et de dégager la gauche. */
+  #clock{gap:5px;padding:2px 4px;max-width:52vw;overflow:hidden}
   #clkdate{display:none}
   /*  Sur téléphone, la place manque : on garde le globe cliquable et
       l'heure, mais on cache le nom « lexOS⚡Pro » (il reste sur grand
@@ -1659,27 +1677,35 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
           ce qu'elle ouvre, et la barre respire à gauche. Le nom reste dans
           le title et l'aria-label — un lecteur d'écran, lui, a besoin de
           l'entendre. -->
-    <button class="apps" id="appsBtn" title="Applications"
-            aria-label="Applications"><span class="glyph"></span></button>
-    <!--  Accès rapide en haut à gauche : photo et vidéo de l'écran sans
-          passer par le menu Applications ni par le dock. -->
-    <!--  Bureaux virtuels : plusieurs écrans sur le même écran. Chaque
-          pastille est un bureau ; celle qui porte un point contient au
-          moins une fenêtre. -->
-    <span id="bureaux" title="Bureaux virtuels — Ctrl+Alt+← →"></span>
-    <span id="quickcap">
-      <button id="qcPhoto" title="Capture d'écran (Espace+1, ou Impr écr)" onclick="capPhoto()"></button>
-      <button id="qcZone" title="Cadrer une zone (Espace+2, ou Maj+Impr écr)" onclick="capZone()">⛶</button>
-      <button id="qcVideo" title="Enregistrer l'écran en vidéo (Espace+3, ou Ctrl+Maj+R)" onclick="capBascule()"></button>
-    </span>
+    <!--  TROIS COLONNES. La barre était un simple alignement : chaque chose
+          ajoutée à gauche (bureaux, capture, météo) poussait « lexOS » vers
+          la droite, jusqu'à le faire chevaucher la batterie. En grille
+          « 1fr auto 1fr », la colonne du milieu est centrée sur la BARRE et
+          non sur ce qui reste de place — elle ne bouge plus, quoi qu'on
+          ajoute de chaque côté. -->
+    <div id="panel-g">
+      <button class="apps" id="appsBtn" title="Applications"
+              aria-label="Applications"><span class="glyph"></span></button>
+      <!--  Bureaux virtuels : plusieurs écrans sur le même écran. Chaque
+            pastille est un bureau ; celle qui porte un point contient au
+            moins une fenêtre. -->
+      <span id="bureaux" title="Bureaux virtuels — Ctrl+Alt+← →"></span>
+      <!--  Accès rapide : photo et vidéo de l'écran sans passer par le menu
+            Applications ni par le dock. -->
+      <span id="quickcap">
+        <button id="qcPhoto" title="Capture d'écran (Espace+1, ou Impr écr)" onclick="capPhoto()"></button>
+        <button id="qcZone" title="Cadrer une zone (Espace+2, ou Maj+Impr écr)" onclick="capZone()">⛶</button>
+        <button id="qcVideo" title="Enregistrer l'écran en vidéo (Espace+3, ou Ctrl+Maj+R)" onclick="capBascule()"></button>
+      </span>
+      <!--  La météo : température, ciel, et le détail au clic. Simulée —
+            une page publiée ne peut joindre aucun service. -->
+      <button id="meteo" title="Météo — clique pour le détail" onclick="openMeteo()"></button>
+    </div>
     <span id="clock" title="Notifications et agenda" role="button" tabindex="0"
           onclick="openAgenda()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAgenda()}">
       <span class="clk-globe" aria-hidden="true">🌐</span>
       <span class="clk-brand">lexOS<span class="zap">⚡</span>Pro</span>
       <span id="clkdate"></span><span id="clktime"></span></span>
-    <!--  La météo, à côté de la marque : température, ciel, et le détail
-          au clic. Simulée — une page publiée ne peut joindre aucun service. -->
-    <button id="meteo" title="Météo — clique pour le détail" onclick="openMeteo()"></button>
     <div id="tray">
       <div id="devtray" title="Outils de travail branchés"></div>
       <span id="statusicons" title="État : Wi-Fi, Bluetooth, son, batterie"></span>
