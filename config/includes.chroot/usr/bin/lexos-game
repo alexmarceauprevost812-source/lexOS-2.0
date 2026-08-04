@@ -100,6 +100,86 @@ cmd_run() {
 	exit "$rc"
 }
 
+# =============================================================================
+#  Compléments par Flatpak
+# =============================================================================
+#  Debian 13 n'empaquette pas ces logiciels — sous AUCUN nom. Ce n'est pas un
+#  oubli de notre part : protontricks est un outil Python distribué par PyPI,
+#  PPSSPP n'est pas dans l'archive Debian, et les cœurs libretro ne sont pas
+#  empaquetés séparément. Flathub les publie tous. On les installe donc à la
+#  demande, après l'installation du système, plutôt que de gonfler l'ISO.
+#
+#  Chaque ligne : identifiant Flathub | nom affiché | à quoi ça sert
+EXTRAS='com.github.Matoking.protontricks|Protontricks|régler un jeu Windows récalcitrant dans Steam
+org.libretro.RetroArch|RetroArch (Flatpak)|version qui télécharge ses propres cœurs, dont PlayStation
+org.ppsspp.PPSSPP|PPSSPP|émulateur PlayStation Portable
+org.xonotic.Xonotic|Xonotic|jeu de tir libre et rapide'
+
+flathub_pret() {
+	command -v flatpak >/dev/null 2>&1 || {
+		warn "Flatpak n'est pas installé."
+		say  "Installe-le avec : ${B}sudo apt install flatpak${R}"
+		return 1
+	}
+	flatpak remotes 2>/dev/null | grep -q flathub && return 0
+	say "Ajout du dépôt Flathub…"
+	local -a sudo_pfx=()
+	[[ "$(id -u)" -eq 0 ]] || sudo_pfx=(sudo)
+	"${sudo_pfx[@]}" flatpak remote-add --if-not-exists flathub \
+		https://dl.flathub.org/repo/flathub.flatpakrepo >/dev/null 2>&1 && return 0
+	warn "Flathub n'a pas pu être ajouté (pas de réseau ?)."
+	return 1
+}
+
+cmd_extras() {
+	local liste_seule=0
+	[[ "${1:-}" == "--liste" || "${1:-}" == "-l" ]] && liste_seule=1
+
+	printf '\n%s%s — compléments de jeu%s\n\n' "$B$O" "$PROG" "$R"
+	printf '  %sAbsents de Debian 13, disponibles sur Flathub :%s\n\n' "$D" "$R"
+
+	local id nom quoi
+	while IFS='|' read -r id nom quoi; do
+		[[ -n "$id" ]] || continue
+		if flatpak info "$id" >/dev/null 2>&1; then
+			printf '  %s✓%s %-22s %s%s%s\n' "$G" "$R" "$nom" "$D" "déjà installé" "$R"
+		else
+			printf '    %-22s %s%s%s\n' "$nom" "$D" "$quoi" "$R"
+		fi
+	done <<< "$EXTRAS"
+
+	printf '\n  %sgamescope : inutile de l installer, Steam embarque le sien.%s\n' "$D" "$R"
+	printf '  %sManettes Xbox filaires : déjà prises en charge (pilote xpad du noyau).%s\n\n' "$D" "$R"
+
+	[[ "$liste_seule" -eq 1 ]] && return 0
+
+	flathub_pret || return 1
+
+	local pose=0 rate=0
+	while IFS='|' read -r id nom quoi; do
+		[[ -n "$id" ]] || continue
+		flatpak info "$id" >/dev/null 2>&1 && continue
+		say "Installation de ${nom}…"
+		if flatpak install -y --noninteractive flathub "$id" >/dev/null 2>&1; then
+			ok "${nom} installé."
+			pose=$((pose + 1))
+		else
+			warn "${nom} n'a pas pu être installé (${id})."
+			rate=$((rate + 1))
+		fi
+	done <<< "$EXTRAS"
+
+	printf '\n'
+	if [[ "$rate" -gt 0 ]]; then
+		say "${pose} installé(s), ${rate} en échec — cherche-les dans la Logithèque."
+	elif [[ "$pose" -eq 0 ]]; then
+		ok "Tout était déjà en place."
+	else
+		ok "${pose} complément(s) installé(s)."
+	fi
+	printf '\n'
+}
+
 cmd_help() {
 	cat <<EOF
 
@@ -107,12 +187,17 @@ ${B}${O}${PROG}${R} — lance un jeu avec les réglages adaptés à la machine
 
 ${B}USAGE${R}
   ${PROG} info               Matériel détecté : GPU, Vulkan, GameMode, MangoHud
+  ${PROG} extras             Installe les compléments absents de Debian (Flathub)
+  ${PROG} extras --liste     Montre les compléments sans rien installer
   ${PROG} <commande>…        Lance la commande avec les réglages adaptés
 
 ${B}À SAVOIR${R}
   Bascule sur le profil « performant » le temps de la partie (sauf si déjà
   sur performant/max), puis revient au profil précédent à la fermeture.
   Utilise GameMode et MangoHud automatiquement si installés.
+
+  Les jeux Windows passent par Steam (Proton) ou Lutris : les deux sont
+  installés d'origine, avec Wine et les bibliothèques 32 bits.
 
 ${B}EXEMPLES${R}
   ${D}${PROG} steam${R}
@@ -126,5 +211,6 @@ CMD="${1:-help}"
 case "$CMD" in
 	help|--help|-h|'') cmd_help ;;
 	info)              cmd_info ;;
+	extras|complements|compléments) shift; cmd_extras "$@" ;;
 	*)                 cmd_run "$@" ;;
 esac

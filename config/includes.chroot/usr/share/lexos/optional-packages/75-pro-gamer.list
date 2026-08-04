@@ -2,6 +2,17 @@
 #
 # Tout ce qui rend une machine de jeu agréable sous Linux, au-delà des
 # pilotes et de Wine que la liste obligatoire installe déjà.
+#
+# CE QUI NE S'INSTALLERA JAMAIS D'ICI — et pourquoi on garde les lignes.
+# Debian 13 n'empaquette PAS protontricks (outil Python publié sur PyPI),
+# PPSSPP, Xonotic, ni les cœurs libretro pris séparément. Les noms de
+# rechange séparés par « | » ont tous été essayés au build 22 : aucun ne
+# répond. Ce n'est donc pas une erreur de nom, c'est une absence d'amont.
+# On garde quand même les lignes : si une future version de Debian les
+# ajoute, le hook 0250 les installera tout seul.
+# En attendant, la commande « lexos game extras » les pose depuis Flathub,
+# après l'installation du système — voir /usr/bin/lexos-game.
+# gamescope : inutile de le chercher, Steam embarque le sien dans son runtime.
 
 # --- Carte graphique NVIDIA -----------------------------------------------
 # DÉPLACÉ dans le hook 0260-lexos-nvidia.hook.chroot. Le pilote de Debian

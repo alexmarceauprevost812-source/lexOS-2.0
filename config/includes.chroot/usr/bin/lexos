@@ -777,7 +777,7 @@ case "$CMD" in
 	claude|cc)            exec lexos-claude "$@" ;;
 	musique|music)        exec lexos-musique "$@" ;;
 	chrome|google-chrome) exec lexos-chrome "$@" ;;
-	game)                 exec lexos-game "$@" ;;
+	game|jeu|jeux)        exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;
 	cartes|carte|maps)    exec lexos-cartes "$@" ;;
