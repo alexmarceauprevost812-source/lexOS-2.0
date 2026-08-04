@@ -223,13 +223,38 @@ VERSIONS_DISPO=""
 VERSIONS_PILOTE=""
 PAQUET_PILOTE=""
 
+#  LA TRACE. Les messages du hook partent sur la sortie standard, au milieu
+#  d'un journal de 450 000 caractères dont l'API ne rend que la fin : trois
+#  diagnostics de suite ont buté là-dessus, et le dernier a montré une 595
+#  DISPONIBLE sans qu'on puisse voir pourquoi elle n'avait pas été prise.
+#  Chaque tentative s'inscrit donc aussi ici, et la trace part dans le
+#  rapport — qui, lui, est imprimé à la toute fin et toujours lisible.
+TRACE=""
+trace() { TRACE="${TRACE}#   $1
+"; }
+
 essaie() {
 	#  $1 = paquet (éventuellement « paquet=version »), $2 = description
-	[ -r "$NV_LISTE" ] || return 1
+	[ -r "$NV_LISTE" ] || { trace "$1 : pas de dépôt configuré"; return 1; }
 	echo "[lexos]   tentative : $1"
-	if apt-get install -y "$1" && verifie_module; then
-		REUSSITE="$2"
-		return 0
+	if apt-get install -y "$1" >/tmp/lexos-apt.log 2>&1; then
+		if verifie_module; then
+			REUSSITE="$2"
+			trace "$1 : INSTALLÉ, module compilé"
+			return 0
+		fi
+		trace "$1 : apt a réussi mais AUCUN module noyau — refusé"
+	else
+		#  La vraie raison, en clair : « held broken packages », un conflit de
+		#  versions, un paquet absent… Sans ces lignes on en est réduit aux
+		#  suppositions, et on l'a été trop longtemps.
+		trace "$1 : apt a ÉCHOUÉ —"
+		while IFS= read -r l; do
+			case "$l" in ""|" "*) continue ;; esac
+			trace "    $l"
+		done <<EOT
+$(grep -E "^(E:|Err|The following packages have unmet|  )" /tmp/lexos-apt.log 2>/dev/null | head -8)
+EOT
 	fi
 	echo "[lexos]   $1 : échec — nettoyage"
 	nettoie
@@ -349,8 +374,17 @@ if depot_nvidia; then
 		V610="$(version_avant_610)"
 		if [ -n "$V610" ]; then
 			BR610="${V610%%.*}"
+			trace "branche retenue : ${BR610} (version ${V610})"
 			pin_branche "$BR610"
-			if essaie nvidia-open \
+			#  ON NOMME LE PILOTE, PAS SON ÉTIQUETTE. Le méta-paquet nvidia-open
+			#  s'installe volontiers en 595 en tirant un pilote 610 derrière lui
+			#  — c'est arrivé. En demandant nvidia-driver-cuda à la version
+			#  exacte, apt doit résoudre TOUTE la pile sur cette branche, ou
+			#  échouer franchement. Le méta-paquet ne vient qu'ensuite, une fois
+			#  le pilote posé, pour compléter la panoplie.
+			if essaie "${PAQUET_PILOTE:-nvidia-driver-cuda}=${V610}" \
+				"dépôt officiel NVIDIA, pilote ${V610} nommé explicitement — branche ${BR610}, la plus récente d'avant la 610 et sa régression HDMI sur téléviseur" \
+			   || essaie nvidia-open \
 				"dépôt officiel NVIDIA, branche ${BR610} imposée à toute la pile (version ${V610}) — la plus récente d'avant la 610 et sa régression HDMI sur téléviseur"
 			then
 				#  Et on VÉRIFIE. Deux ISO ont été livrées sur la foi d'un
@@ -360,6 +394,7 @@ if depot_nvidia; then
 					echo "[lexos]   vérifié : le pilote réel est bien en ${REEL}"
 				else
 					echo "[lexos]   !! l'épingle n'a pas tenu — pilote réel ${REEL}, attendu ${BR610}.x"
+					trace "épingle NON TENUE : pilote réel ${REEL}, attendu ${BR610}.x"
 					REUSSITE=""
 					nettoie
 					depot_nvidia >/dev/null 2>&1 || true
@@ -371,6 +406,7 @@ if depot_nvidia; then
 			fi
 		else
 			echo "[lexos]   !! le dépôt ne propose rien avant la branche 610"
+			trace "aucune version avant la branche 610 dans l'inventaire"
 		fi
 	fi
 	#  4. Le défaut du dépôt — la 610, avec les contournements modprobe plus bas.
@@ -503,6 +539,10 @@ META="$(dpkg-query -W -f='${Version}' nvidia-open 2>/dev/null || echo '')"
 	#  L'inventaire du dépôt au moment de la construction. Il répond d'un coup
 	#  d'oeil à « pourquoi cette version-là ? » — et, si un jour il faut
 	#  épingler autre chose, il donne les noms exacts sans reconstruire.
+	if [ -n "$TRACE" ]; then
+		echo "# Ce qui a été tenté, dans l'ordre :"
+		printf '%s' "$TRACE"
+	fi
 	if [ -n "$VERSIONS_PILOTE" ]; then
 		echo "# Versions du pilote (${PAQUET_PILOTE}) proposées par le dépôt :"
 		echo "$VERSIONS_PILOTE" | sed 's/^/#   · /'

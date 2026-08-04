@@ -17,6 +17,16 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 21 : la 595 EXISTE. L'inventaire du build 20 l'a enfin montré —
+# nvidia-driver-cuda est proposé en 610.57.04, 610.43.02, 595.91.07,
+# 595.71.05, 595.58.03, 595.45.04, 590.48.01 et 590.44.01. Ma conclusion
+# précédente (« debian13 ne publie aucun pilote avant la 610 ») était donc
+# fausse. Reste que le build 20 a quand même installé du 610.57.04 : la
+# raison tombait juste hors de la fenêtre de journal que l'API rend. Deux
+# changements : on demande maintenant nvidia-driver-cuda à la VERSION
+# EXACTE (le pilote, pas son étiquette), et la trace de chaque tentative —
+# y compris les erreurs d'apt — part dans le rapport, qui lui est toujours
+# lisible.
 # build 20 : relance après déblocage des Actions (le dépôt est passé public,
 # les minutes redeviennent gratuites). Cette construction porte enfin les
 # deux correctifs qui n'ont jamais pu tourner : le secours vers le dépôt CUDA
@@ -35,4 +45,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 20
+build: 21
