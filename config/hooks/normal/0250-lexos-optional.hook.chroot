@@ -80,14 +80,39 @@ echo "[lexos]   au moins un paquet pose problème — reprise un par un"
 OK_COUNT=0
 KO_LIST=""
 
-while IFS= read -r PKG; do
-	[ -n "$PKG" ] || continue
-	if apt-get install -y --no-install-recommends "$PKG" >/dev/null 2>&1; then
+#  NOMS DE RECHANGE. Un paquet peut changer de nom d'une version de Debian
+#  à l'autre, ou disparaître au profit d'un autre : « ppsspp-qt » devient
+#  « ppsspp », un cœur libretro est renommé… Une ligne peut donc proposer
+#  plusieurs noms séparés par « | », essayés dans l'ordre ; le premier qui
+#  s'installe gagne. Sans ça, un simple changement de nom faisait perdre la
+#  fonction entière — c'est ce qui est arrivé à six paquets d'un coup, dont
+#  protontricks, qui sert justement à débloquer les jeux Windows.
+while IFS= read -r LIGNE; do
+	[ -n "$LIGNE" ] || continue
+	POSE=""
+	OLDIFS="$IFS"; IFS='|'
+	for PKG in $LIGNE; do
+		IFS="$OLDIFS"
+		[ -n "$PKG" ] || continue
+		if apt-get install -y --no-install-recommends "$PKG" >/dev/null 2>&1; then
+			POSE="$PKG"; break
+		fi
+		IFS='|'
+	done
+	IFS="$OLDIFS"
+	if [ -n "$POSE" ]; then
 		OK_COUNT=$((OK_COUNT + 1))
+		#  Dire lequel a été retenu quand ce n'est pas le premier proposé :
+		#  sinon on croit avoir installé « ppsspp-qt » alors que c'est
+		#  « ppsspp » qui est là, et on cherche le mauvais nom au dépannage.
+		case "$LIGNE" in
+			"$POSE") ;;
+			*) echo "[lexos]   ${LIGNE} -> ${POSE}" ;;
+		esac
 	else
-		KO_LIST="${KO_LIST}${PKG}
+		KO_LIST="${KO_LIST}${LIGNE}
 "
-		echo "[lexos]   !! indisponible : ${PKG}"
+		echo "[lexos]   !! indisponible : ${LIGNE}"
 	fi
 done < "$WANTED"
 

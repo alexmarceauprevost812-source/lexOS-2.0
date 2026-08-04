@@ -26,7 +26,7 @@ lutris
 # (DirectX, polices, .NET) sans avoir à les chercher soi-même.
 winetricks
 # protontricks fait la même chose, mais pour les jeux lancés par Steam.
-protontricks
+protontricks|python3-protontricks
 # gamescope : un compositeur dédié au jeu (plein écran, mise à l'échelle,
 # taux de rafraîchissement). PAS dans Debian trixie stable — seulement dans
 # trixie-backports. Steam l'embarque de toute façon dans son runtime, donc les
@@ -106,11 +106,11 @@ libretro-genesisplusgx
 # PlayStation : beetle-psx a été retiré de trixie. On prend PCSX ReARMed, bien
 # présent dans trixie et qui sait démarrer sans BIOS (HLE). Alternative plus
 # fidèle si tu as un vrai BIOS : libretro-swanstation.
-libretro-pcsx-rearmed
+libretro-pcsx-rearmed|libretro-swanstation|libretro-beetle-psx
 libretro-mgba
 dolphin-emu
 pcsx2
-ppsspp-qt
+ppsspp-qt|ppsspp|ppsspp-sdl
 mgba-qt
 mupen64plus-qt
 scummvm

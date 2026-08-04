@@ -7,4 +7,4 @@
 # pas une erreur. lexos-sticker s'en passe et découpe avec ImageMagick ;
 # le résultat est moins fin sur un sujet complexe, mais il est là.
 # La ligne reste au cas où Debian l'empaquetterait.
-python3-rembg
+python3-rembg|rembg
