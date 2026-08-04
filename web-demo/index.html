@@ -1041,6 +1041,32 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   border-top:1px solid #3a251d;flex:none}
 .cct-in{flex:1;min-width:0;background:transparent;border:0;color:#fff;
   font:inherit;outline:none}
+/*  Le bouton « + » et les vignettes de pièces jointes, communs à Claude et
+    à Claude Code. Une image choisie est lue sur place par le navigateur et
+    montrée en miniature : rien ne part nulle part. */
+.cc-plus{display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;flex:none;border-radius:9px;cursor:pointer;
+  border:1px solid #4a2e24;color:#d97757;background:rgba(217,119,87,.08);
+  font:400 20px/1 ui-monospace,monospace;transition:background .12s,border-color .12s}
+.cc-plus:hover{background:rgba(217,119,87,.20);border-color:#d97757;color:#fff}
+.cc-joints{display:flex;flex-wrap:wrap;gap:7px;padding:0 15px 9px}
+.cc-joint{display:inline-flex;align-items:center;gap:7px;max-width:210px;
+  background:#17110f;border:1px solid #4a2e24;border-radius:9px;padding:4px 6px 4px 4px}
+.cc-joint img{width:30px;height:30px;object-fit:cover;border-radius:6px;flex:none}
+.cc-joint-ic{width:30px;height:30px;display:flex;align-items:center;
+  justify-content:center;font-size:15px;flex:none}
+.cc-joint-n{font-size:11.5px;color:#c9bdb8;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.cc-joint button{background:transparent;border:0;color:#8a7a74;cursor:pointer;
+  font-size:12px;padding:0 3px;flex:none}
+.cc-joint button:hover{color:#fff}
+/*  Le pied de Claude Code : le bonhomme, le modèle, le dossier, l'état des
+    mises à jour — la même barre que l'outil affiche sous Linux. */
+.cct-pied{display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+  padding:7px 15px;border-top:1px solid #3a251d;font-size:11px;color:#8a7a74;flex:none}
+.cct-bonhomme{display:inline-flex;align-items:center}
+.cct-sep{opacity:.5}
+.cct-maj{color:#3BE07A}
 .term{position:relative}
 .term .in{display:inline}
 .caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
@@ -7324,6 +7350,56 @@ const CC_SUGGESTIONS = [
   "Comment changer le fond d'écran ?", "Les bureaux virtuels", "Ça marche sur téléphone ?",
 ];
 
+/*  LES PIÈCES JOINTES. Le bouton « + » ouvre le sélecteur de fichiers, et
+    ce qui est choisi s'affiche en vignette au-dessus de la saisie — images
+    comprises, lues sur place par le navigateur. Rien ne part nulle part :
+    la démo ne joint aucun service, et une image reste dans l'onglet.
+    Les fichiers sont rangés par fenêtre : deux conversations ouvertes ne
+    doivent pas se voler leurs pièces jointes.  */
+const CC_JOINTS = {};
+function ccJointsDe(winId){ return CC_JOINTS[winId] || (CC_JOINTS[winId] = []); }
+
+function ccChoisirFichier(winId, input){
+  const liste = ccJointsDe(winId);
+  [...input.files].forEach(f=>{
+    liste.push({nom:f.name, taille:f.size, type:f.type,
+                url: f.type.startsWith("image/") ? URL.createObjectURL(f) : null});
+  });
+  input.value = "";
+  ccRendJoints(winId);
+}
+function ccRetireJoint(winId, i){
+  const liste = ccJointsDe(winId);
+  const j = liste[i];
+  if(j && j.url) URL.revokeObjectURL(j.url);   // sinon l'image reste en mémoire
+  liste.splice(i,1);
+  ccRendJoints(winId);
+}
+function ccRendJoints(winId){
+  const w = document.getElementById(winId); if(!w) return;
+  const zone = w.querySelector(".cc-joints"); if(!zone) return;
+  const liste = ccJointsDe(winId);
+  zone.innerHTML = liste.map((j,i)=>
+    `<span class="cc-joint">${j.url
+        ? `<img src="${j.url}" alt="">`
+        : `<span class="cc-joint-ic">📄</span>`}
+       <span class="cc-joint-n">${esc(j.nom)}</span>
+       <button onclick="ccRetireJoint('${winId}',${i})" aria-label="Retirer">✕</button></span>`).join("");
+  zone.style.display = liste.length ? "flex" : "none";
+}
+//  Ce qu'on ajoute au message quand des fichiers l'accompagnent.
+function ccJointsTexte(winId){
+  const liste = ccJointsDe(winId);
+  if(!liste.length) return "";
+  return " " + liste.map(j=>"[" + j.nom + "]").join(" ");
+}
+function ccVideJoints(winId){
+  const liste = ccJointsDe(winId);
+  liste.forEach(j=>{ if(j.url) URL.revokeObjectURL(j.url); });
+  liste.length = 0;
+  ccRendJoints(winId);
+}
+
 function ccEcrit(zone, qui, html){
   const d = document.createElement("div");
   d.className = "cc-msg cc-" + qui;
@@ -7401,7 +7477,11 @@ function clRendCorps(w){
       `<div class="cc-log cl-log"></div>
        <div class="cc-sugg">${CC_SUGGESTIONS.slice(0,5).map(s=>
           `<button onclick="clDemande(this.textContent)">${esc(s)}</button>`).join("")}</div>
+       <div class="cc-joints" style="display:none"></div>
        <div class="cc-saisie">
+         <label class="cc-plus" title="Ajouter une image ou un fichier">+
+           <input type="file" multiple accept="image/*,.txt,.md,.pdf,.log,.conf,.sh"
+                  hidden onchange="ccChoisirFichier('win-claude',this)"></label>
          <input class="cc-in cl-in" type="text" autocomplete="off" spellcheck="false"
                 placeholder="Écris à Claude…" onkeydown="if(event.key==='Enter'){event.preventDefault();clDemande()}">
          <button class="cc-env" onclick="clDemande()">Envoyer</button>
@@ -7462,9 +7542,11 @@ function clDemande(texte){
   const champ = w.querySelector(".cl-in");
   if(!zone || !champ) return;
   const q = (texte !== undefined ? texte : champ.value).trim();
-  if(!q) return;
+  const joints = ccJointsTexte("win-claude");
+  if(!q && !joints) return;
   champ.value = "";
-  ccEcrit(zone, "moi", q);
+  ccEcrit(zone, "moi", (q + joints).trim());
+  ccVideJoints("win-claude");
   const e = ccCherche(q);
   setTimeout(()=>{
     ccEcrit(zone, "lui", e ? e.r :
@@ -7511,10 +7593,12 @@ function ccTermDemande(texte){
   const w = document.getElementById("win-claude-code"); if(!w) return;
   const zone = w.querySelector(".cct-log");
   const champ = w.querySelector(".cct-in");
+  const joints = ccJointsTexte("win-claude-code");
   const q = (texte !== undefined ? texte : champ.value).trim();
-  if(!q || ccTermOccupe) return;
+  if((!q && !joints) || ccTermOccupe) return;
   champ.value = "";
-  ccTermEcrit(zone, `<span class="cct-fl">&gt;</span> ${esc(q)}`, "cct-moi");
+  ccTermEcrit(zone, `<span class="cct-fl">&gt;</span> ${esc((q + joints).trim())}`, "cct-moi");
+  ccVideJoints("win-claude-code");
   ccTermOccupe = true;
 
   //  Les étapes d'outil, comme le vrai Claude Code les annonce. Elles ne
@@ -7553,11 +7637,23 @@ function openClaudeCode(nouvelle){
       <div class="cct-log"></div>
       <div class="cct-sugg">${CC_SUGGESTIONS.slice(0,4).map(s=>
          `<button onclick="ccTermDemande(this.textContent)">${esc(s)}</button>`).join("")}</div>
+      <div class="cc-joints" style="display:none"></div>
       <div class="cct-saisie">
+        <label class="cc-plus" title="Ajouter une image ou un fichier">+
+          <input type="file" multiple accept="image/*,.txt,.md,.pdf,.log,.conf,.sh"
+                 hidden onchange="ccChoisirFichier('win-claude-code',this)"></label>
         <span class="cct-fl">&gt;</span>
         <input class="cct-in" type="text" autocomplete="off" spellcheck="false"
                placeholder="Demande quelque chose…"
                onkeydown="if(event.key==='Enter'){event.preventDefault();ccTermDemande()}">
+      </div>
+      <div class="cct-pied">
+        <span class="cct-bonhomme">${claudeGlyph(14)}</span>
+        <span>Claude Opus 5</span>
+        <span class="cct-sep">·</span>
+        <span>~/lexos</span>
+        <span class="cct-sep">·</span>
+        <span class="cct-maj">à jour</span>
       </div>
     </div>`, 680, 520);
   const zone = el.querySelector(".cct-log");
@@ -10219,7 +10315,10 @@ function boot(){
     b.style.display="none";
     const s=document.getElementById("screen");
     s.classList.remove("on"); void s.offsetWidth; s.classList.add("on");
-    setTimeout(openWelcome, 900);
+    //  RIEN ne s'ouvre tout seul. La fenêtre « Bienvenue » se posait par-dessus
+    //  le bureau à chaque chargement : on la refermait avant même de l'avoir
+    //  lue, et elle cachait ce qu'on venait justement regarder. Elle reste
+    //  dans le menu Applications, pour qui la veut.
   }, 2300);
 }
 boot();
