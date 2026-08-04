@@ -17,6 +17,12 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 20 : relance après déblocage des Actions (le dépôt est passé public,
+# les minutes redeviennent gratuites). Cette construction porte enfin les
+# deux correctifs qui n'ont jamais pu tourner : le secours vers le dépôt CUDA
+# debian12 quand debian13 n'offre aucun pilote avant la branche 610, et le
+# rapport NVIDIA écrit sur la sortie standard — jusqu'ici il partait dans le
+# résumé du build, que l'API ne rend pas, d'où trois diagnostics à l'aveugle.
 # build 19 : correctif HDMI/TV pour la régression 610.43.02/03 (NVIDIA
 # open-gpu-kernel-modules#1238) trouvée après tests réels sur l'Alienware
 # Aurora (Secure Boot déjà désactivé, modeset=1 déjà tenté à la main : le
@@ -29,4 +35,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 19
+build: 20
