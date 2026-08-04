@@ -1309,13 +1309,26 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   font:14px/1.2 inherit;outline:none;text-align:center;margin-bottom:30px}
 #appsview .search:focus{border-color:var(--ac)}
 #appsview .search::placeholder{color:var(--fg-dim)}
-#appgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));
-  gap:14px 8px;width:min(880px,94vw);max-height:calc(100vh - 210px);overflow-y:auto;
-  align-content:start;padding:4px 10px 4px 4px;
-  /*  Réserve la gouttière en permanence : sans ça, la grille se réorganise
-      d'un cran dès que la barre apparaît en cours de frappe dans la
-      recherche, et les tuiles sautent sous le curseur. */
-  scrollbar-gutter:stable}
+/*  La grille se feuillette à l'horizontale : chaque page occupe toute la
+    largeur, l'alignement magnétique la cale pile en place, et la barre de
+    défilement est masquée — ce sont les pastilles et la molette qui
+    servent à naviguer. */
+#appgrid{display:flex;overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;scroll-behavior:smooth;
+  width:min(880px,94vw);height:calc(100vh - 250px);max-height:520px;
+  scrollbar-width:none}
+#appgrid::-webkit-scrollbar{display:none}
+.ap-page{flex:0 0 100%;display:grid;grid-template-columns:repeat(6,1fr);
+  grid-auto-rows:min-content;gap:14px 8px;align-content:start;
+  padding:4px;scroll-snap-align:start;box-sizing:border-box}
+@media (max-width:900px){ .ap-page{grid-template-columns:repeat(4,1fr)} }
+@media (max-width:560px){ .ap-page{grid-template-columns:repeat(3,1fr)} }
+/*  Les pastilles de page, sous la grille. */
+#appdots{display:flex;gap:7px;justify-content:center;margin-top:14px;min-height:9px}
+.apdot{width:8px;height:8px;border-radius:50%;padding:0;cursor:pointer;
+  background:var(--fg-dim);border:0;opacity:.42;transition:opacity .13s,background .13s,width .13s}
+.apdot:hover{opacity:.8}
+.apdot.on{background:var(--ac);opacity:1;width:20px;border-radius:5px}
 /*  Barre de défilement visible et aux couleurs du thème. Par défaut, les
     barres flottantes de Chrome n'apparaissent qu'AU moment du défilement :
     rien n'indiquait qu'il restait des applications plus bas. */
@@ -1930,7 +1943,8 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
   <div id="appsview">
     <input class="search" id="appSearch" type="text" placeholder="Saisissez votre recherche" autocomplete="off" spellcheck="false">
     <div id="appgrid"></div>
-    <div class="hint">Échap ou clic à l'extérieur pour fermer</div>
+    <div id="appdots"></div>
+    <div class="hint">Molette ou <b>←</b> <b>→</b> pour changer de page · Échap pour fermer</div>
   </div>
   <div id="demobar"><b>Démo web</b> — le vrai LexOS est une ISO Linux amorçable (clé USB)</div>
 </div>
@@ -2540,7 +2554,7 @@ function closeWin(el){
    simplement mises de côté, et retrouvées telles quelles au retour.
    Le fond d'écran, le dock et les icônes du bureau restent communs : ce
    sont des bureaux virtuels, pas des sessions séparées.            */
-const BUREAUX_N = 4;
+const BUREAUX_N = 5;
 
 //  À quel bureau appartient une fenêtre ? Celles ouvertes avant l'arrivée
 //  de cette fonctionnalité n'ont pas d'étiquette : on les rattache au
@@ -2766,6 +2780,25 @@ addEventListener("keyup", e=>{
     apercuBascule();
   }
 });
+
+/*  La molette sur le FOND D'ÉCRAN change de bureau — le geste d'Ubuntu.
+    Uniquement sur le fond : au-dessus d'une fenêtre, d'un menu ou du dock,
+    la molette doit faire défiler leur contenu. Même verrou de 320 ms que
+    la grille des applications, pour qu'un cran ne saute pas trois bureaux.
+    Dans la vue d'ensemble aussi, où c'est justement ce qu'on attend. */
+let burMoletteBloc = 0;
+addEventListener("wheel", e=>{
+  const surApercu = apercuEl && apercuEl.contains(e.target);
+  const surBureau = e.target.closest && e.target.closest("#desktop") &&
+                    !e.target.closest(".win,.menu,#dock,#panel,#appsview,.deskicon");
+  if(!surApercu && !surBureau) return;
+  const t = Date.now();
+  if(t < burMoletteBloc) return;
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if(!d) return;
+  burMoletteBloc = t + 320;
+  bureauSuivant(d > 0 ? 1 : -1);
+}, {passive:true});
 
 function bureauSuivant(pas){
   bureauVa((state.bureau + pas + BUREAUX_N) % BUREAUX_N);
@@ -7189,8 +7222,9 @@ const CC_SAVOIR = [
           fenêtres en aperçus.</li>
       <li><b>Le coin actif</b> — pousse la souris dans le coin haut-gauche et la
           vue s'ouvre, comme sous Ubuntu.</li>
-      <li><b>Ctrl+Alt+←/→</b> pour passer au bureau voisin, <b>Super+1..4</b> pour
+      <li><b>Ctrl+Alt+←/→</b> pour passer au bureau voisin, <b>Super+1..5</b> pour
           y aller directement.</li>
+      <li>La <b>molette</b> sur le fond d'écran change aussi de bureau.</li>
       <li>Glisse un aperçu sur une vignette pour déménager la fenêtre.</li>
     </ul>`},
 
@@ -9502,15 +9536,51 @@ const appsView=document.getElementById("appsview");
 const appGrid=document.getElementById("appgrid");
 const appSearch=document.getElementById("appSearch");
 
+/*  La grille se feuillette à l'horizontale, comme celle d'Ubuntu : des
+    pages côte à côte, la molette pour passer de l'une à l'autre, et des
+    pastilles dessous qui disent où on en est. Avant, tout défilait
+    verticalement d'un seul bloc — on ne savait jamais combien il restait.
+    24 tuiles par page (6 colonnes × 4 rangées) ; en dessous de 900 px de
+    large, la mise en page CSS réduit à 4 colonnes et la page se remplit
+    moins, sans rien casser. */
+const APPS_PAR_PAGE = 24;
+let appPage = 0;
+
+function appPagesTotal(){
+  const p = appGrid ? appGrid.querySelectorAll(".ap-page").length : 0;
+  return Math.max(1, p);
+}
+function appVaPage(n, doux){
+  const total = appPagesTotal();
+  appPage = Math.max(0, Math.min(total - 1, n));
+  if(appGrid) appGrid.scrollTo({left: appPage * appGrid.clientWidth,
+                                behavior: doux === false ? "auto" : "smooth"});
+  majDotsApps();
+}
+function majDotsApps(){
+  const d = document.getElementById("appdots");
+  if(!d) return;
+  const total = appPagesTotal();
+  //  Une seule page : les pastilles n'apprennent rien, on les cache.
+  d.innerHTML = total < 2 ? "" : Array.from({length:total}, (_,i)=>
+    `<button class="apdot${i===appPage?" on":""}" onclick="appVaPage(${i})"
+       aria-label="Page ${i+1} sur ${total}"></button>`).join("");
+}
+
 function renderApps(filter){
   const q=(filter||"").trim().toLowerCase();
   const list=q ? APPS.filter(a=>a.label.toLowerCase().includes(q)) : APPS;
-  if(!list.length){ appGrid.innerHTML=`<div class="empty">Aucune application ne correspond à « ${esc(q)} ».</div>`; return; }
-  appGrid.innerHTML=list.map((a,i)=>
+  if(!list.length){ appGrid.innerHTML=`<div class="empty">Aucune application ne correspond à « ${esc(q)} ».</div>`;
+    appPage=0; majDotsApps(); return; }
+  const tuile = a =>
     `<button class="app" data-i="${APPS.indexOf(a)}" oncontextmenu="ctxApp(event,${APPS.indexOf(a)})">`+
-    `<span class="ai">${a.ic}</span><span class="an">${a.label}</span></button>`
-  ).join("");
-  majFondusGrille();
+    `<span class="ai">${a.ic}</span><span class="an">${a.label}</span></button>`;
+  const pages = [];
+  for(let i=0; i<list.length; i += APPS_PAR_PAGE) pages.push(list.slice(i, i+APPS_PAR_PAGE));
+  appGrid.innerHTML = pages.map(p=>`<div class="ap-page">${p.map(tuile).join("")}</div>`).join("");
+  appPage = 0;
+  appGrid.scrollLeft = 0;
+  majDotsApps();
   appGrid.querySelectorAll(".app").forEach(b=>{
     b.onclick=()=>{
       const app=APPS[+b.dataset.i]; closeApps(); app.fn();
@@ -9567,22 +9637,46 @@ function renderApps(filter){
     sauf s'il vise déjà quelque chose qui défile tout seul. */
 /*  Indique par un dégradé qu'il reste des applications au-dessus ou en
     dessous. Appelé au rendu et à chaque défilement. */
-function majFondusGrille(){
-  const reste = appGrid.scrollHeight - appGrid.clientHeight;
-  const haut  = reste > 4 && appGrid.scrollTop > 4;
-  const bas   = reste > 4 && appGrid.scrollTop < reste - 4;
-  appGrid.classList.toggle("deborde-haut", haut);
-  appGrid.classList.toggle("deborde-bas",  bas);
-}
-appGrid.addEventListener("scroll", majFondusGrille, {passive:true});
-addEventListener("resize", majFondusGrille);
+//  Les fondus haut/bas n'ont plus lieu d'être : la grille ne défile plus
+//  verticalement. La fonction reste, vide, parce qu'elle est appelée
+//  ailleurs — la supprimer casserait ces appels.
+function majFondusGrille(){}
+//  On suit la page réellement affichée : un glissement au doigt ou une
+//  barre de défilement déplacée à la main doivent allumer la bonne pastille.
+appGrid.addEventListener("scroll", ()=>{
+  if(!appGrid.clientWidth) return;
+  const n = Math.round(appGrid.scrollLeft / appGrid.clientWidth);
+  if(n !== appPage){ appPage = n; majDotsApps(); }
+}, {passive:true});
+addEventListener("resize", ()=>appVaPage(appPage, false));
 
+/*  LA MOLETTE CHANGE DE PAGE. On avale l'événement partout dans la vue,
+    grille comprise : sans ça le navigateur ferait défiler la grille d'un
+    pixel à la fois et l'alignement sur les pages sauterait.
+    Un verrou de 320 ms empêche qu'un seul cran de molette — souvent
+    plusieurs événements chez les pavés tactiles — traverse trois pages
+    d'un coup. deltaX est lu aussi : un pavé tactile envoie l'horizontale
+    quand on glisse à deux doigts sur le côté. */
+let appMoletteBloc = 0;
 appsView.addEventListener("wheel", e=>{
-  if(appGrid.scrollHeight <= appGrid.clientHeight) return;
-  if(appGrid.contains(e.target)) return;    // la grille gère déjà
-  appGrid.scrollTop += e.deltaY;
+  if(appPagesTotal() < 2) return;
   e.preventDefault();
+  const t = Date.now();
+  if(t < appMoletteBloc) return;
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if(!d) return;
+  appMoletteBloc = t + 320;
+  appVaPage(appPage + (d > 0 ? 1 : -1));
 }, {passive:false});
+
+//  Les flèches ← → aussi, quand on n'est pas en train d'écrire dans la
+//  recherche : là, elles doivent déplacer le curseur dans le texte.
+addEventListener("keydown", e=>{
+  if(!appsView.classList.contains("on")) return;
+  if(document.activeElement === appSearch && appSearch.value) return;
+  if(e.key === "ArrowRight"){ e.preventDefault(); appVaPage(appPage + 1); }
+  if(e.key === "ArrowLeft"){  e.preventDefault(); appVaPage(appPage - 1); }
+});
 
 function openApps(){
   appsView.classList.add("on");
