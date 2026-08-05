@@ -55,6 +55,12 @@ h2{font-size:22px;font-weight:700}
 .swatch{width:34px;height:34px;border-radius:50%;border:2px solid transparent;
   cursor:pointer}
 .swatch.sel{border-color:#fff;outline:2px solid var(--ac)}
+/*  Le rond de couleur porté DANS le bouton des deux styles mis en avant :
+    le nom dit lequel c'est, la pastille montre à quoi ça ressemble. Bordure
+    translucide pour que le rond reste visible sur un bouton déjà peint de
+    cette même couleur quand il est sélectionné. */
+.pastille{display:inline-block;width:13px;height:13px;border-radius:50%;
+  margin-right:7px;vertical-align:-1px;border:1px solid rgba(255,255,255,.55)}
 
 /* --- Curseur ------------------------------------------------------------- */
 input[type=range]{flex:1;accent-color:var(--ac)}

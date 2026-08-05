@@ -27,8 +27,31 @@ const NAV = [
     ["distant","🖥","Bureau à distance"], ["apropos","◆","À propos"]]},
 ];
 
-const ACCENTS = {orange:"#E8590C", bleu:"#1A5FB4", rouge:"#C4211E",
-                 vert:"#1F8F4E", gris:"#8A8A8A", violet:"#8B5CF6", neon:"#39FF14"};
+const ACCENTS = {orange:"#E8590C", "orange-rouge":"#D97757", bleu:"#1A5FB4",
+                 rouge:"#C4211E", vert:"#1F8F4E", gris:"#8A8A8A",
+                 violet:"#8B5CF6", neon:"#39FF14"};
+
+/*  Les DEUX styles mis en avant, en haut de la section Apparence. Les sept
+    pastilles restent en dessous pour qui veut fouiller, mais l'immense
+    majorité du temps le choix se résume à ces deux-là — et une rangée de
+    pastilles sans nom ne dit pas laquelle est laquelle. */
+const STYLES = [
+  ["orange",       "Classique",      "L'orange franc de LexOS"],
+  ["orange-rouge", "Orange et rouge","Du terracotta au rouge brique"],
+];
+
+/*  Les polices sont montrées DANS leur propre police : lire le mot
+    « Manuscrite » écrit à la main dit en un coup d'oeil ce que ça donnera,
+    là où une liste de noms tous rendus pareil ne dit rien du tout.
+    « Patrick Hand » est la seule embarquée par LexOS (OFL, dans
+    /usr/share/fonts/truetype/lexos) — les autres sont des alias génériques
+    que fontconfig sait toujours résoudre. */
+const POLICES = [
+  ["defaut",     "Défaut",     "system-ui,sans-serif"],
+  ["classique",  "Classique",  "'Noto Serif',Georgia,serif"],
+  ["mono",       "Machine",    "ui-monospace,monospace"],
+  ["manuscrite", "Manuscrite", "'Patrick Hand',cursive"],
+];
 const LANGUES = [
   ["fr_CA.UTF-8","Français (Québec)"], ["fr_FR.UTF-8","Français (France)"],
   ["en_US.UTF-8","English (US)"], ["en_CA.UTF-8","English (Canada)"],
@@ -39,8 +62,8 @@ const LANGUES = [
   ["ja_JP.UTF-8","日本語"], ["ko_KR.UTF-8","한국어"], ["ar_SA.UTF-8","العربية"],
 ];
 
-let etat = {perf:"medium", theme:"sombre", accent:"orange", avion:"off",
-            hote:"", version:"", noyau:""};
+let etat = {perf:"medium", theme:"sombre", accent:"orange", police:"defaut",
+            avion:"off", hote:"", version:"", noyau:""};
 let sectionActive = "wifi";
 
 /* --- API ------------------------------------------------------------------ */
@@ -96,6 +119,10 @@ async function setLum(n){ await api("lumiere", n); }
 async function setTheme(t){
   const r = await api("theme", t);
   if(r.ok){ etat.theme = t; rendSection(); toast("Thème : " + t); }
+}
+async function setPolice(p){
+  const r = await api("police", p);
+  if(r.ok){ etat.police = p; rendSection(); toast("Police : " + p); }
 }
 async function setAccent(a){
   const r = await api("accent", a);
@@ -173,10 +200,27 @@ function contenu(cle){
         </div>
       </div>
       <div class="srow" style="display:block">
-        <div class="t" style="margin-bottom:8px">Couleur d'accent</div>
+        <div class="t" style="margin-bottom:8px">Couleur de l'interface</div>
+        <div class="row">${STYLES.map(([n,titre,desc])=>
+          `<button class="btn ${n===etat.accent?"sel":"ghost"}" onclick="setAccent('${n}')"
+             title="${desc}"><span class="pastille" style="background:${ACCENTS[n]}"></span>${titre}</button>`
+          ).join("")}</div>
+        <div class="sub" style="margin-top:6px">${
+          STYLES.map(([,t,d])=>`${t} — ${d}`).join(" · ")}</div>
+      </div>
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Autres couleurs</div>
         <div class="row">${Object.entries(ACCENTS).map(([n,c])=>
           `<button class="swatch${n===etat.accent?" sel":""}" style="background:${c}"
              title="${n}" onclick="setAccent('${n}')"></button>`).join("")}</div>
+      </div>
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Police d'écriture</div>
+        <div class="row">${POLICES.map(([n,titre,fam])=>
+          `<button class="btn ${n===etat.police?"sel":"ghost"}" style="font-family:${fam}"
+             onclick="setPolice('${n}')">${titre}</button>`).join("")}</div>
+        <div class="sub" style="margin-top:6px">Les fenêtres déjà ouvertes gardent
+          l'ancienne police — ferme-les et rouvre-les.</div>
       </div>
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Position de la barre d'outils</div>

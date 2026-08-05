@@ -79,7 +79,10 @@ ${B}PAQUETS${R}
 ${B}APPARENCE${R}
   ${A}theme${R} <sombre|clair> LexOS Noir (défaut) ou thème de jour ${D}(crème, pas blanc pur)${R}
   ${A}accent${R} <couleur>    Couleur des boutons et des sélections
-                      ${D}orange (défaut) · bleu · rouge · vert · gris · violet · neon${R}
+                      ${D}orange (défaut) · orange-rouge · bleu · rouge · vert · gris
+                      violet · neon${R}
+  ${A}police${R} <nom>        Police d'écriture de l'interface
+                      ${D}defaut · classique · mono · manuscrite (écriture à la main)${R}
   ${A}dock${R} <position>     Barre d'outils : ${D}droite (défaut) · gauche · bas · haut${R}
   ${A}ecran${R}               Plusieurs écrans : étendre, dupliquer, principal
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
@@ -532,7 +535,7 @@ cmd_accent() {
 		local cur="orange"
 		[[ -r "$HOME/.config/lexos/accent" ]] && cur="$(cat "$HOME/.config/lexos/accent")"
 		printf 'Accent courant : %s%s%s\n' "$O" "$cur" "$R"
-		printf 'Disponibles    : orange bleu rouge vert gris violet neon\n'
+		printf 'Disponibles    : orange orange-rouge bleu rouge vert gris violet neon\n'
 		return 0
 	fi
 	command -v lexos-theme-gen >/dev/null 2>&1 \
@@ -547,6 +550,74 @@ cmd_accent() {
 		xfconf-query -c xsettings -p /Net/ThemeName -s "$t"       2>/dev/null || true
 	fi
 	ok "Ferme et rouvre tes fenêtres pour que tout prenne la nouvelle couleur."
+}
+
+# --- La police d'écriture de l'interface -------------------------------------
+#  Quatre familles nommées, pas une liste de fontes : « manuscrite » est celle
+#  qu'on embarque nous-mêmes (Patrick Hand, licence OFL, dans
+#  /usr/share/fonts/truetype/lexos) — les trois autres s'appuient sur des alias
+#  génériques de fontconfig, qui existent sur toute installation. Une police
+#  absente ne casse donc rien : fontconfig retombe sur la plus proche.
+#
+#  Deux endroits à écrire, et c'est voulu : xsettings applique le changement
+#  À CHAUD sur les fenêtres ouvertes, gtk-3.0/settings.ini le fait SURVIVRE à
+#  la déconnexion. N'écrire que le premier et tout revient au défaut au
+#  redémarrage — ça a été le cas pendant un temps.
+cmd_police() {
+	local nom="${1:-}"
+	local conf="$HOME/.config/lexos"
+	local police
+
+	case "${nom,,}" in
+		defaut|default|systeme|système|'') police="" ;;
+		classique|serif)                   police="Noto Serif 10" ;;
+		mono|machine|monospace)            police="Monospace 10" ;;
+		manuscrite|ecriture|écriture|main) police="Patrick Hand 12" ;;
+		liste|list)
+			local cur="défaut"
+			[[ -r "$conf/police" ]] && cur="$(cat "$conf/police")"
+			printf 'Police courante : %s%s%s\n' "$O" "$cur" "$R"
+			printf 'Disponibles     : defaut · classique · mono · manuscrite\n'
+			return 0
+			;;
+		*)
+			die "Police inconnue : ${nom}
+Disponibles : defaut · classique · mono · manuscrite"
+			;;
+	esac
+
+	#  Sans argument on affiche l'état plutôt que de tout remettre à zéro :
+	#  « lexos police » tout court doit renseigner, pas modifier.
+	[[ -z "$nom" ]] && { cmd_police liste; return 0; }
+
+	mkdir -p "$conf"
+	printf '%s\n' "${nom,,}" > "$conf/police"
+
+	# 1) À chaud, sur la session en cours.
+	if command -v xfconf-query >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+		if [[ -z "$police" ]]; then
+			xfconf-query -c xsettings -p /Gtk/FontName -r 2>/dev/null || true
+		else
+			xfconf-query -c xsettings -p /Gtk/FontName -s "$police" \
+				--create -t string 2>/dev/null || true
+		fi
+	fi
+
+	# 2) Pour les prochaines sessions, et pour les applications GTK qui
+	#    lisent le fichier plutôt que xsettings.
+	local ini="$HOME/.config/gtk-3.0/settings.ini"
+	mkdir -p "$(dirname "$ini")"
+	[[ -f "$ini" ]] || printf '[Settings]\n' > "$ini"
+	grep -q '^\[Settings\]' "$ini" || sed -i '1i [Settings]' "$ini"
+	sed -i '/^gtk-font-name[[:space:]]*=/d' "$ini"
+	[[ -n "$police" ]] && sed -i "/^\[Settings\]/a gtk-font-name=${police}" "$ini"
+
+	if [[ -z "$police" ]]; then
+		ok "Police remise au défaut du système."
+	else
+		ok "Police : ${police}."
+	fi
+	say "Les fenêtres déjà ouvertes gardent l'ancienne — rouvre-les."
 }
 
 cmd_crt() {
@@ -752,6 +823,7 @@ case "$CMD" in
 	wallpaper|bg)         cmd_wallpaper "$@" ;;
 	theme)                cmd_theme "$@" ;;
 	accent)               cmd_accent "$@" ;;
+	police|font|ecriture|écriture) cmd_police "$@" ;;
 	lang|langue)          cmd_lang "$@" ;;
 	dock|barre)           cmd_dock "$@" ;;
 	ecran|écran|display|screen) exec lexos-display "$@" ;;

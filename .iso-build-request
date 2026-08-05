@@ -17,6 +17,17 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 23 : le visage de Claude, et l'écriture à la main. Le logo était un
+# dessin approximatif fait de douze pales régulières ; c'est maintenant le
+# tracé officiel d'Anthropic, le même dans le dock, dans le menu et dans la
+# démo animée — où il continue de tourner. Les paramètres proposent deux
+# couleurs d'interface nommées (Classique, Orange et rouge) au lieu d'une
+# rangée de pastilles muettes, et une police d'écriture, dont une manuscrite
+# embarquée dans l'ISO (Patrick Hand, licence OFL).
+#   Ce compteur était resté à 22 pendant la construction précédente, qui
+#   s'était déclenchée toute seule sur une modification de config/ : sa
+#   Release s'intitulait donc « build 22 » alors qu'elle portait déjà les
+#   compléments de jeu. On le remet d'aplomb ici.
 # build 22 : LE PILOTE EST BON (build 21 : 595.91.07-1 vérifié, module
 # compilé, zéro paquet en 610). Reste les six paquets que le journal
 # signalait indisponibles — dont protontricks, qui sert justement à
@@ -51,4 +62,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 22
+build: 23

@@ -68,7 +68,9 @@ def _xfce(module):
 
 PERFS = {"petit", "medium", "performant", "max"}
 THEMES = {"sombre", "clair"}
-ACCENTS = {"orange", "bleu", "rouge", "vert", "gris", "violet", "neon"}
+ACCENTS = {"orange", "orange-rouge", "bleu", "rouge", "vert", "gris",
+           "violet", "neon"}
+POLICES = {"defaut", "classique", "mono", "manuscrite"}
 DOCKS = {"droite", "gauche", "bas", "haut"}
 CADRAGES = {"remplir", "ajuster", "etirer", "centrer", "mosaique"}
 FONDS = {
@@ -162,6 +164,12 @@ def act_accent(arg):
     return _run(["lexos", "accent", arg])
 
 
+def act_police(arg):
+    if arg not in POLICES:
+        return {"ok": False, "erreur": "police inconnue"}
+    return _run(["lexos", "police", arg])
+
+
 def act_dock(arg):
     if arg not in DOCKS:
         return {"ok": False, "erreur": "position : droite|gauche|bas|haut"}
@@ -215,6 +223,7 @@ ACTIONS = {
     "lumiere": act_lumiere,
     "theme": act_theme,
     "accent": act_accent,
+    "police": act_police,
     "dock": act_dock,
     "fond": act_fond,
     "fond-perso": act_fond_perso,
@@ -272,6 +281,7 @@ def etat():
         "perf": perf,
         "theme": fichier("mode", "sombre"),
         "accent": fichier("accent", "orange"),
+        "police": fichier("police", "defaut"),
         "avion": avion,
         "hote": socket.gethostname(),
         "version": version or "LexOS 1.0 « Nomad »",

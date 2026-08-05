@@ -56,6 +56,13 @@ esac
 # --- Palette des accents -----------------------------------------------------
 case "${ACCENT_NAME,,}" in
 	orange|ambre)          ACCENT="#E8590C"; ACCENT_HI="#FF7A33"; ACCENT_LO="#A84007" ;;
+	# « Orange et rouge » — l'accent chaud, celui qui va du terracotta au
+	# rouge brique. C'est le second des deux styles proposés en tête des
+	# paramètres ; l'orange plus vif ci-dessus reste le style « classique ».
+	# Le ton principal est l'argile #D97757, ses appuis sont l'orange franc
+	# et le rouge brique déjà retenu plus bas pour son contraste.
+	orange-rouge|orangerouge|claude|chaud)
+	                       ACCENT="#D97757"; ACCENT_HI="#E8834F"; ACCENT_LO="#C4211E" ;;
 	# Bleu 5 de la palette Adwaita — le bleu profond des bureaux Linux.
 	bleu|blue)             ACCENT="#1A5FB4"; ACCENT_HI="#3584E4"; ACCENT_LO="#10375F" ;;
 	# Rouge brique, celui de la référence fournie : plus profond et moins
@@ -68,7 +75,7 @@ case "${ACCENT_NAME,,}" in
 	neon|vert-neon|vertneon) ACCENT="#39FF14"; ACCENT_HI="#7BFF5C"; ACCENT_LO="#1FA30A" ;;
 	*)
 		printf 'Accent inconnu : %s\n' "$ACCENT_NAME" >&2
-		printf 'Disponibles : orange bleu rouge vert gris violet neon\n' >&2
+		printf 'Disponibles : orange orange-rouge bleu rouge vert gris violet neon\n' >&2
 		exit 1
 		;;
 esac
