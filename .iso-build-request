@@ -17,6 +17,17 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 27 : LexOS passe en 2.0.0. Le numéro vient de lexos.conf, seule source
+# de vérité — tout le reste (nom du fichier ISO, /etc/os-release, le fond
+# d'écran, lexfetch, les pages du site) le recopie de là. L'ISO s'appellera
+# donc « lexos-2.0.0-pro-amd64.hybrid.iso » : les anciens fichiers
+# « lexos-1.2.1-* » sont à effacer avant de télécharger, ils ne se mélangent
+# pas.
+#   Un changement de version majeure se justifie ici : depuis la 1.2.1, le
+#   système a gagné la bibliothèque de jeux, la surveillance des températures,
+#   la complétion du terminal, le logo officiel et la police manuscrite — et
+#   le pilote NVIDIA est enfin tenu sur une branche qui ne coupe pas le HDMI.
+#   Le nom de code reste « Nomad ».
 # build 26 : TEMPÉRATURES ET VENTILATEURS, EN DIRECT. Sur une machine de jeu
 # compacte, la chaleur explique la moitié des « ça rame » : un processeur qui
 # touche sa limite ne plante pas, il RALENTIT en silence. On accuse alors le
@@ -120,4 +131,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 26
+build: 27

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LexOS 1.2.1 « Nomad » — démo web</title>
+<title>LexOS 2.0.0 « Nomad » — démo web</title>
 <meta name="description" content="Démo dans le navigateur du bureau LexOS — le vrai système est une ISO Linux amorçable.">
 <style>
 /* =========================================================================
@@ -1920,7 +1920,7 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
       <pre class="mark-ascii" role="img" aria-label="LexOS"><span>   __         _____ _____</span><span>  / /  _____ / __  |  ___|</span><span> / /  / _ \ \/ / | | |___</span><span>/ /__|  __/&gt;  &lt;  | |___  |</span><span>\____/\___/_/\_\ |_____/</span></pre>
       <div class="rule"></div>
       <div class="brand">T I · L E X · A L</div>
-      <div class="ver">1.2.1 — NOMAD</div>
+      <div class="ver">2.0.0 — NOMAD</div>
     </div>
     <div id="wallStickers"></div>
     <div id="deskIcons"></div>
@@ -3185,7 +3185,7 @@ function fetchOut(){
   const info = [
     ["","<b class='p'>lex</b><span class='d'>@</span><b class='p'>lexos</b>"],
     ["","<span class='d'>────────────────────────────</span>"],
-    ["OS       ","LexOS 1.2.1 (Nomad) x86_64 — démo web"],
+    ["OS       ","LexOS 2.0.0 (Nomad) x86_64 — démo web"],
     ["Base     ","Debian trixie"],
     ["Noyau    ","6.12 LTS"],
     ["Bureau   ","XFCE + LexOS Noir"],
@@ -3206,7 +3206,7 @@ function fetchOut(){
   return out;
 }
 const HELP = `
-<span class='w'>LexOS 1.2.1 « Nomad » — démo web</span>
+<span class='w'>LexOS 2.0.0 « Nomad » — démo web</span>
 
 <span class='tk-cmd'>lexfetch</span>              <span class='tk-rose'>fiche technique</span>
 <span class='tk-lexos'>lexos</span> <span class='tk-cmd'>accent</span> <span class='tk-arg'>&lt;c&gt;</span>      <span class='tk-rose'>orange · bleu · rouge · vert · gris · violet · neon</span>
@@ -3233,7 +3233,7 @@ function runCmd(raw){
   else if(c0==="clear"){ tEl.innerHTML=""; tNewPrompt(); return; }
   else if(c0==="date") out=new Date().toLocaleString("fr-CA")+"\n";
   else if(c0==="whoami") out="lex\n";
-  else if(line==="uname -a"||c0==="uname") out="Linux lexos 6.12-lexos #1 SMP LexOS 1.2.1 x86_64 GNU/Linux\n";
+  else if(line==="uname -a"||c0==="uname") out="Linux lexos 6.12-lexos #1 SMP LexOS 2.0.0 x86_64 GNU/Linux\n";
   else if(c0==="echo") out=esc(arg)+"\n";
   else if(line.startsWith("lexos accent")){
     const a=rest[1];
@@ -3327,7 +3327,7 @@ function termNewWindow(){
   if(out){
     out.removeAttribute("id");         // un seul #tout : celui du terminal actif
     out.innerHTML =
-      `<span class='d'>LexOS 1.2.1 « Nomad » — cette fenêtre est une copie de démonstration.</span>\n`+
+      `<span class='d'>LexOS 2.0.0 « Nomad » — cette fenêtre est une copie de démonstration.</span>\n`+
       `<span class='d'>Le terminal qui répond aux commandes est le premier.</span>\n`;
   }
   toast("▮ Nouvelle fenêtre de terminal");
@@ -3336,7 +3336,7 @@ function openTerminal(){
   const el = openWin("term","Terminal — lex@lexos",terminalGlyph(17),termHTML(),640,420);
   tEl = el.querySelector("#tout");
   if(!tEl.innerHTML){
-    tPrint(`<span class='d'>LexOS 1.2.1 « Nomad » — tape</span> <span class='tk-cmd'>help</span> <span class='d'>pour commencer.</span>\n`+
+    tPrint(`<span class='d'>LexOS 2.0.0 « Nomad » — tape</span> <span class='tk-cmd'>help</span> <span class='d'>pour commencer.</span>\n`+
            `<span class='tk-lexos'>Débutant ?</span> <span class='d'>Appuie sur</span> <span class='tk-cmd'>↓</span> <span class='d'>: la liste des commandes s'affiche,`+
            ` choisis avec</span> <span class='tk-cmd'>↑ ↓</span> <span class='d'>et valide avec</span> <span class='tk-cmd'>Tab</span><span class='d'>.</span>\n\n`);
     tNewPrompt();
@@ -6219,7 +6219,7 @@ function settingsSection(key){
         <div class="row">
           <button class="wall-swatch defaut${state.wallpaper==="defaut"?" sel":""}" title="Défaut" onclick="setWallpaper('defaut')"></button>
           <button class="wall-swatch secu${state.wallpaper==="secu"?" sel":""}" title="Sécurité" onclick="setWallpaper('secu')"></button>
-          <button class="wall-swatch demon${state.wallpaper==="demon"?" sel":""}" title="LexOS 1.2.1" onclick="setWallpaper('demon')"></button>
+          <button class="wall-swatch demon${state.wallpaper==="demon"?" sel":""}" title="LexOS 2.0.0" onclick="setWallpaper('demon')"></button>
           <button class="wall-swatch keyart${state.wallpaper==="keyart"?" sel":""}" title="Explorateur" onclick="setWallpaper('keyart')"></button>
         </div>
       </div>
@@ -6501,7 +6501,7 @@ function settingsSection(key){
     case "maj": return `<h2>Mises à jour</h2><div class="sub">${state.majDispo?"Une mise à jour est disponible":"Système à jour"}</div>
       <div style="display:flex;align-items:center;gap:14px;margin:10px 0">
         <span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center">${majGlyph()}</span>
-        <div><div class="t" style="font-weight:600">LexOS 1.2.1 « Nomad »</div><div class="d">Base Debian trixie</div></div>
+        <div><div class="t" style="font-weight:600">LexOS 2.0.0 « Nomad »</div><div class="d">Base Debian trixie</div></div>
       </div>
       ${swRow("Mises à jour de sécurité automatiques","Chaque jour, sans rien demander (unattended-upgrades)",state.majSecuAuto,"toggleMajSecu()")}
       ${swRow("Tout mettre à jour automatiquement","Applications et système : dès qu'une mise à jour paraît, elle s'installe toute seule",state.majAuto,"toggleMajAuto()")}
@@ -6704,7 +6704,7 @@ function settingsSection(key){
         vérification d'intégration refuse toute divergence entre les deux.</p>`;
     }
 
-    case "apropos": return `<h2>À propos de LexOS</h2><div class="sub">1.2.1 « Nomad »</div>
+    case "apropos": return `<h2>À propos de LexOS</h2><div class="sub">2.0.0 « Nomad »</div>
       <p>Base Debian trixie · noyau 6.12 LTS · XFCE · LexOS Noir</p>
 
       <h3 class="cpt-h3">100 % Linux</h3>
@@ -6867,7 +6867,7 @@ function openAbout(){
   openWin("about","À propos de LexOS","◆",
   `<div class="pad" style="text-align:center">
     <p style="letter-spacing:.4em;font-size:11px">T I · L E X · A L</p>
-    <p><b>1.2.1 « Nomad »</b> — base Debian trixie<br>
+    <p><b>2.0.0 « Nomad »</b> — base Debian trixie<br>
     noyau 6.12 LTS · XFCE · LexOS Noir</p>
     <p class="notice" style="text-align:left">Ceci est la <b>démo web</b>.
     Le système complet se construit depuis le dépôt GitHub
@@ -7155,7 +7155,7 @@ const CC_SAVOIR = [
     <b>« quelles commandes existent ? »</b>`},
 
   {c:["quoi","c'est quoi","lexos","systeme","distribution","presente"], r:
-   `<b>LexOS 1.2.1 « Nomad »</b> est une distribution Linux complète, bâtie sur
+   `<b>LexOS 2.0.0 « Nomad »</b> est une distribution Linux complète, bâtie sur
     <b>Debian 13 (trixie)</b> avec le bureau <b>XFCE</b>. Ce n'est pas un thème
     posé sur autre chose : c'est une vraie ISO amorçable qu'on grave sur une
     clé USB et qui démarre sur n'importe quel PC 64 bits.
@@ -7168,7 +7168,7 @@ const CC_SAVOIR = [
       <li>Télécharge tous les morceaux <code>.part-XX</code> <b>et</b> le
           <code>.sha256</code>, dans un même dossier.</li>
       <li>Recolle-les :<br>
-          <code>cat lexos-1.2.1-pro*.iso.part-* &gt; lexos-1.2.1-pro-amd64.hybrid.iso</code></li>
+          <code>cat lexos-2.0.0-pro*.iso.part-* &gt; lexos-2.0.0-pro-amd64.hybrid.iso</code></li>
       <li>Vérifie : <code>sha256sum</code> sur l'ISO, puis compare à l'œil avec
           le contenu du fichier <code>.sha256</code>.</li>
       <li>Grave avec <b>balenaEtcher</b> (ordinateur) ou <b>EtchDroid</b> (téléphone).</li>
@@ -7848,7 +7848,7 @@ function openEditor(nouvelle){
   //  l'icône du dock quand plusieurs sont ouvertes montre le sélecteur.
   const id = nouvelle ? "edit#"+(++winSeq) : "edit";
   const titre = nouvelle ? `Note perso — sans-titre-${winSeq}.txt` : "Note perso — notes.txt";
-  const contenu = nouvelle ? "" : `LexOS 1.2.1 « Nomad »
+  const contenu = nouvelle ? "" : `LexOS 2.0.0 « Nomad »
 ──────────────────────
 À essayer dans le terminal :
 
@@ -7870,7 +7870,7 @@ function openWelcome(){
   openWin("hello","Bienvenue sur LexOS","👋",
   `<div class="pad">
     <h2>Bienvenue dans la démo web ✨</h2>
-    <p>Tu regardes le bureau de <b>LexOS 1.2.1 « Nomad »</b> — thème noir pur,
+    <p>Tu regardes le bureau de <b>LexOS 2.0.0 « Nomad »</b> — thème noir pur,
     dock à droite, effets de fenêtres façon téléviseur 1980
     <span style="color:var(--fg-dim)">(ferme cette fenêtre pour voir ✕)</span>.</p>
     <p>Le vrai LexOS est une <b>distribution Linux complète</b> : cette page
@@ -8971,7 +8971,7 @@ function studioAjoute(contenu, type){
   studioSelectionne(o.id);
 }
 function studioTexte(){
-  const t=prompt("Texte à poser sur l'image :", "LexOS 1.2.1");
+  const t=prompt("Texte à poser sur l'image :", "LexOS 2.0.0");
   if(t===null || !t.trim()) return;
   studioAjoute(t.trim(), "texte");
 }
