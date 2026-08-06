@@ -1,0 +1,54 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — Bibliothèque de jeux dans le menu
+# =============================================================================
+#  Steam a sa liste, Lutris a la sienne, RetroArch garde ses ROMs à part et les
+#  jeux Debian se perdent dans le menu. « lexos-jeux » réunit les quatre. Ce
+#  hook lui donne sa place dans le menu Applications, catégorie Jeux.
+#
+#  Le lanceur ouvre un terminal : la bibliothèque est une liste, et un terminal
+#  qui reste ouvert la montre parfaitement — même forme que les autres lanceurs
+#  en ligne de commande du hook 0400 (xfce4-terminal --hold).
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0470 : bibliothèque de jeux"
+
+# Le moteur ne sert à rien sans son lanceur, et inversement : on vérifie les
+# deux ici plutôt que de le découvrir sur le bureau d'un utilisateur.
+MANQUE=0
+for F in /usr/bin/lexos-jeux /usr/lib/lexos/jeux.py; do
+	if [ ! -r "$F" ]; then
+		echo "[lexos]   !! fichier absent : $F"
+		MANQUE=1
+	fi
+done
+[ "$MANQUE" -eq 0 ] || exit 1
+
+# Le moteur doit être lisible par Python : une erreur de syntaxe ici
+# donnerait une bibliothèque vide, sans le moindre message d'erreur.
+if ! python3 -c "import ast,sys; ast.parse(open(sys.argv[1], encoding='utf-8').read(), sys.argv[1])" \
+       /usr/lib/lexos/jeux.py; then
+	echo "[lexos]   !! /usr/lib/lexos/jeux.py contient une erreur de syntaxe"
+	exit 1
+fi
+
+chmod 0755 /usr/bin/lexos-jeux
+
+mkdir -p /usr/share/applications
+cat > /usr/share/applications/lexos-jeux.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Bibliothèque de jeux
+Name[en]=Game library
+GenericName=Tous mes jeux
+Comment=Tous tes jeux au même endroit — Steam, Lutris, RetroArch, Flatpak
+Exec=xfce4-terminal --title="Bibliothèque de jeux" --hold -e "lexos-jeux; bash"
+Icon=applications-games
+Terminal=false
+Categories=Game;
+Keywords=jeux;jeu;games;steam;lutris;retroarch;bibliotheque;
+EOF
+
+echo "[lexos]   ok — « Bibliothèque de jeux » posée dans le menu"

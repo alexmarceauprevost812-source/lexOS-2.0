@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-jeux — Bibliothèque de jeux : tous tes jeux au même endroit
+# =============================================================================
+#  Steam a sa liste, Lutris a la sienne, RetroArch garde ses ROMs à part, et
+#  les jeux installés par Debian se perdent dans le menu. Cette commande va
+#  lire les quatre sources et n'en fait qu'une.
+#
+#  Le moteur de détection est /usr/lib/lexos/jeux.py — il ne fait que LIRE,
+#  jamais installer ni modifier quoi que ce soit.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+MOTEUR="/usr/lib/lexos/jeux.py"
+[[ -r "$MOTEUR" ]] || MOTEUR="$(dirname "$0")/../lib/lexos/jeux.py"
+[[ -r "$MOTEUR" ]] || die "Moteur introuvable : /usr/lib/lexos/jeux.py"
+
+cmd_aide() {
+	cat <<AIDE
+
+${B}${O}${PROG}${R} — tous tes jeux au même endroit
+
+${B}USAGE${R}
+  ${A}${PROG}${R}                 La liste de tes jeux
+  ${A}${PROG} lancer${R} <n°>     Lance le jeu n° <n°> de la liste
+  ${A}${PROG} chercher${R} <mot>  Ne montre que les jeux dont le nom contient <mot>
+  ${A}${PROG} sources${R}         D'où viennent les jeux, et ce qui est détecté
+  ${A}${PROG} json${R}            La liste en JSON ${D}(pour les scripts)${R}
+
+${B}D'OÙ VIENNENT LES JEUX${R}
+  ${D}Steam${R}      les jeux installés, y compris sur un second disque
+  ${D}Lutris${R}     sa bibliothèque (jeux Windows, GOG, Epic…)
+  ${D}RetroArch${R}  les ROMs de tes listes de lecture
+  ${D}Le menu${R}    les jeux Debian et Flatpak rangés dans la catégorie « Jeux »
+
+${B}À SAVOIR${R}
+  Un jeu lancé d'ici passe par ${A}lexos-game${R} : la machine bascule en profil
+  performant le temps de la partie, GameMode et MangoHud s'activent s'ils
+  sont là, et le profil d'avant revient à la fermeture.
+
+  ${D}Rien n'est installé ni modifié : cette commande ne fait que lire.${R}
+
+AIDE
+}
+
+# Récupère la liste une seule fois, en JSON, et la garde pour la suite.
+charger() {
+	JSON="$(python3 "$MOTEUR" --json 2>/dev/null)" \
+		|| die "Le moteur de détection n'a pas répondu."
+	[[ -n "$JSON" ]] || die "Le moteur de détection n'a rien renvoyé."
+}
+
+# Affiche la liste numérotée. $1 = filtre facultatif (insensible à la casse).
+afficher() {
+	local filtre="${1:-}"
+	printf '%s' "$JSON" | FILTRE="$filtre" python3 -c '
+import json, os, sys
+d = json.load(sys.stdin)
+filtre = os.environ.get("FILTRE", "").lower()
+jeux = [j for j in d["jeux"] if filtre in j["nom"].lower()]
+if not jeux:
+    if filtre:
+        print("  Aucun jeu ne correspond à « %s »." % filtre)
+    else:
+        print("  Aucun jeu trouvé pour le moment.")
+        print()
+        print("  Installe des jeux avec Steam, Lutris ou la Logithèque :")
+        print("  ils apparaîtront ici tout seuls, sans rien régler.")
+    sys.exit(0)
+largeur = max(len(j["nom"]) for j in jeux)
+for i, j in enumerate(jeux, 1):
+    print("  %2d.  %-*s   %s" % (i, largeur, j["nom"], j["source"]))
+print()
+print("  %d jeu(x).  Pour jouer : lexos-jeux lancer <n°>" % len(jeux))
+for e in d.get("erreurs", []):
+    print("  (source ignorée — %s)" % e, file=sys.stderr)
+'
+}
+
+cmd_lancer() {
+	local numero="${1:-}"
+	[[ "$numero" =~ ^[0-9]+$ ]] \
+		|| die "Donne le NUMÉRO du jeu, tel qu'il apparaît dans la liste."
+	charger
+	local id
+	id="$(printf '%s' "$JSON" | NUM="$numero" python3 -c '
+import json, os, sys
+jeux = json.load(sys.stdin)["jeux"]
+n = int(os.environ["NUM"])
+print(jeux[n - 1]["id"] if 1 <= n <= len(jeux) else "")
+')"
+	[[ -n "$id" ]] || die "Il n'y a pas de jeu n° ${numero} dans la liste."
+	say "Lancement…"
+	python3 "$MOTEUR" --lancer "$id"
+}
+
+cmd_sources() {
+	charger
+	printf '\n%s%s — d'\''où viennent les jeux%s\n\n' "$B$O" "$PROG" "$R"
+	printf '%s' "$JSON" | python3 -c '
+import collections, json, sys
+d = json.load(sys.stdin)
+comptes = collections.Counter(j["source"].split(" —")[0].split(" (")[0]
+                              for j in d["jeux"])
+for nom in ("Steam", "Lutris", "RetroArch", "Flatpak", "Installé"):
+    n = comptes.get(nom, 0)
+    marque = "✓" if n else " "
+    print("  %s %-12s %s" % (marque, nom, ("%d jeu(x)" % n) if n else "rien de détecté"))
+print()
+print("  %d jeu(x) en tout." % len(d["jeux"]))
+for e in d.get("erreurs", []):
+    print("  ! source en erreur — %s" % e)
+'
+	printf '\n'
+}
+
+case "${1:-liste}" in
+	aide|help|--help|-h) cmd_aide ;;
+	json|--json)         python3 "$MOTEUR" --json ;;
+	lancer|jouer|run)    shift; cmd_lancer "${1:-}" ;;
+	chercher|cherche|find)
+		shift; charger
+		printf '\n%s%s%s\n\n' "$B$O" "Bibliothèque de jeux" "$R"
+		afficher "${1:-}"; printf '\n' ;;
+	sources|source)      cmd_sources ;;
+	liste|list|'')
+		charger
+		printf '\n%s%s%s\n\n' "$B$O" "Bibliothèque de jeux" "$R"
+		afficher; printf '\n' ;;
+	*)
+		die "Commande inconnue : $1   (${PROG} aide)" ;;
+esac

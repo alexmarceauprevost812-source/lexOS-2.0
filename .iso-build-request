@@ -17,6 +17,22 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 25 : LA BIBLIOTHÈQUE DE JEUX. C'était le trou d'un système qui se dit
+# « pour jouer » : Steam avait sa liste, Lutris la sienne, RetroArch gardait
+# ses ROMs à part et les jeux Debian se perdaient dans le menu — aucun endroit
+# ne montrait TOUS ses jeux ensemble. « lexos jeux » (ou le lanceur
+# « Bibliothèque de jeux » du menu) lit les quatre sources et n'en fait qu'une,
+# doublons enlevés. Un jeu lancé d'ici passe par lexos-game : profil performant
+# le temps de la partie, GameMode et MangoHud, puis retour au profil d'avant.
+#   Chaque source est isolée : Lutris absent, base corrompue, playlist en JSON
+#   cassé ou format Steam modifié par une mise à jour — la source concernée
+#   rend une liste vide et les AUTRES continuent. Une bibliothèque qui montre
+#   trois sources sur quatre reste utile ; une qui plante ne montre rien.
+#   Le moteur ne fait que LIRE : rien n'est installé ni modifié. La base de
+#   Lutris est même ouverte en lecture seule et immutable, pour ne pas gêner
+#   Lutris s'il tourne en même temps.
+#   « lexos jeux » ouvre la bibliothèque, « lexos game » lance toujours une
+#   commande avec les réglages de jeu — les deux ne font pas la même chose.
 # build 24 : le terminal répond enfin à la touche Tab. « lexos » suivi de Tab
 # affiche les commandes, « lexos accent » + Tab affiche les couleurs, « lexos
 # wallpaper » + Tab ne propose que des images. Plus besoin de connaître les
@@ -86,4 +102,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 24
+build: 25

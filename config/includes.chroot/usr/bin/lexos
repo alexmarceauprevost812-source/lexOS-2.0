@@ -114,8 +114,13 @@ ${B}ÉNERGIE${R}
   ${A}perf auto${R}           Choisir d'après le matériel détecté
 
 ${B}JEUX${R} ${D}(saveur gaming)${R}
+  ${A}jeux${R}                 ${B}Ta bibliothèque${R} : tous tes jeux au même endroit
+                      ${D}Steam · Lutris · RetroArch · Flatpak · Debian, réunis${R}
+  ${A}jeux lancer${R} <n°>     Lance le jeu n° <n°> de la bibliothèque
+  ${A}jeux chercher${R} <mot>  Cherche un jeu par son nom
   ${A}game info${R}            Matériel détecté : GPU, Vulkan, GameMode, MangoHud
   ${A}game${R} <commande>      Lance un jeu avec les réglages adaptés à la machine
+  ${A}game extras${R}          Compléments de jeu absents de Debian ${D}(Flathub)${R}
 
 ${B}RÉSEAU${R}
   ${A}avion${R} <on|off>      Mode avion : coupe toutes les radios
@@ -855,7 +860,11 @@ case "$CMD" in
 	claude|cc)            exec lexos-claude "$@" ;;
 	musique|music)        exec lexos-musique "$@" ;;
 	chrome|google-chrome) exec lexos-chrome "$@" ;;
-	game|jeu|jeux)        exec lexos-game "$@" ;;
+	#  « jeux » ouvre la BIBLIOTHÈQUE (la liste de ce qu'on possède) : c'est
+	#  ce que quelqu'un veut dire en tapant « mes jeux ». « game » reste la
+	#  commande qui LANCE quelque chose avec les réglages de jeu.
+	jeux|jeu|bibliotheque|bibliothèque|biblio) exec lexos-jeux "$@" ;;
+	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;
 	cartes|carte|maps)    exec lexos-cartes "$@" ;;
