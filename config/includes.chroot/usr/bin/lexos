@@ -60,6 +60,12 @@ ${B}${O}${LEXOS_NAME}${R} ${D}${LEXOS_VERSION} « ${LEXOS_CODENAME} »${R}
 ${B}USAGE${R}
   ${PROG} <commande> [arguments]
 
+${B}RIEN À RETENIR${R}
+  Tape ${A}${PROG}${R} puis la touche ${B}Tab${R} : la liste des commandes s'affiche.
+  Tape ${A}${PROG} accent${R} puis ${B}Tab${R} : les couleurs possibles s'affichent.
+  ${D}Deux lettres et Tab suffisent — ${PROG} acc${R}${D}+Tab complète tout seul.${R}
+  ${D}Perdu ? Le mot « aide » seul, dans le terminal, ramène ici.${R}
+
 ${B}SYSTÈME${R}
   ${A}info${R}                Résumé du système (alias : ${D}lexfetch${R})
   ${A}version${R}             Version de LexOS
@@ -89,7 +95,7 @@ ${B}APPARENCE${R}
   ${A}wallpaper${R} <image> <cadrage>  remplir · ajuster · etirer · centrer · mosaique
   ${A}wallpaper video${R} <fichier> Une vidéo en fond ${D}(en pause sur batterie, sans son)${R}
   ${A}wallpaper anime${R}     Fonds animés ${D}(défaut : « code », le fond qui s'écrit)${R}
-  ${A}wallpaper anime liste${R}      Ceux qui existent : code · pluie · braises · ciel · atelier
+  ${A}wallpaper anime liste${R}      Ceux qui existent : code · pluie · braises · etoiles · atelier
   ${A}wallpaper anime nouveau${R} <nom>  Fabriquer le sien ${D}(modèle commenté, JSON)${R}
   ${A}wallpaper anime apercu${R} <nom>   Une image, sans rien poser
   ${A}wallpaper anime off${R}     Revenir au fond fixe
@@ -809,7 +815,7 @@ CMD="${1:-help}"
 [[ $# -gt 0 ]] && shift
 
 case "$CMD" in
-	help|--help|-h)       cmd_help ;;
+	help|--help|-h|aide|?) cmd_help ;;
 	version|--version|-V) cmd_version ;;
 	info|status)          cmd_info ;;
 	update)               cmd_update ;;
@@ -863,7 +869,8 @@ case "$CMD" in
 	install-disk|setup)   cmd_install_disk "$@" ;;
 	*)
 		err "Commande inconnue : ${CMD}"
-		printf '  Essaie : %s help\n' "$PROG" >&2
+		printf '  Le sommaire des commandes : %s aide\n' "$PROG" >&2
+		printf '  Ou tape « %s » puis la touche Tab pour les voir toutes.\n' "$PROG" >&2
 		exit 1
 		;;
 esac

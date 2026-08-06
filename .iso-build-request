@@ -17,6 +17,30 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 24 : le terminal répond enfin à la touche Tab. « lexos » suivi de Tab
+# affiche les commandes, « lexos accent » + Tab affiche les couleurs, « lexos
+# wallpaper » + Tab ne propose que des images. Plus besoin de connaître les
+# commandes par cœur : c'est le seul mode d'emploi qui ne se perd pas.
+#   Au passage, quatre défauts trouvés en relisant le code plutôt que la
+#   documentation :
+#   · L'invite de LexOS et les alias (ll, maj, infos) n'apparaissaient PAS
+#     dans le terminal du bureau. Ils vivaient dans /etc/profile.d, que seuls
+#     les shells de CONNEXION lisent ; xfce4-terminal, lui, n'y passe jamais.
+#     Ils ne se voyaient donc qu'en console texte. Le contenu est maintenant
+#     dans /usr/share/lexos/shell/interactive.sh, branché par le hook 0120 sur
+#     /etc/bash.bashrc ET en fin de ~/.bashrc — ce dernier rappel est
+#     indispensable, sans lui le ~/.bashrc de Debian réécrit l'invite juste
+#     après.
+#   · « lexos aide » répondait « Commande inconnue » : seul le mot anglais
+#     « help » était reconnu. Sur un système en français, c'est le premier mot
+#     que tape quelqu'un qui est perdu.
+#   · L'aide annonçait un fond animé « ciel » qui n'existe pas — le fichier
+#     s'appelle « etoiles » (« Ciel » n'est que son titre). La commande de
+#     l'aide échouait donc mot pour mot.
+#   · « lexos accent classique » était refusé alors que les paramètres
+#     affichent « Classique » à l'écran : l'interface et le terminal ne
+#     parlaient pas la même langue. Et « --list » oubliait orange-rouge.
+#   Rien touché au pilote NVIDIA ni à aucun hook existant.
 # build 23 : le visage de Claude, et l'écriture à la main. Le logo était un
 # dessin approximatif fait de douze pales régulières ; c'est maintenant le
 # tracé officiel d'Anthropic, le même dans le dock, dans le menu et dans la
@@ -62,4 +86,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 23
+build: 24

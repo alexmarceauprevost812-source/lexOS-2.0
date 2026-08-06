@@ -209,7 +209,7 @@ EOF
 
 CMD="${1:-help}"
 case "$CMD" in
-	help|--help|-h|'') cmd_help ;;
+	help|--help|-h|aide|'') cmd_help ;;
 	info)              cmd_info ;;
 	extras|complements|compléments) shift; cmd_extras "$@" ;;
 	*)                 cmd_run "$@" ;;

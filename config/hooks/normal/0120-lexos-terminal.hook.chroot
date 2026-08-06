@@ -1,0 +1,66 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — brancher le terminal sur les réglages LexOS
+# =============================================================================
+#  L'invite, les alias et la touche Tab vivent dans
+#  /usr/share/lexos/shell/interactive.sh. Ce hook les branche aux trois
+#  endroits que bash lit, parce qu'AUCUN ne suffit seul :
+#
+#    /etc/profile.d/lexos.sh  déjà livré — mais lu par les seuls shells de
+#                             CONNEXION. Le terminal du bureau n'y passe pas.
+#    /etc/bash.bashrc         lu par tout shell interactif, root compris.
+#    /etc/skel/.bashrc        lu APRÈS /etc/bash.bashrc, et il repose SA propre
+#                             invite. Sans un rappel à la fin, l'invite LexOS
+#                             serait écrasée par celle de Debian dans le
+#                             terminal du bureau.
+#
+#  Idempotent : on repère notre ligne avant d'écrire, donc relancer le hook
+#  (ou reconstruire) n'empile pas les doublons.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0120 : terminal (invite, alias, touche Tab)"
+
+CIBLE="/usr/share/lexos/shell/interactive.sh"
+MARQUE="# >>> LexOS — invite, alias et touche Tab >>>"
+
+if [ ! -r "$CIBLE" ]; then
+	echo "[lexos]   !! $CIBLE absent — le terminal resterait celui de Debian"
+	exit 1
+fi
+
+# Vérifie que le fichier est du shell valable AVANT de le brancher partout :
+# une faute de frappe ici casserait l'ouverture de tous les terminaux.
+if ! sh -n "$CIBLE"; then
+	echo "[lexos]   !! $CIBLE contient une erreur de syntaxe"
+	exit 1
+fi
+
+brancher() {
+	fichier="$1"
+	[ -e "$fichier" ] || touch "$fichier"
+	if grep -qF "$MARQUE" "$fichier" 2>/dev/null; then
+		echo "[lexos]   déjà branché : $fichier"
+		return 0
+	fi
+	cat >> "$fichier" <<EOF
+
+$MARQUE
+#  Ajouté par LexOS (hook 0120). Enlève ce bloc pour retrouver le terminal
+#  Debian d'origine : rien d'autre n'en dépend.
+if [ -r $CIBLE ]; then
+	. $CIBLE
+fi
+# <<< LexOS <<<
+EOF
+	echo "[lexos]   branché : $fichier"
+}
+
+brancher /etc/bash.bashrc
+brancher /etc/skel/.bashrc
+
+# Le compte root est créé avant /etc/skel dans certaines images : on lui pose
+# le même rappel, sinon « sudo -i » retombe sur l'invite Debian nue.
+[ -d /root ] && brancher /root/.bashrc
+
+echo "[lexos]   ok — l'invite, les alias et Tab suivent dans tous les terminaux"

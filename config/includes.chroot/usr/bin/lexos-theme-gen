@@ -27,7 +27,10 @@ while [[ $# -gt 0 ]]; do
 			shift 2
 			;;
 		--list)
-			printf 'orange bleu rouge vert gris violet neon\n'
+			# Doit rester d'accord avec la palette plus bas : orange-rouge y
+			# figurait sans jamais apparaître ici, et cette liste sert aussi
+			# de source à la complétion Tab.
+			printf 'orange orange-rouge bleu rouge vert gris violet neon\n'
 			exit 0
 			;;
 		-*)
@@ -55,7 +58,12 @@ esac
 
 # --- Palette des accents -----------------------------------------------------
 case "${ACCENT_NAME,,}" in
-	orange|ambre)          ACCENT="#E8590C"; ACCENT_HI="#FF7A33"; ACCENT_LO="#A84007" ;;
+	# « classique » : le nom que les paramètres affichent pour cette couleur
+	# (app.js — ["orange", "Classique", …]). Sans cet alias, un utilisateur
+	# qui lisait « Classique » à l'écran et tapait « lexos accent classique »
+	# se faisait répondre « Accent inconnu » : l'interface et le terminal ne
+	# parlaient pas la même langue.
+	orange|ambre|classique) ACCENT="#E8590C"; ACCENT_HI="#FF7A33"; ACCENT_LO="#A84007" ;;
 	# « Orange et rouge » — l'accent chaud, celui qui va du terracotta au
 	# rouge brique. C'est le second des deux styles proposés en tête des
 	# paramètres ; l'orange plus vif ci-dessus reste le style « classique ».
@@ -75,7 +83,7 @@ case "${ACCENT_NAME,,}" in
 	neon|vert-neon|vertneon) ACCENT="#39FF14"; ACCENT_HI="#7BFF5C"; ACCENT_LO="#1FA30A" ;;
 	*)
 		printf 'Accent inconnu : %s\n' "$ACCENT_NAME" >&2
-		printf 'Disponibles : orange orange-rouge bleu rouge vert gris violet neon\n' >&2
+		printf 'Disponibles : orange (= classique) orange-rouge bleu rouge vert gris violet neon\n' >&2
 		exit 1
 		;;
 esac

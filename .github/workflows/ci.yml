@@ -24,7 +24,23 @@ jobs:
             tools/render-branding.sh \
             config/hooks/normal/*.hook.chroot \
             config/includes.chroot/usr/bin/* \
-            config/includes.chroot/etc/profile.d/lexos.sh
+            config/includes.chroot/etc/profile.d/lexos.sh \
+            config/includes.chroot/usr/share/lexos/shell/*.sh
+
+      - name: Syntaxe des fichiers de complétion (touche Tab)
+        run: |
+          #  Ces fichiers ne passent pas par shellcheck : ils emploient les
+          #  tournures de bash-completion (COMPREPLY, compgen, _filedir) que
+          #  l'analyseur signale à tort hors de leur contexte. On vérifie donc
+          #  la syntaxe, et surtout qu'ils déclarent bien leur « complete » —
+          #  un fichier sans cette ligne se charge sans rien faire, et la
+          #  touche Tab reste muette sans le moindre message d'erreur.
+          for f in config/includes.chroot/usr/share/bash-completion/completions/*; do
+            bash -n "$f"
+            grep -q '^complete ' "$f" \
+              || { echo "::error file=$f::pas de ligne « complete » : Tab resterait muet"; exit 1; }
+            echo "  ok $f"
+          done
 
       - name: Syntaxe bash des outils embarqués
         run: |
