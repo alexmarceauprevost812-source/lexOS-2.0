@@ -26,7 +26,7 @@
 _lexos_cmds='aide help version info doctor logs
 update upgrade install remove search clean
 theme accent police dock ecran wallpaper crt
-lang perf lumiere
+lang perf lumiere temperature
 jeux game secure vpn net avion wifi bt
 share receive ecran-telephone logitheque
 usb vide-memoire format capture run-ins
@@ -114,6 +114,8 @@ _lexos() {
 			mapfile -t COMPREPLY < <(compgen -W "on off status" -- "$cur") ;;
 		perf|performance)
 			mapfile -t COMPREPLY < <(compgen -W "$_lexos_perfs" -- "$cur") ;;
+		temperature|temp|chaleur|ventilateurs)
+			mapfile -t COMPREPLY < <(compgen -W "maintenant surveille json aide" -- "$cur") ;;
 		lumiere|luminosite)
 			mapfile -t COMPREPLY < <(compgen -W "eco 10 25 50 75 100" -- "$cur") ;;
 		lang|langue)

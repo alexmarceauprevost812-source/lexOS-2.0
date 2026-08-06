@@ -1,0 +1,52 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — Températures et ventilateurs dans le menu
+# =============================================================================
+#  Sur une machine de jeu, la chaleur explique la moitié des « ça rame ». Ce
+#  hook pose « Températures et ventilateurs » dans le menu Applications, à
+#  côté des outils système.
+#
+#  Le lanceur ouvre un terminal qui reste ouvert : l'affichage est un tableau
+#  qui se rafraîchit, pas une fenêtre à cliquer. Même forme que les autres
+#  lanceurs en ligne de commande (hook 0400).
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0480 : températures et ventilateurs"
+
+MANQUE=0
+for F in /usr/bin/lexos-temp /usr/lib/lexos/temperature.py; do
+	if [ ! -r "$F" ]; then
+		echo "[lexos]   !! fichier absent : $F"
+		MANQUE=1
+	fi
+done
+[ "$MANQUE" -eq 0 ] || exit 1
+
+# Le moteur doit être lisible par Python : une faute de syntaxe donnerait un
+# écran vide, sans le moindre message d'erreur.
+if ! python3 -c "import ast,sys; ast.parse(open(sys.argv[1], encoding='utf-8').read(), sys.argv[1])" \
+       /usr/lib/lexos/temperature.py; then
+	echo "[lexos]   !! /usr/lib/lexos/temperature.py contient une erreur de syntaxe"
+	exit 1
+fi
+
+chmod 0755 /usr/bin/lexos-temp
+
+mkdir -p /usr/share/applications
+cat > /usr/share/applications/lexos-temp.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Températures et ventilateurs
+Name[en]=Temperatures and fans
+GenericName=Chaleur de la machine
+Comment=Processeur, carte graphique, mémoire vidéo et ventilateurs, en direct
+Exec=xfce4-terminal --title="Températures et ventilateurs" --geometry=64x20 -e "lexos-temp"
+Icon=sensors-applet
+Terminal=false
+Categories=System;Monitor;
+Keywords=temperature;chaleur;ventilateur;fan;gpu;vram;surchauffe;
+EOF
+
+echo "[lexos]   ok — « Températures et ventilateurs » posée dans le menu"

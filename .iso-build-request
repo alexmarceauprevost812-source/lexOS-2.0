@@ -17,6 +17,24 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 26 : TEMPÉRATURES ET VENTILATEURS, EN DIRECT. Sur une machine de jeu
+# compacte, la chaleur explique la moitié des « ça rame » : un processeur qui
+# touche sa limite ne plante pas, il RALENTIT en silence. On accuse alors le
+# jeu ou la carte graphique. « lexos temperature » (ou le lanceur du menu)
+# met les chiffres sous les yeux : cœur le plus chaud du processeur, carte
+# graphique, disques NVMe, ventilateurs en tours par minute.
+#   La ligne qui compte vraiment pour une RTX 5060 : la MÉMOIRE VIDÉO. Ses
+#   8 Go se remplissent sur les jeux récents, et quand ils sont pleins le jeu
+#   saccade sans que les images par seconde ne s'effondrent — le symptôme
+#   qu'on met des heures à comprendre. Au-delà de 90 %, l'affichage passe au
+#   rouge et dit quoi faire : baisser les textures d'un cran.
+#   « lexos temperature surveille » garde les MAXIMUMS : on le lance avant
+#   une partie, on le regarde en sortant, et on sait enfin ce qui a chauffé.
+#   Les mesures viennent de /sys/class/hwmon (les capteurs que le noyau
+#   expose déjà : aucun paquet à installer, aucun droit root) et de
+#   nvidia-smi, livré avec le pilote. Chaque source est isolée : pas de
+#   NVIDIA, pas de capteur de ventilateur, ou un noyau qui range autrement —
+#   la source concernée se tait et les autres continuent de s'afficher.
 # build 25 : LA BIBLIOTHÈQUE DE JEUX. C'était le trou d'un système qui se dit
 # « pour jouer » : Steam avait sa liste, Lutris la sienne, RetroArch gardait
 # ses ROMs à part et les jeux Debian se perdaient dans le menu — aucun endroit
@@ -102,4 +120,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 25
+build: 26

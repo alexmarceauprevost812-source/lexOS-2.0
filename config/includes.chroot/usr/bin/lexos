@@ -112,6 +112,9 @@ ${B}ÉNERGIE${R}
   ${A}lumiere${R} <0-100>     Luminosité de l'écran ${D}(aussi : lumiere eco, lumiere +10)${R}
   ${A}perf status${R}         Ce que fait vraiment la machine
   ${A}perf auto${R}           Choisir d'après le matériel détecté
+  ${A}temperature${R}         ${B}Chaleur et ventilateurs, en direct${R}
+                      ${D}processeur · carte graphique · mémoire vidéo · disques${R}
+  ${A}temperature surveille${R} Garde les maximums — à lancer AVANT une partie
 
 ${B}JEUX${R} ${D}(saveur gaming)${R}
   ${A}jeux${R}                 ${B}Ta bibliothèque${R} : tous tes jeux au même endroit
@@ -839,6 +842,7 @@ case "$CMD" in
 	dock|barre)           cmd_dock "$@" ;;
 	ecran|écran|display|screen) exec lexos-display "$@" ;;
 	perf|performance)     exec lexos-perf "$@" ;;
+	temperature|température|temp|chaleur|ventilateurs) exec lexos-temp "$@" ;;
 	lumiere|luminosite|brightness) exec lexos-brightness "$@" ;;
 	net|reseau)           exec lexos-net "$@" ;;
 	avion|airplane)       exec lexos-net avion "$@" ;;
