@@ -114,6 +114,15 @@ GRUB_DISTRIBUTOR="${LEXOS_NAME}"
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
 GRUB_BACKGROUND="/usr/share/backgrounds/lexos/wallpaper.png"
 GRUB_GFXMODE=auto
+#  LA LIGNE QUI REND LE DOUBLE DÉMARRAGE POSSIBLE.
+#  Depuis GRUB 2.06, Debian coupe la recherche des autres systèmes par
+#  défaut (GRUB_DISABLE_OS_PROBER=true). Conséquence si on n'y touche pas :
+#  on installe LexOS à côté de Windows, tout se passe bien... et le menu de
+#  démarrage n'affiche que LexOS. Windows est toujours sur le disque, mais
+#  il faut passer par le menu du BIOS pour l'atteindre — ce qui ressemble à
+#  s'y méprendre à une perte de données.
+#  On la remet donc à false, et os-prober est dans la liste OBLIGATOIRE.
+GRUB_DISABLE_OS_PROBER=false
 EOF
 
 # --- Métadonnées internes ----------------------------------------------------

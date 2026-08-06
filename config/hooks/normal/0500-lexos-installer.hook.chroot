@@ -11,6 +11,27 @@ fi
 
 echo "[lexos] hook 0500 : installateur"
 
+# =============================================================================
+#  DOUBLE DÉMARRAGE — la vérification qui ne doit jamais sauter
+# =============================================================================
+#  Une ISO a été livrée sans de quoi voir Windows au démarrage : os-prober
+#  n'était dans aucune liste, et GRUB_DISABLE_OS_PROBER restait au défaut
+#  de Debian (true, depuis GRUB 2.06). Installer LexOS à côté de Windows
+#  donnait alors un menu qui n'affichait que LexOS. Rien n'était perdu, mais
+#  ça ne se découvrait qu'APRÈS l'installation — le pire moment.
+#  Les deux pièces sont vérifiées ici, et leur absence ARRÊTE la
+#  construction : mieux vaut pas d'ISO qu'une ISO au double démarrage muet.
+if ! command -v os-prober >/dev/null 2>&1; then
+	echo "[lexos]   !! os-prober absent : le menu de démarrage ne verrait pas Windows"
+	exit 1
+fi
+if ! grep -rqs '^GRUB_DISABLE_OS_PROBER=false' /etc/default/grub /etc/default/grub.d; then
+	echo "[lexos]   !! GRUB_DISABLE_OS_PROBER=false introuvable dans /etc/default/grub.d"
+	echo "[lexos]      (posé par le hook 0100 — a-t-il tourné ?)"
+	exit 1
+fi
+echo "[lexos]   double démarrage : os-prober présent, recherche des autres systèmes active"
+
 LEXOS_NAME="LexOS"
 LEXOS_VERSION="1.0"
 LEXOS_CODENAME="Nomad"

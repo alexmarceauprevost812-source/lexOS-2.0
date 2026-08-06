@@ -15,6 +15,15 @@ live-boot
 live-config
 systemd-sysv
 init
+#  os-prober cherche les AUTRES systèmes présents sur le disque (Windows,
+#  une autre distribution) pour que GRUB leur fasse une entrée dans le menu
+#  de démarrage. Sans lui, installer LexOS à côté de Windows donne un menu
+#  qui n'affiche que LexOS : Windows est toujours là, mais il faut passer
+#  par le menu du BIOS pour l'atteindre — ce qui se lit comme une perte.
+#  Il est ICI, dans la liste obligatoire, et pas dans les paquets optionnels :
+#  une absence silencieuse coûterait un double démarrage cassé, découvert
+#  seulement après l'installation. Mieux vaut arrêter la construction.
+os-prober
 
 # --- Firmware & matériel -----------------------------------------------------
 firmware-linux-free

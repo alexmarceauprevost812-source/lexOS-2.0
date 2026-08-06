@@ -17,6 +17,22 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 28 : LE DOUBLE DÉMARRAGE MARCHE. Défaut trouvé en vérifiant AVANT
+# l'installation, pas après : rien dans l'ISO ne permettait à GRUB de voir
+# Windows. Deux pièces manquaient, et il fallait les deux.
+#   · os-prober — l'outil qui cherche les autres systèmes sur le disque —
+#     n'était dans AUCUNE liste de paquets.
+#   · GRUB_DISABLE_OS_PROBER n'était jamais réglé, or Debian le laisse à
+#     « true » depuis GRUB 2.06 : la recherche était donc coupée d'origine.
+#   Conséquence qu'on aurait découverte trop tard : on installe LexOS à côté
+#   de Windows, tout se passe bien, et le menu de démarrage n'affiche que
+#   LexOS. Windows est toujours sur le disque, mais il faut passer par le
+#   menu du BIOS pour l'atteindre — ce qui ressemble à une perte de données.
+#   os-prober passe dans la liste OBLIGATOIRE (une absence silencieuse
+#   coûterait un double démarrage cassé), la ligne GRUB est posée par le
+#   hook 0100, et le hook 0500 VÉRIFIE les deux : leur absence arrête
+#   désormais la construction. Mieux vaut pas d'ISO qu'une ISO au double
+#   démarrage muet.
 # build 27 : LexOS passe en 2.0.0. Le numéro vient de lexos.conf, seule source
 # de vérité — tout le reste (nom du fichier ISO, /etc/os-release, le fond
 # d'écran, lexfetch, les pages du site) le recopie de là. L'ISO s'appellera
@@ -131,4 +147,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 27
+build: 28
