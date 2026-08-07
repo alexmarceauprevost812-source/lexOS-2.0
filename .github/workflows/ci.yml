@@ -83,18 +83,55 @@ jobs:
 
       - name: Listes de paquets bien formées
         run: |
+          #  Deux familles de listes, deux règles :
+          #   · config/package-lists/ et flavours/ partent telles quelles à
+          #     live-build, qui ne connaît qu'un nom de paquet par ligne ;
+          #   · optional-packages/ passe par le hook 0250, qui accepte des
+          #     noms de rechange séparés par « | » et retient le premier qui
+          #     s'installe (cf. 0250-lexos-optional.hook.chroot).
+          #  La barre est donc légitime d'un côté et fatale de l'autre : dans
+          #  une liste live-build elle ne serait pas lue comme un choix mais
+          #  comme un nom de paquet contenant une barre, et la construction
+          #  s'arrêterait sur « unable to locate package ».
+          nom='^[a-z0-9][a-z0-9+.:-]*$'
           bad=0
-          for f in config/package-lists/*.list.chroot flavours/*/*.list.chroot \
-                   config/includes.chroot/usr/share/lexos/optional-packages/*.list; do
+
+          #  verifier <fichier> <rechanges autorisées : oui|non>
+          verifier() {
             while IFS= read -r line; do
               case "$line" in
                 ''|\#*) continue ;;
               esac
-              if ! printf '%s' "$line" | grep -qE '^[a-z0-9][a-z0-9+.:-]*$'; then
-                echo "::error file=$f::nom de paquet suspect : '$line'"
+              if [ "$2" = oui ]; then
+                #  Chaque nom de rechange est vérifié séparément : « a| » ou
+                #  « a||b » laisserait un nom vide que le hook sauterait sans
+                #  un mot, et la fonction serait perdue en silence.
+                reste="$line"
+                while :; do
+                  if ! printf '%s' "${reste%%|*}" | grep -qE "$nom"; then
+                    echo "::error file=$1::nom de paquet suspect : '$line'"
+                    bad=1
+                  fi
+                  case "$reste" in
+                    *'|'*) reste="${reste#*|}" ;;
+                    *) break ;;
+                  esac
+                done
+              elif ! printf '%s' "$line" | grep -qE "$nom"; then
+                case "$line" in
+                  *'|'*) echo "::error file=$1::« | » interdit ici : cette liste part telle quelle à live-build. Les noms de rechange ne valent que dans optional-packages/." ;;
+                  *)     echo "::error file=$1::nom de paquet suspect : '$line'" ;;
+                esac
                 bad=1
               fi
-            done < "$f"
+            done < "$1"
+          }
+
+          for f in config/package-lists/*.list.chroot flavours/*/*.list.chroot; do
+            verifier "$f" non
+          done
+          for f in config/includes.chroot/usr/share/lexos/optional-packages/*.list; do
+            verifier "$f" oui
           done
           exit $bad
 
