@@ -83,6 +83,13 @@ jobs:
 
       - name: Listes de paquets bien formées
         run: |
+          #  Une LIGNE peut proposer plusieurs noms séparés par « | » : le hook
+          #  0250 les essaie dans l'ordre et garde le premier qui s'installe
+          #  (« ppsspp-qt|ppsspp|ppsspp-sdl »). C'est ce qui évite qu'un paquet
+          #  renommé entre deux versions de Debian fasse perdre la fonction.
+          #  Ce contrôle l'ignorait et rejetait ces lignes : on valide donc
+          #  chaque nom de rechange SÉPARÉMENT, ce qui reste aussi strict sur
+          #  chacun d'eux.
           bad=0
           for f in config/package-lists/*.list.chroot flavours/*/*.list.chroot \
                    config/includes.chroot/usr/share/lexos/optional-packages/*.list; do
@@ -90,8 +97,27 @@ jobs:
               case "$line" in
                 ''|\#*) continue ;;
               esac
-              if ! printf '%s' "$line" | grep -qE '^[a-z0-9][a-z0-9+.:-]*$'; then
-                echo "::error file=$f::nom de paquet suspect : '$line'"
+              #  « | » n'est autorisé que dans les listes optionnelles : les
+              #  listes obligatoires doivent nommer un paquet unique, sinon la
+              #  garantie « le build échoue si absent » n'a plus de sens.
+              case "$f" in
+                *optional-packages/*) ;;
+                *) if printf '%s' "$line" | grep -q '|'; then
+                     echo "::error file=$f::nom de rechange interdit en liste obligatoire : '$line'"
+                     bad=1
+                     continue
+                   fi ;;
+              esac
+              nom_ko=""
+              IFS='|' read -r -a alternatives <<< "$line"
+              for nom in "${alternatives[@]}"; do
+                if ! printf '%s' "$nom" | grep -qE '^[a-z0-9][a-z0-9+.:-]*$'; then
+                  nom_ko="$nom"
+                  break
+                fi
+              done
+              if [ -n "$nom_ko" ]; then
+                echo "::error file=$f::nom de paquet suspect : '$nom_ko' (dans la ligne '$line')"
                 bad=1
               fi
             done < "$f"
