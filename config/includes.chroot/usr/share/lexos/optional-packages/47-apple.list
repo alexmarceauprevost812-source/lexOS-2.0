@@ -34,9 +34,8 @@ pciutils
 # (APFS, plus récent, reste en lecture seule et expérimentale sous Linux.)
 hfsprogs
 
-# efibootmgr sert à ranger l'entrée de démarrage LexOS dans le firmware
-# après une installation à côté de macOS.
-efibootmgr
+# efibootmgr a été déplacé dans la liste OBLIGATOIRE (lexos-core.list.chroot) :
+# il sert sur TOUTE machine UEFI, pas seulement à côté de macOS.
 
 # --- Micrologiciel Wi-Fi sans script -----------------------------------
 # Fichiers seulement : rien à télécharger ni à compiler, donc sans risque

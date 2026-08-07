@@ -17,6 +17,26 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 29 : audit complet du chemin « installer à côté de Windows », puis
+# correctifs. La MÉCANIQUE était déjà bonne (os-prober, drop-in GRUB, GRUB du
+# système installé fourni par le pool de l'ISO — donc hors ligne). Ce qui
+# manquait, c'étaient les GARDE-FOUS et les AVERTISSEMENTS :
+#   · calamares + calamares-settings-debian passent en liste OBLIGATOIRE :
+#     l'installateur ne peut plus manquer en silence (il était best-effort).
+#   · efibootmgr passe aussi en obligatoire (il crée l'entrée UEFI « LexOS »
+#     sur toute machine, pas seulement à côté de macOS où il était rangé).
+#   · Le hook 0500 vérifie le double démarrage AVANT de tester Calamares, et
+#     échoue désormais si Calamares manque sur une saveur à bureau (avant, un
+#     Calamares absent faisait sauter toute la vérification).
+#   · Les trois pièges que LexOS ne peut pas régler à la place de l'utilisateur
+#     sont maintenant écrits là où il les lira : BitLocker (Windows 11 chiffre
+#     souvent le disque tout seul), le démarrage rapide de Windows (laisse le
+#     disque verrouillé), et le Secure Boot (à désactiver pour le pilote
+#     NVIDIA). Ajoutés dans docs/INSTALLATION.md, website/installation.html et
+#     dans l'avertissement de lexos-install (le message juste avant d'installer).
+#   · Doc : versions périmées lexos-1.0-* corrigées en 2.0.0, et la grande
+#     section « à côté » précise enfin qu'elle décrit l'installateur Debian, pas
+#     Calamares (le chemin mis en avant).
 # build 28 : LE DOUBLE DÉMARRAGE MARCHE. Défaut trouvé en vérifiant AVANT
 # l'installation, pas après : rien dans l'ISO ne permettait à GRUB de voir
 # Windows. Deux pièces manquaient, et il fallait les deux.
@@ -147,4 +167,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 28
+build: 29

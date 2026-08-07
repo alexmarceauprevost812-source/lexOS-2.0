@@ -30,6 +30,33 @@ ce que tu veux faire :
 > **Aucune ISO encore ?** Tous ces chemins partent du même fichier `.iso`.
 > Commence par l'**Étape 1**.
 
+### ⚠ Avant d'installer À CÔTÉ de Windows 11 — à faire DANS Windows
+
+Trois réglages de Windows empêchent le partage du disque s'ils ne sont pas
+faits **avant**. Ils ne se règlent pas depuis LexOS : c'est dans Windows, une
+seule fois, puis on n'y revient plus.
+
+| À faire dans Windows | Pourquoi | Si tu oublies |
+|---|---|---|
+| **Suspendre BitLocker** (ou noter la clé sur `aka.ms/myrecoverykey`) | Windows 11 chiffre souvent le disque tout seul | L'option « à côté » n'apparaît pas, ou Windows réclame une clé au redémarrage |
+| **Désactiver le démarrage rapide** (Options d'alimentation → « Choisir l'action des boutons ») | Windows « hiberne » au lieu de s'arrêter, le disque reste verrouillé | Le redimensionnement échoue avec un message obscur |
+| **Laisser de l'espace libre** (20 à 40 % du disque) | LexOS a besoin de place | Rien à partager |
+
+Puis, dans le **BIOS** (touche `F2` ou `F12` au démarrage) :
+
+- **Secure Boot : Désactivé.** L'édition pro embarque le pilote NVIDIA, qui
+  ne se charge pas quand Secure Boot est actif → écran noir au premier
+  démarrage. (Si Windows est chiffré, suspends BitLocker **avant** de toucher
+  au Secure Boot.)
+
+Une fois dans l'installateur : choisis **« Installer à côté »**, jamais
+« effacer », et **ne coche pas** le chiffrement pour un premier double
+démarrage.
+
+> Ces trois pièges sont les seuls que LexOS ne peut pas régler à ta place.
+> Le reste — voir Windows au démarrage, garder tes deux systèmes — est
+> automatique.
+
 ---
 
 ## Étape 1 — Obtenir l'ISO
@@ -52,7 +79,7 @@ téléchargeable en artefact au bas de la page du job.
 ### Vérifier l'intégrité
 
 ```bash
-sha256sum -c lexos-1.0-standard-amd64.iso.sha256
+sha256sum -c lexos-2.0.0-pro-amd64.iso.sha256
 ```
 
 Si la réponse n'est pas `OK`, l'ISO est corrompue : recommence le
@@ -90,7 +117,7 @@ Sans le Makefile :
 
 ```bash
 sudo umount /dev/sdb* 2>/dev/null
-sudo dd if=lexos-1.0-standard-amd64.iso of=/dev/sdb bs=4M status=progress oflag=sync
+sudo dd if=lexos-2.0.0-pro-amd64.iso of=/dev/sdb bs=4M status=progress oflag=sync
 sync
 ```
 
@@ -150,7 +177,7 @@ puis tu **copies-colles** les fichiers `.iso` dessus comme des fichiers
 ordinaires. Tu peux en garder plusieurs et choisir au démarrage.
 
 1. Installe Ventoy sur la clé (⚠ cette étape-là efface la clé, une fois).
-2. Glisse-dépose `lexos-1.0-standard-amd64.iso` sur la clé, comme un fichier.
+2. Glisse-dépose `lexos-2.0.0-pro-amd64.iso` sur la clé, comme un fichier.
 3. Redémarre, choisis la clé dans le menu de démarrage, puis LexOS dans la
    liste que Ventoy affiche.
 
@@ -250,7 +277,7 @@ flavour: pro
 build: 8
 ```
 
-Pousse : GitHub Actions produit `lexos-1.0-pro-amd64.iso`, à côté de
+Pousse : GitHub Actions produit `lexos-2.0.0-pro-amd64.iso`, à côté de
 l'édition standard. En local : `sudo ./build.sh --flavour pro`.
 
 ### Les jeux Windows
@@ -268,6 +295,12 @@ Ce qui ne marchera pas, et il vaut mieux le savoir avant d'essayer : les
 jeux en ligne dont l'anti-triche refuse Linux — c'est un refus délibéré de
 leur éditeur, pas une limite technique de LexOS. `lexos game info` affiche
 ce que la machine sait faire (Vulkan, GameMode, MangoHud) avant de lancer.
+
+> **Secure Boot et le pilote NVIDIA.** L'édition pro installe le pilote
+> NVIDIA depuis le dépôt officiel : son module noyau n'est pas signé par la
+> clé de Debian. Il faut donc **laisser le Secure Boot désactivé** dans le
+> BIOS — sinon le module ne se charge pas et l'écran reste noir au démarrage.
+> Ce n'est pas un dépannage optionnel : pour le pro, c'est un prérequis.
 
 ---
 
@@ -297,7 +330,7 @@ même travail sur la machine réelle.
    ```bash
    diskutil list                     # trouver le numéro N de la clé
    diskutil unmountDisk /dev/diskN
-   sudo dd if=lexos-1.0-standard-amd64.iso of=/dev/rdiskN bs=4m status=progress
+   sudo dd if=lexos-2.0.0-pro-amd64.iso of=/dev/rdiskN bs=4m status=progress
    ```
 
 2. Redémarre en tenant **Option (⌥)**.
@@ -368,6 +401,16 @@ Ce qui reste possible :
 ---
 
 ## Installer LexOS À CÔTÉ d'un autre Linux (ou de Windows)
+
+> **Deux installateurs, deux chemins.** Le plus simple, celui de l'Étape 4,
+> est l'installateur graphique **Calamares** : il propose directement
+> « Installer à côté » et redimensionne tout seul. La section ci-dessous
+> décrit l'**installateur Debian** (écrans « Partitionner les disques »),
+> disponible via l'entrée **« Install »** du menu de démarrage de la clé —
+> à réserver au partitionnement manuel avancé. Pour Windows, préfère
+> Calamares, et suis d'abord l'encadré **« Avant d'installer à côté de
+> Windows 11 »** en haut de ce guide (BitLocker, démarrage rapide,
+> Secure Boot).
 
 C'est possible, et c'est même le cas le plus courant. Mais il y a un ordre à
 respecter, sinon l'installateur s'arrête sur :

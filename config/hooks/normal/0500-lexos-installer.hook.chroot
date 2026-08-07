@@ -4,12 +4,15 @@
 # =============================================================================
 set -e
 
-if [ ! -x /usr/bin/calamares ]; then
-	echo "[lexos] hook 0500 : Calamares absent, ignoré"
-	exit 0
-fi
-
 echo "[lexos] hook 0500 : installateur"
+
+#  La saveur est lue tôt : le test « Calamares obligatoire » plus bas tolère
+#  la saveur minimal (sans bureau, donc sans installateur graphique).
+LEXOS_FLAVOUR="standard"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+fi
 
 # =============================================================================
 #  DOUBLE DÉMARRAGE — la vérification qui ne doit jamais sauter
@@ -21,6 +24,10 @@ echo "[lexos] hook 0500 : installateur"
 #  ça ne se découvrait qu'APRÈS l'installation — le pire moment.
 #  Les deux pièces sont vérifiées ici, et leur absence ARRÊTE la
 #  construction : mieux vaut pas d'ISO qu'une ISO au double démarrage muet.
+#  IMPORTANT : ce bloc est AVANT le test de présence de Calamares. os-prober
+#  et le drop-in GRUB servent aussi au chemin d-i (installateur Debian), donc
+#  la garantie double démarrage ne doit pas dépendre de Calamares — sinon un
+#  Calamares manquant ferait sauter la vérification en silence.
 if ! command -v os-prober >/dev/null 2>&1; then
 	echo "[lexos]   !! os-prober absent : le menu de démarrage ne verrait pas Windows"
 	exit 1
@@ -32,12 +39,27 @@ if ! grep -rqs '^GRUB_DISABLE_OS_PROBER=false' /etc/default/grub /etc/default/gr
 fi
 echo "[lexos]   double démarrage : os-prober présent, recherche des autres systèmes active"
 
+#  Calamares est maintenant dans la liste OBLIGATOIRE (lexos-core.list.chroot) :
+#  son absence est donc anormale et doit ARRÊTER la construction, pas être
+#  ignorée en silence comme avant. Les saveurs sans bureau (minimal) n'ont pas
+#  d'installateur graphique et sont tolérées ici.
+if [ ! -x /usr/bin/calamares ]; then
+	if [ "${LEXOS_FLAVOUR:-standard}" = "minimal" ]; then
+		echo "[lexos] hook 0500 : saveur minimal sans Calamares, ignoré"
+		exit 0
+	fi
+	echo "[lexos]   !! Calamares absent alors qu'il est en liste obligatoire"
+	exit 1
+fi
+
 LEXOS_NAME="LexOS"
 LEXOS_VERSION="1.0"
 LEXOS_CODENAME="Nomad"
 LEXOS_HOME_URL="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-"
 LEXOS_BUG_URL="${LEXOS_HOME_URL}/issues"
 
+#  build.conf a déjà été lu plus haut (pour la saveur) ; on le relit ici au
+#  cas où, sans effet de bord (mêmes affectations).
 if [ -r /etc/lexos/build.conf ]; then
 	# shellcheck disable=SC1091
 	. /etc/lexos/build.conf

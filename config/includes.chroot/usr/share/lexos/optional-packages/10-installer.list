@@ -1,4 +1,5 @@
-# Installateur graphique. Sans lui, l'installateur Debian du menu de
-# démarrage reste disponible.
-calamares
-calamares-settings-debian
+# Installateur graphique.
+# calamares et calamares-settings-debian sont désormais dans la liste
+# OBLIGATOIRE (config/package-lists/lexos-core.list.chroot) : c'est lui qui
+# installe LexOS à côté de Windows, on ne veut donc pas d'une ISO sans lui.
+# Cette liste optionnelle est laissée vide exprès (rien à ajouter ici).

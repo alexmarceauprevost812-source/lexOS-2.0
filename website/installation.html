@@ -173,6 +173,23 @@ sync</code></pre>
 
   <h2 id="installer">Installer sur le disque</h2>
   <p><i>Seulement si tu es convaincu.</i></p>
+
+  <div class="notice warn">
+    <b>⚠ Installer à côté de Windows 11 ? Trois réglages à faire DANS Windows d'abord.</b>
+    Ils ne se règlent pas depuis LexOS. Sans eux, le partage du disque échoue.
+    <table>
+      <tr><th>Dans Windows</th><th>Pourquoi</th></tr>
+      <tr><td><b>Suspendre BitLocker</b> (ou noter la clé sur <code>aka.ms/myrecoverykey</code>)</td>
+          <td>Windows 11 chiffre souvent le disque tout seul — sinon l'option « à côté » n'apparaît pas, ou Windows réclame une clé au redémarrage.</td></tr>
+      <tr><td><b>Désactiver le démarrage rapide</b> (Options d'alimentation)</td>
+          <td>Windows « hiberne » au lieu de s'arrêter ; le disque reste verrouillé et ne peut pas être redimensionné.</td></tr>
+      <tr><td><b>Secure Boot : Désactivé</b> (dans le BIOS, touche <code>F2</code>/<code>F12</code>)</td>
+          <td>L'édition pro embarque le pilote NVIDIA, qui ne se charge pas si Secure Boot est actif → écran noir. Si Windows est chiffré, suspends BitLocker <b>avant</b>.</td></tr>
+    </table>
+    Puis, dans l'installateur : <b>« Installer à côté »</b>, jamais « effacer »,
+    et <b>ne coche pas</b> le chiffrement.
+  </div>
+
   <h3>Avant de cliquer</h3>
   <ul>
     <li>Tu as <b>essayé</b> la session démo et tout fonctionne.</li>
