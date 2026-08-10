@@ -11,12 +11,34 @@
 # minimal | standard | dev | full | gaming | pro
 #   pro = TI-LEX-OS Pro, l'édition pour jouer : Vulkan, Wine, Steam/Proton,
 #         Lutris, GameMode, MangoHud, manettes, émulateurs, jeux libres.
-flavour: pro
+#
+#   standard = le bureau complet SANS pilote propriétaire NVIDIA (le hook 0260
+#   ne s'exécute que sur la saveur pro). C'est la saveur à prendre pour une
+#   machine à carte graphique intégrée, ou pour tester le système lui-même
+#   sans traîner les 5 Go de la logithèque de jeu.
+#
+#   La Release est publiée sous « latest-<saveur> » : passer en standard ne
+#   remplace donc PAS l'ISO pro, qui reste disponible sous « latest-pro ».
+flavour: standard
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 30 : une ISO STANDARD, pour tester sur une machine sans NVIDIA.
+#   Sur l'Alienware, la saveur pro a bien démarré jusqu'au menu GRUB (affiché
+#   sur la TV Hisense) puis a PERDU le signal HDMI au chargement du noyau —
+#   la TV est repassée toute seule sur une autre entrée, et aucune entrée
+#   HDMI ne recevait plus rien. C'est la régression qu'on traque depuis le
+#   build 17, et la branche 595 ne suffit pas à l'éviter sur ce téléviseur.
+#   Plutôt que de continuer à deviner sur du matériel qui n'affiche rien, on
+#   valide le système lui-même sur un portable de 2016 à carte graphique
+#   intégrée : la saveur standard n'exécute pas le hook 0260, donc aucun
+#   pilote propriétaire, donc pas de perte de signal possible.
+#   Ce qui sera enfin vérifiable en vrai : le bureau, la touche Tab, « lexos
+#   aide », lexos jeux, lexos temperature, et l'installation à côté d'un autre
+#   système. Le diagnostic NVIDIA/HDMI reprendra ensuite, avec l'EDID de la
+#   Hisense relevé depuis le mode de secours.
 # build 29 : audit complet du chemin « installer à côté de Windows », puis
 # correctifs. La MÉCANIQUE était déjà bonne (os-prober, drop-in GRUB, GRUB du
 # système installé fourni par le pool de l'ISO — donc hors ligne). Ce qui
@@ -167,4 +189,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 29
+build: 30
