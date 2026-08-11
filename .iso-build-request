@@ -25,6 +25,23 @@ flavour: dev
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 33 : « lexos firmware » — mettre à jour le BIOS depuis LexOS.
+#   Alex a signalé que le BIOS de sa RTX 5060 avait été mis à jour APRÈS
+#   l'installation de Windows, et demandé si LexOS pouvait en faire autant.
+#   Réponse honnête, écrite dans la commande elle-même :
+#     · BIOS SYSTÈME, SSD, Thunderbolt, clavier, dalle → OUI. fwupd était déjà
+#       dans l'ISO (15-essentiel.list) mais aucune commande ne le pilotait.
+#       Dell et Alienware publient sur LVFS : ça marche depuis Linux.
+#     · BIOS DE LA CARTE GRAPHIQUE (VBIOS) → NON. NVIDIA ne publie aucun outil
+#       de reprogrammation pour Linux. Des outils tiers existent ; une
+#       reprogrammation ratée rend la carte définitivement muette. La commande
+#       n'en propose aucun et le dit clairement, plutôt que de laisser
+#       quelqu'un chercher ailleurs sans connaître le risque.
+#   Garde-fous : rien n'est appliqué sans taper « METTRE A JOUR » en toutes
+#   lettres, et la commande REFUSE de démarrer sur batterie — une mise à jour
+#   de BIOS coupée en plein vol peut rendre la machine inutilisable.
+#   Note : « lexos firmware aide » répond même quand fwupd est absent, c'est
+#   justement le moment où on a besoin de lire ce que fait la commande.
 # build 32 : les fonds d'écran à la souris, enfin. Trois demandes en attente
 # depuis plusieurs jours, toutes du même genre : les morceaux existaient déjà,
 # mais rien ne les reliait et il fallait passer par le terminal.
@@ -223,4 +240,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 32
+build: 33

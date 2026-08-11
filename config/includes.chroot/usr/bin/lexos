@@ -115,6 +115,10 @@ ${B}ÉNERGIE${R}
   ${A}temperature${R}         ${B}Chaleur et ventilateurs, en direct${R}
                       ${D}processeur · carte graphique · mémoire vidéo · disques${R}
   ${A}temperature surveille${R} Garde les maximums — à lancer AVANT une partie
+  ${A}firmware${R}            BIOS et micrologiciels : ce qui est à jour
+  ${A}firmware maj${R}        Met à jour le BIOS système, les SSD…
+                      ${D}Dell et Alienware sont soutenus. Le BIOS de la CARTE
+                      GRAPHIQUE (VBIOS), lui, ne se met à jour que sous Windows.${R}
 
 ${B}JEUX${R} ${D}(saveur gaming)${R}
   ${A}jeux${R}                 ${B}Ta bibliothèque${R} : tous tes jeux au même endroit
@@ -872,6 +876,7 @@ case "$CMD" in
 	ia|agent)             exec lexos-ia "$@" ;;
 	claude|cc)            exec lexos-claude "$@" ;;
 	dev|devs|developpement|développement) exec lexos-dev "$@" ;;
+	firmware|bios|micrologiciel) exec lexos-firmware "$@" ;;
 	musique|music)        exec lexos-musique "$@" ;;
 	chrome|google-chrome) exec lexos-chrome "$@" ;;
 	#  « jeux » ouvre la BIBLIOTHÈQUE (la liste de ce qu'on possède) : c'est
