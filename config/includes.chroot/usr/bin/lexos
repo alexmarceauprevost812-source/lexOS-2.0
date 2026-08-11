@@ -226,6 +226,15 @@ ${B}IA${R}
   ${A}claude app${R}           L'application Claude (claude.ai) en fenêtre dédiée
                       ${D}Claude tourne dans le nuage : connexion et compte requis${R}
 
+${B}DÉVELOPPEMENT${R}
+  ${A}dev${R}                 État des outils : Claude Code, GitHub CLI, Vercel CLI
+  ${A}dev install${R}         Installe les trois ${D}(depuis leur source officielle)${R}
+  ${A}dev install${R} <outil> ${D}claude · gh · vercel${R}
+  ${A}dev update${R}          Met à jour ceux qui sont installés
+                      ${D}Ces outils sortent une version par semaine : les figer
+                      dans l'ISO les livrerait périmés. Le nécessaire (nodejs,
+                      npm, git, curl) est, lui, déjà installé.${R}
+
 ${B}DÉMO & INSTALLATION${R}
   ${A}demo${R}                Où en est-on : clé USB (démo) ou disque dur ?
   ${A}install-disk${R}        Installer sur le disque ${D}(confirmation exigée)${R}
@@ -862,6 +871,7 @@ case "$CMD" in
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
 	ia|agent)             exec lexos-ia "$@" ;;
 	claude|cc)            exec lexos-claude "$@" ;;
+	dev|devs|developpement|développement) exec lexos-dev "$@" ;;
 	musique|music)        exec lexos-musique "$@" ;;
 	chrome|google-chrome) exec lexos-chrome "$@" ;;
 	#  « jeux » ouvre la BIBLIOTHÈQUE (la liste de ce qu'on possède) : c'est

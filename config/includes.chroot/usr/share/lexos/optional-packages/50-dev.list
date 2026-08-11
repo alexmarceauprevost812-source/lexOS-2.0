@@ -1,6 +1,10 @@
 # Atelier développeur — saveurs dev et full.
 nodejs
 npm
+#  gh (GitHub CLI) : présent dans les Debian récentes, absent des plus
+#  anciennes. Il est ici en « au mieux » — s'il manque, « lexos dev install gh »
+#  le pose depuis le dépôt officiel GitHub, qui est de toute façon plus à jour.
+gh
 default-jdk
 golang-go
 rustc

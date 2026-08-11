@@ -30,7 +30,7 @@ lang perf lumiere temperature
 jeux game secure vpn net avion wifi bt
 share receive ecran-telephone logitheque
 usb vide-memoire format capture run-ins
-studio musique sticker chrome claude ia
+studio musique sticker chrome claude ia dev
 cartes gps clavier comptes bienetre mac
 demo install-disk'
 
@@ -147,6 +147,12 @@ _lexos() {
 			fi
 			mapfile -t -O "${#COMPREPLY[@]}" COMPREPLY < <(compgen -W "$(_lexos_paquets "$cur")" -- "$cur") ;;
 
+		dev|developpement)
+			if [ "$COMP_CWORD" -eq 2 ]; then
+				mapfile -t COMPREPLY < <(compgen -W "install update etat aide" -- "$cur")
+			elif [ "$sous" = "install" ]; then
+				mapfile -t COMPREPLY < <(compgen -W "tout claude gh vercel" -- "$cur")
+			fi ;;
 		jeux|jeu|bibliotheque|biblio)
 			mapfile -t COMPREPLY < <(compgen -W "liste lancer chercher sources json aide" -- "$cur") ;;
 		game)

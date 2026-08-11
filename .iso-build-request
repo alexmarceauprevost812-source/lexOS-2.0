@@ -19,12 +19,30 @@
 #
 #   La Release est publiée sous « latest-<saveur> » : passer en standard ne
 #   remplace donc PAS l'ISO pro, qui reste disponible sous « latest-pro ».
-flavour: standard
+flavour: dev
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 31 : saveur DEV — le portable de 2016 devient une machine de travail.
+#   Toujours sans pilote NVIDIA (le hook 0260 ne tourne que sur pro), donc
+#   toujours à l'abri de la perte de signal HDMI. La saveur dev ajoute à la
+#   standard : build-essential, gcc, cmake, gdb, python3, git, vim, tmux en
+#   OBLIGATOIRE, plus nodejs, npm, git-lfs, neovim, ripgrep, fd, bat,
+#   shellcheck, sqlite3, podman, qemu en optionnel.
+#   Nouveauté : la commande « lexos dev », qui installe et met à jour les trois
+#   outils que Debian ne fournit pas (ou pas à jour) :
+#     · Claude Code — canal npm officiel d'Anthropic (délégué à lexos-claude)
+#     · GitHub CLI  — paquet Debian s'il existe, sinon dépôt officiel GitHub
+#     · Vercel CLI  — canal npm officiel
+#   Ils ne sont PAS figés dans l'ISO, et c'est volontaire : ces trois-là
+#   publient une version par semaine ; les embarquer voudrait dire les livrer
+#   périmés dès la deuxième semaine. Ce dont ils dépendent — nodejs, npm, git,
+#   curl — est, lui, bien dans l'image, donc « lexos dev install » suffit.
+#   npm en global passe par un préfixe dans le dossier de l'utilisateur, jamais
+#   par « sudo npm -g » sur un chemin géré par dpkg : ça écraserait des fichiers
+#   appartenant à des paquets Debian.
 # build 30 : une ISO STANDARD, pour tester sur une machine sans NVIDIA.
 #   Sur l'Alienware, la saveur pro a bien démarré jusqu'au menu GRUB (affiché
 #   sur la TV Hisense) puis a PERDU le signal HDMI au chargement du noyau —
@@ -189,4 +207,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 30
+build: 31
