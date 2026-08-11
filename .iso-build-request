@@ -19,12 +19,25 @@
 #
 #   La Release est publiée sous « latest-<saveur> » : passer en standard ne
 #   remplace donc PAS l'ISO pro, qui reste disponible sous « latest-pro ».
-flavour: dev
+flavour: pro
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 34 : retour en saveur PRO pour l'Alienware, avec tout ce qui a été
+# ajouté depuis le build 29 : la commande « lexos dev » (Claude Code, GitHub
+# CLI, Vercel CLI), les fonds d'écran à la souris (scènes animées et capture
+# → fond), et « lexos firmware » pour le BIOS système.
+#   ÉLÉMENT NOUVEAU DEPUIS L'ÉCHEC DU BUILD 29 : le BIOS de la RTX 5060 a été
+#   mis à jour sous Windows APRÈS ce test. Or c'est le VBIOS qui gère la sortie
+#   vidéo avant même le chargement du pilote — précisément l'étape où le signal
+#   HDMI se perdait sur le téléviseur Hisense. Le comportement peut donc avoir
+#   changé sans qu'on touche à quoi que ce soit côté LexOS.
+#   Le pilote reste épinglé sur la branche 595 (hook 0260, version_avant_610) :
+#   on ne modifie rien à l'aveugle tant que l'EDID du téléviseur n'a pas été
+#   relevé depuis le mode de secours. Si le signal se perd encore, ce relevé
+#   reste l'étape suivante ; s'il tient, c'était le VBIOS.
 # build 33 : « lexos firmware » — mettre à jour le BIOS depuis LexOS.
 #   Alex a signalé que le BIOS de sa RTX 5060 avait été mis à jour APRÈS
 #   l'installation de Windows, et demandé si LexOS pouvait en faire autant.
@@ -240,4 +253,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 33
+build: 34
