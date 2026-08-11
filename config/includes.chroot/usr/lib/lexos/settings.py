@@ -185,6 +185,47 @@ def act_fond(arg):
     return _run(["lexos", "wallpaper", chemin, "remplir"])
 
 
+#  Les scènes animées sont LUES SUR LE DISQUE, jamais recopiées dans une liste.
+#  L'aide du terminal annonçait « ciel » alors que le fichier s'appelle
+#  « etoiles » : la commande copiée de la documentation échouait mot pour mot.
+#  Une liste écrite à la main finit toujours par mentir ; celle-ci ne peut pas.
+FONDS_ANIMES_DIRS = ("/usr/share/lexos/fonds", "~/.config/lexos/fonds")
+
+
+def _animes_disponibles():
+    noms = set()
+    for d in FONDS_ANIMES_DIRS:
+        try:
+            for f in Path(d).expanduser().glob("*.json"):
+                # « modele » est le gabarit à copier, pas une scène à poser.
+                if f.stem != "modele":
+                    noms.add(f.stem)
+        except OSError:
+            continue
+    return noms
+
+
+def act_fond_anime(arg):
+    """Pose un fond animé, ou le retire. Le nom vient de la page : il est donc
+    validé contre ce qui existe RÉELLEMENT sur le disque avant tout appel."""
+    if arg in ("off", "stop", "arret"):
+        return _run(["lexos", "wallpaper", "anime", "off"])
+    dispo = _animes_disponibles()
+    if arg not in dispo:
+        connues = " · ".join(sorted(dispo)) or "aucune"
+        return {"ok": False, "erreur": f"scène inconnue. Installées : {connues}"}
+    return _run(["lexos", "wallpaper", "anime", arg])
+
+
+def act_fond_capture(arg):
+    """Capture l'écran et en fait le fond d'écran — les deux outils existaient
+    déjà mais rien ne les reliait, il fallait retenir le chemin du fichier."""
+    mode = arg if arg in ("plein", "zone") else "plein"
+    if shutil.which("lexos-capture") is None:
+        return {"ok": False, "erreur": "lexos-capture absent"}
+    return _run(["lexos-capture", "fond", mode], detach=True)
+
+
 def act_fond_perso(arg):
     """Ouvre un sélecteur de fichier (zenity) puis applique l'image choisie.
     Le chemin vient du sélecteur local, pas de la page."""
@@ -227,6 +268,8 @@ ACTIONS = {
     "dock": act_dock,
     "fond": act_fond,
     "fond-perso": act_fond_perso,
+    "fond-anime": act_fond_anime,
+    "fond-capture": act_fond_capture,
     "langue": act_langue,
     "capture": act_capture,
 }

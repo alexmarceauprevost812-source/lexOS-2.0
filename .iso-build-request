@@ -25,6 +25,22 @@ flavour: dev
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 32 : les fonds d'écran à la souris, enfin. Trois demandes en attente
+# depuis plusieurs jours, toutes du même genre : les morceaux existaient déjà,
+# mais rien ne les reliait et il fallait passer par le terminal.
+#   · CAPTURE → FOND D'ÉCRAN. lexos-capture écrivait une image, « lexos
+#     wallpaper » en posait une, et pour aller de l'une à l'autre il fallait
+#     retenir le chemin du fichier et le retaper. La bulle de notification
+#     propose maintenant le bouton « En faire mon fond d'écran », et
+#     « lexos capture fond » fait les deux gestes d'un coup.
+#   · FONDS ANIMÉS À LA SOURIS. Ils n'étaient accessibles qu'en tapant
+#     « lexos wallpaper anime <nom> ». Les Paramètres → Bureau les proposent
+#     maintenant en boutons, avec le retour au fond fixe.
+#   · Au passage, le même défaut que dans l'aide du terminal : l'interface
+#     annonçait un fond « ciel » qui n'existe pas — le fichier s'appelle
+#     « etoiles ». Le moteur ne recopie plus aucune liste : il LIT le dossier
+#     des scènes et refuse tout nom qui n'y est pas. Une liste écrite à la main
+#     finit toujours par mentir ; celle-ci ne peut plus.
 # build 31 : saveur DEV — le portable de 2016 devient une machine de travail.
 #   Toujours sans pilote NVIDIA (le hook 0260 ne tourne que sur pro), donc
 #   toujours à l'abri de la perte de signal HDMI. La saveur dev ajoute à la
@@ -207,4 +223,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 31
+build: 32

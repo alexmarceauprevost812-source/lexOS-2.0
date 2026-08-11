@@ -73,8 +73,7 @@ cmd_photo() {
 			exit 0
 		fi
 		ok "Image : $fichier"
-		command -v notify-send >/dev/null 2>&1 \
-			&& notify-send "Capture d'écran" "$(basename "$fichier")" -i "$fichier" 2>/dev/null
+		avertir_capture "$fichier"
 		printf '%s\n' "$fichier"
 		return 0
 	fi
@@ -111,8 +110,7 @@ cmd_photo() {
 
 	[[ -s "$fichier" ]] || die "Capture annulée — aucun fichier écrit."
 	ok "Image : $fichier"
-	command -v notify-send >/dev/null 2>&1 \
-		&& notify-send "Capture d'écran" "$(basename "$fichier")" -i "$fichier" 2>/dev/null
+	avertir_capture "$fichier"
 	printf '%s\n' "$fichier"
 }
 
@@ -172,6 +170,54 @@ cmd_video() {
 	fi
 }
 
+# =============================================================================
+#  Après la capture : « En faire mon fond d'écran »
+# =============================================================================
+#  Les deux morceaux existaient déjà — lexos-capture écrit une image, « lexos
+#  wallpaper » en pose une — mais rien ne les reliait : il fallait retenir le
+#  chemin du fichier et le retaper. La notification propose maintenant le
+#  geste directement.
+#
+#  notify-send -A affiche un bouton et REND la clé de l'action cliquée ; -w
+#  attend ce clic. On lance donc l'attente en arrière-plan, sinon la commande
+#  de capture resterait bloquée tant que la bulle est à l'écran.
+#  Tous les serveurs de notification ne gèrent pas les actions : si -A n'est
+#  pas accepté, on retombe sur la notification simple, sans bouton.
+avertir_capture() {
+	local fichier="$1"
+	command -v notify-send >/dev/null 2>&1 || return 0
+	local titre="Capture d'écran"
+	local corps; corps="$(basename "$fichier")"
+
+	if notify-send --help 2>&1 | grep -q -- '--action' \
+	   && command -v lexos >/dev/null 2>&1; then
+		(
+			reponse="$(notify-send -w -i "$fichier" \
+				-A "fond=En faire mon fond d'écran" \
+				"$titre" "$corps" 2>/dev/null)"
+			if [ "$reponse" = "fond" ]; then
+				lexos wallpaper "$fichier" remplir >/dev/null 2>&1 \
+					&& notify-send -i "$fichier" "Fond d'écran posé" "$corps" 2>/dev/null
+			fi
+		) >/dev/null 2>&1 &
+		return 0
+	fi
+
+	notify-send "$titre" "$corps" -i "$fichier" 2>/dev/null || true
+}
+
+# --- Capturer PUIS poser directement en fond d'écran -------------------------
+cmd_fond() {
+	local mode="${1:-plein}"
+	local fichier
+	fichier="$(cmd_photo "$mode" | tail -1)"
+	[[ -s "$fichier" ]] || die "Aucune image capturée."
+	say "Pose en fond d'écran…"
+	lexos wallpaper "$fichier" remplir \
+		|| die "Le fond d'écran n'a pas pu être posé (lexos wallpaper)."
+	ok "C'est ton fond d'écran."
+}
+
 cmd_dossier() {
 	local img vid
 	img="$(dossier PICTURES Images)"; vid="$(dossier VIDEOS Vidéos)"
@@ -194,6 +240,12 @@ ${B}VIDÉO${R}
   ${O}$PROG video${R}            Enregistre l'écran ${D}(Ctrl+C pour arrêter)${R}
   ${O}$PROG video gui${R}        Ouvre SimpleScreenRecorder
 
+${B}FOND D'ÉCRAN${R}
+  ${O}$PROG fond${R}             Capture l'écran et en fait ton fond d'écran
+  ${O}$PROG fond zone${R}        Pareil, mais sur une zone choisie à la souris
+  ${D}Après chaque capture, la bulle de notification propose aussi le
+  bouton « En faire mon fond d'écran ».${R}
+
 ${B}DIVERS${R}
   ${O}$PROG dossier${R}          Où sont rangées les captures
 
@@ -210,6 +262,7 @@ case "${1:-}" in
 	fenetre|window)       cmd_photo fenetre ;;
 	zone|region|select)   cmd_photo zone ;;
 	video|enregistrer)    shift; cmd_video "${1:-}" ;;
+	fond|wallpaper|fond-ecran) shift; cmd_fond "${1:-plein}" ;;
 	dossier|ou|where)     cmd_dossier ;;
 	-h|--help|aide)       usage ;;
 	*)                    say "Commande inconnue : $1"; printf '\n'; usage; exit 1 ;;

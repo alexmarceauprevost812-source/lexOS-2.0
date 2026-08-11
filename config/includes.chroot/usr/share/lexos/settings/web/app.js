@@ -140,6 +140,18 @@ async function fondPerso(){
   const r = await api("fond-perso", "remplir");
   if(r.ok) toast("Fond d'écran appliqué");
 }
+/* Fonds animés : le nom part tel quel au moteur, qui le valide contre les
+   scènes RÉELLEMENT présentes sur le disque avant de lancer quoi que ce soit. */
+async function setFondAnime(nom){
+  const r = await api("fond-anime", nom);
+  if(r.ok) toast(nom === "off" ? "Fond animé retiré" : "Fond animé : " + nom);
+  else toast(r.erreur || "Scène indisponible");
+}
+/* Capture d'écran → fond d'écran, en un seul geste. */
+async function fondCapture(mode){
+  const r = await api("fond-capture", mode);
+  if(r.ok) toast(mode === "zone" ? "Cadre la zone à la souris…" : "Capture en cours…");
+}
 async function setLangue(l){
   const r = await api("langue", l);
   if(r.ok) toast("Langue changée — reconnecte-toi pour l'appliquer partout");
@@ -239,15 +251,37 @@ function contenu(cle){
           <button class="btn" onclick="fondPerso()">🖼 Une image à moi…</button>
         </div>
       </div>
+
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Fonds animés</div>
+        <div class="sub" style="margin-bottom:8px">Dessinés en direct, et figés
+        tout seuls dès le passage sur batterie.</div>
+        <div class="row">
+          <button class="btn ghost" onclick="setFondAnime('code')">⌨ Le code s'écrit</button>
+          <button class="btn ghost" onclick="setFondAnime('pluie')">🌧 Pluie</button>
+          <button class="btn ghost" onclick="setFondAnime('braises')">🔥 Braises</button>
+          <button class="btn ghost" onclick="setFondAnime('etoiles')">✨ Ciel</button>
+          <button class="btn ghost" onclick="setFondAnime('atelier')">🛠 Atelier</button>
+          <button class="btn" onclick="setFondAnime('off')">Revenir au fond fixe</button>
+        </div>
+      </div>
+
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Depuis une capture d'écran</div>
+        <div class="sub" style="margin-bottom:8px">Prend une image de l'écran et
+        la pose aussitôt en fond.</div>
+        <div class="row">
+          <button class="btn ghost" onclick="fondCapture('plein')">📷 Tout l'écran</button>
+          <button class="btn ghost" onclick="fondCapture('zone')">✂ Une zone</button>
+        </div>
+      </div>
+
       <p class="notice">Aussi : clic droit sur une image dans Fichiers →
       « Définir comme fond d'écran », ou <code>lexos wallpaper ~/Images/photo.jpg</code>.
       Vidéo en fond : <code>lexos wallpaper video ~/Vidéos/boucle.mp4</code>.
-      <b>Fonds animés</b> — dessinés en direct, figés dès le passage sur batterie :
-      <code>lexos wallpaper anime</code> (code · pluie · braises · ciel · atelier),
-      ou l'application « Fonds animés » du menu. Pour en fabriquer un :
+      Pour fabriquer ton propre fond animé :
       <code>lexos wallpaper anime nouveau mon-fond</code> — un fichier de couches
-      commenté, avec <code>… apercu mon-fond</code> pour voir avant de poser.
-      <code>lexos wallpaper anime off</code> remet le fond fixe.</p>
+      commenté, avec <code>… apercu mon-fond</code> pour voir avant de poser.</p>
       ${btnOuvrir("bureau","Réglages fins (XFCE)")}`;
     case "multitaches": return `<h2>Multi-tâches</h2><div class="sub">Bureaux virtuels</div>
       ${srow("Bureaux virtuels","Nombre et noms des espaces de travail")}
