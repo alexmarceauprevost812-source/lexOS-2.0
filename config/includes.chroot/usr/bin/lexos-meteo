@@ -1,0 +1,356 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-meteo — la météo de TA ville, dans la barre du haut
+# =============================================================================
+#  La démo affiche « ☁ 20° » à gauche de la barre. Ceci en est la version
+#  réelle : le même affichage, alimenté par de vraies mesures.
+#
+#  POURQUOI PAS LE GREFFON MÉTÉO DE XFCE
+#  Il existe, il est bon — mais il réclame une ville au premier lancement.
+#  Une fenêtre de configuration qui s'ouvre toute seule au premier démarrage
+#  d'un système neuf, c'est exactement ce qu'on ne veut pas : on vient de
+#  passer l'installation, on veut voir son bureau, pas remplir un formulaire.
+#  Ici, la ville se règle quand ON le décide — à la souris ou en une commande.
+#
+#  D'OÙ VIENNENT LES DONNÉES
+#  Open-Meteo : gratuit, sans inscription, sans clé d'API à cacher quelque
+#  part. Deux adresses seulement, l'une pour trouver les coordonnées d'une
+#  ville, l'autre pour relever la température.
+#
+#  MISE EN CACHE — CE N'EST PAS UN DÉTAIL
+#  La barre du haut demande cette valeur en boucle. Sans garde-fou, ce serait
+#  une requête réseau toutes les quelques secondes : la batterie y passe, et
+#  le service finirait par nous fermer la porte. On ne va donc chercher la
+#  météo qu'une fois par quart d'heure ; entre-deux, on ressert la dernière
+#  réponse. Hors ligne, on ressert la dernière connue plutôt que d'afficher
+#  un trou — une valeur d'il y a une heure vaut mieux que rien.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos meteo"
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/lexos"
+CONF="$CONF_DIR/meteo.conf"
+CACHE="$CACHE_DIR/meteo.txt"
+FRAICHEUR=900          # 15 minutes
+
+mkdir -p "$CONF_DIR" "$CACHE_DIR" 2>/dev/null || true
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+besoin_curl() {
+	command -v curl >/dev/null 2>&1 \
+		|| die "curl est nécessaire.   sudo apt install curl"
+}
+
+# --- La ville retenue --------------------------------------------------------
+#  Aucune ville devinée par défaut : on ne va pas interroger un service de
+#  géolocalisation par adresse IP dans le dos de quelqu'un. Tant que rien
+#  n'est choisi, la barre reste muette et « lexos meteo » explique comment
+#  choisir. C'est la seule position honnête.
+VILLE=""; LAT=""; LON=""
+if [[ -r "$CONF" ]]; then
+	# shellcheck disable=SC1090
+	. "$CONF" 2>/dev/null || true
+	VILLE="${LEXOS_METEO_VILLE:-}"
+	LAT="${LEXOS_METEO_LAT:-}"
+	LON="${LEXOS_METEO_LON:-}"
+fi
+
+# --- Codes météo de l'OMM (WMO) vers quelque chose de lisible ---------------
+#  Deux sorties par code : un pictogramme pour la barre, une phrase pour le
+#  détail. La liste est celle publiée par l'OMM, reprise telle quelle par
+#  Open-Meteo — on ne l'invente pas.
+symbole_wmo() {
+	case "$1" in
+		0)            printf '☀' ;;
+		1|2)          printf '⛅' ;;
+		3)            printf '☁' ;;
+		45|48)        printf '🌫' ;;
+		51|53|55|56|57) printf '🌦' ;;
+		61|63|65|66|67|80|81|82) printf '🌧' ;;
+		71|73|75|77|85|86) printf '❄' ;;
+		95|96|99)     printf '⛈' ;;
+		*)            printf '·' ;;
+	esac
+}
+
+phrase_wmo() {
+	case "$1" in
+		0)   printf 'ciel dégagé' ;;
+		1)   printf 'plutôt dégagé' ;;
+		2)   printf 'partiellement nuageux' ;;
+		3)   printf 'couvert' ;;
+		45|48) printf 'brouillard' ;;
+		51|53|55) printf 'bruine' ;;
+		56|57) printf 'bruine verglaçante' ;;
+		61)  printf 'pluie faible' ;;
+		63)  printf 'pluie' ;;
+		65)  printf 'forte pluie' ;;
+		66|67) printf 'pluie verglaçante' ;;
+		71)  printf 'neige faible' ;;
+		73)  printf 'neige' ;;
+		75)  printf 'forte neige' ;;
+		77)  printf 'grains de neige' ;;
+		80|81) printf 'averses' ;;
+		82)  printf 'fortes averses' ;;
+		85|86) printf 'averses de neige' ;;
+		95)  printf 'orage' ;;
+		96|99) printf 'orage avec grêle' ;;
+		*)   printf 'temps indéterminé' ;;
+	esac
+}
+
+# --- Relevé, avec cache ------------------------------------------------------
+#  Écrit dans le cache une ligne : <code> <température> <vent> <horodatage>
+releve() {
+	local forcer="${1:-}"
+
+	if [[ -z "$LAT" || -z "$LON" ]]; then
+		return 1
+	fi
+
+	if [[ -z "$forcer" && -r "$CACHE" ]]; then
+		local age_fichier maintenant
+		maintenant="$(date +%s)"
+		age_fichier="$(stat -c %Y "$CACHE" 2>/dev/null || echo 0)"
+		if (( maintenant - age_fichier < FRAICHEUR )); then
+			cat "$CACHE"
+			return 0
+		fi
+	fi
+
+	command -v curl >/dev/null 2>&1 || { [[ -r "$CACHE" ]] && cat "$CACHE"; return $?; }
+
+	local url reponse
+	url="https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}"
+	url="${url}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto"
+
+	reponse="$(curl -fsS --max-time 8 "$url" 2>/dev/null)" || reponse=""
+
+	if [[ -z "$reponse" ]]; then
+		#  Hors ligne, ou service injoignable : on ressert la dernière valeur
+		#  connue. Le cache n'est PAS rafraîchi, pour que la prochaine
+		#  tentative reparte tout de suite au réseau.
+		[[ -r "$CACHE" ]] && { cat "$CACHE"; return 0; }
+		return 1
+	fi
+
+	local ligne
+	ligne="$(printf '%s' "$reponse" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)["current"]
+except Exception:
+    sys.exit(1)
+code = d.get("weather_code", -1)
+temp = d.get("temperature_2m")
+vent = d.get("wind_speed_10m")
+if temp is None:
+    sys.exit(1)
+print("%d %d %d" % (int(code), round(float(temp)), round(float(vent or 0))))
+' 2>/dev/null)" || ligne=""
+
+	[[ -n "$ligne" ]] || { [[ -r "$CACHE" ]] && { cat "$CACHE"; return 0; }; return 1; }
+
+	printf '%s\n' "$ligne" > "$CACHE"
+	printf '%s\n' "$ligne"
+}
+
+# --- Affichage pour la barre du haut ---------------------------------------
+#  genmon lit la sortie : <txt> est ce qui s'affiche, <tool> l'infobulle,
+#  <click> ce que fait un clic. Aucune de ces trois choses n'a besoin d'être
+#  configurée dans le panneau — c'est le script qui décide, donc « lexos
+#  meteo ville » suffit à tout changer, sans toucher au panneau.
+cmd_panneau() {
+	local ligne code temp
+	if [[ -z "$LAT" || -z "$LON" ]]; then
+		printf '<txt>  ⛅ —  </txt>'
+		printf '<tool>Météo — clique pour choisir ta ville</tool>'
+		printf '<click>lexos-meteo --choisir</click>\n'
+		return 0
+	fi
+
+	ligne="$(releve)" || ligne=""
+	if [[ -z "$ligne" ]]; then
+		printf '<txt>  ⛅ —  </txt>'
+		printf '<tool>%s — relevé indisponible (hors ligne ?)</tool>' "$VILLE"
+		printf '<click>lexos-meteo --choisir</click>\n'
+		return 0
+	fi
+
+	read -r code temp _ <<<"$ligne"
+	printf '<txt>  %s %s°  </txt>' "$(symbole_wmo "$code")" "$temp"
+	printf '<tool>%s — %s, %s°C\nClique pour changer de ville</tool>' \
+		"$VILLE" "$(phrase_wmo "$code")" "$temp"
+	printf '<click>lexos-meteo --choisir</click>\n'
+}
+
+# --- Choisir sa ville --------------------------------------------------------
+enregistrer_ville() {
+	local nom="$1" lat="$2" lon="$3"
+	cat > "$CONF" <<EOF
+# Ville retenue pour « lexos meteo ». Modifiable par :
+#     lexos meteo ville <nom>
+LEXOS_METEO_VILLE="${nom}"
+LEXOS_METEO_LAT="${lat}"
+LEXOS_METEO_LON="${lon}"
+EOF
+	rm -f "$CACHE"          # la ville a changé : l'ancienne valeur ne vaut plus
+}
+
+# Cherche les coordonnées d'une ville. Sortie : « nom<TAB>lat<TAB>lon ».
+geocoder() {
+	besoin_curl
+	local recherche url reponse
+	recherche="$(printf '%s' "$1" | sed 's/ /+/g')"
+	url="https://geocoding-api.open-meteo.com/v1/search?name=${recherche}&count=1&language=fr&format=json"
+	reponse="$(curl -fsS --max-time 8 "$url" 2>/dev/null)" || return 1
+	printf '%s' "$reponse" | python3 -c '
+import json, sys
+try:
+    r = json.load(sys.stdin).get("results") or []
+except Exception:
+    sys.exit(1)
+if not r:
+    sys.exit(1)
+v = r[0]
+nom = v.get("name", "")
+pays = v.get("country_code") or v.get("country") or ""
+admin = v.get("admin1") or ""
+etiquette = nom
+if admin and admin != nom:
+    etiquette += ", " + admin
+if pays:
+    etiquette += " (" + pays + ")"
+print("%s\t%s\t%s" % (etiquette, v["latitude"], v["longitude"]))
+' 2>/dev/null
+}
+
+cmd_ville() {
+	local demande="$*"
+
+	if [[ -z "$demande" ]]; then
+		if [[ -n "$VILLE" ]]; then
+			printf '\n  Ville actuelle : %s%s%s   %s(%s, %s)%s\n\n' \
+				"$B" "$VILLE" "$R" "$D" "$LAT" "$LON" "$R"
+			say "Pour changer : ${B}${PROG} ville <nom>${R}"
+		else
+			warn "Aucune ville choisie."
+			say "Choisis-la : ${B}${PROG} ville Toronto${R}"
+		fi
+		printf '\n'
+		return 0
+	fi
+
+	say "Recherche de « ${demande} »…"
+	local trouve nom lat lon
+	trouve="$(geocoder "$demande")" || die "Ville introuvable : ${demande}"
+	IFS=$'\t' read -r nom lat lon <<<"$trouve"
+	[[ -n "$lat" && -n "$lon" ]] || die "Ville introuvable : ${demande}"
+
+	enregistrer_ville "$nom" "$lat" "$lon"
+	VILLE="$nom"; LAT="$lat"; LON="$lon"
+	ok "Ville retenue : ${B}${nom}${R}"
+
+	#  Le panneau relit tout seul à son prochain rafraîchissement ; on le
+	#  bouscule quand même pour que le changement se voie immédiatement.
+	command -v xfce4-panel >/dev/null 2>&1 && xfce4-panel --plugin-event=genmon:refresh:bool:true >/dev/null 2>&1
+	cmd_maintenant
+}
+
+# --- Choisir sa ville À LA SOURIS -------------------------------------------
+#  C'est ce que fait un clic sur la météo dans la barre. zenity est déjà là
+#  pour les autres commandes LexOS ; sans lui, on bascule sur le terminal
+#  plutôt que de ne rien faire.
+cmd_choisir() {
+	if ! command -v zenity >/dev/null 2>&1; then
+		command -v xfce4-terminal >/dev/null 2>&1 \
+			&& exec xfce4-terminal --title="Météo — LexOS" --hold -e "lexos meteo ville"
+		die "zenity est nécessaire pour la fenêtre.   ${PROG} ville <nom>"
+	fi
+
+	local saisie
+	saisie="$(zenity --entry \
+		--title="Météo — LexOS" \
+		--text="Dans quelle ville es-tu ?\n\nExemples : Toronto · Montréal · Québec · Paris" \
+		--entry-text="${VILLE%%,*}" 2>/dev/null)" || exit 0
+	[[ -n "$saisie" ]] || exit 0
+
+	local trouve nom lat lon
+	trouve="$(geocoder "$saisie")" || {
+		zenity --error --title="Météo — LexOS" \
+			--text="Ville introuvable : ${saisie}" 2>/dev/null
+		exit 1
+	}
+	IFS=$'\t' read -r nom lat lon <<<"$trouve"
+	enregistrer_ville "$nom" "$lat" "$lon"
+
+	command -v xfce4-panel >/dev/null 2>&1 && xfce4-panel --plugin-event=genmon:refresh:bool:true >/dev/null 2>&1
+	zenity --info --title="Météo — LexOS" \
+		--text="Ville retenue : ${nom}" 2>/dev/null || true
+}
+
+# --- Le relevé, en clair -----------------------------------------------------
+cmd_maintenant() {
+	if [[ -z "$LAT" || -z "$LON" ]]; then
+		warn "Aucune ville choisie."
+		say  "Choisis-la : ${B}${PROG} ville Toronto${R}"
+		say  "…ou clique sur la météo dans la barre du haut."
+		return 1
+	fi
+
+	local ligne code temp vent
+	ligne="$(releve forcer)" || ligne=""
+	[[ -n "$ligne" ]] || die "Relevé indisponible — connexion ?"
+	read -r code temp vent <<<"$ligne"
+
+	printf '\n  %s%s %s°C%s   %s\n' "$B$O" "$(symbole_wmo "$code")" "$temp" "$R" "$(phrase_wmo "$code")"
+	printf '  %s%s · vent %s km/h%s\n\n' "$D" "$VILLE" "$vent" "$R"
+}
+
+cmd_aide() {
+	cat <<AIDE
+
+${B}${O}${PROG}${R} — la météo de ta ville
+
+${B}USAGE${R}
+  ${A}${PROG}${R}                  Le relevé maintenant
+  ${A}${PROG} ville${R}            Quelle ville est retenue
+  ${A}${PROG} ville <nom>${R}      Choisir la ville ${D}(ex. : Toronto, Montréal, Paris)${R}
+
+${B}À LA SOURIS${R}
+  ${D}Clique sur la météo dans la barre du haut : une fenêtre demande la
+  ville. C'est le même réglage, sans passer par le terminal.${R}
+
+${B}CE QUI EST ENVOYÉ${R}
+  ${D}Rien qui te concerne. Le nom de la ville que tu tapes sert à obtenir
+  ses coordonnées, puis seules ces coordonnées sont envoyées pour le relevé.
+  Pas de compte, pas de clé, pas de localisation par adresse IP : tant que
+  tu n'as pas choisi de ville, aucune requête n'est faite.${R}
+
+${B}HORS LIGNE${R}
+  ${D}Le dernier relevé connu reste affiché plutôt qu'un trou. Le relevé n'est
+  renouvelé qu'un quart d'heure au plus — la barre le demande en boucle,
+  ce serait sinon une requête toutes les deux secondes.${R}
+
+AIDE
+}
+
+case "${1:-maintenant}" in
+	--panneau|panneau)      cmd_panneau ;;
+	--choisir|choisir)      cmd_choisir ;;
+	ville|city|localisation) shift; cmd_ville "$@" ;;
+	maintenant|now|'')      cmd_maintenant ;;
+	aide|help|--help|-h)    cmd_aide ;;
+	*)                      die "Commande inconnue : $1   (${PROG} aide)" ;;
+esac

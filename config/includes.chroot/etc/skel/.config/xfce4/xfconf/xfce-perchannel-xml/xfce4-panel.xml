@@ -33,6 +33,7 @@
         <value type="int" value="9"/>
         <value type="int" value="10"/>
         <value type="int" value="11"/>
+        <value type="int" value="13"/>
         <value type="int" value="2"/>
         <value type="int" value="3"/>
         <value type="int" value="4"/>
@@ -92,6 +93,21 @@
     </property>
 
     <!-- 2 · Espace élastique -->
+    <!-- 13 · Météo — « ☁ 20° », comme la démo.
+         genmon se contente de LANCER une commande et d'afficher sa sortie :
+         le texte, l'infobulle et l'action du clic sont décidés par
+         lexos-meteo lui-même (balises <txt>, <tool>, <click>). Changer de
+         ville ne touche donc jamais à la configuration du panneau.
+         La mise en cache est DANS le script : même si le panneau
+         interrogeait toutes les secondes, le réseau n'est sollicité qu'un
+         quart d'heure au plus. -->
+    <property name="plugin-13" type="string" value="genmon">
+      <property name="command"       type="string" value="lexos-meteo --panneau"/>
+      <property name="update-period" type="int"    value="900000"/>
+      <property name="use-label"     type="bool"   value="false"/>
+      <property name="font"          type="string" value="Noto Sans 10"/>
+    </property>
+
     <property name="plugin-2" type="string" value="separator">
       <property name="expand" type="bool" value="true"/>
       <property name="style"  type="uint" value="0"/>

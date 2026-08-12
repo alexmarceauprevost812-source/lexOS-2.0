@@ -119,6 +119,11 @@ ${B}ÉNERGIE${R}
   ${A}firmware maj${R}        Met à jour le BIOS système, les SSD…
                       ${D}Dell et Alienware sont soutenus. Le BIOS de la CARTE
                       GRAPHIQUE (VBIOS), lui, ne se met à jour que sous Windows.${R}
+  ${A}meteo${R}               Le temps qu'il fait, chez toi
+  ${A}meteo ville${R} <nom>   Choisir ta ville ${D}(ex. : meteo ville Toronto)${R}
+                      ${D}Aussi d'un clic sur la météo, dans la barre du haut.
+                      Tant qu'aucune ville n'est choisie, rien n'est demandé
+                      au réseau — pas de localisation dans ton dos.${R}
 
 ${B}JEUX${R} ${D}(saveur gaming)${R}
   ${A}jeux${R}                 ${B}Ta bibliothèque${R} : tous tes jeux au même endroit
@@ -877,6 +882,7 @@ case "$CMD" in
 	claude|cc)            exec lexos-claude "$@" ;;
 	dev|devs|developpement|développement) exec lexos-dev "$@" ;;
 	firmware|bios|micrologiciel) exec lexos-firmware "$@" ;;
+	meteo|météo|weather|temps) exec lexos-meteo "$@" ;;
 	musique|music)        exec lexos-musique "$@" ;;
 	chrome|google-chrome) exec lexos-chrome "$@" ;;
 	#  « jeux » ouvre la BIBLIOTHÈQUE (la liste de ce qu'on possède) : c'est

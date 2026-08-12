@@ -25,6 +25,41 @@ flavour: dev
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 40 : LA MÉTÉO DE LA DÉMO, AVEC LA VILLE CHOISIE PAR L'UTILISATEUR.
+#   Le build 39 avait écarté la météo parce que le greffon XFCE réclame une
+#   ville au premier lancement. Alex a tranché : « oui, avec la localisation
+#   que l'utilisateur veut mettre ». C'est donc fait, mais autrement.
+#
+#   Nouvelle commande « lexos meteo », et un greffon genmon dans la barre qui
+#   affiche sa sortie — le « ☁ 20° » de la démo, à la même place, juste après
+#   les trois boutons de capture. genmon ne fait que LANCER une commande :
+#   le texte, l'infobulle et l'action du clic viennent des balises <txt>,
+#   <tool> et <click> émises par lexos-meteo. Changer de ville ne touche donc
+#   jamais à la configuration du panneau.
+#
+#   · Données : Open-Meteo. Gratuit, sans inscription, sans clé d'API à
+#     cacher dans l'ISO. Une adresse pour trouver les coordonnées d'une
+#     ville, une autre pour le relevé.
+#   · AUCUNE VILLE PAR DÉFAUT, et aucune géolocalisation par adresse IP.
+#     Tant que rien n'est choisi, la barre reste muette et AUCUNE requête
+#     n'est faite. C'est la seule position honnête sur une machine neuve.
+#   · Se règle à la souris — un clic sur la météo ouvre une fenêtre — ou en
+#     une commande : « lexos meteo ville Toronto ».
+#   · MISE EN CACHE OBLIGATOIRE : la barre redemande cette valeur en boucle.
+#     Sans garde-fou ce serait une requête toutes les deux secondes — la
+#     batterie y passe et le service finit par fermer la porte. Le réseau
+#     n'est sollicité qu'un quart d'heure au plus ; hors ligne, le dernier
+#     relevé connu reste affiché plutôt qu'un trou.
+#   · xfce4-genmon-plugin est un paquet OPTIONNEL. S'il manque, le hook 0400
+#     RETIRE la météo du panneau — un panneau qui déclare un greffon absent
+#     affiche une tuile cassée à demeure au milieu de la barre. Vérifié : le
+#     XML reste valide après retrait et les treize autres greffons intacts.
+#
+#   L'analyse des réponses a été testée sur de vraies charges utiles
+#   d'Open-Meteo (ville trouvée, ville introuvable, relevé complet, relevé
+#   incomplet). Les appels réseau eux-mêmes n'ont PAS pu être essayés d'ici :
+#   le mandataire de l'environnement de construction répond 403 sur ce
+#   domaine. C'est à vérifier au premier démarrage.
 # build 39 : LA BARRE DU HAUT SE RAPPROCHE DE LA DÉMO.
 #   Alex a redonné le lien de la démo web : « fais que la démo soit le modèle
 #   que je veux avoir sur mon écran après le boot, mais avec toutes les
@@ -403,4 +438,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 39
+build: 40

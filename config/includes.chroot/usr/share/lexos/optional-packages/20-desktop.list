@@ -10,6 +10,11 @@ libnotify-bin
 xfce4-taskmanager
 xfce4-whiskermenu-plugin
 xfce4-appfinder
+# xfce4-genmon-plugin affiche la sortie d'une commande dans la barre du haut :
+# c'est lui qui porte la météo (« lexos meteo »), le « ☁ 20° » de la démo.
+# Son absence n'est pas bloquante — le hook 0400 retire alors la météo du
+# panneau plutôt que d'y laisser une tuile cassée.
+xfce4-genmon-plugin
 thunar-archive-plugin
 thunar-volman
 # thunar-open-terminal RETIRÉ : fondu dans Thunar depuis la version 4.18.

@@ -26,7 +26,7 @@
 _lexos_cmds='aide help version info doctor logs
 update upgrade install remove search clean
 theme accent police dock ecran wallpaper crt
-lang perf lumiere temperature firmware
+lang perf lumiere temperature firmware meteo
 jeux game secure vpn net avion wifi bt
 share receive ecran-telephone logitheque
 usb vide-memoire format capture run-ins
@@ -116,6 +116,12 @@ _lexos() {
 			mapfile -t COMPREPLY < <(compgen -W "$_lexos_perfs" -- "$cur") ;;
 		firmware|bios|micrologiciel)
 			mapfile -t COMPREPLY < <(compgen -W "etat appareils maj historique aide" -- "$cur") ;;
+		meteo|weather|temps)
+			# « ville » seule montre la ville retenue ; suivie d'un nom, elle
+			# la change. On ne propose aucune liste de villes : elles sont
+			# des millions, et le service en trouve n'importe laquelle.
+			[ "$COMP_CWORD" -eq 2 ] \
+				&& mapfile -t COMPREPLY < <(compgen -W "maintenant ville aide" -- "$cur") ;;
 		temperature|temp|chaleur|ventilateurs)
 			mapfile -t COMPREPLY < <(compgen -W "maintenant surveille json aide" -- "$cur") ;;
 		lumiere|luminosite)

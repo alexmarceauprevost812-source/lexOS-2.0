@@ -613,6 +613,25 @@ if [ -n "$SAVEUR_AFFICHEE" ] && [ -f "$SKEL_XFCONF/xfce4-panel.xml" ]; then
 	fi
 fi
 
+# --- Météo dans la barre : seulement si le greffon est réellement là -------
+#  Le panneau livré déclare un greffon « genmon » (plugin-13) qui affiche la
+#  sortie de « lexos-meteo --panneau » — c'est le « ☁ 20° » de la démo.
+#  xfce4-genmon-plugin voyage dans les paquets OPTIONNELS : son absence
+#  n'arrête pas la construction. Mais un panneau qui déclare un greffon
+#  absent affiche une tuile cassée avec un point d'exclamation, à demeure,
+#  au milieu de la barre. On préfère retirer la météo que livrer ça.
+if [ -f "$SKEL_XFCONF/xfce4-panel.xml" ]; then
+	if [ -e /usr/share/xfce4/panel/plugins/genmon.desktop ]; then
+		echo "[lexos]   météo : greffon genmon présent"
+	else
+		#  Le bloc plugin-13 ne contient que des propriétés auto-fermantes :
+		#  la première balise fermante rencontrée est bien la sienne.
+		sed -i '/<property name="plugin-13"/,/<\/property>/d' "$SKEL_XFCONF/xfce4-panel.xml"
+		sed -i '\|<value type="int" value="13"/>|d' "$SKEL_XFCONF/xfce4-panel.xml"
+		echo "[lexos]   !! genmon absent — météo retirée du panneau"
+	fi
+fi
+
 # --- Raccourcis clavier ------------------------------------------------------
 cat > "$SKEL_XFCONF/xfce4-keyboard-shortcuts.xml" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
