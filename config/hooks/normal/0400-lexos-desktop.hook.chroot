@@ -573,9 +573,47 @@ cat > /etc/skel/.config/Thunar/uca.xml <<'EOF'
 </actions>
 EOF
 
-# --- Raccourcis clavier ------------------------------------------------------
 SKEL_XFCONF="/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"
 mkdir -p "$SKEL_XFCONF"
+
+# --- Horloge du panneau : la marque au centre, comme la démo ----------------
+#  La démo affiche « lexOS ⚡ Pro   mer. 12 août 17 h 19 » au centre de la
+#  barre. Le panneau, lui, n'affichait que la date et l'heure. La saveur ne
+#  peut pas être écrite en dur dans le XML — elle change d'une ISO à l'autre —
+#  donc on l'injecte ici.
+#
+#  Le XML livré contient déjà un format VALABLE (« lexOS  %a %d %b  %H h %M »).
+#  Si cette substitution échoue, on garde donc une horloge correcte, juste
+#  sans le nom de la saveur. Jamais de jeton non remplacé à l'écran.
+case "${LEXOS_FLAVOUR:-standard}" in
+	pro)    SAVEUR_AFFICHEE="Pro" ;;
+	gaming) SAVEUR_AFFICHEE="Gaming" ;;
+	dev)    SAVEUR_AFFICHEE="Dev" ;;
+	full)   SAVEUR_AFFICHEE="Full" ;;
+	*)      SAVEUR_AFFICHEE="" ;;
+esac
+
+#  L'éclair de la démo est un emoji : sans police emoji installée il
+#  s'afficherait en carré vide, au beau milieu de la barre. On ne le pose
+#  que si la police est réellement là, sinon un point médian fait l'affaire.
+if ls /usr/share/fonts/truetype/noto/NotoColorEmoji* >/dev/null 2>&1; then
+	SEPARATEUR_MARQUE="⚡"
+else
+	SEPARATEUR_MARQUE="·"
+fi
+
+if [ -n "$SAVEUR_AFFICHEE" ] && [ -f "$SKEL_XFCONF/xfce4-panel.xml" ]; then
+	FORMAT_HORLOGE="lexOS ${SEPARATEUR_MARQUE} ${SAVEUR_AFFICHEE}   %a %d %b  %H h %M"
+	sed -i "s|value=\"lexOS  %a %d %b  %H h %M\"|value=\"${FORMAT_HORLOGE}\"|g" \
+		"$SKEL_XFCONF/xfce4-panel.xml"
+	if grep -qF "$FORMAT_HORLOGE" "$SKEL_XFCONF/xfce4-panel.xml"; then
+		echo "[lexos]   horloge : ${FORMAT_HORLOGE}"
+	else
+		echo "[lexos]   !! horloge non personnalisée — format par défaut conservé"
+	fi
+fi
+
+# --- Raccourcis clavier ------------------------------------------------------
 cat > "$SKEL_XFCONF/xfce4-keyboard-shortcuts.xml" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfce4-keyboard-shortcuts" version="1.0">

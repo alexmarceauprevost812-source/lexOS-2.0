@@ -25,6 +25,32 @@ flavour: dev
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 39 : LA BARRE DU HAUT SE RAPPROCHE DE LA DÉMO.
+#   Alex a redonné le lien de la démo web : « fais que la démo soit le modèle
+#   que je veux avoir sur mon écran après le boot, mais avec toutes les
+#   options disponibles ». La démo est donc la référence, sans rien retirer.
+#
+#   Comparaison faite morceau par morceau avec le HTML de la démo. Le panneau
+#   était DÉJÀ conforme sur l'essentiel : bouton Applications à gauche, les
+#   trois boutons de capture (photo, zone, vidéo) juste après, horloge au
+#   centre entre deux séparateurs élastiques, puis zone de notification, son,
+#   batterie, Paramètres et bouton d'arrêt à droite. Deux écarts seulement :
+#
+#   · Le bouton Applications affichait le MOT « Applications » à côté de son
+#     icône. La démo n'a que l'icône — « elle suffit à dire ce qu'elle ouvre,
+#     et la barre respire à gauche », dit son propre commentaire.
+#   · L'horloge n'affichait que la date et l'heure. La démo affiche
+#     « lexOS ⚡ Pro   mer. 12 août 17 h 19 » au centre de la barre.
+#     La saveur ne peut pas être écrite en dur dans le XML : elle est injectée
+#     par le hook 0400. Le XML livré contient déjà un format VALABLE, donc un
+#     échec de substitution laisse une horloge correcte — jamais un jeton non
+#     remplacé à l'écran. L'éclair n'est posé que si une police emoji est
+#     réellement installée, sinon un point médian : un emoji sans sa police,
+#     c'est un carré vide au milieu de la barre.
+#
+#   La météo de la démo n'est PAS reprise : le greffon XFCE réclame une ville
+#   au premier lancement, et une fenêtre de configuration qui s'ouvre toute
+#   seule au premier démarrage serait pire que son absence.
 # build 38 : L'ICÔNE DE CHROME CHANGEAIT DE DESSIN SOUS LA SOURIS.
 #   Alex l'avait signalé deux fois sans qu'on trouve : « il y a deux images
 #   différentes sur l'application, quand la souris passe dessous ça change ».
@@ -377,4 +403,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 38
+build: 39

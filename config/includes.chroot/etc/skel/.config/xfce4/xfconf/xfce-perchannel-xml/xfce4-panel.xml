@@ -51,7 +51,7 @@
     <property name="plugin-1" type="string" value="whiskermenu">
       <property name="button-title"      type="string" value="Applications"/>
       <property name="button-icon"       type="string" value="lexos"/>
-      <property name="show-button-title" type="bool"   value="true"/>
+      <property name="show-button-title" type="bool"   value="false"/>
       <property name="show-button-icon"  type="bool"   value="true"/>
       <property name="show-app-icons"    type="bool"   value="true"/>
       <property name="load-hierarchy"    type="bool"   value="false"/>
@@ -100,8 +100,8 @@
     <!-- 3 · Horloge centrale -->
     <property name="plugin-3" type="string" value="clock">
       <property name="mode"         type="uint"   value="2"/>
-      <property name="digital-format" type="string" value="%a %d %b  %H:%M"/>
-      <property name="digital-time-format" type="string" value="%a %d %b  %H:%M"/>
+      <property name="digital-format" type="string" value="lexOS  %a %d %b  %H h %M"/>
+      <property name="digital-time-format" type="string" value="lexOS  %a %d %b  %H h %M"/>
       <property name="tooltip-format" type="string" value="%A %d %B %Y"/>
     </property>
 
