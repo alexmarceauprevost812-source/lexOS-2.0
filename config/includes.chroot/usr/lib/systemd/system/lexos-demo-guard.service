@@ -1,0 +1,19 @@
+[Unit]
+Description=LexOS — retire les réglages de la démo hors session live
+Documentation=file:/usr/lib/lexos/demo-guard
+DefaultDependencies=no
+After=local-fs.target
+Before=sysinit.target display-manager.service lightdm.service getty@tty1.service
+#  PAS de ConditionPathExists ici. L'unité précédente en avait une sur
+#  /etc/sudoers.d/lexos-live : une fois ce fichier effacé au premier
+#  démarrage, l'unité ne se relançait plus JAMAIS — et les ouvertures de
+#  session automatiques, elles, seraient restées en place pour toujours.
+#  Le script sort tout seul en une milliseconde quand il n'y a rien à faire.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/lexos/demo-guard
+
+[Install]
+WantedBy=sysinit.target

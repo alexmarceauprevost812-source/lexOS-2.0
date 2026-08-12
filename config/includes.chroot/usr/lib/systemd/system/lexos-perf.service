@@ -2,7 +2,7 @@
 Description=LexOS — applique le profil de performance
 #  « man:lexos-perf(1) » promettait une page de manuel que LexOS n'installe
 #  pas : « systemctl status lexos-perf » affichait donc un lien mort. On
-#  pointe le script lui-même, comme lexos-live-sudo-guard.service.
+#  pointe le script lui-même, comme lexos-demo-guard.service.
 Documentation=file:/usr/bin/lexos-perf
 After=sysinit.target local-fs.target
 

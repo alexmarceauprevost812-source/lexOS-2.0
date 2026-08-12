@@ -25,6 +25,33 @@ flavour: dev
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 37 : « MON NOM D'UTILISATEUR N'A PAS ÉTÉ CRÉÉ » — il l'était.
+#   Alex a installé LexOS sur le portable, puis redémarré. Son compte semblait
+#   ne pas exister. Il existait : on n'arrivait simplement jamais jusqu'à lui.
+#
+#   L'ouverture de session AUTOMATIQUE de la démo partait sur le disque avec
+#   le reste. Calamares installe en recopiant le système de fichiers tel quel,
+#   et /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf voyageait avec :
+#   sur la machine installée, LightDM ouvrait donc directement la session
+#   « lex », le compte de la DÉMO. L'écran où l'on choisit son compte n'était
+#   jamais affiché. Même chose en console avec l'autologin de getty@tty1.
+#
+#   Le problème était à moitié connu : un garde-fou existait déjà pour le sudo
+#   sans mot de passe, avec exactement ce raisonnement écrit en commentaire.
+#   Il ne couvrait qu'UN fichier sur trois. Et il portait une condition
+#   systemd « ConditionPathExists=/etc/sudoers.d/lexos-live » : une fois ce
+#   fichier effacé au premier démarrage, l'unité ne se relançait plus JAMAIS.
+#   Même en lui ajoutant les deux autres chemins, elle n'aurait rien fait.
+#
+#   → lexos-live-sudo-guard devient lexos-demo-guard : il efface les TROIS
+#     réglages de démo hors session live, et son unité n'a plus aucune
+#     condition — le script sort de lui-même quand il n'y a rien à faire.
+#   → Le hook 0400 vérifie à la construction que les trois chemins qu'il écrit
+#     sont bien ceux que le garde-fou connaît, et le dit dans le journal
+#     sinon. Un chemin changé d'un côté et pas de l'autre ne repassera pas.
+#   → Le compte « lex » n'est PAS supprimé, volontairement : si la création du
+#     compte échoue pendant l'installation, il reste la seule façon d'entrer
+#     (lex / lex) pour réparer.
 # build 36 : LE FOND D'ÉCRAN S'AFFICHAIT, PUIS SE FAISAIT ÉCRASER.
 #   Le build 35 a réparé la moitié du problème : les icônes « Installer LexOS »
 #   et « Essayer LexOS » sont enfin sur le bureau, preuve que la recopie de
@@ -328,4 +355,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 36
+build: 37

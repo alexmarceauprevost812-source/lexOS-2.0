@@ -256,14 +256,33 @@ nomme son compte `lex`, le nom qu'il a sous les yeux depuis le début de la
 démo, hériterait en silence d'un sudo sans mot de passe qu'il n'a jamais
 demandé.
 
-`lexos-live-sudo-guard.service` ferme ça au démarrage, avant l'écran de
+Et ce n'est pas le seul réglage de démo qui voyage. L'**ouverture de session
+automatique** part avec, elle aussi — c'est même la plus gênante des trois :
+sur la machine installée, LightDM ouvrait directement la session `lex`, celle
+de la démo. On n'atteignait donc jamais l'écran où choisir son propre compte,
+et on en concluait que l'installateur ne l'avait pas créé. Il l'avait bien
+créé ; on n'arrivait simplement jamais jusqu'à lui.
+
+`lexos-demo-guard.service` ferme les trois au démarrage, avant l'écran de
 connexion :
 
 ```
 /proc/cmdline contient « boot=live » ?
-    ├─ oui  → session démo, on garde le fichier
-    └─ non  → système installé, rm -f /etc/sudoers.d/lexos-live
+    ├─ oui  → session démo, on garde tout
+    └─ non  → système installé, on efface
+              ├─ /etc/sudoers.d/lexos-live
+              ├─ /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf
+              └─ /etc/systemd/system/getty@tty1.service.d/lexos-autologin.conf
 ```
+
+L'unité n'a **aucun** `ConditionPathExists`. La précédente en avait une sur le
+fichier sudoers : une fois celui-ci effacé au premier démarrage, l'unité ne se
+relançait plus jamais — et les ouvertures automatiques seraient restées en
+place pour toujours.
+
+Le compte `lex` lui-même n'est pas supprimé, volontairement : si la création du
+compte a échoué pendant l'installation, il reste la seule façon d'entrer
+(identifiant `lex`, mot de passe `lex`) pour réparer.
 
 Le choix de ne dépendre d'aucun réglage de Calamares est délibéré : une
 installation faite autrement — clonage de disque, copie manuelle, image

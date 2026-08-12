@@ -107,12 +107,29 @@ ${LEXOS_LIVE_USER} ALL=(ALL) NOPASSWD: ALL
 EOF
 chmod 0440 /etc/sudoers.d/lexos-live
 
-chmod 0755 /usr/lib/lexos/live-sudo-guard 2>/dev/null || true
+#  Le garde-fou efface, sur un système INSTALLÉ, les commodités qui n'ont de
+#  sens que sur la clé USB : sudo sans mot de passe, ET l'ouverture de session
+#  automatique sur le compte « lex ». Cette dernière était oubliée — elle
+#  ouvrait le compte de la démo sur la machine installée, si bien qu'on
+#  n'atteignait jamais l'écran où choisir SON compte, et qu'on croyait
+#  l'installateur fautif de ne pas l'avoir créé.
+chmod 0755 /usr/lib/lexos/demo-guard 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
-	systemctl enable lexos-live-sudo-guard.service >/dev/null 2>&1 \
-		&& echo "[lexos]   garde-fou sudo activé" \
-		|| echo "[lexos]   !! garde-fou sudo non activé"
+	systemctl enable lexos-demo-guard.service >/dev/null 2>&1 \
+		&& echo "[lexos]   garde-fou démo activé (sudo + ouverture automatique)" \
+		|| echo "[lexos]   !! garde-fou démo non activé"
 fi
+
+#  Contrôle de construction : le garde-fou doit connaître les trois fichiers
+#  qu'il est chargé d'effacer. Si l'un des chemins change ailleurs sans être
+#  reporté ici, on le dit maintenant plutôt que de le découvrir sur une
+#  machine installée qui ouvre la session de démo.
+for CIBLE in /etc/sudoers.d/lexos-live \
+             /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf \
+             /etc/systemd/system/getty@tty1.service.d/lexos-autologin.conf; do
+	grep -qF "$CIBLE" /usr/lib/lexos/demo-guard \
+		|| echo "[lexos]   !! ${CIBLE} n'est pas dans le garde-fou démo"
+done
 
 # --- Compte « invite » : repli pour la session invité -----------------------
 # allow-guest=true (ci-dessus) laisse LightDM proposer sa propre session
