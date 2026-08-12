@@ -19,8 +19,15 @@ if (( ! FORCE )) && [[ -f "$STAMP" ]]; then
 fi
 
 # Laisse xfdesktop/xfsettingsd s'enregistrer avant de les piloter.
-for _ in $(seq 1 20); do
-	xfconf-query -c xfce4-desktop -l >/dev/null 2>&1 && break
+#
+#  ATTENTION au piège : « xfconf-query -c xfce4-desktop -l » répond TOUT DE
+#  SUITE, parce que le fichier xfce4-desktop.xml livré dans /etc/skel définit
+#  déjà /desktop-menu/show. Attendre ça n'attend rien du tout. Ce qu'il faut
+#  attendre, c'est que xfdesktop ait DÉCLARÉ SES ÉCRANS — c'est-à-dire qu'une
+#  propriété « last-image » apparaisse. Tant qu'elle n'est pas là, on ne sait
+#  pas sous quel nom écrire le fond d'écran.
+for _ in $(seq 1 40); do
+	xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -q 'last-image$' && break
 	sleep 0.5
 done
 
@@ -56,19 +63,71 @@ fi
 WALL="/usr/share/backgrounds/lexos/wallpaper.png"
 [[ -r "$WALL" ]] || WALL="/usr/share/lexos/branding/wallpaper.svg"
 
+#  pose_fond <chemin-de-propriete>  — l'image, puis son cadrage.
+#  image-style 5 = « zoomé pour remplir », le seul cadrage qui ne laisse
+#  jamais de bandes noires quelle que soit la définition de l'écran.
+#  On tente d'abord la pose simple (propriété déjà déclarée par xfdesktop),
+#  puis la création (-n). Dans cet ordre : « -n » exige un type, et imposer
+#  un type à une propriété existante est le genre de détail qui marche sur
+#  une version de XFCE et pas sur la suivante.
+pose_fond() {
+	local style="${1%last-image}image-style"
+	xfconf-query -c xfce4-desktop -p "$1" -s "$WALL" 2>/dev/null \
+		|| xfconf-query -c xfce4-desktop -n -t string -p "$1" -s "$WALL" 2>/dev/null \
+		|| return 1
+	xfconf-query -c xfce4-desktop -p "$style" -s 5 2>/dev/null \
+		|| xfconf-query -c xfce4-desktop -n -t int -p "$style" -s 5 2>/dev/null || true
+	return 0
+}
+
 if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
 	found=0
 	while read -r prop; do
 		[[ "$prop" == *last-image ]] || continue
-		xfconf-query -c xfce4-desktop -p "$prop" -s "$WALL" 2>/dev/null && found=1
-		style="${prop%last-image}image-style"
-		xfconf-query -c xfce4-desktop -p "$style" -s 5 2>/dev/null || true
+		pose_fond "$prop" && found=1
 	done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null)
 
-	# Aucun écran encore déclaré : on crée l'entrée par défaut.
+	#  Aucun écran déclaré par xfdesktop après 20 secondes d'attente. On écrit
+	#  alors les propriétés nous-mêmes — mais PAS sous n'importe quel nom.
+	#
+	#  C'EST ICI QUE ÇA A RATÉ SUR LE PORTABLE 2016. L'ancienne version créait
+	#  « /backdrop/screen0/monitor0/workspace0/last-image ». Ce nom-là est
+	#  celui de XFCE 4.10, abandonné depuis : à partir de XFCE 4.12, xfdesktop
+	#  range chaque écran sous le nom de sa SORTIE — monitoreDP-1, monitorHDMI-1,
+	#  monitorLVDS-1… Il lisait donc une propriété que nous n'écrivions pas, et
+	#  affichait son fond bleu par défaut. On demande les vrais noms à xrandr.
 	if (( ! found )); then
-		xfconf-query -c xfce4-desktop -n -t string \
-			-p /backdrop/screen0/monitor0/workspace0/last-image -s "$WALL" 2>/dev/null || true
+		sorties=()
+		if command -v xrandr >/dev/null 2>&1; then
+			mapfile -t sorties < <(
+				xrandr --listactivemonitors 2>/dev/null |
+					awk 'NR > 1 { print $NF }'
+			)
+		fi
+		#  Filet : si xrandr manque ou ne répond rien, on tente les noms de
+		#  sortie les plus courants plus l'ancien « monitor0 ». Écrire une
+		#  propriété pour un écran absent ne coûte rien — xfdesktop l'ignore.
+		((${#sorties[@]})) || sorties=(eDP-1 HDMI-1 DP-1 LVDS-1 VGA-1 0)
+
+		for sortie in "${sorties[@]}"; do
+			#  workspace0 suffit quand le mode « même fond partout » est actif
+			#  (le défaut) ; on couvre les quatre bureaux pour le cas contraire.
+			for ws in 0 1 2 3; do
+				pose_fond "/backdrop/screen0/monitor${sortie}/workspace${ws}/last-image" \
+					&& found=1
+			done
+		done
+	fi
+
+	#  Un seul fond pour tous les bureaux : sans ça, changer de bureau
+	#  virtuel ramène le fond bleu sur ceux qu'on n'a pas couverts.
+	xfconf-query -c xfce4-desktop -n -t bool \
+		-p /backdrop/single-workspace-mode -s true 2>/dev/null || true
+
+	#  xfdesktop ne relit pas toujours de lui-même quand les propriétés sont
+	#  créées après son démarrage. On le lui demande.
+	if (( found )) && command -v xfdesktop >/dev/null 2>&1; then
+		xfdesktop --reload >/dev/null 2>&1 || true
 	fi
 fi
 

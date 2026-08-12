@@ -19,12 +19,54 @@
 #
 #   La Release est publiée sous « latest-<saveur> » : passer en standard ne
 #   remplace donc PAS l'ISO pro, qui reste disponible sous « latest-pro ».
-flavour: pro
+flavour: dev
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 35 : LE BUREAU NE RESSEMBLAIT PAS À LA DÉMO — la cause est trouvée.
+#   Le build 33 a démarré sur le portable 2016 (première fois qu'une ISO
+#   LexOS atteint un bureau). Le dock et le panneau étaient bien là, mais
+#   rien d'autre : fond bleu de XFCE, thème clair, terminal ordinaire,
+#   raccourcis clavier morts, pas d'icône « Installer LexOS ».
+#
+#   CAUSE 1 — un instantané périmé de /etc/skel.
+#   Le compte de la session live est créé par le hook 0400 avec « useradd -m »,
+#   qui recopie /etc/skel À CET INSTANT et n'y revient jamais. Or trois hooks
+#   écrivent dans /etc/skel APRÈS : la fin du 0400 (raccourcis clavier), le
+#   0500 (icône d'installation) et surtout le 0600 — c'est-à-dire TOUT le
+#   thème LexOS Noir : gtk.css, .gtkrc-2.0, terminalrc, icônes accentuées.
+#   Le dossier personnel de la session live n'a donc jamais rien reçu de tout
+#   ça. Ce qui venait de includes.chroot (dock, panneau) arrivait, parce que
+#   c'était dans /etc/skel avant le hook 0400 — exactement ce qu'Alex voyait.
+#   → Nouveau hook 0700-lexos-skel-sync, exécuté après TOUS les autres, qui
+#     remet le dossier personnel en accord avec /etc/skel et signale dans le
+#     journal de construction si la recopie n'a pas eu lieu.
+#
+#   CAUSE 2 — le fond d'écran écrit sous un nom d'écran abandonné.
+#   lexos-firstrun créait « /backdrop/screen0/monitor0/workspace0/last-image ».
+#   Ce nom est celui de XFCE 4.10 : depuis la 4.12, xfdesktop range chaque
+#   écran sous le nom de sa sortie (monitoreDP-1, monitorHDMI-1, monitorLVDS-1).
+#   On écrivait donc une propriété que personne ne lisait, et xfdesktop
+#   affichait son fond bleu par défaut. De plus l'attente « xfdesktop est-il
+#   prêt ? » se terminait aussitôt, puisqu'elle testait la présence du canal —
+#   déjà créé par notre propre xfce4-desktop.xml — et non celle des écrans.
+#   → On attend maintenant l'apparition d'une propriété « last-image », et à
+#     défaut on demande les vrais noms de sortie à xrandr.
+#
+#   CAUSE 3 — un thème absent qui ne disait pas son nom.
+#   arc-theme et papirus-icon-theme voyagent dans les paquets OPTIONNELS :
+#   une absence n'arrête pas la construction. Mais on continuait à écrire
+#   « Arc-Dark » partout, XFCE ne trouvait rien et retombait sur son thème
+#   CLAIR, sans une ligne dans le journal.
+#   → Le hook 0600 vérifie maintenant sur le disque, choisit le premier thème
+#     sombre réellement présent, le dit dans le journal, et propage le nom
+#     retenu dans xsettings.xml, xfwm4.xml, l'écran de connexion et build.conf.
+#
+#   Saveur DEV et non pro : c'est le portable 2016 qui affiche, donc la seule
+#   machine où ce correctif peut être vérifié pour de bon. L'ISO pro part
+#   ensuite avec la même correction — elle a exactement le même défaut.
 # build 34 : retour en saveur PRO pour l'Alienware, avec tout ce qui a été
 # ajouté depuis le build 29 : la commande « lexos dev » (Claude Code, GitHub
 # CLI, Vercel CLI), les fonds d'écran à la souris (scènes animées et capture
@@ -253,4 +295,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 34
+build: 35

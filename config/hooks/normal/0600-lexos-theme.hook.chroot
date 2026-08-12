@@ -19,6 +19,53 @@ if [ -r /etc/lexos/build.conf ]; then
 	ICONS="${LEXOS_ICON_THEME:-Papirus-Dark}"
 fi
 
+# --- Le thème demandé est-il RÉELLEMENT installé ? --------------------------
+#  arc-theme et papirus-icon-theme voyagent dans les paquets OPTIONNELS : ils
+#  sont posés en « best effort » par le hook 0250, et une absence n'arrête pas
+#  la construction. Mais si on continue quand même à écrire « Arc-Dark »
+#  partout, XFCE ne trouve rien et retombe sur son thème CLAIR par défaut :
+#  on livre alors une ISO qui ne ressemble pas du tout à LexOS, sans qu'aucune
+#  ligne du journal ne l'ait signalé. On vérifie donc sur le disque, et on
+#  choisit le premier thème sombre réellement présent.
+#
+#  Dernier recours : « Adwaita », qui est compilé DANS GTK (donc toujours là,
+#  même sans dossier dans /usr/share/themes) et dont la variante sombre est
+#  obtenue par gtk-application-prefer-dark-theme, déjà posé plus bas. Le
+#  bureau reste noir quoi qu'il arrive.
+premier_present() {
+	RACINE="$1"; shift
+	for NOM in "$@"; do
+		if [ -d "${RACINE}/${NOM}" ]; then
+			printf '%s' "$NOM"
+			return 0
+		fi
+	done
+	return 1
+}
+
+GTK_DEMANDE="$GTK_BASE"
+if [ ! -d "/usr/share/themes/${GTK_BASE}" ]; then
+	GTK_BASE="$(premier_present /usr/share/themes \
+		Arc-Dark Adwaita-dark Greybird-dark Materia-dark Yaru-dark Numix)" \
+		|| GTK_BASE="Adwaita"
+	echo "[lexos]   !! thème « ${GTK_DEMANDE} » absent — remplacé par « ${GTK_BASE} »"
+fi
+
+ICONS_DEMANDE="$ICONS"
+if [ ! -d "/usr/share/icons/${ICONS}" ]; then
+	ICONS="$(premier_present /usr/share/icons \
+		Papirus-Dark Papirus ePapirus Adwaita gnome hicolor)" \
+		|| ICONS="hicolor"
+	echo "[lexos]   !! icônes « ${ICONS_DEMANDE} » absentes — remplacées par « ${ICONS} »"
+fi
+
+#  Les bordures de fenêtre sont un thème à part (xfwm4). Arc-Dark en fournit
+#  un ; les thèmes de repli pas toujours. « Default » est livré avec xfwm4.
+XFWM_THEME="$GTK_BASE"
+[ -d "/usr/share/themes/${XFWM_THEME}/xfwm4" ] || XFWM_THEME="Default"
+
+echo "[lexos]   thème : ${GTK_BASE} · icônes : ${ICONS} · fenêtres : ${XFWM_THEME}"
+
 # --- Génère le thème dans /etc/skel (hérité par tout nouveau compte) --------
 if [ -x /usr/bin/lexos-theme-gen ]; then
 	mkdir -p /etc/skel
@@ -47,6 +94,46 @@ gtk-xft-rgba=rgb
 gtk-menu-images=1
 gtk-button-images=1
 EOF
+
+# --- Propager les noms RETENUS partout où ils étaient écrits en dur --------
+#  Les fichiers ci-dessous ont été écrits par des hooks antérieurs avec le nom
+#  DEMANDÉ (« Arc-Dark »). Si on vient d'en choisir un autre parce que celui-là
+#  manquait, il faut les corriger, sinon la vérification ci-dessus n'aura servi
+#  à rien : XFCE lirait toujours « Arc-Dark » dans son XML.
+SKEL_XFCONF="/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"
+
+if [ -f "$SKEL_XFCONF/xsettings.xml" ]; then
+	sed -i \
+		-e "s|\(name=\"ThemeName\"[^>]*value=\"\)[^\"]*\"|\1${GTK_BASE}\"|" \
+		-e "s|\(name=\"IconThemeName\"[^>]*value=\"\)[^\"]*\"|\1${ICONS}\"|" \
+		"$SKEL_XFCONF/xsettings.xml"
+fi
+
+if [ -f "$SKEL_XFCONF/xfwm4.xml" ]; then
+	sed -i \
+		-e "s|\(name=\"theme\"[^>]*value=\"\)[^\"]*\"|\1${XFWM_THEME}\"|" \
+		"$SKEL_XFCONF/xfwm4.xml"
+fi
+
+if [ -f /etc/lightdm/lightdm-gtk-greeter.conf ]; then
+	sed -i \
+		-e "s|^theme-name=.*|theme-name=${GTK_BASE}|" \
+		-e "s|^icon-theme-name=.*|icon-theme-name=${ICONS}|" \
+		/etc/lightdm/lightdm-gtk-greeter.conf
+fi
+
+#  Et dans build.conf, pour que lexos-firstrun applique les MÊMES noms à
+#  l'ouverture de session — c'est lui qui a le dernier mot sur l'écran.
+mkdir -p /etc/lexos
+touch /etc/lexos/build.conf
+for PAIRE in "LEXOS_GTK_BASE_THEME=${GTK_BASE}" "LEXOS_ICON_THEME=${ICONS}"; do
+	CLE="${PAIRE%%=*}"
+	if grep -q "^${CLE}=" /etc/lexos/build.conf; then
+		sed -i "s|^${CLE}=.*|${CLE}=\"${PAIRE#*=}\"|" /etc/lexos/build.conf
+	else
+		echo "${CLE}=\"${PAIRE#*=}\"" >> /etc/lexos/build.conf
+	fi
+done
 
 # --- Terminal : noir + vert dark, aussi pour les autres émulateurs ---------
 mkdir -p /etc/skel/.config/xfce4/terminal

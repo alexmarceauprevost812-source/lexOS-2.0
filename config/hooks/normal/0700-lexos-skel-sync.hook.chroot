@@ -1,0 +1,98 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — recopier /etc/skel dans le dossier personnel de la session live
+# =============================================================================
+#  LE BOGUE QUE CE HOOK RÉPARE
+#
+#  Le compte de la session live est créé par le hook 0400, avec « useradd -m ».
+#  useradd recopie /etc/skel dans /home/<user> À CET INSTANT-LÀ, une fois, et
+#  ne revient jamais. Or plusieurs hooks écrivent dans /etc/skel APRÈS 0400 :
+#
+#    · 0400 (fin) — les raccourcis clavier (Super+Entrée, Super+E…)
+#    · 0500       — le lanceur « Installer LexOS » sur le bureau
+#    · 0600       — TOUT le thème LexOS Noir : gtk.css, .gtkrc-2.0,
+#                   terminalrc (le terminal noir), les icônes à la couleur
+#                   d'accent, ~/.config/lexos/accent
+#
+#  Résultat observé sur la première ISO qui a démarré (portable 2016) : le
+#  dock et le panneau étaient bien là — ils viennent de includes.chroot, donc
+#  ils étaient dans /etc/skel AVANT le hook 0400 — mais le bureau n'avait
+#  rien de LexOS. Ni le noir, ni le terminal noir, ni les raccourcis, ni
+#  l'icône d'installation. Autrement dit : « pas pareil que la démo ».
+#
+#  Ce hook s'exécute APRÈS TOUS LES AUTRES (0700 > 0600 > 0500 > 0400) et
+#  remet le dossier personnel en accord avec /etc/skel. C'est le dernier mot.
+#
+#  Pourquoi recopier plutôt que déplacer la création du compte à la fin ?
+#  Parce que le hook 0400 a besoin que le compte existe pour l'inscrire aux
+#  groupes (audio, video, netdev…), configurer sudo et l'autologin. Déplacer
+#  la création casserait tout ça en silence. Recopier ne casse rien : le
+#  compte est neuf, personne n'a encore rien mis dedans.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0700 : synchronisation de /etc/skel"
+
+LEXOS_LIVE_USER="lex"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+fi
+
+if [ ! -d /etc/skel ]; then
+	echo "[lexos]   /etc/skel absent — rien à synchroniser"
+	exit 0
+fi
+
+if ! id "${LEXOS_LIVE_USER}" >/dev/null 2>&1; then
+	#  Saveur minimal : le hook 0400 sort avant de créer le compte.
+	echo "[lexos]   compte « ${LEXOS_LIVE_USER} » absent — rien à synchroniser"
+	exit 0
+fi
+
+MAISON="$(getent passwd "${LEXOS_LIVE_USER}" | cut -d: -f6)"
+GROUPE="$(id -gn "${LEXOS_LIVE_USER}")"
+
+case "$MAISON" in
+	/home/*) ;;
+	*)
+		#  Garde-fou : on ne recopie jamais en vrac dans / ou dans /root à
+		#  cause d'une ligne de passwd inattendue.
+		echo "[lexos]   !! dossier personnel inattendu (${MAISON}) — abandon"
+		exit 0
+		;;
+esac
+
+if [ ! -d "$MAISON" ]; then
+	mkdir -p "$MAISON"
+fi
+
+#  « /etc/skel/. » et non « /etc/skel » : le point fait copier le CONTENU du
+#  dossier, fichiers cachés compris, au lieu de créer /home/lex/skel.
+#  -a préserve les permissions (les .desktop exécutables du bureau) ; les
+#  fichiers déjà présents sont écrasés, ce qui est voulu — /etc/skel est la
+#  référence, et rien d'autre n'a encore écrit dans ce dossier neuf.
+cp -a /etc/skel/. "$MAISON"/
+chown -R "${LEXOS_LIVE_USER}:${GROUPE}" "$MAISON"
+
+#  Contrôle : ces trois fichiers sont produits par des hooks postérieurs à la
+#  création du compte. S'ils manquent ici, la synchronisation n'a pas eu lieu
+#  et le bureau live repartirait sans son thème — on le dit fort dans le
+#  journal de construction plutôt que de le découvrir sur l'écran d'Alex.
+MANQUE=""
+for F in .config/gtk-3.0/gtk.css \
+         .config/xfce4/terminal/terminalrc \
+         .config/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml; do
+	#  On ne se plaint que de ce qui existe VRAIMENT dans /etc/skel : si le
+	#  hook 0600 a échoué, c'est son problème, pas celui de la recopie.
+	[ -e "/etc/skel/$F" ] || continue
+	[ -e "$MAISON/$F" ]   || MANQUE="${MANQUE} $F"
+done
+
+if [ -n "$MANQUE" ]; then
+	echo "[lexos]   !! non recopié :${MANQUE}"
+else
+	echo "[lexos]   ${MAISON} est à jour (thème, terminal, raccourcis)"
+fi
+
+echo "[lexos] hook 0700 : ok"
