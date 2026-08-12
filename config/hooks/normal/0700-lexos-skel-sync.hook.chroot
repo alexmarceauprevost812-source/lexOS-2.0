@@ -95,4 +95,45 @@ else
 	echo "[lexos]   ${MAISON} est à jour (thème, terminal, raccourcis)"
 fi
 
+# --- Contrôle : chaque icône existe-t-elle à TOUTES les tailles ? -----------
+#  POURQUOI CE CONTRÔLE EXISTE
+#  L'icône de Google Chrome changeait de dessin quand la souris passait
+#  dessus. Cause : le hook 0440 la rendait en 32→256 px seulement, alors que
+#  toutes les autres icônes LexOS sont rendues en 16→256. Aux trois tailles
+#  manquantes, GTK ne trouvait pas de PNG et basculait sur la version
+#  vectorielle. Or le dock AGRANDIT l'icône survolée : la taille demandée
+#  varie en continu, l'affichage saute d'un rendu à l'autre, et le dessin
+#  change sous la souris.
+#
+#  Rien ne signalait ce trou — ni la construction, ni le démarrage. Il a
+#  fallu qu'Alex le voie à l'écran et le photographie. Ce contrôle le dit
+#  maintenant dans le journal de construction, pour toutes les icônes d'un
+#  coup : une série de tailles incomplète est une icône qui clignotera.
+TAILLES="16 22 24 32 48 64 128 256"
+RACINE="/usr/share/icons/hicolor"
+INCOMPLETES=0
+
+if [ -d "$RACINE" ]; then
+	#  On part des icônes présentes en 48 px — la taille de référence du dock,
+	#  celle qu'aucune icône réellement utilisée ne peut manquer.
+	for ICONE in "$RACINE"/48x48/apps/lexos-*.png "$RACINE"/48x48/apps/lexos.png; do
+		[ -e "$ICONE" ] || continue
+		NOM="$(basename "$ICONE")"
+		ABSENTES=""
+		for T in $TAILLES; do
+			[ -e "$RACINE/${T}x${T}/apps/$NOM" ] || ABSENTES="${ABSENTES} ${T}"
+		done
+		if [ -n "$ABSENTES" ]; then
+			echo "[lexos]   !! ${NOM} : tailles manquantes —${ABSENTES}"
+			INCOMPLETES=$((INCOMPLETES + 1))
+		fi
+	done
+fi
+
+if [ "$INCOMPLETES" -eq 0 ]; then
+	echo "[lexos]   icônes : toutes les tailles présentes (${TAILLES})"
+else
+	echo "[lexos]   !! ${INCOMPLETES} icône(s) incomplète(s) — elles changeront de dessin sous la souris"
+fi
+
 echo "[lexos] hook 0700 : ok"

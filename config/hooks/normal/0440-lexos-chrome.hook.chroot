@@ -20,7 +20,15 @@ have() { command -v "$1" >/dev/null 2>&1; }
 SVG="/usr/share/lexos/branding/chrome-icon.svg"
 [ -r "$SVG" ] || SVG="branding/chrome-icon.svg"
 if [ -r "$SVG" ]; then
-	for SIZE in 32 48 64 128 256; do
+	#  MÊMES TAILLES QUE TOUTES LES AUTRES ICÔNES LexOS (hook 0300).
+	#  Il manquait 16, 22 et 24. Conséquence visible, signalée par Alex :
+	#  l'icône de Chrome CHANGEAIT DE DESSIN quand la souris passait dessus.
+	#  Le dock agrandit l'icône survolée, la taille demandée varie donc en
+	#  continu ; aux tailles sans PNG, GTK bascule sur la version vectorielle,
+	#  et l'affichage saute d'un rendu à l'autre. Une série de tailles
+	#  incomplète, c'est une icône qui clignote — le hook 0700 le vérifie
+	#  désormais à la construction.
+	for SIZE in 16 22 24 32 48 64 128 256; do
 		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
 		mkdir -p "$DIR"
 		if have rsvg-convert; then

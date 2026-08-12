@@ -25,6 +25,28 @@ flavour: dev
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 38 : L'ICÔNE DE CHROME CHANGEAIT DE DESSIN SOUS LA SOURIS.
+#   Alex l'avait signalé deux fois sans qu'on trouve : « il y a deux images
+#   différentes sur l'application, quand la souris passe dessous ça change ».
+#   Ses deux photos ont tranché — au repos un dessin, survolée un autre, avec
+#   l'infobulle « Google Chrome » dessous.
+#
+#   Le hook 0440 rendait l'icône de Chrome en 32, 48, 64, 128 et 256 px.
+#   Toutes les autres icônes LexOS (hook 0300) sont rendues en 16, 22, 24, 32,
+#   48, 64, 128 et 256. Il manquait donc 16, 22 et 24. Aux tailles absentes,
+#   GTK ne trouve pas de PNG et bascule sur la version vectorielle — et comme
+#   le dock AGRANDIT l'icône survolée, la taille demandée varie en continu :
+#   l'affichage saute d'un rendu à l'autre, et le dessin change sous la souris.
+#
+#   → Le hook 0440 rend maintenant les huit mêmes tailles que tout le reste.
+#   → lexos-install-chrome avait le même trou en sens inverse : Google ne
+#     livre pas de logo en 22 px, la boucle passait son tour à cette taille et
+#     y laissait NOTRE dessin pendant que les autres portaient le logo de
+#     Google. Une taille sans logo d'origine est désormais réduite depuis le
+#     256 px ; à défaut, l'ancien fichier est effacé plutôt que laissé mentir.
+#   → Le hook 0700 vérifie TOUTES les icônes à la construction et nomme dans
+#     le journal celles dont la série de tailles est incomplète. Ce trou-là
+#     n'était signalé nulle part : il a fallu qu'Alex le photographie.
 # build 37 : « MON NOM D'UTILISATEUR N'A PAS ÉTÉ CRÉÉ » — il l'était.
 #   Alex a installé LexOS sur le portable, puis redémarré. Son compte semblait
 #   ne pas exister. Il existait : on n'arrivait simplement jamais jusqu'à lui.
@@ -355,4 +377,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 37
+build: 38

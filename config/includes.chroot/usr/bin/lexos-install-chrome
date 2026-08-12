@@ -64,12 +64,30 @@ apt-get install -y google-chrome-stable \
 #  le logo livré par Google, pour que le dock et le menu affichent le vrai
 #  Chrome dès maintenant, sans toucher aux fichiers .desktop.
 if [ -d /opt/google/chrome ]; then
-	for SIZE in 16 24 32 48 64 128 256; do
+	#  ON REMPLACE TOUTES LES TAILLES, SANS EN SAUTER UNE SEULE.
+	#  Google ne livre pas de logo en 22 px. L'ancienne version passait donc
+	#  son tour à cette taille — et y laissait NOTRE dessin, pendant que
+	#  toutes les autres tailles portaient le logo de Google. Une icône avec
+	#  deux dessins selon la taille, c'est une icône qui change sous la
+	#  souris quand le dock l'agrandit : exactement le défaut qu'on vient de
+	#  corriger côté construction. Ici, une taille sans logo d'origine est
+	#  réduite depuis la plus petite taille supérieure disponible.
+	LOGO_MAX="/opt/google/chrome/product_logo_256.png"
+	for SIZE in 16 22 24 32 48 64 128 256; do
 		SRC="/opt/google/chrome/product_logo_${SIZE}.png"
-		[ -r "$SRC" ] || continue
 		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
 		mkdir -p "$DIR"
-		cp -f "$SRC" "$DIR/lexos-chrome.png" 2>/dev/null || true
+		if [ -r "$SRC" ]; then
+			cp -f "$SRC" "$DIR/lexos-chrome.png" 2>/dev/null || true
+		elif [ -r "$LOGO_MAX" ] && command -v convert >/dev/null 2>&1; then
+			convert "$LOGO_MAX" -resize "${SIZE}x${SIZE}" "$DIR/lexos-chrome.png" \
+				2>/dev/null || rm -f "$DIR/lexos-chrome.png"
+		else
+			#  Ni logo d'origine ni outil pour en fabriquer un : on EFFACE
+			#  plutôt que de laisser notre ancien dessin à cette taille-là.
+			#  GTK réduira le PNG voisin, ce qui reste le même dessin.
+			rm -f "$DIR/lexos-chrome.png"
+		fi
 	done
 	rm -f /usr/share/icons/hicolor/scalable/apps/lexos-chrome.svg
 	command -v gtk-update-icon-cache >/dev/null 2>&1 && \
