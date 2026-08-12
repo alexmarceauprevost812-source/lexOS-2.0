@@ -56,7 +56,7 @@ fi
 
 # --- Fond d'écran sur tous les écrans détectés ------------------------------
 #  wallpaper.png (rendu de branding/wallpaper.svg) EST le fond de marque
-#  officiel : la marque « LexOS », « TI · LEX · AL », « 1.0 — NOMAD » y sont
+#  officiel : la marque « LexOS », « TI · LEX · AL » et la version y sont
 #  déjà, avec la grille et les braises — pas juste un dégradé abstrait.
 #  wallpaper-demon.png (icône seule, sans texte) n'est qu'une des quatre
 #  variantes du sélecteur Paramètres → Bureau LexOS, pas le défaut.
@@ -80,8 +80,10 @@ pose_fond() {
 	return 0
 }
 
-if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
-	found=0
+appliquer_fond() {
+	local found=0 prop sortie ws
+	local sorties=()
+
 	while read -r prop; do
 		[[ "$prop" == *last-image ]] || continue
 		pose_fond "$prop" && found=1
@@ -97,7 +99,6 @@ if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
 	#  monitorLVDS-1… Il lisait donc une propriété que nous n'écrivions pas, et
 	#  affichait son fond bleu par défaut. On demande les vrais noms à xrandr.
 	if (( ! found )); then
-		sorties=()
 		if command -v xrandr >/dev/null 2>&1; then
 			mapfile -t sorties < <(
 				xrandr --listactivemonitors 2>/dev/null |
@@ -124,11 +125,41 @@ if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
 	xfconf-query -c xfce4-desktop -n -t bool \
 		-p /backdrop/single-workspace-mode -s true 2>/dev/null || true
 
+	#  0 si on a posé au moins une propriété : c'est l'appelant qui décide
+	#  de demander ou non un rafraîchissement à xfdesktop.
+	(( found ))
+}
+
+if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
 	#  xfdesktop ne relit pas toujours de lui-même quand les propriétés sont
-	#  créées après son démarrage. On le lui demande.
-	if (( found )) && command -v xfdesktop >/dev/null 2>&1; then
+	#  créées après son démarrage. On le lui demande — une seule fois, ici :
+	#  le rafraîchir à chaque passage de la boucle ci-dessous ferait clignoter
+	#  le bureau pendant une minute.
+	if appliquer_fond && command -v xfdesktop >/dev/null 2>&1; then
 		xfdesktop --reload >/dev/null 2>&1 || true
 	fi
+
+	#  ON REPOSE LE FOND PLUSIEURS FOIS, PENDANT UNE MINUTE.
+	#
+	#  Constaté sur le portable 2016 (build 35) : le bon fond s'affichait à
+	#  l'ouverture de session, puis laissait la place au fond bleu de XFCE.
+	#  On ne perdait pas parce qu'on écrivait au mauvais endroit — on écrivait
+	#  au bon, mais TROP TÔT : xfdesktop terminait son démarrage après nous et
+	#  écrivait ses propres valeurs par-dessus.
+	#
+	#  Deux réponses, et on met les deux. La première est dans le hook 0300 :
+	#  le fichier de fond par défaut de XFCE contient désormais l'image LexOS,
+	#  donc même perdue, la course ne se voit plus. La seconde est ici : on
+	#  repose la propriété toutes les cinq secondes pendant une minute, en
+	#  arrière-plan, pour être celui qui écrit en dernier. C'est peu coûteux
+	#  et ça couvre aussi le branchement d'un écran externe juste après
+	#  l'ouverture de session — cas où xfdesktop crée de nouvelles propriétés.
+	(
+		for _ in $(seq 1 12); do
+			sleep 5
+			appliquer_fond
+		done
+	) >/dev/null 2>&1 &
 fi
 
 # --- Fond animé par défaut : le code qui s'écrit ----------------------------

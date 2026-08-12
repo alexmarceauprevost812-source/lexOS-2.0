@@ -58,7 +58,7 @@
         <text x="20"  y="446" opacity="0.30">except OSError:</text>
         <text x="4"   y="474" opacity="0.65"># TODO: ship it</text>
         <text x="36"  y="502" opacity="0.18">pass</text>
-        <text x="4"   y="530" opacity="0.55">__version__ = "1.0"</text>
+        <text x="4"   y="530" opacity="0.55">__version__ = "2.0.0"</text>
         <text x="20"  y="558" opacity="0.28">self.theme = "sombre"</text>
         <text x="4"   y="586" opacity="0.75">if __name__ == "__main__":</text>
       </g>

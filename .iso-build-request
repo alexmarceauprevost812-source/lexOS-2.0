@@ -25,6 +25,39 @@ flavour: dev
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 36 : LE FOND D'ÉCRAN S'AFFICHAIT, PUIS SE FAISAIT ÉCRASER.
+#   Le build 35 a réparé la moitié du problème : les icônes « Installer LexOS »
+#   et « Essayer LexOS » sont enfin sur le bureau, preuve que la recopie de
+#   /etc/skel fonctionne. Mais le fond restait bleu.
+#
+#   Alex a donné l'indice décisif : « il a affiché la bonne image au début,
+#   mais après il a changé encore pour l'écran avec la souris ». Donc on
+#   n'écrivait PAS au mauvais endroit — le nom de propriété était bon, le
+#   fond s'affichait vraiment. On écrivait TROP TÔT : xfdesktop terminait son
+#   démarrage après nous et réécrivait ses propres valeurs par-dessus.
+#   Une course, et on la perdait. Rien dans le diagnostic précédent ne pouvait
+#   le montrer : le journal de construction est muet sur ce qui se passe à
+#   l'ouverture de session.
+#
+#   On arrête de courir. Deux réponses, indépendantes, et on met les deux :
+#   → HOOK 0300 : les fichiers de /usr/share/backgrounds/xfce — dont
+#     xfce-x.svg, précisément l'image bleue à la souris — sont remplacés par
+#     l'image LexOS, en gardant nom et format. Même si xfdesktop gagne la
+#     course et impose « son » fond par défaut, ce fond EST celui de LexOS.
+#     C'est le seul correctif qui ne dépende d'aucun ordre d'exécution.
+#   → lexos-firstrun : la pose du fond devient une fonction, rappelée toutes
+#     les cinq secondes pendant une minute en arrière-plan. On est celui qui
+#     écrit en dernier. Couvre aussi l'écran externe branché juste après
+#     l'ouverture de session, cas où xfdesktop crée de nouvelles propriétés.
+#
+#   AU PASSAGE, deux petites choses vues en vérifiant :
+#   · lexos-theme-gen rendait les icônes accentuées en 24→256 px alors que le
+#     thème système en fournit aussi en 16 et 22. À ces deux tailles — celles
+#     de la barre système — l'icône retombait donc sur la version orange
+#     d'origine pendant qu'elle était bleue partout ailleurs. Corrigé : mêmes
+#     tailles des deux côtés.
+#   · Le fond d'écran affichait « __version__ = "1.0" » dans son faux code,
+#     alors que le système est en 2.0.0.
 # build 35 : LE BUREAU NE RESSEMBLAIT PAS À LA DÉMO — la cause est trouvée.
 #   Le build 33 a démarré sur le portable 2016 (première fois qu'une ISO
 #   LexOS atteint un bureau). Le dock et le panneau étaient bien là, mais
@@ -295,4 +328,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 35
+build: 36

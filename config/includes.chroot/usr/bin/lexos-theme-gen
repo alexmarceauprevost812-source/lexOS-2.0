@@ -417,7 +417,12 @@ if command -v rsvg-convert >/dev/null 2>&1; then
 		[[ -r "$ICON_SRC" ]] || continue
 		TMP_SVG="$(mktemp -t lexos-icon-XXXXXX.svg)"
 		sed "s/#E8590C/${ACCENT}/gI" "$ICON_SRC" > "$TMP_SVG"
-		for S in 24 32 48 64 128 256; do
+		#  16 et 22 étaient absents : le thème SYSTÈME, lui, les fournit.
+		#  Résultat, aux tailles de la barre système l'icône retombait sur la
+		#  version orange d'origine pendant qu'elle était bleue (ou verte…)
+		#  partout ailleurs. On rend exactement les mêmes tailles que le
+		#  thème système, sinon le remplacement est incomplet par construction.
+		for S in 16 22 24 32 48 64 128 256; do
 			mkdir -p "$ICON_DIR/${S}x${S}/apps"
 			rsvg-convert -w "$S" -h "$S" \
 				-o "$ICON_DIR/${S}x${S}/apps/lexos-${ICON_NAME}.png" "$TMP_SVG" 2>/dev/null || true

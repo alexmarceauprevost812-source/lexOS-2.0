@@ -69,6 +69,57 @@ if [ -r "$BRAND/lexos-1.0-keyart.png" ] && have convert; then
 		|| echo "[lexos]   !! échec : wallpaper-keyart.png"
 fi
 
+# --- Le fond par DÉFAUT de XFCE devient celui de LexOS ---------------------
+#  POURQUOI CE BLOC EXISTE (constaté sur le portable 2016, build 35)
+#  Le bon fond d'écran s'affichait à l'ouverture de session… puis laissait
+#  la place au fond bleu de XFCE, celui à la souris. Ce n'était donc pas une
+#  question de nom de propriété — c'était une COURSE, et on la perdait :
+#  lexos-firstrun pose l'image, xfdesktop finit de démarrer ensuite et écrit
+#  ses propres valeurs par-dessus.
+#
+#  On peut toujours écrire après lui, il écrira encore après nous. La seule
+#  façon de gagner à coup sûr, c'est de ne plus courir : on remplace LE
+#  FICHIER que xfdesktop utilise par défaut. Peu importe alors qui écrit en
+#  dernier — l'image affichée est celle de LexOS.
+#
+#  On remplace chaque fichier en gardant son nom ET son format : xfdesktop
+#  choisit par nom, et un JPEG déguisé en .svg n'est pas lisible par tous
+#  les chargeurs. Les originaux de Debian ne servent plus à rien ici.
+XFCE_BG="/usr/share/backgrounds/xfce"
+if [ -d "$XFCE_BG" ] && [ -r "$BG/wallpaper.png" ]; then
+	REMPLACES=0
+	for D in "$XFCE_BG"/*; do
+		[ -f "$D" ] || continue
+		case "$D" in
+			*.svg)
+				[ -r "$BRAND/wallpaper.svg" ] \
+					&& cp "$BRAND/wallpaper.svg" "$D" && REMPLACES=$((REMPLACES + 1))
+				;;
+			*.png)
+				cp "$BG/wallpaper.png" "$D" && REMPLACES=$((REMPLACES + 1))
+				;;
+			*.jpg|*.jpeg)
+				#  Sans convert, on recopie quand même le PNG sous le nom
+				#  .jpg : les chargeurs d'images reconnaissent le format au
+				#  contenu, pas à l'extension. Un PNG mal nommé s'affiche ;
+				#  le fond bleu de Debian laissé en place, lui, se voit.
+				if have convert; then
+					convert "$BG/wallpaper.png" -quality 92 "$D" \
+						&& REMPLACES=$((REMPLACES + 1))
+				else
+					cp "$BG/wallpaper.png" "$D" && REMPLACES=$((REMPLACES + 1))
+				fi
+				;;
+		esac
+	done
+	echo "[lexos]   fond par défaut de XFCE remplacé (${REMPLACES} fichier(s))"
+	if [ "$REMPLACES" -eq 0 ]; then
+		echo "[lexos]   !! aucun fond XFCE remplacé — le bureau live risque de repasser au fond bleu"
+	fi
+else
+	echo "[lexos]   !! ${XFCE_BG} absent ou wallpaper.png manquant — fond par défaut non remplacé"
+fi
+
 # Les mascottes servent aussi de fonds d'écran alternatifs.
 for M in "$BRAND"/mascot*.png; do
 	[ -e "$M" ] || continue
