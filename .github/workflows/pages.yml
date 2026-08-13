@@ -83,46 +83,12 @@ jobs:
             exit 1
           fi
 
+      #  Le MÊME script que Vercel (vercel.json → buildCommand). Deux
+      #  hébergeurs, une seule recette : sinon l'une des deux prend du retard
+      #  sans que personne s'en aperçoive, jusqu'au jour où l'adresse qu'on
+      #  donne aux gens montre une version d'il y a trois semaines.
       - name: Assembler le site
-        run: |
-          set -e
-          mkdir -p _site/branding _site/demo
-
-          #  Le site à la racine : c'est lui qu'on veut voir en tapant
-          #  l'adresse, sans sous-dossier ni fichier à choisir.
-          cp -r website/. _site/
-
-          #  Les pages écrivent « ../branding/logo… » parce qu'elles vivent
-          #  dans website/ à côté de branding/ dans le dépôt. Une fois le site
-          #  à la racine, ce « ../ » sortirait du site publié et l'image ne
-          #  s'afficherait plus. On copie l'image et on corrige le chemin.
-          cp branding/logo-ti-lex-al-icon.png _site/branding/
-          sed -i 's|\.\./branding/|branding/|g' _site/*.html
-
-          #  La démo du bureau, à /demo/ — un seul fichier, autonome.
-          cp web-demo/index.html _site/demo/index.html
-
-          #  .nojekyll : sans lui, GitHub ignore les fichiers et dossiers
-          #  commençant par un souligné. Rien n'en porte aujourd'hui, mais
-          #  c'est le genre de piège qu'on ne trouve qu'après coup.
-          touch _site/.nojekyll
-
-          echo "── Contrôles ─────────────────────────────"
-          test -s _site/index.html      || { echo "::error::index.html manquant"; exit 1; }
-          test -s _site/demo/index.html || { echo "::error::la démo est absente"; exit 1; }
-          test -s _site/branding/logo-ti-lex-al-icon.png \
-            || { echo "::error::le logo est absent"; exit 1; }
-
-          #  Plus aucun « ../ » ne doit rester : ce serait un lien mort.
-          if grep -rl '\.\./branding' _site/ 2>/dev/null | grep -q .; then
-            echo "::error::des chemins « ../branding » n'ont pas été corrigés"
-            grep -rn '\.\./branding' _site/ | head
-            exit 1
-          fi
-
-          echo "Pages publiées :"
-          find _site -maxdepth 2 -name '*.html' -printf '  %p  (%kK)\n' | sort
-          echo "Poids total : $(du -sh _site | cut -f1)"
+        run: sh scripts/build-site.sh _site
 
       #  IL FAUT UN CLIC, UNE SEULE FOIS, ET PERSONNE NE PEUT LE FAIRE À TA
       #  PLACE — pas même cette construction.
