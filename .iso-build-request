@@ -25,6 +25,33 @@ flavour: dev
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 41 : LE CONTRÔLE D'ICÔNES A TROUVÉ DEUX AUTRES CAS, DÈS SON PREMIER TOUR.
+#   Le contrôle ajouté au build 38 tournait pour la première fois dans le
+#   build 40. Il a immédiatement nommé une icône qu'on n'avait pas vue :
+#     [lexos] !! lexos-claude.png : tailles manquantes — 16 22 24
+#   Le hook 0420 avait exactement le même trou que celui de Chrome. Alex avait
+#   dit « PLUSIEURS applications » — il avait raison, il y en avait deux.
+#
+#   Et en vérifiant TOUTES les boucles de tailles du dépôt, un troisième cas,
+#   plus sournois, que le contrôle ne pouvait PAS voir :
+#   le dossier branding contient deux fichiers au nom presque identique,
+#   icon-musique.svg et musique-icon.svg — deux DESSINS DIFFÉRENTS. Le hook
+#   0300 écrivait « lexos-musique » depuis le premier, aux huit tailles ; le
+#   hook 0430, qui passe après, la réécrivait depuis le second, mais seulement
+#   à partir de 32 px. Sur le disque : 16, 22 et 24 px portaient un dessin,
+#   32 px et au-dessus l'autre. Toutes les tailles étaient présentes — le
+#   contrôle de complétude ne pouvait rien signaler.
+#
+#   → Hooks 0420 et 0430 : les huit mêmes tailles que partout ailleurs.
+#     Plus aucune boucle à cinq tailles dans le dépôt, vérifié.
+#   → Le hook 0700 signale désormais AUSSI les collisions de noms dans
+#     branding : « icon-X.svg » et « X-icon.svg » qui coexistent, c'est une
+#     icône avec deux dessins possibles selon le hook qui parle en dernier.
+#     Testé sur le vrai dossier : il trouve musique, et rien d'autre.
+#
+#   LE BUILD 40 RESTE BON et contient tout le reste. Ces deux icônes-là y
+#   clignotent encore sous la souris ; c'est cosmétique et c'est dit à Alex
+#   franchement plutôt que de lui faire attendre une ISO de plus.
 # build 40 : LA MÉTÉO DE LA DÉMO, AVEC LA VILLE CHOISIE PAR L'UTILISATEUR.
 #   Le build 39 avait écarté la météo parce que le greffon XFCE réclame une
 #   ville au premier lancement. Alex a tranché : « oui, avec la localisation
@@ -438,4 +465,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 40
+build: 41

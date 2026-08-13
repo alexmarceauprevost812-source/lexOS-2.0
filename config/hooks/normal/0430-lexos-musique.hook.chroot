@@ -21,7 +21,18 @@ fi
 SVG="/usr/share/lexos/branding/musique-icon.svg"
 [ -r "$SVG" ] || SVG="branding/musique-icon.svg"
 if [ -r "$SVG" ]; then
-	for SIZE in 32 48 64 128 256; do
+	#  LE PIRE DES TROIS CAS, ET LE PLUS SOURNOIS.
+	#  Le hook 0300 rend DÉJÀ une icône « lexos-musique », mais depuis un
+	#  AUTRE dessin : branding/icon-musique.svg. Ce hook-ci, qui passe après,
+	#  la réécrivait depuis branding/musique-icon.svg — un fichier différent,
+	#  au nom presque identique — mais seulement à partir de 32 px.
+	#  Résultat sur le disque : 16, 22 et 24 px portaient le dessin du hook
+	#  0300, et 32 px et au-dessus celui d'ici. La même icône avec DEUX
+	#  dessins selon la taille. Le contrôle du hook 0700 ne pouvait pas le
+	#  voir : toutes les tailles étaient bien présentes.
+	#  On rend donc les huit tailles, pour que ce hook soit le seul et
+	#  dernier mot sur cette icône.
+	for SIZE in 16 22 24 32 48 64 128 256; do
 		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
 		mkdir -p "$DIR"
 		if have rsvg-convert; then

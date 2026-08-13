@@ -23,7 +23,14 @@ have() { command -v "$1" >/dev/null 2>&1; }
 SVG="/usr/share/lexos/branding/claude-icon.svg"
 [ -r "$SVG" ] || SVG="branding/claude-icon.svg"          # selon le contexte du hook
 if [ -r "$SVG" ]; then
-	for SIZE in 32 48 64 128 256; do
+	#  MÊMES TAILLES QUE TOUTES LES AUTRES ICÔNES LexOS (hook 0300).
+	#  Ce hook avait exactement le même trou que celui de Chrome : 16, 22 et
+	#  24 px manquaient. Aux tailles absentes, GTK bascule sur la version
+	#  vectorielle, et comme le dock agrandit l'icône survolée, le dessin
+	#  change sous la souris. Alex avait bien dit « plusieurs applications » —
+	#  il y en avait deux, et c'est le contrôle du hook 0700 qui a nommé la
+	#  seconde, dès la première construction où il tournait.
+	for SIZE in 16 22 24 32 48 64 128 256; do
 		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
 		mkdir -p "$DIR"
 		if have rsvg-convert; then

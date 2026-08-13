@@ -136,4 +136,34 @@ else
 	echo "[lexos]   !! ${INCOMPLETES} icône(s) incomplète(s) — elles changeront de dessin sous la souris"
 fi
 
+# --- Contrôle : deux dessins pour un seul nom d'icône ? --------------------
+#  L'AUTRE FAÇON DE FABRIQUER LE MÊME DÉFAUT, et le contrôle ci-dessus est
+#  aveugle devant : toutes les tailles peuvent être présentes tout en ne
+#  montrant pas le même dessin.
+#
+#  C'est arrivé pour la musique. Le dossier branding contenait DEUX fichiers
+#  au nom presque identique — icon-musique.svg et musique-icon.svg — et deux
+#  hooks différents s'en servaient pour écrire la même icône « lexos-musique ».
+#  Le second n'écrasant que les tailles ≥ 32 px, les petites gardaient le
+#  dessin du premier. Une icône, deux dessins, aucune alerte.
+#
+#  On ne peut pas comparer les images entre elles de façon fiable ici. En
+#  revanche, on peut signaler la COLLISION DE NOMS qui rend la chose
+#  possible : c'est elle la cause, et elle se voit d'un coup d'œil.
+BRAND="/usr/share/lexos/branding"
+COLLISIONS=0
+if [ -d "$BRAND" ]; then
+	for F in "$BRAND"/icon-*.svg; do
+		[ -e "$F" ] || continue
+		NOM="$(basename "$F" .svg)"; NOM="${NOM#icon-}"
+		if [ -e "$BRAND/${NOM}-icon.svg" ]; then
+			echo "[lexos]   !! deux dessins pour « lexos-${NOM} » : icon-${NOM}.svg et ${NOM}-icon.svg"
+			COLLISIONS=$((COLLISIONS + 1))
+		fi
+	done
+fi
+[ "$COLLISIONS" -eq 0 ] \
+	&& echo "[lexos]   icônes : aucun nom de dessin en double" \
+	|| echo "[lexos]   !! ${COLLISIONS} collision(s) de noms — vérifier quel hook a le dernier mot"
+
 echo "[lexos] hook 0700 : ok"
