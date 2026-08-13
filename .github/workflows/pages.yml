@@ -1,0 +1,118 @@
+name: Publier le site et la démo
+
+# =============================================================================
+#  Le site LexOS et la démo du bureau, en ligne, sans clé USB
+# =============================================================================
+#  POURQUOI CE FICHIER EXISTE
+#  Tout était déjà écrit — website/ (le site) et web-demo/ (le bureau LexOS
+#  jouable dans un navigateur) — mais RIEN n'était publié. Pour voir à quoi
+#  ressemble LexOS, il fallait graver une clé USB et redémarrer la machine.
+#  Ce fichier met les deux en ligne à chaque poussée.
+#
+#  POURQUOI GITHUB PAGES ET PAS VERCEL
+#  Le site est du HTML pur : pas de serveur, pas de base de données, aucun
+#  code qui tourne côté serveur. Vercel sait faire tout ça, mais rien de tout
+#  ça n'est utilisé ici. Le dépôt étant déjà sur GitHub, Pages publie sans
+#  deuxième compte ni deuxième tableau de bord, et la configuration reste
+#  DANS le dépôt, versionnée et relisible — au lieu d'être cachée dans les
+#  réglages d'un service. Vercel redeviendra le bon choix le jour où il
+#  faudra un vrai nom de domaine ou des aperçus par branche.
+#
+#  ATTENTION — le poids. branding/ pèse 12 Mo à lui seul (mascottes animées,
+#  affiches, rendus). Le site n'a besoin que d'UNE image de ce dossier. On
+#  copie donc fichier par fichier plutôt que le dossier entier : publier
+#  12 Mo pour un logo de 30 Ko ferait payer le chargement à chaque visiteur.
+# =============================================================================
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'website/**'
+      - 'web-demo/**'
+      - 'branding/logo-ti-lex-al-icon.png'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+#  Une seule publication à la fois. Ici on ANNULE la précédente, contrairement
+#  à la construction d'ISO : republier un site prend vingt secondes, et c'est
+#  toujours la dernière version qu'on veut voir en ligne.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publier:
+    name: Site + démo
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assembler le site
+        run: |
+          set -e
+          mkdir -p _site/branding _site/demo
+
+          #  Le site à la racine : c'est lui qu'on veut voir en tapant
+          #  l'adresse, sans sous-dossier ni fichier à choisir.
+          cp -r website/. _site/
+
+          #  Les pages écrivent « ../branding/logo… » parce qu'elles vivent
+          #  dans website/ à côté de branding/ dans le dépôt. Une fois le site
+          #  à la racine, ce « ../ » sortirait du site publié et l'image ne
+          #  s'afficherait plus. On copie l'image et on corrige le chemin.
+          cp branding/logo-ti-lex-al-icon.png _site/branding/
+          sed -i 's|\.\./branding/|branding/|g' _site/*.html
+
+          #  La démo du bureau, à /demo/ — un seul fichier, autonome.
+          cp web-demo/index.html _site/demo/index.html
+
+          #  .nojekyll : sans lui, GitHub ignore les fichiers et dossiers
+          #  commençant par un souligné. Rien n'en porte aujourd'hui, mais
+          #  c'est le genre de piège qu'on ne trouve qu'après coup.
+          touch _site/.nojekyll
+
+          echo "── Contrôles ─────────────────────────────"
+          test -s _site/index.html      || { echo "::error::index.html manquant"; exit 1; }
+          test -s _site/demo/index.html || { echo "::error::la démo est absente"; exit 1; }
+          test -s _site/branding/logo-ti-lex-al-icon.png \
+            || { echo "::error::le logo est absent"; exit 1; }
+
+          #  Plus aucun « ../ » ne doit rester : ce serait un lien mort.
+          if grep -rl '\.\./branding' _site/ 2>/dev/null | grep -q .; then
+            echo "::error::des chemins « ../branding » n'ont pas été corrigés"
+            grep -rn '\.\./branding' _site/ | head
+            exit 1
+          fi
+
+          echo "Pages publiées :"
+          find _site -maxdepth 2 -name '*.html' -printf '  %p  (%kK)\n' | sort
+          echo "Poids total : $(du -sh _site | cut -f1)"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deploiement
+        uses: actions/deploy-pages@v4
+
+      - name: Adresse du site
+        run: |
+          {
+            echo "### 🌐 Site publié"
+            echo
+            echo "**[${{ steps.deploiement.outputs.page_url }}](${{ steps.deploiement.outputs.page_url }})**"
+            echo
+            echo "La démo du bureau : ${{ steps.deploiement.outputs.page_url }}demo/"
+          } >> "$GITHUB_STEP_SUMMARY"
