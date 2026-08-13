@@ -106,6 +106,27 @@ BOOTAPPEND_FAILSAFE="${BOOTAPPEND_BASE} nosplash nomodeset"
 BOOTAPPEND_FAILSAFE="${BOOTAPPEND_FAILSAFE} module_blacklist=nvidia,nvidia_drm,nvidia_modeset,nvidia_uvm,nouveau"
 BOOTAPPEND_FAILSAFE="${BOOTAPPEND_FAILSAFE} lexos.failsafe=1"
 
+#  ── Le mode secours s'arrête AVANT le bureau ────────────────────────────
+#  CE QUE L'ESSAI SUR LA TV HISENSE A MONTRÉ (construction 34) : en mode
+#  secours, les messages de démarrage S'AFFICHAIENT — donc le téléviseur, le
+#  câble, la clé USB et l'ISO sont tous bons, et le noyau parle bien à
+#  l'écran. Le signal se perdait ensuite, au moment où le bureau graphique
+#  démarrait. Un mode de secours qui va jusqu'à mourir à l'écran ne sert plus
+#  à rien : c'est précisément là qu'on a besoin de LIRE quelque chose.
+#
+#  Il s'arrête donc en console, sur du texte, et il y reste. C'est le seul
+#  état dont on ait la PREUVE qu'il tient sur ce téléviseur. On peut alors y
+#  taper « lexos tv », qui lit l'EDID et le mode réclamé sans serveur
+#  graphique ni pilote, et photographier le résultat.
+#
+#  Compromis assumé : quelqu'un dont le problème n'est PAS l'affichage perd
+#  le bureau dans ce mode. C'est le bon échange — un mode de secours doit
+#  d'abord être sûr d'afficher, et le mode normal reste juste au-dessus dans
+#  le menu. « systemd.unit= » est la façon propre de le demander ; le « 3 »
+#  qui suit est le vieux niveau d'exécution, compris aussi par les noyaux et
+#  les init qui ignoreraient le premier.
+BOOTAPPEND_FAILSAFE="${BOOTAPPEND_FAILSAFE} systemd.unit=multi-user.target 3"
+
 #  ── Réponses préremplies de l'installateur ──────────────────────────────
 #  config/includes.installer/preseed.cfg est recopié à la racine du support
 #  par live-build ; l'installateur le trouve sous /cdrom. Il ne contient que

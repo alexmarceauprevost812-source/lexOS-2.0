@@ -1,0 +1,152 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-tv — pourquoi le téléviseur ne reçoit plus de signal
+# =============================================================================
+#  À QUOI ÇA SERT
+#  Sur l'Alienware branchée en HDMI sur un téléviseur Hisense, le menu de
+#  démarrage s'affiche, puis le signal se perd. Pour comprendre, il faut lire
+#  ce que le téléviseur DIT de lui-même — son EDID — et voir quel pilote a
+#  pris la main. Cette commande sort tout ça d'un coup, en gros caractères,
+#  pour être photographiée.
+#
+#  POURQUOI PAS « get-edid | parse-edid »
+#  Parce que ça ne marche pas ici : le paquet read-edid, qui fournit ces deux
+#  commandes, n'est PAS installé dans LexOS. Je l'avais conseillé sans le
+#  vérifier — l'erreur est réparée par ce fichier.
+#
+#  CE SCRIPT NE DÉPEND DE RIEN.
+#  Pas de python, pas de xrandr, pas de serveur graphique, pas même du pilote
+#  NVIDIA. Il lit /sys/class/drm, que le NOYAU remplit tout seul, et décode
+#  l'EDID à la main avec od. Il fonctionne donc là où tout le reste échoue :
+#  en console, en mode secours, sur un écran qui n'affiche presque plus rien.
+#  C'est exactement le moment où on en a besoin.
+# =============================================================================
+set -u
+
+RAPPORT="${1:-}"
+[ -n "$RAPPORT" ] || RAPPORT="$(mktemp -t lexos-tv-XXXXXX.txt 2>/dev/null || echo /tmp/lexos-tv.txt)"
+
+titre() { printf '\n=== %s ===\n' "$*"; }
+
+# --- Décodage EDID, en shell pur --------------------------------------------
+#  L'EDID est un bloc de 128 octets normalisé (VESA). On n'en lit que ce qui
+#  sert au dépannage : qui fabrique l'écran, comment il s'appelle, et
+#  SURTOUT le mode qu'il préfère — c'est celui-là qu'une carte graphique doit
+#  envoyer pour qu'un téléviseur daigne afficher quelque chose.
+#  Les 128 octets sur une seule ligne, séparés par des espaces. On y pioche
+#  ensuite avec « cut » plutôt qu'avec eval : eval fabriquerait 128 variables
+#  que ni shellcheck ni un lecteur humain ne peuvent suivre, pour un gain nul
+#  sur un bloc de cette taille.
+EDID_OCTETS=""
+octet() { echo "$EDID_OCTETS" | cut -d' ' -f"$(( $1 + 1 ))"; }
+
+lettre_edid() {
+	if [ "$1" -ge 1 ] && [ "$1" -le 26 ]; then
+		echo ABCDEFGHIJKLMNOPQRSTUVWXYZ | cut -c"$1"
+	else
+		printf '?'
+	fi
+}
+
+decoder_edid() {
+	fichier="$1"
+	[ -s "$fichier" ] || { printf '  (aucun EDID — le téléviseur ne répond pas)\n'; return 1; }
+
+	EDID_OCTETS="$(od -An -v -N128 -tu1 "$fichier" 2>/dev/null | tr -s ' \n' '  ' | sed 's/^ *//;s/ *$//')"
+	nb="$(echo "$EDID_OCTETS" | wc -w)"
+	[ "$nb" -ge 128 ] || { printf '  (EDID tronqué : %s octets sur 128)\n' "$nb"; return 1; }
+
+	#  Fabricant : octets 8-9, trois lettres codées sur 5 bits chacune.
+	m=$(( $(octet 8) * 256 + $(octet 9) ))
+	printf '  Fabricant  : %s%s%s\n' \
+		"$(lettre_edid $(( (m / 1024) % 32 )))" \
+		"$(lettre_edid $(( (m / 32) % 32 )))" \
+		"$(lettre_edid $(( m % 32 )))"
+	printf '  Produit    : %s\n' "$(( $(octet 11) * 256 + $(octet 10) ))"
+
+	#  Nom de l'écran : un descripteur détaillé commençant par 00 00 00 FC.
+	for base in 54 72 90 108; do
+		if [ "$(octet "$base")" = 0 ] && [ "$(octet $((base+1)))" = 0 ] \
+		   && [ "$(octet $((base+2)))" = 0 ] && [ "$(octet $((base+3)))" = 252 ]; then
+			nom=""; j=$((base + 5))
+			while [ "$j" -lt $((base + 18)) ]; do
+				car="$(octet "$j")"
+				[ "$car" = 10 ] && break
+				if [ "$car" -ge 32 ] && [ "$car" -le 126 ]; then
+					nom="${nom}$(printf "\\$(printf '%03o' "$car")")"
+				fi
+				j=$((j + 1))
+			done
+			[ -n "$nom" ] && printf '  Nom        : %s\n' "$nom"
+		fi
+	done
+
+	#  Mode préféré : premier descripteur détaillé, à l'octet 54. C'est LE
+	#  chiffre qui compte ici — un téléviseur n'affiche souvent rien si on
+	#  lui envoie autre chose que le mode qu'il réclame.
+	#    largeur = octet 56 + (4 bits hauts de l'octet 58) × 256
+	#    hauteur = octet 59 + (4 bits hauts de l'octet 61) × 256
+	#    horloge = (octet 55 × 256 + octet 54) × 10 kHz
+	larg=$(( $(octet 56) + ( $(octet 58) / 16 ) * 256 ))
+	haut=$(( $(octet 59) + ( $(octet 61) / 16 ) * 256 ))
+	pclk=$(( $(octet 55) * 256 + $(octet 54) ))
+	if [ "$larg" -gt 0 ] && [ "$haut" -gt 0 ]; then
+		printf '  MODE PRÉFÉRÉ : %sx%s   (horloge %s,%s MHz)\n' \
+			"$larg" "$haut" "$((pclk / 100))" "$((pclk % 100))"
+	fi
+	return 0
+}
+
+{
+	printf '=============================================================\n'
+	printf ' LexOS — diagnostic écran / téléviseur\n'
+	printf ' %s\n' "$(date '+%Y-%m-%d %H:%M')"
+	printf '=============================================================\n'
+
+	titre "SORTIES VIDÉO VUES PAR LE NOYAU"
+	trouve=0
+	for CONN in /sys/class/drm/card*-*; do
+		[ -d "$CONN" ] || continue
+		NOM="$(basename "$CONN")"
+		ETAT="$(cat "$CONN/status" 2>/dev/null || echo inconnu)"
+		printf '\n%-22s %s\n' "$NOM" "$ETAT"
+		if [ "$ETAT" = "connected" ]; then
+			trouve=$((trouve + 1))
+			decoder_edid "$CONN/edid"
+			if [ -r "$CONN/modes" ]; then
+				printf '  Modes proposés : '
+				head -c 200 "$CONN/modes" 2>/dev/null | tr '\n' ' '
+				printf '\n'
+			fi
+		fi
+	done
+	[ "$trouve" -gt 0 ] || printf '\n  AUCUNE SORTIE BRANCHÉE VUE PAR LE NOYAU.\n'
+
+	titre "CARTE GRAPHIQUE ET PILOTE EN SERVICE"
+	if command -v lspci >/dev/null 2>&1; then
+		lspci -k 2>/dev/null | grep -A 3 -i 'vga\|3d controller\|display' | sed 's/^/  /'
+	else
+		printf '  (lspci absent)\n'
+	fi
+
+	titre "MODULES NOYAU CHARGÉS"
+	if [ -r /proc/modules ]; then
+		mods="$(awk '{print $1}' /proc/modules | grep -E '^(nvidia|nouveau|i915|amdgpu|drm)' | tr '\n' ' ')"
+		printf '  %s\n' "${mods:-aucun module graphique chargé}"
+	fi
+
+	titre "PARAMÈTRES DE DÉMARRAGE"
+	printf '  %s\n' "$(tr ' ' '\n' < /proc/cmdline 2>/dev/null | tr '\n' ' ')"
+
+	titre "MESSAGES DU NOYAU (affichage)"
+	if command -v dmesg >/dev/null 2>&1; then
+		dmesg 2>/dev/null | grep -iE 'nvidia|nouveau|drm|hdmi|edid|link training' \
+			| tail -n 25 | sed 's/^/  /' \
+			|| printf '  (dmesg illisible sans sudo — relance avec : sudo lexos tv)\n'
+	fi
+
+	printf '\n=============================================================\n'
+} 2>&1 | tee "$RAPPORT"
+
+printf '\nRapport enregistré dans : %s\n' "$RAPPORT"
+printf 'Photographie la partie « SORTIES VIDÉO » et « MODE PRÉFÉRÉ ».\n\n'

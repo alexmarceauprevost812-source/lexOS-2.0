@@ -19,12 +19,48 @@
 #
 #   La Release est publiée sous « latest-<saveur> » : passer en standard ne
 #   remplace donc PAS l'ISO pro, qui reste disponible sous « latest-pro ».
-flavour: dev
+flavour: pro
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 42 : RETOUR EN SAVEUR PRO — L'ALIENWARE, ENFIN À JOUR.
+#   L'ISO pro en est restée au build 34. Elle n'a donc AUCUN des correctifs
+#   trouvés depuis sur le portable : le dossier personnel figé (/etc/skel), le
+#   fond d'écran écrasé par xfdesktop, l'ouverture de session automatique qui
+#   empêchait d'atteindre son propre compte, les trois icônes à deux dessins,
+#   la barre du haut conforme à la démo, la météo. Tout ça arrive d'un coup.
+#
+#   ET ON S'ATTAQUE AU SIGNAL HDMI PERDU, avec ce qu'on sait vraiment.
+#
+#   LE FAIT DÉCISIF, qu'on n'avait pas assez écouté : en mode SECOURS, les
+#   messages de démarrage S'AFFICHAIENT sur le téléviseur. Le téléviseur, le
+#   câble, la clé USB, l'ISO et le noyau sont donc tous bons. Le signal se
+#   perdait ENSUITE, quand le bureau graphique démarrait.
+#   → Le mode secours s'arrête désormais en console (systemd.unit=multi-user
+#     .target) et y reste. C'est le seul état dont on ait la PREUVE qu'il
+#     tient sur cet écran. Compromis assumé : plus de bureau dans ce mode.
+#     Un mode de secours doit d'abord être sûr d'afficher.
+#
+#   NOUVELLE COMMANDE « lexos tv », et elle répare une erreur de ma part.
+#   J'avais demandé à Alex de lancer « sudo get-edid | parse-edid » depuis le
+#   mode secours. Ça ne pouvait PAS marcher : le paquet read-edid, qui fournit
+#   ces deux commandes, n'est installé nulle part dans LexOS. Il a donc essayé
+#   pour rien, et le relevé n'a jamais été obtenu.
+#   « lexos tv » ne dépend de RIEN : ni python, ni xrandr, ni serveur
+#   graphique, ni même du pilote NVIDIA. Elle lit /sys/class/drm, que le noyau
+#   remplit tout seul, et décode l'EDID à la main avec od. Elle sort le
+#   fabricant, le nom du téléviseur, et surtout LE MODE QU'IL RÉCLAME — le
+#   chiffre qui compte, parce qu'un téléviseur n'affiche souvent rien si on
+#   lui envoie autre chose. Plus les modules chargés, le pilote en service,
+#   la ligne de commande du noyau et les messages DRM/HDMI.
+#   Décodeur vérifié sur un bloc EDID Hisense reconstitué (fabricant HEC,
+#   1920x1080, horloge 148,50 MHz) et sur les cas dégradés : EDID absent,
+#   vide, tronqué — chacun donne un message clair au lieu d'un plantage.
+#
+#   Le pilote reste sur la branche 595 et hdmi_deepcolor=0 : on ne change rien
+#   d'autre à l'aveugle tant que ce relevé n'est pas fait.
 # build 41 : LE CONTRÔLE D'ICÔNES A TROUVÉ DEUX AUTRES CAS, DÈS SON PREMIER TOUR.
 #   Le contrôle ajouté au build 38 tournait pour la première fois dans le
 #   build 40. Il a immédiatement nommé une icône qu'on n'avait pas vue :
@@ -465,4 +501,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 41
+build: 42
