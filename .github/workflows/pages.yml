@@ -98,7 +98,15 @@ jobs:
           find _site -maxdepth 2 -name '*.html' -printf '  %p  (%kK)\n' | sort
           echo "Poids total : $(du -sh _site | cut -f1)"
 
+      #  « enablement » ACTIVE GitHub Pages sur le dépôt si ce n'est pas déjà
+      #  fait, au lieu d'échouer en demandant d'aller cliquer dans les
+      #  réglages. Sans lui, la toute première publication s'arrête ici avec
+      #  « Get Pages site failed » — constaté au premier essai. C'est la
+      #  différence entre « ça marche » et « ça marchera quand tu auras
+      #  trouvé le bon menu ».
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
