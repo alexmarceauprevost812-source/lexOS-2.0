@@ -57,6 +57,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      #  Dire en clair, en français, ce qu'il faut faire — plutôt que de
+      #  laisser l'échec anglais de l'étape suivante, qui renvoie vers la
+      #  documentation de l'API REST au lieu du menu à cliquer.
+      - name: GitHub Pages est-il activé ?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
+            echo "✓ Pages est activé sur ce dépôt."
+          else
+            {
+              echo "### ⚠ Une seule chose à faire, une seule fois"
+              echo
+              echo "GitHub Pages n'est pas encore activé sur ce dépôt."
+              echo "Le jeton des Actions n'a pas le droit de l'activer lui-même —"
+              echo "activer Pages relève de l'administration du dépôt."
+              echo
+              echo "**Va à :** https://github.com/${GITHUB_REPOSITORY}/settings/pages"
+              echo
+              echo "Sous **Build and deployment → Source**, choisis **GitHub Actions**."
+              echo "Puis relance cette construction — le site sera en ligne en vingt secondes."
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "::error::Pages non activé — voir le résumé de la construction"
+            exit 1
+          fi
+
       - name: Assembler le site
         run: |
           set -e
@@ -98,15 +124,20 @@ jobs:
           find _site -maxdepth 2 -name '*.html' -printf '  %p  (%kK)\n' | sort
           echo "Poids total : $(du -sh _site | cut -f1)"
 
-      #  « enablement » ACTIVE GitHub Pages sur le dépôt si ce n'est pas déjà
-      #  fait, au lieu d'échouer en demandant d'aller cliquer dans les
-      #  réglages. Sans lui, la toute première publication s'arrête ici avec
-      #  « Get Pages site failed » — constaté au premier essai. C'est la
-      #  différence entre « ça marche » et « ça marchera quand tu auras
-      #  trouvé le bon menu ».
+      #  IL FAUT UN CLIC, UNE SEULE FOIS, ET PERSONNE NE PEUT LE FAIRE À TA
+      #  PLACE — pas même cette construction.
+      #
+      #  Essayé, et raté : le paramètre « enablement: true », que le message
+      #  d'erreur de GitHub recommande lui-même, demande à l'action de créer
+      #  le site par l'API. Le jeton des Actions n'en a pas le droit :
+      #  « Create Pages site failed. Error: Resource not accessible by
+      #  integration ». Activer Pages relève de l'administration du dépôt, et
+      #  un jeton de construction ne peut pas s'auto-accorder ce pouvoir —
+      #  c'est voulu, et c'est sain. On ne s'entête donc pas.
+      #
+      #  Réglages du dépôt → Pages → « Build and deployment » → Source :
+      #  choisir « GitHub Actions ». Une fois pour toutes.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
