@@ -25,6 +25,36 @@ flavour: dev
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 46 : LA BARRE APPARAISSAIT PUIS DISPARAISSAIT — C'ÉTAIT COMPIZ.
+#   Le build 45 a réglé la position : Alex voit ENFIN la barre du haut. Mais
+#   « le menu apparaît et disparaît pas longtemps après ». Le mot « après »
+#   est toute la réponse.
+#
+#   LA CHAÎNE, dans l'ordre :
+#   · xfce4-session lance lexos-wm en premier (priorité 15) ;
+#   · lexos-wm doit savoir s'il y a une VRAIE accélération 3D avant de choisir
+#     entre Compiz et xfwm4. Il exécute glxinfo pour ça — plusieurs secondes ;
+#   · pendant ce temps la session continue et démarre xfce4-panel (priorité
+#     25). LA BARRE APPARAÎT ;
+#   · glxinfo répond enfin « oui » (le ThinkPad a une carte Intel, donc du
+#     rendu direct, donc pas de repli), et Compiz démarre en « --replace ».
+#     Il remplace le gestionnaire de fenêtres SOUS une barre déjà affichée :
+#     elle perd son ancrage et disparaît.
+#
+#   → Le défaut de LEXOS_CRT_EFFECTS passe de « on » à « off ». Un effet
+#     décoratif — l'ouverture de fenêtre façon tube cathodique — ne doit
+#     jamais coûter le menu. « lexos crt on » reste là pour qui le veut en
+#     connaissance de cause.
+#   → Et si on le réactive, lexos-wm RELANCE la barre une fois Compiz en
+#     place. On ne peut pas démarrer Compiz avant elle (la détection 3D est
+#     trop lente), alors on répare après. C'est laid, c'est honnête, et la
+#     barre revient.
+#
+#   CE MÊME RÉGLAGE EST UN SUSPECT POUR L'ALIENWARE. Sur le téléviseur
+#   Hisense, le signal HDMI se perd « quand le bureau graphique démarre » —
+#   exactement le moment où Compiz s'empare de la carte NVIDIA et crée son
+#   contexte OpenGL. Ce n'est PAS prouvé. Mais c'était jusqu'ici une piste
+#   qu'on n'avait jamais écartée, et elle l'est maintenant par défaut.
 # build 45 : AUDIT COMPLET DE L'ISO DU PORTABLE, À LA DEMANDE D'ALEX.
 #   « Regarde si rien ne manque. » Contrôle mécanique, pas à l'œil, sur onze
 #   points. Le résultat est rassurant et deux vraies incohérences en sortent.
@@ -567,4 +597,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 45
+build: 46
