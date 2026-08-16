@@ -25,6 +25,34 @@ flavour: dev
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 45 : AUDIT COMPLET DE L'ISO DU PORTABLE, À LA DEMANDE D'ALEX.
+#   « Regarde si rien ne manque. » Contrôle mécanique, pas à l'œil, sur onze
+#   points. Le résultat est rassurant et deux vraies incohérences en sortent.
+#
+#   CE QUI EST SAIN, VÉRIFIÉ :
+#   · les 58 commandes proposées par la touche Tab existent toutes dans le
+#     dispatcher — aucune ne mènerait à « commande inconnue » ;
+#   · les 43 programmes appelés par « lexos » sont tous présents ET exécutables ;
+#   · les 19 hooks sont exécutables (un hook non exécutable est ignoré EN
+#     SILENCE par live-build — le piège s'est déjà produit trois fois) ;
+#   · les 47 programmes de /usr/bin sont exécutables ;
+#   · AUCUNE icône « lexos-* » demandée par un lanceur n'est absente : tout ce
+#     qui est référencé est bien fabriqué ;
+#   · les deux icônes en chemin absolu (cartes, gps) existent.
+#
+#   LES DEUX DÉFAUTS TROUVÉS — le même programme n'avait pas la même icône
+#   selon l'endroit d'où on le lance, et LexOS possédait pourtant la sienne :
+#   · « Paramètres » dans la BARRE DU HAUT demandait « preferences-system »,
+#     l'engrenage générique du thème, alors que le même programme porte
+#     « lexos-reglages » dans le dock. Deux icônes pour une seule application.
+#   · « lexos-mac » demandait « computer-laptop », l'ordinateur portable
+#     générique, alors que branding/icon-mac.svg existe et est rendu aux huit
+#     tailles depuis toujours.
+#
+#   Les sept autres lanceurs qui utilisent une icône du thème (avion, écran,
+#   fonds, jeux, logithèque, température, cartes) n'ont PAS d'équivalent
+#   LexOS : y toucher demanderait de dessiner sept icônes, pas de corriger un
+#   oubli. C'est noté, ce n'est pas un défaut.
 # build 44 : LA MÊME CHOSE QUE LE 43, MAIS EN SAVEUR DEV.
 #   Le build 43 partait en PRO par inadvertance : la demande était restée sur
 #   « pro » depuis l'ISO de l'Alienware. Or c'est le portable 2016 qui affiche
@@ -539,4 +567,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 44
+build: 45

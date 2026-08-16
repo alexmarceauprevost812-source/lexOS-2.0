@@ -318,7 +318,7 @@ Name=Mac (Apple)
 Name[en]=Mac (Apple)
 Comment=Ce Mac : Wi-Fi Broadcom, ventilateurs, touches F1-F12
 Exec=xfce4-terminal --title="Mac (Apple) — LexOS" --hold -e "lexos mac"
-Icon=computer-laptop
+Icon=lexos-mac
 Terminal=false
 Categories=System;HardwareSettings;
 Keywords=mac;apple;macbook;imac;broadcom;wifi;ventilateur;fnmode;clavier;t2;

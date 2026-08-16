@@ -4,6 +4,6 @@ Version=1.0
 Name=Paramètres
 Comment=Réglages rapides — Wi-Fi, écrans, performance, apparence, comptes, mises à jour…
 Exec=lexos-settings
-Icon=preferences-system
+Icon=lexos-reglages
 Terminal=false
 Categories=Settings;
