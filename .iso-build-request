@@ -19,12 +19,41 @@
 #
 #   La Release est publiée sous « latest-<saveur> » : passer en standard ne
 #   remplace donc PAS l'ISO pro, qui reste disponible sous « latest-pro ».
-flavour: dev
+flavour: pro
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 47 : L'ALIENWARE, AVEC LE CORRECTIF COMPIZ.
+#   Alex fait ses essais sur le portable et veut la pro prête en parallèle
+#   pour la grosse machine.
+#
+#   L'ISO pro en ligne (build 43) a été construite AVANT qu'on comprenne le
+#   coup de Compiz : elle a donc encore les effets activés. La graver aurait
+#   voulu dire 5 Go téléchargés pour retomber peut-être sur le même écran
+#   noir. Celle-ci part avec LEXOS_CRT_EFFECTS=off.
+#
+#   POURQUOI C'EST UNE VRAIE PISTE POUR LE TÉLÉVISEUR, et pas un espoir en
+#   l'air. Le signal HDMI se perd « quand le bureau graphique démarre ». Or
+#   c'est exactement à ce moment que Compiz s'empare de la carte NVIDIA,
+#   crée son contexte OpenGL et remplace le gestionnaire de fenêtres. Sur le
+#   portable, la même séquence faisait DISPARAÎTRE la barre du haut quelques
+#   secondes après son apparition — on l'a vu, mesuré, et corrigé. Sur une
+#   sortie HDMI capricieuse, la même prise de contrôle peut coûter le signal
+#   au lieu d'une barre.
+#   Ce n'est PAS une preuve. C'est une piste sérieuse, jamais écartée
+#   jusqu'ici, et elle l'est maintenant par défaut.
+#
+#   TOUT LE RESTE ARRIVE AUSSI, depuis le build 34 où la pro s'était arrêtée :
+#   /etc/skel recopié dans le dossier personnel, le fond d'écran qui ne se
+#   fait plus écraser, l'ouverture de session automatique retirée du système
+#   installé, les icônes à un seul dessin, la barre du haut enfin placée en
+#   haut, la météo, « lexos tv » et le mode secours qui s'arrête en console.
+#
+#   SI LE SIGNAL SE PERD ENCORE : démarrer sur la 2e ligne du menu (secours),
+#   qui donne maintenant une console qui TIENT, et y lancer « sudo lexos tv ».
+#   Et essayer d'abord un port HDMI qui n'est PAS le port ARC.
 # build 46 : LA BARRE APPARAISSAIT PUIS DISPARAISSAIT — C'ÉTAIT COMPIZ.
 #   Le build 45 a réglé la position : Alex voit ENFIN la barre du haut. Mais
 #   « le menu apparaît et disparaît pas longtemps après ». Le mot « après »
@@ -597,4 +626,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 46
+build: 47
