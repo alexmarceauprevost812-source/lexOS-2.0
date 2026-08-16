@@ -19,12 +19,18 @@
 #
 #   La Release est publiée sous « latest-<saveur> » : passer en standard ne
 #   remplace donc PAS l'ISO pro, qui reste disponible sous « latest-pro ».
-flavour: pro
+flavour: dev
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 44 : LA MÊME CHOSE QUE LE 43, MAIS EN SAVEUR DEV.
+#   Le build 43 partait en PRO par inadvertance : la demande était restée sur
+#   « pro » depuis l'ISO de l'Alienware. Or c'est le portable 2016 qui affiche
+#   quelque chose, donc la seule machine où la barre du haut peut être
+#   vérifiée. Même contenu, saveur dev. L'ISO pro reçoit les mêmes correctifs
+#   de son côté et reste sous « latest-pro ».
 # build 43 : LE MENU DU HAUT N'AVAIT JAMAIS ÉTÉ VISIBLE — ET L'ICÔNE QUI
 #            CHANGE SOUS LA SOURIS AVAIT UNE AUTRE CAUSE QUE CELLE CORRIGÉE.
 #
@@ -533,4 +539,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 43
+build: 44
