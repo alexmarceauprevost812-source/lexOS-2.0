@@ -428,7 +428,7 @@ if command -v rsvg-convert >/dev/null 2>&1; then
 				-o "$ICON_DIR/${S}x${S}/apps/lexos-${ICON_NAME}.png" "$TMP_SVG" 2>/dev/null || true
 		done
 		mkdir -p "$ICON_DIR/scalable/apps"
-		cp "$TMP_SVG" "$ICON_DIR/scalable/apps/lexos-${ICON_NAME}.svg"
+		rm -f "$ICON_DIR/scalable/apps/lexos-${ICON_NAME}.svg"
 		rm -f "$TMP_SVG"
 	done
 	command -v gtk-update-icon-cache >/dev/null 2>&1 && \

@@ -166,4 +166,18 @@ fi
 	&& echo "[lexos]   icônes : aucun nom de dessin en double" \
 	|| echo "[lexos]   !! ${COLLISIONS} collision(s) de noms — vérifier quel hook a le dernier mot"
 
+# --- Contrôle : plus aucun SVG « scalable » pour une icône LexOS ----------
+#  C'est LA cause du dessin qui change sous la souris : deux rendus possibles
+#  du même nom, entre lesquels GTK bascule au gré des tailles demandées par
+#  le zoom du dock. Compléter les tailles n'y suffisait pas — il a fallu
+#  supprimer la version vectorielle. Si un hook en réintroduit une un jour,
+#  le défaut revient sans prévenir : on le dit ici.
+VECTORIELLES="$(ls "$RACINE"/scalable/apps/lexos*.svg 2>/dev/null | wc -l)"
+if [ "$VECTORIELLES" -eq 0 ]; then
+	echo "[lexos]   icônes : un seul dessin par nom (aucun SVG scalable)"
+else
+	echo "[lexos]   !! ${VECTORIELLES} SVG scalable lexos-* — l'icône changera sous la souris :"
+	ls "$RACINE"/scalable/apps/lexos*.svg 2>/dev/null | sed 's|^|[lexos]      |'
+fi
+
 echo "[lexos] hook 0700 : ok"

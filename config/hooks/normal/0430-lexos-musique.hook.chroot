@@ -42,7 +42,7 @@ if [ -r "$SVG" ]; then
 		fi
 	done
 	VDIR="/usr/share/icons/hicolor/scalable/apps"
-	mkdir -p "$VDIR"; cp "$SVG" "$VDIR/lexos-musique.svg" 2>/dev/null || true
+	mkdir -p "$VDIR"; rm -f "$VDIR/lexos-musique.svg"
 	have gtk-update-icon-cache && \
 		gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
 else

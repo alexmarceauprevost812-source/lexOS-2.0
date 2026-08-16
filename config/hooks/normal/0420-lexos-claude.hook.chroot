@@ -42,7 +42,7 @@ if [ -r "$SVG" ]; then
 	done
 	# La version SVG elle-même, pour les thèmes vectoriels.
 	VDIR="/usr/share/icons/hicolor/scalable/apps"
-	mkdir -p "$VDIR"; cp "$SVG" "$VDIR/lexos-claude.svg" 2>/dev/null || true
+	mkdir -p "$VDIR"; rm -f "$VDIR/lexos-claude.svg"
 	have gtk-update-icon-cache && \
 		gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
 else

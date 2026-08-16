@@ -11,7 +11,16 @@
     <value type="int" value="1"/>
 
     <property name="panel-1" type="empty">
-      <property name="position"        type="string" value="p=6;x=0;y=0"/>
+      <!--  p=2 : BORD HAUT, centrée horizontalement — comme la démo.
+            Elle valait « p=6 », qui chez XFCE désigne le coin BAS-GAUCHE en
+            VERTICAL, alors que « mode=0 » juste en dessous la déclare
+            horizontale. Une barre horizontale accrochée à un ancrage
+            vertical : XFCE la posait hors de vue, et elle n'est jamais
+            apparue sur aucune construction. Alex a signalé « il manque le
+            menu en haut de l'écran » — elle ne manquait pas, elle était
+            rangée dans un coin.
+            Repères : 2 = haut · 5 = gauche · 8 = droite · 11 = bas. -->
+      <property name="position"        type="string" value="p=2;x=0;y=0"/>
       <property name="position-locked" type="bool"   value="true"/>
       <property name="length"          type="uint"   value="100"/>
       <property name="length-adjust"   type="bool"   value="true"/>

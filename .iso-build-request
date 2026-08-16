@@ -25,6 +25,38 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 43 : LE MENU DU HAUT N'AVAIT JAMAIS ÉTÉ VISIBLE — ET L'ICÔNE QUI
+#            CHANGE SOUS LA SOURIS AVAIT UNE AUTRE CAUSE QUE CELLE CORRIGÉE.
+#
+#   LA BARRE DU HAUT. Alex : « il manque le menu en haut de l'écran ». Il ne
+#   manquait pas — il était rangé dans un coin. Le panneau était configuré à
+#   la position « p=6 », qui chez XFCE désigne le coin BAS-GAUCHE en VERTICAL,
+#   alors que la ligne « mode=0 » juste en dessous le déclare HORIZONTAL. Une
+#   barre horizontale accrochée à un ancrage vertical : XFCE la posait hors de
+#   vue. Corrigé en « p=2 » — bord haut, centrée, comme la démo.
+#   Ce n'est PAS une régression des builds 39-40 : ce réglage était là depuis
+#   le début, et explique pourquoi la barre n'est apparue sur AUCUNE ISO.
+#   Le dock, lui, était bien en haut : « lexos dock droite » l'a remis à sa
+#   place, et le haut est resté vide — ce qui a écarté l'hypothèse « le dock
+#   la cache » et désigné le panneau lui-même.
+#
+#   L'ICÔNE QUI CHANGE SOUS LA SOURIS, la vraie cause cette fois.
+#   On a complété les tailles manquantes trois fois — Chrome au build 38,
+#   Claude et Musique au build 41 — et Alex voit ENCORE le dessin changer.
+#   Le nombre de tailles n'était donc pas la cause : c'était l'existence de
+#   DEUX RENDUS POSSIBLES du même nom d'icône. Chaque icône était livrée en
+#   PNG à huit tailles ET en SVG « scalable ». Le dock agrandit l'icône
+#   survolée ; pour toute taille sans PNG exact, GTK préfère le SVG. L'
+#   affichage saute donc de l'un à l'autre pendant le zoom.
+#   → Les cinq endroits qui écrivaient un SVG « scalable » pour une icône
+#     lexos-* le SUPPRIMENT désormais : hooks 0300, 0420, 0430, 0440 et
+#     lexos-theme-gen. Il ne reste qu'un seul dessin par nom, GTK met à
+#     l'échelle le PNG le plus proche, et plus rien ne peut changer.
+#     Au-delà de 256 px l'icône sera un peu moins nette : aucune interface de
+#     LexOS ne demande cette taille.
+#   → Le hook 0700 refuse désormais de laisser passer un SVG scalable lexos-*
+#     et nomme les fichiers fautifs. Si un hook en réintroduit un, on le saura
+#     à la construction au lieu de le découvrir sur un écran.
 # build 42 : RETOUR EN SAVEUR PRO — L'ALIENWARE, ENFIN À JOUR.
 #   L'ISO pro en est restée au build 34. Elle n'a donc AUCUN des correctifs
 #   trouvés depuis sur le portable : le dossier personnel figé (/etc/skel), le
@@ -501,4 +533,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 42
+build: 43

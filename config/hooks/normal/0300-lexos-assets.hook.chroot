@@ -154,14 +154,22 @@ for SIZE in 16 22 24 32 48 64 128 256 512; do
 done
 
 mkdir -p /usr/share/icons/hicolor/scalable/apps
-#  logo.svg (casque/masque) n'est PAS le même dessin que le logo TI-LEX-AL :
-#  l'installer comme version vectorielle de « lexos » faisait CHANGER l'icône
-#  sous la souris — au zoom du dock, GTK basculait des PNG (emblème TI-LEX-AL)
-#  vers ce SVG. Il ne sert de source que si c'est lui qui a rendu les PNG.
-case "$LOGO_SRC" in
-	*.svg) cp "$LOGO_SRC" /usr/share/icons/hicolor/scalable/apps/lexos.svg ;;
-	*)     rm -f /usr/share/icons/hicolor/scalable/apps/lexos.svg ;;
-esac
+
+# --- AUCUNE VERSION VECTORIELLE POUR LES ICÔNES LexOS. C'EST VOULU. --------
+#  Le dock AGRANDIT l'icône survolée : la taille demandée varie alors en
+#  continu, et pour toute taille sans PNG exact, GTK préfère le SVG
+#  « scalable ». L'affichage saute donc du PNG au SVG et retour — l'icône
+#  CHANGE de dessin sous la souris.
+#
+#  On a d'abord cru à un simple trou de tailles. On les a complétées, trois
+#  fois : Chrome (build 38), Claude et Musique (build 41). Le clignotement
+#  est resté. La cause n'était pas le NOMBRE de tailles, c'était l'existence
+#  de DEUX rendus possibles du même nom d'icône.
+#
+#  Il n'en reste donc qu'un : les PNG. GTK met à l'échelle le plus proche, et
+#  plus rien ne peut changer sous la souris. Au-delà de 256 px l'icône sera
+#  un peu moins nette — aucune interface de LexOS ne demande cette taille.
+rm -f /usr/share/icons/hicolor/scalable/apps/lexos.svg
 
 # --- Icônes teintables (lexos-files, lexos-zip) — orange par défaut --------
 #  À l'exécution, lexos-theme-gen en produit une version à la couleur
@@ -182,7 +190,7 @@ for NAME in files zip share wifi wifi-ok wifi-warn wifi-off bluetooth \
 		mkdir -p "$DIR"
 		render "$SRC" "$SIZE" "$SIZE" "$DIR/lexos-${NAME}.png"
 	done
-	cp "$SRC" "/usr/share/icons/hicolor/scalable/apps/lexos-${NAME}.svg"
+	rm -f "/usr/share/icons/hicolor/scalable/apps/lexos-${NAME}.svg"
 done
 
 #  Icône GitHub — source déjà en PNG (pas de version vectorielle), redimensionnée
