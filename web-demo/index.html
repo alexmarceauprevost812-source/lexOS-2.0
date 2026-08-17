@@ -266,6 +266,14 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   box-shadow:0 0 0 2px rgba(0,0,0,.55)}
 .ag-tete{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--bd)}
 .ag-titre{font-weight:700;font-size:15px;text-transform:capitalize;min-width:150px}
+/*  Le sélecteur de vue : mois / semaine / 3 jours / 1 jour. Quatre boutons
+    de largeur égale, celui en cours à l'accent — le même vocabulaire que
+    l'agenda d'un téléphone, où on resserre la vue pour voir le détail. */
+.ag-vues{display:flex;gap:4px;padding:8px 14px 0}
+.ag-v{flex:1;background:var(--bg-hi);border:1px solid var(--bd);color:var(--fg-dim);
+  border-radius:8px;padding:6px 4px;font:600 12px/1 inherit;cursor:pointer}
+.ag-v:hover{color:var(--fg)}
+.ag-v.on{background:var(--ac);border-color:var(--ac);color:#fff}
 .ag-grille{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:12px 14px}
 .ag-ej{text-align:center;font-size:11px;color:var(--fg-dim);padding:2px 0;text-transform:uppercase;letter-spacing:.04em}
 .ag-c{position:relative;aspect-ratio:1;border:0;background:transparent;color:var(--fg);
@@ -276,6 +284,37 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .ag-c.sel{background:var(--ac);color:#fff}
 .ag-pt{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--ac)}
 .ag-c.sel .ag-pt{background:#fff}
+/*  LA JOURNÉE HEURE PAR HEURE (vues « 3 jours » et « Jour »).
+    Une grille : 52 px de gouttière pour les heures, puis une colonne par
+    jour — d'où la variable --cols, posée en JS selon la vue. Les rangées
+    grandissent avec leur contenu, et comme une rangée de grille partage sa
+    hauteur, les colonnes restent alignées quoi qu'on y mette.
+    position:relative pour que offsetTop des heures serve au défilement
+    automatique vers l'heure utile. */
+.ag-hh{position:relative;display:grid;
+  grid-template-columns:52px repeat(var(--cols,1),1fr);
+  gap:1px;padding:10px 14px 12px;max-height:326px;overflow-y:auto;align-content:start}
+.ag-hh-coin{position:sticky;top:0;z-index:3;background:var(--bg)}
+/*  L'en-tête des jours reste collé en haut pendant qu'on défile les heures :
+    sans ça, on perd de vue quelle colonne est quel jour. */
+.ag-hh-j{position:sticky;top:0;z-index:2;background:var(--bg);border:0;cursor:pointer;
+  text-align:center;padding:5px 2px 7px;color:var(--fg-dim);
+  font:600 11px/1.3 inherit;text-transform:uppercase;letter-spacing:.04em;
+  border-radius:7px 7px 0 0}
+.ag-hh-j b{display:block;font:700 15px/1.25 inherit;color:var(--fg);text-transform:none;letter-spacing:0}
+.ag-hh-j:hover{color:var(--fg)}
+.ag-hh-j.auj b{color:var(--ac)}
+.ag-hh-j.sel{background:var(--ac);color:rgba(255,255,255,.85)}
+.ag-hh-j.sel b,.ag-hh-j.sel.auj b{color:#fff}
+.ag-hh-h{color:var(--fg-dim);font:500 10.5px/1 ui-monospace,monospace;
+  text-align:right;padding:6px 7px 0 0;min-height:26px}
+.ag-hh-c{min-height:26px;background:var(--bg-hi);border-radius:4px;cursor:pointer;
+  padding:2px;display:flex;flex-direction:column;gap:2px}
+.ag-hh-c:hover{background:var(--bd)}
+/*  L'heure qu'il est, sur la colonne d'aujourd'hui : un trait à l'accent. */
+.ag-hh-c.maintenant{box-shadow:inset 0 2px 0 var(--ac)}
+.ag-hh-e{background:var(--ac);color:#fff;border-radius:3px;padding:2px 5px;
+  font:600 10.5px/1.35 inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ag-jour{border-top:1px solid var(--bd);padding:12px 14px;max-height:190px;overflow:auto}
 .ag-jt{font-weight:700;margin-bottom:8px;text-transform:capitalize}
 .ag-evt{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg-hi);border-radius:8px;margin-bottom:6px}
@@ -779,6 +818,15 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 /*  La vue d'ensemble, façon Ubuntu : les bureaux en vignettes sur une
     rangée, les fenêtres du bureau courant en aperçus dessous. Ouverte par
     la touche Super, ou par le clic droit sur le bureau. */
+/*  Les pastilles des bureaux, dans la barre du haut. Le bureau courant
+    s'allonge en pilule — c'est la forme d'Ubuntu, et elle se reconnaît même
+    du coin de l'oeil, sans compter les points. */
+#bureaux{display:flex;align-items:center;gap:5px;padding:0 6px 0 2px}
+.bpt{width:7px;height:7px;border-radius:99px;border:0;padding:0;cursor:pointer;
+  background:rgba(255,255,255,.26);transition:width .18s ease,background .18s ease}
+.bpt:hover{background:rgba(255,255,255,.6)}
+.bpt.pleine{background:rgba(255,255,255,.55)}      /* le bureau a des fenêtres */
+.bpt.on,.bpt.on.pleine{width:20px;background:var(--ac)}
 #apercu{position:fixed;inset:0;z-index:2400;background:rgba(6,6,8,.9);
   backdrop-filter:blur(9px);display:flex;flex-direction:column;
   align-items:center;gap:26px;padding:44px 26px 26px;overflow:auto;
@@ -791,6 +839,28 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .ap-vig:hover{border-color:var(--ac-hi);transform:translateY(-2px)}
 .ap-vig.on{border-color:var(--ac);box-shadow:0 0 0 3px rgba(232,89,12,.22)}
 .ap-vig.vise{border-color:var(--ac);background:rgba(232,89,12,.16)}
+/*  L'enveloppe qui porte la vignette ET sa croix : la croix ne peut pas être
+    un bouton DANS le bouton de la vignette (HTML invalide), elle est donc
+    posée par-dessus, en position absolue dans cette enveloppe. */
+.ap-vig-box{position:relative;display:block;flex:none}
+.ap-vig-x{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  background:var(--bg);border:1px solid var(--bd);color:var(--fg-dim);
+  font-size:11px;line-height:1;opacity:0;transition:opacity .15s ease}
+.ap-vig-box:hover .ap-vig-x,.ap-vig-x:focus-visible{opacity:1}
+.ap-vig-x:hover{background:var(--off,#E5484D);border-color:var(--off,#E5484D);color:#fff}
+/*  Le « + » qui ajoute un bureau : même encombrement qu'une vignette, pour
+    que la rangée ne se déforme pas quand il apparaît ou disparaît. */
+.ap-plus{width:168px;height:98px;border-radius:9px;flex:none;cursor:pointer;
+  background:transparent;border:1px dashed var(--bd);color:var(--fg-dim);
+  font:300 30px/1 inherit;transition:border-color .15s ease,color .15s ease}
+.ap-plus:hover{border-color:var(--ac);color:var(--ac)}
+/*  Le pont vers la grille des applications : la vue d'ensemble montre les
+    fenêtres OUVERTES, ce bouton mène à tout ce qu'on peut ouvrir. */
+.ap-tout{display:block;margin:12px auto 0;width:auto;cursor:pointer;
+  background:var(--bg-hi);border:1px solid var(--bd);border-radius:9px;
+  color:var(--fg);font:600 12.5px/1 inherit;padding:9px 16px}
+.ap-tout:hover{border-color:var(--ac);color:var(--ac)}
 .ap-vig-in{position:absolute;inset:0;display:block}
 .ap-vig-in i{position:absolute;background:rgba(255,255,255,.26);
   border:1px solid rgba(255,255,255,.4);border-radius:2px}
@@ -1938,8 +2008,12 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
           non sur ce qui reste de place — elle ne bouge plus, quoi qu'on
           ajoute de chaque côté. -->
     <div id="panel-g">
-      <button class="apps" id="appsBtn" title="Applications"
-              aria-label="Applications"><span class="glyph"></span></button>
+      <button class="apps" id="appsBtn" title="Vue d'ensemble — fenêtres et bureaux (Super)"
+              aria-label="Vue d'ensemble des fenêtres et des bureaux"><span class="glyph"></span></button>
+      <!--  Les pastilles des bureaux virtuels, comme le petit chapelet de
+            points en haut à gauche d'Ubuntu : celui où l'on est s'allonge,
+            les autres restent des points. Remplies par bureauxPastilles(). -->
+      <span id="bureaux" role="tablist" aria-label="Bureaux virtuels"></span>
       <!--  Accès rapide : photo et vidéo de l'écran sans passer par le menu
             Applications ni par le dock. -->
       <span id="quickcap">
@@ -2000,7 +2074,7 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 filesFav:false, wifi:true, bt:true, wifiIssue:false,
                 son:72, batt:72, charging:false,
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
-                qsCompact:false, dockHidden:false, zTop:100, bureau:0, coinActif:true, majDispo:false, majSecuAuto:true, majAuto:false, wallpaper:"defaut", police:"defaut",
+                qsCompact:false, dockHidden:false, zTop:100, bureau:0, bureauxN:2, coinActif:true, majDispo:false, majSecuAuto:true, majAuto:false, wallpaper:"defaut", police:"defaut",
                 agendaEvts:{}, agendaVue:null,
                 notifs:[] /* historique des notifications : {txt, h, ic} */,
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
@@ -2431,6 +2505,9 @@ function openWin(id, title, icon, html, w, h, x, y){
     `<button class="tbtn close" title="Fermer">✕</button></div>`+
     `<div class="wbody">${html}</div>`;
   winsRoot.appendChild(el);
+  //  Une fenêtre de plus peut avoir rempli le dernier bureau : il en faut
+  //  alors un nouveau derrière, pour garder un endroit libre où déposer.
+  if(typeof bureauxAssureVide === "function") bureauxAssureVide();
   if(typeof bureauRend === "function") bureauRend();
   el.addEventListener("animationend", e=>{
     if(e.animationName==="crtOn"||e.animationName==="fadeIn") el.classList.remove("opening");
@@ -2575,24 +2652,77 @@ function closeWin(el){
   setTimeout(rafraichir, 600);   /* filet si l'animation est coupée */
 }
 /* ===================== Bureaux virtuels =============================
-   « Plusieurs écrans sur le même écran » : quatre bureaux, chacun avec ses
-   fenêtres. Changer de bureau ne ferme rien — les fenêtres des autres sont
-   simplement mises de côté, et retrouvées telles quelles au retour.
+   « Plusieurs écrans sur le même écran » : autant de bureaux qu'on veut (cinq
+   au plus), chacun avec ses fenêtres. Changer de bureau ne ferme rien — les
+   fenêtres des autres sont simplement mises de côté, et retrouvées telles
+   quelles au retour.
    Le fond d'écran, le dock et les icônes du bureau restent communs : ce
    sont des bureaux virtuels, pas des sessions séparées.            */
-const BUREAUX_N = 5;
+/*  LE NOMBRE DE BUREAUX N'EST PLUS FIGÉ — comme sous Ubuntu.
+    Avant : cinq bureaux, toujours, occupés ou non. Maintenant on en ajoute
+    et on en enlève. Deux règles :
+      · un bureau vide reste TOUJOURS au bout, pour pouvoir y déposer une
+        fenêtre sans avoir à le créer d'abord (le geste d'Ubuntu) ;
+      · CINQ au maximum — choix d'Alex. Au-delà, les pastilles de la barre
+        deviennent un chapelet qu'on ne lit plus d'un coup d'oeil, et les
+        raccourcis Super+1 … Super+5 couvrent tout.                      */
+const BUREAUX_MAX = 5;
+const BUREAUX_MIN = 1;
+function bureauxN(){
+  const n = parseInt(state.bureauxN, 10);
+  return (Number.isInteger(n) && n >= BUREAUX_MIN && n <= BUREAUX_MAX) ? n : 2;
+}
 
 //  À quel bureau appartient une fenêtre ? Celles ouvertes avant l'arrivée
 //  de cette fonctionnalité n'ont pas d'étiquette : on les rattache au
 //  bureau courant plutôt que de les faire disparaître.
 function winBureau(el){
   const v = parseInt(el.dataset.bureau, 10);
-  if(Number.isInteger(v) && v >= 0 && v < BUREAUX_N) return v;
+  if(Number.isInteger(v) && v >= 0 && v < bureauxN()) return v;
   el.dataset.bureau = String(state.bureau);
   return state.bureau;
 }
 function bureauCompte(n){
   return [...document.querySelectorAll(".win")].filter(w=>winBureau(w) === n).length;
+}
+/*  Garder un bureau vide au bout. Appelé après chaque naissance de fenêtre
+    et chaque déménagement : dès que le dernier bureau est occupé, un
+    nouveau apparaît derrière lui. C'est ce qui fait qu'on n'a jamais à
+    « créer un bureau » avant d'y envoyer quelque chose.               */
+function bureauxAssureVide(){
+  const n = bureauxN();
+  if(n < BUREAUX_MAX && bureauCompte(n-1) > 0){ state.bureauxN = n + 1; return true; }
+  return false;
+}
+function bureauAjoute(){
+  if(bureauxN() >= BUREAUX_MAX){ toast(`🗔 ${BUREAUX_MAX} bureaux au maximum`); return; }
+  state.bureauxN = bureauxN() + 1;
+  bureauApplique();
+  toast("🗔 Bureau " + bureauxN() + " ajouté");
+}
+/*  Enlever un bureau SANS PERDRE UNE SEULE FENÊTRE. Celles qui l'occupaient
+    passent au bureau d'avant, et tous les bureaux suivants sont renumérotés
+    — sinon leurs fenêtres pointeraient vers un numéro qui n'existe plus et
+    winBureau les rapatrierait n'importe où.                            */
+function bureauEnleve(n){
+  const N = bureauxN();
+  if(N <= BUREAUX_MIN){ toast("🗔 Il faut garder au moins un bureau"); return; }
+  if(!Number.isInteger(n) || n < 0 || n >= N) return;
+  const refuge = n > 0 ? n - 1 : 0;
+  const deplacees = bureauCompte(n);
+  document.querySelectorAll(".win").forEach(w=>{
+    const b = winBureau(w);
+    if(b === n)     w.dataset.bureau = String(refuge);
+    else if(b > n)  w.dataset.bureau = String(b - 1);
+  });
+  state.bureauxN = N - 1;
+  //  Et nous, où atterrit-on ? Même raisonnement que pour les fenêtres.
+  if(state.bureau === n)     state.bureau = refuge;
+  else if(state.bureau > n)  state.bureau -= 1;
+  bureauApplique();
+  toast(deplacees
+    ? `🗔 Bureau ${n+1} supprimé — ${deplacees} fenêtre${deplacees>1?"s":""} vers le bureau ${refuge+1}`
+    : `🗔 Bureau ${n+1} supprimé`);
 }
 function bureauApplique(){
   document.querySelectorAll(".win").forEach(w=>{
@@ -2605,14 +2735,35 @@ function bureauApplique(){
   bureauRend();
   if(typeof majDock === "function") try{ majDock(); }catch(e){}
 }
-//  La barre du haut n'affiche plus les bureaux : c'est la vue d'ensemble
-//  (touche Super, comme sous Ubuntu) qui les montre. Il reste à rafraîchir
-//  cette vue quand elle est ouverte et qu'une fenêtre naît ou meurt.
+/*  LES PASTILLES DE LA BARRE DU HAUT, comme sous Ubuntu : un point par
+    bureau, tout en haut à gauche. Celui où l'on est s'allonge en pilule à
+    l'accent ; les autres restent des points. Un point plus clair signale un
+    bureau qui a des fenêtres — on voit donc d'un coup d'oeil où se trouve
+    le travail, sans ouvrir la vue d'ensemble. Un clic y va.            */
+function bureauxPastilles(){
+  const z = document.getElementById("bureaux");
+  if(!z) return;
+  z.innerHTML = Array.from({length: bureauxN()}, (_,n)=>{
+    const c = bureauCompte(n);
+    const cls = ["bpt"];
+    if(n === state.bureau) cls.push("on");
+    if(c > 0) cls.push("pleine");
+    const quoi = c ? `${c} fenêtre${c>1?"s":""}` : "vide";
+    return `<button class="${cls.join(" ")}" onclick="bureauVa(${n})"`
+         + ` title="Bureau ${n+1} — ${quoi}" aria-label="Bureau ${n+1}, ${quoi}"`
+         + `${n===state.bureau?' aria-current="true"':''}></button>`;
+  }).join("");
+}
+//  Deux surfaces montrent les bureaux : les pastilles de la barre, et la vue
+//  d'ensemble quand elle est ouverte. Les deux doivent suivre chaque
+//  naissance et chaque mort de fenêtre — d'où l'appel depuis openWin et
+//  closeWin, qui existait déjà.
 function bureauRend(){
+  bureauxPastilles();
   if(typeof apercuEl !== "undefined" && apercuEl) apercuRend();
 }
 function bureauVa(n){
-  if(n < 0 || n >= BUREAUX_N || n === state.bureau) return;
+  if(n < 0 || n >= bureauxN() || n === state.bureau) return;
   state.bureau = n;
   bureauApplique();
   //  Donner le focus à une fenêtre du bureau d'arrivée, sinon les raccourcis
@@ -2655,11 +2806,22 @@ function apercuVignette(n){
            `width:${Math.min(100, Math.max(6, W/innerWidth*100)).toFixed(1)}%;`+
            `height:${Math.min(100, Math.max(6, H/innerHeight*100)).toFixed(1)}%"></i>`;
   }).join("");
-  return `<button class="ap-vig${n===state.bureau?" on":""}" data-bureau="${n}"
+  //  La croix qui enlève ce bureau. Un <button> dans un <button> n'est pas du
+  //  HTML valide — d'où l'enveloppe : la vignette reste le bouton, la croix
+  //  est posée par-dessus en frère. stopPropagation, sinon le clic sur la
+  //  croix irait aussi au bouton et on changerait de bureau en le supprimant.
+  const croix = bureauxN() > BUREAUX_MIN
+    ? `<span class="ap-vig-x" role="button" tabindex="0"
+         title="Enlever le bureau ${n+1}" aria-label="Enlever le bureau ${n+1}"
+         onclick="event.stopPropagation();bureauEnleve(${n})"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();bureauEnleve(${n})}">✕</span>`
+    : "";
+  return `<span class="ap-vig-box">`
+    + `<button class="ap-vig${n===state.bureau?" on":""}" data-bureau="${n}"
       onclick="apercuVaBureau(${n})" title="Bureau ${n+1}"
       aria-label="Bureau ${n+1}, ${wins.length} fenêtre(s)">
       <span class="ap-vig-in">${blocs}</span>
-      <span class="ap-vig-n">${n+1}</span></button>`;
+      <span class="ap-vig-n">${n+1}</span></button>${croix}</span>`;
 }
 
 function apercuRend(){
@@ -2675,11 +2837,20 @@ function apercuRend(){
   }).join("") : `<div class="ap-vide">Aucune fenêtre sur le bureau ${state.bureau+1}.
       <span>Ouvre une application, ou passe à un autre bureau ci-dessus.</span></div>`;
 
+  //  Le « + » au bout de la rangée ajoute un bureau ; il disparaît quand on
+  //  est au maximum, plutôt que de rester là sans rien faire.
+  const plus = bureauxN() < BUREAUX_MAX
+    ? `<button class="ap-plus" onclick="bureauAjoute()"
+         title="Ajouter un bureau" aria-label="Ajouter un bureau">+</button>`
+    : "";
+
   apercuEl.innerHTML =
-    `<div class="ap-vigs">${Array.from({length:BUREAUX_N},(_,n)=>apercuVignette(n)).join("")}</div>
+    `<div class="ap-vigs">${Array.from({length:bureauxN()},(_,n)=>apercuVignette(n)).join("")}${plus}</div>
      <div class="ap-wins">${cartes}</div>
      <div class="ap-aide">Clique un bureau pour y aller · une fenêtre pour l'ouvrir ·
-       glisse une fenêtre sur un bureau pour l'y déménager · <b>Échap</b> pour fermer</div>`;
+       glisse une fenêtre sur un bureau pour l'y déménager · <b>+</b> ajoute un bureau,
+       <b>✕</b> en enlève un · <b>Échap</b> pour fermer
+       <button class="ap-tout" onclick="apercuFerme();openApps()">Toutes les applications</button></div>`;
   apercuGlisser();
 }
 
@@ -2720,6 +2891,9 @@ function apercuGlisser(){
         const w = document.getElementById(carte.dataset.id);
         if(!w || !Number.isInteger(n)) return;
         w.dataset.bureau = String(n);
+        //  Le dépôt vient peut-être d'occuper le dernier bureau : on en
+        //  remet un vide au bout, comme le fait Ubuntu.
+        bureauxAssureVide();
         bureauApplique(); apercuRend();
         toast("🗔 Fenêtre envoyée au bureau " + (n+1));
       };
@@ -2827,7 +3001,7 @@ addEventListener("wheel", e=>{
 }, {passive:true});
 
 function bureauSuivant(pas){
-  bureauVa((state.bureau + pas + BUREAUX_N) % BUREAUX_N);
+  bureauVa((state.bureau + pas + bureauxN()) % bureauxN());
 }
 //  Déplacer la fenêtre visée vers un autre bureau, et l'y suivre : rester
 //  sur place donnerait l'impression que la fenêtre a été fermée.
@@ -2835,6 +3009,7 @@ function bureauDeplace(id, n){
   const el = document.getElementById(id);
   if(!el) return;
   el.dataset.bureau = String(n);
+  bureauxAssureVide();
   bureauVa(n);
   if(state.bureau === n) focusWin(el);
   bureauApplique();
@@ -2852,7 +3027,7 @@ addEventListener("keydown", e=>{
   }
   if(e.metaKey && !e.ctrlKey && !e.altKey && /^[1-9]$/.test(e.key)){
     const n = parseInt(e.key,10) - 1;
-    if(n < BUREAUX_N){ e.preventDefault(); bureauVa(n); }
+    if(n < bureauxN()){ e.preventDefault(); bureauVa(n); }
   }
 });
 
@@ -3876,7 +4051,7 @@ function ctxFenetre(e, el){
     "-",
     "-",
     {ic:"🗔", txt:"Déplacer vers un bureau", sous:
-      Array.from({length:BUREAUX_N}, (_,n)=>
+      Array.from({length:bureauxN()}, (_,n)=>
         `<button onclick="ctxFerme();bureauDeplace('${el.id}',${n})"`+
         `${n===winBureau(el)?' style="opacity:.5"':''}>`+
         `Bureau ${n+1}${n===winBureau(el)?" (ici)":""}</button>`).join("")},
@@ -6286,25 +6461,42 @@ function settingsSection(key){
       <code>/usr/share/backgrounds/lexos/</code>.</p>`;
     case "multitaches": return `<h2>Multi-tâches</h2><div class="sub">Bureaux virtuels</div>
       <div class="srow"><div><div class="t">Bureaux virtuels</div>
-        <div class="d">${BUREAUX_N} bureaux — plusieurs écrans sur le même écran.
+        <div class="d">${bureauxN()} bureau${bureauxN()>1?"x":""} en ce moment, ${BUREAUX_MAX} au maximum — plusieurs écrans sur le même écran.
         Tu es sur le bureau <b>${state.bureau+1}</b>.</div></div>
         <div class="row" style="gap:6px;flex:none">
-          ${Array.from({length:BUREAUX_N}, (_,n)=>
+          ${Array.from({length:bureauxN()}, (_,n)=>
             `<button class="btn ${n===state.bureau?"":"ghost"} mini" style="width:auto"
                onclick="bureauVa(${n});showSettingsSection()">${n+1}</button>`).join("")}
+          ${bureauxN() < BUREAUX_MAX
+            ? `<button class="btn ghost mini" style="width:auto" title="Ajouter un bureau"
+                 onclick="bureauAjoute();showSettingsSection()">+</button>` : ""}
+          ${bureauxN() > BUREAUX_MIN
+            ? `<button class="btn ghost mini" style="width:auto" title="Enlever le dernier bureau"
+                 onclick="bureauEnleve(${bureauxN()-1});showSettingsSection()">−</button>` : ""}
         </div></div>
       ${swRow("Coin actif (haut-gauche)",
         "Pousser la souris dans le coin ouvre la vue d'ensemble — comme sous Ubuntu",
         state.coinActif, "toggleCoinActif()")}
       <div class="srow"><div><div class="t">Fenêtres par bureau</div>
-        <div class="d">${Array.from({length:BUREAUX_N}, (_,n)=>
+        <div class="d">${Array.from({length:bureauxN()}, (_,n)=>
           `Bureau ${n+1} : ${bureauCompte(n)}`).join(" · ")}</div></div></div>
-      <p class="notice">Les pastilles numérotées en haut à gauche changent de
-      bureau. <b>Ctrl+Alt+←</b> et <b>Ctrl+Alt+→</b> passent au précédent ou au
-      suivant, <b>Super+1</b> à <b>Super+${BUREAUX_N}</b> vont directement à l'un
+      <p class="notice">Les <b>pastilles en haut à gauche</b>, à côté du logo,
+      changent de bureau : celle du bureau où tu es s'allonge, et un point plus
+      clair signale un bureau qui a des fenêtres. Le <b>logo de la barre</b>
+      ouvre la vue d'ensemble — les fenêtres ouvertes et les bureaux en
+      vignettes ; le <b>logo au bas du dock</b> ouvre toutes les applications.
+      <b>Ctrl+Alt+←</b> et <b>Ctrl+Alt+→</b> passent au bureau précédent ou
+      suivant, <b>Super+1</b> à <b>Super+${bureauxN()}</b> vont directement à l'un
       d'eux. Pour envoyer une fenêtre ailleurs : clic droit sur sa barre de
-      titre → <b>Déplacer vers un bureau</b>. Rien n'est fermé en changeant de
-      bureau — les fenêtres sont mises de côté et retrouvées telles quelles.</p>`;
+      titre → <b>Déplacer vers un bureau</b>, ou glisse son aperçu sur une
+      vignette dans la vue d'ensemble. Rien n'est fermé en changeant de
+      bureau — les fenêtres sont mises de côté et retrouvées telles quelles.</p>
+      <p class="notice">Le nombre de bureaux n'est pas figé, comme sous Ubuntu :
+      un bureau vide reste toujours au bout pour qu'on puisse y déposer une
+      fenêtre sans l'avoir créé d'abord, le <b>+</b> en ajoute un
+      (${BUREAUX_MAX} au maximum) et le <b>✕</b> sur une vignette en enlève un.
+      Enlever un bureau ne ferme aucune fenêtre : celles qui l'occupaient
+      passent au bureau précédent.</p>`;
     case "applications": return `<h2>Applications</h2><div class="sub">Applications par défaut</div>
       <div class="srow"><div class="t">Navigateur web</div><div class="d">Firefox (défaut) · Chromium · Google Chrome</div></div>
       <p class="notice">Chrome n'est pas libre : Google interdit de le redistribuer, l'ISO ne
@@ -7238,15 +7430,23 @@ const CC_SAVOIR = [
     Dans le terminal de cette démo, le bouton <b>☰ Commandes</b> les liste toutes.`},
 
   {c:["bureau","bureaux","virtuel","virtuels","espace","workspace","super","coin","apercu"], r:
-   `LexOS a <b>quatre bureaux virtuels</b> — plusieurs écrans sur le même écran.
+   `LexOS a des <b>bureaux virtuels</b> — plusieurs écrans sur le même écran.
+    Leur nombre n'est pas figé : un bureau vide reste toujours au bout, le
+    <b>+</b> de la vue d'ensemble en ajoute un (cinq au plus) et le <b>✕</b> sur
+    une vignette en enlève un, sans jamais fermer de fenêtre.
     <ul>
-      <li><b>Super</b> ouvre la vue d'ensemble : les bureaux en vignettes, les
-          fenêtres en aperçus.</li>
+      <li>Les <b>pastilles en haut à gauche</b>, à côté du logo : un point par
+          bureau, celui où tu es s'allonge, et un point plus clair signale un
+          bureau qui a des fenêtres. Un clic y va.</li>
+      <li>Le <b>logo de la barre</b> (ou <b>Super</b>) ouvre la vue d'ensemble :
+          les bureaux en vignettes, les fenêtres ouvertes en aperçus.</li>
+      <li>Le <b>logo au bas du dock</b> ouvre toutes les applications.</li>
       <li><b>Le coin actif</b> — pousse la souris dans le coin haut-gauche et la
           vue s'ouvre, comme sous Ubuntu.</li>
       <li><b>Ctrl+Alt+←/→</b> pour passer au bureau voisin, <b>Super+1..5</b> pour
           y aller directement.</li>
-      <li>La <b>molette</b> sur le fond d'écran change aussi de bureau.</li>
+      <li>La <b>molette</b> change de bureau — sur le fond d'écran comme dans la
+          vue d'ensemble.</li>
       <li>Glisse un aperçu sur une vignette pour déménager la fenêtre.</li>
     </ul>`},
 
@@ -9943,7 +10143,19 @@ addEventListener("keydown", e=>{
 //  Fenêtre quittée espace enfoncée : sans ça l'accord resterait « armé »
 //  au retour, et la prochaine frappe d'un chiffre partirait toute seule.
 addEventListener("blur", ()=>{ capEspace=false; });
-document.getElementById("appsBtn").onclick=e=>{ e.stopPropagation(); toggleApps(); };
+/*  LES DEUX LOGOS NE FONT PLUS LA MÊME CHOSE — c'est le partage d'Ubuntu.
+    Avant, celui de la barre et celui du bas du dock ouvraient tous les deux
+    la grille des applications : le même geste en double, et la vue
+    d'ensemble n'était atteignable qu'au clavier (Super) ou par le coin —
+    autant dire jamais trouvée.
+      · Logo de la barre, en haut à gauche → la VUE D'ENSEMBLE : les fenêtres
+        ouvertes, les bureaux en vignettes, ce qui tourne en ce moment.
+        C'est le bouton « Activités » d'Ubuntu.
+      · Logo du bas du dock → TOUTES LES APPLICATIONS : la grille de ce
+        qu'on peut lancer. C'est la grille à neuf points d'Ubuntu.
+    Et un bouton relie la vue d'ensemble à la grille, pour ne jamais rester
+    coincé dans l'une sans pouvoir atteindre l'autre.                   */
+document.getElementById("appsBtn").onclick=e=>{ e.stopPropagation(); apercuBascule(); };
 document.getElementById("qsBtn").onclick=e=>{ e.stopPropagation(); qsToggle(); };
 
 /* ======================= Menu de démarrage ======================= */
@@ -10101,10 +10313,44 @@ function mtxScramble(cell, final){
 const AG_MOIS = ["janvier","février","mars","avril","mai","juin","juillet",
   "août","septembre","octobre","novembre","décembre"];
 const AG_JOURS = ["lun","mar","mer","jeu","ven","sam","dim"];
+const AG_JOURS_LONG = ["lundi","mardi","mercredi","jeudi","vendredi","samedi","dimanche"];
+/*  QUATRE VUES, comme sur un téléphone. Le mois pour se repérer, la semaine
+    pour organiser, trois jours ou un seul pour voir ce qui remplit vraiment
+    la journée. « pas » = de combien les flèches ‹ › déplacent la vue.      */
+const AG_VUES = [
+  {id:"mois",    nom:"Mois",    pas:0},
+  {id:"semaine", nom:"Semaine", pas:7},
+  {id:"3jours",  nom:"3 jours", pas:3},
+  {id:"jour",    nom:"Jour",    pas:1},
+];
 function agCle(a,m,j){ return `${a}-${String(m+1).padStart(2,"0")}-${String(j).padStart(2,"0")}`; }
+/*  Une clé « AAAA-MM-JJ » vers un Date, SANS passer par new Date("2026-08-17")
+    qui lit la chaîne comme de l'UTC et peut reculer d'un jour selon le fuseau.
+    On passe donc les trois nombres séparément — c'est de l'heure locale. */
+function agDate(cle){ const [a,m,j]=cle.split("-").map(Number); return new Date(a,m-1,j); }
+function agCleDe(d){ return agCle(d.getFullYear(), d.getMonth(), d.getDate()); }
+function agDecale(cle,n){ const d=agDate(cle); d.setDate(d.getDate()+n); return agCleDe(d); }
+function agJourSem(cle){ return (agDate(cle).getDay()+6)%7; }      // lundi = 0
+function agLundi(cle){ const d=agDate(cle); d.setDate(d.getDate()-agJourSem(cle)); return d; }
+/*  « 17 – 23 août 2026 », et « 31 août – 6 septembre 2026 » quand l'intervalle
+    enjambe deux mois : le titre doit rester lisible dans les deux cas.    */
+function agIntervalle(c1,c2){
+  const d1=agDate(c1), d2=agDate(c2);
+  if(d1.getMonth()===d2.getMonth() && d1.getFullYear()===d2.getFullYear())
+    return `${d1.getDate()} – ${d2.getDate()} ${AG_MOIS[d1.getMonth()]} ${d1.getFullYear()}`;
+  if(d1.getFullYear()===d2.getFullYear())
+    return `${d1.getDate()} ${AG_MOIS[d1.getMonth()]} – ${d2.getDate()} ${AG_MOIS[d2.getMonth()]} ${d1.getFullYear()}`;
+  return `${d1.getDate()} ${AG_MOIS[d1.getMonth()]} ${d1.getFullYear()} – ${d2.getDate()} ${AG_MOIS[d2.getMonth()]} ${d2.getFullYear()}`;
+}
 function openAgenda(){
   const now = new Date();
-  if(!state.agendaVue) state.agendaVue = {a:now.getFullYear(), m:now.getMonth(), sel:agCle(now.getFullYear(),now.getMonth(),now.getDate())};
+  if(!state.agendaVue){
+    const c = agCle(now.getFullYear(),now.getMonth(),now.getDate());
+    state.agendaVue = {a:now.getFullYear(), m:now.getMonth(), sel:c, vue:"mois", anc:c};
+  }
+  //  Une session ouverte avant l'ajout des vues n'a ni « vue » ni « anc ».
+  if(!state.agendaVue.vue) state.agendaVue.vue = "mois";
+  if(!state.agendaVue.anc) state.agendaVue.anc = state.agendaVue.sel;
   openWin("agenda","Notifications et agenda","🔔", agendaHTML(), 560, 660);
   notifRend();
   agendaRend();
@@ -10123,45 +10369,201 @@ function agendaHTML(){
     <div class="nf-liste" id="notifListe"></div>
     <div class="nf-sep"><span>📅 Agenda</span></div>
     <div class="ag-tete">
-      <button class="btn ghost mini" style="width:auto" onclick="agMois(-1)">‹</button>
+      <button class="btn ghost mini" style="width:auto" onclick="agNav(-1)">‹</button>
       <div class="ag-titre" id="agTitre"></div>
-      <button class="btn ghost mini" style="width:auto" onclick="agMois(1)">›</button>
+      <button class="btn ghost mini" style="width:auto" onclick="agNav(1)">›</button>
       <button class="btn mini" style="width:auto;margin-left:auto" onclick="agAujourdhui()">Aujourd'hui</button>
     </div>
+    <div class="ag-vues" id="agVues"></div>
     <div class="ag-grille" id="agGrille"></div>
     <div class="ag-jour" id="agJour"></div>
   </div>`;
 }
-function agMois(d){
-  let {a,m}=state.agendaVue; m+=d;
-  if(m<0){m=11;a--;} if(m>11){m=0;a++;}
-  state.agendaVue.a=a; state.agendaVue.m=m; agendaRend();
+/*  Changer de vue garde le jour choisi : on le prend comme point d'ancrage de
+    la nouvelle vue. Cliquer le 17 puis « Semaine » montre la semaine du 17,
+    pas celle d'aujourd'hui.                                              */
+function agVue(id){
+  const V=state.agendaVue;
+  V.vue=id; V.anc=V.sel;
+  const d=agDate(V.sel); V.a=d.getFullYear(); V.m=d.getMonth();
+  agendaRend();
+}
+/*  Les flèches déplacent d'une unité de la vue COURANTE : un mois en vue
+    « Mois », une semaine en « Semaine », trois jours, un jour.            */
+function agNav(d){
+  const V=state.agendaVue;
+  if(V.vue==="mois"){
+    let {a,m}=V; m+=d;
+    if(m<0){m=11;a--;} if(m>11){m=0;a++;}
+    V.a=a; V.m=m;
+    //  Le jour choisi suit le mois — sinon il quitte la grille et le panneau
+    //  du bas continue de parler d'un jour qu'on ne voit plus. On garde le
+    //  même numéro, ramené au dernier jour du mois s'il n'existe pas (le 31
+    //  en février).
+    const nb=new Date(a,m+1,0).getDate();
+    V.sel=agCle(a,m,Math.min(Number(V.sel.split("-")[2]),nb));
+    V.anc=V.sel;
+  } else {
+    const pas=(AG_VUES.find(v=>v.id===V.vue)||{pas:1}).pas;
+    V.anc=agDecale(V.anc,d*pas);
+    //  En semaine, on garde le même jour de la semaine d'un saut à l'autre ;
+    //  dans les vues courtes, la sélection se pose sur le premier jour.
+    V.sel = V.vue==="semaine" ? agDecale(V.sel,d*pas) : V.anc;
+    const dt=agDate(V.sel); V.a=dt.getFullYear(); V.m=dt.getMonth();
+  }
+  agendaRend();
 }
 function agAujourdhui(){
-  const n=new Date();
-  state.agendaVue={a:n.getFullYear(),m:n.getMonth(),sel:agCle(n.getFullYear(),n.getMonth(),n.getDate())};
+  const n=new Date(); const c=agCle(n.getFullYear(),n.getMonth(),n.getDate());
+  const V=state.agendaVue;
+  //  « Aujourd'hui » ramène à la date du jour SANS changer de vue : on veut
+  //  revenir au présent, pas repartir de zéro.
+  V.a=n.getFullYear(); V.m=n.getMonth(); V.sel=c; V.anc=c;
   agendaRend();
 }
 function agSelect(cle){ state.agendaVue.sel=cle; agendaRend(); }
 function agendaRend(){
   const w=document.getElementById("agGrille"); if(!w) return;
-  const {a,m,sel}=state.agendaVue;
-  document.getElementById("agTitre").textContent = `${AG_MOIS[m]} ${a}`;
-  const premier = (new Date(a,m,1).getDay()+6)%7;   // lundi = 0
-  const nb = new Date(a,m+1,0).getDate();
-  const now = new Date(); const cleJour = agCle(now.getFullYear(),now.getMonth(),now.getDate());
-  let html = AG_JOURS.map(j=>`<div class="ag-ej">${j}</div>`).join("");
-  for(let i=0;i<premier;i++) html += `<div class="ag-c vide"></div>`;
-  for(let j=1;j<=nb;j++){
-    const cle=agCle(a,m,j);
-    const cls=["ag-c"];
-    if(cle===cleJour) cls.push("aujourdhui");
-    if(cle===sel) cls.push("sel");
-    const pastille = (state.agendaEvts[cle]&&state.agendaEvts[cle].length) ? `<span class="ag-pt"></span>` : "";
-    html += `<button class="${cls.join(" ")}" onclick="agSelect('${cle}')">${j}${pastille}</button>`;
+  const V=state.agendaVue;
+  const vue=V.vue||"mois";
+  const now=new Date(); const cleJour=agCleDe(now);
+
+  //  Les boutons de vue, celui en cours à l'accent.
+  const bv=document.getElementById("agVues");
+  if(bv) bv.innerHTML = AG_VUES.map(v=>
+    `<button class="ag-v${v.id===vue?" on":""}" onclick="agVue('${v.id}')">${v.nom}</button>`).join("");
+
+  //  Chaque vue décide de trois choses : les jours à montrer (null = case
+  //  vide de début de mois), les en-têtes de colonnes, et son titre.
+  let jours=[], entetes=[], titre="", cls="v-mois";
+  if(vue==="mois"){
+    const premier=(new Date(V.a,V.m,1).getDay()+6)%7;   // lundi = 0
+    const nb=new Date(V.a,V.m+1,0).getDate();
+    entetes=AG_JOURS.slice();
+    for(let i=0;i<premier;i++) jours.push(null);
+    for(let j=1;j<=nb;j++) jours.push(agCle(V.a,V.m,j));
+    titre=`${AG_MOIS[V.m]} ${V.a}`;
+  } else if(vue==="semaine"){
+    cls="v-semaine";
+    const d=agLundi(V.anc);
+    entetes=AG_JOURS.slice();
+    for(let i=0;i<7;i++){ jours.push(agCleDe(d)); d.setDate(d.getDate()+1); }
+    titre=agIntervalle(jours[0],jours[6]);
+  } else {
+    const n = vue==="jour" ? 1 : 3;
+    cls = vue==="jour" ? "v-1j" : "v-3j";
+    for(let i=0;i<n;i++) jours.push(agDecale(V.anc,i));
+    entetes = jours.map(c=>AG_JOURS[agJourSem(c)]);
+    titre = n===1
+      ? `${AG_JOURS_LONG[agJourSem(jours[0])]} ${agDate(jours[0]).getDate()} `
+        + `${AG_MOIS[agDate(jours[0]).getMonth()]} ${agDate(jours[0]).getFullYear()}`
+      : agIntervalle(jours[0],jours[n-1]);
   }
-  w.innerHTML = html;
+  document.getElementById("agTitre").textContent=titre;
+
+  //  EN 3 JOURS ET EN 1 JOUR : la journée HEURE PAR HEURE. Une case par jour
+  //  ne dirait que « il y a quelque chose » ; ce qu'on veut savoir en
+  //  resserrant la vue, c'est À QUELLE HEURE.
+  if(vue==="3jours" || vue==="jour"){
+    agHeuresRend(w, jours, cleJour);
+    agendaJour();
+    return;
+  }
+
+  //  En mois et en semaine : la grille de pastilles, qui sert à se repérer.
+  let html = entetes.map(j=>`<div class="ag-ej">${j}</div>`).join("");
+  for(const cle of jours){
+    if(!cle){ html+=`<div class="ag-c vide"></div>`; continue; }
+    const num=agDate(cle).getDate();
+    const evts=state.agendaEvts[cle]||[];
+    const c=["ag-c"];
+    if(cle===cleJour) c.push("aujourdhui");
+    if(cle===V.sel)  c.push("sel");
+    const pt = evts.length ? `<span class="ag-pt"></span>` : "";
+    html+=`<button class="${c.join(" ")}" onclick="agSelect('${cle}')">${num}${pt}</button>`;
+  }
+  w.className="ag-grille "+cls;
+  w.innerHTML=html;
   agendaJour();
+}
+
+/* ---- La journée heure par heure -------------------------------------
+   Les heures en colonne de gauche, un jour par colonne, chaque événement
+   dans sa case. C'est la grille d'un vrai agenda : on voit d'un coup ce
+   qu'il y a à 9 h et que l'après-midi est libre.
+
+   Pas de positionnement absolu ni de calcul de chevauchement : c'est une
+   grille CSS, et deux événements à la même heure s'empilent dans leur case.
+   Comme toutes les cases d'une rangée partagent sa hauteur, les colonnes
+   restent alignées même quand l'une d'elles grossit.               */
+function agHeuresRend(w, jours, cleJour){
+  const V = state.agendaVue;
+  const hMaintenant = new Date().getHours();
+
+  //  Ranger les événements par heure. Ceux saisis sans heure iraient sinon
+  //  se cacher à minuit : ils ont leur propre rangée, en haut.
+  const parHeure = {}, sansHeure = {};
+  jours.forEach(c=>{
+    parHeure[c] = {}; sansHeure[c] = [];
+    (state.agendaEvts[c]||[]).forEach(e=>{
+      const m = /^(\d{1,2}):/.exec(e.h || "");
+      if(!m){ sansHeure[c].push(e); return; }
+      const h = Math.min(23, Math.max(0, parseInt(m[1],10)));
+      (parHeure[c][h] = parHeure[c][h] || []).push(e);
+    });
+  });
+  const puce = e => `<span class="ag-hh-e" title="${esc((e.h ? e.h+" — " : "")+e.t)}">${esc(e.t)}</span>`;
+
+  //  En-tête : un bouton par jour, qui sert aussi à le choisir.
+  let html = `<div class="ag-hh-coin"></div>`;
+  html += jours.map(c=>{
+    const d = agDate(c), cls = ["ag-hh-j"];
+    if(c === V.sel)   cls.push("sel");
+    if(c === cleJour) cls.push("auj");
+    return `<button class="${cls.join(" ")}" onclick="agSelect('${c}')"`
+      + ` title="${AG_JOURS_LONG[agJourSem(c)]} ${d.getDate()} ${AG_MOIS[d.getMonth()]}">`
+      + `${AG_JOURS[agJourSem(c)]}<b>${d.getDate()}</b></button>`;
+  }).join("");
+
+  //  La rangée « sans heure » n'apparaît que si elle a quelque chose à dire.
+  if(jours.some(c=>sansHeure[c].length)){
+    html += `<div class="ag-hh-h" title="Sans heure précise">—</div>`;
+    html += jours.map(c=>`<div class="ag-hh-c" onclick="agSelect('${c}')">`
+      + sansHeure[c].map(puce).join("") + `</div>`).join("");
+  }
+
+  for(let h = 0; h <= 23; h++){
+    const hh = String(h).padStart(2,"0");
+    html += `<div class="ag-hh-h" data-h="${hh}">${hh}:00</div>`;
+    html += jours.map(c=>{
+      const cls = ["ag-hh-c"];
+      if(c === cleJour && h === hMaintenant) cls.push("maintenant");
+      return `<div class="${cls.join(" ")}" title="${hh}:00"`
+        + ` onclick="agHeureClic('${c}','${hh}:00')">`
+        + (parHeure[c][h] || []).map(puce).join("") + `</div>`;
+    }).join("");
+  }
+
+  w.className = "ag-hh";
+  w.style.setProperty("--cols", String(jours.length));
+  w.innerHTML = html;
+
+  //  Se placer sur l'heure utile : la première occupée, sinon l'heure qu'il
+  //  est. Sans ça, la vue s'ouvrirait toujours sur minuit — là où il ne se
+  //  passe jamais rien. Une heure avant, pour ne pas coller au bord.
+  const heures = jours.flatMap(c=>Object.keys(parHeure[c]).map(Number));
+  const cible = Math.max(0, (heures.length ? Math.min(...heures) : hMaintenant) - 1);
+  const ligne = w.querySelector(`.ag-hh-h[data-h="${String(cible).padStart(2,"0")}"]`);
+  if(ligne) w.scrollTop = Math.max(0, ligne.offsetTop - 30);
+}
+//  Cliquer une case horaire : ce jour ET cette heure passent dans le
+//  formulaire du bas, et le curseur va au titre. Cliquer 14 h puis taper,
+//  c'est le geste qu'on attend d'un agenda.
+function agHeureClic(cle, heure){
+  state.agendaVue.sel = cle;
+  agendaRend();
+  const zh = document.getElementById("agH"); if(zh) zh.value = heure;
+  const zt = document.getElementById("agT"); if(zt) zt.focus();
 }
 function agendaJour(){
   const z=document.getElementById("agJour"); if(!z) return;
