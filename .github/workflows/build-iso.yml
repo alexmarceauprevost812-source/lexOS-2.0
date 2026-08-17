@@ -331,14 +331,102 @@ jobs:
             echo "sur ordinateur) et démarre dessus."
           } > NOTES-release.md
 
-          # Idempotent : on remplace la Release précédente de cette saveur, pour
-          # que « latest-<saveur> » soit toujours la dernière ISO en date.
-          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$TAG" \
-            --title "LexOS ${{ steps.quoi.outputs.flavour }} — dernière ISO (build ${BUILD}, ${SHORT})" \
-            --notes-file NOTES-release.md \
-            --latest \
-            "${ISO}.part-"* "${ISO}.sha256"
+          # ----------------------------------------------------------------
+          #  PUBLICATION QUI RÉSISTE AUX PANNES PASSAGÈRES DE GITHUB.
+          #
+          #  Le build 54 a été perdu ICI, et pas d'un poil : 70 minutes de
+          #  construction, l'ISO pro prête et vérifiée, puis
+          #  « HTTP 503: No server is currently available » pendant l'envoi
+          #  des morceaux. Trois défauts s'étaient additionnés :
+          #
+          #    1. La Release précédente était SUPPRIMÉE d'avance. Après
+          #       l'échec, il ne restait donc RIEN à télécharger — ni la
+          #       nouvelle ISO, ni l'ancienne qui marchait.
+          #    2. Les cinq morceaux (7,6 Go) partaient en UN SEUL appel :
+          #       une erreur sur le dernier jetait les quatre premiers.
+          #    3. Aucune reprise. Une panne de quelques secondes chez GitHub
+          #       suffisait à perdre une heure et quart de calcul.
+          #
+          #  Désormais : on ne supprime rien d'avance, chaque morceau part
+          #  séparément avec cinq tentatives espacées, et le .sha256 part EN
+          #  DERNIER. Ce dernier point est le garde-fou : tant qu'il n'est
+          #  pas là, la Release est visiblement en cours ; dès qu'il est là,
+          #  elle est complète et vérifiable.
+          # ----------------------------------------------------------------
+          TITRE="LexOS ${{ steps.quoi.outputs.flavour }} — dernière ISO (build ${BUILD}, ${SHORT})"
+
+          #  Envoyer un fichier en réessayant. --clobber pour qu'une reprise
+          #  remplace un envoi laissé à moitié au lieu de buter dessus.
+          envoyer() {
+            local F="$1" N=0 ATTENTE
+            while :; do
+              N=$((N+1))
+              if gh release upload "$TAG" "$F" --clobber; then
+                echo "  ok   $F"
+                return 0
+              fi
+              if [ "$N" -ge 5 ]; then
+                echo "::error::Échec de l'envoi de $F après $N tentatives"
+                return 1
+              fi
+              ATTENTE=$((5 * 2 ** (N - 1)))          # 5, 10, 20, 40 s
+              echo "  !!   $F : tentative $N échouée — nouvelle dans ${ATTENTE} s"
+              sleep "$ATTENTE"
+            done
+          }
+
+          #  La Release doit exister pour recevoir des fichiers — mais on ne
+          #  détruit pas l'ancienne : on la met à jour. Tant que les nouveaux
+          #  morceaux ne sont pas tous arrivés, l'ISO précédente reste
+          #  téléchargeable. Mieux qu'un trou.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG déjà là — on la met à jour sans rien détruire"
+            gh release edit "$TAG" --title "$TITRE" \
+              --notes-file NOTES-release.md --latest
+          else
+            echo "Release $TAG absente — création"
+            gh release create "$TAG" --title "$TITRE" \
+              --notes-file NOTES-release.md --latest
+          fi
+
+          #  Retirer d'abord l'ANCIENNE empreinte. Pendant tout l'envoi, la
+          #  Release est ainsi franchement marquée « incomplète » : personne
+          #  ne peut croire vérifier une ISO qui est en train d'être remplacée.
+          gh release delete-asset "$TAG" "${ISO}.sha256" --yes 2>/dev/null || true
+
+          #  Les morceaux, un par un.
+          echo "Envoi des morceaux :"
+          for P in "${ISO}.part-"*; do envoyer "$P"; done
+
+          #  Une ISO plus petite peut produire MOINS de morceaux que la
+          #  précédente. Un part-04 oublié de la fois d'avant se recollerait
+          #  à la fin du nouveau fichier et donnerait une ISO corrompue —
+          #  que le sha256 refuserait, mais autant ne pas le laisser traîner.
+          ATTENDUS="$(printf '%s\n' "${ISO}.part-"* "${ISO}.sha256")"
+          gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null \
+          | while read -r A; do
+              [ -n "$A" ] || continue
+              if ! printf '%s\n' "$ATTENDUS" | grep -qxF "$A"; then
+                echo "  --   $A : reste d'une construction précédente, on l'enlève"
+                gh release delete-asset "$TAG" "$A" --yes 2>/dev/null || true
+              fi
+            done
+
+          #  L'empreinte EN DERNIER : elle signe une Release complète.
+          envoyer "${ISO}.sha256"
+
+          #  Vérifier pour de vrai, plutôt que d'espérer. Un morceau manquant
+          #  doit faire échouer la construction bruyamment, pas laisser une
+          #  Release à moitié pleine qu'Alex téléchargerait pour rien.
+          PRESENTS="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          MANQUE=0
+          for A in $ATTENDUS; do
+            if ! printf '%s\n' "$PRESENTS" | grep -qxF "$A"; then
+              echo "::error::Fichier absent de la Release : $A"; MANQUE=1
+            fi
+          done
+          [ "$MANQUE" = "0" ] || { echo "::error::Release incomplète"; exit 1; }
+          echo "Release $TAG complète : $(printf '%s\n' "$PRESENTS" | wc -l) fichiers"
 
           {
             echo "### ✅ ISO publiée en Release"

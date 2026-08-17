@@ -41,6 +41,42 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 55 : LE MÊME QUE LE 54, PARCE QUE LE 54 A ÉTÉ PERDU À LA TOUTE
+#   DERNIÈRE SECONDE — ET LA RAISON EST CORRIGÉE.
+#   L'ISO pro du build 54 a été construite avec succès : 8,0 Go en 69 min
+#   42 s, pilote NVIDIA 595.91.07-1 relevé SUR LE PILOTE LUI-MÊME (le dépôt
+#   proposait aussi 610.57.04 et 610.43.02 — l'épingle les a refusées, comme
+#   voulu), blacklist nouveau en place. Tout était bon.
+#   Puis, pendant l'envoi des morceaux à GitHub :
+#     HTTP 503: No server is currently available to service your request
+#   Une panne passagère de GitHub, quelques secondes. Et une heure et quart
+#   de calcul jetée. Trois défauts de l'étape de publication s'étaient
+#   additionnés pour transformer un hoquet en perte totale :
+#     1. La Release précédente était SUPPRIMÉE D'AVANCE, avant même que la
+#        nouvelle soit envoyée. Après l'échec il ne restait donc RIEN à
+#        télécharger — ni la nouvelle ISO, ni l'ancienne qui marchait.
+#        C'est le pire des trois : une panne chez GitHub ne devrait jamais
+#        pouvoir effacer ce qui fonctionnait déjà.
+#     2. Les cinq morceaux (7,6 Go) partaient en UN SEUL appel. Une erreur
+#        sur le dernier jetait les quatre premiers.
+#     3. Aucune reprise. Zéro. Sur une opération réseau de 7,6 Go.
+#   Ce que ce build change (dans .github/workflows/build-iso.yml) :
+#     · on ne supprime plus rien d'avance — la Release est mise à jour ;
+#     · chaque morceau part séparément, avec cinq tentatives espacées de
+#       5, 10, 20 puis 40 secondes ;
+#     · le .sha256 part EN DERNIER, et l'ancien est retiré en premier : sa
+#       présence signe donc une Release complète et vérifiable, son absence
+#       dit franchement « envoi en cours » ;
+#     · les morceaux d'une construction précédente plus grosse sont
+#       enlevés, pour qu'un part-04 oublié ne se recolle pas à la fin du
+#       nouveau fichier ;
+#     · et on VÉRIFIE que tous les fichiers sont bien là, au lieu d'espérer.
+#   Testé en bac à sable avec un faux « gh » qui rejoue le 503 exact du
+#   build 54 : 21 essais, dont « la construction survit à la panne » et
+#   « l'ancienne ISO reste téléchargeable quand l'envoi échoue ».
+#   Le CONTENU de l'ISO est identique au build 54 — même correctif nouveau,
+#   même pilote 595. C'est la livraison qui est réparée, pas le système.
+#
 # build 54 : TROUVÉ EN DIRECT SUR L'ALIENWARE — nouveau prenait la carte
 #   avant nvidia.
 #   Après le build 53, Alex a testé pour de vrai, en direct, sur la tour
@@ -883,4 +919,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 54
+build: 55
