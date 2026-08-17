@@ -400,6 +400,99 @@ Ce qui reste possible :
 
 ---
 
+## Windows pour jouer, LexOS pour travailler — les deux sur la même machine
+
+C'est le cas d'usage le plus demandé : garder Windows tel quel, et prendre
+**une part fixe du disque** pour LexOS — 40 Go, de quoi être à l'aise sans
+grignoter les jeux.
+
+### Une commande qui vérifie tout avant que tu touches à quoi que ce soit
+
+Depuis la session démo, ouvre un terminal et tape :
+
+```bash
+sudo lexos dualboot
+```
+
+Cet outil **ne modifie rien** — il lit le disque et il ne fait qu'écrire à
+l'écran. Il te dit, en une page :
+
+- si Windows est bien là et quelle place il occupe **réellement** (une
+  partition de 900 Go dont 200 sont utilisés peut céder beaucoup ; une de
+  250 Go pleine à 240 ne peut rien céder) ;
+- **si Windows a été vraiment éteint** — c'est le piège n° 1, voir ci-dessous ;
+- **le chiffre exact** à régler sur le curseur de l'installateur ;
+- si le menu de démarrage saura proposer Windows ensuite.
+
+Tu peux le relancer autant de fois que tu veux, il n'écrit jamais sur le
+disque.
+
+### Le piège n° 1 : « Démarrage rapide » n'éteint pas Windows
+
+Windows 10 et 11 sont livrés avec le **Démarrage rapide** activé. Quand tu
+cliques « Arrêter », il ne s'arrête pas vraiment : il s'**hiberne**. Son
+disque reste marqué comme en cours d'utilisation, et **aucun outil au monde**
+ne peut le redimensionner sans risquer de l'abîmer.
+
+À faire dans Windows, **une seule fois** :
+
+1. Panneau de configuration → **Options d'alimentation**
+2. « Choisir l'action des boutons d'alimentation »
+3. « Modifier des paramètres actuellement non disponibles »
+4. Décocher **« Activer le démarrage rapide »**
+5. Enregistrer, puis **Arrêter** — pas Redémarrer, pas Veille
+
+Ce n'est pas un défaut de LexOS : c'est Windows qui reste à moitié allumé.
+
+### Ensuite, dans l'ordre
+
+1. **Sauvegarde ce qui compte.** Par principe, avant tout partage de disque.
+   L'installateur ne touche pas à tes fichiers Windows, mais une coupure de
+   courant au mauvais moment, ça existe.
+2. **BIOS (F2 au démarrage) : Secure Boot → Disabled.** Le pilote NVIDIA de
+   LexOS n'est pas signé par Debian ; Secure Boot actif = pilote refusé =
+   écran noir. Profites-en pour vérifier **SATA Operation → AHCI** (et non
+   « RAID On ») : en mode RAID, aucun installateur Linux ne voit le disque.
+3. Démarre sur la clé LexOS, lance **Installer LexOS**.
+4. Choisis **« Installer à côté de »** — l'écran avec le curseur qui partage
+   le disque. Règle-le sur le chiffre que `lexos dualboot` t'a donné (40 Go).
+5. **Lis l'écran de résumé** avant de valider. Rien n'est écrit sur le disque
+   avant que tu cliques.
+6. Au redémarrage, un menu te propose **LexOS** ou **Windows Boot Manager**.
+
+### Ce qui rend ça possible, et qui reste du logiciel libre
+
+| Outil | Rôle | Licence |
+|---|---|---|
+| Calamares | L'écran « Installer à côté de » et son curseur | GPL-3 |
+| ntfs-3g / ntfsresize | Lire et redimensionner la partition Windows | GPL-2 |
+| parted | La table de partitions | GPL-3 |
+| os-prober | Trouver Windows pour le menu de démarrage | GPL-2/3 |
+| GRUB | Le menu qui propose les deux systèmes | GPL-3 |
+
+**Aucun outil propriétaire n'est nécessaire** — pas d'EaseUS, pas de
+MiniTool, pas de Paragon. Tout le partage de disque se fait depuis LexOS,
+avec du logiciel libre.
+
+> **Pourquoi LexOS ne redimensionne pas Windows tout seul, automatiquement ?**
+> Parce que le code de redimensionnement de Calamares tourne sur des millions
+> de machines depuis des années, et qu'un script maison n'aurait jamais été
+> essayé sur le disque de personne avant le tien. Sur un disque qui contient
+> tes jeux et tes fichiers, ce n'est pas un pari raisonnable. `lexos dualboot`
+> te donne le chiffre ; Calamares fait le travail, avec sa confirmation.
+
+### Si quelque chose se passe mal
+
+- **Windows n'apparaît plus dans le menu** — démarre sur LexOS et tape
+  `sudo lexos dualboot` : il te dira si `os-prober` a bien vu Windows. Puis
+  `sudo update-grub` régénère le menu.
+- **Rien ne démarre du tout** — dans le BIOS, l'ordre de démarrage
+  (Boot Order) a peut-être changé. Remets LexOS ou Windows en premier.
+- **Windows démarre mais se plaint du disque** — laisse-le faire son
+  `chkdsk` au premier démarrage, c'est normal après un redimensionnement.
+
+---
+
 ## Installer LexOS À CÔTÉ d'un autre Linux (ou de Windows)
 
 > **Deux installateurs, deux chemins.** Le plus simple, celui de l'Étape 4,

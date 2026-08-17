@@ -1,0 +1,610 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-utilisateurs — les comptes de la machine, en ligne de commande
+# =============================================================================
+#  La section « Utilisateurs » des Paramètres n'avait rien derrière elle sur
+#  l'ISO : ni fenêtre, ni commande. Cet outil comble le trou.
+#
+#  Trois décisions structurantes :
+#
+#  1. On délègue tout aux outils Debian d'origine (adduser, deluser, passwd,
+#     usermod, gpasswd, chfn). Un outil maison qui éditerait /etc/passwd et
+#     /etc/shadow à la main finit toujours par les abîmer — verrous ignorés,
+#     format qui bouge, sauvegarde .bak oubliée. Ici on ne fait que présenter
+#     ces outils en français et poser les garde-fous.
+#
+#  2. On n'appelle jamais « sudo » nous-mêmes. Un outil qui s'élève tout seul
+#     habitue à taper son mot de passe sans lire ce qui va s'exécuter. Quand
+#     les droits manquent, on affiche la commande exacte à relancer.
+#
+#  3. On refuse de supprimer, de verrouiller ou de rétrograder le DERNIER
+#     compte administrateur. Une machine sans administrateur ne se répare plus
+#     depuis le bureau : il faut redémarrer en mode maintenance. C'est la seule
+#     interdiction dure de cet outil, et elle est calculée pour de vrai en
+#     comptant les membres du groupe « sudo », groupe principal compris.
+#
+#  Limite assumée : l'état verrouillé d'un compte se lit dans /etc/shadow, que
+#  seul root peut ouvrir. Sans droits, la liste affiche « inconnu » plutôt que
+#  de deviner.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+# Le groupe qui donne les pleins pouvoirs sur Debian. Nommé une seule fois :
+# c'est lui que compte la protection du dernier administrateur.
+GROUPE_ADMIN=sudo
+LIGHTDM_CONF=/etc/lightdm/lightdm.conf
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — qui peut ouvrir une session sur cette machine, et avec quels droits
+
+Usage :
+  $PROG                            Liste les comptes des personnes
+  $PROG ajouter <nom>              Crée un compte, propose d'en faire un admin
+  $PROG supprimer <nom>            Supprime un compte (confirmation obligatoire)
+  $PROG motdepasse <nom>           Change le mot de passe
+  $PROG admin <nom> on|off         Donne ou retire les droits d'administrateur
+  $PROG verrouiller <nom>          Interdit la connexion par mot de passe
+  $PROG deverrouiller <nom>        Rétablit la connexion
+  $PROG nom-complet <nom> "Prénom Nom"
+                                   Change le nom affiché à la connexion
+  $PROG auto-connexion <nom>|off   Ouvre une session sans mot de passe au démarrage
+  $PROG panneau                    Ouvre la fenêtre « Utilisateurs »
+
+Tout ce qui modifie un compte réclame les droits d'administrateur. Cet outil
+ne s'élève jamais de lui-même : il vous donne la commande à relancer avec sudo.
+
+Exemples :
+  $PROG
+  sudo $PROG ajouter marie
+  sudo $PROG admin marie on
+  sudo $PROG nom-complet marie "Marie Tremblay"
+  sudo $PROG auto-connexion off
+EOF
+}
+
+# --- Petits utilitaires ------------------------------------------------------
+
+rogner() {
+	local s="$*"
+	s="${s#"${s%%[![:space:]]*}"}"
+	s="${s%"${s##*[![:space:]]}"}"
+	printf '%s' "$s"
+}
+
+verifier_outil() {
+	local outil="$1" paquet="$2"
+	command -v "$outil" >/dev/null 2>&1 && return 0
+	warn "« $outil » n'est pas installé sur cette machine."
+	say "Pour l'installer :  ${B}lexos install $paquet${R}"
+	return 1
+}
+
+besoin_root() {
+	local rappel="$1"
+	(( EUID == 0 )) && return 0
+	warn "Cette action modifie les comptes du système : il faut les droits d'administrateur."
+	die "Relancez :  ${B}sudo $PROG $rappel${R}"
+}
+
+confirmer() {
+	local question="$1" defaut="${2:-non}" reponse="" invite="[o/N]"
+	[[ "$defaut" == "oui" ]] && invite="[O/n]"
+	# Sans terminal (script, tâche planifiée), il n'y a personne pour répondre.
+	# On prend alors la réponse la plus prudente : non.
+	if [[ ! -t 0 ]]; then
+		warn "Pas de terminal pour répondre à « $question » — on considère que c'est non."
+		return 1
+	fi
+	printf '%s?%s %s %s ' "$Y" "$R" "$question" "$invite"
+	read -r reponse
+	reponse="${reponse,,}"
+	if [[ -z "$reponse" ]]; then
+		[[ "$defaut" == "oui" ]]
+		return
+	fi
+	[[ "$reponse" == "o" || "$reponse" == "oui" || "$reponse" == "y" || "$reponse" == "yes" ]]
+}
+
+compte_existe() { getent passwd "$1" >/dev/null 2>&1; }
+
+est_humain() {
+	local uid
+	uid="$(id -u "$1" 2>/dev/null)"
+	[[ "$uid" =~ ^[0-9]+$ ]] || return 1
+	# 65534 est « nobody » : un UID au-dessus de 1000 sans personne derrière.
+	(( uid >= 1000 && uid != 65534 ))
+}
+
+valider_nom() {
+	# Les règles d'adduser sur Debian (NAME_REGEX). On refuse ici pour donner
+	# un message clair en français plutôt que l'erreur brute d'adduser.
+	[[ "$1" =~ ^[a-z_][a-z0-9_-]*$ ]] && return 0
+	die "Nom de compte invalide : « $1 ». Minuscules, chiffres, « - » et « _ » uniquement, en commençant par une lettre."
+}
+
+verifier_groupe_admin() {
+	getent group "$GROUPE_ADMIN" >/dev/null 2>&1 && return 0
+	die "Le groupe « $GROUPE_ADMIN » n'existe pas sur cette machine : impossible de gérer les droits d'administrateur."
+}
+
+# --- Le cœur de la protection : qui est administrateur ? ---------------------
+
+liste_admins() {
+	local ligne="" gid="" membres=""
+	ligne="$(getent group "$GROUPE_ADMIN" 2>/dev/null)"
+	[[ -n "$ligne" ]] || return 0
+	IFS=: read -r _ _ gid membres <<<"$ligne"
+	{
+		printf '%s\n' "${membres//,/$'\n'}"
+		# Un compte dont « sudo » est le groupe PRINCIPAL est administrateur
+		# sans figurer dans la liste des membres du groupe. L'oublier ferait
+		# compter zéro administrateur là où il y en a un, et la protection du
+		# dernier administrateur sauterait au pire moment.
+		getent passwd | awk -F: -v g="$gid" '$4 == g { print $1 }'
+	} | awk 'NF' | sort -u
+}
+
+est_admin() {
+	local cherche="$1" a=""
+	while IFS= read -r a; do
+		[[ "$a" == "$cherche" ]] && return 0
+	done < <(liste_admins)
+	return 1
+}
+
+nombre_admins() { liste_admins | awk 'END { print NR }'; }
+
+proteger_dernier_admin() {
+	local nom="$1" action="$2" nb=0
+	est_admin "$nom" || return 0
+	nb="$(nombre_admins)"
+	(( nb > 1 )) && return 0
+	warn "« $nom » est le SEUL compte administrateur de cette machine."
+	warn "$action ce compte laisserait un système que plus personne ne peut"
+	warn "installer, mettre à jour ni réparer depuis le bureau."
+	say "Donnez d'abord les droits à un autre compte :  ${B}sudo $PROG admin <autre> on${R}"
+	die "Opération refusée."
+}
+
+# --- Lecture de l'état d'un compte -------------------------------------------
+
+# L = verrouillé, NP = aucun mot de passe, P = utilisable. Lu dans /etc/shadow,
+# donc réservé à root.
+etat_shadow() { passwd -S "$1" 2>/dev/null | awk '{ print $2 }'; }
+
+etat_verrou() {
+	local champ=""
+	# passwd -S lit /etc/shadow : hors root, la réponse serait fausse ou vide.
+	# On préfère dire qu'on ne sait pas.
+	(( EUID == 0 )) || { printf 'inconnu (demande les droits root)'; return 0; }
+	champ="$(etat_shadow "$1")"
+	case "$champ" in
+		L)  printf 'verrouillé' ;;
+		NP) printf 'AUCUN mot de passe' ;;
+		P)  printf 'actif' ;;
+		*)  printf 'inconnu' ;;
+	esac
+}
+
+derniere_connexion() {
+	local nom="$1" ligne="" brute="" jolie=""
+	command -v lastlog >/dev/null 2>&1 || { printf 'inconnue (lastlog absent)'; return 0; }
+	# Anglais forcé, volontairement. lastlog aligne ses colonnes sur des
+	# largeurs fixes, mais ces largeurs ont changé selon les versions de shadow
+	# (« From » tenait sur 16 caractères, il en fait 42 depuis qu'il doit loger
+	# une adresse IPv6) et l'en-tête traduit ne se cale pas exactement dessus.
+	# Découper à une position figée finirait par afficher le milieu du nom de
+	# machine à la place de la date.
+	ligne="$(LC_ALL=C lastlog -u "$nom" 2>/dev/null | tail -n 1)"
+	[[ -n "$ligne" ]] || { printf 'inconnue'; return 0; }
+	case "$ligne" in
+		*"Never logged in"*) printf 'jamais'; return 0 ;;
+	esac
+	# En anglais, la date de lastlog sort toujours du même format
+	# (« %a %b %e %H:%M:%S %z %Y »), soit exactement six mots en fin de ligne.
+	# Ce repère-là ne dépend ni de la version de shadow ni de la langue.
+	brute="$(awk 'NF >= 6 { s = $(NF-5); for (i = NF-4; i <= NF; i++) s = s " " $i; print s }' <<<"$ligne")"
+	[[ -n "$brute" ]] || { printf 'inconnue'; return 0; }
+	# On la repasse en français ici, une fois qu'elle est identifiée sans risque.
+	jolie="$(date -d "$brute" '+%A %-d %B %Y à %H:%M' 2>/dev/null)"
+	printf '%s' "${jolie:-$brute}"
+}
+
+groupes_importants() {
+	local resultat="" g=""
+	local -a tous=()
+	# On ne montre que les groupes qui changent ce qu'une personne peut faire.
+	# La liste complète (cdrom, plugdev, netdev…) noierait l'information utile.
+	IFS=' ' read -r -a tous <<<"$(id -nG "$1" 2>/dev/null)"
+	for g in "${tous[@]}"; do
+		case "$g" in
+			"$GROUPE_ADMIN") resultat="${resultat:+$resultat, }$g (administrateur)" ;;
+			adm)             resultat="${resultat:+$resultat, }adm (lecture des journaux)" ;;
+		esac
+	done
+	printf '%s' "${resultat:-aucun droit particulier}"
+}
+
+# --- Sous-commandes ----------------------------------------------------------
+
+cmd_lister() {
+	local nom="" uid="" gecos="" plein="" trouve=0 nb=0 auto=""
+	printf '%s»%s %sComptes de cette machine%s\n\n' "$O" "$R" "$B" "$R"
+	while IFS=: read -r nom _ uid _ gecos _ _; do
+		# Sous 1000 : comptes de service (root, daemon, www-data…). Personne
+		# ne s'assoit devant la machine avec ceux-là.
+		[[ "$uid" =~ ^[0-9]+$ ]] || continue
+		(( uid >= 1000 && uid != 65534 )) || continue
+		trouve=1
+		plein="${gecos%%,*}"
+		printf '  %s%s%s %s(UID %s)%s\n' "$B" "$nom" "$R" "$D" "$uid" "$R"
+		printf '      Nom complet ........ %s\n' "${plein:-non renseigné}"
+		printf '      Droits ............. %s\n' "$(groupes_importants "$nom")"
+		printf '      Dernière connexion . %s\n' "$(derniere_connexion "$nom")"
+		printf '      État du compte ..... %s\n\n' "$(etat_verrou "$nom")"
+	done < <(getent passwd)
+
+	(( trouve == 1 )) || warn "Aucun compte de personne trouvé (UID ≥ 1000)."
+
+	nb="$(nombre_admins)"
+	if (( nb == 0 )); then
+		warn "Aucun compte administrateur : cette machine ne peut plus être administrée depuis le bureau."
+	else
+		say "$nb compte(s) administrateur(s) : $(rogner "$(liste_admins | tr '\n' ' ')")"
+	fi
+
+	auto="$(lire_auto_connexion)"
+	[[ -n "$auto" ]] && warn "Connexion automatique active pour « $auto » — la machine s'ouvre sans mot de passe."
+
+	if (( EUID != 0 )); then
+		printf "%s  (verrouillé ou actif : l'information vient de /etc/shadow, lisible par root seul)%s\n" "$D" "$R"
+	fi
+}
+
+donner_admin() {
+	local nom="$1"
+	verifier_groupe_admin
+	verifier_outil usermod passwd || exit 1
+	if est_admin "$nom"; then
+		say "« $nom » est déjà administrateur — rien à changer."
+		return 0
+	fi
+	if ! usermod -aG "$GROUPE_ADMIN" "$nom"; then
+		die "Impossible d'ajouter « $nom » au groupe $GROUPE_ADMIN."
+	fi
+	ok "« $nom » est maintenant administrateur."
+	say "Effectif à sa prochaine ouverture de session : l'appartenance aux groupes se lit à la connexion."
+}
+
+retirer_admin() {
+	local nom="$1" principal=""
+	verifier_groupe_admin
+	verifier_outil gpasswd passwd || exit 1
+	if ! est_admin "$nom"; then
+		say "« $nom » n'est déjà pas administrateur — rien à changer."
+		return 0
+	fi
+	proteger_dernier_admin "$nom" "Retirer les droits d'administrateur à"
+	principal="$(id -gn "$nom" 2>/dev/null)"
+	# Cas particulier qu'on ne peut pas traiter et qu'on ne cache pas : gpasswd
+	# ne touche qu'aux membres secondaires. Si « sudo » est le groupe principal
+	# du compte, annoncer un succès serait un mensonge.
+	if [[ "$principal" == "$GROUPE_ADMIN" ]]; then
+		warn "« $GROUPE_ADMIN » est le groupe PRINCIPAL de « $nom » : cet outil ne sait pas le retirer."
+		say "Il faut d'abord lui donner un autre groupe principal, par exemple :"
+		say "  ${B}sudo usermod -g $nom $nom${R}   (après avoir vérifié que le groupe « $nom » existe)"
+		die "Opération non effectuée."
+	fi
+	if ! gpasswd -d "$nom" "$GROUPE_ADMIN" >/dev/null; then
+		die "Impossible de retirer « $nom » du groupe $GROUPE_ADMIN."
+	fi
+	ok "« $nom » n'est plus administrateur."
+	say "Effectif à sa prochaine ouverture de session ; une session déjà ouverte garde ses droits."
+}
+
+cmd_ajouter() {
+	local nom="${1:-}"
+	[[ -n "$nom" ]] || die "Il manque le nom du compte :  $PROG ajouter <nom>"
+	besoin_root "ajouter $nom"
+	valider_nom "$nom"
+	compte_existe "$nom" && die "Le compte « $nom » existe déjà."
+	verifier_outil adduser adduser || exit 1
+
+	say "Création du compte « $nom »."
+	say "adduser va demander le mot de passe puis quelques renseignements facultatifs."
+	if ! adduser "$nom"; then
+		die "adduser s'est arrêté : le compte n'a pas été créé."
+	fi
+	ok "Compte « $nom » créé."
+
+	if confirmer "Faire de « $nom » un administrateur (installer des logiciels, modifier le système)" non; then
+		donner_admin "$nom"
+	else
+		say "« $nom » est un compte ordinaire. Pour changer d'avis :  sudo $PROG admin $nom on"
+	fi
+}
+
+cmd_supprimer() {
+	local nom="${1:-}" accueil="" recopie=""
+	[[ -n "$nom" ]] || die "Il manque le nom du compte :  $PROG supprimer <nom>"
+	besoin_root "supprimer $nom"
+	compte_existe "$nom" || die "Aucun compte « $nom » sur cette machine."
+	est_humain "$nom" \
+		|| die "« $nom » est un compte de service (UID < 1000) : le supprimer casserait un morceau du système. Refus."
+	# Supprimer le compte qui a lancé la commande couperait la session en cours
+	# et laisserait le sudo actuel sans propriétaire.
+	[[ "$nom" != "${SUDO_USER:-}" ]] \
+		|| die "« $nom » est le compte qui vient de lancer sudo : on ne supprime pas la branche sur laquelle on est assis."
+	proteger_dernier_admin "$nom" "Supprimer"
+	verifier_outil deluser adduser || exit 1
+
+	accueil="$(getent passwd "$nom" | cut -d: -f6)"
+	warn "Suppression du compte « $nom ». C'est définitif."
+	say "Dossier personnel concerné : ${accueil:-inconnu}"
+
+	if [[ ! -t 0 ]]; then
+		die "Pas de terminal pour confirmer — rien n'a été supprimé."
+	fi
+	# Confirmation par recopie du nom : un « o » réflexe ne doit pas suffire
+	# pour une action qui peut effacer des années de documents.
+	printf '%s?%s Retapez exactement le nom du compte pour confirmer : ' "$Y" "$R"
+	read -r recopie
+	[[ "$recopie" == "$nom" ]] || die "Le nom ne correspond pas — rien n'a été supprimé."
+
+	if confirmer "Garder le dossier personnel ${accueil:-de ce compte} et tout son contenu" oui; then
+		if ! deluser "$nom"; then
+			die "deluser a échoué : le compte est peut-être encore utilisé (session ouverte, processus en cours)."
+		fi
+		ok "Compte « $nom » supprimé. Le dossier ${accueil:-personnel} est intact."
+		say "Il appartient maintenant à un UID sans nom : pensez à le donner à quelqu'un (chown) ou à l'archiver."
+	else
+		if ! deluser --remove-home "$nom"; then
+			die "deluser a échoué : le compte est peut-être encore utilisé (session ouverte, processus en cours)."
+		fi
+		ok "Compte « $nom » supprimé et dossier personnel effacé."
+	fi
+	# Ce que la suppression ne fait pas, dit franchement.
+	say "Les fichiers de ce compte situés ailleurs (/srv, disques externes, /tmp) ne sont pas touchés."
+}
+
+cmd_motdepasse() {
+	local nom="${1:-}"
+	[[ -n "$nom" ]] || die "Il manque le nom du compte :  $PROG motdepasse <nom>"
+	besoin_root "motdepasse $nom"
+	compte_existe "$nom" || die "Aucun compte « $nom » sur cette machine."
+	verifier_outil passwd passwd || exit 1
+	say "Nouveau mot de passe pour « $nom » — la saisie ne s'affiche pas."
+	if ! passwd "$nom"; then
+		die "Le mot de passe n'a pas été changé."
+	fi
+	ok "Mot de passe de « $nom » changé."
+	say "Le trousseau de clés du bureau garde l'ancien mot de passe : il le redemandera à la prochaine session."
+}
+
+cmd_admin() {
+	local nom="${1:-}" etat="${2:-}"
+	[[ -n "$nom" && -n "$etat" ]] || die "Usage :  $PROG admin <nom> on|off"
+	besoin_root "admin $nom $etat"
+	compte_existe "$nom" || die "Aucun compte « $nom » sur cette machine."
+	est_humain "$nom" || die "« $nom » est un compte de service : cet outil ne touche pas à ses droits."
+	case "$etat" in
+		on|oui|1)  donner_admin "$nom" ;;
+		off|non|0) retirer_admin "$nom" ;;
+		*) die "Dernier argument attendu : « on » ou « off » (reçu : « $etat »)." ;;
+	esac
+}
+
+cmd_verrouiller() {
+	local nom="${1:-}"
+	[[ -n "$nom" ]] || die "Il manque le nom du compte :  $PROG verrouiller <nom>"
+	besoin_root "verrouiller $nom"
+	compte_existe "$nom" || die "Aucun compte « $nom » sur cette machine."
+	est_humain "$nom" || die "« $nom » est un compte de service : cet outil n'y touche pas."
+	proteger_dernier_admin "$nom" "Verrouiller"
+	verifier_outil usermod passwd || exit 1
+	usermod -L "$nom"
+	# On relit /etc/shadow au lieu de se fier au code de retour d'usermod, qui
+	# vaut 0 même quand rien n'a bougé. Annoncer un verrou qui n'existe pas
+	# serait la pire des erreurs pour cette commande-là.
+	if [[ "$(etat_shadow "$nom")" != "L" ]]; then
+		die "Le compte « $nom » n'est PAS verrouillé : usermod n'a rien changé."
+	fi
+	ok "Compte « $nom » verrouillé : son mot de passe ne fonctionne plus."
+	# Sans ces deux phrases, on croirait le compte totalement mis à l'écart.
+	warn "Ce verrou ne ferme pas une session déjà ouverte et ne bloque pas une connexion par clé SSH."
+	say "Pour fermer aussi la porte de la connexion :  ${B}sudo usermod -s /usr/sbin/nologin $nom${R}"
+}
+
+cmd_deverrouiller() {
+	local nom="${1:-}" avant=""
+	[[ -n "$nom" ]] || die "Il manque le nom du compte :  $PROG deverrouiller <nom>"
+	besoin_root "deverrouiller $nom"
+	compte_existe "$nom" || die "Aucun compte « $nom » sur cette machine."
+	verifier_outil usermod passwd || exit 1
+	avant="$(etat_shadow "$nom")"
+	if [[ "$avant" != "L" ]]; then
+		say "« $nom » n'est pas verrouillé — rien à changer."
+		return 0
+	fi
+	# usermod -U rend 0 même lorsqu'il REFUSE de déverrouiller : c'est le cas
+	# d'un compte sans mot de passe, où l'ouvrir donnerait une session sans
+	# aucune protection. Se fier au code de retour ferait annoncer un succès
+	# alors que le compte reste fermé — on relit donc l'état réel.
+	usermod -U "$nom" >/dev/null 2>&1
+	if [[ "$(etat_shadow "$nom")" == "L" ]]; then
+		warn "Le compte est resté verrouillé : il n'a aucun mot de passe enregistré,"
+		warn "et le déverrouiller ouvrirait une session sans la moindre protection."
+		say "Posez-lui d'abord un mot de passe :  ${B}sudo $PROG motdepasse $nom${R}"
+		die "Compte toujours verrouillé."
+	fi
+	ok "Compte « $nom » déverrouillé."
+}
+
+cmd_nom_complet() {
+	local nom="${1:-}" plein="${2:-}" pose=""
+	[[ -n "$nom" && -n "$plein" ]] || die "Usage :  $PROG nom-complet <nom> \"Prénom Nom\""
+	besoin_root "nom-complet $nom \"$plein\""
+	compte_existe "$nom" || die "Aucun compte « $nom » sur cette machine."
+	verifier_outil chfn passwd || exit 1
+	# Le nom complet vit dans le champ GECOS de /etc/passwd, où les deux-points
+	# séparent les champs et les virgules les sous-champs. Un de ces caractères
+	# couperait la ligne en deux et rendrait le fichier incohérent.
+	if [[ "$plein" == *[,:=]* ]]; then
+		die "Le nom complet ne peut contenir ni virgule, ni deux-points, ni signe égal."
+	fi
+	# chfn râle en anglais dès qu'il voit un accent (« name with non-ASCII
+	# characters ») tout en enregistrant quand même le nom. Comme les prénoms
+	# d'ici sont pleins d'accents, laisser passer cet avertissement inquiéterait
+	# pour rien. On tait sa sortie et on relit le champ : c'est le résultat qui
+	# décide du message, pas ce que chfn a bien voulu dire.
+	chfn -f "$plein" "$nom" >/dev/null 2>&1
+	pose="$(getent passwd "$nom" | cut -d: -f5)"
+	pose="${pose%%,*}"
+	if [[ "$pose" != "$plein" ]]; then
+		die "Le nom complet n'a pas été enregistré (le compte affiche toujours : « ${pose:-rien} »)."
+	fi
+	ok "Nom complet de « $nom » : $plein"
+	say "Il apparaîtra à l'écran de connexion à la prochaine ouverture de session."
+}
+
+# --- Connexion automatique (LightDM) -----------------------------------------
+
+lire_auto_connexion() {
+	[[ -r "$LIGHTDM_CONF" ]] || return 0
+	awk -F= '/^[ \t]*autologin-user[ \t]*=/ { v = $2; gsub(/^[ \t]+|[ \t]+$/, "", v); print v }' \
+		"$LIGHTDM_CONF" 2>/dev/null | tail -n 1
+}
+
+ecrire_auto_connexion() {
+	local utilisateur="$1" tmp=""
+	mkdir -p /etc/lightdm || die "Impossible de créer /etc/lightdm."
+	[[ -f "$LIGHTDM_CONF" ]] || printf '[Seat:*]\n' > "$LIGHTDM_CONF"
+	# Une seule sauvegarde, faite avant la première modification : c'est l'état
+	# livré par Debian qu'on veut pouvoir retrouver, pas les dix essais d'après.
+	# Le suffixe n'est pas « .conf », donc LightDM ne relit pas ce fichier.
+	[[ -e "$LIGHTDM_CONF.lexos-avant" ]] || cp -a "$LIGHTDM_CONF" "$LIGHTDM_CONF.lexos-avant"
+
+	tmp="$(mktemp)" || die "Impossible de créer un fichier temporaire."
+	# On réécrit le fichier plutôt que d'ajouter la clé à la fin : posée hors de
+	# la section [Seat:*], elle est ignorée ; posée deux fois, c'est la dernière
+	# qui gagne et on ne sait plus laquelle. On retire donc toutes les
+	# occurrences, commentées comprises, avant d'en poser une seule au bon
+	# endroit.
+	if ! awk -v u="$utilisateur" '
+		/^[ \t]*#?[ \t]*autologin-user[ \t]*=/         { next }
+		/^[ \t]*#?[ \t]*autologin-user-timeout[ \t]*=/ { next }
+		{ print }
+		/^\[Seat:\*\]/ && !pose && u != "" {
+			print "autologin-user=" u
+			print "autologin-user-timeout=0"
+			pose = 1
+		}
+		END {
+			if (u != "" && !pose) {
+				print "[Seat:*]"
+				print "autologin-user=" u
+				print "autologin-user-timeout=0"
+			}
+		}
+	' "$LIGHTDM_CONF" > "$tmp"; then
+		rm -f "$tmp"
+		die "Échec de la réécriture de $LIGHTDM_CONF — rien n'a été changé."
+	fi
+	# « cat > » et non « mv » : le fichier garde son inode, son propriétaire et
+	# ses droits, ce à quoi dpkg tient lors des mises à jour de lightdm.
+	if ! cat "$tmp" > "$LIGHTDM_CONF"; then
+		rm -f "$tmp"
+		die "Impossible d'écrire dans $LIGHTDM_CONF."
+	fi
+	rm -f "$tmp"
+}
+
+cmd_auto_connexion() {
+	local cible="${1:-}"
+	[[ -n "$cible" ]] || die "Usage :  $PROG auto-connexion <nom>|off"
+	besoin_root "auto-connexion $cible"
+	# Écrire cette clé pour un autre gestionnaire de session ne ferait
+	# strictement rien, et en silence. Mieux vaut le dire.
+	if ! command -v lightdm >/dev/null 2>&1 && [[ ! -d /etc/lightdm ]]; then
+		die "LightDM n'est pas installé : cet outil ne sait régler la connexion automatique que pour LightDM."
+	fi
+
+	if [[ "$cible" == "off" || "$cible" == "non" ]]; then
+		ecrire_auto_connexion ""
+		ok "Connexion automatique désactivée."
+		say "La machine redemandera un mot de passe au prochain démarrage."
+		return 0
+	fi
+
+	compte_existe "$cible" || die "Aucun compte « $cible » sur cette machine."
+	est_humain "$cible" || die "« $cible » est un compte de service : pas de session automatique là-dessus."
+
+	warn "ATTENTION — la connexion automatique retire la protection du mot de passe au démarrage."
+	warn "N'importe qui allumant cette machine entre dans la session de « $cible » :"
+	warn "  ses documents, sa messagerie, les mots de passe retenus par le navigateur."
+	warn "Sur un portable, un vol de la machine devient un vol de tous ses comptes."
+	say "À réserver à un ordinateur fixe, dans un lieu dont vous contrôlez l'accès."
+	if ! confirmer "Activer quand même la connexion automatique pour « $cible »" non; then
+		say "Rien n'a été changé."
+		return 0
+	fi
+
+	ecrire_auto_connexion "$cible"
+	ok "Connexion automatique activée pour « $cible » (effective au prochain démarrage)."
+	say "Le trousseau de clés du bureau, lui, redemandera le mot de passe : il n'a plus la connexion pour se déverrouiller."
+	say "Pour revenir en arrière :  ${B}sudo $PROG auto-connexion off${R}"
+}
+
+cmd_panneau() {
+	if ! command -v users-admin >/dev/null 2>&1; then
+		warn "La fenêtre « Utilisateurs » (users-admin) n'est pas installée."
+		say "Pour l'installer :  ${B}lexos install gnome-system-tools${R}"
+		say "En attendant, tout se fait ici :  $PROG aide"
+		exit 1
+	fi
+	# users-admin demande lui-même les droits par PolicyKit. Lancé avec sudo il
+	# perd l'accès à la session graphique de la personne connectée.
+	if (( EUID == 0 )); then
+		warn "À lancer avec votre compte, sans sudo : users-admin demande les droits tout seul."
+	fi
+	say "Ouverture de la fenêtre « Utilisateurs »…"
+	setsid users-admin >/dev/null 2>&1 &
+}
+
+# --- Aiguillage --------------------------------------------------------------
+
+commande="${1:-}"
+[[ $# -gt 0 ]] && shift
+
+case "$commande" in
+	''|liste|lister)      cmd_lister ;;
+	-h|--help|help|aide)  usage ;;
+	ajouter)              cmd_ajouter "${1:-}" ;;
+	supprimer)            cmd_supprimer "${1:-}" ;;
+	motdepasse)           cmd_motdepasse "${1:-}" ;;
+	admin)                cmd_admin "${1:-}" "${2:-}" ;;
+	verrouiller)          cmd_verrouiller "${1:-}" ;;
+	deverrouiller)        cmd_deverrouiller "${1:-}" ;;
+	nom-complet)          cmd_nom_complet "${1:-}" "${2:-}" ;;
+	auto-connexion)       cmd_auto_connexion "${1:-}" ;;
+	panneau)              cmd_panneau ;;
+	*)
+		warn "Commande inconnue : « $commande »"
+		printf '\n'
+		usage
+		exit 1
+		;;
+esac

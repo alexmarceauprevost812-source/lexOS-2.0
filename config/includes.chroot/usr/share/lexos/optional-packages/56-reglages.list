@@ -53,6 +53,13 @@ libwacom-bin
 #  le pont applicatif (at-spi2) et les aides au pointeur.
 espeak-ng
 espeak-ng-data
+#  SANS CECI, ORCA DÉMARRE MUET. Orca ne parle pas à espeak directement : il
+#  passe par speech-dispatcher, et speech-dispatcher a besoin de son module
+#  espeak-ng pour avoir une voix. Installer Orca sans ces deux-là donne un
+#  lecteur d'écran qui se lance, s'annonce actif, et ne dit jamais un mot —
+#  la panne la plus décourageante possible pour qui en a besoin.
+speech-dispatcher
+speech-dispatcher-espeak-ng
 at-spi2-core
 mousetweaks
 xzoom

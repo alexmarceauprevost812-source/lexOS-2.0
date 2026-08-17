@@ -237,8 +237,27 @@ if [ -f /etc/calamares/modules/partition.conf ]; then
 	set_opt enableLuksAutomatedPartitioning true
 	set_opt luksGeneration luks2
 	echo "[lexos]   chiffrement du disque proposé à l'installation (LUKS2)"
+
+	#  DOUBLE DÉMARRAGE : ces trois réglages viennent du partition.conf que
+	#  LexOS livre (config/includes.chroot/etc/calamares/modules/). On les
+	#  vérifie ici plutôt que de les supposer — c'est ce qui décide si Alex
+	#  voit l'écran « Installer à côté de Windows », et si la partition EFI
+	#  de Windows est réutilisée au lieu d'être reformatée.
+	for CLE in initialPartitioningChoice efiSystemPartition requiredStorage; do
+		if grep -qE "^${CLE}:" "$CONF"; then
+			echo "[lexos]   partition : ${CLE} = $(sed -n "s/^${CLE}:[[:space:]]*//p" "$CONF" | head -1)"
+		else
+			echo "[lexos]   !! partition : ${CLE} absent — double démarrage non garanti"
+		fi
+	done
 else
-	echo "[lexos]   !! partition.conf absent — chiffrement non préconfiguré"
+	#  Debian ne livre AUCUN partition.conf dans calamares-settings-debian :
+	#  c'est LexOS qui l'apporte, via includes.chroot. S'il manque ici, c'est
+	#  que ce fichier n'a pas été embarqué — et alors ni le chiffrement, ni
+	#  l'écran « à côté de Windows », ni la réutilisation de la partition EFI
+	#  ne sont configurés. Ce n'est pas un détail : on le dit fort.
+	echo "[lexos]   !! partition.conf ABSENT — ni chiffrement, ni double démarrage configurés"
+	echo "[lexos]   !! attendu : /etc/calamares/modules/partition.conf (livré par LexOS)"
 fi
 
 # Le déverrouillage au démarrage exige les outils dans l'initramfs.

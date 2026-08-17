@@ -203,6 +203,53 @@ ${B}CLAVIER${R}
   ${A}clavier ajouter${R} <c> En ajouter une ${D}(4 au maximum : limite de X)${R}
   ${A}clavier bascule${R} <t> Quelles touches font passer à la suivante
 
+${B}SON${R}
+  ${A}son${R}                 Sortie, entrée, volume, muet
+  ${A}son sortie${R} <n>      Choisir le haut-parleur ou le casque
+  ${A}son test${R}            Vérifier gauche et droite
+  ${A}son melangeur${R}       Le volume application par application ${D}(fenêtre)${R}
+
+${B}ACCESSIBILITÉ${R}
+  ${A}access${R}              Ce qui est actif : voix, loupe, contraste
+  ${A}access lecteur on${R}   Lecteur d'écran ${D}(Orca — lit ce qui est à l'écran)${R}
+  ${A}access clavier on${R}   Clavier visuel à la souris ${D}(onboard)${R}
+  ${A}access loupe on${R}     Agrandir une zone de l'écran
+
+${B}UTILISATEURS${R}
+  ${A}utilisateurs${R}        Les comptes de cette machine
+  ${A}utilisateurs ajouter${R} <n> Créer un compte
+  ${A}utilisateurs motdepasse${R} <n> Changer son mot de passe
+                      ${D}le dernier administrateur ne peut pas être retiré${R}
+
+${B}BUREAU À DISTANCE${R}
+  ${A}distant${R}             État : qui peut voir cet écran
+  ${A}distant vers${R} <ip>   Se connecter à une autre machine ${D}(Remmina)${R}
+  ${A}distant partager on${R} Laisser voir CET écran ${D}(mot de passe obligatoire)${R}
+
+${B}RECHERCHE${R}
+  ${A}recherche${R} <mot>     Chercher par nom
+  ${A}recherche contenu${R} <m> Chercher DANS les fichiers
+  ${A}recherche gros${R}      Les plus gros fichiers ${D}(faire de la place)${R}
+  ${A}recherche doublons${R}  Les fichiers en double
+
+${B}APPLICATIONS PAR DÉFAUT${R}
+  ${A}defaut${R}              Quelle application ouvre quoi
+  ${A}defaut navigateur${R} <n> Changer le navigateur par défaut
+
+${B}DATE ET HEURE${R}
+  ${A}datetime${R}            Heure, date, fuseau, synchronisation
+  ${A}datetime fuseau${R} <lieu> Par NOM DE LIEU ${D}(« quebec », « paris »…)${R}
+
+${B}FOND D'ÉCRAN${R}
+  ${A}fond-ecran${R}          Choisir une image ${D}(fenêtre)${R}
+  ${A}fond-ecran liste${R}    Les fonds livrés avec LexOS
+  ${A}fond-ecran aleatoire${R} Au hasard
+                      ${D}ou clic droit sur une image dans Fichiers${R}
+
+${B}INSTALLER À CÔTÉ DE WINDOWS${R}
+  ${A}dualboot${R}            Tout vérifier avant d'installer ${D}(ne modifie rien)${R}
+                      ${D}place cessible par Windows, démarrage rapide, UEFI${R}
+
 ${B}COMPTES EN LIGNE${R}
   ${A}comptes${R}             Ce qui est relié, ce qui est monté
   ${A}comptes services${R}    Drive · OneDrive · Dropbox · Nextcloud · Proton · S3…
@@ -903,6 +950,19 @@ case "$CMD" in
 	comptes|compte)       exec lexos-comptes "$@" ;;
 	bienetre|bien-etre|bien-être) exec lexos-bienetre "$@" ;;
 	mac|apple)            exec lexos-mac "$@" ;;
+	#  Les huit panneaux qui remplissent les sections des Paramètres restées
+	#  décoratives : elles s'affichaient, mais rien ne répondait derrière.
+	#  « comptes » est déjà pris par lexos-comptes, et « wallpaper »/« bg »
+	#  par cmd_wallpaper : d'où « utilisateurs » et « fond-ecran ».
+	son|audio|volume)     exec lexos-son "$@" ;;
+	access|accessibilite|accessibilité) exec lexos-access "$@" ;;
+	utilisateurs|users)   exec lexos-utilisateurs "$@" ;;
+	distant|remote)       exec lexos-distant "$@" ;;
+	recherche|chercher)   exec lexos-recherche "$@" ;;
+	defaut|défaut)        exec lexos-defaut "$@" ;;
+	datetime|heure)       exec lexos-datetime "$@" ;;
+	fond-ecran|fond)      exec lexos-fond-ecran "$@" ;;
+	dualboot|windows)     exec lexos-dualboot "$@" ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

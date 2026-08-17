@@ -1,0 +1,433 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-recherche — retrouver un fichier par son nom, son contenu ou sa taille
+# =============================================================================
+#  Deux moyens de chercher cohabitent ici, et ils ne se valent pas. Le dire est
+#  la moitié du travail de cet outil :
+#
+#  - plocate lit un INDEX construit par « updatedb ». C'est instantané, mais
+#    l'index ne connaît que l'état du disque à son dernier passage. Un fichier
+#    créé ce matin est invisible tant que l'index n'a pas été refait. Chaque
+#    recherche par nom qui ne trouve rien le rappelle, plutôt que de laisser
+#    croire que le fichier n'existe pas.
+#  - find et grep lisent le disque pour de vrai : juste, mais lent. Il n'existe
+#    aucun index de CONTENU sur LexOS, donc « contenu » relit les fichiers à
+#    chaque appel. On prévient avant de lancer plutôt que de laisser croire à
+#    un plantage.
+#
+#  catfish n'est pas une dépendance : c'est la même recherche en fenêtre, pour
+#  qui préfère la souris. Elle lit le disque en direct, ce qui en fait le
+#  recours naturel quand l'index est en retard.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+# Au-delà, l'écran défile et plus personne ne lit. Les compteurs disent
+# toujours combien de résultats existent en tout.
+readonly MAX_RESULTATS=30
+readonly BASE_PLOCATE=/var/lib/plocate/plocate.db
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — retrouver un fichier par son nom, son contenu ou sa taille
+
+Usage :
+  $PROG <mot>            Cherche un fichier dont le NOM contient <mot> (index plocate)
+  $PROG nom <mot>        Pareil, pour un mot qui ressemble à une sous-commande
+  $PROG contenu <mot>    Cherche le texte <mot> DANS les fichiers du dossier personnel
+  $PROG gros [n]         Les n plus gros fichiers du dossier personnel (défaut 20)
+  $PROG recent [jours]   Fichiers modifiés depuis N jours (défaut 7)
+  $PROG doublons         Fichiers identiques, regroupés par somme de contrôle
+  $PROG index            Reconstruit l'index de plocate (demande root)
+  $PROG fenetre [mot]    Ouvre catfish, la même recherche à la souris
+
+À savoir :
+  La recherche par nom lit un index, elle ne lit pas le disque. Un fichier créé
+  depuis le dernier passage de l'index n'y figure pas : « sudo $PROG index »
+  le remet à jour, « $PROG fenetre » cherche en direct.
+
+Exemples :
+  $PROG rapport
+  $PROG contenu impots
+  $PROG gros 10
+  $PROG recent 2
+EOF
+}
+
+# --- Petits services partagés ------------------------------------------------
+
+# Un « command not found » brut n'apprend rien à personne : on nomme le paquet.
+besoin() {
+	local commande="$1" paquet="$2"
+	command -v "$commande" >/dev/null 2>&1 && return 0
+	die "« $commande » est absent. Installez-le : sudo apt install $paquet"
+}
+
+# printf aligne sur les OCTETS : « Montréal » serait décalé d'une colonne.
+# La longueur d'une chaîne en bash, elle, compte les caractères.
+col() {
+	local texte="$1" largeur="$2" reste
+	reste=$(( largeur - ${#texte} ))
+	(( reste < 0 )) && reste=0
+	printf '%s%*s' "$texte" "$reste" ""
+}
+
+taille_lisible() {
+	local octets="$1"
+	if command -v numfmt >/dev/null 2>&1; then
+		numfmt --to=iec-i --suffix=o -- "$octets" 2>/dev/null && return 0
+	fi
+	printf '%s o\n' "$octets"
+}
+
+age_index() {
+	local horodatage jours
+	horodatage=$(stat -c '%Y' -- "$BASE_PLOCATE" 2>/dev/null) || {
+		printf 'âge inconnu\n'
+		return 0
+	}
+	jours=$(( ( $(date +%s) - horodatage ) / 86400 ))
+	if (( jours <= 0 )); then
+		printf "index refait aujourd'hui\n"
+	elif (( jours == 1 )); then
+		printf "index refait hier\n"
+	else
+		printf 'index vieux de %s jours\n' "$jours"
+	fi
+}
+
+# --- Recherche par nom, via l'index -----------------------------------------
+
+chercher_nom() {
+	local motif="$1"
+	besoin plocate plocate
+
+	if [[ ! -r $BASE_PLOCATE ]]; then
+		warn "L'index de plocate est absent ou illisible ($BASE_PLOCATE)."
+		say "Construisez-le une première fois : sudo $PROG index"
+		return 1
+	fi
+
+	say "Nom contenant « $motif » — $(age_index)"
+
+	local total
+	total=$(plocate -c -i -- "$motif" 2>/dev/null)
+	[[ $total =~ ^[0-9]+$ ]] || total=0
+
+	if (( total == 0 )); then
+		warn "Aucun fichier de ce nom dans l'index."
+		say "L'index ne voit que ce qui existait à son dernier passage : un fichier"
+		say "créé depuis n'y est pas encore. Deux façons d'en avoir le cœur net :"
+		say "refaire l'index, puis rechercher —  sudo $PROG index"
+		say "ou chercher en direct sur le disque —  $PROG fenetre $motif"
+		return 1
+	fi
+
+	local -a trouves=()
+	mapfile -t trouves < <(plocate -i -l "$MAX_RESULTATS" -- "$motif" 2>/dev/null)
+
+	local chemin taille disparus=0
+	for chemin in "${trouves[@]}"; do
+		if [[ -d $chemin ]]; then
+			taille="dossier"
+		elif [[ -e $chemin ]]; then
+			taille=$(taille_lisible "$(stat -c '%s' -- "$chemin" 2>/dev/null || printf '0')")
+		else
+			# Présent dans l'index, absent du disque : la preuve visible que
+			# l'index est en retard. On le montre au lieu de le cacher.
+			taille="disparu"
+			disparus=$(( disparus + 1 ))
+		fi
+		printf '  %s%s%s  %s\n' "$D" "$(col "$taille" 10)" "$R" "$chemin"
+	done
+
+	if (( total > MAX_RESULTATS )); then
+		say "$MAX_RESULTATS premiers sur $total — précisez le mot pour réduire la liste."
+	else
+		ok "$total résultat(s)."
+	fi
+	if (( disparus > 0 )); then
+		warn "$disparus entrée(s) « disparu » : dans l'index, plus sur le disque."
+		say "Un « sudo $PROG index » nettoiera ça."
+	fi
+	return 0
+}
+
+# --- Recherche dans le contenu, en relisant les fichiers ---------------------
+
+chercher_contenu() {
+	local motif="$1"
+	besoin grep grep
+
+	say "Texte « $motif » dans les fichiers de $HOME…"
+	say "Aucun index de contenu n'existe : chaque fichier texte est relu. Comptez"
+	say "de quelques secondes à plusieurs minutes selon la taille du dossier."
+
+	# -I écarte les binaires (une image ne « contient » pas de texte lisible),
+	# -F cherche le texte exact : un utilisateur qui tape « c++ » ou « 3.14 »
+	# ne s'attend pas à ce que ces caractères soient lus comme des symboles.
+	# Les trois dossiers exclus sont ceux qui font exploser le temps de
+	# recherche sans jamais contenir ce qu'on cherche.
+	local -a trouves=()
+	mapfile -t trouves < <(
+		grep -rIlFi \
+			--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.cache \
+			-e "$motif" -- "$HOME" 2>/dev/null
+	)
+
+	local total="${#trouves[@]}"
+	if (( total == 0 )); then
+		warn "Aucun fichier texte de $HOME ne contient « $motif »."
+		say "La recherche ignore .git, node_modules et .cache, ainsi que les fichiers binaires."
+		return 1
+	fi
+
+	local i=0
+	local chemin
+	for chemin in "${trouves[@]}"; do
+		printf '  %s\n' "$chemin"
+		i=$(( i + 1 ))
+		(( i >= MAX_RESULTATS )) && break
+	done
+
+	if (( total > MAX_RESULTATS )); then
+		say "$MAX_RESULTATS premiers sur $total."
+	else
+		ok "$total fichier(s)."
+	fi
+	return 0
+}
+
+# --- Les plus gros fichiers --------------------------------------------------
+
+plus_gros() {
+	local combien="$1"
+	if ! [[ $combien =~ ^[0-9]+$ ]] || (( combien == 0 )); then
+		die "Un nombre de fichiers est attendu — reçu « $combien »."
+	fi
+
+	say "Les $combien plus gros fichiers de $HOME…"
+	local octets chemin trouve=0
+	while IFS=$'\t' read -r octets chemin; do
+		printf '  %s%s%s  %s\n' "$D" "$(col "$(taille_lisible "$octets")" 10)" "$R" "$chemin"
+		trouve=1
+	done < <(
+		find "$HOME" -type f -printf '%s\t%p\n' 2>/dev/null \
+			| sort -t$'\t' -k1,1rn \
+			| head -n "$combien"
+	)
+	(( trouve == 1 )) || warn "Aucun fichier lisible dans $HOME."
+	return 0
+}
+
+# --- Fichiers récents --------------------------------------------------------
+
+recents() {
+	local jours="$1"
+	if ! [[ $jours =~ ^[0-9]+$ ]]; then
+		die "Un nombre de jours est attendu — reçu « $jours »."
+	fi
+
+	say "Fichiers de $HOME modifiés depuis $jours jour(s) :"
+	# L'horodatage brut sert à trier, la date lisible à afficher : les deux
+	# sont produits d'un coup par find pour n'appeler « date » nulle part.
+	local quand chemin trouve=0
+	while IFS=$'\t' read -r _ quand chemin; do
+		printf '  %s%s%s  %s\n' "$D" "$quand" "$R" "$chemin"
+		trouve=1
+	done < <(
+		find "$HOME" -type f -mtime -"$jours" \
+			-printf '%T@\t%TY-%Tm-%Td %TH:%TM\t%p\n' 2>/dev/null \
+			| sort -t$'\t' -k1,1rn \
+			| head -n "$MAX_RESULTATS"
+	)
+	if (( trouve == 0 )); then
+		warn "Aucun fichier modifié dans cet intervalle."
+	else
+		say "$MAX_RESULTATS plus récents au maximum."
+	fi
+	return 0
+}
+
+# --- Doublons ----------------------------------------------------------------
+
+doublons() {
+	besoin md5sum coreutils
+
+	say "Recherche de fichiers identiques dans $HOME…"
+	# Deux passes. Lire toutes les sommes de contrôle d'un dossier personnel
+	# rempli de photos et de vidéos prendrait des heures ; or deux fichiers de
+	# tailles différentes ne peuvent pas être identiques. On ne calcule donc de
+	# somme que pour les fichiers qui partagent déjà leur taille avec un autre.
+	# Les fichiers vides sont écartés : ils sont tous « identiques » et ça
+	# n'apprend rien.
+	local -a candidats=()
+	mapfile -t candidats < <(
+		find "$HOME" -type f -size +0c -printf '%s\t%p\n' 2>/dev/null \
+			| sort -t$'\t' -k1,1n \
+			| awk -F'\t' '{
+				if ($1 == taille) { if (!marque) print precedent; print; marque = 1 }
+				else { marque = 0 }
+				taille = $1; precedent = $0
+			}' \
+			| cut -f2-
+	)
+
+	if (( ${#candidats[@]} == 0 )); then
+		ok "Aucun fichier ne partage sa taille avec un autre : pas de doublon possible."
+		return 0
+	fi
+
+	say "${#candidats[@]} fichiers de taille commune — calcul des sommes de contrôle…"
+	local -a sommes=()
+	mapfile -t sommes < <(
+		printf '%s\n' "${candidats[@]}" | tr '\n' '\0' | xargs -0 -r md5sum 2>/dev/null | sort
+	)
+
+	local ligne somme chemin
+	local somme_precedente="" chemin_precedent="" groupes=0 ouvert=0 ecartes=0
+	for ligne in "${sommes[@]}"; do
+		# md5sum préfixe sa ligne d'une barre oblique inverse quand le nom
+		# contient un retour à la ligne ou une barre oblique inverse. Ces
+		# noms-là sont écartés et comptés, plutôt que découpés de travers.
+		if [[ ${ligne:0:1} == "\\" ]]; then
+			ecartes=$(( ecartes + 1 ))
+			continue
+		fi
+		somme="${ligne:0:32}"
+		chemin="${ligne:34}"
+		if [[ $somme == "$somme_precedente" ]]; then
+			if (( ouvert == 0 )); then
+				groupes=$(( groupes + 1 ))
+				printf '\n%sIdentiques :%s\n' "$B" "$R"
+				printf '  %s\n' "$chemin_precedent"
+				ouvert=1
+			fi
+			printf '  %s\n' "$chemin"
+		else
+			ouvert=0
+		fi
+		somme_precedente="$somme"
+		chemin_precedent="$chemin"
+	done
+
+	printf '\n'
+	if (( groupes == 0 )); then
+		ok "Aucun doublon : les fichiers de même taille ont des contenus différents."
+	else
+		ok "$groupes groupe(s) de fichiers identiques."
+		say "Rien n'a été supprimé : c'est à vous de choisir quelle copie garder."
+	fi
+	if (( ecartes > 0 )); then
+		warn "$ecartes fichier(s) ignoré(s) : leur nom contient un retour à la ligne."
+	fi
+	return 0
+}
+
+# --- Mise à jour de l'index --------------------------------------------------
+
+maj_index() {
+	# updatedb parcourt tout le disque et écrit dans /var/lib : on ne demande
+	# pas sudo à la place de l'utilisateur, on lui dit quoi taper.
+	if (( EUID != 0 )); then
+		die "Reconstruire l'index touche tout le disque : sudo $PROG index"
+	fi
+
+	local commande=""
+	if command -v updatedb >/dev/null 2>&1; then
+		commande=updatedb
+	elif [[ -x /usr/sbin/updatedb.plocate ]]; then
+		# Debian n'installe l'alternative « updatedb » que si aucun autre
+		# fournisseur ne l'occupe : on sait aller chercher celui de plocate.
+		commande=/usr/sbin/updatedb.plocate
+	else
+		die "« updatedb » est absent. Installez-le : sudo apt install plocate"
+	fi
+
+	say "Reconstruction de l'index — de quelques secondes à quelques minutes…"
+	local code=0
+	"$commande" || code=$?
+	if (( code != 0 )); then
+		die "updatedb s'est arrêté sur une erreur (code $code)."
+	fi
+	ok "Index à jour — $(age_index)."
+	return 0
+}
+
+# --- Fenêtre de recherche ----------------------------------------------------
+
+fenetre() {
+	local motif="$1"
+	besoin catfish catfish
+	if [[ -z ${DISPLAY:-}${WAYLAND_DISPLAY:-} ]]; then
+		die "Aucune session graphique détectée : catfish a besoin d'un écran."
+	fi
+
+	say "Ouverture de la fenêtre de recherche…"
+	if [[ -n $motif ]]; then
+		catfish --path="$HOME" "$motif" >/dev/null 2>&1 &
+	else
+		catfish --path="$HOME" >/dev/null 2>&1 &
+	fi
+	disown
+	ok "catfish est lancé."
+	say "Il lit le disque en direct : il voit les fichiers créés à l'instant,"
+	say "contrairement à la recherche par index. En échange, il est plus lent."
+	return 0
+}
+
+# --- Aiguillage --------------------------------------------------------------
+
+case "${1:-}" in
+	''|-h|--help|help)
+		usage
+		;;
+	nom)
+		shift
+		[[ $# -ge 1 ]] || die "Il manque le mot à chercher : $PROG nom rapport"
+		chercher_nom "$1"
+		;;
+	contenu)
+		shift
+		[[ $# -ge 1 ]] || die "Il manque le texte à chercher : $PROG contenu impots"
+		chercher_contenu "$1"
+		;;
+	gros)
+		shift
+		plus_gros "${1:-20}"
+		;;
+	recent)
+		shift
+		recents "${1:-7}"
+		;;
+	doublons)
+		doublons
+		;;
+	index)
+		maj_index
+		;;
+	fenetre)
+		shift
+		fenetre "${1:-}"
+		;;
+	-*)
+		usage >&2
+		die "Option inconnue : « $1 »."
+		;;
+	*)
+		# Tout le reste est traité comme un nom de fichier à chercher : c'est
+		# l'usage courant, il ne mérite pas de sous-commande.
+		chercher_nom "$1"
+		;;
+esac

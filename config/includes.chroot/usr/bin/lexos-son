@@ -1,0 +1,575 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-son — panneau « Son » : sortie, entrée, volume, effets
+# =============================================================================
+#  LexOS tourne sur PipeWire, mais le chef d'orchestre n'est pas PipeWire : c'est
+#  WirePlumber, sa session. C'est lui qui choisit le périphérique par défaut et
+#  qui retient ce choix d'une fois sur l'autre. On lui parle donc en premier,
+#  avec wpctl.
+#
+#  pactl reste en secours. Il fonctionne — la couche pipewire-pulse traduit —
+#  mais il ne connaît pas les identifiants de nœuds de PipeWire et n'affiche que
+#  des noms techniques (alsa_output.pci-0000_00_1f.3…). D'où deux chemins de
+#  code au lieu d'un seul : c'est le prix d'un panneau qui répond encore quand
+#  wpctl manque.
+#
+#  Limite dite franchement, et répétée à l'utilisateur : au-dessus de 100 %,
+#  PipeWire amplifie par logiciel. Ça sature — distorsion sur les passages
+#  forts — et ça n'ajoute aucune puissance à l'ampli. 100 % est le maximum sans
+#  perte.
+#
+#  Ce que cet outil ne fait PAS : le volume application par application. C'est
+#  une liste vivante de flux qui apparaissent et disparaissent, illisible en
+#  ligne de commande ; le mélangeur graphique est fait pour ça (« melangeur »).
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+# Un conseil de dépannage accompagne toujours l'avertissement qu'il répare : il
+# part donc sur la même sortie que lui (stderr), pour que « lexos-son > fichier »
+# ne récolte que l'état.
+astuce() { printf '%s  %s%s\n' "$D" "$*" "$R" >&2; }
+
+# bash aligne « %-22s » sur les OCTETS : « é » en vaut deux et toute la colonne
+# se décale dès qu'un accent apparaît. ${#chaine} compte les caractères, lui.
+ligne() {
+	local etiquette="$1"; shift
+	local pad=$(( 18 - ${#etiquette} ))
+	(( pad < 1 )) && pad=1
+	printf '  %s%*s: %s\n' "$etiquette" "$pad" '' "$*"
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — panneau « Son » (PipeWire / WirePlumber)
+
+Usage :
+  $PROG                    État : sortie, entrée, volume, muet
+  $PROG volume <0-150>     Régler le volume de la sortie, en pour cent
+  $PROG volume +10         Monter de 10 (« $PROG +10 » marche aussi)
+  $PROG volume -10         Baisser de 10 (« $PROG -10 » marche aussi)
+  $PROG muet               Basculer le silence de la sortie
+  $PROG sorties            Lister les sorties, numérotées
+  $PROG sortie <n>         Choisir la sortie par défaut
+  $PROG entrees            Lister les entrées (micros), numérotées
+  $PROG entree <n>         Choisir l'entrée par défaut
+  $PROG micro <0-150>      Régler le volume du micro
+  $PROG micro muet         Basculer le silence du micro
+  $PROG test               Jouer un son de test sur la sortie active
+  $PROG effets             Ouvrir EasyEffects (égaliseur, réduction de bruit)
+  $PROG melangeur          Ouvrir le mélangeur (volume par application)
+  $PROG panneau            Identique à melangeur
+
+Exemples :
+  $PROG volume 45
+  $PROG +10
+  $PROG sortie 2
+  $PROG micro 80
+
+Au-dessus de 100 %, le son est amplifié par logiciel : il sature.
+EOF
+}
+
+# =============================================================================
+#  Choix du dialecte : wpctl, sinon pactl
+# =============================================================================
+BACKEND=""
+
+detecter_backend() {
+	[[ -n "$BACKEND" ]] && return 0
+	# « command -v » ne suffit pas : wpctl peut être installé alors que le
+	# serveur ne tourne pas. On exige une vraie réponse.
+	if command -v wpctl >/dev/null 2>&1 && wpctl status >/dev/null 2>&1; then
+		BACKEND=wpctl
+	elif command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+		BACKEND=pactl
+		warn "wpctl ne répond pas : repli sur pactl (couche de compatibilité PulseAudio)."
+		astuce "Les noms de périphériques y sont techniques et le choix par défaut"
+		astuce "est moins bien retenu. Pour le confort : lexos install wireplumber"
+	else
+		warn "Aucun serveur audio ne répond : PipeWire n'est pas actif pour cette session."
+		astuce "Voir l'état   : systemctl --user status pipewire wireplumber"
+		astuce "Le démarrer   : systemctl --user enable --now pipewire pipewire-pulse wireplumber"
+		astuce "Outils requis : lexos install wireplumber pulseaudio-utils"
+		die "Rien à régler tant que le serveur audio ne répond pas."
+	fi
+	return 0
+}
+
+# --- Traductions d'une direction vers le vocabulaire de chaque outil ---------
+wp_cible() {
+	case "$1" in
+		sortie) printf '@DEFAULT_AUDIO_SINK@' ;;
+		*)      printf '@DEFAULT_AUDIO_SOURCE@' ;;
+	esac
+}
+pa_nom() {
+	case "$1" in
+		sortie) printf 'sink' ;;
+		*)      printf 'source' ;;
+	esac
+}
+pa_cible() {
+	case "$1" in
+		sortie) printf '@DEFAULT_SINK@' ;;
+		*)      printf '@DEFAULT_SOURCE@' ;;
+	esac
+}
+libelle() {
+	case "$1" in
+		sortie) printf 'sortie' ;;
+		*)      printf 'entrée (micro)' ;;
+	esac
+}
+
+# =============================================================================
+#  Inventaire des périphériques
+#  Sortie commune aux deux dialectes, une ligne par appareil :
+#     <1 si par défaut, sinon 0> TAB <ce qu'il faut passer pour le choisir> TAB <nom>
+# =============================================================================
+
+#  wpctl n'a pas de sortie machine (pas de --json en 0.5) : on lit le tableau.
+#  Deux pièges, d'où le découpage par blocs plutôt qu'un grep :
+#   - la section « Video » contient elle aussi des « Sinks » et des « Sources » ;
+#   - l'étoile du périphérique par défaut est posée AVANT le numéro, et un nom
+#     d'appareil peut contenir une étoile.
+wpctl_liste() {
+	wpctl status 2>/dev/null | awk -v sec="$1" '
+		/^[^[:space:]]/ { bloc = $0; dans = 0; next }
+		/[├└]─ / {
+			dans = (bloc ~ /^Audio/ && index($0, "─ " sec ":") > 0) ? 1 : 0
+			next
+		}
+		dans && match($0, /[0-9]+\./) {
+			tete = substr($0, 1, RSTART - 1)
+			id   = substr($0, RSTART, RLENGTH - 1)
+			nom  = substr($0, RSTART + RLENGTH)
+			sub(/\[vol:.*$/, "", nom)
+			sub(/^[[:space:]]+/, "", nom)
+			sub(/[[:space:]]+$/, "", nom)
+			if (nom == "") next
+			print (index(tete, "*") > 0 ? 1 : 0) "\t" id "\t" nom
+		}
+	'
+}
+
+#  « pactl list short » serait plus simple mais ne donne que le nom technique.
+#  On lit la sortie longue pour récupérer la description lisible, sans quoi
+#  l'utilisateur choisit entre deux alsa_output.pci-0000_00_1f.3.
+pactl_liste() {
+	local defaut
+	defaut="$(pactl "get-default-$1" 2>/dev/null)"
+	pactl list "${1}s" 2>/dev/null | awk -v defaut="$defaut" '
+		/^[[:space:]]*Name:[[:space:]]/ { nom = $2; next }
+		/^[[:space:]]*Description:[[:space:]]/ {
+			# Un moniteur recopie une sortie et ne constitue pas un vrai
+			# micro : le proposer comme entrée trompe tout le monde.
+			if (nom == "" || nom ~ /\.monitor$/) { nom = ""; next }
+			desc = $0
+			sub(/^[[:space:]]*Description:[[:space:]]*/, "", desc)
+			print (nom == defaut ? 1 : 0) "\t" nom "\t" desc
+			nom = ""
+		}
+	'
+}
+
+liste_peripheriques() {
+	if [[ "$BACKEND" == "wpctl" ]]; then
+		case "$1" in
+			sortie) wpctl_liste Sinks ;;
+			*)      wpctl_liste Sources ;;
+		esac
+	else
+		case "$1" in
+			sortie) pactl_liste sink ;;
+			*)      pactl_liste source ;;
+		esac
+	fi
+}
+
+nom_defaut() {
+	# Pas de « exit » dans awk : sous pipefail, couper la lecture envoie un
+	# SIGPIPE au producteur et l'appelant croirait à un échec.
+	liste_peripheriques "$1" | awk -F'\t' '$1 == 1 && trouve == 0 { print $3; trouve = 1 }'
+}
+
+# Indice tiré du nom que donne le pilote, rien de plus : ces noms viennent du
+# matériel et sont souvent en anglais. Si le nom ne dit rien, on n'invente pas.
+etiquette_fr() {
+	local n="${1,,}"
+	case "$n" in
+		*casque*|*headphone*|*headset*|*earphone*) printf 'casque' ;;
+		*hdmi*|*displayport*)                      printf 'HDMI (écran)' ;;
+		*bluez*|*bluetooth*)                       printf 'Bluetooth' ;;
+		*webcam*|*camera*)                         printf 'caméra' ;;
+		*usb*)                                     printf 'USB' ;;
+		*speaker*|*haut-parleur*)                  printf 'haut-parleurs' ;;
+		*micro*|*mic\ *)                           printf 'micro' ;;
+		*analog*)                                  printf 'prise analogique' ;;
+		*)                                         printf '' ;;
+	esac
+}
+
+afficher_liste() {
+	local direction="$1" titre="$2"
+	local lignes n=0 defaut cible nom tag
+	lignes="$(liste_peripheriques "$direction")"
+	if [[ -z "$lignes" ]]; then
+		warn "Aucune $titre détectée par le serveur audio."
+		astuce "Brancher l'appareil, puis relancer. Diagnostic complet : wpctl status"
+		return 1
+	fi
+	say "${titre^} disponibles :"
+	while IFS=$'\t' read -r defaut cible nom; do
+		n=$(( n + 1 ))
+		tag="$(etiquette_fr "$nom")"
+		[[ -n "$tag" ]] && nom="$nom ${D}— $tag${R}"
+		if [[ "$defaut" == "1" ]]; then
+			printf '  %s%d *%s %s %s(en service)%s\n' "$G" "$n" "$R" "$nom" "$G" "$R"
+		else
+			printf '  %d   %s\n' "$n" "$nom"
+		fi
+	done <<<"$lignes"
+	case "$direction" in
+		sortie) say "Pour changer : $PROG sortie <n>" ;;
+		*)      say "Pour changer : $PROG entree <n>" ;;
+	esac
+	return 0
+}
+
+choisir() {
+	local direction="$1" n="$2"
+	local lignes rang cible nom
+	[[ "$n" =~ ^[0-9]+$ ]] || die "Un numéro est attendu, pas « $n »."
+	lignes="$(liste_peripheriques "$direction")"
+	rang="$(awk -v n="$n" 'NR == n' <<<"$lignes")"
+	if [[ -z "$rang" ]]; then
+		warn "Il n'y a pas de n° $n dans la liste des $(libelle "$direction")s."
+		case "$direction" in
+			sortie) astuce "Liste à jour : $PROG sorties" ;;
+			*)      astuce "Liste à jour : $PROG entrees" ;;
+		esac
+		exit 1
+	fi
+	cible="$(cut -f2 <<<"$rang")"
+	nom="$(cut -f3 <<<"$rang")"
+	if [[ "$BACKEND" == "wpctl" ]]; then
+		wpctl set-default "$cible" 2>/dev/null \
+			|| die "WirePlumber a refusé « $nom » : ce nœud n'accepte pas d'être le défaut."
+	else
+		pactl "set-default-$(pa_nom "$direction")" "$cible" >/dev/null 2>&1 \
+			|| die "pactl a refusé « $nom »."
+	fi
+	ok "$(libelle "$direction") : $nom"
+	# Franchise : le choix est retenu, mais il n'est pas gravé. WirePlumber
+	# applique des règles de priorité au branchement.
+	say "${D}Brancher un casque ou un écran HDMI peut redéplacer le son tout seul.${R}"
+}
+
+# =============================================================================
+#  Volume et silence
+#  Tout est ramené à un entier de 0 à 150 : wpctl parle en flottant (0.45),
+#  pactl en pourcentage par canal. Une seule unité dans le reste de l'outil.
+# =============================================================================
+
+vol_lire() {
+	local brut
+	case "$BACKEND" in
+		wpctl)
+			brut="$(wpctl get-volume "$(wp_cible "$1")" 2>/dev/null)" || return 1
+			[[ -n "$brut" ]] || return 1
+			# « Volume: 0.45 [MUTED] » → 45. Le calcul passe par awk : bash ne
+			# sait pas multiplier un flottant.
+			awk '{ printf "%d\n", $2 * 100 + 0.5 }' <<<"$brut"
+			;;
+		pactl)
+			brut="$(pactl "get-$(pa_nom "$1")-volume" "$(pa_cible "$1")" 2>/dev/null)" || return 1
+			# On lit le premier canal : cet outil règle toujours les canaux
+			# ensemble ; un déséquilibre gauche/droite se corrige au mélangeur.
+			brut="$(awk 'match($0, /[0-9]+%/) && !fait { print substr($0, RSTART, RLENGTH - 1); fait = 1 }' <<<"$brut")"
+			[[ -n "$brut" ]] || return 1
+			printf '%s\n' "$brut"
+			;;
+		*) return 1 ;;
+	esac
+}
+
+vol_ecrire() {
+	case "$BACKEND" in
+		wpctl) wpctl set-volume "$(wp_cible "$1")" "${2}%" >/dev/null 2>&1 ;;
+		pactl) pactl "set-$(pa_nom "$1")-volume" "$(pa_cible "$1")" "${2}%" >/dev/null 2>&1 ;;
+		*) return 1 ;;
+	esac
+}
+
+muet_lire() {
+	local brut
+	case "$BACKEND" in
+		wpctl)
+			brut="$(wpctl get-volume "$(wp_cible "$1")" 2>/dev/null)" || return 1
+			case "$brut" in
+				*MUTED*) printf 'oui\n' ;;
+				*)       printf 'non\n' ;;
+			esac
+			;;
+		pactl)
+			brut="$(pactl "get-$(pa_nom "$1")-mute" "$(pa_cible "$1")" 2>/dev/null)" || return 1
+			case "$brut" in
+				*yes*) printf 'oui\n' ;;
+				*)     printf 'non\n' ;;
+			esac
+			;;
+		*) return 1 ;;
+	esac
+}
+
+muet_basculer() {
+	local direction="$1" apres
+	case "$BACKEND" in
+		wpctl) wpctl set-mute "$(wp_cible "$direction")" toggle >/dev/null 2>&1 ;;
+		pactl) pactl "set-$(pa_nom "$direction")-mute" "$(pa_cible "$direction")" toggle >/dev/null 2>&1 ;;
+	esac || die "Le basculement du silence a échoué."
+	# On relit plutôt que d'annoncer ce qu'on croit avoir fait : c'est la seule
+	# façon d'être sûr de ce qu'entend l'utilisateur.
+	apres="$(muet_lire "$direction")" || apres=""
+	case "$apres" in
+		oui) ok "$(libelle "$direction") : muet" ;;
+		non) ok "$(libelle "$direction") : son rétabli" ;;
+		*)   warn "Bascule envoyée, mais l'état n'a pas pu être relu." ;;
+	esac
+}
+
+volume_regler() {
+	local direction="$1" demande="$2"
+	local actuel cible reel
+
+	if [[ "$demande" =~ ^[+-][0-9]+$ ]]; then
+		actuel="$(vol_lire "$direction")" || actuel=""
+		[[ -n "$actuel" ]] || die "Volume actuel illisible : impossible de calculer un pas relatif."
+		cible=$(( actuel + demande ))
+	elif [[ "$demande" =~ ^[0-9]+$ ]]; then
+		cible="$demande"
+	else
+		die "Valeur attendue : un nombre de 0 à 150, ou +10 / -10. Reçu « $demande »."
+	fi
+
+	(( cible < 0 )) && cible=0
+	if (( cible > 150 )); then
+		warn "150 % est le maximum accepté ici ; $cible % est ramené à 150 %."
+		cible=150
+	fi
+	if (( cible > 100 )); then
+		warn "Au-dessus de 100 %, le son est amplifié par logiciel : il sature (distorsion)."
+		astuce "Ça n'ajoute pas de puissance, ça écrête les passages forts et fatigue"
+		astuce "les haut-parleurs. 100 % est le maximum sans perte de qualité."
+	fi
+
+	vol_ecrire "$direction" "$cible" || die "Le réglage du volume a échoué ($BACKEND n'a pas accepté la commande)."
+
+	# Vérification après coup : WirePlumber peut appliquer sa propre limite, et
+	# annoncer un chiffre qui n'est pas celui de la carte serait un mensonge.
+	reel="$(vol_lire "$direction")" || reel=""
+	if [[ -n "$reel" ]] && (( reel > cible + 1 || reel < cible - 1 )); then
+		warn "Le serveur audio a fixé le volume à $reel % au lieu de $cible % : une limite lui est imposée."
+	else
+		ok "Volume de la $(libelle "$direction") : ${reel:-$cible} %"
+	fi
+}
+
+# =============================================================================
+#  Test, fenêtres
+# =============================================================================
+
+son_test() {
+	local nom lecteur="" fichier="" c
+	nom="$(nom_defaut sortie)"
+	say "Test sur : ${nom:-la sortie par défaut}"
+
+	# On préfère jouer un vrai fichier par le serveur : c'est le trajet complet
+	# (application → PipeWire → carte), donc le test qui reflète l'usage réel et
+	# qui tient compte du volume et du muet réglés ici.
+	for c in pw-play paplay; do
+		if command -v "$c" >/dev/null 2>&1; then lecteur="$c"; break; fi
+	done
+	fichier="$(find /usr/share/sounds -type f -name '*.wav' -print -quit 2>/dev/null)"
+
+	if [[ -n "$lecteur" && -n "$fichier" ]]; then
+		say "${D}Fichier : $fichier${R}"
+		"$lecteur" "$fichier" >/dev/null 2>&1 \
+			|| die "$lecteur n'a pas réussi à jouer le fichier."
+		ok "Son joué. Rien entendu ? Vérifier le volume, le muet et la sortie choisie."
+		return 0
+	fi
+
+	if command -v speaker-test >/dev/null 2>&1; then
+		warn "Aucun fichier .wav dans /usr/share/sounds : test par tonalité générée."
+		# speaker-test passe par ALSA, pas par PipeWire. Avec le pont
+		# pipewire-alsa il suit les réglages ci-dessus ; sans lui, il attaque la
+		# carte en direct et ignore volume et muet. À dire, sinon un test réussi
+		# ferait croire à tort que le réglage est bon.
+		say "Tonalité 440 Hz, un passage par canal. Ctrl+C pour couper."
+		say "${D}Ce test passe par ALSA : sans le pont pipewire-alsa, il ignore les réglages ci-dessus.${R}"
+		speaker-test -t sine -f 440 -c 2 -l 1 >/dev/null 2>&1 \
+			|| die "speaker-test a échoué : la carte est peut-être occupée par une autre application."
+		ok "Tonalité jouée."
+		return 0
+	fi
+
+	warn "Aucun lecteur de test disponible."
+	astuce "Installer : lexos install pulseaudio-utils alsa-utils"
+	die "Impossible de jouer un son de test."
+}
+
+lancer_gui() {
+	local cmd="$1" paquet="$2"
+	shift 2
+	if [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+		die "« $cmd » ouvre une fenêtre : il faut être dans la session graphique."
+	fi
+	if ! command -v "$cmd" >/dev/null 2>&1; then
+		warn "« $cmd » n'est pas installé."
+		astuce "Installer : lexos install $paquet"
+		return 1
+	fi
+	# Détaché du terminal : l'outil rend la main tout de suite, et fermer le
+	# terminal ne doit pas tuer la fenêtre ouverte.
+	if command -v setsid >/dev/null 2>&1; then
+		setsid "$cmd" "$@" >/dev/null 2>&1 &
+	else
+		"$cmd" "$@" >/dev/null 2>&1 &
+	fi
+	ok "$cmd lancé."
+	return 0
+}
+
+melangeur() {
+	local c
+	# LexOS installe pavucontrol-qt (assorti au bureau) ; pavucontrol GTK peut
+	# être là sur une machine mise à jour depuis une version antérieure.
+	for c in pavucontrol pavucontrol-qt; do
+		if command -v "$c" >/dev/null 2>&1; then
+			lancer_gui "$c" pavucontrol-qt
+			return $?
+		fi
+	done
+	warn "Aucun mélangeur graphique installé."
+	astuce "Installer : lexos install pavucontrol-qt"
+	astuce "Le volume par application ne se règle pas depuis ce panneau : la liste"
+	astuce "des flux change en permanence, seul le mélangeur la suit correctement."
+	return 1
+}
+
+etat() {
+	local nom_s nom_e vol volm muet muetm
+	nom_s="$(nom_defaut sortie)"
+	nom_e="$(nom_defaut entree)"
+	vol="$(vol_lire sortie)"   || vol=""
+	volm="$(vol_lire entree)"  || volm=""
+	muet="$(muet_lire sortie)" || muet=""
+	muetm="$(muet_lire entree)" || muetm=""
+
+	say "Son — PipeWire, piloté par $BACKEND"
+	ligne "Sortie" "${nom_s:-inconnue}"
+	if [[ "$muet" == "oui" ]]; then
+		ligne "Volume" "${vol:-?} %  ${Y}muet${R}"
+	else
+		ligne "Volume" "${vol:-?} %"
+	fi
+	ligne "Entrée" "${nom_e:-aucune}"
+	if [[ "$muetm" == "oui" ]]; then
+		ligne "Volume micro" "${volm:-?} %  ${Y}muet${R}"
+	else
+		ligne "Volume micro" "${volm:-?} %"
+	fi
+	if [[ -n "$vol" ]] && (( vol > 100 )); then
+		warn "Le volume dépasse 100 % : le son est amplifié par logiciel et sature."
+	fi
+	say "${D}Détail des appareils : $PROG sorties  |  $PROG entrees${R}"
+}
+
+# =============================================================================
+#  Aiguillage
+# =============================================================================
+case "${1:-}" in
+	''|etat|état|status)
+		detecter_backend
+		etat
+		;;
+	-h|--help|help|aide)
+		usage
+		;;
+	volume|vol)
+		shift
+		[[ $# -ge 1 ]] || die "Il manque la valeur. Exemple : $PROG volume 45"
+		detecter_backend
+		volume_regler sortie "$1"
+		;;
+	# Formes courtes : « lexos-son +10 ». Placées après -h pour ne pas capturer
+	# les options.
+	+[0-9]*|-[0-9]*)
+		detecter_backend
+		volume_regler sortie "$1"
+		;;
+	muet|mute|silence)
+		detecter_backend
+		muet_basculer sortie
+		;;
+	sorties)
+		detecter_backend
+		afficher_liste sortie sorties
+		;;
+	sortie)
+		shift
+		[[ $# -ge 1 ]] || die "Il manque le numéro. Exemple : $PROG sortie 2  (liste : $PROG sorties)"
+		detecter_backend
+		choisir sortie "$1"
+		;;
+	entrees|entrées|micros)
+		detecter_backend
+		afficher_liste entree entrées
+		;;
+	entree|entrée)
+		shift
+		[[ $# -ge 1 ]] || die "Il manque le numéro. Exemple : $PROG entree 1  (liste : $PROG entrees)"
+		detecter_backend
+		choisir entree "$1"
+		;;
+	micro)
+		shift
+		[[ $# -ge 1 ]] || die "Il manque la valeur. Exemples : $PROG micro 80  |  $PROG micro muet"
+		detecter_backend
+		case "$1" in
+			muet|mute|silence) muet_basculer entree ;;
+			*)                 volume_regler entree "$1" ;;
+		esac
+		;;
+	test)
+		detecter_backend
+		son_test
+		;;
+	effets)
+		# EasyEffects applique ses filtres en s'insérant comme périphérique
+		# virtuel dans PipeWire : il doit rester ouvert pour que l'effet dure.
+		lancer_gui easyeffects easyeffects \
+			&& say "${D}Les effets ne s'appliquent que tant qu'EasyEffects tourne.${R}"
+		;;
+	melangeur|panneau|mixer)
+		melangeur
+		;;
+	*)
+		warn "Commande inconnue : $1"
+		usage >&2
+		exit 1
+		;;
+esac

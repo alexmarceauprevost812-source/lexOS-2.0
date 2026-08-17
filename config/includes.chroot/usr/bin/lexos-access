@@ -1,0 +1,684 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-access — panneau « Accessibilité »
+# =============================================================================
+#  Cette section n'existait pas sur LexOS : aucun outil n'allumait le lecteur
+#  d'écran, la loupe, le contraste élevé ou le clavier visuel. Ce fichier les
+#  rassemble derrière une seule commande.
+#
+#  Pourquoi deux systèmes de réglages sont écrits à chaque fois : sur un bureau
+#  XFCE, l'apparence est décidée par les XSettings de xfsettingsd (xfconf), pas
+#  par GSettings. Mais Orca et mousetweaks, eux, lisent GSettings et rien
+#  d'autre. Écrire dans un seul des deux donne un réglage « qui ne prend pas ».
+#  On écrit donc dans les deux, et on dit lequel agit réellement.
+#
+#  Pourquoi un fichier d'état : « contraste off » et « gros-texte off » doivent
+#  rendre à l'utilisateur SON thème et SA police, pas un défaut choisi par nous.
+#  L'ancienne valeur est donc mise de côté au moment du « on ».
+#
+#  Limite générale, valable pour tout ce fichier : les fenêtres DÉJÀ OUVERTES ne
+#  relisent pas ces réglages. Il faut les rouvrir, parfois se reconnecter. Aucun
+#  outil ne peut contourner ça, on le dit plutôt que de le cacher.
+#
+#  Limite du lecteur d'écran : Orca ne parle pas tout seul, il passe par
+#  speech-dispatcher, qui parle par espeak-ng. Un Orca lancé sans lui démarre
+#  sans un mot — c'est vérifié ici avant de promettre une voix.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+# Le conseil de dépannage suit l'avertissement qu'il répare, donc sur stderr lui
+# aussi : « lexos-access > fichier » ne doit récolter que l'état.
+astuce() { printf '%s  %s%s\n' "$D" "$*" "$R" >&2; }
+
+# bash aligne « %-24s » sur les OCTETS : « é » en vaut deux et la colonne se
+# décale dès qu'un accent apparaît. ${#chaine}, lui, compte les caractères.
+ligne() {
+	local etiquette="$1"; shift
+	local pad=$(( 26 - ${#etiquette} ))
+	(( pad < 1 )) && pad=1
+	printf '  %s%*s: %s\n' "$etiquette" "$pad" '' "$*"
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — panneau « Accessibilité »
+
+Usage :
+  $PROG                      État de chaque fonction
+  $PROG lecteur on|off       Lecteur d'écran Orca (lit l'écran à voix haute)
+  $PROG clavier on|off       Clavier visuel Onboard (saisie à la souris)
+  $PROG loupe on|off         Loupe d'écran xzoom
+  $PROG contraste on|off     Thème à contraste élevé
+  $PROG gros-texte on|off    Texte agrandi (facteur 1,5)
+  $PROG clic-auto on|off     Clic par temporisation (mousetweaks)
+  $PROG voix "texte"         Lire un texte à voix haute (espeak-ng, en français)
+  $PROG curseur <taille>     Taille du pointeur de souris, en pixels (24, 32, 48…)
+
+Exemples :
+  $PROG lecteur on
+  $PROG gros-texte on
+  $PROG voix "Bonjour, le son fonctionne."
+  $PROG curseur 48
+
+Les fenêtres déjà ouvertes ne changent qu'une fois rouvertes.
+EOF
+}
+
+# =============================================================================
+#  Fichier d'état — uniquement ce qu'il faut pour défaire proprement un « on »
+# =============================================================================
+ETAT_DIR="${XDG_CONFIG_HOME:-${HOME:-/tmp}/.config}/lexos"
+ETAT_FICHIER="$ETAT_DIR/accessibilite.conf"
+
+etat_lire() {
+	[[ -r "$ETAT_FICHIER" ]] || return 1
+	local v
+	v="$(sed -n "s/^$1=//p" "$ETAT_FICHIER" | tail -n 1)"
+	[[ -n "$v" ]] || return 1
+	printf '%s\n' "$v"
+}
+
+etat_ecrire() {
+	local cle="$1" val="$2" tmp
+	mkdir -p "$ETAT_DIR" 2>/dev/null || return 1
+	tmp="$(mktemp "$ETAT_FICHIER.XXXXXX" 2>/dev/null)" || return 1
+	if [[ -r "$ETAT_FICHIER" ]]; then
+		grep -v "^$cle=" "$ETAT_FICHIER" > "$tmp" 2>/dev/null
+	fi
+	printf '%s=%s\n' "$cle" "$val" >> "$tmp"
+	mv -f "$tmp" "$ETAT_FICHIER" 2>/dev/null
+}
+
+etat_effacer() {
+	local tmp
+	[[ -r "$ETAT_FICHIER" ]] || return 0
+	tmp="$(mktemp "$ETAT_FICHIER.XXXXXX" 2>/dev/null)" || return 1
+	grep -v "^$1=" "$ETAT_FICHIER" > "$tmp" 2>/dev/null
+	mv -f "$tmp" "$ETAT_FICHIER" 2>/dev/null
+}
+
+# =============================================================================
+#  Vérifications communes
+# =============================================================================
+present() { command -v "$1" >/dev/null 2>&1; }
+
+requis() {
+	# $1 = commande attendue, $2 = paquet Debian qui la fournit
+	present "$1" && return 0
+	warn "« $1 » n'est pas installé : cette fonction est indisponible."
+	astuce "Installer : lexos install $2"
+	return 1
+}
+
+graphique() {
+	[[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && return 0
+	warn "Aucune session graphique détectée : cette fonction a besoin du bureau."
+	astuce "À lancer depuis une session XFCE ouverte, pas depuis une console seule."
+	return 1
+}
+
+# Orca et Onboard sont des programmes Python : leur processus s'appelle
+# « python3 » et « pgrep -x orca » ne les verrait jamais. Il faut donc fouiller
+# la ligne de commande complète (-f), mais un simple « orca » y attraperait
+# n'importe quelle commande contenant ce mot — un éditeur ouvert sur un fichier,
+# une autre commande LexOS. D'où ce motif ancré sur un début de mot précédé d'un
+# slash ou du début de ligne, et suivi d'un espace ou de la fin.
+motif_processus() { printf '(^|/)%s([[:space:]]|$)' "$1"; }
+
+# Limité à l'utilisateur courant : sur un poste partagé, le lecteur d'écran
+# d'une autre session ouverte ne nous regarde pas.
+processus_actif() {
+	present pgrep || return 1
+	pgrep -u "$(id -u)" -f "$(motif_processus "$1")" >/dev/null 2>&1
+}
+
+arreter() {
+	present pkill || return 1
+	pkill -u "$(id -u)" -f "$(motif_processus "$1")" >/dev/null 2>&1
+}
+
+lancer() {
+	local cmd="$1"
+	shift
+	# Détaché du terminal : l'outil rend la main tout de suite et fermer le
+	# terminal ne doit pas couper une aide dont quelqu'un dépend pour lire.
+	if present setsid; then
+		setsid "$cmd" "$@" >/dev/null 2>&1 &
+	else
+		"$cmd" "$@" >/dev/null 2>&1 &
+	fi
+	return 0
+}
+
+# =============================================================================
+#  GSettings et xfconf
+# =============================================================================
+AVERTI_DBUS=0
+
+gs_schema() {
+	present gsettings || return 1
+	local liste
+	# Pas de « gsettings | grep -q » : sous pipefail, grep qui coupe la lecture
+	# fait remonter un SIGPIPE et la vérification échouerait à tort.
+	liste="$(gsettings list-schemas 2>/dev/null)" || return 1
+	grep -qxF "$1" <<<"$liste"
+}
+
+gs_lire() {
+	gs_schema "$1" || return 1
+	local v
+	v="$(gsettings get "$1" "$2" 2>/dev/null)" || return 1
+	# gsettings rend les chaînes entre apostrophes ('Adwaita') : on les retire
+	# pour pouvoir comparer et réécrire la valeur telle quelle.
+	v="${v#\'}"; v="${v%\'}"
+	printf '%s\n' "$v"
+}
+
+gs_ecrire() {
+	gs_schema "$1" || return 1
+	# Sans bus de session, dconf bascule sur un dépôt en mémoire : l'écriture
+	# « réussit » puis disparaît à la fin de la commande. Silence = mensonge.
+	if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]] && (( AVERTI_DBUS == 0 )); then
+		AVERTI_DBUS=1
+		warn "Aucun bus de session D-Bus : les réglages GSettings ne seront pas conservés."
+		astuce "Relancer depuis la session graphique pour qu'ils tiennent."
+	fi
+	gsettings set "$1" "$2" "$3" >/dev/null 2>&1
+}
+
+xf_lire() {
+	present xfconf-query || return 1
+	xfconf-query -c "$1" -p "$2" 2>/dev/null
+}
+
+xf_ecrire() {
+	# -n crée la propriété si elle n'existe pas encore : sur une session neuve,
+	# /Net/ThemeName peut ne jamais avoir été écrit.
+	present xfconf-query || return 1
+	xfconf-query -c "$1" -p "$2" -n -t "$3" -s "$4" >/dev/null 2>&1
+}
+
+# Normalise on/off. « oui » et « non » sont acceptés : le public est francophone
+# et taper « on » n'a rien d'évident.
+onoff() {
+	case "${1:-}" in
+		on|On|ON|oui|active|activer|1)   printf 'on' ;;
+		off|Off|OFF|non|desactiver|0)    printf 'off' ;;
+		*)                               return 1 ;;
+	esac
+}
+
+# Le résultat passe par une variable et non par « $(…) » : die() dans une
+# substitution de commande ne tuerait que le sous-shell, l'outil continuerait
+# avec un mode vide et rendrait 0 alors qu'il n'a rien fait.
+MODE=""
+exiger_onoff() {
+	MODE="$(onoff "${1:-}")" \
+		|| die "Il faut préciser « on » ou « off ». Exemple : $PROG $2 on"
+}
+
+# =============================================================================
+#  Lecteur d'écran (Orca)
+# =============================================================================
+bus_atspi() {
+	# On cherche le lanceur du bus plutôt que d'interroger dpkg : c'est ce
+	# fichier-là qui manque quand « Orca démarre mais ne lit rien ».
+	local f
+	for f in /usr/libexec/at-spi-bus-launcher /usr/lib/at-spi2-core/at-spi-bus-launcher; do
+		[[ -x "$f" ]] && return 0
+	done
+	return 1
+}
+
+lecteur() {
+	local mode="$1"
+	requis orca orca || return 1
+	if ! bus_atspi; then
+		warn "Le bus d'accessibilité at-spi est absent : Orca lirait des fenêtres vides."
+		astuce "Installer : lexos install at-spi2-core"
+		return 1
+	fi
+	case "$mode" in
+		on)
+			graphique || return 1
+			# Sans cette clé, les applications GTK n'exposent pas leur contenu au
+			# bus d'accessibilité : c'est LE réglage qui manque le plus souvent
+			# quand un lecteur d'écran « ne dit rien ».
+			if ! gs_ecrire org.gnome.desktop.interface toolkit-accessibility true; then
+				warn "L'accessibilité GTK n'a pas pu être activée (gsettings indisponible)."
+				astuce "Installer : lexos install libglib2.0-bin gsettings-desktop-schemas"
+			fi
+			if ! present speech-dispatcher && ! present spd-say; then
+				warn "speech-dispatcher est absent : Orca va démarrer, mais sans voix."
+				astuce "Installer : lexos install speech-dispatcher espeak-ng"
+			fi
+			if processus_actif orca; then
+				ok "Le lecteur d'écran tourne déjà."
+			else
+				lancer orca
+				ok "Lecteur d'écran Orca démarré."
+			fi
+			say "Les applications déjà ouvertes doivent être relancées pour être lues."
+			say "${D}Réglages fins d'Orca (voix, débit, braille) : orca --setup${R}"
+			;;
+		off)
+			if arreter orca; then
+				ok "Lecteur d'écran arrêté."
+			else
+				say "Le lecteur d'écran ne tournait pas."
+			fi
+			# On rend l'accessibilité GTK à son état neutre : la laisser allumée
+			# ralentit inutilement les applications si plus personne ne lit.
+			gs_ecrire org.gnome.desktop.interface toolkit-accessibility false
+			;;
+	esac
+	return 0
+}
+
+# =============================================================================
+#  Clavier visuel (Onboard)
+# =============================================================================
+clavier() {
+	local mode="$1"
+	requis onboard onboard || return 1
+	case "$mode" in
+		on)
+			graphique || return 1
+			if processus_actif onboard; then
+				ok "Le clavier visuel est déjà affiché."
+			else
+				lancer onboard
+				ok "Clavier visuel Onboard affiché."
+			fi
+			say "${D}Disposition, taille et thème : onboard-settings${R}"
+			;;
+		off)
+			if arreter onboard; then
+				ok "Clavier visuel fermé."
+			else
+				say "Le clavier visuel n'était pas affiché."
+			fi
+			;;
+	esac
+	return 0
+}
+
+# =============================================================================
+#  Loupe (xzoom)
+# =============================================================================
+loupe() {
+	local mode="$1"
+	requis xzoom xzoom || return 1
+	case "$mode" in
+		on)
+			graphique || return 1
+			# xzoom lit l'écran par X11. Sous Wayland il n'a rien à lire : LexOS
+			# ouvre XFCE en X11 par défaut, mais on prévient si ce n'est pas le
+			# cas plutôt que de laisser une fenêtre grise sans explication.
+			if [[ -n "${WAYLAND_DISPLAY:-}" ]] && [[ -z "${DISPLAY:-}" ]]; then
+				warn "Session Wayland : xzoom ne peut pas lire l'écran, il n'y a pas de repli."
+				return 1
+			fi
+			if processus_actif xzoom; then
+				ok "La loupe est déjà ouverte."
+			else
+				lancer xzoom -mag 3
+				ok "Loupe ouverte (grossissement 3×)."
+			fi
+			# Franchise : ce n'est pas un zoom de bureau intégré.
+			say "C'est une fenêtre séparée qui montre, agrandie, la zone autour du pointeur."
+			say "${D}Elle ne suit ni le curseur de saisie ni la fenêtre active.${R}"
+			;;
+		off)
+			if arreter xzoom; then
+				ok "Loupe fermée."
+			else
+				say "La loupe n'était pas ouverte."
+			fi
+			;;
+	esac
+	return 0
+}
+
+# =============================================================================
+#  Contraste élevé
+# =============================================================================
+THEME_CONTRASTE="HighContrast"
+
+theme_actuel() {
+	# L'ordre compte : sous XFCE, c'est xfsettingsd qui a le dernier mot sur le
+	# thème réellement appliqué aux fenêtres GTK.
+	local t
+	t="$(xf_lire xsettings /Net/ThemeName)" && [[ -n "$t" ]] && { printf '%s\n' "$t"; return 0; }
+	t="$(gs_lire org.gnome.desktop.interface gtk-theme)" && [[ -n "$t" ]] && { printf '%s\n' "$t"; return 0; }
+	return 1
+}
+
+contraste() {
+	local mode="$1" avant
+	case "$mode" in
+		on)
+			if [[ ! -d "/usr/share/themes/$THEME_CONTRASTE" ]]; then
+				warn "Le thème $THEME_CONTRASTE n'est pas installé."
+				astuce "Installer : lexos install gnome-themes-extra"
+				return 1
+			fi
+			avant="$(theme_actuel)" || avant=""
+			if [[ -n "$avant" && "$avant" != "$THEME_CONTRASTE" ]]; then
+				etat_ecrire theme_avant "$avant"
+			fi
+			gs_ecrire org.gnome.desktop.interface gtk-theme "$THEME_CONTRASTE"
+			if xf_ecrire xsettings /Net/ThemeName string "$THEME_CONTRASTE"; then
+				ok "Contraste élevé activé."
+			else
+				warn "xfconf-query est absent : le thème n'a pu être posé que dans GSettings."
+				astuce "Sous XFCE, c'est xfsettingsd qui applique le thème — installer :"
+				astuce "lexos install xfconf"
+			fi
+			# Les icônes gardent leur thème : le paquet ne fournit qu'un thème de
+			# fenêtres. Le dire, plutôt que de laisser croire à un demi-échec.
+			say "Fenêtres et menus seulement : les icônes gardent leur apparence."
+			;;
+		off)
+			avant="$(etat_lire theme_avant)" || avant=""
+			if [[ -n "$avant" ]]; then
+				gs_ecrire org.gnome.desktop.interface gtk-theme "$avant"
+				xf_ecrire xsettings /Net/ThemeName string "$avant"
+				etat_effacer theme_avant
+				ok "Contraste élevé désactivé, thème « $avant » rétabli."
+			else
+				# Rien de mis de côté : on ne devine pas un thème à sa place, on
+				# demande à chaque système de reprendre son propre défaut.
+				gsettings reset org.gnome.desktop.interface gtk-theme >/dev/null 2>&1
+				xf_ecrire xsettings /Net/ThemeName string "Adwaita"
+				warn "Aucun thème précédent n'avait été noté : retour au thème par défaut."
+				astuce "Choisir un thème précis : lexos-theme-gen, ou les Paramètres XFCE."
+			fi
+			;;
+	esac
+	say "Les fenêtres déjà ouvertes gardent l'ancien thème."
+	return 0
+}
+
+# =============================================================================
+#  Gros texte
+# =============================================================================
+FACTEUR_TEXTE=150   # en centièmes : 150 = 1,5×. bash ne calcule pas en virgule.
+
+police_agrandie() {
+	# « Cantarell 11 » → « Cantarell 16 ». On ne touche qu'au dernier champ :
+	# le nom peut contenir un style (« Noto Sans Bold 11 »).
+	local police="$1" taille nom
+	taille="${police##* }"
+	nom="${police% *}"
+	[[ "$taille" =~ ^[0-9]+$ ]] || return 1
+	[[ -n "$nom" && "$nom" != "$police" ]] || return 1
+	printf '%s %s\n' "$nom" "$(( (taille * FACTEUR_TEXTE + 50) / 100 ))"
+}
+
+gros_texte() {
+	local mode="$1" police avant nouvelle
+	case "$mode" in
+		on)
+			# GSettings d'abord, pour les applications GNOME et pour Orca.
+			gs_ecrire org.gnome.desktop.interface text-scaling-factor 1.5
+			# Puis la police XSettings, qui est ce qui agit vraiment sous XFCE :
+			# xfsettingsd impose sa police aux applications GTK et écrase le
+			# facteur d'échelle de GSettings.
+			police="$(xf_lire xsettings /Gtk/FontName)" || police=""
+			if [[ -z "$police" ]]; then
+				warn "La police du bureau n'a pas pu être lue (xfconf absent ou session non XFCE)."
+				astuce "Seul le facteur GSettings est posé : sous XFCE il ne suffit pas."
+				astuce "Installer : lexos install xfconf"
+				return 1
+			fi
+			if [[ -z "$(etat_lire police_avant)" ]]; then
+				etat_ecrire police_avant "$police"
+			fi
+			nouvelle="$(police_agrandie "$police")" || {
+				warn "Police « $police » : taille illisible, agrandissement impossible."
+				astuce "Régler la taille à la main dans Paramètres XFCE → Apparence → Polices."
+				return 1
+			}
+			xf_ecrire xsettings /Gtk/FontName string "$nouvelle" \
+				|| { warn "L'écriture de la police a échoué."; return 1; }
+			ok "Gros texte activé : « $nouvelle » (au lieu de « $police »)."
+			;;
+		off)
+			gs_ecrire org.gnome.desktop.interface text-scaling-factor 1.0
+			avant="$(etat_lire police_avant)" || avant=""
+			if [[ -n "$avant" ]]; then
+				xf_ecrire xsettings /Gtk/FontName string "$avant"
+				etat_effacer police_avant
+				ok "Gros texte désactivé, police « $avant » rétablie."
+			else
+				warn "Aucune police précédente n'avait été notée : seul le facteur GSettings est remis à 1."
+				astuce "Rétablir la taille : Paramètres XFCE → Apparence → Polices."
+			fi
+			;;
+	esac
+	say "Les fenêtres déjà ouvertes gardent l'ancienne taille."
+	return 0
+}
+
+# =============================================================================
+#  Clic automatique (mousetweaks)
+# =============================================================================
+clic_auto() {
+	local mode="$1"
+	requis mousetweaks mousetweaks || return 1
+	if ! gs_schema org.gnome.desktop.a11y.mouse; then
+		warn "Les réglages d'accessibilité de la souris sont absents du système."
+		astuce "Installer : lexos install gsettings-desktop-schemas"
+		return 1
+	fi
+	case "$mode" in
+		on)
+			graphique || return 1
+			# mousetweaks est un service GNOME : il ne prend pas d'option pour
+			# s'activer, il lit ces clés au démarrage et pendant qu'il tourne.
+			# D'où réglage PUIS lancement, dans cet ordre.
+			gs_ecrire org.gnome.desktop.a11y.mouse dwell-click-enabled true
+			if processus_actif mousetweaks; then
+				ok "Le clic automatique tourne déjà."
+			else
+				lancer mousetweaks
+				ok "Clic automatique activé."
+			fi
+			say "Le clic part tout seul quand le pointeur reste immobile environ une seconde."
+			say "${D}Délai et tolérance : Paramètres GNOME d'accessibilité, non réglables ici.${R}"
+			;;
+		off)
+			gs_ecrire org.gnome.desktop.a11y.mouse dwell-click-enabled false
+			arreter mousetweaks
+			ok "Clic automatique désactivé."
+			;;
+	esac
+	return 0
+}
+
+# =============================================================================
+#  Voix et curseur
+# =============================================================================
+voix() {
+	local texte="$*"
+	[[ -n "$texte" ]] || die "Rien à lire. Exemple : $PROG voix \"Bonjour\""
+	requis espeak-ng espeak-ng || return 1
+	# Le texte passe par l'entrée standard : en argument, une phrase commençant
+	# par un tiret serait prise pour une option d'espeak-ng.
+	if ! printf '%s\n' "$texte" | espeak-ng -v fr --stdin; then
+		warn "espeak-ng n'a pas pu parler."
+		astuce "Vérifier le son : lexos-son  (volume, muet, sortie active)"
+		return 1
+	fi
+	# « Lu » serait présomptueux : espeak-ng rend 0 même quand le serveur audio
+	# a avalé le flux sans rien émettre.
+	ok "Texte transmis à la synthèse vocale."
+	say "${D}Rien entendu ? Vérifier le volume et la sortie : lexos-son${R}"
+	return 0
+}
+
+curseur() {
+	local taille="$1"
+	[[ "$taille" =~ ^[0-9]+$ ]] || die "Taille en pixels attendue. Exemple : $PROG curseur 48"
+	if (( taille < 8 || taille > 128 )); then
+		die "Taille hors des valeurs utilisables (8 à 128 pixels). Tailles courantes : 24, 32, 48, 64."
+	fi
+	gs_ecrire org.gnome.desktop.interface cursor-size "$taille"
+	if ! xf_ecrire xsettings /Gtk/CursorThemeSize int "$taille"; then
+		warn "xfconf-query est absent : la taille n'a été posée que dans GSettings."
+		astuce "Sous XFCE, c'est xfsettingsd qui applique la taille — installer :"
+		astuce "lexos install xfconf"
+		return 1
+	fi
+	ok "Curseur réglé à $taille pixels."
+	say "Les fenêtres déjà ouvertes gardent l'ancien pointeur."
+	# XCURSOR_SIZE gouverne les applications qui ne passent pas par GTK (jeux,
+	# Qt, applications X11 anciennes). On ne modifie PAS ~/.profile à l'insu de
+	# l'utilisateur : toucher aux fichiers de session pour un réglage de confort
+	# est plus risqué que le gain. On donne la ligne, il décide.
+	say "${D}Applications non GTK (jeux, Qt) : ajouter « export XCURSOR_SIZE=$taille » à ~/.profile${R}"
+	return 0
+}
+
+# =============================================================================
+#  État
+# =============================================================================
+marque() {
+	case "$1" in
+		on)   printf '%sactivé%s' "$G" "$R" ;;
+		off)  printf '%sdésactivé%s' "$D" "$R" ;;
+		abs)  printf '%sindisponible%s — paquet %s absent' "$Y" "$R" "$2" ;;
+		*)    printf '%s' "$1" ;;
+	esac
+}
+
+etat() {
+	local t police fac cur
+	say "Accessibilité — état"
+
+	if ! present orca; then
+		ligne "Lecteur d'écran (Orca)" "$(marque abs orca)"
+	elif processus_actif orca; then
+		ligne "Lecteur d'écran (Orca)" "$(marque on)"
+	else
+		ligne "Lecteur d'écran (Orca)" "$(marque off)"
+	fi
+
+	if ! present onboard; then
+		ligne "Clavier visuel (Onboard)" "$(marque abs onboard)"
+	elif processus_actif onboard; then
+		ligne "Clavier visuel (Onboard)" "$(marque on)"
+	else
+		ligne "Clavier visuel (Onboard)" "$(marque off)"
+	fi
+
+	if ! present xzoom; then
+		ligne "Loupe (xzoom)" "$(marque abs xzoom)"
+	elif processus_actif xzoom; then
+		ligne "Loupe (xzoom)" "$(marque on)"
+	else
+		ligne "Loupe (xzoom)" "$(marque off)"
+	fi
+
+	t="$(theme_actuel)" || t=""
+	if [[ -z "$t" ]]; then
+		ligne "Contraste élevé" "indéterminé — ni xfconf ni gsettings"
+	elif [[ "$t" == *"$THEME_CONTRASTE"* ]]; then
+		ligne "Contraste élevé" "$(marque on)"
+	else
+		ligne "Contraste élevé" "$(marque off) — thème « $t »"
+	fi
+
+	# Deux mécanismes portent le gros texte : on regarde les deux, et on
+	# affiche la police effective, seule preuve visible du résultat.
+	police="$(xf_lire xsettings /Gtk/FontName)" || police=""
+	fac="$(gs_lire org.gnome.desktop.interface text-scaling-factor)" || fac=""
+	if [[ -n "$(etat_lire police_avant)" ]] || [[ -n "$fac" && "$fac" != "1.0" ]]; then
+		ligne "Gros texte" "$(marque on)${police:+ — police « $police »}"
+	else
+		ligne "Gros texte" "$(marque off)${police:+ — police « $police »}"
+	fi
+
+	if ! present mousetweaks; then
+		ligne "Clic automatique" "$(marque abs mousetweaks)"
+	elif processus_actif mousetweaks; then
+		ligne "Clic automatique" "$(marque on)"
+	else
+		ligne "Clic automatique" "$(marque off)"
+	fi
+
+	if present espeak-ng; then
+		ligne "Synthèse vocale" "disponible — $PROG voix \"…\""
+	else
+		ligne "Synthèse vocale" "$(marque abs espeak-ng)"
+	fi
+
+	cur="$(xf_lire xsettings /Gtk/CursorThemeSize)" || cur=""
+	[[ -n "$cur" ]] || cur="$(gs_lire org.gnome.desktop.interface cursor-size)" || cur=""
+	ligne "Taille du curseur" "${cur:-inconnue} px"
+
+	say "${D}Détail d'une fonction : $PROG --help${R}"
+}
+
+# =============================================================================
+#  Aiguillage
+# =============================================================================
+case "${1:-}" in
+	''|etat|état|status)
+		etat
+		;;
+	-h|--help|help|aide)
+		usage
+		;;
+	lecteur|orca)
+		exiger_onoff "${2:-}" lecteur
+		lecteur "$MODE"
+		;;
+	clavier|onboard)
+		exiger_onoff "${2:-}" clavier
+		clavier "$MODE"
+		;;
+	loupe|zoom)
+		exiger_onoff "${2:-}" loupe
+		loupe "$MODE"
+		;;
+	contraste)
+		exiger_onoff "${2:-}" contraste
+		contraste "$MODE"
+		;;
+	gros-texte|gros_texte|grostexte)
+		exiger_onoff "${2:-}" gros-texte
+		gros_texte "$MODE"
+		;;
+	clic-auto|clic_auto|clicauto)
+		exiger_onoff "${2:-}" clic-auto
+		clic_auto "$MODE"
+		;;
+	voix|parle)
+		shift
+		voix "$@"
+		;;
+	curseur|pointeur)
+		shift
+		[[ $# -ge 1 ]] || die "Il manque la taille. Exemple : $PROG curseur 48"
+		curseur "$1"
+		;;
+	*)
+		warn "Commande inconnue : $1"
+		usage >&2
+		exit 1
+		;;
+esac

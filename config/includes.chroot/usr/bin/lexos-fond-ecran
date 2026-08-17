@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-fond-ecran — choisir et appliquer le fond d'écran
+# =============================================================================
+#  Deux portes d'entrée, exprès :
+#    - le MENU (lanceur « Fond d'écran ») ouvre un sélecteur de fichier
+#      graphique — aucun terminal à voir ;
+#    - le CLIC DROIT sur une image dans Fichiers (action Thunar) appelle
+#      « lexos-fond-ecran <image> » directement.
+#
+#  L'application passe par xfconf : xfdesktop garde UNE image par écran et
+#  par espace de travail. On les règle TOUTES — régler la seule propriété
+#  « courante » donne un fond qui change quand on change de bureau, et
+#  l'utilisateur croit que ça n'a pas marché.
+#
+#  Limite dite franchement : un GIF animé posé ici ne bougera PAS — xfdesktop
+#  n'affiche que la première image. Pour un fond qui bouge : lexos-fond-anime.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — choisir et appliquer le fond d'écran
+
+Usage :
+  $PROG                  Fond actuel et images disponibles
+  $PROG choisir          Sélecteur graphique (celui du menu)
+  $PROG <image>          Appliquer cette image (celui du clic droit)
+  $PROG liste            Toutes les images trouvées, numérotées
+  $PROG <numéro>         Appliquer l'image numéro N de la liste
+  $PROG aleatoire        Une image au hasard
+  $PROG anime [fichier]  Fond ANIMÉ (vidéo ou GIF) — passe à lexos-fond-anime
+
+Où il cherche : les fonds LexOS installés, ${D}~/Images${R} et ${D}~/Fonds d'écran${R}.
+EOF
+}
+
+# --- Où vivent les images ----------------------------------------------------
+#  Les fonds de la distribution sont posés par le hook 0300 quelque part sous
+#  /usr/share ; on ratisse les emplacements plausibles plutôt que d'en figer
+#  un seul — un chemin codé en dur casse en silence à la première réorganisation.
+DOSSIERS=(
+	"/usr/share/lexos/wallpapers"
+	"/usr/share/lexos/branding"
+	"/usr/share/backgrounds"
+	"${HOME}/Images"
+	"${HOME}/Fonds d'écran"
+	"${XDG_PICTURES_DIR:-}"
+)
+
+lister_images() {
+	local d
+	for d in "${DOSSIERS[@]}"; do
+		[[ -n "$d" && -d "$d" ]] || continue
+		find "$d" -maxdepth 2 -type f \
+			\( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \
+			   -o -iname '*.webp' -o -iname '*.bmp' -o -iname '*.svg' \) \
+			2>/dev/null
+	done | sort -u
+}
+
+fond_actuel() {
+	command -v xfconf-query >/dev/null 2>&1 || return 1
+	xfconf-query -c xfce4-desktop -l 2>/dev/null \
+		| grep -E '/backdrop/.*last-image$' | head -1 \
+		| xargs -r -I{} xfconf-query -c xfce4-desktop -p {} 2>/dev/null
+}
+
+appliquer() {
+	local img="$1" props p n=0
+	[[ -f "$img" ]] || die "Fichier introuvable : ${img}"
+	img="$(readlink -f "$img")"
+	command -v xfconf-query >/dev/null 2>&1 \
+		|| die "xfconf-query absent — le fond se règle depuis la session graphique XFCE."
+	[[ -n "${DISPLAY:-}" ]] \
+		|| die "Pas de session graphique ici. Lance cette commande depuis le bureau."
+	props="$(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -E '/backdrop/.*last-image$')"
+	[[ -n "$props" ]] || die "xfdesktop ne semble pas actif — aucun réglage de fond trouvé."
+	while IFS= read -r p; do
+		if xfconf-query -c xfce4-desktop -p "$p" -s "$img" 2>/dev/null; then
+			n=$((n + 1))
+			#  style 5 = « zoomé » : l'image remplit l'écran sans se déformer.
+			#  Sans lui, une petite image resterait en mosaïque au premier réglage.
+			xfconf-query -c xfce4-desktop -p "${p%last-image}image-style" -s 5 2>/dev/null || true
+		fi
+	done <<< "$props"
+	[[ "$n" -gt 0 ]] || die "Aucune propriété n'a pu être réglée."
+	ok "Fond d'écran appliqué (${n} réglage(s) écran/espace) : ${img##*/}"
+	case "$img" in
+		*.gif|*.GIF)
+			warn "Un GIF posé en fond ne bouge pas — xfdesktop n'en montre que la première image."
+			say  "Pour l'animer : ${B}lexos-fond-anime \"${img}\"${R}"
+			;;
+	esac
+}
+
+choisir_gui() {
+	local depart img
+	for depart in "/usr/share/lexos/wallpapers" "/usr/share/lexos/branding" "${HOME}/Images" "$HOME"; do
+		[[ -d "$depart" ]] && break
+	done
+	if command -v zenity >/dev/null 2>&1; then
+		img="$(zenity --file-selection --title="Choisir un fond d'écran" \
+			--filename="${depart}/" \
+			--file-filter='Images | *.jpg *.jpeg *.png *.webp *.bmp *.svg' 2>/dev/null)" || exit 0
+	elif command -v yad >/dev/null 2>&1; then
+		img="$(yad --file --title="Choisir un fond d'écran" --filename="${depart}/" 2>/dev/null)" || exit 0
+	else
+		die "Ni zenity ni yad — installe-en un : lexos install zenity"
+	fi
+	[[ -n "$img" ]] && appliquer "$img"
+}
+
+CMD="${1:-}"
+case "$CMD" in
+	-h|--help|help) usage ;;
+	"")
+		say "Fond actuel : $(fond_actuel || echo "inconnu (hors session graphique ?)")"
+		N_TOTAL="$(lister_images | wc -l)"
+		say "${N_TOTAL} image(s) disponibles — « $PROG liste » pour les voir, « $PROG choisir » pour la fenêtre."
+		;;
+	choisir|gui|fenetre) choisir_gui ;;
+	liste|list)
+		i=0
+		while IFS= read -r f; do
+			i=$((i + 1))
+			printf '  %s%3d%s  %s\n' "$B" "$i" "$R" "$f"
+		done < <(lister_images)
+		[[ "$i" -gt 0 ]] || warn "Aucune image trouvée dans les dossiers connus."
+		;;
+	aleatoire|hasard|random)
+		IMG="$(lister_images | shuf -n1)"
+		[[ -n "$IMG" ]] || die "Aucune image trouvée."
+		appliquer "$IMG"
+		;;
+	anime|anim|video)
+		shift
+		command -v lexos-fond-anime >/dev/null 2>&1 \
+			|| die "lexos-fond-anime absent de cette machine."
+		exec lexos-fond-anime "$@"
+		;;
+	*)
+		if [[ "$CMD" =~ ^[0-9]+$ ]]; then
+			IMG="$(lister_images | sed -n "${CMD}p")"
+			[[ -n "$IMG" ]] || die "Pas d'image numéro ${CMD} — « $PROG liste »."
+			appliquer "$IMG"
+		elif [[ -e "$CMD" ]]; then
+			appliquer "$CMD"
+		else
+			warn "Ni un fichier, ni un numéro, ni une commande : ${CMD}"
+			usage
+			exit 1
+		fi
+		;;
+esac

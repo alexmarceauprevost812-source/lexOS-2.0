@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — actions du clic droit dans Fichiers (Thunar).
+
+  Ce fichier REMPLACE celui que Thunar génère au premier lancement : on y
+  recopie donc aussi son action par défaut (« Ouvrir un terminal ici »),
+  sinon on la ferait disparaître en ajoutant les nôtres.
+
+  Les deux actions LexOS répondent à la demande : clic droit sur une image
+  -> la mettre en fond d'écran ; clic droit sur un GIF ou une vidéo -> en
+  faire un fond d'écran ANIMÉ (mascotte comprise).
+-->
+<actions>
+<action>
+	<icon>utilities-terminal</icon>
+	<name>Ouvrir un terminal ici</name>
+	<submenu></submenu>
+	<unique-id>1000000000000000-1</unique-id>
+	<command>exo-open --working-directory %f --launch TerminalEmulator</command>
+	<description>Ouvre un terminal dans le dossier affiché</description>
+	<range></range>
+	<patterns>*</patterns>
+	<startup-notify/>
+	<directories/>
+</action>
+<action>
+	<icon>preferences-desktop-wallpaper</icon>
+	<name>Définir comme fond d'écran</name>
+	<submenu></submenu>
+	<unique-id>1000000000000000-2</unique-id>
+	<command>lexos-fond-ecran %f</command>
+	<description>Met cette image en fond d'écran LexOS</description>
+	<range></range>
+	<patterns>*.jpg;*.jpeg;*.png;*.webp;*.bmp;*.svg;*.JPG;*.JPEG;*.PNG</patterns>
+	<image-files/>
+</action>
+<action>
+	<icon>preferences-desktop-wallpaper</icon>
+	<name>Fond d'écran animé</name>
+	<submenu></submenu>
+	<unique-id>1000000000000000-3</unique-id>
+	<command>lexos-fond-anime %f</command>
+	<description>Anime le bureau avec cette vidéo ou ce GIF</description>
+	<range></range>
+	<patterns>*.gif;*.mp4;*.webm;*.mkv;*.GIF;*.MP4</patterns>
+	<image-files/>
+	<video-files/>
+</action>
+</actions>

@@ -1,0 +1,106 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — un lanceur de menu pour chaque outil : tout à la souris
+# =============================================================================
+#  La demande : « facile comme Windows — ouvrir les applications sans passer
+#  par le terminal ». Les outils LexOS sont des commandes ; ce hook donne à
+#  chacune une entrée dans le menu Applications (et donc dans la recherche
+#  du menu, et dans la grille « Toutes les applications »).
+#
+#  Deux genres d'outils, deux traitements :
+#    - un outil GRAPHIQUE (sélecteur de fond d'écran, musique…) se lance tel
+#      quel, aucune fenêtre noire ;
+#    - un outil TEXTE s'ouvre dans un terminal VIA lexos-fenetre, qui attend
+#      une touche à la fin — sans quoi la fenêtre se referme avant qu'on ait
+#      pu lire quoi que ce soit, et l'utilisateur croit que rien ne marche.
+#
+#  On ne crée PAS de doublon : si un .desktop existant lance déjà ce
+#  binaire (posé par le hook 0400 ou par un paquet), on passe.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0265 : lanceurs de menu"
+
+APPS=/usr/share/applications
+mkdir -p "$APPS"
+
+#  cmd | Nom du menu | icône (thème Papirus) | terminal oui/non | catégories | commentaire
+TABLE="
+lexos-fond-ecran choisir|Fond d'écran|preferences-desktop-wallpaper|non|Settings;DesktopSettings;|Choisir l'image du bureau
+lexos-fond-anime mascotte|Fond animé (mascotte)|preferences-desktop-screensaver|non|Settings;DesktopSettings;|La mascotte LexOS animée en fond
+lexos-musique|Musique LexOS|multimedia-audio-player|non|AudioVideo;Audio;Player;|Écouter le dossier Musique
+lexos-chrome|Google Chrome (LexOS)|web-browser|non|Network;WebBrowser;|Ouvre Chrome, l'installe s'il manque
+lexos-claude|Claude|web-browser|non|Network;Development;|Claude Code ou claude.ai
+lexos-recherche fenetre|Recherche de fichiers|system-search|non|Utility;FileTools;|Chercher par nom ou par contenu
+lexos-son|Son|audio-volume-high|oui|Settings;HardwareSettings;|Volume, sorties, micro, effets
+lexos-access|Accessibilité|preferences-desktop-accessibility|oui|Settings;Accessibility;|Lecteur d'écran, loupe, contraste
+lexos-utilisateurs|Utilisateurs|system-users|oui|Settings;System;|Comptes, mots de passe, admins
+lexos-distant|Bureau à distance|preferences-desktop-remote-desktop|oui|Settings;Network;|Se connecter ailleurs, partager ici
+lexos-defaut|Applications par défaut|preferences-desktop-default-applications|oui|Settings;|Quel logiciel ouvre quoi
+lexos-datetime|Date et heure|preferences-system-time|oui|Settings;|Fuseau, synchronisation, format
+lexos-net|Réseau et Wi-Fi|network-wireless|oui|Settings;Network;|Réseaux, mots de passe, avion
+lexos-perf|Performance|utilities-system-monitor|oui|Settings;System;|Profils petit à max
+lexos-secure|Sécurité|security-high|oui|Settings;Security;|Pare-feu, verrouillage, vie privée
+lexos-vpn|VPN|network-vpn|oui|Settings;Network;|Connexions VPN
+lexos-usb|Appareils USB|drive-removable-media-usb|oui|Settings;HardwareSettings;|Clés, import, terminal d'appareil
+lexos-format|Formater un disque|drive-harddisk|oui|System;Utility;|Préparer une clé ou un disque
+lexos-brightness|Luminosité|display-brightness|oui|Settings;HardwareSettings;|Écran plus ou moins lumineux
+lexos-clavier|Clavier|preferences-desktop-keyboard|oui|Settings;HardwareSettings;|Dispositions et raccourcis
+lexos-comptes|Comptes en ligne|preferences-desktop-online-accounts|oui|Settings;Network;|Drive, Nextcloud, Dropbox…
+lexos-bienetre|Bien-être numérique|preferences-desktop-screensaver|oui|Settings;|Pauses et temps d'écran
+lexos-mac|Mac (Apple)|computer-apple-ipad|oui|Settings;HardwareSettings;|Matériel Apple sous LexOS
+"
+
+CREES=0
+IGNORES=0
+
+printf '%s\n' "$TABLE" | while IFS='|' read -r CMDLINE NOM ICONE TERM CATS COMMENT; do
+	[ -n "$CMDLINE" ] || continue
+
+	BIN="${CMDLINE%% *}"
+	if [ ! -x "/usr/bin/${BIN}" ]; then
+		echo "[lexos]   !! binaire absent, lanceur non créé : ${BIN}"
+		continue
+	fi
+
+	#  Un lanceur existe-t-il déjà pour ce binaire ? (posé par un autre hook
+	#  ou par un paquet). On regarde les Exec=, pas les noms de fichiers.
+	if grep -rlsE "^Exec=.*(^|[ /])${BIN}( |$)" "$APPS" >/dev/null 2>&1; then
+		echo "[lexos]   déjà présent, on passe : ${BIN}"
+		IGNORES=$((IGNORES + 1))
+		continue
+	fi
+
+	if [ "$TERM" = "oui" ]; then
+		EXEC="lexos-fenetre ${CMDLINE}"
+		TERMINAL=true
+	else
+		EXEC="${CMDLINE}"
+		TERMINAL=false
+	fi
+
+	cat > "${APPS}/${BIN}.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=${NOM}
+GenericName=${COMMENT}
+Comment=${COMMENT}
+Exec=${EXEC}
+Icon=${ICONE}
+Terminal=${TERMINAL}
+Categories=${CATS}X-LexOS;
+Keywords=lexos;${BIN#lexos-};
+StartupNotify=false
+EOF
+	CREES=$((CREES + 1))
+	echo "[lexos]   + ${NOM}  (${BIN}.desktop)"
+done
+
+#  Rafraîchir le cache du menu — sans quoi les entrées n'apparaissent
+#  qu'après reconnexion.
+if command -v update-desktop-database >/dev/null 2>&1; then
+	update-desktop-database "$APPS" 2>/dev/null || true
+fi
+
+echo "[lexos] hook 0265 : ok"

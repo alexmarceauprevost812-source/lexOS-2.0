@@ -1,0 +1,250 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-dualboot — vérifier qu'installer À CÔTÉ DE WINDOWS va bien se passer
+# =============================================================================
+#  CE QUE CET OUTIL FAIT, ET SURTOUT CE QU'IL NE FAIT PAS.
+#
+#  Il LIT. Il ne redimensionne rien, il n'écrit sur aucune partition, il ne
+#  crée rien. Toutes ses commandes sont en lecture seule : lsblk, parted
+#  print, ntfsresize --info (qui simule et n'écrit jamais), efibootmgr sans
+#  argument. On peut le lancer autant de fois qu'on veut, à n'importe quel
+#  moment, sans aucun risque pour Windows.
+#
+#  POURQUOI IL NE REDIMENSIONNE PAS TOUT SEUL. La tentation existait :
+#  réduire la partition Windows automatiquement pour préparer exactement
+#  40 Go. Deux raisons de ne pas le faire, et elles sont solides :
+#
+#    1. Calamares le fait déjà, et mieux. Son écran « Installer à côté de »
+#       montre un curseur qui découpe la partition existante, et son code de
+#       redimensionnement NTFS tourne sur des millions de machines depuis des
+#       années. Un script maison, écrit ici, n'aurait jamais été essayé sur
+#       le disque de personne avant celui d'Alex. Sur un disque qui contient
+#       ses jeux et ses fichiers, ce n'est pas un pari acceptable.
+#    2. Calamares montre toujours un résumé et demande confirmation avant
+#       d'écrire. Un script lancé automatiquement, non.
+#
+#  Le rôle de cet outil est donc celui d'un copilote : il dit ce que Windows
+#  raconte, prévient de ce qui bloquerait, et donne LE CHIFFRE EXACT à régler
+#  sur le curseur de Calamares. La décision et l'écriture restent à
+#  l'installateur et à l'utilisateur.
+#
+#  Tout est du logiciel libre : lsblk et parted (GPL), ntfsresize de ntfs-3g
+#  (GPL-2), os-prober (GPL), GRUB (GPL-3). Aucun outil propriétaire.
+# =============================================================================
+set -u
+
+PROG="${0##*/}"
+
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+	O=$(printf '\033[38;5;208m'); G=$(printf '\033[32m'); Y=$(printf '\033[33m')
+	E=$(printf '\033[31m');       B=$(printf '\033[1m');  D=$(printf '\033[2m')
+	R=$(printf '\033[0m')
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+
+titre() { printf '\n%s%s%s\n' "$B$O" "$*" "$R"; }
+ok()    { printf '  %s✓%s %s\n' "$G" "$R" "$*"; }
+attn()  { printf '  %s!%s %s\n' "$Y" "$R" "$*"; }
+non()   { printf '  %s✗%s %s\n' "$E" "$R" "$*"; }
+info()  { printf '    %s%s%s\n' "$D" "$*" "$R"; }
+
+#  La place visée pour LexOS, en gigaoctets. 40 Go est le choix d'Alex :
+#  assez pour être à l'aise, et un plafond qu'il ne veut pas dépasser.
+CIBLE_GO="${LEXOS_DUALBOOT_CIBLE_GO:-40}"
+#  Ce dont LexOS a réellement besoin — le même plancher que requiredStorage
+#  dans partition.conf. En dessous, ça ne rentre pas.
+PLANCHER_GO="${LEXOS_DUALBOOT_PLANCHER_GO:-25}"
+#  Ce qu'on refuse de prendre à Windows : sous ce seuil de place LIBRE
+#  restante, Windows commence à mal fonctionner (mises à jour qui échouent,
+#  fichier d'échange à l'étroit).
+WINDOWS_LIBRE_MIN_GO="${LEXOS_WINDOWS_LIBRE_MIN_GO:-30}"
+
+case "${1:-}" in
+	-h|--help|aide|help)
+		cat <<AIDE
+${B}${PROG}${R} — vérifier avant d'installer LexOS à côté de Windows
+
+  ${O}${PROG}${R}              Le bilan complet — Windows, la place, le démarrage
+
+Le bilan tient en un écran : il n'y a pas de sous-commande à retenir.
+
+${B}Cet outil ne modifie RIEN.${R} Il lit le disque et te dit quoi faire.
+Le redimensionnement, c'est l'installateur qui le fait, avec sa
+confirmation à l'écran.
+
+Réglages (variables d'environnement) :
+  ${D}LEXOS_DUALBOOT_CIBLE_GO${R}       place visée pour LexOS   ${D}(défaut : 40)${R}
+  ${D}LEXOS_WINDOWS_LIBRE_MIN_GO${R}    libre à laisser à Windows ${D}(défaut : 30)${R}
+AIDE
+		exit 0
+		;;
+esac
+
+# --- Trouver Windows --------------------------------------------------------
+#  On cherche la plus GROSSE partition NTFS, pas la première : un disque
+#  Windows porte souvent une petite NTFS de récupération (« Recovery », 500 Mo
+#  à 1 Go) avant la vraie partition système. Réduire celle-là n'apporterait
+#  rien et casserait les outils de réparation de Windows.
+trouver_windows() {
+	lsblk -brno NAME,FSTYPE,SIZE 2>/dev/null \
+		| awk '$2=="ntfs" && $3+0 > 20000000000 {print $3, $1}' \
+		| sort -rn | head -1 | awk '{print $2}'
+}
+
+# --- Le disque et la partition ----------------------------------------------
+WIN_PART="$(trouver_windows)"
+
+titre "WINDOWS"
+if [ -z "$WIN_PART" ]; then
+	attn "aucune partition Windows (NTFS) de plus de 20 Go trouvée"
+	info "Soit ce disque n'a pas Windows, soit il n'est pas branché."
+	info "Dans ce cas l'installateur proposera d'utiliser tout le disque."
+	WIN_DEV=""
+else
+	WIN_DEV="/dev/${WIN_PART}"
+	WIN_DISQUE="/dev/$(lsblk -rno PKNAME "$WIN_DEV" 2>/dev/null | head -1)"
+	WIN_TAILLE_O="$(lsblk -brno SIZE "$WIN_DEV" 2>/dev/null | head -1)"
+	WIN_TAILLE_GO=$((WIN_TAILLE_O / 1000000000))
+	ok "Windows trouvé sur ${WIN_DEV} (disque ${WIN_DISQUE})"
+	info "taille de sa partition : ${WIN_TAILLE_GO} Go"
+fi
+
+# --- Windows a-t-il été VRAIMENT éteint ? -----------------------------------
+#  C'est le piège numéro un, et il est invisible : « Démarrage rapide », activé
+#  par défaut sur Windows 10 et 11, ne l'éteint pas vraiment — il l'hiberne.
+#  Le système de fichiers reste marqué comme en cours d'utilisation, et AUCUN
+#  outil ne peut le redimensionner sans risquer de le corrompre. Calamares
+#  refusera, ou pire, réussira à moitié.
+#
+#  On ne devine pas : ntfsresize --info dit lui-même s'il peut travailler.
+#  --info ne fait que lire et calculer, il n'écrit jamais.
+if [ -n "$WIN_DEV" ]; then
+	titre "WINDOWS EST-IL VRAIMENT ÉTEINT ?"
+	if ! command -v ntfsresize >/dev/null 2>&1; then
+		attn "ntfsresize absent — impossible de vérifier ici"
+		info "Le paquet ntfs-3g le fournit. L'installateur vérifiera de son côté."
+	else
+		RAPPORT="$(ntfsresize --info --no-progress-bar --force "$WIN_DEV" 2>&1)"
+		if printf '%s' "$RAPPORT" | grep -qi "hibernat\|dirty\|unclean\|is scheduled\|chkdsk"; then
+			non "Windows est HIBERNÉ ou n'a pas été éteint proprement"
+			printf '\n'
+			printf '  %sÀ faire dans Windows, une seule fois :%s\n' "$B" "$R"
+			printf '    1. Panneau de configuration → Options d'\''alimentation\n'
+			printf '    2. « Choisir l'\''action des boutons d'\''alimentation »\n'
+			printf '    3. « Modifier des paramètres actuellement non disponibles »\n'
+			printf '    4. Décocher %s« Activer le démarrage rapide »%s\n' "$B" "$R"
+			printf '    5. Enregistrer, puis %sArrêter%s (pas Redémarrer, pas Veille)\n' "$B" "$R"
+			printf '\n'
+			info "Sans ça, personne ne peut redimensionner Windows sans l'abîmer."
+			info "Ce n'est pas un défaut de LexOS : c'est Windows qui reste à moitié allumé."
+		else
+			MINI_O="$(printf '%s' "$RAPPORT" | grep -i "You might resize at" | grep -oE '[0-9]+' | head -1)"
+			ok "Windows est proprement éteint — il peut être redimensionné"
+			if [ -n "$MINI_O" ]; then
+				MINI_GO=$((MINI_O / 1000000000))
+				info "au plus petit, sa partition tiendrait en ${MINI_GO} Go"
+			fi
+		fi
+	fi
+fi
+
+# --- Combien de place peut-on prendre ? -------------------------------------
+titre "LA PLACE POUR LEXOS"
+if [ -n "$WIN_DEV" ]; then
+	#  L'espace occupé DANS Windows, lu par ntfsresize (lecture seule). C'est
+	#  ce chiffre qui compte : une partition de 900 Go dont 200 sont utilisés
+	#  peut céder beaucoup ; une de 250 Go pleine à 240 ne peut rien céder.
+	UTILISE_GO=""
+	if [ -n "${RAPPORT:-}" ]; then
+		U_O="$(printf '%s' "$RAPPORT" | grep -i "space in use" | grep -oE '[0-9]+ MB' | grep -oE '[0-9]+' | head -1)"
+		[ -n "$U_O" ] && UTILISE_GO=$((U_O / 1000))
+	fi
+
+	if [ -n "$UTILISE_GO" ] && [ "$UTILISE_GO" -gt 0 ]; then
+		LIBRE_DANS_WIN_GO=$((WIN_TAILLE_GO - UTILISE_GO))
+		info "Windows utilise ${UTILISE_GO} Go sur ${WIN_TAILLE_GO} Go (${LIBRE_DANS_WIN_GO} Go de libre)"
+
+		#  Ce qu'on peut prendre sans descendre sous le plancher de Windows.
+		CESSIBLE_GO=$((LIBRE_DANS_WIN_GO - WINDOWS_LIBRE_MIN_GO))
+		[ "$CESSIBLE_GO" -lt 0 ] && CESSIBLE_GO=0
+
+		if [ "$CESSIBLE_GO" -ge "$CIBLE_GO" ]; then
+			ok "il y a de quoi donner ${CIBLE_GO} Go à LexOS"
+			printf '\n'
+			printf '  %sSur l'\''écran « Installer à côté de », règle le curseur à :%s\n' "$B" "$R"
+			printf '      %s%s Go pour LexOS%s\n' "$B$O" "$CIBLE_GO" "$R"
+			printf '\n'
+			info "Windows garderait alors $((WIN_TAILLE_GO - CIBLE_GO)) Go, dont $((LIBRE_DANS_WIN_GO - CIBLE_GO)) Go de libre."
+		elif [ "$CESSIBLE_GO" -ge "$PLANCHER_GO" ]; then
+			attn "les ${CIBLE_GO} Go visés ne rentrent pas, mais LexOS tient quand même"
+			printf '\n'
+			printf '  %sRègle le curseur à au plus :%s %s%s Go%s\n' "$B" "$R" "$B$O" "$CESSIBLE_GO" "$R"
+			printf '\n'
+			info "Pour atteindre ${CIBLE_GO} Go, libère $((CIBLE_GO - CESSIBLE_GO)) Go dans Windows"
+			info "(corbeille, Téléchargements, un gros jeu réinstallable plus tard)."
+		else
+			non "pas assez de place : ${CESSIBLE_GO} Go cessibles, il en faut ${PLANCHER_GO} au minimum"
+			printf '\n'
+			info "Libère au moins $((PLANCHER_GO - CESSIBLE_GO)) Go dans Windows, puis relance cette vérification."
+			info "Windows → Paramètres → Système → Stockage montre ce qui prend de la place."
+		fi
+	else
+		attn "impossible de lire la place utilisée dans Windows"
+		info "L'installateur le mesurera lui-même sur son écran de partage."
+		info "Vise ${CIBLE_GO} Go pour LexOS, et laisse au moins ${WINDOWS_LIBRE_MIN_GO} Go de libre à Windows."
+	fi
+
+	#  L'espace déjà NON PARTITIONNÉ : s'il y en a, rien à redimensionner.
+	if command -v parted >/dev/null 2>&1 && [ -n "${WIN_DISQUE:-}" ]; then
+		LIBRE_BRUT="$(parted -sm "$WIN_DISQUE" unit GB print free 2>/dev/null \
+			| awk -F: '/free/ {gsub("GB","",$4); if ($4+0 > 1) s+=$4} END {print int(s)}')"
+		if [ -n "$LIBRE_BRUT" ] && [ "$LIBRE_BRUT" -ge 1 ]; then
+			ok "${LIBRE_BRUT} Go déjà libres hors partition sur ce disque"
+			[ "$LIBRE_BRUT" -ge "$PLANCHER_GO" ] && \
+				info "C'est peut-être suffisant sans toucher à Windows du tout."
+		fi
+	fi
+else
+	info "Sans Windows sur le disque, la question ne se pose pas."
+fi
+
+# --- Le menu de démarrage ---------------------------------------------------
+titre "LE MENU DE DÉMARRAGE"
+if command -v os-prober >/dev/null 2>&1; then
+	ok "os-prober présent — le menu de LexOS pourra proposer Windows"
+else
+	non "os-prober absent — Windows n'apparaîtrait PAS dans le menu"
+	info "C'est un paquet obligatoire de LexOS : signale-le, c'est un défaut."
+fi
+
+if grep -rqs '^GRUB_DISABLE_OS_PROBER=false' /etc/default/grub /etc/default/grub.d 2>/dev/null; then
+	ok "la recherche des autres systèmes est activée"
+else
+	attn "GRUB_DISABLE_OS_PROBER=false introuvable"
+	info "Après installation : sudo lexos-dualboot pour revérifier."
+fi
+
+if [ -d /sys/firmware/efi ]; then
+	ok "démarrage en mode UEFI — le bon, celui que Windows utilise aussi"
+	if command -v efibootmgr >/dev/null 2>&1; then
+		N="$(efibootmgr 2>/dev/null | grep -c '^Boot[0-9]')"
+		info "${N} entrée(s) de démarrage aujourd'hui ; après installation il en faut une de plus"
+	fi
+else
+	attn "démarrage en mode BIOS/CSM, pas UEFI"
+	info "Windows est presque sûrement installé en UEFI : les deux systèmes"
+	info "doivent utiliser le MÊME mode, sinon le menu ne verra pas Windows."
+	info "Redémarre sur la clé en choisissant l'entrée UEFI dans le menu de démarrage."
+fi
+
+# --- Le résumé --------------------------------------------------------------
+titre "CE QU'IL FAUT RETENIR"
+printf '  1. Dans Windows : décocher le %sDémarrage rapide%s, puis %sArrêter%s.\n' "$B" "$R" "$B" "$R"
+printf '  2. Sauvegarder ce qui compte. %sPar principe%s, avant tout partage de disque.\n' "$B" "$R"
+printf '  3. Dans le BIOS (F2) : %sSecure Boot → Disabled%s.\n' "$B" "$R"
+printf '  4. Dans l'\''installateur : %s« Installer à côté de »%s, curseur à %s%s Go%s.\n' "$B" "$R" "$B$O" "$CIBLE_GO" "$R"
+printf '  5. Lire l'\''écran de résumé avant de valider. Rien n'\''est écrit avant.\n'
+printf '\n'
+printf '  %sCet outil n'\''a rien modifié.%s Relance-le autant de fois que tu veux.\n' "$D" "$R"
+printf '\n'

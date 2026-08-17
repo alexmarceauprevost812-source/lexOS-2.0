@@ -1,0 +1,549 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-datetime — date, heure, fuseau et horloge matérielle
+# =============================================================================
+#  timedatectl fait tout le travail : c'est lui qui tient l'heure sous systemd,
+#  et écrire dans /etc/localtime à la main derrière son dos ne mène qu'à des
+#  incohérences. Cet outil n'est qu'une façade en français par-dessus.
+#
+#  Trois décisions expliquent la forme du code :
+#
+#  - Régler l'heure à la main pendant que la synchronisation réseau tourne est
+#    la fausse manœuvre la plus courante : la commande est acceptée, puis
+#    l'heure est réécrite quelques secondes plus tard. On refuse net et on
+#    explique, au lieu de laisser croire à un bogue.
+#  - « timedatectl show » ne garantit pas l'ordre des propriétés demandées :
+#    on lit tout et on choisit par son nom, jamais par sa position.
+#  - Les actions qui modifient l'horloge exigent root. On ne rappelle jamais
+#    la commande derrière sudo à la place de l'utilisateur : l'élévation de
+#    privilèges se décide, elle ne se subit pas au milieu d'une commande.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+# Les lieux du Canada qu'on propose d'abord — la distribution est québécoise,
+# pas mondiale, alors « Canada — Québec » ouvre la liste. Chaque entrée porte
+# un NOM DE LIEU lisible : demander « America/Toronto » à quelqu'un qui veut
+# juste dire « je suis au Québec », c'est l'obliger à connaître la mécanique
+# interne des fuseaux. Le nom parlé suffit : « lexos-datetime fuseau quebec ».
+readonly LIEUX_CANADA=(
+	"Canada — Québec (Montréal)|America/Montreal"
+	"Canada — Ontario (Toronto)|America/Toronto"
+	"Canada — Maritimes (Halifax)|America/Halifax"
+	"Canada — Terre-Neuve (St. John's)|America/St_Johns"
+	"Canada — Manitoba (Winnipeg)|America/Winnipeg"
+	"Canada — Alberta (Edmonton)|America/Edmonton"
+	"Canada — Colombie-Britannique (Vancouver)|America/Vancouver"
+)
+
+# Le nom parlé -> le fuseau. Retourne le nom inchangé si rien ne correspond :
+# l'utilisateur a peut-être tapé un vrai nom de zone, la validation tranchera.
+lieu_vers_zone() {
+	local demande minuscule
+	demande="$1"
+	#  ${var,,} et non tr : tr ne touche que l'ASCII, « MONTRÉAL » devenait
+	#  « montrÉal » et le lieu n'était pas reconnu. La minusculation de bash
+	#  suit la locale — et comme un script lancé hors session (cron, console
+	#  de secours) tourne parfois en locale C où même ${var,,} laisse les
+	#  accents en majuscules, on rabat É et È à la main. C'est les deux seules
+	#  majuscules accentuées possibles dans nos noms de lieux.
+	minuscule="${demande,,}"
+	minuscule="${minuscule//É/é}"
+	minuscule="${minuscule//È/è}"
+	case "$minuscule" in
+		quebec|québec|montreal|montréal|canada-quebec|canada-québec)
+			printf 'America/Montreal\n' ;;
+		ontario|toronto)          printf 'America/Toronto\n' ;;
+		maritimes|halifax|acadie) printf 'America/Halifax\n' ;;
+		terre-neuve|st-johns)     printf 'America/St_Johns\n' ;;
+		manitoba|winnipeg)        printf 'America/Winnipeg\n' ;;
+		alberta|edmonton|calgary) printf 'America/Edmonton\n' ;;
+		colombie-britannique|vancouver) printf 'America/Vancouver\n' ;;
+		*) printf '%s\n' "$demande" ;;
+	esac
+}
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — date, heure, fuseau et horloge matérielle
+
+Usage :
+  $PROG                          Heure locale, fuseau, synchronisation, horloge matérielle
+  $PROG fuseau [zone]            Voir le fuseau, ou en changer (demande root)
+  $PROG auto on|off              Synchronisation de l'heure par le réseau (demande root)
+  $PROG regler "AAAA-MM-JJ HH:MM:SS"
+                                 Régler l'heure à la main (demande root, et « auto off » avant)
+  $PROG format [24|12]           Format de l'horloge du panneau XFCE
+  $PROG utc on|off               Horloge matérielle en UTC (on) ou en heure locale (off)
+  $PROG villes                   Heure qu'il est dans quelques grandes villes
+
+À savoir :
+  Tant que la synchronisation réseau est active, régler l'heure à la main ne
+  tient pas : le service la réécrit dans les secondes qui suivent. Il faut
+  « sudo $PROG auto off » d'abord.
+
+Exemples :
+  $PROG fuseau America/Toronto
+  $PROG auto off
+  $PROG regler "2026-08-17 14:30:00"
+EOF
+}
+
+# --- Petits services partagés ------------------------------------------------
+
+# Un « command not found » brut n'apprend rien à personne : on nomme le paquet.
+besoin() {
+	local commande="$1" paquet="$2"
+	command -v "$commande" >/dev/null 2>&1 && return 0
+	die "« $commande » est absent. Installez-le : sudo apt install $paquet"
+}
+
+# printf aligne sur les OCTETS : « Horloge matérielle » serait décalé d'une
+# colonne. La longueur d'une chaîne en bash, elle, compte les caractères.
+col() {
+	local texte="$1" largeur="$2" reste
+	reste=$(( largeur - ${#texte} ))
+	(( reste < 0 )) && reste=0
+	printf '%s%*s' "$texte" "$reste" ""
+}
+
+racine_requise() {
+	(( EUID == 0 )) && return 0
+	die "Cette action modifie l'horloge du système : sudo $PROG $*"
+}
+
+# timedatectl est installé sur toute machine systemd, mais il ne répond que si
+# systemd est bien l'init du système : dans un conteneur ou un chroot, il
+# échoue sur le bus. Sans ce contrôle, l'affichage se remplirait d'« inconnu »
+# sans jamais dire pourquoi.
+horloge_prete() {
+	besoin timedatectl systemd
+	timedatectl show >/dev/null 2>&1 && return 0
+	die "timedatectl ne répond pas : systemd n'est pas l'init de ce système (conteneur ou chroot ?)."
+}
+
+# Lit une propriété de timedatectl par son NOM. Reste muette quand timedatectl
+# ne répond pas : les appelants qui en dépendent vraiment ont déjà appelé
+# « horloge_prete », les autres (villes) s'en passent très bien.
+propriete() {
+	local nom="$1" ligne
+	command -v timedatectl >/dev/null 2>&1 || return 1
+	while IFS= read -r ligne; do
+		if [[ $ligne == "$nom="* ]]; then
+			printf '%s\n' "${ligne#*=}"
+			return 0
+		fi
+	done < <(timedatectl show 2>/dev/null)
+	return 1
+}
+
+oui_non() {
+	case "$1" in
+		yes) printf 'oui\n' ;;
+		no)  printf 'non\n' ;;
+		*)   printf 'inconnu\n' ;;
+	esac
+}
+
+# --- État courant ------------------------------------------------------------
+
+etat() {
+	horloge_prete
+	local fuseau_actuel ntp synchro rtc_local
+	fuseau_actuel=$(propriete Timezone) || fuseau_actuel="inconnu"
+	ntp=$(propriete NTP) || ntp="?"
+	synchro=$(propriete NTPSynchronized) || synchro="?"
+	rtc_local=$(propriete LocalRTC) || rtc_local="?"
+
+	local texte_ntp texte_rtc
+	case "$ntp" in
+		yes) texte_ntp="activée" ;;
+		no)  texte_ntp="désactivée — l'horloge dérive toute seule" ;;
+		*)   texte_ntp="inconnue" ;;
+	esac
+	case "$rtc_local" in
+		no)  texte_rtc="UTC — le réglage normal sous Linux" ;;
+		yes) texte_rtc="heure locale — pour cohabiter avec Windows" ;;
+		*)   texte_rtc="inconnue" ;;
+	esac
+
+	printf '%s%s%s\n' "$B" "Date et heure" "$R"
+	printf '  %s %s\n' "$(col 'Date et heure' 20)"      "$(date '+%A %-d %B %Y, %H:%M:%S')"
+	printf '  %s %s\n' "$(col 'Heure UTC' 20)"          "$(date -u '+%Y-%m-%d %H:%M:%S')"
+	printf '  %s %s (%s, UTC%s)\n' "$(col 'Fuseau horaire' 20)" "$fuseau_actuel" "$(date '+%Z')" "$(date '+%:z')"
+	printf '  %s %s\n' "$(col 'Synchro réseau' 20)"     "$texte_ntp"
+	printf '  %s %s\n' "$(col "Horloge à l'heure" 20)"  "$(oui_non "$synchro")"
+	printf '  %s %s\n' "$(col 'Horloge matérielle' 20)" "$texte_rtc"
+	printf '\n'
+
+	# Le cas qui inquiète sans raison : la synchro est demandée mais rien
+	# n'est encore arrivé du réseau.
+	if [[ $ntp == yes && $synchro == no ]]; then
+		warn "La synchronisation est activée mais l'heure n'est pas encore calée."
+		say "C'est normal juste après le démarrage, ou s'il n'y a pas de réseau."
+	fi
+	say "Changer le fuseau : $PROG fuseau     |   les autres réglages : $PROG --help"
+	return 0
+}
+
+# --- Fuseau horaire ----------------------------------------------------------
+
+fuseau() {
+	horloge_prete
+	local zone="$1"
+
+	if [[ -z $zone ]]; then
+		say "Fuseau actuel : $(propriete Timezone)"
+		printf '\n%sChoisis ton lieu principal :%s\n' "$B" "$R"
+		local entree nom z
+		for entree in "${LIEUX_CANADA[@]}"; do
+			nom="${entree%%|*}"; z="${entree##*|}"
+			printf '  %s %s   %s%s%s\n' "$(col "$nom" 42)" "$(TZ="$z" date '+%H:%M  %Z')" "$D" "$z" "$R"
+		done
+		printf '%s  America/Montreal est un autre nom d%sAmerica/Toronto : mêmes règles.%s\n' "$D" "'" "$R"
+		printf '\n'
+		say "Changer avec le nom du lieu, tout simplement :  sudo $PROG fuseau quebec"
+		say "Le reste du monde : timedatectl list-timezones   (près de 600 entrées)"
+		say "Pour filtrer : timedatectl list-timezones | grep Europe"
+		return 0
+	fi
+
+	#  « quebec », « montréal », « alberta »… deviennent le vrai nom de zone.
+	zone="$(lieu_vers_zone "$zone")"
+
+	racine_requise "fuseau $zone"
+	# On valide avant d'agir : timedatectl accepte des noms qui n'existent pas
+	# sur certaines versions, et l'erreur qu'il renvoie sinon est obscure.
+	if ! timedatectl list-timezones 2>/dev/null | grep -qxF -- "$zone"; then
+		warn "« $zone » ne figure pas dans la liste des fuseaux connus."
+		say "Cherchez le bon nom : timedatectl list-timezones | grep -i <ville>"
+		die "Rien n'a été changé."
+	fi
+	timedatectl set-timezone "$zone" || die "timedatectl a refusé le changement de fuseau."
+	ok "Fuseau : $zone"
+	say "Il est maintenant $(date '+%H:%M') ($(date '+%Z'))."
+	return 0
+}
+
+# --- Synchronisation par le réseau -------------------------------------------
+
+auto() {
+	horloge_prete
+	local mode="$1"
+	case "$mode" in
+		'')
+			say "Synchronisation réseau : $(oui_non "$(propriete NTP)")"
+			say "Activer : sudo $PROG auto on   |   couper : sudo $PROG auto off"
+			;;
+		on)
+			racine_requise "auto on"
+			timedatectl set-ntp true || die "timedatectl a refusé d'activer la synchronisation."
+			ok "Synchronisation réseau activée."
+			say "L'heure peut mettre quelques secondes à se caler ; « $PROG » le dira."
+			;;
+		off)
+			racine_requise "auto off"
+			timedatectl set-ntp false || die "timedatectl a refusé de couper la synchronisation."
+			ok "Synchronisation réseau coupée."
+			say "L'horloge dérive maintenant seule. « sudo $PROG regler » est possible."
+			;;
+		*)
+			die "Attendu : on ou off — reçu « $mode »."
+			;;
+	esac
+	return 0
+}
+
+# --- Réglage à la main -------------------------------------------------------
+
+regler() {
+	horloge_prete
+	local quand="$1"
+	[[ -n $quand ]] || die "Attendu : $PROG regler \"AAAA-MM-JJ HH:MM:SS\""
+
+	local motif='^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$'
+	if ! [[ $quand =~ $motif ]]; then
+		die "Format attendu : \"AAAA-MM-JJ HH:MM:SS\" — reçu « $quand »."
+	fi
+
+	# Refus AVANT le contrôle de root : c'est l'explication la plus utile, et
+	# elle vaut aussi pour qui n'a pas encore tapé sudo. timedatectl accepterait
+	# la commande, puis le service de synchronisation réécrirait l'heure
+	# quelques secondes plus tard — de quoi croire que l'outil est cassé.
+	if [[ $(propriete NTP) == yes ]]; then
+		warn "La synchronisation de l'heure par le réseau est active."
+		say "Elle réécrirait votre réglage en quelques secondes. Coupez-la d'abord :"
+		say "  sudo $PROG auto off"
+		say "puis refaites : sudo $PROG regler \"$quand\""
+		die "Rien n'a été changé."
+	fi
+
+	racine_requise "regler \"$quand\""
+	timedatectl set-time "$quand" || die "timedatectl a refusé « $quand »."
+	ok "Horloge réglée : $(date '+%A %-d %B %Y, %H:%M:%S')"
+	say "Pensez à réactiver la synchronisation quand vous n'en aurez plus besoin :"
+	say "  sudo $PROG auto on"
+	return 0
+}
+
+# --- Format de l'horloge du panneau -----------------------------------------
+
+# Cherche les greffons « horloge » du panneau. Il peut y en avoir plusieurs, ou
+# aucun : on les cherche au lieu de supposer que c'est toujours plugin-1.
+plugins_horloge() {
+	local propriete_panneau valeur
+	while IFS= read -r propriete_panneau; do
+		[[ $propriete_panneau =~ ^/plugins/plugin-[0-9]+$ ]] || continue
+		valeur=$(xfconf-query -c xfce4-panel -p "$propriete_panneau" 2>/dev/null) || continue
+		[[ $valeur == clock ]] && printf '%s\n' "$propriete_panneau"
+	done < <(xfconf-query -c xfce4-panel -l 2>/dev/null)
+}
+
+# xfce4-panel 4.18 a renommé « digital-format » en « digital-time-format ».
+# On prend celle qui existe déjà ; si aucune n'existe, c'est que le panneau
+# tourne sur son format d'origine et on écrira le nom moderne.
+cle_format_horloge() {
+	local plugin="$1" cle
+	for cle in digital-time-format digital-format; do
+		if xfconf-query -c xfce4-panel -p "$plugin/$cle" >/dev/null 2>&1; then
+			printf '%s\n' "$cle"
+			return 0
+		fi
+	done
+	printf 'digital-time-format\n'
+	return 0
+}
+
+format_afficher() {
+	local -a horloges=()
+	mapfile -t horloges < <(plugins_horloge)
+	if (( ${#horloges[@]} == 0 )); then
+		warn "Aucune horloge trouvée dans le panneau XFCE."
+		say "Ajoutez-en une : clic droit sur le panneau, « Panneau » puis « Ajouter des greffons »."
+		return 1
+	fi
+	local plugin cle valeur
+	for plugin in "${horloges[@]}"; do
+		cle=$(cle_format_horloge "$plugin")
+		valeur=$(xfconf-query -c xfce4-panel -p "$plugin/$cle" 2>/dev/null) || valeur=""
+		if [[ -z $valeur ]]; then
+			say "Horloge ${plugin##*/} : format d'origine du panneau (aucun réglage enregistré)"
+		else
+			say "Horloge ${plugin##*/} : $valeur   → $(date "+$valeur")"
+		fi
+	done
+	say "Changer : $PROG format 24   |   $PROG format 12"
+	return 0
+}
+
+format_regler() {
+	local mode="$1" chaine
+	case "$mode" in
+		24) chaine='%H:%M' ;;
+		12) chaine='%I:%M %p' ;;
+		*)  die "Attendu : 24 ou 12 — reçu « $mode »." ;;
+	esac
+
+	local -a horloges=()
+	mapfile -t horloges < <(plugins_horloge)
+	if (( ${#horloges[@]} == 0 )); then
+		warn "Aucune horloge trouvée dans le panneau XFCE — rien à régler."
+		return 1
+	fi
+
+	local plugin cle affichage
+	for plugin in "${horloges[@]}"; do
+		cle=$(cle_format_horloge "$plugin")
+		xfconf-query -c xfce4-panel -p "$plugin/$cle" -n -t string -s "$chaine" \
+			|| die "xfconf-query n'a pas pu écrire $plugin/$cle."
+		# Le format numérique ne s'affiche que si l'horloge est en mode
+		# numérique (mode 2). En analogique, le réglage est enregistré mais
+		# invisible : autant le dire tout de suite.
+		affichage=$(xfconf-query -c xfce4-panel -p "$plugin/mode" 2>/dev/null) || affichage=""
+		if [[ -n $affichage && $affichage != 2 ]]; then
+			warn "L'horloge ${plugin##*/} n'est pas en affichage numérique : le format est"
+			warn "enregistré, mais il ne se verra pas tant qu'elle reste dans ce mode."
+		fi
+	done
+
+	ok "Horloge du panneau sur $mode heures ($chaine) — il est $(date "+$chaine")."
+	if [[ $mode == 12 && -z $(date '+%p') ]]; then
+		warn "Votre langue ne définit pas « AM » et « PM » : l'heure s'affichera sur"
+		warn "12 heures, mais sans indication du matin ou de l'après-midi."
+	fi
+	return 0
+}
+
+format() {
+	local mode="$1"
+	# Réglage propre à un compte : lancé avec sudo, il changerait l'horloge de
+	# la session de root, que personne ne regarde.
+	if (( EUID == 0 )); then
+		warn "Vous êtes root : ce réglage vaudrait pour la session de root, pas la vôtre."
+	fi
+
+	if command -v xfconf-query >/dev/null 2>&1; then
+		if [[ -z $mode ]]; then
+			format_afficher
+		else
+			format_regler "$mode"
+		fi
+		return
+	fi
+
+	# Sans xfconf, il reste gsettings — mais il ne pilote QUE les applications
+	# GNOME. Le dire, sinon l'utilisateur attend un changement qui ne viendra
+	# jamais dans sa barre des tâches.
+	if command -v gsettings >/dev/null 2>&1 \
+		&& gsettings writable org.gnome.desktop.interface clock-format >/dev/null 2>&1; then
+		if [[ -z $mode ]]; then
+			say "Format des applications GNOME : $(gsettings get org.gnome.desktop.interface clock-format)"
+			return 0
+		fi
+		case "$mode" in
+			24|12) ;;
+			*) die "Attendu : 24 ou 12 — reçu « $mode »." ;;
+		esac
+		gsettings set org.gnome.desktop.interface clock-format "${mode}h" \
+			|| die "gsettings a refusé le réglage."
+		ok "Format ${mode} heures enregistré pour les applications GNOME."
+		warn "Le panneau XFCE, lui, ne lit pas ce réglage : il lui faut xfconf-query"
+		warn "(paquet xfconf). Installez-le puis relancez la commande."
+		return 0
+	fi
+
+	die "Ni xfconf-query ni gsettings : sudo apt install xfconf"
+}
+
+# --- Horloge matérielle ------------------------------------------------------
+
+explique_utc() {
+	say "UTC est le réglage normal sous Linux : le système applique lui-même le"
+	say "fuseau et l'heure d'été par-dessus."
+	say "« Heure locale » ne sert qu'à un cas : un double démarrage avec Windows,"
+	say "qui lit l'horloge de la carte mère comme si elle était déjà à l'heure du"
+	say "fuseau. En dehors de ce cas, laissez UTC."
+}
+
+utc() {
+	horloge_prete
+	local mode="$1" actuel
+	actuel=$(propriete LocalRTC) || actuel="?"
+
+	case "$mode" in
+		'')
+			case "$actuel" in
+				no)  say "Horloge matérielle : UTC" ;;
+				yes) say "Horloge matérielle : heure locale" ;;
+				*)   say "Horloge matérielle : état inconnu" ;;
+			esac
+			explique_utc
+			say "Changer : sudo $PROG utc on (UTC)   |   sudo $PROG utc off (heure locale)"
+			;;
+		on)
+			racine_requise "utc on"
+			timedatectl set-local-rtc false || die "timedatectl a refusé le changement."
+			ok "Horloge matérielle en UTC."
+			;;
+		off)
+			racine_requise "utc off"
+			timedatectl set-local-rtc true || die "timedatectl a refusé le changement."
+			ok "Horloge matérielle en heure locale."
+			warn "N'utilisez ceci que pour un double démarrage avec Windows : l'heure"
+			warn "de la carte mère devient fausse pour tout le reste, et les deux"
+			warn "systèmes doivent alors être d'accord entre eux."
+			;;
+		*)
+			die "Attendu : on ou off — reçu « $mode »."
+			;;
+	esac
+	return 0
+}
+
+# --- Heure dans le monde -----------------------------------------------------
+
+villes() {
+	local ici
+	ici=$(propriete Timezone) || ici=""
+
+	printf '%s%s%s\n' "$B" "Heure dans le monde" "$R"
+	local ville zone marque
+	while IFS='|' read -r ville zone; do
+		[[ -n $zone ]] || continue
+		# Le fuseau de la machine est marqué : c'est le point de repère.
+		if [[ $zone == "$ici" ]]; then marque="»"; else marque=" "; fi
+		printf ' %s %s %s  %s%s%s\n' \
+			"$marque" "$(col "$ville" 14)" "$(TZ="$zone" date '+%H:%M')" \
+			"$D" "$(TZ="$zone" date '+%a %-d %b')" "$R"
+	done <<'EOF'
+Montréal|America/Montreal
+Vancouver|America/Vancouver
+New York|America/New_York
+Mexico|America/Mexico_City
+São Paulo|America/Sao_Paulo
+Londres|Europe/London
+Paris|Europe/Paris
+Bruxelles|Europe/Brussels
+Dakar|Africa/Dakar
+Casablanca|Africa/Casablanca
+Moscou|Europe/Moscow
+Dubaï|Asia/Dubai
+Bombay|Asia/Kolkata
+Pékin|Asia/Shanghai
+Tokyo|Asia/Tokyo
+Sydney|Australia/Sydney
+EOF
+	printf '\n'
+	say "Ces heures viennent de la base tzdata du système : l'heure d'été de"
+	say "chaque pays est déjà appliquée."
+	return 0
+}
+
+# --- Aiguillage --------------------------------------------------------------
+
+case "${1:-}" in
+	'')
+		etat
+		;;
+	-h|--help|help)
+		usage
+		;;
+	fuseau)
+		shift
+		fuseau "${1:-}"
+		;;
+	auto)
+		shift
+		auto "${1:-}"
+		;;
+	regler)
+		shift
+		regler "${1:-}"
+		;;
+	format)
+		shift
+		format "${1:-}"
+		;;
+	utc)
+		shift
+		utc "${1:-}"
+		;;
+	villes)
+		villes
+		;;
+	*)
+		usage >&2
+		die "Commande inconnue : « $1 »."
+		;;
+esac

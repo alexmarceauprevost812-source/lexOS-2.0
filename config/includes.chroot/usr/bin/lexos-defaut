@@ -1,0 +1,560 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-defaut — quelle application ouvre quel type de fichier
+# =============================================================================
+#  Tout passe par xdg-mime et xdg-settings, c'est-à-dire par le fichier
+#  ~/.config/mimeapps.list. Rien n'est écrit ailleurs : ce que cet outil fait,
+#  un autre panneau de bureau peut le défaire, et inversement. C'est voulu.
+#
+#  Deux décisions méritent d'être dites :
+#
+#  - Une « catégorie » (vidéo, images, archives…) n'existe pas pour le
+#    système : il ne connaît que des types MIME. Régler la seule vidéo/mp4
+#    laisserait les .mkv et les .avi à une autre application, et l'utilisateur
+#    croirait que son choix n'a pas été pris en compte. Chaque catégorie
+#    associe donc TOUS ses types d'un coup.
+#  - Le terminal, lui, n'a aucun type MIME. XFCE le range dans son propre
+#    système d'« assistants » (~/.config/xfce4/helpers.rc), et Debian dans
+#    l'alternative x-terminal-emulator. On traite ce cas à part et on dit
+#    lequel des deux on a changé, au lieu de faire semblant.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+# Les deux dossiers que la norme freedesktop impose de lire, le personnel
+# d'abord : c'est lui qui gagne quand un nom existe des deux côtés.
+readonly DOSSIERS_APPS=("$HOME/.local/share/applications" "/usr/share/applications")
+readonly MIMEAPPS="$HOME/.config/mimeapps.list"
+readonly HELPERS_RC="$HOME/.config/xfce4/helpers.rc"
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — quelle application ouvre quel type de fichier
+
+Usage :
+  $PROG                      L'application par défaut de chaque catégorie
+  $PROG <categorie>          L'application actuelle, et celles qui pourraient la remplacer
+  $PROG <categorie> <appli>  Change l'application par défaut de la catégorie
+  $PROG pour <fichier>       Dit quelle application ouvrira CE fichier précis
+  $PROG reinitialiser        Efface vos choix et revient à ceux du système
+  $PROG panneau              Ouvre le sélecteur de XFCE (exo-preferred-applications)
+
+Catégories :
+  navigateur   courriel   video      audio   images
+  texte        fichiers   terminal   archives   pdf
+
+Nommer une application :
+  Le nom attendu est celui du fichier .desktop, sans le suffixe. « firefox »
+  suffit quand le fichier s'appelle firefox-esr.desktop : le nom est complété
+  tout seul, et en cas d'ambiguïté la liste des candidats est affichée.
+
+Exemples :
+  $PROG pdf
+  $PROG pdf atril
+  $PROG navigateur firefox
+  $PROG pour Documents/facture.pdf
+EOF
+}
+
+# --- Petits services partagés ------------------------------------------------
+
+# Un « command not found » brut n'apprend rien à personne : on nomme le paquet.
+besoin() {
+	local commande="$1" paquet="$2"
+	command -v "$commande" >/dev/null 2>&1 && return 0
+	die "« $commande » est absent. Installez-le : sudo apt install $paquet"
+}
+
+# printf aligne sur les OCTETS : « Éditeur » serait décalé d'une colonne.
+# La longueur d'une chaîne en bash, elle, compte les caractères.
+col() {
+	local texte="$1" largeur="$2" reste
+	reste=$(( largeur - ${#texte} ))
+	(( reste < 0 )) && reste=0
+	printf '%s%*s' "$texte" "$reste" ""
+}
+
+# Les réglages sont propres à un compte. Lancé avec sudo, l'outil réglerait
+# les applications de root, ce que personne ne veut.
+avertir_root() {
+	(( EUID == 0 )) || return 0
+	warn "Vous êtes root : ces réglages s'appliquent au compte root, pas à votre session."
+}
+
+liste_categories() {
+	printf '%s\n' navigateur courriel video audio images texte fichiers terminal archives pdf
+}
+
+titre_de() {
+	case "$1" in
+		navigateur) printf 'Navigateur web\n' ;;
+		courriel)   printf 'Courriel\n' ;;
+		video)      printf 'Lecteur vidéo\n' ;;
+		audio)      printf 'Lecteur audio\n' ;;
+		images)     printf "Visionneuse d'images\n" ;;
+		texte)      printf 'Éditeur de texte\n' ;;
+		fichiers)   printf 'Gestionnaire de fichiers\n' ;;
+		terminal)   printf 'Terminal\n' ;;
+		archives)   printf 'Archives\n' ;;
+		pdf)        printf 'Documents PDF\n' ;;
+		*)          printf '%s\n' "$1" ;;
+	esac
+}
+
+# Le PREMIER type de chaque liste sert de représentant : c'est lui qu'on
+# interroge pour connaître l'application en place et pour dresser la liste des
+# remplaçantes possibles. Les suivants ne servent qu'au moment de régler.
+mimes_de() {
+	case "$1" in
+		navigateur) printf '%s\n' 'text/html x-scheme-handler/http x-scheme-handler/https' ;;
+		courriel)   printf '%s\n' 'x-scheme-handler/mailto message/rfc822' ;;
+		video)      printf '%s\n' 'video/mp4 video/x-matroska video/x-msvideo video/quicktime video/webm video/mpeg video/ogg video/3gpp' ;;
+		audio)      printf '%s\n' 'audio/mpeg audio/flac audio/x-wav audio/ogg audio/mp4 audio/aac audio/x-vorbis+ogg audio/x-opus+ogg' ;;
+		images)     printf '%s\n' 'image/jpeg image/png image/gif image/webp image/bmp image/tiff image/svg+xml' ;;
+		texte)      printf '%s\n' 'text/plain text/markdown text/csv application/x-shellscript' ;;
+		fichiers)   printf '%s\n' 'inode/directory' ;;
+		archives)   printf '%s\n' 'application/zip application/x-tar application/gzip application/x-xz application/x-bzip2 application/x-7z-compressed application/vnd.rar' ;;
+		pdf)        printf '%s\n' 'application/pdf' ;;
+		*)          printf '\n' ;;
+	esac
+}
+
+# --- Lecture des fichiers .desktop ------------------------------------------
+
+champ_desktop() {
+	local identifiant="$1" champ="$2" dossier ligne
+	for dossier in "${DOSSIERS_APPS[@]}"; do
+		[[ -f "$dossier/$identifiant" ]] || continue
+		ligne=$(grep -m1 "^$champ=" "$dossier/$identifiant" 2>/dev/null) || continue
+		printf '%s\n' "${ligne#*=}"
+		return 0
+	done
+	return 1
+}
+
+nom_appli() {
+	local identifiant="$1" nom
+	# Le nom traduit d'abord, le bureau est en français. Les crochets de
+	# « Name[fr] » sont échappés : grep y verrait sinon une classe de
+	# caractères et accepterait n'importe quel nom commençant par « Namf ».
+	nom=$(champ_desktop "$identifiant" 'Name\[fr\]') || nom=$(champ_desktop "$identifiant" 'Name') || return 1
+	[[ -n $nom ]] || return 1
+	printf '%s\n' "$nom"
+}
+
+nom_ou_identifiant() {
+	local identifiant="$1" nom
+	nom=$(nom_appli "$identifiant") || nom=""
+	if [[ -n $nom ]]; then
+		printf '%s %s(%s)%s\n' "$nom" "$D" "$identifiant" "$R"
+	else
+		printf '%s\n' "$identifiant"
+	fi
+}
+
+declare_ce_type() {
+	local identifiant="$1" mime="$2" liste
+	liste=$(champ_desktop "$identifiant" MimeType) || return 1
+	# MimeType est une liste séparée par des points-virgules. On encadre des
+	# deux côtés pour ne pas confondre « image/jpeg » avec « image/jpeg2000 ».
+	[[ ";$liste;" == *";$mime;"* ]]
+}
+
+applications_pour() {
+	local mime="$1" dossier ligne fichier liste
+	for dossier in "${DOSSIERS_APPS[@]}"; do
+		[[ -d $dossier ]] || continue
+		while IFS= read -r ligne; do
+			fichier="${ligne%%:MimeType=*}"
+			liste="${ligne#*:MimeType=}"
+			[[ ";$liste;" == *";$mime;"* ]] && printf '%s\n' "${fichier##*/}"
+		done < <(grep -H -m1 '^MimeType=' "$dossier"/*.desktop 2>/dev/null)
+	done | sort -u
+}
+
+# Renvoie le nom exact du fichier .desktop correspondant à ce que
+# l'utilisateur a tapé. C'est le nom du FICHIER qui compte pour xdg-mime, et
+# il ne ressemble pas toujours au nom de la commande : firefox-esr.desktop,
+# org.gnome.Evince.desktop… D'où la deuxième chance par préfixe.
+# Tout ce qui n'est pas le résultat part sur la sortie d'erreur : la fonction
+# est appelée dans une substitution de commande.
+resoudre_desktop() {
+	local demande="$1" dossier fichier
+	local exact="$demande"
+	[[ $exact == *.desktop ]] || exact="$exact.desktop"
+
+	for dossier in "${DOSSIERS_APPS[@]}"; do
+		if [[ -f "$dossier/$exact" ]]; then
+			printf '%s\n' "$exact"
+			return 0
+		fi
+	done
+
+	local -a candidats=()
+	for dossier in "${DOSSIERS_APPS[@]}"; do
+		[[ -d $dossier ]] || continue
+		for fichier in "$dossier/${exact%.desktop}"*.desktop; do
+			[[ -f $fichier ]] || continue
+			candidats+=("${fichier##*/}")
+		done
+	done
+
+	if (( ${#candidats[@]} == 0 )); then
+		warn "Aucune application installée ne s'appelle « $demande »."
+		printf '%s  Les noms attendus sont ceux des fichiers de /usr/share/applications.%s\n' "$D" "$R" >&2
+		return 1
+	fi
+
+	mapfile -t candidats < <(printf '%s\n' "${candidats[@]}" | sort -u)
+	if (( ${#candidats[@]} > 1 )); then
+		warn "« $demande » correspond à plusieurs applications :"
+		printf '  %s\n' "${candidats[@]}" >&2
+		printf '%s  Reprenez avec le nom complet.%s\n' "$D" "$R" >&2
+		return 1
+	fi
+	printf '%s\n' "${candidats[0]}"
+}
+
+# --- Terminal : ni type MIME, ni xdg-mime ------------------------------------
+
+terminal_actuel() {
+	local ligne="" cible
+	if [[ -f $HELPERS_RC ]]; then
+		ligne=$(grep -m1 '^TerminalEmulator=' "$HELPERS_RC" 2>/dev/null)
+	fi
+	if [[ -n $ligne ]]; then
+		printf '%s\n' "${ligne#*=}"
+		return 0
+	fi
+	# Rien côté XFCE : c'est l'alternative de Debian qui décide.
+	if [[ -e /etc/alternatives/x-terminal-emulator ]]; then
+		cible=$(readlink -f /etc/alternatives/x-terminal-emulator 2>/dev/null)
+		if [[ -n $cible ]]; then
+			printf '%s %s(alternative Debian)%s\n' "${cible##*/}" "$D" "$R"
+			return 0
+		fi
+	fi
+	return 1
+}
+
+lister_assistants_xfce() {
+	local categorie="$1" fichier nom trouve=0
+	for fichier in /usr/share/xfce4/helpers/*.desktop; do
+		[[ -f $fichier ]] || continue
+		grep -q "^X-XFCE-Category=$categorie\$" "$fichier" 2>/dev/null || continue
+		nom=$(grep -m1 '^Name=' "$fichier" 2>/dev/null) || nom=""
+		printf '  %s %s%s%s\n' "$(col "$(basename "$fichier" .desktop)" 24)" "$D" "${nom#Name=}" "$R"
+		trouve=1
+	done
+	(( trouve == 1 )) && return 0
+	printf '  %s\n' "(liste vide — le paquet exo-utils la fournit)"
+	return 1
+}
+
+terminal_cmd() {
+	local demande="$1" actuel
+	actuel=$(terminal_actuel) || actuel="(aucun)"
+
+	if [[ -z $demande ]]; then
+		say "Terminal : $actuel"
+		printf '\n%sTerminaux déclarés à XFCE :%s\n' "$B" "$R"
+		lister_assistants_xfce TerminalEmulator
+		printf '\n'
+		say "Changer : $PROG terminal xfce4-terminal"
+		return 0
+	fi
+
+	avertir_root
+	local assistant="/usr/share/xfce4/helpers/${demande%.desktop}.desktop"
+	if [[ ! -f $assistant ]]; then
+		warn "« $demande » n'est pas un terminal connu de XFCE."
+		lister_assistants_xfce TerminalEmulator >&2
+		die "Reprenez avec un des noms ci-dessus."
+	fi
+
+	mkdir -p "${HELPERS_RC%/*}" || die "Impossible de créer ${HELPERS_RC%/*}."
+	[[ -f $HELPERS_RC ]] || : > "$HELPERS_RC"
+	if grep -q '^TerminalEmulator=' "$HELPERS_RC" 2>/dev/null; then
+		sed -i "s|^TerminalEmulator=.*|TerminalEmulator=${demande%.desktop}|" "$HELPERS_RC" \
+			|| die "Écriture impossible dans $HELPERS_RC."
+	else
+		printf 'TerminalEmulator=%s\n' "${demande%.desktop}" >> "$HELPERS_RC" \
+			|| die "Écriture impossible dans $HELPERS_RC."
+	fi
+
+	ok "Terminal de XFCE : ${demande%.desktop}"
+	say "Vaut pour ce qui passe par XFCE — Thunar, « Ouvrir un terminal ici », les"
+	say "raccourcis du bureau. La commande x-terminal-emulator de Debian, elle, se"
+	say "change à part : sudo update-alternatives --config x-terminal-emulator"
+	return 0
+}
+
+# --- État courant d'une catégorie -------------------------------------------
+
+defaut_de() {
+	local categorie="$1" identifiant=""
+	local -a mimes=()
+	case "$categorie" in
+		navigateur)
+			# xdg-settings en sait plus que le seul type MIME : il regarde
+			# aussi les schémas http et https, qui décident des liens cliqués.
+			identifiant=$(xdg-settings get default-web-browser 2>/dev/null)
+			;;
+		terminal)
+			identifiant=$(terminal_actuel) || identifiant=""
+			printf '%s\n' "${identifiant:-(aucun)}"
+			return 0
+			;;
+		*)
+			read -r -a mimes <<<"$(mimes_de "$categorie")"
+			(( ${#mimes[@]} > 0 )) && identifiant=$(xdg-mime query default "${mimes[0]}" 2>/dev/null)
+			;;
+	esac
+	if [[ -z $identifiant ]]; then
+		printf '%s(aucune)%s\n' "$D" "$R"
+		return 1
+	fi
+	nom_ou_identifiant "$identifiant"
+}
+
+apercu() {
+	besoin xdg-mime xdg-utils
+	avertir_root
+	printf '%s%s%s\n' "$B" "Applications par défaut" "$R"
+	local categorie
+	while read -r categorie; do
+		printf '  %s %s\n' "$(col "$(titre_de "$categorie")" 26)" "$(defaut_de "$categorie")"
+	done < <(liste_categories)
+	printf '\n'
+	say "Les choix possibles d'une catégorie : $PROG images"
+	say "Changer : $PROG images ristretto"
+	return 0
+}
+
+lister_remplacantes() {
+	local categorie="$1"
+	local -a mimes=()
+	read -r -a mimes <<<"$(mimes_de "$categorie")"
+	(( ${#mimes[@]} > 0 )) || return 0
+	local principal="${mimes[0]}"
+
+	printf '%sTypes associés par cette catégorie :%s\n' "$D" "$R"
+	printf '%s  %s%s\n' "$D" "${mimes[*]}" "$R"
+
+	local courant
+	courant=$(xdg-mime query default "$principal" 2>/dev/null)
+	local -a installees=()
+	mapfile -t installees < <(applications_pour "$principal")
+
+	printf '\n%sInstallées et capables d%souvrir %s :%s\n' "$B" "'" "$principal" "$R"
+	if (( ${#installees[@]} == 0 )); then
+		printf '  %s\n' "(aucune application ne déclare ce type)"
+		return 0
+	fi
+	local appli marque
+	for appli in "${installees[@]}"; do
+		if [[ $appli == "$courant" ]]; then marque="*"; else marque=" "; fi
+		printf ' %s %s %s%s%s\n' "$marque" "$(col "${appli%.desktop}" 34)" "$D" "$(nom_appli "$appli")" "$R"
+	done
+	printf '%s * = celle qui est en place%s\n' "$D" "$R"
+	return 0
+}
+
+definir() {
+	local categorie="$1" demande="$2" cible
+	cible=$(resoudre_desktop "$demande") || exit 1
+	avertir_root
+
+	if [[ $categorie == navigateur ]]; then
+		# xdg-settings s'occupe de text/html ET des schémas http/https d'un
+		# seul geste : c'est le chemin prévu pour le navigateur.
+		besoin xdg-settings xdg-utils
+		xdg-settings set default-web-browser "$cible" \
+			|| die "xdg-settings a refusé « $cible »."
+		ok "Navigateur web : $(nom_ou_identifiant "$cible")"
+		return 0
+	fi
+
+	besoin xdg-mime xdg-utils
+	local -a mimes=()
+	read -r -a mimes <<<"$(mimes_de "$categorie")"
+	(( ${#mimes[@]} > 0 )) || die "Catégorie sans type de fichier : « $categorie »."
+
+	xdg-mime default "$cible" "${mimes[@]}" || die "xdg-mime a refusé « $cible »."
+
+	local verification
+	verification=$(xdg-mime query default "${mimes[0]}" 2>/dev/null)
+	if [[ $verification != "$cible" ]]; then
+		die "Le réglage n'a pas pris : ${mimes[0]} reste sur « ${verification:-rien} »."
+	fi
+	ok "$(titre_de "$categorie") : $(nom_ou_identifiant "$cible")"
+	say "${#mimes[@]} type(s) de fichier associé(s), écrits dans $MIMEAPPS"
+
+	# Une application qui ne déclare pas un type peut quand même être lancée
+	# dessus — elle risque simplement de ne pas savoir l'ouvrir. On le signale
+	# plutôt que de laisser découvrir la panne au double-clic.
+	local -a orphelins=()
+	local mime
+	for mime in "${mimes[@]}"; do
+		declare_ce_type "$cible" "$mime" || orphelins+=("$mime")
+	done
+	if (( ${#orphelins[@]} == ${#mimes[@]} )); then
+		warn "« $cible » ne déclare aucun de ces types : elle sera lancée quand même,"
+		warn "mais rien ne garantit qu'elle sache les ouvrir."
+	elif (( ${#orphelins[@]} > 0 )); then
+		warn "Types que « $cible » ne déclare pas : ${orphelins[*]}"
+	fi
+	return 0
+}
+
+categorie_cmd() {
+	local categorie="$1" demande="$2"
+	if [[ $categorie == terminal ]]; then
+		terminal_cmd "$demande"
+		return
+	fi
+	if [[ -n $demande ]]; then
+		definir "$categorie" "$demande"
+		return
+	fi
+	besoin xdg-mime xdg-utils
+	say "$(titre_de "$categorie") : $(defaut_de "$categorie")"
+	printf '\n'
+	lister_remplacantes "$categorie"
+	printf '\n'
+	say "Changer : $PROG $categorie <nom de la liste ci-dessus>"
+	return 0
+}
+
+# --- Un fichier précis -------------------------------------------------------
+
+pour_fichier() {
+	local fichier="$1"
+	[[ -e $fichier ]] || die "« $fichier » n'existe pas."
+	besoin xdg-mime xdg-utils
+
+	local mime
+	mime=$(xdg-mime query filetype "$fichier" 2>/dev/null)
+	# xdg-mime renvoie parfois « text/plain; charset=utf-8 » : le paramètre
+	# n'intéresse pas les associations.
+	mime="${mime%%;*}"
+	[[ -n $mime ]] || die "Type de « $fichier » indéterminé."
+
+	say "Fichier : $fichier"
+	say "Type    : $mime"
+
+	local identifiant
+	identifiant=$(xdg-mime query default "$mime" 2>/dev/null)
+	if [[ -z $identifiant ]]; then
+		warn "Aucune application n'est associée à ce type."
+		say "Les candidates installées :"
+		local -a installees=()
+		mapfile -t installees < <(applications_pour "$mime")
+		if (( ${#installees[@]} == 0 )); then
+			printf '  %s\n' "(aucune)"
+		else
+			printf '  %s\n' "${installees[@]%.desktop}"
+		fi
+		return 1
+	fi
+
+	say "Ouvert par : $(nom_ou_identifiant "$identifiant")"
+	local commande
+	commande=$(champ_desktop "$identifiant" Exec) || commande=""
+	[[ -n $commande ]] && printf '%s  commande : %s%s\n' "$D" "$commande" "$R"
+	return 0
+}
+
+# --- Remise à zéro -----------------------------------------------------------
+
+reinitialiser() {
+	avertir_root
+	if [[ ! -f $MIMEAPPS ]]; then
+		ok "Rien à effacer : $MIMEAPPS n'existe pas."
+		say "Les associations sont déjà celles fournies par le système."
+		return 0
+	fi
+
+	warn "Ceci efface TOUS vos choix d'applications par défaut :"
+	printf '  %s\n' "$MIMEAPPS"
+	# Sans terminal, personne ne peut confirmer : on refuse plutôt que de
+	# supposer un « oui » sur une commande qui détruit un fichier.
+	if [[ ! -t 0 ]]; then
+		die "Aucune saisie possible ici : lancez la commande dans un terminal."
+	fi
+	printf 'Confirmer ? [o/N] '
+	local reponse=""
+	read -r reponse
+	case "$reponse" in
+		o|O|oui|Oui|OUI) ;;
+		*) say "Annulé — rien n'a été touché."; return 0 ;;
+	esac
+
+	rm -f -- "$MIMEAPPS" || die "Impossible d'effacer $MIMEAPPS."
+	ok "Effacé. Les associations reviennent à celles du système."
+
+	local ancien="$HOME/.local/share/applications/mimeapps.list"
+	if [[ -f $ancien ]]; then
+		warn "Un fichier de l'ancien emplacement subsiste et garde la priorité :"
+		printf '  %s\n' "$ancien"
+		say "Effacez-le à la main si les associations ne changent pas."
+	fi
+	return 0
+}
+
+# --- Panneau graphique -------------------------------------------------------
+
+panneau() {
+	besoin exo-preferred-applications exo-utils
+	if [[ -z ${DISPLAY:-}${WAYLAND_DISPLAY:-} ]]; then
+		die "Aucune session graphique détectée : ce panneau a besoin d'un écran."
+	fi
+	exo-preferred-applications >/dev/null 2>&1 &
+	disown
+	ok "Panneau de XFCE ouvert."
+	say "Il ne couvre que navigateur, courriel, gestionnaire de fichiers et"
+	say "terminal. Le reste — vidéo, images, PDF, archives — passe par ici."
+	return 0
+}
+
+# --- Aiguillage --------------------------------------------------------------
+
+case "${1:-}" in
+	'')
+		apercu
+		;;
+	-h|--help|help)
+		usage
+		;;
+	navigateur|courriel|video|audio|images|texte|fichiers|terminal|archives|pdf)
+		rubrique="$1"
+		shift
+		categorie_cmd "$rubrique" "${1:-}"
+		;;
+	pour)
+		shift
+		[[ $# -ge 1 ]] || die "Il manque le fichier : $PROG pour Documents/facture.pdf"
+		pour_fichier "$1"
+		;;
+	reinitialiser)
+		reinitialiser
+		;;
+	panneau)
+		panneau
+		;;
+	*)
+		usage >&2
+		die "Commande inconnue : « $1 »."
+		;;
+esac
