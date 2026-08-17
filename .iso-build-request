@@ -41,6 +41,38 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+#
+# ============================================================================
+#  ESSAYÉES SUR LE VRAI MATÉRIEL — LES DEUX PASSENT. (17 août 2026)
+#
+#  Alex a essayé les deux ISO sur ses deux machines et les a approuvées :
+#    · standard (build 53) sur le ThinkPad T460 de 2016 ;
+#    · pro      (build 55) sur l'Alienware Aurora ACT1250, RTX 5060.
+#
+#  CE QUE ÇA CLÔT. L'Alienware perdait le signal HDMI vers le téléviseur
+#  depuis des semaines. On a soupçonné, dans l'ordre : le pilote NVIDIA et
+#  sa branche, Secure Boot, le port HDMI, le câble, les réglages de la
+#  Hisense, Compiz, et TLP qui endormait la carte. Chacune de ces pistes a
+#  coûté une construction de plus d'une heure, et aucune n'était la bonne.
+#
+#  La vraie cause a été trouvée en direct, dans la console du système
+#  installé, avec « sudo lexos tv » : nouveau — le pilote LIBRE, pas le
+#  propriétaire — se chargeait automatiquement et réclamait la carte avant
+#  que nvidia.ko, compilé par DKMS et chargé plus tard, ait sa chance. Un
+#  périphérique déjà lié ne peut plus être repris. Et sur Blackwell,
+#  nouveau ne voit AUCUNE sortie vidéo. D'où « aucune sortie branchée »,
+#  écran allumé, câble bon, pilote NVIDIA parfaitement installé à côté.
+#
+#  LA LEÇON, pour la prochaine fois qu'un écran reste noir : ne pas
+#  demander « le pilote est-il installé ? » mais « QUEL pilote tient la
+#  carte EN CE MOMENT ? ». C'est ce que montre « lexos tv », et c'est ce
+#  qui a débloqué des semaines de fausses pistes en une minute.
+#
+#  Le correctif tient en deux lignes posées à deux endroits (hook 0260 pour
+#  le système installé, auto/config pour les premières secondes du
+#  démarrage) — mais il fallait savoir où regarder. NE PAS LE RETIRER.
+# ============================================================================
+#
 # build 55 : LE MÊME QUE LE 54, PARCE QUE LE 54 A ÉTÉ PERDU À LA TOUTE
 #   DERNIÈRE SECONDE — ET LA RAISON EST CORRIGÉE.
 #   L'ISO pro du build 54 a été construite avec succès : 8,0 Go en 69 min
