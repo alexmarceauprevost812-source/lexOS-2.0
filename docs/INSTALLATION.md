@@ -459,6 +459,14 @@ Ce n'est pas un défaut de LexOS : c'est Windows qui reste à moitié allumé.
 5. **Lis l'écran de résumé** avant de valider. Rien n'est écrit sur le disque
    avant que tu cliques.
 6. Au redémarrage, un menu te propose **LexOS** ou **Windows Boot Manager**.
+   Si tu ne touches à rien, **Windows démarre tout seul après 3 secondes**
+   — Windows sert à jouer, et celui qui allume pour jouer n'a rien à faire.
+   Pour LexOS : une flèche du clavier pendant ces 3 secondes, puis Entrée.
+
+> **Pour changer ce délai ou le système par défaut**, une fois LexOS installé :
+> `sudoedit /etc/default/grub.d/lexos.cfg` (la ligne `GRUB_TIMEOUT`), puis
+> `sudo update-grub`. Et pour remettre LexOS par défaut :
+> `sudo systemctl disable lexos-grub-defaut && sudo grub-editenv - unset saved_entry`.
 
 ### Ce qui rend ça possible, et qui reste du logiciel libre
 

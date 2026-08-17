@@ -140,6 +140,39 @@ GRUB_GFXPAYLOAD_LINUX=keep
 #  s'y méprendre à une perte de données.
 #  On la remet donc à false, et os-prober est dans la liste OBLIGATOIRE.
 GRUB_DISABLE_OS_PROBER=false
+#  ── LE CHOIX AU DÉMARRAGE : WINDOWS PAR DÉFAUT, TROIS SECONDES ─────────
+#  Demande d'Alex : Windows sert à jouer, LexOS à travailler. Au démarrage,
+#  le menu propose les deux ; si personne ne touche à rien, la machine part
+#  sur Windows. C'est le bon réglage pour une machine partagée : celui qui
+#  allume pour jouer n'a rien à faire, celui qui vient travailler appuie sur
+#  une flèche.
+#
+#  « menu » est indispensable : sans lui, GRUB peut cacher le menu derrière
+#  un compte à rebours discret, et on ne voit pas qu'il y a un choix.
+GRUB_TIMEOUT=3
+GRUB_TIMEOUT_STYLE=menu
+#  POURQUOI « saved » ET NON « 0 ».
+#  « 0 » désigne la PREMIÈRE entrée du menu — et la première entrée est
+#  LexOS, pas Windows : os-prober tourne dans 30_os-prober, après le
+#  10_linux qui liste les noyaux LexOS. Le document reçu propose de renuméroter
+#  os-prober en 09_os-prober et de désactiver le 30. Ça marche, mais
+#  /etc/grub.d/30_os-prober appartient à grub-common : une mise à jour du
+#  paquet lui rendrait son droit d'exécution, et Windows apparaîtrait DEUX
+#  fois dans le menu, sans que personne comprenne pourquoi.
+#
+#  « saved » est le mécanisme prévu par GRUB pour exactement ça : l'entrée
+#  par défaut est lue dans /boot/grub/grubenv, et « grub-set-default » l'y
+#  écrit par son TITRE. Le service lexos-grub-defaut la pose au premier
+#  démarrage du système installé, quand os-prober a enfin vu le vrai disque.
+#  Aucun fichier de Debian n'est touché, et rien ne casse à la mise à jour.
+#
+#  Si aucun Windows n'est trouvé, rien n'est écrit : grubenv reste vide et
+#  GRUB démarre sur LexOS. Le défaut est donc toujours sûr.
+GRUB_DEFAULT=saved
+#  À false volontairement : « true » ferait de la DERNIÈRE entrée choisie le
+#  nouveau défaut. On veut que Windows reste le défaut même après un
+#  démarrage sur LexOS — sinon le réglage se retourne au premier usage.
+GRUB_SAVEDEFAULT=false
 EOF
 
 # --- Métadonnées internes ----------------------------------------------------
