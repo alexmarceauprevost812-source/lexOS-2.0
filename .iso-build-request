@@ -43,34 +43,42 @@ suite: trixie
 # Compteur de demandes — incrémenter pour relancer.
 #
 # ============================================================================
-#  ESSAYÉES SUR LE VRAI MATÉRIEL — LES DEUX PASSENT. (17 août 2026)
+#  LES DEUX ISO SONT CONSTRUITES ET PUBLIÉES — PAS ENCORE ESSAYÉES.
+#  (17 août 2026)
 #
-#  Alex a essayé les deux ISO sur ses deux machines et les a approuvées :
-#    · standard (build 53) sur le ThinkPad T460 de 2016 ;
-#    · pro      (build 55) sur l'Alienware Aurora ACT1250, RTX 5060.
+#    · standard (build 53) → le ThinkPad T460 de 2016    : publiée
+#    · pro      (build 55) → l'Alienware Aurora, RTX 5060 : publiée
 #
-#  CE QUE ÇA CLÔT. L'Alienware perdait le signal HDMI vers le téléviseur
-#  depuis des semaines. On a soupçonné, dans l'ordre : le pilote NVIDIA et
-#  sa branche, Secure Boot, le port HDMI, le câble, les réglages de la
-#  Hisense, Compiz, et TLP qui endormait la carte. Chacune de ces pistes a
-#  coûté une construction de plus d'une heure, et aucune n'était la bonne.
+#  ATTENTION À CE QUE CETTE LIGNE VEUT DIRE. « Publiée » signifie que la
+#  construction a réussi et que les fichiers sont téléchargeables. Ça ne
+#  veut PAS dire que le correctif marche : personne n'a encore démarré ces
+#  ISO sur le vrai matériel. Alex les essaiera en rentrant du travail.
 #
-#  La vraie cause a été trouvée en direct, dans la console du système
-#  installé, avec « sudo lexos tv » : nouveau — le pilote LIBRE, pas le
-#  propriétaire — se chargeait automatiquement et réclamait la carte avant
-#  que nvidia.ko, compilé par DKMS et chargé plus tard, ait sa chance. Un
-#  périphérique déjà lié ne peut plus être repris. Et sur Blackwell,
-#  nouveau ne voit AUCUNE sortie vidéo. D'où « aucune sortie branchée »,
-#  écran allumé, câble bon, pilote NVIDIA parfaitement installé à côté.
+#  CE QUI RESTE À VÉRIFIER, et c'est tout l'enjeu. L'Alienware perd le
+#  signal HDMI vers le téléviseur depuis des semaines. On a soupçonné, dans
+#  l'ordre : le pilote NVIDIA et sa branche, Secure Boot, le port HDMI, le
+#  câble, les réglages de la Hisense, Compiz, et TLP qui endormait la
+#  carte. Chacune de ces pistes a coûté une construction de plus d'une
+#  heure, et aucune n'était la bonne.
 #
-#  LA LEÇON, pour la prochaine fois qu'un écran reste noir : ne pas
-#  demander « le pilote est-il installé ? » mais « QUEL pilote tient la
-#  carte EN CE MOMENT ? ». C'est ce que montre « lexos tv », et c'est ce
-#  qui a débloqué des semaines de fausses pistes en une minute.
+#  La cause enfin trouvée — celle-là vue de nos yeux, en direct, dans la
+#  console du système installé avec « sudo lexos tv » : nouveau, le pilote
+#  LIBRE et pas le propriétaire, se chargeait automatiquement et réclamait
+#  la carte avant que nvidia.ko, compilé par DKMS et chargé plus tard, ait
+#  sa chance. Un périphérique déjà lié ne peut plus être repris. Et sur
+#  Blackwell, nouveau ne voit AUCUNE sortie vidéo. D'où « aucune sortie
+#  branchée », écran allumé, câble bon, pilote NVIDIA installé à côté.
 #
-#  Le correctif tient en deux lignes posées à deux endroits (hook 0260 pour
-#  le système installé, auto/config pour les premières secondes du
-#  démarrage) — mais il fallait savoir où regarder. NE PAS LE RETIRER.
+#  Le correctif du build 54 s'attaque à ça, à deux endroits : hook 0260
+#  pour le système installé, auto/config pour les premières secondes du
+#  démarrage. Il est cohérent avec ce qu'on a observé — mais il n'est pas
+#  encore prouvé. Tant que « lexos tv » n'a pas dit « nvidia » à la place
+#  de « nouveau » sur la machine d'Alex, cette affaire reste ouverte.
+#
+#  LA LEÇON, elle, est déjà acquise : devant un écran noir, ne pas demander
+#  « le pilote est-il installé ? » mais « QUEL pilote tient la carte EN CE
+#  MOMENT ? ». C'est ce que montre « lexos tv », et c'est ce qui a débloqué
+#  des semaines de fausses pistes en une minute.
 # ============================================================================
 #
 # build 55 : LE MÊME QUE LE 54, PARCE QUE LE 54 A ÉTÉ PERDU À LA TOUTE
