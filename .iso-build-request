@@ -25,12 +25,31 @@
 #
 #   La Release est publiée sous « latest-<saveur> » : changer de saveur ne
 #   remplace donc PAS l'ISO précédente d'une autre saveur.
-flavour: dev
+flavour: pro
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 50 : L'ALIENWARE, AVEC ABSOLUMENT TOUT CE QU'ON A CORRIGÉ.
+#   « l'ISO dernière pour mon Alienware est-elle prête avec tout ce qu'on a
+#   corrigé ? » Non — la pro en ligne (build 47) date de 23 h 17, avant
+#   qu'on trouve le bouton « Quitter ». Celle-ci est la première pro à tout
+#   avoir :
+#
+#     · le correctif du greffon manquant — la fenêtre « Quitter » qui
+#       fermait la barre du haut ne peut plus s'ouvrir (build 49) ;
+#     · la météo qui marche enfin, genmon-13.rc au lieu du XML (build 49) ;
+#     · les Paramètres à la taille de l'écran, PySide6 obligatoire (49) ;
+#     · le même bureau que le portable, application pour application —
+#       95 paquets stricts, 334 optionnels (build 48) ;
+#     · le pilote NVIDIA 595.91.07-1 et Compiz coupé (build 47).
+#
+#   Elle prend la place de la demande dev qui attendait encore en file :
+#   elle n'avait pas démarré, rien n'est perdu, et l'Alienware passe devant
+#   parce que c'est ce qu'Alex a demandé. Une dev avec exactement le même
+#   bureau suivra derrière.
+#
 # build 49 : LA VRAIE RAISON POUR LAQUELLE LA BARRE DISPARAISSAIT.
 #   « quand je clique, le menu du haut disparaît. » La photo d'Alex a donné
 #   la réponse, et ce n'était ni Compiz ni une course au démarrage. Au
@@ -720,4 +739,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 49
+build: 50
