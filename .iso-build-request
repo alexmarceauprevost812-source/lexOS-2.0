@@ -25,12 +25,49 @@
 #
 #   La Release est publiée sous « latest-<saveur> » : changer de saveur ne
 #   remplace donc PAS l'ISO précédente d'une autre saveur.
-flavour: dev
+flavour: pro
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 52 : L'ENDORMEUR DE CARTE GRAPHIQUE, ET LE TRI D'UN VIEUX DIAGNOSTIC.
+#   L'ESSAI DU BUILD 50 SUR L'ALIENWARE (vidéo à l'appui) : même en mode
+#   secours — nomodeset, toute la pile NVIDIA et nouveau en liste noire,
+#   aucun bureau — le signal HDMI se perdait ENCORE à ~20 secondes. Aucun
+#   pilote d'affichage ne peut être coupable : aucun n'a le droit de
+#   toucher l'écran dans ce mode. Le seul acteur restant qui touche au
+#   matériel à cet instant est TLP, l'économiseur d'énergie pour
+#   portables : il démarre pile à ce moment et met en veille les
+#   périphériques PCI « inutilisés ». Sans pilote pour la tenir occupée,
+#   la carte graphique EST un périphérique inutilisé à ses yeux — il peut
+#   l'endormir pendant qu'elle envoie l'image. Et sur une tour sans
+#   adaptateur secteur à lire, TLP peut se croire sur batterie et
+#   appliquer son profil le plus agressif.
+#
+#   Ce que ce build change :
+#     · tlp.service est conditionné à la présence d'une batterie
+#       (ConditionPathExistsGlob=/sys/class/power_supply/BAT*) : sur le
+#       ThinkPad rien ne change, sur une tour il ne démarre plus.
+#     · le mode secours ajoute systemd.mask=tlp.service — ceinture et
+#       bretelles : même si la condition se trompait, le mode dont le seul
+#       travail est d'afficher ne laissera personne éteindre l'écran.
+#     · 00-core.list gagne firmware-nvidia-graphics (le GSP dont nouveau a
+#       besoin sur les RTX récentes — le pilote propriétaire de la pro
+#       apporte le sien, ceci couvre les autres saveurs) et
+#       firmware-sof-signed (le son interne des portables récents).
+#
+#   AU PASSAGE, LE TRI D'UN DIAGNOSTIC QU'ALEX A COLLÉ, écrit pour l'ancien
+#   dépôt (LexOS 1.0.2, « logiciel-ti-lex- ») : sa cause principale — « le
+#   hook 0260 n'existe pas, aucun pilote NVIDIA nulle part » — est fausse
+#   ici depuis longtemps (0260 existe, pilote 595.91.07-1 installé et
+#   compilé, prouvé au journal du build 50). Ses listes « fantômes »
+#   56/57 existent. Son mode secours proposé existe déjà en mieux. Ce
+#   qu'il apportait de vrai et qu'on garde : penser au SECURE BOOT (le
+#   module DKMS n'est pas signé — Secure Boot actif = pilote refusé =
+#   écran noir ; c'était déjà documenté dans INSTALLATION.md, c'est
+#   maintenant dit à Alex pour SON BIOS), et les micrologiciels ci-dessus.
+#
 # build 51 : LE PORTABLE, AVEC LES MÊMES CORRECTIFS QUE LA 50.
 #   « où ISO pour mon portable ? » La dernière dev complète est la 48 :
 #   bureau unifié, mais construite AVANT le correctif du bouton « Quitter »
@@ -752,4 +789,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 51
+build: 52

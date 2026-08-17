@@ -127,6 +127,22 @@ BOOTAPPEND_FAILSAFE="${BOOTAPPEND_FAILSAFE} lexos.failsafe=1"
 #  les init qui ignoreraient le premier.
 BOOTAPPEND_FAILSAFE="${BOOTAPPEND_FAILSAFE} systemd.unit=multi-user.target 3"
 
+#  CE QUE L'ESSAI DU BUILD 50 A MONTRÉ (Alienware, TV Hisense, vidéo à
+#  l'appui) : même dans CE mode — nomodeset, toute la pile NVIDIA et nouveau
+#  en liste noire, aucun bureau — le signal se perdait encore à ~20 secondes.
+#  Aucun pilote d'affichage ne peut être coupable : aucun n'a le droit de
+#  toucher l'écran ici. Le seul acteur restant qui agit sur le matériel à ce
+#  moment-là est TLP, l'économiseur d'énergie (paquet pensé pour les
+#  portables) : il démarre justement autour de la vingtième seconde et met
+#  en veille les périphériques PCI « inutilisés ». Or dans ce mode, AUCUN
+#  pilote ne tient la carte graphique — TLP peut donc l'endormir pendant
+#  qu'elle envoie l'image du framebuffer UEFI. Sur une tour branchée au mur,
+#  TLP peut de plus se croire sur batterie (pas de /sys/class/power_supply/AC)
+#  et appliquer son profil le plus agressif. On l'interdit ici, et le
+#  service lui-même est conditionné à la présence d'une batterie (voir le
+#  drop-in tlp.service.d/lexos-batterie.conf).
+BOOTAPPEND_FAILSAFE="${BOOTAPPEND_FAILSAFE} systemd.mask=tlp.service"
+
 #  ── Réponses préremplies de l'installateur ──────────────────────────────
 #  config/includes.installer/preseed.cfg est recopié à la racine du support
 #  par live-build ; l'installateur le trouve sous /cdrom. Il ne contient que
