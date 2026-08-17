@@ -35,12 +35,51 @@
 #
 #   La Release est publiée sous « latest-<saveur> » : changer de saveur ne
 #   remplace donc PAS l'ISO précédente d'une autre saveur.
-flavour: standard
+flavour: pro
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 54 : TROUVÉ EN DIRECT SUR L'ALIENWARE — nouveau prenait la carte
+#   avant nvidia.
+#   Après le build 53, Alex a testé pour de vrai, en direct, sur la tour
+#   branchée à la Hisense. Le signal HDMI se perdait TOUJOURS, alors que :
+#     · le pilote NVIDIA propriétaire s'installait sans erreur (hook 0260,
+#       branche épinglée sous 610.x comme toujours) ;
+#     · Secure Boot a été désactivé (correctement, en repassant d'abord par
+#       « Enable Secure Boot », PAS en touchant « Enable Microsoft UEFI CA »
+#       tout en laissant Secure Boot actif — combinaison que le BIOS
+#       lui-même déconseille et qu'on a évitée) — et le problème est
+#       resté identique ;
+#     · TLP était bien maîtrisé depuis le build 52 (tenu, testé en console
+#       plusieurs minutes sans coupure).
+#   Donc ni le pilote, ni Secure Boot, ni TLP. `lexos tv`, lancé en direct
+#   dans la console du système installé, a montré la vraie cause :
+#     Kernel modules: nouveau
+#     Sorties vidéo vues par le noyau : AUCUNE SORTIE BRANCHÉE
+#   nouveau — le pilote libre, PAS le pilote NVIDIA propriétaire — s'était
+#   chargé automatiquement et avait pris la carte avant que nvidia.ko
+#   (compilé par DKMS, chargé plus tard depuis l'initramfs) ait la moindre
+#   chance de la réclamer. Un périphérique déjà lié par un pilote ne peut
+#   plus être repris par un autre. Et sur cette génération de carte
+#   (Blackwell, RTX 50), nouveau ne sait lire AUCUNE sortie vidéo — d'où
+#   « aucune sortie branchée » même écran allumé, câble bon, port bon.
+#   Rien dans le dépôt ne mettait nouveau en liste noire de façon
+#   permanente : le seul blacklist existant (build 52) ne vivait que dans
+#   les paramètres du mode secours de secours, pas dans le système normal.
+#   Ce build corrige la vraie cause, à deux endroits :
+#     · /etc/modprobe.d/lexos-blacklist-nouveau.conf (posé par le hook 0260,
+#       seulement quand le pilote NVIDIA s'installe avec succès) — empêche
+#       nouveau de se charger du tout, sur ce système installé.
+#     · nouveau.modeset=0 ajouté à la ligne de commande du noyau
+#       (auto/config, BOOTAPPEND normal) — couvre les toutes premières
+#       secondes du démarrage, avant même que /etc soit monté et donc avant
+#       que le fichier modprobe.d puisse agir. Sans effet sur le ThinkPad
+#       ou toute machine sans carte NVIDIA.
+#   CETTE ISO-CI EST POUR L'ALIENWARE (saveur pro) — c'est la machine
+#   concernée, celle qu'Alex veut ré-essayer avant de partir travailler.
+#
 # build 53 : LE THINKPAD D'ABORD, ET DEUX VERSIONS AU LIEU DE TROIS.
 #   DEUX VERSIONS, NOMMÉES PAR LA MACHINE. Décision d'Alex, après avoir vu
 #   qu'une troisième ne servait à rien :
@@ -844,4 +883,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 53
+build: 54
