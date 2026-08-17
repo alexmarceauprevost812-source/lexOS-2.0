@@ -25,12 +25,25 @@
 #
 #   La Release est publiée sous « latest-<saveur> » : changer de saveur ne
 #   remplace donc PAS l'ISO précédente d'une autre saveur.
-flavour: pro
+flavour: dev
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 51 : LE PORTABLE, AVEC LES MÊMES CORRECTIFS QUE LA 50.
+#   « où ISO pour mon portable ? » La dernière dev complète est la 48 :
+#   bureau unifié, mais construite AVANT le correctif du bouton « Quitter »
+#   (la 49, qui l'apportait, a été annulée quand la pro 50 est passée
+#   devant). Celle-ci est donc la première DEV à tout avoir : correctif du
+#   greffon, météo genmon-13.rc, Paramètres à la taille de l'écran, bureau
+#   unifié. Même bureau que la pro 50, sans le pilote NVIDIA — le ThinkPad
+#   n'a pas de carte NVIDIA.
+#
+#   Poussée pendant que la 50 est « in_progress » : GitHub n'annule que les
+#   demandes en attente, jamais celles qui construisent. Vérifié avant de
+#   pousser.
+#
 # build 50 : L'ALIENWARE, AVEC ABSOLUMENT TOUT CE QU'ON A CORRIGÉ.
 #   « l'ISO dernière pour mon Alienware est-elle prête avec tout ce qu'on a
 #   corrigé ? » Non — la pro en ligne (build 47) date de 23 h 17, avant
@@ -739,4 +752,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 50
+build: 51
