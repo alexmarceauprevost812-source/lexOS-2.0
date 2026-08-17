@@ -585,12 +585,21 @@ mkdir -p "$SKEL_XFCONF"
 #  Le XML livré contient déjà un format VALABLE (« lexOS  %a %d %b  %H h %M »).
 #  Si cette substitution échoue, on garde donc une horloge correcte, juste
 #  sans le nom de la saveur. Jamais de jeton non remplacé à l'écran.
+#  LA MÊME HORLOGE PARTOUT, ET LA MÊME QUE LA DÉMO.
+#
+#  L'horloge affichait le nom de la saveur : « lexOS ⚡ Dev » sur le
+#  portable, « lexOS ⚡ Pro » sur l'Alienware. C'était la dernière chose
+#  visible à l'écran qui n'était pas pareille entre les deux machines — et
+#  la démo, elle, montre « lexOS⚡Pro ». Maintenant que les deux ISO
+#  installent exactement les mêmes applications, cette distinction ne veut
+#  plus rien dire à l'écran : on affiche partout ce que montre la démo.
+#
+#  La vraie saveur de l'ISO n'est pas perdue pour autant, elle reste lisible
+#  à trois endroits : le nom du fichier ISO, la fenêtre de bienvenue, et la
+#  commande « lexos infos » dans le terminal.
 case "${LEXOS_FLAVOUR:-standard}" in
-	pro)    SAVEUR_AFFICHEE="Pro" ;;
-	gaming) SAVEUR_AFFICHEE="Gaming" ;;
-	dev)    SAVEUR_AFFICHEE="Dev" ;;
-	full)   SAVEUR_AFFICHEE="Full" ;;
-	*)      SAVEUR_AFFICHEE="" ;;
+	minimal) SAVEUR_AFFICHEE="" ;;
+	*)       SAVEUR_AFFICHEE="Pro" ;;
 esac
 
 #  L'éclair de la démo est un emoji : sans police emoji installée il

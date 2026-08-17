@@ -222,13 +222,27 @@ apply_flavour() {
 	ok "saveur '$f' : $count liste(s)"
 }
 
+# Toutes les saveurs de bureau reçoivent EXACTEMENT les mêmes listes.
+#
+# L'empilement d'avant creusait des trous que personne ne voyait : « pro »
+# sautait la liste « full » (LibreOffice, VLC, GIMP, ffmpeg) et « dev » —
+# la saveur du portable, celle sur laquelle on teste tout — sautait « full »,
+# « gaming » ET « pro ». Le bureau essayé sur le portable n'était donc pas
+# celui livré sur l'Alienware.
+#
+# Seule différence qui reste entre les ISO : le matériel. Le pilote NVIDIA
+# propriétaire n'est embarqué que par la saveur « pro » (hook 0260) — le
+# portable n'a pas de carte NVIDIA et le lui poser risquerait l'écran noir.
 case "$LEXOS_FLAVOUR" in
-	minimal)  ;;
-	standard) apply_flavour standard ;;
-	dev)      apply_flavour standard; apply_flavour dev ;;
-	full)     apply_flavour standard; apply_flavour dev; apply_flavour full ;;
-	gaming)   apply_flavour standard; apply_flavour dev; apply_flavour gaming ;;
-	pro)      apply_flavour standard; apply_flavour dev; apply_flavour gaming; apply_flavour pro ;;
+	minimal)
+		;;
+	*)
+		apply_flavour standard
+		apply_flavour dev
+		apply_flavour full
+		apply_flavour gaming
+		apply_flavour pro
+		;;
 esac
 
 TOTAL_PKGS="$(cat config/package-lists/*.list.chroot 2>/dev/null \

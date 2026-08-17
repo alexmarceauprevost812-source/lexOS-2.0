@@ -9,22 +9,72 @@
 # =============================================================================
 
 # minimal | standard | dev | full | gaming | pro
-#   pro = TI-LEX-OS Pro, l'édition pour jouer : Vulkan, Wine, Steam/Proton,
-#         Lutris, GameMode, MangoHud, manettes, émulateurs, jeux libres.
 #
-#   standard = le bureau complet SANS pilote propriétaire NVIDIA (le hook 0260
-#   ne s'exécute que sur la saveur pro). C'est la saveur à prendre pour une
-#   machine à carte graphique intégrée, ou pour tester le système lui-même
-#   sans traîner les 5 Go de la logithèque de jeu.
+#   DEPUIS LE BUILD 48, TOUTES LES SAVEURS DE BUREAU SONT LE MÊME BUREAU.
+#   Mêmes applications, mêmes icônes, même barre, même horloge, mêmes
+#   options — 95 paquets stricts et 334 paquets optionnels, partout pareil.
+#   La seule différence qui reste entre les ISO est MATÉRIELLE :
 #
-#   La Release est publiée sous « latest-<saveur> » : passer en standard ne
-#   remplace donc PAS l'ISO pro, qui reste disponible sous « latest-pro ».
-flavour: pro
+#     pro  = tout ça + le pilote NVIDIA propriétaire (hook 0260).
+#            À prendre pour l'Alienware et sa RTX 5060.
+#     les  = exactement le même bureau, sans le pilote NVIDIA.
+#     autres À prendre pour le ThinkPad (graphiques Intel) : lui poser un
+#            pilote NVIDIA ne servirait à rien et risquerait l'écran noir.
+#
+#   minimal reste à part : ISO sans bureau.
+#
+#   La Release est publiée sous « latest-<saveur> » : changer de saveur ne
+#   remplace donc PAS l'ISO précédente d'une autre saveur.
+flavour: dev
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 48 : LES TROIS VERSIONS DEVIENNENT LE MÊME BUREAU.
+#   « on construit 3 versions différentes, faudrait qu'elles soient toutes
+#   pareilles. » Alex a raison, et elles ne l'étaient pas. Voici ce qui
+#   différait vraiment, sans que rien ne le signale nulle part :
+#
+#     · la saveur PRO — la plus complète en principe, celle de l'Alienware —
+#       n'a JAMAIS reçu la liste « full ». Pas de LibreOffice, pas de
+#       Thunderbird, pas d'evince, pas de GParted, pas de Timeshift, pas de
+#       Transmission, pas de Remmina. Sur l'ISO la plus grosse.
+#     · la saveur DEV — celle du portable, celle sur laquelle Alex essaie
+#       TOUT — n'a reçu ni « full », ni « gaming », ni « pro-gamer ». Ni
+#       Wine, ni Steam, ni Vulkan, ni OBS, ni les émulateurs, ni la
+#       bureautique.
+#
+#   Le problème n'est pas la liste en elle-même, c'est ce que ça voulait
+#   dire : essayer le bureau sur le portable ne disait RIEN de ce qu'on
+#   allait trouver sur l'Alienware. Un test qui ne teste pas ce qu'on livre.
+#
+#   Ce que ce build change :
+#     · build.sh — toutes les saveurs de bureau empilent les cinq listes
+#       strictes (standard + dev + full + gaming + pro) : 95 paquets, partout
+#       les mêmes.
+#     · hook 0250 — une seule liste de paquets optionnels pour toutes les
+#       saveurs de bureau : 21 listes, 334 paquets, partout les mêmes. Le
+#       journal l'écrit noir sur blanc à chaque construction, pour qu'un
+#       écart futur se voie tout de suite.
+#     · i386 activé partout (Steam et Wine en ont besoin), plus seulement
+#       sur gaming et pro.
+#     · hook 0400 — l'horloge affiche « lexOS ⚡ Pro » sur TOUTES les
+#       saveurs, comme la démo. C'était la dernière chose visible à l'écran
+#       qui n'était pas pareille entre le portable et l'Alienware. La vraie
+#       saveur de l'ISO reste lisible dans le nom du fichier, dans la
+#       fenêtre de bienvenue et dans « lexos infos ».
+#
+#   CE QUI RESTE DIFFÉRENT, ET POURQUOI. Le pilote NVIDIA propriétaire n'est
+#   embarqué que par la saveur pro. Ce n'est pas un oubli : le ThinkPad n'a
+#   pas de carte NVIDIA, et lui poser ce pilote installerait une
+#   configuration Xorg nvidia et mettrait nouveau sur liste noire pour rien —
+#   soit exactement le risque d'écran noir qu'on passe notre temps à
+#   chasser. Une différence de matériel, jamais une différence de bureau.
+#
+#   Cette ISO-ci est la saveur DEV, pour le portable, parce que c'est là
+#   qu'Alex fait ses essais. La pro suivra avec exactement le même bureau.
+#
 # build 47 : L'ALIENWARE, AVEC LE CORRECTIF COMPIZ.
 #   Alex fait ses essais sur le portable et veut la pro prête en parallèle
 #   pour la grosse machine.
@@ -626,4 +676,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 47
+build: 48

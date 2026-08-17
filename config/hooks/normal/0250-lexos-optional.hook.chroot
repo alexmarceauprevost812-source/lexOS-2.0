@@ -31,18 +31,44 @@ if [ ! -d "$DIR" ]; then
 fi
 
 # --- Quelles listes s'appliquent à cette saveur ? ---------------------------
+#  UNE SEULE RÉPONSE POUR TOUTES LES SAVEURS DE BUREAU.
+#
+#  Avant, chaque saveur avait sa propre ligne, et les lignes ne disaient pas
+#  la même chose. Conséquences réelles, invisibles à la construction :
+#
+#    · la saveur « pro » — celle de l'Alienware, la plus complète en
+#      principe — n'a JAMAIS reçu 60-full.list. Pas de LibreOffice, pas de
+#      Thunderbird, pas d'evince, pas de GParted, pas de Timeshift.
+#    · la saveur « dev » — celle du portable, celle sur laquelle Alex teste
+#      tout — n'a reçu ni 70-gaming ni 75-pro-gamer ni 60-full.
+#
+#  Autrement dit : Alex essayait le bureau sur le portable, puis retrouvait
+#  un bureau DIFFÉRENT sur l'Alienware, sans que rien ne le prévienne. Un
+#  test qui ne teste pas la même chose que ce qu'on livre ne sert à rien.
+#
+#  Désormais toutes les saveurs de bureau installent exactement les mêmes
+#  applications. La seule différence qui subsiste entre les ISO est
+#  MATÉRIELLE : le pilote NVIDIA propriétaire (hook 0260, saveur « pro »
+#  seulement — le portable n'a pas de carte NVIDIA, le lui poser risquerait
+#  l'écran noir qu'on passe justement notre temps à chasser).
+#
+#  « minimal » reste à part : c'est une ISO sans bureau, par définition.
 LISTS="00-core.list 10-installer.list"
+BUREAU_COMPLET="15-essentiel.list 20-desktop.list 30-dock-effets.list \
+40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list \
+49-bienetre.list 50-dev.list 55-cartes.list 56-reglages.list 57-python.list \
+60-full.list 70-gaming.list 75-pro-gamer.list 80-securite.list \
+90-decoupe-image.list 95-logitheque.list"
+
 case "$FLAVOUR" in
-	minimal)    ;;
-	standard)   LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 57-python.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
-	dev)        LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 57-python.list 50-dev.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
-	full)       LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 57-python.list 50-dev.list 60-full.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
-	gaming)     LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 57-python.list 50-dev.list 70-gaming.list 80-securite.list 90-decoupe-image.list 95-logitheque.list"
-	            # Steam et Wine ont besoin des paquets 32 bits (i386) — non bloquant si indisponible.
-	            dpkg --add-architecture i386 2>/dev/null || true ;;
-	pro)        LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 56-reglages.list 57-python.list 50-dev.list 70-gaming.list 75-pro-gamer.list 80-securite.list 90-decoupe-image.list 95-logitheque.list"
-	            # Steam et Wine ont besoin des paquets 32 bits (i386) — non bloquant si indisponible.
-	            dpkg --add-architecture i386 2>/dev/null || true ;;
+	minimal)
+		;;
+	*)
+		LISTS="$LISTS $BUREAU_COMPLET"
+		# Steam et Wine ont besoin des paquets 32 bits (i386) — non bloquant
+		# si indisponible.
+		dpkg --add-architecture i386 2>/dev/null || true
+		;;
 esac
 
 # --- Collecte des noms -------------------------------------------------------
@@ -55,6 +81,13 @@ sort -u "$WANTED" -o "$WANTED"
 
 TOTAL="$(wc -l < "$WANTED")"
 echo "[lexos]   saveur ${FLAVOUR} : ${TOTAL} paquets optionnels envisagés"
+
+#  Preuve dans le journal : ce nombre doit être IDENTIQUE d'une saveur de
+#  bureau à l'autre. S'il diffère entre l'ISO du portable et celle de
+#  l'Alienware, c'est que les deux bureaux ne sont plus les mêmes.
+if [ "$FLAVOUR" != "minimal" ]; then
+	echo "[lexos]   bureau identique sur toutes les saveurs : ${TOTAL} paquets optionnels, $(set -- $LISTS; echo $#) listes"
+fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq || echo "[lexos]   !! apt-get update a échoué, on continue"
