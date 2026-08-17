@@ -72,12 +72,34 @@ case "$FLAVOUR" in
 esac
 
 # --- Collecte des noms -------------------------------------------------------
+#  UNE LISTE ABSENTE N'EST PAS UN PAQUET ABSENT. Tolérer un paquet manquant
+#  est sain — les dépôts bougent. Tolérer une LISTE manquante ne l'est pas :
+#  c'est une catégorie entière de fonctions qui disparaît de l'ISO sans un
+#  bruit. C'est arrivé dans l'ancien dépôt : deux listes réclamées mais
+#  jamais écrites, 89 paquets envolés, des sections de Paramètres vides à
+#  l'écran, et pour seule trace une ligne de journal noyée dans une heure de
+#  construction. On le dit donc FORT, en tête du rapport, et
+#  LEXOS_STRICT_LISTS=1 en fait une erreur qui arrête la construction.
 WANTED="$(mktemp)"
+LISTES_ABSENTES=""
 for L in $LISTS; do
-	[ -r "$DIR/$L" ] || { echo "[lexos]   liste absente : $L"; continue; }
+	[ -r "$DIR/$L" ] || { LISTES_ABSENTES="${LISTES_ABSENTES} $L"; continue; }
 	grep -Ev '^[[:space:]]*(#|$)' "$DIR/$L" >> "$WANTED" || true
 done
 sort -u "$WANTED" -o "$WANTED"
+
+if [ -n "$LISTES_ABSENTES" ]; then
+	echo "[lexos]   !! ============================================================"
+	echo "[lexos]   !! LISTES ABSENTES :${LISTES_ABSENTES}"
+	echo "[lexos]   !! Chacune est une catégorie entière d'outils qui ne sera"
+	echo "[lexos]   !! PAS dans l'ISO. Vérifier optional-packages/ ou retirer"
+	echo "[lexos]   !! ces noms du hook 0250."
+	echo "[lexos]   !! ============================================================"
+	if [ "${LEXOS_STRICT_LISTS:-0}" = "1" ]; then
+		echo "[lexos]   LEXOS_STRICT_LISTS=1 — on s'arrête ici."
+		exit 1
+	fi
+fi
 
 TOTAL="$(wc -l < "$WANTED")"
 echo "[lexos]   saveur ${FLAVOUR} : ${TOTAL} paquets optionnels envisagés"
@@ -99,6 +121,7 @@ if apt-get install -y --no-install-recommends $(tr '\n' ' ' < "$WANTED") >/dev/n
 	mkdir -p /etc/lexos
 	{
 		echo "# Paquets optionnels — saveur ${FLAVOUR}"
+		[ -n "$LISTES_ABSENTES" ] && echo "# !! LISTES ABSENTES :${LISTES_ABSENTES}"
 		echo "# Tous installés."
 		cat "$WANTED"
 	} > "$REPORT"
@@ -154,6 +177,7 @@ KO_COUNT="$(printf '%s' "$KO_LIST" | grep -c . || true)"
 mkdir -p /etc/lexos
 {
 	echo "# Paquets optionnels — saveur ${FLAVOUR}"
+	[ -n "$LISTES_ABSENTES" ] && echo "# !! LISTES ABSENTES :${LISTES_ABSENTES}"
 	echo "# Installés : ${OK_COUNT}    Indisponibles : ${KO_COUNT}"
 	echo
 	if [ -n "$KO_LIST" ]; then

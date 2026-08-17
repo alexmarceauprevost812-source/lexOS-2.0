@@ -1,10 +1,108 @@
-# Paramètres LexOS — la fenêtre Qt qui affiche l'interface de réglages.
-#
-# Mêmes modules que Cartes LexOS (55-cartes.list) : PySide6 vient des
-# paquets Debian et non de pip, pour ne pas écraser des fichiers gérés
-# par dpkg. Liste séparée volontairement — Paramètres doit rester
-# installé même si Cartes est un jour retiré d'une saveur.
+# =============================================================================
+#  Paramètres LexOS — la fenêtre Qt, ET les outils derrière chaque section
+# =============================================================================
+#  La fenêtre des Paramètres affiche 32 sections, comme la démo web. Mais une
+#  section sans logiciel derrière est un décor : le bouton s'affiche et rien
+#  ne répond. L'inventaire démo-contre-ISO (collé par Alex, recoupé avec nos
+#  listes réelles) a montré des sections à moitié meublées. Cette liste donne
+#  à CHAQUE section ses outils. Best effort comme le reste : un paquet
+#  disparu de Debian n'arrête pas la construction, il est listé au rapport.
+
+# --- La fenêtre elle-même (Qt) ----------------------------------------------
+#  PySide6 vient des paquets Debian et non de pip, pour ne pas écraser des
+#  fichiers gérés par dpkg. Redit dans 57-python.list, dédoublonné au hook.
 python3-pyside6.qtwidgets
 python3-pyside6.qtwebenginewidgets
 python3-pyside6.qtcore
 python3-pyside6.qtgui
+
+# --- Écrans -----------------------------------------------------------------
+#  ddcutil pilote la luminosité et le contraste des écrans EXTERNES par le
+#  câble (DDC/CI) — sans lui, la section Écrans ne règle que la dalle interne.
+ddcutil
+i2c-tools
+
+# --- Son --------------------------------------------------------------------
+#  easyeffects : égaliseur et effets PipeWire ; helvum : brancher les flux.
+easyeffects
+helvum
+pulseaudio-utils
+
+# --- Énergie ----------------------------------------------------------------
+powertop
+upower
+tlp-rdw
+
+# --- Souris et pavé tactile -------------------------------------------------
+libinput-tools
+xinput
+touchegg
+
+# --- Gestion des couleurs ---------------------------------------------------
+colord
+colord-data
+gnome-color-manager
+argyll
+
+# --- Tablette graphique -----------------------------------------------------
+xserver-xorg-input-wacom
+libwacom-bin
+
+# --- Accessibilité ----------------------------------------------------------
+#  orca et onboard sont déjà dans 15-essentiel ; voici la voix (espeak-ng),
+#  le pont applicatif (at-spi2) et les aides au pointeur.
+espeak-ng
+espeak-ng-data
+at-spi2-core
+mousetweaks
+xzoom
+
+# --- Utilisateurs -----------------------------------------------------------
+accountsservice
+
+# --- Date et heure ----------------------------------------------------------
+xfce4-datetime-plugin
+
+# --- Applications par défaut ------------------------------------------------
+exo-utils
+
+# --- Recherche --------------------------------------------------------------
+#  plocate est dans 15-essentiel ; catfish est la fenêtre de recherche.
+catfish
+
+# --- Multi-tâches -----------------------------------------------------------
+#  wmctrl et xdotool : ce que lexos-wm utilise pour ranger les fenêtres.
+wmctrl
+xdotool
+
+# --- Bureau à distance ------------------------------------------------------
+#  remmina est dans 60-full ; voici ses greffons et le sens serveur.
+remmina-plugin-rdp
+remmina-plugin-vnc
+remmina-plugin-spice
+x11vnc
+tigervnc-standalone-server
+
+# --- Supports amovibles -----------------------------------------------------
+xfburn
+
+# --- Confidentialité et sécurité --------------------------------------------
+#  Le trousseau : sans lui, chaque Wi-Fi et chaque site redemande son mot de
+#  passe à la session suivante.
+seahorse
+gnome-keyring
+
+# --- Région et langue -------------------------------------------------------
+#  hunspell-fr est dans 60-full ; l'anglais et le sélecteur de méthode
+#  d'entrée complètent.
+hunspell-en-us
+ibus
+ibus-gtk3
+
+# --- Imprimantes ------------------------------------------------------------
+#  cups-browsed + avahi : les imprimantes réseau apparaissent toutes seules.
+cups-browsed
+avahi-daemon
+
+# --- Apparence --------------------------------------------------------------
+gnome-themes-extra
