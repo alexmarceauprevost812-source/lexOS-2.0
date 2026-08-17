@@ -112,8 +112,25 @@ mkdir -p /etc/default/grub.d
 cat > /etc/default/grub.d/lexos.cfg <<EOF
 GRUB_DISTRIBUTOR="${LEXOS_NAME}"
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
-GRUB_BACKGROUND="/usr/share/backgrounds/lexos/wallpaper.png"
-GRUB_GFXMODE=auto
+#  ── LE MENU DE DÉMARRAGE ────────────────────────────────────────────────
+#  GRUB_THEME et GRUB_BACKGROUND ne se cumulent pas : le thème gagne, et une
+#  image de fond posée à côté ne fait qu'embrouiller la lecture du fichier.
+#  On nomme donc le thème, et rien d'autre.
+#
+#  Le thème vit dans /usr/share/grub/themes/lexos, livré par includes.chroot.
+#  Ce chemin-là est celui que Debian utilise pour ses propres thèmes
+#  (desktop-base) : grub-mkconfig sait calculer la bonne adresse même quand
+#  /boot est sur une partition séparée, et il charge tout seul les polices
+#  .pf2 trouvées dans le dossier du thème.
+GRUB_THEME="/usr/share/grub/themes/lexos/theme.txt"
+#  Le thème est calé sur une grille 1920 x 1080. « auto » laisse le firmware
+#  choisir, et sur un téléviseur il choisit parfois un mode que la dalle
+#  n'aime pas ; on propose donc 1080p d'abord, avec des replis, et « auto »
+#  en dernier recours pour ne jamais se retrouver sans menu du tout.
+GRUB_GFXMODE="1920x1080,1280x720,1024x768,auto"
+#  Garder le mode graphique pour le noyau aussi : sans ça, GRUB rend la main
+#  en mode texte et l'écran clignote entre deux résolutions au démarrage.
+GRUB_GFXPAYLOAD_LINUX=keep
 #  LA LIGNE QUI REND LE DOUBLE DÉMARRAGE POSSIBLE.
 #  Depuis GRUB 2.06, Debian coupe la recherche des autres systèmes par
 #  défaut (GRUB_DISABLE_OS_PROBER=true). Conséquence si on n'y touche pas :
