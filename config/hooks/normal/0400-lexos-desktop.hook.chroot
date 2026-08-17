@@ -622,23 +622,126 @@ if [ -n "$SAVEUR_AFFICHEE" ] && [ -f "$SKEL_XFCONF/xfce4-panel.xml" ]; then
 	fi
 fi
 
-# --- Météo dans la barre : seulement si le greffon est réellement là -------
-#  Le panneau livré déclare un greffon « genmon » (plugin-13) qui affiche la
-#  sortie de « lexos-meteo --panneau » — c'est le « ☁ 20° » de la démo.
-#  xfce4-genmon-plugin voyage dans les paquets OPTIONNELS : son absence
-#  n'arrête pas la construction. Mais un panneau qui déclare un greffon
-#  absent affiche une tuile cassée avec un point d'exclamation, à demeure,
-#  au milieu de la barre. On préfère retirer la météo que livrer ça.
+# --- Aucun greffon déclaré ne doit manquer à l'appel ------------------------
+#  LE BOGUE QUE CE BLOC RÉPARE, ET IL A COÛTÉ TROIS ISO.
+#
+#  Alex : « quand je clique, le menu du haut disparaît. » On a cru à Compiz,
+#  on a corrigé Compiz, et la barre disparaissait encore. La photo a donné la
+#  réponse : au démarrage, xfce4-panel ouvrait une fenêtre
+#
+#     « Le greffon "power-manager-plugin" n'a pas pu être chargé,
+#       voulez-vous le supprimer de la configuration de xfce4-panel ? »
+#          [ Supprimer ]   [ Quitter ]
+#
+#  et « Quitter » ferme le panneau EN ENTIER. La barre ne disparaissait pas
+#  toute seule : elle disparaissait au clic, parce que le clic tombait sur ce
+#  bouton-là.
+#
+#  La cause de fond : la configuration livrée DÉCLARE des greffons
+#  (whiskermenu, pulseaudio, power-manager-plugin, genmon) que le hook 0250
+#  installait en « best effort ». Un seul manquant, et la fenêtre s'ouvre.
+#  Ces quatre paquets sont désormais obligatoires (flavours/standard), mais
+#  une liste de paquets peut encore échouer un jour, et un greffon peut
+#  changer de nom d'une version de Debian à l'autre. Alors on vérifie ici,
+#  pour TOUS les greffons déclarés, et on retire de la configuration ceux qui
+#  ne sont pas réellement installés. La fenêtre ne peut plus s'ouvrir.
+#
+#  Les greffons intégrés à xfce4-panel lui-même (séparateur, lanceur,
+#  horloge…) ne sont jamais vérifiés : xfce4-panel est un paquet obligatoire,
+#  ils sont là par construction, et une vérification qui se tromperait sur eux
+#  viderait la barre au lieu de la réparer.
+GREFFONS_INTERNES="separator launcher actions clock systray tasklist pager \
+showdesktop windowmenu applicationsmenu directorymenu"
+
 if [ -f "$SKEL_XFCONF/xfce4-panel.xml" ]; then
-	if [ -e /usr/share/xfce4/panel/plugins/genmon.desktop ]; then
-		echo "[lexos]   météo : greffon genmon présent"
+	A_RETIRER=""
+	for DECL in $(sed -n 's|.*<property name="plugin-\([0-9]*\)" type="string" value="\([a-z0-9-]*\)".*|\1:\2|p' \
+			"$SKEL_XFCONF/xfce4-panel.xml"); do
+		ID="${DECL%%:*}"
+		NOM="${DECL#*:}"
+
+		INTERNE=0
+		for I in $GREFFONS_INTERNES; do
+			[ "$I" = "$NOM" ] && { INTERNE=1; break; }
+		done
+		[ "$INTERNE" -eq 1 ] && continue
+
+		if [ -e "/usr/share/xfce4/panel/plugins/${NOM}.desktop" ]; then
+			echo "[lexos]   greffon ${NOM} : présent"
+		else
+			echo "[lexos]   !! greffon ${NOM} absent — retiré de la barre (plugin-${ID})"
+			A_RETIRER="${A_RETIRER} ${ID}"
+		fi
+	done
+
+	if [ -n "$A_RETIRER" ]; then
+		#  awk plutôt que sed : un bloc plugin-N peut contenir des
+		#  </property> imbriqués (plugin-1 a un tableau « favorites »), donc
+		#  « supprimer jusqu'à la première balise fermante » emporterait la
+		#  moitié du fichier. On compte la profondeur.
+		#
+		#  Et le numéro du greffon doit être retiré du tableau « plugin-ids »
+		#  SANS toucher aux autres entiers du fichier : un value="1" traîne
+		#  aussi dans les propriétés du panneau lui-même.
+		awk -v retirer="$A_RETIRER" '
+			BEGIN { n = split(retirer, t, " "); for (i = 1; i <= n; i++) mauvais[t[i]] = 1 }
+
+			/<property name="plugin-ids" type="array">/ { dans_ids = 1; print; next }
+			dans_ids && /<\/property>/                  { dans_ids = 0; print; next }
+			dans_ids {
+				if (match($0, /value="[0-9]+"/)) {
+					v = substr($0, RSTART + 7, RLENGTH - 8)
+					if (v in mauvais) next
+				}
+				print; next
+			}
+
+			saut {
+				if ($0 ~ /<property/ && $0 !~ /\/>[[:space:]]*$/) profondeur++
+				if ($0 ~ /<\/property>/) { profondeur--; if (profondeur <= 0) saut = 0 }
+				next
+			}
+
+			match($0, /<property name="plugin-[0-9]+" type="string"/) {
+				id = $0; sub(/.*name="plugin-/, "", id); sub(/".*/, "", id)
+				if (id in mauvais) {
+					if ($0 ~ /\/>[[:space:]]*$/) next   # balise auto-fermante
+					saut = 1; profondeur = 1; next
+				}
+			}
+
+			{ print }
+		' "$SKEL_XFCONF/xfce4-panel.xml" > "$SKEL_XFCONF/xfce4-panel.xml.tmp" \
+			&& mv "$SKEL_XFCONF/xfce4-panel.xml.tmp" "$SKEL_XFCONF/xfce4-panel.xml"
 	else
-		#  Le bloc plugin-13 ne contient que des propriétés auto-fermantes :
-		#  la première balise fermante rencontrée est bien la sienne.
-		sed -i '/<property name="plugin-13"/,/<\/property>/d' "$SKEL_XFCONF/xfce4-panel.xml"
-		sed -i '\|<value type="int" value="13"/>|d' "$SKEL_XFCONF/xfce4-panel.xml"
-		echo "[lexos]   !! genmon absent — météo retirée du panneau"
+		echo "[lexos]   barre du haut : tous les greffons déclarés sont installés"
 	fi
+fi
+
+# --- Météo : genmon ne lit PAS xfce4-panel.xml -----------------------------
+#  ERREUR DE MA PART, et elle explique pourquoi la barre affichait
+#  « (genmon)XXX » au lieu de « ☁ 20° ». J'avais mis la commande de la météo
+#  dans xfce4-panel.xml, comme pour les autres greffons. genmon, lui, ne
+#  passe pas par xfconf du tout : il ouvre son propre fichier
+#  ~/.config/xfce4/panel/genmon-<numéro>.rc (xfce_panel_plugin_lookup_rc_file
+#  + xfce_rc_simple_open, vérifié dans le binaire du paquet Debian).
+#
+#  Les propriétés posées dans le XML n'ont donc jamais été lues, sur aucune
+#  ISO : genmon affichait son étiquette par défaut « (genmon) » suivie de sa
+#  valeur par défaut « XXX ». Les clés qu'il lit vraiment sont Command,
+#  Text, UseLabel, UpdatePeriod et Font — relevées dans libgenmon.so.
+#
+#  Le numéro du fichier est celui du greffon dans plugin-ids : 13.
+if [ -e /usr/share/xfce4/panel/plugins/genmon.desktop ]; then
+	mkdir -p /etc/skel/.config/xfce4/panel
+	cat > /etc/skel/.config/xfce4/panel/genmon-13.rc <<'EOF'
+Text=Météo
+Command=lexos-meteo --panneau
+UpdatePeriod=900000
+UseLabel=0
+Font=Noto Sans 10
+EOF
+	echo "[lexos]   météo : genmon-13.rc écrit (commande lexos-meteo --panneau)"
 fi
 
 # --- Raccourcis clavier ------------------------------------------------------

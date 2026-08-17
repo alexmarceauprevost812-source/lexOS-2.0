@@ -411,7 +411,33 @@ def main():
 
     fenetre = QMainWindow()
     fenetre.setWindowTitle(APP_NAME)
-    fenetre.resize(980, 700)
+
+    #  La fenêtre s'ouvrait à 980 x 700, quel que soit l'écran. Sur le
+    #  ThinkPad (1366 x 768), 700 pixels de haut coupaient la barre latérale
+    #  au milieu : Alex voyait la liste s'arrêter à « Partage » et pensait
+    #  qu'il manquait des sections. Les 32 sections sont bien là et la barre
+    #  défile — mais une fenêtre qui n'utilise pas l'écran donne l'impression
+    #  contraire.
+    #
+    #  Ubuntu ouvre ses Paramètres à la taille de l'écran disponible. On fait
+    #  pareil : on prend ce que le bureau laisse (barre du haut et dock
+    #  déduits, c'est ce que renvoie availableGeometry), sans jamais dépasser
+    #  une largeur confortable en lecture ni descendre sous une taille
+    #  utilisable.
+    ecran = app.primaryScreen()
+    if ecran is not None:
+        dispo = ecran.availableGeometry()
+        largeur = max(900, min(1180, int(dispo.width() * 0.92)))
+        hauteur = max(600, min(900, int(dispo.height() * 0.94)))
+        fenetre.resize(largeur, hauteur)
+        #  Centrer : sur un petit écran, une fenêtre presque aussi grande que
+        #  le bureau posée en haut à gauche déborde à droite et en bas.
+        fenetre.move(
+            dispo.x() + (dispo.width() - largeur) // 2,
+            dispo.y() + (dispo.height() - hauteur) // 2,
+        )
+    else:
+        fenetre.resize(980, 700)
     icone = "/usr/share/icons/hicolor/128x128/apps/lexos-reglages.png"
     if Path(icone).exists():
         fenetre.setWindowIcon(QIcon(icone))

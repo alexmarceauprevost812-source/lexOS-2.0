@@ -31,6 +31,50 @@ flavour: dev
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 49 : LA VRAIE RAISON POUR LAQUELLE LA BARRE DISPARAISSAIT.
+#   « quand je clique, le menu du haut disparaît. » La photo d'Alex a donné
+#   la réponse, et ce n'était ni Compiz ni une course au démarrage. Au
+#   démarrage, xfce4-panel ouvrait cette fenêtre :
+#
+#     « Le greffon "power-manager-plugin" n'a pas pu être chargé,
+#       voulez-vous le supprimer de la configuration de xfce4-panel ? »
+#            [ Supprimer ]        [ Quitter ]
+#
+#   « Quitter » ferme le panneau EN ENTIER. La barre ne disparaissait pas
+#   toute seule : elle disparaissait au clic, parce que le clic tombait sur
+#   ce bouton-là. J'ai corrigé Compiz deux fois pour un défaut qui n'était
+#   pas là. Je le dis parce que ça a coûté deux ISO à Alex.
+#
+#   Cause de fond : la barre DÉCLARE quatre greffons (whiskermenu,
+#   pulseaudio, power-manager-plugin, genmon) que le hook 0250 installait en
+#   « best effort ». Un seul absent, et la fenêtre s'ouvre. Deux corrections,
+#   ceinture et bretelles :
+#     · les quatre paquets deviennent OBLIGATOIRES (flavours/standard) ;
+#     · le hook 0400 vérifie maintenant CHAQUE greffon déclaré et retire de
+#       la configuration ceux qui manquent vraiment. La fenêtre ne peut plus
+#       s'ouvrir, même si un paquet disparaît d'une version de Debian à
+#       l'autre. Testé sur quatre cas : greffon simple absent, greffon à
+#       sous-tableau absent (whiskermenu et ses favoris), les quatre absents,
+#       et le cas normal — où le fichier ressort inchangé.
+#
+#   LA MÉTÉO N'A JAMAIS PU MARCHER, ET C'ÉTAIT MON ERREUR. La barre affichait
+#   « (genmon)XXX ». J'avais mis la commande de la météo dans
+#   xfce4-panel.xml, comme pour les autres greffons. Or genmon ne passe pas
+#   par xfconf du tout : il lit son propre fichier
+#   ~/.config/xfce4/panel/genmon-13.rc. Vérifié dans le binaire du paquet
+#   Debian (xfce_panel_plugin_lookup_rc_file + xfce_rc_simple_open, clés
+#   Command / Text / UseLabel / UpdatePeriod / Font). « (genmon) » est son
+#   étiquette par défaut et « XXX » sa valeur par défaut : il n'avait
+#   simplement jamais reçu de commande. Le hook 0400 écrit désormais le bon
+#   fichier.
+#
+#   PARAMÈTRES PAREILS PARTOUT. Les 32 sections de la fenêtre Paramètres
+#   LexOS ont toutes leur page — vérifié, aucune n'est vide. Mais la fenêtre
+#   est écrite en Qt, et Qt voyageait dans les paquets optionnels : un échec
+#   sur une machine et pas sur l'autre donnait des Paramètres qui s'ouvrent
+#   d'un côté et refusent de l'autre. PySide6 et zenity deviennent
+#   obligatoires.
+#
 # build 48 : LES TROIS VERSIONS DEVIENNENT LE MÊME BUREAU.
 #   « on construit 3 versions différentes, faudrait qu'elles soient toutes
 #   pareilles. » Alex a raison, et elles ne l'étaient pas. Voici ce qui
@@ -676,4 +720,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 48
+build: 49
