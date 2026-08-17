@@ -487,6 +487,52 @@ apt-get install -y nvidia-detect >/dev/null 2>&1 \
 #  module chargé.
 if [ -n "$REUSSITE" ]; then
 	mkdir -p /etc/modprobe.d
+
+	# --- LE VRAI BOGUE, TROUVÉ EN DIRECT SUR L'ALIENWARE --------------------
+	#  Tout ce qui précède dans ce hook — dépôt officiel, épingle de branche,
+	#  vérification que le module compile — installe correctement le pilote
+	#  NVIDIA. Mais ce hook n'a JAMAIS empêché « nouveau », le pilote libre du
+	#  noyau, de prendre la carte EN PREMIER. « nouveau » se charge tout seul
+	#  très tôt au démarrage (il fait partie du noyau lui-même), avant même
+	#  que le module nvidia.ko — compilé par DKMS, chargé plus tard via
+	#  l'initramfs — ait la moindre chance de réclamer la carte. Une fois
+	#  qu'un pilote a lié un périphérique PCI, l'autre ne peut plus le
+	#  prendre sans un rechargement explicite, qui n'arrive jamais tout seul.
+	#
+	#  LA PREUVE, RELEVÉE EN DIRECT (Alienware Aurora, RTX 5060, build 52,
+	#  17 août) : « sudo lexos tv » donnait
+	#      SORTIES VIDÉO VUES PAR LE NOYAU : AUCUNE SORTIE BRANCHÉE.
+	#      CARTE GRAPHIQUE ET PILOTE EN SERVICE : Kernel modules: nouveau
+	#  — alors même que le pilote 595.91.07-1 était installé et vérifié plus
+	#  haut dans ce même hook. « nouveau » ne sait pas encore lire les sorties
+	#  d'affichage d'une Blackwell (RTX 50) : pour le noyau, aucun écran n'est
+	#  branché — d'où le signal qui ne s'établit jamais, quel que soit le port
+	#  HDMI, le câble, ou le réglage du téléviseur essayés avant.
+	#
+	#  RETESTÉ APRÈS DÉSACTIVATION DU SECURE BOOT : toujours « nouveau ». La
+	#  preuve que Secure Boot n'était PAS la cause — ou pas la seule : sans
+	#  liste noire explicite, rien n'empêche « nouveau » de gagner la course
+	#  au chargement, Secure Boot activé ou non.
+	#
+	#  blacklist empêche le chargement AUTOMATIQUE (par alias PCI, au
+	#  démarrage) ; modeset=0 est une deuxième digue, au cas où un service
+	#  chargerait quand même le module explicitement : sans modeset, il ne
+	#  touchera pas à l'affichage.
+	cat > /etc/modprobe.d/lexos-blacklist-nouveau.conf <<'EOF'
+# LexOS — nouveau ne doit jamais piloter l'affichage sur une machine où le
+# pilote NVIDIA propriétaire est installé.
+#
+# nouveau se charge automatiquement, très tôt, avant que nvidia.ko (compilé
+# par DKMS, chargé plus tard) ait une chance de réclamer la carte. Une fois
+# qu'un pilote a lié le périphérique, l'autre ne peut plus le reprendre.
+# Constaté en direct sur une RTX 5060 (Blackwell) : nouveau ne voit AUCUNE
+# sortie vidéo sur cette génération de carte — l'écran ne trouve jamais de
+# signal, même avec le pilote NVIDIA correctement installé à côté.
+blacklist nouveau
+options nouveau modeset=0
+EOF
+	echo "[lexos]   nouveau mis en liste noire — le pilote NVIDIA aura la carte pour lui seul"
+
 	cat > /etc/modprobe.d/lexos-nvidia-drm.conf <<'EOF'
 # LexOS — active le kernel modesetting de nvidia-drm, et corrige un « No
 # Signal » HDMI connu des pilotes 610.43.02/610.43.03 (open-gpu-kernel-

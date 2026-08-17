@@ -67,6 +67,21 @@ BOOTAPPEND="${BOOTAPPEND_BASE} quiet splash"
 #  ça retire des nuances de couleur que la plupart des TV n'affichent pas.
 BOOTAPPEND="${BOOTAPPEND} nvidia-drm.modeset=1 nvidia-drm.fbdev=1 nvidia-modeset.hdmi_deepcolor=0"
 
+#  ── nouveau ne doit jamais gagner la course au démarrage ─────────────────
+#  TROUVÉ EN DIRECT SUR L'ALIENWARE (build 52, 17 août) : le pilote NVIDIA
+#  595.91.07-1 était installé et vérifié compilé — et pourtant « sudo lexos
+#  tv » montrait « Kernel modules: nouveau » et AUCUNE sortie vidéo vue par
+#  le noyau. nouveau se charge automatiquement très tôt (il fait partie du
+#  noyau), bien avant que nvidia.ko — compilé par DKMS, chargé plus tard via
+#  l'initramfs — ait la moindre chance de réclamer la carte. Le hook 0260
+#  met désormais nouveau en liste noire dans /etc/modprobe.d, mais cette
+#  liste n'est lue qu'une fois le système de fichiers monté — pendant les
+#  toutes premières secondes du démarrage (avant ce montage), c'est cette
+#  ligne de commande qui est la seule chose qui puisse encore parler au
+#  noyau. Sans effet sur une machine sans carte NVIDIA (nouveau n'y charge
+#  jamais) : c'est donc sûr de le mettre pour toutes les saveurs.
+BOOTAPPEND="${BOOTAPPEND} nouveau.modeset=0"
+
 #  ── Mode fail-safe : un VRAI filet, garanti sans NVIDIA ─────────────────
 #  module_blacklist= agit au niveau du noyau : il bloque TOUT chargement, y
 #  compris un modprobe explicite par un service — contrairement à
