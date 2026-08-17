@@ -28,7 +28,15 @@ on:
         default: 'trixie'
         type: string
   push:
-    branches: ['**']
+    #  PAS « ** » : la branche de travail et « supabase » portent les mêmes
+    #  commits (Alex demande régulièrement d'y recopier tout le travail), et
+    #  avec « ** » chaque recopie relançait la construction de la MÊME ISO —
+    #  une heure de machine pour republier des fichiers identiques, en
+    #  risquant de casser un téléchargement en cours au moment où la Release
+    #  est remplacée. On ne construit que depuis les branches de travail ;
+    #  pour construire depuis une autre branche, le bouton « Run workflow »
+    #  (workflow_dispatch) marche toujours.
+    branches: ['claude/**']
     #  Construction AUTOMATIQUE : dès qu'on ajoute ou change quelque chose qui
     #  entre dans l'ISO (un paquet, un réglage, un hook, un script, le
     #  branding…), une nouvelle ISO se construit et se publie toute seule en
