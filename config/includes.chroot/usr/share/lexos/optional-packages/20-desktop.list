@@ -1,6 +1,28 @@
 # Bureau — saveurs standard, dev, full.
 xfce4-goodies
 fish
+#  ── LE VERROU DE L'ÉCRAN — UN VRAI TROU, CONFIRMÉ ────────────────────────
+#  La barre du haut a un bouton « Verrouiller l'écran » (plugin actions,
+#  +lock-screen dans xfce4-panel.xml)… et AUCUN logiciel de verrouillage
+#  n'était installé. On cliquait, rien ne se passait. Pire : on fermait le
+#  couvercle du portable, on le rouvrait, et on retombait sur le bureau SANS
+#  mot de passe — n'importe qui ouvrant le portable avait tout.
+#
+#  light-locker est le compagnon de lightdm (notre gestionnaire de session) :
+#  il lui délègue le déverrouillage, donc l'écran de mot de passe est celui
+#  qu'on connaît déjà. xfce4-screensaver est l'alternative si light-locker
+#  disparaissait un jour de Debian ; un seul des deux s'installe.
+light-locker|xfce4-screensaver
+#  ── Internet mobile ──────────────────────────────────────────────────────
+#  Une clé 4G ou un téléphone en partage de connexion USB n'apparaît pas dans
+#  le menu réseau sans ModemManager. Sur un portable qu'on sort de la maison,
+#  c'est la seule connexion disponible.
+modemmanager
+#  ── Le son des applications plus anciennes ───────────────────────────────
+#  PipeWire parle nativement à ce qui est récent. pipewire-alsa fournit la
+#  couche qui fait sortir le son des programmes écrits pour ALSA — sans elle,
+#  ils sont muets sans dire pourquoi.
+pipewire-alsa
 xfce4-power-manager
 brightnessctl
 tlp

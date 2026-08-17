@@ -140,7 +140,7 @@ GRUB_GFXPAYLOAD_LINUX=keep
 #  s'y méprendre à une perte de données.
 #  On la remet donc à false, et os-prober est dans la liste OBLIGATOIRE.
 GRUB_DISABLE_OS_PROBER=false
-#  ── LE CHOIX AU DÉMARRAGE : WINDOWS PAR DÉFAUT, TROIS SECONDES ─────────
+#  ── LE CHOIX AU DÉMARRAGE : WINDOWS PAR DÉFAUT, HUIT SECONDES ──────────
 #  Demande d'Alex : Windows sert à jouer, LexOS à travailler. Au démarrage,
 #  le menu propose les deux ; si personne ne touche à rien, la machine part
 #  sur Windows. C'est le bon réglage pour une machine partagée : celui qui
@@ -149,7 +149,7 @@ GRUB_DISABLE_OS_PROBER=false
 #
 #  « menu » est indispensable : sans lui, GRUB peut cacher le menu derrière
 #  un compte à rebours discret, et on ne voit pas qu'il y a un choix.
-GRUB_TIMEOUT=3
+GRUB_TIMEOUT=8
 GRUB_TIMEOUT_STYLE=menu
 #  POURQUOI « saved » ET NON « 0 ».
 #  « 0 » désigne la PREMIÈRE entrée du menu — et la première entrée est

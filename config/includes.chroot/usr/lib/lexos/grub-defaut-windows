@@ -6,7 +6,7 @@
 #  Windows sert à jouer, LexOS à travailler. Sur une machine partagée entre
 #  ces deux usages, celui qui allume pour jouer ne devrait rien avoir à
 #  faire ; celui qui vient travailler appuie sur une flèche. Le menu reste
-#  visible trois secondes, avec les deux systèmes.
+#  visible huit secondes, avec les deux systèmes.
 #
 #  POURQUOI CE SCRIPT EXISTE AU LIEU D'UN SIMPLE « GRUB_DEFAULT=0 ».
 #  « 0 » désigne la première entrée du menu, et la première entrée est LexOS :
@@ -95,7 +95,7 @@ fi
 # --- Poser le défaut --------------------------------------------------------
 if grub-set-default "$TITRE" 2>/dev/null; then
 	dire "démarrage par défaut : ${TITRE}"
-	dire "le menu reste affiché 3 s — les flèches permettent de choisir LexOS"
+	dire "le menu reste affiché 8 s — les flèches permettent de choisir LexOS"
 else
 	dire "!! grub-set-default a échoué pour « ${TITRE} » — LexOS reste le défaut"
 	exit 0

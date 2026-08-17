@@ -10,27 +10,82 @@
 
 # minimal | standard | dev | full | gaming | pro
 #
-#   DEPUIS LE BUILD 48, TOUTES LES SAVEURS DE BUREAU SONT LE MÊME BUREAU.
-#   Mêmes applications, mêmes icônes, même barre, même horloge, mêmes
-#   options — 95 paquets stricts et 334 paquets optionnels, partout pareil.
-#   La seule différence qui reste entre les ISO est MATÉRIELLE :
+#   DEUX VERSIONS SEULEMENT, NOMMÉES PAR LA MACHINE (build 53).
+#   Même bureau des deux côtés — 95 paquets stricts, 403 optionnels, partout
+#   pareil. La SEULE différence est matérielle, et il n'y en a qu'une qui ne
+#   puisse pas se régler après coup :
 #
-#     pro  = tout ça + le pilote NVIDIA propriétaire (hook 0260).
-#            À prendre pour l'Alienware et sa RTX 5060.
-#     les  = exactement le même bureau, sans le pilote NVIDIA.
-#     autres À prendre pour le ThinkPad (graphiques Intel) : lui poser un
-#            pilote NVIDIA ne servirait à rien et risquerait l'écran noir.
+#     pro       → L'ALIENWARE. Le pilote NVIDIA propriétaire pour la RTX 5060
+#                 (hook 0260) doit être DANS l'ISO : il ne s'installe pas
+#                 après. C'est la seule raison d'avoir une deuxième version.
 #
+#     standard  → TOUT LE RESTE : le ThinkPad 2016 et n'importe quel
+#                 ordinateur normal. Même bureau, sans NVIDIA — lui poser ce
+#                 pilote sur des graphiques Intel ne servirait à rien et
+#                 risquerait l'écran noir.
+#
+#   Pas de troisième version pour le ThinkPad : tout ce qui distingue un vieux
+#   portable d'une tour se règle tout seul au démarrage (TLP ne s'active que
+#   s'il y a une batterie, les graphiques Intel marchent d'origine, Wi-Fi et
+#   luminosité sont détectés). Elle aurait été le jumeau exact de standard.
+#
+#   dev / full / gaming restent constructibles et donnent le même bureau que
+#   standard — ce sont des alias historiques, plus des saveurs à part.
 #   minimal reste à part : ISO sans bureau.
 #
 #   La Release est publiée sous « latest-<saveur> » : changer de saveur ne
 #   remplace donc PAS l'ISO précédente d'une autre saveur.
-flavour: pro
+flavour: standard
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 53 : LE THINKPAD D'ABORD, ET DEUX VERSIONS AU LIEU DE TROIS.
+#   DEUX VERSIONS, NOMMÉES PAR LA MACHINE. Décision d'Alex, après avoir vu
+#   qu'une troisième ne servait à rien :
+#     · « pro »      → l'Alienware, parce qu'elle a une RTX 5060 et que le
+#                      pilote NVIDIA propriétaire ne peut pas s'installer
+#                      après coup : il doit être dans l'ISO.
+#     · « standard » → TOUT LE RESTE : le ThinkPad 2016 d'Alex et n'importe
+#                      quel ordinateur normal. Même bureau, sans NVIDIA.
+#
+#   POURQUOI PAS UNE TROISIÈME POUR LE THINKPAD. Tout ce qui distingue un
+#   vieux portable d'une tour se règle DÉJÀ tout seul au démarrage : TLP ne
+#   s'active que s'il y a une batterie (correctif du build 52), les graphiques
+#   Intel marchent d'origine, le Wi-Fi et la luminosité sont détectés. Une
+#   troisième ISO aurait été le jumeau exact de « standard » — deux heures de
+#   construction pour le même fichier. Et Alex teste sur le ThinkPad pour
+#   prévoir ce que fera l'Alienware : ça ne marche que s'ils sont identiques.
+#
+#   LE MENU DE DÉMARRAGE PASSE À 8 SECONDES (au lieu de 3). Sa Hisense met 2 à
+#   5 secondes à afficher quoi que ce soit en HDMI : à 3 secondes, le menu
+#   risquait d'être déjà parti quand l'image apparaît enfin, et LexOS serait
+#   devenu inatteignable sur cette machine. Windows part toujours tout seul si
+#   personne ne touche à rien.
+#
+#   UN VRAI BUG TROUVÉ EN AUDITANT, ET IL ÉTAIT GÊNANT : le verrou d'écran.
+#   La barre du haut a un bouton « Verrouiller l'écran » (+lock-screen dans
+#   xfce4-panel.xml) et AUCUN logiciel de verrouillage n'était installé. On
+#   cliquait, rien. Pire : couvercle fermé puis rouvert, on retombait sur le
+#   bureau SANS mot de passe. light-locker corrige ça (compagnon de lightdm,
+#   donc le même écran de mot de passe que d'habitude).
+#
+#   Le reste des manques relevés par le vérificateur d'Alex, triés : 15 vrais
+#   ajoutés (modemmanager pour la 4G, pipewire-alsa pour le son des vieilles
+#   applis, apparmor + profils, clang, manpages-dev, les clients postgresql /
+#   mysql / redis, et surtout virt-manager + libvirt + distrobox pour ESSAYER
+#   SES PROPRES ISO DANS UNE FENÊTRE, sans graver de clé). Les autres étaient
+#   des faux positifs : on les avait déjà sous un autre nom — fonts-noto-core
+#   au lieu du fonts-noto complet (1 Go), clipman dans xfce4-goodies,
+#   golang-go, p7zip-full, firmware-linux-nonfree, locales et lsb-release qui
+#   sont de la base Debian.
+#
+#   403 paquets optionnels par saveur de bureau, identiques partout.
+#
+#   CETTE ISO-CI EST POUR LE THINKPAD (saveur standard). La pro de l'Alienware
+#   suit avec exactement le même bureau, plus le pilote NVIDIA.
+#
 # build 52 : L'ENDORMEUR DE CARTE GRAPHIQUE, ET LE TRI D'UN VIEUX DIAGNOSTIC.
 #   L'ESSAI DU BUILD 50 SUR L'ALIENWARE (vidéo à l'appui) : même en mode
 #   secours — nomodeset, toute la pile NVIDIA et nouveau en liste noire,
@@ -789,4 +844,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 52
+build: 53
