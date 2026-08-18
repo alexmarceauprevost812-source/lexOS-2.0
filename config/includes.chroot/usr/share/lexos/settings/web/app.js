@@ -100,6 +100,63 @@ function srow(titre, desc, droite){
 function sw(on, onclick){
   return `<div class="sw${on?" on":""}" onclick="${onclick}"><i></i></div>`;
 }
+/*  LE COMPTE-TOURS DE PERFORMANCE, repris TEL QUEL de la démo web.
+    C'est le même dessin, le même cadran, la même aiguille : la démo est le
+    cahier des charges, et un réglage qui n'a pas la même tête des deux
+    côtés n'est pas le même réglage aux yeux de celui qui s'en sert. */
+const PERF_LABEL = {petit:"Petit — machine modeste, autonomie maximale",
+  medium:"Médium — équilibre, réglage par défaut",
+  performant:"Performant — priorité à la vitesse",
+  max:"Performance max — tout à fond, secteur recommandé"};
+
+/* --- Compte-tours de performance ----------------------------------------
+   Un vrai cadran plutôt qu'une image figée : seule l'aiguille tourne, et la
+   transition CSS la fait BALAYER jusqu'à la nouvelle valeur au lieu de sauter.
+   Échelle 0-9, comme un compte-tours : petit 2 · medium 4 · performant 6 ·
+   max 9, zone rouge à partir de 8. */
+const PERF_RPM = {petit:2, medium:4, performant:6, max:9};
+const G_A0 = -125, G_A1 = 125, G_VMAX = 9;
+function gaugeAngle(v){ return G_A0 + (G_A1-G_A0)*(v/G_VMAX); }
+function gaugePt(a, r){
+  const t=(a-90)*Math.PI/180;
+  return [256+r*Math.cos(t), 256+r*Math.sin(t)];
+}
+function gaugeArc(v0, v1, r){
+  const [x0,y0]=gaugePt(gaugeAngle(v0),r), [x1,y1]=gaugePt(gaugeAngle(v1),r);
+  return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r} ${r} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+}
+function gaugeDial(){
+  let tk="", nb="";
+  for(let i=0;i<=9;i++){
+    const a=gaugeAngle(i);
+    const [x0,y0]=gaugePt(a,126), [x1,y1]=gaugePt(a,152);
+    tk+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke-width="13"/>`;
+    const [mx,my]=gaugePt(a,100);
+    nb+=`<text x="${mx.toFixed(1)}" y="${(my+13).toFixed(1)}" text-anchor="middle">${i}</text>`;
+    if(i<9){
+      const a2=gaugeAngle(i+0.5);
+      const [u0,v0]=gaugePt(a2,139), [u1,v1]=gaugePt(a2,152);
+      tk+=`<line x1="${u0.toFixed(1)}" y1="${v0.toFixed(1)}" x2="${u1.toFixed(1)}" y2="${v1.toFixed(1)}" stroke-width="7"/>`;
+    }
+  }
+  return `<path d="${gaugeArc(0,9,150)}" fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round" opacity=".35"/>`+
+         `<path d="${gaugeArc(8,9,150)}" fill="none" stroke="#FF3B30" stroke-width="11" stroke-linecap="round"/>`+
+         `<g stroke="currentColor" stroke-linecap="round" opacity=".85">${tk}</g>`+
+         `<g fill="currentColor" opacity=".85" font-family="ui-monospace,monospace" font-weight="700" font-size="38">${nb}</g>`;
+}
+//  size : côté en pixels. profil : clé de PERF_RPM (défaut : profil courant).
+function perfGauge(size, profil){
+  const v = PERF_RPM[profil || state.perf] ?? 4;
+  return `<svg class="gauge" viewBox="0 0 512 512" width="${size}" height="${size}" aria-hidden="true">`+
+    gaugeDial()+
+    `<g class="needle" style="transform:rotate(${gaugeAngle(v)}deg)">`+
+      `<line x1="256" y1="284" x2="256" y2="138" stroke="currentColor" stroke-width="17" stroke-linecap="round"/>`+
+    `</g>`+
+    `<circle cx="256" cy="256" r="25" fill="currentColor"/>`+
+    `<circle cx="256" cy="256" r="10" fill="var(--bg)"/>`+
+  `</svg>`;
+}
+
 /*  Deux indicateurs qui valent mieux qu'un nombre seul : on lit une force
     de signal ou une charge d'un coup d'oeil, sans convertir mentalement.
     Pas d'image ni de police d'icônes — quatre <i> et un peu de CSS. */
@@ -111,6 +168,15 @@ function barres(force){
 function jauge(pct){
   const p = Math.max(0, Math.min(100, pct));
   return `<div class="jauge" title="${p} %"><span style="width:${p}%"></span></div>`;
+}
+/*  Un menu déroulant, avec le même habillage que le reste. La valeur part
+    vers la machine au changement ; « 0 » veut dire « jamais ». */
+function menu(quoi, valeur, choix){
+  return `<select onchange="setMinutes('${quoi}', this.value)"
+    style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+           border-radius:6px;padding:6px 8px;font:inherit">` +
+    choix.map(([v,t])=>`<option value="${v}"${String(v)===String(valeur)?" selected":""}>${t}</option>`).join("") +
+    `</select>`;
 }
 function btnOuvrir(section, libelle){
   return `<div class="row"><button class="btn" onclick="ouvrir('${section}')">
@@ -137,8 +203,32 @@ async function basculeMuet(){
   const r = await api("son-muet", "toggle");
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
 }
+/*  Le nombre à côté du curseur suit le doigt SANS parler à la machine :
+    envoyer une commande à chaque pixel de glissement noierait pactl sous les
+    appels. On n'agit qu'au relâchement (onchange), et l'aperçu garde l'écran
+    vivant entre-temps. */
+function apercuVolume(v){
+  const z = document.getElementById("volVal");
+  if(z) z.textContent = v + " %";
+}
+function apercuLum(v){
+  const z = document.getElementById("lumVal");
+  if(z) z.textContent = v + " %";
+}
 async function setVolume(v){
   const r = await api("son-volume", String(v));
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function basculeBluetooth(){
+  const r = await api("bluetooth-radio", "toggle");
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function basculeDimBat(){
+  const r = await api("energie-dim-batterie", "toggle");
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function setMinutes(quoi, v){
+  const r = await api("energie-delai", quoi + ":" + v);
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
 }
 async function basculeSouris(quoi){
@@ -227,9 +317,16 @@ function contenu(cle){
       ${btnOuvrir("reseau","Ouvrir l'outil réseau")}
       <p class="notice">VPN : <code>lexos vpn import fichier.ovpn</code> (OpenVPN) ou un
       <code>.conf</code> WireGuard, puis <code>lexos vpn connect "&lt;nom&gt;"</code>.</p>`;
-    case "bluetooth": return `<h2>Bluetooth</h2><div class="sub">Appareils appairés</div>
+    case "bluetooth": {
+      const bt = etat.bluetooth;
+      return `<h2>Bluetooth</h2><div class="sub">Appareils appairés</div>
+      ${bt === null || bt === undefined
+        ? `<p class="notice">Aucun contrôleur Bluetooth sur cette machine.</p>`
+        : srow("Bluetooth", bt ? "Allumé, prêt à appairer" : "Éteint",
+               sw(bt, "basculeBluetooth()"))}
       ${srow("Rechercher des appareils","Balayage et appairage")}
       ${btnOuvrir("bluetooth","Rechercher (lexos bt scan)")}`;
+    }
     case "ecrans": {
       //  La question qu'on se pose devant cette section est « qu'est-ce qui
       //  est branché, et en quelle définition ? ». On y répond tout de suite.
@@ -248,15 +345,15 @@ function contenu(cle){
       return `<h2>Son</h2><div class="sub">Volume, périphériques</div>
       ${connu ? srow("Sourdine", so.muet ? "Le son est coupé" : "Le son passe",
                      sw(so.muet, "basculeMuet()")) : ""}
-      ${connu ? `<div class="srow" style="display:block">
-        <div class="t" style="margin-bottom:8px">Volume — ${so.volume} %</div>
-        <div class="row">
-          <button class="btn ghost" onclick="setVolume('moins')">−</button>
-          ${[0,25,50,75,100].map(v=>
-            `<button class="btn ${so.volume===v?"sel":"ghost"}" onclick="setVolume('${v}')">${v} %</button>`).join("")}
-          <button class="btn ghost" onclick="setVolume('plus')">+</button>
+      ${connu ? `<div class="srow"><div class="t">Volume de sortie</div>
+        <div style="display:flex;align-items:center;gap:12px;flex:1;max-width:420px">
+          <input type="range" min="0" max="100" value="${so.volume}"
+                 style="flex:1;accent-color:var(--ac)"
+                 oninput="apercuVolume(this.value)" onchange="setVolume(this.value)">
+          <span id="volVal" style="min-width:44px;text-align:right;font-weight:600">${so.volume} %</span>
         </div></div>`
         : `<p class="notice">Volume illisible : pactl est absent.</p>`}
+      ${so.casque ? srow("Casque audio","Branché — le son sort dans le casque") : ""}
       ${btnOuvrir("son","Ouvrir le mélangeur")}`;
     }
     case "energie": return `<h2>Énergie</h2><div class="sub">Profil de performance</div>
@@ -267,15 +364,36 @@ function contenu(cle){
         : srow("Alimentation","Aucune batterie — machine de bureau")}
       <div class="row">${["petit","medium","performant","max"].map(p=>
         `<button class="btn ${p===etat.perf?"sel":"ghost"}" onclick="setPerf('${p}')">${p}</button>`).join("")}</div>
+      <div style="display:flex;align-items:center;gap:18px;margin-top:12px">
+        <span style="color:var(--ac)">${perfGauge(132, etat.perf)}</span>
+        <div><div class="t" style="font-weight:600">${etat.perf} — ${(PERF_RPM[etat.perf]||4)}000 tr/min</div>
+        <div class="d">${PERF_LABEL[etat.perf] || ""}</div></div>
+      </div>
       <p class="notice">Chaque profil règle vraiment le gouverneur du processeur, zram,
       le compositing et les services (<code>lexos perf</code>).</p>
+
       <div class="srow" style="display:block;margin-top:16px">
         <div class="t" style="margin-bottom:6px">Luminosité de l'écran</div>
         <div style="display:flex;align-items:center;gap:12px">
-          <input type="range" min="5" max="100" value="70"
-                 onchange="setLum(this.value)">
+          <input type="range" min="5" max="100" value="${etat.lumiere ?? 70}"
+                 style="flex:1;accent-color:var(--ac)"
+                 oninput="apercuLum(this.value)" onchange="setLum(this.value)">
+          <span id="lumVal" style="min-width:44px;text-align:right;font-weight:600">${etat.lumiere ?? 70} %</span>
         </div>
       </div>
+      ${srow("Baisser la luminosité sur batterie","Quand le secteur est débranché",
+             sw(etat.energie && etat.energie.dimBat, "basculeDimBat()"))}
+      ${srow("Éteindre l'écran après","L'écran s'éteint, la machine continue de tourner",
+             menu("ecranOff", (etat.energie && etat.energie.ecranOff) || "10",
+                  [["1","1 min"],["5","5 min"],["10","10 min"],["30","30 min"],["0","jamais"]]))}
+      ${srow("Mise en veille après","La machine s'endort pour de bon",
+             menu("veille", (etat.energie && etat.energie.veille) || "30",
+                  [["15","15 min"],["30","30 min"],["60","60 min"],["120","120 min"],["0","jamais"]]))}
+      <p class="notice">La luminosité est réglée pour de vrai —
+      <code>lexos lumiere 60</code>, <code>lexos lumiere eco</code>, ou
+      <code>lexos lumiere +10</code>. LexOS pilote le rétroéclairage quand la
+      machine en a un ; sinon il assombrit l'image et le dit clairement, parce
+      que ça n'économise alors aucune batterie.</p>
       ${btnOuvrir("energie","État détaillé (terminal)")}`;
     case "usb": return `<h2>Appareils USB</h2><div class="sub">Branchements détectés</div>
       ${srow("Liste des appareils","Clés, disques, téléphones — éjection comprise")}

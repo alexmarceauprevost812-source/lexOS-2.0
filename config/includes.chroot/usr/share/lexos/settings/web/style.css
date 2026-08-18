@@ -84,3 +84,13 @@ select{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
 .barres i.on{background:var(--ac,#E8590C)}
 .jauge{width:84px;height:8px;border-radius:99px;background:var(--bd,#3a3a3a);overflow:hidden}
 .jauge span{display:block;height:100%;background:var(--ac,#E8590C);border-radius:99px}
+
+/* --- Compte-tours de performance -------------------------------------------
+   Le cadran s'habille lui-même en attributs SVG ; il ne reste que l'aiguille.
+   Elle BALAIE jusqu'à sa nouvelle valeur au lieu de sauter — léger
+   dépassement, comme une vraie aiguille lancée. Et rien ne bouge pour qui a
+   demandé « animations réduites » dans son système. */
+.gauge{display:block}
+.gauge .needle{transform-box:view-box;transform-origin:256px 256px;
+  transition:transform .9s cubic-bezier(.34,1.28,.44,1)}
+@media (prefers-reduced-motion:reduce){ .gauge .needle{transition:none} }

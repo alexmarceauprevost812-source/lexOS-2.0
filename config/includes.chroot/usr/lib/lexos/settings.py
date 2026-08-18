@@ -284,13 +284,62 @@ def act_son_muet(arg):
 
 
 def act_son_volume(arg):
-    """Règle le volume. Par pas fixes : la page envoie un cran, pas un
-    nombre libre — un volume à 400 % abîmerait le haut-parleur."""
-    pas = {"moins": "-5%", "plus": "+5%",
-           "0": "0%", "25": "25%", "50": "50%", "75": "75%", "100": "100%"}
-    if arg not in pas:
+    """Règle le volume. Le curseur envoie un nombre : on le BORNE à 0-100
+    avant de le transmettre. Sans cette borne, un « 400 » venu de la page
+    monterait le gain bien au-delà du niveau du matériel — de la distorsion,
+    et de quoi abîmer un haut-parleur."""
+    if arg in ("moins", "plus"):
+        return _run(["pactl", "set-sink-volume", "@DEFAULT_SINK@",
+                     "-5%" if arg == "moins" else "+5%"])
+    try:
+        n = int(arg)
+    except (TypeError, ValueError):
         return {"ok": False, "erreur": "valeur inattendue"}
-    return _run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", pas[arg]])
+    n = max(0, min(100, n))
+    return _run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{n}%"])
+
+
+def act_bluetooth(arg):
+    """Allume ou éteint la radio Bluetooth."""
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    if arg == "toggle":
+        actuel = _bluetooth_etat()
+        if actuel is None:
+            return {"ok": False, "erreur": "Aucun contrôleur Bluetooth"}
+        arg = "off" if actuel else "on"
+    return _run(["bluetoothctl", "power", arg])
+
+
+def act_energie_dim_batterie(arg):
+    """Abaisser ou non la luminosité quand le secteur est débranché."""
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    actif = _energie_etat()["dimBat"]
+    if arg == "toggle":
+        arg = "off" if actif else "on"
+    niveau = "40" if arg == "on" else "100"
+    return _run(["xfconf-query", "-c", "xfce4-power-manager",
+                 "-p", "/xfce4-power-manager/brightness-on-battery",
+                 "-n", "-t", "int", "-s", niveau])
+
+
+def act_energie_delai(arg):
+    """« ecranOff:10 » ou « veille:30 » — en minutes, 0 pour jamais.
+    Le nom du réglage est cherché dans une table FERMÉE : la page ne peut pas
+    désigner une clé xfconf de son choix."""
+    cles = {"ecranOff": ("blank-on-ac", "blank-on-battery"),
+            "veille": ("inactivity-on-ac", "inactivity-on-battery")}
+    quoi, _, valeur = str(arg).partition(":")
+    if quoi not in cles or not valeur.isdigit():
+        return {"ok": False, "erreur": "valeur inattendue"}
+    minutes = max(0, min(600, int(valeur)))
+    dernier = {"ok": False, "erreur": "xfconf-query absent"}
+    for prop in cles[quoi]:
+        dernier = _run(["xfconf-query", "-c", "xfce4-power-manager",
+                        "-p", f"/xfce4-power-manager/{prop}",
+                        "-n", "-t", "int", "-s", str(minutes)])
+    return dernier
 
 
 def act_souris(arg):
@@ -330,6 +379,9 @@ ACTIONS = {
     "son-muet": act_son_muet,
     "son-volume": act_son_volume,
     "souris": act_souris,
+    "bluetooth-radio": act_bluetooth,
+    "energie-dim-batterie": act_energie_dim_batterie,
+    "energie-delai": act_energie_delai,
     "heure-auto": act_heure_auto,
     "avion": act_avion,
     "perf": act_perf,
@@ -402,7 +454,7 @@ def _son_etat():
             volume = int(morceau[:-1])
             break
     muet = _sortie(["pactl", "get-sink-mute", "@DEFAULT_SINK@"]).endswith("yes")
-    return {"volume": volume, "muet": muet}
+    return {"volume": volume, "muet": muet, "casque": _casque_branche()}
 
 
 def _batterie_etat():
@@ -473,6 +525,77 @@ def _souris_etat():
             "inverse": prop(f"{pave}/Properties/libinput_Natural_Scrolling_Enabled")}
 
 
+def _bluetooth_etat():
+    """La radio Bluetooth est-elle allumée ? « Powered: yes » dans la sortie
+    de bluetoothctl. Renvoie None quand la machine n'a pas de Bluetooth du
+    tout — la page n'affiche alors pas l'interrupteur plutôt que d'en montrer
+    un qui ne servirait à rien."""
+    if not shutil.which("bluetoothctl"):
+        return None
+    sortie = _sortie(["bluetoothctl", "show"])
+    if not sortie:
+        return None
+    for ligne in sortie.splitlines():
+        if ligne.strip().startswith("Powered:"):
+            return ligne.split(":", 1)[1].strip() == "yes"
+    return None
+
+
+def _casque_branche():
+    """Un casque est-il branché ? On lit le port ACTIF de la sortie audio.
+    Sert à l'afficher, pas à le changer : on ne débranche pas un casque en
+    logiciel, et un faux interrupteur serait un mensonge."""
+    if not shutil.which("pactl"):
+        return False
+    sortie = _sortie(["pactl", "list", "sinks"]).lower()
+    for ligne in sortie.splitlines():
+        if ligne.strip().startswith("active port:"):
+            return "headphone" in ligne or "headset" in ligne
+    return False
+
+
+def _lumiere_etat():
+    """Luminosité du rétroéclairage, en pour-cent. -1 quand la machine n'a pas
+    de rétroéclairage pilotable (une tour avec un écran externe, par exemple)."""
+    base = Path("/sys/class/backlight")
+    try:
+        for d in sorted(base.iterdir()):
+            try:
+                actuel = int((d / "brightness").read_text().strip())
+                maxi = int((d / "max_brightness").read_text().strip())
+                if maxi > 0:
+                    return round(actuel * 100 / maxi)
+            except (OSError, ValueError):
+                continue
+    except OSError:
+        pass
+    return -1
+
+
+def _xfconf_lire(canal, propriete):
+    if not shutil.which("xfconf-query"):
+        return ""
+    return _sortie(["xfconf-query", "-c", canal, "-p", propriete])
+
+
+def _energie_etat():
+    """Les délais d'extinction et de veille, là où XFCE les garde. Les valeurs
+    sont en MINUTES ; 0 veut dire jamais, des deux côtés."""
+    c = "xfce4-power-manager"
+    def entier(prop, defaut):
+        v = _xfconf_lire(c, f"/xfce4-power-manager/{prop}")
+        return v if v.isdigit() else str(defaut)
+
+    dim = _xfconf_lire(c, "/xfce4-power-manager/brightness-on-battery")
+    return {
+        #  « brightness-on-battery » vaut le niveau visé sur batterie ; s'il
+        #  est posé et inférieur à 100, c'est que l'abaissement est actif.
+        "dimBat": bool(dim.isdigit() and int(dim) < 100),
+        "ecranOff": entier("blank-on-ac", 10),
+        "veille": entier("inactivity-on-ac", 30),
+    }
+
+
 def _heure_etat():
     """Fuseau et synchronisation automatique, via timedatectl."""
     if not shutil.which("timedatectl"):
@@ -536,6 +659,9 @@ def etat():
         "ecrans": _ecrans_etat(),
         "souris": _souris_etat(),
         "heure": _heure_etat(),
+        "lumiere": _lumiere_etat(),
+        "energie": _energie_etat(),
+        "bluetooth": _bluetooth_etat(),
     }
 
 
