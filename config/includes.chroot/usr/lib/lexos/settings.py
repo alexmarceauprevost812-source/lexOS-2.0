@@ -299,6 +299,65 @@ def act_son_volume(arg):
     return _run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{n}%"])
 
 
+def act_amovibles(arg):
+    """Ce que LexOS fait quand on branche quelque chose. Le nom du réglage
+    est cherché dans la table VOLMAN : la page ne peut pas désigner une clé
+    xfconf de son choix."""
+    if arg not in VOLMAN:
+        return {"ok": False, "erreur": "valeur inattendue"}
+    actuel = _amovibles_etat()[arg]
+    return _run(["xfconf-query", "-c", "thunar-volman", "-p", VOLMAN[arg],
+                 "-n", "-t", "bool", "-s", "false" if actuel else "true"])
+
+
+def act_access(arg):
+    """Deux réglages d'accessibilité qui se règlent sans redémarrer :
+    le curseur large et le contraste élevé."""
+    if arg == "curseur":
+        grand = _access_etat()["curseurLarge"]
+        return _run(["xfconf-query", "-c", "xsettings", "-p", "/Gtk/CursorThemeSize",
+                     "-n", "-t", "int", "-s", "24" if grand else "48"])
+    if arg == "contraste":
+        fort = _access_etat()["contraste"]
+        #  On revient au thème de LexOS plutôt qu'à un thème GTK quelconque :
+        #  c'est celui que le reste du bureau attend.
+        return _run(["xfconf-query", "-c", "xsettings", "-p", "/Net/ThemeName",
+                     "-n", "-t", "string",
+                     "-s", "Adwaita-dark" if fort else "HighContrast"])
+    if arg in ("orca", "onboard"):
+        outil = {"orca": ["orca"], "onboard": ["onboard"]}[arg]
+        return _run(outil, detach=True)
+    return {"ok": False, "erreur": "valeur inattendue"}
+
+
+def act_securite(arg):
+    """Les outils d'autodéfense s'ouvrent dans un terminal : ils demandent
+    tous les droits d'administration et posent des questions. Les lancer en
+    silence derrière un interrupteur cacherait justement ce qu'il faut lire."""
+    outils = {
+        "pare-feu":  ("Pare-feu — LexOS", "lexos secure firewall"),
+        "antivirus": ("Antivirus — LexOS", "lexos secure scan"),
+        "rootkit":   ("Anti-rootkit — LexOS", "sudo rkhunter --check --sk"),
+        "etat":      ("Sécurité — LexOS", "lexos secure"),
+    }
+    if arg not in outils:
+        return {"ok": False, "erreur": "valeur inattendue"}
+    return _terminal(*outils[arg])
+
+
+def act_maj(arg):
+    """Mises à jour. Tout passe par un terminal : une mise à jour pose des
+    questions, prend du temps, et il faut pouvoir lire ce qui se passe."""
+    outils = {
+        "verifier":  ("Mises à jour — LexOS", "lexos doctor"),
+        "tout":      ("Mise à jour — LexOS", "lexos upgrade"),
+        "firmware":  ("Micrologiciel — LexOS", "lexos firmware"),
+    }
+    if arg not in outils:
+        return {"ok": False, "erreur": "valeur inattendue"}
+    return _terminal(*outils[arg])
+
+
 def act_usb(arg):
     """Les trois gestes de la démo, en vrai. « ejecter:/dev/sdb » démonte
     proprement ; le chemin est VÉRIFIÉ contre la liste des appareils
@@ -445,6 +504,10 @@ ACTIONS = {
     "bluetooth-radio": act_bluetooth,
     "crt": act_crt,
     "usb": act_usb,
+    "amovibles": act_amovibles,
+    "access": act_access,
+    "securite": act_securite,
+    "maj": act_maj,
     "barre-cachee": act_barre_cachee,
     "bureaux": act_bureaux,
     "bureau-va": act_bureau_va,
@@ -773,6 +836,203 @@ def _usb_etat():
     return appareils
 
 
+def _service_actif(nom):
+    """Un service systemd tourne-t-il ? Renvoie None s'il n'est même pas
+    installé — « éteint » et « absent » ne veulent pas dire la même chose,
+    et la page doit pouvoir le dire."""
+    if not shutil.which("systemctl"):
+        return None
+    etat_unite = _sortie(["systemctl", "is-enabled", nom])
+    if not etat_unite or "not-found" in etat_unite:
+        return None
+    return _sortie(["systemctl", "is-active", nom]) == "active"
+
+
+def _securite_etat():
+    """L'état réel de l'autodéfense. Chaque entrée vaut True (en marche),
+    False (installé mais arrêté) ou None (pas installé) — trois états, parce
+    que « le pare-feu est éteint » et « il n'y a pas de pare-feu » appellent
+    des gestes différents."""
+    #  ufw status demande les droits root ; sans eux on lit le fichier de
+    #  configuration, qui dit la même chose et se lit sans privilège.
+    feu = None
+    if shutil.which("ufw"):
+        feu = False
+        try:
+            for ligne in Path("/etc/ufw/ufw.conf").read_text().splitlines():
+                if ligne.strip().startswith("ENABLED="):
+                    feu = ligne.split("=", 1)[1].strip().lower() == "yes"
+        except OSError:
+            pass
+    #  Le disque est-il chiffré ? Un périphérique de type « crypt » suffit.
+    chiffre = False
+    if shutil.which("lsblk"):
+        chiffre = "crypt" in _sortie(["lsblk", "-o", "TYPE", "-n"]).split()
+    return {
+        "pareFeu": feu,
+        "chiffre": chiffre,
+        "antivirus": _service_actif("clamav-freshclam.service"),
+        "intrusion": _service_actif("fail2ban.service"),
+        "rootkit": bool(shutil.which("rkhunter") or shutil.which("chkrootkit")),
+        "apparmor": _service_actif("apparmor.service"),
+    }
+
+
+VOLMAN = {
+    "ouvrir":  "/autobrowse/enabled",
+    "photos":  "/autophoto/enabled",
+    "musique": "/autoplay-audio-cds/enabled",
+    "monter":  "/automount-media/enabled",
+}
+
+
+def _amovibles_etat():
+    """Ce que LexOS fait quand on branche quelque chose. thunar-volman garde
+    ces réglages dans xfconf ; on lit les vrais, pas des valeurs supposées."""
+    return {cle: _xfconf_lire("thunar-volman", prop) == "true"
+            for cle, prop in VOLMAN.items()}
+
+
+def _access_etat():
+    """Accessibilité : ce qui est réglable, et ce qui est installé.
+    La taille du curseur est un nombre ; au-delà de 32 on parle de « curseur
+    large » — c'est le seuil où la différence se voit vraiment."""
+    taille = _xfconf_lire("xsettings", "/Gtk/CursorThemeSize")
+    theme = _xfconf_lire("xsettings", "/Net/ThemeName").lower()
+    return {
+        "contraste": "highcontrast" in theme.replace("-", "").replace(" ", ""),
+        "curseurLarge": taille.isdigit() and int(taille) >= 32,
+        "orca": bool(shutil.which("orca")),
+        "onboard": bool(shutil.which("onboard")),
+    }
+
+
+def _maj_etat():
+    """Mises à jour automatiques, et micrologiciel. On lit la configuration
+    d'unattended-upgrades telle qu'elle est sur la machine."""
+    secu, tout = False, False
+    for f in ("/etc/apt/apt.conf.d/20auto-upgrades",
+              "/etc/apt/apt.conf.d/50unattended-upgrades"):
+        try:
+            texte = Path(f).read_text()
+        except OSError:
+            continue
+        for ligne in texte.splitlines():
+            l = ligne.strip()
+            if l.startswith("//") or l.startswith("#"):
+                continue
+            if "Unattended-Upgrade" in l and '"1"' in l:
+                secu = True
+            if "Update-Package-Lists" in l and '"1"' in l:
+                secu = secu or True
+    #  « Tout mettre à jour » = la ligne des dépôts autres que sécurité est
+    #  décommentée dans 50unattended-upgrades.
+    try:
+        for ligne in Path("/etc/apt/apt.conf.d/50unattended-upgrades").read_text().splitlines():
+            l = ligne.strip()
+            if l.startswith('"') and "-updates" in l and not l.startswith("//"):
+                tout = True
+    except OSError:
+        pass
+    return {"secu": secu, "tout": tout, "fwupd": bool(shutil.which("fwupdmgr"))}
+
+
+def _utilisateurs_etat():
+    """Les VRAIS comptes de la machine. On lit /etc/passwd et on garde les
+    comptes humains : UID >= 1000 et un shell qui n'est pas nologin. Les
+    dizaines de comptes de service (www-data, systemd-*) n'ont rien à faire
+    dans une liste d'utilisateurs."""
+    gens = []
+    try:
+        admins = set()
+        for ligne in Path("/etc/group").read_text().splitlines():
+            champs = ligne.split(":")
+            if len(champs) >= 4 and champs[0] in ("sudo", "wheel", "adm"):
+                admins.update(m for m in champs[3].split(",") if m)
+        for ligne in Path("/etc/passwd").read_text().splitlines():
+            champs = ligne.split(":")
+            if len(champs) < 7:
+                continue
+            nom, _, uid, _, complet, foyer, shell = champs[:7]
+            if not uid.isdigit() or int(uid) < 1000 or int(uid) >= 65000:
+                continue
+            if shell.endswith(("nologin", "false")):
+                continue
+            gens.append({"nom": nom,
+                         "complet": (complet.split(",")[0] or nom).strip(),
+                         "admin": nom in admins,
+                         "moi": nom == os.environ.get("USER", "")})
+    except OSError:
+        pass
+    return gens
+
+
+def _imprimantes_etat():
+    """Les imprimantes connues de CUPS, et laquelle est par défaut."""
+    if not shutil.which("lpstat"):
+        return {"dispo": False, "liste": []}
+    defaut = ""
+    sortie = _sortie(["lpstat", "-d"])
+    if ":" in sortie:
+        defaut = sortie.split(":", 1)[1].strip()
+    liste = []
+    for ligne in _sortie(["lpstat", "-p"]).splitlines():
+        mots = ligne.split()
+        if len(mots) >= 2 and mots[0] == "printer":
+            nom = mots[1]
+            liste.append({"nom": nom,
+                          "etat": "prête" if "idle" in ligne else "occupée",
+                          "defaut": nom == defaut})
+    return {"dispo": True, "liste": liste}
+
+
+def _clavier_etat():
+    """Les dispositions de clavier actives, et laquelle est en service."""
+    dispos, courante = [], ""
+    if shutil.which("setxkbmap"):
+        for ligne in _sortie(["setxkbmap", "-query"]).splitlines():
+            if ligne.startswith("layout:"):
+                dispos = [d for d in ligne.split(":", 1)[1].strip().split(",") if d]
+    if shutil.which("xkb-switch"):
+        courante = _sortie(["xkb-switch"])
+    return {"dispositions": dispos, "courante": courante or (dispos[0] if dispos else "")}
+
+
+def _distant_etat():
+    """Le bureau à distance : le serveur est-il installé, et tourne-t-il ?"""
+    outil = ""
+    for c in ("x11vnc", "wayvnc", "krfb"):
+        if shutil.which(c):
+            outil = c
+            break
+    actif = False
+    if outil and shutil.which("pgrep"):
+        actif = bool(_sortie(["pgrep", "-x", outil]))
+    return {"outil": outil, "actif": actif}
+
+
+def _reseau_etat():
+    """Le filaire : branché ou non, et avec quelle adresse. Une question
+    simple qu'aucune section ne savait répondre."""
+    if not shutil.which("nmcli"):
+        return {"filaire": None, "ip": ""}
+    filaire, ip = None, ""
+    for ligne in _sortie(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE",
+                          "device"]).splitlines():
+        champs = ligne.split(":")
+        if len(champs) >= 3 and champs[1] == "ethernet":
+            filaire = champs[2] == "connected"
+            if filaire:
+                sortie = _sortie(["nmcli", "-t", "-f", "IP4.ADDRESS",
+                                  "device", "show", champs[0]])
+                for l in sortie.splitlines():
+                    if ":" in l:
+                        ip = l.split(":", 1)[1].split("/")[0]
+                        break
+            break
+    return {"filaire": filaire, "ip": ip}
+
+
 def _heure_etat():
     """Fuseau et synchronisation automatique, via timedatectl."""
     if not shutil.which("timedatectl"):
@@ -844,6 +1104,16 @@ def etat():
         "barreCachee": _barre_cachee(),
         "bureaux": _bureaux_etat(),
         "usb": _usb_etat(),
+        "securite": _securite_etat(),
+        "amovibles": _amovibles_etat(),
+        "access": _access_etat(),
+        "maj": _maj_etat(),
+        "utilisateurs": _utilisateurs_etat(),
+        "imprimantes": _imprimantes_etat(),
+        "clavier": _clavier_etat(),
+        "distant": _distant_etat(),
+        "reseau": _reseau_etat(),
+        "langue": _sortie(["sh", "-c", "printf %s \"${LANG:-}\""]) or os.environ.get("LANG", ""),
     }
 
 

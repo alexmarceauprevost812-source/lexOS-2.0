@@ -94,3 +94,13 @@ select{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
 .gauge .needle{transform-box:view-box;transform-origin:256px 256px;
   transition:transform .9s cubic-bezier(.34,1.28,.44,1)}
 @media (prefers-reduced-motion:reduce){ .gauge .needle{transition:none} }
+
+/* --- Pastille d'état -------------------------------------------------------
+   Trois états et non deux : en marche, installé mais arrêté, pas installé du
+   tout. « Le pare-feu est éteint » et « il n'y a pas de pare-feu » n'appellent
+   pas le même geste, et une simple case cochée ne sait pas dire la différence. */
+.etat{display:inline-block;padding:3px 10px;border-radius:99px;
+  font:600 11.5px/1.5 inherit;white-space:nowrap}
+.etat.ok{background:rgba(31,143,78,.18);color:#4ADE80}
+.etat.off{background:rgba(229,72,77,.16);color:#F87171}
+.etat.abs{background:var(--bg-hi);color:var(--fg-dim)}

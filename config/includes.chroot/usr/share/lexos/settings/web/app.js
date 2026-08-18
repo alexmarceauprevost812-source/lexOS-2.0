@@ -273,6 +273,30 @@ async function vaBureau(n){
   const r = await api("bureau-va", String(n));
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
 }
+async function setLangue(l){
+  const r = await api("langue", l);
+  await rafraichir(r.ok ? "À la prochaine ouverture de session" : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function basculeAmovible(quoi){
+  const r = await api("amovibles", quoi);
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function basculeAccess(quoi){
+  const r = await api("access", quoi);
+  if(quoi === "orca" || quoi === "onboard"){
+    if(!r.ok) toast("Échec : " + (r.erreur || "commande refusée"));
+    return;
+  }
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function actionSecu(quoi){
+  const r = await api("securite", quoi);
+  if(!r.ok) toast("Échec : " + (r.erreur || "commande refusée"));
+}
+async function actionMaj(quoi){
+  const r = await api("maj", quoi);
+  if(!r.ok) toast("Échec : " + (r.erreur || "commande refusée"));
+}
 async function actionUsb(quoi){
   const r = await api("usb", quoi);
   if(!r.ok) toast("Échec : " + (r.erreur || "commande refusée"));
@@ -373,12 +397,20 @@ function contenu(cle){
       <p class="notice">En ligne de commande : <code>lexos wifi</code> ·
       <code>lexos net password "&lt;réseau&gt;"</code> pour un mot de passe oublié.</p>`;
     }
-    case "reseau": return `<h2>Réseau</h2><div class="sub">Filaire, mode avion, VPN</div>
+    case "reseau": {
+      const n = etat.reseau || {};
+      return `<h2>Réseau</h2><div class="sub">Filaire, mode avion, VPN</div>
       ${srow("Mode avion","Coupe Wi-Fi, Bluetooth et données",
              sw(etat.avion==="on","basculeAvion()"))}
+      ${n.filaire === null || n.filaire === undefined
+        ? ""
+        : srow("Câble Ethernet",
+               n.filaire ? "Branché" + (n.ip ? " — " + esc(n.ip) : "") : "Débranché",
+               `<span class="etat ${n.filaire?"ok":"off"}">${n.filaire?"connecté":"absent"}</span>`)}
       ${btnOuvrir("reseau","Ouvrir l'outil réseau")}
       <p class="notice">VPN : <code>lexos vpn import fichier.ovpn</code> (OpenVPN) ou un
       <code>.conf</code> WireGuard, puis <code>lexos vpn connect "&lt;nom&gt;"</code>.</p>`;
+    }
     case "bluetooth": {
       const bt = etat.bluetooth;
       return `<h2>Bluetooth</h2><div class="sub">Appareils appairés</div>
@@ -640,39 +672,153 @@ function contenu(cle){
     case "couleurs": return `<h2>Gestion des couleurs</h2><div class="sub">Profils ICC</div>
       ${srow("Profils des écrans et imprimantes","Charger un profil ICC")}
       ${btnOuvrir("couleurs")}`;
-    case "imprimantes": return `<h2>Imprimantes</h2><div class="sub">Appareils installés</div>
-      ${srow("Imprimantes","Ajouter, retirer, imprimer une page de test")}
-      ${btnOuvrir("imprimantes")}`;
-    case "amovibles": return `<h2>Supports amovibles</h2><div class="sub">Clés, disques, cartes</div>
-      ${srow("À l'insertion","Monter automatiquement, ouvrir le dossier")}
-      ${btnOuvrir("amovibles")}`;
+    case "imprimantes": {
+      const im = etat.imprimantes || {};
+      return `<h2>Imprimantes</h2><div class="sub">Ajouter et gérer les imprimantes</div>
+      ${!im.dispo
+        ? `<p class="notice">CUPS n'est pas là : aucune imprimante ne peut être gérée.</p>`
+        : (im.liste && im.liste.length
+            ? im.liste.map(i=>srow(esc(i.nom) + (i.defaut ? " — par défaut" : ""), esc(i.etat),
+                `<span class="etat ${i.etat==="prête"?"ok":"abs"}">${esc(i.etat)}</span>`)).join("")
+            : `<p class="notice">Aucune imprimante installée. Branche-la ou ajoute-la
+               par le réseau : LexOS trouve seul la plupart des modèles récents
+               (pilotes sans pilote, via IPP).</p>`)}
+      ${btnOuvrir("imprimantes","Ajouter une imprimante")}`;
+    }
+    case "amovibles": {
+      const v = etat.amovibles || {};
+      return `<h2>Supports amovibles</h2><div class="sub">Ce que LexOS fait quand tu branches quelque chose</div>
+      ${srow("Monter automatiquement","La clé est prête sans rien demander",
+             sw(v.monter, "basculeAmovible('monter')"))}
+      ${srow("Ouvrir le gestionnaire de fichiers","Une fenêtre s'ouvre sur le contenu",
+             sw(v.ouvrir, "basculeAmovible('ouvrir')"))}
+      ${srow("Proposer d'importer les photos","Quand c'est un appareil photo ou un téléphone",
+             sw(v.photos, "basculeAmovible('photos')"))}
+      ${srow("Lancer la musique","Quand c'est un disque audio",
+             sw(v.musique, "basculeAmovible('musique')"))}
+      ${btnOuvrir("amovibles","Réglages fins (XFCE)")}
+      <p class="notice">Ces réglages sont ceux de thunar-volman : ils s'appliquent
+      tout de suite, sans rouvrir la session.</p>`;
+    }
     case "tablette": return `<h2>Tablette graphique</h2><div class="sub">Stylet et boutons</div>
       ${srow("Tablette","Pression du stylet, boutons, zone active")}
       ${btnOuvrir("tablette")}`;
-    case "confidentialite": return `<h2>Confidentialité et sécurité</h2><div class="sub">Pare-feu, antivirus, chiffrement</div>
-      ${srow("Autodéfense","Pare-feu, antivirus, anti-intrusion, anti-rootkit")}
-      ${btnOuvrir("confidentialite","Ouvrir Sécurité")}`;
-    case "maj": return `<h2>Mises à jour</h2><div class="sub">Sécurité automatique, reste sur demande</div>
-      ${srow("Mises à jour de sécurité","S'installent toutes seules (unattended-upgrades)")}
-      ${btnOuvrir("maj","Vérifier maintenant (lexos doctor)")}`;
-    case "accessibilite": return `<h2>Accessibilité</h2><div class="sub">Voir, entendre, taper</div>
-      ${srow("Aides","Touches rémanentes, rebond, contraste")}
-      ${btnOuvrir("accessibilite")}`;
-    case "utilisateurs": return `<h2>Utilisateurs</h2><div class="sub">Comptes locaux</div>
-      ${srow("lex","Principal, administrateur")}
-      ${srow("invite","Invité — session limitée, sans mot de passe, sans droits admin")}
-      ${btnOuvrir("utilisateurs","Détails (terminal)")}`;
-    case "region": return `<h2>Région et langue</h2><div class="sub">Langue du système</div>
-      <div class="srow"><div><div class="t">Langue</div>
-        <div class="d">locales-all fournit déjà toutes les langues</div></div>
-        <select onchange="if(this.value)setLangue(this.value)">
-          <option value="">Choisir…</option>
-          ${LANGUES.map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join("")}
-        </select></div>
-      <p class="notice">Reconnecte-toi (ou redémarre) pour l'appliquer partout.</p>`;
-    case "clavier": return `<h2>Clavier</h2><div class="sub">Dispositions, raccourcis</div>
-      ${srow("Dispositions et raccourcis","Ajouter une disposition, changer les raccourcis")}
-      ${btnOuvrir("clavier")}`;
+    case "confidentialite": {
+      const q = etat.securite || {};
+      //  Trois états et non deux : « en marche », « installé mais arrêté »,
+      //  et « pas installé ». Un pare-feu éteint et un pare-feu absent
+      //  n'appellent pas le même geste.
+      const dit = (v, oui, non) =>
+        v === null || v === undefined ? "Pas installé" : (v ? oui : non);
+      const pastille = v =>
+        `<span class="etat ${v===null||v===undefined?"abs":(v?"ok":"off")}">${
+          v===null||v===undefined?"absent":(v?"actif":"arrêté")}</span>`;
+      return `<h2>Confidentialité et sécurité</h2><div class="sub">Pare-feu, chiffrement, autodéfense</div>
+      ${srow("Chiffrement du disque (LUKS2)",
+             q.chiffre ? "Ce disque est chiffré" : "Ce disque n'est pas chiffré — proposé à l'installation",
+             `<span class="etat ${q.chiffre?"ok":"off"}">${q.chiffre?"actif":"non"}</span>`)}
+      ${srow("Pare-feu (ufw)", dit(q.pareFeu,"Refuse tout entrant, laisse sortir","Installé, mais éteint"),
+             pastille(q.pareFeu))}
+      ${srow("Antivirus (ClamAV)", dit(q.antivirus,"Base de signatures à jour","Installé, mise à jour arrêtée"),
+             pastille(q.antivirus))}
+      ${srow("Anti-intrusion (fail2ban)", dit(q.intrusion,"Bannit les tentatives répétées","Installé, mais arrêté"),
+             pastille(q.intrusion))}
+      ${srow("Cloisonnement (AppArmor)", dit(q.apparmor,"Les applications sont cloisonnées","Installé, mais arrêté"),
+             pastille(q.apparmor))}
+      ${srow("Anti-rootkit", q.rootkit ? "rkhunter et chkrootkit sont là" : "Pas installé",
+             pastille(q.rootkit ? true : null))}
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Vérifier maintenant</div>
+        <div class="row">
+          <button class="btn" onclick="actionSecu('etat')">État complet</button>
+          <button class="btn ghost" onclick="actionSecu('pare-feu')">Pare-feu</button>
+          <button class="btn ghost" onclick="actionSecu('antivirus')">Analyser</button>
+          <button class="btn ghost" onclick="actionSecu('rootkit')">Anti-rootkit</button>
+        </div>
+      </div>
+      <p class="notice">Ces outils demandent les droits d'administration et posent
+      des questions : ils s'ouvrent dans un terminal, pour qu'on puisse LIRE ce
+      qu'ils font. Les lancer en silence derrière un interrupteur cacherait
+      justement ce qu'il faut voir.</p>`;
+    }
+    case "maj": {
+      const m = etat.maj || {};
+      return `<h2>Mises à jour</h2><div class="sub">${esc(etat.version || "LexOS")}</div>
+      ${srow("Version installée", esc(etat.version || "") + " · noyau " + esc(etat.noyau || ""))}
+      ${srow("Mises à jour de sécurité automatiques",
+             m.secu ? "Appliquées toutes seules" : "Désactivées",
+             `<span class="etat ${m.secu?"ok":"off"}">${m.secu?"actif":"arrêté"}</span>`)}
+      ${srow("Tout mettre à jour automatiquement",
+             m.tout ? "Y compris les mises à jour ordinaires" : "Seule la sécurité est automatique",
+             `<span class="etat ${m.tout?"ok":"off"}">${m.tout?"actif":"non"}</span>`)}
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Maintenant</div>
+        <div class="row">
+          <button class="btn" onclick="actionMaj('verifier')">Vérifier</button>
+          <button class="btn ghost" onclick="actionMaj('tout')">Tout mettre à jour</button>
+          ${m.fwupd ? `<button class="btn ghost" onclick="actionMaj('firmware')">Micrologiciel (BIOS, SSD)</button>` : ""}
+        </div>
+      </div>
+      <p class="notice">Les mises à jour de sécurité s'installent seules ; le reste
+      attend que tu le demandes. Une mise à jour pose des questions et prend du
+      temps : elle s'ouvre dans un terminal pour qu'on voie ce qui se passe.</p>`;
+    }
+    case "accessibilite": {
+      const a = etat.access || {};
+      return `<h2>Accessibilité</h2><div class="sub">Voir, entendre, taper</div>
+      ${srow("Contraste élevé","Couleurs franches, bordures nettes",
+             sw(a.contraste, "basculeAccess('contraste')"))}
+      ${srow("Curseur large","Un pointeur qu'on retrouve du premier coup d'oeil",
+             sw(a.curseurLarge, "basculeAccess('curseur')"))}
+      ${srow("Lecteur d'écran (Orca)",
+             a.orca ? "Lit à voix haute ce qui est à l'écran" : "Pas installé",
+             a.orca ? `<button class="btn ghost" onclick="basculeAccess('orca')">Lancer</button>` : "")}
+      ${srow("Clavier visuel (Onboard)",
+             a.onboard ? "Taper à la souris ou au doigt, sans clavier physique" : "Pas installé",
+             a.onboard ? `<button class="btn ghost" onclick="basculeAccess('onboard')">Lancer</button>` : "")}
+      ${btnOuvrir("accessibilite","Réglages fins (XFCE)")}
+      <p class="notice">Un système sans lecteur d'écran n'est pas utilisable par
+      tout le monde : Orca est embarqué d'office, pas en option.</p>`;
+    }
+    case "utilisateurs": {
+      const g = etat.utilisateurs || [];
+      return `<h2>Utilisateurs</h2><div class="sub">Comptes de cette machine</div>
+      ${g.length ? g.map(u=>srow(
+          esc(u.complet) + (u.moi ? " — c'est toi" : ""),
+          esc(u.nom) + (u.admin ? " · administrateur" : " · session ordinaire"),
+          `<span class="etat ${u.admin?"ok":"abs"}">${u.admin?"admin":"normal"}</span>`)).join("")
+        : `<p class="notice">Aucun compte lu.</p>`}
+      ${btnOuvrir("utilisateurs","Détail (terminal)")}
+      <p class="notice">Ajouter ou retirer un compte touche à tout le système :
+      ça passe par <code>lexos utilisateurs</code>, dans un terminal, avec le
+      mot de passe d'administration — pas par un bouton qu'on clique sans y penser.</p>`;
+    }
+    case "region": {
+      return `<h2>Région et langue</h2><div class="sub">Langue, formats, clavier</div>
+      ${srow("Langue du système", esc(etat.langue || "inconnue"))}
+      ${srow("Fuseau horaire", esc((etat.heure && etat.heure.fuseau) || "inconnu"))}
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Changer la langue</div>
+        <div class="row">${[["fr_CA.UTF-8","Français (Québec)"],["fr_FR.UTF-8","Français (France)"],
+                            ["en_CA.UTF-8","English (Canada)"],["en_US.UTF-8","English (US)"]].map(([v,t])=>
+          `<button class="btn ${v===etat.langue?"sel":"ghost"}" onclick="setLangue('${v}')">${t}</button>`).join("")}</div>
+      </div>
+      <p class="notice">Le changement s'applique à la prochaine ouverture de session :
+      les applications lisent leur langue au démarrage, pas en cours de route.</p>`;
+    }
+    case "clavier": {
+      const k = etat.clavier || {};
+      const d = k.dispositions || [];
+      return `<h2>Clavier</h2><div class="sub">Dispositions et raccourcis</div>
+      ${d.length
+        ? srow("Dispositions actives", d.join(" · ") +
+               (d.length > 1 ? " — Maj+Alt bascule de l'une à l'autre" : ""),
+               `<span class="etat ok">${esc(k.courante || d[0])}</span>`)
+        : `<p class="notice">Disposition illisible (setxkbmap absent ou session Wayland).</p>`}
+      ${btnOuvrir("clavier","Réglages du clavier")}
+      <p class="notice">En ligne de commande : <code>lexos clavier</code> ajoute une
+      disposition, en enlève une, ou change la touche de bascule.</p>`;
+    }
     case "datetime": {
       const h = etat.heure || {};
       return `<h2>Date et heure</h2><div class="sub">Fuseau horaire</div>
@@ -686,9 +832,21 @@ function contenu(cle){
     case "defaut": return `<h2>Applications par défaut</h2><div class="sub">Quelle application ouvre quoi</div>
       ${srow("Navigateur, courrier, fichiers","Choisir les applications préférées")}
       ${btnOuvrir("defaut")}`;
-    case "distant": return `<h2>Bureau à distance</h2><div class="sub">Voir cet écran depuis une autre machine</div>
-      ${srow("Accès à distance","x11vnc, à installer au besoin")}
-      ${btnOuvrir("distant","Comment faire")}`;
+    case "distant": {
+      const r = etat.distant || {};
+      return `<h2>Bureau à distance</h2><div class="sub">Voir cette machine depuis ailleurs</div>
+      ${r.outil
+        ? srow(`Serveur (${esc(r.outil)})`,
+               r.actif ? "En marche — cette machine est visible depuis le réseau"
+                       : "Installé, mais arrêté",
+               `<span class="etat ${r.actif?"ok":"off"}">${r.actif?"actif":"arrêté"}</span>`)
+        : srow("Serveur", "Aucun serveur installé",
+               `<span class="etat abs">absent</span>`)}
+      ${btnOuvrir("distant","Détail (terminal)")}
+      <p class="notice">${r.outil
+        ? "Un bureau à distance ouvre ta machine au réseau : il ne démarre jamais tout seul, et jamais sans mot de passe."
+        : "À installer d'abord : <code>lexos install x11vnc</code>."}</p>`;
+    }
     case "apropos": return `<h2>À propos de LexOS</h2><div class="sub">1.0 « Nomad »</div>
       ${srow("Système", esc(etat.version))}
       ${srow("Nom de la machine", esc(etat.hote))}
