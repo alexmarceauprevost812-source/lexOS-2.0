@@ -299,6 +299,15 @@ def act_son_volume(arg):
     return _run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{n}%"])
 
 
+def act_notif(arg):
+    """Ne pas déranger."""
+    if arg != "silence":
+        return {"ok": False, "erreur": "valeur inattendue"}
+    actuel = _notif_etat()["silence"]
+    return _run(["xfconf-query", "-c", "xfce4-notifyd", "-p", "/do-not-disturb",
+                 "-n", "-t", "bool", "-s", "false" if actuel else "true"])
+
+
 def act_amovibles(arg):
     """Ce que LexOS fait quand on branche quelque chose. Le nom du réglage
     est cherché dans la table VOLMAN : la page ne peut pas désigner une clé
@@ -505,6 +514,7 @@ ACTIONS = {
     "crt": act_crt,
     "usb": act_usb,
     "amovibles": act_amovibles,
+    "notif": act_notif,
     "access": act_access,
     "securite": act_securite,
     "maj": act_maj,
@@ -1033,6 +1043,123 @@ def _reseau_etat():
     return {"filaire": filaire, "ip": ip}
 
 
+def _defaut_etat():
+    """Quel logiciel ouvre quoi. xdg-settings dit le navigateur ; pour le
+    reste on lit le fichier d'associations, celui que le bureau consulte."""
+    nav = _sortie(["xdg-settings", "get", "default-web-browser"]) if shutil.which("xdg-settings") else ""
+    assoc = {}
+    chemins = [Path.home() / ".config/mimeapps.list",
+               Path("/usr/share/applications/mimeapps.list")]
+    interesse = {"text/plain": "texte", "image/png": "image",
+                 "application/pdf": "pdf", "audio/mpeg": "musique",
+                 "video/mp4": "video"}
+    for f in chemins:
+        try:
+            dedans = False
+            for ligne in f.read_text().splitlines():
+                l = ligne.strip()
+                if l.startswith("["):
+                    dedans = l == "[Default Applications]"
+                    continue
+                if dedans and "=" in l:
+                    mime, appli = l.split("=", 1)
+                    cle = interesse.get(mime.strip())
+                    if cle and cle not in assoc:
+                        assoc[cle] = appli.split(";")[0].replace(".desktop", "")
+        except OSError:
+            continue
+    return {"navigateur": nav.replace(".desktop", ""), "assoc": assoc}
+
+
+def _couleurs_etat():
+    """Les écrans connus de colord, et s'ils ont un profil de couleur."""
+    if not shutil.which("colormgr"):
+        return {"dispo": False, "ecrans": []}
+    ecrans, courant = [], None
+    for ligne in _sortie(["colormgr", "get-devices"]).splitlines():
+        l = ligne.strip()
+        if l.startswith("Model:"):
+            courant = {"nom": l.split(":", 1)[1].strip(), "profil": ""}
+            ecrans.append(courant)
+        elif courant is not None and l.startswith("Default Profile:"):
+            courant["profil"] = l.split(":", 1)[1].strip()
+    return {"dispo": True, "ecrans": ecrans}
+
+
+def _tablette_etat():
+    """Une tablette graphique est-elle branchée ? xsetwacom la voit quand le
+    pilote est chargé ; sinon on cherche dans les périphériques d'entrée."""
+    if shutil.which("xsetwacom"):
+        lignes = [l for l in _sortie(["xsetwacom", "--list", "devices"]).splitlines() if l.strip()]
+        if lignes:
+            return {"branchee": True,
+                    "noms": [l.split("id:")[0].strip() for l in lignes]}
+    return {"branchee": False, "noms": []}
+
+
+def _notif_etat():
+    """Ne pas déranger, et combien de temps une notification reste à l'écran."""
+    c = "xfce4-notifyd"
+    dnd = _xfconf_lire(c, "/do-not-disturb")
+    duree = _xfconf_lire(c, "/expire-timeout")
+    return {"silence": dnd == "true",
+            "duree": duree if duree.isdigit() else ""}
+
+
+def _mac_etat():
+    """Cette machine est-elle un Mac ? Le fabricant est écrit dans le DMI par
+    le BIOS ; c'est la source que tous les outils lisent."""
+    try:
+        vendeur = Path("/sys/class/dmi/id/sys_vendor").read_text().strip()
+        modele = Path("/sys/class/dmi/id/product_name").read_text().strip()
+    except OSError:
+        return {"apple": False, "modele": ""}
+    return {"apple": "apple" in vendeur.lower(), "modele": modele}
+
+
+def _partage_etat():
+    """Le serveur de partage tourne-t-il ?"""
+    actif = bool(_sortie(["pgrep", "-f", "share-server.py"])) if shutil.which("pgrep") else False
+    return {"actif": actif}
+
+
+def _comptes_etat():
+    """Les comptes en ligne reliés. Deux mécanismes cohabitent sous Linux et
+    ne font pas la même chose : GNOME Online Accounts ouvre le compte DANS le
+    gestionnaire de fichiers (rien n'est copié), rclone sait en plus
+    synchroniser pour l'hors-ligne. On dit lequel est disponible."""
+    liens = []
+    if shutil.which("rclone"):
+        for ligne in _sortie(["rclone", "listremotes"]).splitlines():
+            nom = ligne.strip().rstrip(":")
+            if nom:
+                liens.append({"nom": nom, "par": "rclone"})
+    return {"rclone": bool(shutil.which("rclone")),
+            "goa": bool(shutil.which("gnome-control-center")
+                        or Path("/usr/lib/gnome-online-accounts").exists()),
+            "liens": liens}
+
+
+def _bienetre_etat():
+    """Temps d'écran du jour et pauses. Le compteur est tenu par
+    lexos-bienetre ; on lit son relevé plutôt que de le recalculer ici."""
+    conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
+    minutes = 0
+    try:
+        brut = (conf / "ecran-aujourdhui").read_text().strip()
+        #  Format « AAAA-MM-JJ minutes » : on n'affiche que si c'est
+        #  AUJOURD'HUI, sinon on montrerait le temps d'hier.
+        jour, _, val = brut.partition(" ")
+        from datetime import date
+        if jour == date.today().isoformat() and val.strip().isdigit():
+            minutes = int(val.strip())
+    except (OSError, ValueError):
+        pass
+    return {"minutes": minutes,
+            "pauses": bool(shutil.which("workrave")),
+            "soir": bool(shutil.which("redshift") or shutil.which("gammastep"))}
+
+
 def _heure_etat():
     """Fuseau et synchronisation automatique, via timedatectl."""
     if not shutil.which("timedatectl"):
@@ -1113,6 +1240,14 @@ def etat():
         "clavier": _clavier_etat(),
         "distant": _distant_etat(),
         "reseau": _reseau_etat(),
+        "defaut": _defaut_etat(),
+        "couleurs": _couleurs_etat(),
+        "tablette": _tablette_etat(),
+        "notif": _notif_etat(),
+        "mac": _mac_etat(),
+        "partage": _partage_etat(),
+        "comptes": _comptes_etat(),
+        "bienetre": _bienetre_etat(),
         "langue": _sortie(["sh", "-c", "printf %s \"${LANG:-}\""]) or os.environ.get("LANG", ""),
     }
 

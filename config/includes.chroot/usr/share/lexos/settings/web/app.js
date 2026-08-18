@@ -277,6 +277,10 @@ async function setLangue(l){
   const r = await api("langue", l);
   await rafraichir(r.ok ? "À la prochaine ouverture de session" : "Échec : " + (r.erreur || "commande refusée"));
 }
+async function basculeNotif(){
+  const r = await api("notif", "silence");
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
 async function basculeAmovible(quoi){
   const r = await api("amovibles", quoi);
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
@@ -521,9 +525,18 @@ function contenu(cle){
       <code>lexos format</code> formate une clé ou un téléphone — jamais le disque
       système, et seulement après confirmation explicite.</p>`;
     }
-    case "mac": return `<h2>Mac (Apple)</h2><div class="sub">Wi-Fi Broadcom, ventilateurs, touches F1-F12</div>
-      ${srow("Ce Mac","Classement du modèle et réglages propres au matériel Apple")}
-      ${btnOuvrir("mac","Ouvrir l'outil Mac")}`;
+    case "mac": {
+      const m = etat.mac || {};
+      return `<h2>Mac (Apple)</h2><div class="sub">Wi-Fi Broadcom, ventilateurs, touches F1-F12</div>
+      ${srow("Cette machine",
+             m.apple ? "Matériel Apple — " + esc(m.modele || "modèle inconnu")
+                     : "Ce n'est pas un Mac" + (m.modele ? " — " + esc(m.modele) : ""),
+             `<span class="etat ${m.apple?"ok":"abs"}">${m.apple?"Apple":"autre"}</span>`)}
+      ${btnOuvrir("mac","Outils Mac (terminal)")}
+      <p class="notice">${m.apple
+        ? "Wi-Fi Broadcom, pilotage des ventilateurs et touches F1-F12 : <code>lexos mac</code> s'en occupe."
+        : "Ces réglages ne servent que sur du matériel Apple. Ils restent là au cas où tu déplacerais ce disque."}</p>`;
+    }
     case "apparence": return `<h2>Apparence</h2><div class="sub">Thème, accent, barre d'outils</div>
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Thème du bureau</div>
@@ -642,20 +655,77 @@ function contenu(cle){
       quand même dans le dock — le premier clic l'installe depuis le dépôt
       officiel de Google (aussi : <code>lexos chrome</code>, ou
       <code>lexos install chrome</code>).</p>`;
-    case "notifications": return `<h2>Notifications</h2><div class="sub">Alertes système</div>
-      ${srow("Notifications","Position, durée, applications autorisées")}
-      ${btnOuvrir("notifications")}`;
-    case "recherche": return `<h2>Recherche</h2><div class="sub">Trouver une application</div>
-      ${srow("Recherche d'applications","Super+S, ou le bouton Applications du panneau")}
-      ${btnOuvrir("recherche","Ouvrir la recherche")}`;
-    case "comptes": return `<h2>Comptes en ligne</h2><div class="sub">Google, Microsoft, Nextcloud…</div>
-      <p class="notice">Pas encore disponible dans LexOS 1.0 — prévu pour une prochaine
-      version. Les applications (Thunderbird, navigateur) gardent leurs propres comptes.</p>`;
-    case "partage": return `<h2>Partage</h2><div class="sub">Fichiers, QR code, Bluetooth</div>
-      ${srow("Envoyer vers un téléphone","QR code, KDE Connect, Bluetooth")}
-      ${btnOuvrir("partage","Ouvrir Partager")}`;
-    case "bienetre": return `<h2>Bien-être numérique</h2><div class="sub">Temps d'écran</div>
-      <p class="notice">Pas encore disponible dans LexOS 1.0 — prévu pour une prochaine version.</p>`;
+    case "notifications": {
+      const n = etat.notif || {};
+      return `<h2>Notifications</h2><div class="sub">Ce qui apparaît, et combien de temps</div>
+      ${srow("Ne pas déranger", n.silence ? "Les notifications sont mises de côté"
+                                          : "Les notifications s'affichent",
+             sw(n.silence, "basculeNotif()"))}
+      ${n.duree ? srow("Durée d'affichage", n.duree + " secondes") : ""}
+      ${btnOuvrir("notifications","Réglages fins")}
+      <p class="notice">En « ne pas déranger », rien n'est perdu : les
+      notifications s'empilent et se relisent après.</p>`;
+    }
+    case "recherche": {
+      return `<h2>Recherche</h2><div class="sub">Trouver un fichier ou une application</div>
+      ${srow("Chercher une application","Le menu Applications filtre à la frappe")}
+      ${srow("Chercher un fichier","Par nom ou par contenu — <code>lexos recherche</code>")}
+      ${btnOuvrir("recherche","Ouvrir la recherche")}
+      <p class="notice">LexOS n'indexe pas le disque en tâche de fond : rien ne
+      tourne en permanence à lire tes fichiers, et rien ne ralentit la machine
+      pour un service qu'on utilise trois fois par semaine. La recherche
+      parcourt au moment où on la demande.</p>`;
+    }
+    case "comptes": {
+      const c = etat.comptes || {};
+      return `<h2>Comptes en ligne</h2><div class="sub">Drive, OneDrive, Nextcloud, Dropbox…</div>
+      ${c.liens && c.liens.length
+        ? c.liens.map(l=>srow(esc(l.nom), "Relié par " + esc(l.par),
+            `<span class="etat ok">relié</span>`)).join("")
+        : srow("Comptes reliés", "Aucun pour l'instant",
+               `<span class="etat abs">aucun</span>`)}
+      ${srow("rclone", c.rclone ? "Disponible — synchronise ou monte comme un disque"
+                                : "Pas installé",
+             `<span class="etat ${c.rclone?"ok":"abs"}">${c.rclone?"prêt":"absent"}</span>`)}
+      ${btnOuvrir("comptes","Relier un compte")}
+      <p class="notice">Deux façons de faire, qui ne se valent pas :
+      <b>monter</b> le compte l'ouvre dans le gestionnaire de fichiers sans rien
+      copier — pratique, mais inutilisable hors ligne ; <b>synchroniser</b> en
+      garde une copie sur le disque, disponible même sans réseau. LexOS propose
+      les deux, et le dit avant de choisir pour toi.</p>`;
+    }
+    case "partage": {
+      const p = etat.partage || {};
+      return `<h2>Partage</h2><div class="sub">Envoyer un fichier à un téléphone ou à un autre poste</div>
+      ${srow("Serveur de partage",
+             p.actif ? "En marche — un QR code suffit à recevoir"
+                     : "Arrêté — il démarre quand tu partages quelque chose",
+             `<span class="etat ${p.actif?"ok":"abs"}">${p.actif?"actif":"au repos"}</span>`)}
+      ${btnOuvrir("partage","Ouvrir le partage")}
+      <p class="notice">Le partage montre un QR code et sert une page locale :
+      ça marche avec <b>n'importe quel</b> téléphone, sans rien y installer.
+      Le serveur ne tourne que le temps du transfert.</p>`;
+    }
+    case "bienetre": {
+      const b = etat.bienetre || {};
+      const h = Math.floor((b.minutes||0)/60), m = (b.minutes||0)%60;
+      return `<h2>Bien-être numérique</h2><div class="sub">Temps d'écran, pauses, lumière du soir</div>
+      ${srow("Temps d'écran aujourd'hui",
+             b.minutes ? `${h} h ${String(m).padStart(2,"0")}` +
+                         " — compté depuis la dernière activité, pas depuis l'allumage"
+                       : "Pas encore de relevé pour aujourd'hui",
+             b.minutes ? jauge(Math.min(100, Math.round(b.minutes/480*100))) : "")}
+      ${srow("Rappels de pause", b.pauses ? "workrave est là — il rappelle de lever les yeux"
+                                          : "Pas installé",
+             `<span class="etat ${b.pauses?"ok":"abs"}">${b.pauses?"prêt":"absent"}</span>`)}
+      ${srow("Lumière du soir", b.soir ? "Réchauffe l'écran à la tombée du jour"
+                                       : "Pas installé",
+             `<span class="etat ${b.soir?"ok":"abs"}">${b.soir?"prêt":"absent"}</span>`)}
+      ${btnOuvrir("bienetre","Ouvrir le détail")}
+      <p class="notice">Le temps d'écran compte l'usage RÉEL : un ordinateur
+      laissé ouvert toute la nuit ne compte pas huit heures. Un compteur qui
+      prétendrait le contraire ne vaudrait rien.</p>`;
+    }
     case "souris": {
       const m = etat.souris || {};
       return `<h2>Souris et pavé tactile</h2><div class="sub">Vitesse, boutons, défilement</div>
@@ -669,9 +739,22 @@ function contenu(cle){
       ${srow("Pointeur","Vitesse, gaucher/droitier, thème du curseur")}
       ${btnOuvrir("souris")}`;
     }
-    case "couleurs": return `<h2>Gestion des couleurs</h2><div class="sub">Profils ICC</div>
-      ${srow("Profils des écrans et imprimantes","Charger un profil ICC")}
-      ${btnOuvrir("couleurs")}`;
+    case "couleurs": {
+      const c = etat.couleurs || {};
+      return `<h2>Gestion des couleurs</h2><div class="sub">Profils des écrans</div>
+      ${!c.dispo
+        ? `<p class="notice">colord n'est pas là : les profils de couleur ne
+           peuvent pas être gérés.</p>`
+        : (c.ecrans && c.ecrans.length
+            ? c.ecrans.map(e=>srow(esc(e.nom),
+                e.profil ? "Profil : " + esc(e.profil) : "Aucun profil — couleurs par défaut",
+                `<span class="etat ${e.profil?"ok":"abs"}">${e.profil?"calibré":"non calibré"}</span>`)).join("")
+            : `<p class="notice">Aucun écran connu de colord pour l'instant.</p>`)}
+      ${btnOuvrir("couleurs","Ouvrir la gestion des couleurs")}
+      <p class="notice">Un profil de couleur sert surtout à celui qui imprime ou
+      retouche des photos : il fait correspondre ce qu'on voit à l'écran et ce
+      qui sort de l'imprimante.</p>`;
+    }
     case "imprimantes": {
       const im = etat.imprimantes || {};
       return `<h2>Imprimantes</h2><div class="sub">Ajouter et gérer les imprimantes</div>
@@ -700,9 +783,18 @@ function contenu(cle){
       <p class="notice">Ces réglages sont ceux de thunar-volman : ils s'appliquent
       tout de suite, sans rouvrir la session.</p>`;
     }
-    case "tablette": return `<h2>Tablette graphique</h2><div class="sub">Stylet et boutons</div>
-      ${srow("Tablette","Pression du stylet, boutons, zone active")}
-      ${btnOuvrir("tablette")}`;
+    case "tablette": {
+      const t = etat.tablette || {};
+      return `<h2>Tablette graphique</h2><div class="sub">Stylet, pression, zones</div>
+      ${t.branchee
+        ? t.noms.map(n=>srow(esc(n), "Reconnue et prête",
+            `<span class="etat ok">branchée</span>`)).join("")
+        : srow("Tablette", "Aucune tablette branchée",
+               `<span class="etat abs">absente</span>`)}
+      ${btnOuvrir("tablette","Réglages du stylet")}
+      <p class="notice">Le pilote Wacom est déjà embarqué : une tablette
+      branchée est reconnue sans rien installer.</p>`;
+    }
     case "confidentialite": {
       const q = etat.securite || {};
       //  Trois états et non deux : « en marche », « installé mais arrêté »,
@@ -829,9 +921,19 @@ function contenu(cle){
              sw(h.auto, "basculeHeureAuto()"))}
       ${btnOuvrir("datetime","État (timedatectl)")}`;
     }
-    case "defaut": return `<h2>Applications par défaut</h2><div class="sub">Quelle application ouvre quoi</div>
-      ${srow("Navigateur, courrier, fichiers","Choisir les applications préférées")}
-      ${btnOuvrir("defaut")}`;
+    case "defaut": {
+      const d = etat.defaut || {};
+      const a = d.assoc || {};
+      const noms = {texte:"Fichiers texte", image:"Images", pdf:"Documents PDF",
+                    musique:"Musique", video:"Vidéos"};
+      return `<h2>Applications par défaut</h2><div class="sub">Quel logiciel ouvre quoi</div>
+      ${srow("Navigateur web", esc(d.navigateur || "non défini"))}
+      ${Object.keys(noms).map(k=>
+        a[k] ? srow(noms[k], esc(a[k])) : "").join("")}
+      ${btnOuvrir("defaut","Changer les applications par défaut")}
+      <p class="notice">Autre façon de faire, souvent plus rapide : clic droit sur
+      un fichier → <b>Ouvrir avec</b> → <b>Définir par défaut</b>.</p>`;
+    }
     case "distant": {
       const r = etat.distant || {};
       return `<h2>Bureau à distance</h2><div class="sub">Voir cette machine depuis ailleurs</div>
