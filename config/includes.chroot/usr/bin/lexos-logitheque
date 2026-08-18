@@ -137,8 +137,35 @@ synaptic|synaptic|Utilitaires|Gestionnaire de paquets détaillé|https://www.non
 # --- Résolution d'un nom simple vers un paquet Debian ------------------------
 #  Un nom inconnu n'est pas une erreur : c'est peut-être un vrai paquet Debian
 #  que le catalogue ne connaît pas. On le laisse passer tel quel à apt.
+#  DES NOMS PARLÉS, en plus des noms de paquets. Quelqu'un qui cherche le
+#  bureau à distance tape « distant », pas « remmina » — et la démo web
+#  écrit d'ailleurs « lexos logitheque install distant » noir sur blanc.
+#  Sans cette table, cette commande copiée-collée échouait : elle partait
+#  telle quelle à apt, qui ne connaît aucun paquet « distant ».
+ALIAS="
+distant|remmina
+bureau-a-distance|remmina
+retouche|gimp
+photo|gimp
+dessin|inkscape
+montage|kdenlive
+video|vlc
+bureautique|libreoffice
+jeux|steam-installer
+torrent|transmission-gtk
+"
+
 resoudre() {
 	local nom="$1"
+	#  D'abord les noms parlés : « distant » devient « remmina », puis suit le
+	#  chemin normal — ce qui permet à un alias de pointer une entrée du
+	#  catalogue et d'hériter de sa description.
+	local acle apkg
+	while IFS='|' read -r acle apkg; do
+		[[ -n "$acle" ]] || continue
+		[[ "$acle" == "$nom" ]] && { nom="$apkg"; break; }
+	done <<< "$ALIAS"
+
 	while IFS='|' read -r cle pkg _cat _desc _lien; do
 		[[ -n "$cle" ]] || continue
 		if [[ "$cle" == "$nom" || "$pkg" == "$nom" ]]; then

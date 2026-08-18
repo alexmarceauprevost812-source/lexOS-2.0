@@ -39,6 +39,7 @@
       </property>
       <property name="plugin-ids" type="array">
         <value type="int" value="1"/>
+        <value type="int" value="14"/>
         <value type="int" value="9"/>
         <value type="int" value="10"/>
         <value type="int" value="11"/>
@@ -46,9 +47,11 @@
         <value type="int" value="2"/>
         <value type="int" value="3"/>
         <value type="int" value="4"/>
+        <value type="int" value="16"/>
         <value type="int" value="5"/>
         <value type="int" value="6"/>
         <value type="int" value="7"/>
+        <value type="int" value="15"/>
         <value type="int" value="12"/>
         <value type="int" value="8"/>
       </property>
@@ -110,9 +113,45 @@
          La mise en cache est DANS le script : même si le panneau
          interrogeait toutes les secondes, le réseau n'est sollicité qu'un
          quart d'heure au plus. -->
+    <!-- 14 · LES PASTILLES DE BUREAUX, à côté du logo — comme dans la démo.
+         C'était un manque relevé à l'audit : les quatre bureaux existaient,
+         mais RIEN à l'écran ne disait sur lequel on se trouvait ni s'il y
+         avait des fenêtres ailleurs. Il fallait ouvrir les Paramètres pour
+         le savoir, ce qui est exactement l'inverse d'un indicateur.
+         « miniature-view » à false : des carrés numérotés, lisibles d'un
+         coup d'oeil, plutôt que des vignettes minuscules illisibles à cette
+         taille. Une seule rangée : la barre est horizontale. -->
+    <property name="plugin-14" type="string" value="pager">
+      <property name="workspace-scrolling" type="bool" value="true"/>
+      <property name="miniature-view"      type="bool" value="false"/>
+      <property name="rows"                type="uint" value="1"/>
+      <property name="numbering"           type="bool" value="true"/>
+    </property>
+
+    <!-- 15 · LE CENTRE DE NOTIFICATIONS — la cloche et son compteur.
+         Autre manque de l'audit : rien ne signalait passivement qu'une
+         notification était passée. Une notification manquée était perdue
+         pour de bon. Ce greffon (fourni par xfce4-notifyd) garde le journal,
+         affiche un point quand il y a du non-lu, et donne « Tout effacer ». -->
+    <property name="plugin-15" type="string" value="notification-plugin"/>
+
     <property name="plugin-13" type="string" value="genmon">
       <property name="command"       type="string" value="lexos-meteo --panneau"/>
       <property name="update-period" type="int"    value="900000"/>
+      <property name="use-label"     type="bool"   value="false"/>
+      <property name="font"          type="string" value="Noto Sans 10"/>
+    </property>
+
+    <!-- 16 · LES APPAREILS BRANCHÉS — la rangée d'icônes de la démo (haut
+         droite) : imprimante, écran externe, casque, clé USB, disque dur.
+         Même mécanique que la météo : genmon lance lexos-peripheriques, qui
+         décide de tout. Rien de branché = sortie vide = aucune place prise.
+         Cinq secondes entre deux lectures : trois petites commandes locales
+         (lpstat, xrandr, pactl, lsblk), aucun réseau — brancher une clé se
+         voit presque tout de suite sans coûter quoi que ce soit. -->
+    <property name="plugin-16" type="string" value="genmon">
+      <property name="command"       type="string" value="lexos-peripheriques --panneau"/>
+      <property name="update-period" type="int"    value="5000"/>
       <property name="use-label"     type="bool"   value="false"/>
       <property name="font"          type="string" value="Noto Sans 10"/>
     </property>

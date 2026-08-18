@@ -164,6 +164,40 @@ image/png=org.xfce.ristretto.desktop
 image/jpeg=org.xfce.ristretto.desktop
 EOF
 
+# --- « Note perso » — l'identité LexOS de l'éditeur de texte -----------------
+#  Dans la démo, l'éditeur s'appelle « Note perso » et porte le carnet orange
+#  (branding/icon-note.svg). Sur l'ISO, le carnet était bien installé comme
+#  icône (lexos-note, hook 0300)… et JAMAIS UTILISÉ : le menu montrait
+#  « Éditeur de texte Mousepad » avec l'icône générique. Même outil, deux
+#  noms — pour qui passe de la démo au vrai bureau, c'est une application
+#  qui manque.
+#
+#  POURQUOI /usr/local ET PAS UNE RETOUCHE DU FICHIER DU PAQUET. Les menus
+#  cherchent les .desktop dans l'ordre de XDG_DATA_DIRS, où /usr/local/share
+#  passe AVANT /usr/share : un fichier du même nom y prend la priorité, sans
+#  toucher à ce que dpkg a posé. Une mise à jour de mousepad ne ramènera
+#  donc jamais l'ancien nom — la retouche directe, elle, sauterait à la
+#  première mise à jour.
+if [ -r /usr/share/applications/org.xfce.mousepad.desktop ]; then
+	mkdir -p /usr/local/share/applications
+	sed -e 's/^Name=.*/Name=Note perso/' \
+	    -e 's/^Name\[fr\].*/Name[fr]=Note perso/' \
+	    -e 's/^Icon=.*/Icon=lexos-note/' \
+	    -e 's/^GenericName=.*/GenericName=Notes et textes/' \
+	    -e 's/^GenericName\[fr\].*/GenericName[fr]=Notes et textes/' \
+	    /usr/share/applications/org.xfce.mousepad.desktop \
+	    > /usr/local/share/applications/org.xfce.mousepad.desktop
+	#  Sans Name[fr] dans l'original, le sed ne l'aura pas créé : on
+	#  l'ajoute pour que le nom tienne aussi dans une session anglaise —
+	#  « Note perso » est le nom PROPRE de l'application, pas un libellé.
+	grep -q '^Name\[fr\]=' /usr/local/share/applications/org.xfce.mousepad.desktop || \
+		sed -i '/^Name=/a Name[fr]=Note perso' \
+			/usr/local/share/applications/org.xfce.mousepad.desktop
+	echo "[lexos]   Mousepad devient « Note perso » (carnet orange)"
+else
+	echo "[lexos]   mousepad absent — pas de « Note perso » à habiller"
+fi
+
 # --- Entrées de menu LexOS ---------------------------------------------------
 mkdir -p /usr/share/applications
 
@@ -742,40 +776,48 @@ UseLabel=0
 Font=Noto Sans 10
 EOF
 	echo "[lexos]   météo : genmon-13.rc écrit (commande lexos-meteo --panneau)"
+
+	#  Même mécanique pour le greffon 16 : les appareils branchés (imprimante,
+	#  écran, casque, USB, disque — la rangée d'icônes de la démo). Cinq
+	#  secondes entre deux lectures : tout est local, rien ne part au réseau.
+	cat > /etc/skel/.config/xfce4/panel/genmon-16.rc <<'EOF'
+Text=Appareils
+Command=lexos-peripheriques --panneau
+UpdatePeriod=5000
+UseLabel=0
+Font=Noto Sans 10
+EOF
+	echo "[lexos]   appareils : genmon-16.rc écrit (commande lexos-peripheriques --panneau)"
 fi
 
 # --- Raccourcis clavier ------------------------------------------------------
-cat > "$SKEL_XFCONF/xfce4-keyboard-shortcuts.xml" <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<channel name="xfce4-keyboard-shortcuts" version="1.0">
-  <property name="commands" type="empty">
-    <property name="custom" type="empty">
-      <property name="&lt;Super&gt;Return"  type="string" value="xfce4-terminal"/>
-      <property name="&lt;Super&gt;e"       type="string" value="thunar"/>
-      <property name="&lt;Super&gt;a"       type="string" value="lexos-net avion toggle"/>
-      <property name="&lt;Super&gt;p"       type="string" value="lexos-perf --gui"/>
-      <property name="&lt;Super&gt;s"       type="string" value="xfce4-appfinder"/>
-      <property name="&lt;Super&gt;d"       type="string" value="lexos-display gui"/>
-      <property name="XF86Display"          type="string" value="lexos-display gui"/>
-      <property name="XF86WLAN"             type="string" value="lexos-net avion toggle"/>
-      <property name="Print"                type="string" value="xfce4-screenshooter"/>
-      <property name="override" type="bool" value="true"/>
-    </property>
-  </property>
-  <!-- Agrandir les fenêtres : bouton de la barre de titre, double-clic sur la
-       barre, et ces raccourcis. Pas de « override » ici, volontairement — il
-       remplacerait TOUS les raccourcis de fenêtre par défaut (Alt+Tab,
-       Alt+F4, changement de bureau…) au lieu de s'y ajouter. -->
-  <property name="xfwm4" type="empty">
-    <property name="custom" type="empty">
-      <property name="&lt;Super&gt;Up"    type="string" value="maximize_window_key"/>
-      <property name="&lt;Super&gt;Down"  type="string" value="unmaximize_window_key"/>
-      <property name="&lt;Super&gt;Left"  type="string" value="tile_left_key"/>
-      <property name="&lt;Super&gt;Right" type="string" value="tile_right_key"/>
-      <property name="F11"                type="string" value="fullscreen_key"/>
-    </property>
-  </property>
-</channel>
-EOF
+#  CE HOOK N'ÉCRIT PLUS CE FICHIER, ET C'EST UNE CORRECTION.
+#
+#  Il faisait « cat > "$SKEL_XFCONF/xfce4-keyboard-shortcuts.xml" », donc il
+#  ÉCRASAIT entièrement le fichier livré par includes.chroot. Le jeu qui
+#  arrivait dans l'ISO était le sien, et il ne gardait AUCUN raccourci de
+#  capture : Maj+Impr écr, Alt+Impr écr, Ctrl+Maj+R et les accords
+#  Super+chiffre ne faisaient rien du tout. Pendant ce temps l'aide de
+#  « lexos » continuait de les annoncer — le système mentait sur son propre
+#  mode d'emploi. Deux fichiers pour un seul réglage, c'est toujours l'un des
+#  deux qui gagne en silence.
+#
+#  Les deux jeux sont désormais FUSIONNÉS dans le fichier livré. Ce hook ne
+#  fait plus que VÉRIFIER qu'il est bien arrivé — et le dire fort s'il manque,
+#  parce qu'une ISO sans raccourcis se remarque tard et s'explique mal.
+RACCOURCIS="$SKEL_XFCONF/xfce4-keyboard-shortcuts.xml"
+if [ -r "$RACCOURCIS" ]; then
+	MANQUE=""
+	for CLE in "lexos capture" "workspace_1_key" "xfce4-terminal"; do
+		grep -q "$CLE" "$RACCOURCIS" || MANQUE="${MANQUE} ${CLE}"
+	done
+	if [ -n "$MANQUE" ]; then
+		echo "[lexos]   !! raccourcis incomplets, manquent :${MANQUE}"
+	else
+		echo "[lexos]   raccourcis clavier : captures, lancements et bureaux en place"
+	fi
+else
+	echo "[lexos]   !! AUCUN fichier de raccourcis — captures et Super+chiffre morts"
+fi
 
 echo "[lexos] hook 0400 : ok"

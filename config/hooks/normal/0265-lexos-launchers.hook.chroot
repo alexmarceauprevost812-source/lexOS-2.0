@@ -78,6 +78,21 @@ lexos-reglages-couleurs|lexos-settings couleurs|Gestion des couleurs|preferences
 lexos-reglages-imprimantes|lexos-settings imprimantes|Imprimantes|printer|non|Settings;HardwareSettings;|Ajouter et gérer les imprimantes
 lexos-reglages-region|lexos-settings region|Région et langue|preferences-desktop-locale|non|Settings;|Langue, formats, fuseau
 lexos-reglages-maj|lexos-settings maj|Mises à jour|system-software-update|non|Settings;System;|Mettre LexOS à jour
+#
+#  LES SIX ASSISTANTS IA. Le navigateur de la démo a un panneau « Assistants
+#  IA » avec six services ; l'ISO n'en avait qu'un, Claude. Chaque entrée
+#  ouvre le site du service dans une fenêtre à part — LexOS ne garde aucune
+#  clé et ne relaie rien, c'est le compte de l'utilisateur qui fait foi.
+lexos-ia-chatgpt|lexos-assistants chatgpt|ChatGPT|web-browser|non|Network;|OpenAI — conversation, images, analyse
+lexos-ia-gemini|lexos-assistants gemini|Gemini|web-browser|non|Network;|Google — conversation et recherche
+lexos-ia-perplexity|lexos-assistants perplexity|Perplexity|web-browser|non|Network;|Recherche avec sources citées
+lexos-ia-mistral|lexos-assistants mistral|Mistral|web-browser|non|Network;|Le Chat — modèles européens
+lexos-ia-copilot|lexos-assistants copilot|Copilot|web-browser|non|Network;|Microsoft — conversation et code
+#
+#  LA VUE D'ENSEMBLE DES BUREAUX — le geste d'Ubuntu que la démo montre sur
+#  Super et sur le coin haut-gauche. Sans entrée de menu, personne ne saurait
+#  qu'elle existe avant d'avoir lu l'aide.
+lexos-apercu|lexos-apercu ouvrir|Vue d'ensemble|preferences-desktop-workspaces|non|Utility;|Tous les bureaux et leurs fenêtres
 "
 
 CREES=0

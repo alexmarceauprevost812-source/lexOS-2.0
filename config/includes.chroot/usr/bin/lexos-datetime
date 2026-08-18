@@ -81,6 +81,7 @@ ${B}$PROG${R} — date, heure, fuseau et horloge matérielle
 Usage :
   $PROG                          Heure locale, fuseau, synchronisation, horloge matérielle
   $PROG fuseau [zone]            Voir le fuseau, ou en changer (demande root)
+  $PROG fuseau-auto on|off      Suivre le fuseau de la ville choisie pour la météo
   $PROG auto on|off              Synchronisation de l'heure par le réseau (demande root)
   $PROG regler "AAAA-MM-JJ HH:MM:SS"
                                  Régler l'heure à la main (demande root, et « auto off » avant)
@@ -234,6 +235,94 @@ fuseau() {
 	ok "Fuseau : $zone"
 	say "Il est maintenant $(date '+%H:%M') ($(date '+%Z'))."
 	return 0
+}
+
+# --- Fuseau horaire automatique ----------------------------------------------
+#  CE QU'ON NE FAIT PAS, ET C'EST LE POINT IMPORTANT. « Fuseau horaire
+#  automatique » veut dire, dans la plupart des systèmes, « on interroge un
+#  service de géolocalisation par adresse IP ». Autrement dit : on envoie
+#  l'adresse de la maison à un tiers, sans que personne l'ait demandé, pour
+#  gagner un réglage qu'on fait une fois dans sa vie. LexOS ne fait pas ça.
+#
+#  CE QU'ON FAIT À LA PLACE. LexOS connaît peut-être DÉJÀ un lieu : celui
+#  qu'on lui a DONNÉ en choisissant sa ville pour la météo (« lexos meteo
+#  ville Toronto »). C'est une position volontaire, écrite sur la machine.
+#  On s'en sert pour demander le fuseau qui va avec, et rien d'autre ne part.
+#  Sans ville choisie, on le dit et on ne devine rien.
+FUSEAU_AUTO="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/fuseau-auto"
+METEO_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/meteo.conf"
+
+#  Le fuseau du lieu retenu, d'après ses coordonnées. Open-Meteo renvoie le
+#  nom de zone quand on lui passe « timezone=auto » — c'est le même appel que
+#  celui de la météo, sans rien de plus.
+zone_du_lieu() {
+	local lat lon reponse
+	[[ -r "$METEO_CONF" ]] || return 1
+	# shellcheck disable=SC1090
+	. "$METEO_CONF" 2>/dev/null || return 1
+	lat="${LEXOS_METEO_LAT:-}"; lon="${LEXOS_METEO_LON:-}"
+	[[ -n "$lat" && -n "$lon" ]] || return 1
+	command -v curl >/dev/null 2>&1 || return 1
+
+	reponse="$(curl -fsS --max-time 8 \
+		"https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m&timezone=auto" \
+		2>/dev/null)" || return 1
+	printf '%s' "$reponse" | python3 -c '
+import json, sys
+try:
+    z = json.load(sys.stdin).get("timezone", "")
+except Exception:
+    sys.exit(1)
+if not z:
+    sys.exit(1)
+print(z)
+' 2>/dev/null
+}
+
+fuseau_auto() {
+	local quoi="${1:-etat}"
+	case "$quoi" in
+		on|oui|1)
+			local zone
+			if ! zone="$(zone_du_lieu)" || [[ -z "$zone" ]]; then
+				warn "Aucun lieu connu — LexOS ne devine pas ta position."
+				say  "Choisis ta ville une fois : ${B}lexos meteo ville Toronto${R}"
+				say  "Le fuseau suivra ensuite tout seul."
+				return 1
+			fi
+			mkdir -p "$(dirname "$FUSEAU_AUTO")" 2>/dev/null || true
+			echo on > "$FUSEAU_AUTO"
+			if (( EUID != 0 )); then
+				if command -v pkexec >/dev/null 2>&1; then
+					pkexec timedatectl set-timezone "$zone" \
+						|| die "Le changement de fuseau a été refusé."
+				else
+					warn "Réglage retenu, mais il faut les droits d'administration :"
+					say  "  sudo timedatectl set-timezone $zone"
+					return 1
+				fi
+			else
+				timedatectl set-timezone "$zone" || die "timedatectl a refusé."
+			fi
+			ok "Fuseau automatique : $zone (d'après la ville que tu as choisie)."
+			;;
+		off|non|0)
+			mkdir -p "$(dirname "$FUSEAU_AUTO")" 2>/dev/null || true
+			echo off > "$FUSEAU_AUTO"
+			ok "Fuseau automatique : éteint. Il ne bougera plus tout seul."
+			;;
+		toggle)
+			if [[ "$(cat "$FUSEAU_AUTO" 2>/dev/null)" == "on" ]]; then
+				fuseau_auto off
+			else
+				fuseau_auto on
+			fi
+			;;
+		etat|*)
+			printf 'Fuseau automatique : %s\n' \
+				"$(cat "$FUSEAU_AUTO" 2>/dev/null || echo off)"
+			;;
+	esac
 }
 
 # --- Synchronisation par le réseau -------------------------------------------
@@ -522,6 +611,10 @@ case "${1:-}" in
 	fuseau)
 		shift
 		fuseau "${1:-}"
+		;;
+	fuseau-auto|fuseau_auto)
+		shift
+		fuseau_auto "${1:-etat}"
 		;;
 	auto)
 		shift

@@ -6,9 +6,14 @@
 -->
 <channel name="xfce4-desktop" version="1.0">
   <property name="desktop-menu" type="empty">
-    <!--  Comme ctxBureau() dans la démo : le clic droit sur le bureau donne
-          la priorité aux réglages, pas à une liste de toutes les applications
-          installées (déjà à un clic, dans le bouton Applications du panneau). -->
-    <property name="show" type="bool" value="false"/>
+    <!--  Le sous-menu Applications du clic droit. Il avait été ÉTEINT ici,
+          avec pour justification « comme ctxBureau() dans la démo » : c'est
+          une erreur de lecture — ctxBureau() commence PAR « Applications »,
+          première ligne du menu. La démo est le cahier des charges : le clic
+          droit sur le bureau doit donner les applications, comme elle.  -->
+    <property name="show" type="bool" value="true"/>
+    <!--  Les icônes dans ce sous-menu : sans elles, une liste de cinquante
+          noms secs se parcourt bien plus lentement qu'une liste illustrée. -->
+    <property name="show-menu-icons" type="bool" value="true"/>
   </property>
 </channel>

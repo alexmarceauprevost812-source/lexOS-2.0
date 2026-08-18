@@ -250,10 +250,15 @@ ${B}DIVERS${R}
   ${O}$PROG dossier${R}          Où sont rangées les captures
 
 ${D}Raccourcis clavier du bureau :
-  Impr écr           tout l'écran
-  Alt + Impr écr     fenêtre active
-  Maj + Impr écr     zone au choix
-  Ctrl + Maj + R     démarrer un enregistrement vidéo${R}
+  Impr écr             tout l'écran
+  Alt + Impr écr       fenêtre active
+  Maj + Impr écr       zone au choix
+  Ctrl + Maj + R       démarrer un enregistrement vidéo
+
+  Sans touche Impr écr (petits claviers, portables) :
+  Super + Maj + 1      tout l'écran
+  Super + Maj + 2      zone au choix
+  Super + Maj + 3      enregistrement vidéo${R}
 EOF
 }
 

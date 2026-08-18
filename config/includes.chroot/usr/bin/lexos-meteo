@@ -32,6 +32,7 @@ CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/lexos"
 CONF="$CONF_DIR/meteo.conf"
 CACHE="$CACHE_DIR/meteo.txt"
+CACHE_J="$CACHE_DIR/meteo-jours.txt"
 FRAICHEUR=900          # 15 minutes
 
 mkdir -p "$CONF_DIR" "$CACHE_DIR" 2>/dev/null || true
@@ -166,6 +167,123 @@ print("%d %d %d" % (int(code), round(float(temp)), round(float(vent or 0))))
 	printf '%s\n' "$ligne"
 }
 
+# --- Les trois prochains jours ----------------------------------------------
+#  CE QUI MANQUAIT. Dans la démo, cliquer sur la météo de la barre ouvre une
+#  fenêtre : le temps qu'il fait en grand, puis demain, après-demain et dans
+#  trois jours. Sur l'ISO, ce même clic ouvrait… la boîte « quelle est ta
+#  ville ? ». On changeait de ville chaque fois qu'on voulait simplement
+#  regarder le temps — et la prévision n'existait nulle part.
+#
+#  Même cache, même durée que le relevé courant : la fenêtre s'ouvre et se
+#  referme souvent, ce n'est pas une raison pour redemander au service.
+#  Une ligne par jour : <code> <max> <min>
+releve_jours() {
+	local forcer="${1:-}"
+	[[ -n "$LAT" && -n "$LON" ]] || return 1
+
+	if [[ -z "$forcer" && -r "$CACHE_J" ]]; then
+		local age maintenant
+		maintenant="$(date +%s)"
+		age="$(stat -c %Y "$CACHE_J" 2>/dev/null || echo 0)"
+		if (( maintenant - age < FRAICHEUR )); then
+			cat "$CACHE_J"
+			return 0
+		fi
+	fi
+
+	command -v curl >/dev/null 2>&1 || { [[ -r "$CACHE_J" ]] && cat "$CACHE_J"; return $?; }
+
+	local url reponse lignes
+	url="https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}"
+	url="${url}&daily=weather_code,temperature_2m_max,temperature_2m_min"
+	url="${url}&forecast_days=4&timezone=auto"
+	reponse="$(curl -fsS --max-time 8 "$url" 2>/dev/null)" || reponse=""
+	[[ -n "$reponse" ]] || { [[ -r "$CACHE_J" ]] && { cat "$CACHE_J"; return 0; }; return 1; }
+
+	lignes="$(printf '%s' "$reponse" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)["daily"]
+    codes, hauts, bas = d["weather_code"], d["temperature_2m_max"], d["temperature_2m_min"]
+except Exception:
+    sys.exit(1)
+for c, h, b in zip(codes, hauts, bas):
+    if h is None or b is None:
+        continue
+    print("%d %d %d" % (int(c), round(float(h)), round(float(b))))
+' 2>/dev/null)" || lignes=""
+
+	[[ -n "$lignes" ]] || { [[ -r "$CACHE_J" ]] && { cat "$CACHE_J"; return 0; }; return 1; }
+	printf '%s\n' "$lignes" > "$CACHE_J"
+	printf '%s\n' "$lignes"
+}
+
+#  Le nom du jour, n jours après aujourd'hui. « date -d » est GNU, donc
+#  toujours là sur Debian ; le repli couvre le cas improbable où il
+#  refuserait, pour ne pas afficher une case vide.
+nom_jour() {
+	local n="$1"
+	case "$n" in
+		0) printf "Aujourd'hui" ;;
+		1) printf 'Demain' ;;
+		*) LC_ALL=fr_CA.UTF-8 date -d "+${n} days" '+%A' 2>/dev/null \
+			|| printf 'Dans %s jours' "$n" ;;
+	esac
+}
+
+# --- La fenêtre météo, celle de la démo -------------------------------------
+cmd_fenetre() {
+	if [[ -z "$LAT" || -z "$LON" ]]; then
+		#  Pas encore de ville : le clic doit alors mener à ce qu'il manque.
+		cmd_choisir
+		return $?
+	fi
+
+	local ligne code temp vent texte=""
+	ligne="$(releve)" || ligne=""
+	if [[ -n "$ligne" ]]; then
+		read -r code temp vent <<<"$ligne"
+		texte="$(printf '%s  %s °C\n%s\n%s · vent %s km/h\n' \
+			"$(symbole_wmo "$code")" "$temp" "$(phrase_wmo "$code")" "$VILLE" "$vent")"
+	else
+		texte="$(printf 'Relevé indisponible — hors ligne ?\n%s\n' "$VILLE")"
+	fi
+
+	local jours n=0 jcode jmax jmin
+	jours="$(releve_jours)" || jours=""
+	if [[ -n "$jours" ]]; then
+		texte="${texte}"$'\n'
+		while read -r jcode jmax jmin; do
+			[[ -n "$jcode" ]] || continue
+			#  Le jour 0 est aujourd'hui : il est déjà en grand au-dessus.
+			if (( n > 0 )); then
+				texte="${texte}$(printf '%-12s %s  %s° / %s°   %s\n' \
+					"$(nom_jour "$n")" "$(symbole_wmo "$jcode")" \
+					"$jmax" "$jmin" "$(phrase_wmo "$jcode")")"$'\n'
+			fi
+			n=$((n + 1))
+		done <<<"$jours"
+	fi
+
+	if command -v zenity >/dev/null 2>&1; then
+		#  --extra-button rend la main avec le code 1 et écrit le libellé :
+		#  c'est ainsi qu'on garde « changer de ville » à portée SANS que
+		#  ce soit ce qu'un simple clic déclenche.
+		local rep
+		rep="$(zenity --info --title="Météo — ${VILLE}" \
+			--width=340 --ok-label="Fermer" \
+			--extra-button="Changer de ville" \
+			--text="$texte" 2>/dev/null)" || true
+		[[ "$rep" == "Changer de ville" ]] && cmd_choisir
+		return 0
+	fi
+
+	if command -v xfce4-terminal >/dev/null 2>&1; then
+		exec xfce4-terminal --title="Météo — LexOS" --hold -e "lexos meteo"
+	fi
+	printf '%s\n' "$texte"
+}
+
 # --- Affichage pour la barre du haut ---------------------------------------
 #  genmon lit la sortie : <txt> est ce qui s'affiche, <tool> l'infobulle,
 #  <click> ce que fait un clic. Aucune de ces trois choses n'a besoin d'être
@@ -184,15 +302,15 @@ cmd_panneau() {
 	if [[ -z "$ligne" ]]; then
 		printf '<txt>  ⛅ —  </txt>'
 		printf '<tool>%s — relevé indisponible (hors ligne ?)</tool>' "$VILLE"
-		printf '<click>lexos-meteo --choisir</click>\n'
+		printf '<click>lexos-meteo --fenetre</click>\n'
 		return 0
 	fi
 
 	read -r code temp _ <<<"$ligne"
 	printf '<txt>  %s %s°  </txt>' "$(symbole_wmo "$code")" "$temp"
-	printf '<tool>%s — %s, %s°C\nClique pour changer de ville</tool>' \
+	printf '<tool>%s — %s, %s°C\nClique pour les prévisions</tool>' \
 		"$VILLE" "$(phrase_wmo "$code")" "$temp"
-	printf '<click>lexos-meteo --choisir</click>\n'
+	printf '<click>lexos-meteo --fenetre</click>\n'
 }
 
 # --- Choisir sa ville --------------------------------------------------------
@@ -315,7 +433,48 @@ cmd_maintenant() {
 	read -r code temp vent <<<"$ligne"
 
 	printf '\n  %s%s %s°C%s   %s\n' "$B$O" "$(symbole_wmo "$code")" "$temp" "$R" "$(phrase_wmo "$code")"
-	printf '  %s%s · vent %s km/h%s\n\n' "$D" "$VILLE" "$vent" "$R"
+	printf '  %s%s · vent %s km/h%s\n' "$D" "$VILLE" "$vent" "$R"
+
+	#  Les trois jours suivants, comme dans la fenêtre de la démo. Silencieux
+	#  si le service ne répond pas : le relevé du moment reste utile seul.
+	local jours n=0 jcode jmax jmin
+	jours="$(releve_jours)" || jours=""
+	if [[ -n "$jours" ]]; then
+		printf '\n'
+		while read -r jcode jmax jmin; do
+			[[ -n "$jcode" ]] || continue
+			if (( n > 0 )); then
+				printf '  %s%-12s%s %s  %s°/%s°  %s%s%s\n' \
+					"$A" "$(nom_jour "$n")" "$R" "$(symbole_wmo "$jcode")" \
+					"$jmax" "$jmin" "$D" "$(phrase_wmo "$jcode")" "$R"
+			fi
+			n=$((n + 1))
+		done <<<"$jours"
+	fi
+	printf '\n'
+}
+
+# --- Les prévisions, en clair ------------------------------------------------
+cmd_jours() {
+	if [[ -z "$LAT" || -z "$LON" ]]; then
+		warn "Aucune ville choisie."
+		say  "Choisis-la : ${B}${PROG} ville Toronto${R}"
+		return 1
+	fi
+	local jours n=0 jcode jmax jmin
+	jours="$(releve_jours forcer)" || jours=""
+	[[ -n "$jours" ]] || die "Prévisions indisponibles — connexion ?"
+
+	printf '\n  %s%s%s\n\n' "$B$O" "$VILLE" "$R"
+	while read -r jcode jmax jmin; do
+		[[ -n "$jcode" ]] || continue
+		printf '  %s%-12s%s %s  %s%s°%s / %s%s°%s   %s%s%s\n' \
+			"$A" "$(nom_jour "$n")" "$R" "$(symbole_wmo "$jcode")" \
+			"$B" "$jmax" "$R" "$D" "$jmin" "$R" \
+			"$D" "$(phrase_wmo "$jcode")" "$R"
+		n=$((n + 1))
+	done <<<"$jours"
+	printf '\n'
 }
 
 cmd_aide() {
@@ -327,10 +486,13 @@ ${B}USAGE${R}
   ${A}${PROG}${R}                  Le relevé maintenant
   ${A}${PROG} ville${R}            Quelle ville est retenue
   ${A}${PROG} ville <nom>${R}      Choisir la ville ${D}(ex. : Toronto, Montréal, Paris)${R}
+  ${A}${PROG} jours${R}            Les quatre prochains jours
 
 ${B}À LA SOURIS${R}
-  ${D}Clique sur la météo dans la barre du haut : une fenêtre demande la
-  ville. C'est le même réglage, sans passer par le terminal.${R}
+  ${D}Clique sur la météo dans la barre du haut : la fenêtre des prévisions
+  s'ouvre — le temps qu'il fait en grand, puis les trois jours suivants.
+  Le bouton « Changer de ville » y est, pour ne pas avoir à passer par le
+  terminal. Tant qu'aucune ville n'est choisie, ce clic la demande.${R}
 
 ${B}CE QUI EST ENVOYÉ${R}
   ${D}Rien qui te concerne. Le nom de la ville que tu tapes sert à obtenir
@@ -349,6 +511,8 @@ AIDE
 case "${1:-maintenant}" in
 	--panneau|panneau)      cmd_panneau ;;
 	--choisir|choisir)      cmd_choisir ;;
+	--fenetre|fenetre)      cmd_fenetre ;;
+	jours|previsions|prévisions) cmd_jours ;;
 	ville|city|localisation) shift; cmd_ville "$@" ;;
 	maintenant|now|'')      cmd_maintenant ;;
 	aide|help|--help|-h)    cmd_aide ;;

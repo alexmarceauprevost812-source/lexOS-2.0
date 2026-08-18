@@ -176,6 +176,9 @@ ${B}USB${R}
   ${A}format${R} [cible]      Formater une clé USB ou un téléphone ${D}(confirmation exigée)${R}
 
 ${B}CAPTURE${R}
+  ${A}apercu${R}              Vue d'ensemble des bureaux ${D}(coin haut-gauche, Super)${R}
+  ${A}apercu super on${R}     La touche Super seule ouvre la vue
+  ${A}apercu coin on${R}      Le coin haut-gauche ouvre la vue
   ${A}capture${R}             Capture tout l'écran ${D}(Impr écr)${R}
   ${A}capture fenetre${R}     Capture la fenêtre active ${D}(Alt+Impr écr)${R}
   ${A}capture zone${R}        Capture une zone à la souris ${D}(Maj+Impr écr)${R}
@@ -284,6 +287,8 @@ ${B}IA${R}
                       ${D}rien n'est envoyé sur internet, jamais sudo par défaut${R}
   ${A}claude${R}               Claude Code : l'assistant de programmation d'Anthropic
   ${A}claude app${R}           L'application Claude (claude.ai) en fenêtre dédiée
+  ${A}assistants${R}          Les six assistants IA en ligne ${D}(Claude, ChatGPT, Gemini…)${R}
+  ${A}assistants${R} <nom>    En ouvrir un ${D}(ex. : assistants perplexity)${R}
                       ${D}Claude tourne dans le nuage : connexion et compte requis${R}
 
 ${B}DÉVELOPPEMENT${R}
@@ -926,10 +931,12 @@ case "$CMD" in
 	terminal-appareil)    exec lexos-usb terminal ;;
 	format)               exec lexos-format "$@" ;;
 	capture|capture-ecran) exec lexos-capture "$@" ;;
+	apercu|aperçu|vue|overview) exec lexos-apercu "$@" ;;
 	run-ins|runins)       exec lexos-run-ins "$@" ;;
 	studio)               exec lexos-studio "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
 	ia|agent)             exec lexos-ia "$@" ;;
+	assistants|assistant) exec lexos-assistants "$@" ;;
 	claude|cc)            exec lexos-claude "$@" ;;
 	dev|devs|developpement|développement) exec lexos-dev "$@" ;;
 	firmware|bios|micrologiciel) exec lexos-firmware "$@" ;;

@@ -113,3 +113,16 @@ gir1.2-gtk-3.0
 # gnome-calendar fonctionne très bien hors de GNOME et parle à Evolution Data
 # Server, ce qui permet d'ajouter des comptes en ligne plus tard.
 gnome-calendar
+
+# --- La vue d'ensemble des bureaux ------------------------------------------
+# La démo web ouvre, sur Super ou sur le coin haut-gauche, la rangée des
+# bureaux avec leurs fenêtres en vignettes. XFCE n'a pas ce geste ; ces deux
+# paquets le lui donnent (voir « lexos apercu ») :
+#   · xfdashboard EST cette vue, écrite pour XFCE. Si Debian venait à ne plus
+#     le fournir, « lexos apercu » retombe sur la liste des fenêtres de
+#     xfdesktop — moins joli, même geste, aucun paquet en plus.
+#   · xcape surveille Super et n'émet F13 que si on la relâche sans avoir
+#     rien tapé d'autre : c'est ce qui permet « Super seule » SANS casser
+#     Super+1…5, qui vont aux bureaux.
+xfdashboard
+xcape

@@ -205,6 +205,14 @@ BRAND_DST="config/includes.chroot/usr/share/lexos/branding"
 mkdir -p "$BRAND_DST"
 rm -f "$BRAND_DST"/*
 cp branding/*.svg branding/*.png "$BRAND_DST"/ 2>/dev/null || true
+#  Les .webp (mascottes rock et salut) et le .gif animé : le hook 0300 les
+#  attend pour les convertir en PNG — sans cette ligne, sa boucle « *.webp »
+#  tournait sur un dossier qui n'en avait aucun, en silence.
+cp branding/*.webp branding/*.gif "$BRAND_DST"/ 2>/dev/null || true
+#  Les images de l'animation Plymouth (démarrage) : un dossier, que le
+#  « cp » sans -r du dessus ignorait — le thème animé retombait sur l'image
+#  fixe sans le dire.
+[ -d branding/mascot-anim-frames ] && cp -r branding/mascot-anim-frames "$BRAND_DST"/ 2>/dev/null
 ok "branding/ -> usr/share/lexos/branding ($(ls -1 "$BRAND_DST" | wc -l) fichiers)"
 
 # --- Sélection de la saveur --------------------------------------------------

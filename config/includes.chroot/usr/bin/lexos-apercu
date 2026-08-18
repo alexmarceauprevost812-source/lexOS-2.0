@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-apercu — la vue d'ensemble des bureaux, comme dans la démo web
+# =============================================================================
+#  CE QUI MANQUAIT. La démo montre le geste d'Ubuntu : on pousse la touche
+#  Super (ou la souris dans le coin haut-gauche) et tout s'écarte — les
+#  bureaux en rangée de vignettes, les fenêtres du bureau courant en
+#  aperçus. On clique un bureau pour y aller, une fenêtre pour l'ouvrir.
+#  Sur l'ISO, RIEN de tout ça n'existait : ni la vue, ni la touche Super
+#  seule, ni le coin actif. C'était le plus gros écart entre ce qu'Alex
+#  voit sur Vercel et ce qu'il trouve sur la machine.
+#
+#  CE QU'ON FAIT ICI, ET POURQUOI PAS AUTREMENT. Écrire une vue d'ensemble
+#  à nous voudrait dire composer, en GTK, ce que GNOME met des milliers de
+#  lignes à faire — et le maintenir. XFCE a déjà les pièces :
+#
+#    · xfdashboard EST cette vue, faite pour XFCE, bureaux et fenêtres en
+#      vignettes. C'est le premier choix quand il est là ;
+#    · à défaut, la liste des fenêtres de xfdesktop montre elle aussi TOUS
+#      les bureaux avec leurs fenêtres, et y emmène d'un clic. Moins joli,
+#      mais le geste est le même et ça ne dépend de rien de plus.
+#
+#  On essaie donc dans cet ordre et on ne promet jamais ce qui n'est pas là.
+#
+#  LES DEUX DÉCLENCHEURS.
+#    · Super seule — xfwm4 ne sait pas lier un modificateur seul. xcape
+#      sait : il surveille Super et, si on la relâche SANS avoir touché
+#      autre chose, il émet F13 — une touche qu'aucun clavier ne porte,
+#      donc qu'on peut lier sans rien voler. Super+1 continue d'aller au
+#      bureau 1, exactement comme dans la démo.
+#    · Le coin actif — un petit veilleur lit la position du pointeur et
+#      ouvre la vue s'il reste 140 ms dans le coin extrême. Mêmes
+#      précautions que la démo : moins de 5 px des DEUX bords (le logo
+#      Applications habite ce coin, un passage en diagonale ne doit rien
+#      déclencher), et il faut ressortir du coin pour réarmer.
+#
+#  Les deux sont ÉTEINTS ou ALLUMÉS d'après un fichier d'état, et les
+#  Paramètres les basculent. Rien ne démarre en cachette.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+astuce() { printf '%s  %s%s\n' "$D" "$*" "$R" >&2; }
+
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+mkdir -p "$CONF" 2>/dev/null || true
+ETAT_COIN="$CONF/coin-actif"
+ETAT_SUPER="$CONF/super-apercu"
+
+lire() { [[ -r "$1" ]] && tr -d '[:space:]' < "$1" || printf '%s' "$2"; }
+
+# --- La vue elle-même --------------------------------------------------------
+#  xfdashboard bascule tout seul (« --toggle ») : appuyer une deuxième fois
+#  referme. La liste des fenêtres, elle, est un menu — il se referme à
+#  l'Échap ou au clic dans le vide, ce qui revient au même à l'usage.
+apercu_moteur() {
+	if command -v xfdashboard >/dev/null 2>&1; then printf 'xfdashboard'; return 0; fi
+	if command -v xfdesktop   >/dev/null 2>&1; then printf 'xfdesktop';   return 0; fi
+	printf 'aucun'; return 1
+}
+
+cmd_ouvrir() {
+	case "$(apercu_moteur)" in
+		xfdashboard) exec xfdashboard --toggle ;;
+		xfdesktop)   exec xfdesktop --windowlist ;;
+		*)
+			die "Aucun outil de vue d'ensemble installé."
+			;;
+	esac
+}
+
+# --- Super seule -------------------------------------------------------------
+super_lance() {
+	command -v xcape >/dev/null 2>&1 || return 1
+	pkill -f 'xcape -e Super_L=F13' 2>/dev/null
+	#  « -t 200 » : au-delà de 200 ms, une Super maintenue n'est plus un
+	#  appui seul mais l'attente d'une combinaison. C'est ce qui évite
+	#  d'ouvrir la vue quand on hésite avant de taper Super+1.
+	setsid xcape -t 200 -e 'Super_L=F13' >/dev/null 2>&1 &
+	return 0
+}
+
+cmd_super() {
+	case "${1:-etat}" in
+		on|oui|1)
+			echo on > "$ETAT_SUPER"
+			if super_lance; then
+				ok "Touche Super seule : ouvre la vue d'ensemble."
+			else
+				warn "xcape n'est pas installé — le réglage est gardé, mais rien ne s'arme."
+				astuce "sudo apt install xcape"
+				exit 1
+			fi
+			;;
+		off|non|0)
+			echo off > "$ETAT_SUPER"
+			pkill -f 'xcape -e Super_L=F13' 2>/dev/null
+			ok "Touche Super seule : éteinte. Super+1…5 continue de changer de bureau."
+			;;
+		demarrer)
+			#  Appelé au démarrage de session : n'arme que si c'était demandé.
+			[[ "$(lire "$ETAT_SUPER" off)" == "on" ]] || exit 0
+			super_lance || exit 0
+			;;
+		etat|*)
+			printf 'Super seule : %s\n' "$(lire "$ETAT_SUPER" off)"
+			command -v xcape >/dev/null 2>&1 || astuce "xcape absent — le réglage ne peut pas s'appliquer."
+			;;
+	esac
+}
+
+# --- Le coin actif -----------------------------------------------------------
+VEILLEUR=/usr/lib/lexos/coin-actif
+
+coin_lance() {
+	[[ -x "$VEILLEUR" ]] || return 1
+	pkill -f "$VEILLEUR" 2>/dev/null
+	setsid "$VEILLEUR" >/dev/null 2>&1 &
+	return 0
+}
+
+cmd_coin() {
+	case "${1:-etat}" in
+		on|oui|1)
+			echo on > "$ETAT_COIN"
+			if coin_lance; then
+				ok "Coin actif : pousse la souris dans le coin haut-gauche."
+			else
+				warn "Le veilleur du coin actif est absent ($VEILLEUR)."
+				exit 1
+			fi
+			;;
+		off|non|0)
+			echo off > "$ETAT_COIN"
+			pkill -f "$VEILLEUR" 2>/dev/null
+			ok "Coin actif : éteint."
+			;;
+		demarrer)
+			[[ "$(lire "$ETAT_COIN" off)" == "on" ]] || exit 0
+			coin_lance || exit 0
+			;;
+		etat|*)
+			printf 'Coin actif : %s\n' "$(lire "$ETAT_COIN" off)"
+			;;
+	esac
+}
+
+# --- Au démarrage de session -------------------------------------------------
+cmd_session() {
+	cmd_super demarrer
+	cmd_coin  demarrer
+	exit 0
+}
+
+cmd_etat() {
+	local moteur; moteur="$(apercu_moteur)" || true
+	say "Vue d'ensemble"
+	printf '  moteur      : %s\n' \
+		"$(case "$moteur" in
+			xfdashboard) echo "xfdashboard (vignettes des bureaux)" ;;
+			xfdesktop)   echo "liste des fenêtres de xfdesktop (repli)" ;;
+			*)           echo "aucun — rien à ouvrir" ;;
+		esac)"
+	printf '  Super seule : %s\n' "$(lire "$ETAT_SUPER" off)"
+	printf '  coin actif  : %s\n' "$(lire "$ETAT_COIN" off)"
+	echo
+	astuce "Super+1…5 va au bureau 1…5, coin actif et Super seule ouvrent la vue."
+}
+
+aide() {
+	cat <<AIDE
+${B}${PROG}${R} — la vue d'ensemble des bureaux
+
+  ${O}${PROG}${R}                  Ouvre (ou referme) la vue d'ensemble
+  ${O}${PROG} super on|off${R}     La touche Super seule ouvre la vue
+  ${O}${PROG} coin on|off${R}      Le coin haut-gauche ouvre la vue
+  ${O}${PROG} etat${R}             Ce qui est allumé, et avec quel moteur
+
+${D}Super+1 à Super+5 vont directement aux bureaux — ça ne change pas.${R}
+AIDE
+}
+
+case "${1:-ouvrir}" in
+	ouvrir|toggle|"")     cmd_ouvrir ;;
+	super)                shift; cmd_super "${1:-etat}" ;;
+	coin|coin-actif)      shift; cmd_coin  "${1:-etat}" ;;
+	session|demarrer)     cmd_session ;;
+	etat|status)          cmd_etat ;;
+	aide|help|-h|--help)  aide ;;
+	*)                    die "Sous-commande inconnue : $1" ;;
+esac

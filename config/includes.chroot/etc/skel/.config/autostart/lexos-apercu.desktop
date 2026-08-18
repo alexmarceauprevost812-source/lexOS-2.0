@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Vue d'ensemble LexOS
+Comment=Arme la touche Super seule et le coin actif, s'ils sont demandés
+# « session » ne lance RIEN si les deux réglages sont éteints — c'est le cas
+# par défaut. Rien ne tourne en cachette : les Paramètres les allument.
+Exec=lexos-apercu session
+Icon=preferences-desktop-workspaces
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Phase=Applications

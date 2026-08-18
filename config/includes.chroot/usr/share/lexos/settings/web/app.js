@@ -269,6 +269,28 @@ async function setBureaux(sens){
   const r = await api("bureaux", sens);
   await rafraichir(r.ok ? null : (r.erreur || "commande refusée"));
 }
+/*  LA VUE D'ENSEMBLE. Trois commandes : l'ouvrir tout de suite, et armer
+    ses deux déclencheurs. On relit l'état après chaque bascule — « super »
+    peut échouer si xcape manque, et l'interrupteur doit alors REVENIR, pas
+    rester allumé sur une promesse. */
+async function poseAutocollant(quoi){
+  const r = await api("autocollant", quoi);
+  await rafraichir(r.ok
+    ? (quoi === "enlever" ? "Fond d'origine retrouvé" : "Posé sur le fond d'écran")
+    : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function ouvreApercu(){
+  const r = await api("apercu");
+  if(!r.ok) toast("Échec : " + (r.erreur || "aucun outil de vue d'ensemble"));
+}
+async function basculeCoin(){
+  const r = await api("coin", "toggle");
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function basculeSuperApercu(){
+  const r = await api("super_apercu", "toggle");
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "xcape n'est pas installé"));
+}
 async function vaBureau(n){
   const r = await api("bureau-va", String(n));
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
@@ -323,6 +345,19 @@ async function setMinutes(quoi, v){
 }
 async function basculeSouris(quoi){
   const r = await api("souris", quoi);
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+/*  L'HORLOGE DE LA BARRE. Les trois réglages — 12/24 h, secondes, jour —
+    ne sont qu'une seule chaîne de format côté XFCE ; c'est le Python qui la
+    recompose. On relit l'état ensuite : si xfconf-query manque, l'écran ne
+    doit pas montrer un réglage qui n'a pas pris. */
+async function setHorloge(quoi){
+  const r = await api("horloge", quoi);
+  await rafraichir(r.ok ? "L'horloge de la barre suit"
+                        : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function basculeFuseauAuto(){
+  const r = await api("fuseau-auto", "toggle");
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
 }
 async function basculeHeureAuto(){
@@ -609,6 +644,19 @@ function contenu(cle){
       </div>
 
       <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Autocollants sur le fond</div>
+        <div class="sub" style="margin-bottom:8px">Un personnage posé sur ton
+        fond d'écran, comme dans la démo. Ils s'empilent ; « Enlever »
+        retrouve le fond d'origine tel quel.</div>
+        <div class="row">
+          <button class="btn ghost" onclick="poseAutocollant('rock')">🤘 Lex — bebeilles</button>
+          <button class="btn ghost" onclick="poseAutocollant('salut')">👋 Lex — salut</button>
+          <button class="btn ghost" onclick="poseAutocollant('prevost')">🛡 Badge PREVOST</button>
+          <button class="btn" onclick="poseAutocollant('enlever')">Enlever</button>
+        </div>
+      </div>
+
+      <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Depuis une capture d'écran</div>
         <div class="sub" style="margin-bottom:8px">Prend une image de l'écran et
         la pose aussitôt en fond.</div>
@@ -627,6 +675,7 @@ function contenu(cle){
       ${btnOuvrir("bureau","Réglages fins (XFCE)")}`;
     case "multitaches": {
       const b = etat.bureaux || {nb:1, courant:0, fenetres:[]};
+      const ap = etat.apercu || {moteur:"", coin:false, super:false, xcape:false};
       return `<h2>Multi-tâches</h2><div class="sub">Bureaux virtuels</div>
       ${srow("Bureaux virtuels",
              `${b.nb} bureau${b.nb>1?"x":""} en ce moment, 5 au maximum — ` +
@@ -641,6 +690,35 @@ function contenu(cle){
         ? srow("Fenêtres par bureau",
                b.fenetres.map((n,i)=>`Bureau ${i+1} : ${n}`).join(" · "))
         : ""}
+      <div class="sub">Vue d'ensemble</div>
+      ${srow("Voir tous mes bureaux",
+             ap.moteur
+               ? `Tout s'écarte : les bureaux en rangée, les fenêtres du bureau
+                  courant en aperçus. On clique un bureau pour y aller, une
+                  fenêtre pour l'ouvrir.` +
+                 (ap.moteur === "xfdashboard" ? "" :
+                  ` <b>xfdashboard n'est pas installé</b> — on ouvre la liste
+                    des fenêtres, qui montre les mêmes bureaux sans les
+                    vignettes.`)
+               : `Aucun outil de vue d'ensemble n'est installé sur cette
+                  machine — il n'y a rien à ouvrir.`,
+             ap.moteur
+               ? `<button class="btn" onclick="ouvreApercu()">Ouvrir</button>`
+               : `<span class="etat abs">absent</span>`)}
+      ${srow("Touche Super seule",
+             ap.xcape
+               ? `Relâcher <b>Super</b> sans rien taper d'autre ouvre la vue,
+                  comme sous Ubuntu. <b>Super+1</b> à <b>Super+${b.nb}</b>
+                  continuent d'aller aux bureaux.`
+               : `Demande <code>xcape</code>, qui n'est pas installé :
+                  lui seul sait reconnaître une touche Super relâchée seule.`,
+             ap.xcape ? sw(ap.super, "basculeSuperApercu()")
+                      : `<span class="etat abs">absent</span>`)}
+      ${srow("Coin actif",
+             `Pousser la souris dans le coin <b>haut-gauche</b> ouvre la vue.
+              Il faut y rester un court instant : viser le logo Applications,
+              qui habite ce coin, ne déclenche rien.`,
+             sw(ap.coin, "basculeCoin()"))}
       ${btnOuvrir("multitaches","Ouvrir les réglages de bureaux")}
       <p class="notice"><b>Ctrl+Alt+←</b> et <b>Ctrl+Alt+→</b> passent au bureau
       précédent ou suivant, <b>Super+1</b> à <b>Super+${b.nb}</b> vont directement
@@ -711,10 +789,15 @@ function contenu(cle){
       const h = Math.floor((b.minutes||0)/60), m = (b.minutes||0)%60;
       return `<h2>Bien-être numérique</h2><div class="sub">Temps d'écran, pauses, lumière du soir</div>
       ${srow("Temps d'écran aujourd'hui",
-             b.minutes ? `${h} h ${String(m).padStart(2,"0")}` +
-                         " — compté depuis la dernière activité, pas depuis l'allumage"
-                       : "Pas encore de relevé pour aujourd'hui",
-             b.minutes ? jauge(Math.min(100, Math.round(b.minutes/480*100))) : "")}
+             !b.tourne
+               ? "Le compteur est arrêté — il ne mesure rien tant qu'on ne le demande pas"
+               : (b.minutes
+                   ? `${h} h ${String(m).padStart(2,"0")}` +
+                     " — compté depuis la dernière activité, pas depuis l'allumage"
+                   : "Compteur en marche, rien d'enregistré encore aujourd'hui"),
+             b.tourne && b.minutes
+               ? jauge(Math.min(100, Math.round(b.minutes/480*100)))
+               : `<span class="etat ${b.tourne?"ok":"abs"}">${b.tourne?"en marche":"arrêté"}</span>`)}
       ${srow("Rappels de pause", b.pauses ? "workrave est là — il rappelle de lever les yeux"
                                           : "Pas installé",
              `<span class="etat ${b.pauses?"ok":"abs"}">${b.pauses?"prêt":"absent"}</span>`)}
@@ -913,13 +996,35 @@ function contenu(cle){
     }
     case "datetime": {
       const h = etat.heure || {};
-      return `<h2>Date et heure</h2><div class="sub">Fuseau horaire</div>
-      ${h.fuseau ? srow("Fuseau horaire", esc(h.fuseau)) : ""}
+      return `<h2>Date et heure</h2><div class="sub">Fuseau, format, synchronisation</div>
+      ${h.maintenant ? srow("Maintenant", esc(h.maintenant)) : ""}
       ${srow("Mise à l'heure automatique",
              h.auto ? "L'heure se règle seule sur internet (NTP)"
                     : "L'heure ne se règle pas toute seule",
              sw(h.auto, "basculeHeureAuto()"))}
-      ${btnOuvrir("datetime","État (timedatectl)")}`;
+      ${srow("Fuseau horaire automatique",
+             h.lieu_connu
+               ? `D'après la ville que tu as choisie pour la météo. LexOS ne
+                  cherche jamais ta position par ton adresse internet.`
+               : `Aucun lieu connu — choisis ta ville une fois avec
+                  <code>lexos meteo ville Toronto</code> et le fuseau suivra.
+                  LexOS ne devine pas ta position.`,
+             h.lieu_connu ? sw(h.fuseau_auto, "basculeFuseauAuto()")
+                          : `<span class="etat abs">aucun lieu</span>`)}
+      ${h.fuseau ? srow("Fuseau horaire", esc(h.fuseau)) : ""}
+
+      <div class="sub" style="margin-top:20px">Horloge de la barre du haut</div>
+      ${srow("Format de l'heure",
+             `Ce que montre l'horloge, au milieu de la barre.`,
+             `<div class="row" style="flex:none">
+                <button class="btn ${h.h12?"ghost":"sel"}" onclick="setHorloge('24h')">24 heures</button>
+                <button class="btn ${h.h12?"sel":"ghost"}" onclick="setHorloge('12h')">12 heures</button>
+              </div>`)}
+      ${srow("Afficher les secondes", "Dans la barre du haut",
+             sw(!!h.secondes, "setHorloge('secondes')"))}
+      ${srow("Afficher le jour de la semaine", "Dans la barre du haut",
+             sw(!!h.jour, "setHorloge('jour')"))}
+      ${btnOuvrir("datetime","État complet (timedatectl)")}`;
     }
     case "defaut": {
       const d = etat.defaut || {};
@@ -949,11 +1054,57 @@ function contenu(cle){
         ? "Un bureau à distance ouvre ta machine au réseau : il ne démarre jamais tout seul, et jamais sans mot de passe."
         : "À installer d'abord : <code>lexos install x11vnc</code>."}</p>`;
     }
-    case "apropos": return `<h2>À propos de LexOS</h2><div class="sub">1.0 « Nomad »</div>
+    case "apropos": {
+      const lb = etat.libre || {firmwares:0, steam:false, broadcom:false};
+      return `<h2>À propos de LexOS</h2><div class="sub">2.0.0 « Nomad »</div>
       ${srow("Système", esc(etat.version))}
       ${srow("Nom de la machine", esc(etat.hote))}
       ${srow("Noyau", esc(etat.noyau))}
+
+      <h3 class="cpt-h3">100 % Linux</h3>
+      <div class="verite">
+        <div class="v-l"><span class="v-oui">Zéro Windows.</span>
+          LexOS n'a besoin d'aucun composant Microsoft, d'aucune licence, et ne
+          démarre jamais rien de Windows. Le système entier est assemblé à partir
+          des paquets Debian.</div>
+        <div class="v-l"><span class="v-oui">Wine non plus.</span>
+          Beaucoup croient que Wine réclame une copie de Windows. C'est faux :
+          <b>Wine Is Not an Emulator</b> — c'est une réécriture libre des
+          fonctions de Windows, faite de zéro, qui tourne nativement sur Linux.
+          Pas une ligne de code Microsoft, pas de licence à posséder. Un jeu
+          Windows lancé par Wine s'exécute sur du Linux, du début à la fin.</div>
+      </div>
+
+      <h3 class="cpt-h3">Ce qui n'est pas libre, et pourquoi</h3>
+      <p class="notice">Dire « 100 % Linux » serait malhonnête sans préciser
+        ceci. Trois choses peuvent ne pas être du logiciel libre, et voici ce
+        qu'il en est <b>sur cette machine</b> :</p>
+      ${srow("Micrologiciels (<code>non-free-firmware</code>)",
+             `Des petits fichiers chargés <b>dans le matériel</b> — carte Wi-Fi,
+              carte graphique — pas des programmes qui tournent sur ton
+              processeur. Sans eux, beaucoup de portables n'ont tout simplement
+              pas de Wi-Fi. C'est le compromis que fait Debian elle-même depuis
+              la version 12.`,
+             lb.firmwares
+               ? `<span class="etat ok">${lb.firmwares} paquet${lb.firmwares>1?"s":""}</span>`
+               : `<span class="etat off">aucun</span>`)}
+      ${srow("Steam",
+             `Le client de Valve est propriétaire. Il n'est installé que si tu
+              le demandes — <code>lexos logitheque install jeux</code>.`,
+             lb.steam ? `<span class="etat ok">installé</span>`
+                      : `<span class="etat off">non installé</span>`)}
+      ${srow("Pilote Wi-Fi Broadcom",
+             `Certaines cartes n'ont pas de pilote libre qui fonctionne.
+              <code>lexos mac wifi</code> ne le propose que quand la carte
+              l'exige vraiment.`,
+             lb.broadcom ? `<span class="etat ok">présent</span>`
+                         : `<span class="etat off">absent</span>`)}
+      <p class="notice">Tout le reste — noyau, bureau, navigateur, outils LexOS —
+        est du logiciel libre. Le code de LexOS lui-même est sous licence MIT,
+        lisible et modifiable, le branding TI-LEX-AL excepté. Construit avec
+        <code>make build</code> depuis le dépôt GitHub.</p>
       ${btnOuvrir("apropos","La fenêtre À propos complète")}`;
+    }
     default: return `<h2>Paramètres</h2><div class="sub">Choisis une section à gauche</div>`;
   }
 }

@@ -126,6 +126,18 @@ for M in "$BRAND"/mascot*.png; do
 	cp "$M" "$BG/$(basename "$M")"
 done
 
+# --- Autocollants du bureau --------------------------------------------------
+#  Les TROIS personnages que la fenêtre « Fonds d'écran — autocollants » de
+#  la démo pose sur le fond (Lex bebeilles, Lex salut, badge PREVOST). Ce
+#  sont les MÊMES images, extraites de la démo — pas des à-peu-près. PNG à
+#  fond transparent, posés par « lexos fond-ecran autocollant ».
+mkdir -p /usr/share/lexos/autocollants
+for A in "$BRAND"/sticker-*.png; do
+	[ -e "$A" ] || continue
+	cp "$A" "/usr/share/lexos/autocollants/$(basename "$A")"
+	echo "[lexos]   autocollant : $(basename "$A")"
+done
+
 # --- Logo TI-LEX-AL : icône officielle du système ---------------------------
 #  La version détourée (fond transparent) est privilégiée pour l'icône : elle
 #  se fond dans le panneau, le dock et le menu Applications quel que soit le

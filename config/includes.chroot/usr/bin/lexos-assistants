@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-assistants — les six assistants IA, comme dans le navigateur de la démo
+# =============================================================================
+#  CE QUI MANQUAIT. Le navigateur de la démo web a un panneau « Assistants
+#  IA » avec SIX services. Sur l'ISO il n'y en avait qu'un : Claude
+#  (lexos-claude). Les cinq autres n'existaient nulle part — ni commande, ni
+#  lanceur, ni entrée de menu.
+#
+#  CE QUE LEXOS FAIT, ET SURTOUT CE QU'IL NE FAIT PAS. Chaque assistant
+#  s'ouvre sur SON site, où c'est le compte et l'abonnement de l'utilisateur
+#  qui font foi. LexOS ne stocke aucune clé, aucun identifiant, ne relaie
+#  rien et ne s'interpose pas : il ouvre la porte, c'est tout. C'est
+#  exactement ce que dit la démo, et il ne faut pas que l'ISO en promette
+#  davantage.
+#
+#  POURQUOI UNE FENÊTRE DÉDIÉE. « --app= » donne une fenêtre sans barre
+#  d'adresse ni onglets : le service ressemble à une application, il a sa
+#  propre entrée dans le dock et dans Alt+Tab. C'est le même procédé que
+#  lexos-claude app, repris ici pour les six. Sans navigateur en mode
+#  application, on retombe sur xdg-open — la porte s'ouvre quand même.
+#
+#  HORS-LIGNE. Ces six-là tournent dans le nuage. L'assistant qui tourne SUR
+#  la machine, sans rien envoyer nulle part, c'est « lexos ia » (Ollama) —
+#  rappelé en bas de la liste pour qu'on ne croie pas devoir un compte à
+#  quelqu'un pour avoir une IA.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+#  clé|Nom|url|classe de fenêtre|description
+#  Les six de la démo, dans son ordre, avec ses textes.
+SERVICES="
+claude|Claude|https://claude.ai|Claude|Anthropic — conversation, code, documents
+chatgpt|ChatGPT|https://chatgpt.com|ChatGPT|OpenAI — conversation, images, analyse
+gemini|Gemini|https://gemini.google.com|Gemini|Google — conversation et recherche
+perplexity|Perplexity|https://perplexity.ai|Perplexity|Recherche avec sources citées
+mistral|Mistral|https://chat.mistral.ai|Mistral|Le Chat — modèles européens
+copilot|Copilot|https://copilot.microsoft.com|Copilot|Microsoft — conversation et code
+"
+
+champ() {  # champ <clé> <n° de colonne>
+	printf '%s\n' "$SERVICES" | while IFS='|' read -r cle nom url classe desc; do
+		[[ -n "$cle" ]] || continue
+		if [[ "$cle" == "$1" ]]; then
+			case "$2" in
+				2) printf '%s' "$nom" ;;
+				3) printf '%s' "$url" ;;
+				4) printf '%s' "$classe" ;;
+				5) printf '%s' "$desc" ;;
+			esac
+			return 0
+		fi
+	done
+}
+
+navigateur_app() {
+	for b in chromium google-chrome google-chrome-stable brave-browser microsoft-edge; do
+		command -v "$b" >/dev/null 2>&1 && { printf '%s' "$b"; return 0; }
+	done
+	return 1
+}
+
+cmd_ouvrir() {
+	local cle="$1" nom url classe nav
+	nom="$(champ "$cle" 2)"
+	url="$(champ "$cle" 3)"
+	classe="$(champ "$cle" 4)"
+	[[ -n "$url" ]] || die "Assistant inconnu : $cle — tape « $PROG » pour la liste."
+
+	if nav="$(navigateur_app)"; then
+		say "Ouverture de $nom…"
+		exec "$nav" --app="$url" --class="$classe" --name="${cle}-app" >/dev/null 2>&1
+	fi
+	command -v xdg-open >/dev/null 2>&1 || die "Aucun navigateur installé."
+	say "Ouverture de $nom dans le navigateur…"
+	exec xdg-open "$url"
+}
+
+cmd_liste() {
+	say "Assistants IA — chacun s'ouvre sur son site, avec TON compte."
+	echo
+	printf '%s\n' "$SERVICES" | while IFS='|' read -r cle nom url classe desc; do
+		[[ -n "$cle" ]] || continue
+		printf '  %s%-12s%s %s\n' "$O" "$cle" "$R" "$nom"
+		printf '%15s%s%s%s\n' "" "$D" "$desc" "$R"
+	done
+	echo
+	printf '  %sÀ ouvrir :%s %s <nom>   %s(ex. : %s perplexity)%s\n' \
+		"$B" "$R" "$PROG" "$D" "$PROG" "$R"
+	echo
+	printf '  %sLexOS ne garde aucune clé et ne relaie rien : il ouvre la page.%s\n' "$D" "$R"
+	printf '  %sPour une IA qui tourne SUR la machine, hors-ligne : « lexos ia ».%s\n' "$D" "$R"
+	if ! navigateur_app >/dev/null; then
+		echo
+		warn "Aucun navigateur en mode application — les services s'ouvriront en onglet."
+	fi
+}
+
+case "${1:-}" in
+	""|liste|list)       cmd_liste ;;
+	aide|help|-h|--help) cmd_liste ;;
+	*)                   cmd_ouvrir "$1" ;;
+esac

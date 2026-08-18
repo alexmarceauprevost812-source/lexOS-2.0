@@ -30,6 +30,16 @@ APP_NAME = "Paramètres LexOS"
 BASE_DIR = Path(os.environ.get("LEXOS_SETTINGS_DIR", "/usr/share/lexos/settings"))
 WEB_DIR = BASE_DIR / "web"
 
+#  Racines réglables — MÊME PRINCIPE QUE LEXOS_RACINE DANS gpu-garde. En
+#  usage réel ces variables n'existent pas et tout pointe au vrai endroit.
+#  Elles ne servent qu'au banc d'essai : il donne à ce fichier une fausse
+#  machine (fausse batterie, faux /etc) et vérifie que chaque section lit
+#  et affiche l'état SANS avoir besoin de deux ordinateurs différents.
+PSU_DIR = Path(os.environ.get("LEXOS_PSU", "/sys/class/power_supply"))
+BL_DIR = Path(os.environ.get("LEXOS_BL", "/sys/class/backlight"))
+ETC_DIR = Path(os.environ.get("LEXOS_ETC", "/etc"))
+DMI_DIR = Path(os.environ.get("LEXOS_DMI", "/sys/class/dmi/id"))
+
 
 # =============================================================================
 #  Actions — la liste blanche.
@@ -63,7 +73,30 @@ def _terminal(titre, commande):
 
 
 def _xfce(module):
-    return _run(["xfce4-settings-manager", "-s", module], detach=True)
+    """Ouvre le bon panneau de réglages XFCE.
+
+    CE QUI ÉTAIT CASSÉ, ET POURQUOI PERSONNE NE LE VOYAIT.
+    Cette fonction lançait « xfce4-settings-manager -s <module> ». L'option
+    « -s » n'existe pas : xfce4-settings-manager refusait et mourait aussitôt.
+    Comme l'appel est en detach=True (on ne lit pas le code de retour d'une
+    fenêtre graphique, elle vit sa vie), l'échec était TOTALEMENT SILENCIEUX.
+    Neuf sections des Paramètres avaient donc un bouton qui ne faisait rien,
+    sans le moindre message : son, apparence, bureau, multi-tâches, souris,
+    supports amovibles, tablette, accessibilité, clavier.
+
+    XFCE ne s'ouvre pas par module : chaque panneau est un PROGRAMME à part
+    (xfce4-appearance-settings, xfce4-mouse-settings…). On les nomme donc
+    directement, et on garde des solutions de rechange : si le programme
+    précis manque, on ouvre le gestionnaire de réglages complet plutôt que
+    de ne rien faire. Un bouton doit toujours mener quelque part."""
+    for argv in module if isinstance(module, list) else [[module]]:
+        if shutil.which(argv[0]):
+            return _run(argv, detach=True)
+    #  Rien de précis n'est installé : le gestionnaire général vaut mieux que
+    #  le silence — l'utilisateur trouvera son réglage à la main.
+    if shutil.which("xfce4-settings-manager"):
+        return _run(["xfce4-settings-manager"], detach=True)
+    return {"ok": False, "erreur": "Aucun outil de réglages XFCE installé"}
 
 
 PERFS = {"petit", "medium", "performant", "max"}
@@ -94,35 +127,36 @@ def act_ouvrir(arg):
         "reseau":     lambda: _terminal("Réseau — LexOS", "lexos net status; echo; lexos vpn"),
         "bluetooth":  lambda: _terminal("Bluetooth — LexOS", "lexos bt scan"),
         "ecrans":     lambda: _run(["lexos-display", "gui"], detach=True),
-        "son":        lambda: _xfce("mixer"),
+        "son":        lambda: _xfce([["pavucontrol"], ["xfce4-mixer"]]),
         "energie":    lambda: _terminal("Énergie — LexOS", "lexos perf status; echo; lexos lumiere"),
         "usb":        lambda: _terminal("USB — LexOS", "lexos usb; echo; echo 'Formater un support : lexos format'"),
         "mac":        lambda: _terminal("Mac (Apple) — LexOS", "lexos mac"),
-        "apparence":  lambda: _xfce("appearance"),
-        "bureau":     lambda: _xfce("xfdesktop"),
-        "multitaches": lambda: _xfce("workspaces"),
+        "apparence":  lambda: _xfce([["xfce4-appearance-settings"]]),
+        "bureau":     lambda: _xfce([["xfdesktop-settings"]]),
+        "multitaches": lambda: _xfce([["xfwm4-workspace-settings"], ["xfwm4-settings"]]),
         "applications": lambda: _run(["exo-preferred-applications"], detach=True),
         "notifications": lambda: _run(["xfce4-notifyd-config"], detach=True),
         "recherche":  lambda: _run(["xfce4-appfinder", "--collapsed"], detach=True),
         "partage":    lambda: _run(["lexos-share", "devices"], detach=True),
-        "souris":     lambda: _xfce("pointers"),
+        "souris":     lambda: _xfce([["xfce4-mouse-settings"]]),
         "couleurs":   lambda: _run(["gcm-viewer"], detach=True),
         "imprimantes": lambda: _run(["system-config-printer"], detach=True),
-        "amovibles":  lambda: _xfce("thunar-volman"),
-        "tablette":   lambda: _xfce("wacom"),
+        "amovibles":  lambda: _xfce([["thunar-volman-settings"]]),
+        "tablette":   lambda: _xfce([["xfce4-wacom-settings"], ["wacom-settings"]]),
         "confidentialite": lambda: _terminal("Confidentialité et sécurité — LexOS",
                                              "lexos net status; echo; lexos secure"),
         "maj":        lambda: _terminal("Mises à jour — LexOS", "lexos doctor"),
-        "accessibilite": lambda: _xfce("accessibility"),
+        "accessibilite": lambda: _xfce([["xfce4-accessibility-settings"]]),
         "utilisateurs": lambda: _terminal("Utilisateurs — LexOS",
                                           "printf '%s\\n' 'Comptes locaux de LexOS :' '' "
                                           "'  lex     — Principal, administrateur' "
                                           "'  invite  — Invité, session limitée sans mot de passe' ''"),
-        "clavier":    lambda: _xfce("keyboard"),
+        "clavier":    lambda: _xfce([["xfce4-keyboard-settings"]]),
         "datetime":   lambda: _terminal("Date et heure — LexOS", "timedatectl"),
         "defaut":     lambda: _run(["exo-preferred-applications"], detach=True),
-        "distant":    lambda: _terminal("Bureau à distance — LexOS",
-                                        "echo 'Bureau à distance : lexos install x11vnc, puis x11vnc -display :0'"),
+        "distant":    lambda: _terminal("Bureau à distance — LexOS", "lexos distant"),
+        "comptes":    lambda: _terminal("Comptes en ligne — LexOS", "lexos comptes"),
+        "bienetre":   lambda: _terminal("Bien-être numérique — LexOS", "lexos bienetre"),
         "apropos":    lambda: _run(["lexos-welcome", "--about"], detach=True),
     }
     fn = outils.get(arg)
@@ -422,6 +456,100 @@ def act_bureaux(arg):
                  "-n", "-t", "int", "-s", str(nouveau)])
 
 
+def act_horloge(arg):
+    """Composer le format de l'horloge de la barre du haut.
+
+    POURQUOI ON RECOMPOSE LA CHAÎNE ENTIÈRE plutôt que de la rafistoler :
+    une chaîne de format est un tout. Chercher « %S » pour l'enlever marche
+    une fois, puis échoue le jour où quelqu'un a mis « %H:%M:%S » à la main
+    avec un autre séparateur, et on se retrouve avec « 14 h 32 : ». On repart
+    donc des trois choix — 12/24 h, secondes, jour — et on écrit la chaîne
+    complète. C'est prévisible, et ça se relit dans l'état."""
+    if arg not in ("12h", "24h", "secondes", "jour"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+
+    etat_h = _heure_etat()
+    h12 = etat_h["h12"]
+    secondes = etat_h["secondes"]
+    jour = etat_h["jour"]
+    if arg == "12h":
+        h12 = True
+    elif arg == "24h":
+        h12 = False
+    elif arg == "secondes":
+        secondes = not secondes
+    else:
+        jour = not jour
+
+    #  « lexOS » en tête : c'est la signature de la barre, elle reste.
+    morceaux = ["lexOS "]
+    morceaux.append(" %a %d %b " if jour else " %d %b ")
+    if h12:
+        morceaux.append(" %I h %M" + (" %S" if secondes else "") + " %p")
+    else:
+        morceaux.append(" %H h %M" + (" %S" if secondes else ""))
+    fmt = "".join(morceaux)
+
+    #  Les deux propriétés portent le même format : selon les versions, le
+    #  greffon lit l'une ou l'autre. En écrire une seule donne un réglage qui
+    #  « ne prend pas » sur la moitié des machines.
+    for propriete in ("digital-format", "digital-time-format"):
+        r = _run(["xfconf-query", "-c", "xfce4-panel",
+                  "-p", f"/plugins/plugin-3/{propriete}",
+                  "-n", "-t", "string", "-s", fmt])
+        if not r.get("ok"):
+            return r
+    return {"ok": True, "format": fmt}
+
+
+def act_fuseau_auto(arg):
+    """Le fuseau horaire d'après la position.
+
+    CE QU'ON NE FAIT PAS : deviner la position par l'adresse IP dans le dos
+    de l'utilisateur. LexOS a déjà une position — celle que « lexos cartes »
+    ou « lexos meteo » ont enregistrée parce qu'on la lui a DONNÉE. C'est
+    celle-là qu'on utilise, et s'il n'y en a pas, on le dit au lieu
+    d'interroger un service."""
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    return _run(["lexos-datetime", "fuseau-auto", arg])
+
+
+def act_autocollant(arg):
+    """Poser un personnage sur le fond d'écran, ou tout enlever. Les noms
+    forment un ensemble fermé — le shell ne voit jamais la valeur brute."""
+    if arg not in ("rock", "salut", "prevost", "enlever"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    if arg == "enlever":
+        return _run(["lexos-fond-ecran", "autocollant", "enlever"])
+    return _run(["lexos-fond-ecran", "autocollant", "poser", arg])
+
+
+def act_coin(arg):
+    """Le coin haut-gauche ouvre la vue d'ensemble, comme sous Ubuntu."""
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    if arg == "toggle":
+        arg = "off" if _apercu_etat()["coin"] else "on"
+    return _run(["lexos-apercu", "coin", arg])
+
+
+def act_super_apercu(arg):
+    """La touche Super seule ouvre la vue d'ensemble. Super+1…5 continuent
+    d'aller aux bureaux : c'est xcape qui fait la différence."""
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    if arg == "toggle":
+        arg = "off" if _apercu_etat()["super"] else "on"
+    return _run(["lexos-apercu", "super", arg])
+
+
+def act_apercu(arg):
+    """Ouvre la vue d'ensemble tout de suite — le bouton « Voir mes bureaux ».
+    detach : c'est une fenêtre, elle vit sa vie."""
+    return _run(["lexos-apercu", "ouvrir"], detach=True)
+
+
 def act_bureau_va(arg):
     """Aller à un bureau donné. Le numéro est borné, jamais interpolé."""
     if not str(arg).isdigit():
@@ -520,6 +648,12 @@ ACTIONS = {
     "maj": act_maj,
     "barre-cachee": act_barre_cachee,
     "bureaux": act_bureaux,
+    "horloge": act_horloge,
+    "fuseau-auto": act_fuseau_auto,
+    "autocollant": act_autocollant,
+    "coin": act_coin,
+    "super_apercu": act_super_apercu,
+    "apercu": act_apercu,
     "bureau-va": act_bureau_va,
     "energie-dim-batterie": act_energie_dim_batterie,
     "energie-delai": act_energie_delai,
@@ -602,7 +736,7 @@ def _batterie_etat():
     """Charge et source d'alimentation. Une tour n'a pas de batterie : on
     renvoie alors -1, et la page n'affiche simplement pas la ligne."""
     niveau, secteur = -1, True
-    base = Path("/sys/class/power_supply")
+    base = PSU_DIR
     try:
         for d in sorted(base.glob("BAT*")):
             try:
@@ -698,7 +832,7 @@ def _casque_branche():
 def _lumiere_etat():
     """Luminosité du rétroéclairage, en pour-cent. -1 quand la machine n'a pas
     de rétroéclairage pilotable (une tour avec un écran externe, par exemple)."""
-    base = Path("/sys/class/backlight")
+    base = BL_DIR
     try:
         for d in sorted(base.iterdir()):
             try:
@@ -756,6 +890,71 @@ def _crt_etat():
         return (conf / "crt").read_text().strip() != "off"
     except OSError:
         return True
+
+
+def _libre_etat():
+    """Ce qui, dans CETTE machine, n'est pas du logiciel libre.
+
+    La démo affiche la liste des trois exceptions (micrologiciels, Steam,
+    pilote Broadcom) comme un texte fixe — elle ne peut pas faire mieux, elle
+    n'a pas de machine sous elle. L'ISO, elle, peut REGARDER : « Steam est
+    installé » et « Steam pourrait être installé » ne sont pas la même
+    phrase, et c'est justement la précision qui donne du poids au reste.
+
+    On ne regarde que la présence, jamais l'usage. Rien n'est envoyé nulle
+    part : dpkg et /sys répondent depuis le disque."""
+    def paquet(nom):
+        r = subprocess.run(["dpkg-query", "-W", "-f=${db:Status-Status}", nom],
+                           capture_output=True, text=True)
+        return r.returncode == 0 and r.stdout.strip() == "installed"
+
+    #  Les micrologiciels : on compte les paquets « firmware-* » plutôt que
+    #  d'en nommer un, la liste dépendant entièrement du matériel.
+    firmwares = []
+    try:
+        r = subprocess.run(["dpkg-query", "-W", "-f=${binary:Package}\n",
+                            "firmware-*"], capture_output=True, text=True)
+        firmwares = [l for l in r.stdout.split() if l]
+    except OSError:
+        pass
+
+    return {
+        "firmwares": len(firmwares),
+        "steam": paquet("steam-installer") or paquet("steam"),
+        "broadcom": (paquet("broadcom-sta-dkms")
+                     or paquet("firmware-brcm80211")),
+    }
+
+
+def _apercu_etat():
+    """La vue d'ensemble des bureaux : par quoi elle s'ouvre, et par quoi on
+    la déclenche.
+
+    « moteur » n'est pas décoratif : sans xfdashboard on retombe sur la liste
+    des fenêtres de xfdesktop, qui montre les mêmes bureaux mais pas en
+    vignettes. La page le dit plutôt que de laisser croire à la vue de la
+    démo. Et « super » ne peut s'allumer que si xcape est là — lui seul sait
+    distinguer une touche Super relâchée seule d'un Super+1."""
+    conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
+
+    def drapeau(nom):
+        try:
+            return (conf / nom).read_text().strip() == "on"
+        except OSError:
+            return False
+
+    if shutil.which("xfdashboard"):
+        moteur = "xfdashboard"
+    elif shutil.which("xfdesktop"):
+        moteur = "xfdesktop"
+    else:
+        moteur = ""
+    return {
+        "moteur": moteur,
+        "coin": drapeau("coin-actif"),
+        "super": drapeau("super-apercu"),
+        "xcape": bool(shutil.which("xcape")),
+    }
 
 
 def _barre_cachee():
@@ -869,7 +1068,7 @@ def _securite_etat():
     if shutil.which("ufw"):
         feu = False
         try:
-            for ligne in Path("/etc/ufw/ufw.conf").read_text().splitlines():
+            for ligne in Path(ETC_DIR / "ufw/ufw.conf").read_text().splitlines():
                 if ligne.strip().startswith("ENABLED="):
                     feu = ligne.split("=", 1)[1].strip().lower() == "yes"
         except OSError:
@@ -921,8 +1120,8 @@ def _maj_etat():
     """Mises à jour automatiques, et micrologiciel. On lit la configuration
     d'unattended-upgrades telle qu'elle est sur la machine."""
     secu, tout = False, False
-    for f in ("/etc/apt/apt.conf.d/20auto-upgrades",
-              "/etc/apt/apt.conf.d/50unattended-upgrades"):
+    for f in (ETC_DIR / "apt/apt.conf.d/20auto-upgrades",
+              ETC_DIR / "apt/apt.conf.d/50unattended-upgrades"):
         try:
             texte = Path(f).read_text()
         except OSError:
@@ -938,7 +1137,7 @@ def _maj_etat():
     #  « Tout mettre à jour » = la ligne des dépôts autres que sécurité est
     #  décommentée dans 50unattended-upgrades.
     try:
-        for ligne in Path("/etc/apt/apt.conf.d/50unattended-upgrades").read_text().splitlines():
+        for ligne in Path(ETC_DIR / "apt/apt.conf.d/50unattended-upgrades").read_text().splitlines():
             l = ligne.strip()
             if l.startswith('"') and "-updates" in l and not l.startswith("//"):
                 tout = True
@@ -955,11 +1154,11 @@ def _utilisateurs_etat():
     gens = []
     try:
         admins = set()
-        for ligne in Path("/etc/group").read_text().splitlines():
+        for ligne in Path(ETC_DIR / "group").read_text().splitlines():
             champs = ligne.split(":")
             if len(champs) >= 4 and champs[0] in ("sudo", "wheel", "adm"):
                 admins.update(m for m in champs[3].split(",") if m)
-        for ligne in Path("/etc/passwd").read_text().splitlines():
+        for ligne in Path(ETC_DIR / "passwd").read_text().splitlines():
             champs = ligne.split(":")
             if len(champs) < 7:
                 continue
@@ -1110,8 +1309,8 @@ def _mac_etat():
     """Cette machine est-elle un Mac ? Le fabricant est écrit dans le DMI par
     le BIOS ; c'est la source que tous les outils lisent."""
     try:
-        vendeur = Path("/sys/class/dmi/id/sys_vendor").read_text().strip()
-        modele = Path("/sys/class/dmi/id/product_name").read_text().strip()
+        vendeur = (DMI_DIR / "sys_vendor").read_text().strip()
+        modele = (DMI_DIR / "product_name").read_text().strip()
     except OSError:
         return {"apple": False, "modele": ""}
     return {"apple": "apple" in vendeur.lower(), "modele": modele}
@@ -1141,21 +1340,40 @@ def _comptes_etat():
 
 
 def _bienetre_etat():
-    """Temps d'écran du jour et pauses. Le compteur est tenu par
-    lexos-bienetre ; on lit son relevé plutôt que de le recalculer ici."""
-    conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
+    """Temps d'écran du jour, et si le compteur tourne seulement.
+
+    CORRECTION D'UNE ERREUR : cette fonction lisait
+    ~/.config/lexos/ecran-aujourdhui, au format « date minutes ». Ce fichier
+    n'existe nulle part et personne ne l'écrit. lexos-bienetre range son
+    relevé AILLEURS et AUTREMENT : un fichier par jour, nommé AAAA-MM-JJ,
+    dans ~/.local/share/lexos/bienetre/, contenant le seul nombre de minutes.
+    La section affichait donc éternellement « pas de relevé » alors que le
+    compteur faisait son travail.
+
+    ET UNE DISTINCTION QUI COMPTE : le compteur est ARRÊTÉ par défaut —
+    mesurer le temps de quelqu'un ne se fait pas sans qu'il le demande. « 0
+    minute » et « le compteur ne tourne pas » ne veulent donc pas dire la
+    même chose, et la page doit pouvoir les distinguer."""
+    from datetime import date
+    dossier = Path(os.environ.get(
+        "LEXOS_BIENETRE_DIR",
+        Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
+        / "lexos" / "bienetre"))
     minutes = 0
     try:
-        brut = (conf / "ecran-aujourdhui").read_text().strip()
-        #  Format « AAAA-MM-JJ minutes » : on n'affiche que si c'est
-        #  AUJOURD'HUI, sinon on montrerait le temps d'hier.
-        jour, _, val = brut.partition(" ")
-        from datetime import date
-        if jour == date.today().isoformat() and val.strip().isdigit():
-            minutes = int(val.strip())
+        brut = (dossier / date.today().isoformat()).read_text().strip()
+        if brut.isdigit():
+            minutes = int(brut)
     except (OSError, ValueError):
         pass
+    #  Le compteur tourne-t-il ? C'est une minuterie systemd de l'utilisateur.
+    tourne = False
+    if shutil.which("systemctl"):
+        tourne = _sortie(["systemctl", "--user", "is-active",
+                          "lexos-bienetre.timer"]) == "active"
     return {"minutes": minutes,
+            "tourne": tourne,
+            "releve": (dossier / date.today().isoformat()).exists(),
             "pauses": bool(shutil.which("workrave")),
             "soir": bool(shutil.which("redshift") or shutil.which("gammastep"))}
 
@@ -1170,7 +1388,38 @@ def _heure_etat():
             fuseau = ligne.split("=", 1)[1]
         elif ligne.startswith("NTP="):
             auto = ligne.split("=", 1)[1] == "yes"
-    return {"fuseau": fuseau, "auto": auto}
+    #  Ce que l'horloge de la barre affiche VRAIMENT. La démo propose
+    #  « 24 h / 12 h », « secondes » et « jour de la semaine » ; côté XFCE ces
+    #  trois réglages ne sont qu'UN seul : la chaîne de format du greffon
+    #  horloge. On la lit et on la décompose, plutôt que de garder trois
+    #  drapeaux à part qui finiraient par mentir sur ce qui est affiché.
+    fmt = _xfconf_lire("xfce4-panel", "/plugins/plugin-3/digital-time-format")
+    conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
+    try:
+        fuseau_auto = (conf / "fuseau-auto").read_text().strip() == "on"
+    except OSError:
+        fuseau_auto = False
+    #  « Fuseau automatique » n'est proposable que si un lieu est connu — et
+    #  le seul lieu que LexOS connaisse est celui qu'on lui a donné pour la
+    #  météo. Sans ça, l'interrupteur promettrait une devinette qu'on refuse
+    #  de faire (voir lexos-datetime : jamais de géolocalisation par IP).
+    lieu_connu = False
+    try:
+        contenu = (conf / "meteo.conf").read_text()
+        lieu_connu = "LEXOS_METEO_LAT=" in contenu and "LEXOS_METEO_LON=" in contenu
+    except OSError:
+        pass
+    return {
+        "fuseau": fuseau,
+        "auto": auto,
+        "fuseau_auto": fuseau_auto,
+        "lieu_connu": lieu_connu,
+        "maintenant": _sortie(["date", "+%A %d %B %Y, %H:%M:%S"]),
+        "format": fmt,
+        "h12": "%I" in fmt or "%l" in fmt,
+        "secondes": "%S" in fmt,
+        "jour": "%a" in fmt or "%A" in fmt,
+    }
 
 
 def etat():
@@ -1194,7 +1443,7 @@ def etat():
 
     version = ""
     try:
-        for ligne in Path("/etc/os-release").read_text().splitlines():
+        for ligne in Path(ETC_DIR / "os-release").read_text().splitlines():
             if ligne.startswith("PRETTY_NAME="):
                 version = ligne.split("=", 1)[1].strip('"')
                 break
@@ -1202,7 +1451,7 @@ def etat():
         pass
 
     try:
-        perf = Path("/etc/lexos/performance").read_text().strip() or "medium"
+        perf = Path(ETC_DIR / "lexos/performance").read_text().strip() or "medium"
     except OSError:
         perf = "medium"
 
@@ -1213,8 +1462,9 @@ def etat():
         "police": fichier("police", "defaut"),
         "avion": avion,
         "hote": socket.gethostname(),
-        "version": version or "LexOS 1.0 « Nomad »",
+        "version": version or "LexOS 2.0.0 « Nomad »",
         "noyau": _sortie(["uname", "-r"]),
+        "libre": _libre_etat(),
         #  L'état réel du matériel, pour que les sections montrent des
         #  VALEURS et pas seulement des boutons.
         "wifi": _wifi_etat(),
@@ -1230,6 +1480,7 @@ def etat():
         "crt": _crt_etat(),
         "barreCachee": _barre_cachee(),
         "bureaux": _bureaux_etat(),
+        "apercu": _apercu_etat(),
         "usb": _usb_etat(),
         "securite": _securite_etat(),
         "amovibles": _amovibles_etat(),
