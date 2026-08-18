@@ -104,3 +104,12 @@ python3-xlib
 python3-gi
 python3-cairo
 gir1.2-gtk-3.0
+
+# --- Agenda -----------------------------------------------------------------
+# La démo web a un agenda (clic sur l'heure : notifications + calendrier, avec
+# les vues Mois / Semaine / 3 jours / Jour heure par heure). L'ISO n'avait
+# AUCUNE application de calendrier — un manque qu'Alex a relevé en essayant :
+# ce que la démo montre doit exister pour de vrai.
+# gnome-calendar fonctionne très bien hors de GNOME et parle à Evolution Data
+# Server, ce qui permet d'ajouter des comptes en ligne plus tard.
+gnome-calendar

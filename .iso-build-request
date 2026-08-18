@@ -48,6 +48,50 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 57 : LA DÉMO EST LE CAHIER DES CHARGES — HUIT OUTILS MANQUAIENT AU
+#   MENU, PLUS L'AGENDA.
+#   Alex a essayé l'ISO et l'a dit simplement : « il manquait beaucoup
+#   d'outils, Wi-Fi et tout dans les paramètres ». Et il a rappelé la règle
+#   qui gouverne ce projet : la démo web qu'on voit sur Vercel, c'est SES
+#   YEUX pour construire l'ISO. Ce qu'elle montre doit exister pour de vrai.
+#
+#   ON A DONC COMPARÉ, ICÔNE PAR ICÔNE. La grille d'applications de la démo
+#   contient quinze raccourcis de réglages. Dans le vrai système, HUIT
+#   n'avaient AUCUNE entrée de menu :
+#     Bluetooth · Énergie · Apparence · Souris et pavé tactile ·
+#     Gestion des couleurs · Imprimantes · Région et langue · Mises à jour
+#
+#   LE PLUS FRUSTRANT : les outils EXISTAIENT tous. « lexos-settings
+#   <section> » ouvre déjà les Paramètres sur la bonne page — exactement ce
+#   que fait la démo. Ils étaient simplement inatteignables à la souris, et
+#   le bureau paraissait vide de la moitié de ses réglages. Aucun outil
+#   nouveau n'a donc été écrit : huit lanceurs, et ils apparaissent.
+#
+#   POURQUOI ILS MANQUAIENT — deux défauts du hook 0265, qui se cachaient
+#   l'un l'autre :
+#     · le nom du fichier .desktop se déduisait du BINAIRE. Huit entrées
+#       partagent maintenant le même binaire (lexos-settings) avec des
+#       arguments différents : elles se seraient toutes écrasées dans
+#       lexos-settings.desktop, une seule aurait survécu. D'où une colonne
+#       d'identifiant.
+#     · le test anti-doublon regardait le BINAIRE, pas la commande. Le
+#       lexos-settings.desktop déjà livré aurait fait écarter les huit d'un
+#       coup. Il compare maintenant la commande ENTIÈRE — car le binaire
+#       seul ne dit pas ce que fait un lanceur, sa commande si.
+#
+#   L'AGENDA, absent lui aussi. La démo a un calendrier complet (vues Mois /
+#   Semaine / 3 jours / Jour heure par heure) et l'ISO n'avait AUCUNE
+#   application de calendrier. gnome-calendar est ajouté — il marche très
+#   bien hors de GNOME.
+#
+#   31 lanceurs produits au lieu de 23, vérifiés en rejouant le hook dans un
+#   faux système : le lanceur Paramètres d'origine n'est pas écrasé, et un
+#   deuxième passage ne recrée rien (31 reconnus comme déjà présents).
+#
+#   Ce build contient aussi tout le build 56 (lexos-gpu-garde), qui a été
+#   remplacé en cours de route : il aurait produit une ISO où ces huit
+#   outils manquaient encore.
+#
 # build 56 : LA VERSION PRO DÉMARRE MAINTENANT SUR N'IMPORTE QUELLE MACHINE,
 #   Y COMPRIS SANS CARTE NVIDIA.
 #   NOUVEAU PLAN D'ALEX : l'Alienware reste pour jouer (Windows), et LexOS
@@ -1011,4 +1055,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 56
+build: 57

@@ -24,37 +24,69 @@ echo "[lexos] hook 0265 : lanceurs de menu"
 APPS=/usr/share/applications
 mkdir -p "$APPS"
 
-#  cmd | Nom du menu | icône (thème Papirus) | terminal oui/non | catégories | commentaire
+#  id | cmd | Nom du menu | icône (thème Papirus) | terminal oui/non | catégories | commentaire
+#
+#  POURQUOI UNE COLONNE « id ». Le nom du fichier .desktop se déduisait du
+#  BINAIRE. Tant qu'un binaire ne servait qu'une fois, ça allait. Mais
+#  plusieurs entrées passent maintenant par le MÊME binaire avec des
+#  arguments différents — « lexos-settings bluetooth », « lexos-settings
+#  energie »… — et elles s'écrasaient toutes dans lexos-settings.desktop :
+#  une seule survivait. L'identifiant règle ça, et rend chaque entrée
+#  nommable indépendamment de la commande qu'elle lance.
 TABLE="
-lexos-fond-ecran choisir|Fond d'écran|preferences-desktop-wallpaper|non|Settings;DesktopSettings;|Choisir l'image du bureau
-lexos-fond-anime mascotte|Fond animé (mascotte)|preferences-desktop-screensaver|non|Settings;DesktopSettings;|La mascotte LexOS animée en fond
-lexos-musique|Musique LexOS|multimedia-audio-player|non|AudioVideo;Audio;Player;|Écouter le dossier Musique
-lexos-chrome|Google Chrome (LexOS)|web-browser|non|Network;WebBrowser;|Ouvre Chrome, l'installe s'il manque
-lexos-claude|Claude|web-browser|non|Network;Development;|Claude Code ou claude.ai
-lexos-recherche fenetre|Recherche de fichiers|system-search|non|Utility;FileTools;|Chercher par nom ou par contenu
-lexos-son|Son|audio-volume-high|oui|Settings;HardwareSettings;|Volume, sorties, micro, effets
-lexos-access|Accessibilité|preferences-desktop-accessibility|oui|Settings;Accessibility;|Lecteur d'écran, loupe, contraste
-lexos-utilisateurs|Utilisateurs|system-users|oui|Settings;System;|Comptes, mots de passe, admins
-lexos-distant|Bureau à distance|preferences-desktop-remote-desktop|oui|Settings;Network;|Se connecter ailleurs, partager ici
-lexos-defaut|Applications par défaut|preferences-desktop-default-applications|oui|Settings;|Quel logiciel ouvre quoi
-lexos-datetime|Date et heure|preferences-system-time|oui|Settings;|Fuseau, synchronisation, format
-lexos-net|Réseau et Wi-Fi|network-wireless|oui|Settings;Network;|Réseaux, mots de passe, avion
-lexos-perf|Performance|utilities-system-monitor|oui|Settings;System;|Profils petit à max
-lexos-secure|Sécurité|security-high|oui|Settings;Security;|Pare-feu, verrouillage, vie privée
-lexos-vpn|VPN|network-vpn|oui|Settings;Network;|Connexions VPN
-lexos-usb|Appareils USB|drive-removable-media-usb|oui|Settings;HardwareSettings;|Clés, import, terminal d'appareil
-lexos-format|Formater un disque|drive-harddisk|oui|System;Utility;|Préparer une clé ou un disque
-lexos-brightness|Luminosité|display-brightness|oui|Settings;HardwareSettings;|Écran plus ou moins lumineux
-lexos-clavier|Clavier|preferences-desktop-keyboard|oui|Settings;HardwareSettings;|Dispositions et raccourcis
-lexos-comptes|Comptes en ligne|preferences-desktop-online-accounts|oui|Settings;Network;|Drive, Nextcloud, Dropbox…
-lexos-bienetre|Bien-être numérique|preferences-desktop-screensaver|oui|Settings;|Pauses et temps d'écran
-lexos-mac|Mac (Apple)|computer-apple-ipad|oui|Settings;HardwareSettings;|Matériel Apple sous LexOS
+lexos-fond-ecran|lexos-fond-ecran choisir|Fond d'écran|preferences-desktop-wallpaper|non|Settings;DesktopSettings;|Choisir l'image du bureau
+lexos-fond-anime|lexos-fond-anime mascotte|Fond animé (mascotte)|preferences-desktop-screensaver|non|Settings;DesktopSettings;|La mascotte LexOS animée en fond
+lexos-musique|lexos-musique|Musique LexOS|multimedia-audio-player|non|AudioVideo;Audio;Player;|Écouter le dossier Musique
+lexos-chrome|lexos-chrome|Google Chrome (LexOS)|web-browser|non|Network;WebBrowser;|Ouvre Chrome, l'installe s'il manque
+lexos-claude|lexos-claude|Claude|web-browser|non|Network;Development;|Claude Code ou claude.ai
+lexos-recherche|lexos-recherche fenetre|Recherche de fichiers|system-search|non|Utility;FileTools;|Chercher par nom ou par contenu
+lexos-son|lexos-son|Son|audio-volume-high|oui|Settings;HardwareSettings;|Volume, sorties, micro, effets
+lexos-access|lexos-access|Accessibilité|preferences-desktop-accessibility|oui|Settings;Accessibility;|Lecteur d'écran, loupe, contraste
+lexos-utilisateurs|lexos-utilisateurs|Utilisateurs|system-users|oui|Settings;System;|Comptes, mots de passe, admins
+lexos-distant|lexos-distant|Bureau à distance|preferences-desktop-remote-desktop|oui|Settings;Network;|Se connecter ailleurs, partager ici
+lexos-defaut|lexos-defaut|Applications par défaut|preferences-desktop-default-applications|oui|Settings;|Quel logiciel ouvre quoi
+lexos-datetime|lexos-datetime|Date et heure|preferences-system-time|oui|Settings;|Fuseau, synchronisation, format
+lexos-net|lexos-net|Réseau et Wi-Fi|network-wireless|oui|Settings;Network;|Réseaux, mots de passe, avion
+lexos-perf|lexos-perf|Performance|utilities-system-monitor|oui|Settings;System;|Profils petit à max
+lexos-secure|lexos-secure|Sécurité|security-high|oui|Settings;Security;|Pare-feu, verrouillage, vie privée
+lexos-vpn|lexos-vpn|VPN|network-vpn|oui|Settings;Network;|Connexions VPN
+lexos-usb|lexos-usb|Appareils USB|drive-removable-media-usb|oui|Settings;HardwareSettings;|Clés, import, terminal d'appareil
+lexos-format|lexos-format|Formater un disque|drive-harddisk|oui|System;Utility;|Préparer une clé ou un disque
+lexos-brightness|lexos-brightness|Luminosité|display-brightness|oui|Settings;HardwareSettings;|Écran plus ou moins lumineux
+lexos-clavier|lexos-clavier|Clavier|preferences-desktop-keyboard|oui|Settings;HardwareSettings;|Dispositions et raccourcis
+lexos-comptes|lexos-comptes|Comptes en ligne|preferences-desktop-online-accounts|oui|Settings;Network;|Drive, Nextcloud, Dropbox…
+lexos-bienetre|lexos-bienetre|Bien-être numérique|preferences-desktop-screensaver|oui|Settings;|Pauses et temps d'écran
+lexos-mac|lexos-mac|Mac (Apple)|computer-apple-ipad|oui|Settings;HardwareSettings;|Matériel Apple sous LexOS
+#
+#  LES SECTIONS DE PARAMÈTRES QUI N'AVAIENT AUCUN LANCEUR.
+#  La démo web (web-demo/index.html) est le cahier des charges de LexOS :
+#  ce qu'on y voit doit exister dans l'ISO. Sa grille d'applications montre
+#  quinze raccourcis de réglages ; huit d'entre eux n'avaient AUCUNE entrée
+#  de menu dans le vrai système. Les outils existaient pourtant — Alex ne
+#  pouvait simplement pas les atteindre à la souris, et le bureau paraissait
+#  vide de la moitié de ses réglages.
+#
+#  Aucun outil nouveau n'est nécessaire : « lexos-settings <section> » ouvre
+#  déjà les Paramètres directement sur la bonne page, exactement comme
+#  openSettings(section) dans la démo. Ce sont donc des lanceurs graphiques,
+#  pas des commandes de terminal.
+lexos-reglages-bluetooth|lexos-settings bluetooth|Bluetooth|bluetooth|non|Settings;HardwareSettings;|Appareils Bluetooth, appairage
+lexos-reglages-energie|lexos-settings energie|Énergie|battery|non|Settings;HardwareSettings;|Batterie, veille, économie
+lexos-reglages-apparence|lexos-settings apparence|Apparence|preferences-desktop-theme|non|Settings;DesktopSettings;|Couleurs, police, thème clair ou sombre
+lexos-reglages-souris|lexos-settings souris|Souris et pavé tactile|input-mouse|non|Settings;HardwareSettings;|Vitesse, clic, défilement
+lexos-reglages-couleurs|lexos-settings couleurs|Gestion des couleurs|preferences-color|non|Settings;HardwareSettings;|Profils de couleur des écrans
+lexos-reglages-imprimantes|lexos-settings imprimantes|Imprimantes|printer|non|Settings;HardwareSettings;|Ajouter et gérer les imprimantes
+lexos-reglages-region|lexos-settings region|Région et langue|preferences-desktop-locale|non|Settings;|Langue, formats, fuseau
+lexos-reglages-maj|lexos-settings maj|Mises à jour|system-software-update|non|Settings;System;|Mettre LexOS à jour
 "
 
 CREES=0
 IGNORES=0
 
-printf '%s\n' "$TABLE" | while IFS='|' read -r CMDLINE NOM ICONE TERM CATS COMMENT; do
+printf '%s\n' "$TABLE" | while IFS='|' read -r ID CMDLINE NOM ICONE TERM CATS COMMENT; do
+	#  Les lignes vides et les commentaires de la table ne sont pas des
+	#  entrées : on les saute avant toute chose.
+	case "$ID" in ''|'#'*) continue ;; esac
 	[ -n "$CMDLINE" ] || continue
 
 	BIN="${CMDLINE%% *}"
@@ -63,10 +95,17 @@ printf '%s\n' "$TABLE" | while IFS='|' read -r CMDLINE NOM ICONE TERM CATS COMME
 		continue
 	fi
 
-	#  Un lanceur existe-t-il déjà pour ce binaire ? (posé par un autre hook
-	#  ou par un paquet). On regarde les Exec=, pas les noms de fichiers.
-	if grep -rlsE "^Exec=.*(^|[ /])${BIN}( |$)" "$APPS" >/dev/null 2>&1; then
-		echo "[lexos]   déjà présent, on passe : ${BIN}"
+	#  Un lanceur existe-t-il déjà pour CETTE COMMANDE ? (posé par un autre
+	#  hook ou par un paquet). On regarde les Exec=, pas les noms de fichiers.
+	#
+	#  ON COMPARE LA COMMANDE ENTIÈRE, pas seulement le binaire. Avant, huit
+	#  entrées « lexos-settings <section> » auraient toutes été écartées à
+	#  cause du seul lexos-settings.desktop déjà présent — alors qu'elles
+	#  ouvrent des pages différentes. Le binaire seul ne dit pas ce que fait
+	#  un lanceur ; sa commande, si.
+	MOTIF="$(printf '%s' "$CMDLINE" | sed 's/[.[\*^$()+?{|]/\\&/g')"
+	if grep -rlsE "^Exec=(lexos-fenetre )?${MOTIF}[[:space:]]*$" "$APPS" >/dev/null 2>&1; then
+		echo "[lexos]   déjà présent, on passe : ${CMDLINE}"
 		IGNORES=$((IGNORES + 1))
 		continue
 	fi
@@ -79,7 +118,7 @@ printf '%s\n' "$TABLE" | while IFS='|' read -r CMDLINE NOM ICONE TERM CATS COMME
 		TERMINAL=false
 	fi
 
-	cat > "${APPS}/${BIN}.desktop" <<EOF
+	cat > "${APPS}/${ID}.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Version=1.0
@@ -90,11 +129,11 @@ Exec=${EXEC}
 Icon=${ICONE}
 Terminal=${TERMINAL}
 Categories=${CATS}X-LexOS;
-Keywords=lexos;${BIN#lexos-};
+Keywords=lexos;${ID#lexos-};${BIN#lexos-};
 StartupNotify=false
 EOF
 	CREES=$((CREES + 1))
-	echo "[lexos]   + ${NOM}  (${BIN}.desktop)"
+	echo "[lexos]   + ${NOM}  (${ID}.desktop)"
 done
 
 #  Rafraîchir le cache du menu — sans quoi les entrées n'apparaissent
