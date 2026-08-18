@@ -1,0 +1,130 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — adapter les réglages NVIDIA à la machine où l'on démarre VRAIMENT
+# =============================================================================
+#  POURQUOI CE SCRIPT EXISTE.
+#  L'ISO « pro » embarque le pilote NVIDIA propriétaire parce qu'il ne peut pas
+#  s'installer après coup. Elle pose donc aussi, au moment de la construction,
+#  deux fichiers dans /etc/modprobe.d/ :
+#
+#    · lexos-blacklist-nouveau.conf — interdit nouveau, pour que le pilote
+#      propriétaire ait la carte pour lui seul (correctif du build 54, trouvé
+#      en direct sur l'Alienware : nouveau réclamait la RTX 5060 avant
+#      nvidia.ko, et sur Blackwell il ne voit AUCUNE sortie vidéo) ;
+#    · lexos-nvidia-drm.conf — active le modesetting de nvidia-drm.
+#
+#  Ces deux fichiers sont écrits à la CONSTRUCTION, donc sans savoir sur quelle
+#  machine l'ISO démarrera. C'est là qu'est le piège, et il est sérieux :
+#
+#    SUR UNE MACHINE SANS CARTE NVIDIA DU TOUT (le ThinkPad 2016 et ses
+#    graphiques Intel), interdire nouveau ne coûte rien — Intel utilise i915.
+#    Mais sur une machine à VIEILLE carte NVIDIA, que le pilote 595 ne gère
+#    plus, on obtiendrait le pire des deux mondes : nouveau interdit, le
+#    propriétaire incapable de prendre la carte, et un écran noir. On aurait
+#    reproduit exactement la panne qu'on vient de mettre des semaines à
+#    comprendre, mais à l'envers.
+#
+#  CE QUE FAIT CE SCRIPT. Au démarrage, il regarde s'il y a réellement une
+#  carte NVIDIA, et il range ou remet les deux fichiers en conséquence :
+#
+#    carte NVIDIA présente  → les fichiers sont EN PLACE (rien ne change sur
+#                             l'Alienware : le correctif reste entier) ;
+#    aucune carte NVIDIA    → ils sont mis de côté en « .sans-nvidia », donc
+#                             sans effet, et nouveau reste disponible.
+#
+#  C'est RÉVERSIBLE ET SYMÉTRIQUE : brancher une carte NVIDIA plus tard, ou
+#  déplacer le disque dans une autre tour, remet les fichiers tout seuls au
+#  démarrage suivant. Rien n'est jamais supprimé.
+#
+#  RÉSULTAT : une seule ISO « pro » démarre correctement partout — sur
+#  l'Alienware avec sa RTX 5060 comme sur le vieux portable Intel.
+# =============================================================================
+set -e
+
+JOURNAL="${LEXOS_RACINE:-}/var/log/lexos-gpu-garde.log"
+dire() {
+	echo "[lexos-gpu-garde] $*"
+	printf '%s %s\n' "$(date -Is 2>/dev/null || echo '?')" "$*" >> "$JOURNAL" 2>/dev/null || true
+}
+
+#  Préfixe de racine. VIDE en usage normal — il n'existe que pour pouvoir
+#  ESSAYER ce script hors d'une vraie machine : le banc d'essai lui donne une
+#  fausse arborescence (faux bus PCI, faux /etc/modprobe.d) et vérifie qu'il
+#  range et remet les bons fichiers. Sans ça, la seule façon de le tester
+#  serait de démarrer deux ordinateurs différents.
+R="${LEXOS_RACINE:-}"
+PCI="${R}/sys/bus/pci/devices"
+MODPROBE="${R}/etc/modprobe.d"
+
+REGLAGES="${MODPROBE}/lexos-blacklist-nouveau.conf ${MODPROBE}/lexos-nvidia-drm.conf"
+SUFFIXE=".sans-nvidia"
+
+# --- Y a-t-il une carte NVIDIA sur cette machine ? --------------------------
+#  On lit /sys directement plutôt que d'appeler lspci : /sys est toujours là,
+#  même si pciutils venait à manquer, et c'est la source que lspci lit
+#  lui-même. On exige le bon VENDEUR (0x10de = NVIDIA) ET la bonne CLASSE
+#  (0x0300 = VGA, 0x0302 = 3D) : une puce audio HDMI NVIDIA, présente sur les
+#  mêmes cartes, ne doit pas être prise pour un GPU.
+carte_nvidia_presente() {
+	for D in "$PCI"/*/; do
+		[ -r "${D}vendor" ] && [ -r "${D}class" ] || continue
+		[ "$(cat "${D}vendor" 2>/dev/null)" = "0x10de" ] || continue
+		case "$(cat "${D}class" 2>/dev/null)" in
+			0x0300*|0x0302*) return 0 ;;
+		esac
+	done
+	return 1
+}
+
+# --- Les deux sens, et rien de destructif -----------------------------------
+#  On renomme, on ne supprime jamais : un fichier mis de côté peut revenir.
+#  CHANGE reste à 1 si quelque chose a bougé — l'initramfs devra suivre.
+CHANGE=0
+
+ranger() {                       # en place -> mis de côté
+	for F in $REGLAGES; do
+		if [ -f "$F" ]; then
+			mv -f "$F" "${F}${SUFFIXE}" 2>/dev/null || continue
+			dire "mis de côté : $(basename "$F")"
+			CHANGE=1
+		fi
+	done
+}
+
+remettre() {                     # mis de côté -> en place
+	for F in $REGLAGES; do
+		if [ -f "${F}${SUFFIXE}" ] && [ ! -f "$F" ]; then
+			mv -f "${F}${SUFFIXE}" "$F" 2>/dev/null || continue
+			dire "remis en place : $(basename "$F")"
+			CHANGE=1
+		fi
+	done
+}
+
+if carte_nvidia_presente; then
+	remettre
+	[ "$CHANGE" = "1" ] && dire "carte NVIDIA détectée — réglages du pilote propriétaire actifs"
+else
+	ranger
+	[ "$CHANGE" = "1" ] && dire "aucune carte NVIDIA — réglages du pilote rangés, nouveau reste disponible"
+fi
+
+# --- Répercuter sur l'initramfs, seulement si ça a bougé --------------------
+#  Le blacklist agit dès l'initramfs : tant qu'il n'est pas régénéré, le
+#  changement ne prendrait effet qu'à moitié. On ne le fait donc PAS à chaque
+#  démarrage (ce serait une minute perdue à chaque fois) mais UNIQUEMENT le
+#  jour où l'état change — c'est-à-dire une fois, au premier démarrage sur
+#  une machine différente.
+#
+#  Jamais en session démo : le système de fichiers y est un empilement en
+#  mémoire, régénérer l'initramfs n'y servirait à rien et prendrait du temps
+#  au pire moment.
+if [ "$CHANGE" = "1" ] && ! grep -qa 'boot=live' /proc/cmdline 2>/dev/null; then
+	if command -v update-initramfs >/dev/null 2>&1; then
+		update-initramfs -u >/dev/null 2>&1 \
+			&& dire "initramfs mis à jour" \
+			|| dire "!! update-initramfs a échoué — le changement sera complet au prochain noyau"
+	fi
+fi
+
+exit 0

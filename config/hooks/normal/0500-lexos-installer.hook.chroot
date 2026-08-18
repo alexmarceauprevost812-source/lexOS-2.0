@@ -53,6 +53,28 @@ if command -v systemctl >/dev/null 2>&1; then
 		|| echo "[lexos]   !! service lexos-grub-defaut non activé"
 fi
 
+# --- La même ISO sur n'importe quelle machine --------------------------------
+#  L'ISO « pro » embarque le pilote NVIDIA et pose deux fichiers dans
+#  /etc/modprobe.d/ — dont l'interdiction de nouveau, sans laquelle la RTX 5060
+#  de l'Alienware n'affiche rien. Mais ces fichiers sont écrits à la
+#  CONSTRUCTION, sans savoir où l'ISO démarrera.
+#
+#  Sur une machine sans carte NVIDIA (le ThinkPad 2016 et ses graphiques
+#  Intel), ça ne coûte rien. Sur une machine à VIEILLE carte NVIDIA que le
+#  pilote 595 ne gère plus, ce serait l'écran noir : nouveau interdit, le
+#  propriétaire incapable de prendre la carte. Exactement la panne qu'on vient
+#  de mettre des semaines à comprendre, mais à l'envers.
+#
+#  Ce service regarde la carte réellement présente au démarrage et range ou
+#  remet ces réglages en conséquence. Réversible : déplacer le disque dans une
+#  autre machine les remet tout seuls. Rien n'est jamais supprimé.
+chmod 0755 /usr/lib/lexos/gpu-garde 2>/dev/null || true
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl enable lexos-gpu-garde.service >/dev/null 2>&1 \
+		&& echo "[lexos]   réglages NVIDIA adaptés à la carte présente au démarrage" \
+		|| echo "[lexos]   !! service lexos-gpu-garde non activé"
+fi
+
 #  Contrôle de construction : les trois réglages dont ce service dépend
 #  doivent être dans /etc/default/grub.d/lexos.cfg. Si quelqu'un les retire un
 #  jour, le service écrirait dans grubenv un défaut que GRUB n'irait jamais

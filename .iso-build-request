@@ -15,14 +15,22 @@
 #   pareil. La SEULE différence est matérielle, et il n'y en a qu'une qui ne
 #   puisse pas se régler après coup :
 #
-#     pro       → L'ALIENWARE. Le pilote NVIDIA propriétaire pour la RTX 5060
-#                 (hook 0260) doit être DANS l'ISO : il ne s'installe pas
-#                 après. C'est la seule raison d'avoir une deuxième version.
+#     pro       → AVEC le pilote NVIDIA propriétaire, qui doit être DANS
+#                 l'ISO parce qu'il ne s'installe pas après coup. Depuis le
+#                 build 56, elle démarre sur N'IMPORTE QUELLE machine : un
+#                 service regarde au démarrage s'il y a vraiment une carte
+#                 NVIDIA et range les réglages du pilote quand il n'y en a
+#                 pas. Sur un portable Intel, elle se comporte donc
+#                 exactement comme « standard ».
 #
-#     standard  → TOUT LE RESTE : le ThinkPad 2016 et n'importe quel
-#                 ordinateur normal. Même bureau, sans NVIDIA — lui poser ce
-#                 pilote sur des graphiques Intel ne servirait à rien et
-#                 risquerait l'écran noir.
+#     standard  → SANS le pilote NVIDIA. Même bureau, exactement. Plus légère
+#                 d'environ un gigaoctet, et rien à adapter au démarrage.
+#
+#   AUTREMENT DIT, ET C'EST IMPORTANT : le bureau est IDENTIQUE des deux
+#   côtés — 95 paquets stricts, 403 optionnels, les mêmes partout. « pro »
+#   n'est pas une version « meilleure » ou « complète » : c'est « standard »
+#   plus un pilote pour une carte précise. Sur une machine sans carte NVIDIA,
+#   les deux donnent rigoureusement le même LexOS.
 #
 #   Pas de troisième version pour le ThinkPad : tout ce qui distingue un vieux
 #   portable d'une tour se règle tout seul au démarrage (TLP ne s'active que
@@ -41,6 +49,51 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 56 : LA VERSION PRO DÉMARRE MAINTENANT SUR N'IMPORTE QUELLE MACHINE,
+#   Y COMPRIS SANS CARTE NVIDIA.
+#   NOUVEAU PLAN D'ALEX : l'Alienware reste pour jouer (Windows), et LexOS
+#   va sur le ThinkPad T460 de 2016, à côté d'Ubuntu. Il veut la version
+#   « pro » sur ce vieux portable — qui n'a que des graphiques Intel.
+#
+#   CE QUI CLOCHAIT. L'ISO pro pose deux fichiers dans /etc/modprobe.d/ à la
+#   CONSTRUCTION, donc sans savoir où elle démarrera : l'interdiction de
+#   nouveau (le correctif du build 54, sans lequel la RTX 5060 n'affiche
+#   rien) et les options de nvidia-drm. Sur des graphiques Intel, interdire
+#   nouveau ne coûte rien — Intel utilise i915. Mais sur une machine à
+#   VIEILLE carte NVIDIA que le pilote 595 ne gère plus, ce serait l'écran
+#   noir : nouveau interdit, le propriétaire incapable de prendre la carte.
+#   Exactement la panne qu'on vient de mettre des semaines à comprendre,
+#   mais retournée.
+#
+#   CE QUI EST AJOUTÉ. Un service, lexos-gpu-garde, qui tourne au démarrage
+#   avant la session graphique et regarde le VRAI matériel (le bus PCI, pas
+#   une supposition faite à la construction) :
+#     · carte NVIDIA présente → les réglages restent en place ; rien ne
+#       change sur l'Alienware, le correctif du build 54 reste entier ;
+#     · aucune carte NVIDIA   → ils sont mis de côté en « .sans-nvidia »,
+#       donc sans effet, et nouveau redevient disponible.
+#   Réversible et symétrique : déplacer le disque dans une autre machine les
+#   remet tout seuls au démarrage suivant. RIEN N'EST JAMAIS SUPPRIMÉ.
+#   L'initramfs n'est régénéré que le jour où l'état change — pas à chaque
+#   démarrage.
+#
+#   19 essais sur de faux bus PCI : l'Alienware garde son correctif, le
+#   ThinkPad ne l'hérite pas, un deuxième démarrage ne rebouge rien, une
+#   puce audio HDMI NVIDIA n'est pas prise pour un GPU, un bus PCI vide ne
+#   fait pas planter, et le disque qui déménage d'une machine à l'autre se
+#   rattrape tout seul.
+#
+#   CE QUE ÇA NE COUVRE PAS, et autant le dire : une machine à vieille carte
+#   NVIDIA non gérée par le pilote 595 garde les réglages actifs, puisqu'une
+#   carte NVIDIA est bien là. Si l'écran restait noir sur une telle machine,
+#   c'est l'entrée « mode secours » du menu de démarrage qui sert — elle met
+#   toute la pile NVIDIA et nouveau en liste noire.
+#
+#   DOUBLE DÉMARRAGE AVEC UBUNTU : rien à changer. os-prober est déjà actif
+#   (GRUB_DISABLE_OS_PROBER=false) et trouvera Ubuntu tout seul. Le service
+#   qui met Windows par défaut ne trouve aucune entrée Windows sur cette
+#   machine et ne fait donc rien : LexOS reste le démarrage par défaut, avec
+#   les deux systèmes au menu pendant 8 secondes.
 #
 # ============================================================================
 #  LES DEUX ISO SONT CONSTRUITES ET PUBLIÉES — PAS ENCORE ESSAYÉES.
@@ -959,4 +1012,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 55
+build: 56
