@@ -48,6 +48,90 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 58 : LA LISTE DES ÉCARTS DÉMO-CONTRE-ISO EST VIDE — LES 21 SONT
+#   RÉPARÉS, ET TOUT EST VÉRIFIÉ AVANT DE CONSTRUIRE.
+#   L'audit (50 agents, 172 points de comparaison) avait confirmé 21 écarts
+#   entre ce que la démo web montre et ce que l'ISO fait. Ce build les
+#   ferme tous. Alex essaie cette ISO ce soir sur le ThinkPad.
+#
+#   LES TREIZE BOUTONS QUI NE FAISAIENT RIEN. Les Paramètres lançaient
+#   « xfce4-settings-manager -s <module> » — l'option « -s » N'EXISTE PAS.
+#   Le programme mourait aussitôt, et comme on ne lit pas le code de retour
+#   d'une fenêtre (detach), l'échec était totalement silencieux : neuf
+#   sections avaient un bouton qui ne faisait rien, sans un mot. XFCE
+#   n'ouvre pas ses panneaux « par module » : chacun est un PROGRAMME
+#   (xfce4-appearance-settings, xfce4-mouse-settings…). Ils sont nommés
+#   directement, avec repli sur le gestionnaire complet si l'un manque.
+#
+#   LA VUE D'ENSEMBLE DES BUREAUX — le trou principal de l'audit. Le geste
+#   d'Ubuntu que la démo montre : tout s'écarte, les bureaux en rangée, les
+#   fenêtres en aperçus. Trois portes, toutes celles de la démo :
+#     · « lexos apercu » — xfdashboard en moteur, la liste des fenêtres de
+#       xfdesktop en repli si xfdashboard manquait au dépôt ;
+#     · la touche Super SEULE (xcape émet F13 au relâchement — Super+1…5
+#       continuent d'aller aux bureaux, rien n'est volé) ;
+#     · le coin actif haut-gauche — un veilleur X11 en ctypes, mêmes
+#       précautions que la démo : 5 px des DEUX bords, 140 ms de séjour,
+#       réarmement à la sortie. ÉTEINTS par défaut, bascule dans
+#       Paramètres → Multi-tâches. Rien ne tourne en cachette.
+#
+#   LES RACCOURCIS RESSUSCITÉS. Le hook 0400 ÉCRASAIT le fichier des
+#   raccourcis livré par includes.chroot : plus aucune capture d'écran au
+#   clavier, pendant que l'aide de « lexos » continuait de les annoncer.
+#   Les deux jeux sont fusionnés en UN fichier : les captures sur
+#   Super+Maj+1/2/3, les bureaux sur Super+1…5 comme la démo, la vue
+#   d'ensemble sur Super seule et Super+Tab.
+#
+#   LES SIX ASSISTANTS IA : la démo en montre six, l'ISO n'avait que
+#   Claude. « lexos assistants » et cinq lanceurs de menu (ChatGPT, Gemini,
+#   Perplexity, Mistral, Copilot). Chacun s'ouvre sur SON site : LexOS ne
+#   stocke aucune clé, aucun identifiant, ne relaie rien.
+#
+#   LA MÉTÉO A ENFIN SA FENÊTRE. Cliquer la météo de la barre ouvrait la
+#   boîte « quelle est ta ville ? » — on changeait de ville pour regarder
+#   le temps. Le clic ouvre maintenant les prévisions (aujourd'hui en
+#   grand, puis trois jours — Open-Meteo, même cache 15 min), « Changer de
+#   ville » en bouton secondaire. Au terminal : « lexos meteo jours ».
+#
+#   LES AUTOCOLLANTS DE LA DÉMO, POUR DE VRAI. Lex bebeilles, Lex salut et
+#   le badge PREVOST — extraits de la démo pixel pour pixel — se posent sur
+#   le fond d'écran (composition ImageMagick, coins parlés). Le fond
+#   d'origine est noté avant la première pose : « enlever » y revient
+#   toujours. Depuis Paramètres → Bureau ou « lexos fond-ecran
+#   autocollant ». Deux noms de fichier en alternance, sinon xfconf ne
+#   signale aucun changement et le deuxième personnage n'apparaissait qu'à
+#   la session suivante.
+#
+#   ET LE RESTE DES 21 :
+#     · pastilles des bureaux + cloche de notifications dans la barre
+#       (greffons pager et notification-plugin) ;
+#     · clic droit sur le bureau → sous-menu Applications (le réglage qui
+#       l'éteignait citait la démo… qui fait l'inverse) ;
+#     · Mousepad devient « Note perso », carnet orange, via
+#       /usr/local/share/applications — survit aux mises à jour ;
+#     · À propos : panneau « 100 % Linux » avec l'état RÉEL (dpkg) —
+#       micrologiciels comptés, Steam et Broadcom présents ou non ;
+#     · Date et heure : 12/24 h, secondes, jour de la semaine ; fuseau
+#       automatique d'après la ville CHOISIE pour la météo — jamais de
+#       géolocalisation par adresse IP dans le dos de personne ;
+#     · les appareils branchés en icônes dans la barre (imprimante, écran,
+#       casque, clé USB, disque) — rien de branché, rien d'affiché ;
+#     · la logithèque comprend les noms parlés (« install distant » →
+#       remmina, « photo » → gimp…), exactement ce que la démo imprime ;
+#     · bien-être : le compteur lisait un fichier que RIEN n'écrit — il lit
+#       le vrai journal et dit si le comptage tourne ;
+#     · build.sh recopie enfin les .webp, .gif et les images Plymouth : la
+#       boucle de conversion du hook 0300 tournait sur un dossier vide
+#       depuis le début.
+#
+#   VÉRIFIÉ AVANT DE CONSTRUIRE : 134 assertions au navigateur réel contre
+#   la vraie page des Paramètres sur une fausse machine (racines
+#   LEXOS_PSU/BL/ETC/DMI, même principe que LEXOS_RACINE de gpu-garde),
+#   hooks rejoués en bac à sable (37 lanceurs, deux passages, idempotent),
+#   shellcheck sans remarque. xfdashboard et xcape : s'ils manquaient au
+#   dépôt, le hook 0250 le note sans casser la construction, et
+#   « lexos apercu » a son repli — vérifié aussi.
+#
 # build 57 : LA DÉMO EST LE CAHIER DES CHARGES — HUIT OUTILS MANQUAIENT AU
 #   MENU, PLUS L'AGENDA.
 #   Alex a essayé l'ISO et l'a dit simplement : « il manquait beaucoup
@@ -1055,4 +1139,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 57
+build: 58
