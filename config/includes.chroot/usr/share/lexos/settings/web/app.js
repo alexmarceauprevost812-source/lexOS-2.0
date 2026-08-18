@@ -171,6 +171,40 @@ function jauge(pct){
 }
 /*  Un menu déroulant, avec le même habillage que le reste. La valeur part
     vers la machine au changement ; « 0 » veut dire « jamais ». */
+/*  Le disque dur, d'après l'image fournie par Alex. Même dessin que la démo
+    web — la démo est le cahier des charges, et une icône qui n'a pas la même
+    tête des deux côtés n'est pas la même icône pour celui qui la regarde.
+    viewBox serré sur le dessin : sinon l'icône flotte dans un carré vide et
+    paraît deux fois plus petite que sa boîte. */
+/*  La clé USB — même famille de dessin que le disque dur : silhouette pleine,
+    trait noir franc, deux gris. Elles se ressemblent assez pour aller
+    ensemble, et diffèrent assez pour qu'on ne les confonde pas d'un coup
+    d'oeil — ce qui compte quand le bouton d'à côté formate. */
+function usbGlyph(size){
+  return `<svg viewBox="60 150 392 212" width="${size}" height="${size}" aria-hidden="true">`+
+    `<g stroke="#111827" stroke-width="16" stroke-linejoin="round" stroke-linecap="round">`+
+      `<rect x="150" y="176" width="286" height="160" rx="30" fill="#E8590C"/>`+
+      `<rect x="76" y="212" width="80" height="88" rx="12" fill="#94A3B8"/>`+
+      `<rect x="176" y="206" width="150" height="100" rx="16" fill="#F1F5F9"/>`+
+    `</g>`+
+  `</svg>`;
+}
+function diskGlyph(size){
+  return `<svg viewBox="96 18 320 476" width="${size}" height="${size}" aria-hidden="true">`+
+    `<g stroke="#111827" stroke-width="16" stroke-linejoin="round" stroke-linecap="round">`+
+      `<rect x="104" y="26" width="304" height="460" rx="40" fill="#6B7280"/>`+
+      `<circle cx="252" cy="188" r="132" fill="#CBD5E1"/>`+
+      `<path d="M 120 258 L 120 464 L 336 464 Z" fill="#CBD5E1"/>`+
+      `<path d="M 306 206 L 176 300 L 214 344 Z" fill="#F1F5F9"/>`+
+      `<circle cx="252" cy="188" r="44" fill="#94A3B8"/>`+
+    `</g>`+
+    `<g fill="#111827">`+
+      `<circle cx="252" cy="166" r="8.5"/><circle cx="252" cy="210" r="8.5"/>`+
+      `<circle cx="230" cy="188" r="8.5"/><circle cx="274" cy="188" r="8.5"/>`+
+      `<circle cx="196" cy="322" r="11"/><circle cx="156" cy="426" r="11"/>`+
+    `</g>`+
+  `</svg>`;
+}
 function menu(quoi, valeur, choix){
   return `<select onchange="setMinutes('${quoi}', this.value)"
     style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
@@ -238,6 +272,14 @@ async function setBureaux(sens){
 async function vaBureau(n){
   const r = await api("bureau-va", String(n));
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function actionUsb(quoi){
+  const r = await api("usb", quoi);
+  if(!r.ok) toast("Échec : " + (r.erreur || "commande refusée"));
+}
+async function ejecte(dev){
+  const r = await api("usb", "ejecter:" + dev);
+  await rafraichir(r.ok ? "Tu peux débrancher" : "Échec : " + (r.erreur || "appareil occupé"));
 }
 async function basculeBluetooth(){
   const r = await api("bluetooth-radio", "toggle");
@@ -415,12 +457,38 @@ function contenu(cle){
       machine en a un ; sinon il assombrit l'image et le dit clairement, parce
       que ça n'économise alors aucune batterie.</p>
       ${btnOuvrir("energie","État détaillé (terminal)")}`;
-    case "usb": return `<h2>Appareils USB</h2><div class="sub">Branchements détectés</div>
-      ${srow("Liste des appareils","Clés, disques, téléphones — éjection comprise")}
-      ${btnOuvrir("usb","Ouvrir l'outil USB")}
+    case "usb": {
+      const app = etat.usb || [];
+      return `<h2>Appareils USB</h2><div class="sub">Branchements détectés</div>
+      ${app.length ? app.map(a=>`
+        <div class="srow">
+          <span style="width:56px;height:56px;display:flex;align-items:center;
+                       justify-content:center;flex:none">${
+            a.disque ? diskGlyph(46) : usbGlyph(44)}</span>
+          <div style="flex:1">
+            <div class="t">${esc(a.nom)} — ${esc(a.taille)}</div>
+            <div class="d">${a.monte ? "Monté sur " + esc(a.monte)
+                                     : "Branché, pas encore ouvert"} · ${esc(a.dev)}</div>
+          </div>
+          <button class="btn ghost" onclick="ejecte('${esc(a.dev)}')">Éjecter</button>
+        </div>`).join("")
+        : `<p class="notice">Aucun support amovible branché. Branche une clé ou un
+           disque : il apparaîtra ici. Le disque système n'est jamais listé —
+           le bouton d'à côté s'appelle « Formater ».</p>`}
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Actions sur l'appareil</div>
+        <div class="row">
+          <button class="btn" onclick="actionUsb('vide-memoire')">Vide mémoire +</button>
+          <button class="btn ghost" onclick="actionUsb('terminal')">Terminal de l'appareil</button>
+          <button class="btn ghost" onclick="actionUsb('formater')">⚠ Formater…</button>
+        </div>
+      </div>
       <p class="notice"><code>lexos vide-memoire</code> copie en un clic tout le contenu
-      d'un téléphone ou d'une clé. <code>lexos format</code> formate un support amovible —
-      jamais le disque système.</p>`;
+      d'un téléphone (MTP/iPhone) ou d'une clé. <code>lexos usb terminal</code> ouvre un
+      terminal <b>sur le téléphone</b> (adb, débogage USB requis).
+      <code>lexos format</code> formate une clé ou un téléphone — jamais le disque
+      système, et seulement après confirmation explicite.</p>`;
+    }
     case "mac": return `<h2>Mac (Apple)</h2><div class="sub">Wi-Fi Broadcom, ventilateurs, touches F1-F12</div>
       ${srow("Ce Mac","Classement du modèle et réglages propres au matériel Apple")}
       ${btnOuvrir("mac","Ouvrir l'outil Mac")}`;

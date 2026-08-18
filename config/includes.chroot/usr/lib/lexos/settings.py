@@ -299,6 +299,26 @@ def act_son_volume(arg):
     return _run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{n}%"])
 
 
+def act_usb(arg):
+    """Les trois gestes de la démo, en vrai. « ejecter:/dev/sdb » démonte
+    proprement ; le chemin est VÉRIFIÉ contre la liste des appareils
+    réellement amovibles, jamais pris au mot. Sans ce contrôle, la page
+    pourrait demander d'éjecter le disque système."""
+    quoi, _, cible = str(arg).partition(":")
+    if quoi == "vide-memoire":
+        return _terminal("Vide mémoire — LexOS", "lexos vide-memoire")
+    if quoi == "terminal":
+        return _terminal("Terminal de l'appareil — LexOS", "lexos usb terminal")
+    if quoi == "formater":
+        return _terminal("Formater un support — LexOS", "lexos format")
+    if quoi == "ejecter":
+        connus = {a["dev"] for a in _usb_etat()}
+        if cible not in connus:
+            return {"ok": False, "erreur": "Appareil inconnu ou non amovible"}
+        return _run(["udisksctl", "power-off", "-b", cible])
+    return {"ok": False, "erreur": "valeur inattendue"}
+
+
 def act_crt(arg):
     """Effets d'ouverture façon téléviseur cathodique."""
     if arg not in ("on", "off", "toggle"):
@@ -424,6 +444,7 @@ ACTIONS = {
     "souris": act_souris,
     "bluetooth-radio": act_bluetooth,
     "crt": act_crt,
+    "usb": act_usb,
     "barre-cachee": act_barre_cachee,
     "bureaux": act_bureaux,
     "bureau-va": act_bureau_va,
@@ -698,6 +719,60 @@ def _bureaux_etat():
     return {"nb": max(nb, 1), "courant": courant, "fenetres": fenetres}
 
 
+def _usb_etat():
+    """Les supports AMOVIBLES branchés — clés, disques externes, cartes.
+    lsblk répond en JSON, ce qui évite d'avoir à découper du texte aligné qui
+    change de forme d'une version à l'autre.
+
+    On ne liste QUE l'amovible (RM=1) ou l'USB (TRAN=usb) : le disque système
+    n'a rien à faire dans une liste où le bouton d'à côté s'appelle
+    « Formater ». C'est le genre de confusion qui coûte des données."""
+    if not shutil.which("lsblk"):
+        return []
+    brut = _sortie(["lsblk", "-J", "-b", "-o",
+                    "NAME,SIZE,LABEL,RM,TYPE,TRAN,MOUNTPOINT,MODEL"])
+    try:
+        arbre = json.loads(brut).get("blockdevices", [])
+    except (ValueError, AttributeError):
+        return []
+
+    def taille(octets):
+        try:
+            o = int(octets)
+        except (TypeError, ValueError):
+            return ""
+        for unite, seuil in (("To", 1e12), ("Go", 1e9), ("Mo", 1e6)):
+            if o >= seuil:
+                n = o / seuil
+                return f"{n:.0f} {unite}" if n >= 10 else f"{n:.1f} {unite}"
+        return f"{o} o"
+
+    appareils = []
+    for d in arbre:
+        amovible = d.get("rm") in (True, 1, "1") or d.get("tran") == "usb"
+        if not amovible or d.get("type") != "disk":
+            continue
+        #  Le nom montré : l'étiquette d'une partition si elle en a une, sinon
+        #  le modèle, sinon le nom brut. C'est ce qui est écrit sur la clé.
+        nom = (d.get("model") or d.get("name") or "").strip()
+        monte = ""
+        for part in d.get("children") or []:
+            if part.get("label"):
+                nom = part["label"].strip()
+            if part.get("mountpoint"):
+                monte = part["mountpoint"]
+        #  Une clé (petite) ou un disque externe (gros) : l'icône change.
+        try:
+            gros = int(d.get("size") or 0) >= 256 * 10**9
+        except (TypeError, ValueError):
+            gros = False
+        appareils.append({"nom": nom or d.get("name", ""),
+                          "dev": "/dev/" + d.get("name", ""),
+                          "taille": taille(d.get("size")),
+                          "monte": monte, "disque": gros})
+    return appareils
+
+
 def _heure_etat():
     """Fuseau et synchronisation automatique, via timedatectl."""
     if not shutil.which("timedatectl"):
@@ -768,6 +843,7 @@ def etat():
         "crt": _crt_etat(),
         "barreCachee": _barre_cachee(),
         "bureaux": _bureaux_etat(),
+        "usb": _usb_etat(),
     }
 
 
