@@ -100,6 +100,18 @@ function srow(titre, desc, droite){
 function sw(on, onclick){
   return `<div class="sw${on?" on":""}" onclick="${onclick}"><i></i></div>`;
 }
+/*  Deux indicateurs qui valent mieux qu'un nombre seul : on lit une force
+    de signal ou une charge d'un coup d'oeil, sans convertir mentalement.
+    Pas d'image ni de police d'icônes — quatre <i> et un peu de CSS. */
+function barres(force){
+  const n = force >= 75 ? 4 : force >= 50 ? 3 : force >= 25 ? 2 : force > 0 ? 1 : 0;
+  return `<div class="barres" title="${force} %">` +
+    [1,2,3,4].map(i=>`<i class="${i<=n?"on":""}"></i>`).join("") + `</div>`;
+}
+function jauge(pct){
+  const p = Math.max(0, Math.min(100, pct));
+  return `<div class="jauge" title="${p} %"><span style="width:${p}%"></span></div>`;
+}
 function btnOuvrir(section, libelle){
   return `<div class="row"><button class="btn" onclick="ouvrir('${section}')">
     ${libelle || "Ouvrir l'outil complet"}</button></div>`;
@@ -107,6 +119,36 @@ function btnOuvrir(section, libelle){
 
 /* --- Actions déclenchées par la page ------------------------------------- */
 async function ouvrir(section){ await api("ouvrir", section); }
+
+/*  Après chaque changement on RELIT l'état depuis la machine au lieu de le
+    deviner. Un interrupteur qui bascule à l'écran alors que la commande a
+    échoué est un mensonge — et c'est comme ça qu'on croit avoir éteint le
+    Wi-Fi sans l'avoir éteint. */
+async function rafraichir(msg){
+  await chargeEtat();
+  rendSection();
+  if(msg) toast(msg);
+}
+async function basculeWifi(){
+  const r = await api("wifi-radio", "toggle");
+  await rafraichir(r.ok ? "Wi-Fi basculé" : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function basculeMuet(){
+  const r = await api("son-muet", "toggle");
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function setVolume(v){
+  const r = await api("son-volume", String(v));
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function basculeSouris(quoi){
+  const r = await api("souris", quoi);
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function basculeHeureAuto(){
+  const r = await api("heure-auto", "toggle");
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "mot de passe refusé"));
+}
 async function basculeAvion(){
   const r = await api("avion", "toggle");
   if(r.ok){ etat.avion = etat.avion === "on" ? "off" : "on"; rendSection(); }
@@ -161,11 +203,24 @@ async function capture(mode){ await api("capture", mode); }
 /* --- Sections ------------------------------------------------------------- */
 function contenu(cle){
   switch(cle){
-    case "wifi": return `<h2>Wi-Fi</h2><div class="sub">Réseaux, connexion, mots de passe</div>
-      ${srow("Réseaux et VPN","Liste des réseaux, état de la connexion, mots de passe enregistrés")}
+    case "wifi": {
+      //  On montre l'ÉTAT avant les boutons : allumé ou non, sur quel réseau,
+      //  avec quelle force. C'est ce qu'on vient vérifier neuf fois sur dix.
+      const w = etat.wifi || {};
+      const absent = w.radio === "absent";
+      const allume = w.radio === "enabled";
+      return `<h2>Wi-Fi</h2><div class="sub">Réseaux, connexion, mots de passe</div>
+      ${absent
+        ? `<p class="notice">Aucune carte Wi-Fi détectée sur cette machine.</p>`
+        : srow("Wi-Fi", allume ? "Carte radio allumée" : "Carte radio éteinte",
+               sw(allume, "basculeWifi()"))}
+      ${allume && w.reseau
+        ? srow("Réseau connecté", `${esc(w.reseau)} — signal ${w.signal} %`, barres(w.signal))
+        : (allume ? srow("Réseau connecté", "Aucun — ouvre l'outil réseau pour en choisir un") : "")}
       ${btnOuvrir("wifi","Ouvrir l'outil réseau")}
       <p class="notice">En ligne de commande : <code>lexos wifi</code> ·
       <code>lexos net password "&lt;réseau&gt;"</code> pour un mot de passe oublié.</p>`;
+    }
     case "reseau": return `<h2>Réseau</h2><div class="sub">Filaire, mode avion, VPN</div>
       ${srow("Mode avion","Coupe Wi-Fi, Bluetooth et données",
              sw(etat.avion==="on","basculeAvion()"))}
@@ -175,13 +230,41 @@ function contenu(cle){
     case "bluetooth": return `<h2>Bluetooth</h2><div class="sub">Appareils appairés</div>
       ${srow("Rechercher des appareils","Balayage et appairage")}
       ${btnOuvrir("bluetooth","Rechercher (lexos bt scan)")}`;
-    case "ecrans": return `<h2>Écrans</h2><div class="sub">Disposition multi-écrans</div>
+    case "ecrans": {
+      //  La question qu'on se pose devant cette section est « qu'est-ce qui
+      //  est branché, et en quelle définition ? ». On y répond tout de suite.
+      const ec = etat.ecrans || [];
+      return `<h2>Écrans</h2><div class="sub">Disposition multi-écrans</div>
+      ${ec.length
+        ? ec.map(e=>srow(esc(e.nom) + (e.principal ? " — principal" : ""),
+                         e.definition ? esc(e.definition) : "branchée, aucune image")).join("")
+        : `<p class="notice">Aucune sortie vidéo lue (xrandr absent ou session Wayland).</p>`}
       ${srow("Étendre, dupliquer, écran principal","Résolution et disposition de chaque écran")}
       ${btnOuvrir("ecrans","Ouvrir Écrans")}`;
-    case "son": return `<h2>Son</h2><div class="sub">Volume, périphériques</div>
-      ${srow("Volume et périphériques","Sortie, entrée, applications")}
+    }
+    case "son": {
+      const so = etat.son || {};
+      const connu = so.volume >= 0;
+      return `<h2>Son</h2><div class="sub">Volume, périphériques</div>
+      ${connu ? srow("Sourdine", so.muet ? "Le son est coupé" : "Le son passe",
+                     sw(so.muet, "basculeMuet()")) : ""}
+      ${connu ? `<div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Volume — ${so.volume} %</div>
+        <div class="row">
+          <button class="btn ghost" onclick="setVolume('moins')">−</button>
+          ${[0,25,50,75,100].map(v=>
+            `<button class="btn ${so.volume===v?"sel":"ghost"}" onclick="setVolume('${v}')">${v} %</button>`).join("")}
+          <button class="btn ghost" onclick="setVolume('plus')">+</button>
+        </div></div>`
+        : `<p class="notice">Volume illisible : pactl est absent.</p>`}
       ${btnOuvrir("son","Ouvrir le mélangeur")}`;
+    }
     case "energie": return `<h2>Énergie</h2><div class="sub">Profil de performance</div>
+      ${(etat.batterie && etat.batterie.niveau >= 0)
+        ? srow("Batterie", `${etat.batterie.niveau} %` +
+               (etat.batterie.secteur ? " — branché sur le secteur" : " — sur batterie"),
+               jauge(etat.batterie.niveau))
+        : srow("Alimentation","Aucune batterie — machine de bureau")}
       <div class="row">${["petit","medium","performant","max"].map(p=>
         `<button class="btn ${p===etat.perf?"sel":"ghost"}" onclick="setPerf('${p}')">${p}</button>`).join("")}</div>
       <p class="notice">Chaque profil règle vraiment le gouverneur du processeur, zram,
@@ -308,9 +391,19 @@ function contenu(cle){
       ${btnOuvrir("partage","Ouvrir Partager")}`;
     case "bienetre": return `<h2>Bien-être numérique</h2><div class="sub">Temps d'écran</div>
       <p class="notice">Pas encore disponible dans LexOS 1.0 — prévu pour une prochaine version.</p>`;
-    case "souris": return `<h2>Souris et pavé tactile</h2><div class="sub">Vitesse, boutons, défilement</div>
-      ${srow("Pointeur","Vitesse, gaucher/droitier, défilement naturel")}
+    case "souris": {
+      const m = etat.souris || {};
+      return `<h2>Souris et pavé tactile</h2><div class="sub">Vitesse, boutons, défilement</div>
+      ${m.pave ? `
+        ${srow("Taper pour cliquer","Une tape sur le pavé vaut un clic",
+               sw(m.tape, "basculeSouris('tape')"))}
+        ${srow("Défilement naturel","Le contenu suit le doigt, comme sur un téléphone",
+               sw(m.inverse, "basculeSouris('inverse')"))}`
+        : `<p class="notice">Aucun pavé tactile détecté — ces réglages ne
+           concernent que les portables.</p>`}
+      ${srow("Pointeur","Vitesse, gaucher/droitier, thème du curseur")}
       ${btnOuvrir("souris")}`;
+    }
     case "couleurs": return `<h2>Gestion des couleurs</h2><div class="sub">Profils ICC</div>
       ${srow("Profils des écrans et imprimantes","Charger un profil ICC")}
       ${btnOuvrir("couleurs")}`;
@@ -347,9 +440,16 @@ function contenu(cle){
     case "clavier": return `<h2>Clavier</h2><div class="sub">Dispositions, raccourcis</div>
       ${srow("Dispositions et raccourcis","Ajouter une disposition, changer les raccourcis")}
       ${btnOuvrir("clavier")}`;
-    case "datetime": return `<h2>Date et heure</h2><div class="sub">Fuseau horaire</div>
-      ${srow("Horloge du système","Fuseau, synchronisation automatique (NTP)")}
+    case "datetime": {
+      const h = etat.heure || {};
+      return `<h2>Date et heure</h2><div class="sub">Fuseau horaire</div>
+      ${h.fuseau ? srow("Fuseau horaire", esc(h.fuseau)) : ""}
+      ${srow("Mise à l'heure automatique",
+             h.auto ? "L'heure se règle seule sur internet (NTP)"
+                    : "L'heure ne se règle pas toute seule",
+             sw(h.auto, "basculeHeureAuto()"))}
       ${btnOuvrir("datetime","État (timedatectl)")}`;
+    }
     case "defaut": return `<h2>Applications par défaut</h2><div class="sub">Quelle application ouvre quoi</div>
       ${srow("Navigateur, courrier, fichiers","Choisir les applications préférées")}
       ${btnOuvrir("defaut")}`;

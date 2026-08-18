@@ -71,3 +71,16 @@ select{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
   background:var(--bg-hi);border:1px solid var(--bd);border-radius:10px;
   padding:10px 18px;box-shadow:0 6px 24px rgba(0,0,0,.5);z-index:10}
+
+/* --- Indicateurs de lecture ------------------------------------------------
+   Une force de signal et une charge de batterie se lisent mieux en forme
+   qu'en nombre. Quatre barres montantes, et une jauge qui se remplit. */
+.barres{display:flex;align-items:flex-end;gap:3px;height:18px}
+.barres i{width:4px;border-radius:1px;background:var(--bd,#3a3a3a)}
+.barres i:nth-child(1){height:25%}
+.barres i:nth-child(2){height:50%}
+.barres i:nth-child(3){height:75%}
+.barres i:nth-child(4){height:100%}
+.barres i.on{background:var(--ac,#E8590C)}
+.jauge{width:84px;height:8px;border-radius:99px;background:var(--bd,#3a3a3a);overflow:hidden}
+.jauge span{display:block;height:100%;background:var(--ac,#E8590C);border-radius:99px}

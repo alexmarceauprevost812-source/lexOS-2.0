@@ -257,8 +257,80 @@ def act_capture(arg):
     return _run(argv, detach=True)
 
 
+# =============================================================================
+#  Les actions qui CHANGENT quelque chose pour de vrai.
+#
+#  Règle de la maison, sans exception : l'argument venu de la page est
+#  comparé à un ensemble FERMÉ avant d'être utilisé. Jamais de chaîne
+#  interpolée dans une commande, jamais de shell=True. La page ne peut donc
+#  demander que ce qui est prévu ici — pas une commande de son choix.
+# =============================================================================
+
+def act_wifi(arg):
+    """Allume ou éteint la radio Wi-Fi."""
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    if arg == "toggle":
+        arg = "off" if _wifi_etat()["radio"] == "enabled" else "on"
+    return _run(["nmcli", "radio", "wifi", arg])
+
+
+def act_son_muet(arg):
+    """Coupe ou rétablit le son."""
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    valeur = {"on": "1", "off": "0", "toggle": "toggle"}[arg]
+    return _run(["pactl", "set-sink-mute", "@DEFAULT_SINK@", valeur])
+
+
+def act_son_volume(arg):
+    """Règle le volume. Par pas fixes : la page envoie un cran, pas un
+    nombre libre — un volume à 400 % abîmerait le haut-parleur."""
+    pas = {"moins": "-5%", "plus": "+5%",
+           "0": "0%", "25": "25%", "50": "50%", "75": "75%", "100": "100%"}
+    if arg not in pas:
+        return {"ok": False, "erreur": "valeur inattendue"}
+    return _run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", pas[arg]])
+
+
+def act_souris(arg):
+    """Bascule un réglage du pavé tactile (tape-pour-cliquer, défilement
+    naturel). Le chemin xfconf est reconstruit ICI depuis l'état lu, jamais
+    reçu de la page — sinon la page pourrait écrire n'importe quelle clé."""
+    if arg not in ("tape", "inverse"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    s = _souris_etat()
+    if not s["pave"]:
+        return {"ok": False, "erreur": "Aucun pavé tactile détecté"}
+    cle = {"tape": "libinput_Tapping_Enabled",
+           "inverse": "libinput_Natural_Scrolling_Enabled"}[arg]
+    nouveau = "false" if s[arg] else "true"
+    return _run(["xfconf-query", "-c", "pointers",
+                 "-p", f"{s['pave']}/Properties/{cle}",
+                 "-n", "-t", "bool", "-s", nouveau])
+
+
+def act_heure_auto(arg):
+    """Synchronisation automatique de l'heure (NTP)."""
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    if arg == "toggle":
+        arg = "off" if _heure_etat()["auto"] else "on"
+    #  pkexec : changer l'heure demande les droits d'administration, et on
+    #  veut la fenêtre de mot de passe habituelle plutôt qu'un échec muet.
+    outil = "pkexec" if shutil.which("pkexec") else "timedatectl"
+    argv = ([outil, "timedatectl", "set-ntp", arg] if outil == "pkexec"
+            else ["timedatectl", "set-ntp", arg])
+    return _run(argv)
+
+
 ACTIONS = {
     "ouvrir": act_ouvrir,
+    "wifi-radio": act_wifi,
+    "son-muet": act_son_muet,
+    "son-volume": act_son_volume,
+    "souris": act_souris,
+    "heure-auto": act_heure_auto,
     "avion": act_avion,
     "perf": act_perf,
     "lumiere": act_lumiere,
@@ -285,6 +357,133 @@ def _sortie(argv):
         return r.stdout.strip() if r.returncode == 0 else ""
     except Exception:
         return ""
+
+
+# =============================================================================
+#  Lire l'état RÉEL de la machine.
+#
+#  Pourquoi ces fonctions existent : les sections des Paramètres n'étaient que
+#  des boutons « ouvrir l'outil complet ». On voyait la liste des réglages,
+#  jamais leur VALEUR — impossible de savoir si le Wi-Fi était allumé sans
+#  ouvrir un terminal. Un panneau de réglages qui ne dit pas l'état des choses
+#  n'est pas un panneau de réglages, c'est un menu de raccourcis.
+#
+#  Chacune de ces fonctions ne fait que LIRE, ne lève jamais, et renvoie une
+#  valeur neutre quand l'outil manque : une machine sans batterie ou sans
+#  pactl ne doit pas casser la page, juste afficher moins de choses.
+# =============================================================================
+
+def _wifi_etat():
+    """Radio Wi-Fi allumée ? réseau connecté ? force du signal ?"""
+    if not shutil.which("nmcli"):
+        return {"radio": "absent", "reseau": "", "signal": 0}
+    #  « -t » (terse) donne des mots-clés fixes, jamais traduits — la sortie
+    #  normale de nmcli suit la langue du système (fr_CA sur LexOS).
+    radio = _sortie(["nmcli", "-t", "radio", "wifi"]) or "absent"
+    reseau, signal = "", 0
+    for ligne in _sortie(["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL",
+                          "device", "wifi"]).splitlines():
+        champs = ligne.split(":")
+        if len(champs) >= 3 and champs[0] == "yes":
+            reseau = champs[1]
+            signal = int(champs[2]) if champs[2].isdigit() else 0
+            break
+    return {"radio": radio, "reseau": reseau, "signal": signal}
+
+
+def _son_etat():
+    """Volume en pour-cent et sourdine, via PipeWire/PulseAudio."""
+    if not shutil.which("pactl"):
+        return {"volume": -1, "muet": False}
+    volume = -1
+    sortie = _sortie(["pactl", "get-sink-volume", "@DEFAULT_SINK@"])
+    for morceau in sortie.replace("/", " ").split():
+        if morceau.endswith("%") and morceau[:-1].isdigit():
+            volume = int(morceau[:-1])
+            break
+    muet = _sortie(["pactl", "get-sink-mute", "@DEFAULT_SINK@"]).endswith("yes")
+    return {"volume": volume, "muet": muet}
+
+
+def _batterie_etat():
+    """Charge et source d'alimentation. Une tour n'a pas de batterie : on
+    renvoie alors -1, et la page n'affiche simplement pas la ligne."""
+    niveau, secteur = -1, True
+    base = Path("/sys/class/power_supply")
+    try:
+        for d in sorted(base.glob("BAT*")):
+            try:
+                niveau = int((d / "capacity").read_text().strip())
+                break
+            except (OSError, ValueError):
+                continue
+        for d in sorted(base.glob("A*")):          # ADP*, AC*
+            try:
+                secteur = (d / "online").read_text().strip() == "1"
+                break
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return {"niveau": niveau, "secteur": secteur}
+
+
+def _ecrans_etat():
+    """Les sorties vidéo BRANCHÉES, avec leur définition courante."""
+    ecrans = []
+    if not shutil.which("xrandr"):
+        return ecrans
+    for ligne in _sortie(["xrandr", "--query"]).splitlines():
+        if " connected" not in ligne:
+            continue
+        mots = ligne.split()
+        nom = mots[0]
+        definition = ""
+        for m in mots:
+            #  « 1920x1080+0+0 » — la géométrie active, s'il y en a une.
+            if "x" in m and "+" in m and m[0].isdigit():
+                definition = m.split("+")[0]
+                break
+        ecrans.append({"nom": nom, "definition": definition,
+                       "principal": "primary" in mots})
+    return ecrans
+
+
+def _souris_etat():
+    """Réglages du pavé tactile, lus dans xfconf (là où XFCE les garde)."""
+    def prop(chemin, defaut=False):
+        if not shutil.which("xfconf-query"):
+            return defaut
+        v = _sortie(["xfconf-query", "-c", "pointers", "-p", chemin])
+        return v == "true" if v in ("true", "false") else defaut
+
+    #  Le nom du périphérique fait partie du chemin xfconf et varie d'une
+    #  machine à l'autre : on cherche le premier qui ressemble à un pavé.
+    pave = ""
+    if shutil.which("xfconf-query"):
+        for p in _sortie(["xfconf-query", "-c", "pointers", "-l"]).splitlines():
+            bas = p.lower()
+            if "touchpad" in bas or "synaptics" in bas or "trackpad" in bas:
+                pave = "/" + p.strip("/").split("/")[0]
+                break
+    if not pave:
+        return {"pave": "", "tape": False, "inverse": False}
+    return {"pave": pave,
+            "tape": prop(f"{pave}/Properties/libinput_Tapping_Enabled"),
+            "inverse": prop(f"{pave}/Properties/libinput_Natural_Scrolling_Enabled")}
+
+
+def _heure_etat():
+    """Fuseau et synchronisation automatique, via timedatectl."""
+    if not shutil.which("timedatectl"):
+        return {"fuseau": "", "auto": False}
+    fuseau, auto = "", False
+    for ligne in _sortie(["timedatectl", "show"]).splitlines():
+        if ligne.startswith("Timezone="):
+            fuseau = ligne.split("=", 1)[1]
+        elif ligne.startswith("NTP="):
+            auto = ligne.split("=", 1)[1] == "yes"
+    return {"fuseau": fuseau, "auto": auto}
 
 
 def etat():
@@ -329,6 +528,14 @@ def etat():
         "hote": socket.gethostname(),
         "version": version or "LexOS 1.0 « Nomad »",
         "noyau": _sortie(["uname", "-r"]),
+        #  L'état réel du matériel, pour que les sections montrent des
+        #  VALEURS et pas seulement des boutons.
+        "wifi": _wifi_etat(),
+        "son": _son_etat(),
+        "batterie": _batterie_etat(),
+        "ecrans": _ecrans_etat(),
+        "souris": _souris_etat(),
+        "heure": _heure_etat(),
     }
 
 
