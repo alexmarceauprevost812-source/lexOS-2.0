@@ -299,6 +299,49 @@ def act_son_volume(arg):
     return _run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{n}%"])
 
 
+def act_crt(arg):
+    """Effets d'ouverture façon téléviseur cathodique."""
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    if arg == "toggle":
+        arg = "off" if _crt_etat() else "on"
+    return _run(["lexos", "crt", arg])
+
+
+def act_barre_cachee(arg):
+    """Cacher ou montrer la barre du haut."""
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    if arg == "toggle":
+        arg = "off" if _barre_cachee() else "on"
+    return _run(["xfconf-query", "-c", "xfce4-panel",
+                 "-p", "/panels/panel-1/autohide-behavior",
+                 "-n", "-t", "int", "-s", "1" if arg == "on" else "0"])
+
+
+def act_bureaux(arg):
+    """Ajouter ou enlever un bureau virtuel. Bornes : 1 au moins, 5 au plus —
+    les mêmes que la démo, et que les raccourcis Super+1 … Super+5."""
+    if arg not in ("plus", "moins"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    nb = _bureaux_etat()["nb"]
+    nouveau = nb + 1 if arg == "plus" else nb - 1
+    if nouveau < 1:
+        return {"ok": False, "erreur": "Il faut garder au moins un bureau"}
+    if nouveau > 5:
+        return {"ok": False, "erreur": "5 bureaux au maximum"}
+    return _run(["xfconf-query", "-c", "xfwm4", "-p", "/general/workspace_count",
+                 "-n", "-t", "int", "-s", str(nouveau)])
+
+
+def act_bureau_va(arg):
+    """Aller à un bureau donné. Le numéro est borné, jamais interpolé."""
+    if not str(arg).isdigit():
+        return {"ok": False, "erreur": "valeur inattendue"}
+    n = max(0, min(4, int(arg)))
+    return _run(["wmctrl", "-s", str(n)])
+
+
 def act_bluetooth(arg):
     """Allume ou éteint la radio Bluetooth."""
     if arg not in ("on", "off", "toggle"):
@@ -380,6 +423,10 @@ ACTIONS = {
     "son-volume": act_son_volume,
     "souris": act_souris,
     "bluetooth-radio": act_bluetooth,
+    "crt": act_crt,
+    "barre-cachee": act_barre_cachee,
+    "bureaux": act_bureaux,
+    "bureau-va": act_bureau_va,
     "energie-dim-batterie": act_energie_dim_batterie,
     "energie-delai": act_energie_delai,
     "heure-auto": act_heure_auto,
@@ -596,6 +643,61 @@ def _energie_etat():
     }
 
 
+def _dock_etat():
+    """Position du dock, telle que LexOS l'a notée."""
+    conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
+    try:
+        v = (conf / "dock").read_text().strip()
+        return v if v in DOCKS else "droite"
+    except OSError:
+        return "droite"
+
+
+def _crt_etat():
+    """Les effets d'ouverture façon téléviseur cathodique sont-ils demandés ?
+    « demandés » et pas « actifs » : ils exigent Compiz, qui ne démarre que
+    s'il y a une accélération 3D. lexos-wm replie sur xfwm4 sinon."""
+    conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
+    try:
+        return (conf / "crt").read_text().strip() != "off"
+    except OSError:
+        return True
+
+
+def _barre_cachee():
+    """La barre du haut se cache-t-elle toute seule ? XFCE range ça dans
+    autohide-behavior : 0 = toujours visible, 1 = intelligent, 2 = toujours
+    cachée. On considère « cachée » dès que ce n'est plus 0."""
+    v = _xfconf_lire("xfce4-panel", "/panels/panel-1/autohide-behavior")
+    return v.isdigit() and int(v) != 0
+
+
+def _bureaux_etat():
+    """Combien de bureaux virtuels, où l'on est, et combien de fenêtres sur
+    chacun. wmctrl répond aux trois — c'est lui qui parle au gestionnaire de
+    fenêtres, pas une supposition."""
+    nb = _xfconf_lire("xfwm4", "/general/workspace_count")
+    nb = int(nb) if nb.isdigit() else 0
+    courant, fenetres = 0, []
+    if shutil.which("wmctrl"):
+        for ligne in _sortie(["wmctrl", "-d"]).splitlines():
+            champs = ligne.split()
+            if len(champs) >= 2 and champs[1] == "*":
+                courant = int(champs[0]) if champs[0].isdigit() else 0
+        if not nb:
+            nb = len(_sortie(["wmctrl", "-d"]).splitlines())
+        #  Une fenêtre par ligne, son bureau en deuxième colonne.
+        compte = {}
+        for ligne in _sortie(["wmctrl", "-l"]).splitlines():
+            champs = ligne.split()
+            if len(champs) >= 2 and champs[1].lstrip("-").isdigit():
+                d = int(champs[1])
+                if d >= 0:
+                    compte[d] = compte.get(d, 0) + 1
+        fenetres = [compte.get(i, 0) for i in range(max(nb, 1))]
+    return {"nb": max(nb, 1), "courant": courant, "fenetres": fenetres}
+
+
 def _heure_etat():
     """Fuseau et synchronisation automatique, via timedatectl."""
     if not shutil.which("timedatectl"):
@@ -662,6 +764,10 @@ def etat():
         "lumiere": _lumiere_etat(),
         "energie": _energie_etat(),
         "bluetooth": _bluetooth_etat(),
+        "dock": _dock_etat(),
+        "crt": _crt_etat(),
+        "barreCachee": _barre_cachee(),
+        "bureaux": _bureaux_etat(),
     }
 
 

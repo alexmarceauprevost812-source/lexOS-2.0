@@ -219,6 +219,26 @@ async function setVolume(v){
   const r = await api("son-volume", String(v));
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
 }
+async function setDock(d){
+  const r = await api("dock", d);
+  await rafraichir(r.ok ? "Dock : " + d : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function basculeBarre(){
+  const r = await api("barre-cachee", "toggle");
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function basculeCrt(){
+  const r = await api("crt", "toggle");
+  await rafraichir(r.ok ? "À la prochaine ouverture de session" : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function setBureaux(sens){
+  const r = await api("bureaux", sens);
+  await rafraichir(r.ok ? null : (r.erreur || "commande refusée"));
+}
+async function vaBureau(n){
+  const r = await api("bureau-va", String(n));
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
+}
 async function basculeBluetooth(){
   const r = await api("bluetooth-radio", "toggle");
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
@@ -436,11 +456,19 @@ function contenu(cle){
           l'ancienne police — ferme-les et rouvre-les.</div>
       </div>
       <div class="srow" style="display:block">
-        <div class="t" style="margin-bottom:8px">Position de la barre d'outils</div>
-        <div class="row">${[["droite","Droite"],["gauche","Gauche"],["bas","Bas"],["haut","Haut"]].map(([v,l])=>
-          `<button class="btn ghost" onclick="setDock('${v}')">${l}</button>`).join("")}</div>
+        <div class="t" style="margin-bottom:8px">Position du dock</div>
+        <div class="row">${["droite","gauche","bas","haut"].map(d=>
+          `<button class="btn ${d===etat.dock?"sel":"ghost"}" onclick="setDock('${d}')">${
+            d.charAt(0).toUpperCase()+d.slice(1)}</button>`).join("")}</div>
       </div>
-      ${btnOuvrir("apparence","Réglages fins (XFCE)")}`;
+      ${srow("Masquer la barre d'outils","Elle glisse hors de l'écran ; la poignée du bord la ramène",
+             sw(etat.barreCachee, "basculeBarre()"))}
+      ${srow("Effets d'ouverture/fermeture (TV 1980)","Fenêtres façon téléviseur cathodique",
+             sw(etat.crt, "basculeCrt()"))}
+      ${btnOuvrir("apparence","Réglages fins (XFCE)")}
+      <p class="notice">Les effets exigent une accélération 3D : sans elle,
+      LexOS replie sur xfwm4 et le dit dans <code>lexos crt status</code>.
+      Le changement s'applique à la prochaine ouverture de session.</p>`;
     case "bureau": return `<h2>Bureau LexOS</h2><div class="sub">Fond d'écran</div>
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Fond d'écran</div>
@@ -484,9 +512,28 @@ function contenu(cle){
       <code>lexos wallpaper anime nouveau mon-fond</code> — un fichier de couches
       commenté, avec <code>… apercu mon-fond</code> pour voir avant de poser.</p>
       ${btnOuvrir("bureau","Réglages fins (XFCE)")}`;
-    case "multitaches": return `<h2>Multi-tâches</h2><div class="sub">Bureaux virtuels</div>
-      ${srow("Bureaux virtuels","Nombre et noms des espaces de travail")}
-      ${btnOuvrir("multitaches")}`;
+    case "multitaches": {
+      const b = etat.bureaux || {nb:1, courant:0, fenetres:[]};
+      return `<h2>Multi-tâches</h2><div class="sub">Bureaux virtuels</div>
+      ${srow("Bureaux virtuels",
+             `${b.nb} bureau${b.nb>1?"x":""} en ce moment, 5 au maximum — ` +
+             `plusieurs écrans sur le même écran. Tu es sur le bureau <b>${b.courant+1}</b>.`,
+             `<div class="row" style="flex:none">` +
+             Array.from({length:b.nb},(_,n)=>
+               `<button class="btn ${n===b.courant?"sel":"ghost"}" onclick="vaBureau(${n})">${n+1}</button>`).join("") +
+             (b.nb < 5 ? `<button class="btn ghost" title="Ajouter un bureau" onclick="setBureaux('plus')">+</button>` : "") +
+             (b.nb > 1 ? `<button class="btn ghost" title="Enlever un bureau" onclick="setBureaux('moins')">−</button>` : "") +
+             `</div>`)}
+      ${b.fenetres && b.fenetres.length
+        ? srow("Fenêtres par bureau",
+               b.fenetres.map((n,i)=>`Bureau ${i+1} : ${n}`).join(" · "))
+        : ""}
+      ${btnOuvrir("multitaches","Ouvrir les réglages de bureaux")}
+      <p class="notice"><b>Ctrl+Alt+←</b> et <b>Ctrl+Alt+→</b> passent au bureau
+      précédent ou suivant, <b>Super+1</b> à <b>Super+${b.nb}</b> vont directement
+      à l'un d'eux. Rien n'est fermé en changeant de bureau — les fenêtres sont
+      mises de côté et retrouvées telles quelles.</p>`;
+    }
     case "applications": return `<h2>Applications</h2><div class="sub">Applications par défaut</div>
       ${srow("Navigateur, courrier, gestionnaire de fichiers","Quelle application ouvre quoi")}
       ${btnOuvrir("applications")}
