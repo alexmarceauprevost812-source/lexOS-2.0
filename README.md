@@ -115,31 +115,50 @@ git clone https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-.git
 cd logiciel-ti-lex-
 
 make check      # contrôle que tous les outils sont là
-make build      # construit l'ISO (saveur standard)
+make build      # construit l'ISO (saveur pro, la version de LexOS)
 ```
 
 Compte **20 à 60 minutes** selon ta connexion. À la fin :
 
 ```
-  ok  ISO      : lexos-2.0.0-standard-amd64.iso
-  ok  Taille   : 2.4G
-  ok  SHA-256  : lexos-2.0.0-standard-amd64.iso.sha256
+  ok  ISO      : lexos-2.0.0-pro-amd64.hybrid.iso
+  ok  Taille   : 8.0G
+  ok  SHA-256  : lexos-2.0.0-pro-amd64.hybrid.iso.sha256
 ```
 
-### Les cinq saveurs
+### Une seule version : `pro`
 
-| Saveur | Contenu | Taille approx. |
-|---|---|---|
-| `minimal` | Console seule, aucun bureau | ~700 Mio |
-| `standard` | Bureau XFCE, Firefox, dock, effets — **défaut** | ~2,5 Gio |
-| `dev` | standard + compilateurs, langages, conteneurs, Neovim | ~4 Gio |
-| `full` | dev + LibreOffice, GIMP, Inkscape, VLC, Krita | ~6 Gio |
-| `gaming` | dev + Steam, Lutris, Wine, gamemode, MangoHud, Vulkan | ~5 Gio |
+LexOS se construit et se livre en **une seule version, `pro`**. Elle embarque
+le pilote NVIDIA propriétaire — qui ne peut pas s'installer après coup, il doit
+être dans l'ISO — et un service (`lexos-gpu-garde`) qui range ces réglages au
+démarrage **quand la machine n'a pas de carte NVIDIA**.
+
+Autrement dit : la même ISO démarre sur une tour à RTX 5060 comme sur un
+portable Intel de 2016, sans rien avoir à choisir au téléchargement.
 
 ```bash
-make minimal        # ou : make standard / make dev / make full / make gaming
-make build FLAVOUR=dev
+make pro            # ou simplement : make build
 ```
+
+<details>
+<summary>Les autres saveurs, gardées pour dépanner</summary>
+
+Elles restent constructibles mais ne sont plus livrées. **Toutes donnent
+exactement le même bureau que `pro`** — mêmes 95 paquets stricts, mêmes 403
+paquets optionnels. Elles n'en diffèrent que par l'absence du pilote NVIDIA.
+
+| Saveur | Ce que c'est | Taille approx. |
+|---|---|---|
+| `minimal` | Console seule, aucun bureau — la seule vraiment différente | ~700 Mio |
+| `standard` | Le bureau de `pro`, sans le pilote NVIDIA | ~7 Gio |
+| `dev` · `full` · `gaming` | Alias historiques de `standard` | ~7 Gio |
+
+```bash
+make minimal
+make build FLAVOUR=standard
+```
+
+</details>
 
 ---
 

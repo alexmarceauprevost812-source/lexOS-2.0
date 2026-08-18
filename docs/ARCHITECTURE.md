@@ -309,7 +309,7 @@ identifier précisément le fautif, et écrit le bilan dans
 `/etc/lexos/optional-report` :
 
 ```
-# Paquets optionnels — saveur standard
+# Paquets optionnels — saveur pro
 # Installés : 84    Indisponibles : 2
 
 # Non installés (nom absent de l'archive, ou conflit) :

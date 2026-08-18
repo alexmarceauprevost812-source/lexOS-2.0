@@ -10,39 +10,38 @@
 
 # minimal | standard | dev | full | gaming | pro
 #
-#   DEUX VERSIONS SEULEMENT, NOMMÉES PAR LA MACHINE (build 53).
-#   Même bureau des deux côtés — 95 paquets stricts, 403 optionnels, partout
-#   pareil. La SEULE différence est matérielle, et il n'y en a qu'une qui ne
-#   puisse pas se régler après coup :
+#   UNE SEULE VERSION : « pro ». Décision d'Alex, build 56.
 #
-#     pro       → AVEC le pilote NVIDIA propriétaire, qui doit être DANS
-#                 l'ISO parce qu'il ne s'installe pas après coup. Depuis le
-#                 build 56, elle démarre sur N'IMPORTE QUELLE machine : un
-#                 service regarde au démarrage s'il y a vraiment une carte
-#                 NVIDIA et range les réglages du pilote quand il n'y en a
-#                 pas. Sur un portable Intel, elle se comporte donc
-#                 exactement comme « standard ».
+#   On est passé de trois versions à deux (build 53), puis à UNE. Chaque
+#   étape a supprimé un choix qui ne servait à rien, et celle-ci supprime le
+#   dernier : depuis que « pro » sait s'adapter à la machine, il n'y a plus
+#   aucune raison d'en proposer une autre.
 #
-#     standard  → SANS le pilote NVIDIA. Même bureau, exactement. Plus légère
-#                 d'environ un gigaoctet, et rien à adapter au démarrage.
+#     pro  →  LA version de LexOS. Elle embarque le pilote NVIDIA
+#             propriétaire, qui doit être DANS l'ISO parce qu'il ne
+#             s'installe pas après coup. Et le service lexos-gpu-garde
+#             regarde au démarrage s'il y a VRAIMENT une carte NVIDIA :
+#             s'il n'y en a pas, il range les réglages du pilote et nouveau
+#             reste disponible.
 #
-#   AUTREMENT DIT, ET C'EST IMPORTANT : le bureau est IDENTIQUE des deux
-#   côtés — 95 paquets stricts, 403 optionnels, les mêmes partout. « pro »
-#   n'est pas une version « meilleure » ou « complète » : c'est « standard »
-#   plus un pilote pour une carte précise. Sur une machine sans carte NVIDIA,
-#   les deux donnent rigoureusement le même LexOS.
+#             Résultat : la MÊME ISO démarre sur une tour à RTX 5060 comme
+#             sur un portable Intel de 2016. Plus rien à choisir au
+#             téléchargement, plus de « laquelle je prends ? ».
 #
-#   Pas de troisième version pour le ThinkPad : tout ce qui distingue un vieux
-#   portable d'une tour se règle tout seul au démarrage (TLP ne s'active que
-#   s'il y a une batterie, les graphiques Intel marchent d'origine, Wi-Fi et
-#   luminosité sont détectés). Elle aurait été le jumeau exact de standard.
+#   CE QUE « PRO » N'EST PAS : une version « meilleure » ou « complète ».
+#   Le bureau est le même que celui de toutes les autres saveurs — 95
+#   paquets stricts, 403 optionnels. « pro », c'est ce bureau PLUS un
+#   pilote. Rien d'autre. Sur une machine sans carte NVIDIA, « pro » et
+#   « standard » donnent rigoureusement le même LexOS.
 #
-#   dev / full / gaming restent constructibles et donnent le même bureau que
-#   standard — ce sont des alias historiques, plus des saveurs à part.
-#   minimal reste à part : ISO sans bureau.
+#   LES AUTRES SAVEURS restent constructibles pour dépanner, mais ne sont
+#   plus livrées : standard (le même bureau sans le pilote), dev / full /
+#   gaming (alias historiques de standard). minimal reste à part : ISO sans
+#   bureau du tout, la seule vraiment différente.
 #
-#   La Release est publiée sous « latest-<saveur> » : changer de saveur ne
-#   remplace donc PAS l'ISO précédente d'une autre saveur.
+#   La Release est publiée sous « latest-<saveur> ». La seule à maintenir à
+#   jour est donc « latest-pro ». « latest-standard » reste en ligne comme
+#   trace du build 53, mais n'est plus reconstruite.
 flavour: pro
 
 # trixie (Debian 13) | bookworm (Debian 12)
