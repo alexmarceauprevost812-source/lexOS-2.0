@@ -379,11 +379,11 @@ async function setTheme(t){
 }
 async function setPolice(p){
   const r = await api("police", p);
-  if(r.ok){ etat.police = p; rendSection(); toast("Police : " + p); }
+  if(r.ok){ etat.police = p; appliqueApparence(); rendSection(); toast("Police : " + p); }
 }
 async function setAccent(a){
   const r = await api("accent", a);
-  if(r.ok){ etat.accent = a; rendSection(); toast("Accent : " + a); }
+  if(r.ok){ etat.accent = a; appliqueApparence(); rendSection(); toast("Accent : " + a); }
 }
 async function setDock(d){
   const r = await api("dock", d);
@@ -1125,7 +1125,47 @@ function rendNav(){
 function rendSection(){
   document.getElementById("content").innerHTML = contenu(sectionActive);
 }
-function rend(){ rendNav(); rendSection(); }
+/*  LA FENÊTRE DOIT OBÉIR À CE QU'ON Y CHOISIT.
+    Défaut trouvé en essayant pour de vrai : on choisissait « Manuscrite »,
+    tout le bureau passait à l'écriture à la main… et CETTE fenêtre-ci
+    restait en Noto Sans. Pareil pour l'accent : on prenait « Bleu », les
+    boutons des Paramètres restaient orange. La feuille de style codait les
+    deux en dur.
+
+    C'est le pire endroit où rater ça : c'est ici qu'on fait le choix, donc
+    ici qu'on regarde pour voir s'il a pris. Une fenêtre qui montre autre
+    chose que ce qu'elle vient d'appliquer fait douter du réglage entier.
+
+    On pose donc les deux en variables CSS sur la racine, à chaque rendu.
+    « rendu » et pas « au chargement » : après setPolice(), la page doit
+    changer TOUT DE SUITE, sans attendre une réouverture. */
+function appliqueApparence(){
+  const r = document.documentElement.style;
+  const pol = POLICES.find(([n]) => n === etat.police);
+  //  Repli sur la famille par défaut si l'état nomme une police inconnue —
+  //  mieux qu'une page sans police déclarée du tout.
+  r.setProperty("--police", pol ? pol[2] : POLICES[0][2]);
+  const ac = ACCENTS[etat.accent];
+  if(ac){
+    r.setProperty("--ac", ac);
+    //  La teinte survolée : la même, éclaircie. Sans elle, un accent bleu
+    //  garderait un survol orange — le défaut se verrait au premier bouton.
+    r.setProperty("--ac-hi", eclaircir(ac, 0.22));
+  }
+}
+/*  Éclaircir une couleur #rrggbb vers le blanc, d'une fraction donnée.
+    Calcul plutôt que table : un accent ajouté un jour aura son survol
+    sans qu'on ait à penser à l'écrire quelque part. */
+function eclaircir(hex, part){
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if(!m) return hex;
+  const n = parseInt(m[1], 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    .map(v => Math.round(v + (255 - v) * part));
+  return "#" + c.map(v => v.toString(16).padStart(2, "0")).join("");
+}
+
+function rend(){ appliqueApparence(); rendNav(); rendSection(); }
 
 /* --- Démarrage ------------------------------------------------------------ */
 (async function(){

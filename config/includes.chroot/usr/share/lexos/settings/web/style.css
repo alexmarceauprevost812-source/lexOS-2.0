@@ -4,11 +4,18 @@
   --fg:#EDE6DF; --fg-dim:#A99F94;
   --bd:#3A322B; --ac:#E8590C; --ac-hi:#FF7A33;
   --ok:#2DBF6B; --warn:#F5A623; --off:#D8352E;
+  /*  La police de l'interface. Posée ici en repli, puis REMPLACÉE à chaud
+      par appliqueApparence() (app.js) d'après le choix de la section
+      Apparence — « Manuscrite » doit changer CETTE fenêtre aussi, pas
+      seulement le reste du bureau. Patrick Hand est embarquée par LexOS
+      (/usr/share/fonts/truetype/lexos) : elle est là même sur une machine
+      qui n'a aucune police manuscrite installée. */
+  --police:"Noto Sans","DejaVu Sans",sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body,#app{height:100%}
 body{background:var(--bg);color:var(--fg);
-  font:14px/1.45 "Noto Sans","DejaVu Sans",sans-serif}
+  font:14px/1.45 var(--police)}
 #app{display:flex}
 
 /* --- Barre latérale ------------------------------------------------------ */

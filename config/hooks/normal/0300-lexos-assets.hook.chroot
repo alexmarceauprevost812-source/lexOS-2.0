@@ -425,4 +425,38 @@ else
 	echo "[lexos]   thème 'spinner' absent — Plymouth non personnalisé"
 fi
 
+# --- Le cache des polices ----------------------------------------------------
+#  POURQUOI C'EST NÉCESSAIRE, ET CE QUI SE PASSAIT SANS.
+#  LexOS embarque UNE police à lui : Patrick Hand (licence OFL), celle du
+#  réglage « Manuscrite ». Elle arrive par includes.chroot — donc en dehors
+#  de dpkg, donc SANS déclencher le mécanisme qui reconstruit d'ordinaire le
+#  cache de fontconfig quand un paquet de polices s'installe.
+#
+#  Le cache système livré par Debian ne la contient donc pas. À l'usage,
+#  fontconfig s'en sort quand même : il voit le dossier plus récent que son
+#  cache et rebalaye tout seul. Mais ce rattrapage a un prix qu'on paie au
+#  pire moment — la PREMIÈRE application qui demande une police, sur un
+#  portable de 2016 — et il suppose de pouvoir écrire un cache par
+#  utilisateur, ce qui n'est pas garanti en session démo.
+#
+#  Une seconde de construction ici enlève ce doute pour de bon : la police
+#  est dans le cache système, tout de suite, pour tout le monde.
+if command -v fc-cache >/dev/null 2>&1; then
+	fc-cache -f >/dev/null 2>&1 \
+		&& echo "[lexos]   cache des polices reconstruit" \
+		|| echo "[lexos]   !! fc-cache a échoué — « Manuscrite » sera plus lente au 1er usage"
+	#  Vérifier, plutôt que d'espérer : une police annoncée dans les
+	#  Paramètres et introuvable par le système est exactement le genre
+	#  d'écart qu'on passe la journée à fermer.
+	if command -v fc-list >/dev/null 2>&1; then
+		if fc-list 2>/dev/null | grep -qi "Patrick Hand"; then
+			echo "[lexos]   police « Manuscrite » (Patrick Hand) : vue par fontconfig"
+		else
+			echo "[lexos]   !! Patrick Hand INTROUVABLE — le réglage « Manuscrite » n'aura rien à afficher"
+		fi
+	fi
+else
+	echo "[lexos]   !! fc-cache absent — cache des polices non reconstruit"
+fi
+
 echo "[lexos] hook 0300 : ok"
