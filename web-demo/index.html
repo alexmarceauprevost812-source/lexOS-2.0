@@ -982,6 +982,14 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
    froid sous la pluie. On sent le temps qu'il fait avant d'avoir lu le mot —
    et pour qui distingue mal les pictogrammes, la couleur double l'information
    au lieu de la remplacer. Le nom du ciel reste écrit, toujours. */
+/*  Les COULEURS DU CIEL par défaut. openMeteo() les remplace à chaque
+    ouverture selon le temps qu'il fait (style="--mt-teinte:…"), mais elles
+    doivent exister ICI aussi : d'abord parce qu'un volet rendu avant que le
+    script pose les siennes serait sans fond ni bord, ensuite parce que le
+    contrôle « aucune variable CSS fantôme » de la CI exige — avec raison —
+    que toute variable employée soit définie quelque part dans <style>.
+    Les valeurs neutres sont celles du ciel « nuageux ». */
+:root{--mt-teinte:rgba(140,148,160,.14);--mt-bord:rgba(140,148,160,.30)}
 .mt-volet{padding:0}
 .mt-grand{display:flex;align-items:center;gap:18px;
   padding:20px 18px;margin-bottom:14px;

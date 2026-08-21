@@ -48,6 +48,35 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 61 : LE BUILD 60 EST MORT EN SIX MINUTES — TROIS CORRECTIONS.
+#   Même contenu que le 60 (Boost + Fichiers privés), plus les réparations.
+#
+#   1. « policykit-1 » N'EXISTE PLUS dans Debian trixie : le paquet a été
+#      scindé en polkitd + pkexec. C'est lui qui a tué la construction —
+#      la liste de Boost (config/package-lists/) est installée par
+#      live-build DIRECTEMENT, qui meurt sur un paquet introuvable,
+#      contrairement à nos listes du hook 0250 qui notent et continuent.
+#      Corrigé : polkitd + pkexec, nommés explicitement.
+#
+#   2. Les lanceurs de Boost étaient des scripts PYTHON dans /usr/bin —
+#      contre la règle de la maison, que la CI fait respecter : /usr/bin ne
+#      contient que du shell, le Python vit dans /usr/lib/lexos (comme
+#      settings.py). shellcheck, qui passe tout /usr/bin en revue,
+#      s'étranglait dessus. Corrigé DANS LE SENS DE LA RÈGLE, pas en
+#      affaiblissant la CI : les deux lanceurs deviennent des enrobages
+#      shell d'une ligne ; le moteur n'a pas bougé. Vérifié : --json répond
+#      pareil, --appliquer --simulation passe ses arguments.
+#
+#   3. Les couleurs du ciel du volet météo (--mt-teinte, --mt-bord)
+#      n'étaient posées QUE par le script, jamais définies dans la feuille
+#      de style. Le contrôle « aucune variable CSS fantôme » de la CI les a
+#      attrapées — il a raison : un volet rendu avant le script serait sans
+#      fond ni bord. Défauts « nuageux » posés dans :root, démo ET volet.
+#
+#   Toute la CI a été REJOUÉE localement avant de relancer : le shellcheck
+#   complet (la même liste de fichiers), le contrôle des variables CSS (le
+#   même script), et « pas de Python dans /usr/bin ». Zéro avertissement.
+#
 # build 60 : LEXOS BOOST ET LES FICHIERS PRIVÉS.
 #   Deux apports extérieurs, relus avant d'être copiés — un hook tourne en
 #   root pendant la construction, et l'un des deux efface des fichiers de
@@ -1260,4 +1289,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 60
+build: 61

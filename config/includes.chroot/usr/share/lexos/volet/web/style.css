@@ -12,6 +12,11 @@
   --fg:#EDE6DF; --fg-dim:#A99F94;
   --bd:#3A322B; --ac:#E8590C; --ac-hi:#FF7A33;
   --ok:#2DBF6B; --warn:#F5A623; --off:#D8352E;
+  /*  Les couleurs du ciel par défaut (« nuageux ») — remplacées par le
+      script selon le temps qu'il fait, mais définies ici pour qu'un rendu
+      avant leur pose ne soit jamais sans fond ni bord. Même valeur que la
+      démo : parité oblige. */
+  --mt-teinte:rgba(140,148,160,.14); --mt-bord:rgba(140,148,160,.30);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 /*  Le fond de la PAGE reste transparent : c'est la fenêtre Qt qui est
