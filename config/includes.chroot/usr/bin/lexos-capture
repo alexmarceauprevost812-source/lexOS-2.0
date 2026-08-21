@@ -57,7 +57,15 @@ cmd_photo() {
 	local mode="${1:-plein}"
 	local dest; dest="$(dossier PICTURES Images)"
 	mkdir -p "$dest" || die "Impossible de créer $dest"
-	local fichier; fichier="$(nom_libre "$dest/capture_$(horodatage)" png)"
+	#  LE FORMAT, ET POURQUOI IL SE CHOISIT.
+	#  Tout était en PNG. C'est le bon défaut — sans perte, le texte reste net,
+	#  et une capture d'écran sert souvent à MONTRER du texte. Mais un plein
+	#  écran en PNG pèse deux à quatre mégaoctets : à envoyer par message, ou
+	#  quand on en prend cinquante dans la journée, ça compte.
+	#  Le réglage vit dans ~/.config/lexos/capture-format ; « lexos capture
+	#  qualite » l'écrit, les Paramètres aussi.
+	local fmt; fmt="$(lire_format)"
+	local fichier; fichier="$(nom_libre "$dest/capture_$(horodatage)" "$(extension_de "$fmt")")"
 
 	#  Cadrage : flameshot ouvre un vrai sélecteur — rectangle redimensionnable
 	#  par ses poignées, dimensions affichées en direct, annotations — soit le
@@ -182,6 +190,36 @@ cmd_video() {
 #  attend ce clic. On lance donc l'attente en arrière-plan, sinon la commande
 #  de capture resterait bloquée tant que la bulle est à l'écran.
 #  Tous les serveurs de notification ne gèrent pas les actions : si -A n'est
+# --- Le format des images ----------------------------------------------------
+#  « png » (défaut) : sans perte, le texte reste parfaitement net.
+#  « jpeg » : nettement plus léger, au prix d'un texte très légèrement adouci.
+#  Ensemble fermé, vérifié des deux côtés.
+CONF_LEXOS="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+FICHIER_FORMAT="$CONF_LEXOS/capture-format"
+
+lire_format() {
+	local v=""
+	[ -r "$FICHIER_FORMAT" ] && v="$(tr -d '[:space:]' < "$FICHIER_FORMAT")"
+	case "$v" in
+		jpeg|jpg) printf 'jpeg' ;;
+		*)        printf 'png' ;;
+	esac
+}
+
+extension_de() { [ "$1" = "jpeg" ] && printf 'jpg' || printf 'png'; }
+
+ecrire_format() {
+	case "$1" in
+		png|jpeg) ;;
+		jpg) set -- jpeg ;;
+		*) die "Format inconnu : $1   (png ou jpeg)" ;;
+	esac
+	mkdir -p "$CONF_LEXOS"
+	printf '%s\n' "$1" > "$FICHIER_FORMAT"
+	ok "Format des captures : $1"
+	[ "$1" = "jpeg" ] && say "Plus léger. Pour du texte à lire, le PNG reste plus net."
+}
+
 #  pas accepté, on retombe sur la notification simple, sans bouton.
 avertir_capture() {
 	local fichier="$1"
@@ -269,6 +307,12 @@ case "${1:-}" in
 	video|enregistrer)    shift; cmd_video "${1:-}" ;;
 	fond|wallpaper|fond-ecran) shift; cmd_fond "${1:-plein}" ;;
 	dossier|ou|where)     cmd_dossier ;;
+	format|qualite|qualité)
+		shift
+		if [ -n "${1:-}" ]; then ecrire_format "$1"
+		else printf 'Format des captures : %s\n' "$(lire_format)"
+		     printf 'Choisir : %s format png   |   %s format jpeg\n' "$PROG" "$PROG"
+		fi ;;
 	-h|--help|aide)       usage ;;
 	*)                    say "Commande inconnue : $1"; printf '\n'; usage; exit 1 ;;
 esac

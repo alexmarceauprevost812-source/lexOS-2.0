@@ -602,6 +602,47 @@ def act_energie_delai(arg):
     return dernier
 
 
+def act_ecran_definition(arg):
+    """Changer la définition d'un écran.
+
+    L'argument arrive de la page sous la forme « SORTIE|DÉFINITION ». Les
+    deux moitiés sont vérifiées contre ce que la MACHINE déclare — la liste
+    des sorties branchées et, pour celle qu'on vise, la liste de ses
+    définitions. Une définition qu'un écran ne sait pas afficher donne un
+    écran noir ; c'est la seule erreur de ce panneau qui laisse quelqu'un
+    incapable de revenir en arrière, alors elle ne doit pas être possible."""
+    if not isinstance(arg, str) or arg.count("|") != 1:
+        return {"ok": False, "erreur": "valeur inattendue"}
+    sortie, definition = arg.split("|", 1)
+    for e in _ecrans_etat():
+        if e["nom"] == sortie and definition in e["modes"]:
+            return _run(["xrandr", "--output", sortie, "--mode", definition])
+    return {"ok": False, "erreur": "définition inconnue pour cet écran"}
+
+
+def act_echelle(arg):
+    """La taille du texte et des éléments. Voir _echelle_etat pour le choix
+    de Xft/DPI plutôt que d'un agrandissement d'image."""
+    if arg not in ECHELLES:
+        return {"ok": False, "erreur": "valeur inattendue"}
+    return _run(["xfconf-query", "-c", "xsettings", "-p", "/Xft/DPI",
+                 "-n", "-t", "int", "-s", str(ECHELLES[arg])])
+
+
+def act_capture_format(arg):
+    """PNG (sans perte, le texte reste net) ou JPEG (plus léger)."""
+    if arg not in ("png", "jpeg"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    return _run(["lexos-capture", "format", arg])
+
+
+def act_fond_qualite(arg):
+    """La qualité du fond animé — donc ce qu'il coûte en batterie."""
+    if arg not in ("economie", "equilibre", "belle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    return _run(["lexos-fond-video", "qualite", arg])
+
+
 def act_son_sortie(arg):
     """Envoyer le son vers une autre sortie — les haut-parleurs, le casque,
     la télé en HDMI, ou une enceinte Bluetooth.
@@ -670,6 +711,10 @@ ACTIONS = {
     "son-muet": act_son_muet,
     "son-volume": act_son_volume,
     "son-sortie": act_son_sortie,
+    "ecran-definition": act_ecran_definition,
+    "echelle": act_echelle,
+    "capture-format": act_capture_format,
+    "fond-qualite": act_fond_qualite,
     "souris": act_souris,
     "bluetooth-radio": act_bluetooth,
     "crt": act_crt,
@@ -852,8 +897,80 @@ def _ecrans_etat():
                 definition = m.split("+")[0]
                 break
         ecrans.append({"nom": nom, "definition": definition,
-                       "principal": "primary" in mots})
+                       "principal": "primary" in mots, "modes": []})
+
+    #  LES DÉFINITIONS POSSIBLES, écran par écran. Elles ne s'inventent pas :
+    #  chaque dalle a sa liste, et proposer une définition qu'un écran ne sait
+    #  pas afficher donne un écran noir — la panne la plus effrayante qui soit
+    #  pour qui ne sait pas que Ctrl+Alt+F2 existe. On lit donc CE QUE
+    #  L'ÉCRAN DÉCLARE, et rien d'autre.
+    #
+    #  Dans « xrandr --query », les définitions d'une sortie sont les lignes
+    #  INDENTÉES qui la suivent, jusqu'à la sortie suivante.
+    courant = None
+    for ligne in _sortie(["xrandr", "--query"]).splitlines():
+        if ligne and not ligne[0].isspace():
+            mots = ligne.split()
+            courant = mots[0] if (" connected" in ligne) else None
+            continue
+        if courant is None:
+            continue
+        mots = ligne.split()
+        if mots and "x" in mots[0] and mots[0][0].isdigit():
+            for e in ecrans:
+                if e["nom"] == courant and mots[0] not in e["modes"]:
+                    e["modes"].append(mots[0])
     return ecrans
+
+
+#  Les tailles d'affichage proposées. 96 points par pouce est la valeur de
+#  référence de X11 — « 100 % » n'est donc pas un chiffre rond arbitraire,
+#  c'est cette référence. Ensemble FERMÉ : la page ne peut pas en demander
+#  d'autre.
+ECHELLES = {"100": 96, "125": 120, "150": 144, "175": 168, "200": 192}
+
+
+def _image_etat():
+    """Les deux autres « qualités d'image » : celle des captures d'écran et
+    celle du fond animé. Chacune vit dans son propre outil — on ne fait que
+    lire le même fichier que lui, pour que les Paramètres et le terminal ne
+    puissent pas se contredire."""
+    conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
+    try:
+        capture = (conf / "capture-format").read_text().strip()
+    except OSError:
+        capture = "png"
+    if capture not in ("png", "jpeg"):
+        capture = "png"
+    try:
+        fond = (conf / "fond-video" / "qualite").read_text().strip()
+    except OSError:
+        fond = "equilibre"
+    if fond not in ("economie", "equilibre", "belle"):
+        fond = "equilibre"
+    return {"capture": capture, "fond": fond}
+
+
+def _echelle_etat():
+    """La taille du texte et des éléments, en pourcentage.
+
+    POURQUOI Xft/DPI ET PAS « xrandr --scale ». Les deux agrandissent, mais
+    pas de la même façon : xrandr redimensionne l'IMAGE une fois dessinée —
+    tout devient flou, y compris le texte. Xft/DPI dit aux applications de
+    dessiner plus grand dès le départ : le texte reste net. Sur une dalle
+    d'ordinateur portable, c'est toute la différence entre « lisible » et
+    « pâteux ».
+
+    XFCE range ça dans les XSettings, donc xfsettingsd l'applique à chaud."""
+    v = _xfconf_lire("xsettings", "/Xft/DPI")
+    try:
+        dpi = int(v)
+    except (TypeError, ValueError):
+        dpi = 96
+    #  On rend le pourcentage le PLUS PROCHE : une machine réglée à la main
+    #  sur 110 doit s'afficher comme « 100 % » plutôt que comme rien du tout.
+    proche = min(ECHELLES.items(), key=lambda kv: abs(kv[1] - dpi))
+    return {"pourcent": proche[0], "dpi": dpi}
 
 
 def _souris_etat():
@@ -1563,6 +1680,8 @@ def etat():
         "son": _son_etat(),
         "batterie": _batterie_etat(),
         "ecrans": _ecrans_etat(),
+        "echelle": _echelle_etat(),
+        "image": _image_etat(),
         "souris": _souris_etat(),
         "heure": _heure_etat(),
         "lumiere": _lumiere_etat(),

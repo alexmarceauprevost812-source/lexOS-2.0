@@ -277,6 +277,25 @@ function apercuLum(v){
   const z = document.getElementById("lumVal");
   if(z) z.textContent = v + " %";
 }
+async function setDefinition(sortie, mode){
+  const r = await api("ecran-definition", sortie + "|" + mode);
+  await rafraichir(r.ok ? "Définition : " + mode
+                        : "Échec : " + (r.erreur || "refusé"));
+}
+async function setEchelle(v){
+  const r = await api("echelle", v);
+  await rafraichir(r.ok ? "Affichage à " + v + " % — rouvre les fenêtres"
+                        : "Échec : " + (r.erreur || "refusé"));
+}
+async function setCaptureFormat(v){
+  const r = await api("capture-format", v);
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "refusé"));
+}
+async function setFondQualite(v){
+  const r = await api("fond-qualite", v);
+  await rafraichir(r.ok ? "Au prochain démarrage du fond"
+                        : "Échec : " + (r.erreur || "refusé"));
+}
 async function setSortieSon(nom){
   const r = await api("son-sortie", nom);
   await rafraichir(r.ok ? "Le son sort maintenant par là"
@@ -503,6 +522,36 @@ function contenu(cle){
                          e.definition ? esc(e.definition) : "branchée, aucune image")).join("")
         : `<p class="notice">Aucune sortie vidéo lue (xrandr absent ou session Wayland).</p>`}
       ${srow("Étendre, dupliquer, écran principal","Résolution et disposition de chaque écran")}
+      ${(() => {
+        const ec = etat.ecrans || [];
+        const av = (etat.echelle && etat.echelle.pourcent) || "100";
+        let h = "";
+        //  Une définition par écran : chaque dalle a SA liste, et proposer
+        //  celle du voisin donnerait un écran noir.
+        for(const e of ec){
+          if(!e.modes || e.modes.length < 2) continue;
+          h += `<div class="srow" style="display:block">
+            <div class="t" style="margin-bottom:8px">Définition — ${esc(e.nom)}${
+              e.principal ? " (écran principal)" : ""}</div>
+            <div class="row">${e.modes.slice(0,8).map(m =>
+              `<button class="btn ${m===e.definition?"sel":"ghost"}"
+                 onclick="setDefinition('${esc(e.nom)}','${esc(m)}')">${esc(m)}</button>`
+              ).join("")}</div>
+          </div>`;
+        }
+        h += `<div class="srow" style="display:block">
+          <div class="t" style="margin-bottom:8px">Taille de l'affichage</div>
+          <div class="row">${["100","125","150","175","200"].map(v =>
+            `<button class="btn ${v===av?"sel":"ghost"}"
+               onclick="setEchelle('${v}')">${v} %</button>`).join("")}</div>
+          <div class="sub" style="margin-top:8px">Agrandit le texte et les
+            boutons <b>sans rendre l'image floue</b> : les applications
+            dessinent plus grand dès le départ, au lieu qu'on étire l'image
+            une fois dessinée. Les fenêtres déjà ouvertes suivent après
+            réouverture.</div>
+        </div>`;
+        return h;
+      })()}
       ${btnOuvrir("ecrans","Ouvrir Écrans")}`;
     }
     case "son": {
@@ -730,6 +779,44 @@ function contenu(cle){
       Pour fabriquer ton propre fond animé :
       <code>lexos wallpaper anime nouveau mon-fond</code> — un fichier de couches
       commenté, avec <code>… apercu mon-fond</code> pour voir avant de poser.</p>
+      ${(() => {
+        const q = (etat.image && etat.image.fond) || "equilibre";
+        const CH = [["economie","Économie","Décodage par la carte graphique, 24 images/s"],
+                    ["equilibre","Équilibré","Le réglage par défaut"],
+                    ["belle","Belle image","Haute qualité — ça chauffe, secteur conseillé"]];
+        return `<div class="sub" style="margin-top:20px">Qualité du fond animé</div>
+        <div class="srow" style="display:block">
+          <div class="t" style="margin-bottom:8px">Qualité d'image</div>
+          <div class="row">${CH.map(([v,t,d]) =>
+            `<button class="btn ${v===q?"sel":"ghost"}" title="${d}"
+               onclick="setFondQualite('${v}')">${t}</button>`).join("")}</div>
+          <div class="sub" style="margin-top:8px">Un fond animé décode une vidéo
+            <b>en continu, pour toujours</b> — sur un portable, c'est une à deux
+            heures d'autonomie. Le changement prend effet au prochain démarrage
+            du fond.</div>
+        </div>`;
+      })()}
+      ${(() => {
+        //  Les captures n'ont pas de section à elles, et en créer une pour un
+        //  seul réglage donnerait une page presque vide. Elles vivent donc
+        //  ici, sous le même titre que l'autre qualité d'image : c'est ainsi
+        //  qu'Alex les a demandées, ensemble.
+        const f = (etat.image && etat.image.capture) || "png";
+        return `<div class="sub" style="margin-top:20px">Qualité des captures d'écran</div>
+        <div class="srow" style="display:block">
+          <div class="t" style="margin-bottom:8px">Format des images</div>
+          <div class="row">
+            <button class="btn ${f==="png"?"sel":"ghost"}"
+              onclick="setCaptureFormat('png')">PNG — sans perte</button>
+            <button class="btn ${f==="jpeg"?"sel":"ghost"}"
+              onclick="setCaptureFormat('jpeg')">JPEG — plus léger</button>
+          </div>
+          <div class="sub" style="margin-top:8px">Une capture sert souvent à
+            <b>montrer du texte</b> : le PNG le garde parfaitement net. Le JPEG
+            pèse deux à quatre fois moins — pratique pour envoyer par message,
+            au prix d'un texte très légèrement adouci.</div>
+        </div>`;
+      })()}
       ${btnOuvrir("bureau","Réglages fins (XFCE)")}`;
     case "multitaches": {
       const b = etat.bureaux || {nb:1, courant:0, fenetres:[]};
