@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LexOS Boost
+GenericName=Optimisation de la machine
+GenericName[en]=Machine tuning
+Comment=Règle ta machine au mieux de ce qu'elle peut donner — et défais tout d'un clic
+Comment[en]=Tune this machine to the best it can do — fully reversible
+Exec=lexos-boost-panneau
+Icon=preferences-system-performance
+Terminal=false
+Categories=System;Settings;HardwareSettings;
+Keywords=optimisation;performance;lent;rapide;vieux;boost;accelerer;
+StartupNotify=true

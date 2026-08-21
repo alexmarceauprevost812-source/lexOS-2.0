@@ -1,0 +1,18 @@
+# Paquets requis par LexOS Boost.
+# Presque tout est déjà tiré par un bureau XFCE standard ; on les liste
+# quand même pour qu'une variante minimale de LexOS reste fonctionnelle.
+
+python3
+
+# zramctl (mémoire compressée) et blockdev
+util-linux
+
+# panneau graphique
+python3-gi
+gir1.2-gtk-3.0
+
+# demande de mot de passe depuis le panneau
+policykit-1
+
+# lecture des effets visuels XFCE (déjà présent sur les variantes bureau)
+xfconf

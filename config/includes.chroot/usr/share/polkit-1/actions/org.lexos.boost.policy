@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+<policyconfig>
+  <vendor>LexOS</vendor>
+  <vendor_url>https://github.com/alexmarceauprevost812-source/lexOS-2.0</vendor_url>
+
+  <action id="org.lexos.boost.executer">
+    <description>Optimiser cette machine avec LexOS Boost</description>
+    <description xml:lang="en">Tune this machine with LexOS Boost</description>
+    <message>LexOS Boost doit modifier des réglages système. Toutes les modifications sont réversibles.</message>
+    <message xml:lang="en">LexOS Boost needs to change system settings. Every change is reversible.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/lexos-boost</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>

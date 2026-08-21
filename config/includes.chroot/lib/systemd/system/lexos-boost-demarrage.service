@@ -1,0 +1,17 @@
+[Unit]
+Description=LexOS Boost — réapplique les réglages volatils au démarrage
+Documentation=man:lexos-boost(8)
+After=local-fs.target
+ConditionPathExists=/var/lib/lexos/boost/journal.json
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Le gouverneur du processeur, l'anticipation de lecture et la file
+# d'attente du disque vivent dans /sys : ils repartent à zéro à chaque
+# démarrage. On les remet d'après le journal des modifications.
+ExecStart=/usr/bin/lexos-boost --rejouer
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+#!/usr/bin/python3
+"""Lanceur de LexOS Boost en ligne de commande."""
+
+import sys
+
+sys.path.insert(0, "/usr/lib/lexos")
+
+from boost.cli import main  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main())

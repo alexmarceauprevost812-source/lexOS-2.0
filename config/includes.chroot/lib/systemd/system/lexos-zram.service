@@ -1,0 +1,16 @@
+[Unit]
+Description=LexOS Boost — mémoire compressée (zram)
+Documentation=man:lexos-boost(8)
+DefaultDependencies=no
+Before=swap.target
+After=systemd-modules-load.service
+ConditionPathExists=/etc/lexos/zram.conf
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/lexos/boost/lexos-zram demarrer
+ExecStop=/usr/lib/lexos/boost/lexos-zram arreter
+
+[Install]
+WantedBy=swap.target

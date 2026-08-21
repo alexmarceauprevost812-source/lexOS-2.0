@@ -1,0 +1,11 @@
+#!/usr/bin/python3
+"""Lanceur du panneau graphique de LexOS Boost."""
+
+import sys
+
+sys.path.insert(0, "/usr/lib/lexos")
+
+from boost.gui import main  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main())
