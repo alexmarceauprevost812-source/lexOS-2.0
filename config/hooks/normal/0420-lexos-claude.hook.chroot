@@ -1,16 +1,18 @@
 #!/bin/sh
 # =============================================================================
-#  LexOS — Claude (IA d'Anthropic) et Claude Code, préinstallés dans l'ISO
+#  LexOS — Claude (IA d'Anthropic) et Claude Code : icônes, lanceurs, service
 # =============================================================================
 #  Deux applications d'un coup :
 #    - Claude Code : l'assistant de programmation d'Anthropic, en terminal.
-#                    On l'installe ICI, à la construction, pour qu'il soit
-#                    déjà là au premier démarrage (canal officiel npm).
+#                    Il n'est PAS mis dans l'image : il est téléchargé au
+#                    premier démarrage une fois LexOS installé sur le disque
+#                    dur, par lexos-claude-installation.service.
 #    - Claude      : l'appli claude.ai, ouverte en fenêtre dédiée par le
 #                    lanceur « lexos claude app ».
 #
-#  Rien n'est bloquant : si npm manque ou si le réseau tombe pendant la
-#  construction, le lanceur « lexos claude » réinstalle Claude Code tout seul
+#  Ce hook pose donc les icônes, les deux lanceurs de bureau, et allume le
+#  service qui fera la course au réseau plus tard. Rien n'est bloquant : si le
+#  service échoue, le lanceur « lexos claude » installe Claude Code tout seul
 #  au premier lancement. Les deux icônes de bureau, elles, sont toujours là.
 # =============================================================================
 set -e
@@ -49,18 +51,23 @@ else
 	echo "[lexos]   !! icône Claude introuvable — les lanceurs utiliseront une icône générique"
 fi
 
-# --- Préinstaller Claude Code (best effort) --------------------------------
-if have claude; then
-	echo "[lexos]   Claude Code déjà présent."
-elif have npm; then
-	echo "[lexos]   installation de Claude Code via npm…"
-	if npm install -g @anthropic-ai/claude-code >/dev/null 2>&1; then
-		echo "[lexos]   Claude Code installé ($(command -v claude 2>/dev/null || echo 'npm global'))."
-	else
-		echo "[lexos]   !! Claude Code non installé à la construction — le lanceur le fera au 1er lancement."
-	fi
+# --- Claude Code : téléchargé APRÈS l'installation, pas ici -----------------
+#  On l'installait dans le chroot, pendant la fabrication de l'image. Trois
+#  ennuis, tous les trois réels : la version se figeait au jour de la
+#  construction (une ISO téléchargée trois mois plus tard passait son premier
+#  lancement à se mettre à jour) ; en session live rien n'est gardé, donc la
+#  place occupée ne servait jamais plus d'une session ; et l'image grossissait
+#  pour du code qui vient du réseau de toute façon.
+#
+#  Le service lexos-claude-installation le télécharge au premier démarrage sur
+#  le disque dur. Le lanceur « lexos claude » garde son propre filet : s'il
+#  manque encore au premier lancement, il l'installe lui-même.
+if have systemctl; then
+	systemctl enable lexos-claude-installation.service >/dev/null 2>&1 \
+		&& echo "[lexos]   lexos-claude-installation.service activé" \
+		|| echo "[lexos]   !! lexos-claude-installation.service non activé — le lanceur prendra le relais"
 else
-	echo "[lexos]   !! npm absent — Claude Code sera installé au 1er lancement par le lanceur."
+	echo "[lexos]   !! systemctl absent — Claude Code sera installé au 1er lancement par le lanceur"
 fi
 
 # --- Lanceurs de bureau -----------------------------------------------------

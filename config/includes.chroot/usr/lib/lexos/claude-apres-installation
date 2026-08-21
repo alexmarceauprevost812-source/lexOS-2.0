@@ -1,0 +1,66 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — installer Claude Code UNE FOIS LE SYSTÈME SUR LE DISQUE DUR
+# =============================================================================
+#  POURQUOI PAS À LA CONSTRUCTION DE L'ISO.
+#  Claude Code était installé dans le chroot, pendant la fabrication de
+#  l'image. Trois ennuis, tous les trois réels :
+#
+#    1. La version se fige au jour de la construction. Une ISO téléchargée
+#       trois mois plus tard installe un Claude Code de trois mois, qui passe
+#       son premier lancement à se mettre à jour.
+#    2. En session live (clé USB), rien n'est gardé : ce qu'on a mis dans
+#       l'image occupe la place à chaque démarrage, sans jamais servir plus
+#       d'une session.
+#    3. L'image grossit d'autant, pour du code qui vient du réseau de toute
+#       façon.
+#
+#  On le télécharge donc au premier démarrage APRÈS l'installation sur le
+#  disque : la machine est à elle, le réseau est là, et la version obtenue est
+#  celle du jour.
+#
+#  RIEN N'EST BLOQUANT. Sans réseau, on ne pose pas le témoin : on réessaiera
+#  au démarrage suivant. Et si tout échoue, « lexos claude » installe encore
+#  l'outil tout seul au premier lancement — ce filet-là n'a pas bougé.
+# =============================================================================
+set -u
+
+TEMOIN="/var/lib/lexos/claude-installe"
+PAQUET="@anthropic-ai/claude-code"
+
+dire() { echo "[lexos claude] $*"; }
+
+# --- En session live : on ne télécharge rien --------------------------------
+#  Même repère que partout ailleurs dans LexOS (lexos-install, demo-guard,
+#  gpu-garde) : « boot=live » dans la ligne de commande du noyau.
+if grep -qa 'boot=live' /proc/cmdline 2>/dev/null || [ -d /run/live/medium ]; then
+	dire "session live — Claude Code s'installera une fois LexOS sur le disque."
+	exit 0
+fi
+
+# --- Déjà là ? ---------------------------------------------------------------
+if command -v claude >/dev/null 2>&1; then
+	mkdir -p "$(dirname "$TEMOIN")"
+	printf 'déjà présent le %s\n' "$(date -Is)" > "$TEMOIN"
+	dire "déjà installé."
+	exit 0
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+	#  Pas de témoin : si npm arrive plus tard (l'utilisateur installe
+	#  nodejs), on retentera au démarrage suivant.
+	dire "npm absent — rien à faire pour l'instant."
+	exit 0
+fi
+
+dire "téléchargement de Claude Code…"
+if npm install -g "$PAQUET" >/dev/null 2>&1; then
+	mkdir -p "$(dirname "$TEMOIN")"
+	printf '%s installé le %s\n' "$PAQUET" "$(date -Is)" > "$TEMOIN"
+	dire "installé : $(command -v claude 2>/dev/null || echo 'npm global')."
+	exit 0
+fi
+
+#  Échec (réseau coupé, npm en rade) : PAS de témoin, on reviendra.
+dire "pas de réseau ou téléchargement refusé — nouvelle tentative au prochain démarrage."
+exit 0

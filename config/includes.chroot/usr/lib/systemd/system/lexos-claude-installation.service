@@ -1,0 +1,30 @@
+[Unit]
+#  Télécharge Claude Code au premier démarrage sur le disque dur, et pas
+#  pendant la fabrication de l'ISO : la version obtenue est celle du jour, et
+#  l'image ne transporte pas du code qui vient du réseau de toute façon.
+Description=LexOS - installer Claude Code après l'installation sur le disque
+Documentation=file:/usr/lib/lexos/claude-apres-installation
+
+#  Il faut le réseau POUR DE VRAI, pas seulement une carte allumée :
+#  network-online.target attend qu'une route existe.
+After=network-online.target
+Wants=network-online.target
+
+#  Le témoin est posé quand c'est fait. Tant qu'il n'est pas là, le service
+#  retente à chaque démarrage — sans réseau au premier, on réussit au second.
+ConditionPathExists=!/var/lib/lexos/claude-installe
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/lexos/claude-apres-installation
+RemainAfterExit=yes
+
+#  Rien de tout cela ne doit retarder l'ouverture de session : le service
+#  démarre en même temps que le bureau, pas devant lui. Et un téléchargement
+#  qui traîne ne doit pas rester pendu indéfiniment.
+TimeoutStartSec=600
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target
