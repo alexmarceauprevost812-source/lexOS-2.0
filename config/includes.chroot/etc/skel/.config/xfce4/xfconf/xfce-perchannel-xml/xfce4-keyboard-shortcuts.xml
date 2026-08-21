@@ -82,6 +82,37 @@
       <property name="&lt;Super&gt;Down"  type="string" value="unmaximize_window_key"/>
       <property name="&lt;Super&gt;Left"  type="string" value="tile_left_key"/>
       <property name="&lt;Super&gt;Right" type="string" value="tile_right_key"/>
+
+      <!-- PARTAGER L'ÉCRAN À PLUSIEURS, ET CHOISIR LA PLACE.
+           Demandé par Alex : « quand on a plusieurs partagés, on soit capable
+           de le positionner à la place qu'on veut ». On n'avait que les deux
+           moitiés gauche/droite — impossible de mettre quatre fenêtres, ni
+           d'en poser une en haut.
+
+           Les huit actions ci-dessous sont celles que xfwm4 porte VRAIMENT :
+           relevées dans son binaire (strings xfwm4 | grep tile_.*_key), pas
+           devinées. Une action mal nommée ne dit rien et ne fait rien — le
+           genre de silence qu'on passe nos journées à fermer.
+
+           LE CHOIX DES TOUCHES, ET POURQUOI IL SE RETIENT. Début, Fin, Page
+           haut et Page bas forment un carré de 2×2 sur le clavier, à la même
+           place que les quatre coins de l'écran :
+
+                 Début      Page↑              haut-gauche   haut-droit
+                 Fin        Page↓              bas-gauche    bas-droit
+
+           Le geste est donc le dessin de ce qu'on veut. Aucune autre paire de
+           touches ne donne ça, et surtout pas quatre flèches qui n'ont que
+           quatre directions pour huit positions.
+
+           Super+Ctrl+Haut/Bas complètent les moitiés : Super+Haut est déjà
+           « plein écran » et on ne le lui reprend pas. -->
+      <property name="&lt;Super&gt;Home"      type="string" value="tile_up_left_key"/>
+      <property name="&lt;Super&gt;Page_Up"   type="string" value="tile_up_right_key"/>
+      <property name="&lt;Super&gt;End"       type="string" value="tile_down_left_key"/>
+      <property name="&lt;Super&gt;Page_Down" type="string" value="tile_down_right_key"/>
+      <property name="&lt;Super&gt;&lt;Primary&gt;Up"   type="string" value="tile_up_key"/>
+      <property name="&lt;Super&gt;&lt;Primary&gt;Down" type="string" value="tile_down_key"/>
       <property name="F11"                type="string" value="fullscreen_key"/>
 
       <!-- LES BUREAUX, ENFIN BRANCHÉS. Les Paramètres promettaient

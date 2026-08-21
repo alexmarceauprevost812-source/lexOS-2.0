@@ -754,6 +754,31 @@ function contenu(cle){
               qui habite ce coin, ne déclenche rien.`,
              sw(ap.coin, "basculeCoin()"))}
       ${btnOuvrir("multitaches","Ouvrir les réglages de bureaux")}
+      <div class="sub" style="margin-top:20px">Partager l'écran entre plusieurs fenêtres</div>
+      ${srow("Placer une fenêtre où on veut",
+             `Huit positions, au clavier ou en glissant la fenêtre vers un bord.
+              Les touches <b>Début</b>, <b>Fin</b>, <b>Page↑</b> et <b>Page↓</b>
+              forment un carré sur le clavier, à la même place que les quatre
+              coins de l'écran — le geste est le dessin de ce qu'on veut.`,
+             `<div class="tuiles" aria-hidden="true">
+                <i class="hg"></i><i class="hd"></i><i class="bg"></i><i class="bd"></i>
+              </div>`)}
+      <div class="srow" style="display:block">
+        <div class="raccourcis">
+          <div><kbd>Super</kbd>+<kbd>Début</kbd><span>coin haut-gauche</span></div>
+          <div><kbd>Super</kbd>+<kbd>Page↑</kbd><span>coin haut-droit</span></div>
+          <div><kbd>Super</kbd>+<kbd>Fin</kbd><span>coin bas-gauche</span></div>
+          <div><kbd>Super</kbd>+<kbd>Page↓</kbd><span>coin bas-droit</span></div>
+          <div><kbd>Super</kbd>+<kbd>←</kbd><span>moitié gauche</span></div>
+          <div><kbd>Super</kbd>+<kbd>→</kbd><span>moitié droite</span></div>
+          <div><kbd>Super</kbd>+<kbd>Ctrl</kbd>+<kbd>↑</kbd><span>moitié haute</span></div>
+          <div><kbd>Super</kbd>+<kbd>Ctrl</kbd>+<kbd>↓</kbd><span>moitié basse</span></div>
+          <div><kbd>Super</kbd>+<kbd>↑</kbd><span>plein écran</span></div>
+          <div><kbd>Super</kbd>+<kbd>↓</kbd><span>rendre sa taille</span></div>
+        </div>
+        <div class="sub" style="margin-top:8px">À la souris : glisse la fenêtre
+          vers un bord pour la moitié, vers un coin pour le quart.</div>
+      </div>
       <p class="notice"><b>Ctrl+Alt+←</b> et <b>Ctrl+Alt+→</b> passent au bureau
       précédent ou suivant, <b>Super+1</b> à <b>Super+${b.nb}</b> vont directement
       à l'un d'eux. Rien n'est fermé en changeant de bureau — les fenêtres sont

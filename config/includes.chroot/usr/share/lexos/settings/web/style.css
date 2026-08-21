@@ -124,3 +124,25 @@ select{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
 .v-l{font-size:13px;line-height:1.6;margin-bottom:7px;color:var(--fg-dim)}
 .v-l:last-child{margin-bottom:0}
 .v-oui{color:var(--ok);font-weight:700}
+
+/* --- Partager l'écran : le petit schéma et la table des raccourcis --------
+   Le schéma vaut mieux qu'une phrase : quatre rectangles dans un cadre
+   disent « quatre quarts » d'un coup d'oeil, là où « tile_up_left_key »
+   ne dit rien à personne. */
+.tuiles{position:relative;width:56px;height:38px;flex:none;
+  border:1px solid var(--bd);border-radius:5px;background:var(--bg-hi)}
+.tuiles i{position:absolute;width:calc(50% - 3px);height:calc(50% - 3px);
+  background:var(--ac);opacity:.75;border-radius:2px}
+.tuiles i.hg{top:2px;left:2px}
+.tuiles i.hd{top:2px;right:2px}
+.tuiles i.bg{bottom:2px;left:2px}
+.tuiles i.bd{bottom:2px;right:2px}
+/*  Deux colonnes : le raccourci et ce qu'il fait. Sur une fenêtre étroite,
+    « auto-fill » repasse à une seule colonne au lieu de tout comprimer. */
+.raccourcis{display:grid;gap:6px 16px;
+  grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.raccourcis > div{display:flex;align-items:center;gap:7px;font-size:12.5px}
+.raccourcis span{color:var(--fg-dim)}
+kbd{display:inline-block;padding:1px 6px;border-radius:5px;
+  background:var(--bg-hi);border:1px solid var(--bd);
+  font:600 11.5px/1.5 ui-monospace,monospace;color:var(--fg)}
