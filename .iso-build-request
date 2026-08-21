@@ -48,6 +48,25 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 62 : UN FICHIER DU CORRECTIF EN MOINS — contenu identique au 61.
+#   La CI a attrapé le dernier passager clandestin du correctif Fichiers
+#   privés : uca-fragment-prive.xml, posé dans includes.chroot. Ce fichier
+#   est un FRAGMENT à coller — deux <action> sans racine, donc pas un
+#   document XML valide, et le contrôle des XML du squelette le refuse à
+#   bon droit. Sa fusion dans uca.xml est déjà faite ; l'embarquer aurait
+#   mis un fichier parasite dans le dossier Thunar de chaque utilisateur.
+#   Retiré (aucune référence nulle part, vérifié), tous les XML du
+#   squelette revalidés localement.
+#
+#   Le 61 en construction au moment de ce retrait reste bon : Thunar ne lit
+#   que uca.xml, le fragment y serait resté lettre morte. Celui-ci le
+#   remplace à l'identique, moins le parasite.
+#
+#   À noter, hors de portée d'un commit : pages.yml échoue parce que GitHub
+#   Pages n'est pas ACTIVÉ sur ce dépôt (il a déménagé vers lexOS-2.0).
+#   C'est un réglage d'administration — Settings → Pages → Source :
+#   GitHub Actions — que seul Alex peut faire.
+#
 # build 61 : LE BUILD 60 EST MORT EN SIX MINUTES — TROIS CORRECTIONS.
 #   Même contenu que le 60 (Boost + Fichiers privés), plus les réparations.
 #
@@ -1289,4 +1308,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 61
+build: 62
