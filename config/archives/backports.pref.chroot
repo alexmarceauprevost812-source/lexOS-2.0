@@ -1,0 +1,21 @@
+#  L'ARCHIVE BACKPORTS RESTE À BASSE PRIORITÉ POUR TOUT LE SYSTÈME.
+#
+#  Debian marque déjà son archive backports « NotAutomatic », ce qui la place
+#  d'office à une priorité basse : ce premier bloc ne change donc rien au
+#  comportement d'apt. Il est là pour que l'intention soit ÉCRITE plutôt que
+#  déduite — quelqu'un qui ouvre ce fichier dans deux ans doit lire la règle,
+#  pas avoir à se souvenir d'un défaut.
+Package: *
+Pin: release n=trixie-backports
+Pin-Priority: 100
+
+#  …sauf le moteur d'IA locale, qu'on veut vraiment de là.
+#
+#  Le nom exact des paquets de backend ggml bouge encore (libggml0-backend-all,
+#  libggml0-backend-vendor-cuda-13-2, llama.cpp-cuda, llama.cpp-hip selon les
+#  versions). On épingle donc les familles au motif, et c'est le hook
+#  0260-lexos-ia-moteur qui DEMANDE à apt lequel existe vraiment le jour de la
+#  construction, plutôt que de parier sur un nom.
+Package: llama.cpp llama.cpp-* libggml* ggml-*
+Pin: release n=trixie-backports
+Pin-Priority: 600
