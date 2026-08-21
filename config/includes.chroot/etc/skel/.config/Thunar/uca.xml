@@ -46,4 +46,33 @@
 	<image-files/>
 	<video-files/>
 </action>
+<action>
+	<icon>changes-prevent</icon>
+	<name>Mettre en privé</name>
+	<submenu></submenu>
+	<unique-id>1755799200000000-1</unique-id>
+	<command>lexos-prive ajouter %F</command>
+	<description>Déplacer dans le coffre chiffré — illisible sans le mot de passe</description>
+	<range>*</range>
+	<patterns>*</patterns>
+	<startup-notify/>
+	<directories/>
+	<audio-files/>
+	<image-files/>
+	<other-files/>
+	<text-files/>
+	<video-files/>
+</action>
+<action>
+	<icon>changes-allow</icon>
+	<name>Ouvrir mes fichiers privés</name>
+	<submenu></submenu>
+	<unique-id>1755799200000000-2</unique-id>
+	<command>lexos-prive dossier</command>
+	<description>Déverrouiller le coffre et l'ouvrir dans Fichiers</description>
+	<range></range>
+	<patterns>*</patterns>
+	<startup-notify/>
+	<directories/>
+</action>
 </actions>

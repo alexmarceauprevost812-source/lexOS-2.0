@@ -57,6 +57,7 @@ LISTS="00-core.list 10-installer.list"
 BUREAU_COMPLET="15-essentiel.list 20-desktop.list 30-dock-effets.list \
 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list \
 49-bienetre.list 50-dev.list 55-cartes.list 56-reglages.list 57-python.list \
+58-prive.list \
 60-full.list 70-gaming.list 75-pro-gamer.list 80-securite.list \
 90-decoupe-image.list 95-logitheque.list"
 

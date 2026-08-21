@@ -1,0 +1,1087 @@
+#!/bin/bash
+# lexos-prive — Fichiers privés : un coffre-fort chiffré, pour LexOS.
+#
+# Tout ce qu'on dépose dans ~/Privé est chiffré sur le disque (gocryptfs).
+# Coffre fermé  = ~/Privé est vide, et le contenu réel est illisible.
+# Coffre ouvert = ~/Privé se comporte comme un dossier normal.
+#
+# Le mot de passe ne touche jamais le disque : il est passé à gocryptfs
+# par un tube, depuis la mémoire du script.
+#
+# Licence : GPL-3.0-or-later (comme le reste de LexOS)
+
+set -uo pipefail
+
+VERSION="1.1"
+APP="Fichiers privés"
+
+SELF="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
+
+COFFRE="${LEXOS_PRIVE_COFFRE:-$HOME/.lexos-prive/coffre}"
+DOSSIER="${LEXOS_PRIVE_DOSSIER:-$HOME/Privé}"
+REFUGE="$DOSSIER — à ranger"
+CONF="$HOME/.config/lexos/prive.conf"
+THEME="${LEXOS_PRIVE_THEME:-/usr/share/lexos/prive-theme}"
+MARQUEUR="Coffre fermé — ouvrez « Fichiers privés ».txt"
+
+DELAI_DEFAUT=15          # minutes avant fermeture automatique (0 = jamais)
+DELAI_MAX=1440           # 24 h : au-delà, c'est « jamais »
+MDP_MIN=8                # longueur minimale du mot de passe
+
+JOURNAL=""               # fichier de compte rendu de « ajouter »
+
+# Les fenêtres ne s'affichent pas hors UTF-8 (GLib refuse les accents) :
+# on force une locale UTF-8 pour NOS dialogues, sans toucher au reste.
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8* | *utf8* | *UTF8*) ;;
+	*) export LANG="C.UTF-8" LC_ALL="C.UTF-8" ;;
+esac
+
+# --------------------------------------------------------------------------
+# Emplacement des petits fichiers d'état — jamais de secret dedans
+# --------------------------------------------------------------------------
+choisir_runtime() {
+	local c
+	for c in "${XDG_RUNTIME_DIR:-}" "/dev/shm" "/tmp"; do
+		if [ -z "$c" ] || [ ! -d "$c" ] || [ ! -w "$c" ]; then
+			continue
+		fi
+		printf '%s/lexos-prive-%s' "$c" "$(id -u)"
+		return 0
+	done
+	printf '/tmp/lexos-prive-%s' "$(id -u)"
+}
+RUNTIME="$(choisir_runtime)"
+
+nettoyer() {
+	[ -n "$JOURNAL" ] && [ -f "$JOURNAL" ] && rm -f -- "$JOURNAL"
+	JOURNAL=""
+}
+trap nettoyer EXIT HUP INT TERM
+
+# Reste d'une exécution tuée net : on ne laisse pas traîner de noms de fichiers.
+menage_demarrage() {
+	[ -d "$RUNTIME" ] || return 0
+	find "$RUNTIME" -maxdepth 1 -name 'journal.*' -mmin +60 -delete 2>/dev/null
+	find "$RUNTIME" -maxdepth 1 -name 'mdp.*' -delete 2>/dev/null
+	return 0
+}
+
+# --------------------------------------------------------------------------
+# Parler à la personne — fenêtre si on a un écran, terminal sinon
+# --------------------------------------------------------------------------
+graphique() {
+	[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && command -v zenity >/dev/null 2>&1
+}
+
+# zenity habillé en noir/orange : XDG_CONFIG_HOME pointe sur notre thème,
+# donc seules NOS fenêtres changent d'allure, pas le reste du bureau.
+zen() {
+	if [ -d "$THEME/gtk-3.0" ] || [ -d "$THEME/gtk-4.0" ]; then
+		XDG_CONFIG_HOME="$THEME" GTK_THEME="Adwaita:dark" zenity "$@"
+	else
+		zenity "$@"
+	fi
+}
+
+# Nos messages contiennent des « \n » ; en terminal on les rend visibles.
+# (sed, pas printf %b : un nom de fichier contenant \c couperait le message.)
+en_lignes() { printf '%s' "$1" | sed 's/\\n/\n/g'; }
+
+dire() {
+	if graphique; then
+		zen --info --no-markup --width=430 --title="$APP" --text="$1"
+	else
+		en_lignes "$1"
+		printf '\n'
+	fi
+	return 0
+}
+
+erreur() {
+	if graphique; then
+		zen --error --no-markup --width=430 --title="$APP" --text="$1"
+	else
+		en_lignes "$1" >&2
+		printf '\n' >&2
+	fi
+	return 1
+}
+
+demander() {  # demander "question"  -> 0 = oui
+	if graphique; then
+		zen --question --no-markup --width=430 --title="$APP" --text="$1"
+	else
+		local r
+		en_lignes "$1" >&2
+		printf ' [o/N] ' >&2
+		read -r r
+		[ "$r" = "o" ] || [ "$r" = "O" ] || [ "$r" = "oui" ]
+	fi
+}
+
+demander_mdp() {  # demander_mdp "titre" -> mot de passe sur stdout
+	if graphique; then
+		zen --password --title="$1"
+	else
+		local m
+		printf '%s : ' "$1" >&2
+		read -rs m
+		printf '\n' >&2
+		printf '%s' "$m"
+	fi
+}
+
+# --------------------------------------------------------------------------
+# Outils internes
+# --------------------------------------------------------------------------
+# mkdir -m ne s'applique qu'au dernier niveau avec -p : on chmod à part.
+mkdir_prive() {
+	mkdir -p -- "$1" || return 1
+	chmod 700 -- "$1"
+}
+
+# gocryptfs-xray écrit la clé principale sans tirets, gocryptfs -init avec :
+# on ramène toujours au format à tirets, celui qui se relit à l'œil.
+normaliser_cle() {
+	local k
+	k="$(printf '%s' "$1" | tr -d ' \t\n\r-')"
+	case "$k" in
+		*[!0-9a-fA-F]*) return 1 ;;
+	esac
+	[ "${#k}" -eq 64 ] || return 1
+	printf '%s' "$k" | sed 's/\(.\{8\}\)/\1-/g; s/-$//'
+}
+
+# gocryptfs -init refuse d'afficher la clé hors terminal ; gocryptfs-xray
+# la donne à partir du mot de passe, lu sur son entrée standard.
+lire_cle_principale() {  # lire_cle_principale <mot de passe>
+	command -v gocryptfs-xray >/dev/null 2>&1 || return 1
+	normaliser_cle "$(printf '%s\n' "$1" |
+		gocryptfs-xray -dumpmasterkey "$COFFRE/gocryptfs.conf" 2>/dev/null |
+		grep -oiE '[0-9a-f-]{64,71}' | head -n1)"
+}
+
+coffre_existe() { [ -f "$COFFRE/gocryptfs.conf" ]; }
+
+est_ouvert() {
+	if command -v mountpoint >/dev/null 2>&1; then
+		mountpoint -q -- "$DOSSIER"
+	else
+		grep -Fq " $(printf '%s' "$DOSSIER" | sed 's/ /\\040/g') fuse.gocryptfs " /proc/self/mounts
+	fi
+}
+
+lire_delai() {
+	local d=""
+	[ -f "$CONF" ] && d="$(sed -n 's/^DELAI=\([0-9]\{1,6\}\)$/\1/p' "$CONF" | tail -n1)"
+	case "$d" in
+		''|*[!0-9]*) d="$DELAI_DEFAUT" ;;
+	esac
+	[ "$d" -gt "$DELAI_MAX" ] && d=0
+	printf '%s' "$d"
+}
+
+ecrire_delai() {
+	mkdir -p "$(dirname "$CONF")"
+	if [ -f "$CONF" ] && grep -q '^DELAI=' "$CONF"; then
+		sed -i "s/^DELAI=.*/DELAI=$1/" "$CONF"
+	else
+		printf 'DELAI=%s\n' "$1" >>"$CONF"
+	fi
+}
+
+# Le dossier vide sert d'avertissement quand le coffre est fermé, et il est
+# en lecture seule : sans ça, on déposerait des fichiers « dans le coffre »
+# alors qu'il est fermé — ils resteraient en clair et disparaîtraient sous
+# le montage à la prochaine ouverture.
+poser_marqueur() {
+	coffre_existe || return 0        # pas de coffre = pas de dossier ~/Privé
+	est_ouvert && return 0           # jamais par-dessus un coffre ouvert
+	mkdir -p -- "$DOSSIER" 2>/dev/null
+	chmod 700 -- "$DOSSIER" 2>/dev/null
+	cat >"$DOSSIER/$MARQUEUR" 2>/dev/null <<-TXT
+		Le coffre est FERMÉ.
+
+		Vos fichiers privés sont bien là, sur le disque, mais chiffrés :
+		personne ne peut les lire sans votre mot de passe.
+
+		Pour les revoir : menu Applications → Fichiers privés → Ouvrir.
+		(ou, dans un terminal : lexos prive ouvrir)
+
+		N'écrivez rien ici tant que le coffre est fermé : ce que vous
+		déposeriez resterait en clair, sans protection.
+	TXT
+	chmod 500 -- "$DOSSIER" 2>/dev/null
+	return 0
+}
+
+retirer_marqueur() {
+	chmod 700 -- "$DOSSIER" 2>/dev/null
+	rm -f -- "$DOSSIER/$MARQUEUR" 2>/dev/null
+	return 0
+}
+
+demonter() {  # démontage propre uniquement — échoue si un fichier est ouvert
+	if command -v fusermount3 >/dev/null 2>&1; then
+		fusermount3 -u -- "$DOSSIER" 2>/dev/null && return 0
+	fi
+	if command -v fusermount >/dev/null 2>&1; then
+		fusermount -u -- "$DOSSIER" 2>/dev/null && return 0
+	fi
+	umount -- "$DOSSIER" 2>/dev/null
+}
+
+# Dernier recours : on détache le dossier même si un programme y tient un
+# fichier ouvert. Plus rien de nouveau n'est lisible ; le programme qui
+# avait déjà le fichier ouvert le garde jusqu'à ce qu'il le referme.
+demonter_paresseux() {
+	if command -v fusermount3 >/dev/null 2>&1; then
+		fusermount3 -u -z -- "$DOSSIER" 2>/dev/null && return 0
+	fi
+	if command -v fusermount >/dev/null 2>&1; then
+		fusermount -u -z -- "$DOSSIER" 2>/dev/null && return 0
+	fi
+	umount -l -- "$DOSSIER" 2>/dev/null
+}
+
+qui_bloque() {  # ATTENTION : fuser n'accepte pas « -- »
+	command -v fuser >/dev/null 2>&1 || return 1
+	fuser -m "$DOSSIER" 2>/dev/null
+}
+
+# --------------------------------------------------------------------------
+# gocryptfs installé ?
+# --------------------------------------------------------------------------
+verifier_gocryptfs() {
+	command -v gocryptfs >/dev/null 2>&1 && return 0
+
+	if ! demander "Pour protéger vos fichiers, LexOS a besoin de « gocryptfs ».\n\nL'installer maintenant ? (connexion Internet requise)"; then
+		erreur "Sans gocryptfs, le coffre ne peut pas fonctionner."
+		return 1
+	fi
+
+	local sudo_cmd="sudo"
+	if graphique && command -v pkexec >/dev/null 2>&1; then
+		sudo_cmd="pkexec"
+	fi
+
+	if $sudo_cmd apt-get install -y gocryptfs fuse3 >/dev/null 2>&1 &&
+		command -v gocryptfs >/dev/null 2>&1; then
+		return 0
+	fi
+	erreur "L'installation a échoué.\n\nEssayez dans un terminal :\n    sudo apt install gocryptfs fuse3"
+	return 1
+}
+
+# --------------------------------------------------------------------------
+# Montage
+# --------------------------------------------------------------------------
+# Le point de montage doit être vide : ce qui traîne dedans est EN CLAIR
+# et deviendrait invisible sous le montage.
+vider_point_de_montage() {
+	[ -n "$(ls -A -- "$DOSSIER" 2>/dev/null)" ] || return 0
+	mkdir_prive "$REFUGE" 2>/dev/null
+	find "$DOSSIER" -mindepth 1 -maxdepth 1 -exec mv -n -t "$REFUGE" -- {} + 2>/dev/null
+	if [ -n "$(ls -A -- "$DOSSIER" 2>/dev/null)" ]; then
+		erreur "Des fichiers traînent dans $DOSSIER et n'ont pas pu être\ndéplacés. Videz ce dossier, puis réessayez."
+		return 1
+	fi
+	dire "⚠ Des fichiers avaient été déposés pendant que le coffre était fermé.\n\nIls n'étaient PAS protégés. Ils ont été mis de côté dans :\n$REFUGE\n\nFaites clic droit dessus → « Mettre en privé » pour les protéger."
+	return 0
+}
+
+monter() {  # monter <mot de passe>  — le mot de passe passe par un tube
+	retirer_marqueur
+	mkdir_prive "$DOSSIER"
+	vider_point_de_montage || return 1
+
+	local sortie code
+	sortie="$(printf '%s\n' "$1" | gocryptfs -q -- "$COFFRE" "$DOSSIER" 2>&1)"
+	code=$?
+
+	if [ $code -ne 0 ]; then
+		poser_marqueur
+		if printf '%s' "$sortie" | grep -qi "password incorrect"; then
+			erreur "Mot de passe incorrect."
+		else
+			erreur "Impossible d'ouvrir le coffre :\n\n$sortie"
+		fi
+		return 1
+	fi
+
+	lancer_gardien
+	return 0
+}
+
+# --------------------------------------------------------------------------
+# Créer le coffre
+# --------------------------------------------------------------------------
+creer() {
+	coffre_existe && { dire "Le coffre existe déjà."; return 0; }
+	verifier_gocryptfs || return 1
+
+	if graphique; then
+		zen --warning --width=480 --title="$APP" --text="\
+<b>À lire avant de continuer.</b>
+
+Vos fichiers privés seront chiffrés avec votre mot de passe.
+Personne ne peut les ouvrir sans lui — <b>pas même vous</b>.
+
+Il n'existe aucun « mot de passe oublié ». Aucun bouton, aucune
+question secrète, aucune façon de le récupérer.
+
+Choisissez un mot de passe que vous n'oublierez pas, et notez-le
+sur un papier rangé ailleurs que dans cet ordinateur."
+	else
+		printf 'ATTENTION : mot de passe oublié = fichiers perdus pour toujours.\n'
+	fi
+
+	local mdp mdp2
+	mdp="$(demander_mdp "Nouveau mot de passe du coffre")" || return 1
+	[ -n "$mdp" ] || { erreur "Mot de passe vide : annulé."; return 1; }
+	if [ "${#mdp}" -lt "$MDP_MIN" ]; then
+		erreur "Trop court : il faut au moins $MDP_MIN caractères.\n\nUne phrase courte fait un excellent mot de passe :\n« mon chien mange trop vite »"
+		return 1
+	fi
+	mdp2="$(demander_mdp "Retapez le même mot de passe")" || return 1
+	if [ "$mdp" != "$mdp2" ]; then
+		erreur "Les deux mots de passe ne sont pas pareils. Rien n'a été créé."
+		return 1
+	fi
+
+	mkdir_prive "$COFFRE" || { erreur "Impossible de créer $COFFRE"; return 1; }
+	if [ -n "$(ls -A -- "$COFFRE" 2>/dev/null)" ]; then
+		erreur "Le dossier du coffre n'est pas vide. Rien n'a été touché."
+		return 1
+	fi
+
+	local sortie code cle
+	sortie="$(printf '%s\n' "$mdp" | gocryptfs -init -- "$COFFRE" 2>&1)"
+	code=$?
+	if [ $code -ne 0 ]; then
+		erreur "La création a échoué :\n\n$sortie"
+		return 1
+	fi
+
+	cle="$(lire_cle_principale "$mdp")"
+	ecrire_delai "$(lire_delai)"
+
+	# On ouvre tout de suite : sinon il faudrait retaper le mot de passe
+	# une troisième fois pour un seul geste.
+	monter "$mdp" || poser_marqueur
+	mdp=""; mdp2=""
+
+	if [ -n "$cle" ] && demander "Coffre créé.\n\nVoulez-vous enregistrer la clé de secours maintenant ?\n(Elle permet de récupérer vos fichiers si le coffre s'abîme.\nFortement conseillé — ça prend dix secondes.)"; then
+		enregistrer_secours "$cle"
+	fi
+
+	dire "Votre coffre est prêt et ouvert.\n\nDossier : $DOSSIER\nGlissez vos fichiers dedans, puis refermez-le."
+	return 0
+}
+
+# --------------------------------------------------------------------------
+# Clé de secours + copie de gocryptfs.conf
+# --------------------------------------------------------------------------
+enregistrer_secours() {
+	local cle="${1:-}"
+	coffre_existe || { erreur "Aucun coffre à sauvegarder."; return 1; }
+
+	local dest
+	if graphique; then
+		dest="$(zen --file-selection --directory \
+			--title="Où enregistrer la sauvegarde de secours ?")" || return 1
+	else
+		printf 'Dossier de destination : ' >&2
+		read -r dest
+	fi
+	if [ -z "$dest" ] || [ ! -d "$dest" ]; then
+		erreur "Dossier invalide."
+		return 1
+	fi
+
+	if [ -z "$cle" ]; then
+		local mdp
+		mdp="$(demander_mdp "Mot de passe du coffre")" || return 1
+		cle="$(lire_cle_principale "$mdp")"
+		mdp=""
+		if [ -z "$cle" ] &&
+			! demander "La clé n'a pas pu être lue — le mot de passe est\nprobablement incorrect.\n\nEnregistrer quand même une sauvegarde SANS la clé ?\n(elle dépanne moins bien : elle ne sert plus si le fichier\nde configuration du coffre est perdu)"; then
+			return 1
+		fi
+	fi
+
+	local fic="$dest/lexos-prive-secours.txt"
+	(
+		umask 077
+		{
+			printf 'SAUVEGARDE DE SECOURS — Fichiers privés de LexOS\n'
+			printf '=================================================\n\n'
+			printf 'Gardez cette feuille hors de cet ordinateur.\n'
+			printf 'Qui la possède peut ouvrir vos fichiers privés.\n\n'
+			printf 'Coffre : %s\n\n' "$COFFRE"
+			if [ -n "$cle" ]; then
+				printf 'Clé principale :\n\n    %s\n\n' "$cle"
+				printf 'Pour ouvrir le coffre avec cette clé, sans mot de passe.\n'
+				printf 'Tapez la clé quand elle est demandée — jamais dans la ligne\n'
+				printf 'de commande, elle resterait dans l'\''historique :\n\n'
+				printf '    gocryptfs -masterkey=stdin "%s" ~/Privé\n\n' "$COFFRE"
+			else
+				printf '(Clé principale absente : le mot de passe donné au moment de\n'
+				printf ' la sauvegarde n'\''était pas le bon. Refaites la sauvegarde avec\n'
+				printf ' le bon mot de passe pour l'\''obtenir.)\n\n'
+			fi
+			printf 'Le fichier gocryptfs.conf a été copié à côté de cette feuille.\n'
+			printf 'Sans lui ET sans la clé ci-dessus, même le bon mot de passe\n'
+			printf 'ne peut plus rien ouvrir.\n'
+		} >"$fic"
+		cp -- "$COFFRE/gocryptfs.conf" "$dest/gocryptfs.conf.sauvegarde" 2>/dev/null
+	) || { erreur "Écriture impossible dans $dest"; return 1; }
+	chmod 600 -- "$fic" "$dest/gocryptfs.conf.sauvegarde" 2>/dev/null
+
+	dire "Sauvegarde enregistrée dans :\n$dest\n\n⚠ Cette feuille ouvre vos fichiers privés.\nRangez-la ailleurs que dans cet ordinateur\n(clé USB au fond d'un tiroir, coffret, papier)."
+	return 0
+}
+
+# --------------------------------------------------------------------------
+# Ouvrir / fermer
+# --------------------------------------------------------------------------
+ouvrir() {
+	if ! coffre_existe; then
+		creer || return 1          # creer ouvre le coffre à la fin
+		est_ouvert && return 0
+		coffre_existe || return 1
+	fi
+	est_ouvert && return 0
+	verifier_gocryptfs || return 1
+
+	local mdp r
+	mdp="$(demander_mdp "Mot de passe des fichiers privés")" || return 1
+	[ -n "$mdp" ] || return 1
+	monter "$mdp"
+	r=$?
+	mdp=""
+	return $r
+}
+
+fermer() {
+	if ! est_ouvert; then
+		arreter_gardien
+		poser_marqueur
+		return 0
+	fi
+
+	if ! demonter; then
+		local qui
+		qui="$(qui_bloque)"
+		if [ -n "$qui" ] && demander "Un programme utilise encore vos fichiers privés\net empêche la fermeture.\n\nFermer ces programmes de force ?"; then
+			fuser -k -m "$DOSSIER" >/dev/null 2>&1
+			sleep 1
+			demonter
+		fi
+	fi
+
+	if est_ouvert; then
+		erreur "Le coffre n'a pas pu être fermé.\nFermez les fenêtres qui affichent des fichiers privés, puis réessayez."
+		return 1
+	fi
+
+	arreter_gardien
+	poser_marqueur
+	return 0
+}
+
+# --------------------------------------------------------------------------
+# Le gardien : referme le coffre tout seul
+# --------------------------------------------------------------------------
+# Chaque ouverture reçoit un jeton. Un gardien d'une ouverture précédente
+# qui se réveille en retard voit que le jeton a changé et se retire sans
+# rien démonter — sinon il refermerait le coffre tout neuf de quelqu'un.
+nouveau_jeton() {
+	cat /proc/sys/kernel/random/uuid 2>/dev/null && return 0
+	printf '%s-%s-%s\n' "$$" "${RANDOM}" "${RANDOM}"
+}
+
+jeton_actuel() { cat "$RUNTIME/jeton" 2>/dev/null; }
+
+# Un PID n'est un gardien que si son /proc dit « lexos-prive ».
+gardien_vivant() {  # gardien_vivant <pid>
+	local pid="${1:-}"
+	case "$pid" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	[ -r "/proc/$pid/cmdline" ] || return 1
+	tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep -q 'lexos-prive'
+}
+
+lancer_gardien() {
+	mkdir_prive "$RUNTIME"
+	date +%s >"$RUNTIME/ouvert-a"
+	nouveau_jeton >"$RUNTIME/jeton"
+	local ancien
+	ancien="$(cat "$RUNTIME/gardien.pid" 2>/dev/null)"
+	gardien_vivant "$ancien" && return 0
+	setsid -f "$SELF" --gardien >/dev/null 2>&1 </dev/null ||
+		(nohup "$SELF" --gardien >/dev/null 2>&1 </dev/null &)
+	return 0
+}
+
+arreter_gardien() {
+	local pid
+	pid="$(cat "$RUNTIME/gardien.pid" 2>/dev/null)"
+	# Le jeton disparaît d'abord : un gardien encore endormi verra en se
+	# réveillant que ce montage n'est plus le sien et ne touchera à rien.
+	rm -f -- "$RUNTIME/jeton" 2>/dev/null
+	gardien_vivant "$pid" && kill "$pid" 2>/dev/null
+	rm -f -- "$RUNTIME/gardien.pid" "$RUNTIME/ouvert-a" 2>/dev/null
+	return 0
+}
+
+notifier() {  # notifier <urgence> <texte>
+	command -v notify-send >/dev/null 2>&1 || return 0
+	notify-send -u "$1" -i changes-prevent "$APP" "$2" 2>/dev/null
+	return 0
+}
+
+ecran_verrouille() {
+	if [ -n "${XDG_SESSION_ID:-}" ] && command -v loginctl >/dev/null 2>&1; then
+		[ "$(loginctl show-session "$XDG_SESSION_ID" -p LockedHint --value 2>/dev/null)" = "yes" ] &&
+			return 0
+	fi
+	if command -v xfce4-screensaver-command >/dev/null 2>&1; then
+		# La traduction change le texte : on teste les deux langues.
+		xfce4-screensaver-command -q 2>/dev/null |
+			grep -qiE "is active|est actif" && return 0
+	fi
+	return 1
+}
+
+# Vrai UNIQUEMENT quand on en est sûr : fermer un coffre par erreur
+# pendant que quelqu'un travaille dedans serait pire que d'attendre.
+# « Je ne sais pas » ⇒ on ne ferme pas ; le délai s'en chargera.
+session_finie() {
+	local etat rc
+	if [ -n "${XDG_SESSION_ID:-}" ] && command -v loginctl >/dev/null 2>&1; then
+		etat="$(loginctl show-session "$XDG_SESSION_ID" -p State --value 2>/dev/null)"
+		rc=$?
+		if [ "$rc" -eq 0 ] && [ -n "$etat" ]; then
+			[ "$etat" = "closing" ] && return 0
+			return 1
+		fi
+	fi
+	if [ "${SESSION_VUE:-0}" = "1" ]; then
+		pgrep -u "$(id -u)" -x xfce4-session >/dev/null 2>&1 && return 1
+		return 0
+	fi
+	return 1
+}
+
+# Referme, et ne dit « c'est refermé » que si ça l'est vraiment.
+fermer_gardien() {  # fermer_gardien <raison affichée>
+	demonter || demonter_paresseux
+	if est_ouvert; then
+		notifier critical "Fermeture impossible : un programme utilise encore vos fichiers privés. Refermez-le, ou cliquez « Refermer maintenant »."
+		return 1
+	fi
+	poser_marqueur
+	notifier normal "$1"
+	return 0
+}
+
+gardien() {
+	mkdir_prive "$RUNTIME"
+	printf '%s\n' "$$" >"$RUNTIME/gardien.pid"
+
+	local MON_JETON prevenu=0 delai depuis maintenant reste
+	MON_JETON="$(jeton_actuel)"
+	trap 'if [ "$MON_JETON" = "$(jeton_actuel)" ]; then demonter && poser_marqueur; fi; exit 0' HUP INT TERM
+
+	SESSION_VUE=0
+	pgrep -u "$(id -u)" -x xfce4-session >/dev/null 2>&1 && SESSION_VUE=1
+
+	while sleep 20; do
+		# Ce montage n'est plus le mien : quelqu'un a refermé puis rouvert.
+		[ "$MON_JETON" = "$(jeton_actuel)" ] || exit 0
+		est_ouvert || break
+
+		if ecran_verrouille; then
+			fermer_gardien "Le coffre s'est refermé : l'écran a été verrouillé." && break
+			continue
+		fi
+		if session_finie; then
+			fermer_gardien "Le coffre s'est refermé : fin de session." && break
+			continue
+		fi
+
+		delai="$(lire_delai)"
+		[ "$delai" -eq 0 ] && continue
+
+		depuis="$(cat "$RUNTIME/ouvert-a" 2>/dev/null || printf '0')"
+		maintenant="$(date +%s)"
+		reste=$((delai * 60 - (maintenant - depuis)))
+
+		if [ "$reste" -le 60 ] && [ "$prevenu" -eq 0 ]; then
+			prevenu=1
+			notifier critical "Fermeture dans 1 minute."
+		fi
+		if [ "$reste" -le 0 ]; then
+			fermer_gardien "Le coffre s'est refermé tout seul." && break
+			# Échec (fichier encore ouvert) : on réessaie au tour suivant
+			# au lieu de mentir et d'abandonner la surveillance.
+			prevenu=0
+			date +%s >"$RUNTIME/ouvert-a"
+		fi
+	done
+
+	if [ "$MON_JETON" = "$(jeton_actuel)" ]; then
+		rm -f -- "$RUNTIME/gardien.pid" "$RUNTIME/ouvert-a" "$RUNTIME/jeton" 2>/dev/null
+	fi
+	return 0
+}
+
+repousser() {  # une action de la personne = on repart pour un tour
+	[ -d "$RUNTIME" ] && date +%s >"$RUNTIME/ouvert-a" 2>/dev/null
+	return 0
+}
+
+# --------------------------------------------------------------------------
+# Ajouter des fichiers (bouton du panneau ET clic droit dans Fichiers)
+# --------------------------------------------------------------------------
+nom_libre() {  # nom_libre "dossier" "nom" -> nom qui n'existe pas encore
+	local d="$1" n="$2" base ext i=2
+	if [ ! -e "$d/$n" ]; then printf '%s' "$n"; return 0; fi
+	case "$n" in
+		*.*) base="${n%.*}"; ext=".${n##*.}" ;;
+		*)   base="$n"; ext="" ;;
+	esac
+	while [ -e "$d/$base ($i)$ext" ]; do i=$((i + 1)); done
+	printf '%s (%s)%s' "$base" "$i" "$ext"
+}
+
+# 0 = broyé puis supprimé   2 = supprimé sans broyage (trace possible)
+# 1 = toujours là
+effacer_original() {
+	local src="$1" etat=0
+	if [ -d "$src" ]; then
+		if command -v shred >/dev/null 2>&1; then
+			chmod -R u+w -- "$src" 2>/dev/null
+			find "$src" -type f -exec shred -u -n 1 -z -- {} + 2>/dev/null || etat=2
+			# Un fichier qui a survécu au shred n'a pas été écrasé.
+			find "$src" -type f -print -quit 2>/dev/null | grep -q . && etat=2
+		else
+			etat=2
+		fi
+		rm -rf -- "$src" 2>/dev/null
+		[ -e "$src" ] && return 1
+		return "$etat"
+	fi
+
+	# Un fichier en lecture seule ne peut pas être écrasé : on lui rend
+	# le droit d'écriture d'abord (il nous appartient), sinon shred échoue
+	# en silence et le contenu reste récupérable sur le disque.
+	chmod u+w -- "$src" 2>/dev/null
+	if command -v shred >/dev/null 2>&1 && shred -u -n 1 -z -- "$src" 2>/dev/null; then
+		[ -e "$src" ] && return 1
+		return 0
+	fi
+	rm -f -- "$src" 2>/dev/null
+	[ -e "$src" ] && return 1
+	return 2
+}
+
+# Un nom peut contenir un retour à la ligne ou « | » : on le nettoie avant
+# de l'écrire dans le compte rendu, sinon les totaux deviennent faux.
+nom_journal() { printf '%s' "$1" | tr -d '\n\r|' | cut -c1-120; }
+
+traiter_un() {
+	local src="$1" abs nom dest ok liens
+	[ -n "$src" ] || return 0
+
+	# Un raccourci : on n'y touche pas. Suivre le lien déplacerait — et
+	# broierait — le vrai fichier, ailleurs, sans que personne le sache.
+	if [ -L "$src" ]; then
+		printf 'LIEN|%s\n' "$(nom_journal "$(basename -- "$src")")" >>"$JOURNAL"
+		return 0
+	fi
+
+	abs="$(readlink -f -- "$src" 2>/dev/null)"
+	if [ -z "$abs" ] || [ ! -e "$abs" ]; then
+		printf 'ABSENT|%s\n' "$(nom_journal "$src")" >>"$JOURNAL"
+		return 0
+	fi
+	# Ni tube nommé, ni périphérique : « cmp » resterait bloqué pour toujours.
+	if [ ! -f "$abs" ] && [ ! -d "$abs" ]; then
+		printf 'TYPE|%s\n' "$(nom_journal "$(basename -- "$abs")")" >>"$JOURNAL"
+		return 0
+	fi
+	case "$abs/" in
+		"$DOSSIER"/* | "$COFFRE"/*)
+			printf 'DEJA|%s\n' "$(nom_journal "$(basename -- "$abs")")" >>"$JOURNAL"
+			return 0 ;;
+	esac
+
+	nom="$(basename -- "$abs")"
+	dest="$DOSSIER/$(nom_libre "$DOSSIER" "$nom")"
+
+	if ! cp -a -- "$abs" "$dest" 2>/dev/null; then
+		rm -rf -- "$dest" 2>/dev/null
+		printf 'ECHEC|%s\n' "$(nom_journal "$nom")" >>"$JOURNAL"
+		return 0
+	fi
+
+	# On ne supprime l'original qu'après avoir vérifié la copie.
+	ok=1
+	if [ -d "$abs" ]; then
+		if diff -rq --no-dereference -- "$abs" "$dest" >/dev/null 2>&1; then
+			:
+		elif diff -rq -- "$abs" "$dest" >/dev/null 2>&1; then
+			:
+		else
+			ok=0
+		fi
+	else
+		cmp -s -- "$abs" "$dest" || ok=0
+	fi
+	if [ "$ok" -eq 0 ]; then
+		rm -rf -- "$dest" 2>/dev/null
+		printf 'ECHEC|%s\n' "$(nom_journal "$nom")" >>"$JOURNAL"
+		return 0
+	fi
+
+	# Un raccourci à l'intérieur d'un dossier pointe hors du coffre :
+	# le fichier visé, lui, reste en clair. Il faut le dire.
+	if [ -d "$abs" ]; then
+		liens="$(find "$abs" -type l -printf . 2>/dev/null | wc -c)"
+		[ "${liens:-0}" -gt 0 ] &&
+			printf 'LIENSDANS|%s\n' "$(nom_journal "$nom")" >>"$JOURNAL"
+	fi
+
+	effacer_original "$abs"
+	case $? in
+		0) printf 'OK|%s\n'    "$(nom_journal "$nom")" >>"$JOURNAL" ;;
+		2) printf 'TRACE|%s\n' "$(nom_journal "$nom")" >>"$JOURNAL" ;;
+		*) printf 'RESTE|%s\n' "$(nom_journal "$nom")" >>"$JOURNAL" ;;
+	esac
+	return 0
+}
+
+compter() { local n; n="$(grep -c "^$1|" "$JOURNAL" 2>/dev/null | head -n1)"; printf '%s' "${n:-0}"; }
+noms()    { grep "^$1|" "$JOURNAL" 2>/dev/null | cut -d'|' -f2- | head -n5 | sed 's/^/   • /'; }
+
+ajouter() {
+	local -a fichiers=("$@")
+
+	if [ "${#fichiers[@]}" -eq 0 ]; then
+		if ! graphique; then
+			erreur "Usage : lexos prive ajouter FICHIER…"
+			return 1
+		fi
+		local choix
+		choix="$(zen --file-selection --multiple --separator=$'\n' \
+			--title="Quels fichiers rendre privés ?")" || return 1
+		mapfile -t fichiers <<<"$choix"
+	fi
+
+	ouvrir || return 1
+	repousser
+
+	mkdir_prive "$RUNTIME"
+	JOURNAL="$(mktemp "$RUNTIME/journal.XXXXXXXX")" || return 1
+	chmod 600 -- "$JOURNAL"
+
+	if graphique; then
+		{
+			local n=${#fichiers[@]} i=0 f
+			for f in "${fichiers[@]}"; do
+				printf '# %s\n' "$(basename -- "$f" | tr -d '\n\r')"
+				traiter_un "$f"
+				i=$((i + 1))
+				printf '%s\n' $((i * 100 / n))
+			done
+		} | zen --progress --auto-close --no-cancel --width=400 \
+			--title="$APP" --text="Mise à l'abri…"
+	else
+		local f
+		for f in "${fichiers[@]}"; do traiter_un "$f"; done
+	fi
+
+	local ok trace reste echec absent deja lien type liens msg grave
+	ok="$(compter OK)";         trace="$(compter TRACE)"
+	reste="$(compter RESTE)";   echec="$(compter ECHEC)"
+	absent="$(compter ABSENT)"; deja="$(compter DEJA)"
+	lien="$(compter LIEN)";     type="$(compter TYPE)"
+	liens="$(compter LIENSDANS)"
+
+	msg=""
+	grave=0
+	[ "$((ok + trace))" -gt 0 ] && msg="$msg$((ok + trace)) élément(s) sont maintenant privés.\n"
+	[ "$deja" -gt 0 ] && msg="$msg$deja étaient déjà dans le coffre.\n"
+
+	if [ "$trace" -gt 0 ]; then
+		msg="$msg\n⚠ $trace ont bien été copiés et supprimés, mais leur ancien\nemplacement n'a pas pu être écrasé — une trace peut rester\nsur le disque :\n$(noms TRACE)\n"
+	fi
+	if [ "$liens" -gt 0 ]; then
+		msg="$msg\n⚠ $liens dossier(s) contiennent des raccourcis vers l'extérieur.\nLes fichiers visés, eux, ne sont PAS protégés :\n$(noms LIENSDANS)\n"
+	fi
+	if [ "$lien" -gt 0 ]; then
+		msg="$msg\n↷ $lien raccourci(s) laissés de côté — un raccourci n'est pas\nle fichier. Faites clic droit sur le vrai fichier :\n$(noms LIEN)\n"
+	fi
+	if [ "$type" -gt 0 ]; then
+		msg="$msg\n↷ $type élément(s) ne sont ni fichier ni dossier, ignorés :\n$(noms TYPE)\n"
+	fi
+	if [ "$reste" -gt 0 ]; then
+		grave=1
+		msg="$msg\n⚠ $reste copiés dans le coffre, mais l'original n'a pas pu être\neffacé (support en lecture seule ?). Supprimez-le vous-même :\n$(noms RESTE)\n"
+	fi
+	if [ "$echec" -gt 0 ]; then
+		grave=1
+		msg="$msg\n✖ $echec n'ont PAS pu être copiés — rien n'a été supprimé :\n$(noms ECHEC)\n"
+	fi
+	if [ "$absent" -gt 0 ]; then
+		grave=1
+		msg="$msg\n✖ $absent introuvables :\n$(noms ABSENT)\n"
+	fi
+	[ -n "$msg" ] || msg="Rien à faire."
+
+	nettoyer
+	repousser
+
+	if [ "$grave" -eq 1 ]; then
+		erreur "$msg"
+		return 1
+	fi
+	dire "$msg"
+	return 0
+}
+
+# --------------------------------------------------------------------------
+# Divers
+# --------------------------------------------------------------------------
+ouvrir_dossier() {
+	ouvrir || return 1
+	repousser
+	if command -v thunar >/dev/null 2>&1; then
+		thunar "$DOSSIER" >/dev/null 2>&1 &
+	elif command -v xdg-open >/dev/null 2>&1; then
+		xdg-open "$DOSSIER" >/dev/null 2>&1 &
+	else
+		dire "Vos fichiers privés sont dans :\n$DOSSIER"
+	fi
+	return 0
+}
+
+changer_mdp() {
+	coffre_existe || { erreur "Aucun coffre."; return 1; }
+	verifier_gocryptfs || return 1
+	if est_ouvert; then
+		erreur "Fermez d'abord le coffre, puis réessayez."
+		return 1
+	fi
+
+	local ancien nouveau nouveau2
+	ancien="$(demander_mdp "Mot de passe ACTUEL")" || return 1
+	nouveau="$(demander_mdp "NOUVEAU mot de passe")" || return 1
+	if [ "${#nouveau}" -lt "$MDP_MIN" ]; then
+		erreur "Trop court : au moins $MDP_MIN caractères."
+		return 1
+	fi
+	nouveau2="$(demander_mdp "Retapez le NOUVEAU mot de passe")" || return 1
+	if [ "$nouveau" != "$nouveau2" ]; then
+		erreur "Les deux ne sont pas pareils. Rien n'a changé."
+		return 1
+	fi
+
+	# Filet le temps de l'opération SEULEMENT. Ce fichier rouvre le coffre
+	# avec l'ANCIEN mot de passe : le laisser traîner annulerait tout
+	# l'intérêt du changement. Il est effacé quoi qu'il arrive.
+	local filet
+	filet="$(mktemp)" || return 1
+	chmod 600 -- "$filet"
+	cp -- "$COFFRE/gocryptfs.conf" "$filet" 2>/dev/null
+
+	# gocryptfs -passwd demande l'ancien puis le nouveau, à la file.
+	# (« -passfile » deux fois ne marche PAS : gocryptfs colle les deux
+	#  fichiers bout à bout et en fait un seul mot de passe.)
+	local sortie code
+	sortie="$(printf '%s\n%s\n%s\n' "$ancien" "$nouveau" "$nouveau" |
+		gocryptfs -passwd -- "$COFFRE" 2>&1)"
+	code=$?
+	ancien=""; nouveau=""; nouveau2=""
+
+	if [ $code -ne 0 ]; then
+		# Le coffre a-t-il été abîmé au passage ? Si oui, on le répare.
+		[ -s "$COFFRE/gocryptfs.conf" ] || cp -- "$filet" "$COFFRE/gocryptfs.conf" 2>/dev/null
+		shred -u -n 1 -- "$filet" 2>/dev/null || rm -f -- "$filet"
+		erreur "Le changement a échoué :\n\n$sortie\n\nVotre ancien mot de passe fonctionne toujours."
+		return 1
+	fi
+
+	shred -u -n 1 -- "$filet" 2>/dev/null || rm -f -- "$filet"
+	# gocryptfs laisse aussi sa propre copie de l'ancienne configuration :
+	# elle rouvrirait le coffre avec l'ancien mot de passe.
+	rm -f -- "$COFFRE/gocryptfs.conf.bak" 2>/dev/null
+	rm -f -- "$(dirname -- "$COFFRE")/gocryptfs.conf.avant-changement" 2>/dev/null
+
+	dire "Mot de passe changé. L'ancien ne fonctionne plus.\n\n⚠ Si vous aviez fait une sauvegarde de secours,\nrefaites-la : l'ancienne copie de gocryptfs.conf\nne correspond plus au nouveau mot de passe."
+	return 0
+}
+
+etat() {
+	local d
+	d="$(lire_delai)"
+	if ! coffre_existe; then
+		printf 'Coffre    : pas encore créé\n'
+	elif est_ouvert; then
+		printf 'Coffre    : OUVERT\n'
+		printf 'Dossier   : %s\n' "$DOSSIER"
+		printf 'Contenu   : %s élément(s), %s\n' \
+			"$(find "$DOSSIER" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)" \
+			"$(du -sh -- "$DOSSIER" 2>/dev/null | cut -f1)"
+	else
+		printf 'Coffre    : fermé (contenu chiffré)\n'
+		printf 'Sur disque: %s\n' "$(du -sh -- "$COFFRE" 2>/dev/null | cut -f1)"
+	fi
+	printf 'Chiffré à : %s\n' "$COFFRE"
+	if [ "$d" -eq 0 ]; then
+		printf 'Fermeture : à la demande, au verrouillage de l'\''écran, à la déconnexion\n'
+	else
+		printf 'Fermeture : automatique après %s minutes\n' "$d"
+	fi
+	[ -d "$REFUGE" ] && printf 'À ranger  : %s\n' "$REFUGE"
+	return 0
+}
+
+regler_delai() {
+	local d="${1:-}"
+	if [ -z "$d" ]; then
+		if graphique; then
+			d="$(zen --list --radiolist --width=400 --height=360 --title="$APP" \
+				--text="Refermer le coffre tout seul après…" \
+				--column="" --column="Délai" --column="v" \
+				FALSE "5 minutes" 5 \
+				TRUE "15 minutes" 15 \
+				FALSE "30 minutes" 30 \
+				FALSE "1 heure" 60 \
+				FALSE "Jamais (seulement au verrouillage de l'écran)" 0 \
+				--hide-column=3 --print-column=3)" || return 1
+		else
+			printf 'Minutes (0 = jamais) : ' >&2
+			read -r d
+		fi
+	fi
+	case "$d" in
+		''|*[!0-9]*) erreur "Valeur invalide."; return 1 ;;
+	esac
+	[ "${#d}" -gt 6 ] && d="$DELAI_MAX"
+	[ "$d" -gt "$DELAI_MAX" ] && d=0
+	ecrire_delai "$d"
+	repousser
+	if [ "$d" -eq 0 ]; then
+		dire "Le coffre ne se refermera plus tout seul.\n\nIl se referme quand même quand l'écran se verrouille\net quand vous fermez votre session."
+	else
+		dire "Le coffre se refermera tout seul après $d minutes."
+	fi
+	return 0
+}
+
+aide() {
+	cat <<-TXT
+		$APP (lexos-prive) $VERSION
+
+		  lexos prive                 ouvre le panneau
+		  lexos prive ouvrir          déverrouille le coffre
+		  lexos prive fermer          reverrouille tout de suite
+		  lexos prive ajouter F…      met des fichiers à l'abri
+		  lexos prive dossier         ouvre ~/Privé dans Fichiers
+		  lexos prive etat            où en est le coffre
+		  lexos prive motdepasse      change le mot de passe
+		  lexos prive secours         enregistre la clé de secours
+		  lexos prive delai [MIN]     fermeture auto (0 = jamais)
+
+		Coffre chiffré : $COFFRE
+		Dossier ouvert : $DOSSIER
+	TXT
+	return 0
+}
+
+# --------------------------------------------------------------------------
+# Le panneau
+# --------------------------------------------------------------------------
+menu() {
+	if ! graphique; then etat; printf '\n'; aide; return 0; fi
+
+	while true; do
+		local titre choix
+		local -a lignes=()
+
+		if ! coffre_existe; then
+			titre="Vous n'avez pas encore de coffre."
+			lignes=(
+				"creer" "🔐  Créer mon coffre"
+				"aide"  "❓  Comment ça marche"
+			)
+		elif est_ouvert; then
+			titre="Coffre OUVERT — vos fichiers privés sont visibles dans $DOSSIER"
+			lignes=(
+				"dossier" "📂  Voir mes fichiers privés"
+				"ajouter" "➕  Ajouter des fichiers"
+				"fermer"  "🔒  Refermer maintenant"
+				"delai"   "⏱  Fermeture automatique"
+				"secours" "🗝  Clé de secours"
+			)
+		else
+			titre="Coffre fermé — le contenu est chiffré et illisible."
+			lignes=(
+				"ouvrir"     "🔓  Ouvrir mes fichiers privés"
+				"ajouter"    "➕  Ajouter des fichiers"
+				"motdepasse" "🔑  Changer le mot de passe"
+				"delai"      "⏱  Fermeture automatique"
+				"secours"    "🗝  Clé de secours"
+			)
+		fi
+
+		choix="$(zen --list --width=480 --height=400 --title="$APP" \
+			--text="$titre" \
+			--column="id" --column="Que voulez-vous faire ?" \
+			--hide-column=1 --print-column=1 "${lignes[@]}")" || return 0
+
+		case "$choix" in
+			creer)      creer ;;
+			ouvrir)     ouvrir && ouvrir_dossier ;;
+			fermer)     fermer && dire "C'est refermé. Vos fichiers sont de nouveau illisibles." ;;
+			ajouter)    ajouter ;;
+			dossier)    ouvrir_dossier ;;
+			motdepasse) changer_mdp ;;
+			secours)    enregistrer_secours ;;
+			delai)      regler_delai ;;
+			aide)       dire "Un coffre, c'est un dossier à part : $DOSSIER\n\n• Ouvert, il marche comme n'importe quel dossier.\n• Fermé, tout ce qu'il contient devient illisible —\n  même en sortant le disque dur de l'ordinateur.\n\nLe seul moyen de le rouvrir, c'est votre mot de passe.\nIl n'y a pas de « mot de passe oublié ». Notez-le." ;;
+			*)          return 0 ;;
+		esac
+	done
+}
+
+# --------------------------------------------------------------------------
+main() {
+	local cmd="${1:-menu}"
+	[ $# -gt 0 ] && shift
+	menage_demarrage
+
+	case "$cmd" in
+		menu|"")                                   menu ;;
+		creer|créer|nouveau)                       creer ;;
+		ouvrir|deverrouiller|déverrouiller|unlock) ouvrir ;;
+		fermer|verrouiller|lock)                   fermer ;;
+		ajouter|add)                               ajouter "$@" ;;
+		dossier|voir)                              ouvrir_dossier ;;
+		etat|état|statut|status)                   etat ;;
+		motdepasse|mdp|passwd)                     changer_mdp ;;
+		secours|cle|clé)                           enregistrer_secours ;;
+		delai|délai)                               regler_delai "${1:-}" ;;
+		--gardien)                                 gardien ;;
+		aide|help|-h|--help)                       aide ;;
+		--version)                                 printf 'lexos-prive %s\n' "$VERSION" ;;
+		*)                                         aide; return 1 ;;
+	esac
+}
+
+main "$@"

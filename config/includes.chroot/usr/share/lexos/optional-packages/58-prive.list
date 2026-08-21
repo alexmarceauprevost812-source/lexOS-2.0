@@ -1,0 +1,25 @@
+# 58-prive.list — Fichiers privés (lexos-prive)
+#
+# Le coffre-fort chiffré de LexOS. Tout est libre (gocryptfs : MIT).
+# Réclamée par le hook 0250 pour TOUTES les saveurs, comme 56-reglages
+# et 57-python : un coffre-fort n'est pas une option de luxe.
+
+# Le chiffrement lui-même : un dossier chiffré qui se monte
+# à la demande, sans taille fixe, sans partition à découper.
+gocryptfs
+
+# gocryptfs est un système de fichiers FUSE : sans ça, rien ne se monte.
+fuse3
+
+# Les fenêtres du panneau (déjà là dans 56-reglages, gardé ici
+# pour que la liste tienne debout toute seule).
+zenity
+
+# notify-send : l'avertissement « fermeture dans 1 minute ».
+libnotify-bin
+
+# fuser : dire QUEL programme empêche de refermer le coffre.
+psmisc
+
+# shred (coreutils) et mountpoint/setsid (util-linux) sont déjà dans
+# le système de base Debian — rien à ajouter.

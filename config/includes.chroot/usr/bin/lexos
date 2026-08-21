@@ -150,6 +150,7 @@ ${B}RÉSEAU${R}
 
 ${B}SÉCURITÉ${R}
   ${A}secure${R}               État : pare-feu, antivirus, anti-intrusion, anti-rootkit
+  ${A}prive${R}              Fichiers privés ${D}(coffre-fort chiffré)${R}
   ${A}secure enable${R}        Active pare-feu (ufw) + fail2ban, réglages sûrs
   ${A}secure scan${R} [dossier] Analyse antivirus (ClamAV) + anti-rootkit
 
@@ -978,6 +979,7 @@ case "$CMD" in
 	jeux|jeu|bibliotheque|bibliothèque|biblio) exec lexos-jeux "$@" ;;
 	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
+	prive|privé|coffre)  exec lexos-prive "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;
 	cartes|carte|maps)    exec lexos-cartes "$@" ;;
 	gps|navigation)       exec lexos-gps "$@" ;;
