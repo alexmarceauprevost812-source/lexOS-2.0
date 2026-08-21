@@ -1,0 +1,34 @@
+# =============================================================================
+#  41-reseau-plus — fichiers ailleurs, numérisation, OCR
+# =============================================================================
+#  Issu de l'inventaire « les outils qu'il manque encore » (août 2026), après
+#  recoupement avec NOS listes : rclone est déjà dans 48-comptes, wireguard
+#  et network-manager-openvpn-gnome dans 20-desktop, printer-driver-cups-pdf
+#  dans 15-essentiel, flatpak dans 95-logitheque. Ici, uniquement ce qui
+#  manquait pour de vrai.
+
+# --- Fichiers ailleurs -------------------------------------------------------
+#  Un serveur, un partage Windows, un NAS : montés comme des dossiers.
+sshfs
+cifs-utils
+nfs-common
+#  Synchroniser deux machines SANS nuage du tout, en pair-à-pair, libre —
+#  le compagnon naturel de LexOS.
+syncthing
+#  Les VPN d'entreprise (AnyConnect et parents), cliquables depuis l'icône
+#  réseau. OpenVPN y est déjà (20-desktop) ; ceci ajoute openconnect.
+network-manager-openconnect-gnome
+
+# --- Numériser sans pilote ---------------------------------------------------
+#  Un multifonction depuis 2018 se numérise SANS pilote : par le réseau
+#  (eSCL/WSD) avec sane-airscan, par l'USB avec ipp-usb. Les HP restent à
+#  part — hplip les couvre.
+sane-airscan
+ipp-usb
+hplip
+
+# --- Sortir le texte d'une image ---------------------------------------------
+#  Une photo de document, un PDF scanné : le texte en ressort, en français.
+tesseract-ocr
+tesseract-ocr-fra
+gimagereader

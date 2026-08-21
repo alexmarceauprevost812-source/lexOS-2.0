@@ -93,6 +93,40 @@ export theme
 EOF
 )"
 
+# --- Le test de mémoire au menu ----------------------------------------------
+#  59-diagnostic.list installe memtest86+, mais LE PAQUET NE SUFFIT PAS : sans
+#  entrée au menu de l'ISO, le test n'existe que pour qui sait qu'il est là —
+#  exactement le genre de trou silencieux qu'on passe nos journées à fermer.
+#  Sur une machine dont on doute, c'est précisément DEPUIS LA CLÉ qu'on veut
+#  tester la RAM, avant même d'installer quoi que ce soit.
+#
+#  memtest86+ (version 7) livre deux images : .bin pour un démarrage BIOS,
+#  .efi pour l'UEFI. Ce grub.cfg-ci est celui de l'UEFI — on embarque la
+#  .efi. Le chargement passe par « linux » : memtest 7 se présente comme un
+#  noyau, GRUB n'a besoin de rien d'autre.
+#
+#  Les gardes, dans l'esprit du reste du fichier : si l'image n'est pas dans
+#  le chroot (paquet renommé, liste retirée), on le DIT et on n'ajoute pas
+#  d'entrée — un menu qui pointe vers un fichier absent est pire que pas de
+#  menu du tout.
+MEMTEST_SRC=""
+for CANDIDAT in chroot/boot/memtest86+x64.efi chroot/boot/memtest86+.efi; do
+	[ -f "$CANDIDAT" ] && { MEMTEST_SRC="$CANDIDAT"; break; }
+done
+if [ -n "$MEMTEST_SRC" ]; then
+	cp "$MEMTEST_SRC" binary/boot/memtest86+x64.efi
+	BLOC="${BLOC}
+# --- lexos-memtest (posé par config/hooks/normal/0910) -----------------------
+menuentry \"Tester la mémoire (memtest86+)\" {
+    linux /boot/memtest86+x64.efi
+}
+# --- lexos-memtest-fin -------------------------------------------------------"
+	echo "[lexos]   memtest86+ : image copiée, entrée ajoutée au menu"
+else
+	echo "[lexos]   !! memtest86+ absent du chroot — pas d'entrée au menu"
+	echo "[lexos]      (59-diagnostic.list installe le paquet ; vérifier son nom)"
+fi
+
 printf '%s\n%s\n' "$(cat "$CFG")" "$BLOC" > "${CFG}.nouveau"
 
 # --- Vérifier AVANT de remplacer -------------------------------------------

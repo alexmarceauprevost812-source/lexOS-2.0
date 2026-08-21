@@ -1,0 +1,25 @@
+# =============================================================================
+#  54-sauvegarde — LE manque qui peut coûter des données
+# =============================================================================
+#  Constat de l'inventaire d'août 2026 : entre deux ISO, la machine reçoit
+#  les correctifs de sécurité Debian tout seule — et le jour où l'un d'eux se
+#  passe mal, ou celui où on efface le mauvais dossier à 2 h du matin, LexOS
+#  n'avait RIEN pour revenir en arrière. La réponse était « réinstaller ».
+#
+#  Deux protections, et elles ne se remplacent pas :
+#    · timeshift (déjà dans 60-full) : des instantanés du SYSTÈME, sur le
+#      même disque — le filet des mises à jour, pas une sauvegarde ;
+#    · borg : la vraie sauvegarde, chiffrée et dédupliquée, vers un disque
+#      EXTERNE — trente sauvegardes tiennent dans à peine plus de place
+#      qu'une seule.
+#  Et une troisième qui va avec le coffre ~/Privé : gocryptfs garde les
+#  fichiers, keepassxc garde les mots de passe. Même geste, même philosophie
+#  — local, chiffré, sans compte ni nuage.
+borgbackup
+#  La fenêtre qui pilote Borg : sans elle, Borg est réservé à qui lit le
+#  manuel.
+vorta
+#  Copier un dossier vers une clé USB, à la souris, sans rien apprendre.
+grsync
+rsync
+keepassxc

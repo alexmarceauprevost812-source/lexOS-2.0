@@ -60,6 +60,15 @@ alias ll='ls -alh --color=auto'
 alias la='ls -A --color=auto'
 alias l='ls -CF --color=auto'
 alias ..='cd ..'
+
+#  Debian nomme la commande de « bat » BATCAT (conflit de nom avec Bacula) :
+#  l'outil était installé et personne ne le trouvait. Même chose pour
+#  git-delta, dont la commande est « delta » — celle-là porte déjà le bon
+#  nom, on ne fait que le rappeler ici. Les gardes : ne jamais masquer un
+#  vrai « bat » si l'utilisateur en installe un.
+if command -v batcat >/dev/null 2>&1 && ! command -v bat >/dev/null 2>&1; then
+	alias bat='batcat'
+fi
 alias ...='cd ../..'
 alias grep='grep --color=auto'
 alias df='df -h'
