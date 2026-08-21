@@ -455,18 +455,38 @@ Categories=Settings;HardwareSettings;
 Keywords=ecran;moniteur;display;hdmi;projecteur;multi;
 EOF
 
+#  DEUX ENTRÉES, DEUX MÉTIERS. Celle-ci ouvrait « IA locale » sur un
+#  terminal — mais l'agent en terminal et la fenêtre qui explique pourquoi
+#  c'est lent ne sont pas le même outil, et deux entrées du même nom dans le
+#  menu, c'est un tirage au sort. Le terminal garde son nom de métier.
 cat > /usr/share/applications/lexos-ia.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=IA — agent (terminal)
+Name[en]=AI agent (terminal)
+Comment=L'agent IA local : il exécute des commandes pour toi, avec confirmation
+Exec=xfce4-terminal --title="IA locale — LexOS" -e "lexos ia"
+Icon=lexos
+Terminal=false
+Categories=System;Utility;
+Keywords=ia;ai;intelligence artificielle;agent;ollama;assistant;terminal;
+EOF
+
+cat > /usr/share/applications/lexos-ia-locale.desktop <<EOF
 [Desktop Entry]
 Type=Application
 Version=1.0
 Name=IA locale
 Name[en]=Local AI
-Comment=Assistant IA 100% local (Ollama) — rien n'est envoyé sur internet
-Exec=xfce4-terminal --title="IA locale — LexOS" -e "lexos ia"
+Comment=Un modèle de langage sur ta machine — quelle carte, quels modèles, et une discussion
+Comment[en]=A language model on your machine — hardware, models, and a chat
+Exec=lexos-ia-locale
 Icon=lexos
 Terminal=false
+StartupNotify=true
 Categories=System;Utility;
-Keywords=ia;ai;intelligence artificielle;agent;ollama;assistant;
+Keywords=ia;ai;intelligence artificielle;llama;llama.cpp;ollama;modele;modèle;gguf;local;hors ligne;
 EOF
 
 cat > /usr/share/applications/lexos-secure.desktop <<EOF

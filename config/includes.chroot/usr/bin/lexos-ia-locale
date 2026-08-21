@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-ia-locale — un modèle de langage sur ta machine, sans nuage
+# =============================================================================
+#  La fenêtre. Même patron que lexos-settings : une fenêtre Qt (PySide6)
+#  affiche une page servie en local, et le pont ia-locale.py exécute les
+#  vraies commandes derrière une liste blanche fermée.
+#
+#  DEUX OUTILS, PAS DEUX RIVAUX :
+#    · lexos ia          — le terminal et le mode agent (Ollama). Il exécute
+#                          des commandes pour toi, avec confirmation.
+#    · lexos ia-locale   — la fenêtre : quelle carte, quel backend, quels
+#                          modèles, et une discussion. C'est ici qu'on voit
+#                          POURQUOI c'est lent quand c'est lent.
+#
+#  Aucun modèle n'est livré dans LexOS : 4 à 5 Go pièce, des licences souvent
+#  non libres, et un modèle de cette année sera vieux l'an prochain. On livre
+#  le moteur — llama.cpp, licence MIT — et on rend l'ajout facile.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; Y=$'\033[33m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; Y=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+CODE="/usr/lib/lexos/ia-locale.py"
+DONNEES="${LEXOS_IA_DIR:-/usr/share/lexos/ia}"
+
+case "${1:-}" in
+	-h|--help|aide|help)
+		cat <<AIDE
+${PROG} — IA locale : un modèle de langage sur ta machine
+
+  ${O}${PROG}${R}              Ouvre la fenêtre
+  ${O}${PROG} --etat${R}       Affiche l'état en JSON (carte, backend, modèles)
+
+Ce que la fenêtre montre :
+  · quelle carte graphique tu as, et si elle SERVIRA vraiment
+  · quels modèles rentrent sur cette machine — calculé ici, pas deviné
+  · la licence de chaque modèle AVANT de le télécharger
+  · une discussion, hors ligne une fois le modèle là
+
+Le moteur (llama.cpp) est libre, licence MIT. Aucun modèle n'est livré dans
+LexOS. Pour le terminal et le mode agent, vois plutôt : ${O}lexos ia${R}.
+AIDE
+		exit 0 ;;
+	--etat|etat)
+		[[ -r "$CODE" ]] || die "Fichier manquant : $CODE"
+		exec python3 "$CODE" --etat ;;
+esac
+
+[[ -r "$CODE" ]]        || die "Fichier manquant : $CODE"
+[[ -d "$DONNEES/web" ]] || die "Fichiers de l'interface introuvables : $DONNEES/web"
+
+#  PySide6 vient des paquets Debian, jamais de « pip --break-system-packages » :
+#  ce commutateur écrase des fichiers appartenant à dpkg.
+if ! python3 -c "import PySide6.QtWebEngineWidgets" >/dev/null 2>&1; then
+	warn "Le composant Qt WebEngine de PySide6 est absent."
+	say  "   ${D}sudo apt install python3-pyside6.qtwebenginewidgets python3-pyside6.qtwidgets${R}"
+	exit 1
+fi
+
+exec python3 "$CODE" "$@"

@@ -290,6 +290,8 @@ ${B}IA${R}
   ${A}ia${R}                   Conversation libre avec l'IA locale
   ${A}ia${R} "<tâche>"          Agent AUTONOME : exécute des commandes tout seul
                       ${D}rien n'est envoyé sur internet, jamais sudo par défaut${R}
+  ${A}ia-locale${R}            La fenêtre : quelle carte, quel backend, quels modèles
+                      ${D}et POURQUOI c'est lent quand c'est lent${R}
   ${A}claude${R}               Claude Code : l'assistant de programmation d'Anthropic
   ${A}claude app${R}           L'application Claude (claude.ai) en fenêtre dédiée
   ${A}assistants${R}          Les six assistants IA en ligne ${D}(Claude, ChatGPT, Gemini…)${R}
@@ -965,6 +967,7 @@ case "$CMD" in
 	studio)               exec lexos-studio "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
 	ia|agent)             exec lexos-ia "$@" ;;
+	ia-locale|ialocale)   exec lexos-ia-locale "$@" ;;
 	assistants|assistant) exec lexos-assistants "$@" ;;
 	claude|cc)            exec lexos-claude "$@" ;;
 	dev|devs|developpement|développement) exec lexos-dev "$@" ;;
