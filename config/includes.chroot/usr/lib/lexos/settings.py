@@ -602,6 +602,37 @@ def act_energie_delai(arg):
     return dernier
 
 
+def act_son_sortie(arg):
+    """Envoyer le son vers une autre sortie — les haut-parleurs, le casque,
+    la télé en HDMI, ou une enceinte Bluetooth.
+
+    LA VALIDATION, ET POURQUOI ELLE EST FAITE AINSI. Le nom vient de la page,
+    donc on ne lui fait pas confiance. Mais on ne peut pas non plus le
+    comparer à une liste écrite d'avance : les sorties dépendent de la
+    machine et de ce qui est branché À CET INSTANT. L'ensemble fermé est
+    donc celui que la machine déclare elle-même, relu au moment du clic —
+    un nom absent de cette liste est refusé, et rien ne part vers un shell.
+
+    Les flux DÉJÀ EN COURS sont déplacés eux aussi : sans ça, la musique
+    continuerait sur les haut-parleurs pendant que le réglage annonce le
+    cinéma maison. Personne ne comprendrait, et on aurait raison."""
+    connues = {s["nom"] for s in _sorties_audio()}
+    if arg not in connues:
+        return {"ok": False, "erreur": "sortie inconnue"}
+
+    r = _run(["pactl", "set-default-sink", arg])
+    if not r.get("ok"):
+        return r
+
+    #  Déplacer ce qui joue déjà. Un flux qui refuse n'est pas une panne :
+    #  certains (les bips système) meurent avant qu'on les rattrape.
+    for ligne in _sortie(["pactl", "list", "short", "sink-inputs"]).splitlines():
+        champs = ligne.split("\t")
+        if champs and champs[0].isdigit():
+            _run(["pactl", "move-sink-input", champs[0], arg])
+    return {"ok": True}
+
+
 def act_souris(arg):
     """Bascule un réglage du pavé tactile (tape-pour-cliquer, défilement
     naturel). Le chemin xfconf est reconstruit ICI depuis l'état lu, jamais
@@ -638,6 +669,7 @@ ACTIONS = {
     "wifi-radio": act_wifi,
     "son-muet": act_son_muet,
     "son-volume": act_son_volume,
+    "son-sortie": act_son_sortie,
     "souris": act_souris,
     "bluetooth-radio": act_bluetooth,
     "crt": act_crt,
@@ -730,7 +762,54 @@ def _son_etat():
             volume = int(morceau[:-1])
             break
     muet = _sortie(["pactl", "get-sink-mute", "@DEFAULT_SINK@"]).endswith("yes")
-    return {"volume": volume, "muet": muet, "casque": _casque_branche()}
+    return {"volume": volume, "muet": muet, "casque": _casque_branche(),
+            "sorties": _sorties_audio()}
+
+
+def _sorties_audio():
+    """Toutes les sorties audio de la machine, et laquelle reçoit le son.
+
+    POURQUOI CETTE LISTE MANQUAIT, ET CE QUE ÇA COÛTAIT. Le panneau montrait
+    le volume et la sourdine — mais jamais OÙ le son sortait. Alex a un
+    cinéma maison : sans cette liste, aucun moyen de lui envoyer le son
+    depuis LexOS, ni d'en revenir. Il fallait ouvrir le mélangeur PulseAudio,
+    donc savoir qu'il existe.
+
+    Un haut-parleur Bluetooth appairé APPARAÎT ICI TOUT SEUL : PipeWire en
+    fait une sortie comme une autre dès qu'il est connecté. C'est pour ça
+    qu'on ne traite pas le sans-fil à part — ce serait une deuxième liste qui
+    finirait par ne plus dire la même chose que celle-ci.
+
+    Le NOM technique (« alsa_output.pci-0000_00_1f.3.analog-stereo ») ne va
+    pas à l'écran : on montre la description que donne le pilote (« Haut-
+    parleurs », « LG Sound Bar »). Mais c'est le nom technique qui sert à
+    basculer — et il est vérifié contre CETTE liste avant tout usage."""
+    if not shutil.which("pactl"):
+        return []
+    defaut = _sortie(["pactl", "get-default-sink"]).strip()
+    sorties = []
+    #  « short » donne une ligne par sortie, colonnes séparées par tabulation :
+    #  index, nom, pilote, format, état. On veut la deuxième.
+    for ligne in _sortie(["pactl", "list", "short", "sinks"]).splitlines():
+        champs = ligne.split("\t")
+        if len(champs) >= 2 and champs[1]:
+            sorties.append({"nom": champs[1], "titre": champs[1], "actif": champs[1] == defaut})
+
+    #  La description lisible vit dans la sortie longue. On la récupère en
+    #  deuxième passe plutôt que de tout analyser d'un bloc : si ce format
+    #  change un jour, on perd les jolis noms, pas la liste.
+    nom_courant = ""
+    for ligne in _sortie(["pactl", "list", "sinks"]).splitlines():
+        depouillee = ligne.strip()
+        if depouillee.startswith("Name:"):
+            nom_courant = depouillee.split(":", 1)[1].strip()
+        elif depouillee.startswith("Description:") and nom_courant:
+            desc = depouillee.split(":", 1)[1].strip()
+            for sortie in sorties:
+                if sortie["nom"] == nom_courant and desc:
+                    sortie["titre"] = desc
+            nom_courant = ""
+    return sorties
 
 
 def _batterie_etat():

@@ -277,6 +277,11 @@ function apercuLum(v){
   const z = document.getElementById("lumVal");
   if(z) z.textContent = v + " %";
 }
+async function setSortieSon(nom){
+  const r = await api("son-sortie", nom);
+  await rafraichir(r.ok ? "Le son sort maintenant par là"
+                        : "Échec : " + (r.erreur || "sortie refusée"));
+}
 async function setVolume(v){
   const r = await api("son-volume", String(v));
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
@@ -515,6 +520,25 @@ function contenu(cle){
         </div></div>`
         : `<p class="notice">Volume illisible : pactl est absent.</p>`}
       ${so.casque ? srow("Casque audio","Branché — le son sort dans le casque") : ""}
+      ${(() => {
+        const so = (etat.son && etat.son.sorties) || [];
+        if(!so.length) return "";
+        //  Une enceinte Bluetooth appairée apparaît ici TOUTE SEULE : PipeWire
+        //  en fait une sortie comme les autres. Pas de liste séparée pour le
+        //  sans-fil — deux listes finiraient par ne plus dire la même chose.
+        return `<div class="sub" style="margin-top:20px">Où sort le son</div>
+        <div class="srow" style="display:block">
+          <div class="t" style="margin-bottom:8px">Sortie audio</div>
+          <div class="row">${so.map(x =>
+            `<button class="btn ${x.actif?"sel":"ghost"}"
+               onclick="setSortieSon('${esc(x.nom)}')"
+               title="${esc(x.nom)}">${esc(x.titre)}</button>`).join("")}</div>
+          <div class="sub" style="margin-top:8px">Haut-parleurs, casque, télé en
+            HDMI, cinéma maison, enceinte Bluetooth — ce qui joue déjà suit
+            aussitôt. Une enceinte sans fil apparaît ici dès qu'elle est
+            appairée dans <b>Bluetooth</b>.</div>
+        </div>`;
+      })()}
       ${btnOuvrir("son","Ouvrir le mélangeur")}`;
     }
     case "energie": return `<h2>Énergie</h2><div class="sub">Profil de performance</div>
