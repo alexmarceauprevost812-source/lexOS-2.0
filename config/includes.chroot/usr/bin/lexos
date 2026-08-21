@@ -88,7 +88,9 @@ ${B}APPARENCE${R}
                       ${D}orange (défaut) · orange-rouge · bleu · rouge · vert · gris
                       violet · neon${R}
   ${A}police${R} <nom>        Police d'écriture de l'interface
-                      ${D}defaut · classique · mono · manuscrite (écriture à la main)${R}
+                      ${D}defaut · classique · mono, plus douze écritures à la main :${R}
+                      ${D}manuscrite · bulle · carnet · ronde · crayon · plume ·${R}
+                      ${D}marqueur · architecte · fleur · cursive · tableau · craie${R}
   ${A}dock${R} <position>     Barre d'outils : ${D}droite (défaut) · gauche · bas · haut${R}
   ${A}ecran${R}               Plusieurs écrans : étendre, dupliquer, principal
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
@@ -651,6 +653,12 @@ cmd_accent() {
 #  À CHAUD sur les fenêtres ouvertes, gtk-3.0/settings.ini le fait SURVIVRE à
 #  la déconnexion. N'écrire que le premier et tout revient au défaut au
 #  redémarrage — ça a été le cas pendant un temps.
+#  Écrit UNE fois : la liste affichée par « lexos police liste » et celle du
+#  message d'erreur ne peuvent plus se contredire.
+DISPO_POLICES="defaut · classique · mono
+                  Écritures à la main : manuscrite · bulle · carnet · ronde · crayon ·
+                  plume · marqueur · architecte · fleur · cursive · tableau · craie"
+
 cmd_police() {
 	local nom="${1:-}"
 	local conf="$HOME/.config/lexos"
@@ -661,16 +669,32 @@ cmd_police() {
 		classique|serif)                   police="Noto Serif 10" ;;
 		mono|machine|monospace)            police="Monospace 10" ;;
 		manuscrite|ecriture|écriture|main) police="Patrick Hand 12" ;;
+		#  Les onze autres écritures à la main livrées avec LexOS. La taille
+		#  n'est pas la même partout, et ce n'est pas un oubli : une écriture
+		#  fine (Cursive, Fleur) devient illisible à la taille où une écriture
+		#  large (Craie, Tableau noir) déborde déjà des menus. Chaque valeur
+		#  a été posée en regardant le résultat, pas en recopiant la voisine.
+		bulle|comic)        police="Comic Neue 12" ;;
+		carnet|delius)      police="Delius 12" ;;
+		ronde)              police="Short Stack 11" ;;
+		crayon|neucha)      police="Neucha 12" ;;
+		plume|handlee)      police="Handlee 12" ;;
+		marqueur|kalam)     police="Kalam 11" ;;
+		architecte)         police="Architects Daughter 11" ;;
+		fleur)              police="Indie Flower 12" ;;
+		cursive|caveat)     police="Caveat 14" ;;
+		tableau|tableau-noir) police="Gloria Hallelujah 10" ;;
+		craie|shantell)     police="Shantell Sans 11" ;;
 		liste|list)
 			local cur="défaut"
 			[[ -r "$conf/police" ]] && cur="$(cat "$conf/police")"
 			printf 'Police courante : %s%s%s\n' "$O" "$cur" "$R"
-			printf 'Disponibles     : defaut · classique · mono · manuscrite\n'
+			printf 'Disponibles     : %s\n' "$DISPO_POLICES"
 			return 0
 			;;
 		*)
 			die "Police inconnue : ${nom}
-Disponibles : defaut · classique · mono · manuscrite"
+Disponibles : ${DISPO_POLICES}"
 			;;
 	esac
 

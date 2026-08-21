@@ -50,8 +50,36 @@ const POLICES = [
   ["defaut",     "Défaut",     "system-ui,sans-serif"],
   ["classique",  "Classique",  "'Noto Serif',Georgia,serif"],
   ["mono",       "Machine",    "ui-monospace,monospace"],
-  ["manuscrite", "Manuscrite", "'Patrick Hand',cursive"],
 ];
+/*  LES ÉCRITURES À LA MAIN. Douze, embarquées par LexOS (licence OFL, dans
+    /usr/share/fonts/truetype/lexos) — donc présentes même sur une machine
+    qui n'a aucune police manuscrite installée, et lisibles hors ligne.
+
+    Le libellé est en français et décrit le GESTE (bulle, crayon, marqueur…),
+    pas le nom de la fonderie : « Gloria Hallelujah » ne dit rien à personne,
+    « Tableau noir » dit tout. Le vrai nom reste en infobulle, pour qui veut
+    la retrouver ailleurs.
+
+    Chacune est écrite DANS SA PROPRE POLICE dans la liste : c'est la seule
+    façon de choisir sans essayer une par une. */
+const ECRITURES = [
+  ["manuscrite", "Manuscrite",  "Patrick Hand"],
+  ["bulle",      "Bulle",       "Comic Neue"],
+  ["carnet",     "Carnet",      "Delius"],
+  ["ronde",      "Ronde",       "Short Stack"],
+  ["crayon",     "Crayon",      "Neucha"],
+  ["plume",      "Plume",       "Handlee"],
+  ["marqueur",   "Marqueur",    "Kalam"],
+  ["architecte", "Architecte",  "Architects Daughter"],
+  ["fleur",      "Fleur",       "Indie Flower"],
+  ["cursive",    "Cursive",     "Caveat"],
+  ["tableau",    "Tableau noir","Gloria Hallelujah"],
+  ["craie",      "Craie",       "Shantell Sans"],
+];
+//  Les deux listes réunies, sous la forme qu'attend appliqueApparence() :
+//  [clé, libellé, famille CSS]. Écrit une fois plutôt que recopié.
+const TOUTES_POLICES = POLICES.concat(
+  ECRITURES.map(([cle, titre, fam]) => [cle, titre, `'${fam}',cursive`]));
 const LANGUES = [
   ["fr_CA.UTF-8","Français (Québec)"], ["fr_FR.UTF-8","Français (France)"],
   ["en_US.UTF-8","English (US)"], ["en_CA.UTF-8","English (Canada)"],
@@ -600,8 +628,14 @@ function contenu(cle){
         <div class="row">${POLICES.map(([n,titre,fam])=>
           `<button class="btn ${n===etat.police?"sel":"ghost"}" style="font-family:${fam}"
              onclick="setPolice('${n}')">${titre}</button>`).join("")}</div>
-        <div class="sub" style="margin-top:6px">Les fenêtres déjà ouvertes gardent
-          l'ancienne police — ferme-les et rouvre-les.</div>
+        <div class="t" style="margin:16px 0 8px">Écritures à la main</div>
+        <div class="row">${ECRITURES.map(([n,titre,fam])=>
+          `<button class="btn ${n===etat.police?"sel":"ghost"}"
+             style="font-family:'${fam}',cursive;font-size:16px"
+             title="${fam}" onclick="setPolice('${n}')">${titre}</button>`).join("")}</div>
+        <div class="sub" style="margin-top:8px">Douze écritures livrées avec LexOS —
+          chacune s'affiche ici dans sa propre police. Les fenêtres déjà ouvertes
+          gardent l'ancienne : ferme-les et rouvre-les.</div>
       </div>
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Position du dock</div>
@@ -1141,10 +1175,10 @@ function rendSection(){
     changer TOUT DE SUITE, sans attendre une réouverture. */
 function appliqueApparence(){
   const r = document.documentElement.style;
-  const pol = POLICES.find(([n]) => n === etat.police);
+  const pol = TOUTES_POLICES.find(([n]) => n === etat.police);
   //  Repli sur la famille par défaut si l'état nomme une police inconnue —
   //  mieux qu'une page sans police déclarée du tout.
-  r.setProperty("--police", pol ? pol[2] : POLICES[0][2]);
+  r.setProperty("--police", pol ? pol[2] : TOUTES_POLICES[0][2]);
   const ac = ACCENTS[etat.accent];
   if(ac){
     r.setProperty("--ac", ac);

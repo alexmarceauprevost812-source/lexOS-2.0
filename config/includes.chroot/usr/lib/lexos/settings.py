@@ -103,7 +103,24 @@ PERFS = {"petit", "medium", "performant", "max"}
 THEMES = {"sombre", "clair"}
 ACCENTS = {"orange", "orange-rouge", "bleu", "rouge", "vert", "gris",
            "violet", "neon"}
-POLICES = {"defaut", "classique", "mono", "manuscrite"}
+#  LES POLICES D'ÉCRITURE. Trois familles génériques, puis DOUZE écritures à
+#  la main embarquées par LexOS (licence OFL, dans
+#  /usr/share/fonts/truetype/lexos, chacune avec son fichier de licence).
+#
+#  Pourquoi douze plutôt qu'une : Alex a repéré une écriture qui lui plaisait
+#  sans savoir la nommer, et deviner à sa place gaspillait son temps comme le
+#  mien. Il les a maintenant toutes sous les yeux, sur SA machine, à sa taille
+#  et sur son fond — c'est là qu'on juge une police, pas sur une capture.
+#
+#  Cette liste est la SEULE source de vérité côté machine : le nom qui arrive
+#  de la page est refusé s'il n'y est pas. Elle doit rester alignée avec
+#  POLICES dans app.js (l'affichage) et cmd_police dans /usr/bin/lexos (le
+#  terminal) — les trois nomment les mêmes clés.
+POLICES = {
+    "defaut", "classique", "mono",
+    "manuscrite", "bulle", "carnet", "ronde", "crayon", "plume",
+    "marqueur", "architecte", "fleur", "cursive", "tableau", "craie",
+}
 DOCKS = {"droite", "gauche", "bas", "haut"}
 CADRAGES = {"remplir", "ajuster", "etirer", "centrer", "mosaique"}
 FONDS = {
