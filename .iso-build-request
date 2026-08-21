@@ -48,6 +48,48 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 63 : DIX COMMITS DEPUIS LE 62 — L'IA LOCALE, LE BUREAU À DISTANCE,
+#   ET LA PREMIÈRE FOIS QU'ON OUVRE BACKPORTS.
+#
+#   ⚠ LE RISQUE DE CETTE CONSTRUCTION, dit d'avance : c'est la première qui
+#   ouvre trixie-backports (config/archives/backports.list.chroot). Le
+#   fichier d'épinglage à côté garde l'archive à priorité 100 pour TOUT le
+#   système et ne monte à 600 que llama.cpp et les paquets ggml — sans lui,
+#   la moitié du système migrerait vers backports au fil des mois et on
+#   perdrait la stabilité qui est la raison même de construire sur Debian
+#   stable. Si cette construction échoue quelque part, c'est le premier
+#   endroit à regarder.
+#
+#   ⚠ SECOND POINT À SURVEILLER DANS LE JOURNAL : le hook 0270 dit en toutes
+#   lettres quel backend GPU il a trouvé — ou qu'il n'en a trouvé aucun. Les
+#   noms de ces paquets bougent encore d'une version à l'autre et n'ont pas
+#   pu être vérifiés depuis l'atelier (pas d'accès réseau à deb.debian.org),
+#   donc rien n'est écrit en dur : le hook DEMANDE à apt. Chercher
+#   « hook 0270 » dans le journal de construction.
+#
+#   Ce qui entre :
+#     · 47 outils qui manquaient à une vraie journée (4 listes de paquets) ;
+#     · partage d'écran : huit positions de fenêtre au lieu de deux, avec
+#       Début/Fin/Page↑/Page↓ qui dessinent le carré de l'écran au clavier ;
+#     · son : choisir OÙ il sort — cinéma maison, télé HDMI, enceinte
+#       Bluetooth. Une enceinte appairée apparaît toute seule dans la liste ;
+#     · les trois qualités d'image : définition d'écran, format de capture,
+#       fond animé ;
+#     · bureau à distance : l'adresse à dicter au téléphone, une par carte
+#       réseau, et un champ pour aller voir ailleurs ;
+#     · Claude Code n'est PLUS dans l'image. Il se télécharge au premier
+#       démarrage une fois LexOS sur le disque dur — la version ne vieillit
+#       plus dans l'ISO, et une session live ne le traîne plus pour rien ;
+#     · IA locale : llama.cpp (MIT) + le backend GPU, et la fenêtre
+#       « lexos ia-locale » qui dit LAQUELLE des quatre pannes on a plutôt
+#       qu'un « GPU non disponible » qui ne sert à personne. Aucun modèle
+#       n'est livré — 4 à 5 Go pièce, licences souvent non libres ;
+#     · Paramètres → Logiciels tiers : les quatorze exceptions de LexOS au
+#       tout-libre, chacune avec sa licence, et lue dans dpkg plutôt
+#       qu'écrite d'avance.
+#
+#   La démo web a reçu tout ça en même temps, comme toujours.
+#
 # build 62 : UN FICHIER DU CORRECTIF EN MOINS — contenu identique au 61.
 #   La CI a attrapé le dernier passager clandestin du correctif Fichiers
 #   privés : uca-fragment-prive.xml, posé dans includes.chroot. Ce fichier
@@ -1308,4 +1350,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 62
+build: 63
