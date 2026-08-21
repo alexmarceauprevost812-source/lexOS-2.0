@@ -24,7 +24,8 @@ const NAV = [
     ["accessibilite","♿","Accessibilité"], ["utilisateurs","🧑‍💻","Utilisateurs"],
     ["region","🌍","Région et langue"], ["clavier","⌨","Clavier"],
     ["datetime","🕒","Date et heure"], ["defaut","🧭","Applications par défaut"],
-    ["distant","🖥","Bureau à distance"], ["apropos","◆","À propos"]]},
+    ["distant","🖥","Bureau à distance"],
+    ["tiers","⚖","Logiciels tiers"], ["apropos","◆","À propos"]]},
 ];
 
 const ACCENTS = {orange:"#E8590C", "orange-rouge":"#D97757", bleu:"#1A5FB4",
@@ -1300,6 +1301,65 @@ function contenu(cle){
       <p class="notice">${r.outil
         ? "Un bureau à distance ouvre ta machine au réseau : il ne démarre jamais tout seul, et jamais sans mot de passe."
         : "Pour se laisser voir, il faut d'abord un serveur : <code>lexos install x11vnc</code>. Pour aller voir ailleurs, il faut Remmina : <code>lexos install remmina</code>."}</p>`;
+    }
+    case "tiers": {
+      /*  LexOS dit « 100 % Linux », et c'est vrai. Mais « libre » et
+          « gratuit » ne sont pas la même chose, et une distribution qui se
+          réclame du libre doit pouvoir montrer SA propre liste d'exceptions
+          plutôt que de la laisser deviner. Cette page la montre — et elle
+          REGARDE la machine : « Steam est installé » et « Steam pourrait
+          être installé » ne sont pas la même phrase. */
+      const t = etat.tiers || {livres:[], absents:[]};
+      const carte = x => `<div class="srow tr" style="display:block">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="t">${esc(x.nom)}</span>
+          <span class="etat ${x.libre?"ok":"att"}">${x.libre?"libre":"propriétaire"}</span>
+          <span class="lic">${esc(x.licence)}</span>
+          <span class="etat ${x.present?"ok":"abs"}" style="margin-left:auto">${
+            x.present ? "sur cette machine" : (x.livre?"pas installé":"pas téléchargé")}</span>
+        </div>
+        <div class="d" style="margin-top:6px">${esc(x.role)}</div>
+        <div class="d" style="margin-top:4px;opacity:.75">Vient de : ${esc(x.origine)}</div>
+      </div>`;
+
+      return `<h2>Logiciels tiers</h2>
+      <div class="sub">Ce qui, dans LexOS, n'est pas du Debian ordinaire — et sous quelle licence</div>
+
+      <div class="verite">
+        <div class="v-l"><span class="v-oui">Libre ≠ gratuit.</span>
+          <b>Libre</b> veut dire qu'on peut lire le code, le modifier et le
+          redistribuer. <b>Propriétaire</b> veut dire qu'on peut s'en servir,
+          et c'est tout — même quand ça ne coûte rien. Les deux sont sur cette
+          page, nommés.</div>
+        <div class="v-l"><span class="v-oui">LexOS lui-même est libre.</span>
+          Le système, ses outils, cette fenêtre : tout est lisible dans le
+          dépôt, copiable et modifiable. Ce qui est fermé ci-dessous vient
+          d'ailleurs, et on dit d'où.</div>
+      </div>
+
+      <h3 class="cpt-h3">Dans l'ISO</h3>
+      ${t.livres.map(carte).join("")}
+
+      <h3 class="cpt-h3">Pas dans l'ISO — téléchargé seulement si tu le demandes</h3>
+      <p class="notice">LexOS ne distribue rien de tout ça, donc n'endosse
+        aucune de ces licences. Chacun arrive de chez son éditeur, à ta
+        demande, et jamais en silence.</p>
+      ${t.absents.map(carte).join("")}
+
+      <h3 class="cpt-h3">Ce qui n'est pas là du tout</h3>
+      <div class="verite">
+        <div class="v-l"><span class="v-oui">Zéro Windows.</span>
+          Aucun composant Microsoft, aucune licence Microsoft, rien de Windows
+          n'est démarré. Wine, ci-dessus, est une réécriture libre — il ne
+          contient pas une ligne de Windows.</div>
+        <div class="v-l"><span class="v-oui">Aucun mouchard.</span>
+          LexOS n'envoie pas de statistiques d'usage, ne compte pas les
+          démarrages et n'a pas de compte. Ce qui parle au réseau le fait
+          parce que tu le lances : le navigateur, la Logithèque, les mises à
+          jour Debian.</div>
+      </div>
+
+      ${btnOuvrir("apropos","La fenêtre À propos complète")}`;
     }
     case "apropos": {
       const lb = etat.libre || {firmwares:0, steam:false, broadcom:false};

@@ -124,6 +124,11 @@ select{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
   font:600 11.5px/1.5 inherit;white-space:nowrap}
 .etat.ok{background:rgba(31,143,78,.18);color:#4ADE80}
 .etat.off{background:rgba(229,72,77,.16);color:#F87171}
+/*  L'ambre, pour « propriétaire » : ce n'est pas une panne (rouge) et ce
+    n'est pas du libre (vert). Sans cette règle la pastille sortait
+    transparente, et « propriétaire » se lisait comme du texte ordinaire —
+    exactement le mot qu'il ne faut pas noyer. */
+.etat.att{background:rgba(251,191,36,.16);color:#FBBF24}
 .etat.abs{background:var(--bg-hi);color:var(--fg-dim)}
 
 /* --- Le panneau « 100 % Linux » (À propos) --------------------------------
@@ -131,6 +136,14 @@ select{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
    cette feuille nomme --bg-hi. Un encadré plutôt qu'un paragraphe de plus :
    ce qu'il dit — zéro composant Windows, Wine n'en réclame aucun — est la
    réponse à la question qu'on pose le plus souvent, elle doit se voir. */
+/* --- Logiciels tiers ------------------------------------------------------
+   Une carte par composant : le nom, sa licence, et s'il est VRAIMENT là. La
+   ligne de licence en chasse fixe parce que « LGPL-2.1+ » et « GPL-2 » ne se
+   distinguent qu'au caractère près. */
+.lic{font-family:ui-monospace,"DejaVu Sans Mono",monospace;font-size:12.5px;
+  color:var(--fg-dim)}
+.srow.tr{align-items:flex-start}
+
 .cpt-h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;
   color:var(--fg-dim);margin:22px 0 10px;font-weight:600}
 .verite{background:var(--bg-hi);border:1px solid var(--bd);

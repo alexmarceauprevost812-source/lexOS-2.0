@@ -1172,6 +1172,118 @@ def _libre_etat():
     }
 
 
+#  =========================================================================
+#  LES LOGICIELS TIERS — ce qui n'est pas du Debian ordinaire, et sa licence
+#  =========================================================================
+#  POURQUOI CETTE PAGE EXISTE. LexOS dit « 100 % Linux », et c'est vrai. Mais
+#  « libre » et « gratuit » ne sont pas la même chose, et une distribution qui
+#  se réclame du libre doit pouvoir montrer SA propre liste d'exceptions
+#  plutôt que de la laisser deviner. Trois catégories, nommées :
+#
+#    · libre        — on peut lire le code, le modifier, le redistribuer ;
+#    · propriétaire — on peut s'en servir, c'est tout ;
+#    · pas livré    — LexOS ne le distribue pas ; il est téléchargé chez son
+#                     éditeur si TU le demandes, et la licence est la sienne.
+#
+#  Et surtout : la page REGARDE la machine. « Steam est installé » et « Steam
+#  pourrait être installé » ne sont pas la même phrase — c'est la même règle
+#  que le panneau « 100 % Linux » juste au-dessus. Une liste écrite d'avance
+#  finirait par mentir dès la première version où un paquet change de nom.
+TIERS = [
+    #  (clé, nom, licence, libre, origine, à quoi ça sert)
+    ("nvidia-driver-cuda", "Pilote NVIDIA", "NVIDIA Proprietary", False,
+     "Debian non-free",
+     "Fait marcher les cartes NVIDIA récentes. Il doit être DANS l'ISO : il "
+     "ne s'installe pas après coup sur une machine qui n'affiche rien."),
+    ("__firmwares", "Micrologiciels", "variées, souvent non libres", False,
+     "Debian non-free-firmware",
+     "Les petits programmes que réclament le Wi-Fi, le Bluetooth et certaines "
+     "cartes graphiques pour démarrer. Sans eux, pas de réseau sans fil."),
+    ("steam-installer", "Steam", "Valve Proprietary", False, "Debian non-free",
+     "La boutique de jeux de Valve. Installée seulement dans la partie jeux."),
+    ("llama.cpp", "llama.cpp", "MIT", True, "Debian trixie-backports",
+     "Le moteur d'IA locale. Vrai libre, et il ne dépend de personne."),
+    ("gocryptfs", "gocryptfs", "MIT", True, "Debian main",
+     "Le coffre des Fichiers privés : il chiffre chaque fichier séparément."),
+    ("wine", "Wine", "LGPL-2.1+", True, "Debian main",
+     "Fait tourner des programmes Windows. Beaucoup croient qu'il réclame une "
+     "copie de Windows : c'est faux — Wine Is Not an Emulator, c'est une "
+     "réécriture libre, à partir de zéro."),
+    ("flatpak", "Flatpak", "LGPL-2.1+", True, "Debian main",
+     "La Logithèque. Le système est libre ; chaque application qu'on y "
+     "installe garde SA licence à elle."),
+    ("remmina", "Remmina", "GPL-2+", True, "Debian main",
+     "La visionneuse du bureau à distance (RDP, VNC)."),
+    ("x11vnc", "x11vnc", "GPL-2", True, "Debian main",
+     "Le serveur qui laisse voir cet écran depuis ailleurs."),
+    ("python3-pyside6.qtwidgets", "Qt / PySide6", "LGPL-3", True, "Debian main",
+     "Les fenêtres de LexOS : Paramètres, Cartes, IA locale, Fichiers privés."),
+]
+
+#  Ceux-là ne sont PAS dans l'image. Ils arrivent après, chez leur éditeur, et
+#  seulement si on le demande. On les nomme quand même : ce que LexOS
+#  n'installe pas fait partie de ce qu'il faut savoir.
+TIERS_ABSENTS = [
+    ("claude", "Claude Code", "Anthropic, propriétaire", False,
+     "npm, après l'installation sur le disque",
+     "L'assistant de programmation d'Anthropic. Il tourne dans le nuage : "
+     "compte et connexion requis. Il n'est plus mis dans l'ISO — la version "
+     "y vieillirait."),
+    ("ollama", "Ollama", "MIT", True, "script officiel ollama.com",
+     "La couche pratique par-dessus llama.cpp. Libre, mais pas empaquetée "
+     "par Debian : c'est pour ça qu'elle n'est pas dans l'image."),
+    ("google-chrome-stable", "Google Chrome", "Google, propriétaire", False,
+     "dépôt Google",
+     "Installé seulement si tu tapes « lexos chrome ». Firefox, lui, est "
+     "livré et libre."),
+    ("__modeles", "Les modèles d'IA", "au cas par cas", False,
+     "Hugging Face / Ollama, si tu en télécharges un",
+     "Aucun ne voyage dans l'ISO. Beaucoup ont des poids ouverts sans être "
+     "libres — le panneau IA locale affiche la licence avant de télécharger."),
+]
+
+
+def _tiers_etat():
+    """Chaque composant, avec sa licence et s'il est VRAIMENT là."""
+    def installe(cle):
+        if cle == "__firmwares":
+            return _libre_etat()["firmwares"] > 0
+        if cle == "__modeles":
+            #  Un modèle, ça se voit au disque, pas au dpkg.
+            for base in (Path("/var/lib/lexos-ia/modeles"),
+                         Path.home() / ".local/share/lexos-ia/modeles",
+                         Path.home() / ".ollama/models"):
+                try:
+                    if base.exists() and any(base.iterdir()):
+                        return True
+                except OSError:
+                    pass
+            return False
+        if shutil.which(cle):
+            return True
+        try:
+            r = subprocess.run(["dpkg-query", "-W", "-f=${db:Status-Status}", cle],
+                               capture_output=True, text=True, timeout=15)
+            return r.returncode == 0 and r.stdout.strip() == "installed"
+        except (subprocess.SubprocessError, OSError):
+            return False
+
+    def ligne(t, livre):
+        cle, nom, licence, libre, origine, role = t
+        return {"nom": nom, "licence": licence, "libre": libre,
+                "origine": origine, "role": role, "livre": livre,
+                "present": installe(cle)}
+
+    dedans = [ligne(t, True) for t in TIERS]
+    dehors = [ligne(t, False) for t in TIERS_ABSENTS]
+    return {
+        "livres": dedans,
+        "absents": dehors,
+        "libres": sum(1 for x in dedans if x["libre"]),
+        "proprietaires": sum(1 for x in dedans if not x["libre"] and x["present"]),
+    }
+
+
 def _apercu_etat():
     """La vue d'ensemble des bureaux : par quoi elle s'ouvre, et par quoi on
     la déclenche.
@@ -1740,6 +1852,7 @@ def etat():
         "version": version or "LexOS 2.0.0 « Nomad »",
         "noyau": _sortie(["uname", "-r"]),
         "libre": _libre_etat(),
+        "tiers": _tiers_etat(),
         #  L'état réel du matériel, pour que les sections montrent des
         #  VALEURS et pas seulement des boutons.
         "wifi": _wifi_etat(),

@@ -34,7 +34,7 @@
 # =============================================================================
 set -e
 
-echo "[lexos] hook 0260 : backend GPU du moteur d'IA locale"
+echo "[lexos] hook 0270 : backend GPU du moteur d'IA locale"
 
 RAPPORT="/etc/lexos/ia-moteur"
 mkdir -p /etc/lexos
@@ -56,7 +56,7 @@ if ! have llama-cli && ! have llama-server && ! dpkg -s llama.cpp >/dev/null 2>&
 		echo "backend=aucun"
 		echo "raison=llama.cpp non installé (trixie-backports ouvert ?)"
 	} > "$RAPPORT"
-	echo "[lexos] hook 0260 : ok (rien à faire)"
+	echo "[lexos] hook 0270 : ok (rien à faire)"
 	exit 0
 fi
 
@@ -121,7 +121,7 @@ if [ -n "$CHOISI" ]; then
 			echo "backend=${CHOISI}"
 			echo "type=${MOTIF}"
 		} > "$RAPPORT"
-		echo "[lexos] hook 0260 : ok"
+		echo "[lexos] hook 0270 : ok"
 		exit 0
 	fi
 	echo "[lexos]   !! l'installation de ${CHOISI} a échoué."
@@ -143,4 +143,4 @@ echo "[lexos]   !! ============================================================"
 	echo "candidats=$(echo "$CANDIDATS" | tr '\n' ' ')"
 } > "$RAPPORT"
 
-echo "[lexos] hook 0260 : ok (processeur seulement)"
+echo "[lexos] hook 0270 : ok (processeur seulement)"

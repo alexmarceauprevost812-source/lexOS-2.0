@@ -1286,6 +1286,21 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .etat.ok{background:rgba(31,143,78,.18);color:#4ADE80}
 .etat.off{background:rgba(229,72,77,.16);color:#F87171}
 .etat.abs{background:var(--bg-hi);color:var(--fg-dim)}
+/*  L'encadré « en toutes lettres », mêmes valeurs que dans l'ISO. Il n'existait
+    pas ici : ma page Logiciels tiers l'appelait et il sortait en texte nu — le
+    paragraphe qui répond à « est-ce que c'est vraiment libre ? » se lisait
+    comme n'importe quel autre. */
+.verite{background:var(--bg-hi);border:1px solid var(--bd);
+  border-radius:12px;padding:15px 17px;margin:14px 0}
+.v-l{font-size:13px;line-height:1.6;margin-bottom:7px;color:var(--fg-dim)}
+.v-l:last-child{margin-bottom:0}
+.v-oui{color:#4ADE80;font-weight:700}
+
+/*  Logiciels tiers : la licence en chasse fixe, parce que « LGPL-2.1+ » et
+    « GPL-2 » ne se distinguent qu'au caractère près. */
+.lic{font-family:ui-monospace,"DejaVu Sans Mono",monospace;font-size:12.5px;
+  color:var(--fg-dim)}
+.srow.tr{align-items:flex-start}
 /* --- IA locale : le bandeau de diagnostic et le tableau des modèles -------
    Mêmes valeurs que /usr/share/lexos/ia/web/style.css dans l'ISO. */
 .diag{border-radius:12px;padding:16px 18px;margin-bottom:16px;
@@ -6388,7 +6403,8 @@ const SETTINGS_NAV = [
     ["clavier","⌨","Clavier"], ["datetime","🕒","Date et heure"],
     ["defaut","🧭","Applications par défaut"],
     ["ialocale","✳","IA locale"],
-    ["distant","🖥","Bureau à distance"], ["apropos","◆","À propos"]]},
+    ["distant","🖥","Bureau à distance"],
+    ["tiers","⚖","Logiciels tiers"], ["apropos","◆","À propos"]]},
 ];
 function swRow(title, desc, on, fn){
   return `<div class="srow"><div><div class="t">${title}</div>${desc?`<div class="d">${desc}</div>`:""}</div>
@@ -7014,6 +7030,94 @@ function settingsSection(key){
       <p class="notice">Sur la vraie ISO, ces associations vivent dans
       <code>/etc/xdg/mimeapps.list</code> — le hook 0400 y pose les valeurs
       de départ, et un clic droit → « Ouvrir avec » les modifie ensuite.</p>`;
+
+    case "tiers": {
+      /*  Le jumeau de la page « Logiciels tiers » de l'ISO. Là-bas elle
+          REGARDE la machine — « installé » ou « pas installé ». Ici, la démo
+          n'a pas de machine sous elle : elle montre la MÊME liste, avec la
+          même licence pour chacun, et dit franchement qu'elle ne peut pas
+          vérifier la présence. Mieux vaut l'avouer que d'inventer une
+          pastille verte. */
+      const DANS = [
+        ["Pilote NVIDIA","NVIDIA Proprietary",false,"Debian non-free",
+         "Fait marcher les cartes NVIDIA récentes. Il doit être DANS l'ISO : il ne s'installe pas après coup sur une machine qui n'affiche rien."],
+        ["Micrologiciels","variées, souvent non libres",false,"Debian non-free-firmware",
+         "Les petits programmes que réclament le Wi-Fi, le Bluetooth et certaines cartes graphiques pour démarrer. Sans eux, pas de réseau sans fil."],
+        ["Steam","Valve Proprietary",false,"Debian non-free",
+         "La boutique de jeux de Valve. Installée seulement dans la partie jeux."],
+        ["llama.cpp","MIT",true,"Debian trixie-backports",
+         "Le moteur d'IA locale. Vrai libre, et il ne dépend de personne."],
+        ["gocryptfs","MIT",true,"Debian main",
+         "Le coffre des Fichiers privés : il chiffre chaque fichier séparément."],
+        ["Wine","LGPL-2.1+",true,"Debian main",
+         "Fait tourner des programmes Windows. Beaucoup croient qu'il réclame une copie de Windows : c'est faux — Wine Is Not an Emulator, c'est une réécriture libre, à partir de zéro."],
+        ["Flatpak","LGPL-2.1+",true,"Debian main",
+         "La Logithèque. Le système est libre ; chaque application qu'on y installe garde SA licence à elle."],
+        ["Remmina","GPL-2+",true,"Debian main","La visionneuse du bureau à distance (RDP, VNC)."],
+        ["x11vnc","GPL-2",true,"Debian main","Le serveur qui laisse voir cet écran depuis ailleurs."],
+        ["Qt / PySide6","LGPL-3",true,"Debian main",
+         "Les fenêtres de LexOS : Paramètres, Cartes, IA locale, Fichiers privés."],
+      ];
+      const DEHORS = [
+        ["Claude Code","Anthropic, propriétaire",false,"npm, après l'installation sur le disque",
+         "L'assistant de programmation d'Anthropic. Il tourne dans le nuage : compte et connexion requis. Il n'est plus mis dans l'ISO — la version y vieillirait."],
+        ["Ollama","MIT",true,"script officiel ollama.com",
+         "La couche pratique par-dessus llama.cpp. Libre, mais pas empaquetée par Debian : c'est pour ça qu'elle n'est pas dans l'image."],
+        ["Google Chrome","Google, propriétaire",false,"dépôt Google",
+         "Installé seulement si tu tapes « lexos chrome ». Firefox, lui, est livré et libre."],
+        ["Les modèles d'IA","au cas par cas",false,"Hugging Face / Ollama, si tu en télécharges un",
+         "Aucun ne voyage dans l'ISO. Beaucoup ont des poids ouverts sans être libres — le panneau IA locale affiche la licence avant de télécharger."],
+      ];
+      const carte = ([nom,lic,libre,origine,role]) => `<div class="srow tr" style="display:block">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="t">${nom}</span>
+          <span class="etat ${libre?"ok":"att"}">${libre?"libre":"propriétaire"}</span>
+          <span class="lic">${lic}</span>
+        </div>
+        <div class="d" style="margin-top:6px">${role}</div>
+        <div class="d" style="margin-top:4px;opacity:.75">Vient de : ${origine}</div>
+      </div>`;
+
+      return `<h2>Logiciels tiers</h2>
+      <div class="sub">Ce qui, dans LexOS, n'est pas du Debian ordinaire — et sous quelle licence</div>
+
+      <div class="verite">
+        <div class="v-l"><span class="v-oui">Libre ≠ gratuit.</span>
+          <b>Libre</b> veut dire qu'on peut lire le code, le modifier et le
+          redistribuer. <b>Propriétaire</b> veut dire qu'on peut s'en servir,
+          et c'est tout — même quand ça ne coûte rien. Les deux sont sur cette
+          page, nommés.</div>
+        <div class="v-l"><span class="v-oui">LexOS lui-même est libre.</span>
+          Le système, ses outils, cette fenêtre : tout est lisible dans le
+          dépôt, copiable et modifiable. Ce qui est fermé ci-dessous vient
+          d'ailleurs, et on dit d'où.</div>
+      </div>
+
+      <h3 class="cpt-h3">Dans l'ISO</h3>
+      ${DANS.map(carte).join("")}
+
+      <h3 class="cpt-h3">Pas dans l'ISO — téléchargé seulement si tu le demandes</h3>
+      <p class="notice">LexOS ne distribue rien de tout ça, donc n'endosse
+        aucune de ces licences. Chacun arrive de chez son éditeur, à ta
+        demande, et jamais en silence.</p>
+      ${DEHORS.map(carte).join("")}
+
+      <h3 class="cpt-h3">Ce qui n'est pas là du tout</h3>
+      <div class="verite">
+        <div class="v-l"><span class="v-oui">Zéro Windows.</span>
+          Aucun composant Microsoft, aucune licence Microsoft, rien de Windows
+          n'est démarré. Wine, ci-dessus, est une réécriture libre — il ne
+          contient pas une ligne de Windows.</div>
+        <div class="v-l"><span class="v-oui">Aucun mouchard.</span>
+          LexOS n'envoie pas de statistiques d'usage, ne compte pas les
+          démarrages et n'a pas de compte.</div>
+      </div>
+
+      <p class="notice">Sur la vraie ISO, chaque ligne porte en plus
+        <b>« sur cette machine »</b> ou <b>« pas installé »</b> : le panneau
+        interroge dpkg. La démo n'a pas de machine sous elle et ne peut pas
+        vérifier — mieux vaut le dire que d'inventer une pastille verte.</p>`;
+    }
 
     case "ialocale": {
       /*  Le jumeau de lexos-ia-locale dans l'ISO. Même diagnostic, mêmes
