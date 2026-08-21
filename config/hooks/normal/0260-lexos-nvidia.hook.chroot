@@ -121,7 +121,15 @@ pin_branche() {
 # NVIDIA/open-gpu-kernel-modules#1238. Priorité 1001 = apt préfère cette
 # branche même s'il faut refuser une version plus récente.
 # Pour repasser au plus récent : supprimer ce fichier, puis « lexos upgrade ».
-Package: nvidia-* libnvidia-* cuda-* libcuda* libcudadebugger* libnvcuvid* libnvoptix* libnvfatbin* libnvjitlink* xserver-xorg-video-nvidia*
+#
+# libxnvctrl* EST DANS LA LISTE, ET IL A FALLU UNE ISO POUR S'EN APERCEVOIR.
+# Le build 63 a livré libxnvctrl0 en 610.57.04-1 pendant que tout le reste de
+# la pile tenait en 595.91.07-1 : le motif « libnvidia-* » ne l'attrape pas,
+# son nom commence par « libx ». Ce paquet-là ne touche pas à l'affichage
+# (c'est la bibliothèque cliente de nvidia-settings), donc rien n'a cassé —
+# mais une épingle qui laisse passer un paquet en laissera passer un autre,
+# et le suivant comptera peut-être.
+Package: nvidia-* libnvidia-* cuda-* libcuda* libcudadebugger* libnvcuvid* libnvoptix* libnvfatbin* libnvjitlink* xserver-xorg-video-nvidia* libxnvctrl* nvidia-modprobe
 Pin: version $1.*
 Pin-Priority: 1001
 EOF
@@ -441,6 +449,35 @@ if [ -z "$REUSSITE" ]; then
 		echo "[lexos] hook 0260 : terminé (sans pilote, système propre)"
 		exit 0
 	fi
+fi
+
+# --- GARDER LA PILE : sinon live-build en jette la moitié à la fin ----------
+#  CE QUE LE JOURNAL DU BUILD 63 A MONTRÉ. Une fois le chroot fini, live-build
+#  repasse en phase « binary » et y lance un autoremove. Comme ces paquets-ci
+#  sont arrivés en dépendances automatiques du pilote et que rien ne les
+#  réclame nommément, apt les a jugés orphelins et les a retirés — neuf d'un
+#  coup, tous en 595.91.07-1 :
+#
+#    libnvidia-ml1  libnvidia-fbc1  libnvidia-opticalflow1  libnvidia-present
+#    libnvidia-sandboxutils  libnvidia-tileiras  libnvoptix1
+#    libcudadebugger1  nvidia-modprobe
+#
+#  L'affichage, lui, n'était pas menacé : ni le module noyau, ni GLX, ni le
+#  pilote lui-même n'étaient dans la liste. Mais libnvidia-ml1, c'est NVML —
+#  autrement dit « nvidia-smi » qui ne répond plus. Et nvidia-modprobe, c'est
+#  ce qui crée /dev/nvidia* pour un utilisateur ordinaire. Deux outils qu'on
+#  croit avoir et qu'on n'a pas : exactement le genre de panne silencieuse
+#  qu'on passe une soirée à ne pas comprendre.
+#
+#  « apt-mark manual » dit à apt que ces paquets sont voulus pour eux-mêmes.
+#  Ça coûte environ 220 Mo dans l'image — le prix d'un nvidia-smi qui répond.
+GARDER="$(dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' 2>/dev/null \
+	| awk '$1 !~ /^un/ && ($2 ~ /nvidia/ || $2 ~ /^libcuda/ || $2 ~ /^libnv/ || $2 ~ /^libxnvctrl/) {print $2}')"
+if [ -n "$GARDER" ]; then
+	# shellcheck disable=SC2086
+	apt-mark manual $GARDER >/dev/null 2>&1 \
+		&& echo "[lexos]   pile NVIDIA marquée « voulue » ($(echo "$GARDER" | wc -w) paquets) — l'autoremove de fin ne la touchera plus" \
+		|| echo "[lexos]   !! apt-mark a échoué — la fin de construction pourrait retirer nvidia-smi"
 fi
 
 #  nvidia-detect (contrib Debian) : « quelle carte, quel pilote ? » en une
