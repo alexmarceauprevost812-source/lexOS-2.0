@@ -788,6 +788,52 @@ UseLabel=0
 Font=Noto Sans 10
 EOF
 	echo "[lexos]   appareils : genmon-16.rc écrit (commande lexos-peripheriques --panneau)"
+
+	#  L'HORLOGE. Elle était le greffon « clock » de XFCE ; elle est devenue
+	#  un genmon pour qu'un clic dessus ouvre le volet des notifications et
+	#  de l'agenda — le greffon d'origine ouvre SON calendrier et ne sait
+	#  rien lancer d'autre. Elle a donc besoin de son .rc comme les deux
+	#  autres, sans quoi la barre afficherait « (genmon)XXX » à la place de
+	#  l'heure : exactement la panne qu'on vient de décrire pour la météo.
+	#
+	#  Une seconde entre deux lectures : lexos-heure est un « date » suivi
+	#  d'un « printf ». C'est ce qu'il faut pour que l'affichage des secondes,
+	#  proposé dans les Paramètres, soit juste plutôt qu'approximatif.
+	cat > /etc/skel/.config/xfce4/panel/genmon-3.rc <<'EOF'
+Text=Heure
+Command=lexos-heure --panneau
+UpdatePeriod=1000
+UseLabel=0
+Font=Noto Sans 10
+EOF
+	echo "[lexos]   horloge : genmon-3.rc écrit (commande lexos-heure --panneau)"
+else
+	#  PAS DE GENMON — ET UNE BARRE SANS HEURE SERAIT PIRE QUE TOUT.
+	#  Le nettoyage plus haut retire les greffons déclarés mais absents : sans
+	#  ce repli, plugin-3 disparaîtrait et il n'y aurait plus d'horloge du
+	#  tout. On remet donc le greffon « clock » de XFCE, qui est interne et
+	#  toujours là. On perd le clic qui ouvre le volet — il reste accessible
+	#  par « lexos volet » — mais on garde l'heure, qui est l'essentiel.
+	PANNEAU_XML="/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
+	if [ -f "$PANNEAU_XML" ] && grep -q 'value="lexos-heure --panneau"' "$PANNEAU_XML"; then
+		python3 - "$PANNEAU_XML" <<'PYEOF'
+import re, sys
+chemin = sys.argv[1]
+s = open(chemin, encoding="utf-8").read()
+bloc = re.search(r'    <property name="plugin-3" type="string" value="genmon">.*?</property>\n',
+                 s, re.S)
+if bloc:
+    s = s[:bloc.start()] + (
+        '    <property name="plugin-3" type="string" value="clock">\n'
+        '      <property name="mode"                type="uint"   value="2"/>\n'
+        '      <property name="digital-time-format" type="string" value="lexOS  %a %d %b  %H h %M"/>\n'
+        '      <property name="tooltip-format"      type="string" value="%A %d %B %Y"/>\n'
+        '    </property>\n') + s[bloc.end():]
+    open(chemin, "w", encoding="utf-8").write(s)
+    print("remis")
+PYEOF
+		echo "[lexos]   !! genmon absent — horloge XFCE d'origine remise (pas de volet au clic)"
+	fi
 fi
 
 # --- Raccourcis clavier ------------------------------------------------------

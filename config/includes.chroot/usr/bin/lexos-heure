@@ -1,0 +1,85 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-heure — l'horloge de la barre du haut, et son clic
+# =============================================================================
+#  POURQUOI REMPLACER L'HORLOGE DE XFCE.
+#  Alex a demandé qu'un clic sur l'heure ouvre le volet des notifications et
+#  de l'agenda. Le greffon horloge de XFCE ouvre SON calendrier et ne sait
+#  rien faire d'autre : on ne peut pas lui dire quoi lancer. Le greffon
+#  « genmon », lui, affiche la sortie d'une commande ET obéit à la balise
+#  <click> — c'est déjà ainsi que la météo fonctionne chez nous. L'horloge
+#  passe donc par le même chemin.
+#
+#  CE QU'ON GAGNE EN PLUS. Le format vit maintenant dans un fichier à nous
+#  (~/.config/lexos/horloge) et non dans une propriété xfconf accrochée au
+#  NUMÉRO du greffon. Ajouter ou retirer une tuile de la barre renumérote ces
+#  propriétés : le réglage « 24 h, avec les secondes » aurait fini par
+#  s'appliquer à autre chose, ou par disparaître.
+#
+#  Trois réglages, ceux que la démo propose : 12 ou 24 heures, les secondes,
+#  le jour de la semaine.
+# =============================================================================
+set -u
+
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+ETAT="$CONF/horloge"
+
+#  Valeurs par défaut : 24 h (le Québec), le jour affiché, pas de secondes.
+H12=non
+SECONDES=non
+JOUR=oui
+if [ -r "$ETAT" ]; then
+	# shellcheck disable=SC1090
+	. "$ETAT" 2>/dev/null || true
+fi
+
+format() {
+	#  « lexOS » en tête : c'est la signature de la barre, comme dans la démo.
+	F="lexOS "
+	[ "$JOUR" = oui ] && F="$F %a"
+	F="$F %d %b "
+	if [ "$H12" = oui ]; then
+		F="$F %I h %M"
+		[ "$SECONDES" = oui ] && F="$F:%S"
+		F="$F %p"
+	else
+		F="$F %H h %M"
+		[ "$SECONDES" = oui ] && F="$F:%S"
+	fi
+	printf '%s' "$F"
+}
+
+case "${1:-}" in
+	--panneau|panneau)
+		#  genmon lit cette sortie : <txt> s'affiche, <tool> est l'infobulle,
+		#  <click> est ce que fait un clic.
+		printf '<txt> %s </txt>' "$(date "+$(format)")"
+		printf '<tool>%s\nClique pour les notifications et l'"'"'agenda</tool>' \
+			"$(date '+%A %d %B %Y')"
+		printf '<click>lexos-volet agenda</click>\n'
+		;;
+	--regle|regle)
+		#  Écrit par les Paramètres. Chaque clé est validée : rien de ce qui
+		#  arrive ici ne sert à construire une commande.
+		CLE="${2:-}"; VAL="${3:-}"
+		case "$CLE" in h12|secondes|jour) ;; *) echo "clé inconnue" >&2; exit 1 ;; esac
+		case "$VAL" in oui|non) ;; *) echo "valeur inconnue" >&2; exit 1 ;; esac
+		mkdir -p "$CONF"
+		case "$CLE" in
+			h12)      H12="$VAL" ;;
+			secondes) SECONDES="$VAL" ;;
+			jour)     JOUR="$VAL" ;;
+		esac
+		printf 'H12=%s\nSECONDES=%s\nJOUR=%s\n' "$H12" "$SECONDES" "$JOUR" > "$ETAT"
+		#  Rafraîchir la barre tout de suite, sinon le changement n'apparaît
+		#  qu'au tour suivant du greffon et on croit que rien n'a marché.
+		command -v xfce4-panel >/dev/null 2>&1 \
+			&& xfce4-panel --plugin-event=genmon:refresh:bool:true >/dev/null 2>&1
+		;;
+	--etat|etat)
+		printf 'H12=%s\nSECONDES=%s\nJOUR=%s\n' "$H12" "$SECONDES" "$JOUR"
+		;;
+	*)
+		date "+$(format)"
+		;;
+esac

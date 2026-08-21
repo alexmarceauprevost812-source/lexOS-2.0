@@ -474,49 +474,33 @@ def act_bureaux(arg):
 
 
 def act_horloge(arg):
-    """Composer le format de l'horloge de la barre du haut.
+    """Régler l'horloge de la barre : 12/24 h, secondes, jour de la semaine.
 
-    POURQUOI ON RECOMPOSE LA CHAÎNE ENTIÈRE plutôt que de la rafistoler :
-    une chaîne de format est un tout. Chercher « %S » pour l'enlever marche
-    une fois, puis échoue le jour où quelqu'un a mis « %H:%M:%S » à la main
-    avec un autre séparateur, et on se retrouve avec « 14 h 32 : ». On repart
-    donc des trois choix — 12/24 h, secondes, jour — et on écrit la chaîne
-    complète. C'est prévisible, et ça se relit dans l'état."""
+    On ne compose plus la chaîne de format ici. C'est lexos-heure qui la
+    construit, à partir de trois réponses par oui ou par non — et lui seul.
+    Avant, cette fonction écrivait une chaîne « %H h %M » dans xfconf pendant
+    que le script en aurait écrit une autre : deux endroits qui décident du
+    même affichage finissent toujours par ne plus dire la même chose. Ici, la
+    page pose une question, le script répond.
+
+    Les trois clés et les deux valeurs sont des ensembles FERMÉS, vérifiés des
+    deux côtés : rien de ce qui vient de la page ne sert à bâtir une commande.
+    """
     if arg not in ("12h", "24h", "secondes", "jour"):
         return {"ok": False, "erreur": "valeur inattendue"}
+    if not shutil.which("lexos-heure"):
+        return {"ok": False, "erreur": "lexos-heure absent"}
 
     etat_h = _heure_etat()
-    h12 = etat_h["h12"]
-    secondes = etat_h["secondes"]
-    jour = etat_h["jour"]
     if arg == "12h":
-        h12 = True
+        cle, valeur = "h12", "oui"
     elif arg == "24h":
-        h12 = False
+        cle, valeur = "h12", "non"
     elif arg == "secondes":
-        secondes = not secondes
+        cle, valeur = "secondes", "non" if etat_h["secondes"] else "oui"
     else:
-        jour = not jour
-
-    #  « lexOS » en tête : c'est la signature de la barre, elle reste.
-    morceaux = ["lexOS "]
-    morceaux.append(" %a %d %b " if jour else " %d %b ")
-    if h12:
-        morceaux.append(" %I h %M" + (" %S" if secondes else "") + " %p")
-    else:
-        morceaux.append(" %H h %M" + (" %S" if secondes else ""))
-    fmt = "".join(morceaux)
-
-    #  Les deux propriétés portent le même format : selon les versions, le
-    #  greffon lit l'une ou l'autre. En écrire une seule donne un réglage qui
-    #  « ne prend pas » sur la moitié des machines.
-    for propriete in ("digital-format", "digital-time-format"):
-        r = _run(["xfconf-query", "-c", "xfce4-panel",
-                  "-p", f"/plugins/plugin-3/{propriete}",
-                  "-n", "-t", "string", "-s", fmt])
-        if not r.get("ok"):
-            return r
-    return {"ok": True, "format": fmt}
+        cle, valeur = "jour", "non" if etat_h["jour"] else "oui"
+    return _run(["lexos-heure", "--regle", cle, valeur])
 
 
 def act_fuseau_auto(arg):
@@ -1410,7 +1394,20 @@ def _heure_etat():
     #  trois réglages ne sont qu'UN seul : la chaîne de format du greffon
     #  horloge. On la lit et on la décompose, plutôt que de garder trois
     #  drapeaux à part qui finiraient par mentir sur ce qui est affiché.
-    fmt = _xfconf_lire("xfce4-panel", "/plugins/plugin-3/digital-time-format")
+    #  L'HORLOGE EST MAINTENANT UNE TUILE LEXOS (lexos-heure), et plus le
+    #  greffon horloge de XFCE : il fallait ça pour qu'un clic sur l'heure
+    #  ouvre le volet des notifications, ce que le greffon d'origine ne
+    #  savait pas faire. Son format vit donc dans ~/.config/lexos/horloge et
+    #  non dans une propriété xfconf accrochée au NUMÉRO du greffon — ajouter
+    #  une tuile à la barre renumérote ces propriétés, et le réglage aurait
+    #  fini par s'appliquer à autre chose.
+    horloge = {"H12": "non", "SECONDES": "non", "JOUR": "oui"}
+    if shutil.which("lexos-heure"):
+        for ligne in _sortie(["lexos-heure", "--etat"]).splitlines():
+            if "=" in ligne:
+                cle, _, valeur = ligne.partition("=")
+                if cle in horloge:
+                    horloge[cle] = valeur.strip()
     conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
     try:
         fuseau_auto = (conf / "fuseau-auto").read_text().strip() == "on"
@@ -1432,10 +1429,9 @@ def _heure_etat():
         "fuseau_auto": fuseau_auto,
         "lieu_connu": lieu_connu,
         "maintenant": _sortie(["date", "+%A %d %B %Y, %H:%M:%S"]),
-        "format": fmt,
-        "h12": "%I" in fmt or "%l" in fmt,
-        "secondes": "%S" in fmt,
-        "jour": "%a" in fmt or "%A" in fmt,
+        "h12": horloge["H12"] == "oui",
+        "secondes": horloge["SECONDES"] == "oui",
+        "jour": horloge["JOUR"] == "oui",
     }
 
 

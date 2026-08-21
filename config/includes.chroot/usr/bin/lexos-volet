@@ -1,0 +1,40 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-volet — le panneau qui descend de la barre du haut
+# =============================================================================
+#  « lexos-volet agenda »  notifications + agenda (clic sur l'heure)
+#  « lexos-volet meteo »   le temps qu'il fait   (clic sur la météo)
+#
+#  UN SEUL À LA FOIS, ET C'EST LE POINT DÉLICAT. Un volet se referme quand on
+#  clique ailleurs — y compris quand on clique sur la tuile qui l'a ouvert.
+#  Sans précaution, ce clic-là refermerait l'ancien PUIS en rouvrirait un
+#  nouveau : le volet clignoterait au lieu de se fermer. On regarde donc s'il
+#  y en a déjà un : si oui, on le ferme et on s'arrête là. C'est ce qui donne
+#  le comportement attendu — un clic ouvre, un deuxième referme.
+# =============================================================================
+set -u
+
+QUOI="${1:-agenda}"
+case "$QUOI" in
+	agenda|meteo) ;;
+	*) echo "Usage : ${0##*/} agenda|meteo" >&2; exit 1 ;;
+esac
+
+MOTIF="/usr/lib/lexos/volet.py"
+
+#  Déjà ouvert ? On referme, et c'est tout.
+#  « pkill -f » sur le chemin complet : le motif ne peut pas attraper autre
+#  chose, et surtout pas le terminal depuis lequel on aurait tapé la commande.
+if pgrep -f "python3 ${MOTIF}" >/dev/null 2>&1; then
+	MEME="$(pgrep -af "python3 ${MOTIF} ${QUOI}" 2>/dev/null || true)"
+	pkill -f "python3 ${MOTIF}" 2>/dev/null
+	#  Si c'était l'AUTRE volet qui était ouvert (la météo alors qu'on clique
+	#  l'heure), on vient de le fermer et on ouvre celui qu'on demande : passer
+	#  de l'un à l'autre doit se faire d'un seul clic, pas de deux.
+	[ -n "$MEME" ] && exit 0
+	#  Laisser la fenêtre disparaître avant d'en poser une autre au même
+	#  endroit, sinon les deux se disputent le focus.
+	sleep 0.15
+fi
+
+exec python3 "$MOTIF" "$QUOI"

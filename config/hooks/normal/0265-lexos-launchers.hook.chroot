@@ -93,6 +93,10 @@ lexos-ia-copilot|lexos-assistants copilot|Copilot|web-browser|non|Network;|Micro
 #  Super et sur le coin haut-gauche. Sans entrée de menu, personne ne saurait
 #  qu'elle existe avant d'avoir lu l'aide.
 lexos-apercu|lexos-apercu ouvrir|Vue d'ensemble|preferences-desktop-workspaces|non|Utility;|Tous les bureaux et leurs fenêtres
+#  Le volet des notifications et de l'agenda. Il s'ouvre normalement d'un clic
+#  sur l'heure ; l'entrée de menu sert à qui préfère la souris dans le menu,
+#  et à le retrouver si la barre venait à manquer.
+lexos-volet|lexos-volet agenda|Notifications et agenda|appointment-soon|non|Utility;Calendar;|Le volet qui descend de la barre
 "
 
 CREES=0

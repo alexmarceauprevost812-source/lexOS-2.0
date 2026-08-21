@@ -231,6 +231,65 @@ nom_jour() {
 	esac
 }
 
+# --- La météo en JSON, pour le volet ----------------------------------------
+#  POURQUOI UNE SORTIE MACHINE. Le volet (lexos-volet) affiche la météo avec
+#  la même page que la démo web. Il lui faut donc des DONNÉES, pas du texte
+#  colorié pour un terminal. Plutôt que de lui faire relire nos caches et
+#  redécoder les codes de l'OMM — deux copies de la même logique qui
+#  finiraient par diverger — on expose ici ce que ce fichier sait déjà.
+#
+#  « cle » est le nom du ciel au sens de la démo (soleil, voile, nuages,
+#  pluie, averse, neige) : c'est LUI qui choisit le pictogramme et la couleur
+#  côté page, exactement comme dans la démo. La correspondance code OMM -> clé
+#  se fait dans le Python ci-dessous, une seule fois — la tenir aussi en
+#  bash aurait été la deuxième copie qu'on cherche justement à éviter.
+cmd_json() {
+	local ligne code temp vent jours
+	if [[ -z "$LAT" || -z "$LON" ]]; then
+		printf '{"ville":null,"erreur":"aucune ville choisie"}\n'
+		return 0
+	fi
+	ligne="$(releve)" || ligne=""
+	jours="$(releve_jours)" || jours=""
+
+	VILLE="$VILLE" LIGNE="$ligne" JOURS="$jours" python3 -c '
+import json, os
+
+def wmo_cle(code):
+    if code == 0: return "soleil"
+    if code in (1, 2): return "voile"
+    if code in (3, 45, 48): return "nuages"
+    if code in (51,53,55,56,57,61,63,65,66,67,80,81,82): return "pluie"
+    if code in (71,73,75,77,85,86): return "neige"
+    if code in (95,96,99): return "averse"
+    return "nuages"
+
+PHRASES = {"soleil":"Ensoleillé","voile":"Partiellement nuageux",
+           "nuages":"Nuageux","pluie":"Pluie","averse":"Orage","neige":"Neige"}
+
+sortie = {"ville": os.environ.get("VILLE") or None, "maintenant": None, "jours": []}
+
+ligne = (os.environ.get("LIGNE") or "").split()
+if len(ligne) >= 2:
+    code, temp = int(ligne[0]), int(ligne[1])
+    vent = int(ligne[2]) if len(ligne) > 2 else 0
+    cle = wmo_cle(code)
+    sortie["maintenant"] = {"cle": cle, "nom": PHRASES[cle],
+                            "temp": temp, "vent": vent, "code": code}
+
+for i, l in enumerate((os.environ.get("JOURS") or "").splitlines()):
+    ch = l.split()
+    if len(ch) < 3:
+        continue
+    code, haut, bas = int(ch[0]), int(ch[1]), int(ch[2])
+    cle = wmo_cle(code)
+    sortie["jours"].append({"rang": i, "cle": cle, "nom": PHRASES[cle],
+                            "max": haut, "min": bas, "code": code})
+
+print(json.dumps(sortie, ensure_ascii=False))
+'
+}
+
 # --- La fenêtre météo, celle de la démo -------------------------------------
 cmd_fenetre() {
 	if [[ -z "$LAT" || -z "$LON" ]]; then
@@ -302,7 +361,7 @@ cmd_panneau() {
 	if [[ -z "$ligne" ]]; then
 		printf '<txt>  ⛅ —  </txt>'
 		printf '<tool>%s — relevé indisponible (hors ligne ?)</tool>' "$VILLE"
-		printf '<click>lexos-meteo --fenetre</click>\n'
+		printf '<click>lexos-volet meteo</click>\n'
 		return 0
 	fi
 
@@ -310,7 +369,7 @@ cmd_panneau() {
 	printf '<txt>  %s %s°  </txt>' "$(symbole_wmo "$code")" "$temp"
 	printf '<tool>%s — %s, %s°C\nClique pour les prévisions</tool>' \
 		"$VILLE" "$(phrase_wmo "$code")" "$temp"
-	printf '<click>lexos-meteo --fenetre</click>\n'
+	printf '<click>lexos-volet meteo</click>\n'
 }
 
 # --- Choisir sa ville --------------------------------------------------------
@@ -512,6 +571,7 @@ case "${1:-maintenant}" in
 	--panneau|panneau)      cmd_panneau ;;
 	--choisir|choisir)      cmd_choisir ;;
 	--fenetre|fenetre)      cmd_fenetre ;;
+	--json|json)            cmd_json ;;
 	jours|previsions|prévisions) cmd_jours ;;
 	ville|city|localisation) shift; cmd_ville "$@" ;;
 	maintenant|now|'')      cmd_maintenant ;;

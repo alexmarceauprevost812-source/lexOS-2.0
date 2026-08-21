@@ -168,12 +168,25 @@
       <property name="style"  type="uint" value="0"/>
     </property>
 
-    <!-- 3 · Horloge centrale -->
-    <property name="plugin-3" type="string" value="clock">
-      <property name="mode"         type="uint"   value="2"/>
-      <property name="digital-format" type="string" value="lexOS  %a %d %b  %H h %M"/>
-      <property name="digital-time-format" type="string" value="lexOS  %a %d %b  %H h %M"/>
-      <property name="tooltip-format" type="string" value="%A %d %B %Y"/>
+    <!-- 3 · L'HORLOGE, ET LE VOLET QU'ELLE OUVRE.
+         Alex a demandé qu'un clic sur l'heure ouvre les notifications et
+         l'agenda, « comme un menu qui ouvre tranquillement en descendant ».
+         Le greffon horloge de XFCE ouvre SON calendrier et ne sait rien faire
+         d'autre — on ne peut pas lui dire quoi lancer. genmon, lui, affiche la
+         sortie d'une commande et obéit à sa balise <click> : c'est déjà comme
+         ça que la météo marche ici. L'horloge prend le même chemin, et son
+         clic ouvre « lexos-volet agenda ».
+
+         Une seconde entre deux lectures : lexos-heure est un « date » suivi
+         d'un « printf », quelques millisecondes. C'est ce qu'il faut pour que
+         l'affichage des secondes — proposé dans les Paramètres — soit juste.
+         Sans secondes, la dépense reste la même et elle est négligeable ;
+         avec, elle est indispensable. -->
+    <property name="plugin-3" type="string" value="genmon">
+      <property name="command"       type="string" value="lexos-heure --panneau"/>
+      <property name="update-period" type="int"    value="1000"/>
+      <property name="use-label"     type="bool"   value="false"/>
+      <property name="font"          type="string" value="Noto Sans 10"/>
     </property>
 
     <!-- 4 · Espace élastique -->

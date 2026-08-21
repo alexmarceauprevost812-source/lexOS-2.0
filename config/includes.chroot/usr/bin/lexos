@@ -178,6 +178,8 @@ ${B}USB${R}
   ${A}format${R} [cible]      Formater une clé USB ou un téléphone ${D}(confirmation exigée)${R}
 
 ${B}CAPTURE${R}
+  ${A}volet${R}               Notifications et agenda ${D}(clic sur l'heure)${R}
+  ${A}volet meteo${R}         Le temps qu'il fait ${D}(clic sur la météo)${R}
   ${A}apercu${R}              Vue d'ensemble des bureaux ${D}(coin haut-gauche, Super)${R}
   ${A}apercu super on${R}     La touche Super seule ouvre la vue
   ${A}apercu coin on${R}      Le coin haut-gauche ouvre la vue
@@ -956,6 +958,8 @@ case "$CMD" in
 	format)               exec lexos-format "$@" ;;
 	capture|capture-ecran) exec lexos-capture "$@" ;;
 	apercu|aperçu|vue|overview) exec lexos-apercu "$@" ;;
+	volet|notifications|notif) exec lexos-volet "${1:-agenda}" ;;
+	horloge)              exec lexos-heure "$@" ;;
 	run-ins|runins)       exec lexos-run-ins "$@" ;;
 	studio)               exec lexos-studio "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
