@@ -48,6 +48,60 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 60 : LEXOS BOOST ET LES FICHIERS PRIVÉS.
+#   Deux apports extérieurs, relus avant d'être copiés — un hook tourne en
+#   root pendant la construction, et l'un des deux efface des fichiers de
+#   l'utilisateur. On ne colle pas ça sans l'avoir lu.
+#
+#   LEXOS BOOST — dix optimisations, chacune avec son inverse, et un profil
+#   calculé d'après le matériel réellement détecté : un portable de 2009
+#   reçoit beaucoup, une station de 2023 presque rien, et le logiciel le DIT
+#   au lieu d'inventer un gain. Aucune action ne modifie le système sans
+#   avoir d'abord écrit au journal comment revenir en arrière ; si le
+#   journal ne peut pas être écrit, l'action n'est pas appliquée.
+#   « lexos-boost --annuler » remet tout comme avant, dans l'ordre inverse.
+#   23 tests passent. Vérifié : aucun shell=True, aucun os.system, tous les
+#   appels système reçoivent une liste.
+#
+#   RÉSERVE, signalée à Alex et laissée telle quelle parce qu'il a demandé
+#   de ne pas toucher au moteur : ServicesInutiles.candidats() ajoute
+#   ModemManager et avahi-daemon SANS condition matérielle, alors que le
+#   README de Boost pose justement l'inverse comme règle à ne pas casser.
+#   Or LexOS installe ces deux paquets EXPRÈS — ModemManager pour la clé 4G
+#   qui est parfois la seule connexion d'un portable (20-desktop.list le dit
+#   en toutes lettres), avahi pour que les imprimantes réseau apparaissent
+#   (56-reglages.list). Et la condition d'impression ne teste que l'USB :
+#   quelqu'un avec une imprimante RÉSEAU perdrait cups, cups-browsed et
+#   avahi d'un coup. Ça ne se déclenche qu'en niveau « max » et c'est
+#   réversible, mais il faut le savoir avant d'appuyer sur le bouton.
+#
+#   FICHIERS PRIVÉS — un coffre-fort gocryptfs : un dossier chiffré qui se
+#   monte à la demande, sans partition à découper. Clic droit dans Fichiers
+#   → « Mettre en privé », fermeture automatique après 15 minutes.
+#   ESSAYÉ POUR DE VRAI et pas seulement relu : coffre créé, fichier déposé,
+#   refermé — sur le disque, le nom devient « KftJSeJ4n28T87CyQAApRQ » et le
+#   contenu est illisible. C'est du vrai chiffrement.
+#   Le code tient ses promesses là où ça compte : mot de passe par TUBE
+#   jamais par fichier, refus des liens symboliques (les suivre broierait le
+#   vrai fichier ailleurs) et des tubes nommés, « chmod u+w » avant shred
+#   (sans quoi un fichier en lecture seule serait supprimé sans être
+#   écrasé), et surtout l'original n'est effacé QU'APRÈS vérification de la
+#   copie par cmp/diff.
+#
+#   DEUX CORRECTIONS APPORTÉES AU CORRECTIF LUI-MÊME :
+#     · son insertion dans le dispatcheur a été refusée par sa propre
+#       vérification, qui valide avec « sh -n ». Or /usr/bin/lexos est un
+#       script BASH que « sh -n » refuse déjà tel quel, ligne 481, avant
+#       toute modification. Fausse alerte ; insertion faite à la main ;
+#     · ses sauvegardes « .avant-prive » étaient posées DANS includes.chroot,
+#       donc elles seraient parties dans l'ISO : un deuxième dispatcheur
+#       dans /usr/bin, et une copie de uca.xml dans le dossier de chaque
+#       utilisateur. Retirées — git est la sauvegarde qu'il faut.
+#
+#   Les trois actions du clic droit qui existaient (terminal, fond d'écran,
+#   fond animé) sont intactes : la fusion de uca.xml ne les a pas touchées.
+#   58-prive.list est réclamée par le hook 0250 dans le socle commun.
+#
 # build 59 : LES VOLETS, LA BARRE ARRONDIE, ET DOUZE ÉCRITURES À LA MAIN.
 #   Règle qu'Alex a posée et qui commande tout ce build : « tout ce qu'on
 #   fait sur la version vercel on le met aussi dans ios ». Ce qui suit existe
@@ -1206,4 +1260,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 59
+build: 60
