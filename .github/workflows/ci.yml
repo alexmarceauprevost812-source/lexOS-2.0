@@ -124,6 +124,50 @@ jobs:
           done
           exit $bad
 
+      - name: Un paquet de backports exige que backports soit ouvert
+        run: |
+          #  LE SILENCE QUE CE CONTRÔLE ATTRAPE.
+          #  Un paquet qui n'existe QUE dans trixie-backports, écrit dans une
+          #  liste optionnelle sans que config/archives ouvre l'archive : apt
+          #  ne le trouve pas, le hook 0250 tolère un paquet absent (à raison),
+          #  la construction réussit, et l'ISO sort sans la fonction. Aucune
+          #  erreur nulle part — le pire des deux silences, celui qui a l'air
+          #  d'un succès.
+          #
+          #  La CI ne peut pas interroger l'archive Debian (pas de réseau vers
+          #  deb.debian.org, et de toute façon ce serait une dépendance de
+          #  build). On tient donc la liste à la main : elle est courte, et
+          #  chaque ajout est une décision consciente.
+          BACKPORTS_SEULEMENT="llama.cpp"
+
+          bad=0
+          for pkg in $BACKPORTS_SEULEMENT; do
+            trouve=""
+            for f in config/package-lists/*.list.chroot \
+                     config/includes.chroot/usr/share/lexos/optional-packages/*.list; do
+              [ -r "$f" ] || continue
+              if grep -qE "^[[:space:]]*${pkg}([[:space:]]|\||$)" "$f"; then
+                trouve="$f"
+                break
+              fi
+            done
+            [ -n "$trouve" ] || continue
+            if ! grep -rqs 'trixie-backports' config/archives/*.list.chroot 2>/dev/null; then
+              echo "::error file=$trouve::'$pkg' n'existe que dans trixie-backports, mais config/archives/ n'ouvre pas cette archive. apt ne le trouvera pas, le build RÉUSSIRA quand même, et l'ISO sortira sans."
+              bad=1
+              continue
+            fi
+            #  Ouvrir backports sans épingler, c'est laisser la moitié du
+            #  système y migrer au fil des mois. Le fichier de préférences
+            #  n'est pas optionnel.
+            if ! ls config/archives/*.pref.chroot >/dev/null 2>&1; then
+              echo "::error::config/archives ouvre trixie-backports sans fichier .pref.chroot : sans épinglage, le reste du système finira par venir de backports."
+              bad=1
+            fi
+            echo "  ok — $pkg : backports ouvert et épinglé"
+          done
+          exit $bad
+
       - name: Bits d'exécution présents
         run: |
           bad=0
