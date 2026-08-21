@@ -74,6 +74,20 @@ input[type=range]{flex:1;accent-color:var(--ac)}
 select{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
   border-radius:6px;padding:6px 8px;font:inherit}
 
+/* --- Champ de saisie -------------------------------------------------------
+   Même peinture que les listes déroulantes : dans un panneau de réglages,
+   deux façons de demander une réponse à l'écran, c'est une de trop. */
+.champ{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+  border-radius:6px;padding:8px 10px;font:inherit;flex:1;min-width:180px;
+  max-width:380px}
+.champ:focus{outline:none;border-color:var(--ac)}
+
+/*  Une adresse IP se recopie à la main, souvent en la dictant au téléphone.
+    Chiffres à chasse fixe : le 1 et le 7 ne se confondent plus. */
+.adr{font-family:ui-monospace,"DejaVu Sans Mono",monospace;font-size:15px;
+  background:var(--bg-hi);border:1px solid var(--bd);border-radius:6px;
+  padding:6px 10px;user-select:all}
+
 /* --- Toast --------------------------------------------------------------- */
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
   background:var(--bg-hi);border:1px solid var(--bd);border-radius:10px;

@@ -94,6 +94,11 @@ let etat = {perf:"medium", theme:"sombre", accent:"orange", police:"defaut",
             avion:"off", hote:"", version:"", noyau:""};
 let sectionActive = "wifi";
 
+/*  Le protocole choisi pour aller voir ailleurs vit ICI et pas dans la page :
+    rendSection() réécrit tout le panneau à chaque rafraîchissement, et un
+    choix rangé dans le HTML disparaîtrait à la première relecture d'état. */
+let distantProto = "auto";
+
 /* --- API ------------------------------------------------------------------ */
 async function api(action, arg){
   try{
@@ -295,6 +300,27 @@ async function setFondQualite(v){
   const r = await api("fond-qualite", v);
   await rafraichir(r.ok ? "Au prochain démarrage du fond"
                         : "Échec : " + (r.erreur || "refusé"));
+}
+function setDistantProto(p){
+  if(["auto","rdp","vnc","ssh"].includes(p)){ distantProto = p; rendSection(); }
+}
+async function setDistantPartage(){
+  const on = !!(etat.distant && etat.distant.actif);
+  const r = await api("distant-partage", on ? "off" : "on");
+  await rafraichir(r.ok
+    ? (on ? "Partage arrêté"
+          : "Une fenêtre s'ouvre : elle demande le mot de passe à donner")
+    : "Échec : " + (r.erreur || "refusé"));
+}
+/*  Pas de rafraichir() ici : relire l'état réécrirait le panneau et effacerait
+    l'adresse qu'on vient de taper, juste au moment où on voudrait la corriger
+    parce que la connexion a raté. */
+async function distantVers(){
+  const c = document.getElementById("distAdr");
+  const adresse = (c ? c.value : "").trim();
+  if(!adresse){ toast("Il faut l'adresse de l'autre machine"); return; }
+  const r = await api("distant-vers", {protocole: distantProto, adresse});
+  if(r.ok) toast("Connexion à " + adresse + " …");
 }
 async function setSortieSon(nom){
   const r = await api("son-sortie", nom);
@@ -1211,18 +1237,69 @@ function contenu(cle){
     }
     case "distant": {
       const r = etat.distant || {};
-      return `<h2>Bureau à distance</h2><div class="sub">Voir cette machine depuis ailleurs</div>
+      const PROTOS = [["auto","Deviner"], ["rdp","RDP"], ["vnc","VNC"], ["ssh","SSH"]];
+      /*  Ce qu'on affiche quand le partage tourne, c'est L'ADRESSE À DICTER
+          au téléphone : « tape ça chez toi ». Sans elle, un partage allumé ne
+          sert à rien — l'autre bout ne sait pas où frapper. On donne l'IP de
+          chaque carte réseau, port compris, parce qu'un portable branché en
+          Wi-Fi ET en câble n'a pas la même adresse des deux côtés. */
+      const port = (r.ports || "").split(/[\s,]+/).filter(Boolean)[0] || "";
+      const adresses = r.adresses || [];
+      return `<h2>Bureau à distance</h2>
+      <div class="sub">Montrer cet écran à quelqu'un, ou aller voir une autre machine</div>
+
+      <h3 class="cpt-h3">Montrer cet écran</h3>
       ${r.outil
-        ? srow(`Serveur (${esc(r.outil)})`,
-               r.actif ? "En marche — cette machine est visible depuis le réseau"
-                       : "Installé, mais arrêté",
-               `<span class="etat ${r.actif?"ok":"off"}">${r.actif?"actif":"arrêté"}</span>`)
-        : srow("Serveur", "Aucun serveur installé",
+        ? srow("Partager mon bureau",
+               r.actif ? `En marche — ${esc(r.outil)} montre cet écran sur le réseau local`
+                       : `Arrêté. À l'allumage, ${esc(r.outil)} demande un mot de passe : c'est celui-là qu'on donne à l'autre.`,
+               sw(r.actif, "setDistantPartage()"))
+        : srow("Partager mon bureau", "Aucun serveur installé sur cette machine",
                `<span class="etat abs">absent</span>`)}
+      ${(r.actif && adresses.length)
+        ? `<div class="srow" style="display:block">
+             <div class="t" style="margin-bottom:8px">L'adresse à donner</div>
+             <div class="row">${adresses.map(a =>
+               `<span class="adr" title="${esc(a.interface)}">${esc(a.ip)}${port?":"+esc(port):""}</span>`
+             ).join("")}</div>
+             <div class="sub" style="margin-top:8px">Une adresse par carte réseau.
+               Si l'autre est dans la même maison, n'importe laquelle marche ;
+               de l'extérieur, il faut passer par un VPN — jamais ouvrir ce
+               port sur la box.</div>
+           </div>`
+        : ""}
+      ${r.actif
+        ? `<p class="notice">Le partage s'arrête tout seul à l'extinction. Il ne
+             revient pas au démarrage suivant : il faut le rallumer à la main,
+             exprès, chaque fois.</p>`
+        : ""}
+
+      <h3 class="cpt-h3">Aller voir une autre machine</h3>
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Adresse de l'autre machine</div>
+        <div class="row" style="gap:8px;align-items:center">
+          <input class="champ" id="distAdr" type="text" spellcheck="false"
+                 autocomplete="off" placeholder="192.168.1.42  ou  compte@machine"
+                 onkeydown="if(event.key==='Enter')distantVers()">
+          <button class="btn" onclick="distantVers()">Se connecter</button>
+        </div>
+        <div class="row" style="margin-top:10px">${PROTOS.map(([v,t]) =>
+          `<button class="btn ${distantProto===v?"sel":"ghost"}"
+             onclick="setDistantProto('${v}')">${t}</button>`).join("")}</div>
+        <div class="sub" style="margin-top:8px">« Deviner » essaie RDP puis VNC
+          d'après le port qui répond en face — c'est le bon choix neuf fois sur
+          dix. SSH ouvre un terminal, pas une image.</div>
+      </div>
+      ${srow("Visionneuse (RDP / VNC)",
+             r.remmina ? "Remmina est installé" : "Remmina n'est pas installé",
+             `<span class="etat ${r.remmina?"ok":"abs"}">${r.remmina?"prête":"absente"}</span>`)}
+      ${srow("Terminal à distance (SSH)",
+             r.ssh ? "Le client SSH est installé" : "Le client SSH n'est pas installé",
+             `<span class="etat ${r.ssh?"ok":"abs"}">${r.ssh?"prêt":"absent"}</span>`)}
       ${btnOuvrir("distant","Détail (terminal)")}
       <p class="notice">${r.outil
         ? "Un bureau à distance ouvre ta machine au réseau : il ne démarre jamais tout seul, et jamais sans mot de passe."
-        : "À installer d'abord : <code>lexos install x11vnc</code>."}</p>`;
+        : "Pour se laisser voir, il faut d'abord un serveur : <code>lexos install x11vnc</code>. Pour aller voir ailleurs, il faut Remmina : <code>lexos install remmina</code>."}</p>`;
     }
     case "apropos": {
       const lb = etat.libre || {firmwares:0, steam:false, broadcom:false};

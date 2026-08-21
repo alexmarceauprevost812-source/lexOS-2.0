@@ -629,6 +629,53 @@ def act_echelle(arg):
                  "-n", "-t", "int", "-s", str(ECHELLES[arg])])
 
 
+def act_distant_partage(arg):
+    """Démarrer ou arrêter le partage de cet écran.
+
+    LE DÉMARRAGE PASSE PAR UN TERMINAL, ET C'EST VOULU. lexos-distant DEMANDE
+    un mot de passe — il n'y en a pas par défaut, jamais. Le lancer en tâche
+    de fond laisserait la question sans personne pour y répondre, et le
+    partage ne démarrerait pas, sans dire pourquoi. L'arrêt, lui, ne demande
+    rien : il peut partir directement."""
+    if arg not in ("on", "off"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    if not shutil.which("lexos-distant"):
+        return {"ok": False, "erreur": "lexos-distant absent"}
+    if arg == "off":
+        return _run(["lexos-distant", "arreter"])
+    return _terminal("Partager cet écran — LexOS", "lexos distant partager")
+
+
+def act_distant_vers(arg):
+    """Se connecter à une autre machine.
+
+    L'adresse vient de la page, donc elle est vérifiée AVANT tout usage : on
+    n'accepte que ce qui ressemble à une adresse — lettres, chiffres, points,
+    tirets, deux-points pour le port, arobase pour « compte@machine ». Rien
+    d'autre ne passe, et de toute façon subprocess reçoit une liste : même
+    une adresse tordue ne peut pas devenir une commande.
+
+    Le protocole est un ensemble fermé ; « auto » laisse lexos-distant
+    deviner RDP ou VNC d'après le port, ce qu'il sait déjà faire."""
+    if not isinstance(arg, dict):
+        return {"ok": False, "erreur": "requête invalide"}
+    protocole = arg.get("protocole", "auto")
+    adresse = str(arg.get("adresse", "")).strip()
+    if protocole not in ("auto", "rdp", "vnc", "ssh"):
+        return {"ok": False, "erreur": "protocole inattendu"}
+    if not adresse or len(adresse) > 120:
+        return {"ok": False, "erreur": "il faut une adresse"}
+    if not all(c.isalnum() or c in ".-:@_[]" for c in adresse):
+        return {"ok": False, "erreur": "adresse invalide"}
+
+    if protocole == "ssh":
+        #  SSH est un terminal : il lui faut une fenêtre, et il demandera
+        #  peut-être un mot de passe.
+        return _terminal(f"SSH — {adresse}", f"lexos distant ssh {adresse}")
+    commande = "vers" if protocole == "auto" else protocole
+    return _run(["lexos-distant", commande, adresse], detach=True)
+
+
 def act_capture_format(arg):
     """PNG (sans perte, le texte reste net) ou JPEG (plus léger)."""
     if arg not in ("png", "jpeg"):
@@ -713,6 +760,8 @@ ACTIONS = {
     "son-sortie": act_son_sortie,
     "ecran-definition": act_ecran_definition,
     "echelle": act_echelle,
+    "distant-partage": act_distant_partage,
+    "distant-vers": act_distant_vers,
     "capture-format": act_capture_format,
     "fond-qualite": act_fond_qualite,
     "souris": act_souris,
@@ -1405,16 +1454,33 @@ def _clavier_etat():
 
 
 def _distant_etat():
-    """Le bureau à distance : le serveur est-il installé, et tourne-t-il ?"""
-    outil = ""
-    for c in ("x11vnc", "wayvnc", "krfb"):
-        if shutil.which(c):
-            outil = c
-            break
-    actif = False
-    if outil and shutil.which("pgrep"):
-        actif = bool(_sortie(["pgrep", "-x", outil]))
-    return {"outil": outil, "actif": actif}
+    """Le bureau à distance, tel que lexos-distant le voit.
+
+    ON LUI DEMANDE PLUTÔT QUE DE REFAIRE SON TRAVAIL. Ce panneau se
+    contentait de « serveur actif / arrêté » — alors que lexos-distant sait
+    déjà quelle adresse donner, sur quel port, et quels outils sont là.
+    Relire « ip addr » et « pgrep » de notre côté aurait fait deux copies de
+    la même logique, qui auraient fini par ne plus dire la même chose. On
+    consomme donc sa sortie « --json ».
+    """
+    vide = {"outil": "", "actif": False, "adresses": [], "ports": "",
+            "remmina": False, "ssh": False}
+    if not shutil.which("lexos-distant"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-distant", "--json"],
+                           capture_output=True, text=True, timeout=15)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    return {
+        "outil": d.get("outil", ""),
+        "actif": bool(d.get("partage")),
+        "adresses": d.get("adresses", []),
+        "ports": d.get("ports", ""),
+        "remmina": bool(d.get("remmina")),
+        "ssh": bool(d.get("ssh")),
+    }
 
 
 def _reseau_etat():

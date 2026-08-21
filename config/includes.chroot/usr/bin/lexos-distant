@@ -383,6 +383,48 @@ ports_ecoutes() {
 		| sort -u | tr '\n' ' '
 }
 
+# --- L'état en JSON, pour les Paramètres ------------------------------------
+#  POURQUOI UNE SORTIE MACHINE. Le panneau des Paramètres montrait « serveur
+#  actif / arrêté » et rien d'autre — alors que CE fichier sait déjà tout :
+#  quelle adresse donner, sur quel port, depuis quand, et quels outils sont
+#  installés. Plutôt que de lui faire relire « ip addr » et « pgrep » de son
+#  côté — deux copies de la même logique qui finiraient par diverger — on
+#  expose ici ce qu'on sait déjà.
+cmd_json() {
+	local pid ports adresses remmina ssh
+	pid="$(partage_pid 2>/dev/null || true)"
+	ports=""
+	[[ -n "$pid" ]] && ports="$(rogner "$(ports_ecoutes "$pid" 2>/dev/null || true)")"
+	adresses="$(adresses_locales)"
+	command -v remmina >/dev/null 2>&1 && remmina=true || remmina=false
+	command -v ssh     >/dev/null 2>&1 && ssh=true     || ssh=false
+
+	PID="$pid" PORTS="$ports" ADRESSES="$adresses" \
+	OUTIL="$(command -v x11vnc >/dev/null 2>&1 && printf x11vnc)" \
+	REMMINA="$remmina" SSH="$ssh" \
+	python3 -c '
+import json, os
+
+pid = (os.environ.get("PID") or "").strip()
+adresses = []
+for ligne in (os.environ.get("ADRESSES") or "").splitlines():
+    ligne = ligne.strip()
+    if " : " in ligne:
+        interface, _, ip = ligne.partition(" : ")
+        adresses.append({"interface": interface.strip(), "ip": ip.strip()})
+
+print(json.dumps({
+    "partage": bool(pid),
+    "pid": pid,
+    "ports": (os.environ.get("PORTS") or "").strip(),
+    "adresses": adresses,
+    "outil": (os.environ.get("OUTIL") or "").strip(),
+    "remmina": os.environ.get("REMMINA") == "true",
+    "ssh": os.environ.get("SSH") == "true",
+}, ensure_ascii=False))
+'
+}
+
 cmd_etat() {
 	local pid="" depuis="" duree="" ports=""
 	verifier_procps
@@ -423,6 +465,7 @@ case "$commande" in
 	partager)               cmd_partager "${1:-}" ;;
 	arreter)                cmd_arreter ;;
 	etat)                   cmd_etat ;;
+	--json|json)            cmd_json ;;
 	*)
 		warn "Commande inconnue : « $commande »"
 		printf '\n'

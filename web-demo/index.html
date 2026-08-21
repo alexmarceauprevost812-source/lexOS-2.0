@@ -1279,6 +1279,22 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .fvide-ic{width:74px;opacity:.32}
 .fvide-ic svg{width:100%;height:auto;display:block}
 .files .sz{margin-left:auto;color:var(--fg-dim);font-size:12px}
+/*  La pastille d'état, reprise telle quelle des Paramètres de l'ISO : vert
+    quand l'outil est là, gris quand il manque. */
+.etat{display:inline-block;padding:3px 10px;border-radius:99px;
+  font:600 11.5px/1.5 inherit;white-space:nowrap}
+.etat.ok{background:rgba(31,143,78,.18);color:#4ADE80}
+.etat.off{background:rgba(229,72,77,.16);color:#F87171}
+.etat.abs{background:var(--bg-hi);color:var(--fg-dim)}
+.champ{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+  border-radius:6px;padding:8px 10px;font:inherit;flex:1;min-width:180px;
+  max-width:380px}
+.champ:focus{outline:none;border-color:var(--ac)}
+/*  Une adresse IP se recopie à la main, souvent en la dictant au téléphone.
+    Chiffres à chasse fixe : le 1 et le 7 ne se confondent plus. */
+.adr{font-family:ui-monospace,"DejaVu Sans Mono",monospace;font-size:15px;
+  background:var(--bg-hi);border:1px solid var(--bd);border-radius:6px;
+  padding:6px 10px;user-select:all}
 .warnbox{border:1px solid #A32B2F;background:#1a0d0e;border-radius:8px;
   padding:12px;color:#ffb4b6;font-size:13px;margin:10px 0}
 .notice{border:1px solid var(--ac-lo);background:#170f08;border-radius:8px;
@@ -2171,6 +2187,7 @@ const LANGS = { fr_CA:"Français (Québec)", fr_FR:"Français (France)",
   en_US:"English (US)", en_CA:"English (Canada)", es_ES:"Español", de_DE:"Deutsch" };
 const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 avion:false, mode:"sombre", wifiAuto:false, lang:"fr_CA",
+                distantPartage:false, distantProto:"auto",
                 filesFav:false, wifi:true, bt:true, wifiIssue:false,
                 son:72, batt:72, charging:false,
                 lum:80, eco:false, dimBat:true, ecranOff:"10", veille:"30",
@@ -6964,23 +6981,61 @@ function settingsSection(key){
       <code>/etc/xdg/mimeapps.list</code> — le hook 0400 y pose les valeurs
       de départ, et un clic droit → « Ouvrir avec » les modifie ensuite.</p>`;
 
-    case "distant": return `<h2>Bureau à distance</h2>
-      <div class="sub">Voir et contrôler cet ordinateur depuis un autre</div>
-      ${swRow("Bureau à distance","Autoriser la connexion depuis le réseau local",false,"")}
-      ${swRow("Contrôle à distance","Le poste distant peut aussi cliquer et taper",false,"")}
-      <div class="srow"><div><div class="t">Adresse de connexion</div>
-        <div class="d"><code>lex@192.168.0.42:3389</code></div></div></div>
-      <div class="srow"><div><div class="t">Mot de passe</div>
-        <div class="d">Généré à l'activation, jamais réutilisé</div></div>
-        <button class="btn ghost mini" style="width:auto"
-                onclick="toast('Un nouveau mot de passe serait généré')">Régénérer</button></div>
-      <div class="warnbox">Activer le bureau à distance ouvre un port sur le
-      réseau. À ne laisser allumé que le temps nécessaire, et jamais sur un
-      réseau public.</div>
-      <p class="notice">Sur la vraie ISO : <b>xrdp</b> côté serveur, et
-      <code>lexos logitheque install distant</code> installe <b>Remmina</b>
-      pour se connecter à d'autres machines. <code>lexos secure</code>
-      montre si le pare-feu laisse passer le port.</p>`;
+    case "distant": {
+      /*  Ce panneau est le jumeau de celui de l'ISO : mêmes rangées, mêmes
+          mots, même ordre. La démo est le cahier des charges — un réglage qui
+          n'a pas la même tête des deux côtés n'est pas le même réglage aux
+          yeux de celui qui s'en sert. */
+      const PROTOS = [["auto","Deviner"], ["rdp","RDP"], ["vnc","VNC"], ["ssh","SSH"]];
+      const on = state.distantPartage;
+      return `<h2>Bureau à distance</h2>
+      <div class="sub">Montrer cet écran à quelqu'un, ou aller voir une autre machine</div>
+
+      <h3 class="cpt-h3">Montrer cet écran</h3>
+      ${swRow("Partager mon bureau",
+              on ? "En marche — x11vnc montre cet écran sur le réseau local"
+                 : "Arrêté. À l'allumage, x11vnc demande un mot de passe : c'est celui-là qu'on donne à l'autre.",
+              on, "toggleDistantPartage()")}
+      ${on ? `<div class="srow" style="display:block">
+             <div class="t" style="margin-bottom:8px">L'adresse à donner</div>
+             <div class="row"><span class="adr">192.168.0.42:5900</span>
+               <span class="adr">10.0.0.14:5900</span></div>
+             <div class="sub" style="margin-top:8px">Une adresse par carte réseau.
+               Si l'autre est dans la même maison, n'importe laquelle marche ;
+               de l'extérieur, il faut passer par un VPN — jamais ouvrir ce
+               port sur la box.</div>
+           </div>
+           <div class="warnbox">Le partage s'arrête tout seul à l'extinction. Il
+             ne revient pas au démarrage suivant : il faut le rallumer à la
+             main, exprès, chaque fois.</div>` : ""}
+
+      <h3 class="cpt-h3">Aller voir une autre machine</h3>
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Adresse de l'autre machine</div>
+        <div class="row" style="gap:8px;align-items:center">
+          <input class="champ" id="distAdr" type="text" spellcheck="false"
+                 autocomplete="off" placeholder="192.168.1.42  ou  compte@machine"
+                 onkeydown="if(event.key==='Enter')distantVers()">
+          <button class="btn" style="width:auto" onclick="distantVers()">Se connecter</button>
+        </div>
+        <div class="row" style="margin-top:10px">${PROTOS.map(([v,t]) =>
+          `<button class="btn ${state.distantProto===v?"":"ghost"} mini" style="width:auto"
+             onclick="setDistantProto('${v}')">${t}</button>`).join("")}</div>
+        <div class="sub" style="margin-top:8px">« Deviner » essaie RDP puis VNC
+          d'après le port qui répond en face — c'est le bon choix neuf fois sur
+          dix. SSH ouvre un terminal, pas une image.</div>
+      </div>
+      <div class="srow"><div><div class="t">Visionneuse (RDP / VNC)</div>
+        <div class="d">Remmina est installé</div></div>
+        <span class="etat ok">prête</span></div>
+      <div class="srow"><div><div class="t">Terminal à distance (SSH)</div>
+        <div class="d">Le client SSH est installé</div></div>
+        <span class="etat ok">prêt</span></div>
+      <p class="notice">Sur la vraie ISO, tout ça passe par <code>lexos distant</code> :
+      <b>x11vnc</b> pour se laisser voir, <b>Remmina</b> pour aller voir ailleurs.
+      Un bureau à distance ouvre ta machine au réseau : il ne démarre jamais
+      tout seul, et jamais sans mot de passe.</p>`;
+    }
 
     case "mac": {
       const m = state.macModele || "MacBookPro11,3";
@@ -7074,6 +7129,19 @@ function togglePeriph(key){
   showSettingsSection();
 }
 function toggleAvion(){ state.avion=!state.avion; updateTrayIcon(); showSettingsSection(); }
+function toggleDistantPartage(){
+  state.distantPartage = !state.distantPartage; showSettingsSection();
+  toast(state.distantPartage
+    ? "Partage allumé — x11vnc demanderait le mot de passe à donner"
+    : "Partage arrêté");
+}
+function setDistantProto(p){ state.distantProto = p; showSettingsSection(); }
+function distantVers(){
+  const c = document.getElementById("distAdr");
+  const a = (c ? c.value : "").trim();
+  if(!a){ toast("Il faut l'adresse de l'autre machine"); return; }
+  toast("Connexion à " + a + " …");
+}
 function toggleWifiAuto(){ state.wifiAuto=!state.wifiAuto; showSettingsSection(); }
 function toggleWifiIssue(){ state.wifiIssue=!state.wifiIssue; showSettingsSection(); qsRefreshIfOpen(); majStatus(); }
 //  Le panneau rapide, s'il est ouvert, doit refléter le changement tout de suite.
