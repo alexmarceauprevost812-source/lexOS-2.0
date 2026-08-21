@@ -48,6 +48,73 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 59 : LES VOLETS, LA BARRE ARRONDIE, ET DOUZE ÉCRITURES À LA MAIN.
+#   Règle qu'Alex a posée et qui commande tout ce build : « tout ce qu'on
+#   fait sur la version vercel on le met aussi dans ios ». Ce qui suit existe
+#   donc des DEUX côtés, avec le même dessin.
+#
+#   LE VOLET QUI DESCEND. Un clic sur l'heure ouvre les notifications et
+#   l'agenda « comme un menu qui ouvre tranquillement en descendant » ; un
+#   clic sur la météo ouvre le temps qu'il fait. Une fenêtre et un volet ne
+#   sont pas la même chose : une fenêtre se déplace et se range dans
+#   Alt+Tab, un volet appartient à la barre et un clic ailleurs le referme.
+#   C'est une fenêtre Qt sans cadre affichant la MÊME page que la démo —
+#   même CSS, même courbe d'animation, même durée. L'animation est jouée par
+#   la page et non par Qt : redimensionner une fenêtre à chaque image serait
+#   saccadé sur un portable de 2016, et n'aurait pas la même tête.
+#
+#   Ce qu'il montre vient de la vraie machine : les notifications du journal
+#   de xfce4-notifyd (celui qui les reçoit pour de bon), les rendez-vous d'un
+#   fichier à nous, la météo d'Open-Meteo via « lexos-meteo --json ».
+#
+#   L'HORLOGE CHANGE DE NATURE. Le greffon horloge de XFCE ouvre SON
+#   calendrier et ne sait rien lancer d'autre — impossible d'y accrocher le
+#   volet. Elle devient donc une tuile genmon (lexos-heure). Deux pièges déjà
+#   payés une fois sur ce projet, évités ici : genmon ne lit PAS
+#   xfce4-panel.xml mais son propre genmon-N.rc (sans quoi la barre afficherait
+#   « (genmon)XXX » au lieu de l'heure, la panne exacte qu'avait connue la
+#   météo) ; et si genmon manquait au dépôt, le nettoyage du hook 0400
+#   retirerait plugin-3 et il n'y aurait PLUS D'HORLOGE — un repli remet alors
+#   le greffon interne de XFCE, on perd le clic, on garde l'heure.
+#
+#   LA BARRE DU HAUT ARRONDIE, sur une image de référence d'Alex. Trois
+#   réglages, et il les faut tous les trois : la barre passe à 98 % de large
+#   (à 100 % elle n'avait aucun coin à montrer), elle se décolle du haut, et
+#   son fond devient translucide. XFCE ne sait pas arrondir sa barre par un
+#   réglage — c'est GTK qui décide de la forme d'une fenêtre — d'où un
+#   ~/.config/gtk-3.0/gtk.css dans le squelette. Et background-style repasse
+#   à 0 : avec 1, XFCE peint lui-même un rectangle plein PAR-DESSUS l'arrondi.
+#   Les notifications prennent la même forme (xfce4-notifyd.xml, qui
+#   n'existait pas : elles tournaient sur les réglages d'usine).
+#
+#   DOUZE ÉCRITURES À LA MAIN. Alex a repéré une police qui lui plaisait sans
+#   savoir la nommer ; deviner à sa place gaspillait son temps comme le mien.
+#   Il les a maintenant toutes dans Paramètres → Apparence, chacune écrite
+#   DANS SA PROPRE POLICE, et il choisit sur SA machine — c'est là qu'on juge
+#   une police, pas sur une capture. Toutes sous licence OFL, embarquées avec
+#   leur fichier de licence.
+#
+#   ET LES CORRECTIONS TROUVÉES EN CHEMIN :
+#     · la fenêtre des Paramètres n'obéissait NI à la police NI à l'accent
+#       qu'on y choisissait — la feuille de style codait les deux en dur.
+#       C'est le pire endroit possible pour ce défaut : c'est là qu'on fait le
+#       choix, donc là qu'on regarde pour voir s'il a pris ;
+#     · RIEN ne reconstruisait le cache des polices. Patrick Hand arrivait par
+#       includes.chroot, donc hors de dpkg, donc sans déclencher le mécanisme
+#       qui rebâtit d'ordinaire ce cache. Le hook 0300 lance maintenant
+#       fc-cache et VÉRIFIE que la police est vue ;
+#     · la météo a enfin ses prévisions : cliquer la tuile ouvrait la boîte
+#       « quelle est ta ville ? » — on changeait de ville pour regarder le
+#       temps. Six ciels au lieu de quatre (l'orage et la neige manquaient),
+#       chacun avec sa grande image et sa couleur.
+#
+#   VÉRIFIÉ AVANT DE CONSTRUIRE : 70 assertions au navigateur réel sur trois
+#   bancs d'essai (Paramètres, volet, démo), toutes contre du vrai code servi
+#   par un vrai serveur. Dont la preuve que le volet SE DÉPLIE au lieu
+#   d'apparaître, que les douze écritures sont réellement DESSINÉES (douze
+#   largeurs distinctes), et que le repli de l'horloge marche. shellcheck sans
+#   remarque, tous les XML validés.
+#
 # build 58 : LA LISTE DES ÉCARTS DÉMO-CONTRE-ISO EST VIDE — LES 21 SONT
 #   RÉPARÉS, ET TOUT EST VÉRIFIÉ AVANT DE CONSTRUIRE.
 #   L'audit (50 agents, 172 points de comparaison) avait confirmé 21 écarts
@@ -1139,4 +1206,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 58
+build: 59
