@@ -1,0 +1,105 @@
+/* =============================================================================
+ *  LexOS — les coins arrondis de la barre du haut et des notifications
+ * =============================================================================
+ *  CE QU'ALEX A DEMANDÉ, ET POURQUOI ÇA SE FAIT ICI.
+ *  « aimerais qu'en haut du bureau ce soit pareil à cette image, où s'affiche
+ *  l'heure et où on clique pour l'agenda ; et les notifications, pareil, avec
+ *  ces courbes arrondies. » Son image de référence : une pastille sombre aux
+ *  coins franchement ronds, posée sur le fond.
+ *
+ *  XFCE ne sait pas arrondir sa barre par un réglage : le panneau est une
+ *  fenêtre GTK, et c'est GTK qui décide de sa forme. Cette feuille est donc le
+ *  SEUL endroit d'où l'arrondi peut venir. Elle est posée dans le squelette
+ *  (/etc/skel) : chaque compte créé la reçoit, et l'utilisateur peut la
+ *  modifier chez lui sans qu'une mise à jour la lui reprenne.
+ *
+ *  CE QUI REND L'ARRONDI VISIBLE — ET SANS QUOI IL NE SERT À RIEN.
+ *  Un coin arrondi ne se voit que si ce qu'il y a DERRIÈRE se voit. Il faut
+ *  donc le compositeur, qui donne aux fenêtres une vraie transparence. Il est
+ *  déjà allumé chez nous (xfwm4.xml : use_compositing=true) — sans lui, les
+ *  coins seraient remplis de noir et la barre resterait carrée à l'oeil.
+ *
+ *  Et il faut que la barre ne touche pas les bords : c'est pour ça que
+ *  xfce4-panel.xml passe sa longueur à 98 % au lieu de 100 %. Une barre collée
+ *  d'un bord à l'autre n'a pas de coins à montrer.
+ * ===========================================================================*/
+
+/* --- La barre du haut ------------------------------------------------------ */
+#XfcePanelWindow {
+	/*  Le fond est posé ICI et non par XFCE : xfce4-panel.xml met
+	    background-style à 0 (« laisser le thème décider ») exprès, parce
+	    qu'un fond peint par XFCE se dessine par-dessus la forme arrondie et
+	    la rend carrée à nouveau. */
+	background-color: rgba(20, 18, 22, 0.92);
+	border-radius: 14px;
+	/*  Un liseré très pâle : sur un fond d'écran sombre, sans lui, le bord
+	    de la barre disparaît et l'arrondi ne se lit plus. */
+	border: 1px solid rgba(255, 255, 255, 0.07);
+	/*  L'écart avec le haut de l'écran, pour que la barre ait l'air posée
+	    plutôt qu'accrochée. Selon la version de GTK et de xfce4-panel, cette
+	    marge est parfois ignorée pour une fenêtre ancrée à un bord : ce
+	    n'est alors pas grave, l'arrondi reste — on perd le décollement, pas
+	    la forme. */
+	margin: 4px;
+}
+
+/*  Les tuiles de la barre — heure, météo, son, réseau — prennent le même
+    langage : coin rond, surlignage discret au survol. Sans ça, on aurait une
+    barre ronde remplie de rectangles, et le détail se verrait tout de suite. */
+#XfcePanelWindow .xfce4-panel button,
+#XfcePanelWindow button {
+	border-radius: 9px;
+	border: none;
+	background-image: none;
+	background-color: transparent;
+	padding: 0 6px;
+	min-height: 22px;
+}
+#XfcePanelWindow button:hover {
+	background-color: rgba(255, 255, 255, 0.10);
+}
+/*  Le bouton d'un greffon ouvert (l'agenda déroulé, le menu du son) doit se
+    distinguer du simple survol : c'est ce qui dit « c'est ÇA qui est ouvert ». */
+#XfcePanelWindow button:checked,
+#XfcePanelWindow button:active {
+	background-color: rgba(232, 89, 12, 0.85);
+	color: #ffffff;
+}
+
+/* --- Les notifications ----------------------------------------------------- */
+/*  Même dessin que la barre, en plus rond : une notification est une petite
+    carte posée sur le bureau, pas une fenêtre. C'est exactement la forme de
+    l'image d'Alex. */
+#XfceNotifyWindow {
+	background-color: rgba(20, 18, 22, 0.95);
+	border-radius: 18px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	padding: 4px;
+}
+#XfceNotifyWindow .summary {
+	font-weight: bold;
+}
+/*  Les boutons d'action d'une notification (« Ouvrir », « Ignorer ») : mêmes
+    pastilles que dans la barre, pour que tout LexOS parle la même langue. */
+#XfceNotifyWindow button {
+	border-radius: 9px;
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	background-image: none;
+	background-color: rgba(255, 255, 255, 0.05);
+}
+#XfceNotifyWindow button:hover {
+	background-color: rgba(232, 89, 12, 0.85);
+	color: #ffffff;
+}
+
+/* --- Les menus déroulants -------------------------------------------------- */
+/*  L'agenda et les menus qui s'ouvrent DEPUIS la barre : s'ils restaient à
+    angles droits, le clic sur une tuile ronde ferait sortir un rectangle.
+    C'est le genre de détail qu'on ne sait pas nommer mais qu'on voit. */
+menu, .menu, popover, .popup {
+	border-radius: 14px;
+}
+menu menuitem, .menu menuitem {
+	border-radius: 8px;
+	padding: 4px 8px;
+}

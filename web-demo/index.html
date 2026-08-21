@@ -196,17 +196,80 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   color:#b8b8bc;opacity:.75;pointer-events:none}
 
 /* --- Barre du haut ------------------------------------------------------ */
-#panel{position:fixed;top:0;left:0;right:0;height:32px;z-index:900;
+#panel{position:fixed;height:32px;z-index:900;
   /*  minmax(0,…) sur les trois colonnes : sans le minimum à 0, une colonne
       refuse de descendre sous la largeur de son contenu et le déborde sur
       la voisine — l'heure passait alors par-dessus la batterie. */
   display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto) minmax(0,1fr);
   align-items:center;
-  background:#000;border-bottom:1px solid var(--bd);padding:0 10px;font-size:13px}
+  /*  LA BARRE ARRONDIE, demandée par Alex sur une image de référence : une
+      pastille sombre aux coins ronds, posée sur le fond plutôt que collée au
+      bord. Trois choses la rendent possible, et il les faut toutes les
+      trois — c'est pour ça qu'elles sont ensemble ici :
+        · « left/right:1% » plutôt que 0 : un coin arrondi ne se voit que
+          s'il y a du fond derrière. Une barre d'un bord à l'autre n'a pas
+          de coins à montrer ;
+        · « top:5px » : le décollement qui la fait paraître posée ;
+        · le fond translucide : le fond d'écran transparaît légèrement, ce
+          qui donne sa profondeur à la forme.
+      Côté ISO, ces trois réglages se retrouvent dans gtk.css et
+      xfce4-panel.xml (longueur 98 %, fond laissé au thème). */
+  top:5px;left:1%;right:1%;
+  background:rgba(20,18,22,.92);
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:14px;
+  backdrop-filter:blur(10px);
+  padding:0 10px;font-size:13px}
 /*  Les deux colonnes latérales : min-width:0 pour qu'elles acceptent de
     rétrécir au lieu de pousser le centre, et overflow caché pour qu'un
     contenu trop long soit coupé plutôt que de déborder sur l'heure. */
 #panel-g{display:flex;align-items:center;gap:0;min-width:0;overflow:hidden}
+/* --- LE VOLET QUI DESCEND -------------------------------------------------
+   Demandé par Alex : « quand on va cliquer sur lexOS où s'affiche l'heure,
+   j'aimerais beaucoup que ça ouvre comme un menu qui ouvre tranquillement et
+   fluide en descendant » — pour voir les notifications et l'agenda.
+
+   Une FENÊTRE et un VOLET ne sont pas la même chose, et c'est tout le sujet :
+   une fenêtre se déplace, se redimensionne, se range dans Alt+Tab. Un volet
+   appartient à la barre : il en descend, il s'y raccroche, et un clic ailleurs
+   le referme. C'est le geste du téléphone, et c'est ce qu'on attend en
+   cliquant l'heure.
+
+   L'animation est en deux temps sur la même durée : la hauteur se déplie
+   pendant que le contenu monte de 10 px et s'opacifie. Une seule des deux
+   donnerait soit un rideau qui tombe d'un bloc, soit un fondu sans mouvement.
+   La courbe (0.16, 1, 0.3, 1) démarre vite et finit très doucement : c'est
+   ce qui donne la sensation de « tranquille » plutôt que de « lent ». */
+.shade{position:fixed;z-index:1200;
+  background:rgba(20,18,22,.96);
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:16px;
+  box-shadow:0 18px 50px rgba(0,0,0,.55);
+  backdrop-filter:blur(14px);
+  overflow:hidden;
+  transform-origin:top center;
+  /*  L'état FERMÉ. Le volet existe déjà dans la page — c'est ce qui permet
+      d'animer : on ne peut pas animer un élément qui vient d'apparaître. */
+  max-height:0;opacity:0;pointer-events:none;
+  transition:max-height .34s cubic-bezier(.16,1,.3,1),
+             opacity   .22s ease,
+             transform .34s cubic-bezier(.16,1,.3,1);
+  transform:translateY(-10px) scaleY(.98)}
+.shade.on{max-height:78vh;opacity:1;pointer-events:auto;
+  transform:translateY(0) scaleY(1)}
+/*  Le contenu défile DANS le volet : sans ça, un mois d'agenda chargé
+    dépasserait le bas de l'écran et on ne pourrait plus rien lire. */
+.shade-in{max-height:78vh;overflow-y:auto;overscroll-behavior:contain}
+/*  La petite pointe qui rattache le volet à sa tuile dans la barre. C'est
+    elle qui dit « ça vient d'ICI » plutôt que « ça flotte ». */
+.shade-bec{position:absolute;top:-6px;width:12px;height:12px;
+  background:rgba(20,18,22,.96);border-left:1px solid rgba(255,255,255,.09);
+  border-top:1px solid rgba(255,255,255,.09);transform:rotate(45deg)}
+/*  Qui préfère un système sans animation en est débarrassé — la préférence
+    du système, pas un réglage de plus à trouver. */
+@media (prefers-reduced-motion: reduce){
+  .shade{transition:opacity .01s}
+}
 #panel .apps{display:flex;align-items:center;gap:7px;padding:1px 10px;border-radius:6px}
 #panel .apps:hover{background:var(--bg-hi)}
 #panel .apps .glyph{width:29px;height:29px;border-radius:4px;
@@ -909,15 +972,40 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 #meteo .mt-t{font-weight:600;color:var(--fg)}
 @media (max-width:820px){ #meteo{display:none} }
 /*  La fenêtre de détail : le temps du moment en grand, puis trois jours. */
-.mt-grand{display:flex;align-items:center;gap:16px;margin-bottom:18px}
-.mt-grand-i{font-size:52px;line-height:1}
+/* --- LE VOLET MÉTÉO --------------------------------------------------------
+   « ajouter de jolies images de météo quand il va faire soleil, neiger,
+   pleuvoir, ou que ça va être ennuagé — affiché avec l'image et la
+   température avec. »
+
+   Le bandeau du haut prend la COULEUR DU CIEL du moment (--mt-teinte, posée
+   par openMeteo d'après le ciel courant) : un jaune tiède au soleil, un bleu
+   froid sous la pluie. On sent le temps qu'il fait avant d'avoir lu le mot —
+   et pour qui distingue mal les pictogrammes, la couleur double l'information
+   au lieu de la remplacer. Le nom du ciel reste écrit, toujours. */
+.mt-volet{padding:0}
+.mt-grand{display:flex;align-items:center;gap:18px;
+  padding:20px 18px;margin-bottom:14px;
+  background:linear-gradient(180deg,var(--mt-teinte),transparent);
+  border-bottom:1px solid var(--mt-bord)}
+.mt-grand-txt{min-width:0}
+.mt-grand-v{color:var(--fg-dim);font-size:11.5px;margin-top:5px}
+.mt-grand-t span{font-size:17px;opacity:.65;margin-left:2px}
+.mt-jours{padding:0 16px}
+
+/*  64 px : c'est la taille à laquelle un pictogramme météo cesse d'être un
+    symbole et devient une image — ce qu'Alex a demandé. Le disque derrière
+    lui donne son assise ; sans lui, un emoji flotte au milieu du vide. */
+.mt-grand-i{font-size:44px;line-height:1;flex:none;
+  width:78px;height:78px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--mt-teinte);border:1px solid var(--mt-bord)}
 .mt-grand-t{font:700 30px/1.1 ui-monospace,monospace;color:var(--fg)}
 .mt-grand-d{color:var(--fg-dim);font-size:13.5px;margin-top:4px}
-.mt-jours{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:16px}
+.mt-jours{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:14px}
 .mt-j{background:var(--bg-hi);border:1px solid var(--bd);border-radius:10px;
   padding:11px 8px;text-align:center}
 .mt-j-n{font-size:11.5px;color:var(--fg-dim);margin-bottom:6px}
-.mt-j-i{font-size:24px;line-height:1;margin-bottom:5px}
+.mt-j-i{font-size:28px;line-height:1;margin-bottom:6px}
 .mt-j-t{font:700 17px/1 ui-monospace,monospace;color:var(--fg)}
 .mt-j-d{font-size:11px;color:var(--fg-dim);margin-top:5px;line-height:1.35}
 /*  Icône en cours de déplacement dans la barre : soulevée et translucide,
@@ -1879,7 +1967,7 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
    l'esprit de l'interface claire de Claude. */
 /* Le terminal (.term, #boot, #desktop) reste toujours noir, comme le vrai LexOS. */
 body.light{--bg:#EBE1CC;--bg-alt:#DFCFAE;--bg-hi:#D1BC94;--bd:#BDA679;--fg:#1B1A17;--fg-dim:#5C5647}
-body.light #panel{background:var(--bg-alt);border-color:var(--bd)}
+body.light #panel{background:rgba(235,225,204,.92);border-color:var(--bd)}
 body.light #appsview{background:rgba(235,225,204,.94)}
 body.light #dock{background:rgba(239,235,227,.85)}
 body.light .menu{background:var(--bg-alt)}
@@ -2023,10 +2111,14 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
       </span>
       <!--  La météo : température, ciel, et le détail au clic. Simulée —
             une page publiée ne peut joindre aucun service. -->
-      <button id="meteo" title="Météo — clique pour le détail" onclick="openMeteo()"></button>
+      <button id="meteo" title="Météo — clique pour le détail"
+              onpointerdown="event.stopPropagation()" aria-expanded="false"
+              onclick="openMeteo()"></button>
     </div>
     <span id="clock" title="Notifications et agenda" role="button" tabindex="0"
-          onclick="openAgenda()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAgenda()}">
+          onpointerdown="event.stopPropagation()"
+          onclick="openAgenda()" aria-expanded="false"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAgenda()}">
       <span class="clk-globe" aria-hidden="true">🌐</span>
       <span class="clk-brand">lexOS<span class="zap">⚡</span>Pro</span>
       <span id="clkdate"></span><span id="clktime"></span></span>
@@ -10354,6 +10446,82 @@ function agIntervalle(c1,c2){
     return `${d1.getDate()} ${AG_MOIS[d1.getMonth()]} – ${d2.getDate()} ${AG_MOIS[d2.getMonth()]} ${d1.getFullYear()}`;
   return `${d1.getDate()} ${AG_MOIS[d1.getMonth()]} ${d1.getFullYear()} – ${d2.getDate()} ${AG_MOIS[d2.getMonth()]} ${d2.getFullYear()}`;
 }
+/* --- Le moteur du volet ---------------------------------------------------
+   Un seul volet à la fois, réutilisé : le créer et le détruire à chaque clic
+   empêcherait toute animation d'entrée (un élément qui vient de naître n'a pas
+   d'état de départ à quitter). Il vit donc dans la page, ouvert ou fermé. */
+let shadeEl = null, shadeQui = null;
+
+function shadeAssure(){
+  if(shadeEl) return shadeEl;
+  shadeEl = document.createElement("div");
+  shadeEl.className = "shade";
+  shadeEl.setAttribute("role", "dialog");
+  shadeEl.innerHTML = `<span class="shade-bec"></span><div class="shade-in"></div>`;
+  document.body.appendChild(shadeEl);
+  //  Un clic DANS le volet ne doit pas le refermer : sans ça, cocher une
+  //  case ou changer de mois dans l'agenda le ferait disparaître.
+  shadeEl.addEventListener("pointerdown", e => e.stopPropagation());
+  return shadeEl;
+}
+
+/*  Placer le volet sous sa tuile, en le gardant dans l'écran. Une tuile près
+    du bord droit (la batterie) verrait sinon son volet sortir de l'écran. */
+function shadePlace(ancre){
+  const el = shadeAssure();
+  const r = ancre.getBoundingClientRect();
+  const L = Math.min(560, innerWidth - 24);
+  el.style.width = L + "px";
+  let x = r.left + r.width / 2 - L / 2;
+  x = Math.max(12, Math.min(x, innerWidth - L - 12));
+  el.style.left = x + "px";
+  el.style.top  = (r.bottom + 8) + "px";
+  //  Le bec pointe vers le CENTRE DE LA TUILE, pas vers le centre du volet :
+  //  quand le volet a été recalé pour rester dans l'écran, les deux ne sont
+  //  plus au même endroit, et c'est la tuile qui a raison.
+  const bec = el.querySelector(".shade-bec");
+  const bx = Math.max(14, Math.min(r.left + r.width / 2 - x - 6, L - 26));
+  bec.style.left = bx + "px";
+}
+
+function shadeOuvre(qui, ancre, html){
+  const el = shadeAssure();
+  el.querySelector(".shade-in").innerHTML = html;
+  shadePlace(ancre);
+  shadeQui = qui;
+  //  Deux images successives : la première pose la position et le contenu à
+  //  l'état fermé, la seconde déclenche la transition. Tout faire d'un coup
+  //  ferait apparaître le volet ouvert, sans animation.
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("on")));
+  ancre.setAttribute("aria-expanded", "true");
+}
+
+function shadeFerme(){
+  if(!shadeEl) return;
+  shadeEl.classList.remove("on");
+  shadeQui = null;
+  document.querySelectorAll('[aria-expanded="true"]')
+          .forEach(b => b.setAttribute("aria-expanded", "false"));
+}
+
+function shadeBascule(qui, ancre, html){
+  if(shadeQui === qui){ shadeFerme(); return false; }
+  shadeOuvre(qui, ancre, html);
+  return true;
+}
+
+//  Un clic dans le vide, ou Échap, referme — comme tout menu.
+addEventListener("pointerdown", () => shadeFerme());
+addEventListener("keydown", e => { if(e.key === "Escape") shadeFerme(); });
+//  Redimensionner la fenêtre déplace les tuiles : le volet doit suivre, pas
+//  rester accroché à l'ancien endroit.
+addEventListener("resize", () => {
+  if(shadeQui && shadeEl && shadeEl.classList.contains("on")){
+    const a = document.getElementById(shadeQui === "agenda" ? "clock" : "meteo");
+    if(a) shadePlace(a);
+  }
+});
+
 function openAgenda(){
   const now = new Date();
   if(!state.agendaVue){
@@ -10363,7 +10531,11 @@ function openAgenda(){
   //  Une session ouverte avant l'ajout des vues n'a ni « vue » ni « anc ».
   if(!state.agendaVue.vue) state.agendaVue.vue = "mois";
   if(!state.agendaVue.anc) state.agendaVue.anc = state.agendaVue.sel;
-  openWin("agenda","Notifications et agenda","🔔", agendaHTML(), 560, 660);
+  //  EN VOLET, PLUS EN FENÊTRE. Cliquer l'heure ouvre le panneau qui descend
+  //  de la barre — notifications puis agenda — et un deuxième clic le
+  //  referme. C'est le geste demandé, et celui de tous les téléphones.
+  const ancre = document.getElementById("clock");
+  if(!shadeBascule("agenda", ancre, agendaHTML())) return;
   notifRend();
   agendaRend();
 }
@@ -10615,11 +10787,41 @@ function agSupprime(cle,i){
    que la température monte l'après-midi et retombe la nuit, et que le
    ciel ne saute pas d'un orage au grand soleil d'une minute à l'autre.
    Sur la vraie ISO, c'est un vrai service qui répond.            */
+/*  LES CIELS. Alex a demandé « de jolies images » pour le soleil, la neige,
+    la pluie et les nuages — avec la température à côté.
+
+    Deux jeux de pictogrammes par ciel, et ce n'est pas de la coquetterie :
+    « ic » est celui de la BARRE, où l'on a 20 px de haut et où un dessin
+    chargé devient une tache ; « grand » est celui du VOLET, où la place ne
+    manque pas et où l'on peut prendre le pictogramme le plus parlant. Le
+    soleil derrière un nuage (🌤) est illisible en tout petit mais superbe en
+    grand — d'où les deux.
+
+    Et un jeu de NUIT : montrer un grand soleil à 23 h est faux. La lune
+    remplace le soleil, et les ciels couverts gardent leur dessin, la nuit ne
+    changeant rien à un nuage.
+
+    Chaque ciel porte aussi ses COULEURS : elles teintent le fond du volet,
+    pour qu'on sente le temps qu'il fait avant même d'avoir lu le mot. */
 const METEO_CIELS = [
-  {cle:"soleil",  ic:"☀",  nuit:"🌙", nom:"Ensoleillé",        nomNuit:"Ciel dégagé"},
-  {cle:"voile",   ic:"⛅", nuit:"☁",  nom:"Partiellement nuageux", nomNuit:"Quelques nuages"},
-  {cle:"nuages",  ic:"☁",  nuit:"☁",  nom:"Nuageux",           nomNuit:"Nuageux"},
-  {cle:"pluie",   ic:"🌧", nuit:"🌧", nom:"Pluie",             nomNuit:"Pluie"},
+  {cle:"soleil",  ic:"☀",  nuit:"🌙", grand:"☀️", grandNuit:"🌙",
+   nom:"Ensoleillé", nomNuit:"Ciel dégagé",
+   teinte:"rgba(245,166,35,.16)", bord:"rgba(245,166,35,.35)"},
+  {cle:"voile",   ic:"⛅", nuit:"☁",  grand:"🌤️", grandNuit:"☁️",
+   nom:"Partiellement nuageux", nomNuit:"Quelques nuages",
+   teinte:"rgba(160,180,205,.14)", bord:"rgba(160,180,205,.30)"},
+  {cle:"nuages",  ic:"☁",  nuit:"☁",  grand:"🌥️", grandNuit:"☁️",
+   nom:"Nuageux", nomNuit:"Nuageux",
+   teinte:"rgba(140,148,160,.14)", bord:"rgba(140,148,160,.30)"},
+  {cle:"pluie",   ic:"🌧", nuit:"🌧", grand:"🌦️", grandNuit:"🌧️",
+   nom:"Pluie", nomNuit:"Pluie",
+   teinte:"rgba(90,140,200,.16)", bord:"rgba(90,140,200,.34)"},
+  {cle:"averse",  ic:"⛈", nuit:"⛈",  grand:"⛈️", grandNuit:"⛈️",
+   nom:"Orage", nomNuit:"Orage",
+   teinte:"rgba(120,110,190,.16)", bord:"rgba(120,110,190,.34)"},
+  {cle:"neige",   ic:"❄",  nuit:"❄",  grand:"❄️", grandNuit:"🌨️",
+   nom:"Neige", nomNuit:"Neige",
+   teinte:"rgba(180,205,230,.16)", bord:"rgba(180,205,230,.34)"},
 ];
 //  Un « hasard » stable : le même jour donne toujours le même temps, donc
 //  l'affichage ne clignote pas entre deux rafraîchissements.
@@ -10641,8 +10843,18 @@ function meteoTemp(decalageJours){
   const courbe = Math.sin((h - 5) / 24 * Math.PI * 2) * 5;
   return Math.round(base + courbe);
 }
+/*  Le ciel du jour. La NEIGE n'est possible qu'en saison froide : le tirage
+    est stable, mais un tirage stable qui met de la neige un 18 août n'est pas
+    crédible pour autant — et une démo qui n'est pas crédible ne sert plus de
+    modèle. On tire donc dans les ciels PLAUSIBLES du mois.
+    (Sur l'ISO, rien de tout ça : c'est Open-Meteo qui répond pour de vrai.) */
 function meteoCiel(decalageJours){
-  return METEO_CIELS[Math.floor(meteoGraine(decalageJours) * METEO_CIELS.length) % METEO_CIELS.length];
+  const d = new Date(); d.setDate(d.getDate() + (decalageJours || 0));
+  const mois = d.getMonth();                    // 0 = janvier
+  const hiver = mois <= 2 || mois >= 10;        // nov. à mars, sous nos latitudes
+  const possibles = METEO_CIELS.filter(c =>
+    c.cle === "neige" ? hiver : true);
+  return possibles[Math.floor(meteoGraine(decalageJours) * possibles.length) % possibles.length];
 }
 function meteoRend(){
   const el = document.getElementById("meteo");
@@ -10656,32 +10868,44 @@ function meteoRend(){
   el.title = `${nuit?ciel.nomNuit:ciel.nom} · ${t} °C — clique pour le détail`;
 }
 function openMeteo(){
-  const nuit = meteoNuit(new Date().getHours());
-  const ciel = meteoCiel(0), t = meteoTemp(0);
-  const jours = ["Demain","Après-demain","Dans 3 jours"].map((nom,i)=>{
+  //  EN VOLET, comme l'agenda : la météo descend de sa tuile, elle ne
+  //  s'ouvre plus en fenêtre à déplacer. Même geste des deux côtés de la
+  //  barre, c'est ce qui fait qu'on ne se demande pas comment ça marche.
+  const ancre  = document.getElementById("meteo");
+  const heure  = new Date().getHours();
+  const nuit   = meteoNuit(heure);
+  const ciel   = meteoCiel(0), t = meteoTemp(0);
+  const glyphe = nuit ? ciel.grandNuit : ciel.grand;
+  const nom    = nuit ? ciel.nomNuit   : ciel.nom;
+
+  const jours = ["Demain","Après-demain","Dans 3 jours"].map((etiquette,i)=>{
     const c = meteoCiel(i+1);
-    return `<div class="mt-j"><div class="mt-j-n">${nom}</div>`+
-           `<div class="mt-j-i">${c.ic}</div>`+
-           `<div class="mt-j-t">${meteoTemp(i+1)}°</div>`+
-           `<div class="mt-j-d">${c.nom}</div></div>`;
+    //  Les jours à venir sont toujours montrés de JOUR : une prévision parle
+    //  de la journée entière, pas de l'instant où on la regarde.
+    return `<div class="mt-j">
+        <div class="mt-j-n">${etiquette}</div>
+        <div class="mt-j-i">${c.grand}</div>
+        <div class="mt-j-t">${meteoTemp(i+1)}°</div>
+        <div class="mt-j-d">${c.nom}</div>
+      </div>`;
   }).join("");
-  openWin("meteo","Météo", nuit?ciel.nuit:ciel.ic,
-    `<div class="pad">
+
+  shadeBascule("meteo", ancre,
+    `<div class="mt-volet" style="--mt-teinte:${ciel.teinte};--mt-bord:${ciel.bord}">
        <div class="mt-grand">
-         <div class="mt-grand-i">${nuit?ciel.nuit:ciel.ic}</div>
-         <div>
-           <div class="mt-grand-t">${t} °C</div>
-           <div class="mt-grand-d">${nuit?ciel.nomNuit:ciel.nom}</div>
+         <div class="mt-grand-i">${glyphe}</div>
+         <div class="mt-grand-txt">
+           <div class="mt-grand-t">${t}<span>°C</span></div>
+           <div class="mt-grand-d">${nom}</div>
+           <div class="mt-grand-v">Toronto · ${heure}:00</div>
          </div>
        </div>
        <div class="mt-jours">${jours}</div>
-       <p class="notice"><b>Météo simulée.</b> Cette page ne peut joindre
-       aucun service extérieur — elle est publiée avec une politique qui
-       bloque tout appel au réseau. La température et le ciel suivent
-       simplement l'heure du jour, pour rester crédibles sans mentir sur
-       leur origine. Sur la vraie ISO, c'est un vrai service qui répond, et
-       la ville se règle dans <b>Région et langue</b>.</p>
-     </div>`, 420, 420);
+       <p class="notice" style="padding:0 16px 14px"><b>Météo simulée.</b>
+       Cette page ne peut joindre aucun service extérieur — elle est publiée
+       avec une politique qui bloque tout appel au réseau. Sur la vraie ISO,
+       c'est Open-Meteo qui répond, et la ville se choisit d'un clic ici même.</p>
+     </div>`);
 }
 
 let heurePrec = "";

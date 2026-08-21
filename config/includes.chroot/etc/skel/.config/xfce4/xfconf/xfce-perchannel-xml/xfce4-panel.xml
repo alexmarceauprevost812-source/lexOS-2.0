@@ -22,21 +22,28 @@
             Repères : 2 = haut · 5 = gauche · 8 = droite · 11 = bas. -->
       <property name="position"        type="string" value="p=2;x=0;y=0"/>
       <property name="position-locked" type="bool"   value="true"/>
-      <property name="length"          type="uint"   value="100"/>
-      <property name="length-adjust"   type="bool"   value="true"/>
-      <property name="size"            type="uint"   value="30"/>
+      <!--  98 % ET NON 100 % : c'est ce qui donne à la barre des coins à
+            montrer. Alex a demandé la forme arrondie de son image ; un
+            arrondi ne se voit que s'il y a du fond d'écran derrière, donc
+            que si la barre ne touche pas les deux bords. Les 2 % restants
+            se partagent en deux, la barre est centrée (position p=2).
+            « length-adjust » repasse à false : à true, XFCE ajuste la
+            longueur au contenu et reprend toute la largeur. -->
+      <property name="length"          type="uint"   value="98"/>
+      <property name="length-adjust"   type="bool"   value="false"/>
+      <property name="size"            type="uint"   value="32"/>
       <property name="icon-size"       type="uint"   value="16"/>
       <property name="mode"            type="uint"   value="0"/>
       <property name="autohide-behavior" type="uint" value="0"/>
       <property name="enter-opacity"   type="uint"   value="100"/>
       <property name="leave-opacity"   type="uint"   value="100"/>
-      <property name="background-style" type="uint"  value="1"/>
-      <property name="background-rgba" type="array">
-        <value type="double" value="0.000000"/>
-        <value type="double" value="0.000000"/>
-        <value type="double" value="0.000000"/>
-        <value type="double" value="1.000000"/>
-      </property>
+      <!--  0 = « laisser le thème peindre le fond ». C'est indispensable et
+            pas un détail de goût : avec 1 (couleur unie), XFCE peint
+            lui-même un rectangle plein PAR-DESSUS la forme arrondie, et la
+            barre redevient carrée à l'oeil malgré le border-radius. Le fond
+            est donc décidé par ~/.config/gtk-3.0/gtk.css, qui arrondit et
+            peint d'un seul geste. -->
+      <property name="background-style" type="uint"  value="0"/>
       <property name="plugin-ids" type="array">
         <value type="int" value="1"/>
         <value type="int" value="14"/>
