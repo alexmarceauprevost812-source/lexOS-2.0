@@ -1,0 +1,71 @@
+/* =============================================================================
+   lexos-ui.css — LA SOURCE UNIQUE DE L'APPARENCE DES PANNEAUX LexOS
+   =============================================================================
+   POURQUOI CE FICHIER EXISTE.
+
+   Avant lui, chaque panneau portait sa propre palette. Relevé le 2026-08-22 :
+
+     Paramètres  fond #161311  texte #EDE6DF  survol #2A241F
+     Volet       fond #161311  texte #EDE6DF  survol #2A241F   (identiques)
+     IA          fond #0b0b0d  texte #e9e9ee  survol #1a1a1e   (autres)
+
+   …et un vocabulaire qui divergeait : --warn ici, --att là ; --off ici,
+   --non là ; --ac-hi ici, --ac-lo là. L'orange était écrit EN DUR trois fois
+   dans les Paramètres et quatre fois dans la démo web.
+
+   Conséquence concrète : « mets les boutons en écriture noire » se corrigeait
+   à huit endroits, dans des fichiers qui ne se parlent pas. Une retouche
+   d'apparence coûtait une heure et laissait toujours un oubli quelque part.
+
+   COMMENT C'EST BRANCHÉ. Un seul fichier réel vit ici ; chaque panneau y
+   accède par un lien symbolique dans son dossier web/, parce que le serveur
+   local de chaque panneau ne sert QUE son propre dossier (voir settings.py :
+   « directory=str(WEB_DIR) ») — un chemin en ../ serait refusé.
+
+   ORDRE DE CHARGEMENT. index.html charge ui.css AVANT style.css. Ce qui
+   reste dans style.css l'emporte donc, et rien ne change tant qu'on n'a pas
+   retiré les doublons panneau par panneau. C'est voulu : on pose la
+   plomberie sans toucher à l'apparence, et on unifie ensuite, en pouvant
+   revenir en arrière à chaque étape.
+
+   RÈGLE. Aucune couleur en dur ailleurs qu'ici. Un contrôle de CI le vérifie.
+   ============================================================================= */
+
+:root{
+  /* --- Fonds et texte — la palette « LexOS Noir » ------------------------- */
+  --bg:#161311;        /* le fond de la fenêtre                              */
+  --bg-side:#1D1916;   /* la barre latérale, à peine détachée du fond        */
+  --bg-alt:#1D1916;    /* alias de --bg-side, pour les panneaux qui le nomment ainsi */
+  --bg-hi:#2A241F;     /* survol, champs, zones en relief                    */
+  --fg:#EDE6DF;        /* le texte                                           */
+  --fg-dim:#A99F94;    /* le texte secondaire — toujours lisible, jamais gris souris */
+  --bd:#3A322B;        /* les bordures                                       */
+
+  /* --- L'accent ----------------------------------------------------------
+     #E8590C est l'orange de LexOS. Il vient de LEXOS_ACCENT_NAME dans
+     lexos.conf. C'est la SEULE définition : partout ailleurs on écrit
+     var(--ac), jamais le code hexadécimal. */
+  --ac:#E8590C;
+  --ac-hi:#FF7A33;     /* survol : le même, éclairci                         */
+  --ac-lo:#5a2a0c;     /* fonds teintés, liserés discrets                    */
+  --ac-txt:#000;       /* CE QU'ON ÉCRIT SUR L'ACCENT. Noir, pas blanc :
+                          blanc sur #E8590C donne 3,4:1 de contraste — sous
+                          le seuil lisible ; noir donne 6,1:1.               */
+
+  /* --- États — un seul jeu de noms, en français ---------------------------
+     Les trois panneaux employaient --ok/--warn/--off d'un côté et
+     --ok/--att/--non de l'autre. On garde les deux écritures le temps de la
+     transition, avec la même valeur : personne ne casse en attendant. */
+  --ok:#2DBF6B;   --warn:#F5A623;  --off:#D8352E;
+  --att:#F5A623;  --non:#D8352E;
+
+  /* --- Formes ------------------------------------------------------------- */
+  --rayon:8px;         /* cartes, champs, blocs                              */
+  --rayon-bouton:999px;/* les boutons sont des pastilles                     */
+  --rayon-rond:50%;
+
+  /* --- Police -------------------------------------------------------------
+     Remplacée à chaud par appliqueApparence() quand on choisit « Manuscrite »
+     dans Apparence : ce fichier n'est qu'un repli. */
+  --police:"Noto Sans","DejaVu Sans",sans-serif;
+}
