@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Capture d'écran
+Comment=Photographier l'écran en entier (Espace+1, ou Impr écr)
+Exec=lexos capture
+Icon=lexos-camera
+Terminal=false
+Categories=Graphics;Utility;

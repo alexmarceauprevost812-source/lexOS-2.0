@@ -9,7 +9,8 @@
     <property name="theme"                     type="string" value="Arc-Dark"/>
     <property name="title_font"                type="string" value="Noto Sans Bold 10"/>
     <property name="title_alignment"           type="string" value="center"/>
-    <property name="button_layout"             type="string" value="O|SHMC"/>
+    <!-- Comme la démo (openWin()) : menu, agrandir, fermer — pas de réduire. -->
+    <property name="button_layout"             type="string" value="|OMC"/>
     <property name="use_compositing"           type="bool"   value="true"/>
     <property name="frame_opacity"             type="int"    value="100"/>
     <property name="inactive_opacity"          type="int"    value="100"/>
@@ -34,5 +35,38 @@
     <property name="cycle_draw_frame"          type="bool"   value="true"/>
     <property name="cycle_preview"             type="bool"   value="true"/>
     <property name="workspace_count"           type="int"    value="4"/>
+
+    <!-- LA ROULETTE NE CHANGE DE BUREAU QU'EN HAUT À GAUCHE, SUR LES POINTS.
+         Demande d'Alex, après essai sur sa machine : la molette au milieu du
+         bureau changeait d'espace de travail — on pose la souris pour lire,
+         on effleure la roulette, et tout l'écran se remplace. Un geste
+         anodin ne doit pas déplacer le décor entier.
+
+         Ce réglage coupe la molette DE XFWM SUR LE BUREAU. Le sélecteur à
+         quatre points, lui, garde sa propre molette (workspace-scrolling
+         dans xfce4-panel.xml) : pour changer de page, on VISE les points —
+         clic ou roulette dessus, au choix. Le geste devient volontaire. -->
+    <property name="scroll_workspaces"         type="bool"   value="false"/>
+
+    <!-- LES QUATRE PETITS POINTS, ET POURQUOI C'EST ICI.
+         La barre affichait « 1 - Espace de travail 1 », « 2 - Espace de
+         travail 2 »… : quatre pavés de texte qui mangeaient le tiers de la
+         barre pour redire quatre fois le même mot. Alex l'a vu sur sa
+         première ISO et il avait raison.
+
+         Le sélecteur d'espaces de XFCE n'a pas de mode « points » : il
+         affiche le NOM de chaque espace. On lui donne donc un nom qui EST
+         un point. Le point actif se distingue par l'état du bouton, que la
+         feuille gtk.css peint en couleur d'accent — d'où la « bulle » qui
+         change quand on change d'espace.
+
+         Le nom reste modifiable dans Paramètres → Espaces de travail pour
+         qui veut les rebaptiser. -->
+    <property name="workspace_names" type="array">
+      <value type="string" value="●"/>
+      <value type="string" value="●"/>
+      <value type="string" value="●"/>
+      <value type="string" value="●"/>
+    </property>
   </property>
 </channel>

@@ -1,0 +1,206 @@
+# =============================================================================
+#  LexOS — la touche Tab qui montre les commandes
+# =============================================================================
+#  Un débutant sous Linux ne peut pas deviner ce qu'une commande accepte.
+#  Ce fichier fait que la touche Tab RÉPOND :
+#
+#    lexos <Tab>              → toutes les commandes
+#    lexos acc<Tab>           → complète « accent »
+#    lexos accent <Tab>       → les 8 couleurs, écrites
+#    lexos wallpaper anime <Tab> → les fonds animés réellement installés
+#
+#  Rien à apprendre par cœur, rien à retenir : on tape trois lettres et on
+#  appuie sur Tab. C'est le seul mode d'emploi qui ne se perd pas.
+#
+#  Chargé tout seul par bash-completion la première fois qu'on tape « lexos »
+#  (chargement à la demande : ce fichier ne coûte rien tant qu'on s'en sert
+#  pas). Il n'utilise PAS _init_completion, pour continuer de fonctionner
+#  même dans un shell où les fonctions d'aide de bash-completion manquent.
+# =============================================================================
+
+# --- Les valeurs que chaque commande accepte ---------------------------------
+#  Recopiées des scripts eux-mêmes, pas de la documentation : « ciel » figurait
+#  dans le texte d'aide alors que la scène s'appelle « etoiles » sur le disque.
+#  Ici, les fonds animés sont LUS sur le disque — la liste ne peut plus mentir.
+
+_lexos_cmds='aide help version info doctor logs
+update upgrade install remove search clean
+theme accent police dock ecran wallpaper crt
+lang perf lumiere temperature firmware meteo tv
+jeux game secure vpn net avion wifi bt
+share receive ecran-telephone logitheque
+usb vide-memoire format capture run-ins
+studio musique sticker chrome claude ia dev
+cartes gps clavier comptes bienetre mac
+demo install-disk'
+
+_lexos_accents='orange classique orange-rouge bleu rouge vert gris violet neon'
+_lexos_polices='defaut classique mono manuscrite bulle carnet ronde crayon plume marqueur architecte fleur cursive tableau craie liste'
+_lexos_themes='sombre clair'
+_lexos_docks='droite gauche bas haut'
+_lexos_perfs='petit medium performant max status auto'
+_lexos_cadrages='remplir ajuster etirer centrer mosaique'
+
+# Les scènes animées vraiment présentes, système + celles de l'utilisateur.
+# « modele » est le gabarit à copier, pas une scène à poser : on l'écarte.
+_lexos_scenes() {
+	{
+		ls /usr/share/lexos/fonds/*.json 2>/dev/null
+		ls "${HOME}/.config/lexos/fonds"/*.json 2>/dev/null
+	} | while read -r _f; do
+		_f="${_f##*/}"
+		_f="${_f%.json}"
+		[ "$_f" = "modele" ] || printf '%s\n' "$_f"
+	done | sort -u
+}
+
+# Fichiers, filtrés par type quand c'est possible. Proposer les 400 fichiers
+# d'un dossier quand on attend une image n'aide personne : on s'appuie sur
+# _filedir de bash-completion (qui sait filtrer par extension ET descendre dans
+# les dossiers) et on retombe sur compgen -f s'il manque.
+_lexos_fichiers() {
+	local motif="$1"
+	if command -v _filedir >/dev/null 2>&1; then
+		_filedir "$motif"
+		return 0
+	fi
+	# Repli maison, qui ne dépend de rien : les dossiers (pour pouvoir
+	# descendre), puis les fichiers dont l'extension correspond.
+	local avait_extglob=""
+	shopt -q extglob && avait_extglob=1
+	shopt -s extglob
+	mapfile -t -O "${#COMPREPLY[@]}" COMPREPLY < <(compgen -d -- "$cur")
+	if [ -n "$motif" ]; then
+		mapfile -t -O "${#COMPREPLY[@]}" COMPREPLY < <(compgen -f -X "!*.$motif" -- "$cur")
+	else
+		mapfile -t -O "${#COMPREPLY[@]}" COMPREPLY < <(compgen -f -- "$cur")
+	fi
+	[ -n "$avait_extglob" ] || shopt -u extglob
+}
+
+# Noms de paquets, seulement à partir de deux lettres tapées : sans ce garde-fou
+# Tab déverserait les 60 000 paquets de Debian et bloquerait le terminal
+# plusieurs secondes — de quoi faire croire à un plantage.
+_lexos_paquets() {
+	local mot="$1"
+	[ "${#mot}" -ge 2 ] || return 0
+	apt-cache --no-generate pkgnames "$mot" 2>/dev/null | head -n 400
+}
+
+_lexos() {
+	local cur prev cmd sous
+	COMPREPLY=()
+	cur="${COMP_WORDS[COMP_CWORD]}"
+	prev="${COMP_WORDS[COMP_CWORD-1]}"
+	cmd="${COMP_WORDS[1]:-}"
+	sous="${COMP_WORDS[2]:-}"
+
+	# Premier mot : la liste des commandes.
+	if [ "$COMP_CWORD" -eq 1 ]; then
+		mapfile -t COMPREPLY < <(compgen -W "$_lexos_cmds" -- "$cur")
+		return 0
+	fi
+
+	case "$cmd" in
+		theme)
+			mapfile -t COMPREPLY < <(compgen -W "$_lexos_themes accent" -- "$cur") ;;
+		accent)
+			mapfile -t COMPREPLY < <(compgen -W "$_lexos_accents" -- "$cur") ;;
+		police|font|ecriture)
+			mapfile -t COMPREPLY < <(compgen -W "$_lexos_polices" -- "$cur") ;;
+		dock|barre)
+			mapfile -t COMPREPLY < <(compgen -W "$_lexos_docks" -- "$cur") ;;
+		crt)
+			mapfile -t COMPREPLY < <(compgen -W "on off status" -- "$cur") ;;
+		perf|performance)
+			mapfile -t COMPREPLY < <(compgen -W "$_lexos_perfs" -- "$cur") ;;
+		firmware|bios|micrologiciel)
+			mapfile -t COMPREPLY < <(compgen -W "etat appareils maj historique aide" -- "$cur") ;;
+		meteo|weather|temps)
+			# « ville » seule montre la ville retenue ; suivie d'un nom, elle
+			# la change. On ne propose aucune liste de villes : elles sont
+			# des millions, et le service en trouve n'importe laquelle.
+			[ "$COMP_CWORD" -eq 2 ] \
+				&& mapfile -t COMPREPLY < <(compgen -W "maintenant ville aide" -- "$cur") ;;
+		temperature|temp|chaleur|ventilateurs)
+			mapfile -t COMPREPLY < <(compgen -W "maintenant surveille json aide" -- "$cur") ;;
+		lumiere|luminosite)
+			mapfile -t COMPREPLY < <(compgen -W "eco 10 25 50 75 100" -- "$cur") ;;
+		lang|langue)
+			mapfile -t COMPREPLY < <(compgen -W "toutes fr_CA.UTF-8 fr_FR.UTF-8 en_US.UTF-8 en_CA.UTF-8" -- "$cur") ;;
+
+		wallpaper|bg)
+			# lexos wallpaper <image>            → un fichier
+			# lexos wallpaper <image> <cadrage>  → remplir · ajuster · …
+			# lexos wallpaper anime <scène>      → les scènes installées
+			if [ "$COMP_CWORD" -eq 2 ]; then
+				mapfile -t COMPREPLY < <(compgen -W "anime video liste" -- "$cur")
+				_lexos_fichiers '@(png|jpg|jpeg|JPG|JPEG|webp|bmp|svg|gif)'
+			elif [ "$sous" = "anime" ]; then
+				if [ "$COMP_CWORD" -eq 3 ]; then
+					mapfile -t COMPREPLY < <(compgen -W "liste off nouveau apercu $(_lexos_scenes)" -- "$cur")
+				else
+					mapfile -t COMPREPLY < <(compgen -W "$(_lexos_scenes)" -- "$cur")
+				fi
+			elif [ "$sous" = "video" ]; then
+				_lexos_fichiers '@(mp4|mkv|webm|avi|mov|MP4|MKV)'
+			else
+				mapfile -t COMPREPLY < <(compgen -W "$_lexos_cadrages" -- "$cur")
+			fi ;;
+
+		install|add|remove|rm|uninstall|search|find)
+			# « lexos install chrome » est un cas à part, documenté dans l'aide.
+			if [ "$cmd" = "install" ] || [ "$cmd" = "add" ]; then
+				mapfile -t COMPREPLY < <(compgen -W "chrome" -- "$cur")
+			fi
+			mapfile -t -O "${#COMPREPLY[@]}" COMPREPLY < <(compgen -W "$(_lexos_paquets "$cur")" -- "$cur") ;;
+
+		dev|developpement)
+			if [ "$COMP_CWORD" -eq 2 ]; then
+				mapfile -t COMPREPLY < <(compgen -W "install update etat aide" -- "$cur")
+			elif [ "$sous" = "install" ]; then
+				mapfile -t COMPREPLY < <(compgen -W "tout claude gh vercel" -- "$cur")
+			fi ;;
+		jeux|jeu|bibliotheque|biblio)
+			mapfile -t COMPREPLY < <(compgen -W "liste lancer chercher sources json aide" -- "$cur") ;;
+		game)
+			[ "$COMP_CWORD" -eq 2 ] \
+				&& mapfile -t COMPREPLY < <(compgen -W "info extras aide" -- "$cur")
+			[ "$prev" = "extras" ] \
+				&& mapfile -t COMPREPLY < <(compgen -W "--liste" -- "$cur") ;;
+		secure|securite)
+			mapfile -t COMPREPLY < <(compgen -W "enable scan status" -- "$cur") ;;
+		vpn)
+			if [ "$COMP_CWORD" -eq 2 ]; then
+				mapfile -t COMPREPLY < <(compgen -W "import connect disconnect liste" -- "$cur")
+			elif [ "$sous" = "import" ]; then
+				_lexos_fichiers '@(ovpn|conf)'
+			fi ;;
+		usb)
+			mapfile -t COMPREPLY < <(compgen -W "watch import terminal" -- "$cur") ;;
+		capture|capture-ecran)
+			mapfile -t COMPREPLY < <(compgen -W "fenetre zone video" -- "$cur") ;;
+		studio)
+			if [ "$COMP_CWORD" -eq 2 ]; then
+				mapfile -t COMPREPLY < <(compgen -W "ouvrir" -- "$cur")
+			else
+				mapfile -t COMPREPLY < <(compgen -W "photo peinture vectoriel video capture son" -- "$cur")
+			fi ;;
+		logitheque|boutique|store)
+			mapfile -t COMPREPLY < <(compgen -W "liste install" -- "$cur") ;;
+		clavier|keyboard)
+			mapfile -t COMPREPLY < <(compgen -W "liste" -- "$cur") ;;
+		avion|airplane)
+			mapfile -t COMPREPLY < <(compgen -W "on off" -- "$cur") ;;
+		logs|log)
+			mapfile -t COMPREPLY < <(compgen -W "20 40 100" -- "$cur") ;;
+
+		# Ces commandes prennent des fichiers : Tab montre le dossier courant.
+		share|partage)
+			_lexos_fichiers ;;
+		run-ins|runins)
+			_lexos_fichiers '@(zip|ZIP)' ;;
+	esac
+	return 0
+}
+complete -F _lexos lexos

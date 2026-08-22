@@ -1,0 +1,31 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Fichiers privés
+Name[en]=Private Files
+GenericName=Coffre-fort chiffré
+GenericName[en]=Encrypted vault
+Comment=Un dossier protégé par mot de passe : ce qu'on y dépose devient illisible sans lui
+Comment[en]=A password-protected folder: whatever you put in becomes unreadable without it
+Exec=lexos-prive
+Icon=changes-prevent
+Terminal=false
+StartupNotify=true
+Categories=Utility;Security;GTK;X-XFCE-SettingsDialog;X-XFCE-PersonalSettings;
+Keywords=privé;prive;coffre;coffre-fort;secret;caché;cacher;protéger;protection;mot de passe;motdepasse;chiffré;chiffrer;chiffrement;confidentiel;vault;private;encrypt;password;
+Actions=voir;fermer;ajouter;
+
+[Desktop Action voir]
+Name=Ouvrir mes fichiers privés
+Name[en]=Open my private files
+Exec=lexos-prive dossier
+
+[Desktop Action fermer]
+Name=Refermer maintenant
+Name[en]=Lock now
+Exec=lexos-prive fermer
+
+[Desktop Action ajouter]
+Name=Ajouter des fichiers
+Name[en]=Add files
+Exec=lexos-prive ajouter

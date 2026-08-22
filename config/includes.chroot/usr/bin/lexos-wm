@@ -52,6 +52,22 @@ if has_3d; then
 	compiz --replace ccp >>"$LOG" 2>&1 &
 	CPID=$!
 	sleep 5
+
+	#  REMETTRE LA BARRE DU HAUT APRÈS LE REMPLACEMENT.
+	#  « --replace » change de gestionnaire de fenêtres SOUS une barre déjà
+	#  affichée : elle perd son ancrage et disparaît. C'est ce qu'Alex a vu
+	#  sur le portable — « le menu apparaît et disparaît pas longtemps après ».
+	#  On ne peut pas démarrer Compiz avant la barre : la détection 3D passe
+	#  par glxinfo, qui prend plusieurs secondes, et pendant ce temps la
+	#  session a déjà lancé le panneau. On répare donc APRÈS, une fois Compiz
+	#  en place — c'est laid, mais c'est honnête et ça rend la barre.
+	#  (Ce chemin ne sert que si les effets sont RÉACTIVÉS à la main : le
+	#  défaut est désormais « off », justement pour ne pas en arriver là.)
+	if kill -0 "$CPID" 2>/dev/null && command -v xfce4-panel >/dev/null 2>&1; then
+		log "Compiz en place — on relance la barre du haut"
+		xfce4-panel --restart >>"$LOG" 2>&1 \
+			|| { xfce4-panel --quit >/dev/null 2>&1; sleep 1; setsid xfce4-panel >>"$LOG" 2>&1 & }
+	fi
 	if kill -0 "$CPID" 2>/dev/null; then
 		wait "$CPID"
 		log "Compiz s'est arrêté — reprise par xfwm4"

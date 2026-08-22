@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Enregistrer l'écran en vidéo
+Comment=Enregistrer l'écran en vidéo avec le son du système (Espace+3, ou Ctrl+Maj+R)
+Exec=xfce4-terminal --title="Enregistrement — LexOS" --hold -e "lexos capture video"
+Icon=lexos-camera
+Terminal=false
+Categories=AudioVideo;Recorder;

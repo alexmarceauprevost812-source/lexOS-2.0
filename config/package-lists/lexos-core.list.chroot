@@ -15,6 +15,15 @@ live-boot
 live-config
 systemd-sysv
 init
+#  os-prober cherche les AUTRES systèmes présents sur le disque (Windows,
+#  une autre distribution) pour que GRUB leur fasse une entrée dans le menu
+#  de démarrage. Sans lui, installer LexOS à côté de Windows donne un menu
+#  qui n'affiche que LexOS : Windows est toujours là, mais il faut passer
+#  par le menu du BIOS pour l'atteindre — ce qui se lit comme une perte.
+#  Il est ICI, dans la liste obligatoire, et pas dans les paquets optionnels :
+#  une absence silencieuse coûterait un double démarrage cassé, découvert
+#  seulement après l'installation. Mieux vaut arrêter la construction.
+os-prober
 
 # --- Firmware & matériel -----------------------------------------------------
 firmware-linux-free
@@ -32,6 +41,20 @@ openssh-client
 curl
 wget
 rfkill
+
+# --- Installateur sur disque -------------------------------------------------
+#  Calamares était en liste OPTIONNELLE (best-effort) : si son installation
+#  échouait pendant la construction, l'ISO partait sans installateur et le
+#  hook 0500 s'en apercevait trop tard. Comme c'est LUI qui installe LexOS à
+#  côté de Windows, il passe ici, en OBLIGATOIRE : pas d'installateur, pas
+#  d'ISO. Noms stables depuis Debian bookworm.
+calamares
+calamares-settings-debian
+#  efibootmgr écrit l'entrée de démarrage « LexOS » dans le firmware UEFI —
+#  indispensable sur TOUTE machine UEFI (Alienware comprise), pas seulement
+#  après un macOS. Il était rangé à tort dans la liste « Apple » ; il est ici
+#  pour être garanti présent au moment où grub-install l'appelle.
+efibootmgr
 
 # --- Disques & systèmes de fichiers -----------------------------------------
 parted

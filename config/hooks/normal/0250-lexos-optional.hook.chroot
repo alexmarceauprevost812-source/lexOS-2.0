@@ -31,30 +31,86 @@ if [ ! -d "$DIR" ]; then
 fi
 
 # --- Quelles listes s'appliquent à cette saveur ? ---------------------------
+#  UNE SEULE RÉPONSE POUR TOUTES LES SAVEURS DE BUREAU.
+#
+#  Avant, chaque saveur avait sa propre ligne, et les lignes ne disaient pas
+#  la même chose. Conséquences réelles, invisibles à la construction :
+#
+#    · la saveur « pro » — celle de l'Alienware, la plus complète en
+#      principe — n'a JAMAIS reçu 60-full.list. Pas de LibreOffice, pas de
+#      Thunderbird, pas d'evince, pas de GParted, pas de Timeshift.
+#    · la saveur « dev » — celle du portable, celle sur laquelle Alex teste
+#      tout — n'a reçu ni 70-gaming ni 75-pro-gamer ni 60-full.
+#
+#  Autrement dit : Alex essayait le bureau sur le portable, puis retrouvait
+#  un bureau DIFFÉRENT sur l'Alienware, sans que rien ne le prévienne. Un
+#  test qui ne teste pas la même chose que ce qu'on livre ne sert à rien.
+#
+#  Désormais toutes les saveurs de bureau installent exactement les mêmes
+#  applications. La seule différence qui subsiste entre les ISO est
+#  MATÉRIELLE : le pilote NVIDIA propriétaire (hook 0260, saveur « pro »
+#  seulement — le portable n'a pas de carte NVIDIA, le lui poser risquerait
+#  l'écran noir qu'on passe justement notre temps à chasser).
+#
+#  « minimal » reste à part : c'est une ISO sans bureau, par définition.
 LISTS="00-core.list 10-installer.list"
+BUREAU_COMPLET="15-essentiel.list 20-desktop.list 30-dock-effets.list \
+40-partage.list 41-reseau-plus.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list \
+49-bienetre.list 50-dev.list 51-dev-outils.list 52-ia-locale.list 54-sauvegarde.list 55-cartes.list 56-reglages.list 57-python.list \
+58-prive.list 59-diagnostic.list \
+60-full.list 70-gaming.list 75-pro-gamer.list 80-securite.list \
+90-decoupe-image.list 95-logitheque.list"
+
 case "$FLAVOUR" in
-	minimal)    ;;
-	standard)   LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
-	dev)        LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 50-dev.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
-	full)       LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 50-dev.list 60-full.list 80-securite.list 90-decoupe-image.list 95-logitheque.list" ;;
-	gaming)     LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 50-dev.list 70-gaming.list 80-securite.list 90-decoupe-image.list 95-logitheque.list"
-	            # Steam et Wine ont besoin des paquets 32 bits (i386) — non bloquant si indisponible.
-	            dpkg --add-architecture i386 2>/dev/null || true ;;
-	pro)        LISTS="$LISTS 15-essentiel.list 20-desktop.list 30-dock-effets.list 40-partage.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list 49-bienetre.list 55-cartes.list 50-dev.list 70-gaming.list 75-pro-gamer.list 80-securite.list 90-decoupe-image.list 95-logitheque.list"
-	            # Steam et Wine ont besoin des paquets 32 bits (i386) — non bloquant si indisponible.
-	            dpkg --add-architecture i386 2>/dev/null || true ;;
+	minimal)
+		;;
+	*)
+		LISTS="$LISTS $BUREAU_COMPLET"
+		# Steam et Wine ont besoin des paquets 32 bits (i386) — non bloquant
+		# si indisponible.
+		dpkg --add-architecture i386 2>/dev/null || true
+		;;
 esac
 
 # --- Collecte des noms -------------------------------------------------------
+#  UNE LISTE ABSENTE N'EST PAS UN PAQUET ABSENT. Tolérer un paquet manquant
+#  est sain — les dépôts bougent. Tolérer une LISTE manquante ne l'est pas :
+#  c'est une catégorie entière de fonctions qui disparaît de l'ISO sans un
+#  bruit. C'est arrivé dans l'ancien dépôt : deux listes réclamées mais
+#  jamais écrites, 89 paquets envolés, des sections de Paramètres vides à
+#  l'écran, et pour seule trace une ligne de journal noyée dans une heure de
+#  construction. On le dit donc FORT, en tête du rapport, et
+#  LEXOS_STRICT_LISTS=1 en fait une erreur qui arrête la construction.
 WANTED="$(mktemp)"
+LISTES_ABSENTES=""
 for L in $LISTS; do
-	[ -r "$DIR/$L" ] || { echo "[lexos]   liste absente : $L"; continue; }
+	[ -r "$DIR/$L" ] || { LISTES_ABSENTES="${LISTES_ABSENTES} $L"; continue; }
 	grep -Ev '^[[:space:]]*(#|$)' "$DIR/$L" >> "$WANTED" || true
 done
 sort -u "$WANTED" -o "$WANTED"
 
+if [ -n "$LISTES_ABSENTES" ]; then
+	echo "[lexos]   !! ============================================================"
+	echo "[lexos]   !! LISTES ABSENTES :${LISTES_ABSENTES}"
+	echo "[lexos]   !! Chacune est une catégorie entière d'outils qui ne sera"
+	echo "[lexos]   !! PAS dans l'ISO. Vérifier optional-packages/ ou retirer"
+	echo "[lexos]   !! ces noms du hook 0250."
+	echo "[lexos]   !! ============================================================"
+	if [ "${LEXOS_STRICT_LISTS:-0}" = "1" ]; then
+		echo "[lexos]   LEXOS_STRICT_LISTS=1 — on s'arrête ici."
+		exit 1
+	fi
+fi
+
 TOTAL="$(wc -l < "$WANTED")"
 echo "[lexos]   saveur ${FLAVOUR} : ${TOTAL} paquets optionnels envisagés"
+
+#  Preuve dans le journal : ce nombre doit être IDENTIQUE d'une saveur de
+#  bureau à l'autre. S'il diffère entre l'ISO du portable et celle de
+#  l'Alienware, c'est que les deux bureaux ne sont plus les mêmes.
+if [ "$FLAVOUR" != "minimal" ]; then
+	echo "[lexos]   bureau identique sur toutes les saveurs : ${TOTAL} paquets optionnels, $(set -- $LISTS; echo $#) listes"
+fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq || echo "[lexos]   !! apt-get update a échoué, on continue"
@@ -66,6 +122,7 @@ if apt-get install -y --no-install-recommends $(tr '\n' ' ' < "$WANTED") >/dev/n
 	mkdir -p /etc/lexos
 	{
 		echo "# Paquets optionnels — saveur ${FLAVOUR}"
+		[ -n "$LISTES_ABSENTES" ] && echo "# !! LISTES ABSENTES :${LISTES_ABSENTES}"
 		echo "# Tous installés."
 		cat "$WANTED"
 	} > "$REPORT"
@@ -80,14 +137,39 @@ echo "[lexos]   au moins un paquet pose problème — reprise un par un"
 OK_COUNT=0
 KO_LIST=""
 
-while IFS= read -r PKG; do
-	[ -n "$PKG" ] || continue
-	if apt-get install -y --no-install-recommends "$PKG" >/dev/null 2>&1; then
+#  NOMS DE RECHANGE. Un paquet peut changer de nom d'une version de Debian
+#  à l'autre, ou disparaître au profit d'un autre : « ppsspp-qt » devient
+#  « ppsspp », un cœur libretro est renommé… Une ligne peut donc proposer
+#  plusieurs noms séparés par « | », essayés dans l'ordre ; le premier qui
+#  s'installe gagne. Sans ça, un simple changement de nom faisait perdre la
+#  fonction entière — c'est ce qui est arrivé à six paquets d'un coup, dont
+#  protontricks, qui sert justement à débloquer les jeux Windows.
+while IFS= read -r LIGNE; do
+	[ -n "$LIGNE" ] || continue
+	POSE=""
+	OLDIFS="$IFS"; IFS='|'
+	for PKG in $LIGNE; do
+		IFS="$OLDIFS"
+		[ -n "$PKG" ] || continue
+		if apt-get install -y --no-install-recommends "$PKG" >/dev/null 2>&1; then
+			POSE="$PKG"; break
+		fi
+		IFS='|'
+	done
+	IFS="$OLDIFS"
+	if [ -n "$POSE" ]; then
 		OK_COUNT=$((OK_COUNT + 1))
+		#  Dire lequel a été retenu quand ce n'est pas le premier proposé :
+		#  sinon on croit avoir installé « ppsspp-qt » alors que c'est
+		#  « ppsspp » qui est là, et on cherche le mauvais nom au dépannage.
+		case "$LIGNE" in
+			"$POSE") ;;
+			*) echo "[lexos]   ${LIGNE} -> ${POSE}" ;;
+		esac
 	else
-		KO_LIST="${KO_LIST}${PKG}
+		KO_LIST="${KO_LIST}${LIGNE}
 "
-		echo "[lexos]   !! indisponible : ${PKG}"
+		echo "[lexos]   !! indisponible : ${LIGNE}"
 	fi
 done < "$WANTED"
 
@@ -96,6 +178,7 @@ KO_COUNT="$(printf '%s' "$KO_LIST" | grep -c . || true)"
 mkdir -p /etc/lexos
 {
 	echo "# Paquets optionnels — saveur ${FLAVOUR}"
+	[ -n "$LISTES_ABSENTES" ] && echo "# !! LISTES ABSENTES :${LISTES_ABSENTES}"
 	echo "# Installés : ${OK_COUNT}    Indisponibles : ${KO_COUNT}"
 	echo
 	if [ -n "$KO_LIST" ]; then

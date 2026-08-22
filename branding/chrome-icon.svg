@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Google Chrome.
+
+  Dessin original, pas le logo de Google : trois arcs autour d'un globe,
+  aux couleurs de LexOS (accent, ambre, vert). On reconnaît la forme d'un
+  navigateur sans copier une marque déposée — et c'est cohérent avec le
+  reste du thème d'icônes.
+
+  Cette icône ne sert QUE tant que Chrome n'est pas installé : dès que
+  « lexos chrome » a fait l'installation, lexos-install-chrome remplace
+  le fichier lexos-chrome.png du thème par le vrai logo livré avec Chrome
+  (/opt/google/chrome/product_logo_*.png). Le lanceur et le dock changent
+  alors d'image tout seuls, sans rien avoir à modifier.
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Google Chrome — LexOS">
+  <circle cx="256" cy="256" r="212" fill="#1A1A1D"/>
+
+  <!-- Les trois arcs : accent, ambre, vert -->
+  <g fill="none" stroke-width="68" stroke-linecap="butt">
+    <path d="M267.2 96.4 A160 160 0 0 1 399.8 326.1" stroke="#E8590C"/>
+    <path d="M388.6 345.5 A160 160 0 0 1 123.4 345.5" stroke="#F59F00"/>
+    <path d="M112.2 326.1 A160 160 0 0 1 244.8 96.4"  stroke="#37B24D"/>
+  </g>
+
+  <!-- Le globe au centre -->
+  <circle cx="256" cy="256" r="98" fill="#1A1A1D"/>
+  <circle cx="256" cy="256" r="76" fill="#E8590C" opacity="0.16"/>
+  <g fill="none" stroke="#E8590C" stroke-width="8">
+    <circle cx="256" cy="256" r="76"/>
+    <ellipse cx="256" cy="256" rx="40" ry="76"/>
+    <line x1="180" y1="256" x2="332" y2="256"/>
+  </g>
+</svg>

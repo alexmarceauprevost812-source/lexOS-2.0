@@ -31,6 +31,7 @@ die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
 CATALOGUE="
 firefox|firefox-esr|Internet|Navigateur web libre de Mozilla|https://www.mozilla.org/firefox/
 chromium|chromium|Internet|Le navigateur libre derrière Chrome|https://www.chromium.org
+chrome|google-chrome-stable|Internet|Le navigateur de Google — non libre, installé depuis le dépôt officiel|https://www.google.com/chrome/
 thunderbird|thunderbird|Internet|Courriel, agenda et contacts|https://www.thunderbird.net
 transmission|transmission-gtk|Internet|Client BitTorrent léger|https://transmissionbt.com
 libreoffice|libreoffice|Bureautique|Texte, tableur, présentation — suite complète|https://www.libreoffice.org
@@ -79,6 +80,7 @@ hugo|hugo|Développement|Générateur de sites statiques, très rapide|https://g
 nodejs|nodejs|Langages|JavaScript hors du navigateur|https://nodejs.org
 npm|npm|Langages|Le gestionnaire de paquets de Node.js|https://www.npmjs.com
 pippython|python3-pip|Langages|Installer des bibliothèques Python|https://pip.pypa.io
+pipx|pipx|Langages|Installer une application Python sans rien casser (Debian refuse pip à l'échelle du système)|https://pipx.pypa.io
 environnements|python3-venv|Langages|Un jeu de bibliothèques par projet, sans se marcher dessus|https://docs.python.org/3/library/venv.html
 jupyter|jupyter-notebook|Langages|Carnets de code : Python et résultats sur la même page|https://jupyter.org
 javajdk|default-jdk|Langages|Compilateur et machine virtuelle Java|https://openjdk.org
@@ -135,8 +137,35 @@ synaptic|synaptic|Utilitaires|Gestionnaire de paquets détaillé|https://www.non
 # --- Résolution d'un nom simple vers un paquet Debian ------------------------
 #  Un nom inconnu n'est pas une erreur : c'est peut-être un vrai paquet Debian
 #  que le catalogue ne connaît pas. On le laisse passer tel quel à apt.
+#  DES NOMS PARLÉS, en plus des noms de paquets. Quelqu'un qui cherche le
+#  bureau à distance tape « distant », pas « remmina » — et la démo web
+#  écrit d'ailleurs « lexos logitheque install distant » noir sur blanc.
+#  Sans cette table, cette commande copiée-collée échouait : elle partait
+#  telle quelle à apt, qui ne connaît aucun paquet « distant ».
+ALIAS="
+distant|remmina
+bureau-a-distance|remmina
+retouche|gimp
+photo|gimp
+dessin|inkscape
+montage|kdenlive
+video|vlc
+bureautique|libreoffice
+jeux|steam-installer
+torrent|transmission-gtk
+"
+
 resoudre() {
 	local nom="$1"
+	#  D'abord les noms parlés : « distant » devient « remmina », puis suit le
+	#  chemin normal — ce qui permet à un alias de pointer une entrée du
+	#  catalogue et d'hériter de sa description.
+	local acle apkg
+	while IFS='|' read -r acle apkg; do
+		[[ -n "$acle" ]] || continue
+		[[ "$acle" == "$nom" ]] && { nom="$apkg"; break; }
+	done <<< "$ALIAS"
+
 	while IFS='|' read -r cle pkg _cat _desc _lien; do
 		[[ -n "$cle" ]] || continue
 		if [[ "$cle" == "$nom" || "$pkg" == "$nom" ]]; then
@@ -179,8 +208,16 @@ cmd_site() {
 			#  est empaquetée dans trixie, avec quelles dépendances, et
 			#  propose le téléchargement direct pour chaque architecture.
 			printf '  %sProjet%s  %s%s%s\n' "$B" "$R" "$O" "$lien" "$R"
-			printf '  %sDebian%s  %shttps://packages.debian.org/trixie/%s%s\n\n' \
-				"$B" "$R" "$O" "$pkg" "$R"
+			if [[ "$pkg" == "google-chrome-stable" ]]; then
+				#  Chrome n'est pas empaqueté par Debian : la page
+				#  packages.debian.org n'existe pas pour lui. C'est le dépôt
+				#  de Google qui le distribue, et c'est celui-là qu'on montre.
+				printf '  %sDépôt%s   %shttps://dl.google.com/linux/chrome/deb/%s\n\n' \
+					"$B" "$R" "$O" "$R"
+			else
+				printf '  %sDebian%s  %shttps://packages.debian.org/trixie/%s%s\n\n' \
+					"$B" "$R" "$O" "$pkg" "$R"
+			fi
 			if command -v xdg-open >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
 				setsid xdg-open "$lien" >/dev/null 2>&1 &
 				printf '  %sle site du projet est ouvert dans le navigateur%s\n' "$D" "$R"
@@ -215,9 +252,20 @@ cmd_install() {
 	local pkgs=() nom pkg
 	for nom in "$@"; do
 		pkg="$(resoudre "$nom")"
+		#  Chrome n'est dans aucun dépôt Debian : apt ne peut rien pour lui.
+		#  Il a son propre installateur, qui ajoute d'abord le dépôt officiel
+		#  de Google. On le reconnaît ici pour que « logitheque install chrome »
+		#  marche comme tous les autres noms du catalogue.
+		if [[ "$pkg" == "google-chrome-stable" ]]; then
+			say "« $nom » → Google Chrome ${D}(dépôt officiel de Google)${R}"
+			sudo_cmd /usr/bin/lexos-install-chrome \
+				|| die "Installation de Google Chrome échouée — vérifie ta connexion internet."
+			continue
+		fi
 		pkgs+=("$pkg")
 		[[ "$pkg" == "$nom" ]] || say "« $nom » → paquet ${B}${pkg}${R}"
 	done
+	[[ ${#pkgs[@]} -gt 0 ]] || { ok "Terminé."; return 0; }
 	say "Installation : ${pkgs[*]}"
 	sudo_cmd apt-get update -qq || say "apt-get update a échoué — on tente quand même"
 	if sudo_cmd apt-get install -y "${pkgs[@]}"; then

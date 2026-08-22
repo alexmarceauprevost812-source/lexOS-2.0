@@ -13,7 +13,7 @@ arp-scan
 # passagère (transition en cours dans l'archive), et une ligne qui échoue
 # ne coûte qu'un mot dans /etc/lexos/optional-report. Si elle persiste,
 # « lexos ecran-telephone » le dira et proposera l'installation manuelle.
-scrcpy
+scrcpy|scrcpy-server
 
 # android-tools-adb à part : « lexos usb terminal » (un shell SUR le
 # téléphone) en a besoin même quand scrcpy n'est pas installé.

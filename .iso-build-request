@@ -6,15 +6,1522 @@
 #
 #  Pour redemander une construction sans rien changer d'autre, incrémente
 #  simplement « build ». Un fichier inchangé ne déclenche rien.
+#
+#  PIÈGE VÉCU, BUILD 66 : NE JAMAIS ÉCRIRE LE MOT-CLÉ DE SAUT DE CI DANS LE
+#  MESSAGE DU COMMIT DE DEMANDE — MÊME POUR EN PARLER.
+#  GitHub cherche « [skip » + « ci] » (et ses variantes) dans TOUT le message,
+#  pas seulement dans la première ligne. Le commit « ISO build 66 » expliquait
+#  dans son corps que les cinq commits précédents portaient ce mot-clé : GitHub
+#  l'a lu comme un ordre et n'a lancé AUCUNE exécution. Rien dans l'onglet
+#  Actions, aucune erreur, aucun message — on attend une ISO qui ne se
+#  construit pas. Pour en parler dans un message, écrire « le mot-clé de
+#  saut » ou le couper en deux.
 # =============================================================================
 
 # minimal | standard | dev | full | gaming | pro
-#   pro = TI-LEX-OS Pro, l'édition pour jouer : Vulkan, Wine, Steam/Proton,
-#         Lutris, GameMode, MangoHud, manettes, émulateurs, jeux libres.
+#
+#   UNE SEULE VERSION : « pro ». Décision d'Alex, build 56.
+#
+#   On est passé de trois versions à deux (build 53), puis à UNE. Chaque
+#   étape a supprimé un choix qui ne servait à rien, et celle-ci supprime le
+#   dernier : depuis que « pro » sait s'adapter à la machine, il n'y a plus
+#   aucune raison d'en proposer une autre.
+#
+#     pro  →  LA version de LexOS. Elle embarque le pilote NVIDIA
+#             propriétaire, qui doit être DANS l'ISO parce qu'il ne
+#             s'installe pas après coup. Et le service lexos-gpu-garde
+#             regarde au démarrage s'il y a VRAIMENT une carte NVIDIA :
+#             s'il n'y en a pas, il range les réglages du pilote et nouveau
+#             reste disponible.
+#
+#             Résultat : la MÊME ISO démarre sur une tour à RTX 5060 comme
+#             sur un portable Intel de 2016. Plus rien à choisir au
+#             téléchargement, plus de « laquelle je prends ? ».
+#
+#   CE QUE « PRO » N'EST PAS : une version « meilleure » ou « complète ».
+#   Le bureau est le même que celui de toutes les autres saveurs — 95
+#   paquets stricts, 403 optionnels. « pro », c'est ce bureau PLUS un
+#   pilote. Rien d'autre. Sur une machine sans carte NVIDIA, « pro » et
+#   « standard » donnent rigoureusement le même LexOS.
+#
+#   LES AUTRES SAVEURS restent constructibles pour dépanner, mais ne sont
+#   plus livrées : standard (le même bureau sans le pilote), dev / full /
+#   gaming (alias historiques de standard). minimal reste à part : ISO sans
+#   bureau du tout, la seule vraiment différente.
+#
+#   La Release est publiée sous « latest-<saveur> ». La seule à maintenir à
+#   jour est donc « latest-pro ». « latest-standard » reste en ligne comme
+#   trace du build 53, mais n'est plus reconstruite.
 flavour: pro
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
-build: 11
+# build 67 : LES DEUX MENUS DE DÉMARRAGE, POUR DE VRAI CETTE FOIS.
+#
+#   LE 66 A SERVI À QUELQUE CHOSE : il a montré, photo à l'appui, que les
+#   hooks binaires cherchaient l'image AU MAUVAIS ENDROIT. Ils écrivaient
+#   « binary/… » en supposant que live-build les lance depuis la racine du
+#   chantier ; il les lance depuis LE DOSSIER DE L'IMAGE. Les deux hooks
+#   disaient poliment « absent — menu laissé tel quel », la construction
+#   finissait en vert, et l'ISO sortait sans.
+#
+#   · LE MENU UEFI N'AVAIT JAMAIS ÉTÉ HABILLÉ. Le journal du build 65 porte
+#     déjà la même ligne. Sur AUCUNE ISO publiée le thème GRUB n'a été posé.
+#     Le message d'échec ressemblait à un cas normal, et personne ne l'avait
+#     lu. C'est le silence dans sa forme la plus complète : un avertissement
+#     qui a l'air d'une information.
+#
+#   · LE MENU BIOS, CE QUE LA PHOTO D'ALEX A MONTRÉ. live-build garde nos
+#     entrées françaises et nos couleurs, mais remet les siennes pour trois
+#     choses : le fond (casque de chantier jaune de Debian), le délai (5 s au
+#     lieu de 20) et les entrées d'installation (« Start installer », que
+#     --debian-installer fabrique lui-même). Plus les accents dessinés en
+#     CP437 : « Session de d├─monstration ».
+#
+#   CE QUE LE 67 FAIT. Les hooks CHERCHENT l'arbre de l'image au lieu de le
+#   supposer, et s'ils ne le trouvent pas ils impriment le dossier courant et
+#   son contenu — pour que la construction suivante dise la vérité au lieu
+#   qu'on devine une troisième fois. Puis le hook 0905 corrige la SORTIE de
+#   live-build, chirurgicalement : le fond rendu par-dessus en 640x480, UNE
+#   ligne de sed pour le délai, et SEULEMENT les libellés des entrées
+#   d'installation — les lignes « kernel » et « append » restent intactes,
+#   elles portent des chemins que live-build seul connaît.
+#
+#   À LIRE DANS LE JOURNAL DE CETTE CONSTRUCTION :
+#     [lexos]   arbre de l'image : ...
+#     [lexos]   fond LexOS posé par-dessus celui de Debian
+#     [lexos]   décompte porté à 20 s (timeout 200)
+#     [lexos]   entrées d'installation traduites (libellés seuls)
+#     [lexos]   N fichier(s) converti(s) en CP437
+#     [lexos]   splash.png : 640x480, grille 80x30 respectée
+#     [lexos]   menu de l'ISO habillé : /boot/grub/themes/lexos
+#   Si l'une manque, le défaut correspondant est encore là.
+#
+#   Le 66 emportait déjà lexos-materiel, les dossiers de la démo et les
+#   points des bureaux : tout ça est dans le 67 aussi.
+#
+# build 66 : LE GRAPHIQUE DE VERCEL DANS LA VRAIE MACHINE — le menu de
+#   démarrage BIOS, les points des bureaux, les dossiers. Plus lexos-materiel.
+#
+#   · LE MENU DE DÉMARRAGE BIOS N'ÉTAIT PAS HABILLÉ. LexOS a deux menus —
+#     UEFI (GRUB) et BIOS (isolinux) — et seul le premier l'était. En mode
+#     Legacy on tombait sur le menu Debian d'origine : casque de chantier
+#     jaune, barre bleue, entrées en anglais, champs de version vides.
+#     LA CAUSE TENAIT À DEUX LETTRES : le dessin s'appelait « splash.svg »,
+#     et live-build ne lit QUE « splash.svg.in » — il le rend en PNG, puis
+#     écrase et efface tout .svg du même dossier. Le travail d'Alex n'a
+#     jamais atteint une seule clé USB, sans un message, sans une erreur de
+#     construction. Renommé, plus cinq défauts vus à l'écran en machine
+#     virtuelle : accents dessinés en CP437 (« d├─monstration ») corrigés
+#     par le hook 0905 au dernier moment, « timeoutrow » compté depuis
+#     vshift, initiales orange en damier, flèches impossibles en mode texte
+#     passées dans l'image de fond, et la première entrée UEFI qui
+#     descendait de 16 px (bandes de select_*.png ramenées à 2 px).
+#
+#     ATTENTION AU JOURNAL : chercher « hook 0905 » et la ligne
+#     « splash.png : 640x480, grille 80x30 respectée ». Sans elle, le menu
+#     BIOS démarrerait sur fond noir.
+#
+#   · LES POINTS DES BUREAUX PRENNENT LA FORME DE LA DÉMO. L'espace courant
+#     n'y est pas un point plus gros : c'est une PILULE. Repris nombre par
+#     nombre et traduit pour une barre de 32 px.
+#     RÉSERVE : si le sélecteur XFCE alloue une largeur égale à chaque
+#     espace, « min-width » ne pourra pas allonger le seul actif — on aurait
+#     quatre pastilles de même largeur dont une orange. Juste et lisible,
+#     mais pas la pilule. C'EST À REGARDER SUR CETTE ISO.
+#
+#   · LES DOSSIERS DEVIENNENT CEUX DE LA DÉMO. Un thème d'icônes « LexOS »
+#     qui ne redéfinit QUE les sept dossiers et hérite de Papirus-Dark pour
+#     tout le reste. Les deux « path » sont copiés de la démo tels quels et
+#     les libellés (DL, IMG, DOC, MUS, VID) posés aux mêmes coordonnées. Ils
+#     suivent l'accent, comme folderColor() dans la démo — vérifié en orange
+#     et en vert. Le survol éclaire la case ; le rabat qui pivote, lui, est
+#     impossible dans Thunar (il affiche une image, pas un SVG vivant) — le
+#     geste est déclenché par l'ouverture à la place.
+#
+#   · lexos-materiel — LE QUATRIÈME OUTIL DE LA COUCHE DIAGNOSTIC. « Ma
+#     machine en une page », et surtout « lexos materiel memoire » qui
+#     répond enfin à « puis-je ajouter de la RAM ? » : fentes libres, type
+#     exact à acheter, maximum accepté par la carte mère. C'est écrit dans
+#     le BIOS depuis le premier démarrage ; il fallait ouvrir le boîtier ou
+#     lire soixante lignes d'anglais. dmidecode entre dans 59-diagnostic.
+#     Le mode « rapport » ne laisse sortir AUCUN numéro de série, et le nom
+#     d'un disque n'est jamais évalué — une clé USB peut annoncer « $(…) ».
+#
+#   · CE QUE LA CI GARDE EN PLUS. Le motif SVG couvre les deux noms et exige
+#     la présence du fond ; shellcheck voit enfin les .hook.binary ;
+#     fonts-dejavu-core est réclamée explicitement (police absente, rsvg
+#     substitue en silence et le titre sort dans une autre fonte) ; et un
+#     test garde le contrôle 16 contre le retour du défaut de locale.
+#
+# build 65 : SIX COMMITS DEPUIS LE 64 — le terminal aux trois couleurs, le
+#   fond Lexis 3D, la couche sauvegarde/diagnostic, et le contrôle 16.
+#
+#   · TERMINAL AUX TROIS COULEURS (patch d'Alex, vérifié en vrai bash) :
+#     vert foncé = ce que la machine répond, orange = ce qu'on tape (PS1 se
+#     termine par un orange non refermé, PS0 remet à zéro), rouge = ce qui
+#     ne marche pas — chevron rouge après un échec, « commande inconnue »
+#     en rouge et en français. lexos-theme-gen pose TERM_FG=#00AF5F.
+#   · LEXIS 3D : nouveau fond animé — la marque en relief qui SUIT LA SOURIS
+#     d'un petit mouvement (face avant ±2 px, pile d'ombre ±20 px à
+#     l'opposé). La fenêtre du fond ne reçoit pas la souris : elle interroge
+#     la position globale, comme coin-actif. Sur batterie, figé comme tous
+#     les fonds. Ajouté À CÔTÉ des cinq scènes, rien remplacé.
+#   · LA ROULETTE NE CHANGE DE BUREAU QUE SUR LES POINTS en haut à gauche
+#     (scroll_workspaces=false dans xfwm4 ; le sélecteur garde sa molette).
+#     Au milieu du bureau, elle ne fait plus rien.
+#   · SAUVEGARDE ET DIAGNOSTIC : lexos-sauvegarde (borg — restauration
+#     toujours À CÔTÉ, jamais par-dessus), lexos-disques (SMART traduit,
+#     lecture seule — l'icône du disque a enfin son panneau), lexos-medecin
+#     (le tri d'urgence en une commande, chaque constat finit par la
+#     commande qui soigne). Trois lanceurs de menu en --hold.
+#   · CONTRÔLE 16 branché en CI --strict, et ses trouvailles réparées :
+#     « lexos boost » et « lexos parametres » existent, Boost a sa rangée
+#     dans Énergie, Fichiers privés dans Confidentialité, lanceur des
+#     Assistants IA. verifier.sh (l'avant-vol en un script) vit à la racine.
+#   · Tablette graphique : xfce4-wacom-settings n'existe pas dans Debian —
+#     la section ouvre maintenant xsetwacom, le vrai outil.
+#   · Le hook Boost passe de 0500 à 0490 : un numéro, un hook.
+#
+#   avant-vol : ./verifier.sh au vert (8 familles de contrôles).
+#
+# build 64 : LES RÉPARATIONS DU PREMIER VRAI TEST — Alex a démarré le 63 sur
+#   son portable le soir même, et chaque défaut trouvé à l'écran est réparé.
+#
+#   · LE CLIC DES TUILES NE FAISAIT RIEN. L'heure, la météo : jolies dans la
+#     barre, muettes au clic. La balise s'appelle <txtclick> ; nos tuiles
+#     écrivaient <click>, que genmon jette en silence. Corrigé dans les trois
+#     tuiles, et un contrôle CI compare désormais chaque balise émise à la
+#     liste officielle du greffon.
+#   · LES ESPACES DE TRAVAIL : « 1 - Espace de travail 1 » quatre fois.
+#     Remplacés par les quatre points — le nom de chaque espace EST un point,
+#     l'actif en couleur d'accent via gtk.css, numérotation coupée.
+#   · LE MENU DES PARAMÈTRES, trop petit pour être parcouru : rangées de
+#     40 px au lieu de 30, texte 15,5 px, barre 272 px. Pareil dans la démo.
+#   · WI-FI : LA LISTE QUI MANQUAIT. « Aucun — ouvre l'outil réseau » sur une
+#     machine neuve, c'était le seul geste qu'on ne pouvait pas faire.
+#     Réseaux à portée, cadenas, mot de passe (aller simple vers nmcli,
+#     jamais journalisé), noms à deux-points respectés, double bande fusionnée.
+#   · BLUETOOTH : pareil — le cinéma maison d'Alex était introuvable.
+#     Appairés + entendus, Connecter / Appairer / Déconnecter, balayage borné
+#     à 12 s (« scan on » seul ne rend jamais la main), et le renvoi vers
+#     Son → Sortie audio.
+#   · NVIDIA, vu dans le journal du 63 : libxnvctrl0 échappait à l'épingle
+#     (parti en 610 pendant que la pile tenait en 595 — hors du chemin
+#     d'affichage, mais une épingle qui fuit finira par laisser passer un
+#     paquet qui compte) ; et l'autoremove de fin de live-build jetait NEUF
+#     paquets du pilote, dont libnvidia-ml1 — donc nvidia-smi muet — et
+#     nvidia-modprobe. Épingle élargie, pile marquée « voulue » (apt-mark
+#     manual, ~220 Mo assumés). Ce second défaut existait dans les builds
+#     59/61/62 : l'affichage n'a jamais été menacé, seuls les outils l'étaient.
+#
+#   Avant ce build, tout a été rejoué localement : shellcheck, Python, JS,
+#   XML, balises genmon, backports épinglé, bits d'exécution — et la suite
+#   des Paramètres au complet : 121 contrôles, plus 12 Wi-Fi, 13 Bluetooth,
+#   6 compte-tours.
+#
+# build 63 : DIX COMMITS DEPUIS LE 62 — L'IA LOCALE, LE BUREAU À DISTANCE,
+#   ET LA PREMIÈRE FOIS QU'ON OUVRE BACKPORTS.
+#
+#   ⚠ LE RISQUE DE CETTE CONSTRUCTION, dit d'avance : c'est la première qui
+#   ouvre trixie-backports (config/archives/backports.list.chroot). Le
+#   fichier d'épinglage à côté garde l'archive à priorité 100 pour TOUT le
+#   système et ne monte à 600 que llama.cpp et les paquets ggml — sans lui,
+#   la moitié du système migrerait vers backports au fil des mois et on
+#   perdrait la stabilité qui est la raison même de construire sur Debian
+#   stable. Si cette construction échoue quelque part, c'est le premier
+#   endroit à regarder.
+#
+#   ⚠ SECOND POINT À SURVEILLER DANS LE JOURNAL : le hook 0270 dit en toutes
+#   lettres quel backend GPU il a trouvé — ou qu'il n'en a trouvé aucun. Les
+#   noms de ces paquets bougent encore d'une version à l'autre et n'ont pas
+#   pu être vérifiés depuis l'atelier (pas d'accès réseau à deb.debian.org),
+#   donc rien n'est écrit en dur : le hook DEMANDE à apt. Chercher
+#   « hook 0270 » dans le journal de construction.
+#
+#   Ce qui entre :
+#     · 47 outils qui manquaient à une vraie journée (4 listes de paquets) ;
+#     · partage d'écran : huit positions de fenêtre au lieu de deux, avec
+#       Début/Fin/Page↑/Page↓ qui dessinent le carré de l'écran au clavier ;
+#     · son : choisir OÙ il sort — cinéma maison, télé HDMI, enceinte
+#       Bluetooth. Une enceinte appairée apparaît toute seule dans la liste ;
+#     · les trois qualités d'image : définition d'écran, format de capture,
+#       fond animé ;
+#     · bureau à distance : l'adresse à dicter au téléphone, une par carte
+#       réseau, et un champ pour aller voir ailleurs ;
+#     · Claude Code n'est PLUS dans l'image. Il se télécharge au premier
+#       démarrage une fois LexOS sur le disque dur — la version ne vieillit
+#       plus dans l'ISO, et une session live ne le traîne plus pour rien ;
+#     · IA locale : llama.cpp (MIT) + le backend GPU, et la fenêtre
+#       « lexos ia-locale » qui dit LAQUELLE des quatre pannes on a plutôt
+#       qu'un « GPU non disponible » qui ne sert à personne. Aucun modèle
+#       n'est livré — 4 à 5 Go pièce, licences souvent non libres ;
+#     · Paramètres → Logiciels tiers : les quatorze exceptions de LexOS au
+#       tout-libre, chacune avec sa licence, et lue dans dpkg plutôt
+#       qu'écrite d'avance.
+#
+#   La démo web a reçu tout ça en même temps, comme toujours.
+#
+# build 62 : UN FICHIER DU CORRECTIF EN MOINS — contenu identique au 61.
+#   La CI a attrapé le dernier passager clandestin du correctif Fichiers
+#   privés : uca-fragment-prive.xml, posé dans includes.chroot. Ce fichier
+#   est un FRAGMENT à coller — deux <action> sans racine, donc pas un
+#   document XML valide, et le contrôle des XML du squelette le refuse à
+#   bon droit. Sa fusion dans uca.xml est déjà faite ; l'embarquer aurait
+#   mis un fichier parasite dans le dossier Thunar de chaque utilisateur.
+#   Retiré (aucune référence nulle part, vérifié), tous les XML du
+#   squelette revalidés localement.
+#
+#   Le 61 en construction au moment de ce retrait reste bon : Thunar ne lit
+#   que uca.xml, le fragment y serait resté lettre morte. Celui-ci le
+#   remplace à l'identique, moins le parasite.
+#
+#   À noter, hors de portée d'un commit : pages.yml échoue parce que GitHub
+#   Pages n'est pas ACTIVÉ sur ce dépôt (il a déménagé vers lexOS-2.0).
+#   C'est un réglage d'administration — Settings → Pages → Source :
+#   GitHub Actions — que seul Alex peut faire.
+#
+# build 61 : LE BUILD 60 EST MORT EN SIX MINUTES — TROIS CORRECTIONS.
+#   Même contenu que le 60 (Boost + Fichiers privés), plus les réparations.
+#
+#   1. « policykit-1 » N'EXISTE PLUS dans Debian trixie : le paquet a été
+#      scindé en polkitd + pkexec. C'est lui qui a tué la construction —
+#      la liste de Boost (config/package-lists/) est installée par
+#      live-build DIRECTEMENT, qui meurt sur un paquet introuvable,
+#      contrairement à nos listes du hook 0250 qui notent et continuent.
+#      Corrigé : polkitd + pkexec, nommés explicitement.
+#
+#   2. Les lanceurs de Boost étaient des scripts PYTHON dans /usr/bin —
+#      contre la règle de la maison, que la CI fait respecter : /usr/bin ne
+#      contient que du shell, le Python vit dans /usr/lib/lexos (comme
+#      settings.py). shellcheck, qui passe tout /usr/bin en revue,
+#      s'étranglait dessus. Corrigé DANS LE SENS DE LA RÈGLE, pas en
+#      affaiblissant la CI : les deux lanceurs deviennent des enrobages
+#      shell d'une ligne ; le moteur n'a pas bougé. Vérifié : --json répond
+#      pareil, --appliquer --simulation passe ses arguments.
+#
+#   3. Les couleurs du ciel du volet météo (--mt-teinte, --mt-bord)
+#      n'étaient posées QUE par le script, jamais définies dans la feuille
+#      de style. Le contrôle « aucune variable CSS fantôme » de la CI les a
+#      attrapées — il a raison : un volet rendu avant le script serait sans
+#      fond ni bord. Défauts « nuageux » posés dans :root, démo ET volet.
+#
+#   Toute la CI a été REJOUÉE localement avant de relancer : le shellcheck
+#   complet (la même liste de fichiers), le contrôle des variables CSS (le
+#   même script), et « pas de Python dans /usr/bin ». Zéro avertissement.
+#
+# build 60 : LEXOS BOOST ET LES FICHIERS PRIVÉS.
+#   Deux apports extérieurs, relus avant d'être copiés — un hook tourne en
+#   root pendant la construction, et l'un des deux efface des fichiers de
+#   l'utilisateur. On ne colle pas ça sans l'avoir lu.
+#
+#   LEXOS BOOST — dix optimisations, chacune avec son inverse, et un profil
+#   calculé d'après le matériel réellement détecté : un portable de 2009
+#   reçoit beaucoup, une station de 2023 presque rien, et le logiciel le DIT
+#   au lieu d'inventer un gain. Aucune action ne modifie le système sans
+#   avoir d'abord écrit au journal comment revenir en arrière ; si le
+#   journal ne peut pas être écrit, l'action n'est pas appliquée.
+#   « lexos-boost --annuler » remet tout comme avant, dans l'ordre inverse.
+#   23 tests passent. Vérifié : aucun shell=True, aucun os.system, tous les
+#   appels système reçoivent une liste.
+#
+#   RÉSERVE, signalée à Alex et laissée telle quelle parce qu'il a demandé
+#   de ne pas toucher au moteur : ServicesInutiles.candidats() ajoute
+#   ModemManager et avahi-daemon SANS condition matérielle, alors que le
+#   README de Boost pose justement l'inverse comme règle à ne pas casser.
+#   Or LexOS installe ces deux paquets EXPRÈS — ModemManager pour la clé 4G
+#   qui est parfois la seule connexion d'un portable (20-desktop.list le dit
+#   en toutes lettres), avahi pour que les imprimantes réseau apparaissent
+#   (56-reglages.list). Et la condition d'impression ne teste que l'USB :
+#   quelqu'un avec une imprimante RÉSEAU perdrait cups, cups-browsed et
+#   avahi d'un coup. Ça ne se déclenche qu'en niveau « max » et c'est
+#   réversible, mais il faut le savoir avant d'appuyer sur le bouton.
+#
+#   FICHIERS PRIVÉS — un coffre-fort gocryptfs : un dossier chiffré qui se
+#   monte à la demande, sans partition à découper. Clic droit dans Fichiers
+#   → « Mettre en privé », fermeture automatique après 15 minutes.
+#   ESSAYÉ POUR DE VRAI et pas seulement relu : coffre créé, fichier déposé,
+#   refermé — sur le disque, le nom devient « KftJSeJ4n28T87CyQAApRQ » et le
+#   contenu est illisible. C'est du vrai chiffrement.
+#   Le code tient ses promesses là où ça compte : mot de passe par TUBE
+#   jamais par fichier, refus des liens symboliques (les suivre broierait le
+#   vrai fichier ailleurs) et des tubes nommés, « chmod u+w » avant shred
+#   (sans quoi un fichier en lecture seule serait supprimé sans être
+#   écrasé), et surtout l'original n'est effacé QU'APRÈS vérification de la
+#   copie par cmp/diff.
+#
+#   DEUX CORRECTIONS APPORTÉES AU CORRECTIF LUI-MÊME :
+#     · son insertion dans le dispatcheur a été refusée par sa propre
+#       vérification, qui valide avec « sh -n ». Or /usr/bin/lexos est un
+#       script BASH que « sh -n » refuse déjà tel quel, ligne 481, avant
+#       toute modification. Fausse alerte ; insertion faite à la main ;
+#     · ses sauvegardes « .avant-prive » étaient posées DANS includes.chroot,
+#       donc elles seraient parties dans l'ISO : un deuxième dispatcheur
+#       dans /usr/bin, et une copie de uca.xml dans le dossier de chaque
+#       utilisateur. Retirées — git est la sauvegarde qu'il faut.
+#
+#   Les trois actions du clic droit qui existaient (terminal, fond d'écran,
+#   fond animé) sont intactes : la fusion de uca.xml ne les a pas touchées.
+#   58-prive.list est réclamée par le hook 0250 dans le socle commun.
+#
+# build 59 : LES VOLETS, LA BARRE ARRONDIE, ET DOUZE ÉCRITURES À LA MAIN.
+#   Règle qu'Alex a posée et qui commande tout ce build : « tout ce qu'on
+#   fait sur la version vercel on le met aussi dans ios ». Ce qui suit existe
+#   donc des DEUX côtés, avec le même dessin.
+#
+#   LE VOLET QUI DESCEND. Un clic sur l'heure ouvre les notifications et
+#   l'agenda « comme un menu qui ouvre tranquillement en descendant » ; un
+#   clic sur la météo ouvre le temps qu'il fait. Une fenêtre et un volet ne
+#   sont pas la même chose : une fenêtre se déplace et se range dans
+#   Alt+Tab, un volet appartient à la barre et un clic ailleurs le referme.
+#   C'est une fenêtre Qt sans cadre affichant la MÊME page que la démo —
+#   même CSS, même courbe d'animation, même durée. L'animation est jouée par
+#   la page et non par Qt : redimensionner une fenêtre à chaque image serait
+#   saccadé sur un portable de 2016, et n'aurait pas la même tête.
+#
+#   Ce qu'il montre vient de la vraie machine : les notifications du journal
+#   de xfce4-notifyd (celui qui les reçoit pour de bon), les rendez-vous d'un
+#   fichier à nous, la météo d'Open-Meteo via « lexos-meteo --json ».
+#
+#   L'HORLOGE CHANGE DE NATURE. Le greffon horloge de XFCE ouvre SON
+#   calendrier et ne sait rien lancer d'autre — impossible d'y accrocher le
+#   volet. Elle devient donc une tuile genmon (lexos-heure). Deux pièges déjà
+#   payés une fois sur ce projet, évités ici : genmon ne lit PAS
+#   xfce4-panel.xml mais son propre genmon-N.rc (sans quoi la barre afficherait
+#   « (genmon)XXX » au lieu de l'heure, la panne exacte qu'avait connue la
+#   météo) ; et si genmon manquait au dépôt, le nettoyage du hook 0400
+#   retirerait plugin-3 et il n'y aurait PLUS D'HORLOGE — un repli remet alors
+#   le greffon interne de XFCE, on perd le clic, on garde l'heure.
+#
+#   LA BARRE DU HAUT ARRONDIE, sur une image de référence d'Alex. Trois
+#   réglages, et il les faut tous les trois : la barre passe à 98 % de large
+#   (à 100 % elle n'avait aucun coin à montrer), elle se décolle du haut, et
+#   son fond devient translucide. XFCE ne sait pas arrondir sa barre par un
+#   réglage — c'est GTK qui décide de la forme d'une fenêtre — d'où un
+#   ~/.config/gtk-3.0/gtk.css dans le squelette. Et background-style repasse
+#   à 0 : avec 1, XFCE peint lui-même un rectangle plein PAR-DESSUS l'arrondi.
+#   Les notifications prennent la même forme (xfce4-notifyd.xml, qui
+#   n'existait pas : elles tournaient sur les réglages d'usine).
+#
+#   DOUZE ÉCRITURES À LA MAIN. Alex a repéré une police qui lui plaisait sans
+#   savoir la nommer ; deviner à sa place gaspillait son temps comme le mien.
+#   Il les a maintenant toutes dans Paramètres → Apparence, chacune écrite
+#   DANS SA PROPRE POLICE, et il choisit sur SA machine — c'est là qu'on juge
+#   une police, pas sur une capture. Toutes sous licence OFL, embarquées avec
+#   leur fichier de licence.
+#
+#   ET LES CORRECTIONS TROUVÉES EN CHEMIN :
+#     · la fenêtre des Paramètres n'obéissait NI à la police NI à l'accent
+#       qu'on y choisissait — la feuille de style codait les deux en dur.
+#       C'est le pire endroit possible pour ce défaut : c'est là qu'on fait le
+#       choix, donc là qu'on regarde pour voir s'il a pris ;
+#     · RIEN ne reconstruisait le cache des polices. Patrick Hand arrivait par
+#       includes.chroot, donc hors de dpkg, donc sans déclencher le mécanisme
+#       qui rebâtit d'ordinaire ce cache. Le hook 0300 lance maintenant
+#       fc-cache et VÉRIFIE que la police est vue ;
+#     · la météo a enfin ses prévisions : cliquer la tuile ouvrait la boîte
+#       « quelle est ta ville ? » — on changeait de ville pour regarder le
+#       temps. Six ciels au lieu de quatre (l'orage et la neige manquaient),
+#       chacun avec sa grande image et sa couleur.
+#
+#   VÉRIFIÉ AVANT DE CONSTRUIRE : 70 assertions au navigateur réel sur trois
+#   bancs d'essai (Paramètres, volet, démo), toutes contre du vrai code servi
+#   par un vrai serveur. Dont la preuve que le volet SE DÉPLIE au lieu
+#   d'apparaître, que les douze écritures sont réellement DESSINÉES (douze
+#   largeurs distinctes), et que le repli de l'horloge marche. shellcheck sans
+#   remarque, tous les XML validés.
+#
+# build 58 : LA LISTE DES ÉCARTS DÉMO-CONTRE-ISO EST VIDE — LES 21 SONT
+#   RÉPARÉS, ET TOUT EST VÉRIFIÉ AVANT DE CONSTRUIRE.
+#   L'audit (50 agents, 172 points de comparaison) avait confirmé 21 écarts
+#   entre ce que la démo web montre et ce que l'ISO fait. Ce build les
+#   ferme tous. Alex essaie cette ISO ce soir sur le ThinkPad.
+#
+#   LES TREIZE BOUTONS QUI NE FAISAIENT RIEN. Les Paramètres lançaient
+#   « xfce4-settings-manager -s <module> » — l'option « -s » N'EXISTE PAS.
+#   Le programme mourait aussitôt, et comme on ne lit pas le code de retour
+#   d'une fenêtre (detach), l'échec était totalement silencieux : neuf
+#   sections avaient un bouton qui ne faisait rien, sans un mot. XFCE
+#   n'ouvre pas ses panneaux « par module » : chacun est un PROGRAMME
+#   (xfce4-appearance-settings, xfce4-mouse-settings…). Ils sont nommés
+#   directement, avec repli sur le gestionnaire complet si l'un manque.
+#
+#   LA VUE D'ENSEMBLE DES BUREAUX — le trou principal de l'audit. Le geste
+#   d'Ubuntu que la démo montre : tout s'écarte, les bureaux en rangée, les
+#   fenêtres en aperçus. Trois portes, toutes celles de la démo :
+#     · « lexos apercu » — xfdashboard en moteur, la liste des fenêtres de
+#       xfdesktop en repli si xfdashboard manquait au dépôt ;
+#     · la touche Super SEULE (xcape émet F13 au relâchement — Super+1…5
+#       continuent d'aller aux bureaux, rien n'est volé) ;
+#     · le coin actif haut-gauche — un veilleur X11 en ctypes, mêmes
+#       précautions que la démo : 5 px des DEUX bords, 140 ms de séjour,
+#       réarmement à la sortie. ÉTEINTS par défaut, bascule dans
+#       Paramètres → Multi-tâches. Rien ne tourne en cachette.
+#
+#   LES RACCOURCIS RESSUSCITÉS. Le hook 0400 ÉCRASAIT le fichier des
+#   raccourcis livré par includes.chroot : plus aucune capture d'écran au
+#   clavier, pendant que l'aide de « lexos » continuait de les annoncer.
+#   Les deux jeux sont fusionnés en UN fichier : les captures sur
+#   Super+Maj+1/2/3, les bureaux sur Super+1…5 comme la démo, la vue
+#   d'ensemble sur Super seule et Super+Tab.
+#
+#   LES SIX ASSISTANTS IA : la démo en montre six, l'ISO n'avait que
+#   Claude. « lexos assistants » et cinq lanceurs de menu (ChatGPT, Gemini,
+#   Perplexity, Mistral, Copilot). Chacun s'ouvre sur SON site : LexOS ne
+#   stocke aucune clé, aucun identifiant, ne relaie rien.
+#
+#   LA MÉTÉO A ENFIN SA FENÊTRE. Cliquer la météo de la barre ouvrait la
+#   boîte « quelle est ta ville ? » — on changeait de ville pour regarder
+#   le temps. Le clic ouvre maintenant les prévisions (aujourd'hui en
+#   grand, puis trois jours — Open-Meteo, même cache 15 min), « Changer de
+#   ville » en bouton secondaire. Au terminal : « lexos meteo jours ».
+#
+#   LES AUTOCOLLANTS DE LA DÉMO, POUR DE VRAI. Lex bebeilles, Lex salut et
+#   le badge PREVOST — extraits de la démo pixel pour pixel — se posent sur
+#   le fond d'écran (composition ImageMagick, coins parlés). Le fond
+#   d'origine est noté avant la première pose : « enlever » y revient
+#   toujours. Depuis Paramètres → Bureau ou « lexos fond-ecran
+#   autocollant ». Deux noms de fichier en alternance, sinon xfconf ne
+#   signale aucun changement et le deuxième personnage n'apparaissait qu'à
+#   la session suivante.
+#
+#   ET LE RESTE DES 21 :
+#     · pastilles des bureaux + cloche de notifications dans la barre
+#       (greffons pager et notification-plugin) ;
+#     · clic droit sur le bureau → sous-menu Applications (le réglage qui
+#       l'éteignait citait la démo… qui fait l'inverse) ;
+#     · Mousepad devient « Note perso », carnet orange, via
+#       /usr/local/share/applications — survit aux mises à jour ;
+#     · À propos : panneau « 100 % Linux » avec l'état RÉEL (dpkg) —
+#       micrologiciels comptés, Steam et Broadcom présents ou non ;
+#     · Date et heure : 12/24 h, secondes, jour de la semaine ; fuseau
+#       automatique d'après la ville CHOISIE pour la météo — jamais de
+#       géolocalisation par adresse IP dans le dos de personne ;
+#     · les appareils branchés en icônes dans la barre (imprimante, écran,
+#       casque, clé USB, disque) — rien de branché, rien d'affiché ;
+#     · la logithèque comprend les noms parlés (« install distant » →
+#       remmina, « photo » → gimp…), exactement ce que la démo imprime ;
+#     · bien-être : le compteur lisait un fichier que RIEN n'écrit — il lit
+#       le vrai journal et dit si le comptage tourne ;
+#     · build.sh recopie enfin les .webp, .gif et les images Plymouth : la
+#       boucle de conversion du hook 0300 tournait sur un dossier vide
+#       depuis le début.
+#
+#   VÉRIFIÉ AVANT DE CONSTRUIRE : 134 assertions au navigateur réel contre
+#   la vraie page des Paramètres sur une fausse machine (racines
+#   LEXOS_PSU/BL/ETC/DMI, même principe que LEXOS_RACINE de gpu-garde),
+#   hooks rejoués en bac à sable (37 lanceurs, deux passages, idempotent),
+#   shellcheck sans remarque. xfdashboard et xcape : s'ils manquaient au
+#   dépôt, le hook 0250 le note sans casser la construction, et
+#   « lexos apercu » a son repli — vérifié aussi.
+#
+# build 57 : LA DÉMO EST LE CAHIER DES CHARGES — HUIT OUTILS MANQUAIENT AU
+#   MENU, PLUS L'AGENDA.
+#   Alex a essayé l'ISO et l'a dit simplement : « il manquait beaucoup
+#   d'outils, Wi-Fi et tout dans les paramètres ». Et il a rappelé la règle
+#   qui gouverne ce projet : la démo web qu'on voit sur Vercel, c'est SES
+#   YEUX pour construire l'ISO. Ce qu'elle montre doit exister pour de vrai.
+#
+#   ON A DONC COMPARÉ, ICÔNE PAR ICÔNE. La grille d'applications de la démo
+#   contient quinze raccourcis de réglages. Dans le vrai système, HUIT
+#   n'avaient AUCUNE entrée de menu :
+#     Bluetooth · Énergie · Apparence · Souris et pavé tactile ·
+#     Gestion des couleurs · Imprimantes · Région et langue · Mises à jour
+#
+#   LE PLUS FRUSTRANT : les outils EXISTAIENT tous. « lexos-settings
+#   <section> » ouvre déjà les Paramètres sur la bonne page — exactement ce
+#   que fait la démo. Ils étaient simplement inatteignables à la souris, et
+#   le bureau paraissait vide de la moitié de ses réglages. Aucun outil
+#   nouveau n'a donc été écrit : huit lanceurs, et ils apparaissent.
+#
+#   POURQUOI ILS MANQUAIENT — deux défauts du hook 0265, qui se cachaient
+#   l'un l'autre :
+#     · le nom du fichier .desktop se déduisait du BINAIRE. Huit entrées
+#       partagent maintenant le même binaire (lexos-settings) avec des
+#       arguments différents : elles se seraient toutes écrasées dans
+#       lexos-settings.desktop, une seule aurait survécu. D'où une colonne
+#       d'identifiant.
+#     · le test anti-doublon regardait le BINAIRE, pas la commande. Le
+#       lexos-settings.desktop déjà livré aurait fait écarter les huit d'un
+#       coup. Il compare maintenant la commande ENTIÈRE — car le binaire
+#       seul ne dit pas ce que fait un lanceur, sa commande si.
+#
+#   L'AGENDA, absent lui aussi. La démo a un calendrier complet (vues Mois /
+#   Semaine / 3 jours / Jour heure par heure) et l'ISO n'avait AUCUNE
+#   application de calendrier. gnome-calendar est ajouté — il marche très
+#   bien hors de GNOME.
+#
+#   31 lanceurs produits au lieu de 23, vérifiés en rejouant le hook dans un
+#   faux système : le lanceur Paramètres d'origine n'est pas écrasé, et un
+#   deuxième passage ne recrée rien (31 reconnus comme déjà présents).
+#
+#   Ce build contient aussi tout le build 56 (lexos-gpu-garde), qui a été
+#   remplacé en cours de route : il aurait produit une ISO où ces huit
+#   outils manquaient encore.
+#
+# build 56 : LA VERSION PRO DÉMARRE MAINTENANT SUR N'IMPORTE QUELLE MACHINE,
+#   Y COMPRIS SANS CARTE NVIDIA.
+#   NOUVEAU PLAN D'ALEX : l'Alienware reste pour jouer (Windows), et LexOS
+#   va sur le ThinkPad T460 de 2016, à côté d'Ubuntu. Il veut la version
+#   « pro » sur ce vieux portable — qui n'a que des graphiques Intel.
+#
+#   CE QUI CLOCHAIT. L'ISO pro pose deux fichiers dans /etc/modprobe.d/ à la
+#   CONSTRUCTION, donc sans savoir où elle démarrera : l'interdiction de
+#   nouveau (le correctif du build 54, sans lequel la RTX 5060 n'affiche
+#   rien) et les options de nvidia-drm. Sur des graphiques Intel, interdire
+#   nouveau ne coûte rien — Intel utilise i915. Mais sur une machine à
+#   VIEILLE carte NVIDIA que le pilote 595 ne gère plus, ce serait l'écran
+#   noir : nouveau interdit, le propriétaire incapable de prendre la carte.
+#   Exactement la panne qu'on vient de mettre des semaines à comprendre,
+#   mais retournée.
+#
+#   CE QUI EST AJOUTÉ. Un service, lexos-gpu-garde, qui tourne au démarrage
+#   avant la session graphique et regarde le VRAI matériel (le bus PCI, pas
+#   une supposition faite à la construction) :
+#     · carte NVIDIA présente → les réglages restent en place ; rien ne
+#       change sur l'Alienware, le correctif du build 54 reste entier ;
+#     · aucune carte NVIDIA   → ils sont mis de côté en « .sans-nvidia »,
+#       donc sans effet, et nouveau redevient disponible.
+#   Réversible et symétrique : déplacer le disque dans une autre machine les
+#   remet tout seuls au démarrage suivant. RIEN N'EST JAMAIS SUPPRIMÉ.
+#   L'initramfs n'est régénéré que le jour où l'état change — pas à chaque
+#   démarrage.
+#
+#   19 essais sur de faux bus PCI : l'Alienware garde son correctif, le
+#   ThinkPad ne l'hérite pas, un deuxième démarrage ne rebouge rien, une
+#   puce audio HDMI NVIDIA n'est pas prise pour un GPU, un bus PCI vide ne
+#   fait pas planter, et le disque qui déménage d'une machine à l'autre se
+#   rattrape tout seul.
+#
+#   CE QUE ÇA NE COUVRE PAS, et autant le dire : une machine à vieille carte
+#   NVIDIA non gérée par le pilote 595 garde les réglages actifs, puisqu'une
+#   carte NVIDIA est bien là. Si l'écran restait noir sur une telle machine,
+#   c'est l'entrée « mode secours » du menu de démarrage qui sert — elle met
+#   toute la pile NVIDIA et nouveau en liste noire.
+#
+#   DOUBLE DÉMARRAGE AVEC UBUNTU : rien à changer. os-prober est déjà actif
+#   (GRUB_DISABLE_OS_PROBER=false) et trouvera Ubuntu tout seul. Le service
+#   qui met Windows par défaut ne trouve aucune entrée Windows sur cette
+#   machine et ne fait donc rien : LexOS reste le démarrage par défaut, avec
+#   les deux systèmes au menu pendant 8 secondes.
+#
+# ============================================================================
+#  LES DEUX ISO SONT CONSTRUITES ET PUBLIÉES — PAS ENCORE ESSAYÉES.
+#  (17 août 2026)
+#
+#    · standard (build 53) → le ThinkPad T460 de 2016    : publiée
+#    · pro      (build 55) → l'Alienware Aurora, RTX 5060 : publiée
+#
+#  ATTENTION À CE QUE CETTE LIGNE VEUT DIRE. « Publiée » signifie que la
+#  construction a réussi et que les fichiers sont téléchargeables. Ça ne
+#  veut PAS dire que le correctif marche : personne n'a encore démarré ces
+#  ISO sur le vrai matériel. Alex les essaiera en rentrant du travail.
+#
+#  CE QUI RESTE À VÉRIFIER, et c'est tout l'enjeu. L'Alienware perd le
+#  signal HDMI vers le téléviseur depuis des semaines. On a soupçonné, dans
+#  l'ordre : le pilote NVIDIA et sa branche, Secure Boot, le port HDMI, le
+#  câble, les réglages de la Hisense, Compiz, et TLP qui endormait la
+#  carte. Chacune de ces pistes a coûté une construction de plus d'une
+#  heure, et aucune n'était la bonne.
+#
+#  La cause enfin trouvée — celle-là vue de nos yeux, en direct, dans la
+#  console du système installé avec « sudo lexos tv » : nouveau, le pilote
+#  LIBRE et pas le propriétaire, se chargeait automatiquement et réclamait
+#  la carte avant que nvidia.ko, compilé par DKMS et chargé plus tard, ait
+#  sa chance. Un périphérique déjà lié ne peut plus être repris. Et sur
+#  Blackwell, nouveau ne voit AUCUNE sortie vidéo. D'où « aucune sortie
+#  branchée », écran allumé, câble bon, pilote NVIDIA installé à côté.
+#
+#  Le correctif du build 54 s'attaque à ça, à deux endroits : hook 0260
+#  pour le système installé, auto/config pour les premières secondes du
+#  démarrage. Il est cohérent avec ce qu'on a observé — mais il n'est pas
+#  encore prouvé. Tant que « lexos tv » n'a pas dit « nvidia » à la place
+#  de « nouveau » sur la machine d'Alex, cette affaire reste ouverte.
+#
+#  LA LEÇON, elle, est déjà acquise : devant un écran noir, ne pas demander
+#  « le pilote est-il installé ? » mais « QUEL pilote tient la carte EN CE
+#  MOMENT ? ». C'est ce que montre « lexos tv », et c'est ce qui a débloqué
+#  des semaines de fausses pistes en une minute.
+# ============================================================================
+#
+# build 55 : LE MÊME QUE LE 54, PARCE QUE LE 54 A ÉTÉ PERDU À LA TOUTE
+#   DERNIÈRE SECONDE — ET LA RAISON EST CORRIGÉE.
+#   L'ISO pro du build 54 a été construite avec succès : 8,0 Go en 69 min
+#   42 s, pilote NVIDIA 595.91.07-1 relevé SUR LE PILOTE LUI-MÊME (le dépôt
+#   proposait aussi 610.57.04 et 610.43.02 — l'épingle les a refusées, comme
+#   voulu), blacklist nouveau en place. Tout était bon.
+#   Puis, pendant l'envoi des morceaux à GitHub :
+#     HTTP 503: No server is currently available to service your request
+#   Une panne passagère de GitHub, quelques secondes. Et une heure et quart
+#   de calcul jetée. Trois défauts de l'étape de publication s'étaient
+#   additionnés pour transformer un hoquet en perte totale :
+#     1. La Release précédente était SUPPRIMÉE D'AVANCE, avant même que la
+#        nouvelle soit envoyée. Après l'échec il ne restait donc RIEN à
+#        télécharger — ni la nouvelle ISO, ni l'ancienne qui marchait.
+#        C'est le pire des trois : une panne chez GitHub ne devrait jamais
+#        pouvoir effacer ce qui fonctionnait déjà.
+#     2. Les cinq morceaux (7,6 Go) partaient en UN SEUL appel. Une erreur
+#        sur le dernier jetait les quatre premiers.
+#     3. Aucune reprise. Zéro. Sur une opération réseau de 7,6 Go.
+#   Ce que ce build change (dans .github/workflows/build-iso.yml) :
+#     · on ne supprime plus rien d'avance — la Release est mise à jour ;
+#     · chaque morceau part séparément, avec cinq tentatives espacées de
+#       5, 10, 20 puis 40 secondes ;
+#     · le .sha256 part EN DERNIER, et l'ancien est retiré en premier : sa
+#       présence signe donc une Release complète et vérifiable, son absence
+#       dit franchement « envoi en cours » ;
+#     · les morceaux d'une construction précédente plus grosse sont
+#       enlevés, pour qu'un part-04 oublié ne se recolle pas à la fin du
+#       nouveau fichier ;
+#     · et on VÉRIFIE que tous les fichiers sont bien là, au lieu d'espérer.
+#   Testé en bac à sable avec un faux « gh » qui rejoue le 503 exact du
+#   build 54 : 21 essais, dont « la construction survit à la panne » et
+#   « l'ancienne ISO reste téléchargeable quand l'envoi échoue ».
+#   Le CONTENU de l'ISO est identique au build 54 — même correctif nouveau,
+#   même pilote 595. C'est la livraison qui est réparée, pas le système.
+#
+# build 54 : TROUVÉ EN DIRECT SUR L'ALIENWARE — nouveau prenait la carte
+#   avant nvidia.
+#   Après le build 53, Alex a testé pour de vrai, en direct, sur la tour
+#   branchée à la Hisense. Le signal HDMI se perdait TOUJOURS, alors que :
+#     · le pilote NVIDIA propriétaire s'installait sans erreur (hook 0260,
+#       branche épinglée sous 610.x comme toujours) ;
+#     · Secure Boot a été désactivé (correctement, en repassant d'abord par
+#       « Enable Secure Boot », PAS en touchant « Enable Microsoft UEFI CA »
+#       tout en laissant Secure Boot actif — combinaison que le BIOS
+#       lui-même déconseille et qu'on a évitée) — et le problème est
+#       resté identique ;
+#     · TLP était bien maîtrisé depuis le build 52 (tenu, testé en console
+#       plusieurs minutes sans coupure).
+#   Donc ni le pilote, ni Secure Boot, ni TLP. `lexos tv`, lancé en direct
+#   dans la console du système installé, a montré la vraie cause :
+#     Kernel modules: nouveau
+#     Sorties vidéo vues par le noyau : AUCUNE SORTIE BRANCHÉE
+#   nouveau — le pilote libre, PAS le pilote NVIDIA propriétaire — s'était
+#   chargé automatiquement et avait pris la carte avant que nvidia.ko
+#   (compilé par DKMS, chargé plus tard depuis l'initramfs) ait la moindre
+#   chance de la réclamer. Un périphérique déjà lié par un pilote ne peut
+#   plus être repris par un autre. Et sur cette génération de carte
+#   (Blackwell, RTX 50), nouveau ne sait lire AUCUNE sortie vidéo — d'où
+#   « aucune sortie branchée » même écran allumé, câble bon, port bon.
+#   Rien dans le dépôt ne mettait nouveau en liste noire de façon
+#   permanente : le seul blacklist existant (build 52) ne vivait que dans
+#   les paramètres du mode secours de secours, pas dans le système normal.
+#   Ce build corrige la vraie cause, à deux endroits :
+#     · /etc/modprobe.d/lexos-blacklist-nouveau.conf (posé par le hook 0260,
+#       seulement quand le pilote NVIDIA s'installe avec succès) — empêche
+#       nouveau de se charger du tout, sur ce système installé.
+#     · nouveau.modeset=0 ajouté à la ligne de commande du noyau
+#       (auto/config, BOOTAPPEND normal) — couvre les toutes premières
+#       secondes du démarrage, avant même que /etc soit monté et donc avant
+#       que le fichier modprobe.d puisse agir. Sans effet sur le ThinkPad
+#       ou toute machine sans carte NVIDIA.
+#   CETTE ISO-CI EST POUR L'ALIENWARE (saveur pro) — c'est la machine
+#   concernée, celle qu'Alex veut ré-essayer avant de partir travailler.
+#
+# build 53 : LE THINKPAD D'ABORD, ET DEUX VERSIONS AU LIEU DE TROIS.
+#   DEUX VERSIONS, NOMMÉES PAR LA MACHINE. Décision d'Alex, après avoir vu
+#   qu'une troisième ne servait à rien :
+#     · « pro »      → l'Alienware, parce qu'elle a une RTX 5060 et que le
+#                      pilote NVIDIA propriétaire ne peut pas s'installer
+#                      après coup : il doit être dans l'ISO.
+#     · « standard » → TOUT LE RESTE : le ThinkPad 2016 d'Alex et n'importe
+#                      quel ordinateur normal. Même bureau, sans NVIDIA.
+#
+#   POURQUOI PAS UNE TROISIÈME POUR LE THINKPAD. Tout ce qui distingue un
+#   vieux portable d'une tour se règle DÉJÀ tout seul au démarrage : TLP ne
+#   s'active que s'il y a une batterie (correctif du build 52), les graphiques
+#   Intel marchent d'origine, le Wi-Fi et la luminosité sont détectés. Une
+#   troisième ISO aurait été le jumeau exact de « standard » — deux heures de
+#   construction pour le même fichier. Et Alex teste sur le ThinkPad pour
+#   prévoir ce que fera l'Alienware : ça ne marche que s'ils sont identiques.
+#
+#   LE MENU DE DÉMARRAGE PASSE À 8 SECONDES (au lieu de 3). Sa Hisense met 2 à
+#   5 secondes à afficher quoi que ce soit en HDMI : à 3 secondes, le menu
+#   risquait d'être déjà parti quand l'image apparaît enfin, et LexOS serait
+#   devenu inatteignable sur cette machine. Windows part toujours tout seul si
+#   personne ne touche à rien.
+#
+#   UN VRAI BUG TROUVÉ EN AUDITANT, ET IL ÉTAIT GÊNANT : le verrou d'écran.
+#   La barre du haut a un bouton « Verrouiller l'écran » (+lock-screen dans
+#   xfce4-panel.xml) et AUCUN logiciel de verrouillage n'était installé. On
+#   cliquait, rien. Pire : couvercle fermé puis rouvert, on retombait sur le
+#   bureau SANS mot de passe. light-locker corrige ça (compagnon de lightdm,
+#   donc le même écran de mot de passe que d'habitude).
+#
+#   Le reste des manques relevés par le vérificateur d'Alex, triés : 15 vrais
+#   ajoutés (modemmanager pour la 4G, pipewire-alsa pour le son des vieilles
+#   applis, apparmor + profils, clang, manpages-dev, les clients postgresql /
+#   mysql / redis, et surtout virt-manager + libvirt + distrobox pour ESSAYER
+#   SES PROPRES ISO DANS UNE FENÊTRE, sans graver de clé). Les autres étaient
+#   des faux positifs : on les avait déjà sous un autre nom — fonts-noto-core
+#   au lieu du fonts-noto complet (1 Go), clipman dans xfce4-goodies,
+#   golang-go, p7zip-full, firmware-linux-nonfree, locales et lsb-release qui
+#   sont de la base Debian.
+#
+#   403 paquets optionnels par saveur de bureau, identiques partout.
+#
+#   CETTE ISO-CI EST POUR LE THINKPAD (saveur standard). La pro de l'Alienware
+#   suit avec exactement le même bureau, plus le pilote NVIDIA.
+#
+# build 52 : L'ENDORMEUR DE CARTE GRAPHIQUE, ET LE TRI D'UN VIEUX DIAGNOSTIC.
+#   L'ESSAI DU BUILD 50 SUR L'ALIENWARE (vidéo à l'appui) : même en mode
+#   secours — nomodeset, toute la pile NVIDIA et nouveau en liste noire,
+#   aucun bureau — le signal HDMI se perdait ENCORE à ~20 secondes. Aucun
+#   pilote d'affichage ne peut être coupable : aucun n'a le droit de
+#   toucher l'écran dans ce mode. Le seul acteur restant qui touche au
+#   matériel à cet instant est TLP, l'économiseur d'énergie pour
+#   portables : il démarre pile à ce moment et met en veille les
+#   périphériques PCI « inutilisés ». Sans pilote pour la tenir occupée,
+#   la carte graphique EST un périphérique inutilisé à ses yeux — il peut
+#   l'endormir pendant qu'elle envoie l'image. Et sur une tour sans
+#   adaptateur secteur à lire, TLP peut se croire sur batterie et
+#   appliquer son profil le plus agressif.
+#
+#   Ce que ce build change :
+#     · tlp.service est conditionné à la présence d'une batterie
+#       (ConditionPathExistsGlob=/sys/class/power_supply/BAT*) : sur le
+#       ThinkPad rien ne change, sur une tour il ne démarre plus.
+#     · le mode secours ajoute systemd.mask=tlp.service — ceinture et
+#       bretelles : même si la condition se trompait, le mode dont le seul
+#       travail est d'afficher ne laissera personne éteindre l'écran.
+#     · 00-core.list gagne firmware-nvidia-graphics (le GSP dont nouveau a
+#       besoin sur les RTX récentes — le pilote propriétaire de la pro
+#       apporte le sien, ceci couvre les autres saveurs) et
+#       firmware-sof-signed (le son interne des portables récents).
+#
+#   AU PASSAGE, LE TRI D'UN DIAGNOSTIC QU'ALEX A COLLÉ, écrit pour l'ancien
+#   dépôt (LexOS 1.0.2, « logiciel-ti-lex- ») : sa cause principale — « le
+#   hook 0260 n'existe pas, aucun pilote NVIDIA nulle part » — est fausse
+#   ici depuis longtemps (0260 existe, pilote 595.91.07-1 installé et
+#   compilé, prouvé au journal du build 50). Ses listes « fantômes »
+#   56/57 existent. Son mode secours proposé existe déjà en mieux. Ce
+#   qu'il apportait de vrai et qu'on garde : penser au SECURE BOOT (le
+#   module DKMS n'est pas signé — Secure Boot actif = pilote refusé =
+#   écran noir ; c'était déjà documenté dans INSTALLATION.md, c'est
+#   maintenant dit à Alex pour SON BIOS), et les micrologiciels ci-dessus.
+#
+# build 51 : LE PORTABLE, AVEC LES MÊMES CORRECTIFS QUE LA 50.
+#   « où ISO pour mon portable ? » La dernière dev complète est la 48 :
+#   bureau unifié, mais construite AVANT le correctif du bouton « Quitter »
+#   (la 49, qui l'apportait, a été annulée quand la pro 50 est passée
+#   devant). Celle-ci est donc la première DEV à tout avoir : correctif du
+#   greffon, météo genmon-13.rc, Paramètres à la taille de l'écran, bureau
+#   unifié. Même bureau que la pro 50, sans le pilote NVIDIA — le ThinkPad
+#   n'a pas de carte NVIDIA.
+#
+#   Poussée pendant que la 50 est « in_progress » : GitHub n'annule que les
+#   demandes en attente, jamais celles qui construisent. Vérifié avant de
+#   pousser.
+#
+# build 50 : L'ALIENWARE, AVEC ABSOLUMENT TOUT CE QU'ON A CORRIGÉ.
+#   « l'ISO dernière pour mon Alienware est-elle prête avec tout ce qu'on a
+#   corrigé ? » Non — la pro en ligne (build 47) date de 23 h 17, avant
+#   qu'on trouve le bouton « Quitter ». Celle-ci est la première pro à tout
+#   avoir :
+#
+#     · le correctif du greffon manquant — la fenêtre « Quitter » qui
+#       fermait la barre du haut ne peut plus s'ouvrir (build 49) ;
+#     · la météo qui marche enfin, genmon-13.rc au lieu du XML (build 49) ;
+#     · les Paramètres à la taille de l'écran, PySide6 obligatoire (49) ;
+#     · le même bureau que le portable, application pour application —
+#       95 paquets stricts, 334 optionnels (build 48) ;
+#     · le pilote NVIDIA 595.91.07-1 et Compiz coupé (build 47).
+#
+#   Elle prend la place de la demande dev qui attendait encore en file :
+#   elle n'avait pas démarré, rien n'est perdu, et l'Alienware passe devant
+#   parce que c'est ce qu'Alex a demandé. Une dev avec exactement le même
+#   bureau suivra derrière.
+#
+# build 49 : LA VRAIE RAISON POUR LAQUELLE LA BARRE DISPARAISSAIT.
+#   « quand je clique, le menu du haut disparaît. » La photo d'Alex a donné
+#   la réponse, et ce n'était ni Compiz ni une course au démarrage. Au
+#   démarrage, xfce4-panel ouvrait cette fenêtre :
+#
+#     « Le greffon "power-manager-plugin" n'a pas pu être chargé,
+#       voulez-vous le supprimer de la configuration de xfce4-panel ? »
+#            [ Supprimer ]        [ Quitter ]
+#
+#   « Quitter » ferme le panneau EN ENTIER. La barre ne disparaissait pas
+#   toute seule : elle disparaissait au clic, parce que le clic tombait sur
+#   ce bouton-là. J'ai corrigé Compiz deux fois pour un défaut qui n'était
+#   pas là. Je le dis parce que ça a coûté deux ISO à Alex.
+#
+#   Cause de fond : la barre DÉCLARE quatre greffons (whiskermenu,
+#   pulseaudio, power-manager-plugin, genmon) que le hook 0250 installait en
+#   « best effort ». Un seul absent, et la fenêtre s'ouvre. Deux corrections,
+#   ceinture et bretelles :
+#     · les quatre paquets deviennent OBLIGATOIRES (flavours/standard) ;
+#     · le hook 0400 vérifie maintenant CHAQUE greffon déclaré et retire de
+#       la configuration ceux qui manquent vraiment. La fenêtre ne peut plus
+#       s'ouvrir, même si un paquet disparaît d'une version de Debian à
+#       l'autre. Testé sur quatre cas : greffon simple absent, greffon à
+#       sous-tableau absent (whiskermenu et ses favoris), les quatre absents,
+#       et le cas normal — où le fichier ressort inchangé.
+#
+#   LA MÉTÉO N'A JAMAIS PU MARCHER, ET C'ÉTAIT MON ERREUR. La barre affichait
+#   « (genmon)XXX ». J'avais mis la commande de la météo dans
+#   xfce4-panel.xml, comme pour les autres greffons. Or genmon ne passe pas
+#   par xfconf du tout : il lit son propre fichier
+#   ~/.config/xfce4/panel/genmon-13.rc. Vérifié dans le binaire du paquet
+#   Debian (xfce_panel_plugin_lookup_rc_file + xfce_rc_simple_open, clés
+#   Command / Text / UseLabel / UpdatePeriod / Font). « (genmon) » est son
+#   étiquette par défaut et « XXX » sa valeur par défaut : il n'avait
+#   simplement jamais reçu de commande. Le hook 0400 écrit désormais le bon
+#   fichier.
+#
+#   PARAMÈTRES PAREILS PARTOUT. Les 32 sections de la fenêtre Paramètres
+#   LexOS ont toutes leur page — vérifié, aucune n'est vide. Mais la fenêtre
+#   est écrite en Qt, et Qt voyageait dans les paquets optionnels : un échec
+#   sur une machine et pas sur l'autre donnait des Paramètres qui s'ouvrent
+#   d'un côté et refusent de l'autre. PySide6 et zenity deviennent
+#   obligatoires.
+#
+# build 48 : LES TROIS VERSIONS DEVIENNENT LE MÊME BUREAU.
+#   « on construit 3 versions différentes, faudrait qu'elles soient toutes
+#   pareilles. » Alex a raison, et elles ne l'étaient pas. Voici ce qui
+#   différait vraiment, sans que rien ne le signale nulle part :
+#
+#     · la saveur PRO — la plus complète en principe, celle de l'Alienware —
+#       n'a JAMAIS reçu la liste « full ». Pas de LibreOffice, pas de
+#       Thunderbird, pas d'evince, pas de GParted, pas de Timeshift, pas de
+#       Transmission, pas de Remmina. Sur l'ISO la plus grosse.
+#     · la saveur DEV — celle du portable, celle sur laquelle Alex essaie
+#       TOUT — n'a reçu ni « full », ni « gaming », ni « pro-gamer ». Ni
+#       Wine, ni Steam, ni Vulkan, ni OBS, ni les émulateurs, ni la
+#       bureautique.
+#
+#   Le problème n'est pas la liste en elle-même, c'est ce que ça voulait
+#   dire : essayer le bureau sur le portable ne disait RIEN de ce qu'on
+#   allait trouver sur l'Alienware. Un test qui ne teste pas ce qu'on livre.
+#
+#   Ce que ce build change :
+#     · build.sh — toutes les saveurs de bureau empilent les cinq listes
+#       strictes (standard + dev + full + gaming + pro) : 95 paquets, partout
+#       les mêmes.
+#     · hook 0250 — une seule liste de paquets optionnels pour toutes les
+#       saveurs de bureau : 21 listes, 334 paquets, partout les mêmes. Le
+#       journal l'écrit noir sur blanc à chaque construction, pour qu'un
+#       écart futur se voie tout de suite.
+#     · i386 activé partout (Steam et Wine en ont besoin), plus seulement
+#       sur gaming et pro.
+#     · hook 0400 — l'horloge affiche « lexOS ⚡ Pro » sur TOUTES les
+#       saveurs, comme la démo. C'était la dernière chose visible à l'écran
+#       qui n'était pas pareille entre le portable et l'Alienware. La vraie
+#       saveur de l'ISO reste lisible dans le nom du fichier, dans la
+#       fenêtre de bienvenue et dans « lexos infos ».
+#
+#   CE QUI RESTE DIFFÉRENT, ET POURQUOI. Le pilote NVIDIA propriétaire n'est
+#   embarqué que par la saveur pro. Ce n'est pas un oubli : le ThinkPad n'a
+#   pas de carte NVIDIA, et lui poser ce pilote installerait une
+#   configuration Xorg nvidia et mettrait nouveau sur liste noire pour rien —
+#   soit exactement le risque d'écran noir qu'on passe notre temps à
+#   chasser. Une différence de matériel, jamais une différence de bureau.
+#
+#   Cette ISO-ci est la saveur DEV, pour le portable, parce que c'est là
+#   qu'Alex fait ses essais. La pro suivra avec exactement le même bureau.
+#
+# build 47 : L'ALIENWARE, AVEC LE CORRECTIF COMPIZ.
+#   Alex fait ses essais sur le portable et veut la pro prête en parallèle
+#   pour la grosse machine.
+#
+#   L'ISO pro en ligne (build 43) a été construite AVANT qu'on comprenne le
+#   coup de Compiz : elle a donc encore les effets activés. La graver aurait
+#   voulu dire 5 Go téléchargés pour retomber peut-être sur le même écran
+#   noir. Celle-ci part avec LEXOS_CRT_EFFECTS=off.
+#
+#   POURQUOI C'EST UNE VRAIE PISTE POUR LE TÉLÉVISEUR, et pas un espoir en
+#   l'air. Le signal HDMI se perd « quand le bureau graphique démarre ». Or
+#   c'est exactement à ce moment que Compiz s'empare de la carte NVIDIA,
+#   crée son contexte OpenGL et remplace le gestionnaire de fenêtres. Sur le
+#   portable, la même séquence faisait DISPARAÎTRE la barre du haut quelques
+#   secondes après son apparition — on l'a vu, mesuré, et corrigé. Sur une
+#   sortie HDMI capricieuse, la même prise de contrôle peut coûter le signal
+#   au lieu d'une barre.
+#   Ce n'est PAS une preuve. C'est une piste sérieuse, jamais écartée
+#   jusqu'ici, et elle l'est maintenant par défaut.
+#
+#   TOUT LE RESTE ARRIVE AUSSI, depuis le build 34 où la pro s'était arrêtée :
+#   /etc/skel recopié dans le dossier personnel, le fond d'écran qui ne se
+#   fait plus écraser, l'ouverture de session automatique retirée du système
+#   installé, les icônes à un seul dessin, la barre du haut enfin placée en
+#   haut, la météo, « lexos tv » et le mode secours qui s'arrête en console.
+#
+#   SI LE SIGNAL SE PERD ENCORE : démarrer sur la 2e ligne du menu (secours),
+#   qui donne maintenant une console qui TIENT, et y lancer « sudo lexos tv ».
+#   Et essayer d'abord un port HDMI qui n'est PAS le port ARC.
+# build 46 : LA BARRE APPARAISSAIT PUIS DISPARAISSAIT — C'ÉTAIT COMPIZ.
+#   Le build 45 a réglé la position : Alex voit ENFIN la barre du haut. Mais
+#   « le menu apparaît et disparaît pas longtemps après ». Le mot « après »
+#   est toute la réponse.
+#
+#   LA CHAÎNE, dans l'ordre :
+#   · xfce4-session lance lexos-wm en premier (priorité 15) ;
+#   · lexos-wm doit savoir s'il y a une VRAIE accélération 3D avant de choisir
+#     entre Compiz et xfwm4. Il exécute glxinfo pour ça — plusieurs secondes ;
+#   · pendant ce temps la session continue et démarre xfce4-panel (priorité
+#     25). LA BARRE APPARAÎT ;
+#   · glxinfo répond enfin « oui » (le ThinkPad a une carte Intel, donc du
+#     rendu direct, donc pas de repli), et Compiz démarre en « --replace ».
+#     Il remplace le gestionnaire de fenêtres SOUS une barre déjà affichée :
+#     elle perd son ancrage et disparaît.
+#
+#   → Le défaut de LEXOS_CRT_EFFECTS passe de « on » à « off ». Un effet
+#     décoratif — l'ouverture de fenêtre façon tube cathodique — ne doit
+#     jamais coûter le menu. « lexos crt on » reste là pour qui le veut en
+#     connaissance de cause.
+#   → Et si on le réactive, lexos-wm RELANCE la barre une fois Compiz en
+#     place. On ne peut pas démarrer Compiz avant elle (la détection 3D est
+#     trop lente), alors on répare après. C'est laid, c'est honnête, et la
+#     barre revient.
+#
+#   CE MÊME RÉGLAGE EST UN SUSPECT POUR L'ALIENWARE. Sur le téléviseur
+#   Hisense, le signal HDMI se perd « quand le bureau graphique démarre » —
+#   exactement le moment où Compiz s'empare de la carte NVIDIA et crée son
+#   contexte OpenGL. Ce n'est PAS prouvé. Mais c'était jusqu'ici une piste
+#   qu'on n'avait jamais écartée, et elle l'est maintenant par défaut.
+# build 45 : AUDIT COMPLET DE L'ISO DU PORTABLE, À LA DEMANDE D'ALEX.
+#   « Regarde si rien ne manque. » Contrôle mécanique, pas à l'œil, sur onze
+#   points. Le résultat est rassurant et deux vraies incohérences en sortent.
+#
+#   CE QUI EST SAIN, VÉRIFIÉ :
+#   · les 58 commandes proposées par la touche Tab existent toutes dans le
+#     dispatcher — aucune ne mènerait à « commande inconnue » ;
+#   · les 43 programmes appelés par « lexos » sont tous présents ET exécutables ;
+#   · les 19 hooks sont exécutables (un hook non exécutable est ignoré EN
+#     SILENCE par live-build — le piège s'est déjà produit trois fois) ;
+#   · les 47 programmes de /usr/bin sont exécutables ;
+#   · AUCUNE icône « lexos-* » demandée par un lanceur n'est absente : tout ce
+#     qui est référencé est bien fabriqué ;
+#   · les deux icônes en chemin absolu (cartes, gps) existent.
+#
+#   LES DEUX DÉFAUTS TROUVÉS — le même programme n'avait pas la même icône
+#   selon l'endroit d'où on le lance, et LexOS possédait pourtant la sienne :
+#   · « Paramètres » dans la BARRE DU HAUT demandait « preferences-system »,
+#     l'engrenage générique du thème, alors que le même programme porte
+#     « lexos-reglages » dans le dock. Deux icônes pour une seule application.
+#   · « lexos-mac » demandait « computer-laptop », l'ordinateur portable
+#     générique, alors que branding/icon-mac.svg existe et est rendu aux huit
+#     tailles depuis toujours.
+#
+#   Les sept autres lanceurs qui utilisent une icône du thème (avion, écran,
+#   fonds, jeux, logithèque, température, cartes) n'ont PAS d'équivalent
+#   LexOS : y toucher demanderait de dessiner sept icônes, pas de corriger un
+#   oubli. C'est noté, ce n'est pas un défaut.
+# build 44 : LA MÊME CHOSE QUE LE 43, MAIS EN SAVEUR DEV.
+#   Le build 43 partait en PRO par inadvertance : la demande était restée sur
+#   « pro » depuis l'ISO de l'Alienware. Or c'est le portable 2016 qui affiche
+#   quelque chose, donc la seule machine où la barre du haut peut être
+#   vérifiée. Même contenu, saveur dev. L'ISO pro reçoit les mêmes correctifs
+#   de son côté et reste sous « latest-pro ».
+# build 43 : LE MENU DU HAUT N'AVAIT JAMAIS ÉTÉ VISIBLE — ET L'ICÔNE QUI
+#            CHANGE SOUS LA SOURIS AVAIT UNE AUTRE CAUSE QUE CELLE CORRIGÉE.
+#
+#   LA BARRE DU HAUT. Alex : « il manque le menu en haut de l'écran ». Il ne
+#   manquait pas — il était rangé dans un coin. Le panneau était configuré à
+#   la position « p=6 », qui chez XFCE désigne le coin BAS-GAUCHE en VERTICAL,
+#   alors que la ligne « mode=0 » juste en dessous le déclare HORIZONTAL. Une
+#   barre horizontale accrochée à un ancrage vertical : XFCE la posait hors de
+#   vue. Corrigé en « p=2 » — bord haut, centrée, comme la démo.
+#   Ce n'est PAS une régression des builds 39-40 : ce réglage était là depuis
+#   le début, et explique pourquoi la barre n'est apparue sur AUCUNE ISO.
+#   Le dock, lui, était bien en haut : « lexos dock droite » l'a remis à sa
+#   place, et le haut est resté vide — ce qui a écarté l'hypothèse « le dock
+#   la cache » et désigné le panneau lui-même.
+#
+#   L'ICÔNE QUI CHANGE SOUS LA SOURIS, la vraie cause cette fois.
+#   On a complété les tailles manquantes trois fois — Chrome au build 38,
+#   Claude et Musique au build 41 — et Alex voit ENCORE le dessin changer.
+#   Le nombre de tailles n'était donc pas la cause : c'était l'existence de
+#   DEUX RENDUS POSSIBLES du même nom d'icône. Chaque icône était livrée en
+#   PNG à huit tailles ET en SVG « scalable ». Le dock agrandit l'icône
+#   survolée ; pour toute taille sans PNG exact, GTK préfère le SVG. L'
+#   affichage saute donc de l'un à l'autre pendant le zoom.
+#   → Les cinq endroits qui écrivaient un SVG « scalable » pour une icône
+#     lexos-* le SUPPRIMENT désormais : hooks 0300, 0420, 0430, 0440 et
+#     lexos-theme-gen. Il ne reste qu'un seul dessin par nom, GTK met à
+#     l'échelle le PNG le plus proche, et plus rien ne peut changer.
+#     Au-delà de 256 px l'icône sera un peu moins nette : aucune interface de
+#     LexOS ne demande cette taille.
+#   → Le hook 0700 refuse désormais de laisser passer un SVG scalable lexos-*
+#     et nomme les fichiers fautifs. Si un hook en réintroduit un, on le saura
+#     à la construction au lieu de le découvrir sur un écran.
+# build 42 : RETOUR EN SAVEUR PRO — L'ALIENWARE, ENFIN À JOUR.
+#   L'ISO pro en est restée au build 34. Elle n'a donc AUCUN des correctifs
+#   trouvés depuis sur le portable : le dossier personnel figé (/etc/skel), le
+#   fond d'écran écrasé par xfdesktop, l'ouverture de session automatique qui
+#   empêchait d'atteindre son propre compte, les trois icônes à deux dessins,
+#   la barre du haut conforme à la démo, la météo. Tout ça arrive d'un coup.
+#
+#   ET ON S'ATTAQUE AU SIGNAL HDMI PERDU, avec ce qu'on sait vraiment.
+#
+#   LE FAIT DÉCISIF, qu'on n'avait pas assez écouté : en mode SECOURS, les
+#   messages de démarrage S'AFFICHAIENT sur le téléviseur. Le téléviseur, le
+#   câble, la clé USB, l'ISO et le noyau sont donc tous bons. Le signal se
+#   perdait ENSUITE, quand le bureau graphique démarrait.
+#   → Le mode secours s'arrête désormais en console (systemd.unit=multi-user
+#     .target) et y reste. C'est le seul état dont on ait la PREUVE qu'il
+#     tient sur cet écran. Compromis assumé : plus de bureau dans ce mode.
+#     Un mode de secours doit d'abord être sûr d'afficher.
+#
+#   NOUVELLE COMMANDE « lexos tv », et elle répare une erreur de ma part.
+#   J'avais demandé à Alex de lancer « sudo get-edid | parse-edid » depuis le
+#   mode secours. Ça ne pouvait PAS marcher : le paquet read-edid, qui fournit
+#   ces deux commandes, n'est installé nulle part dans LexOS. Il a donc essayé
+#   pour rien, et le relevé n'a jamais été obtenu.
+#   « lexos tv » ne dépend de RIEN : ni python, ni xrandr, ni serveur
+#   graphique, ni même du pilote NVIDIA. Elle lit /sys/class/drm, que le noyau
+#   remplit tout seul, et décode l'EDID à la main avec od. Elle sort le
+#   fabricant, le nom du téléviseur, et surtout LE MODE QU'IL RÉCLAME — le
+#   chiffre qui compte, parce qu'un téléviseur n'affiche souvent rien si on
+#   lui envoie autre chose. Plus les modules chargés, le pilote en service,
+#   la ligne de commande du noyau et les messages DRM/HDMI.
+#   Décodeur vérifié sur un bloc EDID Hisense reconstitué (fabricant HEC,
+#   1920x1080, horloge 148,50 MHz) et sur les cas dégradés : EDID absent,
+#   vide, tronqué — chacun donne un message clair au lieu d'un plantage.
+#
+#   Le pilote reste sur la branche 595 et hdmi_deepcolor=0 : on ne change rien
+#   d'autre à l'aveugle tant que ce relevé n'est pas fait.
+# build 41 : LE CONTRÔLE D'ICÔNES A TROUVÉ DEUX AUTRES CAS, DÈS SON PREMIER TOUR.
+#   Le contrôle ajouté au build 38 tournait pour la première fois dans le
+#   build 40. Il a immédiatement nommé une icône qu'on n'avait pas vue :
+#     [lexos] !! lexos-claude.png : tailles manquantes — 16 22 24
+#   Le hook 0420 avait exactement le même trou que celui de Chrome. Alex avait
+#   dit « PLUSIEURS applications » — il avait raison, il y en avait deux.
+#
+#   Et en vérifiant TOUTES les boucles de tailles du dépôt, un troisième cas,
+#   plus sournois, que le contrôle ne pouvait PAS voir :
+#   le dossier branding contient deux fichiers au nom presque identique,
+#   icon-musique.svg et musique-icon.svg — deux DESSINS DIFFÉRENTS. Le hook
+#   0300 écrivait « lexos-musique » depuis le premier, aux huit tailles ; le
+#   hook 0430, qui passe après, la réécrivait depuis le second, mais seulement
+#   à partir de 32 px. Sur le disque : 16, 22 et 24 px portaient un dessin,
+#   32 px et au-dessus l'autre. Toutes les tailles étaient présentes — le
+#   contrôle de complétude ne pouvait rien signaler.
+#
+#   → Hooks 0420 et 0430 : les huit mêmes tailles que partout ailleurs.
+#     Plus aucune boucle à cinq tailles dans le dépôt, vérifié.
+#   → Le hook 0700 signale désormais AUSSI les collisions de noms dans
+#     branding : « icon-X.svg » et « X-icon.svg » qui coexistent, c'est une
+#     icône avec deux dessins possibles selon le hook qui parle en dernier.
+#     Testé sur le vrai dossier : il trouve musique, et rien d'autre.
+#
+#   LE BUILD 40 RESTE BON et contient tout le reste. Ces deux icônes-là y
+#   clignotent encore sous la souris ; c'est cosmétique et c'est dit à Alex
+#   franchement plutôt que de lui faire attendre une ISO de plus.
+# build 40 : LA MÉTÉO DE LA DÉMO, AVEC LA VILLE CHOISIE PAR L'UTILISATEUR.
+#   Le build 39 avait écarté la météo parce que le greffon XFCE réclame une
+#   ville au premier lancement. Alex a tranché : « oui, avec la localisation
+#   que l'utilisateur veut mettre ». C'est donc fait, mais autrement.
+#
+#   Nouvelle commande « lexos meteo », et un greffon genmon dans la barre qui
+#   affiche sa sortie — le « ☁ 20° » de la démo, à la même place, juste après
+#   les trois boutons de capture. genmon ne fait que LANCER une commande :
+#   le texte, l'infobulle et l'action du clic viennent des balises <txt>,
+#   <tool> et <click> émises par lexos-meteo. Changer de ville ne touche donc
+#   jamais à la configuration du panneau.
+#
+#   · Données : Open-Meteo. Gratuit, sans inscription, sans clé d'API à
+#     cacher dans l'ISO. Une adresse pour trouver les coordonnées d'une
+#     ville, une autre pour le relevé.
+#   · AUCUNE VILLE PAR DÉFAUT, et aucune géolocalisation par adresse IP.
+#     Tant que rien n'est choisi, la barre reste muette et AUCUNE requête
+#     n'est faite. C'est la seule position honnête sur une machine neuve.
+#   · Se règle à la souris — un clic sur la météo ouvre une fenêtre — ou en
+#     une commande : « lexos meteo ville Toronto ».
+#   · MISE EN CACHE OBLIGATOIRE : la barre redemande cette valeur en boucle.
+#     Sans garde-fou ce serait une requête toutes les deux secondes — la
+#     batterie y passe et le service finit par fermer la porte. Le réseau
+#     n'est sollicité qu'un quart d'heure au plus ; hors ligne, le dernier
+#     relevé connu reste affiché plutôt qu'un trou.
+#   · xfce4-genmon-plugin est un paquet OPTIONNEL. S'il manque, le hook 0400
+#     RETIRE la météo du panneau — un panneau qui déclare un greffon absent
+#     affiche une tuile cassée à demeure au milieu de la barre. Vérifié : le
+#     XML reste valide après retrait et les treize autres greffons intacts.
+#
+#   L'analyse des réponses a été testée sur de vraies charges utiles
+#   d'Open-Meteo (ville trouvée, ville introuvable, relevé complet, relevé
+#   incomplet). Les appels réseau eux-mêmes n'ont PAS pu être essayés d'ici :
+#   le mandataire de l'environnement de construction répond 403 sur ce
+#   domaine. C'est à vérifier au premier démarrage.
+# build 39 : LA BARRE DU HAUT SE RAPPROCHE DE LA DÉMO.
+#   Alex a redonné le lien de la démo web : « fais que la démo soit le modèle
+#   que je veux avoir sur mon écran après le boot, mais avec toutes les
+#   options disponibles ». La démo est donc la référence, sans rien retirer.
+#
+#   Comparaison faite morceau par morceau avec le HTML de la démo. Le panneau
+#   était DÉJÀ conforme sur l'essentiel : bouton Applications à gauche, les
+#   trois boutons de capture (photo, zone, vidéo) juste après, horloge au
+#   centre entre deux séparateurs élastiques, puis zone de notification, son,
+#   batterie, Paramètres et bouton d'arrêt à droite. Deux écarts seulement :
+#
+#   · Le bouton Applications affichait le MOT « Applications » à côté de son
+#     icône. La démo n'a que l'icône — « elle suffit à dire ce qu'elle ouvre,
+#     et la barre respire à gauche », dit son propre commentaire.
+#   · L'horloge n'affichait que la date et l'heure. La démo affiche
+#     « lexOS ⚡ Pro   mer. 12 août 17 h 19 » au centre de la barre.
+#     La saveur ne peut pas être écrite en dur dans le XML : elle est injectée
+#     par le hook 0400. Le XML livré contient déjà un format VALABLE, donc un
+#     échec de substitution laisse une horloge correcte — jamais un jeton non
+#     remplacé à l'écran. L'éclair n'est posé que si une police emoji est
+#     réellement installée, sinon un point médian : un emoji sans sa police,
+#     c'est un carré vide au milieu de la barre.
+#
+#   La météo de la démo n'est PAS reprise : le greffon XFCE réclame une ville
+#   au premier lancement, et une fenêtre de configuration qui s'ouvre toute
+#   seule au premier démarrage serait pire que son absence.
+# build 38 : L'ICÔNE DE CHROME CHANGEAIT DE DESSIN SOUS LA SOURIS.
+#   Alex l'avait signalé deux fois sans qu'on trouve : « il y a deux images
+#   différentes sur l'application, quand la souris passe dessous ça change ».
+#   Ses deux photos ont tranché — au repos un dessin, survolée un autre, avec
+#   l'infobulle « Google Chrome » dessous.
+#
+#   Le hook 0440 rendait l'icône de Chrome en 32, 48, 64, 128 et 256 px.
+#   Toutes les autres icônes LexOS (hook 0300) sont rendues en 16, 22, 24, 32,
+#   48, 64, 128 et 256. Il manquait donc 16, 22 et 24. Aux tailles absentes,
+#   GTK ne trouve pas de PNG et bascule sur la version vectorielle — et comme
+#   le dock AGRANDIT l'icône survolée, la taille demandée varie en continu :
+#   l'affichage saute d'un rendu à l'autre, et le dessin change sous la souris.
+#
+#   → Le hook 0440 rend maintenant les huit mêmes tailles que tout le reste.
+#   → lexos-install-chrome avait le même trou en sens inverse : Google ne
+#     livre pas de logo en 22 px, la boucle passait son tour à cette taille et
+#     y laissait NOTRE dessin pendant que les autres portaient le logo de
+#     Google. Une taille sans logo d'origine est désormais réduite depuis le
+#     256 px ; à défaut, l'ancien fichier est effacé plutôt que laissé mentir.
+#   → Le hook 0700 vérifie TOUTES les icônes à la construction et nomme dans
+#     le journal celles dont la série de tailles est incomplète. Ce trou-là
+#     n'était signalé nulle part : il a fallu qu'Alex le photographie.
+# build 37 : « MON NOM D'UTILISATEUR N'A PAS ÉTÉ CRÉÉ » — il l'était.
+#   Alex a installé LexOS sur le portable, puis redémarré. Son compte semblait
+#   ne pas exister. Il existait : on n'arrivait simplement jamais jusqu'à lui.
+#
+#   L'ouverture de session AUTOMATIQUE de la démo partait sur le disque avec
+#   le reste. Calamares installe en recopiant le système de fichiers tel quel,
+#   et /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf voyageait avec :
+#   sur la machine installée, LightDM ouvrait donc directement la session
+#   « lex », le compte de la DÉMO. L'écran où l'on choisit son compte n'était
+#   jamais affiché. Même chose en console avec l'autologin de getty@tty1.
+#
+#   Le problème était à moitié connu : un garde-fou existait déjà pour le sudo
+#   sans mot de passe, avec exactement ce raisonnement écrit en commentaire.
+#   Il ne couvrait qu'UN fichier sur trois. Et il portait une condition
+#   systemd « ConditionPathExists=/etc/sudoers.d/lexos-live » : une fois ce
+#   fichier effacé au premier démarrage, l'unité ne se relançait plus JAMAIS.
+#   Même en lui ajoutant les deux autres chemins, elle n'aurait rien fait.
+#
+#   → lexos-live-sudo-guard devient lexos-demo-guard : il efface les TROIS
+#     réglages de démo hors session live, et son unité n'a plus aucune
+#     condition — le script sort de lui-même quand il n'y a rien à faire.
+#   → Le hook 0400 vérifie à la construction que les trois chemins qu'il écrit
+#     sont bien ceux que le garde-fou connaît, et le dit dans le journal
+#     sinon. Un chemin changé d'un côté et pas de l'autre ne repassera pas.
+#   → Le compte « lex » n'est PAS supprimé, volontairement : si la création du
+#     compte échoue pendant l'installation, il reste la seule façon d'entrer
+#     (lex / lex) pour réparer.
+# build 36 : LE FOND D'ÉCRAN S'AFFICHAIT, PUIS SE FAISAIT ÉCRASER.
+#   Le build 35 a réparé la moitié du problème : les icônes « Installer LexOS »
+#   et « Essayer LexOS » sont enfin sur le bureau, preuve que la recopie de
+#   /etc/skel fonctionne. Mais le fond restait bleu.
+#
+#   Alex a donné l'indice décisif : « il a affiché la bonne image au début,
+#   mais après il a changé encore pour l'écran avec la souris ». Donc on
+#   n'écrivait PAS au mauvais endroit — le nom de propriété était bon, le
+#   fond s'affichait vraiment. On écrivait TROP TÔT : xfdesktop terminait son
+#   démarrage après nous et réécrivait ses propres valeurs par-dessus.
+#   Une course, et on la perdait. Rien dans le diagnostic précédent ne pouvait
+#   le montrer : le journal de construction est muet sur ce qui se passe à
+#   l'ouverture de session.
+#
+#   On arrête de courir. Deux réponses, indépendantes, et on met les deux :
+#   → HOOK 0300 : les fichiers de /usr/share/backgrounds/xfce — dont
+#     xfce-x.svg, précisément l'image bleue à la souris — sont remplacés par
+#     l'image LexOS, en gardant nom et format. Même si xfdesktop gagne la
+#     course et impose « son » fond par défaut, ce fond EST celui de LexOS.
+#     C'est le seul correctif qui ne dépende d'aucun ordre d'exécution.
+#   → lexos-firstrun : la pose du fond devient une fonction, rappelée toutes
+#     les cinq secondes pendant une minute en arrière-plan. On est celui qui
+#     écrit en dernier. Couvre aussi l'écran externe branché juste après
+#     l'ouverture de session, cas où xfdesktop crée de nouvelles propriétés.
+#
+#   AU PASSAGE, deux petites choses vues en vérifiant :
+#   · lexos-theme-gen rendait les icônes accentuées en 24→256 px alors que le
+#     thème système en fournit aussi en 16 et 22. À ces deux tailles — celles
+#     de la barre système — l'icône retombait donc sur la version orange
+#     d'origine pendant qu'elle était bleue partout ailleurs. Corrigé : mêmes
+#     tailles des deux côtés.
+#   · Le fond d'écran affichait « __version__ = "1.0" » dans son faux code,
+#     alors que le système est en 2.0.0.
+# build 35 : LE BUREAU NE RESSEMBLAIT PAS À LA DÉMO — la cause est trouvée.
+#   Le build 33 a démarré sur le portable 2016 (première fois qu'une ISO
+#   LexOS atteint un bureau). Le dock et le panneau étaient bien là, mais
+#   rien d'autre : fond bleu de XFCE, thème clair, terminal ordinaire,
+#   raccourcis clavier morts, pas d'icône « Installer LexOS ».
+#
+#   CAUSE 1 — un instantané périmé de /etc/skel.
+#   Le compte de la session live est créé par le hook 0400 avec « useradd -m »,
+#   qui recopie /etc/skel À CET INSTANT et n'y revient jamais. Or trois hooks
+#   écrivent dans /etc/skel APRÈS : la fin du 0400 (raccourcis clavier), le
+#   0500 (icône d'installation) et surtout le 0600 — c'est-à-dire TOUT le
+#   thème LexOS Noir : gtk.css, .gtkrc-2.0, terminalrc, icônes accentuées.
+#   Le dossier personnel de la session live n'a donc jamais rien reçu de tout
+#   ça. Ce qui venait de includes.chroot (dock, panneau) arrivait, parce que
+#   c'était dans /etc/skel avant le hook 0400 — exactement ce qu'Alex voyait.
+#   → Nouveau hook 0700-lexos-skel-sync, exécuté après TOUS les autres, qui
+#     remet le dossier personnel en accord avec /etc/skel et signale dans le
+#     journal de construction si la recopie n'a pas eu lieu.
+#
+#   CAUSE 2 — le fond d'écran écrit sous un nom d'écran abandonné.
+#   lexos-firstrun créait « /backdrop/screen0/monitor0/workspace0/last-image ».
+#   Ce nom est celui de XFCE 4.10 : depuis la 4.12, xfdesktop range chaque
+#   écran sous le nom de sa sortie (monitoreDP-1, monitorHDMI-1, monitorLVDS-1).
+#   On écrivait donc une propriété que personne ne lisait, et xfdesktop
+#   affichait son fond bleu par défaut. De plus l'attente « xfdesktop est-il
+#   prêt ? » se terminait aussitôt, puisqu'elle testait la présence du canal —
+#   déjà créé par notre propre xfce4-desktop.xml — et non celle des écrans.
+#   → On attend maintenant l'apparition d'une propriété « last-image », et à
+#     défaut on demande les vrais noms de sortie à xrandr.
+#
+#   CAUSE 3 — un thème absent qui ne disait pas son nom.
+#   arc-theme et papirus-icon-theme voyagent dans les paquets OPTIONNELS :
+#   une absence n'arrête pas la construction. Mais on continuait à écrire
+#   « Arc-Dark » partout, XFCE ne trouvait rien et retombait sur son thème
+#   CLAIR, sans une ligne dans le journal.
+#   → Le hook 0600 vérifie maintenant sur le disque, choisit le premier thème
+#     sombre réellement présent, le dit dans le journal, et propage le nom
+#     retenu dans xsettings.xml, xfwm4.xml, l'écran de connexion et build.conf.
+#
+#   Saveur DEV et non pro : c'est le portable 2016 qui affiche, donc la seule
+#   machine où ce correctif peut être vérifié pour de bon. L'ISO pro part
+#   ensuite avec la même correction — elle a exactement le même défaut.
+# build 34 : retour en saveur PRO pour l'Alienware, avec tout ce qui a été
+# ajouté depuis le build 29 : la commande « lexos dev » (Claude Code, GitHub
+# CLI, Vercel CLI), les fonds d'écran à la souris (scènes animées et capture
+# → fond), et « lexos firmware » pour le BIOS système.
+#   ÉLÉMENT NOUVEAU DEPUIS L'ÉCHEC DU BUILD 29 : le BIOS de la RTX 5060 a été
+#   mis à jour sous Windows APRÈS ce test. Or c'est le VBIOS qui gère la sortie
+#   vidéo avant même le chargement du pilote — précisément l'étape où le signal
+#   HDMI se perdait sur le téléviseur Hisense. Le comportement peut donc avoir
+#   changé sans qu'on touche à quoi que ce soit côté LexOS.
+#   Le pilote reste épinglé sur la branche 595 (hook 0260, version_avant_610) :
+#   on ne modifie rien à l'aveugle tant que l'EDID du téléviseur n'a pas été
+#   relevé depuis le mode de secours. Si le signal se perd encore, ce relevé
+#   reste l'étape suivante ; s'il tient, c'était le VBIOS.
+# build 33 : « lexos firmware » — mettre à jour le BIOS depuis LexOS.
+#   Alex a signalé que le BIOS de sa RTX 5060 avait été mis à jour APRÈS
+#   l'installation de Windows, et demandé si LexOS pouvait en faire autant.
+#   Réponse honnête, écrite dans la commande elle-même :
+#     · BIOS SYSTÈME, SSD, Thunderbolt, clavier, dalle → OUI. fwupd était déjà
+#       dans l'ISO (15-essentiel.list) mais aucune commande ne le pilotait.
+#       Dell et Alienware publient sur LVFS : ça marche depuis Linux.
+#     · BIOS DE LA CARTE GRAPHIQUE (VBIOS) → NON. NVIDIA ne publie aucun outil
+#       de reprogrammation pour Linux. Des outils tiers existent ; une
+#       reprogrammation ratée rend la carte définitivement muette. La commande
+#       n'en propose aucun et le dit clairement, plutôt que de laisser
+#       quelqu'un chercher ailleurs sans connaître le risque.
+#   Garde-fous : rien n'est appliqué sans taper « METTRE A JOUR » en toutes
+#   lettres, et la commande REFUSE de démarrer sur batterie — une mise à jour
+#   de BIOS coupée en plein vol peut rendre la machine inutilisable.
+#   Note : « lexos firmware aide » répond même quand fwupd est absent, c'est
+#   justement le moment où on a besoin de lire ce que fait la commande.
+# build 32 : les fonds d'écran à la souris, enfin. Trois demandes en attente
+# depuis plusieurs jours, toutes du même genre : les morceaux existaient déjà,
+# mais rien ne les reliait et il fallait passer par le terminal.
+#   · CAPTURE → FOND D'ÉCRAN. lexos-capture écrivait une image, « lexos
+#     wallpaper » en posait une, et pour aller de l'une à l'autre il fallait
+#     retenir le chemin du fichier et le retaper. La bulle de notification
+#     propose maintenant le bouton « En faire mon fond d'écran », et
+#     « lexos capture fond » fait les deux gestes d'un coup.
+#   · FONDS ANIMÉS À LA SOURIS. Ils n'étaient accessibles qu'en tapant
+#     « lexos wallpaper anime <nom> ». Les Paramètres → Bureau les proposent
+#     maintenant en boutons, avec le retour au fond fixe.
+#   · Au passage, le même défaut que dans l'aide du terminal : l'interface
+#     annonçait un fond « ciel » qui n'existe pas — le fichier s'appelle
+#     « etoiles ». Le moteur ne recopie plus aucune liste : il LIT le dossier
+#     des scènes et refuse tout nom qui n'y est pas. Une liste écrite à la main
+#     finit toujours par mentir ; celle-ci ne peut plus.
+# build 31 : saveur DEV — le portable de 2016 devient une machine de travail.
+#   Toujours sans pilote NVIDIA (le hook 0260 ne tourne que sur pro), donc
+#   toujours à l'abri de la perte de signal HDMI. La saveur dev ajoute à la
+#   standard : build-essential, gcc, cmake, gdb, python3, git, vim, tmux en
+#   OBLIGATOIRE, plus nodejs, npm, git-lfs, neovim, ripgrep, fd, bat,
+#   shellcheck, sqlite3, podman, qemu en optionnel.
+#   Nouveauté : la commande « lexos dev », qui installe et met à jour les trois
+#   outils que Debian ne fournit pas (ou pas à jour) :
+#     · Claude Code — canal npm officiel d'Anthropic (délégué à lexos-claude)
+#     · GitHub CLI  — paquet Debian s'il existe, sinon dépôt officiel GitHub
+#     · Vercel CLI  — canal npm officiel
+#   Ils ne sont PAS figés dans l'ISO, et c'est volontaire : ces trois-là
+#   publient une version par semaine ; les embarquer voudrait dire les livrer
+#   périmés dès la deuxième semaine. Ce dont ils dépendent — nodejs, npm, git,
+#   curl — est, lui, bien dans l'image, donc « lexos dev install » suffit.
+#   npm en global passe par un préfixe dans le dossier de l'utilisateur, jamais
+#   par « sudo npm -g » sur un chemin géré par dpkg : ça écraserait des fichiers
+#   appartenant à des paquets Debian.
+# build 30 : une ISO STANDARD, pour tester sur une machine sans NVIDIA.
+#   Sur l'Alienware, la saveur pro a bien démarré jusqu'au menu GRUB (affiché
+#   sur la TV Hisense) puis a PERDU le signal HDMI au chargement du noyau —
+#   la TV est repassée toute seule sur une autre entrée, et aucune entrée
+#   HDMI ne recevait plus rien. C'est la régression qu'on traque depuis le
+#   build 17, et la branche 595 ne suffit pas à l'éviter sur ce téléviseur.
+#   Plutôt que de continuer à deviner sur du matériel qui n'affiche rien, on
+#   valide le système lui-même sur un portable de 2016 à carte graphique
+#   intégrée : la saveur standard n'exécute pas le hook 0260, donc aucun
+#   pilote propriétaire, donc pas de perte de signal possible.
+#   Ce qui sera enfin vérifiable en vrai : le bureau, la touche Tab, « lexos
+#   aide », lexos jeux, lexos temperature, et l'installation à côté d'un autre
+#   système. Le diagnostic NVIDIA/HDMI reprendra ensuite, avec l'EDID de la
+#   Hisense relevé depuis le mode de secours.
+# build 29 : audit complet du chemin « installer à côté de Windows », puis
+# correctifs. La MÉCANIQUE était déjà bonne (os-prober, drop-in GRUB, GRUB du
+# système installé fourni par le pool de l'ISO — donc hors ligne). Ce qui
+# manquait, c'étaient les GARDE-FOUS et les AVERTISSEMENTS :
+#   · calamares + calamares-settings-debian passent en liste OBLIGATOIRE :
+#     l'installateur ne peut plus manquer en silence (il était best-effort).
+#   · efibootmgr passe aussi en obligatoire (il crée l'entrée UEFI « LexOS »
+#     sur toute machine, pas seulement à côté de macOS où il était rangé).
+#   · Le hook 0500 vérifie le double démarrage AVANT de tester Calamares, et
+#     échoue désormais si Calamares manque sur une saveur à bureau (avant, un
+#     Calamares absent faisait sauter toute la vérification).
+#   · Les trois pièges que LexOS ne peut pas régler à la place de l'utilisateur
+#     sont maintenant écrits là où il les lira : BitLocker (Windows 11 chiffre
+#     souvent le disque tout seul), le démarrage rapide de Windows (laisse le
+#     disque verrouillé), et le Secure Boot (à désactiver pour le pilote
+#     NVIDIA). Ajoutés dans docs/INSTALLATION.md, website/installation.html et
+#     dans l'avertissement de lexos-install (le message juste avant d'installer).
+#   · Doc : versions périmées lexos-1.0-* corrigées en 2.0.0, et la grande
+#     section « à côté » précise enfin qu'elle décrit l'installateur Debian, pas
+#     Calamares (le chemin mis en avant).
+# build 28 : LE DOUBLE DÉMARRAGE MARCHE. Défaut trouvé en vérifiant AVANT
+# l'installation, pas après : rien dans l'ISO ne permettait à GRUB de voir
+# Windows. Deux pièces manquaient, et il fallait les deux.
+#   · os-prober — l'outil qui cherche les autres systèmes sur le disque —
+#     n'était dans AUCUNE liste de paquets.
+#   · GRUB_DISABLE_OS_PROBER n'était jamais réglé, or Debian le laisse à
+#     « true » depuis GRUB 2.06 : la recherche était donc coupée d'origine.
+#   Conséquence qu'on aurait découverte trop tard : on installe LexOS à côté
+#   de Windows, tout se passe bien, et le menu de démarrage n'affiche que
+#   LexOS. Windows est toujours sur le disque, mais il faut passer par le
+#   menu du BIOS pour l'atteindre — ce qui ressemble à une perte de données.
+#   os-prober passe dans la liste OBLIGATOIRE (une absence silencieuse
+#   coûterait un double démarrage cassé), la ligne GRUB est posée par le
+#   hook 0100, et le hook 0500 VÉRIFIE les deux : leur absence arrête
+#   désormais la construction. Mieux vaut pas d'ISO qu'une ISO au double
+#   démarrage muet.
+# build 27 : LexOS passe en 2.0.0. Le numéro vient de lexos.conf, seule source
+# de vérité — tout le reste (nom du fichier ISO, /etc/os-release, le fond
+# d'écran, lexfetch, les pages du site) le recopie de là. L'ISO s'appellera
+# donc « lexos-2.0.0-pro-amd64.hybrid.iso » : les anciens fichiers
+# « lexos-1.2.1-* » sont à effacer avant de télécharger, ils ne se mélangent
+# pas.
+#   Un changement de version majeure se justifie ici : depuis la 1.2.1, le
+#   système a gagné la bibliothèque de jeux, la surveillance des températures,
+#   la complétion du terminal, le logo officiel et la police manuscrite — et
+#   le pilote NVIDIA est enfin tenu sur une branche qui ne coupe pas le HDMI.
+#   Le nom de code reste « Nomad ».
+# build 26 : TEMPÉRATURES ET VENTILATEURS, EN DIRECT. Sur une machine de jeu
+# compacte, la chaleur explique la moitié des « ça rame » : un processeur qui
+# touche sa limite ne plante pas, il RALENTIT en silence. On accuse alors le
+# jeu ou la carte graphique. « lexos temperature » (ou le lanceur du menu)
+# met les chiffres sous les yeux : cœur le plus chaud du processeur, carte
+# graphique, disques NVMe, ventilateurs en tours par minute.
+#   La ligne qui compte vraiment pour une RTX 5060 : la MÉMOIRE VIDÉO. Ses
+#   8 Go se remplissent sur les jeux récents, et quand ils sont pleins le jeu
+#   saccade sans que les images par seconde ne s'effondrent — le symptôme
+#   qu'on met des heures à comprendre. Au-delà de 90 %, l'affichage passe au
+#   rouge et dit quoi faire : baisser les textures d'un cran.
+#   « lexos temperature surveille » garde les MAXIMUMS : on le lance avant
+#   une partie, on le regarde en sortant, et on sait enfin ce qui a chauffé.
+#   Les mesures viennent de /sys/class/hwmon (les capteurs que le noyau
+#   expose déjà : aucun paquet à installer, aucun droit root) et de
+#   nvidia-smi, livré avec le pilote. Chaque source est isolée : pas de
+#   NVIDIA, pas de capteur de ventilateur, ou un noyau qui range autrement —
+#   la source concernée se tait et les autres continuent de s'afficher.
+# build 25 : LA BIBLIOTHÈQUE DE JEUX. C'était le trou d'un système qui se dit
+# « pour jouer » : Steam avait sa liste, Lutris la sienne, RetroArch gardait
+# ses ROMs à part et les jeux Debian se perdaient dans le menu — aucun endroit
+# ne montrait TOUS ses jeux ensemble. « lexos jeux » (ou le lanceur
+# « Bibliothèque de jeux » du menu) lit les quatre sources et n'en fait qu'une,
+# doublons enlevés. Un jeu lancé d'ici passe par lexos-game : profil performant
+# le temps de la partie, GameMode et MangoHud, puis retour au profil d'avant.
+#   Chaque source est isolée : Lutris absent, base corrompue, playlist en JSON
+#   cassé ou format Steam modifié par une mise à jour — la source concernée
+#   rend une liste vide et les AUTRES continuent. Une bibliothèque qui montre
+#   trois sources sur quatre reste utile ; une qui plante ne montre rien.
+#   Le moteur ne fait que LIRE : rien n'est installé ni modifié. La base de
+#   Lutris est même ouverte en lecture seule et immutable, pour ne pas gêner
+#   Lutris s'il tourne en même temps.
+#   « lexos jeux » ouvre la bibliothèque, « lexos game » lance toujours une
+#   commande avec les réglages de jeu — les deux ne font pas la même chose.
+# build 24 : le terminal répond enfin à la touche Tab. « lexos » suivi de Tab
+# affiche les commandes, « lexos accent » + Tab affiche les couleurs, « lexos
+# wallpaper » + Tab ne propose que des images. Plus besoin de connaître les
+# commandes par cœur : c'est le seul mode d'emploi qui ne se perd pas.
+#   Au passage, quatre défauts trouvés en relisant le code plutôt que la
+#   documentation :
+#   · L'invite de LexOS et les alias (ll, maj, infos) n'apparaissaient PAS
+#     dans le terminal du bureau. Ils vivaient dans /etc/profile.d, que seuls
+#     les shells de CONNEXION lisent ; xfce4-terminal, lui, n'y passe jamais.
+#     Ils ne se voyaient donc qu'en console texte. Le contenu est maintenant
+#     dans /usr/share/lexos/shell/interactive.sh, branché par le hook 0120 sur
+#     /etc/bash.bashrc ET en fin de ~/.bashrc — ce dernier rappel est
+#     indispensable, sans lui le ~/.bashrc de Debian réécrit l'invite juste
+#     après.
+#   · « lexos aide » répondait « Commande inconnue » : seul le mot anglais
+#     « help » était reconnu. Sur un système en français, c'est le premier mot
+#     que tape quelqu'un qui est perdu.
+#   · L'aide annonçait un fond animé « ciel » qui n'existe pas — le fichier
+#     s'appelle « etoiles » (« Ciel » n'est que son titre). La commande de
+#     l'aide échouait donc mot pour mot.
+#   · « lexos accent classique » était refusé alors que les paramètres
+#     affichent « Classique » à l'écran : l'interface et le terminal ne
+#     parlaient pas la même langue. Et « --list » oubliait orange-rouge.
+#   Rien touché au pilote NVIDIA ni à aucun hook existant.
+# build 23 : le visage de Claude, et l'écriture à la main. Le logo était un
+# dessin approximatif fait de douze pales régulières ; c'est maintenant le
+# tracé officiel d'Anthropic, le même dans le dock, dans le menu et dans la
+# démo animée — où il continue de tourner. Les paramètres proposent deux
+# couleurs d'interface nommées (Classique, Orange et rouge) au lieu d'une
+# rangée de pastilles muettes, et une police d'écriture, dont une manuscrite
+# embarquée dans l'ISO (Patrick Hand, licence OFL).
+#   Ce compteur était resté à 22 pendant la construction précédente, qui
+#   s'était déclenchée toute seule sur une modification de config/ : sa
+#   Release s'intitulait donc « build 22 » alors qu'elle portait déjà les
+#   compléments de jeu. On le remet d'aplomb ici.
+# build 22 : LE PILOTE EST BON (build 21 : 595.91.07-1 vérifié, module
+# compilé, zéro paquet en 610). Reste les six paquets que le journal
+# signalait indisponibles — dont protontricks, qui sert justement à
+# débloquer les jeux Windows. Le hook 0250 accepte maintenant des noms de
+# rechange séparés par « | » : un paquet renommé entre deux versions de
+# Debian ne fait plus perdre la fonction entière.
+# build 21 : la 595 EXISTE. L'inventaire du build 20 l'a enfin montré —
+# nvidia-driver-cuda est proposé en 610.57.04, 610.43.02, 595.91.07,
+# 595.71.05, 595.58.03, 595.45.04, 590.48.01 et 590.44.01. Ma conclusion
+# précédente (« debian13 ne publie aucun pilote avant la 610 ») était donc
+# fausse. Reste que le build 20 a quand même installé du 610.57.04 : la
+# raison tombait juste hors de la fenêtre de journal que l'API rend. Deux
+# changements : on demande maintenant nvidia-driver-cuda à la VERSION
+# EXACTE (le pilote, pas son étiquette), et la trace de chaque tentative —
+# y compris les erreurs d'apt — part dans le rapport, qui lui est toujours
+# lisible.
+# build 20 : relance après déblocage des Actions (le dépôt est passé public,
+# les minutes redeviennent gratuites). Cette construction porte enfin les
+# deux correctifs qui n'ont jamais pu tourner : le secours vers le dépôt CUDA
+# debian12 quand debian13 n'offre aucun pilote avant la branche 610, et le
+# rapport NVIDIA écrit sur la sortie standard — jusqu'ici il partait dans le
+# résumé du build, que l'API ne rend pas, d'où trois diagnostics à l'aveugle.
+# build 19 : correctif HDMI/TV pour la régression 610.43.02/03 (NVIDIA
+# open-gpu-kernel-modules#1238) trouvée après tests réels sur l'Alienware
+# Aurora (Secure Boot déjà désactivé, modeset=1 déjà tenté à la main : le
+# signal se perdait quand même, y compris en mode texte pur). Ajout de
+# nvidia-drm.fbdev=1 et nvidia-modeset.hdmi_deepcolor=0 (fichier modprobe.d
+# + ligne de démarrage), et le mode fail-safe bloque maintenant TOUT
+# composant NVIDIA au niveau noyau (module_blacklist=, pas juste nvidia_drm)
+# pour offrir un vrai filet de secours garanti.
+# build 18 : nvidia-drm.modeset=1. Le pilote 610 (build 17, RÉUSSI) s'est
+# installé et compilé correctement, mais l'écran perdait quand même le signal
+# au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
+# l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
+build: 67

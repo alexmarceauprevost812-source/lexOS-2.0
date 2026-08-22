@@ -1,0 +1,74 @@
+# =============================================================================
+#  Python : de quoi faire tourner les applications de LexOS, et les tiennes
+# =============================================================================
+#  Plusieurs applications de LexOS SONT des programmes Python : Paramètres et
+#  Cartes (PySide6), le serveur de partage, l'agent IA, les fonds d'écran
+#  animés (GTK + cairo), la fenêtre du fond vidéo (Xlib). Leurs modules sont
+#  déclarés dans les listes de ces applications ; on les redit ici pour que
+#  la panne soit impossible même si une saveur n'installe pas ces listes —
+#  un nom en double ne coûte rien, le hook 0250 les dédoublonne.
+#
+#  Le reste de cette liste répond à une autre question : « je télécharge un
+#  programme Python, est-ce qu'il tourne ? »
+
+# --- L'essentiel ------------------------------------------------------------
+python3
+python3-venv
+python3-pip
+python3-setuptools
+python3-wheel
+
+# --- pipx : LA façon d'installer une application Python sur Debian 13 -------
+#  Depuis Debian 12, « pip install » à l'échelle du système est REFUSÉ
+#  (error: externally-managed-environment) : pip et apt se disputaient les
+#  mêmes fichiers et cassaient des systèmes entiers. Ce n'est pas un défaut à
+#  contourner avec --break-system-packages.
+#
+#  pipx installe chaque application Python dans son propre environnement, et
+#  met sa commande dans ~/.local/bin — donc directement utilisable, sans
+#  toucher au Python du système :
+#      pipx install <application>
+#      pipx list · pipx upgrade-all · pipx uninstall <application>
+#  Pour une BIBLIOTHÈQUE (pas une application), c'est un venv qu'il faut :
+#      python3 -m venv ~/monprojet && ~/monprojet/bin/pip install <module>
+pipx
+
+# --- Les modules que presque tout programme téléchargé attend ---------------
+#  Sans python3-tk, un programme à interface Tkinter s'arrête sur
+#  « ModuleNotFoundError: No module named 'tkinter' » — et rien n'indique
+#  qu'il manque un paquet du système, pas une bibliothèque à installer.
+python3-tk
+python3-requests
+python3-pil
+python3-pil.imagetk
+python3-numpy
+python3-yaml
+python3-dateutil
+
+# --- Ce dont les applications de LexOS ont besoin ---------------------------
+#  Fonds d'écran animés (lexos wallpaper anime) : GTK et cairo.
+python3-gi
+python3-cairo
+gir1.2-gtk-3.0
+#  Fenêtre du fond d'écran vidéo (lexos wallpaper video).
+python3-xlib
+#  Paramètres et Cartes : une fenêtre Qt qui affiche une page locale.
+python3-pyside6.qtcore
+python3-pyside6.qtgui
+python3-pyside6.qtwidgets
+python3-pyside6.qtwebenginewidgets
+#  Partage vers un téléphone : le QR code et la découverte des adresses
+#  réseau de la machine.
+python3-qrcode
+python3-netifaces
+#  L'agent IA et tout script qui parle au réseau : requests est déjà plus
+#  haut ; urllib3 et certifi sont ses fondations, dites explicitement.
+python3-urllib3
+python3-certifi
+#  Dessin GTK (cairo via GObject) et notifications de bureau.
+python3-gi-cairo
+gir1.2-notify-0.7
+#  L'état de la machine (processus, mémoire, capteurs) et le bus système —
+#  ce que lisent le moniteur de performance et le bien-être numérique.
+python3-psutil
+python3-dbus

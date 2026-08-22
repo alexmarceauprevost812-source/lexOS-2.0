@@ -1,0 +1,302 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — rendre lisibles les accents du menu de démarrage BIOS
+# =============================================================================
+#  LE PROBLÈME QUE CE HOOK RÉPARE. Le menu UEFI est habillé par le hook 0910 ;
+#  celui du BIOS l'est par config/bootloaders/isolinux/. Mais une fois habillé,
+#  il restait un défaut visible à l'écran : « Session de démonstration »
+#  s'affichait « Session de d├─monstration ».
+#
+#  POURQUOI. syslinux ne connaît pas l'UTF-8. Il dessine chaque OCTET avec la
+#  police 8x16 de la carte CP437 — celle des BIOS. En UTF-8, « é » s'écrit sur
+#  deux octets (0xC3 0xA9), et syslinux dessine donc deux caractères de cette
+#  carte : « ├ » puis « ─ ». Tous les mots accentués du menu étaient touchés.
+#
+#  CE QU'ON NE FAIT PAS. Retirer les accents des libellés : un système fait au
+#  Québec qui écrit « Session de demonstration » à son tout premier écran, ça
+#  se remarque, et ça se remarque mal.
+#
+#  CE QU'ON FAIT. On garde les sources en UTF-8 — lisibles, modifiables, comme
+#  le reste du dépôt — et on convertit les fichiers du menu en CP437 au dernier
+#  moment, une fois qu'ils sont dans l'image. « //TRANSLIT » fait le repli sur
+#  le caractère non accentué le plus proche pour ce que CP437 ne contient pas,
+#  au lieu de s'arrêter en erreur : une flèche « → » devient « - » et le menu
+#  démarre quand même. Les vraies flèches, elles, sont dans splash.png, qui est
+#  une image et n'a donc aucun de ces problèmes.
+#
+#  ET SI ÇA RATE ? On laisse le fichier tel quel. Un accent mal dessiné est
+#  laid ; un menu de démarrage absent empêche de démarrer. Le premier est
+#  toujours préférable au second.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0905 : accents du menu de démarrage BIOS"
+
+# =============================================================================
+#  OÙ EST L'ARBRE DE L'IMAGE ? ON LE CHERCHE, ON NE LE SUPPOSE PAS.
+# =============================================================================
+#  CE QUE ÇA RÉPARE, ET DEPUIS QUAND. Ces deux hooks écrivaient « binary/… »
+#  en supposant que live-build les lance depuis la racine du chantier. Il les
+#  lance depuis le DOSSIER DE L'IMAGE. Le chemin ne tombait donc jamais juste,
+#  les deux hooks disaient poliment « absent — menu laissé tel quel », la
+#  construction réussissait, et l'ISO sortait sans le thème. Vérifié dans les
+#  journaux : le build 65 dit déjà la même chose. Le menu UEFI n'a JAMAIS été
+#  habillé sur aucune ISO publiée.
+#
+#  On essaie donc les emplacements plausibles et on garde le premier qui
+#  ressemble à un arbre d'image. Et si aucun ne convient, on ne se contente
+#  pas de dire « absent » : on imprime le dossier courant et ce qu'il contient,
+#  pour que la construction SUIVANTE nous dise la vérité au lieu qu'on devine
+#  une troisième fois.
+#  Pas de « local » : ce hook est en /bin/sh, où il n'existe pas. Le nom
+#  LEXOS_R est assez particulier pour ne rien écraser.
+racine_image() {
+	for LEXOS_R in . binary ../binary; do
+		if [ -d "$LEXOS_R/boot" ] || [ -d "$LEXOS_R/isolinux" ] || [ -d "$LEXOS_R/live" ]; then
+			printf '%s' "$LEXOS_R"
+			return 0
+		fi
+	done
+	return 1
+}
+dire_ou_on_est() {
+	echo "[lexos]   !! arbre de l'image introuvable — voici ce qu'on voit :"
+	echo "[lexos]      pwd = $(pwd)"
+	echo "[lexos]      contenu : $(ls -A 2>/dev/null | tr '\n' ' ' | cut -c1-200)"
+	echo "[lexos]      (c'est CETTE ligne qu'il faut lire au prochain build)"
+}
+
+IMG="$(racine_image)" || { dire_ou_on_est; exit 0; }
+DIR="$IMG/isolinux"
+
+if [ ! -d "$DIR" ]; then
+	#  Image construite sans syslinux (--bootloaders grub-efi seul) : il n'y a
+	#  simplement pas de menu BIOS à corriger. On dit OÙ on a cherché, sinon
+	#  ce message ressemble à celui d'un chemin faux — et c'est exactement la
+	#  confusion qui a coûté six builds.
+	echo "[lexos]   ${DIR} absent — pas de menu BIOS dans cette image"
+	echo "[lexos]      (arbre de l'image trouvé en « $IMG »)"
+	exit 0
+fi
+echo "[lexos]   arbre de l'image : $IMG"
+
+if ! command -v iconv >/dev/null 2>&1; then
+	echo "[lexos]   !! iconv absent de la machine de construction — accents laissés en UTF-8"
+	echo "[lexos]      (paquet « libc-bin » ; sans lui le menu BIOS affichera « d├─monstration »)"
+	exit 0
+fi
+
+# =============================================================================
+#  REPRENDRE CE QUE live-build A ÉCRASÉ
+# =============================================================================
+#  CE QUE LA PHOTO D'ALEX A MONTRÉ (build 66, en vrai, sur sa machine).
+#  live-build ne prend PAS tout ce qu'on met dans config/bootloaders/isolinux.
+#  Il a gardé nos entrées « Session de démonstration » et nos couleurs
+#  (stdmenu.cfg — la barre est orange), mais il a REMIS LES SIENS pour :
+#    · le fond          → le casque de chantier jaune de Debian est revenu ;
+#    · isolinux.cfg     → décompte à 5 s au lieu des 20 s demandées ;
+#    · install.cfg      → « Start installer » en anglais, parce que
+#                         --debian-installer fabrique ces entrées lui-même.
+#
+#  ON CORRIGE SA SORTIE, ON NE LA REMPLACE PAS EN BLOC. Un menu de démarrage
+#  cassé, c'est une clé qui ne démarre plus du tout : on touche donc le moins
+#  possible, et jamais aux lignes « kernel » et « append », qui portent les
+#  vrais chemins que live-build seul connaît. On ne recopie pas non plus
+#  live.cfg : live-build y a déjà remplacé ses @JETONS@, et remettre notre
+#  version brute laisserait « @KERNEL@ » à l'écran.
+
+#  Où sont nos sources ? Le hook tourne depuis le dossier de l'image, la
+#  racine du chantier est donc au-dessus. On essaie les deux.
+SRC=""
+for LEXOS_C in config/bootloaders/isolinux ../config/bootloaders/isolinux; do
+	if [ -d "$LEXOS_C" ]; then SRC="$LEXOS_C"; break; fi
+done
+if [ -z "$SRC" ]; then
+	echo "[lexos]   !! sources du menu introuvables — corrections non appliquées"
+else
+	# --- 1. Le fond -------------------------------------------------------
+	#  live-build rend SON splash à l'étape binary_bootloader_splash. On rend
+	#  le nôtre par-dessus, à la même taille : 640x480, c'est la grille de
+	#  80x30 caractères sur laquelle toute la géométrie de stdmenu.cfg est
+	#  calée. Une autre taille décale tout le menu.
+	if [ -r "$SRC/splash.svg.in" ]; then
+		if command -v rsvg-convert >/dev/null 2>&1; then
+			if rsvg-convert --format png --width 640 --height 480 \
+				"$SRC/splash.svg.in" -o "$DIR/splash.png" 2>/dev/null; then
+				echo "[lexos]   fond LexOS posé par-dessus celui de Debian"
+			else
+				echo "[lexos]   !! rsvg-convert a échoué — fond de Debian conservé"
+			fi
+		else
+			echo "[lexos]   !! rsvg-convert absent — fond de Debian conservé"
+			echo "[lexos]      (paquet « librsvg2-bin » sur la machine de construction)"
+		fi
+	fi
+
+	# --- 2. Le décompte ---------------------------------------------------
+	#  20 s et pas 5 : c'est le menu des machines anciennes, souvent avec un
+	#  écran lent à s'allumer. On ne remplace pas isolinux.cfg en entier —
+	#  une seule ligne, celle du délai.
+	if [ -f "$DIR/isolinux.cfg" ]; then
+		if sed -i 's/^[[:space:]]*timeout[[:space:]].*/timeout 200/' "$DIR/isolinux.cfg" 2>/dev/null; then
+			echo "[lexos]   décompte porté à 20 s (timeout 200)"
+		fi
+	fi
+
+	# --- 3. Les entrées d'installation, en français -----------------------
+	#  --debian-installer écrit ces entrées lui-même, en anglais, avec les
+	#  bons chemins. On ne touche QUE les libellés : les lignes « kernel »
+	#  et « append » restent celles de live-build, intactes.
+	if [ -f "$DIR/install.cfg" ]; then
+		#  « t » APRÈS CHAQUE RÈGLE : sed applique TOUTES les expressions à
+		#  CHAQUE ligne, l'une après l'autre. Sans le « t », la dernière
+		#  règle — la plus large — reprenait ce que les précédentes venaient
+		#  de traduire, et « Start installer » finissait en « Installer en
+		#  mode texte ». Vu au banc d'essai : les deux premières entrées
+		#  portaient le même libellé. « t » saute à la fin de la ligne dès
+		#  qu'une substitution a eu lieu.
+		#  La dernière règle exige « Install » SEUL en fin de libellé : sans
+		#  ça elle mordrait sur tout ce qui contient le mot.
+		sed -i -e '
+s/^\([[:space:]]*menu label[[:space:]]*\)\^*Start installer with speech synthesis.*/\1Installer avec synthèse vocale/; t
+s/^\([[:space:]]*menu label[[:space:]]*\)\^*Advanced install options.*/\1Options d'"'"'installation avancées/; t
+s/^\([[:space:]]*menu label[[:space:]]*\)\^*Graphical install[[:space:]]*$/\1Installer LexOS sur le disque/; t
+s/^\([[:space:]]*menu label[[:space:]]*\)\^*Start installer[[:space:]]*$/\1Installer LexOS sur le disque/; t
+s/^\([[:space:]]*menu label[[:space:]]*\)\^*Install[[:space:]]*$/\1Installer en mode texte/; t
+' "$DIR/install.cfg" 2>/dev/null
+		echo "[lexos]   entrées d'installation traduites (libellés seuls)"
+	fi
+fi
+
+# =============================================================================
+#  AUCUN @JETON@ NE DOIT SURVIVRE — ET S'IL EN RESTE UN, ON RÉPARE
+# =============================================================================
+#  CE QUI EST ARRIVÉ. live.cfg.in employait « kernel @KERNEL@ » et
+#  « initrd=@INITRD@ ». Ces deux-là N'EXISTENT PAS chez live-build : il n'a
+#  remplacé que @FLAVOUR@ et @LB_BOOTAPPEND_LIVE@, qui sont réels. Le menu
+#  s'affichait donc parfaitement, avec nos libellés français — et choisir
+#  « Session de démonstration » ne démarrait rien du tout, l'écran restant
+#  sur le menu pendant que le décompte descendait.
+#
+#  C'est le pire des défauts : celui qui a l'air de marcher. La source est
+#  corrigée, mais on met le filet ici parce qu'un jeton inventé se glisse
+#  sans bruit, et qu'une clé qui ne démarre pas coûte une soirée à quelqu'un.
+#
+#  On répare avec ce qui est VRAIMENT dans l'image, pas avec ce qu'on croit :
+#  on cherche le noyau et l'initrd sur place.
+NOYAU=""
+INITRD=""
+for LEXOS_K in "$IMG"/live/vmlinuz "$IMG"/live/vmlinuz-* ; do
+	[ -f "$LEXOS_K" ] && { NOYAU="${LEXOS_K#"$IMG"}"; break; }
+done
+for LEXOS_I in "$IMG"/live/initrd.img "$IMG"/live/initrd.img-* ; do
+	[ -f "$LEXOS_I" ] && { INITRD="${LEXOS_I#"$IMG"}"; break; }
+done
+
+RESTANTS=0
+for F in "$DIR"/*.cfg; do
+	[ -e "$F" ] || continue
+	grep -q '@[A-Za-z_]*@' "$F" 2>/dev/null || continue
+	RESTANTS=$((RESTANTS + 1))
+	echo "[lexos]   !! des @JETONS@ non remplacés dans $(basename "$F") :"
+	grep -o '@[A-Za-z_]*@' "$F" | sort -u | sed 's/^/[lexos]        /'
+	if [ -n "$NOYAU" ] && [ -n "$INITRD" ]; then
+		sed -i -e "s|@KERNEL@|${NOYAU}|g" -e "s|@INITRD@|${INITRD}|g" "$F" 2>/dev/null
+		echo "[lexos]      réparé avec ce qui est dans l'image : ${NOYAU} / ${INITRD}"
+	else
+		echo "[lexos]      IMPOSSIBLE À RÉPARER : ni noyau ni initrd trouvés dans ${IMG}/live"
+		echo "[lexos]      CETTE ENTRÉE DE MENU NE DÉMARRERA PAS."
+	fi
+done
+if [ "$RESTANTS" -eq 0 ]; then
+	echo "[lexos]   aucun @jeton@ ne traîne dans les fichiers du menu"
+fi
+
+CONVERTIS=0
+INTACTS=0
+ECHECS=0
+
+for F in "$DIR"/*.cfg; do
+	[ -e "$F" ] || continue
+
+	#  Rien à faire si le fichier est déjà en pur ASCII : c'est le cas de
+	#  ldlinux et compagnie, et convertir pour rien brouille le journal.
+	if LC_ALL=C grep -qv '[^ -~	]' "$F" 2>/dev/null && ! LC_ALL=C grep -q '[^ -~	]' "$F"; then
+		INTACTS=$((INTACTS + 1))
+		continue
+	fi
+
+	if iconv -f UTF-8 -t CP437//TRANSLIT "$F" > "${F}.cp437" 2>/dev/null; then
+		#  Un fichier vide serait pire que l'original : on vérifie avant de
+		#  remplacer, exactement comme le hook 0910 le fait pour grub.cfg.
+		if [ -s "${F}.cp437" ]; then
+			mv "${F}.cp437" "$F"
+			CONVERTIS=$((CONVERTIS + 1))
+		else
+			rm -f "${F}.cp437"
+			ECHECS=$((ECHECS + 1))
+			echo "[lexos]   !! $(basename "$F") : conversion vide — fichier laissé en UTF-8"
+		fi
+	else
+		rm -f "${F}.cp437"
+		ECHECS=$((ECHECS + 1))
+		echo "[lexos]   !! $(basename "$F") : iconv a échoué — fichier laissé en UTF-8"
+	fi
+done
+
+echo "[lexos]   ${CONVERTIS} fichier(s) converti(s) en CP437, ${INTACTS} déjà en ASCII, ${ECHECS} échec(s)"
+
+# --- Le fond doit être là, et à la bonne taille ------------------------------
+#  vesamenu.c32 lit la résolution de l'écran DANS le PNG. Un fichier absent
+#  donne un menu sur fond noir ; un fichier qui ne fait pas 640x480 donne un
+#  menu décalé, parce que toute la géométrie de stdmenu.cfg est calée sur une
+#  grille de 80x30 caractères. On le dit plutôt que de le découvrir sur la clé.
+SPLASH="$DIR/splash.png"
+if [ ! -f "$SPLASH" ]; then
+	echo "[lexos]   !! splash.png absent — menu BIOS sur fond noir"
+	echo "[lexos]      (attendu depuis config/bootloaders/isolinux/splash.svg.in)"
+else
+	#  LA TAILLE SE LIT DANS LE FICHIER, PAS AVEC UN OUTIL EN PLUS.
+	#  On dépendait d'« identify » (ImageMagick), absent du runner : le
+	#  contrôle affichait « taille non vérifiée » et ne gardait donc rien —
+	#  exactement le genre de garde qui rassure sans protéger.
+	#  Un PNG porte sa largeur et sa hauteur en clair : 4 octets chacune,
+	#  en gros-boutiste, aux positions 16 et 20. od suffit, et il est
+	#  partout. On recompose à la main plutôt qu'avec « -tu4 », qui lirait
+	#  dans le boutisme de la machine et donnerait n'importe quoi.
+	OCTETS="$(od -An -v -tu1 -j16 -N8 "$SPLASH" 2>/dev/null | tr -s ' ' ' ')"
+	# shellcheck disable=SC2086
+	set -- $OCTETS
+	if [ "$#" -eq 8 ]; then
+		LARG=$(( $1 * 16777216 + $2 * 65536 + $3 * 256 + $4 ))
+		HAUT=$(( $5 * 16777216 + $6 * 65536 + $7 * 256 + $8 ))
+		if [ "$LARG" = "640" ] && [ "$HAUT" = "480" ]; then
+			echo "[lexos]   splash.png : 640x480, grille 80x30 respectée"
+		else
+			echo "[lexos]   !! splash.png fait ${LARG}x${HAUT} au lieu de 640x480 — menu décalé"
+		fi
+	else
+		echo "[lexos]   !! splash.png : en-tête PNG illisible — fichier douteux"
+	fi
+fi
+
+# --- Les entrées pointent-elles vers des fichiers qui existent ? -------------
+#  Une entrée de menu qui appelle un noyau absent ne se voit qu'au moment où
+#  on la choisit — c'est-à-dire chez la personne, pas ici.
+MANQUANTS=0
+for K in $(grep -hE '^[[:space:]]*kernel[[:space:]]' "$DIR"/*.cfg 2>/dev/null | awk '{print $2}' | sort -u); do
+	case "$K" in
+		#  « binary » en dur ici aussi : c'était le même défaut que plus
+		#  haut, et il aurait fait crier au loup sur des noyaux qui
+		#  existent — le genre d'alerte qu'on finit par ignorer.
+		/*) CIBLE="${IMG}${K}" ;;
+		*)  CIBLE="${DIR}/${K}" ;;
+	esac
+	if [ ! -e "$CIBLE" ]; then
+		echo "[lexos]   !! entrée de menu vers un fichier absent : ${K}"
+		MANQUANTS=$((MANQUANTS + 1))
+	fi
+done
+[ "$MANQUANTS" -eq 0 ] && echo "[lexos]   toutes les entrées pointent vers un fichier présent"
+
+echo "[lexos] hook 0905 : ok"

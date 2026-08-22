@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-firmware — mettre à jour le BIOS et les micrologiciels, depuis LexOS
+# =============================================================================
+#  CE QUI EST POSSIBLE, ET CE QUI NE L'EST PAS
+#
+#  Beaucoup de constructeurs — Dell et Alienware en tête — publient leurs
+#  mises à jour sur LVFS, le dépôt de micrologiciels utilisé par fwupd. Sur ces
+#  machines, le BIOS système, les SSD, le contrôleur Thunderbolt, le clavier et
+#  la dalle se mettent à jour depuis Linux, sans passer par Windows.
+#
+#  LE BIOS DE LA CARTE GRAPHIQUE (le « VBIOS ») EST UNE AUTRE HISTOIRE.
+#  NVIDIA ne publie AUCUN outil de reprogrammation VBIOS pour Linux : ces
+#  mises à jour passent par un utilitaire Windows fourni par le constructeur de
+#  la machine. Des outils tiers circulent ; ils ne sont pas soutenus par NVIDIA,
+#  et une reprogrammation ratée rend la carte définitivement muette. Cette
+#  commande ne les utilise pas et n'en propose aucun : sur une carte à 400 $,
+#  le risque n'en vaut pas la peine. Pour le VBIOS, on redémarre sous Windows.
+#
+#  PRUDENCE
+#  Rien n'est installé sans confirmation explicite. La liste, elle, ne fait que
+#  lire. Une mise à jour de BIOS interrompue par une coupure de courant peut
+#  rendre la machine inutilisable : on vérifie donc que le secteur est branché
+#  avant de proposer quoi que ce soit.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos firmware"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+#  La vérification de fwupd est faite au moment d'AGIR, pas au chargement :
+#  « lexos firmware aide » doit répondre même sur une machine où fwupd manque —
+#  c'est justement là qu'on a besoin de lire ce que fait la commande.
+besoin_fwupd() {
+	command -v fwupdmgr >/dev/null 2>&1 \
+		|| die "fwupd n'est pas installé.   sudo apt install fwupd"
+}
+
+# --- Sommes-nous sur le secteur ? -------------------------------------------
+#  Une mise à jour de BIOS coupée en plein vol peut rendre la machine muette.
+#  On lit /sys plutôt que d'appeler un outil de plus : le noyau expose l'état
+#  du secteur, et une machine fixe sans batterie n'a tout simplement pas de
+#  fichier « online » — auquel cas on considère qu'elle est branchée.
+sur_secteur() {
+	local f
+	for f in /sys/class/power_supply/A{C,DP}*/online; do
+		[[ -r "$f" ]] && { [[ "$(cat "$f" 2>/dev/null)" == "1" ]] && return 0 || return 1; }
+	done
+	return 0
+}
+
+cmd_aide() {
+	cat <<AIDE
+
+${B}${O}${PROG}${R} — BIOS et micrologiciels
+
+${B}USAGE${R}
+  ${A}${PROG}${R}                 Ce qui est à jour, ce qui ne l'est pas ${D}(ne modifie rien)${R}
+  ${A}${PROG} appareils${R}       Tout ce que la machine expose
+  ${A}${PROG} maj${R}             Applique les mises à jour disponibles
+  ${A}${PROG} historique${R}      Ce qui a déjà été mis à jour
+
+${B}CE QUI SE MET À JOUR DEPUIS LEXOS${R}
+  ${D}Sur les machines soutenues par leur constructeur — Dell et Alienware en
+  font partie — le BIOS système, les SSD, le contrôleur Thunderbolt, le clavier
+  et la dalle se mettent à jour d'ici, sans repasser par Windows.${R}
+
+${B}CE QUI NE SE MET PAS À JOUR DEPUIS LEXOS${R}
+  ${D}Le BIOS de la carte graphique (le « VBIOS »). NVIDIA ne publie aucun outil
+  de reprogrammation pour Linux : ça passe par un utilitaire Windows du
+  constructeur. Des outils tiers existent, mais une reprogrammation ratée rend
+  la carte définitivement muette — cette commande n'en propose aucun.${R}
+
+${B}AVANT UNE MISE À JOUR DE BIOS${R}
+  ${D}· Branche l'ordinateur sur le secteur — une coupure en plein vol peut
+    rendre la machine inutilisable.
+  · Ferme ton travail : la machine redémarre pendant l'opération.
+  · Sur un double démarrage, ça ne touche ni Windows ni tes fichiers.${R}
+
+AIDE
+}
+
+# --- Rafraîchir le catalogue LVFS -------------------------------------------
+rafraichir() {
+	say "Mise à jour du catalogue des micrologiciels…"
+	#  --force pour ne pas buter sur le délai de courtoisie de LVFS quand on
+	#  relance la commande deux fois de suite ; l'échec n'est pas bloquant, on
+	#  travaille alors sur le catalogue déjà téléchargé.
+	sudo fwupdmgr refresh --force >/dev/null 2>&1 \
+		|| warn "Catalogue non rafraîchi (connexion ?) — on utilise le précédent."
+}
+
+cmd_etat() {
+	rafraichir
+	printf '\n%s%s%s\n\n' "$B$O" "Mises à jour de micrologiciels" "$R"
+	#  get-updates sort en code non nul quand il n'y a RIEN à mettre à jour :
+	#  c'est une bonne nouvelle, pas une erreur. On juge sur la sortie.
+	local sortie
+	sortie="$(fwupdmgr get-updates 2>&1)"
+	if printf '%s' "$sortie" | grep -qi 'No updates\|Aucune mise à jour\|no updatable'; then
+		ok "Tout est à jour."
+	else
+		printf '%s\n' "$sortie"
+		printf '\n'
+		say "Pour les appliquer : ${B}${PROG} maj${R}"
+	fi
+	printf '\n'
+	printf '  %sLe BIOS de la carte graphique (VBIOS) ne se met pas à jour depuis\n' "$D"
+	printf '  Linux : NVIDIA ne fournit l%soutil que pour Windows.%s\n\n' "'" "$R"
+}
+
+cmd_appareils() {
+	printf '\n%s%s%s\n\n' "$B$O" "Appareils vus par fwupd" "$R"
+	fwupdmgr get-devices 2>&1
+	printf '\n'
+}
+
+cmd_maj() {
+	if ! sur_secteur; then
+		warn "L'ordinateur est sur BATTERIE."
+		say  "Branche-le sur le secteur : une mise à jour de BIOS coupée en"
+		say  "plein vol peut rendre la machine inutilisable."
+		exit 1
+	fi
+	rafraichir
+
+	printf '\n%s⚠  %s%s\n\n' "$B$Y" "Mise à jour de micrologiciels" "$R"
+	printf '  La machine va REDÉMARRER pendant l%sopération.\n' "'"
+	printf '  Ferme ton travail avant de continuer.\n'
+	printf '  %sTes fichiers et ton autre système ne sont pas touchés.%s\n\n' "$D" "$R"
+	printf '%sPour confirmer, tape exactement :%s METTRE A JOUR\n' "$Y" "$R"
+	printf 'Sinon, appuie sur Entrée pour annuler.\n\n> '
+	local reponse=""
+	read -r reponse || true
+	[[ "$reponse" == "METTRE A JOUR" ]] || { say "Annulé — rien n'a été modifié."; exit 0; }
+
+	sudo fwupdmgr update
+}
+
+case "${1:-etat}" in
+	aide|help|--help|-h)       cmd_aide ;;
+	etat|status|'')            besoin_fwupd; cmd_etat ;;
+	appareils|devices|liste)   besoin_fwupd; cmd_appareils ;;
+	maj|update|installer)      besoin_fwupd; cmd_maj ;;
+	historique|history)        besoin_fwupd; fwupdmgr get-history 2>&1 ;;
+	*) die "Commande inconnue : $1   (${PROG} aide)" ;;
+esac

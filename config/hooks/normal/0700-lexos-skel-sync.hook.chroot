@@ -1,0 +1,183 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — recopier /etc/skel dans le dossier personnel de la session live
+# =============================================================================
+#  LE BOGUE QUE CE HOOK RÉPARE
+#
+#  Le compte de la session live est créé par le hook 0400, avec « useradd -m ».
+#  useradd recopie /etc/skel dans /home/<user> À CET INSTANT-LÀ, une fois, et
+#  ne revient jamais. Or plusieurs hooks écrivent dans /etc/skel APRÈS 0400 :
+#
+#    · 0400 (fin) — les raccourcis clavier (Super+Entrée, Super+E…)
+#    · 0500       — le lanceur « Installer LexOS » sur le bureau
+#    · 0600       — TOUT le thème LexOS Noir : gtk.css, .gtkrc-2.0,
+#                   terminalrc (le terminal noir), les icônes à la couleur
+#                   d'accent, ~/.config/lexos/accent
+#
+#  Résultat observé sur la première ISO qui a démarré (portable 2016) : le
+#  dock et le panneau étaient bien là — ils viennent de includes.chroot, donc
+#  ils étaient dans /etc/skel AVANT le hook 0400 — mais le bureau n'avait
+#  rien de LexOS. Ni le noir, ni le terminal noir, ni les raccourcis, ni
+#  l'icône d'installation. Autrement dit : « pas pareil que la démo ».
+#
+#  Ce hook s'exécute APRÈS TOUS LES AUTRES (0700 > 0600 > 0500 > 0400) et
+#  remet le dossier personnel en accord avec /etc/skel. C'est le dernier mot.
+#
+#  Pourquoi recopier plutôt que déplacer la création du compte à la fin ?
+#  Parce que le hook 0400 a besoin que le compte existe pour l'inscrire aux
+#  groupes (audio, video, netdev…), configurer sudo et l'autologin. Déplacer
+#  la création casserait tout ça en silence. Recopier ne casse rien : le
+#  compte est neuf, personne n'a encore rien mis dedans.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0700 : synchronisation de /etc/skel"
+
+LEXOS_LIVE_USER="lex"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+fi
+
+if [ ! -d /etc/skel ]; then
+	echo "[lexos]   /etc/skel absent — rien à synchroniser"
+	exit 0
+fi
+
+if ! id "${LEXOS_LIVE_USER}" >/dev/null 2>&1; then
+	#  Saveur minimal : le hook 0400 sort avant de créer le compte.
+	echo "[lexos]   compte « ${LEXOS_LIVE_USER} » absent — rien à synchroniser"
+	exit 0
+fi
+
+MAISON="$(getent passwd "${LEXOS_LIVE_USER}" | cut -d: -f6)"
+GROUPE="$(id -gn "${LEXOS_LIVE_USER}")"
+
+case "$MAISON" in
+	/home/*) ;;
+	*)
+		#  Garde-fou : on ne recopie jamais en vrac dans / ou dans /root à
+		#  cause d'une ligne de passwd inattendue.
+		echo "[lexos]   !! dossier personnel inattendu (${MAISON}) — abandon"
+		exit 0
+		;;
+esac
+
+if [ ! -d "$MAISON" ]; then
+	mkdir -p "$MAISON"
+fi
+
+#  « /etc/skel/. » et non « /etc/skel » : le point fait copier le CONTENU du
+#  dossier, fichiers cachés compris, au lieu de créer /home/lex/skel.
+#  -a préserve les permissions (les .desktop exécutables du bureau) ; les
+#  fichiers déjà présents sont écrasés, ce qui est voulu — /etc/skel est la
+#  référence, et rien d'autre n'a encore écrit dans ce dossier neuf.
+cp -a /etc/skel/. "$MAISON"/
+chown -R "${LEXOS_LIVE_USER}:${GROUPE}" "$MAISON"
+
+#  Contrôle : ces trois fichiers sont produits par des hooks postérieurs à la
+#  création du compte. S'ils manquent ici, la synchronisation n'a pas eu lieu
+#  et le bureau live repartirait sans son thème — on le dit fort dans le
+#  journal de construction plutôt que de le découvrir sur l'écran d'Alex.
+MANQUE=""
+for F in .config/gtk-3.0/gtk.css \
+         .config/xfce4/terminal/terminalrc \
+         .config/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml; do
+	#  On ne se plaint que de ce qui existe VRAIMENT dans /etc/skel : si le
+	#  hook 0600 a échoué, c'est son problème, pas celui de la recopie.
+	[ -e "/etc/skel/$F" ] || continue
+	[ -e "$MAISON/$F" ]   || MANQUE="${MANQUE} $F"
+done
+
+if [ -n "$MANQUE" ]; then
+	echo "[lexos]   !! non recopié :${MANQUE}"
+else
+	echo "[lexos]   ${MAISON} est à jour (thème, terminal, raccourcis)"
+fi
+
+# --- Contrôle : chaque icône existe-t-elle à TOUTES les tailles ? -----------
+#  POURQUOI CE CONTRÔLE EXISTE
+#  L'icône de Google Chrome changeait de dessin quand la souris passait
+#  dessus. Cause : le hook 0440 la rendait en 32→256 px seulement, alors que
+#  toutes les autres icônes LexOS sont rendues en 16→256. Aux trois tailles
+#  manquantes, GTK ne trouvait pas de PNG et basculait sur la version
+#  vectorielle. Or le dock AGRANDIT l'icône survolée : la taille demandée
+#  varie en continu, l'affichage saute d'un rendu à l'autre, et le dessin
+#  change sous la souris.
+#
+#  Rien ne signalait ce trou — ni la construction, ni le démarrage. Il a
+#  fallu qu'Alex le voie à l'écran et le photographie. Ce contrôle le dit
+#  maintenant dans le journal de construction, pour toutes les icônes d'un
+#  coup : une série de tailles incomplète est une icône qui clignotera.
+TAILLES="16 22 24 32 48 64 128 256"
+RACINE="/usr/share/icons/hicolor"
+INCOMPLETES=0
+
+if [ -d "$RACINE" ]; then
+	#  On part des icônes présentes en 48 px — la taille de référence du dock,
+	#  celle qu'aucune icône réellement utilisée ne peut manquer.
+	for ICONE in "$RACINE"/48x48/apps/lexos-*.png "$RACINE"/48x48/apps/lexos.png; do
+		[ -e "$ICONE" ] || continue
+		NOM="$(basename "$ICONE")"
+		ABSENTES=""
+		for T in $TAILLES; do
+			[ -e "$RACINE/${T}x${T}/apps/$NOM" ] || ABSENTES="${ABSENTES} ${T}"
+		done
+		if [ -n "$ABSENTES" ]; then
+			echo "[lexos]   !! ${NOM} : tailles manquantes —${ABSENTES}"
+			INCOMPLETES=$((INCOMPLETES + 1))
+		fi
+	done
+fi
+
+if [ "$INCOMPLETES" -eq 0 ]; then
+	echo "[lexos]   icônes : toutes les tailles présentes (${TAILLES})"
+else
+	echo "[lexos]   !! ${INCOMPLETES} icône(s) incomplète(s) — elles changeront de dessin sous la souris"
+fi
+
+# --- Contrôle : deux dessins pour un seul nom d'icône ? --------------------
+#  L'AUTRE FAÇON DE FABRIQUER LE MÊME DÉFAUT, et le contrôle ci-dessus est
+#  aveugle devant : toutes les tailles peuvent être présentes tout en ne
+#  montrant pas le même dessin.
+#
+#  C'est arrivé pour la musique. Le dossier branding contenait DEUX fichiers
+#  au nom presque identique — icon-musique.svg et musique-icon.svg — et deux
+#  hooks différents s'en servaient pour écrire la même icône « lexos-musique ».
+#  Le second n'écrasant que les tailles ≥ 32 px, les petites gardaient le
+#  dessin du premier. Une icône, deux dessins, aucune alerte.
+#
+#  On ne peut pas comparer les images entre elles de façon fiable ici. En
+#  revanche, on peut signaler la COLLISION DE NOMS qui rend la chose
+#  possible : c'est elle la cause, et elle se voit d'un coup d'œil.
+BRAND="/usr/share/lexos/branding"
+COLLISIONS=0
+if [ -d "$BRAND" ]; then
+	for F in "$BRAND"/icon-*.svg; do
+		[ -e "$F" ] || continue
+		NOM="$(basename "$F" .svg)"; NOM="${NOM#icon-}"
+		if [ -e "$BRAND/${NOM}-icon.svg" ]; then
+			echo "[lexos]   !! deux dessins pour « lexos-${NOM} » : icon-${NOM}.svg et ${NOM}-icon.svg"
+			COLLISIONS=$((COLLISIONS + 1))
+		fi
+	done
+fi
+[ "$COLLISIONS" -eq 0 ] \
+	&& echo "[lexos]   icônes : aucun nom de dessin en double" \
+	|| echo "[lexos]   !! ${COLLISIONS} collision(s) de noms — vérifier quel hook a le dernier mot"
+
+# --- Contrôle : plus aucun SVG « scalable » pour une icône LexOS ----------
+#  C'est LA cause du dessin qui change sous la souris : deux rendus possibles
+#  du même nom, entre lesquels GTK bascule au gré des tailles demandées par
+#  le zoom du dock. Compléter les tailles n'y suffisait pas — il a fallu
+#  supprimer la version vectorielle. Si un hook en réintroduit une un jour,
+#  le défaut revient sans prévenir : on le dit ici.
+VECTORIELLES="$(ls "$RACINE"/scalable/apps/lexos*.svg 2>/dev/null | wc -l)"
+if [ "$VECTORIELLES" -eq 0 ]; then
+	echo "[lexos]   icônes : un seul dessin par nom (aucun SVG scalable)"
+else
+	echo "[lexos]   !! ${VECTORIELLES} SVG scalable lexos-* — l'icône changera sous la souris :"
+	ls "$RACINE"/scalable/apps/lexos*.svg 2>/dev/null | sed 's|^|[lexos]      |'
+fi
+
+echo "[lexos] hook 0700 : ok"

@@ -1,0 +1,6 @@
+#!/bin/sh
+# lexos-boost-panneau — lanceur du panneau graphique de LexOS Boost.
+# Même règle que lexos-boost : /usr/bin est en shell, le Python est dans
+# /usr/lib/lexos. Le panneau reste en lecture seule ; toute modification
+# passe par « pkexec lexos-boost », comme avant.
+exec python3 -c 'import sys; sys.path.insert(0, "/usr/lib/lexos"); from boost.gui import main; sys.exit(main())' "$@"

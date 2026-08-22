@@ -1,0 +1,14 @@
+#  trixie-backports — ouvert POUR UNE SEULE RAISON : le moteur d'IA locale.
+#
+#  llama.cpp est empaqueté officiellement par Debian, mais il n'est pas dans
+#  trixie : il arrive par backports. Sans cette ligne, « llama.cpp » dans une
+#  liste optionnelle ne fait RIEN — le hook 0250 tolère un paquet absent (et
+#  c'est sain), la construction réussit, et l'ISO sort sans moteur d'IA. Aucune
+#  erreur nulle part. C'est le pire des deux silences : celui qui a l'air d'un
+#  succès.
+#
+#  Le fichier de préférences à côté (backports.pref.chroot) est OBLIGATOIRE :
+#  sans lui, on prendrait le risque de voir le reste du système migrer vers
+#  backports au fil des mois, et on perdrait la stabilité qui est la raison
+#  même de construire sur Debian stable.
+deb https://deb.debian.org/debian/ trixie-backports main contrib non-free-firmware

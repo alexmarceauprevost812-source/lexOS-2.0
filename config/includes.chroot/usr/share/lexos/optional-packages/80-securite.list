@@ -20,3 +20,12 @@ riseup-vpn
 # calyx-vpn RETIRÉ : absent de l'archive Debian (vérifié dans le journal de
 # la construction 8). Riseup, lui, y est. Calyx fait tourner le même client
 # Bitmask ; « lexos vpn gratuit calyx » renvoie donc vers leur site.
+
+# --- Cloisonnement des applications -----------------------------------------
+#  AppArmor limite ce qu'un programme peut toucher, même s'il est piégé : un
+#  lecteur PDF n'a aucune raison de lire tes clés SSH. Debian l'active par
+#  défaut depuis la 10, mais le paquet des profils n'est pas toujours tiré —
+#  sans profils, AppArmor tourne à vide.
+apparmor
+apparmor-profiles
+apparmor-utils

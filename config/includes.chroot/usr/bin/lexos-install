@@ -67,6 +67,22 @@ Avant de continuer :
   2. Sauvegarde ce qui compte sur un disque externe.
   3. Branche l'ordinateur sur le secteur.
 
+INSTALLER À CÔTÉ DE WINDOWS ? Trois choses à faire DANS WINDOWS
+d'abord, sinon le partage du disque échoue :
+  a. BitLocker : Windows 11 chiffre souvent le disque tout seul.
+     Suspends BitLocker (Panneau de config), ou note ta clé de
+     secours sur aka.ms/myrecoverykey. Sans ça, l'option « à côté »
+     peut ne pas apparaître, ou Windows réclamera une clé au retour.
+  b. Démarrage rapide : désactive-le (Options d'alimentation).
+     Sinon Windows « hiberne » au lieu de s'arrêter, le disque reste
+     verrouillé, et il ne peut pas être redimensionné.
+  c. Secure Boot : dans le BIOS (touche F2/F12 au démarrage), mets-le
+     sur « Désactivé ». L'édition pro embarque le pilote NVIDIA, qui
+     ne se charge PAS quand Secure Boot est actif (écran noir).
+
+Puis, dans l'installateur : choisis « Installer à côté », JAMAIS
+« effacer », et NE COCHE PAS le chiffrement.
+
 Disques détectés sur cette machine :"
 
 # =============================================================================

@@ -1,0 +1,74 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — lexOS_musique, le lecteur audio local
+# =============================================================================
+#  Une application à part entière : sa page vit dans /usr/share/lexos/musique,
+#  « lexos musique » l'ouvre en fenêtre dédiée, et ce hook lui donne son
+#  lanceur de bureau pour qu'elle apparaisse dans le menu et le dock.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0430 : lexOS_musique"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+PAGE="/usr/share/lexos/musique/index.html"
+if [ ! -r "$PAGE" ]; then
+	echo "[lexos]   !! page introuvable ($PAGE) — lanceur posé quand même"
+fi
+
+# --- Icône (vinyle aux couleurs LexOS) --------------------------------------
+SVG="/usr/share/lexos/branding/musique-icon.svg"
+[ -r "$SVG" ] || SVG="branding/musique-icon.svg"
+if [ -r "$SVG" ]; then
+	#  LE PIRE DES TROIS CAS, ET LE PLUS SOURNOIS.
+	#  Le hook 0300 rend DÉJÀ une icône « lexos-musique », mais depuis un
+	#  AUTRE dessin : branding/icon-musique.svg. Ce hook-ci, qui passe après,
+	#  la réécrivait depuis branding/musique-icon.svg — un fichier différent,
+	#  au nom presque identique — mais seulement à partir de 32 px.
+	#  Résultat sur le disque : 16, 22 et 24 px portaient le dessin du hook
+	#  0300, et 32 px et au-dessus celui d'ici. La même icône avec DEUX
+	#  dessins selon la taille. Le contrôle du hook 0700 ne pouvait pas le
+	#  voir : toutes les tailles étaient bien présentes.
+	#  On rend donc les huit tailles, pour que ce hook soit le seul et
+	#  dernier mot sur cette icône.
+	for SIZE in 16 22 24 32 48 64 128 256; do
+		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		if have rsvg-convert; then
+			rsvg-convert -w "$SIZE" -h "$SIZE" "$SVG" -o "$DIR/lexos-musique.png" 2>/dev/null || true
+		elif have convert; then
+			convert -background none -resize "${SIZE}x${SIZE}" "$SVG" "$DIR/lexos-musique.png" 2>/dev/null || true
+		fi
+	done
+	VDIR="/usr/share/icons/hicolor/scalable/apps"
+	mkdir -p "$VDIR"; rm -f "$VDIR/lexos-musique.svg"
+	have gtk-update-icon-cache && \
+		gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+else
+	echo "[lexos]   !! icône introuvable — icône générique utilisée"
+fi
+
+mkdir -p /usr/share/applications
+
+cat > /usr/share/applications/lexos-musique.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=lexOS_musique
+Name[en]=lexOS_musique
+Comment=Lecteur audio local : ton crate, tes playlists — rien n'est envoyé sur internet
+Comment[en]=Local audio player: your crate, your playlists — nothing leaves your machine
+Exec=lexos musique
+Icon=lexos-musique
+Terminal=false
+StartupNotify=true
+StartupWMClass=lexOS-musique
+Categories=AudioVideo;Audio;Player;
+Keywords=musique;music;audio;lecteur;player;playlist;crate;mp3;son;
+EOF
+
+have update-desktop-database && \
+	update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+
+echo "[lexos] hook 0430 : ok"

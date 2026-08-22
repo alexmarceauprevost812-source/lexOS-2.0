@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-claude — Claude (l'IA d'Anthropic) et Claude Code sur LexOS
+# =============================================================================
+#  Deux outils, une seule commande :
+#    - lexos claude          : ouvre Claude Code, l'assistant de programmation
+#                              d'Anthropic, dans le terminal (« claude »).
+#    - lexos claude app      : ouvre l'application Claude (claude.ai) dans une
+#                              fenêtre à part, comme une vraie appli.
+#    - lexos claude setup    : (ré)installe Claude Code — fait automatiquement
+#                              au premier lancement s'il manque.
+#    - lexos claude update   : met Claude Code à jour.
+#
+#  Claude Code est distribué par Anthropic (canal officiel npm). Contrairement
+#  à lexos-ia (Ollama, 100 % hors-ligne), Claude tourne dans le nuage : il faut
+#  une connexion et un compte Anthropic — la connexion se fait au navigateur au
+#  premier lancement.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos claude"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+err()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; }
+die()  { err "$*"; exit 1; }
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — Claude Code (assistant de programmation) et l'appli Claude
+
+Usage :
+  $PROG                  Ouvre Claude Code dans le terminal (l'installe au besoin)
+  $PROG app              Ouvre l'application Claude (claude.ai) en fenêtre
+  $PROG setup            Installe Claude Code
+  $PROG update           Met Claude Code à jour
+  $PROG "<demande>"      Lance Claude Code sur une demande précise
+
+Exemples :
+  $PROG
+  $PROG app
+  $PROG "explique-moi ce dossier"
+
+Claude tourne dans le nuage (Anthropic) : connexion internet et compte requis.
+Pour une IA 100 % locale et hors-ligne, vois plutôt : ${B}lexos ia${R}.
+EOF
+}
+
+has_claude() { command -v claude >/dev/null 2>&1; }
+
+# Rends « claude » trouvable même juste après une installation « native »
+# (elle le pose dans ~/.local/bin, pas toujours déjà dans le PATH courant).
+ensure_path() {
+	case ":$PATH:" in
+		*":$HOME/.local/bin:"*) ;;
+		*) export PATH="$HOME/.local/bin:$PATH" ;;
+	esac
+}
+
+install_claude() {
+	ensure_path
+	if has_claude; then ok "Claude Code est déjà installé."; return 0; fi
+	command -v curl >/dev/null 2>&1 || die "curl est requis pour l'installation."
+
+	# 1) Canal officiel npm si npm est là et qu'on peut écrire en global.
+	if command -v npm >/dev/null 2>&1; then
+		say "Installation de Claude Code (canal officiel npm)…"
+		if npm install -g @anthropic-ai/claude-code >/dev/null 2>&1; then
+			ensure_path; has_claude && { ok "Claude Code installé."; return 0; }
+		fi
+		# Sans les droits d'écriture globale, on tente avec sudo si dispo.
+		if command -v sudo >/dev/null 2>&1; then
+			say "Nouvelle tentative avec les droits administrateur…"
+			if sudo npm install -g @anthropic-ai/claude-code >/dev/null 2>&1; then
+				ensure_path; has_claude && { ok "Claude Code installé."; return 0; }
+			fi
+		fi
+	fi
+
+	# 2) Installeur natif d'Anthropic (pose « claude » dans ~/.local/bin,
+	#    aucun droit administrateur requis).
+	say "Installation de Claude Code (installeur officiel Anthropic)…"
+	if curl -fsSL https://claude.ai/install.sh | bash >/dev/null 2>&1; then
+		ensure_path; has_claude && { ok "Claude Code installé."; return 0; }
+	fi
+
+	die "Échec de l'installation de Claude Code. Vérifie la connexion, puis : ${PROG} setup"
+}
+
+cmd_update() {
+	ensure_path
+	has_claude || { install_claude; return $?; }
+	say "Mise à jour de Claude Code…"
+	if claude update >/dev/null 2>&1; then
+		ok "Claude Code est à jour."
+	elif command -v npm >/dev/null 2>&1 && npm update -g @anthropic-ai/claude-code >/dev/null 2>&1; then
+		ok "Claude Code est à jour."
+	else
+		warn "Impossible de mettre à jour automatiquement — réessaie plus tard."
+	fi
+}
+
+# --- L'application Claude : claude.ai dans une fenêtre dédiée ----------------
+cmd_app() {
+	local url="https://claude.ai"
+	for b in chromium google-chrome google-chrome-stable brave-browser microsoft-edge; do
+		if command -v "$b" >/dev/null 2>&1; then
+			say "Ouverture de l'application Claude…"
+			exec "$b" --app="$url" --class=Claude --name=claude-app >/dev/null 2>&1
+		fi
+	done
+	# Pas de navigateur « app-mode » ? On ouvre dans le navigateur par défaut.
+	say "Ouverture de Claude dans le navigateur…"
+	exec xdg-open "$url"
+}
+
+cmd_run() {
+	ensure_path
+	has_claude || install_claude
+	say "Claude Code — connexion au navigateur au premier lancement."
+	exec claude "$@"
+}
+
+CMD="${1:-}"
+case "$CMD" in
+	-h|--help|help)     usage ;;
+	setup|install)      install_claude ;;
+	update|maj)         cmd_update ;;
+	app|web|appli)      cmd_app ;;
+	code|cli|'')        shift 2>/dev/null || true; cmd_run "$@" ;;
+	*)                  cmd_run "$@" ;;
+esac

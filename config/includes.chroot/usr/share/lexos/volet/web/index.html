@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Volet LexOS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--  Le volet est dans la page, pas la page dans le volet : c'est ce qui
+      permet de l'ANIMER. Un élément qui vient d'apparaître n'a pas d'état de
+      départ à quitter, donc rien à animer. Qt ouvre une fenêtre transparente
+      déjà à sa taille finale, et le volet s'y déplie tout seul — exactement
+      comme sur la démo, avec la même courbe et la même durée. -->
+<div class="shade" id="volet" role="dialog">
+  <div class="shade-in" id="dedans"></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -194,6 +194,7 @@ LEXOS_PERF_PROFILE="${LEXOS_PERF_PROFILE}"
 LEXOS_WIFI_AUTO_OPEN="${LEXOS_WIFI_AUTO_OPEN}"
 LEXOS_DISK_ENCRYPTION="${LEXOS_DISK_ENCRYPTION}"
 LEXOS_KERNEL_CHANNEL="${LEXOS_KERNEL_CHANNEL}"
+LEXOS_NVIDIA_BRANCH="${LEXOS_NVIDIA_BRANCH:-}"
 LEXOS_BUILD_DATE="${BUILD_DATE}"
 LEXOS_BUILD_ID="${BUILD_ID}"
 EOF
@@ -204,6 +205,14 @@ BRAND_DST="config/includes.chroot/usr/share/lexos/branding"
 mkdir -p "$BRAND_DST"
 rm -f "$BRAND_DST"/*
 cp branding/*.svg branding/*.png "$BRAND_DST"/ 2>/dev/null || true
+#  Les .webp (mascottes rock et salut) et le .gif animé : le hook 0300 les
+#  attend pour les convertir en PNG — sans cette ligne, sa boucle « *.webp »
+#  tournait sur un dossier qui n'en avait aucun, en silence.
+cp branding/*.webp branding/*.gif "$BRAND_DST"/ 2>/dev/null || true
+#  Les images de l'animation Plymouth (démarrage) : un dossier, que le
+#  « cp » sans -r du dessus ignorait — le thème animé retombait sur l'image
+#  fixe sans le dire.
+[ -d branding/mascot-anim-frames ] && cp -r branding/mascot-anim-frames "$BRAND_DST"/ 2>/dev/null
 ok "branding/ -> usr/share/lexos/branding ($(ls -1 "$BRAND_DST" | wc -l) fichiers)"
 
 # --- Sélection de la saveur --------------------------------------------------
@@ -221,13 +230,27 @@ apply_flavour() {
 	ok "saveur '$f' : $count liste(s)"
 }
 
+# Toutes les saveurs de bureau reçoivent EXACTEMENT les mêmes listes.
+#
+# L'empilement d'avant creusait des trous que personne ne voyait : « pro »
+# sautait la liste « full » (LibreOffice, VLC, GIMP, ffmpeg) et « dev » —
+# la saveur du portable, celle sur laquelle on teste tout — sautait « full »,
+# « gaming » ET « pro ». Le bureau essayé sur le portable n'était donc pas
+# celui livré sur l'Alienware.
+#
+# Seule différence qui reste entre les ISO : le matériel. Le pilote NVIDIA
+# propriétaire n'est embarqué que par la saveur « pro » (hook 0260) — le
+# portable n'a pas de carte NVIDIA et le lui poser risquerait l'écran noir.
 case "$LEXOS_FLAVOUR" in
-	minimal)  ;;
-	standard) apply_flavour standard ;;
-	dev)      apply_flavour standard; apply_flavour dev ;;
-	full)     apply_flavour standard; apply_flavour dev; apply_flavour full ;;
-	gaming)   apply_flavour standard; apply_flavour dev; apply_flavour gaming ;;
-	pro)      apply_flavour standard; apply_flavour dev; apply_flavour gaming; apply_flavour pro ;;
+	minimal)
+		;;
+	*)
+		apply_flavour standard
+		apply_flavour dev
+		apply_flavour full
+		apply_flavour gaming
+		apply_flavour pro
+		;;
 esac
 
 TOTAL_PKGS="$(cat config/package-lists/*.list.chroot 2>/dev/null \

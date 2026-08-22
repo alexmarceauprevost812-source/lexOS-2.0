@@ -28,13 +28,44 @@ on:
         default: 'trixie'
         type: string
   push:
-    branches: ['**']
+    #  PAS « ** » : la branche de travail et « supabase » portent les mêmes
+    #  commits (Alex demande régulièrement d'y recopier tout le travail), et
+    #  avec « ** » chaque recopie relançait la construction de la MÊME ISO —
+    #  une heure de machine pour republier des fichiers identiques, en
+    #  risquant de casser un téléchargement en cours au moment où la Release
+    #  est remplacée. On ne construit que depuis les branches de travail ;
+    #  pour construire depuis une autre branche, le bouton « Run workflow »
+    #  (workflow_dispatch) marche toujours.
+    branches: ['claude/**']
+    #  Construction AUTOMATIQUE : dès qu'on ajoute ou change quelque chose qui
+    #  entre dans l'ISO (un paquet, un réglage, un hook, un script, le
+    #  branding…), une nouvelle ISO se construit et se publie toute seule en
+    #  Release. Les changements qui ne touchent PAS l'ISO (site web, démo,
+    #  documentation) ne déclenchent rien — inutile de reconstruire 6 Go pour
+    #  une retouche de page.
     paths:
       - '.iso-build-request'
       - '.github/workflows/build-iso.yml'
+      - 'build.sh'
+      - 'lexos.conf'
+      - 'config/**'
+      - 'flavours/**'
+      - 'branding/**'
+      - 'auto/**'
+
+#  Une seule construction à la fois par branche, mais on n'ANNULE JAMAIS
+#  celle qui tourne : une ISO prend plus d'une heure, et l'annuler à chaque
+#  nouveau changement voulait dire ne jamais en livrer aucune (constaté :
+#  la construction 20, qui portait le correctif NVIDIA, a été tuée par le
+#  changement suivant). Les demandes font donc la file : celle en cours va
+#  au bout et se publie, la suivante démarre juste après.
+concurrency:
+  group: iso-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write         # requis pour publier l'ISO en Release GitHub
+  actions: write          # requis pour supprimer les anciens artefacts
 
 jobs:
   iso:
@@ -44,6 +75,25 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      #  Libère le quota de stockage AVANT de construire : une ISO Pro pèse
+      #  ~6,4 Go et le stockage Actions d'un dépôt privé est vite plein. Sans
+      #  ça, l'ISO se construit mais l'envoi échoue (« Artifact storage quota
+      #  has been hit »). On supprime donc tous les artefacts déjà stockés —
+      #  ils sont de toute façon remplacés par la construction en cours.
+      # ------------------------------------------------------------------
+      - name: Libérer le stockage — supprimer les anciens artefacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ids=$(gh api --paginate "repos/${{ github.repository }}/actions/artifacts" \
+                  --jq '.artifacts[].id' 2>/dev/null || true)
+          for id in $ids; do
+            gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id" \
+              && echo "artefact $id supprimé" || echo "artefact $id : non supprimé (ignoré)"
+          done
+          echo "Nettoyage terminé."
 
       # ------------------------------------------------------------------
       #  Que construit-on ? Les paramètres viennent des entrées du workflow
@@ -104,7 +154,16 @@ jobs:
             rsync wget gnupg ca-certificates \
             syslinux-common isolinux \
             grub-efi-amd64-bin grub-pc-bin \
-            mtools dosfstools librsvg2-bin
+            mtools dosfstools librsvg2-bin \
+            fonts-dejavu-core
+          #  fonts-dejavu-core N'EST PAS DÉCORATIF ICI.
+          #  Le fond du menu BIOS est un SVG que live-build rend en PNG
+          #  SUR CETTE MACHINE, avec rsvg. Le dessin demande « DejaVu
+          #  Sans » et « DejaVu Sans Mono ». Si la police manque, rsvg ne
+          #  se plaint pas : il prend un substitut, l'ISO se construit,
+          #  et le titre « LexOS » sort dans une autre fonte — visible
+          #  seulement une fois la clé USB gravée et démarrée. On ne
+          #  compte donc pas sur ce que l'image du runner contient déjà.
 
           # Le live-build de l'archive Ubuntu est un fork figé en 3.0~a57 :
           # il ne connaît ni --updates, ni --bootloaders, ni --uefi-secure-boot,
@@ -134,6 +193,19 @@ jobs:
       # ------------------------------------------------------------------
       #  Un rapport lisible, que la construction ait réussi ou non.
       # ------------------------------------------------------------------
+      #  Le pilote NVIDIA, dans le JOURNAL et pas seulement dans le résumé.
+      #  Le résumé part dans $GITHUB_STEP_SUMMARY, que l'API ne rend pas :
+      #  trois constructions de suite ont été diagnostiquées à l'aveugle
+      #  faute de pouvoir lire cet inventaire. Sur stdout, il atterrit dans
+      #  le journal du job, lisible par l'API.
+      - name: Pilote NVIDIA — inventaire et version retenue
+        if: always()
+        run: |
+          echo "===== RAPPORT PILOTE NVIDIA ====="
+          cat chroot/etc/lexos/nvidia-report 2>/dev/null \
+            || echo "(pas de rapport : le chroot a été nettoyé ou le hook n'a pas tourné)"
+          echo "===== FIN RAPPORT PILOTE NVIDIA ====="
+
       - name: Rapport
         if: always()
         run: |
@@ -155,6 +227,20 @@ jobs:
               # plusieurs gigaoctets. On le recopie ici, où il se lit d'un
               # coup d'oeil : un nom de paquet qui a changé entre deux
               # versions de Debian se voit alors tout de suite.
+              # Le pilote NVIDIA, en clair et tout de suite. Deux ISO ont été
+              # livrées avec la 610 buggée alors qu'on croyait avoir épinglé
+              # une autre branche : le journal le disait, mais noyé dans des
+              # centaines de milliers de lignes. Ici, ça se lit d'un coup.
+              NVREPORT="chroot/etc/lexos/nvidia-report"
+              if [ -r "$NVREPORT" ]; then
+                echo "### Pilote NVIDIA"
+                echo
+                echo '```'
+                cat "$NVREPORT"
+                echo '```'
+                echo
+              fi
+
               RAPPORT="chroot/etc/lexos/optional-report"
               if [ -r "$RAPPORT" ]; then
                 echo "### Paquets optionnels"
@@ -189,20 +275,182 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Téléverser l'ISO
+      # ------------------------------------------------------------------
+      #  Livraison par RELEASE GitHub, pas par artefact.
+      #
+      #  Une ISO Pro pèse ~6,4 Go. Le stockage d'ARTEFACTS d'un dépôt privé
+      #  gratuit est plafonné à 500 Mo : aucune ISO n'y tient, quota recalculé
+      #  ou non. Les RELEASES, elles, ont un stockage séparé, gratuit et sans
+      #  limite de taille totale — la seule contrainte est 2 Gio par fichier.
+      #  On découpe donc l'ISO en morceaux < 2 Gio et on fournit la commande
+      #  pour la reconstituer. C'est fiable et ça ne touche jamais au quota.
+      # ------------------------------------------------------------------
+      - name: Publier l'ISO en Release GitHub
         if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lexos-${{ steps.quoi.outputs.flavour }}-iso
-          path: |
-            *.iso
-            *.iso.sha256
-          retention-days: 14
-          compression-level: 0
-          if-no-files-found: error
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          #  build.sh tourne en root (sudo) : l'ISO et le dossier de travail
+          #  appartiennent alors à root, et cette étape (utilisateur normal) ne
+          #  peut pas y écrire le .sha256 ni les morceaux (« Permission denied »).
+          #  On récupère donc la propriété du dossier avant d'écrire quoi que ce
+          #  soit — sans ça, la construction réussit mais la publication échoue.
+          sudo chown -R "$(id -u):$(id -g)" . 2>/dev/null || true
+          ISO="$(ls ./*.iso 2>/dev/null | head -1)"
+          [ -n "$ISO" ] || { echo "::error::Aucune ISO à publier"; exit 1; }
+          ISO="$(basename "$ISO")"
+          BUILD="$(sed -n 's/^[[:space:]]*build:[[:space:]]*//p' .iso-build-request | head -1)"
+          #  Tag STABLE par saveur : « latest-pro », « latest-standard »… La
+          #  Release est remplacée à chaque construction, donc ce lien pointe
+          #  TOUJOURS vers l'ISO la plus récente. Idéal pour un signet et pour
+          #  le guide du site, qui n'ont jamais à changer d'adresse.
+          TAG="latest-${{ steps.quoi.outputs.flavour }}"
+          SHORT="$(echo "${GITHUB_SHA:-0000000}" | cut -c1-7)"
+
+          # Empreinte de l'ISO ENTIÈRE (à vérifier après reconstitution).
+          sha256sum "$ISO" | tee "${ISO}.sha256"
+
+          # Découpe en morceaux de 1900 Mio (< 2 Gio, limite d'un asset).
+          split -b 1900M -d --suffix-length=2 "$ISO" "${ISO}.part-"
+          echo "Morceaux produits :"; ls -lh "${ISO}.part-"*
+
+          # Notes de version : mode d'emploi pour reconstituer l'ISO.
+          {
+            echo "## ${ISO}"
+            echo
+            echo "L'ISO fait plus de 2 Gio, la taille maximale d'un fichier sur"
+            echo "GitHub. Elle est donc livrée en morceaux. Télécharge **tous** les"
+            echo "fichiers \`.part-XX\` **et** le \`.sha256\`, dans un même dossier,"
+            echo "puis reconstitue l'ISO d'une commande :"
+            echo
+            echo '**Linux / Mac** (Terminal) :'
+            echo '```'
+            echo "cat ${ISO}.part-* > ${ISO}"
+            echo "sha256sum -c ${ISO}.sha256"
+            echo '```'
+            echo
+            echo '**Windows** (PowerShell, dans le dossier des morceaux) :'
+            echo '```'
+            echo "cmd /c copy /b ((Get-ChildItem '${ISO}.part-*' | Sort-Object Name | ForEach-Object Name) -join '+') ${ISO}"
+            echo '```'
+            echo
+            echo "La vérification doit afficher « Réussi / OK ». Ensuite, grave"
+            echo "l'ISO sur une clé USB (EtchDroid sur téléphone, ou balenaEtcher"
+            echo "sur ordinateur) et démarre dessus."
+          } > NOTES-release.md
+
+          # ----------------------------------------------------------------
+          #  PUBLICATION QUI RÉSISTE AUX PANNES PASSAGÈRES DE GITHUB.
+          #
+          #  Le build 54 a été perdu ICI, et pas d'un poil : 70 minutes de
+          #  construction, l'ISO pro prête et vérifiée, puis
+          #  « HTTP 503: No server is currently available » pendant l'envoi
+          #  des morceaux. Trois défauts s'étaient additionnés :
+          #
+          #    1. La Release précédente était SUPPRIMÉE d'avance. Après
+          #       l'échec, il ne restait donc RIEN à télécharger — ni la
+          #       nouvelle ISO, ni l'ancienne qui marchait.
+          #    2. Les cinq morceaux (7,6 Go) partaient en UN SEUL appel :
+          #       une erreur sur le dernier jetait les quatre premiers.
+          #    3. Aucune reprise. Une panne de quelques secondes chez GitHub
+          #       suffisait à perdre une heure et quart de calcul.
+          #
+          #  Désormais : on ne supprime rien d'avance, chaque morceau part
+          #  séparément avec cinq tentatives espacées, et le .sha256 part EN
+          #  DERNIER. Ce dernier point est le garde-fou : tant qu'il n'est
+          #  pas là, la Release est visiblement en cours ; dès qu'il est là,
+          #  elle est complète et vérifiable.
+          # ----------------------------------------------------------------
+          TITRE="LexOS ${{ steps.quoi.outputs.flavour }} — dernière ISO (build ${BUILD}, ${SHORT})"
+
+          #  Envoyer un fichier en réessayant. --clobber pour qu'une reprise
+          #  remplace un envoi laissé à moitié au lieu de buter dessus.
+          envoyer() {
+            local F="$1" N=0 ATTENTE
+            while :; do
+              N=$((N+1))
+              if gh release upload "$TAG" "$F" --clobber; then
+                echo "  ok   $F"
+                return 0
+              fi
+              if [ "$N" -ge 5 ]; then
+                echo "::error::Échec de l'envoi de $F après $N tentatives"
+                return 1
+              fi
+              ATTENTE=$((5 * 2 ** (N - 1)))          # 5, 10, 20, 40 s
+              echo "  !!   $F : tentative $N échouée — nouvelle dans ${ATTENTE} s"
+              sleep "$ATTENTE"
+            done
+          }
+
+          #  La Release doit exister pour recevoir des fichiers — mais on ne
+          #  détruit pas l'ancienne : on la met à jour. Tant que les nouveaux
+          #  morceaux ne sont pas tous arrivés, l'ISO précédente reste
+          #  téléchargeable. Mieux qu'un trou.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG déjà là — on la met à jour sans rien détruire"
+            gh release edit "$TAG" --title "$TITRE" \
+              --notes-file NOTES-release.md --latest
+          else
+            echo "Release $TAG absente — création"
+            gh release create "$TAG" --title "$TITRE" \
+              --notes-file NOTES-release.md --latest
+          fi
+
+          #  Retirer d'abord l'ANCIENNE empreinte. Pendant tout l'envoi, la
+          #  Release est ainsi franchement marquée « incomplète » : personne
+          #  ne peut croire vérifier une ISO qui est en train d'être remplacée.
+          gh release delete-asset "$TAG" "${ISO}.sha256" --yes 2>/dev/null || true
+
+          #  Les morceaux, un par un.
+          echo "Envoi des morceaux :"
+          for P in "${ISO}.part-"*; do envoyer "$P"; done
+
+          #  Une ISO plus petite peut produire MOINS de morceaux que la
+          #  précédente. Un part-04 oublié de la fois d'avant se recollerait
+          #  à la fin du nouveau fichier et donnerait une ISO corrompue —
+          #  que le sha256 refuserait, mais autant ne pas le laisser traîner.
+          ATTENDUS="$(printf '%s\n' "${ISO}.part-"* "${ISO}.sha256")"
+          gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null \
+          | while read -r A; do
+              [ -n "$A" ] || continue
+              if ! printf '%s\n' "$ATTENDUS" | grep -qxF "$A"; then
+                echo "  --   $A : reste d'une construction précédente, on l'enlève"
+                gh release delete-asset "$TAG" "$A" --yes 2>/dev/null || true
+              fi
+            done
+
+          #  L'empreinte EN DERNIER : elle signe une Release complète.
+          envoyer "${ISO}.sha256"
+
+          #  Vérifier pour de vrai, plutôt que d'espérer. Un morceau manquant
+          #  doit faire échouer la construction bruyamment, pas laisser une
+          #  Release à moitié pleine qu'Alex téléchargerait pour rien.
+          PRESENTS="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          MANQUE=0
+          for A in $ATTENDUS; do
+            if ! printf '%s\n' "$PRESENTS" | grep -qxF "$A"; then
+              echo "::error::Fichier absent de la Release : $A"; MANQUE=1
+            fi
+          done
+          [ "$MANQUE" = "0" ] || { echo "::error::Release incomplète"; exit 1; }
+          echo "Release $TAG complète : $(printf '%s\n' "$PRESENTS" | wc -l) fichiers"
+
+          {
+            echo "### ✅ ISO publiée en Release"
+            echo
+            echo "**[Télécharger la Release \`$TAG\`](https://github.com/${{ github.repository }}/releases/tag/$TAG)**"
+            echo
+            echo "Télécharge tous les morceaux + le .sha256, puis reconstitue :"
+            echo '```'
+            echo "cat ${ISO}.part-* > ${ISO}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Téléverser le journal en cas d'échec
         if: failure()
+        continue-on-error: true    # le quota d'artefacts ne doit jamais masquer l'erreur réelle
         uses: actions/upload-artifact@v4
         with:
           name: build-log-${{ steps.quoi.outputs.flavour }}

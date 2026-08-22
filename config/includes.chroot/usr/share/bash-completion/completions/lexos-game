@@ -1,0 +1,28 @@
+# =============================================================================
+#  LexOS — la touche Tab pour « lexos-game »
+# =============================================================================
+#  Même service que pour « lexos », sur la commande de jeu appelée directement.
+#  Après les mots-clés connus, on complète avec des exécutables et des
+#  fichiers : « lexos-game » sert justement à LANCER quelque chose.
+# =============================================================================
+
+_lexos_game() {
+	local cur
+	COMPREPLY=()
+	cur="${COMP_WORDS[COMP_CWORD]}"
+
+	if [ "$COMP_CWORD" -eq 1 ]; then
+		mapfile -t COMPREPLY < <(compgen -W "info extras aide help" -- "$cur")
+		mapfile -t -O "${#COMPREPLY[@]}" COMPREPLY < <(compgen -c -- "$cur")
+		return 0
+	fi
+
+	if [ "${COMP_WORDS[1]}" = "extras" ]; then
+		mapfile -t COMPREPLY < <(compgen -W "--liste" -- "$cur")
+		return 0
+	fi
+
+	mapfile -t COMPREPLY < <(compgen -f -- "$cur")
+	return 0
+}
+complete -F _lexos_game lexos-game

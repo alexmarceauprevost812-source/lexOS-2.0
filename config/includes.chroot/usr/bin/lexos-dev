@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-dev — les outils de développement en ligne de commande
+# =============================================================================
+#  Trois outils que Debian ne fournit pas (ou pas à jour), et qui s'installent
+#  donc depuis leur canal officiel :
+#
+#    Claude Code   l'assistant de programmation d'Anthropic (canal npm officiel)
+#    GitHub CLI    « gh » : cloner, ouvrir une PR, suivre les Actions au terminal
+#    Vercel CLI    « vercel » : déployer un site en une commande (canal npm)
+#
+#  POURQUOI PAS DIRECTEMENT DANS L'ISO
+#  Ces trois-là bougent vite — plusieurs versions par mois. Les figer dans une
+#  ISO construite une fois voudrait dire livrer des outils périmés dès la
+#  deuxième semaine. Ils sont donc posés À LA DEMANDE, depuis leur source
+#  officielle, et « lexos dev update » les remet à jour d'un coup.
+#  Ce dont ils ont besoin — nodejs, npm, git, curl — est, LUI, bien dans l'ISO.
+#
+#  Rien n'est installé sans que tu le demandes : « lexos dev » seul ne fait
+#  qu'afficher l'état.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos dev"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+err()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; }
+die()  { err "$*"; exit 1; }
+
+#  Les outils npm posés en global atterrissent parfois dans ~/.local/bin ou
+#  ~/.npm-global/bin, pas toujours déjà dans le PATH de la session en cours.
+ensure_path() {
+	local d
+	for d in "$HOME/.local/bin" "$HOME/.npm-global/bin" /usr/local/bin; do
+		case ":$PATH:" in
+			*":$d:"*) ;;
+			*) [[ -d "$d" ]] && PATH="$d:$PATH" ;;
+		esac
+	done
+	export PATH
+}
+
+cmd_aide() {
+	cat <<AIDE
+
+${B}${O}${PROG}${R} — les outils de développement
+
+${B}USAGE${R}
+  ${A}${PROG}${R}                  État des outils : installés ou non
+  ${A}${PROG} install${R}          Installe les trois d'un coup
+  ${A}${PROG} install${R} <outil>  N'installe que celui-là
+  ${A}${PROG} update${R}           Met à jour ceux qui sont installés
+
+${B}LES OUTILS${R}
+  ${A}claude${R}    Claude Code — l'assistant de programmation d'Anthropic
+            ${D}Se lance ensuite avec « claude » ou « lexos claude »${R}
+  ${A}gh${R}        GitHub CLI — cloner, ouvrir une PR, suivre les Actions
+            ${D}« gh auth login » pour se connecter la première fois${R}
+  ${A}vercel${R}    Vercel CLI — déployer un site en une commande
+            ${D}« vercel login » pour se connecter la première fois${R}
+
+${B}À SAVOIR${R}
+  ${D}Ces trois outils sortent une nouvelle version presque chaque semaine :
+  les figer dans l'ISO voudrait dire les livrer périmés. Ils s'installent donc
+  depuis leur source officielle, et « ${PROG} update » les rafraîchit.
+
+  Une connexion internet est nécessaire pour l'installation. Ce dont ils ont
+  besoin (nodejs, npm, git, curl) est, lui, déjà dans le système.${R}
+
+AIDE
+}
+
+# --- npm en global, sans casser les paquets du système -----------------------
+#  On n'utilise JAMAIS « sudo npm install -g » sur un chemin géré par dpkg : ça
+#  écrase des fichiers appartenant à des paquets Debian. On préfère un préfixe
+#  npm dans le dossier de l'utilisateur ; sudo n'est le recours que si ce
+#  préfixe n'est pas utilisable.
+npm_global() {
+	local paquet="$1"
+	command -v npm >/dev/null 2>&1 || return 1
+
+	local prefixe="$HOME/.npm-global"
+	mkdir -p "$prefixe" 2>/dev/null || true
+	if npm install -g --prefix "$prefixe" "$paquet" >/dev/null 2>&1; then
+		ensure_path
+		return 0
+	fi
+	if npm install -g "$paquet" >/dev/null 2>&1; then
+		ensure_path
+		return 0
+	fi
+	return 1
+}
+
+# =============================================================================
+#  Claude Code
+# =============================================================================
+#  lexos-claude sait déjà l'installer (canal npm officiel, puis installeur
+#  Anthropic en secours). On lui délègue plutôt que de dupliquer la logique.
+claude_present() { command -v claude >/dev/null 2>&1; }
+
+claude_installer() {
+	if claude_present; then ok "Claude Code est déjà là."; return 0; fi
+	if command -v lexos-claude >/dev/null 2>&1; then
+		say "Installation de Claude Code…"
+		lexos-claude setup && { ensure_path; return 0; }
+	fi
+	npm_global "@anthropic-ai/claude-code" && { ok "Claude Code installé."; return 0; }
+	warn "Claude Code n'a pas pu être installé (connexion ?)."
+	return 1
+}
+
+# =============================================================================
+#  GitHub CLI
+# =============================================================================
+#  Trois chemins, du plus propre au plus direct : le paquet Debian s'il existe
+#  dans la version installée, sinon le dépôt officiel GitHub, sinon rien —
+#  on ne télécharge pas un binaire au hasard.
+gh_present() { command -v gh >/dev/null 2>&1; }
+
+gh_installer() {
+	if gh_present; then ok "GitHub CLI est déjà là."; return 0; fi
+
+	say "Installation de GitHub CLI…"
+	if sudo apt-get install -y gh >/dev/null 2>&1; then
+		gh_present && { ok "GitHub CLI installé (paquet Debian)."; return 0; }
+	fi
+
+	#  Dépôt officiel GitHub — la méthode que GitHub documente lui-même.
+	say "Le paquet Debian n'est pas disponible : passage au dépôt officiel GitHub…"
+	command -v curl >/dev/null 2>&1 || { warn "curl est requis."; return 1; }
+	local kr="/usr/share/keyrings/githubcli-archive-keyring.gpg"
+	if curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+	     | sudo dd of="$kr" >/dev/null 2>&1; then
+		sudo chmod go+r "$kr" 2>/dev/null || true
+		echo "deb [arch=$(dpkg --print-architecture) signed-by=$kr] https://cli.github.com/packages stable main" \
+			| sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null 2>&1
+		sudo apt-get update -qq >/dev/null 2>&1
+		sudo apt-get install -y gh >/dev/null 2>&1
+		gh_present && { ok "GitHub CLI installé (dépôt officiel GitHub)."; return 0; }
+	fi
+	warn "GitHub CLI n'a pas pu être installé (connexion ?)."
+	return 1
+}
+
+# =============================================================================
+#  Vercel CLI
+# =============================================================================
+vercel_present() { command -v vercel >/dev/null 2>&1; }
+
+vercel_installer() {
+	if vercel_present; then ok "Vercel CLI est déjà là."; return 0; fi
+	command -v npm >/dev/null 2>&1 \
+		|| { warn "npm est requis pour Vercel (paquet « npm »)."; return 1; }
+	say "Installation de Vercel CLI…"
+	npm_global vercel && { ok "Vercel CLI installé."; return 0; }
+	warn "Vercel CLI n'a pas pu être installé (connexion ?)."
+	return 1
+}
+
+# =============================================================================
+#  État
+# =============================================================================
+etat() {
+	ensure_path
+	printf '\n%s%s%s\n\n' "$B$O" "Outils de développement" "$R"
+	local n=0
+	afficher() { # <nom> <commande> <à quoi ça sert>
+		if command -v "$2" >/dev/null 2>&1; then
+			printf '  %s✓%s %-12s %s%s%s\n' "$G" "$R" "$1" "$D" "$3" "$R"
+			n=$((n + 1))
+		else
+			printf '  %s·%s %-12s %spas installé%s\n' "$D" "$R" "$1" "$D" "$R"
+		fi
+	}
+	afficher "Claude Code" claude "assistant de programmation — « claude »"
+	afficher "GitHub CLI"  gh     "dépôts et PR — « gh »"
+	afficher "Vercel CLI"  vercel "déploiement — « vercel »"
+	printf '\n'
+	if [ "$n" -eq 3 ]; then
+		ok "Tout est en place."
+	else
+		say "Pour installer ce qui manque : ${B}${PROG} install${R}"
+	fi
+	printf '\n'
+}
+
+# =============================================================================
+#  Répartiteur
+# =============================================================================
+case "${1:-etat}" in
+	aide|help|--help|-h) cmd_aide ;;
+	etat|status|'')      etat ;;
+	install|installer)
+		shift
+		case "${1:-tout}" in
+			tout|all|'')   claude_installer; gh_installer; vercel_installer; etat ;;
+			claude)        claude_installer ;;
+			gh|github)     gh_installer ;;
+			vercel)        vercel_installer ;;
+			*) die "Outil inconnu : $1   (claude · gh · vercel)" ;;
+		esac ;;
+	update|maj)
+		ensure_path
+		command -v claude >/dev/null 2>&1 && { say "Claude Code…"; lexos-claude update || true; }
+		command -v gh     >/dev/null 2>&1 && { say "GitHub CLI…";  sudo apt-get install -y --only-upgrade gh >/dev/null 2>&1 || true; }
+		command -v vercel >/dev/null 2>&1 && { say "Vercel CLI…";  npm_global vercel || true; }
+		ok "Mise à jour terminée." ;;
+	*) die "Commande inconnue : $1   (${PROG} aide)" ;;
+esac

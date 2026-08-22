@@ -1,0 +1,57 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — les fonds d'écran animés
+# =============================================================================
+#  Les scènes vivent dans /usr/share/lexos/fonds (un fichier JSON chacune).
+#  Ce hook fait deux choses :
+#    · il VÉRIFIE que chaque scène livrée est lisible — une virgule oubliée
+#      dans un JSON ne doit pas se découvrir sur le bureau d'un utilisateur,
+#      mais ici, pendant la construction ;
+#    · il pose le lanceur « Fonds animés » dans le menu Applications.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0460 : fonds d'écran animés"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+FONDS="/usr/share/lexos/fonds"
+
+if [ -d "$FONDS" ]; then
+	N=0
+	for F in "$FONDS"/*.json; do
+		[ -e "$F" ] || continue
+		if python3 -c "import json,sys; json.load(open(sys.argv[1], encoding='utf-8'))" "$F"; then
+			N=$((N + 1))
+		else
+			echo "[lexos]   !! scène illisible : $F"
+			exit 1
+		fi
+	done
+	echo "[lexos]   ${N} scène(s) vérifiée(s)"
+else
+	echo "[lexos]   !! dossier absent : $FONDS"
+fi
+
+mkdir -p /usr/share/applications
+
+cat > /usr/share/applications/lexos-fonds.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Fonds animés
+Name[en]=Animated Wallpapers
+Comment=Choisir le fond d'écran dessiné en direct, ou fabriquer le sien
+Comment[en]=Pick the live-drawn wallpaper, or build your own
+Exec=lexos-fond-anime
+Icon=preferences-desktop-wallpaper
+Terminal=false
+StartupNotify=false
+Categories=Settings;DesktopSettings;
+Keywords=fond;ecran;wallpaper;anime;animation;bureau;code;pluie;etoiles;braises;
+EOF
+
+have update-desktop-database && \
+	update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+
+echo "[lexos] hook 0460 : ok"

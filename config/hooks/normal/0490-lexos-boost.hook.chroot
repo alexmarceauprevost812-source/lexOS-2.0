@@ -1,0 +1,37 @@
+#!/bin/sh
+# Intégration de LexOS Boost dans l'image construite.
+#
+# Ce qui est activé ici :
+#   lexos-boost-demarrage.service  — réapplique au démarrage les réglages
+#                                    qui vivent dans /sys et disparaissent
+#                                    à chaque redémarrage.
+#
+# Ce qui n'est PAS activé ici, volontairement :
+#   lexos-zram.service — c'est « lexos-boost --appliquer » qui l'active,
+#   et seulement après avoir décidé qu'une machine en a besoin. Une image
+#   fraîchement installée ne doit rien optimiser dans le dos de personne.
+
+set -e
+
+echo "I: LexOS Boost — mise en place"
+
+chmod 755 /usr/bin/lexos-boost /usr/bin/lexos-boost-panneau
+chmod 755 /usr/lib/lexos/boost/lexos-zram
+chmod 644 /usr/lib/lexos/boost/*.py
+
+install -d -m 755 /var/lib/lexos/boost
+install -d -m 755 /etc/lexos
+
+if [ -d /run/systemd/system ] || command -v systemctl >/dev/null 2>&1; then
+    systemctl enable lexos-boost-demarrage.service || \
+        echo "W: activation de lexos-boost-demarrage.service impossible dans le chroot"
+fi
+
+# Vérification minimale : le moteur doit au moins savoir s'analyser
+# lui-même. Si cette commande échoue, l'image ne doit pas être publiée.
+if ! /usr/bin/lexos-boost --json >/dev/null 2>&1; then
+    echo "E: LexOS Boost ne démarre pas dans le chroot" >&2
+    exit 1
+fi
+
+echo "I: LexOS Boost — prêt"

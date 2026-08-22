@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+# =============================================================================
+#  coin-actif — pousser la souris dans le coin haut-gauche ouvre la vue
+# =============================================================================
+#  C'est le geste d'Ubuntu, et celui que la démo web reproduit. XFCE ne le
+#  connaît pas : il n'a pas de « coins actifs ». Ce veilleur le fournit.
+#
+#  POURQUOI CTYPES ET PAS UNE BIBLIOTHÈQUE. Lire la position du pointeur
+#  demande une seule fonction de X11, XQueryPointer. La faire venir par
+#  ctypes n'ajoute AUCUN paquet — ctypes est dans la bibliothèque standard
+#  de Python et libX11 est forcément là puisqu'il y a un écran. Un veilleur
+#  qui ne s'installe pas est un veilleur qui ne marche pas ; celui-ci marche
+#  partout où LexOS démarre.
+#
+#  POURQUOI DEUX PRÉCAUTIONS, comme dans la démo. Ce coin porte déjà le
+#  bouton Applications :
+#    · il faut être à moins de 5 px des DEUX bords à la fois — le coin
+#      extrême, pas le bord gauche entier ;
+#    · il faut y rester 140 ms. Viser le logo traverse le coin en quelques
+#      millisecondes et n'ouvre rien.
+#  Et le coin ne se réarme qu'une fois le pointeur ressorti : sans ça,
+#  refermer la vue en laissant le curseur dedans la rouvrirait en boucle.
+#
+#  COÛT. Un sondage toutes les 90 ms sur un vieux portable, c'est un appel
+#  de fonction C et rien d'autre — pas de processus lancé, pas de dessin.
+#  On sort proprement si l'écran disparaît (fin de session).
+# =============================================================================
+import ctypes
+import os
+import subprocess
+import sys
+import time
+
+SONDAGE = 0.09          # secondes entre deux lectures du pointeur
+MARGE = 5               # px : il faut être à moins de ça des DEUX bords
+SEJOUR = 0.14           # s : durée minimale dans le coin
+ETAT = os.path.join(
+    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
+    "lexos", "coin-actif")
+
+
+class Display(ctypes.Structure):
+    pass
+
+
+def x11_ouvre():
+    """Le lien vers le serveur X, ou None si on n'est pas dans une session."""
+    try:
+        lib = ctypes.CDLL("libX11.so.6")
+    except OSError:
+        return None, None
+    lib.XOpenDisplay.restype = ctypes.POINTER(Display)
+    lib.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    lib.XDefaultRootWindow.restype = ctypes.c_ulong
+    lib.XDefaultRootWindow.argtypes = [ctypes.POINTER(Display)]
+    lib.XQueryPointer.restype = ctypes.c_int
+    lib.XQueryPointer.argtypes = [
+        ctypes.POINTER(Display), ctypes.c_ulong,
+        ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_ulong),
+        ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int),
+        ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int),
+        ctypes.POINTER(ctypes.c_uint)]
+    ecran = os.environ.get("DISPLAY", ":0").encode()
+    dpy = lib.XOpenDisplay(ecran)
+    if not dpy:
+        return None, None
+    return lib, dpy
+
+
+def pointeur(lib, dpy, racine):
+    """(x, y) du pointeur, ou None si le serveur ne répond plus."""
+    rr = ctypes.c_ulong(); cr = ctypes.c_ulong()
+    rx = ctypes.c_int(); ry = ctypes.c_int()
+    wx = ctypes.c_int(); wy = ctypes.c_int()
+    m = ctypes.c_uint()
+    if not lib.XQueryPointer(dpy, racine,
+                             ctypes.byref(rr), ctypes.byref(cr),
+                             ctypes.byref(rx), ctypes.byref(ry),
+                             ctypes.byref(wx), ctypes.byref(wy),
+                             ctypes.byref(m)):
+        #  Le pointeur est sur un AUTRE écran (multi-écran X). Ce n'est pas
+        #  une erreur : ce n'est simplement pas notre coin.
+        return None
+    return rx.value, ry.value
+
+
+def encore_demande():
+    """Le réglage a pu être éteint depuis les Paramètres — on obéit."""
+    try:
+        with open(ETAT, "r", encoding="utf-8") as f:
+            return f.read().strip() == "on"
+    except OSError:
+        return False
+
+
+def main():
+    lib, dpy = x11_ouvre()
+    if lib is None or dpy is None:
+        print("coin-actif : pas de session graphique — rien à surveiller",
+              file=sys.stderr)
+        return 0
+    racine = lib.XDefaultRootWindow(dpy)
+
+    arme = True          # faux tant qu'on n'est pas ressorti du coin
+    entre = None         # instant d'entrée dans le coin
+    verif = 0.0          # dernière relecture du fichier d'état
+
+    while True:
+        time.sleep(SONDAGE)
+        maintenant = time.monotonic()
+
+        #  Relire l'état une fois par seconde, pas à chaque tour : éteindre
+        #  le coin dans les Paramètres doit arrêter le veilleur sans qu'on
+        #  ait à se déconnecter.
+        if maintenant - verif > 1.0:
+            verif = maintenant
+            if not encore_demande():
+                return 0
+
+        pos = pointeur(lib, dpy, racine)
+        if pos is None:
+            entre = None
+            arme = True
+            continue
+        x, y = pos
+        dedans = x < MARGE and y < MARGE
+
+        if not dedans:
+            entre = None
+            arme = True
+            continue
+        if not arme:
+            continue
+        if entre is None:
+            entre = maintenant
+            continue
+        if maintenant - entre < SEJOUR:
+            continue
+
+        entre = None
+        arme = False       # réarmé seulement à la sortie du coin
+        try:
+            subprocess.Popen(["lexos-apercu", "ouvrir"],
+                             stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+        except OSError as err:
+            print("coin-actif : %s" % err, file=sys.stderr)
+            return 1
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(0)

@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-temp — températures et ventilateurs, en direct
+# =============================================================================
+#  Sur une machine de jeu, la chaleur décide de tout. Un processeur qui touche
+#  sa limite ne plante pas : il RALENTIT, sans rien dire. On accuse alors le
+#  jeu ou la carte graphique, alors qu'un ventilateur encrassé suffisait à
+#  tout expliquer. Cette commande met les chiffres sous les yeux.
+#
+#  Le moteur est /usr/lib/lexos/temperature.py — il ne fait que LIRE les
+#  capteurs du noyau et interroger nvidia-smi. Aucun réglage n'est modifié,
+#  et les droits administrateur ne sont pas nécessaires.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+die() { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+MOTEUR="/usr/lib/lexos/temperature.py"
+[[ -r "$MOTEUR" ]] || MOTEUR="$(dirname "$0")/../lib/lexos/temperature.py"
+[[ -r "$MOTEUR" ]] || die "Moteur introuvable : /usr/lib/lexos/temperature.py"
+
+INTERVALLE="${LEXOS_TEMP_INTERVALLE:-2}"
+
+cmd_aide() {
+	cat <<AIDE
+
+${B}${O}${PROG}${R} — températures et ventilateurs, en direct
+
+${B}USAGE${R}
+  ${A}${PROG}${R}                 Affichage en direct ${D}(Ctrl+C pour sortir)${R}
+  ${A}${PROG} maintenant${R}      Un seul relevé, puis on rend la main
+  ${A}${PROG} json${R}            Le relevé en JSON ${D}(pour les scripts)${R}
+  ${A}${PROG} surveille${R}       Comme le direct, mais garde la trace du maximum
+
+${B}CE QUI EST AFFICHÉ${R}
+  ${D}processeur${R}        le cœur le PLUS CHAUD — c'est lui qui décide du bridage
+  ${D}carte graphique${R}   température, charge et ventilateur de la RTX
+  ${D}mémoire vidéo${R}     utilisée / totale — au-delà de 90 %, le jeu saccade
+  ${D}disque${R}            les NVMe chauffent, et ralentissent en chauffant
+  ${D}ventilateurs${R}       en tours par minute ${D}(0 = à l'arrêt, c'est normal au repos)${R}
+
+${B}LIRE LES COULEURS${R}
+  ${G}vert${R}    tout va bien
+  ${Y}jaune${R}   ça chauffe : la machine commence à se brider, tu perds des images
+  ${E}rouge${R}   trop chaud : vérifie les ventilateurs et la poussière
+
+${B}À SAVOIR${R}
+  ${D}Lance « ${PROG} surveille » AVANT une partie, laisse-le dans un coin, et
+  regarde les maximums en sortant : c'est là qu'on voit la vraie cause d'un
+  jeu qui saccade. Rien n'est modifié — cette commande ne fait que lire.${R}
+
+AIDE
+}
+
+# Affiche un relevé, mis en couleur selon le niveau.
+afficher() {
+	local suivi="${1:-0}"
+	#  Le programme Python ci-dessous est passé entre apostrophes SIMPLES au
+	#  shell. Une apostrophe droite dans le texte français fermerait donc la
+	#  chaîne au milieu du programme ; les apostrophes typographiques (’) sont
+	#  ici une nécessité, pas une coquetterie. SC1112 les signale par défaut.
+	# shellcheck disable=SC1112
+	python3 "$MOTEUR" --json 2>/dev/null | SUIVI="$suivi" MAXFILE="${MAXFILE:-}" python3 -c '
+import json, os, sys
+
+G, Y, E, D, B, R = "\033[32m", "\033[33m", "\033[31m", "\033[2m", "\033[1m", "\033[0m"
+if not sys.stdout.isatty() or os.environ.get("NO_COLOR"):
+    G = Y = E = D = B = R = ""
+COULEUR = {"ok": G, "tiede": Y, "chaud": E, "arret": D}
+
+try:
+    d = json.load(sys.stdin)
+except (json.JSONDecodeError, ValueError):
+    print("  Le moteur de mesure n’a pas répondu.")
+    sys.exit(1)
+
+suivi = os.environ.get("SUIVI") == "1"
+maxfile = os.environ.get("MAXFILE") or ""
+maxima = {}
+if suivi and maxfile and os.path.exists(maxfile):
+    try:
+        with open(maxfile, encoding="utf-8") as f:
+            maxima = json.load(f)
+    except (OSError, ValueError):
+        maxima = {}
+
+def note(cle, valeur):
+    """Retient le maximum vu depuis le lancement, et le rend à afficher."""
+    if not suivi or valeur is None:
+        return ""
+    ancien = maxima.get(cle)
+    if ancien is None or valeur > ancien:
+        maxima[cle] = valeur
+    return "   %smax %.0f%s" % (D, maxima[cle], R)
+
+lignes = 0
+
+# --- Températures : une seule ligne par famille, la plus chaude ------------
+vues = set()
+for t in d["temperatures"]:
+    fam = t["famille"]
+    if fam in vues:
+        continue
+    vues.add(fam)
+    c = COULEUR.get(t["niveau"], "")
+    print("  %-17s %s%5.1f °C%s%s" % (fam, c, t["valeur"], R, note(fam, t["valeur"])))
+    lignes += 1
+
+# --- Carte graphique -------------------------------------------------------
+for g in d["gpu"]:
+    if g.get("temperature") is not None:
+        c = COULEUR.get(g["niveau"], "")
+        print("  %-17s %s%5.1f °C%s%s   %s%s%s"
+              % ("carte graphique", c, g["temperature"], R,
+                 note("gpu", g["temperature"]), D, g["nom"], R))
+        lignes += 1
+    if g.get("charge") is not None:
+        print("  %-17s %5.0f %%" % ("charge GPU", g["charge"]))
+        lignes += 1
+    pct = g.get("vram_pourcent")
+    if pct is not None:
+        #  Au-delà de 90 %, une carte de 8 Go se met à saccader sans que le
+        #  nombre d’images par seconde ne s’effondre : c’est LE symptôme
+        #  qu’on met des heures à comprendre sans cette ligne.
+        c = E if pct >= 90 else (Y if pct >= 75 else G)
+        alerte = "  %s← baisse les textures d’un cran%s" % (E, R) if pct >= 90 else ""
+        print("  %-17s %s%.0f / %.0f Mo  (%d %%)%s%s"
+              % ("mémoire vidéo", c, g["vram_utilisee"], g["vram_totale"], pct, R, alerte))
+        lignes += 1
+    if g.get("ventilateur") is not None:
+        print("  %-17s %5.0f %%" % ("ventilateur GPU", g["ventilateur"]))
+        lignes += 1
+    if g.get("watts") is not None:
+        print("  %-17s %5.0f W" % ("consommation", g["watts"]))
+        lignes += 1
+
+# --- Ventilateurs de la carte mère ----------------------------------------
+for v in d["ventilateurs"]:
+    if v["niveau"] == "arret":
+        print("  %-17s %s    0 tr/min  (à l’arrêt)%s" % (v["nom"][:17], D, R))
+    else:
+        print("  %-17s %5d tr/min%s" % (v["nom"][:17], v["valeur"],
+                                        note("v:" + v["nom"], v["valeur"])))
+    lignes += 1
+
+if lignes == 0:
+    print("  Aucun capteur lisible sur cette machine.")
+    print()
+    print("  %sCe n’est pas une panne : certaines cartes mères n’exposent rien" % D)
+    print("  au noyau. La carte graphique, elle, reste visible avec nvidia-smi.%s" % R)
+
+for e in d.get("erreurs", []):
+    print("  %s(source ignorée — %s)%s" % (D, e, R))
+
+if suivi and maxfile:
+    try:
+        with open(maxfile, "w", encoding="utf-8") as f:
+            json.dump(maxima, f)
+    except OSError:
+        pass
+'
+}
+
+boucle() {
+	local suivi="$1"
+	#  Le fichier des maximums vit le temps de la session : on le supprime en
+	#  sortant, pour que la prochaine partie reparte de zéro.
+	MAXFILE=""
+	if [[ "$suivi" == "1" ]]; then
+		MAXFILE="$(mktemp -t lexos-temp-max.XXXXXX)"
+		export MAXFILE
+	fi
+	#  Curseur caché pendant l\'affichage, remis à la sortie QUOI QU\'IL ARRIVE
+	#  (Ctrl+C compris) : un terminal laissé sans curseur passe pour cassé.
+	nettoyer() {
+		#  On désarme d'abord : sans ça, Ctrl+C déclenche INT puis EXIT, et le
+		#  nettoyage passe deux fois.
+		trap - INT TERM EXIT
+		printf '\033[?25h'
+		[[ -n "$MAXFILE" ]] && rm -f "$MAXFILE"
+		printf '\n'
+		exit 0
+	}
+	trap nettoyer INT TERM EXIT
+	printf '\033[?25l'
+	while :; do
+		printf '\033[H\033[2J'
+		printf '\n%s%s%s   %s%s%s\n\n' "$B$O" "Températures et ventilateurs" "$R" \
+			"$D" "$(date '+%H:%M:%S')" "$R"
+		afficher "$suivi"
+		printf '\n  %sCtrl+C pour sortir' "$D"
+		[[ "$suivi" == "1" ]] && printf ' · les maximums sont gardés'
+		printf '%s\n' "$R"
+		sleep "$INTERVALLE"
+	done
+}
+
+case "${1:-direct}" in
+	aide|help|--help|-h) cmd_aide ;;
+	json|--json)         exec python3 "$MOTEUR" --json ;;
+	maintenant|une-fois|--une-fois)
+		printf '\n%s%s%s\n\n' "$B$O" "Températures et ventilateurs" "$R"
+		afficher 0
+		printf '\n' ;;
+	surveille|surveiller|max) boucle 1 ;;
+	direct|'')               boucle 0 ;;
+	*) die "Commande inconnue : $1   (${PROG} aide)" ;;
+esac

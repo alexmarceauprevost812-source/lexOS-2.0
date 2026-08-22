@@ -1,0 +1,121 @@
+/* =============================================================================
+ *  Volet LexOS — MÊME DESSIN QUE LA DÉMO WEB
+ * =============================================================================
+ *  La règle posée par Alex : « tout ce qu'on fait sur Vercel on le met aussi
+ *  dans l'ISO ». Les valeurs ci-dessous sont donc celles de web-demo/index.html
+ *  — mêmes couleurs, même rayon, même courbe d'animation, même durée. Quand
+ *  l'une des deux bouge, l'autre doit bouger : c'est le prix de la parité, et
+ *  c'est moins cher que de comparer deux captures d'écran chaque semaine.
+ * ===========================================================================*/
+:root{
+  --bg:#161311; --bg-hi:#2A241F;
+  --fg:#EDE6DF; --fg-dim:#A99F94;
+  --bd:#3A322B; --ac:#E8590C; --ac-hi:#FF7A33;
+  --ok:#2DBF6B; --warn:#F5A623; --off:#D8352E;
+  /*  Les couleurs du ciel par défaut (« nuageux ») — remplacées par le
+      script selon le temps qu'il fait, mais définies ici pour qu'un rendu
+      avant leur pose ne soit jamais sans fond ni bord. Même valeur que la
+      démo : parité oblige. */
+  --mt-teinte:rgba(140,148,160,.14); --mt-bord:rgba(140,148,160,.30);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+/*  Le fond de la PAGE reste transparent : c'est la fenêtre Qt qui est
+    transparente (WA_TranslucentBackground), et un fond opaque ici
+    remplirait les coins arrondis d'un rectangle. */
+html,body{height:100%;background:transparent;
+  font:14px/1.45 "Noto Sans","DejaVu Sans",sans-serif;color:var(--fg);
+  overflow:hidden}
+
+/* --- Le volet — valeurs identiques à la démo ------------------------------ */
+.shade{position:absolute;inset:0;
+  background:rgba(20,18,22,.96);
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:16px;
+  box-shadow:0 18px 50px rgba(0,0,0,.55);
+  overflow:hidden;
+  transform-origin:top center;
+  max-height:0;opacity:0;
+  transition:max-height .34s cubic-bezier(.16,1,.3,1),
+             opacity   .22s ease,
+             transform .34s cubic-bezier(.16,1,.3,1);
+  transform:translateY(-10px) scaleY(.98)}
+.shade.on{max-height:100%;opacity:1;transform:translateY(0) scaleY(1)}
+.shade-in{max-height:100%;height:100%;overflow-y:auto;overscroll-behavior:contain}
+@media (prefers-reduced-motion: reduce){ .shade{transition:opacity .01s} }
+
+/* --- Notifications -------------------------------------------------------- */
+.nf-tete{display:flex;align-items:center;gap:9px;padding:14px 16px 10px}
+.nf-titre{font-weight:600}
+.nf-cpt{background:var(--ac);color:#fff;border-radius:9px;padding:1px 7px;
+  min-width:18px;text-align:center;font-size:12px;font-weight:700}
+.nf-liste{padding:0 12px 8px}
+.nf-item{display:flex;gap:10px;padding:9px 10px;background:var(--bg-hi);
+  border-radius:10px;margin-bottom:6px}
+.nf-item .t{font-weight:600;font-size:13px}
+.nf-item .c{color:var(--fg-dim);font-size:12.5px;margin-top:2px;
+  overflow-wrap:anywhere}
+.nf-item .h{margin-left:auto;color:var(--fg-dim);font-size:11.5px;flex:none}
+.nf-vide{color:var(--fg-dim);font-size:13px;text-align:center;padding:16px 12px}
+.nf-sep{display:flex;align-items:center;gap:9px;padding:8px 16px;
+  border-top:1px solid var(--bd);border-bottom:1px solid var(--bd);
+  background:rgba(255,255,255,.02);font-weight:600;font-size:13px}
+
+/* --- Agenda --------------------------------------------------------------- */
+.ag-tete{display:flex;align-items:center;gap:8px;padding:12px 16px 8px}
+.ag-titre{font-weight:700;font-size:15px}
+.ag-grille{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:0 12px 10px}
+.ag-jn{text-align:center;font-size:10.5px;color:var(--fg-dim);
+  text-transform:uppercase;letter-spacing:.05em;padding-bottom:4px}
+.ag-c{position:relative;min-height:38px;border-radius:9px;background:none;
+  border:1px solid transparent;color:var(--fg);font:inherit;font-size:13px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ag-c:hover{background:var(--bg-hi)}
+.ag-c.hors{color:var(--fg-dim);opacity:.4}
+.ag-c.auj{background:var(--ac);color:#fff;font-weight:700}
+.ag-c.sel{border-color:var(--ac)}
+/*  La pastille qui dit « il y a quelque chose ce jour-là » : sans elle, il
+    faudrait cliquer chaque case pour savoir laquelle porte un rendez-vous. */
+.ag-pt{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:50%;background:var(--ac)}
+.ag-c.auj .ag-pt{background:#fff}
+.ag-jour{padding:4px 16px 16px}
+.ag-evt{display:flex;align-items:center;gap:10px;padding:8px 10px;
+  background:var(--bg-hi);border-radius:9px;margin-bottom:6px}
+.ag-evt .h{font:700 12.5px/1 ui-monospace,monospace;color:var(--ac-hi);flex:none}
+.ag-evt .t{font-size:13px;min-width:0;overflow-wrap:anywhere}
+.ag-ajout{display:flex;gap:6px;margin-top:8px}
+.ag-ajout input{background:var(--bg-hi);border:1px solid var(--bd);
+  border-radius:8px;padding:7px 9px;color:var(--fg);font:inherit;min-width:0}
+.ag-ajout input.h{width:74px;flex:none}
+.ag-ajout input.t{flex:1}
+
+/* --- Météo — mêmes valeurs que la démo ------------------------------------ */
+.mt-grand{display:flex;align-items:center;gap:18px;padding:20px 18px;
+  margin-bottom:14px;
+  background:linear-gradient(180deg,var(--mt-teinte),transparent);
+  border-bottom:1px solid var(--mt-bord)}
+.mt-grand-i{font-size:44px;line-height:1;flex:none;
+  width:78px;height:78px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--mt-teinte);border:1px solid var(--mt-bord)}
+.mt-grand-t{font:700 30px/1.1 ui-monospace,monospace}
+.mt-grand-t span{font-size:17px;opacity:.65;margin-left:2px}
+.mt-grand-d{color:var(--fg-dim);font-size:13.5px;margin-top:4px}
+.mt-grand-v{color:var(--fg-dim);font-size:11.5px;margin-top:5px}
+.mt-jours{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:0 16px 14px}
+.mt-j{background:var(--bg-hi);border:1px solid var(--bd);border-radius:10px;
+  padding:11px 8px;text-align:center}
+.mt-j-n{font-size:11.5px;color:var(--fg-dim);margin-bottom:6px}
+.mt-j-i{font-size:28px;line-height:1;margin-bottom:6px}
+.mt-j-t{font:700 17px/1 ui-monospace,monospace}
+.mt-j-d{font-size:11px;color:var(--fg-dim);margin-top:5px;line-height:1.35}
+
+/* --- Boutons -------------------------------------------------------------- */
+.btn{background:var(--ac);border:1px solid var(--ac);border-radius:9px;
+  padding:6px 11px;color:#fff;font:inherit;font-weight:600;font-size:12.5px;
+  cursor:pointer}
+.btn:hover{background:var(--ac-hi);border-color:var(--ac-hi)}
+.btn.ghost{background:none;border-color:var(--bd);color:var(--fg)}
+.btn.ghost:hover{background:var(--bg-hi);border-color:var(--ac)}
+.btn.mini{padding:4px 9px;font-size:12px}
+.notice{color:var(--fg-dim);font-size:12px;line-height:1.5}

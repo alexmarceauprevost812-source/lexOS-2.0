@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "mis_a_jour": "2026-08-21",
+  "_lisez_moi": [
+    "Ceci n'est PAS un modèle : c'est une liste de modèles téléchargeables.",
+    "Aucun poids ne voyage dans l'ISO — 4 à 5 Go pièce, des licences souvent",
+    "non libres, et un modèle de 2026 sera vieux en 2027. LexOS livre le",
+    "moteur, jamais les poids.",
+    "",
+    "Cette copie est le filet HORS LIGNE : le panneau lit d'abord le catalogue",
+    "en ligne (rafraîchi au plus une fois par jour), et retombe ici quand il",
+    "n'y a pas de réseau — pour qu'une fenêtre vide n'arrive jamais.",
+    "",
+    "Le champ vram_go dit ce que le modèle DEMANDE. Le verdict « est-ce que ça",
+    "rentre ? » n'est PAS écrit ici : il se calcule sur la machine, avec la",
+    "mémoire de SA carte. Un verdict figé serait faux pour tout le monde sauf",
+    "celui qui l'a écrit.",
+    "",
+    "« Poids ouverts » n'est pas « open source ». Ouvert = on peut télécharger",
+    "le fichier. Libre = on peut s'en servir pour n'importe quoi, sans",
+    "permission. Le champ libre dit lequel des deux."
+  ],
+  "modeles": [
+    {
+      "id": "qwen2.5-7b",
+      "nom": "Qwen 2.5 7B Instruct",
+      "licence": "Apache-2.0",
+      "libre": true,
+      "quant": "Q4_K_M",
+      "taille_go": 4.7,
+      "vram_go": 6.5,
+      "usages": ["general", "francais", "code"],
+      "ollama": "qwen2.5:7b",
+      "gguf": "Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M",
+      "note": "Bon équilibre sur une carte de 8 Go. Répond correctement en français."
+    },
+    {
+      "id": "qwen2.5-3b",
+      "nom": "Qwen 2.5 3B Instruct",
+      "licence": "Apache-2.0",
+      "libre": true,
+      "quant": "Q4_K_M",
+      "taille_go": 2.0,
+      "vram_go": 3.0,
+      "usages": ["general", "francais", "leger"],
+      "ollama": "qwen2.5:3b",
+      "gguf": "Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M",
+      "note": "Le choix des machines modestes et des cartes intégrées. C'est celui que lexos ia prend par défaut."
+    },
+    {
+      "id": "mistral-7b",
+      "nom": "Mistral 7B Instruct",
+      "licence": "Apache-2.0",
+      "libre": true,
+      "quant": "Q4_K_M",
+      "taille_go": 4.1,
+      "vram_go": 6.0,
+      "usages": ["general", "francais"],
+      "ollama": "mistral:7b",
+      "gguf": "TheBloke/Mistral-7B-Instruct-v0.2-GGUF:Q4_K_M",
+      "note": "Français soigné — c'est une équipe française qui l'a fait."
+    },
+    {
+      "id": "qwen2.5-coder-7b",
+      "nom": "Qwen 2.5 Coder 7B",
+      "licence": "Apache-2.0",
+      "libre": true,
+      "quant": "Q4_K_M",
+      "taille_go": 4.7,
+      "vram_go": 6.5,
+      "usages": ["code"],
+      "ollama": "qwen2.5-coder:7b",
+      "gguf": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF:Q4_K_M",
+      "note": "Pour la programmation. Rien à voir avec Claude Code, qui lui travaille dans le nuage."
+    },
+    {
+      "id": "gemma2-9b",
+      "nom": "Gemma 2 9B",
+      "licence": "Gemma Terms of Use",
+      "libre": false,
+      "quant": "Q4_K_M",
+      "taille_go": 5.8,
+      "vram_go": 7.5,
+      "usages": ["general"],
+      "ollama": "gemma2:9b",
+      "gguf": "bartowski/gemma-2-9b-it-GGUF:Q4_K_M",
+      "note": "Bon modèle, mais licence à restrictions d'usage : les poids sont ouverts, ce n'est pas du libre."
+    },
+    {
+      "id": "llama3.1-8b",
+      "nom": "Llama 3.1 8B Instruct",
+      "licence": "Llama Community License",
+      "libre": false,
+      "quant": "Q4_K_M",
+      "taille_go": 4.9,
+      "vram_go": 6.8,
+      "usages": ["general"],
+      "ollama": "llama3.1:8b",
+      "gguf": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Q4_K_M",
+      "note": "Licence à restrictions d'usage et seuil d'utilisateurs — poids ouverts, pas libre."
+    }
+  ]
+}

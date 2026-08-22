@@ -27,7 +27,10 @@ while [[ $# -gt 0 ]]; do
 			shift 2
 			;;
 		--list)
-			printf 'orange bleu rouge vert gris violet neon\n'
+			# Doit rester d'accord avec la palette plus bas : orange-rouge y
+			# figurait sans jamais apparaître ici, et cette liste sert aussi
+			# de source à la complétion Tab.
+			printf 'orange orange-rouge bleu rouge vert gris violet neon\n'
 			exit 0
 			;;
 		-*)
@@ -55,7 +58,19 @@ esac
 
 # --- Palette des accents -----------------------------------------------------
 case "${ACCENT_NAME,,}" in
-	orange|ambre)          ACCENT="#E8590C"; ACCENT_HI="#FF7A33"; ACCENT_LO="#A84007" ;;
+	# « classique » : le nom que les paramètres affichent pour cette couleur
+	# (app.js — ["orange", "Classique", …]). Sans cet alias, un utilisateur
+	# qui lisait « Classique » à l'écran et tapait « lexos accent classique »
+	# se faisait répondre « Accent inconnu » : l'interface et le terminal ne
+	# parlaient pas la même langue.
+	orange|ambre|classique) ACCENT="#E8590C"; ACCENT_HI="#FF7A33"; ACCENT_LO="#A84007" ;;
+	# « Orange et rouge » — l'accent chaud, celui qui va du terracotta au
+	# rouge brique. C'est le second des deux styles proposés en tête des
+	# paramètres ; l'orange plus vif ci-dessus reste le style « classique ».
+	# Le ton principal est l'argile #D97757, ses appuis sont l'orange franc
+	# et le rouge brique déjà retenu plus bas pour son contraste.
+	orange-rouge|orangerouge|claude|chaud)
+	                       ACCENT="#D97757"; ACCENT_HI="#E8834F"; ACCENT_LO="#C4211E" ;;
 	# Bleu 5 de la palette Adwaita — le bleu profond des bureaux Linux.
 	bleu|blue)             ACCENT="#1A5FB4"; ACCENT_HI="#3584E4"; ACCENT_LO="#10375F" ;;
 	# Rouge brique, celui de la référence fournie : plus profond et moins
@@ -68,7 +83,7 @@ case "${ACCENT_NAME,,}" in
 	neon|vert-neon|vertneon) ACCENT="#39FF14"; ACCENT_HI="#7BFF5C"; ACCENT_LO="#1FA30A" ;;
 	*)
 		printf 'Accent inconnu : %s\n' "$ACCENT_NAME" >&2
-		printf 'Disponibles : orange bleu rouge vert gris violet neon\n' >&2
+		printf 'Disponibles : orange (= classique) orange-rouge bleu rouge vert gris violet neon\n' >&2
 		exit 1
 		;;
 esac
@@ -92,8 +107,12 @@ BTN_FG="$(awk -v r="$r" -v g="$g" -v b="$b" '
 	}')"
 [[ -n "$BTN_FG" ]] || BTN_FG="#FFFFFF"   # filet si awk venait à manquer
 TERM_BG="#000000"       # le terminal reste toujours noir, même en thème de jour
-TERM_FG="#39FF14"       # vert du terminal
-TERM_FG_HI="#7BFF5C"
+#  Vert FONCÉ, et non le vert néon d'avant : c'est la couleur de tout ce que
+#  la machine répond. Le néon (#39FF14) reste ce qu'il a toujours été —
+#  l'accent « neon », que l'on choisit avec « lexos accent neon ». #00AF5F est
+#  exactement le 38;5;35 de l'invite PS1 : les deux ne peuvent plus diverger.
+TERM_FG="#00AF5F"       # vert foncé — la sortie du terminal
+TERM_FG_HI="#23C97A"    # le même en gras
 
 if [[ "$MODE" == "clair" ]]; then
 	# Thème de jour : blanc cassé/crème, jamais blanc pur — texte noir.
@@ -402,17 +421,64 @@ if command -v rsvg-convert >/dev/null 2>&1; then
 		[[ -r "$ICON_SRC" ]] || continue
 		TMP_SVG="$(mktemp -t lexos-icon-XXXXXX.svg)"
 		sed "s/#E8590C/${ACCENT}/gI" "$ICON_SRC" > "$TMP_SVG"
-		for S in 24 32 48 64 128 256; do
+		#  16 et 22 étaient absents : le thème SYSTÈME, lui, les fournit.
+		#  Résultat, aux tailles de la barre système l'icône retombait sur la
+		#  version orange d'origine pendant qu'elle était bleue (ou verte…)
+		#  partout ailleurs. On rend exactement les mêmes tailles que le
+		#  thème système, sinon le remplacement est incomplet par construction.
+		for S in 16 22 24 32 48 64 128 256; do
 			mkdir -p "$ICON_DIR/${S}x${S}/apps"
 			rsvg-convert -w "$S" -h "$S" \
 				-o "$ICON_DIR/${S}x${S}/apps/lexos-${ICON_NAME}.png" "$TMP_SVG" 2>/dev/null || true
 		done
 		mkdir -p "$ICON_DIR/scalable/apps"
-		cp "$TMP_SVG" "$ICON_DIR/scalable/apps/lexos-${ICON_NAME}.svg"
+		rm -f "$ICON_DIR/scalable/apps/lexos-${ICON_NAME}.svg"
 		rm -f "$TMP_SVG"
 	done
 	command -v gtk-update-icon-cache >/dev/null 2>&1 && \
 		gtk-update-icon-cache -f "$ICON_DIR" >/dev/null 2>&1 || true
+fi
+
+# =============================================================================
+#  4b. Les DOSSIERS suivent l'accent, eux aussi
+# =============================================================================
+#  DANS LA DÉMO, folderColor() rend l'accent courant : changer d'accent
+#  repeint les six poches du dossier personnel. Sans ce bloc, l'ISO
+#  garderait des dossiers orange sous un thème vert — et c'est la première
+#  chose qu'on voit en ouvrant Fichiers.
+#
+#  On recopie le thème système dans celui de l'utilisateur en substituant
+#  les DEUX jetons : #E8590C pour la poche, #A84007 pour le dos (le même
+#  orange assombri, comme shade(c, 0.62) dans la démo). Le thème de
+#  l'utilisateur passe avant celui du système dans XDG_DATA_DIRS, donc il
+#  suffit d'écrire — rien à défaire.
+#
+#  Ce sont des SVG recopiés tels quels, pas des PNG rendus : un dossier se
+#  voit à toutes les tailles, du panneau latéral à la grande vignette, et
+#  figer huit tailles rendrait floue la seule qui manque.
+#  La racine est surchargeable pour que ce bloc soit ÉPROUVABLE : sur une
+#  machine de développement, /usr/share/icons/LexOS n'existe pas — il vit
+#  dans config/includes.chroot. Sans cette variable, le seul moyen de
+#  vérifier que changer d'accent repeint bien les dossiers serait de
+#  construire une ISO et de la démarrer. En service normal elle n'est pas
+#  définie et on lit le vrai chemin.
+DOSSIERS_RACINE="${LEXOS_ICONES:-/usr/share/icons/LexOS}"
+DOSSIERS_SRC="$DOSSIERS_RACINE/places/scalable"
+if [[ -d "$DOSSIERS_SRC" ]]; then
+	DOSSIERS_DST="$TARGET/.local/share/icons/LexOS"
+	mkdir -p "$DOSSIERS_DST/places/scalable"
+	#  L'index doit suivre : un dossier d'icônes sans index.theme n'est pas
+	#  un thème, et GTK l'ignore en entier — sans rien dire.
+	if [[ -r "$DOSSIERS_RACINE/index.theme" ]]; then
+		cp -f "$DOSSIERS_RACINE/index.theme" "$DOSSIERS_DST/index.theme"
+	fi
+	for F in "$DOSSIERS_SRC"/*.svg; do
+		[[ -r "$F" ]] || continue
+		sed -e "s/#E8590C/${ACCENT}/gI" -e "s/#A84007/${ACCENT_LO}/gI" \
+			"$F" > "$DOSSIERS_DST/places/scalable/$(basename "$F")"
+	done
+	command -v gtk-update-icon-cache >/dev/null 2>&1 && \
+		gtk-update-icon-cache -f "$DOSSIERS_DST" >/dev/null 2>&1 || true
 fi
 
 # =============================================================================

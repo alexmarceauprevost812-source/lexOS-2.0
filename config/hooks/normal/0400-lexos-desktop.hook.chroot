@@ -50,6 +50,29 @@ hide-user-image=false
 round-user-image=true
 EOF
 
+# --- Compte de session live : créé DÈS LA CONSTRUCTION -----------------------
+#  Correctif (construction 12) : on comptait sur live-config pour créer le
+#  compte « ${LEXOS_LIVE_USER} » à l'amorçage à partir du paramètre noyau
+#  « username=… ». Sur Debian trixie ce paramètre nu n'était pas honoré de
+#  façon fiable : le compte n'existait pas, l'autologin du tty (login -f)
+#  échouait en boucle (« Authentication failure ») et LightDM ne proposait
+#  que la session invité — impossible d'atteindre le bureau ni Calamares.
+#  On crée donc le compte ICI, dans le chroot, pour qu'il existe TOUJOURS :
+#  autologin du tty, écran de connexion LightDM et connexion en console
+#  fonctionnent alors tous les trois.
+if ! id "${LEXOS_LIVE_USER}" >/dev/null 2>&1; then
+	useradd -m -s /bin/bash -c "${LEXOS_NAME} Live" "${LEXOS_LIVE_USER}"
+fi
+#  Groupes utiles au bureau (ignore ceux qui n'existent pas encore).
+for g in sudo audio video plugdev netdev cdrom dip users bluetooth lpadmin scanner; do
+	getent group "$g" >/dev/null 2>&1 && adduser "${LEXOS_LIVE_USER}" "$g" >/dev/null 2>&1 || true
+done
+#  Mot de passe de secours = le nom du compte (ex. « lex » / « lex ») : sert
+#  à la connexion manuelle si l'autologin est un jour désactivé. Le compte
+#  n'est PAS verrouillé, sinon « login -f » échouerait comme avant.
+echo "${LEXOS_LIVE_USER}:${LEXOS_LIVE_USER}" | chpasswd
+passwd -u "${LEXOS_LIVE_USER}" >/dev/null 2>&1 || true
+
 # --- Session live : autologin ------------------------------------------------
 # live-config gère déjà l'autologin ; on renforce pour LightDM.
 cat > /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf <<EOF
@@ -57,6 +80,17 @@ cat > /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf <<EOF
 autologin-user=${LEXOS_LIVE_USER}
 autologin-user-timeout=0
 autologin-session=xfce
+EOF
+
+# --- Autologin aussi en console (tty1) : le compte existe désormais ----------
+#  Renfort du même correctif : on pose l'autologin getty nous-mêmes, sans
+#  dépendre de live-config, pour que la première console ouvre une session
+#  « ${LEXOS_LIVE_USER} » même si live-config ne l'a pas configuré.
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/lexos-autologin.conf <<EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin ${LEXOS_LIVE_USER} --noclear %I \$TERM
 EOF
 
 # (le thème GTK est produit par le hook 0600 — LexOS Noir)
@@ -73,12 +107,29 @@ ${LEXOS_LIVE_USER} ALL=(ALL) NOPASSWD: ALL
 EOF
 chmod 0440 /etc/sudoers.d/lexos-live
 
-chmod 0755 /usr/lib/lexos/live-sudo-guard 2>/dev/null || true
+#  Le garde-fou efface, sur un système INSTALLÉ, les commodités qui n'ont de
+#  sens que sur la clé USB : sudo sans mot de passe, ET l'ouverture de session
+#  automatique sur le compte « lex ». Cette dernière était oubliée — elle
+#  ouvrait le compte de la démo sur la machine installée, si bien qu'on
+#  n'atteignait jamais l'écran où choisir SON compte, et qu'on croyait
+#  l'installateur fautif de ne pas l'avoir créé.
+chmod 0755 /usr/lib/lexos/demo-guard 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
-	systemctl enable lexos-live-sudo-guard.service >/dev/null 2>&1 \
-		&& echo "[lexos]   garde-fou sudo activé" \
-		|| echo "[lexos]   !! garde-fou sudo non activé"
+	systemctl enable lexos-demo-guard.service >/dev/null 2>&1 \
+		&& echo "[lexos]   garde-fou démo activé (sudo + ouverture automatique)" \
+		|| echo "[lexos]   !! garde-fou démo non activé"
 fi
+
+#  Contrôle de construction : le garde-fou doit connaître les trois fichiers
+#  qu'il est chargé d'effacer. Si l'un des chemins change ailleurs sans être
+#  reporté ici, on le dit maintenant plutôt que de le découvrir sur une
+#  machine installée qui ouvre la session de démo.
+for CIBLE in /etc/sudoers.d/lexos-live \
+             /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf \
+             /etc/systemd/system/getty@tty1.service.d/lexos-autologin.conf; do
+	grep -qF "$CIBLE" /usr/lib/lexos/demo-guard \
+		|| echo "[lexos]   !! ${CIBLE} n'est pas dans le garde-fou démo"
+done
 
 # --- Compte « invite » : repli pour la session invité -----------------------
 # allow-guest=true (ci-dessus) laisse LightDM proposer sa propre session
@@ -112,6 +163,40 @@ inode/directory=thunar.desktop
 image/png=org.xfce.ristretto.desktop
 image/jpeg=org.xfce.ristretto.desktop
 EOF
+
+# --- « Note perso » — l'identité LexOS de l'éditeur de texte -----------------
+#  Dans la démo, l'éditeur s'appelle « Note perso » et porte le carnet orange
+#  (branding/icon-note.svg). Sur l'ISO, le carnet était bien installé comme
+#  icône (lexos-note, hook 0300)… et JAMAIS UTILISÉ : le menu montrait
+#  « Éditeur de texte Mousepad » avec l'icône générique. Même outil, deux
+#  noms — pour qui passe de la démo au vrai bureau, c'est une application
+#  qui manque.
+#
+#  POURQUOI /usr/local ET PAS UNE RETOUCHE DU FICHIER DU PAQUET. Les menus
+#  cherchent les .desktop dans l'ordre de XDG_DATA_DIRS, où /usr/local/share
+#  passe AVANT /usr/share : un fichier du même nom y prend la priorité, sans
+#  toucher à ce que dpkg a posé. Une mise à jour de mousepad ne ramènera
+#  donc jamais l'ancien nom — la retouche directe, elle, sauterait à la
+#  première mise à jour.
+if [ -r /usr/share/applications/org.xfce.mousepad.desktop ]; then
+	mkdir -p /usr/local/share/applications
+	sed -e 's/^Name=.*/Name=Note perso/' \
+	    -e 's/^Name\[fr\].*/Name[fr]=Note perso/' \
+	    -e 's/^Icon=.*/Icon=lexos-note/' \
+	    -e 's/^GenericName=.*/GenericName=Notes et textes/' \
+	    -e 's/^GenericName\[fr\].*/GenericName[fr]=Notes et textes/' \
+	    /usr/share/applications/org.xfce.mousepad.desktop \
+	    > /usr/local/share/applications/org.xfce.mousepad.desktop
+	#  Sans Name[fr] dans l'original, le sed ne l'aura pas créé : on
+	#  l'ajoute pour que le nom tienne aussi dans une session anglaise —
+	#  « Note perso » est le nom PROPRE de l'application, pas un libellé.
+	grep -q '^Name\[fr\]=' /usr/local/share/applications/org.xfce.mousepad.desktop || \
+		sed -i '/^Name=/a Name[fr]=Note perso' \
+			/usr/local/share/applications/org.xfce.mousepad.desktop
+	echo "[lexos]   Mousepad devient « Note perso » (carnet orange)"
+else
+	echo "[lexos]   mousepad absent — pas de « Note perso » à habiller"
+fi
 
 # --- Entrées de menu LexOS ---------------------------------------------------
 mkdir -p /usr/share/applications
@@ -180,6 +265,27 @@ Categories=Utility;Education;Geography;
 Keywords=carte;cartes;map;maps;gps;position;météo;meteo;fuseau;monde;osm;
 EOF
 
+# --- GPS d'Alex (Map IA) -----------------------------------------------------
+#  La carte de navigation écrite par Alex : itinéraires, adresses, points
+#  d'intérêt. Fenêtre graphique comme « Cartes LexOS », dont elle réutilise
+#  le programme (mêmes besoins : serveur local pour la géolocalisation).
+cat > /usr/share/applications/lexos-gps.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=GPS d'Alex
+Name[en]=Alex's GPS
+Comment=Navigation : itinéraires, adresses, points d'intérêt, vue satellite
+Comment[en]=Navigation: routes, addresses, points of interest, satellite view
+Exec=lexos-gps
+Icon=/usr/share/lexos/gps/icone.png
+Terminal=false
+StartupNotify=true
+StartupWMClass=GPS d'Alex
+Categories=Utility;Education;Geography;
+Keywords=gps;navigation;itineraire;itinéraire;route;carte;map;adresse;satellite;trajet;
+EOF
+
 cat > /usr/share/applications/lexos-studio.desktop <<EOF
 [Desktop Entry]
 Type=Application
@@ -246,7 +352,7 @@ Name=Mac (Apple)
 Name[en]=Mac (Apple)
 Comment=Ce Mac : Wi-Fi Broadcom, ventilateurs, touches F1-F12
 Exec=xfce4-terminal --title="Mac (Apple) — LexOS" --hold -e "lexos mac"
-Icon=computer-laptop
+Icon=lexos-mac
 Terminal=false
 Categories=System;HardwareSettings;
 Keywords=mac;apple;macbook;imac;broadcom;wifi;ventilateur;fnmode;clavier;t2;
@@ -349,18 +455,125 @@ Categories=Settings;HardwareSettings;
 Keywords=ecran;moniteur;display;hdmi;projecteur;multi;
 EOF
 
+#  DEUX ENTRÉES, DEUX MÉTIERS. Celle-ci ouvrait « IA locale » sur un
+#  terminal — mais l'agent en terminal et la fenêtre qui explique pourquoi
+#  c'est lent ne sont pas le même outil, et deux entrées du même nom dans le
+#  menu, c'est un tirage au sort. Le terminal garde son nom de métier.
 cat > /usr/share/applications/lexos-ia.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=IA — agent (terminal)
+Name[en]=AI agent (terminal)
+Comment=L'agent IA local : il exécute des commandes pour toi, avec confirmation
+Exec=xfce4-terminal --title="IA locale — LexOS" -e "lexos ia"
+Icon=lexos
+Terminal=false
+Categories=System;Utility;
+Keywords=ia;ai;intelligence artificielle;agent;ollama;assistant;terminal;
+EOF
+
+cat > /usr/share/applications/lexos-ia-locale.desktop <<EOF
 [Desktop Entry]
 Type=Application
 Version=1.0
 Name=IA locale
 Name[en]=Local AI
-Comment=Assistant IA 100% local (Ollama) — rien n'est envoyé sur internet
-Exec=xfce4-terminal --title="IA locale — LexOS" -e "lexos ia"
+Comment=Un modèle de langage sur ta machine — quelle carte, quels modèles, et une discussion
+Comment[en]=A language model on your machine — hardware, models, and a chat
+Exec=lexos-ia-locale
+Icon=lexos
+Terminal=false
+StartupNotify=true
+Categories=System;Utility;
+Keywords=ia;ai;intelligence artificielle;llama;llama.cpp;ollama;modele;modèle;gguf;local;hors ligne;
+EOF
+
+#  Les six assistants IA en ligne (Claude, ChatGPT, Gemini, Perplexity,
+#  Mistral, Copilot), chacun en fenêtre dédiée. Une entrée de menu et non
+#  six : c'est le sélecteur de lexos-assistants qui fait le choix — six
+#  icônes presque identiques dans le menu, personne ne les distingue.
+cat > /usr/share/applications/lexos-assistants.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Assistants IA
+Name[en]=AI Assistants
+Comment=Claude, ChatGPT, Gemini, Perplexity, Mistral, Copilot — en fenêtre dédiée
+Comment[en]=Claude, ChatGPT, Gemini, Perplexity, Mistral, Copilot — each in its own window
+Exec=lexos assistants
+Icon=lexos
+Terminal=false
+StartupNotify=true
+Categories=Network;Utility;
+Keywords=ia;ai;assistant;claude;chatgpt;gemini;perplexity;mistral;copilot;
+EOF
+
+#  La couche diagnostic et sauvegarde — née de l'audit « carte des trous » :
+#  huit outils prévus, zéro écrit, et l'icône du disque qui attendait son
+#  panneau depuis le build 60. Trois entrées de menu, en terminal : ces
+#  outils PARLENT, et un diagnostic qu'on ne lit pas n'existe pas.
+cat > /usr/share/applications/lexos-medecin.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Médecin LexOS
+Name[en]=LexOS Doctor
+Comment=« Qu'est-ce qui ne va pas ? » — services, disque, mémoire, chauffe, réseau, journal
+Comment[en]=One-command triage: services, disk, memory, heat, network, logs
+Exec=xfce4-terminal --hold --title="Médecin — LexOS" -e "lexos medecin"
 Icon=lexos
 Terminal=false
 Categories=System;Utility;
-Keywords=ia;ai;intelligence artificielle;agent;ollama;assistant;
+Keywords=diagnostic;probleme;problème;panne;lent;medecin;médecin;doctor;sante;santé;
+EOF
+
+cat > /usr/share/applications/lexos-disques.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Disques
+Name[en]=Disks
+Comment=La santé des disques avant qu'ils meurent — SMART, remplissage, espace
+Comment[en]=Disk health before they die — SMART, usage, space
+Exec=xfce4-terminal --hold --title="Disques — LexOS" -e "lexos disques"
+Icon=lexos-disque
+Terminal=false
+Categories=System;Utility;
+Keywords=disque;disk;smart;espace;plein;ssd;nvme;sante;santé;
+EOF
+
+#  « Ma machine en une page » — la dernière des quatre entrées de la couche
+#  diagnostic. Elle répond à la question que personne ne sait résoudre seul :
+#  « puis-je ajouter de la mémoire, et laquelle acheter ? »
+cat > /usr/share/applications/lexos-materiel.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Ma machine
+Name[en]=My hardware
+Comment=Ce qu'il y a dans la machine — processeur, fentes mémoire libres, carte graphique, batterie
+Comment[en]=What is inside — CPU, free memory slots, graphics, battery health
+Exec=xfce4-terminal --hold --title="Ma machine — LexOS" -e "lexos materiel"
+Icon=lexos
+Terminal=false
+Categories=System;Utility;
+Keywords=materiel;matériel;hardware;ram;memoire;mémoire;barrette;fente;processeur;carte;batterie;bios;modele;modèle;
+EOF
+
+cat > /usr/share/applications/lexos-sauvegarde.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Sauvegarde
+Name[en]=Backup
+Comment=Tes fichiers, copiés pour de vrai — chiffré, restaurable fichier par fichier
+Comment[en]=Your files, truly backed up — encrypted, restorable file by file
+Exec=xfce4-terminal --hold --title="Sauvegarde — LexOS" -e "lexos sauvegarde"
+Icon=lexos
+Terminal=false
+Categories=System;Utility;Archiving;
+Keywords=sauvegarde;backup;borg;copie;restaurer;timeshift;
 EOF
 
 cat > /usr/share/applications/lexos-secure.desktop <<EOF
@@ -389,6 +602,19 @@ Icon=airplane-mode
 Terminal=false
 Categories=Settings;System;
 Keywords=avion;airplane;wifi;bluetooth;radio;
+EOF
+
+cat > /usr/share/applications/lexos-github.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=GitHub
+Comment=Ouvrir GitHub dans le navigateur
+Exec=xdg-open https://github.com
+Icon=lexos-github
+Terminal=false
+Categories=Network;Development;
+Keywords=github;git;code;depot;repository;
 EOF
 
 # --- Action « Partager » dans le clic droit du gestionnaire de fichiers -----
@@ -488,40 +714,263 @@ cat > /etc/skel/.config/Thunar/uca.xml <<'EOF'
 </actions>
 EOF
 
-# --- Raccourcis clavier ------------------------------------------------------
 SKEL_XFCONF="/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"
 mkdir -p "$SKEL_XFCONF"
-cat > "$SKEL_XFCONF/xfce4-keyboard-shortcuts.xml" <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<channel name="xfce4-keyboard-shortcuts" version="1.0">
-  <property name="commands" type="empty">
-    <property name="custom" type="empty">
-      <property name="&lt;Super&gt;Return"  type="string" value="xfce4-terminal"/>
-      <property name="&lt;Super&gt;e"       type="string" value="thunar"/>
-      <property name="&lt;Super&gt;a"       type="string" value="lexos-net avion toggle"/>
-      <property name="&lt;Super&gt;p"       type="string" value="lexos-perf --gui"/>
-      <property name="&lt;Super&gt;s"       type="string" value="xfce4-appfinder"/>
-      <property name="&lt;Super&gt;d"       type="string" value="lexos-display gui"/>
-      <property name="XF86Display"          type="string" value="lexos-display gui"/>
-      <property name="XF86WLAN"             type="string" value="lexos-net avion toggle"/>
-      <property name="Print"                type="string" value="xfce4-screenshooter"/>
-      <property name="override" type="bool" value="true"/>
-    </property>
-  </property>
-  <!-- Agrandir les fenêtres : bouton de la barre de titre, double-clic sur la
-       barre, et ces raccourcis. Pas de « override » ici, volontairement — il
-       remplacerait TOUS les raccourcis de fenêtre par défaut (Alt+Tab,
-       Alt+F4, changement de bureau…) au lieu de s'y ajouter. -->
-  <property name="xfwm4" type="empty">
-    <property name="custom" type="empty">
-      <property name="&lt;Super&gt;Up"    type="string" value="maximize_window_key"/>
-      <property name="&lt;Super&gt;Down"  type="string" value="unmaximize_window_key"/>
-      <property name="&lt;Super&gt;Left"  type="string" value="tile_left_key"/>
-      <property name="&lt;Super&gt;Right" type="string" value="tile_right_key"/>
-      <property name="F11"                type="string" value="fullscreen_key"/>
-    </property>
-  </property>
-</channel>
+
+# --- Horloge du panneau : la marque au centre, comme la démo ----------------
+#  La démo affiche « lexOS ⚡ Pro   mer. 12 août 17 h 19 » au centre de la
+#  barre. Le panneau, lui, n'affichait que la date et l'heure. La saveur ne
+#  peut pas être écrite en dur dans le XML — elle change d'une ISO à l'autre —
+#  donc on l'injecte ici.
+#
+#  Le XML livré contient déjà un format VALABLE (« lexOS  %a %d %b  %H h %M »).
+#  Si cette substitution échoue, on garde donc une horloge correcte, juste
+#  sans le nom de la saveur. Jamais de jeton non remplacé à l'écran.
+#  LA MÊME HORLOGE PARTOUT, ET LA MÊME QUE LA DÉMO.
+#
+#  L'horloge affichait le nom de la saveur : « lexOS ⚡ Dev » sur le
+#  portable, « lexOS ⚡ Pro » sur l'Alienware. C'était la dernière chose
+#  visible à l'écran qui n'était pas pareille entre les deux machines — et
+#  la démo, elle, montre « lexOS⚡Pro ». Maintenant que les deux ISO
+#  installent exactement les mêmes applications, cette distinction ne veut
+#  plus rien dire à l'écran : on affiche partout ce que montre la démo.
+#
+#  La vraie saveur de l'ISO n'est pas perdue pour autant, elle reste lisible
+#  à trois endroits : le nom du fichier ISO, la fenêtre de bienvenue, et la
+#  commande « lexos infos » dans le terminal.
+case "${LEXOS_FLAVOUR:-standard}" in
+	minimal) SAVEUR_AFFICHEE="" ;;
+	*)       SAVEUR_AFFICHEE="Pro" ;;
+esac
+
+#  L'éclair de la démo est un emoji : sans police emoji installée il
+#  s'afficherait en carré vide, au beau milieu de la barre. On ne le pose
+#  que si la police est réellement là, sinon un point médian fait l'affaire.
+if ls /usr/share/fonts/truetype/noto/NotoColorEmoji* >/dev/null 2>&1; then
+	SEPARATEUR_MARQUE="⚡"
+else
+	SEPARATEUR_MARQUE="·"
+fi
+
+if [ -n "$SAVEUR_AFFICHEE" ] && [ -f "$SKEL_XFCONF/xfce4-panel.xml" ]; then
+	FORMAT_HORLOGE="lexOS ${SEPARATEUR_MARQUE} ${SAVEUR_AFFICHEE}   %a %d %b  %H h %M"
+	sed -i "s|value=\"lexOS  %a %d %b  %H h %M\"|value=\"${FORMAT_HORLOGE}\"|g" \
+		"$SKEL_XFCONF/xfce4-panel.xml"
+	if grep -qF "$FORMAT_HORLOGE" "$SKEL_XFCONF/xfce4-panel.xml"; then
+		echo "[lexos]   horloge : ${FORMAT_HORLOGE}"
+	else
+		echo "[lexos]   !! horloge non personnalisée — format par défaut conservé"
+	fi
+fi
+
+# --- Aucun greffon déclaré ne doit manquer à l'appel ------------------------
+#  LE BOGUE QUE CE BLOC RÉPARE, ET IL A COÛTÉ TROIS ISO.
+#
+#  Alex : « quand je clique, le menu du haut disparaît. » On a cru à Compiz,
+#  on a corrigé Compiz, et la barre disparaissait encore. La photo a donné la
+#  réponse : au démarrage, xfce4-panel ouvrait une fenêtre
+#
+#     « Le greffon "power-manager-plugin" n'a pas pu être chargé,
+#       voulez-vous le supprimer de la configuration de xfce4-panel ? »
+#          [ Supprimer ]   [ Quitter ]
+#
+#  et « Quitter » ferme le panneau EN ENTIER. La barre ne disparaissait pas
+#  toute seule : elle disparaissait au clic, parce que le clic tombait sur ce
+#  bouton-là.
+#
+#  La cause de fond : la configuration livrée DÉCLARE des greffons
+#  (whiskermenu, pulseaudio, power-manager-plugin, genmon) que le hook 0250
+#  installait en « best effort ». Un seul manquant, et la fenêtre s'ouvre.
+#  Ces quatre paquets sont désormais obligatoires (flavours/standard), mais
+#  une liste de paquets peut encore échouer un jour, et un greffon peut
+#  changer de nom d'une version de Debian à l'autre. Alors on vérifie ici,
+#  pour TOUS les greffons déclarés, et on retire de la configuration ceux qui
+#  ne sont pas réellement installés. La fenêtre ne peut plus s'ouvrir.
+#
+#  Les greffons intégrés à xfce4-panel lui-même (séparateur, lanceur,
+#  horloge…) ne sont jamais vérifiés : xfce4-panel est un paquet obligatoire,
+#  ils sont là par construction, et une vérification qui se tromperait sur eux
+#  viderait la barre au lieu de la réparer.
+GREFFONS_INTERNES="separator launcher actions clock systray tasklist pager \
+showdesktop windowmenu applicationsmenu directorymenu"
+
+if [ -f "$SKEL_XFCONF/xfce4-panel.xml" ]; then
+	A_RETIRER=""
+	for DECL in $(sed -n 's|.*<property name="plugin-\([0-9]*\)" type="string" value="\([a-z0-9-]*\)".*|\1:\2|p' \
+			"$SKEL_XFCONF/xfce4-panel.xml"); do
+		ID="${DECL%%:*}"
+		NOM="${DECL#*:}"
+
+		INTERNE=0
+		for I in $GREFFONS_INTERNES; do
+			[ "$I" = "$NOM" ] && { INTERNE=1; break; }
+		done
+		[ "$INTERNE" -eq 1 ] && continue
+
+		if [ -e "/usr/share/xfce4/panel/plugins/${NOM}.desktop" ]; then
+			echo "[lexos]   greffon ${NOM} : présent"
+		else
+			echo "[lexos]   !! greffon ${NOM} absent — retiré de la barre (plugin-${ID})"
+			A_RETIRER="${A_RETIRER} ${ID}"
+		fi
+	done
+
+	if [ -n "$A_RETIRER" ]; then
+		#  awk plutôt que sed : un bloc plugin-N peut contenir des
+		#  </property> imbriqués (plugin-1 a un tableau « favorites »), donc
+		#  « supprimer jusqu'à la première balise fermante » emporterait la
+		#  moitié du fichier. On compte la profondeur.
+		#
+		#  Et le numéro du greffon doit être retiré du tableau « plugin-ids »
+		#  SANS toucher aux autres entiers du fichier : un value="1" traîne
+		#  aussi dans les propriétés du panneau lui-même.
+		awk -v retirer="$A_RETIRER" '
+			BEGIN { n = split(retirer, t, " "); for (i = 1; i <= n; i++) mauvais[t[i]] = 1 }
+
+			/<property name="plugin-ids" type="array">/ { dans_ids = 1; print; next }
+			dans_ids && /<\/property>/                  { dans_ids = 0; print; next }
+			dans_ids {
+				if (match($0, /value="[0-9]+"/)) {
+					v = substr($0, RSTART + 7, RLENGTH - 8)
+					if (v in mauvais) next
+				}
+				print; next
+			}
+
+			saut {
+				if ($0 ~ /<property/ && $0 !~ /\/>[[:space:]]*$/) profondeur++
+				if ($0 ~ /<\/property>/) { profondeur--; if (profondeur <= 0) saut = 0 }
+				next
+			}
+
+			match($0, /<property name="plugin-[0-9]+" type="string"/) {
+				id = $0; sub(/.*name="plugin-/, "", id); sub(/".*/, "", id)
+				if (id in mauvais) {
+					if ($0 ~ /\/>[[:space:]]*$/) next   # balise auto-fermante
+					saut = 1; profondeur = 1; next
+				}
+			}
+
+			{ print }
+		' "$SKEL_XFCONF/xfce4-panel.xml" > "$SKEL_XFCONF/xfce4-panel.xml.tmp" \
+			&& mv "$SKEL_XFCONF/xfce4-panel.xml.tmp" "$SKEL_XFCONF/xfce4-panel.xml"
+	else
+		echo "[lexos]   barre du haut : tous les greffons déclarés sont installés"
+	fi
+fi
+
+# --- Météo : genmon ne lit PAS xfce4-panel.xml -----------------------------
+#  ERREUR DE MA PART, et elle explique pourquoi la barre affichait
+#  « (genmon)XXX » au lieu de « ☁ 20° ». J'avais mis la commande de la météo
+#  dans xfce4-panel.xml, comme pour les autres greffons. genmon, lui, ne
+#  passe pas par xfconf du tout : il ouvre son propre fichier
+#  ~/.config/xfce4/panel/genmon-<numéro>.rc (xfce_panel_plugin_lookup_rc_file
+#  + xfce_rc_simple_open, vérifié dans le binaire du paquet Debian).
+#
+#  Les propriétés posées dans le XML n'ont donc jamais été lues, sur aucune
+#  ISO : genmon affichait son étiquette par défaut « (genmon) » suivie de sa
+#  valeur par défaut « XXX ». Les clés qu'il lit vraiment sont Command,
+#  Text, UseLabel, UpdatePeriod et Font — relevées dans libgenmon.so.
+#
+#  Le numéro du fichier est celui du greffon dans plugin-ids : 13.
+if [ -e /usr/share/xfce4/panel/plugins/genmon.desktop ]; then
+	mkdir -p /etc/skel/.config/xfce4/panel
+	cat > /etc/skel/.config/xfce4/panel/genmon-13.rc <<'EOF'
+Text=Météo
+Command=lexos-meteo --panneau
+UpdatePeriod=900000
+UseLabel=0
+Font=Noto Sans 10
 EOF
+	echo "[lexos]   météo : genmon-13.rc écrit (commande lexos-meteo --panneau)"
+
+	#  Même mécanique pour le greffon 16 : les appareils branchés (imprimante,
+	#  écran, casque, USB, disque — la rangée d'icônes de la démo). Cinq
+	#  secondes entre deux lectures : tout est local, rien ne part au réseau.
+	cat > /etc/skel/.config/xfce4/panel/genmon-16.rc <<'EOF'
+Text=Appareils
+Command=lexos-peripheriques --panneau
+UpdatePeriod=5000
+UseLabel=0
+Font=Noto Sans 10
+EOF
+	echo "[lexos]   appareils : genmon-16.rc écrit (commande lexos-peripheriques --panneau)"
+
+	#  L'HORLOGE. Elle était le greffon « clock » de XFCE ; elle est devenue
+	#  un genmon pour qu'un clic dessus ouvre le volet des notifications et
+	#  de l'agenda — le greffon d'origine ouvre SON calendrier et ne sait
+	#  rien lancer d'autre. Elle a donc besoin de son .rc comme les deux
+	#  autres, sans quoi la barre afficherait « (genmon)XXX » à la place de
+	#  l'heure : exactement la panne qu'on vient de décrire pour la météo.
+	#
+	#  Une seconde entre deux lectures : lexos-heure est un « date » suivi
+	#  d'un « printf ». C'est ce qu'il faut pour que l'affichage des secondes,
+	#  proposé dans les Paramètres, soit juste plutôt qu'approximatif.
+	cat > /etc/skel/.config/xfce4/panel/genmon-3.rc <<'EOF'
+Text=Heure
+Command=lexos-heure --panneau
+UpdatePeriod=1000
+UseLabel=0
+Font=Noto Sans 10
+EOF
+	echo "[lexos]   horloge : genmon-3.rc écrit (commande lexos-heure --panneau)"
+else
+	#  PAS DE GENMON — ET UNE BARRE SANS HEURE SERAIT PIRE QUE TOUT.
+	#  Le nettoyage plus haut retire les greffons déclarés mais absents : sans
+	#  ce repli, plugin-3 disparaîtrait et il n'y aurait plus d'horloge du
+	#  tout. On remet donc le greffon « clock » de XFCE, qui est interne et
+	#  toujours là. On perd le clic qui ouvre le volet — il reste accessible
+	#  par « lexos volet » — mais on garde l'heure, qui est l'essentiel.
+	PANNEAU_XML="/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
+	if [ -f "$PANNEAU_XML" ] && grep -q 'value="lexos-heure --panneau"' "$PANNEAU_XML"; then
+		python3 - "$PANNEAU_XML" <<'PYEOF'
+import re, sys
+chemin = sys.argv[1]
+s = open(chemin, encoding="utf-8").read()
+bloc = re.search(r'    <property name="plugin-3" type="string" value="genmon">.*?</property>\n',
+                 s, re.S)
+if bloc:
+    s = s[:bloc.start()] + (
+        '    <property name="plugin-3" type="string" value="clock">\n'
+        '      <property name="mode"                type="uint"   value="2"/>\n'
+        '      <property name="digital-time-format" type="string" value="lexOS  %a %d %b  %H h %M"/>\n'
+        '      <property name="tooltip-format"      type="string" value="%A %d %B %Y"/>\n'
+        '    </property>\n') + s[bloc.end():]
+    open(chemin, "w", encoding="utf-8").write(s)
+    print("remis")
+PYEOF
+		echo "[lexos]   !! genmon absent — horloge XFCE d'origine remise (pas de volet au clic)"
+	fi
+fi
+
+# --- Raccourcis clavier ------------------------------------------------------
+#  CE HOOK N'ÉCRIT PLUS CE FICHIER, ET C'EST UNE CORRECTION.
+#
+#  Il faisait « cat > "$SKEL_XFCONF/xfce4-keyboard-shortcuts.xml" », donc il
+#  ÉCRASAIT entièrement le fichier livré par includes.chroot. Le jeu qui
+#  arrivait dans l'ISO était le sien, et il ne gardait AUCUN raccourci de
+#  capture : Maj+Impr écr, Alt+Impr écr, Ctrl+Maj+R et les accords
+#  Super+chiffre ne faisaient rien du tout. Pendant ce temps l'aide de
+#  « lexos » continuait de les annoncer — le système mentait sur son propre
+#  mode d'emploi. Deux fichiers pour un seul réglage, c'est toujours l'un des
+#  deux qui gagne en silence.
+#
+#  Les deux jeux sont désormais FUSIONNÉS dans le fichier livré. Ce hook ne
+#  fait plus que VÉRIFIER qu'il est bien arrivé — et le dire fort s'il manque,
+#  parce qu'une ISO sans raccourcis se remarque tard et s'explique mal.
+RACCOURCIS="$SKEL_XFCONF/xfce4-keyboard-shortcuts.xml"
+if [ -r "$RACCOURCIS" ]; then
+	MANQUE=""
+	for CLE in "lexos capture" "workspace_1_key" "xfce4-terminal"; do
+		grep -q "$CLE" "$RACCOURCIS" || MANQUE="${MANQUE} ${CLE}"
+	done
+	if [ -n "$MANQUE" ]; then
+		echo "[lexos]   !! raccourcis incomplets, manquent :${MANQUE}"
+	else
+		echo "[lexos]   raccourcis clavier : captures, lancements et bureaux en place"
+	fi
+else
+	echo "[lexos]   !! AUCUN fichier de raccourcis — captures et Super+chiffre morts"
+fi
 
 echo "[lexos] hook 0400 : ok"

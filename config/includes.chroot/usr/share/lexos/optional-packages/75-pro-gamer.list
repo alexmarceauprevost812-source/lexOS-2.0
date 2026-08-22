@@ -2,6 +2,27 @@
 #
 # Tout ce qui rend une machine de jeu agréable sous Linux, au-delà des
 # pilotes et de Wine que la liste obligatoire installe déjà.
+#
+# CE QUI NE S'INSTALLERA JAMAIS D'ICI — et pourquoi on garde les lignes.
+# Debian 13 n'empaquette PAS protontricks (outil Python publié sur PyPI),
+# PPSSPP, Xonotic, ni les cœurs libretro pris séparément. Les noms de
+# rechange séparés par « | » ont tous été essayés au build 22 : aucun ne
+# répond. Ce n'est donc pas une erreur de nom, c'est une absence d'amont.
+# On garde quand même les lignes : si une future version de Debian les
+# ajoute, le hook 0250 les installera tout seul.
+# En attendant, la commande « lexos game extras » les pose depuis Flathub,
+# après l'installation du système — voir /usr/bin/lexos-game.
+# gamescope : inutile de le chercher, Steam embarque le sien dans son runtime.
+
+# --- Carte graphique NVIDIA -----------------------------------------------
+# DÉPLACÉ dans le hook 0260-lexos-nvidia.hook.chroot. Le pilote de Debian
+# stable est trop ancien pour les RTX 50 (constaté sur une RTX 5060 :
+# l'écran perd le signal au lancement du bureau) : le hook installe la
+# branche récente depuis <suite>-backports, avec le module noyau ouvert —
+# une transaction apt cohérente, impossible dans cette liste best-effort
+# qui installe paquet par paquet. Seul reste ici le micrologiciel divers,
+# utile au-delà de NVIDIA.
+firmware-misc-nonfree
 
 # --- Lanceurs et boutiques ---------------------------------------------
 # Steam apporte Proton : la version de Wine que Valve entretient, et qui
@@ -16,10 +37,13 @@ lutris
 # (DirectX, polices, .NET) sans avoir à les chercher soi-même.
 winetricks
 # protontricks fait la même chose, mais pour les jeux lancés par Steam.
-protontricks
-# gamescope : un compositeur dédié au jeu. Il règle le plein écran, la
-# mise à l'échelle et le taux de rafraîchissement là où le bureau échoue.
-gamescope
+protontricks|python3-protontricks
+# gamescope : un compositeur dédié au jeu (plein écran, mise à l'échelle,
+# taux de rafraîchissement). PAS dans Debian trixie stable — seulement dans
+# trixie-backports. Steam l'embarque de toute façon dans son runtime, donc les
+# jeux lancés par Steam/Proton en profitent sans ce paquet. Décommente la ligne
+# si tu ajoutes le dépôt backports.
+# gamescope
 
 # --- Performance et mesure ---------------------------------------------
 # GameMode bascule le processeur en mode course le temps de la partie et
@@ -29,22 +53,77 @@ gamemode
 # température et la charge — sans lui, « ça rame » reste une impression.
 mangohud
 goverlay
+# CoreCtrl : régler le processeur et la carte graphique (fréquences,
+# courbe des ventilateurs, mode « performance ») avec des profils qui
+# s'activent tout seuls quand un jeu se lance. L'outil d'overclocking de
+# référence sous Linux.
+corectrl
+# vkBasalt : effets de post-traitement (netteté, correction des couleurs)
+# par-dessus n'importe quel jeu Vulkan, à la manière de ReShade.
+vkbasalt
+
+# --- Enregistrer et diffuser -------------------------------------------
+# OBS Studio : capturer ses parties, faire du montage minute et diffuser
+# en direct (Twitch, YouTube). L'outil que tout le monde utilise.
+obs-studio
 
 # --- Manettes et souris ------------------------------------------------
 # Les règles udev qui font reconnaître les manettes Steam, Xbox et PS.
 steam-devices
+# Pilote des manettes Xbox sans fil (One, Series) — meilleure prise en
+# charge que le pilote générique, vibrations comprises.
+xpadneo-dkms
 # Tester chaque bouton et chaque axe avant d'accuser le jeu.
 jstest-gtk
+evtest
 # Faire passer une manette pour un clavier, quand un jeu ne la gère pas.
 antimicrox
+# Remapper touches, boutons et axes de n'importe quel périphérique, avec
+# des profils par appareil (input-remapper).
+input-remapper
 # Régler les boutons, la sensibilité et les couleurs d'une souris de jeu.
 piper
+# Piloter l'éclairage RGB du clavier, de la souris et du boîtier.
+# openrgb n'est PAS dans trixie stable (seulement dans sid/forky). À installer
+# au besoin via Flatpak (flathub : org.openrgb.OpenRGB) depuis la Logithèque.
+# openrgb
+
+# --- Windows : lancer un .exe d'un double-clic -------------------------
+# wine-binfmt enregistre les .exe auprès du système : double-cliquer un
+# installeur Windows le lance par Wine, sans passer par le terminal.
+wine-binfmt
+
+# --- La moitié 32 bits, celle qu'on oublie ------------------------------
+# Une grande partie des jeux Windows — et presque tous leurs installeurs —
+# sont des programmes 32 bits. Sans wine32, ils ne se LANCENT pas ; sans
+# le chargeur Vulkan et le Mesa 32 bits, ils tournent en rendu logiciel,
+# à une image par seconde, même avec une RTX dans la machine. Le pilote
+# NVIDIA 32 bits (nvidia-driver-libs:i386), lui, arrive déjà par le hook
+# 0260. L'architecture i386 est activée par le hook 0250 avant cette
+# liste ; ces noms suffixés :i386 s'installent donc normalement ici.
+wine32:i386
+libvulkan1:i386
+mesa-vulkan-drivers:i386
+libgl1-mesa-dri:i386
+libglx-mesa0:i386
 
 # --- Émulation ----------------------------------------------------------
 retroarch
+# Cœurs RetroArch prêts à l'emploi (SNES, NES, Mega Drive, PlayStation,
+# Game Boy Advance) — sans eux, RetroArch démarre sans pouvoir rien lancer.
+libretro-snes9x
+libretro-nestopia
+libretro-genesisplusgx
+# PlayStation : beetle-psx a été retiré de trixie. On prend PCSX ReARMed, bien
+# présent dans trixie et qui sait démarrer sans BIOS (HLE). Alternative plus
+# fidèle si tu as un vrai BIOS : libretro-swanstation.
+libretro-pcsx-rearmed|libretro-swanstation|libretro-beetle-psx
+libretro-mgba
 dolphin-emu
-ppsspp-qt
+pcsx2
+ppsspp-qt|ppsspp|ppsspp-sdl
 mgba-qt
+mupen64plus-qt
 scummvm
 
 # --- Jeux libres, pour avoir quelque chose à lancer tout de suite -------

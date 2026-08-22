@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-musique — lexOS_musique, le lecteur audio local
+# =============================================================================
+#  Ta musique, tes fichiers, ta machine : rien n'est envoyé nulle part. On
+#  dépose ses fichiers audio dans le « crate », on fabrique ses playlists, et
+#  le lecteur les joue. Des liens vers des catalogues de musique libre
+#  (Bandcamp, Jamendo, Free Music Archive…) sont proposés pour se constituer
+#  une collection légalement.
+#
+#  L'interface est une page locale : on l'ouvre en fenêtre dédiée, comme une
+#  vraie application, plutôt que dans un onglet perdu du navigateur.
+# =============================================================================
+set -uo pipefail
+
+PAGE="/usr/share/lexos/musique/index.html"
+[ -r "$PAGE" ] || PAGE="$(dirname "$0")/../share/lexos/musique/index.html"
+
+if [ ! -r "$PAGE" ]; then
+	printf '\033[31m✗\033[0m lexOS_musique est introuvable (%s)\n' "$PAGE" >&2
+	exit 1
+fi
+
+# Mode « application » : une fenêtre à soi, sans barre d'adresse ni onglets.
+for b in chromium google-chrome google-chrome-stable brave-browser microsoft-edge; do
+	if command -v "$b" >/dev/null 2>&1; then
+		exec "$b" --app="file://${PAGE}" --class=lexOS-musique --name=lexos-musique >/dev/null 2>&1
+	fi
+done
+
+# Firefox ne connaît pas --app : une fenêtre neuve fait l'affaire.
+if command -v firefox-esr >/dev/null 2>&1; then
+	exec firefox-esr --new-window "file://${PAGE}" >/dev/null 2>&1
+elif command -v firefox >/dev/null 2>&1; then
+	exec firefox --new-window "file://${PAGE}" >/dev/null 2>&1
+fi
+
+# Dernier recours : le navigateur par défaut du système.
+exec xdg-open "file://${PAGE}"

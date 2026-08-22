@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — bureau (clic droit).
+  Le fond d'écran est appliqué à la première session par lexos-firstrun,
+  qui seul connaît les noms des écrans réellement branchés.
+-->
+<channel name="xfce4-desktop" version="1.0">
+  <property name="desktop-menu" type="empty">
+    <!--  Le sous-menu Applications du clic droit. Il avait été ÉTEINT ici,
+          avec pour justification « comme ctxBureau() dans la démo » : c'est
+          une erreur de lecture — ctxBureau() commence PAR « Applications »,
+          première ligne du menu. La démo est le cahier des charges : le clic
+          droit sur le bureau doit donner les applications, comme elle.  -->
+    <property name="show" type="bool" value="true"/>
+    <!--  Les icônes dans ce sous-menu : sans elles, une liste de cinquante
+          noms secs se parcourt bien plus lentement qu'une liste illustrée. -->
+    <property name="show-menu-icons" type="bool" value="true"/>
+  </property>
+</channel>

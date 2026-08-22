@@ -29,10 +29,45 @@
       <path d="M72 0 H0 V72" fill="none" stroke="#E8590C"
             stroke-opacity="0.045" stroke-width="1"/>
     </pattern>
+
+    <!--  Colonnes de code Python, en fond — un mot par ligne, vitesse
+          suggérée par le contraste : gris clair = passage rapide (net,
+          juste écrit), gris presque noir = passage lent (déjà en train de
+          s'effacer). Le rendu reste statique (un fond d'écran est une
+          image), mais l'échelonnement des gris donne l'impression d'un
+          défilement qui n'avance pas tout à la même vitesse. -->
+    <pattern id="code" width="230" height="620" patternUnits="userSpaceOnUse"
+             patternTransform="rotate(-9)">
+      <g font-family="'Fira Code','DejaVu Sans Mono',monospace" font-size="15"
+         fill="#9AA0A6">
+        <text x="4"   y="26"  opacity="0.85">def render(self):</text>
+        <text x="20"  y="54"  opacity="0.30">state = self.mode</text>
+        <text x="4"   y="82"  opacity="0.55">import numpy as np</text>
+        <text x="20"  y="110" opacity="0.20">for x in range(n):</text>
+        <text x="36"  y="138" opacity="0.70">self.accent = ac</text>
+        <text x="4"   y="166" opacity="0.15">class LexOS:</text>
+        <text x="20"  y="194" opacity="0.45">return frame</text>
+        <text x="4"   y="222" opacity="0.80">while True:</text>
+        <text x="36"  y="250" opacity="0.25">yield next(it)</text>
+        <text x="20"  y="278" opacity="0.60">if avion.on:</text>
+        <text x="4"   y="306" opacity="0.35">async def load():</text>
+        <text x="36"  y="334" opacity="0.75">await boot()</text>
+        <text x="20"  y="362" opacity="0.20">print(f"{ok}")</text>
+        <text x="4"   y="390" opacity="0.50">try:</text>
+        <text x="36"  y="418" opacity="0.85">wallpaper.set()</text>
+        <text x="20"  y="446" opacity="0.30">except OSError:</text>
+        <text x="4"   y="474" opacity="0.65"># TODO: ship it</text>
+        <text x="36"  y="502" opacity="0.18">pass</text>
+        <text x="4"   y="530" opacity="0.55">__version__ = "2.0.0"</text>
+        <text x="20"  y="558" opacity="0.28">self.theme = "sombre"</text>
+        <text x="4"   y="586" opacity="0.75">if __name__ == "__main__":</text>
+      </g>
+    </pattern>
   </defs>
 
   <!-- Noir pur -->
   <rect width="1920" height="1080" fill="#000000"/>
+  <rect width="1920" height="1080" fill="url(#code)" opacity="0.4"/>
   <rect width="1920" height="1080" fill="url(#grid)"/>
   <rect width="1920" height="1080" fill="url(#ember)"/>
 
@@ -61,29 +96,43 @@
     <circle cx="470"  cy="642" r="2.0" opacity="0.30"/>
   </g>
 
-  <!-- Halo derrière le titre -->
-  <ellipse cx="960" cy="560" rx="430" ry="120" fill="#E8590C"
-           opacity="0.10" filter="url(#soft)"/>
+  <!--  Voile sombre derrière la marque : sans lui, les colonnes de code
+        passent au travers du logo et le rendent illisible. -->
+  <ellipse cx="960" cy="600" rx="620" ry="300" fill="#000000"
+           opacity="0.72" filter="url(#soft)"/>
+  <!-- Halo derrière le logo ASCII -->
+  <ellipse cx="960" cy="580" rx="430" ry="150" fill="#E8590C"
+           opacity="0.13" filter="url(#soft)"/>
 
-  <!-- Marque -->
+  <!--  Marque — le logo ASCII, celui du terminal et de la démo web. Dessiné
+        en texte monospace ligne à ligne : c'est la même signature que
+        « lexfetch » affiche au démarrage, pas une police de titre. Aligné à
+        gauche dans un bloc centré, sinon les barres obliques se décalent.
+        Taille calée pour que la plus longue ligne (26 caractères) tienne
+        largement dans les 1920 pixels. -->
+  <g font-family="'Fira Code','DejaVu Sans Mono',monospace"
+     font-size="64" font-weight="700" fill="url(#fire)"
+     text-anchor="start" xml:space="preserve">
+    <text x="472" y="452">   __         _____ _____</text>
+    <text x="472" y="526">  / /  _____ / __  |  ___|</text>
+    <text x="472" y="600"> / /  / _ \ \/ / | | |___</text>
+    <text x="472" y="674">/ /__|  __/&gt;  &lt;  | |___  |</text>
+    <text x="472" y="748">\____/\___/_/\_\ |_____/</text>
+  </g>
+
   <g text-anchor="middle">
-    <text x="960" y="588"
-          font-family="'Fira Code','DejaVu Sans Mono',monospace"
-          font-size="168" font-weight="700" letter-spacing="-6"
-          fill="#FFFFFF">Lex<tspan fill="url(#fire)">OS</tspan></text>
+    <rect x="600" y="796" width="720" height="2" fill="url(#rule)"/>
 
-    <rect x="600" y="628" width="720" height="2" fill="url(#rule)"/>
-
-    <text x="960" y="684"
+    <text x="960" y="852"
           font-family="'Fira Code','DejaVu Sans Mono',monospace"
           font-size="26" letter-spacing="11" fill="#B8B8BC">
       T I &#183; L E X &#183; A L
     </text>
 
-    <text x="960" y="736"
+    <text x="960" y="904"
           font-family="'Fira Code','DejaVu Sans Mono',monospace"
           font-size="19" letter-spacing="5" fill="#6E6E74">
-      1.0 &#8212; NOMAD
+      2.0.0 &#8212; NOMAD
     </text>
   </g>
 

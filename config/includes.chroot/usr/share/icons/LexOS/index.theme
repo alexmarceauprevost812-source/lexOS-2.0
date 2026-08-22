@@ -1,0 +1,30 @@
+# =============================================================================
+#  LexOS — thème d'icônes
+# =============================================================================
+#  IL NE REDÉFINIT QUE LES DOSSIERS. Tout le reste — applications, périphé-
+#  riques, actions, types de fichiers — est hérité de Papirus-Dark, puis
+#  d'Adwaita, puis de hicolor. Un thème complet, ce sont des milliers
+#  d'icônes à tenir à jour ; celui-ci en porte sept et laisse le reste à
+#  ceux dont c'est le métier. Si Papirus n'est pas installé (la liste
+#  20-desktop est optionnelle), la chaîne continue sur Adwaita : aucune
+#  icône ne disparaît.
+#
+#  POURQUOI CES SEPT-LÀ. Le dossier personnel de la démo montre six poches
+#  orange marquées DL, IMG, DOC, MUS, VID, PROJ. C'est la première chose
+#  qu'on voit en ouvrant Fichiers, et c'était la seule qui ne se
+#  ressemblait pas d'un côté à l'autre.
+# =============================================================================
+[Icon Theme]
+Name=LexOS
+Name[en]=LexOS
+Comment=Les dossiers de LexOS, hérité de Papirus pour tout le reste
+Comment[en]=LexOS folders, inheriting Papirus for everything else
+Inherits=Papirus-Dark,Papirus,Adwaita,hicolor
+Directories=places/scalable
+
+[places/scalable]
+Size=512
+MinSize=16
+MaxSize=512
+Context=Places
+Type=Scalable

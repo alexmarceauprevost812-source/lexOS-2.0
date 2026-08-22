@@ -3,7 +3,13 @@
 # =============================================================================
 
 SHELL       := /bin/bash
-FLAVOUR     ?= standard
+#  « pro » est LA version de LexOS depuis le build 56. Elle embarque le pilote
+#  NVIDIA propriétaire — qui ne peut pas s'installer après coup — et un service
+#  (lexos-gpu-garde) qui range ces réglages au démarrage quand la machine n'a
+#  pas de carte NVIDIA. Elle marche donc partout : sur une tour à RTX 5060
+#  comme sur un portable Intel de 2016. Les autres saveurs restent
+#  constructibles, mais ce n'est plus celles qu'on livre.
+FLAVOUR     ?= pro
 ARCH        ?= amd64
 ISO         := $(firstword $(wildcard *.iso))
 QEMU_RAM    ?= 3072
@@ -23,19 +29,24 @@ check: ## Vérifie que l'environnement de build est complet
 	@sudo ./build.sh --check
 
 .PHONY: build
-build: ## Construit l'ISO (FLAVOUR=minimal|standard|dev|full|gaming)
+build: ## Construit l'ISO (FLAVOUR=pro par défaut)
 	@sudo ./build.sh --flavour $(FLAVOUR) --arch $(ARCH)
 
-.PHONY: minimal standard dev full gaming
+.PHONY: pro minimal standard dev full gaming
+pro:      ## LA version de LexOS — bureau complet + pilote NVIDIA (~8 Gio)
+	@sudo ./build.sh --flavour pro
 minimal:  ## ISO sans bureau (console seule, ~700 Mio)
 	@sudo ./build.sh --flavour minimal
-standard: ## ISO bureau XFCE + navigateur (défaut, ~2,5 Gio)
+#  Les saveurs ci-dessous donnent TOUTES le même bureau que « pro » — mêmes
+#  95 paquets stricts, mêmes 403 optionnels. Elles n'en diffèrent que par
+#  l'absence du pilote NVIDIA. Gardées pour dépanner, plus pour livrer.
+standard: ## Le même bureau que pro, sans le pilote NVIDIA (~7 Gio)
 	@sudo ./build.sh --flavour standard
-dev:      ## ISO standard + atelier développeur (~4 Gio)
+dev:      ## Alias historique de standard
 	@sudo ./build.sh --flavour dev
-full:     ## Tout : bureautique, multimédia, création (~6 Gio)
+full:     ## Alias historique de standard
 	@sudo ./build.sh --flavour full
-gaming:   ## ISO standard + atelier développeur + jeux (~5 Gio)
+gaming:   ## Alias historique de standard
 	@sudo ./build.sh --flavour gaming
 
 .PHONY: clean

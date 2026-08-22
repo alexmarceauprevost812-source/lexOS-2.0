@@ -30,7 +30,14 @@ from PySide6.QtWidgets import QApplication, QMainWindow
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
-APP_NAME = "Cartes LexOS"
+#  Ce même fichier sert à DEUX applications : « Cartes LexOS » (la carte du
+#  monde livrée avec le système) et « GPS d'Alex » (la carte de navigation
+#  écrite par Alex). Elles ont exactement les mêmes besoins — fenêtre Qt,
+#  serveur local pour la géolocalisation — et seuls le nom, l'icône et le
+#  dossier des fichiers changent. Plutôt que de recopier ce fichier, les
+#  lanceurs le paramètrent par l'environnement.
+APP_NAME = os.environ.get("LEXOS_CARTES_NOM", "Cartes LexOS")
+APP_SOUS_TITRE = os.environ.get("LEXOS_CARTES_SOUS_TITRE", "Cartes")
 APP_VERSION = "1.0.0"
 
 #  Sur l'ISO, le code vit dans /usr/lib/lexos et les fichiers de la carte
@@ -102,7 +109,7 @@ class LexOSPage(QWebEnginePage):
 class MainWindow(QMainWindow):
     def __init__(self, start_url: str, origine: str):
         super().__init__()
-        self.setWindowTitle(f"{APP_NAME} {APP_VERSION} — Cartes")
+        self.setWindowTitle(f"{APP_NAME} {APP_VERSION} — {APP_SOUS_TITRE}")
         self.resize(1280, 820)
         if ICON_PATH.exists():
             self.setWindowIcon(QIcon(str(ICON_PATH)))

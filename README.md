@@ -1,6 +1,6 @@
 <div align="center">
 
-# LexOS 1.0.2 « Nomad »
+# LexOS 2.0.0 « Nomad »
 
 **TI·LEX·AL** — une distribution Linux complète, noire, à ma sauce.
 
@@ -29,7 +29,7 @@ profils de performance, outils réseau et de partage.
 
 | | |
 |---|---|
-| **Nom** | LexOS 1.0.2 « Nomad » |
+| **Nom** | LexOS 2.0.0 « Nomad » |
 | **Socle** | Debian trixie — noyau 6.12 LTS, systemd 257, Mesa 25 |
 | **Bureau** | XFCE — barre en haut, dock à droite, façon Ubuntu |
 | **Thème** | LexOS Noir : fond noir pur, écriture blanche, boutons accentués |
@@ -115,31 +115,50 @@ git clone https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-.git
 cd logiciel-ti-lex-
 
 make check      # contrôle que tous les outils sont là
-make build      # construit l'ISO (saveur standard)
+make build      # construit l'ISO (saveur pro, la version de LexOS)
 ```
 
 Compte **20 à 60 minutes** selon ta connexion. À la fin :
 
 ```
-  ok  ISO      : lexos-1.0.2-standard-amd64.iso
-  ok  Taille   : 2.4G
-  ok  SHA-256  : lexos-1.0.2-standard-amd64.iso.sha256
+  ok  ISO      : lexos-2.0.0-pro-amd64.hybrid.iso
+  ok  Taille   : 8.0G
+  ok  SHA-256  : lexos-2.0.0-pro-amd64.hybrid.iso.sha256
 ```
 
-### Les cinq saveurs
+### Une seule version : `pro`
 
-| Saveur | Contenu | Taille approx. |
-|---|---|---|
-| `minimal` | Console seule, aucun bureau | ~700 Mio |
-| `standard` | Bureau XFCE, Firefox, dock, effets — **défaut** | ~2,5 Gio |
-| `dev` | standard + compilateurs, langages, conteneurs, Neovim | ~4 Gio |
-| `full` | dev + LibreOffice, GIMP, Inkscape, VLC, Krita | ~6 Gio |
-| `gaming` | dev + Steam, Lutris, Wine, gamemode, MangoHud, Vulkan | ~5 Gio |
+LexOS se construit et se livre en **une seule version, `pro`**. Elle embarque
+le pilote NVIDIA propriétaire — qui ne peut pas s'installer après coup, il doit
+être dans l'ISO — et un service (`lexos-gpu-garde`) qui range ces réglages au
+démarrage **quand la machine n'a pas de carte NVIDIA**.
+
+Autrement dit : la même ISO démarre sur une tour à RTX 5060 comme sur un
+portable Intel de 2016, sans rien avoir à choisir au téléchargement.
 
 ```bash
-make minimal        # ou : make standard / make dev / make full / make gaming
-make build FLAVOUR=dev
+make pro            # ou simplement : make build
 ```
+
+<details>
+<summary>Les autres saveurs, gardées pour dépanner</summary>
+
+Elles restent constructibles mais ne sont plus livrées. **Toutes donnent
+exactement le même bureau que `pro`** — mêmes 95 paquets stricts, mêmes 403
+paquets optionnels. Elles n'en diffèrent que par l'absence du pilote NVIDIA.
+
+| Saveur | Ce que c'est | Taille approx. |
+|---|---|---|
+| `minimal` | Console seule, aucun bureau — la seule vraiment différente | ~700 Mio |
+| `standard` | Le bureau de `pro`, sans le pilote NVIDIA | ~7 Gio |
+| `dev` · `full` · `gaming` | Alias historiques de `standard` | ~7 Gio |
+
+```bash
+make minimal
+make build FLAVOUR=standard
+```
+
+</details>
 
 ---
 
@@ -165,6 +184,28 @@ disque dur.
 
 Redémarre ensuite en choisissant la clé dans le menu de démarrage de ton
 ordinateur (souvent `F12`, `F11`, `Échap` ou `Suppr` au démarrage).
+
+### Les deux lignes du menu de démarrage
+
+| Ligne | Ce qu'elle fait |
+|---|---|
+| **Live system (amd64)** | Le vrai LexOS : pilote de la carte graphique actif, 3D, jeux. C'est celle qu'on prend. |
+| **Live system (amd64 fail-safe mode)** | Le filet de sécurité, si l'écran reste noir avec la première. |
+
+Le mode fail-safe change le **minimum** de choses, et rien d'autre : il
+interdit à tout pilote graphique de prendre la main (`nomodeset`, plus les
+modules NVIDIA et `nouveau` bloqués au niveau du noyau) et laisse l'écran
+exactement dans l'état où l'UEFI l'a allumé — celui qui affiche déjà le
+menu de démarrage, donc un affichage dont on a la preuve qu'il marche sur
+cet écran-là. Les messages de démarrage restent visibles, sans habillage :
+quand ce mode sert, c'est qu'on cherche déjà pourquoi quelque chose cloche.
+
+Compte, langue, clavier et fuseau horaire sont les mêmes que dans le mode
+normal — un filet de sécurité qui démarre en clavier américain est un filet
+dans lequel on ne sait plus taper son mot de passe.
+
+En contrepartie : pas d'accélération 3D, pas de jeux, une image moins fine.
+C'est un mode pour réparer, pas pour vivre dedans.
 
 ### Sans clé USB, ou depuis Windows
 
@@ -458,7 +499,7 @@ La fiche technique de la machine, avec le masque LexOS en art ASCII.
 ```
         ▄▄██████████▄▄         lex@lexos
      ▄██████████████████▄      ────────────────────────────────
-  ▄████████████████████████▄   OS       : LexOS 1.0.2 (Nomad) x86_64
+  ▄████████████████████████▄   OS       : LexOS 2.0.0 (Nomad) x86_64
   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀   Base     : Debian bookworm (12.5)
    ███▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄███    Noyau    : 6.1.0-18-amd64
     ██ ▐████▌    ▐████▌ ██     Uptime   : 14 minutes
@@ -538,7 +579,7 @@ démarrage, installateur, `/etc/os-release`, thème.
 
 ```bash
 LEXOS_NAME="LexOS"
-LEXOS_VERSION="1.0.2"
+LEXOS_VERSION="2.0.0"
 LEXOS_CODENAME="Nomad"
 LEXOS_ACCENT_NAME="orange"      # couleur des boutons
 LEXOS_CRT_EFFECTS="on"          # effets TV 1980
@@ -677,6 +718,6 @@ LexOS n'est ni affilié à, ni approuvé par le projet Debian.
 
 <div align="center">
 
-**TI·LEX·AL** — LexOS 1.0.2 « Nomad »
+**TI·LEX·AL** — LexOS 2.0.0 « Nomad »
 
 </div>

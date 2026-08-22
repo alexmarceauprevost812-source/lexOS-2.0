@@ -1,0 +1,233 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — habiller le menu de démarrage de la CLÉ USB
+# =============================================================================
+#  LE PROBLÈME QUE CE HOOK RÉPARE.
+#  Le menu que voit vraiment quelqu'un qui démarre sur la clé n'est pas celui
+#  du système installé : c'est le GRUB de l'ISO, généré par live-build. Et
+#  live-build le laisse tout nu — fond bleu, cadre bleu, police 8x16. C'est
+#  exactement ce qu'Alex a photographié : « GNU GRUB version 2.12-9+deb13u2 »
+#  sur fond bleu. Le thème posé dans /etc/default/grub par le hook 0100 ne
+#  concerne QUE le système installé ; il ne touche pas à l'ISO.
+#
+#  POURQUOI RETOUCHER ET NON REMPLACER. live-build sait remplacer entièrement
+#  la configuration GRUB de l'image (config/bootloaders/), mais un grub.cfg
+#  écrit à la main devient faux à la première évolution de live-build : chemin
+#  du noyau, nom de l'initrd, options de démarrage, entrée de secours,
+#  détection UEFI… Tout cela, live-build le calcule juste. Une ISO qui ne
+#  démarre plus est infiniment plus grave qu'un menu bleu. On garde donc le
+#  fichier de live-build et on lui AJOUTE le thème par-dessus.
+#
+#  ET SI LE THÈME NE CHARGE PAS ? GRUB affiche une ligne d'erreur et retombe
+#  sur son menu texte. Le démarrage reste possible dans tous les cas. C'est
+#  pour ça que cette approche est acceptable : le pire cas est laid, pas
+#  bloquant.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0910 : thème du menu de démarrage de l'ISO"
+
+# =============================================================================
+#  OÙ EST L'ARBRE DE L'IMAGE ? ON LE CHERCHE, ON NE LE SUPPOSE PAS.
+# =============================================================================
+#  CE QUE ÇA RÉPARE, ET DEPUIS QUAND. Ces deux hooks écrivaient « binary/… »
+#  en supposant que live-build les lance depuis la racine du chantier. Il les
+#  lance depuis le DOSSIER DE L'IMAGE. Le chemin ne tombait donc jamais juste,
+#  les deux hooks disaient poliment « absent — menu laissé tel quel », la
+#  construction réussissait, et l'ISO sortait sans le thème. Vérifié dans les
+#  journaux : le build 65 dit déjà la même chose. Le menu UEFI n'a JAMAIS été
+#  habillé sur aucune ISO publiée.
+#
+#  On essaie donc les emplacements plausibles et on garde le premier qui
+#  ressemble à un arbre d'image. Et si aucun ne convient, on ne se contente
+#  pas de dire « absent » : on imprime le dossier courant et ce qu'il contient,
+#  pour que la construction SUIVANTE nous dise la vérité au lieu qu'on devine
+#  une troisième fois.
+#  Pas de « local » : ce hook est en /bin/sh, où il n'existe pas. Le nom
+#  LEXOS_R est assez particulier pour ne rien écraser.
+racine_image() {
+	for LEXOS_R in . binary ../binary; do
+		if [ -d "$LEXOS_R/boot" ] || [ -d "$LEXOS_R/isolinux" ] || [ -d "$LEXOS_R/live" ]; then
+			printf '%s' "$LEXOS_R"
+			return 0
+		fi
+	done
+	return 1
+}
+dire_ou_on_est() {
+	echo "[lexos]   !! arbre de l'image introuvable — voici ce qu'on voit :"
+	echo "[lexos]      pwd = $(pwd)"
+	echo "[lexos]      contenu : $(ls -A 2>/dev/null | tr '\n' ' ' | cut -c1-200)"
+	echo "[lexos]      (c'est CETTE ligne qu'il faut lire au prochain build)"
+}
+
+IMG="$(racine_image)" || { dire_ou_on_est; exit 0; }
+echo "[lexos]   arbre de l'image : $IMG"
+
+THEME_REL="/boot/grub/themes/lexos"
+THEME_DIR="${IMG}${THEME_REL}"
+CFG="${IMG}/boot/grub/grub.cfg"
+
+# --- Le thème est-il bien arrivé dans l'image ? -----------------------------
+if [ ! -f "${THEME_DIR}/theme.txt" ]; then
+	echo "[lexos]   !! ${THEME_DIR}/theme.txt absent — menu laissé tel quel"
+	echo "[lexos]      (attendu depuis config/includes.binary/boot/grub/themes/lexos)"
+	exit 0
+fi
+
+if [ ! -f "$CFG" ]; then
+	#  Pas de grub.cfg : l'image est peut-être construite sans grub-efi. Ce
+	#  n'est pas une erreur, il n'y a simplement rien à habiller.
+	echo "[lexos]   ${CFG} absent — pas de menu GRUB dans cette image"
+	exit 0
+fi
+
+# --- Déjà fait ? ------------------------------------------------------------
+#  Un hook binaire peut être rejoué (reconstruction partielle). On ne veut pas
+#  empiler dix fois les mêmes lignes dans grub.cfg.
+if grep -q 'lexos-theme-debut' "$CFG"; then
+	echo "[lexos]   thème déjà posé dans ${CFG} — rien à refaire"
+	exit 0
+fi
+
+# --- La sauvegarde, avant de toucher à quoi que ce soit ----------------------
+cp "$CFG" "${CFG}.lexos-avant"
+
+# --- Le bloc à insérer ------------------------------------------------------
+#  IL VA À LA FIN, ET C'EST IMPORTANT. Première tentative : le mettre en tête,
+#  en pensant que GRUB dessine au fur et à mesure. Le bac à sable a montré le
+#  contraire — le grub.cfg de live-build contient son propre
+#  « set gfxmode=auto », plus bas, qui écrasait le nôtre. Le thème chargeait,
+#  mais dans la résolution choisie par le firmware, alors qu'il est dessiné
+#  pour du 1920x1080 (et GRUB ne redimensionne pas un thème).
+#
+#  GRUB lit son fichier EN ENTIER avant d'afficher le menu : les « menuentry »
+#  ne font qu'enregistrer des entrées. Une variable posée à la fin est donc
+#  bien celle qui s'applique — et elle a le dernier mot sur celles de
+#  live-build. D'où l'ajout en queue.
+#
+#  Chaque insmod est nécessaire et aucun n'est de trop :
+#    · all_video  : les pilotes d'affichage (sans lui, pas de mode graphique)
+#    · gfxterm    : le terminal graphique — c'est LUI qui permet un thème
+#    · gfxmenu    : le moteur de thèmes de GRUB
+#    · png        : le format de background.png et des select_*.png
+#  Les échecs sont avalés (« || true » implicite : GRUB continue après un
+#  insmod raté) pour qu'un module absent n'empêche pas le démarrage.
+BLOC="$(cat <<EOF
+# --- lexos-theme-debut (posé par config/hooks/normal/0910) -------------------
+insmod all_video
+insmod gfxterm
+insmod gfxmenu
+insmod png
+#  Le thème est calé sur 1920x1080. On propose des replis, et « auto » en
+#  dernier : mieux vaut un menu à la mauvaise taille que pas de menu.
+set gfxmode=1920x1080,1280x720,1024x768,auto
+set gfxpayload=keep
+terminal_output gfxterm
+set theme=${THEME_REL}/theme.txt
+export theme
+# --- lexos-theme-fin --------------------------------------------------------
+EOF
+)"
+
+# --- Le test de mémoire au menu ----------------------------------------------
+#  59-diagnostic.list installe memtest86+, mais LE PAQUET NE SUFFIT PAS : sans
+#  entrée au menu de l'ISO, le test n'existe que pour qui sait qu'il est là —
+#  exactement le genre de trou silencieux qu'on passe nos journées à fermer.
+#  Sur une machine dont on doute, c'est précisément DEPUIS LA CLÉ qu'on veut
+#  tester la RAM, avant même d'installer quoi que ce soit.
+#
+#  memtest86+ (version 7) livre deux images : .bin pour un démarrage BIOS,
+#  .efi pour l'UEFI. Ce grub.cfg-ci est celui de l'UEFI — on embarque la
+#  .efi. Le chargement passe par « linux » : memtest 7 se présente comme un
+#  noyau, GRUB n'a besoin de rien d'autre.
+#
+#  Les gardes, dans l'esprit du reste du fichier : si l'image n'est pas dans
+#  le chroot (paquet renommé, liste retirée), on le DIT et on n'ajoute pas
+#  d'entrée — un menu qui pointe vers un fichier absent est pire que pas de
+#  menu du tout.
+MEMTEST_SRC=""
+for CANDIDAT in chroot/boot/memtest86+x64.efi chroot/boot/memtest86+.efi; do
+	[ -f "$CANDIDAT" ] && { MEMTEST_SRC="$CANDIDAT"; break; }
+done
+if [ -n "$MEMTEST_SRC" ]; then
+	cp "$MEMTEST_SRC" "${IMG}/boot/memtest86+x64.efi"
+	BLOC="${BLOC}
+# --- lexos-memtest (posé par config/hooks/normal/0910) -----------------------
+menuentry \"Tester la mémoire (memtest86+)\" {
+    linux /boot/memtest86+x64.efi
+}
+# --- lexos-memtest-fin -------------------------------------------------------"
+	echo "[lexos]   memtest86+ : image copiée, entrée ajoutée au menu"
+else
+	echo "[lexos]   !! memtest86+ absent du chroot — pas d'entrée au menu"
+	echo "[lexos]      (59-diagnostic.list installe le paquet ; vérifier son nom)"
+fi
+
+printf '%s\n%s\n' "$(cat "$CFG")" "$BLOC" > "${CFG}.nouveau"
+
+# --- Vérifier AVANT de remplacer -------------------------------------------
+#  Deux contrôles qui valent le coup : le fichier doit avoir grandi (l'ajout a
+#  bien eu lieu) et il doit avoir gardé toutes ses entrées de menu (rien n'a
+#  été perdu en chemin). Au moindre doute, on garde l'original.
+AVANT_MENU="$(grep -c '^menuentry\|^submenu' "$CFG" || true)"
+APRES_MENU="$(grep -c '^menuentry\|^submenu' "${CFG}.nouveau" || true)"
+
+if [ "$APRES_MENU" -lt "$AVANT_MENU" ]; then
+	echo "[lexos]   !! entrées de menu perdues (${AVANT_MENU} -> ${APRES_MENU}) — on annule"
+	rm -f "${CFG}.nouveau"
+	exit 0
+fi
+
+if ! grep -q "set theme=${THEME_REL}/theme.txt" "${CFG}.nouveau"; then
+	echo "[lexos]   !! la ligne du thème n'est pas dans le résultat — on annule"
+	rm -f "${CFG}.nouveau"
+	exit 0
+fi
+
+mv "${CFG}.nouveau" "$CFG"
+
+# --- Les polices doivent voyager avec le thème ------------------------------
+#  GRUB ne devine pas les polices : theme.txt les réclame par leur nom
+#  (« LexOS Regular 22 »), et ce nom est inscrit DANS le fichier .pf2. Si les
+#  .pf2 manquent, GRUB dessine le menu avec sa police 8x16 par défaut — le
+#  thème « marche » mais il est méconnaissable. On compte, et on le dit.
+POLICES="$(find "${THEME_DIR}/fonts" -name '*.pf2' 2>/dev/null | wc -l)"
+RECLAMEES="$(grep -oE '"LexOS [A-Za-z]+ [0-9]+"' "${THEME_DIR}/theme.txt" | sort -u | wc -l)"
+
+if [ "$POLICES" -ge "$RECLAMEES" ] && [ "$RECLAMEES" -gt 0 ]; then
+	echo "[lexos]   polices du thème : ${POLICES} présentes pour ${RECLAMEES} réclamées"
+else
+	echo "[lexos]   !! polices : ${POLICES} présentes pour ${RECLAMEES} réclamées — menu en police par défaut"
+fi
+
+#  Les .pf2 doivent aussi être chargés explicitement : GRUB ne parcourt pas le
+#  dossier du thème tout seul dans une image live (contrairement à
+#  grub-mkconfig sur un système installé, qui écrit les loadfont lui-même).
+LOADFONTS=""
+for F in "${THEME_DIR}"/fonts/*.pf2; do
+	[ -e "$F" ] || continue
+	LOADFONTS="${LOADFONTS}loadfont ${THEME_REL}/fonts/$(basename "$F")
+"
+done
+
+if [ -n "$LOADFONTS" ]; then
+	#  Juste après nos insmod, avant « terminal_output gfxterm ».
+	awk -v fonts="$LOADFONTS" '
+		/^insmod png$/ { print; printf "%s", fonts; next }
+		{ print }
+	' "$CFG" > "${CFG}.polices" && mv "${CFG}.polices" "$CFG"
+	NB="$(printf '%s' "$LOADFONTS" | grep -c .)"
+	echo "[lexos]   ${NB} loadfont ajouté(s) au menu de l'ISO"
+fi
+
+# --- La preuve, dans le journal --------------------------------------------
+TAILLE="$(du -sk "$THEME_DIR" | cut -f1)"
+echo "[lexos]   menu de l'ISO habillé : ${THEME_REL} (${TAILLE} Kio, ${APRES_MENU} entrée(s) conservée(s))"
+echo "[lexos]   sauvegarde de l'original : ${CFG}.lexos-avant"
+
+#  La sauvegarde ne doit PAS voyager dans l'ISO : elle ne sert qu'ici, et un
+#  grub.cfg de rechange traînant dans /boot/grub sème le doute au débogage.
+rm -f "${CFG}.lexos-avant"
+
+echo "[lexos] hook 0910 : ok"

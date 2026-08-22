@@ -17,7 +17,9 @@
       <a href="fonctionnalites.html">Fonctionnalités</a>
       <a href="telecharger.html">Télécharger</a>
       <a class="on" href="installation.html">Installation</a>
-      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">GitHub</a>
+      <a href="demo/">Démo</a>
+      <a href="telephone.html">Téléphone</a>
+      <a class="gh-icon" href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0" target="_blank" rel="noopener" aria-label="GitHub" title="Voir le code sur GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg><span>GitHub</span></a>
     </nav>
     <a class="cta" href="telecharger.html">Télécharger</a>
   </div>
@@ -89,7 +91,7 @@ sdb     15G disk               ← la clé USB, c'est celle-là
   <p class="dim">La commande affiche le périphérique visé et attend que tu
   tapes <code>OUI</code>. Sans le Makefile :</p>
   <pre><code>sudo umount /dev/sdb* 2>/dev/null
-sudo dd if=lexos-1.0-standard-amd64.iso of=/dev/sdb bs=4M status=progress oflag=sync
+sudo dd if=lexos-2.0.0-pro-amd64.hybrid.iso of=/dev/sdb bs=4M status=progress oflag=sync
 sync</code></pre>
   <div class="notice warn"><code>of=</code> prend le <b>disque entier</b>
   (<code>/dev/sdb</code>), jamais une partition (<code>/dev/sdb1</code>).
@@ -110,7 +112,7 @@ sync</code></pre>
     <li><h3>Installer Ventoy sur la clé</h3><p class="dim">⚠ cette étape-là
     efface la clé, une fois.</p></li>
     <li><h3>Copier l'ISO</h3><p class="dim">Glisse-dépose
-    <code>lexos-1.0-standard-amd64.iso</code> sur la clé, comme un fichier.</p></li>
+    <code>lexos-2.0.0-pro-amd64.hybrid.iso</code> sur la clé, comme un fichier.</p></li>
     <li><h3>Démarrer</h3><p class="dim">Choisis la clé dans le menu de
     démarrage, puis LexOS dans la liste que Ventoy affiche.</p></li>
   </ol>
@@ -125,7 +127,7 @@ sync</code></pre>
     <li><h3>Poser l'ISO</h3><p class="dim">Quelque part de stable, par
     exemple <code>/boot/iso/lexos.iso</code>.</p></li>
     <li><h3>Ajouter une entrée GRUB</h3>
-      <pre><code>menuentry "LexOS 1.0.2 (démo depuis le disque)" {
+      <pre><code>menuentry "LexOS 2.0.0 (démo depuis le disque)" {
     set isofile="/boot/iso/lexos.iso"
     loopback loop $isofile
     linux (loop)/live/vmlinuz boot=live findiso=$isofile components quiet splash
@@ -172,6 +174,23 @@ sync</code></pre>
 
   <h2 id="installer">Installer sur le disque</h2>
   <p><i>Seulement si tu es convaincu.</i></p>
+
+  <div class="notice warn">
+    <b>⚠ Installer à côté de Windows 11 ? Trois réglages à faire DANS Windows d'abord.</b>
+    Ils ne se règlent pas depuis LexOS. Sans eux, le partage du disque échoue.
+    <table>
+      <tr><th>Dans Windows</th><th>Pourquoi</th></tr>
+      <tr><td><b>Suspendre BitLocker</b> (ou noter la clé sur <code>aka.ms/myrecoverykey</code>)</td>
+          <td>Windows 11 chiffre souvent le disque tout seul — sinon l'option « à côté » n'apparaît pas, ou Windows réclame une clé au redémarrage.</td></tr>
+      <tr><td><b>Désactiver le démarrage rapide</b> (Options d'alimentation)</td>
+          <td>Windows « hiberne » au lieu de s'arrêter ; le disque reste verrouillé et ne peut pas être redimensionné.</td></tr>
+      <tr><td><b>Secure Boot : Désactivé</b> (dans le BIOS, touche <code>F2</code>/<code>F12</code>)</td>
+          <td>L'édition pro embarque le pilote NVIDIA, qui ne se charge pas si Secure Boot est actif → écran noir. Si Windows est chiffré, suspends BitLocker <b>avant</b>.</td></tr>
+    </table>
+    Puis, dans l'installateur : <b>« Installer à côté »</b>, jamais « effacer »,
+    et <b>ne coche pas</b> le chiffrement.
+  </div>
+
   <h3>Avant de cliquer</h3>
   <ul>
     <li>Tu as <b>essayé</b> la session démo et tout fonctionne.</li>
@@ -218,7 +237,7 @@ lexos upgrade</code></pre></li>
   <ul>
     <li><code>lexos doctor</code> — diagnostic automatique</li>
     <li><code>lexos logs</code> — dernières erreurs du système</li>
-    <li><a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/issues" target="_blank" rel="noopener">Ouvrir un ticket</a>
+    <li><a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0/issues" target="_blank" rel="noopener">Ouvrir un ticket</a>
     en joignant la sortie de <code>lexos doctor</code> et <code>lexos version</code></li>
   </ul>
 </main>
@@ -229,11 +248,11 @@ lexos upgrade</code></pre></li>
       <a href="fonctionnalites.html">Fonctionnalités</a>
       <a href="telecharger.html">Télécharger</a>
       <a href="installation.html">Installation</a>
-      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">Code source</a>
-      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/issues" target="_blank" rel="noopener">Signaler un problème</a>
+      <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0" target="_blank" rel="noopener">Code source</a>
+      <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0/issues" target="_blank" rel="noopener">Signaler un problème</a>
     </div>
-    <p>LexOS 1.0.2 « Nomad » — TI·LEX·AL. Basé sur Debian, bureau XFCE. Licence MIT
-    pour le travail original — voir <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>.</p>
+    <p>LexOS 2.0.0 « Nomad » — TI·LEX·AL. Basé sur Debian, bureau XFCE. Licence MIT
+    pour le travail original — voir <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>.</p>
   </div>
 </footer>
 

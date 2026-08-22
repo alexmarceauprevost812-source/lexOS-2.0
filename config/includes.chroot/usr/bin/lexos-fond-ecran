@@ -1,0 +1,291 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-fond-ecran — choisir et appliquer le fond d'écran
+# =============================================================================
+#  Deux portes d'entrée, exprès :
+#    - le MENU (lanceur « Fond d'écran ») ouvre un sélecteur de fichier
+#      graphique — aucun terminal à voir ;
+#    - le CLIC DROIT sur une image dans Fichiers (action Thunar) appelle
+#      « lexos-fond-ecran <image> » directement.
+#
+#  L'application passe par xfconf : xfdesktop garde UNE image par écran et
+#  par espace de travail. On les règle TOUTES — régler la seule propriété
+#  « courante » donne un fond qui change quand on change de bureau, et
+#  l'utilisateur croit que ça n'a pas marché.
+#
+#  Limite dite franchement : un GIF animé posé ici ne bougera PAS — xfdesktop
+#  n'affiche que la première image. Pour un fond qui bouge : lexos-fond-anime.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — choisir et appliquer le fond d'écran
+
+Usage :
+  $PROG                  Fond actuel et images disponibles
+  $PROG choisir          Sélecteur graphique (celui du menu)
+  $PROG <image>          Appliquer cette image (celui du clic droit)
+  $PROG liste            Toutes les images trouvées, numérotées
+  $PROG <numéro>         Appliquer l'image numéro N de la liste
+  $PROG aleatoire        Une image au hasard
+  $PROG anime [fichier]  Fond ANIMÉ (vidéo ou GIF) — passe à lexos-fond-anime
+  $PROG autocollant                    Les personnages posables, et ceux posés
+  $PROG autocollant poser <nom> [coin] Poser un personnage sur le fond
+  $PROG autocollant enlever            Retrouver le fond sans autocollants
+
+Où il cherche : les fonds LexOS installés, ${D}~/Images${R} et ${D}~/Fonds d'écran${R}.
+EOF
+}
+
+# --- Où vivent les images ----------------------------------------------------
+#  Les fonds de la distribution sont posés par le hook 0300 quelque part sous
+#  /usr/share ; on ratisse les emplacements plausibles plutôt que d'en figer
+#  un seul — un chemin codé en dur casse en silence à la première réorganisation.
+DOSSIERS=(
+	"/usr/share/lexos/wallpapers"
+	"/usr/share/lexos/branding"
+	"/usr/share/backgrounds"
+	"${HOME}/Images"
+	"${HOME}/Fonds d'écran"
+	"${XDG_PICTURES_DIR:-}"
+)
+
+lister_images() {
+	local d
+	for d in "${DOSSIERS[@]}"; do
+		[[ -n "$d" && -d "$d" ]] || continue
+		find "$d" -maxdepth 2 -type f \
+			\( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \
+			   -o -iname '*.webp' -o -iname '*.bmp' -o -iname '*.svg' \) \
+			2>/dev/null
+	done | sort -u
+}
+
+fond_actuel() {
+	command -v xfconf-query >/dev/null 2>&1 || return 1
+	xfconf-query -c xfce4-desktop -l 2>/dev/null \
+		| grep -E '/backdrop/.*last-image$' | head -1 \
+		| xargs -r -I{} xfconf-query -c xfce4-desktop -p {} 2>/dev/null
+}
+
+appliquer() {
+	local img="$1" props p n=0
+	[[ -f "$img" ]] || die "Fichier introuvable : ${img}"
+	img="$(readlink -f "$img")"
+	command -v xfconf-query >/dev/null 2>&1 \
+		|| die "xfconf-query absent — le fond se règle depuis la session graphique XFCE."
+	[[ -n "${DISPLAY:-}" ]] \
+		|| die "Pas de session graphique ici. Lance cette commande depuis le bureau."
+	props="$(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -E '/backdrop/.*last-image$')"
+	[[ -n "$props" ]] || die "xfdesktop ne semble pas actif — aucun réglage de fond trouvé."
+	while IFS= read -r p; do
+		if xfconf-query -c xfce4-desktop -p "$p" -s "$img" 2>/dev/null; then
+			n=$((n + 1))
+			#  style 5 = « zoomé » : l'image remplit l'écran sans se déformer.
+			#  Sans lui, une petite image resterait en mosaïque au premier réglage.
+			xfconf-query -c xfce4-desktop -p "${p%last-image}image-style" -s 5 2>/dev/null || true
+		fi
+	done <<< "$props"
+	[[ "$n" -gt 0 ]] || die "Aucune propriété n'a pu être réglée."
+	ok "Fond d'écran appliqué (${n} réglage(s) écran/espace) : ${img##*/}"
+	case "$img" in
+		*.gif|*.GIF)
+			warn "Un GIF posé en fond ne bouge pas — xfdesktop n'en montre que la première image."
+			say  "Pour l'animer : ${B}lexos-fond-anime \"${img}\"${R}"
+			;;
+	esac
+}
+
+# --- Autocollants sur le fond d'écran ---------------------------------------
+#  CE QUE FAIT LA DÉMO. Sa fenêtre « Fonds d'écran — autocollants » pose des
+#  personnages (Lex bebeilles, Lex salut, badge PREVOST) sur le bureau, et on
+#  les glisse où on veut. Sur l'ISO, RIEN : les images n'existaient même pas.
+#
+#  COMMENT ON LE FAIT ICI. xfdesktop ne sait afficher qu'UNE image de fond —
+#  il n'a pas de couche « décorations par-dessus ». On compose donc l'image :
+#  le fond actuel + le personnage, aplatis en un nouveau PNG qu'on applique.
+#  Le fond D'ORIGINE est noté avant la première pose, et « enlever » y
+#  revient — on peut décorer et dédécorer sans jamais perdre son image.
+#
+#  La position se dit en mots (coins, centre) plutôt qu'en pixels : c'est ce
+#  qu'on peut taper sans réfléchir, et ça reste juste quelle que soit la
+#  taille de l'écran puisque ImageMagick place par gravité.
+AUTOC_DIR="/usr/share/lexos/autocollants"
+AUTOC_ETAT="${XDG_DATA_HOME:-$HOME/.local/share}/lexos/autocollants"
+
+autoc_nom() {           # la clé parlée -> le fichier
+	case "$1" in
+		rock|bebeilles|lex-rock)    printf 'sticker-rock.png' ;;
+		salut|lex-salut|thumbsup)   printf 'sticker-salut.png' ;;
+		prevost|badge)              printf 'sticker-prevost.png' ;;
+		*)                          return 1 ;;
+	esac
+}
+
+autoc_gravite() {       # le coin parlé -> la gravité ImageMagick
+	case "${1:-bas-droite}" in
+		bas-droite|bd)     printf 'southeast' ;;
+		bas-gauche|bg)     printf 'southwest' ;;
+		haut-droite|hd)    printf 'northeast' ;;
+		haut-gauche|hg)    printf 'northwest' ;;
+		centre|milieu)     printf 'center' ;;
+		*)                 return 1 ;;
+	esac
+}
+
+autoc_poser() {
+	local nom="${1:-}" coin="${2:-bas-droite}" fichier gravite fond neuf
+	command -v convert >/dev/null 2>&1 		|| die "ImageMagick est nécessaire pour composer l'image.   sudo apt install imagemagick"
+	[[ -n "$nom" ]] || die "Lequel ? ${B}$PROG autocollant${R} pour la liste."
+	fichier="$(autoc_nom "$nom")" 		|| die "Personnage inconnu : ${nom} — « $PROG autocollant » pour la liste."
+	[[ -r "$AUTOC_DIR/$fichier" ]] 		|| die "Image absente : $AUTOC_DIR/$fichier"
+	gravite="$(autoc_gravite "$coin")" 		|| die "Coin inconnu : ${coin} (bas-droite, bas-gauche, haut-droite, haut-gauche, centre)"
+
+	fond="$(fond_actuel)" || fond=""
+	[[ -n "$fond" && -r "$fond" ]] || die "Aucun fond d'écran actuel à décorer."
+
+	mkdir -p "$AUTOC_ETAT"
+	#  Le fond d'origine n'est noté qu'UNE fois : les poses suivantes
+	#  s'empilent sur l'image déjà décorée, et « enlever » revient au début.
+	if [[ ! -f "$AUTOC_ETAT/origine" ]]; then
+		printf '%s\n' "$fond" > "$AUTOC_ETAT/origine"
+	fi
+
+	#  Le personnage est mis à l'échelle du fond (un cinquième de sa hauteur) :
+	#  une taille absolue serait énorme sur un petit écran, invisible en 4K.
+	local hauteur
+	hauteur="$(identify -format '%h' "$fond" 2>/dev/null)" || hauteur=1080
+	#  DEUX NOMS EN ALTERNANCE, pas un seul. Poser un deuxième personnage
+	#  recompose la même image : si on la réécrivait sous le MÊME nom, la
+	#  propriété xfconf recevrait la valeur qu'elle a déjà — aucun signal de
+	#  changement, xfdesktop ne redessinerait rien, et le personnage
+	#  n'apparaîtrait qu'à la session suivante. Un nom qui alterne garantit
+	#  un vrai changement de valeur à chaque pose.
+	if [[ "$fond" == "$AUTOC_ETAT/fond-decore-1.png" ]]; then
+		neuf="$AUTOC_ETAT/fond-decore-2.png"
+	else
+		neuf="$AUTOC_ETAT/fond-decore-1.png"
+	fi
+	convert "$fond" \
+		\( "$AUTOC_DIR/$fichier" -resize "x$(( hauteur / 5 ))" \) \
+		-gravity "$gravite" -geometry +40+40 -composite \
+		"$neuf" || die "La composition a échoué."
+
+	appliquer "$neuf"
+	say "Autocollant posé (${coin}). Un autre par-dessus : ${B}$PROG autocollant poser <nom> <coin>${R}"
+	say "Tout enlever : ${B}$PROG autocollant enlever${R}"
+}
+
+autoc_enlever() {
+	local origine
+	[[ -f "$AUTOC_ETAT/origine" ]] 		|| { say "Aucun autocollant posé — rien à enlever."; return 0; }
+	origine="$(cat "$AUTOC_ETAT/origine")"
+	if [[ -r "$origine" ]]; then
+		appliquer "$origine"
+	else
+		warn "Le fond d'origine a disparu ($origine) — le fond actuel est gardé."
+	fi
+	rm -f "$AUTOC_ETAT/origine" "$AUTOC_ETAT"/fond-decore-*.png
+	ok "Autocollants enlevés."
+}
+
+autoc_liste() {
+	say "Personnages posables sur le fond d'écran :"
+	printf '  %srock%s     Lex — bebeilles\n' "$B" "$R"
+	printf '  %ssalut%s    Lex — salut\n' "$B" "$R"
+	printf '  %sprevost%s  Badge PREVOST\n' "$B" "$R"
+	echo
+	printf '  Poser :   %s%s autocollant poser rock bas-droite%s\n' "$D" "$PROG" "$R"
+	printf '  Coins :   %sbas-droite · bas-gauche · haut-droite · haut-gauche · centre%s\n' "$D" "$R"
+	printf '  Enlever : %s%s autocollant enlever%s\n' "$D" "$PROG" "$R"
+	if [[ -f "$AUTOC_ETAT/origine" ]]; then
+		echo
+		say "Des autocollants sont posés (fond d'origine : $(cat "$AUTOC_ETAT/origine"))"
+	fi
+	[[ -d "$AUTOC_DIR" ]] || warn "Dossier des personnages absent : $AUTOC_DIR"
+}
+
+autocollant() {
+	case "${1:-liste}" in
+		poser)    shift; autoc_poser "$@" ;;
+		enlever|retirer) autoc_enlever ;;
+		liste|*)  autoc_liste ;;
+	esac
+}
+
+choisir_gui() {
+	local depart img
+	for depart in "/usr/share/lexos/wallpapers" "/usr/share/lexos/branding" "${HOME}/Images" "$HOME"; do
+		[[ -d "$depart" ]] && break
+	done
+	if command -v zenity >/dev/null 2>&1; then
+		img="$(zenity --file-selection --title="Choisir un fond d'écran" \
+			--filename="${depart}/" \
+			--file-filter='Images | *.jpg *.jpeg *.png *.webp *.bmp *.svg' 2>/dev/null)" || exit 0
+	elif command -v yad >/dev/null 2>&1; then
+		img="$(yad --file --title="Choisir un fond d'écran" --filename="${depart}/" 2>/dev/null)" || exit 0
+	else
+		die "Ni zenity ni yad — installe-en un : lexos install zenity"
+	fi
+	[[ -n "$img" ]] && appliquer "$img"
+}
+
+CMD="${1:-}"
+case "$CMD" in
+	-h|--help|help) usage ;;
+	"")
+		say "Fond actuel : $(fond_actuel || echo "inconnu (hors session graphique ?)")"
+		N_TOTAL="$(lister_images | wc -l)"
+		say "${N_TOTAL} image(s) disponibles — « $PROG liste » pour les voir, « $PROG choisir » pour la fenêtre."
+		;;
+	choisir|gui|fenetre) choisir_gui ;;
+	liste|list)
+		i=0
+		while IFS= read -r f; do
+			i=$((i + 1))
+			printf '  %s%3d%s  %s\n' "$B" "$i" "$R" "$f"
+		done < <(lister_images)
+		[[ "$i" -gt 0 ]] || warn "Aucune image trouvée dans les dossiers connus."
+		;;
+	aleatoire|hasard|random)
+		IMG="$(lister_images | shuf -n1)"
+		[[ -n "$IMG" ]] || die "Aucune image trouvée."
+		appliquer "$IMG"
+		;;
+	anime|anim|video)
+		shift
+		command -v lexos-fond-anime >/dev/null 2>&1 \
+			|| die "lexos-fond-anime absent de cette machine."
+		exec lexos-fond-anime "$@"
+		;;
+	autocollant|autocollants|sticker)
+		shift
+		autocollant "$@"
+		;;
+	*)
+		if [[ "$CMD" =~ ^[0-9]+$ ]]; then
+			IMG="$(lister_images | sed -n "${CMD}p")"
+			[[ -n "$IMG" ]] || die "Pas d'image numéro ${CMD} — « $PROG liste »."
+			appliquer "$IMG"
+		elif [[ -e "$CMD" ]]; then
+			appliquer "$CMD"
+		else
+			warn "Ni un fichier, ni un numéro, ni une commande : ${CMD}"
+			usage
+			exit 1
+		fi
+		;;
+esac

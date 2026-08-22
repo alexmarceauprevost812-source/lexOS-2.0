@@ -1,0 +1,475 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-distant — bureau à distance : voir un autre écran, ou montrer le sien
+# =============================================================================
+#  La section « Bureau à distance » des Paramètres n'avait rien derrière elle
+#  sur l'ISO. Cet outil réunit les deux moitiés du sujet, que tout le monde
+#  confond, sous une aide qui les sépare franchement :
+#
+#    CLIENT  — je regarde l'écran d'une autre machine  (remmina, ssh)
+#    SERVEUR — je laisse quelqu'un regarder le mien    (x11vnc)
+#
+#  Décisions structurantes :
+#
+#  1. On refuse de démarrer un partage sans mot de passe, sans exception et
+#     sans valeur par défaut. Un serveur VNC ouvert donne l'écran ET le clavier
+#     à quiconque atteint le port : ce n'est pas « moins sécurisé », c'est
+#     donner sa machine. Le mot de passe est demandé à chaque partage.
+#
+#  2. On dit que VNC n'est pas chiffré, et on donne la commande de tunnel SSH
+#     exacte plutôt qu'un vague « pensez à sécuriser ». Une recommandation
+#     qu'on ne peut pas appliquer tout de suite n'est pas suivie.
+#
+#  3. On repère x11vnc par son nom de processus plutôt que par un fichier PID :
+#     x11vnc n'en écrit pas, et un partage lancé à la main doit quand même être
+#     vu par « etat » et arrêtable par « arreter ».
+#
+#  Limite assumée : x11vnc partage un écran X11. Sur une session Wayland il ne
+#  montrerait rien, et l'outil le dit avant d'essayer plutôt qu'après.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+# Port VNC imposé plutôt que laissé au hasard : sans ça x11vnc en choisit un
+# libre à partir de 5900 et on ne saurait pas quoi annoncer à la personne qui
+# doit se connecter.
+PORT_VNC=5900
+
+ACCUEIL="${HOME:-}"
+[[ -n "$ACCUEIL" ]] || ACCUEIL="$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6)"
+DOSSIER_LEXOS="${XDG_CONFIG_HOME:-$ACCUEIL/.config}/lexos"
+FICHIER_MDP="$DOSSIER_LEXOS/vnc-motdepasse"
+JOURNAL="$DOSSIER_LEXOS/x11vnc.log"
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — bureau à distance : voir un autre écran, ou montrer le sien
+
+${B}SE CONNECTER À UNE AUTRE MACHINE${R}  (c'est vous qui regardez)
+  $PROG vers <adresse>          Ouvre Remmina ; devine RDP ou VNC selon le port
+  $PROG rdp <adresse>           Impose RDP (Windows, serveurs Terminal)
+  $PROG vnc <adresse>           Impose VNC (Linux, Mac, boîtiers)
+  $PROG ssh <compte@machine>    Terminal distant, en texte, chiffré
+
+${B}LAISSER QUELQU'UN SE CONNECTER ICI${R}  (c'est vous qui montrez)
+  $PROG partager                Partage cet écran ; un mot de passe est demandé
+  $PROG partager once           Pareil, mais s'arrête après la première visite
+  $PROG arreter                 Coupe le partage et efface le mot de passe
+  $PROG etat                    Partage actif ? sur quelle adresse ? depuis quand ?
+
+Exemples :
+  $PROG vers 192.168.1.20
+  $PROG vnc 192.168.1.20:5900
+  $PROG ssh alex@192.168.1.20
+  $PROG partager once
+
+${B}À SAVOIR AVANT DE PARTAGER${R}
+  Un partage VNC donne l'écran ET le clavier : la personne en face voit tout
+  et peut tout faire. Le mot de passe est obligatoire, il vous est demandé à
+  chaque fois, et il n'y en a pas par défaut.
+
+  Le trafic VNC n'est pas chiffré. Hors d'un réseau que vous maîtrisez, faites
+  passer la connexion dans un tunnel SSH : la commande exacte est affichée au
+  démarrage du partage et par « $PROG etat ».
+EOF
+}
+
+# --- Petits utilitaires ------------------------------------------------------
+
+rogner() {
+	local s="$*"
+	s="${s#"${s%%[![:space:]]*}"}"
+	s="${s%"${s##*[![:space:]]}"}"
+	printf '%s' "$s"
+}
+
+verifier_outil() {
+	local outil="$1" paquets="$2"
+	command -v "$outil" >/dev/null 2>&1 && return 0
+	warn "« $outil » n'est pas installé sur cette machine."
+	say "Pour l'installer :  ${B}lexos install $paquets${R}"
+	return 1
+}
+
+# --- Côté client : se connecter à une autre machine ---------------------------
+
+deviner_protocole() {
+	# Le seul indice fiable dans une adresse tapée à la main, c'est le port.
+	# 5900-5909 sont les ports d'écoute des serveurs VNC ; tout le reste part
+	# en RDP, qui est ce qu'on trouve en face d'un Windows. C'est une devinette,
+	# donc on l'annonce comme telle et on laisse « rdp » et « vnc » trancher.
+	case "$1" in
+		*:590[0-9]) printf 'vnc' ;;
+		*)          printf 'rdp' ;;
+	esac
+}
+
+lancer_remmina() {
+	local protocole="$1" adresse="$2" uri=""
+	verifier_outil remmina "remmina remmina-plugin-rdp remmina-plugin-vnc" || exit 1
+	uri="$protocole://$adresse"
+	say "Ouverture de Remmina vers ${B}$uri${R}"
+	# setsid détache Remmina du terminal : fermer la fenêtre du terminal ne doit
+	# pas couper une session de dépannage en cours.
+	setsid remmina -c "$uri" >/dev/null 2>&1 &
+	ok "Remmina démarré."
+	say "Le nom d'utilisateur et le mot de passe de la machine distante sont demandés dans sa fenêtre."
+	printf '%s  (si Remmina répond que le protocole est inconnu, il manque remmina-plugin-%s)%s\n' \
+		"$D" "$protocole" "$R"
+}
+
+cmd_vers() {
+	local adresse="${1:-}" protocole=""
+	[[ -n "$adresse" ]] || die "Il manque l'adresse :  $PROG vers <adresse-ou-nom-de-machine>"
+	protocole="$(deviner_protocole "$adresse")"
+	say "Protocole deviné d'après l'adresse : ${B}$protocole${R}"
+	say "Pour imposer l'autre :  $PROG rdp $adresse   ou   $PROG vnc $adresse"
+	lancer_remmina "$protocole" "$adresse"
+}
+
+cmd_protocole_impose() {
+	local protocole="$1" adresse="${2:-}"
+	[[ -n "$adresse" ]] || die "Il manque l'adresse :  $PROG $protocole <adresse-ou-nom-de-machine>"
+	lancer_remmina "$protocole" "$adresse"
+}
+
+cmd_ssh() {
+	local cible="${1:-}"
+	[[ -n "$cible" ]] || die "Il manque la cible :  $PROG ssh <utilisateur@machine>"
+	verifier_outil ssh openssh-client || exit 1
+	[[ "$cible" == *@* ]] || say "Aucun nom d'utilisateur dans la cible : ssh essaiera « $(id -un) »."
+	say "Connexion à $cible — c'est un terminal, pas une image d'écran."
+	# exec : c'est ssh qui doit tenir le terminal, sinon Ctrl-C et le
+	# redimensionnement de la fenêtre passent mal à travers ce script.
+	exec ssh "$cible"
+}
+
+# --- Côté serveur : laisser quelqu'un se connecter ici ------------------------
+
+verifier_affichage() {
+	[[ -n "${DISPLAY:-}" ]] \
+		|| die "Aucune session graphique détectée (DISPLAY est vide) : x11vnc partage un écran X, lancez cette commande depuis le bureau."
+	# Le dire avant plutôt que de laisser la personne en face devant un écran
+	# noir sans comprendre pourquoi.
+	if [[ "${XDG_SESSION_TYPE:-}" == "wayland" ]]; then
+		die "Session Wayland détectée : x11vnc ne sait pas la partager. LexOS ouvre XFCE en X11 — vérifiez la session choisie à la connexion."
+	fi
+}
+
+partage_pid() {
+	pgrep -x -u "$(id -u)" x11vnc 2>/dev/null | head -n 1
+}
+
+verifier_procps() {
+	# Sans pgrep ni pkill, cet outil ne sait plus ni voir ni arrêter un partage.
+	# Répondre « aucun partage en cours » serait alors un mensonge, et sur ce
+	# sujet-là le mensonge est grave : on refuse de répondre.
+	verifier_outil pgrep procps || exit 1
+	verifier_outil pkill procps || exit 1
+}
+
+adresses_locales() {
+	local sortie=""
+	if command -v ip >/dev/null 2>&1; then
+		sortie="$(ip -4 -o addr show scope global 2>/dev/null | awk '{ split($4, a, "/"); print $2 " : " a[1] }')"
+	fi
+	if [[ -z "$sortie" ]] && command -v hostname >/dev/null 2>&1; then
+		sortie="$(hostname -I 2>/dev/null | tr ' ' '\n' | awk 'NF { print "réseau : " $1 }')"
+	fi
+	printf '%s' "$sortie"
+}
+
+premiere_adresse() {
+	local a=""
+	a="$(adresses_locales | awk -F' : ' 'NR == 1 { print $NF }')"
+	# Nom de remplacement explicite : mieux vaut une commande d'exemple visiblement
+	# à compléter qu'une commande fausse qu'on copierait telle quelle.
+	printf '%s' "$(rogner "${a:-adresse-de-cette-machine}")"
+}
+
+afficher_adresses() {
+	local lignes=""
+	lignes="$(adresses_locales)"
+	if [[ -z "$lignes" ]]; then
+		warn "Aucune adresse IP locale trouvée : la machine n'est probablement pas sur le réseau."
+		return 0
+	fi
+	say "Adresse à donner à la personne qui se connecte :"
+	printf '%s\n' "$lignes" | while IFS= read -r l; do
+		printf '    %s%s%s\n' "$B" "$l" "$R"
+	done
+}
+
+conseil_ssh() {
+	local adresse="" utilisateur=""
+	adresse="$(premiere_adresse)"
+	utilisateur="${SUDO_USER:-${USER:-$(id -un)}}"
+	warn "Le trafic VNC n'est pas chiffré : l'image de l'écran et les touches tapées"
+	warn "circulent en clair. Sur un réseau public ou partagé, c'est lisible par d'autres."
+	say "Pour tout chiffrer, depuis la machine qui se connecte, ouvrir d'abord un tunnel :"
+	printf '    %sssh -L %s:localhost:%s %s@%s%s\n' "$B" "$PORT_VNC" "$PORT_VNC" "$utilisateur" "$adresse" "$R"
+	say "puis brancher le visionneur VNC sur ${B}localhost:$PORT_VNC${R} au lieu de $adresse."
+}
+
+demander_mot_de_passe() {
+	local mdp1="" mdp2=""
+	# Pas de terminal, pas de mot de passe saisi, donc pas de partage. Refuser
+	# est la seule réponse correcte : la solution de repli serait un mot de
+	# passe vide ou fixe, c'est-à-dire aucun.
+	if [[ ! -t 0 ]]; then
+		warn "Il faut un terminal pour saisir le mot de passe du partage."
+		return 1
+	fi
+	printf "%s»%s Mot de passe pour ce partage (la saisie n'apparaît pas) : " "$O" "$R"
+	read -rs mdp1
+	printf '\n'
+	printf '%s»%s Répétez-le : ' "$O" "$R"
+	read -rs mdp2
+	printf '\n'
+
+	if [[ -z "$mdp1" ]]; then
+		warn "Mot de passe vide refusé. Sans mot de passe, n'importe qui sur le réseau"
+		warn "prend la main sur cet écran et ce clavier — il n'y a pas de demi-mesure ici."
+		return 1
+	fi
+	if [[ "$mdp1" != "$mdp2" ]]; then
+		warn "Les deux saisies ne sont pas identiques."
+		return 1
+	fi
+	# Le limiteur vient du protocole VNC lui-même, dont l'authentification ne
+	# manipule que 8 octets. Le taire laisserait croire qu'une longue phrase de
+	# passe protège mieux, alors qu'elle est tronquée sans prévenir.
+	(( ${#mdp1} > 8 )) && warn "Le protocole VNC ne retient que les 8 premiers caractères : la suite est ignorée."
+	(( ${#mdp1} < 6 )) && warn "Mot de passe très court : il tient sur une page d'essais automatiques."
+
+	mkdir -p "$DOSSIER_LEXOS" 2>/dev/null || { warn "Impossible de créer $DOSSIER_LEXOS."; return 1; }
+	chmod 700 "$DOSSIER_LEXOS" 2>/dev/null
+	# On crée le fichier VIDE, on restreint ses droits, et seulement ensuite on
+	# y écrit : dans l'autre ordre, le mot de passe existerait une fraction de
+	# seconde en lecture pour tous les comptes de la machine.
+	: > "$FICHIER_MDP" || { warn "Impossible d'écrire $FICHIER_MDP."; return 1; }
+	chmod 600 "$FICHIER_MDP" || { warn "Impossible de restreindre les droits de $FICHIER_MDP."; return 1; }
+	printf '%s\n' "$mdp1" > "$FICHIER_MDP" || { warn "Impossible d'écrire $FICHIER_MDP."; return 1; }
+	return 0
+}
+
+cmd_partager() {
+	local mode="${1:-}" duree="-forever" pid=""
+	local -a arguments=()
+	case "$mode" in
+		''|continu)   duree="-forever" ;;
+		once|unique)  duree="-once" ;;
+		*) die "Option inconnue pour partager : « $mode ». Attendu : rien, ou « once »." ;;
+	esac
+
+	verifier_outil x11vnc x11vnc || exit 1
+	verifier_procps
+
+	# Le partage déjà en cours se teste AVANT l'écran : sinon, lancée depuis un
+	# terminal sans DISPLAY, la commande répondrait « aucune session graphique »
+	# alors que le vrai sujet est qu'un partage tourne déjà.
+	pid="$(partage_pid)"
+	if [[ -n "$pid" ]]; then
+		warn "Un partage tourne déjà (processus $pid)."
+		cmd_etat
+		say "Pour le remplacer :  $PROG arreter   puis   $PROG partager"
+		exit 1
+	fi
+
+	verifier_affichage
+
+	demander_mot_de_passe || die "Partage non démarré."
+
+	arguments=(
+		-display "$DISPLAY"
+		-rfbport "$PORT_VNC"
+		-passwdfile "$FICHIER_MDP"
+		"$duree"
+		-bg
+		-o "$JOURNAL"
+	)
+	# Lancé avec sudo, x11vnc ne trouve pas le fichier d'autorisation X de la
+	# session en cours (celui de root ne sert à rien) : « -auth guess » va le
+	# chercher. Ce partage devrait toutefois se lancer avec son propre compte.
+	if (( EUID == 0 )); then
+		warn "Lancé en root : ce partage montre l'écran d'une session qui n'est pas la vôtre."
+		arguments+=(-auth guess)
+	fi
+
+	x11vnc "${arguments[@]}" >/dev/null 2>&1
+	# x11vnc -bg rend la main tout de suite et signale ses vrais échecs (port
+	# déjà pris, écran introuvable) en mourant juste après. Son code de retour
+	# ne suffit donc pas : on vérifie qu'il est encore là.
+	sleep 1
+	pid="$(partage_pid)"
+	if [[ -z "$pid" ]]; then
+		warn "x11vnc s'est arrêté aussitôt après son démarrage."
+		if [[ -r "$JOURNAL" ]]; then
+			warn "Fin du journal ($JOURNAL) :"
+			tail -n 8 "$JOURNAL" >&2
+		fi
+		rm -f "$FICHIER_MDP"
+		warn "Causes les plus fréquentes : le port $PORT_VNC est déjà pris par un autre serveur d'écran,"
+		warn "ou x11vnc n'a pas le droit d'ouvrir l'écran (lancez-le avec le compte de la session en cours)."
+		die "Partage non démarré. La cause exacte est dans les lignes de journal ci-dessus."
+	fi
+
+	ok "Partage d'écran démarré (processus $pid)."
+	afficher_adresses
+	say "Port : ${B}$PORT_VNC${R}"
+	if [[ "$duree" == "-once" ]]; then
+		say "Mode « once » : le partage s'arrête tout seul quand la première visite se termine."
+	else
+		say "Le partage reste ouvert jusqu'à  ${B}$PROG arreter${R}."
+	fi
+	printf '\n'
+	conseil_ssh
+	printf '\n'
+	warn "Pendant le partage, la personne en face voit tout l'écran et pilote le clavier et la souris."
+	# Dire où est le mot de passe et sous quelle forme : x11vnc doit pouvoir le
+	# relire, il ne peut donc pas être haché. Autant que ce soit su.
+	printf '%s  (mot de passe gardé en clair dans %s, droits 600, effacé par « %s arreter »)%s\n' \
+		"$D" "$FICHIER_MDP" "$PROG" "$R"
+}
+
+cmd_arreter() {
+	local pid="" essai=0
+	verifier_procps
+	pid="$(partage_pid)"
+	if [[ -z "$pid" ]]; then
+		say "Aucun partage d'écran en cours — rien à arrêter."
+		[[ -f "$FICHIER_MDP" ]] && rm -f "$FICHIER_MDP" && say "Ancien mot de passe de partage effacé."
+		return 0
+	fi
+	pkill -x -u "$(id -u)" x11vnc
+	# x11vnc range ses affaires avant de partir (il referme ses clients et rend
+	# l'écran) : lui laisser quelques secondes évite d'afficher un avertissement
+	# inquiétant à chaque arrêt parfaitement normal.
+	while (( essai < 8 )) && [[ -n "$(partage_pid)" ]]; do
+		sleep 0.5
+		essai=$(( essai + 1 ))
+	done
+	if [[ -n "$(partage_pid)" ]]; then
+		warn "x11vnc n'a pas répondu à la demande d'arrêt — on l'arrête de force."
+		pkill -9 -x -u "$(id -u)" x11vnc
+		sleep 1
+	fi
+	if [[ -n "$(partage_pid)" ]]; then
+		die "Le partage tourne toujours (processus $(partage_pid)). Il appartient peut-être à un autre compte."
+	fi
+	# Ce mot de passe ne valait que pour la session qu'on vient de fermer : le
+	# laisser sur le disque n'apporte rien et le prochain partage en demandera
+	# un neuf de toute façon.
+	[[ -f "$FICHIER_MDP" ]] && rm -f "$FICHIER_MDP" && say "Mot de passe de partage effacé."
+	ok "Partage d'écran arrêté. Plus personne ne voit cet écran."
+}
+
+ports_ecoutes() {
+	local pid="$1"
+	command -v ss >/dev/null 2>&1 || return 0
+	ss -H -ltnp 2>/dev/null \
+		| awk -v p="pid=$pid," 'index($0, p) { n = split($4, a, ":"); print a[n] }' \
+		| sort -u | tr '\n' ' '
+}
+
+# --- L'état en JSON, pour les Paramètres ------------------------------------
+#  POURQUOI UNE SORTIE MACHINE. Le panneau des Paramètres montrait « serveur
+#  actif / arrêté » et rien d'autre — alors que CE fichier sait déjà tout :
+#  quelle adresse donner, sur quel port, depuis quand, et quels outils sont
+#  installés. Plutôt que de lui faire relire « ip addr » et « pgrep » de son
+#  côté — deux copies de la même logique qui finiraient par diverger — on
+#  expose ici ce qu'on sait déjà.
+cmd_json() {
+	local pid ports adresses remmina ssh
+	pid="$(partage_pid 2>/dev/null || true)"
+	ports=""
+	[[ -n "$pid" ]] && ports="$(rogner "$(ports_ecoutes "$pid" 2>/dev/null || true)")"
+	adresses="$(adresses_locales)"
+	command -v remmina >/dev/null 2>&1 && remmina=true || remmina=false
+	command -v ssh     >/dev/null 2>&1 && ssh=true     || ssh=false
+
+	PID="$pid" PORTS="$ports" ADRESSES="$adresses" \
+	OUTIL="$(command -v x11vnc >/dev/null 2>&1 && printf x11vnc)" \
+	REMMINA="$remmina" SSH="$ssh" \
+	python3 -c '
+import json, os
+
+pid = (os.environ.get("PID") or "").strip()
+adresses = []
+for ligne in (os.environ.get("ADRESSES") or "").splitlines():
+    ligne = ligne.strip()
+    if " : " in ligne:
+        interface, _, ip = ligne.partition(" : ")
+        adresses.append({"interface": interface.strip(), "ip": ip.strip()})
+
+print(json.dumps({
+    "partage": bool(pid),
+    "pid": pid,
+    "ports": (os.environ.get("PORTS") or "").strip(),
+    "adresses": adresses,
+    "outil": (os.environ.get("OUTIL") or "").strip(),
+    "remmina": os.environ.get("REMMINA") == "true",
+    "ssh": os.environ.get("SSH") == "true",
+}, ensure_ascii=False))
+'
+}
+
+cmd_etat() {
+	local pid="" depuis="" duree="" ports=""
+	verifier_procps
+	pid="$(partage_pid)"
+	if [[ -z "$pid" ]]; then
+		say "Aucun partage d'écran en cours : personne ne voit cet écran."
+		say "Pour en démarrer un :  ${B}$PROG partager${R}"
+		return 0
+	fi
+	ok "Partage d'écran ACTIF (processus $pid)."
+	depuis="$(rogner "$(ps -o lstart= -p "$pid" 2>/dev/null)")"
+	duree="$(rogner "$(ps -o etime= -p "$pid" 2>/dev/null)")"
+	[[ -n "$depuis" ]] && say "Depuis : $depuis   (soit $duree)"
+	afficher_adresses
+	ports="$(rogner "$(ports_ecoutes "$pid")")"
+	if [[ -n "$ports" ]]; then
+		say "Port en écoute : ${B}$ports${R}"
+	else
+		say "Port : ${B}$PORT_VNC${R} ${D}(valeur posée par cet outil, non confirmée : ss est absent)${R}"
+	fi
+	printf '\n'
+	conseil_ssh
+	printf '\n'
+	say "Pour couper :  ${B}$PROG arreter${R}"
+}
+
+# --- Aiguillage --------------------------------------------------------------
+
+commande="${1:-}"
+[[ $# -gt 0 ]] && shift
+
+case "$commande" in
+	-h|--help|help|aide|'') usage ;;
+	vers)                   cmd_vers "${1:-}" ;;
+	rdp)                    cmd_protocole_impose rdp "${1:-}" ;;
+	vnc)                    cmd_protocole_impose vnc "${1:-}" ;;
+	ssh)                    cmd_ssh "${1:-}" ;;
+	partager)               cmd_partager "${1:-}" ;;
+	arreter)                cmd_arreter ;;
+	etat)                   cmd_etat ;;
+	--json|json)            cmd_json ;;
+	*)
+		warn "Commande inconnue : « $commande »"
+		printf '\n'
+		usage
+		exit 1
+		;;
+esac

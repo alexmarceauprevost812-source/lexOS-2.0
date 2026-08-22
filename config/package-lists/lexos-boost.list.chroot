@@ -1,0 +1,23 @@
+# Paquets requis par LexOS Boost.
+# Presque tout est déjà tiré par un bureau XFCE standard ; on les liste
+# quand même pour qu'une variante minimale de LexOS reste fonctionnelle.
+
+python3
+
+# zramctl (mémoire compressée) et blockdev
+util-linux
+
+# panneau graphique
+python3-gi
+gir1.2-gtk-3.0
+
+# Demande de mot de passe depuis le panneau. Le correctif livrait
+# « policykit-1 », qui N'EXISTE PLUS dans Debian trixie — le paquet a été
+# scindé. C'est ce nom qui a tué le build 60 en six minutes : cette liste
+# est installée par live-build directement, qui meurt sur un paquet
+# introuvable (contrairement à nos listes du hook 0250, en best-effort).
+polkitd
+pkexec
+
+# lecture des effets visuels XFCE (déjà présent sur les variantes bureau)
+xfconf

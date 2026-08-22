@@ -60,6 +60,12 @@ ${B}${O}${LEXOS_NAME}${R} ${D}${LEXOS_VERSION} « ${LEXOS_CODENAME} »${R}
 ${B}USAGE${R}
   ${PROG} <commande> [arguments]
 
+${B}RIEN À RETENIR${R}
+  Tape ${A}${PROG}${R} puis la touche ${B}Tab${R} : la liste des commandes s'affiche.
+  Tape ${A}${PROG} accent${R} puis ${B}Tab${R} : les couleurs possibles s'affichent.
+  ${D}Deux lettres et Tab suffisent — ${PROG} acc${R}${D}+Tab complète tout seul.${R}
+  ${D}Perdu ? Le mot « aide » seul, dans le terminal, ramène ici.${R}
+
 ${B}SYSTÈME${R}
   ${A}info${R}                Résumé du système (alias : ${D}lexfetch${R})
   ${A}version${R}             Version de LexOS
@@ -79,12 +85,23 @@ ${B}PAQUETS${R}
 ${B}APPARENCE${R}
   ${A}theme${R} <sombre|clair> LexOS Noir (défaut) ou thème de jour ${D}(crème, pas blanc pur)${R}
   ${A}accent${R} <couleur>    Couleur des boutons et des sélections
-                      ${D}orange (défaut) · bleu · rouge · vert · gris · violet · neon${R}
+                      ${D}orange (défaut) · orange-rouge · bleu · rouge · vert · gris
+                      violet · neon${R}
+  ${A}police${R} <nom>        Police d'écriture de l'interface
+                      ${D}defaut · classique · mono, plus douze écritures à la main :${R}
+                      ${D}manuscrite · bulle · carnet · ronde · crayon · plume ·${R}
+                      ${D}marqueur · architecte · fleur · cursive · tableau · craie${R}
   ${A}dock${R} <position>     Barre d'outils : ${D}droite (défaut) · gauche · bas · haut${R}
   ${A}ecran${R}               Plusieurs écrans : étendre, dupliquer, principal
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
   ${A}wallpaper${R} <image> <cadrage>  remplir · ajuster · etirer · centrer · mosaique
   ${A}wallpaper video${R} <fichier> Une vidéo en fond ${D}(en pause sur batterie, sans son)${R}
+  ${A}wallpaper anime${R}     Fonds animés ${D}(défaut : « code », le fond qui s'écrit)${R}
+  ${A}wallpaper anime liste${R}      Ceux qui existent : code · pluie · braises · etoiles · atelier
+  ${A}wallpaper anime nouveau${R} <nom>  Fabriquer le sien ${D}(modèle commenté, JSON)${R}
+  ${A}wallpaper anime apercu${R} <nom>   Une image, sans rien poser
+  ${A}wallpaper anime off${R}     Revenir au fond fixe
+                      ${D}Tout se fige sur batterie, sans exception.${R}
   ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
 
 ${B}LANGUE${R}
@@ -97,10 +114,40 @@ ${B}ÉNERGIE${R}
   ${A}lumiere${R} <0-100>     Luminosité de l'écran ${D}(aussi : lumiere eco, lumiere +10)${R}
   ${A}perf status${R}         Ce que fait vraiment la machine
   ${A}perf auto${R}           Choisir d'après le matériel détecté
+  ${A}temperature${R}         ${B}Chaleur et ventilateurs, en direct${R}
+                      ${D}processeur · carte graphique · mémoire vidéo · disques${R}
+  ${A}boost${R}               Scan matériel et optimisation ${D}(LexOS Boost — aussi : scan)${R}
+  ${A}sauvegarde${R}          Tes fichiers, copiés pour de vrai ${D}(borg, chiffré)${R}
+  ${A}sauvegarde init${R} <d>  Créer le coffre ${D}(disque externe conseillé)${R}
+  ${A}sauvegarde maintenant${R} Copier Documents, Images, Musique, Vidéos, Bureau
+  ${A}medecin${R}             « Qu'est-ce qui ne va pas ? » — le tri complet, traduit
+  ${A}disques${R}             La santé des disques AVANT qu'ils meurent ${D}(SMART, espace)${R}
+  ${A}materiel${R}            Ce qu'il y a DANS la machine ${D}(aussi : machine)${R}
+  ${A}materiel memoire${R}    ${B}« Puis-je ajouter de la RAM ? »${R} — fentes libres, type à acheter
+  ${A}parametres${R}          Ouvre la fenêtre des Paramètres ${D}(aussi : reglages)${R}
+  ${A}temperature surveille${R} Garde les maximums — à lancer AVANT une partie
+  ${A}firmware${R}            BIOS et micrologiciels : ce qui est à jour
+  ${A}firmware maj${R}        Met à jour le BIOS système, les SSD…
+                      ${D}Dell et Alienware sont soutenus. Le BIOS de la CARTE
+                      GRAPHIQUE (VBIOS), lui, ne se met à jour que sous Windows.${R}
+  ${A}tv${R}                  ${B}Pourquoi le téléviseur n'affiche rien${R}
+                      ${D}Lit l'EDID du téléviseur et le mode qu'il réclame,
+                      sans serveur graphique ni pilote — donc lisible en
+                      console et en mode secours, là où rien d'autre ne marche.${R}
+  ${A}meteo${R}               Le temps qu'il fait, chez toi
+  ${A}meteo ville${R} <nom>   Choisir ta ville ${D}(ex. : meteo ville Toronto)${R}
+                      ${D}Aussi d'un clic sur la météo, dans la barre du haut.
+                      Tant qu'aucune ville n'est choisie, rien n'est demandé
+                      au réseau — pas de localisation dans ton dos.${R}
 
 ${B}JEUX${R} ${D}(saveur gaming)${R}
+  ${A}jeux${R}                 ${B}Ta bibliothèque${R} : tous tes jeux au même endroit
+                      ${D}Steam · Lutris · RetroArch · Flatpak · Debian, réunis${R}
+  ${A}jeux lancer${R} <n°>     Lance le jeu n° <n°> de la bibliothèque
+  ${A}jeux chercher${R} <mot>  Cherche un jeu par son nom
   ${A}game info${R}            Matériel détecté : GPU, Vulkan, GameMode, MangoHud
   ${A}game${R} <commande>      Lance un jeu avec les réglages adaptés à la machine
+  ${A}game extras${R}          Compléments de jeu absents de Debian ${D}(Flathub)${R}
 
 ${B}RÉSEAU${R}
   ${A}avion${R} <on|off>      Mode avion : coupe toutes les radios
@@ -112,6 +159,7 @@ ${B}RÉSEAU${R}
 
 ${B}SÉCURITÉ${R}
   ${A}secure${R}               État : pare-feu, antivirus, anti-intrusion, anti-rootkit
+  ${A}prive${R}              Fichiers privés ${D}(coffre-fort chiffré)${R}
   ${A}secure enable${R}        Active pare-feu (ufw) + fail2ban, réglages sûrs
   ${A}secure scan${R} [dossier] Analyse antivirus (ClamAV) + anti-rootkit
 
@@ -119,6 +167,12 @@ ${B}PARTAGE${R}
   ${A}share${R} <fichiers…>   Envoyer vers un téléphone ${D}(QR code, KDE Connect, Bluetooth)${R}
   ${A}receive${R}             Recevoir des fichiers depuis un téléphone
   ${A}ecran-telephone${R}     Afficher et contrôler l'écran du téléphone ${D}(scrcpy, USB ou Wi-Fi)${R}
+
+${B}NAVIGATEURS${R}
+  ${D}Firefox et Chromium sont préinstallés. Chrome, lui, n'est pas libre :${R}
+  ${D}Google interdit de le redistribuer, l'ISO ne peut donc pas le contenir.${R}
+  ${A}chrome${R}              Ouvre Google Chrome ${D}(propose de l'installer au 1er lancement)${R}
+  ${A}install chrome${R}      Installe Chrome tout de suite ${D}(dépôt officiel Google, ~110 Mio)${R}
 
 ${B}LOGITHÈQUE${R}
   ${A}logitheque${R}          Boutique d'applications ${D}(GNOME Logiciels, dépôts Debian + Flathub)${R}
@@ -134,12 +188,18 @@ ${B}USB${R}
   ${A}format${R} [cible]      Formater une clé USB ou un téléphone ${D}(confirmation exigée)${R}
 
 ${B}CAPTURE${R}
+  ${A}volet${R}               Notifications et agenda ${D}(clic sur l'heure)${R}
+  ${A}volet meteo${R}         Le temps qu'il fait ${D}(clic sur la météo)${R}
+  ${A}apercu${R}              Vue d'ensemble des bureaux ${D}(coin haut-gauche, Super)${R}
+  ${A}apercu super on${R}     La touche Super seule ouvre la vue
+  ${A}apercu coin on${R}      Le coin haut-gauche ouvre la vue
   ${A}capture${R}             Capture tout l'écran ${D}(Impr écr)${R}
   ${A}capture fenetre${R}     Capture la fenêtre active ${D}(Alt+Impr écr)${R}
   ${A}capture zone${R}        Capture une zone à la souris ${D}(Maj+Impr écr)${R}
   ${A}capture video${R}       Enregistre l'écran en vidéo ${D}(Ctrl+Maj+R, Ctrl+C pour arrêter)${R}
 
 ${B}STUDIO+${R}
+  ${A}musique${R}             lexOS_musique : lecteur audio local ${D}(crate, playlists)${R}
   ${A}studio${R}              Studio+ LexOS : ateliers image, vidéo et son
   ${A}studio ouvrir${R} <atelier>  photo · peinture · vectoriel · video · capture · son
                       ${D}propose d'installer l'atelier s'il manque${R}
@@ -151,12 +211,61 @@ ${B}ARCHIVES${R}
 ${B}CARTES${R}
   ${A}cartes${R}              Carte du monde : position, fuseau, météo
                       ${D}données OpenStreetMap · aucun compte, aucune clé${R}
+  ${A}gps${R}                 GPS d'Alex : itinéraires, adresses, points d'intérêt
+                      ${D}Map IA · données OpenStreetMap · itinéraires OSRM${R}
 
 ${B}CLAVIER${R}
   ${A}clavier${R}             Dispositions actives et bascule
   ${A}clavier liste${R}       Les 20 dispositions reconnues
   ${A}clavier ajouter${R} <c> En ajouter une ${D}(4 au maximum : limite de X)${R}
   ${A}clavier bascule${R} <t> Quelles touches font passer à la suivante
+
+${B}SON${R}
+  ${A}son${R}                 Sortie, entrée, volume, muet
+  ${A}son sortie${R} <n>      Choisir le haut-parleur ou le casque
+  ${A}son test${R}            Vérifier gauche et droite
+  ${A}son melangeur${R}       Le volume application par application ${D}(fenêtre)${R}
+
+${B}ACCESSIBILITÉ${R}
+  ${A}access${R}              Ce qui est actif : voix, loupe, contraste
+  ${A}access lecteur on${R}   Lecteur d'écran ${D}(Orca — lit ce qui est à l'écran)${R}
+  ${A}access clavier on${R}   Clavier visuel à la souris ${D}(onboard)${R}
+  ${A}access loupe on${R}     Agrandir une zone de l'écran
+
+${B}UTILISATEURS${R}
+  ${A}utilisateurs${R}        Les comptes de cette machine
+  ${A}utilisateurs ajouter${R} <n> Créer un compte
+  ${A}utilisateurs motdepasse${R} <n> Changer son mot de passe
+                      ${D}le dernier administrateur ne peut pas être retiré${R}
+
+${B}BUREAU À DISTANCE${R}
+  ${A}distant${R}             État : qui peut voir cet écran
+  ${A}distant vers${R} <ip>   Se connecter à une autre machine ${D}(Remmina)${R}
+  ${A}distant partager on${R} Laisser voir CET écran ${D}(mot de passe obligatoire)${R}
+
+${B}RECHERCHE${R}
+  ${A}recherche${R} <mot>     Chercher par nom
+  ${A}recherche contenu${R} <m> Chercher DANS les fichiers
+  ${A}recherche gros${R}      Les plus gros fichiers ${D}(faire de la place)${R}
+  ${A}recherche doublons${R}  Les fichiers en double
+
+${B}APPLICATIONS PAR DÉFAUT${R}
+  ${A}defaut${R}              Quelle application ouvre quoi
+  ${A}defaut navigateur${R} <n> Changer le navigateur par défaut
+
+${B}DATE ET HEURE${R}
+  ${A}datetime${R}            Heure, date, fuseau, synchronisation
+  ${A}datetime fuseau${R} <lieu> Par NOM DE LIEU ${D}(« quebec », « paris »…)${R}
+
+${B}FOND D'ÉCRAN${R}
+  ${A}fond-ecran${R}          Choisir une image ${D}(fenêtre)${R}
+  ${A}fond-ecran liste${R}    Les fonds livrés avec LexOS
+  ${A}fond-ecran aleatoire${R} Au hasard
+                      ${D}ou clic droit sur une image dans Fichiers${R}
+
+${B}INSTALLER À CÔTÉ DE WINDOWS${R}
+  ${A}dualboot${R}            Tout vérifier avant d'installer ${D}(ne modifie rien)${R}
+                      ${D}place cessible par Windows, démarrage rapide, UEFI${R}
 
 ${B}COMPTES EN LIGNE${R}
   ${A}comptes${R}             Ce qui est relié, ce qui est monté
@@ -190,6 +299,22 @@ ${B}IA${R}
   ${A}ia${R}                   Conversation libre avec l'IA locale
   ${A}ia${R} "<tâche>"          Agent AUTONOME : exécute des commandes tout seul
                       ${D}rien n'est envoyé sur internet, jamais sudo par défaut${R}
+  ${A}ia-locale${R}            La fenêtre : quelle carte, quel backend, quels modèles
+                      ${D}et POURQUOI c'est lent quand c'est lent${R}
+  ${A}claude${R}               Claude Code : l'assistant de programmation d'Anthropic
+  ${A}claude app${R}           L'application Claude (claude.ai) en fenêtre dédiée
+  ${A}assistants${R}          Les six assistants IA en ligne ${D}(Claude, ChatGPT, Gemini…)${R}
+  ${A}assistants${R} <nom>    En ouvrir un ${D}(ex. : assistants perplexity)${R}
+                      ${D}Claude tourne dans le nuage : connexion et compte requis${R}
+
+${B}DÉVELOPPEMENT${R}
+  ${A}dev${R}                 État des outils : Claude Code, GitHub CLI, Vercel CLI
+  ${A}dev install${R}         Installe les trois ${D}(depuis leur source officielle)${R}
+  ${A}dev install${R} <outil> ${D}claude · gh · vercel${R}
+  ${A}dev update${R}          Met à jour ceux qui sont installés
+                      ${D}Ces outils sortent une version par semaine : les figer
+                      dans l'ISO les livrerait périmés. Le nécessaire (nodejs,
+                      npm, git, curl) est, lui, déjà installé.${R}
 
 ${B}DÉMO & INSTALLATION${R}
   ${A}demo${R}                Où en est-on : clé USB (démo) ou disque dur ?
@@ -197,6 +322,7 @@ ${B}DÉMO & INSTALLATION${R}
 
 ${B}EXEMPLES${R}
   ${D}${PROG} install neovim tmux${R}
+  ${D}${PROG} chrome${R}             ${D}(ouvre Google Chrome, l'installe au besoin)${R}
   ${D}${PROG} install chrome${R}      ${D}(ajoute Google Chrome — dépôt officiel Google)${R}
   ${D}${PROG} accent violet${R}
   ${D}${PROG} dock gauche${R}
@@ -358,6 +484,50 @@ cmd_doctor() {
 		fi
 	fi
 
+	# Python : ce dont les applications de LexOS ont besoin
+	#  Plusieurs applications de LexOS SONT des programmes Python. Quand un
+	#  module manque, elles s'arrêtent sur un « ModuleNotFoundError » qui ne
+	#  dit pas quel PAQUET installer — c'est ce que cette section répond, un
+	#  module par ligne, avec le nom Debian à taper.
+	if command -v python3 >/dev/null 2>&1; then
+		local manquants=() ligne module paquet quoi
+		for ligne in \
+			"gi|python3-gi gir1.2-gtk-3.0|fonds d'écran animés" \
+			"cairo|python3-cairo|fonds d'écran animés" \
+			"Xlib|python3-xlib|fond d'écran vidéo" \
+			"PySide6.QtWebEngineWidgets|python3-pyside6.qtwebenginewidgets|Paramètres et Cartes" \
+			"tkinter|python3-tk|programmes Python à interface Tk" \
+			"requests|python3-requests|programmes Python qui vont sur le web" \
+			"PIL|python3-pil|programmes Python qui touchent aux images" \
+			"numpy|python3-numpy|calcul, science, images"
+		do
+			module="${ligne%%|*}"; quoi="${ligne##*|}"
+			paquet="${ligne#*|}"; paquet="${paquet%|*}"
+			python3 -c "import ${module}" >/dev/null 2>&1 || \
+				manquants+=("${paquet}|${quoi}")
+		done
+		if (( ${#manquants[@]} == 0 )); then
+			ok "Python : tous les modules attendus sont là"
+		else
+			warn "Python : ${#manquants[@]} module(s) manquant(s)"
+			for ligne in "${manquants[@]}"; do
+				printf '    - %s%s%s  %s(%s)%s\n' \
+					"$O" "${ligne%%|*}" "$R" "$D" "${ligne##*|}" "$R"
+			done
+			printf '    %ssudo apt install %s%s\n' "$D" \
+				"$(printf '%s ' "${manquants[@]%%|*}")" "$R"
+		fi
+		#  pipx, et non pip : depuis Debian 12, « pip install » à l'échelle
+		#  du système est refusé (externally-managed-environment). pipx pose
+		#  chaque application Python dans son propre environnement.
+		if command -v pipx >/dev/null 2>&1; then
+			ok "pipx : les applications Python s'installent avec « pipx install <nom> »"
+		else
+			warn "pipx absent — c'est lui qui installe une application Python sur Debian 13"
+			printf '    %ssudo apt install pipx%s\n' "$D" "$R"
+		fi
+	fi
+
 	# Redémarrage requis
 	if [[ -f /var/run/reboot-required ]]; then
 		warn "Un redémarrage est requis"
@@ -397,6 +567,20 @@ cmd_wallpaper() {
 		shift; exec lexos-fond-video "$@"
 	fi
 
+	#  « wallpaper anime … » : les fonds dessinés en direct. Même raison que
+	#  la vidéo — ce n'est pas une propriété xfconf mais un programme qui
+	#  tourne, avec sa surveillance de batterie.
+	if [[ "${1:-}" == "anime" || "${1:-}" == "animé" || "${1:-}" == "anim" ]]; then
+		shift; exec lexos-fond-anime "$@"
+	fi
+	#  « wallpaper code » : le raccourci vers la scène du même nom, celle qui
+	#  écrit du code. C'est le fond animé par défaut de LexOS.
+	if [[ "${1:-}" == "code" || "${1:-}" == "ecriture" || "${1:-}" == "écriture" ]]; then
+		shift
+		[[ "${1:-}" == "off" ]] && exec lexos-fond-anime off
+		exec lexos-fond-anime code
+	fi
+
 	local img="${1:-/usr/share/backgrounds/lexos/wallpaper.png}"
 	local cadrage="${2:-remplir}"
 
@@ -426,6 +610,13 @@ cmd_wallpaper() {
 	#  relatif ne voudrait plus rien dire à la prochaine ouverture de session.
 	img="$(readlink -f "$img")"
 
+	#  Un fond animé recouvre le fond fixe : on l'arrête AVANT de poser
+	#  l'image. Dans l'autre ordre, l'arrêt remettrait le fond d'avant
+	#  par-dessus celui qu'on vient de choisir.
+	if command -v lexos-fond-anime >/dev/null 2>&1; then
+		lexos-fond-anime off >/dev/null 2>&1 || true
+	fi
+
 	local prop count=0
 	while read -r prop; do
 		[[ "$prop" == *last-image ]] || continue
@@ -448,7 +639,7 @@ cmd_accent() {
 		local cur="orange"
 		[[ -r "$HOME/.config/lexos/accent" ]] && cur="$(cat "$HOME/.config/lexos/accent")"
 		printf 'Accent courant : %s%s%s\n' "$O" "$cur" "$R"
-		printf 'Disponibles    : orange bleu rouge vert gris violet neon\n'
+		printf 'Disponibles    : orange orange-rouge bleu rouge vert gris violet neon\n'
 		return 0
 	fi
 	command -v lexos-theme-gen >/dev/null 2>&1 \
@@ -463,6 +654,96 @@ cmd_accent() {
 		xfconf-query -c xsettings -p /Net/ThemeName -s "$t"       2>/dev/null || true
 	fi
 	ok "Ferme et rouvre tes fenêtres pour que tout prenne la nouvelle couleur."
+}
+
+# --- La police d'écriture de l'interface -------------------------------------
+#  Quatre familles nommées, pas une liste de fontes : « manuscrite » est celle
+#  qu'on embarque nous-mêmes (Patrick Hand, licence OFL, dans
+#  /usr/share/fonts/truetype/lexos) — les trois autres s'appuient sur des alias
+#  génériques de fontconfig, qui existent sur toute installation. Une police
+#  absente ne casse donc rien : fontconfig retombe sur la plus proche.
+#
+#  Deux endroits à écrire, et c'est voulu : xsettings applique le changement
+#  À CHAUD sur les fenêtres ouvertes, gtk-3.0/settings.ini le fait SURVIVRE à
+#  la déconnexion. N'écrire que le premier et tout revient au défaut au
+#  redémarrage — ça a été le cas pendant un temps.
+#  Écrit UNE fois : la liste affichée par « lexos police liste » et celle du
+#  message d'erreur ne peuvent plus se contredire.
+DISPO_POLICES="defaut · classique · mono
+                  Écritures à la main : manuscrite · bulle · carnet · ronde · crayon ·
+                  plume · marqueur · architecte · fleur · cursive · tableau · craie"
+
+cmd_police() {
+	local nom="${1:-}"
+	local conf="$HOME/.config/lexos"
+	local police
+
+	case "${nom,,}" in
+		defaut|default|systeme|système|'') police="" ;;
+		classique|serif)                   police="Noto Serif 10" ;;
+		mono|machine|monospace)            police="Monospace 10" ;;
+		manuscrite|ecriture|écriture|main) police="Patrick Hand 12" ;;
+		#  Les onze autres écritures à la main livrées avec LexOS. La taille
+		#  n'est pas la même partout, et ce n'est pas un oubli : une écriture
+		#  fine (Cursive, Fleur) devient illisible à la taille où une écriture
+		#  large (Craie, Tableau noir) déborde déjà des menus. Chaque valeur
+		#  a été posée en regardant le résultat, pas en recopiant la voisine.
+		bulle|comic)        police="Comic Neue 12" ;;
+		carnet|delius)      police="Delius 12" ;;
+		ronde)              police="Short Stack 11" ;;
+		crayon|neucha)      police="Neucha 12" ;;
+		plume|handlee)      police="Handlee 12" ;;
+		marqueur|kalam)     police="Kalam 11" ;;
+		architecte)         police="Architects Daughter 11" ;;
+		fleur)              police="Indie Flower 12" ;;
+		cursive|caveat)     police="Caveat 14" ;;
+		tableau|tableau-noir) police="Gloria Hallelujah 10" ;;
+		craie|shantell)     police="Shantell Sans 11" ;;
+		liste|list)
+			local cur="défaut"
+			[[ -r "$conf/police" ]] && cur="$(cat "$conf/police")"
+			printf 'Police courante : %s%s%s\n' "$O" "$cur" "$R"
+			printf 'Disponibles     : %s\n' "$DISPO_POLICES"
+			return 0
+			;;
+		*)
+			die "Police inconnue : ${nom}
+Disponibles : ${DISPO_POLICES}"
+			;;
+	esac
+
+	#  Sans argument on affiche l'état plutôt que de tout remettre à zéro :
+	#  « lexos police » tout court doit renseigner, pas modifier.
+	[[ -z "$nom" ]] && { cmd_police liste; return 0; }
+
+	mkdir -p "$conf"
+	printf '%s\n' "${nom,,}" > "$conf/police"
+
+	# 1) À chaud, sur la session en cours.
+	if command -v xfconf-query >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+		if [[ -z "$police" ]]; then
+			xfconf-query -c xsettings -p /Gtk/FontName -r 2>/dev/null || true
+		else
+			xfconf-query -c xsettings -p /Gtk/FontName -s "$police" \
+				--create -t string 2>/dev/null || true
+		fi
+	fi
+
+	# 2) Pour les prochaines sessions, et pour les applications GTK qui
+	#    lisent le fichier plutôt que xsettings.
+	local ini="$HOME/.config/gtk-3.0/settings.ini"
+	mkdir -p "$(dirname "$ini")"
+	[[ -f "$ini" ]] || printf '[Settings]\n' > "$ini"
+	grep -q '^\[Settings\]' "$ini" || sed -i '1i [Settings]' "$ini"
+	sed -i '/^gtk-font-name[[:space:]]*=/d' "$ini"
+	[[ -n "$police" ]] && sed -i "/^\[Settings\]/a gtk-font-name=${police}" "$ini"
+
+	if [[ -z "$police" ]]; then
+		ok "Police remise au défaut du système."
+	else
+		ok "Police : ${police}."
+	fi
+	say "Les fenêtres déjà ouvertes gardent l'ancienne — rouvre-les."
 }
 
 cmd_crt() {
@@ -654,7 +935,7 @@ CMD="${1:-help}"
 [[ $# -gt 0 ]] && shift
 
 case "$CMD" in
-	help|--help|-h)       cmd_help ;;
+	help|--help|-h|aide|?) cmd_help ;;
 	version|--version|-V) cmd_version ;;
 	info|status)          cmd_info ;;
 	update)               cmd_update ;;
@@ -668,10 +949,12 @@ case "$CMD" in
 	wallpaper|bg)         cmd_wallpaper "$@" ;;
 	theme)                cmd_theme "$@" ;;
 	accent)               cmd_accent "$@" ;;
+	police|font|ecriture|écriture) cmd_police "$@" ;;
 	lang|langue)          cmd_lang "$@" ;;
 	dock|barre)           cmd_dock "$@" ;;
 	ecran|écran|display|screen) exec lexos-display "$@" ;;
 	perf|performance)     exec lexos-perf "$@" ;;
+	temperature|température|temp|chaleur|ventilateurs) exec lexos-temp "$@" ;;
 	lumiere|luminosite|brightness) exec lexos-brightness "$@" ;;
 	net|reseau)           exec lexos-net "$@" ;;
 	avion|airplane)       exec lexos-net avion "$@" ;;
@@ -686,24 +969,64 @@ case "$CMD" in
 	terminal-appareil)    exec lexos-usb terminal ;;
 	format)               exec lexos-format "$@" ;;
 	capture|capture-ecran) exec lexos-capture "$@" ;;
+	apercu|aperçu|vue|overview) exec lexos-apercu "$@" ;;
+	volet|notifications|notif) exec lexos-volet "${1:-agenda}" ;;
+	horloge)              exec lexos-heure "$@" ;;
 	run-ins|runins)       exec lexos-run-ins "$@" ;;
 	studio)               exec lexos-studio "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
 	ia|agent)             exec lexos-ia "$@" ;;
+	#  Boost avait son lanceur de bureau mais aucune branche ici : le seul
+	#  outil qu'on ne pouvait pas taper. Le contrôle 16 l'a nommé.
+	boost|scan|optimisation) exec lexos-boost "$@" ;;
+	sauvegarde|backup|sauve) exec lexos-sauvegarde "$@" ;;
+	disques|disque|disks)  exec lexos-disques "$@" ;;
+	medecin|médecin|diagnostic|doc) exec lexos-medecin "$@" ;;
+	materiel|matériel|machine|hardware) exec lexos-materiel "$@" ;;
+	parametres|paramètres|reglages|réglages|settings) exec lexos-settings "$@" ;;
+	ia-locale|ialocale)   exec lexos-ia-locale "$@" ;;
+	assistants|assistant) exec lexos-assistants "$@" ;;
+	claude|cc)            exec lexos-claude "$@" ;;
+	dev|devs|developpement|développement) exec lexos-dev "$@" ;;
+	firmware|bios|micrologiciel) exec lexos-firmware "$@" ;;
+	meteo|météo|weather|temps) exec lexos-meteo "$@" ;;
+	tv|televiseur|téléviseur|hdmi) exec lexos-tv "$@" ;;
+	musique|music)        exec lexos-musique "$@" ;;
+	chrome|google-chrome) exec lexos-chrome "$@" ;;
+	#  « jeux » ouvre la BIBLIOTHÈQUE (la liste de ce qu'on possède) : c'est
+	#  ce que quelqu'un veut dire en tapant « mes jeux ». « game » reste la
+	#  commande qui LANCE quelque chose avec les réglages de jeu.
+	jeux|jeu|bibliotheque|bibliothèque|biblio) exec lexos-jeux "$@" ;;
 	game)                 exec lexos-game "$@" ;;
 	secure|securite)      exec lexos-secure "$@" ;;
+	prive|privé|coffre)  exec lexos-prive "$@" ;;
 	vpn)                  exec lexos-vpn "$@" ;;
 	cartes|carte|maps)    exec lexos-cartes "$@" ;;
+	gps|navigation)       exec lexos-gps "$@" ;;
 	clavier|keyboard)     exec lexos-clavier "$@" ;;
 	comptes|compte)       exec lexos-comptes "$@" ;;
 	bienetre|bien-etre|bien-être) exec lexos-bienetre "$@" ;;
 	mac|apple)            exec lexos-mac "$@" ;;
+	#  Les huit panneaux qui remplissent les sections des Paramètres restées
+	#  décoratives : elles s'affichaient, mais rien ne répondait derrière.
+	#  « comptes » est déjà pris par lexos-comptes, et « wallpaper »/« bg »
+	#  par cmd_wallpaper : d'où « utilisateurs » et « fond-ecran ».
+	son|audio|volume)     exec lexos-son "$@" ;;
+	access|accessibilite|accessibilité) exec lexos-access "$@" ;;
+	utilisateurs|users)   exec lexos-utilisateurs "$@" ;;
+	distant|remote)       exec lexos-distant "$@" ;;
+	recherche|chercher)   exec lexos-recherche "$@" ;;
+	defaut|défaut)        exec lexos-defaut "$@" ;;
+	datetime|heure)       exec lexos-datetime "$@" ;;
+	fond-ecran|fond)      exec lexos-fond-ecran "$@" ;;
+	dualboot|windows)     exec lexos-dualboot "$@" ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;
 	*)
 		err "Commande inconnue : ${CMD}"
-		printf '  Essaie : %s help\n' "$PROG" >&2
+		printf '  Le sommaire des commandes : %s aide\n' "$PROG" >&2
+		printf '  Ou tape « %s » puis la touche Tab pour les voir toutes.\n' "$PROG" >&2
 		exit 1
 		;;
 esac

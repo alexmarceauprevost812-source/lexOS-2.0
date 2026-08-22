@@ -1,0 +1,56 @@
+# =============================================================================
+#  51-dev-outils — ce qu'un dev installe le premier soir sur une machine neuve
+# =============================================================================
+#  La couche au-dessus du socle (git, neovim, ripgrep, fzf, tmux, 50-dev).
+#  Les avoir déjà là, c'est exactement ce que « un système fait pour
+#  développer » veut dire. Recoupé avec 50-dev : bat, tig, meld, shellcheck,
+#  httpie, nmap, buildah, gh y sont déjà — pas répétés.
+#
+#  Vérifié à l'inventaire : watchexec, difftastic, mitmproxy et
+#  mission-center N'EXISTENT PAS dans trixie — entr, git-delta et btop les
+#  couvrent. Et « bat » installe une commande nommée « batcat » (conflit de
+#  nom avec Bacula) : l'alias est posé par le hook 0120, sinon l'outil est
+#  là et personne ne le trouve.
+
+# --- Git au quotidien --------------------------------------------------------
+#  Tout git dans une fenêtre de terminal.
+lazygit
+#  Des diffs lisibles. La commande installée est « delta ».
+git-delta
+
+# --- Le terminal, en mieux ---------------------------------------------------
+eza
+zoxide
+direnv
+just
+entr
+hyperfine
+tokei
+wl-clipboard
+
+# --- Qualité -----------------------------------------------------------------
+shfmt
+pre-commit
+universal-ctags
+
+# --- Voir ce qui se passe ----------------------------------------------------
+btop
+#  La charge et la température du GPU NVIDIA — sur une machine à RTX 5060,
+#  l'outil qui manquait le plus.
+nvtop
+sqlitebrowser
+wireshark
+
+# --- Conteneurs (complète podman + distrobox du socle) -----------------------
+podman-compose
+skopeo
+
+# --- Forges ------------------------------------------------------------------
+#  gh est déjà dans 50-dev ; glab est son pendant GitLab. Les deux sont en
+#  retard dans Debian — utilisables, mais qui y vit installera la version
+#  officielle.
+glab
+
+# --- Machines virtuelles à la souris -----------------------------------------
+#  Tester sa propre ISO en deux clics.
+gnome-boxes

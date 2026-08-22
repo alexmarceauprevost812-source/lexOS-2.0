@@ -5,5 +5,5 @@ lutris
 wine
 winetricks
 gamescope
-protontricks
+protontricks|python3-protontricks
 goverlay

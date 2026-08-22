@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fonctionnalités — LexOS 1.0.2 « Nomad »</title>
+<title>Fonctionnalités — LexOS 2.0.0 « Nomad »</title>
 <meta name="description" content="Tour complet des fonctionnalités de LexOS : thème LexOS Noir, effets TV 1980, profils de performance, réseau, partage, IA locale, sécurité, personnalisation, et tous les outils lexos.">
 <link rel="stylesheet" href="assets/style.css">
 </head>
@@ -17,7 +17,9 @@
       <a class="on" href="fonctionnalites.html">Fonctionnalités</a>
       <a href="telecharger.html">Télécharger</a>
       <a href="installation.html">Installation</a>
-      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">GitHub</a>
+      <a href="demo/">Démo</a>
+      <a href="telephone.html">Téléphone</a>
+      <a class="gh-icon" href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0" target="_blank" rel="noopener" aria-label="GitHub" title="Voir le code sur GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg><span>GitHub</span></a>
     </nav>
     <a class="cta" href="telecharger.html">Télécharger</a>
   </div>
@@ -144,7 +146,17 @@ lexos ecran gui                  # réglage à la souris</code></pre>
   mode IA (<code>rembg</code>, si installé) ou mode rapide (ImageMagick,
   toujours disponible). Clic droit sur une image → <b>Créer un autocollant</b>.</p>
 
-  <h2 id="ia">IA locale — agent autonome dans le terminal</h2>
+  <h2 id="ia">IA locale — deux moteurs, zéro nuage</h2>
+  <p><b>La fenêtre : <code>lexos ia-locale</code>.</b> Un modèle de langage
+  sur ta machine, avec le moteur <b>llama.cpp</b> (licence MIT, empaqueté par
+  Debian). La fenêtre te dit d'abord ce que TA machine peut faire — quelle
+  carte graphique, quel backend, et <b>laquelle</b> des quatre pannes
+  possibles tu as plutôt qu'un « GPU non disponible » qui ne sert à
+  personne. Le catalogue affiche la licence de chaque modèle <b>avant</b> le
+  téléchargement, avec un verdict calculé pour ta carte : « entre au
+  complet », « déborde sur le processeur », ou « trop gros ». Aucun modèle
+  ne voyage dans l'ISO — LexOS livre le moteur, jamais les poids.</p>
+  <h3>L'agent dans le terminal — <code>lexos ia</code></h3>
   <pre><code>lexos ia setup                            # installe Ollama + un petit modèle, une fois
 lexos ia                                  # conversation libre
 lexos ia "libère 2 Gio d'espace disque"   # agent autonome</code></pre>
@@ -174,6 +186,46 @@ lexos ia "libère 2 Gio d'espace disque"   # agent autonome</code></pre>
   ailleurs qu'à l'intérieur de la machine.</div>
 
   <h2 id="outils">Les outils maison</h2>
+  <p>Le meilleur de LexOS est là : <b>79 sous-commandes</b> derrière une seule
+  porte, <code>lexos</code>. Chacune parle français, dit ce qu'elle va faire,
+  et rien de destructif ne part sans confirmation. Les grandes familles :</p>
+  <table>
+    <tr><th>Famille</th><th>Ce qu'on y trouve</th></tr>
+    <tr><td><b>Diagnostic</b></td><td><code>medecin</code> — « qu'est-ce qui ne
+      va pas ? » en une commande, chaque constat finit par la commande qui
+      soigne · <code>disques</code> — la santé SMART traduite, avant la panne ·
+      <code>materiel</code> — ce qu'il y a dans la machine, et
+      <code>materiel memoire</code> qui répond enfin à « puis-je ajouter de
+      la RAM ? » : fentes libres, type exact à acheter, maximum accepté ·
+      <code>temperature</code> · <code>boost</code> — le scan matériel et les
+      optimisations · <code>doctor</code></td></tr>
+    <tr><td><b>Sauvegarde</b></td><td><code>sauvegarde</code> — tes fichiers
+      copiés pour de vrai (borg, chiffré, restauration toujours à côté, jamais
+      par-dessus) · <code>sauvegarde systeme</code> — les instantanés
+      timeshift pour l'autre malheur</td></tr>
+    <tr><td><b>Vie privée</b></td><td><code>prive</code> — le coffre chiffré
+      (gocryptfs) pour ce qui ne regarde personne · <code>secure</code> —
+      pare-feu, antivirus, anti-intrusion, anti-rootkit · <code>vpn</code></td></tr>
+    <tr><td><b>Bureau</b></td><td><code>parametres</code> — la fenêtre des
+      Paramètres, 30+ sections · <code>apercu</code> — la vue d'ensemble des
+      espaces de travail · <code>volet</code> — notifications et agenda ·
+      <code>capture</code> · <code>wallpaper</code> (fixes, animés, vidéo)</td></tr>
+    <tr><td><b>Créer et jouer</b></td><td><code>studio</code> — photo, vidéo,
+      musique · <code>jeux</code> — ta bibliothèque · <code>game</code> — les
+      réglages adaptés à la machine · <code>musique</code> · <code>sticker</code></td></tr>
+    <tr><td><b>Aller plus loin</b></td><td><code>cartes</code> et
+      <code>gps</code> — itinéraires hors ligne · <code>meteo</code> ·
+      <code>distant</code> — le bureau à distance, avec l'adresse à dicter ·
+      <code>tv</code> — pourquoi le téléviseur n'affiche rien ·
+      <code>dualboot</code> — cohabiter avec Windows · <code>mac</code> ·
+      <code>firmware</code> — BIOS et micrologiciels · <code>bienetre</code> ·
+      <code>access</code> — lecteur d'écran, loupe, clavier visuel ·
+      <code>logitheque</code> — la boutique Flatpak · <code>assistants</code> —
+      Claude, ChatGPT, Gemini, Perplexity, Mistral, Copilot en fenêtres</td></tr>
+  </table>
+  <p class="dim">La liste vivante : <code>lexos --help</code>. Chaque outil a
+  aussi sa page dans Paramètres → Logiciels tiers quand il s'appuie sur un
+  composant externe, avec sa licence.</p>
   <h3><code>lexfetch</code></h3>
   <p class="dim">La fiche technique de la machine, avec le masque LexOS en
   art ASCII : OS, base Debian, noyau, temps de fonctionnement, paquets,
@@ -214,7 +266,7 @@ DÉMO & INSTALLATION
   une valeur, relance <code>make build</code>, et l'ISO entière suit — nom,
   écran de démarrage, installateur, <code>/etc/os-release</code>, thème.</p>
   <pre><code>LEXOS_NAME="LexOS"
-LEXOS_VERSION="1.0.2"
+LEXOS_VERSION="2.0.0"
 LEXOS_CODENAME="Nomad"
 LEXOS_ACCENT_NAME="orange"      # couleur des boutons
 LEXOS_CRT_EFFECTS="on"          # effets TV 1980
@@ -230,7 +282,7 @@ LEXOS_KEYBOARD_LAYOUT="ca"</code></pre>
   pour une saveur précise). Changer les visuels : remplace les fichiers de
   <code>branding/</code>.</p>
 
-  <p class="center" style="margin:44px 0"><a class="btn big" href="telecharger.html">⬇ Télécharger LexOS 1.0.2</a></p>
+  <p class="center" style="margin:44px 0"><a class="btn big" href="telecharger.html">⬇ Télécharger LexOS 2.0.0</a></p>
 </main>
 
 <footer class="site">
@@ -239,11 +291,11 @@ LEXOS_KEYBOARD_LAYOUT="ca"</code></pre>
       <a href="fonctionnalites.html">Fonctionnalités</a>
       <a href="telecharger.html">Télécharger</a>
       <a href="installation.html">Installation</a>
-      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-" target="_blank" rel="noopener">Code source</a>
-      <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/issues" target="_blank" rel="noopener">Signaler un problème</a>
+      <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0" target="_blank" rel="noopener">Code source</a>
+      <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0/issues" target="_blank" rel="noopener">Signaler un problème</a>
     </div>
-    <p>LexOS 1.0.2 « Nomad » — TI·LEX·AL. Basé sur Debian, bureau XFCE. Licence MIT
-    pour le travail original — voir <a href="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>.</p>
+    <p>LexOS 2.0.0 « Nomad » — TI·LEX·AL. Basé sur Debian, bureau XFCE. Licence MIT
+    pour le travail original — voir <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>.</p>
   </div>
 </footer>
 

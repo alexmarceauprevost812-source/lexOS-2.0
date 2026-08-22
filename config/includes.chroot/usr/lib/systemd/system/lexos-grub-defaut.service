@@ -1,0 +1,21 @@
+[Unit]
+Description=LexOS — Windows comme démarrage par défaut quand il est installé à côté
+Documentation=file:/usr/lib/lexos/grub-defaut-windows
+#  APRÈS le montage des disques : le script lit /boot/grub/grub.cfg et écrit
+#  dans /boot/grub/grubenv. Sur une installation avec /boot séparé, rien de
+#  tout ça n'existe avant local-fs.target.
+After=local-fs.target
+#  PAS de ConditionPathExists, pour la même raison que le garde-fou de la
+#  démo : une condition sur un fichier qu'on modifie empêcherait l'unité de
+#  se relancer si quelque chose réécrivait grubenv plus tard (une mise à jour
+#  de noyau, un update-grub lancé à la main). Le script sort de lui-même en
+#  quelques millisecondes quand il n'y a rien à faire — et il sort tout de
+#  suite en session démo.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/lexos/grub-defaut-windows
+
+[Install]
+WantedBy=multi-user.target

@@ -69,10 +69,73 @@ if [ -r "$BRAND/lexos-1.0-keyart.png" ] && have convert; then
 		|| echo "[lexos]   !! échec : wallpaper-keyart.png"
 fi
 
+# --- Le fond par DÉFAUT de XFCE devient celui de LexOS ---------------------
+#  POURQUOI CE BLOC EXISTE (constaté sur le portable 2016, build 35)
+#  Le bon fond d'écran s'affichait à l'ouverture de session… puis laissait
+#  la place au fond bleu de XFCE, celui à la souris. Ce n'était donc pas une
+#  question de nom de propriété — c'était une COURSE, et on la perdait :
+#  lexos-firstrun pose l'image, xfdesktop finit de démarrer ensuite et écrit
+#  ses propres valeurs par-dessus.
+#
+#  On peut toujours écrire après lui, il écrira encore après nous. La seule
+#  façon de gagner à coup sûr, c'est de ne plus courir : on remplace LE
+#  FICHIER que xfdesktop utilise par défaut. Peu importe alors qui écrit en
+#  dernier — l'image affichée est celle de LexOS.
+#
+#  On remplace chaque fichier en gardant son nom ET son format : xfdesktop
+#  choisit par nom, et un JPEG déguisé en .svg n'est pas lisible par tous
+#  les chargeurs. Les originaux de Debian ne servent plus à rien ici.
+XFCE_BG="/usr/share/backgrounds/xfce"
+if [ -d "$XFCE_BG" ] && [ -r "$BG/wallpaper.png" ]; then
+	REMPLACES=0
+	for D in "$XFCE_BG"/*; do
+		[ -f "$D" ] || continue
+		case "$D" in
+			*.svg)
+				[ -r "$BRAND/wallpaper.svg" ] \
+					&& cp "$BRAND/wallpaper.svg" "$D" && REMPLACES=$((REMPLACES + 1))
+				;;
+			*.png)
+				cp "$BG/wallpaper.png" "$D" && REMPLACES=$((REMPLACES + 1))
+				;;
+			*.jpg|*.jpeg)
+				#  Sans convert, on recopie quand même le PNG sous le nom
+				#  .jpg : les chargeurs d'images reconnaissent le format au
+				#  contenu, pas à l'extension. Un PNG mal nommé s'affiche ;
+				#  le fond bleu de Debian laissé en place, lui, se voit.
+				if have convert; then
+					convert "$BG/wallpaper.png" -quality 92 "$D" \
+						&& REMPLACES=$((REMPLACES + 1))
+				else
+					cp "$BG/wallpaper.png" "$D" && REMPLACES=$((REMPLACES + 1))
+				fi
+				;;
+		esac
+	done
+	echo "[lexos]   fond par défaut de XFCE remplacé (${REMPLACES} fichier(s))"
+	if [ "$REMPLACES" -eq 0 ]; then
+		echo "[lexos]   !! aucun fond XFCE remplacé — le bureau live risque de repasser au fond bleu"
+	fi
+else
+	echo "[lexos]   !! ${XFCE_BG} absent ou wallpaper.png manquant — fond par défaut non remplacé"
+fi
+
 # Les mascottes servent aussi de fonds d'écran alternatifs.
 for M in "$BRAND"/mascot*.png; do
 	[ -e "$M" ] || continue
 	cp "$M" "$BG/$(basename "$M")"
+done
+
+# --- Autocollants du bureau --------------------------------------------------
+#  Les TROIS personnages que la fenêtre « Fonds d'écran — autocollants » de
+#  la démo pose sur le fond (Lex bebeilles, Lex salut, badge PREVOST). Ce
+#  sont les MÊMES images, extraites de la démo — pas des à-peu-près. PNG à
+#  fond transparent, posés par « lexos fond-ecran autocollant ».
+mkdir -p /usr/share/lexos/autocollants
+for A in "$BRAND"/sticker-*.png; do
+	[ -e "$A" ] || continue
+	cp "$A" "/usr/share/lexos/autocollants/$(basename "$A")"
+	echo "[lexos]   autocollant : $(basename "$A")"
 done
 
 # --- Logo TI-LEX-AL : icône officielle du système ---------------------------
@@ -103,7 +166,22 @@ for SIZE in 16 22 24 32 48 64 128 256 512; do
 done
 
 mkdir -p /usr/share/icons/hicolor/scalable/apps
-[ -r "$BRAND/logo.svg" ] && cp "$BRAND/logo.svg" /usr/share/icons/hicolor/scalable/apps/lexos.svg
+
+# --- AUCUNE VERSION VECTORIELLE POUR LES ICÔNES LexOS. C'EST VOULU. --------
+#  Le dock AGRANDIT l'icône survolée : la taille demandée varie alors en
+#  continu, et pour toute taille sans PNG exact, GTK préfère le SVG
+#  « scalable ». L'affichage saute donc du PNG au SVG et retour — l'icône
+#  CHANGE de dessin sous la souris.
+#
+#  On a d'abord cru à un simple trou de tailles. On les a complétées, trois
+#  fois : Chrome (build 38), Claude et Musique (build 41). Le clignotement
+#  est resté. La cause n'était pas le NOMBRE de tailles, c'était l'existence
+#  de DEUX rendus possibles du même nom d'icône.
+#
+#  Il n'en reste donc qu'un : les PNG. GTK met à l'échelle le plus proche, et
+#  plus rien ne peut changer sous la souris. Au-delà de 256 px l'icône sera
+#  un peu moins nette — aucune interface de LexOS ne demande cette taille.
+rm -f /usr/share/icons/hicolor/scalable/apps/lexos.svg
 
 # --- Icônes teintables (lexos-files, lexos-zip) — orange par défaut --------
 #  À l'exécution, lexos-theme-gen en produit une version à la couleur
@@ -124,8 +202,19 @@ for NAME in files zip share wifi wifi-ok wifi-warn wifi-off bluetooth \
 		mkdir -p "$DIR"
 		render "$SRC" "$SIZE" "$SIZE" "$DIR/lexos-${NAME}.png"
 	done
-	cp "$SRC" "/usr/share/icons/hicolor/scalable/apps/lexos-${NAME}.svg"
+	rm -f "/usr/share/icons/hicolor/scalable/apps/lexos-${NAME}.svg"
 done
+
+#  Icône GitHub — source déjà en PNG (pas de version vectorielle), redimensionnée
+#  directement plutôt que passée par render() qui suppose un SVG en entrée.
+if [ -r "$BRAND/icon-github.png" ] && have convert; then
+	for SIZE in 16 22 24 32 48 64 128 256; do
+		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		convert "$BRAND/icon-github.png" -resize "${SIZE}x${SIZE}" "$DIR/lexos-github.png" \
+			&& echo "[lexos]   -> $DIR/lexos-github.png"
+	done
+fi
 
 #  Studio+ LexOS porte le logo de marque TI-LEX-AL, pas une icône à part :
 #  c'est l'atelier maison, il s'annonce sous l'enseigne. On recopie donc
@@ -334,6 +423,40 @@ EOF
 		&& echo "[lexos]   thème Plymouth : lexos" || true
 else
 	echo "[lexos]   thème 'spinner' absent — Plymouth non personnalisé"
+fi
+
+# --- Le cache des polices ----------------------------------------------------
+#  POURQUOI C'EST NÉCESSAIRE, ET CE QUI SE PASSAIT SANS.
+#  LexOS embarque UNE police à lui : Patrick Hand (licence OFL), celle du
+#  réglage « Manuscrite ». Elle arrive par includes.chroot — donc en dehors
+#  de dpkg, donc SANS déclencher le mécanisme qui reconstruit d'ordinaire le
+#  cache de fontconfig quand un paquet de polices s'installe.
+#
+#  Le cache système livré par Debian ne la contient donc pas. À l'usage,
+#  fontconfig s'en sort quand même : il voit le dossier plus récent que son
+#  cache et rebalaye tout seul. Mais ce rattrapage a un prix qu'on paie au
+#  pire moment — la PREMIÈRE application qui demande une police, sur un
+#  portable de 2016 — et il suppose de pouvoir écrire un cache par
+#  utilisateur, ce qui n'est pas garanti en session démo.
+#
+#  Une seconde de construction ici enlève ce doute pour de bon : la police
+#  est dans le cache système, tout de suite, pour tout le monde.
+if command -v fc-cache >/dev/null 2>&1; then
+	fc-cache -f >/dev/null 2>&1 \
+		&& echo "[lexos]   cache des polices reconstruit" \
+		|| echo "[lexos]   !! fc-cache a échoué — « Manuscrite » sera plus lente au 1er usage"
+	#  Vérifier, plutôt que d'espérer : une police annoncée dans les
+	#  Paramètres et introuvable par le système est exactement le genre
+	#  d'écart qu'on passe la journée à fermer.
+	if command -v fc-list >/dev/null 2>&1; then
+		if fc-list 2>/dev/null | grep -qi "Patrick Hand"; then
+			echo "[lexos]   police « Manuscrite » (Patrick Hand) : vue par fontconfig"
+		else
+			echo "[lexos]   !! Patrick Hand INTROUVABLE — le réglage « Manuscrite » n'aura rien à afficher"
+		fi
+	fi
+else
+	echo "[lexos]   !! fc-cache absent — cache des polices non reconstruit"
 fi
 
 echo "[lexos] hook 0300 : ok"

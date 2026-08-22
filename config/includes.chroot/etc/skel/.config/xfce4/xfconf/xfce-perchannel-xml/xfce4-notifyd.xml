@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — les notifications.
+
+  Ce fichier n'existait pas : xfce4-notifyd tournait sur ses réglages d'usine,
+  c'est-à-dire une bulle grise carrée dans le coin haut-droit. Alex a demandé
+  la forme de son image — une carte sombre aux coins ronds. L'arrondi lui-même
+  vient de ~/.config/gtk-3.0/gtk.css (#XfceNotifyWindow) ; ici on règle ce qui
+  ne peut PAS se décider en CSS : où elles apparaissent, combien de temps elles
+  restent, et ce qui se passe quand l'écran est occupé.
+-->
+<channel name="xfce4-notifyd" version="1.0">
+  <!--  « Default » suit le thème GTK du bureau, donc notre feuille CSS.
+        Un thème nommé (Bright, Smoke…) apporterait ses propres couleurs et
+        écraserait l'arrondi qu'on vient de poser. -->
+  <property name="theme" type="string" value="Default"/>
+
+  <!--  1 = haut-droit. C'est là que la démo les montre, et c'est le coin
+        opposé au logo Applications : une notification ne doit jamais tomber
+        sur le bouton qu'on est en train de viser. -->
+  <property name="notify-location" type="uint" value="1"/>
+
+  <!--  Huit secondes. Assez pour lire deux lignes sans se presser, assez peu
+        pour ne pas rester en travers d'un film. -->
+  <property name="expire-timeout" type="int" value="8"/>
+
+  <property name="initial-opacity" type="double" value="0.95"/>
+
+  <!--  Les notifications passées restent consultables : sans ça, celle qu'on
+        rate pendant qu'on est parti chercher un café est perdue pour de bon. -->
+  <property name="notification-log" type="bool" value="true"/>
+  <property name="log-level" type="uint" value="0"/>
+  <property name="log-level-apps" type="uint" value="0"/>
+
+  <!--  Silence automatique en plein écran : pendant un film ou un jeu, une
+        bulle qui s'ouvre par-dessus est une nuisance, pas un service. Elles
+        sont gardées au journal et se retrouvent en sortant. -->
+  <property name="do-not-disturb" type="bool" value="false"/>
+  <property name="suppress-duplicates" type="bool" value="true"/>
+</channel>

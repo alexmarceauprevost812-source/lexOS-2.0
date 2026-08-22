@@ -1,14 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  LexOS — raccourcis clavier.
+  LexOS — raccourcis clavier. LE FICHIER UNIQUE.
 
-  Les touches de capture passent toutes par « lexos capture » plutôt que
-  d'appeler xfce4-screenshooter en direct : c'est lui qui range les fichiers
-  dans ~/Images/Captures avec un nom horodaté et qui évite d'écraser une
-  capture précédente. Un appel direct déposerait les images au petit bonheur.
+  CE QUI S'EST PASSÉ, ET QUI NE DOIT PLUS SE REPRODUIRE.
+  Il y avait DEUX jeux de raccourcis : celui-ci, livré tel quel, et un autre
+  écrit par le hook 0400 au moment de la construction — qui faisait
+  « cat > » sur ce même chemin et l'écrasait ENTIÈREMENT. Le jeu qui
+  arrivait dans l'ISO était donc le second, et il ne gardait AUCUN des
+  raccourcis de capture : Maj+Impr écr, Alt+Impr écr, Ctrl+Maj+R et les
+  accords Super+chiffre ne faisaient rien. Pendant ce temps l'aide de « lexos »
+  continuait de les annoncer à l'utilisateur : le système mentait sur son
+  propre mode d'emploi.
 
-  Les raccourcis de fenêtres (xfwm4) restent ceux de XFCE : on ne réinvente
-  pas Alt+Tab.
+  Les deux jeux sont maintenant FUSIONNÉS ICI, et le hook 0400 ne réécrit
+  plus ce fichier — il se contente de vérifier qu'il est bien arrivé.
+
+  DEUX CONFLITS TRANCHÉS EN FUSIONNANT :
+   · Super+1/2/3 servaient aux captures. Ils vont désormais aux BUREAUX
+     VIRTUELS, parce que c'est ce que promet la démo et ce qu'affichent les
+     Paramètres (« Super+1 à Super+N »). Les captures passent à
+     Super+Maj+chiffre — même geste, un doigt de plus.
+   · Super+a lançait la logithèque ici et le mode avion là. Le mode avion
+     garde le « a » (avion), la logithèque prend « l ».
+
+  Les captures passent toutes par « lexos capture » plutôt que d'appeler
+  xfce4-screenshooter en direct : c'est lui qui range les fichiers dans
+  ~/Images/Captures avec un nom horodaté, sans écraser la capture d'avant.
 -->
 <channel name="xfce4-keyboard-shortcuts" version="1.0">
   <property name="commands" type="empty">
@@ -20,26 +37,91 @@
       <property name="Print"                type="string" value="lexos capture"/>
       <property name="&lt;Alt&gt;Print"     type="string" value="lexos capture fenetre"/>
       <property name="&lt;Shift&gt;Print"   type="string" value="lexos capture zone"/>
-
-      <!-- Enregistrement vidéo : la fenêtre du terminal reste ouverte, c'est
-           elle qui porte le Ctrl+C qui arrête l'enregistrement. -->
+      <!-- Ctrl+Maj+R lance la vidéo DANS un terminal : c'est cette fenêtre
+           qui porte le Ctrl+C qui arrête l'enregistrement. -->
       <property name="&lt;Primary&gt;&lt;Shift&gt;r" type="string"
                 value="xfce4-terminal --title=Enregistrement --hold -e &quot;lexos capture video&quot;"/>
-
-      <!-- Capture rapide : Super + chiffre, sous le pouce et l'index.
-           La démo web propose l'accord « Espace maintenue + chiffre », qui
-           est plus rapide encore ; xfconf ne sait décrire qu'un raccourci
-           à modificateurs, pas un accord avec une touche maintenue, d'où
-           Super ici. Le geste et l'ordre des chiffres restent les mêmes. -->
-      <property name="&lt;Super&gt;1"       type="string" value="lexos capture"/>
-      <property name="&lt;Super&gt;2"       type="string" value="lexos capture zone"/>
-      <property name="&lt;Super&gt;3"       type="string"
+      <!-- La démo propose l'accord « Espace maintenue + chiffre » ; xfconf ne
+           sait décrire qu'un raccourci à modificateurs, pas une touche
+           maintenue. Super+Maj+chiffre garde le geste et l'ordre. -->
+      <property name="&lt;Super&gt;&lt;Shift&gt;1" type="string" value="lexos capture"/>
+      <property name="&lt;Super&gt;&lt;Shift&gt;2" type="string" value="lexos capture zone"/>
+      <property name="&lt;Super&gt;&lt;Shift&gt;3" type="string"
                 value="xfce4-terminal --title=Enregistrement --hold -e &quot;lexos capture video&quot;"/>
 
-      <!-- Outils LexOS courants -->
-      <property name="&lt;Super&gt;e"       type="string" value="thunar"/>
+      <!-- Lancer -->
+      <property name="&lt;Super&gt;Return"  type="string" value="xfce4-terminal"/>
       <property name="&lt;Super&gt;t"       type="string" value="xfce4-terminal"/>
-      <property name="&lt;Super&gt;a"       type="string" value="lexos logitheque"/>
+      <property name="&lt;Super&gt;e"       type="string" value="thunar"/>
+      <property name="&lt;Super&gt;s"       type="string" value="xfce4-appfinder"/>
+      <property name="&lt;Super&gt;l"       type="string" value="lexos logitheque"/>
+
+      <!-- LA VUE D'ENSEMBLE. Deux entrées pour une seule chose :
+           · F13 n'existe sur aucun clavier — c'est exprès. xcape l'émet
+             quand on relâche Super SANS avoir rien tapé d'autre, ce qui
+             donne le « Super seule » d'Ubuntu sans voler Super+1 ;
+           · Super+Tab reste utilisable au clavier même si xcape manque. -->
+      <property name="F13"                  type="string" value="lexos apercu"/>
+      <property name="&lt;Super&gt;Tab"     type="string" value="lexos apercu"/>
+
+      <!-- Réglages rapides -->
+      <property name="&lt;Super&gt;a"       type="string" value="lexos-net avion toggle"/>
+      <property name="&lt;Super&gt;p"       type="string" value="lexos-perf --gui"/>
+      <property name="&lt;Super&gt;d"       type="string" value="lexos-display gui"/>
+      <property name="XF86Display"          type="string" value="lexos-display gui"/>
+      <property name="XF86WLAN"             type="string" value="lexos-net avion toggle"/>
+    </property>
+  </property>
+
+  <!-- Fenêtres et bureaux. PAS de « override » ici, volontairement : il
+       remplacerait TOUS les raccourcis par défaut de XFCE (Alt+Tab, Alt+F4,
+       Ctrl+Alt+flèches…) au lieu de s'y ajouter. -->
+  <property name="xfwm4" type="empty">
+    <property name="custom" type="empty">
+      <property name="&lt;Super&gt;Up"    type="string" value="maximize_window_key"/>
+      <property name="&lt;Super&gt;Down"  type="string" value="unmaximize_window_key"/>
+      <property name="&lt;Super&gt;Left"  type="string" value="tile_left_key"/>
+      <property name="&lt;Super&gt;Right" type="string" value="tile_right_key"/>
+
+      <!-- PARTAGER L'ÉCRAN À PLUSIEURS, ET CHOISIR LA PLACE.
+           Demandé par Alex : « quand on a plusieurs partagés, on soit capable
+           de le positionner à la place qu'on veut ». On n'avait que les deux
+           moitiés gauche/droite — impossible de mettre quatre fenêtres, ni
+           d'en poser une en haut.
+
+           Les huit actions ci-dessous sont celles que xfwm4 porte VRAIMENT :
+           relevées dans son binaire (strings xfwm4 | grep tile_.*_key), pas
+           devinées. Une action mal nommée ne dit rien et ne fait rien — le
+           genre de silence qu'on passe nos journées à fermer.
+
+           LE CHOIX DES TOUCHES, ET POURQUOI IL SE RETIENT. Début, Fin, Page
+           haut et Page bas forment un carré de 2×2 sur le clavier, à la même
+           place que les quatre coins de l'écran :
+
+                 Début      Page↑              haut-gauche   haut-droit
+                 Fin        Page↓              bas-gauche    bas-droit
+
+           Le geste est donc le dessin de ce qu'on veut. Aucune autre paire de
+           touches ne donne ça, et surtout pas quatre flèches qui n'ont que
+           quatre directions pour huit positions.
+
+           Super+Ctrl+Haut/Bas complètent les moitiés : Super+Haut est déjà
+           « plein écran » et on ne le lui reprend pas. -->
+      <property name="&lt;Super&gt;Home"      type="string" value="tile_up_left_key"/>
+      <property name="&lt;Super&gt;Page_Up"   type="string" value="tile_up_right_key"/>
+      <property name="&lt;Super&gt;End"       type="string" value="tile_down_left_key"/>
+      <property name="&lt;Super&gt;Page_Down" type="string" value="tile_down_right_key"/>
+      <property name="&lt;Super&gt;&lt;Primary&gt;Up"   type="string" value="tile_up_key"/>
+      <property name="&lt;Super&gt;&lt;Primary&gt;Down" type="string" value="tile_down_key"/>
+      <property name="F11"                type="string" value="fullscreen_key"/>
+
+      <!-- LES BUREAUX, ENFIN BRANCHÉS. Les Paramètres promettaient
+           « Super+1 à Super+N » alors que rien n'y répondait. -->
+      <property name="&lt;Super&gt;1" type="string" value="workspace_1_key"/>
+      <property name="&lt;Super&gt;2" type="string" value="workspace_2_key"/>
+      <property name="&lt;Super&gt;3" type="string" value="workspace_3_key"/>
+      <property name="&lt;Super&gt;4" type="string" value="workspace_4_key"/>
+      <property name="&lt;Super&gt;5" type="string" value="workspace_5_key"/>
     </property>
   </property>
 </channel>

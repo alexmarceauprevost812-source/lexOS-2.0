@@ -1,6 +1,28 @@
 # Bureau — saveurs standard, dev, full.
 xfce4-goodies
 fish
+#  ── LE VERROU DE L'ÉCRAN — UN VRAI TROU, CONFIRMÉ ────────────────────────
+#  La barre du haut a un bouton « Verrouiller l'écran » (plugin actions,
+#  +lock-screen dans xfce4-panel.xml)… et AUCUN logiciel de verrouillage
+#  n'était installé. On cliquait, rien ne se passait. Pire : on fermait le
+#  couvercle du portable, on le rouvrait, et on retombait sur le bureau SANS
+#  mot de passe — n'importe qui ouvrant le portable avait tout.
+#
+#  light-locker est le compagnon de lightdm (notre gestionnaire de session) :
+#  il lui délègue le déverrouillage, donc l'écran de mot de passe est celui
+#  qu'on connaît déjà. xfce4-screensaver est l'alternative si light-locker
+#  disparaissait un jour de Debian ; un seul des deux s'installe.
+light-locker|xfce4-screensaver
+#  ── Internet mobile ──────────────────────────────────────────────────────
+#  Une clé 4G ou un téléphone en partage de connexion USB n'apparaît pas dans
+#  le menu réseau sans ModemManager. Sur un portable qu'on sort de la maison,
+#  c'est la seule connexion disponible.
+modemmanager
+#  ── Le son des applications plus anciennes ───────────────────────────────
+#  PipeWire parle nativement à ce qui est récent. pipewire-alsa fournit la
+#  couche qui fait sortir le son des programmes écrits pour ALSA — sans elle,
+#  ils sont muets sans dire pourquoi.
+pipewire-alsa
 xfce4-power-manager
 brightnessctl
 tlp
@@ -10,6 +32,11 @@ libnotify-bin
 xfce4-taskmanager
 xfce4-whiskermenu-plugin
 xfce4-appfinder
+# xfce4-genmon-plugin affiche la sortie d'une commande dans la barre du haut :
+# c'est lui qui porte la météo (« lexos meteo »), le « ☁ 20° » de la démo.
+# Son absence n'est pas bloquante — le hook 0400 retire alors la météo du
+# panneau plutôt que d'y laisser une tuile cassée.
+xfce4-genmon-plugin
 thunar-archive-plugin
 thunar-volman
 # thunar-open-terminal RETIRÉ : fondu dans Thunar depuis la version 4.18.
@@ -71,3 +98,31 @@ gnome-system-tools
 # d'autonomie sur un portable.
 mpv
 python3-xlib
+# « lexos wallpaper code » : le fond qui s'écrit tout seul. Pas de vidéo ici
+# — le décor est peint une fois et seules les lignes de code changent, en
+# GTK et cairo. Ces trois paquets sont ce qu'il faut pour les dessiner.
+python3-gi
+python3-cairo
+gir1.2-gtk-3.0
+
+# --- Agenda -----------------------------------------------------------------
+# La démo web a un agenda (clic sur l'heure : notifications + calendrier, avec
+# les vues Mois / Semaine / 3 jours / Jour heure par heure). L'ISO n'avait
+# AUCUNE application de calendrier — un manque qu'Alex a relevé en essayant :
+# ce que la démo montre doit exister pour de vrai.
+# gnome-calendar fonctionne très bien hors de GNOME et parle à Evolution Data
+# Server, ce qui permet d'ajouter des comptes en ligne plus tard.
+gnome-calendar
+
+# --- La vue d'ensemble des bureaux ------------------------------------------
+# La démo web ouvre, sur Super ou sur le coin haut-gauche, la rangée des
+# bureaux avec leurs fenêtres en vignettes. XFCE n'a pas ce geste ; ces deux
+# paquets le lui donnent (voir « lexos apercu ») :
+#   · xfdashboard EST cette vue, écrite pour XFCE. Si Debian venait à ne plus
+#     le fournir, « lexos apercu » retombe sur la liste des fenêtres de
+#     xfdesktop — moins joli, même geste, aucun paquet en plus.
+#   · xcape surveille Super et n'émet F13 que si on la relâche sans avoir
+#     rien tapé d'autre : c'est ce qui permet « Super seule » SANS casser
+#     Super+1…5, qui vont aux bureaux.
+xfdashboard
+xcape

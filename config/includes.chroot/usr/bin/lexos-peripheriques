@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-peripheriques — les appareils branchés, en icônes dans la barre
+# =============================================================================
+#  La démo a, en haut à droite, une rangée d'icônes qui apparaissent quand un
+#  appareil est là : imprimante, écran externe, casque, clé USB, disque dur
+#  externe. Sur l'ISO, RIEN ne donnait cette information d'un coup d'oeil —
+#  il fallait ouvrir les Paramètres pour savoir si la clé était montée.
+#
+#  MÊME MÉCANIQUE QUE LA MÉTÉO : un greffon genmon lance ce script et affiche
+#  sa sortie. Le script décide de tout — icônes, infobulle, action du clic —
+#  et le panneau n'a rien à connaître.
+#
+#  CE QU'ON AFFICHE, ET POURQUOI SEULEMENT ÇA. Les icônes des appareils
+#  PRÉSENTS, rien de plus : une rangée de cinq pictogrammes gris en
+#  permanence dirait « tout est débranché » à longueur de journée, ce qui est
+#  du bruit. Rien de branché = rien d'affiché, comme la démo qui ne montre
+#  ses icônes qu'à la connexion. L'infobulle, elle, donne le détail complet.
+#
+#  D'OÙ VIENNENT LES RÉPONSES. Du système, jamais d'une supposition :
+#    · imprimante     — lpstat (CUPS) : au moins une imprimante configurée ;
+#    · écran externe  — xrandr : plus d'une sortie allumée ;
+#    · casque         — pactl : le port ACTIF de la sortie audio est un
+#                       casque (même lecture que les Paramètres) ;
+#    · clé USB        — lsblk : un disque amovible ;
+#    · disque externe — lsblk : un disque USB non amovible.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+#  Chaque sonde répond 0 (présent) ou 1 (absent), en silence.
+a_imprimante() {
+	command -v lpstat >/dev/null 2>&1 || return 1
+	[ -n "$(lpstat -p 2>/dev/null | head -1)" ]
+}
+
+a_ecran_externe() {
+	command -v xrandr >/dev/null 2>&1 || return 1
+	[ "$(xrandr --listmonitors 2>/dev/null | sed -n '1s/Monitors: //p')" -gt 1 ] 2>/dev/null
+}
+
+a_casque() {
+	command -v pactl >/dev/null 2>&1 || return 1
+	pactl list sinks 2>/dev/null | tr '[:upper:]' '[:lower:]' \
+		| grep -E '^\s*active port:' | grep -qE 'headphone|headset'
+}
+
+a_cle_usb() {
+	command -v lsblk >/dev/null 2>&1 || return 1
+	lsblk -dn -o RM,TYPE 2>/dev/null | grep -q '^ *1 disk'
+}
+
+a_disque_externe() {
+	command -v lsblk >/dev/null 2>&1 || return 1
+	lsblk -dn -o RM,TRAN,TYPE 2>/dev/null | grep -q '^ *0 *usb *disk'
+}
+
+cmd_panneau() {
+	local icones="" detail=""
+
+	if a_imprimante;     then icones="${icones}🖨"; detail="${detail}Imprimante : configurée\n"
+	                     else detail="${detail}Imprimante : aucune\n"; fi
+	if a_ecran_externe;  then icones="${icones}🖥"; detail="${detail}Écran externe : branché\n"
+	                     else detail="${detail}Écran externe : non\n"; fi
+	if a_casque;         then icones="${icones}🎧"; detail="${detail}Casque audio : branché\n"
+	                     else detail="${detail}Casque audio : non\n"; fi
+	if a_cle_usb;        then icones="${icones}🔌"; detail="${detail}Clé USB : présente\n"
+	                     else detail="${detail}Clé USB : aucune\n"; fi
+	if a_disque_externe; then icones="${icones}💾"; detail="${detail}Disque externe : présent\n"
+	                     else detail="${detail}Disque externe : aucun\n"; fi
+
+	#  Rien de branché : sortie VIDE, le greffon ne prend aucune place.
+	[ -n "$icones" ] || { printf '<txt></txt><tool>Aucun appareil branché</tool>\n'; return 0; }
+
+	printf '<txt> %s </txt>' "$icones"
+	printf '<tool>%b— clic : les appareils dans les Paramètres</tool>' "$detail"
+	printf '<txtclick>lexos-settings usb</txtclick>\n'
+}
+
+cmd_etat() {
+	printf 'Imprimante      : %s\n' "$(a_imprimante && echo oui || echo non)"
+	printf 'Écran externe   : %s\n' "$(a_ecran_externe && echo oui || echo non)"
+	printf 'Casque audio    : %s\n' "$(a_casque && echo oui || echo non)"
+	printf 'Clé USB         : %s\n' "$(a_cle_usb && echo oui || echo non)"
+	printf 'Disque externe  : %s\n' "$(a_disque_externe && echo oui || echo non)"
+}
+
+case "${1:-etat}" in
+	--panneau|panneau) cmd_panneau ;;
+	etat|status|"")    cmd_etat ;;
+	-h|--help|aide)
+		printf '%s — les appareils branchés (imprimante, écran, casque, USB, disque)\n' "$PROG"
+		printf '  %s            L'"'"'état de chaque appareil, en clair\n' "$PROG"
+		printf '  %s --panneau  La sortie pour la barre du haut (genmon)\n' "$PROG"
+		;;
+	*) printf 'Commande inconnue : %s\n' "$1" >&2; exit 1 ;;
+esac

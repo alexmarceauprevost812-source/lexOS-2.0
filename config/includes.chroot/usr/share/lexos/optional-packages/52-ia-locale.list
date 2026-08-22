@@ -1,0 +1,28 @@
+# =============================================================================
+#  52-ia-locale — le moteur d'IA locale (llama.cpp) et de quoi voir le GPU
+# =============================================================================
+#  ⚠ llama.cpp vient de trixie-backports, PAS de trixie. Sans les deux
+#    fichiers config/archives/backports.*.chroot, cette ligne ne fait rien et
+#    la construction réussit quand même — une ISO sans moteur d'IA, sans une
+#    seule erreur pour le dire.
+#
+#  ⚠ Le paquet llama.cpp seul n'active QUE le processeur. La carte graphique
+#    ne sert que si un backend est installé en plus. Le nom de ces paquets
+#    bouge encore, donc ils ne sont PAS écrits ici : c'est le hook
+#    0270-lexos-ia-moteur qui demande à apt lequel existe le jour de la
+#    construction, l'installe, et le NOMME dans le rapport. Un backend qui
+#    manque en silence, ça donne une IA dix fois trop lente dont personne ne
+#    comprend pourquoi.
+llama.cpp
+
+#  Vulkan côté système : c'est le backend générique, celui qui couvre NVIDIA,
+#  AMD et Intel du même coup. CUDA irait un peu plus vite sur du NVIDIA, mais
+#  ne sert à rien sur les deux autres — et on ne construit pas une ISO pour une
+#  seule machine.
+libvulkan1
+vulkan-tools
+mesa-vulkan-drivers
+
+#  Pour lire la carte et l'espace disque, le panneau utilise pciutils, curl et
+#  jq — déjà au socle. Écrit ici pour que personne ne les retire en croyant
+#  qu'ils ne servent qu'ailleurs.

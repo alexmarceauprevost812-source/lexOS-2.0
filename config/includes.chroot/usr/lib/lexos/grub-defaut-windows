@@ -1,0 +1,102 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — faire de Windows le démarrage par défaut, quand Windows est là
+# =============================================================================
+#  CE QU'ALEX A DEMANDÉ, ET POURQUOI C'EST RAISONNABLE.
+#  Windows sert à jouer, LexOS à travailler. Sur une machine partagée entre
+#  ces deux usages, celui qui allume pour jouer ne devrait rien avoir à
+#  faire ; celui qui vient travailler appuie sur une flèche. Le menu reste
+#  visible huit secondes, avec les deux systèmes.
+#
+#  POURQUOI CE SCRIPT EXISTE AU LIEU D'UN SIMPLE « GRUB_DEFAULT=0 ».
+#  « 0 » désigne la première entrée du menu, et la première entrée est LexOS :
+#  os-prober tourne dans /etc/grub.d/30_os-prober, après le 10_linux qui
+#  liste les noyaux LexOS. On pourrait renuméroter os-prober en 09 et
+#  désactiver le 30 — mais ce fichier appartient au paquet grub-common, et
+#  une mise à jour lui rendrait son droit d'exécution : Windows apparaîtrait
+#  deux fois dans le menu, sans que personne comprenne pourquoi.
+#
+#  GRUB a un mécanisme fait pour ça : GRUB_DEFAULT=saved (posé par le hook
+#  0100) lit l'entrée par défaut dans /boot/grub/grubenv, et grub-set-default
+#  l'y écrit par son TITRE. Aucun fichier de Debian n'est modifié.
+#
+#  QUAND CE SCRIPT PEUT TRAVAILLER. Pas dans la session démo : le menu de la
+#  clé USB n'est pas celui du disque, et il n'y a pas de grubenv à écrire. Et
+#  pas avant qu'os-prober ait vu le vrai disque — ce qui arrive à
+#  l'installation, quand Calamares lance update-grub sur le système cible.
+#  Donc : au premier démarrage du système installé.
+#
+#  SI WINDOWS N'EST PAS LÀ, RIEN N'EST ÉCRIT. grubenv reste vide et GRUB
+#  démarre sur LexOS. Le comportement par défaut est toujours le sûr.
+# =============================================================================
+set -e
+
+JOURNAL="/var/log/lexos-grub-defaut.log"
+dire() {
+	echo "[lexos-grub-defaut] $*"
+	printf '%s %s\n' "$(date -Is 2>/dev/null || echo '?')" "$*" >> "$JOURNAL" 2>/dev/null || true
+}
+
+# --- Jamais en session démo -------------------------------------------------
+#  Même repère que le garde-fou de la démo : « boot=live » dans la ligne de
+#  commande du noyau. En live, /boot/grub du disque n'est même pas monté.
+if grep -qa 'boot=live' /proc/cmdline 2>/dev/null; then
+	exit 0
+fi
+
+# --- Les outils sont-ils là ? ------------------------------------------------
+GRUBCFG=""
+for F in /boot/grub/grub.cfg /boot/grub2/grub.cfg; do
+	[ -r "$F" ] && { GRUBCFG="$F"; break; }
+done
+
+if [ -z "$GRUBCFG" ]; then
+	dire "aucun grub.cfg lisible — rien à faire"
+	exit 0
+fi
+
+if ! command -v grub-set-default >/dev/null 2>&1; then
+	dire "grub-set-default absent — rien à faire"
+	exit 0
+fi
+
+# --- Windows est-il dans le menu ? ------------------------------------------
+#  On lit les titres des entrées de premier niveau. Le format d'une entrée
+#  est : menuentry 'Titre' --class ... {
+#  Le titre peut être entre apostrophes ou entre guillemets selon la version
+#  d'os-prober : on accepte les deux.
+#
+#  On cherche « Windows » sans tenir compte de la casse, et on écarte les
+#  entrées de récupération Windows (« Recovery ») : les démarrer ne lance pas
+#  Windows, ça lance son dépanneur — un défaut par défaut désastreux.
+TITRE="$(
+	sed -n "s/^menuentry[[:space:]]\+['\"]\([^'\"]*\)['\"].*/\1/p" "$GRUBCFG" \
+	| grep -i 'windows' \
+	| grep -vi 'recovery\|récupération\|recuperation' \
+	| head -1
+)"
+
+if [ -z "$TITRE" ]; then
+	dire "aucune entrée Windows dans le menu — LexOS reste le démarrage par défaut"
+	exit 0
+fi
+
+# --- Est-ce déjà fait ? -----------------------------------------------------
+#  Le service tourne à chaque démarrage (volontairement : sans condition de
+#  fichier, il se relance même si quelque chose a réécrit grubenv). Il ne doit
+#  donc rien faire quand c'est déjà bon.
+if command -v grub-editenv >/dev/null 2>&1; then
+	DEJA="$(grub-editenv - list 2>/dev/null | sed -n 's/^saved_entry=//p' | head -1)"
+	if [ "$DEJA" = "$TITRE" ]; then
+		exit 0
+	fi
+fi
+
+# --- Poser le défaut --------------------------------------------------------
+if grub-set-default "$TITRE" 2>/dev/null; then
+	dire "démarrage par défaut : ${TITRE}"
+	dire "le menu reste affiché 8 s — les flèches permettent de choisir LexOS"
+else
+	dire "!! grub-set-default a échoué pour « ${TITRE} » — LexOS reste le défaut"
+	exit 0
+fi

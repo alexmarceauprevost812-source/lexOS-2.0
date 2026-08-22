@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- =========================================================================
+     LexOS — fond du menu de démarrage BIOS (isolinux / vesamenu.c32)
+     =========================================================================
+     640 x 480, soit exactement 80 colonnes x 30 lignes de texte 8x16.
+     Le cadre, les intitulés et l'aide clavier sont DESSINÉS ICI ; vesamenu
+     n'écrit par-dessus que les entrées et le compte à rebours.
+
+     POURQUOI DESSINER L'AIDE CLAVIER PLUTÔT QUE L'ÉCRIRE. Le texte de
+     vesamenu est rendu dans une police 8x16 en CP437 : ni flèche ↑↓, ni
+     point médian, ni cadre arrondi. Tout ce qui est fixe passe donc par
+     l'image, où l'on a la vraie police et le vrai dessin ; seul ce qui
+     change (les entrées, le décompte) reste du texte.
+
+     Repères de grille (1 ligne = 16 px, 1 colonne = 8 px) :
+       ligne 11 -> y 176   ligne 14 -> y 224   ligne 22 -> y 352
+       ligne 25 -> y 400   ligne 27 -> y 432
+     Toute modification de la géométrie doit être reportée dans stdmenu.cfg.
+
+     Le nom du fichier se termine par « .in » À DESSEIN : live-build ne rend
+     en PNG que « splash.svg.in » (lb_binary_syslinux). Un fichier nommé
+     « splash.svg » est écrasé par le modèle Debian, puis effacé — c'est
+     exactement ce qui faisait apparaître le casque jaune « Debian
+     GNU/Linux 13 (trixie) » à la place du visuel LexOS.
+     ========================================================================= -->
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"
+     viewBox="0 0 640 480" role="img" aria-label="LexOS boot">
+  <defs>
+    <radialGradient id="halo" cx="0.5" cy="0.28" r="0.62">
+      <stop offset="0%"   stop-color="#3a1a08"/>
+      <stop offset="55%"  stop-color="#15100f"/>
+      <stop offset="100%" stop-color="#0a0a0d"/>
+    </radialGradient>
+    <linearGradient id="ruleL" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#ff6a1a" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#ff6a1a" stop-opacity="0.75"/>
+    </linearGradient>
+    <linearGradient id="ruleR" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#ff6a1a" stop-opacity="0.75"/>
+      <stop offset="100%" stop-color="#ff6a1a" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="480" fill="url(#halo)"/>
+
+  <!-- filet orange en haut, comme sur le site -->
+  <rect x="0" y="0" width="640" height="2" fill="#ff6a1a"/>
+
+  <!-- coins : mêmes repères que le thème GRUB, « BIOS » au lieu de « UEFI » -->
+  <text x="14" y="22" font-family="'DejaVu Sans Mono',monospace" font-size="9"
+        letter-spacing="1" fill="#5c5a56">BIOS &#183; x86_64</text>
+  <text x="626" y="22" text-anchor="end" font-family="'DejaVu Sans Mono',monospace"
+        font-size="9" letter-spacing="1" fill="#5c5a56">ISOLINUX</text>
+
+  <!-- wordmark -->
+  <text x="320" y="92" text-anchor="middle"
+        font-family="'DejaVu Sans',sans-serif" font-size="54" font-weight="700"
+        letter-spacing="-2" fill="#f2ede2">Lex<tspan fill="#ff6a1a">OS</tspan></text>
+
+  <!-- TI · LEX · AL, entre deux filets -->
+  <rect x="120" y="113" width="118" height="1" fill="url(#ruleL)"/>
+  <rect x="402" y="113" width="118" height="1" fill="url(#ruleR)"/>
+  <text x="320" y="118" text-anchor="middle" font-family="'DejaVu Sans',sans-serif"
+        font-size="12" font-weight="600" letter-spacing="4" fill="#f2ede2">TI &#183; LEX &#183; AL</text>
+
+  <text x="320" y="143" text-anchor="middle" font-family="'DejaVu Sans Mono',monospace"
+        font-size="10" letter-spacing="3" fill="#8c8a86">2.0.0 &#8212; NOMAD</text>
+
+  <!-- cadre du menu : x 56->584, y 176->352  (colonnes 7->73, lignes 11->22) -->
+  <rect x="56" y="176" width="528" height="176" rx="5"
+        fill="#131316" fill-opacity="0.70" stroke="#2b2b31" stroke-width="1"/>
+
+  <!-- intitulé du cadre, ligne 12 -->
+  <circle cx="73" cy="196" r="2.5" fill="#ff6a1a"/>
+  <text x="84" y="200" font-family="'DejaVu Sans Mono',monospace" font-size="9"
+        letter-spacing="2" fill="#8c8a86">CHOISIR UN D&#201;MARRAGE</text>
+  <rect x="245" y="196" width="323" height="1" fill="#2b2b31"/>
+
+  <!-- ─────────── aide clavier, ligne 27 (y 432) ─────────── -->
+  <!-- Dessinée, donc avec de vraies flèches et de vraies touches encadrées. -->
+  <g font-family="'DejaVu Sans Mono',monospace" font-size="9" fill="#8c8a86">
+    <rect x="146" y="434" width="15" height="15" rx="2" fill="#1d1d20" stroke="#2b2b31"/>
+    <text x="153.5" y="445" text-anchor="middle" fill="#c8c8cf">&#8593;</text>
+    <rect x="164" y="434" width="15" height="15" rx="2" fill="#1d1d20" stroke="#2b2b31"/>
+    <text x="171.5" y="445" text-anchor="middle" fill="#c8c8cf">&#8595;</text>
+    <text x="185" y="445">choisir</text>
+
+    <rect x="245" y="434" width="46" height="15" rx="2" fill="#1d1d20" stroke="#2b2b31"/>
+    <text x="268" y="445" text-anchor="middle" fill="#c8c8cf" font-size="8">ENTR&#201;E</text>
+    <text x="297" y="445">d&#233;marrer</text>
+
+    <rect x="371" y="434" width="26" height="15" rx="2" fill="#1d1d20" stroke="#2b2b31"/>
+    <text x="384" y="445" text-anchor="middle" fill="#c8c8cf" font-size="8">TAB</text>
+    <text x="403" y="445">modifier</text>
+
+    <rect x="477" y="434" width="15" height="15" rx="2" fill="#1d1d20" stroke="#2b2b31"/>
+    <text x="484.5" y="445" text-anchor="middle" fill="#c8c8cf" font-size="8">E</text>
+    <text x="498" y="445">&#233;diter</text>
+  </g>
+
+  <!-- filet orange en bas -->
+  <rect x="0" y="478" width="640" height="2" fill="#ff6a1a" opacity="0.55"/>
+</svg>

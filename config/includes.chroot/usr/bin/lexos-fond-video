@@ -52,6 +52,40 @@ mkdir -p "$ETAT" "$(dirname "$CONF")" 2>/dev/null
 
 PID_FEN="$ETAT/fenetre.pid"
 PID_MPV="$ETAT/mpv.pid"
+
+# --- La qualité d'image du fond animé ---------------------------------------
+#  Ensemble FERMÉ, vérifié des deux côtés : rien de ce qui est écrit ici ne
+#  sert à construire une commande, ce sont des listes d'options figées.
+#  DANS LA CONFIGURATION, PAS DANS $ETAT. Première version : le fichier
+#  était posé dans $ETAT — qui vaut $XDG_RUNTIME_DIR, donc un dossier
+#  TEMPORAIRE vidé à chaque redémarrage. Le réglage aurait tenu jusqu'au
+#  soir puis serait revenu tout seul à « equilibre », sans que personne
+#  comprenne pourquoi. Un choix de l'utilisateur se range là où les choix
+#  se rangent.
+CONF_LEXOS="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/fond-video"
+FICHIER_QUALITE="$CONF_LEXOS/qualite"
+
+lire_qualite() {
+	local v=""
+	[[ -r "$FICHIER_QUALITE" ]] && v="$(tr -d '[:space:]' < "$FICHIER_QUALITE")"
+	case "$v" in
+		economie|belle) printf '%s' "$v" ;;
+		*)              printf 'equilibre' ;;
+	esac
+}
+
+ecrire_qualite() {
+	case "$1" in
+		economie|equilibre|belle) ;;
+		*) die "Qualité inconnue : $1   (economie, equilibre ou belle)" ;;
+	esac
+	mkdir -p "$CONF_LEXOS"
+	printf '%s\n' "$1" > "$FICHIER_QUALITE"
+	ok "Qualité du fond animé : $1"
+	[[ "$1" == "belle" ]] && say "Ce réglage chauffe : à réserver au secteur."
+	[[ "$1" == "economie" ]] && say "Le processeur souffle — c'est le bon choix sur batterie."
+	say "Prend effet au prochain démarrage du fond (« $PROG relancer »)."
+}
 PID_BAT="$ETAT/batterie.pid"
 
 vivant() { local f="$1"; [[ -r "$f" ]] && kill -0 "$(cat "$f" 2>/dev/null)" 2>/dev/null; }
@@ -159,10 +193,35 @@ cmd_demarrer() {
 	#                      ni afficher d'indicateur par-dessus le bureau.
 	#  --panscan=1       : remplit l'écran en recadrant, comme « remplir »
 	#                      pour une image fixe, plutôt que des bandes noires.
+	#  LA QUALITÉ, ET CE QU'ELLE COÛTE VRAIMENT.
+	#  Un fond animé décode une vidéo en continu, pour toujours. Sur un
+	#  portable, c'est une à deux heures d'autonomie. Les trois réglages
+	#  ci-dessous ne changent pas la même chose :
+	#
+	#    economie  — décodage par la carte graphique quand elle sait le faire
+	#                (hwdec), et 24 images par seconde. Le processeur ne fait
+	#                presque plus rien. C'est le bon choix sur batterie.
+	#    equilibre — hwdec aussi, mais sans brider les images. Le défaut.
+	#    belle     — décodage logiciel de haute qualité et interpolation.
+	#                À réserver au secteur : c'est le réglage qui chauffe.
+	#
+	#  hwdec=auto-safe et non « auto » : « auto » accepte des chemins connus
+	#  pour donner un écran noir sur certains pilotes, et un fond d'écran qui
+	#  noircit l'écran est pire qu'un fond d'écran laid.
+	local qualite; qualite="$(lire_qualite)"
+	local OPTS_Q=()
+	case "$qualite" in
+		economie)  OPTS_Q=(--hwdec=auto-safe --profile=low-latency --vo=gpu
+		                   --framedrop=vo --override-display-fps=24) ;;
+		belle)     OPTS_Q=(--hwdec=no --profile=high-quality --vo=gpu
+		                   --interpolation=yes --tscale=oversample) ;;
+		*)         OPTS_Q=(--hwdec=auto-safe --profile=low-latency --vo=gpu) ;;
+	esac
+
 	mpv --wid="$wid" --loop-file=inf --no-audio --really-quiet \
 	    --no-osd-bar --no-input-default-bindings --no-input-cursor \
 	    --panscan=1 --keepaspect=yes --cursor-autohide=no \
-	    --profile=low-latency --vo=gpu \
+	    "${OPTS_Q[@]}" \
 	    "$video" >"$ETAT/mpv.log" 2>&1 &
 	echo $! > "$PID_MPV"
 
@@ -244,5 +303,11 @@ case "${1:-}" in
 	""|etat|état|status)  cmd_etat ;;
 	-h|--help|aide|help)  usage ;;
 	off|stop|arreter|arrêter) cmd_arreter ;;
+	qualite|qualité)
+		shift
+		if [[ -n "${1:-}" ]]; then ecrire_qualite "$1"
+		else printf 'Qualité du fond animé : %s\n' "$(lire_qualite)"
+		     printf 'Choisir : economie · equilibre · belle\n'
+		fi ;;
 	*)                    cmd_demarrer "$1" ;;
 esac

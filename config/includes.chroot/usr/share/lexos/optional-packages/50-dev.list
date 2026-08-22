@@ -1,6 +1,10 @@
 # Atelier développeur — saveurs dev et full.
 nodejs
 npm
+#  gh (GitHub CLI) : présent dans les Debian récentes, absent des plus
+#  anciennes. Il est ici en « au mieux » — s'il manque, « lexos dev install gh »
+#  le pose depuis le dépôt officiel GitHub, qui est de toute façon plus à jour.
+gh
 default-jdk
 golang-go
 rustc
@@ -31,3 +35,30 @@ socat
 netcat-openbsd
 strace
 ltrace
+
+# --- L'autre compilateur C/C++ ----------------------------------------------
+#  gcc est déjà là (build-essential). clang donne des messages d'erreur
+#  souvent plus clairs, et certains projets ne compilent qu'avec lui.
+clang
+manpages-dev
+
+# --- Clients de bases de données --------------------------------------------
+#  On n'avait que sqlite3. Ceux-ci sont les CLIENTS seulement (quelques Mo) :
+#  ils servent à se connecter à une base ailleurs, sans installer de serveur.
+postgresql-client
+default-mysql-client
+redis-tools
+
+# --- ESSAYER SES PROPRES ISO SANS GRAVER DE CLÉ -----------------------------
+#  Le plus utile de cette liste, et de loin. qemu + virt-manager ouvrent une
+#  machine virtuelle dans une fenêtre : on essaie une ISO qu'on vient de
+#  construire sans redémarrer, sans graver, sans risquer sa vraie machine.
+#  Quand on publie rarement, chaque ISO doit être essayée à fond — et c'est
+#  là que ça se fait.
+libvirt-daemon-system
+libvirt-clients
+virt-manager
+#  distrobox fait tourner Ubuntu, Fedora ou Arch DANS LexOS, en ligne de
+#  commande, sans double démarrage. Pour essayer un paquet qui n'existe que
+#  chez eux, c'est imbattable.
+distrobox

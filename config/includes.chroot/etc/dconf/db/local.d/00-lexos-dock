@@ -22,4 +22,12 @@ pressure-reveal=true
 show-dock-item=false
 lock-items=false
 monitor=''
-dock-items=['00-firefox.dockitem','01-terminal.dockitem','02-files.dockitem','03-editor.dockitem','04-appfinder.dockitem','05-partage.dockitem','08-settings.dockitem','06-install.dockitem','07-about.dockitem']
+#  Ordre calqué sur DOCK dans web-demo/index.html : Navigateur, Chrome,
+#  Terminal, Fichiers, Note perso, Claude, Claude Code, Partager, Capture,
+#  Studio+, Logithèque, Paramètres, Installer, À propos. (Le dernier bouton
+#  de la démo, « Applications », est déjà le bouton Applications du panneau —
+#  pas de doublon dans le dock.)
+#  Chrome est juste après Firefox : les deux navigateurs côte à côte. Son
+#  icône est là dès le premier démarrage ; le premier clic propose
+#  l'installation depuis le dépôt officiel de Google (voir lexos-chrome).
+dock-items=['00-firefox.dockitem','15-chrome.dockitem','01-terminal.dockitem','02-files.dockitem','03-editor.dockitem','12-claude.dockitem','13-claude-code.dockitem','14-musique.dockitem','05-partage.dockitem','09-capture.dockitem','10-studio.dockitem','11-logitheque.dockitem','08-settings.dockitem','06-install.dockitem','07-about.dockitem']

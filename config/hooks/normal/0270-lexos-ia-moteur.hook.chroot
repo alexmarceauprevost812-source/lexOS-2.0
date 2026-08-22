@@ -1,0 +1,146 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — le backend GPU du moteur d'IA locale (llama.cpp / ggml)
+# =============================================================================
+#  LE PIÈGE QUE CE HOOK EXISTE POUR ÉVITER.
+#
+#  Le paquet « llama.cpp » seul n'active QUE le processeur. On installe, on
+#  lance, ça répond : tout a l'air normal. C'est juste dix fois plus lent que
+#  ça devrait, et RIEN ne le dit. Sur une machine à RTX 5060, la carte ne fait
+#  rien du tout et on en conclut que « l'IA locale, ça vaut pas la peine ».
+#  C'est le pire genre de panne : celle qui ressemble à un fonctionnement.
+#
+#  POURQUOI ON DEMANDE À APT AU LIEU D'ÉCRIRE LE NOM.
+#
+#  Les noms des paquets de backend ggml bougent encore d'une version à l'autre
+#  (libggml0-backend-all, libggml0-backend-vendor-cuda-13-2, llama.cpp-cuda,
+#  llama.cpp-hip ont tous existé). Écrire un nom dans une .list, c'est parier ;
+#  et le pari perdu est silencieux, parce que le hook 0250 tolère — à raison —
+#  un paquet absent. On demande donc à apt CE QUI EXISTE le jour de la
+#  construction, et on écrit dans le journal ce qu'on a trouvé.
+#
+#  POURQUOI VULKAN ET PAS CUDA.
+#
+#  Vulkan couvre NVIDIA, AMD et Intel du même coup et pèse peu. CUDA irait un
+#  peu plus vite, mais seulement sur du NVIDIA, et traîne des bibliothèques qui
+#  se comptent en gigaoctets. On ne construit pas une ISO pour une seule
+#  machine : Vulkan par défaut, CUDA proposé plus tard par lexos-ia-locale à
+#  ceux qui ont la carte pour.
+#
+#  CE HOOK N'ÉCHOUE JAMAIS. Sans backend, le moteur tourne au processeur — plus
+#  lentement, mais il tourne. Ce qui compte, c'est que /etc/lexos/ia-moteur le
+#  DISE, pour que le panneau puisse l'expliquer au lieu d'afficher un « GPU non
+#  disponible » qui ne sert à personne.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0270 : backend GPU du moteur d'IA locale"
+
+RAPPORT="/etc/lexos/ia-moteur"
+mkdir -p /etc/lexos
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# --- Le moteur est-il seulement là ? ----------------------------------------
+#  Si llama.cpp n'est pas venu, un backend ne servirait à rien : on le dit, et
+#  on nomme la cause la plus probable — backports pas ouvert.
+if ! have llama-cli && ! have llama-server && ! dpkg -s llama.cpp >/dev/null 2>&1; then
+	echo "[lexos]   !! ============================================================"
+	echo "[lexos]   !! llama.cpp N'EST PAS INSTALLÉ."
+	echo "[lexos]   !! Cause la plus probable : trixie-backports n'est pas ouvert."
+	echo "[lexos]   !! Vérifier config/archives/backports.list.chroot et .pref.chroot."
+	echo "[lexos]   !! L'ISO sortira sans moteur d'IA locale."
+	echo "[lexos]   !! ============================================================"
+	{
+		echo "moteur=absent"
+		echo "backend=aucun"
+		echo "raison=llama.cpp non installé (trixie-backports ouvert ?)"
+	} > "$RAPPORT"
+	echo "[lexos] hook 0270 : ok (rien à faire)"
+	exit 0
+fi
+
+echo "[lexos]   llama.cpp présent."
+
+# --- Ce qu'apt connaît vraiment ---------------------------------------------
+apt-get update -qq >/dev/null 2>&1 || true
+CANDIDATS="$(apt-cache search --names-only '^(libggml|ggml-|llama\.cpp-)' 2>/dev/null \
+	| awk '{ print $1 }' | sort -u)"
+
+if [ -z "$CANDIDATS" ]; then
+	echo "[lexos]   !! aucun paquet de backend ggml visible dans les dépôts."
+else
+	echo "[lexos]   backends visibles dans les dépôts :"
+	echo "$CANDIDATS" | sed 's/^/[lexos]     /'
+fi
+
+# --- Choix : Vulkan d'abord, générique ensuite ------------------------------
+#  On cherche un backend nommément Vulkan. À défaut, un backend « tout »
+#  (libggml*-backend-all) — mais seulement s'il ne fait pas exploser l'image,
+#  parce que « tout » veut souvent dire « avec CUDA », et CUDA se compte en
+#  gigaoctets pour une seule marque de cartes.
+CHOISI=""
+for P in $CANDIDATS; do
+	case "$P" in
+		*vulkan*) CHOISI="$P"; break ;;
+	esac
+done
+
+MOTIF="vulkan"
+if [ -z "$CHOISI" ]; then
+	GENERIQUE=""
+	for P in $CANDIDATS; do
+		case "$P" in
+			*backend-all) GENERIQUE="$P"; break ;;
+		esac
+	done
+	if [ -n "$GENERIQUE" ]; then
+		#  Combien ça coûte, avant de dire oui. apt sait répondre sans rien
+		#  installer, et le nombre part dans le journal : une décision de
+		#  construction qu'on ne peut pas relire n'est pas une décision.
+		MO="$(apt-get install -y --no-install-recommends -s "$GENERIQUE" 2>/dev/null \
+			| awk '/After this operation|Après cette opération/ { for (i=1;i<=NF;i++) if ($i ~ /^[0-9.,]+$/) { v=$i; u=$(i+1) } }
+			       END { gsub(",",".",v); if (u ~ /^G/) printf "%d", v*1024; else if (u ~ /^M/) printf "%d", v; else printf "0" }')"
+		[ -n "$MO" ] || MO=0
+		echo "[lexos]   ${GENERIQUE} coûterait ${MO} Mo dans l'image."
+		if [ "$MO" -le 800 ]; then
+			CHOISI="$GENERIQUE"; MOTIF="générique (${MO} Mo)"
+		else
+			echo "[lexos]   trop lourd pour l'image — non retenu, le panneau le proposera après l'installation."
+		fi
+	fi
+fi
+
+# --- Installation ------------------------------------------------------------
+if [ -n "$CHOISI" ]; then
+	echo "[lexos]   installation du backend ${CHOISI} (${MOTIF})…"
+	if apt-get install -y --no-install-recommends "$CHOISI" >/dev/null 2>&1; then
+		echo "[lexos]   backend ${CHOISI} installé — la carte graphique servira."
+		{
+			echo "moteur=llama.cpp"
+			echo "backend=${CHOISI}"
+			echo "type=${MOTIF}"
+		} > "$RAPPORT"
+		echo "[lexos] hook 0270 : ok"
+		exit 0
+	fi
+	echo "[lexos]   !! l'installation de ${CHOISI} a échoué."
+fi
+
+# --- Rien trouvé : on le dit, en toutes lettres -----------------------------
+echo "[lexos]   !! ============================================================"
+echo "[lexos]   !! AUCUN BACKEND GPU INSTALLÉ — le moteur tournera au PROCESSEUR."
+echo "[lexos]   !! Ça marche, mais c'est environ dix fois plus lent, et c'est"
+echo "[lexos]   !! exactement le genre de panne qui ne se voit pas."
+echo "[lexos]   !! lexos-ia-locale le dira à l'écran et proposera de l'ajouter."
+echo "[lexos]   !! Noms cherchés : *vulkan* puis *backend-all, parmi :"
+echo "[lexos]   !!   $(echo "${CANDIDATS:-aucun}" | tr '\n' ' ')"
+echo "[lexos]   !! ============================================================"
+{
+	echo "moteur=llama.cpp"
+	echo "backend=aucun"
+	echo "type=processeur seulement"
+	echo "candidats=$(echo "$CANDIDATS" | tr '\n' ' ')"
+} > "$RAPPORT"
+
+echo "[lexos] hook 0270 : ok (processeur seulement)"

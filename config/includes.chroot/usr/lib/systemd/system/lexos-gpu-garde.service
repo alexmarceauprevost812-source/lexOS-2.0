@@ -1,0 +1,29 @@
+[Unit]
+#  Adapte les réglages du pilote NVIDIA à la machine où l'on démarre :
+#  en place s'il y a une carte NVIDIA, rangés sinon. Permet à l'ISO « pro »
+#  de démarrer aussi bien sur l'Alienware que sur un vieux portable Intel.
+Description=LexOS - adapter les réglages NVIDIA à la carte réellement présente
+Documentation=file:/usr/lib/lexos/gpu-garde
+
+#  DefaultDependencies=no + sysinit.target : il faut agir TÔT, avant que le
+#  gestionnaire de connexion ne lance la session graphique, sinon on
+#  raisonnerait sur un affichage déjà démarré.
+DefaultDependencies=no
+After=systemd-udev-settle.service local-fs.target
+Wants=systemd-udev-settle.service
+Before=display-manager.service sysinit.target
+
+#  Pas de bus PCI lisible = rien à décider (conteneur, machine virtuelle
+#  exotique). On sort sans bruit plutôt que d'échouer.
+ConditionPathExists=/sys/bus/pci/devices
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/lexos/gpu-garde
+RemainAfterExit=yes
+#  Un échec ici ne doit JAMAIS empêcher la machine de démarrer : au pire les
+#  réglages restent tels quels, ce qui est le comportement d'avant ce service.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=sysinit.target

@@ -1,0 +1,65 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-demo-guard — efface les commodités de la DÉMO sur un système INSTALLÉ
+# =============================================================================
+#  LE PROBLÈME QUE CE SCRIPT RÉSOUT
+#
+#  La session démo (clé USB) ouvre le bureau toute seule, sur un compte « lex »
+#  sans mot de passe à taper : c'est voulu, il n'y a rien à protéger sur une
+#  clé, et l'installateur en a besoin.
+#
+#  Mais Calamares installe LexOS en RECOPIANT le système de fichiers tel quel
+#  sur le disque. Tous ces réglages de démo partent avec — et sur la machine
+#  installée ils ne veulent plus rien dire :
+#
+#    · /etc/sudoers.d/lexos-live
+#      « lex » garde un sudo sans mot de passe. Quelqu'un qui nomme son compte
+#      « lex » (le nom qu'il a sous les yeux depuis le début de la démo) en
+#      hérite en silence, sans l'avoir demandé.
+#
+#    · /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf
+#      CELUI-CI EST LE PIRE, et c'est celui qu'on avait oublié. L'écran de
+#      connexion ouvre automatiquement la session « lex » — le compte de la
+#      DÉMO. On ne voit donc jamais l'écran où choisir son propre compte, et
+#      on croit que l'installateur ne l'a pas créé. Il l'avait bien créé : on
+#      n'arrivait simplement jamais jusqu'à lui.
+#      Le retirer rend aussi son mot à Calamares : si on a demandé l'ouverture
+#      automatique pendant l'installation, c'est SA configuration qui
+#      s'applique, au lieu d'être écrasée par la nôtre.
+#
+#    · /etc/systemd/system/getty@tty1.service.d/lexos-autologin.conf
+#      Même chose en console : tty1 ouvre une session « lex » sans rien
+#      demander.
+#
+#  Ce garde-fou tourne à CHAQUE démarrage, avant l'écran de connexion. Hors
+#  session démo, il efface les trois. Il ne dépend d'aucun réglage de
+#  Calamares : une installation faite autrement — copie manuelle, clonage de
+#  disque — est rattrapée pareil.
+#
+#  Le compte « lex » lui-même n'est PAS supprimé, volontairement. Si la
+#  création du compte a échoué pendant l'installation, il reste la seule
+#  façon d'entrer (identifiant « lex », mot de passe « lex ») pour réparer.
+# =============================================================================
+set -e
+
+# En session démo (boot=live dans la ligne de commande du noyau) : on ne
+# touche à rien, tout cela est exactement ce qu'on veut.
+if grep -qa 'boot=live' /proc/cmdline 2>/dev/null; then
+	exit 0
+fi
+
+# Partout ailleurs — donc sur un système installé — on retire.
+RETIRES=""
+
+for F in /etc/sudoers.d/lexos-live \
+         /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf \
+         /etc/systemd/system/getty@tty1.service.d/lexos-autologin.conf; do
+	if [ -e "$F" ]; then
+		rm -f "$F"
+		RETIRES="${RETIRES} ${F}"
+	fi
+done
+
+[ -n "$RETIRES" ] && echo "[lexos] réglages de démo retirés (système installé) :${RETIRES}"
+
+exit 0

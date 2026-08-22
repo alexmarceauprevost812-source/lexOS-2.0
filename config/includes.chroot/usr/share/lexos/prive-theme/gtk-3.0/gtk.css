@@ -1,0 +1,396 @@
+/* ------------------------------------------------------------------
+   LexOS — Fichiers privés
+   Noir, boutons orange, texte blanc.
+
+   Ce fichier n'habille QUE les fenêtres de « Fichiers privés » :
+   lexos-prive lance zenity avec XDG_CONFIG_HOME pointé sur ce dossier,
+   donc le reste du bureau garde son thème habituel.
+   ------------------------------------------------------------------ */
+
+@define-color lx_fond      #0d0d10;   /* le noir du fond           */
+@define-color lx_fond2     #17171c;   /* listes, champs            */
+@define-color lx_bord      #2e2e36;
+@define-color lx_texte     #ffffff;   /* texte blanc               */
+@define-color lx_gris      #b6b6c0;   /* texte secondaire          */
+@define-color lx_orange    #ff8c1a;   /* accent sur fond noir      */
+@define-color lx_bouton    #d95d0a;   /* orange assez foncé pour   */
+@define-color lx_bouton_h  #ff7a14;   /* que le blanc reste lisible*/
+@define-color lx_bouton_a  #b74a05;
+
+/* ---------- fond général ---------- */
+window,
+dialog,
+messagedialog,
+.background,
+.dialog-vbox,
+box,
+grid,
+viewport {
+	background-color: @lx_fond;
+	color: @lx_texte;
+}
+
+decoration {
+	background-color: @lx_fond;
+	border-radius: 10px 10px 0 0;
+	box-shadow: 0 0 0 1px @lx_bord;
+}
+
+headerbar,
+.titlebar {
+	background-image: none;
+	background-color: @lx_fond2;
+	color: @lx_texte;
+	border-bottom: 2px solid @lx_orange;
+	box-shadow: none;
+}
+
+headerbar .title,
+.titlebar .title {
+	color: @lx_orange;
+	font-weight: bold;
+}
+
+/* ---------- textes ---------- */
+label,
+.dialog-vbox label {
+	color: @lx_texte;
+}
+
+label.dim-label,
+.dim-label {
+	color: @lx_gris;
+}
+
+/* ---------- boutons : orange, texte blanc ---------- */
+button,
+.dialog-action-area button {
+	background-image: none;
+	background-color: @lx_bouton;
+	color: @lx_texte;
+	font-weight: bold;
+	border: 1px solid @lx_bouton_a;
+	border-radius: 8px;
+	padding: 9px 20px;
+	text-shadow: none;
+	box-shadow: none;
+	min-height: 22px;
+}
+
+.dialog-action-area button:hover,
+buttonbox button:hover {
+	background-color: @lx_bouton_h;
+	color: @lx_texte;
+}
+
+.dialog-action-area button:active,
+buttonbox button:active,
+button:checked {
+	background-color: @lx_bouton_a;
+	color: @lx_texte;
+}
+
+button:focus,
+button:focus-visible {
+	outline: 2px solid @lx_orange;
+	outline-offset: 2px;
+}
+
+button:disabled {
+	background-color: #3a2a1c;
+	color: #8a8a92;
+	border-color: #3a2a1c;
+}
+
+/* « Annuler » : le même orange, en plus sombre — on voit tout de suite
+   lequel des deux fait avancer les choses. */
+.dialog-action-area button:first-child,
+button.cancel {
+	background-color: #8a3d06;
+	color: @lx_texte;
+	border: 1px solid #6d3005;
+}
+
+.dialog-action-area button:first-child:hover,
+button.cancel:hover {
+	background-color: #a54907;
+	color: @lx_texte;
+	border-color: @lx_orange;
+}
+
+/* …sauf quand il n'y a qu'un seul bouton : lui, c'est le principal. */
+.dialog-action-area button:only-child {
+	background-color: @lx_bouton;
+	border-color: @lx_bouton_a;
+}
+
+/* ---------- champs de saisie et mots de passe ---------- */
+entry,
+entry.password,
+spinbutton,
+textview,
+textview text {
+	background-image: none;
+	background-color: @lx_fond2;
+	color: @lx_texte;
+	caret-color: @lx_orange;
+	border: 1px solid @lx_bord;
+	border-radius: 8px;
+	padding: 9px 11px;
+	selection-background-color: @lx_orange;
+	selection-color: #000000;
+}
+
+entry:focus,
+spinbutton:focus,
+textview:focus {
+	border-color: @lx_orange;
+	box-shadow: inset 0 0 0 1px @lx_orange;
+}
+
+entry image,
+entry.password image {
+	color: @lx_orange;
+}
+
+/* ---------- listes (le menu du panneau) ---------- */
+treeview.view,
+list,
+listbox,
+scrolledwindow {
+	background-color: @lx_fond2;
+	color: @lx_texte;
+	border: 1px solid @lx_bord;
+	border-radius: 8px;
+}
+
+treeview.view {
+	padding: 2px;
+}
+
+treeview.view:selected,
+treeview.view:selected:focus,
+list row:selected,
+listbox row:selected {
+	background-color: @lx_bouton;
+	background-image: none;
+	color: @lx_texte;
+}
+
+treeview.view:hover,
+list row:hover {
+	background-color: #23232b;
+}
+
+treeview.view header button,
+columnheader button {
+	background-color: @lx_fond;
+	background-image: none;
+	color: @lx_orange;
+	font-weight: bold;
+	border: 0;
+	border-bottom: 1px solid @lx_bord;
+	border-radius: 0;
+	padding: 7px 10px;
+}
+
+/* ---------- cases à cocher et boutons radio ---------- */
+check,
+radio {
+	background-color: @lx_fond2;
+	border: 1px solid @lx_bord;
+	color: @lx_texte;
+}
+
+check:checked,
+radio:checked {
+	background-color: @lx_bouton;
+	background-image: none;
+	border-color: @lx_bouton;
+	color: @lx_texte;
+}
+
+/* ---------- barre de progression (mise à l'abri des fichiers) ---------- */
+progressbar > trough {
+	background-color: @lx_fond2;
+	border: 1px solid @lx_bord;
+	border-radius: 8px;
+	min-height: 10px;
+}
+
+progressbar > trough > progress {
+	background-image: none;
+	background-color: @lx_orange;
+	border-radius: 8px;
+	min-height: 10px;
+}
+
+progressbar text {
+	color: @lx_texte;
+}
+
+/* ---------- barres de défilement ---------- */
+scrollbar,
+scrollbar trough {
+	background-color: @lx_fond;
+	border: 0;
+}
+
+scrollbar slider {
+	background-color: #43434e;
+	border-radius: 8px;
+	min-width: 8px;
+	min-height: 8px;
+}
+
+scrollbar slider:hover {
+	background-color: @lx_orange;
+}
+
+/* ---------- séparateurs, infobulles ---------- */
+separator {
+	background-color: @lx_bord;
+}
+
+tooltip,
+tooltip.background {
+	background-color: @lx_fond2;
+	color: @lx_texte;
+	border: 1px solid @lx_orange;
+	border-radius: 6px;
+}
+
+/* ---------- sélecteur de fichiers ---------- */
+filechooser,
+filechooser .view,
+placessidebar,
+placessidebar list {
+	background-color: @lx_fond2;
+	color: @lx_texte;
+}
+
+placessidebar row:selected {
+	background-color: @lx_bouton;
+	color: @lx_texte;
+}
+
+/* ---------- l'icône d'avertissement reste orange, pas rouge criard ---------- */
+messagedialog .dialog-vbox image {
+	color: @lx_orange;
+}
+
+
+/* En dernier, donc gagnant : les en-têtes de colonne sont des boutons. */
+treeview.view header button,
+treeview header button,
+columnheader button,
+.view header button {
+	background-image: none;
+	background-color: @lx_fond;
+	color: @lx_orange;
+	font-weight: bold;
+	border: 0;
+	border-bottom: 1px solid @lx_bord;
+	border-radius: 0;
+	padding: 6px 10px;
+	min-height: 0;
+}
+
+/* L'en-tête est masqué par « --hide-header », mais GTK garde le nœud :
+   sans ça, il reste une bande vide (et un liseré orange quand la liste
+   prend le focus) en haut de chaque menu. On le fond dans la liste. */
+columnview > header,
+treeview.view header,
+treeview header,
+.view header {
+	background-color: @lx_fond2;
+	border: 0;
+	min-height: 0;
+	padding: 0;
+}
+
+columnview > header > button,
+columnview header button,
+treeview.view header button,
+treeview header button,
+.view header button,
+header > button {
+	background-color: @lx_fond2;
+	background-image: none;
+	color: @lx_gris;
+	border: 0;
+	border-radius: 0;
+	outline: none;
+	box-shadow: none;
+	min-height: 0;
+	padding: 0 8px;
+	margin: 0;
+}
+
+columnview > header > button:focus,
+columnview > header > button:focus-visible,
+treeview.view header button:focus,
+treeview.view header button:focus-visible,
+header > button:focus,
+header > button:focus-visible {
+	outline: none;
+	box-shadow: none;
+	background-color: @lx_fond2;
+}
+
+/* Filet large : TOUT ce qui vit dans un en-tête de liste prend le fond de
+   la liste. Les noms de nœuds changent d'une version de GTK à l'autre ;
+   cette règle attrape les bouts qui passeraient entre les précédentes. */
+header,
+header *,
+columnview > header,
+columnview > header *,
+treeview header,
+treeview header * {
+	background-color: @lx_fond2;
+	background-image: none;
+	border-color: @lx_bord;
+	box-shadow: none;
+	outline: none;
+}
+
+header button,
+header button *,
+columnview > header button,
+columnview > header button * {
+	color: @lx_gris;
+	font-weight: bold;
+	border: 0;
+	border-radius: 0;
+	min-height: 0;
+	padding: 0 8px;
+	margin: 0;
+}
+
+
+
+/* L'en-tête de liste : transparent, texte blanc en gras. Il se pose sur la
+   bande orange et sert de titre à la liste. Sans transparence, GTK laisse
+   des morceaux noirs au bout de la bande. */
+header,
+header *,
+treeview header,
+treeview header *,
+treeview.view header button,
+treeview.view header button label,
+columnheader button,
+columnheader button label,
+.view header button,
+header > button,
+header > button label {
+	background-color: transparent;
+	background-image: none;
+	border: 0;
+	box-shadow: none;
+	outline: none;
+	color: #ffffff;
+	font-weight: bold;
+	min-height: 0;
+	padding: 4px 10px;
+	margin: 0;
+}

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Fichiers privés — verrouillage à l'ouverture de session
+Name[en]=Private Files — lock at login
+Comment=Remet le coffre à l'état fermé, au cas où la session précédente se serait mal terminée
+Exec=lexos-prive fermer
+Icon=changes-prevent
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+OnlyShowIn=XFCE;GNOME;KDE;MATE;LXDE;LXQt;

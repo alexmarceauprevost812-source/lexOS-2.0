@@ -1,0 +1,10 @@
+#!/bin/sh
+# lexos-boost — lanceur de LexOS Boost en ligne de commande.
+#
+# POURQUOI UN ENROBAGE SHELL ET PAS DU PYTHON DIRECT. La règle de la maison,
+# que la CI fait respecter : /usr/bin ne contient que des commandes shell,
+# les aides en Python vivent dans /usr/lib/lexos (comme settings.py ou
+# share-server.py). Le correctif Boost livrait ici un script Python — or la
+# CI passe tout /usr/bin dans shellcheck, qui s'étranglait dessus. Le moteur
+# n'a pas bougé d'une ligne : seul le lanceur a changé de langue.
+exec python3 -c 'import sys; sys.path.insert(0, "/usr/lib/lexos"); from boost.cli import main; sys.exit(main())' "$@"

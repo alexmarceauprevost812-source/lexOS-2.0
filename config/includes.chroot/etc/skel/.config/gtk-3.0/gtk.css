@@ -1,0 +1,221 @@
+/* =============================================================================
+ *  LexOS — les coins arrondis de la barre du haut et des notifications
+ * =============================================================================
+ *  CE QU'ALEX A DEMANDÉ, ET POURQUOI ÇA SE FAIT ICI.
+ *  « aimerais qu'en haut du bureau ce soit pareil à cette image, où s'affiche
+ *  l'heure et où on clique pour l'agenda ; et les notifications, pareil, avec
+ *  ces courbes arrondies. » Son image de référence : une pastille sombre aux
+ *  coins franchement ronds, posée sur le fond.
+ *
+ *  XFCE ne sait pas arrondir sa barre par un réglage : le panneau est une
+ *  fenêtre GTK, et c'est GTK qui décide de sa forme. Cette feuille est donc le
+ *  SEUL endroit d'où l'arrondi peut venir. Elle est posée dans le squelette
+ *  (/etc/skel) : chaque compte créé la reçoit, et l'utilisateur peut la
+ *  modifier chez lui sans qu'une mise à jour la lui reprenne.
+ *
+ *  CE QUI REND L'ARRONDI VISIBLE — ET SANS QUOI IL NE SERT À RIEN.
+ *  Un coin arrondi ne se voit que si ce qu'il y a DERRIÈRE se voit. Il faut
+ *  donc le compositeur, qui donne aux fenêtres une vraie transparence. Il est
+ *  déjà allumé chez nous (xfwm4.xml : use_compositing=true) — sans lui, les
+ *  coins seraient remplis de noir et la barre resterait carrée à l'oeil.
+ *
+ *  Et il faut que la barre ne touche pas les bords : c'est pour ça que
+ *  xfce4-panel.xml passe sa longueur à 98 % au lieu de 100 %. Une barre collée
+ *  d'un bord à l'autre n'a pas de coins à montrer.
+ * ===========================================================================*/
+
+/* --- La barre du haut ------------------------------------------------------ */
+#XfcePanelWindow {
+	/*  Le fond est posé ICI et non par XFCE : xfce4-panel.xml met
+	    background-style à 0 (« laisser le thème décider ») exprès, parce
+	    qu'un fond peint par XFCE se dessine par-dessus la forme arrondie et
+	    la rend carrée à nouveau. */
+	background-color: rgba(20, 18, 22, 0.92);
+	border-radius: 14px;
+	/*  Un liseré très pâle : sur un fond d'écran sombre, sans lui, le bord
+	    de la barre disparaît et l'arrondi ne se lit plus. */
+	border: 1px solid rgba(255, 255, 255, 0.07);
+	/*  L'écart avec le haut de l'écran, pour que la barre ait l'air posée
+	    plutôt qu'accrochée. Selon la version de GTK et de xfce4-panel, cette
+	    marge est parfois ignorée pour une fenêtre ancrée à un bord : ce
+	    n'est alors pas grave, l'arrondi reste — on perd le décollement, pas
+	    la forme. */
+	margin: 4px;
+}
+
+/*  Les tuiles de la barre — heure, météo, son, réseau — prennent le même
+    langage : coin rond, surlignage discret au survol. Sans ça, on aurait une
+    barre ronde remplie de rectangles, et le détail se verrait tout de suite. */
+#XfcePanelWindow .xfce4-panel button,
+#XfcePanelWindow button {
+	border-radius: 9px;
+	border: none;
+	background-image: none;
+	background-color: transparent;
+	padding: 0 6px;
+	min-height: 22px;
+}
+#XfcePanelWindow button:hover {
+	background-color: rgba(255, 255, 255, 0.10);
+}
+/*  Le bouton d'un greffon ouvert (l'agenda déroulé, le menu du son) doit se
+    distinguer du simple survol : c'est ce qui dit « c'est ÇA qui est ouvert ». */
+#XfcePanelWindow button:checked,
+#XfcePanelWindow button:active {
+	background-color: rgba(232, 89, 12, 0.85);
+	color: #ffffff;
+}
+
+/* --- Les notifications ----------------------------------------------------- */
+/*  Même dessin que la barre, en plus rond : une notification est une petite
+    carte posée sur le bureau, pas une fenêtre. C'est exactement la forme de
+    l'image d'Alex. */
+#XfceNotifyWindow {
+	background-color: rgba(20, 18, 22, 0.95);
+	border-radius: 18px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	padding: 4px;
+}
+#XfceNotifyWindow .summary {
+	font-weight: bold;
+}
+/*  Les boutons d'action d'une notification (« Ouvrir », « Ignorer ») : mêmes
+    pastilles que dans la barre, pour que tout LexOS parle la même langue. */
+#XfceNotifyWindow button {
+	border-radius: 9px;
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	background-image: none;
+	background-color: rgba(255, 255, 255, 0.05);
+}
+#XfceNotifyWindow button:hover {
+	background-color: rgba(232, 89, 12, 0.85);
+	color: #ffffff;
+}
+
+/* --- Les menus déroulants -------------------------------------------------- */
+/*  L'agenda et les menus qui s'ouvrent DEPUIS la barre : s'ils restaient à
+    angles droits, le clic sur une tuile ronde ferait sortir un rectangle.
+    C'est le genre de détail qu'on ne sait pas nommer mais qu'on voit. */
+menu, .menu, popover, .popup {
+	border-radius: 14px;
+}
+menu menuitem, .menu menuitem {
+	border-radius: 8px;
+	padding: 4px 8px;
+}
+
+/* --- Les quatre points des espaces de travail -------------------------------
+   CE QUE ÇA REMPLACE. La barre affichait « 1 - Espace de travail 1 », « 2 -
+   Espace de travail 2 »… : quatre pavés de texte qui mangeaient le tiers de
+   la largeur pour redire quatre fois le même mot. Alex l'a vu sur sa première
+   ISO — « je veux pas voir les fenêtres de bureau comme ça ».
+
+   Le sélecteur d'espaces de XFCE n'a pas de mode « points » : il affiche le
+   NOM de chaque espace. On lui a donc donné un nom qui EST un point (voir
+   xfwm4.xml), et c'est ici qu'on le met en forme. Le point actif prend la
+   couleur d'accent — c'est la « bulle » qui se déplace quand on change
+   d'espace ; les autres restent discrets sans disparaître, sinon on ne
+   saurait plus où cliquer.
+
+   La molette au-dessus de la rangée change d'espace : c'est le sélecteur qui
+   le fait lui-même (workspace-scrolling), pas cette feuille. */
+#XfcePanelWindow .pager button,
+#XfcePanelWindow .pager-buttons button,
+#XfcePanelWindow #pager button {
+	/*  LA GÉOMÉTRIE VIENT DE LA DÉMO, TRADUITE POUR UNE BARRE DE 32 px.
+	    Sur logiciel-ti-lex.vercel.app/demo : point de 7 px, écart de 5 px,
+	    et l'espace courant devient une PILULE de 20 px — pas un point plus
+	    gros, une pilule. C'est ce mouvement-là qu'Alex reconnaît.
+	    Ici la rangée fait 32 px (xfce4-panel.xml, « size »). La marge
+	    haute et basse centre la pastille : 11 + 10 + 11 = 32. Si un jour
+	    la barre change de taille, c'est CETTE ligne qu'il faut refaire —
+	    sinon les points se recollent en haut. */
+	padding: 0;
+	margin: 11px 3px;
+	min-width: 10px;
+	min-height: 10px;
+	border: 0;
+	background-image: none;
+	background-color: transparent;
+	/*  Le glyphe « ● » vient du NOM de l'espace (xfwm4.xml) : le sélecteur
+	    de XFCE n'a pas de mode « points », il affiche le nom. La taille de
+	    police tient donc lieu de taille de point, et doit rester au plus
+	    égale à la hauteur ci-dessus — sinon le glyphe regonfle le bouton
+	    et la rangée redevient une rangée de boutons. */
+	font-size: 10px;
+	color: rgba(255, 255, 255, 0.30);
+	border-radius: 99px;
+	/*  La pilule GRANDIT, elle n'apparaît pas. C'est l'animation de la
+	    démo (transition sur la largeur), et c'est elle qui fait lire le
+	    déplacement d'un espace à l'autre. GTK qui l'ignorerait donnerait
+	    un changement net : moins joli, jamais cassé. */
+	transition: min-width 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+#XfcePanelWindow .pager button:hover,
+#XfcePanelWindow .pager-buttons button:hover,
+#XfcePanelWindow #pager button:hover {
+	color: rgba(255, 255, 255, 0.72);
+}
+/*  L'espace où l'on est : une pilule orange PLEINE, comme dans la démo.
+    « checked » est l'état que le sélecteur pose sur le bouton courant ;
+    « active » couvre le thème qui n'utiliserait que celui-là.
+
+    POURQUOI LE GLYPHE PREND LA COULEUR DU FOND. On ne le cache pas avec
+    « font-size: 0 » ni « color: transparent » : si une version de GTK
+    n'appliquait pas le fond, un point invisible laisserait un sélecteur
+    d'espaces qu'on ne voit plus du tout. En lui donnant l'orange du fond,
+    le pire des cas redonne exactement ce qu'on avait avant — un point
+    orange — au lieu de rien. */
+#XfcePanelWindow .pager button:checked,
+#XfcePanelWindow .pager button:active,
+#XfcePanelWindow .pager-buttons button:checked,
+#XfcePanelWindow .pager-buttons button:active,
+#XfcePanelWindow #pager button:checked,
+#XfcePanelWindow #pager button:active {
+	min-width: 24px;
+	background-color: #E8590C;
+	color: #E8590C;
+}
+
+/* --- Fichiers (Thunar) : le survol de la démo -------------------------------
+   CE QU'ALEX DEMANDE, ET CE QUI EST POSSIBLE.
+   Dans la démo, survoler un dossier fait DEUX choses : la case s'éclaire, et
+   le rabat du dossier pivote de 15 degrés — le dossier s'ouvre. Le premier
+   se fait ici. Le second, NON, et il faut le dire : la démo dessine chaque
+   dossier en SVG vivant dans une page web, où l'on peut faire tourner une
+   pièce du dessin ; Thunar affiche une IMAGE tirée du thème d'icônes, et ni
+   GTK ni Thunar n'ont de mécanisme pour animer une icône au survol. Aucune
+   feuille de style ne peut inventer ça.
+
+   Ce qui a été fait à la place, et qui se voit vraiment : les dossiers de
+   l'ISO sont maintenant les MÊMES dessins que ceux de la démo (thème
+   d'icônes LexOS, poches DL/IMG/DOC/MUS/VID), ils suivent l'accent comme
+   dans la démo, et « folder-open » — celui du dossier qu'on est en train de
+   regarder — porte la poche basculée du même angle que le survol de la
+   démo. Le geste existe donc dans l'ISO ; il est déclenché par l'ouverture
+   plutôt que par le survol.
+
+   La couleur d'éclairement est celle de la démo (--bg-hi, #141416) relevée
+   en blanc translucide : sur un fond de fenêtre qui peut changer avec le
+   thème, une valeur opaque ferait une tache. */
+.thunar .standard-view:hover,
+.thunar iconview:hover,
+.thunar treeview.view:hover,
+iconview.view:hover {
+	background-color: rgba(255, 255, 255, 0.06);
+}
+/*  L'élément survolé — « prelight » est l'état que la vue pose sous le
+    pointeur. Coin rond comme les cases de la démo (.fold, border-radius 10px). */
+.thunar iconview:hover,
+.thunar iconview .cell:hover,
+iconview.view .cell:hover {
+	border-radius: 10px;
+}
+/*  La sélection garde l'accent : c'est déjà la langue du reste de LexOS. */
+.thunar iconview:selected,
+.thunar treeview.view:selected,
+iconview.view:selected {
+	background-color: rgba(232, 89, 12, 0.85);
+	color: #ffffff;
+	border-radius: 10px;
+}

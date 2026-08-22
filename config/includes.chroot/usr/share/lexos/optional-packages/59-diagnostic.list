@@ -1,0 +1,57 @@
+# =============================================================================
+#  59-diagnostic — savoir si le matériel est en train de mourir
+# =============================================================================
+#  On a déjà passé une journée sur un écran noir de RTX 5060. La prochaine
+#  fois que quelque chose cloche, « est-ce le disque ? est-ce la RAM ? » doit
+#  se répondre DEPUIS LexOS, pas depuis un live-USB emprunté. Et une clé qui
+#  sait aussi RÉPARER — retrouver une partition, copier un disque mourant —
+#  devient la clé qu'on apporte chez quelqu'un dont l'ordinateur va mal.
+#
+#  Déjà au socle, pas répétés ici : smartmontools et fwupd (15-essentiel),
+#  lm-sensors (47-apple), hwinfo (00-core).
+
+# --- Santé des disques -------------------------------------------------------
+#  smartctl en fenêtre, avec un voyant vert ou rouge.
+gsmartcontrol
+#  Les NVMe — ce qu'il y a dans l'Alienware — parlent un dialecte à part que
+#  smartctl seul ne dit pas en entier.
+nvme-cli
+
+# --- Ce qu'il y a dans la machine -------------------------------------------
+#  dmidecode lit la table SMBIOS que le BIOS écrit au démarrage. C'est la
+#  SEULE source qui connaisse le nombre de fentes mémoire, ce qu'il y a
+#  dedans et le maximum accepté par la carte mère — /proc ne donne que le
+#  total installé. Sans lui, « lexos materiel » ne peut pas répondre à
+#  « puis-je ajouter de la RAM ? », qui est sa raison d'être.
+dmidecode
+
+# --- La mémoire --------------------------------------------------------------
+#  Le test au démarrage. Le paquet ne suffit PAS : il faut l'entrée au menu
+#  GRUB de l'ISO — posée par le hook 0910, vérifiée bruyamment.
+memtest86+
+
+# --- Températures et tenue sous charge --------------------------------------
+psensor
+s-tui
+stress-ng
+
+# --- Micrologiciels et BIOS depuis Linux ------------------------------------
+#  fwupd est au socle ; voici sa fenêtre. Dell/Alienware publie sur LVFS :
+#  mettre à jour le BIOS sans clé USB DOS, ça marche pour de vrai.
+gnome-firmware
+
+# --- Récupérer ce qui est perdu ----------------------------------------------
+#  testdisk retrouve une partition effacée, et fournit photorec — qui
+#  récupère les photos d'une carte SD formatée.
+testdisk
+#  Copier un disque mourant secteur par secteur, en insistant sur ce qui
+#  résiste. La commande est « ddrescue ».
+gddrescue
+#  Une « clé 1 To » à 12 $ n'en fait souvent pas 64 Go : f3 le prouve.
+f3
+
+# --- Où sont passés mes 200 Go ? ---------------------------------------------
+qdirstat
+rmlint
+#  Le nom « czkawka » seul n'existe pas dans Debian : deux binaires séparés.
+czkawka-gui|czkawka-cli

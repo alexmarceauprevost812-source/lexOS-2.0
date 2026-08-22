@@ -17,12 +17,47 @@ xfce4
 xfce4-terminal
 thunar
 
+# --- Greffons de la barre du haut --------------------------------------------
+#  CES QUATRE-LÀ NE SONT PAS OPTIONNELS, et les traiter comme tels a coûté
+#  cher. La barre livrée les DÉCLARE dans sa configuration. Quand un greffon
+#  déclaré n'est pas installé, xfce4-panel ouvre au démarrage une fenêtre
+#  « Le greffon <nom> n'a pas pu être chargé, voulez-vous le supprimer ? »
+#  avec deux boutons : « Supprimer » et « Quitter ».
+#
+#  « Quitter » ferme le panneau. En entier. C'est exactement ce qu'Alex
+#  voyait — « quand je clique, le menu du haut disparaît ». Ce n'était pas
+#  Compiz, ce n'était pas une course au démarrage : c'était ce bouton.
+#
+#  Un greffon que la barre déclare doit donc être là à coup sûr. Le hook
+#  0400 garde quand même un filet : il retire de la configuration tout
+#  greffon réellement absent, pour que la fenêtre ne puisse plus jamais
+#  s'ouvrir.
+xfce4-whiskermenu-plugin
+xfce4-genmon-plugin
+xfce4-pulseaudio-plugin
+xfce4-power-manager
+
 # --- Connexion ---------------------------------------------------------------
 lightdm
 lightdm-gtk-greeter
 
 # --- Navigateur --------------------------------------------------------------
 firefox-esr
+
+# --- Ce dont vivent les Paramètres LexOS -------------------------------------
+#  « fais en sorte que tous les paramètres soient pareils. » La fenêtre
+#  Paramètres LexOS est le même fichier sur toutes les ISO — mais elle est
+#  écrite en Qt, et Qt voyageait dans les paquets OPTIONNELS. Si l'un d'eux
+#  échouait sur une machine et pas sur l'autre, les Paramètres refusaient de
+#  s'ouvrir d'un côté et marchaient de l'autre. Le même système, deux
+#  comportements. C'est fini : ces paquets sont obligatoires.
+#  (Même chose pour zenity : c'est lui qui ouvre la fenêtre « dans quelle
+#  ville es-tu ? » quand on clique sur la météo dans la barre.)
+python3-pyside6.qtcore
+python3-pyside6.qtgui
+python3-pyside6.qtwidgets
+python3-pyside6.qtwebenginewidgets
+zenity
 
 # --- Politique d'autorisations ----------------------------------------------
 # (« policykit-1 » n'existe plus dans trixie — le paquet réel est polkitd)

@@ -1,0 +1,55 @@
+#!/bin/sh
+# Crée et retire la zone de mémoire compressée de LexOS Boost.
+#
+# Appelé par lexos-zram.service. Volontairement en shell POSIX : ce
+# script tourne très tôt au démarrage, sur des machines lentes, et n'a
+# aucune raison de payer le lancement d'un interpréteur Python.
+#
+# La configuration est écrite par « lexos-boost --appliquer ».
+
+set -eu
+
+CONF=/etc/lexos/zram.conf
+ETAT=/run/lexos-zram.device
+
+demarrer() {
+    [ -r "$CONF" ] || { echo "aucune configuration zram, rien à faire"; exit 0; }
+    # shellcheck disable=SC1090
+    . "$CONF"
+
+    : "${TAILLE_MO:=0}"
+    : "${ALGO:=zstd}"
+    [ "$TAILLE_MO" -gt 0 ] || { echo "taille nulle, rien à faire"; exit 0; }
+
+    modprobe zram || { echo "le noyau ne fournit pas zram" >&2; exit 1; }
+
+    # zramctl choisit un périphérique libre et l'initialise.
+    # Si l'algorithme demandé n'est pas compilé dans ce noyau, on retombe
+    # sur lzo, présent partout depuis toujours.
+    DEV=$(zramctl --find --size "${TAILLE_MO}M" --algorithm "$ALGO" 2>/dev/null) || \
+    DEV=$(zramctl --find --size "${TAILLE_MO}M" --algorithm lzo)
+
+    mkswap "$DEV" >/dev/null
+    # priorité haute : le noyau doit préférer la zram au disque
+    swapon --priority 100 "$DEV"
+
+    printf '%s\n' "$DEV" > "$ETAT"
+    echo "mémoire compressée active : $DEV (${TAILLE_MO} Mo)"
+}
+
+arreter() {
+    [ -r "$ETAT" ] || exit 0
+    DEV=$(cat "$ETAT")
+    if [ -b "$DEV" ]; then
+        swapoff "$DEV" 2>/dev/null || true
+        zramctl --reset "$DEV" 2>/dev/null || true
+    fi
+    rm -f "$ETAT"
+    echo "mémoire compressée retirée"
+}
+
+case "${1:-}" in
+    demarrer) demarrer ;;
+    arreter)  arreter ;;
+    *) echo "usage: $0 {demarrer|arreter}" >&2; exit 2 ;;
+esac

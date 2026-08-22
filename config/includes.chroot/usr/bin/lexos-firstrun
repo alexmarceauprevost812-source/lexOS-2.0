@@ -19,8 +19,15 @@ if (( ! FORCE )) && [[ -f "$STAMP" ]]; then
 fi
 
 # Laisse xfdesktop/xfsettingsd s'enregistrer avant de les piloter.
-for _ in $(seq 1 20); do
-	xfconf-query -c xfce4-desktop -l >/dev/null 2>&1 && break
+#
+#  ATTENTION au piège : « xfconf-query -c xfce4-desktop -l » répond TOUT DE
+#  SUITE, parce que le fichier xfce4-desktop.xml livré dans /etc/skel définit
+#  déjà /desktop-menu/show. Attendre ça n'attend rien du tout. Ce qu'il faut
+#  attendre, c'est que xfdesktop ait DÉCLARÉ SES ÉCRANS — c'est-à-dire qu'une
+#  propriété « last-image » apparaisse. Tant qu'elle n'est pas là, on ne sait
+#  pas sous quel nom écrire le fond d'écran.
+for _ in $(seq 1 40); do
+	xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -q 'last-image$' && break
 	sleep 0.5
 done
 
@@ -48,23 +55,124 @@ if command -v xfconf-query >/dev/null 2>&1; then
 fi
 
 # --- Fond d'écran sur tous les écrans détectés ------------------------------
+#  wallpaper.png (rendu de branding/wallpaper.svg) EST le fond de marque
+#  officiel : la marque « LexOS », « TI · LEX · AL » et la version y sont
+#  déjà, avec la grille et les braises — pas juste un dégradé abstrait.
+#  wallpaper-demon.png (icône seule, sans texte) n'est qu'une des quatre
+#  variantes du sélecteur Paramètres → Bureau LexOS, pas le défaut.
 WALL="/usr/share/backgrounds/lexos/wallpaper.png"
 [[ -r "$WALL" ]] || WALL="/usr/share/lexos/branding/wallpaper.svg"
 
-if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
-	found=0
+#  pose_fond <chemin-de-propriete>  — l'image, puis son cadrage.
+#  image-style 5 = « zoomé pour remplir », le seul cadrage qui ne laisse
+#  jamais de bandes noires quelle que soit la définition de l'écran.
+#  On tente d'abord la pose simple (propriété déjà déclarée par xfdesktop),
+#  puis la création (-n). Dans cet ordre : « -n » exige un type, et imposer
+#  un type à une propriété existante est le genre de détail qui marche sur
+#  une version de XFCE et pas sur la suivante.
+pose_fond() {
+	local style="${1%last-image}image-style"
+	xfconf-query -c xfce4-desktop -p "$1" -s "$WALL" 2>/dev/null \
+		|| xfconf-query -c xfce4-desktop -n -t string -p "$1" -s "$WALL" 2>/dev/null \
+		|| return 1
+	xfconf-query -c xfce4-desktop -p "$style" -s 5 2>/dev/null \
+		|| xfconf-query -c xfce4-desktop -n -t int -p "$style" -s 5 2>/dev/null || true
+	return 0
+}
+
+appliquer_fond() {
+	local found=0 prop sortie ws
+	local sorties=()
+
 	while read -r prop; do
 		[[ "$prop" == *last-image ]] || continue
-		xfconf-query -c xfce4-desktop -p "$prop" -s "$WALL" 2>/dev/null && found=1
-		style="${prop%last-image}image-style"
-		xfconf-query -c xfce4-desktop -p "$style" -s 5 2>/dev/null || true
+		pose_fond "$prop" && found=1
 	done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null)
 
-	# Aucun écran encore déclaré : on crée l'entrée par défaut.
+	#  Aucun écran déclaré par xfdesktop après 20 secondes d'attente. On écrit
+	#  alors les propriétés nous-mêmes — mais PAS sous n'importe quel nom.
+	#
+	#  C'EST ICI QUE ÇA A RATÉ SUR LE PORTABLE 2016. L'ancienne version créait
+	#  « /backdrop/screen0/monitor0/workspace0/last-image ». Ce nom-là est
+	#  celui de XFCE 4.10, abandonné depuis : à partir de XFCE 4.12, xfdesktop
+	#  range chaque écran sous le nom de sa SORTIE — monitoreDP-1, monitorHDMI-1,
+	#  monitorLVDS-1… Il lisait donc une propriété que nous n'écrivions pas, et
+	#  affichait son fond bleu par défaut. On demande les vrais noms à xrandr.
 	if (( ! found )); then
-		xfconf-query -c xfce4-desktop -n -t string \
-			-p /backdrop/screen0/monitor0/workspace0/last-image -s "$WALL" 2>/dev/null || true
+		if command -v xrandr >/dev/null 2>&1; then
+			mapfile -t sorties < <(
+				xrandr --listactivemonitors 2>/dev/null |
+					awk 'NR > 1 { print $NF }'
+			)
+		fi
+		#  Filet : si xrandr manque ou ne répond rien, on tente les noms de
+		#  sortie les plus courants plus l'ancien « monitor0 ». Écrire une
+		#  propriété pour un écran absent ne coûte rien — xfdesktop l'ignore.
+		((${#sorties[@]})) || sorties=(eDP-1 HDMI-1 DP-1 LVDS-1 VGA-1 0)
+
+		for sortie in "${sorties[@]}"; do
+			#  workspace0 suffit quand le mode « même fond partout » est actif
+			#  (le défaut) ; on couvre les quatre bureaux pour le cas contraire.
+			for ws in 0 1 2 3; do
+				pose_fond "/backdrop/screen0/monitor${sortie}/workspace${ws}/last-image" \
+					&& found=1
+			done
+		done
 	fi
+
+	#  Un seul fond pour tous les bureaux : sans ça, changer de bureau
+	#  virtuel ramène le fond bleu sur ceux qu'on n'a pas couverts.
+	xfconf-query -c xfce4-desktop -n -t bool \
+		-p /backdrop/single-workspace-mode -s true 2>/dev/null || true
+
+	#  0 si on a posé au moins une propriété : c'est l'appelant qui décide
+	#  de demander ou non un rafraîchissement à xfdesktop.
+	(( found ))
+}
+
+if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
+	#  xfdesktop ne relit pas toujours de lui-même quand les propriétés sont
+	#  créées après son démarrage. On le lui demande — une seule fois, ici :
+	#  le rafraîchir à chaque passage de la boucle ci-dessous ferait clignoter
+	#  le bureau pendant une minute.
+	if appliquer_fond && command -v xfdesktop >/dev/null 2>&1; then
+		xfdesktop --reload >/dev/null 2>&1 || true
+	fi
+
+	#  ON REPOSE LE FOND PLUSIEURS FOIS, PENDANT UNE MINUTE.
+	#
+	#  Constaté sur le portable 2016 (build 35) : le bon fond s'affichait à
+	#  l'ouverture de session, puis laissait la place au fond bleu de XFCE.
+	#  On ne perdait pas parce qu'on écrivait au mauvais endroit — on écrivait
+	#  au bon, mais TROP TÔT : xfdesktop terminait son démarrage après nous et
+	#  écrivait ses propres valeurs par-dessus.
+	#
+	#  Deux réponses, et on met les deux. La première est dans le hook 0300 :
+	#  le fichier de fond par défaut de XFCE contient désormais l'image LexOS,
+	#  donc même perdue, la course ne se voit plus. La seconde est ici : on
+	#  repose la propriété toutes les cinq secondes pendant une minute, en
+	#  arrière-plan, pour être celui qui écrit en dernier. C'est peu coûteux
+	#  et ça couvre aussi le branchement d'un écran externe juste après
+	#  l'ouverture de session — cas où xfdesktop crée de nouvelles propriétés.
+	(
+		for _ in $(seq 1 12); do
+			sleep 5
+			appliquer_fond
+		done
+	) >/dev/null 2>&1 &
+fi
+
+# --- Fond animé par défaut : le code qui s'écrit ----------------------------
+#  Le fond fixe ci-dessus reste posé DESSOUS : c'est lui qu'on retrouve dès
+#  qu'on arrête l'animation (« lexos wallpaper anime off »), et c'est lui
+#  qu'on voit si l'animation ne peut pas démarrer — pas de bureau noir.
+#
+#  lexos-fond-anime refuse tout seul quand il manque quelque chose (pas de
+#  compositeur, python3-gi absent, pas de session graphique) : d'où le
+#  « || true ». Un fond d'écran ne doit jamais faire échouer une ouverture
+#  de session.
+if command -v lexos-fond-anime >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+	lexos-fond-anime start code >/dev/null 2>&1 || true
 fi
 
 # --- Matériel Apple ---------------------------------------------------------

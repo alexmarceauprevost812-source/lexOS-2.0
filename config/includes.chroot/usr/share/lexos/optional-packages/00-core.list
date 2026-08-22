@@ -4,6 +4,14 @@ firmware-iwlwifi
 firmware-realtek
 firmware-atheros
 firmware-misc-nonfree
+# Micrologiciel GSP des cartes NVIDIA : indispensable au pilote libre
+# nouveau sur les générations récentes (RTX 20+). Le pilote propriétaire
+# de la saveur pro apporte le sien ; celui-ci couvre toutes les autres
+# saveurs, et les noyaux futurs où nouveau saura parler aux RTX 50.
+firmware-nvidia-graphics
+# Micrologiciel audio SOF : le son interne de la plupart des portables
+# récents (2019+) n'existe tout simplement pas sans lui.
+firmware-sof-signed
 intel-microcode
 amd64-microcode
 lshw

@@ -23,8 +23,25 @@ jobs:
             auto/config auto/build auto/clean \
             tools/render-branding.sh \
             config/hooks/normal/*.hook.chroot \
+            config/hooks/normal/*.hook.binary \
             config/includes.chroot/usr/bin/* \
-            config/includes.chroot/etc/profile.d/lexos.sh
+            config/includes.chroot/etc/profile.d/lexos.sh \
+            config/includes.chroot/usr/share/lexos/shell/*.sh
+
+      - name: Syntaxe des fichiers de complétion (touche Tab)
+        run: |
+          #  Ces fichiers ne passent pas par shellcheck : ils emploient les
+          #  tournures de bash-completion (COMPREPLY, compgen, _filedir) que
+          #  l'analyseur signale à tort hors de leur contexte. On vérifie donc
+          #  la syntaxe, et surtout qu'ils déclarent bien leur « complete » —
+          #  un fichier sans cette ligne se charge sans rien faire, et la
+          #  touche Tab reste muette sans le moindre message d'erreur.
+          for f in config/includes.chroot/usr/share/bash-completion/completions/*; do
+            bash -n "$f"
+            grep -q '^complete ' "$f" \
+              || { echo "::error file=$f::pas de ligne « complete » : Tab resterait muet"; exit 1; }
+            echo "  ok $f"
+          done
 
       - name: Syntaxe bash des outils embarqués
         run: |
@@ -55,9 +72,26 @@ jobs:
 
       - name: Validité des SVG
         run: |
-          for f in branding/*.svg config/bootloaders/isolinux/*.svg; do
-            xmllint --noout "$f" && echo "ok  $f"
+          #  LE FOND DU MENU BIOS S'APPELLE « splash.svg.in », PAS « .svg ».
+          #  live-build ne lit QUE le .in : il le rend en splash.png, puis
+          #  écrase et efface tout .svg du même dossier. Le dessin d'Alex
+          #  portait le nom sans « .in » et n'a jamais atteint une clé USB.
+          #  Le motif « *.svg » ne trouvait donc plus rien après le
+          #  renommage, et le shell passait l'étoile elle-même à xmllint —
+          #  une CI rouge sur un dépôt sain. On nomme les deux formes, et
+          #  on saute proprement un motif sans correspondance.
+          bad=0
+          for f in branding/*.svg \
+                   config/bootloaders/isolinux/*.svg \
+                   config/bootloaders/isolinux/*.svg.in; do
+            [ -e "$f" ] || continue
+            xmllint --noout "$f" && echo "ok  $f" || bad=1
           done
+          #  Un fond absent des DEUX noms, c'est le menu BIOS sur fond noir :
+          #  personne ne le verrait avant la clé USB.
+          ls config/bootloaders/isolinux/splash.svg.in >/dev/null 2>&1 \
+            || { echo "::error::config/bootloaders/isolinux/splash.svg.in manque : le menu de démarrage BIOS démarrerait sur fond noir"; bad=1; }
+          exit $bad
 
       - name: Validité des XML de configuration XFCE
         run: |
@@ -67,6 +101,13 @@ jobs:
 
       - name: Listes de paquets bien formées
         run: |
+          #  Une LIGNE peut proposer plusieurs noms séparés par « | » : le hook
+          #  0250 les essaie dans l'ordre et garde le premier qui s'installe
+          #  (« ppsspp-qt|ppsspp|ppsspp-sdl »). C'est ce qui évite qu'un paquet
+          #  renommé entre deux versions de Debian fasse perdre la fonction.
+          #  Ce contrôle l'ignorait et rejetait ces lignes : on valide donc
+          #  chaque nom de rechange SÉPARÉMENT, ce qui reste aussi strict sur
+          #  chacun d'eux.
           bad=0
           for f in config/package-lists/*.list.chroot flavours/*/*.list.chroot \
                    config/includes.chroot/usr/share/lexos/optional-packages/*.list; do
@@ -74,11 +115,145 @@ jobs:
               case "$line" in
                 ''|\#*) continue ;;
               esac
-              if ! printf '%s' "$line" | grep -qE '^[a-z0-9][a-z0-9+.:-]*$'; then
-                echo "::error file=$f::nom de paquet suspect : '$line'"
+              #  « | » n'est autorisé que dans les listes optionnelles : les
+              #  listes obligatoires doivent nommer un paquet unique, sinon la
+              #  garantie « le build échoue si absent » n'a plus de sens.
+              case "$f" in
+                *optional-packages/*) ;;
+                *) if printf '%s' "$line" | grep -q '|'; then
+                     echo "::error file=$f::nom de rechange interdit en liste obligatoire : '$line'"
+                     bad=1
+                     continue
+                   fi ;;
+              esac
+              nom_ko=""
+              IFS='|' read -r -a alternatives <<< "$line"
+              for nom in "${alternatives[@]}"; do
+                if ! printf '%s' "$nom" | grep -qE '^[a-z0-9][a-z0-9+.:-]*$'; then
+                  nom_ko="$nom"
+                  break
+                fi
+              done
+              if [ -n "$nom_ko" ]; then
+                echo "::error file=$f::nom de paquet suspect : '$nom_ko' (dans la ligne '$line')"
                 bad=1
               fi
             done < "$f"
+          done
+          exit $bad
+
+      - name: Les tuiles du panneau n'emploient que des balises que genmon connaît
+        run: |
+          #  LE SILENCE QUE CE CONTRÔLE ATTRAPE.
+          #  genmon lit la sortie d'un script et n'y comprend qu'un jeu FERMÉ
+          #  de balises. Une balise qu'il ne connaît pas, il la jette — sans
+          #  un mot. La tuile s'affiche donc parfaitement, et seule l'action
+          #  manque.
+          #
+          #  C'est arrivé : nos tuiles écrivaient <click>, qui n'existe pas.
+          #  La bonne balise est <txtclick>. L'horloge et la météo étaient
+          #  jolies dans la barre et ne s'ouvraient sur rien, sur une ISO
+          #  entière, avant qu'Alex ne le voie sur sa machine.
+          #
+          #  Liste tirée de la documentation officielle du greffon :
+          #  https://docs.xfce.org/panel-plugins/xfce4-genmon-plugin/start
+          CONNUES="txt txtclick img imgclick icon iconclick bar tool css"
+
+          bad=0
+          for f in config/includes.chroot/usr/bin/*; do
+            [ -f "$f" ] || continue
+            grep -q -- '--panneau' "$f" || continue
+            #  UNE PAIRE COMPLÈTE, SUR UNE LIGNE QUI N'EST PAS UN COMMENTAIRE.
+            #  Première version de ce contrôle : toute balise ouvrante. Elle
+            #  hurlait sur <nom>, <code>, <vent>, <min>, <max> — qui sont des
+            #  espaces réservés dans l'aide (« lexos meteo ville <nom> ») et
+            #  dans des commentaires, pas de la sortie genmon. Un contrôle qui
+            #  crie au loup finit par être ignoré, et c'est comme ça qu'on
+            #  rate le vrai. On ne regarde donc que ce qui ressemble
+            #  VRAIMENT à de la sortie genmon : <x>…</x> sur une ligne de code.
+            for T in $(grep -v '^[[:space:]]*#' "$f" \
+                       | grep -oE '<[a-z][a-z0-9]*>[^<]*</[a-z][a-z0-9]*>' \
+                       | sed 's/^<\([a-z0-9]*\)>.*/\1/' | sort -u); do
+              ok=0
+              for C in $CONNUES; do [ "$T" = "$C" ] && ok=1 && break; done
+              if [ "$ok" = "0" ]; then
+                echo "::error file=$f::balise genmon inconnue : <$T>. genmon l'ignorera en silence — la tuile s'affichera et ne fera rien. Balises admises : $CONNUES"
+                bad=1
+              fi
+            done
+          done
+          [ "$bad" = "0" ] && echo "  ok — toutes les tuiles n'emploient que des balises connues"
+          exit $bad
+
+      - name: Le contrôle 16 dit la même chose dans toutes les locales
+        run: |
+          #  NÉ D'UNE CI ROUGE POUR RIEN. Le contrôle 16 attrapait les alias
+          #  accentués du dispatcheur avec la classe [à-ÿ]. Un intervalle de
+          #  caractères non ASCII dépend de la locale : sur ce runner, sed a
+          #  répondu « Invalid collation character » — deux lignes noyées
+          #  dans la sortie — l'extraction a rendu du vide, et trois outils
+          #  parfaitement branchés ont été déclarés absents de l'aide.
+          #
+          #  On engendre VRAIMENT les locales avant de lancer le test : sans
+          #  ça, setlocale échoue en silence, tout retombe en C, et le test
+          #  annonce quatre locales éprouvées sans en avoir éprouvé une
+          #  seule. Il le dit maintenant quand une locale manque — mieux
+          #  vaut un test qui se déclare aveugle qu'un test qui ment.
+          #  Si locale-gen manque, le test le DIRA (⏭ locale absente) et
+          #  continuera sur C.UTF-8, toujours présente : on ne casse pas
+          #  la CI pour ça, on perd juste deux locales de couverture.
+          sudo locale-gen en_US.UTF-8 fr_CA.UTF-8 \
+            || echo "::warning::locale-gen indisponible — couverture réduite à C.UTF-8"
+          bash tests/test_verifier_parametres.sh
+
+      - name: Contrôle 16 — chaque outil est branché (Paramètres, case, aide)
+        run: |
+          #  Le script vit à la racine pour qu'Alex puisse le lancer à la main.
+          #  --strict : une erreur du contrôle 16 arrête la CI. Les
+          #  avertissements (lanceurs volontairement absents) ne bloquent pas.
+          ./verifier-parametres.sh --strict
+
+      - name: Un paquet de backports exige que backports soit ouvert
+        run: |
+          #  LE SILENCE QUE CE CONTRÔLE ATTRAPE.
+          #  Un paquet qui n'existe QUE dans trixie-backports, écrit dans une
+          #  liste optionnelle sans que config/archives ouvre l'archive : apt
+          #  ne le trouve pas, le hook 0250 tolère un paquet absent (à raison),
+          #  la construction réussit, et l'ISO sort sans la fonction. Aucune
+          #  erreur nulle part — le pire des deux silences, celui qui a l'air
+          #  d'un succès.
+          #
+          #  La CI ne peut pas interroger l'archive Debian (pas de réseau vers
+          #  deb.debian.org, et de toute façon ce serait une dépendance de
+          #  build). On tient donc la liste à la main : elle est courte, et
+          #  chaque ajout est une décision consciente.
+          BACKPORTS_SEULEMENT="llama.cpp"
+
+          bad=0
+          for pkg in $BACKPORTS_SEULEMENT; do
+            trouve=""
+            for f in config/package-lists/*.list.chroot \
+                     config/includes.chroot/usr/share/lexos/optional-packages/*.list; do
+              [ -r "$f" ] || continue
+              if grep -qE "^[[:space:]]*${pkg}([[:space:]]|\||$)" "$f"; then
+                trouve="$f"
+                break
+              fi
+            done
+            [ -n "$trouve" ] || continue
+            if ! grep -rqs 'trixie-backports' config/archives/*.list.chroot 2>/dev/null; then
+              echo "::error file=$trouve::'$pkg' n'existe que dans trixie-backports, mais config/archives/ n'ouvre pas cette archive. apt ne le trouvera pas, le build RÉUSSIRA quand même, et l'ISO sortira sans."
+              bad=1
+              continue
+            fi
+            #  Ouvrir backports sans épingler, c'est laisser la moitié du
+            #  système y migrer au fil des mois. Le fichier de préférences
+            #  n'est pas optionnel.
+            if ! ls config/archives/*.pref.chroot >/dev/null 2>&1; then
+              echo "::error::config/archives ouvre trixie-backports sans fichier .pref.chroot : sans épinglage, le reste du système finira par venir de backports."
+              bad=1
+            fi
+            echo "  ok — $pkg : backports ouvert et épinglé"
           done
           exit $bad
 
@@ -222,6 +397,29 @@ jobs:
           # « lexos mac » décide si quelqu'un écrit une clé USB pour rien —
           # une table qui glisse doit casser la CI, pas une soirée.
           bash tests/test_lexos_mac.sh
+
+      - name: Le coffre chiffré raisonne juste (lexos-prive)
+        run: |
+          #  Le plus gros outil du dépôt n'avait aucun test — c'est l'audit
+          #  d'Alex qui l'a nommé. On ne teste pas gocryptfs (son travail à
+          #  lui), on teste que NOTRE script refuse ce qui doit l'être et
+          #  n'invente jamais un coffre. Un faux gocryptfs note tout.
+          bash tests/test_prive.sh
+
+      - name: La page matériel — fuites, injection, verdict mémoire
+        run: |
+          #  Trois silences dans un seul outil, et un banc de faux outils
+          #  pour les trois — aucun vrai matériel n'est nécessaire.
+          #
+          #  · « lexos materiel rapport » est fait pour être collé dans
+          #    lexos ia-locale, et dmidecode livre le NUMÉRO DE SÉRIE de
+          #    chaque barrette sans qu'on l'ait demandé ;
+          #  · le nom de modèle d'un disque vient du MATÉRIEL : une clé USB
+          #    peut annoncer « $(commande) », et la première version de ce
+          #    script employait eval sur la sortie de lsblk ;
+          #  · sans dmidecode ou sans root, la section mémoire doit DIRE ce
+          #    qu'elle ne peut pas lire au lieu de disparaître.
+          bash tests/test_lexos_materiel.sh
 
       - name: Tables de modèles Mac identiques
         run: |

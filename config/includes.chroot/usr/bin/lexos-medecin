@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-medecin — « qu'est-ce qui ne va pas ? », en une commande
+# =============================================================================
+#  Quand une machine va mal, la réponse est éparpillée : journalctl, df,
+#  systemctl, sensors, ping — cinq commandes que personne ne connaît par
+#  cœur au moment où ça compte. Le médecin les pose toutes, dans l'ordre
+#  d'un vrai tri d'urgence, et TRADUIT.
+#
+#  LECTURE SEULE, comme lexos-disques : diagnostiquer n'est pas réparer.
+#  Chaque constat inquiétant se termine par la commande qui soigne — c'est
+#  l'humain qui la tape, en sachant pourquoi.
+#
+#  Le pont avec l'IA locale : « lexos medecin rapport » sort un texte brut
+#  qu'on colle dans lexos ia-locale (bouton « Joindre les infos de ma
+#  machine ») — et le modèle, qui tourne ICI, explique sans rien envoyer
+#  nulle part.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos medecin"
+#  « rapport » = la même sortie, sans couleurs : du texte brut à coller
+#  dans lexos ia-locale.
+[[ "${1:-}" == "rapport" ]] && NO_COLOR=1
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+
+SOUCIS=0
+titre() { printf '\n%s── %s ──%s\n' "$B" "$1" "$R"; }
+bien()  { printf '  %s✓%s %s\n' "$G" "$R" "$*"; }
+mal()   { SOUCIS=$((SOUCIS+1)); printf '  %s✗%s %s\n' "$E" "$R" "$*"; }
+bof()   { printf '  %s!%s %s\n' "$Y" "$R" "$*"; }
+soin()  { printf '      %s→ %s%s\n' "$D" "$*" "$R"; }
+
+case "${1:-}" in
+	-h|--help|aide|help)
+		cat <<AIDE
+${B}$PROG${R} — « qu'est-ce qui ne va pas ? », en une commande
+
+  ${O}$PROG${R}           Le tri complet : services, disque, mémoire, chauffe, réseau, journal
+  ${O}$PROG rapport${R}   La même chose en texte brut — à coller dans ${B}lexos ia-locale${R}
+
+Tout est en lecture seule. Chaque constat inquiétant finit par la commande
+qui soigne : c'est toi qui la tapes, en sachant pourquoi.
+AIDE
+		exit 0 ;;
+esac
+
+# --- 1. Les services qui sont tombés -----------------------------------------
+titre "Les services"
+if command -v systemctl >/dev/null 2>&1; then
+	MORTS="$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}')"
+	if [[ -z "$MORTS" ]]; then
+		bien "aucun service en échec"
+	else
+		while IFS= read -r s; do
+			[[ -n "$s" ]] || continue
+			mal "service tombé : $s"
+			soin "journalctl -u $s -n 30   (pourquoi) · sudo systemctl restart $s   (relancer)"
+		done <<<"$MORTS"
+	fi
+else
+	bof "systemctl absent — services non vérifiés"
+fi
+
+# --- 2. Le disque plein — la panne la plus bête et la plus fréquente ---------
+titre "L'espace disque"
+PLEIN=0
+while read -r cible pct; do
+	n="${pct%\%}"
+	if [[ "$n" -ge 95 ]] 2>/dev/null; then
+		mal "$cible est plein à $pct — à ce niveau, des choses cassent en silence"
+		soin "lexos disques espace   (qui prend la place) · lexos clean"
+		PLEIN=1
+	elif [[ "$n" -ge 85 ]] 2>/dev/null; then
+		bof "$cible à $pct — pas urgent, mais à surveiller"
+	fi
+done < <(df -x tmpfs -x devtmpfs -x overlay -x squashfs --output=target,pcent 2>/dev/null | tail -n +2)
+[[ "$PLEIN" = 0 ]] && bien "aucune partition au bord du plein"
+
+# --- 3. La mémoire ------------------------------------------------------------
+titre "La mémoire"
+DISPO=$(awk '/MemAvailable/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null || echo 0)
+TOTAL=$(awk '/MemTotal/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null || echo 0)
+if [[ "$TOTAL" -gt 0 && "$DISPO" -lt $((TOTAL / 10)) ]]; then
+	mal "presque plus de mémoire disponible (${DISPO} Mo sur ${TOTAL})"
+	soin "les 5 gourmands : ps -eo comm,%mem --sort=-%mem | head -6"
+else
+	bien "${DISPO} Mo disponibles sur ${TOTAL}"
+fi
+
+# --- 4. La chauffe ------------------------------------------------------------
+titre "La température"
+if command -v sensors >/dev/null 2>&1; then
+	MAXI=$(sensors 2>/dev/null | grep -oE '\+[0-9]+\.[0-9]°C' | tr -d '+°C' | sort -rn | head -1 | cut -d. -f1)
+	if [[ -n "${MAXI:-}" ]]; then
+		if [[ "$MAXI" -ge 90 ]]; then
+			mal "point le plus chaud : ${MAXI} °C — la machine se protège en ralentissant"
+			soin "lexos temperature   (qui chauffe) · dépoussiérer les grilles"
+		elif [[ "$MAXI" -ge 75 ]]; then
+			bof "point le plus chaud : ${MAXI} °C — chargé mais pas alarmant"
+		else
+			bien "point le plus chaud : ${MAXI} °C"
+		fi
+	else
+		bof "aucun capteur lisible (sudo sensors-detect, une fois)"
+	fi
+else
+	bof "lm-sensors absent — chauffe non vérifiée"
+fi
+
+# --- 5. Le réseau -------------------------------------------------------------
+titre "Le réseau"
+if ping -c1 -W2 9.9.9.9 >/dev/null 2>&1; then
+	if ping -c1 -W2 deb.debian.org >/dev/null 2>&1; then
+		bien "internet répond, les noms de domaine aussi"
+	else
+		mal "internet répond mais PAS les noms de domaine — c'est le DNS"
+		soin "lexos net status · redémarrer la box règle ça neuf fois sur dix"
+	fi
+else
+	mal "rien ne répond — pas de connexion"
+	soin "lexos wifi   (se connecter) · le câble, la box"
+fi
+
+# --- 6. Le journal : les erreurs du démarrage en cours ------------------------
+titre "Le journal (erreurs de cette session)"
+if command -v journalctl >/dev/null 2>&1; then
+	NB=$(journalctl -b -p err --no-pager -q 2>/dev/null | wc -l)
+	if [[ "$NB" -eq 0 ]]; then
+		bien "aucune erreur depuis le démarrage"
+	elif [[ "$NB" -le 12 ]]; then
+		bof "$NB erreur(s) — souvent bénignes ; les voici en bref :"
+		journalctl -b -p err --no-pager -q -o cat 2>/dev/null | sort | uniq -c | sort -rn | head -5 | sed 's/^/      /'
+	else
+		mal "$NB erreurs depuis le démarrage — quelque chose insiste"
+		journalctl -b -p err --no-pager -q -o cat 2>/dev/null | sort | uniq -c | sort -rn | head -5 | sed 's/^/      /'
+		soin "le détail : journalctl -b -p err"
+	fi
+else
+	bof "journalctl absent"
+fi
+
+# --- Le verdict ---------------------------------------------------------------
+titre "Verdict"
+if [[ "$SOUCIS" -eq 0 ]]; then
+	bien "rien d'inquiétant. Si « ça rame » quand même : lexos boost, le scan dira quoi."
+else
+	printf '  %s%s point(s) à régler%s — chacun a sa commande ci-dessus.\n' "$E" "$SOUCIS" "$R"
+	printf '  %sPour te faire expliquer tout ça : lexos medecin rapport, puis colle-le dans lexos ia-locale.%s\n' "$D" "$R"
+fi
+exit 0

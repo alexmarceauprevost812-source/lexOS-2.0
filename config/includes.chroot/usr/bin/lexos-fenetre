@@ -1,0 +1,19 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-fenetre — lancer un outil LexOS depuis le menu, sans qu'il disparaisse
+# =============================================================================
+#  Les lanceurs du menu ouvrent les outils en terminal (Terminal=true). Or un
+#  outil qui affiche son état et se termine ferme la fenêtre avant qu'on ait
+#  pu lire quoi que ce soit — l'utilisateur croit que « rien ne marche ».
+#  Ce petit enrobage exécute la commande puis attend une touche.
+# =============================================================================
+"$@"
+CODE=$?
+printf '\n'
+if [ "$CODE" -ne 0 ]; then
+	printf '(La commande a signalé une erreur — code %s)\n' "$CODE"
+fi
+printf '— Appuie sur Entrée pour fermer cette fenêtre —'
+# shellcheck disable=SC2034  # la valeur lue ne sert pas, seule l'attente compte
+read -r REPONSE
+exit "$CODE"

@@ -1,0 +1,112 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — Claude (IA d'Anthropic) et Claude Code : icônes, lanceurs, service
+# =============================================================================
+#  Deux applications d'un coup :
+#    - Claude Code : l'assistant de programmation d'Anthropic, en terminal.
+#                    Il n'est PAS mis dans l'image : il est téléchargé au
+#                    premier démarrage une fois LexOS installé sur le disque
+#                    dur, par lexos-claude-installation.service.
+#    - Claude      : l'appli claude.ai, ouverte en fenêtre dédiée par le
+#                    lanceur « lexos claude app ».
+#
+#  Ce hook pose donc les icônes, les deux lanceurs de bureau, et allume le
+#  service qui fera la course au réseau plus tard. Rien n'est bloquant : si le
+#  service échoue, le lanceur « lexos claude » installe Claude Code tout seul
+#  au premier lancement. Les deux icônes de bureau, elles, sont toujours là.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0420 : Claude et Claude Code"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# --- Icône Claude (le « burst » orange) ------------------------------------
+SVG="/usr/share/lexos/branding/claude-icon.svg"
+[ -r "$SVG" ] || SVG="branding/claude-icon.svg"          # selon le contexte du hook
+if [ -r "$SVG" ]; then
+	#  MÊMES TAILLES QUE TOUTES LES AUTRES ICÔNES LexOS (hook 0300).
+	#  Ce hook avait exactement le même trou que celui de Chrome : 16, 22 et
+	#  24 px manquaient. Aux tailles absentes, GTK bascule sur la version
+	#  vectorielle, et comme le dock agrandit l'icône survolée, le dessin
+	#  change sous la souris. Alex avait bien dit « plusieurs applications » —
+	#  il y en avait deux, et c'est le contrôle du hook 0700 qui a nommé la
+	#  seconde, dès la première construction où il tournait.
+	for SIZE in 16 22 24 32 48 64 128 256; do
+		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		if have rsvg-convert; then
+			rsvg-convert -w "$SIZE" -h "$SIZE" "$SVG" -o "$DIR/lexos-claude.png" 2>/dev/null \
+				&& echo "[lexos]   icône ${SIZE}px" || true
+		elif have convert; then
+			convert -background none -resize "${SIZE}x${SIZE}" "$SVG" "$DIR/lexos-claude.png" 2>/dev/null || true
+		fi
+	done
+	# La version SVG elle-même, pour les thèmes vectoriels.
+	VDIR="/usr/share/icons/hicolor/scalable/apps"
+	mkdir -p "$VDIR"; rm -f "$VDIR/lexos-claude.svg"
+	have gtk-update-icon-cache && \
+		gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+else
+	echo "[lexos]   !! icône Claude introuvable — les lanceurs utiliseront une icône générique"
+fi
+
+# --- Claude Code : téléchargé APRÈS l'installation, pas ici -----------------
+#  On l'installait dans le chroot, pendant la fabrication de l'image. Trois
+#  ennuis, tous les trois réels : la version se figeait au jour de la
+#  construction (une ISO téléchargée trois mois plus tard passait son premier
+#  lancement à se mettre à jour) ; en session live rien n'est gardé, donc la
+#  place occupée ne servait jamais plus d'une session ; et l'image grossissait
+#  pour du code qui vient du réseau de toute façon.
+#
+#  Le service lexos-claude-installation le télécharge au premier démarrage sur
+#  le disque dur. Le lanceur « lexos claude » garde son propre filet : s'il
+#  manque encore au premier lancement, il l'installe lui-même.
+if have systemctl; then
+	systemctl enable lexos-claude-installation.service >/dev/null 2>&1 \
+		&& echo "[lexos]   lexos-claude-installation.service activé" \
+		|| echo "[lexos]   !! lexos-claude-installation.service non activé — le lanceur prendra le relais"
+else
+	echo "[lexos]   !! systemctl absent — Claude Code sera installé au 1er lancement par le lanceur"
+fi
+
+# --- Lanceurs de bureau -----------------------------------------------------
+mkdir -p /usr/share/applications
+
+cat > /usr/share/applications/lexos-claude-code.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Claude Code
+Name[en]=Claude Code
+Comment=Assistant de programmation d'Anthropic, dans le terminal
+Comment[en]=Anthropic's coding assistant, in the terminal
+Exec=xfce4-terminal --title="Claude Code — LexOS" -e "lexos claude"
+Icon=lexos-claude
+Terminal=false
+StartupNotify=true
+Categories=Development;Utility;
+Keywords=claude;code;ia;ai;anthropic;assistant;programmation;developpement;cli;terminal;
+EOF
+
+cat > /usr/share/applications/lexos-claude.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Claude
+Name[en]=Claude
+Comment=L'application Claude (claude.ai) — l'IA d'Anthropic, en fenêtre
+Comment[en]=The Claude app (claude.ai) — Anthropic's AI, in its own window
+Exec=lexos claude app
+Icon=lexos-claude
+Terminal=false
+StartupNotify=true
+StartupWMClass=Claude
+Categories=Network;Utility;
+Keywords=claude;ia;ai;anthropic;chat;assistant;conversation;
+EOF
+
+have update-desktop-database && \
+	update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+
+echo "[lexos] hook 0420 : ok"
