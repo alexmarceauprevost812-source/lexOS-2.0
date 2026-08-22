@@ -91,7 +91,7 @@ sdb     15G disk               ← la clé USB, c'est celle-là
   <p class="dim">La commande affiche le périphérique visé et attend que tu
   tapes <code>OUI</code>. Sans le Makefile :</p>
   <pre><code>sudo umount /dev/sdb* 2>/dev/null
-sudo dd if=lexos-1.0-standard-amd64.iso of=/dev/sdb bs=4M status=progress oflag=sync
+sudo dd if=lexos-2.0.0-pro-amd64.hybrid.iso of=/dev/sdb bs=4M status=progress oflag=sync
 sync</code></pre>
   <div class="notice warn"><code>of=</code> prend le <b>disque entier</b>
   (<code>/dev/sdb</code>), jamais une partition (<code>/dev/sdb1</code>).
@@ -112,7 +112,7 @@ sync</code></pre>
     <li><h3>Installer Ventoy sur la clé</h3><p class="dim">⚠ cette étape-là
     efface la clé, une fois.</p></li>
     <li><h3>Copier l'ISO</h3><p class="dim">Glisse-dépose
-    <code>lexos-1.0-standard-amd64.iso</code> sur la clé, comme un fichier.</p></li>
+    <code>lexos-2.0.0-pro-amd64.hybrid.iso</code> sur la clé, comme un fichier.</p></li>
     <li><h3>Démarrer</h3><p class="dim">Choisis la clé dans le menu de
     démarrage, puis LexOS dans la liste que Ventoy affiche.</p></li>
   </ol>

@@ -146,7 +146,17 @@ lexos ecran gui                  # réglage à la souris</code></pre>
   mode IA (<code>rembg</code>, si installé) ou mode rapide (ImageMagick,
   toujours disponible). Clic droit sur une image → <b>Créer un autocollant</b>.</p>
 
-  <h2 id="ia">IA locale — agent autonome dans le terminal</h2>
+  <h2 id="ia">IA locale — deux moteurs, zéro nuage</h2>
+  <p><b>La fenêtre : <code>lexos ia-locale</code>.</b> Un modèle de langage
+  sur ta machine, avec le moteur <b>llama.cpp</b> (licence MIT, empaqueté par
+  Debian). La fenêtre te dit d'abord ce que TA machine peut faire — quelle
+  carte graphique, quel backend, et <b>laquelle</b> des quatre pannes
+  possibles tu as plutôt qu'un « GPU non disponible » qui ne sert à
+  personne. Le catalogue affiche la licence de chaque modèle <b>avant</b> le
+  téléchargement, avec un verdict calculé pour ta carte : « entre au
+  complet », « déborde sur le processeur », ou « trop gros ». Aucun modèle
+  ne voyage dans l'ISO — LexOS livre le moteur, jamais les poids.</p>
+  <h3>L'agent dans le terminal — <code>lexos ia</code></h3>
   <pre><code>lexos ia setup                            # installe Ollama + un petit modèle, une fois
 lexos ia                                  # conversation libre
 lexos ia "libère 2 Gio d'espace disque"   # agent autonome</code></pre>
@@ -176,6 +186,43 @@ lexos ia "libère 2 Gio d'espace disque"   # agent autonome</code></pre>
   ailleurs qu'à l'intérieur de la machine.</div>
 
   <h2 id="outils">Les outils maison</h2>
+  <p>Le meilleur de LexOS est là : <b>75 sous-commandes</b> derrière une seule
+  porte, <code>lexos</code>. Chacune parle français, dit ce qu'elle va faire,
+  et rien de destructif ne part sans confirmation. Les grandes familles :</p>
+  <table>
+    <tr><th>Famille</th><th>Ce qu'on y trouve</th></tr>
+    <tr><td><b>Diagnostic</b></td><td><code>medecin</code> — « qu'est-ce qui ne
+      va pas ? » en une commande, chaque constat finit par la commande qui
+      soigne · <code>disques</code> — la santé SMART traduite, avant la panne ·
+      <code>temperature</code> · <code>boost</code> — le scan matériel et les
+      optimisations · <code>doctor</code></td></tr>
+    <tr><td><b>Sauvegarde</b></td><td><code>sauvegarde</code> — tes fichiers
+      copiés pour de vrai (borg, chiffré, restauration toujours à côté, jamais
+      par-dessus) · <code>sauvegarde systeme</code> — les instantanés
+      timeshift pour l'autre malheur</td></tr>
+    <tr><td><b>Vie privée</b></td><td><code>prive</code> — le coffre chiffré
+      (gocryptfs) pour ce qui ne regarde personne · <code>secure</code> —
+      pare-feu, antivirus, anti-intrusion, anti-rootkit · <code>vpn</code></td></tr>
+    <tr><td><b>Bureau</b></td><td><code>parametres</code> — la fenêtre des
+      Paramètres, 30+ sections · <code>apercu</code> — la vue d'ensemble des
+      espaces de travail · <code>volet</code> — notifications et agenda ·
+      <code>capture</code> · <code>wallpaper</code> (fixes, animés, vidéo)</td></tr>
+    <tr><td><b>Créer et jouer</b></td><td><code>studio</code> — photo, vidéo,
+      musique · <code>jeux</code> — ta bibliothèque · <code>game</code> — les
+      réglages adaptés à la machine · <code>musique</code> · <code>sticker</code></td></tr>
+    <tr><td><b>Aller plus loin</b></td><td><code>cartes</code> et
+      <code>gps</code> — itinéraires hors ligne · <code>meteo</code> ·
+      <code>distant</code> — le bureau à distance, avec l'adresse à dicter ·
+      <code>tv</code> — pourquoi le téléviseur n'affiche rien ·
+      <code>dualboot</code> — cohabiter avec Windows · <code>mac</code> ·
+      <code>firmware</code> — BIOS et micrologiciels · <code>bienetre</code> ·
+      <code>access</code> — lecteur d'écran, loupe, clavier visuel ·
+      <code>logitheque</code> — la boutique Flatpak · <code>assistants</code> —
+      Claude, ChatGPT, Gemini, Perplexity, Mistral, Copilot en fenêtres</td></tr>
+  </table>
+  <p class="dim">La liste vivante : <code>lexos --help</code>. Chaque outil a
+  aussi sa page dans Paramètres → Logiciels tiers quand il s'appuie sur un
+  composant externe, avec sa licence.</p>
   <h3><code>lexfetch</code></h3>
   <p class="dim">La fiche technique de la machine, avec le masque LexOS en
   art ASCII : OS, base Debian, noyau, temps de fonctionnement, paquets,

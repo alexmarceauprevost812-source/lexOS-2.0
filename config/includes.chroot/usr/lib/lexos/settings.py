@@ -159,7 +159,16 @@ def act_ouvrir(arg):
         "couleurs":   lambda: _run(["gcm-viewer"], detach=True),
         "imprimantes": lambda: _run(["system-config-printer"], detach=True),
         "amovibles":  lambda: _xfce([["thunar-volman-settings"]]),
-        "tablette":   lambda: _xfce([["xfce4-wacom-settings"], ["wacom-settings"]]),
+        #  L'audit du site l'a nommé : « xfce4-wacom-settings » n'existe pas
+        #  dans Debian — XFCE n'a pas de panneau wacom. Le repli ouvrait le
+        #  gestionnaire général, qui n'en a pas non plus : un bouton qui mène
+        #  quelque part, mais pas au bon endroit. Le vrai outil est xsetwacom
+        #  (livré par 56-reglages), et il parle en terminal.
+        "tablette":   lambda: _terminal(
+            "Tablette graphique — LexOS",
+            "xsetwacom list devices; echo; "
+            "echo 'Aucune ligne au-dessus = aucune tablette branchée.'; echo; "
+            "echo 'Régler : man xsetwacom — ex. : xsetwacom set \"<nom>\" Rotate half'"),
         "confidentialite": lambda: _terminal("Confidentialité et sécurité — LexOS",
                                              "lexos net status; echo; lexos secure"),
         "maj":        lambda: _terminal("Mises à jour — LexOS", "lexos doctor"),

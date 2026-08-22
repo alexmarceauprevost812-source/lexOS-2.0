@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Télécharger LexOS 2.0.0 « Nomad »</title>
-<meta name="description" content="Télécharger LexOS 2.0.0 « Nomad » : cinq saveurs (minimal, standard, dev, full, gaming), configuration requise, vérification du fichier ISO par empreinte SHA-256.">
+<meta name="description" content="Télécharger LexOS 2.0.0 « Nomad » : la version pro (~8 Gio, pilote NVIDIA compris), configuration requise, vérification du fichier ISO par empreinte SHA-256.">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -129,7 +129,7 @@ git clone https://github.com/alexmarceauprevost812-source/lexOS-1.2.0.git
 cd lexOS-1.2.0
 
 make check      # contrôle que tous les outils sont là
-make build      # construit l'ISO (saveur standard)</code></pre>
+make build      # construit l'ISO (saveur pro, le défaut)</code></pre>
 
   <div class="notice">
     <b>Pas envie d'installer Git ?</b> Télécharge directement le code source
@@ -142,24 +142,30 @@ make build      # construit l'ISO (saveur standard)</code></pre>
   </div>
 
   <p class="dim">Compte 20 à 60 minutes selon ta connexion. À la fin :</p>
-  <pre><code>  ok  ISO      : lexos-1.0-standard-amd64.iso
-  ok  Taille   : 2.4G
-  ok  SHA-256  : lexos-1.0-standard-amd64.iso.sha256</code></pre>
+  <pre><code>  ok  ISO      : lexos-2.0.0-pro-amd64.hybrid.iso
+  ok  Taille   : 7.8G
+  ok  SHA-256  : lexos-2.0.0-pro-amd64.hybrid.iso.sha256</code></pre>
 
-  <h2 id="saveurs">Cinq saveurs</h2>
-  <p>Choisis avant de construire — <code>make build FLAVOUR=dev</code>, ou
-  directement <code>make dev</code> (idem pour <code>minimal</code>,
-  <code>standard</code>, <code>full</code>, <code>gaming</code>).</p>
+  <h2 id="saveurs">Une seule version : pro</h2>
+  <p>LexOS a eu cinq saveurs, puis deux, puis <b>une</b>. Chaque étape a
+  supprimé un choix qui ne servait à rien : depuis que « pro » sait s'adapter
+  à la machine où elle démarre, il n'y a plus de « laquelle je prends ? ».</p>
   <table>
-    <tr><th>Saveur</th><th>Contenu</th><th>Taille approx.</th><th>Commande</th></tr>
-    <tr><td><b>minimal</b></td><td>Console seule, aucun bureau</td><td>~700 Mio</td><td><code>make minimal</code></td></tr>
-    <tr><td><b>standard</b></td><td>Bureau XFCE, Firefox, dock, effets — défaut</td><td>~2,5 Gio</td><td><code>make standard</code></td></tr>
-    <tr><td><b>dev</b></td><td>standard + compilateurs, langages, conteneurs, Neovim</td><td>~4 Gio</td><td><code>make dev</code></td></tr>
-    <tr><td><b>full</b></td><td>dev + LibreOffice, GIMP, Inkscape, VLC, Krita</td><td>~6 Gio</td><td><code>make full</code></td></tr>
-    <tr><td><b>gaming</b></td><td>dev + Steam, Lutris, Wine, gamemode, MangoHud, Vulkan</td><td>~5 Gio</td><td><code>make gaming</code></td></tr>
+    <tr><th>Version</th><th>Contenu</th><th>Taille</th><th>Commande</th></tr>
+    <tr><td><b>pro</b></td><td>LA version de LexOS — bureau complet, tous les
+      outils, <b>pilote NVIDIA propriétaire compris</b>. Le service
+      lexos-gpu-garde vérifie au démarrage s'il y a vraiment une carte
+      NVIDIA : sinon, il range le pilote. La même ISO démarre sur une tour
+      à RTX comme sur un portable Intel de 2016. — <b>défaut</b></td>
+      <td>~8 Gio</td><td><code>make pro</code></td></tr>
+    <tr><td><b>minimal</b></td><td>Console seule, aucun bureau — pour les
+      serveurs et le dépannage</td><td>~700 Mio</td><td><code>make minimal</code></td></tr>
   </table>
-  <p class="dim">Pas sûr laquelle prendre ? <b>standard</b> convient à la
-  majorité des machines — les autres saveurs partent toutes de là et ajoutent.</p>
+  <p class="dim"><code>standard</code>, <code>dev</code>, <code>full</code> et
+  <code>gaming</code> existent encore comme <b>alias historiques</b> : ils
+  construisent tous le même bureau que pro. Les téléchargements
+  « standard » et « dev » encore en ligne datent de constructions
+  antérieures — prends <b>pro</b>, c'est la version entretenue.</p>
 
   <h2>Configuration requise</h2>
   <div class="grid cols-3">
@@ -177,7 +183,7 @@ make build      # construit l'ISO (saveur standard)</code></pre>
   <h2>Vérifier l'intégrité du fichier</h2>
   <p>Chaque ISO construite est accompagnée d'une empreinte SHA-256. Avant de la
   graver, vérifie que le téléchargement n'a pas été corrompu :</p>
-  <pre><code>sha256sum -c lexos-1.0-standard-amd64.iso.sha256</code></pre>
+  <pre><code>sha256sum -c lexos-2.0.0-pro-amd64.hybrid.iso.sha256</code></pre>
   <p class="dim">Si la réponse n'est pas <code>OK</code>, l'ISO est corrompue :
   recommence le téléchargement plutôt que de graver un fichier abîmé.</p>
 
