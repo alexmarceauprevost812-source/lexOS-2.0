@@ -124,6 +124,49 @@ jobs:
           done
           exit $bad
 
+      - name: Les tuiles du panneau n'emploient que des balises que genmon connaît
+        run: |
+          #  LE SILENCE QUE CE CONTRÔLE ATTRAPE.
+          #  genmon lit la sortie d'un script et n'y comprend qu'un jeu FERMÉ
+          #  de balises. Une balise qu'il ne connaît pas, il la jette — sans
+          #  un mot. La tuile s'affiche donc parfaitement, et seule l'action
+          #  manque.
+          #
+          #  C'est arrivé : nos tuiles écrivaient <click>, qui n'existe pas.
+          #  La bonne balise est <txtclick>. L'horloge et la météo étaient
+          #  jolies dans la barre et ne s'ouvraient sur rien, sur une ISO
+          #  entière, avant qu'Alex ne le voie sur sa machine.
+          #
+          #  Liste tirée de la documentation officielle du greffon :
+          #  https://docs.xfce.org/panel-plugins/xfce4-genmon-plugin/start
+          CONNUES="txt txtclick img imgclick icon iconclick bar tool css"
+
+          bad=0
+          for f in config/includes.chroot/usr/bin/*; do
+            [ -f "$f" ] || continue
+            grep -q -- '--panneau' "$f" || continue
+            #  UNE PAIRE COMPLÈTE, SUR UNE LIGNE QUI N'EST PAS UN COMMENTAIRE.
+            #  Première version de ce contrôle : toute balise ouvrante. Elle
+            #  hurlait sur <nom>, <code>, <vent>, <min>, <max> — qui sont des
+            #  espaces réservés dans l'aide (« lexos meteo ville <nom> ») et
+            #  dans des commentaires, pas de la sortie genmon. Un contrôle qui
+            #  crie au loup finit par être ignoré, et c'est comme ça qu'on
+            #  rate le vrai. On ne regarde donc que ce qui ressemble
+            #  VRAIMENT à de la sortie genmon : <x>…</x> sur une ligne de code.
+            for T in $(grep -v '^[[:space:]]*#' "$f" \
+                       | grep -oE '<[a-z][a-z0-9]*>[^<]*</[a-z][a-z0-9]*>' \
+                       | sed 's/^<\([a-z0-9]*\)>.*/\1/' | sort -u); do
+              ok=0
+              for C in $CONNUES; do [ "$T" = "$C" ] && ok=1 && break; done
+              if [ "$ok" = "0" ]; then
+                echo "::error file=$f::balise genmon inconnue : <$T>. genmon l'ignorera en silence — la tuile s'affichera et ne fera rien. Balises admises : $CONNUES"
+                bad=1
+              fi
+            done
+          done
+          [ "$bad" = "0" ] && echo "  ok — toutes les tuiles n'emploient que des balises connues"
+          exit $bad
+
       - name: Un paquet de backports exige que backports soit ouvert
         run: |
           #  LE SILENCE QUE CE CONTRÔLE ATTRAPE.

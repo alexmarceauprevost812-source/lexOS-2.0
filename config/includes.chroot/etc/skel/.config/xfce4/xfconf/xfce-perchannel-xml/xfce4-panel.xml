@@ -115,7 +115,7 @@
     <!-- 13 · Météo — « ☁ 20° », comme la démo.
          genmon se contente de LANCER une commande et d'afficher sa sortie :
          le texte, l'infobulle et l'action du clic sont décidés par
-         lexos-meteo lui-même (balises <txt>, <tool>, <click>). Changer de
+         lexos-meteo lui-même (balises <txt>, <tool>, <txtclick>). Changer de
          ville ne touche donc jamais à la configuration du panneau.
          La mise en cache est DANS le script : même si le panneau
          interrogeait toutes les secondes, le réseau n'est sollicité qu'un
@@ -132,7 +132,10 @@
       <property name="workspace-scrolling" type="bool" value="true"/>
       <property name="miniature-view"      type="bool" value="false"/>
       <property name="rows"                type="uint" value="1"/>
-      <property name="numbering"           type="bool" value="true"/>
+      <!-- « numbering » remettrait le chiffre DEVANT le point : « 1 - ● ».
+           Le point seul suffit — c'est sa position dans la rangée qui dit
+           lequel c'est, comme sur un lecteur de musique. -->
+      <property name="numbering"           type="bool" value="false"/>
     </property>
 
     <!-- 15 · LE CENTRE DE NOTIFICATIONS — la cloche et son compteur.
@@ -173,7 +176,7 @@
          l'agenda, « comme un menu qui ouvre tranquillement en descendant ».
          Le greffon horloge de XFCE ouvre SON calendrier et ne sait rien faire
          d'autre — on ne peut pas lui dire quoi lancer. genmon, lui, affiche la
-         sortie d'une commande et obéit à sa balise <click> : c'est déjà comme
+         sortie d'une commande et obéit à sa balise <txtclick> : c'est déjà comme
          ça que la météo marche ici. L'horloge prend le même chemin, et son
          clic ouvre « lexos-volet agenda ».
 

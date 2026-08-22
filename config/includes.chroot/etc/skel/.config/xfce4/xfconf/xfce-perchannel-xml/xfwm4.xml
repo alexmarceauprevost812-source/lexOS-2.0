@@ -35,5 +35,26 @@
     <property name="cycle_draw_frame"          type="bool"   value="true"/>
     <property name="cycle_preview"             type="bool"   value="true"/>
     <property name="workspace_count"           type="int"    value="4"/>
+
+    <!-- LES QUATRE PETITS POINTS, ET POURQUOI C'EST ICI.
+         La barre affichait « 1 - Espace de travail 1 », « 2 - Espace de
+         travail 2 »… : quatre pavés de texte qui mangeaient le tiers de la
+         barre pour redire quatre fois le même mot. Alex l'a vu sur sa
+         première ISO et il avait raison.
+
+         Le sélecteur d'espaces de XFCE n'a pas de mode « points » : il
+         affiche le NOM de chaque espace. On lui donne donc un nom qui EST
+         un point. Le point actif se distingue par l'état du bouton, que la
+         feuille gtk.css peint en couleur d'accent — d'où la « bulle » qui
+         change quand on change d'espace.
+
+         Le nom reste modifiable dans Paramètres → Espaces de travail pour
+         qui veut les rebaptiser. -->
+    <property name="workspace_names" type="array">
+      <value type="string" value="●"/>
+      <value type="string" value="●"/>
+      <value type="string" value="●"/>
+      <value type="string" value="●"/>
+    </property>
   </property>
 </channel>

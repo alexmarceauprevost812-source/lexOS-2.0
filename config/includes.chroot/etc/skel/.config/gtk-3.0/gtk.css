@@ -103,3 +103,51 @@ menu menuitem, .menu menuitem {
 	border-radius: 8px;
 	padding: 4px 8px;
 }
+
+/* --- Les quatre points des espaces de travail -------------------------------
+   CE QUE ÇA REMPLACE. La barre affichait « 1 - Espace de travail 1 », « 2 -
+   Espace de travail 2 »… : quatre pavés de texte qui mangeaient le tiers de
+   la largeur pour redire quatre fois le même mot. Alex l'a vu sur sa première
+   ISO — « je veux pas voir les fenêtres de bureau comme ça ».
+
+   Le sélecteur d'espaces de XFCE n'a pas de mode « points » : il affiche le
+   NOM de chaque espace. On lui a donc donné un nom qui EST un point (voir
+   xfwm4.xml), et c'est ici qu'on le met en forme. Le point actif prend la
+   couleur d'accent — c'est la « bulle » qui se déplace quand on change
+   d'espace ; les autres restent discrets sans disparaître, sinon on ne
+   saurait plus où cliquer.
+
+   La molette au-dessus de la rangée change d'espace : c'est le sélecteur qui
+   le fait lui-même (workspace-scrolling), pas cette feuille. */
+#XfcePanelWindow .pager button,
+#XfcePanelWindow .pager-buttons button,
+#XfcePanelWindow #pager button {
+	padding: 0;
+	margin: 0 2px;
+	min-width: 16px;
+	min-height: 16px;
+	border: 0;
+	background-image: none;
+	background-color: transparent;
+	color: rgba(255, 255, 255, 0.34);
+	font-size: 13px;
+	border-radius: 50%;
+}
+#XfcePanelWindow .pager button:hover,
+#XfcePanelWindow .pager-buttons button:hover,
+#XfcePanelWindow #pager button:hover {
+	color: rgba(255, 255, 255, 0.72);
+	background-color: rgba(255, 255, 255, 0.07);
+}
+/*  L'espace où l'on est. « checked » est l'état que le sélecteur pose sur le
+    bouton de l'espace courant ; « active » couvre le thème qui n'utiliserait
+    que celui-là. */
+#XfcePanelWindow .pager button:checked,
+#XfcePanelWindow .pager button:active,
+#XfcePanelWindow .pager-buttons button:checked,
+#XfcePanelWindow .pager-buttons button:active,
+#XfcePanelWindow #pager button:checked,
+#XfcePanelWindow #pager button:active {
+	color: #E8590C;
+	background-color: rgba(232, 89, 12, 0.16);
+}

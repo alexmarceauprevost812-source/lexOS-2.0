@@ -345,7 +345,7 @@ cmd_fenetre() {
 
 # --- Affichage pour la barre du haut ---------------------------------------
 #  genmon lit la sortie : <txt> est ce qui s'affiche, <tool> l'infobulle,
-#  <click> ce que fait un clic. Aucune de ces trois choses n'a besoin d'être
+#  <txtclick> ce que fait un clic. Aucune de ces trois choses n'a besoin d'être
 #  configurée dans le panneau — c'est le script qui décide, donc « lexos
 #  meteo ville » suffit à tout changer, sans toucher au panneau.
 cmd_panneau() {
@@ -353,7 +353,7 @@ cmd_panneau() {
 	if [[ -z "$LAT" || -z "$LON" ]]; then
 		printf '<txt>  ⛅ —  </txt>'
 		printf '<tool>Météo — clique pour choisir ta ville</tool>'
-		printf '<click>lexos-meteo --choisir</click>\n'
+		printf '<txtclick>lexos-meteo --choisir</txtclick>\n'
 		return 0
 	fi
 
@@ -361,7 +361,7 @@ cmd_panneau() {
 	if [[ -z "$ligne" ]]; then
 		printf '<txt>  ⛅ —  </txt>'
 		printf '<tool>%s — relevé indisponible (hors ligne ?)</tool>' "$VILLE"
-		printf '<click>lexos-volet meteo</click>\n'
+		printf '<txtclick>lexos-volet meteo</txtclick>\n'
 		return 0
 	fi
 
@@ -369,7 +369,7 @@ cmd_panneau() {
 	printf '<txt>  %s %s°  </txt>' "$(symbole_wmo "$code")" "$temp"
 	printf '<tool>%s — %s, %s°C\nClique pour les prévisions</tool>' \
 		"$VILLE" "$(phrase_wmo "$code")" "$temp"
-	printf '<click>lexos-volet meteo</click>\n'
+	printf '<txtclick>lexos-volet meteo</txtclick>\n'
 }
 
 # --- Choisir sa ville --------------------------------------------------------

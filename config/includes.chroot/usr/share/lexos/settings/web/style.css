@@ -18,17 +18,27 @@ body{background:var(--bg);color:var(--fg);
   font:14px/1.45 var(--police)}
 #app{display:flex}
 
-/* --- Barre latérale ------------------------------------------------------ */
-#sidebar{width:250px;flex:none;background:var(--bg-side);
-  border-right:1px solid var(--bd);overflow-y:auto;padding:10px 8px 20px}
-.grp{margin-top:14px;padding:0 10px;font-size:11px;letter-spacing:.08em;
+/* --- Barre latérale --------------------------------------------------------
+   PLUS GROSSE QU'AU DÉPART, ET C'EST VOULU. Alex a ouvert les Paramètres sur
+   son portable et a demandé « le menu plus gros pour qu'il soit plus
+   voyant ». Il avait raison : c'est la liste qu'on parcourt des yeux avant
+   TOUT le reste, elle était réglée comme une note de bas de page — 14 px de
+   texte et 7 px de marge, dans une fenêtre de mille pixels de large.
+
+   Trente pour cent de plus partout : le texte, la hauteur des rangées, la
+   pastille de l'icône. Ce n'est pas du confort, c'est de la lisibilité — sur
+   un écran de portable, à bout de bras, le soir. */
+#sidebar{width:272px;flex:none;background:var(--bg-side);
+  border-right:1px solid var(--bd);overflow-y:auto;padding:12px 10px 24px}
+.grp{margin-top:18px;padding:0 10px 2px;font-size:12px;letter-spacing:.08em;
   text-transform:uppercase;color:var(--fg-dim)}
-.nav-item{display:flex;align-items:center;gap:10px;width:100%;
-  padding:7px 10px;margin-top:2px;border:0;border-radius:8px;
-  background:none;color:var(--fg);font:inherit;text-align:left;cursor:pointer}
+.nav-item{display:flex;align-items:center;gap:12px;width:100%;
+  padding:10px 12px;margin-top:3px;border:0;border-radius:9px;
+  background:none;color:var(--fg);font-family:inherit;font-size:15.5px;
+  text-align:left;cursor:pointer}
 .nav-item:hover{background:var(--bg-hi)}
-.nav-item.sel{background:var(--ac);color:#fff}
-.nav-item .pic{width:20px;flex:none;text-align:center}
+.nav-item.sel{background:var(--ac);color:#fff;font-weight:600}
+.nav-item .pic{width:24px;flex:none;text-align:center;font-size:17px}
 
 /* --- Contenu ------------------------------------------------------------- */
 #content{flex:1;overflow-y:auto;padding:26px 32px 48px}

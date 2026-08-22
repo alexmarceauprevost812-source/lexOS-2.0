@@ -75,7 +75,7 @@ cmd_panneau() {
 
 	printf '<txt> %s </txt>' "$icones"
 	printf '<tool>%b— clic : les appareils dans les Paramètres</tool>' "$detail"
-	printf '<click>lexos-settings usb</click>\n'
+	printf '<txtclick>lexos-settings usb</txtclick>\n'
 }
 
 cmd_etat() {
