@@ -161,6 +161,15 @@ _lexos() {
 			elif [ "$sous" = "install" ]; then
 				mapfile -t COMPREPLY < <(compgen -W "tout claude gh vercel" -- "$cur")
 			fi ;;
+		claude)
+			#  « modele » d'abord : c'est le seul sous-mot qui prend lui-même
+			#  un argument, et c'est celui qu'on cherche quand on tâtonne.
+			if [ "$COMP_CWORD" -eq 2 ]; then
+				mapfile -t COMPREPLY < <(compgen -W "modele app setup update aide" -- "$cur")
+			elif [ "$sous" = "modele" ] || [ "$sous" = "model" ]; then
+				mapfile -t COMPREPLY < <(compgen -W "opus sonnet haiku defaut \
+claude-opus-5 claude-sonnet-5 claude-haiku-4-5" -- "$cur")
+			fi ;;
 		jeux|jeu|bibliotheque|biblio)
 			mapfile -t COMPREPLY < <(compgen -W "liste lancer chercher sources json aide" -- "$cur") ;;
 		game)

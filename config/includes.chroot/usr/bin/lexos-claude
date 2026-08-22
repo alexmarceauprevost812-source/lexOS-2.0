@@ -40,6 +40,9 @@ Usage :
   $PROG app              Ouvre l'application Claude (claude.ai) en fenêtre
   $PROG setup            Installe Claude Code
   $PROG update           Met Claude Code à jour
+  $PROG modele           Montre et choisit le modèle (Opus 5, Sonnet 5, Haiku 4.5)
+  $PROG modele <nom>     Fixe le modèle : opus, sonnet, haiku, ou un identifiant
+  $PROG modele defaut    Efface le choix, Claude Code reprend son défaut
   $PROG "<demande>"      Lance Claude Code sur une demande précise
 
 Exemples :
@@ -53,6 +56,104 @@ EOF
 }
 
 has_claude() { command -v claude >/dev/null 2>&1; }
+
+# --- Le modèle ---------------------------------------------------------------
+#  POURQUOI UN RÉGLAGE ICI PLUTÔT QUE « /model » DANS CLAUDE CODE.
+#  « /model » change le modèle POUR LA SESSION EN COURS. C'est parfait quand on
+#  est déjà dedans, et ça ne sert à rien quand on veut que TOUTES les sessions
+#  démarrent sur le même — c'est-à-dire le cas normal. On garde donc le choix
+#  dans un fichier à nous et on le passe en « --model » au lancement.
+#
+#  POURQUOI DES IDENTIFIANTS COMPLETS ET PAS « opus » / « sonnet ».
+#  Les raccourcis existent, mais ils pointent vers « le plus récent de la
+#  famille » : la même commande ne donnerait pas le même modèle dans six mois,
+#  et on ne saurait pas pourquoi la facture ou les réponses ont changé. On
+#  ACCEPTE les raccourcis à la saisie — c'est plus court à taper — mais on
+#  écrit toujours l'identifiant complet dans le fichier.
+CONF_DIR="${LEXOS_CONF:-$HOME/.config/lexos}"
+CONF_MODELE="$CONF_DIR/claude-modele"
+
+#  identifiant|nom|contexte|entrée/sortie par million|à quoi ça sert
+MODELES=(
+	"claude-opus-5|Opus 5|1M|5 \$ / 25 \$|le défaut de Claude Code, et le plus capable des trois"
+	"claude-sonnet-5|Sonnet 5|1M|3 \$ / 15 \$|nettement moins cher, largement de quoi coder au quotidien"
+	"claude-haiku-4-5|Haiku 4.5|200K|1 \$ / 5 \$|le plus rapide et le moins cher, pour les tâches simples"
+)
+
+modele_resout() {
+	#  Raccourci, identifiant connu, ou identifiant libre. Le dernier cas
+	#  existe pour ne pas avoir à modifier ce script chaque fois qu'Anthropic
+	#  sort un modèle : on prévient que le nom n'est pas connu, on ne bloque pas.
+	local demande="$1" ligne
+	case "$demande" in
+		opus)   printf 'claude-opus-5';   return 0 ;;
+		sonnet) printf 'claude-sonnet-5'; return 0 ;;
+		haiku)  printf 'claude-haiku-4-5'; return 0 ;;
+	esac
+	for ligne in "${MODELES[@]}"; do
+		[ "${ligne%%|*}" = "$demande" ] && { printf '%s' "$demande"; return 0; }
+	done
+	if [[ "$demande" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$ ]]; then
+		printf '%s' "$demande"; return 2
+	fi
+	return 1
+}
+
+modele_lu() {
+	local m
+	m="$(cat "$CONF_MODELE" 2>/dev/null)" || return 0
+	m="${m//[[:space:]]/}"
+	#  Un fichier abîmé ne doit pas se transformer en argument de commande.
+	[[ "$m" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$ ]] && printf '%s' "$m"
+}
+
+cmd_modele() {
+	local demande="${1:-}" resolu rc ligne id nom ctx prix note actuel
+	actuel="$(modele_lu)"
+
+	if [ -z "$demande" ]; then
+		say "Modèle utilisé au lancement de ${B}lexos claude${R} :"
+		echo
+		for ligne in "${MODELES[@]}"; do
+			IFS='|' read -r id nom ctx prix note <<<"$ligne"
+			if [ "$id" = "$actuel" ]; then printf '  %s●%s ' "$G" "$R"; else printf '    '; fi
+			printf '%s%-18s%s %-9s  %-14s %s\n' "$B" "$nom" "$R" "$ctx" "$prix" "$note"
+			printf '      %s%s%s\n' "$O" "$id" "$R"
+		done
+		echo
+		if [ -n "$actuel" ]; then
+			ok "Réglé sur ${actuel}."
+			say "   ${B}$PROG modele defaut${R} pour laisser Claude Code décider."
+		else
+			say "Aucun choix enregistré — Claude Code prend son défaut (Opus 5)."
+		fi
+		say "   ${B}$PROG modele sonnet${R}   ${B}$PROG modele haiku${R}   ${B}$PROG modele opus${R}"
+		say "   Pour changer le temps d'UNE session seulement : ${B}/model${R} dans Claude Code."
+		return 0
+	fi
+
+	case "$demande" in
+		defaut|défaut|auto|aucun)
+			rm -f "$CONF_MODELE" 2>/dev/null
+			ok "Choix effacé — Claude Code reprend son défaut."
+			return 0 ;;
+	esac
+
+	#  Pas de « set +e / set -e » ici : ce script tourne sous « set -uo
+	#  pipefail », SANS errexit. Encadrer l'appel de la sorte aurait
+	#  ACTIVÉ errexit pour tout ce qui suit — un réglage que le script
+	#  n'a jamais eu, et le genre de changement qui se manifeste trois
+	#  fonctions plus loin. Le code de retour se lit très bien tel quel.
+	resolu="$(modele_resout "$demande")"; rc=$?
+	case $rc in
+		1) die "Nom de modèle invalide : ${demande}" ;;
+		2) warn "« ${resolu} » n'est pas dans la liste connue de LexOS — je l'écris quand même." ;;
+	esac
+
+	mkdir -p "$CONF_DIR" || die "Impossible de créer ${CONF_DIR}"
+	printf '%s\n' "$resolu" > "$CONF_MODELE" || die "Impossible d'écrire ${CONF_MODELE}"
+	ok "Modèle réglé sur ${resolu}."
+}
 
 # Rends « claude » trouvable même juste après une installation « native »
 # (elle le pose dans ~/.local/bin, pas toujours déjà dans le PATH courant).
@@ -120,11 +221,31 @@ cmd_app() {
 	exec xdg-open "$url"
 }
 
+#  L'appelant a-t-il déjà donné un modèle sur la ligne de commande ?
+#  Si oui, il gagne : c'est la demande la plus explicite et la plus récente
+#  des deux. Passer deux « --model » laisserait Claude Code arbitrer à notre
+#  place, et on ne saurait pas lequel a gagné.
+modele_deja_donne() {
+	local a
+	for a in "$@"; do
+		case "$a" in --model|--model=*) return 0 ;; esac
+	done
+	return 1
+}
+
 cmd_run() {
 	ensure_path
 	has_claude || install_claude
+
+	local -a choix=()
+	local m; m="$(modele_lu)"
+	if [ -n "$m" ] && ! modele_deja_donne "$@"; then
+		choix=(--model "$m")
+		say "Modèle : ${m}"
+	fi
+
 	say "Claude Code — connexion au navigateur au premier lancement."
-	exec claude "$@"
+	exec claude "${choix[@]}" "$@"
 }
 
 CMD="${1:-}"
@@ -132,6 +253,7 @@ case "$CMD" in
 	-h|--help|help)     usage ;;
 	setup|install)      install_claude ;;
 	update|maj)         cmd_update ;;
+	modele|modèle|model) shift 2>/dev/null || true; cmd_modele "${1:-}" ;;
 	app|web|appli)      cmd_app ;;
 	code|cli|'')        shift 2>/dev/null || true; cmd_run "$@" ;;
 	*)                  cmd_run "$@" ;;
