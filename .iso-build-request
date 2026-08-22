@@ -48,6 +48,37 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 65 : SIX COMMITS DEPUIS LE 64 — le terminal aux trois couleurs, le
+#   fond Lexis 3D, la couche sauvegarde/diagnostic, et le contrôle 16.
+#
+#   · TERMINAL AUX TROIS COULEURS (patch d'Alex, vérifié en vrai bash) :
+#     vert foncé = ce que la machine répond, orange = ce qu'on tape (PS1 se
+#     termine par un orange non refermé, PS0 remet à zéro), rouge = ce qui
+#     ne marche pas — chevron rouge après un échec, « commande inconnue »
+#     en rouge et en français. lexos-theme-gen pose TERM_FG=#00AF5F.
+#   · LEXIS 3D : nouveau fond animé — la marque en relief qui SUIT LA SOURIS
+#     d'un petit mouvement (face avant ±2 px, pile d'ombre ±20 px à
+#     l'opposé). La fenêtre du fond ne reçoit pas la souris : elle interroge
+#     la position globale, comme coin-actif. Sur batterie, figé comme tous
+#     les fonds. Ajouté À CÔTÉ des cinq scènes, rien remplacé.
+#   · LA ROULETTE NE CHANGE DE BUREAU QUE SUR LES POINTS en haut à gauche
+#     (scroll_workspaces=false dans xfwm4 ; le sélecteur garde sa molette).
+#     Au milieu du bureau, elle ne fait plus rien.
+#   · SAUVEGARDE ET DIAGNOSTIC : lexos-sauvegarde (borg — restauration
+#     toujours À CÔTÉ, jamais par-dessus), lexos-disques (SMART traduit,
+#     lecture seule — l'icône du disque a enfin son panneau), lexos-medecin
+#     (le tri d'urgence en une commande, chaque constat finit par la
+#     commande qui soigne). Trois lanceurs de menu en --hold.
+#   · CONTRÔLE 16 branché en CI --strict, et ses trouvailles réparées :
+#     « lexos boost » et « lexos parametres » existent, Boost a sa rangée
+#     dans Énergie, Fichiers privés dans Confidentialité, lanceur des
+#     Assistants IA. verifier.sh (l'avant-vol en un script) vit à la racine.
+#   · Tablette graphique : xfce4-wacom-settings n'existe pas dans Debian —
+#     la section ouvre maintenant xsetwacom, le vrai outil.
+#   · Le hook Boost passe de 0500 à 0490 : un numéro, un hook.
+#
+#   avant-vol : ./verifier.sh au vert (8 familles de contrôles).
+#
 # build 64 : LES RÉPARATIONS DU PREMIER VRAI TEST — Alex a démarré le 63 sur
 #   son portable le soir même, et chaque défaut trouvé à l'écran est réparé.
 #
@@ -1385,4 +1416,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 64
+build: 65
