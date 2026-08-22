@@ -122,32 +122,57 @@ menu menuitem, .menu menuitem {
 #XfcePanelWindow .pager button,
 #XfcePanelWindow .pager-buttons button,
 #XfcePanelWindow #pager button {
+	/*  LA GÉOMÉTRIE VIENT DE LA DÉMO, TRADUITE POUR UNE BARRE DE 32 px.
+	    Sur logiciel-ti-lex.vercel.app/demo : point de 7 px, écart de 5 px,
+	    et l'espace courant devient une PILULE de 20 px — pas un point plus
+	    gros, une pilule. C'est ce mouvement-là qu'Alex reconnaît.
+	    Ici la rangée fait 32 px (xfce4-panel.xml, « size »). La marge
+	    haute et basse centre la pastille : 11 + 10 + 11 = 32. Si un jour
+	    la barre change de taille, c'est CETTE ligne qu'il faut refaire —
+	    sinon les points se recollent en haut. */
 	padding: 0;
-	margin: 0 2px;
-	min-width: 16px;
-	min-height: 16px;
+	margin: 11px 3px;
+	min-width: 10px;
+	min-height: 10px;
 	border: 0;
 	background-image: none;
 	background-color: transparent;
-	color: rgba(255, 255, 255, 0.34);
-	font-size: 13px;
-	border-radius: 50%;
+	/*  Le glyphe « ● » vient du NOM de l'espace (xfwm4.xml) : le sélecteur
+	    de XFCE n'a pas de mode « points », il affiche le nom. La taille de
+	    police tient donc lieu de taille de point, et doit rester au plus
+	    égale à la hauteur ci-dessus — sinon le glyphe regonfle le bouton
+	    et la rangée redevient une rangée de boutons. */
+	font-size: 10px;
+	color: rgba(255, 255, 255, 0.30);
+	border-radius: 99px;
+	/*  La pilule GRANDIT, elle n'apparaît pas. C'est l'animation de la
+	    démo (transition sur la largeur), et c'est elle qui fait lire le
+	    déplacement d'un espace à l'autre. GTK qui l'ignorerait donnerait
+	    un changement net : moins joli, jamais cassé. */
+	transition: min-width 180ms ease, background-color 180ms ease, color 180ms ease;
 }
 #XfcePanelWindow .pager button:hover,
 #XfcePanelWindow .pager-buttons button:hover,
 #XfcePanelWindow #pager button:hover {
 	color: rgba(255, 255, 255, 0.72);
-	background-color: rgba(255, 255, 255, 0.07);
 }
-/*  L'espace où l'on est. « checked » est l'état que le sélecteur pose sur le
-    bouton de l'espace courant ; « active » couvre le thème qui n'utiliserait
-    que celui-là. */
+/*  L'espace où l'on est : une pilule orange PLEINE, comme dans la démo.
+    « checked » est l'état que le sélecteur pose sur le bouton courant ;
+    « active » couvre le thème qui n'utiliserait que celui-là.
+
+    POURQUOI LE GLYPHE PREND LA COULEUR DU FOND. On ne le cache pas avec
+    « font-size: 0 » ni « color: transparent » : si une version de GTK
+    n'appliquait pas le fond, un point invisible laisserait un sélecteur
+    d'espaces qu'on ne voit plus du tout. En lui donnant l'orange du fond,
+    le pire des cas redonne exactement ce qu'on avait avant — un point
+    orange — au lieu de rien. */
 #XfcePanelWindow .pager button:checked,
 #XfcePanelWindow .pager button:active,
 #XfcePanelWindow .pager-buttons button:checked,
 #XfcePanelWindow .pager-buttons button:active,
 #XfcePanelWindow #pager button:checked,
 #XfcePanelWindow #pager button:active {
+	min-width: 24px;
+	background-color: #E8590C;
 	color: #E8590C;
-	background-color: rgba(232, 89, 12, 0.16);
 }
