@@ -1,45 +1,44 @@
 # =============================================================================
 #  LexOS — entrées « démo » du menu de démarrage BIOS
 # =============================================================================
-#  REMPLACE le modèle de live-build, qui écrit « Live (amd64) » et
-#  « Live (amd64 failsafe) » en anglais. Les @JETONS@ sont remplacés par
-#  live-build (lb_binary_syslinux) : ne pas les traduire ni les réécrire.
+#  REMPLACE le modèle de live-build, qui écrit « Live (amd64) » en anglais.
 #
-#  PAS DE « boot=live components » ÉCRIT À LA MAIN ICI, contrairement au
-#  modèle de live-build. auto/config met déjà ces deux mots en tête de
-#  BOOTAPPEND_BASE, donc de @LB_BOOTAPPEND_LIVE@ ET de
-#  @LB_BOOTAPPEND_FAILSAFE@. Les réécrire donnerait une ligne de commande
-#  avec « boot=live » deux fois.
+#  RÈGLE DURE, PAYÉE TROIS FOIS : ON N'ÉCRIT QUE DES JETONS PROUVÉS, ET ON
+#  N'ÉCRIT JAMAIS UN JETON DANS UN COMMENTAIRE.
 #
-#  L'ordre et les mots doivent rester ceux du menu UEFI (thème GRUB) : c'est
-#  le même produit, le même ordinateur, et souvent la même personne qui
-#  redémarre en changeant seulement le mode dans le BIOS.
+#  · Build 66 : « KERNEL entre arobases » a été inventé — ce jeton n'existe
+#    pas chez live-build. Le menu s'affichait, choisir une entrée ne
+#    démarrait rien : la ligne kernel pointait vers un fichier au nom du
+#    jeton. D'où les chemins RÉELS ci-dessous : /live/vmlinuz et
+#    /live/initrd.img, la disposition standard d'une image live Debian,
+#    vérifiée par le hook 0905 à chaque construction.
 #
-#  PAS DE @KERNEL@ NI DE @INITRD@ : CES JETONS N'EXISTENT PAS.
-#  La première version de ce fichier les employait. @FLAVOUR@ et
-#  @LB_BOOTAPPEND_LIVE@, eux, sont de vrais jetons et ont bien été remplacés —
-#  d'où l'illusion que tout marchait : le menu s'affichait correctement, avec
-#  nos libellés français. Mais la ligne « kernel » pointait vers un fichier
-#  nommé littéralement « @KERNEL@ », qui n'existe pas. Choisir « Session de
-#  démonstration » ne démarrait donc RIEN : l'écran restait sur le menu
-#  pendant que le décompte descendait. C'est ce qu'Alex a vu sur le build 66,
-#  et c'est le hook 0905 qui l'a nommé au build 67 :
-#      [lexos]   !! entrée de menu vers un fichier absent : @KERNEL@
+#  · Build 68 : « LB_BOOTAPPEND_LIVE entre arobases » était inventé AUSSI —
+#    la ligne append est partie sur l'ISO avec le jeton en toutes lettres,
+#    donc SANS boot=live : le noyau chargeait puis tombait dans l'initramfs.
+#    La preuve est dans le journal du 68, par élimination : FLAVOUR et
+#    INITRD, écrits dans ces commentaires, ont été substitués par live-build
+#    (ce sont de vrais jetons) ; les LB_* sont restés. Les vrais noms pour
+#    la ligne append sont APPEND_LIVE et APPEND_FAILSAFE — ceux du modèle
+#    isolinux de live-build lui-même (usr/share/live/build/bootloaders).
 #
-#  On écrit donc les chemins RÉELS. C'est la disposition standard d'une image
-#  live Debian : live-build pose le noyau et l'initrd dans /live/, sous ces
-#  noms-là. Un chemin en dur qu'on peut vérifier vaut mieux qu'un jeton qu'on
-#  espère — et le hook 0905 contrôle à chaque construction que ces fichiers
-#  sont bien là.
+#  · Et pourquoi pas de jeton dans les commentaires : le filet du hook 0905
+#    liste tout jeton survivant, et un jeton cité dans un commentaire rend
+#    cette liste illisible — au 68, la moitié des « survivants » étaient des
+#    mots de commentaire. Écrire « NOM entre arobases » suffit.
+#
+#  Le hook 0905 fait la ceinture ET les bretelles : si un jeton d'append
+#  survit malgré tout, il reconstruit la ligne à partir du grub.cfg de la
+#  même image — celui que live-build génère lui-même, toujours juste.
 # =============================================================================
 
 label live-@FLAVOUR@
 	menu label Session de démonstration
 	menu default
 	kernel /live/vmlinuz
-	append initrd=/live/initrd.img @LB_BOOTAPPEND_LIVE@
+	append initrd=/live/initrd.img @APPEND_LIVE@
 
 label live-@FLAVOUR@-failsafe
 	menu label Mode de secours (affichage garanti)
 	kernel /live/vmlinuz
-	append initrd=/live/initrd.img @LB_BOOTAPPEND_FAILSAFE@
+	append initrd=/live/initrd.img @APPEND_FAILSAFE@

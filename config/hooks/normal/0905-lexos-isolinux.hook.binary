@@ -169,21 +169,22 @@ s/^\([[:space:]]*menu label[[:space:]]*\)\^*Install[[:space:]]*$/\1Installer en 
 fi
 
 # =============================================================================
-#  AUCUN @JETON@ NE DOIT SURVIVRE — ET S'IL EN RESTE UN, ON RÉPARE
+#  AUCUN JETON NE DOIT SURVIVRE — ET S'IL EN RESTE UN, ON RÉPARE POUR DE VRAI
 # =============================================================================
-#  CE QUI EST ARRIVÉ. live.cfg.in employait « kernel @KERNEL@ » et
-#  « initrd=@INITRD@ ». Ces deux-là N'EXISTENT PAS chez live-build : il n'a
-#  remplacé que @FLAVOUR@ et @LB_BOOTAPPEND_LIVE@, qui sont réels. Le menu
-#  s'affichait donc parfaitement, avec nos libellés français — et choisir
-#  « Session de démonstration » ne démarrait rien du tout, l'écran restant
-#  sur le menu pendant que le décompte descendait.
+#  L'HISTOIRE EN DEUX ACTES, POUR QUE PERSONNE NE LA REJOUE.
+#  Acte 1 (build 66-67) : live.cfg.in employait un jeton KERNEL inventé. Le
+#  menu s'affichait, choisir une entrée ne démarrait rien. Le filet posé au
+#  68 l'a attrapé et réparé.
+#  Acte 2 (build 68) : le filet ne réparait QUE kernel et initrd. Les jetons
+#  d'append — LB_BOOTAPPEND_*, inventés eux aussi — sont restés en toutes
+#  lettres sur l'ISO : le noyau chargeait puis tombait dans l'initramfs,
+#  faute de boot=live. Un filet qui n'attrape que le poisson d'hier ne garde
+#  rien : celui-ci répare TOUT, et vérifie le résultat.
 #
-#  C'est le pire des défauts : celui qui a l'air de marcher. La source est
-#  corrigée, mais on met le filet ici parce qu'un jeton inventé se glisse
-#  sans bruit, et qu'une clé qui ne démarre pas coûte une soirée à quelqu'un.
-#
-#  On répare avec ce qui est VRAIMENT dans l'image, pas avec ce qu'on croit :
-#  on cherche le noyau et l'initrd sur place.
+#  LA SOURCE DE VÉRITÉ POUR L'APPEND, C'EST grub.cfg — celui de la MÊME
+#  image, écrit par live-build lui-même, jamais par nous. Sa ligne « linux »
+#  de la session démo porte le vrai boot=live components username=… ; celle
+#  du mode de secours porte lexos.failsafe=1. On lit là, pas dans nos idées.
 NOYAU=""
 INITRD=""
 for LEXOS_K in "$IMG"/live/vmlinuz "$IMG"/live/vmlinuz-* ; do
@@ -193,23 +194,79 @@ for LEXOS_I in "$IMG"/live/initrd.img "$IMG"/live/initrd.img-* ; do
 	[ -f "$LEXOS_I" ] && { INITRD="${LEXOS_I#"$IMG"}"; break; }
 done
 
+GRUB_CFG="$IMG/boot/grub/grub.cfg"
+APPEND_VIF=""
+APPEND_SECOURS=""
+if [ -r "$GRUB_CFG" ]; then
+	#  « linux <chemin> <arguments…> » : on jette « linux » et le chemin,
+	#  on garde les arguments. La ligne de secours se reconnaît à
+	#  lexos.failsafe=1 (posé par auto/config) ou, à défaut, à nomodeset.
+	APPEND_SECOURS="$(sed -n 's|^[[:space:]]*linux[[:space:]][[:space:]]*[^[:space:]]*[[:space:]]*\(.*boot=live.*\)$|\1|p' "$GRUB_CFG" \
+		| grep -E 'lexos\.failsafe=1|nomodeset' | head -1)"
+	APPEND_VIF="$(sed -n 's|^[[:space:]]*linux[[:space:]][[:space:]]*[^[:space:]]*[[:space:]]*\(.*boot=live.*\)$|\1|p' "$GRUB_CFG" \
+		| grep -vE 'lexos\.failsafe=1|nomodeset' | head -1)"
+fi
+#  Sans ligne de secours propre, mieux vaut l'append vif que rien : la
+#  machine démarre, seul le blindage anti-pilote manque.
+[ -n "$APPEND_SECOURS" ] || APPEND_SECOURS="$APPEND_VIF"
+
+#  LES COMMENTAIRES NE COMPTENT PAS. Au 68, la moitié des « survivants »
+#  listés étaient des mots de commentaire — un rapport qu'on ne peut pas
+#  lire d'un coup d'œil finit ignoré. On ne regarde que les lignes de code.
+sans_commentaires() { grep -v '^[[:space:]]*#' "$1" 2>/dev/null; }
+
 RESTANTS=0
 for F in "$DIR"/*.cfg; do
 	[ -e "$F" ] || continue
-	grep -q '@[A-Za-z_]*@' "$F" 2>/dev/null || continue
+	sans_commentaires "$F" | grep -q '@[A-Za-z_]*@' || continue
 	RESTANTS=$((RESTANTS + 1))
-	echo "[lexos]   !! des @JETONS@ non remplacés dans $(basename "$F") :"
-	grep -o '@[A-Za-z_]*@' "$F" | sort -u | sed 's/^/[lexos]        /'
-	if [ -n "$NOYAU" ] && [ -n "$INITRD" ]; then
-		sed -i -e "s|@KERNEL@|${NOYAU}|g" -e "s|@INITRD@|${INITRD}|g" "$F" 2>/dev/null
-		echo "[lexos]      réparé avec ce qui est dans l'image : ${NOYAU} / ${INITRD}"
+	echo "[lexos]   !! des @JETONS@ non remplacés dans $(basename "$F") (hors commentaires) :"
+	sans_commentaires "$F" | grep -o '@[A-Za-z_]*@' | sort -u | sed 's/^/[lexos]        /'
+
+	[ -n "$NOYAU" ]  && sed -i -e "s|@KERNEL@|${NOYAU}|g"  -e "s|@LINUX@|${NOYAU}|g"   "$F" 2>/dev/null
+	[ -n "$INITRD" ] && sed -i -e "s|@INITRD@|${INITRD}|g"                              "$F" 2>/dev/null
+	if [ -n "$APPEND_VIF" ]; then
+		sed -i -e "s|@APPEND_LIVE@|${APPEND_VIF}|g" \
+		       -e "s|@LB_BOOTAPPEND_LIVE@|${APPEND_VIF}|g" "$F" 2>/dev/null
+	fi
+	if [ -n "$APPEND_SECOURS" ]; then
+		sed -i -e "s|@APPEND_FAILSAFE@|${APPEND_SECOURS}|g" \
+		       -e "s|@LB_BOOTAPPEND_FAILSAFE@|${APPEND_SECOURS}|g" "$F" 2>/dev/null
+	fi
+
+	#  ON REGARDE CE QUI RESTE — c'est ça, la leçon du 68 : dire « réparé »
+	#  sans recompter, c'est exactement le mensonge poli qu'on traque.
+	SURVIVANTS="$(sans_commentaires "$F" | grep -o '@[A-Za-z_]*@' | sort -u)"
+	if [ -z "$SURVIVANTS" ]; then
+		echo "[lexos]      réparé, et recompté : plus aucun jeton dans $(basename "$F")"
 	else
-		echo "[lexos]      IMPOSSIBLE À RÉPARER : ni noyau ni initrd trouvés dans ${IMG}/live"
-		echo "[lexos]      CETTE ENTRÉE DE MENU NE DÉMARRERA PAS."
+		echo "[lexos]      !! IRRÉPARABLE — jetons encore là après réparation :"
+		printf '%s\n' "$SURVIVANTS" | sed 's/^/[lexos]           /'
+		echo "[lexos]      !! LES ENTRÉES QUI LES PORTENT NE DÉMARRERONT PAS."
 	fi
 done
 if [ "$RESTANTS" -eq 0 ]; then
 	echo "[lexos]   aucun @jeton@ ne traîne dans les fichiers du menu"
+fi
+
+#  LE CONTRÔLE QUI AURAIT SAUVÉ LE 68 : chaque entrée live doit porter
+#  boot=live dans son append. Sans lui, live-boot ne s'active pas, le noyau
+#  charge et l'écran tombe sur un invite initramfs — un menu parfait qui ne
+#  mène nulle part.
+SANS_BOOTLIVE=0
+if [ -f "$DIR/live.cfg" ]; then
+	while IFS= read -r LEXOS_L; do
+		case "$LEXOS_L" in
+			*boot=live*) ;;
+			*)
+				SANS_BOOTLIVE=$((SANS_BOOTLIVE + 1))
+				echo "[lexos]   !! append SANS boot=live — cette entrée tombera dans l'initramfs :"
+				echo "[lexos]        ${LEXOS_L}" ;;
+		esac
+	done <<EOF_APPENDS
+$(sans_commentaires "$DIR/live.cfg" | grep '^[[:space:]]*append[[:space:]]')
+EOF_APPENDS
+	[ "$SANS_BOOTLIVE" -eq 0 ] && echo "[lexos]   boot=live présent sur chaque entrée de démarrage vif"
 fi
 
 CONVERTIS=0
