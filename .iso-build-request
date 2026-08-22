@@ -58,6 +58,48 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 69 : LE MENU BIOS QUI NE DÉMARRE TOUJOURS PAS, ET 770 Mo DE TROP.
+#
+#   DEUX CORRECTIFS, DEUX NATURES. Le premier répare une ISO qui ne démarre
+#   qu'à moitié. Le second défait une décision de la veille qui coûtait cher
+#   pour presque rien.
+#
+#   · LE MENU BIOS DU 68 N'A TOUJOURS PAS DE SESSION. Le correctif est déjà
+#     sur la branche (commit précédent), il n'a simplement jamais été
+#     construit : son message portait le mot-clé de saut de CI. Vérifié en
+#     ouvrant l'ISO du 68 :
+#
+#         append initrd=/live/initrd.img @LB_BOOTAPPEND_LIVE@
+#
+#     Le jeton est parti EN TOUTES LETTRES. Ni boot=live, ni components, ni
+#     username, ni les paramètres NVIDIA. En mode BIOS, « Session de
+#     démonstration » charge le noyau et tombe sur une invite initramfs.
+#     Le menu UEFI, lui, est complet et correct — l'ISO 68 démarre donc sur
+#     une machine en UEFI et pas sur une machine en BIOS.
+#
+#     C'est l'acte 3 de la même pièce : build 66, un jeton KERNEL inventé ;
+#     build 68, le filet ne rattrapait que kernel et initrd et laissait
+#     passer ceux de l'append. Un filet qui n'attrape que le poisson d'hier
+#     ne garde rien.
+#
+#   · NEXUIZ EST RETIRÉ — 770 Mo RENDUS. Mis en second nom de xonotic au
+#     build 68 sur la seule parenté technique (Nexuiz est l'ancêtre de
+#     Xonotic, même moteur DarkPlaces), sans regarder ce qu'il pesait :
+#     nexuiz-textures 498 Mo, nexuiz-data 265 Mo, nexuiz-music 84 Mo.
+#     L'ISO est passée de 8,37 à 9,15 Go pour un jeu de tir — plus que toute
+#     la pile NVIDIA. Sur une image livrée en cinq morceaux et gravée sur
+#     clé, ça ne se défend pas.
+#
+#     La règle qu'on en tire : un nom de rechange se juge sur ce qu'il coûte
+#     autant que sur ce qu'il remplace, et « apt-cache show » donne la
+#     réponse en deux secondes. L'autre remplaçant du même audit — magnus
+#     pour xzoom, la loupe d'écran — pèse zéro et rend un outil
+#     d'accessibilité. Il reste, et il montre que le problème n'était pas la
+#     méthode mais le fait de ne pas avoir sorti les chiffres.
+#
+#   Attendu au rapport : 416 posés / 9 introuvables (xonotic redevient
+#   introuvable, magnus reste), et une ISO qui retombe autour de 8,4 Go.
+#
 # build 68 : L'IA LOCALE — LE MODÈLE CHOISI, ET LA VRAIE RAISON DU MOTEUR
 #   MANQUANT.
 #
@@ -1639,4 +1681,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 68
+build: 69

@@ -150,8 +150,23 @@ supertuxkart
 0ad
 minetest
 openttd
-#  Xonotic n'est pas dans trixie (vérifié le 2026-08-22). Nexuiz y est, dans
-#  main : c'est le projet DONT Xonotic est issu — même moteur DarkPlaces, même
-#  genre, gratuit et libre. Le second nom sert donc vraiment de remplaçant,
-#  pas de lot de consolation.
-xonotic|nexuiz
+#  Xonotic n'est pas dans trixie (vérifié le 2026-08-22). Nexuiz y est, et
+#  c'est le projet DONT Xonotic est issu — même moteur DarkPlaces, même genre.
+#  La parenté était bonne. LE PRIX NE L'ÉTAIT PAS.
+#
+#  Nexuiz a été mis en second nom au build 68, sur ce seul raisonnement, sans
+#  regarder ce qu'il pesait. Il tire nexuiz-textures (498 Mo installés),
+#  nexuiz-data (265 Mo) et nexuiz-music (84 Mo) : l'ISO est passée de 8,37 à
+#  9,15 Go. TROIS CENT SOIXANTE-DIX MÉGAOCTETS DE PLUS QUE TOUTE LA PILE
+#  NVIDIA, pour un jeu de tir — sur une image qu'on télécharge en cinq
+#  morceaux et qu'on grave sur clé.
+#
+#  Retiré. La règle qu'on en tire : un nom de rechange se juge sur ce qu'il
+#  coûte autant que sur ce qu'il remplace, et « apt-cache show » donne la
+#  réponse en deux secondes. Le second remplaçant du même audit — magnus pour
+#  xzoom, une loupe d'écran — pèse zéro et rend un outil d'accessibilité :
+#  celui-là reste, et montre bien que le problème n'était pas la méthode.
+#
+#  La ligne reste sans second nom : si Debian empaquette Xonotic, elle
+#  reprendra effet toute seule. Il y a déjà quatre jeux au-dessus.
+xonotic
