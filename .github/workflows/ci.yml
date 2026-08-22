@@ -23,6 +23,7 @@ jobs:
             auto/config auto/build auto/clean \
             tools/render-branding.sh \
             config/hooks/normal/*.hook.chroot \
+            config/hooks/normal/*.hook.binary \
             config/includes.chroot/usr/bin/* \
             config/includes.chroot/etc/profile.d/lexos.sh \
             config/includes.chroot/usr/share/lexos/shell/*.sh
@@ -71,9 +72,26 @@ jobs:
 
       - name: Validité des SVG
         run: |
-          for f in branding/*.svg config/bootloaders/isolinux/*.svg; do
-            xmllint --noout "$f" && echo "ok  $f"
+          #  LE FOND DU MENU BIOS S'APPELLE « splash.svg.in », PAS « .svg ».
+          #  live-build ne lit QUE le .in : il le rend en splash.png, puis
+          #  écrase et efface tout .svg du même dossier. Le dessin d'Alex
+          #  portait le nom sans « .in » et n'a jamais atteint une clé USB.
+          #  Le motif « *.svg » ne trouvait donc plus rien après le
+          #  renommage, et le shell passait l'étoile elle-même à xmllint —
+          #  une CI rouge sur un dépôt sain. On nomme les deux formes, et
+          #  on saute proprement un motif sans correspondance.
+          bad=0
+          for f in branding/*.svg \
+                   config/bootloaders/isolinux/*.svg \
+                   config/bootloaders/isolinux/*.svg.in; do
+            [ -e "$f" ] || continue
+            xmllint --noout "$f" && echo "ok  $f" || bad=1
           done
+          #  Un fond absent des DEUX noms, c'est le menu BIOS sur fond noir :
+          #  personne ne le verrait avant la clé USB.
+          ls config/bootloaders/isolinux/splash.svg.in >/dev/null 2>&1 \
+            || { echo "::error::config/bootloaders/isolinux/splash.svg.in manque : le menu de démarrage BIOS démarrerait sur fond noir"; bad=1; }
+          exit $bad
 
       - name: Validité des XML de configuration XFCE
         run: |

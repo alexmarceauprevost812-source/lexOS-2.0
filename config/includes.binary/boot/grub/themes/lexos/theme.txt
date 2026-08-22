@@ -39,6 +39,14 @@ terminal-border:"0"
     item_color          = "#c8c8cf"
     selected_item_color = "#ffffff"
 
+    #  LES BANDES HAUTE ET BASSE DE select_*.png FONT 2 PIXELS, PAS 16.
+    #  Ce n'est pas un choix esthétique. GRUB dessine le texte de l'entrée
+    #  CHOISIE sous la bande haute du pixmap : avec 16 px, la première ligne
+    #  descendait de 16 px et sa boîte orange mordait sur l'entrée suivante —
+    #  l'écart 1->2 valait 48 px là où 2->3 en valait 64. Vérifié en machine
+    #  virtuelle : ramener select_n/select_s (et les quatre coins) à 2 px de
+    #  haut remet toutes les entrées à intervalle égal.
+    #  Si un jour ces images sont redessinées : garder 2 px en haut et en bas.
     selected_item_pixmap_style = "select_*.png"
 
     scrollbar       = false

@@ -1,0 +1,28 @@
+# =============================================================================
+#  LexOS — entrées « démo » du menu de démarrage BIOS
+# =============================================================================
+#  REMPLACE le modèle de live-build, qui écrit « Live (amd64) » et
+#  « Live (amd64 failsafe) » en anglais. Les @JETONS@ sont remplacés par
+#  live-build (lb_binary_syslinux) : ne pas les traduire ni les réécrire.
+#
+#  PAS DE « boot=live components » ÉCRIT À LA MAIN ICI, contrairement au
+#  modèle de live-build. auto/config met déjà ces deux mots en tête de
+#  BOOTAPPEND_BASE, donc de @LB_BOOTAPPEND_LIVE@ ET de
+#  @LB_BOOTAPPEND_FAILSAFE@. Les réécrire donnerait une ligne de commande
+#  avec « boot=live » deux fois.
+#
+#  L'ordre et les mots doivent rester ceux du menu UEFI (thème GRUB) : c'est
+#  le même produit, le même ordinateur, et souvent la même personne qui
+#  redémarre en changeant seulement le mode dans le BIOS.
+# =============================================================================
+
+label live-@FLAVOUR@
+	menu label Session de démonstration
+	menu default
+	kernel @KERNEL@
+	append initrd=@INITRD@ @LB_BOOTAPPEND_LIVE@
+
+label live-@FLAVOUR@-failsafe
+	menu label Mode de secours (affichage garanti)
+	kernel @KERNEL@
+	append initrd=@INITRD@ @LB_BOOTAPPEND_FAILSAFE@

@@ -154,7 +154,16 @@ jobs:
             rsync wget gnupg ca-certificates \
             syslinux-common isolinux \
             grub-efi-amd64-bin grub-pc-bin \
-            mtools dosfstools librsvg2-bin
+            mtools dosfstools librsvg2-bin \
+            fonts-dejavu-core
+          #  fonts-dejavu-core N'EST PAS DÉCORATIF ICI.
+          #  Le fond du menu BIOS est un SVG que live-build rend en PNG
+          #  SUR CETTE MACHINE, avec rsvg. Le dessin demande « DejaVu
+          #  Sans » et « DejaVu Sans Mono ». Si la police manque, rsvg ne
+          #  se plaint pas : il prend un substitut, l'ISO se construit,
+          #  et le titre « LexOS » sort dans une autre fonte — visible
+          #  seulement une fois la clé USB gravée et démarrée. On ne
+          #  compte donc pas sur ce que l'image du runner contient déjà.
 
           # Le live-build de l'archive Ubuntu est un fork figé en 3.0~a57 :
           # il ne connaît ni --updates, ni --bootloaders, ni --uefi-secure-boot,

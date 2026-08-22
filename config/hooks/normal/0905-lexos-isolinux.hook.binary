@@ -1,0 +1,120 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — rendre lisibles les accents du menu de démarrage BIOS
+# =============================================================================
+#  LE PROBLÈME QUE CE HOOK RÉPARE. Le menu UEFI est habillé par le hook 0910 ;
+#  celui du BIOS l'est par config/bootloaders/isolinux/. Mais une fois habillé,
+#  il restait un défaut visible à l'écran : « Session de démonstration »
+#  s'affichait « Session de d├─monstration ».
+#
+#  POURQUOI. syslinux ne connaît pas l'UTF-8. Il dessine chaque OCTET avec la
+#  police 8x16 de la carte CP437 — celle des BIOS. En UTF-8, « é » s'écrit sur
+#  deux octets (0xC3 0xA9), et syslinux dessine donc deux caractères de cette
+#  carte : « ├ » puis « ─ ». Tous les mots accentués du menu étaient touchés.
+#
+#  CE QU'ON NE FAIT PAS. Retirer les accents des libellés : un système fait au
+#  Québec qui écrit « Session de demonstration » à son tout premier écran, ça
+#  se remarque, et ça se remarque mal.
+#
+#  CE QU'ON FAIT. On garde les sources en UTF-8 — lisibles, modifiables, comme
+#  le reste du dépôt — et on convertit les fichiers du menu en CP437 au dernier
+#  moment, une fois qu'ils sont dans l'image. « //TRANSLIT » fait le repli sur
+#  le caractère non accentué le plus proche pour ce que CP437 ne contient pas,
+#  au lieu de s'arrêter en erreur : une flèche « → » devient « - » et le menu
+#  démarre quand même. Les vraies flèches, elles, sont dans splash.png, qui est
+#  une image et n'a donc aucun de ces problèmes.
+#
+#  ET SI ÇA RATE ? On laisse le fichier tel quel. Un accent mal dessiné est
+#  laid ; un menu de démarrage absent empêche de démarrer. Le premier est
+#  toujours préférable au second.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0905 : accents du menu de démarrage BIOS"
+
+DIR="binary/isolinux"
+
+if [ ! -d "$DIR" ]; then
+	#  Image construite sans syslinux (--bootloaders grub-efi seul) : il n'y a
+	#  simplement pas de menu BIOS à corriger.
+	echo "[lexos]   ${DIR} absent — pas de menu BIOS dans cette image"
+	exit 0
+fi
+
+if ! command -v iconv >/dev/null 2>&1; then
+	echo "[lexos]   !! iconv absent de la machine de construction — accents laissés en UTF-8"
+	echo "[lexos]      (paquet « libc-bin » ; sans lui le menu BIOS affichera « d├─monstration »)"
+	exit 0
+fi
+
+CONVERTIS=0
+INTACTS=0
+ECHECS=0
+
+for F in "$DIR"/*.cfg; do
+	[ -e "$F" ] || continue
+
+	#  Rien à faire si le fichier est déjà en pur ASCII : c'est le cas de
+	#  ldlinux et compagnie, et convertir pour rien brouille le journal.
+	if LC_ALL=C grep -qv '[^ -~	]' "$F" 2>/dev/null && ! LC_ALL=C grep -q '[^ -~	]' "$F"; then
+		INTACTS=$((INTACTS + 1))
+		continue
+	fi
+
+	if iconv -f UTF-8 -t CP437//TRANSLIT "$F" > "${F}.cp437" 2>/dev/null; then
+		#  Un fichier vide serait pire que l'original : on vérifie avant de
+		#  remplacer, exactement comme le hook 0910 le fait pour grub.cfg.
+		if [ -s "${F}.cp437" ]; then
+			mv "${F}.cp437" "$F"
+			CONVERTIS=$((CONVERTIS + 1))
+		else
+			rm -f "${F}.cp437"
+			ECHECS=$((ECHECS + 1))
+			echo "[lexos]   !! $(basename "$F") : conversion vide — fichier laissé en UTF-8"
+		fi
+	else
+		rm -f "${F}.cp437"
+		ECHECS=$((ECHECS + 1))
+		echo "[lexos]   !! $(basename "$F") : iconv a échoué — fichier laissé en UTF-8"
+	fi
+done
+
+echo "[lexos]   ${CONVERTIS} fichier(s) converti(s) en CP437, ${INTACTS} déjà en ASCII, ${ECHECS} échec(s)"
+
+# --- Le fond doit être là, et à la bonne taille ------------------------------
+#  vesamenu.c32 lit la résolution de l'écran DANS le PNG. Un fichier absent
+#  donne un menu sur fond noir ; un fichier qui ne fait pas 640x480 donne un
+#  menu décalé, parce que toute la géométrie de stdmenu.cfg est calée sur une
+#  grille de 80x30 caractères. On le dit plutôt que de le découvrir sur la clé.
+SPLASH="$DIR/splash.png"
+if [ ! -f "$SPLASH" ]; then
+	echo "[lexos]   !! splash.png absent — menu BIOS sur fond noir"
+	echo "[lexos]      (attendu depuis config/bootloaders/isolinux/splash.svg.in)"
+elif command -v identify >/dev/null 2>&1; then
+	TAILLE="$(identify -format '%wx%h' "$SPLASH" 2>/dev/null || echo inconnue)"
+	if [ "$TAILLE" = "640x480" ]; then
+		echo "[lexos]   splash.png : 640x480, grille 80x30 respectée"
+	else
+		echo "[lexos]   !! splash.png fait ${TAILLE} au lieu de 640x480 — menu décalé"
+	fi
+else
+	echo "[lexos]   splash.png présent (taille non vérifiée : « identify » absent)"
+fi
+
+# --- Les entrées pointent-elles vers des fichiers qui existent ? -------------
+#  Une entrée de menu qui appelle un noyau absent ne se voit qu'au moment où
+#  on la choisit — c'est-à-dire chez la personne, pas ici.
+MANQUANTS=0
+for K in $(grep -hE '^[[:space:]]*kernel[[:space:]]' "$DIR"/*.cfg 2>/dev/null | awk '{print $2}' | sort -u); do
+	case "$K" in
+		/*) CIBLE="binary${K}" ;;
+		*)  CIBLE="${DIR}/${K}" ;;
+	esac
+	if [ ! -e "$CIBLE" ]; then
+		echo "[lexos]   !! entrée de menu vers un fichier absent : ${K}"
+		MANQUANTS=$((MANQUANTS + 1))
+	fi
+done
+[ "$MANQUANTS" -eq 0 ] && echo "[lexos]   toutes les entrées pointent vers un fichier présent"
+
+echo "[lexos] hook 0905 : ok"
