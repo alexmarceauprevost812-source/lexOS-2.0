@@ -175,6 +175,15 @@ def act_ouvrir(arg):
         "comptes":    lambda: _terminal("Comptes en ligne — LexOS", "lexos comptes"),
         "bienetre":   lambda: _terminal("Bien-être numérique — LexOS", "lexos bienetre"),
         "apropos":    lambda: _run(["lexos-welcome", "--about"], detach=True),
+        #  Le moteur de scan matériel. Il avait sa fenêtre et son lanceur,
+        #  mais AUCUN chemin depuis ici : deux piles côte à côte qui ne se
+        #  parlaient pas. Le contrôle 16 l'a nommé — c'est cette ligne qui
+        #  le branche.
+        "boost":      lambda: _run(["lexos-boost"], detach=True),
+        #  Le coffre parle en TERMINAL (menu, questions, mot de passe) : le
+        #  lancer détaché ferait un bouton qui ne fait rien — vérifié dans son
+        #  routeur, « gui » n'existe pas, l'entrée par défaut est « menu ».
+        "prive":      lambda: _terminal("Fichiers privés — LexOS", "lexos prive"),
     }
     fn = outils.get(arg)
     if fn is None:

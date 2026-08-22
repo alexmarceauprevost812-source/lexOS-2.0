@@ -258,6 +258,10 @@ function btnOuvrir(section, libelle){
 
 /* --- Actions déclenchées par la page ------------------------------------- */
 async function ouvrir(section){ await api("ouvrir", section); }
+async function ouvreBoost(){
+  const r = await api("ouvrir", "boost");
+  if(r.ok) toast("LexOS Boost s'ouvre dans sa fenêtre");
+}
 
 /*  Après chaque changement on RELIT l'état depuis la machine au lieu de le
     deviner. Un interrupteur qui bascule à l'écran alors que la commande a
@@ -729,7 +733,9 @@ function contenu(cle){
             appairée dans <b>Bluetooth</b>.</div>
         </div>`;
       })()}
-      ${btnOuvrir("son","Ouvrir le mélangeur")}`;
+      ${btnOuvrir("son","Ouvrir le mélangeur")}
+      <p class="notice">En ligne de commande : <code>lexos son</code> —
+      volume, sortie, profils, tout au clavier.</p>`;
     }
     case "energie": return `<h2>Énergie</h2><div class="sub">Profil de performance</div>
       ${(etat.batterie && etat.batterie.niveau >= 0)
@@ -758,6 +764,11 @@ function contenu(cle){
       </div>
       ${srow("Baisser la luminosité sur batterie","Quand le secteur est débranché",
              sw(etat.energie && etat.energie.dimBat, "basculeDimBat()"))}
+
+      <h3 class="cpt-h3">Scan matériel</h3>
+      ${srow("LexOS Boost",
+             "Inventaire de la machine, mesures, optimisations — dans sa fenêtre",
+             `<button class="btn ghost" onclick="ouvreBoost()">Ouvrir</button>`)}
       ${srow("Éteindre l'écran après","L'écran s'éteint, la machine continue de tourner",
              menu("ecranOff", (etat.energie && etat.energie.ecranOff) || "10",
                   [["1","1 min"],["5","5 min"],["10","10 min"],["30","30 min"],["0","jamais"]]))}
@@ -1222,10 +1233,14 @@ function contenu(cle){
           <button class="btn ghost" onclick="actionSecu('rootkit')">Anti-rootkit</button>
         </div>
       </div>
+      ${srow("Fichiers privés",
+             "Un coffre chiffré (gocryptfs) pour ce qui ne regarde personne",
+             `<button class="btn ghost" onclick="api('ouvrir','prive').then(()=>toast('Fichiers privés s\'ouvre'))">Ouvrir</button>`)}
       <p class="notice">Ces outils demandent les droits d'administration et posent
       des questions : ils s'ouvrent dans un terminal, pour qu'on puisse LIRE ce
       qu'ils font. Les lancer en silence derrière un interrupteur cacherait
-      justement ce qu'il faut voir.</p>`;
+      justement ce qu'il faut voir. En ligne de commande :
+      <code>lexos secure</code> · <code>lexos prive</code>.</p>`;
     }
     case "maj": {
       const m = etat.maj || {};
@@ -1263,6 +1278,7 @@ function contenu(cle){
              a.onboard ? "Taper à la souris ou au doigt, sans clavier physique" : "Pas installé",
              a.onboard ? `<button class="btn ghost" onclick="basculeAccess('onboard')">Lancer</button>` : "")}
       ${btnOuvrir("accessibilite","Réglages fins (XFCE)")}
+      <p class="notice">En ligne de commande : <code>lexos access</code>.</p>
       <p class="notice">Un système sans lecteur d'écran n'est pas utilisable par
       tout le monde : Orca est embarqué d'office, pas en option.</p>`;
     }
@@ -1348,7 +1364,8 @@ function contenu(cle){
         a[k] ? srow(noms[k], esc(a[k])) : "").join("")}
       ${btnOuvrir("defaut","Changer les applications par défaut")}
       <p class="notice">Autre façon de faire, souvent plus rapide : clic droit sur
-      un fichier → <b>Ouvrir avec</b> → <b>Définir par défaut</b>.</p>`;
+      un fichier → <b>Ouvrir avec</b> → <b>Définir par défaut</b>. En ligne de
+      commande : <code>lexos defaut</code>.</p>`;
     }
     case "distant": {
       const r = etat.distant || {};

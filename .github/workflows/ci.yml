@@ -167,6 +167,13 @@ jobs:
           [ "$bad" = "0" ] && echo "  ok — toutes les tuiles n'emploient que des balises connues"
           exit $bad
 
+      - name: Contrôle 16 — chaque outil est branché (Paramètres, case, aide)
+        run: |
+          #  Le script vit à la racine pour qu'Alex puisse le lancer à la main.
+          #  --strict : une erreur du contrôle 16 arrête la CI. Les
+          #  avertissements (lanceurs volontairement absents) ne bloquent pas.
+          ./verifier-parametres.sh --strict
+
       - name: Un paquet de backports exige que backports soit ouvert
         run: |
           #  LE SILENCE QUE CE CONTRÔLE ATTRAPE.

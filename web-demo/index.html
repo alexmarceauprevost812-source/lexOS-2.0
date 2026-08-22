@@ -6489,7 +6489,12 @@ function settingsSection(key){
       <p class="notice">La luminosité est réglée pour de vrai sur la vraie ISO —
       <code>lexos lumiere 60</code>, <code>lexos lumiere eco</code>, ou <code>lexos lumiere +10</code>.
       LexOS pilote le rétroéclairage quand la machine en a un ; sinon il assombrit
-      l'image et le dit clairement, parce que ça n'économise alors aucune batterie.</p>`;
+      l'image et le dit clairement, parce que ça n'économise alors aucune batterie.</p>
+      <h3 class="cpt-h3">Scan matériel</h3>
+      <div class="srow"><div><div class="t">LexOS Boost</div>
+        <div class="d">Inventaire de la machine, mesures, optimisations — dans sa fenêtre</div></div>
+        <button class="btn ghost mini" style="width:auto"
+          onclick="toast('Sur la vraie ISO : lexos boost, ou ce bouton')">Ouvrir</button></div>`;
     case "usb": return `<h2>Appareils USB</h2><div class="sub">Branchements détectés</div>
       <div style="display:flex;align-items:center;gap:18px;margin:14px 0">
         <i class="gly gly-usb" id="usbBig" style="width:76px;height:76px;cursor:pointer"

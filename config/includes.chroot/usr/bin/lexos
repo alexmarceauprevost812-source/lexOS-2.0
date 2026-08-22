@@ -116,6 +116,8 @@ ${B}ÉNERGIE${R}
   ${A}perf auto${R}           Choisir d'après le matériel détecté
   ${A}temperature${R}         ${B}Chaleur et ventilateurs, en direct${R}
                       ${D}processeur · carte graphique · mémoire vidéo · disques${R}
+  ${A}boost${R}               Scan matériel et optimisation ${D}(LexOS Boost — aussi : scan)${R}
+  ${A}parametres${R}          Ouvre la fenêtre des Paramètres ${D}(aussi : reglages)${R}
   ${A}temperature surveille${R} Garde les maximums — à lancer AVANT une partie
   ${A}firmware${R}            BIOS et micrologiciels : ce qui est à jour
   ${A}firmware maj${R}        Met à jour le BIOS système, les SSD…
@@ -967,6 +969,10 @@ case "$CMD" in
 	studio)               exec lexos-studio "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
 	ia|agent)             exec lexos-ia "$@" ;;
+	#  Boost avait son lanceur de bureau mais aucune branche ici : le seul
+	#  outil qu'on ne pouvait pas taper. Le contrôle 16 l'a nommé.
+	boost|scan|optimisation) exec lexos-boost "$@" ;;
+	parametres|paramètres|reglages|réglages|settings) exec lexos-settings "$@" ;;
 	ia-locale|ialocale)   exec lexos-ia-locale "$@" ;;
 	assistants|assistant) exec lexos-assistants "$@" ;;
 	claude|cc)            exec lexos-claude "$@" ;;

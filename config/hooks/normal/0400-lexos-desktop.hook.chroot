@@ -489,6 +489,26 @@ Categories=System;Utility;
 Keywords=ia;ai;intelligence artificielle;llama;llama.cpp;ollama;modele;modèle;gguf;local;hors ligne;
 EOF
 
+#  Les six assistants IA en ligne (Claude, ChatGPT, Gemini, Perplexity,
+#  Mistral, Copilot), chacun en fenêtre dédiée. Une entrée de menu et non
+#  six : c'est le sélecteur de lexos-assistants qui fait le choix — six
+#  icônes presque identiques dans le menu, personne ne les distingue.
+cat > /usr/share/applications/lexos-assistants.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Assistants IA
+Name[en]=AI Assistants
+Comment=Claude, ChatGPT, Gemini, Perplexity, Mistral, Copilot — en fenêtre dédiée
+Comment[en]=Claude, ChatGPT, Gemini, Perplexity, Mistral, Copilot — each in its own window
+Exec=lexos assistants
+Icon=lexos
+Terminal=false
+StartupNotify=true
+Categories=Network;Utility;
+Keywords=ia;ai;assistant;claude;chatgpt;gemini;perplexity;mistral;copilot;
+EOF
+
 cat > /usr/share/applications/lexos-secure.desktop <<EOF
 [Desktop Entry]
 Type=Application
