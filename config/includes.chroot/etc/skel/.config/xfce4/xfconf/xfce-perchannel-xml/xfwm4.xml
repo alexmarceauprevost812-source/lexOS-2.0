@@ -7,7 +7,12 @@
 <channel name="xfwm4" version="1.0">
   <property name="general" type="empty">
     <property name="theme"                     type="string" value="Arc-Dark"/>
-    <property name="title_font"                type="string" value="Noto Sans Bold 10"/>
+    <!--  LA HAUTEUR DE LA BARRE DE TITRE SUIT CETTE POLICE, et les boutons
+          fermer/réduire/agrandir avec elle : xfwm4 met les images du thème
+          à l'échelle du texte. Passer de 10 à 13 est donc le seul réglage
+          à toucher pour grossir ces trois boutons — inutile de fabriquer
+          un thème à nous. Demandé par Alex : « ils sont trop petits ». -->
+    <property name="title_font"                type="string" value="Noto Sans Bold 13"/>
     <property name="title_alignment"           type="string" value="center"/>
     <!-- Comme la démo (openWin()) : menu, agrandir, fermer — pas de réduire. -->
     <property name="button_layout"             type="string" value="|OMC"/>

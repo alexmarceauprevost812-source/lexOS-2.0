@@ -37,7 +37,7 @@ body{background:var(--bg);color:var(--fg);
   background:none;color:var(--fg);font-family:inherit;font-size:15.5px;
   text-align:left;cursor:pointer}
 .nav-item:hover{background:var(--bg-hi)}
-.nav-item.sel{background:var(--ac);color:#fff;font-weight:600}
+.nav-item.sel{background:var(--ac);color:#000;font-weight:600}
 .nav-item .pic{width:24px;flex:none;text-align:center;font-size:17px}
 
 /* --- Contenu ------------------------------------------------------------- */
@@ -53,12 +53,12 @@ h2{font-size:22px;font-weight:700}
 .notice code{background:var(--bg-hi);padding:1px 5px;border-radius:4px}
 
 .row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-.btn{padding:8px 14px;border:1px solid var(--ac);border-radius:8px;
-  background:var(--ac);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.btn{padding:9px 18px;border:1px solid var(--ac);border-radius:999px;
+  background:var(--ac);color:#000;font:inherit;font-weight:600;cursor:pointer}
 .btn:hover{background:var(--ac-hi);border-color:var(--ac-hi)}
 .btn.ghost{background:none;color:var(--fg);border-color:var(--bd)}
 .btn.ghost:hover{background:var(--bg-hi)}
-.btn.sel{background:var(--ac);color:#fff;border-color:var(--ac)}
+.btn.sel{background:var(--ac);color:#000;border-color:var(--ac)}
 
 /* --- Interrupteur -------------------------------------------------------- */
 .sw{width:44px;height:24px;flex:none;border-radius:12px;background:var(--bg-hi);

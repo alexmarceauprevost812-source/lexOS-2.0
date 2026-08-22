@@ -31,8 +31,13 @@
             longueur au contenu et reprend toute la largeur. -->
       <property name="length"          type="uint"   value="98"/>
       <property name="length-adjust"   type="bool"   value="false"/>
-      <property name="size"            type="uint"   value="32"/>
-      <property name="icon-size"       type="uint"   value="16"/>
+      <!--  PLUS GROS, À LA DEMANDE D'ALEX (build 70). 32 px de barre et
+            16 px d'icône, c'était la taille par défaut de XFCE, pensée
+            pour un écran de bureau regardé de près. Sur un portable de
+            14 pouces, à bout de bras, on vise mal des cibles de 16 px.
+            44 / 28 reste sobre et devient cliquable sans appliquer. -->
+      <property name="size"            type="uint"   value="44"/>
+      <property name="icon-size"       type="uint"   value="28"/>
       <property name="mode"            type="uint"   value="0"/>
       <property name="autohide-behavior" type="uint" value="0"/>
       <property name="enter-opacity"   type="uint"   value="100"/>

@@ -46,7 +46,7 @@ html,body{height:100%;background:transparent;
 /* --- Notifications -------------------------------------------------------- */
 .nf-tete{display:flex;align-items:center;gap:9px;padding:14px 16px 10px}
 .nf-titre{font-weight:600}
-.nf-cpt{background:var(--ac);color:#fff;border-radius:9px;padding:1px 7px;
+.nf-cpt{background:var(--ac);color:#000;border-radius:9px;padding:1px 7px;
   min-width:18px;text-align:center;font-size:12px;font-weight:700}
 .nf-liste{padding:0 12px 8px}
 .nf-item{display:flex;gap:10px;padding:9px 10px;background:var(--bg-hi);
@@ -71,7 +71,7 @@ html,body{height:100%;background:transparent;
   cursor:pointer;display:flex;align-items:center;justify-content:center}
 .ag-c:hover{background:var(--bg-hi)}
 .ag-c.hors{color:var(--fg-dim);opacity:.4}
-.ag-c.auj{background:var(--ac);color:#fff;font-weight:700}
+.ag-c.auj{background:var(--ac);color:#000;font-weight:700}
 .ag-c.sel{border-color:var(--ac)}
 /*  La pastille qui dit « il y a quelque chose ce jour-là » : sans elle, il
     faudrait cliquer chaque case pour savoir laquelle porte un rendez-vous. */
@@ -112,7 +112,7 @@ html,body{height:100%;background:transparent;
 
 /* --- Boutons -------------------------------------------------------------- */
 .btn{background:var(--ac);border:1px solid var(--ac);border-radius:9px;
-  padding:6px 11px;color:#fff;font:inherit;font-weight:600;font-size:12.5px;
+  padding:6px 11px;color:#000;font:inherit;font-weight:600;font-size:12.5px;
   cursor:pointer}
 .btn:hover{background:var(--ac-hi);border-color:var(--ac-hi)}
 .btn.ghost{background:none;border-color:var(--bd);color:var(--fg)}
