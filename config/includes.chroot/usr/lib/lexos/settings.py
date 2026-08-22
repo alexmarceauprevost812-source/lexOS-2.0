@@ -629,6 +629,140 @@ def act_echelle(arg):
                  "-n", "-t", "int", "-s", str(ECHELLES[arg])])
 
 
+def act_wifi_connecter(arg):
+    """Se connecter à un réseau Wi-Fi.
+
+    LE NOM DU RÉSEAU EST VÉRIFIÉ CONTRE CE QUE LA MACHINE VOIT VRAIMENT, pas
+    seulement contre un motif : on ne se connecte qu'à un réseau qui figure
+    dans le balayage en cours. C'est la même discipline que pour les sorties
+    audio et les définitions d'écran — un ensemble fermé, construit par la
+    machine, jamais par la page.
+
+    Le mot de passe, lui, ne peut pas être vérifié contre quoi que ce soit :
+    c'est un secret. Il n'est donc JAMAIS écrit dans un journal, jamais
+    renvoyé à la page, et il part dans une LISTE d'arguments — subprocess ne
+    voit pas de shell, donc aucun caractère ne peut devenir une commande.
+    """
+    if not isinstance(arg, dict):
+        return {"ok": False, "erreur": "requête invalide"}
+    ssid = str(arg.get("ssid", "")).strip()
+    mot = str(arg.get("mot_de_passe", ""))
+    if not ssid:
+        return {"ok": False, "erreur": "il faut choisir un réseau"}
+    if not shutil.which("nmcli"):
+        return {"ok": False, "erreur": "nmcli absent"}
+
+    connus = {r["ssid"] for r in _wifi_reseaux()}
+    if ssid not in connus:
+        return {"ok": False,
+                "erreur": "ce réseau n'est plus à portée — relance la recherche"}
+    if len(mot) > 128:
+        return {"ok": False, "erreur": "mot de passe trop long"}
+
+    argv = ["nmcli", "device", "wifi", "connect", ssid]
+    if mot:
+        argv += ["password", mot]
+    try:
+        #  45 s : une association Wi-Fi plus un bail DHCP prennent parfois
+        #  vingt secondes sur une borne encombrée. Trop court, on annoncerait
+        #  un échec à une connexion en train de réussir.
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=45)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "erreur": "la connexion n'a pas abouti à temps"}
+    except (subprocess.SubprocessError, OSError) as e:
+        return {"ok": False, "erreur": str(e)}
+    if r.returncode == 0:
+        return {"ok": True}
+
+    #  LE MESSAGE D'ERREUR EST NETTOYÉ AVANT D'ÊTRE MONTRÉ. nmcli répète
+    #  parfois la commande complète dans sa plainte — mot de passe compris.
+    detail = (r.stderr or r.stdout or "").strip()
+    if mot and mot in detail:
+        detail = detail.replace(mot, "••••••")
+    bas = detail.lower()
+    if "secrets were required" in bas or "802-11-wireless-security" in bas \
+            or "invalid password" in bas:
+        detail = "Mot de passe refusé."
+    return {"ok": False, "erreur": detail[:300] or "connexion refusée"}
+
+
+def act_bt_connecter(arg):
+    """Se connecter à un appareil Bluetooth — ou l'appairer s'il est nouveau.
+
+    L'ADRESSE EST VÉRIFIÉE CONTRE CE QUE LE CONTRÔLEUR A VU, comme le SSID
+    Wi-Fi contre le balayage : un ensemble fermé construit par la machine.
+    Pour un appareil déjà appairé, « connect » suffit. Pour un nouveau, il
+    faut « pair » d'abord — une barre de son n'a pas d'écran pour afficher un
+    code, le trust+pair direct est exactement ce que fait l'appairage simple.
+    """
+    adresse = str(arg or "").strip().upper()
+    if not shutil.which("bluetoothctl"):
+        return {"ok": False, "erreur": "bluetoothctl absent"}
+    connus = {d["adresse"].upper(): d for d in _bluetooth_appareils()}
+    if adresse not in connus:
+        return {"ok": False, "erreur": "appareil inconnu — relance la recherche"}
+    d = connus[adresse]
+    if not d["appaire"]:
+        r = subprocess.run(["bluetoothctl", "pair", adresse],
+                           capture_output=True, text=True, timeout=45)
+        if r.returncode != 0:
+            return {"ok": False,
+                    "erreur": "l'appairage a échoué — mets l'appareil en mode "
+                              "appairage et réessaie"}
+        subprocess.run(["bluetoothctl", "trust", adresse],
+                       capture_output=True, text=True, timeout=15)
+    r = subprocess.run(["bluetoothctl", "connect", adresse],
+                       capture_output=True, text=True, timeout=45)
+    if r.returncode == 0:
+        return {"ok": True}
+    return {"ok": False, "erreur": (r.stderr or r.stdout or "connexion refusée").strip()[:200]}
+
+
+def act_bt_deconnecter(arg):
+    """Couper la connexion, sans désappairer : l'appareil reste connu."""
+    adresse = str(arg or "").strip().upper()
+    if not shutil.which("bluetoothctl"):
+        return {"ok": False, "erreur": "bluetoothctl absent"}
+    connus = {d["adresse"].upper() for d in _bluetooth_appareils()}
+    if adresse not in connus:
+        return {"ok": False, "erreur": "appareil inconnu"}
+    return _run(["bluetoothctl", "disconnect", adresse])
+
+
+def act_bt_chercher(arg):
+    """Balayer pendant douze secondes, puis rendre la main.
+
+    « bluetoothctl scan on » ne se termine JAMAIS tout seul : c'est un
+    processus qui écoute. Lancé tel quel depuis le pont, il resterait pendu
+    et la page attendrait sans fin. « --timeout 12 » borne l'écoute : douze
+    secondes suffisent à une barre de son en mode appairage pour se montrer,
+    et la main revient toujours.
+    """
+    del arg
+    if not shutil.which("bluetoothctl"):
+        return {"ok": False, "erreur": "bluetoothctl absent"}
+    try:
+        subprocess.run(["bluetoothctl", "--timeout", "12", "scan", "on"],
+                       capture_output=True, text=True, timeout=25)
+    except (subprocess.SubprocessError, OSError) as e:
+        return {"ok": False, "erreur": str(e)}
+    return {"ok": True}
+
+
+def act_wifi_rechercher(arg):
+    """Relancer un balayage, à la demande.
+
+    Séparé de l'affichage exprès : ouvrir la fenêtre ne doit pas déclencher
+    une recherche complète — elle coupe brièvement la connexion en cours et
+    prend trois secondes. Quand on cherche un réseau qui vient d'apparaître,
+    en revanche, on veut pouvoir le demander.
+    """
+    del arg
+    if not shutil.which("nmcli"):
+        return {"ok": False, "erreur": "nmcli absent"}
+    return _run(["nmcli", "device", "wifi", "rescan"], timeout=30)
+
+
 def act_distant_partage(arg):
     """Démarrer ou arrêter le partage de cet écran.
 
@@ -760,6 +894,11 @@ ACTIONS = {
     "son-sortie": act_son_sortie,
     "ecran-definition": act_ecran_definition,
     "echelle": act_echelle,
+    "bt-connecter": act_bt_connecter,
+    "bt-deconnecter": act_bt_deconnecter,
+    "bt-chercher": act_bt_chercher,
+    "wifi-connecter": act_wifi_connecter,
+    "wifi-rechercher": act_wifi_rechercher,
     "distant-partage": act_distant_partage,
     "distant-vers": act_distant_vers,
     "capture-format": act_capture_format,
@@ -805,9 +944,12 @@ ACTIONS = {
 #  État — ce que la page affiche au chargement.
 # =============================================================================
 
-def _sortie(argv):
+def _sortie(argv, *, timeout=10):
+    #  Le délai par défaut suffit à tout ce qui lit la machine ; le balayage
+    #  Wi-Fi, lui, peut prendre plus de dix secondes sur une borne encombrée —
+    #  d'où le paramètre.
     try:
-        r = subprocess.run(argv, capture_output=True, text=True, timeout=10)
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
         return r.stdout.strip() if r.returncode == 0 else ""
     except Exception:
         return ""
@@ -842,7 +984,78 @@ def _wifi_etat():
             reseau = champs[1]
             signal = int(champs[2]) if champs[2].isdigit() else 0
             break
-    return {"radio": radio, "reseau": reseau, "signal": signal}
+    return {"radio": radio, "reseau": reseau, "signal": signal,
+            "reseaux": _wifi_reseaux() if radio == "enabled" else []}
+
+
+def _terse(ligne):
+    """Découper une ligne « nmcli -t », en respectant ses échappements.
+
+    IL FAUT VRAIMENT CE BOUT DE CODE. nmcli sépare ses champs par « : » et
+    échappe donc en « \\: » les deux-points qui se trouvent DANS une valeur.
+    Un simple split(":") coupe alors « Chez Léa : 5G » en deux et affiche un
+    réseau qui n'existe pas — pendant que le vrai reste introuvable.
+    """
+    champs, courant, echappe = [], "", False
+    for c in ligne:
+        if echappe:
+            courant += c
+            echappe = False
+        elif c == "\\":
+            echappe = True
+        elif c == ":":
+            champs.append(courant)
+            courant = ""
+        else:
+            courant += c
+    champs.append(courant)
+    return champs
+
+
+def _wifi_reseaux():
+    """Les réseaux à portée, du plus fort au plus faible.
+
+    CE QUI MANQUAIT. Le panneau savait dire « connecté » ou « aucun », et
+    rien d'autre : sans réseau, il fallait deviner qu'un bouton ouvrait un
+    autre outil. Or au premier démarrage il n'y a JAMAIS de réseau — et sans
+    réseau, ni météo, ni catalogue, ni mises à jour. C'est le premier geste
+    qu'on fait sur une machine neuve, et c'était le seul qu'on ne pouvait pas
+    faire ici.
+
+    « --rescan auto » laisse nmcli décider : il ne relance une recherche que
+    si son cache est vieux. Forcer un balayage à chaque ouverture de fenêtre
+    coûterait trois secondes et couperait brièvement la connexion en cours.
+    """
+    if not shutil.which("nmcli"):
+        return []
+    lignes = _sortie(["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL,SECURITY",
+                      "device", "wifi", "list", "--rescan", "auto"],
+                     timeout=25)
+    par_nom = {}
+    for ligne in lignes.splitlines():
+        ch = _terse(ligne)
+        if len(ch) < 4:
+            continue
+        actif, ssid, signal, securite = ch[0], ch[1], ch[2], ch[3]
+        #  Un réseau caché n'a pas de nom à afficher : on ne peut ni le
+        #  montrer ni s'y connecter d'un clic. Il reste joignable par
+        #  « lexos wifi », qui sait demander le nom.
+        if not ssid:
+            continue
+        force = int(signal) if signal.isdigit() else 0
+        #  Une borne peut émettre en 2,4 GHz ET en 5 GHz sous le même nom :
+        #  deux lignes, un seul réseau aux yeux de celui qui regarde. On garde
+        #  la plus forte.
+        ancien = par_nom.get(ssid)
+        if ancien is None or force > ancien["signal"]:
+            par_nom[ssid] = {"ssid": ssid, "signal": force,
+                             "protege": bool(securite.strip()),
+                             "securite": securite.strip(),
+                             "actif": actif == "yes"}
+        elif actif == "yes":
+            ancien["actif"] = True
+    return sorted(par_nom.values(),
+                  key=lambda r: (not r["actif"], -r["signal"]))
 
 
 def _son_etat():
@@ -1060,6 +1273,63 @@ def _bluetooth_etat():
         if ligne.strip().startswith("Powered:"):
             return ligne.split(":", 1)[1].strip() == "yes"
     return None
+
+
+def _bluetooth_complet():
+    allume = _bluetooth_etat()
+    return {"radio": allume,
+            "appareils": _bluetooth_appareils() if allume else []}
+
+
+def _bluetooth_appareils():
+    """Les appareils Bluetooth : appairés d'abord, puis ceux qui se montrent.
+
+    CE QUI MANQUAIT, ET POUR LE MÊME CINÉMA MAISON QUE LE SON. Le panneau
+    disait « allumé, prêt à appairer » et s'arrêtait là : la barre de son
+    d'Alex était introuvable, faute de liste où la voir. « bluetoothctl
+    devices » sait pourtant tout — appairés (Paired), connectés (Connected),
+    et ce que le dernier balayage a vu passer.
+
+    On lit deux listes : les appairés (toujours), et ce que le contrôleur a
+    déjà entendu. On ne DÉCLENCHE pas de balayage ici : « scan on » est un
+    processus qui reste ouvert, pas une commande qui rend la main — c'est
+    l'action « bt-chercher » qui s'en charge, sur demande.
+    """
+    if not shutil.which("bluetoothctl"):
+        return []
+    appareils = {}
+
+    def lire(argv, appaire):
+        for ligne in _sortie(argv, timeout=15).splitlines():
+            #  « Device AC:BF:71:2E:11:09 LG Sound Bar SN9Y »
+            mots = ligne.split(None, 2)
+            if len(mots) < 3 or mots[0] != "Device":
+                continue
+            adresse, nom = mots[1], mots[2].strip()
+            #  Sans nom réel, bluetoothctl répète l'adresse avec des tirets :
+            #  une ligne pareille n'aide personne à reconnaître son appareil.
+            if nom.replace("-", ":").upper() == adresse.upper():
+                continue
+            d = appareils.setdefault(adresse, {"adresse": adresse, "nom": nom,
+                                               "appaire": False,
+                                               "connecte": False})
+            d["appaire"] = d["appaire"] or appaire
+
+    lire(["bluetoothctl", "devices", "Paired"], True)
+    lire(["bluetoothctl", "devices"], False)
+
+    for adresse, d in appareils.items():
+        info = _sortie(["bluetoothctl", "info", adresse], timeout=10)
+        for ligne in info.splitlines():
+            l = ligne.strip()
+            if l.startswith("Connected:"):
+                d["connecte"] = l.endswith("yes")
+            elif l.startswith("Icon:"):
+                d["genre"] = l.split(":", 1)[1].strip()
+
+    return sorted(appareils.values(),
+                  key=lambda d: (not d["connecte"], not d["appaire"],
+                                 d["nom"].lower()))
 
 
 def _casque_branche():
@@ -1865,7 +2135,7 @@ def etat():
         "heure": _heure_etat(),
         "lumiere": _lumiere_etat(),
         "energie": _energie_etat(),
-        "bluetooth": _bluetooth_etat(),
+        "bluetooth": _bluetooth_complet(),
         "dock": _dock_etat(),
         "crt": _crt_etat(),
         "barreCachee": _barre_cachee(),

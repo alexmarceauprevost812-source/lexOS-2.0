@@ -183,3 +183,11 @@ select{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
 kbd{display:inline-block;padding:1px 6px;border-radius:5px;
   background:var(--bg-hi);border:1px solid var(--bd);
   font:600 11.5px/1.5 ui-monospace,monospace;color:var(--fg)}
+
+/* --- La liste des réseaux Wi-Fi -------------------------------------------
+   Le cadenas colle au nom du réseau plutôt qu'à sa description : c'est en
+   parcourant la colonne des noms qu'on repère « celui-là est ouvert », et un
+   avertissement qu'il faut lire pour le voir n'avertit personne. */
+.wifi-l .t{display:flex;align-items:center;gap:8px}
+.cadenas{font-size:12px;opacity:.7}
+.cadenas.ouvert{color:var(--att,#FBBF24);opacity:1}

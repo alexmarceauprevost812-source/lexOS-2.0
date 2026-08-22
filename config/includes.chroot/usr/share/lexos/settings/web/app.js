@@ -100,6 +100,11 @@ let sectionActive = "wifi";
     choix rangé dans le HTML disparaîtrait à la première relecture d'état. */
 let distantProto = "auto";
 
+/*  Le réseau Wi-Fi qu'on est en train de choisir. Comme le protocole du
+    bureau à distance, il vit ICI : rendSection() réécrit tout le panneau à
+    chaque relecture d'état, et un choix rangé dans le HTML disparaîtrait. */
+let wifiChoisi = "";
+
 /* --- API ------------------------------------------------------------------ */
 async function api(action, arg){
   try{
@@ -301,6 +306,43 @@ async function setFondQualite(v){
   const r = await api("fond-qualite", v);
   await rafraichir(r.ok ? "Au prochain démarrage du fond"
                         : "Échec : " + (r.erreur || "refusé"));
+}
+async function btBranche(adresse){
+  toast("Connexion en cours…");
+  const r = await api("bt-connecter", adresse);
+  await rafraichir(r.ok ? "Connecté — va dans Son pour y envoyer le son" : null);
+}
+async function btCoupe(adresse){
+  const r = await api("bt-deconnecter", adresse);
+  await rafraichir(r.ok ? "Déconnecté" : null);
+}
+/*  La recherche dure douze secondes CÔTÉ MACHINE : le bouton le dit et se
+    désactive pendant ce temps, sinon on clique trois fois et on empile trois
+    balayages. */
+async function btCherche(){
+  const b = document.getElementById("btCherche");
+  if(b){ b.disabled = true; b.textContent = "Recherche en cours…"; }
+  const r = await api("bt-chercher");
+  await rafraichir(r.ok ? "Recherche terminée" : null);
+}
+function choisitWifi(ssid){ wifiChoisi = ssid; rendSection();
+  const c = document.getElementById("wifiMdp"); if(c) c.focus(); }
+async function chercheWifi(){
+  toast("Recherche des réseaux…");
+  await api("wifi-rechercher");
+  await rafraichir("Recherche terminée");
+}
+/*  Le mot de passe est lu au moment de l'envoi et n'est JAMAIS rangé dans une
+    variable qui survivrait au rendu : il fait l'aller simple champ → pont
+    local → gestionnaire de réseau. */
+async function brancheWifi(){
+  const ssid = wifiChoisi;
+  if(!ssid) return;
+  const c = document.getElementById("wifiMdp");
+  const r = await api("wifi-connecter", {ssid, mot_de_passe: c ? c.value : ""});
+  if(c) c.value = "";
+  if(r.ok){ wifiChoisi = ""; await rafraichir("Connecté à " + ssid); }
+  else await rafraichir(null);
 }
 function setDistantProto(p){
   if(["auto","rdp","vnc","ssh"].includes(p)){ distantProto = p; rendSection(); }
@@ -510,7 +552,55 @@ function contenu(cle){
                sw(allume, "basculeWifi()"))}
       ${allume && w.reseau
         ? srow("Réseau connecté", `${esc(w.reseau)} — signal ${w.signal} %`, barres(w.signal))
-        : (allume ? srow("Réseau connecté", "Aucun — ouvre l'outil réseau pour en choisir un") : "")}
+        : (allume ? srow("Réseau connecté", "Aucun — choisis-en un ci-dessous") : "")}
+
+      ${allume ? (() => {
+        /*  LA LISTE QUI MANQUAIT. Le panneau savait dire « connecté » ou
+            « aucun », et rien d'autre : sans réseau, il fallait deviner
+            qu'un bouton ouvrait un autre outil. Or au premier démarrage il
+            n'y a JAMAIS de réseau — et sans réseau, ni météo, ni catalogue,
+            ni mises à jour. C'est le premier geste qu'on fait sur une
+            machine neuve, et c'était le seul qu'on ne pouvait pas faire ici. */
+        const rs = w.reseaux || [];
+        if(!rs.length) return `<h3 class="cpt-h3">Réseaux à portée</h3>
+          <p class="notice">Aucun réseau trouvé pour l'instant.
+            <button class="btn ghost" onclick="chercheWifi()">Chercher encore</button></p>`;
+        return `<h3 class="cpt-h3">Réseaux à portée</h3>
+        ${rs.map(r => `<div class="srow wifi-l">
+          <div style="flex:1;min-width:0">
+            <div class="t">${esc(r.ssid)}
+              ${r.protege ? `<span class="cadenas" title="${esc(r.securite)}">🔒</span>`
+                          : `<span class="cadenas ouvert" title="Réseau ouvert — tout le monde peut lire ce qui y passe">⚠</span>`}
+            </div>
+            <div class="d">${r.actif ? "Connecté" : (r.protege ? esc(r.securite) : "Ouvert, sans mot de passe")} — signal ${r.signal} %</div>
+          </div>
+          ${barres(r.signal)}
+          ${r.actif
+            ? `<span class="etat ok">connecté</span>`
+            : `<button class="btn ghost" onclick="choisitWifi('${esc(r.ssid).replace(/'/g,"&#39;")}')">Se connecter</button>`}
+        </div>
+        ${wifiChoisi === r.ssid && !r.actif ? `<div class="srow" style="display:block">
+          ${r.protege
+            ? `<div class="t" style="margin-bottom:8px">Mot de passe de « ${esc(r.ssid)} »</div>
+               <div class="row" style="align-items:center">
+                 <input class="champ" id="wifiMdp" type="password" autocomplete="off"
+                        placeholder="mot de passe du réseau"
+                        onkeydown="if(event.key==='Enter')brancheWifi()">
+                 <button class="btn" onclick="brancheWifi()">Se connecter</button>
+                 <button class="btn ghost" onclick="choisitWifi('')">Annuler</button>
+               </div>
+               <div class="sub" style="margin-top:8px">Le mot de passe reste sur
+                 cette machine : il part au gestionnaire de réseau et n'est
+                 écrit dans aucun journal.</div>`
+            : `<div class="row"><button class="btn" onclick="brancheWifi()">Se connecter sans mot de passe</button>
+               <button class="btn ghost" onclick="choisitWifi('')">Annuler</button></div>
+               <div class="sub" style="margin-top:8px">Réseau ouvert : ce qui
+                 y passe peut être lu par n'importe qui autour. À éviter pour
+                 les mots de passe et les paiements.</div>`}
+        </div>` : ""}`).join("")}
+        <div class="row"><button class="btn ghost" onclick="chercheWifi()">Chercher encore</button></div>`;
+      })() : ""}
+
       ${btnOuvrir("wifi","Ouvrir l'outil réseau")}
       <p class="notice">En ligne de commande : <code>lexos wifi</code> ·
       <code>lexos net password "&lt;réseau&gt;"</code> pour un mot de passe oublié.</p>`;
@@ -530,14 +620,38 @@ function contenu(cle){
       <code>.conf</code> WireGuard, puis <code>lexos vpn connect "&lt;nom&gt;"</code>.</p>`;
     }
     case "bluetooth": {
-      const bt = etat.bluetooth;
-      return `<h2>Bluetooth</h2><div class="sub">Appareils appairés</div>
-      ${bt === null || bt === undefined
+      /*  LA LISTE QUI MANQUAIT, comme pour le Wi-Fi et pour la même barre de
+          son : le panneau disait « prêt à appairer » sans jamais montrer QUOI.
+          Le cinéma maison d'Alex était introuvable, faute d'une liste où le
+          voir. Appairés d'abord, puis ce que la recherche a entendu. */
+      const bt = etat.bluetooth || {};
+      const radio = bt.radio;
+      const app = bt.appareils || [];
+      const GENRES = {"audio-card":"🔊","audio-headset":"🎧","audio-headphones":"🎧",
+                      "input-keyboard":"⌨","input-mouse":"🖱","phone":"📱",
+                      "computer":"💻","input-gaming":"🎮"};
+      return `<h2>Bluetooth</h2><div class="sub">Enceintes, cinéma maison, casques, manettes</div>
+      ${radio === null || radio === undefined
         ? `<p class="notice">Aucun contrôleur Bluetooth sur cette machine.</p>`
-        : srow("Bluetooth", bt ? "Allumé, prêt à appairer" : "Éteint",
-               sw(bt, "basculeBluetooth()"))}
-      ${srow("Rechercher des appareils","Balayage et appairage")}
-      ${btnOuvrir("bluetooth","Rechercher (lexos bt scan)")}`;
+        : srow("Bluetooth", radio ? "Allumé" : "Éteint",
+               sw(radio, "basculeBluetooth()"))}
+      ${radio ? `<h3 class="cpt-h3">Appareils</h3>
+        ${app.length ? app.map(d => srow(
+            `${GENRES[d.genre] || "·"} ${esc(d.nom)}`,
+            d.connecte ? "Connecté — le son peut sortir ici"
+                       : (d.appaire ? "Appairé, pas connecté" : "À portée, jamais appairé"),
+            d.connecte
+              ? `<button class="btn ghost" onclick="btCoupe('${d.adresse}')">Déconnecter</button>`
+              : `<button class="btn ghost" onclick="btBranche('${d.adresse}')">${d.appaire ? "Connecter" : "Appairer"}</button>`
+          )).join("")
+          : `<p class="notice">Aucun appareil connu. Mets ton enceinte ou ta
+             barre de son en <b>mode appairage</b> (souvent un bouton Bluetooth
+             à tenir enfoncé), puis lance la recherche.</p>`}
+        <div class="row"><button class="btn ghost" id="btCherche" onclick="btCherche()">Rechercher (12 s)</button></div>
+        <p class="notice">Une fois l'enceinte connectée, elle apparaît dans
+          <b>Son → Sortie audio</b> — c'est là qu'on lui envoie le son.</p>`
+        : ""}
+      ${btnOuvrir("bluetooth","L'outil complet (lexos bt)")}`;
     }
     case "ecrans": {
       //  La question qu'on se pose devant cette section est « qu'est-ce qui
