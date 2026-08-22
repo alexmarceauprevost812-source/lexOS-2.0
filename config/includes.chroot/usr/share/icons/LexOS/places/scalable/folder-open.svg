@@ -8,6 +8,12 @@
   produits. Le libellé est posé aux mêmes coordonnées (x=256, y=345,
   corps 104, mono gras) que folderSVG().
 
+  LE PIVOT EST CELUI DE LA DÉMO, RECALCULÉ. Elle tourne le rabat autour de
+  (256, 438) en coordonnées du viewBox (transform-origin, transform-box:
+  view-box). Ici le groupe est déjà dans translate(0,26), donc le même point
+  s'écrit (256, 412) — 438 moins 26. J'avais d'abord écrit 464 : le dossier
+  s'ouvrait autour d'un point trop bas et la poche partait de travers.
+
   DEUX JETONS DE COULEUR, ET ILS SONT VRAIMENT REMPLACÉS. #E8590C est la
   poche, #A84007 le dos (le même orange assombri du facteur 0,62, comme
   shade() dans la démo). Le bloc 4b de lexos-theme-gen recopie ce fichier
@@ -21,7 +27,7 @@
      viewBox="0 0 512 512" role="img" aria-label="Dossier ouvert — LexOS">
   <g transform="translate(0,26)">
     <path d="M 44 148 a 26 26 0 0 1 26 -26 h 132 a 26 26 0 0 1 18 8 l 34 34 h 184 a 26 26 0 0 1 26 26 v 214 a 26 26 0 0 1 -26 26 H 70 a 26 26 0 0 1 -26 -26 Z" fill="#A84007"/>
-    <g transform="rotate(-15 256 464)">
+    <g transform="rotate(-15 256 412)">
       <path d="M 78 206 h 378 a 24 24 0 0 1 23 30 l -38 156 a 26 26 0 0 1 -25 20 H 90 a 26 26 0 0 1 -25 -20 L 27 236 a 24 24 0 0 1 23 -30 Z" fill="#E8590C"/>
     </g>
   </g>
