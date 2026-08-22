@@ -58,6 +58,42 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 70 : CE QUE LE PREMIER VRAI DÉMARRAGE A APPRIS.
+#
+#   Le 69 démarre — en BIOS comme en UEFI, pour la première fois depuis le
+#   66. Alex a donc pu s'en servir, et tout ce qui suit vient de là : des
+#   choses qu'aucune relecture de code n'aurait trouvées.
+#
+#   · LE MENU DISPARAISSAIT QUAND ON LE DÉPLAÇAIT. Changer la position du
+#     dock — droite, gauche, bas, haut — laissait Alex SANS BARRE DU TOUT.
+#     cmd_dock tuait Plank puis le relançait, en filet de sécurité ; le
+#     commentaire d'origine disait pourtant que Plank applique la position
+#     à chaud et que le redémarrage ne servait qu'à « lever tout doute ».
+#     Quand la relance échouait, le filet devenait le trou. On ne tue plus
+#     rien : on relance seulement si Plank a disparu de lui-même, on vérifie,
+#     et on le dit quand il manque.
+#
+#   · LES PARAMÈTRES AVALAIENT LEURS ERREURS. _run renvoyait le motif d'un
+#     échec sous la clé « sortie », la page ne lit que « erreur » : partout
+#     « Échec : commande refusée », jamais la raison. D'où « beaucoup de
+#     boutons qui ne marchent pas » — sans le moindre indice pour savoir
+#     lequel ni pourquoi. Le motif remonte maintenant à l'écran.
+#
+#   · LE MODE AVION SE CACHAIT. Fn+F8 effleurée au démarrage coupe Wi-Fi ET
+#     Bluetooth d'un coup. Plus de réseau, plus d'enceinte, et une soirée à
+#     soupçonner le pilote iwlwifi — installé, chargé, innocent. « lexos net
+#     status » le disait, douze lignes SOUS « Aucune connexion active » : on
+#     lisait la panne avant sa cause. Il ouvre désormais sur un encadré.
+#
+#   · L'APPARENCE, quatre demandes d'Alex après une heure d'usage réel :
+#     boutons orange à écriture noire (au passage 6,1:1 de contraste au lieu
+#     de 3,4:1, le blanc était sous le seuil lisible), boutons arrondis en
+#     pastille, barre du haut de 32 à 44 px avec icônes de 16 à 28, et
+#     boutons de fenêtre agrandis via title_font 10 → 13.
+#
+#   Rien ici ne vient d'une relecture de code. Tout vient de quelqu'un qui
+#   s'est assis devant la machine. C'est le premier build dans ce cas.
+#
 # build 69 : LE MENU BIOS QUI NE DÉMARRE TOUJOURS PAS, ET 770 Mo DE TROP.
 #
 #   DEUX CORRECTIFS, DEUX NATURES. Le premier répare une ISO qui ne démarre
@@ -1681,4 +1717,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 69
+build: 70
