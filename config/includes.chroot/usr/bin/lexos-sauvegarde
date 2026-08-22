@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-sauvegarde — les fichiers personnels, copiés pour de vrai
+# =============================================================================
+#  LE SEUL TROU QUI COÛTE DES DONNÉES. Tout le reste de LexOS, cassé, se
+#  répare en réinstallant ; les photos qui n'existaient qu'à un endroit, non.
+#
+#  Deux malheurs, deux outils — et cette commande le dit plutôt que de les
+#  mélanger :
+#    · les FICHIERS PERSONNELS : borg, ici. Chiffré, dédupliqué, restaurable
+#      fichier par fichier. C'est le métier de ce script.
+#    · le SYSTÈME qui ne démarre plus après une mise à jour : timeshift
+#      (« lexos sauvegarde systeme »), des instantanés d'avant le malheur.
+#
+#  Règles de la maison :
+#    · borg reçoit des LISTES d'arguments, jamais une chaîne interprétée ;
+#    · le mot de passe du coffre est demandé par borg lui-même, jamais écrit
+#      dans un fichier ni dans un journal ;
+#    · rien de destructif sans confirmation explicite.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos sauvegarde"
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+CONF="$CONF_DIR/sauvegarde"          # une ligne : le chemin du coffre borg
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+usage() {
+	cat <<AIDE
+${B}$PROG${R} — les fichiers personnels, copiés pour de vrai (borg, chiffré)
+
+  ${O}$PROG etat${R}                  Où en est la sauvegarde — le coffre, la dernière copie
+  ${O}$PROG init${R} <dossier>        Créer le coffre ${D}(disque externe conseillé)${R}
+  ${O}$PROG maintenant${R}            Sauvegarder Documents, Images, Musique, Vidéos, Bureau
+  ${O}$PROG liste${R}                 Les copies déjà faites, de la plus récente à la plus vieille
+  ${O}$PROG fichiers${R} <copie>      Ce que contient une copie
+  ${O}$PROG restaurer${R} <copie>     Restaurer une copie ${D}(dans un dossier À CÔTÉ, jamais par-dessus)${R}
+  ${O}$PROG verifier${R}              Contrôler l'intégrité du coffre
+  ${O}$PROG systeme${R}               Les instantanés du SYSTÈME (timeshift), l'autre malheur
+  ${O}$PROG gui${R}                   La fenêtre (Vorta), pour tout faire à la souris
+
+Le mot de passe du coffre est demandé par borg lui-même : il n'est écrit
+nulle part, et sans lui personne ne lit tes copies — toi non plus. Note-le
+dans KeepassXC (${D}déjà installé${R}), pas sur un papier volant.
+AIDE
+}
+
+DOSSIERS_DEFAUT=("$HOME/Documents" "$HOME/Images" "$HOME/Musique" "$HOME/Vidéos" "$HOME/Bureau")
+
+a_borg() { command -v borg >/dev/null 2>&1; }
+
+coffre() {
+	[[ -r "$CONF" ]] || return 1
+	local c
+	c="$(head -1 "$CONF")"
+	[[ -n "$c" ]] && printf '%s' "$c"
+}
+
+exige_coffre() {
+	a_borg || die "borg n'est pas installé.   sudo apt install borgbackup"
+	COFFRE="$(coffre)" || die "Aucun coffre configuré. D'abord : ${B}$PROG init <dossier>${R}"
+	[[ -d "$COFFRE" ]] || die "Le coffre a disparu : $COFFRE — disque externe débranché ?"
+}
+
+cmd_etat() {
+	if ! a_borg; then
+		warn "borg n'est pas installé — aucune sauvegarde de fichiers possible."
+		say  "   ${D}sudo apt install borgbackup${R}"
+	elif ! coffre >/dev/null; then
+		say "Aucun coffre configuré. C'est l'affaire d'une commande :"
+		say "   ${B}$PROG init /media/${USER:-$(id -un)}/MonDisque/sauvegarde-lexos${R}"
+		warn "Tant que ce n'est pas fait, tes fichiers n'existent qu'à UN endroit."
+	else
+		COFFRE="$(coffre)"
+		ok "Coffre : $COFFRE"
+		if [[ -d "$COFFRE" ]]; then
+			local derniere
+			derniere="$(borg list --last 1 --format '{name} · {time}' "$COFFRE" 2>/dev/null || true)"
+			if [[ -n "$derniere" ]]; then
+				ok "Dernière copie : $derniere"
+			else
+				warn "Le coffre existe mais ne contient AUCUNE copie : ${B}$PROG maintenant${R}"
+			fi
+		else
+			warn "Le coffre est configuré mais introuvable — disque externe débranché ?"
+		fi
+	fi
+	echo
+	if command -v timeshift >/dev/null 2>&1; then
+		ok "timeshift est là pour le système : ${B}$PROG systeme${R}"
+	else
+		warn "timeshift absent — pas d'instantané système.   sudo apt install timeshift"
+	fi
+}
+
+cmd_init() {
+	a_borg || die "borg n'est pas installé.   sudo apt install borgbackup"
+	local dossier="${1:-}"
+	[[ -n "$dossier" ]] || die "Où mettre le coffre ?   $PROG init /media/${USER:-$(id -un)}/MonDisque/sauvegarde-lexos"
+	case "$dossier" in
+		"$HOME"|"$HOME"/*)
+			#  Un coffre sur le même disque que les originaux protège d'une
+			#  fausse manœuvre, pas d'un disque qui meurt. On accepte, mais
+			#  on le dit — la différence entre les deux pannes est toute là.
+			warn "Ce coffre serait sur le MÊME disque que tes fichiers : une panne de disque emporterait les deux."
+			printf '%s' "Continuer quand même ? [o/N] "
+			read -r rep
+			[[ "$rep" == "o" || "$rep" == "O" ]] || { say "Sage décision. Branche un disque externe et recommence."; exit 0; }
+			;;
+	esac
+	mkdir -p "$dossier" || die "Impossible de créer $dossier"
+	say "borg va te demander un mot de passe : c'est LA clé de toutes tes copies."
+	say "Sans lui, personne ne les lit — toi non plus. Note-le dans KeepassXC."
+	borg init --encryption=repokey "$dossier" || die "borg init a refusé."
+	mkdir -p "$CONF_DIR"
+	printf '%s\n' "$dossier" > "$CONF"
+	ok "Coffre créé : $dossier"
+	say "Première copie : ${B}$PROG maintenant${R}"
+}
+
+cmd_maintenant() {
+	exige_coffre
+	local existants=()
+	local d
+	for d in "${DOSSIERS_DEFAUT[@]}"; do [[ -d "$d" ]] && existants+=("$d"); done
+	[[ ${#existants[@]} -gt 0 ]] || die "Aucun des dossiers habituels n'existe — rien à copier ?"
+	say "Copie de : ${existants[*]#"$HOME"/}"
+	#  ::{hostname}-{now} : le nom dit d'où et de quand. --stats à la fin :
+	#  une sauvegarde doit se terminer par des CHIFFRES, pas par un silence.
+	borg create --stats --compression zstd \
+		"$COFFRE::{hostname}-{now:%Y-%m-%d_%H:%M}" "${existants[@]}" \
+		|| die "borg a échoué — la copie N'EST PAS faite."
+	ok "Copie faite. Les précédentes ne grossissent pas : borg ne stocke que ce qui a changé."
+	#  Garder : 7 jours, 4 semaines, 6 mois. Au-delà, l'espace repart.
+	borg prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6 "$COFFRE" 2>/dev/null || true
+}
+
+cmd_liste() { exige_coffre; borg list --format '{name}   {time}{NL}' "$COFFRE"; }
+
+cmd_fichiers() {
+	exige_coffre
+	local copie="${1:-}"
+	[[ -n "$copie" ]] || die "Quelle copie ?   $PROG liste, puis $PROG fichiers <nom>"
+	borg list --short "$COFFRE::$copie" | head -200
+}
+
+cmd_restaurer() {
+	exige_coffre
+	local copie="${1:-}"
+	[[ -n "$copie" ]] || die "Quelle copie ?   $PROG liste, puis $PROG restaurer <nom>"
+	#  JAMAIS par-dessus les originaux. Restaurer dans le vrai dossier
+	#  écraserait peut-être la seule version encore bonne d'un fichier — on
+	#  extrait À CÔTÉ, et c'est l'humain qui compare puis déplace.
+	local cible="$HOME/Restauration-$copie"
+	[[ -e "$cible" ]] && die "$cible existe déjà — déplace-le d'abord."
+	mkdir -p "$cible"
+	say "Restauration dans $cible — tes fichiers actuels ne sont PAS touchés."
+	( cd "$cible" && borg extract "$COFFRE::$copie" ) || die "borg a échoué."
+	ok "C'est là : $cible"
+	say "Compare, puis déplace ce que tu veux garder. Rien n'a été écrasé."
+}
+
+cmd_verifier() {
+	exige_coffre
+	say "Contrôle d'intégrité — long sur un gros coffre, c'est normal."
+	if borg check "$COFFRE"; then
+		ok "Le coffre est sain."
+	else
+		die "borg check a trouvé un problème — NE PAS supprimer le coffre, demander de l'aide."
+	fi
+}
+
+cmd_systeme() {
+	command -v timeshift >/dev/null 2>&1 || die "timeshift n'est pas installé.   sudo apt install timeshift"
+	#  timeshift exige root et pose ses questions : un terminal, pas un fond.
+	if [[ "${1:-}" == "creer" ]]; then
+		exec sudo timeshift --create --comments "LexOS — à la demande"
+	fi
+	exec sudo timeshift --list
+}
+
+cmd_gui() {
+	command -v vorta >/dev/null 2>&1 || die "Vorta n'est pas installé.   sudo apt install vorta"
+	exec vorta
+}
+
+case "${1:-etat}" in
+	-h|--help|aide|help) usage ;;
+	etat|état|statut)    cmd_etat ;;
+	init|creer-coffre)   shift; cmd_init "$@" ;;
+	maintenant|go|now)   cmd_maintenant ;;
+	liste|list)          cmd_liste ;;
+	fichiers)            shift; cmd_fichiers "$@" ;;
+	restaurer|restore)   shift; cmd_restaurer "$@" ;;
+	verifier|vérifier|check) cmd_verifier ;;
+	systeme|système)     shift; cmd_systeme "$@" ;;
+	gui|fenetre|fenêtre) cmd_gui ;;
+	*) die "Commande inconnue : $1   ($PROG --help)" ;;
+esac

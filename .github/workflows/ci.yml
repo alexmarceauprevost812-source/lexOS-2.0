@@ -359,6 +359,14 @@ jobs:
           # une table qui glisse doit casser la CI, pas une soirée.
           bash tests/test_lexos_mac.sh
 
+      - name: Le coffre chiffré raisonne juste (lexos-prive)
+        run: |
+          #  Le plus gros outil du dépôt n'avait aucun test — c'est l'audit
+          #  d'Alex qui l'a nommé. On ne teste pas gocryptfs (son travail à
+          #  lui), on teste que NOTRE script refuse ce qui doit l'être et
+          #  n'invente jamais un coffre. Un faux gocryptfs note tout.
+          bash tests/test_prive.sh
+
       - name: Tables de modèles Mac identiques
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même

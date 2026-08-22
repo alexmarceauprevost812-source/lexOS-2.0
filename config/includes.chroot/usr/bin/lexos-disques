@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-disques — la santé des disques, AVANT qu'ils meurent
+# =============================================================================
+#  Un disque prévient presque toujours : secteurs réalloués qui grimpent,
+#  heures de chauffe, erreurs SMART. Personne ne va lire ces chiffres — alors
+#  cette commande les lit et les traduit. L'icône de ce panneau
+#  (branding/icon-disque.svg) attendait dans le dépôt depuis le build 60 ;
+#  voilà l'outil qui va derrière.
+#
+#  LECTURE SEULE. Rien ici n'écrit sur un disque : diagnostiquer n'est pas
+#  réparer, et un outil de santé qui peut détruire est une faute de design.
+#  Pour secourir : testdisk, gddrescue (livrés) — à la main, exprès.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos disques"
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+usage() {
+	cat <<AIDE
+${B}$PROG${R} — la santé des disques, avant qu'ils meurent
+
+  ${O}$PROG${R}                 Vue d'ensemble : disques, remplissage, santé SMART
+  ${O}$PROG sante${R} [disque]   Le détail SMART d'un disque ${D}(ex. : sante sda)${R}
+  ${O}$PROG espace${R}           Qu'est-ce qui prend la place ? ${D}(les 15 plus gros dossiers)${R}
+  ${O}$PROG gui${R}              La fenêtre (GSmartControl)
+
+Tout est en LECTURE SEULE : rien ici n'écrit sur un disque. Pour analyser
+l'espace en images : ${D}qdirstat${R}. Pour secourir un disque : ${D}testdisk${R}.
+AIDE
+}
+
+lignes_disques() {
+	#  -d : les vrais disques, pas les partitions. -e7 : sans les loop du
+	#  live. --pairs : un MODEL vide ne décale pas les colonnes — en format
+	#  tabulaire, « vda 256G virtio » mettait le bus dans la case du modèle.
+	#  zram n'est pas un disque : c'est de la mémoire compressée.
+	lsblk -dn -e7 --pairs -o NAME,SIZE,MODEL,TRAN 2>/dev/null \
+		| grep -v 'NAME="zram' \
+		| sed -E 's/[A-Z]+="([^"]*)"/\1\t/g'
+}
+
+sante_resume() {
+	#  smartctl -H : le verdict du disque sur lui-même. Trois réponses
+	#  possibles, et la pire n'est pas « FAILED » : c'est l'absence de
+	#  réponse, qu'on dit franchement au lieu de la peindre en vert.
+	local d="$1" sortie
+	if ! command -v smartctl >/dev/null 2>&1; then printf 'smartctl absent'; return; fi
+	sortie="$(sudo -n smartctl -H "/dev/$d" 2>/dev/null || smartctl -H "/dev/$d" 2>/dev/null || true)"
+	case "$sortie" in
+		*PASSED*|*"OK"*)  printf 'SMART : sain' ;;
+		*FAILED*)         printf 'SMART : DÉFAILLANT — sauvegarder MAINTENANT' ;;
+		*)                printf 'SMART : illisible sans droits (sudo %s sante %s)' "$PROG" "$d" ;;
+	esac
+}
+
+cmd_vue() {
+	say "${B}Les disques de cette machine${R}"
+	local nom taille modele bus
+	while IFS=$'\t' read -r nom taille modele bus _; do
+		[[ -n "$nom" ]] || continue
+		printf '  %s%-8s%s %8s  %-24s %s%s%s\n' "$B" "$nom" "$R" "$taille" \
+			"${modele:-—}" "$D" "${bus:-}" "$R"
+		printf '           %s\n' "$(sante_resume "$nom")"
+	done < <(lignes_disques)
+	echo
+	say "${B}Le remplissage${R}"
+	#  df sur les vrais systèmes de fichiers seulement — les tmpfs et
+	#  l'overlay du live ne parlent pas de disques.
+	df -h -x tmpfs -x devtmpfs -x overlay -x squashfs --output=target,size,used,avail,pcent 2>/dev/null \
+		| tail -n +2 | while read -r cible taille pris libre pct; do
+		local n="${pct%\%}"
+		local badge="$G✓$R"
+		[[ "$n" -ge 80 ]] 2>/dev/null && badge="$Y!$R"
+		[[ "$n" -ge 95 ]] 2>/dev/null && badge="$E✗$R"
+		printf '  %b %-28s %s pris sur %s — reste %s (%s)\n' "$badge" "$cible" "$pris" "$taille" "$libre" "$pct"
+	done
+	echo
+	say "Le détail d'un disque : ${B}$PROG sante sda${R} · l'espace : ${B}$PROG espace${R}"
+}
+
+cmd_sante() {
+	command -v smartctl >/dev/null 2>&1 || die "smartmontools n'est pas installé.   sudo apt install smartmontools"
+	local d="${1:-}"
+	if [[ -z "$d" ]]; then
+		say "Quel disque ?"; lignes_disques | cut -f1,2 | sed 's/^/  /'
+		exit 0
+	fi
+	#  Le nom vient de l'utilisateur : on le vérifie contre ce que lsblk
+	#  DÉCLARE plutôt que de le passer tel quel à une commande root.
+	lignes_disques | cut -f1 | grep -qx "$d" \
+		|| die "« $d » n'est pas un disque de cette machine ($PROG pour la liste)"
+	say "SMART de /dev/$d — les lignes qui comptent :"
+	{ sudo smartctl -a "/dev/$d" 2>/dev/null || smartctl -a "/dev/$d"; } \
+		| grep -iE 'model|serial|power_on|reallocated|pending|uncorrect|temperature|percentage used|available spare|media errors|overall-health' \
+		|| warn "smartctl n'a rien rendu — droits insuffisants ?"
+	echo
+	say "${D}Reallocated/Pending à 0 = bon signe. S'ils grimpent d'une semaine à l'autre, le disque prévient : sauvegarde, puis remplacement.${R}"
+}
+
+cmd_espace() {
+	say "Les 15 dossiers les plus lourds de ton dossier personnel :"
+	du -xh --max-depth=2 "$HOME" 2>/dev/null | sort -rh | head -15 | sed 's/^/  /'
+	echo
+	say "En images, avec des rectangles : ${B}qdirstat${R} · les doublons : ${B}rmlint${R}"
+}
+
+cmd_gui() {
+	command -v gsmartcontrol >/dev/null 2>&1 || die "GSmartControl n'est pas installé.   sudo apt install gsmartcontrol"
+	exec gsmartcontrol
+}
+
+case "${1:-vue}" in
+	-h|--help|aide|help) usage ;;
+	vue|etat|état)       cmd_vue ;;
+	sante|santé|smart)   shift; cmd_sante "$@" ;;
+	espace|place)        cmd_espace ;;
+	gui|fenetre|fenêtre) cmd_gui ;;
+	*) die "Commande inconnue : $1   ($PROG --help)" ;;
+esac

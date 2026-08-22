@@ -154,6 +154,9 @@ lexos-tv
 lexos-ia
 lexos-ia-locale
 lexos-boost
+lexos-sauvegarde
+lexos-disques
+lexos-medecin
 "
 
 [ "$CSV" = 1 ] && echo "outil;parametres;dispatcher;aide;lanceur"

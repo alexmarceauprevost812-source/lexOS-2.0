@@ -117,6 +117,11 @@ ${B}ÉNERGIE${R}
   ${A}temperature${R}         ${B}Chaleur et ventilateurs, en direct${R}
                       ${D}processeur · carte graphique · mémoire vidéo · disques${R}
   ${A}boost${R}               Scan matériel et optimisation ${D}(LexOS Boost — aussi : scan)${R}
+  ${A}sauvegarde${R}          Tes fichiers, copiés pour de vrai ${D}(borg, chiffré)${R}
+  ${A}sauvegarde init${R} <d>  Créer le coffre ${D}(disque externe conseillé)${R}
+  ${A}sauvegarde maintenant${R} Copier Documents, Images, Musique, Vidéos, Bureau
+  ${A}medecin${R}             « Qu'est-ce qui ne va pas ? » — le tri complet, traduit
+  ${A}disques${R}             La santé des disques AVANT qu'ils meurent ${D}(SMART, espace)${R}
   ${A}parametres${R}          Ouvre la fenêtre des Paramètres ${D}(aussi : reglages)${R}
   ${A}temperature surveille${R} Garde les maximums — à lancer AVANT une partie
   ${A}firmware${R}            BIOS et micrologiciels : ce qui est à jour
@@ -972,6 +977,9 @@ case "$CMD" in
 	#  Boost avait son lanceur de bureau mais aucune branche ici : le seul
 	#  outil qu'on ne pouvait pas taper. Le contrôle 16 l'a nommé.
 	boost|scan|optimisation) exec lexos-boost "$@" ;;
+	sauvegarde|backup|sauve) exec lexos-sauvegarde "$@" ;;
+	disques|disque|disks)  exec lexos-disques "$@" ;;
+	medecin|médecin|diagnostic|doc) exec lexos-medecin "$@" ;;
 	parametres|paramètres|reglages|réglages|settings) exec lexos-settings "$@" ;;
 	ia-locale|ialocale)   exec lexos-ia-locale "$@" ;;
 	assistants|assistant) exec lexos-assistants "$@" ;;

@@ -509,6 +509,55 @@ Categories=Network;Utility;
 Keywords=ia;ai;assistant;claude;chatgpt;gemini;perplexity;mistral;copilot;
 EOF
 
+#  La couche diagnostic et sauvegarde — née de l'audit « carte des trous » :
+#  huit outils prévus, zéro écrit, et l'icône du disque qui attendait son
+#  panneau depuis le build 60. Trois entrées de menu, en terminal : ces
+#  outils PARLENT, et un diagnostic qu'on ne lit pas n'existe pas.
+cat > /usr/share/applications/lexos-medecin.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Médecin LexOS
+Name[en]=LexOS Doctor
+Comment=« Qu'est-ce qui ne va pas ? » — services, disque, mémoire, chauffe, réseau, journal
+Comment[en]=One-command triage: services, disk, memory, heat, network, logs
+Exec=xfce4-terminal --hold --title="Médecin — LexOS" -e "lexos medecin"
+Icon=lexos
+Terminal=false
+Categories=System;Utility;
+Keywords=diagnostic;probleme;problème;panne;lent;medecin;médecin;doctor;sante;santé;
+EOF
+
+cat > /usr/share/applications/lexos-disques.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Disques
+Name[en]=Disks
+Comment=La santé des disques avant qu'ils meurent — SMART, remplissage, espace
+Comment[en]=Disk health before they die — SMART, usage, space
+Exec=xfce4-terminal --hold --title="Disques — LexOS" -e "lexos disques"
+Icon=lexos-disque
+Terminal=false
+Categories=System;Utility;
+Keywords=disque;disk;smart;espace;plein;ssd;nvme;sante;santé;
+EOF
+
+cat > /usr/share/applications/lexos-sauvegarde.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Sauvegarde
+Name[en]=Backup
+Comment=Tes fichiers, copiés pour de vrai — chiffré, restaurable fichier par fichier
+Comment[en]=Your files, truly backed up — encrypted, restorable file by file
+Exec=xfce4-terminal --hold --title="Sauvegarde — LexOS" -e "lexos sauvegarde"
+Icon=lexos
+Terminal=false
+Categories=System;Utility;Archiving;
+Keywords=sauvegarde;backup;borg;copie;restaurer;timeshift;
+EOF
+
 cat > /usr/share/applications/lexos-secure.desktop <<EOF
 [Desktop Entry]
 Type=Application
