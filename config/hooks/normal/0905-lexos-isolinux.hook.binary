@@ -86,6 +86,88 @@ if ! command -v iconv >/dev/null 2>&1; then
 	exit 0
 fi
 
+# =============================================================================
+#  REPRENDRE CE QUE live-build A ÉCRASÉ
+# =============================================================================
+#  CE QUE LA PHOTO D'ALEX A MONTRÉ (build 66, en vrai, sur sa machine).
+#  live-build ne prend PAS tout ce qu'on met dans config/bootloaders/isolinux.
+#  Il a gardé nos entrées « Session de démonstration » et nos couleurs
+#  (stdmenu.cfg — la barre est orange), mais il a REMIS LES SIENS pour :
+#    · le fond          → le casque de chantier jaune de Debian est revenu ;
+#    · isolinux.cfg     → décompte à 5 s au lieu des 20 s demandées ;
+#    · install.cfg      → « Start installer » en anglais, parce que
+#                         --debian-installer fabrique ces entrées lui-même.
+#
+#  ON CORRIGE SA SORTIE, ON NE LA REMPLACE PAS EN BLOC. Un menu de démarrage
+#  cassé, c'est une clé qui ne démarre plus du tout : on touche donc le moins
+#  possible, et jamais aux lignes « kernel » et « append », qui portent les
+#  vrais chemins que live-build seul connaît. On ne recopie pas non plus
+#  live.cfg : live-build y a déjà remplacé ses @JETONS@, et remettre notre
+#  version brute laisserait « @KERNEL@ » à l'écran.
+
+#  Où sont nos sources ? Le hook tourne depuis le dossier de l'image, la
+#  racine du chantier est donc au-dessus. On essaie les deux.
+SRC=""
+for LEXOS_C in config/bootloaders/isolinux ../config/bootloaders/isolinux; do
+	if [ -d "$LEXOS_C" ]; then SRC="$LEXOS_C"; break; fi
+done
+if [ -z "$SRC" ]; then
+	echo "[lexos]   !! sources du menu introuvables — corrections non appliquées"
+else
+	# --- 1. Le fond -------------------------------------------------------
+	#  live-build rend SON splash à l'étape binary_bootloader_splash. On rend
+	#  le nôtre par-dessus, à la même taille : 640x480, c'est la grille de
+	#  80x30 caractères sur laquelle toute la géométrie de stdmenu.cfg est
+	#  calée. Une autre taille décale tout le menu.
+	if [ -r "$SRC/splash.svg.in" ]; then
+		if command -v rsvg-convert >/dev/null 2>&1; then
+			if rsvg-convert --format png --width 640 --height 480 \
+				"$SRC/splash.svg.in" -o "$DIR/splash.png" 2>/dev/null; then
+				echo "[lexos]   fond LexOS posé par-dessus celui de Debian"
+			else
+				echo "[lexos]   !! rsvg-convert a échoué — fond de Debian conservé"
+			fi
+		else
+			echo "[lexos]   !! rsvg-convert absent — fond de Debian conservé"
+			echo "[lexos]      (paquet « librsvg2-bin » sur la machine de construction)"
+		fi
+	fi
+
+	# --- 2. Le décompte ---------------------------------------------------
+	#  20 s et pas 5 : c'est le menu des machines anciennes, souvent avec un
+	#  écran lent à s'allumer. On ne remplace pas isolinux.cfg en entier —
+	#  une seule ligne, celle du délai.
+	if [ -f "$DIR/isolinux.cfg" ]; then
+		if sed -i 's/^[[:space:]]*timeout[[:space:]].*/timeout 200/' "$DIR/isolinux.cfg" 2>/dev/null; then
+			echo "[lexos]   décompte porté à 20 s (timeout 200)"
+		fi
+	fi
+
+	# --- 3. Les entrées d'installation, en français -----------------------
+	#  --debian-installer écrit ces entrées lui-même, en anglais, avec les
+	#  bons chemins. On ne touche QUE les libellés : les lignes « kernel »
+	#  et « append » restent celles de live-build, intactes.
+	if [ -f "$DIR/install.cfg" ]; then
+		#  « t » APRÈS CHAQUE RÈGLE : sed applique TOUTES les expressions à
+		#  CHAQUE ligne, l'une après l'autre. Sans le « t », la dernière
+		#  règle — la plus large — reprenait ce que les précédentes venaient
+		#  de traduire, et « Start installer » finissait en « Installer en
+		#  mode texte ». Vu au banc d'essai : les deux premières entrées
+		#  portaient le même libellé. « t » saute à la fin de la ligne dès
+		#  qu'une substitution a eu lieu.
+		#  La dernière règle exige « Install » SEUL en fin de libellé : sans
+		#  ça elle mordrait sur tout ce qui contient le mot.
+		sed -i -e '
+s/^\([[:space:]]*menu label[[:space:]]*\)\^*Start installer with speech synthesis.*/\1Installer avec synthèse vocale/; t
+s/^\([[:space:]]*menu label[[:space:]]*\)\^*Advanced install options.*/\1Options d'"'"'installation avancées/; t
+s/^\([[:space:]]*menu label[[:space:]]*\)\^*Graphical install[[:space:]]*$/\1Installer LexOS sur le disque/; t
+s/^\([[:space:]]*menu label[[:space:]]*\)\^*Start installer[[:space:]]*$/\1Installer LexOS sur le disque/; t
+s/^\([[:space:]]*menu label[[:space:]]*\)\^*Install[[:space:]]*$/\1Installer en mode texte/; t
+' "$DIR/install.cfg" 2>/dev/null
+		echo "[lexos]   entrées d'installation traduites (libellés seuls)"
+	fi
+fi
+
 CONVERTIS=0
 INTACTS=0
 ECHECS=0
@@ -146,7 +228,10 @@ fi
 MANQUANTS=0
 for K in $(grep -hE '^[[:space:]]*kernel[[:space:]]' "$DIR"/*.cfg 2>/dev/null | awk '{print $2}' | sort -u); do
 	case "$K" in
-		/*) CIBLE="binary${K}" ;;
+		#  « binary » en dur ici aussi : c'était le même défaut que plus
+		#  haut, et il aurait fait crier au loup sur des noyaux qui
+		#  existent — le genre d'alerte qu'on finit par ignorer.
+		/*) CIBLE="${IMG}${K}" ;;
 		*)  CIBLE="${DIR}/${K}" ;;
 	esac
 	if [ ! -e "$CIBLE" ]; then
