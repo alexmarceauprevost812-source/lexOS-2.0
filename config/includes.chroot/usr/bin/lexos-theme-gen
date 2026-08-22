@@ -107,8 +107,12 @@ BTN_FG="$(awk -v r="$r" -v g="$g" -v b="$b" '
 	}')"
 [[ -n "$BTN_FG" ]] || BTN_FG="#FFFFFF"   # filet si awk venait à manquer
 TERM_BG="#000000"       # le terminal reste toujours noir, même en thème de jour
-TERM_FG="#39FF14"       # vert du terminal
-TERM_FG_HI="#7BFF5C"
+#  Vert FONCÉ, et non le vert néon d'avant : c'est la couleur de tout ce que
+#  la machine répond. Le néon (#39FF14) reste ce qu'il a toujours été —
+#  l'accent « neon », que l'on choisit avec « lexos accent neon ». #00AF5F est
+#  exactement le 38;5;35 de l'invite PS1 : les deux ne peuvent plus diverger.
+TERM_FG="#00AF5F"       # vert foncé — la sortie du terminal
+TERM_FG_HI="#23C97A"    # le même en gras
 
 if [[ "$MODE" == "clair" ]]; then
 	# Thème de jour : blanc cassé/crème, jamais blanc pur — texte noir.

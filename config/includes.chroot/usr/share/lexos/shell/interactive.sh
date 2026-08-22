@@ -42,6 +42,16 @@ esac
 
 # --- Invite de commande : noir / vert dark / orange --------------------------
 #  Reposée à chaque passage, exprès : voir l'explication en tête de fichier.
+#
+#  LA RÈGLE DE COULEUR, la même dans la démo web et sur la vraie machine :
+#    · vert dark  — tout ce que la MACHINE écrit (l'invite, les réponses)
+#    · orange     — tout ce que VOUS tapez
+#    · rouge      — ce qui n'a pas marché (fausse commande, commande en échec)
+#
+#  L'orange de la frappe tient à un détail : PS1 se termine par une couleur
+#  qu'on ne referme PAS. Elle déborde donc sur ce qui est saisi ensuite —
+#  c'est voulu. PS0, affiché juste après Entrée et avant l'exécution, remet
+#  le tout à zéro pour que la sortie de la commande retrouve le vert.
 if [ -n "${BASH_VERSION:-}" ]; then
 	case "${TERM:-dumb}" in
 		dumb|linux-m|unknown) ;;
@@ -49,10 +59,44 @@ if [ -n "${BASH_VERSION:-}" ]; then
 			__lexos_git_branch() {
 				git rev-parse --abbrev-ref HEAD 2>/dev/null | sed 's/^/ ⎇ /'
 			}
-			# vert dark pour l'utilisateur, orange pour le chemin
-			PS1='\[\033[38;5;35m\]\u\[\033[2m\]@\[\033[0m\033[38;5;35m\]\h\[\033[0m\] \[\033[38;5;208m\]\w\[\033[0m\]\[\033[2m\]$(__lexos_git_branch)\[\033[0m\]\n\[\033[38;5;208m\]❯\[\033[0m\] '
+			#  Le code de sortie doit être saisi AVANT toute autre chose :
+			#  $(__lexos_git_branch) s'exécute pendant le calcul de l'invite
+			#  et écrase $? au passage. PROMPT_COMMAND, lui, tourne avant.
+			__lexos_etat() { __lexos_code=$?; }
+			case "${PROMPT_COMMAND:-}" in
+				*__lexos_etat*) ;;
+				"")  PROMPT_COMMAND="__lexos_etat" ;;
+				*)   PROMPT_COMMAND="__lexos_etat; $PROMPT_COMMAND" ;;
+			esac
+			#  Le chevron : orange quand tout va bien, ROUGE quand la
+			#  commande précédente a échoué — une commande qui n'existe pas
+			#  rend 127, et la ligne suivante s'ouvre donc en rouge.
+			__lexos_fleche() {
+				if [ "${__lexos_code:-0}" = "0" ]; then
+					printf '\033[38;5;208m'
+				else
+					printf '\033[1;38;5;196m'
+				fi
+			}
+			# vert dark pour l'utilisateur, orange pour le chemin ET pour la frappe
+			PS1='\[\033[38;5;35m\]\u\[\033[2m\]@\[\033[0m\033[38;5;35m\]\h\[\033[0m\] \[\033[38;5;208m\]\w\[\033[0m\]\[\033[2m\]$(__lexos_git_branch)\[\033[0m\]\n\[$(__lexos_fleche)\]❯\[\033[0m\] \[\033[38;5;208m\]'
+			PS0='\e[0m'
 			;;
 	esac
+fi
+
+# --- Une commande qui n'existe pas : le dire en rouge, et en français --------
+#  bash répond « commande introuvable » dans la couleur courante — donc en
+#  vert, comme une réponse normale. On la repeint en rouge et on rappelle le
+#  mot qui ouvre l'aide. On ne remplace jamais un gestionnaire déjà posé
+#  (Debian en installe un avec le paquet command-not-found).
+if [ -n "${BASH_VERSION:-}" ] \
+	&& ! command -v command_not_found_handle >/dev/null 2>&1; then
+	command_not_found_handle() {
+		printf '\033[1;38;5;196m✗ commande inconnue : %s\033[0m\n' "$1" >&2
+		printf '\033[2mTape « aide » pour la liste des commandes.\033[0m\n' >&2
+		return 127
+	}
 fi
 
 # --- Alias -------------------------------------------------------------------

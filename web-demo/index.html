@@ -15,7 +15,7 @@
 :root{
   --ac:#E8590C; --ac-hi:#FF7A33; --ac-lo:#A84007;
   --bg:#000; --bg-alt:#0a0a0b; --bg-hi:#141416; --bd:#232326;
-  --fg:#fff; --fg-dim:#b8b8bc; --term-fg:#39FF14; --term-hi:#7BFF5C;
+  --fg:#fff; --fg-dim:#b8b8bc; --term-fg:#00AF5F; --term-hi:#23C97A;
   --m-wifi:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='160 95 285 285'%3E%3Cg fill='none' stroke='%23000' stroke-width='34' stroke-linecap='butt'%3E%3Cpath d='M 200 248 A 92 92 0 0 1 292 340'/%3E%3Cpath d='M 200 184 A 156 156 0 0 1 356 340'/%3E%3Cpath d='M 200 120 A 220 220 0 0 1 420 340'/%3E%3C/g%3E%3Ccircle cx='200' cy='340' r='31' fill='%23000'/%3E%3C/svg%3E");
   --m-bt:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='150 72 212 376'%3E%3Cpath d='M174 174L338 338L256 420L256 92L338 174L174 338' fill='none' stroke='%23000' stroke-width='34' stroke-linejoin='miter' stroke-miterlimit='10'/%3E%3C/svg%3E");
   --m-avion:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/%3E%3C/svg%3E");
@@ -813,28 +813,42 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   overflow-wrap:anywhere;cursor:text}
 .term .p{color:var(--term-hi)}
 .term .path{color:var(--ac)}
-.term .w{color:#fff}.term .d{color:#7a7a80}.term .a{color:var(--ac)}
+.term .w{color:#A8F0C4}.term .d{color:#7a7a80}.term .a{color:var(--ac)}
 .term .err{color:#FF6B6F}
 /*  Couleurs de commande, façon Kali : l'étiquette [lexOS] et le cadre de
     l'invite en bleu Kali, sudo en rouge, help en jaune. Les mots sont
     colorés pendant la frappe ET dans l'écho de la ligne validée. */
-.term .kali{color:#3BE07A;font-weight:700}
-/*  Les trois teintes de l'invite : lexOS vert, le ㉿ jaune, l'utilisateur
-    rouge. Couleurs écrites en dur — la démo n'a pas de variable pour du
-    rouge ni du jaune, et en inventer une ferait échouer le contrôle CI
-    « Aucune variable CSS fantôme dans la démo ». */
-.pr-lexos{color:#3BE07A;font-weight:700}
-.pr-at{color:#FFC83D;font-weight:700}
-.pr-user{color:#FF4D4D;font-weight:700}     /* le cadre et [lexOS] : vert */
+.term .kali{color:#0E8B4A;font-weight:700}
+/*  L'invite est entièrement en vert foncé — trois teintes pour garder la
+    lecture, sans une seule autre couleur. Le rouge n'apparaît plus ici : il
+    est réservé aux fausses commandes, et le jaune a disparu. Couleurs
+    écrites en dur — la démo n'a pas de variable pour ces teintes, et en
+    inventer une ferait échouer le contrôle CI « Aucune variable CSS fantôme
+    dans la démo ». */
+/*  Le chevron ❯ : orange FIXE (et non l'accent), parce qu'il marque
+    l'endroit où l'on écrit — et ce qu'on écrit est orange. Il passe au
+    rouge quand la commande précédente a échoué : c'est exactement ce que
+    fait l'invite PS1 du vrai LexOS. */
+.pr-fleche{color:#FF8C1A;font-weight:700}
+.pr-fleche.ko{color:#FF4B4B}
+.pr-lexos{color:#00AF5F;font-weight:700}
+.pr-at{color:#0E8B4A;font-weight:700}
+.pr-user{color:#12A55A;font-weight:700}     /* le cadre et [lexOS] : vert */
 .term .tk-sudo{color:#FF4B4B;font-weight:700}
-.term .tk-help{color:#FFD23F;font-weight:700}
-/*  Palette choisie par l'auteur : lexOS en VERT (la marque), les commandes
-    en ORANGE (la couleur de la maison), les arguments en jaune et les
-    explications en rose. sudo garde son rouge d'avertissement. */
-.term .tk-lexos{color:#3BE07A;font-weight:700}
+.term .tk-help{color:#FFB061;font-weight:700}
+/*  Règle de couleur du terminal : ce qui se TAPE est orange (lexos, les
+    commandes, leurs options), ce que la MACHINE répond est vert foncé (les
+    explications), ce qui NE MARCHE PAS est rouge. sudo garde son rouge
+    d'avertissement, qui va dans le même sens. */
+.term .tk-lexos{color:#FF8C1A;font-weight:700}
 .term .tk-cmd{color:#FF8C1A;font-weight:600}
-.term .tk-arg{color:#FFD23F}
-.term .tk-rose{color:#FF7EB6}
+.term .tk-arg{color:#FFB061}
+.term .tk-rose{color:#35B37A}
+/*  Une commande qui n'existe pas : rouge dès la frappe, sans attendre
+    Entrée. Le trait ondulé dit « ça, ça ne passera pas » à quelqu'un qui
+    distingue mal le rouge de l'orange. */
+.term .tk-faux{color:#FF4B4B;font-weight:700;
+  text-decoration:underline wavy #FF4B4B;text-underline-offset:3px}
 /*  Menu de suggestions : la liste des commandes possibles, qu'on parcourt
     aux flèches ↑ ↓ et qu'on valide par Tab ou Entrée. Pensé pour débuter —
     plus besoin de connaître les commandes par coeur. */
@@ -845,10 +859,10 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .term-sug .sg{display:flex;gap:10px;align-items:baseline;padding:5px 9px;
   border-radius:7px;cursor:pointer;white-space:nowrap}
 .term-sug .sg:hover{background:rgba(255,255,255,.06)}
-.term-sug .sg.on{background:rgba(59,224,122,.16);outline:1px solid #3BE07A}
+.term-sug .sg.on{background:rgba(0,175,95,.18);outline:1px solid #00AF5F}
 .term-sug .sg-c{color:#FF8C1A;font-weight:600;flex:0 0 auto}
 .term-sug .sg-d{color:#9a9aa2;overflow:hidden;text-overflow:ellipsis}
-.term-sug .sg-aide{color:#3BE07A;padding:4px 9px 6px;border-top:1px solid #26262c;
+.term-sug .sg-aide{color:#00AF5F;padding:4px 9px 6px;border-top:1px solid #26262c;
   margin-top:3px;white-space:normal}
 /*  La barre de choix cliquable, sous le terminal. Elle rend accessible à la
     souris (et au doigt) ce qui n'existait qu'aux flèches du clavier. */
@@ -861,8 +875,8 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .term-nav .tnav:hover{background:#212128;border-color:#3d3d47;color:#fff}
 .term-nav .tnav:active{transform:translateY(1px)}
 .term-nav .tnav-fl{min-width:38px;justify-content:center;font-size:13px}
-.term-nav .tnav-ok{border-color:#3BE07A55;color:#3BE07A}
-.term-nav .tnav-ok:hover{background:rgba(59,224,122,.12);border-color:#3BE07A}
+.term-nav .tnav-ok{border-color:#00AF5F55;color:#00AF5F}
+.term-nav .tnav-ok:hover{background:rgba(0,175,95,.14);border-color:#00AF5F}
 .term-nav .tnav-go{border-color:#FF8C1A55;color:#FF8C1A}
 .term-nav .tnav-go:hover{background:rgba(255,140,26,.12);border-color:#FF8C1A}
 .term-nav .tnav-ic{font-size:13px;line-height:1}
@@ -1234,7 +1248,10 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .cct-sep{opacity:.5}
 .cct-maj{color:#3BE07A}
 .term{position:relative}
-.term .in{display:inline}
+/*  Tout ce qui est TAPÉ s'écrit en orange — c'est la règle de couleur du
+    terminal LexOS : la machine parle en vert foncé, l'utilisateur écrit en
+    orange, et ce qui ne marche pas est en rouge. */
+.term .in{display:inline;color:#FF8C1A}
 .caret{display:inline-block;width:8px;height:15px;vertical-align:-2px;
   background:var(--ac);animation:blink 1.05s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
@@ -3410,6 +3427,10 @@ let tEl=null, tBuf="";
 /*  Invite sur deux lignes, façon Kali Linux : le cadre ┌──└─ et
     l'étiquette [lexOS] en bleu Kali, l'utilisateur en vert, le chemin
     en accent. */
+//  Vrai dès qu'une commande s'est terminée par une erreur : le chevron de
+//  l'invite suivante s'allume en rouge, et reste rouge tant qu'une commande
+//  n'a pas réussi. Même comportement que sur la vraie machine.
+let tEchec = false;
 function tPrompt(){
   //  Couleurs demandées : « lexOS » en vert, le ㉿ (le @) en jaune, le nom
   //  d'utilisateur en rouge. Le cadre reste vert, la machine et le chemin
@@ -3419,24 +3440,44 @@ function tPrompt(){
          `<span class="pr-user">lex</span><span class="pr-at">㉿</span>`+
          `<span class="p">lexos</span><span class="kali">)-[</span>`+
          `<span class="path">~</span><span class="kali">]</span>`+
-         `\n<span class="kali">└─</span><span class="a">❯</span> `;
+         `\n<span class="kali">└─</span>`+
+         `<span class="pr-fleche${tEchec?" ko":""}">❯</span> `;
 }
-/*  Coloration des commandes tapées : sudo en rouge, help en jaune,
-    lexos/lexfetch en bleu Kali, les options (-x, --xyz) en estompé.
-    Reçoit du texte BRUT et l'échappe elle-même. */
+/*  Coloration de ce qu'on tape. Une seule règle, tenue partout dans le
+    terminal : la frappe est ORANGE, et elle vire au ROUGE dès que le
+    premier mot ne peut plus devenir une vraie commande. sudo garde son
+    rouge d'avertissement. Reçoit du texte BRUT et l'échappe elle-même. */
+const CMDS = new Set(["help","aide","lexfetch","clear","date","whoami","echo","uname",
+  "accent","dock","perf","crt","demo","avion","lang","format","info",
+  "musique","claude","studio","capture","logitheque","partage","chrome"]);
+/*  Le premier mot est-il encore ENVISAGEABLE ? On ne compare pas à
+    l'identique : « lex » n'est pas une commande, mais c'est le début de
+    « lexos » et de « lexfetch » — le rouge serait injuste au milieu d'un
+    mot. Il ne s'allume que lorsque plus aucune commande ne commence ainsi.
+    C'est aussi pour ça que la liste de départ est calculée à l'appel :
+    TERM_SUGGESTIONS est déclarée plus bas dans le fichier. */
+function tMotsConnus(){
+  const l = ["lexos","sudo"];
+  CMDS.forEach(c=>l.push(c));
+  (typeof TERM_SUGGESTIONS!=="undefined" ? TERM_SUGGESTIONS : [])
+    .forEach(([c])=>l.push(c.split(/\s+/)[0]));
+  return l;
+}
+function tPremierFaux(cmd){
+  const p = (cmd.trim().split(/\s+/)[0] || "").toLowerCase();
+  if(!p) return false;
+  return !tMotsConnus().some(k=>k.toLowerCase().startsWith(p));
+}
 function tColore(cmd){
-  //  Mêmes couleurs que le « help » : lexos blanc, commandes jaunes,
-  //  options orange — sudo garde son rouge d'avertissement.
-  const CMDS = new Set(["help","aide","lexfetch","clear","date","whoami","echo","uname",
-    "accent","dock","perf","crt","demo","avion","lang","format","info",
-    "musique","claude","studio","capture","logitheque","partage","chrome"]);
+  const faux = tPremierFaux(cmd);
   return esc(cmd).split(/(\s+)/).map(tok=>{
     if(/^\s+$/.test(tok) || !tok) return tok;
+    //  Fausse commande : toute la ligne passe en rouge, pas seulement le
+    //  premier mot — c'est la ligne entière qui ne partira pas.
+    if(faux) return `<span class="tk-faux">${tok}</span>`;
     if(tok==="sudo") return `<span class="tk-sudo">${tok}</span>`;
-    if(tok==="lexos") return `<span class="tk-lexos">${tok}</span>`;
-    if(CMDS.has(tok)) return `<span class="tk-cmd">${tok}</span>`;
     if(tok.startsWith("-")) return `<span class="tk-arg">${tok}</span>`;
-    return tok;
+    return `<span class="tk-cmd">${tok}</span>`;
   }).join("");
 }
 /* --- Suggestions de commandes, pour débuter ------------------------------
@@ -3641,6 +3682,9 @@ function runCmd(raw){
   //  La ligne COMPLÈTE, pas seulement c0 : « lexos mac » répondait
   //  « Commande inconnue : lexos » alors que « lexos » seul est valide.
   else out=`<span class='err'>✗ Commande inconnue : ${esc(line)}</span>\n  Essaie : <span class='a'>help</span>\n`;
+  //  Une sortie qui contient une ligne d'erreur = commande en échec :
+  //  le chevron suivant sera rouge.
+  tEchec = /class='err'/.test(out);
   tPrint(esc("")+out);
   tNewPrompt();
 }
