@@ -191,3 +191,28 @@ kbd{display:inline-block;padding:1px 6px;border-radius:5px;
 .wifi-l .t{display:flex;align-items:center;gap:8px}
 .cadenas{font-size:12px;opacity:.7}
 .cadenas.ouvert{color:var(--att,#FBBF24);opacity:1}
+
+/* --- Réponse au clic -------------------------------------------------------
+   UN BOUTON QUI NE BOUGE PAS LAISSE UN DOUTE. Sur une machine qui met une
+   seconde à répondre, rien ne distingue « le clic n'a pas été pris » de
+   « c'est en train de travailler » — on reclique, et parfois l'action part
+   deux fois. La pression s'enfonce en 90 ms et revient en 180 ms : assez
+   pour être senti, trop court pour être attendu.
+
+   La courbe n'est pas linéaire : elle part vite et finit doucement, comme un
+   objet qui a une masse. C'est ce qui fait la différence entre « ça bouge »
+   et « ça répond ».
+
+   prefers-reduced-motion est respecté : le mouvement disparaît, la couleur
+   reste — on ne prive personne du retour, on change sa forme. */
+.btn{transition:transform .18s cubic-bezier(.2,.8,.3,1),
+                background .15s ease, box-shadow .18s ease}
+.btn:hover{box-shadow:0 2px 12px rgba(232,89,12,.30)}
+.btn:active{transform:scale(.95);transition-duration:.09s;
+            box-shadow:0 1px 4px rgba(0,0,0,.35) inset}
+.btn:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+
+@media (prefers-reduced-motion: reduce){
+  .btn{transition:background .15s ease}
+  .btn:active{transform:none}
+}
