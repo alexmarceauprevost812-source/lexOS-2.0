@@ -533,6 +533,24 @@ cmd_status() {
 	need_nm
 	printf '\n%sRéseau%s\n\n' "$B$O" "$R"
 
+	#  LE MODE AVION EN PREMIER, ET EN GROS. Il figurait douze lignes plus bas,
+	#  après « ✗ Aucune connexion active » : on lisait la panne avant sa cause,
+	#  et la cause ressemblait à une ligne d'état parmi d'autres.
+	#
+	#  Vécu : Fn+F8 effleurée au démarrage coupe Wi-Fi ET Bluetooth d'un coup
+	#  (« rfkill block all »). Plus de réseau, plus d'enceinte, et une soirée à
+	#  soupçonner le pilote iwlwifi — qui était installé, chargé, et parfaitement
+	#  innocent. Quand une seule bascule explique TOUT ce qui suit, elle se dit
+	#  avant, pas après.
+	if [[ "$(avion_state)" == "on" ]]; then
+		printf '  %s┌─────────────────────────────────────────────────┐%s\n' "$Y" "$R"
+		printf '  %s│  MODE AVION ACTIVÉ — toutes les radios coupées  │%s\n' "$Y$B" "$R"
+		printf '  %s└─────────────────────────────────────────────────┘%s\n' "$Y" "$R"
+		printf '     Ni Wi-Fi, ni Bluetooth, ni données mobiles.\n'
+		printf '     Pour rallumer : %s%s avion%s   ou la touche %sFn+F8%s\n\n' \
+			"$B" "$PROG" "$R" "$B" "$R"
+	fi
+
 	local conn
 	conn="$(nmcli -t -f NAME,TYPE,DEVICE connection show --active 2>/dev/null)"
 	if [[ -n "$conn" ]]; then

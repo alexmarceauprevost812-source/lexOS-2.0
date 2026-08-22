@@ -57,8 +57,20 @@ def _run(argv, *, detach=False):
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return {"ok": True}
     r = subprocess.run(argv, capture_output=True, text=True, timeout=120)
-    return {"ok": r.returncode == 0,
-            "sortie": (r.stdout or r.stderr).strip()[-4000:]}
+    sortie = (r.stdout or r.stderr).strip()[-4000:]
+    if r.returncode == 0:
+        return {"ok": True, "sortie": sortie}
+    #  « erreur » EN PLUS DE « sortie », ET C'EST TOUT LE PROBLÈME QU'ON RÉPARE.
+    #  La page n'affiche un motif que si la réponse porte la clé « erreur » :
+    #  partout ailleurs elle retombe sur « Échec : commande refusée ». Une
+    #  commande qui échouait pour une raison précise — outil absent, droits
+    #  manquants, argument refusé — la disait dans sa sortie, et cette sortie
+    #  n'arrivait jamais à l'écran. On voyait un bouton qui « ne marche pas »,
+    #  sans le moindre indice, et on cherchait du côté du bouton.
+    motif = sortie.splitlines()[-1].strip() if sortie else ""
+    if not motif:
+        motif = f"« {argv[0]} » a échoué (code {r.returncode})"
+    return {"ok": False, "erreur": motif, "sortie": sortie}
 
 
 def _terminal(titre, commande):
