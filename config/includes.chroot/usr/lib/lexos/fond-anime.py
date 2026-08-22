@@ -93,7 +93,7 @@ SOURCES = [
 BATTERIE_MS = 20000    # on regarde l'alimentation toutes les 20 secondes
 IPS_DEFAUT = 12        # images par seconde en mode complet
 STATIQUES = {"fond", "image", "grille", "braises", "vignette", "marque", "texte"}
-ANIMEES = {"code", "pluie", "etoiles", "particules", "horloge"}
+ANIMEES = {"code", "pluie", "etoiles", "particules", "horloge", "marque3d"}
 
 
 # =============================================================================
@@ -166,6 +166,31 @@ def source_code(chemin=None):
         if texte.strip():
             return texte.replace("\t", "  ").replace("\r", "")
     return "#!/usr/bin/env bash\n# LexOS\n"
+
+
+#  D'OÙ VIENT LA SOURIS. La fenêtre du fond est transparente aux clics et vit
+#  SOUS tout le reste : elle ne recevra jamais un événement de pointeur. On ne
+#  l'écoute donc pas — on INTERROGE la position globale, comme le fait déjà
+#  coin-actif. La partie GTK installe le lecteur ici au démarrage ; en mode
+#  aperçu (sans serveur X), il reste None et LEXOS_FOND_POINTEUR="x,y" permet
+#  aux vérifications de simuler une souris.
+LIRE_POINTEUR = None
+
+
+def pointeur_global():
+    if LIRE_POINTEUR is not None:
+        try:
+            return LIRE_POINTEUR()
+        except Exception:
+            return None
+    brut = os.environ.get("LEXOS_FOND_POINTEUR", "")
+    if "," in brut:
+        try:
+            x, y = brut.split(",", 1)
+            return float(x), float(y)
+        except ValueError:
+            return None
+    return None
 
 
 def sur_batterie():
@@ -420,12 +445,60 @@ class CoucheHorloge:
         self.scene.dessine_horloge(ctx, self)
 
 
+class CoucheMarque3D:
+    """La marque LexOS en relief, qui suit la souris — d'un petit mouvement.
+
+    L'effet vient d'une maquette 3D d'Alex (Lexis_3D) : le logo en pile de
+    couches, les copies du fond qui glissent à l'opposé de la souris, la
+    face avant qui brille. Ici, pas de vrai 3D : cairo dessine la pile en
+    décalant chaque copie, et l'œil fait le reste.
+
+    LE MOUVEMENT EST PETIT, ET C'EST UNE CONSIGNE (« un ti mouvement, pas un
+    gros ») : l'amplitude est bornée à quelques pixels par couche. Un fond
+    d'écran qui gesticule fatigue en une heure ; un qui respire à peine
+    donne de la profondeur sans se faire remarquer.
+
+    Et la douceur n'est pas une transition CSS : chaque image, l'offset
+    parcourt une fraction du chemin vers la cible — le logo GLISSE derrière
+    la souris au lieu de la coller."""
+    econome = False
+
+    def __init__(self, opts, scene):
+        self.scene = scene
+        #  L'amplitude en fraction de la hauteur d'écran : 0.004 ≈ 4 px par
+        #  couche à 1080p, ~20 px de bout en bout. Bornée pour que même une
+        #  scène modifiée à la main reste un « ti mouvement ».
+        self.amplitude = nombre(opts.get("amplitude"), 0.004, 0.001, 0.010)
+        self.copies = int(nombre(opts.get("copies"), 6, 2, 10))
+        self.voile = bool(opts.get("voile", True))
+        self.ox = 0.0   # offset lissé, en fractions [-0.5 … 0.5]
+        self.oy = 0.0
+
+    def avance(self, dt):
+        p = pointeur_global()
+        if p is None:
+            cible_x, cible_y = 0.0, 0.0
+        else:
+            cible_x = max(-0.5, min(0.5, p[0] / max(1, self.scene.w) - 0.5))
+            cible_y = max(-0.5, min(0.5, p[1] / max(1, self.scene.h) - 0.5))
+        #  Lissage : ~1/6 du chemin restant par image à 24 ips. Jamais plus
+        #  que le chemin entier, même après une longue pause (dt énorme).
+        part = min(1.0, dt * 4.0)
+        self.ox += (cible_x - self.ox) * part
+        self.oy += (cible_y - self.oy) * part
+        return set(), True
+
+    def dessine(self, ctx):
+        self.scene.dessine_marque3d(ctx, self)
+
+
 FABRIQUES = {
     "code": CoucheCode,
     "pluie": CouchePluie,
     "etoiles": CoucheEtoiles,
     "particules": CoucheParticules,
     "horloge": CoucheHorloge,
+    "marque3d": CoucheMarque3D,
 }
 
 
@@ -689,6 +762,97 @@ class Scene:
             self._texte_espace(ctx, version_systeme(), cx, y0 + taille * 7.06,
                                max(9, self.h / 56.8), self.h / 216)
 
+    def dessine_marque3d(self, ctx, o):
+        """La marque en pile de profondeur — le dessin de CoucheMarque3D.
+
+        Même géométrie que _marque (le logo fixe) : ce qui change, c'est que
+        le corps du logo est dessiné N+1 fois. Les N copies du fond glissent
+        À L'OPPOSÉ de la souris, de plus en plus loin et de plus en plus
+        éteintes ; la face avant glisse AVEC elle, à peine. C'est le
+        parallaxe le plus simple qui soit, et l'œil y lit du relief."""
+        cx, cy = self.w / 2, self.h * 0.555
+
+        if o.voile:
+            voile = self.cairo.RadialGradient(cx, cy, 0, cx, cy, self.w * 0.40)
+            voile.add_color_stop_rgba(0.00, 0, 0, 0, 0.92)
+            voile.add_color_stop_rgba(0.70, 0, 0, 0, 0.80)
+            voile.add_color_stop_rgba(1.00, 0, 0, 0, 0.0)
+            ctx.save()
+            ctx.translate(cx, cy); ctx.scale(1.0, 0.52); ctx.translate(-cx, -cy)
+            ctx.set_source(voile); ctx.paint()
+            ctx.restore()
+
+            halo = self.cairo.RadialGradient(cx, cy * 0.96, 0, cx, cy * 0.96,
+                                             self.w * 0.23)
+            halo.add_color_stop_rgba(0.0, *hex_rgb(self.ac), 0.13)
+            halo.add_color_stop_rgba(1.0, *hex_rgb(self.ac), 0.0)
+            ctx.save()
+            ctx.translate(cx, cy * 0.96); ctx.scale(1.0, 0.36)
+            ctx.translate(-cx, -cy * 0.96)
+            ctx.set_source(halo); ctx.paint()
+            ctx.restore()
+
+        taille = max(14, self.h / 16.875)
+        ctx.select_font_face(self.famille, self.cairo.FONT_SLANT_NORMAL,
+                             self.cairo.FONT_WEIGHT_BOLD)
+        ctx.set_font_size(taille)
+        large = max(ctx.text_extents(l).x_advance for l in LOGO)
+        x0 = cx - large / 2
+        y0 = self.h * 0.4185
+
+        pas = self.h * o.amplitude          # le déplacement d'UNE couche
+        rl, gl, bl = hex_rgb(self.lo)
+
+        #  Les copies du fond, de la plus lointaine à la plus proche : la
+        #  lointaine bouge le plus (c'est elle qui donne la profondeur) et
+        #  s'éteint le plus. La verticale bouge moins que l'horizontale —
+        #  comme sur la maquette, où l'inclinaison en X était bornée plus bas.
+        for i in range(o.copies, 0, -1):
+            k = i / o.copies
+            dx = -o.ox * pas * i * 2.0
+            dy = -o.oy * pas * i * 1.4
+            ctx.set_source_rgba(rl, gl, bl, 0.30 * (1.0 - k) + 0.05)
+            for j, ligne in enumerate(LOGO):
+                ctx.move_to(x0 + dx, y0 + dy + j * taille * 1.156)
+                ctx.show_text(ligne)
+
+        #  La face avant : le dégradé de feu de la marque fixe, décalée AVEC
+        #  la souris — d'à peine plus d'une couche.
+        dxa = o.ox * pas * 1.3
+        dya = o.oy * pas * 0.9
+        feu = self.cairo.LinearGradient(0, y0 + dya - taille,
+                                        0, y0 + dya + taille * 4.7)
+        feu.add_color_stop_rgb(0.0, *hex_rgb(self.hi))
+        feu.add_color_stop_rgb(0.55, *hex_rgb(self.ac))
+        feu.add_color_stop_rgb(1.0, *hex_rgb(self.lo))
+        ctx.set_source(feu)
+        for j, ligne in enumerate(LOGO):
+            ctx.move_to(x0 + dxa, y0 + dya + j * taille * 1.156)
+            ctx.show_text(ligne)
+
+        #  Le trait et les lignes du bas ne bougent PAS : ils sont le sol.
+        #  Si tout glissait ensemble, l'œil ne verrait plus un relief mais
+        #  une image qui tremble.
+        y_trait = y0 + taille * 5.375
+        trait = self.cairo.LinearGradient(cx - self.w * 0.19, 0,
+                                          cx + self.w * 0.19, 0)
+        trait.add_color_stop_rgba(0.0, *hex_rgb(self.ac), 0.0)
+        trait.add_color_stop_rgba(0.3, *hex_rgb(self.ac), 0.85)
+        trait.add_color_stop_rgba(1.0, *hex_rgb(self.ac), 0.0)
+        ctx.set_source(trait)
+        ctx.rectangle(cx - self.w * 0.19, y_trait, self.w * 0.38, 2)
+        ctx.fill()
+
+        ctx.select_font_face(self.famille, self.cairo.FONT_SLANT_NORMAL,
+                             self.cairo.FONT_WEIGHT_NORMAL)
+        ctx.set_source_rgb(*hex_rgb("#B8B8BC"))
+        self._texte_espace(ctx, "T I · L E X · A L",
+                           cx, y0 + taille * 6.25, max(11, self.h / 41.5),
+                           self.h / 98)
+        ctx.set_source_rgb(*hex_rgb("#6E6E74"))
+        self._texte_espace(ctx, version_systeme(), cx, y0 + taille * 7.06,
+                           max(9, self.h / 56.8), self.h / 216)
+
     def _texte_espace(self, ctx, texte, cx, y, taille, espace):
         """Un texte centré, lettre à lettre, avec de l'air entre les lettres —
         le « letter-spacing » du fond fixe, que cairo n'a pas."""
@@ -942,6 +1106,24 @@ def main():
             ecran = self.get_screen()
             self.larg = ecran.get_width()
             self.haut = ecran.get_height()
+
+            #  Le lecteur de souris pour marque3d. La fenêtre est transparente
+            #  aux clics et vit sous tout : elle ne recevra jamais un
+            #  événement de pointeur — on interroge donc la position GLOBALE,
+            #  comme coin-actif. Si quoi que ce soit manque (Wayland exotique,
+            #  pas de seat), le lecteur reste None et le logo reste centré :
+            #  un fond qui ne suit pas la souris vaut mieux qu'un fond mort.
+            global LIRE_POINTEUR
+            try:
+                souris = Gdk.Display.get_default().get_default_seat().get_pointer()
+
+                def _lire():
+                    _, px, py = souris.get_position()
+                    return float(px), float(py)
+
+                LIRE_POINTEUR = _lire
+            except Exception:
+                LIRE_POINTEUR = None
 
             self.set_app_paintable(True)
             self.set_decorated(False)

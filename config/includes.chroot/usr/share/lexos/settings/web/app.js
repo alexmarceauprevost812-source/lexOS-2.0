@@ -898,6 +898,7 @@ function contenu(cle){
           <button class="btn ghost" onclick="setFondAnime('braises')">🔥 Braises</button>
           <button class="btn ghost" onclick="setFondAnime('etoiles')">✨ Ciel</button>
           <button class="btn ghost" onclick="setFondAnime('atelier')">🛠 Atelier</button>
+          <button class="btn ghost" onclick="setFondAnime('lexis-3d')">🧊 Lexis 3D — suit la souris</button>
           <button class="btn" onclick="setFondAnime('off')">Revenir au fond fixe</button>
         </div>
       </div>

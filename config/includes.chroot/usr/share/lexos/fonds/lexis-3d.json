@@ -1,0 +1,10 @@
+{
+  "_": "Lexis 3D — la marque en relief, qui suit la souris d'un petit mouvement. Vient d'une maquette 3D d'Alex (Lexis_3D) : pile de couches, copies du fond qui glissent à l'opposé, face avant qui brille. 24 images/seconde pour que le glissement soit soyeux — et comme tout fond animé, tout se fige sur batterie.",
+  "ips": 24,
+  "couches": [
+    { "type": "fond", "couleur": "#1b0d06", "couleur2": "#060403", "sens": "radial" },
+    { "type": "grille", "pas": 64, "couleur": "accent", "opacite": 0.05 },
+    { "type": "marque3d", "amplitude": 0.004, "copies": 6 },
+    { "type": "vignette", "opacite": 0.55 }
+  ]
+}
