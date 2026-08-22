@@ -60,6 +60,47 @@ suite: trixie
 # Compteur de demandes — incrémenter pour relancer.
 # build 70 : CE QUE LE PREMIER VRAI DÉMARRAGE A APPRIS.
 #
+#   ⚠ CE JOURNAL A ÉTÉ ÉCRIT AVANT LE RESTE DU LOT. Entre-temps, deux audits
+#     et TROIS PHOTOS du build 69 ont ajouté une douzaine de correctifs. Ce
+#     que le 70 emporte VRAIMENT, en plus de ce qui suit :
+#
+#     · LE THÈME D'ICÔNES N'A JAMAIS ÉTÉ ACTIF. Les poches orange sont dans
+#       l'ISO depuis le 66, le squelette disait IconThemeName=LexOS — et
+#       TROIS écrivains le remplaçaient par Papirus-Dark : le hook 0600 à la
+#       construction, lexos-firstrun à la première session, « lexos theme »
+#       à chaque changement de mode. D'où les dossiers BLEUS sur la photo
+#       d'Alex. Une seule vérité maintenant : LEXOS_ICON_THEME="LexOS".
+#
+#     · LE STYLE DU PANNEAU MOURAIT À LA PREMIÈRE SESSION. lexos-theme-gen
+#       écrasait ~/.config/gtk-3.0/gtk.css sans jamais émettre de règle
+#       #XfcePanelWindow : barre arrondie, points des bureaux, notifications
+#       — livrés par l'ISO, détruits par firstrun. Le générateur recopie
+#       désormais le squelette en tête, accent traduit, écriture atomique.
+#
+#     · BUREAU ET DESKTOP CÔTE À CÔTE dans le dossier personnel — le hook
+#       0500 crée les deux pour couvrir les langues, firstrun les fusionne
+#       une fois la locale connue.
+#
+#     · LES BOUTONS visaient le « button » nu : trop faible contre Arc-Dark
+#       (boutons restés sombres), trop large sur les faux boutons (les
+#       listes déroulantes en gros orange, photo 2). Contextes énumérés,
+#       structure exclue, interrupteurs à l'accent au lieu du bleu.
+#
+#     · LE GROSSISSEMENT SE CUMULAIT jusqu'à 1150 %. La base est désormais
+#       la police d'origine, le facteur suit l'écran, et Alex choisit son
+#       pourcentage : « gros-texte on 130 ». Alt+F7 et Alt+glisser rattrapent
+#       toute fenêtre qui dépasse.
+#
+#     · LE MENU BIOS, ACTE 4 : sed mangeait les barres obliques de l'append.
+#       « user-fullname=LexOS\ Live » arrivait coupé — pire, sed PLANTAIT et
+#       le remplacement échouait en silence. Tout passe par echappe_sed.
+#
+#     · La poche PROJ dessinée (la 6e de la démo n'existait pas), la loupe
+#       qui appelait xzoom retiré de Debian, les URL de l'ancien dépôt
+#       gravées dans chaque machine installée, et une VIGIE quotidienne
+#       contre les correctifs ISO qui dorment avec le mot-clé de saut.
+#
+#
 #   Le 69 démarre — en BIOS comme en UEFI, pour la première fois depuis le
 #   66. Alex a donc pu s'en servir, et tout ce qui suit vient de là : des
 #   choses qu'aucune relecture de code n'aurait trouvées.
