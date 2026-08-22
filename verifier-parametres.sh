@@ -35,6 +35,17 @@
 # shellcheck disable=SC1003
 set -uo pipefail
 
+#  LOCALE FIGÉE, ET CE N'EST PAS UN DÉTAIL. La première version employait la
+#  classe [à-ÿ] pour attraper les alias accentués (« température », « écran »).
+#  Un INTERVALLE de caractères non ASCII dépend de la locale : sur le runner
+#  de la CI, grep et sed ont répondu « Invalid collation character » — sur
+#  DEUX LIGNES perdues au milieu de la sortie — et l'extraction des alias a
+#  rendu du vide. Résultat : trois outils déclarés « absents de l'aide »
+#  alors que l'aide les nomme, et une CI rouge pour rien. Le motif ci-dessous
+#  n'emploie plus aucun intervalle non ASCII, et la locale est figée pour que
+#  le même dépôt donne le même verdict partout.
+export LC_ALL=C
+
 STRICT=0
 CSV=0
 for a in "$@"; do
@@ -79,8 +90,23 @@ titre() { printf '\n%s%s%s\n' "$GRAS" "$1" "$RAZ"; }
 AIDE_NUE=$(sed 's/\${[A-Z]*}//g' "$DISPATCH" 2>/dev/null | awk '/^cmd_help\(\)/,0')
 
 # Les branches du case : « alias1|alias2) exec lexos-X » → « lexos-X<TAB>alias1 alias2 ».
-BRANCHES=$(grep -E '^\s*[a-z0-9|à-ÿ-]+\)\s*(exec\s+lexos-|cmd_)' "$DISPATCH" \
-  | sed -E 's/^\s*([a-z0-9|à-ÿ-]+)\)\s*(exec\s+(lexos-[a-z0-9-]+)|cmd_[a-z_]+).*/\3\t\1/' )
+#  « tout ce qui précède la première parenthèse fermante », sans nommer les
+#  caractères : les alias accentués passent parce qu'on ne cherche pas à les
+#  décrire. On écarte les lignes de commentaire et celles qui contiennent
+#  déjà une parenthèse ouvrante (une fonction, pas une branche).
+BRANCHES=$(grep -E '^[[:space:]]*[^()#]+\)[[:space:]]*(exec[[:space:]]+lexos-|cmd_)' "$DISPATCH" \
+  | sed -E 's/^[[:space:]]*([^)]*)\)[[:space:]]*(exec[[:space:]]+(lexos-[a-z0-9-]+)|cmd_[a-z_]+).*/\3\t\1/')
+
+#  GARDE-FOU : si l'extraction ci-dessus rend du vide, tout le contrôle 1
+#  devient un mensonge poli — chaque outil paraît « absent de l'aide » et on
+#  cherche pendant une heure un défaut qui n'existe pas. C'est exactement ce
+#  qui est arrivé sur le runner. Mieux vaut s'arrêter net et le dire.
+if [ -z "$BRANCHES" ]; then
+  printf '%s✗%s aucune branche lue dans %s — le motif ou la locale a changé.\n' \
+    "$ROUGE" "$RAZ" "$DISPATCH" >&2
+  printf '   (contrôle interrompu : il ne peut rien affirmer de fiable)\n' >&2
+  exit 2
+fi
 
 dans_parametres() {  # les deux formes : « lexos-x » et « lexos x »
   local sous="$1" f
