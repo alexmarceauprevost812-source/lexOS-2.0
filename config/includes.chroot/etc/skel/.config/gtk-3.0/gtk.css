@@ -176,3 +176,46 @@ menu menuitem, .menu menuitem {
 	background-color: #E8590C;
 	color: #E8590C;
 }
+
+/* --- Fichiers (Thunar) : le survol de la démo -------------------------------
+   CE QU'ALEX DEMANDE, ET CE QUI EST POSSIBLE.
+   Dans la démo, survoler un dossier fait DEUX choses : la case s'éclaire, et
+   le rabat du dossier pivote de 15 degrés — le dossier s'ouvre. Le premier
+   se fait ici. Le second, NON, et il faut le dire : la démo dessine chaque
+   dossier en SVG vivant dans une page web, où l'on peut faire tourner une
+   pièce du dessin ; Thunar affiche une IMAGE tirée du thème d'icônes, et ni
+   GTK ni Thunar n'ont de mécanisme pour animer une icône au survol. Aucune
+   feuille de style ne peut inventer ça.
+
+   Ce qui a été fait à la place, et qui se voit vraiment : les dossiers de
+   l'ISO sont maintenant les MÊMES dessins que ceux de la démo (thème
+   d'icônes LexOS, poches DL/IMG/DOC/MUS/VID), ils suivent l'accent comme
+   dans la démo, et « folder-open » — celui du dossier qu'on est en train de
+   regarder — porte la poche basculée du même angle que le survol de la
+   démo. Le geste existe donc dans l'ISO ; il est déclenché par l'ouverture
+   plutôt que par le survol.
+
+   La couleur d'éclairement est celle de la démo (--bg-hi, #141416) relevée
+   en blanc translucide : sur un fond de fenêtre qui peut changer avec le
+   thème, une valeur opaque ferait une tache. */
+.thunar .standard-view:hover,
+.thunar iconview:hover,
+.thunar treeview.view:hover,
+iconview.view:hover {
+	background-color: rgba(255, 255, 255, 0.06);
+}
+/*  L'élément survolé — « prelight » est l'état que la vue pose sous le
+    pointeur. Coin rond comme les cases de la démo (.fold, border-radius 10px). */
+.thunar iconview:hover,
+.thunar iconview .cell:hover,
+iconview.view .cell:hover {
+	border-radius: 10px;
+}
+/*  La sélection garde l'accent : c'est déjà la langue du reste de LexOS. */
+.thunar iconview:selected,
+.thunar treeview.view:selected,
+iconview.view:selected {
+	background-color: rgba(232, 89, 12, 0.85);
+	color: #ffffff;
+	border-radius: 10px;
+}

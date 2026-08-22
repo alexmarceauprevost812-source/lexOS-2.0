@@ -440,6 +440,48 @@ if command -v rsvg-convert >/dev/null 2>&1; then
 fi
 
 # =============================================================================
+#  4b. Les DOSSIERS suivent l'accent, eux aussi
+# =============================================================================
+#  DANS LA DÉMO, folderColor() rend l'accent courant : changer d'accent
+#  repeint les six poches du dossier personnel. Sans ce bloc, l'ISO
+#  garderait des dossiers orange sous un thème vert — et c'est la première
+#  chose qu'on voit en ouvrant Fichiers.
+#
+#  On recopie le thème système dans celui de l'utilisateur en substituant
+#  les DEUX jetons : #E8590C pour la poche, #A84007 pour le dos (le même
+#  orange assombri, comme shade(c, 0.62) dans la démo). Le thème de
+#  l'utilisateur passe avant celui du système dans XDG_DATA_DIRS, donc il
+#  suffit d'écrire — rien à défaire.
+#
+#  Ce sont des SVG recopiés tels quels, pas des PNG rendus : un dossier se
+#  voit à toutes les tailles, du panneau latéral à la grande vignette, et
+#  figer huit tailles rendrait floue la seule qui manque.
+#  La racine est surchargeable pour que ce bloc soit ÉPROUVABLE : sur une
+#  machine de développement, /usr/share/icons/LexOS n'existe pas — il vit
+#  dans config/includes.chroot. Sans cette variable, le seul moyen de
+#  vérifier que changer d'accent repeint bien les dossiers serait de
+#  construire une ISO et de la démarrer. En service normal elle n'est pas
+#  définie et on lit le vrai chemin.
+DOSSIERS_RACINE="${LEXOS_ICONES:-/usr/share/icons/LexOS}"
+DOSSIERS_SRC="$DOSSIERS_RACINE/places/scalable"
+if [[ -d "$DOSSIERS_SRC" ]]; then
+	DOSSIERS_DST="$TARGET/.local/share/icons/LexOS"
+	mkdir -p "$DOSSIERS_DST/places/scalable"
+	#  L'index doit suivre : un dossier d'icônes sans index.theme n'est pas
+	#  un thème, et GTK l'ignore en entier — sans rien dire.
+	if [[ -r "$DOSSIERS_RACINE/index.theme" ]]; then
+		cp -f "$DOSSIERS_RACINE/index.theme" "$DOSSIERS_DST/index.theme"
+	fi
+	for F in "$DOSSIERS_SRC"/*.svg; do
+		[[ -r "$F" ]] || continue
+		sed -e "s/#E8590C/${ACCENT}/gI" -e "s/#A84007/${ACCENT_LO}/gI" \
+			"$F" > "$DOSSIERS_DST/places/scalable/$(basename "$F")"
+	done
+	command -v gtk-update-icon-cache >/dev/null 2>&1 && \
+		gtk-update-icon-cache -f "$DOSSIERS_DST" >/dev/null 2>&1 || true
+fi
+
+# =============================================================================
 #  5. Mémoriser l'accent pour les autres outils
 # =============================================================================
 cat > "$CONF_DIR/theme.conf" <<EOF
