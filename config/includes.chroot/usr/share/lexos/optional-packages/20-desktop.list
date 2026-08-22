@@ -118,9 +118,13 @@ gnome-calendar
 # La démo web ouvre, sur Super ou sur le coin haut-gauche, la rangée des
 # bureaux avec leurs fenêtres en vignettes. XFCE n'a pas ce geste ; ces deux
 # paquets le lui donnent (voir « lexos apercu ») :
-#   · xfdashboard EST cette vue, écrite pour XFCE. Si Debian venait à ne plus
-#     le fournir, « lexos apercu » retombe sur la liste des fenêtres de
-#     xfdesktop — moins joli, même geste, aucun paquet en plus.
+#   · xfdashboard EST cette vue, écrite pour XFCE. « Si Debian venait à ne
+#     plus le fournir » — c'est fait : le paquet est absent de trixie (index
+#     vérifié le 2026-08-22, ni main ni contrib ni non-free). Le repli prévu
+#     fonctionne et il est réel, pas théorique : lexos-apercu teste
+#     xfdashboard puis xfdesktop, et lance « xfdesktop --windowlist ». Moins
+#     joli, même geste, aucun paquet en plus. La ligne reste pour le jour où
+#     le paquet reviendrait.
 #   · xcape surveille Super et n'émet F13 que si on la relâche sans avoir
 #     rien tapé d'autre : c'est ce qui permet « Super seule » SANS casser
 #     Super+1…5, qui vont aux bureaux.

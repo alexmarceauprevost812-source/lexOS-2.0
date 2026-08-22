@@ -36,6 +36,12 @@ tlp-rdw
 # --- Souris et pavé tactile -------------------------------------------------
 libinput-tools
 xinput
+#  LES GESTES MULTITOUCHES N'ONT PLUS DE PAQUET DANS DEBIAN. touchegg est
+#  absent de trixie (vérifié le 2026-08-22), et ses deux solutions de rechange
+#  habituelles — libinput-gestures et fusuma — n'y sont pas non plus. La ligne
+#  reste au cas où l'un d'eux revienne. En attendant, libinput-tools et xinput
+#  ci-dessus donnent le réglage du pavé (défilement, clic à deux doigts,
+#  vitesse) ; ce sont les gestes à trois et quatre doigts qui manquent.
 touchegg
 
 # --- Gestion des couleurs ---------------------------------------------------
@@ -62,7 +68,13 @@ speech-dispatcher
 speech-dispatcher-espeak-ng
 at-spi2-core
 mousetweaks
-xzoom
+#  LA LOUPE : xzoom N'EST PLUS DANS DEBIAN (vérifié sur l'index de trixie le
+#  2026-08-22 — absent de main, contrib et non-free). Il a été remplacé ici par
+#  magnus, une loupe GTK légère qui suit le pointeur, avec kmag en second choix
+#  pour ceux qui ont déjà les bibliothèques KDE. Le repli compte : une section
+#  d'accessibilité qui manque son outil est exactement la panne qu'on décrit
+#  deux lignes plus haut comme la plus décourageante.
+magnus|kmag
 
 # --- Utilisateurs -----------------------------------------------------------
 accountsservice

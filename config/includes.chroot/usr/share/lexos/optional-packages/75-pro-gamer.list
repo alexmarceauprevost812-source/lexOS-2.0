@@ -37,12 +37,19 @@ lutris
 # (DirectX, polices, .NET) sans avoir à les chercher soi-même.
 winetricks
 # protontricks fait la même chose, mais pour les jeux lancés par Steam.
+#  ABSENT DE TRIXIE sous ses deux noms (vérifié le 2026-08-22). Le repli n'est
+#  pas nul : winetricks ci-dessus fait le même travail, mais il faut lui
+#  désigner le préfixe Proton à la main (~/.steam/steam/steamapps/compatdata/
+#  <id-du-jeu>/pfx) au lieu de choisir le jeu dans une liste. La ligne reste.
 protontricks|python3-protontricks
 # gamescope : un compositeur dédié au jeu (plein écran, mise à l'échelle,
-# taux de rafraîchissement). PAS dans Debian trixie stable — seulement dans
-# trixie-backports. Steam l'embarque de toute façon dans son runtime, donc les
-# jeux lancés par Steam/Proton en profitent sans ce paquet. Décommente la ligne
-# si tu ajoutes le dépôt backports.
+# taux de rafraîchissement). Pas dans trixie, mais BIEN dans
+# trixie-backports — en composante CONTRIB, pas main. Comme backports est
+# ouvert depuis le build 20, il s'installe déjà : l'ISO du build 66 porte
+# gamescope 3.16.22+ds-1~bpo13+1, posé par la ligne de 70-gaming.list, qui
+# elle n'est pas commentée. Il n'y a donc rien à décommenter ici — cette
+# ligne ferait doublon. Le « si tu ajoutes le dépôt backports » qui était
+# écrit là datait d'avant l'ouverture de l'archive.
 # gamescope
 
 # --- Performance et mesure ---------------------------------------------
@@ -72,6 +79,11 @@ obs-studio
 steam-devices
 # Pilote des manettes Xbox sans fil (One, Series) — meilleure prise en
 # charge que le pilote générique, vibrations comprises.
+#  ABSENT DE TRIXIE (vérifié le 2026-08-22), et sans équivalent DKMS empaqueté.
+#  Ce n'est pas bloquant : le pilote xpad du noyau 6.12 reconnaît les manettes
+#  Xbox One et Series en USB comme en Bluetooth, et les règles udev de
+#  steam-devices ci-dessus leur donnent les bons droits. Ce qu'on perd face à
+#  xpadneo, ce sont les vibrations fines et la lecture du niveau de batterie.
 xpadneo-dkms
 # Tester chaque bouton et chaque axe avant d'accuser le jeu.
 jstest-gtk
@@ -114,13 +126,20 @@ retroarch
 libretro-snes9x
 libretro-nestopia
 libretro-genesisplusgx
-# PlayStation : beetle-psx a été retiré de trixie. On prend PCSX ReARMed, bien
-# présent dans trixie et qui sait démarrer sans BIOS (HLE). Alternative plus
-# fidèle si tu as un vrai BIOS : libretro-swanstation.
+# PlayStation : AUCUN DES TROIS N'EST DANS TRIXIE. Le commentaire disait
+# « PCSX ReARMed, bien présent dans trixie » — index vérifié le 2026-08-22 :
+# ni pcsx-rearmed, ni swanstation, ni beetle-psx. Les cœurs libretro empaquetés
+# par Debian sont beetle-vb, beetle-wswan, bsnes-mercury-*, desmume, gambatte,
+# genesisplusgx, mgba, nestopia et snes9x — pas un seul pour la PlayStation.
+# La ligne reste : RetroArch sait aussi télécharger ses cœurs lui-même depuis
+# son gestionnaire, et le jour où Debian en empaquette un, elle prend effet.
 libretro-pcsx-rearmed|libretro-swanstation|libretro-beetle-psx
 libretro-mgba
 dolphin-emu
 pcsx2
+# PSP : aucun des trois noms n'existe dans Debian trixie (vérifié le
+# 2026-08-22). PPSSPP n'y est pas empaqueté du tout, sous aucun nom. La ligne
+# reste ; en attendant, le Flatpak officiel s'installe depuis la logithèque.
 ppsspp-qt|ppsspp|ppsspp-sdl
 mgba-qt
 mupen64plus-qt
@@ -131,4 +150,8 @@ supertuxkart
 0ad
 minetest
 openttd
-xonotic
+#  Xonotic n'est pas dans trixie (vérifié le 2026-08-22). Nexuiz y est, dans
+#  main : c'est le projet DONT Xonotic est issu — même moteur DarkPlaces, même
+#  genre, gratuit et libre. Le second nom sert donc vraiment de remplaçant,
+#  pas de lot de consolation.
+xonotic|nexuiz

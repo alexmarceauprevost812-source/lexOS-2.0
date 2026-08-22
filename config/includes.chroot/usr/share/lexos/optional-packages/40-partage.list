@@ -8,11 +8,16 @@ arp-scan
 # scrcpy affiche ET contrôle l'écran d'un téléphone Android sur l'ordinateur
 # (câble USB avec débogage activé, ou Wi-Fi via adb tcpip). Le paquet Debian
 # tire android-tools-adb automatiquement — rien à ajouter à la main ici.
-# scrcpy a été signalé absent lors de la construction 8. Il est gardé :
-# c'est un paquet Debian de longue date, l'absence est probablement
-# passagère (transition en cours dans l'archive), et une ligne qui échoue
-# ne coûte qu'un mot dans /etc/lexos/optional-report. Si elle persiste,
-# « lexos ecran-telephone » le dira et proposera l'installation manuelle.
+# scrcpy a été signalé absent lors de la construction 8, et gardé en pariant
+# sur une absence passagère. LE PARI EST GAGNÉ, mais pas pour la raison
+# supposée : scrcpy n'est jamais revenu dans trixie. Il vient de
+# trixie-backports, composante CONTRIB — et il s'installe depuis que
+# l'archive a été ouverte au build 20. L'ISO du build 66 porte
+# scrcpy 3.3.4-1~bpo13+1.
+#   ⚠ Cette ligne dépend donc de config/archives/backports.*.chroot. Retirer
+#     ces fichiers la ferait échouer en silence, et « lexos ecran-telephone »
+#     perdrait le miroir d'écran. Le contrôle CI « paquet de backports » la
+#     surveille nommément.
 scrcpy|scrcpy-server
 
 # android-tools-adb à part : « lexos usb terminal » (un shell SUR le

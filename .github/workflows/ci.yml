@@ -223,11 +223,47 @@ jobs:
           #  erreur nulle part — le pire des deux silences, celui qui a l'air
           #  d'un succès.
           #
-          #  La CI ne peut pas interroger l'archive Debian (pas de réseau vers
-          #  deb.debian.org, et de toute façon ce serait une dépendance de
-          #  build). On tient donc la liste à la main : elle est courte, et
-          #  chaque ajout est une décision consciente.
-          BACKPORTS_SEULEMENT="llama.cpp"
+          #  CE CONTRÔLE A LUI-MÊME MENTI PENDANT 67 CONSTRUCTIONS.
+          #  Il tenait « llama.cpp » pour un paquet de backports sur la foi
+          #  d'une liste écrite à la main, vérifiait la PLOMBERIE (archive
+          #  ouverte ? épinglée ?), la trouvait correcte, et affichait
+          #  « ok — llama.cpp : backports ouvert et épinglé ». Tout était vrai
+          #  sauf la prémisse : llama.cpp n'a jamais été dans trixie-backports.
+          #  On vérifiait la serrure sans regarder s'il y avait une porte.
+          #
+          #  Le runner a bien accès au réseau — c'est celui qui installe les
+          #  paquets de la CI. On lit donc l'index de l'archive pour de vrai.
+          #  Si l'archive est injoignable, on AVERTIT sans bloquer : une panne
+          #  réseau ne doit pas casser la CI, mais elle ne doit pas non plus
+          #  se faire passer pour une validation.
+          #  LA LISTE, REFAITE À PARTIR DE L'INDEX PLUTÔT QUE DE MÉMOIRE.
+          #  « llama.cpp » y figurait à tort : il n'est pas dans backports, il
+          #  n'est que dans testing et unstable. Il en sort.
+          #  Y entrent les deux paquets qui en viennent VRAIMENT, tous deux en
+          #  composante contrib : sans config/archives/, l'ISO perdrait le
+          #  compositeur de jeu et le miroir d'écran Android, en silence.
+          BACKPORTS_SEULEMENT="gamescope scrcpy"
+
+          if [ -z "$BACKPORTS_SEULEMENT" ]; then
+            echo "  aucun paquet declaré « backports seulement » — rien à vérifier"
+            exit 0
+          fi
+
+          #  LES QUATRE COMPOSANTES, PAS SEULEMENT MAIN. gamescope et scrcpy
+          #  sont en contrib : un index limité à main les déclarerait absents
+          #  et ferait échouer la CI sur deux paquets parfaitement installés.
+          #  C'est l'erreur exacte qui a fait croire un temps qu'ils
+          #  manquaient — vérifier une archive, c'est vérifier TOUTE l'archive.
+          INDEX="$(mktemp)"
+          INDEX_OK=1
+          for c in main contrib non-free non-free-firmware; do
+            for a in amd64 all; do
+              curl -fsS --max-time 60 \
+                "https://deb.debian.org/debian/dists/trixie-backports/$c/binary-$a/Packages.xz" \
+                2>/dev/null | unxz -c 2>/dev/null >> "$INDEX" || true
+            done
+          done
+          [ -s "$INDEX" ] || INDEX_OK=0
 
           bad=0
           for pkg in $BACKPORTS_SEULEMENT; do
@@ -253,8 +289,17 @@ jobs:
               echo "::error::config/archives ouvre trixie-backports sans fichier .pref.chroot : sans épinglage, le reste du système finira par venir de backports."
               bad=1
             fi
-            echo "  ok — $pkg : backports ouvert et épinglé"
+            #  LA PRÉMISSE, enfin vérifiée : le paquet est-il DANS l'archive ?
+            if [ "$INDEX_OK" = "0" ]; then
+              echo "::warning file=$trouve::'$pkg' : archive backports injoignable, sa présence n'a PAS pu être vérifiée. Plomberie correcte, prémisse inconnue."
+            elif grep -qE "^Package: ${pkg}\$" "$INDEX"; then
+              echo "  ok — $pkg : présent dans trixie-backports, archive ouverte et épinglée"
+            else
+              echo "::error file=$trouve::'$pkg' est réclamé comme paquet de trixie-backports, mais l'archive NE LE PUBLIE PAS. apt ne le trouvera pas, le hook 0250 tolérera l'absence, le build RÉUSSIRA et l'ISO sortira sans. Retirer le nom de BACKPORTS_SEULEMENT, ou trouver la vraie archive qui le fournit."
+              bad=1
+            fi
           done
+          rm -f "$INDEX"
           exit $bad
 
       - name: Bits d'exécution présents

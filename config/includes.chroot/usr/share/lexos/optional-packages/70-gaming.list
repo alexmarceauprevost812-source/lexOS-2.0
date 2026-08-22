@@ -5,5 +5,8 @@ lutris
 wine
 winetricks
 gamescope
+#  protontricks est absent de trixie sous ses deux noms (vérifié le
+#  2026-08-22). winetricks, juste au-dessus, couvre les mêmes besoins en
+#  demandant qu'on lui indique le préfixe Proton à la main. Ligne gardée.
 protontricks|python3-protontricks
 goverlay
