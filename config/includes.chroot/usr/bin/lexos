@@ -828,10 +828,29 @@ cmd_dock() {
 		|| die "Impossible de déplacer le dock."
 	ok "Dock déplacé : ${pos}"
 
-	# Plank applique la position à chaud, mais un redémarrage lève tout doute.
-	if pgrep -x plank >/dev/null 2>&1; then
-		pkill -x plank 2>/dev/null
-		( sleep 1; setsid plank >/dev/null 2>&1 & ) 2>/dev/null
+	#  ON NE TUE PLUS PLANK. Ce bloc faisait « pkill plank » puis une relance
+	#  détachée, en filet de sécurité — le commentaire d'origine disait
+	#  lui-même que Plank applique la position À CHAUD et que le redémarrage
+	#  ne servait qu'à « lever tout doute ».
+	#
+	#  Le doute levé coûtait cher : quand la relance échouait, le dock ne
+	#  revenait pas. Alex a changé la position (droite, gauche, bas, haut) et
+	#  s'est retrouvé SANS BARRE DU TOUT. De son point de vue, un réglage de
+	#  position avait effacé son menu — et rien à l'écran ne disait pourquoi
+	#  ni comment le récupérer.
+	#
+	#  Désormais : on laisse Plank se déplacer tout seul, on lui laisse une
+	#  seconde, et on ne le relance QUE s'il a disparu de lui-même. Dans tous
+	#  les cas on vérifie qu'il est là à la fin, et on le DIT quand il manque,
+	#  avec la commande pour le rattraper.
+	sleep 1
+	if ! pgrep -x plank >/dev/null 2>&1; then
+		( setsid plank >/dev/null 2>&1 & ) >/dev/null 2>&1
+		sleep 2
+	fi
+	if ! pgrep -x plank >/dev/null 2>&1; then
+		warn "Le dock ne répond plus. Pour le rattraper : ${B}plank &${R}"
+		warn "S'il ne revient pas, ferme puis rouvre la session."
 	fi
 }
 
