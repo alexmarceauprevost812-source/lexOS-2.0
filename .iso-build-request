@@ -58,6 +58,121 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 68 : L'IA LOCALE — LE MODÈLE CHOISI, ET LA VRAIE RAISON DU MOTEUR
+#   MANQUANT.
+#
+#   DEUX CHOSES, TROUVÉES EN OUVRANT L'ISO DU 66.
+#
+#   · LE MODÈLE CHOISI N'ÉTAIT PAS CELUI QUI RÉPONDAIT. _flux_llama prenait
+#     modeles[0] — le premier .gguf par ordre alphabétique — alors que
+#     act_modele avait pris soin d'enregistrer le choix dans reg["modele"].
+#     Le réglage était bien relu à la ligne suivante, mais seulement pour
+#     « contexte ». Avec deux modèles installés, le choix fait dans
+#     « Modèles » était écrasé en silence. On cherche désormais le fichier
+#     dont le nom correspond au réglage. Un .gguf effacé depuis fait
+#     retomber sur le premier ET le dit ; un nom de modèle Ollama fait
+#     retomber sans rien dire, puisque reg["modele"] est partagé entre les
+#     deux moteurs et qu'aucun fichier ne peut lui correspondre.
+#
+#   · LLAMA.CPP N'EST PAS DANS TRIXIE-BACKPORTS. Il ne l'a jamais été.
+#     Relevé sur l'index de l'archive : backports publie la famille libggml*
+#     — dont libggml0-backend-vulkan, précisément le backend que cherche le
+#     hook 0270 — mais pas le moteur. Le paquet llama.cpp n'existe que dans
+#     testing (forky) et unstable.
+#
+#     Le hook accusait « trixie-backports n'est pas ouvert » et envoyait
+#     vérifier config/archives/ : deux fichiers corrects depuis le premier
+#     jour. Le contrôle CI vérifiait que l'archive était ouverte et
+#     épinglée, la trouvait conforme, et affichait « ok ». Tout était vrai
+#     sauf la prémisse. Soixante-sept constructions à vérifier la serrure
+#     sans regarder s'il y avait une porte.
+#
+#   CE BUILD N'INSTALLE TOUJOURS PAS DE MOTEUR LOCAL. Le paquet n'existe pas
+#   pour trixie, et on n'ouvre pas testing dans une base stable pour un seul
+#   nom : c'est exactement ce que backports.pref.chroot s'interdit, et la
+#   raison même de construire sur stable. Ce qui change, c'est qu'on le dit
+#   juste — /etc/lexos/ia-moteur porte la vraie cause parmi trois, le
+#   panneau l'affiche, et propose Ollama, qui s'installe à la demande par
+#   son script officiel dans un terminal.
+#
+#   La ligne llama.cpp reste dans 52-ia-locale.list : le jour où l'archive
+#   le publie, elle prendra effet toute seule, sans rien à retoucher.
+#
+#   La CI vérifie maintenant la PRÉMISSE avant la plomberie — elle lit
+#   l'index de l'archive — et avertit sans bloquer si l'archive est
+#   injoignable.
+#
+#   AUDIT DES 425 LIGNES DE PAQUETS, tant qu'on y était. Chaque ligne des 27
+#   listes optionnelles a été résolue contre l'index réel de trixie et de
+#   trixie-backports — quatre composantes, trois architectures, noms réels ET
+#   noms virtuels. Le compte tombe juste sur le rapport du build 66 :
+#   415 posés + 10 introuvables = 425.
+#
+#   · DEUX ONT UN VRAI REMPLAÇANT, ET ILS SONT PRIS.
+#     xzoom -> magnus|kmag : la loupe d'écran. C'est de l'accessibilité, et
+#     la section le dit elle-même deux lignes plus haut — une section
+#     d'accessibilité qui manque son outil, c'est la panne la plus
+#     décourageante possible. magnus est une loupe GTK légère qui suit le
+#     pointeur ; kmag en second choix.
+#     xonotic -> xonotic|nexuiz : Nexuiz est le projet DONT Xonotic est issu,
+#     même moteur DarkPlaces, dans main. Un remplaçant, pas un lot de
+#     consolation.
+#
+#   · HUIT SONT INTROUVABLES PARTOUT, et c'est vérifié, plus supposé :
+#     llama.cpp, touchegg, xfdashboard, xpadneo-dkms, protontricks, les trois
+#     cœurs PlayStation, PPSSPP, python3-rembg. Les lignes RESTENT — c'est la
+#     convention du dépôt, elles reprendront effet si Debian les empaquette —
+#     mais chacune porte maintenant ce qu'on perd et ce qui le remplace :
+#     xfdesktop --windowlist pour la vue d'ensemble (repli déjà écrit dans
+#     lexos-apercu, vérifié), le pilote xpad du noyau pour les manettes Xbox,
+#     winetricks avec le préfixe désigné à la main pour protontricks,
+#     ImageMagick pour le découpage.
+#
+#   · DEUX COMMENTAIRES DISAIENT LE CONTRAIRE DE L'ARCHIVE.
+#     « libretro-pcsx-rearmed, bien présent dans trixie » : il n'y est pas,
+#     et aucun cœur PlayStation n'y est. « gamescope, seulement dans
+#     trixie-backports, décommente si tu ajoutes le dépôt » : backports est
+#     ouvert depuis le build 20 et gamescope EST installé — 3.16.22 dans
+#     l'ISO du 66 — posé par 70-gaming.list. Rien à décommenter.
+#
+#   · scrcpy, « absent au build 8, sûrement passager » : il ne revient pas
+#     dans trixie, il vient de backports/contrib, et il est là depuis le
+#     build 20. Écrit noir sur blanc, parce que retirer config/archives/
+#     coûterait maintenant le miroir d'écran Android sans un mot.
+#
+#   La liste BACKPORTS_SEULEMENT de la CI est refaite sur l'index : llama.cpp
+#   en sort, gamescope et scrcpy y entrent. Et le contrôle lit les QUATRE
+#   composantes — les deux sont en contrib, un index limité à main les
+#   aurait déclarés absents.
+#
+#   LE CHOIX DU MODÈLE DANS « lexos claude ». Claude Code prenait son défaut
+#   et rien ne permettait d'en changer autrement qu'en tapant « /model » à
+#   chaque session — ce qui règle la session en cours et pas les suivantes,
+#   c'est-à-dire l'inverse de ce qu'on veut la plupart du temps.
+#
+#     lexos claude modele            montre les trois et lequel est réglé
+#     lexos claude modele sonnet     règle, une fois pour toutes
+#     lexos claude modele defaut     efface le choix
+#
+#   Trois modèles nommés : Opus 5 (le défaut, 1M de contexte), Sonnet 5
+#   (nettement moins cher, largement de quoi coder au quotidien) et
+#   Haiku 4.5 (le plus rapide et le moins cher). Le tableau affiche le
+#   contexte et le prix au million de jetons : un choix de modèle est aussi
+#   un choix de facture, autant que ce soit écrit à côté.
+#
+#   ON ÉCRIT L'IDENTIFIANT COMPLET, PAS LE RACCOURCI. « opus » et « sonnet »
+#   sont acceptés à la saisie parce que c'est plus court à taper, mais le
+#   fichier reçoit « claude-opus-5 ». Un raccourci pointe vers « le plus
+#   récent de la famille » : la même commande ne donnerait pas le même modèle
+#   dans six mois, et on chercherait longtemps pourquoi la facture a bougé.
+#
+#   Un identifiant inconnu de LexOS est accepté avec un avertissement — pour
+#   ne pas avoir à retoucher le script à chaque sortie d'Anthropic. Un nom qui
+#   ne ressemble pas à un identifiant est refusé, et un fichier de réglage
+#   abîmé est ignoré plutôt que passé tel quel à la ligne de commande.
+#   Un « --model » donné à la main sur la ligne l'emporte sur le réglage :
+#   c'est la demande la plus explicite des deux.
+#
 # build 67 : LES DEUX MENUS DE DÉMARRAGE, POUR DE VRAI CETTE FOIS.
 #
 #   LE 66 A SERVI À QUELQUE CHOSE : il a montré, photo à l'appui, que les
@@ -1524,4 +1639,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 67
+build: 68
