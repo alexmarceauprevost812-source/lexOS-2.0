@@ -6,6 +6,16 @@
 #
 #  Pour redemander une construction sans rien changer d'autre, incrémente
 #  simplement « build ». Un fichier inchangé ne déclenche rien.
+#
+#  PIÈGE VÉCU, BUILD 66 : NE JAMAIS ÉCRIRE LE MOT-CLÉ DE SAUT DE CI DANS LE
+#  MESSAGE DU COMMIT DE DEMANDE — MÊME POUR EN PARLER.
+#  GitHub cherche « [skip » + « ci] » (et ses variantes) dans TOUT le message,
+#  pas seulement dans la première ligne. Le commit « ISO build 66 » expliquait
+#  dans son corps que les cinq commits précédents portaient ce mot-clé : GitHub
+#  l'a lu comme un ordre et n'a lancé AUCUNE exécution. Rien dans l'onglet
+#  Actions, aucune erreur, aucun message — on attend une ISO qui ne se
+#  construit pas. Pour en parler dans un message, écrire « le mot-clé de
+#  saut » ou le couper en deux.
 # =============================================================================
 
 # minimal | standard | dev | full | gaming | pro
@@ -48,6 +58,60 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 66 : LE GRAPHIQUE DE VERCEL DANS LA VRAIE MACHINE — le menu de
+#   démarrage BIOS, les points des bureaux, les dossiers. Plus lexos-materiel.
+#
+#   · LE MENU DE DÉMARRAGE BIOS N'ÉTAIT PAS HABILLÉ. LexOS a deux menus —
+#     UEFI (GRUB) et BIOS (isolinux) — et seul le premier l'était. En mode
+#     Legacy on tombait sur le menu Debian d'origine : casque de chantier
+#     jaune, barre bleue, entrées en anglais, champs de version vides.
+#     LA CAUSE TENAIT À DEUX LETTRES : le dessin s'appelait « splash.svg »,
+#     et live-build ne lit QUE « splash.svg.in » — il le rend en PNG, puis
+#     écrase et efface tout .svg du même dossier. Le travail d'Alex n'a
+#     jamais atteint une seule clé USB, sans un message, sans une erreur de
+#     construction. Renommé, plus cinq défauts vus à l'écran en machine
+#     virtuelle : accents dessinés en CP437 (« d├─monstration ») corrigés
+#     par le hook 0905 au dernier moment, « timeoutrow » compté depuis
+#     vshift, initiales orange en damier, flèches impossibles en mode texte
+#     passées dans l'image de fond, et la première entrée UEFI qui
+#     descendait de 16 px (bandes de select_*.png ramenées à 2 px).
+#
+#     ATTENTION AU JOURNAL : chercher « hook 0905 » et la ligne
+#     « splash.png : 640x480, grille 80x30 respectée ». Sans elle, le menu
+#     BIOS démarrerait sur fond noir.
+#
+#   · LES POINTS DES BUREAUX PRENNENT LA FORME DE LA DÉMO. L'espace courant
+#     n'y est pas un point plus gros : c'est une PILULE. Repris nombre par
+#     nombre et traduit pour une barre de 32 px.
+#     RÉSERVE : si le sélecteur XFCE alloue une largeur égale à chaque
+#     espace, « min-width » ne pourra pas allonger le seul actif — on aurait
+#     quatre pastilles de même largeur dont une orange. Juste et lisible,
+#     mais pas la pilule. C'EST À REGARDER SUR CETTE ISO.
+#
+#   · LES DOSSIERS DEVIENNENT CEUX DE LA DÉMO. Un thème d'icônes « LexOS »
+#     qui ne redéfinit QUE les sept dossiers et hérite de Papirus-Dark pour
+#     tout le reste. Les deux « path » sont copiés de la démo tels quels et
+#     les libellés (DL, IMG, DOC, MUS, VID) posés aux mêmes coordonnées. Ils
+#     suivent l'accent, comme folderColor() dans la démo — vérifié en orange
+#     et en vert. Le survol éclaire la case ; le rabat qui pivote, lui, est
+#     impossible dans Thunar (il affiche une image, pas un SVG vivant) — le
+#     geste est déclenché par l'ouverture à la place.
+#
+#   · lexos-materiel — LE QUATRIÈME OUTIL DE LA COUCHE DIAGNOSTIC. « Ma
+#     machine en une page », et surtout « lexos materiel memoire » qui
+#     répond enfin à « puis-je ajouter de la RAM ? » : fentes libres, type
+#     exact à acheter, maximum accepté par la carte mère. C'est écrit dans
+#     le BIOS depuis le premier démarrage ; il fallait ouvrir le boîtier ou
+#     lire soixante lignes d'anglais. dmidecode entre dans 59-diagnostic.
+#     Le mode « rapport » ne laisse sortir AUCUN numéro de série, et le nom
+#     d'un disque n'est jamais évalué — une clé USB peut annoncer « $(…) ».
+#
+#   · CE QUE LA CI GARDE EN PLUS. Le motif SVG couvre les deux noms et exige
+#     la présence du fond ; shellcheck voit enfin les .hook.binary ;
+#     fonts-dejavu-core est réclamée explicitement (police absente, rsvg
+#     substitue en silence et le titre sort dans une autre fonte) ; et un
+#     test garde le contrôle 16 contre le retour du défaut de locale.
+#
 # build 65 : SIX COMMITS DEPUIS LE 64 — le terminal aux trois couleurs, le
 #   fond Lexis 3D, la couche sauvegarde/diagnostic, et le contrôle 16.
 #
@@ -1416,4 +1480,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 65
+build: 66
