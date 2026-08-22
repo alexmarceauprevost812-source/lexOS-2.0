@@ -3169,17 +3169,21 @@ addEventListener("keyup", e=>{
   }
 });
 
-/*  La molette sur le FOND D'ÉCRAN change de bureau — le geste d'Ubuntu.
-    Uniquement sur le fond : au-dessus d'une fenêtre, d'un menu ou du dock,
-    la molette doit faire défiler leur contenu. Même verrou de 320 ms que
-    la grille des applications, pour qu'un cran ne saute pas trois bureaux.
-    Dans la vue d'ensemble aussi, où c'est justement ce qu'on attend. */
+/*  La molette ne change de bureau QUE SUR LES POINTS, en haut à gauche.
+    C'était « partout sur le fond », le geste d'Ubuntu — et Alex l'a vécu sur
+    sa machine : on pose la souris pour lire, on effleure la roulette, et
+    tout l'écran se remplace. Un geste anodin ne doit pas déplacer le décor
+    entier. Désormais on VISE : la roulette n'agit que le pointeur posé sur
+    le chapelet de points (#bureaux) — clic ou roulette, au choix — et dans
+    la vue d'ensemble, où changer de bureau est justement ce qu'on est venu
+    faire. Même règle que la vraie ISO (scroll_workspaces=false dans xfwm4,
+    workspace-scrolling=true sur le sélecteur). Même verrou de 320 ms, pour
+    qu'un cran ne saute pas trois bureaux. */
 let burMoletteBloc = 0;
 addEventListener("wheel", e=>{
   const surApercu = apercuEl && apercuEl.contains(e.target);
-  const surBureau = e.target.closest && e.target.closest("#desktop") &&
-                    !e.target.closest(".win,.menu,#dock,#panel,#appsview,.deskicon");
-  if(!surApercu && !surBureau) return;
+  const surPoints = e.target.closest && e.target.closest("#bureaux");
+  if(!surApercu && !surPoints) return;
   const t = Date.now();
   if(t < burMoletteBloc) return;
   const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
