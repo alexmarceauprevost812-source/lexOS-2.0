@@ -59,9 +59,10 @@ Usage :
   $PROG                      État de chaque fonction
   $PROG lecteur on|off       Lecteur d'écran Orca (lit l'écran à voix haute)
   $PROG clavier on|off       Clavier visuel Onboard (saisie à la souris)
-  $PROG loupe on|off         Loupe d'écran xzoom
+  $PROG loupe on|off         Loupe d'écran (magnus — suit le pointeur)
   $PROG contraste on|off     Thème à contraste élevé
-  $PROG gros-texte on|off    Texte agrandi (facteur 1,5)
+  $PROG gros-texte on|off    Texte agrandi — le facteur suit l'écran
+  $PROG gros-texte on 130    Ton pourcentage à toi (100 à 200)
   $PROG clic-auto on|off     Clic par temporisation (mousetweaks)
   $PROG voix "texte"         Lire un texte à voix haute (espeak-ng, en français)
   $PROG curseur <taille>     Taille du pointeur de souris, en pixels (24, 32, 48…)
@@ -318,31 +319,59 @@ clavier() {
 # =============================================================================
 #  Loupe (xzoom)
 # =============================================================================
+#  QUEL OUTIL DE LOUPE ? xzoom n'est PLUS dans Debian trixie : l'audit du
+#  build 68 l'a remplacé par magnus (avec kmag en second choix) dans
+#  56-reglages.list — mais cette fonction appelait toujours xzoom. Une
+#  loupe documentée qui ne s'ouvre pas, c'est exactement la panne
+#  d'accessibilité la plus décourageante. On prend le premier présent ;
+#  xzoom reste en dernier pour qui l'aurait installé à la main.
+loupe_outil() {
+	local o
+	for o in magnus kmag xzoom; do
+		command -v "$o" >/dev/null 2>&1 && { printf '%s' "$o"; return 0; }
+	done
+	return 1
+}
+
 loupe() {
-	local mode="$1"
-	requis xzoom xzoom || return 1
+	local mode="$1" outil
+	outil="$(loupe_outil)" || {
+		warn "Aucune loupe installée (magnus, kmag ou xzoom)."
+		astuce "Installer : lexos install magnus"
+		return 1
+	}
 	case "$mode" in
 		on)
 			graphique || return 1
-			# xzoom lit l'écran par X11. Sous Wayland il n'a rien à lire : LexOS
-			# ouvre XFCE en X11 par défaut, mais on prévient si ce n'est pas le
-			# cas plutôt que de laisser une fenêtre grise sans explication.
+			# La loupe lit l'écran par X11. Sous Wayland il n'y a rien à lire :
+			# LexOS ouvre XFCE en X11 par défaut, mais on prévient si ce n'est
+			# pas le cas plutôt que de laisser une fenêtre grise sans explication.
 			if [[ -n "${WAYLAND_DISPLAY:-}" ]] && [[ -z "${DISPLAY:-}" ]]; then
-				warn "Session Wayland : xzoom ne peut pas lire l'écran, il n'y a pas de repli."
+				warn "Session Wayland : la loupe ne peut pas lire l'écran, il n'y a pas de repli."
 				return 1
 			fi
-			if processus_actif xzoom; then
-				ok "La loupe est déjà ouverte."
-			else
+			if processus_actif "$outil"; then
+				ok "La loupe ($outil) est déjà ouverte."
+			elif [[ "$outil" == "xzoom" ]]; then
 				lancer xzoom -mag 3
-				ok "Loupe ouverte (grossissement 3×)."
+				ok "Loupe ouverte (xzoom, grossissement 3×)."
+			else
+				lancer "$outil"
+				ok "Loupe ouverte ($outil) — elle suit le pointeur."
 			fi
 			# Franchise : ce n'est pas un zoom de bureau intégré.
 			say "C'est une fenêtre séparée qui montre, agrandie, la zone autour du pointeur."
 			say "${D}Elle ne suit ni le curseur de saisie ni la fenêtre active.${R}"
 			;;
 		off)
-			if arreter xzoom; then
+			#  On ferme CELLE qui tourne, pas seulement l'outil préféré : si
+			#  magnus vient d'être installé alors que xzoom tournait encore,
+			#  « off » doit fermer xzoom quand même.
+			local ferme=0 o
+			for o in magnus kmag xzoom; do
+				arreter "$o" && ferme=1
+			done
+			if [[ "$ferme" == "1" ]]; then
 				ok "Loupe fermée."
 			else
 				say "La loupe n'était pas ouverte."
@@ -451,7 +480,7 @@ police_agrandie() {
 }
 
 gros_texte() {
-	local mode="$1" police avant nouvelle
+	local mode="$1" pct="${2:-}" police avant nouvelle
 	case "$mode" in
 		on)
 			police="$(xf_lire xsettings /Gtk/FontName)" || police=""
@@ -480,7 +509,27 @@ gros_texte() {
 			base="$(etat_lire police_avant)" || base=""
 			[[ -z "$base" ]] && base="$police"
 
-			facteur="$(facteur_ecran)"
+			#  LE POURCENTAGE CHOISI PAR LA PERSONNE GAGNE SUR L'AUTOMATIQUE.
+			#  La demande d'Alex : « au lieu d'être à 100 %, on agrandit à 130
+			#  ou 150 ». Sans argument, le facteur suit l'écran ; avec un
+			#  nombre, c'est SON choix — borné entre 100 et 200, parce
+			#  qu'au-delà plus rien ne tient sur aucun écran. Et si le choix
+			#  dépasse ce que l'écran peut porter, on le dit AVANT, avec la
+			#  clé de rattrapage : mieux vaut un averti qui choisit qu'un
+			#  surpris qui cherche ses menus.
+			if [[ -n "$pct" ]]; then
+				[[ "$pct" =~ ^[0-9]{3}$ ]] && (( pct >= 100 && pct <= 200 )) \
+					|| { warn "Le pourcentage doit être entre 100 et 200. Exemple : $PROG gros-texte on 130"; return 1; }
+				facteur="$pct"
+				local conseil; conseil="$(facteur_ecran)"
+				if (( facteur > conseil )); then
+					warn "À ${facteur} % sur cet écran, des boutons peuvent passer sous le bord."
+					astuce "Rattraper une fenêtre : Alt + glisser, ou Alt+F7 puis les flèches."
+					astuce "Le confort conseillé pour cet écran : ${conseil} %."
+				fi
+			else
+				facteur="$(facteur_ecran)"
+			fi
 			#  Le facteur GSettings vient de LA MÊME source que celui de la
 			#  police, sinon les deux divergent. Affectation, pas cumul.
 			gs_ecrire org.gnome.desktop.interface text-scaling-factor \
@@ -704,7 +753,7 @@ case "${1:-}" in
 		;;
 	gros-texte|gros_texte|grostexte)
 		exiger_onoff "${2:-}" gros-texte
-		gros_texte "$MODE"
+		gros_texte "$MODE" "${3:-}"
 		;;
 	clic-auto|clic_auto|clicauto)
 		exiger_onoff "${2:-}" clic-auto
