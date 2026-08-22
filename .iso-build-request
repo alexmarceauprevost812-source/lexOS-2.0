@@ -48,6 +48,41 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 64 : LES RÉPARATIONS DU PREMIER VRAI TEST — Alex a démarré le 63 sur
+#   son portable le soir même, et chaque défaut trouvé à l'écran est réparé.
+#
+#   · LE CLIC DES TUILES NE FAISAIT RIEN. L'heure, la météo : jolies dans la
+#     barre, muettes au clic. La balise s'appelle <txtclick> ; nos tuiles
+#     écrivaient <click>, que genmon jette en silence. Corrigé dans les trois
+#     tuiles, et un contrôle CI compare désormais chaque balise émise à la
+#     liste officielle du greffon.
+#   · LES ESPACES DE TRAVAIL : « 1 - Espace de travail 1 » quatre fois.
+#     Remplacés par les quatre points — le nom de chaque espace EST un point,
+#     l'actif en couleur d'accent via gtk.css, numérotation coupée.
+#   · LE MENU DES PARAMÈTRES, trop petit pour être parcouru : rangées de
+#     40 px au lieu de 30, texte 15,5 px, barre 272 px. Pareil dans la démo.
+#   · WI-FI : LA LISTE QUI MANQUAIT. « Aucun — ouvre l'outil réseau » sur une
+#     machine neuve, c'était le seul geste qu'on ne pouvait pas faire.
+#     Réseaux à portée, cadenas, mot de passe (aller simple vers nmcli,
+#     jamais journalisé), noms à deux-points respectés, double bande fusionnée.
+#   · BLUETOOTH : pareil — le cinéma maison d'Alex était introuvable.
+#     Appairés + entendus, Connecter / Appairer / Déconnecter, balayage borné
+#     à 12 s (« scan on » seul ne rend jamais la main), et le renvoi vers
+#     Son → Sortie audio.
+#   · NVIDIA, vu dans le journal du 63 : libxnvctrl0 échappait à l'épingle
+#     (parti en 610 pendant que la pile tenait en 595 — hors du chemin
+#     d'affichage, mais une épingle qui fuit finira par laisser passer un
+#     paquet qui compte) ; et l'autoremove de fin de live-build jetait NEUF
+#     paquets du pilote, dont libnvidia-ml1 — donc nvidia-smi muet — et
+#     nvidia-modprobe. Épingle élargie, pile marquée « voulue » (apt-mark
+#     manual, ~220 Mo assumés). Ce second défaut existait dans les builds
+#     59/61/62 : l'affichage n'a jamais été menacé, seuls les outils l'étaient.
+#
+#   Avant ce build, tout a été rejoué localement : shellcheck, Python, JS,
+#   XML, balises genmon, backports épinglé, bits d'exécution — et la suite
+#   des Paramètres au complet : 121 contrôles, plus 12 Wi-Fi, 13 Bluetooth,
+#   6 compte-tours.
+#
 # build 63 : DIX COMMITS DEPUIS LE 62 — L'IA LOCALE, LE BUREAU À DISTANCE,
 #   ET LA PREMIÈRE FOIS QU'ON OUVRE BACKPORTS.
 #
@@ -1350,4 +1385,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 63
+build: 64
