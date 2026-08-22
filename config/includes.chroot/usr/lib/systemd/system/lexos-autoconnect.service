@@ -1,6 +1,6 @@
 [Unit]
 Description=LexOS — raccrochage à un réseau Wi-Fi ouvert
-Documentation=https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-
+Documentation=https://github.com/alexmarceauprevost812-source/lexOS-2.0
 After=NetworkManager.service
 Wants=NetworkManager.service
 ConditionPathExists=/etc/lexos/wifi-auto-open

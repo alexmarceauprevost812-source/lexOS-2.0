@@ -1,5 +1,5 @@
 # ══════════════════════════════════════════════════════════════
-#  LexOS 1.0 — Nomad · thème GRUB 2
+#  LexOS 2.0.0 — Nomad · thème GRUB 2
 #  Résolution de référence : 1920 × 1080
 #  Le fond (background.png) contient déjà : logo, baseline, cadre
 #  du menu et aide clavier. GRUB ne dessine que les entrées, le

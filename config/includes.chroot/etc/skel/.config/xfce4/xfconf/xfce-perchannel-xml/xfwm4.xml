@@ -28,6 +28,15 @@
     <property name="zoom_desktop"              type="bool"   value="true"/>
     <property name="box_move"                  type="bool"   value="false"/>
     <property name="box_resize"                type="bool"   value="false"/>
+    <!--  ÉCRIT EXPLICITEMENT, PAS LAISSÉ AU DÉFAUT : Alt + glisser déplace
+          une fenêtre depuis N'IMPORTE QUEL point d'elle — y compris quand sa
+          barre de titre est passée au-dessus de l'écran, le cas exact du
+          gros texte sur un petit écran. Un défaut de xfwm4 peut changer
+          d'une version à l'autre ; celui-ci est trop important pour en
+          dépendre. Compromis connu : Alt+glisser gêne quelques applications
+          (éditeurs graphiques, machines virtuelles) — c'est le compromis
+          habituel de XFCE, accepté partout. -->
+    <property name="easy_click"                type="string" value="Alt"/>
     <property name="snap_to_border"            type="bool"   value="true"/>
     <property name="snap_to_windows"           type="bool"   value="true"/>
     <property name="snap_width"                type="int"    value="12"/>

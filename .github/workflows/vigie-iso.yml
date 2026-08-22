@@ -1,0 +1,90 @@
+name: Vigie — correctifs ISO non construits
+
+# =============================================================================
+#  CE QUE CETTE VIGIE ATTRAPE, ET POURQUOI ELLE NE PEUT PAS VIVRE AILLEURS.
+#
+#  Le 22 août 2026, le correctif du menu BIOS (jetons inventés dans
+#  live.cfg.in) a été poussé avec le mot-clé de saut de CI dans son message.
+#  GitHub ne l'a JAMAIS construit. Le build 68 est sorti sans lui : une ISO
+#  qui démarre en UEFI et pas en BIOS, alors que le correctif dormait dans le
+#  dépôt depuis la veille. Rien ne le signalait — le dépôt avait l'air
+#  correct, le correctif était bien là, et l'ISO livrée ne l'avait pas.
+#
+#  LE PIÈGE ÉVITÉ ICI : le mot-clé de saut désactive les workflows « push »
+#  ET « pull_request ». Un garde-fou posé là ne s'exécuterait jamais —
+#  précisément dans le cas qu'il devait attraper. Cette vigie tourne donc
+#  sur HORAIRE et sur BOUTON MANUEL, deux déclencheurs que le mot-clé ne
+#  peut pas neutraliser. L'horaire n'exécute que depuis la branche par
+#  défaut (supabase) — c'est le miroir de la branche de travail, donc les
+#  mêmes commits.
+#
+#  CE QU'ELLE FAIT : elle cherche, entre le dernier build d'ISO réussi et la
+#  tête de la branche, des commits qui touchent aux chemins de l'ISO ET
+#  portent le mot-clé de saut. S'il y en a, elle ÉCHOUE en les nommant.
+#  Une retenue volontaire (« fais les changements mais ne construis pas
+#  tout de suite ») déclenchera donc UNE vigie rouge par jour : ce n'est pas
+#  un faux positif, c'est le rappel qu'un décollage est en attente.
+# =============================================================================
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # tous les jours à 13 h UTC (9 h chez Alex)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  vigie:
+    name: Rien qui touche l'ISO ne dort avec le mot-clé de saut
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Chercher les correctifs ISO jamais construits
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          #  CETTE LISTE DOIT RESTER IDENTIQUE aux « paths » de
+          #  .github/workflows/build-iso.yml — c'est écrit là-bas aussi.
+          CHEMINS='^(\.iso-build-request|\.github/workflows/build-iso\.yml|build\.sh|lexos\.conf|config/|flavours/|branding/|auto/)'
+
+          #  Le dernier build d'ISO réussi, toutes branches confondues.
+          DERNIER="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build-iso.yml/runs?status=success&per_page=1" \
+                     --jq '.workflow_runs[0].head_sha' 2>/dev/null || true)"
+          if [ -z "$DERNIER" ] || [ "$DERNIER" = "null" ]; then
+            echo "::warning::aucun build d'ISO réussi trouvé — vigie sans point de départ, on regarde les 50 derniers commits."
+            PLAGE="HEAD~50..HEAD"
+          elif git merge-base --is-ancestor "$DERNIER" HEAD 2>/dev/null; then
+            PLAGE="${DERNIER}..HEAD"
+            echo "Dernier build réussi : ${DERNIER} — on inspecte ce qui est venu après."
+          else
+            #  Réécriture d'historique entre-temps : on retombe sur une
+            #  fenêtre fixe plutôt que de ne rien vérifier du tout.
+            echo "::warning::le commit du dernier build (${DERNIER}) n'est pas un ancêtre de HEAD — fenêtre de repli : 50 commits."
+            PLAGE="HEAD~50..HEAD"
+          fi
+
+          MAUVAIS=0
+          for C in $(git rev-list "$PLAGE" 2>/dev/null); do
+            SUJET="$(git log -1 --format=%B "$C")"
+            #  Les variantes que GitHub reconnaît, toutes.
+            printf '%s' "$SUJET" | grep -qiE '\[(skip[ -]ci|ci[ -]skip|no[ -]ci|skip[ -]actions|actions[ -]skip)\]' || continue
+            git diff-tree --no-commit-id --name-only -r "$C" | grep -qE "$CHEMINS" || continue
+            MAUVAIS=$((MAUVAIS + 1))
+            TITRE="$(git log -1 --format=%s "$C")"
+            echo "::error::${C:0:9} « ${TITRE} » touche à l'ISO mais porte le mot-clé de saut : la construction n'a pas eu lieu, l'ISO publiée n'a PAS ce changement."
+          done
+
+          if [ "$MAUVAIS" -gt 0 ]; then
+            echo ""
+            echo "❌ ${MAUVAIS} commit(s) touchant l'ISO dorment sans avoir été construits."
+            echo "   Pour les livrer : pousser un commit SANS mot-clé de saut qui touche"
+            echo "   .iso-build-request (incrémenter « build: » suffit) — la construction"
+            echo "   emportera tout d'un coup. C'est exactement l'histoire du build 68."
+            exit 1
+          fi
+          echo "✓ rien ne dort : tout ce qui touche l'ISO depuis le dernier build a été construit ou attend sans mot-clé."

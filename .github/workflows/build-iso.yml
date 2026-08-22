@@ -43,6 +43,9 @@ on:
     #  Release. Les changements qui ne touchent PAS l'ISO (site web, démo,
     #  documentation) ne déclenchent rien — inutile de reconstruire 6 Go pour
     #  une retouche de page.
+    #  CETTE LISTE DOIT RESTER IDENTIQUE à la variable CHEMINS de
+    #  .github/workflows/vigie-iso.yml — la vigie s'en sert pour repérer les
+    #  correctifs ISO poussés avec le mot-clé de saut et jamais construits.
     paths:
       - '.iso-build-request'
       - '.github/workflows/build-iso.yml'

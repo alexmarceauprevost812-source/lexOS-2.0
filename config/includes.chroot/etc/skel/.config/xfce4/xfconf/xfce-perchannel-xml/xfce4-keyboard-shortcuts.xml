@@ -114,6 +114,15 @@
       <property name="&lt;Super&gt;&lt;Primary&gt;Up"   type="string" value="tile_up_key"/>
       <property name="&lt;Super&gt;&lt;Primary&gt;Down" type="string" value="tile_down_key"/>
       <property name="F11"                type="string" value="fullscreen_key"/>
+      <!--  LA PORTE DE SORTIE. Une fenêtre plus haute que l'écran — un
+            dialogue sous gros texte, par exemple — n'a AUCUN moyen d'être
+            rattrapée sans ces deux touches : ses boutons sont sous le bord,
+            et sa barre de titre peut l'être aussi. Alt+F7 puis les flèches
+            déplacent, Entrée valide ; Alt+F8 redimensionne. Ce sont les
+            valeurs traditionnelles de XFCE — quelqu'un qui vient d'ailleurs
+            les connaît déjà. -->
+      <property name="&lt;Alt&gt;F7"      type="string" value="move_window_key"/>
+      <property name="&lt;Alt&gt;F8"      type="string" value="resize_window_key"/>
 
       <!-- LES BUREAUX, ENFIN BRANCHÉS. Les Paramètres promettaient
            « Super+1 à Super+N » alors que rien n'y répondait. -->

@@ -64,8 +64,8 @@ démarrage.
 ### Option A — la construire toi-même
 
 ```bash
-git clone https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-.git
-cd logiciel-ti-lex-
+git clone https://github.com/alexmarceauprevost812-source/lexOS-2.0.git
+cd lexOS-2.0
 make check
 make build
 ```
@@ -319,7 +319,7 @@ trois familles de Mac, et elles n'ont presque rien en commun.
 
 Pour savoir dans quelle case tombe une machine précise, sans rien installer :
 le panneau **Paramètres → Matériel → Mac (Apple)** de la
-[démo en ligne](https://alexmarceauprevost812-source.github.io/logiciel-ti-lex-/)
+[démo en ligne](https://logiciel-ti-lex.vercel.app/demo)
 donne le verdict modèle par modèle. Une fois LexOS démarré, `lexos mac` fait le
 même travail sur la machine réelle.
 
@@ -786,5 +786,5 @@ Sauvegarde avant, dans les deux cas.
 
 * `lexos doctor` — diagnostic automatique
 * `lexos logs` — dernières erreurs du système
-* [Ouvrir un ticket](https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-/issues)
+* [Ouvrir un ticket](https://github.com/alexmarceauprevost812-source/lexOS-2.0/issues)
   en joignant la sortie de `lexos doctor` et `lexos version`

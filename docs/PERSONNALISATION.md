@@ -146,7 +146,7 @@ l'installateur, le thème.
 
 ```bash
 LEXOS_NAME="LexOS"              # le nom partout dans le système
-LEXOS_VERSION="1.0"
+LEXOS_VERSION="2.0.0"
 LEXOS_CODENAME="Nomad"
 LEXOS_BRAND="TI-LEX-AL"
 LEXOS_TAGLINE="Explore. Build. Own your machine."

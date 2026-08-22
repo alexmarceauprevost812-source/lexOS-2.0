@@ -101,7 +101,7 @@ fi
 LEXOS_NAME="LexOS"
 LEXOS_VERSION="1.0"
 LEXOS_CODENAME="Nomad"
-LEXOS_HOME_URL="https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-"
+LEXOS_HOME_URL="https://github.com/alexmarceauprevost812-source/lexOS-2.0"
 LEXOS_BUG_URL="${LEXOS_HOME_URL}/issues"
 
 #  build.conf a déjà été lu plus haut (pour la saveur) ; on le relit ici au

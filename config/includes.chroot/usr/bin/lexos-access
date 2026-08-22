@@ -415,28 +415,45 @@ contraste() {
 # =============================================================================
 #  Gros texte
 # =============================================================================
-FACTEUR_TEXTE=150   # en centièmes : 150 = 1,5×. bash ne calcule pas en virgule.
+#  LE FACTEUR DÉPEND DE L'ÉCRAN, PAS D'UNE CONSTANTE. 1,5× sur un portable
+#  de 768 px de haut faisait dépasser les boîtes de dialogue de l'écran —
+#  les boutons Valider/Annuler passaient sous le bord. Un grossissement qui
+#  rend les réglages inatteignables dessert exactement la personne qu'il
+#  voulait aider. En centièmes : bash ne calcule pas en virgule.
+#  Si xrandr manque ou échoue (Wayland, session sans écran), on prend le
+#  facteur LE PLUS PRUDENT — pas le plus fort : dans le doute, on préfère
+#  un texte un peu petit à un écran inutilisable.
+facteur_ecran() {
+	local haut=""
+	if command -v xrandr >/dev/null 2>&1; then
+		haut="$(xrandr --query 2>/dev/null \
+			| sed -n 's/.* connected[^0-9]*[0-9]\+x\([0-9]\+\)+.*/\1/p' \
+			| sort -n | head -1)"
+	fi
+	if ! [[ "$haut" =~ ^[0-9]+$ ]]; then
+		printf '115'; return 0
+	fi
+	if   (( haut < 800 ));  then printf '115'
+	elif (( haut < 1080 )); then printf '125'
+	else                         printf '150'
+	fi
+}
 
 police_agrandie() {
 	# « Cantarell 11 » → « Cantarell 16 ». On ne touche qu'au dernier champ :
 	# le nom peut contenir un style (« Noto Sans Bold 11 »).
-	local police="$1" taille nom
+	local police="$1" facteur="$2" taille nom
 	taille="${police##* }"
 	nom="${police% *}"
 	[[ "$taille" =~ ^[0-9]+$ ]] || return 1
 	[[ -n "$nom" && "$nom" != "$police" ]] || return 1
-	printf '%s %s\n' "$nom" "$(( (taille * FACTEUR_TEXTE + 50) / 100 ))"
+	printf '%s %s\n' "$nom" "$(( (taille * facteur + 50) / 100 ))"
 }
 
 gros_texte() {
 	local mode="$1" police avant nouvelle
 	case "$mode" in
 		on)
-			# GSettings d'abord, pour les applications GNOME et pour Orca.
-			gs_ecrire org.gnome.desktop.interface text-scaling-factor 1.5
-			# Puis la police XSettings, qui est ce qui agit vraiment sous XFCE :
-			# xfsettingsd impose sa police aux applications GTK et écrase le
-			# facteur d'échelle de GSettings.
 			police="$(xf_lire xsettings /Gtk/FontName)" || police=""
 			if [[ -z "$police" ]]; then
 				warn "La police du bureau n'a pas pu être lue (xfconf absent ou session non XFCE)."
@@ -444,17 +461,43 @@ gros_texte() {
 				astuce "Installer : lexos install xfconf"
 				return 1
 			fi
+			#  LA SAUVEGARDE D'ABORD, SON GARDE INTACT : la police d'origine
+			#  n'est notée qu'une fois, jamais écrasée par une valeur déjà
+			#  grossie. C'est elle qui permet à « off » de tout réparer.
 			if [[ -z "$(etat_lire police_avant)" ]]; then
 				etat_ecrire police_avant "$police"
 			fi
-			nouvelle="$(police_agrandie "$police")" || {
-				warn "Police « $police » : taille illisible, agrandissement impossible."
+
+			#  ON CALCULE DEPUIS L'ORIGINE, JAMAIS DEPUIS LA POLICE COURANTE.
+			#  L'ancienne version relisait la police du moment et la
+			#  multipliait : chaque « on » repartait du résultat du « on »
+			#  précédent. Six activations et Noto Sans 10 était à 120 — le
+			#  « 1150 % » qu'Alex a vu, au compte exact. Rien n'était un
+			#  interrupteur : répéter « on » n'était pas neutre, c'était
+			#  multiplicatif. Désormais la base est police_avant : dix « on »
+			#  de suite donnent exactement le même résultat qu'un seul.
+			local base facteur
+			base="$(etat_lire police_avant)" || base=""
+			[[ -z "$base" ]] && base="$police"
+
+			facteur="$(facteur_ecran)"
+			#  Le facteur GSettings vient de LA MÊME source que celui de la
+			#  police, sinon les deux divergent. Affectation, pas cumul.
+			gs_ecrire org.gnome.desktop.interface text-scaling-factor \
+				"$(printf '%d.%02d' $(( facteur / 100 )) $(( facteur % 100 )))"
+
+			#  Le chemin du retour, écrit AVANT d'agir : si l'écran devient
+			#  difficile à lire, la commande qui répare est déjà affichée.
+			say "Pour revenir en arrière : lexos access gros-texte off"
+
+			nouvelle="$(police_agrandie "$base" "$facteur")" || {
+				warn "Police « $base » : taille illisible, agrandissement impossible."
 				astuce "Régler la taille à la main dans Paramètres XFCE → Apparence → Polices."
 				return 1
 			}
 			xf_ecrire xsettings /Gtk/FontName string "$nouvelle" \
 				|| { warn "L'écriture de la police a échoué."; return 1; }
-			ok "Gros texte activé : « $nouvelle » (au lieu de « $police »)."
+			ok "Gros texte activé : « $nouvelle » (base « $base », écran ×$(printf '%d,%02d' $(( facteur / 100 )) $(( facteur % 100 ))))."
 			;;
 		off)
 			gs_ecrire org.gnome.desktop.interface text-scaling-factor 1.0

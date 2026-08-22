@@ -111,8 +111,8 @@ sudo apt install -y live-build debootstrap xorriso squashfs-tools \
 ### Vérifier puis construire
 
 ```bash
-git clone https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-.git
-cd logiciel-ti-lex-
+git clone https://github.com/alexmarceauprevost812-source/lexOS-2.0.git
+cd lexOS-2.0
 
 make check      # contrôle que tous les outils sont là
 make build      # construit l'ISO (saveur pro, la version de LexOS)

@@ -1,6 +1,6 @@
 [Unit]
 Description=LexOS — vérifier périodiquement s'il faut se raccrocher au Wi-Fi
-Documentation=https://github.com/alexmarceauprevost812-source/logiciel-ti-lex-
+Documentation=https://github.com/alexmarceauprevost812-source/lexOS-2.0
 
 [Timer]
 OnBootSec=90s
