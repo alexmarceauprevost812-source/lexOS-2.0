@@ -167,6 +167,27 @@ jobs:
           [ "$bad" = "0" ] && echo "  ok — toutes les tuiles n'emploient que des balises connues"
           exit $bad
 
+      - name: Le contrôle 16 dit la même chose dans toutes les locales
+        run: |
+          #  NÉ D'UNE CI ROUGE POUR RIEN. Le contrôle 16 attrapait les alias
+          #  accentués du dispatcheur avec la classe [à-ÿ]. Un intervalle de
+          #  caractères non ASCII dépend de la locale : sur ce runner, sed a
+          #  répondu « Invalid collation character » — deux lignes noyées
+          #  dans la sortie — l'extraction a rendu du vide, et trois outils
+          #  parfaitement branchés ont été déclarés absents de l'aide.
+          #
+          #  On engendre VRAIMENT les locales avant de lancer le test : sans
+          #  ça, setlocale échoue en silence, tout retombe en C, et le test
+          #  annonce quatre locales éprouvées sans en avoir éprouvé une
+          #  seule. Il le dit maintenant quand une locale manque — mieux
+          #  vaut un test qui se déclare aveugle qu'un test qui ment.
+          #  Si locale-gen manque, le test le DIRA (⏭ locale absente) et
+          #  continuera sur C.UTF-8, toujours présente : on ne casse pas
+          #  la CI pour ça, on perd juste deux locales de couverture.
+          sudo locale-gen en_US.UTF-8 fr_CA.UTF-8 \
+            || echo "::warning::locale-gen indisponible — couverture réduite à C.UTF-8"
+          bash tests/test_verifier_parametres.sh
+
       - name: Contrôle 16 — chaque outil est branché (Paramètres, case, aide)
         run: |
           #  Le script vit à la racine pour qu'Alex puisse le lancer à la main.
