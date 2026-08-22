@@ -858,8 +858,12 @@ cmd_theme() {
 	local mode="${1:-}"
 	local gtk icons lexos_mode
 	case "$mode" in
-		dark|sombre|nuit)   gtk="Arc-Dark"; icons="Papirus-Dark"; lexos_mode="sombre" ;;
-		light|clair|jour)   gtk="Arc";      icons="Papirus";      lexos_mode="clair"  ;;
+		#  « LexOS » dans les deux modes : ce thème ne porte que les dossiers
+		#  orange et hérite du reste — le passer en clair ne change que le
+		#  thème GTK, les poches restent celles de la démo. C'est ce
+		#  sélecteur qui remettait Papirus par-dessus à chaque changement.
+		dark|sombre|nuit)   gtk="Arc-Dark"; icons="LexOS"; lexos_mode="sombre" ;;
+		light|clair|jour)   gtk="Arc";      icons="LexOS"; lexos_mode="clair"  ;;
 		accent) shift; cmd_accent "$@"; return ;;
 		*) die "Usage : ${PROG} theme <sombre|clair>  ·  ${PROG} accent <couleur>" ;;
 	esac

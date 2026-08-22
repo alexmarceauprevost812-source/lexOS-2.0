@@ -42,16 +42,52 @@ ACCENT="orange"
 command -v lexos-theme-gen >/dev/null 2>&1 && lexos-theme-gen "$ACCENT" >/dev/null 2>&1
 
 if command -v xfconf-query >/dev/null 2>&1; then
-	BASE_THEME="Arc-Dark"; ICONS="Papirus-Dark"
+	#  Le repli nomme LexOS, pas Papirus : c'est ce repli qui repeignait les
+	#  dossiers en bleu à la première session quand build.conf manquait.
+	BASE_THEME="Arc-Dark"; ICONS="LexOS"
 	[[ -r /etc/lexos/build.conf ]] && eval "$(
 		# shellcheck disable=SC1091
 		. /etc/lexos/build.conf 2>/dev/null
 		printf 'BASE_THEME=%q; ICONS=%q' \
-			"${LEXOS_GTK_BASE_THEME:-Arc-Dark}" "${LEXOS_ICON_THEME:-Papirus-Dark}"
+			"${LEXOS_GTK_BASE_THEME:-Arc-Dark}" "${LEXOS_ICON_THEME:-LexOS}"
 	)"
 	xfconf-query -c xsettings -p /Net/ThemeName     -s "$BASE_THEME" 2>/dev/null || true
 	xfconf-query -c xsettings -p /Net/IconThemeName -s "$ICONS"      2>/dev/null || true
 	xfconf-query -c xfwm4     -p /general/theme     -s "$BASE_THEME" 2>/dev/null || true
+fi
+
+# --- Un seul bureau, pas deux ------------------------------------------------
+#  VU SUR LA PHOTO D'ALEX, BUILD 69 : « Bureau » ET « Desktop » côte à côte
+#  dans le dossier personnel. La cause est le hook 0500 : pour poser l'icône
+#  d'installation quelle que soit la langue, il crée LES DEUX dossiers dans le
+#  squelette — et chaque compte hérite du doublon. On ne touche pas au hook
+#  (il a raison de couvrir les deux langues AVANT de connaître la locale) :
+#  ICI, la locale est connue, xdg-user-dirs a tranché. On déménage le contenu
+#  du dossier en trop vers le vrai bureau, et on retire la coquille vide.
+BUREAU_REEL="$(xdg-user-dir DESKTOP 2>/dev/null || true)"
+[[ -z "$BUREAU_REEL" || "$BUREAU_REEL" == "$HOME" ]] && BUREAU_REEL="$HOME/Bureau"
+for D in "$HOME/Bureau" "$HOME/Desktop"; do
+	[[ "$D" == "$BUREAU_REEL" ]] && continue
+	[[ -d "$D" ]] || continue
+	mkdir -p "$BUREAU_REEL"
+	#  -n : si le fichier existe déjà des deux côtés (les deux lanceurs du
+	#  hook 0500, justement), on garde celui du vrai bureau, on jette l'autre.
+	find "$D" -maxdepth 1 -mindepth 1 -exec mv -n {} "$BUREAU_REEL/" \; 2>/dev/null || true
+	find "$D" -maxdepth 1 -mindepth 1 -exec rm -rf {} + 2>/dev/null || true
+	rmdir "$D" 2>/dev/null || true
+done
+
+# --- Le dossier de projets, comme dans la démo --------------------------------
+#  La démo montre six poches : DL, IMG, DOC, MUS, VID et PROJ. Les cinq
+#  premières sont les dossiers XDG ; « Projets LexOS », lui, n'existait
+#  nulle part — la poche PROJ de la démo n'avait pas de dossier réel.
+#  L'icône est demandée par gio (metadata::custom-icon-name) : si Thunar
+#  l'ignore sur cette version, le dossier reste orange générique — jamais
+#  cassé, juste sans sa marque. À regarder sur machine.
+if [[ ! -d "$HOME/Projets LexOS" ]]; then
+	mkdir -p "$HOME/Projets LexOS" 2>/dev/null || true
+	command -v gio >/dev/null 2>&1 \
+		&& gio set -t string "$HOME/Projets LexOS" metadata::custom-icon-name folder-projects 2>/dev/null || true
 fi
 
 # --- Fond d'écran sur tous les écrans détectés ------------------------------

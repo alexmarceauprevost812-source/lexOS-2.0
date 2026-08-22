@@ -140,7 +140,40 @@ printf '%s\n' "$MODE" > "$CONF_DIR/mode"
 # =============================================================================
 #  1. Feuille de style GTK 3
 # =============================================================================
+#  LE STYLE DU PANNEAU VIENT DU SQUELETTE, ET IL SURVIT.
+#  RÉGRESSION TROUVÉE PAR L'AUDIT DU 22 AOÛT : ce générateur écrasait
+#  ~/.config/gtk-3.0/gtk.css par simple redirection, et sa sortie ne
+#  contenait AUCUNE règle #XfcePanelWindow. Le squelette livrait la barre
+#  arrondie, les points des bureaux, les notifications — et lexos-firstrun
+#  détruisait tout ça à la PREMIÈRE ouverture de session, sans une erreur.
+#  Le fichier était dans l'ISO, installé, et mort avant d'avoir servi.
+#
+#  La source de vérité est /etc/skel/.config/gtk-3.0/gtk.css — présent sur
+#  toute machine LexOS. On le recopie EN TÊTE de la sortie, en traduisant
+#  l'accent : le orange par défaut (#E8590C, #FF7A33, #A84007 et le triplet
+#  rgba « 232, 89, 12 ») devient l'accent choisi. Si le squelette manque
+#  (machine non-LexOS), on le dit dans le CSS et on continue : on perd le
+#  panneau stylé, pas le thème entier.
+bloc_panneau() {
+	#  Surchargeable pour être ÉPROUVABLE hors ISO — même procédé que
+	#  LEXOS_ICONES plus bas : sans ça, ce bloc ne se vérifie qu'en
+	#  construisant et démarrant une image.
+	local squelette="${LEXOS_SKEL:-/etc/skel}/.config/gtk-3.0/gtk.css"
+	if [[ ! -r "$squelette" ]]; then
+		printf '/* squelette %s illisible : style du panneau non repris */\n' "$squelette"
+		return 0
+	fi
+	printf '/* --- Style du panneau, repris du squelette (accent : %s) --- */\n' "$ACCENT_NAME"
+	sed -e "s/#E8590C/${ACCENT}/gI" \
+	    -e "s/#FF7A33/${ACCENT_HI}/gI" \
+	    -e "s/#A84007/${ACCENT_LO}/gI" \
+	    -e "s/232, 89, 12/${r}, ${g}, ${b}/g" \
+	    "$squelette"
+	printf '\n/* --- Fin du bloc squelette --- */\n'
+}
+
 gen_gtk_css() {
+bloc_panneau
 cat <<EOF
 /* =========================================================================
    LexOS Noir — accent : ${ACCENT_NAME} (${ACCENT})
@@ -200,9 +233,17 @@ menuitem, .menuitem, treeview.view, cellrenderertext {
 }
 label:disabled, .dim-label, .subtitle { color: ${FG_DIM}; }
 
-/* --- Boutons : accent par défaut ---------------------------------------- */
-button, button.text-button, button.image-button,
-.linked > button, headerbar button, toolbar button {
+/* --- Boutons : accent, SANS peindre le « button » nu ---------------------
+   Le sélecteur « button » tout nu perdait contre Arc-Dark partout où celui-ci
+   est plus précis (des boutons restaient sombres), ET il arrosait les faux
+   boutons — listes déroulantes, compteurs, en-têtes de colonnes devenaient
+   orange (vu sur la photo d'Alex : le Gestionnaire d'alimentation avec ses
+   listes en gros orange). On énumère donc les contextes RÉELS, et on exclut
+   plus bas les boutons de structure. */
+window button, dialog button, messagedialog button,
+headerbar button, .titlebar button, toolbar button, actionbar button,
+popover button, infobar button, .dialog-action-area button,
+.linked > button {
     background-image: none;
     background-color: ${ACCENT};
     color: ${BTN_FG};
@@ -212,23 +253,68 @@ button, button.text-button, button.image-button,
     padding: 4px 12px;
     transition: background-color 140ms ease-out, border-color 140ms ease-out;
 }
-button:hover, headerbar button:hover, toolbar button:hover {
+window button:hover, dialog button:hover, headerbar button:hover,
+toolbar button:hover, popover button:hover {
     background-color: ${ACCENT_HI};
     border-color: ${ACCENT};
 }
-button:active, button:checked {
+window button:active, window button:checked,
+dialog button:active, dialog button:checked {
     background-color: ${ACCENT_LO};
     border-color: ${ACCENT_LO};
 }
-button:disabled {
+window button:disabled, dialog button:disabled {
     background-color: ${BG_HI};
     color: ${FG_DIM};
     border-color: ${BORDER};
 }
+
+/* --- Les boutons de STRUCTURE ne sont pas des boutons --------------------
+   Une liste déroulante, une flèche de compteur, un en-tête de colonne, un
+   bouton de barre de chemin : GTK les bâtit avec des « button » internes,
+   mais personne ne les voit comme des boutons. Ils reprennent l'habit d'un
+   champ : fond sombre, liseré discret. Ces règles viennent APRÈS celles de
+   l'accent et les battent à spécificité égale ou supérieure. */
+combobox button, combobox button.combo, spinbutton button,
+treeview header button, header button, .path-bar button, pathbar button,
+scrollbar button, calendar button, filechooser .path-bar button {
+    background-image: none;
+    background-color: ${BG_ALT};
+    color: ${FG};
+    border: 1px solid ${BORDER};
+    border-radius: 6px;
+}
+combobox button:hover, spinbutton button:hover,
+treeview header button:hover, .path-bar button:hover {
+    background-color: ${BG_HI};
+    border-color: ${ACCENT_LO};
+}
+
+/* --- Interrupteurs : l'accent, pas le bleu du thème de base --------------
+   Vu sur la photo d'Alex : des interrupteurs BLEUS (Arc-Dark) au milieu
+   d'un panneau orange. L'état « allumé » parle la langue de la maison. */
+switch {
+    background-color: ${BG_HI};
+    border: 1px solid ${BORDER};
+    border-radius: 999px;
+}
+switch:checked {
+    background-color: ${ACCENT};
+    border-color: ${ACCENT_LO};
+}
+switch slider {
+    background-color: #FFFFFF;
+    border-radius: 999px;
+}
+/*  Un bouton d'icône TRANSPARENT sur fond noir pur est invisible tant
+    qu'on ne le survole pas — « une boîte sombre avec juste le logo au
+    centre », dans les mots d'Alex. Fond très léger et liseré discret :
+    visible sans être criard. */
 button.flat, button.titlebutton, button.close, button.minimize,
 button.maximize, notebook button, .titlebar button.titlebutton {
-    background-color: transparent;
-    border-color: transparent;
+    background-color: ${BG_HI};
+    border: 1px solid ${BORDER};
+    border-radius: 6px;
     color: ${FG};
 }
 button.flat:hover, button.titlebutton:hover {
@@ -337,8 +423,13 @@ link, *:link { color: ${ACCENT_HI}; }
 EOF
 }
 
-gen_gtk_css > "$TARGET/.config/gtk-3.0/gtk.css"
-gen_gtk_css > "$TARGET/.config/gtk-4.0/gtk.css"
+#  ATOMIQUE : on génère dans un fichier temporaire et on ne remplace la
+#  cible qu'une fois la génération finie — une génération interrompue ne
+#  doit pas laisser l'utilisateur sans aucun style.
+TMP_CSS="$(mktemp "$TARGET/.config/gtk-3.0/gtk.css.XXXXXX")" \
+	&& gen_gtk_css > "$TMP_CSS" && mv -f "$TMP_CSS" "$TARGET/.config/gtk-3.0/gtk.css"
+TMP_CSS="$(mktemp "$TARGET/.config/gtk-4.0/gtk.css.XXXXXX")" \
+	&& gen_gtk_css > "$TMP_CSS" && mv -f "$TMP_CSS" "$TARGET/.config/gtk-4.0/gtk.css"
 
 # =============================================================================
 #  2. GTK 2 (vieilles applications)

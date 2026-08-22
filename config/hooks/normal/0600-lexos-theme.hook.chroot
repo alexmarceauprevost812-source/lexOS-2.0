@@ -8,7 +8,7 @@ echo "[lexos] hook 0600 : thème LexOS Noir"
 
 ACCENT_NAME="orange"
 GTK_BASE="Arc-Dark"
-ICONS="Papirus-Dark"
+ICONS="LexOS"
 LEXOS_DOCK_POSITION="right"
 
 if [ -r /etc/lexos/build.conf ]; then
@@ -16,7 +16,7 @@ if [ -r /etc/lexos/build.conf ]; then
 	. /etc/lexos/build.conf
 	ACCENT_NAME="${LEXOS_ACCENT_NAME:-orange}"
 	GTK_BASE="${LEXOS_GTK_BASE_THEME:-Arc-Dark}"
-	ICONS="${LEXOS_ICON_THEME:-Papirus-Dark}"
+	ICONS="${LEXOS_ICON_THEME:-LexOS}"
 fi
 
 # --- Le thème demandé est-il RÉELLEMENT installé ? --------------------------
@@ -54,7 +54,7 @@ fi
 ICONS_DEMANDE="$ICONS"
 if [ ! -d "/usr/share/icons/${ICONS}" ]; then
 	ICONS="$(premier_present /usr/share/icons \
-		Papirus-Dark Papirus ePapirus Adwaita gnome hicolor)" \
+		LexOS Papirus-Dark Papirus ePapirus Adwaita gnome hicolor)" \
 		|| ICONS="hicolor"
 	echo "[lexos]   !! icônes « ${ICONS_DEMANDE} » absentes — remplacées par « ${ICONS} »"
 fi

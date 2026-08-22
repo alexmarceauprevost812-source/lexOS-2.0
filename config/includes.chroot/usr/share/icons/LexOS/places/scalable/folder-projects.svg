@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Projets
+  =========================================================================
+  MÊME DESSIN QUE LA DÉMO, AU CHEMIN PRÈS. Les deux « path » ci-dessous
+  sont copiés de web-demo/index.html (FOLD_BACK et FOLD_FRONT) : un
+  dossier qui differe d'un pixel entre la démo et l'ISO, c'est deux
+  produits. Le libellé est posé aux mêmes coordonnées (x=256, y=345,
+  corps 104, mono gras) que folderSVG().
+
+  DEUX JETONS DE COULEUR, ET ILS SONT VRAIMENT REMPLACÉS. #E8590C est la
+  poche, #A84007 le dos (le même orange assombri du facteur 0,62, comme
+  shade() dans la démo). Le bloc 4b de lexos-theme-gen recopie ce fichier
+  dans le thème de l'utilisateur en substituant les deux : changer d'accent
+  repeint les dossiers, comme folderColor() le fait dans la démo. Si on
+  ajoute un jour une troisième couleur ici, il faut l'ajouter là-bas —
+  sinon elle restera orange sous un thème vert, toute seule.
+  =========================================================================
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Projets — LexOS">
+  <g transform="translate(0,26)">
+    <path d="M 44 148 a 26 26 0 0 1 26 -26 h 132 a 26 26 0 0 1 18 8 l 34 34 h 184 a 26 26 0 0 1 26 26 v 214 a 26 26 0 0 1 -26 26 H 70 a 26 26 0 0 1 -26 -26 Z" fill="#A84007"/>
+    <g>
+      <path d="M 78 206 h 378 a 24 24 0 0 1 23 30 l -38 156 a 26 26 0 0 1 -25 20 H 90 a 26 26 0 0 1 -25 -20 L 27 236 a 24 24 0 0 1 23 -30 Z" fill="#E8590C"/>
+      <text x="256" y="345" text-anchor="middle" fill="#ffffff"
+            opacity="0.95" font-family="monospace" font-weight="700"
+            font-size="104">PROJ</text>
+    </g>
+  </g>
+</svg>
