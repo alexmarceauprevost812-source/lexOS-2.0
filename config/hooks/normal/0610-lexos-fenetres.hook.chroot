@@ -1,0 +1,119 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — des boutons de fenêtre qu'on puisse viser
+# =============================================================================
+#  LE PARI PERDU DU BUILD 70, ET CE QU'IL A APPRIS.
+#
+#  Alex : « les boutons en haut des fenêtres sont trop petits ». On a d'abord
+#  fait passer title_font de 10 à 13, en supposant qu'xfwm4 met les images du
+#  thème à l'échelle du texte. Résultat sur l'ISO 70, constaté à l'écran : la
+#  barre de titre a bien grandi, LES BOUTONS SONT RESTÉS À LEUR TAILLE.
+#
+#  La raison, mesurée dans l'image : le thème xfwm4 d'Arc-Dark est fait
+#  d'IMAGES PNG DE TAILLE FIXE. close-active.png fait 28×28 pixels, et il
+#  fera 28×28 quelle que soit la police. xfwm4 n'a aucun réglage de taille de
+#  bouton : la taille du bouton EST celle de son image.
+#
+#  On ne peut donc pas régler ça — il faut fabriquer les images.
+#
+#  CE QUE FAIT CE HOOK. Il dérive un thème « LexOS-Arc-Dark » d'Arc-Dark, en
+#  agrandissant uniquement ce qui compose la rangée du titre.
+#
+#  POURQUOI « UNIQUEMENT ». Les 45 images du thème se répartissent en trois
+#  hauteurs, et elles ne jouent pas le même rôle :
+#
+#      32 images de 28 px  →  la rangée du titre : boutons, tuiles, coins
+#       7 images de 16 px  →  les bords gauche et droit
+#       6 images de  4 px  →  le bord du bas
+#
+#  Tout agrandir épaissirait les BORDURES des fenêtres — un cadre gras autour
+#  de chaque fenêtre, que personne n'a demandé. On ne touche donc qu'aux 28.
+#
+#  CE HOOK N'ÉCHOUE JAMAIS. Sans Arc-Dark ou sans ImageMagick, il le dit et
+#  s'arrête : le thème d'origine reste en place, les boutons restent petits,
+#  et rien n'est cassé.
+# =============================================================================
+set -e
+
+SRC=/usr/share/themes/Arc-Dark/xfwm4
+DST=/usr/share/themes/LexOS-Arc-Dark/xfwm4
+HAUTEUR_SRC=28
+HAUTEUR_DST=40          # 40/28 ≈ 1,43 — visible sans devenir grotesque
+
+echo "[lexos] hook 0610 : boutons de fenêtre"
+
+if [ ! -d "$SRC" ]; then
+	echo "[lexos]   !! $SRC absent — thème d'origine conservé, boutons inchangés."
+	exit 0
+fi
+
+IM=""
+for c in magick convert; do
+	command -v "$c" >/dev/null 2>&1 && { IM="$c"; break; }
+done
+if [ -z "$IM" ]; then
+	echo "[lexos]   !! ni magick ni convert — impossible de fabriquer les images."
+	echo "[lexos]   !! Ajouter « imagemagick » aux paquets si on veut ce thème."
+	exit 0
+fi
+
+mkdir -p "$DST"
+cp -a "$SRC"/. "$DST"/
+
+#  La hauteur d'un PNG se lit dans son en-tête : octets 20 à 23, en gros
+#  boutiste. Pas besoin d'ImageMagick pour MESURER — on le garde pour
+#  redimensionner, et on évite un appel par fichier juste pour une taille.
+hauteur_png() {
+	od -An -tu1 -j20 -N4 "$1" 2>/dev/null \
+		| awk '{ print $1*16777216 + $2*65536 + $3*256 + $4 }'
+}
+
+AGRANDIS=0
+IGNORES=0
+for f in "$DST"/*.png; do
+	[ -f "$f" ] || continue
+	h="$(hauteur_png "$f")"
+	if [ "$h" = "$HAUTEUR_SRC" ]; then
+		if "$IM" "$f" -resize "x${HAUTEUR_DST}" "$f" 2>/dev/null; then
+			AGRANDIS=$((AGRANDIS + 1))
+		else
+			echo "[lexos]   !! échec sur $(basename "$f") — laissé tel quel"
+		fi
+	else
+		IGNORES=$((IGNORES + 1))
+	fi
+done
+
+echo "[lexos]   ${AGRANDIS} images de la rangée du titre agrandies (${HAUTEUR_SRC} -> ${HAUTEUR_DST} px)"
+echo "[lexos]   ${IGNORES} images de bordure laissées intactes"
+
+if [ "$AGRANDIS" -eq 0 ]; then
+	echo "[lexos]   !! aucune image agrandie — on garde Arc-Dark, sans quoi on"
+	echo "[lexos]   !! livrerait un thème identique sous un autre nom."
+	rm -rf /usr/share/themes/LexOS-Arc-Dark
+	exit 0
+fi
+
+#  L'écart autour des boutons suit leur taille, sinon ils se touchent.
+if [ -f "$DST/themerc" ]; then
+	sed -i -e 's/^button_offset=.*/button_offset=3/' \
+	       -e 's/^button_spacing=.*/button_spacing=3/' "$DST/themerc" 2>/dev/null || true
+fi
+
+#  On nomme le thème pour qu'il apparaisse dans les réglages d'apparence.
+cat > /usr/share/themes/LexOS-Arc-Dark/index.theme <<'EOF'
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=LexOS-Arc-Dark
+Comment=Arc-Dark, avec des boutons de fenêtre visables
+EOF
+
+#  Et on l'emploie, partout où le thème est écrit.
+for x in /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml \
+         /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml; do
+	[ -f "$x" ] || continue
+	sed -i 's|name="theme"\([[:space:]]*\)type="string" value="Arc-Dark"|name="theme"\1type="string" value="LexOS-Arc-Dark"|' "$x" 2>/dev/null || true
+done
+
+echo "[lexos]   thème LexOS-Arc-Dark posé et sélectionné"
+echo "[lexos] hook 0610 : ok"
