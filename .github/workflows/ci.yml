@@ -388,6 +388,21 @@ jobs:
           #  n'invente jamais un coffre. Un faux gocryptfs note tout.
           bash tests/test_prive.sh
 
+      - name: La page matériel — fuites, injection, verdict mémoire
+        run: |
+          #  Trois silences dans un seul outil, et un banc de faux outils
+          #  pour les trois — aucun vrai matériel n'est nécessaire.
+          #
+          #  · « lexos materiel rapport » est fait pour être collé dans
+          #    lexos ia-locale, et dmidecode livre le NUMÉRO DE SÉRIE de
+          #    chaque barrette sans qu'on l'ait demandé ;
+          #  · le nom de modèle d'un disque vient du MATÉRIEL : une clé USB
+          #    peut annoncer « $(commande) », et la première version de ce
+          #    script employait eval sur la sortie de lsblk ;
+          #  · sans dmidecode ou sans root, la section mémoire doit DIRE ce
+          #    qu'elle ne peut pas lire au lieu de disparaître.
+          bash tests/test_lexos_materiel.sh
+
       - name: Tables de modèles Mac identiques
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même

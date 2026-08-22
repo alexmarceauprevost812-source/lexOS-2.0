@@ -17,6 +17,14 @@ gsmartcontrol
 #  smartctl seul ne dit pas en entier.
 nvme-cli
 
+# --- Ce qu'il y a dans la machine -------------------------------------------
+#  dmidecode lit la table SMBIOS que le BIOS écrit au démarrage. C'est la
+#  SEULE source qui connaisse le nombre de fentes mémoire, ce qu'il y a
+#  dedans et le maximum accepté par la carte mère — /proc ne donne que le
+#  total installé. Sans lui, « lexos materiel » ne peut pas répondre à
+#  « puis-je ajouter de la RAM ? », qui est sa raison d'être.
+dmidecode
+
 # --- La mémoire --------------------------------------------------------------
 #  Le test au démarrage. Le paquet ne suffit PAS : il faut l'entrée au menu
 #  GRUB de l'ISO — posée par le hook 0910, vérifiée bruyamment.

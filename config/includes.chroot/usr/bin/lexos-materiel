@@ -1,0 +1,508 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-materiel — « ma machine en une page »
+# =============================================================================
+#  LA QUESTION À LAQUELLE PERSONNE NE SAIT RÉPONDRE.
+#  « Est-ce que je peux ajouter de la mémoire ? » — et pour y répondre il
+#  faut ouvrir le boîtier, ou fouiller un site de constructeur, ou taper
+#  dmidecode et lire soixante lignes d'anglais. La machine, elle, SAIT :
+#  combien de fentes, combien d'occupées, quel type, quel maximum. C'est
+#  écrit dans le BIOS depuis le premier démarrage. On le lit et on le dit.
+#
+#  CE N'EST PAS lexfetch, ET CE N'EST PAS lexos-disques.
+#    · lexfetch      : la carte de visite — joli, court, pour le plaisir
+#    · lexos-disques : la SANTÉ des disques — vont-ils mourir ?
+#    · lexos-medecin : qu'est-ce qui ne VA PAS en ce moment ?
+#    · ici           : ce QU'IL Y A dedans, et ce qu'on peut y changer
+#
+#  LECTURE SEULE. Mettre à jour un micrologiciel, c'est « lexos firmware » —
+#  qui vérifie le secteur avant d'agir. On se contente de dire combien il y
+#  en a en attente, et de nommer la commande.
+#
+#  CE QUE « rapport » NE DIT PAS.
+#  Le mode rapport est fait pour être collé dans « lexos ia-locale ». Les
+#  numéros de série n'y ont rien à faire — ni ceux de la machine, ni ceux
+#  des barrettes que dmidecode donne en prime. On ne les lit pas, et on les
+#  retire de ce que dmidecode renvoie. Un identifiant unique qui part dans
+#  un modèle, même local, c'est un identifiant qui a fui une fois de trop.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos materiel"
+
+#  Sans locale multi-octets, ${#chaine} compte les octets et l'alignement
+#  des colonnes part en vrille — le même repli que lexfetch, pour la même
+#  raison, et gardé par le même contrôle de CI.
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+	*UTF-8*|*utf8*|*UTF8*|*utf-8*) ;;
+	*)
+		if locale -a 2>/dev/null | grep -qiE '^C\.utf-?8$'; then
+			export LC_ALL=C.UTF-8
+		fi
+		;;
+esac
+
+#  « rapport » = la même page sans couleurs, à coller ailleurs.
+[[ "${1:-}" == "rapport" ]] && NO_COLOR=1
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+
+titre() { printf '\n%s── %s ──%s\n' "$B" "$1" "$R"; }
+
+#  L'ALIGNEMENT SE FAIT SUR LES CARACTÈRES, PAS SUR LES OCTETS.
+#  « printf %-22s » remplit en comptant les OCTETS, y compris en locale
+#  UTF-8 — vérifié. « Modèle » pèse 7 octets pour 6 caractères, et sa
+#  colonne glisse d'un cran par rapport à « Type ». Sur une page où une
+#  étiquette sur deux porte un accent, tout le tableau ondule.
+#  ${#chaine}, lui, compte les caractères dès que la locale est
+#  multi-octets — d'où le repli plus haut. On remplit donc à la main.
+LARGEUR=22
+remplir() {
+	local n=${#1} manque
+	manque=$(( LARGEUR - n ))
+	[[ "$manque" -lt 1 ]] && manque=1
+	printf '%s%*s' "$1" "$manque" ""
+}
+#  Une ligne « étiquette   valeur ». Une valeur vide devient une phrase qui
+#  DIT pourquoi elle est vide — jamais un blanc silencieux.
+ligne() { printf '  %s%s\n' "$(remplir "$1")" "$2"; }
+faible(){ printf '  %s%s%s%s\n' "$(remplir "$1")" "$D" "$2" "$R"; }
+note()  { printf '      %s%s%s\n' "$D" "$*" "$R"; }
+bien()  { printf '  %s✓%s %s\n' "$G" "$R" "$*"; }
+bof()   { printf '  %s!%s %s\n' "$Y" "$R" "$*"; }
+mal()   { printf '  %s✗%s %s\n' "$E" "$R" "$*"; }
+
+#  LA RACINE DE /sys EST SURCHARGEABLE — pour pouvoir ÉPROUVER ce script.
+#  Sans ça, tout ce qui dépend du DMI, de la batterie ou des écrans n'est
+#  vérifiable que sur du vrai matériel, c'est-à-dire jamais en CI. Le même
+#  procédé qu'ia-locale.py emploie déjà pour /sys/module. En service normal
+#  la variable n'existe pas et on lit le vrai /sys.
+SYS="${LEXOS_SYS:-/sys}"
+
+#  Lire un fichier de /sys sans jamais faire de bruit s'il n'existe pas.
+lire() { [[ -r "$1" ]] && tr -d '\0' < "$1" 2>/dev/null | head -1 || true; }
+
+#  Un champ DMI vide, ou rempli par le constructeur avec un texte de
+#  remplissage (« To Be Filled By O.E.M. », « Default string »), ne vaut
+#  pas mieux que rien : autant l'avouer.
+dmi() {
+	local v; v="$(lire "$SYS/class/dmi/id/$1")"
+	case "$v" in
+		''|"To Be Filled By O.E.M."|"To be filled by O.E.M."|\
+		"Default string"|"System Product Name"|"Not Applicable"|\
+		"Unknown"|"None"|"N/A"|"O.E.M.") return 1 ;;
+	esac
+	printf '%s' "$v"
+}
+
+#  Le type de châssis, en clair. La table est celle du SMBIOS ; on ne garde
+#  que ce qui change quelque chose pour l'utilisateur (portable ou pas).
+chassis_clair() {
+	case "${1:-}" in
+		3|4|5|6|7|15|16|17|23|24) printf 'ordinateur fixe' ;;
+		8|9|10|14|31|32)          printf 'portable' ;;
+		11|12|21|30)              printf 'tablette / portable' ;;
+		13)                        printf 'tout-en-un' ;;
+		*)                         return 1 ;;
+	esac
+}
+
+est_portable() {
+	local t; t="$(lire "$SYS/class/dmi/id/chassis_type")"
+	case "$t" in 8|9|10|11|12|14|30|31|32) return 0 ;; esac
+	compgen -G "$SYS/class/power_supply/BAT*" >/dev/null 2>&1
+}
+
+case "${1:-}" in
+	-h|--help|aide|help)
+		cat <<AIDE
+${B}$PROG${R} — ce qu'il y a DANS la machine, et ce qu'on peut y changer
+
+  ${O}$PROG${R}            La page complète : machine, processeur, mémoire,
+                            graphique, disques, réseau, écrans, batterie
+  ${O}$PROG memoire${R}    ${B}« Puis-je ajouter de la RAM ? »${R} — fentes libres,
+                            type exact à acheter, maximum accepté
+  ${O}$PROG rapport${R}    La même page en texte brut, sans numéros de série —
+                            à coller dans ${B}lexos ia-locale${R}
+
+Tout est en lecture seule. Pour la santé des disques : ${B}lexos disques${R}.
+Pour mettre à jour un micrologiciel : ${B}lexos firmware${R}.
+
+${D}Les fentes mémoire sont écrites dans le BIOS, que seul root peut lire :
+« sudo $PROG memoire » les affiche. Le reste ne demande rien.${R}
+AIDE
+		exit 0 ;;
+	''|page|rapport|memoire|mémoire|ram) ;;
+	*)
+		printf '%s✗%s « %s » n'"'"'est pas une commande de %s.\n' "$E" "$R" "$1" "$PROG" >&2
+		printf '   Essaie : %s aide\n' "$PROG" >&2
+		exit 1 ;;
+esac
+
+# =============================================================================
+#  LA MÉMOIRE — la seule section qui répond à une question qu'on se pose
+#               vraiment : « puis-je en ajouter, et laquelle acheter ? »
+# =============================================================================
+#  dmidecode lit la table SMBIOS que le BIOS a écrite au démarrage. Elle
+#  connaît le nombre de fentes, ce qu'il y a dedans, et le maximum que la
+#  carte mère accepte. Rien de tout ça n'est devinable autrement : /proc
+#  ne donne QUE le total installé.
+#
+#  Elle exige root. Plutôt que de sauter la section en silence — le défaut
+#  qu'on passe son temps à traquer ici — on affiche ce qu'on a et on donne
+#  la commande exacte qui donnera le reste.
+memoire_section() {
+	local total_mo
+	total_mo=$(awk '/^MemTotal:/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null)
+	if [[ -n "${total_mo:-}" && "$total_mo" -gt 0 ]]; then
+		if [[ "$total_mo" -ge 1024 ]]; then
+			ligne "Installée" "$((total_mo / 1024)) Gio  ${D}(${total_mo} Mio)${R}"
+		else
+			ligne "Installée" "${total_mo} Mio"
+		fi
+	fi
+
+	if ! command -v dmidecode >/dev/null 2>&1; then
+		bof "dmidecode absent — les fentes ne peuvent pas être lues"
+		note "sudo apt install dmidecode"
+		return
+	fi
+
+	#  On appelle dmidecode UNE fois et on garde la sortie : deux appels,
+	#  c'est deux mots de passe sudo et deux occasions de diverger.
+	#  Le filtre des numéros de série est posé ICI, à la source, pour
+	#  qu'aucune branche en aval ne puisse les laisser passer par oubli.
+	local brut plainte
+	plainte="$(dmidecode -t 16 -t 17 2>&1 >/dev/null)"
+	brut="$(dmidecode -t 16 -t 17 2>/dev/null | grep -v -i 'serial number\|asset tag')"
+	if [[ -z "$brut" ]]; then
+		#  ON REGARDE CE QUE dmidecode A DIT, PAS SEULEMENT QUI ON EST.
+		#  « id -u » ne suffit pas : dans un conteneur aux capacités
+		#  retirées, on est uid 0 et l'accès est refusé quand même. C'est
+		#  la plainte de l'outil qui tranche, pas notre supposition.
+		if printf '%s' "$plainte" | grep -qi 'permission\|denied\|root\|refus' \
+		   || [[ "$(id -u)" != "0" ]]; then
+			bof "les fentes mémoire sont écrites dans le BIOS, que seul root lit"
+			note "sudo $PROG memoire"
+		else
+			bof "le BIOS de cette machine ne publie pas sa table mémoire"
+			note "c'est fréquent en machine virtuelle"
+		fi
+		return
+	fi
+
+	local maxi fentes
+	maxi=$(printf '%s\n' "$brut"   | awk -F': ' '/Maximum Capacity/  {print $2; exit}')
+	fentes=$(printf '%s\n' "$brut" | awk -F': ' '/Number Of Devices/ {print $2; exit}')
+	[[ -n "${maxi:-}" ]]   && ligne "Maximum accepté" "$maxi"
+	[[ -n "${fentes:-}" ]] && ligne "Fentes au total" "$fentes"
+
+	#  Chaque fente, une ligne. Une fente vide se dit « libre » — c'est
+	#  l'information qu'on est venu chercher.
+	local occupees=0 libres=0 type_vu="" vitesse_vue=""
+	while IFS= read -r bloc; do
+		[[ -n "$bloc" ]] || continue
+		local nom taille type vit
+		nom=$(printf '%s' "$bloc"    | sed -n 's/.*|LOC|\([^|]*\).*/\1/p')
+		taille=$(printf '%s' "$bloc" | sed -n 's/.*|SIZ|\([^|]*\).*/\1/p')
+		type=$(printf '%s' "$bloc"   | sed -n 's/.*|TYP|\([^|]*\).*/\1/p')
+		vit=$(printf '%s' "$bloc"    | sed -n 's/.*|VIT|\([^|]*\).*/\1/p')
+		case "$taille" in
+			""|"No Module Installed"|"Not Installed")
+				libres=$((libres + 1))
+				faible "  ${nom:-fente}" "libre" ;;
+			*)
+				occupees=$((occupees + 1))
+				[[ -n "$type" && "$type" != "Unknown" ]] && type_vu="$type"
+				[[ -n "$vit"  && "$vit"  != "Unknown" ]] && vitesse_vue="$vit"
+				ligne "  ${nom:-fente}" "$taille ${type:-} ${vit:-}" ;;
+		esac
+	done < <(printf '%s\n' "$brut" | awk '
+		/^Memory Device/ { if (n) print l; l=""; n=1; next }
+		/^[A-Z]/ && !/^Memory Device/ { if (n) { print l; l=""; n=0 } }
+		n {
+			if ($0 ~ /Locator:/ && $0 !~ /Bank Locator/) { sub(/.*Locator: */,""); l=l "|LOC|" $0 }
+			else if ($0 ~ /Size:/)  { sub(/.*Size: */,"");  l=l "|SIZ|" $0 }
+			else if ($0 ~ /Type:/ && $0 !~ /Type Detail/ && $0 !~ /Error/) { sub(/.*Type: */,""); l=l "|TYP|" $0 }
+			else if ($0 ~ /Configured Memory Speed:/ || $0 ~ /Configured Clock Speed:/) { sub(/.*Speed: */,""); l=l "|VIT|" $0 }
+		}
+		END { if (n) print l }')
+
+	printf '\n'
+	if [[ "$libres" -gt 0 ]]; then
+		bien "$libres fente(s) libre(s) sur $((occupees + libres)) — tu peux ajouter de la mémoire"
+		if [[ -n "$type_vu" ]]; then
+			local quoi="$type_vu"
+			[[ -n "$vitesse_vue" ]] && quoi="$quoi à $vitesse_vue"
+			note "à acheter : de la $quoi, identique à ce qui est déjà en place"
+			note "mélanger deux vitesses fonctionne, mais tout tourne à la plus lente"
+		fi
+	elif [[ "$occupees" -gt 0 ]]; then
+		bof "toutes les fentes sont occupées ($occupees / $occupees)"
+		note "pour monter plus haut il faut REMPLACER les barrettes, pas en ajouter"
+		[[ -n "$maxi" ]] && note "cette carte mère accepte $maxi au total"
+	fi
+}
+
+# =============================================================================
+#  LA MACHINE — qui l'a faite, quel modèle, quel BIOS
+# =============================================================================
+machine_section() {
+	local v m bv bd ct
+	v="$(dmi sys_vendor)"     || v=""
+	m="$(dmi product_name)"   || m=""
+	if [[ -n "$v$m" ]]; then
+		#  « Alienware » + « Alienware m16 R2 » = « Alienware Alienware m16 R2 ».
+		#  Beaucoup de constructeurs répètent leur nom dans le modèle ; on ne
+		#  le remet devant que s'il n'y est pas déjà.
+		local plaque
+		if [[ -n "$v" && "$m" == "$v"* ]]; then plaque="$m"
+		else plaque="$(printf '%s %s' "$v" "$m" | sed 's/  */ /g;s/^ //;s/ $//')"; fi
+		ligne "Modèle" "$plaque"
+	else
+		bof "le constructeur n'a pas renseigné le modèle (fréquent en machine virtuelle)"
+	fi
+	m="$(dmi board_name)" && ligne "Carte mère" "$m"
+	ct="$(chassis_clair "$(lire "$SYS/class/dmi/id/chassis_type")")" && ligne "Type" "$ct"
+
+	bv="$(dmi bios_version)" || bv=""
+	bd="$(dmi bios_date)"    || bd=""
+	if [[ -n "$bv" ]]; then
+		[[ -n "$bd" ]] && ligne "BIOS" "$bv  ${D}($bd)${R}" || ligne "BIOS" "$bv"
+	fi
+}
+
+# =============================================================================
+#  LE PROCESSEUR
+# =============================================================================
+cpu_section() {
+	local modele coeurs fils
+	modele=$(awk -F': ' '/^model name/ {print $2; exit}' /proc/cpuinfo 2>/dev/null)
+	[[ -z "${modele:-}" ]] && modele=$(awk -F': ' '/^Model name/ {gsub(/^ +/,"",$2); print $2; exit}' \
+		< <(LC_ALL=C lscpu 2>/dev/null) )
+	[[ -n "${modele:-}" ]] && ligne "Modèle" "$modele"
+
+	fils=$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null)
+	coeurs=$(awk -F': ' '/^cpu cores/ {print $2; exit}' /proc/cpuinfo 2>/dev/null | tr -d ' ')
+	if [[ -n "${coeurs:-}" && -n "${fils:-}" && "$coeurs" != "$fils" ]]; then
+		ligne "Cœurs" "$coeurs  ${D}($fils fils d'exécution)${R}"
+	elif [[ -n "${fils:-}" ]]; then
+		ligne "Cœurs" "$fils"
+	fi
+}
+
+# =============================================================================
+#  LA CARTE GRAPHIQUE — et SURTOUT quel pilote la fait tourner
+# =============================================================================
+#  Une RTX sous le pilote « nouveau » au lieu de « nvidia », c'est une
+#  machine qui rame sans que rien ne l'annonce. C'est arrivé ici. Le pilote
+#  en service est donc affiché à côté de la carte, pas dans un coin.
+gpu_section() {
+	if ! command -v lspci >/dev/null 2>&1; then
+		bof "pciutils absent — carte graphique non lue  ${D}(sudo apt install pciutils)${R}"
+		return
+	fi
+	local vu=0
+	while IFS= read -r l; do
+		[[ -n "$l" ]] || continue
+		vu=1
+		local adr nom pilote
+		adr="${l%% *}"
+		nom="$(printf '%s' "$l" | sed 's/^[^ ]* //; s/^[^:]*: //')"
+		pilote="$(lspci -k -s "$adr" 2>/dev/null \
+			| awk -F': ' '/Kernel driver in use/ {print $2; exit}')"
+		if [[ -n "${pilote:-}" ]]; then
+			ligne "Carte" "$nom"
+			if [[ "$nom" == *NVIDIA* && "$pilote" == "nouveau" ]]; then
+				mal "  pilote en service : nouveau — le pilote libre, bien plus lent"
+				note "lexos boost le signale et sait installer le pilote NVIDIA"
+			else
+				faible "  pilote en service" "$pilote"
+			fi
+		else
+			ligne "Carte" "$nom"
+			bof "  aucun pilote noyau en service pour cette carte"
+		fi
+	done < <(lspci 2>/dev/null | grep -Ei 'VGA compatible|3D controller|Display controller')
+	[[ "$vu" = 0 ]] && bof "aucune carte graphique vue sur le bus PCI"
+	return 0
+}
+
+# =============================================================================
+#  LES DISQUES — ce qu'ils SONT. Leur santé, c'est « lexos disques ».
+# =============================================================================
+disques_section() {
+	command -v lsblk >/dev/null 2>&1 || { bof "lsblk absent"; return; }
+	local vu=0
+	#  -P donne des paires NAME="x" SIZE="y" : un modèle vide ou contenant
+	#  des espaces (« Samsung SSD 990 PRO ») ne décale plus les colonnes.
+	#  La sortie en colonnes le faisait, et on lisait le modèle comme
+	#  vitesse de rotation — un disque nommé « SSD » annoncé à plateaux.
+	#  JAMAIS eval SUR CETTE LIGNE. Le nom de modèle vient du matériel :
+	#  une clé USB peut annoncer ce qu'elle veut, y compris « $(…) », et
+	#  eval l'exécuterait — dans des guillemets ou non, la substitution de
+	#  commande s'y fait quand même. On découpe donc à la main : la valeur
+	#  reste une chaîne, quoi qu'elle contienne.
+	local NAME SIZE MODEL ROTA TRAN
+	champ() { printf '%s' "$2" | sed -n "s/.*[[:space:]]\\?$1=\"\([^\"]*\)\".*/\1/p"; }
+	while IFS= read -r l; do
+		[[ -n "$l" ]] || continue
+		NAME="$(champ NAME "$l")"
+		SIZE="$(champ SIZE "$l")"
+		MODEL="$(champ MODEL "$l")"
+		ROTA="$(champ ROTA "$l")"
+		TRAN="$(champ TRAN "$l")"
+		[[ -n "$NAME" ]] || continue
+		case "$NAME" in loop*|ram*|sr*|zram*) continue ;; esac
+		vu=1
+		local genre
+		case "$TRAN" in
+			nvme) genre="NVMe" ;;
+			usb)  genre="USB" ;;
+			*)    [[ "$ROTA" = "1" ]] && genre="disque à plateaux" || genre="SSD" ;;
+		esac
+		ligne "/dev/$NAME" "$(printf '%s   %s   %s' "${SIZE:-?}" "${MODEL:-modèle non publié}" "$genre")"
+	done < <(lsblk -d -P -o NAME,SIZE,MODEL,ROTA,TRAN 2>/dev/null)
+	[[ "$vu" = 0 ]] && bof "aucun disque listé"
+	note "leur santé : lexos disques"
+	return 0
+}
+
+# =============================================================================
+#  RÉSEAU ET SON — les puces, pas la configuration
+# =============================================================================
+puces_section() {
+	command -v lspci >/dev/null 2>&1 || { bof "pciutils absent"; return; }
+	local l
+	while IFS= read -r l; do
+		[[ -n "$l" ]] || continue
+		ligne "Réseau" "$(printf '%s' "$l" | sed 's/^[^ ]* //; s/^[^:]*: //')"
+	done < <(lspci 2>/dev/null | grep -Ei 'Ethernet controller|Network controller')
+	while IFS= read -r l; do
+		[[ -n "$l" ]] || continue
+		ligne "Son" "$(printf '%s' "$l" | sed 's/^[^ ]* //; s/^[^:]*: //')"
+	done < <(lspci 2>/dev/null | grep -Ei 'Audio device|Multimedia audio')
+	return 0
+}
+
+# =============================================================================
+#  LA BATTERIE — son usure, qui est la vraie information
+# =============================================================================
+#  Une batterie ne meurt pas d'un coup : elle rétrécit. Le noyau garde la
+#  capacité d'ORIGINE à côté de la capacité actuelle, et le rapport des deux
+#  dit en une ligne si l'autonomie qui s'effondre est une usure normale ou
+#  un vrai défaut. Personne ne va lire ça dans /sys tout seul.
+batterie_section() {
+	local bat trouve=0
+	for bat in "$SYS"/class/power_supply/BAT*; do
+		[[ -d "$bat" ]] || continue
+		trouve=1
+		local plein origine unite
+		plein="$(lire "$bat/energy_full")";        origine="$(lire "$bat/energy_full_design")"
+		unite="Wh"
+		if [[ -z "$plein" || -z "$origine" ]]; then
+			plein="$(lire "$bat/charge_full")";    origine="$(lire "$bat/charge_full_design")"
+			unite="Ah"
+		fi
+		local nom; nom="$(basename "$bat")"
+		if [[ -n "$plein" && -n "$origine" && "$origine" -gt 0 ]] 2>/dev/null; then
+			local sante=$(( plein * 100 / origine ))
+			if   [[ "$sante" -ge 80 ]]; then bien "$nom : ${sante} % de sa capacité d'origine"
+			elif [[ "$sante" -ge 60 ]]; then bof  "$nom : ${sante} % — l'autonomie a nettement baissé"
+			else                             mal  "$nom : ${sante} % — batterie en fin de vie"
+				note "une batterie sous 60 % peut aussi couper la machine sans prévenir"
+			fi
+			faible "  d'origine" "$(awk -v v="$origine" 'BEGIN{printf "%.1f", v/1000000}') $unite  →  aujourd'hui $(awk -v v="$plein" 'BEGIN{printf "%.1f", v/1000000}') $unite"
+		else
+			faible "$nom" "présente, capacité non publiée par le firmware"
+		fi
+	done
+	[[ "$trouve" = 0 ]] && return 1
+	return 0
+}
+
+# =============================================================================
+#  LES ÉCRANS — branchés, et à quelle définition
+# =============================================================================
+ecrans_section() {
+	local vu=0 s nom
+	if [[ -n "${DISPLAY:-}" ]] && command -v xrandr >/dev/null 2>&1; then
+		while IFS= read -r s; do
+			[[ -n "$s" ]] || continue
+			vu=1; ligne "${s%% *}" "${s#* }"
+		done < <(xrandr --query 2>/dev/null \
+			| awk '/ connected/ {n=$1; for(i=1;i<=NF;i++) if ($i ~ /^[0-9]+x[0-9]+\+/) {split($i,a,"+"); print n" "a[1]; found=1}
+			       if (!found) print n" branché (mode non lu)"; found=0}')
+	fi
+	if [[ "$vu" = 0 ]]; then
+		for s in "$SYS"/class/drm/card*-*/status; do
+			[[ -r "$s" ]] || continue
+			[[ "$(lire "$s")" == "connected" ]] || continue
+			nom="$(basename "$(dirname "$s")")"; nom="${nom#card*-}"
+			vu=1; ligne "$nom" "branché"
+		done
+	fi
+	[[ "$vu" = 0 ]] && bof "aucun écran détecté (session sans affichage ?)"
+	return 0
+}
+
+# =============================================================================
+#  LES MICROLOGICIELS — on COMPTE, on ne met pas à jour
+# =============================================================================
+firmware_section() {
+	if ! command -v fwupdmgr >/dev/null 2>&1; then
+		faible "fwupd" "absent — mises à jour de BIOS non vérifiées"
+		return 0
+	fi
+	local sortie
+	sortie="$(fwupdmgr get-updates 2>/dev/null)"
+	if printf '%s' "$sortie" | grep -qi 'No updates\|Aucune mise'; then
+		bien "aucune mise à jour de micrologiciel en attente"
+	elif [[ -n "$sortie" ]]; then
+		bof "des mises à jour de micrologiciel sont disponibles"
+		note "les voir et les poser : lexos firmware"
+	else
+		faible "fwupd" "n'a rien pu dire (pas de réseau, ou aucun appareil soutenu)"
+	fi
+	return 0
+}
+
+# =============================================================================
+#  LE CORPS
+# =============================================================================
+case "${1:-}" in
+	memoire|mémoire|ram)
+		titre "La mémoire"
+		memoire_section
+		printf '\n'
+		exit 0 ;;
+esac
+
+printf '%s%s%s\n' "$B" "Ma machine — LexOS" "$R"
+
+titre "La machine"      ; machine_section
+titre "Le processeur"   ; cpu_section
+titre "La mémoire"      ; memoire_section
+titre "La carte graphique" ; gpu_section
+titre "Les disques"     ; disques_section
+titre "Réseau et son"   ; puces_section
+if est_portable; then
+	titre "La batterie"
+	batterie_section || bof "aucune batterie lue"
+fi
+titre "Les écrans"      ; ecrans_section
+titre "Les micrologiciels" ; firmware_section
+
+printf '\n'
+if [[ "${1:-}" == "rapport" ]]; then
+	printf 'Page produite par « %s rapport » — sans numéro de série.\n' "$PROG"
+else
+	printf '  %sPour te faire expliquer tout ça : %s rapport, puis colle-le dans lexos ia-locale.%s\n' \
+		"$D" "$PROG" "$R"
+	printf '  %sSanté des disques : lexos disques  ·  mises à jour BIOS : lexos firmware%s\n' "$D" "$R"
+fi
+exit 0

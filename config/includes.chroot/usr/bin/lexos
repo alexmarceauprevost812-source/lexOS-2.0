@@ -122,6 +122,8 @@ ${B}ÉNERGIE${R}
   ${A}sauvegarde maintenant${R} Copier Documents, Images, Musique, Vidéos, Bureau
   ${A}medecin${R}             « Qu'est-ce qui ne va pas ? » — le tri complet, traduit
   ${A}disques${R}             La santé des disques AVANT qu'ils meurent ${D}(SMART, espace)${R}
+  ${A}materiel${R}            Ce qu'il y a DANS la machine ${D}(aussi : machine)${R}
+  ${A}materiel memoire${R}    ${B}« Puis-je ajouter de la RAM ? »${R} — fentes libres, type à acheter
   ${A}parametres${R}          Ouvre la fenêtre des Paramètres ${D}(aussi : reglages)${R}
   ${A}temperature surveille${R} Garde les maximums — à lancer AVANT une partie
   ${A}firmware${R}            BIOS et micrologiciels : ce qui est à jour
@@ -980,6 +982,7 @@ case "$CMD" in
 	sauvegarde|backup|sauve) exec lexos-sauvegarde "$@" ;;
 	disques|disque|disks)  exec lexos-disques "$@" ;;
 	medecin|médecin|diagnostic|doc) exec lexos-medecin "$@" ;;
+	materiel|matériel|machine|hardware) exec lexos-materiel "$@" ;;
 	parametres|paramètres|reglages|réglages|settings) exec lexos-settings "$@" ;;
 	ia-locale|ialocale)   exec lexos-ia-locale "$@" ;;
 	assistants|assistant) exec lexos-assistants "$@" ;;

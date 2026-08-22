@@ -183,6 +183,7 @@ lexos-boost
 lexos-sauvegarde
 lexos-disques
 lexos-medecin
+lexos-materiel
 "
 
 [ "$CSV" = 1 ] && echo "outil;parametres;dispatcher;aide;lanceur"

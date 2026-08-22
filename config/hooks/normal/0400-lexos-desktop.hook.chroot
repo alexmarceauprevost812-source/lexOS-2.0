@@ -543,6 +543,24 @@ Categories=System;Utility;
 Keywords=disque;disk;smart;espace;plein;ssd;nvme;sante;santé;
 EOF
 
+#  « Ma machine en une page » — la dernière des quatre entrées de la couche
+#  diagnostic. Elle répond à la question que personne ne sait résoudre seul :
+#  « puis-je ajouter de la mémoire, et laquelle acheter ? »
+cat > /usr/share/applications/lexos-materiel.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Ma machine
+Name[en]=My hardware
+Comment=Ce qu'il y a dans la machine — processeur, fentes mémoire libres, carte graphique, batterie
+Comment[en]=What is inside — CPU, free memory slots, graphics, battery health
+Exec=xfce4-terminal --hold --title="Ma machine — LexOS" -e "lexos materiel"
+Icon=lexos
+Terminal=false
+Categories=System;Utility;
+Keywords=materiel;matériel;hardware;ram;memoire;mémoire;barrette;fente;processeur;carte;batterie;bios;modele;modèle;
+EOF
+
 cat > /usr/share/applications/lexos-sauvegarde.desktop <<EOF
 [Desktop Entry]
 Type=Application
