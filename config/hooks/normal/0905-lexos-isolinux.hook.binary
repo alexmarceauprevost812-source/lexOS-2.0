@@ -32,14 +32,53 @@ set -e
 
 echo "[lexos] hook 0905 : accents du menu de démarrage BIOS"
 
-DIR="binary/isolinux"
+# =============================================================================
+#  OÙ EST L'ARBRE DE L'IMAGE ? ON LE CHERCHE, ON NE LE SUPPOSE PAS.
+# =============================================================================
+#  CE QUE ÇA RÉPARE, ET DEPUIS QUAND. Ces deux hooks écrivaient « binary/… »
+#  en supposant que live-build les lance depuis la racine du chantier. Il les
+#  lance depuis le DOSSIER DE L'IMAGE. Le chemin ne tombait donc jamais juste,
+#  les deux hooks disaient poliment « absent — menu laissé tel quel », la
+#  construction réussissait, et l'ISO sortait sans le thème. Vérifié dans les
+#  journaux : le build 65 dit déjà la même chose. Le menu UEFI n'a JAMAIS été
+#  habillé sur aucune ISO publiée.
+#
+#  On essaie donc les emplacements plausibles et on garde le premier qui
+#  ressemble à un arbre d'image. Et si aucun ne convient, on ne se contente
+#  pas de dire « absent » : on imprime le dossier courant et ce qu'il contient,
+#  pour que la construction SUIVANTE nous dise la vérité au lieu qu'on devine
+#  une troisième fois.
+#  Pas de « local » : ce hook est en /bin/sh, où il n'existe pas. Le nom
+#  LEXOS_R est assez particulier pour ne rien écraser.
+racine_image() {
+	for LEXOS_R in . binary ../binary; do
+		if [ -d "$LEXOS_R/boot" ] || [ -d "$LEXOS_R/isolinux" ] || [ -d "$LEXOS_R/live" ]; then
+			printf '%s' "$LEXOS_R"
+			return 0
+		fi
+	done
+	return 1
+}
+dire_ou_on_est() {
+	echo "[lexos]   !! arbre de l'image introuvable — voici ce qu'on voit :"
+	echo "[lexos]      pwd = $(pwd)"
+	echo "[lexos]      contenu : $(ls -A 2>/dev/null | tr '\n' ' ' | cut -c1-200)"
+	echo "[lexos]      (c'est CETTE ligne qu'il faut lire au prochain build)"
+}
+
+IMG="$(racine_image)" || { dire_ou_on_est; exit 0; }
+DIR="$IMG/isolinux"
 
 if [ ! -d "$DIR" ]; then
 	#  Image construite sans syslinux (--bootloaders grub-efi seul) : il n'y a
-	#  simplement pas de menu BIOS à corriger.
+	#  simplement pas de menu BIOS à corriger. On dit OÙ on a cherché, sinon
+	#  ce message ressemble à celui d'un chemin faux — et c'est exactement la
+	#  confusion qui a coûté six builds.
 	echo "[lexos]   ${DIR} absent — pas de menu BIOS dans cette image"
+	echo "[lexos]      (arbre de l'image trouvé en « $IMG »)"
 	exit 0
 fi
+echo "[lexos]   arbre de l'image : $IMG"
 
 if ! command -v iconv >/dev/null 2>&1; then
 	echo "[lexos]   !! iconv absent de la machine de construction — accents laissés en UTF-8"

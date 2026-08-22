@@ -27,9 +27,46 @@ set -e
 
 echo "[lexos] hook 0910 : thème du menu de démarrage de l'ISO"
 
+# =============================================================================
+#  OÙ EST L'ARBRE DE L'IMAGE ? ON LE CHERCHE, ON NE LE SUPPOSE PAS.
+# =============================================================================
+#  CE QUE ÇA RÉPARE, ET DEPUIS QUAND. Ces deux hooks écrivaient « binary/… »
+#  en supposant que live-build les lance depuis la racine du chantier. Il les
+#  lance depuis le DOSSIER DE L'IMAGE. Le chemin ne tombait donc jamais juste,
+#  les deux hooks disaient poliment « absent — menu laissé tel quel », la
+#  construction réussissait, et l'ISO sortait sans le thème. Vérifié dans les
+#  journaux : le build 65 dit déjà la même chose. Le menu UEFI n'a JAMAIS été
+#  habillé sur aucune ISO publiée.
+#
+#  On essaie donc les emplacements plausibles et on garde le premier qui
+#  ressemble à un arbre d'image. Et si aucun ne convient, on ne se contente
+#  pas de dire « absent » : on imprime le dossier courant et ce qu'il contient,
+#  pour que la construction SUIVANTE nous dise la vérité au lieu qu'on devine
+#  une troisième fois.
+#  Pas de « local » : ce hook est en /bin/sh, où il n'existe pas. Le nom
+#  LEXOS_R est assez particulier pour ne rien écraser.
+racine_image() {
+	for LEXOS_R in . binary ../binary; do
+		if [ -d "$LEXOS_R/boot" ] || [ -d "$LEXOS_R/isolinux" ] || [ -d "$LEXOS_R/live" ]; then
+			printf '%s' "$LEXOS_R"
+			return 0
+		fi
+	done
+	return 1
+}
+dire_ou_on_est() {
+	echo "[lexos]   !! arbre de l'image introuvable — voici ce qu'on voit :"
+	echo "[lexos]      pwd = $(pwd)"
+	echo "[lexos]      contenu : $(ls -A 2>/dev/null | tr '\n' ' ' | cut -c1-200)"
+	echo "[lexos]      (c'est CETTE ligne qu'il faut lire au prochain build)"
+}
+
+IMG="$(racine_image)" || { dire_ou_on_est; exit 0; }
+echo "[lexos]   arbre de l'image : $IMG"
+
 THEME_REL="/boot/grub/themes/lexos"
-THEME_DIR="binary${THEME_REL}"
-CFG="binary/boot/grub/grub.cfg"
+THEME_DIR="${IMG}${THEME_REL}"
+CFG="${IMG}/boot/grub/grub.cfg"
 
 # --- Le thème est-il bien arrivé dans l'image ? -----------------------------
 if [ ! -f "${THEME_DIR}/theme.txt" ]; then
@@ -114,7 +151,7 @@ for CANDIDAT in chroot/boot/memtest86+x64.efi chroot/boot/memtest86+.efi; do
 	[ -f "$CANDIDAT" ] && { MEMTEST_SRC="$CANDIDAT"; break; }
 done
 if [ -n "$MEMTEST_SRC" ]; then
-	cp "$MEMTEST_SRC" binary/boot/memtest86+x64.efi
+	cp "$MEMTEST_SRC" "${IMG}/boot/memtest86+x64.efi"
 	BLOC="${BLOC}
 # --- lexos-memtest (posé par config/hooks/normal/0910) -----------------------
 menuentry \"Tester la mémoire (memtest86+)\" {
