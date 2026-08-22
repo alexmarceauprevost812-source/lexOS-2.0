@@ -215,6 +215,24 @@ fi
 #  lire d'un coup d'œil finit ignoré. On ne regarde que les lignes de code.
 sans_commentaires() { grep -v '^[[:space:]]*#' "$1" 2>/dev/null; }
 
+#  ÉCHAPPER LE CÔTÉ DROIT DE sed — TROIS CARACTÈRES NE VALENT PAS POUR EUX-MÊMES.
+#  Dans « s|motif|REMPLACEMENT| », la barre oblique inverse échappe, « & »
+#  rappelle tout le motif trouvé, et « | » ferme l'expression.
+#
+#  VÉCU SUR L'ISO 69. auto/config écrit « user-fullname=LexOS\ Live » : la
+#  barre oblique protège l'espace pour que le nom complet reste entier. GRUB
+#  la garde et affiche « LexOS Live ». En passant par le sed ci-dessous, elle
+#  était mangée : le menu BIOS recevait « user-fullname=LexOS » suivi d'un
+#  paramètre noyau « Live » que personne ne réclame. Ignoré, donc invisible.
+#
+#  Le nom coupé n'est rien. LE CANAL, LUI, COMPTE : n'importe quel paramètre
+#  futur contenant l'un des trois serait déformé de la même façon — EN MODE
+#  BIOS SEULEMENT, sans une erreur nulle part, avec un UEFI qui marche à côté
+#  pour brouiller la piste. C'est la famille de pannes que ce fichier passe
+#  son temps à chasser depuis le build 66 ; celle-ci passait par la porte de
+#  service.
+echappe_sed() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
+
 RESTANTS=0
 for F in "$DIR"/*.cfg; do
 	[ -e "$F" ] || continue
@@ -223,15 +241,21 @@ for F in "$DIR"/*.cfg; do
 	echo "[lexos]   !! des @JETONS@ non remplacés dans $(basename "$F") (hors commentaires) :"
 	sans_commentaires "$F" | grep -o '@[A-Za-z_]*@' | sort -u | sed 's/^/[lexos]        /'
 
-	[ -n "$NOYAU" ]  && sed -i -e "s|@KERNEL@|${NOYAU}|g"  -e "s|@LINUX@|${NOYAU}|g"   "$F" 2>/dev/null
-	[ -n "$INITRD" ] && sed -i -e "s|@INITRD@|${INITRD}|g"                              "$F" 2>/dev/null
+	#  Tout ce qui part dans un remplacement sed passe par echappe_sed.
+	E_NOYAU="$(echappe_sed "$NOYAU")"
+	E_INITRD="$(echappe_sed "$INITRD")"
+	E_VIF="$(echappe_sed "$APPEND_VIF")"
+	E_SECOURS="$(echappe_sed "$APPEND_SECOURS")"
+
+	[ -n "$NOYAU" ]  && sed -i -e "s|@KERNEL@|${E_NOYAU}|g"  -e "s|@LINUX@|${E_NOYAU}|g" "$F" 2>/dev/null
+	[ -n "$INITRD" ] && sed -i -e "s|@INITRD@|${E_INITRD}|g"                             "$F" 2>/dev/null
 	if [ -n "$APPEND_VIF" ]; then
-		sed -i -e "s|@APPEND_LIVE@|${APPEND_VIF}|g" \
-		       -e "s|@LB_BOOTAPPEND_LIVE@|${APPEND_VIF}|g" "$F" 2>/dev/null
+		sed -i -e "s|@APPEND_LIVE@|${E_VIF}|g" \
+		       -e "s|@LB_BOOTAPPEND_LIVE@|${E_VIF}|g" "$F" 2>/dev/null
 	fi
 	if [ -n "$APPEND_SECOURS" ]; then
-		sed -i -e "s|@APPEND_FAILSAFE@|${APPEND_SECOURS}|g" \
-		       -e "s|@LB_BOOTAPPEND_FAILSAFE@|${APPEND_SECOURS}|g" "$F" 2>/dev/null
+		sed -i -e "s|@APPEND_FAILSAFE@|${E_SECOURS}|g" \
+		       -e "s|@LB_BOOTAPPEND_FAILSAFE@|${E_SECOURS}|g" "$F" 2>/dev/null
 	fi
 
 	#  ON REGARDE CE QUI RESTE — c'est ça, la leçon du 68 : dire « réparé »
