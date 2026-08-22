@@ -680,7 +680,23 @@ def _flux_llama(question, ecrire):
                "télécharger un.")
         return
     reg = _reglages()
-    argv = ["llama-cli", "-m", str(modeles[0]),
+
+    #  Le modèle CHOISI, pas le premier par ordre alphabétique. act_modele a
+    #  pris soin d'enregistrer reg["modele"] ; s'en tenir à modeles[0] écrasait
+    #  ce choix en silence dès qu'il y avait deux .gguf dans le dossier.
+    #  Le réglage peut aussi nommer un modèle Ollama (aucun fichier ici) ou un
+    #  .gguf effacé depuis : on retombe sur le premier, et on le DIT — répondre
+    #  avec un autre modèle sans prévenir, c'est se demander longtemps pourquoi
+    #  la réponse ne ressemble pas à ce qu'on attendait.
+    choisi = reg.get("modele", "")
+    modele = next((m for m in modeles if m.name == choisi), None)
+    if modele is None:
+        modele = modeles[0]
+        if choisi.endswith(".gguf"):
+            ecrire(f"[« {choisi} » est introuvable — réponse avec "
+                   f"{modele.name}]\n")
+
+    argv = ["llama-cli", "-m", str(modele),
             "-c", str(int(reg.get("contexte", 8192))),
             "--no-conversation", "-no-cnv", "-p", question]
     try:
