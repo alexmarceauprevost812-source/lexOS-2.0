@@ -48,10 +48,22 @@
   --ac:#E8590C;
   --ac-hi:#FF7A33;     /* survol : le même, éclairci                         */
   --ac-lo:#5a2a0c;     /* fonds teintés, liserés discrets                    */
-  --ac-txt:#000;   /* CE QU'ON ÉCRIT SUR L'ACCENT — voir la note ci-dessous */
-  --ac-halo:rgba(232,89,12,.30);  /* le souffle orange au survol d'un bouton */       /* CE QU'ON ÉCRIT SUR L'ACCENT. Noir, pas blanc :
+  --ac-txt:#000;       /* CE QU'ON ÉCRIT SUR L'ACCENT. Noir, pas blanc :
                           blanc sur #E8590C donne 3,4:1 de contraste — sous
                           le seuil lisible ; noir donne 6,1:1.               */
+
+  /*  LE SOUFFLE ORANGE au survol d'un bouton. Il est DÉRIVÉ de --ac, et ce
+      n'est pas un détail : les Paramètres réécrivent --ac et --ac-hi à chaud
+      quand on choisit un autre accent (appliqueApparence(), app.js), mais
+      ils ne connaissent pas ce jeton. Écrit en dur — c'était rgba(232,89,12)
+      dans les trois feuilles avant ce fichier — un accent bleu aurait gardé
+      un halo orange, exactement le défaut que le commentaire de --ac-hi
+      prévient à côté. color-mix() le fait suivre tout seul, sans une ligne
+      de JavaScript et dans les trois panneaux, pas seulement celui qui a un
+      app.js. Les panneaux s'affichent dans QtWebEngine (Chromium) : color-mix
+      y est acquis. Si un jour un moteur ne le connaît pas, la déclaration
+      box-shadow est simplement ignorée — pas de halo, jamais un mauvais. */
+  --ac-halo:color-mix(in srgb, var(--ac) 30%, transparent);
 
   /* --- États — un seul jeu de noms, en français ---------------------------
      Les trois panneaux employaient --ok/--warn/--off d'un côté et

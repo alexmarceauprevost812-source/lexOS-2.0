@@ -1,8 +1,7 @@
 /* Paramètres LexOS — même langage visuel que la démo : sombre, accent orange. */
 :root{
-  /*  Les jetons communs vivent dans ui.css, charge juste avant.
-      On ne garde ici que ce qui est PROPRE a ce panneau. */
-  
+  /*  Les jetons communs vivent dans ui.css, chargé juste avant.
+      On ne garde ici que ce qui est PROPRE à ce panneau. */
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body,#app{height:100%}

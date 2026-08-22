@@ -4,9 +4,8 @@
    différents aux yeux de celui qui s'en sert.
    ========================================================================== */
 :root{
-  /*  Les jetons communs vivent dans ui.css, charge juste avant.
-      On ne garde ici que ce qui est PROPRE a ce panneau. */
-  
+  /*  Les jetons communs vivent dans ui.css, chargé juste avant.
+      On ne garde ici que ce qui est PROPRE à ce panneau. */
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);

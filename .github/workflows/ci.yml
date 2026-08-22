@@ -331,13 +331,53 @@ jobs:
           #  ne regarde que là où la duplication a réellement coûté des heures.
           for f in config/includes.chroot/usr/share/lexos/*/web/style.css; do
             [ -r "$f" ] || continue
-            if grep -qniE '#(E8590C|FF7A33)' "$f"; then
+            #  Les DEUX écritures de l'accent. Le halo du survol s'écrivait
+            #  « rgba(232,89,12,.30) » — le même orange, en décimal : un
+            #  contrôle qui ne cherche que le code hexadécimal serait passé à
+            #  côté de la seule duplication qui restait vraiment partout.
+            if grep -qniE '#(E8590C|FF7A33)|\(\s*232\s*,\s*89\s*,\s*12\s*[,)]' "$f"; then
               echo "::error file=$f::accent écrit en dur — employer var(--ac) ; la seule définition est dans $UI"
               bad=1
             fi
           done
 
-          [ "$bad" = "0" ] && echo "  ok — l'accent n'est défini que dans ui.css"
+          #  LE LIEN DE CHAQUE PANNEAU RELIÉ. Sans ui.css, aucun var() ne
+          #  résout : la page ne devient pas « un peu différente », elle
+          #  devient un texte sans couleur sur un fond sans couleur. Une panne
+          #  muette et totale, pour un lien symbolique cassé qu'aucun autre
+          #  contrôle ne regarde. Quelques lignes ici valent une soirée
+          #  d'enquête plus tard.
+          #
+          #  ON N'EXIGE LE LIEN QUE DES PANNEAUX QUI LE DÉCLARENT DÉJÀ. Un
+          #  contrôle qui réclamerait ui.css partout serait rouge dès
+          #  aujourd'hui, et on l'aurait désactivé le jour même. La règle est
+          #  donc : qui est relié le reste. Les autres sont NOMMÉS plus bas,
+          #  sans faire échouer — pour qu'on les voie à chaque exécution au
+          #  lieu de les oublier.
+          restants=""
+          for d in config/includes.chroot/usr/share/lexos/*/web; do
+            [ -f "$d/index.html" ] || continue
+            if grep -q 'href="ui.css"' "$d/index.html"; then
+              [ -L "$d/ui.css" ] || {
+                echo "::error file=$d/ui.css::index.html charge ui.css mais le lien vers la source unique est absent"; bad=1; continue; }
+              [ -r "$d/ui.css" ] || {
+                echo "::error file=$d/ui.css::lien cassé — il pointe vers $(readlink "$d/ui.css")"; bad=1; }
+            else
+              restants="$restants $(basename "$(dirname "$d")")"
+            fi
+          done
+
+          #  CE QUI RESTE À FAIRE, DIT TOUT HAUT. Au 2026-08-22 : « cartes » et
+          #  « gps ». Le second porte SON PROPRE ORANGE — #ff6a00, pas
+          #  #E8590C — et un quatrième vocabulaire (--orange, --text, --card).
+          #  C'est exactement la maladie que ui.css soigne, sur un panneau que
+          #  l'unification n'a pas encore atteint. Le premier est une
+          #  application à part (maplibre, son propre dossier css/).
+          #  Les rattacher demande de regarder chaque écran : c'est un travail,
+          #  pas un oubli. Cette ligne existe pour qu'il reste visible.
+          [ -n "$restants" ] && echo "  note — panneaux pas encore reliés à ui.css :$restants"
+
+          [ "$bad" = "0" ] && echo "  ok — l'accent n'est défini que dans ui.css, et les trois panneaux y sont reliés"
           exit $bad
 
       - name: Bits d'exécution présents

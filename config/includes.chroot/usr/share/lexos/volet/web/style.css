@@ -8,8 +8,8 @@
  *  c'est moins cher que de comparer deux captures d'écran chaque semaine.
  * ===========================================================================*/
 :root{
-  /*  Les jetons communs vivent dans ui.css, charge juste avant.
-      On ne garde ici que ce qui est PROPRE a ce panneau. */
+  /*  Les jetons communs vivent dans ui.css, chargé juste avant.
+      On ne garde ici que ce qui est PROPRE à ce panneau. */
   /*  Les couleurs du ciel par défaut (« nuageux ») — remplacées par le
       script selon le temps qu'il fait, mais définies ici pour qu'un rendu
       avant leur pose ne soit jamais sans fond ni bord. Même valeur que la
