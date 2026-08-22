@@ -1,16 +1,8 @@
 /* Paramètres LexOS — même langage visuel que la démo : sombre, accent orange. */
 :root{
-  --bg:#161311; --bg-side:#1D1916; --bg-hi:#2A241F;
-  --fg:#EDE6DF; --fg-dim:#A99F94;
-  --bd:#3A322B; --ac:#E8590C; --ac-hi:#FF7A33;
-  --ok:#2DBF6B; --warn:#F5A623; --off:#D8352E;
-  /*  La police de l'interface. Posée ici en repli, puis REMPLACÉE à chaud
-      par appliqueApparence() (app.js) d'après le choix de la section
-      Apparence — « Manuscrite » doit changer CETTE fenêtre aussi, pas
-      seulement le reste du bureau. Patrick Hand est embarquée par LexOS
-      (/usr/share/fonts/truetype/lexos) : elle est là même sur une machine
-      qui n'a aucune police manuscrite installée. */
-  --police:"Noto Sans","DejaVu Sans",sans-serif;
+  /*  Les jetons communs vivent dans ui.css, charge juste avant.
+      On ne garde ici que ce qui est PROPRE a ce panneau. */
+  
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body,#app{height:100%}
@@ -107,14 +99,14 @@ select{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
    Une force de signal et une charge de batterie se lisent mieux en forme
    qu'en nombre. Quatre barres montantes, et une jauge qui se remplit. */
 .barres{display:flex;align-items:flex-end;gap:3px;height:18px}
-.barres i{width:4px;border-radius:1px;background:var(--bd,#3a3a3a)}
+.barres i{width:4px;border-radius:1px;background:var(--bd)}
 .barres i:nth-child(1){height:25%}
 .barres i:nth-child(2){height:50%}
 .barres i:nth-child(3){height:75%}
 .barres i:nth-child(4){height:100%}
-.barres i.on{background:var(--ac,#E8590C)}
-.jauge{width:84px;height:8px;border-radius:99px;background:var(--bd,#3a3a3a);overflow:hidden}
-.jauge span{display:block;height:100%;background:var(--ac,#E8590C);border-radius:99px}
+.barres i.on{background:var(--ac)}
+.jauge{width:84px;height:8px;border-radius:99px;background:var(--bd);overflow:hidden}
+.jauge span{display:block;height:100%;background:var(--ac);border-radius:99px}
 
 /* --- Compte-tours de performance -------------------------------------------
    Le cadran s'habille lui-même en attributs SVG ; il ne reste que l'aiguille.
@@ -207,7 +199,7 @@ kbd{display:inline-block;padding:1px 6px;border-radius:5px;
    reste — on ne prive personne du retour, on change sa forme. */
 .btn{transition:transform .18s cubic-bezier(.2,.8,.3,1),
                 background .15s ease, box-shadow .18s ease}
-.btn:hover{box-shadow:0 2px 12px rgba(232,89,12,.30)}
+.btn:hover{box-shadow:0 2px 12px var(--ac-halo)}
 .btn:active{transform:scale(.95);transition-duration:.09s;
             box-shadow:0 1px 4px rgba(0,0,0,.35) inset}
 .btn:focus-visible{outline:2px solid var(--ac);outline-offset:2px}

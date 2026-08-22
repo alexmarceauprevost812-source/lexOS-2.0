@@ -302,6 +302,44 @@ jobs:
           rm -f "$INDEX"
           exit $bad
 
+      - name: L'accent n'est écrit qu'à un seul endroit
+        run: |
+          #  CE QUE CE CONTRÔLE PROTÈGE.
+          #  Avant ui.css, l'orange #E8590C était écrit en dur dans les
+          #  Paramètres, dans le Volet, dans l'IA et dans la démo web — et les
+          #  trois panneaux portaient trois palettes différentes. « Mets les
+          #  boutons en écriture noire » se corrigeait alors à huit endroits,
+          #  dans des fichiers qui ne se parlent pas, et il en restait toujours
+          #  un d'oublié.
+          #
+          #  La duplication ne revient jamais d'un coup : elle revient une
+          #  ligne à la fois, chacune parfaitement raisonnable sur le moment.
+          #  D'où ce contrôle, qui coûte deux secondes et rend la rechute
+          #  visible tout de suite.
+          UI="config/includes.chroot/usr/share/lexos/ui.css"
+          [ -r "$UI" ] || { echo "::error::$UI a disparu — c'est la source unique de l'apparence"; exit 1; }
+
+          bad=0
+          #  PORTÉE : les feuilles de style des panneaux, et elles seules.
+          #  Trois occurrences restent ailleurs, et elles sont légitimes :
+          #    · settings/web/app.js — le CATALOGUE des accents (orange, bleu,
+          #      rouge, vert…). C'est la liste dans laquelle on choisit ;
+          #      l'orange y a sa place au même titre que les autres.
+          #    · settings/web/app.js — un dessin SVG écrit en JavaScript.
+          #    · musique/index.html — une mini-application à part, palette propre.
+          #  Un contrôle qui hurle sur des cas justes finit désactivé. Celui-ci
+          #  ne regarde que là où la duplication a réellement coûté des heures.
+          for f in config/includes.chroot/usr/share/lexos/*/web/style.css; do
+            [ -r "$f" ] || continue
+            if grep -qniE '#(E8590C|FF7A33)' "$f"; then
+              echo "::error file=$f::accent écrit en dur — employer var(--ac) ; la seule définition est dans $UI"
+              bad=1
+            fi
+          done
+
+          [ "$bad" = "0" ] && echo "  ok — l'accent n'est défini que dans ui.css"
+          exit $bad
+
       - name: Bits d'exécution présents
         run: |
           bad=0

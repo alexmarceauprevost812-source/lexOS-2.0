@@ -48,7 +48,8 @@
   --ac:#E8590C;
   --ac-hi:#FF7A33;     /* survol : le même, éclairci                         */
   --ac-lo:#5a2a0c;     /* fonds teintés, liserés discrets                    */
-  --ac-txt:#000;       /* CE QU'ON ÉCRIT SUR L'ACCENT. Noir, pas blanc :
+  --ac-txt:#000;   /* CE QU'ON ÉCRIT SUR L'ACCENT — voir la note ci-dessous */
+  --ac-halo:rgba(232,89,12,.30);  /* le souffle orange au survol d'un bouton */       /* CE QU'ON ÉCRIT SUR L'ACCENT. Noir, pas blanc :
                           blanc sur #E8590C donne 3,4:1 de contraste — sous
                           le seuil lisible ; noir donne 6,1:1.               */
 

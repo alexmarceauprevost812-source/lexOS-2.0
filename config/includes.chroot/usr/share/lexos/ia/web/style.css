@@ -4,9 +4,9 @@
    différents aux yeux de celui qui s'en sert.
    ========================================================================== */
 :root{
-  --bg:#0b0b0d; --bg-alt:#121214; --bg-hi:#1a1a1e; --bd:#2a2a30;
-  --fg:#e9e9ee; --fg-dim:#9b9ba6; --ac:#E8590C; --ac-lo:#5a2a0c;
-  --ok:#4ADE80; --att:#FBBF24; --non:#F87171;
+  /*  Les jetons communs vivent dans ui.css, charge juste avant.
+      On ne garde ici que ce qui est PROPRE a ce panneau. */
+  
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);
@@ -125,7 +125,7 @@ select{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
    reste — on ne prive personne du retour, on change sa forme. */
 .btn{transition:transform .18s cubic-bezier(.2,.8,.3,1),
                 background .15s ease, box-shadow .18s ease}
-.btn:hover{box-shadow:0 2px 12px rgba(232,89,12,.30)}
+.btn:hover{box-shadow:0 2px 12px var(--ac-halo)}
 .btn:active{transform:scale(.95);transition-duration:.09s;
             box-shadow:0 1px 4px rgba(0,0,0,.35) inset}
 .btn:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
