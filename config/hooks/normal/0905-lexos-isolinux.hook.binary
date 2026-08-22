@@ -168,6 +168,50 @@ s/^\([[:space:]]*menu label[[:space:]]*\)\^*Install[[:space:]]*$/\1Installer en 
 	fi
 fi
 
+# =============================================================================
+#  AUCUN @JETON@ NE DOIT SURVIVRE — ET S'IL EN RESTE UN, ON RÉPARE
+# =============================================================================
+#  CE QUI EST ARRIVÉ. live.cfg.in employait « kernel @KERNEL@ » et
+#  « initrd=@INITRD@ ». Ces deux-là N'EXISTENT PAS chez live-build : il n'a
+#  remplacé que @FLAVOUR@ et @LB_BOOTAPPEND_LIVE@, qui sont réels. Le menu
+#  s'affichait donc parfaitement, avec nos libellés français — et choisir
+#  « Session de démonstration » ne démarrait rien du tout, l'écran restant
+#  sur le menu pendant que le décompte descendait.
+#
+#  C'est le pire des défauts : celui qui a l'air de marcher. La source est
+#  corrigée, mais on met le filet ici parce qu'un jeton inventé se glisse
+#  sans bruit, et qu'une clé qui ne démarre pas coûte une soirée à quelqu'un.
+#
+#  On répare avec ce qui est VRAIMENT dans l'image, pas avec ce qu'on croit :
+#  on cherche le noyau et l'initrd sur place.
+NOYAU=""
+INITRD=""
+for LEXOS_K in "$IMG"/live/vmlinuz "$IMG"/live/vmlinuz-* ; do
+	[ -f "$LEXOS_K" ] && { NOYAU="${LEXOS_K#"$IMG"}"; break; }
+done
+for LEXOS_I in "$IMG"/live/initrd.img "$IMG"/live/initrd.img-* ; do
+	[ -f "$LEXOS_I" ] && { INITRD="${LEXOS_I#"$IMG"}"; break; }
+done
+
+RESTANTS=0
+for F in "$DIR"/*.cfg; do
+	[ -e "$F" ] || continue
+	grep -q '@[A-Za-z_]*@' "$F" 2>/dev/null || continue
+	RESTANTS=$((RESTANTS + 1))
+	echo "[lexos]   !! des @JETONS@ non remplacés dans $(basename "$F") :"
+	grep -o '@[A-Za-z_]*@' "$F" | sort -u | sed 's/^/[lexos]        /'
+	if [ -n "$NOYAU" ] && [ -n "$INITRD" ]; then
+		sed -i -e "s|@KERNEL@|${NOYAU}|g" -e "s|@INITRD@|${INITRD}|g" "$F" 2>/dev/null
+		echo "[lexos]      réparé avec ce qui est dans l'image : ${NOYAU} / ${INITRD}"
+	else
+		echo "[lexos]      IMPOSSIBLE À RÉPARER : ni noyau ni initrd trouvés dans ${IMG}/live"
+		echo "[lexos]      CETTE ENTRÉE DE MENU NE DÉMARRERA PAS."
+	fi
+done
+if [ "$RESTANTS" -eq 0 ]; then
+	echo "[lexos]   aucun @jeton@ ne traîne dans les fichiers du menu"
+fi
+
 CONVERTIS=0
 INTACTS=0
 ECHECS=0
@@ -211,15 +255,29 @@ SPLASH="$DIR/splash.png"
 if [ ! -f "$SPLASH" ]; then
 	echo "[lexos]   !! splash.png absent — menu BIOS sur fond noir"
 	echo "[lexos]      (attendu depuis config/bootloaders/isolinux/splash.svg.in)"
-elif command -v identify >/dev/null 2>&1; then
-	TAILLE="$(identify -format '%wx%h' "$SPLASH" 2>/dev/null || echo inconnue)"
-	if [ "$TAILLE" = "640x480" ]; then
-		echo "[lexos]   splash.png : 640x480, grille 80x30 respectée"
-	else
-		echo "[lexos]   !! splash.png fait ${TAILLE} au lieu de 640x480 — menu décalé"
-	fi
 else
-	echo "[lexos]   splash.png présent (taille non vérifiée : « identify » absent)"
+	#  LA TAILLE SE LIT DANS LE FICHIER, PAS AVEC UN OUTIL EN PLUS.
+	#  On dépendait d'« identify » (ImageMagick), absent du runner : le
+	#  contrôle affichait « taille non vérifiée » et ne gardait donc rien —
+	#  exactement le genre de garde qui rassure sans protéger.
+	#  Un PNG porte sa largeur et sa hauteur en clair : 4 octets chacune,
+	#  en gros-boutiste, aux positions 16 et 20. od suffit, et il est
+	#  partout. On recompose à la main plutôt qu'avec « -tu4 », qui lirait
+	#  dans le boutisme de la machine et donnerait n'importe quoi.
+	OCTETS="$(od -An -v -tu1 -j16 -N8 "$SPLASH" 2>/dev/null | tr -s ' ' ' ')"
+	# shellcheck disable=SC2086
+	set -- $OCTETS
+	if [ "$#" -eq 8 ]; then
+		LARG=$(( $1 * 16777216 + $2 * 65536 + $3 * 256 + $4 ))
+		HAUT=$(( $5 * 16777216 + $6 * 65536 + $7 * 256 + $8 ))
+		if [ "$LARG" = "640" ] && [ "$HAUT" = "480" ]; then
+			echo "[lexos]   splash.png : 640x480, grille 80x30 respectée"
+		else
+			echo "[lexos]   !! splash.png fait ${LARG}x${HAUT} au lieu de 640x480 — menu décalé"
+		fi
+	else
+		echo "[lexos]   !! splash.png : en-tête PNG illisible — fichier douteux"
+	fi
 fi
 
 # --- Les entrées pointent-elles vers des fichiers qui existent ? -------------

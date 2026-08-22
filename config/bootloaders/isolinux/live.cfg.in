@@ -14,15 +14,32 @@
 #  L'ordre et les mots doivent rester ceux du menu UEFI (thème GRUB) : c'est
 #  le même produit, le même ordinateur, et souvent la même personne qui
 #  redémarre en changeant seulement le mode dans le BIOS.
+#
+#  PAS DE @KERNEL@ NI DE @INITRD@ : CES JETONS N'EXISTENT PAS.
+#  La première version de ce fichier les employait. @FLAVOUR@ et
+#  @LB_BOOTAPPEND_LIVE@, eux, sont de vrais jetons et ont bien été remplacés —
+#  d'où l'illusion que tout marchait : le menu s'affichait correctement, avec
+#  nos libellés français. Mais la ligne « kernel » pointait vers un fichier
+#  nommé littéralement « @KERNEL@ », qui n'existe pas. Choisir « Session de
+#  démonstration » ne démarrait donc RIEN : l'écran restait sur le menu
+#  pendant que le décompte descendait. C'est ce qu'Alex a vu sur le build 66,
+#  et c'est le hook 0905 qui l'a nommé au build 67 :
+#      [lexos]   !! entrée de menu vers un fichier absent : @KERNEL@
+#
+#  On écrit donc les chemins RÉELS. C'est la disposition standard d'une image
+#  live Debian : live-build pose le noyau et l'initrd dans /live/, sous ces
+#  noms-là. Un chemin en dur qu'on peut vérifier vaut mieux qu'un jeton qu'on
+#  espère — et le hook 0905 contrôle à chaque construction que ces fichiers
+#  sont bien là.
 # =============================================================================
 
 label live-@FLAVOUR@
 	menu label Session de démonstration
 	menu default
-	kernel @KERNEL@
-	append initrd=@INITRD@ @LB_BOOTAPPEND_LIVE@
+	kernel /live/vmlinuz
+	append initrd=/live/initrd.img @LB_BOOTAPPEND_LIVE@
 
 label live-@FLAVOUR@-failsafe
 	menu label Mode de secours (affichage garanti)
-	kernel @KERNEL@
-	append initrd=@INITRD@ @LB_BOOTAPPEND_FAILSAFE@
+	kernel /live/vmlinuz
+	append initrd=/live/initrd.img @LB_BOOTAPPEND_FAILSAFE@
