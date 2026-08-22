@@ -58,6 +58,50 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 67 : LES DEUX MENUS DE DÉMARRAGE, POUR DE VRAI CETTE FOIS.
+#
+#   LE 66 A SERVI À QUELQUE CHOSE : il a montré, photo à l'appui, que les
+#   hooks binaires cherchaient l'image AU MAUVAIS ENDROIT. Ils écrivaient
+#   « binary/… » en supposant que live-build les lance depuis la racine du
+#   chantier ; il les lance depuis LE DOSSIER DE L'IMAGE. Les deux hooks
+#   disaient poliment « absent — menu laissé tel quel », la construction
+#   finissait en vert, et l'ISO sortait sans.
+#
+#   · LE MENU UEFI N'AVAIT JAMAIS ÉTÉ HABILLÉ. Le journal du build 65 porte
+#     déjà la même ligne. Sur AUCUNE ISO publiée le thème GRUB n'a été posé.
+#     Le message d'échec ressemblait à un cas normal, et personne ne l'avait
+#     lu. C'est le silence dans sa forme la plus complète : un avertissement
+#     qui a l'air d'une information.
+#
+#   · LE MENU BIOS, CE QUE LA PHOTO D'ALEX A MONTRÉ. live-build garde nos
+#     entrées françaises et nos couleurs, mais remet les siennes pour trois
+#     choses : le fond (casque de chantier jaune de Debian), le délai (5 s au
+#     lieu de 20) et les entrées d'installation (« Start installer », que
+#     --debian-installer fabrique lui-même). Plus les accents dessinés en
+#     CP437 : « Session de d├─monstration ».
+#
+#   CE QUE LE 67 FAIT. Les hooks CHERCHENT l'arbre de l'image au lieu de le
+#   supposer, et s'ils ne le trouvent pas ils impriment le dossier courant et
+#   son contenu — pour que la construction suivante dise la vérité au lieu
+#   qu'on devine une troisième fois. Puis le hook 0905 corrige la SORTIE de
+#   live-build, chirurgicalement : le fond rendu par-dessus en 640x480, UNE
+#   ligne de sed pour le délai, et SEULEMENT les libellés des entrées
+#   d'installation — les lignes « kernel » et « append » restent intactes,
+#   elles portent des chemins que live-build seul connaît.
+#
+#   À LIRE DANS LE JOURNAL DE CETTE CONSTRUCTION :
+#     [lexos]   arbre de l'image : ...
+#     [lexos]   fond LexOS posé par-dessus celui de Debian
+#     [lexos]   décompte porté à 20 s (timeout 200)
+#     [lexos]   entrées d'installation traduites (libellés seuls)
+#     [lexos]   N fichier(s) converti(s) en CP437
+#     [lexos]   splash.png : 640x480, grille 80x30 respectée
+#     [lexos]   menu de l'ISO habillé : /boot/grub/themes/lexos
+#   Si l'une manque, le défaut correspondant est encore là.
+#
+#   Le 66 emportait déjà lexos-materiel, les dossiers de la démo et les
+#   points des bureaux : tout ça est dans le 67 aussi.
+#
 # build 66 : LE GRAPHIQUE DE VERCEL DANS LA VRAIE MACHINE — le menu de
 #   démarrage BIOS, les points des bureaux, les dossiers. Plus lexos-materiel.
 #
@@ -1480,4 +1524,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 66
+build: 67
