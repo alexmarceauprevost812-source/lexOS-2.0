@@ -1,10 +1,22 @@
 # =============================================================================
 #  52-ia-locale — le moteur d'IA locale (llama.cpp) et de quoi voir le GPU
 # =============================================================================
-#  ⚠ llama.cpp vient de trixie-backports, PAS de trixie. Sans les deux
-#    fichiers config/archives/backports.*.chroot, cette ligne ne fait rien et
-#    la construction réussit quand même — une ISO sans moteur d'IA, sans une
-#    seule erreur pour le dire.
+#  ⚠ VÉRIFIÉ SUR L'ARCHIVE LE 2026-08-22 : llama.cpp N'EST PAS DANS
+#    trixie-backports. L'archive n'y publie que la famille libggml*
+#    (libggml0, libggml0-backend-vulkan/-blas/-hip/-rpc). Le paquet llama.cpp
+#    lui-même n'existe que dans testing (forky) et unstable ; c'est un
+#    métapaquet qui tire llama.cpp-tools, où vivent llama-cli et llama-server.
+#
+#    La ligne ci-dessous ne pose donc RIEN aujourd'hui. Le hook 0250 tolère un
+#    paquet absent — à raison — donc la construction réussit et l'ISO sort sans
+#    moteur d'IA. C'est ce qui s'est passé jusqu'au build 67 inclus, sans une
+#    seule erreur pour le dire — constaté de visu sur l'ISO du 66, et rien
+#    entre les deux n'a touché à cette liste.
+#
+#    On la GARDE : le jour où llama.cpp arrive dans backports, elle prendra
+#    effet toute seule. En attendant, le hook 0270 écrit dans
+#    /etc/lexos/ia-moteur LAQUELLE des trois causes s'applique, au lieu d'en
+#    supposer une — et le panneau propose Ollama, qui s'installe à la demande.
 #
 #  ⚠ Le paquet llama.cpp seul n'active QUE le processeur. La carte graphique
 #    ne sert que si un backend est installé en plus. Le nom de ces paquets

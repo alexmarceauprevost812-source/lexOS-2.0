@@ -1,11 +1,18 @@
 #  trixie-backports — ouvert POUR UNE SEULE RAISON : le moteur d'IA locale.
 #
-#  llama.cpp est empaqueté officiellement par Debian, mais il n'est pas dans
-#  trixie : il arrive par backports. Sans cette ligne, « llama.cpp » dans une
-#  liste optionnelle ne fait RIEN — le hook 0250 tolère un paquet absent (et
-#  c'est sain), la construction réussit, et l'ISO sort sans moteur d'IA. Aucune
-#  erreur nulle part. C'est le pire des deux silences : celui qui a l'air d'un
-#  succès.
+#  ⚠ CE QUE CETTE ARCHIVE APPORTE VRAIMENT, RELEVÉ SUR L'INDEX LE 2026-08-22 :
+#    la famille libggml* — libggml0, libggml-dev, et les backends
+#    libggml0-backend-vulkan / -blas / -hip / -rpc. C'est-à-dire les backends
+#    que cherche le hook 0270, et rien d'autre.
+#
+#    ELLE N'APPORTE PAS llama.cpp. Ce fichier a longtemps affirmé le contraire
+#    (« il n'est pas dans trixie : il arrive par backports ») et le hook 0270
+#    envoyait vérifier ici quand le moteur manquait. C'était faux : le paquet
+#    llama.cpp n'existe que dans testing (forky) et unstable. Soixante-sept
+#    constructions ont cherché la panne dans un fichier qui allait bien.
+#
+#    On garde l'archive ouverte : les backends ggml en viennent, et le jour où
+#    llama.cpp y arrive, la ligne de 52-ia-locale.list prendra effet seule.
 #
 #  Le fichier de préférences à côté (backports.pref.chroot) est OBLIGATOIRE :
 #  sans lui, on prendrait le risque de voir le reste du système migrer vers

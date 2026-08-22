@@ -42,19 +42,56 @@ mkdir -p /etc/lexos
 have() { command -v "$1" >/dev/null 2>&1; }
 
 # --- Le moteur est-il seulement là ? ----------------------------------------
-#  Si llama.cpp n'est pas venu, un backend ne servirait à rien : on le dit, et
-#  on nomme la cause la plus probable — backports pas ouvert.
+#  Si llama.cpp n'est pas venu, un backend ne servirait à rien. On ne DEVINE
+#  plus la cause : on la demande à apt.
+#
+#  LE PIÈGE DES BUILDS 1 À 67. Ce hook accusait « trixie-backports n'est pas
+#  ouvert » et envoyait vérifier config/archives/ — deux fichiers corrects
+#  depuis le début. La vraie raison était ailleurs : LLAMA.CPP N'EST PAS DANS
+#  TRIXIE-BACKPORTS. L'archive n'y publie que la famille libggml* (libggml0,
+#  libggml0-backend-vulkan/-blas/-hip/-rpc) ; le paquet llama.cpp lui-même
+#  n'existe que dans testing (forky) et unstable. Une cause « probable »
+#  écrite en dur envoie chercher au mauvais endroit aussi longtemps que
+#  personne ne va lire l'index de l'archive à la main — ici, 67 constructions.
 if ! have llama-cli && ! have llama-server && ! dpkg -s llama.cpp >/dev/null 2>&1; then
+	apt-get update -qq >/dev/null 2>&1 || true
+
+	if grep -rqs 'trixie-backports' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
+		ARCHIVE="ouverte"
+	else
+		ARCHIVE="fermée"
+	fi
+	if [ -n "$(apt-cache show llama.cpp 2>/dev/null)" ]; then
+		CONNU="oui"
+	else
+		CONNU="non"
+	fi
+
 	echo "[lexos]   !! ============================================================"
 	echo "[lexos]   !! llama.cpp N'EST PAS INSTALLÉ."
-	echo "[lexos]   !! Cause la plus probable : trixie-backports n'est pas ouvert."
-	echo "[lexos]   !! Vérifier config/archives/backports.list.chroot et .pref.chroot."
-	echo "[lexos]   !! L'ISO sortira sans moteur d'IA locale."
+	if [ "$ARCHIVE" = "fermée" ]; then
+		RAISON="trixie-backports n'est pas ouvert dans cette construction"
+		echo "[lexos]   !! Cause : trixie-backports n'est pas ouvert."
+		echo "[lexos]   !! Vérifier config/archives/backports.list.chroot et .pref.chroot."
+	elif [ "$CONNU" = "non" ]; then
+		RAISON="absent de toutes les archives configurées — llama.cpp n'est pas dans trixie-backports, seulement dans testing/unstable"
+		echo "[lexos]   !! Cause : le paquet n'existe dans AUCUNE archive configurée."
+		echo "[lexos]   !! trixie-backports EST ouvert, mais il ne publie que la"
+		echo "[lexos]   !! famille libggml*. llama.cpp n'est que dans testing (forky)"
+		echo "[lexos]   !! et unstable. Rien à corriger dans config/archives/ :"
+		echo "[lexos]   !! c'est l'archive amont qui ne l'a pas encore."
+	else
+		RAISON="connu d'apt mais non installé — échec ou conflit, voir /etc/lexos/optional-report"
+		echo "[lexos]   !! Cause : apt connaît le paquet, l'installation n'a pas eu lieu."
+		echo "[lexos]   !! Voir /etc/lexos/optional-report (hook 0250)."
+	fi
+	echo "[lexos]   !! L'ISO sortira sans moteur d'IA locale. Le panneau"
+	echo "[lexos]   !! lexos-ia-locale le dira et proposera Ollama."
 	echo "[lexos]   !! ============================================================"
 	{
 		echo "moteur=absent"
 		echo "backend=aucun"
-		echo "raison=llama.cpp non installé (trixie-backports ouvert ?)"
+		echo "raison=${RAISON}"
 	} > "$RAPPORT"
 	echo "[lexos] hook 0270 : ok (rien à faire)"
 	exit 0

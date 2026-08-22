@@ -102,6 +102,14 @@ verdict $R "balises connues seulement"
 # --- 5. Backports épinglé -----------------------------------------------------
 #  Née du piège llama.cpp : un paquet de trixie-backports sans l'archive
 #  ouverte = construction verte, ISO sans la fonction, aucune erreur.
+#
+#  ⚠ Ce contrôle vérifie la PLOMBERIE, pas la PRÉMISSE. Il a été vert pendant
+#    67 constructions alors que llama.cpp n'était dans aucune archive : les
+#    deux fichiers config/archives/ existaient bien, ce qui manquait était le
+#    paquet à l'autre bout. La vérification de la prémisse (le paquet est-il
+#    réellement publié par backports ?) demande l'index de l'archive, donc du
+#    réseau : elle vit dans la CI, pas ici. Un vert local ne prouve donc que
+#    la moitié — c'est écrit pour que personne ne relise ça comme une preuve.
 bloc "5. trixie-backports : ouvert quand il le faut, épinglé toujours"
 R=0
 if grep -qE '^[[:space:]]*llama\.cpp' \
