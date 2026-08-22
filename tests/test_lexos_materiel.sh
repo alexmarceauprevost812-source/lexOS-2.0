@@ -40,11 +40,34 @@ ko() { NB_KO=$((NB_KO+1)); echo "  ❌ $1"; }
 machine() {           # $1 = nom du profil
 	rm -rf "${BANC:?}/bin" "${BANC:?}/sys"
 	mkdir -p "$BANC/bin" "$BANC/sys/class/dmi/id"
+	minimal
 	printf 'Alienware\n'        > "$BANC/sys/class/dmi/id/sys_vendor"
 	printf 'Alienware m16 R2\n' > "$BANC/sys/class/dmi/id/product_name"
 	printf '10\n'               > "$BANC/sys/class/dmi/id/chassis_type"
 }
-lance() { PATH="$BANC/bin:$PATH" LEXOS_SYS="$BANC/sys" DISPLAY='' NO_COLOR=1 \
+#  UN PATH FERMÉ, SINON « ABSENT » NE VEUT RIEN DIRE.
+#  Première version : on ajoutait simplement $BANC/bin DEVANT le PATH réel.
+#  Sur ma machine, dmidecode et lspci n'étaient pas installés, donc la
+#  section 5 (« ce qui manque est DIT ») semblait passer — elle ne prouvait
+#  rien du tout, elle constatait un hasard. Sur le runner GitHub, les deux
+#  outils SONT là : le test est passé au rouge, et il avait raison.
+#
+#  On construit donc un PATH qui ne contient QUE ce dont le script a besoin
+#  pour tourner, et jamais les outils dont on veut éprouver l'absence. Un
+#  lien manquant ici casse le test bruyamment, ce qui est le bon sens de
+#  l'échec : mieux vaut « awk introuvable » qu'un ✅ qui ne garde rien.
+NECESSAIRES="bash awk sed grep tr sort head cut wc cat basename dirname id nproc locale env"
+minimal() {
+	rm -rf "${BANC:?}/min"; mkdir -p "$BANC/min"
+	local c reel
+	for c in $NECESSAIRES; do
+		reel="$(PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin command -v "$c" 2>/dev/null)"
+		[ -n "$reel" ] && ln -sf "$reel" "$BANC/min/$c"
+	done
+}
+#  $BANC/bin d'abord (les faux outils du scénario), puis le minimum vital.
+#  Rien d'autre : ni /usr/sbin, ni /usr/bin.
+lance() { PATH="$BANC/bin:$BANC/min" LEXOS_SYS="$BANC/sys" DISPLAY='' NO_COLOR=1 \
 	bash "$OUTIL" "$@" 2>&1; }
 
 # =============================================================================
