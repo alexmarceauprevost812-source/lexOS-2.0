@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — icône « Cadrer une zone ».
+
+  POURQUOI ELLE EXISTE. Sur la photo de l'ISO 73, la barre du haut montre
+  TROIS APPAREILS PHOTO IDENTIQUES côte à côte : photo, zone et vidéo
+  portaient tous « Icon=lexos-camera ». Alex : « sur l'ISO, 1re image, y a
+  3 appareils photo ». Trois boutons différents qui se ressemblent, c'est
+  trois boutons dont deux sont inutilisables — on ne peut pas viser ce
+  qu'on ne distingue pas.
+
+  La démo, elle, les distingue depuis toujours (#quickcap) : un appareil
+  photo, un CADRE, un point d'enregistrement. Cette icône est le cadre —
+  le glyphe ⛶ que porte #qcZone, redessiné au trait pour tenir aux tailles
+  de la barre.
+
+  QUATRE ÉQUERRES ET RIEN AU MILIEU. Un rectangle fermé se confondrait
+  avec « fenêtre » ou « écran » ; ce sont les coins ouverts qui disent
+  « on choisit une découpe ». Même trait, mêmes bouts ronds et même jeton
+  #E8590C que icon-camera.svg : les trois boutons restent une famille.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Cadrer une zone — LexOS">
+
+  <g fill="none" stroke="#E8590C" stroke-width="38"
+     stroke-linejoin="round" stroke-linecap="round">
+
+    <!-- Coin haut-gauche -->
+    <path d="M 76,180 V 116 C 76,94 94,76 116,76 H 180"/>
+    <!-- Coin haut-droit -->
+    <path d="M 332,76 H 396 C 418,76 436,94 436,116 V 180"/>
+    <!-- Coin bas-droit -->
+    <path d="M 436,332 V 396 C 436,418 418,436 396,436 H 332"/>
+    <!-- Coin bas-gauche -->
+    <path d="M 180,436 H 116 C 94,436 76,418 76,396 V 332"/>
+  </g>
+</svg>

@@ -50,7 +50,17 @@
             été reprise en même temps — sans ça, ils se recollent au bord haut
             et le défaut se voit tout de suite. -->
       <property name="size"            type="uint"   value="52"/>
-      <property name="icon-size"       type="uint"   value="34"/>
+      <!--  34 -> 40, BUILD 74. « grossir l'image aussi du petit démon » :
+            la mascotte du bouton Applications est une icône de panneau
+            comme les autres, sa taille est CELLE-CI et pas une autre —
+            whiskermenu n'a pas de réglage propre pour son bouton.
+            40 dans une barre de 52 laisse 6 px de marge de chaque côté ;
+            au-delà, XFCE rogne l'icône au lieu de l'agrandir.
+            On ne touche PAS à « size » : la marge des points de bureaux
+            est calculée pour 52 dans etc/skel/.config/gtk-3.0/gtk.css, et
+            la changer ici sans la refaire là-bas recollerait les points au
+            bord haut — le défaut corrigé au build 70. -->
+      <property name="icon-size"       type="uint"   value="40"/>
       <property name="mode"            type="uint"   value="0"/>
       <property name="autohide-behavior" type="uint" value="0"/>
       <property name="enter-opacity"   type="uint"   value="100"/>
@@ -95,10 +105,37 @@
       <property name="load-hierarchy"    type="bool"   value="false"/>
       <!-- Grille d'icônes façon démo (APPS / renderApps()), recherche en avant. -->
       <property name="view-mode"         type="int"    value="1"/>
-      <property name="category-icon-size" type="int"   value="1"/>
-      <property name="item-icon-size"    type="int"    value="2"/>
-      <property name="menu-width"        type="int"    value="500"/>
-      <property name="menu-height"       type="int"    value="560"/>
+      <!--  ═══ « item-icon-size » NE SERVAIT À RIEN, ET C'EST MESURÉ ═══
+            Photo d'Alex sur l'ISO 73 : « grossir les images sur la 3e
+            image » — les icônes du menu. On avait pourtant posé
+            « item-icon-size=2 » depuis des builds.
+
+            Elle ne pouvait pas marcher. Dans xfce4-whiskermenu-plugin
+            2.8.3 (celle de trixie), settings.cpp lit la taille des
+            lanceurs sous « /launcher-icon-size ». « item-icon-size »
+            existe encore, mais SEULEMENT comme repli de compatibilité lu
+            par xfce_rc_read_int_entry — c'est-à-dire dans l'ANCIEN fichier
+            ~/.config/xfce4/panel/whiskermenu-N.rc, jamais dans xfconf.
+            Ce fichier-ci EST du xfconf. La clé y était donc lue par
+            personne.
+
+            Et le défaut ne s'est pas vu, parce que le défaut de
+            « launcher_icon_size » est IconSize::Small — l'index 2, celui
+            qu'on écrivait. On demandait exactement ce qu'on aurait eu sans
+            rien demander : un réglage inerte qui a l'air de marcher, la
+            même famille de panne que les boutons de la 72.
+
+            LES INDEX, PUISQU'ILS NE SE DEVINENT PAS (icon-size.cpp) :
+              -1 = 1 px · 0 = 16 · 1 = 24 · 2 = 32
+               3 = 48   · 4 = 64 · 5 = 96 · 6 = 128
+            Lanceurs : 2 -> 3, soit 32 -> 48 px, la moitié en plus.
+            Catégories : 1 -> 2, soit 24 -> 32 px.
+            La fenêtre s'élargit d'autant, sinon les grosses icônes se
+            volent les lignes visibles au lieu de s'ajouter à elles. -->
+      <property name="category-icon-size" type="int"   value="2"/>
+      <property name="launcher-icon-size" type="int"   value="3"/>
+      <property name="menu-width"        type="int"    value="580"/>
+      <property name="menu-height"       type="int"    value="640"/>
       <property name="position-search-alternate" type="bool" value="true"/>
       <property name="position-commands-alternate" type="bool" value="true"/>
       <property name="position-categories-horizontal" type="bool" value="false"/>

@@ -7,13 +7,26 @@
 <channel name="xfwm4" version="1.0">
   <property name="general" type="empty">
     <property name="theme"                     type="string" value="Arc-Dark"/>
-    <!--  LA HAUTEUR DE LA BARRE DE TITRE SUIT CETTE POLICE, et les boutons
-          fermer/réduire/agrandir avec elle : xfwm4 met les images du thème
-          à l'échelle du texte. Passer de 10 à 13 est donc le seul réglage
-          à toucher pour grossir ces trois boutons — inutile de fabriquer
-          un thème à nous. Demandé par Alex : « ils sont trop petits ». -->
+    <!--  CE COMMENTAIRE DISAIT LE CONTRAIRE DE CE QU'ON A MESURÉ, ET IL
+          AURAIT COÛTÉ UNE ISO DE PLUS. Il affirmait que passer la police de
+          10 à 13 suffisait à grossir les boutons, « inutile de fabriquer un
+          thème à nous ». L'ISO 70 a montré l'inverse à l'écran : la barre a
+          grandi, LES BOUTONS SONT RESTÉS À 28 px. Le thème xfwm4 d'Arc est
+          fait d'images de taille fixe, et xfwm4 n'a aucun réglage de taille
+          de bouton — la taille du bouton EST celle de son image. C'est
+          justement pour ça que le hook 0610 existe et fabrique un thème
+          dérivé. Laisser ici la thèse démentie, c'était s'exposer à supprimer
+          le hook un jour en croyant faire du ménage.
+          Cette police reste utile pour ce qu'elle fait VRAIMENT : la hauteur
+          de la barre et la lisibilité du titre. -->
     <property name="title_font"                type="string" value="Noto Sans Bold 13"/>
-    <property name="title_alignment"           type="string" value="center"/>
+    <!--  À GAUCHE, COMME LA DÉMO. Dans web-demo/index.html, « .tbar » pose
+          l'icône puis « .ttitle{flex:1} » : le titre commence juste après
+          l'icône, il n'est pas centré. Sur l'ISO 73 il l'était, et c'est la
+          première différence qu'on voit en posant les deux fenêtres côte à
+          côte. Alex : « faire la page des fichiers pareille comme la 2e
+          image ». -->
+    <property name="title_alignment"           type="string" value="left"/>
     <!-- Comme la démo (openWin()) : menu, agrandir, fermer — pas de réduire. -->
     <property name="button_layout"             type="string" value="|OMC"/>
     <property name="use_compositing"           type="bool"   value="true"/>

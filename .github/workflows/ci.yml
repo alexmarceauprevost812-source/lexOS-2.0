@@ -640,6 +640,73 @@ jobs:
           [ "$bad" = "0" ] && echo "  ok — tous les dossiers que GTK sait nommer ont leur poche orange, et les thèmes de repli sont stricts"
           exit $bad
 
+      - name: Les trois boutons de capture ne se ressemblent pas
+        run: |
+          #  PHOTO D'ALEX, ISO 73 : « sur l'ISO, 1re image, y a 3 appareils
+          #  photo ». Les trois lanceurs de capture de la barre du haut —
+          #  photo, zone, vidéo — portaient tous « Icon=lexos-camera ». Trois
+          #  boutons voisins, identiques, dont deux étaient donc invisibles :
+          #  on ne peut pas viser ce qu'on ne distingue pas.
+          #
+          #  La démo les a toujours distingués (#quickcap) : un appareil
+          #  photo, un CADRE (⛶ sur #qcZone), un POINT d'enregistrement
+          #  (le ::before rond de #qcVideo). L'ISO doit dire pareil.
+          bad=0
+          L=config/includes.chroot/etc/skel/.config/xfce4/panel
+          NOMS=""
+          for n in 9:photo 10:zone 11:video; do
+            d="${n%%:*}"; q="${n##*:}"
+            f="$L/launcher-$d/lexos-capture-$q.desktop"
+            [ -f "$f" ] || { echo "::error::$f manquant"; bad=1; continue; }
+            i="$(sed -n 's/^Icon=//p' "$f")"
+            [ -n "$i" ] || { echo "::error file=$f::pas d'Icon="; bad=1; continue; }
+            NOMS="$NOMS $i"
+          done
+          U="$(echo $NOMS | tr ' ' '\n' | grep -c . || true)"
+          D="$(echo $NOMS | tr ' ' '\n' | grep . | sort -u | wc -l)"
+          [ "$U" = "3" ] && [ "$D" = "3" ] || {
+            echo "::error::les trois lanceurs de capture doivent porter TROIS icônes différentes (trouvé :$NOMS)"; bad=1; }
+
+          #  Et chaque icône nommée doit exister comme source ET être rendue
+          #  par le hook 0300 — sinon GTK retombe sur l'icône générique et on
+          #  se retrouve avec trois carrés vides au lieu de trois cameras.
+          #  ON EXTRAIT LA LISTE, ON NE CHERCHE PAS LE MOT DANS LE FICHIER.
+          #  La première version faisait un « grep <nom> » sur tout le hook :
+          #  « github » y passait — il apparaît dans un bloc voisin, sans être
+          #  dans la liste. Un contrôle qui répond oui à un nom absent de la
+          #  liste ne contrôle rien, et la mutation l'a attrapé. On lit donc la
+          #  boucle « for NAME in … ; do » elle-même, continuations comprises.
+          H0300=config/hooks/normal/0300-lexos-assets.hook.chroot
+          LISTE="$(sed -n '/^for NAME in /,/; do$/p' "$H0300" | tr -d '\\' | tr '\n' ' ' | sed -e 's/^for NAME in //' -e 's/; do *$//')"
+          for i in $NOMS; do
+            n="${i#lexos-}"
+            [ -r "branding/icon-$n.svg" ] || {
+              echo "::error::« $i » n'a pas de branding/icon-$n.svg"; bad=1; continue; }
+            echo "$LISTE" | tr ' ' '\n' | grep -qx "$n" || {
+              echo "::error file=config/hooks/normal/0300-lexos-assets.hook.chroot::« $n » n'est pas dans la liste des icônes rendues — le PNG n'existerait pas"; bad=1; }
+          done
+          [ "$bad" = "0" ] && echo "  ok — photo, zone et vidéo portent trois dessins distincts, tous rendus"
+          exit $bad
+
+      - name: Le menu emploie la clé que whiskermenu lit vraiment
+        run: |
+          #  « item-icon-size » était posé dans le xfconf du panneau depuis des
+          #  builds, et n'a JAMAIS rien réglé. Dans whiskermenu 2.8.3 (trixie),
+          #  settings.cpp lit « /launcher-icon-size » ; « item-icon-size » n'y
+          #  survit que comme repli lu par xfce_rc_read_int_entry, c'est-à-dire
+          #  dans l'ANCIEN fichier .rc — jamais dans xfconf. Le défaut ne se
+          #  voyait pas parce que la valeur écrite (2) était exactement le
+          #  défaut du plugin : on demandait ce qu'on aurait eu sans demander.
+          #  Même famille que les boutons inertes de la 72 ; on la barre ici.
+          F=config/includes.chroot/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml
+          bad=0
+          grep -q 'name="launcher-icon-size"' "$F" || {
+            echo "::error file=$F::« launcher-icon-size » absent — la taille des icônes du menu ne serait pas réglée"; bad=1; }
+          grep -q 'name="item-icon-size"' "$F" && {
+            echo "::error file=$F::« item-icon-size » est revenu — cette clé n'est lue par personne en xfconf"; bad=1; }
+          [ "$bad" = "0" ] && echo "  ok — le menu règle ses icônes par la clé que le greffon lit"
+          exit $bad
+
       - name: Bits d'exécution présents
         run: |
           bad=0

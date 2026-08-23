@@ -61,6 +61,35 @@ set -e
 HAUTEUR_SRC=28
 HAUTEUR_DST=40          # 40/28 ≈ 1,43 — visible sans devenir grotesque
 
+#  ═══ LES COINS ARRONDIS, ET POURQUOI IL FAUT LES DESSINER SOI-MÊME ═══
+#  Alex, photos de l'ISO 73 à côté de la démo : « arrondir les coins si vous
+#  plaît », et « faire la page des fichiers pareille comme la 2e image » — où
+#  la fenêtre Fichiers a des coins franchement ronds.
+#
+#  On a supposé qu'Arc-Dark en avait déjà et qu'on les avait abîmés. C'EST
+#  FAUX, et c'est mesuré : dans assets.svg d'arc-theme, top-left-active est
+#  le tracé « m 6,174 v 1 H 5 v 27 l 4,-1e-5 v -28 z ». Quatre pixels de
+#  large, vingt-huit de haut, et pour tout arrondi UN décrochement d'un
+#  pixel. Arc-Dark a des coins carrés. La photo d'Alex ne montrait pas une
+#  régression : elle montrait le thème tel qu'il est.
+#
+#  xfwm4 n'a AUCUN réglage de rayon — la forme du coin EST l'alpha de son
+#  image, exactement comme la taille du bouton EST celle de la sienne. On
+#  redessine donc les quatre images de coin : la colonne de couleur vient de
+#  title-3, donc elle suit le thème (sombre/clair, active/inactive) sans
+#  qu'on écrive une seule couleur en dur, et un quart de disque en découpe
+#  le coin extérieur.
+#
+#  LE BAS RESTE CARRÉ, ET C'EST VOULU. La barre de titre appartient à xfwm4 :
+#  l'arrondir arrondit ce qu'on voit. Le bas d'une fenêtre, non — xfwm4 n'y
+#  possède que les 4 px de bordure, le contenu de l'application occupe le
+#  reste et xfwm4 ne peut pas le rogner. Arrondir la bordure du bas
+#  laisserait apparaître le coin CARRÉ du contenu juste à l'intérieur de la
+#  courbe : un défaut plus visible que celui qu'on corrige. La démo y arrive
+#  parce qu'elle a « overflow:hidden » ; ici on n'a pas cet outil, et on ne
+#  fait pas semblant de l'avoir.
+RAYON=12                # ≈ 30 % de la hauteur du titre, comme la démo
+
 #  Les trois chemins sont surchargeables — non pas pour qu'on les change en
 #  production, mais pour que ce hook soit ÉPROUVABLE. Le hook 0905 a mis trois
 #  ISO à trouver sa panne parce qu'on ne pouvait le lancer que dans une vraie
@@ -90,6 +119,54 @@ fi
 hauteur_png() {
 	od -An -tu1 -j20 -N4 "$1" 2>/dev/null \
 		| awk '{ print $1*16777216 + $2*65536 + $3*256 + $4 }'
+}
+
+#  ─── LES COINS DU HAUT, REDESSINÉS ──────────────────────────────────────────
+#  Rend 0 si au moins un coin a été refait. Ne casse jamais rien : sur une
+#  image manquante ou un ImageMagick qui refuse, on laisse le coin d'origine
+#  et on le DIT — un coin carré est moins grave qu'un coin absent.
+arrondir_coins() {
+	_dst="$1"
+	_h="$2"
+	_r="$3"
+	_faits=0
+	_rates=0
+	for _etat in active inactive; do
+		#  title-3 est la pièce de remplissage unie de la barre. title-1 en
+		#  est le repli : sur certains thèmes c'est elle qui porte le fond.
+		_titre="$_dst/title-3-$_etat.png"
+		[ -r "$_titre" ] || _titre="$_dst/title-1-$_etat.png"
+		[ -r "$_titre" ] || continue
+		for _coin in left right; do
+			_cible="$_dst/top-$_coin-$_etat.png"
+			[ -f "$_cible" ] || continue
+			#  Le masque est tracé en NIVEAUX DE GRIS, pas en alpha : noir =
+			#  transparent, blanc = opaque. « CopyOpacity » lit alors son
+			#  intensité, ce qui marche pareil sur toutes les versions
+			#  d'ImageMagick — là où un masque à canal alpha dépend de l'ordre
+			#  exact des options « -alpha ».
+			#  Le rectangle arrondi déborde volontairement (2R x 2H) : seule
+			#  sa courbe du haut tombe dans la toile, donc seul le coin du
+			#  haut est entamé. Le bas reste plein.
+			if [ "$_coin" = "right" ]; then _flop="-flop"; else _flop=""; fi
+			# shellcheck disable=SC2086
+			if "$IM" "$_titre" -resize "${_r}x${_h}!" \
+				\( -size "${_r}x${_h}" xc:black -fill white \
+				   -draw "roundrectangle 0,0 $((_r * 2)),$((_h * 2)) ${_r},${_r}" \
+				   $_flop -alpha off -colorspace Gray \) \
+				-compose CopyOpacity -composite -depth 8 "$_cible" 2>/dev/null
+			then
+				_faits=$((_faits + 1))
+			else
+				_rates=$((_rates + 1))
+			fi
+		done
+	done
+	if [ "$_rates" -gt 0 ]; then
+		echo "[lexos]   !! ${_rates} coin(s) non redessiné(s) — ils restent carrés"
+	fi
+	echo "[lexos]   coins arrondis : ${_faits}/4 (rayon ${_r} px sur ${_h} px de titre)"
+	[ "$_faits" -gt 0 ]
 }
 
 #  Écrire une clé dans build.conf sans jamais la doubler — même forme que
@@ -142,6 +219,8 @@ derive() {
 		rm -rf "${THEMES:?}/${NOM_DST:?}"
 		return 1
 	fi
+
+	arrondir_coins "$DST" "$HAUTEUR_DST" "$RAYON" || true
 
 	#  L'écart autour des boutons suit leur taille, sinon ils se touchent.
 	if [ -f "$DST/themerc" ]; then
