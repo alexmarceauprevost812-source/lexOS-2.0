@@ -44,16 +44,26 @@ command -v lexos-theme-gen >/dev/null 2>&1 && lexos-theme-gen "$ACCENT" >/dev/nu
 if command -v xfconf-query >/dev/null 2>&1; then
 	#  Le repli nomme LexOS, pas Papirus : c'est ce repli qui repeignait les
 	#  dossiers en bleu à la première session quand build.conf manquait.
-	BASE_THEME="Arc-Dark"; ICONS="LexOS"
+	#
+	#  LE THÈME DE FENÊTRE N'EST PAS LE THÈME GTK. Il l'était ici, et c'était
+	#  faux : le hook 0610 dérive « LexOS-Arc-Dark » pour donner des boutons
+	#  qu'on puisse viser, et cette ligne le remplaçait par « Arc-Dark » À LA
+	#  PREMIÈRE SESSION — les boutons redevenaient petits avant même qu'Alex
+	#  ait pu les voir. Exactement la panne des icônes du build 70, sur une
+	#  autre clé. Le nom retenu se lit maintenant dans build.conf, où 0610
+	#  l'écrit ; le repli reste le thème GTK, comme avant.
+	BASE_THEME="Arc-Dark"; ICONS="LexOS"; XFWM_THEME=""
 	[[ -r /etc/lexos/build.conf ]] && eval "$(
 		# shellcheck disable=SC1091
 		. /etc/lexos/build.conf 2>/dev/null
-		printf 'BASE_THEME=%q; ICONS=%q' \
-			"${LEXOS_GTK_BASE_THEME:-Arc-Dark}" "${LEXOS_ICON_THEME:-LexOS}"
+		printf 'BASE_THEME=%q; ICONS=%q; XFWM_THEME=%q' \
+			"${LEXOS_GTK_BASE_THEME:-Arc-Dark}" "${LEXOS_ICON_THEME:-LexOS}" \
+			"${LEXOS_XFWM_THEME:-}"
 	)"
+	[[ -n "$XFWM_THEME" ]] || XFWM_THEME="$BASE_THEME"
 	xfconf-query -c xsettings -p /Net/ThemeName     -s "$BASE_THEME" 2>/dev/null || true
 	xfconf-query -c xsettings -p /Net/IconThemeName -s "$ICONS"      2>/dev/null || true
-	xfconf-query -c xfwm4     -p /general/theme     -s "$BASE_THEME" 2>/dev/null || true
+	xfconf-query -c xfwm4     -p /general/theme     -s "$XFWM_THEME" 2>/dev/null || true
 fi
 
 # --- Un seul bureau, pas deux ------------------------------------------------

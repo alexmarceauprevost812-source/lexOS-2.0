@@ -544,6 +544,32 @@ jobs:
           #    qu'elle ne peut pas lire au lieu de disparaître.
           bash tests/test_lexos_materiel.sh
 
+      - name: Boutons de fenêtre — le hook 0610 sur un banc
+        run: |
+          #  POURQUOI CE BANC EXISTE. Le hook 0905 a coûté TROIS ISO — 66, 68,
+          #  69 — parce qu'on ne pouvait le lancer que dans une vraie
+          #  construction : une heure et quart pour savoir si une ligne de sed
+          #  marchait. Celui-ci se lance en deux secondes.
+          #
+          #  Ce qu'il vérifie et qu'aucune relecture ne prouve :
+          #   · les 32 images de la rangée du titre grandissent, et les 13
+          #     bordures NE bougent PAS (tout agrandir mettrait un cadre gras
+          #     autour de chaque fenêtre) ;
+          #   · le nom du thème dérivé arrive jusqu'à lexos-firstrun et
+          #     « lexos theme ». C'est LA leçon du build 70 : le thème d'icônes
+          #     était dans l'ISO, et deux programmes l'effaçaient à la première
+          #     session. Le thème de fenêtre a exactement les mêmes trois
+          #     écrivains ;
+          #   · sans ImageMagick ou sans Arc-Dark, le hook le DIT et s'arrête.
+          #
+          #  Pillow fabrique de vrais PNG et tient lieu d'ImageMagick sur le
+          #  banc. On l'INSTALLE plutôt que de sauter le contrôle s'il manque :
+          #  un test qui se saute tout seul finit par ne plus jamais tourner —
+          #  c'est ce qui était arrivé au contrôle des locales.
+          python3 -c 'import PIL' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
+          bash tests/test_lexos_fenetres.sh
+
       - name: Tables de modèles Mac identiques
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même

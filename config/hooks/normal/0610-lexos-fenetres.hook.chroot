@@ -16,8 +16,8 @@
 #
 #  On ne peut donc pas régler ça — il faut fabriquer les images.
 #
-#  CE QUE FAIT CE HOOK. Il dérive un thème « LexOS-Arc-Dark » d'Arc-Dark, en
-#  agrandissant uniquement ce qui compose la rangée du titre.
+#  CE QUE FAIT CE HOOK. Il dérive un thème « LexOS-<nom> » de chaque thème Arc
+#  présent, en agrandissant uniquement ce qui compose la rangée du titre.
 #
 #  POURQUOI « UNIQUEMENT ». Les 45 images du thème se répartissent en trois
 #  hauteurs, et elles ne jouent pas le même rôle :
@@ -29,23 +29,49 @@
 #  Tout agrandir épaissirait les BORDURES des fenêtres — un cadre gras autour
 #  de chaque fenêtre, que personne n'a demandé. On ne touche donc qu'aux 28.
 #
-#  CE HOOK N'ÉCHOUE JAMAIS. Sans Arc-Dark ou sans ImageMagick, il le dit et
-#  s'arrête : le thème d'origine reste en place, les boutons restent petits,
-#  et rien n'est cassé.
+#  POURQUOI LES DEUX MODES. « lexos theme clair » bascule le thème de fenêtre
+#  sur « Arc ». Ne dériver qu'Arc-Dark aurait donné des boutons visables en
+#  sombre et des boutons minuscules en clair — le correctif aurait eu l'air
+#  de se défaire tout seul, et on aurait cherché la panne ailleurs. On dérive
+#  donc les deux, quand les deux sont là.
+#
+#  ═══ LA LEÇON DES ICÔNES, APPLIQUÉE ICI AVANT DE LA REVIVRE ═══
+#
+#  Au build 70, les dossiers étaient BLEUS sur la photo d'Alex alors que le
+#  thème LexOS était bien dans l'ISO : trois programmes écrivaient le nom du
+#  thème d'icônes, et deux d'entre eux le remplaçaient après coup. Le thème
+#  était là, personne ne le voyait.
+#
+#  Le thème de fenêtre a EXACTEMENT les mêmes trois écrivains :
+#      · ce hook, à la construction ;
+#      · lexos-firstrun, à la première ouverture de session ;
+#      · « lexos theme », à chaque changement de mode.
+#
+#  Poser LexOS-Arc-Dark ici sans prévenir les deux autres, c'était livrer des
+#  boutons qui redeviennent petits À LA PREMIÈRE SESSION, avant même qu'Alex
+#  ait pu les voir. On publie donc le nom retenu dans /etc/lexos/build.conf,
+#  d'où les deux autres le lisent — une seule vérité, comme pour les icônes.
+#
+#  CE HOOK N'ÉCHOUE JAMAIS. Sans Arc ni Arc-Dark, ou sans ImageMagick, il le
+#  dit et s'arrête : le thème d'origine reste en place, les boutons restent
+#  petits, et rien n'est cassé.
 # =============================================================================
 set -e
 
-SRC=/usr/share/themes/Arc-Dark/xfwm4
-DST=/usr/share/themes/LexOS-Arc-Dark/xfwm4
 HAUTEUR_SRC=28
 HAUTEUR_DST=40          # 40/28 ≈ 1,43 — visible sans devenir grotesque
 
-echo "[lexos] hook 0610 : boutons de fenêtre"
+#  Les trois chemins sont surchargeables — non pas pour qu'on les change en
+#  production, mais pour que ce hook soit ÉPROUVABLE. Le hook 0905 a mis trois
+#  ISO à trouver sa panne parce qu'on ne pouvait le lancer que dans une vraie
+#  construction ; celui-ci tourne sur un banc, avec un faux thème aux trois
+#  hauteurs et un faux ImageMagick. Vide de sens hors du banc : les valeurs
+#  par défaut sont les vraies.
+THEMES="${LEXOS_THEMES:-/usr/share/themes}"
+CONF="${LEXOS_BUILD_CONF:-/etc/lexos/build.conf}"
+SKELS="${LEXOS_XFWM_XML:-/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml}"
 
-if [ ! -d "$SRC" ]; then
-	echo "[lexos]   !! $SRC absent — thème d'origine conservé, boutons inchangés."
-	exit 0
-fi
+echo "[lexos] hook 0610 : boutons de fenêtre"
 
 IM=""
 for c in magick convert; do
@@ -53,12 +79,10 @@ for c in magick convert; do
 done
 if [ -z "$IM" ]; then
 	echo "[lexos]   !! ni magick ni convert — impossible de fabriquer les images."
-	echo "[lexos]   !! Ajouter « imagemagick » aux paquets si on veut ce thème."
+	echo "[lexos]   !! « imagemagick » est dans optional-packages/00-core.list ;"
+	echo "[lexos]   !! s'il manque ici, c'est que le hook 0250 ne l'a pas posé."
 	exit 0
 fi
-
-mkdir -p "$DST"
-cp -a "$SRC"/. "$DST"/
 
 #  La hauteur d'un PNG se lit dans son en-tête : octets 20 à 23, en gros
 #  boutiste. Pas besoin d'ImageMagick pour MESURER — on le garde pour
@@ -68,52 +92,104 @@ hauteur_png() {
 		| awk '{ print $1*16777216 + $2*65536 + $3*256 + $4 }'
 }
 
-AGRANDIS=0
-IGNORES=0
-for f in "$DST"/*.png; do
-	[ -f "$f" ] || continue
-	h="$(hauteur_png "$f")"
-	if [ "$h" = "$HAUTEUR_SRC" ]; then
-		if "$IM" "$f" -resize "x${HAUTEUR_DST}" "$f" 2>/dev/null; then
-			AGRANDIS=$((AGRANDIS + 1))
-		else
-			echo "[lexos]   !! échec sur $(basename "$f") — laissé tel quel"
-		fi
+#  Écrire une clé dans build.conf sans jamais la doubler — même forme que
+#  celle du hook 0600, pour que les deux fichiers se relisent pareil.
+pose_conf() {
+	mkdir -p "$(dirname "$CONF")"
+	touch "$CONF"
+	if grep -q "^$1=" "$CONF"; then
+		sed -i "s|^$1=.*|$1=\"$2\"|" "$CONF"
 	else
-		IGNORES=$((IGNORES + 1))
+		echo "$1=\"$2\"" >> "$CONF"
 	fi
-done
+}
 
-echo "[lexos]   ${AGRANDIS} images de la rangée du titre agrandies (${HAUTEUR_SRC} -> ${HAUTEUR_DST} px)"
-echo "[lexos]   ${IGNORES} images de bordure laissées intactes"
+#  Dériver UN thème. Renvoie 0 s'il y a désormais un thème dérivé utilisable.
+derive() {
+	SRC="$THEMES/$1/xfwm4"
+	NOM_DST="LexOS-$1"
+	DST="$THEMES/$NOM_DST/xfwm4"
 
-if [ "$AGRANDIS" -eq 0 ]; then
-	echo "[lexos]   !! aucune image agrandie — on garde Arc-Dark, sans quoi on"
-	echo "[lexos]   !! livrerait un thème identique sous un autre nom."
-	rm -rf /usr/share/themes/LexOS-Arc-Dark
+	[ -d "$SRC" ] || { echo "[lexos]   $1 absent — rien à dériver de ce côté"; return 1; }
+
+	rm -rf "${THEMES:?}/${NOM_DST:?}"
+	mkdir -p "$DST"
+	cp -a "$SRC"/. "$DST"/
+
+	AGRANDIS=0
+	IGNORES=0
+	for f in "$DST"/*.png; do
+		[ -f "$f" ] || continue
+		h="$(hauteur_png "$f")"
+		if [ "$h" = "$HAUTEUR_SRC" ]; then
+			if "$IM" "$f" -resize "x${HAUTEUR_DST}" "$f" 2>/dev/null; then
+				AGRANDIS=$((AGRANDIS + 1))
+			else
+				echo "[lexos]   !! échec sur $(basename "$f") — laissé tel quel"
+			fi
+		else
+			IGNORES=$((IGNORES + 1))
+		fi
+	done
+
+	echo "[lexos]   $1 : ${AGRANDIS} images de la rangée du titre agrandies (${HAUTEUR_SRC} -> ${HAUTEUR_DST} px), ${IGNORES} bordures intactes"
+
+	#  Un thème dérivé qui n'a rien changé mais porte notre nom, c'est le genre
+	#  de mensonge poli qu'on traque ici depuis le build 66. On l'efface.
+	if [ "$AGRANDIS" -eq 0 ]; then
+		echo "[lexos]   !! aucune image agrandie — on efface $NOM_DST plutôt que"
+		echo "[lexos]   !! de livrer une copie de $1 sous un autre nom."
+		rm -rf "${THEMES:?}/${NOM_DST:?}"
+		return 1
+	fi
+
+	#  L'écart autour des boutons suit leur taille, sinon ils se touchent.
+	if [ -f "$DST/themerc" ]; then
+		sed -i -e 's/^button_offset=.*/button_offset=3/' \
+		       -e 's/^button_spacing=.*/button_spacing=3/' "$DST/themerc" 2>/dev/null || true
+	fi
+
+	cat > "$THEMES/$NOM_DST/index.theme" <<EOF
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=$NOM_DST
+Comment=$1, avec des boutons de fenêtre visables
+EOF
+	return 0
+}
+
+XFWM_SOMBRE=""
+XFWM_CLAIR=""
+derive Arc-Dark && XFWM_SOMBRE="LexOS-Arc-Dark"
+derive Arc      && XFWM_CLAIR="LexOS-Arc"
+
+if [ -z "$XFWM_SOMBRE" ] && [ -z "$XFWM_CLAIR" ]; then
+	echo "[lexos]   !! aucun thème dérivé — boutons inchangés, rien n'est cassé."
 	exit 0
 fi
 
-#  L'écart autour des boutons suit leur taille, sinon ils se touchent.
-if [ -f "$DST/themerc" ]; then
-	sed -i -e 's/^button_offset=.*/button_offset=3/' \
-	       -e 's/^button_spacing=.*/button_spacing=3/' "$DST/themerc" 2>/dev/null || true
-fi
+#  ═══ LA SOURCE UNIQUE ═══
+#  Ces deux clés sont ce que lexos-firstrun et « lexos theme » liront. Sans
+#  elles, ils écriraient « Arc-Dark » par-dessus notre thème à la première
+#  session — la panne des icônes du build 70, refaite à l'identique.
+#  Repli explicite sur le thème d'origine quand un mode n'a pas pu être
+#  dérivé : mieux vaut des petits boutons qu'un nom de thème qui n'existe pas,
+#  qui ferait retomber XFCE sur son habillage clair par défaut.
+[ -n "$XFWM_SOMBRE" ] || XFWM_SOMBRE="Arc-Dark"
+[ -n "$XFWM_CLAIR" ]  || XFWM_CLAIR="Arc"
+pose_conf LEXOS_XFWM_THEME        "$XFWM_SOMBRE"
+pose_conf LEXOS_XFWM_THEME_CLAIR  "$XFWM_CLAIR"
 
-#  On nomme le thème pour qu'il apparaisse dans les réglages d'apparence.
-cat > /usr/share/themes/LexOS-Arc-Dark/index.theme <<'EOF'
-[Desktop Entry]
-Type=X-GNOME-Metatheme
-Name=LexOS-Arc-Dark
-Comment=Arc-Dark, avec des boutons de fenêtre visables
-EOF
-
-#  Et on l'emploie, partout où le thème est écrit.
-for x in /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml \
-         /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml; do
+#  Et dans le XML du squelette, que XFCE lit à la création du compte. Le hook
+#  0600 vient d'y écrire le thème GTK ; on ne remplace QUE la valeur, sans
+#  présumer de ce qu'elle contient — un jour où 0600 aurait choisi un repli,
+#  une recherche de « Arc-Dark » en toutes lettres n'aurait rien trouvé et le
+#  hook aurait échoué en silence.
+for x in $SKELS; do
 	[ -f "$x" ] || continue
-	sed -i 's|name="theme"\([[:space:]]*\)type="string" value="Arc-Dark"|name="theme"\1type="string" value="LexOS-Arc-Dark"|' "$x" 2>/dev/null || true
+	sed -i "s|\(name=\"theme\"[^>]*value=\"\)[^\"]*\"|\1${XFWM_SOMBRE}\"|" "$x" 2>/dev/null || true
 done
 
-echo "[lexos]   thème LexOS-Arc-Dark posé et sélectionné"
+echo "[lexos]   thème de fenêtre : ${XFWM_SOMBRE} (sombre) · ${XFWM_CLAIR} (clair)"
+echo "[lexos]   publié dans build.conf — firstrun et « lexos theme » le liront"
 echo "[lexos] hook 0610 : ok"

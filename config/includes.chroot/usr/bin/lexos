@@ -864,6 +864,7 @@ cmd_theme() {
 		#  sélecteur qui remettait Papirus par-dessus à chaque changement.
 		dark|sombre|nuit)   gtk="Arc-Dark"; icons="LexOS"; lexos_mode="sombre" ;;
 		light|clair|jour)   gtk="Arc";      icons="LexOS"; lexos_mode="clair"  ;;
+		#  (le thème de FENÊTRE est choisi plus bas — il ne suit pas « gtk »)
 		accent) shift; cmd_accent "$@"; return ;;
 		*) die "Usage : ${PROG} theme <sombre|clair>  ·  ${PROG} accent <couleur>" ;;
 	esac
@@ -871,12 +872,38 @@ cmd_theme() {
 	command -v lexos-theme-gen >/dev/null 2>&1 \
 		&& lexos-theme-gen --mode "$lexos_mode" >/dev/null
 
+	#  LE THÈME DE FENÊTRE EST À PART. Il suivait « gtk », et c'était le
+	#  troisième écrivain de la panne : le hook 0610 dérive LexOS-Arc-Dark et
+	#  LexOS-Arc pour donner des boutons de fenêtre qu'on puisse viser, et
+	#  chaque « lexos theme sombre » les remplaçait par les thèmes d'origine —
+	#  les gros boutons disparaissaient au premier changement de mode. C'est
+	#  mot pour mot ce qui remettait Papirus par-dessus les icônes au build 70.
+	#  Le nom retenu vient de build.conf, où 0610 l'écrit ; sans build.conf, on
+	#  retombe sur « gtk », c'est-à-dire le comportement d'avant.
+	local xfwm="$gtk"
+	if [[ -r /etc/lexos/build.conf ]]; then
+		local sombre clair
+		eval "$(
+			# shellcheck disable=SC1091
+			. /etc/lexos/build.conf 2>/dev/null
+			printf 'sombre=%q; clair=%q' \
+				"${LEXOS_XFWM_THEME:-}" "${LEXOS_XFWM_THEME_CLAIR:-}"
+		)"
+		case "$lexos_mode" in
+			sombre) [[ -n "$sombre" ]] && xfwm="$sombre" ;;
+			clair)  [[ -n "$clair"  ]] && xfwm="$clair"  ;;
+		esac
+	fi
+	#  Un thème nommé mais absent ferait retomber XFCE sur son habillage clair
+	#  par défaut — pire que des petits boutons.
+	[[ -d "/usr/share/themes/${xfwm}/xfwm4" ]] || xfwm="$gtk"
+
 	if command -v xfconf-query >/dev/null 2>&1; then
 		xfconf-query -c xsettings -p /Net/ThemeName        -s "$gtk"
 		xfconf-query -c xsettings -p /Net/IconThemeName    -s "$icons"
-		xfconf-query -c xfwm4     -p /general/theme        -s "$gtk"
+		xfconf-query -c xfwm4     -p /general/theme        -s "$xfwm"
 	fi
-	ok "Thème : ${lexos_mode} (${gtk} / ${icons})"
+	ok "Thème : ${lexos_mode} (${gtk} / ${icons} / fenêtres ${xfwm})"
 }
 
 # =============================================================================
