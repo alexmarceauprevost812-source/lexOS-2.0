@@ -626,6 +626,39 @@ cmd_wallpaper() {
 			-n -t int -s "$style" 2>/dev/null || true
 	done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null)
 
+	#  ═══ LES ÉCRANS QU'XFCONF NE CONNAÎT PAS ENCORE ═══
+	#  PHOTO D'ALEX : deux écrans, deux fonds différents — le LexOS d'un côté,
+	#  le fond pâle de Debian de l'autre.
+	#
+	#  La boucle ci-dessus parcourt les propriétés EXISTANTES. Or xfconf ne
+	#  crée la propriété d'un écran qu'une fois qu'xfdesktop l'a vu au moins
+	#  une fois. Un écran branché APRÈS coup — un second moniteur, un
+	#  téléviseur, un projecteur — n'a donc aucune propriété : la boucle ne
+	#  trouve rien pour lui, il garde le fond d'origine, et la commande
+	#  annonce quand même « appliqué » sur les écrans qu'elle a trouvés.
+	#  C'est le mensonge poli habituel : on croit avoir posé le fond partout.
+	#
+	#  On demande donc à xrandr la liste des écrans RÉELLEMENT branchés, et on
+	#  crée la propriété manquante pour chacun. « -n » crée sans écraser ; le
+	#  chemin porte le NOM de la sortie, c'est ainsi qu'xfdesktop les range.
+	if command -v xrandr >/dev/null 2>&1; then
+		local sortie ajoutes=0
+		while read -r sortie; do
+			[[ -n "$sortie" ]] || continue
+			local base="/backdrop/screen0/monitor${sortie}/workspace0"
+			#  Déjà couvert par la boucle précédente ? On ne repasse pas.
+			xfconf-query -c xfce4-desktop -p "${base}/last-image" >/dev/null 2>&1 && continue
+			xfconf-query -c xfce4-desktop -p "${base}/last-image" \
+				-n -t string -s "$img" 2>/dev/null || continue
+			xfconf-query -c xfce4-desktop -p "${base}/image-style" \
+				-n -t int -s "$style" 2>/dev/null || true
+			ajoutes=$((ajoutes + 1)); count=$((count + 1))
+		done < <(xrandr --listmonitors 2>/dev/null | awk 'NR>1{print $NF}')
+		if (( ajoutes > 0 )); then
+			say "${ajoutes} écran(s) branché(s) après coup n'avaient pas de fond à eux — c'est fait."
+		fi
+	fi
+
 	if (( count > 0 )); then
 		ok "Fond d'écran appliqué sur ${count} écran(s) : $(basename "$img")"
 	else

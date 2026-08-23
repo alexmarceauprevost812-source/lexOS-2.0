@@ -135,16 +135,30 @@ appliquer_fond() {
 		pose_fond "$prop" && found=1
 	done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null)
 
-	#  Aucun écran déclaré par xfdesktop après 20 secondes d'attente. On écrit
-	#  alors les propriétés nous-mêmes — mais PAS sous n'importe quel nom.
-	#
-	#  C'EST ICI QUE ÇA A RATÉ SUR LE PORTABLE 2016. L'ancienne version créait
-	#  « /backdrop/screen0/monitor0/workspace0/last-image ». Ce nom-là est
-	#  celui de XFCE 4.10, abandonné depuis : à partir de XFCE 4.12, xfdesktop
-	#  range chaque écran sous le nom de sa SORTIE — monitoreDP-1, monitorHDMI-1,
+	#  ON ÉCRIT LES PROPRIÉTÉS NOUS-MÊMES — MAIS PAS SOUS N'IMPORTE QUEL NOM.
+	#  C'est ici que ça avait raté sur le portable de 2016 : l'ancienne version
+	#  créait « /backdrop/screen0/monitor0/workspace0/last-image », un nom de
+	#  XFCE 4.10 abandonné depuis. À partir de la 4.12, xfdesktop range chaque
+	#  écran sous le nom de sa SORTIE — monitoreDP-1, monitorHDMI-1,
 	#  monitorLVDS-1… Il lisait donc une propriété que nous n'écrivions pas, et
-	#  affichait son fond bleu par défaut. On demande les vrais noms à xrandr.
-	if (( ! found )); then
+	#  affichait son fond bleu. On demande les vrais noms à xrandr.
+	#
+	#  ═══ ET POURQUOI CE BLOC NE S'EXÉCUTE PLUS « SEULEMENT SI RIEN N'A MARCHÉ » ═══
+	#  PHOTO D'ALEX, DEUX ÉCRANS : le fond LexOS sur l'un, le fond pâle de
+	#  Debian sur l'autre.
+	#
+	#  La condition était « si (( ! found )) ». Avec deux écrans, il suffisait
+	#  qu'xfdesktop ait déclaré la propriété du PREMIER pour que found passe à
+	#  1 — et tout ce bloc était sauté. Le second écran, dont la propriété
+	#  n'existait pas encore, n'était jamais couvert. La fonction rendait 0,
+	#  « c'est posé », en n'ayant habillé qu'un écran sur deux.
+	#
+	#  Le passage par xrandr est donc INCONDITIONNEL maintenant. Il ne coûte
+	#  rien quand tout est déjà en place : pose_fond réécrit la même valeur.
+	#  Et il rattrape le cas qui comptait — l'écran qu'xfdesktop n'a pas
+	#  encore vu. La condition « si rien n'a marché » traitait un cas de
+	#  panne ; le vrai cas courant, c'est le cas MIXTE.
+	if true; then
 		if command -v xrandr >/dev/null 2>&1; then
 			mapfile -t sorties < <(
 				xrandr --listactivemonitors 2>/dev/null |
@@ -154,7 +168,12 @@ appliquer_fond() {
 		#  Filet : si xrandr manque ou ne répond rien, on tente les noms de
 		#  sortie les plus courants plus l'ancien « monitor0 ». Écrire une
 		#  propriété pour un écran absent ne coûte rien — xfdesktop l'ignore.
-		((${#sorties[@]})) || sorties=(eDP-1 HDMI-1 DP-1 LVDS-1 VGA-1 0)
+		#  Mais on ne le déroule QUE si xrandr n'a rien su dire ET qu'aucune
+		#  propriété n'existait : quand on connaît les vrais noms, deviner
+		#  n'ajoute rien et brouille la trace pour qui lira xfconf plus tard.
+		if ((${#sorties[@]} == 0)) && (( ! found )); then
+			sorties=(eDP-1 HDMI-1 DP-1 LVDS-1 VGA-1 0)
+		fi
 
 		for sortie in "${sorties[@]}"; do
 			#  workspace0 suffit quand le mode « même fond partout » est actif
