@@ -158,32 +158,30 @@ appliquer_fond() {
 	#  Et il rattrape le cas qui comptait — l'écran qu'xfdesktop n'a pas
 	#  encore vu. La condition « si rien n'a marché » traitait un cas de
 	#  panne ; le vrai cas courant, c'est le cas MIXTE.
-	if true; then
-		if command -v xrandr >/dev/null 2>&1; then
-			mapfile -t sorties < <(
-				xrandr --listactivemonitors 2>/dev/null |
-					awk 'NR > 1 { print $NF }'
-			)
-		fi
-		#  Filet : si xrandr manque ou ne répond rien, on tente les noms de
-		#  sortie les plus courants plus l'ancien « monitor0 ». Écrire une
-		#  propriété pour un écran absent ne coûte rien — xfdesktop l'ignore.
-		#  Mais on ne le déroule QUE si xrandr n'a rien su dire ET qu'aucune
-		#  propriété n'existait : quand on connaît les vrais noms, deviner
-		#  n'ajoute rien et brouille la trace pour qui lira xfconf plus tard.
-		if ((${#sorties[@]} == 0)) && (( ! found )); then
-			sorties=(eDP-1 HDMI-1 DP-1 LVDS-1 VGA-1 0)
-		fi
-
-		for sortie in "${sorties[@]}"; do
-			#  workspace0 suffit quand le mode « même fond partout » est actif
-			#  (le défaut) ; on couvre les quatre bureaux pour le cas contraire.
-			for ws in 0 1 2 3; do
-				pose_fond "/backdrop/screen0/monitor${sortie}/workspace${ws}/last-image" \
-					&& found=1
-			done
-		done
+	if command -v xrandr >/dev/null 2>&1; then
+		mapfile -t sorties < <(
+			xrandr --listactivemonitors 2>/dev/null |
+				awk 'NR > 1 { print $NF }'
+		)
 	fi
+	#  Filet : si xrandr manque ou ne répond rien, on tente les noms de
+	#  sortie les plus courants plus l'ancien « monitor0 ». Écrire une
+	#  propriété pour un écran absent ne coûte rien — xfdesktop l'ignore.
+	#  Mais on ne le déroule QUE si xrandr n'a rien su dire ET qu'aucune
+	#  propriété n'existait : quand on connaît les vrais noms, deviner
+	#  n'ajoute rien et brouille la trace pour qui lira xfconf plus tard.
+	if ((${#sorties[@]} == 0)) && (( ! found )); then
+		sorties=(eDP-1 HDMI-1 DP-1 LVDS-1 VGA-1 0)
+	fi
+
+	for sortie in "${sorties[@]}"; do
+		#  workspace0 suffit quand le mode « même fond partout » est actif
+		#  (le défaut) ; on couvre les quatre bureaux pour le cas contraire.
+		for ws in 0 1 2 3; do
+			pose_fond "/backdrop/screen0/monitor${sortie}/workspace${ws}/last-image" \
+				&& found=1
+		done
+	done
 
 	#  Un seul fond pour tous les bureaux : sans ça, changer de bureau
 	#  virtuel ramène le fond bleu sur ceux qu'on n'a pas couverts.

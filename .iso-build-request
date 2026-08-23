@@ -58,6 +58,113 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 73 : CE QUE LE 72 A LIVRÉ CASSÉ, ET CE QU'ON A COMPRIS EN LE RÉPARANT.
+#
+#   Alex a démarré la 72 et photographié. Trois choses, et chacune a mené plus
+#   loin que le symptôme.
+#
+#   · « DU NOIR SUR LES BOUTONS ORANGE. » Sur la fenêtre de bienvenue, le mot
+#     « Fermer » était posé sur un RECTANGLE NOIR au milieu du bouton orange.
+#     Il voulait l'inverse : le bouton orange, et seulement les LETTRES en noir.
+#
+#     Le correctif de la 72 était censé faire ça. Il ne faisait RIEN. Il
+#     énumérait « button > label, button > box, button > box > label » — des
+#     combinateurs ENFANT, à une profondeur devinée — et posait
+#     « color: inherit » sur le libellé. Deux erreurs :
+#       — la profondeur n'est pas connue d'avance. Un bouton texte seul, c'est
+#         button > label ; avec une icône, button > box > label ; d'autres
+#         formes ajoutent une box ou une grid. L'énumération ratait tout ce
+#         qui était un cran plus bas — le fond noir y restait ;
+#       — « inherit » hérite du PARENT DIRECT, et ce parent est la box, à qui
+#         la règle des fonds donne EXPLICITEMENT color:#FFFFFF. Le libellé
+#         héritait donc du BLANC de la box, jamais du noir du bouton.
+#
+#     Mesuré sur la feuille réellement engendrée : blanc sur l'orange, 3,58:1.
+#     Très exactement le défaut que le correctif prétendait réparer. Sur
+#     l'accent néon : 1,36:1. Livré, lu par GTK, sans effet.
+#
+#     Combinateur de DESCENDANCE maintenant, et « color: inherit » posé AUSSI
+#     sur box et grid : la couleur descend de proche en proche. Les sept
+#     formes passent à 5,87:1.
+#
+#     ET LE BANC N'AURAIT JAMAIS PU LE VOIR : il cherchait la CHAÎNE de la
+#     règle dans la feuille et se déclarait satisfait de la trouver. Il RÉSOUT
+#     maintenant la cascade sur des arbres de nœuds réels — sélecteurs,
+#     spécificité, héritage — et mesure la couleur qui arrive vraiment sur le
+#     texte. Le moteur a d'ailleurs eu sa propre heure de mensonge : il
+#     écartait toute règle dont les sélecteurs contenaient un « @ », et le bloc
+#     @define-color précède justement la règle des fonds. Il déclarait donc
+#     tous les boutons lisibles en ayant perdu de vue la seule règle qui les
+#     rendait illisibles.
+#
+#   · « LES FICHIERS SONT ENCORE BLEUS » — puis BLANCS. Au 71 les dossiers
+#     étaient bleus ; au 72, des FEUILLES DE PAPIER blanches. Le même dépôt,
+#     deux résultats.
+#
+#     Quand GIO doit nommer l'icône d'un dossier, il demande
+#     « inode-directory » — pas « folder ». Ce nom-là, le thème LexOS ne le
+#     portait pas : la chaîne d'héritage continuait vers Papirus-Dark… qui
+#     n'était pas installé ce jour-là. Et faute de tout candidat, GIO retombe
+#     sur l'icône générique d'un type inconnu.
+#
+#     La cause profonde n'était donc pas le thème, mais le fait que
+#     papirus-icon-theme et adwaita-icon-theme voyageaient dans les listes
+#     OPTIONNELLES — posées « au mieux » par le hook 0250. L'apparence du
+#     bureau dépendait du temps qu'il faisait sur les miroirs Debian.
+#
+#     Le thème porte maintenant inode-directory de son côté (plus
+#     folder-drag-accept, folder-visiting, folder-remote) : il ne dépend plus
+#     de personne. Et les deux thèmes de repli passent en STRICT — une absence
+#     ARRÊTE la construction au lieu de livrer une ISO muette.
+#
+#     DEUX AUTRES OUTILS DÉPENDAIENT DE LA MÊME LOTERIE, trouvés en cherchant
+#     celui-là : yad dessine la fenêtre de BIENVENUE — la toute première chose
+#     qu'on voit — et qrencode le QR du PARTAGE. Tous deux optionnels. Ils
+#     passent en strict avec les autres.
+#
+#   · « LA PAGE POUR PARTAGER N'EST PAS PAREILLE. » La démo montre une page ;
+#     l'ISO ouvrait un TERMINAL et y dessinait le QR avec des blocs de texte.
+#     Et ce n'est pas qu'une question de beauté : selon la police et
+#     l'espacement des lignes, les modules d'un QR en caractères ne sont pas
+#     carrés, et l'appareil photo peut refuser de le lire.
+#
+#     « lexos share » rend maintenant un vrai PNG et l'affiche dans une
+#     fenêtre. Le terminal reste le REPLI, pour la console et le mode secours.
+#     Avec son revers, traité : fermer la fenêtre laissait le serveur tourner.
+#
+#   · LE FOND D'ÉCRAN NE COUVRAIT QU'UN ÉCRAN SUR DEUX. Le fond LexOS sur
+#     l'un, celui de Debian sur l'autre. Le balayage des écrans par xrandr
+#     n'était fait que « si rien n'avait marché » — or il suffisait qu'un seul
+#     écran soit connu pour sauter l'étape. Le raisonnement était à l'envers :
+#     cette condition traitait une PANNE, alors que le cas courant est le cas
+#     MIXTE. Corrigé au premier démarrage et dans « lexos wallpaper ».
+#
+#   · LE MODE CLAIR NOIRCISSAIT TROIS PANNEAUX. Quatre couleurs écrites en
+#     dur, chacune raisonnable le jour où elle a été écrite pour un fond noir :
+#     la seule surface opaque du volet (texte noir sur fond noir — un volet
+#     vide), l'encadré et le diagnostic du panneau IA, les pastilles d'état
+#     des Paramètres à 2:1 sur le crème. Tout passe par les jetons ou par un
+#     color-mix sur le fond courant.
+#
+#   · LA SÉLECTION DE TEXTE RESTAIT BLEUE. La règle était écrite
+#     « selection, ::selection ». « ::selection » n'est pas un pseudo-élément
+#     que GTK3 connaît — et un sélecteur invalide dans une liste invalide la
+#     RÈGLE ENTIÈRE. Séparées, la valide s'applique.
+#
+#   RELU AVANT DE DÉCOLLER, cette fois. Cinq relecteurs indépendants sur le
+#   lot de la 72, chaque trouvaille soumise à trois sceptiques chargés de la
+#   RÉFUTER : quarante trouvailles, douze confirmées, cinq bloquantes. C'est
+#   ce qui a mis au jour le correctif inerte des boutons — après la
+#   construction, malheureusement. Le lot de la 73 est relu avant.
+#
+#   CE QU'IL RESTE, écrit pour ne pas l'oublier : cartes et gps chargent
+#   toujours leurs bibliothèques depuis Internet — sans réseau, ils ne
+#   s'affichent pas du tout.
+#
+#   ET CE QUI NE SE VÉRIFIE QU'À L'ÉCRAN : les clés du thunarrc (une clé
+#   inconnue est ignorée EN SILENCE), et la fenêtre de partage, qu'aucun banc
+#   ne peut ouvrir d'ici.
+#
 # build 72 : LE CÔTÉ GRAPHIQUE DE LA DÉMO, DANS L'ISO.
 #
 #   Le 71 démarre, Alex s'en sert, et il photographie. Ce lot ne vient donc
@@ -1939,4 +2046,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 72
+build: 73
