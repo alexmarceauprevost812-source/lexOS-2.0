@@ -58,6 +58,89 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 71 : UNE SEULE VÉRITÉ, TROIS FOIS.
+#
+#   Le 70 démarre et Alex s'en sert. Ce lot ne vient donc pas d'une relecture
+#   de code : il vient de ce qu'il a VU à l'écran, et de ce qu'on a compris en
+#   cherchant pourquoi.
+#
+#   · LES BOUTONS EN HAUT DES FENÊTRES SONT TROP PETITS. On avait fait passer
+#     title_font de 10 à 13 au build 70, en supposant qu'xfwm4 met les images
+#     du thème à l'échelle du texte. Constaté sur l'ISO 70 : la barre de titre
+#     a grandi, LES BOUTONS SONT RESTÉS PAREILS.
+#
+#     La raison, mesurée dans l'image : le thème xfwm4 d'Arc-Dark est fait
+#     d'images PNG de TAILLE FIXE. close-active.png fait 28×28, et il fera
+#     28×28 quelle que soit la police. xfwm4 n'a aucun réglage de taille de
+#     bouton — la taille du bouton EST celle de son image. Il n'y avait rien
+#     à régler : il fallait fabriquer les images.
+#
+#     Le hook 0610 dérive donc un thème et agrandit la rangée du titre de 28
+#     à 40 px. Uniquement la rangée du titre : les 45 images du thème se
+#     répartissent en 32 de 28 px (boutons, tuiles, coins), 7 de 16 px et 6 de
+#     4 px (les bordures). Tout agrandir aurait mis un CADRE GRAS autour de
+#     chaque fenêtre, que personne n'a demandé.
+#
+#   · ET IL SE SERAIT DÉFAIT AVANT QU'ALEX LE VOIE. C'est la panne des icônes
+#     du build 70, à l'identique, sur une autre clé. Le thème de fenêtre a
+#     exactement les mêmes TROIS écrivains : le hook à la construction,
+#     lexos-firstrun à la première session, « lexos theme » à chaque
+#     changement de mode. Les deux derniers posaient le thème GTK sur les
+#     fenêtres : LexOS-Arc-Dark aurait été remplacé par Arc-Dark DÈS LA
+#     PREMIÈRE SESSION, les gros boutons perdus avant le premier regard — et
+#     on aurait cherché la panne dans le hook, qui n'y était pour rien.
+#
+#     Le nom retenu est publié dans /etc/lexos/build.conf, d'où les deux
+#     autres le lisent. Même mécanique, même format que pour les icônes.
+#
+#     Le mode clair est couvert aussi : « lexos theme clair » bascule les
+#     fenêtres sur « Arc ». Ne dériver qu'Arc-Dark aurait donné des boutons
+#     visables en sombre et minuscules en clair — le correctif aurait eu l'air
+#     de se défaire tout seul.
+#
+#   · L'APPARENCE DES PANNEAUX AVAIT TROIS PALETTES. Relevé : Paramètres et
+#     Volet sur #161311, l'IA sur #0b0b0d — avec un vocabulaire qui divergeait
+#     (--warn ici, --att là ; --off ici, --non là) et l'orange écrit EN DUR
+#     trois fois dans les Paramètres. Conséquence concrète : « mets les
+#     boutons en écriture noire » se corrigeait à huit endroits, dans des
+#     fichiers qui ne se parlent pas. C'était le vrai frein quand on travaille
+#     à partir de photos.
+#
+#     Un seul fichier porte l'apparence maintenant : usr/share/lexos/ui.css.
+#     Chaque panneau y accède par un lien symbolique, parce que le serveur
+#     local de chaque panneau ne sert QUE son dossier — les trois écritures de
+#     « ../ » retombent toutes sur le fichier local, un chemin relatif ne
+#     pouvait pas marcher. À l'écran, l'IA rejoint les deux autres : fond
+#     #161311, texte #EDE6DF.
+#
+#   · LE HALO DU SURVOL NE SUIVAIT PAS L'ACCENT. Il était écrit en dur en
+#     orange, alors que les Paramètres réécrivent --ac et --ac-hi à chaud
+#     quand on choisit une autre couleur. Un accent bleu aurait gardé un halo
+#     orange — exactement le défaut que le commentaire d'à côté prévient. Il
+#     est dérivé de l'accent maintenant.
+#
+#   · DEUX GARDE-FOUS, parce que la duplication ne revient jamais d'un coup :
+#     elle revient une ligne à la fois, chacune raisonnable sur le moment.
+#     Un contrôle refuse l'accent écrit en dur dans une feuille de panneau,
+#     dans SES DEUX écritures (#E8590C et rgba(232,89,12) — le décimal était
+#     justement la seule forme qui restait partout), et vérifie que le lien
+#     vers ui.css n'est pas cassé : sans lui, une page ne devient pas « un peu
+#     différente », elle devient un texte sans couleur sur un fond sans
+#     couleur. Panne muette et totale.
+#
+#     Et un banc éprouve le hook 0610 en deux secondes, sur un faux thème et
+#     un faux ImageMagick. Le hook 0905 a coûté TROIS ISO — 66, 68, 69 —
+#     parce qu'on ne pouvait le lancer que dans une vraie construction : une
+#     heure et quart pour savoir si une ligne de sed marchait.
+#
+#   CE QUE CE LOT NE CORRIGE PAS, ÉCRIT POUR NE PAS L'OUBLIER. Le contrôle a
+#   trouvé DEUX panneaux web de plus, cartes et gps, que l'unification n'a pas
+#   atteints — gps porte son propre orange (#ff6a00) et un quatrième
+#   vocabulaire. Et les deux chargent leurs bibliothèques DEPUIS INTERNET
+#   (unpkg, cartocdn, fonts.googleapis) : sans réseau, ils ne s'affichent pas
+#   du tout. Ce n'est pas un oubli, c'est un chantier — il attend une décision
+#   d'Alex.
+#
 # build 70 : CE QUE LE PREMIER VRAI DÉMARRAGE A APPRIS.
 #
 #   ⚠ CE JOURNAL A ÉTÉ ÉCRIT AVANT LE RESTE DU LOT. Entre-temps, deux audits
@@ -1758,4 +1841,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 70
+build: 71
