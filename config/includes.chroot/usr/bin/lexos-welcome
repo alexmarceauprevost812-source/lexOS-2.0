@@ -113,7 +113,36 @@ mark_done() {
 }
 
 # --- Dialogue ----------------------------------------------------------------
-ICON="$BRAND/mascot.png"
+#  LA MASCOTTE ANIMÉE. Alex : « je la voulais avec son effet d'animation ».
+#  Interrogé sur laquelle des trois animations du projet il visait — la
+#  mascotte, le fond d'écran animé ou les effets du dock — il a répondu la
+#  mascotte.
+#
+#  L'ANIMATION EXISTAIT DÉJÀ, ET NE JOUAIT QU'À UN SEUL ENDROIT. Le hook 0300
+#  construit un thème Plymouth à partir des 16 images de mascot-anim-frames :
+#  elle bouge à l'écran de démarrage. Partout ailleurs — cette fenêtre-ci,
+#  l'avatar de session — c'est mascot.png, fixe. Et mascot-anim-web.gif voyage
+#  dans l'ISO depuis toujours (build.sh l. 211 prend les *.gif), posé sur la
+#  machine, utilisé PAR RIEN. 272 Kio embarqués pour ne jamais s'afficher.
+#
+#  POURQUOI LA VERSION « web » ET PAS L'AUTRE. Les deux sont là :
+#  mascot-anim.gif fait 6,6 Mio, mascot-anim-web.gif 272 Kio. Charger 6,6 Mio
+#  dans une boîte de dialogue de bienvenue, c'est une fenêtre qui rame à la
+#  toute première session — le pire moment pour faire mauvaise impression.
+#
+#  LA CHAÎNE DE REPLI GARDE SON DERNIER MAILLON. Le GIF passe DEVANT, pas à la
+#  place : s'il manque, on perd l'animation, pas la fenêtre.
+#
+#  À VÉRIFIER SUR UNE MACHINE, ET CE N'EST PAS ACQUIS : yad affiche l'image
+#  par un GtkImage, et GTK anime tout seul un GIF chargé depuis un FICHIER.
+#  Mais selon la version de yad et la façon dont l'image est chargée, un GIF
+#  peut s'afficher FIGÉ SUR SA PREMIÈRE IMAGE — livré, affiché, immobile. Ce
+#  serait exactement le genre de correctif qui a l'air fait et ne l'est pas.
+#  Rien ici ne peut le prouver : il faut ouvrir la fenêtre et regarder. Si
+#  elle est figée, revenir à mascot.png et le dire, plutôt que de contourner —
+#  écrire une petite fenêtre GTK pour l'occasion est un autre chantier.
+ICON="$BRAND/mascot-anim-web.gif"
+[[ -r "$ICON" ]] || ICON="$BRAND/mascot.png"
 [[ -r "$ICON" ]] || ICON="/usr/share/pixmaps/lexos.png"
 
 if command -v yad >/dev/null 2>&1; then

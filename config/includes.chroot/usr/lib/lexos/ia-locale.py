@@ -76,6 +76,25 @@ OLLAMA_HOTE = "127.0.0.1:11434"
 #  Outils de base
 # =============================================================================
 
+
+#  LE MODE D'APPARENCE, POUR LA PAGE.
+#  lexos-theme-gen écrit « sombre » ou « clair » dans ~/.config/lexos/mode
+#  depuis toujours. Avant ce correctif, personne ne le lisait côté panneau :
+#  « lexos theme clair » repeignait les fenêtres GTK en crème et laissait les
+#  trois panneaux web NOIRS, en négatif du reste du bureau.
+#  On le passe donc en ?mode=… — pas de nouveau point d'entrée, pas de requête
+#  supplémentaire, et l'attribut est posé avant le premier rendu.
+def _mode_apparence() -> str:
+    try:
+        base = os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")
+        valeur = (Path(base) / "lexos" / "mode").read_text(encoding="utf-8").strip()
+    except OSError:
+        return "sombre"
+    #  Tout ce qui n'est pas explicitement « clair » reste sombre : un fichier
+    #  vide, tronqué ou écrit par une version future ne doit pas blanchir
+    #  l'écran d'un coup.
+    return "clair" if valeur == "clair" else "sombre"
+
 def _sortie(argv, *, timeout=15):
     """La sortie d'une commande, ou une chaîne vide. Ne lève jamais."""
     if shutil.which(argv[0]) is None:
@@ -839,7 +858,7 @@ def main():
 
     vue = QWebEngineView(fenetre)
     fenetre.setCentralWidget(vue)
-    vue.load(QUrl(f"http://127.0.0.1:{port}/index.html"))
+    vue.load(QUrl(f"http://127.0.0.1:{port}/index.html?mode={_mode_apparence()}"))
     fenetre.show()
 
     code = app.exec()

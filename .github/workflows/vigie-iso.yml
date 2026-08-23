@@ -28,7 +28,12 @@ name: Vigie — correctifs ISO non construits
 
 on:
   schedule:
-    - cron: '0 13 * * *'   # tous les jours à 13 h UTC (9 h chez Alex)
+    #  DEUX FOIS PAR JOUR, ET C'EST VOULU. Avec une seule exécution le matin,
+    #  un correctif retenu le soir dormait jusqu'au lendemain 9 h — or c'est
+    #  le soir qu'on travaille, et donc le soir qu'on retient. La seconde
+    #  passe ramène le pire cas de 24 h à environ 12 h.
+    - cron: '0 13 * * *'   # 13 h UTC — 9 h chez Alex
+    - cron: '0 01 * * *'   #  1 h UTC — 21 h chez Alex, le soir même
   workflow_dispatch:
 
 permissions:
@@ -53,11 +58,27 @@ jobs:
           CHEMINS='^(\.iso-build-request|\.github/workflows/build-iso\.yml|build\.sh|lexos\.conf|config/|flavours/|branding/|auto/)'
 
           #  Le dernier build d'ISO réussi, toutes branches confondues.
+          #  LE REPLI, ET LE PIÈGE QU'IL CACHAIT. Il valait « HEAD~50..HEAD »
+          #  en dur. Sur un dépôt de moins de 50 commits, git rev-list échoue,
+          #  l'erreur part dans /dev/null, la boucle ne tourne sur RIEN — et la
+          #  vigie annonce « rien ne dort » en n'ayant rien regardé. Une vigie
+          #  qui se déclare verte sans avoir ouvert les yeux est pire qu'une
+          #  vigie absente : on lui fait confiance. Trouvé sur un banc, en la
+          #  faisant tourner sur une petite histoire fabriquée exprès.
+          repli() {
+            if git rev-parse --verify -q HEAD~50 >/dev/null 2>&1; then
+              printf 'HEAD~50..HEAD'
+            else
+              echo "Moins de 50 commits dans ce dépôt — on inspecte TOUTE l'histoire." >&2
+              printf 'HEAD'
+            fi
+          }
+
           DERNIER="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build-iso.yml/runs?status=success&per_page=1" \
                      --jq '.workflow_runs[0].head_sha' 2>/dev/null || true)"
           if [ -z "$DERNIER" ] || [ "$DERNIER" = "null" ]; then
             echo "::warning::aucun build d'ISO réussi trouvé — vigie sans point de départ, on regarde les 50 derniers commits."
-            PLAGE="HEAD~50..HEAD"
+            PLAGE="$(repli)"
           elif git merge-base --is-ancestor "$DERNIER" HEAD 2>/dev/null; then
             PLAGE="${DERNIER}..HEAD"
             echo "Dernier build réussi : ${DERNIER} — on inspecte ce qui est venu après."
@@ -65,18 +86,45 @@ jobs:
             #  Réécriture d'historique entre-temps : on retombe sur une
             #  fenêtre fixe plutôt que de ne rien vérifier du tout.
             echo "::warning::le commit du dernier build (${DERNIER}) n'est pas un ancêtre de HEAD — fenêtre de repli : 50 commits."
-            PLAGE="HEAD~50..HEAD"
+            PLAGE="$(repli)"
+          fi
+
+          COMMITS="$(git rev-list "$PLAGE" 2>/dev/null || true)"
+          NB="$(printf '%s' "$COMMITS" | grep -c . || true)"
+          echo "${NB} commit(s) à inspecter sur la plage « ${PLAGE} »."
+          if [ "$NB" = "0" ] && [ "$PLAGE" != "${DERNIER}..HEAD" ]; then
+            echo "::error::la plage « ${PLAGE} » n'a produit aucun commit — la vigie n'a rien pu regarder. Ne pas lire ce résultat comme « tout va bien »."
+            exit 1
           fi
 
           MAUVAIS=0
-          for C in $(git rev-list "$PLAGE" 2>/dev/null); do
+          for C in $COMMITS; do
             SUJET="$(git log -1 --format=%B "$C")"
             #  Les variantes que GitHub reconnaît, toutes.
             printf '%s' "$SUJET" | grep -qiE '\[(skip[ -]ci|ci[ -]skip|no[ -]ci|skip[ -]actions|actions[ -]skip)\]' || continue
             git diff-tree --no-commit-id --name-only -r "$C" | grep -qE "$CHEMINS" || continue
             MAUVAIS=$((MAUVAIS + 1))
             TITRE="$(git log -1 --format=%s "$C")"
-            echo "::error::${C:0:9} « ${TITRE} » touche à l'ISO mais porte le mot-clé de saut : la construction n'a pas eu lieu, l'ISO publiée n'a PAS ce changement."
+
+            #  LE PIRE CAS, NOMMÉ À PART : le commit incrémente « build: » ET
+            #  porte le mot-clé. Là, quelqu'un a VOULU une ISO — il a monté le
+            #  compteur — et il n'en aura pas. Aucune erreur, aucun message,
+            #  rien dans l'onglet Actions : on attend une construction qui
+            #  n'existe pas. C'est mot pour mot ce qui est arrivé au build 66.
+            #
+            #  Un audit a proposé d'attraper ça par un contrôle dans ci.yml.
+            #  Ça ne peut pas marcher, et c'est écrit en tête de ce fichier :
+            #  le mot-clé désactive les workflows « push », donc le contrôle
+            #  ne s'exécuterait justement pas dans le cas qu'il vise. Il n'y a
+            #  que d'ici — sur horaire — qu'on peut le voir.
+            if git diff-tree --no-commit-id -r "$C" -- .iso-build-request 2>/dev/null \
+               | grep -q '\.iso-build-request' \
+               && git show "$C" -- .iso-build-request 2>/dev/null \
+               | grep -qE '^\+build:[[:space:]]*[0-9]+'; then
+              echo "::error::${C:0:9} « ${TITRE} » MONTE LE COMPTEUR « build: » ET porte le mot-clé de saut. Quelqu'un a demandé une ISO et n'en aura pas : GitHub n'a lancé AUCUNE exécution, sans le dire. C'est l'histoire du build 66."
+            else
+              echo "::error::${C:0:9} « ${TITRE} » touche à l'ISO mais porte le mot-clé de saut : la construction n'a pas eu lieu, l'ISO publiée n'a PAS ce changement."
+            fi
           done
 
           if [ "$MAUVAIS" -gt 0 ]; then

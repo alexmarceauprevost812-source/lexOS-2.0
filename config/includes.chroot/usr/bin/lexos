@@ -230,7 +230,7 @@ ${B}ACCESSIBILITÉ${R}
   ${A}access${R}              Ce qui est actif : voix, loupe, contraste
   ${A}access lecteur on${R}   Lecteur d'écran ${D}(Orca — lit ce qui est à l'écran)${R}
   ${A}access clavier on${R}   Clavier visuel à la souris ${D}(onboard)${R}
-  ${A}access loupe on${R}     Agrandir une zone de l'écran
+  ${A}access loupe on${R}     Agrandir une zone de l'écran (ou Super++)
 
 ${B}UTILISATEURS${R}
   ${A}utilisateurs${R}        Les comptes de cette machine

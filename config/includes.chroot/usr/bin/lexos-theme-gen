@@ -96,16 +96,41 @@ ACCENT_NAME="${ACCENT_NAME,,}"
 #  L'ancienne formule (299r+587g+114b > 150) choisissait le blanc sur le bleu
 #  et sur l'orange, où le noir contraste pourtant nettement mieux : mesuré,
 #  ça donnait 3,3 au lieu de 5,4 — sous le seuil lisible de 4,5.
+#  ON EN A FAIT UNE FONCTION, ET PAS PAR GOÛT DU RANGEMENT. Le calcul ne
+#  servait qu'à l'accent ; deux boutons y échappaient — « action conseillée »
+#  et « suppression » — qui posent un FOND sans jamais poser de couleur de
+#  texte. Ils héritaient donc de celle de l'accent : sur un accent bleu, du
+#  BLANC se retrouvait sur le rouge #E5484D du bouton de suppression, à 3,9:1.
+#  Trouvé par le banc des boutons, pas à l'œil : la règle a l'air correcte
+#  isolément, c'est la cascade qui la trahit.
+texte_lisible() {   # <#rrggbb> → #000000 ou #FFFFFF, celui qui contraste le mieux
+	local h="${1#\#}" rr gg bb sortie
+	rr=$((16#${h:0:2})); gg=$((16#${h:2:2})); bb=$((16#${h:4:2}))
+	sortie="$(awk -v r="$rr" -v g="$gg" -v b="$bb" '
+		function lin(v){ v/=255; return (v<=0.03928) ? v/12.92 : ((v+0.055)/1.055)^2.4 }
+		BEGIN{
+			L  = 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)
+			cw = 1.05 / (L + 0.05)      # contraste du blanc
+			cb = (L + 0.05) / 0.05      # contraste du noir
+			print (cb >= cw) ? "#000000" : "#FFFFFF"
+		}')"
+	printf '%s' "${sortie:-#FFFFFF}"   # filet si awk venait à manquer
+}
+
+BTN_FG="$(texte_lisible "$ACCENT")"
+
+#  r, g, b restent nécessaires ailleurs : bloc_panneau() traduit les rgba() du
+#  squelette avec « ${r}, ${g}, ${b} ». Les avoir fondus dans texte_lisible()
+#  les a fait disparaître d'ici — et le générateur s'est arrêté sur « r :
+#  variable sans valeur ». Attrapé par le banc des boutons, qui n'a plus rien
+#  eu à mesurer : une feuille absente est aussi parlante qu'une feuille fausse,
+#  à condition que quelqu'un la réclame.
 r=$((16#${ACCENT:1:2})); g=$((16#${ACCENT:3:2})); b=$((16#${ACCENT:5:2}))
-BTN_FG="$(awk -v r="$r" -v g="$g" -v b="$b" '
-	function lin(v){ v/=255; return (v<=0.03928) ? v/12.92 : ((v+0.055)/1.055)^2.4 }
-	BEGIN{
-		L  = 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)
-		cw = 1.05 / (L + 0.05)      # contraste du blanc
-		cb = (L + 0.05) / 0.05      # contraste du noir
-		print (cb >= cw) ? "#000000" : "#FFFFFF"
-	}')"
-[[ -n "$BTN_FG" ]] || BTN_FG="#FFFFFF"   # filet si awk venait à manquer
+
+#  Le rouge du bouton de suppression ne dépend pas de l'accent : il dit
+#  « attention », et cette couleur-là ne se choisit pas. Son texte, si.
+DANGER="#E5484D"
+DANGER_FG="$(texte_lisible "$DANGER")"
 TERM_BG="#000000"       # le terminal reste toujours noir, même en thème de jour
 #  Vert FONCÉ, et non le vert néon d'avant : c'est la couleur de tout ce que
 #  la machine répond. Le néon (#39FF14) reste ce qu'il a toujours été —
@@ -269,6 +294,48 @@ window button:disabled, dialog button:disabled {
     border-color: ${BORDER};
 }
 
+/* --- LE TEXTE DU BOUTON, ET LE NOIR QUI TRAÎNAIT DERRIÈRE -----------------
+   PHOTO D'ALEX, FENÊTRE DE BIENVENUE : « il y a du noir sur les boutons
+   orange (…) bouton orange et le texte en noir ». Le libellé était posé sur
+   un rectangle noir à l'intérieur du bouton, au lieu d'être écrit à même
+   l'orange.
+
+   DEUX CAUSES, ET ELLES SONT DANS CE FICHIER.
+
+   1. « color: ${FG} » PLUS HAUT ARROSE TOUS LES LIBELLÉS, y compris ceux qui
+      sont DANS un bouton. Le bouton demandait bien ${BTN_FG} (noir, calculé
+      pour donner 6,1:1 sur l'orange) — mais son enfant « label » portait sa
+      propre couleur blanche, et un enfant qui a sa couleur n'hérite pas.
+      Le sélecteur « label » est un type, il gagne sur l'héritage sans même
+      avoir à être plus précis. D'où du texte BLANC sur orange : 3,4:1, sous
+      le seuil lisible, et pas ce qu'Alex a demandé.
+
+   2. LES ENFANTS DU BOUTON GARDAIENT LEUR FOND. GTK bâtit un bouton comme
+      button > label, ou button > box > (image + label). Peindre le bouton ne
+      repeint pas ses enfants : le fond sombre que le thème de base dessine
+      sur la boîte interne restait, et c'est LUI le rectangle noir de la
+      photo. On le retire explicitement.
+
+   « inherit » plutôt que ${BTN_FG} en dur : les boutons de STRUCTURE plus bas
+   demandent ${FG} et leurs libellés doivent suivre CE choix-là. Une couleur
+   écrite en dur ici les casserait tous. */
+window button label, dialog button label, messagedialog button label,
+headerbar button label, .titlebar button label, toolbar button label,
+actionbar button label, popover button label, infobar button label,
+.dialog-action-area button label, .linked > button label,
+combobox button label, spinbutton button label, treeview header button label,
+.path-bar button label, button.flat label, button.titlebutton label {
+    color: inherit;
+    text-shadow: none;
+}
+button > label, button > box, button > box > label, button > box > image,
+button contents, button > contents {
+    background-image: none;
+    background-color: transparent;
+    box-shadow: none;
+    border: none;
+}
+
 /* --- Les boutons de STRUCTURE ne sont pas des boutons --------------------
    Une liste déroulante, une flèche de compteur, un en-tête de colonne, un
    bouton de barre de chemin : GTK les bâtit avec des « button » internes,
@@ -321,8 +388,22 @@ button.flat:hover, button.titlebutton:hover {
     background-color: ${BG_HI};
     border-color: ${BORDER};
 }
-button.destructive-action { background-color: #E5484D; border-color: #A32B2F; }
-button.suggested-action   { background-color: ${ACCENT}; border-color: ${ACCENT_LO}; }
+/*  CES DEUX-LÀ POSAIENT UN FOND SANS COULEUR DE TEXTE, et récupéraient donc
+    celle de l'accent : sur un accent bleu, du blanc atterrissait sur le rouge
+    du bouton de suppression — 3,9:1, sous le seuil. Chacun porte maintenant
+    la sienne, calculée sur SON fond. */
+button.destructive-action, button.destructive-action label {
+    background-color: ${DANGER};
+    color: ${DANGER_FG};
+    border-color: #A32B2F;
+}
+button.destructive-action label { background-color: transparent; }
+button.suggested-action, button.suggested-action label {
+    background-color: ${ACCENT};
+    color: ${BTN_FG};
+    border-color: ${ACCENT_LO};
+}
+button.suggested-action label { background-color: transparent; }
 
 /* --- Champs de saisie ---------------------------------------------------- */
 entry, spinbutton, .entry, searchbar entry {

@@ -60,6 +60,8 @@ Usage :
   $PROG lecteur on|off       Lecteur d'écran Orca (lit l'écran à voix haute)
   $PROG clavier on|off       Clavier visuel Onboard (saisie à la souris)
   $PROG loupe on|off         Loupe d'écran (magnus — suit le pointeur)
+                             Raccourci : Super++ (ou Super+=) pour l'ouvrir,
+                             Super+- pour la fermer. Rien à taper.
   $PROG contraste on|off     Thème à contraste élevé
   $PROG gros-texte on|off    Texte agrandi — le facteur suit l'écran
   $PROG gros-texte on 130    Ton pourcentage à toi (100 à 200)
@@ -538,6 +540,15 @@ gros_texte() {
 			#  Le chemin du retour, écrit AVANT d'agir : si l'écran devient
 			#  difficile à lire, la commande qui répare est déjà affichée.
 			say "Pour revenir en arrière : lexos access gros-texte off"
+
+			#  ET LA LOUPE, PROPOSÉE ICI PARCE QUE C'EST ICI QUE ÇA FAIT MAL.
+			#  Le symptôme d'origine d'Alex : agrandir le texte pousse les
+			#  boutons des boîtes de dialogue sous le bord de l'écran. Quand on
+			#  lui a demandé ce qu'il voulait — la loupe ou des fenêtres
+			#  bornées — il a répondu la loupe. C'est donc la réponse
+			#  principale, et le gros texte n'est plus que le plan B. Autant le
+			#  dire au moment exact où quelqu'un choisit le plan B.
+			astuce "Pour agrandir SANS déplacer les fenêtres : Super++ ouvre la loupe."
 
 			nouvelle="$(police_agrandie "$base" "$facteur")" || {
 				warn "Police « $base » : taille illisible, agrandissement impossible."

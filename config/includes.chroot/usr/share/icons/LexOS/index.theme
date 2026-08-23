@@ -13,6 +13,24 @@
 #  orange marquées DL, IMG, DOC, MUS, VID, PROJ. C'est la première chose
 #  qu'on voit en ouvrant Fichiers, et c'était la seule qui ne se
 #  ressemblait pas d'un côté à l'autre.
+#
+#  LES NOMS QUE GTK DEMANDE NE SONT PAS CEUX QU'ON CROIT.
+#  Photo d'Alex : « Bureau » et « Desktop » BLEUS dans Fichiers, à côté de
+#  poches orange. Le thème n'y pouvait rien — GTK ne demande pas
+#  « folder-desktop » pour le bureau, il demande « user-desktop » ; et
+#  « user-home » pour le dossier personnel. Deux noms que ce thème ne portait
+#  pas : la chaîne d'héritage continuait donc jusqu'à Papirus-Dark, qui les a,
+#  en bleu. Aucune erreur nulle part — juste deux dossiers de la mauvaise
+#  couleur, et personne pour dire pourquoi.
+#
+#  Les alias sont des liens symboliques vers le dossier générique. Pas un
+#  dessin de plus à tenir à jour, et le bureau cesse d'être le seul dossier
+#  bleu de la maison. Sont couverts, en plus des sept :
+#      user-home, user-desktop          — GTK, pour ~ et le Bureau
+#      folder-publicshare, -templates   — les deux autres dossiers XDG
+#      folder-downloads (au pluriel)    — selon l'application qui demande
+#      folder-images, folder-video      — mêmes dossiers, autres écritures
+#  Un contrôle de CI vérifie qu'aucun de ces noms ne redisparaît.
 # =============================================================================
 [Icon Theme]
 Name=LexOS

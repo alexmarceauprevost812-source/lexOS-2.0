@@ -1,0 +1,92 @@
+# =============================================================================
+#  Thunar — la disposition de Fichiers dans LexOS
+# =============================================================================
+#  POURQUOI CE FICHIER N'EXISTAIT PAS, ET CE QUE ÇA COÛTAIT.
+#
+#  Alex : « les fichiers sont pas pareils » entre la démo web et l'ISO. On a
+#  d'abord soupçonné la couleur — à tort : le squelette porte bien les règles
+#  de sélection orange (.thunar iconview:selected), et elles marchent.
+#
+#  Ce qui manquait, c'était TOUTE la disposition. Le hook 0400 crée
+#  /etc/skel/.config/Thunar et n'y écrivait QUE uca.xml, les actions du clic
+#  droit. Aucun thunarrc, nulle part dans le dépôt. Thunar démarrait donc sur
+#  les réglages d'usine de XFCE : barre de menus classique, panneau latéral au
+#  hasard, taille d'icônes au hasard. Rien de ce que la démo montre.
+#
+#  CE QU'ON PEUT ATTEINDRE, ET CE QU'ON NE PEUT PAS. La démo est une page web ;
+#  Thunar est un logiciel GTK. Le menu « ⋮ » à la GNOME et le fil d'Ariane
+#  arrondi de la démo n'existent pas dans Thunar et ne s'y ajoutent pas sans
+#  écrire un greffon en C. On s'approche — densité, absence de barre de menus,
+#  vue et zoom fixés, panneau latéral — sans prétendre copier au pixel. Mieux
+#  vaut livrer les huit dixièmes atteignables que d'en annoncer dix.
+#
+#  ═══ CE QUI EST VÉRIFIÉ ET CE QUI NE L'EST PAS ═══
+#
+#  Ces clés sont celles que Thunar écrit lui-même dans ~/.config/Thunar/thunarrc
+#  quand on règle la fenêtre à la main ; elles n'ont pas bougé depuis Thunar 1.x.
+#  MAIS on n'a pas pu les éprouver sur une machine depuis ce dépôt : il n'y a
+#  ni Thunar ni serveur graphique dans le conteneur de construction.
+#
+#  Le risque, s'il faut le nommer : une clé qu'une version ne connaît pas est
+#  IGNORÉE EN SILENCE. Le fichier serait livré, lu, et sans effet — exactement
+#  le genre de correctif qui a l'air fait. La seule vérification qui vaille est
+#  d'ouvrir Fichiers sur l'ISO et de regarder. Si une ligne ne prend pas, la
+#  méthode est simple : régler la fenêtre à la main, puis comparer ce que
+#  Thunar a écrit dans ~/.config/Thunar/thunarrc avec ce fichier-ci. C'est lui,
+#  la source fiable — pas cette page.
+#
+#  Rien ici n'est destructif : au pire, Thunar garde son réglage d'usine.
+# =============================================================================
+[Configuration]
+
+#  VUE PAR DÉFAUT : la liste d'icônes, comme la démo. « ThunarIconView » est
+#  le nom de classe interne — c'est sous cette forme que Thunar l'écrit.
+DefaultView=ThunarIconView
+LastView=ThunarIconView
+
+#  TAILLE DES ICÔNES. La démo montre des dossiers larges et espacés ; le
+#  réglage d'usine est plus petit. THUNAR_ZOOM_LEVEL_100_PERCENT est le
+#  cran médian, celui qui rend les poches orange lisibles sans les rendre
+#  énormes.
+LastIconViewZoomLevel=THUNAR_ZOOM_LEVEL_100_PERCENT
+LastDetailsViewZoomLevel=THUNAR_ZOOM_LEVEL_38_PERCENT
+
+#  PAS DE BARRE DE MENUS. C'est la différence la plus visible avec la démo :
+#  « Fichier Édition Affichage Aller Favoris Aide » en haut de la fenêtre,
+#  là où la démo n'a qu'une barre mince. Thunar range alors ces menus dans le
+#  bouton hamburger de sa barre d'outils — le plus proche du « ⋮ » de la démo
+#  qu'on puisse obtenir sans écrire de greffon.
+#
+#  ET LA PORTE DE SORTIE, QUI COMPTE AUTANT QUE LE RÉGLAGE : Ctrl+M ramène la
+#  barre de menus. Sans elle, quelqu'un qui cherche « Affichage » ne le
+#  trouverait plus et n'aurait aucun moyen de le savoir.
+LastMenubarVisible=FALSE
+
+#  PANNEAU LATÉRAL : les raccourcis (Bureau, Documents, Images…), comme la
+#  démo. 170 px laisse lire « Téléchargements » en entier — le réglage
+#  d'usine le coupe.
+LastSidepaneType=ThunarShortcutsPane
+LastSeparatorPosition=170
+
+#  BARRE DE CHEMIN EN BOUTONS plutôt qu'en zone de saisie : c'est le fil
+#  d'Ariane de la démo. Il ne sera pas arrondi comme elle — Thunar dessine ses
+#  boutons avec le thème — mais c'est la même façon de se déplacer.
+LastLocationBar=ThunarLocationButtons
+
+#  Une taille de fenêtre qui tient sur le ThinkPad d'Alex (1366 x 768) sans
+#  déborder, et qui reste confortable sur plus grand.
+LastWindowWidth=1100
+LastWindowHeight=700
+LastWindowMaximized=FALSE
+
+#  DEUX HABITUDES DE LA DÉMO. Le double-clic reste le défaut : le simple clic
+#  surprend quiconque vient de Windows, et Alex n'a rien demandé de tel.
+MiscSingleClick=FALSE
+#  Les dossiers d'abord, puis les fichiers — c'est l'ordre de la démo.
+MiscFoldersFirst=TRUE
+#  Les tailles en Go/Mo décimaux, comme les disques les annoncent.
+MiscFileSizeBinary=FALSE
+#  L'aperçu des images DANS l'icône du fichier : c'est ce qui donne à la démo
+#  son dossier Images vivant. « local-only » : jamais sur un partage réseau,
+#  où lire chaque fichier pour en faire une vignette gèlerait la fenêtre.
+MiscThumbnailMode=THUNAR_THUMBNAIL_MODE_ONLY_LOCAL

@@ -500,7 +500,11 @@ async function setPerf(p){
 async function setLum(n){ await api("lumiere", n); }
 async function setTheme(t){
   const r = await api("theme", t);
-  if(r.ok){ etat.theme = t; rendSection(); toast("Thème : " + t); }
+  //  appliqueApparence() manquait ICI, et seulement ici : setPolice et
+  //  setAccent l'appellent tous les deux depuis toujours. C'est ce qui rendait
+  //  le mode clair invisible dans cette fenêtre — le bureau changeait, les
+  //  Paramètres restaient noirs.
+  if(r.ok){ etat.theme = t; appliqueApparence(); rendSection(); toast("Thème : " + t); }
 }
 async function setPolice(p){
   const r = await api("police", p);
@@ -1591,6 +1595,14 @@ function appliqueApparence(){
     //  garderait un survol orange — le défaut se verrait au premier bouton.
     r.setProperty("--ac-hi", eclaircir(ac, 0.22));
   }
+  //  LE MODE, À CHAUD. La page reçoit déjà le mode par ?mode= au démarrage
+  //  (le lanceur lit ~/.config/lexos/mode). Mais c'est ICI qu'on en change :
+  //  cliquer « ☀ Clair » sans cette ligne repeignait tout le bureau et
+  //  laissait CETTE fenêtre-là noire, la seule qu'Alex regardait à ce
+  //  moment précis. etat.theme vient de /api/etat, qui l'expose depuis
+  //  toujours sous cette clé — rien de nouveau à brancher.
+  if(etat.theme === "clair"){ document.documentElement.dataset.mode = "clair"; }
+  else { delete document.documentElement.dataset.mode; }
 }
 /*  Éclaircir une couleur #rrggbb vers le blanc, d'une fraction donnée.
     Calcul plutôt que table : un accent ajouté un jour aura son survol

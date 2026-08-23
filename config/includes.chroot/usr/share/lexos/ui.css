@@ -32,14 +32,24 @@
    ============================================================================= */
 
 :root{
-  /* --- Fonds et texte — la palette « LexOS Noir » ------------------------- */
-  --bg:#161311;        /* le fond de la fenêtre                              */
-  --bg-side:#1D1916;   /* la barre latérale, à peine détachée du fond        */
-  --bg-alt:#1D1916;    /* alias de --bg-side, pour les panneaux qui le nomment ainsi */
-  --bg-hi:#2A241F;     /* survol, champs, zones en relief                    */
-  --fg:#EDE6DF;        /* le texte                                           */
-  --fg-dim:#A99F94;    /* le texte secondaire — toujours lisible, jamais gris souris */
-  --bd:#3A322B;        /* les bordures                                       */
+  /* --- Fonds et texte — « LexOS Noir », LES MÊMES VALEURS QUE LE BUREAU ---
+     CE QUI A ÉTÉ CORRIGÉ ICI, ET POURQUOI ALEX L'AVAIT VU AVANT NOUS.
+     « Le côté graphique de la démo n'est pas celui de l'ISO. » Il avait
+     raison, et voici où : cette palette était brun chaud (#161311 / #EDE6DF)
+     alors que le thème GTK ET la démo web sont en NOIR PUR, à la valeur près.
+     Sur la même machine, une fenêtre Thunar était noire à texte blanc, et les
+     Paramètres — qui sont un panneau web — bruns à texte crème. Côte à côte,
+     ça ne va pas ensemble.
+     Les six valeurs viennent maintenant du mode sombre de lexos-theme-gen,
+     qui est aussi celui de web-demo/index.html. Un contrôle de CI vérifie que
+     les trois ne redivergent plus. */
+  --bg:#000000;        /* le fond de la fenêtre                              */
+  --bg-side:#0A0A0B;   /* la barre latérale, à peine détachée du fond        */
+  --bg-alt:#0A0A0B;    /* alias de --bg-side, pour les panneaux qui le nomment ainsi */
+  --bg-hi:#141416;     /* survol, champs, zones en relief                    */
+  --fg:#FFFFFF;        /* le texte                                           */
+  --fg-dim:#B8B8BC;    /* le texte secondaire — toujours lisible, jamais gris souris */
+  --bd:#232326;        /* les bordures                                       */
 
   /* --- L'accent ----------------------------------------------------------
      #E8590C est l'orange de LexOS. Il vient de LEXOS_ACCENT_NAME dans
@@ -47,7 +57,14 @@
      var(--ac), jamais le code hexadécimal. */
   --ac:#E8590C;
   --ac-hi:#FF7A33;     /* survol : le même, éclairci                         */
-  --ac-lo:#5a2a0c;     /* fonds teintés, liserés discrets                    */
+  /*  --ac-lo VALAIT #5a2a0c ICI ET #A84007 DANS LA DÉMO. On a regardé à quoi
+      il sert avant de trancher, comme demandé : un seul emploi, le liseré de
+      l'encadré .notice du panneau IA, posé sur un fond orange très sombre.
+      Mesuré : #5a2a0c donne 1,6:1 de contraste sur ce fond — un trait qu'on
+      devine à peine ; #A84007 en donne 3,07:1. Ce n'est donc pas « deux rôles
+      différents », c'est la même intention mal servie d'un côté. On prend la
+      valeur de la démo, qui fait mieux le travail décrit par le commentaire. */
+  --ac-lo:#A84007;     /* fonds teintés, liserés discrets                    */
   --ac-txt:#000;       /* CE QU'ON ÉCRIT SUR L'ACCENT. Noir, pas blanc :
                           blanc sur #E8590C donne 3,4:1 de contraste — sous
                           le seuil lisible ; noir donne 6,1:1.               */
@@ -69,8 +86,8 @@
      Les trois panneaux employaient --ok/--warn/--off d'un côté et
      --ok/--att/--non de l'autre. On garde les deux écritures le temps de la
      transition, avec la même valeur : personne ne casse en attendant. */
-  --ok:#2DBF6B;   --warn:#F5A623;  --off:#D8352E;
-  --att:#F5A623;  --non:#D8352E;
+  --ok:#22C55E;   --warn:#F59E0B;  --off:#EF4444;
+  --att:#F59E0B;  --non:#EF4444;
 
   /* --- Formes ------------------------------------------------------------- */
   --rayon:8px;         /* cartes, champs, blocs                              */
@@ -81,4 +98,45 @@
      Remplacée à chaud par appliqueApparence() quand on choisit « Manuscrite »
      dans Apparence : ce fichier n'est qu'un repli. */
   --police:"Noto Sans","DejaVu Sans",sans-serif;
+}
+
+/* =============================================================================
+   LE MODE CLAIR — il n'existait pas, et ça se voyait du premier coup d'œil
+   =============================================================================
+   « lexos theme clair » fait passer les fenêtres GTK en crème. Les trois
+   panneaux web, eux, restaient NOIRS : les Paramètres, l'IA et le volet
+   ouverts sur un bureau clair, en négatif du reste. Personne ne l'avait
+   signalé parce que le mode clair est peu employé — le défaut était là quand
+   même.
+
+   COMMENT LE PANNEAU APPREND LE MODE. On n'invente pas de chemin : il en
+   existait déjà un. lexos-theme-gen écrit le mode dans ~/.config/lexos/mode
+   depuis toujours, et les Paramètres l'exposent déjà dans /api/etat sous la
+   clé « theme ». Chaque lanceur Python lit ce fichier et ajoute ?mode=… à
+   l'adresse du panneau ; trois lignes en tête d'index.html posent l'attribut
+   sur <html>. Les Paramètres, en plus, le remettent à jour à chaud dans
+   appliqueApparence() — changer de mode DANS les Paramètres se voit tout de
+   suite, sans rouvrir la fenêtre.
+
+   LES VALEURS viennent du bloc « clair » de lexos-theme-gen, comme celles du
+   sombre viennent du bloc « sombre ». Aucune n'est inventée ici.
+
+   CE QUI NE CHANGE PAS D'UN MODE À L'AUTRE : l'accent (c'est le même orange
+   sur les deux fonds), --ac-txt (noir sur l'orange dans les deux cas — c'est
+   le contraste 6,1:1 mesuré plus haut), et --ac-halo, qui se dérive tout seul.
+   ============================================================================= */
+:root[data-mode="clair"]{
+  --bg:#F7F5F0;        /* blanc cassé, jamais blanc pur                       */
+  --bg-side:#EFEBE3;
+  --bg-alt:#EFEBE3;
+  --bg-hi:#E5DFD3;
+  --fg:#1B1A17;
+  --fg-dim:#6B675E;
+  --bd:#D9D2C3;
+
+  /*  Les états gagnent un cran de profondeur : le vert et l'ambre de la démo
+      sont réglés pour un fond noir ; posés sur du crème, ils passent du gris
+      pâle à l'œil. Mêmes teintes, assombries — pas d'autres couleurs. */
+  --ok:#15803D;   --warn:#B45309;  --off:#B91C1C;
+  --att:#B45309;  --non:#B91C1C;
 }

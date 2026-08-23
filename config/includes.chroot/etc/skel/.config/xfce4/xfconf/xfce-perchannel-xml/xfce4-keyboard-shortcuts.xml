@@ -70,6 +70,33 @@
       <property name="&lt;Super&gt;d"       type="string" value="lexos-display gui"/>
       <property name="XF86Display"          type="string" value="lexos-display gui"/>
       <property name="XF86WLAN"             type="string" value="lexos-net avion toggle"/>
+
+      <!-- LA LOUPE. C'est ce qu'Alex a choisi quand on lui a demandé ce que
+           voulait dire « la fenêtre reste à sa place, juste le reste zoome » :
+           la loupe, pas les fenêtres bornées.
+
+           Tout le travail de fond était déjà fait — « lexos access loupe on »
+           essaie magnus, puis kmag, refuse proprement sous Wayland, et ferme
+           tout au « off ». Le paquet voyage dans l'ISO (56-reglages.list).
+           Il manquait seulement le moyen de l'ATTEINDRE : il fallait ouvrir
+           un terminal et taper la commande. Pour une fonction d'accessibilité
+           c'est à l'envers — celui qui a besoin d'une loupe pour lire l'écran
+           est exactement celui qui n'arrivera pas à lire un terminal.
+
+           DEUX TOUCHES POUR LA MÊME CHOSE, ET CE N'EST PAS UN OUBLI. Alex est
+           sur un clavier québécois : le « + » n'y est pas une touche, c'est
+           Maj+=. Un raccourci lié au seul symbole « plus » peut donc ne
+           jamais se déclencher — livré, lu par XFCE, et sans effet. On lie
+           les deux formes plutôt que de parier sur une seule. « equal » est
+           la touche physique, « plus » le symbole : selon la disposition,
+           c'est l'une ou l'autre qui arrive.
+
+           À VÉRIFIER SUR LA MACHINE : laquelle des deux répond réellement
+           sous une disposition québécoise. Les deux sont posées pour que ça
+           marche dans tous les cas, pas parce qu'on sait laquelle sert. -->
+      <property name="&lt;Super&gt;plus"    type="string" value="lexos access loupe on"/>
+      <property name="&lt;Super&gt;equal"   type="string" value="lexos access loupe on"/>
+      <property name="&lt;Super&gt;minus"   type="string" value="lexos access loupe off"/>
     </property>
   </property>
 

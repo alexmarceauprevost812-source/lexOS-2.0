@@ -380,6 +380,155 @@ jobs:
           [ "$bad" = "0" ] && echo "  ok — l'accent n'est défini que dans ui.css, et les trois panneaux y sont reliés"
           exit $bad
 
+      - name: La palette des panneaux est celle du bureau
+        run: |
+          #  CE QUE CE CONTRÔLE PROTÈGE, ET POURQUOI IL EXISTE.
+          #
+          #  Alex, après avoir démarré la 71 : « le côté graphique de la démo
+          #  n'est pas celui de l'ISO ». Il avait raison. Relevé ce jour-là :
+          #
+          #      variable      démo       thème GTK    ui.css
+          #      fond          #000       #000000      #161311
+          #      texte         #fff       #FFFFFF      #EDE6DF
+          #      bordure       #232326    #232326      #3A322B
+          #
+          #  La démo et le thème GTK étaient identiques VALEUR POUR VALEUR ;
+          #  c'est ui.css qui était parti tout seul sur un brun chaud. À
+          #  l'écran : une fenêtre Thunar noire à texte blanc, et les
+          #  Paramètres — qui sont un panneau web — bruns à texte crème, sur
+          #  la même machine, côte à côte.
+          #
+          #  Les valeurs sont alignées maintenant. Ce contrôle est là parce que
+          #  la divergence ne revient jamais d'un coup : elle revient une
+          #  variable à la fois, chacune raisonnable sur le moment. C'est déjà
+          #  arrivé une fois — sans garde-fou, ça arrivera deux.
+          UI="config/includes.chroot/usr/share/lexos/ui.css"
+          GEN="config/includes.chroot/usr/bin/lexos-theme-gen"
+          DEMO="web-demo/index.html"
+          for f in "$UI" "$GEN" "$DEMO"; do
+            [ -r "$f" ] || { echo "::error::$f introuvable"; exit 1; }
+          done
+
+          #  LA SOURCE DE VÉRITÉ EST lexos-theme-gen : c'est lui qui peint le
+          #  bureau. La démo et ui.css doivent le suivre, pas l'inverse.
+          #  On extrait au grep -oE plutôt qu'au sed à groupes : la première
+          #  version de ce contrôle employait des références arrière, et
+          #  l'échappement s'est perdu entre le YAML et le shell — le contrôle
+          #  annonçait « valeur illisible » sur des valeurs parfaitement
+          #  lisibles. Un contrôle qui se trompe sur du code juste finit
+          #  désactivé aussi sûrement qu'un contrôle absent.
+          hex1() { grep -oE '#[0-9A-Fa-f]{6}' | head -1; }
+
+          val_gen()       { sed -n '/^else$/,/^fi$/p' "$GEN" | grep -m1 "^[[:space:]]*$1=" | hex1; }
+          val_gen_clair() { sed -n '/MODE. == .clair/,/^else$/p' "$GEN" | grep -m1 "^[[:space:]]*$1=" | hex1; }
+          val_ui()        { grep -m1 -- "^  --$1:" "$UI" | hex1; }
+          val_ui_clair()  { sed -n '/data-mode="clair"/,/^}/p' "$UI" | grep -m1 -- "^  --$1:" | hex1; }
+
+          #  #000 et #000000 sont la même couleur : la démo écrit court. On
+          #  développe avant de comparer, sinon le contrôle hurlerait sur une
+          #  écriture parfaitement valide.
+          val_demo() {
+            v="$(grep -oE -- "--$1:[[:space:]]*#[0-9A-Fa-f]{3,6}" "$DEMO" | head -1 | grep -oE '#[0-9A-Fa-f]{3,6}')"
+            if [ "${#v}" = "4" ]; then
+              printf '#%s%s%s%s%s%s' "${v#\#}" "$(printf '%s' "$v" | cut -c2)" "" "" "" "" >/dev/null
+              a="$(printf '%s' "$v" | cut -c2)"; b="$(printf '%s' "$v" | cut -c3)"; c="$(printf '%s' "$v" | cut -c4)"
+              printf '#%s%s%s%s%s%s' "$a" "$a" "$b" "$b" "$c" "$c"
+            else
+              printf '%s' "$v"
+            fi
+          }
+
+          bad=0
+          maj() { printf '%s' "$1" | tr 'a-f' 'A-F'; }
+          compare() {   # <étiquette> <attendu> <obtenu> <fichier fautif>
+            if [ -z "$2" ] || [ -z "$3" ]; then
+              echo "::error::$1 : valeur illisible (bureau « $2 », panneau « $3 ») — le contrôle ne peut pas conclure"
+              bad=1; return
+            fi
+            if [ "$(maj "$2")" != "$(maj "$3")" ]; then
+              echo "::error file=$4::$1 : le bureau dit $2, mais on lit $3 — les deux doivent être identiques"
+              bad=1
+            else
+              printf '  ok  %-24s %s\n' "$1" "$2"
+            fi
+          }
+
+          echo "Mode sombre — ui.css contre lexos-theme-gen :"
+          compare "fond"             "$(val_gen BG)"      "$(val_ui bg)"      "$UI"
+          compare "fond secondaire"  "$(val_gen BG_ALT)"  "$(val_ui bg-alt)"  "$UI"
+          compare "survol"           "$(val_gen BG_HI)"   "$(val_ui bg-hi)"   "$UI"
+          compare "bordure"          "$(val_gen BORDER)"  "$(val_ui bd)"      "$UI"
+          compare "texte"            "$(val_gen FG)"      "$(val_ui fg)"      "$UI"
+          compare "texte secondaire" "$(val_gen FG_DIM)"  "$(val_ui fg-dim)"  "$UI"
+
+          echo "Mode clair — ui.css contre lexos-theme-gen :"
+          compare "fond clair"       "$(val_gen_clair BG)"      "$(val_ui_clair bg)"     "$UI"
+          compare "survol clair"     "$(val_gen_clair BG_HI)"   "$(val_ui_clair bg-hi)"  "$UI"
+          compare "bordure claire"   "$(val_gen_clair BORDER)"  "$(val_ui_clair bd)"     "$UI"
+          compare "texte clair"      "$(val_gen_clair FG)"      "$(val_ui_clair fg)"     "$UI"
+
+          #  ET LA DÉMO, qui doit dire la même chose que le bureau. C'est le
+          #  sens littéral de la règle d'Alex : « tout ce qu'on fait sur la
+          #  version Vercel, on le met aussi dans l'ISO ».
+          echo "Démo web contre le bureau :"
+          compare "démo · fond"      "$(val_gen BG)"      "$(val_demo bg)"      "$DEMO"
+          compare "démo · texte"     "$(val_gen FG)"      "$(val_demo fg)"      "$DEMO"
+          compare "démo · bordure"   "$(val_gen BORDER)"  "$(val_demo bd)"      "$DEMO"
+
+          #  LE MODE CLAIR DOIT EXISTER. Sans ce bloc, « lexos theme clair »
+          #  repeint le bureau en crème et laisse les trois panneaux web NOIRS
+          #  — le défaut trouvé après la 71.
+          grep -q 'data-mode="clair"' "$UI" || {
+            echo "::error file=$UI::le bloc du mode clair a disparu — les panneaux resteraient noirs sur un bureau clair"; bad=1; }
+          for d in config/includes.chroot/usr/share/lexos/*/web; do
+            grep -q 'href="ui.css"' "$d/index.html" 2>/dev/null || continue
+            grep -q 'dataset.mode' "$d/index.html" || {
+              echo "::error file=$d/index.html::le panneau ne lit pas ?mode= — il resterait sombre en mode clair"; bad=1; }
+          done
+
+          [ "$bad" = "0" ] && echo "  ok — bureau, démo et panneaux disent la même chose"
+          exit $bad
+
+      - name: Aucun dossier ne reste bleu
+        run: |
+          #  PHOTO D'ALEX, DANS FICHIERS : « Bureau » et « Desktop » BLEUS, au
+          #  milieu des poches orange. Le thème LexOS était pourtant bien actif.
+          #
+          #  La cause : GTK ne demande pas « folder-desktop » pour le bureau,
+          #  il demande « user-desktop » ; et « user-home » pour le dossier
+          #  personnel. Deux noms que le thème ne portait pas — la chaîne
+          #  d'héritage continuait donc jusqu'à Papirus-Dark, qui les a, en
+          #  bleu. Aucune erreur nulle part : juste deux dossiers de la
+          #  mauvaise couleur, et rien pour dire pourquoi.
+          #
+          #  Ce contrôle liste les noms que GTK réclame RÉELLEMENT pour les
+          #  dossiers XDG. Il coûte une seconde et rend ce genre de trou
+          #  visible avant l'ISO, pas après.
+          T="config/includes.chroot/usr/share/icons/LexOS/places/scalable"
+          [ -d "$T" ] || { echo "::error::$T introuvable — le thème d'icônes a disparu"; exit 1; }
+
+          #  Les noms viennent de la correspondance que GTK fait entre les
+          #  dossiers XDG et les icônes (gtkfilesystem) — pas d'une supposition.
+          RECLAMES="folder user-home user-desktop folder-documents folder-download folder-music folder-pictures folder-videos folder-publicshare folder-templates"
+          bad=0
+          for n in $RECLAMES; do
+            if [ -r "$T/$n.svg" ]; then
+              printf '  ok  %s\n' "$n"
+            else
+              echo "::error file=$T::« $n.svg » manque — ce dossier retombera sur Papirus-Dark, en BLEU"
+              bad=1
+            fi
+          done
+
+          #  Un lien cassé est pire qu'un fichier absent : il a l'air présent.
+          for f in "$T"/*.svg; do
+            [ -L "$f" ] || continue
+            [ -r "$f" ] || { echo "::error file=$f::lien cassé vers $(readlink "$f")"; bad=1; }
+          done
+
+          [ "$bad" = "0" ] && echo "  ok — tous les dossiers que GTK sait nommer ont leur poche orange"
+          exit $bad
+
       - name: Bits d'exécution présents
         run: |
           bad=0
@@ -543,6 +692,28 @@ jobs:
           #  · sans dmidecode ou sans root, la section mémoire doit DIRE ce
           #    qu'elle ne peut pas lire au lieu de disparaître.
           bash tests/test_lexos_materiel.sh
+
+      - name: Tous les boutons sont lisibles
+        run: |
+          #  « Regarde que tous les boutons soient corrects » — Alex, après la
+          #  photo de la fenêtre de bienvenue : le libellé posé sur un
+          #  rectangle NOIR à l'intérieur du bouton orange, et écrit en BLANC.
+          #
+          #  Deux défauts distincts, et aucun des deux ne se voit en lisant une
+          #  règle isolément — c'est la CASCADE qui trahit :
+          #    · « écriture blanche partout » repeignait les libellés qui sont
+          #      DANS un bouton, et un enfant qui porte sa propre couleur
+          #      n'hérite pas de celle du parent ;
+          #    · GTK bâtit un bouton en button > box > label : peindre le
+          #      bouton ne repeint pas ses enfants, et le fond sombre du thème
+          #      de base restait dessous.
+          #
+          #  Ce banc GÉNÈRE la feuille pour de vrai — huit accents, deux modes,
+          #  128 familles de boutons — et MESURE le contraste de chacune. Il a
+          #  d'ailleurs trouvé un troisième défaut que personne ne cherchait :
+          #  « action conseillée » et « suppression » posaient un fond sans
+          #  jamais poser de couleur de texte.
+          bash tests/test_boutons.sh
 
       - name: Boutons de fenêtre — le hook 0610 sur un banc
         run: |

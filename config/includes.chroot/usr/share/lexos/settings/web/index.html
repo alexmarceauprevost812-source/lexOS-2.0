@@ -6,6 +6,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ui.css AVANT style.css : les jetons communs d'abord, les règles
      propres au panneau ensuite — elles l'emportent en cas de doublon. -->
+<script>
+/*  LE MODE (sombre / clair) ARRIVE PAR L'ADRESSE. Le lanceur Python lit
+    ~/.config/lexos/mode — écrit par lexos-theme-gen depuis toujours — et
+    l'ajoute en ?mode=… : aucun chemin nouveau, aucune requête de plus, et
+    l'attribut est posé AVANT le premier rendu, donc pas d'éclair blanc au
+    démarrage. Sans paramètre, on reste en sombre, qui est le défaut. */
+try{var m=new URLSearchParams(location.search).get("mode");
+    if(m==="clair")document.documentElement.dataset.mode="clair";}catch(e){}
+</script>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="style.css">
 </head>
