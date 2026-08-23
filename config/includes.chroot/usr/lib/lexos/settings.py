@@ -60,7 +60,12 @@ def _mode_apparence() -> str:
     try:
         base = os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")
         valeur = (Path(base) / "lexos" / "mode").read_text(encoding="utf-8").strip()
-    except OSError:
+    except (OSError, UnicodeDecodeError, ValueError):
+        #  PAS SEULEMENT OSError. Un fichier « mode » ecrit dans un autre
+        #  encodage leve UnicodeDecodeError, qui n'est pas une OSError : le
+        #  panneau mourait alors AVANT d'ouvrir sa fenetre, pour un fichier de
+        #  six octets. Un reglage d'apparence illisible doit faire retomber sur
+        #  le mode sombre, jamais empecher les Parametres de s'ouvrir.
         return "sombre"
     #  Tout ce qui n'est pas explicitement « clair » reste sombre : un fichier
     #  vide, tronqué ou écrit par une version future ne doit pas blanchir

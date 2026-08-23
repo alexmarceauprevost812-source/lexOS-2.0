@@ -123,13 +123,17 @@ select{background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
    pas le même geste, et une simple case cochée ne sait pas dire la différence. */
 .etat{display:inline-block;padding:3px 10px;border-radius:99px;
   font:600 11.5px/1.5 inherit;white-space:nowrap}
-.etat.ok{background:rgba(31,143,78,.18);color:#4ADE80}
-.etat.off{background:rgba(229,72,77,.16);color:#F87171}
+/*  LES COULEURS ÉTAIENT FIGÉES (#4ADE80, #F87171, #FBBF24) : réglées pour un
+    fond noir, elles tombaient à 2:1 sur le crème du mode clair. Et les jetons
+    --ok / --off / --att, qui ont justement une valeur assombrie pour le mode
+    clair, ne servaient à rien ici. Ils servent maintenant. */
+.etat.ok{background:color-mix(in srgb, var(--ok) 16%, var(--bg));color:var(--ok)}
+.etat.off{background:color-mix(in srgb, var(--off) 16%, var(--bg));color:var(--off)}
 /*  L'ambre, pour « propriétaire » : ce n'est pas une panne (rouge) et ce
     n'est pas du libre (vert). Sans cette règle la pastille sortait
     transparente, et « propriétaire » se lisait comme du texte ordinaire —
     exactement le mot qu'il ne faut pas noyer. */
-.etat.att{background:rgba(251,191,36,.16);color:#FBBF24}
+.etat.att{background:color-mix(in srgb, var(--att) 16%, var(--bg));color:var(--att)}
 .etat.abs{background:var(--bg-hi);color:var(--fg-dim)}
 
 /* --- Le panneau « 100 % Linux » (À propos) --------------------------------

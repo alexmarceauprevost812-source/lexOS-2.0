@@ -89,6 +89,14 @@
   --ok:#22C55E;   --warn:#F59E0B;  --off:#EF4444;
   --att:#F59E0B;  --non:#EF4444;
 
+  /*  LA SURFACE DU VOLET. C'est la SEULE surface opaque du volet — le reste
+      de sa page est transparent, pour que les coins arrondis laissent voir le
+      bureau. Elle était écrite en dur, rgba(20,18,22,.96) : en mode clair, le
+      texte passait au noir et la surface restait noire. Texte noir sur fond
+      noir, c'est-à-dire un volet vide. Un jeton par mode, donc. */
+  --voile:rgba(20, 18, 22, .96);
+  --voile-bord:rgba(255, 255, 255, .09);
+
   /* --- Formes ------------------------------------------------------------- */
   --rayon:8px;         /* cartes, champs, blocs                              */
   --rayon-bouton:999px;/* les boutons sont des pastilles                     */
@@ -139,4 +147,9 @@
       pâle à l'œil. Mêmes teintes, assombries — pas d'autres couleurs. */
   --ok:#15803D;   --warn:#B45309;  --off:#B91C1C;
   --att:#B45309;  --non:#B91C1C;
+
+  /*  La même surface, en clair : crème très opaque, liseré sombre au lieu du
+      liseré blanc — sur du crème, un blanc à 9 % ne se voit pas. */
+  --voile:rgba(247, 245, 240, .97);
+  --voile-bord:rgba(0, 0, 0, .12);
 }

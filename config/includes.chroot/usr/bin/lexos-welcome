@@ -113,36 +113,36 @@ mark_done() {
 }
 
 # --- Dialogue ----------------------------------------------------------------
-#  LA MASCOTTE ANIMÉE. Alex : « je la voulais avec son effet d'animation ».
-#  Interrogé sur laquelle des trois animations du projet il visait — la
-#  mascotte, le fond d'écran animé ou les effets du dock — il a répondu la
-#  mascotte.
+#  LA MASCOTTE ANIMÉE — CE QU'ON A ESSAYÉ, ET POURQUOI ON S'EST ARRÊTÉ.
+#  Alex : « je la voulais avec son effet d'animation ». Interrogé sur laquelle
+#  des trois animations du projet il visait — la mascotte, le fond d'écran
+#  animé ou les effets du dock — il a répondu la mascotte.
 #
-#  L'ANIMATION EXISTAIT DÉJÀ, ET NE JOUAIT QU'À UN SEUL ENDROIT. Le hook 0300
-#  construit un thème Plymouth à partir des 16 images de mascot-anim-frames :
-#  elle bouge à l'écran de démarrage. Partout ailleurs — cette fenêtre-ci,
-#  l'avatar de session — c'est mascot.png, fixe. Et mascot-anim-web.gif voyage
-#  dans l'ISO depuis toujours (build.sh l. 211 prend les *.gif), posé sur la
-#  machine, utilisé PAR RIEN. 272 Kio embarqués pour ne jamais s'afficher.
+#  Elle existe, et elle ne joue qu'à UN endroit : le hook 0300 bâtit un thème
+#  Plymouth avec les 16 images de mascot-anim-frames, et elle bouge à l'écran
+#  de démarrage. Ici, et pour l'avatar de session, c'est mascot.png, fixe.
 #
-#  POURQUOI LA VERSION « web » ET PAS L'AUTRE. Les deux sont là :
-#  mascot-anim.gif fait 6,6 Mio, mascot-anim-web.gif 272 Kio. Charger 6,6 Mio
-#  dans une boîte de dialogue de bienvenue, c'est une fenêtre qui rame à la
-#  toute première session — le pire moment pour faire mauvaise impression.
+#  ═══ ET POURQUOI ON N'A PAS PRIS LE GIF, FINALEMENT ═══
+#  L'idée était de faire jouer la mascotte ici. Deux mesures l'ont arrêtée :
 #
-#  LA CHAÎNE DE REPLI GARDE SON DERNIER MAILLON. Le GIF passe DEVANT, pas à la
-#  place : s'il manque, on perd l'animation, pas la fenêtre.
+#    · mascot-anim-web.gif fait 180x180 pixels. mascot.png en fait 599x720.
+#      Poser le GIF, c'est réduire la mascotte de la fenêtre de bienvenue par
+#      TROIS — pour une animation qui n'est même pas certaine de jouer.
+#    · l'autre version, mascot-anim.gif, fait bien 1080x1303, mais 6,6 Mio.
+#      Six mégaoctets à décoder dans une boîte de dialogue, à la toute
+#      première session : c'est le pire moment pour faire ramer la machine.
 #
-#  À VÉRIFIER SUR UNE MACHINE, ET CE N'EST PAS ACQUIS : yad affiche l'image
-#  par un GtkImage, et GTK anime tout seul un GIF chargé depuis un FICHIER.
-#  Mais selon la version de yad et la façon dont l'image est chargée, un GIF
-#  peut s'afficher FIGÉ SUR SA PREMIÈRE IMAGE — livré, affiché, immobile. Ce
-#  serait exactement le genre de correctif qui a l'air fait et ne l'est pas.
-#  Rien ici ne peut le prouver : il faut ouvrir la fenêtre et regarder. Si
-#  elle est figée, revenir à mascot.png et le dire, plutôt que de contourner —
-#  écrire une petite fenêtre GTK pour l'occasion est un autre chantier.
-ICON="$BRAND/mascot-anim-web.gif"
-[[ -r "$ICON" ]] || ICON="$BRAND/mascot.png"
+#  Et rien ici ne peut prouver que yad anime le GIF plutôt que d'en afficher
+#  la première image, figée. Le pari se solderait donc au mieux par une
+#  mascotte trois fois plus petite, au pire par une mascotte trois fois plus
+#  petite ET immobile — strictement moins bien qu'aujourd'hui.
+#
+#  Faire jouer la mascotte dans cette fenêtre demande d'écrire une petite
+#  fenêtre GTK à la place de yad, où l'on contrôle le GdkPixbufAnimation et
+#  la taille d'affichage. C'est un chantier, pas un chemin de fichier à
+#  changer. Elle continue donc de jouer là où elle joue déjà et où elle est
+#  belle : l'écran de démarrage (hook 0300, thème Plymouth, 16 images).
+ICON="$BRAND/mascot.png"
 [[ -r "$ICON" ]] || ICON="/usr/share/pixmaps/lexos.png"
 
 if command -v yad >/dev/null 2>&1; then

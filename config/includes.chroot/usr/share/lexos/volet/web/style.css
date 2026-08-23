@@ -25,9 +25,13 @@ html,body{height:100%;background:transparent;
   overflow:hidden}
 
 /* --- Le volet — valeurs identiques à la démo ------------------------------ */
+/*  LA SURFACE EN DUR RENDAIT LE VOLET VIDE EN MODE CLAIR. C'était
+    rgba(20,18,22,.96) — un noir presque opaque — et c'est la SEULE surface
+    opaque du volet. En clair, le texte passe au noir : noir sur noir. Les
+    deux valeurs vivent maintenant dans ui.css, une par mode. */
 .shade{position:absolute;inset:0;
-  background:rgba(20,18,22,.96);
-  border:1px solid rgba(255,255,255,.09);
+  background:var(--voile);
+  border:1px solid var(--voile-bord);
   border-radius:16px;
   box-shadow:0 18px 50px rgba(0,0,0,.55);
   overflow:hidden;

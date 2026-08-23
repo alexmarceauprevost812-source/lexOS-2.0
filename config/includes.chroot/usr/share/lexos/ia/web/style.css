@@ -48,20 +48,35 @@ h3{margin:26px 0 8px;font-size:12px;letter-spacing:.09em;text-transform:uppercas
 
 .etat{display:inline-block;padding:3px 10px;border-radius:99px;
   font:600 11.5px/1.5 inherit;white-space:nowrap}
-.etat.ok{background:rgba(31,143,78,.18);color:var(--ok)}
-.etat.att{background:rgba(251,191,36,.16);color:var(--att)}
-.etat.non{background:rgba(229,72,77,.16);color:var(--non)}
+.etat.ok{background:color-mix(in srgb, var(--ok) 16%, var(--bg));color:var(--ok)}
+.etat.att{background:color-mix(in srgb, var(--att) 16%, var(--bg));color:var(--att)}
+.etat.non{background:color-mix(in srgb, var(--non) 16%, var(--bg));color:var(--non)}
 .etat.abs{background:var(--bg-hi);color:var(--fg-dim)}
 
-.notice{border:1px solid var(--ac-lo);background:#170f08;border-radius:8px;
-  padding:12px 14px;color:#f0b27a;font-size:13px;margin:12px 0}
+/*  ÎLOT NOIR SUR PAGE CRÈME. Le fond #170f08 et le texte #f0b27a étaient
+    écrits en dur : en mode clair, cet encadré restait un rectangle noir au
+    milieu d'une page claire. Le fond est maintenant une TEINTE de l'accent
+    posée sur le fond courant, et le texte est celui de la page — lisible dans
+    les deux modes par construction, sans qu'on ait à choisir deux couleurs. */
+.notice{border:1px solid var(--ac-lo);
+  background:color-mix(in srgb, var(--ac) 12%, var(--bg));
+  border-radius:8px;
+  padding:12px 14px;color:var(--fg);font-size:13px;margin:12px 0}
 
 /* --- Le diagnostic : la ligne qui dit LAQUELLE des trois pannes ----------- */
 .diag{border-radius:12px;padding:16px 18px;margin-bottom:16px;
   border:1px solid var(--bd);background:var(--bg-alt)}
-.diag.ok{border-color:#2b5e3c;background:#0d1a12}
-.diag.att{border-color:#6b5314;background:#1a1509}
-.diag.non{border-color:#5e2b2b;background:#1a0e0e}
+/*  C'EST LA LIGNE QUI DIT LAQUELLE DES TROIS PANNES. Ses trois fonds étaient
+    des noirs teintés, écrits en dur : en mode clair, le diagnostic devenait
+    illisible — exactement la ligne qu'il ne faut pas perdre. Chaque état est
+    désormais une teinte de SA couleur posée sur le fond courant : sombre sur
+    fond noir, pâle sur fond crème, et le texte reste celui de la page. */
+.diag.ok{border-color:color-mix(in srgb, var(--ok) 45%, var(--bg));
+  background:color-mix(in srgb, var(--ok) 12%, var(--bg))}
+.diag.att{border-color:color-mix(in srgb, var(--att) 45%, var(--bg));
+  background:color-mix(in srgb, var(--att) 12%, var(--bg))}
+.diag.non{border-color:color-mix(in srgb, var(--non) 45%, var(--bg));
+  background:color-mix(in srgb, var(--non) 12%, var(--bg))}
 .diag .t{font-weight:700;font-size:16px;margin-bottom:4px}
 .diag .d{color:var(--fg-dim);font-size:13.5px}
 

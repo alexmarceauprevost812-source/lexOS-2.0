@@ -319,21 +319,39 @@ window button:disabled, dialog button:disabled {
    « inherit » plutôt que ${BTN_FG} en dur : les boutons de STRUCTURE plus bas
    demandent ${FG} et leurs libellés doivent suivre CE choix-là. Une couleur
    écrite en dur ici les casserait tous. */
-window button label, dialog button label, messagedialog button label,
-headerbar button label, .titlebar button label, toolbar button label,
-actionbar button label, popover button label, infobar button label,
-.dialog-action-area button label, .linked > button label,
-combobox button label, spinbutton button label, treeview header button label,
-.path-bar button label, button.flat label, button.titlebutton label {
-    color: inherit;
-    text-shadow: none;
-}
-button > label, button > box, button > box > label, button > box > image,
-button contents, button > contents {
+/*  ═══ CE QUE LA PREMIÈRE VERSION DE CE CORRECTIF A RATÉ ═══
+    Elle énumérait « button > label, button > box, button > box > label… » —
+    des combinateurs ENFANT, à une profondeur devinée. Deux choses lui ont
+    échappé, et la seconde annulait tout le correctif.
+
+    1. LA PROFONDEUR N'EST PAS CONNUE D'AVANCE. Un bouton texte seul, c'est
+       « button > label ». Un bouton icône+texte, c'est « button > box >
+       label ». D'autres formes ajoutent une box de plus, ou une grid. Une
+       énumération d'enfants directs rate tout ce qui est un cran plus bas :
+       le fond noir y reste, et c'est le rectangle de la photo d'Alex.
+
+    2. « color: inherit » HÉRITE DU PARENT DIRECT, PAS DU BOUTON. Et le
+       parent direct du libellé, dès qu'il y a une icône, c'est la box — à
+       qui la règle des fonds (« box, grid » plus haut) donne EXPLICITEMENT
+       color: #FFFFFF. Le libellé héritait donc du BLANC de la box, pas du
+       noir du bouton. Mesuré : blanc sur l'orange = 3,58:1, très exactement
+       le défaut que ce correctif prétendait réparer. Il était livré, lu par
+       GTK, et sans effet — le péché capital de ce projet, commis en le
+       corrigeant.
+
+    D'où le combinateur de DESCENDANCE, qui ne présume d'aucune profondeur,
+    et « color: inherit » posé AUSSI sur box/grid : la couleur du bouton
+    descend alors de proche en proche jusqu'au libellé, quel que soit le
+    nombre d'étages. Spécificité 0,0,2 contre 0,0,1 pour la règle des fonds :
+    on gagne quelle que soit la position dans la feuille. */
+button label, button box, button grid, button image,
+button stack, button widget, button contents {
     background-image: none;
     background-color: transparent;
     box-shadow: none;
     border: none;
+    color: inherit;
+    text-shadow: none;
 }
 
 /* --- Les boutons de STRUCTURE ne sont pas des boutons --------------------
@@ -417,7 +435,18 @@ entry:focus, spinbutton:focus {
     border-color: ${ACCENT};
     box-shadow: inset 0 0 0 1px ${ACCENT};
 }
-selection, ::selection {
+/*  DEUX REGLES ET NON UNE, ET C'EST TOUTE LA DIFFERENCE. Elles etaient
+    ecrites « selection, ::selection { … } ». Or « ::selection » n'est pas un
+    pseudo-element que GTK3 connait — et selon la regle du CSS, un selecteur
+    invalide dans une liste invalide la REGLE ENTIERE. Le « selection » nu,
+    lui, est un vrai noeud GTK3 depuis la 3.20 ; il partait a la poubelle avec
+    l'autre, et la selection de texte restait BLEUE, celle d'Arc-Dark.
+    Separees, la premiere s'applique et la seconde est ignoree toute seule. */
+selection {
+    background-color: ${ACCENT};
+    color: ${BTN_FG};
+}
+::selection {
     background-color: ${ACCENT};
     color: ${BTN_FG};
 }

@@ -135,9 +135,24 @@ LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
 	bash "$GEN" --target "$BANC/t" orange >/dev/null 2>&1
 CSS="$BANC/t/.config/gtk-3.0/gtk.css"
 
-grep -q 'button label' "$CSS" && grep -A2 'button label' "$CSS" | grep -q 'color: inherit' \
-	&& ok "« button label » hérite au lieu de garder le blanc général" \
-	|| non "le libellé du bouton ne suit pas la couleur du bouton — texte blanc sur orange, 3,4:1"
+#  On lit le BLOC en entier, pas deux lignes après le sélecteur : la première
+#  version faisait « grep -A2 » et ratait « color: inherit » dès qu'on ajoutait
+#  une propriété avant lui. Un banc qui rate sa cible est pire qu'un banc absent.
+BLOC_BTN="$(sed -n '/^button label, button box/,/^}/p' "$CSS")"
+[ -n "$BLOC_BTN" ] \
+	&& ok "la règle des enfants de bouton existe" \
+	|| non "plus de règle « button label, button box » — le blanc général reprendrait le dessus"
+printf '%s' "$BLOC_BTN" | grep -q 'color: inherit' \
+	&& ok "elle propage la couleur du bouton (color: inherit)" \
+	|| non "sans « color: inherit », le libellé garde le blanc général"
+
+#  LE COMBINATEUR, ET C'EST LA LEÇON DE LA 72. Un « > » ne franchit qu'un
+#  étage : « button > box » rate « button > box > box », et le fond noir y
+#  reste. La règle doit employer la DESCENDANCE, qui ne présume d'aucune
+#  profondeur.
+printf '%s' "$BLOC_BTN" | head -2 | grep -q '>' \
+	&& non "la règle emploie « > » : elle ratera les boutons plus profonds d'un étage" \
+	|| ok "et elle emploie la descendance, pas un enfant direct à profondeur devinée"
 
 #  La règle générale « écriture blanche partout » doit venir AVANT celle des
 #  libellés de boutons, sinon elle la reprend : à spécificité égale, c'est la
@@ -151,15 +166,204 @@ else
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
-titre "3. Plus de rectangle noir derrière le texte"
-grep -q 'button > label, button > box' "$CSS" \
-	&& ok "les enfants du bouton sont explicitement dépeints" \
-	|| non "les enfants du bouton gardent leur fond — c'est le rectangle noir de la photo"
-BLOC="$(sed -n '/button > label, button > box/,/}/p' "$CSS")"
-printf '%s' "$BLOC" | grep -q 'background-color: transparent' \
-	&& ok "fond transparent" || non "le fond des enfants n'est pas remis à transparent"
-printf '%s' "$BLOC" | grep -q 'background-image: none' \
-	&& ok "et pas de dégradé hérité du thème de base" || non "background-image pas neutralisé"
+titre "3. La cascade résolue sur un vrai arbre, pas une recherche de texte"
+#  POURQUOI CETTE SECTION A ÉTÉ RÉÉCRITE.
+#
+#  Sa première version cherchait la CHAÎNE « button > label, button > box »
+#  dans la feuille, et se déclarait satisfaite de la trouver. Elle a donc dit
+#  vert sur un correctif INERTE : la règle existait bien, mais « color:
+#  inherit » sur le libellé héritait du BLANC de la box intermédiaire — la
+#  règle des fonds donne explicitement color:#FFFFFF à « box, grid » — au lieu
+#  du noir du bouton. Blanc sur orange, 3,58:1 : exactement le défaut que le
+#  correctif prétendait réparer.
+#
+#  Un banc qui vérifie la PRÉSENCE d'une règle ne vérifie rien. Celui-ci
+#  RÉSOUT la cascade sur des arbres de nœuds réels — sélecteurs, spécificité,
+#  héritage — et mesure la couleur qui arrive vraiment sur le texte.
+cascade() {   # <css> ; sort une ligne par forme de bouton
+	python3 - "$1" <<'PY'
+import re, sys
+
+css = re.sub(r"/\*.*?\*/", "", open(sys.argv[1], encoding="utf-8").read(), flags=re.S)
+#  RETIRER LES DECLARATIONS « @…; » AVANT DE DECOUPER LES REGLES.
+#  Sans ca, le bloc @define-color qui precede la regle des fonds se retrouve
+#  COLLE a sa liste de selecteurs (le decoupage capture tout ce qui separe deux
+#  accolades), et un filtre « @ dans les selecteurs » ecarte alors la regle la
+#  plus importante de la feuille — celle qui peint « box, grid » en noir sur
+#  blanc. C'est exactement ce qui est arrive : le moteur a declare tous les
+#  boutons lisibles en ayant perdu de vue la seule regle qui les rendait
+#  illisibles.
+css = re.sub(r"@[a-zA-Z-]+[^;{}]*;", "", css)
+
+#  --- Un mini-moteur CSS : juste ce qu'il faut pour les sélecteurs employés ici
+def analyse_simple(bout):
+    m = re.match(r"^([a-zA-Z][\w-]*)?((?:\.[\w-]+)*)$", bout)
+    if not m:
+        return None
+    nom = m.group(1)
+    classes = set(m.group(2).split(".")) - {""}
+    return (nom, classes)
+
+def analyse_selecteur(sel):
+    """→ liste de (combinateur, nom, classes) ; combinateur ' ' ou '>'."""
+    sel = sel.strip()
+    if not sel or "*" in sel or "[" in sel:
+        return None
+    morceaux = re.split(r"\s*(>)\s*|\s+", sel)
+    morceaux = [m for m in morceaux if m]
+    suite, comb = [], " "
+    for m in morceaux:
+        if m == ">":
+            comb = ">"
+            continue
+        simple = analyse_simple(m)
+        if simple is None:
+            return None
+        suite.append((comb, simple[0], simple[1]))
+        comb = " "
+    return suite
+
+def correspond(suite, chemin):
+    """chemin = [(nom, classes), …] de la racine à la feuille."""
+    def teste(i, k):        # i : index dans suite (depuis la fin), k : index chemin
+        if i < 0:
+            return True
+        comb, nom, classes = suite[i]
+        if k < 0:
+            return False
+        n, c = chemin[k]
+        if (nom and nom != n) or not classes <= c:
+            if i == len(suite) - 1:
+                return False
+            if comb == ">":
+                return False
+            return teste(i, k - 1)
+        if comb == ">" or i == 0:
+            return teste(i - 1, k - 1)
+        for j in range(k - 1, -2, -1):
+            if teste(i - 1, j):
+                return True
+        return False
+    #  Le dernier simple doit matcher la feuille elle-même.
+    comb, nom, classes = suite[-1]
+    n, c = chemin[-1]
+    if (nom and nom != n) or not classes <= c:
+        return False
+    return teste(len(suite) - 2, len(chemin) - 2) if len(suite) > 1 else True
+
+def specificite(suite):
+    b = sum(len(cl) for _, _, cl in suite)
+    c = sum(1 for _, nom, _ in suite if nom)
+    return (b, c)
+
+REGLES = []
+for sels, corps in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+    if "@" in sels:
+        continue
+    decl = {}
+    for d in corps.split(";"):
+        if ":" in d:
+            k, v = d.split(":", 1)
+            decl[k.strip()] = v.strip()
+    for sel in sels.split(","):
+        suite = analyse_selecteur(sel)
+        if suite and (":" not in sel):
+            REGLES.append((suite, specificite(suite), len(REGLES), decl))
+
+def resoudre(chemin, prop, herite):
+    """Valeur calculée de prop sur la feuille de `chemin`."""
+    gagnante, meilleure = None, None
+    for suite, spec, ordre, decl in REGLES:
+        if prop not in decl:
+            continue
+        if not correspond(suite, chemin):
+            continue
+        cle = (spec, ordre)
+        if meilleure is None or cle > meilleure:
+            meilleure, gagnante = cle, decl[prop]
+    if gagnante == "inherit":
+        return resoudre(chemin[:-1], prop, herite) if len(chemin) > 1 else None
+    if gagnante is None and herite and len(chemin) > 1:
+        return resoudre(chemin[:-1], prop, herite)
+    return gagnante
+
+#  --- Les formes que GTK bâtit réellement pour un bouton ---------------------
+FORMES = [
+    ("texte seul",            [("window", set()), ("button", set()), ("label", set())]),
+    ("icone + texte",         [("window", set()), ("button", set()), ("box", set()), ("label", set())]),
+    ("boite imbriquee",       [("window", set()), ("button", set()), ("box", set()), ("box", set()), ("label", set())]),
+    ("grille interne",        [("window", set()), ("button", set()), ("grid", set()), ("label", set())]),
+    ("action conseillee",     [("window", set()), ("button", {"suggested-action"}), ("box", set()), ("label", set())]),
+    ("suppression",           [("window", set()), ("button", {"destructive-action"}), ("box", set()), ("label", set())]),
+    ("dialogue, icone+texte", [("dialog", set()), ("button", set()), ("box", set()), ("label", set())]),
+]
+
+def lum(h):
+    h = h.lstrip("#")
+    c = [int(h[i:i+2], 16) / 255 for i in (0, 2, 4)]
+    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+def contraste(a, b):
+    l1, l2 = sorted([lum(a), lum(b)], reverse=True)
+    return (l1 + 0.05) / (l2 + 0.05)
+
+for nom, chemin in FORMES:
+    txt = resoudre(chemin, "color", True)
+    #  Le fond visible : le premier ancêtre (en remontant) qui n'est pas
+    #  transparent. C'est ce que l'œil voit derrière le texte.
+    fond = None
+    for k in range(len(chemin), 0, -1):
+        f = resoudre(chemin[:k], "background-color", False)
+        if f and f.startswith("#"):
+            fond = f
+            break
+        if f == "transparent":
+            continue
+    if not (txt and txt.startswith("#") and fond):
+        print(f"{nom}|{txt}|{fond}|ILLISIBLE")
+        continue
+    print(f"{nom}|{txt}|{fond}|{contraste(txt, fond):.2f}")
+PY
+}
+
+#  COMPTEUR LOCAL, et pas le global : la première version lisait $ECHOUES,
+#  si bien qu'un échec d'une section PRÉCÉDENTE faisait disparaître le verdict
+#  de celle-ci. On ne saurait plus si la cascade est saine ou seulement muette.
+MAUVAIS3=0; VU3=0
+for MODE in sombre clair; do
+	for A in orange bleu neon; do
+		rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
+		LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+			bash "$GEN" --target "$BANC/t" --mode "$MODE" "$A" >/dev/null 2>&1
+		while IFS='|' read -r forme txt fond ratio; do
+			VU3=$((VU3 + 1))
+			if [ "$ratio" = "ILLISIBLE" ]; then
+				non "$A/$MODE · $forme : couleur ou fond irrésolus (texte=$txt fond=$fond)"
+				MAUVAIS3=$((MAUVAIS3 + 1))
+			elif awk -v r="$ratio" 'BEGIN{exit !(r < 4.5)}'; then
+				non "$A/$MODE · $forme : $txt sur $fond = ${ratio}:1 — le texte du bouton est illisible"
+				MAUVAIS3=$((MAUVAIS3 + 1))
+			fi
+		done < <(cascade "$BANC/t/.config/gtk-3.0/gtk.css")
+	done
+done
+if [ "$VU3" = "0" ]; then
+	non "le moteur de cascade n'a résolu AUCUNE forme — il ne prouve rien"
+elif [ "$MAUVAIS3" = "0" ]; then
+	ok "$VU3 formes de bouton résolues à la cascade, toutes lisibles (3 accents x 2 modes)"
+fi
+
+#  Et la forme qui a piégé la première version, nommée à part pour que le
+#  message dise quelque chose le jour où elle revient.
+rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
+LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+	bash "$GEN" --target "$BANC/t" orange >/dev/null 2>&1
+LIGNE="$(cascade "$BANC/t/.config/gtk-3.0/gtk.css" | grep '^icone + texte|')"
+COUL="$(printf '%s' "$LIGNE" | cut -d'|' -f2)"
+[ "$COUL" = "#000000" ] \
+	&& ok "bouton à icône : le libellé est NOIR — il n'hérite plus du blanc de la box" \
+	|| non "bouton à icône : libellé $COUL au lieu de #000000 — c'est le défaut de la 72"
 
 # ═════════════════════════════════════════════════════════════════════════════
 titre "4. Les faux boutons ne sont pas devenus orange"

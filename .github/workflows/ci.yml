@@ -489,6 +489,50 @@ jobs:
           [ "$bad" = "0" ] && echo "  ok — bureau, démo et panneaux disent la même chose"
           exit $bad
 
+      - name: Rien ne reste noir en mode clair
+        run: |
+          #  CE QUE CE CONTRÔLE PROTÈGE.
+          #  Le mode clair a été ajouté à ui.css : les jetons changent, et les
+          #  panneaux suivent. Sauf là où une couleur est ÉCRITE EN DUR — et
+          #  il en restait quatre, chacune raisonnable le jour où elle a été
+          #  écrite pour un fond noir :
+          #    · le volet : sa seule surface opaque valait rgba(20,18,22,.96).
+          #      En clair, le texte passe au noir : noir sur noir, volet vide.
+          #    · le panneau IA : l'encadré .notice (#170f08) et les trois fonds
+          #      de .diag — la ligne qui dit LAQUELLE des trois pannes.
+          #    · les Paramètres : les pastilles d'état en #4ADE80 / #F87171 /
+          #      #FBBF24, réglées pour du noir, à 2:1 sur du crème.
+          #
+          #  Une couleur en dur dans un panneau est un pari sur le mode. Les
+          #  valeurs viennent maintenant des jetons ou d'un color-mix sur
+          #  var(--bg) : elles suivent le fond, quel qu'il soit.
+          bad=0
+          for f in config/includes.chroot/usr/share/lexos/*/web/style.css; do
+            [ -r "$f" ] || continue
+            #  On cherche les couleurs OPAQUES et les rgba de forte opacité
+            #  posées en fond ou en texte. Les rgba très translucides (< .30)
+            #  sont des voiles : posés sur var(--bg), ils suivent le mode tout
+            #  seuls, et les interdire ferait hurler le contrôle sur du code
+            #  juste — c'est ainsi qu'un garde-fou finit désactivé.
+            DUR="$(grep -nE '(background|color)[^;:]*:[^;]*#[0-9A-Fa-f]{6}' "$f" \
+                   | grep -viE 'var\(|color-mix' || true)"
+            VOILE="$(grep -nE '(background|color)[^;:]*:[^;]*rgba\([0-9 ,]+,[[:space:]]*\.[3-9][0-9]?\)' "$f" \
+                     | grep -viE 'var\(|color-mix|rgba\(0,[[:space:]]*0,[[:space:]]*0|shadow' || true)"
+            if [ -n "$DUR" ]; then
+              echo "::error file=$f::couleur écrite en dur — elle ne suivra pas le mode clair :"
+              printf '%s\n' "$DUR" | sed 's/^/      /'
+              bad=1
+            fi
+            if [ -n "$VOILE" ]; then
+              echo "::error file=$f::surface opaque en rgba — elle restera sombre sur un bureau clair :"
+              printf '%s\n' "$VOILE" | sed 's/^/      /'
+              bad=1
+            fi
+          done
+
+          [ "$bad" = "0" ] && echo "  ok — les panneaux suivent le mode, aucune couleur ne parie sur le noir"
+          exit $bad
+
       - name: Aucun dossier ne reste bleu
         run: |
           #  PHOTO D'ALEX, DANS FICHIERS : « Bureau » et « Desktop » BLEUS, au
