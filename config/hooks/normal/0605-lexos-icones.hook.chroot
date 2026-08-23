@@ -1,0 +1,210 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — les dossiers oranges, pour de bon cette fois
+# =============================================================================
+#  TROIS ISO SUR CE SEUL SUJET. IL EST TEMPS D'ARRÊTER DE DEVINER.
+#
+#  Build 71 : les dossiers étaient BLEUS. On a compris pourquoi — le thème
+#  LexOS ne portait pas « inode-directory », le nom que GIO demande pour un
+#  dossier, et la chaîne d'héritage continuait vers Papirus.
+#
+#  Build 72 : ils sont devenus des FEUILLES DE PAPIER BLANCHES. On a compris
+#  pourquoi aussi — Papirus n'était pas installé ce jour-là, et sans lui il ne
+#  restait aucun candidat.
+#
+#  Build 73 : on a ajouté inode-directory au thème ET rendu les thèmes de
+#  repli obligatoires. Photo d'Alex : les dossiers sont ENCORE des feuilles
+#  blanches. Le raisonnement était juste, le résultat non.
+#
+#  À ce stade, une quatrième hypothèse racontée de loin ne vaut rien. Ce hook
+#  fait deux choses, et la seconde compte autant que la première :
+#
+#    1. IL BOUCHE TOUTES LES CAUSES ENCORE PLAUSIBLES d'un coup, au lieu d'en
+#       parier une :
+#         · si GTK ne sait pas rendre nos SVG (librsvg absent du chemin de
+#           gdk-pixbuf, format refusé, peu importe) → on livre AUSSI des PNG
+#           à huit tailles fixes, qui ne demandent aucun moteur ;
+#         · si le cache d'icônes manque ou est périmé → on le construit ici,
+#           à la construction, pour le thème système ;
+#         · si le thème ne déclare pas les dossiers où sont réellement les
+#           fichiers → index.theme est RÉÉCRIT à partir de ce qu'on vient de
+#           poser, pas à partir de ce qu'on croit avoir posé.
+#
+#    2. IL DIT CE QU'IL A TROUVÉ, dans le journal ET dans
+#       /etc/lexos/icones-report. Si la 74 a encore des feuilles blanches, on
+#       saura enfin LAQUELLE des hypothèses était la bonne — au lieu d'en
+#       inventer une cinquième.
+#
+#  Il ne remplace pas le thème : il le COMPLÈTE. Les SVG restent, et restent
+#  la source. Les PNG sont un doublon assumé — un doublon qui s'affiche vaut
+#  mieux qu'un original qui ne s'affiche pas.
+# =============================================================================
+set -e
+
+THEME="${LEXOS_ICONES:-/usr/share/icons/LexOS}"
+RAPPORT="${LEXOS_RAPPORT_ICONES:-/etc/lexos/icones-report}"
+TAILLES="16 22 24 32 48 64 128 256"
+
+echo "[lexos] hook 0605 : les dossiers oranges"
+
+dire() {
+	echo "[lexos]   $1"
+	mkdir -p "$(dirname "$RAPPORT")" 2>/dev/null || true
+	echo "$1" >> "$RAPPORT"
+}
+
+: > "$RAPPORT" 2>/dev/null || true
+mkdir -p "$(dirname "$RAPPORT")" 2>/dev/null || true
+: > "$RAPPORT" 2>/dev/null || true
+
+if [ ! -d "$THEME" ]; then
+	dire "!! $THEME ABSENT — le thème d'icônes n'est pas arrivé dans le chroot."
+	dire "!! C'est la cause la plus grave possible : includes.chroot ne l'a pas copié."
+	echo "[lexos] hook 0605 : rien à faire"
+	exit 0
+fi
+
+SRC="$THEME/places/scalable"
+if [ ! -d "$SRC" ]; then
+	dire "!! $SRC absent — le thème est là mais vide de dossiers."
+	echo "[lexos] hook 0605 : rien à faire"
+	exit 0
+fi
+
+#  ─── CE QU'ON A VRAIMENT SOUS LA MAIN ───────────────────────────────────────
+#  On compte les fichiers RÉELS, liens résolus. Un lien cassé compte pour zéro :
+#  c'est justement le genre de chose qui a l'air présent et ne l'est pas.
+#  « [ -e ] » SUIT LE LIEN : sur un lien cassé il répond NON, et la boucle
+#  passait donc à côté — elle annonçait « 0 cassée » en en ayant sauté une.
+#  Le contrôle avait exactement le défaut qu'il cherche, et le banc l'a
+#  attrapé. On teste donc « c'est un lien » AVANT « la cible existe ».
+N_SVG=0
+N_CASSE=0
+for f in "$SRC"/*.svg; do
+	#  Le motif non développé (dossier vide) : on sort.
+	[ -e "$f" ] || [ -L "$f" ] || continue
+	if [ -r "$f" ]; then
+		N_SVG=$((N_SVG + 1))
+	else
+		N_CASSE=$((N_CASSE + 1))
+		dire "!! lien cassé : $(basename "$f") -> $(readlink "$f" 2>/dev/null)"
+	fi
+done
+dire "$N_SVG icône(s) SVG lisible(s) dans places/scalable, $N_CASSE cassée(s)"
+
+#  Les noms que GTK et GIO demandent VRAIMENT pour un dossier. Si l'un manque,
+#  on le dit maintenant plutôt que de le découvrir sur une photo.
+MANQUE=""
+for N in folder inode-directory user-home user-desktop folder-documents \
+         folder-download folder-music folder-pictures folder-videos; do
+	[ -r "$SRC/$N.svg" ] || MANQUE="$MANQUE $N"
+done
+if [ -n "$MANQUE" ]; then
+	dire "!! noms réclamés par GTK et ABSENTS :$MANQUE"
+else
+	dire "tous les noms que GTK réclame pour un dossier sont présents"
+fi
+
+#  ─── LES PNG, PARCE QU'ILS NE DEMANDENT AUCUN MOTEUR ────────────────────────
+#  Un SVG a besoin de librsvg branché dans gdk-pixbuf. Un PNG, non. Si c'est là
+#  que ça cassait depuis trois ISO, ceci le répare ; si ce n'est pas là, ceci
+#  ne coûte que quelques centaines de kio.
+if ! command -v rsvg-convert >/dev/null 2>&1; then
+	dire "!! rsvg-convert absent — impossible de fabriquer les PNG de secours."
+	dire "!! (librsvg2-bin est pourtant dans lexos-core.list.chroot : à vérifier.)"
+else
+	RENDUS=0
+	ECHECS=0
+	for T in $TAILLES; do
+		mkdir -p "$THEME/places/${T}x${T}"
+		for f in "$SRC"/*.svg; do
+			[ -r "$f" ] || continue
+			B="$(basename "$f" .svg)"
+			if rsvg-convert -w "$T" -h "$T" \
+				-o "$THEME/places/${T}x${T}/${B}.png" "$f" 2>/dev/null; then
+				RENDUS=$((RENDUS + 1))
+			else
+				ECHECS=$((ECHECS + 1))
+			fi
+		done
+	done
+	dire "$RENDUS PNG rendus sur 8 tailles, $ECHECS échec(s)"
+
+	#  Les icônes d'application (le lanceur Fichiers) suivent le même chemin.
+	if [ -d "$THEME/apps/scalable" ]; then
+		A_RENDUS=0
+		for T in $TAILLES; do
+			mkdir -p "$THEME/apps/${T}x${T}"
+			for f in "$THEME/apps/scalable"/*.svg; do
+				[ -r "$f" ] || continue
+				B="$(basename "$f" .svg)"
+				rsvg-convert -w "$T" -h "$T" \
+					-o "$THEME/apps/${T}x${T}/${B}.png" "$f" 2>/dev/null \
+					&& A_RENDUS=$((A_RENDUS + 1))
+			done
+		done
+		dire "$A_RENDUS PNG rendus pour les icônes d'application"
+	fi
+fi
+
+#  ─── index.theme RÉÉCRIT D'APRÈS CE QUI EXISTE ──────────────────────────────
+#  Et non d'après ce qu'on croit avoir posé. Un thème qui déclare un dossier
+#  absent, ou qui oublie un dossier présent, est ignoré en partie — sans rien
+#  dire. On énumère donc le disque.
+DIRS=""
+for d in "$THEME"/places/* "$THEME"/apps/*; do
+	[ -d "$d" ] || continue
+	#  Un dossier vide ne compte pas : le déclarer ferait chercher GTK pour rien.
+	set -- "$d"/*
+	[ -e "$1" ] || continue
+	REL="${d#"$THEME"/}"
+	DIRS="${DIRS:+$DIRS,}$REL"
+done
+
+{
+	echo "[Icon Theme]"
+	echo "Name=LexOS"
+	echo "Comment=Les dossiers de LexOS, hérité de Papirus pour tout le reste"
+	echo "Inherits=Papirus-Dark,Papirus,Adwaita,hicolor"
+	echo "Directories=$DIRS"
+	for d in "$THEME"/places/* "$THEME"/apps/*; do
+		[ -d "$d" ] || continue
+		set -- "$d"/*
+		[ -e "$1" ] || continue
+		REL="${d#"$THEME"/}"
+		CTX="Places"
+		case "$REL" in apps/*) CTX="Applications" ;; esac
+		TAILLE="${REL##*/}"
+		echo ""
+		echo "[$REL]"
+		echo "Context=$CTX"
+		if [ "$TAILLE" = "scalable" ]; then
+			echo "Size=512"
+			echo "MinSize=8"
+			echo "MaxSize=512"
+			echo "Type=Scalable"
+		else
+			echo "Size=${TAILLE%%x*}"
+			echo "Type=Fixed"
+		fi
+	done
+} > "$THEME/index.theme"
+dire "index.theme réécrit : $(echo "$DIRS" | tr ',' '\n' | grep -c .) dossier(s) déclaré(s)"
+
+#  ─── LE CACHE, CONSTRUIT ICI ET PAS ESPÉRÉ AILLEURS ─────────────────────────
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+	if gtk-update-icon-cache -f -t "$THEME" >/dev/null 2>&1; then
+		dire "cache d'icônes construit"
+	else
+		#  On le DIT au lieu de l'avaler : un cache refusé est exactement le
+		#  genre de chose qui rend un thème invisible sans erreur visible.
+		dire "!! gtk-update-icon-cache a REFUSÉ ce thème — les icônes peuvent rester invisibles"
+	fi
+else
+	dire "!! gtk-update-icon-cache absent — pas de cache (GTK lira les fichiers)"
+fi
+
+#  ─── LE VERDICT, LISIBLE D'UN COUP D'ŒIL ────────────────────────────────────
+dire "thème : $THEME"
+dire "à vérifier sur la machine : gtk-update-icon-cache -f -t $THEME ; puis rouvrir Fichiers"
+echo "[lexos] hook 0605 : ok"
