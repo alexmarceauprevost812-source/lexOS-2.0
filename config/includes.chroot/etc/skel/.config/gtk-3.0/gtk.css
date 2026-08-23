@@ -126,14 +126,19 @@ menu menuitem, .menu menuitem {
 	    Sur logiciel-ti-lex.vercel.app/demo : point de 7 px, écart de 5 px,
 	    et l'espace courant devient une PILULE de 20 px — pas un point plus
 	    gros, une pilule. C'est ce mouvement-là qu'Alex reconnaît.
-	    Ici la rangée fait 44 px (xfce4-panel.xml, « size » — passée de 32
-	    à 44 au build 70, à la demande d'Alex). La marge haute et basse
-	    centre la pastille : 17 + 10 + 17 = 44. Si la barre change encore,
-	    c'est CETTE ligne qu'il faut refaire — sinon les points se
-	    recollent en haut. Et oui, ce piège a fonctionné exactement comme
-	    prévu : la barre a changé, ce commentaire a nommé la ligne. */
+	    Ici la rangée fait 52 px (xfce4-panel.xml, « size » — 32 à l'origine,
+	    44 au build 70, 52 au build 74, chaque fois à la demande d'Alex).
+	    La marge haute et basse centre la pastille : 21 + 10 + 21 = 52.
+	    Si la barre change encore, c'est CETTE ligne qu'il faut refaire —
+	    sinon les points se recollent en haut.
+
+	    ET CE PIÈGE A DÉSORMAIS FONCTIONNÉ DEUX FOIS, comme annoncé : la
+	    barre est passée à 44, ce commentaire a nommé la ligne ; elle est
+	    passée à 52, il l'a nommée encore. Un commentaire qui dit « voici
+	    la ligne à refaire » vaut mieux qu'un calcul astucieux que personne
+	    ne retrouve. */
 	padding: 0;
-	margin: 17px 3px;
+	margin: 21px 3px;
 	min-width: 10px;
 	min-height: 10px;
 	border: 0;

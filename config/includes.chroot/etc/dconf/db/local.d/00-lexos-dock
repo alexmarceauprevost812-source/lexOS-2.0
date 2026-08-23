@@ -11,13 +11,23 @@ position='right'
 alignment='center'
 items-alignment='center'
 offset=0
-icon-size=48
+#  ALEX, PHOTO DE LA 73 : « le bouton du centre, le grossir aussi, et celui
+#  de gauche aussi — lui à gauche on ne voit vraiment pas beaucoup. »
+#  48 px, c'est le défaut de Plank, pensé pour un dock qui se cache. Le nôtre
+#  est à demeure sur le côté : il a la place, et ces icônes sont le premier
+#  chemin vers chaque application. 64 px les rend visibles d'un coup d'œil
+#  sans manger l'écran — sur un 1366x768, le dock passe de 48 à 64 px de
+#  large, soit 5 % de la largeur.
+icon-size=64
 hide-mode='intelligent'
 hide-delay=0
 unhide-delay=0
 theme='Transparent'
 zoom-enabled=true
-zoom-percent=150
+#  Le grossissement au survol suit : 150 % de 64 donnait une icône énorme
+#  au passage de la souris. 130 % de 64 fait 83 px — le même effet, à la même
+#  échelle relative qu'avant.
+zoom-percent=130
 pressure-reveal=true
 show-dock-item=false
 lock-items=false

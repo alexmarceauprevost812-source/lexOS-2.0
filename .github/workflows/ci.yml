@@ -533,6 +533,51 @@ jobs:
           [ "$bad" = "0" ] && echo "  ok — les panneaux suivent le mode, aucune couleur ne parie sur le noir"
           exit $bad
 
+      - name: Les points des bureaux restent centrés dans la barre
+        run: |
+          #  CE CONTRÔLE EXISTE PARCE QUE LE PIÈGE A DÉJÀ FONCTIONNÉ DEUX FOIS.
+          #  Les points des espaces de travail sont centrés dans la barre du
+          #  haut par une MARGE calculée à la main : marge + hauteur + marge
+          #  doit faire exactement la hauteur de la barre. Les deux valeurs
+          #  vivent dans deux fichiers différents — la barre dans
+          #  xfce4-panel.xml, la marge dans gtk.css du squelette — et rien ne
+          #  les reliait qu'un commentaire.
+          #
+          #  Ce commentaire a bien fait son travail : la barre est passée de
+          #  32 à 44 (build 70), puis de 44 à 52 (build 74), et il a nommé la
+          #  ligne à refaire les deux fois. Mais il fallait le LIRE. Un jour
+          #  où on change la barre sans ouvrir gtk.css, les points se
+          #  recollent au bord haut — et ça se voit du premier coup d'œil,
+          #  après une heure et quart de construction.
+          #
+          #  Deux secondes de calcul valent mieux qu'un commentaire qu'on
+          #  espère voir.
+          XML="config/includes.chroot/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
+          CSS="config/includes.chroot/etc/skel/.config/gtk-3.0/gtk.css"
+          for f in "$XML" "$CSS"; do
+            [ -r "$f" ] || { echo "::error::$f introuvable"; exit 1; }
+          done
+
+          BARRE="$(grep -oE 'name="size"[[:space:]]+type="uint"[[:space:]]+value="[0-9]+"' "$XML" \
+                   | head -1 | grep -oE '[0-9]+"$' | tr -d '"')"
+          #  On lit la marge et la hauteur DANS le bloc des points, pas
+          #  n'importe où dans la feuille : « margin » y apparaît ailleurs.
+          BLOC="$(sed -n '/#XfcePanelWindow .pager button,/,/^}/p' "$CSS")"
+          MARGE="$(printf '%s' "$BLOC" | grep -oE 'margin:[[:space:]]*[0-9]+px' | head -1 | grep -oE '[0-9]+')"
+          HAUT="$(printf '%s' "$BLOC"  | grep -oE 'min-height:[[:space:]]*[0-9]+px' | head -1 | grep -oE '[0-9]+')"
+
+          if [ -z "$BARRE" ] || [ -z "$MARGE" ] || [ -z "$HAUT" ]; then
+            echo "::error::valeurs illisibles (barre=$BARRE marge=$MARGE hauteur=$HAUT) — le contrôle ne peut pas conclure"
+            exit 1
+          fi
+
+          TOTAL=$(( MARGE + HAUT + MARGE ))
+          if [ "$TOTAL" != "$BARRE" ]; then
+            echo "::error file=$CSS::les points des bureaux ne sont plus centrés : ${MARGE} + ${HAUT} + ${MARGE} = ${TOTAL}, alors que la barre fait ${BARRE} px. Corriger « margin » dans le bloc .pager de gtk.css."
+            exit 1
+          fi
+          echo "  ok — ${MARGE} + ${HAUT} + ${MARGE} = ${BARRE} px, les points sont centrés"
+
       - name: Aucun dossier ne reste bleu
         run: |
           #  PHOTO D'ALEX, DANS FICHIERS : « Bureau » et « Desktop » BLEUS, au

@@ -275,7 +275,22 @@ popover button, infobar button, .dialog-action-area button,
     border: 1px solid ${ACCENT_LO};
     border-radius: 6px;
     text-shadow: none;
-    padding: 4px 12px;
+    /*  ALEX, PHOTO DE LA 73 : « fais le texte plus gros dans les boutons
+        orange — noir, mais un petit peu plus gras, il est trop mince. »
+        Le rectangle noir avait disparu, et c'est justement là que le vrai
+        problème s'est vu : le libellé était en graisse normale, à la taille
+        du texte courant, sur un aplat de couleur vive. Un texte fin sur de
+        l'orange se lit moins bien que le même texte sur du noir — l'œil perd
+        le contour des lettres dans la vibration du fond.
+        600 et non 700 : « un petit peu ». Le gras franc alourdit une rangée
+        de quatre boutons.
+        1.06em et non un chiffre en pixels : le texte doit suivre « lexos
+        access gros-texte » et le facteur d'écran. Une taille figée ici
+        annulerait l'agrandissement là où il sert le plus. */
+    font-weight: 600;
+    font-size: 1.06em;
+    /*  Le rembourrage suit la taille, sinon le texte touche la bordure. */
+    padding: 6px 16px;
     transition: background-color 140ms ease-out, border-color 140ms ease-out;
 }
 window button:hover, dialog button:hover, headerbar button:hover,
@@ -352,6 +367,13 @@ button stack, button widget, button contents {
     border: none;
     color: inherit;
     text-shadow: none;
+    /*  LA GRAISSE ET LA TAILLE SE TRANSMETTENT COMME LA COULEUR, et pour la
+        même raison : un enfant qui porte les siennes n'hérite pas de celles
+        du parent. Sans ces deux lignes, le bouton demanderait du 600 et son
+        libellé resterait fin — exactement le piège de « color: inherit »,
+        rejoué sur une autre propriété. */
+    font-weight: inherit;
+    font-size: inherit;
 }
 
 /* --- Les boutons de STRUCTURE ne sont pas des boutons --------------------

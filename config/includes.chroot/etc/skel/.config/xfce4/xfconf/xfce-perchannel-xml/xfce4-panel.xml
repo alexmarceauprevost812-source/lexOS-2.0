@@ -35,9 +35,22 @@
             16 px d'icône, c'était la taille par défaut de XFCE, pensée
             pour un écran de bureau regardé de près. Sur un portable de
             14 pouces, à bout de bras, on vise mal des cibles de 16 px.
-            44 / 28 reste sobre et devient cliquable sans appliquer. -->
-      <property name="size"            type="uint"   value="44"/>
-      <property name="icon-size"       type="uint"   value="28"/>
+            44 / 28 était déjà mieux.
+
+            ENCORE PLUS GROS, BUILD 74. Photo de la 73 : « lui à gauche on
+            ne voit vraiment pas beaucoup ». Les 28 px se défendaient sur le
+            papier ; à l'écran, sur la même barre que les indicateurs (heure,
+            batterie, réseau), ils restent des cibles qu'on cherche.
+            52 / 34 : la barre gagne 8 px de haut — 1 % d'un écran de 768 —
+            et l'icône passe de 28 à 34, soit un cinquième de plus. On reste
+            LOIN d'une barre de tablette, et on cesse de plisser les yeux.
+
+            LES POINTS DES BUREAUX SUIVENT : leur marge est calculée pour la
+            hauteur de la barre dans etc/skel/.config/gtk-3.0/gtk.css. Elle a
+            été reprise en même temps — sans ça, ils se recollent au bord haut
+            et le défaut se voit tout de suite. -->
+      <property name="size"            type="uint"   value="52"/>
+      <property name="icon-size"       type="uint"   value="34"/>
       <property name="mode"            type="uint"   value="0"/>
       <property name="autohide-behavior" type="uint" value="0"/>
       <property name="enter-opacity"   type="uint"   value="100"/>
