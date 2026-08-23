@@ -553,13 +553,25 @@ jobs:
 
           #  Les noms viennent de la correspondance que GTK fait entre les
           #  dossiers XDG et les icônes (gtkfilesystem) — pas d'une supposition.
-          RECLAMES="folder user-home user-desktop folder-documents folder-download folder-music folder-pictures folder-videos folder-publicshare folder-templates"
+          #  « inode-directory » EST LE NOM QUI MANQUAIT, ET IL VAUT UNE LIGNE
+          #  À LUI. Quand GIO doit nommer l'icône d'un dossier, c'est celui-là
+          #  qu'il demande — pas « folder ». Le thème ne le portait pas : la
+          #  chaîne d'héritage continuait vers Papirus, absent ce jour-là, et
+          #  faute de tout candidat GIO retombait sur l'icône générique d'un
+          #  type inconnu. D'où des dossiers en FEUILLE DE PAPIER BLANCHE sur
+          #  la photo de l'ISO 72 — et en bleu sur la 71, ou Papirus était
+          #  passé. Le même dépôt, deux resultats, selon le temps qu'il faisait
+          #  sur les miroirs.
+          RECLAMES="folder inode-directory user-home user-desktop folder-documents folder-download folder-music folder-pictures folder-videos folder-publicshare folder-templates folder-drag-accept folder-visiting"
           bad=0
           for n in $RECLAMES; do
             if [ -r "$T/$n.svg" ]; then
               printf '  ok  %s\n' "$n"
             else
-              echo "::error file=$T::« $n.svg » manque — ce dossier retombera sur Papirus-Dark, en BLEU"
+              #  Le message dit les DEUX issues, parce qu'on les a vues toutes
+              #  les deux : bleu si Papirus est là pour rattraper, feuille de
+              #  papier blanche s'il ne l'est pas.
+              echo "::error file=$T::« $n.svg » manque — ce dossier retombera sur Papirus (bleu), ou sur l'icône générique (feuille blanche) si Papirus n'est pas passé"
               bad=1
             fi
           done
@@ -570,7 +582,17 @@ jobs:
             [ -r "$f" ] || { echo "::error file=$f::lien cassé vers $(readlink "$f")"; bad=1; }
           done
 
-          [ "$bad" = "0" ] && echo "  ok — tous les dossiers que GTK sait nommer ont leur poche orange"
+          #  ET LES DEUX THÈMES DE REPLI DOIVENT ÊTRE STRICTS. Tant qu'ils
+          #  voyageaient dans les listes OPTIONNELLES — posées « au mieux » —
+          #  l'apparence du bureau dépendait du temps qu'il faisait sur les
+          #  miroirs Debian. Un bureau sans thème d'icônes n'est pas dégradé,
+          #  il est cassé.
+          for PKG in adwaita-icon-theme papirus-icon-theme; do
+            grep -qx "$PKG" config/package-lists/lexos-core.list.chroot || {
+              echo "::error file=config/package-lists/lexos-core.list.chroot::« $PKG » n'est plus strict — son absence rendrait les dossiers blancs sans que rien ne le dise"; bad=1; }
+          done
+
+          [ "$bad" = "0" ] && echo "  ok — tous les dossiers que GTK sait nommer ont leur poche orange, et les thèmes de repli sont stricts"
           exit $bad
 
       - name: Bits d'exécution présents

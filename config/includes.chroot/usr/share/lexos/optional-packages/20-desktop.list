@@ -48,12 +48,14 @@ lightdm-gtk-greeter-settings
 # session invité est intégrée à lightdm et s'active par sa configuration
 # (déjà faite dans le hook 0400).
 arc-theme
-papirus-icon-theme
+# papirus-icon-theme — PASSÉ EN STRICT (lexos-core.list.chroot) après l'ISO 72 :
+#   son absence rendait tous les dossiers blancs, sans que rien ne le dise.
 fonts-noto-core
 fonts-noto-color-emoji
 fonts-firacode
 fonts-dejavu
-adwaita-icon-theme
+# adwaita-icon-theme — PASSÉ EN STRICT (lexos-core.list.chroot) après l'ISO 72 :
+#   son absence rendait tous les dossiers blancs, sans que rien ne le dise.
 pipewire
 pipewire-audio
 pipewire-pulse
@@ -81,7 +83,8 @@ gnome-disk-utility
 synaptic
 gdebi
 zenity
-yad
+# yad — PASSÉ EN STRICT (lexos-core.list.chroot) : il porte la fenêtre de bienvenue,
+#   et son absence livrait une ISO qui n'affiche rien sans le dire.
 xdg-utils
 xdg-user-dirs
 xdg-user-dirs-gtk

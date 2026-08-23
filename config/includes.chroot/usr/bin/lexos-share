@@ -84,11 +84,75 @@ cmd_qr() {
 		die "Le serveur de partage n'a pas démarré."
 	fi
 
+	# =========================================================================
+	#  UNE VRAIE FENÊTRE, ET NON UN QR CODE EN CARACTÈRES
+	# =========================================================================
+	#  ALEX, PHOTO DE L'ISO 72 : « la page pour partager, elle est pas pareille ».
+	#  Il a raison. La démo montre une page — un titre, un QR net, l'adresse en
+	#  orange, deux explications. L'ISO, elle, ouvrait un TERMINAL et y dessinait
+	#  le QR avec des blocs de texte. Même information, deux produits.
+	#
+	#  Un QR en caractères, ce n'est pas seulement moins beau : selon la police
+	#  et l'espacement des lignes du terminal, les modules ne sont pas carrés, et
+	#  l'appareil photo du téléphone peut refuser de le lire. C'est le genre de
+	#  chose qui marche chez celui qui l'a écrit et pas chez l'autre.
+	#
+	#  On rend donc un vrai PNG et on l'affiche dans une fenêtre. Le terminal
+	#  reste le REPLI : sans yad, ou sans serveur graphique — en console, en mode
+	#  secours — le QR en caractères vaut toujours mieux que rien. La commande
+	#  garde ainsi sa raison d'être là où il n'y a pas de bureau.
+	fenetre_qr() {
+		command -v yad >/dev/null 2>&1 || return 1
+		[[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || return 1
+		command -v qrencode >/dev/null 2>&1 || return 1
+
+		local png
+		png="$(mktemp -t lexos-share-qr-XXXXXX.png)" || return 1
+		#  -s 8 : huit pixels par module, lisible d'un bras de distance.
+		#  -m 2 : la marge blanche que la norme réclame — sans elle, beaucoup
+		#         d'appareils photo ne détectent pas le code du tout.
+		#  -l M : correction d'erreur moyenne, pour qu'un reflet ne suffise pas
+		#         à rendre le code illisible.
+		qrencode -t PNG -s 8 -m 2 -l M -o "$png" "$url" 2>/dev/null || {
+			rm -f "$png"; return 1; }
+
+		local texte
+		texte="<span size='x-large' weight='bold'>Partager un fichier</span>
+
+<span size='large'><tt>${url}</tt></span>
+
+Scanne le code avec l'appareil photo du téléphone,
+ou tape l'adresse dans son navigateur.
+
+<span alpha='75%'>Tu peux aussi t'envoyer des fichiers DEPUIS le téléphone :
+ils arrivent dans ${RECV_DIR}</span>
+
+<span alpha='75%'>Fermeture automatique dans ${MINUTES} min.</span>"
+
+		#  --on-top et --center : le partage dure quelques minutes, la fenêtre
+		#  ne doit pas se perdre sous les autres pendant qu'on cherche son
+		#  téléphone. --no-buttons : il n'y a rien à décider, seulement à lire.
+		yad --image="$png" --image-on-top \
+			--title="Partage LexOS" --window-icon=lexos \
+			--center --on-top --borders=18 --width=420 \
+			--text="$texte" \
+			--button="Fermer le partage:0" 2>/dev/null &
+		FENETRE_PID=$!
+		QR_PNG="$png"
+		return 0
+	}
+
+	FENETRE_PID=""; QR_PNG=""
 	printf '\n'
-	if command -v qrencode >/dev/null 2>&1; then
-		qrencode -t ANSIUTF8 -m 2 "$url"
-	else
-		warn "qrencode absent — installe-le pour afficher le QR code."
+	if ! fenetre_qr; then
+		#  Le repli, et il est assumé : en console il n'y a pas de fenêtre à
+		#  ouvrir, et un QR en caractères se scanne quand même la plupart du
+		#  temps. Mieux vaut ça qu'une commande qui refuse de servir.
+		if command -v qrencode >/dev/null 2>&1; then
+			qrencode -t ANSIUTF8 -m 2 "$url"
+		else
+			warn "qrencode absent — installe-le pour afficher le QR code."
+		fi
 	fi
 
 	printf '\n  %s%s%s\n\n' "$B$O" "$url" "$R"
@@ -106,7 +170,18 @@ cmd_qr() {
 		notify-send -i network-wireless "LexOS — partage ouvert" "$url" 2>/dev/null || true
 	fi
 
-	wait "$pid" 2>/dev/null
+	#  DEUX FAÇONS D'ARRÊTER, ET LA PREMIÈRE QUI VIENT GAGNE : le bouton de la
+	#  fenêtre, ou Ctrl+C dans le terminal. Sans ce guet, fermer la fenêtre
+	#  laissait le serveur tourner — un partage qu'on croit fermé et qui ne
+	#  l'est pas, c'est la pire des deux issues.
+	if [[ -n "$FENETRE_PID" ]]; then
+		wait -n "$pid" "$FENETRE_PID" 2>/dev/null || true
+		kill "$pid" "$FENETRE_PID" 2>/dev/null || true
+		wait "$pid" "$FENETRE_PID" 2>/dev/null || true
+		[[ -n "$QR_PNG" ]] && rm -f "$QR_PNG"
+	else
+		wait "$pid" 2>/dev/null
+	fi
 	printf '\n'
 	ok "Partage fermé."
 }

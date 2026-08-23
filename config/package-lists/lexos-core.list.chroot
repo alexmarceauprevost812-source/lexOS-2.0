@@ -101,3 +101,47 @@ librsvg2-common
 
 # --- Réactivité sous pression mémoire (comme Ubuntu) ------------------------
 systemd-oomd
+
+# --- Icônes : STRICT, et voici ce que ça a coûté d'être optionnel ------------
+#  PHOTO D'ALEX, ISO 72 : dans Fichiers, tous les dossiers — Bureau, Documents,
+#  Images, Musique, Vidéos, Téléchargements — s'affichaient comme des FEUILLES
+#  DE PAPIER BLANCHES. Pas bleues : blanches, l'icône d'un fichier texte.
+#
+#  La cause n'était pas le thème LexOS, qui était bien là. Quand GIO doit
+#  nommer l'icône d'un dossier, il demande « inode-directory ». Ce nom-là, le
+#  thème LexOS ne le portait pas — il ne définissait que « folder » et ses
+#  variantes. La chaîne d'héritage continuait donc vers Papirus-Dark… qui
+#  n'était pas installé ce jour-là. Et faute de tout candidat, GIO retombe sur
+#  l'icône générique d'un type inconnu : la feuille blanche.
+#
+#  Au build 71, Papirus était passé et les dossiers étaient BLEUS. Au 72, il
+#  n'est pas passé et ils sont devenus BLANCS. Le même dépôt, deux résultats,
+#  parce que ces paquets voyageaient dans les listes OPTIONNELLES — celles que
+#  le hook 0250 pose « au mieux », sans faire échouer la construction.
+#
+#  Un bureau sans thème d'icônes n'est pas un bureau dégradé, c'est un bureau
+#  cassé. Ça ne peut pas dépendre du temps qu'il fait sur les miroirs Debian.
+#  Les deux passent donc ici, où une absence ARRÊTE la construction au lieu de
+#  livrer une ISO muette. (Le thème LexOS porte maintenant inode-directory de
+#  son côté : il ne dépend plus de personne pour les dossiers. Ceinture et
+#  bretelles — c'est exactement ce qui manquait.)
+adwaita-icon-theme
+papirus-icon-theme
+
+# --- Les deux outils qui PORTENT une fenêtre --------------------------------
+#  MÊME LEÇON QUE LES ICÔNES, TIRÉE LE MÊME JOUR. Ces deux-là ne sont pas des
+#  agréments : ils sont le seul moyen d'afficher deux choses que LexOS promet.
+#
+#    · yad dessine la fenêtre de BIENVENUE — la toute première chose qu'on voit
+#      en démarrant l'ISO. Sans lui, lexos-welcome retombe sur du texte en
+#      console : le premier contact avec LexOS devient une ligne de terminal.
+#    · qrencode dessine le QR code du PARTAGE. Sans lui, « lexos share »
+#      démarre le serveur et n'affiche aucun code — il reste une adresse à
+#      recopier à la main sur un téléphone.
+#
+#  Tant qu'ils voyageaient dans les listes optionnelles, ces deux écrans
+#  dépendaient du temps qu'il faisait sur les miroirs Debian, exactement comme
+#  les dossiers blancs de l'ISO 72. Une absence doit ARRÊTER la construction,
+#  pas livrer une ISO qui a l'air correcte et ne montre rien.
+yad
+qrencode
