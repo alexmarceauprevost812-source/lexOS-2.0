@@ -145,6 +145,40 @@ decoder_edid() {
 			|| printf '  (dmesg illisible sans sudo — relance avec : sudo lexos tv)\n'
 	fi
 
+	#  ═══ SECURE BOOT, EN TOUTES LETTRES ═══
+	#  C'est la première chose à écarter devant un écran noir sur cette
+	#  machine, et rien dans LexOS ne le disait — vérifié : aucune occurrence
+	#  dans lexos-tv ni dans lexos-materiel avant aujourd'hui.
+	if [ -r /usr/share/lexos/shell/secure-boot.sh ]; then
+		titre "SECURE BOOT"
+		# shellcheck disable=SC1091
+		. /usr/share/lexos/shell/secure-boot.sh
+		secure_boot_dire | sed 's/^/  /'
+	fi
+
+	#  ═══ LE RAPPORT DU PILOTE, ENFIN MONTRÉ ═══
+	#  Le hook 0260 écrit /etc/lexos/nvidia-report avec soin : la version
+	#  réelle, la source, l'épingle posée, et la trace de CHAQUE tentative avec
+	#  la raison exacte de son échec. Il existe précisément parce que le
+	#  journal de construction est illisible.
+	#
+	#  Et AUCUNE commande ne l'affichait. Il fallait savoir qu'il existe et
+	#  taper « cat » dessus. Un diagnostic que personne ne voit ne diagnostique
+	#  rien.
+	if [ -r /etc/lexos/nvidia-report ]; then
+		titre "PILOTE NVIDIA EMBARQUÉ DANS CETTE ISO"
+		sed 's/^# \{0,1\}//; s/^/  /' /etc/lexos/nvidia-report
+		#  LA LIGNE LA PLUS UTILE DES DEUX : elle compare ce que l'ISO
+		#  CONTIENT à ce qui TOURNE. C'est exactement la différence qui a fait
+		#  passer une ISO buggée pour corrigée — l'étiquette disait 595, le
+		#  module chargé était un 610.
+		if command -v modinfo >/dev/null 2>&1; then
+			charge="$(modinfo -F version nvidia 2>/dev/null || true)"
+			[ -n "$charge" ] || charge="non chargé"
+			printf '\n  Module réellement chargé maintenant : %s\n' "$charge"
+		fi
+	fi
+
 	printf '\n=============================================================\n'
 } 2>&1 | tee "$RAPPORT"
 

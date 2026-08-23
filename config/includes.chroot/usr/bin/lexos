@@ -133,7 +133,11 @@ ${B}ÉNERGIE${R}
   ${A}tv${R}                  ${B}Pourquoi le téléviseur n'affiche rien${R}
                       ${D}Lit l'EDID du téléviseur et le mode qu'il réclame,
                       sans serveur graphique ni pilote — donc lisible en
-                      console et en mode secours, là où rien d'autre ne marche.${R}
+                      console et en mode secours, là où rien d'autre ne marche.
+                      Dit aussi si SECURE BOOT bloque le pilote NVIDIA, et
+                      compare la version du pilote EMBARQUÉE dans l'ISO à
+                      celle qui tourne VRAIMENT — la différence qui a déjà
+                      fait passer une ISO buggée pour corrigée.${R}
   ${A}meteo${R}               Le temps qu'il fait, chez toi
   ${A}meteo ville${R} <nom>   Choisir ta ville ${D}(ex. : meteo ville Toronto)${R}
                       ${D}Aussi d'un clic sur la météo, dans la barre du haut.

@@ -329,6 +329,24 @@ gpu_section() {
 		fi
 	done < <(lspci 2>/dev/null | grep -Ei 'VGA compatible|3D controller|Display controller')
 	[[ "$vu" = 0 ]] && bof "aucune carte graphique vue sur le bus PCI"
+
+	#  SECURE BOOT, DIT ICI PARCE QUE C'EST ICI QU'ON LE CHERCHE.
+	#  Le pilote NVIDIA de LexOS est compilé sur la machine par DKMS, et un
+	#  module compilé n'est pas signé : avec Secure Boot actif, le noyau refuse
+	#  de le charger. Et comme le hook 0260 met « nouveau » en liste noire — il
+	#  a raison, nouveau ne sait pas lire les sorties d'une RTX 50 — il ne reste
+	#  alors AUCUN pilote graphique. Une panne partielle est devenue une panne
+	#  totale, et rien dans LexOS ne le disait.
+	#  La fonction vit dans un fichier commun : lexos-tv en a besoin aussi, et
+	#  deux copies de six lignes finissent toujours par diverger.
+	if [[ -r "/usr/share/lexos/shell/secure-boot.sh" ]]; then
+		# shellcheck disable=SC1091
+		. "/usr/share/lexos/shell/secure-boot.sh"
+		if secure_boot_actif; then
+			mal "  Secure Boot ACTIF — le pilote NVIDIA ne peut pas se charger"
+			note "lexos tv explique comment le désactiver (BIOS → Boot → Secure Boot)"
+		fi
+	fi
 	return 0
 }
 

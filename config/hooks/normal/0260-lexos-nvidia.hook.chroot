@@ -317,7 +317,40 @@ inventaire() {
 #  qui porte la régression HDMI. On ne vise plus un numéro précis (595, 580) :
 #  on prend ce que le dépôt a de plus proche en dessous de 610, choisi sur la
 #  liste du VRAI pilote quand elle existe.
-version_avant_610() {
+#  ═══ LES BRANCHES ÉCARTÉES, NOMMÉES UNE PAR UNE ═══
+#  La règle était « toute branche strictement sous 610 ». Elle marchait, et
+#  elle avait un défaut à retardement : elle écarte aussi la 615, la 620, et
+#  tout ce que NVIDIA publiera ensuite.
+#
+#  Aujourd'hui ça ne se voit pas — au-dessus de la 595, le dépôt n'a que du
+#  610. Le jour où une 615 corrigera Blackwell, LexOS serait resté sur la 595
+#  SANS UNE LIGNE dans le journal, sans erreur, sans rien : une ISO d'une
+#  heure et quart livrée identique à la précédente. C'est très exactement le
+#  scénario qui a déjà coûté deux ISO à ce projet.
+#
+#  On écarte donc la 610 PAR SON NOM — elle porte la régression HDMI, l'issue
+#  NVIDIA #1238 est toujours ouverte au 23 août 2026 et le rapporteur note
+#  qu'elle persiste aussi en 580.173.02. Le module propriétaire, qui n'a pas
+#  le défaut, n'existe pas pour Blackwell : ce repli-là ne nous est pas
+#  ouvert. Tout le reste redevient éligible.
+#
+#  Rien ne change aujourd'hui : 595.91.07 reste la réponse. On ne fait que
+#  dégeler l'avenir.
+#
+#  Pour écarter une autre branche plus tard : l'ajouter ici, séparée d'un
+#  espace. Pour tout rouvrir : vider la variable.
+BRANCHES_ECARTEES="610"
+
+branche_ecartee() {
+	for b in $BRANCHES_ECARTEES; do
+		[ "$1" = "$b" ] && return 0
+	done
+	return 1
+}
+
+#  La version la plus récente qui n'est pas d'une branche écartée. La liste
+#  arrive déjà triée du plus récent au plus ancien (sort -Vr dans versions_de).
+version_utilisable() {
 	LISTE="${VERSIONS_PILOTE:-$VERSIONS_DISPO}"
 	[ -n "$LISTE" ] || return 0
 	echo "$LISTE" | while read -r v; do
@@ -326,10 +359,9 @@ version_avant_610() {
 		case "$maj" in
 			''|*[!0-9]*) continue ;;
 		esac
-		if [ "$maj" -lt 610 ]; then
-			echo "$v"
-			break
-		fi
+		branche_ecartee "$maj" && continue
+		echo "$v"
+		break
 	done
 }
 
@@ -346,7 +378,7 @@ if depot_nvidia; then
 				"dépôt officiel NVIDIA, branche ${BRANCHE} épinglée (cuda-drivers-${BRANCHE})" \
 			|| echo "[lexos]   !! aucun méta-paquet de branche ${BRANCHE} dans ce dépôt"
 	fi
-	#  2. SI debian13 n'a rien avant la 610, on va voir chez debian12.
+	#  2. SI debian13 n'a rien hors des branches écartées, on va voir chez debian12.
 	#     Constaté à la construction du 3 août : le dépôt debian13 ne publie
 	#     la 595 que pour le méta-paquet nvidia-open (2,5 ko) — aucun paquet
 	#     de PILOTE en 595. Le dépôt debian12, plus ancien, garde en général
@@ -354,16 +386,16 @@ if depot_nvidia; then
 	#     ne dépendent que d'une glibc plus vieille que celle de trixie :
 	#     l'installation reste cohérente. Si ça ne passe pas, apt refusera
 	#     franchement et on repartira sur le défaut, comme avant.
-	if [ -z "$REUSSITE" ] && [ -z "$(version_avant_610)" ] && [ "$NV_DIST" = "debian13" ]; then
-		echo "[lexos]   debian13 n'a aucun pilote avant la 610 — on regarde debian12"
+	if [ -z "$REUSSITE" ] && [ -z "$(version_utilisable)" ] && [ "$NV_DIST" = "debian13" ]; then
+		echo "[lexos]   debian13 n'a aucun pilote hors des branches écartées (${BRANCHES_ECARTEES}) — on regarde debian12"
 		NV_DIST_SECOURS="debian12"
 		NV_DIST_INITIAL="$NV_DIST"
 		NV_DIST="$NV_DIST_SECOURS"
 		if depot_nvidia; then
 			echo "[lexos]   dépôt NVIDIA de secours ajouté (${NV_DIST})"
 			inventaire
-			if [ -z "$(version_avant_610)" ]; then
-				echo "[lexos]   !! debian12 non plus ne propose rien avant la 610 — retour à ${NV_DIST_INITIAL}"
+			if [ -z "$(version_utilisable)" ]; then
+				echo "[lexos]   !! debian12 non plus ne propose rien hors des branches écartées — retour à ${NV_DIST_INITIAL}"
 				NV_DIST="$NV_DIST_INITIAL"
 				depot_nvidia >/dev/null 2>&1 || true
 				inventaire >/dev/null 2>&1 || true
@@ -375,40 +407,40 @@ if depot_nvidia; then
 			inventaire >/dev/null 2>&1 || true
 		fi
 	fi
-	#  3. La branche la plus récente d'avant la 610, choisie dans l'inventaire
+	#  3. La branche la plus récente hors des branches écartées, choisie dans l'inventaire
 	#     et imposée à TOUTE la pile par les préférences apt — pas seulement
 	#     au méta-paquet, qui ne décide de rien.
 	if [ -z "$REUSSITE" ]; then
-		V610="$(version_avant_610)"
-		if [ -n "$V610" ]; then
-			BR610="${V610%%.*}"
-			trace "branche retenue : ${BR610} (version ${V610})"
-			pin_branche "$BR610"
+		V_RETENUE="$(version_utilisable)"
+		if [ -n "$V_RETENUE" ]; then
+			BR_RETENUE="${V_RETENUE%%.*}"
+			trace "branche retenue : ${BR_RETENUE} (version ${V_RETENUE})"
+			pin_branche "$BR_RETENUE"
 			#  ON NOMME LE PILOTE, PAS SON ÉTIQUETTE. Le méta-paquet nvidia-open
 			#  s'installe volontiers en 595 en tirant un pilote 610 derrière lui
 			#  — c'est arrivé. En demandant nvidia-driver-cuda à la version
 			#  exacte, apt doit résoudre TOUTE la pile sur cette branche, ou
 			#  échouer franchement. Le méta-paquet ne vient qu'ensuite, une fois
 			#  le pilote posé, pour compléter la panoplie.
-			if essaie "${PAQUET_PILOTE:-nvidia-driver-cuda}=${V610}" \
-				"dépôt officiel NVIDIA, pilote ${V610} nommé explicitement — branche ${BR610}, la plus récente d'avant la 610 et sa régression HDMI sur téléviseur" \
+			if essaie "${PAQUET_PILOTE:-nvidia-driver-cuda}=${V_RETENUE}" \
+				"dépôt officiel NVIDIA, pilote ${V_RETENUE} nommé explicitement — branche ${BR_RETENUE}, la plus récente hors des branches écartées (${BRANCHES_ECARTEES} : régression HDMI sur téléviseur)" \
 			   || essaie nvidia-open \
-				"dépôt officiel NVIDIA, branche ${BR610} imposée à toute la pile (version ${V610}) — la plus récente d'avant la 610 et sa régression HDMI sur téléviseur"
+				"dépôt officiel NVIDIA, branche ${BR_RETENUE} imposée à toute la pile (version ${V_RETENUE}) — la plus récente hors des branches écartées (${BRANCHES_ECARTEES} : régression HDMI sur téléviseur)"
 			then
 				#  Et on VÉRIFIE. Deux ISO ont été livrées sur la foi d'un
 				#  « apt a dit oui » qui cachait un pilote 610.
 				REEL="$(version_pilote_reel || echo '?')"
-				if [ "${REEL%%.*}" = "$BR610" ]; then
+				if [ "${REEL%%.*}" = "$BR_RETENUE" ]; then
 					echo "[lexos]   vérifié : le pilote réel est bien en ${REEL}"
 				else
-					echo "[lexos]   !! l'épingle n'a pas tenu — pilote réel ${REEL}, attendu ${BR610}.x"
-					trace "épingle NON TENUE : pilote réel ${REEL}, attendu ${BR610}.x"
+					echo "[lexos]   !! l'épingle n'a pas tenu — pilote réel ${REEL}, attendu ${BR_RETENUE}.x"
+					trace "épingle NON TENUE : pilote réel ${REEL}, attendu ${BR_RETENUE}.x"
 					REUSSITE=""
 					nettoie
 					depot_nvidia >/dev/null 2>&1 || true
 				fi
 			else
-				echo "[lexos]   !! branche ${BR610} refusée par apt — épingle retirée"
+				echo "[lexos]   !! branche ${BR_RETENUE} refusée par apt — épingle retirée"
 				rm -f "$NV_PIN"
 				apt-get update -qq || true
 			fi

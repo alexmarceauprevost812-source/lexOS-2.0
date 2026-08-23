@@ -210,6 +210,31 @@ fi
 #  machine démarre, seul le blindage anti-pilote manque.
 [ -n "$APPEND_SECOURS" ] || APPEND_SECOURS="$APPEND_VIF"
 
+#  ═══ UNE DEUXIÈME DIGUE CONTRE « nouveau » ═══
+#  La mise en liste noire de nouveau vit dans /etc/modprobe.d/ (hook 0260) et
+#  atteint le démarrage parce qu'update-initramfs la recopie dans l'initramfs.
+#  C'est correct — mais TOUTE la session vive repose sur cette seule recopie.
+#  Si l'initramfs est régénéré à l'étape binaire sans le fichier, la liste
+#  noire disparaît sans bruit, nouveau se charge en premier, prend la carte,
+#  et ne sait pas lire les sorties d'une RTX 50 : « aucun écran branché »,
+#  jamais de signal. C'est le bogue trouvé en direct à la construction 52.
+#
+#  Trois mots sur la ligne de démarrage coûtent moins cher qu'une soirée à
+#  chercher pourquoi l'écran est noir.
+#
+#  ET SURTOUT PAS SUR L'ENTRÉE DE SECOURS. Celle-ci (lexos.failsafe=1 /
+#  nomodeset) est le filet quand le pilote NVIDIA ne marche pas — et pour
+#  afficher quoi que ce soit, elle a BESOIN de nouveau. Lui retirer, ce serait
+#  supprimer le dernier recours, précisément le jour où il sert.
+if [ -n "$APPEND_VIF" ]; then
+	case "$APPEND_VIF" in
+		#  Déjà là ? On ne le met pas deux fois : une ligne de démarrage qui
+		#  répète ses arguments est illisible, et le hook peut être rejoué.
+		*nouveau.modeset=0*) ;;
+		*) APPEND_VIF="$APPEND_VIF nouveau.modeset=0" ;;
+	esac
+fi
+
 #  LES COMMENTAIRES NE COMPTENT PAS. Au 68, la moitié des « survivants »
 #  listés étaient des mots de commentaire — un rapport qu'on ne peut pas
 #  lire d'un coup d'œil finit ignoré. On ne regarde que les lignes de code.
