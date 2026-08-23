@@ -58,6 +58,129 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 74 : CINQ PHOTOS, CINQ CORRECTIONS — ET DEUX RÉGLAGES QUI NE RÉGLAIENT RIEN.
+#
+#   Alex a démarré la 73 et photographié le bureau à côté de la démo ouverte
+#   sur l'écran voisin. Cinq demandes, et deux d'entre elles ont mené à des
+#   réglages qui étaient là depuis des builds sans jamais rien faire.
+#
+#   · « ARRONDIR LES COINS », « FAIRE LA PAGE DES FICHIERS PAREILLE COMME LA
+#     2e IMAGE ». On a d'abord supposé qu'Arc-Dark avait des coins ronds et
+#     qu'on les avait abîmés en agrandissant les images du titre. C'est FAUX,
+#     et c'est mesuré : dans assets.svg d'arc-theme, top-left-active est le
+#     tracé « m 6,174 v 1 H 5 v 27 l 4,-1e-5 v -28 z ». Quatre pixels de
+#     large, vingt-huit de haut, et pour tout arrondi UN décrochement d'un
+#     pixel. Arc-Dark a des coins carrés. La photo ne montrait pas une
+#     régression : elle montrait le thème tel qu'il est.
+#
+#     xfwm4 n'a AUCUN réglage de rayon — la forme du coin EST l'alpha de son
+#     image, exactement comme la taille du bouton EST celle de la sienne.
+#     C'est la même leçon qu'au build 70, et elle se paie deux fois si on
+#     l'oublie. Le hook 0610 redessine donc les quatre images de coin : la
+#     colonne de couleur vient de title-3, donc elle suit le thème
+#     sombre/clair et actif/inactif sans qu'on écrive une couleur en dur, et
+#     un quart de disque de rayon 12 découpe le coin extérieur. Rayon 12 sur
+#     un titre de 40 px : le même rapport que « .win » de la démo
+#     (border-radius 10 sur 34).
+#
+#     LE BAS RESTE CARRÉ, ET C'EST UN CHOIX. La barre de titre appartient à
+#     xfwm4 : l'arrondir arrondit ce qu'on voit. Le bas, non — xfwm4 n'y
+#     possède que les 4 px de bordure, le contenu de l'application occupe le
+#     reste et xfwm4 ne peut pas le rogner. Arrondir la bordure du bas
+#     laisserait apparaître le coin CARRÉ du contenu juste à l'intérieur de
+#     la courbe : un défaut plus visible que celui qu'on corrige. La démo y
+#     arrive parce qu'elle a « overflow:hidden » ; on n'a pas cet outil ici,
+#     et on ne fait pas semblant de l'avoir.
+#
+#     Le titre passe À GAUCHE en même temps : dans la démo, « .tbar » pose
+#     l'icône puis « .ttitle{flex:1} ». Il était centré sur l'ISO, et c'est la
+#     première différence qu'on voit en posant les deux fenêtres côte à côte.
+#
+#     Et le commentaire de xfwm4.xml qui affirmait que la police suffisait à
+#     grossir les boutons a sauté. L'ISO 70 l'avait démenti À L'ÉCRAN — c'est
+#     précisément pour ça que le hook 0610 existe. Laisser la thèse démolie à
+#     côté de son correctif, c'était s'exposer à supprimer le hook un jour en
+#     croyant faire du ménage.
+#
+#   · « SUR L'ISO, 1re IMAGE, Y A 3 APPAREILS PHOTO. » Les trois lanceurs de
+#     capture de la barre du haut — photo, zone, vidéo — portaient tous
+#     « Icon=lexos-camera ». Trois boutons voisins identiques, donc deux
+#     inutilisables : on ne peut pas viser ce qu'on ne distingue pas.
+#
+#     La démo les distingue depuis toujours (#quickcap) : un appareil photo,
+#     un CADRE (le glyphe ⛶ de #qcZone), un POINT d'enregistrement (le
+#     ::before rond de #qcVideo). Deux dessins neufs, même trait et même
+#     jeton d'accent que icon-camera.svg — et les trois suivent désormais
+#     l'accent dans lexos-theme-gen, comme .cam-gly suit var(--ac) dans la
+#     démo. Une garde de CI vérifie qu'ils ne redeviendront pas identiques,
+#     que chacun a bien un SVG source, et qu'il est bien dans la liste de
+#     rendu du hook 0300.
+#
+#   · « GROSSIR LES IMAGES SUR LA 3e IMAGE » (le menu). Là il y avait une
+#     vraie panne, pas un réglage à monter. « item-icon-size » était posé
+#     dans le xfconf du panneau depuis des builds et n'a JAMAIS rien réglé :
+#     dans xfce4-whiskermenu-plugin 2.8.3 — celle de trixie — settings.cpp
+#     lit « /launcher-icon-size » ; « item-icon-size » n'y survit que comme
+#     repli lu par xfce_rc_read_int_entry, c'est-à-dire dans l'ANCIEN fichier
+#     ~/.config/xfce4/panel/whiskermenu-N.rc, jamais dans xfconf.
+#
+#     Et le défaut ne se voyait pas, parce que la valeur écrite (2) était
+#     EXACTEMENT le défaut du greffon : on demandait ce qu'on aurait eu sans
+#     rien demander. Même famille que les boutons inertes de la 72 — un
+#     réglage qui a l'air de marcher parce qu'il ne change rien.
+#     Lanceurs 32 -> 48 px, catégories 24 -> 32, fenêtre élargie en
+#     conséquence. Une garde de CI barre le retour de la clé morte.
+#
+#   · « GROSSIR L'IMAGE AUSSI DU PETIT DÉMON. » Icône du panneau 34 -> 40 px.
+#     On ne touche PAS à « size » : la marge des points de bureaux est
+#     calculée pour 52 dans etc/skel/.config/gtk-3.0/gtk.css, et la changer
+#     ici sans la refaire là-bas recollerait les points au bord haut — le
+#     défaut corrigé au build 70.
+#
+#   · LES DOSSIERS, TROISIÈME TENTATIVE — ET CETTE FOIS ON SAURA POURQUOI.
+#     71 bleus, 72 blancs, 73 encore blancs. Une quatrième hypothèse racontée
+#     de loin ne valait rien. Le hook 0605 bouche donc TOUTES les causes
+#     encore plausibles d'un coup — des PNG à huit tailles qui ne demandent
+#     aucun moteur de rendu, un index.theme réécrit d'après ce qui est
+#     RÉELLEMENT sur le disque, le cache construit à la construction — ET il
+#     écrit son verdict dans /etc/lexos/icones-report. Si la 74 a encore des
+#     feuilles blanches, ce fichier dira laquelle des hypothèses était la
+#     bonne, au lieu qu'on en invente une cinquième.
+#     S'y ajoutent cinq alias dans apps/scalable (org.xfce.thunar, Thunar,
+#     thunar, system-file-manager, file-manager) pour que le lanceur
+#     « Fichiers » réponde au nom que Thunar demande vraiment.
+#
+#   ═══ CE QUI L'ÉPROUVE, ET CE QU'IL A FALLU RÉPARER DANS LES BANCS ═══
+#
+#   · tests/test_lexos_fenetres.sh passe de 22 à 30 contrôles. Le banc
+#     fabriquait des noms inventés (« titre-0.png ») : ça suffisait tant
+#     qu'on ne faisait qu'AGRANDIR, plus du tout pour les coins, que le hook
+#     cherche NOMMÉMENT. Il emploie désormais les 45 noms d'assets.txt
+#     d'arc-theme, et pose un DÉGRADÉ sur les pièces de titre — sans lui, un
+#     coin rempli de n'importe quel aplat serait passé pour juste.
+#     Nouvelle section 6 : le même hook relancé avec le VRAI ImageMagick, et
+#     l'alpha vérifié — quart de disque, courbe qui progresse, colonne pleine
+#     sous le rayon, couleur venue du dégradé, bas resté carré. Cinq
+#     mutations essayées, cinq attrapées.
+#
+#   · La garde de CI des trois captures avait elle-même un trou : elle
+#     cherchait le nom par grep dans TOUT le hook 0300, et « github » y
+#     passait sans être dans la liste de rendu. Un contrôle qui répond oui à
+#     un nom absent ne contrôle rien. La mutation l'a attrapé ; il lit
+#     maintenant la boucle « for NAME in … ; do » elle-même.
+#
+#   · Le contrôle des liens cassés du hook 0605 portait le défaut qu'il
+#     chasse : « [ -e ] » SUIT le lien, donc un lien cassé répondait NON et
+#     était sauté au lieu d'être signalé — il annonçait « 0 cassée » en en
+#     ayant manqué une. On teste maintenant « c'est un lien » AVANT « la
+#     cible existe ».
+#
+#   ═══ CE QUE SEUL ALEX PEUT VÉRIFIER ═══
+#   Il n'y a pas de GTK dans le conteneur de construction : la forme des
+#   coins est prouvée sur l'ALPHA des images que le hook fabrique, pas sur
+#   une capture d'une vraie fenêtre. C'est l'écran qui tranche.
+#   Et pour les dossiers : « cat /etc/lexos/icones-report ».
+#
 # build 73 : CE QUE LE 72 A LIVRÉ CASSÉ, ET CE QU'ON A COMPRIS EN LE RÉPARANT.
 #
 #   Alex a démarré la 72 et photographié. Trois choses, et chacune a mené plus
@@ -2046,4 +2169,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 73
+build: 74
