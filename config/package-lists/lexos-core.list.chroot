@@ -145,3 +145,17 @@ papirus-icon-theme
 #  pas livrer une ISO qui a l'air correcte et ne montre rien.
 yad
 qrencode
+
+# --- Le chercheur d'applications --------------------------------------------
+#  TROIS CHEMINS Y MÈNENT DÉJÀ, ET AUCUN NE LE DIRAIT S'IL MANQUAIT :
+#    · la touche <Super>+S (xfce4-keyboard-shortcuts.xml) ;
+#    · l'icône du dock (plank, 04-appfinder.dockitem) ;
+#    · Paramètres -> Recherche (settings.py, section « recherche »).
+#  Absent, les trois ne font RIEN — pas d'erreur, pas de message, juste un
+#  raccourci mort, une icône qui ne s'ouvre pas et un bouton sans effet.
+#  C'est la panne des dossiers blancs de l'ISO 72 dans une autre robe : un
+#  paquet posé « au mieux » dont dépend quelque chose de visible.
+#  Depuis le build 75 il porte en plus la grille d'icônes qu'Alex a demandée
+#  (xfce4-appfinder.xml dans le squelette) : ce réglage n'aurait servi à
+#  rien sans le programme qui le lit.
+xfce4-appfinder

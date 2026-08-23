@@ -194,7 +194,7 @@ rm -f /usr/share/icons/hicolor/scalable/apps/lexos.svg
 for NAME in files zip share wifi wifi-ok wifi-warn wifi-off bluetooth \
              perf-petit perf-medium perf-performant perf-max \
              folder-ferme folder-ouvert musique usb secure terminal camera \
-             capture-zone capture-video \
+             capture-zone capture-video arret \
              reglages navigateur note couleurs maj disque mac; do
 	SRC="$BRAND/icon-${NAME}.svg"
 	[ -r "$SRC" ] || continue

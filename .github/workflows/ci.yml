@@ -930,6 +930,19 @@ jobs:
             || sudo apt-get install -y --no-install-recommends imagemagick >/dev/null
           bash tests/test_lexos_fenetres.sh
 
+      - name: Le bouton rouge — lexos-session sur un banc
+        run: |
+          #  UN OUTIL QUI ÉTEINT LA MACHINE NE SE TESTE PAS EN LE LANÇANT.
+          #  Le banc lui donne de faux outils sur un PATH fermé et regarde ce
+          #  qu'il APPELLE : chaque geste, chaque repli, et surtout les deux
+          #  refus qui comptent — sans écran il ne coupe rien, et sans aucun
+          #  outil il le DIT au lieu de rendre 0 en silence.
+          #  Il vérifie aussi que la barre et la fenêtre disent la même chose :
+          #  « changer d'utilisateur » et « déconnexion » doivent avoir quitté
+          #  la rangée du panneau, et le greffon 17 (le rouge) être le dernier
+          #  — c'est ce qui le met tout à droite de l'écran.
+          bash tests/test_lexos_session.sh
+
       - name: Tables de modèles Mac identiques
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même

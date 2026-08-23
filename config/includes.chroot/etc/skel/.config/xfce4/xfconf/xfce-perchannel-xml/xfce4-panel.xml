@@ -89,6 +89,14 @@
         <value type="int" value="15"/>
         <value type="int" value="12"/>
         <value type="int" value="8"/>
+        <!--  17 EST LE DERNIER, ET C'EST TOUTE LA DEMANDE D'ALEX.
+              « mettre le bouton rouge totalement à droite de l'écran ».
+              Dans une barre horizontale, l'ordre de ce tableau EST l'ordre
+              à l'écran, de gauche à droite : le dernier est le plus à
+              droite. Il était 8 (le greffon d'actions), dont le DERNIER
+              bouton était « déconnexion » — c'est elle qui occupait le
+              coin, pas l'arrêt. -->
+        <value type="int" value="17"/>
       </property>
     </property>
   </property>
@@ -275,18 +283,52 @@
       </property>
     </property>
 
-    <!-- 8 · Session (verrouiller, éteindre) -->
+    <!-- 8 · Session — VERROUILLER, VEILLE, REDÉMARRER. Et rien d'autre.
+         Photo de l'ISO 74 : six boutons collés, et le rouge n'était même
+         pas au bout — la déconnexion (verte) le dépassait à droite.
+
+         Alex a redistribué : « le bouton rouge totalement à droite »,
+         « le redémarrage à côté », « la veille à côté du redémarrage »,
+         et « changer d'utilisateur » + « déconnexion » DANS UNE AUTRE
+         FENÊTRE, celle qu'ouvre le bouton rouge.
+
+         Trois partent donc d'ici :
+           · shutdown    — remplacé par le lanceur 17, qui ouvre la fenêtre.
+             Le greffon d'actions ne sait pas ouvrir NOTRE fenêtre au clic :
+             il exécute ses propres actions, un point c'est tout. Aucun
+             réglage ne change ça — même mur que la taille des boutons de
+             fenêtre au build 70.
+           · switch-user et logout — ils vivent dans la fenêtre maintenant.
+
+         VERROUILLER RESTE. Alex ne l'a pas cité, et c'est le seul geste de
+         cette rangée qu'on fait plusieurs fois par jour : l'enfouir dans
+         une fenêtre le rendrait plus lent pour rien. Il est à gauche de la
+         veille, hors des trois qu'Alex a nommés.
+
+         L'ORDRE DE CE TABLEAU EST L'ORDRE À L'ÉCRAN, de gauche à droite.
+         Avec le lanceur 17 juste après le greffon, on obtient :
+             verrouiller · veille · redémarrer · [ARRÊT ROUGE]
+         soit exactement ce qu'il a décrit, en partant du bord droit. -->
     <property name="plugin-8" type="string" value="actions">
       <property name="appearance" type="int" value="0"/>
       <property name="items" type="array">
         <value type="string" value="+lock-screen"/>
-        <value type="string" value="+switch-user"/>
         <value type="string" value="+separator"/>
         <value type="string" value="+suspend"/>
         <value type="string" value="+restart"/>
-        <value type="string" value="+shutdown"/>
-        <value type="string" value="+separator"/>
-        <value type="string" value="+logout"/>
+      </property>
+    </property>
+
+    <!-- 17 · LE BOUTON ROUGE. Un lanceur ordinaire, pas une action du
+         greffon : c'est ce qui permet qu'un clic ouvre lexos-session,
+         la fenêtre qui porte « changer d'utilisateur » et « déconnexion ».
+         Son icône, lexos-arret, est le seul dessin de la barre qui NE SUIT
+         PAS l'accent : le rouge y est un avertissement, pas un goût. Sous
+         un accent vert, un bouton d'arrêt vert dirait « vas-y » à
+         l'endroit exact où il doit dire « attention ». -->
+    <property name="plugin-17" type="string" value="launcher">
+      <property name="items" type="array">
+        <value type="string" value="lexos-session.desktop"/>
       </property>
     </property>
 

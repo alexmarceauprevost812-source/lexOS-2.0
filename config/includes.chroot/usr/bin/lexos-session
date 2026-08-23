@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-session — la fenêtre qui s'ouvre quand on clique sur le bouton rouge
+# =============================================================================
+#  CE QU'ALEX A DEMANDÉ, ET POURQUOI LE GREFFON DE XFCE NE SUFFISAIT PAS.
+#
+#  Photo de l'ISO 74, barre du haut : six petits boutons de session collés
+#  les uns aux autres — verrouiller, changer d'utilisateur, veille,
+#  redémarrer, éteindre, déconnexion. Le rouge n'était PAS au bout : la
+#  déconnexion (verte) le dépassait à droite.
+#
+#  Sa demande, mot pour mot :
+#    « mettre le bouton rouge totalement à droite de l'écran »
+#    « ensuite le bouton pour le redémarrer à côté du bouton arrêt »
+#    « bouton pour le mettre en mise en veille à côté du bouton redémarrer »
+#    « mettre les 2 boutons — changer utilisateur, déconnexion — dans une
+#      autre fenêtre quand on clique sur le bouton arrêt »
+#
+#  Les trois premiers points se règlent dans xfce4-panel.xml : on retire de
+#  la rangée ce qui doit partir, et l'ordre du tableau EST l'ordre à
+#  l'écran. Le quatrième, non. Le greffon « actions » de XFCE sait afficher
+#  des boutons et exécuter des actions ; il ne sait pas ouvrir NOTRE fenêtre
+#  au clic sur l'un d'eux. Il n'a aucun réglage pour ça — c'est le même mur
+#  que pour la taille des boutons de fenêtre au build 70, où xfwm4 n'avait
+#  aucun réglage de taille et où il a fallu fabriquer les images.
+#
+#  Donc : le bouton rouge de la barre n'est plus une action du greffon, mais
+#  un LANCEUR ordinaire qui appelle ce programme.
+#
+#  ═══ POURQUOI QUATRE BOUTONS ET PAS SIX ═══
+#  Veille et redémarrage sont désormais À CÔTÉ du bouton rouge, dans la
+#  barre, là où Alex les a placés. Les remettre aussi dans cette fenêtre,
+#  c'est offrir deux chemins pour le même geste et faire hésiter : « lequel
+#  des deux redémarrages ? ». La fenêtre porte donc ce qui n'est nulle part
+#  ailleurs — changer d'utilisateur, déconnexion — plus la confirmation de
+#  l'arrêt (on vient de cliquer dessus) et de quoi repartir.
+#
+#  ═══ CE QUI EST ÉPROUVABLE, ET COMMENT ═══
+#  Un programme qui éteint la machine ne se teste pas en le lançant. Toutes
+#  les commandes passent donc par « lancer() », et LEXOS_SESSION_SIMULE=1
+#  les fait ÉCRIRE au lieu de s'exécuter. Ce n'est pas un chemin mort ajouté
+#  pour faire joli : c'est le seul moyen que tests/test_lexos_session.sh
+#  puisse vérifier que « Éteindre » éteint et que « Déconnexion » déconnecte,
+#  au lieu de relire le code en hochant la tête.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos-session"
+BRAND="/usr/share/lexos/branding"
+
+#  ─── EXÉCUTER, OU DIRE CE QU'ON AURAIT EXÉCUTÉ ──────────────────────────────
+#  En simulation on écrit la commande sur la sortie standard et on rend 0.
+#  En vrai on l'exécute. Une seule porte pour tout ce qui touche la machine :
+#  s'il en existait une deuxième, le banc ne la verrait pas et c'est
+#  exactement par là que passerait le jour où ça casse.
+lancer() {
+	if [[ -n "${LEXOS_SESSION_SIMULE:-}" ]]; then
+		printf '%s\n' "$*"
+		return 0
+	fi
+	"$@" >/dev/null 2>&1
+}
+
+#  Y a-t-il cette commande ? En simulation, on répond OUI à tout : sinon le
+#  banc n'éprouverait que le repli du conteneur, jamais le chemin normal.
+dispo() {
+	[[ -n "${LEXOS_SESSION_SIMULE:-}" ]] && return 0
+	command -v "$1" >/dev/null 2>&1
+}
+
+# =============================================================================
+#  Les cinq gestes. Chacun essaie ses outils DANS L'ORDRE et s'arrête au
+#  premier qui répond — et si aucun ne répond, il le DIT au lieu de rendre 0.
+# =============================================================================
+#  L'ordre n'est pas décoratif :
+#    · xfce4-session-logout d'abord quand il s'agit de la SESSION (fermer les
+#      applications proprement, écrire les fichiers en cours). systemctl
+#      couperait par-dessous et on perdrait le travail non enregistré.
+#    · systemctl / loginctl pour ce qui relève de la MACHINE, ou en repli
+#      quand le gestionnaire de session XFCE n'est pas là (session minimale,
+#      autre bureau, dépannage).
+
+eteindre() {
+	dispo xfce4-session-logout && { lancer xfce4-session-logout --halt --fast; return; }
+	dispo systemctl            && { lancer systemctl poweroff;                 return; }
+	dispo loginctl             && { lancer loginctl poweroff;                  return; }
+	echo "$PROG : rien pour éteindre (ni xfce4-session-logout, ni systemctl, ni loginctl)" >&2
+	return 1
+}
+
+redemarrer() {
+	dispo xfce4-session-logout && { lancer xfce4-session-logout --reboot --fast; return; }
+	dispo systemctl            && { lancer systemctl reboot;                     return; }
+	dispo loginctl             && { lancer loginctl reboot;                      return; }
+	echo "$PROG : rien pour redémarrer" >&2
+	return 1
+}
+
+veille() {
+	dispo xfce4-session-logout && { lancer xfce4-session-logout --suspend; return; }
+	dispo systemctl            && { lancer systemctl suspend;              return; }
+	dispo loginctl             && { lancer loginctl suspend;               return; }
+	echo "$PROG : rien pour mettre en veille" >&2
+	return 1
+}
+
+deconnexion() {
+	dispo xfce4-session-logout && { lancer xfce4-session-logout --logout --fast; return; }
+	#  Sans le gestionnaire XFCE, on termine la session de l'utilisateur
+	#  courant. « $XDG_SESSION_ID » est posé par systemd-logind ; sans lui,
+	#  loginctl ne saurait pas laquelle terminer et couperait peut-être une
+	#  autre session — on s'abstient plutôt que de deviner.
+	if dispo loginctl && [[ -n "${XDG_SESSION_ID:-}" ]]; then
+		lancer loginctl terminate-session "$XDG_SESSION_ID"; return
+	fi
+	echo "$PROG : rien pour se déconnecter" >&2
+	return 1
+}
+
+#  CHANGER D'UTILISATEUR — le seul geste qui dépend du gestionnaire de
+#  CONNEXION, pas du bureau. LexOS emploie lightdm, dont l'outil est
+#  « dm-tool ». Les deux autres sont là pour qui aurait changé de
+#  gestionnaire ; aucun n'est deviné, chacun est nommé.
+changer_utilisateur() {
+	dispo dm-tool        && { lancer dm-tool switch-to-greeter; return; }
+	dispo gdmflexiserver && { lancer gdmflexiserver;            return; }
+	dispo kdmctl         && { lancer kdmctl reserve;            return; }
+	echo "$PROG : impossible de changer d'utilisateur — aucun gestionnaire de connexion reconnu" >&2
+	return 1
+}
+
+# =============================================================================
+#  La ligne de commande — « lexos session eteindre », etc.
+# =============================================================================
+#  Elle existe pour trois raisons : le banc s'en sert, elle marche en
+#  console quand il n'y a pas d'écran, et elle rend le programme utilisable
+#  au clavier comme tout le reste de LexOS.
+case "${1:-}" in
+	eteindre|éteindre|arret|arrêt|halt|poweroff)  eteindre;            exit $? ;;
+	redemarrer|redémarrer|reboot|restart)         redemarrer;          exit $? ;;
+	veille|suspend|sommeil)                       veille;              exit $? ;;
+	deconnexion|déconnexion|logout)               deconnexion;         exit $? ;;
+	utilisateur|changer-utilisateur|switch-user)  changer_utilisateur; exit $? ;;
+	aide|--help|-h|help)
+		cat <<'AIDE'
+lexos session — arrêter, redémarrer, changer d'utilisateur
+
+  lexos session                    ouvre la fenêtre
+  lexos session eteindre           éteint la machine
+  lexos session redemarrer         redémarre
+  lexos session veille             met en veille
+  lexos session deconnexion        ferme la session
+  lexos session utilisateur        retourne à l'écran de connexion
+
+Le bouton rouge, tout à droite de la barre du haut, ouvre la fenêtre.
+AIDE
+		exit 0
+		;;
+	"") : ;;   # pas d'argument : on ouvre la fenêtre, plus bas
+	*)
+		echo "$PROG : « $1 » n'est pas un geste connu — « lexos session aide »" >&2
+		exit 1
+		;;
+esac
+
+# =============================================================================
+#  La fenêtre
+# =============================================================================
+#  Sans écran, on ne bloque pas sur un dialogue que personne ne verra : on
+#  dit quoi taper. Le cas arrive pour de vrai — console de dépannage, ssh.
+if [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+	cat <<'TTY'
+
+  Session LexOS — pas d'écran graphique ici.
+
+    lexos session eteindre           éteindre
+    lexos session veille             mettre en veille
+    lexos session redemarrer         redémarrer
+    lexos session deconnexion        fermer la session
+    lexos session utilisateur        changer d'utilisateur
+
+TTY
+	exit 0
+fi
+
+ICON="$BRAND/icon-arret.svg"
+[[ -r "$ICON" ]] || ICON="system-shutdown"
+
+QUI="${USER:-$(id -un 2>/dev/null)}"
+TEXTE="<span size='x-large' weight='bold'>Fermer la session ?</span>
+
+Tu es connecté en tant que <b>${QUI}</b>.
+
+<span alpha='70%'>Veille et redémarrage sont dans la barre du haut,
+juste à gauche de ce bouton.</span>"
+
+#  yad d'abord (il est dans lexos-core.list.chroot, donc strict), zenity en
+#  repli. Les codes de retour sont ceux qu'on déclare après le « ! » dans
+#  chaque bouton : yad les rend tels quels.
+if command -v yad >/dev/null 2>&1; then
+	yad --title="Session — LexOS" \
+		--window-icon=lexos-arret \
+		--image="$ICON" --image-on-top \
+		--width=560 --borders=18 --center --on-top \
+		--text="$TEXTE" \
+		--button="Annuler:1" \
+		--button="Changer d'utilisateur:2" \
+		--button="Déconnexion:3" \
+		--button="Éteindre:4" \
+		>/dev/null 2>&1
+	case $? in
+		2) changer_utilisateur ;;
+		3) deconnexion ;;
+		4) eteindre ;;
+		*) : ;;   # 1, la croix, Échap : on ne fait rien, et c'est voulu
+	esac
+	exit 0
+fi
+
+if command -v zenity >/dev/null 2>&1; then
+	#  zenity ne sait pas poser quatre boutons : on passe par une liste, qui
+	#  dit la même chose et se lit aussi bien. Rien n'est retiré au passage.
+	CHOIX="$(zenity --list --title="Session — LexOS" \
+		--text="Tu es connecté en tant que ${QUI}." \
+		--column="Que faire ?" \
+		"Changer d'utilisateur" "Déconnexion" "Éteindre" 2>/dev/null)"
+	case "$CHOIX" in
+		"Changer d'utilisateur") changer_utilisateur ;;
+		"Déconnexion")           deconnexion ;;
+		"Éteindre")              eteindre ;;
+		*) : ;;
+	esac
+	exit 0
+fi
+
+#  Ni yad ni zenity : on ne fait RIEN en silence — on le dit. Éteindre la
+#  machine parce qu'aucune boîte de dialogue n'a pu s'afficher serait la
+#  pire réponse possible à un outil manquant.
+notify-send "LexOS" "Ni yad ni zenity : tape « lexos session aide »." 2>/dev/null \
+	|| echo "$PROG : ni yad ni zenity — tape « lexos session aide »" >&2
+exit 1

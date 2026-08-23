@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — icône « Éteindre ». Le symbole universel de mise hors tension :
+  un arc ouvert en haut, une barre verticale dedans.
+
+  ═══ POURQUOI ELLE NE PORTE PAS LE JETON D'ACCENT ═══
+  Presque toutes les icônes de ce dossier contiennent #E8590C, que
+  lexos-theme-gen remplace par la couleur d'accent courante : elles suivent
+  le thème parce qu'elles ne veulent rien dire de particulier.
+
+  Celle-ci, si. Le rouge n'est pas une préférence, c'est un AVERTISSEMENT —
+  « ce bouton coupe la machine ». Sous un accent vert, un bouton d'arrêt
+  vert serait un piège : la couleur dirait « vas-y » à l'endroit précis où
+  elle doit dire « attention ». Même raison que icon-wifi-off.svg et ses
+  voisines, dont les trois teintes disent l'état du réseau et ne bougent
+  jamais.
+
+  #E5484D est le rouge déjà employé par la palette du terminal dans
+  lexos-theme-gen : une seule idée du rouge dans tout le système.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Éteindre — LexOS">
+
+  <!--  L'arc s'ouvre en haut sur 80° environ : assez pour que la barre
+        respire, pas assez pour que le cercle cesse d'être un cercle. -->
+  <path d="M 152,132 A 160,160 0 1 0 360,132"
+        fill="none" stroke="#E5484D" stroke-width="42" stroke-linecap="round"/>
+
+  <!--  La barre part du centre du vide, pas du bord : c'est ce qui fait
+        lire « interrupteur » plutôt que « cercle barré ». -->
+  <path d="M 256,72 V 244"
+        fill="none" stroke="#E5484D" stroke-width="42" stroke-linecap="round"/>
+</svg>

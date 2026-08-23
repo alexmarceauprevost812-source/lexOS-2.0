@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — la page des applications (xfce4-appfinder)
+
+  ═══ CE QU'ALEX A VU, ET CE QU'IL A DEMANDÉ ═══
+  Photo de l'ISO 74, fenêtre « Liste des applications » : une LISTE. Une
+  ligne par application, une icône minuscule à gauche, le nom et la
+  description à côté, et les trois quarts de l'écran vides à droite.
+
+  Ses mots :
+    « ajouter les applications dans la page des applications, je [veux les]
+      mettre plus gros, puis ajouter l'écriture de l'application EN BAS de
+      l'application »
+    « les mettre toutes plus visibles dans l'écran, elles sont trop petites
+      à mon goût »
+    « et les mettre une à côté de l'autre pour faire une jolie fenêtre bien
+      remplie »
+
+  Soit, très exactement, la grille de la démo : des tuiles côte à côte, une
+  grosse icône, le nom dessous. Dans web-demo/index.html, « .ap-page » est
+  une grille de six colonnes et « .app » empile « .ai » (l'icône) puis
+  « .an » (le nom). L'ISO disait autre chose ; elle dit maintenant pareil.
+
+  ═══ LES TROIS RÉGLAGES, ET CE QU'ILS FONT VRAIMENT ═══
+  Ils ne se devinent pas, alors ils sont écrits ici — relevés dans le code
+  de xfce4-appfinder (src/appfinder-window.c et src/appfinder-model.h),
+  pas supposés.
+
+    · icon-view          false = la liste (une ligne par application)
+                         true  = la GRILLE. C'est le réglage qui change tout.
+
+    · text-beside-icons  false = le nom SOUS l'icône (orientation verticale)
+                         true  = le nom À CÔTÉ, et la cellule double de
+                                 largeur. Alex veut le nom en bas : false.
+                         C'est déjà le défaut, mais on l'écrit — un défaut
+                         qu'on ne relit pas est un défaut qui peut changer
+                         sous nos pieds à la prochaine version.
+
+    · item-icon-size     un INDEX, pas des pixels :
+                           0 = 16 px   1 = 24   2 = 32   3 = 48
+                           4 = 64      5 = 96   6 = 128
+                         Le défaut du programme est 2 (32 px), et c'est ce
+                         qu'Alex a trouvé trop petit — deux fois.
+
+  ═══ POURQUOI 5, ET PAS 4 NI 6 ═══
+  La largeur de cellule n'est pas la taille de l'icône : appfinder la
+  calcule (appfinder-window.c, xfce_appfinder_window_set_item_width) —
+  96 px d'icône donnent une cellule de 168 px. Sur l'écran d'Alex, une
+  fenêtre ouverte en grand tient donc de huit à onze colonnes : « bien
+  rempli », sans qu'une application occupe le quart de la ligne.
+  Le 6 (128 px, cellule de 160) ne gagnerait presque rien en largeur de
+  cellule tout en grossissant l'icône d'un tiers : les tuiles se
+  toucheraient. Le 4 (64 px) reste proche de ce qu'il a jugé petit.
+
+  ═══ CE QU'ON NE TOUCHE PAS, ET POURQUOI ═══
+  « hide-category-pane » reste au défaut : le volet des catégories est ce
+  qui permet de ne PAS lire six cents tuiles quand on cherche un jeu. Alex
+  a demandé des tuiles plus grosses, pas moins de moyens de s'y retrouver.
+  « single-click-execute » non plus : lancer une application sur un simple
+  survol-clic dans une grille dense, c'est en lancer une par erreur.
+-->
+<channel name="xfce4-appfinder" version="1.0">
+  <property name="icon-view"          type="bool" value="true"/>
+  <property name="text-beside-icons"  type="bool" value="false"/>
+  <property name="item-icon-size"     type="int"  value="5"/>
+  <!--  Le volet des catégories suit, sinon la colonne de gauche reste en
+        16 px à côté de tuiles de 96 : la fenêtre aurait l'air d'avoir été
+        agrandie à moitié. 2 = 32 px. -->
+  <property name="category-icon-size" type="int"  value="2"/>
+
+  <!--  ═══ LA FENÊTRE : MOINS LARGE, PLUS HAUTE ═══
+        Deuxième photo d'Alex : « elle prend toute la largeur de l'écran et
+        ensuite elle n'est pas en hauteur — faire en sorte que la page [soit]
+        plus en hauteur au lieu d'être toute sa largeur ». Sur la photo, une
+        bande qui traverse l'écran et ne montre presque rien.
+
+        CE N'EST PAS UN BOGUE DU PROGRAMME, C'EST SA MÉMOIRE. appfinder
+        enregistre la taille de sa fenêtre à chaque fermeture
+        (appfinder-window.c, unmap : xfconf_channel_set_int sur
+        « /last/window-width » et « /last/window-height ») et la rouvre
+        pareille. Une fois étirée en large, elle le reste pour toujours.
+
+        Et une subtilité qui explique la platitude : à la construction, le
+        programme fait « gtk_window_set_default_size (window, largeur, -1) ».
+        La HAUTEUR n'est pas posée — elle est laissée au calcul du contenu.
+        En liste, ce contenu était mince ; d'où la bande. La hauteur
+        enregistrée ne sert qu'au passage en mode déplié
+        (gtk_window_resize, ligne 2334). On l'écrit donc, elle aussi.
+
+        860 x 680 : plus haute que large en proportion d'écran, et sûre des
+        deux côtés — sur un 1366x768 elle tient sous la barre de 52 px,
+        sur un 1920x1080 elle ne mange pas la moitié du bureau. Les valeurs
+        par défaut du programme (580 x 422) étaient pensées pour une liste,
+        pas pour une grille de tuiles de 96 px.
+
+        CE SONT DES POINTS DE DÉPART, PAS DES VERROUS. Alex peut
+        redimensionner : le programme retiendra sa taille à lui. Ce qu'on
+        corrige ici, c'est la PREMIÈRE ouverture — la seule qu'on maîtrise.
+
+        Le séparateur suit : 200 px de volet de catégories au lieu de 180,
+        parce que ses icônes passent de 24 à 32 px et que les noms de
+        catégories ne doivent pas se faire couper. -->
+  <property name="last" type="empty">
+    <property name="window-width"   type="int" value="860"/>
+    <property name="window-height"  type="int" value="680"/>
+    <property name="pane-position"  type="int" value="200"/>
+  </property>
+</channel>

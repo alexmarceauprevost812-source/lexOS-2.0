@@ -31,7 +31,10 @@ xfce4-notifyd
 libnotify-bin
 xfce4-taskmanager
 xfce4-whiskermenu-plugin
-xfce4-appfinder
+#  xfce4-appfinder est passé en STRICT (lexos-core.list.chroot) : trois
+#  chemins du bureau y mènent et aucun ne le dirait s'il manquait.
+#  Le laisser ici EN PLUS, c'était deux listes qui parlent du même
+#  paquet — la façon la plus sûre de les faire diverger un jour.
 # xfce4-genmon-plugin affiche la sortie d'une commande dans la barre du haut :
 # c'est lui qui porte la météo (« lexos meteo »), le « ☁ 20° » de la démo.
 # Son absence n'est pas bloquante — le hook 0400 retire alors la météo du

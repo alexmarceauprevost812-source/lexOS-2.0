@@ -473,6 +473,94 @@ selection {
     color: ${BTN_FG};
 }
 
+/* --- LE RECTANGLE DE SELECTION (le « caoutchouc ») ----------------------- */
+/*  PHOTO D'ALEX, ISO 74, THUNAR : en tirant un cadre pour prendre plusieurs
+    dossiers d'un coup, le rectangle est un BLOC NOIR OPAQUE a bord bleu. Il
+    cache ce qu'on est en train de selectionner — c'est-a-dire exactement ce
+    qu'on regarde. « pourrais-tu faire qu'il soit transparent a la place ».
+
+    ═══ D'OU VIENT LE NOIR, ET CE N'EST PAS UNE HYPOTHESE ═══
+    Les deux feuilles ont ete lues. Arc-Dark ecrit (common/gtk-3.0, _common.scss) :
+
+        rubberband, .rubberband {
+          border:           1px solid  <bleu de selection, assombri de 10 %>
+          background-color: <le meme, rendu transparent a 80 %>
+        }
+
+    (Les noms de variables SCSS d'Arc sont volontairement recrits en clair
+    ici : ce commentaire vit dans un heredoc non protege, ou un « dollar
+    quelque-chose » serait DEVELOPPE par le shell. Avec « set -u », une
+    variable inconnue arrete meme la generation du theme. Le copier-coller
+    d'un extrait de code etranger dans ce fichier n'est jamais innocent —
+    shellcheck l'a attrape ici.)
+
+    donc un fond a 20 % d'opacite et un bord bleu. Le bord bleu de la photo
+    EST celui-la : la regle d'Arc s'applique bien.
+
+    Pendant le trace, GTK ne cree pas un noeud « rubberband » a part : il
+    reprend le contexte de la VUE et lui AJOUTE la classe .rubberband. Le
+    noeud porte donc a la fois « iconview », « .view » et « .rubberband ».
+    Or notre regle des fonds, plus haut, liste « .view » :
+
+        … .view, textview, treeview.view, iconview … { background-color: BG; }
+
+    « .view » pese (0,1,0). « .rubberband » d'Arc pese (0,1,0) aussi. Egalite
+    de specificite — et a egalite, c'est la feuille LUE EN DERNIER qui gagne.
+    La notre est chargee apres le theme. Notre fond opaque ecrase donc le fond
+    transparent d'Arc, et seul son bord survit, faute qu'on y touche.
+
+    C'est mot pour mot la panne des boutons de la 72 : une regle large qui
+    peint quelque chose qu'elle n'avait pas en tete.
+
+    ═══ POURQUOI CES SELECTEURS-LA ═══
+    Il ne suffit PAS d'ecrire « rubberband » : ce selecteur d'element pese
+    (0,0,1) et perdrait contre notre propre « .view » (0,1,0) sur ce meme
+    noeud. Il faut passer AU-DESSUS de (0,1,0) :
+        .view.rubberband        (0,2,0)
+        iconview.rubberband     (0,1,1)
+        treeview.view.rubberband(0,2,1)
+    Les deux formes nues sont gardees en plus, pour les vues qui ne portent
+    pas .view (flowbox, certaines listes) ou creent un vrai noeud a part.
+
+    ═══ ET POURQUOI DES REGLES SEPAREES ═══
+    Meme lecon que « selection, ::selection » vingt lignes plus haut : un
+    selecteur invalide dans une liste separee par des virgules invalide la
+    REGLE ENTIERE. Si une version de GTK cessait de reconnaitre l'une de ces
+    formes, une liste unique les emporterait toutes et le rectangle
+    redeviendrait noir. Separees, chacune tombe ou tient toute seule.
+
+    ═══ ET POURQUOI rgba() PLUTOT QUE alpha() ═══
+    GTK connait « alpha(couleur, 0.25) », mais si une version ne la
+    comprenait pas, la declaration serait ignoree et le fond retomberait sur
+    notre BG opaque — on aurait « corrige » le defaut en le laissant intact.
+    Le triplet est donc calcule ici, en clair : aucune fonction a
+    interpreter, aucun repli silencieux possible. C'est deja la convention
+    du squelette (« 232, 89, 12 »). */
+.view.rubberband {
+    background-color: rgba(${r}, ${g}, ${b}, 0.25);
+    border: 1px solid ${ACCENT};
+}
+iconview.rubberband {
+    background-color: rgba(${r}, ${g}, ${b}, 0.25);
+    border: 1px solid ${ACCENT};
+}
+treeview.view.rubberband {
+    background-color: rgba(${r}, ${g}, ${b}, 0.25);
+    border: 1px solid ${ACCENT};
+}
+flowbox.rubberband {
+    background-color: rgba(${r}, ${g}, ${b}, 0.25);
+    border: 1px solid ${ACCENT};
+}
+.rubberband {
+    background-color: rgba(${r}, ${g}, ${b}, 0.25);
+    border: 1px solid ${ACCENT};
+}
+rubberband {
+    background-color: rgba(${r}, ${g}, ${b}, 0.25);
+    border: 1px solid ${ACCENT};
+}
+
 /* --- Sélection dans les listes ------------------------------------------ */
 row:selected, list row:selected, treeview.view:selected,
 iconview:selected, flowboxchild:selected, menuitem:hover, .menuitem:hover {

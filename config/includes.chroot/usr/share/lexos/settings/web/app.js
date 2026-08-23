@@ -14,7 +14,7 @@ const NAV = [
     ["notifications","🔔","Notifications"], ["recherche","🔍","Recherche"]]},
   {grp:"Comptes", items:[
     ["comptes","👤","Comptes en ligne"], ["partage","📤","Partage"],
-    ["bienetre","🌱","Bien-être numérique"]]},
+    ["bienetre","🌱","Bien-être numérique"], ["session","⏻","Fermer la session"]]},
   {grp:"Périphériques", items:[
     ["souris","🖱","Souris et pavé tactile"], ["couleurs","🌈","Gestion des couleurs"],
     ["imprimantes","🖨","Imprimantes"], ["amovibles","💾","Supports amovibles"],
@@ -1299,6 +1299,17 @@ function contenu(cle){
       <p class="notice">Ajouter ou retirer un compte touche à tout le système :
       ça passe par <code>lexos utilisateurs</code>, dans un terminal, avec le
       mot de passe d'administration — pas par un bouton qu'on clique sans y penser.</p>`;
+    }
+    case "session": {
+      /*  Le bouton rouge de la barre du haut ouvre exactement cette fenêtre.
+          Cette section ne la double pas : elle la RETROUVE. Un geste du
+          système qui n'existe qu'à un seul endroit de l'écran disparaît le
+          jour où cet endroit change — et il change, on vient de le déplacer. */
+      return `<h2>Fermer la session</h2><div class="sub">Éteindre, changer d'utilisateur, se déconnecter</div>
+      <p class="notice">Le bouton rouge, tout à droite de la barre du haut,
+      ouvre la même fenêtre. Veille et redémarrage sont juste à sa gauche,
+      dans la barre.</p>
+      ${btnOuvrir("session","Ouvrir")}`;
     }
     case "region": {
       return `<h2>Région et langue</h2><div class="sub">Langue, formats, clavier</div>

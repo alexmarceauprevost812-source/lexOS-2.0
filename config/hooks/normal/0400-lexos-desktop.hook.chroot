@@ -372,6 +372,26 @@ Categories=System;Filesystem;
 Keywords=formater;format;effacer;cle;usb;telephone;disque;
 EOF
 
+#  LE BOUTON ROUGE DE LA BARRE, ET SON ENTRÉE DE MENU.
+#  Le lanceur du panneau (launcher-17) pointe sur lexos-session.desktop ;
+#  sans cette entrée-ci, l'icône du bouton se résoudrait quand même, mais
+#  « Éteindre » serait introuvable dans le menu Applications et dans la
+#  recherche — le seul geste du système qu'on ne pourrait pas trouver en le
+#  cherchant. On le pose donc là où vivent tous les autres.
+cat > /usr/share/applications/lexos-session.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Éteindre
+Name[en]=Shut down
+Comment=Éteindre, changer d'utilisateur, se déconnecter
+Exec=lexos-session
+Icon=lexos-arret
+Terminal=false
+Categories=System;
+Keywords=eteindre;arret;quitter;deconnexion;utilisateur;session;redemarrer;veille;
+EOF
+
 cat > /usr/share/applications/lexos-capture.desktop <<EOF
 [Desktop Entry]
 Type=Application

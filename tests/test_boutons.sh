@@ -377,5 +377,100 @@ STRUCT="$(sed -n '/^combobox button, combobox button.combo/,/}/p' "$CSS" | grep 
 	|| non "les faux boutons ont repris la couleur d'accent (acc=$ACC struct=$STRUCT)"
 
 # ═════════════════════════════════════════════════════════════════════════════
+titre "5. Le rectangle de sélection reste transparent"
+#  PHOTO D'ALEX, ISO 74 : en tirant un cadre dans Fichiers pour prendre
+#  plusieurs dossiers, le rectangle est un BLOC NOIR OPAQUE. Il cache ce
+#  qu'on est justement en train de choisir.
+#
+#  La cause est la MÊME que celle des boutons de la 72, et c'est pour ça que
+#  ce contrôle vit ici, avec le moteur de cascade : pendant le tracé, GTK
+#  n'ouvre pas un nœud à part — il reprend le contexte de la vue et lui
+#  AJOUTE la classe .rubberband. Le nœud porte donc « iconview », « .view »
+#  ET « .rubberband » à la fois. Notre règle des fonds liste « .view »
+#  (0,1,0) ; celle d'Arc porte « .rubberband » (0,1,0). À égalité de
+#  spécificité, la feuille lue en dernier gagne — la nôtre. Le fond opaque
+#  écrasait donc le fond transparent d'Arc.
+#
+#  ON NE CHERCHE DONC PAS SI LA RÈGLE EXISTE. Une règle « rubberband { … } »
+#  toute seule existerait et ne servirait à rien : elle pèse (0,0,1) et
+#  perdrait contre notre propre « .view ». On RÉSOUT la cascade sur le nœud
+#  réel et on regarde la couleur qui gagne, exactement comme pour les
+#  libellés de boutons.
+MAUVAIS5=0; VU5=0
+for MODE in sombre clair; do
+	for A in orange bleu neon; do
+		rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
+		LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+			bash "$GEN" --target "$BANC/t" --mode "$MODE" "$A" >/dev/null 2>&1
+		VERDICT="$(python3 - "$BANC/t/.config/gtk-3.0/gtk.css" <<'PY'
+import re, sys
+
+css = re.sub(r"/\*.*?\*/", "", open(sys.argv[1], encoding="utf-8").read(), flags=re.S)
+css = re.sub(r"@[a-zA-Z-]+[^;{}]*;", "", css)
+
+#  Le nœud tel que GTK le construit pendant le tracé du caoutchouc.
+ELEM, CLASSES = "iconview", {"view", "rubberband"}
+
+
+def analyse(bout):
+    m = re.match(r"^([a-zA-Z][\w-]*)?((?:\.[\w-]+)*)$", bout.strip())
+    if not m:
+        return None
+    return m.group(1), set(re.findall(r"\.([\w-]+)", m.group(2) or ""))
+
+
+gagnant = None          # (specificite, ordre, valeur)
+for i, (sels, corps) in enumerate(re.findall(r"([^{}]+)\{([^{}]*)\}", css)):
+    val = None
+    for d in corps.split(";"):
+        if ":" in d:
+            k, v = d.split(":", 1)
+            if k.strip() == "background-color":
+                val = v.strip()
+    if val is None:
+        continue
+    for sel in sels.split(","):
+        sel = sel.strip()
+        #  Un seul nœud : tout sélecteur composé (descendant, enfant) ne peut
+        #  pas correspondre. On les écarte proprement au lieu de les rater.
+        if not sel or re.search(r"[\s>+~:\[]", sel):
+            continue
+        a = analyse(sel)
+        if not a:
+            continue
+        el, cl = a
+        if el and el != ELEM:
+            continue
+        if not cl <= CLASSES:
+            continue
+        spec = (len(cl), 1 if el else 0)
+        if gagnant is None or (spec, i) > (gagnant[0], gagnant[1]):
+            gagnant = (spec, i, val, sel)
+
+if gagnant is None:
+    print("AUCUNE")
+else:
+    spec, _, val, sel = gagnant
+    m = re.match(r"rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*([0-9.]+)\s*\)$", val)
+    if m and float(m.group(1)) < 1.0:
+        print("OK %s -> %s" % (sel, val))
+    else:
+        print("OPAQUE %s -> %s" % (sel, val))
+PY
+)"
+		VU5=$((VU5 + 1))
+		case "$VERDICT" in
+			OK*) : ;;
+			*)   non "$A/$MODE · caoutchouc : $VERDICT"; MAUVAIS5=$((MAUVAIS5 + 1)) ;;
+		esac
+	done
+done
+if [ "$VU5" = "0" ]; then
+	non "aucune feuille examinée pour le caoutchouc — ce contrôle ne prouve rien"
+elif [ "$MAUVAIS5" = "0" ]; then
+	ok "$VU5 feuilles : la règle qui GAGNE sur le caoutchouc est transparente"
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
 printf '\n%s réussi(s), %s échoué(s)\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

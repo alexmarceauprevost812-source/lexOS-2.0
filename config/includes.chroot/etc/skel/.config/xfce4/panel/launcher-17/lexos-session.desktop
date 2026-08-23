@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Éteindre
+Name[en]=Shut down
+Comment=Éteindre, changer d'utilisateur, se déconnecter
+Exec=lexos-session
+Icon=lexos-arret
+Terminal=false
+Categories=System;

@@ -190,6 +190,11 @@ def act_ouvrir(arg):
         "applications": lambda: _run(["exo-preferred-applications"], detach=True),
         "notifications": lambda: _run(["xfce4-notifyd-config"], detach=True),
         "recherche":  lambda: _run(["xfce4-appfinder", "--collapsed"], detach=True),
+        #  Le bouton rouge de la barre ouvre la même fenêtre. Elle est ici
+        #  aussi parce qu'un geste du système doit être atteignable depuis
+        #  les Paramètres — sinon il n'existe qu'à un seul endroit, et le
+        #  jour où ce bouton bouge, plus personne ne le trouve.
+        "session":    lambda: _run(["lexos-session"], detach=True),
         "partage":    lambda: _run(["lexos-share", "devices"], detach=True),
         "souris":     lambda: _xfce([["xfce4-mouse-settings"]]),
         "couleurs":   lambda: _run(["gcm-viewer"], detach=True),

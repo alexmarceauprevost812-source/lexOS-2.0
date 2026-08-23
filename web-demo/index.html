@@ -10657,7 +10657,18 @@ function pwToggle(btn){
     `<div class="msep"></div>`+
     `<button onclick="pwSuspend()"><span class="picto">🌙</span> Mettre en veille</button>`+
     `<button onclick="pwRestart()"><span class="picto">↻</span> Redémarrer</button>`+
-    `<button onclick="pwShutdown()"><span class="picto">⏻</span> Éteindre</button>`;
+    `<button onclick="pwShutdown()"><span class="picto">⏻</span> Éteindre</button>`+
+    /*  Ces deux-là arrivent de l'ISO, pas l'inverse — c'est la règle d'Alex
+        qui joue dans les deux sens : « tout ce qu'on fait sur la version
+        Vercel, on le met aussi dans l'ISO ». Il a demandé, en regardant
+        l'ISO 74, que « changer d'utilisateur » et « déconnexion » vivent
+        dans la fenêtre qu'ouvre le bouton rouge. Sans ce bloc, la démo
+        n'aurait plus dit la même chose que le système — et c'est
+        exactement comme ça que les trois palettes de panneaux avaient fini
+        par diverger. */
+    `<div class="msep"></div>`+
+    `<button onclick="pwSwitchUser()"><span class="picto">👥</span> Changer d'utilisateur</button>`+
+    `<button onclick="pwLogout()"><span class="picto">⏏</span> Déconnexion</button>`;
   document.body.appendChild(pwMenuEl);
 }
 document.addEventListener("click", e=>{
@@ -10751,6 +10762,29 @@ function pwRestart(){
 }
 function pwShutdown(){
   showPowerOverlay("off","⏻","Système éteint","Clique pour rallumer");
+}
+/*  CHANGER D'UTILISATEUR et DÉCONNEXION renvoient tous deux à l'écran de
+    connexion — c'est ce que font dm-tool et xfce4-session-logout sur le
+    vrai système. Ils diffèrent par ce qu'ils laissent derrière :
+      · changer d'utilisateur GARDE la session ouverte dessous (on revient
+        à ses fenêtres en se reconnectant) ;
+      · la déconnexion FERME les fenêtres avant de rendre la main.
+    Les confondre serait mentir sur le geste : quelqu'un qui « change
+    d'utilisateur » ne s'attend pas à retrouver son travail perdu. */
+function pwSwitchUser(){
+  pwClose();
+  const el=document.getElementById("powerOverlay");
+  el.className="on login";
+  el.innerHTML=loginScreenHTML();
+  powerState="lock";
+}
+function pwLogout(){
+  pwClose();
+  document.querySelectorAll(".win").forEach(w=>w.remove());
+  const el=document.getElementById("powerOverlay");
+  el.className="on login";
+  el.innerHTML=loginScreenHTML();
+  powerState="lock";
 }
 function powerOverlayClick(){
   // Le verrouillage ("lock") utilise l'écran de connexion avec ses propres

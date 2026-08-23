@@ -1107,6 +1107,10 @@ case "$CMD" in
 	datetime|heure)       exec lexos-datetime "$@" ;;
 	fond-ecran|fond)      exec lexos-fond-ecran "$@" ;;
 	dualboot|windows)     exec lexos-dualboot "$@" ;;
+	#  Le bouton rouge de la barre appelle cette commande. Elle est ici
+	#  aussi pour qu'on puisse l'atteindre au clavier, et pour qu'elle
+	#  marche en console quand il n'y a pas d'ecran (depannage, ssh).
+	session|arret|arrêt|eteindre|éteindre) exec lexos-session "$@" ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;
