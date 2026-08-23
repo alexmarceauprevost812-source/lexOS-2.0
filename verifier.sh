@@ -58,14 +58,52 @@ else
 fi
 
 # --- 2. shellcheck, si présent -----------------------------------------------
-bloc "2. shellcheck (erreurs seulement)"
+bloc "2. shellcheck (mêmes fichiers et même niveau que la CI)"
+#  ═══ LA MÊME LISTE QUE LA CI, ET LE MÊME NIVEAU. POURQUOI ═══
+#  Ce bloc a dit « aucune erreur » juste avant que la CI tombe sur SC2148
+#  dans secure-boot.sh. Deux écarts, et chacun suffisait :
+#
+#    · LA LISTE. Il ne regardait que /usr/bin et les hooks. Le dossier
+#      usr/share/lexos/shell/, que la CI analyse, n'était jamais vu ici —
+#      donc jamais vu AVANT de pousser.
+#    · LE FILTRE DE SHEBANG. « head -1 | grep sh$\|bash » sautait tout
+#      fichier sans shebang. Or SC2148 est PRÉCISÉMENT l'avertissement des
+#      fichiers sans shebang : le filtre écartait d'office la seule
+#      catégorie de fichiers capable de déclencher l'erreur qu'on cherche.
+#      Un contrôle qui ne peut structurellement pas échouer ne contrôle rien.
+#
+#  Et « -S error » là où la CI emploie « -S warning » : un avertissement
+#  passait ici et cassait là-bas.
+#
+#  D'où une SEULE liste, écrite une fois, celle que la CI emploie. Si elle
+#  change d'un côté, elle doit changer de l'autre — un contrôle local qui
+#  ment est pire que pas de contrôle local, parce qu'on lui fait confiance.
+SC_CIBLES="build.sh
+auto/config
+auto/build
+auto/clean
+tools/render-branding.sh
+config/hooks/normal/*.hook.chroot
+config/hooks/normal/*.hook.binary
+config/includes.chroot/usr/bin/*
+config/includes.chroot/etc/profile.d/lexos.sh
+config/includes.chroot/usr/share/lexos/shell/*.sh"
+
 if command -v shellcheck >/dev/null 2>&1; then
   R=0
-  while IFS= read -r f; do
-    head -1 "$f" | grep -q 'sh$\|bash' || continue
-    shellcheck -S error "$f" >/dev/null 2>&1 || { echo "    $f"; R=1; }
-  done < <(find "$BIN" config/hooks/normal -maxdepth 1 -type f)
-  verdict $R "aucune erreur shellcheck"
+  VUS=0
+  for motif in $SC_CIBLES; do
+    for f in $motif; do
+      #  Le motif non développé (aucun fichier) : on passe. Sans ça, on
+      #  analyserait une chaîne littérale et on croirait avoir tout vu.
+      [ -f "$f" ] || continue
+      VUS=$((VUS + 1))
+      shellcheck -S warning "$f" >/dev/null 2>&1 || { echo "    $f"; R=1; }
+    done
+  done
+  #  Zéro fichier analysé, c'est un succès en trompe-l'oeil : on le refuse.
+  [ "$VUS" -gt 0 ] || { echo "    aucun fichier analysé — la liste est cassée"; R=1; }
+  verdict $R "aucune erreur shellcheck ($VUS fichiers, même liste que la CI)"
 else
   echo "  · shellcheck absent — sauté (la CI le fera)"
 fi

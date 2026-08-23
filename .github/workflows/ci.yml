@@ -917,6 +917,17 @@ jobs:
           #  c'est ce qui était arrivé au contrôle des locales.
           python3 -c 'import PIL' 2>/dev/null \
             || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
+          #  ET IMAGEMAGICK, POUR LA MÊME RAISON QUE PILLOW. La section 6 du
+          #  banc éprouve la forme des coins avec le VRAI outil — celui que le
+          #  hook emploiera pendant la construction. Sans lui, elle échouait
+          #  sur le runner : « ni magick ni convert dans ce conteneur ». Et
+          #  elle a bien fait d'échouer : elle est écrite pour crier au lieu
+          #  de se sauter en silence. C'est l'outillage qu'on répare, pas le
+          #  contrôle qu'on baisse — un test qui échoue faute d'outil apprend
+          #  à lire les rouges comme du bruit, et c'est ainsi qu'un vrai rouge
+          #  finit ignoré.
+          command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends imagemagick >/dev/null
           bash tests/test_lexos_fenetres.sh
 
       - name: Tables de modèles Mac identiques

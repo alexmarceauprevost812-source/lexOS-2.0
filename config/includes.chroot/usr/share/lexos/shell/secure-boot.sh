@@ -39,6 +39,11 @@
 #  une manipulation au clavier pendant le démarrage, avant tout système.
 #  Impossible depuis une ISO live. On ne le promet donc pas — on prévient.
 # =============================================================================
+#
+#  Ce fragment est SOURCÉ, pas exécuté : pas de shebang, donc shellcheck ne
+#  peut pas deviner le shell visé et refuse d'analyser (SC2148). On le lui
+#  dit, comme dans interactive.sh juste à côté.
+# shellcheck shell=sh
 
 #  La variable EFI « SecureBoot » fait 5 octets : 4 d'attributs, puis la
 #  valeur. Le cinquième vaut 1 quand Secure Boot est actif. On la lit
