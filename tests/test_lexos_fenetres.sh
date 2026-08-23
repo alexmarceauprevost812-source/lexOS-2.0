@@ -57,7 +57,7 @@ fabrique_theme() {
 	mkdir -p "$dst/xfwm4"
 	python3 - "$dst/xfwm4" <<'PY'
 import sys
-from PIL import Image
+from PIL import Image, ImageDraw
 d = sys.argv[1]
 boutons = [f"{n}-{e}" for n, etats in (
     ("close",    ("active", "inactive", "prelight", "pressed")),
@@ -75,7 +75,7 @@ bas    = [f"{c}-{e}" for c in ("bottom", "bottom-left", "bottom-right")
 #  La barre de titre porte un DÉGRADÉ, pas un aplat : c'est lui qui doit se
 #  retrouver dans le coin redessiné. Avec un aplat, un coin rempli de
 #  n'importe quelle couleur unie serait passé pour juste.
-plan = [(boutons, 28, 28, None), (titres, 7, 28, "degrade"),
+plan = [(titres, 7, 28, "degrade"),
         (coins, 4, 28, None), (bords, 4, 16, None), (bas, 4, 4, None)]
 for noms, larg, haut, style in plan:
     for n in noms:
@@ -87,17 +87,45 @@ for noms, larg, haut, style in plan:
                 for x in range(larg):
                     px[x, y] = (v, v, v + 8, 255)
         im.save(f"{d}/{n}.png")
+
+#  LES BOUTONS, EUX, IMITENT LE VRAI ARC — ET C'EST TOUT L'INTÉRÊT.
+#  Ils étaient tous des aplats opaques 28x28 : leur encre remplissait la
+#  toile, tous les rapports valaient 1, et egaliser_boutons n'avait rien à
+#  égaliser. Le banc aurait été vert sur un correctif qui ne fait rien.
+#  Ici : « fermer » a un gros dessin (24 sur 28) comme Arc, « agrandir » un
+#  trait fin (10 sur 28), et « menu » n'est PAS CARRÉ — 26x16, la taille
+#  mesurée dans assets.svg d'arc-theme, celle que le filtre de hauteur
+#  laissait passer à travers.
+GABARITS = {
+    "close":    (28, 28, 24),
+    "hide":     (28, 28, 12),
+    "maximize": (28, 28, 10),
+    "menu":     (26, 16, 10),
+    "shade":    (28, 28, 12),
+    "stick":    (28, 28, 12),
+}
+for n in boutons:
+    famille = n.rsplit("-", 1)[0]
+    larg, haut, encre = GABARITS[famille]
+    im = Image.new("RGBA", (larg, haut), (0, 0, 0, 0))
+    dd = ImageDraw.Draw(im)
+    x0 = (larg - encre) // 2
+    y0 = (haut - encre) // 2
+    dd.ellipse([x0, y0, x0 + encre - 1, y0 + encre - 1], fill=(220, 90, 60, 255))
+    im.save(f"{d}/{n}.png")
 PY
 	printf 'button_offset=2\nbutton_spacing=2\ntitle_horizontal_offset=4\n' > "$dst/xfwm4/themerc"
 }
 
 # --- Un faux ImageMagick, qui redimensionne pour de vrai ---------------------
 #  CE FAUX MAGICK SERT AUX SECTIONS 1 À 4, ET IL A SES LIMITES.
-#  Il connaît deux appels : l'agrandissement (« -resize xN ») et le
-#  redessin d'un coin (« -compose CopyOpacity »). Le second est une
-#  RÉIMPLÉMENTATION de l'intention, pas une preuve de la commande réelle :
-#  ici, il ne prouve que le pilotage — que le hook demande bien quatre coins,
-#  aux bonnes dimensions, avec le bon rayon. Que la commande ImageMagick
+#  Il connaît quatre appels : l'agrandissement (« -resize xN »), la mesure
+#  de l'encre (« -trim -format %h info: »), l'égalisation d'un bouton
+#  (« -extent ») et le redessin d'un coin (« -compose CopyOpacity »). Les
+#  trois derniers sont une
+#  RÉIMPLÉMENTATION de l'intention, pas une preuve des commandes réelles :
+#  ici, il ne prouve que le pilotage — que le hook demande bien quatre coins
+#  et six familles de boutons, aux bonnes dimensions. Que les commandes
 #  produise vraiment un quart de disque, c'est la SECTION 5 qui l'éprouve,
 #  avec le vrai binaire. Sans elle, ce banc ne vérifierait que ce Python.
 fabrique_magick() {
@@ -109,10 +137,35 @@ import sys
 from PIL import Image
 a = sys.argv
 src, sortie = a[1], a[-1]
+im = Image.open(src).convert("RGBA")
+
+#  MESURE : « -trim -format %h info: ». Sans encre, ImageMagick échoue —
+#  on fait pareil, sinon le hook croirait à un dessin là où il n'y en a pas.
+if "info:" in a:
+    bb = im.getbbox()
+    if bb is None:
+        raise SystemExit(1)
+    print(bb[3] - bb[1])
+    raise SystemExit(0)
+
 spec = a[a.index("-resize") + 1]
 larg, haut = (spec.rstrip("!").split("x") + [None])[:2]
 haut = int(haut) if haut else None
-im = Image.open(src).convert("RGBA")
+
+#  BOUTON : on isole le dessin, on le borne dans une boîte, on le recentre.
+if "-extent" in a:
+    bb = im.getbbox()
+    if bb is None:
+        raise SystemExit(1)
+    g = im.crop(bb)
+    bw, bh = int(larg), int(haut)
+    f = min(bw / g.width, bh / g.height)
+    g = g.resize((max(1, round(g.width * f)), max(1, round(g.height * f))))
+    ew, eh = (int(v) for v in a[a.index("-extent") + 1].split("x"))
+    out = Image.new("RGBA", (ew, eh), (0, 0, 0, 0))
+    out.paste(g, ((ew - g.width) // 2, (eh - g.height) // 2), g)
+    out.save(sortie)
+    raise SystemExit(0)
 
 if "CopyOpacity" in a:
     r = int(larg)
@@ -224,6 +277,10 @@ print(",".join("%dx%d" % Image.open(f).size for f in sys.argv[1:]))' \
 [ "$DIMS" = "12x40,12x40,12x40,12x40" ] \
 	&& ok "les quatre coins font 12x40 (rayon 12 sur un titre de 40)" \
 	|| non "dimensions des coins : $DIMS au lieu de 12x40 partout"
+
+echo "$SORTIE" | grep -q 'boutons égalisés : 21' \
+	&& ok "les 21 images de bouton ont été égalisées" \
+	|| non "le hook n'annonce pas 21 boutons égalisés"
 
 # ═════════════════════════════════════════════════════════════════════════════
 titre "2. La source unique — la leçon des icônes du build 70"
@@ -403,6 +460,56 @@ PY
 	case "$VERDICT" in
 		OK) ok "l'alpha est un vrai quart de disque, du dégradé du titre, bas carré" ;;
 		*)  non "coins : $VERDICT" ;;
+	esac
+
+	#  ─── LES BOUTONS : « le rouge est correct, les 2 autres les grossir » ───
+	VB="$(python3 - "$D" <<'PY'
+import sys
+from PIL import Image
+d = sys.argv[1]
+pb = []
+FAM = ("close", "hide", "maximize", "menu", "shade", "stick")
+
+
+def encre(n):
+    im = Image.open("%s/%s.png" % (d, n)).convert("RGBA")
+    bb = im.getbbox()
+    return im.size, (0 if bb is None else bb[3] - bb[1])
+
+
+#  1. Toutes les toiles à la même taille. « menu » vient de 26x16 : c'est LUI
+#     que le filtre de hauteur laissait à 16 px pendant que le reste passait
+#     à 40. S'il n'est pas carré ici, la panne d'Alex est encore là.
+for f in FAM:
+    taille, _ = encre(f + "-active")
+    if taille != (40, 40):
+        pb.append("%s : toile %dx%d au lieu de 40x40" % ((f,) + taille))
+
+#  2. Et le dessin À L'INTÉRIEUR fait la même hauteur partout : c'est la
+#     demande exacte — agrandir et menu aussi gros que fermer.
+hauteurs = {f: encre(f + "-active")[1] for f in FAM}
+ref = hauteurs["close"]
+if ref <= 0:
+    pb.append("fermer n'a pas de dessin")
+for f, h in hauteurs.items():
+    if abs(h - ref) > 1:
+        pb.append("%s : dessin de %d px contre %d pour fermer" % (f, h, ref))
+
+#  3. Le dessin ne doit pas non plus déborder : « -extent » rognerait.
+if ref > 40:
+    pb.append("le dessin (%d) depasse la toile (40)" % ref)
+
+#  4. Et il doit avoir GRANDI par rapport à la source : sur le faux thème,
+#     « agrandir » partait de 10 px d'encre dans 28 de toile.
+if ref < 20:
+    pb.append("dessin de %d px seulement — les boutons n'ont pas grossi" % ref)
+
+print("OK %d px" % ref if not pb else "PB " + " | ".join(pb))
+PY
+)"
+	case "$VB" in
+		OK*) ok "les six familles de boutons : même toile, même dessin ($VB)" ;;
+		*)   non "boutons : $VB" ;;
 	esac
 
 	#  ─── MUTATION : sans title-3 NI title-1, on ne doit rien inventer ───────

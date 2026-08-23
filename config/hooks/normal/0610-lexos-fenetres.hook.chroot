@@ -90,6 +90,29 @@ HAUTEUR_DST=40          # 40/28 ≈ 1,43 — visible sans devenir grotesque
 #  fait pas semblant de l'avoir.
 RAYON=12                # ≈ 30 % de la hauteur du titre, comme la démo
 
+#  ═══ POURQUOI LES BOUTONS SONT TRAITÉS À PART ═══
+#  Photo d'Alex, fenêtre « Paramètres LexOS » : « le rouge est correct mais
+#  les 2 autres, les grossir aussi ». Fermer est gros, le menu et agrandir
+#  sont minuscules à côté. Deux causes, mesurées dans arc-theme :
+#
+#    · menu-active n'est PAS carré. Dans assets.svg c'est un rect de 26x16.
+#      Le filtre « hauteur == 28 » ne le voyait donc pas : pendant que tout le
+#      reste passait à 40 px, le bouton menu restait à 16. Il ne s'agissait
+#      pas d'un bouton « un peu petit », il s'agissait d'un bouton JAMAIS
+#      TOUCHÉ par le correctif censé le grossir.
+#
+#    · même à taille de toile égale, le DESSIN à l'intérieur n'a pas la même
+#      taille : Arc dessine « fermer » en disque plein qui remplit sa toile,
+#      et « agrandir » en trait fin qui en occupe la moitié. Agrandir la toile
+#      ne change rien à ce rapport-là.
+#
+#  D'où deux règles au lieu d'une : on reconnaît les boutons PAR LEUR NOM (et
+#  non par leur hauteur, qui vient justement de mentir), et on ramène chacun à
+#  la même toile ET au même rapport d'encre que le plus généreux d'entre eux —
+#  « fermer » sur Arc, celui qu'Alex dit correct. La mesure vient du thème :
+#  aucune taille n'est écrite en dur ici, donc ça reste vrai si Arc change.
+BOUTONS="close hide maximize menu shade stick"
+
 #  Les trois chemins sont surchargeables — non pas pour qu'on les change en
 #  production, mais pour que ce hook soit ÉPROUVABLE. Le hook 0905 a mis trois
 #  ISO à trouver sa panne parce qu'on ne pouvait le lancer que dans une vraie
@@ -119,6 +142,84 @@ fi
 hauteur_png() {
 	od -An -tu1 -j20 -N4 "$1" 2>/dev/null \
 		| awk '{ print $1*16777216 + $2*65536 + $3*256 + $4 }'
+}
+
+#  Ce fichier est-il un bouton de la rangée du titre ?
+est_bouton() {
+	_eb="${1%.png}"
+	for _ebf in $BOUTONS; do
+		case "$_eb" in "$_ebf"-*) return 0 ;; esac
+	done
+	return 1
+}
+
+#  Hauteur de l'ENCRE — la partie non transparente. Vide si l'image est
+#  entièrement transparente : « -trim » échoue alors, et c'est très bien, un
+#  gabarit vide n'a pas de dessin à agrandir.
+encre_hauteur() {
+	"$IM" "$1" -trim -format '%h' info: 2>/dev/null
+}
+
+#  ─── LES BOUTONS, TOUS À LA MÊME TAILLE ─────────────────────────────────────
+#  Rend le nombre de boutons refaits sur sa sortie standard.
+egaliser_boutons() {
+	_dst="$1"
+	_h="$2"
+
+	#  1) Le plus généreux donne la mesure. On compare les rapports
+	#     encre/toile en ENTIERS (produits croisés) : le shell POSIX n'a pas
+	#     de virgule, et une division tronquée aurait mis tous les rapports
+	#     à 0 — le genre de bug qui rend un correctif inerte sans rien dire.
+	_num=0
+	_den=1
+	for _f in "$_dst"/*.png; do
+		[ -f "$_f" ] || continue
+		est_bouton "$(basename "$_f")" || continue
+		_hc="$(hauteur_png "$_f")"
+		case "$_hc" in ''|*[!0-9]*) continue ;; esac
+		[ "$_hc" -gt 0 ] || continue
+		_he="$(encre_hauteur "$_f")"
+		case "$_he" in ''|*[!0-9]*) continue ;; esac
+		[ "$_he" -gt 0 ] || continue
+		if [ $((_he * _den)) -gt $((_num * _hc)) ]; then
+			_num="$_he"
+			_den="$_hc"
+		fi
+	done
+
+	if [ "$_num" -eq 0 ]; then
+		echo "[lexos]   !! aucun bouton avec du dessin — rien à égaliser" >&2
+		echo 0
+		return
+	fi
+
+	#  Hauteur d'encre visée, arrondie au plus proche.
+	_t=$(( (_h * _num * 2 / _den + 1) / 2 ))
+	[ "$_t" -gt 0 ] || _t=1
+
+	#  2) Chacun est retaillé : on isole le dessin, on le met à la taille
+	#     visée SANS déborder de la toile (« _h x _t » borne aussi la
+	#     largeur — sinon un dessin large comme celui du menu, 26x16, se
+	#     ferait rogner les côtés par « -extent »), puis on le recentre sur
+	#     une toile carrée de la hauteur de la rangée.
+	_faits=0
+	for _f in "$_dst"/*.png; do
+		[ -f "$_f" ] || continue
+		est_bouton "$(basename "$_f")" || continue
+		_he="$(encre_hauteur "$_f")"
+		case "$_he" in ''|*[!0-9]*) continue ;; esac
+		[ "$_he" -gt 0 ] || continue
+		if "$IM" "$_f" -trim +repage -resize "${_h}x${_t}" \
+			-background none -gravity center -extent "${_h}x${_h}" \
+			-depth 8 "$_f" 2>/dev/null
+		then
+			_faits=$((_faits + 1))
+		else
+			echo "[lexos]   !! échec sur $(basename "$_f") — laissé tel quel" >&2
+		fi
+	done
+	echo "[lexos]   boutons égalisés : ${_faits}, dessin à ${_t} px dans une toile de ${_h} px" >&2
+	echo "$_faits"
 }
 
 #  ─── LES COINS DU HAUT, REDESSINÉS ──────────────────────────────────────────
@@ -197,6 +298,10 @@ derive() {
 	IGNORES=0
 	for f in "$DST"/*.png; do
 		[ -f "$f" ] || continue
+		#  Les boutons ont leur propre règle (egaliser_boutons) : ils ne
+		#  passent PAS par le filtre de hauteur, qui laissait le menu de
+		#  côté parce qu'il fait 26x16 et non 28x28.
+		est_bouton "$(basename "$f")" && continue
 		h="$(hauteur_png "$f")"
 		if [ "$h" = "$HAUTEUR_SRC" ]; then
 			if "$IM" "$f" -resize "x${HAUTEUR_DST}" "$f" 2>/dev/null; then
@@ -209,7 +314,11 @@ derive() {
 		fi
 	done
 
-	echo "[lexos]   $1 : ${AGRANDIS} images de la rangée du titre agrandies (${HAUTEUR_SRC} -> ${HAUTEUR_DST} px), ${IGNORES} bordures intactes"
+	BOUTONS_FAITS="$(egaliser_boutons "$DST" "$HAUTEUR_DST")"
+	case "$BOUTONS_FAITS" in ''|*[!0-9]*) BOUTONS_FAITS=0 ;; esac
+	AGRANDIS=$((AGRANDIS + BOUTONS_FAITS))
+
+	echo "[lexos]   $1 : ${AGRANDIS} images de la rangée du titre agrandies (${HAUTEUR_SRC} -> ${HAUTEUR_DST} px, boutons compris), ${IGNORES} bordures intactes"
 
 	#  Un thème dérivé qui n'a rien changé mais porte notre nom, c'est le genre
 	#  de mensonge poli qu'on traque ici depuis le build 66. On l'efface.
