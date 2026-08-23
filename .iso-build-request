@@ -58,6 +58,104 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 72 : LE CÔTÉ GRAPHIQUE DE LA DÉMO, DANS L'ISO.
+#
+#   Le 71 démarre, Alex s'en sert, et il photographie. Ce lot ne vient donc
+#   d'aucune relecture de code : il vient de ce qu'il a VU, et de ce qu'on a
+#   compris en cherchant pourquoi.
+#
+#   · « IL Y A DU NOIR SUR LES BOUTONS ORANGE. » Le libellé était posé sur un
+#     rectangle noir à l'intérieur du bouton, et écrit en blanc. Deux causes,
+#     dont aucune ne se voit en lisant une règle isolément — c'est la CASCADE
+#     qui trahit :
+#       — la règle « écriture blanche partout » repeignait les libellés qui
+#         sont DANS un bouton, et un enfant qui porte sa propre couleur
+#         n'hérite pas de celle du parent : le noir demandé par le bouton
+#         n'arrivait jamais au texte ;
+#       — GTK bâtit un bouton en « button > box > label ». Peindre le bouton
+#         ne repeint pas ses enfants : le fond sombre du thème de base restait
+#         dessous. C'est lui, le rectangle.
+#
+#     Alex a demandé que TOUS les boutons soient corrects. On ne l'a donc pas
+#     fait à l'œil : un banc GÉNÈRE la feuille pour de vrai — huit accents,
+#     deux modes — et MESURE 128 familles de boutons. Toutes au-dessus de
+#     4,5:1 ; la plus juste est le noir sur violet, à 4,96.
+#
+#     Le banc a trouvé un TROISIÈME défaut que personne ne cherchait : les
+#     boutons « action conseillée » et « suppression » posaient un fond sans
+#     jamais poser de couleur de texte. Sur un accent bleu, du blanc
+#     atterrissait sur le rouge #E5484D — 3,9:1.
+#
+#   · « LES FICHIERS SONT ENCORE BLEUS. » Ce n'était pas une panne du thème.
+#     GTK ne demande pas « folder-desktop » pour le bureau : il demande
+#     « user-desktop », et « user-home » pour le dossier personnel. Deux noms
+#     que le thème LexOS ne portait pas — la chaîne d'héritage continuait donc
+#     jusqu'à Papirus-Dark, qui les a, en bleu. Aucune erreur nulle part :
+#     juste deux dossiers de la mauvaise couleur, et rien pour dire pourquoi.
+#     Sept alias posés en liens symboliques ; les quinze poches sont orange,
+#     vérifié couleur par couleur.
+#
+#   · « LE CÔTÉ GRAPHIQUE DE LA DÉMO N'EST PAS CELUI DE L'ISO. » Relevé,
+#     valeur pour valeur :
+#
+#         variable   démo      thème GTK   ui.css
+#         fond       #000      #000000     #161311
+#         texte      #fff      #FFFFFF     #EDE6DF
+#         bordure    #232326   #232326     #3A322B
+#
+#     La démo et le thème GTK étaient IDENTIQUES ; c'est la palette des
+#     panneaux web qui était partie seule sur un brun chaud. Sur la même
+#     machine : une fenêtre Thunar noire à texte blanc, et les Paramètres
+#     bruns à texte crème, côte à côte.
+#
+#   · LE MODE CLAIR N'EXISTAIT PAS DANS LES PANNEAUX. « lexos theme clair »
+#     repeignait le bureau en crème et les laissait NOIRS, en négatif du
+#     reste. Le mode passe maintenant par l'adresse — aucun chemin nouveau :
+#     lexos-theme-gen écrit déjà ~/.config/lexos/mode, les Paramètres
+#     l'exposent déjà dans /api/etat. Et setTheme() était le SEUL des trois à
+#     ne pas rappeler appliqueApparence() : changer de mode DANS les
+#     Paramètres n'aurait pas repeint cette fenêtre-là.
+#
+#   · THUNAR N'AVAIT AUCUN RÉGLAGE. Le hook 0400 n'écrivait que uca.xml ; il
+#     n'existait aucun thunarrc dans le dépôt. Fichiers démarrait sur les
+#     réglages d'usine de XFCE — rien de ce que la démo montre.
+#
+#   · LA LOUPE, qu'Alex a choisie quand on lui a demandé ce que voulait dire
+#     « la fenêtre reste à sa place, juste le reste zoome ». Tout était déjà
+#     écrit — magnus dans l'ISO, le refus propre sous Wayland — il manquait le
+#     moyen de l'ATTEINDRE : il fallait ouvrir un terminal. Pour une fonction
+#     d'accessibilité, c'est à l'envers. Super++ l'ouvre, Super+- la ferme, et
+#     les DEUX formes sont liées (plus et equal) : sur un clavier québécois le
+#     « + » n'est pas une touche, c'est Maj+=. Parier sur une seule, c'était
+#     livrer un raccourci qui ne se déclenche jamais.
+#
+#   · LA MASCOTTE ANIMÉE, l'autre réponse d'Alex. Elle ne jouait qu'à l'écran
+#     de démarrage ; mascot-anim-web.gif voyageait dans l'ISO depuis toujours,
+#     utilisé par rien. La fenêtre de bienvenue le prend — la version 272 Kio,
+#     pas celle de 6,6 Mio — en gardant mascot.png en repli.
+#
+#   · LA VIGIE AVAIT UN TROU, et c'était le sien. Son repli valait
+#     « HEAD~50..HEAD » en dur : sur un dépôt de moins de 50 commits,
+#     rev-list échoue, l'erreur part dans /dev/null, la boucle ne tourne sur
+#     RIEN — et elle annonce « rien ne dort » sans avoir rien regardé. Une
+#     vigie qui se déclare verte sans avoir ouvert les yeux est pire qu'une
+#     vigie absente : on lui fait confiance.
+#
+#   TROIS GARDE-FOUS POSÉS AVEC LES CORRECTIFS, parce que la divergence ne
+#   revient jamais d'un coup — elle revient une ligne à la fois : la palette
+#   des trois sources, la lisibilité de tous les boutons, et les noms d'icônes
+#   que GTK réclame. Les trois rougissent sur mutation, éprouvé.
+#
+#   CE QUE LE LOT NE FAIT PAS, écrit pour ne pas l'oublier : cartes et gps
+#   chargent toujours leurs bibliothèques depuis Internet (unpkg, cartocdn,
+#   fonts.googleapis) — sans réseau, ils ne s'affichent pas du tout. Embarquer
+#   leaflet et maplibre est un chantier, pas un correctif.
+#
+#   ET DEUX CHOSES QUI NE SE VÉRIFIENT QU'À L'ÉCRAN, dites plutôt que
+#   promises : que yad anime vraiment le GIF au lieu de le figer sur sa
+#   première image, et que les clés du thunarrc sont celles de la version de
+#   Thunar livrée. Une clé inconnue est ignorée EN SILENCE.
+#
 # build 71 : UNE SEULE VÉRITÉ, TROIS FOIS.
 #
 #   Le 70 démarre et Alex s'en sert. Ce lot ne vient donc pas d'une relecture
@@ -1841,4 +1939,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 71
+build: 72
