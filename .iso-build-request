@@ -58,6 +58,155 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 75 : LE BOUTON ROUGE AU BOUT, LA GRILLE DES APPLICATIONS, ET LE
+#            RECTANGLE DE SÉLECTION QUI NE CACHE PLUS RIEN.
+#
+#   Alex a démarré la 74 et photographié quatre choses. Deux d'entre elles
+#   étaient des réglages qu'on croyait posés depuis des builds et qui ne
+#   servaient à rien — la même famille que les boutons inertes de la 72.
+#
+#   · « METTRE LE BOUTON ROUGE TOTALEMENT À DROITE DE L'ÉCRAN. »
+#     Sur la photo, six boutons de session collés — verrouiller, changer
+#     d'utilisateur, veille, redémarrer, éteindre, déconnexion — et le rouge
+#     n'était même pas au bout : la déconnexion (verte) le dépassait.
+#
+#     Sa redistribution : le rouge au bord, le redémarrage à côté, la veille
+#     à côté du redémarrage, et « changer d'utilisateur » + « déconnexion »
+#     DANS UNE AUTRE FENÊTRE, celle qu'ouvre le bouton rouge.
+#
+#     Les trois premiers points sont de l'ordre dans xfce4-panel.xml :
+#     l'ordre du tableau EST l'ordre à l'écran, de gauche à droite. Le
+#     quatrième, non. Le greffon « actions » de XFCE exécute SES actions et
+#     ne sait pas ouvrir NOTRE fenêtre au clic sur l'un de ses boutons — il
+#     n'a aucun réglage pour ça. C'est exactement le mur du build 70, où
+#     xfwm4 n'avait aucun réglage de taille de bouton et où il a fallu
+#     fabriquer les images. On ne contourne pas un mur en le redécrivant :
+#     le bouton rouge devient un LANCEUR ordinaire (greffon 17, le dernier,
+#     donc le plus à droite) qui appelle lexos-session.
+#
+#     La barre donne maintenant, du bord gauche vers le bord droit :
+#         verrouiller · veille · redémarrer · [ARRÊT ROUGE]
+#
+#     VERROUILLER RESTE DANS LA BARRE. Alex ne l'a pas cité, et c'est le
+#     seul geste de cette rangée qu'on fait plusieurs fois par jour :
+#     l'enfouir dans une fenêtre le rendrait plus lent pour rien.
+#
+#     ET LA FENÊTRE PORTE QUATRE BOUTONS, PAS SIX. Veille et redémarrage
+#     sont désormais dans la barre, à côté du rouge. Les remettre aussi dans
+#     la fenêtre, c'est offrir deux chemins pour le même geste et faire
+#     hésiter — « lequel des deux redémarrages ? ». Elle porte donc ce qui
+#     n'est nulle part ailleurs : changer d'utilisateur, déconnexion, plus
+#     la confirmation de l'arrêt et de quoi repartir.
+#
+#     L'icône d'arrêt est la SEULE de la barre qui ne suit pas l'accent. Le
+#     rouge n'y est pas un goût, c'est un avertissement : sous un accent
+#     vert, un bouton d'arrêt vert dirait « vas-y » à l'endroit exact où il
+#     doit dire « attention ». Même raison que les trois teintes fixes du
+#     Wi-Fi, qui disent l'état du réseau et ne bougent jamais.
+#
+#   · « LE CARRÉ NOIR QUAND J'ESSAIE DE SÉLECTIONNER PLUSIEURS FICHIERS. »
+#     En tirant un cadre dans Fichiers, le rectangle était un BLOC OPAQUE à
+#     bord bleu : il cachait précisément ce qu'on était en train de choisir.
+#     « pourrais-tu faire qu'il soit transparent à la place ».
+#
+#     LA CAUSE A ÉTÉ LUE DANS LES DEUX FEUILLES, PAS DEVINÉE. Arc-Dark écrit
+#     bien un fond à 20 % d'opacité pour « rubberband, .rubberband » — le
+#     bord bleu de la photo EST le sien, donc sa règle s'applique. Mais
+#     pendant le tracé, GTK ne crée pas de nœud à part : il reprend le
+#     contexte de la VUE et lui AJOUTE la classe .rubberband. Le nœud porte
+#     donc « iconview », « .view » ET « .rubberband » à la fois. Notre règle
+#     des fonds liste « .view » (0,1,0) ; celle d'Arc pèse (0,1,0) aussi. À
+#     égalité de spécificité, c'est la feuille LUE EN DERNIER qui gagne — la
+#     nôtre. Notre fond opaque écrasait le sien, et seul son bord survivait
+#     faute qu'on y touche.
+#
+#     C'est mot pour mot la panne des boutons de la 72 : une règle large qui
+#     peint quelque chose qu'elle n'avait pas en tête.
+#
+#     Six règles SÉPARÉES (un sélecteur invalide dans une liste à virgules
+#     invalide la règle entière — la leçon de « selection, ::selection »),
+#     avec des spécificités qui passent AU-DESSUS de (0,1,0) :
+#     .view.rubberband (0,2,0), iconview.rubberband (0,1,1),
+#     treeview.view.rubberband (0,2,1). Écrire « rubberband » tout court
+#     n'aurait RIEN fait : (0,0,1) perd contre notre propre « .view ».
+#     Et rgba() calculé ici plutôt que la fonction alpha() : si une version
+#     de GTK ne la comprenait pas, la déclaration serait ignorée et le fond
+#     retomberait sur le noir — on aurait « corrigé » en laissant intact.
+#
+#   · « LES APPLICATIONS SONT TROP PETITES », « L'ÉCRITURE EN BAS DE
+#     L'APPLICATION », « UNE À CÔTÉ DE L'AUTRE POUR FAIRE UNE JOLIE FENÊTRE
+#     BIEN REMPLIE. » C'est xfce4-appfinder, qui affichait une LISTE : une
+#     ligne par application, une icône minuscule à gauche, les trois quarts
+#     de l'écran vides à droite.
+#
+#     Trois réglages, relevés dans son code (appfinder-window.c,
+#     appfinder-model.h) et non supposés :
+#         icon-view = true          la grille au lieu de la liste
+#         text-beside-icons = false le nom SOUS l'icône
+#         item-icon-size = 5        un INDEX, pas des pixels :
+#                                   0=16 1=24 2=32 3=48 4=64 5=96 6=128
+#     Le défaut du programme était 2 — 32 px, ce qu'Alex a trouvé petit,
+#     deux fois. Le 5 donne une cellule de 168 px (le programme la calcule,
+#     ce n'est pas la taille de l'icône) : huit à onze colonnes sur son
+#     écran. Le 6 grossirait l'icône d'un tiers sans élargir la cellule
+#     d'autant : les tuiles se toucheraient.
+#
+#     ET LA FENÊTRE ELLE-MÊME, deuxième photo : « elle prend toute la
+#     largeur de l'écran et elle n'est pas en hauteur ». appfinder
+#     enregistre sa taille à chaque fermeture et la rouvre pareille ; pire,
+#     à la construction il fait « set_default_size(largeur, -1) » — la
+#     HAUTEUR n'est pas posée du tout, elle est laissée au calcul du
+#     contenu. D'où la bande plate. On sème donc 860x680 dans le squelette.
+#     Ce sont des points de départ, pas des verrous : redimensionner marche,
+#     le programme retiendra sa taille.
+#
+#     xfce4-appfinder passe STRICT au passage. Trois chemins y menaient déjà
+#     — la touche Super+S, l'icône du dock, Paramètres -> Recherche — et
+#     aucun ne l'aurait dit s'il manquait : raccourci mort, icône muette,
+#     bouton sans effet. Même famille que les dossiers blancs de la 72, où
+#     l'apparence du bureau dépendait du temps qu'il faisait sur les
+#     miroirs Debian.
+#
+#   · LA DÉMO SUIT. Son menu d'alimentation gagne « changer d'utilisateur »
+#     et « déconnexion ». La règle d'Alex joue dans les deux sens ; les
+#     trois palettes de panneaux ont déjà montré ce que coûte une
+#     divergence.
+#
+#   ═══ CE QUI L'ÉPROUVE ═══
+#
+#   · tests/test_lexos_session.sh, neuf, 22 contrôles. Un outil qui éteint
+#     la machine ne se teste pas en le lançant : PATH fermé, faux outils qui
+#     NOTENT ce qu'on leur demande. Deux régimes, et les deux comptent — la
+#     simulation pour le chemin normal (le conteneur n'a ni
+#     xfce4-session-logout ni dm-tool), le PATH fermé pour les REPLIS. Sans
+#     le second, aucun repli ne serait jamais emprunté : en simulation,
+#     « dispo » répond oui à tout et le premier outil de chaque liste gagne
+#     toujours. Il éprouve aussi les deux refus qui comptent : sans écran il
+#     ne coupe RIEN, et sans aucun outil il le DIT au lieu de rendre 0.
+#
+#   · tests/test_boutons.sh, section 5 : le moteur de cascade résout le nœud
+#     du caoutchouc et regarde quelle règle GAGNE. Mutation-testé — en ne
+#     laissant que « rubberband » nu, il rend « OPAQUE .view -> #000000 »,
+#     c'est-à-dire qu'il REPRODUIT la panne de la photo d'Alex. Un banc qui
+#     sait refabriquer le défaut est un banc qui le verra revenir.
+#
+#   · lexos-session est branché dans les Paramètres (« Fermer la session »).
+#     Le contrôle 16 refusait de passer sans, et il avait raison : un geste
+#     du système qui n'existe qu'à un seul endroit de l'écran disparaît le
+#     jour où cet endroit change — et on vient justement de le déplacer.
+#
+#   Une erreur attrapée en chemin, qui aurait coûté cher : le commentaire du
+#   correctif citait le SCSS d'Arc avec ses « dollar-quelque-chose ». Ce
+#   commentaire vit dans un heredoc non protégé — le shell les aurait
+#   DÉVELOPPÉS, et avec « set -u » la génération du thème se serait arrêtée
+#   net sur toutes les machines. shellcheck l'a vu.
+#
+#   ═══ CE QUE SEUL ALEX PEUT VÉRIFIER ═══
+#   Les dossiers étaient ENCORE des feuilles blanches sur sa photo de la 74
+#   — quatrième fois. Le hook 0605 écrit son verdict dans
+#   /etc/lexos/icones-report : « cat » ce fichier dira LAQUELLE des causes
+#   tient, au lieu qu'on en invente une cinquième.
+#
 # build 74 : CINQ PHOTOS, CINQ CORRECTIONS — ET DEUX RÉGLAGES QUI NE RÉGLAIENT RIEN.
 #
 #   Alex a démarré la 73 et photographié le bureau à côté de la démo ouverte
@@ -2169,4 +2318,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 74
+build: 75
