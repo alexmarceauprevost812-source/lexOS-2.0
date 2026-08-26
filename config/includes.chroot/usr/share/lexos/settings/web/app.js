@@ -388,12 +388,28 @@ async function basculeWifiAuto(){
     ? (actif ? "Connexion automatique désactivée" : "Connexion automatique activée")
     : "Échec : " + (r.erreur || "commande refusée"));
 }
-async function setFondFichier(i, nom){
-  //  L'indice ET le nom : la galerie se réénumère côté machine entre
-  //  l'affichage et le clic — si une image est arrivée entre-temps, les
-  //  indices ont glissé, et le nom fait refuser plutôt que poser la
-  //  mauvaise photo.
-  const r = await api("fond-fichier", {i, nom});
+async function setFondFichier(i){
+  /*  ═══ AUCUN NOM DE FICHIER DANS LE HTML ═══
+      Ce gestionnaire recevait le nom en clair, interpolé dans un attribut
+      onclick délimité par une APOSTROPHE. JSON.stringify n'échappe que le
+      guillemet double et la barre oblique inverse — pas l'apostrophe, ni
+      « < ». Un fichier nommé  x'><img src=x onerror=…>.png  déposé dans
+      ~/Téléchargements sortait donc de l'attribut et faisait exécuter son
+      nom dans la page des Paramètres. Et un nom de fichier téléchargé n'est
+      PAS choisi par l'utilisateur : le site d'en face le dicte par
+      Content-Disposition. Le trou était ouvert par la porte qu'on venait
+      d'ouvrir.
+
+      Le correctif ne consiste pas à mieux échapper — c'est de ne RIEN
+      mettre de textuel dans le HTML. Le gestionnaire ne reçoit qu'un ENTIER
+      (coercé à l'écriture ET relu ici), et le nom se retrouve dans l'état,
+      qui n'a jamais transité par du HTML. Une chaîne qu'on n'écrit pas est
+      une chaîne qu'on n'a pas à échapper. */
+  const i0 = Number(i) | 0;
+  const f = (etat.fonds_perso || []).find(x => Number(x.i) === i0);
+  if(!f) return toast("Cette image n'est plus dans la galerie");
+  const nom = f.nom;
+  const r = await api("fond-fichier", {i: i0, nom});
   await rafraichir(r.ok ? "Fond d'écran appliqué : " + nom
                         : "Échec : " + (r.erreur || "commande refusée"));
 }
@@ -1081,8 +1097,8 @@ function contenu(cle){
             noir, sur tous les écrans.</div>
           <div class="row" style="gap:10px">
             ${fp.map(f => `<button class="wall-swatch" title="${esc(f.nom)}"
-               onclick='setFondFichier(${f.i}, ${JSON.stringify(f.nom)})'
-               style="width:96px;height:56px;background:#000 url('/api/fond-vignette?i=${f.i}') center/contain no-repeat"></button>`).join("")}
+               onclick="setFondFichier(${Number(f.i) | 0})"
+               style="width:96px;height:56px;background:#000 url('/api/fond-vignette?i=${Number(f.i) | 0}') center/contain no-repeat"></button>`).join("")}
           </div>
         </div>`;
       })()}

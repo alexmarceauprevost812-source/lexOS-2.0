@@ -278,6 +278,7 @@ titre "6. La galerie des Paramètres — vraies fonctions, vraie liste blanche"
 #  On charge settings.py comme module (il ne démarre son serveur que sous
 #  __main__) et on appelle les vraies fonctions sur le faux foyer.
 SETTINGS="$RACINE/config/includes.chroot/usr/lib/lexos/settings.py"
+APP="$RACINE/config/includes.chroot/usr/share/lexos/settings/web/app.js"
 galerie() { # galerie <script-python>  — HOME est le faux foyer
 	HOME="$FOYER" python3 - "$SETTINGS" <<PYG
 import sys, importlib.util, json, os
@@ -352,6 +353,95 @@ fi
 grep -q "#000 url('/api/fond-vignette" "$RACINE/config/includes.chroot/usr/share/lexos/settings/web/app.js" \
 	&& ok "les vignettes de la page sont sur fond noir, image entière" \
 	|| non "les vignettes ne montrent pas la composition réelle"
+
+# =============================================================================
+titre "7. Un nom de fichier ne peut pas s'exécuter dans la page"
+# =============================================================================
+#  UN NOM DE FICHIER TÉLÉCHARGÉ N'EST PAS CHOISI PAR L'UTILISATEUR : le site
+#  d'en face le dicte (Content-Disposition). La galerie l'affiche. Si ce nom
+#  arrive dans du HTML sans être neutralisé, on vient d'ouvrir une porte par
+#  celle qu'on ouvrait — et la page des Paramètres exécute des commandes.
+#
+#  Le premier jet interpolait le nom dans un attribut onclick délimité par une
+#  APOSTROPHE, via JSON.stringify — qui n'échappe ni l'apostrophe ni « < ».
+#  On ne « mieux échappe » pas : on ne met plus AUCUNE chaîne dans le HTML.
+#  Le banc le vérifie en rendant vraiment la galerie avec un nom piégé.
+#  Le rendu passe par un fichier plutôt qu'un heredoc imbriqué : un heredoc
+#  dans une substitution de commande dans un heredoc se referme au mauvais
+#  endroit, et node ne recevait rien. Le banc affichait alors « pas de script
+#  exécutable » — sur une sortie VIDE. Un contrôle qui passe sur du vide ne
+#  contrôle rien ; d'où le garde-fou sur la longueur, juste en dessous.
+cat > "$BANC/rendu-galerie.js" <<'JS'
+const fs = require("fs");
+const src = fs.readFileSync(process.argv[2], "utf8");
+const deb = src.indexOf("const fp = etat.fonds_perso || [];");
+const fin = src.indexOf("})()}", deb);
+if (deb < 0 || fin < 0) { console.error("galerie introuvable"); process.exit(1); }
+const esc = s => String(s).replace(/[&<>"]/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+//  LE NOM PIÉGÉ : apostrophe, guillemet, chevron. Un nom de fichier
+//  téléchargé n'est pas choisi par l'utilisateur — le site d'en face le
+//  dicte par Content-Disposition.
+const etat = { fonds_perso: [{ i: 0, nom: "x'\"><img src=x onerror=alert(1)>.png" }] };
+console.log(new Function("etat", "esc", src.slice(deb, fin))(etat, esc));
+JS
+GAL="$(node "$BANC/rendu-galerie.js" "$APP" 2>/dev/null)"
+
+[ "${#GAL}" -gt 200 ] \
+	&& ok "la galerie se rend vraiment (sinon les contrôles suivants ne diraient rien)" \
+	|| non "rendu vide (${#GAL} caractères) — les contrôles d'échappement seraient creux"
+#  CE QU'IL FAUT CHERCHER, C'EST L'ÉVASION — PAS LA CHAÎNE.
+#  « onerror=alert » APPARAÎT dans le rendu, et c'est normal : le nom du
+#  fichier s'affiche en infobulle, échappé (« &lt;img … onerror=alert(1)&gt; »).
+#  Du texte inerte dans un attribut correctement clos. Le premier jet de ce
+#  banc cherchait cette chaîne et se déclarait rouge sur un rendu SAIN.
+#  Ce qui trahit une vraie évasion, c'est une BALISE non échappée : après
+#  échappement, « < » devient « &lt; » et « <img » ne peut plus exister.
+case "$GAL" in
+	*"<img"*) non "une balise non échappée est sortie du nom de fichier — script exécutable" ;;
+	*) ok "aucune balise ne sort du nom de fichier (le « < » est échappé)" ;;
+esac
+#  Et l'apostrophe : c'est elle qui refermait l'attribut onclick du premier
+#  jet. Aucun attribut ne doit plus être délimité par une apostrophe ici.
+case "$GAL" in
+	*"onclick='"*) non "un attribut onclick délimité par une apostrophe — une seule dans un nom le referme" ;;
+	*) ok "aucun attribut délimité par une apostrophe" ;;
+esac
+case "$GAL" in
+	*"setFondFichier(0)"*) ok "le gestionnaire ne reçoit qu'un ENTIER (aucune chaîne dans le HTML)" ;;
+	*) non "le gestionnaire reçoit autre chose qu'un entier" ;;
+esac
+case "$GAL" in
+	*"&quot;&gt;&lt;img"*) ok "et l'infobulle est échappée (guillemet et chevrons)" ;;
+	*) non "l'infobulle laisse passer du balisage" ;;
+esac
+
+grep -q '"nom": Path(c).name' "$SETTINGS" \
+	&& ok "l'état ne publie que le nom, jamais le chemin" \
+	|| non "l'état publie des chemins vers la page"
+
+# =============================================================================
+titre "8. Une vignette ne charge pas un fichier de n'importe quelle taille"
+# =============================================================================
+#  Le pont sert le fichier TEL QUEL (il n'a pas de quoi redimensionner). Sans
+#  plafond, ouvrir la section chargeait en mémoire, jusqu'à 24 fois en
+#  parallèle, des fichiers dont la taille est dictée par le site d'en face.
+python3 - "$FOYER/Téléchargements/enorme.bmp" <<'PYB'
+import sys, os
+#  41 Mio, creux : le fichier occupe la taille annoncée sans coûter le disque.
+with open(sys.argv[1], "wb") as f:
+    f.truncate(41 * 1024 * 1024)
+PYB
+R="$(galerie 'print(json.dumps([p.split("/")[-1] for p in m._fonds_perso()]))' 2>/dev/null)"
+grep -q 'enorme.bmp' <<< "$R" \
+	&& non "un fichier de 41 Mio est proposé en vignette" \
+	|| ok "un fichier au-delà du plafond n'entre pas dans la galerie"
+#  Et le plafond est REVÉRIFIÉ au service : le fichier a pu grossir depuis.
+grep -q 'FONDS_PERSO_POIDS_MAX' "$SETTINGS" \
+	&& [ "$(grep -c 'FONDS_PERSO_POIDS_MAX' "$SETTINGS")" -ge 3 ] \
+	&& ok "le plafond est vérifié à l'énumération ET au service" \
+	|| non "le plafond n'est vérifié qu'à un seul endroit"
+rm -f "$FOYER/Téléchargements/enorme.bmp"
 
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

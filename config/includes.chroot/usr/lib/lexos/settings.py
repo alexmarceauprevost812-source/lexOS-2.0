@@ -353,6 +353,14 @@ def act_fond_capture(arg):
 FONDS_PERSO_DIRS = ("Images", "Téléchargements", "Downloads", "Fonds d'écran")
 FONDS_PERSO_EXT = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".bmp", ".svg"}
 FONDS_PERSO_MAX = 24
+#  PLAFOND DE TAILLE. La vignette fait 96x56 px, et le pont n'a pas de quoi
+#  redimensionner (Pillow n'est pas garanti) : il sert donc le fichier tel
+#  quel. Sans plafond, ouvrir la section chargerait en mémoire, jusqu'à 24
+#  fois en parallèle, des fichiers de n'importe quelle taille — et le nom
+#  comme le contenu d'un téléchargement sont dictés par le site d'en face,
+#  pas par l'utilisateur. 40 Mio laisse passer toutes les photos d'appareil
+#  et tous les fonds d'écran 4K réels, et arrête le reste.
+FONDS_PERSO_POIDS_MAX = 40 * 1024 * 1024
 
 
 def _fonds_perso():
@@ -374,7 +382,13 @@ def _fonds_perso():
             for f in d.iterdir():
                 if f.is_file() and f.suffix.lower() in FONDS_PERSO_EXT:
                     try:
-                        images.append((f.stat().st_mtime, str(f)))
+                        st = f.stat()
+                        #  Un fichier trop lourd n'est pas un fond d'écran :
+                        #  on ne le propose pas plutôt que d'afficher une
+                        #  vignette qui ne chargera jamais.
+                        if st.st_size > FONDS_PERSO_POIDS_MAX:
+                            continue
+                        images.append((st.st_mtime, str(f)))
                     except OSError:
                         continue
         except OSError:
@@ -2440,6 +2454,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             chemin = Path(fonds[i])
             genre = mimetypes.guess_type(str(chemin))[0] or "application/octet-stream"
             try:
+                #  Le plafond est REVÉRIFIÉ ici, et pas seulement à
+                #  l'énumération : le fichier a pu grossir entre les deux (un
+                #  téléchargement encore en cours, par exemple).
+                if chemin.stat().st_size > FONDS_PERSO_POIDS_MAX:
+                    return self._json(413, {"ok": False, "erreur": "image trop lourde"})
                 corps = chemin.read_bytes()
             except OSError:
                 return self._json(404, {"ok": False, "erreur": "fichier illisible"})
