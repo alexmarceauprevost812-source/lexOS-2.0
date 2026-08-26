@@ -1360,3 +1360,25 @@ jobs:
 
       - name: Téléchargement, envoi, collisions, remontée de chemin
         run: python3 tests/test_share_server.py
+
+      - name: LexOS Boost — le profil suit le matériel, et tout se défait
+        run: |
+          #  BANC ORPHELIN PENDANT CINQ ISO. Ajouté le 21 août avec LexOS
+          #  Boost, il n'était lancé par aucune tâche : 23 cas d'essai qui
+          #  n'ont jamais protégé quoi que ce soit. Les builds 73 à 77 sont
+          #  sortis avec ce filet décroché.
+          #
+          #  Ce qu'il garde est la promesse centrale de Boost : toute action
+          #  qui s'applique doit produire ses données de restauration. Sans
+          #  ça, on laisse un utilisateur avec une machine modifiée qu'il ne
+          #  peut plus remettre d'aplomb — et on ne l'apprend que sur SA
+          #  machine, une fois l'ISO gravée.
+          #
+          #  Il vérifie aussi que le profil calculé suit le matériel décrit :
+          #  zram inversement proportionnel à la RAM, aucun saut brutal
+          #  autour des seuils, pas de zram sur une grosse machine. Ce sont
+          #  des règles qu'une refonte casse sans le vouloir.
+          #
+          #  Aucune dépendance à installer : bibliothèque standard seulement,
+          #  et le banc construit lui-même son chemin d'import.
+          python3 tests/test_boost.py
