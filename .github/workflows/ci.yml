@@ -1089,6 +1089,22 @@ jobs:
           #  démarrage, qui doit se relancer proprement.
           bash tests/test_lexos_demo_guard.sh
 
+      - name: Compiz — partage d'écran (grid), moitiés et quarts d'écran
+        run: |
+          #  ALEX : « quand on met une fenêtre dans le coin, qu'elle se
+          #  divise à 50 % de l'écran, pour en mettre une autre à côté —
+          #  comme Ubuntu ». Ce geste existait déjà pour xfwm4, mais lexos-wm
+          #  remplace xfwm4 par Compiz dès qu'une accélération 3D réelle est
+          #  détectée — et Compiz gère les fenêtres avec ses PROPRES
+          #  greffons. Le greffon « grid » manquait de la liste active :
+          #  sur une machine où Compiz démarre, glisser vers un bord ne
+          #  faisait rien. Ce banc vérifie le greffon, ses valeurs (lues
+          #  dans le vrai grid.xml de compiz-plugins-default), l'aperçu
+          #  pendant le glisser, la parité des raccourcis avec xfwm4, et
+          #  fait vraiment compiler le fichier avec dconf.
+          apt-get install -y dconf-cli >/dev/null 2>&1 || true
+          bash tests/test_lexos_compiz_grid.sh
+
       - name: Écrans — xrandr garanti, la section qui explique, un seul écran partagé
         run: |
           #  TROIS TROUS, TOUS DE LA MÊME FAMILLE : la machine sait quelque

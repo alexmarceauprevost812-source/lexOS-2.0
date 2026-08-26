@@ -4,10 +4,73 @@
 #  « Glide 2 » écrase la fenêtre en une ligne horizontale puis l'éteint :
 #  c'est exactement le geste d'un tube cathodique qu'on coupe.
 #  Ces réglages ne s'appliquent que si Compiz démarre réellement (voir lexos-wm).
+#
+#  ── LE PARTAGE D'ÉCRAN À LA SOURIS (« grid »), ET POURQUOI IL MANQUAIT ──
+#  Alex : « quand on met une fenêtre dans le coin, qu'elle se divise à 50 %
+#  de l'écran, pour pouvoir en mettre une autre à côté — comme Ubuntu ».
+#
+#  Ce geste existait déjà pour xfwm4 (xfwm4.xml : tile_on_move=true, et les
+#  raccourcis Super+Gauche/Droite/Origine/Page.../Fin dans
+#  xfce4-keyboard-shortcuts.xml) — mais PAS pour Compiz. lexos-wm REMPLACE
+#  xfwm4 par Compiz dès qu'une accélération 3D réelle est détectée, et
+#  Compiz gère alors les fenêtres avec ses PROPRES greffons : les réglages
+#  et les raccourcis clavier de xfwm4 ne comptent plus du tout pour rien.
+#  Sur une machine où Compiz démarre, glisser une fenêtre vers un bord
+#  n'aurait donc fait STRICTEMENT RIEN — le greffon qui fait ce geste
+#  (« grid ») n'était même pas dans la liste active ci-dessous.
+#
+#  « grid » vient de compiz-plugins-default (déjà dans 30-dock-effets.list,
+#  avec compiz-plugins-main). Les noms de propriétés et les valeurs
+#  numériques ci-dessous viennent de son propre fichier de réglages
+#  (/usr/share/compiz/grid.xml) — lus dans le vrai paquet, pas devinés :
+#  0=Aucune, 1=Coin bas-gauche, 2=Moitié basse, 3=Coin bas-droit,
+#  4=Moitié gauche, 5=Plein écran, 6=Moitié droite, 7=Coin haut-gauche,
+#  8=Moitié haute, 9=Coin haut-droit, 10=Maximiser.
 # =============================================================================
 
 [org/compiz/profiles/Default/plugins/core]
-active-plugins=['core','composite','opengl','compiztoolbox','decor','mousepoll','vpswitch','snap','regex','animation','fade','workarounds','scale','expo','ezoom','imgpng','move','place','resize','session','wall','ccp']
+active-plugins=['core','composite','opengl','compiztoolbox','decor','grid','mousepoll','vpswitch','snap','regex','animation','fade','workarounds','scale','expo','ezoom','imgpng','move','place','resize','session','wall','ccp']
+
+[org/compiz/profiles/Default/plugins/grid]
+#  Les bords : glisser à gauche/droite donne une moitié — la demande
+#  d'Alex, mot pour mot. En haut, Compiz maximise par défaut (comme
+#  Windows et Ubuntu) ; on garde cette valeur plutôt que d'en inventer une.
+left-edge-action=4
+right-edge-action=6
+top-edge-action=10
+bottom-edge-action=0
+#  Les quatre coins : un quart d'écran chacun — pour poser JUSQU'À QUATRE
+#  fenêtres, pas seulement deux côte à côte. Même répartition que les
+#  raccourcis clavier xfwm4 (Super+Origine/Page haut/Fin/Page bas).
+top-left-corner-action=7
+top-right-corner-action=9
+bottom-left-corner-action=1
+bottom-right-corner-action=3
+#  MÊMES TOUCHES QUE xfwm4 (xfce4-keyboard-shortcuts.xml), à dessein : quel
+#  que soit le gestionnaire de fenêtres qui démarre pour de vrai — xfwm4 ou
+#  Compiz, ça dépend du matériel — les mêmes raccourcis font le même geste.
+#  Personne n'a à savoir lequel des deux tourne pour se souvenir d'un
+#  raccourci différent selon la machine.
+put-left-key='<Super>Left'
+put-right-key='<Super>Right'
+put-topleft-key='<Super>Home'
+put-topright-key='<Super>Page_Up'
+put-bottomleft-key='<Super>End'
+put-bottomright-key='<Super>Page_Down'
+put-maximize-key='<Super>Up'
+put-restore-key='<Super>Down'
+#  L'APERÇU PENDANT LE GLISSER. Alex : « [voir où la fenêtre va se poser]
+#  quand la souris est bien accotée dans le côté de l'écran ». C'est ce que
+#  fait « draw-indicator » — un rectangle qui montre où la fenêtre va se
+#  poser AVANT de relâcher le bouton, dès que la souris touche le bord.
+#  C'est déjà la valeur par défaut du greffon (vérifié dans grid.xml) : on
+#  l'écrit quand même en toutes lettres, pour ne pas dépendre d'un défaut
+#  qui pourrait changer dans une future version de Compiz sans qu'on le
+#  remarque. « draw-stretched-window » va plus loin : ce n'est pas un
+#  simple contour, c'est le CONTENU de la fenêtre qui s'étire déjà vers sa
+#  place pendant qu'on la glisse — le rendu le plus proche d'Ubuntu.
+draw-indicator=true
+draw-stretched-window=true
 
 [org/compiz/profiles/Default/plugins/animation]
 open-effects=['animation:Glide 2','animation:Glide 2','animation:Fade']
