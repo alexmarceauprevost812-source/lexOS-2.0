@@ -1007,14 +1007,52 @@ elif [[ -d "$DOSSIERS_SRC" ]]; then
 	fi
 
 	#  ═══ SI ON N'A PAS PU FAIRE AUSSI BIEN, ON NE MASQUE PAS ═══
-	#  Sans rsvg-convert, on n'aurait que du scalable — exactement le défaut
-	#  qui a coûté quatre ISO. Mieux vaut des dossiers de la MAUVAISE
+	#  Sans les tailles fixes, on n'aurait que du scalable — exactement le
+	#  défaut qui a coûté quatre ISO. Mieux vaut des dossiers de la MAUVAISE
 	#  couleur mais VISIBLES que des dossiers de la bonne couleur qui ne
-	#  s'affichent pas. On efface donc la copie et on laisse le thème
-	#  système complet reprendre la main, en le disant.
-	if ! compgen -G "$DOSSIERS_DST/places/[0-9]*" >/dev/null; then
+	#  s'affichent pas. On efface donc la copie et on laisse le thème système
+	#  complet reprendre la main, en le disant.
+	#
+	#  ═══ CE CONTRÔLE REGARDAIT LES DOSSIERS, PAS LEUR CONTENU ═══
+	#  Il cherchait « un dossier nommé 16x16, 22x22… ». Or ces dossiers sont
+	#  créés par « mkdir -p » AVANT la conversion, et chaque rsvg-convert se
+	#  termine par « || true ». Un rsvg-convert présent mais EN ÉCHEC — une
+	#  installation cassée, une bibliothèque manquante, un disque plein —
+	#  laissait donc seize dossiers vides, le contrôle les voyait, et on
+	#  masquait le thème système avec du scalable seul. Le garde-fou écrit
+	#  contre ce défaut précis ne le voyait pas.
+	#
+	#  Ce n'est pas une hypothèse : l'intégration continue vient de le faire.
+	#  Le banc y fabrique un faux rsvg-convert qui s'appuyait sur Pillow, et
+	#  Pillow n'est pas installé à cette étape-là. Résultat exact :
+	#  « index.theme déclare 2 dossiers pour 18 sur le disque ».
+	#
+	#  On compte donc les tailles qui contiennent VRAIMENT des fichiers, et
+	#  on les veut TOUTES. « À égalité » ne se négocie pas à sept huitièmes :
+	#  la taille manquante serait précisément celle que le dock demande.
+	#  Un dossier vide est aussi RETIRÉ — par « rm -rf », sûr puisqu'on vient
+	#  de vérifier qu'il est vide, et pas par rmdir : ce programme tourne
+	#  aussi sur des systèmes réduits, et l'index plus bas ne doit jamais
+	#  avoir à se poser la question d'un dossier creux.
+	ATTENDUES=0
+	for S in $TAILLES_ICONES; do ATTENDUES=$((ATTENDUES + 1)); done
+	PLEINES=0
+	for D in "$DOSSIERS_DST"/places/[0-9]*; do
+		[[ -d "$D" ]] || continue
+		if compgen -G "$D/*" >/dev/null; then
+			PLEINES=$((PLEINES + 1))
+		else
+			rm -rf "$D"
+		fi
+	done
+	for D in "$DOSSIERS_DST"/apps/[0-9]*; do
+		[[ -d "$D" ]] || continue
+		compgen -G "$D/*" >/dev/null || rm -rf "$D"
+	done
+	if [[ "$PLEINES" -lt "$ATTENDUES" ]]; then
 		rm -rf "$DOSSIERS_DST"
-		printf 'Icônes : pas de rsvg-convert — les dossiers restent orange (thème système) plutôt que masqués.\n' >&2
+		printf 'Icônes : %s tailles fixes sur %s (rsvg-convert absent ou en échec) — les dossiers restent orange (thème système) plutôt que masqués à moitié.\n' \
+			"$PLEINES" "$ATTENDUES" >&2
 	else
 
 	#  L'INDEX ÉCRIT D'APRÈS LE DISQUE, jamais recopié. Un thème qui déclare

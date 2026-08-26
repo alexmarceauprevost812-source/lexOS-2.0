@@ -490,18 +490,44 @@ titre "6. Le thème de l'utilisateur ne masque jamais le système à moitié"
 #      couleur, seulement un masque) ;
 #    · sous un autre accent, la copie est COMPLÈTE et son index.theme
 #      déclare exactement ce qui est sur le disque.
+#  LE FAUX rsvg-convert N'EMPLOIE QUE LA BIBLIOTHÈQUE STANDARD.
+#  Il s'appuyait sur Pillow — qui n'est PAS installé à cette étape de
+#  l'intégration continue (elle ne l'installe qu'au banc du hook 0610, plus
+#  loin). Il échouait donc en silence, ne posait aucun PNG, et le banc
+#  mesurait alors le comportement d'un rsvg-convert CASSÉ en croyant mesurer
+#  celui d'un rsvg-convert normal. Un outil de banc qui dépend d'un paquet
+#  optionnel n'éprouve pas ce qu'il annonce.
+#  (Le service rendu : c'est ce hasard qui a révélé le vrai trou du garde-fou
+#  de lexos-theme-gen. Il est corrigé ; le cas est éprouvé plus bas.)
 FAUX6="$BANC/faux-rsvg"; mkdir -p "$FAUX6"
 cat > "$FAUX6/rsvg-convert" <<'SH'
 #!/usr/bin/env bash
 python3 - "$@" <<'PY'
-import sys
-from PIL import Image
+import sys, zlib, struct
 a = sys.argv
-Image.new("RGBA", (int(a[a.index("-w") + 1]), int(a[a.index("-h") + 1])),
-          (232, 89, 12, 255)).save(a[a.index("-o") + 1])
+w = int(a[a.index("-w") + 1]); h = int(a[a.index("-h") + 1])
+brut = b"".join(b"\x00" + b"\xe8\x59\x0c\xff" * w for _ in range(h))
+def bloc(t, d):
+    c = t + d
+    return struct.pack(">I", len(d)) + c + struct.pack(">I", zlib.crc32(c) & 0xffffffff)
+png = (b"\x89PNG\r\n\x1a\n"
+       + bloc(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
+       + bloc(b"IDAT", zlib.compress(brut))
+       + bloc(b"IEND", b""))
+open(a[a.index("-o") + 1], "wb").write(png)
 PY
 SH
 chmod +x "$FAUX6/rsvg-convert"
+
+#  ET UN rsvg-convert QUI ÉCHOUE : présent dans le PATH, mais incapable de
+#  produire quoi que ce soit. C'est le cas que l'intégration continue a
+#  rencontré pour de vrai, et celui que le garde-fou ne voyait pas — il
+#  cherchait des DOSSIERS de taille, or « mkdir -p » les crée avant la
+#  conversion et chaque appel se termine par « || true ». Seize dossiers
+#  vides suffisaient à le convaincre.
+CASSE6="$BANC/rsvg-casse"; mkdir -p "$CASSE6"
+printf '#!/bin/sh\nexit 1\n' > "$CASSE6/rsvg-convert"
+chmod +x "$CASSE6/rsvg-convert"
 
 theme_utilisateur() {   # <accent> <PATH> ; écrit le dossier du thème sur stdout
 	rm -rf "${BANC:?}/u"; mkdir -p "$BANC/u"
@@ -548,6 +574,15 @@ D6="$(theme_utilisateur "$MIN6" bleu)"
 [ ! -d "$D6" ] \
 	&& ok "sans rsvg-convert : pas de copie du tout — on ne masque pas à moitié" \
 	|| non "sans rsvg-convert, une copie incomplète masque quand même le système"
+
+#  LE CAS QUI A RENDU LA CI ROUGE : rsvg-convert est là, et il ÉCHOUE. Les
+#  dossiers de taille existent (mkdir -p) mais sont vides. Un garde-fou qui
+#  regarde les dossiers au lieu de leur contenu laisse alors passer
+#  exactement le défaut qu'il devait arrêter.
+D6="$(theme_utilisateur "$CASSE6:$MIN6" bleu)"
+[ ! -d "$D6" ] \
+	&& ok "rsvg-convert présent mais EN ÉCHEC : pas de copie non plus" \
+	|| non "rsvg-convert en échec : une copie vide masque le système ($(find "$D6" -type f | wc -l) fichiers)"
 
 # ═════════════════════════════════════════════════════════════════════════════
 printf '\n%s réussi(s), %s échoué(s)\n' "$REUSSIS" "$ECHOUES"
