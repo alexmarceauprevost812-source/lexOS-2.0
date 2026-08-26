@@ -100,23 +100,43 @@ chmod 0440 /etc/sudoers.d/lexos-live
 #  ouvrait le compte de la démo sur la machine installée, si bien qu'on
 #  n'atteignait jamais l'écran où choisir SON compte, et qu'on croyait
 #  l'installateur fautif de ne pas l'avoir créé.
-chmod 0755 /usr/lib/lexos/demo-guard 2>/dev/null || true
-if command -v systemctl >/dev/null 2>&1; then
-	systemctl enable lexos-demo-guard.service >/dev/null 2>&1 \
-		&& echo "[lexos]   garde-fou démo activé (sudo + ouverture automatique)" \
-		|| echo "[lexos]   !! garde-fou démo non activé"
+#  PAS DE « || true » NI DE « || echo » DANS CETTE ZONE, ET C'EST DÉLIBÉRÉ.
+#  Ce fichier est le correctif du bogue du 12 août (« le système installé
+#  ouvrait la session de démo, jamais celle de l'utilisateur »). Tel que
+#  c'était écrit, s'il disparaissait ou si le service refusait de s'activer,
+#  la construction RÉUSSISSAIT, l'ISO sortait, et TOUTES les machines
+#  installées à partir d'elle rouvraient la session de démo — le bogue
+#  revenu à l'identique. Le seul signe aurait été deux lignes « !! » perdues
+#  dans un journal de trois heures que personne ne lit.
+#  Il vaut cent fois mieux perdre une construction que livrer ça.
+if [ ! -f /usr/lib/lexos/demo-guard ]; then
+	echo "[lexos] !! /usr/lib/lexos/demo-guard ABSENT — sans lui, toute machine installée rouvre la session de démo au lieu du compte de l'utilisateur." >&2
+	exit 1
 fi
+chmod 0755 /usr/lib/lexos/demo-guard
+
+if ! systemctl enable lexos-demo-guard.service >/dev/null 2>&1; then
+	echo "[lexos] !! lexos-demo-guard.service refuse de s'activer — le garde-fou ne tournerait jamais sur les machines installées." >&2
+	exit 1
+fi
+echo "[lexos]   garde-fou démo activé (sudo + ouverture automatique)"
 
 #  Contrôle de construction : le garde-fou doit connaître les trois fichiers
 #  qu'il est chargé d'effacer. Si l'un des chemins change ailleurs sans être
-#  reporté ici, on le dit maintenant plutôt que de le découvrir sur une
-#  machine installée qui ouvre la session de démo.
+#  reporté ici, on ARRÊTE — le découvrir sur une machine installée qui ouvre
+#  la session de démo coûte infiniment plus cher qu'une construction perdue.
+#  On les parcourt tous avant de sortir, pour dire d'un coup TOUT ce qui
+#  manque au lieu d'obliger à trois constructions successives.
+MANQUE=0
 for CIBLE in /etc/sudoers.d/lexos-live \
              /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf \
              /etc/systemd/system/getty@tty1.service.d/lexos-autologin.conf; do
-	grep -qF "$CIBLE" /usr/lib/lexos/demo-guard \
-		|| echo "[lexos]   !! ${CIBLE} n'est pas dans le garde-fou démo"
+	grep -qF "$CIBLE" /usr/lib/lexos/demo-guard || {
+		echo "[lexos] !! ${CIBLE} est écrit ici mais le garde-fou ne l'efface pas — il resterait sur la machine installée." >&2
+		MANQUE=1
+	}
 done
+[ "$MANQUE" -eq 0 ] || exit 1
 
 # --- Compte « invite » : repli pour la session invité -----------------------
 # allow-guest=true (ci-dessus) laisse LightDM proposer sa propre session

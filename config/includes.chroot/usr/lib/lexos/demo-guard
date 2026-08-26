@@ -39,21 +39,44 @@
 #  Le compte « lex » lui-même n'est PAS supprimé, volontairement. Si la
 #  création du compte a échoué pendant l'installation, il reste la seule
 #  façon d'entrer (identifiant « lex », mot de passe « lex ») pour réparer.
+#  MAIS il ne reste plus GRAND OUVERT pour autant — voir « la porte de
+#  secours » plus bas : sur un système installé où un AUTRE administrateur
+#  existe, son mot de passe est verrouillé.
+#
+#  ── Deux variables, et elles ne changent RIEN en usage réel ──────────────
+#  LEXOS_CMDLINE et LEXOS_RACINE ont leurs valeurs par défaut ci-dessous :
+#  sur une vraie machine, ce fichier se comporte exactement comme avant.
+#  Elles existent pour que tests/test_lexos_demo_guard.sh puisse jouer les
+#  DEUX cas (live et installé) sur de faux chemins, dans un mktemp -d, sans
+#  jamais toucher à la machine qui fait tourner la CI. Ce garde-fou est le
+#  correctif du bogue du 12 août (« le système installé ouvrait la session
+#  de démo, jamais celle de l'utilisateur ») et il n'était protégé par
+#  aucun banc : on ne pouvait pas l'éprouver sans pouvoir le détourner.
 # =============================================================================
 set -e
 
+CMDLINE="${LEXOS_CMDLINE:-/proc/cmdline}"
+RACINE="${LEXOS_RACINE:-}"
+
+#  Le nom du compte de démo se lit à la MÊME source que le hook 0400 et le
+#  hook 0700, jamais écrit en dur ici : le jour où il change dans
+#  /etc/lexos/build.conf, le verrouillage plus bas doit suivre. Écrit en
+#  dur, il viserait un compte inexistant — et ne dirait rien.
+LEXOS_LIVE_USER="lex"
+[ -r "${RACINE}/etc/lexos/build.conf" ] && . "${RACINE}/etc/lexos/build.conf"
+
 # En session démo (boot=live dans la ligne de commande du noyau) : on ne
 # touche à rien, tout cela est exactement ce qu'on veut.
-if grep -qa 'boot=live' /proc/cmdline 2>/dev/null; then
+if grep -qa 'boot=live' "$CMDLINE" 2>/dev/null; then
 	exit 0
 fi
 
 # Partout ailleurs — donc sur un système installé — on retire.
 RETIRES=""
 
-for F in /etc/sudoers.d/lexos-live \
-         /etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf \
-         /etc/systemd/system/getty@tty1.service.d/lexos-autologin.conf; do
+for F in "${RACINE}/etc/sudoers.d/lexos-live" \
+         "${RACINE}/etc/lightdm/lightdm.conf.d/60-lexos-autologin.conf" \
+         "${RACINE}/etc/systemd/system/getty@tty1.service.d/lexos-autologin.conf"; do
 	if [ -e "$F" ]; then
 		rm -f "$F"
 		RETIRES="${RETIRES} ${F}"
@@ -61,5 +84,53 @@ for F in /etc/sudoers.d/lexos-live \
 done
 
 [ -n "$RETIRES" ] && echo "[lexos] réglages de démo retirés (système installé) :${RETIRES}"
+
+# --- La session invité n'a plus lieu d'être ---------------------------------
+#  50-lexos.conf porte allow-guest=true — voulu sur une clé de démonstration,
+#  beaucoup moins sur la machine de quelqu'un : un bouton « session invité »
+#  ouvre un bureau sans mot de passe sur l'écran de connexion.
+#  On ne TOUCHE PAS à 50-lexos.conf : il porte aussi user-session=xfce et
+#  greeter-hide-users=false, qu'on garde (ce dernier est même ce qui rend le
+#  compte de l'utilisateur visible et cliquable). On pose un fichier qui
+#  passe APRÈS lui dans l'ordre alphabétique et qui ne dit que ça.
+if [ -d "${RACINE}/etc/lightdm/lightdm.conf.d" ]; then
+	printf '[Seat:*]\nallow-guest=false\n' \
+		> "${RACINE}/etc/lightdm/lightdm.conf.d/70-lexos-installe.conf"
+fi
+
+# --- La porte de secours ne doit pas rester grande ouverte ------------------
+#  « lex » garde le mot de passe « lex » et le groupe sudo. Sur la clé USB
+#  c'est voulu. Sur une machine installée, cela veut dire que n'importe qui
+#  peut ouvrir la session « lex » depuis l'écran de connexion et devenir root
+#  avec un mot de passe que tout le monde connaît — y compris quelqu'un qui
+#  a juste regardé la démo par-dessus une épaule.
+#
+#  On ne SUPPRIME pas le compte : si l'installateur a raté la création du
+#  compte de l'utilisateur, c'est la seule façon d'entrer pour réparer, et
+#  supprimer un compte est le genre de geste qui se retourne contre soi. On
+#  verrouille son MOT DE PASSE, ce qui laisse root et un démarrage en mode
+#  secours y accéder, mais plus personne à l'écran de connexion.
+#
+#  ET SEULEMENT s'il existe un AUTRE administrateur. Sinon on enfermerait
+#  l'utilisateur dehors — exactement le contraire du but. Dans ce cas on le
+#  DIT, au lieu de laisser croire que c'est verrouillé.
+if [ -z "$RACINE" ] && id "$LEXOS_LIVE_USER" >/dev/null 2>&1; then
+	AUTRE_ADMIN=0
+	for M in $(getent group sudo 2>/dev/null | cut -d: -f4 | tr ',' ' '); do
+		[ "$M" = "$LEXOS_LIVE_USER" ] || AUTRE_ADMIN=1
+	done
+
+	if [ "$AUTRE_ADMIN" -eq 1 ]; then
+		#  « P » dans la 2e colonne de « passwd -S » = mot de passe utilisable.
+		#  On ne re-verrouille pas ce qui l'est déjà : à chaque démarrage, ça
+		#  n'écrirait rien de neuf et brouillerait le journal.
+		if passwd -S "$LEXOS_LIVE_USER" 2>/dev/null | cut -d' ' -f2 | grep -q '^P$'; then
+			passwd -l "$LEXOS_LIVE_USER" >/dev/null 2>&1 \
+				&& echo "[lexos] compte de démo « ${LEXOS_LIVE_USER} » verrouillé (un autre administrateur existe)"
+		fi
+	else
+		echo "[lexos] compte de démo « ${LEXOS_LIVE_USER} » LAISSÉ OUVERT : aucun autre administrateur — c'est la seule façon d'entrer."
+	fi
+fi
 
 exit 0

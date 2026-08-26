@@ -1072,6 +1072,23 @@ jobs:
           #  journal. Les trois listes vérifient les trois cas.
           bash tests/test_lexos_boot.sh
 
+      - name: Garde-fou de démo — la machine installée n'ouvre plus la démo
+        run: |
+          #  LE CORRECTIF DU 12 AOÛT, ENFIN PROTÉGÉ. Commit bd7b999 : « le
+          #  système installé ouvrait la session de démo, jamais celle de
+          #  l'utilisateur ». Le compte ÉTAIT créé par l'installateur — mais
+          #  la machine ouvrait toute seule la session « lex », donc on
+          #  n'atteignait jamais l'écran où choisir son compte.
+          #
+          #  /usr/lib/lexos/demo-guard corrige ça depuis, et n'était couvert
+          #  par AUCUN banc ni contrôle : la construction tolérait sa
+          #  disparition complète en silence. Le hook 0400 arrête maintenant
+          #  la construction, et ce banc joue les DEUX sens — en live les
+          #  réglages de démo restent (un garde-fou zélé casserait la clé),
+          #  sur système installé ils disparaissent — plus le deuxième
+          #  démarrage, qui doit se relancer proprement.
+          bash tests/test_lexos_demo_guard.sh
+
       - name: Écrans — xrandr garanti, la section qui explique, un seul écran partagé
         run: |
           #  TROIS TROUS, TOUS DE LA MÊME FAMILLE : la machine sait quelque

@@ -351,4 +351,32 @@ for D in /etc/skel/Bureau /etc/skel/Desktop; do
 	chmod +x "$D"/*.desktop
 done
 
+# --- Ce que Debian décide à notre place au sujet des comptes ----------------
+#  LexOS ne livre AUCUN users.conf ni removeuser.conf : tout ce qui touche à
+#  la création du compte de l'utilisateur vient de calamares-settings-debian.
+#  On a DÉJÀ été mordus par cette supposition une fois — voir plus haut, à
+#  propos du partitionnement : « Debian ne livre AUCUN partition.conf dans
+#  calamares-settings-debian ». On avait supposé que le paquet fournissait
+#  quelque chose, il ne le fournissait pas, et il a fallu le livrer nous-mêmes.
+#
+#  Ici on NE CHANGE RIEN — écrire un users.conf inventé serait pire que de ne
+#  rien poser, puisqu'on écraserait une configuration qui marche peut-être
+#  très bien. On met simplement le contenu RÉEL sous les yeux, dans le journal
+#  de construction, pour pouvoir décider en connaissance de cause :
+#    · si removeuser.conf vise déjà notre compte de démo, il n'y a rien à
+#      faire (et un contrôle CI pourra le garder vrai) ;
+#    · s'il vise un autre nom, le compte de démo survit à l'installation —
+#      ce qui rend le verrouillage du garde-fou d'autant plus nécessaire.
+for M in users removeuser; do
+	F="/etc/calamares/modules/${M}.conf"
+	if [ -r "$F" ]; then
+		echo "[lexos]   --- ${M}.conf livré par Debian ---"
+		grep -vE '^\s*(#|$)' "$F" | sed 's/^/[lexos]     /'
+	else
+		echo "[lexos]   !! ${F} absent — Calamares utilisera ses valeurs internes"
+	fi
+done
+#  Le nom du compte de démo, pour comparaison avec ce que removeuser vise.
+echo "[lexos]   compte de démo LexOS : ${LEXOS_LIVE_USER:-lex}"
+
 echo "[lexos] hook 0500 : ok"
