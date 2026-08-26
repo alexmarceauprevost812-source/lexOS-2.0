@@ -472,5 +472,83 @@ elif [ "$MAUVAIS5" = "0" ]; then
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
+titre "6. Le thème de l'utilisateur ne masque jamais le système à moitié"
+#  LE DÉFAUT QUI A COÛTÉ QUATRE ISO (71 bleus, 72-74 feuilles blanches).
+#  lexos-theme-gen écrivait un thème d'icônes nommé « LexOS » dans le
+#  dossier personnel. Le dossier personnel passe AVANT /usr/share, et deux
+#  thèmes de même nom ne se complètent pas : le premier trouvé gagne. Or
+#  cette copie ne contenait que « places/scalable », là où le thème système
+#  a huit tailles fixes plus les icônes d'application. Le thème complet
+#  était masqué par une copie qui en portait un neuvième.
+#
+#  L'indice qui a tranché vient d'Alex, sur le dock : « le fichier change
+#  quand je mets la souris dessus ». Plank agrandit au survol — une icône
+#  qui change avec la TAILLE, c'est un défaut de choix, pas d'absence.
+#
+#  Deux règles, et ce banc les tient toutes les deux :
+#    · sous l'accent par défaut, AUCUNE copie (elle n'apporterait aucune
+#      couleur, seulement un masque) ;
+#    · sous un autre accent, la copie est COMPLÈTE et son index.theme
+#      déclare exactement ce qui est sur le disque.
+FAUX6="$BANC/faux-rsvg"; mkdir -p "$FAUX6"
+cat > "$FAUX6/rsvg-convert" <<'SH'
+#!/usr/bin/env bash
+python3 - "$@" <<'PY'
+import sys
+from PIL import Image
+a = sys.argv
+Image.new("RGBA", (int(a[a.index("-w") + 1]), int(a[a.index("-h") + 1])),
+          (232, 89, 12, 255)).save(a[a.index("-o") + 1])
+PY
+SH
+chmod +x "$FAUX6/rsvg-convert"
+
+theme_utilisateur() {   # <accent> <PATH> ; écrit le dossier du thème sur stdout
+	rm -rf "${BANC:?}/u"; mkdir -p "$BANC/u"
+	PATH="$1" HOME="$BANC/u" LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+		LEXOS_ICONES="$RACINE/config/includes.chroot/usr/share/icons/LexOS" \
+		bash "$GEN" --target "$BANC/u" "$2" >/dev/null 2>&1
+	printf '%s' "$BANC/u/.local/share/icons/LexOS"
+}
+
+D6="$(theme_utilisateur "$FAUX6:$PATH" orange)"
+[ ! -d "$D6" ] \
+	&& ok "accent par défaut : aucune copie — le thème système complet reste visible" \
+	|| non "accent par défaut : une copie masque encore le thème système"
+
+MAUVAIS6=0
+for A6 in bleu vert neon; do
+	D6="$(theme_utilisateur "$FAUX6:$PATH" "$A6")"
+	if [ ! -d "$D6" ]; then
+		non "$A6 : aucune copie alors que l'accent diffère — les dossiers garderaient l'orange"
+		MAUVAIS6=$((MAUVAIS6 + 1)); continue
+	fi
+	SUR="$(find "$D6" -mindepth 2 -maxdepth 2 -type d | wc -l)"
+	DECL="$(grep -m1 '^Directories=' "$D6/index.theme" | sed 's/^Directories=//' | tr ',' '\n' | grep -c .)"
+	FIXES="$(find "$D6/places" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' 2>/dev/null | wc -l)"
+	if [ "$SUR" != "$DECL" ]; then
+		non "$A6 : index.theme déclare $DECL dossiers pour $SUR sur le disque"
+		MAUVAIS6=$((MAUVAIS6 + 1))
+	elif [ "$FIXES" -lt 8 ]; then
+		non "$A6 : $FIXES tailles fixes seulement — la copie masquerait le système à moitié"
+		MAUVAIS6=$((MAUVAIS6 + 1))
+	fi
+done
+[ "$MAUVAIS6" = "0" ] \
+	&& ok "trois accents : la copie est complète (8 tailles fixes) et son index dit vrai"
+
+#  ET LE CAS DÉGRADÉ : sans rsvg-convert, on ne peut pas égaler le système,
+#  donc on ne masque PAS. Des dossiers de la mauvaise couleur mais visibles
+#  valent mieux que des dossiers de la bonne couleur invisibles.
+MIN6="$BANC/min6"; rm -rf "$MIN6"; mkdir -p "$MIN6"
+for c in bash sh sed grep find mkdir rm cp cat printf env python3 basename dirname date id tr sort head wc; do
+	r="$(command -v "$c" 2>/dev/null)" && ln -sf "$r" "$MIN6/$c"
+done
+D6="$(theme_utilisateur "$MIN6" bleu)"
+[ ! -d "$D6" ] \
+	&& ok "sans rsvg-convert : pas de copie du tout — on ne masque pas à moitié" \
+	|| non "sans rsvg-convert, une copie incomplète masque quand même le système"
+
+# ═════════════════════════════════════════════════════════════════════════════
 printf '\n%s réussi(s), %s échoué(s)\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

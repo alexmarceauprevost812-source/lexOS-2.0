@@ -773,23 +773,140 @@ fi
 #  vérifier que changer d'accent repeint bien les dossiers serait de
 #  construire une ISO et de la démarrer. En service normal elle n'est pas
 #  définie et on lit le vrai chemin.
+#  ═══ LE DÉFAUT QUI A COÛTÉ QUATRE ISO, ET CE QU'ALEX A VU ═══
+#  Builds 71 à 74 : les dossiers du gestionnaire de fichiers restaient
+#  BLEUS (71) puis des FEUILLES BLANCHES (72, 73, 74), alors que le thème
+#  système était parfait. Le journal du build 75 le prouve, hook 0605 :
+#  19 SVG lisibles, 0 cassée, tous les noms que GTK réclame présents,
+#  152 PNG rendus sur huit tailles, index.theme réécrit, cache construit.
+#  La construction était irréprochable — donc la faute était ICI, au
+#  démarrage.
+#
+#  C'est Alex qui a donné l'indice décisif, sur le dock : « le fichier
+#  change comme tu peux voir quand je mets la souris dessus ». Plank
+#  AGRANDIT l'icône au survol. Une icône qui change quand la TAILLE change,
+#  ce n'est pas une icône absente — c'est GTK qui choisit ailleurs.
+#
+#  Et voici pourquoi. Ce bloc écrivait un thème nommé « LexOS » dans le
+#  dossier personnel. Le dossier personnel PASSE AVANT /usr/share dans
+#  XDG_DATA_DIRS, et deux thèmes de même nom ne se complètent pas : le
+#  premier trouvé GAGNE, l'autre n'existe plus. Or cette copie ne contenait
+#  QUE « places/scalable ». Le thème complet du système — ses huit tailles
+#  fixes, ses icônes d'application — était masqué par une copie qui en
+#  portait un neuvième.
+#
+#  Résultat : aux tailles où Papirus (hérité) offre un PNG exact, il pouvait
+#  l'emporter — dossiers BLEUS du build 71. Et le jour où Papirus n'était
+#  pas installé, il ne restait plus rien : GTK descendait jusqu'à l'icône
+#  générique d'un type inconnu, la FEUILLE BLANCHE des builds 72 à 74.
+#
+#  ═══ DEUX CORRECTIONS, ET LA PREMIÈRE EST LA PLUS IMPORTANTE ═══
+#
+#    1. SOUS L'ACCENT PAR DÉFAUT, ON NE COPIE PLUS RIEN. Les SVG du système
+#       SONT déjà orange : la copie n'apportait pas une couleur, elle
+#       n'apportait qu'un masque. On efface même une copie laissée par un
+#       accent précédent — sans quoi revenir à l'orange laisserait le
+#       masque en place, et on croirait le correctif inopérant.
+#       C'est le cas d'Alex, et donc le cas de presque tout le monde.
+#
+#    2. SOUS UN AUTRE ACCENT, LA COPIE DEVIENT COMPLÈTE. Mêmes tailles,
+#       mêmes icônes d'application, et un index.theme ÉCRIT d'après ce
+#       qu'on vient de poser — jamais recopié d'ailleurs. Masquer un thème
+#       n'est acceptable que si on le remplace À ÉGALITÉ.
 DOSSIERS_RACINE="${LEXOS_ICONES:-/usr/share/icons/LexOS}"
 DOSSIERS_SRC="$DOSSIERS_RACINE/places/scalable"
-if [[ -d "$DOSSIERS_SRC" ]]; then
-	DOSSIERS_DST="$TARGET/.local/share/icons/LexOS"
+DOSSIERS_DST="$TARGET/.local/share/icons/LexOS"
+TAILLES_ICONES="16 22 24 32 48 64 128 256"
+
+if [[ "${ACCENT^^}" == "#E8590C" ]]; then
+	#  Rien à teinter : le thème système est déjà de cette couleur. On
+	#  retire toute copie antérieure pour cesser de le masquer.
+	rm -rf "$DOSSIERS_DST"
+elif [[ -d "$DOSSIERS_SRC" ]]; then
+	rm -rf "$DOSSIERS_DST"
 	mkdir -p "$DOSSIERS_DST/places/scalable"
-	#  L'index doit suivre : un dossier d'icônes sans index.theme n'est pas
-	#  un thème, et GTK l'ignore en entier — sans rien dire.
-	if [[ -r "$DOSSIERS_RACINE/index.theme" ]]; then
-		cp -f "$DOSSIERS_RACINE/index.theme" "$DOSSIERS_DST/index.theme"
-	fi
+
+	teindre() {   # <source> <destination>
+		sed -e "s/#E8590C/${ACCENT}/gI" -e "s/#A84007/${ACCENT_LO}/gI" "$1" > "$2"
+	}
+
 	for F in "$DOSSIERS_SRC"/*.svg; do
 		[[ -r "$F" ]] || continue
-		sed -e "s/#E8590C/${ACCENT}/gI" -e "s/#A84007/${ACCENT_LO}/gI" \
-			"$F" > "$DOSSIERS_DST/places/scalable/$(basename "$F")"
+		teindre "$F" "$DOSSIERS_DST/places/scalable/$(basename "$F")"
 	done
+
+	#  Les icônes d'application (le lanceur « Fichiers ») sont des liens
+	#  vers places/ : « sed » les suit et écrit de vrais fichiers.
+	if [[ -d "$DOSSIERS_RACINE/apps/scalable" ]]; then
+		mkdir -p "$DOSSIERS_DST/apps/scalable"
+		for F in "$DOSSIERS_RACINE/apps/scalable"/*.svg; do
+			[[ -r "$F" ]] || continue
+			teindre "$F" "$DOSSIERS_DST/apps/scalable/$(basename "$F")"
+		done
+	fi
+
+	#  LES TAILLES FIXES, sans quoi on retombe dans le défaut qu'on corrige.
+	if command -v rsvg-convert >/dev/null 2>&1; then
+		for CAT in places apps; do
+			[[ -d "$DOSSIERS_DST/$CAT/scalable" ]] || continue
+			for S in $TAILLES_ICONES; do
+				mkdir -p "$DOSSIERS_DST/$CAT/${S}x${S}"
+				for F in "$DOSSIERS_DST/$CAT/scalable"/*.svg; do
+					[[ -r "$F" ]] || continue
+					rsvg-convert -w "$S" -h "$S" \
+						-o "$DOSSIERS_DST/$CAT/${S}x${S}/$(basename "$F" .svg).png" \
+						"$F" 2>/dev/null || true
+				done
+			done
+		done
+	fi
+
+	#  ═══ SI ON N'A PAS PU FAIRE AUSSI BIEN, ON NE MASQUE PAS ═══
+	#  Sans rsvg-convert, on n'aurait que du scalable — exactement le défaut
+	#  qui a coûté quatre ISO. Mieux vaut des dossiers de la MAUVAISE
+	#  couleur mais VISIBLES que des dossiers de la bonne couleur qui ne
+	#  s'affichent pas. On efface donc la copie et on laisse le thème
+	#  système complet reprendre la main, en le disant.
+	if ! compgen -G "$DOSSIERS_DST/places/[0-9]*" >/dev/null; then
+		rm -rf "$DOSSIERS_DST"
+		printf 'Icônes : pas de rsvg-convert — les dossiers restent orange (thème système) plutôt que masqués.\n' >&2
+	else
+
+	#  L'INDEX ÉCRIT D'APRÈS LE DISQUE, jamais recopié. Un thème qui déclare
+	#  un dossier absent, ou qui en oublie un présent, est ignoré en partie
+	#  — sans rien dire. Même règle que le hook 0605 côté système.
+	DIRS=""
+	for D in "$DOSSIERS_DST"/places/* "$DOSSIERS_DST"/apps/*; do
+		[[ -d "$D" ]] || continue
+		compgen -G "$D/*" >/dev/null || continue      # dossier vide : on ne le déclare pas
+		DIRS="${DIRS:+$DIRS,}${D#"$DOSSIERS_DST"/}"
+	done
+	{
+		echo "[Icon Theme]"
+		echo "Name=LexOS"
+		echo "Comment=Dossiers de LexOS teintés à l'accent ${ACCENT_NAME}"
+		echo "Inherits=Papirus-Dark,Papirus,Adwaita,hicolor"
+		echo "Directories=${DIRS}"
+		for D in "$DOSSIERS_DST"/places/* "$DOSSIERS_DST"/apps/*; do
+			[[ -d "$D" ]] || continue
+			compgen -G "$D/*" >/dev/null || continue
+			REL="${D#"$DOSSIERS_DST"/}"
+			CTX="Places"; [[ "$REL" == apps/* ]] && CTX="Applications"
+			T="${REL##*/}"
+			echo
+			echo "[${REL}]"
+			echo "Context=${CTX}"
+			if [[ "$T" == "scalable" ]]; then
+				echo "Size=512"; echo "MinSize=8"; echo "MaxSize=512"; echo "Type=Scalable"
+			else
+				echo "Size=${T%%x*}"; echo "Type=Fixed"
+			fi
+		done
+	} > "$DOSSIERS_DST/index.theme"
+
 	command -v gtk-update-icon-cache >/dev/null 2>&1 && \
 		gtk-update-icon-cache -f "$DOSSIERS_DST" >/dev/null 2>&1 || true
+	fi
 fi
 
 # =============================================================================

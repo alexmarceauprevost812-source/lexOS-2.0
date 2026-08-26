@@ -40,7 +40,12 @@
                            0 = 16 px   1 = 24   2 = 32   3 = 48
                            4 = 64      5 = 96   6 = 128
                          Le défaut du programme est 2 (32 px), et c'est ce
-                         qu'Alex a trouvé trop petit — deux fois.
+                         qu'Alex a trouvé trop petit — deux fois. On est
+                         passé à 5 (96 px), puis à 6 (128 px) quand il a
+                         redemandé « plus gros ». Voir le bloc de la
+                         fenêtre plus bas : à 128 px la CELLULE rétrécit
+                         (160 px au lieu de 168), ce qui sert justement les
+                         cinq colonnes qu'il demande.
 
   ═══ POURQUOI 5, ET PAS 4 NI 6 ═══
   La largeur de cellule n'est pas la taille de l'icône : appfinder la
@@ -62,7 +67,7 @@
 <channel name="xfce4-appfinder" version="1.0">
   <property name="icon-view"          type="bool" value="true"/>
   <property name="text-beside-icons"  type="bool" value="false"/>
-  <property name="item-icon-size"     type="int"  value="5"/>
+  <property name="item-icon-size"     type="int"  value="6"/>
   <!--  Le volet des catégories suit, sinon la colonne de gauche reste en
         16 px à côté de tuiles de 96 : la fenêtre aurait l'air d'avoir été
         agrandie à moitié. 2 = 32 px. -->
@@ -100,9 +105,42 @@
         Le séparateur suit : 200 px de volet de catégories au lieu de 180,
         parce que ses icônes passent de 24 à 32 px et que les noms de
         catégories ne doivent pas se faire couper. -->
+  <!--  ═══ CINQ APPLICATIONS DE LARGE, ET TOUTES LES AUTRES DESSOUS ═══
+        Alex : « crée une page avec toutes les applications […] plus gros,
+        et par exemple on ferait 5 applications de large avec toutes les
+        applications sur la longueur ».
+
+        appfinder N'A PAS de réglage « nombre de colonnes » : sa grille est
+        un GtkIconView qui remplit la largeur disponible. Le nombre de
+        colonnes se règle donc PAR LA LARGEUR DE LA FENÊTRE, et il faut
+        connaître la largeur d'une cellule — que le programme calcule
+        lui-même (appfinder-window.c, set_item_width) et qui n'est PAS la
+        taille de l'icône :
+            96 px d'icône  ->  cellule de 168 px   (96 x 1,75)
+           128 px d'icône  ->  cellule de 160 px   (128 x 1,25)
+        Une icône plus grosse dans une cellule plus étroite : c'est le
+        contraire de ce qu'on croit, et c'est ce qui permet d'accorder les
+        deux demandes d'Alex — plus gros ET cinq de large.
+
+        1030 = 200 (volet des catégories) + 5 x 160 (les cinq cellules)
+                   + ~30 (barre de défilement et marges)
+        700 de haut : trois rangées visibles, et le reste défile — « toutes
+        les applications sur la longueur ». Sur un écran de 768 px, la
+        barre du haut en prend 52 : 700 tient, 760 déborderait.
+
+        CE RÉGLAGE EST UN POINT DE DÉPART, PAS UN VERROU. appfinder retient
+        la taille qu'on lui donne à la fermeture ; si Alex élargit, il aura
+        six colonnes, et c'est très bien. Ce qu'on maîtrise, c'est la
+        PREMIÈRE ouverture. -->
   <property name="last" type="empty">
-    <property name="window-width"   type="int" value="860"/>
-    <property name="window-height"  type="int" value="680"/>
+    <property name="window-width"   type="int" value="1030"/>
+    <property name="window-height"  type="int" value="700"/>
     <property name="pane-position"  type="int" value="200"/>
   </property>
+
+  <!--  « TOUTES les applications », et pas la dernière catégorie visitée.
+        C'est déjà le défaut du programme, mais un défaut qu'on ne réécrit
+        pas est un défaut qui peut changer sous nos pieds à la version
+        suivante — et on ne s'en apercevrait qu'à la photo d'après. -->
+  <property name="remember-category"  type="bool" value="false"/>
 </channel>
