@@ -16,10 +16,17 @@
 #
 #  Idempotent : on repère notre ligne avant d'écrire, donc relancer le hook
 #  (ou reconstruire) n'empile pas les doublons.
+#
+#  Ce hook pose aussi le MODE de terminal livré d'usine — « suivre », c'est-
+#  à-dire : le terminal suit « lexos theme sombre|clair ». Les deux autres
+#  choix (« jour », « nuit », « auto ») se prennent après coup avec
+#  « lexos terminal ». On écrit le fichier plutôt que de laisser le défaut
+#  implicite pour que la commande « lexos terminal » ait quelque chose à
+#  montrer dès le premier démarrage, au lieu d'un état deviné.
 # =============================================================================
 set -e
 
-echo "[lexos] hook 0120 : terminal (invite, alias, touche Tab)"
+echo "[lexos] hook 0120 : terminal (invite, alias, touche Tab, jour/nuit)"
 
 CIBLE="/usr/share/lexos/shell/interactive.sh"
 MARQUE="# >>> LexOS — invite, alias et touche Tab >>>"
@@ -62,5 +69,43 @@ brancher /etc/skel/.bashrc
 # Le compte root est créé avant /etc/skel dans certaines images : on lui pose
 # le même rappel, sinon « sudo -i » retombe sur l'invite Debian nue.
 [ -d /root ] && brancher /root/.bashrc
+
+# --- La commande jour / nuit -------------------------------------------------
+if [ -x /usr/bin/lexos-terminal ]; then
+	#  Même précaution que pour interactive.sh : un script cassé ici et
+	#  « lexos terminal » ne répondrait plus, sans que rien ne le signale
+	#  avant le premier démarrage de l'ISO.
+	if bash -n /usr/bin/lexos-terminal; then
+		echo "[lexos]   lexos-terminal : ok"
+	else
+		echo "[lexos]   !! /usr/bin/lexos-terminal contient une erreur de syntaxe"
+		exit 1
+	fi
+else
+	echo "[lexos]   !! /usr/bin/lexos-terminal absent — pas de bascule jour/nuit"
+fi
+
+# Mode livré d'usine, pour /etc/skel et pour root.
+for RACINE in /etc/skel /root; do
+	[ -d "$RACINE" ] || continue
+	mkdir -p "$RACINE/.config/lexos"
+	[ -e "$RACINE/.config/lexos/terminal-mode" ] \
+		|| printf 'suivre\n' > "$RACINE/.config/lexos/terminal-mode"
+	[ -e "$RACINE/.config/lexos/terminal-horaire" ] || cat > "$RACINE/.config/lexos/terminal-horaire" <<'EOF'
+# LexOS — les heures du terminal de jour (mode « auto »).
+LEXOS_JOUR_DEBUT=07:00
+LEXOS_JOUR_FIN=19:00
+EOF
+done
+
+#  La minuterie n'est PAS activée à la construction : elle ne sert qu'au mode
+#  « auto », et c'est « lexos terminal auto » qui l'allume pour l'utilisateur
+#  qui la demande. L'activer d'office ferait tourner un service toutes les
+#  quinze minutes chez tout le monde, pour un réglage que personne n'a choisi.
+if [ -r /usr/lib/systemd/user/lexos-terminal-auto.timer ]; then
+	echo "[lexos]   minuterie jour/nuit livrée (inactive tant que « lexos terminal auto » n'est pas tapé)"
+else
+	echo "[lexos]   !! lexos-terminal-auto.timer absent — le mode auto ne basculera pas tout seul"
+fi
 
 echo "[lexos]   ok — l'invite, les alias et Tab suivent dans tous les terminaux"

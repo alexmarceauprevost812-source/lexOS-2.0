@@ -1,0 +1,16 @@
+[Unit]
+Description=LexOS — vérifier l'heure et repeindre le terminal
+
+[Timer]
+# Un quart d'heure : la bascule tombe donc au plus tard 15 minutes après
+# l'heure choisie. Plus fin réveillerait la machine pour rien ; plus grossier
+# laisserait le terminal de nuit allumé en plein midi.
+# OnStartupSec couvre le cas de l'ouverture de session en plein basculement.
+OnStartupSec=30s
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=lexos-terminal-auto.service
+
+[Install]
+WantedBy=timers.target

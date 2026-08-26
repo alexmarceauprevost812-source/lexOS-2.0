@@ -1,0 +1,236 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-terminal — le terminal de jour et le terminal de nuit
+# =============================================================================
+#  lexos terminal              Où on en est
+#  lexos terminal jour         Palette claire, épinglée
+#  lexos terminal nuit         LexOS Noir, épinglé
+#  lexos terminal auto         L'heure décide (07:00 → 19:00 par défaut)
+#  lexos terminal suivre       Le terminal suit « lexos theme sombre|clair »
+#  lexos terminal horaire 07:00 19:00      Change les heures du mode auto
+#  lexos terminal --appliquer  Recalcule et applique (appelé par la minuterie)
+#
+#  CE QUE FAIT LA BASCULE, ET POURQUOI EN DEUX TEMPS
+#
+#  1. lexos-theme-gen réécrit ~/.config/xfce4/terminal/terminalrc.
+#     xfce4-terminal surveille ce fichier : les fenêtres déjà ouvertes se
+#     repeignent toutes seules. C'est le chemin propre, et le seul qui vaut
+#     aussi pour les fenêtres qu'on ouvrira ensuite.
+#
+#  2. On envoie en plus les séquences OSC 10/11/12 au terminal courant.
+#     Pourquoi, si le point 1 suffit ? Parce qu'il ne suffit QUE pour
+#     xfce4-terminal. Un utilisateur dans alacritty, kitty, GNOME Terminal
+#     ou une session ssh ne lira jamais terminalrc ; les séquences OSC, elles,
+#     sont comprises par à peu près tous les terminaux modernes et repeignent
+#     la fenêtre où la commande a été tapée, quelle qu'elle soit.
+#     Elles ne survivent pas à la fermeture — d'où les deux temps.
+#
+#  3. L'invite PS1 relit ses couleurs à chaque affichage dans
+#     ~/.config/lexos/terminal.env (voir interactive.sh). Les shells DÉJÀ
+#     ouverts changent donc de couleur à la prochaine ligne, sans rien
+#     relancer et sans « source ~/.bashrc ».
+# =============================================================================
+set -euo pipefail
+
+PROG="lexos terminal"
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+F_MODE="$CONF_DIR/terminal-mode"
+F_HORAIRE="$CONF_DIR/terminal-horaire"
+ENV_FILE="$CONF_DIR/terminal.env"
+
+JOUR_DEBUT="07:00"
+JOUR_FIN="19:00"
+
+mkdir -p "$CONF_DIR"
+
+# --- Petites sorties ---------------------------------------------------------
+A=$'\033[38;5;208m'; V=$'\033[38;5;35m'; R0=$'\033[0m'; D=$'\033[2m'
+[ -t 1 ] || { A=""; V=""; R0=""; D=""; }
+ok()  { printf '%s✓%s %s\n' "$V" "$R0" "$1"; }
+die() { printf '\033[1;31m✗\033[0m %s\n' "$1" >&2; exit 1; }
+
+# --- Horaire du mode auto ----------------------------------------------------
+lire_horaire() {
+	if [[ -r "$F_HORAIRE" ]]; then
+		# shellcheck disable=SC1090
+		. "$F_HORAIRE"
+		JOUR_DEBUT="${LEXOS_JOUR_DEBUT:-07:00}"
+		JOUR_FIN="${LEXOS_JOUR_FIN:-19:00}"
+	fi
+}
+
+ecrire_horaire() {
+	cat > "$F_HORAIRE" <<EOF
+# LexOS — les heures du terminal de jour (mode « auto »).
+LEXOS_JOUR_DEBUT=$1
+LEXOS_JOUR_FIN=$2
+EOF
+}
+
+#  Convertit HH:MM en minutes depuis minuit. Refuse tout le reste : une heure
+#  mal écrite qui passerait en silence donnerait un terminal qui bascule à
+#  des moments inexplicables, et personne ne penserait à relire ce fichier.
+en_minutes() {
+	local hhmm="$1"
+	[[ "$hhmm" =~ ^([01][0-9]|2[0-3]):([0-5][0-9])$ ]] \
+		|| die "Heure invalide : « $hhmm » — attendu HH:MM (ex. 07:00)"
+	printf '%d' "$((10#${BASH_REMATCH[1]} * 60 + 10#${BASH_REMATCH[2]}))"
+}
+
+#  Résout « auto » en jour ou nuit. L'horaire peut enjamber minuit
+#  (ex. 21:00 → 05:00 pour qui travaille la nuit) : on teste alors
+#  l'intervalle complémentaire au lieu d'un simple encadrement.
+resoudre_auto() {
+	lire_horaire
+	local d f m
+	d="$(en_minutes "$JOUR_DEBUT")"
+	f="$(en_minutes "$JOUR_FIN")"
+	m="$(en_minutes "$(date +%H:%M)")"
+	if (( d <= f )); then
+		(( m >= d && m < f )) && echo jour || echo nuit
+	else
+		(( m >= d || m < f )) && echo jour || echo nuit
+	fi
+}
+
+mode_courant()    { [[ -r "$F_MODE" ]] && cat "$F_MODE" || echo suivre; }
+mode_bureau()     { [[ -r "$CONF_DIR/mode" ]] && cat "$CONF_DIR/mode" || echo sombre; }
+
+#  Le mode EFFECTIF : ce que l'on va réellement peindre.
+effectif() {
+	case "$(mode_courant)" in
+		jour) echo jour ;;
+		nuit) echo nuit ;;
+		auto) resoudre_auto ;;
+		*)    [[ "$(mode_bureau)" == "clair" ]] && echo jour || echo nuit ;;
+	esac
+}
+
+# --- Repeindre la fenêtre courante, tout de suite ---------------------------
+#  OSC 10 = premier plan, 11 = fond, 12 = curseur. Le terminateur BEL (\a)
+#  est accepté partout ; ST (\033\\) ne l'est pas par les VTE anciens.
+#  On n'envoie rien si la sortie n'est pas un terminal : dans un tube, ces
+#  octets se retrouveraient au milieu des données.
+#  Les séquences partent vers /dev/tty, PAS vers la sortie standard : la
+#  minuterie et les appels internes redirigent stdout vers /dev/null, et les
+#  couleurs y seraient avalées. /dev/tty désigne toujours le terminal de
+#  contrôle, quoi qu'on fasse des tubes.
+repeindre_ici() {
+	[[ -r "$ENV_FILE" ]] || return 0
+	#  Le test se fait en OUVRANT /dev/tty, pas en regardant ses droits :
+	#  le fichier existe et paraît accessible même quand le processus n'a
+	#  aucun terminal de contrôle — c'est le cas sous systemd. « -w » disait
+	#  oui, l'ouverture échouait, et le service crachait « No such device or
+	#  address » dans le journal à chaque quart d'heure.
+	{ : >/dev/tty; } 2>/dev/null || return 0
+	local LEXOS_TERM_FG="" LEXOS_TERM_BG="" LEXOS_TERM_CURSEUR=""
+	# shellcheck disable=SC1090
+	. "$ENV_FILE"
+	{
+		if [[ -n "$LEXOS_TERM_FG"      ]]; then printf '\033]10;%s\a' "$LEXOS_TERM_FG"; fi
+		if [[ -n "$LEXOS_TERM_BG"      ]]; then printf '\033]11;%s\a' "$LEXOS_TERM_BG"; fi
+		if [[ -n "$LEXOS_TERM_CURSEUR" ]]; then printf '\033]12;%s\a' "$LEXOS_TERM_CURSEUR"; fi
+	} > /dev/tty 2>/dev/null || true
+}
+
+#  Renseigne $EFFECTIF_APPLIQUE plutôt que d'écrire sur la sortie : l'appelant
+#  veut souvent le silence ET la valeur.
+EFFECTIF_APPLIQUE=""
+appliquer() {
+	command -v lexos-theme-gen >/dev/null 2>&1 \
+		|| die "lexos-theme-gen introuvable — le thème ne peut pas être régénéré."
+	local choisi; choisi="$(mode_courant)"
+	EFFECTIF_APPLIQUE="$(effectif)"
+	lexos-theme-gen --terminal "$EFFECTIF_APPLIQUE" >/dev/null
+	#  lexos-theme-gen réécrit terminal-mode avec ce qu'on vient de lui
+	#  passer (jour/nuit) : on repose le mode CHOISI par l'utilisateur,
+	#  sinon « auto » se dégraderait en « jour » dès la première bascule et
+	#  ne rebasculerait plus jamais le soir.
+	printf '%s\n' "$choisi" > "$F_MODE"
+	repeindre_ici
+}
+
+etat() {
+	local m eff; m="$(mode_courant)"; eff="$(effectif)"
+	lire_horaire
+	printf '%sTerminal LexOS%s\n' "$A" "$R0"
+	printf '  Mode      : %s%s%s\n' "$A" "$m" "$R0"
+	printf '  En cours  : %s%s%s\n' "$V" "$eff" "$R0"
+	case "$m" in
+		auto)   printf '  Horaire   : jour de %s à %s\n' "$JOUR_DEBUT" "$JOUR_FIN" ;;
+		suivre) printf '  %sSuit le thème du bureau (%s)%s\n' "$D" "$(mode_bureau)" "$R0" ;;
+	esac
+	printf '\n  %s%s jour · %s nuit · %s auto · %s suivre%s\n' \
+		"$D" "$PROG" "$PROG" "$PROG" "$PROG" "$R0"
+}
+
+# --- Minuterie du mode auto --------------------------------------------------
+#  On n'arme la minuterie QUE pour « auto » : la laisser tourner en mode
+#  épinglé referait le thème toutes les quinze minutes pour rien, et
+#  écraserait un réglage fait à la main dans les préférences du terminal.
+minuterie() {
+	command -v systemctl >/dev/null 2>&1 || return 0
+	[[ -n "${XDG_RUNTIME_DIR:-}" ]] || return 0
+	if [[ "$(mode_courant)" == "auto" ]]; then
+		systemctl --user enable --now lexos-terminal-auto.timer >/dev/null 2>&1 || true
+	else
+		systemctl --user disable --now lexos-terminal-auto.timer >/dev/null 2>&1 || true
+	fi
+}
+
+# --- Commandes ---------------------------------------------------------------
+case "${1:-}" in
+	""|etat|état|status)
+		etat
+		;;
+	jour|clair|light|day)
+		printf 'jour\n' > "$F_MODE"; minuterie
+		appliquer
+		ok "Terminal de jour — fond crème, écriture foncée."
+		;;
+	nuit|sombre|dark|night)
+		printf 'nuit\n' > "$F_MODE"; minuterie
+		appliquer
+		ok "Terminal de nuit — LexOS Noir."
+		;;
+	auto)
+		printf 'auto\n' > "$F_MODE"; minuterie
+		appliquer
+		lire_horaire
+		ok "Terminal automatique — jour de ${JOUR_DEBUT} à ${JOUR_FIN} (en ce moment : ${EFFECTIF_APPLIQUE})."
+		;;
+	suivre|theme|thème)
+		printf 'suivre\n' > "$F_MODE"; minuterie
+		appliquer
+		ok "Le terminal suit le thème du bureau (en ce moment : ${EFFECTIF_APPLIQUE})."
+		;;
+	horaire|heures)
+		[[ $# -eq 3 ]] || die "Usage : ${PROG} horaire HH:MM HH:MM   (début et fin du jour)"
+		en_minutes "$2" >/dev/null; en_minutes "$3" >/dev/null
+		ecrire_horaire "$2" "$3"
+		if [[ "$(mode_courant)" == "auto" ]]; then appliquer; fi
+		ok "Jour de $2 à $3."
+		;;
+	--appliquer|appliquer)
+		#  Chemin de la minuterie et de l'ouverture de session : silencieux,
+		#  et sans jamais toucher au mode choisi.
+		appliquer
+		;;
+	-h|--help|aide)
+		cat <<EOF
+${PROG} — le terminal de jour et le terminal de nuit
+
+  ${PROG}                    Où on en est
+  ${PROG} jour               Palette claire (crème), épinglée
+  ${PROG} nuit               LexOS Noir, épinglé
+  ${PROG} auto               L'heure décide (07:00 → 19:00 par défaut)
+  ${PROG} suivre             Suit « lexos theme sombre|clair »
+  ${PROG} horaire 07:00 19:00   Change les heures du mode auto
+
+La bascule repeint les fenêtres déjà ouvertes : rien à relancer.
+EOF
+		;;
+	*)
+		die "Inconnu : « $1 » — essaie : ${PROG} jour|nuit|auto|suivre|horaire"
+		;;
+esac

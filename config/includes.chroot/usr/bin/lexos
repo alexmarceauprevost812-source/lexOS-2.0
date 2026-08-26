@@ -1111,6 +1111,10 @@ case "$CMD" in
 	#  aussi pour qu'on puisse l'atteindre au clavier, et pour qu'elle
 	#  marche en console quand il n'y a pas d'ecran (depannage, ssh).
 	session|arret|arrêt|eteindre|éteindre) exec lexos-session "$@" ;;
+	#  Le terminal a son propre jour/nuit, independant du bureau :
+	#  « lexos terminal jour|nuit|auto|suivre ». Le defaut est « suivre »,
+	#  qui le fait suivre « lexos theme sombre|clair ».
+	terminal|term)        exec lexos-terminal "$@" ;;
 	crt)                  cmd_crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

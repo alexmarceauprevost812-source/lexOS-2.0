@@ -195,6 +195,11 @@ def act_ouvrir(arg):
         #  les Paramètres — sinon il n'existe qu'à un seul endroit, et le
         #  jour où ce bouton bouge, plus personne ne le trouve.
         "session":    lambda: _run(["lexos-session"], detach=True),
+        #  Le terminal a son propre jour/nuit, indépendant du bureau.
+        #  On l'ouvre DANS un terminal : la commande montre l'état
+        #  courant et les quatre modes, ce qui n'aurait aucun sens
+        #  dans une fenêtre qui se ferme aussitôt.
+        "terminal":   lambda: _terminal("Terminal — jour / nuit", "lexos terminal"),
         "partage":    lambda: _run(["lexos-share", "devices"], detach=True),
         "souris":     lambda: _xfce([["xfce4-mouse-settings"]]),
         "couleurs":   lambda: _run(["gcm-viewer"], detach=True),

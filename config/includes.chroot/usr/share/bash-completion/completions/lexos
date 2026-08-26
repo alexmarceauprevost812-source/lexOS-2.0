@@ -32,6 +32,7 @@ share receive ecran-telephone logitheque
 usb vide-memoire format capture run-ins
 studio musique sticker chrome claude ia dev
 cartes gps clavier comptes bienetre mac
+session terminal
 demo install-disk'
 
 _lexos_accents='orange classique orange-rouge bleu rouge vert gris violet neon'
@@ -187,6 +188,8 @@ claude-opus-5 claude-sonnet-5 claude-haiku-4-5" -- "$cur")
 			fi ;;
 		usb)
 			mapfile -t COMPREPLY < <(compgen -W "watch import terminal" -- "$cur") ;;
+		terminal|term)
+			mapfile -t COMPREPLY < <(compgen -W "jour nuit auto suivre horaire" -- "$cur") ;;
 		capture|capture-ecran)
 			mapfile -t COMPREPLY < <(compgen -W "fenetre zone video" -- "$cur") ;;
 		studio)

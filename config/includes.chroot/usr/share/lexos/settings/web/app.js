@@ -11,7 +11,8 @@ const NAV = [
   {grp:"Personnalisation", items:[
     ["apparence","🎨","Apparence"], ["bureau","🖼","Bureau LexOS"],
     ["multitaches","🗔","Multi-tâches"], ["applications","🧩","Applications"],
-    ["notifications","🔔","Notifications"], ["recherche","🔍","Recherche"]]},
+    ["notifications","🔔","Notifications"], ["recherche","🔍","Recherche"],
+    ["terminal","🖥","Terminal jour/nuit"]]},
   {grp:"Comptes", items:[
     ["comptes","👤","Comptes en ligne"], ["partage","📤","Partage"],
     ["bienetre","🌱","Bien-être numérique"], ["session","⏻","Fermer la session"]]},
@@ -1299,6 +1300,22 @@ function contenu(cle){
       <p class="notice">Ajouter ou retirer un compte touche à tout le système :
       ça passe par <code>lexos utilisateurs</code>, dans un terminal, avec le
       mot de passe d'administration — pas par un bouton qu'on clique sans y penser.</p>`;
+    }
+    case "terminal": {
+      /*  Le terminal a son propre mode, indépendant du bureau : on peut
+          garder le bureau noir et le terminal clair, ou l'inverse. « suivre »
+          — le défaut — les relie. La règle de couleur, elle, ne change pas
+          d'un mode à l'autre : vert = la machine, orange = ce que vous
+          tapez, rouge = ce qui a échoué. */
+      return `<h2>Terminal jour / nuit</h2><div class="sub">Deux palettes, la même règle de couleur</div>
+      <p class="notice">Le terminal suit le thème du bureau par défaut.
+      Pour le découpler : <code>lexos terminal jour</code>,
+      <code>lexos terminal nuit</code>, <code>lexos terminal auto</code>
+      (l'heure décide), <code>lexos terminal suivre</code>.
+      Les raccourcis <code>jour</code> et <code>nuit</code> font la même chose.</p>
+      <p class="notice">Le changement est instantané : les fenêtres déjà
+      ouvertes se repeignent, l'invite change à la ligne suivante. Rien à rouvrir.</p>
+      ${btnOuvrir("terminal","Ouvrir")}`;
     }
     case "session": {
       /*  Le bouton rouge de la barre du haut ouvre exactement cette fenêtre.

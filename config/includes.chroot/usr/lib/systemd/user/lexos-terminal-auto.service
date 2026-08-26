@@ -1,0 +1,11 @@
+[Unit]
+Description=LexOS — basculer le terminal entre jour et nuit
+Documentation=man:lexos(1)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/lexos-terminal --appliquer
+# Ne réécrit que des fichiers du dossier personnel (terminalrc, terminal.env)
+# et n'a besoin d'aucun réseau.
+PrivateNetwork=yes
+NoNewPrivileges=yes

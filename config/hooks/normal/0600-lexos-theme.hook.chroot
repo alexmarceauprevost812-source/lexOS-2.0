@@ -9,6 +9,7 @@ echo "[lexos] hook 0600 : thème LexOS Noir"
 ACCENT_NAME="orange"
 GTK_BASE="Arc-Dark"
 ICONS="LexOS"
+TERM_MODE="suivre"
 LEXOS_DOCK_POSITION="right"
 
 if [ -r /etc/lexos/build.conf ]; then
@@ -17,6 +18,7 @@ if [ -r /etc/lexos/build.conf ]; then
 	ACCENT_NAME="${LEXOS_ACCENT_NAME:-orange}"
 	GTK_BASE="${LEXOS_GTK_BASE_THEME:-Arc-Dark}"
 	ICONS="${LEXOS_ICON_THEME:-LexOS}"
+	TERM_MODE="${LEXOS_TERMINAL_MODE:-suivre}"
 fi
 
 # --- Le thème demandé est-il RÉELLEMENT installé ? --------------------------
@@ -69,10 +71,16 @@ echo "[lexos]   thème : ${GTK_BASE} · icônes : ${ICONS} · fenêtres : ${XFWM
 # --- Génère le thème dans /etc/skel (hérité par tout nouveau compte) --------
 if [ -x /usr/bin/lexos-theme-gen ]; then
 	mkdir -p /etc/skel
-	HOME=/etc/skel /usr/bin/lexos-theme-gen "$ACCENT_NAME" --target /etc/skel \
+	#  --terminal décide de la palette du TERMINAL, qui a maintenant son mode
+	#  à elle. « suivre » = le terminal suit le thème du bureau, ce qui
+	#  reproduit l'ancien comportement en sombre tout en donnant enfin un
+	#  VRAI terminal clair au thème de jour — il restait noir jusqu'ici.
+	HOME=/etc/skel /usr/bin/lexos-theme-gen "$ACCENT_NAME" \
+		--terminal "$TERM_MODE" --target /etc/skel \
 		|| echo "[lexos]   !! génération du thème échouée (non bloquant)"
 	# Même thème pour root, utile en console de secours.
-	HOME=/root /usr/bin/lexos-theme-gen "$ACCENT_NAME" --target /root >/dev/null 2>&1 || true
+	HOME=/root /usr/bin/lexos-theme-gen "$ACCENT_NAME" \
+		--terminal "$TERM_MODE" --target /root >/dev/null 2>&1 || true
 else
 	echo "[lexos]   !! lexos-theme-gen absent"
 fi
@@ -126,7 +134,8 @@ fi
 #  l'ouverture de session — c'est lui qui a le dernier mot sur l'écran.
 mkdir -p /etc/lexos
 touch /etc/lexos/build.conf
-for PAIRE in "LEXOS_GTK_BASE_THEME=${GTK_BASE}" "LEXOS_ICON_THEME=${ICONS}"; do
+for PAIRE in "LEXOS_GTK_BASE_THEME=${GTK_BASE}" "LEXOS_ICON_THEME=${ICONS}" \
+             "LEXOS_TERMINAL_MODE=${TERM_MODE}"; do
 	CLE="${PAIRE%%=*}"
 	if grep -q "^${CLE}=" /etc/lexos/build.conf; then
 		sed -i "s|^${CLE}=.*|${CLE}=\"${PAIRE#*=}\"|" /etc/lexos/build.conf
@@ -135,7 +144,21 @@ for PAIRE in "LEXOS_GTK_BASE_THEME=${GTK_BASE}" "LEXOS_ICON_THEME=${ICONS}"; do
 	fi
 done
 
-# --- Terminal : noir + vert dark, aussi pour les autres émulateurs ---------
+# --- Terminal : la palette est écrite par lexos-theme-gen -------------------
+#  CE BLOC NE FAISAIT QU'UN « mkdir », sous un titre qui annonçait « noir +
+#  vert dark » : le dossier était créé et RIEN n'était écrit dedans. Le
+#  terminalrc vient maintenant de lexos-theme-gen, appelé plus haut. On garde
+#  le mkdir pour le cas où lexos-theme-gen manque : xfce4-terminal veut un
+#  dossier existant pour y écrire ses propres réglages.
+#  Et on VÉRIFIE, au lieu d'espérer : un terminalrc absent se voit ici, pas
+#  sur une photo trois jours plus tard.
+if [ -r /etc/skel/.config/xfce4/terminal/terminalrc ]; then
+	echo "[lexos]   terminal : palette « ${TERM_MODE} » écrite dans /etc/skel"
+else
+	echo "[lexos]   !! aucun terminalrc dans /etc/skel — le terminal gardera les couleurs de Debian"
+fi
+
+# --- Terminal : aussi pour les autres émulateurs ---------------------------
 mkdir -p /etc/skel/.config/xfce4/terminal
 
 # --- Position du dock demandée dans lexos.conf ------------------------------

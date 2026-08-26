@@ -13,6 +13,7 @@ set -euo pipefail
 
 ACCENT_NAME=""
 MODE=""
+TERM_MODE=""
 TARGET="$HOME"
 
 # --- Arguments ---------------------------------------------------------------
@@ -20,6 +21,10 @@ while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--target)
 			TARGET="${2:-$HOME}"
+			shift 2
+			;;
+		--terminal)
+			TERM_MODE="${2:-}"
 			shift 2
 			;;
 		--mode)
@@ -55,6 +60,30 @@ case "${MODE,,}" in
 	clair|jour|light|day)     MODE="clair" ;;
 	sombre|nuit|dark|night|*) MODE="sombre" ;;
 esac
+
+# --- Mode du TERMINAL : suivre le bureau, ou épinglé jour / nuit -------------
+#  DEMANDE D'ALEX : « je veux que ce qu'on tape au terminal soit couleur
+#  orange ». C'est le rôle de TERM_SAISIE plus bas — et c'est PS1 qui le
+#  porte : l'invite se termine par cette couleur, PS0 la remet à zéro quand
+#  on appuie sur Entrée. Résultat : la frappe est orange, la SORTIE de la
+#  commande ne l'est pas. Sans PS0, tout l'écran deviendrait orange.
+#
+#  « auto » n'est PAS résolu ici : c'est lexos-terminal qui connaît l'heure
+#  et l'horaire choisi, et qui rappelle ce script avec jour ou nuit. Si le
+#  fichier contient quand même « auto » (génération lancée à la main), on
+#  retombe sur le bureau plutôt que d'inventer une heure.
+[[ -z "$TERM_MODE" && -r "$CONF_DIR/terminal-mode" ]] && TERM_MODE="$(cat "$CONF_DIR/terminal-mode")"
+[[ -z "$TERM_MODE" ]] && TERM_MODE="suivre"
+case "${TERM_MODE,,}" in
+	jour|clair|light|day)     TERM_MODE="jour" ;;
+	nuit|sombre|dark|night)   TERM_MODE="nuit" ;;
+	suivre|auto|*)            TERM_MODE="suivre" ;;
+esac
+if [[ "$TERM_MODE" == "suivre" ]]; then
+	TERM_EFFECTIF=$([[ "$MODE" == "clair" ]] && echo jour || echo nuit)
+else
+	TERM_EFFECTIF="$TERM_MODE"
+fi
 
 # --- Palette des accents -----------------------------------------------------
 case "${ACCENT_NAME,,}" in
@@ -131,13 +160,78 @@ r=$((16#${ACCENT:1:2})); g=$((16#${ACCENT:3:2})); b=$((16#${ACCENT:5:2}))
 #  « attention », et cette couleur-là ne se choisit pas. Son texte, si.
 DANGER="#E5484D"
 DANGER_FG="$(texte_lisible "$DANGER")"
-TERM_BG="#000000"       # le terminal reste toujours noir, même en thème de jour
-#  Vert FONCÉ, et non le vert néon d'avant : c'est la couleur de tout ce que
-#  la machine répond. Le néon (#39FF14) reste ce qu'il a toujours été —
-#  l'accent « neon », que l'on choisit avec « lexos accent neon ». #00AF5F est
-#  exactement le 38;5;35 de l'invite PS1 : les deux ne peuvent plus diverger.
-TERM_FG="#00AF5F"       # vert foncé — la sortie du terminal
-TERM_FG_HI="#23C97A"    # le même en gras
+# =============================================================================
+#  LES DEUX TERMINAUX : CELUI DE NUIT ET CELUI DE JOUR
+# =============================================================================
+#  AVANT, UNE SEULE LIGNE DÉCIDAIT DE TOUT : « TERM_BG="#000000" », en dur.
+#  Le bureau savait passer en clair depuis longtemps ; le terminal, non. On
+#  livrait donc un thème de jour avec un trou noir au milieu.
+#
+#  Chaque palette définit les MÊMES rôles, pour que le reste du fichier
+#  (terminalrc, GTK, invite) n'ait pas à savoir lequel des deux est actif :
+#     TERM_BG        le fond
+#     TERM_FG        le vert de la MACHINE — ce qu'elle répond
+#     TERM_FG_HI     le même en gras
+#     TERM_SAISIE    l'orange de CE QUE VOUS TAPEZ
+#     TERM_ERREUR    le rouge de l'échec
+#     TERM_DIM       le gris des détails (branche git)
+#     TERM_CURSEUR   le curseur
+#
+#  LA RÈGLE DE COULEUR NE CHANGE PAS d'un mode à l'autre — vert = la machine,
+#  orange = vous, rouge = l'échec. Le jour n'est pas une autre identité, c'est
+#  la même règle retranscrite pour un fond clair.
+#
+#  LES CONTRASTES SONT MESURÉS, PAS ESTIMÉS (WCAG, sur leur propre fond) :
+#     nuit  : vert 7,30 · orange 5,87 · rouge 5,37
+#     jour  : vert 6,06 · orange 5,67 · rouge 6,00
+#  Tous au-dessus du seuil AA de 4,5, et les seize couleurs ANSI de jour
+#  aussi — vérifié une par une. Poser les couleurs de NUIT telles quelles
+#  sur le crème donnerait 2,64 pour le vert et 3,29 pour l'orange : illisible.
+#  C'est pour ça qu'il y a deux palettes et pas une avec un fond échangé.
+#
+#  PAS DE « TERM_SAISIE_HI » NI DE « TERM_ERREUR_HI » : les variantes en gras
+#  existent déjà, écrites en clair dans la moitié « brillante » de
+#  TERM_PALETTE. Les définir une seconde fois donnait deux variables que
+#  personne ne lisait — shellcheck les a nommées, et deux écritures de la
+#  même couleur finissent toujours par diverger.
+if [[ "$TERM_EFFECTIF" == "jour" ]]; then
+	#  Terminal de JOUR — le même crème que le bureau clair, encre foncée.
+	#  L'accent de l'utilisateur est repris par son ton SOMBRE (ACCENT_LO) :
+	#  l'orange vif #E8590C ne donne que 3,29:1 sur ce fond, son ton sombre
+	#  #A84007 en donne 5,67. Un accent déjà foncé est repris tel quel.
+	TERM_BG="#F7F5F0"
+	TERM_FG="#0B6B3A"
+	TERM_FG_HI="#084F2B"
+	TERM_SAISIE="$ACCENT_LO"
+	TERM_ERREUR="#B3261E"
+	TERM_DIM="#6B675E"
+	TERM_CURSEUR="$ACCENT_LO"
+	TERM_SEL_BG="$ACCENT_LO"
+	TERM_SEL_FG="#FFFFFF"
+	TERM_TRANSPARENCE="1.00"
+	#  Seize couleurs, version claire : les « brillantes » sont ici plus
+	#  FONCÉES que les normales, puisque c'est le fond qui est clair.
+	TERM_PALETTE="#1B1A17;#B3261E;#0B6B3A;#A15C00;#1A5FB4;#6234D1;#0F6E68;#57534A"
+	TERM_PALETTE="${TERM_PALETTE};#3B3830;#8A1512;#084F2B;#7A4300;#123F7E;#4A25A3;#0A524D;#2B2924"
+else
+	#  Terminal de NUIT — LexOS Noir, inchangé : c'est l'identité du système.
+	#  Vert FONCÉ, et non le vert néon d'avant. Le néon (#39FF14) reste ce
+	#  qu'il a toujours été : l'accent « neon », choisi avec « lexos accent
+	#  neon ». #00AF5F est exactement le 38;5;35 de l'invite en palette 256 :
+	#  les deux écritures de la même couleur ne peuvent plus diverger.
+	TERM_BG="#000000"
+	TERM_FG="#00AF5F"
+	TERM_FG_HI="#23C97A"
+	TERM_SAISIE="$ACCENT"
+	TERM_ERREUR="#E5484D"
+	TERM_DIM="#8A8A90"
+	TERM_CURSEUR="$ACCENT"
+	TERM_SEL_BG="$ACCENT"
+	TERM_SEL_FG="$BTN_FG"
+	TERM_TRANSPARENCE="0.94"
+	TERM_PALETTE="#0B0B0C;#E5484D;${TERM_FG};${ACCENT};#3D8BFD;#8B5CF6;#2AA9A0;#C8C8CC"
+	TERM_PALETTE="${TERM_PALETTE};#4A4A50;#FF6B6F;${TERM_FG_HI};${ACCENT_HI};#6EA8FE;#A78BFA;#4FD6CC;#FFFFFF"
+fi
 
 if [[ "$MODE" == "clair" ]]; then
 	# Thème de jour : blanc cassé/crème, jamais blanc pur — texte noir.
@@ -161,6 +255,7 @@ mkdir -p "$CONF_DIR" "$TARGET/.config/gtk-3.0" "$TARGET/.config/gtk-4.0" \
          "$TARGET/.config/xfce4/terminal"
 printf '%s\n' "$ACCENT_NAME" > "$CONF_DIR/accent"
 printf '%s\n' "$MODE" > "$CONF_DIR/mode"
+printf '%s\n' "$TERM_MODE" > "$CONF_DIR/terminal-mode"
 
 # =============================================================================
 #  1. Feuille de style GTK 3
@@ -708,15 +803,65 @@ ScrollingUnlimited=TRUE
 ColorForeground=${TERM_FG}
 ColorBackground=${TERM_BG}
 ColorCursor=${ACCENT}
+ColorCursor=${TERM_CURSEUR}
 ColorCursorForeground=${TERM_BG}
 ColorBold=${TERM_FG_HI}
 ColorBoldUseDefault=FALSE
-ColorSelection=${BTN_FG}
-ColorSelectionBackground=${ACCENT}
-TabActivityColor=${ACCENT}
-ColorPalette=#0B0B0C;#E5484D;${TERM_FG};${ACCENT};#3D8BFD;#8B5CF6;#2AA9A0;#C8C8CC;#4A4A50;#FF6B6F;${TERM_FG_HI};${ACCENT_HI};#6EA8FE;#A78BFA;#4FD6CC;${BTN_FG}
+ColorSelection=${TERM_SEL_FG}
+ColorSelectionBackground=${TERM_SEL_BG}
+TabActivityColor=${TERM_SAISIE}
+ColorPalette=${TERM_PALETTE}
 BackgroundMode=TERMINAL_BACKGROUND_TRANSPARENT
-BackgroundDarkness=0.94
+BackgroundDarkness=${TERM_TRANSPARENCE}
+EOF
+
+# =============================================================================
+#  3b. Les couleurs de l'INVITE, dans un fichier que le shell relit
+# =============================================================================
+#  POURQUOI UN FICHIER, ET PAS DES COULEURS DANS interactive.sh.
+#  L'invite avait ses couleurs écrites EN DUR (« 38;5;35 », « 38;5;208 »)
+#  dans interactive.sh, sans aucun lien avec le terminalrc. Deux écritures
+#  de la même couleur, libres de diverger — la faute exacte qui a donné
+#  trois palettes de panneaux différentes dans ce dépôt.
+#
+#  Maintenant, une seule source : ce fichier. Et comme l'invite le relit à
+#  CHAQUE affichage, les fenêtres DÉJÀ OUVERTES changent à la ligne
+#  suivante, sans « source ~/.bashrc » et sans rien rouvrir.
+#
+#  DEUX ÉCRITURES DE CHAQUE COULEUR, ET CE N'EST PAS UN DOUBLON : la console
+#  texte et les vieux ssh ne comprennent pas « 38;2;r;g;b » (couleur vraie)
+#  et afficheraient la séquence en clair au milieu de l'invite. Ils reçoivent
+#  la version palette 256, choisie pour être la plus proche.
+ansi_vrai() { printf '38;2;%d;%d;%d' "$((16#${1:1:2}))" "$((16#${1:3:2}))" "$((16#${1:5:2}))"; }
+
+if [[ "$TERM_EFFECTIF" == "jour" ]]; then
+	PS_MACHINE_256="38;5;22"    # vert foncé
+	PS_SAISIE_256="38;5;94"     # brun-orange foncé
+	PS_ERREUR_256="1;38;5;88"   # rouge foncé
+else
+	PS_MACHINE_256="38;5;35"
+	PS_SAISIE_256="38;5;208"
+	PS_ERREUR_256="1;38;5;196"
+fi
+
+cat > "$CONF_DIR/terminal.env" <<EOF
+# LexOS — couleurs de l'invite, générées par lexos-theme-gen.
+# Ne pas éditer : sera écrasé. Pour changer de palette :
+#     lexos terminal jour      ·  lexos terminal nuit
+#     lexos terminal auto      ·  lexos terminal suivre
+LEXOS_TERM_MODE=${TERM_MODE}
+LEXOS_TERM_EFFECTIF=${TERM_EFFECTIF}
+LEXOS_TERM_BG=${TERM_BG}
+LEXOS_TERM_FG=${TERM_FG}
+LEXOS_TERM_CURSEUR=${TERM_CURSEUR}
+LEXOS_PS_MACHINE='$(ansi_vrai "$TERM_FG")'
+LEXOS_PS_SAISIE='$(ansi_vrai "$TERM_SAISIE")'
+LEXOS_PS_ERREUR='1;$(ansi_vrai "$TERM_ERREUR")'
+LEXOS_PS_DIM='$(ansi_vrai "$TERM_DIM")'
+LEXOS_PS_MACHINE_256='${PS_MACHINE_256}'
+LEXOS_PS_SAISIE_256='${PS_SAISIE_256}'
+LEXOS_PS_ERREUR_256='${PS_ERREUR_256}'
+LEXOS_PS_DIM_256='2'
 EOF
 
 # =============================================================================
@@ -914,6 +1059,8 @@ fi
 # =============================================================================
 cat > "$CONF_DIR/theme.conf" <<EOF
 LEXOS_MODE=${MODE}
+LEXOS_TERM_MODE=${TERM_MODE}
+LEXOS_TERM_EFFECTIF=${TERM_EFFECTIF}
 LEXOS_ACCENT_NAME=${ACCENT_NAME}
 LEXOS_ACCENT=${ACCENT}
 LEXOS_ACCENT_HI=${ACCENT_HI}
