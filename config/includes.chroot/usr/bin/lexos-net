@@ -373,7 +373,15 @@ cmd_bt() {
 		need_bt || return 1
 		bt_powered || die "Le Bluetooth est éteint. Allume-le : ${PROG} bt on"
 		say "Recherche d'appareils pendant 12 secondes…"
-		bluetoothctl --timeout 12 scan on >/dev/null 2>&1 || true
+		#  « || true » avalait TOUT — un balayage refusé (contrôleur occupé,
+		#  pas prêt…) donnait le même silence qu'un balayage réussi qui n'a
+		#  rien trouvé. « Aucun appareil trouvé » mentait alors : ce n'est
+		#  pas qu'il n'y en avait pas, c'est que la recherche n'a jamais eu
+		#  lieu. On garde la sortie et on la montre si bluetoothctl a échoué.
+		local sortie_scan
+		if ! sortie_scan="$(bluetoothctl --timeout 12 scan on 2>&1)"; then
+			warn "La recherche a échoué : $(tail -n1 <<< "$sortie_scan")"
+		fi
 
 		local rows; rows="$(bluetoothctl devices 2>/dev/null)"
 		[[ -n "$rows" ]] || { warn "Aucun appareil trouvé."; return 0; }

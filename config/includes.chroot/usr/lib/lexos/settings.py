@@ -928,15 +928,35 @@ def act_bt_chercher(arg):
     et la page attendrait sans fin. « --timeout 12 » borne l'écoute : douze
     secondes suffisent à une barre de son en mode appairage pour se montrer,
     et la main revient toujours.
+
+    « ALEX, IL NE TROUVE RIEN ». Ce que ce code faisait jusqu'ici : lancer
+    bluetoothctl, IGNORER son code de sortie, et répondre {"ok": True} dans
+    tous les cas où le processus n'a pas planté au sens Python du terme.
+    Un contrôleur éteint, un « scan on » refusé (« org.bluez.Error.InProgress »,
+    « NotReady »…) — tout ça se terminait aussi par {"ok": True}, et
+    « Recherche terminée » s'affichait pendant qu'aucune recherche n'avait eu
+    lieu. La page ne trouvait rien, et rien ne disait pourquoi.
+    Corrigé sur le même modèle que _run() : on regarde le code de retour ET
+    ce que bluetoothctl a dit sur sa sortie, pour rendre une vraie erreur au
+    lieu d'un succès qui n'en était pas un.
     """
     del arg
     if not shutil.which("bluetoothctl"):
         return {"ok": False, "erreur": "bluetoothctl absent"}
     try:
-        subprocess.run(["bluetoothctl", "--timeout", "12", "scan", "on"],
-                       capture_output=True, text=True, timeout=25)
-    except (subprocess.SubprocessError, OSError) as e:
+        r = subprocess.run(["bluetoothctl", "--timeout", "12", "scan", "on"],
+                            capture_output=True, text=True, timeout=25)
+    except subprocess.TimeoutExpired:
+        return {"ok": False,
+                "erreur": "bluetoothctl n'a pas rendu la main — contrôleur bloqué"}
+    except OSError as e:
         return {"ok": False, "erreur": str(e)}
+    if r.returncode != 0:
+        sortie = (r.stdout or r.stderr or "").strip()
+        motif = sortie.splitlines()[-1].strip() if sortie else ""
+        if not motif:
+            motif = f"bluetoothctl a échoué (code {r.returncode})"
+        return {"ok": False, "erreur": motif}
     return {"ok": True}
 
 
