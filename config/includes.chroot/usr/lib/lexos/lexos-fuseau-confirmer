@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-fuseau-confirmer — proposer le VRAI fuseau, jamais l'imposer
+# =============================================================================
+#  Appelé par lexos-install juste avant de lancer Calamares. Le détecteur
+#  (lexos-fuseau-position) ne fait que répondre à une question ; celui-ci
+#  décide quoi en faire :
+#
+#    · rien à confirmer si le fuseau détecté est déjà celui du système (le
+#      repli America/Toronto que le hook 0110 a posé à la construction) ;
+#    · sinon, on demande — en graphique si une session graphique est là,
+#      en terminal sinon — et on n'applique QUE si la réponse est oui ;
+#    · un refus, une détection en échec, ou l'absence d'outil graphique ne
+#      bloquent jamais l'installation : ce script rend toujours 0 sauf
+#      erreur d'appel, et lexos-install l'appelle sans se soucier du reste.
+#
+#  Séparé de lexos-install (au lieu d'y être en ligne) pour rester testable
+#  seul, sans écran, sans Calamares et sans vraie session live — voir
+#  tests/test_lexos_fuseau_gps.sh. Les points d'injection :
+#      LEXOS_FUSEAU_POSITION  chemin du détecteur (déf. lexos-fuseau-position)
+#      LEXOS_TIMEZONE_FILE    fichier lu pour le fuseau actuel (déf. /etc/timezone)
+#      LEXOS_TIMEDATECTL      commande à appeler pour appliquer (déf. timedatectl)
+#      LEXOS_REPONSE_TEST     court-circuite la question : "oui" ou "non"
+# =============================================================================
+set -u
+
+ICI="$(cd "$(dirname "$0")" && pwd)"
+DETECTEUR="${LEXOS_FUSEAU_POSITION:-$ICI/lexos-fuseau-position}"
+FICHIER_TZ="${LEXOS_TIMEZONE_FILE:-/etc/timezone}"
+
+if [[ -t 1 ]]; then
+	O=$'\033[38;5;208m'; Y=$'\033[33m'; R=$'\033[0m'
+else
+	O=''; Y=''; R=''
+fi
+
+[[ -x "$DETECTEUR" ]] || exit 0
+
+resultat="$("$DETECTEUR" 2>/dev/null)" || exit 0
+source_detectee="$(printf '%s\n' "$resultat" | sed -n 's/^SOURCE=//p')"
+fuseau_detecte="$(printf '%s\n' "$resultat" | sed -n 's/^FUSEAU=//p')"
+[[ -n "$fuseau_detecte" ]] || exit 0
+
+fuseau_actuel="$(cat "$FICHIER_TZ" 2>/dev/null || true)"
+[[ -n "$fuseau_actuel" ]] || fuseau_actuel="America/Toronto"
+
+if [[ "$fuseau_detecte" == "$fuseau_actuel" ]]; then
+	printf '%s»%s Fuseau horaire : %s confirmé (rien à changer).\n' "$O" "$R" "$fuseau_actuel"
+	exit 0
+fi
+
+case "$source_detectee" in
+	gps) origine="ta position GPS" ;;
+	ip)  origine="ton adresse IP" ;;
+	*)   exit 0 ;;  # repli : rien de nouveau à proposer, on ne redemande pas Toronto
+esac
+
+MESSAGE="LexOS a détecté, d'après ${origine}, que tu es dans le fuseau horaire :
+
+  ${fuseau_detecte}
+
+Utiliser ce fuseau pour l'installation plutôt que ${fuseau_actuel} ?"
+
+# --- La question --------------------------------------------------------------
+reponse=1
+if [[ -n "${LEXOS_REPONSE_TEST:-}" ]]; then
+	case "$LEXOS_REPONSE_TEST" in
+		oui) reponse=0 ;;
+		*)   reponse=1 ;;
+	esac
+elif [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1; then
+	zenity --question --width=480 --title="Fuseau horaire" \
+		--text="$MESSAGE" \
+		--ok-label="Utiliser ${fuseau_detecte}" --cancel-label="Garder ${fuseau_actuel}"
+	reponse=$?
+else
+	printf '\n%s\n\n' "$MESSAGE"
+	printf 'Utiliser ce fuseau ? [o/N] '
+	rep=""
+	read -r rep || true
+	case "$rep" in
+		o|O|oui|Oui|OUI) reponse=0 ;;
+		*)                reponse=1 ;;
+	esac
+fi
+
+# --- L'appliquer, ou pas -------------------------------------------------------
+if [[ "$reponse" -eq 0 ]]; then
+	TIMEDATECTL="${LEXOS_TIMEDATECTL:-timedatectl}"
+	if "$TIMEDATECTL" set-timezone "$fuseau_detecte" 2>/dev/null; then
+		printf '%s»%s Fuseau horaire réglé sur %s.\n' "$O" "$R" "$fuseau_detecte"
+	else
+		printf '%s!%s Impossible de régler le fuseau (%s a échoué) — %s conservé.\n' \
+			"$Y" "$R" "$TIMEDATECTL" "$fuseau_actuel"
+	fi
+else
+	printf '%s»%s Fuseau horaire conservé : %s.\n' "$O" "$R" "$fuseau_actuel"
+fi
+
+exit 0
