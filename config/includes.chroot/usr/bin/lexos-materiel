@@ -346,6 +346,52 @@ gpu_section() {
 			mal "  Secure Boot ACTIF — le pilote NVIDIA ne peut pas se charger"
 			note "lexos tv explique comment le désactiver (BIOS → Boot → Secure Boot)"
 		fi
+		#  L'autre réglage du BIOS, dit ici aussi : « lexos materiel » est la
+		#  commande qu'on tape quand on se demande ce que la machine a. Un
+		#  installateur qui n'affiche aucun disque est exactement cette
+		#  question-là, et personne n'ira la chercher dans « lexos tv ».
+		if mode_raid_probable; then
+			mal "  disque probablement en mode RAID dans le BIOS — Linux ne le voit pas"
+			note "BIOS → Storage → SATA/NVMe Operation : passer de « RAID On » à « AHCI »"
+			note "détail complet, et le cas Windows : lexos tv"
+		fi
+	fi
+
+	#  ═══ LE RAPPORT DU PILOTE, MONTRÉ ICI AUSSI ═══
+	#  Le hook 0260 écrit /etc/lexos/nvidia-report avec soin — la version
+	#  réellement installée, sa source, et la raison EXACTE de chaque échec —
+	#  précisément parce que le journal de construction est illisible. Il n'a
+	#  longtemps été affiché nulle part : il fallait savoir qu'il existe et
+	#  taper « cat » dessus. Un diagnostic que personne ne voit ne diagnostique
+	#  rien. « lexos tv » le montre depuis peu ; il manquait ici, alors que
+	#  c'est la commande qui parle du matériel.
+	if [[ -r /etc/lexos/nvidia-report ]]; then
+		local embarque charge
+		#  Le rapport écrit « # Version : 595.91.07   (relevée sur le pilote
+		#  lui-même) ». On ne prend que le PREMIER mot après les deux-points :
+		#  la parenthèse explicative n'a rien à faire dans une comparaison.
+		#  Et quand le hook n'a rien pu relever, il écrit « ? » — auquel cas
+		#  on ne compare rien plutôt que d'accuser un écart imaginaire.
+		embarque="$(sed -n 's/^# *Version *: *\([^ ]*\).*/\1/p' \
+			/etc/lexos/nvidia-report | head -1)"
+		[[ "$embarque" = "?" ]] && embarque=""
+		[[ -n "$embarque" ]] && faible "  pilote NVIDIA embarqué" "$embarque"
+		#  LA COMPARAISON QUI COMPTE : ce que l'ISO CONTIENT contre ce qui
+		#  TOURNE. C'est cet écart-là qui a fait passer une ISO buggée pour
+		#  corrigée — l'étiquette disait 595, le module chargé était un 610 —
+		#  et c'est aussi la signature d'un blocage par Secure Boot.
+		if command -v modinfo >/dev/null 2>&1; then
+			charge="$(modinfo -F version nvidia 2>/dev/null || true)"
+			if [[ -z "$charge" ]]; then
+				bof "  module nvidia non chargé  ${D}(Secure Boot ? voir plus haut)${R}"
+			else
+				faible "  module nvidia chargé" "$charge"
+				if [[ -n "$embarque" && "$charge" != "$embarque" ]]; then
+					mal "  l'ISO embarque $embarque et c'est $charge qui tourne"
+				fi
+			fi
+		fi
+		note "rapport complet : cat /etc/lexos/nvidia-report"
 	fi
 	return 0
 }

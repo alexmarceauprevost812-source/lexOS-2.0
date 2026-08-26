@@ -150,10 +150,21 @@ decoder_edid() {
 	#  machine, et rien dans LexOS ne le disait — vérifié : aucune occurrence
 	#  dans lexos-tv ni dans lexos-materiel avant aujourd'hui.
 	if [ -r /usr/share/lexos/shell/secure-boot.sh ]; then
-		titre "SECURE BOOT"
 		# shellcheck disable=SC1091
 		. /usr/share/lexos/shell/secure-boot.sh
+		titre "SECURE BOOT"
 		secure_boot_dire | sed 's/^/  /'
+
+		#  ═══ ET L'AUTRE RÉGLAGE DU BIOS ═══
+		#  Il ne touche pas l'écran, alors pourquoi ici ? Parce que c'est ICI
+		#  qu'on arrive quand la machine a l'air cassée, et que les deux
+		#  pannes se ressemblent du point de vue de celui qui les subit : une
+		#  machine qui va très bien et qui refuse d'avancer sans rien dire.
+		#  Quelqu'un devant un écran noir sur cette Alienware butera sur
+		#  l'installateur vide dix minutes plus tard ; autant tout dire d'un
+		#  coup, sur le rapport qu'il est en train de photographier.
+		titre "MODE DU DISQUE (BIOS)"
+		mode_raid_dire | sed 's/^/  /'
 	fi
 
 	#  ═══ LE RAPPORT DU PILOTE, ENFIN MONTRÉ ═══

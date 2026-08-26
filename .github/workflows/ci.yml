@@ -972,6 +972,26 @@ jobs:
           #  elle, et la liste des réseaux que l'ISO avait EN PLUS survit-elle.
           node tests/test_lexos_wifi.js
 
+      - name: Santé du démarrage — Secure Boot, mode RAID, règle de version NVIDIA
+        run: |
+          #  DEUX RÉGLAGES DU BIOS FONT PASSER L'ALIENWARE POUR CASSÉE, et
+          #  aucun des deux ne se voyait : Secure Boot refuse le pilote NVIDIA
+          #  (compilé, donc non signé) alors que « nouveau » est en liste
+          #  noire — plus AUCUN pilote graphique ; et le mode « RAID On »
+          #  cache le disque NVMe, l'installateur affiche une liste vide.
+          #
+          #  Un avertissement qui se déclenche à tort envoie fouiller un BIOS
+          #  qui va bien ; un avertissement qui ne se déclenche jamais ne sert
+          #  à rien — et c'est le plus probable des deux, parce que personne
+          #  ne remarque un contrôle muet. Le banc joue donc chaque cas sur
+          #  de fausses racines /sys et /dev et un PATH fermé.
+          #
+          #  Il joue aussi la règle de version du pilote : la 610 est écartée
+          #  PAR SON NOM, et pas par « tout ce qui est au-dessus » — sinon une
+          #  615 future serait refusée à jamais, sans une ligne dans le
+          #  journal. Les trois listes vérifient les trois cas.
+          bash tests/test_lexos_boot.sh
+
       - name: Tables de modèles Mac identiques
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même

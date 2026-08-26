@@ -445,8 +445,14 @@ if depot_nvidia; then
 				apt-get update -qq || true
 			fi
 		else
-			echo "[lexos]   !! le dépôt ne propose rien avant la branche 610"
-			trace "aucune version avant la branche 610 dans l'inventaire"
+			#  Le message NOMME les branches écartées au lieu d'écrire
+			#  « 610 » en dur. Le jour où la liste changera, le journal
+			#  dira la vérité tout seul — un message figé qui parle d'une
+			#  branche qu'on n'écarte plus envoie chercher au mauvais
+			#  endroit, et c'est trois heures perdues à la construction
+			#  suivante.
+			echo "[lexos]   !! le dépôt ne propose rien hors des branches écartées (${BRANCHES_ECARTEES})"
+			trace "aucune version hors des branches écartées (${BRANCHES_ECARTEES}) dans l'inventaire"
 		fi
 	fi
 	#  4. Le défaut du dépôt — la 610, avec les contournements modprobe plus bas.
