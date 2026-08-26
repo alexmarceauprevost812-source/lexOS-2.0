@@ -362,11 +362,29 @@ done
 #  Ici on NE CHANGE RIEN — écrire un users.conf inventé serait pire que de ne
 #  rien poser, puisqu'on écraserait une configuration qui marche peut-être
 #  très bien. On met simplement le contenu RÉEL sous les yeux, dans le journal
-#  de construction, pour pouvoir décider en connaissance de cause :
-#    · si removeuser.conf vise déjà notre compte de démo, il n'y a rien à
-#      faire (et un contrôle CI pourra le garder vrai) ;
-#    · s'il vise un autre nom, le compte de démo survit à l'installation —
-#      ce qui rend le verrouillage du garde-fou d'autant plus nécessaire.
+#  de construction.
+#
+#  ── CE QU'ON Y A TROUVÉ (calamares-settings-debian 13.0.5-1, lu pour de
+#     vrai en dépaquetant le .deb, pas supposé) ────────────────────────────
+#    · users.conf EST livré, et « defaultGroups » contient « sudo » : le
+#      compte créé à l'installation est bien ADMINISTRATEUR de sa machine.
+#      Rien à faire — et surtout rien à écraser.
+#      Il porte aussi « setRootPassword: false » : root reste sans mot de
+#      passe utilisable, l'administration passe par sudo. C'est la
+#      convention Debian, et c'est pour ça que le garde-fou ne verrouille
+#      « lex » QUE s'il existe un autre membre du groupe sudo.
+#    · removeuser.conf N'EST PAS livré — et surtout, le module « removeuser »
+#      N'APPARAÎT NULLE PART dans la séquence de settings.conf. Calamares ne
+#      supprime donc JAMAIS le compte de démo : « lex » part sur le disque et
+#      y reste, à chaque installation, sans exception.
+#      C'est exactement ce qui rend le verrouillage du garde-fou nécessaire
+#      plutôt que prudent. On ne livre PAS de removeuser.conf pour autant :
+#      supprimer le compte détruirait la porte de secours qu'on garde
+#      volontairement (si la création du compte a raté, c'est la seule façon
+#      d'entrer). Fermée à clé vaut mieux que murée.
+#
+#  Le bloc reste en place : il coûte trois lignes de journal et il dira si
+#  Debian change d'avis dans une version future.
 for M in users removeuser; do
 	F="/etc/calamares/modules/${M}.conf"
 	if [ -r "$F" ]; then
