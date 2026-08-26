@@ -622,6 +622,22 @@ cmd_wallpaper() {
 		lexos-fond-anime off >/dev/null 2>&1 || true
 	fi
 
+	#  ═══ CE QUI DÉPASSE DE L'IMAGE EST NOIR ═══
+	#  Alex : « fais les images sur un fond noir avec les images ». En cadrage
+	#  « ajuster », ce qui reste autour de l'image est peint par le bureau —
+	#  et c'était le bleu-gris de XFCE. color-style 0 = couleur unie, rgba1 =
+	#  noir : la composition du fond « LexOS 1.0 » (le démon sur noir),
+	#  appliquée à toute image. Une seule fonction pour les deux boucles.
+	fond_noir() { # fond_noir <prefixe-de-propriete-avec-slash-final>
+		xfconf-query -c xfce4-desktop -p "${1}color-style" -s 0 2>/dev/null \
+			|| xfconf-query -c xfce4-desktop -n -t int -p "${1}color-style" -s 0 2>/dev/null || true
+		xfconf-query -c xfce4-desktop -p "${1}rgba1" \
+			-s 0.0 -s 0.0 -s 0.0 -s 1.0 2>/dev/null \
+			|| xfconf-query -c xfce4-desktop -n -p "${1}rgba1" \
+				-t double -t double -t double -t double \
+				-s 0.0 -s 0.0 -s 0.0 -s 1.0 2>/dev/null || true
+	}
+
 	local prop count=0
 	while read -r prop; do
 		[[ "$prop" == *last-image ]] || continue
@@ -629,6 +645,7 @@ cmd_wallpaper() {
 		#  Le style vit sur une propriété voisine, au même emplacement.
 		xfconf-query -c xfce4-desktop -p "${prop%last-image}image-style" \
 			-n -t int -s "$style" 2>/dev/null || true
+		fond_noir "${prop%last-image}"
 	done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null)
 
 	#  ═══ LES ÉCRANS QU'XFCONF NE CONNAÎT PAS ENCORE ═══
@@ -657,6 +674,7 @@ cmd_wallpaper() {
 				-n -t string -s "$img" 2>/dev/null || continue
 			xfconf-query -c xfce4-desktop -p "${base}/image-style" \
 				-n -t int -s "$style" 2>/dev/null || true
+			fond_noir "${base}/"
 			ajoutes=$((ajoutes + 1)); count=$((count + 1))
 		done < <(xrandr --listmonitors 2>/dev/null | awk 'NR>1{print $NF}')
 		if (( ajoutes > 0 )); then

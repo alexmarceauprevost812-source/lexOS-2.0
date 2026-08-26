@@ -217,9 +217,27 @@ if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
 	#  arrière-plan, pour être celui qui écrit en dernier. C'est peu coûteux
 	#  et ça couvre aussi le branchement d'un écran externe juste après
 	#  l'ouverture de session — cas où xfdesktop crée de nouvelles propriétés.
+	#  ═══ MAIS ON S'ARRÊTE DÈS QUE L'UTILISATEUR A CHOISI ═══
+	#  Cette boucle réécrit le fond de marque pendant une MINUTE. Quelqu'un
+	#  qui ouvre sa toute première session, va droit au menu et pose sa propre
+	#  photo dans ce laps de temps se la fait effacer sous les yeux — par nous,
+	#  au nom d'une course contre xfdesktop qui est déjà gagnée depuis
+	#  longtemps. « J'ai mis mon image et elle est revenue toute seule » est
+	#  une panne bien pire que celle qu'on corrigeait ici.
+	#
+	#  On regarde donc, avant chaque repose, ce que porte la première
+	#  propriété. Tant que c'est NOTRE image (ou rien encore), on continue :
+	#  c'est le cas de la course. Dès que c'est autre chose, quelqu'un a
+	#  décidé — et on ne discute pas avec une décision.
 	(
 		for _ in $(seq 1 12); do
 			sleep 5
+			actuel="$(
+				xfconf-query -c xfce4-desktop -l 2>/dev/null \
+					| grep -m1 -E '/backdrop/.*last-image$' \
+					| xargs -r -I{} xfconf-query -c xfce4-desktop -p {} 2>/dev/null
+			)"
+			[[ -n "$actuel" && "$actuel" != "$WALL" ]] && break
 			appliquer_fond
 		done
 	) >/dev/null 2>&1 &

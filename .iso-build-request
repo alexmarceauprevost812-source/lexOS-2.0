@@ -58,6 +58,95 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 77 : L'ÉCRAN DE CONNEXION NOIR ET ORANGE, LES IMAGES TÉLÉCHARGÉES EN
+#            FOND D'ÉCRAN, LA PILE D'ALEX — ET TROIS DOSSIERS D'AUDIT APPLIQUÉS.
+#
+#   ═══ 1. LA PAGE DE CONNEXION (photo de l'ISO 76) ═══
+#   « le carré gris soit bien NOIR, les écritures ORANGE, avec la photo du
+#   profil choisi, avec la 2e image comme fond d'écran. »
+#   lightdm-gtk-greeter n'a AUCUNE clé de couleur : le gris était celui
+#   d'Arc-Dark. La page est donc HABILLÉE en CSS (connexion.css), posé à
+#   DEUX endroits — le foyer du compte lightdm (priorité GTK 800) et un
+#   thème LexOS-Connexion qui importe Arc-Dark. Le fond est le logo
+#   TI·LEX·AL à 680 px sur noir (lexos-connexion.png, hook 0300, composé et
+#   REGARDÉ), la boîte est ancrée par le BAS (88 %) pour ne jamais monter
+#   dans le visage du démon, et hide-user-image=false montre la photo du
+#   profil choisi, cerclée d'orange. Le piège désamorcé : le hook 0600
+#   réécrivait theme-name SANS CONDITION et aurait tout effacé à chaque
+#   construction. L'écran verrouillé de la démo porte le même démon.
+#
+#   ═══ 2. LES IMAGES TÉLÉCHARGÉES DEVIENNENT DES FONDS D'ÉCRAN ═══
+#   « fais que les images qu'on télécharge, on peut les utiliser comme fond
+#   d'écran aussi » — puis : « fais les images sur un fond noir avec les
+#   images. »
+#   ~/Téléchargements (et ~/Downloads, et XDG_DOWNLOAD_DIR) entrent dans le
+#   ratissage de lexos-fond-ecran ; le sélecteur s'ouvre chez l'utilisateur
+#   et plus dans /usr/share. L'image est posée ENTIÈRE sur fond NOIR
+#   (style « ajusté » + couleur unie noire) — une photo de téléphone est
+#   verticale, « remplir » n'en montrait que la bande du milieu. Le clic
+#   droit de Fichiers dit pareil. Les Paramètres → Bureau LexOS gagnent une
+#   GALERIE : les images de Téléchargements et d'Images en vignettes sur
+#   noir, les plus récentes d'abord, un clic pour poser — la page ne connaît
+#   que des indices, jamais un chemin (liste blanche revalidée).
+#   DEUX PIÈGES TROUVÉS EN CHEMIN : le fond animé de la première session
+#   RECOUVRAIT l'image choisie par le menu (posée, et invisible — le chemin
+#   du menu ne l'arrêtait pas) ; et la boucle de lexos-firstrun reposait le
+#   fond de marque toutes les 5 s pendant une minute, EFFAÇANT le choix fait
+#   dans ce laps. Elle s'arrête désormais dès que quelqu'un a décidé.
+#
+#   ═══ 3. LA PILE D'ALEX DANS LES PARAMÈTRES ═══
+#   Ses images : quatre piles — verte pleine (4 barres), jaune (3), orange
+#   (2), rouge presque vide (1). Dessinées en SVG dans la section Énergie
+#   (ISO et démo, même tracé) : corps arrondi, borne, barres empilées depuis
+#   le bas, couleur au niveau — et l'éclair quand le secteur charge. Les
+#   couleurs d'état ne suivent pas l'accent : une batterie à plat reste
+#   rouge sur une ISO montée en bleu.
+#
+#   ═══ 4. LE WI-FI : L'ANTENNE QUI DIT SON ÉTAT, ET L'OUTIL QUI MANQUAIT ═══
+#   Le carré jaune de la colonne de gauche était l'émoji 📶 sans police
+#   d'émojis. C'est maintenant l'antenne de la démo : verte connectée,
+#   orange connectée-mais-rien-ne-passe (nmcli connectivity), rouge coupée.
+#   « Connexion auto. aux réseaux ouverts » arrive dans la page — l'outil
+#   existait (lexos-net-autoconnect) mais ne s'allumait qu'en ligne de
+#   commande ; l'avertissement n'est pas supprimé, il est POSÉ dans une
+#   boîte de dialogue (--confirme). « Simuler une panne » n'est PAS repris :
+#   c'est un accessoire de démo, l'ISO lit son vrai état.
+#
+#   ═══ 5. TROIS DOSSIERS D'AUDIT, APPLIQUÉS ═══
+#   · Alienware/RTX 5060 : détection du mode RAID (l'installateur qui ne
+#     voit AUCUN disque, sans un mot — deux conditions, jamais une seule),
+#     rapport NVIDIA montré dans « lexos materiel » avec l'écart
+#     embarqué/chargé (la signature d'un blocage Secure Boot), messages du
+#     journal qui nomment les branches écartées au lieu de « 610 » en dur.
+#   · Réseau : network-manager-gnome, bluez, blueman, bluez-obexd passent
+#     OBLIGATOIRES (l'icône Wi-Fi de la barre était posée « au mieux » : la
+#     carte marchait et il n'y avait aucune icône). wireless-regdb (les
+#     canaux 5 GHz du domaine réglementaire — PAS ramassée par
+#     --firmware-chroot), iw et ethtool entrent en obligatoire. Neuf
+#     doublons obligatoire/optionnel retirés, avec une garde de CI.
+#   · Écrans : x11-xserver-utils (xrandr — SIX chemins en dépendaient, la
+#     section Écrans s'affichait VIDE sans lui) et pulseaudio-utils (pactl,
+#     la section Son) passent obligatoires. La section Écrans DIT désormais
+#     pourquoi elle est vide (Wayland / xrandr absent / pas de session —
+#     trois causes, trois remèdes). « lexos distant partager --ecran <s> »
+#     ne partage QU'UN écran (les index xinerama ne comptent que les écrans
+#     ACTIFS — un écran branché mais éteint ne décale plus le compte).
+#     L'aide n'annonce plus « partager on », une commande qui mourait.
+#
+#   ═══ 6. LE GARDE-FOU DES ICÔNES REGARDAIT LES DOSSIERS, PAS LEUR CONTENU ═══
+#   La CI l'a prouvé par accident : un rsvg-convert présent mais EN ÉCHEC
+#   laissait seize dossiers vides, le garde-fou les comptait, et on masquait
+#   le thème système avec du scalable seul — le défaut des quatre ISO de
+#   dossiers blancs, ressuscité par le garde-fou écrit contre lui. Il compte
+#   désormais les tailles qui contiennent VRAIMENT des fichiers, et les veut
+#   toutes les huit.
+#
+#   Bancs : 33 contrôles fond/batterie, 41 connexion, 27 démarrage,
+#   29 écrans, 21 Wi-Fi, 13 boutons — tous mutés dans les deux sens.
+#   Seul Alex peut vérifier sur machine : l'écran de connexion noir/orange
+#   avec le démon, la galerie des images téléchargées, la pile de l'Énergie,
+#   l'antenne Wi-Fi, et l'avertissement RAID/Secure Boot de « lexos tv ».
+#
 # build 76 : LE TERMINAL DE JOUR, LA FRAPPE EN ORANGE — ET POURQUOI LES
 #            DOSSIERS ÉTAIENT BLANCS DEPUIS QUATRE ISO.
 #
@@ -2431,4 +2520,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 76
+build: 77

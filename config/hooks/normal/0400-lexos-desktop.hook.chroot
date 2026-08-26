@@ -653,8 +653,8 @@ cat > /etc/skel/.config/Thunar/uca.xml <<'EOF'
     <name>Définir comme fond d'écran</name>
     <submenu></submenu>
     <unique-id>lexos-fond-ecran-1</unique-id>
-    <command>lexos wallpaper %f remplir</command>
-    <description>Utilise cette image comme fond d'écran, sur tous les écrans branchés</description>
+    <command>lexos wallpaper %f ajuster</command>
+    <description>L'image entière, sur fond noir, sur tous les écrans branchés</description>
     <range>1</range>
     <patterns>*.jpg;*.jpeg;*.JPG;*.JPEG;*.png;*.PNG;*.webp;*.WEBP;*.avif;*.bmp;*.tif;*.tiff;*.gif</patterns>
     <image-files/>

@@ -46,7 +46,8 @@ Usage :
   $PROG autocollant poser <nom> [coin] Poser un personnage sur le fond
   $PROG autocollant enlever            Retrouver le fond sans autocollants
 
-Où il cherche : les fonds LexOS installés, ${D}~/Images${R} et ${D}~/Fonds d'écran${R}.
+Où il cherche : les fonds LexOS installés, ${D}~/Images${R}, ${D}~/Téléchargements${R}
+et ${D}~/Fonds d'écran${R} — une image téléchargée est un fond comme un autre.
 EOF
 }
 
@@ -54,13 +55,25 @@ EOF
 #  Les fonds de la distribution sont posés par le hook 0300 quelque part sous
 #  /usr/share ; on ratisse les emplacements plausibles plutôt que d'en figer
 #  un seul — un chemin codé en dur casse en silence à la première réorganisation.
+#  ═══ LES TÉLÉCHARGEMENTS EN FONT PARTIE ═══
+#  Alex : « fais que les images qu'on télécharge, on peut les utiliser comme
+#  fond d'écran aussi ». Une image téléchargée atterrit dans Téléchargements —
+#  et ce dossier n'était PAS ratissé : « liste », « aleatoire » et le compte
+#  de la commande nue l'ignoraient. L'image était utilisable en tapant son
+#  chemin, c'est-à-dire jamais.
+#  Les trois écritures parce qu'aucune n'est garantie : le nom français des
+#  ISO fr_CA, la variable XDG quand user-dirs est configuré, et l'anglais
+#  pour une session créée avant que les dossiers soient traduits.
 DOSSIERS=(
 	"/usr/share/lexos/wallpapers"
 	"/usr/share/lexos/branding"
 	"/usr/share/backgrounds"
 	"${HOME}/Images"
+	"${HOME}/Téléchargements"
+	"${HOME}/Downloads"
 	"${HOME}/Fonds d'écran"
 	"${XDG_PICTURES_DIR:-}"
+	"${XDG_DOWNLOAD_DIR:-}"
 )
 
 lister_images() {
@@ -69,7 +82,8 @@ lister_images() {
 		[[ -n "$d" && -d "$d" ]] || continue
 		find "$d" -maxdepth 2 -type f \
 			\( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \
-			   -o -iname '*.webp' -o -iname '*.bmp' -o -iname '*.svg' \) \
+			   -o -iname '*.webp' -o -iname '*.avif' -o -iname '*.bmp' \
+			   -o -iname '*.svg' \) \
 			2>/dev/null
 	done | sort -u
 }
@@ -89,14 +103,41 @@ appliquer() {
 		|| die "xfconf-query absent — le fond se règle depuis la session graphique XFCE."
 	[[ -n "${DISPLAY:-}" ]] \
 		|| die "Pas de session graphique ici. Lance cette commande depuis le bureau."
+	#  ═══ LE FOND ANIMÉ S'ARRÊTE D'ABORD, SINON RIEN NE SE VOIT ═══
+	#  lexos-firstrun démarre le fond animé « code » à la première session :
+	#  sur une ISO fraîche, il TOURNE. Ce programme, lui, ne règle que des
+	#  propriétés xfconf — sous la fenêtre d'animation. Menu → Fond d'écran →
+	#  choisir sa photo… et l'écran ne changeait pas : l'image était bien
+	#  posée, mais recouverte. « Ça n'a pas marché », photo à l'appui.
+	#  « lexos wallpaper » le faisait déjà ; cette porte-ci l'oubliait — et
+	#  c'est la porte du MENU, celle que tout le monde prend.
+	#  Dans CET ordre : l'arrêt d'abord, la pose ensuite. En arrêtant après,
+	#  l'arrêt remettrait le fond d'avant par-dessus celui qu'on vient de
+	#  choisir.
+	command -v lexos-fond-anime >/dev/null 2>&1 \
+		&& lexos-fond-anime off >/dev/null 2>&1 || true
 	props="$(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -E '/backdrop/.*last-image$')"
 	[[ -n "$props" ]] || die "xfdesktop ne semble pas actif — aucun réglage de fond trouvé."
 	while IFS= read -r p; do
 		if xfconf-query -c xfce4-desktop -p "$p" -s "$img" 2>/dev/null; then
 			n=$((n + 1))
-			#  style 5 = « zoomé » : l'image remplit l'écran sans se déformer.
-			#  Sans lui, une petite image resterait en mosaïque au premier réglage.
-			xfconf-query -c xfce4-desktop -p "${p%last-image}image-style" -s 5 2>/dev/null || true
+			#  ═══ L'IMAGE ENTIÈRE, SUR FOND NOIR ═══
+			#  Alex : « fais les images sur un fond noir avec les images ».
+			#  style 4 = « ajusté » : toute l'image se voit, rien n'est coupé.
+			#  Une photo de téléphone est VERTICALE : le style 5 (« zoomé »)
+			#  n'en montrait que la bande du milieu — la tête coupée, le sujet
+			#  perdu. Ce qui reste autour est peint par le bureau : sans les
+			#  deux réglages suivants, c'était le BLEU-GRIS de XFCE. color-style
+			#  0 = couleur unie, et rgba1 = noir — la composition du fond
+			#  « LexOS 1.0 » (le démon sur noir), appliquée à toute image.
+			xfconf-query -c xfce4-desktop -p "${p%last-image}image-style" -s 4 2>/dev/null || true
+			xfconf-query -c xfce4-desktop -p "${p%last-image}color-style" -s 0 2>/dev/null \
+				|| xfconf-query -c xfce4-desktop -n -t int -p "${p%last-image}color-style" -s 0 2>/dev/null || true
+			xfconf-query -c xfce4-desktop -p "${p%last-image}rgba1" \
+				-s 0.0 -s 0.0 -s 0.0 -s 1.0 2>/dev/null \
+				|| xfconf-query -c xfce4-desktop -n -p "${p%last-image}rgba1" \
+					-t double -t double -t double -t double \
+					-s 0.0 -s 0.0 -s 0.0 -s 1.0 2>/dev/null || true
 		fi
 	done <<< "$props"
 	[[ "$n" -gt 0 ]] || die "Aucune propriété n'a pu être réglée."
@@ -228,13 +269,20 @@ autocollant() {
 
 choisir_gui() {
 	local depart img
-	for depart in "/usr/share/lexos/wallpapers" "/usr/share/lexos/branding" "${HOME}/Images" "$HOME"; do
+	#  On s'ouvre dans le premier dossier de l'UTILISATEUR qui existe — ses
+	#  images, ses téléchargements — et les dossiers système ne viennent
+	#  qu'ensuite. L'ancien ordre commençait par /usr/share : pour poser la
+	#  photo qu'on vient de télécharger, il fallait remonter toute
+	#  l'arborescence à la main, à chaque fois.
+	for depart in "${HOME}/Images" "${HOME}/Téléchargements" "${HOME}/Downloads" \
+	              "${HOME}/Fonds d'écran" \
+	              "/usr/share/lexos/wallpapers" "/usr/share/lexos/branding" "$HOME"; do
 		[[ -d "$depart" ]] && break
 	done
 	if command -v zenity >/dev/null 2>&1; then
 		img="$(zenity --file-selection --title="Choisir un fond d'écran" \
 			--filename="${depart}/" \
-			--file-filter='Images | *.jpg *.jpeg *.png *.webp *.bmp *.svg' 2>/dev/null)" || exit 0
+			--file-filter='Images | *.jpg *.jpeg *.png *.webp *.avif *.bmp *.svg' 2>/dev/null)" || exit 0
 	elif command -v yad >/dev/null 2>&1; then
 		img="$(yad --file --title="Choisir un fond d'écran" --filename="${depart}/" 2>/dev/null)" || exit 0
 	else

@@ -341,6 +341,86 @@ def act_fond_capture(arg):
     return _run(["lexos-capture", "fond", mode], detach=True)
 
 
+#  ═══ LES IMAGES DE L'UTILISATEUR, ÉNUMÉRÉES POUR LA PAGE ═══
+#  Alex : « fais que les images qu'on télécharge, on peut les utiliser comme
+#  fond d'écran aussi ». Le bouton « Une image à moi… » ouvrait un sélecteur
+#  AVEUGLE : il fallait se rappeler du nom du fichier. La page montre
+#  désormais les images de l'utilisateur en vignettes — et un clic les pose.
+#
+#  MÊMES DOSSIERS QUE lexos-fond-ecran, dans le même ordre. Deux listes qui
+#  divergent, c'est une image proposée ici et introuvable là — le genre
+#  d'écart qui fait dire « ça marche une fois sur deux ».
+FONDS_PERSO_DIRS = ("Images", "Téléchargements", "Downloads", "Fonds d'écran")
+FONDS_PERSO_EXT = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".bmp", ".svg"}
+FONDS_PERSO_MAX = 24
+
+
+def _fonds_perso():
+    """Les images des dossiers personnels, les plus récentes d'abord.
+
+    Bornée à FONDS_PERSO_MAX : la page est une rangée de vignettes, pas un
+    gestionnaire de fichiers — au-delà, le bouton « Une image à moi… » ouvre
+    le vrai sélecteur. Le tri par date de modification met en tête ce qu'on
+    vient de télécharger : c'est précisément l'image qu'on vient chercher.
+    """
+    vus, images = set(), []
+    for nom in FONDS_PERSO_DIRS:
+        d = Path.home() / nom
+        try:
+            reel = d.resolve()
+            if not d.is_dir() or reel in vus:
+                continue
+            vus.add(reel)
+            for f in d.iterdir():
+                if f.is_file() and f.suffix.lower() in FONDS_PERSO_EXT:
+                    try:
+                        images.append((f.stat().st_mtime, str(f)))
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    images.sort(reverse=True)
+    return [c for _, c in images[:FONDS_PERSO_MAX]]
+
+
+def act_fond_fichier(arg):
+    """Applique une image de la galerie — désignée par son INDICE, jamais par
+    un chemin.
+
+    La page n'est pas une source de confiance : tout ce qui s'exécute passe
+    par la liste blanche, comme le dit l'en-tête d'ACTIONS. Elle ne connaît
+    d'ailleurs même pas les chemins — l'état ne lui donne que {indice, nom}.
+    On ré-énumère ici et l'indice ne sait désigner que ce que la galerie
+    propose déjà. Un chemin libre accepté ici, c'est la page qui peut faire
+    lire n'importe quel fichier au bureau.
+
+    L'énumération est REFAITE entre l'affichage et le clic : si une image a
+    été téléchargée entre-temps, les indices ont glissé d'un cran. On vérifie
+    donc aussi le NOM quand la page l'envoie — au pire on refuse, et le
+    prochain rendu remet tout d'aplomb. Refuser vaut mieux que poser la
+    mauvaise photo.
+    """
+    if isinstance(arg, dict):
+        i, nom = arg.get("i", -1), arg.get("nom", "")
+    else:
+        i, nom = arg, ""
+    try:
+        i = int(i)
+    except (TypeError, ValueError):
+        return {"ok": False, "erreur": "indice invalide"}
+    fonds = _fonds_perso()
+    if not (0 <= i < len(fonds)):
+        return {"ok": False, "erreur": "image inconnue — pas dans la galerie"}
+    chemin = fonds[i]
+    if nom and Path(chemin).name != nom:
+        return {"ok": False, "erreur":
+                "la galerie a changé depuis l'affichage — rouvre la section"}
+    #  « ajuster » : l'image ENTIÈRE sur fond noir — « fais les images sur un
+    #  fond noir avec les images ». Une photo de téléphone est verticale ;
+    #  « remplir » n'en montrait que la bande du milieu.
+    return _run(["lexos", "wallpaper", chemin, "ajuster"])
+
+
 def act_fond_perso(arg):
     """Ouvre un sélecteur de fichier (zenity) puis applique l'image choisie.
     Le chemin vient du sélecteur local, pas de la page."""
@@ -353,7 +433,9 @@ def act_fond_perso(arg):
     chemin = r.stdout.strip()
     if r.returncode != 0 or not chemin:
         return {"ok": False, "erreur": "Aucun fichier choisi"}
-    cadrage = arg if arg in CADRAGES else "remplir"
+    #  « ajuster » par défaut : l'image entière sur fond noir (la demande
+    #  d'Alex), au lieu d'une photo verticale recadrée à la bande du milieu.
+    cadrage = arg if arg in CADRAGES else "ajuster"
     return _run(["lexos", "wallpaper", chemin, cadrage])
 
 
@@ -1029,6 +1111,7 @@ ACTIONS = {
     "dock": act_dock,
     "fond": act_fond,
     "fond-perso": act_fond_perso,
+    "fond-fichier": act_fond_fichier,
     "fond-anime": act_fond_anime,
     "fond-capture": act_fond_capture,
     "langue": act_langue,
@@ -2277,6 +2360,12 @@ def etat():
         "son": _son_etat(),
         "batterie": _batterie_etat(),
         "ecrans": _ecrans_etat(),
+        #  La galerie du fond d'écran : index + nom seulement. Le CHEMIN reste
+        #  côté machine — la page applique par indice (fond-fichier revalide),
+        #  et les vignettes passent par /api/fond-vignette, jamais par un
+        #  chemin que la page choisirait.
+        "fonds_perso": [{"i": i, "nom": Path(c).name}
+                        for i, c in enumerate(_fonds_perso())],
         #  Vide n'est pas une réponse. Quand la liste ci-dessus l'est, celle-ci
         #  dit POURQUOI — et la page peut enfin l'écrire au lieu de laisser
         #  croire qu'aucun écran n'est branché.
@@ -2334,6 +2423,35 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/etat":
             return self._json(200, etat())
+        #  ═══ LES VIGNETTES DE LA GALERIE ═══
+        #  La page ne demande JAMAIS un chemin — seulement un indice, revalidé
+        #  contre une énumération fraîche. Servir un chemin venu de la page,
+        #  c'est la laisser lire n'importe quel fichier du compte ; un indice
+        #  ne sait désigner que ce que la galerie propose déjà.
+        if self.path.startswith("/api/fond-vignette"):
+            from urllib.parse import parse_qs, urlparse
+            try:
+                i = int(parse_qs(urlparse(self.path).query).get("i", ["-1"])[0])
+            except ValueError:
+                i = -1
+            fonds = _fonds_perso()
+            if not (0 <= i < len(fonds)):
+                return self._json(404, {"ok": False, "erreur": "vignette inconnue"})
+            chemin = Path(fonds[i])
+            genre = mimetypes.guess_type(str(chemin))[0] or "application/octet-stream"
+            try:
+                corps = chemin.read_bytes()
+            except OSError:
+                return self._json(404, {"ok": False, "erreur": "fichier illisible"})
+            self.send_response(200)
+            self.send_header("Content-Type", genre)
+            self.send_header("Content-Length", str(len(corps)))
+            #  L'image peut changer sur le disque ; la galerie se réénumère à
+            #  chaque état. Un cache court évite juste de relire à chaque rendu.
+            self.send_header("Cache-Control", "max-age=30")
+            self.end_headers()
+            self.wfile.write(corps)
+            return None
         return super().do_GET()
 
     def do_POST(self):

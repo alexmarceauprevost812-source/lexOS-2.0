@@ -211,3 +211,12 @@ kbd{display:inline-block;padding:1px 6px;border-radius:5px;
   .btn{transition:background .15s ease}
   .btn:active{transform:none}
 }
+
+/* --- Les vignettes de la galerie de fonds (section Bureau LexOS) ---------- */
+/*  Même dessin que les wall-swatch de la démo : la démo est le cahier des
+    charges. Le fond NOIR et le « contain » sont posés en ligne sur chaque
+    vignette (ils portent l'aperçu réel) ; ici, la carrosserie commune. */
+.wall-swatch{width:96px;height:56px;border-radius:8px;border:2px solid var(--bd);
+  cursor:pointer;background-size:cover;background-position:center;flex:none;
+  padding:0;transition:border-color .15s ease}
+.wall-swatch:hover,.wall-swatch:focus-visible{border-color:var(--ac);outline:none}

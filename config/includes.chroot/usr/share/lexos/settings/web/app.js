@@ -234,6 +234,63 @@ function jauge(pct){
   const p = Math.max(0, Math.min(100, pct));
   return `<div class="jauge" title="${p} %"><span style="width:${p}%"></span></div>`;
 }
+
+/*  ═══ LA PILE D'ALEX, DESSINÉE PLUTÔT QUE COLLÉE ═══
+    Ses deux images : quatre piles côte à côte — verte pleine (4 barres),
+    jaune aux trois quarts (3), orange à moitié (2), rouge presque vide (1) —
+    et le même dessin isolé, contour foncé, quatre barres vertes.
+    « utiliser ces images pour les utiliser dans les paramètres de la
+    batterie. »
+
+    POURQUOI UN TRACÉ ET PAS LES FICHIERS. Ces images sont des PNG sur fond
+    BLANC, à quatre états figés. Une batterie réelle passe par tous les
+    pourcentages, et la page s'affiche aussi bien en mode clair qu'en mode
+    sombre : un PNG blanc y ferait une tache, et il faudrait quatre fichiers
+    pour dire ce qu'une seule règle dit mieux. Le dessin reprend donc la
+    GRAMMAIRE de ses images — corps arrondi à contour épais, borne au-dessus,
+    barres empilées, couleur qui dit l'état — en SVG : net à toutes les
+    tailles, et la couleur suit la charge en continu.
+
+    LES QUATRE SEUILS SONT LES SIENS, relevés sur son image :
+      4 barres, vert    au-dessus de 75 %
+      3 barres, jaune   de 50 à 75
+      2 barres, orange  de 25 à 50
+      1 barre,  rouge   en dessous de 25
+    Ces couleurs PORTENT LE SENS — elles ne suivent pas l'accent choisi. Une
+    batterie à plat reste rouge sur une ISO montée en bleu, comme l'antenne
+    Wi-Fi reste rouge quand elle est coupée.
+
+    Branché sur le secteur, l'éclair passe par-dessus : « en charge » n'est
+    pas un niveau, et la teinte seule ne saurait pas le dire. */
+const BAT_PALIERS = [
+  [75, 4, "var(--ok)"],      // plein
+  [50, 3, "var(--warn)"],    // jaune
+  [25, 2, "#E8590C"],        // orange — le même que l'accent LexOS par défaut
+  [-1, 1, "var(--off)"],     // rouge
+];
+function batGlyph(pct, secteur, taille){
+  const p = Math.max(0, Math.min(100, Number(pct)));
+  const h = taille || 34;
+  const [, barres, couleur] = BAT_PALIERS.find(([seuil]) => p > seuil) || BAT_PALIERS[3];
+  //  Le corps : 34 de large sur 56 de haut dans un viewBox de 44x64, borne
+  //  comprise. Les quatre barres occupent l'intérieur, du bas vers le haut —
+  //  on empile depuis le BAS parce qu'une batterie se vide par le haut.
+  const L = [];
+  for(let i = 0; i < barres; i++){
+    L.push(`<rect x="12" y="${44 - i * 10}" width="20" height="7" rx="1" fill="${couleur}"/>`);
+  }
+  const titre = `${p} %` + (secteur ? " — en charge" : "");
+  return `<svg viewBox="0 0 44 64" width="${h * 44 / 64}" height="${h}"
+     role="img" aria-label="Batterie : ${titre}"><title>${titre}</title>
+    <rect x="17" y="2" width="10" height="6" rx="2" fill="${couleur}"/>
+    <rect x="4" y="8" width="36" height="54" rx="6"
+          fill="none" stroke="${couleur}" stroke-width="4"/>
+    ${L.join("")}
+    ${secteur ? `<path d="M25 20 L15 36 h7 l-3 12 L34 30 h-7 z"
+          fill="var(--bg)" stroke="${couleur}" stroke-width="2.5"
+          stroke-linejoin="round"/>` : ""}
+  </svg>`;
+}
 /*  Un menu déroulant, avec le même habillage que le reste. La valeur part
     vers la machine au changement ; « 0 » veut dire « jamais ». */
 /*  Le disque dur, d'après l'image fournie par Alex. Même dessin que la démo
@@ -330,6 +387,15 @@ async function basculeWifiAuto(){
   await rafraichir(r.ok
     ? (actif ? "Connexion automatique désactivée" : "Connexion automatique activée")
     : "Échec : " + (r.erreur || "commande refusée"));
+}
+async function setFondFichier(i, nom){
+  //  L'indice ET le nom : la galerie se réénumère côté machine entre
+  //  l'affichage et le clic — si une image est arrivée entre-temps, les
+  //  indices ont glissé, et le nom fait refuser plutôt que poser la
+  //  mauvaise photo.
+  const r = await api("fond-fichier", {i, nom});
+  await rafraichir(r.ok ? "Fond d'écran appliqué : " + nom
+                        : "Échec : " + (r.erreur || "commande refusée"));
 }
 async function basculeMuet(){
   const r = await api("son-muet", "toggle");
@@ -830,9 +896,18 @@ function contenu(cle){
     }
     case "energie": return `<h2>Énergie</h2><div class="sub">Profil de performance</div>
       ${(etat.batterie && etat.batterie.niveau >= 0)
-        ? srow("Batterie", `${etat.batterie.niveau} %` +
-               (etat.batterie.secteur ? " — branché sur le secteur" : " — sur batterie"),
-               jauge(etat.batterie.niveau))
+        ? `<div class="srow">
+             <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:0">
+               ${batGlyph(etat.batterie.niveau, etat.batterie.secteur, 46)}
+               <div style="min-width:0">
+                 <div class="t">Batterie — ${etat.batterie.niveau} %</div>
+                 <div class="d">${etat.batterie.secteur
+                    ? "Branché sur le secteur — en charge"
+                    : "Sur batterie"}</div>
+               </div>
+             </div>
+             ${jauge(etat.batterie.niveau)}
+           </div>`
         : srow("Alimentation","Aucune batterie — machine de bureau")}
       <div class="row">${["petit","medium","performant","max"].map(p=>
         `<button class="btn ${p===etat.perf?"sel":"ghost"}" onclick="setPerf('${p}')">${p}</button>`).join("")}</div>
@@ -978,6 +1053,39 @@ function contenu(cle){
           <button class="btn" onclick="fondPerso()">🖼 Une image à moi…</button>
         </div>
       </div>
+
+      ${(() => {
+        /*  ═══ MES IMAGES — LA GALERIE ═══
+            « fais que les images qu'on télécharge, on peut les utiliser
+            comme fond d'écran aussi. » Le bouton au-dessus ouvrait un
+            sélecteur AVEUGLE : il fallait se rappeler du nom du fichier.
+            Ici, les images de Téléchargements et d'Images en vignettes,
+            les plus récentes d'abord — celle qu'on vient de télécharger
+            arrive en tête — et un clic la pose.
+
+            Les vignettes viennent de /api/fond-vignette?i=N : la page ne
+            connaît AUCUN chemin, seulement des indices que la machine
+            revalide. Et chaque vignette est posée sur NOIR avec
+            object-fit:contain — « fais les images sur un fond noir avec
+            les images » : l'aperçu montre exactement ce que le bureau
+            montrera, une photo verticale comprise. */
+        const fp = etat.fonds_perso || [];
+        if(!fp.length) return `<div class="srow" style="display:block">
+          <div class="t" style="margin-bottom:4px">Mes images</div>
+          <div class="d">Aucune image dans Téléchargements ni dans Images pour
+          l'instant — tout ce que tu y déposeras apparaîtra ici.</div></div>`;
+        return `<div class="srow" style="display:block">
+          <div class="t" style="margin-bottom:4px">Mes images</div>
+          <div class="d" style="margin-bottom:10px">Téléchargements et Images,
+            les plus récentes d'abord. Un clic : l'image entière, sur fond
+            noir, sur tous les écrans.</div>
+          <div class="row" style="gap:10px">
+            ${fp.map(f => `<button class="wall-swatch" title="${esc(f.nom)}"
+               onclick='setFondFichier(${f.i}, ${JSON.stringify(f.nom)})'
+               style="width:96px;height:56px;background:#000 url('/api/fond-vignette?i=${f.i}') center/contain no-repeat"></button>`).join("")}
+          </div>
+        </div>`;
+      })()}
 
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Fonds animés</div>

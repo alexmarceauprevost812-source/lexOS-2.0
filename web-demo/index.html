@@ -2283,7 +2283,11 @@ const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
                 agendaEvts:{}, agendaVue:null,
                 notifs:[] /* historique des notifications : {txt, h, ic} */,
                 periph:{imprimante:false, ecran:false, casque:false, usb:true, disque:false},
-                wallPerso:null, wallPersoNom:"", wallCadrage:"remplir", wallVideoURL:null,
+                //  « ajuster » par défaut pour une image à soi : Alex —
+                //  « fais les images sur un fond noir avec les images ».
+                //  Une photo de téléphone est verticale ; « remplir » n'en
+                //  montrait que la bande du milieu. L'ISO fait pareil.
+                wallPerso:null, wallPersoNom:"", wallCadrage:"ajuster", wallVideoURL:null,
                 vpn:null,
                 claviers:["ca-fr"], clavierVu:0, clvBascule:"alt-maj",
                 comptes:[] /* comptes en ligne reliés : {cle, nom, monte} */,
@@ -2379,9 +2383,14 @@ function setWallpaper(key){
     d.style.backgroundSize = WALL_CADRAGE[state.wallCadrage] || "cover";
     d.style.backgroundPosition = "center";
     d.style.backgroundRepeat = state.wallCadrage==="mosaique" ? "repeat" : "no-repeat";
+    //  Ce qui dépasse de l'image est NOIR — la composition du fond « démon »,
+    //  appliquée à toute image : c'est aussi ce que fait la vraie ISO
+    //  (color-style uni + rgba1 noir dans xfconf).
+    d.style.backgroundColor = "#000";
   } else {
     d.style.backgroundImage = d.style.backgroundSize =
-      d.style.backgroundPosition = d.style.backgroundRepeat = "";
+      d.style.backgroundPosition = d.style.backgroundRepeat =
+      d.style.backgroundColor = "";
   }
   showSettingsSection();
 }
@@ -2530,6 +2539,52 @@ function battGlyph(){
       `<rect x="2.6" y="3.1" width="${w}" height="6.8" rx="1.1" fill="${col}"/>`+
       (ch?`<path d="M13 1.6 L9.8 7 h2.6 l-1 4.4 4.4-5.4 h-2.6 z" fill="#ffd23f" stroke="#0006" stroke-width=".3"/>`:"")+
     `</svg><span class="st-n">${lvl}%</span></button>`;
+}
+/*  ═══ LA PILE D'ALEX, EN GRAND, POUR LA PAGE ÉNERGIE ═══
+    Ses deux images : quatre piles côte à côte — verte pleine, jaune aux trois
+    quarts, orange à moitié, rouge presque vide — et le même dessin isolé.
+    « utiliser ces images [...] dans les paramètres de la batterie. »
+
+    Ce n'est PAS le même dessin que battGlyph juste au-dessus, et c'est voulu :
+    celui-là est couché, minuscule, tassé dans la barre d'état entre le son et
+    l'heure ; celui-ci est debout et lisible de loin, dans une page qu'on ouvre
+    exprès pour regarder sa batterie. Deux endroits, deux besoins.
+
+    Un tracé plutôt que ses PNG : ils sont sur fond BLANC et figés à quatre
+    états. Une batterie passe par tous les pourcentages, et la page s'affiche
+    aussi en mode clair. Le dessin reprend donc sa GRAMMAIRE — corps arrondi à
+    contour épais, borne au-dessus, barres empilées, couleur qui dit l'état.
+
+    Les seuils sont les siens, relevés sur l'image : 4 barres vertes au-dessus
+    de 75 %, 3 jaunes, 2 oranges, 1 rouge sous 25 %. Ces couleurs PORTENT LE
+    SENS : elles ne suivent pas l'accent. Une batterie à plat reste rouge sur
+    une ISO montée en bleu. */
+const BAT_PALIERS = [
+  [75, 4, "var(--ok)"],
+  [50, 3, "var(--warn)"],
+  [25, 2, "#E8590C"],
+  [-1, 1, "var(--off)"],
+];
+function batGlyph(pct, secteur, taille){
+  const p = Math.max(0, Math.min(100, Number(pct)));
+  const h = taille || 34;
+  const [, barres, couleur] = BAT_PALIERS.find(([seuil]) => p > seuil) || BAT_PALIERS[3];
+  const L = [];
+  //  On empile depuis le BAS : une batterie se vide par le haut.
+  for(let i = 0; i < barres; i++){
+    L.push(`<rect x="12" y="${44 - i * 10}" width="20" height="7" rx="1" fill="${couleur}"/>`);
+  }
+  const titre = `${p} %` + (secteur ? " — en charge" : "");
+  return `<svg viewBox="0 0 44 64" width="${h * 44 / 64}" height="${h}"
+     role="img" aria-label="Batterie : ${titre}"><title>${titre}</title>
+    <rect x="17" y="2" width="10" height="6" rx="2" fill="${couleur}"/>
+    <rect x="4" y="8" width="36" height="54" rx="6"
+          fill="none" stroke="${couleur}" stroke-width="4"/>
+    ${L.join("")}
+    ${secteur ? `<path d="M25 20 L15 36 h7 l-3 12 L34 30 h-7 z"
+          fill="var(--bg)" stroke="${couleur}" stroke-width="2.5"
+          stroke-linejoin="round"/>` : ""}
+  </svg>`;
 }
 function statusIcons(){
   const btOn = !state.avion && state.bt;
@@ -6518,6 +6573,17 @@ function settingsSection(key){
       ${swRow("Sourdine",false,"")}
       ${swRow("Casque audio branché","Apparaît dans la barre du haut, à côté de l'heure",state.periph.casque,"togglePeriph('casque')")}`;
     case "energie": return `<h2>Énergie</h2><div class="sub">Profil de performance</div>
+      <div class="srow">
+        <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:0">
+          ${batGlyph(state.batt, state.charging, 46)}
+          <div style="min-width:0">
+            <div class="t">Batterie — ${Math.round(state.batt)} %</div>
+            <div class="d">${state.charging
+               ? "Branché sur le secteur — en charge"
+               : "Sur batterie"}</div>
+          </div>
+        </div>
+      </div>
       <div class="row">${["petit","medium","performant","max"].map(p=>
         `<button class="btn ${p===state.perf?"":"ghost"}" onclick="setPerf('${p}')">${p}</button>`).join("")}</div>
       <div style="display:flex;align-items:center;gap:18px;margin-top:12px">

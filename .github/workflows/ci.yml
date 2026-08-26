@@ -1092,6 +1092,23 @@ jobs:
           #  on partagerait alors le mauvais écran en croyant avoir choisi.
           bash tests/test_lexos_ecrans.sh
 
+      - name: Fond d'écran (images téléchargées, fond noir) et pile de la batterie
+        run: |
+          #  DEUX DEMANDES D'ALEX LE MÊME JOUR. Les images TÉLÉCHARGÉES
+          #  deviennent des fonds d'écran (Téléchargements n'était pas ratissé,
+          #  le sélecteur s'ouvrait dans /usr/share) — l'image ENTIÈRE sur fond
+          #  NOIR, et la galerie des Paramètres les montre en vignettes. Et la
+          #  pile de ses images (verte 4 barres → rouge 1 barre) entre dans la
+          #  section Énergie, ISO et démo.
+          #
+          #  Le banc joue trois pièges réels : le fond animé de la première
+          #  session qui RECOUVRAIT l'image choisie par le menu ; la boucle de
+          #  firstrun qui EFFAÇAIT le choix de l'utilisateur pendant une
+          #  minute ; et la liste blanche de la galerie — _run y est remplacé
+          #  par un faux qui RÉUSSIT, sinon le refus observé pouvait venir de
+          #  l'environnement et une liste trouée serait passée verte.
+          bash tests/test_lexos_fond_batterie.sh
+
       - name: Tables de modèles Mac identiques
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même
