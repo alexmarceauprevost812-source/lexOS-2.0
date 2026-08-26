@@ -581,9 +581,63 @@ async function actionSecu(quoi){
   const r = await api("securite", quoi);
   if(!r.ok) toast("Échec : " + (r.erreur || "commande refusée"));
 }
+/*  ALEX : « fais en sorte que tout se mette à jour au fur et à mesure en
+    cliquant sur mise à jour ». Avant : un clic ouvrait le terminal et la
+    page n'en savait plus rien — les boutons restaient figés que ce soit
+    fini, raté, ou encore en train de tourner, jusqu'à fermer et rouvrir les
+    Paramètres à la main.
+
+    settings.py laisse maintenant une trace (etat.maj.progres[quoi]) que le
+    terminal détaché met à jour en arrière-plan. On la relit à intervalles
+    courts tant que « en_cours » est vrai — c'est ÇA, le « au fur et à
+    mesure » : la page change TOUTE SEULE, sans qu'on ait besoin de rien
+    refaire pour voir où ça en est. */
+/*  Le bouton LUI-MÊME dit où en est le geste — pas seulement un message
+    éphémère (toast) qu'on peut manquer en ayant le dos tourné. « en cours »
+    le désactive et change son libellé ; une fois fini, un petit badge
+    « fait »/« échec » reste à côté, même après un rafraîchissement normal
+    de la page (etat.maj.progres survit, lui, tant que le fichier de fin
+    n'a pas été effacé). */
+function boutonMaj(cle, classe, libelle){
+  const p = (etat.maj && etat.maj.progres && etat.maj.progres[cle]) || null;
+  if(p && p.en_cours){
+    return `<button class="${classe}" disabled>${esc(libelle)} — en cours…</button>`;
+  }
+  let badge = "";
+  if(p && !p.en_cours && p.ok !== null && p.ok !== undefined){
+    badge = ` <span class="etat ${p.ok ? "ok" : "off"}">${p.ok ? "fait" : "échec"}</span>`;
+  }
+  return `<button class="${classe}" onclick="actionMaj('${cle}')">${esc(libelle)}</button>${badge}`;
+}
+
+let majSondage = null;
 async function actionMaj(quoi){
   const r = await api("maj", quoi);
-  if(!r.ok) toast("Échec : " + (r.erreur || "commande refusée"));
+  if(!r.ok){ toast("Échec : " + (r.erreur || "commande refusée")); return; }
+  await rafraichir();
+  suitMaj(quoi);
+}
+function suitMaj(quoi){
+  if(majSondage) clearInterval(majSondage);
+  let tours = 0;
+  majSondage = setInterval(async () => {
+    tours++;
+    await chargeEtat();
+    rendSection();
+    const p = (etat.maj && etat.maj.progres && etat.maj.progres[quoi]) || null;
+    //  400 tours à 1,5 s ≈ 10 minutes : largement de quoi laisser un « apt
+    //  upgrade » se terminer. Sans plafond, un terminal fermé à la croix
+    //  (donc jamais de fichier de fin) ferait tourner ce minuteur pour
+    //  toujours — silencieusement, en tâche de fond, à chaque session.
+    if(!p || !p.en_cours || tours > 400){
+      clearInterval(majSondage);
+      majSondage = null;
+      if(p && !p.en_cours){
+        toast(p.ok === false ? "Terminé avec des erreurs — voir le terminal"
+                              : "Terminé");
+      }
+    }
+  }, 1500);
 }
 async function actionUsb(quoi){
   const r = await api("usb", quoi);
@@ -1480,6 +1534,15 @@ function contenu(cle){
     }
     case "maj": {
       const m = etat.maj || {};
+      const prog = m.progres || {};
+      //  On revient sur cette page pendant qu'un geste tourne encore ailleurs
+      //  (Paramètres refermés puis rouverts pendant un « apt upgrade »,
+      //  par exemple) : on reprend le sondage au lieu de laisser un bouton
+      //  dire « en cours » sans plus jamais se mettre à jour tout seul.
+      if(!majSondage){
+        const enCours = Object.keys(prog).find(k => prog[k] && prog[k].en_cours);
+        if(enCours) suitMaj(enCours);
+      }
       return `<h2>Mises à jour</h2><div class="sub">${esc(etat.version || "LexOS")}</div>
       ${srow("Version installée", esc(etat.version || "") + " · noyau " + esc(etat.noyau || ""))}
       ${srow("Mises à jour de sécurité automatiques",
@@ -1491,14 +1554,15 @@ function contenu(cle){
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Maintenant</div>
         <div class="row">
-          <button class="btn" onclick="actionMaj('verifier')">Vérifier</button>
-          <button class="btn ghost" onclick="actionMaj('tout')">Tout mettre à jour</button>
-          ${m.fwupd ? `<button class="btn ghost" onclick="actionMaj('firmware')">Micrologiciel (BIOS, SSD)</button>` : ""}
+          ${boutonMaj("verifier", "btn", "Vérifier")}
+          ${boutonMaj("tout", "btn ghost", "Tout mettre à jour")}
+          ${m.fwupd ? boutonMaj("firmware", "btn ghost", "Micrologiciel (BIOS, SSD)") : ""}
         </div>
       </div>
       <p class="notice">Les mises à jour de sécurité s'installent seules ; le reste
       attend que tu le demandes. Une mise à jour pose des questions et prend du
-      temps : elle s'ouvre dans un terminal pour qu'on voie ce qui se passe.</p>`;
+      temps : elle s'ouvre dans un terminal pour qu'on voie ce qui se passe — et
+      cette page se met à jour toute seule pendant que ça tourne.</p>`;
     }
     case "accessibilite": {
       const a = etat.access || {};

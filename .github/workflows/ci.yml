@@ -1167,6 +1167,17 @@ jobs:
           #  recharge xfdesktop et peut redéfaire l'ordre plus tard).
           bash tests/test_lexos_fond_anime.sh
 
+      - name: Mises à jour — la page suit le terminal au lieu de rester figée
+        run: |
+          #  ALEX : « fais en sorte que tout se mette à jour au fur et à
+          #  mesure en cliquant sur mise à jour ». « Vérifier » et « Tout
+          #  mettre à jour » ouvraient un terminal DÉTACHÉ et la page n'en
+          #  savait plus rien : boutons figés, que ce soit fini, raté, ou
+          #  encore en train de tourner. Le banc lance act_maj() POUR DE VRAI
+          #  avec un faux terminal qui exécute vraiment la commande, et
+          #  vérifie les trois états (en cours / réussi / échoué).
+          bash tests/test_lexos_maj.sh
+
       - name: Tables de modèles Mac identiques
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même

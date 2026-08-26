@@ -19,11 +19,13 @@ import http.server
 import json
 import mimetypes
 import os
+import shlex
 import shutil
 import socket
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 APP_NAME = "Paramètres LexOS"
@@ -39,6 +41,27 @@ PSU_DIR = Path(os.environ.get("LEXOS_PSU", "/sys/class/power_supply"))
 BL_DIR = Path(os.environ.get("LEXOS_BL", "/sys/class/backlight"))
 ETC_DIR = Path(os.environ.get("LEXOS_ETC", "/etc"))
 DMI_DIR = Path(os.environ.get("LEXOS_DMI", "/sys/class/dmi/id"))
+
+#  ALEX : « fais en sorte que tout se mette à jour au fur et à mesure en
+#  cliquant sur mise à jour ». Vérifier/Tout mettre à jour ouvraient un
+#  terminal détaché et la page des Paramètres n'en savait plus rien ensuite
+#  — les boutons restaient dans leur état de départ que le geste ait réussi,
+#  échoué, ou tourne encore. MAJ_ETAT_DIR est où on laisse une trace de ce
+#  terminal (début, puis fin + code de sortie) pour que la page puisse
+#  SAVOIR, en la relisant, au lieu de deviner. Même principe d'emplacement
+#  que lexos-fond-anime (XDG_RUNTIME_DIR, avec /tmp en repli).
+#
+#  DEUX SEGMENTS (« lexos », puis « maj »), PAS UN NOM À TRAIT D'UNION.
+#  verifier-parametres.sh lit ce fichier à la recherche des outils appelés
+#  — tout ce qui ressemble à un nom de programme LexOS avec un trait
+#  d'union — et vérifie qu'ils existent dans config/includes.chroot/usr/bin.
+#  Écrit d'un seul tenant, ce dossier se faisait passer pour un outil
+#  manquant et mettait le contrôle 16 au rouge, pour un chemin qui n'est
+#  pas un programme. Le contrôle a raison d'être strict : c'est à ce
+#  chemin-ci de ne pas se déguiser en commande.
+MAJ_ETAT_DIR = Path(os.environ.get("LEXOS_MAJ_ETAT_DIR")
+                     or os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
+                                     "lexos", "maj"))
 
 
 # =============================================================================
@@ -106,6 +129,46 @@ def _terminal(titre, commande):
     Python : subprocess.Popen reçoit une liste, jamais shell=True)."""
     return _run(["xfce4-terminal", f"--title={titre}", "--hold", "-e",
                  f"{commande}; bash"], detach=True)
+
+
+def _terminal_suivi(titre, commande, cle):
+    """Comme _terminal(), mais laisse une trace de FIN — un fichier posé une
+    fois « commande » terminée, avec son code de sortie dedans. C'est ce qui
+    permet à _maj_progres(cle) de savoir si ça tourne encore sans lire dans
+    la fenêtre du terminal, qui vit dans un processus séparé qu'on ne
+    contrôle plus une fois « detach=True » posé.
+
+    On enveloppe « commande » plutôt que de la remplacer : ce que
+    l'utilisateur voit dans le terminal ne change pas d'un caractère — la
+    ligne « echo … > … » n'apparaît qu'après, quand tout est déjà fait."""
+    MAJ_ETAT_DIR.mkdir(parents=True, exist_ok=True)
+    debut = MAJ_ETAT_DIR / f"{cle}.debut"
+    fin = MAJ_ETAT_DIR / f"{cle}.fin"
+    fin.unlink(missing_ok=True)
+    debut.write_text(str(time.time()), encoding="utf-8")
+    enveloppe = f"{commande}; echo $? > {shlex.quote(str(fin))}; bash"
+    return _run(["xfce4-terminal", f"--title={titre}", "--hold", "-e", enveloppe],
+                detach=True)
+
+
+def _maj_progres(cle):
+    """L'état d'une action de mise à jour lancée par _terminal_suivi() :
+    None si elle n'a jamais tourné, {"en_cours": True} tant qu'elle tourne,
+    {"en_cours": False, "ok": …} une fois le fichier de fin posé."""
+    debut = MAJ_ETAT_DIR / f"{cle}.debut"
+    fin = MAJ_ETAT_DIR / f"{cle}.fin"
+    if not debut.exists():
+        return None
+    if not fin.exists():
+        return {"en_cours": True}
+    try:
+        code = int(fin.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        #  Un fichier de fin illisible ou vide veut dire qu'on ne SAIT PAS —
+        #  pas que ça a réussi. Un « ok » inventé serait le même mensonge
+        #  que le « {"ok": True} » d'act_bt_chercher(), corrigé plus haut.
+        return {"en_cours": False, "ok": None}
+    return {"en_cours": False, "ok": code == 0}
 
 
 def _xfce(module):
@@ -598,7 +661,15 @@ def act_securite(arg):
 
 def act_maj(arg):
     """Mises à jour. Tout passe par un terminal : une mise à jour pose des
-    questions, prend du temps, et il faut pouvoir lire ce qui se passe."""
+    questions, prend du temps, et il faut pouvoir lire ce qui se passe.
+
+    _terminal_suivi() (pas _terminal()) : ALEX voulait que la page se mette
+    à jour au fur et à mesure en cliquant sur « Mises à jour » — avant, un
+    clic ouvrait le terminal et la page n'en savait plus rien, boutons figés
+    que ce soit fini, raté, ou encore en train de tourner. « arg » sert AUSSI
+    de clé de suivi : les trois gestes ont chacun leur propre fichier de fin,
+    donc lancer « Vérifier » puis « Tout mettre à jour » n'écrase pas le
+    suivi de l'un avec celui de l'autre."""
     outils = {
         "verifier":  ("Mises à jour — LexOS", "lexos doctor"),
         "tout":      ("Mise à jour — LexOS", "lexos upgrade"),
@@ -606,7 +677,8 @@ def act_maj(arg):
     }
     if arg not in outils:
         return {"ok": False, "erreur": "valeur inattendue"}
-    return _terminal(*outils[arg])
+    titre, commande = outils[arg]
+    return _terminal_suivi(titre, commande, arg)
 
 
 def act_usb(arg):
@@ -2059,7 +2131,14 @@ def _maj_etat():
                 tout = True
     except OSError:
         pass
-    return {"secu": secu, "tout": tout, "fwupd": bool(shutil.which("fwupdmgr"))}
+    return {
+        "secu": secu, "tout": tout, "fwupd": bool(shutil.which("fwupdmgr")),
+        #  Ce que _terminal_suivi() a laissé derrière lui pour chaque geste —
+        #  None si jamais lancé cette session, sinon en_cours/ok. C'est CE
+        #  DICT que la page relit à chaque rafraîchissement pour savoir si
+        #  elle doit encore attendre.
+        "progres": {cle: _maj_progres(cle) for cle in ("verifier", "tout", "firmware")},
+    }
 
 
 def _utilisateurs_etat():
