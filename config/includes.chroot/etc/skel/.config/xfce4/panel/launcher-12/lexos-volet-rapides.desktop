@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Paramètres rapides
+Comment=Wi-Fi, Bluetooth, mode avion, performance, thème, effets TV — d'un clic
+Exec=lexos-volet rapides
+Icon=lexos-reglages
+Terminal=false
+Categories=Settings;

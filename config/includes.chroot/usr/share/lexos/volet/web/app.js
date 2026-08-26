@@ -1,10 +1,12 @@
 /* =============================================================================
- *  Volet LexOS — notifications, agenda, météo
+ *  Volet LexOS — notifications, agenda, météo, paramètres rapides
  * =============================================================================
  *  Ce fichier fait, sur la VRAIE machine, ce que la démo web fait pour de faux :
  *  les notifications viennent du journal de xfce4-notifyd, les rendez-vous d'un
- *  fichier à nous, la météo d'Open-Meteo par lexos-meteo. Le dessin, lui, est le
- *  même des deux côtés — c'est la règle qu'Alex a posée.
+ *  fichier à nous, la météo d'Open-Meteo par lexos-meteo, et les bascules
+ *  rapides (Wi-Fi, Bluetooth, mode avion, performance, thème, effets TV…)
+ *  parlent aux mêmes commandes que la fenêtre des Paramètres. Le dessin, lui,
+ *  est le même des deux côtés — c'est la règle qu'Alex a posée.
  * ===========================================================================*/
 const esc = s => String(s).replace(/[&<>"]/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -224,10 +226,51 @@ function meteoHTML(){
 }
 async function choisitVille(){ await api("meteo-ville"); }
 
+/* --- Paramètres rapides ---------------------------------------------------
+ *  MÊME GRILLE QUE LA DÉMO (.qs-grid/.qs-tile), sans le sous-menu Wi-Fi/
+ *  Bluetooth ni le mode compact : la vraie liste de réseaux et d'appareils
+ *  vit déjà dans Paramètres, la dupliquer ici donnerait deux endroits où un
+ *  bogue pourrait un jour raconter deux choses différentes.
+ * -------------------------------------------------------------------------*/
+function qsTileHTML(cle, icone, titre, sous, actif, desactive){
+  const classes = `qs-tile${actif ? " on" : ""}${desactive ? " qs-disabled" : ""}`;
+  const clic = desactive ? "" : ` onclick="rapidesClic('${cle}')"`;
+  return `<div class="${classes}"${clic} title="${esc(titre)}" role="button" tabindex="0">
+      <span class="ic">${icone}</span>
+      <span class="ti">${esc(titre)}</span>
+      <span class="su">${esc(sous)}</span>
+    </div>`;
+}
+function rapidesHTML(){
+  const r = etat.rapides || {};
+  const wifiOn = !!r.wifi, btOn = !!r.bt, avionOn = !!r.avion;
+  const tuiles = [
+    qsTileHTML("wifi", "📶", "Wi-Fi", avionOn ? "Mode avion" : (wifiOn ? "Activé" : "Désactivé"),
+               wifiOn, avionOn),
+    qsTileHTML("bt", "🔵", "Bluetooth", avionOn ? "Mode avion" : (r.bt === null ? "Absent" : (btOn ? "Activé" : "Désactivé")),
+               btOn, avionOn || r.bt === null),
+    qsTileHTML("avion", "✈️", "Mode avion", avionOn ? "Activé" : "Désactivé", avionOn, false),
+    qsTileHTML("partage", "📤", "Partager", "Envoyer un fichier", false, false),
+    qsTileHTML("perf", "⚡", "Performance", r.perfLabel || "", r.perf === "performant" || r.perf === "max", false),
+    qsTileHTML("theme", r.theme === "clair" ? "☀️" : "🌑", r.theme === "clair" ? "Style clair" : "Style sombre",
+               r.theme === "clair" ? "Thème de jour" : "LexOS Noir", r.theme === "clair", false),
+    qsTileHTML("clavier", "⌨️", "Clavier", "Français (Québec)", false, false),
+    qsTileHTML("crt", "📺", "Effets TV 1980", r.crt ? "Activés" : "Désactivés", r.crt, false),
+  ];
+  return `<div class="qs-head"><span class="t">Paramètres rapides</span></div>
+    <div class="qs-grid">${tuiles.join("")}</div>`;
+}
+async function rapidesClic(cle){
+  await api(`rapides-${cle}`);
+  await rafraichir();
+}
+
 /* --- Rendu ---------------------------------------------------------------- */
 function rend(){
   document.getElementById("dedans").innerHTML =
-    QUOI === "meteo" ? meteoHTML() : (notifHTML() + agendaHTML());
+    QUOI === "meteo" ? meteoHTML()
+    : QUOI === "rapides" ? rapidesHTML()
+    : (notifHTML() + agendaHTML());
 }
 async function rafraichir(){ await chargeEtat(); rend(); }
 

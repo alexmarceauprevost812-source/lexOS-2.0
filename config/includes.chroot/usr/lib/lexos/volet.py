@@ -48,7 +48,7 @@ WEB_DIR = BASE_DIR / "web"
 
 #  Les deux volets existants. La liste est fermée : « lexos-volet <quoi> »
 #  n'ouvre rien d'autre, et le nom ne sert jamais à construire un chemin.
-VOLETS = {"agenda", "meteo"}
+VOLETS = {"agenda", "meteo", "rapides"}
 
 CONF = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
 DONNEES = Path(os.environ.get("XDG_DATA_HOME",
@@ -272,11 +272,224 @@ def act_meteo_ville(_arg=None):
     return {"ok": True}
 
 
+# =============================================================================
+#  Les paramètres rapides — la grille de bascules, sous le bouton « ▲ »
+# =============================================================================
+#  MÊME RÈGLE QUE PARTOUT : « tout ce qu'on fait sur Vercel on le met aussi
+#  dans l'ISO ». La démo affiche huit tuiles rondes sous le bouton « ▲ » —
+#  Wi-Fi, Bluetooth, mode avion, partager, performance, thème, clavier,
+#  effets TV. Avant ce volet, ce bouton (greffon 12 de xfce4-panel.xml)
+#  ouvrait directement la fenêtre COMPLÈTE des Paramètres : pas de bascule
+#  rapide, contrairement à la démo — c'est ce trou que ce volet comble.
+#
+#  CE QUI EST VOLONTAIREMENT ABSENT, ET POURQUOI. La démo simule, sous les
+#  tuiles Wi-Fi et Bluetooth, une petite liste de réseaux et d'appareils.
+#  Cette liste existe déjà, en vrai, dans Paramètres → Réseau et → Bluetooth
+#  (settings.py) : la reproduire ici donnerait deux endroits où un bogue
+#  pourrait un jour raconter deux choses différentes. La tuile Clavier suit
+#  le même principe et ouvre directement Paramètres sur sa page — exactement
+#  ce que fait openSettings('clavier') dans la démo.
+#
+#  LES COMMANDES SONT CELLES DE settings.py, PAS UNE VERSION PARALLÈLE.
+#  nmcli pour le Wi-Fi et bluetoothctl pour le Bluetooth se passent de
+#  sudo — c'est déjà comme ça que la fenêtre des Paramètres les bascule.
+#  « lexos-net avion » et « lexos theme »/« lexos crt », eux, passent par
+#  need_root() côté lexos-net : ça demande un mot de passe sur une machine
+#  installée (sudo sans mot de passe n'existe que sur la session démo, voir
+#  le hook 0400) — une limite déjà présente dans les Paramètres, pas une
+#  régression de ce volet.
+PERF_LABEL = {"petit": "Petit", "medium": "Médium",
+              "performant": "Performant", "max": "Performance max"}
+
+
+def _wifi_radio_etat():
+    if shutil.which("nmcli") is None:
+        return False
+    try:
+        r = subprocess.run(["nmcli", "-t", "radio", "wifi"],
+                           capture_output=True, text=True, timeout=5)
+    except (subprocess.SubprocessError, OSError):
+        return False
+    return r.stdout.strip() == "enabled"
+
+
+def _bt_radio_etat():
+    """None si la machine n'a pas de Bluetooth — la tuile s'affiche alors
+    grisée plutôt que de prétendre pouvoir l'allumer."""
+    if shutil.which("bluetoothctl") is None:
+        return None
+    try:
+        r = subprocess.run(["bluetoothctl", "show"],
+                           capture_output=True, text=True, timeout=5)
+    except (subprocess.SubprocessError, OSError):
+        return None
+    if not r.stdout:
+        return None
+    for ligne in r.stdout.splitlines():
+        if ligne.strip().startswith("Powered:"):
+            return ligne.split(":", 1)[1].strip() == "yes"
+    return None
+
+
+def _avion_radio_etat():
+    """Même calcul que avion_state() dans lexos-net et _mode_apparence()
+    ici : « -t » (terse) donne des mots-clés fixes, jamais traduits."""
+    if shutil.which("nmcli") is None:
+        return False
+    try:
+        wifi = subprocess.run(["nmcli", "-t", "radio", "wifi"],
+                              capture_output=True, text=True, timeout=5).stdout.strip()
+        wwan = subprocess.run(["nmcli", "-t", "radio", "wwan"],
+                              capture_output=True, text=True, timeout=5).stdout.strip()
+    except (subprocess.SubprocessError, OSError):
+        return False
+    return wifi == "disabled" and wwan in ("disabled", "missing", "")
+
+
+def _perf_etat():
+    try:
+        profil = Path("/etc/lexos/performance").read_text(encoding="utf-8").strip()
+    except OSError:
+        profil = ""
+    return profil if profil in PERF_LABEL else "medium"
+
+
+def _crt_rapides_etat():
+    try:
+        return (CONF / "crt").read_text(encoding="utf-8").strip() != "off"
+    except OSError:
+        return True
+
+
+def _rapides_etat():
+    avion = _avion_radio_etat()
+    perf = _perf_etat()
+    return {
+        "avion": avion,
+        #  Wi-Fi et Bluetooth s'affichent éteints sous le mode avion, comme
+        #  dans la démo — même si la radio répond encore « enabled » entre
+        #  deux secondes de bascule.
+        "wifi": False if avion else _wifi_radio_etat(),
+        "bt": None if avion else _bt_radio_etat(),
+        "perf": perf,
+        "perfLabel": PERF_LABEL[perf],
+        "theme": _mode_apparence(),
+        "crt": _crt_rapides_etat(),
+    }
+
+
+def act_rapides_wifi(_arg=None):
+    if shutil.which("nmcli") is None:
+        return {"ok": False, "erreur": "nmcli absent"}
+    if _avion_radio_etat():
+        return {"ok": False, "erreur": "mode avion actif"}
+    allume = _wifi_radio_etat()
+    try:
+        r = subprocess.run(["nmcli", "radio", "wifi", "off" if allume else "on"],
+                           capture_output=True, text=True, timeout=10)
+    except (subprocess.SubprocessError, OSError) as e:
+        return {"ok": False, "erreur": str(e)}
+    return {"ok": r.returncode == 0}
+
+
+def act_rapides_bt(_arg=None):
+    if shutil.which("bluetoothctl") is None:
+        return {"ok": False, "erreur": "bluetoothctl absent"}
+    if _avion_radio_etat():
+        return {"ok": False, "erreur": "mode avion actif"}
+    allume = _bt_radio_etat()
+    if allume is None:
+        return {"ok": False, "erreur": "aucun contrôleur Bluetooth"}
+    try:
+        r = subprocess.run(["bluetoothctl", "power", "off" if allume else "on"],
+                           capture_output=True, text=True, timeout=10)
+    except (subprocess.SubprocessError, OSError) as e:
+        return {"ok": False, "erreur": str(e)}
+    return {"ok": r.returncode == 0}
+
+
+def act_rapides_avion(_arg=None):
+    if shutil.which("lexos-net") is None:
+        return {"ok": False, "erreur": "lexos-net absent"}
+    try:
+        r = subprocess.run(["lexos-net", "avion", "toggle"],
+                           capture_output=True, text=True, timeout=15)
+    except (subprocess.SubprocessError, OSError) as e:
+        return {"ok": False, "erreur": str(e)}
+    return {"ok": r.returncode == 0, "erreur": r.stderr.strip() if r.returncode else ""}
+
+
+def act_rapides_perf(_arg=None):
+    if shutil.which("lexos-perf") is None:
+        return {"ok": False, "erreur": "lexos-perf absent"}
+    ordre = ["petit", "medium", "performant", "max"]
+    suivant = ordre[(ordre.index(_perf_etat()) + 1) % len(ordre)]
+    try:
+        r = subprocess.run(["lexos-perf", suivant],
+                           capture_output=True, text=True, timeout=15)
+    except (subprocess.SubprocessError, OSError) as e:
+        return {"ok": False, "erreur": str(e)}
+    return {"ok": r.returncode == 0}
+
+
+def act_rapides_theme(_arg=None):
+    if shutil.which("lexos") is None:
+        return {"ok": False, "erreur": "lexos absent"}
+    suivant = "clair" if _mode_apparence() == "sombre" else "sombre"
+    try:
+        r = subprocess.run(["lexos", "theme", suivant],
+                           capture_output=True, text=True, timeout=15)
+    except (subprocess.SubprocessError, OSError) as e:
+        return {"ok": False, "erreur": str(e)}
+    return {"ok": r.returncode == 0}
+
+
+def act_rapides_crt(_arg=None):
+    if shutil.which("lexos") is None:
+        return {"ok": False, "erreur": "lexos absent"}
+    suivant = "off" if _crt_rapides_etat() else "on"
+    try:
+        r = subprocess.run(["lexos", "crt", suivant],
+                           capture_output=True, text=True, timeout=15)
+    except (subprocess.SubprocessError, OSError) as e:
+        return {"ok": False, "erreur": str(e)}
+    return {"ok": r.returncode == 0}
+
+
+def act_rapides_partage(_arg=None):
+    """Ouvre Partager. detach : une fenêtre à part, le volet doit pouvoir se
+    refermer sans l'emporter — même raison que act_meteo_ville."""
+    if shutil.which("lexos-share") is None:
+        return {"ok": False, "erreur": "lexos-share absent"}
+    subprocess.Popen(["lexos-share", "devices"], start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {"ok": True}
+
+
+def act_rapides_clavier(_arg=None):
+    """Comme openSettings('clavier') dans la démo : la tuile Clavier n'essaie
+    pas de changer de disposition elle-même, elle ouvre Paramètres sur sa
+    page — voir la note plus haut sur ce qui est volontairement absent."""
+    if shutil.which("lexos-settings") is None:
+        return {"ok": False, "erreur": "lexos-settings absent"}
+    subprocess.Popen(["lexos-settings", "clavier"], start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {"ok": True}
+
+
 ACTIONS = {
     "notif-vide": act_notif_vide,
     "agenda-ajoute": act_agenda_ajoute,
     "agenda-enleve": act_agenda_enleve,
     "meteo-ville": act_meteo_ville,
+    "rapides-wifi": act_rapides_wifi,
+    "rapides-bt": act_rapides_bt,
+    "rapides-avion": act_rapides_avion,
+    "rapides-perf": act_rapides_perf,
+    "rapides-theme": act_rapides_theme,
+    "rapides-crt": act_rapides_crt,
+    "rapides-partage": act_rapides_partage,
+    "rapides-clavier": act_rapides_clavier,
 }
 
 
@@ -284,6 +497,8 @@ def etat(quoi):
     commun = {"quoi": quoi, "aujourdhui": date.today().isoformat()}
     if quoi == "meteo":
         commun["meteo"] = _meteo()
+    elif quoi == "rapides":
+        commun["rapides"] = _rapides_etat()
     else:
         commun["notifications"] = _notifications()
         commun["agenda"] = _agenda_lit()
@@ -357,7 +572,7 @@ def _hauteur_barre():
 def main():
     quoi = sys.argv[1] if len(sys.argv) > 1 else "agenda"
     if quoi not in VOLETS:
-        print(f"Volet inconnu : {quoi}   (agenda · meteo)", file=sys.stderr)
+        print(f"Volet inconnu : {quoi}   (agenda · meteo · rapides)", file=sys.stderr)
         return 1
     if not WEB_DIR.exists():
         print(f"Erreur : dossier web/ introuvable ({WEB_DIR})", file=sys.stderr)
@@ -399,9 +614,15 @@ def main():
     haut = ecran.y() + _hauteur_barre()
 
     #  L'agenda descend de l'HEURE, qui est au centre de la barre ; la météo
-    #  descend de sa tuile, à gauche. Chacun tombe donc sous la sienne.
+    #  descend de sa tuile, à gauche ; les paramètres rapides, du bouton
+    #  « ▲ », tout à droite (greffon 12, juste avant le bouton rouge).
+    #  Chacun tombe donc sous le sien.
     if quoi == "meteo":
         gauche = ecran.x() + 14
+    elif quoi == "rapides":
+        largeur = min(340, ecran.width() - 24)
+        hauteur = min(460, hauteur)
+        gauche = ecran.x() + ecran.width() - largeur - 14
     else:
         gauche = ecran.x() + (ecran.width() - largeur) // 2
     vue.setGeometry(gauche, haut, largeur, hauteur)

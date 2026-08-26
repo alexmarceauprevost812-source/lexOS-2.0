@@ -2,8 +2,9 @@
 # =============================================================================
 #  lexos-volet — le panneau qui descend de la barre du haut
 # =============================================================================
-#  « lexos-volet agenda »  notifications + agenda (clic sur l'heure)
-#  « lexos-volet meteo »   le temps qu'il fait   (clic sur la météo)
+#  « lexos-volet agenda »   notifications + agenda (clic sur l'heure)
+#  « lexos-volet meteo »    le temps qu'il fait   (clic sur la météo)
+#  « lexos-volet rapides »  bascules rapides — Wi-Fi, Bluetooth… (clic sur ▲)
 #
 #  UN SEUL À LA FOIS, ET C'EST LE POINT DÉLICAT. Un volet se referme quand on
 #  clique ailleurs — y compris quand on clique sur la tuile qui l'a ouvert.
@@ -16,8 +17,8 @@ set -u
 
 QUOI="${1:-agenda}"
 case "$QUOI" in
-	agenda|meteo) ;;
-	*) echo "Usage : ${0##*/} agenda|meteo" >&2; exit 1 ;;
+	agenda|meteo|rapides) ;;
+	*) echo "Usage : ${0##*/} agenda|meteo|rapides" >&2; exit 1 ;;
 esac
 
 MOTIF="/usr/lib/lexos/volet.py"
