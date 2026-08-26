@@ -47,6 +47,8 @@ import json
 import math
 import os
 import random
+import shutil
+import subprocess
 import sys
 import time
 
@@ -91,6 +93,7 @@ SOURCES = [
 ]
 
 BATTERIE_MS = 20000    # on regarde l'alimentation toutes les 20 secondes
+ICONES_MS = 15000       # on remonte xfdesktop au-dessus de nous à ce rythme
 IPS_DEFAUT = 12        # images par seconde en mode complet
 STATIQUES = {"fond", "image", "grille", "braises", "vignette", "marque", "texte"}
 ANIMEES = {"code", "pluie", "etoiles", "particules", "horloge", "marque3d"}
@@ -191,6 +194,40 @@ def pointeur_global():
         except ValueError:
             return None
     return None
+
+
+def remonte_xfdesktop(executeur=subprocess.run, cherche=shutil.which):
+    """Fait remonter xfdesktop AU-DESSUS de notre fenêtre de fond.
+
+    ALEX : « pas capable de mettre des applications sur le bureau » quand le
+    fond animé tourne — les icônes du bureau restaient invisibles, alors
+    qu'une image fixe les laissait voir.
+
+    xfdesktop (qui dessine ces icônes) et nous sommes TOUS LES DEUX de type
+    _NET_WM_WINDOW_TYPE_DESKTOP — xfwm4 garantit bien que ce calque reste
+    sous les fenêtres normales, mais PAS l'ordre RELATIF entre deux fenêtres
+    de ce même calque. Notre fenêtre peut donc se retrouver au-dessus de
+    xfdesktop plutôt qu'en dessous, et les icônes disparaissent derrière le
+    fond animé sans qu'aucun code ne soit à proprement parler « cassé ».
+    L'abaisser ENCORE, elle, ne changerait rien : elle est déjà tout en bas.
+    C'est xfdesktop qu'il faut remonter, dans CE calque précisément.
+
+    Ça peut se reproduire après le lancement — un rechargement de xfdesktop
+    (lexos-theme-gen en déclenche un quand l'accent change, pour repeindre
+    les dossiers) le refait apparaître, et l'ordre est de nouveau à refaire.
+    D'où l'appel au démarrage ET la minuterie qui le répète.
+    """
+    if cherche("xdotool"):
+        args = ["xdotool", "search", "--class", "xfdesktop", "windowraise"]
+    elif cherche("wmctrl"):
+        args = ["wmctrl", "-x", "-a", "xfdesktop.Xfdesktop"]
+    else:
+        return False
+    try:
+        executeur(args, capture_output=True, timeout=2, check=False)
+        return True
+    except Exception:
+        return False
 
 
 def sur_batterie():
@@ -1173,6 +1210,12 @@ def main():
                 self.reprend()
             GLib.timeout_add(BATTERIE_MS, self.surveille_batterie)
 
+            #  xfdesktop n'est pas forcément déjà là au moment où on se lève —
+            #  on le remonte tout de suite, et la minuterie rattrape le cas où
+            #  il apparaît (ou réapparaît) juste après.
+            remonte_xfdesktop()
+            GLib.timeout_add(ICONES_MS, self.remonte_icones)
+
         # --- Dessin ----------------------------------------------------------
         def reconstruit_tampon(self):
             self.tampon = cairo.ImageSurface(cairo.FORMAT_ARGB32,
@@ -1233,6 +1276,10 @@ def main():
                 self.fige()
             else:
                 self.reprend()
+            return True
+
+        def remonte_icones(self):
+            remonte_xfdesktop()
             return True
 
     Fond()
