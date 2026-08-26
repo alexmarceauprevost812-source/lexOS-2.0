@@ -2106,7 +2106,24 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
 #powerOverlay.suspend{transition:opacity .4s ease}
 
 /* --- Écran de connexion (verrouillage) : sélecteur d'utilisateur --------- */
-#powerOverlay.login{cursor:default}
+/*  LE DÉMON DERRIÈRE. Alex, photo de cet écran : « un peu comme ça, mais
+    mettre [...] avec le démon derrière ». Le logo TI·LEX·AL prend le haut,
+    les profils descendent en bas : c'est la MÊME composition que l'écran de
+    connexion de l'ISO (hook 0410, « position=50%,center 88%,end »), et c'est
+    voulu — les deux écrans se ressemblent parce qu'ils sont le même écran.
+
+    « justify-content:flex-end » plutôt qu'un centrage : centrés, les profils
+    remonteraient dans le visage du démon dès qu'une ligne s'ajoute (le champ
+    du mot de passe, le message d'erreur). Ancrer par le bas, c'est ce qui
+    garde la figure dégagée quoi qu'on empile. */
+#powerOverlay.login{cursor:default;
+  justify-content:flex-end;padding-bottom:11vh;
+  background-color:#000;
+  background-image:var(--wall-demon),
+    radial-gradient(55% 40% at 50% 22%, rgba(232,89,12,.28), transparent 70%);
+  background-repeat:no-repeat,no-repeat;
+  background-position:center 4%,center;
+  background-size:auto 40%,cover}
 .login-title{font-size:16px;color:#e6e6ea;letter-spacing:.02em}
 .login-tiles{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;padding:0 16px}
 .login-tile{width:148px;padding:16px 10px;border-radius:14px;cursor:pointer;

@@ -59,6 +59,37 @@ if [ -r "$BRAND/logo-ti-lex-al-icon.png" ] && have convert; then
 		|| echo "[lexos]   !! échec : wallpaper-demon.png"
 fi
 
+# --- Le fond de l'ÉCRAN DE CONNEXION ---------------------------------------
+#  Alex, photo de l'ISO 76 : « aimerais [...] avec la 2e image comme fond
+#  d'écran ». La 2e image, c'est le logo TI·LEX·AL — le démon en flammes.
+#
+#  POURQUOI UNE IMAGE À PART, ET PAS wallpaper-demon.png QUI EXISTE DÉJÀ
+#  Celle-là est composée pour un BUREAU : le logo occupe le haut, le dock et
+#  les icônes vivent en dessous. L'écran de connexion, lui, pose une boîte au
+#  milieu-bas. Avec le logo à 620 px, la boîte lui tomberait en plein visage.
+#
+#  680 px de haut à 40 px du bord, ce n'est donc pas un chiffre choisi au
+#  hasard. La boîte de connexion est ancrée par son BAS à 88 % de la hauteur
+#  (hook 0400) et mesure ~330 px : sur un écran de 1080, son haut tombe vers
+#  620 px, juste sous la pointe des flammes — le démon ET la banderole
+#  TI·LEX·AL restent entiers. Composé et REGARDÉ, pas calculé de tête.
+#
+#  Sur un écran de 768 px de haut, la boîte garde ses 330 px pendant que
+#  l'image, elle, rétrécit : elle mordra sur le bas de la banderole. C'est le
+#  compromis assumé — une image assez grande pour qu'on la voie sur les
+#  écrans d'aujourd'hui, plutôt qu'un timbre-poste sûr partout. Le visage,
+#  lui, reste dégagé dans tous les cas.
+if [ -r "$BRAND/logo-ti-lex-al-icon.png" ] && have convert; then
+	convert -size 1920x1080 xc:black \
+		\( "$BRAND/logo-ti-lex-al-icon.png" -resize x680 \) \
+		-gravity north -geometry +0+40 -composite \
+		"$BG/lexos-connexion.png" \
+		&& echo "[lexos]   -> $BG/lexos-connexion.png" \
+		|| echo "[lexos]   !! échec : lexos-connexion.png"
+else
+	echo "[lexos]   !! pas de logo ou pas d'ImageMagick — l'écran de connexion restera noir uni"
+fi
+
 # Fond d'écran « Explorateur » : la photo-affiche lexos-1.0-keyart.png, posée
 # sur fond noir — même composition que le sélecteur de la démo web (Paramètres → Bureau LexOS).
 if [ -r "$BRAND/lexos-1.0-keyart.png" ] && have convert; then

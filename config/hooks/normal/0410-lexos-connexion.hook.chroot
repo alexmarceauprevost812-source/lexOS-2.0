@@ -1,0 +1,150 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — l'écran de connexion : noir, orange, et le démon derrière
+# =============================================================================
+#  CE QU'ALEX A VU, ET CE QU'IL A DEMANDÉ
+#  Photo de l'ISO 76 : un rectangle GRIS au milieu de l'écran, l'écriture
+#  blanche, « Votre mot de passe est incorrect » en rouge, une petite photo
+#  de profil, et derrière un fond d'écran.
+#
+#  Ses mots :
+#    « modifier cette page de connexion à LexOS »
+#    « [j'] aimerais qu'elle [soit] où le carré gris soit bien NOIR, les
+#      écritures ORANGE, avec la photo du profil choisi, avec la 2e image
+#      comme fond d'écran »
+#
+#  Trois choses à poser, et une seule est un réglage :
+#    · LE FOND — clé « background ». L'image est composée par le hook 0300
+#      (lexos-connexion.png : le logo TI·LEX·AL sur noir).
+#    · LA PHOTO DU PROFIL — clé « hide-user-image=false ». Le greeter montre
+#      alors l'image du compte SÉLECTIONNÉ (son ~/.face, posé dans /etc/skel
+#      par le hook 0300, ou son avatar AccountsService). « default-user-image »
+#      ne sert qu'aux comptes qui n'en ont aucune.
+#    · LE NOIR ET L'ORANGE — aucune clé. lightdm-gtk-greeter ne sait pas
+#      nommer une couleur. Le gris qu'Alex a vu est celui d'Arc-Dark, le thème
+#      GTK que le greeter porte. Ça se joue en CSS (connexion.css).
+#
+#  POURQUOI UN HOOK À PART, ET PAS LA SUITE DU 0400
+#  Le 0400 crée des comptes, pose sudo, écrit des .desktop : on ne peut pas le
+#  rejouer dans un banc d'essai sans useradd ni chpasswd. Cette page-ci a trois
+#  replis (pas d'image, pas de CSS, pas de thème de base) et chacun doit être
+#  ÉPROUVÉ, pas relu. D'où un hook seul, dont tous les chemins se détournent
+#  par une variable — le patron du hook 0610.
+# =============================================================================
+set -e
+
+LIGHTDM_DIR="${LEXOS_LIGHTDM_DIR:-/etc/lightdm}"
+LIGHTDM_HOME="${LEXOS_LIGHTDM_HOME:-/var/lib/lightdm}"
+THEMES="${LEXOS_THEMES:-/usr/share/themes}"
+BG_DIR="${LEXOS_BG_DIR:-/usr/share/backgrounds/lexos}"
+CSS_SRC="${LEXOS_CONNEXION_CSS:-/usr/share/lexos/connexion.css}"
+LIGHTDM_BIN="${LEXOS_LIGHTDM_BIN:-/usr/sbin/lightdm}"
+
+if [ ! -x "$LIGHTDM_BIN" ] && [ ! -d "$LIGHTDM_DIR" ]; then
+	echo "[lexos] hook 0410 : pas de lightdm, ignoré"
+	exit 0
+fi
+
+echo "[lexos] hook 0410 : écran de connexion"
+
+LEXOS_GTK_BASE_THEME="Arc-Dark"
+LEXOS_ICON_THEME="LexOS"
+
+BUILD_CONF="${LEXOS_BUILD_CONF:-/etc/lexos/build.conf}"
+if [ -r "$BUILD_CONF" ]; then
+	# shellcheck disable=SC1090,SC1091
+	. "$BUILD_CONF"
+fi
+
+# --- LE FOND ----------------------------------------------------------------
+#  On prend la première image RÉELLEMENT présente. Sans ce choix, un chroot
+#  sans ImageMagick livrerait une clé qui pointe sur un fichier inexistant, et
+#  lightdm afficherait du gris uni — exactement ce dont Alex ne veut plus.
+#  La dernière valeur n'est pas un fichier mais une COULEUR : la clé accepte
+#  les deux, et du noir vaut mieux qu'un fond manquant.
+GREETER_BG="#000000"
+for CAND in "$BG_DIR/lexos-connexion.png" \
+            "$BG_DIR/wallpaper-demon.png" \
+            "$BG_DIR/wallpaper.png"; do
+	if [ -r "$CAND" ]; then GREETER_BG="$CAND"; break; fi
+done
+echo "[lexos]   fond : ${GREETER_BG}"
+
+# --- LE CSS, POSÉ À DEUX ENDROITS -------------------------------------------
+#  1. $LIGHTDM_HOME/.config/gtk-3.0/gtk.css — le greeter tourne sous le compte
+#     « lightdm », dont le foyer est /var/lib/lightdm. GTK charge le CSS de
+#     l'utilisateur à la priorité 800 et le thème à 200, et il compare les
+#     PRIORITÉS avant les spécificités : ce chemin-là gagne contre n'importe
+#     quelle règle d'Arc-Dark, quelle que soit sa façon d'être écrite.
+#
+#  2. $THEMES/LexOS-Connexion — un thème à nous, qui importe le thème de base
+#     puis rajoute les mêmes règles. Là on est à égalité de priorité : c'est
+#     pour ça que connexion.css écrit ses sélecteurs en formes composées.
+#
+#  Deux chemins pour la même feuille. Il faudrait qu'ils tombent tous les deux
+#  ensemble pour revoir du gris.
+GREETER_THEME="${LEXOS_GTK_BASE_THEME}"
+
+if [ -r "$CSS_SRC" ]; then
+	mkdir -p "$LIGHTDM_HOME/.config/gtk-3.0"
+	cp "$CSS_SRC" "$LIGHTDM_HOME/.config/gtk-3.0/gtk.css"
+	chown -R lightdm:lightdm "$LIGHTDM_HOME/.config" 2>/dev/null || true
+
+	BASE_CSS="$THEMES/${LEXOS_GTK_BASE_THEME}/gtk-3.0/gtk.css"
+	mkdir -p "$THEMES/LexOS-Connexion/gtk-3.0"
+	{
+		#  L'import doit être la PREMIÈRE règle du fichier : c'est la règle du
+		#  langage CSS, pas une préférence. Placé plus bas il serait ignoré en
+		#  silence, et on perdrait tout le thème de base sans le savoir.
+		if [ -r "$BASE_CSS" ]; then
+			echo "@import url(\"file://${BASE_CSS}\");"
+		else
+			echo "/* thème de base introuvable : on habille ce que GTK donnera */"
+		fi
+		cat "$CSS_SRC"
+	} > "$THEMES/LexOS-Connexion/gtk-3.0/gtk.css"
+
+	cat > "$THEMES/LexOS-Connexion/index.theme" <<'THEME'
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=LexOS-Connexion
+Comment=L'écran de connexion de LexOS — noir et orange
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=LexOS-Connexion
+THEME
+	GREETER_THEME="LexOS-Connexion"
+	echo "[lexos]   thème : LexOS-Connexion (base : ${LEXOS_GTK_BASE_THEME})"
+else
+	#  On n'écrit PAS le nom d'un thème qu'on n'a pas fabriqué : GTK
+	#  retomberait sur Adwaita, qui est CLAIR — l'écran serait pire qu'avant.
+	echo "[lexos]   !! ${CSS_SRC} absent — l'écran gardera le gris du thème"
+fi
+
+# --- LE FICHIER DE CONFIGURATION --------------------------------------------
+mkdir -p "$LIGHTDM_DIR"
+cat > "$LIGHTDM_DIR/lightdm-gtk-greeter.conf" <<EOF
+[greeter]
+background=${GREETER_BG}
+theme-name=${GREETER_THEME}
+icon-theme-name=${LEXOS_ICON_THEME}
+font-name=Noto Sans 11
+xft-antialias=true
+xft-hintstyle=hintslight
+xft-rgba=rgb
+indicators=~host;~spacer;~clock;~spacer;~layout;~session;~a11y;~power
+clock-format=%A %d %B — %H:%M
+position=50%,center 88%,end
+default-user-image=/usr/share/lexos/branding/mascot.png
+user-background=false
+hide-user-image=false
+round-user-image=true
+EOF
+
+#  « position=50%,center 88%,end » : le BAS de la boîte à 88 % de la hauteur,
+#  et non son CENTRE à 55 % comme avant. Ancrer par le bas est ce qui laisse
+#  le logo tranquille en haut — une boîte centrée grandit des DEUX côtés et
+#  finit par monter dans le visage du démon dès qu'un message d'erreur
+#  s'ajoute (« Votre mot de passe est incorrect », sur la photo d'Alex).
+echo "[lexos]   position : boîte ancrée par le bas à 88 % — le logo reste dégagé"

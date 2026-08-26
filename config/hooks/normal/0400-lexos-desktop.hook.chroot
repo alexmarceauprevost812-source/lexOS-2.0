@@ -13,9 +13,10 @@ fi
 echo "[lexos] hook 0400 : bureau"
 
 LEXOS_NAME="LexOS"
-LEXOS_GTK_BASE_THEME="Arc-Dark"
-LEXOS_ICON_THEME="Papirus-Dark"
 LEXOS_LIVE_USER="lex"
+#  Les noms de thèmes ne sont plus lus ici : l'apparence de l'écran de
+#  connexion est passée au hook 0410, et le bureau au 0600. Les garder en
+#  double, c'est se préparer à en corriger un et pas l'autre.
 
 if [ -r /etc/lexos/build.conf ]; then
 	# shellcheck disable=SC1091
@@ -32,23 +33,9 @@ greeter-hide-users=false
 allow-guest=true
 EOF
 
-cat > /etc/lightdm/lightdm-gtk-greeter.conf <<EOF
-[greeter]
-background=/usr/share/backgrounds/lexos/wallpaper.png
-theme-name=${LEXOS_GTK_BASE_THEME}
-icon-theme-name=${LEXOS_ICON_THEME}
-font-name=Noto Sans 11
-xft-antialias=true
-xft-hintstyle=hintslight
-xft-rgba=rgb
-indicators=~host;~spacer;~clock;~spacer;~layout;~session;~a11y;~power
-clock-format=%A %d %B — %H:%M
-position=50%,center 55%,center
-default-user-image=/usr/share/lexos/branding/mascot.png
-user-background=false
-hide-user-image=false
-round-user-image=true
-EOF
+#  L'APPARENCE de l'écran de connexion (le noir, l'orange, le démon en fond)
+#  vit dans le hook 0410 : elle a sa propre logique de repli et son propre
+#  banc d'essai. Ici on ne pose que le SIÈGE — quel greeter, quelle session.
 
 # --- Compte de session live : créé DÈS LA CONSTRUCTION -----------------------
 #  Correctif (construction 12) : on comptait sur live-config pour créer le

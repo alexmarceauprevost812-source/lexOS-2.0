@@ -123,12 +123,70 @@ if [ -f "$SKEL_XFCONF/xfwm4.xml" ]; then
 		"$SKEL_XFCONF/xfwm4.xml"
 fi
 
-if [ -f /etc/lightdm/lightdm-gtk-greeter.conf ]; then
-	sed -i \
-		-e "s|^theme-name=.*|theme-name=${GTK_BASE}|" \
-		-e "s|^icon-theme-name=.*|icon-theme-name=${ICONS}|" \
-		/etc/lightdm/lightdm-gtk-greeter.conf
+# --- L'écran de connexion : les noms retenus, et l'accent retenu -----------
+#  CE BLOC RÉÉCRIVAIT « theme-name » AVEC LE THÈME DE BASE. Depuis que le hook
+#  0410 fabrique « LexOS-Connexion » (le noir et l'orange demandés par Alex),
+#  l'écraser ici ANNULERAIT tout le travail — et rien dans le journal ne
+#  l'aurait dit. Exactement le piège du paquet terminal au build 76, qui
+#  aurait remis « Papirus-Dark » sans qu'on s'en aperçoive.
+#
+#  Le bloc va de la balise « banc: connexion » à sa fermeture. Ce ne sont pas
+#  des décorations : tests/test_lexos_connexion.sh découpe entre les deux et
+#  exécute CE fragment. Les déplacer sans les emporter casse le banc, ce qui
+#  est le comportement voulu — un banc qui suit tout seul ne prouve rien.
+# >>> banc: connexion
+CONNEXION_LIGHTDM_DIR="${LEXOS_LIGHTDM_DIR:-/etc/lightdm}"
+CONNEXION_LIGHTDM_HOME="${LEXOS_LIGHTDM_HOME:-/var/lib/lightdm}"
+CONNEXION_THEMES="${LEXOS_THEMES:-/usr/share/themes}"
+CONNEXION_SKEL="${LEXOS_SKEL:-/etc/skel}"
+CONNEXION_CONF="$CONNEXION_LIGHTDM_DIR/lightdm-gtk-greeter.conf"
+
+if [ -f "$CONNEXION_CONF" ]; then
+	sed -i -e "s|^icon-theme-name=.*|icon-theme-name=${ICONS}|" "$CONNEXION_CONF"
+	#  On ne touche à « theme-name » que s'il ne porte PAS notre thème ; dans
+	#  ce cas-là c'est bien le nom de base retenu qu'il lui faut.
+	if ! grep -q '^theme-name=LexOS-Connexion$' "$CONNEXION_CONF"; then
+		sed -i -e "s|^theme-name=.*|theme-name=${GTK_BASE}|" "$CONNEXION_CONF"
+	fi
 fi
+
+#  L'import du thème de connexion pointe vers le thème de base DEMANDÉ par le
+#  hook 0410. Si la vérification plus haut en a retenu un autre (Arc-Dark
+#  absent), l'import montrerait un dossier qui n'existe pas et l'écran de
+#  connexion perdrait sa mise en forme de base. On le réécrit d'après le nom
+#  RÉELLEMENT retenu — même raison que pour xsettings.xml juste au-dessus.
+CONNEXION_CSS="$CONNEXION_THEMES/LexOS-Connexion/gtk-3.0/gtk.css"
+if [ -f "$CONNEXION_CSS" ]; then
+	CONNEXION_BASE="$CONNEXION_THEMES/${GTK_BASE}/gtk-3.0/gtk.css"
+	if [ -r "$CONNEXION_BASE" ]; then
+		sed -i "1s|^@import url(\"file://.*\");$|@import url(\"file://${CONNEXION_BASE}\");|" \
+			"$CONNEXION_CSS"
+	fi
+fi
+
+#  L'ACCENT. connexion.css est écrit en orange (#E8590C), l'accent par défaut.
+#  Une ISO montée en bleu ou en néon aurait sinon un bureau d'une couleur et un
+#  écran de connexion d'une autre — deux vérités pour un seul réglage. On lit
+#  l'accent réellement produit par lexos-theme-gen (il l'écrit dans theme.conf)
+#  et on le substitue, exactement comme lexos-theme-gen le fait pour les icônes.
+CONNEXION_ACCENT=""
+CONNEXION_ACCENT_HI=""
+CONNEXION_ACCENT_LO=""
+if [ -r "$CONNEXION_SKEL/.config/lexos/theme.conf" ]; then
+	CONNEXION_ACCENT="$(sed -n 's/^LEXOS_ACCENT=//p' "$CONNEXION_SKEL/.config/lexos/theme.conf" | head -1)"
+	CONNEXION_ACCENT_HI="$(sed -n 's/^LEXOS_ACCENT_HI=//p' "$CONNEXION_SKEL/.config/lexos/theme.conf" | head -1)"
+	CONNEXION_ACCENT_LO="$(sed -n 's/^LEXOS_ACCENT_LO=//p' "$CONNEXION_SKEL/.config/lexos/theme.conf" | head -1)"
+fi
+if [ -n "$CONNEXION_ACCENT" ] && [ "$CONNEXION_ACCENT" != "#E8590C" ]; then
+	for F in "$CONNEXION_CSS" "$CONNEXION_LIGHTDM_HOME/.config/gtk-3.0/gtk.css"; do
+		[ -f "$F" ] || continue
+		sed -i -e "s/#E8590C/${CONNEXION_ACCENT}/gI" \
+			-e "s/#FF7A33/${CONNEXION_ACCENT_HI}/gI" \
+			-e "s/#A84007/${CONNEXION_ACCENT_LO}/gI" "$F"
+	done
+	echo "[lexos]   connexion : accent ${CONNEXION_ACCENT}"
+fi
+# <<< banc: connexion
 
 #  Et dans build.conf, pour que lexos-firstrun applique les MÊMES noms à
 #  l'ouverture de session — c'est lui qui a le dernier mot sur l'écran.

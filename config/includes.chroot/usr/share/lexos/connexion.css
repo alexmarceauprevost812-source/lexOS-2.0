@@ -1,0 +1,227 @@
+/* ===========================================================================
+   LexOS — l'écran de connexion (lightdm-gtk-greeter)
+   ===========================================================================
+   CE QU'ALEX A VU, ET CE QU'IL A DEMANDÉ
+   Photo de l'ISO 76 : un rectangle GRIS au milieu de l'écran, l'écriture
+   blanche dessus, « Votre mot de passe est incorrect » en rouge, une petite
+   photo de profil, et derrière, le fond d'écran.
+
+   Ses mots :
+     « modifier cette page de connexion à LexOS »
+     « [j'] aimerais qu'elle [soit] où le carré gris soit bien NOIR, les
+       écritures ORANGE, avec la photo du profil choisi, avec la 2e image
+       comme fond d'écran »
+
+   La 2e image, c'est le logo TI·LEX·AL — le démon en flammes sur fond noir.
+   Il devient le fond de l'écran de connexion (hook 0300, lexos-connexion.png).
+   Le reste — le noir et l'orange — se joue ici.
+
+   ═══ POURQUOI CE FICHIER EXISTE, AU LIEU D'UN RÉGLAGE ═══
+   lightdm-gtk-greeter n'a AUCUNE clé de couleur. Son fichier de configuration
+   sait nommer un fond d'écran, une police, un thème GTK — pas une couleur de
+   texte ni une couleur de boîte. Le gris qu'Alex a vu n'est pas un choix de
+   LexOS : c'est le gris d'Arc-Dark, le thème GTK que le greeter porte.
+
+   On ne peut donc pas « régler » cette page. On l'HABILLE, en CSS, par-dessus
+   le thème. C'est le même mur qu'au build 70 pour la taille des boutons de
+   fenêtre (xfwm4 n'avait pas de réglage : il a fallu fabriquer les images) et
+   qu'au build 75 pour la fenêtre de session (le greffon d'XFCE ne savait pas
+   ouvrir la nôtre : il a fallu écrire le programme).
+
+   ═══ OÙ CE FICHIER EST POSÉ, ET POURQUOI DEUX FOIS ═══
+   Le hook 0400 l'installe à DEUX endroits, et ce n'est pas de la superstition :
+
+     1. /var/lib/lightdm/.config/gtk-3.0/gtk.css
+        Le greeter tourne sous le compte « lightdm », dont le foyer est
+        /var/lib/lightdm. GTK charge le CSS de l'utilisateur avec la priorité
+        800, le thème avec 200 — et GTK compare les PRIORITÉS avant les
+        spécificités. Ce chemin gagne donc contre n'importe quelle règle
+        d'Arc-Dark, quelle que soit la façon dont elle est écrite.
+
+     2. /usr/share/themes/LexOS-Connexion/gtk-3.0/gtk.css
+        Un thème à nous, qui importe le thème de base puis ajoute ces règles.
+        Là on est à égalité de priorité avec Arc-Dark : c'est pour cela que
+        les sélecteurs ci-dessous sont écrits en formes COMPOSÉES
+        (« #login_window #content_frame » et pas seulement « #content_frame »).
+        À spécificité égale, c'est la feuille lue en dernier qui gagne — et
+        la nôtre est lue après l'import.
+
+   Si le foyer du compte lightdm n'était pas celui qu'on croit, le chemin 2
+   tient. Si le thème LexOS-Connexion manquait, le chemin 1 tient. Il faudrait
+   que les deux tombent en même temps pour revoir du gris.
+
+   ═══ L'ORANGE ═══
+   #E8590C est l'orange de LexOS, celui du dock, des boutons et du terminal.
+   Le hook 0600 le REMPLACE par l'accent réellement retenu à la construction
+   (il le lit dans /etc/skel/.config/lexos/theme.conf) : une ISO montée en
+   bleu aura un écran de connexion bleu, sans qu'on ait deux vérités.
+
+   ═══ L'ORDRE DES RÈGLES COMPTE ═══
+   « #login_window * » et « #login_window button » ont la MÊME spécificité
+   (1,0,1). À égalité, la dernière écrite gagne. Le bloc large passe donc en
+   premier et les cas particuliers ensuite — jamais l'inverse.
+   =========================================================================== */
+
+@define-color lexos_accent    #E8590C;
+@define-color lexos_accent_hi #FF7A33;
+@define-color lexos_accent_lo #A84007;
+@define-color lexos_noir      #000000;
+
+/* --- Le fond de l'écran : noir, pour que l'image ne flotte sur rien ------- */
+/*  Si l'image de fond ne couvre pas exactement l'écran (proportions
+    différentes), ce qui dépasse doit être noir et pas gris. */
+#panel_window,
+#login_window,
+#lightdm-gtk-greeter {
+	background-color: @lexos_noir;
+}
+
+/* --- La barre du haut ----------------------------------------------------- */
+#panel_window {
+	border-bottom: 1px solid alpha(@lexos_accent, 0.35);
+}
+#panel_window * {
+	color: @lexos_accent;
+	background-color: transparent;
+}
+#panel_window menubar,
+#panel_window menuitem {
+	background-color: transparent;
+	color: @lexos_accent;
+}
+#panel_window menuitem:hover {
+	background-color: @lexos_accent;
+	color: @lexos_noir;
+}
+
+/* --- LE CARRÉ GRIS QUI DEVIENT NOIR --------------------------------------- */
+/*  Les trois noms sont ceux du greeter lui-même (son fichier .ui) :
+    « login_window » est la boîte, « content_frame » ce qu'elle contient,
+    « buttonbox_frame » la rangée de boutons du bas. Arc-Dark peint les trois
+    en gris ; on les reprend tous les trois, sinon il reste une bande grise
+    sous les boutons — le genre de moitié de correction qui se voit sur la
+    photo suivante. */
+#login_window {
+	background-color: @lexos_noir;
+	border: 2px solid @lexos_accent;
+	border-radius: 14px;
+	padding: 12px;
+}
+#login_window #content_frame,
+#login_window #buttonbox_frame,
+#content_frame,
+#buttonbox_frame {
+	background-color: @lexos_noir;
+	border: none;
+	box-shadow: none;
+}
+
+/* --- LES ÉCRITURES EN ORANGE ---------------------------------------------- */
+/*  Le sélecteur large d'abord : il attrape aussi le message d'erreur (« Votre
+    mot de passe est incorrect »), que le thème peint en rouge par une classe
+    « .error » — spécificité (0,1,0), moins forte que la nôtre (1,0,1). */
+#login_window * {
+	color: @lexos_accent;
+}
+#login_window label {
+	color: @lexos_accent;
+}
+
+/* --- Le champ du mot de passe --------------------------------------------- */
+#login_window entry {
+	background-color: #0B0B0C;
+	background-image: none;
+	color: @lexos_accent;
+	caret-color: @lexos_accent;
+	border: 1px solid alpha(@lexos_accent, 0.55);
+	border-radius: 9px;
+	padding: 7px 10px;
+}
+#login_window entry:focus {
+	border-color: @lexos_accent;
+	box-shadow: none;
+}
+/*  Le texte sélectionné dans le champ : règle SÉPARÉE, jamais en liste avec
+    d'autres. Leçon de « selection, ::selection » : un seul sélecteur invalide
+    dans une liste séparée par des virgules annule TOUTE la règle, et on
+    perdrait le champ avec. Isolée, elle ne peut faire tomber qu'elle-même. */
+#login_window entry selection {
+	background-color: @lexos_accent;
+	color: @lexos_noir;
+}
+
+/* --- Les boutons ---------------------------------------------------------- */
+/*  « Se connecter », « Annuler », « Autre… ». Noir sur noir serait illisible :
+    le fond reste très sombre, la bordure et l'écriture portent l'orange, et
+    le survol inverse les deux — c'est déjà la grammaire des boutons du dock
+    et de la fenêtre de session. */
+#login_window button {
+	background-image: none;
+	background-color: #141416;
+	color: @lexos_accent;
+	border: 1px solid alpha(@lexos_accent, 0.55);
+	border-radius: 9px;
+	padding: 7px 16px;
+	text-shadow: none;
+}
+#login_window button:hover {
+	background-color: @lexos_accent;
+	color: @lexos_noir;
+	border-color: @lexos_accent;
+}
+#login_window button:active,
+#login_window button:checked {
+	background-color: @lexos_accent_lo;
+	color: @lexos_noir;
+}
+#login_window button:disabled {
+	background-color: #0B0B0C;
+	color: alpha(@lexos_accent, 0.45);
+	border-color: alpha(@lexos_accent, 0.25);
+}
+
+/* --- La liste des comptes (« Autre… ») ------------------------------------ */
+#login_window #user_combo,
+#login_window combobox,
+#login_window combobox button {
+	background-color: #141416;
+	color: @lexos_accent;
+}
+#login_window combobox window,
+#login_window combobox menu,
+#login_window combobox list {
+	background-color: @lexos_noir;
+	color: @lexos_accent;
+}
+
+/* --- LA PHOTO DU PROFIL CHOISI -------------------------------------------- */
+/*  « avec la photo du profil du profil choisi » : le greeter affiche déjà
+    l'image du compte SÉLECTIONNÉ (son ~/.face, ou l'avatar d'AccountsService)
+    — c'est « hide-user-image=false », posé par le hook 0400. Ce qu'on ajoute
+    ici, c'est de la VOIR : une pastille ronde cerclée d'orange au lieu d'une
+    vignette posée sur du gris.
+
+    Ce qu'on ne peut PAS faire, et il vaut mieux l'écrire que le laisser
+    croire : l'agrandir. Le greeter met la photo à l'échelle dans son code,
+    pas en CSS ; « min-width » n'ajouterait que du vide autour. La photo reste
+    de la taille que le programme lui donne. */
+#login_window #user_image {
+	background-color: @lexos_noir;
+	border: 2px solid @lexos_accent;
+	border-radius: 50%;
+	padding: 3px;
+	margin-bottom: 6px;
+}
+
+/* --- La barre de progression et les infobulles ---------------------------- */
+#login_window progressbar progress,
+#login_window levelbar block.filled {
+	background-color: @lexos_accent;
+	border-color: @lexos_accent;
+}
+tooltip,
+tooltip.background {
+	background-color: @lexos_noir;
+	color: @lexos_accent;
+	border: 1px solid alpha(@lexos_accent, 0.5);
+}

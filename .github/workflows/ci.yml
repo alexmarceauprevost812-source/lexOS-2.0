@@ -943,6 +943,21 @@ jobs:
           #  — c'est ce qui le met tout à droite de l'écran.
           bash tests/test_lexos_session.sh
 
+      - name: L'écran de connexion — noir, orange, et le démon derrière
+        run: |
+          #  ON NE PEUT PAS AFFICHER L'ÉCRAN DE CONNEXION ICI : pas de serveur
+          #  X, donc pas de rendu. Le banc résout la cascade CSS lui-même —
+          #  priorité du fournisseur, puis spécificité, puis ordre, comme GTK —
+          #  et prouve ainsi que la boîte devient NOIRE et l'écriture ORANGE
+          #  même face à un thème de base qui dit gris.
+          #
+          #  Il joue aussi les trois replis du hook 0410 (pas d'image, pas de
+          #  CSS, pas de thème de base) et le piège qui compte : le hook 0600
+          #  réécrivait « theme-name » SANS CONDITION et aurait annulé tout le
+          #  travail en silence, exactement comme le paquet terminal du
+          #  build 76 aurait remis Papirus-Dark.
+          bash tests/test_lexos_connexion.sh
+
       - name: Tables de modèles Mac identiques
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même
