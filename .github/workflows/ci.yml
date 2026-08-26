@@ -958,6 +958,20 @@ jobs:
           #  build 76 aurait remis Papirus-Dark.
           bash tests/test_lexos_connexion.sh
 
+      - name: La page Wi-Fi — le pictogramme et les outils
+        run: |
+          #  ALEX A COMPARÉ LES DEUX PAGES CÔTE À CÔTE : « wi-fi, utiliser lui
+          #  la 2e image » puis « il manque des outils, la 2e image a plus
+          #  d'outils sur le mode wi-fi ». Sur l'ISO, un carré jaune (l'émoji
+          #  📶 sans police d'émojis) ; dans la démo, une antenne verte.
+          #
+          #  « node --check » ne dirait que ceci : le fichier se parse. Le banc
+          #  CHARGE app.js, lui donne cinq états inventés et regarde le HTML
+          #  rendu — l'antenne devient-elle rouge quand la carte est éteinte,
+          #  orange quand on est connecté sans internet, la bascule apparaît-
+          #  elle, et la liste des réseaux que l'ISO avait EN PLUS survit-elle.
+          node tests/test_lexos_wifi.js
+
       - name: Tables de modèles Mac identiques
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même

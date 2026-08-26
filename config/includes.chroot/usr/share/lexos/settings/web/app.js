@@ -2,9 +2,34 @@
 /* Paramètres LexOS — la même barre latérale que la démo (SETTINGS_NAV),
    branchée sur l'API locale servie par settings.py. */
 
+/*  LE PICTOGRAMME WI-FI DIT SON ÉTAT PAR SA COULEUR.
+    Photo des Paramètres de l'ISO 76, colonne de gauche : à côté de « Wi-Fi »,
+    un carré jaune. C'est l'émoji 📶 rendu sans police d'émojis couleur — le
+    caractère de remplacement. Dans la démo, à la même place, une antenne
+    verte. Alex : « wi-fi, utiliser lui la 2e image ».
+
+    C'est donc le glyphe de la démo qui vient ici, avec sa règle : vert
+    connecté · orange connecté mais rien ne passe · rouge pas de connexion.
+    Un émoji ne dit rien de l'état, et n'est même pas garanti de s'afficher.
+
+    « pic » peut désormais être une FONCTION : l'état change (on éteint le
+    Wi-Fi, on perd internet) et le dessin doit changer avec lui. Une chaîne
+    figée serait juste au premier affichage et fausse ensuite. */
+function wifiGlyph(){
+  const w = etat.wifi || {};
+  let s = "gly-off", t = "Wi-Fi non connecté";
+  if(w.radio === "absent"){ t = "Aucune carte Wi-Fi"; }
+  else if(w.radio !== "enabled"){ t = "Wi-Fi éteint"; }
+  else if(w.reseau){
+    if(w.internet === "full"){ s = "gly-ok"; t = "Connecté à " + w.reseau; }
+    else { s = "gly-warn"; t = "Connecté à " + w.reseau + ", mais rien ne passe"; }
+  }
+  return `<i class="gly gly-wifi ${s}" title="${esc(t)}"></i>`;
+}
+
 const NAV = [
   {grp:"Réseau", items:[
-    ["wifi","📶","Wi-Fi"], ["reseau","🌐","Réseau"], ["bluetooth","🅱","Bluetooth"]]},
+    ["wifi",wifiGlyph,"Wi-Fi"], ["reseau","🌐","Réseau"], ["bluetooth","🅱","Bluetooth"]]},
   {grp:"Matériel", items:[
     ["ecrans","🖥","Écrans"], ["son","🔊","Son"], ["energie","🔋","Énergie"],
     ["usb","🔌","Appareils USB"], ["mac","🍎","Mac (Apple)"]]},
@@ -270,12 +295,41 @@ async function ouvreBoost(){
     Wi-Fi sans l'avoir éteint. */
 async function rafraichir(msg){
   await chargeEtat();
+  //  LA BARRE LATÉRALE AUSSI. Le pictogramme Wi-Fi dit l'état par sa
+  //  couleur : si on ne redessine que la page, on éteint le Wi-Fi et
+  //  l'antenne reste verte à gauche — un interrupteur qui ment, exactement
+  //  ce que le commentaire ci-dessus s'emploie à éviter.
+  rendNav();
   rendSection();
   if(msg) toast(msg);
 }
 async function basculeWifi(){
   const r = await api("wifi-radio", "toggle");
   await rafraichir(r.ok ? "Wi-Fi basculé" : "Échec : " + (r.erreur || "commande refusée"));
+}
+/*  CONNEXION AUTOMATIQUE AUX RÉSEAUX OUVERTS.
+    L'AVERTISSEMENT N'EST PAS DÉCORATIF, et il n'est pas supprimé : en ligne
+    de commande, « lexos net auto on » fait taper OUI. Depuis une fenêtre il
+    n'y a pas de terminal pour répondre — on pose donc la même question ici,
+    puis on passe « --confirme » côté machine pour dire qu'elle a été posée.
+    Éteindre ne demande rien : revenir au réglage sûr n'a pas à se mériter. */
+async function basculeWifiAuto(){
+  const actif = !!((etat.wifi || {}).auto);
+  if(!actif){
+    const d = "Un réseau ouvert n'a pas de mot de passe, donc pas de "
+      + "chiffrement.\n\n"
+      + "· Toute personne à portée peut lire ce qui circule en clair.\n"
+      + "· N'importe qui peut créer un faux point d'accès portant le nom "
+      + "d'un réseau connu.\n"
+      + "· Les sites en HTTPS restent chiffrés ; le reste, non.\n\n"
+      + "À éviter pour la banque, les courriels et les mots de passe.\n\n"
+      + "Activer quand même la connexion automatique ?";
+    if(!window.confirm(d)) return;
+  }
+  const r = await api("wifi-auto", actif ? "off" : "on");
+  await rafraichir(r.ok
+    ? (actif ? "Connexion automatique désactivée" : "Connexion automatique activée")
+    : "Échec : " + (r.erreur || "commande refusée"));
 }
 async function basculeMuet(){
   const r = await api("son-muet", "toggle");
@@ -562,6 +616,29 @@ function contenu(cle){
       ${allume && w.reseau
         ? srow("Réseau connecté", `${esc(w.reseau)} — signal ${w.signal} %`, barres(w.signal))
         : (allume ? srow("Réseau connecté", "Aucun — choisis-en un ci-dessous") : "")}
+
+      ${/*  LES OUTILS QUI MANQUAIENT.
+             Alex, les deux pages côte à côte : « il manque des outils, regarde
+             la 2e image — la 2e image a plus d'outils sur le mode wi-fi ». La
+             démo portait cette bascule, l'ISO ne l'avait pas — alors que c'est
+             ICI qu'elle fait quelque chose de réel : lexos-net-autoconnect et
+             son minuteur existent depuis longtemps, mais on ne pouvait les
+             allumer qu'en ligne de commande.
+
+             CE QUI N'EST PAS REPRIS, ET POURQUOI. La démo a aussi « Simuler
+             une panne d'accès à internet ». C'est un accessoire de démo : il
+             sert à FAIRE VOIR l'orange sur une page qui n'a pas de vraie
+             carte réseau. Sur l'ISO, l'orange vient de la machine elle-même
+             (nmcli networking connectivity) — un interrupteur pour mentir sur
+             son propre état n'y aurait aucun sens. */""}
+      ${absent ? "" : srow("Connexion auto. aux réseaux ouverts",
+             "Désactivée par défaut pour ta sécurité — demande confirmation",
+             sw(!!w.auto, "basculeWifiAuto()"))}
+
+      ${absent ? "" : `<p class="notice">L'icône Wi-Fi dit son état par sa couleur :
+        <b style="color:var(--ok)">vert</b> connecté ·
+        <b style="color:var(--warn)">orange</b> connecté mais sans accès à internet ·
+        <b style="color:var(--off)">rouge</b> pas de connexion.</p>`}
 
       ${allume ? (() => {
         /*  LA LISTE QUI MANQUAIT. Le panneau savait dire « connecté » ou
@@ -1587,7 +1664,8 @@ function rendNav(){
     `<div class="grp">${g.grp}</div>` +
     g.items.map(([cle,pic,label]) =>
       `<button class="nav-item${cle===sectionActive?" sel":""}" data-cle="${cle}">
-         <span class="pic">${pic}</span><span>${label}</span></button>`).join("")
+         <span class="pic">${typeof pic === "function" ? pic() : pic}</span>
+         <span>${label}</span></button>`).join("")
   ).join("");
   nav.querySelectorAll(".nav-item").forEach(b =>
     b.onclick = () => { sectionActive = b.dataset.cle;

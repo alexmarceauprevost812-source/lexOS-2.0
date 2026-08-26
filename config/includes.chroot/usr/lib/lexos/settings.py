@@ -390,6 +390,37 @@ def act_wifi(arg):
     return _run(["nmcli", "radio", "wifi", arg])
 
 
+def act_wifi_auto(arg):
+    """Connexion automatique aux réseaux ouverts — l'outil manquant.
+
+    ALEX, PHOTO DES DEUX PAGES CÔTE À CÔTE : « il manque des outils, regarde
+    la 2e image — la 2e image a plus d'outils sur le mode wi-fi ». La démo
+    avait cette bascule, l'ISO ne l'avait pas, alors que c'est justement du
+    côté de l'ISO qu'elle fait quelque chose de réel : lexos-net-autoconnect
+    et son minuteur existent depuis longtemps, mais on ne pouvait les allumer
+    qu'en ligne de commande.
+
+    POURQUOI PKEXEC, ET POURQUOI « --confirme ». Le fichier d'état vit dans
+    /etc : il faut les droits d'administration. « lexos net auto on » pose
+    normalement une question sur le terminal (taper OUI) — depuis une fenêtre
+    graphique il n'y a pas de terminal pour répondre, et le programme
+    resterait bloqué. Le panneau pose donc la MÊME question dans une boîte de
+    dialogue, puis passe « --confirme » pour dire qu'elle a été posée. On ne
+    supprime pas l'avertissement : on le déplace là où l'utilisateur est.
+    """
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    if arg == "toggle":
+        arg = "off" if _wifi_auto_lu() else "on"
+    outil = shutil.which("lexos-net") or "/usr/bin/lexos-net"
+    if not os.path.exists(outil):
+        return {"ok": False, "erreur": "lexos-net introuvable"}
+    argv = [outil, "auto", arg, "--confirme"]
+    if os.geteuid() != 0 and shutil.which("pkexec"):
+        argv = ["pkexec"] + argv
+    return _run(argv)
+
+
 def act_son_muet(arg):
     """Coupe ou rétablit le son."""
     if arg not in ("on", "off", "toggle"):
@@ -953,6 +984,7 @@ def act_heure_auto(arg):
 ACTIONS = {
     "ouvrir": act_ouvrir,
     "wifi-radio": act_wifi,
+    "wifi-auto": act_wifi_auto,
     "son-muet": act_son_muet,
     "son-volume": act_son_volume,
     "son-sortie": act_son_sortie,
@@ -1033,10 +1065,26 @@ def _sortie(argv, *, timeout=10):
 #  pactl ne doit pas casser la page, juste afficher moins de choses.
 # =============================================================================
 
+def _wifi_auto_lu():
+    """La connexion automatique aux réseaux ouverts est-elle activée ?
+
+    Une seule vérité : le fichier que lexos-net écrit et que
+    lexos-net-autoconnect relit avant de faire quoi que ce soit. Le panneau
+    ne tient pas son propre compte — c'est comme ça qu'on se retrouve avec un
+    interrupteur qui dit « allumé » et un service qui ne fait rien.
+    """
+    try:
+        with open("/etc/lexos/wifi-auto-open", encoding="utf-8") as f:
+            return f.read().strip() == "on"
+    except OSError:
+        return False
+
+
 def _wifi_etat():
     """Radio Wi-Fi allumée ? réseau connecté ? force du signal ?"""
     if not shutil.which("nmcli"):
-        return {"radio": "absent", "reseau": "", "signal": 0}
+        return {"radio": "absent", "reseau": "", "signal": 0,
+                "auto": _wifi_auto_lu(), "internet": "absent"}
     #  « -t » (terse) donne des mots-clés fixes, jamais traduits — la sortie
     #  normale de nmcli suit la langue du système (fr_CA sur LexOS).
     radio = _sortie(["nmcli", "-t", "radio", "wifi"]) or "absent"
@@ -1048,7 +1096,14 @@ def _wifi_etat():
             reseau = champs[1]
             signal = int(champs[2]) if champs[2].isdigit() else 0
             break
+    #  « connectivity » distingue les deux pannes qu'on confond toujours :
+    #  « full » = on passe ; « limited » ou « portal » = on est CONNECTÉ mais
+    #  rien ne passe (portail d'hôtel, box sans internet) ; « none » = pas de
+    #  réseau du tout. C'est cette différence que dit la couleur du
+    #  pictogramme dans la colonne de gauche — vert, orange, rouge.
+    internet = _sortie(["nmcli", "-t", "networking", "connectivity"]) or "unknown"
     return {"radio": radio, "reseau": reseau, "signal": signal,
+            "auto": _wifi_auto_lu(), "internet": internet,
             "reseaux": _wifi_reseaux() if radio == "enabled" else []}
 
 

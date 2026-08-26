@@ -472,9 +472,20 @@ auto_state() {
 
 cmd_auto() {
 	local action="${1:-status}"
+	#  « --confirme » : l'avertissement a DÉJÀ été montré et accepté ailleurs.
+	#  Il existe pour les Paramètres LexOS, qui posent la même question dans
+	#  une boîte de dialogue : depuis une fenêtre graphique il n'y a pas de
+	#  terminal pour taper OUI, et sans ce drapeau le programme resterait
+	#  bloqué sur un « read » que personne ne peut satisfaire.
+	#  Il ne SUPPRIME pas l'avertissement — il dit qu'il a été donné.
+	local -a confirme=()
+	[[ "${2:-}" == "--confirme" ]] && confirme=(--confirme)
 	case "$action" in
 	on)
-		need_root auto on
+		#  need_root re-exécute le programme : il faut lui repasser le
+		#  drapeau, sinon la question reviendrait après le passage par sudo
+		#  et on serait bloqué exactement comme sans lui.
+		need_root auto on "${confirme[@]}"
 		printf '\n%s%s⚠  Connexion automatique aux réseaux ouverts%s\n\n' "$B" "$Y" "$R"
 		cat <<-'EOF'
 		  Un réseau « ouvert » n'a pas de mot de passe, donc pas de chiffrement.
@@ -490,9 +501,11 @@ cmd_auto() {
 		  la banque, les courriels et les mots de passe.
 
 		EOF
-		printf '  Tape %sOUI%s pour activer, autre chose pour annuler : ' "$B" "$R"
-		local a=""; read -r a || true
-		[[ "$a" == "OUI" ]] || { say "Annulé — l'option reste désactivée."; return 0; }
+		if [[ ${#confirme[@]} -eq 0 ]]; then
+			printf '  Tape %sOUI%s pour activer, autre chose pour annuler : ' "$B" "$R"
+			local a=""; read -r a || true
+			[[ "$a" == "OUI" ]] || { say "Annulé — l'option reste désactivée."; return 0; }
+		fi
 
 		mkdir -p /etc/lexos
 		printf 'on\n' > "$AUTO_STATE"

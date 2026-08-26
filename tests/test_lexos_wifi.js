@@ -1,0 +1,159 @@
+/* =============================================================================
+ *  Éprouver la page Wi-Fi des Paramètres LexOS — celle qu'Alex a comparée
+ * =============================================================================
+ *  CE QU'ALEX A DEMANDÉ, LES DEUX PAGES CÔTE À CÔTE
+ *    « wi-fi, utiliser lui la 2e image »
+ *    « il manque des outils, regarde la 2e image — la 2e image a plus
+ *      d'outils sur le mode wi-fi »
+ *
+ *  Deux choses, donc : le PICTOGRAMME de la colonne de gauche (un carré jaune
+ *  sur l'ISO, une antenne verte dans la démo) et les OUTILS de la page.
+ *
+ *  POURQUOI CE BANC EXISTE PLUTÔT QU'UNE RELECTURE
+ *  « node --check » ne dit qu'une chose : que le fichier se parse. Il ne dit
+ *  pas si l'antenne devient rouge quand la carte est éteinte, ni si la
+ *  bascule apparaît. Ici on CHARGE app.js pour de vrai, on lui donne des
+ *  états inventés, et on regarde le HTML qu'il rend. C'est ce qu'Alex voit.
+ *
+ *  On charge le fichier en lui ajoutant une dernière ligne qui expose ses
+ *  fonctions : « etat » est un « let » de portée fichier, donc invisible du
+ *  dehors — mais visible d'une ligne ajoutée DANS le même fichier.
+ * ========================================================================== */
+"use strict";
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
+
+const RACINE = path.join(__dirname, "..");
+const APP = path.join(RACINE, "config/includes.chroot/usr/share/lexos/settings/web/app.js");
+const CSS = path.join(RACINE, "config/includes.chroot/usr/share/lexos/ui.css");
+
+let reussis = 0, echoues = 0;
+const ok  = m => { console.log("  \x1b[32m✅\x1b[0m " + m); reussis++; };
+const non = m => { console.log("  \x1b[31m❌\x1b[0m " + m); echoues++; };
+const titre = m => console.log("\n\x1b[1m═══ " + m + " ═══\x1b[0m");
+
+/* --- Le décor minimal : ce que la page touche au chargement --------------- */
+function faux() {
+  const el = () => ({ innerHTML:"", textContent:"", hidden:true, style:{}, dataset:{},
+                      classList:{add(){}, remove(){}, toggle(){}},
+                      querySelectorAll:() => [], appendChild(){}, focus(){} });
+  return {
+    document: { getElementById: el, querySelectorAll: () => [], body: el(),
+                documentElement: { style:{ setProperty(){} }, dataset:{} },
+                addEventListener(){} },
+    location: { hash:"" },
+    window: { confirm: () => true },
+    fetch: () => Promise.reject(new Error("pas de pont dans le banc")),
+    setTimeout, clearTimeout, console,
+  };
+}
+
+const source = fs.readFileSync(APP, "utf8")
+  + "\n;globalThis.__banc = { wifiGlyph, contenu, pose: e => { etat = e; },"
+  + "  nav: NAV };\n";
+const bac = vm.createContext(faux());
+bac.globalThis = bac;
+vm.runInContext(source, bac, { filename: "app.js" });
+const T = bac.__banc;
+
+/* ========================================================================== */
+titre("1. Le pictogramme dit l'état par sa couleur");
+/* ========================================================================== */
+const cas = [
+  ["carte allumée, réseau, internet", {radio:"enabled", reseau:"BELL507", internet:"full"},
+   "gly-ok",   "vert"],
+  ["connecté mais rien ne passe",     {radio:"enabled", reseau:"BELL507", internet:"limited"},
+   "gly-warn", "orange"],
+  ["allumé, aucun réseau",            {radio:"enabled", reseau:"", internet:"none"},
+   "gly-off",  "rouge"],
+  ["carte éteinte",                   {radio:"disabled", reseau:"", internet:"none"},
+   "gly-off",  "rouge"],
+  ["aucune carte",                    {radio:"absent"},
+   "gly-off",  "rouge"],
+];
+for (const [nom, w, classe, couleur] of cas) {
+  T.pose({ wifi: w });
+  const h = T.wifiGlyph();
+  if (h.includes(classe) && h.includes("gly-wifi")) ok(`${nom} → ${couleur}`);
+  else non(`${nom} : attendu ${classe}, obtenu « ${h} »`);
+}
+T.pose({ wifi: {radio:"enabled", reseau:"BELL507", internet:"full"} });
+if (!/📶/.test(T.wifiGlyph())) ok("plus d'émoji : un masque, qui s'affiche partout");
+else non("l'émoji 📶 est toujours là");
+
+/* --- Et la barre latérale sait l'appeler --------------------------------- */
+const entree = T.nav[0].items.find(i => i[0] === "wifi");
+if (typeof entree[1] === "function") ok("la barre latérale porte une FONCTION (le dessin suit l'état)");
+else non("le pictogramme du menu est figé : il ne changera jamais de couleur");
+
+/* ========================================================================== */
+titre("2. Les outils qui manquaient");
+/* ========================================================================== */
+T.pose({ wifi: {radio:"enabled", reseau:"", signal:0, internet:"none",
+                auto:false, reseaux:[]} });
+let page = T.contenu("wifi");
+
+if (page.includes("Connexion auto. aux réseaux ouverts"))
+  ok("« Connexion auto. aux réseaux ouverts » est là, comme dans la démo");
+else non("la bascule de connexion automatique manque toujours");
+
+if (page.includes("basculeWifiAuto()"))
+  ok("et elle est branchée sur une vraie commande");
+else non("la bascule n'appelle rien");
+
+if (/vert<\/b> connecté/.test(page) && /orange<\/b> connecté mais sans accès/.test(page)
+    && /rouge<\/b> pas de connexion/.test(page))
+  ok("la légende des trois couleurs est là (sinon le orange ne veut rien dire)");
+else non("la légende des couleurs manque");
+
+if (!/Simuler une panne/.test(page))
+  ok("l'accessoire de démo (« simuler une panne ») n'est PAS repris sur l'ISO");
+else non("un interrupteur pour mentir sur son propre état a été copié depuis la démo");
+
+/* --- L'interrupteur reflète la machine, il ne se souvient pas de lui-même - */
+if (/class="sw"/.test(page)) ok("désactivée, la bascule est bien montrée éteinte");
+else non("la bascule ne montre pas l'état « off »");
+
+T.pose({ wifi: {radio:"enabled", reseau:"", signal:0, internet:"none",
+                auto:true, reseaux:[]} });
+page = T.contenu("wifi");
+if (/class="sw on"/.test(page)) ok("activée, elle est montrée allumée");
+else non("la bascule ne suit pas l'état « on »");
+
+/* --- Sans carte Wi-Fi, on ne propose rien -------------------------------- */
+T.pose({ wifi: {radio:"absent"} });
+page = T.contenu("wifi");
+if (!/basculeWifiAuto/.test(page))
+  ok("sans carte Wi-Fi, aucun outil n'est proposé (rien à régler)");
+else non("une bascule Wi-Fi est proposée sur une machine sans carte Wi-Fi");
+if (/Aucune carte Wi-Fi/.test(page)) ok("et on le DIT");
+else non("aucune carte, et rien qui l'explique");
+
+/* --- La liste des réseaux, elle, reste ----------------------------------- */
+T.pose({ wifi: {radio:"enabled", reseau:"BELL507", signal:100, internet:"full",
+                auto:false,
+                reseaux:[{ssid:"BELL507", signal:100, protege:true,
+                          securite:"WPA2", actif:true}]} });
+page = T.contenu("wifi");
+if (/BELL507/.test(page) && /Réseaux à portée/.test(page))
+  ok("ce que l'ISO avait en plus (la vraie liste des réseaux) n'a pas été perdu");
+else non("la liste des réseaux a disparu en ajoutant les outils");
+
+/* ========================================================================== */
+titre("3. La feuille de style porte bien le masque");
+/* ========================================================================== */
+const css = fs.readFileSync(CSS, "utf8");
+for (const [nom, motif] of [
+  ["le tracé de l'antenne", /--m-wifi:url\("data:image\/svg\+xml/],
+  ["la classe .gly", /\.gly\{[^}]*mask-size:contain/],
+  ["le vert", /\.gly-ok\{background-color:var\(--ok\)\}/],
+  ["l'orange", /\.gly-warn\{background-color:var\(--warn\)\}/],
+  ["le rouge", /\.gly-off\{background-color:var\(--off\)\}/],
+]) {
+  if (motif.test(css)) ok(nom + " est dans ui.css");
+  else non(nom + " manque dans ui.css — le pictogramme serait un carré vide");
+}
+
+console.log(`\n\x1b[1m${reussis} réussis, ${echoues} échoués\x1b[0m`);
+process.exit(echoues === 0 ? 0 : 1);
