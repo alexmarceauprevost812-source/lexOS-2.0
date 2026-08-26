@@ -45,10 +45,43 @@ EOF
 }
 
 # --- Repérage du matériel ----------------------------------------------------
+#  ALEX : « la luminosité de l'écran ne marche pas dans les Paramètres ».
+#  Sur beaucoup de portables (les ThinkPad d'Alex compris), le noyau expose
+#  DEUX interfaces à la fois sous /sys/class/backlight/ : « acpi_videoN »,
+#  fournie par le firmware ACPI, et une interface native du pilote
+#  graphique — « intel_backlight », « amdgpu_blN », « nvidia_wmi_ec_backlight ».
+#  La première venait à gagner ici : le glob liste par ordre alphabétique, et
+#  « acpi_video0 » précède « intel_backlight ». Or c'est justement celle qui,
+#  sur beaucoup de machines, ne pilote RIEN de visible — le firmware
+#  accepte l'écriture (donc pas d'erreur, pas de message), le fichier
+#  « brightness » change de valeur, et l'écran ne bouge pas d'un cran. Un
+#  réglage qui « marche » sans rien faire est exactement le genre de panne
+#  qu'on ne voit pas dans le code, seulement sur la photo.
+#  On préfère donc toute interface qui N'EST PAS acpi_video — c'est ce que
+#  font déjà les environnements de bureau (GNOME, KDE) pour cette même
+#  raison — et on ne retombe sur acpi_video que si rien d'autre n'existe.
+#
+#  LEXOS_BL : /sys/class/backlight n'existe pas dans un banc d'essai — ce
+#  n'est pas un vrai noyau. Le détourner ici permet à
+#  tests/test_lexos_brightness.sh de fabriquer un faux dossier avec les deux
+#  interfaces et de prouver, en exécutant ce fichier pour de vrai, laquelle
+#  gagne — pas seulement de relire l'intention. MÊME NOM DE VARIABLE que
+#  settings.py (BL_DIR = os.environ.get("LEXOS_BL", …)) : un seul réglage
+#  fait bouger les deux à la fois dans le banc, comme sur la vraie machine
+#  où « le rétroéclairage » est UNE seule chose, pas deux réglages à tenir
+#  synchronisés à la main.
+BL_ROOT="${LEXOS_BL:-/sys/class/backlight}"
 BL=""
-for d in /sys/class/backlight/*; do
-	[[ -r "$d/max_brightness" ]] && { BL="$d"; break; }
+for d in "$BL_ROOT"/*; do
+	[[ -r "$d/max_brightness" ]] || continue
+	[[ "$(basename "$d")" == acpi_video* ]] && continue
+	BL="$d"; break
 done
+if [[ -z "$BL" ]]; then
+	for d in "$BL_ROOT"/*; do
+		[[ -r "$d/max_brightness" ]] && { BL="$d"; break; }
+	done
+fi
 
 moyen() {
 	if command -v brightnessctl >/dev/null 2>&1 && [[ -n "$BL" ]]; then echo "brightnessctl"

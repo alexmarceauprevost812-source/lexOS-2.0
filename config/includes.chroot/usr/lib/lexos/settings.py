@@ -1612,19 +1612,42 @@ def _casque_branche():
 
 def _lumiere_etat():
     """Luminosité du rétroéclairage, en pour-cent. -1 quand la machine n'a pas
-    de rétroéclairage pilotable (une tour avec un écran externe, par exemple)."""
+    de rétroéclairage pilotable (une tour avec un écran externe, par exemple).
+
+    MÊME PRÉFÉRENCE QUE lexos-brightness, ET CE N'EST PAS UN DÉTAIL. Sur
+    beaucoup de portables, /sys/class/backlight/ porte à la fois
+    « acpi_videoN » (le firmware) et une interface native du pilote
+    graphique (« intel_backlight »…) — et la première, alphabétiquement,
+    n'est pas toujours celle qui pilote vraiment l'écran. lexos-brightness
+    écrit désormais dans la seconde de préférence ; si ce panneau-ci
+    continuait de LIRE la première, la barre afficherait un pourcentage qui
+    n'a jamais correspondu à ce que le curseur vient de régler — deux
+    sources pour la même valeur, libres de diverger.
+    """
     base = BL_DIR
     try:
-        for d in sorted(base.iterdir()):
-            try:
-                actuel = int((d / "brightness").read_text().strip())
-                maxi = int((d / "max_brightness").read_text().strip())
-                if maxi > 0:
-                    return round(actuel * 100 / maxi)
-            except (OSError, ValueError):
-                continue
+        candidats = sorted(base.iterdir())
     except OSError:
-        pass
+        return -1
+
+    def lire(d):
+        try:
+            actuel = int((d / "brightness").read_text().strip())
+            maxi = int((d / "max_brightness").read_text().strip())
+        except (OSError, ValueError):
+            return None
+        return round(actuel * 100 / maxi) if maxi > 0 else None
+
+    for d in candidats:
+        if d.name.startswith("acpi_video"):
+            continue
+        v = lire(d)
+        if v is not None:
+            return v
+    for d in candidats:
+        v = lire(d)
+        if v is not None:
+            return v
     return -1
 
 
