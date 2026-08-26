@@ -783,6 +783,26 @@ function contenu(cle){
         : srow("Câble Ethernet",
                n.filaire ? "Branché" + (n.ip ? " — " + esc(n.ip) : "") : "Débranché",
                `<span class="etat ${n.filaire?"ok":"off"}">${n.filaire?"connecté":"absent"}</span>`)}
+      ${/*  « on ne voit pas sur quel réseau on est connecté ». Vrai : cette
+             page dit le filaire, le mode avion, jamais le Wi-Fi — pour voir
+             le SSID il fallait ouvrir la section Wi-Fi À CÔTÉ. Cette page-ci,
+             « Réseau », est justement celle qu'on ouvre en premier pour
+             savoir « sur quoi je suis ». etat.wifi est déjà chargé pour
+             cette page-là ; pas de nouvel appel, juste l'afficher ici aussi. */""}
+      ${(() => {
+        const w = etat.wifi || {};
+        if(w.radio === "absent") return "";
+        let texte, classe, mot;
+        if(w.radio !== "enabled"){ texte = "Éteinte"; classe = "off"; mot = "éteinte"; }
+        else if(w.reseau){
+          texte = `Connecté à ${esc(w.reseau)} — signal ${w.signal} %`;
+          classe = w.internet === "full" ? "ok" : "att";
+          mot = classe === "ok" ? "connecté" : "sans internet";
+        } else {
+          texte = "Aucun réseau"; classe = "off"; mot = "aucun";
+        }
+        return srow("Wi-Fi", texte, `<span class="etat ${classe}">${mot}</span>`);
+      })()}
       ${btnOuvrir("reseau","Ouvrir l'outil réseau")}
       <p class="notice">VPN : <code>lexos vpn import fichier.ovpn</code> (OpenVPN) ou un
       <code>.conf</code> WireGuard, puis <code>lexos vpn connect "&lt;nom&gt;"</code>.</p>`;
