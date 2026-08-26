@@ -206,6 +206,29 @@ for NAME in files zip share wifi wifi-ok wifi-warn wifi-off bluetooth \
 	rm -f "/usr/share/icons/hicolor/scalable/apps/lexos-${NAME}.svg"
 done
 
+#  LA MASCOTTE, EN BOUTON « TOUTES LES APPLICATIONS ».
+#  Demande d'Alex, photos d'Ubuntu à l'appui : le bouton qui ouvre la page des
+#  applications se met dans le COIN EN BAS, et il porte la mascotte — comme le
+#  logo Ubuntu au bout du dock sur sa capture. Le dock de LexOS est vertical à
+#  droite : son dernier élément EST le coin en bas à droite.
+#  Source déjà en PNG (c'est un dessin, pas un pictogramme) : on la
+#  redimensionne comme icon-github.png, sans passer par render() qui suppose
+#  un SVG. Elle n'est PAS teintée à l'accent : c'est un portrait, pas un
+#  symbole.
+if [ -r "$BRAND/icon-applications.png" ] && have convert; then
+	for SIZE in 16 22 24 32 48 64 128 256; do
+		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		#  « -background none » et le centrage : le dessin n'est pas carré
+		#  (599x720). Sans ça, convert l'écraserait pour le rendre carré et
+		#  la mascotte serait aplatie.
+		convert "$BRAND/icon-applications.png" -background none \
+			-resize "${SIZE}x${SIZE}" -gravity center \
+			-extent "${SIZE}x${SIZE}" "$DIR/lexos-applications.png" \
+			&& echo "[lexos]   -> $DIR/lexos-applications.png"
+	done
+fi
+
 #  Icône GitHub — source déjà en PNG (pas de version vectorielle), redimensionnée
 #  directement plutôt que passée par render() qui suppose un SVG en entrée.
 if [ -r "$BRAND/icon-github.png" ] && have convert; then

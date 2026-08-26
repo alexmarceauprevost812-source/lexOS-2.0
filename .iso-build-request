@@ -58,6 +58,119 @@ flavour: pro
 suite: trixie
 
 # Compteur de demandes — incrémenter pour relancer.
+# build 76 : LE TERMINAL DE JOUR, LA FRAPPE EN ORANGE — ET POURQUOI LES
+#            DOSSIERS ÉTAIENT BLANCS DEPUIS QUATRE ISO.
+#
+#   ═══ 1. LES DOSSIERS BLANCS, RÉSOLUS — ET C'EST ALEX QUI A TROUVÉ ═══
+#
+#   Le mouchard du hook 0605 écrit aussi dans le JOURNAL DE CONSTRUCTION. En
+#   le relisant sur la 75 : 19 SVG lisibles, 0 cassée, tous les noms que GTK
+#   réclame présents, 152 PNG rendus sur huit tailles, index.theme réécrit,
+#   cache construit. Et le hook 0600 : « icônes : LexOS », sans un
+#   avertissement. Les quatre hypothèses tombent d'un coup. LA CONSTRUCTION
+#   ÉTAIT IRRÉPROCHABLE — la faute était donc au DÉMARRAGE.
+#
+#   L'indice décisif vient d'Alex, sur le dock : « le fichier change comme tu
+#   peux voir quand je mets la souris dessus ». Plank AGRANDIT l'icône au
+#   survol. Une icône qui change quand la TAILLE change, ce n'est pas une
+#   icône absente — c'est GTK qui choisit ailleurs.
+#
+#   LA CAUSE. lexos-theme-gen écrivait un thème d'icônes nommé « LexOS » dans
+#   le dossier personnel. Le dossier personnel passe AVANT /usr/share dans
+#   XDG_DATA_DIRS, et deux thèmes de même nom NE SE COMPLÈTENT PAS : le
+#   premier trouvé gagne, l'autre n'existe plus. Or cette copie ne contenait
+#   que « places/scalable », là où le thème système a huit tailles fixes plus
+#   les icônes d'application. Le thème complet était masqué par une copie qui
+#   en portait un neuvième.
+#
+#   Aux tailles où Papirus (hérité) offre un PNG exact, il pouvait l'emporter
+#   — les dossiers BLEUS du build 71. Et le jour où Papirus n'était pas
+#   installé, il ne restait plus rien : GTK descendait jusqu'à l'icône
+#   générique d'un type inconnu, la FEUILLE BLANCHE des builds 72, 73, 74.
+#
+#   LA CORRECTION. Sous l'accent par défaut, ON NE COPIE PLUS RIEN : les SVG
+#   du système sont déjà orange, la copie n'apportait pas une couleur, elle
+#   n'apportait qu'un masque. On efface même une copie laissée par un accent
+#   précédent. Sous un autre accent, la copie devient COMPLÈTE — mêmes huit
+#   tailles, mêmes icônes d'application, index.theme écrit d'après le disque.
+#   Et si on ne peut pas égaler (rsvg-convert absent), on ne masque pas : des
+#   dossiers de la mauvaise couleur mais VISIBLES valent mieux que des
+#   dossiers de la bonne couleur qui ne s'affichent pas.
+#
+#   DEUX PISTES ÉCARTÉES PAR L'EXPÉRIENCE, PAS PAR RAISONNEMENT.
+#   gtk-update-icon-cache accepte sans broncher un index.theme qui déclare 18
+#   dossiers quand un seul existe, et produit un cache OCTET POUR OCTET
+#   identique au cas cohérent (848 o) — il se décrit lui-même par NOMS. Et les
+#   viewBox des SVG sont toutes correctes. Les tester a évité un cinquième
+#   correctif à l'aveugle.
+#
+#   ═══ 2. LE TERMINAL A ENFIN UN JOUR, ET LA FRAPPE EST ORANGE ═══
+#
+#   « je veux que ce qu'on tape au terminal soit couleur orange ».
+#
+#   Une seule ligne figeait tout : TERM_BG="#000000". Le bureau savait passer
+#   en clair depuis longtemps ; le terminal, non. On livrait un thème de jour
+#   avec un trou noir au milieu. Deux palettes maintenant, mêmes rôles, et la
+#   MÊME règle de couleur : vert = la machine, orange = vous, rouge = l'échec.
+#   Le jour n'est pas une autre identité, c'est la même règle retranscrite.
+#
+#   Contrastes MESURÉS (WCAG) : nuit 7,30 / 5,87 / 5,37 ; jour 6,06 / 5,67 /
+#   6,00. Tous au-dessus du seuil AA, et les seize couleurs ANSI de jour
+#   aussi. Poser les couleurs de nuit sur le crème donnerait 2,64 et 3,29.
+#
+#   CE QU'ON TAPE EST ORANGE, et c'est PS1 qui le porte : l'invite se termine
+#   par la couleur de saisie, PS0 la remet à zéro à l'Entrée. La frappe est
+#   donc orange, la SORTIE de la commande ne l'est pas. Sans PS0, tout
+#   l'écran virerait à l'orange.
+#
+#   L'invite avait ses couleurs EN DUR (« 38;5;35 », « 38;5;208 ») sans aucun
+#   lien avec le terminalrc : deux écritures de la même couleur, libres de
+#   diverger — la faute exacte qui a donné trois palettes de panneaux ici.
+#   Une seule source maintenant, relue à CHAQUE affichage : les fenêtres déjà
+#   ouvertes changent à la ligne suivante, sans rien rouvrir.
+#
+#   Nouvelle commande « lexos terminal jour|nuit|auto|suivre|horaire », avec
+#   sa minuterie systemd — non activée à la construction : elle ne sert qu'au
+#   mode auto, et c'est « lexos terminal auto » qui l'allume.
+#
+#   LE PAQUET D'ALEX N'A PAS ÉTÉ COPIÉ, IL A ÉTÉ GREFFÉ. Il était bâti sur le
+#   build 67 : le copier tel quel aurait silencieusement annulé quatre
+#   correctifs — le rectangle de sélection, la lisibilité des boutons de la
+#   72, la teinte des icônes de capture, le masquage des icônes — et son 0600
+#   remettait « Papirus-Dark » comme thème d'icônes, l'état d'avant le 70.
+#
+#   ═══ 3. LA PAGE DES APPLICATIONS, ET SON BOUTON MASCOTTE ═══
+#
+#   « 5 applications de large avec toutes les applications sur la longueur »,
+#   puis des photos de la vue d'ensemble d'Ubuntu : « avec le bouton dans le
+#   coin en bas ».
+#
+#   appfinder n'a PAS de réglage de nombre de colonnes — sa grille remplit la
+#   largeur. On le règle donc par la largeur de la fenêtre, en connaissant la
+#   largeur d'une CELLULE, que le programme calcule et qui n'est pas la taille
+#   de l'icône : 96 px d'icône -> cellule de 168 px ; 128 px -> cellule de
+#   160 px. Une icône plus grosse dans une cellule plus étroite : c'est le
+#   contraire de ce qu'on croit, et c'est ce qui permet d'accorder les deux
+#   demandes. Icônes à 128 px, fenêtre 1030 x 700 = 200 (volet) + 5 x 160.
+#
+#   LE BOUTON MASCOTTE va au bout du dock. Le dock de LexOS est vertical à
+#   droite : son DERNIER élément est le coin en bas à droite — exactement où
+#   Alex l'a demandé, et exactement où Ubuntu met le sien sur sa capture.
+#   Il porte le dessin qu'Alex a envoyé, redimensionné en gardant ses
+#   proportions (599x720 : sans « -extent », convert l'aurait aplati).
+#
+#   ═══ 4. LE RECTANGLE DE SÉLECTION, ET LE BOUTON ROUGE ═══
+#   Repris de la 75, avec le reste : cadre de sélection transparent au lieu du
+#   bloc noir, bouton d'arrêt tout à droite de la barre, fenêtre de session
+#   pour « changer d'utilisateur » et « déconnexion ».
+#
+#   ═══ CE QUE SEUL ALEX PEUT VÉRIFIER ═══
+#   Les dossiers, enfin. Si la 76 les montre orange, la cause était bien le
+#   masquage. Si elle les montre encore blancs, /etc/lexos/icones-report est
+#   toujours là et le journal de construction aussi — mais cette fois, ce
+#   serait la première hypothèse ÉLIMINÉE par une correction, pas par un
+#   raisonnement.
+#
 # build 75 : LE BOUTON ROUGE AU BOUT, LA GRILLE DES APPLICATIONS, ET LE
 #            RECTANGLE DE SÉLECTION QUI NE CACHE PLUS RIEN.
 #
@@ -2318,4 +2431,4 @@ suite: trixie
 # installé et compilé correctement, mais l'écran perdait quand même le signal
 # au lancement du bureau — sans kernel modesetting, nvidia-drm ne pilote pas
 # l'affichage sur une machine où la carte NVIDIA est la seule sortie vidéo.
-build: 75
+build: 76

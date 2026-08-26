@@ -372,6 +372,25 @@ Categories=System;Filesystem;
 Keywords=formater;format;effacer;cle;usb;telephone;disque;
 EOF
 
+#  LE BOUTON MASCOTTE — « toutes les applications », dans le coin en bas.
+#  Il lance xfce4-appfinder, qui est la page des applications de LexOS depuis
+#  qu'elle est passée en grille (xfce4-appfinder.xml dans le squelette).
+#  L'entrée existe pour deux raisons : le lanceur du dock la vise, et le
+#  geste devient trouvable dans le menu et dans la recherche.
+cat > /usr/share/applications/lexos-applications.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Toutes les applications
+Name[en]=All applications
+Comment=La page de toutes les applications installées
+Exec=xfce4-appfinder
+Icon=lexos-applications
+Terminal=false
+Categories=System;Utility;
+Keywords=applications;toutes;grille;chercher;lancer;menu;
+EOF
+
 #  LE BOUTON ROUGE DE LA BARRE, ET SON ENTRÉE DE MENU.
 #  Le lanceur du panneau (launcher-17) pointe sur lexos-session.desktop ;
 #  sans cette entrée-ci, l'icône du bouton se résoudrait quand même, mais
