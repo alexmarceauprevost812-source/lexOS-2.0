@@ -518,10 +518,30 @@ body.light #dockTab{background:rgba(239,235,227,.9)}
   font-weight:600;font-size:13px}
 .tbar .ticon{font-size:15px}
 .tbar .ttitle{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tbtn{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;
-  justify-content:center;font-size:12px;color:var(--fg-dim)}
-.tbtn:hover{background:var(--bg-hi);color:var(--fg)}
-.tbtn.close:hover{background:#E5484D;color:#fff}
+/*  LES TROIS PASTILLES, FAÇON macOS — À LA DEMANDE D'ALEX. Trois boutons
+    ronds, toujours colorés (pas seulement au survol comme avant), dans le
+    même ordre qu'à l'écran : vert à gauche, jaune au milieu, rouge à
+    droite — et le rouge, comme le bouton d'arrêt de la barre du haut,
+    n'obéit JAMAIS à l'accent : fermer doit se reconnaître d'un coup d'oeil,
+    quelle que soit la couleur choisie ailleurs dans LexOS.
+    Le glyphe reste invisible tant qu'on ne survole ou ne focalise pas la
+    pastille — même pudeur que macOS, la couleur suffit à dire ce que fait
+    chaque bouton une fois qu'on les connaît. */
+.tbtn{width:13px;height:13px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:8px;line-height:1;color:transparent;
+  transition:color .1s ease}
+.tbtn:hover,.tbtn:focus-visible{color:rgba(0,0,0,.6)}
+/*  Vert : ouvre les Paramètres — plus un menu à ouvrir puis à relire, un
+    seul clic. « ⋮ » (la liste d'options complète) reste au clic droit sur
+    la barre de titre, voir ctxFenetre. */
+.tbtn.wmenu{background:#28C840}
+/*  Jaune : agrandir, fonction inchangée — seule la couleur est nouvelle. */
+.tbtn.maxi{background:#FEBC2E}
+/*  Rouge : fermer. Coloré en permanence, et pas seulement au survol comme
+    avant (l'ancien .tbtn.close:hover) : Alex veut le repérer sans avoir à
+    passer la souris dessus. */
+.tbtn.close{background:#FF5F57}
+.tbtn.close:hover{color:rgba(0,0,0,.7)}
 .wbody{flex:1;overflow:auto;-webkit-user-select:text;user-select:text}
 
 /* Effet TV 1980 : la fenêtre s'écrase en une ligne puis s'éteint */
@@ -2792,7 +2812,7 @@ function openWin(id, title, icon, html, w, h, x, y){
   el.innerHTML =
     `<div class="tbar"><span class="ticon">${icon}</span>`+
     `<span class="ttitle">${title}</span>`+
-    `<button class="tbtn wmenu" title="Plus d'options">⋮</button>`+
+    `<button class="tbtn wmenu" title="Paramètres (clic droit : plus d'options)">⚙</button>`+
     `<button class="tbtn maxi" title="Agrandir (double-clic sur la barre)">⛶</button>`+
     `<button class="tbtn close" title="Fermer">✕</button></div>`+
     `<div class="wbody">${html}</div>`;
@@ -2806,7 +2826,17 @@ function openWin(id, title, icon, html, w, h, x, y){
   });
   el.querySelector(".close").onclick = ()=>closeWin(el);
   el.querySelector(".maxi").onclick = e=>{ e.stopPropagation(); toggleMax(el); };
-  el.querySelector(".wmenu").onclick = e=>{ e.stopPropagation(); toggleWinMenu(el, e.currentTarget); };
+  //  LA PASTILLE VERTE OUVRE LES PARAMÈTRES DIRECTEMENT — plus le menu
+  //  « ⋮ » (Nouvelle fenêtre, Recentrer, Paramètres, Toutes les
+  //  applications, et les extras par appli — WIN_MENU_EXTRA) qu'elle
+  //  ouvrait avant. Alex : « lui de gauche pour ouvrir les paramètres ».
+  //  Ce menu-là n'est pas perdu : un clic DROIT sur la même pastille
+  //  l'ouvre encore, pour qui en a besoin (Nouveau terminal, Recentrer…),
+  //  sans que le clic simple ait à choisir entre les deux.
+  el.querySelector(".wmenu").onclick = e=>{ e.stopPropagation(); closeWinMenu(); openSettings(); };
+  el.querySelector(".wmenu").oncontextmenu = e=>{
+    e.preventDefault(); e.stopPropagation(); toggleWinMenu(el, e.currentTarget);
+  };
   el.querySelector(".tbar").addEventListener("contextmenu", e=>ctxFenetre(e, el));
   el.querySelector(".tbar").addEventListener("dblclick", e=>{
     if(e.target.closest(".tbtn")) return;
