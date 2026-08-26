@@ -41,6 +41,28 @@ openssh-client
 curl
 wget
 rfkill
+#  wireless-regdb : la base réglementaire du Wi-Fi. Sans elle, le noyau ne sait
+#  pas dans quel pays il est et retombe sur le domaine « monde » — une partie
+#  des canaux 5 GHz devient inutilisable et la puissance d'émission est
+#  réduite. Le Wi-Fi marche, mais moins bien et moins loin : le genre de
+#  symptôme qu'on met sur le dos du routeur.
+#  ELLE N'EST PAS RAMASSÉE PAR --firmware-chroot, contrairement à ce qu'on
+#  pourrait croire : ce mécanisme ne prend que les paquets dont le NOM commence
+#  par « firmware- ». wireless-regdb dépose bien un fichier dans /lib/firmware,
+#  mais il faut le demander par son nom.
+wireless-regdb
+#  iw et ethtool : de quoi répondre à « pourquoi mon réseau est lent ? » depuis
+#  LexOS. LexOS a une liste de diagnostic complète et une commande « lexos
+#  materiel » dont c'est la raison d'être — et rien pour le réseau.
+#    iw       : canal, puissance du signal, domaine réglementaire RETENU
+#               (« iw reg get » : c'est lui qui dira si wireless-regdb a servi)
+#    ethtool  : la vitesse négociée du port filaire. L'Alienware a du
+#               2,5 Gb/s ; savoir s'il tourne à 2500 ou à 100 Mb/s est la
+#               première question quand « le réseau est lent ».
+#  Ces trois noms sont stables dans Debian depuis plus de dix ans : ils
+#  supportent le régime obligatoire sans risque pour la construction.
+iw
+ethtool
 
 # --- Installateur sur disque -------------------------------------------------
 #  Calamares était en liste OPTIONNELLE (best-effort) : si son installation

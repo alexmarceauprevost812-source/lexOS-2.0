@@ -12,7 +12,13 @@
 #  programme Python, est-ce qu'il tourne ? »
 
 # --- L'essentiel ------------------------------------------------------------
-python3
+# python3 — DÉJÀ OBLIGATOIRE (config/package-lists/lexos-core.list.chroot),
+#   donc présent dans TOUTES les saveurs. Le laisser aussi ici, c'était
+#   deux vérités pour un seul paquet : le jour où l'une des deux change,
+#   plus personne ne sait laquelle fait foi. La liste optionnelle sert
+#   aussi de rapport (/etc/lexos/optional-report) — y faire figurer un
+#   paquet qui ne peut pas manquer brouille ce rapport pour rien.
+
 python3-venv
 python3-pip
 python3-setuptools
@@ -47,9 +53,21 @@ python3-dateutil
 
 # --- Ce dont les applications de LexOS ont besoin ---------------------------
 #  Fonds d'écran animés (lexos wallpaper anime) : GTK et cairo.
-python3-gi
+# python3-gi — DÉJÀ OBLIGATOIRE (config/package-lists/lexos-core.list.chroot),
+#   donc présent dans TOUTES les saveurs. Le laisser aussi ici, c'était
+#   deux vérités pour un seul paquet : le jour où l'une des deux change,
+#   plus personne ne sait laquelle fait foi. La liste optionnelle sert
+#   aussi de rapport (/etc/lexos/optional-report) — y faire figurer un
+#   paquet qui ne peut pas manquer brouille ce rapport pour rien.
+
 python3-cairo
-gir1.2-gtk-3.0
+# gir1.2-gtk-3.0 — DÉJÀ OBLIGATOIRE (config/package-lists/lexos-core.list.chroot),
+#   donc présent dans TOUTES les saveurs. Le laisser aussi ici, c'était
+#   deux vérités pour un seul paquet : le jour où l'une des deux change,
+#   plus personne ne sait laquelle fait foi. La liste optionnelle sert
+#   aussi de rapport (/etc/lexos/optional-report) — y faire figurer un
+#   paquet qui ne peut pas manquer brouille ce rapport pour rien.
+
 #  Fenêtre du fond d'écran vidéo (lexos wallpaper video).
 python3-xlib
 #  Paramètres et Cartes : une fenêtre Qt qui affiche une page locale.

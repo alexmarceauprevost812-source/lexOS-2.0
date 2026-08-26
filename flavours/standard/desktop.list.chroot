@@ -37,6 +37,37 @@ xfce4-genmon-plugin
 xfce4-pulseaudio-plugin
 xfce4-power-manager
 
+# --- Réseau et Bluetooth : l'icône sur laquelle on CLIQUE ---------------------
+#  LE MOTEUR DU WI-FI EST DÉJÀ LÀ, TROIS FOIS : les quatre composantes
+#  d'archive sont ouvertes (auto/config, « non-free-firmware » compris),
+#  live-build ramasse tous les micrologiciels du noyau (--firmware-chroot,
+#  --firmware-binary), et network-manager + wpasupplicant sont obligatoires
+#  dans lexos-core.list.chroot. Rien à craindre de ce côté.
+#
+#  CE QUI MANQUAIT, C'EST LA POIGNÉE. network-manager-gnome — l'applet de la
+#  barre, celle qui montre la liste des réseaux — était posé « au mieux » par
+#  le hook 0250 : s'il ne passait pas, la construction continuait SANS RIEN
+#  DIRE. Ce jour-là NetworkManager tourne, la carte fonctionne, le pilote est
+#  chargé… et il n'y a aucune icône. Pour quelqu'un qui n'ouvre pas de
+#  terminal, c'est exactement « le Wi-Fi ne marche pas ».
+#
+#  C'est mot pour mot la leçon des dossiers blancs de l'ISO 72, écrite plus
+#  haut dans lexos-core.list.chroot : un paquet « au mieux » dont dépend
+#  quelque chose de VISIBLE n'est pas optionnel. bluez entre dans la même
+#  définition — sans lui, zéro Bluetooth, sans un message.
+#
+#  ICI ET PAS DANS lexos-core.list.chroot : celle-là est présente dans TOUTES
+#  les saveurs, « minimal » comprise — une ISO SANS bureau. Y poser une applet
+#  GTK et un gestionnaire Bluetooth graphique y tirerait tout GTK. Cette
+#  liste-ci est appliquée à toute saveur qui n'est pas minimal (build.sh :
+#  standard, dev, full, gaming ET pro), et c'est un .list.chroot — donc
+#  obligatoire : une absence ARRÊTE la construction au lieu de livrer une ISO
+#  muette. C'est précisément ce qu'on veut.
+network-manager-gnome
+bluez
+blueman
+bluez-obexd
+
 # --- Connexion ---------------------------------------------------------------
 lightdm
 lightdm-gtk-greeter

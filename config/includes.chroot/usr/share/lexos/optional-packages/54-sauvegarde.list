@@ -21,5 +21,11 @@ borgbackup
 vorta
 #  Copier un dossier vers une clé USB, à la souris, sans rien apprendre.
 grsync
-rsync
+# rsync — DÉJÀ OBLIGATOIRE (config/package-lists/lexos-core.list.chroot),
+#   donc présent dans TOUTES les saveurs. Le laisser aussi ici, c'était
+#   deux vérités pour un seul paquet : le jour où l'une des deux change,
+#   plus personne ne sait laquelle fait foi. La liste optionnelle sert
+#   aussi de rapport (/etc/lexos/optional-report) — y faire figurer un
+#   paquet qui ne peut pas manquer brouille ce rapport pour rien.
+
 keepassxc

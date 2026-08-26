@@ -65,13 +65,20 @@ pipewire-pulse
 wireplumber
 pavucontrol
 alsa-utils
-network-manager-gnome
+# network-manager-gnome, blueman, bluez, bluez-obexd — PASSÉS EN STRICT
+#   (flavours/standard/desktop.list.chroot). Même raison que les dossiers
+#   blancs de l'ISO 72 : un paquet posé « au mieux » dont dépend quelque
+#   chose de VISIBLE. Sans network-manager-gnome, NetworkManager tourne, la
+#   carte marche, le pilote est chargé — et il n'y a aucune icône dans la
+#   barre. Pour qui n'ouvre pas de terminal, c'est « le Wi-Fi ne marche pas ».
+#   Ils ne sont plus listés ici : deux endroits, c'est deux vérités qui
+#   finissent par diverger, et plus personne ne sait laquelle fait foi.
+#
+#   Le VPN et WireGuard restent ici, eux : un VPN d'entreprise n'est pas
+#   vital sur une tour de bureau, et ces noms-là bougent plus souvent.
 network-manager-openvpn
 network-manager-openvpn-gnome
 wireguard-tools
-blueman
-bluez
-bluez-obexd
 cups
 system-config-printer
 printer-driver-all
@@ -107,9 +114,21 @@ python3-xlib
 # « lexos wallpaper code » : le fond qui s'écrit tout seul. Pas de vidéo ici
 # — le décor est peint une fois et seules les lignes de code changent, en
 # GTK et cairo. Ces trois paquets sont ce qu'il faut pour les dessiner.
-python3-gi
+# python3-gi — DÉJÀ OBLIGATOIRE (config/package-lists/lexos-core.list.chroot),
+#   donc présent dans TOUTES les saveurs. Le laisser aussi ici, c'était
+#   deux vérités pour un seul paquet : le jour où l'une des deux change,
+#   plus personne ne sait laquelle fait foi. La liste optionnelle sert
+#   aussi de rapport (/etc/lexos/optional-report) — y faire figurer un
+#   paquet qui ne peut pas manquer brouille ce rapport pour rien.
+
 python3-cairo
-gir1.2-gtk-3.0
+# gir1.2-gtk-3.0 — DÉJÀ OBLIGATOIRE (config/package-lists/lexos-core.list.chroot),
+#   donc présent dans TOUTES les saveurs. Le laisser aussi ici, c'était
+#   deux vérités pour un seul paquet : le jour où l'une des deux change,
+#   plus personne ne sait laquelle fait foi. La liste optionnelle sert
+#   aussi de rapport (/etc/lexos/optional-report) — y faire figurer un
+#   paquet qui ne peut pas manquer brouille ce rapport pour rien.
+
 
 # --- Agenda -----------------------------------------------------------------
 # La démo web a un agenda (clic sur l'heure : notifications + calendrier, avec

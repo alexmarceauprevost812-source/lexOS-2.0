@@ -99,6 +99,76 @@ jobs:
             xmllint --noout "$f" && echo "ok  $f"
           done
 
+      - name: Un paquet n'est pas à la fois obligatoire et « au mieux »
+        run: |
+          #  LES DEUX RÉGIMES NE FONT PAS LA MÊME PROMESSE.
+          #  Une liste .list.chroot est OBLIGATOIRE : si le paquet manque, la
+          #  construction s'arrête. Une liste optional-packages est posée « au
+          #  mieux » par le hook 0250 : si le paquet ne passe pas, la
+          #  construction CONTINUE SANS RIEN DIRE et l'ISO sort quand même.
+          #
+          #  Écrire le même nom des deux côtés, c'est donc deux vérités pour un
+          #  seul paquet — et le jour où l'une des deux change, plus personne ne
+          #  sait laquelle fait foi. C'est aussi ce qui brouille
+          #  /etc/lexos/optional-report : un paquet qui ne peut pas manquer y
+          #  figure quand même, et on le lit comme s'il pouvait manquer.
+          #
+          #  On ne compare QU'AVEC config/package-lists/, la liste de TOUTES les
+          #  saveurs. Les listes de flavours/ sont écartées volontairement : un
+          #  paquet strict dans flavours/gaming n'atteint pas la saveur
+          #  « minimal », et le régime « au mieux » y garde alors un sens.
+          #  Un contrôle plus large aurait été plus sévère et FAUX.
+          noms() {
+            sed 's/#.*//' "$1" | tr '|' '\n' \
+              | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -E '^[a-z0-9]' || true
+          }
+          STRICTS="$(for f in config/package-lists/*.list.chroot; do
+            [ -r "$f" ] && noms "$f"; done | sort -u)"
+          bad=0
+          for f in config/includes.chroot/usr/share/lexos/optional-packages/*.list; do
+            [ -r "$f" ] || continue
+            while IFS= read -r n; do
+              [ -n "$n" ] || continue
+              if printf '%s\n' "$STRICTS" | grep -qx -- "$n"; then
+                echo "::error file=$f::'$n' est à la fois obligatoire (config/package-lists/) et optionnel. Deux régimes, deux promesses : choisir l'un des deux."
+                bad=1
+              fi
+            done <<< "$(noms "$f")"
+          done
+          [ "$bad" = 0 ] && echo "  ok — aucun paquet dans les deux régimes à la fois"
+          exit "$bad"
+
+      - name: Le Wi-Fi cliquable et ses outils sont OBLIGATOIRES
+        run: |
+          #  LE MOTEUR DU WI-FI EST LÀ TROIS FOIS — les quatre composantes
+          #  d'archive ouvertes, --firmware-chroot/--firmware-binary, et
+          #  network-manager + wpasupplicant en obligatoire. Ce qui manquait,
+          #  c'est la POIGNÉE : network-manager-gnome, l'applet de la barre,
+          #  était posé « au mieux ». Le jour où il ne passe pas, la carte
+          #  marche, le pilote est chargé, et il n'y a AUCUNE icône — pour qui
+          #  n'ouvre pas de terminal, c'est « le Wi-Fi ne marche pas ».
+          #  Exactement la leçon des dossiers blancs de l'ISO 72.
+          bad=0
+          for p in network-manager-gnome bluez blueman bluez-obexd; do
+            if ! grep -qxF "$p" flavours/standard/desktop.list.chroot; then
+              echo "::error file=flavours/standard/desktop.list.chroot::'$p' n'y est plus. Posé « au mieux », son absence ne ferait PAS échouer la construction — l'ISO sortirait sans icône réseau."
+              bad=1
+            fi
+          done
+          #  wireless-regdb n'est PAS ramassée par --firmware-chroot : ce
+          #  mécanisme ne prend que les paquets nommés « firmware-* ». Sans
+          #  elle, le noyau retombe sur le domaine « monde » — canaux 5 GHz
+          #  amputés, puissance réduite : un Wi-Fi qui marche moins loin, et
+          #  qu'on met sur le dos du routeur.
+          for p in wireless-regdb iw ethtool; do
+            if ! grep -qxF "$p" config/package-lists/lexos-core.list.chroot; then
+              echo "::error file=config/package-lists/lexos-core.list.chroot::'$p' manque."
+              bad=1
+            fi
+          done
+          [ "$bad" = 0 ] && echo "  ok — l'applet réseau, le Bluetooth et les trois outils sont obligatoires"
+          exit "$bad"
+
       - name: Listes de paquets bien formées
         run: |
           #  Une LIGNE peut proposer plusieurs noms séparés par « | » : le hook
