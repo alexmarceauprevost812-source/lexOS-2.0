@@ -27,13 +27,25 @@
 #  Donc : le bouton rouge de la barre n'est plus une action du greffon, mais
 #  un LANCEUR ordinaire qui appelle ce programme.
 #
-#  ═══ POURQUOI QUATRE BOUTONS ET PAS SIX ═══
-#  Veille et redémarrage sont désormais À CÔTÉ du bouton rouge, dans la
-#  barre, là où Alex les a placés. Les remettre aussi dans cette fenêtre,
-#  c'est offrir deux chemins pour le même geste et faire hésiter : « lequel
-#  des deux redémarrages ? ». La fenêtre porte donc ce qui n'est nulle part
-#  ailleurs — changer d'utilisateur, déconnexion — plus la confirmation de
-#  l'arrêt (on vient de cliquer dessus) et de quoi repartir.
+#  ═══ CE QUI A CHANGÉ DEPUIS : TOUT DANS LE BOUTON ROUGE ═══
+#  Veille et redémarrage avaient d'abord rejoint la barre, à côté du bouton
+#  rouge — c'était la demande d'origine, ci-dessus. Deux photos plus tard,
+#  Alex est revenu dessus : « trop d'outils visibles en haut […] j'aimerais
+#  que tout soit dans le bouton rouge, pour tout retrouver à la même place ».
+#  Ils rejoignent donc CETTE fenêtre à leur tour — plus de « lequel des deux
+#  redémarrages » à se demander, puisqu'il n'y en a plus qu'un.
+#
+#  VERROUILLER — RETIRÉ, PUIS RAMENÉ ICI. Il vivait dans la même rangée que
+#  veille et redémarrer (greffon « actions » de xfce4-panel) ; une photo de
+#  l'écran de verrouillage montrait un damier gris, sans fond, rien
+#  d'exploitable — « cet outil ne sert vraiment à rien » — et il a disparu
+#  du panneau plutôt que de changer d'adresse. Le damier gris était l'icône
+#  CASSÉE du greffon (image introuvable), pas le verrouillage lui-même :
+#  xflock4 / light-locker fonctionnent très bien une fois appelés
+#  directement, sans passer par ce greffon. Alex l'a redemandé dans CETTE
+#  fenêtre — « verrouiller écran » dans la liste avec arrêter, redémarrer,
+#  mise en veille, changer d'utilisateur — donc il rejoint le groupe, mais
+#  par la vraie commande système, jamais par le greffon cassé.
 #
 #  ═══ CE QUI EST ÉPROUVABLE, ET COMMENT ═══
 #  Un programme qui éteint la machine ne se teste pas en le lançant. Toutes
@@ -129,6 +141,22 @@ changer_utilisateur() {
 	return 1
 }
 
+#  VERROUILLER L'ÉCRAN — xflock4 d'abord : c'est le script standard de XFCE,
+#  il détecte tout seul ce qui est installé (light-locker, xfce4-screensaver,
+#  etc.) et c'est le même choix que ferait n'importe quel raccourci clavier
+#  XFCE. light-locker et xfce4-screensaver sont nommés ensuite en repli
+#  direct, au cas où xflock4 manquerait (session minimale). L'un des deux
+#  est toujours installé : « light-locker|xfce4-screensaver » dans la liste
+#  de paquets impose l'un ou l'autre.
+verrouiller() {
+	dispo xflock4                   && { lancer xflock4;                    return; }
+	dispo light-locker-command      && { lancer light-locker-command -l;    return; }
+	dispo xfce4-screensaver-command && { lancer xfce4-screensaver-command -l; return; }
+	dispo loginctl                  && { lancer loginctl lock-session;      return; }
+	echo "$PROG : rien pour verrouiller l'écran" >&2
+	return 1
+}
+
 # =============================================================================
 #  La ligne de commande — « lexos session eteindre », etc.
 # =============================================================================
@@ -141,6 +169,7 @@ case "${1:-}" in
 	veille|suspend|sommeil)                       veille;              exit $? ;;
 	deconnexion|déconnexion|logout)               deconnexion;         exit $? ;;
 	utilisateur|changer-utilisateur|switch-user)  changer_utilisateur; exit $? ;;
+	verrouiller|verrouillage|verrouiller-ecran|lock)  verrouiller;    exit $? ;;
 	aide|--help|-h|help)
 		cat <<'AIDE'
 lexos session — arrêter, redémarrer, changer d'utilisateur
@@ -151,6 +180,7 @@ lexos session — arrêter, redémarrer, changer d'utilisateur
   lexos session veille             met en veille
   lexos session deconnexion        ferme la session
   lexos session utilisateur        retourne à l'écran de connexion
+  lexos session verrouiller        verrouille l'écran
 
 Le bouton rouge, tout à droite de la barre du haut, ouvre la fenêtre.
 AIDE
@@ -178,6 +208,7 @@ if [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
     lexos session redemarrer         redémarrer
     lexos session deconnexion        fermer la session
     lexos session utilisateur        changer d'utilisateur
+    lexos session verrouiller        verrouiller l'écran
 
 TTY
 	exit 0
@@ -187,12 +218,9 @@ ICON="$BRAND/icon-arret.svg"
 [[ -r "$ICON" ]] || ICON="system-shutdown"
 
 QUI="${USER:-$(id -un 2>/dev/null)}"
-TEXTE="<span size='x-large' weight='bold'>Fermer la session ?</span>
+TEXTE="<span size='x-large' weight='bold'>Que veux-tu faire ?</span>
 
-Tu es connecté en tant que <b>${QUI}</b>.
-
-<span alpha='70%'>Veille et redémarrage sont dans la barre du haut,
-juste à gauche de ce bouton.</span>"
+Tu es connecté en tant que <b>${QUI}</b>."
 
 #  yad d'abord (il est dans lexos-core.list.chroot, donc strict), zenity en
 #  repli. Les codes de retour sont ceux qu'on déclare après le « ! » dans
@@ -207,27 +235,36 @@ if command -v yad >/dev/null 2>&1; then
 		--button="Changer d'utilisateur:2" \
 		--button="Déconnexion:3" \
 		--button="Éteindre:4" \
+		--button="Redémarrer:5" \
+		--button="Mise en veille:6" \
+		--button="Verrouiller l'écran:7" \
 		>/dev/null 2>&1
 	case $? in
 		2) changer_utilisateur ;;
 		3) deconnexion ;;
 		4) eteindre ;;
+		5) redemarrer ;;
+		6) veille ;;
+		7) verrouiller ;;
 		*) : ;;   # 1, la croix, Échap : on ne fait rien, et c'est voulu
 	esac
 	exit 0
 fi
 
 if command -v zenity >/dev/null 2>&1; then
-	#  zenity ne sait pas poser quatre boutons : on passe par une liste, qui
+	#  zenity ne sait pas poser six boutons : on passe par une liste, qui
 	#  dit la même chose et se lit aussi bien. Rien n'est retiré au passage.
 	CHOIX="$(zenity --list --title="Session — LexOS" \
 		--text="Tu es connecté en tant que ${QUI}." \
 		--column="Que faire ?" \
-		"Changer d'utilisateur" "Déconnexion" "Éteindre" 2>/dev/null)"
+		"Changer d'utilisateur" "Déconnexion" "Mise en veille" "Redémarrer" "Éteindre" "Verrouiller l'écran" 2>/dev/null)"
 	case "$CHOIX" in
 		"Changer d'utilisateur") changer_utilisateur ;;
 		"Déconnexion")           deconnexion ;;
+		"Mise en veille")        veille ;;
+		"Redémarrer")            redemarrer ;;
 		"Éteindre")              eteindre ;;
+		"Verrouiller l'écran")   verrouiller ;;
 		*) : ;;
 	esac
 	exit 0

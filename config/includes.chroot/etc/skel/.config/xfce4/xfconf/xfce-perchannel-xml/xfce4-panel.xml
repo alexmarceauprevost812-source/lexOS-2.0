@@ -88,14 +88,29 @@
         <value type="int" value="7"/>
         <value type="int" value="15"/>
         <value type="int" value="12"/>
-        <value type="int" value="8"/>
         <!--  17 EST LE DERNIER, ET C'EST TOUTE LA DEMANDE D'ALEX.
               « mettre le bouton rouge totalement à droite de l'écran ».
               Dans une barre horizontale, l'ordre de ce tableau EST l'ordre
               à l'écran, de gauche à droite : le dernier est le plus à
-              droite. Il était 8 (le greffon d'actions), dont le DERNIER
-              bouton était « déconnexion » — c'est elle qui occupait le
-              coin, pas l'arrêt. -->
+              droite.
+
+              LE GREFFON 8 (« actions ») A DISPARU DE CE TABLEAU. Photo
+              d'Alex : quatre boutons séparés devant le rouge — cadenas,
+              veille, redémarrer — « trop d'outils visibles en haut […]
+              j'aimerais que tout soit dans le bouton rouge, dans le coin,
+              pour tout retrouver à la même place ». Et sur le cadenas
+              précisément, une deuxième photo le même jour : l'écran de
+              verrouillage s'ouvre sur un damier gris — aucun fond, un
+              greffon qui ne montre rien d'utilisable — « cet outil ne sert
+              vraiment à rien, j'aimerais qu'on l'enlève ».
+
+              Les DEUX demandes pointent au même endroit : le greffon 8. Il
+              n'est plus dans ce tableau, donc plus dans la barre — ses
+              trois gestes (verrouiller, veille, redémarrer) ne sont donc
+              PAS repris ailleurs un par un ; « veille » et « redémarrer »
+              rejoignent le bouton rouge (lexos-session), « verrouiller »
+              disparaît purement et simplement, puisque c'est justement lui
+              qu'Alex a jugé inutile. -->
         <value type="int" value="17"/>
       </property>
     </property>
@@ -283,49 +298,33 @@
       </property>
     </property>
 
-    <!-- 8 · Session — VERROUILLER, VEILLE, REDÉMARRER. Et rien d'autre.
-         Photo de l'ISO 74 : six boutons collés, et le rouge n'était même
-         pas au bout — la déconnexion (verte) le dépassait à droite.
+    <!-- LE GREFFON 8 (« actions » : verrouiller, veille, redémarrer) A ÉTÉ
+         RETIRÉ. Il avait déjà son histoire — build 74, Alex avait redistribué
+         ses six boutons en trois ici (verrouiller, veille, redémarrer) et
+         trois dans la fenêtre du bouton rouge (changer d'utilisateur,
+         déconnexion, arrêt).
 
-         Alex a redistribué : « le bouton rouge totalement à droite »,
-         « le redémarrage à côté », « la veille à côté du redémarrage »,
-         et « changer d'utilisateur » + « déconnexion » DANS UNE AUTRE
-         FENÊTRE, celle qu'ouvre le bouton rouge.
+         DEUX PHOTOS PLUS TARD, LES TROIS QUI RESTAIENT ICI DEVAIENT PARTIR
+         AUSSI. « Trop d'outils visibles en haut […] j'aimerais que tout soit
+         dans le bouton rouge, pour tout retrouver à la même place » — et,
+         sur le cadenas précisément : l'écran de verrouillage s'ouvrait sur
+         un damier gris, aucun fond, rien d'utilisable — « cet outil ne sert
+         vraiment à rien, j'aimerais qu'on l'enlève ».
 
-         Trois partent donc d'ici :
-           · shutdown    — remplacé par le lanceur 17, qui ouvre la fenêtre.
-             Le greffon d'actions ne sait pas ouvrir NOTRE fenêtre au clic :
-             il exécute ses propres actions, un point c'est tout. Aucun
-             réglage ne change ça — même mur que la taille des boutons de
-             fenêtre au build 70.
-           · switch-user et logout — ils vivent dans la fenêtre maintenant.
-
-         VERROUILLER RESTE. Alex ne l'a pas cité, et c'est le seul geste de
-         cette rangée qu'on fait plusieurs fois par jour : l'enfouir dans
-         une fenêtre le rendrait plus lent pour rien. Il est à gauche de la
-         veille, hors des trois qu'Alex a nommés.
-
-         L'ORDRE DE CE TABLEAU EST L'ORDRE À L'ÉCRAN, de gauche à droite.
-         Avec le lanceur 17 juste après le greffon, on obtient :
-             verrouiller · veille · redémarrer · [ARRÊT ROUGE]
-         soit exactement ce qu'il a décrit, en partant du bord droit. -->
-    <property name="plugin-8" type="string" value="actions">
-      <property name="appearance" type="int" value="0"/>
-      <property name="items" type="array">
-        <value type="string" value="+lock-screen"/>
-        <value type="string" value="+separator"/>
-        <value type="string" value="+suspend"/>
-        <value type="string" value="+restart"/>
-      </property>
-    </property>
+         Veille et redémarrer rejoignent donc lexos-session (voir le greffon
+         17 ci-dessous, et lexos-session lui-même pour le détail). Verrouiller
+         ne rejoint PAS la fenêtre : c'est justement le geste qu'Alex a jugé
+         inutile, et lui ajouter une deuxième porte n'aurait réglé ni la
+         plainte sur l'encombrement du haut ni le damier gris — juste déplacé
+         le même échec ailleurs. -->
 
     <!-- 17 · LE BOUTON ROUGE. Un lanceur ordinaire, pas une action du
          greffon : c'est ce qui permet qu'un clic ouvre lexos-session,
-         la fenêtre qui porte « changer d'utilisateur » et « déconnexion ».
-         Son icône, lexos-arret, est le seul dessin de la barre qui NE SUIT
-         PAS l'accent : le rouge y est un avertissement, pas un goût. Sous
-         un accent vert, un bouton d'arrêt vert dirait « vas-y » à
-         l'endroit exact où il doit dire « attention ». -->
+         la fenêtre qui porte tous les gestes de fin de session. Son icône,
+         lexos-arret, est le seul dessin de la barre qui NE SUIT PAS
+         l'accent : le rouge y est un avertissement, pas un goût. Sous un
+         accent vert, un bouton d'arrêt vert dirait « vas-y » à l'endroit
+         exact où il doit dire « attention ». -->
     <property name="plugin-17" type="string" value="launcher">
       <property name="items" type="array">
         <value type="string" value="lexos-session.desktop"/>

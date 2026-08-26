@@ -10735,9 +10735,17 @@ function pwToggle(btn){
   pwMenuEl.className="menu pw-menu";
   pwMenuEl.style.top=(r.bottom+6)+"px"; pwMenuEl.style.left="auto";
   pwMenuEl.style.right=Math.max(8, innerWidth-r.right)+"px";
+  //  « Verrouiller l'écran » avait disparu de ce menu — le damier gris
+  //  qu'Alex avait vu venait du greffon CASSÉ du panneau XFCE (icône
+  //  introuvable), pas du verrouillage lui-même. Il l'a redemandé, cette
+  //  fois dans la fenêtre du bouton rouge avec arrêter/redémarrer/veille/
+  //  changer d'utilisateur — donc il revient ici aussi, câblé sur le même
+  //  écran de connexion que pwSwitchUser()/pwLogout(), pas sur l'ancien
+  //  greffon.
+  //  loginScreenHTML() reste plus bas, inchangée : c'est l'écran de
+  //  connexion au DÉMARRAGE de la démo qui s'en sert aussi, pas seulement
+  //  ce menu.
   pwMenuEl.innerHTML=
-    `<button onclick="pwLock()"><span class="picto">🔒</span> Verrouiller l'écran</button>`+
-    `<div class="msep"></div>`+
     `<button onclick="pwSuspend()"><span class="picto">🌙</span> Mettre en veille</button>`+
     `<button onclick="pwRestart()"><span class="picto">↻</span> Redémarrer</button>`+
     `<button onclick="pwShutdown()"><span class="picto">⏻</span> Éteindre</button>`+
@@ -10751,7 +10759,8 @@ function pwToggle(btn){
         par diverger. */
     `<div class="msep"></div>`+
     `<button onclick="pwSwitchUser()"><span class="picto">👥</span> Changer d'utilisateur</button>`+
-    `<button onclick="pwLogout()"><span class="picto">⏏</span> Déconnexion</button>`;
+    `<button onclick="pwLogout()"><span class="picto">⏏</span> Déconnexion</button>`+
+    `<button onclick="pwLock()"><span class="picto">🔒</span> Verrouiller l'écran</button>`;
   document.body.appendChild(pwMenuEl);
 }
 document.addEventListener("click", e=>{
@@ -10790,13 +10799,6 @@ function loginScreenHTML(){
       `<button class="btn" onclick="event.stopPropagation();loginSubmit()">Déverrouiller</button>`+
       `<div class="login-err" id="loginErr"></div>`+
     `</div>`;
-}
-function pwLock(){
-  pwClose();
-  const el=document.getElementById("powerOverlay");
-  el.className="on login";
-  el.innerHTML=loginScreenHTML();
-  powerState="lock";
 }
 function loginSelect(user){
   if(user==="guest"){ loginUnlock(); return; }
@@ -10864,6 +10866,18 @@ function pwSwitchUser(){
 function pwLogout(){
   pwClose();
   document.querySelectorAll(".win").forEach(w=>w.remove());
+  const el=document.getElementById("powerOverlay");
+  el.className="on login";
+  el.innerHTML=loginScreenHTML();
+  powerState="lock";
+}
+//  VERROUILLER, contrairement à pwLogout(), NE FERME PAS les fenêtres —
+//  c'est tout l'intérêt du geste : la session reste ouverte dessous, prête
+//  à être retrouvée après authentification, exactement comme sur le vrai
+//  système (xflock4 ne termine rien, il ne fait qu'afficher l'écran de
+//  verrouillage par-dessus la session en cours).
+function pwLock(){
+  pwClose();
   const el=document.getElementById("powerOverlay");
   el.className="on login";
   el.innerHTML=loginScreenHTML();

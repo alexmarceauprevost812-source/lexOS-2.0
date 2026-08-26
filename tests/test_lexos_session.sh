@@ -92,8 +92,9 @@ declare -A ATTENDU=(
 	[veille]="xfce4-session-logout --suspend"
 	[deconnexion]="xfce4-session-logout --logout --fast"
 	[utilisateur]="dm-tool switch-to-greeter"
+	[verrouiller]="xflock4"
 )
-for g in eteindre redemarrer veille deconnexion utilisateur; do
+for g in eteindre redemarrer veille deconnexion utilisateur verrouiller; do
 	VU="$(simule "$g")"
 	if [ "$VU" = "${ATTENDU[$g]}" ]; then
 		ok "« $g » -> ${ATTENDU[$g]}"
@@ -158,6 +159,33 @@ else
 	non "changement d'utilisateur sans dm-tool : rc=$(rc), « $(erreurs) »"
 fi
 
+#  VERROUILLER — les mêmes replis en cascade que les autres gestes.
+faux light-locker-command xfce4-screensaver-command loginctl
+reel verrouiller
+[ "$(appels)" = "light-locker-command -l" ] \
+	&& ok "sans xflock4, verrouiller passe par light-locker-command -l" \
+	|| non "repli 1 de verrouiller : « $(appels) »"
+
+faux xfce4-screensaver-command loginctl
+reel verrouiller
+[ "$(appels)" = "xfce4-screensaver-command -l" ] \
+	&& ok "sans light-locker non plus, xfce4-screensaver-command -l prend le relais" \
+	|| non "repli 2 de verrouiller : « $(appels) »"
+
+faux loginctl
+reel verrouiller
+[ "$(appels)" = "loginctl lock-session" ] \
+	&& ok "en tout dernier recours, loginctl lock-session" \
+	|| non "repli 3 de verrouiller : « $(appels) »"
+
+faux
+reel verrouiller
+if [ "$(rc)" != "0" ] && erreurs | grep -q "rien pour verrouiller"; then
+	ok "sans aucun outil de verrouillage, il le dit au lieu de rendre 0 en silence"
+else
+	non "verrouiller sans outil : rc=$(rc), « $(erreurs) »"
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 titre "3. Sans écran, il ne coupe RIEN"
 #  Le piège de cette famille d'outils : « pas d'affichage » ne doit surtout
@@ -192,52 +220,81 @@ reel aide
 	|| non "« aide » a lancé quelque chose : « $(appels) »"
 
 # ═════════════════════════════════════════════════════════════════════════════
-titre "5. La barre et la fenêtre disent la même chose"
-#  Les deux boutons qu'Alex a demandé de déplacer doivent être DANS la
-#  fenêtre et PLUS dans la rangée du panneau. S'ils étaient aux deux
-#  endroits, ou à aucun, personne ne s'en apercevrait avant la photo
-#  suivante — et ça coûte une ISO à chaque fois.
+titre "5. Le greffon d'actions a disparu de la barre — tout vit dans la fenêtre"
+# ═════════════════════════════════════════════════════════════════════════════
+#  DEUXIÈME PASSE, APRÈS LES PHOTOS DE TROP D'OUTILS ET DU DAMIER GRIS. Le
+#  greffon 8 (« actions » : verrouiller, veille, redémarrer) devait d'abord
+#  garder verrouiller ; Alex l'a ensuite jugé inutile ET a demandé que tout
+#  rejoigne le bouton rouge. Le greffon 8 n'existe donc plus DU TOUT, ni son
+#  numéro dans plugin-ids : s'il restait quelque part, aux deux endroits ou
+#  à aucun, personne ne s'en apercevrait avant la photo suivante.
 PANEL="$RACINE/config/includes.chroot/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
-ACTIONS="$(python3 - "$PANEL" <<'PY'
+PRESENT_8="$(python3 - "$PANEL" <<'PYXML8'
+import sys, xml.etree.ElementTree as ET
+r = ET.parse(sys.argv[1]).getroot()
+print(any(p.get("name") == "plugin-8" for p in r.iter("property")))
+PYXML8
+)"
+[ "$PRESENT_8" = "False" ] \
+	&& ok "le greffon 8 (verrouiller/veille/redémarrer) n'existe plus dans le panneau" \
+	|| non "le greffon 8 est encore défini — les trois boutons d'origine sont peut-être encore là"
+
+DANS_IDS_8="$(python3 - "$PANEL" <<'PYIDS8'
 import sys, xml.etree.ElementTree as ET
 r = ET.parse(sys.argv[1]).getroot()
 for p in r.iter("property"):
-    if p.get("name") == "plugin-8":
-        for q in p:
-            if q.get("name") == "items":
-                print(" ".join(v.get("value") for v in q))
-PY
+    if p.get("name") == "plugin-ids":
+        print("8" in [v.get("value") for v in p])
+PYIDS8
 )"
-case "$ACTIONS" in
-	*switch-user*) non "« changer d'utilisateur » est encore dans la barre" ;;
-	*)             ok "« changer d'utilisateur » a quitté la barre" ;;
-esac
-case "$ACTIONS" in
-	*logout*) non "« déconnexion » est encore dans la barre" ;;
-	*)        ok "« déconnexion » a quitté la barre" ;;
-esac
-case "$ACTIONS" in
-	*shutdown*) non "l'arrêt est encore une action du greffon (il doit être le lanceur 17)" ;;
-	*)          ok "l'arrêt n'est plus une action du greffon" ;;
-esac
-case "$ACTIONS" in
-	*suspend*restart*) ok "veille puis redémarrage, dans cet ordre, à gauche du bouton rouge" ;;
-	*)                 non "ordre inattendu dans la barre : « $ACTIONS »" ;;
-esac
+[ "$DANS_IDS_8" = "False" ] \
+	&& ok "et son numéro n'apparaît plus dans plugin-ids — pas de trou, pas de fantôme" \
+	|| non "« 8 » traîne encore dans plugin-ids sans définition : XFCE afficherait un greffon cassé"
 
-#  Et le bouton rouge doit être le DERNIER greffon : c'est ce qui le met
-#  tout à droite de l'écran, la demande d'Alex mot pour mot.
-DERNIER="$(python3 - "$PANEL" <<'PY'
+#  Et le bouton rouge doit toujours être le DERNIER greffon : c'est ce qui le
+#  met tout à droite de l'écran, la demande d'Alex mot pour mot — ça n'a pas
+#  changé en retirant le greffon 8.
+DERNIER="$(python3 - "$PANEL" <<'PYLAST'
 import sys, xml.etree.ElementTree as ET
 r = ET.parse(sys.argv[1]).getroot()
 for p in r.iter("property"):
     if p.get("name") == "plugin-ids":
         print([v.get("value") for v in p][-1])
-PY
+PYLAST
 )"
 [ "$DERNIER" = "17" ] \
 	&& ok "le greffon 17 (bouton rouge) est le dernier — donc le plus à droite" \
 	|| non "le dernier greffon est « $DERNIER », pas 17 : le rouge n'est pas au bout"
+
+#  VEILLE ET REDÉMARRER DOIVENT DONC VIVRE ICI, DANS LA FENÊTRE — sinon ils
+#  ont disparu du système tout entier, pas juste de la barre.
+grep -q 'Redémarrer:5' "$OUTIL" \
+	&& ok "la fenêtre porte un bouton « Redémarrer »" \
+	|| non "« Redémarrer » a disparu à la fois de la barre ET de la fenêtre"
+grep -q 'Mise en veille:6' "$OUTIL" \
+	&& ok "…et un bouton « Mise en veille »" \
+	|| non "« Mise en veille » a disparu à la fois de la barre ET de la fenêtre"
+grep -q '5) redemarrer ;;' "$OUTIL" \
+	&& ok "le bouton « Redémarrer » appelle bien le geste redemarrer()" \
+	|| non "« Redémarrer » est affiché mais n'appelle rien"
+grep -q '6) veille ;;' "$OUTIL" \
+	&& ok "le bouton « Mise en veille » appelle bien le geste veille()" \
+	|| non "« Mise en veille » est affiché mais n'appelle rien"
+
+#  VERROUILLER — TROISIÈME PASSE. Alex l'avait jugé inutile devant un damier
+#  gris (l'icône CASSÉE du greffon d'actions, pas le verrouillage lui-même),
+#  puis il l'a redemandé — cette fois dans la fenêtre du bouton rouge, avec
+#  arrêter/redémarrer/veille/changer d'utilisateur. Il doit donc y être, par
+#  la vraie commande système (xflock4), pas par l'ancien greffon.
+grep -q "Verrouiller l'écran:7" "$OUTIL" \
+	&& ok "la fenêtre porte un bouton « Verrouiller l'écran »" \
+	|| non "« Verrouiller l'écran » demandé par Alex n'est pas dans la fenêtre"
+grep -q '7) verrouiller ;;' "$OUTIL" \
+	&& ok "…et ce bouton appelle bien le geste verrouiller()" \
+	|| non "« Verrouiller l'écran » est affiché mais n'appelle rien"
+grep -q 'dispo xflock4' "$OUTIL" \
+	&& ok "verrouiller() passe par xflock4 — pas par l'ancien greffon cassé" \
+	|| non "verrouiller() ne s'appuie pas sur xflock4"
 
 # ═════════════════════════════════════════════════════════════════════════════
 printf '\n%s réussi(s), %s échoué(s)\n' "$REUSSIS" "$ECHOUES"
