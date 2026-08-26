@@ -188,7 +188,7 @@ grep -q 'lexos wallpaper %f ajuster' \
 	|| non "le clic droit recadre encore (remplir) — deux portes, deux résultats"
 
 # =============================================================================
-titre "4. Le fond de marque ne revient PAS effacer le choix de l'utilisateur"
+titre "4. Le fond de marque ne revient PAS effacer le choix de l'utilisateur — ET NE SE FAIT PAS PIÉGER PAR L'ADVERSAIRE"
 # =============================================================================
 #  lexos-firstrun repose le fond de marque toutes les cinq secondes pendant une
 #  minute, pour gagner une course contre xfdesktop. Quelqu'un qui ouvre sa
@@ -198,9 +198,66 @@ titre "4. Le fond de marque ne revient PAS effacer le choix de l'utilisateur"
 grep -q 'actuel=' "$FIRSTRUN" \
 	&& ok "la boucle relit ce qui est posé avant de réécrire" \
 	|| non "la boucle réécrit sans regarder — le choix de l'utilisateur est effacé"
-grep -q '\[\[ -n "$actuel" && "$actuel" != "$WALL" \]\] && break' "$FIRSTRUN" \
-	&& ok "et elle s'arrête dès que ce n'est plus notre image" \
-	|| non "elle ne s'arrête jamais : une minute d'écrasement"
+
+#  ═══ LA BOUCLE EST JOUÉE POUR DE VRAI, PAS DEVINÉE PAR UN GREP ═══
+#  Un simple « grep -q '[[ -n \"\$actuel\" ... ]] && break' » disait que la ligne
+#  existe — pas ce qu'elle FAIT. Et elle faisait la mauvaise chose : le
+#  scénario documenté juste au-dessus de cette boucle (« xfdesktop termine son
+#  démarrage après nous et écrit ses propres valeurs par-dessus ») écrit un
+#  chemin sous /usr/share/backgrounds/xfce — pas $WALL. La condition prenait
+#  alors CETTE écriture pour une décision de l'utilisateur, et cassait la
+#  boucle sans avoir reposé une seule fois : la course perdue, en silence,
+#  dans exactement le cas qu'elle existe pour gagner. Trouvé par une revue
+#  adversariale, confirmé en exécutant la boucle réelle avec un faux
+#  xfconf-query — pas en la relisant.
+#
+#  On extrait le VRAI corps de boucle du fichier (entre les mêmes bornes que
+#  le commentaire ci-dessus emploie), on neutralise juste « sleep 5 » pour
+#  aller vite, et on la fait tourner en avant-plan sur un faux xfconf-query à
+#  état — pas en arrière-plan : un « &» dans un sous-test masquerait la vraie
+#  fin de la boucle et ferait croire qu'elle a tourné alors qu'elle a été tuée
+#  avec le processus parent.
+BIN4="$BANC/bin4"; mkdir -p "$BIN4"
+ETAT4="$BANC/etat4"; REPOSES4="$BANC/reposes4"
+cat > "$BIN4/xfconf-query" <<'XFC4'
+#!/bin/sh
+case "$*" in
+	*-l*) printf '/backdrop/screen0/monitorHDMI-1/workspace0/last-image
+'; exit 0 ;;
+esac
+case "$*" in
+	*-s*) shift; while [ "$#" -gt 0 ]; do [ "$1" = "-s" ] && { printf '%s' "$2" > "$ETAT4"; break; }; shift; done; exit 0 ;;
+	*) cat "$ETAT4" 2>/dev/null; exit 0 ;;
+esac
+XFC4
+chmod +x "$BIN4/xfconf-query"
+
+joue_boucle() {   # joue_boucle <valeur-initiale-de-xfdesktop>
+	: > "$REPOSES4"
+	printf '%s' "$1" > "$ETAT4"
+	{
+		printf 'appliquer_fond() { printf x >> "%s"; }
+' "$REPOSES4"
+		printf "WALL='/usr/share/backgrounds/lexos/wallpaper.png'
+"
+		sed -n '/^	#  ON REPOSE LE FOND PLUSIEURS FOIS/,/^	) >\/dev\/null 2>&1 &$/p' "$FIRSTRUN" 			| sed -e 's/^	(\s*$//' -e 's/^[[:space:]]*sleep 5$/:/' 			      -e 's/^	) >\/dev\/null 2>&1 &$//'
+	} > "$BANC/boucle4.sh"
+	ETAT4="$ETAT4" REPOSES4="$REPOSES4" PATH="$BIN4:$PATH" bash "$BANC/boucle4.sh" >/dev/null 2>&1
+	printf '%s' "$(wc -c < "$REPOSES4")"
+}
+
+#  CAS 1 — L'ADVERSAIRE GAGNE LE PREMIER TICK. xfdesktop a déjà écrit son
+#  propre défaut XFCE avant notre première lecture. C'est exactement le
+#  scénario documenté par la boucle elle-même : elle doit continuer à
+#  reposer, pas capituler en le prenant pour un choix.
+N="$(joue_boucle "/usr/share/backgrounds/xfce/xfce-shapes.svg")"
+[ "${N:-0}" -gt 0 ] 	&& ok "l'écriture de xfdesktop sur SON PROPRE chemin ne stoppe pas la boucle ($N repose(s))" 	|| non "l'adversaire a été pris pour une décision de l'utilisateur — 0 repose, fond bleu qui reste"
+
+#  CAS 2 — TÉMOIN : un vrai choix (Paramètres, clic droit Fichiers…) écrit
+#  ailleurs que sous /usr/share/backgrounds/xfce. Celui-là DOIT arrêter la
+#  boucle tout de suite, sinon on revient au défaut qui a motivé la boucle.
+N="$(joue_boucle "/home/lex/Images/photo-a-moi.jpg")"
+[ "${N:-1}" = 0 ] 	&& ok "un vrai choix de l'utilisateur arrête la boucle sans reposer par-dessus" 	|| non "un choix réel de l'utilisateur a été écrasé ($N repose(s) — « elle est revenue toute seule »)"
 
 # =============================================================================
 titre "5. La pile d'Alex dans les Paramètres — quatre états, quatre couleurs"

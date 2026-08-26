@@ -229,6 +229,21 @@ if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
 	#  propriété. Tant que c'est NOTRE image (ou rien encore), on continue :
 	#  c'est le cas de la course. Dès que c'est autre chose, quelqu'un a
 	#  décidé — et on ne discute pas avec une décision.
+	#
+	#  ═══ SAUF QUE « autre chose » PEUT ÊTRE L'ADVERSAIRE LUI-MÊME ═══
+	#  Trouvé en relisant ce fichier : le scénario documenté juste au-dessus
+	#  — « xfdesktop termine son démarrage après nous et écrit ses propres
+	#  valeurs par-dessus » — écrit justement un chemin sous XFCE_BG
+	#  ($XFCE_BG, posé par le hook 0300), pas $WALL. La condition d'arrêt
+	#  prenait alors CETTE écriture-là pour une décision de l'utilisateur, et
+	#  cassait la boucle sans avoir reposé une seule fois — précisément dans
+	#  la course qu'elle existe pour gagner. Si le hook 0300 n'a pas pu
+	#  remplacer les fichiers XFCE (il le dit lui-même : « !! aucun fond
+	#  XFCE remplacé »), la session reste alors sur le bleu.
+	#
+	#  On exclut donc aussi tout chemin sous XFCE_BG : ce n'est pas un choix,
+	#  c'est l'autre coureur.
+	XFCE_BG="/usr/share/backgrounds/xfce"
 	(
 		for _ in $(seq 1 12); do
 			sleep 5
@@ -237,7 +252,9 @@ if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
 					| grep -m1 -E '/backdrop/.*last-image$' \
 					| xargs -r -I{} xfconf-query -c xfce4-desktop -p {} 2>/dev/null
 			)"
-			[[ -n "$actuel" && "$actuel" != "$WALL" ]] && break
+			if [[ -n "$actuel" && "$actuel" != "$WALL" && "$actuel" != "$XFCE_BG"/* ]]; then
+				break
+			fi
 			appliquer_fond
 		done
 	) >/dev/null 2>&1 &
