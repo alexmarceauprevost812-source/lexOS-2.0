@@ -132,6 +132,8 @@ cat > "$BANC/base.css" <<'CSS'
 #login_window entry { background-color: #2B2E39; color: #D3DAE3; }
 #login_window label.error { color: #E01B24; }
 #panel_window { background-color: #2F343F; color: #D3DAE3; }
+menuitem:hover { background-color: #4B5162; color: #D3DAE3; }
+row:selected { background-color: #4B5162; color: #D3DAE3; }
 CSS
 
 resout() { # resout <chemin.json> <propriete> [<priorite-de-notre-feuille>]
@@ -171,6 +173,21 @@ J
 cat > "$BANC/photo.json" <<'J'
 [{"nom":"window","id":"login_window","classes":[]},
  {"nom":"image","id":"user_image","classes":[]}]
+J
+#  LE CAS QUI COMPTE : un menu ou une rangée survolée dans un POPUP QUI N'A
+#  AUCUN ANCÊTRE NOMMÉ — ni #login_window, ni #panel_window. C'est
+#  précisément le cas d'un GtkMenu (le menu « Mettre en veille / Éteindre »
+#  de l'indicateur « ~power », la liste des comptes) : sa fenêtre de haut
+#  niveau n'est pas un descendant GTK du panneau, même si elle paraît collée
+#  dessus à l'écran. Si nos règles dépendaient d'un ancêtre nommé, ce cas
+#  resterait orange sur orange — exactement la photo d'Alex.
+cat > "$BANC/menu_sans_ancre.json" <<'J'
+[{"nom":"window","id":"","classes":[]},
+ {"nom":"menuitem","classes":[],"etats":["hover"]}]
+J
+cat > "$BANC/rangee_sans_ancre.json" <<'J'
+[{"nom":"window","id":"","classes":[]},
+ {"nom":"row","classes":[],"etats":["selected"]}]
 J
 
 #  LES DEUX RÉGIMES. En 800 (le CSS de l'utilisateur du compte lightdm) la
@@ -217,6 +234,32 @@ F="$(resout "$BANC/photo.json" border-radius)"
 [ "$F" = "50%" ] \
 	&& ok "la photo du profil est cerclée en rond" \
 	|| non "la photo du profil : border-radius « $F »"
+
+#  ALEX, TROIS PHOTOS : le menu « ~power » (Mettre en veille / Éteindre…) et
+#  la liste des comptes (« invite » en surbrillance) passaient orange sur
+#  orange au survol. Ces popups n'ont, dans l'arbre GTK, AUCUN ancêtre nommé
+#  #login_window ou #panel_window — d'où des fixtures SANS ancêtre nommé
+#  (fenêtre à id vide) : si le test passe seulement avec un #login_window en
+#  tête de chemin, il ne prouve rien du vrai cas.
+for PRIO in 800 200; do
+	F="$(resout "$BANC/menu_sans_ancre.json" background-color "$PRIO")"
+	[ "$F" = "#E8590C" ] \
+		&& ok "priorité $PRIO : un menuitem survolé, SANS ancêtre nommé, passe orange" \
+		|| non "priorité $PRIO : menuitem survolé sans ancêtre = « $F » (le popup du panneau resterait gris)"
+	F="$(resout "$BANC/menu_sans_ancre.json" color "$PRIO")"
+	[ "$F" = "#000000" ] \
+		&& ok "priorité $PRIO : … et son écriture passe NOIRE (plus d'orange sur orange)" \
+		|| non "priorité $PRIO : écriture du menuitem survolé = « $F »"
+
+	F="$(resout "$BANC/rangee_sans_ancre.json" background-color "$PRIO")"
+	[ "$F" = "#E8590C" ] \
+		&& ok "priorité $PRIO : une rangée sélectionnée, SANS ancêtre nommé, passe orange" \
+		|| non "priorité $PRIO : rangée sélectionnée sans ancêtre = « $F »"
+	F="$(resout "$BANC/rangee_sans_ancre.json" color "$PRIO")"
+	[ "$F" = "#000000" ] \
+		&& ok "priorité $PRIO : … et son écriture passe NOIRE aussi" \
+		|| non "priorité $PRIO : écriture de la rangée sélectionnée = « $F »"
+done
 
 #  L'ORDRE. « #login_window * » et « #login_window button » ont la MÊME
 #  spécificité : si le large passait APRÈS, il repeindrait les boutons et on

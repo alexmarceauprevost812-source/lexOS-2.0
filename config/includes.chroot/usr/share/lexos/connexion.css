@@ -94,6 +94,52 @@
 	color: @lexos_noir;
 }
 
+/* --- LES MENUS ET LISTES DÉROULANTES : ORANGE SURVOLÉ, ÉCRITURE NOIRE ---- */
+/*  ALEX, TROIS PHOTOS : le menu « ~power » du panneau (Mettre en veille /
+    Éteindre…) et la liste des comptes (« invite » en surbrillance) devenaient
+    ORANGE SUR ORANGE au survol — le fond prenait l'accent, l'écriture le
+    gardait aussi, plus rien ne se lit.
+
+    « #login_window * » et « #panel_window * » plus haut ne suffisaient pas :
+    le menu qui s'ouvre au clic sur un indicateur (« ~power », « ~layout »,
+    « ~a11y ») et le popup de la liste des comptes ne sont PAS forcément des
+    DESCENDANTS GTK de #panel_window ou #login_window dans l'arbre des
+    widgets — un GtkMenu s'ouvre le plus souvent dans sa PROPRE fenêtre de
+    haut niveau, même s'il paraît collé au panneau à l'écran. Un sélecteur
+    « #panel_window menuitem:hover » ne l'atteint alors jamais : la
+    correspondance CSS de GTK suit l'arbre des widgets, pas ce que l'œil voit.
+
+    D'où des règles SANS ANCRE : elles s'appliquent à tout menuitem ou toute
+    rangée du contexte GTK du greeter, quelle que soit sa fenêtre de haut
+    niveau — la seule façon de couvrir un popup qu'on ne peut pas nommer par
+    son ancêtre. Isolées une par une, comme partout dans ce fichier : un
+    sélecteur invalide sur GTK 3.24 (menuitem existe, row peut ne pas
+    exister sur une vieille version) ne doit faire tomber que lui-même. */
+menuitem:hover {
+	background-color: @lexos_accent;
+	color: @lexos_noir;
+}
+menuitem:selected {
+	background-color: @lexos_accent;
+	color: @lexos_noir;
+}
+row:hover {
+	background-color: @lexos_accent;
+	color: @lexos_noir;
+}
+row:selected {
+	background-color: @lexos_accent;
+	color: @lexos_noir;
+}
+treeview.view:selected {
+	background-color: @lexos_accent;
+	color: @lexos_noir;
+}
+treeview.view cell:selected {
+	background-color: @lexos_accent;
+	color: @lexos_noir;
+}
+
 /* --- LE CARRÉ GRIS QUI DEVIENT NOIR --------------------------------------- */
 /*  Les trois noms sont ceux du greeter lui-même (son fichier .ui) :
     « login_window » est la boîte, « content_frame » ce qu'elle contient,
