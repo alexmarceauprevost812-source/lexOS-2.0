@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-app-settings — les VRAIS réglages de la fenêtre au premier plan
+# =============================================================================
+#  Alex : « le bouton vert, en haut à droite de la fenêtre, doit ouvrir les
+#  paramètres DE LA FENÊTRE ouverte — pas les paramètres de l'ordinateur. »
+#  Et : « tous les paramètres de la fenêtre qu'on peut avoir avec le pouvoir
+#  de Linux ». Pas une imitation : les VRAIES préférences de la VRAIE
+#  application, quand Linux en expose une porte d'entrée en ligne de
+#  commande — sinon on ne triche pas, on retombe sur les Paramètres LexOS.
+#
+#  CE QUE CE SCRIPT NE PEUT PAS FAIRE, ET POURQUOI ON NE FAIT PAS SEMBLANT.
+#  Un thème xfwm4 (et le décorateur de Compiz, qui réutilise les mêmes
+#  images — voir le hook 0610) ne sait dessiner que des boutons aux actions
+#  FIXES : fermer, réduire, agrandir, le menu système. Aucun des deux ne
+#  sait lancer une commande à nous au clic sur un bouton de barre de titre —
+#  ce n'est pas un réglage qui manque, c'est une porte qui n'existe pas.
+#  Le geste passe donc par un RACCOURCI CLAVIER (Super+, — voir
+#  xfce4-keyboard-shortcuts.xml), qui, lui, peut lancer n'importe quoi.
+#  Le résultat à l'écran est identique : on obtient les réglages de la
+#  fenêtre active, pas ceux de l'ordinateur.
+#
+#  COMMENT ON SAIT QUELLE FENÊTRE EST ACTIVE, SOUS xfwm4 COMME SOUS COMPIZ.
+#  xdotool interroge _NET_ACTIVE_WINDOW, une propriété EWMH que les DEUX
+#  gestionnaires de fenêtres de LexOS publient — le même outil marche des
+#  deux côtés, sans code séparé (même esprit que lexos-wm et le partage
+#  d'écran à la souris du build 79).
+#
+#  CE QUI EST VÉRIFIÉ, PAS SUPPOSÉ.
+#    · xfce4-terminal --preferences est un commutateur RÉEL et documenté
+#      (man xfce4-terminal(1) : « Open the xfce4-terminal preferences
+#      window »).
+#    · thunar-settings est un VRAI binaire séparé, livré par le paquet
+#      thunar, dont le seul travail est d'afficher la boîte de préférences
+#      de Thunar (man thunar-settings(1)). Thunar lui-même n'a AUCUN
+#      commutateur --preferences — on a vérifié dans son propre manuel
+#      avant d'écrire quoi que ce soit ici plutôt que de deviner un nom.
+#    · about:preferences est l'adresse interne que Firefox (et Firefox ESR)
+#      reconnaît pour ses réglages, ouverte comme un onglet ordinaire dans
+#      la fenêtre déjà lancée.
+#    · Mousepad n'expose RIEN de tout ça en ligne de commande (vérifié dans
+#      son manuel : seulement --quit, --version, --display). On ne fabrique
+#      pas un raccourci clavier à l'aveugle vers un menu qui pourrait ne pas
+#      être là — Mousepad retombe donc sur le repli, comme toute fenêtre
+#      non reconnue.
+#
+#  LE REPLI. Une fenêtre non reconnue — ou xdotool absent — ouvre les
+#  Paramètres LexOS. Rien de cassé, rien de silencieux : c'est le seul
+#  geste honnête qu'on puisse offrir quand l'application ne dit rien sur
+#  ses propres réglages.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos-app-settings"
+
+repli() {
+	exec lexos-settings
+}
+
+if ! command -v xdotool >/dev/null 2>&1; then
+	echo "[$PROG] xdotool absent — repli sur les Paramètres LexOS" >&2
+	repli
+fi
+
+CLASSE="$(xdotool getactivewindow getwindowclassname 2>/dev/null || true)"
+CLASSE_MIN="$(printf '%s' "$CLASSE" | tr '[:upper:]' '[:lower:]')"
+
+if [ -z "$CLASSE_MIN" ]; then
+	echo "[$PROG] aucune fenêtre active détectée — repli sur les Paramètres LexOS" >&2
+	repli
+fi
+
+case "$CLASSE_MIN" in
+	*firefox*)
+		command -v firefox-esr >/dev/null 2>&1 && exec firefox-esr about:preferences
+		command -v firefox     >/dev/null 2>&1 && exec firefox     about:preferences
+		;;
+	thunar)
+		command -v thunar-settings >/dev/null 2>&1 && exec thunar-settings
+		;;
+	*xfce4-terminal*)
+		command -v xfce4-terminal >/dev/null 2>&1 && exec xfce4-terminal --preferences
+		;;
+esac
+
+echo "[$PROG] « $CLASSE » n'a pas de réglages propres connus — repli sur les Paramètres LexOS" >&2
+repli

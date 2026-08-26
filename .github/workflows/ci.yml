@@ -1023,6 +1023,28 @@ jobs:
           #  — c'est ce qui le met tout à droite de l'écran.
           bash tests/test_lexos_session.sh
 
+      - name: Les réglages de la fenêtre active — lexos-app-settings sur un banc
+        run: |
+          #  Alex : « le bouton vert doit ouvrir les paramètres de LA FENÊTRE,
+          #  pas de l'ordinateur ». Un thème de barre de titre ne sait lancer
+          #  aucune commande à nous au clic (xfwm4 et Compiz n'ont que des
+          #  actions fixes) : le geste passe donc par Super+, et
+          #  lexos-app-settings, qui lit la fenêtre au premier plan (xdotool)
+          #  et lance les VRAIES préférences de l'application — jamais une
+          #  commande inventée : xfce4-terminal --preferences et
+          #  thunar-settings sont vérifiés dans leurs propres manuels avant
+          #  d'être écrits ici (Thunar lui-même n'a AUCUN commutateur
+          #  --preferences).
+          #  Le banc donne de faux binaires sur un PATH fermé et regarde ce
+          #  qui est appelé, casse mêlée : Firefox, Thunar, le terminal, une
+          #  application non reconnue (Mousepad — rien à faire en CLI),
+          #  aucune fenêtre active, xdotool absent, et le cas qui compte le
+          #  plus — une fenêtre reconnue dont le binaire de préférences est
+          #  absent. Dans tous les cas où on ne sait pas, le repli est
+          #  toujours le même et honnête : les Paramètres LexOS, jamais un
+          #  plantage ni une commande fantôme.
+          bash tests/test_lexos_app_settings.sh
+
       - name: L'écran de connexion — noir, orange, et le démon derrière
         run: |
           #  ON NE PEUT PAS AFFICHER L'ÉCRAN DE CONNEXION ICI : pas de serveur

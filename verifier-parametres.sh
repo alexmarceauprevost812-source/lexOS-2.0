@@ -127,6 +127,10 @@ titre "1. Les outils lexos-* et leurs branchements"
 #   lexos-heure/-peripheriques : tuiles genmon de la barre (le panneau les lance)
 #   lexos-volet                : lancé par les tuiles
 #   lexos-wm                   : rouage des raccourcis fenêtre
+#   lexos-app-settings          : rouage du raccourci Super+, — les réglages
+#                                de la fenêtre active, jamais une section des
+#                                Paramètres (c'est justement ce qu'elle n'est
+#                                pas censée être)
 #   lexos-theme-gen            : rouage de « lexos theme »
 #   lexos-settings             : la fenêtre des Paramètres ELLE-MÊME (une
 #                                « section Paramètres » n'aurait pas de sens ;
@@ -134,6 +138,7 @@ titre "1. Les outils lexos-* et leurs branchements"
 #   lexos-boost-panneau        : amorce du greffon de barre de Boost
 SANS_SECTION="
 lexos-apercu
+lexos-app-settings
 lexos-firstrun
 lexos-welcome
 lexos-net-autoconnect
