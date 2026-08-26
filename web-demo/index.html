@@ -1189,8 +1189,40 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .cct{display:flex;flex-direction:column;height:100%;background:#0a0807;
   color:#d8d2cd;font-family:ui-monospace,"JetBrains Mono",Menlo,monospace;
   font-size:12.5px;line-height:1.7;box-sizing:border-box}
+/*  Le menu de gauche — sessions de Claude Code. Même patron que .cl-cote
+    (l'appli Claude, plus haut) : une colonne à part, le corps (tête/log/
+    saisie) glisse dans .cct-corps à côté. Sans .cct-avec-cote, .cct reste
+    la simple colonne d'origine — rien d'autre n'en dépend. */
+.cct-avec-cote{flex-direction:row;overflow:hidden}
+.cct-cote{width:172px;flex:none;display:flex;flex-direction:column;gap:4px;
+  padding:10px 8px;overflow:hidden;border-right:1px solid #3a251d;
+  background:linear-gradient(180deg,rgba(217,119,87,.10),transparent 200px)}
+/*  OUVERTURE FLUIDE : la largeur ET le remplissage s'animent ensemble, avec
+    la même courbe que les volets qui descendent de la barre du haut
+    (cubic-bezier(.16,1,.3,1) — voir aussi volet.py côté vraie ISO). Animer
+    la largeur d'un flex-item marche : ce n'est pas un pourcentage calculé,
+    « width » est posé en dur ci-dessus. */
+.cct-cote{transition:width .28s cubic-bezier(.16,1,.3,1),
+                     padding .28s cubic-bezier(.16,1,.3,1),
+                     opacity .2s ease}
+.cct-cote.ferme{width:0;padding-left:0;padding-right:0;
+  border-right-color:transparent;opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){ .cct-cote{transition:none} }
+.cct-neuf{width:100%;white-space:nowrap;flex:none}
+.cct-liste{display:flex;flex-direction:column;gap:2px;overflow-y:auto;
+  flex:1;min-height:0}
+.cct-rec{font-size:11.5px}
+.cct-liste-vide{color:#8a7a74;font-size:11px;padding:8px 10px}
+.cct-corps{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .cct-tete{display:flex;align-items:center;gap:9px;padding:10px 14px;
   border-bottom:1px solid #3a251d;color:#d97757;flex:none}
+/*  Le bouton « ☰ » vit dans la tête, PAS dans .cct-cote : repliée à
+    width:0, une colonne qui contiendrait son propre bouton n'aurait plus
+    aucun moyen de se rouvrir. */
+.cct-cote-tog{width:24px;height:24px;flex:none;border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  color:#8a7a74;background:transparent;border:0;cursor:pointer;font-size:13px}
+.cct-cote-tog:hover{background:rgba(217,119,87,.14);color:#fff}
 .cct-chemin{color:#8a7a74;font-size:11.5px}
 .cct-log{flex:1;overflow-y:auto;padding:13px 15px;display:flex;
   flex-direction:column;gap:7px}
@@ -8342,9 +8374,57 @@ function openClaude(){
 /* ============ Claude Code — le terminal, comme sous Linux ==========
    L'autre application : celle qui vit dans le terminal. On reprend les
    codes du vrai outil — la ligne « ✳ », les étapes d'outil annoncées une
-   par une, la réponse en dessous — sans prétendre qu'une IA répond.   */
-let ccTermOccupe = false;
-function ccTermEcrit(zone, html, cls){
+   par une, la réponse en dessous — sans prétendre qu'une IA répond.
+
+   LE MENU DE GAUCHE, ET LE BOGUE QU'IL CORRIGE EN PASSANT. « Nouvelle
+   fenêtre » (clic du milieu sur l'icône du dock, ou nouvelleFenetre())
+   ouvrait une DEUXIÈME fenêtre Claude Code entière — mais ccTermDemande()
+   visait toujours l'élément « win-claude-code » EN DUR : la deuxième
+   fenêtre n'écrivait jamais dans SON propre journal, elle écrivait (ou
+   tentait d'écrire) dans celui de la première, ou ne faisait rien si la
+   première était fermée. Une deuxième fenêtre n'avait donc PAS les mêmes
+   outils que la première — recherche dans la doc, pièces jointes, tout
+   passait à côté.
+
+   Chaque fonction ci-dessous prend maintenant winId en premier paramètre,
+   comme ccJointsTexte/ccChoisirFichier/ccDemande le font déjà pour Claude
+   et pour les pièces jointes : deux fenêtres Claude Code ne se marchent
+   plus dessus.
+
+   ET, DANS CHAQUE FENÊTRE, PLUSIEURS SESSIONS — pas seulement plusieurs
+   fenêtres. Même principe que le volet latéral de l'appli Claude
+   (.cl-cote, plus haut) : un bouton « + Nouvelle session », une liste à
+   gauche, un clic pour y revenir. Chaque session garde son PROPRE
+   historique (CCT_SESSIONS) : en changer ne perd rien, et une session neuve
+   a exactement les mêmes outils que la première — même message d'accueil,
+   mêmes suggestions, mêmes pièces jointes — puisque c'est le même gabarit
+   qui les pose toutes. Le volet se réduit d'un clic sur « ☰ », avec la
+   même courbe d'ouverture que les volets de la barre du haut
+   (cubic-bezier(.16,1,.3,1), voir aussi volet.py côté vraie ISO). */
+const CCT_SESSIONS = {};   // winId -> {sessions:[{id,titre,historique}], actif, seq}
+const CCT_OCCUPE = {};     // winId -> bool : une session par fenêtre peut répondre à la fois
+
+function cctEtat(winId){
+  return CCT_SESSIONS[winId] || (CCT_SESSIONS[winId] = {sessions: [], actif: null, seq: 0});
+}
+function cctSessionActive(winId){
+  const e = cctEtat(winId);
+  return e.sessions.find(s => s.id === e.actif) || null;
+}
+function cctCreeSession(winId, titre){
+  const e = cctEtat(winId);
+  e.seq++;
+  const s = {id: e.seq, titre: titre || `Session ${e.seq}`, historique: []};
+  e.sessions.unshift(s);
+  e.actif = s.id;
+  return s;
+}
+
+function ccTermEcrit(winId, html, cls){
+  const s = cctSessionActive(winId);
+  if(s) s.historique.push({html, cls});
+  const w = document.getElementById(winId); if(!w) return null;
+  const zone = w.querySelector(".cct-log"); if(!zone) return null;
   const d = document.createElement("div");
   d.className = "cct-l" + (cls ? " " + cls : "");
   d.innerHTML = html;
@@ -8352,17 +8432,77 @@ function ccTermEcrit(zone, html, cls){
   zone.scrollTop = zone.scrollHeight;
   return d;
 }
-function ccTermDemande(texte){
-  const w = document.getElementById("win-claude-code"); if(!w) return;
-  const zone = w.querySelector(".cct-log");
+//  Redessine le journal à partir de l'historique de la session active — ce
+//  qui permet de revenir sur une session sans avoir rejoué la conversation.
+function cctRendLog(winId){
+  const w = document.getElementById(winId); if(!w) return;
+  const zone = w.querySelector(".cct-log"); if(!zone) return;
+  const s = cctSessionActive(winId);
+  zone.innerHTML = "";
+  (s ? s.historique : []).forEach(({html, cls}) => {
+    const d = document.createElement("div");
+    d.className = "cct-l" + (cls ? " " + cls : "");
+    d.innerHTML = html;
+    zone.appendChild(d);
+  });
+  zone.scrollTop = zone.scrollHeight;
+}
+function cctRendListe(winId){
+  const w = document.getElementById(winId); if(!w) return;
+  const zone = w.querySelector(".cct-liste"); if(!zone) return;
+  const e = cctEtat(winId);
+  zone.innerHTML = e.sessions.length
+    ? e.sessions.map(s =>
+        `<button class="cl-rec cct-rec${s.id === e.actif ? " on" : ""}"
+                 onclick="cctVa('${winId}',${s.id})">${esc(s.titre)}</button>`).join("")
+    : `<div class="cct-liste-vide">Aucune session</div>`;
+}
+function cctVa(winId, id){
+  const e = cctEtat(winId);
+  if(e.actif === id) return;
+  e.actif = id;
+  cctRendLog(winId);
+  cctRendListe(winId);
+  //  « écriture rapide » : revenir sur une session doit remettre le
+  //  curseur dans la saisie tout de suite, pas obliger à recliquer dedans.
+  const champ = document.getElementById(winId)?.querySelector(".cct-in");
+  if(champ) champ.focus();
+}
+function cctAccueilSession(winId){
+  ccTermEcrit(winId,
+    `<span class="cct-sp">${claudeGlyph(13)}</span> <b>Claude Code</b>
+     <span class="cct-dim">— assistant de programmation, dans le terminal</span>`);
+  ccTermEcrit(winId,
+    `<span class="cct-dim">Répond à partir de la documentation de LexOS.
+     <b>Aucune IA n'est jointe</b> : cette page est publiée avec une politique
+     qui bloque le réseau. Sur la vraie LexOS, <b>lexos claude</b> lance le
+     vrai Claude Code.</span>`, "cct-note");
+}
+function cctNouvelleSession(winId){
+  cctCreeSession(winId);
+  cctRendListe(winId);
+  cctAccueilSession(winId);
+  const champ = document.getElementById(winId)?.querySelector(".cct-in");
+  if(champ) champ.focus();
+}
+//  Le menu de gauche se réduit d'un clic — même ressort que les volets de
+//  la barre du haut (max-height/opacity animés), ici sur la largeur : la
+//  transition vit dans le CSS (.cct-cote), ce bouton ne fait que basculer
+//  la classe.
+function cctCoteBascule(winId){
+  document.getElementById(winId)?.querySelector(".cct-cote")?.classList.toggle("ferme");
+}
+function ccTermDemande(winId, texte){
+  const w = document.getElementById(winId); if(!w) return;
   const champ = w.querySelector(".cct-in");
-  const joints = ccJointsTexte("win-claude-code");
+  const joints = ccJointsTexte(winId);
   const q = (texte !== undefined ? texte : champ.value).trim();
-  if((!q && !joints) || ccTermOccupe) return;
+  if((!q && !joints) || CCT_OCCUPE[winId]) return;
+  if(!cctSessionActive(winId)) cctCreeSession(winId);   // filet, ne devrait pas arriver
   champ.value = "";
-  ccTermEcrit(zone, `<span class="cct-fl">&gt;</span> ${esc((q + joints).trim())}`, "cct-moi");
-  ccVideJoints("win-claude-code");
-  ccTermOccupe = true;
+  ccTermEcrit(winId, `<span class="cct-fl">&gt;</span> ${esc((q + joints).trim())}`, "cct-moi");
+  ccVideJoints(winId);
+  CCT_OCCUPE[winId] = true;
 
   //  Les étapes d'outil, comme le vrai Claude Code les annonce. Elles ne
   //  font rien : elles disent d'où vient la réponse — la documentation de
@@ -8375,61 +8515,71 @@ function ccTermDemande(texte){
   ];
   let k = 0;
   const suite = ()=>{
-    if(k < etapes.length){ ccTermEcrit(zone, etapes[k++], "cct-outil"); setTimeout(suite, 380); return; }
-    ccTermEcrit(zone,
+    if(k < etapes.length){ ccTermEcrit(winId, etapes[k++], "cct-outil"); setTimeout(suite, 380); return; }
+    ccTermEcrit(winId,
       `<span class="cct-sp">${claudeGlyph(13)}</span> <div class="cct-rep">${
         e ? e.r : `Ce n'est pas dans la documentation de LexOS. Je réponds sur :
         installation, saveurs, jeux Windows, carte NVIDIA, commandes, bureaux
         virtuels, capture d'écran, fond d'écran, téléphone, construction de
         l'ISO, vie privée, configuration requise.`}</div>`, "cct-lui");
-    ccTermOccupe = false;
+    CCT_OCCUPE[winId] = false;
     champ.focus();
   };
   setTimeout(suite, 260);
 }
 function openClaudeCode(nouvelle){
   const id = nouvelle ? "claude-code#"+(++winSeq) : "claude-code";
+  const winId = "win-" + id;
   const el = openWin(id,"Claude Code",claudeGlyph(17),
-   `<div class="cct">
-      <div class="cct-tete">
-        <span>${claudeGlyph(16)}</span>
-        <b>Claude Code</b>
-        <span class="cct-chemin">~/lexos</span>
-        <span class="cc-badge">démo</span>
+   `<div class="cct cct-avec-cote">
+      <div class="cct-cote">
+        <button class="cl-neuf cct-neuf" onclick="cctNouvelleSession('${winId}')">+ Nouvelle session</button>
+        <div class="cl-recents">Sessions</div>
+        <div class="cct-liste"></div>
       </div>
-      <div class="cct-log"></div>
-      <div class="cct-sugg">${CC_SUGGESTIONS.slice(0,4).map(s=>
-         `<button onclick="ccTermDemande(this.textContent)">${esc(s)}</button>`).join("")}</div>
-      <div class="cc-joints" style="display:none"></div>
-      <div class="cct-saisie">
-        <label class="cc-plus" title="Ajouter une image ou un fichier">+
-          <input type="file" multiple accept="image/*,.txt,.md,.pdf,.log,.conf,.sh"
-                 hidden onchange="ccChoisirFichier('win-claude-code',this)"></label>
-        <span class="cct-fl">&gt;</span>
-        <input class="cct-in" type="text" autocomplete="off" spellcheck="false"
-               placeholder="Demande quelque chose…"
-               onkeydown="if(event.key==='Enter'){event.preventDefault();ccTermDemande()}">
+      <div class="cct-corps">
+        <div class="cct-tete">
+          <button class="cct-cote-tog" onclick="cctCoteBascule('${winId}')"
+                  title="Afficher ou masquer les sessions" aria-label="Sessions">☰</button>
+          <span>${claudeGlyph(16)}</span>
+          <b>Claude Code</b>
+          <span class="cct-chemin">~/lexos</span>
+          <span class="cc-badge">démo</span>
+        </div>
+        <div class="cct-log"></div>
+        <div class="cct-sugg">${CC_SUGGESTIONS.slice(0,4).map(s=>
+           `<button onclick="ccTermDemande('${winId}',this.textContent)">${esc(s)}</button>`).join("")}</div>
+        <div class="cc-joints" style="display:none"></div>
+        <div class="cct-saisie">
+          <label class="cc-plus" title="Ajouter une image ou un fichier">+
+            <input type="file" multiple accept="image/*,.txt,.md,.pdf,.log,.conf,.sh"
+                   hidden onchange="ccChoisirFichier('${winId}',this)"></label>
+          <span class="cct-fl">&gt;</span>
+          <input class="cct-in" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="Demande quelque chose…"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();ccTermDemande('${winId}')}">
+        </div>
+        <div class="cct-pied">
+          <span class="cct-bonhomme">${claudeGlyph(14)}</span>
+          <span>Claude Opus 5</span>
+          <span class="cct-sep">·</span>
+          <span>~/lexos</span>
+          <span class="cct-sep">·</span>
+          <span class="cct-maj">à jour</span>
+        </div>
       </div>
-      <div class="cct-pied">
-        <span class="cct-bonhomme">${claudeGlyph(14)}</span>
-        <span>Claude Opus 5</span>
-        <span class="cct-sep">·</span>
-        <span>~/lexos</span>
-        <span class="cct-sep">·</span>
-        <span class="cct-maj">à jour</span>
-      </div>
-    </div>`, 680, 520);
-  const zone = el.querySelector(".cct-log");
-  ccTermEcrit(zone,
-    `<span class="cct-sp">${claudeGlyph(13)}</span> <b>Claude Code</b>
-     <span class="cct-dim">— assistant de programmation, dans le terminal</span>`);
-  ccTermEcrit(zone,
-    `<span class="cct-dim">Répond à partir de la documentation de LexOS.
-     <b>Aucune IA n'est jointe</b> : cette page est publiée avec une politique
-     qui bloque le réseau. Sur la vraie LexOS, <b>lexos claude</b> lance le
-     vrai Claude Code.</span>`, "cct-note");
-  const champ = el.querySelector(".cct-in");
-  if(champ) setTimeout(()=>champ.focus(), 60);
+    </div>`, 860, 540);
+  //  « opening » ne s'y trouve QUE sur une fenêtre vraiment neuve — openWin
+  //  se contente de focaliser et de renvoyer l'existante si elle l'était déjà
+  //  (voir openWin). Sans ce garde, recliquer l'icône du dock alors que la
+  //  fenêtre est déjà ouverte aurait empilé une session neuve à chaque clic.
+  if(el.classList.contains("opening")){
+    cctCreeSession(winId);
+    cctAccueilSession(winId);
+    cctRendListe(winId);
+    const champ = el.querySelector(".cct-in");
+    if(champ) setTimeout(()=>champ.focus(), 60);
+  }
   return el;
 }
 
