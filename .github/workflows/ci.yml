@@ -1109,6 +1109,64 @@ jobs:
           #  l'environnement et une liste trouée serait passée verte.
           bash tests/test_lexos_fond_batterie.sh
 
+      - name: Luminosité — le curseur et le panneau lisent la même interface
+        run: |
+          #  ALEX : « dans les paramètres, la luminosité de l'écran ne
+          #  marche pas ». Beaucoup de portables exposent DEUX interfaces
+          #  sous /sys/class/backlight/ à la fois — « acpi_videoN » (le
+          #  firmware) et une interface native du pilote graphique. La
+          #  première, alphabétiquement, accepte l'écriture SANS ERREUR
+          #  sans piloter le rétroéclairage : le curseur bougeait, l'écran
+          #  non. lexos-brightness ET settings.py préfèrent maintenant tout
+          #  interface non-acpi_video, dans cet ordre-là, TOUS LES DEUX —
+          #  sinon la barre affichée pourrait ne jamais correspondre à ce
+          #  que le curseur vient de régler.
+          bash tests/test_lexos_brightness.sh
+
+      - name: Le terminal — la police et les couleurs suivent le canal Xfconf
+        run: |
+          #  DÉCOUVERTE EN CHERCHANT POURQUOI LA POLICE D'ALEX NE GROSSISSAIT
+          #  JAMAIS : depuis Xfce 4.20 (celle de trixie), xfce4-terminal MIGRE
+          #  terminalrc vers le canal Xfconf « xfce4-terminal » à son PREMIER
+          #  lancement et ne le relit plus jamais ensuite. lexos-theme-gen
+          #  écrit maintenant ce canal directement, comme il le fait déjà pour
+          #  xfwm4.xml et xsettings.xml.
+          #
+          #  Ce banc installe le vrai xfce4-terminal et Xvfb pour prouver le
+          #  mécanisme par l'exécution : aucun message de migration, aucune
+          #  clé rejetée, le fichier n'est pas réécrit — la preuve qu'un canal
+          #  déjà rempli au premier lancement empêche la migration de partir
+          #  sur des valeurs par défaut.
+          command -v xfce4-terminal >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends xfce4-terminal >/dev/null
+          command -v Xvfb >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends xvfb >/dev/null
+          bash tests/test_lexos_terminal.sh
+
+      - name: Bluetooth — un balayage refusé n'est plus annoncé comme réussi
+        run: |
+          #  ALEX : « dans les paramètres Bluetooth, il ne trouve rien ».
+          #  act_bt_chercher() (settings.py) et « lexos bt scan »
+          #  (lexos-net) ignoraient tous les deux le code de retour de
+          #  bluetoothctl : un balayage REFUSÉ (contrôleur pas prêt, déjà en
+          #  cours…) se terminait par « Recherche terminée » ou « Aucun
+          #  appareil trouvé » — le message d'une recherche qui a eu lieu et
+          #  n'a rien vu, pas d'une recherche qui n'a jamais eu lieu.
+          bash tests/test_lexos_bluetooth.sh
+
+      - name: Fond animé — les icônes du bureau ne disparaissent plus derrière
+        run: |
+          #  ALEX, photo à l'appui : « quand le fond écran animé tourne, on
+          #  ne voit pas les applications qu'on met sur le bureau — avec un
+          #  fond fixe, on les voit ». Notre fenêtre de fond ET xfdesktop
+          #  (qui dessine les icônes) sont toutes les deux de type
+          #  _NET_WM_WINDOW_TYPE_DESKTOP : xfwm4 garantit qu'elles restent
+          #  sous les fenêtres normales, mais PAS l'ordre RELATIF entre deux
+          #  fenêtres du même calque. remonte_xfdesktop() force cet ordre,
+          #  au démarrage et par une minuterie (un changement d'accent
+          #  recharge xfdesktop et peut redéfaire l'ordre plus tard).
+          bash tests/test_lexos_fond_anime.sh
+
       - name: Tables de modèles Mac identiques
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même
