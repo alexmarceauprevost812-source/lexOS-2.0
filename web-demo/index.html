@@ -289,8 +289,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   animation:spin360 7s linear infinite;filter:drop-shadow(0 0 5px rgba(60,140,240,.5))}
 @keyframes spin360{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){ #clock .clk-globe{animation:none} }
-#clock .clk-brand{font-weight:700;color:var(--fg);letter-spacing:.02em}
+#clock .clk-brand{font-weight:700;color:var(--fg);letter-spacing:.02em;font-family:ui-monospace,monospace}
 #clock .clk-brand .zap{color:var(--amber,#ffb238)}
+/*  Alex a envoyé une image — porte-clés bleu de chaque côté, fond noir,
+    « <[lexOS⚡pro]> » — pour le haut de l'écran. Le globe qui tourne (déjà
+    au bleu — drop-shadow rgba(60,140,240,…) ci-dessus) fait le porte-clés ;
+    les crochets ci-dessous reprennent LE MÊME bleu que le badge de l'ISO
+    (lexos-heure, #3584E4 — l'accent « bleu » vérifié dans ACCENTS de
+    fond-anime.py), pour que démo et ISO montrent la même chose. */
+#clock .clk-brand .brk{color:#3584E4}
 #clock #clkdate{color:var(--fg-dim)}
 /*  Chaque caractère de l'heure occupe une cellule de largeur FIXE : les
     idéogrammes du brouillage sont bien plus larges qu'un chiffre, sans ça
@@ -2231,7 +2238,7 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
           onclick="openAgenda()" aria-expanded="false"
           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAgenda()}">
       <span class="clk-globe" aria-hidden="true">🌐</span>
-      <span class="clk-brand">lexOS<span class="zap">⚡</span>Pro</span>
+      <span class="clk-brand"><span class="brk">&lt;[</span>lexOS<span class="zap">⚡</span>Pro<span class="brk">]&gt;</span></span>
       <span id="clkdate"></span><span id="clktime"></span></span>
     <div id="tray">
       <div id="devtray" title="Outils de travail branchés"></div>

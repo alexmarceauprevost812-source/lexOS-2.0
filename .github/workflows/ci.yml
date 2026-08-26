@@ -1223,6 +1223,18 @@ jobs:
           #  (lexos-datetime, settings.py, app.js).
           bash tests/test_lexos_fuseau.sh
 
+      - name: Horloge du panneau — le badge « lexOS pro », lisible partout
+        run: |
+          #  ALEX a envoyé une image (porte-clés bleus, fond noir,
+          #  « <[lexOS⚡pro]> ») et a demandé la même chose en haut de
+          #  l'écran. « lexOS » était déjà en tête de l'horloge du panneau,
+          #  en texte brut. genmon affiche <txt> avec gtk_label_set_markup()
+          #  (vérifié dans le vrai binaire) : le Pango s'y rend pour de
+          #  vrai. Ce banc vérifie le badge dans le panneau, qu'AUCUNE
+          #  balise ne fuit vers le terminal (même code, deux sorties), et
+          #  que les couleurs sont celles déjà vérifiées de LexOS.
+          bash tests/test_lexos_heure.sh
+
       - name: Tables de modèles Mac identiques
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même
