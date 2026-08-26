@@ -7147,6 +7147,19 @@ function settingsSection(key){
       <div class="srow"><div><div class="t">Fuseau horaire</div>
         <div class="d">America/Toronto — UTC−05:00</div></div></div>
       <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Choisir son lieu (Canada)</div>
+        <div class="row" style="flex-wrap:wrap">${[
+          ["Colombie-Britannique (Vancouver)"],["Yukon (Whitehorse)"],
+          ["Alberta (Edmonton)"],["Territoires du Nord-Ouest (Yellowknife)"],
+          ["Saskatchewan (Regina)"],["Manitoba (Winnipeg)"],["Nunavut (Iqaluit)"],
+          ["Ontario (Toronto)"],["Québec (Montréal)"],["Maritimes (Halifax)"],
+          ["Terre-Neuve (St. John's)"]
+        ].map(([t])=>`<button class="btn ghost" onclick="toast('Fuseau : ${t}')">${t}</button>`).join("")}</div>
+      </div>
+      <p class="notice">Treize provinces et territoires, onze fuseaux — le Nouveau-Brunswick et
+      l'Île-du-Prince-Édouard partagent celui des Maritimes, et le Nunavut (trois fuseaux à lui
+      seul) est représenté par sa capitale, Iqaluit.</p>
+      <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Format de l'heure</div>
         <div class="row">
           <button class="btn" onclick="toast('Format 24 h')">24 heures</button>

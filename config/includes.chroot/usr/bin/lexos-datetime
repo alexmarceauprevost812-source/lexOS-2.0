@@ -37,14 +37,42 @@ die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
 # un NOM DE LIEU lisible : demander « America/Toronto » à quelqu'un qui veut
 # juste dire « je suis au Québec », c'est l'obliger à connaître la mécanique
 # interne des fuseaux. Le nom parlé suffit : « lexos-datetime fuseau quebec ».
+#
+# LES TREIZE PROVINCES ET TERRITOIRES, PAS SEULEMENT SEPT. La liste
+# n'avait que les fuseaux les plus peuplés ; il manquait la Saskatchewan, le
+# Yukon, les Territoires du Nord-Ouest et le Nunavut — quatre coins du pays
+# sans aucune façon de dire « je suis là » depuis cette commande. Chaque
+# fuseau IANA ci-dessous a été vérifié pour de vrai (Python, zoneinfo),
+# jamais copié de mémoire :
+#   · Saskatchewan N'OBSERVE PAS l'heure d'été — un fuseau à elle seule
+#     (America/Regina), distinct du Manitoba même s'ils partagent parfois
+#     la même heure locale une partie de l'année.
+#   · Le Yukon est fixé en heure des Rocheuses à l'année depuis 2020 (plus
+#     de changement d'heure d'été) — encore un fuseau IANA à lui seul
+#     (America/Whitehorse), différent de l'Alberta qui change deux fois
+#     l'an.
+#   · Les Territoires du Nord-Ouest suivent l'heure des Rocheuses AVEC le
+#     changement d'heure d'été (America/Yellowknife) — même décalage que
+#     l'Alberta la plupart de l'année, mais un fuseau IANA distinct.
+#   · Le Nunavut s'étend sur TROIS fuseaux (Iqaluit à l'est, Rankin Inlet
+#     au centre, Cambridge Bay à l'ouest). On retient Iqaluit, la
+#     capitale — un territoire aussi vaste ne tient pas dans une seule
+#     ligne, mais choisir la capitale vaut mieux que ne rien proposer.
+# Le Nouveau-Brunswick et l'Île-du-Prince-Édouard n'ont pas leur propre
+# ligne : ils partagent le fuseau des Maritimes (Halifax) au chiffre près,
+# une ligne de plus n'ajouterait aucun choix réel.
 readonly LIEUX_CANADA=(
-	"Canada — Québec (Montréal)|America/Montreal"
+	"Canada — Colombie-Britannique (Vancouver)|America/Vancouver"
+	"Canada — Yukon (Whitehorse)|America/Whitehorse"
+	"Canada — Alberta (Edmonton)|America/Edmonton"
+	"Canada — Territoires du Nord-Ouest (Yellowknife)|America/Yellowknife"
+	"Canada — Saskatchewan (Regina)|America/Regina"
+	"Canada — Manitoba (Winnipeg)|America/Winnipeg"
+	"Canada — Nunavut (Iqaluit)|America/Iqaluit"
 	"Canada — Ontario (Toronto)|America/Toronto"
+	"Canada — Québec (Montréal)|America/Montreal"
 	"Canada — Maritimes (Halifax)|America/Halifax"
 	"Canada — Terre-Neuve (St. John's)|America/St_Johns"
-	"Canada — Manitoba (Winnipeg)|America/Winnipeg"
-	"Canada — Alberta (Edmonton)|America/Edmonton"
-	"Canada — Colombie-Britannique (Vancouver)|America/Vancouver"
 )
 
 # Le nom parlé -> le fuseau. Retourne le nom inchangé si rien ne correspond :
@@ -65,11 +93,16 @@ lieu_vers_zone() {
 		quebec|québec|montreal|montréal|canada-quebec|canada-québec)
 			printf 'America/Montreal\n' ;;
 		ontario|toronto)          printf 'America/Toronto\n' ;;
-		maritimes|halifax|acadie) printf 'America/Halifax\n' ;;
+		maritimes|halifax|acadie|nouveau-brunswick|nouvelle-ecosse|nouvelle-écosse|ile-du-prince-edouard|île-du-prince-édouard)
+			printf 'America/Halifax\n' ;;
 		terre-neuve|st-johns)     printf 'America/St_Johns\n' ;;
 		manitoba|winnipeg)        printf 'America/Winnipeg\n' ;;
 		alberta|edmonton|calgary) printf 'America/Edmonton\n' ;;
 		colombie-britannique|vancouver) printf 'America/Vancouver\n' ;;
+		saskatchewan|regina)      printf 'America/Regina\n' ;;
+		yukon|whitehorse)         printf 'America/Whitehorse\n' ;;
+		territoires-du-nord-ouest|tno|yellowknife) printf 'America/Yellowknife\n' ;;
+		nunavut|iqaluit)          printf 'America/Iqaluit\n' ;;
 		*) printf '%s\n' "$demande" ;;
 	esac
 }
