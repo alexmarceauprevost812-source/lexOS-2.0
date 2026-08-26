@@ -747,7 +747,16 @@ function contenu(cle){
       ${ec.length
         ? ec.map(e=>srow(esc(e.nom) + (e.principal ? " — principal" : ""),
                          e.definition ? esc(e.definition) : "branchée, aucune image")).join("")
-        : `<p class="notice">Aucune sortie vidéo lue (xrandr absent ou session Wayland).</p>`}
+        : `<p class="notice">${esc(etat.ecrans_probleme
+             || "Aucune sortie vidéo branchée.")}</p>`}
+      ${/*  « xrandr absent OU session Wayland » mettait les deux causes dans
+             le même sac, et laissait le lecteur choisir. Ce ne sont pas les
+             mêmes remèdes : l'un s'installe, l'autre se choisit à la
+             connexion. Le pont dit maintenant LAQUELLE des deux (ou une
+             troisième : pas de session graphique du tout), et la page se
+             contente de la recopier. Quand tout va bien, la chaîne est vide
+             et on retombe sur la phrase neutre — parce qu'une machine peut
+             aussi n'avoir vraiment aucun écran branché. */""}
       ${srow("Étendre, dupliquer, écran principal","Résolution et disposition de chaque écran")}
       ${(() => {
         const ec = etat.ecrans || [];

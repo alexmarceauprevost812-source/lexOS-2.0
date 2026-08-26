@@ -98,7 +98,13 @@ zenity
 xdg-utils
 xdg-user-dirs
 xdg-user-dirs-gtk
-x11-xserver-utils
+# x11-xserver-utils — PASSÉ EN STRICT (flavours/standard/desktop.list.chroot).
+#   Il fournit xrandr, et SIX chemins en dépendaient pendant qu'il était posé
+#   « au mieux ». Le pire des six : la section Écrans des Paramètres se
+#   contentait de s'afficher VIDE. Voir le commentaire là-bas.
+#   arandr et autorandr, eux, restent optionnels À RAISON : « lexos ecran »
+#   dégrade proprement quand ils manquent — il le DIT et propose de les
+#   installer. C'est le contraire du silence qu'on vient de corriger.
 arandr
 autorandr
 xfce4-settings

@@ -160,6 +160,16 @@ jobs:
           #  elle, le noyau retombe sur le domaine « monde » — canaux 5 GHz
           #  amputés, puissance réduite : un Wi-Fi qui marche moins loin, et
           #  qu'on met sur le dos du routeur.
+          #  x11-xserver-utils fournit xrandr : SIX chemins en dépendent, dont
+          #  la section Écrans des Paramètres, qui s'affichait VIDE quand il
+          #  manquait. pulseaudio-utils fournit pactl, appelé à quatre endroits
+          #  de settings.py : sans lui la section Son s'ouvre et ne fait rien.
+          for p in x11-xserver-utils pulseaudio-utils; do
+            if ! grep -qxF "$p" flavours/standard/desktop.list.chroot; then
+              echo "::error file=flavours/standard/desktop.list.chroot::'$p' n'y est plus. Posé « au mieux », son absence ne ferait PAS échouer la construction — et une section entière des Paramètres s'afficherait vide sans rien dire."
+              bad=1
+            fi
+          done
           for p in wireless-regdb iw ethtool; do
             if ! grep -qxF "$p" config/package-lists/lexos-core.list.chroot; then
               echo "::error file=config/package-lists/lexos-core.list.chroot::'$p' manque."
@@ -1061,6 +1071,26 @@ jobs:
           #  615 future serait refusée à jamais, sans une ligne dans le
           #  journal. Les trois listes vérifient les trois cas.
           bash tests/test_lexos_boot.sh
+
+      - name: Écrans — xrandr garanti, la section qui explique, un seul écran partagé
+        run: |
+          #  TROIS TROUS, TOUS DE LA MÊME FAMILLE : la machine sait quelque
+          #  chose et le garde pour elle.
+          #    · xrandr était posé « au mieux » et SIX chemins en dépendaient.
+          #      Le pire : la section Écrans des Paramètres s'affichait VIDE,
+          #      l'air de dire « tu n'as aucun écran » sur une machine à
+          #      quatre écrans allumés.
+          #    · « lexos distant partager » envoyait le bureau COMBINÉ — avec
+          #      trois dalles, une image de 5760x1080 illisible en face, et on
+          #      montre des écrans qu'on ne voulait pas montrer.
+          #    · L'aide de « lexos » documentait « distant partager on », une
+          #      commande qui mourait. Vérifié en la lançant.
+          #
+          #  Le banc traduit des noms de sortie en index xinerama sur un faux
+          #  xrandr qui énumère un écran BRANCHÉ MAIS ÉTEINT : c'est le cas qui
+          #  décale les index si on ne filtre pas sur la géométrie active, et
+          #  on partagerait alors le mauvais écran en croyant avoir choisi.
+          bash tests/test_lexos_ecrans.sh
 
       - name: Tables de modèles Mac identiques
         run: |

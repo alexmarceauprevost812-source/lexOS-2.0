@@ -65,6 +65,9 @@ ${B}SE CONNECTER À UNE AUTRE MACHINE${R}  (c'est vous qui regardez)
 ${B}LAISSER QUELQU'UN SE CONNECTER ICI${R}  (c'est vous qui montrez)
   $PROG partager                Partage cet écran ; un mot de passe est demandé
   $PROG partager once           Pareil, mais s'arrête après la première visite
+  $PROG partager --ecran <s>    N'en montre QU'UN quand on a plusieurs écrans
+                                (<s> = un nom de sortie, « lexos ecran » les
+                                liste, ou son numéro : 0, 1, 2…)
   $PROG arreter                 Coupe le partage et efface le mot de passe
   $PROG etat                    Partage actif ? sur quelle adresse ? depuis quand ?
 
@@ -73,6 +76,7 @@ Exemples :
   $PROG vnc 192.168.1.20:5900
   $PROG ssh alex@192.168.1.20
   $PROG partager once
+  $PROG partager --ecran DP-2
 
 ${B}À SAVOIR AVANT DE PARTAGER${R}
   Un partage VNC donne l'écran ET le clavier : la personne en face voit tout
@@ -264,13 +268,101 @@ demander_mot_de_passe() {
 	return 0
 }
 
+# =============================================================================
+#  NE PARTAGER QU'UN ÉCRAN QUAND ON EN A PLUSIEURS
+# =============================================================================
+#  x11vnc partage TOUT l'écran X — c'est-à-dire, avec plusieurs moniteurs, le
+#  bureau entier combiné. Avec trois dalles 1920x1080 côte à côte, il envoie
+#  une image de 5760x1080 : une bande minuscule et illisible en face. Et
+#  surtout, la personne voit LES TROIS écrans, y compris celui où on n'avait
+#  pas l'intention de la laisser regarder.
+#
+#  Ce fichier est très soigneux sur la sécurité — mot de passe obligatoire,
+#  avertissement que le trafic n'est pas chiffré, avertissement que la personne
+#  prend aussi le clavier et la souris. Montrer un écran de trop par défaut
+#  était le trou qui restait.
+#
+#  x11vnc sait s'en tenir à une zone avec « -clip », qui accepte soit une
+#  géométrie LxH+X+Y, soit « xineramaN » où N est l'INDEX de l'écran. On
+#  traduit donc un nom de sortie (« DP-2 ») vers son index en lisant l'ordre
+#  dans lequel xrandr énumère les écrans ACTIFS — actifs, et pas seulement
+#  branchés : un écran branché mais éteint ne compte pas pour xinerama, et
+#  l'index serait décalé d'un cran. C'est le « +X+Y » de la géométrie qui
+#  distingue les deux.
+index_ecran() { # index_ecran <sortie>  → son index xinerama
+	local i=0 out
+	while read -r out; do
+		[[ "$out" == "$1" ]] && { printf '%s' "$i"; return 0; }
+		i=$((i + 1))
+	done < <(xrandr --query 2>/dev/null \
+		| awk '/ connected/ && /[0-9]+x[0-9]+\+/{print $1}')
+	return 1
+}
+
+#  Rend sur la SORTIE STANDARD la valeur à donner à « -clip », ou rien du tout
+#  quand on partage l'ensemble. Tous les messages partent sur l'erreur : cette
+#  fonction est lue par une substitution de commande, et un message mêlé à la
+#  valeur donnerait un « -clip » invalide que x11vnc refuserait sans qu'on
+#  comprenne pourquoi.
+#
+#  ELLE EST APPELÉE AVANT LE MOT DE PASSE, et c'est délibéré : se tromper de
+#  nom d'écran doit s'apprendre tout de suite, pas après avoir tapé deux fois
+#  un mot de passe pour rien.
+clip_ecran() { # clip_ecran <sortie|index|"">
+	local ecran="$1" idx="" n=""
+	if [[ -z "$ecran" ]]; then
+		#  On ne se tait pas dans l'autre sens non plus : quelqu'un qui a
+		#  plusieurs écrans doit savoir qu'il les montre TOUS. Avec trois
+		#  dalles côte à côte, x11vnc envoie une seule image de 5760x1080 —
+		#  illisible en face, et on montre des écrans qu'on ne voulait pas.
+		if command -v xrandr >/dev/null 2>&1; then
+			n="$(xrandr --query 2>/dev/null \
+				| awk '/ connected/ && /[0-9]+x[0-9]+\+/' | wc -l)"
+			if [[ "${n:-0}" -gt 1 ]]; then
+				warn "Vous partagez VOS ${n} ÉCRANS d'un coup, réunis en une seule image."
+				say  "Pour n'en montrer qu'un :  $PROG partager --ecran <sortie>   (voir « lexos ecran »)" >&2
+			fi
+		fi
+		return 0
+	fi
+	#  Un index numérique passe tel quel : c'est la seule forme qui marche
+	#  encore quand xrandr manque, et on veut pouvoir s'en servir ce jour-là.
+	if [[ "$ecran" =~ ^[0-9]+$ ]]; then
+		say "Partage limité à l'écran n° ${ecran}." >&2
+		printf 'xinerama%s' "$ecran"
+		return 0
+	fi
+	#  Un NOM de sortie demande la traduction, donc xrandr. S'il manque, on le
+	#  DIT : partager les quatre écrans en silence alors qu'on venait d'en
+	#  demander un seul serait le contraire de ce qui a été demandé.
+	command -v xrandr >/dev/null 2>&1 \
+		|| die "« --ecran ${ecran} » demande xrandr pour traduire un nom de sortie (paquet x11-xserver-utils). Sans lui, seule la forme numérique marche : ${PROG} partager --ecran 0"
+	idx="$(index_ecran "$ecran")" \
+		|| die "Sortie inconnue ou éteinte : « ${ecran} »  (voir « lexos ecran »)."
+	say "Partage limité à l'écran ${ecran} (n° ${idx})." >&2
+	printf 'xinerama%s' "$idx"
+}
+
 cmd_partager() {
-	local mode="${1:-}" duree="-forever" pid=""
+	local mode="" duree="-forever" pid="" ecran="" clip=""
 	local -a arguments=()
+	#  Les arguments arrivent dans n'importe quel ordre : « partager once
+	#  --ecran DP-2 » et « partager --ecran DP-2 once » doivent marcher tous
+	#  les deux. Quelqu'un qui doit se souvenir de l'ordre se trompe.
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--ecran|--écran)
+				[[ $# -ge 2 ]] || die "« --ecran » attend un nom de sortie ou un index  (voir « lexos ecran »)."
+				ecran="$2"; shift 2 ;;
+			--ecran=*|--écran=*) ecran="${1#*=}"; shift ;;
+			''|continu)  mode="continu"; shift ;;
+			once|unique) mode="once";    shift ;;
+			*) die "Option inconnue pour partager : « $1 ». Attendu : « once », « --ecran <sortie> »." ;;
+		esac
+	done
 	case "$mode" in
-		''|continu)   duree="-forever" ;;
-		once|unique)  duree="-once" ;;
-		*) die "Option inconnue pour partager : « $mode ». Attendu : rien, ou « once »." ;;
+		once) duree="-once" ;;
+		*)    duree="-forever" ;;
 	esac
 
 	verifier_outil x11vnc x11vnc || exit 1
@@ -289,6 +381,10 @@ cmd_partager() {
 
 	verifier_affichage
 
+	#  L'écran se choisit AVANT le mot de passe : un nom mal tapé doit se voir
+	#  tout de suite, pas après deux saisies pour rien.
+	clip="$(clip_ecran "$ecran")"
+
 	demander_mot_de_passe || die "Partage non démarré."
 
 	arguments=(
@@ -299,6 +395,7 @@ cmd_partager() {
 		-bg
 		-o "$JOURNAL"
 	)
+	[[ -n "$clip" ]] && arguments+=(-clip "$clip")
 	# Lancé avec sudo, x11vnc ne trouve pas le fichier d'autorisation X de la
 	# session en cours (celui de root ne sert à rien) : « -auth guess » va le
 	# chercher. Ce partage devrait toutefois se lancer avec son propre compte.
@@ -462,7 +559,11 @@ case "$commande" in
 	rdp)                    cmd_protocole_impose rdp "${1:-}" ;;
 	vnc)                    cmd_protocole_impose vnc "${1:-}" ;;
 	ssh)                    cmd_ssh "${1:-}" ;;
-	partager)               cmd_partager "${1:-}" ;;
+	#  « $@ » et pas « ${1:-} » : depuis que partager accepte « --ecran »,
+	#  n'en transmettre qu'un seul ferait disparaître l'option en silence —
+	#  le partage démarrerait sur les quatre écrans sans qu'on comprenne
+	#  pourquoi l'option n'a servi à rien.
+	partager)               cmd_partager "$@" ;;
 	arreter)                cmd_arreter ;;
 	etat)                   cmd_etat ;;
 	--json|json)            cmd_json ;;

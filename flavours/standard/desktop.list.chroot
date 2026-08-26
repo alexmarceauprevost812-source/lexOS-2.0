@@ -11,6 +11,23 @@
 xorg
 xserver-xorg-input-all
 xserver-xorg-video-all
+#  x11-xserver-utils fournit xrandr. SIX chemins en dépendent, et il était posé
+#  « au mieux » : ils pouvaient donc disparaître TOUS ENSEMBLE sans un mot.
+#    · « lexos ecran » en entier (il s'arrête sur « xrandr introuvable »)
+#    · la section Écrans des Paramètres — elle s'affichait VIDE
+#    · le changement de définition d'un écran
+#    · le bouton « Écrans » des Paramètres
+#    · le fond d'écran posé sur plusieurs écrans
+#    · le raccourci Super+D
+#  Le deuxième est le pire : la fenêtre s'ouvre, la section s'affiche, elle est
+#  vide — l'air de dire « tu n'as aucun écran », sur une machine à quatre
+#  écrans allumés. Même leçon que xfce4-appfinder plus haut, en six fois.
+x11-xserver-utils
+#  pulseaudio-utils fournit « pactl », appelé à quatre endroits de settings.py :
+#  sans lui la section Son s'ouvre et ne fait rien. Ce n'est pas un retour à
+#  PulseAudio — c'est l'outil en ligne de commande standard du son, et
+#  pipewire-pulse l'attend.
+pulseaudio-utils
 
 # --- Bureau ------------------------------------------------------------------
 xfce4

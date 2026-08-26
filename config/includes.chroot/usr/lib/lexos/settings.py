@@ -1261,6 +1261,35 @@ def _batterie_etat():
     return {"niveau": niveau, "secteur": secteur}
 
 
+def _ecrans_probleme():
+    """Pourquoi la liste des écrans est vide — quand elle l'est.
+
+    LA PANNE SIGNATURE DE CE PROJET, DANS SA FORME LA PLUS PURE.
+    _ecrans_etat() rendait une liste vide sans un mot quand xrandr manquait.
+    La fenêtre s'ouvrait, la section Écrans s'affichait, et elle était vide :
+    pas d'erreur, pas d'explication, l'air de dire « tu n'as aucun écran » —
+    sur une machine à quatre écrans allumés.
+
+    Promouvoir le paquet (fait : x11-xserver-utils est passé en obligatoire)
+    règle le cas d'aujourd'hui. Faire PARLER le code règle tous les autres :
+    une session Wayland, un xrandr retiré à la main, une machine sans serveur
+    graphique. Une section vide qui explique pourquoi vaut infiniment mieux
+    qu'une section vide.
+
+    Rend une chaîne vide quand tout va bien — l'appelant n'affiche alors rien.
+    """
+    if os.environ.get("XDG_SESSION_TYPE") == "wayland":
+        return ("Session Wayland : xrandr ne sait pas lire ses écrans. "
+                "LexOS ouvre XFCE en X11 — vérifie la session choisie à la connexion.")
+    if not shutil.which("xrandr"):
+        return ("L'outil qui lit les écrans (xrandr) n'est pas installé : "
+                "impossible de lister les écrans. Paquet : x11-xserver-utils.")
+    if not os.environ.get("DISPLAY"):
+        return ("Aucune session graphique ouverte (DISPLAY est vide) : "
+                "xrandr n'a pas d'écran à interroger.")
+    return ""
+
+
 def _ecrans_etat():
     """Les sorties vidéo BRANCHÉES, avec leur définition courante."""
     ecrans = []
@@ -2248,6 +2277,10 @@ def etat():
         "son": _son_etat(),
         "batterie": _batterie_etat(),
         "ecrans": _ecrans_etat(),
+        #  Vide n'est pas une réponse. Quand la liste ci-dessus l'est, celle-ci
+        #  dit POURQUOI — et la page peut enfin l'écrire au lieu de laisser
+        #  croire qu'aucun écran n'est branché.
+        "ecrans_probleme": _ecrans_probleme(),
         "echelle": _echelle_etat(),
         "image": _image_etat(),
         "souris": _souris_etat(),

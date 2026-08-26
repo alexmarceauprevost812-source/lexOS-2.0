@@ -245,7 +245,8 @@ ${B}UTILISATEURS${R}
 ${B}BUREAU À DISTANCE${R}
   ${A}distant${R}             État : qui peut voir cet écran
   ${A}distant vers${R} <ip>   Se connecter à une autre machine ${D}(Remmina)${R}
-  ${A}distant partager on${R} Laisser voir CET écran ${D}(mot de passe obligatoire)${R}
+  ${A}distant partager${R}    Laisser voir CET écran ${D}(mot de passe obligatoire)${R}
+  ${A}distant partager --ecran${R} <s>  N'en montrer QU'UN ${D}(plusieurs écrans)${R}
 
 ${B}RECHERCHE${R}
   ${A}recherche${R} <mot>     Chercher par nom

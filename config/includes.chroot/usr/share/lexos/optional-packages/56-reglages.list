@@ -26,7 +26,11 @@ i2c-tools
 #  easyeffects : égaliseur et effets PipeWire ; helvum : brancher les flux.
 easyeffects
 helvum
-pulseaudio-utils
+# pulseaudio-utils — PASSÉ EN STRICT (flavours/standard/desktop.list.chroot).
+#   Il fournit « pactl », appelé à quatre endroits de settings.py : sans lui la
+#   section Son des Paramètres s'ouvre et ne fait rien. Ce n'est PAS un retour
+#   à PulseAudio — pactl est l'outil en ligne de commande standard, et
+#   pipewire-pulse l'attend.
 
 # --- Énergie ----------------------------------------------------------------
 powertop
