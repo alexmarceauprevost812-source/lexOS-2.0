@@ -585,5 +585,64 @@ D6="$(theme_utilisateur "$CASSE6:$MIN6" bleu)"
 	|| non "rsvg-convert en échec : une copie vide masque le système ($(find "$D6" -type f | wc -l) fichiers)"
 
 # ═════════════════════════════════════════════════════════════════════════════
+titre "7. flameshot suit l'accent, et pas l'inverse"
+# ═════════════════════════════════════════════════════════════════════════════
+#  ALEX, PHOTO DU SÉLECTEUR DE ZONE : « changer la couleur pour orange au
+#  lieu de rose ». flameshot.ini est écrit par lexos-theme-gen ; ce banc
+#  vérifie que la couleur POSÉE est la bonne, ET que le contraste de l'icône
+#  par-dessus (contrastUiColor) tient toujours le seuil WCAG — la même règle
+#  que la section 1 applique aux boutons GTK, appliquée ici à un fichier
+#  tiers que la section 1 ne regarde pas.
+for A in orange bleu violet neon rouge vert gris; do
+	rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
+	LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" 		bash "$GEN" --target "$BANC/t" "$A" >/dev/null 2>&1
+	INI="$BANC/t/.config/flameshot/flameshot.ini"
+	[ -r "$INI" ] || { non "$A : aucun flameshot.ini produit"; continue; }
+
+	UI="$(sed -n 's/^uiColor=//p' "$INI")"
+	CONTR="$(sed -n 's/^contrastUiColor=//p' "$INI")"
+
+	#  Le calcul de contraste n'a rien à faire sur une valeur absente — une
+	#  chaîne vide passée à int(x, 16) plante en Python, et une trace de pile
+	#  au milieu d'un banc n'aide personne à voir CE QUI a échoué. On sort
+	#  donc AVANT tout calcul.
+	if [ -z "$UI" ] || [ -z "$CONTR" ]; then
+		non "$A : uiColor ou contrastUiColor manquant dans flameshot.ini"
+		continue
+	fi
+
+	RATIO="$(python3 -c "
+def lum(h):
+    h = h.lstrip('#')
+    c = [int(h[i:i+2], 16) / 255 for i in (0, 2, 4)]
+    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2]
+l1, l2 = sorted([lum('$UI'), lum('$CONTR')], reverse=True)
+print(f'{(l1 + 0.05) / (l2 + 0.05):.2f}')
+")"
+	if awk -v r="$RATIO" 'BEGIN{exit !(r < 4.5)}'; then
+		non "$A : icône $CONTR sur bouton $UI = ${RATIO}:1 — sous 4,5:1"
+	else
+		ok "$A : $UI, icône $CONTR lisible (${RATIO}:1)"
+	fi
+done
+
+#  LA PREUVE PAR L'OUTIL RÉEL, QUAND IL EST LÀ. On ne devine pas les clés
+#  « uiColor »/« contrastUiColor » — un mauvais nom serait ignoré par
+#  flameshot EN SILENCE (QSettings ne proteste jamais d'une clé inconnue) et
+#  la barre resterait violette sans qu'aucun test ne le voie. Si le vrai
+#  binaire flameshot est disponible sur la machine qui fait tourner ce banc,
+#  on lui fait relire NOTRE fichier et VALIDER — pas relire son propre
+#  format en se faisant confiance à soi-même.
+if command -v flameshot >/dev/null 2>&1; then
+	rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
+	LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" 		bash "$GEN" --target "$BANC/t" orange >/dev/null 2>&1
+	SORTIE_FS="$(HOME="$BANC/t" QT_QPA_PLATFORM=offscreen flameshot config --check 2>&1)"
+	echo "$SORTIE_FS" | grep -qi 'no errors' 		&& ok "le flameshot RÉELLEMENT installé valide notre fichier sans se plaindre" 		|| non "flameshot rejette notre fichier : $SORTIE_FS"
+else
+	printf '  \033[2mflameshot absent de cette machine — contrôle par le vrai binaire sauté (le reste tient quand même)\033[0m\n'
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
 printf '\n%s réussi(s), %s échoué(s)\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

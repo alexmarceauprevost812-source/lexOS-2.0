@@ -68,14 +68,25 @@ cmd_photo() {
 	local fichier; fichier="$(nom_libre "$dest/capture_$(horodatage)" "$(extension_de "$fmt")")"
 
 	#  Cadrage : flameshot ouvre un vrai sélecteur — rectangle redimensionnable
-	#  par ses poignées, dimensions affichées en direct, annotations — soit le
-	#  même geste que l'outil de capture d'Ubuntu. xfce4-screenshooter -r ne
-	#  propose qu'un glisser d'un seul trait, sans rattrapage possible.
+	#  par ses poignées, dimensions affichées en direct — soit le même geste
+	#  que l'outil de capture d'Ubuntu. xfce4-screenshooter -r ne propose
+	#  qu'un glisser d'un seul trait, sans rattrapage possible.
+	#
+	#  « --accept-on-select » (documenté dans « man flameshot », vérifié dans
+	#  le manuel du paquet plutôt que deviné) : ALEX, PHOTO DU SÉLECTEUR —
+	#  « trop d'outils, [je voudrais] juste prendre une photo ». Sans ce
+	#  drapeau, une fois la zone dessinée, flameshot ouvre la barre
+	#  d'annotation au grand complet (crayon, formes, flèches, texte, minuteur,
+	#  grille…) et il faut encore valider — Entrée, ou un clic sur la coche.
+	#  Ce drapeau saute cette étape : dès que le rectangle est lâché, la
+	#  capture est prise, tout de suite, sans toucher à rien d'autre — plus
+	#  simple qu'une touche à retenir, la barre d'outils ne s'affiche même
+	#  plus.
 	if [[ "$mode" == "zone" ]] && command -v flameshot >/dev/null 2>&1; then
-		say "Cadre la zone à la souris — les poignées ajustent, Entrée valide."
+		say "Cadre la zone à la souris — relâche pour capturer, aucune touche à retenir."
 		#  flameshot gui écrit lui-même le fichier avec --path ; il sort en
 		#  code non nul si l'utilisateur annule, d'où le test sur le fichier.
-		flameshot gui --path "$fichier" >/dev/null 2>&1 || true
+		flameshot gui --accept-on-select --path "$fichier" >/dev/null 2>&1 || true
 		if [[ ! -s "$fichier" ]]; then
 			say "Capture annulée."
 			exit 0

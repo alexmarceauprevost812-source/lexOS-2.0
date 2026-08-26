@@ -785,9 +785,16 @@ EOF
 # =============================================================================
 #  3. Terminal XFCE — noir, écriture vert dark, curseur accent
 # =============================================================================
+#  ALEX, PHOTO DU TERMINAL : « écriture plus gros ». 11 -> 13 (+18 %). Une
+#  seule variable, écrite UNE fois, reprise dans terminalrc ET dans le canal
+#  Xfconf juste en dessous — sinon on recrée exactement le défaut que ce
+#  bloc découvre à l'instant : deux écritures de la même valeur, libres de
+#  diverger.
+TERM_POLICE="Fira Code 13"
+
 cat > "$TARGET/.config/xfce4/terminal/terminalrc" <<EOF
 [Configuration]
-FontName=Fira Code 11
+FontName=${TERM_POLICE}
 FontAllowBold=TRUE
 MiscAlwaysShowTabs=FALSE
 MiscBell=FALSE
@@ -802,7 +809,6 @@ MiscShowUnsafePasteDialog=FALSE
 ScrollingUnlimited=TRUE
 ColorForeground=${TERM_FG}
 ColorBackground=${TERM_BG}
-ColorCursor=${ACCENT}
 ColorCursor=${TERM_CURSEUR}
 ColorCursorForeground=${TERM_BG}
 ColorBold=${TERM_FG_HI}
@@ -816,7 +822,102 @@ BackgroundDarkness=${TERM_TRANSPARENCE}
 EOF
 
 # =============================================================================
-#  3b. Les couleurs de l'INVITE, dans un fichier que le shell relit
+#  3a. CE FICHIER-LÀ NE SUFFIT PLUS — le canal Xfconf, écrit en direct
+# =============================================================================
+#  DÉCOUVERT EN CHERCHANT POURQUOI LA POLICE D'ALEX NE GROSSISSAIT JAMAIS.
+#  xfce4-terminal (depuis la branche 1.1, celle de Xfce 4.20 — la version de
+#  trixie) a changé de mécanisme : à SON PREMIER LANCEMENT, il MIGRE
+#  terminalrc vers le canal Xfconf « xfce4-terminal », affiche « Your
+#  Terminal settings have been migrated to Xfconf. The config file […] is
+#  not used anymore. » — et ensuite, terminalrc n'est PLUS JAMAIS RELU.
+#  Vérifié en le faisant tourner pour de vrai (xfce4-terminal réel, sous
+#  Xvfb) : un compte qui a déjà ouvert un terminal une fois garde pour
+#  toujours la police et les couleurs du jour de cette première migration,
+#  quel que soit le nombre de fois où ce script réécrit terminalrc ensuite.
+#  C'est très exactement le mur des icônes qui se masquaient l'une l'autre
+#  (build 70-74), rejoué sur un fichier différent : le bon réglage est écrit
+#  au bon endroit, et quelque chose de PLUS TÔT dans la chaîne d'a déjà
+#  décidé de ne plus le lire.
+#
+#  LE CORRECTIF : ne plus dépendre de la migration. On écrit le canal
+#  Xfconf NOUS-MÊMES, comme xfwm4.xml et xsettings.xml le sont déjà pour la
+#  fenêtre et le thème GTK. Pour un compte tout neuf (le cas normal — cette
+#  fonction cible /etc/skel), Xfconf trouve alors le canal DÉJÀ REMPLI à la
+#  toute première ouverture : la migration ne se déclenche même pas (elle
+#  ne s'active que si le canal est vide), terminalrc devient un simple
+#  filet pour les très vieilles versions.
+#
+#  LES NOMS DE PROPRIÉTÉ SONT VÉRIFIÉS, PAS DEVINÉS : ils ne sont documentés
+#  NULLE PART (ni « man xfce4-terminal », ni son fichier .desktop) — on a
+#  fait tourner le vrai binaire sur un terminalrc complet et relu EXACTEMENT
+#  ce qu'il a écrit dans le canal migré. Une clé mal orthographiée ne
+#  provoquerait aucune erreur (Xfconf ignore une clé qu'il ne connaît pas,
+#  en silence) : c'est le genre de faute qu'aucun test ne peut voir sans
+#  faire tourner le vrai xfce4-terminal, ce que tests/test_lexos_terminal.sh
+#  fait précisément pour cette raison.
+mkdir -p "$TARGET/.config/xfce4/xfconf/xfce-perchannel-xml"
+cat > "$TARGET/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-terminal.xml" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfce4-terminal" version="1.0">
+  <property name="background-mode" type="string" value="TERMINAL_BACKGROUND_TRANSPARENT"/>
+  <property name="background-darkness" type="double" value="${TERM_TRANSPARENCE}"/>
+  <property name="color-foreground" type="string" value="${TERM_FG}"/>
+  <property name="color-background" type="string" value="${TERM_BG}"/>
+  <property name="color-cursor-foreground" type="string" value="${TERM_BG}"/>
+  <property name="color-cursor" type="string" value="${TERM_CURSEUR}"/>
+  <property name="color-selection" type="string" value="${TERM_SEL_FG}"/>
+  <property name="color-selection-background" type="string" value="${TERM_SEL_BG}"/>
+  <property name="color-bold" type="string" value="${TERM_FG_HI}"/>
+  <property name="color-bold-use-default" type="bool" value="false"/>
+  <property name="color-palette" type="string" value="${TERM_PALETTE}"/>
+  <property name="font-allow-bold" type="bool" value="true"/>
+  <property name="font-name" type="string" value="${TERM_POLICE}"/>
+  <property name="misc-always-show-tabs" type="bool" value="false"/>
+  <property name="misc-bell" type="bool" value="false"/>
+  <property name="misc-borders-default" type="bool" value="true"/>
+  <property name="misc-cursor-blinks" type="bool" value="true"/>
+  <property name="misc-cursor-shape" type="string" value="TERMINAL_CURSOR_SHAPE_BLOCK"/>
+  <property name="misc-default-geometry" type="string" value="100x28"/>
+  <property name="misc-menubar-default" type="bool" value="false"/>
+  <property name="misc-toolbar-default" type="bool" value="false"/>
+  <property name="misc-confirm-close" type="bool" value="false"/>
+  <property name="misc-show-unsafe-paste-dialog" type="bool" value="false"/>
+  <property name="scrolling-unlimited" type="bool" value="true"/>
+  <property name="tab-activity-color" type="string" value="${TERM_SAISIE}"/>
+</channel>
+EOF
+
+# =============================================================================
+#  3b. flameshot (capture d'écran) — la barre d'outils suit l'accent
+# =============================================================================
+#  ALEX, PHOTO DU SÉLECTEUR DE ZONE : « changer la couleur pour orange au
+#  lieu de rose ». flameshot arrive par défaut en violet — sa couleur à lui,
+#  sans lien avec LexOS.
+#
+#  DEUX CLÉS, VÉRIFIÉES EN LES FAISANT ÉCRIRE PAR flameshot LUI-MÊME
+#  (« flameshot config -m/-k », HOME de test, -platform offscreen), PAS
+#  DEVINÉES : la doc (« man flameshot ») nomme les DRAPEAUX de la commande
+#  « config », jamais les clés du fichier — celles-ci ne sont écrites nulle
+#  part en clair. On a donc fait tourner la vraie commande et relu le
+#  fichier qu'elle produit :
+#    [General]
+#    uiColor=<couleur principale des boutons>
+#    contrastUiColor=<couleur de ce qui est DESSUS — l'icône>
+#
+#  contrastUiColor REPREND texte_lisible(), la même fonction WCAG qui choisit
+#  déjà le noir ou le blanc pour tous les autres boutons de LexOS (BTN_FG,
+#  quelques lignes plus haut) : une icône blanche sur l'orange de LexOS tombe
+#  sous le seuil lisible (3,4:1), le noir passe (6,1:1). Pas une deuxième
+#  règle de contraste à tenir à jour à côté de la première.
+mkdir -p "$TARGET/.config/flameshot"
+cat > "$TARGET/.config/flameshot/flameshot.ini" <<EOF
+[General]
+uiColor=${ACCENT}
+contrastUiColor=${BTN_FG}
+EOF
+
+# =============================================================================
+#  3c. Les couleurs de l'INVITE, dans un fichier que le shell relit
 # =============================================================================
 #  POURQUOI UN FICHIER, ET PAS DES COULEURS DANS interactive.sh.
 #  L'invite avait ses couleurs écrites EN DUR (« 38;5;35 », « 38;5;208 »)
