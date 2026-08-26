@@ -155,10 +155,24 @@ jobs:
               bad=1
             fi
           done
-          #  wireless-regdb n'est PAS ramassée par --firmware-chroot : ce
-          #  mécanisme ne prend que les paquets nommés « firmware-* ». Sans
-          #  elle, le noyau retombe sur le domaine « monde » — canaux 5 GHz
-          #  amputés, puissance réduite : un Wi-Fi qui marche moins loin, et
+          #  POURQUOI wireless-regdb EST OBLIGATOIRE, ET POURQUOI CE N'EST PAS
+          #  CE QU'ON CROYAIT. On a longtemps écrit ici que --firmware-chroot
+          #  « ne prend que les paquets nommés firmware-* ». C'est très
+          #  probablement faux : live-build sélectionne par CHEMIN, pas par
+          #  nom — il lit les fichiers Contents de l'archive et retient tout
+          #  paquet qui dépose quelque chose sous lib/firmware, quel que soit
+          #  son nom. Vérifié directement dans le paquet : wireless-regdb
+          #  dépose bien ./lib/firmware/regulatory.db (+ sa signature), donc
+          #  serait ramassé de toute façon si l'hypothèse tient.
+          #  « très probablement » et pas « vérifié » : la source exacte de
+          #  live-build pour Debian 13 n'a pas pu être relue dans cette passe
+          #  (dépôt hors de la liste des hôtes autorisés pour ce réseau) — à
+          #  confirmer sur une vraie construction plutôt qu'à trancher ici.
+          #
+          #  On garde wireless-regdb obligatoire dans tous les cas : un
+          #  deuxième filet ne coûte rien, et une base de régulation absente
+          #  ne se voit pas — canaux 5 GHz amputés, puissance réduite, un
+          #  Wi-Fi qui marche moins loin sans qu'aucune erreur ne le dise, et
           #  qu'on met sur le dos du routeur.
           #  x11-xserver-utils fournit xrandr : SIX chemins en dépendent, dont
           #  la section Écrans des Paramètres, qui s'affichait VIDE quand il
@@ -381,6 +395,40 @@ jobs:
           done
           rm -f "$INDEX"
           exit $bad
+
+      - name: Le matériel vital ne disparaît plus en silence — hook 0250 sur un banc
+        run: |
+          #  RELEVÉ SUR L'ALIENWARE AURORA ACT1250 D'ALEX. firmware-iwlwifi
+          #  (son Wi-Fi 7 BE200), firmware-realtek, intel-microcode… vivent
+          #  dans une liste « au mieux » : avant ce banc, leur absence
+          #  finissait comme une ligne « !! indisponible » noyée dans une
+          #  heure de journal de construction, et l'ISO sortait sans Wi-Fi
+          #  sans un mot de plus.
+          #  Le banc rejoue le hook réel (mêmes chemins d'apt, même boucle de
+          #  reprise) avec de faux apt/dpkg/systemctl/modinfo sur un PATH
+          #  fermé — 12 scénarios, dont deux qui attrapent un bogue réel
+          #  trouvé en écrivant ce banc : un « ls … | sed … || repli » se
+          #  rattachait au code de sortie de sed, qui réussit même sur une
+          #  entrée vide — le repli « aucun micrologiciel » ne se
+          #  déclenchait donc JAMAIS.
+          bash tests/test_lexos_optional_firmware.sh
+
+      - name: Un Windows chiffré n'est pas un disque vide — lexos-dualboot sur un banc
+        run: |
+          #  BitLocker ne présente pas « ntfs » à lsblk mais « BitLocker » :
+          #  lexos-dualboot ne trouvait donc rien sur un disque chiffré, et
+          #  concluait « aucune partition Windows — l'installateur proposera
+          #  d'utiliser tout le disque ». Sur une machine où Windows est
+          #  simplement verrouillé (pas le cas de l'Alienware d'Alex
+          #  aujourd'hui, mais Windows 11 active le chiffrement tout seul
+          #  après certaines mises à jour), c'était une invitation à
+          #  l'effacer en croyant installer à côté.
+          #  Le banc vérifie aussi que l'outil ne s'arrête JAMAIS en cours de
+          #  route sur ce cas — contrairement à un « exit 1 » qui avait été
+          #  envisagé : lexos-dualboot est un bilan complet qui va toujours
+          #  jusqu'au bout (menu de démarrage, UEFI), quel que soit l'état de
+          #  Windows.
+          bash tests/test_lexos_dualboot_bitlocker.sh
 
       - name: L'accent n'est écrit qu'à un seul endroit
         run: |
