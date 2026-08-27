@@ -104,6 +104,25 @@ menu menuitem, .menu menuitem {
 	padding: 4px 8px;
 }
 
+/*  ENCORE CARRÉ MALGRÉ CE QUI PRÉCÈDE : le volet de xfce4-power-manager-
+    plugin (batterie, luminosité, « Mode présentation »), photographié carré
+    par Alex alors que la règle ci-dessus existe déjà. Cause probable : ce
+    greffon ouvre sa propre GtkWindow non décorée plutôt qu'un vrai
+    GtkPopover/GtkMenu — elle ne porte donc ni la classe « popup » ni le
+    noeud « menu »/« popover » que la règle du dessus cible, et GTK dessine
+    sa forme sur un noeud SÉPARÉ (le cadre autour du contenu, pas le contenu
+    lui-même). Les deux sélecteurs ci-dessous sont la pratique documentée
+    par la communauté Xfce/GTK3 pour exactement ce cas — deux fils de forum
+    Xfce les donnent pour arrondir une fenêtre-popup non décorée. À VÉRIFIER
+    SUR LA PROCHAINE ISO : la politique réseau de cette session bloquait
+    docs.xfce.org et la doc GTK elle-même, donc ceci n'a pas pu être
+    confirmé contre la source primaire ni contre un Xfce qui tourne pour de
+    vrai — seulement contre ce que d'autres ont rapporté avoir vu marcher. */
+.window-frame.popup,
+window.csd.popup {
+	border-radius: 14px;
+}
+
 /* --- Les quatre points des espaces de travail -------------------------------
    CE QUE ÇA REMPLACE. La barre affichait « 1 - Espace de travail 1 », « 2 -
    Espace de travail 2 »… : quatre pavés de texte qui mangeaient le tiers de
