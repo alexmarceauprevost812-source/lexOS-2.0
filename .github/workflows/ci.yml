@@ -1455,6 +1455,18 @@ jobs:
           print(f"ok — colonne unique à {cols.pop() if cols else '?'}")
           EOF
 
+      - name: Wi-Fi — le réseau connecté vient de l'appareil, pas du balayage
+        run: |
+          #  PHOTO D'ALEX : « il dit que je ne suis pas connecté, mais je le
+          #  suis ». _wifi_etat() lisait le balayage de bornes (nmcli device
+          #  wifi) pour savoir à quoi la machine est connectée — un
+          #  instantané des bornes VUES, pas de la connexion ACTIVE, et les
+          #  deux peuvent diverger. Le correctif lit l'état de l'appareil
+          #  (nmcli device status), qui répond à la vraie question. Faux
+          #  nmcli sur un PATH fermé, mutation-testé (le vieux code fait
+          #  échouer 4 des 7 cas).
+          python3 tests/test_lexos_wifi_etat.py
+
   partage:
     name: Serveur de partage
     runs-on: ubuntu-latest
