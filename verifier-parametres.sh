@@ -171,6 +171,7 @@ lexos-assistants
 lexos-cartes
 lexos-chrome
 lexos-claude
+lexos-claude-terminal
 lexos-dev
 lexos-dualboot
 lexos-game

@@ -8548,13 +8548,16 @@ function cctVa(winId, id){
 }
 function cctAccueilSession(winId){
   ccTermEcrit(winId,
-    `<span class="cct-sp">${claudeGlyph(13)}</span> <b>Claude Code</b>
-     <span class="cct-dim">— assistant de programmation, dans le terminal</span>`);
+    `<span class="cct-sp">${claudeGlyph(13)}</span> <b>Claude Terminal</b>
+     <span class="cct-dim">— le terminal de Claude, et de personne d'autre</span>`);
   ccTermEcrit(winId,
-    `<span class="cct-dim">Répond à partir de la documentation de LexOS.
-     <b>Aucune IA n'est jointe</b> : cette page est publiée avec une politique
-     qui bloque le réseau. Sur la vraie LexOS, <b>lexos claude</b> lance le
-     vrai Claude Code.</span>`, "cct-note");
+    `<span class="cct-dim">Un deuxième terminal, réservé à Claude : il ne
+     s'ouvre pas sur un shell, il s'ouvre dans <b>Claude Code</b>. Pour les
+     personnes abonnées à Claude (compte Anthropic) — la connexion se fait
+     au navigateur au premier lancement.
+     <b>Aucune IA n'est jointe ici</b> : cette page est publiée avec une
+     politique qui bloque le réseau. Sur la vraie LexOS,
+     <b>lexos claude-terminal</b> ouvre la vraie fenêtre.</span>`, "cct-note");
 }
 function cctNouvelleSession(winId){
   cctCreeSession(winId);
@@ -8608,7 +8611,7 @@ function ccTermDemande(winId, texte){
 function openClaudeCode(nouvelle){
   const id = nouvelle ? "claude-code#"+(++winSeq) : "claude-code";
   const winId = "win-" + id;
-  const el = openWin(id,"Claude Code",claudeGlyph(17),
+  const el = openWin(id,"Claude Terminal",claudeGlyph(17),
    `<div class="cct cct-avec-cote">
       <div class="cct-cote">
         <button class="cl-neuf cct-neuf" onclick="cctNouvelleSession('${winId}')">+ Nouvelle session</button>
@@ -8620,7 +8623,7 @@ function openClaudeCode(nouvelle){
           <button class="cct-cote-tog" onclick="cctCoteBascule('${winId}')"
                   title="Afficher ou masquer les sessions" aria-label="Sessions">☰</button>
           <span>${claudeGlyph(16)}</span>
-          <b>Claude Code</b>
+          <b>Claude Terminal</b>
           <span class="cct-chemin">~/lexos</span>
           <span class="cc-badge">démo</span>
         </div>
@@ -10395,7 +10398,7 @@ const DOCK = [
   [terminalGlyph(24),"Terminal",openTerminal],
   [filesAppGlyph(24),"Fichiers",openFiles], [noteGlyph(25),"Note perso",openEditor],
   [claudeGlyph(26),"Claude",openClaude],
-  [claudeGlyph(26),"Claude Code",openClaudeCode],
+  [claudeGlyph(26),"Claude Terminal",openClaudeCode],
   ['<i class="gly gly-share"></i>',"Partager",openShare], [cameraGlyph(24),"Capture d'écran",openCapture],
   [studioGlyph(24),"Studio+ LexOS",openStudio],
   ["📦","Logithèque",openLogitheque],
@@ -10437,7 +10440,7 @@ function majFondsDock(){
 const DOCK_APP = {
   "Navigateur":"web", "Google Chrome":"chrome", "Terminal":"term",
   "Fichiers":"files", "Note perso":"edit",
-  "Claude":"web", "Claude Code":"claude-code", "Partager":"share",
+  "Claude":"web", "Claude Terminal":"claude-code", "Partager":"share",
   "Capture d'écran":"capture", "Studio+ LexOS":"studio", "Logithèque":"logitheque",
   "Paramètres":"set", "Installer LexOS":"inst", "À propos":"about"};
 //  Applications qui acceptent plusieurs fenêtres à la fois (contenu autonome,
@@ -10606,7 +10609,7 @@ const APPS = [
     label==="Google Chrome" ? {ic:chromeGlyph(40), label, fn} :
     label==="Paramètres" ? {ic:reglagesGlyph(40), label, fn} :
     label==="Note perso" ? {ic:noteGlyph(40), label, fn} :
-    (label==="Claude"||label==="Claude Code") ? {ic:claudeGlyph(40), label, fn} : {ic,label,fn}),
+    (label==="Claude"||label==="Claude Terminal") ? {ic:claudeGlyph(40), label, fn} : {ic,label,fn}),
   {ic:zipGlyph(42), label:"Archives ZIP", fn:openFiles},
   {ic:musiqueGlobe(38), label:"Musique", fn:openMusique},
   {ic:'<span style="font-size:38px">💿</span>', label:"lexOS_musique", fn:openLexosMusique},

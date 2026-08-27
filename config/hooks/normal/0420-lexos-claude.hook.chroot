@@ -73,20 +73,28 @@ fi
 # --- Lanceurs de bureau -----------------------------------------------------
 mkdir -p /usr/share/applications
 
+#  « CLAUDE TERMINAL » — LE NOM CHOISI PAR ALEX : « un 2e terminal mais
+#  juste pour toi, on va l'appeler claude-terminal ». Le lanceur garde son
+#  NOM DE FICHIER (lexos-claude-code.desktop) : le dock Plank le référence
+#  par chemin (13-claude-code.dockitem), le renommer casserait l'épingle.
+#  Seul ce qui s'affiche change. Et il ne lance plus xfce4-terminal en
+#  direct : lexos-claude-terminal porte l'habillage dédié (couleurs, icône,
+#  sans barres de menus) ET les replis si xfce4-terminal manque — un lanceur
+#  qui écrit lui-même la commande du terminal les aurait perdus.
 cat > /usr/share/applications/lexos-claude-code.desktop <<EOF
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=Claude Code
-Name[en]=Claude Code
-Comment=Assistant de programmation d'Anthropic, dans le terminal
-Comment[en]=Anthropic's coding assistant, in the terminal
-Exec=xfce4-terminal --title="Claude Code — LexOS" -e "lexos claude"
+Name=Claude Terminal
+Name[en]=Claude Terminal
+Comment=Le terminal de Claude — s'ouvre directement dans Claude Code (compte Anthropic requis)
+Comment[en]=Claude's own terminal — opens straight into Claude Code (Anthropic account required)
+Exec=lexos-claude-terminal
 Icon=lexos-claude
 Terminal=false
 StartupNotify=true
 Categories=Development;Utility;
-Keywords=claude;code;ia;ai;anthropic;assistant;programmation;developpement;cli;terminal;
+Keywords=claude;code;claude-terminal;terminal;ia;ai;anthropic;assistant;programmation;developpement;cli;
 EOF
 
 cat > /usr/share/applications/lexos-claude.desktop <<EOF

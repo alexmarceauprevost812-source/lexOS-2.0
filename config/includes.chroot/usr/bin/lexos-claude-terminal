@@ -1,0 +1,51 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-claude-terminal — le terminal de Claude, et de personne d'autre
+# =============================================================================
+#  LA DEMANDE D'ALEX, MOT POUR MOT : « dans le fond tu serais un 2e terminal
+#  mais juste pour toi — on va l'appeler claude-terminal ». Un deuxième
+#  terminal, à côté du terminal ordinaire, RÉSERVÉ à Claude : il ne s'ouvre
+#  pas sur un shell, il s'ouvre directement dans Claude Code. Et il est pour
+#  « les personnes qui vont s'abonner à Claude » : Claude Code exige un
+#  compte Anthropic, la connexion se fait au navigateur au premier
+#  lancement — c'est lexos-claude qui porte tout ça (installation comprise),
+#  ce script ne fait qu'ouvrir SA fenêtre à lui.
+#
+#  CE QUI LE DISTINGUE DU TERMINAL ORDINAIRE, ET POURQUOI C'EST FAIT COMME ÇA.
+#  xfce4-terminal accepte des couleurs et un habillage PAR FENÊTRE en ligne
+#  de commande — chaque option ci-dessous est documentée dans
+#  man xfce4-terminal(1), vérifiée avant d'être écrite :
+#    --title       le nom de la fenêtre (fixe, ignore le titre dynamique) ;
+#    --icon        l'icône « burst » de Claude, posée par le hook 0420 ;
+#    --hide-menubar / --hide-toolbar : pas de barre de menus ni d'outils —
+#                  cette fenêtre ne sert qu'à parler à Claude, tout habillage
+#                  de terminal généraliste y serait du bruit ;
+#    --color-bg / --color-text : un fond brun chaud et une écriture crème
+#                  (contraste ≈ 11:1, largement au-dessus du seuil AA) —
+#                  on reconnaît la fenêtre de Claude d'un coup d'oeil, même
+#                  réduite dans le dock à côté du terminal orange ordinaire.
+#
+#  LES RÉGLAGES DU TERMINAL ORDINAIRE NE BOUGENT PAS : ces options ne valent
+#  que pour CETTE fenêtre-ci, rien n'est écrit dans la configuration de
+#  xfce4-terminal. Les deux terminaux cohabitent sans se marcher dessus.
+#
+#  LES REPLIS. Sans xfce4-terminal (il est en paquet optionnel), n'importe
+#  quel terminal fait l'affaire — sans l'habillage, mais avec Claude. Et
+#  lancé depuis un terminal déjà ouvert, sans aucun émulateur graphique,
+#  Claude Code démarre ici même : mieux vaut Claude sans son costume que pas
+#  de Claude du tout.
+# =============================================================================
+set -u
+
+if command -v xfce4-terminal >/dev/null 2>&1; then
+	exec xfce4-terminal \
+		--title="Claude Terminal" \
+		--icon=lexos-claude \
+		--hide-menubar --hide-toolbar \
+		--color-bg='#201612' --color-text='#EDDCCE' \
+		-e "lexos claude"
+fi
+if command -v x-terminal-emulator >/dev/null 2>&1; then
+	exec x-terminal-emulator -e lexos claude
+fi
+exec lexos claude

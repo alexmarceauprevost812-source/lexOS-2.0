@@ -311,6 +311,7 @@ ${B}IA${R}
   ${A}ia-locale${R}            La fenêtre : quelle carte, quel backend, quels modèles
                       ${D}et POURQUOI c'est lent quand c'est lent${R}
   ${A}claude${R}               Claude Code : l'assistant de programmation d'Anthropic
+  ${A}claude-terminal${R}      Le terminal de Claude — sa fenêtre à lui, direct dans Claude Code
   ${A}claude app${R}           L'application Claude (claude.ai) en fenêtre dédiée
   ${A}assistants${R}          Les six assistants IA en ligne ${D}(Claude, ChatGPT, Gemini…)${R}
   ${A}assistants${R} <nom>    En ouvrir un ${D}(ex. : assistants perplexity)${R}
@@ -1098,6 +1099,7 @@ case "$CMD" in
 	ia-locale|ialocale)   exec lexos-ia-locale "$@" ;;
 	assistants|assistant) exec lexos-assistants "$@" ;;
 	claude|cc)            exec lexos-claude "$@" ;;
+	claude-terminal|terminal-claude) exec lexos-claude-terminal ;;
 	dev|devs|developpement|développement) exec lexos-dev "$@" ;;
 	firmware|bios|micrologiciel) exec lexos-firmware "$@" ;;
 	meteo|météo|weather|temps) exec lexos-meteo "$@" ;;
