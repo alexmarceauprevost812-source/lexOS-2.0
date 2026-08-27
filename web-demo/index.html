@@ -1298,6 +1298,22 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   border-top:1px solid #3a251d;flex:none}
 .cct-in{flex:1;min-width:0;background:transparent;border:0;color:#fff;
   font:inherit;outline:none}
+/*  L'AVATAR DANS LA BARRE DE SAISIE — demandé par Alex. Dernier de la
+    rangée : .cct-in est en flex:1 et prend toute la place restante, donc
+    l'avatar se retrouve NATURELLEMENT tout à droite, sans position:absolute
+    à recaler. align-self:flex-start le sort du centrage vertical de la
+    rangée pour le poser en haut. Sa couleur suit déjà le thème du terminal
+    SANS code neuf : .claude-pales est la classe que cctAppliqueTheme()
+    recolore plus bas (rouge, orange) — le glyphe la porte déjà. */
+.cct-avatar{display:inline-flex;align-items:center;justify-content:center;
+  flex:none;align-self:flex-start}
+/*  Le mouvement demandé : l'avatar tourne pendant que Claude compose sa
+    réponse (CCT_OCCUPE, déjà utilisé pour bloquer une 2e question en même
+    temps) — un vrai indicateur d'activité, pas une décoration qui tourne
+    tout le temps sous les doigts de qui écrit. */
+.cct-avatar.cct-avatar-actif{animation:cctAvatarTourne 1.1s linear infinite}
+@keyframes cctAvatarTourne{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){ .cct-avatar.cct-avatar-actif{animation:none} }
 /*  Le bouton « + » et les vignettes de pièces jointes, communs à Claude et
     à Claude Code. Une image choisie est lue sur place par le navigateur et
     montrée en miniature : rien ne part nulle part. */
@@ -8883,6 +8899,7 @@ function ccTermDemande(winId, texte){
   ccTermEcrit(winId, `<span class="cct-fl">&gt;</span> ${esc((q + joints).trim())}`, "cct-moi");
   ccVideJoints(winId);
   CCT_OCCUPE[winId] = true;
+  w.querySelector(".cct-avatar")?.classList.add("cct-avatar-actif");
 
   //  Les étapes d'outil, comme le vrai Claude Code les annonce. Elles ne
   //  font rien : elles disent d'où vient la réponse — la documentation de
@@ -8906,6 +8923,7 @@ function ccTermDemande(winId, texte){
     //  l'historique de session a reçu le HTML nu juste au-dessus.
     if(d) cctAnime(d.querySelector(".cct-rep"));
     CCT_OCCUPE[winId] = false;
+    w.querySelector(".cct-avatar")?.classList.remove("cct-avatar-actif");
     champ.focus();
   };
   setTimeout(suite, 260);
@@ -8944,6 +8962,7 @@ function openClaudeCode(nouvelle){
           <input class="cct-in" type="text" autocomplete="off" spellcheck="false"
                  placeholder="Demande quelque chose…"
                  onkeydown="if(event.key==='Enter'){event.preventDefault();ccTermDemande('${winId}')}">
+          <span class="cct-avatar" title="Claude Code" aria-hidden="true">${claudeGlyph(16)}</span>
         </div>
         <div class="cct-pied">
           <span class="cct-bonhomme">${claudeGlyph(14)}</span>
