@@ -1257,6 +1257,26 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .cct-liste{display:flex;flex-direction:column;gap:2px;overflow-y:auto;
   flex:1;min-height:0}
 .cct-rec{font-size:11.5px}
+/*  RENOMMER ET SUPPRIMER UNE SESSION — demandé par Alex. La ligne devient un
+    <div> (le <button> d'origine ne peut pas tenir un span éditable
+    proprement) : clic pour y aller, double-clic sur le nom pour le
+    renommer sur place (même geste que ficRenomme() dans Fichiers), clic
+    droit pour le menu Renommer/Supprimer. Au passage : « .on » n'avait
+    JAMAIS eu de style — la session active ne se distinguait pas des
+    autres dans la liste, un défaut resté invisible faute d'y toucher. */
+.cct-rec-row{display:flex;align-items:center;font-size:11.5px;color:#b8aca7;
+  border-radius:7px;padding:7px 10px;cursor:pointer}
+.cct-rec-row:hover{background:rgba(217,119,87,.12);color:#fff}
+.cct-rec-row.on{background:rgba(217,119,87,.22);color:#fff;font-weight:600}
+.cct-rec-nom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cct-rec-nom[contenteditable="true"]{outline:1px solid #d97757;border-radius:4px;
+  padding:0 3px;cursor:text;white-space:normal;color:#fff}
+.cct.cct-th-rouge .cct-rec-row:hover{background:rgba(232,49,42,.12)}
+.cct.cct-th-rouge .cct-rec-row.on{background:rgba(232,49,42,.22)}
+.cct.cct-th-rouge .cct-rec-nom[contenteditable="true"]{outline-color:#E8312A}
+.cct.cct-th-orange .cct-rec-row:hover{background:rgba(255,140,26,.12)}
+.cct.cct-th-orange .cct-rec-row.on{background:rgba(255,140,26,.22)}
+.cct.cct-th-orange .cct-rec-nom[contenteditable="true"]{outline-color:#FF8C1A}
 .cct-liste-vide{color:#8a7a74;font-size:11px;padding:8px 10px}
 .cct-corps{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .cct-tete{display:flex;align-items:center;gap:9px;padding:10px 14px;
@@ -8867,9 +8887,67 @@ function cctRendListe(winId){
   const e = cctEtat(winId);
   zone.innerHTML = e.sessions.length
     ? e.sessions.map(s =>
-        `<button class="cl-rec cct-rec${s.id === e.actif ? " on" : ""}"
-                 onclick="cctVa('${winId}',${s.id})">${esc(s.titre)}</button>`).join("")
+        `<div class="cct-rec-row${s.id === e.actif ? " on" : ""}" data-id="${s.id}"
+              onclick="cctVa('${winId}',${s.id})"
+              ondblclick="event.stopPropagation();cctRenomme('${winId}',${s.id})"
+              oncontextmenu="cctMenuSession(event,'${winId}',${s.id})">
+           <span class="cct-rec-nom">${esc(s.titre)}</span></div>`).join("")
     : `<div class="cct-liste-vide">Aucune session</div>`;
+}
+//  Renommer sur place — même geste que ficRenomme() dans Fichiers : le nom
+//  devient éditable, Entrée valide, Échap annule, perdre le focus valide
+//  aussi (on ne force personne à trouver la bonne touche).
+function cctRenomme(winId, id){
+  const e = cctEtat(winId);
+  const s = e.sessions.find(x => x.id === id); if(!s) return;
+  const w = document.getElementById(winId); if(!w) return;
+  const row = w.querySelector(`.cct-rec-row[data-id="${id}"]`);
+  const span = row && row.querySelector(".cct-rec-nom");
+  if(!span) return;
+  const avant = s.titre;
+  span.contentEditable = "true";
+  span.focus(); selectAllText(span);
+  const valide = ()=>{
+    span.contentEditable = "false";
+    span.removeEventListener("keydown", onKey);
+    span.removeEventListener("blur", valide);
+    const neuf = span.textContent.trim();
+    if(!neuf){ span.textContent = avant; return; }   // nom vide : on revient à l'ancien
+    s.titre = neuf;
+    cctRendListe(winId);
+  };
+  const onKey = ev=>{
+    if(ev.key === "Enter"){ ev.preventDefault(); span.blur(); }
+    else if(ev.key === "Escape"){ ev.preventDefault(); span.textContent = avant; span.blur(); }
+  };
+  span.addEventListener("keydown", onKey);
+  span.addEventListener("blur", valide);
+}
+//  Supprimer une session. Celle qu'on regardait ? Une autre prend sa place
+//  s'il en reste une ; sinon une session neuve repart tout de suite —
+//  jamais de fenêtre sans aucune session, comme au tout premier lancement.
+function cctSupprime(winId, id){
+  const e = cctEtat(winId);
+  const idx = e.sessions.findIndex(x => x.id === id); if(idx < 0) return;
+  const [s] = e.sessions.splice(idx, 1);
+  if(e.actif === id){
+    if(e.sessions.length){
+      e.actif = e.sessions[0].id;
+      cctRendLog(winId);
+    } else {
+      cctCreeSession(winId);
+      cctRendLog(winId);
+      cctAccueilSession(winId);
+    }
+  }
+  cctRendListe(winId);
+  toast("🗑 " + s.titre + " supprimée");
+}
+function cctMenuSession(e, winId, id){
+  ctxOuvre(e, [
+    {ic:"✎", txt:"Renommer", act:`cctRenomme('${winId}',${id})`},
+    {ic:"🗑", txt:"Supprimer", act:`cctSupprime('${winId}',${id})`},
+  ]);
 }
 function cctVa(winId, id){
   const e = cctEtat(winId);
