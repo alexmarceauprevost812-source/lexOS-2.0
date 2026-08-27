@@ -266,11 +266,27 @@ async function rapidesClic(cle){
 }
 
 /* --- Rendu ---------------------------------------------------------------- */
+//  LE MODE, À CHAUD — même correctif que Paramètres (appliqueApparence()),
+//  jamais reporté ici. La page reçoit ?mode= au tout premier lancement (voir
+//  index.html), mais rien ne le remettait à jour ensuite : cliquer la tuile
+//  « Thème » du volet changeait bien ~/.config/lexos/mode (rafraichir()
+//  relit l'état, le libellé ☀/🌑 de la tuile suivait) — la SURFACE DU VOLET,
+//  elle, restait figée dans le mode où elle avait ouvert jusqu'à la fermer
+//  et la rouvrir. C'est exactement ce qui ressemblait à « le thème jour/nuit
+//  ne fonctionne pas ». etat.rapides.theme n'existe que pendant que ce
+//  volet-ci est ouvert (_rapides_etat() n'est peuplé que pour lui) — c'est
+//  justement le seul moment où ce bouton peut avoir été cliqué.
+function appliqueModeVolet(){
+  const theme = etat.rapides && etat.rapides.theme;
+  if(theme === "clair") document.documentElement.dataset.mode = "clair";
+  else if(theme === "sombre") delete document.documentElement.dataset.mode;
+}
 function rend(){
   document.getElementById("dedans").innerHTML =
     QUOI === "meteo" ? meteoHTML()
     : QUOI === "rapides" ? rapidesHTML()
     : (notifHTML() + agendaHTML());
+  appliqueModeVolet();
 }
 async function rafraichir(){ await chargeEtat(); rend(); }
 

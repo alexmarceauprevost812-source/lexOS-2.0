@@ -1122,6 +1122,16 @@ jobs:
           #  elle, et la liste des réseaux que l'ISO avait EN PLUS survit-elle.
           node tests/test_lexos_wifi.js
 
+      - name: Le volet — le thème jour/nuit suit vraiment un clic sur sa tuile
+        run: |
+          #  PHOTO D'ALEX : « le thème jour/nuit qui fonctionne pas dans les
+          #  boutons en haut à droite ». La tuile changeait bien le réglage
+          #  réel et son propre libellé (☀/🌑) — la SURFACE du volet, elle,
+          #  restait figée dans l'ancien mode jusqu'à fermer la fenêtre et la
+          #  rouvrir. Paramètres avait déjà ce correctif (appliqueApparence()) ;
+          #  le volet, une page à part, ne l'avait jamais reçu.
+          node tests/test_lexos_volet_mode.js
+
       - name: Santé du démarrage — Secure Boot, mode RAID, règle de version NVIDIA
         run: |
           #  DEUX RÉGLAGES DU BIOS FONT PASSER L'ALIENWARE POUR CASSÉE, et
