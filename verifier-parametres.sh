@@ -136,9 +136,13 @@ titre "1. Les outils lexos-* et leurs branchements"
 #                                « section Paramètres » n'aurait pas de sens ;
 #                                elle a sa branche « parametres » et son dock)
 #   lexos-boost-panneau        : amorce du greffon de barre de Boost
+#   lexos-claude-installation  : autostart de session, même mécanisme que
+#                                lexos-firstrun — rattrape la version de
+#                                Claude Code, ne se tape pas
 SANS_SECTION="
 lexos-apercu
 lexos-app-settings
+lexos-claude-installation
 lexos-firstrun
 lexos-welcome
 lexos-net-autoconnect

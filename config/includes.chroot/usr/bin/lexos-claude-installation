@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-claude-installation — Claude Code à la dernière version, dès que
+#  le vrai réseau existe
+# =============================================================================
+#  CE QUE CE SCRIPT RÉPARE. Le hook 0420 embarque Claude Code dans l'ISO
+#  (npm install -g, pendant la construction) pour que le Claude Terminal
+#  marche dès la clé USB — demande d'Alex : « Claude Terminal va déjà être
+#  téléchargé dans l'ISO ». Mais la version embarquée est celle du JOUR DE
+#  LA CONSTRUCTION, et le réseau du chroot pendant la construction n'est
+#  pas celui de la vraie machine. Ce script rattrape les deux à la première
+#  vraie session, une fois qu'il y a un réseau pour de vrai.
+#
+#  MÊME PATRON QUE lexos-firstrun : un fanion dans ~/.config/lexos, posé
+#  UNIQUEMENT en cas de réussite — un échec (pas de réseau au premier
+#  démarrage, par exemple) ne pose pas le fanion, et la session suivante
+#  réessaiera. On ne réessaie donc pas à l'infini une fois que ça a marché,
+#  mais on n'abandonne pas non plus tant que ça n'a pas marché une fois.
+#
+#  POURQUOI EN SESSION (autostart), PAS EN SERVICE SYSTEMD AU DÉMARRAGE. npm
+#  installe sous le compte qui l'exécute ; lancé par systemd au boot, ce
+#  serait root, dans un HOME qui n'est pas celui de l'utilisateur, avant même
+#  qu'une session existe. lexos-firstrun a déjà résolu exactement ce
+#  problème — même dossier de session, même mécanisme d'autostart XFCE.
+#
+#  JAMAIS BLOQUANT. « lexos claude » garde son propre filet (il installe
+#  Claude Code lui-même s'il manque encore) : ce script est un confort qui
+#  rattrape la version, pas une condition pour que Claude Terminal marche.
+# =============================================================================
+set -uo pipefail
+
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+STAMP="$CONF_DIR/claude-installation-a-jour"
+mkdir -p "$CONF_DIR"
+
+FORCE=0
+[[ "${1:-}" == "--force" ]] && FORCE=1
+
+if (( ! FORCE )) && [[ -f "$STAMP" ]]; then
+	exit 0
+fi
+
+command -v npm >/dev/null 2>&1 || exit 0     # rien à faire sans npm ; le lanceur gère le reste
+
+#  UN VRAI RÉSEAU, PAS SEULEMENT UNE INTERFACE. Une carte Wi-Fi « connectée »
+#  à un portail captif ne joint pas le registre npm. On teste le registre
+#  lui-même, avec un délai court : mieux vaut sauter ce tour que geler une
+#  ouverture de session sur un réseau lent ou absent.
+if ! timeout 5 npm ping --registry https://registry.npmjs.org >/dev/null 2>&1; then
+	exit 0
+fi
+
+if npm install -g @anthropic-ai/claude-code >/dev/null 2>&1; then
+	date -Is > "$STAMP"
+fi

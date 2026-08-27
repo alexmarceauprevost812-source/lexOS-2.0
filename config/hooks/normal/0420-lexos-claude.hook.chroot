@@ -1,19 +1,25 @@
 #!/bin/sh
 # =============================================================================
-#  LexOS — Claude (IA d'Anthropic) et Claude Code : icônes, lanceurs, service
+#  LexOS — Claude (IA d'Anthropic) et Claude Terminal : icônes, lanceurs,
+#  Claude Code embarqué dans l'image
 # =============================================================================
 #  Deux applications d'un coup :
-#    - Claude Code : l'assistant de programmation d'Anthropic, en terminal.
-#                    Il n'est PAS mis dans l'image : il est téléchargé au
-#                    premier démarrage une fois LexOS installé sur le disque
-#                    dur, par lexos-claude-installation.service.
+#    - Claude Terminal : Claude Code, l'assistant de programmation
+#                    d'Anthropic, dans sa propre fenêtre de terminal. EMBARQUÉ
+#                    DANS L'IMAGE (npm install -g, plus bas dans ce hook) —
+#                    demande d'Alex : « Claude Terminal va déjà être
+#                    téléchargé dans l'ISO ». lexos-claude-installation
+#                    (autostart de session, PAS un service systemd — voir
+#                    plus bas pourquoi) rattrape la dernière version dès
+#                    qu'un vrai réseau existe.
 #    - Claude      : l'appli claude.ai, ouverte en fenêtre dédiée par le
 #                    lanceur « lexos claude app ».
 #
-#  Ce hook pose donc les icônes, les deux lanceurs de bureau, et allume le
-#  service qui fera la course au réseau plus tard. Rien n'est bloquant : si le
-#  service échoue, le lanceur « lexos claude » installe Claude Code tout seul
-#  au premier lancement. Les deux icônes de bureau, elles, sont toujours là.
+#  Ce hook pose donc les icônes, les deux lanceurs de bureau, et embarque
+#  Claude Code lui-même. Rien n'est bloquant : si l'embarquement échoue (pas
+#  de réseau pendant la construction), le lanceur « lexos claude » installe
+#  Claude Code tout seul au premier lancement. Les deux icônes de bureau,
+#  elles, sont toujours là.
 # =============================================================================
 set -e
 
@@ -51,23 +57,65 @@ else
 	echo "[lexos]   !! icône Claude introuvable — les lanceurs utiliseront une icône générique"
 fi
 
-# --- Claude Code : téléchargé APRÈS l'installation, pas ici -----------------
-#  On l'installait dans le chroot, pendant la fabrication de l'image. Trois
-#  ennuis, tous les trois réels : la version se figeait au jour de la
-#  construction (une ISO téléchargée trois mois plus tard passait son premier
-#  lancement à se mettre à jour) ; en session live rien n'est gardé, donc la
-#  place occupée ne servait jamais plus d'une session ; et l'image grossissait
-#  pour du code qui vient du réseau de toute façon.
+# --- Claude Code : DANS L'IMAGE, dès la construction ------------------------
+#  UN RETOUR EN ARRIÈRE ASSUMÉ, ET C'EST ALEX QUI L'A DEMANDÉ : « Claude
+#  Terminal va déjà être téléchargé dans l'ISO ». On l'avait sorti de
+#  l'image pour trois raisons réelles — version figée au jour de la
+#  construction, session live qui ne garde rien, image plus grosse pour du
+#  code qui vient du réseau. Elles tenaient, mais elles pesaient moins
+#  qu'une quatrième qu'on n'avait pas assez pesée : SANS RÉSEAU AU PREMIER
+#  DÉMARRAGE, PAS DE CLAUDE DU TOUT. Le Claude Terminal est maintenant une
+#  application du dock avec sa page de connexion : cliquer dessus et
+#  regarder un téléchargement échouer parce que le Wi-Fi n'était pas encore
+#  configuré, c'est l'application qui a l'air cassée.
 #
-#  Le service lexos-claude-installation le télécharge au premier démarrage sur
-#  le disque dur. Le lanceur « lexos claude » garde son propre filet : s'il
-#  manque encore au premier lancement, il l'installe lui-même.
-if have systemctl; then
-	systemctl enable lexos-claude-installation.service >/dev/null 2>&1 \
-		&& echo "[lexos]   lexos-claude-installation.service activé" \
-		|| echo "[lexos]   !! lexos-claude-installation.service non activé — le lanceur prendra le relais"
+#  Les trois ennuis d'avant sont chacun contenus :
+#    · la version figée — lexos-claude-installation (autostart de session,
+#      même mécanisme que lexos-firstrun) rattrape la dernière version dès
+#      qu'un vrai réseau existe, à la première ouverture de session ;
+#      « lexos claude update » existe aussi, à la main ;
+#    · la place en session live — assumée : c'est le prix pour que le
+#      Claude Terminal marche dès la clé USB ;
+#    · le poids de l'image — mesuré en dizaines de Mo sur une ISO de
+#      plusieurs Go, pas en centaines.
+#
+#  UN DÉFAUT RÉEL, TROUVÉ EN ÉCRIVANT CE COMMENTAIRE : la ligne qui suivait
+#  ici activait « lexos-claude-installation.service » — un NOM DE SERVICE
+#  SYSTEMD DONT LE FICHIER D'UNITÉ N'A JAMAIS EXISTÉ dans ce dépôt.
+#  « systemctl enable » échouait donc silencieusement à CHAQUE construction
+#  depuis que cette ligne existe, tombait dans son « || echo », et le
+#  message de repli s'affichait à chaque fois sans que personne ne le
+#  remarque — exactement la famille de silence que ce fichier dénonce
+#  ailleurs. Root cause : npm installe sous le compte qui l'exécute, pas
+#  sous root au démarrage — un service systemd n'était pas la bonne forme
+#  ici. lexos-firstrun avait déjà résolu ce problème par l'autostart de
+#  session ; lexos-claude-installation (le SCRIPT, pas un service) suit le
+#  même chemin.
+#
+#  BEST-EFFORT, ET BRUYANT : si npm manque ici ou si le réseau du chroot
+#  refuse, on le DIT en travers du journal et on continue — le service et
+#  le lanceur « lexos claude » restent les filets, exactement comme avant.
+if have npm; then
+	if npm install -g @anthropic-ai/claude-code >/dev/null 2>&1; then
+		V="$(claude --version 2>/dev/null || echo "version non lisible")"
+		echo "[lexos]   Claude Code embarqué dans l'image : ${V}"
+	else
+		echo "[lexos]   !! npm n'a pas pu installer Claude Code (réseau du chroot ?)"
+		echo "[lexos]   !! — le service et le lanceur l'installeront au premier démarrage"
+	fi
 else
-	echo "[lexos]   !! systemctl absent — Claude Code sera installé au 1er lancement par le lanceur"
+	echo "[lexos]   !! npm absent au moment du hook 0420 — Claude Code non embarqué"
+	echo "[lexos]   !! — le service et le lanceur l'installeront au premier démarrage"
+fi
+
+#  lexos-claude-installation (le script) et son autostart de session sont
+#  posés directement dans /etc/skel par ce dépôt (usr/bin/ et
+#  etc/skel/.config/autostart/) : rien à activer ici, contrairement à un
+#  service systemd. Le lanceur « lexos claude » garde son propre filet.
+if have lexos-claude-installation; then
+	echo "[lexos]   lexos-claude-installation : présent, rattrapera la version à la 1re session"
+else
+	echo "[lexos]   !! lexos-claude-installation introuvable — le lanceur « lexos claude » prendra le relais"
 fi
 
 # --- Lanceurs de bureau -----------------------------------------------------
