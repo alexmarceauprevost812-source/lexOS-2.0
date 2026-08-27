@@ -2812,7 +2812,7 @@ function openWin(id, title, icon, html, w, h, x, y){
   el.innerHTML =
     `<div class="tbar"><span class="ticon">${icon}</span>`+
     `<span class="ttitle">${title}</span>`+
-    `<button class="tbtn wmenu" title="Paramètres (clic droit : plus d'options)">⚙</button>`+
+    `<button class="tbtn wmenu" title="Options de la fenêtre">⋮</button>`+
     `<button class="tbtn maxi" title="Agrandir (double-clic sur la barre)">⛶</button>`+
     `<button class="tbtn close" title="Fermer">✕</button></div>`+
     `<div class="wbody">${html}</div>`;
@@ -2826,14 +2826,15 @@ function openWin(id, title, icon, html, w, h, x, y){
   });
   el.querySelector(".close").onclick = ()=>closeWin(el);
   el.querySelector(".maxi").onclick = e=>{ e.stopPropagation(); toggleMax(el); };
-  //  LA PASTILLE VERTE OUVRE LES PARAMÈTRES DIRECTEMENT — plus le menu
-  //  « ⋮ » (Nouvelle fenêtre, Recentrer, Paramètres, Toutes les
-  //  applications, et les extras par appli — WIN_MENU_EXTRA) qu'elle
-  //  ouvrait avant. Alex : « lui de gauche pour ouvrir les paramètres ».
-  //  Ce menu-là n'est pas perdu : un clic DROIT sur la même pastille
-  //  l'ouvre encore, pour qui en a besoin (Nouveau terminal, Recentrer…),
-  //  sans que le clic simple ait à choisir entre les deux.
-  el.querySelector(".wmenu").onclick = e=>{ e.stopPropagation(); closeWinMenu(); openSettings(); };
+  //  LA PASTILLE VERTE OUVRE LE MENU « ⋮ » — Nouvelle fenêtre, Recentrer,
+  //  Paramètres, Toutes les applications, et les extras par appli
+  //  (WIN_MENU_EXTRA : « Nouveau terminal » sur Terminal, « Ouvrir un
+  //  terminal » sur Fichiers…). Un aller-retour avec l'ouverture directe
+  //  des Paramètres, essayée puis rejetée : Alex a demandé qu'elle
+  //  redevienne CE menu-ci, celui qui donne accès à tous les outils de la
+  //  fenêtre — pas seulement aux Paramètres de l'ordinateur. Clic gauche et
+  //  clic droit ouvrent désormais la même chose.
+  el.querySelector(".wmenu").onclick = e=>{ e.stopPropagation(); toggleWinMenu(el, e.currentTarget); };
   el.querySelector(".wmenu").oncontextmenu = e=>{
     e.preventDefault(); e.stopPropagation(); toggleWinMenu(el, e.currentTarget);
   };
