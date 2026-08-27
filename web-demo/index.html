@@ -1354,6 +1354,32 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .cct-ecran i:nth-child(3){width:40%;animation-delay:.4s}
 @keyframes cctEcrit{0%,100%{opacity:.25}50%{opacity:1}}
 @media (prefers-reduced-motion:reduce){ .cct-ecran i{animation:none;opacity:.7} }
+/*  ═══ L'ACCUEIL D'UNE SESSION NEUVE — comme l'application Claude ═══
+    Capture d'Alex : le Claude Terminal ouvert DEVANT l'application Claude,
+    « faut que ça ressemble à ça quand on ouvre une nouvelle session ».
+    Ce que l'application fait sur une conversation neuve : un grand
+    bonjour au centre, la BARRE DE SAISIE AU MILIEU de l'écran (une boîte
+    arrondie), les suggestions dessous — et tout redescend en bas dès le
+    premier message. Ici, RIEN n'est dupliqué : ce sont les MÊMES noeuds
+    (.cct-log, .cct-saisie, .cct-sugg) réordonnés et recentrés par une
+    seule classe sur .cct-corps, posée quand la session n'a encore aucun
+    message (cctMajAccueil) et retirée au premier. Les marges auto se
+    partagent l'espace libre du flex : le bloc flotte au centre. */
+.cct-corps.accueil .cct-log{flex:0 0 auto;margin-top:auto;overflow:visible;
+  align-items:center;text-align:center;order:1}
+.cct-corps.accueil .cct-log .cct-l{max-width:480px}
+.cct-corps.accueil .cc-joints{order:2}
+.cct-corps.accueil .cct-saisie{order:3;border:1px solid #3a251d;border-radius:16px;
+  margin:14px auto 0;width:min(560px,90%);background:rgba(255,255,255,.03);
+  padding:12px 15px}
+.cct-corps.accueil .cct-sugg{order:4;margin-bottom:auto;justify-content:center;
+  padding-top:14px}
+.cct-corps.accueil .cct-pied{order:5}
+.cct.cct-th-rouge .cct-corps.accueil .cct-saisie{border-color:#3a1212}
+/*  Le grand bonjour, façon application Claude : le logo (qui suit déjà le
+    thème par .claude-pales) et le prénom. */
+.cct-bonjour{font-size:24px;font-weight:600;color:#fff;margin-top:8px;
+  display:flex;align-items:center;justify-content:center;gap:10px}
 /*  Le bouton « + » et les vignettes de pièces jointes, communs à Claude et
     à Claude Code. Une image choisie est lue sur place par le navigateur et
     montrée en miniature : rien ne part nulle part. */
@@ -8831,6 +8857,9 @@ function cctRendLog(winId){
     zone.appendChild(d);
   });
   zone.scrollTop = zone.scrollHeight;
+  //  Revenir sur une session neuve remet l'accueil centré ; revenir sur une
+  //  conversation entamée remet la disposition normale — même vérité.
+  cctMajAccueil(winId);
 }
 function cctRendListe(winId){
   const w = document.getElementById(winId); if(!w) return;
@@ -8945,19 +8974,33 @@ function cctConnecte(winId){
   const champ = document.getElementById(winId)?.querySelector(".cct-in");
   if(champ) champ.focus();
 }
+//  ═══ L'ACCUEIL FAÇON APPLICATION CLAUDE ═══ demandé par Alex, capture à
+//  l'appui : une session neuve dit bonjour au centre, la saisie au milieu,
+//  les suggestions dessous — le long paragraphe d'avant devient une seule
+//  ligne discrète qui GARDE les deux faits qui comptent (« aucune IA n'est
+//  jointe ici », et le vrai lanceur sur l'ISO) : le reste était du décor.
 function cctAccueilSession(winId){
   ccTermEcrit(winId, `<div class="cct-logo-txt">CLAUDE<br>CODE</div>`);
+  //  Le bonjour suit l'heure, comme l'application. Pas de minute près :
+  //  17 h et avant = bonjour, après = bonsoir.
+  const h = new Date().getHours();
+  const salut = (h >= 18 || h < 5) ? "Bonsoir" : "Bonjour";
+  ccTermEcrit(winId, `<div class="cct-bonjour">${claudeGlyph(24)} ${salut}, Alex</div>`);
   ccTermEcrit(winId,
-    `<span class="cct-sp">${claudeGlyph(13)}</span> <b>Claude Terminal</b>
-     <span class="cct-dim">— le terminal de Claude, et de personne d'autre</span>`);
-  ccTermEcrit(winId,
-    `<span class="cct-dim">Un deuxième terminal, réservé à Claude : il ne
-     s'ouvre pas sur un shell, il s'ouvre dans <b>Claude Code</b>. Pour les
-     personnes abonnées à Claude (compte Anthropic) — la connexion se fait
-     au navigateur au premier lancement.
-     <b>Aucune IA n'est jointe ici</b> : cette page est publiée avec une
-     politique qui bloque le réseau. Sur la vraie LexOS,
-     <b>lexos claude-terminal</b> ouvre la vraie fenêtre.</span>`, "cct-note");
+    `<span class="cct-dim">Le terminal de Claude, et de personne d'autre.
+     <b>Démo</b> — aucune IA n'est jointe ici (page publiée sans réseau) ;
+     sur la vraie LexOS, <b>lexos claude-terminal</b> ouvre la vraie
+     fenêtre.</span>`);
+  cctMajAccueil(winId);
+}
+//  La classe « accueil » vit ou meurt selon UNE seule question : la session
+//  active a-t-elle déjà un message de l'utilisateur ? Pas un drapeau à
+//  poser et retirer à la main partout — l'historique est déjà la vérité.
+function cctMajAccueil(winId){
+  const w = document.getElementById(winId); if(!w) return;
+  const s = cctSessionActive(winId);
+  const neuve = !(s && s.historique.some(l => l.cls === "cct-moi"));
+  w.querySelector(".cct-corps")?.classList.toggle("accueil", neuve);
 }
 function cctNouvelleSession(winId){
   cctCreeSession(winId);
@@ -8990,6 +9033,7 @@ function ccTermDemande(winId, texte){
   if(!cctSessionActive(winId)) cctCreeSession(winId);   // filet, ne devrait pas arriver
   champ.value = "";
   ccTermEcrit(winId, `<span class="cct-fl">&gt;</span> ${esc((q + joints).trim())}`, "cct-moi");
+  cctMajAccueil(winId);   // premier message : l'accueil centré redescend en bas
   ccVideJoints(winId);
   CCT_OCCUPE[winId] = true;
   w.querySelector(".cct-avatar")?.classList.add("cct-avatar-actif");
