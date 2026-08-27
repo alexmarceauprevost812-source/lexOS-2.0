@@ -8263,6 +8263,29 @@ const CC_SAVOIR = [
     <b>demande toujours ta permission</b> avant d'écrire ou d'effacer quoi
     que ce soit. Rien ne part sans ton accord.`},
 
+  //  TOUS LES OUTILS, demandé par Alex : la liste réelle de ce que Claude
+  //  Code sait faire, pas juste « il peut modifier des fichiers ». Des mots-
+  //  clés composés (« joindre un fichier », pas juste « fichier ») pour ne
+  //  pas voler la question à l'entrée « partage » plus bas, qui répond à
+  //  autre chose (le partage QR entre appareils).
+  {c:["outil","outils","capacite","capacites","que peux-tu faire","joindre un fichier",
+      "joindre une image","envoyer une image","importer un fichier","glisser une image"], r:
+   `<b>Claude Code a les outils d'un développeur, en ligne de commande :</b>
+    <ul>
+      <li><b>Lire</b> et <b>écrire</b> des fichiers, <b>modifier</b> une ligne précise
+          sans retaper tout le fichier</li>
+      <li><b>Chercher</b> dans tout un projet — un mot, une fonction, un motif —
+          sans ouvrir chaque fichier un par un</li>
+      <li><b>Lancer des commandes</b> dans un vrai terminal — <code>git</code>,
+          <code>npm</code>, un test, un script</li>
+      <li><b>Chercher sur le web</b> une documentation ou une erreur</li>
+      <li><b>Joindre des fichiers et des images</b> — le <b>+</b> à côté de cette
+          barre en est la preuve : une capture d'un bogue, un fichier de
+          configuration, une image à reproduire</li>
+    </ul>
+    Et ça marche sur <b>n'importe quel projet réel</b> — <b>LexOS y compris</b> :
+    c'est avec ces mêmes outils que ce dépôt s'écrit et se corrige.`},
+
   //  Le Claude Terminal sait OUVRIR les outils de LexOS — ici, le bureau à
   //  distance (lexos distant, un vrai outil de l'ISO). Dans la démo, le
   //  bouton de la réponse ouvre la vraie section des Paramètres : Claude ne
@@ -8473,7 +8496,7 @@ function ccCherche(q){
 }
 const CC_SUGGESTIONS = [
   "C'est quoi LexOS ?", "Comment installer LexOS ?", "Puis-je jouer aux jeux Windows ?",
-  "Quelles commandes existent ?", "À quoi ressemble une modification ?",
+  "Quelles commandes existent ?", "À quoi ressemble une modification ?", "Quels outils as-tu ?",
   "Ma carte NVIDIA est-elle gérée ?",
   "Comment changer le fond d'écran ?", "Les bureaux virtuels", "Ça marche sur téléphone ?",
 ];
@@ -8607,7 +8630,7 @@ function clRendCorps(w){
   if(clSection === "discussion"){
     corps.innerHTML =
       `<div class="cc-log cl-log"></div>
-       <div class="cc-sugg">${CC_SUGGESTIONS.slice(0,5).map(s=>
+       <div class="cc-sugg">${CC_SUGGESTIONS.slice(0,6).map(s=>
           `<button onclick="clDemande(this.textContent)">${esc(s)}</button>`).join("")}</div>
        <div class="cc-joints" style="display:none"></div>
        <div class="cc-saisie">
@@ -9007,7 +9030,7 @@ function openClaudeCode(nouvelle){
                   title="Changer le thème du Claude Terminal" aria-label="Thème">🎨</button>
         </div>
         <div class="cct-log"></div>
-        <div class="cct-sugg">${CC_SUGGESTIONS.slice(0,5).map(s=>
+        <div class="cct-sugg">${CC_SUGGESTIONS.slice(0,6).map(s=>
            `<button onclick="ccTermDemande('${winId}',this.textContent)">${esc(s)}</button>`).join("")}</div>
         <div class="cc-joints" style="display:none"></div>
         <div class="cct-saisie">
