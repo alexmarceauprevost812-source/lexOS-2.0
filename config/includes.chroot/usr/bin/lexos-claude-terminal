@@ -20,10 +20,23 @@
 #    --hide-menubar / --hide-toolbar : pas de barre de menus ni d'outils —
 #                  cette fenêtre ne sert qu'à parler à Claude, tout habillage
 #                  de terminal généraliste y serait du bruit ;
-#    --color-bg / --color-text : un fond brun chaud et une écriture crème
-#                  (contraste ≈ 11:1, largement au-dessus du seuil AA) —
-#                  on reconnaît la fenêtre de Claude d'un coup d'oeil, même
-#                  réduite dans le dock à côté du terminal orange ordinaire.
+#    --color-bg / --color-text : un bleu marine profond et une écriture bleu
+#                  glacier (contraste ≈ 13,7:1, largement au-dessus du seuil
+#                  AA) — demande d'Alex, « joli bleu » — on reconnaît la
+#                  fenêtre de Claude d'un coup d'oeil, même réduite dans le
+#                  dock à côté du terminal orange ordinaire ;
+#    --hold        BOGUE RÉEL CORRIGÉ ICI : sans --hold, xfce4-terminal
+#                  détruit la fenêtre DÈS QUE la commande qu'elle exécute se
+#                  termine — succès ou échec, ça ne fait aucune différence.
+#                  Or « lexos claude » peut échouer avant même de lancer
+#                  Claude Code (pas de réseau pour l'installer, npm sans les
+#                  droits, curl qui échoue) : le script affiche bien une
+#                  erreur, mais la fenêtre se referme dans la même seconde —
+#                  personne n'a le temps de la lire. Vu de l'extérieur, ça
+#                  ressemble exactement à « Claude Terminal ne fonctionne
+#                  pas » : un flash, puis plus rien. --hold garde la fenêtre
+#                  ouverte après la fin de la commande (succès ou échec) —
+#                  se ferme alors avec le X de la fenêtre, comme avant.
 #
 #  LES RÉGLAGES DU TERMINAL ORDINAIRE NE BOUGENT PAS : ces options ne valent
 #  que pour CETTE fenêtre-ci, rien n'est écrit dans la configuration de
@@ -42,7 +55,8 @@ if command -v xfce4-terminal >/dev/null 2>&1; then
 		--title="Claude Terminal" \
 		--icon=lexos-claude \
 		--hide-menubar --hide-toolbar \
-		--color-bg='#201612' --color-text='#EDDCCE' \
+		--color-bg='#0F1F33' --color-text='#D6ECFF' \
+		--hold \
 		-e "lexos claude"
 fi
 if command -v x-terminal-emulator >/dev/null 2>&1; then
