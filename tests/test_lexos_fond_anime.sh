@@ -38,7 +38,14 @@ titre "1. remonte_xfdesktop() — xdotool préféré, wmctrl en repli, rien en r
 #  On charge le VRAI module et on lui passe de faux « cherche »/« executeur »
 #  — exactement les points d'injection que la fonction offre pour ça. Rien
 #  n'est relu à l'œil : c'est le vrai code de fond-anime.py qui tourne ici.
-appelle() { # appelle <outils-disponibles-csv>
+#
+#  « reussit » simule le CODE DE SORTIE : quand un des mots donnés (data,
+#  séparés par des virgules) est un ÉLÉMENT de la ligne de commande, cet
+#  appel « trouve » xfdesktop (code 0) ; sinon il « ne trouve rien » (code
+#  1), exactement ce que fait le vrai xdotool sur une recherche à vide.
+#  Membre de LISTE, pas sous-chaîne : sans ça, « --class » matcherait aussi
+#  « --classname », qui le contient tout entier.
+appelle() { # appelle <outils-disponibles-csv> <mots-qui-reussissent-csv>
 	python3 -c "
 import sys, importlib.util
 spec = importlib.util.spec_from_file_location('m', '$MOTEUR')
@@ -46,6 +53,7 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 dispo = set('$1'.split(',')) if '$1' else set()
+reussit = set('$2'.split(',')) if '$2' else set()
 appels = []
 
 def cherche(nom):
@@ -54,7 +62,9 @@ def cherche(nom):
 def executeur(args, **kw):
     appels.append(list(args))
     class R: pass
-    return R()
+    r = R()
+    r.returncode = 0 if (reussit & set(args)) else 1
+    return r
 
 r = m.remonte_xfdesktop(executeur=executeur, cherche=cherche)
 print('RESULT=%r' % r)
@@ -62,21 +72,49 @@ print('APPELS=%r' % appels)
 "
 }
 
-SORTIE="$(appelle "xdotool,wmctrl")"
+#  DEUX CHAMPS, DEUX CASSES : PAS UN SEUL PARI. Une première photo d'Alex a
+#  fait passer « --class xfdesktop » à « --classname xfdesktop » (la classe
+#  de xfdesktop est capitalisée, « Xfdesktop » — voir le repli wmctrl plus
+#  bas). Une DEUXIÈME photo a montré que ça ne suffisait toujours pas :
+#  cette session n'a jamais eu de vrai serveur X pour savoir lequel des deux
+#  champs de WM_CLASS (et laquelle des deux casses) xfdesktop porte
+#  vraiment. La fonction essaie donc « --classname » PUIS « --class », tous
+#  deux avec un motif qui accepte les deux capitalisations — et VÉRIFIE LE
+#  CODE DE SORTIE à chaque essai, pour ne plus jamais déclarer « réussi »
+#  un essai qui n'a rien trouvé (c'était exactement l'ancien bogue : code 0
+#  systématique, qu'une fenêtre ait été trouvée ou non).
+SORTIE="$(appelle "xdotool,wmctrl" "--classname")"
 case "$SORTIE" in
-	*"RESULT=True"*"'xdotool'"*"'search'"*"'--class'"*"'xfdesktop'"*"'windowraise'"*)
-		ok "xdotool ET wmctrl dispo -> xdotool est choisi (windowraise, pas juste focus)" ;;
-	*) non "xdotool aurait dû être choisi en premier : $SORTIE" ;;
+	*"RESULT=True"*"APPELS=[['xdotool', 'search', '--classname', '[Xx]fdesktop', 'windowraise']]"*)
+		ok "l'INSTANCE matche du premier coup -> un seul essai, wmctrl jamais appelé" ;;
+	*) non "le premier essai (--classname) aurait dû suffire et s'arrêter là : $SORTIE" ;;
 esac
 
-SORTIE="$(appelle "wmctrl")"
+SORTIE="$(appelle "xdotool,wmctrl" "--class")"
+case "$SORTIE" in
+	*"RESULT=True"*"'--classname'"*"'--class'"*"'[Xx]fdesktop'"*)
+		ok "l'instance ne matche pas mais la CLASSE oui -> deuxième essai, sans passer par wmctrl" ;;
+	*) non "le repli --class (deuxième essai xdotool) n'a pas eu lieu comme attendu : $SORTIE" ;;
+esac
+
+#  NI L'UN NI L'AUTRE CHAMP : c'est ici que l'ancien bogue se cachait — la
+#  fonction rendait True même quand xdotool n'avait RIEN trouvé. Elle doit
+#  maintenant se rabattre sur wmctrl plutôt que de prétendre avoir réussi.
+SORTIE="$(appelle "xdotool,wmctrl" "")"
 case "$SORTIE" in
 	*"RESULT=True"*"'wmctrl'"*"'-x'"*"'-a'"*"'xfdesktop.Xfdesktop'"*)
-		ok "seul wmctrl dispo -> repli sur wmctrl -x -a xfdesktop.Xfdesktop" ;;
+		ok "xdotool ne trouve rien dans AUCUN des deux champs -> repli sur wmctrl, pas un succès inventé" ;;
+	*) non "les deux essais xdotool en échec auraient dû retomber sur wmctrl : $SORTIE" ;;
+esac
+
+SORTIE="$(appelle "wmctrl" "")"
+case "$SORTIE" in
+	*"RESULT=True"*"'wmctrl'"*"'-x'"*"'-a'"*"'xfdesktop.Xfdesktop'"*)
+		ok "seul wmctrl dispo -> repli direct sur wmctrl -x -a xfdesktop.Xfdesktop" ;;
 	*) non "le repli wmctrl n'a pas eu lieu comme attendu : $SORTIE" ;;
 esac
 
-SORTIE="$(appelle "")"
+SORTIE="$(appelle "" "")"
 case "$SORTIE" in
 	*"RESULT=False"*"APPELS=[]"*)
 		ok "ni xdotool ni wmctrl -> rien n'est exécuté, et ça le DIT (False), pas un succès inventé" ;;

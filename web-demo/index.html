@@ -488,6 +488,15 @@ body.light #dockTab{background:rgba(239,235,227,.9)}
 #dock.bottom .tip{bottom:120%;left:50%;transform:translateX(-50%)}
 #dock.top    .tip{top:120%;left:50%;transform:translateX(-50%)}
 .dicon:hover .tip{opacity:1}
+/*  LE POINT D'APPLI OUVERTE — posé par majDock(). Une fenêtre réduite
+    reste une fenêtre ouverte : c'est ce point-là qui le rappelle, côté
+    dock, pendant que la fenêtre elle-même a disparu du bureau. */
+.dicon.dock-actif::after{content:"";position:absolute;width:5px;height:5px;
+  border-radius:50%;background:var(--ac)}
+#dock.right .dicon.dock-actif::after,
+#dock.left  .dicon.dock-actif::after{bottom:3px;left:50%;transform:translateX(-50%)}
+#dock.bottom .dicon.dock-actif::after{top:3px;left:50%;transform:translateX(-50%)}
+#dock.top    .dicon.dock-actif::after{bottom:3px;left:50%;transform:translateX(-50%)}
 
 /* --- Fenêtres ----------------------------------------------------------- */
 .win{position:fixed;min-width:300px;background:var(--bg);
@@ -525,10 +534,46 @@ body.light #dockTab{background:rgba(239,235,227,.9)}
   font-weight:600;font-size:13px}
 .tbar .ticon{font-size:15px}
 .tbar .ttitle{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tbtn{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;
-  justify-content:center;font-size:12px;color:var(--fg-dim)}
-.tbtn:hover{background:var(--bg-hi);color:var(--fg)}
-.tbtn.close:hover{background:#E5484D;color:#fff}
+/*  LES TROIS PASTILLES, FAÇON macOS — À LA DEMANDE D'ALEX. Boutons ronds,
+    toujours colorés (pas seulement au survol comme avant), dans le même
+    ordre qu'à l'écran : gris, jaune, rouge — et le rouge, comme le bouton
+    d'arrêt de la barre du haut, n'obéit JAMAIS à l'accent : fermer doit se
+    reconnaître d'un coup d'oeil, quelle que soit la couleur choisie
+    ailleurs dans LexOS.
+    LA VERTE A EXISTÉ, PUIS EST PARTIE — deux essais (ouvrir les
+    Paramètres, puis le menu « ⋮ »), et Alex l'a retirée : ses options
+    vivent dans le CLIC DROIT sur la barre de titre (ctxFenetre), la seule
+    porte des options d'une fenêtre.
+    Le glyphe reste invisible tant qu'on ne survole ou ne focalise pas la
+    pastille — même pudeur que macOS, la couleur suffit à dire ce que fait
+    chaque bouton une fois qu'on les connaît. */
+.tbtn{width:13px;height:13px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:8px;line-height:1;color:transparent;
+  transition:color .1s ease}
+.tbtn:hover,.tbtn:focus-visible{color:rgba(0,0,0,.6)}
+/*  Gris : réduire — la fenêtre disparaît du bureau mais reste ouverte,
+    retrouvable d'un clic sur son icône dans le dock (voir minimizeWin() et
+    majDock()). Ni rouge ni vert ni jaune : ce geste-là ne fait
+    ni disparaître définitivement, ni changer la taille, ni ouvrir un menu
+    — une quatrième couleur dit que c'est une quatrième chose. Même gris
+    que « Style : Classique » dans les Paramètres (#8A8A8A, déjà mesuré
+    lisible : 6,08:1 avec une icône noire). */
+.tbtn.mini{background:#8A8A8A}
+/*  Jaune : agrandir, fonction inchangée — seule la couleur est nouvelle. */
+.tbtn.maxi{background:#FEBC2E}
+/*  Rouge : fermer. Coloré en permanence, et pas seulement au survol comme
+    avant (l'ancien .tbtn.close:hover) : Alex veut le repérer sans avoir à
+    passer la souris dessus. */
+.tbtn.close{background:#FF5F57}
+.tbtn.close:hover{color:rgba(0,0,0,.7)}
+/*  RÉDUITE : hors du bureau, mais toujours dans le DOM — jamais retirée
+    comme .closing le fait, sinon « la retrouver dans le dock » n'aurait
+    plus rien à retrouver. Une seule pastille assombrie eût suffi visible :
+    on l'anime en retrait plutôt que de la faire disparaître d'un coup, même
+    langage que .closing un peu plus bas. */
+.win.minimizing{animation:reduireVers .16s ease-in forwards}
+.win.minimized{display:none}
+@keyframes reduireVers{to{opacity:0;transform:scale(.85)}}
 .wbody{flex:1;overflow:auto;-webkit-user-select:text;user-select:text}
 
 /* Effet TV 1980 : la fenêtre s'écrase en une ligne puis s'éteint */
@@ -1196,8 +1241,60 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .cct{display:flex;flex-direction:column;height:100%;background:#0a0807;
   color:#d8d2cd;font-family:ui-monospace,"JetBrains Mono",Menlo,monospace;
   font-size:12.5px;line-height:1.7;box-sizing:border-box}
+/*  Le menu de gauche — sessions de Claude Code. Même patron que .cl-cote
+    (l'appli Claude, plus haut) : une colonne à part, le corps (tête/log/
+    saisie) glisse dans .cct-corps à côté. Sans .cct-avec-cote, .cct reste
+    la simple colonne d'origine — rien d'autre n'en dépend. */
+.cct-avec-cote{flex-direction:row;overflow:hidden}
+.cct-cote{width:172px;flex:none;display:flex;flex-direction:column;gap:4px;
+  padding:10px 8px;overflow:hidden;border-right:1px solid #3a251d;
+  background:linear-gradient(180deg,rgba(217,119,87,.10),transparent 200px)}
+/*  OUVERTURE FLUIDE : la largeur ET le remplissage s'animent ensemble, avec
+    la même courbe que les volets qui descendent de la barre du haut
+    (cubic-bezier(.16,1,.3,1) — voir aussi volet.py côté vraie ISO). Animer
+    la largeur d'un flex-item marche : ce n'est pas un pourcentage calculé,
+    « width » est posé en dur ci-dessus. */
+.cct-cote{transition:width .28s cubic-bezier(.16,1,.3,1),
+                     padding .28s cubic-bezier(.16,1,.3,1),
+                     opacity .2s ease}
+.cct-cote.ferme{width:0;padding-left:0;padding-right:0;
+  border-right-color:transparent;opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){ .cct-cote{transition:none} }
+.cct-neuf{width:100%;white-space:nowrap;flex:none}
+.cct-liste{display:flex;flex-direction:column;gap:2px;overflow-y:auto;
+  flex:1;min-height:0}
+.cct-rec{font-size:11.5px}
+/*  RENOMMER ET SUPPRIMER UNE SESSION — demandé par Alex. La ligne devient un
+    <div> (le <button> d'origine ne peut pas tenir un span éditable
+    proprement) : clic pour y aller, double-clic sur le nom pour le
+    renommer sur place (même geste que ficRenomme() dans Fichiers), clic
+    droit pour le menu Renommer/Supprimer. Au passage : « .on » n'avait
+    JAMAIS eu de style — la session active ne se distinguait pas des
+    autres dans la liste, un défaut resté invisible faute d'y toucher. */
+.cct-rec-row{display:flex;align-items:center;font-size:11.5px;color:#b8aca7;
+  border-radius:7px;padding:7px 10px;cursor:pointer}
+.cct-rec-row:hover{background:rgba(217,119,87,.12);color:#fff}
+.cct-rec-row.on{background:rgba(217,119,87,.22);color:#fff;font-weight:600}
+.cct-rec-nom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cct-rec-nom[contenteditable="true"]{outline:1px solid #d97757;border-radius:4px;
+  padding:0 3px;cursor:text;white-space:normal;color:#fff}
+.cct.cct-th-rouge .cct-rec-row:hover{background:rgba(232,49,42,.12)}
+.cct.cct-th-rouge .cct-rec-row.on{background:rgba(232,49,42,.22)}
+.cct.cct-th-rouge .cct-rec-nom[contenteditable="true"]{outline-color:#E8312A}
+.cct.cct-th-orange .cct-rec-row:hover{background:rgba(255,140,26,.12)}
+.cct.cct-th-orange .cct-rec-row.on{background:rgba(255,140,26,.22)}
+.cct.cct-th-orange .cct-rec-nom[contenteditable="true"]{outline-color:#FF8C1A}
+.cct-liste-vide{color:#8a7a74;font-size:11px;padding:8px 10px}
+.cct-corps{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .cct-tete{display:flex;align-items:center;gap:9px;padding:10px 14px;
   border-bottom:1px solid #3a251d;color:#d97757;flex:none}
+/*  Le bouton « ☰ » vit dans la tête, PAS dans .cct-cote : repliée à
+    width:0, une colonne qui contiendrait son propre bouton n'aurait plus
+    aucun moyen de se rouvrir. */
+.cct-cote-tog{width:24px;height:24px;flex:none;border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  color:#8a7a74;background:transparent;border:0;cursor:pointer;font-size:13px}
+.cct-cote-tog:hover{background:rgba(217,119,87,.14);color:#fff}
 .cct-chemin{color:#8a7a74;font-size:11.5px}
 .cct-log{flex:1;overflow-y:auto;padding:13px 15px;display:flex;
   flex-direction:column;gap:7px}
@@ -1206,10 +1303,33 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .cct-fl{color:#FF8C1A;font-weight:700}
 .cct-sp{display:inline-flex;vertical-align:-2px;margin-right:4px}
 .cct-outil{color:#b8aca7;font-size:12px}
+/*  MODE RÉFLEXION — trois points qui s'allument en vague, comme le vrai
+    Claude Code avant d'annoncer son premier outil. */
+.cct-pts{display:inline-flex;gap:2px;margin-left:3px;vertical-align:1px}
+.cct-pts i{width:3px;height:3px;border-radius:50%;background:currentColor;
+  display:inline-block;opacity:.3;animation:cctPts 1.1s ease-in-out infinite}
+.cct-pts i:nth-child(2){animation-delay:.15s}
+.cct-pts i:nth-child(3){animation-delay:.3s}
+@keyframes cctPts{0%,60%,100%{opacity:.3;transform:translateY(0)}
+  30%{opacity:1;transform:translateY(-2px)}}
+@media (prefers-reduced-motion:reduce){ .cct-pts i{animation:none;opacity:.6} }
+/*  L'ICÔNE D'OUTIL, À GAUCHE DE L'AVATAR — demandé par Alex : voir « sur
+    quel outil il se connecte » d'un coup d'oeil, séparément du rond qui dit
+    juste que c'est Claude qui parle. */
+.cct-outil-ic{display:inline-flex;margin-right:3px;font-size:11px;opacity:.85}
 .cct-ok{color:#3BE07A}
 .cct-dim{color:#8a7a74}
 .cct-note{font-size:11.5px;line-height:1.6;border-left:2px solid #3a251d;
   padding-left:10px}
+/*  LE MOT-SIGLE À L'OUVERTURE D'UNE SESSION — demandé par Alex, qui a
+    montré une image trouvée sur le web pour l'idée. Cette image précise
+    appartient à qui l'a dessinée : elle n'est reprise nulle part ici.
+    Le rendu, lui, est original — du texte et des ombres décalées en CSS,
+    rien d'importé — et suit le thème du terminal comme tout le reste
+    (couleur reprise plus bas, à côté de .claude-pales). */
+.cct-logo-txt{font:800 26px/1.05 ui-monospace,monospace;letter-spacing:1px;
+  color:#d97757;text-shadow:2px 2px 0 rgba(217,119,87,.35),
+  4px 4px 0 rgba(217,119,87,.18);margin-bottom:2px}
 .cct-lui{display:flex;gap:2px;align-items:flex-start}
 .cct-rep{flex:1;min-width:0;background:#140f0d;border:1px solid #3a251d;
   border-left:3px solid #d97757;border-radius:9px;padding:10px 13px;
@@ -1228,6 +1348,65 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   border-top:1px solid #3a251d;flex:none}
 .cct-in{flex:1;min-width:0;background:transparent;border:0;color:#fff;
   font:inherit;outline:none}
+/*  L'AVATAR DANS LA BARRE DE SAISIE — demandé par Alex. Dernier de la
+    rangée : .cct-in est en flex:1 et prend toute la place restante, donc
+    l'avatar se retrouve NATURELLEMENT tout à droite, sans position:absolute
+    à recaler. align-self:flex-start le sort du centrage vertical de la
+    rangée pour le poser en haut. Sa couleur suit déjà le thème du terminal
+    SANS code neuf : .claude-pales est la classe que cctAppliqueTheme()
+    recolore plus bas (rouge, orange) — le glyphe la porte déjà. */
+.cct-avatar{display:inline-flex;align-items:center;justify-content:center;
+  gap:5px;flex:none;align-self:flex-start}
+/*  LE MOUVEMENT DEMANDÉ : « il écrit sur son ordinateur », PAS une simple
+    rotation. Alex a montré un autocollant Claude Code trouvé sur le web
+    (Redbubble, un fan-art de vwadesign) — un dessin qui appartient à son
+    auteur, donc pas question de le reprendre ici. À la place : un petit
+    écran, dessiné en CSS, avec des lignes qui s'allument l'une après
+    l'autre — la même idée (Claude « écrit »), sans le personnage de
+    quelqu'un d'autre. Visible seulement pendant que Claude compose
+    (CCT_OCCUPE) : un vrai indicateur d'activité, pas une décoration qui
+    tourne tout le temps sous les doigts de qui écrit. */
+.cct-ecran{display:none;width:15px;height:11px;border:1.4px solid #d97757;
+  border-radius:3px;flex-direction:column;justify-content:center;gap:1.5px;
+  padding:0 2px;flex:none}
+.cct.cct-th-rouge .cct-ecran{border-color:#E8312A}
+.cct.cct-th-orange .cct-ecran{border-color:#FF8C1A}
+.cct-avatar.cct-avatar-actif .cct-ecran{display:flex}
+.cct-ecran i{display:block;height:1.3px;border-radius:1px;background:#d97757;
+  opacity:.25;animation:cctEcrit 1.2s ease-in-out infinite}
+.cct.cct-th-rouge .cct-ecran i{background:#E8312A}
+.cct.cct-th-orange .cct-ecran i{background:#FF8C1A}
+.cct-ecran i:nth-child(1){width:65%}
+.cct-ecran i:nth-child(2){width:100%;animation-delay:.2s}
+.cct-ecran i:nth-child(3){width:40%;animation-delay:.4s}
+@keyframes cctEcrit{0%,100%{opacity:.25}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){ .cct-ecran i{animation:none;opacity:.7} }
+/*  ═══ L'ACCUEIL D'UNE SESSION NEUVE — comme l'application Claude ═══
+    Capture d'Alex : le Claude Terminal ouvert DEVANT l'application Claude,
+    « faut que ça ressemble à ça quand on ouvre une nouvelle session ».
+    Ce que l'application fait sur une conversation neuve : un grand
+    bonjour au centre, la BARRE DE SAISIE AU MILIEU de l'écran (une boîte
+    arrondie), les suggestions dessous — et tout redescend en bas dès le
+    premier message. Ici, RIEN n'est dupliqué : ce sont les MÊMES noeuds
+    (.cct-log, .cct-saisie, .cct-sugg) réordonnés et recentrés par une
+    seule classe sur .cct-corps, posée quand la session n'a encore aucun
+    message (cctMajAccueil) et retirée au premier. Les marges auto se
+    partagent l'espace libre du flex : le bloc flotte au centre. */
+.cct-corps.accueil .cct-log{flex:0 0 auto;margin-top:auto;overflow:visible;
+  align-items:center;text-align:center;order:1}
+.cct-corps.accueil .cct-log .cct-l{max-width:480px}
+.cct-corps.accueil .cc-joints{order:2}
+.cct-corps.accueil .cct-saisie{order:3;border:1px solid #3a251d;border-radius:16px;
+  margin:14px auto 0;width:min(560px,90%);background:rgba(255,255,255,.03);
+  padding:12px 15px}
+.cct-corps.accueil .cct-sugg{order:4;margin-bottom:auto;justify-content:center;
+  padding-top:14px}
+.cct-corps.accueil .cct-pied{order:5}
+.cct.cct-th-rouge .cct-corps.accueil .cct-saisie{border-color:#3a1212}
+/*  Le grand bonjour, façon application Claude : le logo (qui suit déjà le
+    thème par .claude-pales) et le prénom. */
+.cct-bonjour{font-size:24px;font-weight:600;color:#fff;margin-top:8px;
+  display:flex;align-items:center;justify-content:center;gap:10px}
 /*  Le bouton « + » et les vignettes de pièces jointes, communs à Claude et
     à Claude Code. Une image choisie est lue sur place par le navigateur et
     montrée en miniature : rien ne part nulle part. */
@@ -1254,6 +1433,101 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .cct-bonhomme{display:inline-flex;align-items:center}
 .cct-sep{opacity:.5}
 .cct-maj{color:#3BE07A}
+/*  LES LIGNES D'UNE MODIFICATION, le langage du vrai Claude Code : les
+    lignes ajoutées en vert, les lignes supprimées en rouge, quel que soit
+    le thème — c'est un code de couleurs, pas un goût. Chaque thème choisit
+    SES verts et SES rouges plus bas (le thème « rouge » d'Alex les veut
+    vert lime et rouge vif). */
+.cct-rep .cct-ajout{color:#3BE07A;display:block}
+.cct-rep .cct-suppr{color:#ff5f57;display:block}
+.cct-rep pre{background:#0a0807;border:1px solid #4a2e24;border-radius:7px;
+  padding:8px 11px;margin:7px 0;overflow-x:auto;font-size:12px;line-height:1.6}
+/*  L'ÉCRITURE DE CLAUDE COULE, ELLE NE TOMBE PAS EN BLOC. Demande d'Alex :
+    « animation écriture fluide et rapide de Claude et non en bloc ».
+    cctAnime() enveloppe chaque mot de la réponse dans un span dont
+    l'apparition est décalée de quelques millisecondes — l'oeil suit une
+    écriture, pas un pavé qui apparaît. Seulement l'OPACITÉ : la place est
+    prise dès l'insertion, rien ne bouge, rien ne saute pendant la lecture.
+    Qui préfère un système sans animation en est dispensé (préférence du
+    système, pas un réglage de plus). L'HISTORIQUE, lui, garde le HTML nu :
+    revenir sur une session réaffiche tout d'un coup, sans rejouer. */
+.cct-mot{opacity:0;animation:cctMot .16s ease forwards}
+@keyframes cctMot{to{opacity:1}}
+@media (prefers-reduced-motion:reduce){ .cct-mot{animation:none;opacity:1} }
+/*  ═══ LES THÈMES DU CLAUDE TERMINAL — cycle au bouton 🎨 de la tête ═══
+    Thème 1 (aucune classe) : l'actuel — fond brun-noir, accents corail.
+    Thème 2 « rouge », choisi par Alex : fond NOIR, écriture BLANCHE,
+    boutons et logo ROUGES ; les lignes ajoutées passent au VERT LIME et
+    les supprimées au rouge vif. Thème 3 « orange » : boutons orange,
+    écriture blanche. Les surcharges visent les mêmes sélecteurs que le
+    thème de base — rien d'autre ne bouge. */
+.cct.cct-th-rouge{background:#000;color:#fff}
+.cct.cct-th-rouge .cct-tete{color:#E8312A;border-bottom-color:#3a1212}
+.cct.cct-th-rouge .cct-cote{border-right-color:#3a1212;
+  background:linear-gradient(180deg,rgba(232,49,42,.10),transparent 200px)}
+.cct.cct-th-rouge .claude-pales{fill:#E8312A}
+.cct.cct-th-rouge .cct-logo-txt{color:#E8312A;
+  text-shadow:2px 2px 0 rgba(232,49,42,.35),4px 4px 0 rgba(232,49,42,.18)}
+.cct.cct-th-rouge .cct-fl{color:#E8312A}
+.cct.cct-th-rouge .cct-rep{background:#0d0505;border-color:#3a1212;border-left-color:#E8312A}
+.cct.cct-th-rouge .cct-rep code{color:#ff9d97;border-color:#55201b;background:#000}
+.cct.cct-th-rouge .cct-rep pre{background:#000;border-color:#3a1212}
+.cct.cct-th-rouge .cct-rep .cct-ajout{color:#9EE838}   /* vert lime */
+.cct.cct-th-rouge .cct-rep .cct-suppr{color:#FF4040}
+.cct.cct-th-rouge .cct-sugg button{color:#ffb3ae;background:rgba(232,49,42,.08);border-color:#55201b}
+.cct.cct-th-rouge .cct-sugg button:hover{border-color:#E8312A;color:#fff;background:rgba(232,49,42,.20)}
+.cct.cct-th-rouge .cc-plus{color:#E8312A;border-color:#55201b;background:rgba(232,49,42,.08)}
+.cct.cct-th-rouge .cc-plus:hover{background:rgba(232,49,42,.20);border-color:#E8312A;color:#fff}
+.cct.cct-th-rouge .cl-neuf{background:#E8312A;color:#fff}
+.cct.cct-th-rouge .cl-neuf:hover{background:#f04a43}
+.cct.cct-th-rouge .cct-cote-tog:hover{background:rgba(232,49,42,.14)}
+.cct.cct-th-rouge .cct-saisie{border-top-color:#3a1212}
+.cct.cct-th-rouge .cct-pied{border-top-color:#3a1212}
+.cct.cct-th-rouge .cct-note{border-left-color:#3a1212}
+.cct.cct-th-orange{color:#fff}
+.cct.cct-th-orange .cct-tete{color:#FF8C1A}
+.cct.cct-th-orange .claude-pales{fill:#FF8C1A}
+.cct.cct-th-orange .cct-logo-txt{color:#FF8C1A;
+  text-shadow:2px 2px 0 rgba(255,140,26,.35),4px 4px 0 rgba(255,140,26,.18)}
+.cct.cct-th-orange .cct-rep{border-left-color:#FF8C1A}
+.cct.cct-th-orange .cct-rep b{color:#FF8C1A}
+.cct.cct-th-orange .cct-sugg button{color:#fff;background:rgba(255,140,26,.12);border-color:#FF8C1A}
+.cct.cct-th-orange .cct-sugg button:hover{background:rgba(255,140,26,.28)}
+.cct.cct-th-orange .cc-plus{color:#fff;border-color:#FF8C1A;background:rgba(255,140,26,.12)}
+.cct.cct-th-orange .cc-plus:hover{background:rgba(255,140,26,.28)}
+.cct.cct-th-orange .cl-neuf{background:#FF8C1A;color:#000}
+.cct.cct-th-orange .cl-neuf:hover{background:#ffa040}
+/*  ═══ LA PAGE DE CONNEXION DU CLAUDE TERMINAL ═══ Un voile posé PAR-DESSUS
+    le terminal (le .cct est en position:relative pour ça) tant qu'on n'est
+    pas « connecté » : le Claude Terminal est réservé aux personnes abonnées
+    à Claude, la porte le dit avant de laisser passer. Démo honnête : rien
+    n'est vérifié ni envoyé nulle part — et sur la vraie LexOS la connexion
+    se fait AU NAVIGATEUR (compte Anthropic), jamais en tapant son mot de
+    passe dans une fenêtre à nous. Le champ est là pour le geste. */
+.cct{position:relative}
+.cct-porte{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:11px;padding:24px;
+  background:inherit;text-align:center}
+.cct-porte h3{font-size:16px;color:#fff;display:flex;align-items:center;gap:8px}
+.cct-porte .cct-porte-sous{color:#8a7a74;font-size:12px;max-width:340px;line-height:1.6}
+.cct-porte input{width:min(270px,80%);background:#140f0d;border:1px solid #4a2e24;
+  border-radius:9px;padding:9px 12px;color:#fff;font:inherit;outline:none}
+.cct-porte input:focus{border-color:#d97757}
+.cct-porte-mdp{position:relative;width:min(270px,80%);display:flex}
+.cct-porte-mdp input{width:100%;padding-right:36px}
+.cct-porte-oeil{position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  background:transparent;border:0;color:#8a7a74;cursor:pointer;font-size:14px;padding:3px}
+.cct-porte-oeil:hover{color:#fff}
+.cct-porte-entrer{font:inherit;font-weight:600;color:#1a0f0a;background:#d97757;
+  border:0;border-radius:9px;padding:9px 22px;cursor:pointer}
+.cct-porte-entrer:hover{background:#e08a6d}
+.cct-porte-note{color:#8a7a74;font-size:10.5px;max-width:340px;line-height:1.55;
+  border-top:1px solid #3a251d;padding-top:9px;margin-top:3px}
+.cct.cct-th-rouge .cct-porte input:focus{border-color:#E8312A}
+.cct.cct-th-rouge .cct-porte-entrer{background:#E8312A;color:#fff}
+.cct.cct-th-rouge .cct-porte-entrer:hover{background:#f04a43}
+.cct.cct-th-orange .cct-porte-entrer{background:#FF8C1A;color:#000}
+.cct.cct-th-orange .cct-porte-entrer:hover{background:#ffa040}
 .term{position:relative}
 /*  Tout ce qui est TAPÉ s'écrit en orange — c'est la règle de couleur du
     terminal LexOS : la machine parle en vert foncé, l'utilisateur écrit en
@@ -1276,8 +1550,35 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .files li{list-style:none;display:flex;align-items:center;gap:10px;
   padding:9px 12px;border-bottom:1px solid var(--bg-hi);color:var(--fg)}
 .files li:hover{background:var(--bg-hi)}
+/*  Les deux vignettes possibles d'un fichier : cachées en vue liste (la
+    petite icône texte suffit), affichées en vue grille. On ne rend
+    qu'une SEULE fois chaque ligne — la bonne vignette s'affiche selon la
+    classe du parent, sans reconstruire le HTML au changement de vue. */
+.files li .ftuile-img,.files li .ftuile-ic{display:none}
 /* --- Fil d'Ariane et dossier vide ---------------------------------------- */
 .files li.sel{background:var(--bg-hi);box-shadow:inset 2px 0 0 var(--ac)}
+/*  ═══ VUE GRILLE — « un autre angle pour voir les images », à la demande
+    d'Alex ═══ Même liste, mêmes attributs data-i/data-r, même sélection
+    (.sel) et le même renommage (span .fnom) qu'en vue liste : SEULE la
+    disposition change, en CSS, pour ne jamais avoir deux façons de
+    sélectionner ou renommer un fichier à garder synchronisées. Les
+    fichiers qui ont une VRAIE image derrière eux (le mascot, le logo, le
+    fond d'écran CRT — voir ficVignetteReelle()) montrent cette image ; les
+    autres montrent une grande icône. Aucune vignette n'est inventée pour
+    un fichier qui n'en a pas. */
+.files.grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));
+  gap:4px;padding:10px}
+.files.grille li{flex-direction:column;justify-content:flex-start;gap:6px;
+  padding:10px 6px;border-bottom:0;border-radius:10px;text-align:center}
+.files.grille li .ic-inline,.files.grille li .sz{display:none}
+.files.grille li .ftuile-img{display:block;width:56px;height:56px;
+  background-size:cover;background-position:center;border-radius:9px;
+  border:1px solid var(--bd);flex:none}
+.files.grille li .ftuile-ic{display:flex;align-items:center;justify-content:center;
+  width:56px;height:56px;font-size:32px;flex:none}
+.files.grille li .fnom{white-space:normal;word-break:break-word;font-size:11.5px;
+  line-height:1.3;max-height:2.6em;overflow:hidden}
+.files.grille li .zip-box{width:56px;height:56px}
 .ri-etape{margin:12px 0 6px;font-size:12.5px;color:var(--fg-dim)}
 .ri-etape b{color:var(--ac)}
 .ri-liste,.ri-script{margin:0;padding:10px 12px;border-radius:9px;background:#000;
@@ -1636,15 +1937,37 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   border:2px solid transparent;background-clip:content-box}
 .wbody::-webkit-scrollbar-thumb:hover,.lgt-list::-webkit-scrollbar-thumb:hover,
 .cap-list::-webkit-scrollbar-thumb:hover{background:var(--ac);background-clip:content-box}
-#appgrid .app{display:flex;flex-direction:column;align-items:center;gap:7px;
+#appgrid .app,#appFolder .app{display:flex;flex-direction:column;align-items:center;gap:7px;
   padding:12px 6px;border-radius:14px;color:var(--fg);text-align:center}
-#appgrid .app:hover{background:rgba(255,255,255,.09)}
-#appgrid .app .ai{width:52px;height:52px;border-radius:14px;display:flex;
+#appgrid .app:hover,#appFolder .app:hover{background:rgba(255,255,255,.09)}
+#appgrid .app .ai,#appFolder .app .ai{width:52px;height:52px;border-radius:14px;display:flex;
   align-items:center;justify-content:center;font-size:26px;
   background:var(--bg-hi);border:1px solid var(--bd)}
-#appgrid .app:hover .ai{border-color:var(--ac)}
-#appgrid .app .an{font-size:12px;line-height:1.25;max-width:96px;
+#appgrid .app:hover .ai,#appFolder .app:hover .ai{border-color:var(--ac)}
+#appgrid .app .an,#appFolder .app .an{font-size:12px;line-height:1.25;max-width:96px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/*  ═══ DOSSIERS D'APPLICATIONS — la page d'Ubuntu 26.04 qu'Alex a montrée en
+    photo (« crée une page pareille ») ═══ Une tuile-dossier porte une
+    MINI-GRILLE 2×2 des premières icônes de son contenu — c'est ce dessin-là
+    qui dit « dossier » d'un coup d'œil sur la photo, pas une icône de
+    chemise. Les icônes existantes sont réutilisées TELLES QUELLES et
+    réduites par transform:scale : les redessiner à une deuxième taille
+    ferait deux jeux d'icônes à garder pareils. */
+#appgrid .app.dossier .ai{display:grid;grid-template-columns:1fr 1fr;
+  grid-auto-rows:1fr;gap:3px;padding:4px;font-size:inherit}
+#appgrid .app.dossier .mini{display:flex;align-items:center;justify-content:center;
+  border-radius:6px;background:rgba(255,255,255,.06);overflow:hidden;min-width:0;min-height:0}
+#appgrid .app.dossier .mini > *{transform:scale(.42);transform-origin:center;flex:none}
+/*  Le panneau du dossier ouvert : un voile sur la grille, la boîte au
+    centre — comme GNOME. Le clic sur le voile referme le dossier seulement,
+    pas toute la vue. */
+#appFolder{position:absolute;inset:0;z-index:5;display:none;align-items:center;
+  justify-content:center;background:rgba(0,0,0,.45);border-radius:inherit}
+#appFolder.on{display:flex;animation:avIn .16s ease-out}
+#appFolder .af-boite{background:var(--bg-alt);border:1px solid var(--bd);
+  border-radius:22px;padding:20px 24px;width:min(600px,92%);max-height:82%;overflow-y:auto}
+#appFolder .af-nom{text-align:center;font-size:15px;font-weight:600;margin-bottom:12px}
+#appFolder .af-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:4px}
 #appsview .hint{margin-top:18px;font-size:11.5px;color:var(--fg-dim)}
 #appsview .empty{color:var(--fg-dim);font-size:13px;padding:30px}
 
@@ -2255,6 +2578,9 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
     <div id="appgrid"></div>
     <div id="appdots"></div>
     <div class="hint">Molette ou <b>←</b> <b>→</b> pour changer de page · Échap pour fermer</div>
+    <div id="appFolder" onclick="if(event.target===this)appDossierFerme()">
+      <div class="af-boite"><div class="af-nom"></div><div class="af-grille"></div></div>
+    </div>
   </div>
   <div id="demobar"><b>Démo web</b> — le vrai LexOS est une ISO Linux amorçable (clé USB)</div>
 </div>
@@ -2280,6 +2606,7 @@ const ACCENTS = {
 const LANGS = { fr_CA:"Français (Québec)", fr_FR:"Français (France)",
   en_US:"English (US)", en_CA:"English (Canada)", es_ES:"Español", de_DE:"Deutsch" };
 const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
+                filesVue:"liste",
                 avion:false, mode:"sombre", wifiAuto:false, lang:"fr_CA",
                 distantPartage:false, distantProto:"auto",
                 iaLibresSeulement:false,
@@ -2767,7 +3094,7 @@ function openWin(id, title, icon, html, w, h, x, y){
   el.innerHTML =
     `<div class="tbar"><span class="ticon">${icon}</span>`+
     `<span class="ttitle">${title}</span>`+
-    `<button class="tbtn wmenu" title="Plus d'options">⋮</button>`+
+    `<button class="tbtn mini" title="Réduire (la retrouver dans le dock)">−</button>`+
     `<button class="tbtn maxi" title="Agrandir (double-clic sur la barre)">⛶</button>`+
     `<button class="tbtn close" title="Fermer">✕</button></div>`+
     `<div class="wbody">${html}</div>`;
@@ -2776,12 +3103,17 @@ function openWin(id, title, icon, html, w, h, x, y){
   //  alors un nouveau derrière, pour garder un endroit libre où déposer.
   if(typeof bureauxAssureVide === "function") bureauxAssureVide();
   if(typeof bureauRend === "function") bureauRend();
+  if(typeof majDock === "function") try{ majDock(); }catch(e){}
   el.addEventListener("animationend", e=>{
     if(e.animationName==="crtOn"||e.animationName==="fadeIn") el.classList.remove("opening");
   });
   el.querySelector(".close").onclick = ()=>closeWin(el);
+  el.querySelector(".mini").onclick = e=>{ e.stopPropagation(); minimizeWin(el); };
   el.querySelector(".maxi").onclick = e=>{ e.stopPropagation(); toggleMax(el); };
-  el.querySelector(".wmenu").onclick = e=>{ e.stopPropagation(); toggleWinMenu(el, e.currentTarget); };
+  //  PLUS DE PASTILLE VERTE — retirée à la demande d'Alex, après deux
+  //  essais (ouvrir les Paramètres, puis le menu « ⋮ ») : les options de la
+  //  fenêtre (Nouveau terminal, Recentrer, Nouvelle fenêtre…) vivent toutes
+  //  dans ctxFenetre, le menu du clic droit sur la barre de titre.
   el.querySelector(".tbar").addEventListener("contextmenu", e=>ctxFenetre(e, el));
   el.querySelector(".tbar").addEventListener("dblclick", e=>{
     if(e.target.closest(".tbtn")) return;
@@ -2848,75 +3180,51 @@ addEventListener("resize", ()=>{
   document.querySelectorAll(".win.max").forEach(applyMax);
 });
 
-/* --- Menu « ⋮ » de la barre de titre ------------------------------------- */
-//  Même dessin que le menu ⋮ du gestionnaire de fichiers. Les entrées propres
-//  à une fenêtre (terminal, fichiers…) s'ajoutent au-dessus des entrées
-//  communes à toutes les fenêtres.
-let winMenuEl = null;
-function closeWinMenu(){ if(winMenuEl){ winMenuEl.remove(); winMenuEl = null; } }
-const WIN_MENU_EXTRA = {
-  term: el => (
-    `<button onclick="termNewWindow()">${terminalGlyph(14)} Nouveau terminal</button>`+
-    `<button onclick="termClearFromMenu()">↻ Effacer l'écran<span class="kbd">clear</span></button>`+
-    `<button onclick="termCopyAll()">⧉ Copier tout le texte</button>`+
-    `<div class="msep"></div>`),
-  files: () => (
-    `<button onclick="closeWinMenu();openTerminal()">${terminalGlyph(14)} Ouvrir un terminal</button>`+
-    `<div class="msep"></div>`),
-};
-function toggleWinMenu(el, btn){
-  const wasOpen = winMenuEl && winMenuEl.dataset.forWin === el.id;
-  closeWinMenu();
-  if(wasOpen) return;
-  const id = el.id.replace(/^win-/, "");
-  const r  = btn.getBoundingClientRect();
-  const m  = document.createElement("div");
-  m.className = "menu";
-  m.dataset.forWin = el.id;
-  m.style.top   = (r.bottom + 6) + "px";
-  m.style.left  = "auto";
-  m.style.right = Math.max(8, innerWidth - r.right) + "px";
-  const isMax = el.classList.contains("max");
-  const appKey = id.split("#")[0];
-  m.innerHTML =
-    (WIN_MENU_EXTRA[id] ? WIN_MENU_EXTRA[id](el) : "")+
-    (MULTI_WINDOW[appKey]
-      ? `<button onclick="closeWinMenu();nouvelleFenetre('${appKey}')">⊞ Nouvelle fenêtre</button><div class="msep"></div>`
-      : "")+
-    `<button onclick="winMenuAct('${el.id}','max')">${isMax?"🗗 Restaurer la taille":"⛶ Agrandir l'écran"}`+
-      `<span class="kbd">${isMax?"Super+↓":"Super+↑"}</span></button>`+
-    `<button onclick="winMenuAct('${el.id}','center')">⊹ Recentrer la fenêtre</button>`+
-    `<div class="msep"></div>`+
-    `<button onclick="closeWinMenu();openSettings()">⚙ Paramètres</button>`+
-    `<button onclick="closeWinMenu();openApps()">▦ Toutes les applications</button>`+
-    `<div class="msep"></div>`+
-    `<button onclick="winMenuAct('${el.id}','close')">✕ Fermer<span class="kbd">Alt+F4</span></button>`;
-  document.body.appendChild(m);
-  winMenuEl = m;
-}
-function winMenuAct(winId, what){
+/*  LE MENU « ⋮ » DE LA BARRE DE TITRE A DISPARU AVEC LA PASTILLE VERTE qui
+    l'ouvrait (demande d'Alex : « supprimer le bouton vert de toutes les
+    fenêtres »). Aucune de ses entrées n'est perdue : elles ont rejoint
+    ctxFenetre — le menu du CLIC DROIT sur la barre de titre, qui devient la
+    seule porte des options d'une fenêtre. Recentrer vit ici, le reste
+    directement dans ctxFenetre. */
+function ctxRecentre(winId){
   const el = document.getElementById(winId);
-  closeWinMenu();
   if(!el) return;
-  if(what === "max")   toggleMax(el);
-  if(what === "close") closeWin(el);
-  if(what === "center"){
-    toggleMax(el, false);
-    el.style.left = Math.max(8, (innerWidth  - el.offsetWidth)/2) + "px";
-    el.style.top  = Math.max(40, (innerHeight - el.offsetHeight)/2) + "px";
-    focusWin(el);
-  }
+  toggleMax(el, false);
+  el.style.left = Math.max(8, (innerWidth  - el.offsetWidth)/2) + "px";
+  el.style.top  = Math.max(40, (innerHeight - el.offsetHeight)/2) + "px";
+  focusWin(el);
 }
-document.addEventListener("click", e=>{
-  if(winMenuEl && !e.target.closest(".menu,.tbtn.wmenu")) closeWinMenu();
-});
 function closeWin(el){
   el.classList.add("closing");
   //  Les pastilles des bureaux comptent les fenêtres : elles doivent suivre
   //  la fermeture, sinon un bureau vidé garderait son point « occupé ».
-  const rafraichir = ()=>{ el.remove(); if(typeof bureauRend==="function") bureauRend(); };
+  const rafraichir = ()=>{
+    el.remove();
+    if(typeof bureauRend==="function") bureauRend();
+    if(typeof majDock === "function") try{ majDock(); }catch(e){}
+  };
   el.addEventListener("animationend", rafraichir, {once:true});
   setTimeout(rafraichir, 600);   /* filet si l'animation est coupée */
+}
+//  RÉDUIRE — pas FERMER. La fenêtre quitte le bureau (« .minimized »,
+//  display:none) mais reste dans le DOM et compte toujours comme « ouverte »
+//  pour winsOfApp() : c'est ce qui permet à dockActivate() de la retrouver
+//  et à focusWin() de la faire réapparaître, sans code séparé pour « ouvrir »
+//  et « restaurer ». Alex : « enlever [du bureau] et mettre la fenêtre de
+//  côté, visible où les applications vont être ouvertes » — le dock EST cet
+//  endroit visible ; majDock() y allume un point sous l'icône
+//  tant qu'au moins une fenêtre de l'appli reste ouverte, réduite ou non.
+function minimizeWin(el){
+  if(el.classList.contains("minimized")) return;
+  el.classList.remove("active");
+  el.classList.add("minimizing");
+  const masquer = ()=>{
+    el.classList.remove("minimizing");
+    el.classList.add("minimized");
+    if(typeof majDock === "function") try{ majDock(); }catch(e){}
+  };
+  el.addEventListener("animationend", masquer, {once:true});
+  setTimeout(masquer, 300);   /* filet si l'animation est coupée */
 }
 /* ===================== Bureaux virtuels =============================
    « Plusieurs écrans sur le même écran » : autant de bureaux qu'on veut (cinq
@@ -2993,7 +3301,13 @@ function bureauEnleve(n){
 }
 function bureauApplique(){
   document.querySelectorAll(".win").forEach(w=>{
-    const dessus = winBureau(w) === state.bureau;
+    //  UNE FENÊTRE RÉDUITE NE REVIENT PAS TOUTE SEULE. w.style.display est
+    //  un style EN LIGNE : sans l'exclure ici, revenir sur le bureau d'une
+    //  fenêtre réduite écrirait display:"" par-dessus la règle CSS
+    //  .minimized{display:none} (un style en ligne l'emporte sur une
+    //  classe) et la ferait réapparaître toute seule au changement de
+    //  bureau — exactement le contraire de « réduire ».
+    const dessus = winBureau(w) === state.bureau && !w.classList.contains("minimized");
     w.style.display = dessus ? "" : "none";
     //  aria-hidden en plus de display:none : un lecteur d'écran ne doit pas
     //  annoncer les fenêtres d'un bureau qu'on ne regarde pas.
@@ -3035,7 +3349,12 @@ function bureauVa(n){
   bureauApplique();
   //  Donner le focus à une fenêtre du bureau d'arrivée, sinon les raccourcis
   //  clavier continueraient de viser une fenêtre devenue invisible.
-  const visibles = [...document.querySelectorAll(".win")].filter(w=>winBureau(w)===n);
+  //  RÉDUITE EXCLUE : focusWin() retire .minimized par définition (c'est
+  //  ainsi que le dock restaure une fenêtre) — sans ce filtre, changer de
+  //  bureau aurait suffi à restaurer toute seule une fenêtre réduite qui
+  //  s'y trouvait, sans le moindre clic sur son icône.
+  const visibles = [...document.querySelectorAll(".win")]
+    .filter(w=>winBureau(w)===n && !w.classList.contains("minimized"));
   if(visibles.length) focusWin(visibles[visibles.length-1]);
   toast("🗔 Bureau " + (n+1) + (visibles.length ? "" : " — vide"));
 }
@@ -3303,6 +3622,25 @@ addEventListener("keydown", e=>{
 });
 
 function focusWin(el){
+  //  RESTAURER, C'EST FOCALISER. dockActivate() rappelle focusWin() sur la
+  //  fenêtre d'une appli déjà ouverte — y compris réduite : c'est donc ICI,
+  //  et pas dans un chemin séparé, que « cliquer l'icône du dock » fait
+  //  réapparaître une fenêtre réduite. Un seul geste, une seule fonction.
+  //
+  //  RETIRER LA CLASSE NE SUFFIT PAS À RENDRE LA FENÊTRE VISIBLE.
+  //  bureauApplique() pose display:none en STYLE EN LIGNE sur toute
+  //  fenêtre qui n'est pas sur le bureau courant OU qui est réduite — et un
+  //  style en ligne l'emporte toujours sur la règle CSS .minimized. Ne
+  //  retirer que la classe aurait laissé ce display:none figé même après
+  //  « déminimiser », mesuré avant de pousser (banc Playwright : la fenêtre
+  //  restait invisible malgré .minimized effectivement retirée). On
+  //  redemande donc à bureauApplique() de recalculer — la même fonction qui
+  //  a posé le style en ligne est la seule habilitée à l'annuler.
+  if(el.classList.contains("minimized")){
+    el.classList.remove("minimized");
+    //  bureauApplique() se charge elle-même de rappeler majDock() en sortie.
+    if(typeof bureauApplique === "function") bureauApplique();
+  }
   document.querySelectorAll(".win").forEach(w=>w.classList.remove("active"));
   el.classList.add("active"); el.style.zIndex = ++state.zTop;
 }
@@ -3771,14 +4109,12 @@ function runCmd(raw){
   tPrint(esc("")+out);
   tNewPrompt();
 }
-/* --- Actions du menu ⋮ du terminal --------------------------------------- */
+/* --- Actions du menu déroulé par le clic droit du terminal --------------- */
 function termClearFromMenu(){
-  closeWinMenu();
   if(!tEl) return;
   tEl.innerHTML = ""; tNewPrompt();
 }
 function termCopyAll(){
-  closeWinMenu();
   if(!tEl) return;
   const txt = tEl.innerText;
   if(navigator.clipboard && navigator.clipboard.writeText){
@@ -3793,7 +4129,6 @@ function termCopyAll(){
 //  ouverte si l'identifiant est le même, il faut donc un identifiant neuf.
 let termSeq = 0;
 function termNewWindow(){
-  closeWinMenu();
   const id = "term-" + (++termSeq);
   const el = openWin(id, "Terminal — lex@lexos", terminalGlyph(17), termHTML(), 640, 420);
   const out = el.querySelector("#tout");
@@ -3861,10 +4196,27 @@ function openFiles(){
              title="Dossier parent" style="visibility:hidden">←</button>
      <span class="fpath" id="filesFil"></span>
      <span class="dl-mascot" id="dlMascotBadge" aria-hidden="true"></span>
+     <button class="ficonbtn" id="filesVueBtn" onclick="filesVueBascule()" title="Vue grille (voir les images)">⊞</button>
      <button class="ficonbtn" id="filesMenuBtn" onclick="toggleFilesMenu(this)" title="Menu">⋮</button>
    </div>
    <div id="filesZone"></div>`,540,470);
   filesChemin = [];
+  filesRend();
+}
+//  L'AUTRE ANGLE DE VUE, POUR VOIR LES IMAGES — demandé par Alex. Liste
+//  (par défaut, celle d'origine) ou grille (grandes vignettes, comme
+//  l'affichage « icônes » d'un vrai gestionnaire de fichiers) : le bouton
+//  bascule l'état ET son propre glyphe/titre, puis redemande un rendu —
+//  filesRend() pose la classe .grille sur le <ul> selon state.filesVue,
+//  rien d'autre ne change (même sélection, même renommage, voir
+//  ligneFichier()).
+function filesVueBascule(){
+  state.filesVue = state.filesVue === "grille" ? "liste" : "grille";
+  const b = document.getElementById("filesVueBtn");
+  if(b){
+    b.textContent = state.filesVue === "grille" ? "☰" : "⊞";
+    b.title = state.filesVue === "grille" ? "Vue liste" : "Vue grille (voir les images)";
+  }
   filesRend();
 }
 /*  Contenu du dossier personnel : conservé tel quel, car ces lignes portent
@@ -3883,7 +4235,7 @@ const FICHIERS_RACINE = [
   {nom:"photos-vacances.zip", ic:null, taille:"12,4 Mo", special:"zip"},
 ];
 function filesRacineHTML(){
-  return `<ul class="files" id="filesList">` +
+  return `<ul class="files${state.filesVue==="grille"?" grille":""}" id="filesList">` +
     FICHIERS_RACINE.map((f,i)=>ligneFichier(f,i,true)).join("") +
    `</ul>
    <div class="pad">
@@ -3895,9 +4247,35 @@ function filesRacineHTML(){
      <button class="btn" onclick="openShare()"><i class="gly gly-share"></i> Partager avec LexOS</button>
    </div>`;
 }
+//  LA VRAIE IMAGE QUAND ELLE EXISTE, JAMAIS UNE INVENTÉE. Trois fichiers de
+//  la racine correspondent à une image RÉELLEMENT présente ailleurs dans
+//  cette page (le mascot du démarrage, le logo, le fond d'écran CRT) : la
+//  vue grille leur montre cette image, pixel pour pixel. Tous les autres
+//  fichiers — y compris ceux qui PORTENT un nom d'image, comme
+//  fond-secu.png dans Images/ — n'ont aucun octet derrière eux dans cette
+//  démo : ils gardent une grande icône générique plutôt qu'une vignette
+//  fabriquée, qui laisserait croire à une photo qui n'existe pas.
+function ficVignetteReelle(nom){
+  //  Guillemets SIMPLES à l'intérieur : cet attribut style="…" est lui-même
+  //  entre guillemets doubles — un url("…") aurait refermé l'attribut au
+  //  tout premier guillemet et tronqué la balise. base64 n'en produit jamais.
+  if(nom === "mascot.png")         return `url('${MASCOT_URI}')`;
+  if(nom === "logo-ti-lex-al.png") return "var(--logo-icon)";
+  if(nom === "wallpaper-crt.png")  return "var(--wall-demon)";
+  return null;
+}
+function ficVignetteHTML(f){
+  const reelle = ficVignetteReelle(f.nom);
+  return reelle
+    ? `<span class="ftuile-img" style="background-image:${reelle}"></span>`
+    : `<span class="ftuile-ic">${f.ic || "📄"}</span>`;
+}
 /*  Une seule fonction de ligne pour la racine ET les sous-dossiers : le
     menu contextuel, le renommage et la suppression se comportent donc
-    pareil partout, sans code dupliqué à garder synchronisé. */
+    pareil partout, sans code dupliqué à garder synchronisé. Pareil pour
+    les DEUX vues (liste et grille) : les mêmes attributs data-i/data-r,
+    la même sélection, le même span .fnom que ficRenomme() cherche déjà —
+    seule la disposition change, en CSS (.files.grille). */
 function ligneFichier(f, i, racine){
   //  Un seul onpointerdown par balise : deux attributs du même nom, et le
   //  HTML ne garde que le PREMIER — l'appui long de l'autocollant ne se
@@ -3906,11 +4284,12 @@ function ligneFichier(f, i, racine){
   const attrs = `data-i="${i}" data-r="${racine?1:0}"`+
     ` oncontextmenu="fichierMenu(event,${i},${racine?1:0})"`;
   const sel = `ficSelectionne(${i},${racine?1:0})`;
+  const vignette = ficVignetteHTML(f);
   if(f.special==="sticker"){
     return `<li ${attrs} style="cursor:pointer" title="Clique : outil autocollant · Maintiens le clic gauche 3 s : découper tout de suite · Clic droit : menu"
       onpointerdown="${sel};stickerPressStart('mascot.png',event)" onpointerup="stickerPressEnd()" onpointerleave="stickerPressEnd()"
       onclick="stickerPressClick('mascot.png',event)">
-      ${f.ic} <span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
+      ${vignette}<span class="ic-inline">${f.ic}</span> <span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
   }
   if(f.special==="zip"){
     return `<li id="zipRow" ${attrs} onpointerdown="${sel}" style="cursor:pointer" title="Extraire ici (1 clic) — clic droit pour le menu">
@@ -3918,7 +4297,8 @@ function ligneFichier(f, i, racine){
        onkeydown="if(event.key==='Enter'){bump(this.querySelector('svg'));setTimeout(extractZip,420)}">${zipGlyph(20)}</span>
       <span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
   }
-  return `<li ${attrs} onpointerdown="${sel}" title="Clic droit pour le menu">${f.ic} `+
+  return `<li ${attrs} onpointerdown="${sel}" title="Clic droit pour le menu">`+
+         `${vignette}<span class="ic-inline">${f.ic}</span> `+
          `<span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
 }
 
@@ -4343,9 +4723,34 @@ function ctxRangeBureau(){
 function ctxFenetre(e, el){
   if(e.target.closest(".tbtn")) return;
   const max = el.classList.contains("max");
+  //  LES ENTRÉES DE L'ANCIEN MENU « ⋮ » VIVENT ICI depuis que la pastille
+  //  verte qui l'ouvrait a été retirée (demande d'Alex) : les extras par
+  //  appli (Nouveau terminal, Ouvrir un terminal…), Nouvelle fenêtre pour
+  //  les applis qui l'acceptent, et Recentrer. Les identifiants exacts
+  //  (« term », « files » — la PREMIÈRE fenêtre de chaque, pas les copies)
+  //  reprennent ceux que WIN_MENU_EXTRA visait, à l'identique.
+  const id = el.id.replace(/^win-/, "");
+  const appKey = el.dataset.app;
+  const extras = [];
+  if(id === "term"){
+    extras.push({ic:terminalGlyph(14), txt:"Nouveau terminal", act:"termNewWindow()"});
+    extras.push({ic:"↻", txt:"Effacer l'écran", act:"termClearFromMenu()", kbd:"clear"});
+    extras.push({ic:"⧉", txt:"Copier tout le texte", act:"termCopyAll()"});
+    extras.push("-");
+  }
+  if(id === "files"){
+    extras.push({ic:terminalGlyph(14), txt:"Ouvrir un terminal", act:"openTerminal()"});
+    extras.push("-");
+  }
+  if(appKey && typeof MULTI_WINDOW === "object" && MULTI_WINDOW[appKey]){
+    extras.push({ic:"⊞", txt:"Nouvelle fenêtre", act:`nouvelleFenetre('${appKey}')`});
+    extras.push("-");
+  }
   ctxOuvre(e, [
+    ...extras,
     {ic:max?"🗗":"⛶", txt:max?"Restaurer la taille":"Agrandir", act:`toggleMax(document.getElementById('${el.id}'))`},
     {ic:"↕", txt:"Pleine hauteur", act:`ctxPleineHauteur('${el.id}')`},
+    {ic:"⊹", txt:"Recentrer la fenêtre", act:`ctxRecentre('${el.id}')`},
     "-",
     "-",
     {ic:"🗔", txt:"Déplacer vers un bureau", sous:
@@ -5059,7 +5464,8 @@ function filesRend(){
         `<span class="fname">${esc(nom)}</span></div>`).join("") + `</div>`;
   }
   if(fic.length){
-    html += `<ul class="files">` + fic.map((f,i)=>ligneFichier(f,i,false)).join("") + `</ul>`;
+    html += `<ul class="files${state.filesVue==="grille"?" grille":""}">` +
+      fic.map((f,i)=>ligneFichier(f,i,false)).join("") + `</ul>`;
   }
   if(!sous.length && !fic.length){
     html = `<div class="fvide">
@@ -7933,6 +8339,58 @@ const CC_SAVOIR = [
     Demande-moi par exemple <b>« comment installer LexOS ? »</b> ou
     <b>« quelles commandes existent ? »</b>`},
 
+  //  L'exemple qui MONTRE le langage des modifications : lignes ajoutées en
+  //  vert (vert lime sur le thème rouge), supprimées en rouge — exactement
+  //  ce que le vrai Claude Code affiche quand il modifie un fichier. Et il
+  //  redit la règle du vrai outil : Claude va partout où on l'envoie sur la
+  //  machine, mais il MONTRE et DEMANDE avant d'écrire ou de supprimer.
+  {c:["modification","modifier un fichier","diff","exemple de code","supprimer","ressemble une modification"], r:
+   `Quand tu me demandes de modifier ou de supprimer quelque chose, je te
+    montre la modification <b>avant</b> de l'écrire — les lignes ajoutées en
+    vert, les supprimées en rouge :
+    <pre><span class="cct-suppr">- couleur_fond = "bleu"</span><span class="cct-ajout">+ couleur_fond = "noir"</span><span class="cct-ajout">+ couleur_texte = "blanc"</span></pre>
+    Sur la vraie LexOS, je peux aller <b>partout où tu m'envoies</b> sur la
+    machine — créer, modifier, supprimer ce que tu me demandes — et je
+    <b>demande toujours ta permission</b> avant d'écrire ou d'effacer quoi
+    que ce soit. Rien ne part sans ton accord.`},
+
+  //  TOUS LES OUTILS, demandé par Alex : la liste réelle de ce que Claude
+  //  Code sait faire, pas juste « il peut modifier des fichiers ». Des mots-
+  //  clés composés (« joindre un fichier », pas juste « fichier ») pour ne
+  //  pas voler la question à l'entrée « partage » plus bas, qui répond à
+  //  autre chose (le partage QR entre appareils).
+  {c:["outil","outils","capacite","capacites","que peux-tu faire","joindre un fichier",
+      "joindre une image","envoyer une image","importer un fichier","glisser une image"], r:
+   `<b>Claude Code a les outils d'un développeur, en ligne de commande :</b>
+    <ul>
+      <li><b>Lire</b> et <b>écrire</b> des fichiers, <b>modifier</b> une ligne précise
+          sans retaper tout le fichier</li>
+      <li><b>Chercher</b> dans tout un projet — un mot, une fonction, un motif —
+          sans ouvrir chaque fichier un par un</li>
+      <li><b>Lancer des commandes</b> dans un vrai terminal — <code>git</code>,
+          <code>npm</code>, un test, un script</li>
+      <li><b>Chercher sur le web</b> une documentation ou une erreur</li>
+      <li><b>Joindre des fichiers et des images</b> — le <b>+</b> à côté de cette
+          barre en est la preuve : une capture d'un bogue, un fichier de
+          configuration, une image à reproduire</li>
+    </ul>
+    Et ça marche sur <b>n'importe quel projet réel</b> — <b>LexOS y compris</b> :
+    c'est avec ces mêmes outils que ce dépôt s'écrit et se corrige.`},
+
+  //  Le Claude Terminal sait OUVRIR les outils de LexOS — ici, le bureau à
+  //  distance (lexos distant, un vrai outil de l'ISO). Dans la démo, le
+  //  bouton de la réponse ouvre la vraie section des Paramètres : Claude ne
+  //  décrit pas le geste, il le fait.
+  {c:["bureau a distance","distance","distant","remmina","rdp","vnc","controler","ecran a distance"], r:
+   `Oui — LexOS a un <b>bureau à distance</b> intégré, et je peux te l'ouvrir.
+    Sur la vraie machine, tu me dis « ouvre le bureau à distance » et je lance
+    <code>lexos distant</code> ; ici, dans la démo, ce bouton ouvre la même
+    page :
+    <br><br><button class="cct-porte-entrer" style="font-size:12px"
+      onclick="openSettings('distant')">🖥 Ouvrir le bureau à distance</button>
+    <br><br>Un bureau à distance ouvre ta machine au réseau : il ne démarre
+    jamais tout seul, et il se referme quand tu le fermes.`},
+
   {c:["quoi","c'est quoi","lexos","systeme","distribution","presente"], r:
    `<b>LexOS 2.0.0 « Nomad »</b> est une distribution Linux complète, bâtie sur
     <b>Debian 13 (trixie)</b> avec le bureau <b>XFCE</b>. Ce n'est pas un thème
@@ -8129,7 +8587,8 @@ function ccCherche(q){
 }
 const CC_SUGGESTIONS = [
   "C'est quoi LexOS ?", "Comment installer LexOS ?", "Puis-je jouer aux jeux Windows ?",
-  "Quelles commandes existent ?", "Ma carte NVIDIA est-elle gérée ?",
+  "Quelles commandes existent ?", "À quoi ressemble une modification ?", "Quels outils as-tu ?",
+  "Ma carte NVIDIA est-elle gérée ?",
   "Comment changer le fond d'écran ?", "Les bureaux virtuels", "Ça marche sur téléphone ?",
 ];
 
@@ -8189,6 +8648,10 @@ function ccEcrit(zone, qui, html){
   d.innerHTML = qui === "moi" ? esc(html)
     : `<span class="cc-ic">${claudeGlyph(16)}</span><div class="cc-txt">${html}</div>`;
   zone.appendChild(d);
+  //  La même écriture qui coule que dans le Claude Terminal — Claude écrit,
+  //  il ne colle pas un bloc (cctAnime est déclarée plus bas dans ce
+  //  fichier : au moment où un clic arrive, tout est chargé).
+  if(qui !== "moi" && typeof cctAnime === "function") cctAnime(d.querySelector(".cc-txt"));
   zone.scrollTop = zone.scrollHeight;
 }
 function ccDemande(winId, texte){
@@ -8258,7 +8721,7 @@ function clRendCorps(w){
   if(clSection === "discussion"){
     corps.innerHTML =
       `<div class="cc-log cl-log"></div>
-       <div class="cc-sugg">${CC_SUGGESTIONS.slice(0,5).map(s=>
+       <div class="cc-sugg">${CC_SUGGESTIONS.slice(0,6).map(s=>
           `<button onclick="clDemande(this.textContent)">${esc(s)}</button>`).join("")}</div>
        <div class="cc-joints" style="display:none"></div>
        <div class="cc-saisie">
@@ -8362,9 +8825,57 @@ function openClaude(){
 /* ============ Claude Code — le terminal, comme sous Linux ==========
    L'autre application : celle qui vit dans le terminal. On reprend les
    codes du vrai outil — la ligne « ✳ », les étapes d'outil annoncées une
-   par une, la réponse en dessous — sans prétendre qu'une IA répond.   */
-let ccTermOccupe = false;
-function ccTermEcrit(zone, html, cls){
+   par une, la réponse en dessous — sans prétendre qu'une IA répond.
+
+   LE MENU DE GAUCHE, ET LE BOGUE QU'IL CORRIGE EN PASSANT. « Nouvelle
+   fenêtre » (clic du milieu sur l'icône du dock, ou nouvelleFenetre())
+   ouvrait une DEUXIÈME fenêtre Claude Code entière — mais ccTermDemande()
+   visait toujours l'élément « win-claude-code » EN DUR : la deuxième
+   fenêtre n'écrivait jamais dans SON propre journal, elle écrivait (ou
+   tentait d'écrire) dans celui de la première, ou ne faisait rien si la
+   première était fermée. Une deuxième fenêtre n'avait donc PAS les mêmes
+   outils que la première — recherche dans la doc, pièces jointes, tout
+   passait à côté.
+
+   Chaque fonction ci-dessous prend maintenant winId en premier paramètre,
+   comme ccJointsTexte/ccChoisirFichier/ccDemande le font déjà pour Claude
+   et pour les pièces jointes : deux fenêtres Claude Code ne se marchent
+   plus dessus.
+
+   ET, DANS CHAQUE FENÊTRE, PLUSIEURS SESSIONS — pas seulement plusieurs
+   fenêtres. Même principe que le volet latéral de l'appli Claude
+   (.cl-cote, plus haut) : un bouton « + Nouvelle session », une liste à
+   gauche, un clic pour y revenir. Chaque session garde son PROPRE
+   historique (CCT_SESSIONS) : en changer ne perd rien, et une session neuve
+   a exactement les mêmes outils que la première — même message d'accueil,
+   mêmes suggestions, mêmes pièces jointes — puisque c'est le même gabarit
+   qui les pose toutes. Le volet se réduit d'un clic sur « ☰ », avec la
+   même courbe d'ouverture que les volets de la barre du haut
+   (cubic-bezier(.16,1,.3,1), voir aussi volet.py côté vraie ISO). */
+const CCT_SESSIONS = {};   // winId -> {sessions:[{id,titre,historique}], actif, seq}
+const CCT_OCCUPE = {};     // winId -> bool : une session par fenêtre peut répondre à la fois
+
+function cctEtat(winId){
+  return CCT_SESSIONS[winId] || (CCT_SESSIONS[winId] = {sessions: [], actif: null, seq: 0});
+}
+function cctSessionActive(winId){
+  const e = cctEtat(winId);
+  return e.sessions.find(s => s.id === e.actif) || null;
+}
+function cctCreeSession(winId, titre){
+  const e = cctEtat(winId);
+  e.seq++;
+  const s = {id: e.seq, titre: titre || `Session ${e.seq}`, historique: []};
+  e.sessions.unshift(s);
+  e.actif = s.id;
+  return s;
+}
+
+function ccTermEcrit(winId, html, cls){
+  const s = cctSessionActive(winId);
+  if(s) s.historique.push({html, cls});
+  const w = document.getElementById(winId); if(!w) return null;
+  const zone = w.querySelector(".cct-log"); if(!zone) return null;
   const d = document.createElement("div");
   d.className = "cct-l" + (cls ? " " + cls : "");
   d.innerHTML = html;
@@ -8372,84 +8883,355 @@ function ccTermEcrit(zone, html, cls){
   zone.scrollTop = zone.scrollHeight;
   return d;
 }
-function ccTermDemande(texte){
-  const w = document.getElementById("win-claude-code"); if(!w) return;
-  const zone = w.querySelector(".cct-log");
+//  Redessine le journal à partir de l'historique de la session active — ce
+//  qui permet de revenir sur une session sans avoir rejoué la conversation.
+function cctRendLog(winId){
+  const w = document.getElementById(winId); if(!w) return;
+  const zone = w.querySelector(".cct-log"); if(!zone) return;
+  const s = cctSessionActive(winId);
+  zone.innerHTML = "";
+  (s ? s.historique : []).forEach(({html, cls}) => {
+    const d = document.createElement("div");
+    d.className = "cct-l" + (cls ? " " + cls : "");
+    d.innerHTML = html;
+    zone.appendChild(d);
+  });
+  zone.scrollTop = zone.scrollHeight;
+  //  Revenir sur une session neuve remet l'accueil centré ; revenir sur une
+  //  conversation entamée remet la disposition normale — même vérité.
+  cctMajAccueil(winId);
+}
+function cctRendListe(winId){
+  const w = document.getElementById(winId); if(!w) return;
+  const zone = w.querySelector(".cct-liste"); if(!zone) return;
+  const e = cctEtat(winId);
+  zone.innerHTML = e.sessions.length
+    ? e.sessions.map(s =>
+        `<div class="cct-rec-row${s.id === e.actif ? " on" : ""}" data-id="${s.id}"
+              onclick="cctVa('${winId}',${s.id})"
+              ondblclick="event.stopPropagation();cctRenomme('${winId}',${s.id})"
+              oncontextmenu="cctMenuSession(event,'${winId}',${s.id})">
+           <span class="cct-rec-nom">${esc(s.titre)}</span></div>`).join("")
+    : `<div class="cct-liste-vide">Aucune session</div>`;
+}
+//  Renommer sur place — même geste que ficRenomme() dans Fichiers : le nom
+//  devient éditable, Entrée valide, Échap annule, perdre le focus valide
+//  aussi (on ne force personne à trouver la bonne touche).
+function cctRenomme(winId, id){
+  const e = cctEtat(winId);
+  const s = e.sessions.find(x => x.id === id); if(!s) return;
+  const w = document.getElementById(winId); if(!w) return;
+  const row = w.querySelector(`.cct-rec-row[data-id="${id}"]`);
+  const span = row && row.querySelector(".cct-rec-nom");
+  if(!span) return;
+  const avant = s.titre;
+  span.contentEditable = "true";
+  span.focus(); selectAllText(span);
+  const valide = ()=>{
+    span.contentEditable = "false";
+    span.removeEventListener("keydown", onKey);
+    span.removeEventListener("blur", valide);
+    const neuf = span.textContent.trim();
+    if(!neuf){ span.textContent = avant; return; }   // nom vide : on revient à l'ancien
+    s.titre = neuf;
+    cctRendListe(winId);
+  };
+  const onKey = ev=>{
+    if(ev.key === "Enter"){ ev.preventDefault(); span.blur(); }
+    else if(ev.key === "Escape"){ ev.preventDefault(); span.textContent = avant; span.blur(); }
+  };
+  span.addEventListener("keydown", onKey);
+  span.addEventListener("blur", valide);
+}
+//  Supprimer une session. Celle qu'on regardait ? Une autre prend sa place
+//  s'il en reste une ; sinon une session neuve repart tout de suite —
+//  jamais de fenêtre sans aucune session, comme au tout premier lancement.
+function cctSupprime(winId, id){
+  const e = cctEtat(winId);
+  const idx = e.sessions.findIndex(x => x.id === id); if(idx < 0) return;
+  const [s] = e.sessions.splice(idx, 1);
+  if(e.actif === id){
+    if(e.sessions.length){
+      e.actif = e.sessions[0].id;
+      cctRendLog(winId);
+    } else {
+      cctCreeSession(winId);
+      cctRendLog(winId);
+      cctAccueilSession(winId);
+    }
+  }
+  cctRendListe(winId);
+  toast("🗑 " + s.titre + " supprimée");
+}
+function cctMenuSession(e, winId, id){
+  ctxOuvre(e, [
+    {ic:"✎", txt:"Renommer", act:`cctRenomme('${winId}',${id})`},
+    {ic:"🗑", txt:"Supprimer", act:`cctSupprime('${winId}',${id})`},
+  ]);
+}
+function cctVa(winId, id){
+  const e = cctEtat(winId);
+  if(e.actif === id) return;
+  e.actif = id;
+  cctRendLog(winId);
+  cctRendListe(winId);
+  //  « écriture rapide » : revenir sur une session doit remettre le
+  //  curseur dans la saisie tout de suite, pas obliger à recliquer dedans.
+  const champ = document.getElementById(winId)?.querySelector(".cct-in");
+  if(champ) champ.focus();
+}
+//  ═══ L'ÉCRITURE QUI COULE ═══ Chaque mot de la réponse reçoit son propre
+//  span et un départ décalé de 14 ms — assez vite pour ne jamais faire
+//  attendre, assez visible pour que l'oeil lise une écriture. On ne touche
+//  qu'aux NOEUDS DE TEXTE (TreeWalker) : le HTML de la réponse — gras,
+//  listes, <code>, lignes de diff — reste exactement le même, seuls les
+//  mots sont enveloppés. Plafonné à ~2 s : une très longue réponse finit
+//  d'apparaître au plus tard là, personne n'attend la fin d'un générique.
+//  L'historique de session garde le HTML NU (poussé avant l'animation) :
+//  revenir sur une session réaffiche tout d'un coup, sans rejouer.
+function cctAnime(racine){
+  if(!racine) return;
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const marche = document.createTreeWalker(racine, NodeFilter.SHOW_TEXT);
+  const textes = [];
+  while(marche.nextNode()) textes.push(marche.currentNode);
+  let i = 0;
+  textes.forEach(n=>{
+    if(!n.nodeValue || !n.nodeValue.trim()) return;
+    const bout = document.createDocumentFragment();
+    n.nodeValue.split(/(\s+)/).forEach(mot=>{
+      if(!mot) return;
+      if(!mot.trim()){ bout.appendChild(document.createTextNode(mot)); return; }
+      const s = document.createElement("span");
+      s.className = "cct-mot";
+      s.style.animationDelay = Math.min(i++ * 14, 2000) + "ms";
+      s.textContent = mot;
+      bout.appendChild(s);
+    });
+    n.parentNode.replaceChild(bout, n);
+  });
+}
+//  ═══ LES TROIS THÈMES, EN CYCLE ═══ Un clic sur 🎨 passe au suivant, sur
+//  TOUTES les fenêtres Claude Terminal à la fois (deux fenêtres au thème
+//  différent auraient l'air d'un bogue, pas d'un choix). Le choix vit dans
+//  « state » comme tout le reste de la démo — session seulement, à dessein.
+const CCT_THEMES = [
+  {cls:"",              nom:"corail (défaut)"},
+  {cls:"cct-th-rouge",  nom:"rouge — écriture blanche, diff vert lime"},
+  {cls:"cct-th-orange", nom:"orange — écriture blanche"},
+];
+function cctAppliqueTheme(){
+  const t = CCT_THEMES[state.cctTheme || 0];
+  document.querySelectorAll(".cct").forEach(r=>{
+    r.classList.remove("cct-th-rouge","cct-th-orange");
+    if(t.cls) r.classList.add(t.cls);
+  });
+}
+function cctThemeSuivant(){
+  state.cctTheme = ((state.cctTheme || 0) + 1) % CCT_THEMES.length;
+  cctAppliqueTheme();
+  toast("🎨 Thème du Claude Terminal : " + CCT_THEMES[state.cctTheme].nom);
+}
+//  ═══ LA PAGE DE CONNEXION ═══ demandée par Alex : le Claude Terminal est
+//  réservé aux personnes abonnées à Claude, la porte le dit avant de
+//  laisser passer — courriel, mot de passe (masqué, avec l'oeil pour
+//  vérifier sa frappe), « Se connecter ». RIEN N'EST VÉRIFIÉ NI ENVOYÉ :
+//  cette page est une démo sans réseau, et c'est écrit dessus. Sur la
+//  vraie LexOS la connexion se fait AU NAVIGATEUR (compte Anthropic) — un
+//  vrai mot de passe ne se tape jamais dans une fenêtre à nous, et la
+//  porte le dit aussi. Une seule connexion pour toutes les fenêtres
+//  (state.cctConnecte) : se reconnecter à chaque fenêtre serait une
+//  corvée inventée.
+function cctPorteHTML(winId){
+  return `<div class="cct-porte">
+    <h3>${claudeGlyph(22)} Claude Terminal</h3>
+    <div class="cct-porte-sous">Le terminal de Claude — réservé aux personnes
+      abonnées à Claude (compte Anthropic).</div>
+    <input type="email" placeholder="Courriel" autocomplete="off" spellcheck="false"
+           onkeydown="if(event.key==='Enter')cctConnecte('${winId}')">
+    <div class="cct-porte-mdp">
+      <input type="password" placeholder="Mot de passe" autocomplete="off"
+             onkeydown="if(event.key==='Enter')cctConnecte('${winId}')">
+      <button class="cct-porte-oeil" title="Montrer ou cacher le mot de passe"
+              onclick="cctPorteOeil(this)">👁</button>
+    </div>
+    <button class="cct-porte-entrer" onclick="cctConnecte('${winId}')">Se connecter</button>
+    <div class="cct-porte-note"><b>Démo</b> — rien n'est vérifié ni envoyé nulle part.
+      Sur la vraie LexOS, la connexion se fait au navigateur (compte Anthropic) :
+      ton mot de passe ne s'écrit jamais dans cette fenêtre.</div>
+  </div>`;
+}
+function cctPorteOeil(btn){
+  const champ = btn.parentNode.querySelector("input");
+  champ.type = champ.type === "password" ? "text" : "password";
+}
+function cctConnecte(winId){
+  state.cctConnecte = true;
+  document.querySelectorAll(".cct-porte").forEach(p=>p.remove());
+  toast("✳ Connecté au Claude Terminal (démo)");
+  const champ = document.getElementById(winId)?.querySelector(".cct-in");
+  if(champ) champ.focus();
+}
+//  ═══ L'ACCUEIL FAÇON APPLICATION CLAUDE ═══ demandé par Alex, capture à
+//  l'appui : une session neuve dit bonjour au centre, la saisie au milieu,
+//  les suggestions dessous — le long paragraphe d'avant devient une seule
+//  ligne discrète qui GARDE les deux faits qui comptent (« aucune IA n'est
+//  jointe ici », et le vrai lanceur sur l'ISO) : le reste était du décor.
+function cctAccueilSession(winId){
+  ccTermEcrit(winId, `<div class="cct-logo-txt">CLAUDE<br>CODE</div>`);
+  //  Le bonjour suit l'heure, comme l'application. Pas de minute près :
+  //  17 h et avant = bonjour, après = bonsoir.
+  const h = new Date().getHours();
+  const salut = (h >= 18 || h < 5) ? "Bonsoir" : "Bonjour";
+  ccTermEcrit(winId, `<div class="cct-bonjour">${claudeGlyph(24)} ${salut}, Alex</div>`);
+  ccTermEcrit(winId,
+    `<span class="cct-dim">Le terminal de Claude, et de personne d'autre.
+     <b>Démo</b> — aucune IA n'est jointe ici (page publiée sans réseau) ;
+     sur la vraie LexOS, <b>lexos claude-terminal</b> ouvre la vraie
+     fenêtre.</span>`);
+  cctMajAccueil(winId);
+}
+//  La classe « accueil » vit ou meurt selon UNE seule question : la session
+//  active a-t-elle déjà un message de l'utilisateur ? Pas un drapeau à
+//  poser et retirer à la main partout — l'historique est déjà la vérité.
+function cctMajAccueil(winId){
+  const w = document.getElementById(winId); if(!w) return;
+  const s = cctSessionActive(winId);
+  const neuve = !(s && s.historique.some(l => l.cls === "cct-moi"));
+  w.querySelector(".cct-corps")?.classList.toggle("accueil", neuve);
+}
+function cctNouvelleSession(winId){
+  cctCreeSession(winId);
+  cctRendListe(winId);
+  //  EFFACER L'ÉCRAN AVANT L'ACCUEIL. Sans ce rendu, la session neuve
+  //  s'AJOUTAIT sous le journal de l'ancienne au lieu de repartir à vide —
+  //  l'accueil arrivait en dessous de la conversation précédente. Trouvé
+  //  par le banc de l'écriture animée : il comptait des mots animés dans
+  //  une session censée être neuve, et c'étaient ceux de l'ancienne,
+  //  jamais effacés. cctRendLog vide la zone et rejoue l'historique de la
+  //  session ACTIVE — la neuve, donc rien : l'écran est propre.
+  cctRendLog(winId);
+  cctAccueilSession(winId);
+  const champ = document.getElementById(winId)?.querySelector(".cct-in");
+  if(champ) champ.focus();
+}
+//  Le menu de gauche se réduit d'un clic — même ressort que les volets de
+//  la barre du haut (max-height/opacity animés), ici sur la largeur : la
+//  transition vit dans le CSS (.cct-cote), ce bouton ne fait que basculer
+//  la classe.
+function cctCoteBascule(winId){
+  document.getElementById(winId)?.querySelector(".cct-cote")?.classList.toggle("ferme");
+}
+function ccTermDemande(winId, texte){
+  const w = document.getElementById(winId); if(!w) return;
   const champ = w.querySelector(".cct-in");
-  const joints = ccJointsTexte("win-claude-code");
+  const joints = ccJointsTexte(winId);
   const q = (texte !== undefined ? texte : champ.value).trim();
-  if((!q && !joints) || ccTermOccupe) return;
+  if((!q && !joints) || CCT_OCCUPE[winId]) return;
+  if(!cctSessionActive(winId)) cctCreeSession(winId);   // filet, ne devrait pas arriver
   champ.value = "";
-  ccTermEcrit(zone, `<span class="cct-fl">&gt;</span> ${esc((q + joints).trim())}`, "cct-moi");
-  ccVideJoints("win-claude-code");
-  ccTermOccupe = true;
+  ccTermEcrit(winId, `<span class="cct-fl">&gt;</span> ${esc((q + joints).trim())}`, "cct-moi");
+  cctMajAccueil(winId);   // premier message : l'accueil centré redescend en bas
+  ccVideJoints(winId);
+  CCT_OCCUPE[winId] = true;
+  w.querySelector(".cct-avatar")?.classList.add("cct-avatar-actif");
 
   //  Les étapes d'outil, comme le vrai Claude Code les annonce. Elles ne
   //  font rien : elles disent d'où vient la réponse — la documentation de
   //  LexOS, pas un modèle.
   const e = ccCherche(q);
+  //  MODE RÉFLEXION, demandé par Alex : « au lieu de juste attendre ». Avant
+  //  de dire QUEL outil il ouvre, le vrai Claude Code réfléchit d'abord —
+  //  un temps mort silencieux ici aurait l'air cassé, pas pensif. Les trois
+  //  points animés (.cct-pts) portent tout le poids visuel : pas de faux
+  //  compteur de jetons ni de temps chronométré, ce serait des chiffres
+  //  inventés pour une démo qui ne pense pour de vrai.
+  //  L'OUTIL, ENSUITE : une icône à SA GAUCHE (🔍), avant l'avatar de
+  //  Claude — Alex voulait voir « sur quel outil il se connecte » d'un
+  //  coup d'oeil, distinct du rond de l'avatar qui, lui, dit juste que
+  //  c'est Claude qui parle.
   const etapes = [
-    `<span class="cct-sp">${claudeGlyph(13)}</span> <i>Recherche dans la documentation LexOS…</i>`,
+    `<span class="cct-sp">${claudeGlyph(13)}</span> <i>Réflexion<span class="cct-pts"><i></i><i></i><i></i></span></i>`,
+    `<span class="cct-outil-ic" title="Recherche">🔍</span><span class="cct-sp">${claudeGlyph(13)}</span> <i>Recherche dans la documentation LexOS…</i>`,
     `<span class="cct-ok">⏺</span> <b>Read</b> <span class="cct-dim">docs/lexos — ${
        e ? "1 correspondance" : "aucune correspondance"}</span>`,
   ];
   let k = 0;
   const suite = ()=>{
-    if(k < etapes.length){ ccTermEcrit(zone, etapes[k++], "cct-outil"); setTimeout(suite, 380); return; }
-    ccTermEcrit(zone,
+    if(k < etapes.length){ ccTermEcrit(winId, etapes[k++], "cct-outil"); setTimeout(suite, 380); return; }
+    const d = ccTermEcrit(winId,
       `<span class="cct-sp">${claudeGlyph(13)}</span> <div class="cct-rep">${
         e ? e.r : `Ce n'est pas dans la documentation de LexOS. Je réponds sur :
         installation, saveurs, jeux Windows, carte NVIDIA, commandes, bureaux
         virtuels, capture d'écran, fond d'écran, téléphone, construction de
         l'ISO, vie privée, configuration requise.`}</div>`, "cct-lui");
-    ccTermOccupe = false;
+    //  L'écriture coule : mot à mot, sur le NOEUD VIVANT seulement —
+    //  l'historique de session a reçu le HTML nu juste au-dessus.
+    if(d) cctAnime(d.querySelector(".cct-rep"));
+    CCT_OCCUPE[winId] = false;
+    w.querySelector(".cct-avatar")?.classList.remove("cct-avatar-actif");
     champ.focus();
   };
   setTimeout(suite, 260);
 }
 function openClaudeCode(nouvelle){
   const id = nouvelle ? "claude-code#"+(++winSeq) : "claude-code";
-  const el = openWin(id,"Claude Code",claudeGlyph(17),
-   `<div class="cct">
-      <div class="cct-tete">
-        <span>${claudeGlyph(16)}</span>
-        <b>Claude Code</b>
-        <span class="cct-chemin">~/lexos</span>
-        <span class="cc-badge">démo</span>
+  const winId = "win-" + id;
+  const el = openWin(id,"Claude Terminal",claudeGlyph(17),
+   `<div class="cct cct-avec-cote">
+      ${state.cctConnecte ? "" : cctPorteHTML(winId)}
+      <div class="cct-cote">
+        <button class="cl-neuf cct-neuf" onclick="cctNouvelleSession('${winId}')">+ Nouvelle session</button>
+        <div class="cl-recents">Sessions</div>
+        <div class="cct-liste"></div>
       </div>
-      <div class="cct-log"></div>
-      <div class="cct-sugg">${CC_SUGGESTIONS.slice(0,4).map(s=>
-         `<button onclick="ccTermDemande(this.textContent)">${esc(s)}</button>`).join("")}</div>
-      <div class="cc-joints" style="display:none"></div>
-      <div class="cct-saisie">
-        <label class="cc-plus" title="Ajouter une image ou un fichier">+
-          <input type="file" multiple accept="image/*,.txt,.md,.pdf,.log,.conf,.sh"
-                 hidden onchange="ccChoisirFichier('win-claude-code',this)"></label>
-        <span class="cct-fl">&gt;</span>
-        <input class="cct-in" type="text" autocomplete="off" spellcheck="false"
-               placeholder="Demande quelque chose…"
-               onkeydown="if(event.key==='Enter'){event.preventDefault();ccTermDemande()}">
+      <div class="cct-corps">
+        <div class="cct-tete">
+          <button class="cct-cote-tog" onclick="cctCoteBascule('${winId}')"
+                  title="Afficher ou masquer les sessions" aria-label="Sessions">☰</button>
+          <span>${claudeGlyph(16)}</span>
+          <b>Claude Terminal</b>
+          <span class="cct-chemin">~/lexos</span>
+          <span class="cc-badge">démo</span>
+          <button class="cct-cote-tog cct-theme-btn" onclick="cctThemeSuivant()"
+                  title="Changer le thème du Claude Terminal" aria-label="Thème">🎨</button>
+        </div>
+        <div class="cct-log"></div>
+        <div class="cct-sugg">${CC_SUGGESTIONS.slice(0,6).map(s=>
+           `<button onclick="ccTermDemande('${winId}',this.textContent)">${esc(s)}</button>`).join("")}</div>
+        <div class="cc-joints" style="display:none"></div>
+        <div class="cct-saisie">
+          <label class="cc-plus" title="Ajouter une image ou un fichier">+
+            <input type="file" multiple accept="image/*,.txt,.md,.pdf,.log,.conf,.sh"
+                   hidden onchange="ccChoisirFichier('${winId}',this)"></label>
+          <span class="cct-fl">&gt;</span>
+          <input class="cct-in" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="Demande quelque chose…"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();ccTermDemande('${winId}')}">
+          <span class="cct-avatar" title="Claude Code" aria-hidden="true">${claudeGlyph(16)}<span class="cct-ecran"><i></i><i></i><i></i></span></span>
+        </div>
+        <div class="cct-pied">
+          <span class="cct-bonhomme">${claudeGlyph(14)}</span>
+          <span>Claude Opus 5</span>
+          <span class="cct-sep">·</span>
+          <span>~/lexos</span>
+          <span class="cct-sep">·</span>
+          <span class="cct-maj">à jour</span>
+        </div>
       </div>
-      <div class="cct-pied">
-        <span class="cct-bonhomme">${claudeGlyph(14)}</span>
-        <span>Claude Opus 5</span>
-        <span class="cct-sep">·</span>
-        <span>~/lexos</span>
-        <span class="cct-sep">·</span>
-        <span class="cct-maj">à jour</span>
-      </div>
-    </div>`, 680, 520);
-  const zone = el.querySelector(".cct-log");
-  ccTermEcrit(zone,
-    `<span class="cct-sp">${claudeGlyph(13)}</span> <b>Claude Code</b>
-     <span class="cct-dim">— assistant de programmation, dans le terminal</span>`);
-  ccTermEcrit(zone,
-    `<span class="cct-dim">Répond à partir de la documentation de LexOS.
-     <b>Aucune IA n'est jointe</b> : cette page est publiée avec une politique
-     qui bloque le réseau. Sur la vraie LexOS, <b>lexos claude</b> lance le
-     vrai Claude Code.</span>`, "cct-note");
-  const champ = el.querySelector(".cct-in");
-  if(champ) setTimeout(()=>champ.focus(), 60);
+    </div>`, 860, 540);
+  //  « opening » ne s'y trouve QUE sur une fenêtre vraiment neuve — openWin
+  //  se contente de focaliser et de renvoyer l'existante si elle l'était déjà
+  //  (voir openWin). Sans ce garde, recliquer l'icône du dock alors que la
+  //  fenêtre est déjà ouverte aurait empilé une session neuve à chaque clic.
+  if(el.classList.contains("opening")){
+    cctCreeSession(winId);
+    cctAccueilSession(winId);
+    cctRendListe(winId);
+    cctAppliqueTheme();          // une fenêtre neuve prend le thème en cours
+    const champ = el.querySelector(".cct-in");
+    if(champ) setTimeout(()=>champ.focus(), 60);
+  }
   return el;
 }
 
@@ -10187,7 +10969,7 @@ const DOCK = [
   [terminalGlyph(24),"Terminal",openTerminal],
   [filesAppGlyph(24),"Fichiers",openFiles], [noteGlyph(25),"Note perso",openEditor],
   [claudeGlyph(26),"Claude",openClaude],
-  [claudeGlyph(26),"Claude Code",openClaudeCode],
+  [claudeGlyph(26),"Claude Terminal",openClaudeCode],
   ['<i class="gly gly-share"></i>',"Partager",openShare], [cameraGlyph(24),"Capture d'écran",openCapture],
   [studioGlyph(24),"Studio+ LexOS",openStudio],
   ["📦","Logithèque",openLogitheque],
@@ -10229,7 +11011,7 @@ function majFondsDock(){
 const DOCK_APP = {
   "Navigateur":"web", "Google Chrome":"chrome", "Terminal":"term",
   "Fichiers":"files", "Note perso":"edit",
-  "Claude":"web", "Claude Code":"claude-code", "Partager":"share",
+  "Claude":"web", "Claude Terminal":"claude-code", "Partager":"share",
   "Capture d'écran":"capture", "Studio+ LexOS":"studio", "Logithèque":"logitheque",
   "Paramètres":"set", "Installer LexOS":"inst", "À propos":"about"};
 //  Applications qui acceptent plusieurs fenêtres à la fois (contenu autonome,
@@ -10243,6 +11025,9 @@ DOCK.forEach(([ic,label,fn])=>{
     ? `<span class="applogo"></span><span class="tip">${label}</span>`
     : `${ic}<span class="tip">${label}</span>`;
   const appKey = DOCK_APP[label];
+  //  Retenu sur le bouton lui-même : majDock() en a besoin plus tard pour
+  //  savoir quelle appli chaque icône représente, sans redevoir DOCK_APP.
+  b.dataset.app = appKey || "";
   b.onclick = ()=> dockActivate(appKey, fn);
   //  Clic du milieu (molette) : ouvre une NOUVELLE fenêtre, pour les applis
   //  qui le permettent — comme sur un vrai bureau.
@@ -10268,6 +11053,22 @@ let winSeq = 0;
 function winsOfApp(appKey){
   return [...winsRoot.querySelectorAll(".win")]
     .filter(w=>w.dataset.app===appKey && !w.classList.contains("closing"));
+}
+//  LE POINT SOUS L'ICÔNE DU DOCK — « visible où les applications vont être
+//  ouvertes », comme demandé. winsOfApp() compte aussi les fenêtres
+//  RÉDUITES (rien dans son filtre n'exclut .minimized, à dessein) : le
+//  point reste allumé tant que l'appli a au moins une fenêtre ouverte,
+//  réduite ou non — sinon réduire aurait l'air d'avoir fermé.
+//  Appelée après chaque ouverture/fermeture/réduction/restauration
+//  (openWin, closeWin, minimizeWin, focusWin, bureauApplique) : elle
+//  n'est déclarée qu'ICI, mais chacun de ces points d'appel se protège
+//  déjà avec « typeof majDock === "function" », posé avant même que cette
+//  fonction existe — elle n'avait simplement jamais été écrite.
+function majDock(){
+  document.querySelectorAll("#dock .dicon").forEach(b=>{
+    const appKey = b.dataset.app;
+    b.classList.toggle("dock-actif", !!appKey && winsOfApp(appKey).length > 0);
+  });
 }
 function dockActivate(appKey, opener){
   if(!appKey) return opener();
@@ -10379,7 +11180,7 @@ const APPS = [
     label==="Google Chrome" ? {ic:chromeGlyph(40), label, fn} :
     label==="Paramètres" ? {ic:reglagesGlyph(40), label, fn} :
     label==="Note perso" ? {ic:noteGlyph(40), label, fn} :
-    (label==="Claude"||label==="Claude Code") ? {ic:claudeGlyph(40), label, fn} : {ic,label,fn}),
+    (label==="Claude"||label==="Claude Terminal") ? {ic:claudeGlyph(40), label, fn} : {ic,label,fn}),
   {ic:zipGlyph(42), label:"Archives ZIP", fn:openFiles},
   {ic:musiqueGlobe(38), label:"Musique", fn:openMusique},
   {ic:'<span style="font-size:38px">💿</span>', label:"lexOS_musique", fn:openLexosMusique},
@@ -10415,6 +11216,46 @@ const appsView=document.getElementById("appsview");
 const appGrid=document.getElementById("appgrid");
 const appSearch=document.getElementById("appSearch");
 
+/*  ═══ LES DOSSIERS — la page d'Ubuntu 26.04, photo d'Alex ═══
+    Les réglages un-par-un (14 tuiles openSettings) et les petits outils
+    noyaient la grille : regroupés en deux dossiers, comme « Système » et
+    « Utilitaires » sur sa photo. Les MEMBRES SONT NOMMÉS PAR LEUR LABEL,
+    et appDossierDe() les retrouve dans APPS — pas un deuxième tableau
+    d'applications qui pourrait diverger du premier. Les applications
+    principales (Fichiers, Claude Terminal, Paramètres…) restent au premier
+    niveau, comme chez GNOME. La RECHERCHE ignore les dossiers et fouille
+    tout à plat — c'est le comportement d'Ubuntu, et c'est le bon : on
+    cherche une application, pas le dossier où elle range. */
+const APP_DOSSIERS = [
+  {nom:"Système", labels:["Wi-Fi","Bluetooth","Écrans","Son","Énergie","Apparence",
+    "Souris et pavé tactile","Gestion des couleurs","Imprimantes","Région et langue",
+    "Clavier","Confidentialité","Mises à jour","Utilisateurs"]},
+  {nom:"Utilitaires", labels:["Cadrer une zone","Vide mémoire +","Terminal de l'appareil",
+    "Formater un support","Archives ZIP","Appareils USB"]},
+];
+const APP_DANS_DOSSIER = new Set(APP_DOSSIERS.flatMap(d=>d.labels));
+
+function appDossierApps(d){
+  //  L'ordre du dossier suit APPS, la seule source : un label sans
+  //  correspondance (renommage un jour) disparaît au lieu de planter.
+  return APPS.filter(a=>d.labels.includes(a.label));
+}
+function appDossierOuvre(n){
+  const d = APP_DOSSIERS[n]; if(!d) return;
+  const panneau = document.getElementById("appFolder");
+  panneau.querySelector(".af-nom").textContent = d.nom;
+  panneau.querySelector(".af-grille").innerHTML =
+    appDossierApps(d).map(a=>appTuileHTML(a)).join("");
+  brancheTuiles(panneau.querySelector(".af-grille"));
+  panneau.classList.add("on");
+}
+function appDossierFerme(){
+  document.getElementById("appFolder").classList.remove("on");
+}
+function appDossierEstOuvert(){
+  return document.getElementById("appFolder").classList.contains("on");
+}
+
 /*  La grille se feuillette à l'horizontale, comme celle d'Ubuntu : des
     pages côte à côte, la molette pour passer de l'une à l'autre, et des
     pastilles dessous qui disent où on en est. Avant, tout défilait
@@ -10446,21 +11287,44 @@ function majDotsApps(){
        aria-label="Page ${i+1} sur ${total}"></button>`).join("");
 }
 
+function appTuileHTML(a){
+  return `<button class="app" data-i="${APPS.indexOf(a)}" oncontextmenu="ctxApp(event,${APPS.indexOf(a)})">`+
+    `<span class="ai">${a.ic}</span><span class="an">${a.label}</span></button>`;
+}
+//  La tuile d'un dossier : une mini-grille 2×2 des quatre premières icônes
+//  du contenu — le dessin qui dit « dossier » sur la photo d'Ubuntu.
+function appDossierTuileHTML(d, n){
+  const minis = appDossierApps(d).slice(0,4)
+    .map(a=>`<span class="mini">${a.ic}</span>`).join("");
+  return `<button class="app dossier" onclick="appDossierOuvre(${n})">`+
+    `<span class="ai">${minis}</span><span class="an">${esc(d.nom)}</span></button>`;
+}
 function renderApps(filter){
   const q=(filter||"").trim().toLowerCase();
-  const list=q ? APPS.filter(a=>a.label.toLowerCase().includes(q)) : APPS;
-  if(!list.length){ appGrid.innerHTML=`<div class="empty">Aucune application ne correspond à « ${esc(q)} ».</div>`;
+  //  Sans recherche : le premier niveau (hors membres de dossiers) PUIS les
+  //  tuiles-dossiers, à la fin — la place qu'elles ont sur la photo. En
+  //  recherche : TOUT à plat, dossiers ignorés (comportement d'Ubuntu).
+  const list=q ? APPS.filter(a=>a.label.toLowerCase().includes(q))
+               : APPS.filter(a=>!APP_DANS_DOSSIER.has(a.label));
+  if(q && !list.length){ appGrid.innerHTML=`<div class="empty">Aucune application ne correspond à « ${esc(q)} ».</div>`;
     appPage=0; majDotsApps(); return; }
-  const tuile = a =>
-    `<button class="app" data-i="${APPS.indexOf(a)}" oncontextmenu="ctxApp(event,${APPS.indexOf(a)})">`+
-    `<span class="ai">${a.ic}</span><span class="an">${a.label}</span></button>`;
+  const tuiles = list.map(a=>appTuileHTML(a));
+  if(!q) APP_DOSSIERS.forEach((d,n)=>tuiles.push(appDossierTuileHTML(d,n)));
   const pages = [];
-  for(let i=0; i<list.length; i += APPS_PAR_PAGE) pages.push(list.slice(i, i+APPS_PAR_PAGE));
-  appGrid.innerHTML = pages.map(p=>`<div class="ap-page">${p.map(tuile).join("")}</div>`).join("");
+  for(let i=0; i<tuiles.length; i += APPS_PAR_PAGE) pages.push(tuiles.slice(i, i+APPS_PAR_PAGE));
+  appGrid.innerHTML = pages.map(p=>`<div class="ap-page">${p.join("")}</div>`).join("");
   appPage = 0;
   appGrid.scrollLeft = 0;
   majDotsApps();
-  appGrid.querySelectorAll(".app").forEach(b=>{
+  brancheTuiles(appGrid);
+}
+//  Le branchement (ouvrir au clic, glisser vers le bureau) vaut pour la
+//  grille ET pour le panneau d'un dossier ouvert : une seule fonction, sinon
+//  les deux finissent par ne plus faire pareil. Les tuiles-dossiers gardent
+//  leur onclick inline — pas de data-i, rien à brancher ici.
+function brancheTuiles(racine){
+  racine.querySelectorAll(".app").forEach(b=>{
+    if(b.classList.contains("dossier")) return;
     b.onclick=()=>{
       const app=APPS[+b.dataset.i]; closeApps(); app.fn();
     };
@@ -10538,6 +11402,7 @@ addEventListener("resize", ()=>appVaPage(appPage, false));
     quand on glisse à deux doigts sur le côté. */
 let appMoletteBloc = 0;
 appsView.addEventListener("wheel", e=>{
+  if(appDossierEstOuvert()) return;   // la molette fait défiler le dossier, pas les pages
   if(appPagesTotal() < 2) return;
   e.preventDefault();
   const t = Date.now();
@@ -10551,7 +11416,7 @@ appsView.addEventListener("wheel", e=>{
 //  Les flèches ← → aussi, quand on n'est pas en train d'écrire dans la
 //  recherche : là, elles doivent déplacer le curseur dans le texte.
 addEventListener("keydown", e=>{
-  if(!appsView.classList.contains("on")) return;
+  if(!appsView.classList.contains("on") || appDossierEstOuvert()) return;
   if(document.activeElement === appSearch && appSearch.value) return;
   if(e.key === "ArrowRight"){ e.preventDefault(); appVaPage(appPage + 1); }
   if(e.key === "ArrowLeft"){  e.preventDefault(); appVaPage(appPage - 1); }
@@ -10562,7 +11427,7 @@ function openApps(){
   appSearch.value=""; renderApps("");
   requestAnimationFrame(()=>appSearch.focus());
 }
-function closeApps(){ appsView.classList.remove("on"); }
+function closeApps(){ appDossierFerme(); appsView.classList.remove("on"); }
 function toggleApps(){ appsView.classList.contains("on") ? closeApps() : openApps(); }
 
 /* --- Icônes de bureau : épinglées depuis la grille Applications ---------
@@ -10631,7 +11496,9 @@ document.getElementById("desktop").addEventListener("click", e=>{
 
 appSearch.addEventListener("input",()=>renderApps(appSearch.value));
 appSearch.addEventListener("keydown",e=>{
-  if(e.key==="Escape"){ closeApps(); return; }
+  //  Échap referme UNE couche à la fois : le dossier ouvert d'abord, la vue
+  //  ensuite — comme GNOME, et comme partout ailleurs dans la démo.
+  if(e.key==="Escape"){ appDossierEstOuvert() ? appDossierFerme() : closeApps(); return; }
   if(e.key==="Enter"){
     const first=appGrid.querySelector(".app");
     if(first) first.click();
@@ -10657,7 +11524,9 @@ addEventListener("mousedown", e=>{
   toggleApps();
 });
 document.addEventListener("keydown",e=>{
-  if(e.key==="Escape" && appsView.classList.contains("on")) closeApps();
+  if(e.key==="Escape" && appsView.classList.contains("on")){
+    appDossierEstOuvert() ? appDossierFerme() : closeApps();
+  }
   //  Mêmes touches que sur la vraie ISO (xfce4-keyboard-shortcuts.xml), pour
   //  que l'infobulle de l'accès rapide ne promette rien qu'elle ne tienne.
   //  Impr écr n'atteint pas toujours la page — le navigateur ou le système

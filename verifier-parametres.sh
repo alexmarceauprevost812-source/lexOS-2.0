@@ -127,13 +127,22 @@ titre "1. Les outils lexos-* et leurs branchements"
 #   lexos-heure/-peripheriques : tuiles genmon de la barre (le panneau les lance)
 #   lexos-volet                : lancé par les tuiles
 #   lexos-wm                   : rouage des raccourcis fenêtre
+#   lexos-app-settings          : rouage du raccourci Super+, — les réglages
+#                                de la fenêtre active, jamais une section des
+#                                Paramètres (c'est justement ce qu'elle n'est
+#                                pas censée être)
 #   lexos-theme-gen            : rouage de « lexos theme »
 #   lexos-settings             : la fenêtre des Paramètres ELLE-MÊME (une
 #                                « section Paramètres » n'aurait pas de sens ;
 #                                elle a sa branche « parametres » et son dock)
 #   lexos-boost-panneau        : amorce du greffon de barre de Boost
+#   lexos-claude-installation  : autostart de session, même mécanisme que
+#                                lexos-firstrun — rattrape la version de
+#                                Claude Code, ne se tape pas
 SANS_SECTION="
 lexos-apercu
+lexos-app-settings
+lexos-claude-installation
 lexos-firstrun
 lexos-welcome
 lexos-net-autoconnect
@@ -166,6 +175,7 @@ lexos-assistants
 lexos-cartes
 lexos-chrome
 lexos-claude
+lexos-claude-terminal
 lexos-dev
 lexos-dualboot
 lexos-game

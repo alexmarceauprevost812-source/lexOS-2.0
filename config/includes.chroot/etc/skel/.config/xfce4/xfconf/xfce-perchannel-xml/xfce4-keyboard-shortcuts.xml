@@ -56,6 +56,17 @@
       <property name="&lt;Super&gt;s"       type="string" value="xfce4-appfinder"/>
       <property name="&lt;Super&gt;l"       type="string" value="lexos logitheque"/>
 
+      <!-- LES RÉGLAGES DE LA FENÊTRE ACTIVE — PAS CEUX DE L'ORDINATEUR.
+           Un thème de barre de titre ne sait lancer AUCUNE commande à nous
+           au clic (xfwm4 et Compiz n'ont que des actions fixes : fermer,
+           réduire, agrandir, le menu système) — la pastille verte ne peut
+           donc pas appeler ceci directement. Le raccourci est la seule
+           porte réelle : lexos-app-settings lit la fenêtre au premier plan
+           (xdotool, EWMH — marche pareil sous les deux gestionnaires) et
+           ouvre SES préférences à elle (Firefox, Thunar, le terminal…),
+           avec un repli sur les Paramètres LexOS pour tout le reste. -->
+      <property name="&lt;Super&gt;comma"  type="string" value="lexos reglages-fenetre"/>
+
       <!-- LA VUE D'ENSEMBLE. Deux entrées pour une seule chose :
            · F13 n'existe sur aucun clavier — c'est exprès. xcape l'émet
              quand on relâche Super SANS avoir rien tapé d'autre, ce qui

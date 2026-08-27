@@ -40,7 +40,7 @@ Usage :
   $PROG app              Ouvre l'application Claude (claude.ai) en fenêtre
   $PROG setup            Installe Claude Code
   $PROG update           Met Claude Code à jour
-  $PROG modele           Montre et choisit le modèle (Opus 5, Sonnet 5, Haiku 4.5)
+  $PROG modele           Montre et choisit le modèle (Opus 5, Opus 4.8, Sonnet 5, Haiku 4.5)
   $PROG modele <nom>     Fixe le modèle : opus, sonnet, haiku, ou un identifiant
   $PROG modele defaut    Efface le choix, Claude Code reprend son défaut
   $PROG "<demande>"      Lance Claude Code sur une demande précise
@@ -75,8 +75,9 @@ CONF_MODELE="$CONF_DIR/claude-modele"
 
 #  identifiant|nom|contexte|entrée/sortie par million|à quoi ça sert
 MODELES=(
-	"claude-opus-5|Opus 5|1M|5 \$ / 25 \$|le défaut de Claude Code, et le plus capable des trois"
-	"claude-sonnet-5|Sonnet 5|1M|3 \$ / 15 \$|nettement moins cher, largement de quoi coder au quotidien"
+	"claude-opus-5|Opus 5|1M|5 \$ / 25 \$|le défaut de Claude Code, et le plus capable des quatre"
+	"claude-opus-4-8|Opus 4.8|1M|5 \$ / 25 \$|l'Opus précédent — un modèle précis plutôt que « le plus récent »"
+	"claude-sonnet-5|Sonnet 5|1M|2 \$ / 10 \$|nettement moins cher, largement de quoi coder au quotidien"
 	"claude-haiku-4-5|Haiku 4.5|200K|1 \$ / 5 \$|le plus rapide et le moins cher, pour les tâches simples"
 )
 

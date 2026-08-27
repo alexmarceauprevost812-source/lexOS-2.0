@@ -92,14 +92,48 @@ trouver_windows() {
 		| sort -rn | head -1 | awk '{print $2}'
 }
 
+#  UN WINDOWS CHIFFRÉ N'EST PAS UN DISQUE VIDE. BitLocker ne présente pas
+#  « ntfs » à lsblk (via blkid) mais « BitLocker » : trouver_windows() ne
+#  trouvait donc rien, et le message qui suivait disait « soit ce disque n'a
+#  pas Windows » — sur un disque qui EN a un, simplement verrouillé. Sur une
+#  machine chiffrée, c'était une invitation à installer « à côté » en
+#  croyant qu'il n'y avait rien à côté de quoi installer, alors que
+#  l'installateur aurait proposé d'utiliser le disque entier.
+trouver_windows_chiffre() {
+	lsblk -brno NAME,FSTYPE,SIZE 2>/dev/null \
+		| awk 'tolower($2) ~ /bitlocker/ && $3+0 > 20000000000 {print $3, $1}' \
+		| sort -rn | head -1 | awk '{print $2}'
+}
+
 # --- Le disque et la partition ----------------------------------------------
 WIN_PART="$(trouver_windows)"
 
 titre "WINDOWS"
 if [ -z "$WIN_PART" ]; then
-	attn "aucune partition Windows (NTFS) de plus de 20 Go trouvée"
-	info "Soit ce disque n'a pas Windows, soit il n'est pas branché."
-	info "Dans ce cas l'installateur proposera d'utiliser tout le disque."
+	WIN_CHIFFRE="$(trouver_windows_chiffre)"
+	if [ -n "$WIN_CHIFFRE" ]; then
+		#  ON NE S'ARRÊTE PAS ICI. Cet outil ne fait jamais que lire et ne
+		#  s'interrompt jamais en cours de route — même sans Windows trouvé
+		#  du tout, il continue jusqu'au bilan de démarrage (UEFI, GRUB,
+		#  os-prober), qui reste vrai et utile quel que soit l'état de
+		#  Windows. WIN_DEV reste vide à dessein : personne ne peut réduire
+		#  une partition chiffrée, il n'y a donc rien à céder côté place.
+		non "Windows est là, sur /dev/${WIN_CHIFFRE}, mais il est CHIFFRÉ (BitLocker)"
+		printf '\n'
+		printf '  Personne — ni LexOS, ni Calamares, ni GParted — ne peut réduire\n'
+		printf '  une partition chiffrée. Il faut d'\''abord la déchiffrer.\n\n'
+		printf '  %sÀ faire dans Windows, une seule fois :%s\n' "$B" "$R"
+		printf '    1. Paramètres → Confidentialité et sécurité → Chiffrement de l'\''appareil\n'
+		printf '    2. Désactiver le chiffrement (compter plusieurs heures)\n'
+		printf '    3. Décocher aussi le démarrage rapide, puis Arrêter\n\n'
+		info "NOTE ta clé de récupération avant de toucher à quoi que ce soit."
+		info "Tant que ce n'est pas fait, l'installateur ne verra ici qu'un disque"
+		info "sans Windows — et pourrait proposer d'utiliser le disque ENTIER."
+	else
+		attn "aucune partition Windows (NTFS) de plus de 20 Go trouvée"
+		info "Soit ce disque n'a pas Windows, soit il n'est pas branché."
+		info "Dans ce cas l'installateur proposera d'utiliser tout le disque."
+	fi
 	WIN_DEV=""
 else
 	WIN_DEV="/dev/${WIN_PART}"

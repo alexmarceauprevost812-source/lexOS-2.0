@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Claude Code — mise à jour
+Comment=Rattrape la dernière version de Claude Code une fois le vrai réseau disponible
+Exec=lexos-claude-installation
+Icon=lexos-claude
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Phase=Applications

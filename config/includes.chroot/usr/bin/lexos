@@ -125,6 +125,10 @@ ${B}ÉNERGIE${R}
   ${A}materiel${R}            Ce qu'il y a DANS la machine ${D}(aussi : machine)${R}
   ${A}materiel memoire${R}    ${B}« Puis-je ajouter de la RAM ? »${R} — fentes libres, type à acheter
   ${A}parametres${R}          Ouvre la fenêtre des Paramètres ${D}(aussi : reglages)${R}
+  ${A}reglages-fenetre${R}     Les VRAIS réglages de la fenêtre active ${D}(Super+, — aussi : app-settings)
+                      Firefox -> ses préférences, Thunar -> les siennes, le
+                      terminal -> les siennes ; sans réglages connus, repli
+                      sur les Paramètres LexOS.${R}
   ${A}temperature surveille${R} Garde les maximums — à lancer AVANT une partie
   ${A}firmware${R}            BIOS et micrologiciels : ce qui est à jour
   ${A}firmware maj${R}        Met à jour le BIOS système, les SSD…
@@ -307,6 +311,7 @@ ${B}IA${R}
   ${A}ia-locale${R}            La fenêtre : quelle carte, quel backend, quels modèles
                       ${D}et POURQUOI c'est lent quand c'est lent${R}
   ${A}claude${R}               Claude Code : l'assistant de programmation d'Anthropic
+  ${A}claude-terminal${R}      Le terminal de Claude — sa fenêtre à lui, direct dans Claude Code
   ${A}claude app${R}           L'application Claude (claude.ai) en fenêtre dédiée
   ${A}assistants${R}          Les six assistants IA en ligne ${D}(Claude, ChatGPT, Gemini…)${R}
   ${A}assistants${R} <nom>    En ouvrir un ${D}(ex. : assistants perplexity)${R}
@@ -1090,9 +1095,11 @@ case "$CMD" in
 	medecin|médecin|diagnostic|doc) exec lexos-medecin "$@" ;;
 	materiel|matériel|machine|hardware) exec lexos-materiel "$@" ;;
 	parametres|paramètres|reglages|réglages|settings) exec lexos-settings "$@" ;;
+	reglages-fenetre|réglages-fenêtre|app-settings|window-settings) exec lexos-app-settings ;;
 	ia-locale|ialocale)   exec lexos-ia-locale "$@" ;;
 	assistants|assistant) exec lexos-assistants "$@" ;;
 	claude|cc)            exec lexos-claude "$@" ;;
+	claude-terminal|terminal-claude) exec lexos-claude-terminal ;;
 	dev|devs|developpement|développement) exec lexos-dev "$@" ;;
 	firmware|bios|micrologiciel) exec lexos-firmware "$@" ;;
 	meteo|météo|weather|temps) exec lexos-meteo "$@" ;;

@@ -216,18 +216,46 @@ def remonte_xfdesktop(executeur=subprocess.run, cherche=shutil.which):
     (lexos-theme-gen en déclenche un quand l'accent change, pour repeindre
     les dossiers) le refait apparaître, et l'ordre est de nouveau à refaire.
     D'où l'appel au démarrage ET la minuterie qui le répète.
+
+    « --class » ATTENDAIT « xfdesktop » — UN PREMIER CORRECTIF, INSUFFISANT.
+    xdotool a DEUX filtres différents : « --classname » lit le PREMIER champ
+    de WM_CLASS (l'instance), « --class » lit le SECOND (la classe). Le repli
+    wmctrl s'écrit « xfdesktop.Xfdesktop » — ce qui suggère instance en
+    minuscule, classe capitalisée — donc un premier correctif est passé de
+    « --class xfdesktop » à « --classname xfdesktop ». PHOTO SUIVANTE : le
+    bogue tenait encore. Cette session n'a jamais eu de vrai serveur X pour
+    vérifier lequel des deux champs (et laquelle des deux casses) xfdesktop
+    porte réellement sur la machine d'Alex — deviner une seconde fois la
+    même façon aurait autant de chances de retomber juste à côté.
+
+    LE CORRECTIF, CETTE FOIS : ne plus parier sur UN champ ni sur UNE casse.
+    « [Xx]fdesktop » est une expression régulière (xdotool cherche par
+    motif, pas par égalité) qui accepte les deux capitalisations, et la
+    fonction essaie --classname PUIS --class avant d'abandonner xdotool —
+    l'un des deux champs porte forcément la bonne valeur. Le code de sortie
+    de xdotool EST vérifié maintenant (0 = une fenêtre trouvée ET remontée,
+    autre chose = rien trouvé) : la commande précédente « réussissait »
+    toujours en apparence, code 0 y compris quand elle ne trouvait rien,
+    ce qui cachait l'échec au lieu de le laisser déclencher le prochain
+    essai.
     """
     if cherche("xdotool"):
-        args = ["xdotool", "search", "--class", "xfdesktop", "windowraise"]
-    elif cherche("wmctrl"):
-        args = ["wmctrl", "-x", "-a", "xfdesktop.Xfdesktop"]
-    else:
-        return False
-    try:
-        executeur(args, capture_output=True, timeout=2, check=False)
-        return True
-    except Exception:
-        return False
+        for args in (["xdotool", "search", "--classname", "[Xx]fdesktop", "windowraise"],
+                     ["xdotool", "search", "--class",     "[Xx]fdesktop", "windowraise"]):
+            try:
+                resultat = executeur(args, capture_output=True, timeout=2, check=False)
+                if getattr(resultat, "returncode", 1) == 0:
+                    return True
+            except Exception:
+                pass   # cet essai a échoué — le suivant (ou le repli wmctrl) prend le relais
+    if cherche("wmctrl"):
+        try:
+            executeur(["wmctrl", "-x", "-a", "xfdesktop.Xfdesktop"],
+                      capture_output=True, timeout=2, check=False)
+            return True
+        except Exception:
+            return False
+    return False
 
 
 def sur_batterie():

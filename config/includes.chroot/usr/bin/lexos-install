@@ -170,6 +170,11 @@ if ! command -v calamares >/dev/null 2>&1; then
 	exit 1
 fi
 
+#  Fuseau horaire : proposer le vrai (GPS puis IP), jamais l'imposer. Un
+#  échec ici (détecteur absent, GPS et réseau tous deux muets) ne bloque
+#  jamais l'installation — voir lexos-fuseau-confirmer.
+/usr/lib/lexos/lexos-fuseau-confirmer || true
+
 printf '%s»%s Lancement de l'\''installateur…\n' "$O" "$R"
 if [[ $EUID -ne 0 ]]; then
 	exec sudo -E calamares -d

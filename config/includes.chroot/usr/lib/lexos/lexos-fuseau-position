@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-fuseau-position — détecter le VRAI fuseau horaire de la machine
+# =============================================================================
+#  Trois sources, dans cet ordre, la première qui répond gagne :
+#
+#    1. GPS matériel — un port série qui parle NMEA (0183). Aucun réseau
+#       requis : les coordonnées viennent du satellite, la conversion en
+#       fuseau IANA se fait avec le fichier /usr/share/zoneinfo/zone1970.tab
+#       (fourni par tzdata, un paquet essentiel — jamais absent) en cherchant
+#       le point de référence le plus proche. C'est une APPROXIMATION : ce
+#       fichier donne un point par fuseau, pas la frontière exacte. Assez bon
+#       pour proposer une valeur à confirmer ; pas une vérité absolue.
+#    2. Géolocalisation IP — un service HTTP qui rend directement le nom du
+#       fuseau, pas des coordonnées : pas de second calcul à refaire.
+#    3. Repli — America/Toronto, l'ancien défaut fixe de LexOS.
+#
+#  Ce script ne DÉCIDE rien : il imprime ce qu'il a trouvé et laisse
+#  l'appelant (lexos-fuseau-confirmer) demander confirmation. Il ne touche
+#  jamais au système, ne demande jamais de mot de passe, et répond toujours
+#  — même quand tout échoue, il rend le repli.
+#
+#  Sortie (stdout), toujours ces deux lignes :
+#      SOURCE=gps|ip|repli
+#      FUSEAU=<nom de fuseau IANA>
+#
+#  Tout ce dont ce script dépend est injectable, pour le tester sans GPS,
+#  sans réseau et sans machine réelle (voir tests/test_lexos_fuseau_gps.sh) :
+#      LEXOS_GPS_DEV      chemin à lire au lieu de sonder /dev/tty*
+#      LEXOS_GPS_TIMEOUT  secondes d'attente d'une trame valide (déf. 5)
+#      LEXOS_ZONETAB      table de zones à interroger (déf. zone1970.tab)
+#      LEXOS_GEOIP_CMD    commande dont la sortie JSON contient "timezone"
+#      LEXOS_FALLBACK_TZ  fuseau de repli (déf. America/Toronto)
+# =============================================================================
+set -u
+
+FALLBACK="${LEXOS_FALLBACK_TZ:-America/Toronto}"
+TABLE="${LEXOS_ZONETAB:-}"
+if [ -z "$TABLE" ]; then
+	if [ -r /usr/share/zoneinfo/zone1970.tab ]; then
+		TABLE=/usr/share/zoneinfo/zone1970.tab
+	else
+		TABLE=/usr/share/zoneinfo/zone.tab
+	fi
+fi
+
+# --- NMEA (ddmm.mmmm / dddmm.mmmm) → degrés décimaux -------------------------
+nmea_vers_decimal() {
+	brut="$1"; hemi="$2"
+	[ -n "$brut" ] || return 1
+	awk -v brut="$brut" -v hemi="$hemi" 'BEGIN{
+		p = index(brut, ".")
+		if (p == 0) p = length(brut) + 1
+		deg = substr(brut, 1, p - 3)
+		min = substr(brut, p - 2)
+		if (deg == "" || min == "") exit 1
+		dec = deg + min / 60
+		if (hemi == "S" || hemi == "W") dec = -dec
+		printf "%.6f", dec
+		exit 0
+	}'
+}
+
+# --- Le fuseau dont le point de référence est le plus proche -----------------
+zone_la_plus_proche() {
+	lat="$1"; lon="$2"; table="$3"
+	[ -r "$table" ] || return 1
+	awk -v lat="$lat" -v lon="$lon" -F'\t' '
+		function versdecimal(partie, avecsec,    signe, corps, ndeg, deg, min, sec) {
+			signe = (substr(partie, 1, 1) == "-") ? -1 : 1
+			corps = substr(partie, 2)
+			if (avecsec) {
+				ndeg = length(corps) - 4
+				deg = substr(corps, 1, ndeg); min = substr(corps, ndeg + 1, 2); sec = substr(corps, ndeg + 3, 2)
+				return signe * (deg + min / 60 + sec / 3600)
+			}
+			ndeg = length(corps) - 2
+			deg = substr(corps, 1, ndeg); min = substr(corps, ndeg + 1, 2)
+			return signe * (deg + min / 60)
+		}
+		/^#/ { next }
+		NF < 3 { next }
+		{
+			n = length($2)
+			if (n == 11)      { latp = substr($2, 1, 5); lonp = substr($2, 6, 6); avecsec = 0 }
+			else if (n == 15) { latp = substr($2, 1, 7); lonp = substr($2, 8, 8); avecsec = 1 }
+			else next
+			zlat = versdecimal(latp, avecsec)
+			zlon = versdecimal(lonp, avecsec)
+			dlat = lat - zlat
+			dlon = (lon - zlon) * cos(zlat * 0.017453292519943295)
+			dist = dlat * dlat + dlon * dlon
+			if (meilleure == "" || dist < meilleure) { meilleure = dist; zone = $3 }
+		}
+		END { if (zone != "") print zone }
+	' "$table"
+}
+
+# --- Trouver un port GPS -------------------------------------------------------
+trouver_gps_dev() {
+	if [ -n "${LEXOS_GPS_DEV:-}" ]; then
+		printf '%s' "$LEXOS_GPS_DEV"
+		return 0
+	fi
+	for d in /dev/ttyACM0 /dev/ttyUSB0 /dev/gps0; do
+		[ -e "$d" ] && { printf '%s' "$d"; return 0; }
+	done
+	return 1
+}
+
+# --- Lire une trame NMEA valide (GGA à correction, ou RMC actif) -------------
+lire_gps() {
+	dev="$1"; delai="$2"
+	[ -e "$dev" ] || return 1
+	if [ -c "$dev" ]; then
+		stty -F "$dev" 4800 raw -echo 2>/dev/null || true
+	fi
+	contenu="$(timeout "$delai" cat "$dev" 2>/dev/null)"
+	[ -n "$contenu" ] || return 1
+	#  GGA : $GPGGA,heure,lat,N/S,lon,E/W,qualité,...       → champ7 = qualité
+	#  RMC : $GPRMC,heure,statut,lat,N/S,lon,E/W,...        → champ3 = statut
+	#  champ2 (l'heure) doit être nommé pour garder les positions suivantes.
+	# shellcheck disable=SC2034
+	while IFS=',' read -r champ1 champ2 champ3 champ4 champ5 champ6 champ7 _reste; do
+		case "$champ1" in
+			'$GPGGA'|'$GNGGA')
+				[ -n "${champ7:-}" ] && [ "$champ7" != "0" ] || continue
+				printf '%s %s %s %s\n' "$champ3" "$champ4" "$champ5" "$champ6"
+				return 0
+				;;
+			'$GPRMC'|'$GNRMC')
+				[ "${champ3:-}" = "A" ] || continue
+				printf '%s %s %s %s\n' "$champ4" "$champ5" "$champ6" "$champ7"
+				return 0
+				;;
+		esac
+	done <<<"$contenu"
+	return 1
+}
+
+detecter_via_gps() {
+	dev="$(trouver_gps_dev)" || return 1
+	brut="$(lire_gps "$dev" "${LEXOS_GPS_TIMEOUT:-5}")" || return 1
+	# shellcheck disable=SC2086
+	set -- $brut
+	[ "$#" -eq 4 ] || return 1
+	lat_dec="$(nmea_vers_decimal "$1" "$2")" || return 1
+	lon_dec="$(nmea_vers_decimal "$3" "$4")" || return 1
+	zone="$(zone_la_plus_proche "$lat_dec" "$lon_dec" "$TABLE")" || return 1
+	[ -n "$zone" ] && [ -e "/usr/share/zoneinfo/$zone" ] || return 1
+	printf '%s' "$zone"
+}
+
+# --- Géolocalisation IP : le service rend déjà le nom du fuseau --------------
+detecter_via_ip() {
+	cmd="${LEXOS_GEOIP_CMD:-curl -fsS --max-time 5 https://ipapi.co/json/}"
+	sortie="$(sh -c "$cmd" 2>/dev/null)" || return 1
+	zone="$(printf '%s' "$sortie" | sed -n 's/.*"timezone"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+	[ -n "$zone" ] && [ -e "/usr/share/zoneinfo/$zone" ] || return 1
+	printf '%s' "$zone"
+}
+
+# --- Déroulement --------------------------------------------------------------
+SOURCE=""
+FUSEAU=""
+
+if z="$(detecter_via_gps)"; then
+	SOURCE="gps"; FUSEAU="$z"
+elif z="$(detecter_via_ip)"; then
+	SOURCE="ip"; FUSEAU="$z"
+else
+	SOURCE="repli"; FUSEAU="$FALLBACK"
+fi
+
+printf 'SOURCE=%s\n' "$SOURCE"
+printf 'FUSEAU=%s\n' "$FUSEAU"

@@ -15,13 +15,19 @@ set -e
 
 echo "[lexos] hook 0250 : paquets optionnels"
 
-DIR="/usr/share/lexos/optional-packages"
-REPORT="/etc/lexos/optional-report"
+#  DIR/REPORT/CONF SONT SURCHARGEABLES — pas pour qu'on les change en
+#  production, mais pour que ce hook soit ÉPROUVABLE sur un banc (même
+#  raison que LEXOS_THEMES dans le hook 0610) : sans ça, le tester en vrai
+#  exige un vrai apt, un vrai /usr/share/lexos et le droit d'écrire dans
+#  /etc/lexos. Les valeurs par défaut sont les vraies.
+DIR="${LEXOS_OPTIONAL_DIR:-/usr/share/lexos/optional-packages}"
+REPORT="${LEXOS_OPTIONAL_REPORT:-/etc/lexos/optional-report}"
 FLAVOUR="standard"
 
-if [ -r /etc/lexos/build.conf ]; then
-	# shellcheck disable=SC1091
-	. /etc/lexos/build.conf
+CONF="${LEXOS_BUILD_CONF:-/etc/lexos/build.conf}"
+if [ -r "$CONF" ]; then
+	# shellcheck disable=SC1090,SC1091
+	. "$CONF"
 	FLAVOUR="${LEXOS_FLAVOUR:-standard}"
 fi
 
@@ -112,6 +118,53 @@ if [ "$FLAVOUR" != "minimal" ]; then
 	echo "[lexos]   bureau identique sur toutes les saveurs : ${TOTAL} paquets optionnels, $(set -- $LISTS; echo $#) listes"
 fi
 
+# --- LA FENÊTRE DU MICROLOGICIEL WI-FI, ÉCRITE NOIR SUR BLANC ---------------
+#  iwlwifi (Wi-Fi 7 Intel, dont le BE200 de l'Alienware ACT1250) n'accepte
+#  qu'un intervalle de versions d'API, et l'archive Debian livre ce qu'elle
+#  veut. Tant que les deux se croisent, le Wi-Fi marche ; le jour où ils ne se
+#  croisent plus, il disparaît sans un mot — le noyau écrira bien la raison
+#  dans son propre journal, mais rien ici ne la répète. On imprime les deux
+#  ensembles à CHAQUE construction : ça ne coûte rien, et ça transforme une
+#  panne muette en une ligne de journal qu'on peut relire après coup.
+#
+#  UNE FONCTION, APPELÉE DES DEUX CÔTÉS DE L'EMBRANCHEMENT QUI SUIT. La passe
+#  groupée réussie fait un « exit 0 » à elle — sans ça, ce rapport ne se
+#  serait vu QUE dans le chemin de reprise, c'est-à-dire quasiment jamais :
+#  la passe groupée est le cas normal, celui qui réussit le plus souvent.
+#
+#  VOLONTAIREMENT NON BLOQUANT. On ne sait pas encore, dans ce hook, si
+#  --firmware-chroot a déjà déposé ses fichiers à ce stade de la construction
+#  ou seulement après : tant que ce n'est pas confirmé sur une vraie ISO, une
+#  sortie « aucun fichier » pourrait être un faux négatif sur une image saine.
+#
+#  LE REPLI SE MESURE SUR UNE VARIABLE, PAS SUR LE CODE DE SORTIE DU PIPELINE.
+#  « ls … | sed … || echo repli » se serait rattaché au code de sortie de
+#  sed, qui réussit même sur une entrée vide (zéro ligne lue, zéro ligne
+#  transformée, sortie 0) : le repli ne se serait donc JAMAIS déclenché,
+#  fichiers présents ou pas — un contrôle qui ne peut pas échouer ne contrôle
+#  rien, la même famille de panne que le filtre de shebang du build 66.
+rapporter_iwlwifi() {
+	FW_DIR="${LEXOS_FIRMWARE_DIR:-/usr/lib/firmware}"
+	if [ -d "$FW_DIR" ]; then
+		FICHIERS_IWL="$(ls "$FW_DIR"/iwlwifi-gl-*.ucode 2>/dev/null || true)"
+		if [ -n "$FICHIERS_IWL" ]; then
+			echo "[lexos]   micrologiciels iwlwifi présents dans l'image :"
+			printf '%s\n' "$FICHIERS_IWL" | sed 's|.*/|[lexos]     |'
+		else
+			echo "[lexos]   !! AUCUN fichier iwlwifi-gl-* — pas de Wi-Fi 7 Intel"
+		fi
+	fi
+	if command -v modinfo >/dev/null 2>&1; then
+		VERSIONS_IWL="$(modinfo iwlwifi 2>/dev/null | grep -o 'iwlwifi-gl-[a-z0-9-]*\.ucode' | sort -u || true)"
+		if [ -n "$VERSIONS_IWL" ]; then
+			echo "[lexos]   versions réclamées par le pilote iwlwifi du noyau :"
+			printf '%s\n' "$VERSIONS_IWL" | sed 's|^|[lexos]     |'
+		else
+			echo "[lexos]   (modinfo muet — noyau pas encore en place ici)"
+		fi
+	fi
+}
+
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq || echo "[lexos]   !! apt-get update a échoué, on continue"
 
@@ -119,7 +172,7 @@ apt-get update -qq || echo "[lexos]   !! apt-get update a échoué, on continue"
 # shellcheck disable=SC2046
 if apt-get install -y --no-install-recommends $(tr '\n' ' ' < "$WANTED") >/dev/null 2>&1; then
 	echo "[lexos]   tous les paquets optionnels installés d'un bloc"
-	mkdir -p /etc/lexos
+	mkdir -p "$(dirname "$REPORT")"
 	{
 		echo "# Paquets optionnels — saveur ${FLAVOUR}"
 		[ -n "$LISTES_ABSENTES" ] && echo "# !! LISTES ABSENTES :${LISTES_ABSENTES}"
@@ -127,6 +180,7 @@ if apt-get install -y --no-install-recommends $(tr '\n' ' ' < "$WANTED") >/dev/n
 		cat "$WANTED"
 	} > "$REPORT"
 	rm -f "$WANTED"
+	rapporter_iwlwifi
 	echo "[lexos] hook 0250 : ok"
 	exit 0
 fi
@@ -175,7 +229,7 @@ done < "$WANTED"
 
 KO_COUNT="$(printf '%s' "$KO_LIST" | grep -c . || true)"
 
-mkdir -p /etc/lexos
+mkdir -p "$(dirname "$REPORT")"
 {
 	echo "# Paquets optionnels — saveur ${FLAVOUR}"
 	[ -n "$LISTES_ABSENTES" ] && echo "# !! LISTES ABSENTES :${LISTES_ABSENTES}"
@@ -188,6 +242,48 @@ mkdir -p /etc/lexos
 } > "$REPORT"
 
 echo "[lexos]   ${OK_COUNT} installés, ${KO_COUNT} indisponibles (détail : ${REPORT})"
+
+# --- LE MATÉRIEL N'EST PAS UN CONFORT ---------------------------------------
+#  Ces paquets-ci sont dans une liste « au mieux » comme les autres, mais leur
+#  absence ne coûte pas une commodité : elle coûte le Wi-Fi, le son, ou la
+#  stabilité du processeur. Sur l'Alienware d'Alex, firmware-iwlwifi EST le
+#  Wi-Fi 7 BE200, et le câble Ethernet n'est pas branché — sans lui, la
+#  machine démarre sans aucun réseau, et la seule trace serait une ligne
+#  « indisponible » noyée dans une heure de journal.
+#
+#  On ne les rend pas obligatoires (config/package-lists/) : un nom de paquet
+#  de micrologiciel change entre deux versions de Debian, et ça coûterait une
+#  construction entière à chaque fois. On les rend BRUYANTS, et on laisse le
+#  choix d'en faire une erreur dure avec LEXOS_STRICT_FIRMWARE=1.
+#
+#  Ce bloc ne tourne QUE dans la reprise un par un : si la passe groupée plus
+#  haut a réussi (ligne ~120), TOUS les paquets de $WANTED — matériel vital
+#  compris — sont garantis installés, et il n'y a rien à vérifier ici.
+MATERIEL_VITAL="firmware-iwlwifi firmware-realtek firmware-misc-nonfree \
+firmware-sof-signed intel-microcode amd64-microcode"
+
+VITAL_MANQUANT=""
+for P in $MATERIEL_VITAL; do
+	printf '%s' "$KO_LIST" | grep -qx "$P" && VITAL_MANQUANT="${VITAL_MANQUANT} $P"
+done
+
+if [ -n "$VITAL_MANQUANT" ]; then
+	echo "[lexos]   !! ============================================================"
+	echo "[lexos]   !! MATÉRIEL VITAL ABSENT :${VITAL_MANQUANT}"
+	echo "[lexos]   !! Ce ne sont pas des commodités : Wi-Fi, son, microcode."
+	echo "[lexos]   !! L'ISO démarrera, mais du matériel ne répondra pas, et"
+	echo "[lexos]   !! rien à l'écran ne dira pourquoi."
+	echo "[lexos]   !! ============================================================"
+	if [ "${LEXOS_STRICT_FIRMWARE:-0}" = "1" ]; then
+		echo "[lexos]   LEXOS_STRICT_FIRMWARE=1 — on s'arrête ici."
+		rm -f "$WANTED"
+		exit 1
+	fi
+else
+	echo "[lexos]   matériel vital : $(set -- $MATERIEL_VITAL; echo $#) paquets, tous présents"
+fi
+
+rapporter_iwlwifi
 rm -f "$WANTED"
 
 # --- Vérification quotidienne des mises à jour (notification seulement) ----

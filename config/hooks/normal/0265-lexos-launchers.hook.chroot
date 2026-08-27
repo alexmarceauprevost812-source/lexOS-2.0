@@ -97,6 +97,9 @@ lexos-apercu|lexos-apercu ouvrir|Vue d'ensemble|preferences-desktop-workspaces|n
 #  sur l'heure ; l'entrée de menu sert à qui préfère la souris dans le menu,
 #  et à le retrouver si la barre venait à manquer.
 lexos-volet|lexos-volet agenda|Notifications et agenda|appointment-soon|non|Utility;Calendar;|Le volet qui descend de la barre
+#  Le volet des paramètres rapides — même raison que ci-dessus, pour le
+#  bouton « ▲ » (greffon 12).
+lexos-volet-rapides|lexos-volet rapides|Paramètres rapides|preferences-system|non|Settings;|Wi-Fi, Bluetooth, mode avion, performance, thème, effets TV
 "
 
 CREES=0

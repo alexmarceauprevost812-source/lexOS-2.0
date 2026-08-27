@@ -291,10 +291,20 @@
     <!-- 7 · Batterie / énergie -->
     <property name="plugin-7" type="string" value="power-manager-plugin"/>
 
-    <!-- 12 · Réglages rapides (#qsBtn de la démo) -->
+    <!-- 12 · Réglages rapides (#qsBtn de la démo).
+         OUVRAIT LA FENÊTRE COMPLÈTE DES PARAMÈTRES. Le bouton s'appelait déjà
+         « Réglages rapides » (voir le .desktop) mais lançait lexos-settings
+         tel quel — la fenêtre entière, barre latérale comprise, pas la petite
+         grille de bascules que montre #qsBtn dans la démo. Un clic sur « ▲ »
+         ouvre maintenant le volet « rapides » (lexos-volet rapides), même
+         patron que le volet de l'heure et celui de la météo : Wi-Fi,
+         Bluetooth, mode avion, partager, performance, thème, clavier, effets
+         TV, sous le bouton, sans faire disparaître le bureau derrière une
+         fenêtre. La fenêtre complète reste à un clic — menu Applications,
+         ou la tuile Clavier du volet, qui l'ouvre directement sur sa page. -->
     <property name="plugin-12" type="string" value="launcher">
       <property name="items" type="array">
-        <value type="string" value="lexos-settings.desktop"/>
+        <value type="string" value="lexos-volet-rapides.desktop"/>
       </property>
     </property>
 

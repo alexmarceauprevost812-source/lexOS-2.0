@@ -1320,14 +1320,35 @@ def _wifi_etat():
     #  « -t » (terse) donne des mots-clés fixes, jamais traduits — la sortie
     #  normale de nmcli suit la langue du système (fr_CA sur LexOS).
     radio = _sortie(["nmcli", "-t", "radio", "wifi"]) or "absent"
+    #  PHOTO D'ALEX : « il dit que je ne suis pas connecté, mais je le suis ».
+    #  LE RÉSEAU CONNECTÉ VIENT DE L'ÉTAT DE L'APPAREIL (« device status »),
+    #  PAS D'UN BALAYAGE DE BORNES (« device wifi ») comme avant. Un balayage
+    #  est un instantané des bornes VUES, pas de la connexion ACTIVE — les
+    #  deux peuvent diverger (balayage pas encore relancé depuis la vraie
+    #  connexion, borne provisoirement absente du dernier passage…), et
+    #  c'est cette différence qui affichait « Aucun » alors que
+    #  networkmanager, lui, savait très bien qu'il était connecté. « device
+    #  status » répond exactement à la question posée : CET appareil, est-il
+    #  connecté, à quoi ? Pas de rapport avec le bogue du split() nu plus
+    #  bas dans _wifi_reseaux() (un SSID avec « : » dedans) — deux bogues
+    #  différents sur deux commandes différentes, réglés chacun à sa place.
     reseau, signal = "", 0
-    for ligne in _sortie(["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL",
-                          "device", "wifi"]).splitlines():
-        champs = ligne.split(":")
-        if len(champs) >= 3 and champs[0] == "yes":
-            reseau = champs[1]
-            signal = int(champs[2]) if champs[2].isdigit() else 0
+    for ligne in _sortie(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION",
+                          "device", "status"]).splitlines():
+        champs = _terse(ligne)
+        if len(champs) >= 4 and champs[1] == "wifi" and champs[2] == "connected":
+            reseau = champs[3]
             break
+    #  Le signal ne vient QUE du balayage — l'état de l'appareil ne le
+    #  connaît pas. On cherche la borne du même nom dans le dernier
+    #  balayage ; à défaut (pas encore vue), 0 plutôt qu'un chiffre inventé.
+    if reseau:
+        for ligne in _sortie(["nmcli", "-t", "-f", "SSID,SIGNAL",
+                              "device", "wifi"]).splitlines():
+            champs = _terse(ligne)
+            if len(champs) >= 2 and champs[0] == reseau:
+                signal = int(champs[1]) if champs[1].isdigit() else 0
+                break
     #  « connectivity » distingue les deux pannes qu'on confond toujours :
     #  « full » = on passe ; « limited » ou « portal » = on est CONNECTÉ mais
     #  rien ne passe (portail d'hôtel, box sans internet) ; « none » = pas de
