@@ -1324,6 +1324,97 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .cct-bonhomme{display:inline-flex;align-items:center}
 .cct-sep{opacity:.5}
 .cct-maj{color:#3BE07A}
+/*  LES LIGNES D'UNE MODIFICATION, le langage du vrai Claude Code : les
+    lignes ajoutées en vert, les lignes supprimées en rouge, quel que soit
+    le thème — c'est un code de couleurs, pas un goût. Chaque thème choisit
+    SES verts et SES rouges plus bas (le thème « rouge » d'Alex les veut
+    vert lime et rouge vif). */
+.cct-rep .cct-ajout{color:#3BE07A;display:block}
+.cct-rep .cct-suppr{color:#ff5f57;display:block}
+.cct-rep pre{background:#0a0807;border:1px solid #4a2e24;border-radius:7px;
+  padding:8px 11px;margin:7px 0;overflow-x:auto;font-size:12px;line-height:1.6}
+/*  L'ÉCRITURE DE CLAUDE COULE, ELLE NE TOMBE PAS EN BLOC. Demande d'Alex :
+    « animation écriture fluide et rapide de Claude et non en bloc ».
+    cctAnime() enveloppe chaque mot de la réponse dans un span dont
+    l'apparition est décalée de quelques millisecondes — l'oeil suit une
+    écriture, pas un pavé qui apparaît. Seulement l'OPACITÉ : la place est
+    prise dès l'insertion, rien ne bouge, rien ne saute pendant la lecture.
+    Qui préfère un système sans animation en est dispensé (préférence du
+    système, pas un réglage de plus). L'HISTORIQUE, lui, garde le HTML nu :
+    revenir sur une session réaffiche tout d'un coup, sans rejouer. */
+.cct-mot{opacity:0;animation:cctMot .16s ease forwards}
+@keyframes cctMot{to{opacity:1}}
+@media (prefers-reduced-motion:reduce){ .cct-mot{animation:none;opacity:1} }
+/*  ═══ LES THÈMES DU CLAUDE TERMINAL — cycle au bouton 🎨 de la tête ═══
+    Thème 1 (aucune classe) : l'actuel — fond brun-noir, accents corail.
+    Thème 2 « rouge », choisi par Alex : fond NOIR, écriture BLANCHE,
+    boutons et logo ROUGES ; les lignes ajoutées passent au VERT LIME et
+    les supprimées au rouge vif. Thème 3 « orange » : boutons orange,
+    écriture blanche. Les surcharges visent les mêmes sélecteurs que le
+    thème de base — rien d'autre ne bouge. */
+.cct.cct-th-rouge{background:#000;color:#fff}
+.cct.cct-th-rouge .cct-tete{color:#E8312A;border-bottom-color:#3a1212}
+.cct.cct-th-rouge .cct-cote{border-right-color:#3a1212;
+  background:linear-gradient(180deg,rgba(232,49,42,.10),transparent 200px)}
+.cct.cct-th-rouge .claude-pales{fill:#E8312A}
+.cct.cct-th-rouge .cct-fl{color:#E8312A}
+.cct.cct-th-rouge .cct-rep{background:#0d0505;border-color:#3a1212;border-left-color:#E8312A}
+.cct.cct-th-rouge .cct-rep code{color:#ff9d97;border-color:#55201b;background:#000}
+.cct.cct-th-rouge .cct-rep pre{background:#000;border-color:#3a1212}
+.cct.cct-th-rouge .cct-rep .cct-ajout{color:#9EE838}   /* vert lime */
+.cct.cct-th-rouge .cct-rep .cct-suppr{color:#FF4040}
+.cct.cct-th-rouge .cct-sugg button{color:#ffb3ae;background:rgba(232,49,42,.08);border-color:#55201b}
+.cct.cct-th-rouge .cct-sugg button:hover{border-color:#E8312A;color:#fff;background:rgba(232,49,42,.20)}
+.cct.cct-th-rouge .cc-plus{color:#E8312A;border-color:#55201b;background:rgba(232,49,42,.08)}
+.cct.cct-th-rouge .cc-plus:hover{background:rgba(232,49,42,.20);border-color:#E8312A;color:#fff}
+.cct.cct-th-rouge .cl-neuf{background:#E8312A;color:#fff}
+.cct.cct-th-rouge .cl-neuf:hover{background:#f04a43}
+.cct.cct-th-rouge .cct-cote-tog:hover{background:rgba(232,49,42,.14)}
+.cct.cct-th-rouge .cct-saisie{border-top-color:#3a1212}
+.cct.cct-th-rouge .cct-pied{border-top-color:#3a1212}
+.cct.cct-th-rouge .cct-note{border-left-color:#3a1212}
+.cct.cct-th-orange{color:#fff}
+.cct.cct-th-orange .cct-tete{color:#FF8C1A}
+.cct.cct-th-orange .claude-pales{fill:#FF8C1A}
+.cct.cct-th-orange .cct-rep{border-left-color:#FF8C1A}
+.cct.cct-th-orange .cct-rep b{color:#FF8C1A}
+.cct.cct-th-orange .cct-sugg button{color:#fff;background:rgba(255,140,26,.12);border-color:#FF8C1A}
+.cct.cct-th-orange .cct-sugg button:hover{background:rgba(255,140,26,.28)}
+.cct.cct-th-orange .cc-plus{color:#fff;border-color:#FF8C1A;background:rgba(255,140,26,.12)}
+.cct.cct-th-orange .cc-plus:hover{background:rgba(255,140,26,.28)}
+.cct.cct-th-orange .cl-neuf{background:#FF8C1A;color:#000}
+.cct.cct-th-orange .cl-neuf:hover{background:#ffa040}
+/*  ═══ LA PAGE DE CONNEXION DU CLAUDE TERMINAL ═══ Un voile posé PAR-DESSUS
+    le terminal (le .cct est en position:relative pour ça) tant qu'on n'est
+    pas « connecté » : le Claude Terminal est réservé aux personnes abonnées
+    à Claude, la porte le dit avant de laisser passer. Démo honnête : rien
+    n'est vérifié ni envoyé nulle part — et sur la vraie LexOS la connexion
+    se fait AU NAVIGATEUR (compte Anthropic), jamais en tapant son mot de
+    passe dans une fenêtre à nous. Le champ est là pour le geste. */
+.cct{position:relative}
+.cct-porte{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:11px;padding:24px;
+  background:inherit;text-align:center}
+.cct-porte h3{font-size:16px;color:#fff;display:flex;align-items:center;gap:8px}
+.cct-porte .cct-porte-sous{color:#8a7a74;font-size:12px;max-width:340px;line-height:1.6}
+.cct-porte input{width:min(270px,80%);background:#140f0d;border:1px solid #4a2e24;
+  border-radius:9px;padding:9px 12px;color:#fff;font:inherit;outline:none}
+.cct-porte input:focus{border-color:#d97757}
+.cct-porte-mdp{position:relative;width:min(270px,80%);display:flex}
+.cct-porte-mdp input{width:100%;padding-right:36px}
+.cct-porte-oeil{position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  background:transparent;border:0;color:#8a7a74;cursor:pointer;font-size:14px;padding:3px}
+.cct-porte-oeil:hover{color:#fff}
+.cct-porte-entrer{font:inherit;font-weight:600;color:#1a0f0a;background:#d97757;
+  border:0;border-radius:9px;padding:9px 22px;cursor:pointer}
+.cct-porte-entrer:hover{background:#e08a6d}
+.cct-porte-note{color:#8a7a74;font-size:10.5px;max-width:340px;line-height:1.55;
+  border-top:1px solid #3a251d;padding-top:9px;margin-top:3px}
+.cct.cct-th-rouge .cct-porte input:focus{border-color:#E8312A}
+.cct.cct-th-rouge .cct-porte-entrer{background:#E8312A;color:#fff}
+.cct.cct-th-rouge .cct-porte-entrer:hover{background:#f04a43}
+.cct.cct-th-orange .cct-porte-entrer{background:#FF8C1A;color:#000}
+.cct.cct-th-orange .cct-porte-entrer:hover{background:#ffa040}
 .term{position:relative}
 /*  Tout ce qui est TAPÉ s'écrit en orange — c'est la règle de couleur du
     terminal LexOS : la machine parle en vert foncé, l'utilisateur écrit en
@@ -8023,6 +8114,35 @@ const CC_SAVOIR = [
     Demande-moi par exemple <b>« comment installer LexOS ? »</b> ou
     <b>« quelles commandes existent ? »</b>`},
 
+  //  L'exemple qui MONTRE le langage des modifications : lignes ajoutées en
+  //  vert (vert lime sur le thème rouge), supprimées en rouge — exactement
+  //  ce que le vrai Claude Code affiche quand il modifie un fichier. Et il
+  //  redit la règle du vrai outil : Claude va partout où on l'envoie sur la
+  //  machine, mais il MONTRE et DEMANDE avant d'écrire ou de supprimer.
+  {c:["modification","modifier un fichier","diff","exemple de code","supprimer","ressemble une modification"], r:
+   `Quand tu me demandes de modifier ou de supprimer quelque chose, je te
+    montre la modification <b>avant</b> de l'écrire — les lignes ajoutées en
+    vert, les supprimées en rouge :
+    <pre><span class="cct-suppr">- couleur_fond = "bleu"</span><span class="cct-ajout">+ couleur_fond = "noir"</span><span class="cct-ajout">+ couleur_texte = "blanc"</span></pre>
+    Sur la vraie LexOS, je peux aller <b>partout où tu m'envoies</b> sur la
+    machine — créer, modifier, supprimer ce que tu me demandes — et je
+    <b>demande toujours ta permission</b> avant d'écrire ou d'effacer quoi
+    que ce soit. Rien ne part sans ton accord.`},
+
+  //  Le Claude Terminal sait OUVRIR les outils de LexOS — ici, le bureau à
+  //  distance (lexos distant, un vrai outil de l'ISO). Dans la démo, le
+  //  bouton de la réponse ouvre la vraie section des Paramètres : Claude ne
+  //  décrit pas le geste, il le fait.
+  {c:["bureau a distance","distance","distant","remmina","rdp","vnc","controler","ecran a distance"], r:
+   `Oui — LexOS a un <b>bureau à distance</b> intégré, et je peux te l'ouvrir.
+    Sur la vraie machine, tu me dis « ouvre le bureau à distance » et je lance
+    <code>lexos distant</code> ; ici, dans la démo, ce bouton ouvre la même
+    page :
+    <br><br><button class="cct-porte-entrer" style="font-size:12px"
+      onclick="openSettings('distant')">🖥 Ouvrir le bureau à distance</button>
+    <br><br>Un bureau à distance ouvre ta machine au réseau : il ne démarre
+    jamais tout seul, et il se referme quand tu le fermes.`},
+
   {c:["quoi","c'est quoi","lexos","systeme","distribution","presente"], r:
    `<b>LexOS 2.0.0 « Nomad »</b> est une distribution Linux complète, bâtie sur
     <b>Debian 13 (trixie)</b> avec le bureau <b>XFCE</b>. Ce n'est pas un thème
@@ -8219,7 +8339,8 @@ function ccCherche(q){
 }
 const CC_SUGGESTIONS = [
   "C'est quoi LexOS ?", "Comment installer LexOS ?", "Puis-je jouer aux jeux Windows ?",
-  "Quelles commandes existent ?", "Ma carte NVIDIA est-elle gérée ?",
+  "Quelles commandes existent ?", "À quoi ressemble une modification ?",
+  "Ma carte NVIDIA est-elle gérée ?",
   "Comment changer le fond d'écran ?", "Les bureaux virtuels", "Ça marche sur téléphone ?",
 ];
 
@@ -8279,6 +8400,10 @@ function ccEcrit(zone, qui, html){
   d.innerHTML = qui === "moi" ? esc(html)
     : `<span class="cc-ic">${claudeGlyph(16)}</span><div class="cc-txt">${html}</div>`;
   zone.appendChild(d);
+  //  La même écriture qui coule que dans le Claude Terminal — Claude écrit,
+  //  il ne colle pas un bloc (cctAnime est déclarée plus bas dans ce
+  //  fichier : au moment où un clic arrive, tout est chargé).
+  if(qui !== "moi" && typeof cctAnime === "function") cctAnime(d.querySelector(".cc-txt"));
   zone.scrollTop = zone.scrollHeight;
 }
 function ccDemande(winId, texte){
@@ -8546,6 +8671,98 @@ function cctVa(winId, id){
   const champ = document.getElementById(winId)?.querySelector(".cct-in");
   if(champ) champ.focus();
 }
+//  ═══ L'ÉCRITURE QUI COULE ═══ Chaque mot de la réponse reçoit son propre
+//  span et un départ décalé de 14 ms — assez vite pour ne jamais faire
+//  attendre, assez visible pour que l'oeil lise une écriture. On ne touche
+//  qu'aux NOEUDS DE TEXTE (TreeWalker) : le HTML de la réponse — gras,
+//  listes, <code>, lignes de diff — reste exactement le même, seuls les
+//  mots sont enveloppés. Plafonné à ~2 s : une très longue réponse finit
+//  d'apparaître au plus tard là, personne n'attend la fin d'un générique.
+//  L'historique de session garde le HTML NU (poussé avant l'animation) :
+//  revenir sur une session réaffiche tout d'un coup, sans rejouer.
+function cctAnime(racine){
+  if(!racine) return;
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const marche = document.createTreeWalker(racine, NodeFilter.SHOW_TEXT);
+  const textes = [];
+  while(marche.nextNode()) textes.push(marche.currentNode);
+  let i = 0;
+  textes.forEach(n=>{
+    if(!n.nodeValue || !n.nodeValue.trim()) return;
+    const bout = document.createDocumentFragment();
+    n.nodeValue.split(/(\s+)/).forEach(mot=>{
+      if(!mot) return;
+      if(!mot.trim()){ bout.appendChild(document.createTextNode(mot)); return; }
+      const s = document.createElement("span");
+      s.className = "cct-mot";
+      s.style.animationDelay = Math.min(i++ * 14, 2000) + "ms";
+      s.textContent = mot;
+      bout.appendChild(s);
+    });
+    n.parentNode.replaceChild(bout, n);
+  });
+}
+//  ═══ LES TROIS THÈMES, EN CYCLE ═══ Un clic sur 🎨 passe au suivant, sur
+//  TOUTES les fenêtres Claude Terminal à la fois (deux fenêtres au thème
+//  différent auraient l'air d'un bogue, pas d'un choix). Le choix vit dans
+//  « state » comme tout le reste de la démo — session seulement, à dessein.
+const CCT_THEMES = [
+  {cls:"",              nom:"corail (défaut)"},
+  {cls:"cct-th-rouge",  nom:"rouge — écriture blanche, diff vert lime"},
+  {cls:"cct-th-orange", nom:"orange — écriture blanche"},
+];
+function cctAppliqueTheme(){
+  const t = CCT_THEMES[state.cctTheme || 0];
+  document.querySelectorAll(".cct").forEach(r=>{
+    r.classList.remove("cct-th-rouge","cct-th-orange");
+    if(t.cls) r.classList.add(t.cls);
+  });
+}
+function cctThemeSuivant(){
+  state.cctTheme = ((state.cctTheme || 0) + 1) % CCT_THEMES.length;
+  cctAppliqueTheme();
+  toast("🎨 Thème du Claude Terminal : " + CCT_THEMES[state.cctTheme].nom);
+}
+//  ═══ LA PAGE DE CONNEXION ═══ demandée par Alex : le Claude Terminal est
+//  réservé aux personnes abonnées à Claude, la porte le dit avant de
+//  laisser passer — courriel, mot de passe (masqué, avec l'oeil pour
+//  vérifier sa frappe), « Se connecter ». RIEN N'EST VÉRIFIÉ NI ENVOYÉ :
+//  cette page est une démo sans réseau, et c'est écrit dessus. Sur la
+//  vraie LexOS la connexion se fait AU NAVIGATEUR (compte Anthropic) — un
+//  vrai mot de passe ne se tape jamais dans une fenêtre à nous, et la
+//  porte le dit aussi. Une seule connexion pour toutes les fenêtres
+//  (state.cctConnecte) : se reconnecter à chaque fenêtre serait une
+//  corvée inventée.
+function cctPorteHTML(winId){
+  return `<div class="cct-porte">
+    <h3>${claudeGlyph(22)} Claude Terminal</h3>
+    <div class="cct-porte-sous">Le terminal de Claude — réservé aux personnes
+      abonnées à Claude (compte Anthropic).</div>
+    <input type="email" placeholder="Courriel" autocomplete="off" spellcheck="false"
+           onkeydown="if(event.key==='Enter')cctConnecte('${winId}')">
+    <div class="cct-porte-mdp">
+      <input type="password" placeholder="Mot de passe" autocomplete="off"
+             onkeydown="if(event.key==='Enter')cctConnecte('${winId}')">
+      <button class="cct-porte-oeil" title="Montrer ou cacher le mot de passe"
+              onclick="cctPorteOeil(this)">👁</button>
+    </div>
+    <button class="cct-porte-entrer" onclick="cctConnecte('${winId}')">Se connecter</button>
+    <div class="cct-porte-note"><b>Démo</b> — rien n'est vérifié ni envoyé nulle part.
+      Sur la vraie LexOS, la connexion se fait au navigateur (compte Anthropic) :
+      ton mot de passe ne s'écrit jamais dans cette fenêtre.</div>
+  </div>`;
+}
+function cctPorteOeil(btn){
+  const champ = btn.parentNode.querySelector("input");
+  champ.type = champ.type === "password" ? "text" : "password";
+}
+function cctConnecte(winId){
+  state.cctConnecte = true;
+  document.querySelectorAll(".cct-porte").forEach(p=>p.remove());
+  toast("✳ Connecté au Claude Terminal (démo)");
+  const champ = document.getElementById(winId)?.querySelector(".cct-in");
+  if(champ) champ.focus();
+}
 function cctAccueilSession(winId){
   ccTermEcrit(winId,
     `<span class="cct-sp">${claudeGlyph(13)}</span> <b>Claude Terminal</b>
@@ -8562,6 +8779,14 @@ function cctAccueilSession(winId){
 function cctNouvelleSession(winId){
   cctCreeSession(winId);
   cctRendListe(winId);
+  //  EFFACER L'ÉCRAN AVANT L'ACCUEIL. Sans ce rendu, la session neuve
+  //  s'AJOUTAIT sous le journal de l'ancienne au lieu de repartir à vide —
+  //  l'accueil arrivait en dessous de la conversation précédente. Trouvé
+  //  par le banc de l'écriture animée : il comptait des mots animés dans
+  //  une session censée être neuve, et c'étaient ceux de l'ancienne,
+  //  jamais effacés. cctRendLog vide la zone et rejoue l'historique de la
+  //  session ACTIVE — la neuve, donc rien : l'écran est propre.
+  cctRendLog(winId);
   cctAccueilSession(winId);
   const champ = document.getElementById(winId)?.querySelector(".cct-in");
   if(champ) champ.focus();
@@ -8597,12 +8822,15 @@ function ccTermDemande(winId, texte){
   let k = 0;
   const suite = ()=>{
     if(k < etapes.length){ ccTermEcrit(winId, etapes[k++], "cct-outil"); setTimeout(suite, 380); return; }
-    ccTermEcrit(winId,
+    const d = ccTermEcrit(winId,
       `<span class="cct-sp">${claudeGlyph(13)}</span> <div class="cct-rep">${
         e ? e.r : `Ce n'est pas dans la documentation de LexOS. Je réponds sur :
         installation, saveurs, jeux Windows, carte NVIDIA, commandes, bureaux
         virtuels, capture d'écran, fond d'écran, téléphone, construction de
         l'ISO, vie privée, configuration requise.`}</div>`, "cct-lui");
+    //  L'écriture coule : mot à mot, sur le NOEUD VIVANT seulement —
+    //  l'historique de session a reçu le HTML nu juste au-dessus.
+    if(d) cctAnime(d.querySelector(".cct-rep"));
     CCT_OCCUPE[winId] = false;
     champ.focus();
   };
@@ -8613,6 +8841,7 @@ function openClaudeCode(nouvelle){
   const winId = "win-" + id;
   const el = openWin(id,"Claude Terminal",claudeGlyph(17),
    `<div class="cct cct-avec-cote">
+      ${state.cctConnecte ? "" : cctPorteHTML(winId)}
       <div class="cct-cote">
         <button class="cl-neuf cct-neuf" onclick="cctNouvelleSession('${winId}')">+ Nouvelle session</button>
         <div class="cl-recents">Sessions</div>
@@ -8626,9 +8855,11 @@ function openClaudeCode(nouvelle){
           <b>Claude Terminal</b>
           <span class="cct-chemin">~/lexos</span>
           <span class="cc-badge">démo</span>
+          <button class="cct-cote-tog cct-theme-btn" onclick="cctThemeSuivant()"
+                  title="Changer le thème du Claude Terminal" aria-label="Thème">🎨</button>
         </div>
         <div class="cct-log"></div>
-        <div class="cct-sugg">${CC_SUGGESTIONS.slice(0,4).map(s=>
+        <div class="cct-sugg">${CC_SUGGESTIONS.slice(0,5).map(s=>
            `<button onclick="ccTermDemande('${winId}',this.textContent)">${esc(s)}</button>`).join("")}</div>
         <div class="cc-joints" style="display:none"></div>
         <div class="cct-saisie">
@@ -8658,6 +8889,7 @@ function openClaudeCode(nouvelle){
     cctCreeSession(winId);
     cctAccueilSession(winId);
     cctRendListe(winId);
+    cctAppliqueTheme();          // une fenêtre neuve prend le thème en cours
     const champ = el.querySelector(".cct-in");
     if(champ) setTimeout(()=>champ.focus(), 60);
   }
