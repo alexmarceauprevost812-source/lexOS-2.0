@@ -1884,15 +1884,37 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
   border:2px solid transparent;background-clip:content-box}
 .wbody::-webkit-scrollbar-thumb:hover,.lgt-list::-webkit-scrollbar-thumb:hover,
 .cap-list::-webkit-scrollbar-thumb:hover{background:var(--ac);background-clip:content-box}
-#appgrid .app{display:flex;flex-direction:column;align-items:center;gap:7px;
+#appgrid .app,#appFolder .app{display:flex;flex-direction:column;align-items:center;gap:7px;
   padding:12px 6px;border-radius:14px;color:var(--fg);text-align:center}
-#appgrid .app:hover{background:rgba(255,255,255,.09)}
-#appgrid .app .ai{width:52px;height:52px;border-radius:14px;display:flex;
+#appgrid .app:hover,#appFolder .app:hover{background:rgba(255,255,255,.09)}
+#appgrid .app .ai,#appFolder .app .ai{width:52px;height:52px;border-radius:14px;display:flex;
   align-items:center;justify-content:center;font-size:26px;
   background:var(--bg-hi);border:1px solid var(--bd)}
-#appgrid .app:hover .ai{border-color:var(--ac)}
-#appgrid .app .an{font-size:12px;line-height:1.25;max-width:96px;
+#appgrid .app:hover .ai,#appFolder .app:hover .ai{border-color:var(--ac)}
+#appgrid .app .an,#appFolder .app .an{font-size:12px;line-height:1.25;max-width:96px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/*  ═══ DOSSIERS D'APPLICATIONS — la page d'Ubuntu 26.04 qu'Alex a montrée en
+    photo (« crée une page pareille ») ═══ Une tuile-dossier porte une
+    MINI-GRILLE 2×2 des premières icônes de son contenu — c'est ce dessin-là
+    qui dit « dossier » d'un coup d'œil sur la photo, pas une icône de
+    chemise. Les icônes existantes sont réutilisées TELLES QUELLES et
+    réduites par transform:scale : les redessiner à une deuxième taille
+    ferait deux jeux d'icônes à garder pareils. */
+#appgrid .app.dossier .ai{display:grid;grid-template-columns:1fr 1fr;
+  grid-auto-rows:1fr;gap:3px;padding:4px;font-size:inherit}
+#appgrid .app.dossier .mini{display:flex;align-items:center;justify-content:center;
+  border-radius:6px;background:rgba(255,255,255,.06);overflow:hidden;min-width:0;min-height:0}
+#appgrid .app.dossier .mini > *{transform:scale(.42);transform-origin:center;flex:none}
+/*  Le panneau du dossier ouvert : un voile sur la grille, la boîte au
+    centre — comme GNOME. Le clic sur le voile referme le dossier seulement,
+    pas toute la vue. */
+#appFolder{position:absolute;inset:0;z-index:5;display:none;align-items:center;
+  justify-content:center;background:rgba(0,0,0,.45);border-radius:inherit}
+#appFolder.on{display:flex;animation:avIn .16s ease-out}
+#appFolder .af-boite{background:var(--bg-alt);border:1px solid var(--bd);
+  border-radius:22px;padding:20px 24px;width:min(600px,92%);max-height:82%;overflow-y:auto}
+#appFolder .af-nom{text-align:center;font-size:15px;font-weight:600;margin-bottom:12px}
+#appFolder .af-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:4px}
 #appsview .hint{margin-top:18px;font-size:11.5px;color:var(--fg-dim)}
 #appsview .empty{color:var(--fg-dim);font-size:13px;padding:30px}
 
@@ -2503,6 +2525,9 @@ body.off #screen{animation:crtOff .5s ease-in forwards}
     <div id="appgrid"></div>
     <div id="appdots"></div>
     <div class="hint">Molette ou <b>←</b> <b>→</b> pour changer de page · Échap pour fermer</div>
+    <div id="appFolder" onclick="if(event.target===this)appDossierFerme()">
+      <div class="af-boite"><div class="af-nom"></div><div class="af-grille"></div></div>
+    </div>
   </div>
   <div id="demobar"><b>Démo web</b> — le vrai LexOS est une ISO Linux amorçable (clé USB)</div>
 </div>
@@ -11049,6 +11074,46 @@ const appsView=document.getElementById("appsview");
 const appGrid=document.getElementById("appgrid");
 const appSearch=document.getElementById("appSearch");
 
+/*  ═══ LES DOSSIERS — la page d'Ubuntu 26.04, photo d'Alex ═══
+    Les réglages un-par-un (14 tuiles openSettings) et les petits outils
+    noyaient la grille : regroupés en deux dossiers, comme « Système » et
+    « Utilitaires » sur sa photo. Les MEMBRES SONT NOMMÉS PAR LEUR LABEL,
+    et appDossierDe() les retrouve dans APPS — pas un deuxième tableau
+    d'applications qui pourrait diverger du premier. Les applications
+    principales (Fichiers, Claude Terminal, Paramètres…) restent au premier
+    niveau, comme chez GNOME. La RECHERCHE ignore les dossiers et fouille
+    tout à plat — c'est le comportement d'Ubuntu, et c'est le bon : on
+    cherche une application, pas le dossier où elle range. */
+const APP_DOSSIERS = [
+  {nom:"Système", labels:["Wi-Fi","Bluetooth","Écrans","Son","Énergie","Apparence",
+    "Souris et pavé tactile","Gestion des couleurs","Imprimantes","Région et langue",
+    "Clavier","Confidentialité","Mises à jour","Utilisateurs"]},
+  {nom:"Utilitaires", labels:["Cadrer une zone","Vide mémoire +","Terminal de l'appareil",
+    "Formater un support","Archives ZIP","Appareils USB"]},
+];
+const APP_DANS_DOSSIER = new Set(APP_DOSSIERS.flatMap(d=>d.labels));
+
+function appDossierApps(d){
+  //  L'ordre du dossier suit APPS, la seule source : un label sans
+  //  correspondance (renommage un jour) disparaît au lieu de planter.
+  return APPS.filter(a=>d.labels.includes(a.label));
+}
+function appDossierOuvre(n){
+  const d = APP_DOSSIERS[n]; if(!d) return;
+  const panneau = document.getElementById("appFolder");
+  panneau.querySelector(".af-nom").textContent = d.nom;
+  panneau.querySelector(".af-grille").innerHTML =
+    appDossierApps(d).map(a=>appTuileHTML(a)).join("");
+  brancheTuiles(panneau.querySelector(".af-grille"));
+  panneau.classList.add("on");
+}
+function appDossierFerme(){
+  document.getElementById("appFolder").classList.remove("on");
+}
+function appDossierEstOuvert(){
+  return document.getElementById("appFolder").classList.contains("on");
+}
+
 /*  La grille se feuillette à l'horizontale, comme celle d'Ubuntu : des
     pages côte à côte, la molette pour passer de l'une à l'autre, et des
     pastilles dessous qui disent où on en est. Avant, tout défilait
@@ -11080,21 +11145,44 @@ function majDotsApps(){
        aria-label="Page ${i+1} sur ${total}"></button>`).join("");
 }
 
+function appTuileHTML(a){
+  return `<button class="app" data-i="${APPS.indexOf(a)}" oncontextmenu="ctxApp(event,${APPS.indexOf(a)})">`+
+    `<span class="ai">${a.ic}</span><span class="an">${a.label}</span></button>`;
+}
+//  La tuile d'un dossier : une mini-grille 2×2 des quatre premières icônes
+//  du contenu — le dessin qui dit « dossier » sur la photo d'Ubuntu.
+function appDossierTuileHTML(d, n){
+  const minis = appDossierApps(d).slice(0,4)
+    .map(a=>`<span class="mini">${a.ic}</span>`).join("");
+  return `<button class="app dossier" onclick="appDossierOuvre(${n})">`+
+    `<span class="ai">${minis}</span><span class="an">${esc(d.nom)}</span></button>`;
+}
 function renderApps(filter){
   const q=(filter||"").trim().toLowerCase();
-  const list=q ? APPS.filter(a=>a.label.toLowerCase().includes(q)) : APPS;
-  if(!list.length){ appGrid.innerHTML=`<div class="empty">Aucune application ne correspond à « ${esc(q)} ».</div>`;
+  //  Sans recherche : le premier niveau (hors membres de dossiers) PUIS les
+  //  tuiles-dossiers, à la fin — la place qu'elles ont sur la photo. En
+  //  recherche : TOUT à plat, dossiers ignorés (comportement d'Ubuntu).
+  const list=q ? APPS.filter(a=>a.label.toLowerCase().includes(q))
+               : APPS.filter(a=>!APP_DANS_DOSSIER.has(a.label));
+  if(q && !list.length){ appGrid.innerHTML=`<div class="empty">Aucune application ne correspond à « ${esc(q)} ».</div>`;
     appPage=0; majDotsApps(); return; }
-  const tuile = a =>
-    `<button class="app" data-i="${APPS.indexOf(a)}" oncontextmenu="ctxApp(event,${APPS.indexOf(a)})">`+
-    `<span class="ai">${a.ic}</span><span class="an">${a.label}</span></button>`;
+  const tuiles = list.map(a=>appTuileHTML(a));
+  if(!q) APP_DOSSIERS.forEach((d,n)=>tuiles.push(appDossierTuileHTML(d,n)));
   const pages = [];
-  for(let i=0; i<list.length; i += APPS_PAR_PAGE) pages.push(list.slice(i, i+APPS_PAR_PAGE));
-  appGrid.innerHTML = pages.map(p=>`<div class="ap-page">${p.map(tuile).join("")}</div>`).join("");
+  for(let i=0; i<tuiles.length; i += APPS_PAR_PAGE) pages.push(tuiles.slice(i, i+APPS_PAR_PAGE));
+  appGrid.innerHTML = pages.map(p=>`<div class="ap-page">${p.join("")}</div>`).join("");
   appPage = 0;
   appGrid.scrollLeft = 0;
   majDotsApps();
-  appGrid.querySelectorAll(".app").forEach(b=>{
+  brancheTuiles(appGrid);
+}
+//  Le branchement (ouvrir au clic, glisser vers le bureau) vaut pour la
+//  grille ET pour le panneau d'un dossier ouvert : une seule fonction, sinon
+//  les deux finissent par ne plus faire pareil. Les tuiles-dossiers gardent
+//  leur onclick inline — pas de data-i, rien à brancher ici.
+function brancheTuiles(racine){
+  racine.querySelectorAll(".app").forEach(b=>{
+    if(b.classList.contains("dossier")) return;
     b.onclick=()=>{
       const app=APPS[+b.dataset.i]; closeApps(); app.fn();
     };
@@ -11172,6 +11260,7 @@ addEventListener("resize", ()=>appVaPage(appPage, false));
     quand on glisse à deux doigts sur le côté. */
 let appMoletteBloc = 0;
 appsView.addEventListener("wheel", e=>{
+  if(appDossierEstOuvert()) return;   // la molette fait défiler le dossier, pas les pages
   if(appPagesTotal() < 2) return;
   e.preventDefault();
   const t = Date.now();
@@ -11185,7 +11274,7 @@ appsView.addEventListener("wheel", e=>{
 //  Les flèches ← → aussi, quand on n'est pas en train d'écrire dans la
 //  recherche : là, elles doivent déplacer le curseur dans le texte.
 addEventListener("keydown", e=>{
-  if(!appsView.classList.contains("on")) return;
+  if(!appsView.classList.contains("on") || appDossierEstOuvert()) return;
   if(document.activeElement === appSearch && appSearch.value) return;
   if(e.key === "ArrowRight"){ e.preventDefault(); appVaPage(appPage + 1); }
   if(e.key === "ArrowLeft"){  e.preventDefault(); appVaPage(appPage - 1); }
@@ -11196,7 +11285,7 @@ function openApps(){
   appSearch.value=""; renderApps("");
   requestAnimationFrame(()=>appSearch.focus());
 }
-function closeApps(){ appsView.classList.remove("on"); }
+function closeApps(){ appDossierFerme(); appsView.classList.remove("on"); }
 function toggleApps(){ appsView.classList.contains("on") ? closeApps() : openApps(); }
 
 /* --- Icônes de bureau : épinglées depuis la grille Applications ---------
@@ -11265,7 +11354,9 @@ document.getElementById("desktop").addEventListener("click", e=>{
 
 appSearch.addEventListener("input",()=>renderApps(appSearch.value));
 appSearch.addEventListener("keydown",e=>{
-  if(e.key==="Escape"){ closeApps(); return; }
+  //  Échap referme UNE couche à la fois : le dossier ouvert d'abord, la vue
+  //  ensuite — comme GNOME, et comme partout ailleurs dans la démo.
+  if(e.key==="Escape"){ appDossierEstOuvert() ? appDossierFerme() : closeApps(); return; }
   if(e.key==="Enter"){
     const first=appGrid.querySelector(".app");
     if(first) first.click();
@@ -11291,7 +11382,9 @@ addEventListener("mousedown", e=>{
   toggleApps();
 });
 document.addEventListener("keydown",e=>{
-  if(e.key==="Escape" && appsView.classList.contains("on")) closeApps();
+  if(e.key==="Escape" && appsView.classList.contains("on")){
+    appDossierEstOuvert() ? appDossierFerme() : closeApps();
+  }
   //  Mêmes touches que sur la vraie ISO (xfce4-keyboard-shortcuts.xml), pour
   //  que l'infobulle de l'accès rapide ne promette rien qu'elle ne tienne.
   //  Impr écr n'atteint pas toujours la page — le navigateur ou le système
