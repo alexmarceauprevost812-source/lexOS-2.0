@@ -527,12 +527,16 @@ body.light #dockTab{background:rgba(239,235,227,.9)}
   font-weight:600;font-size:13px}
 .tbar .ticon{font-size:15px}
 .tbar .ttitle{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/*  LES QUATRE PASTILLES, FAÇON macOS — À LA DEMANDE D'ALEX. Boutons ronds,
+/*  LES TROIS PASTILLES, FAÇON macOS — À LA DEMANDE D'ALEX. Boutons ronds,
     toujours colorés (pas seulement au survol comme avant), dans le même
-    ordre qu'à l'écran : vert, gris, jaune, rouge — et le rouge, comme le
-    bouton d'arrêt de la barre du haut, n'obéit JAMAIS à l'accent : fermer
-    doit se reconnaître d'un coup d'oeil, quelle que soit la couleur
-    choisie ailleurs dans LexOS.
+    ordre qu'à l'écran : gris, jaune, rouge — et le rouge, comme le bouton
+    d'arrêt de la barre du haut, n'obéit JAMAIS à l'accent : fermer doit se
+    reconnaître d'un coup d'oeil, quelle que soit la couleur choisie
+    ailleurs dans LexOS.
+    LA VERTE A EXISTÉ, PUIS EST PARTIE — deux essais (ouvrir les
+    Paramètres, puis le menu « ⋮ »), et Alex l'a retirée : ses options
+    vivent dans le CLIC DROIT sur la barre de titre (ctxFenetre), la seule
+    porte des options d'une fenêtre.
     Le glyphe reste invisible tant qu'on ne survole ou ne focalise pas la
     pastille — même pudeur que macOS, la couleur suffit à dire ce que fait
     chaque bouton une fois qu'on les connaît. */
@@ -540,9 +544,6 @@ body.light #dockTab{background:rgba(239,235,227,.9)}
   justify-content:center;font-size:8px;line-height:1;color:transparent;
   transition:color .1s ease}
 .tbtn:hover,.tbtn:focus-visible{color:rgba(0,0,0,.6)}
-/*  Vert : ouvre le menu d'options de la fenêtre (Nouvelle fenêtre,
-    Recentrer, Paramètres, et les extras par appli). */
-.tbtn.wmenu{background:#28C840}
 /*  Gris : réduire — la fenêtre disparaît du bureau mais reste ouverte,
     retrouvable d'un clic sur son icône dans le dock (voir minimizeWin() et
     majDock()). Ni rouge ni vert ni jaune : ce geste-là ne fait
@@ -2836,7 +2837,6 @@ function openWin(id, title, icon, html, w, h, x, y){
   el.innerHTML =
     `<div class="tbar"><span class="ticon">${icon}</span>`+
     `<span class="ttitle">${title}</span>`+
-    `<button class="tbtn wmenu" title="Options de la fenêtre">⋮</button>`+
     `<button class="tbtn mini" title="Réduire (la retrouver dans le dock)">−</button>`+
     `<button class="tbtn maxi" title="Agrandir (double-clic sur la barre)">⛶</button>`+
     `<button class="tbtn close" title="Fermer">✕</button></div>`+
@@ -2853,18 +2853,10 @@ function openWin(id, title, icon, html, w, h, x, y){
   el.querySelector(".close").onclick = ()=>closeWin(el);
   el.querySelector(".mini").onclick = e=>{ e.stopPropagation(); minimizeWin(el); };
   el.querySelector(".maxi").onclick = e=>{ e.stopPropagation(); toggleMax(el); };
-  //  LA PASTILLE VERTE OUVRE LE MENU « ⋮ » — Nouvelle fenêtre, Recentrer,
-  //  Paramètres, Toutes les applications, et les extras par appli
-  //  (WIN_MENU_EXTRA : « Nouveau terminal » sur Terminal, « Ouvrir un
-  //  terminal » sur Fichiers…). Un aller-retour avec l'ouverture directe
-  //  des Paramètres, essayée puis rejetée : Alex a demandé qu'elle
-  //  redevienne CE menu-ci, celui qui donne accès à tous les outils de la
-  //  fenêtre — pas seulement aux Paramètres de l'ordinateur. Clic gauche et
-  //  clic droit ouvrent désormais la même chose.
-  el.querySelector(".wmenu").onclick = e=>{ e.stopPropagation(); toggleWinMenu(el, e.currentTarget); };
-  el.querySelector(".wmenu").oncontextmenu = e=>{
-    e.preventDefault(); e.stopPropagation(); toggleWinMenu(el, e.currentTarget);
-  };
+  //  PLUS DE PASTILLE VERTE — retirée à la demande d'Alex, après deux
+  //  essais (ouvrir les Paramètres, puis le menu « ⋮ ») : les options de la
+  //  fenêtre (Nouveau terminal, Recentrer, Nouvelle fenêtre…) vivent toutes
+  //  dans ctxFenetre, le menu du clic droit sur la barre de titre.
   el.querySelector(".tbar").addEventListener("contextmenu", e=>ctxFenetre(e, el));
   el.querySelector(".tbar").addEventListener("dblclick", e=>{
     if(e.target.closest(".tbtn")) return;
@@ -2931,68 +2923,20 @@ addEventListener("resize", ()=>{
   document.querySelectorAll(".win.max").forEach(applyMax);
 });
 
-/* --- Menu « ⋮ » de la barre de titre ------------------------------------- */
-//  Même dessin que le menu ⋮ du gestionnaire de fichiers. Les entrées propres
-//  à une fenêtre (terminal, fichiers…) s'ajoutent au-dessus des entrées
-//  communes à toutes les fenêtres.
-let winMenuEl = null;
-function closeWinMenu(){ if(winMenuEl){ winMenuEl.remove(); winMenuEl = null; } }
-const WIN_MENU_EXTRA = {
-  term: el => (
-    `<button onclick="termNewWindow()">${terminalGlyph(14)} Nouveau terminal</button>`+
-    `<button onclick="termClearFromMenu()">↻ Effacer l'écran<span class="kbd">clear</span></button>`+
-    `<button onclick="termCopyAll()">⧉ Copier tout le texte</button>`+
-    `<div class="msep"></div>`),
-  files: () => (
-    `<button onclick="closeWinMenu();openTerminal()">${terminalGlyph(14)} Ouvrir un terminal</button>`+
-    `<div class="msep"></div>`),
-};
-function toggleWinMenu(el, btn){
-  const wasOpen = winMenuEl && winMenuEl.dataset.forWin === el.id;
-  closeWinMenu();
-  if(wasOpen) return;
-  const id = el.id.replace(/^win-/, "");
-  const r  = btn.getBoundingClientRect();
-  const m  = document.createElement("div");
-  m.className = "menu";
-  m.dataset.forWin = el.id;
-  m.style.top   = (r.bottom + 6) + "px";
-  m.style.left  = "auto";
-  m.style.right = Math.max(8, innerWidth - r.right) + "px";
-  const isMax = el.classList.contains("max");
-  const appKey = id.split("#")[0];
-  m.innerHTML =
-    (WIN_MENU_EXTRA[id] ? WIN_MENU_EXTRA[id](el) : "")+
-    (MULTI_WINDOW[appKey]
-      ? `<button onclick="closeWinMenu();nouvelleFenetre('${appKey}')">⊞ Nouvelle fenêtre</button><div class="msep"></div>`
-      : "")+
-    `<button onclick="winMenuAct('${el.id}','max')">${isMax?"🗗 Restaurer la taille":"⛶ Agrandir l'écran"}`+
-      `<span class="kbd">${isMax?"Super+↓":"Super+↑"}</span></button>`+
-    `<button onclick="winMenuAct('${el.id}','center')">⊹ Recentrer la fenêtre</button>`+
-    `<div class="msep"></div>`+
-    `<button onclick="closeWinMenu();openSettings()">⚙ Paramètres</button>`+
-    `<button onclick="closeWinMenu();openApps()">▦ Toutes les applications</button>`+
-    `<div class="msep"></div>`+
-    `<button onclick="winMenuAct('${el.id}','close')">✕ Fermer<span class="kbd">Alt+F4</span></button>`;
-  document.body.appendChild(m);
-  winMenuEl = m;
-}
-function winMenuAct(winId, what){
+/*  LE MENU « ⋮ » DE LA BARRE DE TITRE A DISPARU AVEC LA PASTILLE VERTE qui
+    l'ouvrait (demande d'Alex : « supprimer le bouton vert de toutes les
+    fenêtres »). Aucune de ses entrées n'est perdue : elles ont rejoint
+    ctxFenetre — le menu du CLIC DROIT sur la barre de titre, qui devient la
+    seule porte des options d'une fenêtre. Recentrer vit ici, le reste
+    directement dans ctxFenetre. */
+function ctxRecentre(winId){
   const el = document.getElementById(winId);
-  closeWinMenu();
   if(!el) return;
-  if(what === "max")   toggleMax(el);
-  if(what === "close") closeWin(el);
-  if(what === "center"){
-    toggleMax(el, false);
-    el.style.left = Math.max(8, (innerWidth  - el.offsetWidth)/2) + "px";
-    el.style.top  = Math.max(40, (innerHeight - el.offsetHeight)/2) + "px";
-    focusWin(el);
-  }
+  toggleMax(el, false);
+  el.style.left = Math.max(8, (innerWidth  - el.offsetWidth)/2) + "px";
+  el.style.top  = Math.max(40, (innerHeight - el.offsetHeight)/2) + "px";
+  focusWin(el);
 }
-document.addEventListener("click", e=>{
-  if(winMenuEl && !e.target.closest(".menu,.tbtn.wmenu")) closeWinMenu();
-});
 function closeWin(el){
   el.classList.add("closing");
   //  Les pastilles des bureaux comptent les fenêtres : elles doivent suivre
@@ -3908,14 +3852,12 @@ function runCmd(raw){
   tPrint(esc("")+out);
   tNewPrompt();
 }
-/* --- Actions du menu ⋮ du terminal --------------------------------------- */
+/* --- Actions du menu déroulé par le clic droit du terminal --------------- */
 function termClearFromMenu(){
-  closeWinMenu();
   if(!tEl) return;
   tEl.innerHTML = ""; tNewPrompt();
 }
 function termCopyAll(){
-  closeWinMenu();
   if(!tEl) return;
   const txt = tEl.innerText;
   if(navigator.clipboard && navigator.clipboard.writeText){
@@ -3930,7 +3872,6 @@ function termCopyAll(){
 //  ouverte si l'identifiant est le même, il faut donc un identifiant neuf.
 let termSeq = 0;
 function termNewWindow(){
-  closeWinMenu();
   const id = "term-" + (++termSeq);
   const el = openWin(id, "Terminal — lex@lexos", terminalGlyph(17), termHTML(), 640, 420);
   const out = el.querySelector("#tout");
@@ -4480,9 +4421,34 @@ function ctxRangeBureau(){
 function ctxFenetre(e, el){
   if(e.target.closest(".tbtn")) return;
   const max = el.classList.contains("max");
+  //  LES ENTRÉES DE L'ANCIEN MENU « ⋮ » VIVENT ICI depuis que la pastille
+  //  verte qui l'ouvrait a été retirée (demande d'Alex) : les extras par
+  //  appli (Nouveau terminal, Ouvrir un terminal…), Nouvelle fenêtre pour
+  //  les applis qui l'acceptent, et Recentrer. Les identifiants exacts
+  //  (« term », « files » — la PREMIÈRE fenêtre de chaque, pas les copies)
+  //  reprennent ceux que WIN_MENU_EXTRA visait, à l'identique.
+  const id = el.id.replace(/^win-/, "");
+  const appKey = el.dataset.app;
+  const extras = [];
+  if(id === "term"){
+    extras.push({ic:terminalGlyph(14), txt:"Nouveau terminal", act:"termNewWindow()"});
+    extras.push({ic:"↻", txt:"Effacer l'écran", act:"termClearFromMenu()", kbd:"clear"});
+    extras.push({ic:"⧉", txt:"Copier tout le texte", act:"termCopyAll()"});
+    extras.push("-");
+  }
+  if(id === "files"){
+    extras.push({ic:terminalGlyph(14), txt:"Ouvrir un terminal", act:"openTerminal()"});
+    extras.push("-");
+  }
+  if(appKey && typeof MULTI_WINDOW === "object" && MULTI_WINDOW[appKey]){
+    extras.push({ic:"⊞", txt:"Nouvelle fenêtre", act:`nouvelleFenetre('${appKey}')`});
+    extras.push("-");
+  }
   ctxOuvre(e, [
+    ...extras,
     {ic:max?"🗗":"⛶", txt:max?"Restaurer la taille":"Agrandir", act:`toggleMax(document.getElementById('${el.id}'))`},
     {ic:"↕", txt:"Pleine hauteur", act:`ctxPleineHauteur('${el.id}')`},
+    {ic:"⊹", txt:"Recentrer la fenêtre", act:`ctxRecentre('${el.id}')`},
     "-",
     "-",
     {ic:"🗔", txt:"Déplacer vers un bureau", sous:
