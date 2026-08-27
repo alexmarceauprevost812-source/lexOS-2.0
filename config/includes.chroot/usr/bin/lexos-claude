@@ -76,7 +76,7 @@ CONF_MODELE="$CONF_DIR/claude-modele"
 #  identifiant|nom|contexte|entrée/sortie par million|à quoi ça sert
 MODELES=(
 	"claude-opus-5|Opus 5|1M|5 \$ / 25 \$|le défaut de Claude Code, et le plus capable des trois"
-	"claude-sonnet-5|Sonnet 5|1M|3 \$ / 15 \$|nettement moins cher, largement de quoi coder au quotidien"
+	"claude-sonnet-5|Sonnet 5|1M|2 \$ / 10 \$|nettement moins cher, largement de quoi coder au quotidien"
 	"claude-haiku-4-5|Haiku 4.5|200K|1 \$ / 5 \$|le plus rapide et le moins cher, pour les tâches simples"
 )
 
