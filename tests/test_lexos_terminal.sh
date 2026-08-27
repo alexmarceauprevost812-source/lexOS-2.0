@@ -89,16 +89,16 @@ done
 [ "$TOUT_PAREIL" = 1 ] \
 	&& ok "les réglages partagés portent la même valeur dans les deux fichiers"
 
-#  La police, précisément : c'était la panne d'Alex. « Fira Code 11 » ->
-#  « Fira Code 13 » : le banc vérifie le NOUVEAU chiffre, pas l'ancien — un
-#  banc qui teste l'ancienne valeur resterait vert si quelqu'un revenait
-#  dessus par erreur.
-grep -q '^FontName=Fira Code 13$' "$RC" \
-	&& ok "la police est bien passée à 13 (elle était à 11 sur la photo d'Alex)" \
-	|| non "terminalrc n'annonce pas Fira Code 13"
-grep -q 'name="font-name".*value="Fira Code 13"' "$XML" \
+#  La police, précisément : c'était la panne d'Alex, deux fois de suite —
+#  « Fira Code 11 » -> 13, puis encore « trop petit » -> 15. Le banc vérifie
+#  le NOUVEAU chiffre, pas l'ancien : un banc qui teste une valeur dépassée
+#  resterait vert si quelqu'un revenait dessus par erreur.
+grep -q '^FontName=Fira Code 15$' "$RC" \
+	&& ok "la police est bien passée à 15 (11 -> 13 -> 15, deux photos d'Alex)" \
+	|| non "terminalrc n'annonce pas Fira Code 15"
+grep -q 'name="font-name".*value="Fira Code 15"' "$XML" \
 	&& ok "…et le canal Xfconf, celui qui compte vraiment, porte la même taille" \
-	|| non "xfce4-terminal.xml n'annonce pas Fira Code 13 — la police d'Alex ne bougerait toujours pas"
+	|| non "xfce4-terminal.xml n'annonce pas Fira Code 15 — la police d'Alex ne bougerait toujours pas"
 
 #  LES 24 PROPRIÉTÉS DOIVENT ÊTRE LÀ, TOUTES — une migration réelle en écrit
 #  24 (fond, police, curseur, palette, tabulations, geometrie…). En manquer

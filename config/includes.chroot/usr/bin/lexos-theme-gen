@@ -214,14 +214,21 @@ if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	TERM_PALETTE="#1B1A17;#B3261E;#0B6B3A;#A15C00;#1A5FB4;#6234D1;#0F6E68;#57534A"
 	TERM_PALETTE="${TERM_PALETTE};#3B3830;#8A1512;#084F2B;#7A4300;#123F7E;#4A25A3;#0A524D;#2B2924"
 else
-	#  Terminal de NUIT — LexOS Noir, inchangé : c'est l'identité du système.
-	#  Vert FONCÉ, et non le vert néon d'avant. Le néon (#39FF14) reste ce
-	#  qu'il a toujours été : l'accent « neon », choisi avec « lexos accent
-	#  neon ». #00AF5F est exactement le 38;5;35 de l'invite en palette 256 :
-	#  les deux écritures de la même couleur ne peuvent plus diverger.
+	#  Terminal de NUIT — LexOS Noir. PHOTO D'ALEX : « un vert plus visible ».
+	#  #00AF5F passait déjà le seuil WCAG (7,3:1 sur noir, mesuré) mais restait
+	#  un vert sourd — pas un problème de contraste, un problème de vivacité.
+	#  #00D700 (10,7:1 sur noir) reste un vert FONCÉ, PAS le vert néon
+	#  réservé à l'accent « neon » (#39FF14, choisi avec « lexos accent
+	#  neon ») : on monte d'un cran sans aller jusque-là.
+	#
+	#  #00D700 EST EXACTEMENT le 38;5;40 de la palette 256 termcap — comme
+	#  #00AF5F l'était pour 38;5;35 : la coïncidence qui empêche l'invite
+	#  (PS_MACHINE_256, plus bas) et le terminal de diverger tient encore.
+	#  #00FF5F (38;5;47), pour le gras, garde le même glacis vert-menthe que
+	#  l'ancien FG_HI, juste plus haut sur l'échelle.
 	TERM_BG="#000000"
-	TERM_FG="#00AF5F"
-	TERM_FG_HI="#23C97A"
+	TERM_FG="#00D700"
+	TERM_FG_HI="#00FF5F"
 	TERM_SAISIE="$ACCENT"
 	TERM_ERREUR="#E5484D"
 	TERM_DIM="#8A8A90"
@@ -785,12 +792,13 @@ EOF
 # =============================================================================
 #  3. Terminal XFCE — noir, écriture vert dark, curseur accent
 # =============================================================================
-#  ALEX, PHOTO DU TERMINAL : « écriture plus gros ». 11 -> 13 (+18 %). Une
-#  seule variable, écrite UNE fois, reprise dans terminalrc ET dans le canal
-#  Xfconf juste en dessous — sinon on recrée exactement le défaut que ce
-#  bloc découvre à l'instant : deux écritures de la même valeur, libres de
-#  diverger.
-TERM_POLICE="Fira Code 13"
+#  ALEX, PHOTO DU TERMINAL : « écriture plus gros ». 11 -> 13 (+18 %).
+#  PHOTO SUIVANTE, MÊME TERMINAL : encore « trop petit ». 13 -> 15 (+15 %
+#  de plus, +36 % depuis l'origine). Une seule variable, écrite UNE fois,
+#  reprise dans terminalrc ET dans le canal Xfconf juste en dessous —
+#  sinon on recrée exactement le défaut que ce bloc découvre à l'instant :
+#  deux écritures de la même valeur, libres de diverger.
+TERM_POLICE="Fira Code 15"
 
 cat > "$TARGET/.config/xfce4/terminal/terminalrc" <<EOF
 [Configuration]
@@ -940,7 +948,7 @@ if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	PS_SAISIE_256="38;5;94"     # brun-orange foncé
 	PS_ERREUR_256="1;38;5;88"   # rouge foncé
 else
-	PS_MACHINE_256="38;5;35"
+	PS_MACHINE_256="38;5;40"    # exactement #00D700, voir la section terminal plus haut
 	PS_SAISIE_256="38;5;208"
 	PS_ERREUR_256="1;38;5;196"
 fi
