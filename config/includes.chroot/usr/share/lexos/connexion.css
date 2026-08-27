@@ -123,6 +123,33 @@ menuitem:selected {
 	background-color: @lexos_accent;
 	color: @lexos_noir;
 }
+/*  ALEX, PHOTO SUIVANTE, MÊME MENU : encore orange sur orange au survol —
+    les règles ci-dessus n'ont PAS suffi, et voici pourquoi. Elles posent la
+    couleur sur le MENUITEM, dont l'étiquette (le nœud label à l'intérieur)
+    ne fait qu'HÉRITER. Or « #panel_window * », tout en haut de ce fichier,
+    correspond DIRECTEMENT à cette étiquette (un GtkMenu attaché à un widget
+    est un DESCENDANT CSS de ce widget — gtk_menu_attach_to_widget relie
+    leurs contextes de style, c'est le pendant inverse de la note « pas
+    forcément descendants » plus haut : les deux cas existent, il faut
+    couvrir les deux) — et en CSS GTK comme en CSS tout court, une
+    correspondance directe bat TOUJOURS l'héritage, quelle que soit la
+    spécificité. L'étiquette restait donc orange pendant que le fond le
+    devenait. Les règles ci-dessous visent l'étiquette ELLE-MÊME ;
+    « #panel_window menuitem:hover * » (1,1,1) bat « #panel_window * »
+    (1,0,0) là où l'ancêtre est nommé, et les formes sans ancre couvrent le
+    popup orphelin. Isolées une par une, comme tout ce fichier. */
+menuitem:hover * {
+	color: @lexos_noir;
+}
+menuitem:selected * {
+	color: @lexos_noir;
+}
+#panel_window menuitem:hover * {
+	color: @lexos_noir;
+}
+#panel_window menuitem:selected * {
+	color: @lexos_noir;
+}
 row:hover {
 	background-color: @lexos_accent;
 	color: @lexos_noir;

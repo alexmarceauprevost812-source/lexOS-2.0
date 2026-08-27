@@ -71,32 +71,44 @@ def regles(texte):
 def specificite(sel):
     return (sel.count("#"), sel.count(".") + sel.count(":"), len(re.findall(r"(?<![#.\w-])[a-z][a-z0-9-]*", sel)))
 
+def noeud_ok(p, n):
+    nom = re.match(r"^[a-z][a-z0-9-]*", p)
+    idm = re.search(r"#([\w-]+)", p)
+    cls = re.findall(r"\.([\w-]+)", p)
+    pse = re.findall(r":([\w-]+)", p)
+    if nom and nom.group(0) != n["nom"] and p[0] != "*":
+        return False
+    if idm and idm.group(1) != n.get("id"):
+        return False
+    if any(c not in n.get("classes", []) for c in cls):
+        return False
+    if any(s not in n.get("etats", []) for s in pse):
+        return False
+    return True
+
 def correspond(sel, chemin):
     #  chemin : liste d'ancêtres, du plus lointain au nœud lui-même.
     #  Chaque nœud : {"nom":..., "id":..., "classes":[...]}
+    #
+    #  LE DERNIER MORCEAU DU SÉLECTEUR EST ANCRÉ SUR LE NŒUD LUI-MÊME —
+    #  c'est TOUTE la différence entre une correspondance directe et un
+    #  héritage. L'ancienne version le laissait flotter : « menuitem:hover »
+    #  « correspondait » à un chemin finissant par label, et le banc voyait
+    #  vert un écran illisible (la couleur restait posée sur le menuitem,
+    #  l'étiquette gardait la sienne). Un moteur qui confond les deux ne
+    #  peut pas attraper le bogue orange-sur-orange de la photo d'Alex.
     parts = sel.split()
-    i = len(chemin) - 1
-    for p in reversed(parts):
+    if not parts or not noeud_ok(parts[-1], chemin[-1]):
+        return False
+    i = len(chemin) - 2
+    for p in reversed(parts[:-1]):
         trouve = False
         while i >= 0:
             n = chemin[i]
             i -= 1
-            nom = re.match(r"^[a-z][a-z0-9-]*", p)
-            idm = re.search(r"#([\w-]+)", p)
-            cls = re.findall(r"\.([\w-]+)", p)
-            pse = re.findall(r":([\w-]+)", p)
-            if nom and nom.group(0) != n["nom"] and p[0] != "*":
-                continue
-            if p.startswith("*") and not nom:
-                pass
-            if idm and idm.group(1) != n.get("id"):
-                continue
-            if any(c not in n.get("classes", []) for c in cls):
-                continue
-            if any(s not in n.get("etats", []) for s in pse):
-                continue
-            trouve = True
-            break
+            if noeud_ok(p, n):
+                trouve = True
+                break
         if not trouve:
             return False
     return True
@@ -189,6 +201,28 @@ cat > "$BANC/rangee_sans_ancre.json" <<'J'
 [{"nom":"window","id":"","classes":[]},
  {"nom":"row","classes":[],"etats":["selected"]}]
 J
+#  LA PHOTO SUIVANTE D'ALEX — le même menu, ENCORE orange sur orange. Le cas
+#  que le banc ne modélisait pas : l'ÉTIQUETTE À L'INTÉRIEUR du menuitem,
+#  quand le menu EST un descendant CSS de #panel_window (un GtkMenu attaché à
+#  un widget hérite de son contexte de style — c'est le cas des indicateurs
+#  du greeter). « #panel_window * » correspond alors DIRECTEMENT à
+#  l'étiquette, et une correspondance directe bat l'héritage du
+#  menuitem:hover — quelle que soit la spécificité. Le banc précédent
+#  résolvait la couleur sur le MENUITEM : vert, pendant que l'écran réel
+#  restait illisible.
+cat > "$BANC/etiquette_menu_panneau.json" <<'J'
+[{"nom":"window","id":"panel_window","classes":[]},
+ {"nom":"menubar","classes":[]},
+ {"nom":"menuitem","classes":[]},
+ {"nom":"menu","classes":[]},
+ {"nom":"menuitem","classes":[],"etats":["hover"]},
+ {"nom":"label","classes":[]}]
+J
+cat > "$BANC/etiquette_menu_orphelin.json" <<'J'
+[{"nom":"window","id":"","classes":[]},
+ {"nom":"menuitem","classes":[],"etats":["hover"]},
+ {"nom":"label","classes":[]}]
+J
 
 #  LES DEUX RÉGIMES. En 800 (le CSS de l'utilisateur du compte lightdm) la
 #  priorité suffit. En 200 (notre thème LexOS-Connexion, à égalité avec la
@@ -259,6 +293,19 @@ for PRIO in 800 200; do
 	[ "$F" = "#000000" ] \
 		&& ok "priorité $PRIO : … et son écriture passe NOIRE aussi" \
 		|| non "priorité $PRIO : écriture de la rangée sélectionnée = « $F »"
+
+	#  L'étiquette DANS le menuitem — le nœud que la photo suivante d'Alex a
+	#  montré encore orange. Sous #panel_window, « #panel_window * » la
+	#  matche directement : seule une règle plus spécifique visant
+	#  l'étiquette elle-même peut la faire passer noire.
+	F="$(resout "$BANC/etiquette_menu_panneau.json" color "$PRIO")"
+	[ "$F" = "#000000" ] \
+		&& ok "priorité $PRIO : l'ÉTIQUETTE d'un menuitem survolé sous #panel_window passe noire" \
+		|| non "priorité $PRIO : étiquette sous #panel_window = « $F » — la photo d'Alex, encore"
+	F="$(resout "$BANC/etiquette_menu_orphelin.json" color "$PRIO")"
+	[ "$F" = "#000000" ] \
+		&& ok "priorité $PRIO : … et celle d'un popup SANS ancêtre nommé aussi" \
+		|| non "priorité $PRIO : étiquette sans ancêtre = « $F »"
 done
 
 #  L'ORDRE. « #login_window * » et « #login_window button » ont la MÊME
