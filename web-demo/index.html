@@ -481,6 +481,15 @@ body.light #dockTab{background:rgba(239,235,227,.9)}
 #dock.bottom .tip{bottom:120%;left:50%;transform:translateX(-50%)}
 #dock.top    .tip{top:120%;left:50%;transform:translateX(-50%)}
 .dicon:hover .tip{opacity:1}
+/*  LE POINT D'APPLI OUVERTE — posé par majDock(). Une fenêtre réduite
+    reste une fenêtre ouverte : c'est ce point-là qui le rappelle, côté
+    dock, pendant que la fenêtre elle-même a disparu du bureau. */
+.dicon.dock-actif::after{content:"";position:absolute;width:5px;height:5px;
+  border-radius:50%;background:var(--ac)}
+#dock.right .dicon.dock-actif::after,
+#dock.left  .dicon.dock-actif::after{bottom:3px;left:50%;transform:translateX(-50%)}
+#dock.bottom .dicon.dock-actif::after{top:3px;left:50%;transform:translateX(-50%)}
+#dock.top    .dicon.dock-actif::after{bottom:3px;left:50%;transform:translateX(-50%)}
 
 /* --- Fenêtres ----------------------------------------------------------- */
 .win{position:fixed;min-width:300px;background:var(--bg);
@@ -518,12 +527,12 @@ body.light #dockTab{background:rgba(239,235,227,.9)}
   font-weight:600;font-size:13px}
 .tbar .ticon{font-size:15px}
 .tbar .ttitle{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/*  LES TROIS PASTILLES, FAÇON macOS — À LA DEMANDE D'ALEX. Trois boutons
-    ronds, toujours colorés (pas seulement au survol comme avant), dans le
-    même ordre qu'à l'écran : vert à gauche, jaune au milieu, rouge à
-    droite — et le rouge, comme le bouton d'arrêt de la barre du haut,
-    n'obéit JAMAIS à l'accent : fermer doit se reconnaître d'un coup d'oeil,
-    quelle que soit la couleur choisie ailleurs dans LexOS.
+/*  LES QUATRE PASTILLES, FAÇON macOS — À LA DEMANDE D'ALEX. Boutons ronds,
+    toujours colorés (pas seulement au survol comme avant), dans le même
+    ordre qu'à l'écran : vert, gris, jaune, rouge — et le rouge, comme le
+    bouton d'arrêt de la barre du haut, n'obéit JAMAIS à l'accent : fermer
+    doit se reconnaître d'un coup d'oeil, quelle que soit la couleur
+    choisie ailleurs dans LexOS.
     Le glyphe reste invisible tant qu'on ne survole ou ne focalise pas la
     pastille — même pudeur que macOS, la couleur suffit à dire ce que fait
     chaque bouton une fois qu'on les connaît. */
@@ -531,10 +540,17 @@ body.light #dockTab{background:rgba(239,235,227,.9)}
   justify-content:center;font-size:8px;line-height:1;color:transparent;
   transition:color .1s ease}
 .tbtn:hover,.tbtn:focus-visible{color:rgba(0,0,0,.6)}
-/*  Vert : ouvre les Paramètres — plus un menu à ouvrir puis à relire, un
-    seul clic. « ⋮ » (la liste d'options complète) reste au clic droit sur
-    la barre de titre, voir ctxFenetre. */
+/*  Vert : ouvre le menu d'options de la fenêtre (Nouvelle fenêtre,
+    Recentrer, Paramètres, et les extras par appli). */
 .tbtn.wmenu{background:#28C840}
+/*  Gris : réduire — la fenêtre disparaît du bureau mais reste ouverte,
+    retrouvable d'un clic sur son icône dans le dock (voir minimizeWin() et
+    majDock()). Ni rouge ni vert ni jaune : ce geste-là ne fait
+    ni disparaître définitivement, ni changer la taille, ni ouvrir un menu
+    — une quatrième couleur dit que c'est une quatrième chose. Même gris
+    que « Style : Classique » dans les Paramètres (#8A8A8A, déjà mesuré
+    lisible : 6,08:1 avec une icône noire). */
+.tbtn.mini{background:#8A8A8A}
 /*  Jaune : agrandir, fonction inchangée — seule la couleur est nouvelle. */
 .tbtn.maxi{background:#FEBC2E}
 /*  Rouge : fermer. Coloré en permanence, et pas seulement au survol comme
@@ -542,6 +558,14 @@ body.light #dockTab{background:rgba(239,235,227,.9)}
     passer la souris dessus. */
 .tbtn.close{background:#FF5F57}
 .tbtn.close:hover{color:rgba(0,0,0,.7)}
+/*  RÉDUITE : hors du bureau, mais toujours dans le DOM — jamais retirée
+    comme .closing le fait, sinon « la retrouver dans le dock » n'aurait
+    plus rien à retrouver. Une seule pastille assombrie eût suffi visible :
+    on l'anime en retrait plutôt que de la faire disparaître d'un coup, même
+    langage que .closing un peu plus bas. */
+.win.minimizing{animation:reduireVers .16s ease-in forwards}
+.win.minimized{display:none}
+@keyframes reduireVers{to{opacity:0;transform:scale(.85)}}
 .wbody{flex:1;overflow:auto;-webkit-user-select:text;user-select:text}
 
 /* Effet TV 1980 : la fenêtre s'écrase en une ligne puis s'éteint */
@@ -2813,6 +2837,7 @@ function openWin(id, title, icon, html, w, h, x, y){
     `<div class="tbar"><span class="ticon">${icon}</span>`+
     `<span class="ttitle">${title}</span>`+
     `<button class="tbtn wmenu" title="Options de la fenêtre">⋮</button>`+
+    `<button class="tbtn mini" title="Réduire (la retrouver dans le dock)">−</button>`+
     `<button class="tbtn maxi" title="Agrandir (double-clic sur la barre)">⛶</button>`+
     `<button class="tbtn close" title="Fermer">✕</button></div>`+
     `<div class="wbody">${html}</div>`;
@@ -2821,10 +2846,12 @@ function openWin(id, title, icon, html, w, h, x, y){
   //  alors un nouveau derrière, pour garder un endroit libre où déposer.
   if(typeof bureauxAssureVide === "function") bureauxAssureVide();
   if(typeof bureauRend === "function") bureauRend();
+  if(typeof majDock === "function") try{ majDock(); }catch(e){}
   el.addEventListener("animationend", e=>{
     if(e.animationName==="crtOn"||e.animationName==="fadeIn") el.classList.remove("opening");
   });
   el.querySelector(".close").onclick = ()=>closeWin(el);
+  el.querySelector(".mini").onclick = e=>{ e.stopPropagation(); minimizeWin(el); };
   el.querySelector(".maxi").onclick = e=>{ e.stopPropagation(); toggleMax(el); };
   //  LA PASTILLE VERTE OUVRE LE MENU « ⋮ » — Nouvelle fenêtre, Recentrer,
   //  Paramètres, Toutes les applications, et les extras par appli
@@ -2970,9 +2997,33 @@ function closeWin(el){
   el.classList.add("closing");
   //  Les pastilles des bureaux comptent les fenêtres : elles doivent suivre
   //  la fermeture, sinon un bureau vidé garderait son point « occupé ».
-  const rafraichir = ()=>{ el.remove(); if(typeof bureauRend==="function") bureauRend(); };
+  const rafraichir = ()=>{
+    el.remove();
+    if(typeof bureauRend==="function") bureauRend();
+    if(typeof majDock === "function") try{ majDock(); }catch(e){}
+  };
   el.addEventListener("animationend", rafraichir, {once:true});
   setTimeout(rafraichir, 600);   /* filet si l'animation est coupée */
+}
+//  RÉDUIRE — pas FERMER. La fenêtre quitte le bureau (« .minimized »,
+//  display:none) mais reste dans le DOM et compte toujours comme « ouverte »
+//  pour winsOfApp() : c'est ce qui permet à dockActivate() de la retrouver
+//  et à focusWin() de la faire réapparaître, sans code séparé pour « ouvrir »
+//  et « restaurer ». Alex : « enlever [du bureau] et mettre la fenêtre de
+//  côté, visible où les applications vont être ouvertes » — le dock EST cet
+//  endroit visible ; majDock() y allume un point sous l'icône
+//  tant qu'au moins une fenêtre de l'appli reste ouverte, réduite ou non.
+function minimizeWin(el){
+  if(el.classList.contains("minimized")) return;
+  el.classList.remove("active");
+  el.classList.add("minimizing");
+  const masquer = ()=>{
+    el.classList.remove("minimizing");
+    el.classList.add("minimized");
+    if(typeof majDock === "function") try{ majDock(); }catch(e){}
+  };
+  el.addEventListener("animationend", masquer, {once:true});
+  setTimeout(masquer, 300);   /* filet si l'animation est coupée */
 }
 /* ===================== Bureaux virtuels =============================
    « Plusieurs écrans sur le même écran » : autant de bureaux qu'on veut (cinq
@@ -3049,7 +3100,13 @@ function bureauEnleve(n){
 }
 function bureauApplique(){
   document.querySelectorAll(".win").forEach(w=>{
-    const dessus = winBureau(w) === state.bureau;
+    //  UNE FENÊTRE RÉDUITE NE REVIENT PAS TOUTE SEULE. w.style.display est
+    //  un style EN LIGNE : sans l'exclure ici, revenir sur le bureau d'une
+    //  fenêtre réduite écrirait display:"" par-dessus la règle CSS
+    //  .minimized{display:none} (un style en ligne l'emporte sur une
+    //  classe) et la ferait réapparaître toute seule au changement de
+    //  bureau — exactement le contraire de « réduire ».
+    const dessus = winBureau(w) === state.bureau && !w.classList.contains("minimized");
     w.style.display = dessus ? "" : "none";
     //  aria-hidden en plus de display:none : un lecteur d'écran ne doit pas
     //  annoncer les fenêtres d'un bureau qu'on ne regarde pas.
@@ -3091,7 +3148,12 @@ function bureauVa(n){
   bureauApplique();
   //  Donner le focus à une fenêtre du bureau d'arrivée, sinon les raccourcis
   //  clavier continueraient de viser une fenêtre devenue invisible.
-  const visibles = [...document.querySelectorAll(".win")].filter(w=>winBureau(w)===n);
+  //  RÉDUITE EXCLUE : focusWin() retire .minimized par définition (c'est
+  //  ainsi que le dock restaure une fenêtre) — sans ce filtre, changer de
+  //  bureau aurait suffi à restaurer toute seule une fenêtre réduite qui
+  //  s'y trouvait, sans le moindre clic sur son icône.
+  const visibles = [...document.querySelectorAll(".win")]
+    .filter(w=>winBureau(w)===n && !w.classList.contains("minimized"));
   if(visibles.length) focusWin(visibles[visibles.length-1]);
   toast("🗔 Bureau " + (n+1) + (visibles.length ? "" : " — vide"));
 }
@@ -3359,6 +3421,25 @@ addEventListener("keydown", e=>{
 });
 
 function focusWin(el){
+  //  RESTAURER, C'EST FOCALISER. dockActivate() rappelle focusWin() sur la
+  //  fenêtre d'une appli déjà ouverte — y compris réduite : c'est donc ICI,
+  //  et pas dans un chemin séparé, que « cliquer l'icône du dock » fait
+  //  réapparaître une fenêtre réduite. Un seul geste, une seule fonction.
+  //
+  //  RETIRER LA CLASSE NE SUFFIT PAS À RENDRE LA FENÊTRE VISIBLE.
+  //  bureauApplique() pose display:none en STYLE EN LIGNE sur toute
+  //  fenêtre qui n'est pas sur le bureau courant OU qui est réduite — et un
+  //  style en ligne l'emporte toujours sur la règle CSS .minimized. Ne
+  //  retirer que la classe aurait laissé ce display:none figé même après
+  //  « déminimiser », mesuré avant de pousser (banc Playwright : la fenêtre
+  //  restait invisible malgré .minimized effectivement retirée). On
+  //  redemande donc à bureauApplique() de recalculer — la même fonction qui
+  //  a posé le style en ligne est la seule habilitée à l'annuler.
+  if(el.classList.contains("minimized")){
+    el.classList.remove("minimized");
+    //  bureauApplique() se charge elle-même de rappeler majDock() en sortie.
+    if(typeof bureauApplique === "function") bureauApplique();
+  }
   document.querySelectorAll(".win").forEach(w=>w.classList.remove("active"));
   el.classList.add("active"); el.style.zIndex = ++state.zTop;
 }
@@ -10404,6 +10485,9 @@ DOCK.forEach(([ic,label,fn])=>{
     ? `<span class="applogo"></span><span class="tip">${label}</span>`
     : `${ic}<span class="tip">${label}</span>`;
   const appKey = DOCK_APP[label];
+  //  Retenu sur le bouton lui-même : majDock() en a besoin plus tard pour
+  //  savoir quelle appli chaque icône représente, sans redevoir DOCK_APP.
+  b.dataset.app = appKey || "";
   b.onclick = ()=> dockActivate(appKey, fn);
   //  Clic du milieu (molette) : ouvre une NOUVELLE fenêtre, pour les applis
   //  qui le permettent — comme sur un vrai bureau.
@@ -10429,6 +10513,22 @@ let winSeq = 0;
 function winsOfApp(appKey){
   return [...winsRoot.querySelectorAll(".win")]
     .filter(w=>w.dataset.app===appKey && !w.classList.contains("closing"));
+}
+//  LE POINT SOUS L'ICÔNE DU DOCK — « visible où les applications vont être
+//  ouvertes », comme demandé. winsOfApp() compte aussi les fenêtres
+//  RÉDUITES (rien dans son filtre n'exclut .minimized, à dessein) : le
+//  point reste allumé tant que l'appli a au moins une fenêtre ouverte,
+//  réduite ou non — sinon réduire aurait l'air d'avoir fermé.
+//  Appelée après chaque ouverture/fermeture/réduction/restauration
+//  (openWin, closeWin, minimizeWin, focusWin, bureauApplique) : elle
+//  n'est déclarée qu'ICI, mais chacun de ces points d'appel se protège
+//  déjà avec « typeof majDock === "function" », posé avant même que cette
+//  fonction existe — elle n'avait simplement jamais été écrite.
+function majDock(){
+  document.querySelectorAll("#dock .dicon").forEach(b=>{
+    const appKey = b.dataset.app;
+    b.classList.toggle("dock-actif", !!appKey && winsOfApp(appKey).length > 0);
+  });
 }
 function dockActivate(appKey, opener){
   if(!appKey) return opener();
