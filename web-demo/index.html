@@ -1437,8 +1437,35 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .files li{list-style:none;display:flex;align-items:center;gap:10px;
   padding:9px 12px;border-bottom:1px solid var(--bg-hi);color:var(--fg)}
 .files li:hover{background:var(--bg-hi)}
+/*  Les deux vignettes possibles d'un fichier : cachées en vue liste (la
+    petite icône texte suffit), affichées en vue grille. On ne rend
+    qu'une SEULE fois chaque ligne — la bonne vignette s'affiche selon la
+    classe du parent, sans reconstruire le HTML au changement de vue. */
+.files li .ftuile-img,.files li .ftuile-ic{display:none}
 /* --- Fil d'Ariane et dossier vide ---------------------------------------- */
 .files li.sel{background:var(--bg-hi);box-shadow:inset 2px 0 0 var(--ac)}
+/*  ═══ VUE GRILLE — « un autre angle pour voir les images », à la demande
+    d'Alex ═══ Même liste, mêmes attributs data-i/data-r, même sélection
+    (.sel) et le même renommage (span .fnom) qu'en vue liste : SEULE la
+    disposition change, en CSS, pour ne jamais avoir deux façons de
+    sélectionner ou renommer un fichier à garder synchronisées. Les
+    fichiers qui ont une VRAIE image derrière eux (le mascot, le logo, le
+    fond d'écran CRT — voir ficVignetteReelle()) montrent cette image ; les
+    autres montrent une grande icône. Aucune vignette n'est inventée pour
+    un fichier qui n'en a pas. */
+.files.grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));
+  gap:4px;padding:10px}
+.files.grille li{flex-direction:column;justify-content:flex-start;gap:6px;
+  padding:10px 6px;border-bottom:0;border-radius:10px;text-align:center}
+.files.grille li .ic-inline,.files.grille li .sz{display:none}
+.files.grille li .ftuile-img{display:block;width:56px;height:56px;
+  background-size:cover;background-position:center;border-radius:9px;
+  border:1px solid var(--bd);flex:none}
+.files.grille li .ftuile-ic{display:flex;align-items:center;justify-content:center;
+  width:56px;height:56px;font-size:32px;flex:none}
+.files.grille li .fnom{white-space:normal;word-break:break-word;font-size:11.5px;
+  line-height:1.3;max-height:2.6em;overflow:hidden}
+.files.grille li .zip-box{width:56px;height:56px}
 .ri-etape{margin:12px 0 6px;font-size:12.5px;color:var(--fg-dim)}
 .ri-etape b{color:var(--ac)}
 .ri-liste,.ri-script{margin:0;padding:10px 12px;border-radius:9px;background:#000;
@@ -2441,6 +2468,7 @@ const ACCENTS = {
 const LANGS = { fr_CA:"Français (Québec)", fr_FR:"Français (France)",
   en_US:"English (US)", en_CA:"English (Canada)", es_ES:"Español", de_DE:"Deutsch" };
 const state = { accent:"orange", perf:"medium", crt:true, dock:"right",
+                filesVue:"liste",
                 avion:false, mode:"sombre", wifiAuto:false, lang:"fr_CA",
                 distantPartage:false, distantProto:"auto",
                 iaLibresSeulement:false,
@@ -4030,10 +4058,27 @@ function openFiles(){
              title="Dossier parent" style="visibility:hidden">←</button>
      <span class="fpath" id="filesFil"></span>
      <span class="dl-mascot" id="dlMascotBadge" aria-hidden="true"></span>
+     <button class="ficonbtn" id="filesVueBtn" onclick="filesVueBascule()" title="Vue grille (voir les images)">⊞</button>
      <button class="ficonbtn" id="filesMenuBtn" onclick="toggleFilesMenu(this)" title="Menu">⋮</button>
    </div>
    <div id="filesZone"></div>`,540,470);
   filesChemin = [];
+  filesRend();
+}
+//  L'AUTRE ANGLE DE VUE, POUR VOIR LES IMAGES — demandé par Alex. Liste
+//  (par défaut, celle d'origine) ou grille (grandes vignettes, comme
+//  l'affichage « icônes » d'un vrai gestionnaire de fichiers) : le bouton
+//  bascule l'état ET son propre glyphe/titre, puis redemande un rendu —
+//  filesRend() pose la classe .grille sur le <ul> selon state.filesVue,
+//  rien d'autre ne change (même sélection, même renommage, voir
+//  ligneFichier()).
+function filesVueBascule(){
+  state.filesVue = state.filesVue === "grille" ? "liste" : "grille";
+  const b = document.getElementById("filesVueBtn");
+  if(b){
+    b.textContent = state.filesVue === "grille" ? "☰" : "⊞";
+    b.title = state.filesVue === "grille" ? "Vue liste" : "Vue grille (voir les images)";
+  }
   filesRend();
 }
 /*  Contenu du dossier personnel : conservé tel quel, car ces lignes portent
@@ -4052,7 +4097,7 @@ const FICHIERS_RACINE = [
   {nom:"photos-vacances.zip", ic:null, taille:"12,4 Mo", special:"zip"},
 ];
 function filesRacineHTML(){
-  return `<ul class="files" id="filesList">` +
+  return `<ul class="files${state.filesVue==="grille"?" grille":""}" id="filesList">` +
     FICHIERS_RACINE.map((f,i)=>ligneFichier(f,i,true)).join("") +
    `</ul>
    <div class="pad">
@@ -4064,9 +4109,35 @@ function filesRacineHTML(){
      <button class="btn" onclick="openShare()"><i class="gly gly-share"></i> Partager avec LexOS</button>
    </div>`;
 }
+//  LA VRAIE IMAGE QUAND ELLE EXISTE, JAMAIS UNE INVENTÉE. Trois fichiers de
+//  la racine correspondent à une image RÉELLEMENT présente ailleurs dans
+//  cette page (le mascot du démarrage, le logo, le fond d'écran CRT) : la
+//  vue grille leur montre cette image, pixel pour pixel. Tous les autres
+//  fichiers — y compris ceux qui PORTENT un nom d'image, comme
+//  fond-secu.png dans Images/ — n'ont aucun octet derrière eux dans cette
+//  démo : ils gardent une grande icône générique plutôt qu'une vignette
+//  fabriquée, qui laisserait croire à une photo qui n'existe pas.
+function ficVignetteReelle(nom){
+  //  Guillemets SIMPLES à l'intérieur : cet attribut style="…" est lui-même
+  //  entre guillemets doubles — un url("…") aurait refermé l'attribut au
+  //  tout premier guillemet et tronqué la balise. base64 n'en produit jamais.
+  if(nom === "mascot.png")         return `url('${MASCOT_URI}')`;
+  if(nom === "logo-ti-lex-al.png") return "var(--logo-icon)";
+  if(nom === "wallpaper-crt.png")  return "var(--wall-demon)";
+  return null;
+}
+function ficVignetteHTML(f){
+  const reelle = ficVignetteReelle(f.nom);
+  return reelle
+    ? `<span class="ftuile-img" style="background-image:${reelle}"></span>`
+    : `<span class="ftuile-ic">${f.ic || "📄"}</span>`;
+}
 /*  Une seule fonction de ligne pour la racine ET les sous-dossiers : le
     menu contextuel, le renommage et la suppression se comportent donc
-    pareil partout, sans code dupliqué à garder synchronisé. */
+    pareil partout, sans code dupliqué à garder synchronisé. Pareil pour
+    les DEUX vues (liste et grille) : les mêmes attributs data-i/data-r,
+    la même sélection, le même span .fnom que ficRenomme() cherche déjà —
+    seule la disposition change, en CSS (.files.grille). */
 function ligneFichier(f, i, racine){
   //  Un seul onpointerdown par balise : deux attributs du même nom, et le
   //  HTML ne garde que le PREMIER — l'appui long de l'autocollant ne se
@@ -4075,11 +4146,12 @@ function ligneFichier(f, i, racine){
   const attrs = `data-i="${i}" data-r="${racine?1:0}"`+
     ` oncontextmenu="fichierMenu(event,${i},${racine?1:0})"`;
   const sel = `ficSelectionne(${i},${racine?1:0})`;
+  const vignette = ficVignetteHTML(f);
   if(f.special==="sticker"){
     return `<li ${attrs} style="cursor:pointer" title="Clique : outil autocollant · Maintiens le clic gauche 3 s : découper tout de suite · Clic droit : menu"
       onpointerdown="${sel};stickerPressStart('mascot.png',event)" onpointerup="stickerPressEnd()" onpointerleave="stickerPressEnd()"
       onclick="stickerPressClick('mascot.png',event)">
-      ${f.ic} <span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
+      ${vignette}<span class="ic-inline">${f.ic}</span> <span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
   }
   if(f.special==="zip"){
     return `<li id="zipRow" ${attrs} onpointerdown="${sel}" style="cursor:pointer" title="Extraire ici (1 clic) — clic droit pour le menu">
@@ -4087,7 +4159,8 @@ function ligneFichier(f, i, racine){
        onkeydown="if(event.key==='Enter'){bump(this.querySelector('svg'));setTimeout(extractZip,420)}">${zipGlyph(20)}</span>
       <span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
   }
-  return `<li ${attrs} onpointerdown="${sel}" title="Clic droit pour le menu">${f.ic} `+
+  return `<li ${attrs} onpointerdown="${sel}" title="Clic droit pour le menu">`+
+         `${vignette}<span class="ic-inline">${f.ic}</span> `+
          `<span class="fnom">${esc(f.nom)}</span><span class="sz">${esc(f.taille)}</span></li>`;
 }
 
@@ -5253,7 +5326,8 @@ function filesRend(){
         `<span class="fname">${esc(nom)}</span></div>`).join("") + `</div>`;
   }
   if(fic.length){
-    html += `<ul class="files">` + fic.map((f,i)=>ligneFichier(f,i,false)).join("") + `</ul>`;
+    html += `<ul class="files${state.filesVue==="grille"?" grille":""}">` +
+      fic.map((f,i)=>ligneFichier(f,i,false)).join("") + `</ul>`;
   }
   if(!sous.length && !fic.length){
     html = `<div class="fvide">
