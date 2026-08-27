@@ -1,0 +1,85 @@
+// ===========================================================================
+//  LexOS — éteindre et redémarrer DEPUIS L'ÉCRAN DE CONNEXION
+// ===========================================================================
+//  CE QU'ALEX A VU, MOT POUR MOT : « les boutons étaient plus activés,
+//  j'avais beau cliquer pour sortir ou arrêter l'ordinateur et j'étais pas
+//  capable de arrêter — dans la page pour connecter utilisateur une fois
+//  sorti du bureau ».
+//
+//  ═══ LA CAUSE, ET POURQUOI « CHANGER D'UTILISATEUR » LA DÉCLENCHE ═══
+//  Le menu ~power du greeter n'était pas cassé : il DEMANDAIT une
+//  autorisation qui ne pouvait jamais lui être accordée.
+//
+//  systemd-logind ne protège pas l'extinction par une seule action, mais par
+//  DEUX, et il choisit selon l'état de la machine :
+//    · une seule session ouverte  → org.freedesktop.login1.power-off
+//      (allow_active = yes : ça marche, personne ne remarque rien) ;
+//    · PLUSIEURS sessions ouvertes → org.freedesktop.login1.power-off-multiple-sessions
+//      (allow_active = auth_admin_keep : il faut un mot de passe
+//      administrateur).
+//
+//  Or « changer d'utilisateur » ne FERME pas la session de départ — c'est
+//  toute la différence avec « se déconnecter » : elle continue de tourner
+//  derrière. Arriver au greeter par ce chemin met donc TOUJOURS la machine
+//  dans le second cas. Le greeter demande l'autorisation, polkit veut un mot
+//  de passe administrateur… et il n'y a AUCUN agent d'authentification qui
+//  tourne sur l'écran de connexion pour le réclamer. La demande est refusée
+//  sans que rien ne s'affiche : le clic ne fait rien, en silence. Exactement
+//  ce qu'Alex décrit.
+//
+//  ═══ CE QUE CE FICHIER FAIT ═══
+//  Il accorde ces actions AU SEUL COMPTE « lightdm » — celui sous lequel le
+//  greeter tourne, et sous lequel aucune session d'utilisateur n'ouvre
+//  jamais de fenêtre. Un compte ordinaire ne gagne rien ici : les règles de
+//  Debian continuent de s'appliquer à tout le monde d'autre, telles quelles.
+//
+//  ═══ LE COMPROMIS, ÉCRIT PLUTÔT QUE CACHÉ ═══
+//  Éteindre pendant qu'une autre session tourne peut faire perdre le travail
+//  non enregistré de cette session. C'est un vrai risque, et c'est pour ça
+//  que Debian le protège par un mot de passe. On l'accepte ici pour trois
+//  raisons : le greeter demande confirmation avant d'éteindre, quiconque est
+//  devant l'écran peut de toute façon tenir le bouton d'alimentation, et
+//  c'est déjà le comportement d'Ubuntu et de Fedora sur un poste personnel.
+//  Ne pas pouvoir éteindre SON PROPRE ordinateur est le défaut le plus grave
+//  des deux.
+//
+//  ═══ POURQUOI DU JAVASCRIPT ET PAS UN .pkla ═══
+//  Les fichiers .pkla (« Polkit Local Authority ») ne sont PLUS lus par
+//  polkitd dans Debian trixie : cette fonction a été retirée en chemin vers
+//  la version qu'embarque LexOS. Un .pkla ici serait ignoré en silence — la
+//  même famille de panne muette que celle qu'on corrige. Les règles vivent
+//  désormais dans /etc/polkit-1/rules.d/*.rules, en JavaScript.
+//
+//  ═══ POURQUOI « 49- » ═══
+//  polkitd lit les fichiers de règles dans l'ordre alphabétique et s'arrête
+//  à la PREMIÈRE qui rend une réponse. Les règles de Debian vivent dans
+//  50-default.rules ; « 49- » passe donc avant, sinon la réponse par défaut
+//  (« demande un mot de passe ») serait déjà tombée et ce fichier ne
+//  servirait à rien.
+// ===========================================================================
+
+polkit.addRule(function (action, subject) {
+    //  Les six actions du menu ~power, dans leurs deux formes. On liste les
+    //  formes simples AUSSI : elles passent déjà pour une session unique,
+    //  mais les nommer ici garde le menu cohérent quel que soit le nombre de
+    //  sessions ouvertes — sinon « Éteindre » marcherait ou non selon qu'une
+    //  autre session traîne, ce qui est précisément ce qu'on vient de
+    //  corriger.
+    var permises = {
+        "org.freedesktop.login1.power-off": true,
+        "org.freedesktop.login1.power-off-multiple-sessions": true,
+        "org.freedesktop.login1.reboot": true,
+        "org.freedesktop.login1.reboot-multiple-sessions": true,
+        "org.freedesktop.login1.suspend": true,
+        "org.freedesktop.login1.suspend-multiple-sessions": true,
+        "org.freedesktop.login1.hibernate": true,
+        "org.freedesktop.login1.hibernate-multiple-sessions": true
+    };
+
+    if (subject.user === "lightdm" && permises[action.id] === true) {
+        return polkit.Result.YES;
+    }
+
+    //  Rien d'autre n'est touché : sans return explicite, polkit passe à la
+    //  règle suivante et les défauts de Debian s'appliquent comme avant.
+});

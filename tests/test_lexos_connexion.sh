@@ -61,8 +61,16 @@ def regles(texte):
             if ":" in d:
                 k, v = d.split(":", 1)
                 v = v.strip()
-                for nom, val in noms.items():
-                    v = v.replace("@" + nom, val.strip())
+                #  DU PLUS LONG NOM AU PLUS COURT, ET C'EST UN VRAI BOGUE
+                #  QU'ON CORRIGE ICI. « @lexos_accent » est un PRÉFIXE de
+                #  « @lexos_accent_hi » : substitué en premier, il laissait
+                #  « #E8590C_hi » derrière lui — une couleur qui n'existe pas,
+                #  et le banc annonçait un écart là où le CSS était juste. Le
+                #  piège dormait depuis toujours : @lexos_accent_hi n'était
+                #  employé nulle part, donc aucune assertion ne le résolvait.
+                #  Le survol des boutons l'emploie maintenant, et l'a réveillé.
+                for nom in sorted(noms, key=len, reverse=True):
+                    v = v.replace("@" + nom, noms[nom].strip())
                 decls[k.strip()] = v
         for s in sels:
             out.append((s, decls))
@@ -178,6 +186,35 @@ cat > "$BANC/bouton.json" <<'J'
 [{"nom":"window","id":"login_window","classes":[]},
  {"nom":"button","classes":[]}]
 J
+cat > "$BANC/bouton_survol.json" <<'J'
+[{"nom":"window","id":"login_window","classes":[]},
+ {"nom":"button","classes":[],"etats":["hover"]}]
+J
+#  L'ÉTIQUETTE À L'INTÉRIEUR DU BOUTON — le nœud qu'Alex a vu disparaître.
+#  « il avait toute écriture orange bouton noir mais quand on mettait la
+#  souris dessus il devenait tout orange puis non visible ». Exactement le
+#  cas déjà connu des menus, jamais modélisé pour les boutons : « #login_window * »
+#  correspond DIRECTEMENT à cette étiquette, et une correspondance directe bat
+#  l'héritage du bouton quelle que soit la spécificité. Résoudre la couleur sur
+#  le BOUTON serait vert pendant que l'écran reste illisible — c'est le piège
+#  que ce banc a déjà attrapé une fois pour les menus.
+cat > "$BANC/etiquette_bouton.json" <<'J'
+[{"nom":"window","id":"login_window","classes":[]},
+ {"nom":"button","classes":[]},
+ {"nom":"label","classes":[]}]
+J
+cat > "$BANC/etiquette_bouton_survol.json" <<'J'
+[{"nom":"window","id":"login_window","classes":[]},
+ {"nom":"button","classes":[],"etats":["hover"]},
+ {"nom":"label","classes":[]}]
+J
+#  LES BOUTONS DE LA BARRE DU HAUT — « les boutons en haut était aussi ».
+#  Même nœud, même bogue, sous #panel_window cette fois.
+cat > "$BANC/etiquette_indicateur.json" <<'J'
+[{"nom":"window","id":"panel_window","classes":[]},
+ {"nom":"button","classes":[],"etats":["hover"]},
+ {"nom":"label","classes":[]}]
+J
 cat > "$BANC/champ.json" <<'J'
 [{"nom":"window","id":"login_window","classes":[]},
  {"nom":"entry","classes":[]}]
@@ -250,14 +287,42 @@ F="$(resout "$BANC/erreur.json" color)"
 	&& ok "« Votre mot de passe est incorrect » passe en orange (le rouge du thème perd)" \
 	|| non "le message d'erreur vaut « $F » — il resterait rouge"
 
-F="$(resout "$BANC/bouton.json" color)"
-[ "$F" = "#E8590C" ] \
-	&& ok "les boutons écrivent en orange" \
-	|| non "les boutons écrivent « $F »"
+#  LES BOUTONS : ORANGE PLEIN, ÉCRITURE NOIRE — demande d'Alex, « pour les
+#  boutons fait le bouton orange écriture noire ». Le banc disait avant
+#  « écriture #E8590C sur fond #141416 » : c'était le bouton creux d'avant, et
+#  ces deux lignes-ci sont donc le banc qui suit la demande, pas un
+#  assouplissement.
 F="$(resout "$BANC/bouton.json" background-color)"
-[ "$F" = "#141416" ] \
-	&& ok "et leur fond reste très sombre sans être noir sur noir" \
-	|| non "fond de bouton : « $F »"
+[ "$F" = "#E8590C" ] \
+	&& ok "les boutons sont ORANGE PLEIN dès le repos" \
+	|| non "fond de bouton : « $F » au lieu de #E8590C"
+F="$(resout "$BANC/bouton.json" color)"
+[ "$F" = "#000000" ] \
+	&& ok "… et ils écrivent en NOIR dessus" \
+	|| non "les boutons écrivent « $F » au lieu de #000000"
+
+#  LA MOITIÉ QUI MANQUAIT, ET QUI EST TOUT LE BOGUE D'ALEX. Poser la couleur
+#  sur le BOUTON ne suffit pas : « #login_window * » matche directement
+#  l'étiquette à l'intérieur. Sans règle qui la vise, elle reste ORANGE — sur
+#  un fond devenu orange. Le bouton se vide à l'écran.
+F="$(resout "$BANC/etiquette_bouton.json" color)"
+[ "$F" = "#000000" ] \
+	&& ok "l'ÉTIQUETTE du bouton est noire elle aussi (pas seulement le bouton)" \
+	|| non "étiquette de bouton = « $F » — orange sur orange, le bouton serait vide"
+
+F="$(resout "$BANC/bouton_survol.json" background-color)"
+[ "$F" = "#FF7A33" ] \
+	&& ok "au survol le bouton s'éclaircit (il répond au doigt, il ne disparaît pas)" \
+	|| non "fond de bouton survolé = « $F » au lieu de #FF7A33"
+F="$(resout "$BANC/etiquette_bouton_survol.json" color)"
+[ "$F" = "#000000" ] \
+	&& ok "… et son étiquette reste noire au survol — LA PHOTO D'ALEX" \
+	|| non "étiquette de bouton survolé = « $F » — « il devenait tout orange puis non visible »"
+
+F="$(resout "$BANC/etiquette_indicateur.json" color)"
+[ "$F" = "#000000" ] \
+	&& ok "les boutons de la barre du HAUT restent lisibles au survol aussi" \
+	|| non "étiquette d'indicateur survolé = « $F » — « les boutons en haut était aussi »"
 
 F="$(resout "$BANC/champ.json" color)"
 [ "$F" = "#E8590C" ] \

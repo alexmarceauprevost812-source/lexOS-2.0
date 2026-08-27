@@ -1108,6 +1108,22 @@ jobs:
           #  build 76 aurait remis Papirus-Dark.
           bash tests/test_lexos_connexion.sh
 
+      - name: L'écran de connexion — le bouton « Éteindre » fait quelque chose
+        run: |
+          #  « J'avais beau cliquer pour arrêter l'ordinateur et j'étais pas
+          #  capable. » Le menu ~power demandait une autorisation que rien ne
+          #  pouvait lui accorder : « changer d'utilisateur » LAISSE la session
+          #  de départ ouverte, logind bascule alors sur l'action
+          #  « -multiple-sessions » (mot de passe administrateur), et aucun
+          #  agent d'authentification ne tourne sur l'écran de connexion pour
+          #  le réclamer. Refus silencieux, clic sans effet.
+          #
+          #  Ce banc charge la VRAIE règle polkit comme polkitd la chargerait,
+          #  et prouve les DEUX moitiés : le greeter peut enfin éteindre, et
+          #  aucun autre compte ne gagne quoi que ce soit au passage. Une règle
+          #  qui accorde un pouvoir ne se relit pas, elle s'éprouve.
+          node tests/test_lexos_connexion_arret.js
+
       - name: La page Wi-Fi — le pictogramme et les outils
         run: |
           #  ALEX A COMPARÉ LES DEUX PAGES CÔTE À CÔTE : « wi-fi, utiliser lui
