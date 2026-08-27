@@ -216,9 +216,23 @@ def remonte_xfdesktop(executeur=subprocess.run, cherche=shutil.which):
     (lexos-theme-gen en déclenche un quand l'accent change, pour repeindre
     les dossiers) le refait apparaître, et l'ordre est de nouveau à refaire.
     D'où l'appel au démarrage ET la minuterie qui le répète.
+
+    « --class » ATTENDAIT « xfdesktop » — ET C'ÉTAIT LE BOGUE DE LA PHOTO.
+    xdotool a DEUX filtres différents : « --classname » lit le PREMIER champ
+    de WM_CLASS (l'instance), « --class » lit le SECOND (la classe). Le repli
+    wmctrl juste en dessous s'écrit « xfdesktop.Xfdesktop » — instance en
+    minuscule, classe capitalisée — donc le second champ de xfdesktop est
+    « Xfdesktop », pas « xfdesktop ». Un « --class xfdesktop » ne pouvait
+    trouver AUCUNE fenêtre (recherche sensible à la casse) : la commande
+    « réussissait » (code de sortie 0, aucune exception) sans avoir rien
+    remonté du tout — silencieux, comme le reste de cette fonction le
+    redoutait déjà en commentaire plus haut. On filtre maintenant sur
+    l'INSTANCE (« xfdesktop », en minuscule, le même champ que wmctrl relit
+    dans sa moitié gauche), qui ne dépend pas de la capitalisation de la
+    classe.
     """
     if cherche("xdotool"):
-        args = ["xdotool", "search", "--class", "xfdesktop", "windowraise"]
+        args = ["xdotool", "search", "--classname", "xfdesktop", "windowraise"]
     elif cherche("wmctrl"):
         args = ["wmctrl", "-x", "-a", "xfdesktop.Xfdesktop"]
     else:

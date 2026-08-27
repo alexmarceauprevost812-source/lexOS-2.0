@@ -62,11 +62,18 @@ print('APPELS=%r' % appels)
 "
 }
 
+#  « --classname », PAS « --class » : la capitalisation de la CLASSE de
+#  xfdesktop (« Xfdesktop », voir le repli wmctrl juste en dessous) rendait
+#  un « --class xfdesktop » aveugle — sensible à la casse, il ne trouvait
+#  jamais la fenêtre, et remonte_xfdesktop() « réussissait » (True) sans
+#  avoir rien remonté. C'était le bogue exact de la photo d'Alex : le vieux
+#  test, lui, vérifiait fidèlement le mauvais réglage, sans jamais parler à
+#  un vrai xdotool pour s'en apercevoir.
 SORTIE="$(appelle "xdotool,wmctrl")"
 case "$SORTIE" in
-	*"RESULT=True"*"'xdotool'"*"'search'"*"'--class'"*"'xfdesktop'"*"'windowraise'"*)
-		ok "xdotool ET wmctrl dispo -> xdotool est choisi (windowraise, pas juste focus)" ;;
-	*) non "xdotool aurait dû être choisi en premier : $SORTIE" ;;
+	*"RESULT=True"*"'xdotool'"*"'search'"*"'--classname'"*"'xfdesktop'"*"'windowraise'"*)
+		ok "xdotool ET wmctrl dispo -> xdotool est choisi, filtré par INSTANCE (--classname), pas par classe" ;;
+	*) non "xdotool aurait dû être choisi en premier, avec --classname : $SORTIE" ;;
 esac
 
 SORTIE="$(appelle "wmctrl")"
