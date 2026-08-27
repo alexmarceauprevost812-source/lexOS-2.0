@@ -1276,10 +1276,33 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .cct-fl{color:#FF8C1A;font-weight:700}
 .cct-sp{display:inline-flex;vertical-align:-2px;margin-right:4px}
 .cct-outil{color:#b8aca7;font-size:12px}
+/*  MODE RÉFLEXION — trois points qui s'allument en vague, comme le vrai
+    Claude Code avant d'annoncer son premier outil. */
+.cct-pts{display:inline-flex;gap:2px;margin-left:3px;vertical-align:1px}
+.cct-pts i{width:3px;height:3px;border-radius:50%;background:currentColor;
+  display:inline-block;opacity:.3;animation:cctPts 1.1s ease-in-out infinite}
+.cct-pts i:nth-child(2){animation-delay:.15s}
+.cct-pts i:nth-child(3){animation-delay:.3s}
+@keyframes cctPts{0%,60%,100%{opacity:.3;transform:translateY(0)}
+  30%{opacity:1;transform:translateY(-2px)}}
+@media (prefers-reduced-motion:reduce){ .cct-pts i{animation:none;opacity:.6} }
+/*  L'ICÔNE D'OUTIL, À GAUCHE DE L'AVATAR — demandé par Alex : voir « sur
+    quel outil il se connecte » d'un coup d'oeil, séparément du rond qui dit
+    juste que c'est Claude qui parle. */
+.cct-outil-ic{display:inline-flex;margin-right:3px;font-size:11px;opacity:.85}
 .cct-ok{color:#3BE07A}
 .cct-dim{color:#8a7a74}
 .cct-note{font-size:11.5px;line-height:1.6;border-left:2px solid #3a251d;
   padding-left:10px}
+/*  LE MOT-SIGLE À L'OUVERTURE D'UNE SESSION — demandé par Alex, qui a
+    montré une image trouvée sur le web pour l'idée. Cette image précise
+    appartient à qui l'a dessinée : elle n'est reprise nulle part ici.
+    Le rendu, lui, est original — du texte et des ombres décalées en CSS,
+    rien d'importé — et suit le thème du terminal comme tout le reste
+    (couleur reprise plus bas, à côté de .claude-pales). */
+.cct-logo-txt{font:800 26px/1.05 ui-monospace,monospace;letter-spacing:1px;
+  color:#d97757;text-shadow:2px 2px 0 rgba(217,119,87,.35),
+  4px 4px 0 rgba(217,119,87,.18);margin-bottom:2px}
 .cct-lui{display:flex;gap:2px;align-items:flex-start}
 .cct-rep{flex:1;min-width:0;background:#140f0d;border:1px solid #3a251d;
   border-left:3px solid #d97757;border-radius:9px;padding:10px 13px;
@@ -1306,14 +1329,31 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
     SANS code neuf : .claude-pales est la classe que cctAppliqueTheme()
     recolore plus bas (rouge, orange) — le glyphe la porte déjà. */
 .cct-avatar{display:inline-flex;align-items:center;justify-content:center;
-  flex:none;align-self:flex-start}
-/*  Le mouvement demandé : l'avatar tourne pendant que Claude compose sa
-    réponse (CCT_OCCUPE, déjà utilisé pour bloquer une 2e question en même
-    temps) — un vrai indicateur d'activité, pas une décoration qui tourne
-    tout le temps sous les doigts de qui écrit. */
-.cct-avatar.cct-avatar-actif{animation:cctAvatarTourne 1.1s linear infinite}
-@keyframes cctAvatarTourne{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){ .cct-avatar.cct-avatar-actif{animation:none} }
+  gap:5px;flex:none;align-self:flex-start}
+/*  LE MOUVEMENT DEMANDÉ : « il écrit sur son ordinateur », PAS une simple
+    rotation. Alex a montré un autocollant Claude Code trouvé sur le web
+    (Redbubble, un fan-art de vwadesign) — un dessin qui appartient à son
+    auteur, donc pas question de le reprendre ici. À la place : un petit
+    écran, dessiné en CSS, avec des lignes qui s'allument l'une après
+    l'autre — la même idée (Claude « écrit »), sans le personnage de
+    quelqu'un d'autre. Visible seulement pendant que Claude compose
+    (CCT_OCCUPE) : un vrai indicateur d'activité, pas une décoration qui
+    tourne tout le temps sous les doigts de qui écrit. */
+.cct-ecran{display:none;width:15px;height:11px;border:1.4px solid #d97757;
+  border-radius:3px;flex-direction:column;justify-content:center;gap:1.5px;
+  padding:0 2px;flex:none}
+.cct.cct-th-rouge .cct-ecran{border-color:#E8312A}
+.cct.cct-th-orange .cct-ecran{border-color:#FF8C1A}
+.cct-avatar.cct-avatar-actif .cct-ecran{display:flex}
+.cct-ecran i{display:block;height:1.3px;border-radius:1px;background:#d97757;
+  opacity:.25;animation:cctEcrit 1.2s ease-in-out infinite}
+.cct.cct-th-rouge .cct-ecran i{background:#E8312A}
+.cct.cct-th-orange .cct-ecran i{background:#FF8C1A}
+.cct-ecran i:nth-child(1){width:65%}
+.cct-ecran i:nth-child(2){width:100%;animation-delay:.2s}
+.cct-ecran i:nth-child(3){width:40%;animation-delay:.4s}
+@keyframes cctEcrit{0%,100%{opacity:.25}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){ .cct-ecran i{animation:none;opacity:.7} }
 /*  Le bouton « + » et les vignettes de pièces jointes, communs à Claude et
     à Claude Code. Une image choisie est lue sur place par le navigateur et
     montrée en miniature : rien ne part nulle part. */
@@ -1373,6 +1413,8 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .cct.cct-th-rouge .cct-cote{border-right-color:#3a1212;
   background:linear-gradient(180deg,rgba(232,49,42,.10),transparent 200px)}
 .cct.cct-th-rouge .claude-pales{fill:#E8312A}
+.cct.cct-th-rouge .cct-logo-txt{color:#E8312A;
+  text-shadow:2px 2px 0 rgba(232,49,42,.35),4px 4px 0 rgba(232,49,42,.18)}
 .cct.cct-th-rouge .cct-fl{color:#E8312A}
 .cct.cct-th-rouge .cct-rep{background:#0d0505;border-color:#3a1212;border-left-color:#E8312A}
 .cct.cct-th-rouge .cct-rep code{color:#ff9d97;border-color:#55201b;background:#000}
@@ -1392,6 +1434,8 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .cct.cct-th-orange{color:#fff}
 .cct.cct-th-orange .cct-tete{color:#FF8C1A}
 .cct.cct-th-orange .claude-pales{fill:#FF8C1A}
+.cct.cct-th-orange .cct-logo-txt{color:#FF8C1A;
+  text-shadow:2px 2px 0 rgba(255,140,26,.35),4px 4px 0 rgba(255,140,26,.18)}
 .cct.cct-th-orange .cct-rep{border-left-color:#FF8C1A}
 .cct.cct-th-orange .cct-rep b{color:#FF8C1A}
 .cct.cct-th-orange .cct-sugg button{color:#fff;background:rgba(255,140,26,.12);border-color:#FF8C1A}
@@ -8854,6 +8898,7 @@ function cctConnecte(winId){
   if(champ) champ.focus();
 }
 function cctAccueilSession(winId){
+  ccTermEcrit(winId, `<div class="cct-logo-txt">CLAUDE<br>CODE</div>`);
   ccTermEcrit(winId,
     `<span class="cct-sp">${claudeGlyph(13)}</span> <b>Claude Terminal</b>
      <span class="cct-dim">— le terminal de Claude, et de personne d'autre</span>`);
@@ -8905,8 +8950,19 @@ function ccTermDemande(winId, texte){
   //  font rien : elles disent d'où vient la réponse — la documentation de
   //  LexOS, pas un modèle.
   const e = ccCherche(q);
+  //  MODE RÉFLEXION, demandé par Alex : « au lieu de juste attendre ». Avant
+  //  de dire QUEL outil il ouvre, le vrai Claude Code réfléchit d'abord —
+  //  un temps mort silencieux ici aurait l'air cassé, pas pensif. Les trois
+  //  points animés (.cct-pts) portent tout le poids visuel : pas de faux
+  //  compteur de jetons ni de temps chronométré, ce serait des chiffres
+  //  inventés pour une démo qui ne pense pour de vrai.
+  //  L'OUTIL, ENSUITE : une icône à SA GAUCHE (🔍), avant l'avatar de
+  //  Claude — Alex voulait voir « sur quel outil il se connecte » d'un
+  //  coup d'oeil, distinct du rond de l'avatar qui, lui, dit juste que
+  //  c'est Claude qui parle.
   const etapes = [
-    `<span class="cct-sp">${claudeGlyph(13)}</span> <i>Recherche dans la documentation LexOS…</i>`,
+    `<span class="cct-sp">${claudeGlyph(13)}</span> <i>Réflexion<span class="cct-pts"><i></i><i></i><i></i></span></i>`,
+    `<span class="cct-outil-ic" title="Recherche">🔍</span><span class="cct-sp">${claudeGlyph(13)}</span> <i>Recherche dans la documentation LexOS…</i>`,
     `<span class="cct-ok">⏺</span> <b>Read</b> <span class="cct-dim">docs/lexos — ${
        e ? "1 correspondance" : "aucune correspondance"}</span>`,
   ];
@@ -8962,7 +9018,7 @@ function openClaudeCode(nouvelle){
           <input class="cct-in" type="text" autocomplete="off" spellcheck="false"
                  placeholder="Demande quelque chose…"
                  onkeydown="if(event.key==='Enter'){event.preventDefault();ccTermDemande('${winId}')}">
-          <span class="cct-avatar" title="Claude Code" aria-hidden="true">${claudeGlyph(16)}</span>
+          <span class="cct-avatar" title="Claude Code" aria-hidden="true">${claudeGlyph(16)}<span class="cct-ecran"><i></i><i></i><i></i></span></span>
         </div>
         <div class="cct-pied">
           <span class="cct-bonhomme">${claudeGlyph(14)}</span>
