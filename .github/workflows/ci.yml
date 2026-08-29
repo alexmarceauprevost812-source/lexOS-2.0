@@ -1176,6 +1176,20 @@ jobs:
           #  build 76 aurait remis Papirus-Dark.
           bash tests/test_lexos_connexion.sh
 
+      - name: Le fond d'écran officiel — le démon, pas juste une variante
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, après avoir envoyé le logo : « pour la prochaine ios sa
+          #  va etre le fond ecren officiel — mais toute noir — avec le
+          #  demon ». wallpaper-demon.png existait déjà comme UNE variante
+          #  du sélecteur Paramètres → Bureau LexOS ; il devient maintenant
+          #  wallpaper.png lui-même (un lien symbolique, pas une copie qui
+          #  pourrait diverger) — le fichier que lexos-firstrun pose au
+          #  premier lancement et que le repli XFCE du même hook recopie.
+          #  Le banc fait tourner le VRAI extrait du hook avec le VRAI
+          #  ImageMagick installé juste au-dessus pour test_lexos_fenetres.sh.
+          bash tests/test_lexos_fond_officiel.sh
+
       - name: L'écran de connexion — le bouton « Éteindre » fait quelque chose
         if: ${{ !cancelled() }}
         run: |
