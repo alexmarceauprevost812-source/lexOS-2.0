@@ -904,6 +904,34 @@ jobs:
           fi
           echo "lexos.conf : $LEXOS_NAME $LEXOS_VERSION ($LEXOS_FLAVOUR / $LEXOS_ACCENT_NAME)"
 
+      - name: Aucun banc d'essai orphelin
+        if: ${{ !cancelled() }}
+        run: |
+          #  Deux fois le même piège : le banc Boost décroché pendant cinq
+          #  ISO (builds 73 à 77), puis test_lexos_fuseau_gps.sh, présent
+          #  dans le dépôt mais appelé par AUCUN travail de cette CI. Un banc
+          #  que personne ne lance ne protège rien — et ça ne se voit pas,
+          #  parce que la CI reste verte. On le rend visible ici.
+          #
+          #  [ -f "$t" ] : seuls les FICHIERS comptent. « tests/*ARBRE
+          #  __pycache__ » (bytecode Python, gitignore ligne 42) n'existe
+          #  jamais sur un clone frais de la CI, mais existe très bien chez
+          #  un développeur qui vient de lancer les tests en local — sans ce
+          #  filtre, ce garde-fou se déclencherait pour la mauvaise raison
+          #  sur SA machine, exactement le genre de faux positif qui apprend
+          #  à ignorer les rouges.
+          orphelins=0
+          for t in tests/*; do
+            [ -f "$t" ] || continue
+            n="$(basename "$t")"
+            if ! grep -qF "$n" .github/workflows/ci.yml; then
+              echo "::error file=$t::'$n' n'est lancé par aucune tâche de ci.yml — un banc qui ne tourne pas ne protège rien."
+              orphelins=$((orphelins + 1))
+            fi
+          done
+          [ "$orphelins" = 0 ] && echo "  ok — les $(find tests -maxdepth 1 -type f | wc -l) bancs sont tous branchés"
+          exit "$orphelins"
+
   theme:
     name: Génération du thème
     runs-on: ubuntu-latest
@@ -1552,6 +1580,19 @@ jobs:
           #  nmcli sur un PATH fermé, mutation-testé (le vieux code fait
           #  échouer 4 des 7 cas).
           python3 tests/test_lexos_wifi_etat.py
+
+      - name: Fuseau horaire — la position réelle, pas Toronto par défaut
+        if: ${{ !cancelled() }}
+        run: |
+          #  « LexOS s'installait TOUJOURS à l'heure de Toronto, même à
+          #  l'autre bout du monde » (en-tête du banc). Ce test existait déjà
+          #  dans le dépôt mais n'était appelé par AUCUN travail de cette CI —
+          #  exactement le même défaut qui a laissé le banc Boost décroché
+          #  pendant cinq constructions (builds 73 à 77). Un banc que
+          #  personne ne lance ne protège rien, et ça ne se voit pas : la CI
+          #  reste verte. 15 vérifications (détecteur GPS, repli IP, repli
+          #  Toronto, confirmeur, intégration à lexos-install).
+          bash tests/test_lexos_fuseau_gps.sh
 
   partage:
     name: Serveur de partage

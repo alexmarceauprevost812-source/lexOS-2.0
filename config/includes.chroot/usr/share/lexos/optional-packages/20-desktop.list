@@ -60,7 +60,12 @@ fonts-dejavu
 # adwaita-icon-theme — PASSÉ EN STRICT (lexos-core.list.chroot) après l'ISO 72 :
 #   son absence rendait tous les dossiers blancs, sans que rien ne le dise.
 pipewire
-pipewire-audio
+# pipewire-audio — PASSÉ EN STRICT (flavours/pro/pro.list.chroot). C'est le
+#   seul paquet qui tire libspa-0.2-bluetooth en dépendance DURE (les autres
+#   ne le SUGGÈRENT que, et APT n'installe jamais un Suggests) : sans lui,
+#   un casque Bluetooth s'appaire et reste muet, sans la moindre erreur.
+#   Même raison que les dossiers blancs de l'ISO 72 : trop discret ici pour
+#   quelque chose d'aussi audible.
 pipewire-pulse
 wireplumber
 pavucontrol

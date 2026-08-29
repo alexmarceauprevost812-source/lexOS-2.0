@@ -86,6 +86,19 @@ EOF
 #!/bin/sh
 exit 0
 EOF
+	# dpkg-query : « installé » seulement pour les paquets marqués par
+	# $CTRL/dpkg_installe_<paquet> — même patron que modinfo_sortie plus
+	# bas (un fichier de contrôle par scénario, rien de plus).
+	cat > "$FAUXBIN/dpkg-query" <<EOF
+#!/bin/sh
+# usage réel : dpkg-query -W -f='\${Status}' <paquet>
+paquet="\$3"
+if [ -f "$CTRL/dpkg_installe_\$paquet" ]; then
+	printf 'install ok installed'
+	exit 0
+fi
+exit 1
+EOF
 	cat > "$FAUXBIN/systemctl" <<'EOF'
 #!/bin/sh
 exit 0
@@ -97,7 +110,7 @@ EOF
 [ -f "$CTRL/modinfo_sortie" ] && cat "$CTRL/modinfo_sortie"
 exit 0
 EOF
-	chmod +x "$FAUXBIN"/apt-get "$FAUXBIN"/dpkg "$FAUXBIN"/systemctl "$FAUXBIN"/modinfo
+	chmod +x "$FAUXBIN"/apt-get "$FAUXBIN"/dpkg "$FAUXBIN"/dpkg-query "$FAUXBIN"/systemctl "$FAUXBIN"/modinfo
 }
 
 reinit() {
@@ -246,6 +259,75 @@ if echo "$S" | grep -q "modinfo muet"; then
 	ok "modinfo sans résultat est signalé, pas silencieusement ignoré"
 else
 	non "aucun message quand modinfo ne rend rien :\n$S"
+fi
+
+# =============================================================================
+titre "9. Le son : ni PulseAudio intrus, ni greffon Bluetooth absent -> tout est calme"
+# =============================================================================
+#  pipewire-audio est passé en STRICT (flavours/pro/pro.list.chroot) : ce
+#  hook ne l'installe donc plus jamais lui-même — MATERIEL_VITAL ne le
+#  concerne pas. Ce qu'il reste à surveiller, ce n'est plus une absence,
+#  c'est une INTRUSION : blueman recommande « pulseaudio-module-bluetooth |
+#  libspa-0.2-bluetooth », une alternative dont APT satisfait la première
+#  qui se résout — un vrai démon PulseAudio pourrait entrer à côté de
+#  PipeWire, deux serveurs de son sur la même carte, et le greffon dont
+#  PipeWire a réellement besoin resterait absent : un casque Bluetooth qui
+#  s'appaire et reste muet, sans la moindre erreur.
+reinit
+pose_listes "thunar"
+touch "$CTRL/dpkg_installe_libspa-0.2-bluetooth"   # PulseAudio absent, greffon présent
+S="$(lance env)"
+if echo "$S" | grep -q "son : PipeWire seul, pas de PulseAudio"; then
+	ok "PulseAudio absent -> ça le dit calmement, pas d'alerte"
+else
+	non "rien vu sur l'absence de PulseAudio :\n$S"
+fi
+if echo "$S" | grep -q "son Bluetooth : greffon libspa-0.2-bluetooth présent"; then
+	ok "greffon Bluetooth présent -> ça le dit calmement"
+else
+	non "rien vu sur la présence du greffon Bluetooth :\n$S"
+fi
+if echo "$S" | grep -q "PULSEAUDIO EST INSTALLÉ"; then
+	non "fausse alerte PulseAudio alors qu'il n'est pas installé :\n$S"
+else
+	ok "pas de fausse alerte quand tout va bien"
+fi
+
+# =============================================================================
+titre "10. PulseAudio s'est glissé par la porte de derrière -> alerte, pas un silence"
+# =============================================================================
+#  LE CAS QUI COMPTE : le casque Bluetooth d'Alex (MEREDO D40) s'appaire, se
+#  connecte, apparaît dans la liste des périphériques — et reste muet. Rien
+#  dans le journal ne le dirait sans cette vérification.
+reinit
+pose_listes "thunar"
+touch "$CTRL/dpkg_installe_pulseaudio"
+S="$(lance env)"
+if echo "$S" | grep -q "PULSEAUDIO EST INSTALLÉ alors que LexOS tourne sur PipeWire"; then
+	ok "PulseAudio installé -> alerte EN CLAIR dans le journal"
+else
+	non "PulseAudio installé sans que rien ne le signale :\n$S"
+fi
+echo "$S" | grep -q "apt-cache rdepends --installed pulseaudio" \
+	&& ok "et la commande pour trouver qui l'a tiré est donnée" \
+	|| non "aucune piste pour savoir qui a tiré PulseAudio"
+
+# =============================================================================
+titre "11. Le greffon Bluetooth manque malgré tout -> alerte, pas un silence"
+# =============================================================================
+#  N'ARRIVE PLUS EN PRATIQUE UNE FOIS pipewire-audio STRICT (il le tire en
+#  dépendance dure) — mais CE hook ne le sait pas : il lit dpkg, pas
+#  flavours/pro/pro.list.chroot. Le contrôle doit rester honnête même si le
+#  scénario qu'il visait à l'origine est devenu, par construction, très
+#  improbable.
+reinit
+pose_listes "thunar"
+# ni $CTRL/dpkg_installe_pulseaudio ni …_libspa-0.2-bluetooth : rien n'est installé
+S="$(lance env)"
+if echo "$S" | grep -q "GREFFON BLUETOOTH ABSENT"; then
+	ok "greffon Bluetooth absent -> alerte EN CLAIR, pas un silence"
+else
+	non "greffon Bluetooth absent sans que rien ne le signale :\n$S"
 fi
 
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"

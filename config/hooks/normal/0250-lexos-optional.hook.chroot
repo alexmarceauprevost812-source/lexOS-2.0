@@ -165,6 +165,51 @@ rapporter_iwlwifi() {
 	fi
 }
 
+# --- LE SON : PAS SEULEMENT UN PAQUET QUI MANQUE, UN INTRUS QUI ENTRE ------
+#  pipewire-audio est désormais dans la liste STRICTE (flavours/pro/pro.list.chroot),
+#  installée par live-build AVANT que ce hook ne tourne — s'il manquait, la
+#  construction se serait déjà arrêtée. Pas la peine de le remettre dans
+#  MATERIEL_VITAL, qui ne surveille QUE le monde « au mieux » de CE hook.
+#  Le risque qui reste n'est plus une absence, c'est une INTRUSION, et elle
+#  se joue elle aussi PENDANT l'installation stricte, pas ici : blueman
+#  (strict lui aussi) recommande « pulseaudio-module-bluetooth |
+#  libspa-0.2-bluetooth » — une ALTERNATIVE, et APT satisfait la première
+#  qui se résout. Sans pipewire-audio, rien n'empêchait la première (le vrai
+#  démon PulseAudio) d'entrer à côté de PipeWire : deux serveurs de son sur
+#  la même carte, et le greffon dont PipeWire a réellement besoin, absent —
+#  un casque Bluetooth qui s'appaire et reste muet, sans la moindre erreur.
+#  pipewire-audio porte d'ailleurs « Conflicts: pulseaudio,
+#  pulseaudio-module-bluetooth » (vérifié dans le paquet lui-même) : une fois
+#  strict, il empêche structurellement la première alternative de blueman de
+#  se résoudre. Ce contrôle est donc la confirmation qu'on attend, pas une
+#  dernière ligne de défense — mais mieux vaut le lire dans le journal qu'à
+#  l'usage, sur la machine d'Alex.
+#
+#  APPELÉE DES DEUX CÔTÉS DE LA PASSE GROUPÉE, PAS SEULEMENT DE LA REPRISE.
+#  Contrairement à MATERIEL_VITAL (qui ne veut dire quelque chose que si LA
+#  PASSE OPTIONNELLE a échoué), l'état de pulseaudio/libspa-0.2-bluetooth ne
+#  dépend PAS de cette passe : il vient de l'installation STRICTE, déjà
+#  terminée avant que ce hook ne démarre. Le vérifier seulement quand la
+#  passe optionnelle échoue laisserait le cas normal — la passe groupée qui
+#  réussit — sans aucune vérification, exactement le trou que ce hook
+#  dénonce ailleurs pour le matériel vital.
+verifier_son() {
+	if dpkg-query -W -f='${Status}' pulseaudio 2>/dev/null | grep -q '^install ok installed'; then
+		echo "[lexos]   !! ============================================================"
+		echo "[lexos]   !! PULSEAUDIO EST INSTALLÉ alors que LexOS tourne sur PipeWire."
+		echo "[lexos]   !! Regarde qui l'a tiré :  apt-cache rdepends --installed pulseaudio"
+		echo "[lexos]   !! ============================================================"
+	else
+		echo "[lexos]   son : PipeWire seul, pas de PulseAudio"
+	fi
+
+	if dpkg-query -W -f='${Status}' libspa-0.2-bluetooth 2>/dev/null | grep -q '^install ok installed'; then
+		echo "[lexos]   son Bluetooth : greffon libspa-0.2-bluetooth présent"
+	else
+		echo "[lexos]   !! GREFFON BLUETOOTH ABSENT — un casque Bluetooth restera MUET"
+	fi
+}
+
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq || echo "[lexos]   !! apt-get update a échoué, on continue"
 
@@ -180,6 +225,7 @@ if apt-get install -y --no-install-recommends $(tr '\n' ' ' < "$WANTED") >/dev/n
 		cat "$WANTED"
 	} > "$REPORT"
 	rm -f "$WANTED"
+	verifier_son
 	rapporter_iwlwifi
 	echo "[lexos] hook 0250 : ok"
 	exit 0
@@ -283,6 +329,7 @@ else
 	echo "[lexos]   matériel vital : $(set -- $MATERIEL_VITAL; echo $#) paquets, tous présents"
 fi
 
+verifier_son
 rapporter_iwlwifi
 rm -f "$WANTED"
 
