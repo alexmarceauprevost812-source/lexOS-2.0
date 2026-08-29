@@ -93,6 +93,31 @@
 	background-color: @lexos_accent;
 	color: @lexos_noir;
 }
+/*  LES INDICATEURS EUX-MÊMES (l'horloge, ~power, ~session, ~layout, ~a11y).
+    ALEX : « les boutons en haut était aussi » — même disparition au survol
+    que « Se connecter », et pour la même raison : « #panel_window * »
+    ci-dessus matche DIRECTEMENT l'étiquette de l'indicateur et la peint en
+    orange, pendant que le thème lui donne un fond clair au survol. Orange
+    sur clair, illisible — et un bouton qu'on ne voit plus donne exactement
+    l'impression de ne plus répondre.
+
+    On pose donc l'état de survol nous-mêmes (fond accent, écriture noire)
+    et on vise l'étiquette EN PLUS du bouton, sinon elle resterait orange
+    par cette correspondance directe. Règles séparées pour « button » et
+    « menubar > menuitem » : selon la version du greeter, un indicateur est
+    l'un ou l'autre — celle qui ne correspond à rien ne coûte rien. */
+#panel_window button:hover,
+#panel_window button:active,
+#panel_window button:checked {
+	background-color: @lexos_accent;
+	color: @lexos_noir;
+	border-color: @lexos_accent;
+}
+#panel_window button:hover *,
+#panel_window button:active *,
+#panel_window button:checked * {
+	color: @lexos_noir;
+}
 
 /* --- LES MENUS ET LISTES DÉROULANTES : ORANGE SURVOLÉ, ÉCRITURE NOIRE ---- */
 /*  ALEX, TROIS PHOTOS : le menu « ~power » du panneau (Mettre en veille /
@@ -223,34 +248,74 @@ treeview.view cell:selected {
 	color: @lexos_noir;
 }
 
-/* --- Les boutons ---------------------------------------------------------- */
-/*  « Se connecter », « Annuler », « Autre… ». Noir sur noir serait illisible :
-    le fond reste très sombre, la bordure et l'écriture portent l'orange, et
-    le survol inverse les deux — c'est déjà la grammaire des boutons du dock
-    et de la fenêtre de session. */
+/* --- Les boutons : ORANGE PLEIN, ÉCRITURE NOIRE --------------------------- */
+/*  « Se connecter », « Annuler », « Autre… ».
+    DEMANDE D'ALEX, MOT POUR MOT : « pour les boutons fait le bouton orange
+    écriture noire ». Le bouton est donc PLEIN dès le repos — plus de bouton
+    noir cerclé d'orange qui s'allumait au survol.
+
+    CE QU'ALEX A VU AVANT, ET POURQUOI ÇA ARRIVAIT. « il avait toute
+    écriture orange bouton noir mais quand on mettait la souris dessus il
+    devenait tout orange puis non visible ». C'est EXACTEMENT le bogue des
+    menus plus haut (« une correspondance directe bat toujours
+    l'héritage »), jamais étendu aux boutons : « #login_window * », tout en
+    haut de ce fichier, matche DIRECTEMENT le label À L'INTÉRIEUR du bouton
+    et le peint en orange. Les règles ci-dessous posent leur couleur sur le
+    BOUTON, dont le label n'HÉRITE que si rien ne le matche directement — et
+    « #login_window * » le matche. Fond orange + étiquette restée orange =
+    bouton vide à l'écran.
+
+    LE PASSAGE À L'ORANGE PLEIN NE SUFFIT DONC PAS À LUI SEUL : sans les
+    règles « button * » ci-dessous, l'étiquette resterait orange sur orange
+    AU REPOS et le bouton serait illisible en permanence, pas seulement au
+    survol. Les deux moitiés vont ensemble.
+
+    LES ÉTATS restent distincts pour qu'un bouton réponde visiblement au
+    doigt : accent au repos, accent clair au survol, accent foncé à
+    l'enfoncement — la même grammaire que le dock et la fenêtre de session.
+    Contraste noir sur #E8590C ≈ 6,6:1, sur #FF7A33 ≈ 9,2:1, sur #A84007
+    ≈ 3,6:1 (état bref, pendant le clic). */
 #login_window button {
 	background-image: none;
-	background-color: #141416;
-	color: @lexos_accent;
-	border: 1px solid alpha(@lexos_accent, 0.55);
+	background-color: @lexos_accent;
+	color: @lexos_noir;
+	border: 1px solid @lexos_accent;
 	border-radius: 9px;
 	padding: 7px 16px;
 	text-shadow: none;
 }
 #login_window button:hover {
-	background-color: @lexos_accent;
+	background-color: @lexos_accent_hi;
 	color: @lexos_noir;
-	border-color: @lexos_accent;
+	border-color: @lexos_accent_hi;
 }
 #login_window button:active,
 #login_window button:checked {
 	background-color: @lexos_accent_lo;
 	color: @lexos_noir;
 }
+/*  Désactivé : le SEUL état qui reste creux. Un bouton grisé doit se
+    distinguer d'un bouton vivant au premier coup d'oeil — le remplir
+    d'orange pâle le ferait passer pour cliquable. */
 #login_window button:disabled {
 	background-color: #0B0B0C;
 	color: alpha(@lexos_accent, 0.45);
 	border-color: alpha(@lexos_accent, 0.25);
+}
+/*  L'ÉTIQUETTE ELLE-MÊME, dans tous les états — c'est la moitié qui
+    manquait. Mêmes règles que « menuitem:hover * » plus haut, ici pour les
+    boutons. « #login_window button * » (1,0,1) bat « #login_window * »
+    (1,0,0), donc l'étiquette suit enfin son bouton. */
+#login_window button * {
+	color: @lexos_noir;
+}
+#login_window button:hover *,
+#login_window button:active *,
+#login_window button:checked * {
+	color: @lexos_noir;
+}
+#login_window button:disabled * {
+	color: alpha(@lexos_accent, 0.45);
 }
 
 /* --- La liste des comptes (« Autre… ») ------------------------------------ */
