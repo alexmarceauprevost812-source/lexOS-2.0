@@ -21,12 +21,34 @@
 #  On ne détourne pas la fenêtre de xfdesktop : elle se redessine au retour
 #  de veille ou au branchement d'un écran, et effacerait la vidéo.
 #
+#  ── LES ICÔNES DU BUREAU, LE MÊME BOGUE QUE fond-anime.py ────────────────
+#  ALEX : « on ne voit les applications du bureau que juste au moment où on
+#  change le fond d'écran ». xfdesktop (qui dessine ces icônes) et notre
+#  fenêtre sont TOUS LES DEUX _NET_WM_WINDOW_TYPE_DESKTOP — xfwm4 garantit
+#  que ce calque reste sous les fenêtres normales, mais PAS l'ordre RELATIF
+#  entre deux fenêtres de ce même calque. fond-video.py abaisse notre
+#  fenêtre UNE SEULE FOIS à sa création, jamais ensuite : au lancement (ou
+#  juste après, quand xfdesktop se redessine comme le paragraphe précédent
+#  le dit), les icônes redeviennent visibles un instant — puis, dès que
+#  l'ordre se refait dans ce calque, elles repassent sous la vidéo, pour de
+#  bon cette fois, puisque plus rien ne les remonte. Exactement le
+#  changement-de-fond-seulement décrit par Alex.
+#
+#  /usr/lib/lexos/fond-anime.py a déjà ce problème et déjà son correctif
+#  (remonte_xfdesktop(), rappelée au démarrage ET par une minuterie) : cette
+#  fonction-ci en est le PORT SHELL, mot pour mot la même logique (deux
+#  champs WM_CLASS essayés, code de retour vérifié, repli wmctrl), lancée en
+#  boucle de fond ici plutôt que par GLib.timeout_add côté Python.
+#
 #  ── Ce qui n'a PAS été vérifié ──────────────────────────────────────────
 #  Le comportement sur un vrai serveur X n'a pas pu être essayé pendant
 #  l'écriture : la machine de construction n'a pas d'affichage. La logique
-#  de fichiers, d'états et de garde-fous, elle, est testée. Si la fenêtre
-#  se comporte mal sur ton matériel, « lexos wallpaper video off » remet
-#  tout en place.
+#  de fichiers, d'états et de garde-fous, elle, est testée
+#  (tests/test_lexos_fond_video.sh : remonte_xfdesktop(), surveille_icones()
+#  et le nettoyage de cmd_arreter() — avec de faux xdotool/wmctrl et de
+#  vrais processus témoins, pas juste une relecture). Si la fenêtre se
+#  comporte mal sur ton matériel, « lexos wallpaper video off » remet tout
+#  en place.
 # =============================================================================
 set -uo pipefail
 
@@ -87,8 +109,52 @@ ecrire_qualite() {
 	say "Prend effet au prochain démarrage du fond (« $PROG relancer »)."
 }
 PID_BAT="$ETAT/batterie.pid"
+PID_ICONES="$ETAT/icones.pid"
+ICONES_S=15   # même rythme que fond-anime.py (ICONES_MS = 15000)
 
 vivant() { local f="$1"; [[ -r "$f" ]] && kill -0 "$(cat "$f" 2>/dev/null)" 2>/dev/null; }
+
+# =============================================================================
+#  Les icônes du bureau — même bogue, même correctif que fond-anime.py
+# =============================================================================
+#  Port shell de remonte_xfdesktop() (fond-anime.py) : DEUX champs WM_CLASS
+#  essayés (« --classname », l'instance, PUIS « --class », la classe — un
+#  premier correctif n'en essayant qu'un seul s'est révélé insuffisant sur
+#  la machine d'Alex), motif « [Xx]fdesktop » pour couvrir les deux
+#  capitalisations, et le CODE DE RETOUR d'xdotool est vérifié (0 = une
+#  fenêtre trouvée ET remontée) — une commande qui « réussit » sans avoir
+#  rien trouvé cacherait l'échec au lieu de laisser le repli wmctrl prendre
+#  le relais.
+remonte_xfdesktop() {
+	if command -v xdotool >/dev/null 2>&1; then
+		local champ
+		for champ in --classname --class; do
+			if xdotool search "$champ" '[Xx]fdesktop' windowraise >/dev/null 2>&1; then
+				return 0
+			fi
+		done
+	fi
+	if command -v wmctrl >/dev/null 2>&1; then
+		wmctrl -x -a xfdesktop.Xfdesktop >/dev/null 2>&1
+		return 0
+	fi
+	return 1
+}
+
+#  RAPPELÉE EN BOUCLE, PAS UNE SEULE FOIS. fond-video.py abaisse notre
+#  fenêtre à sa création et n'y touche plus jamais : xfdesktop peut très
+#  bien remonter les icônes une fois puis les reperdre — un changement
+#  d'accent (lexos-theme-gen recharge xfdesktop pour repeindre les
+#  dossiers), un retour de veille, un écran qui se branche. Le moment que
+#  Alex a vu (les icônes visibles JUSTE au changement de fond) correspond
+#  exactement à l'instant où xfdesktop se redessine tout seul, avant que
+#  l'ordre des fenêtres ne se refasse et ne les recouvre à nouveau.
+surveille_icones() {
+	while vivant "$PID_MPV"; do
+		remonte_xfdesktop
+		sleep "$ICONES_S"
+	done
+}
 
 # =============================================================================
 #  Batterie
@@ -124,7 +190,7 @@ surveille_batterie() {
 # =============================================================================
 cmd_arreter() {
 	local quelquechose=0
-	for f in "$PID_BAT" "$PID_MPV" "$PID_FEN"; do
+	for f in "$PID_BAT" "$PID_ICONES" "$PID_MPV" "$PID_FEN"; do
 		if vivant "$f"; then
 			#  CONT avant TERM : un processus arrêté par SIGSTOP ne traite
 			#  pas SIGTERM, il resterait figé indéfiniment.
@@ -234,6 +300,12 @@ cmd_demarrer() {
 	surveille_batterie >/dev/null 2>&1 &
 	echo $! > "$PID_BAT"
 
+	#  Une fois tout de suite — même « appel au démarrage » que
+	#  fond-anime.py — puis la boucle prend le relais pour la suite.
+	remonte_xfdesktop
+	surveille_icones >/dev/null 2>&1 &
+	echo $! > "$PID_ICONES"
+
 	printf 'VIDEO=%s\n' "$video" > "$CONF"
 
 	#  Reprendre à la prochaine ouverture de session, sinon il faudrait
@@ -274,6 +346,17 @@ cmd_etat() {
 	command -v mpv >/dev/null 2>&1 && ok "mpv" || warn "mpv absent (sudo apt install mpv)"
 	python3 -c "import Xlib" >/dev/null 2>&1 && ok "python3-xlib" \
 		|| warn "python3-xlib absent (sudo apt install python3-xlib)"
+	#  SANS L'UN DES DEUX, remonte_xfdesktop() rend « faux » en silence (voir
+	#  plus haut) : les icônes du bureau resteraient cachées derrière la
+	#  vidéo sans qu'aucun message ne le dise nulle part ailleurs. On le dit
+	#  ici, dans le seul endroit où quelqu'un pense à regarder.
+	if command -v xdotool >/dev/null 2>&1; then
+		ok "xdotool (les icônes du bureau restent visibles par-dessus la vidéo)"
+	elif command -v wmctrl >/dev/null 2>&1; then
+		ok "wmctrl (les icônes du bureau restent visibles par-dessus la vidéo)"
+	else
+		warn "ni xdotool ni wmctrl — les icônes du bureau resteront cachées derrière la vidéo (sudo apt install xdotool)"
+	fi
 }
 
 usage() {
