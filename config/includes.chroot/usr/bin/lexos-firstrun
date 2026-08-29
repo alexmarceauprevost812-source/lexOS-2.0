@@ -101,11 +101,11 @@ if [[ ! -d "$HOME/Projets LexOS" ]]; then
 fi
 
 # --- Fond d'écran sur tous les écrans détectés ------------------------------
-#  wallpaper.png (rendu de branding/wallpaper.svg) EST le fond de marque
-#  officiel : la marque « LexOS », « TI · LEX · AL » et la version y sont
-#  déjà, avec la grille et les braises — pas juste un dégradé abstrait.
-#  wallpaper-demon.png (icône seule, sans texte) n'est qu'une des quatre
-#  variantes du sélecteur Paramètres → Bureau LexOS, pas le défaut.
+#  wallpaper.png EST le fond de marque officiel. ALEX : « pour la prochaine
+#  ios sa va etre le fond ecren officiel — mais toute noir — avec le
+#  demon ». Depuis le hook 0300, wallpaper.png est un LIEN SYMBOLIQUE vers
+#  wallpaper-demon.png (le logo TI·LEX·AL sur fond noir) — ce script n'a
+#  rien à savoir de ce changement, il continue de lire le même nom.
 WALL="/usr/share/backgrounds/lexos/wallpaper.png"
 [[ -r "$WALL" ]] || WALL="/usr/share/lexos/branding/wallpaper.svg"
 
