@@ -1388,6 +1388,32 @@ jobs:
           #  recharge xfdesktop et peut redéfaire l'ordre plus tard).
           bash tests/test_lexos_fond_anime.sh
 
+      - name: Fond vidéo — le même correctif d'icônes que le fond animé
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, photo à l'appui (un fond VIDÉO cette fois, pas animé) :
+          #  « on voit les applications du bureau juste au moment où on
+          #  change le fond d'écran ». Même bogue que le fond animé
+          #  (_NET_WM_WINDOW_TYPE_DESKTOP, ordre relatif non garanti dans le
+          #  calque) — mais fond-video.py n'avait JAMAIS reçu le correctif,
+          #  découvert en relisant la description d'Alex plutôt que par un
+          #  document d'audit. Port shell de remonte_xfdesktop(), rappelée
+          #  par une boucle de fond tant que mpv tourne, et PID_ICONES
+          #  ajouté au nettoyage de cmd_arreter().
+          bash tests/test_lexos_fond_video.sh
+
+      - name: Claude Terminal — un mot-sigle au début d'une session, un vrai prénom
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, en comparant le vrai Claude Terminal à la démo web : « ouvre
+          #  pas comme je voyait sur vercel — 3e image, c'est ça qu'il veut
+          #  voir au début d'une session ». lexos-claude affiche maintenant un
+          #  mot-sigle avant de céder l'écran à Claude Code, avec un prénom
+          #  tiré du vrai mécanisme d'identité de LexOS (GECOS) — jamais un
+          #  nom écrit en dur, puisque ce fichier est embarqué dans l'ISO de
+          #  quiconque installe LexOS, pas seulement la machine d'Alex.
+          bash tests/test_lexos_claude.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |
