@@ -106,6 +106,27 @@
     par cette correspondance directe. Règles séparées pour « button » et
     « menubar > menuitem » : selon la version du greeter, un indicateur est
     l'un ou l'autre — celle qui ne correspond à rien ne coûte rien. */
+/*  LES INDICATEURS AU REPOS — « le bouton est pas activé » (Alex : le bouton
+    ~power qui ouvre Éteindre/Redémarrer, sur la page de choix d'utilisateur).
+    Avant cette règle, « #panel_window button » n'avait AUCUN état de repos :
+    seuls :hover/:active/:checked, juste en dessous, étaient déclarés. Or
+    « #panel_window * », plus haut, donne déjà « background-color:
+    transparent » à tout — le bouton EST là et répond au clic, mais rien à
+    l'écran ne le dit avant qu'on passe la souris dessus. Un bouton qui ne
+    ressemble à un bouton qu'au survol se lit exactement comme un bouton
+    désactivé — d'où « pas activé ».
+
+    Même recette que le champ du mot de passe (#login_window entry) plutôt
+    que le plein orange des boutons de la boîte de connexion : un panneau
+    couvert de pastilles pleines à longueur de barre serait plus lourd que
+    lisible. Un encadré sombre à bordure orange suffit à dire « ceci se
+    clique », et laisse le plein orange du survol/de l'appui, juste
+    au-dessous, pour la réponse visible au doigt. */
+#panel_window button {
+	background-color: #0B0B0C;
+	border: 1px solid alpha(@lexos_accent, 0.55);
+	border-radius: 6px;
+}
 #panel_window button:hover,
 #panel_window button:active,
 #panel_window button:checked {
