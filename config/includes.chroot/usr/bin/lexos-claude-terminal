@@ -20,9 +20,10 @@
 #    --hide-menubar / --hide-toolbar : pas de barre de menus ni d'outils —
 #                  cette fenêtre ne sert qu'à parler à Claude, tout habillage
 #                  de terminal généraliste y serait du bruit ;
-#    --color-bg / --color-text : un bleu marine profond et une écriture bleu
-#                  glacier (contraste ≈ 13,7:1, largement au-dessus du seuil
-#                  AA) — demande d'Alex, « joli bleu » — on reconnaît la
+#    --color-bg / --color-text : noir franc et une écriture bleu glacier
+#                  (contraste ≈ 17,3:1, largement au-dessus du seuil AA) —
+#                  demande d'Alex, « faire un fond bien noir » (un premier
+#                  essai en bleu marine ne convenait pas) — on reconnaît la
 #                  fenêtre de Claude d'un coup d'oeil, même réduite dans le
 #                  dock à côté du terminal orange ordinaire ;
 #    --hold        BOGUE RÉEL CORRIGÉ ICI : sans --hold, xfce4-terminal
@@ -55,7 +56,7 @@ if command -v xfce4-terminal >/dev/null 2>&1; then
 		--title="Claude Terminal" \
 		--icon=lexos-claude \
 		--hide-menubar --hide-toolbar \
-		--color-bg='#0F1F33' --color-text='#D6ECFF' \
+		--color-bg='#000000' --color-text='#D6ECFF' \
 		--hold \
 		-e "lexos claude"
 fi
