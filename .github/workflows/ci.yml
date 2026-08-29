@@ -1344,10 +1344,22 @@ jobs:
           #  clé rejetée, le fichier n'est pas réécrit — la preuve qu'un canal
           #  déjà rempli au premier lancement empêche la migration de partir
           #  sur des valeurs par défaut.
-          command -v xfce4-terminal >/dev/null 2>&1 \
-            || sudo apt-get install -y --no-install-recommends xfce4-terminal >/dev/null
-          command -v Xvfb >/dev/null 2>&1 \
-            || sudo apt-get install -y --no-install-recommends xvfb >/dev/null
+          #
+          #  xfce4-terminal DÉPEND de libxfconf-0-3 (la bibliothèque) mais PAS
+          #  du paquet xfconf, qui porte le démon xfconfd — et il ne fait que
+          #  RECOMMANDER un bus D-Bus, que --no-install-recommends écarte.
+          #  Sans xfconfd ni bus, le terminal ne peut pas LIRE le canal : il le
+          #  voit vide et migre, ce qui faisait échouer ce banc alors que le
+          #  fichier produit était bon. Sur une vraie LexOS le métapaquet
+          #  « xfce4 » amène xfconfd, donc le cas réel n'a jamais eu ce trou.
+          #  dpkg -s, pas « command -v » : le nom du PAQUET (xvfb, xfconf,
+          #  dbus-x11) ne correspond pas toujours au nom de la COMMANDE qu'il
+          #  installe (Xvfb en majuscule ; xfconfd hors du PATH ; dbus-x11
+          #  fournit dbus-launch et dbus-run-session, pas un binaire « dbus-x11 »).
+          for p in xfce4-terminal xvfb xfconf dbus-x11; do
+            dpkg -s "$p" >/dev/null 2>&1 \
+              || sudo apt-get install -y --no-install-recommends "$p" >/dev/null
+          done
           bash tests/test_lexos_terminal.sh
 
       - name: Bluetooth — un balayage refusé n'est plus annoncé comme réussi
