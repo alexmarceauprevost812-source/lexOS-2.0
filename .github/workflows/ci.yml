@@ -1176,6 +1176,20 @@ jobs:
           #  build 76 aurait remis Papirus-Dark.
           bash tests/test_lexos_connexion.sh
 
+      - name: Le fond d'écran officiel — le démon, pas juste une variante
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, après avoir envoyé le logo : « pour la prochaine ios sa
+          #  va etre le fond ecren officiel — mais toute noir — avec le
+          #  demon ». wallpaper-demon.png existait déjà comme UNE variante
+          #  du sélecteur Paramètres → Bureau LexOS ; il devient maintenant
+          #  wallpaper.png lui-même (un lien symbolique, pas une copie qui
+          #  pourrait diverger) — le fichier que lexos-firstrun pose au
+          #  premier lancement et que le repli XFCE du même hook recopie.
+          #  Le banc fait tourner le VRAI extrait du hook avec le VRAI
+          #  ImageMagick installé juste au-dessus pour test_lexos_fenetres.sh.
+          bash tests/test_lexos_fond_officiel.sh
+
       - name: L'écran de connexion — le bouton « Éteindre » fait quelque chose
         if: ${{ !cancelled() }}
         run: |
@@ -1344,10 +1358,22 @@ jobs:
           #  clé rejetée, le fichier n'est pas réécrit — la preuve qu'un canal
           #  déjà rempli au premier lancement empêche la migration de partir
           #  sur des valeurs par défaut.
-          command -v xfce4-terminal >/dev/null 2>&1 \
-            || sudo apt-get install -y --no-install-recommends xfce4-terminal >/dev/null
-          command -v Xvfb >/dev/null 2>&1 \
-            || sudo apt-get install -y --no-install-recommends xvfb >/dev/null
+          #
+          #  xfce4-terminal DÉPEND de libxfconf-0-3 (la bibliothèque) mais PAS
+          #  du paquet xfconf, qui porte le démon xfconfd — et il ne fait que
+          #  RECOMMANDER un bus D-Bus, que --no-install-recommends écarte.
+          #  Sans xfconfd ni bus, le terminal ne peut pas LIRE le canal : il le
+          #  voit vide et migre, ce qui faisait échouer ce banc alors que le
+          #  fichier produit était bon. Sur une vraie LexOS le métapaquet
+          #  « xfce4 » amène xfconfd, donc le cas réel n'a jamais eu ce trou.
+          #  dpkg -s, pas « command -v » : le nom du PAQUET (xvfb, xfconf,
+          #  dbus-x11) ne correspond pas toujours au nom de la COMMANDE qu'il
+          #  installe (Xvfb en majuscule ; xfconfd hors du PATH ; dbus-x11
+          #  fournit dbus-launch et dbus-run-session, pas un binaire « dbus-x11 »).
+          for p in xfce4-terminal xvfb xfconf dbus-x11; do
+            dpkg -s "$p" >/dev/null 2>&1 \
+              || sudo apt-get install -y --no-install-recommends "$p" >/dev/null
+          done
           bash tests/test_lexos_terminal.sh
 
       - name: Bluetooth — un balayage refusé n'est plus annoncé comme réussi
@@ -1375,6 +1401,32 @@ jobs:
           #  au démarrage et par une minuterie (un changement d'accent
           #  recharge xfdesktop et peut redéfaire l'ordre plus tard).
           bash tests/test_lexos_fond_anime.sh
+
+      - name: Fond vidéo — le même correctif d'icônes que le fond animé
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, photo à l'appui (un fond VIDÉO cette fois, pas animé) :
+          #  « on voit les applications du bureau juste au moment où on
+          #  change le fond d'écran ». Même bogue que le fond animé
+          #  (_NET_WM_WINDOW_TYPE_DESKTOP, ordre relatif non garanti dans le
+          #  calque) — mais fond-video.py n'avait JAMAIS reçu le correctif,
+          #  découvert en relisant la description d'Alex plutôt que par un
+          #  document d'audit. Port shell de remonte_xfdesktop(), rappelée
+          #  par une boucle de fond tant que mpv tourne, et PID_ICONES
+          #  ajouté au nettoyage de cmd_arreter().
+          bash tests/test_lexos_fond_video.sh
+
+      - name: Claude Terminal — un mot-sigle au début d'une session, un vrai prénom
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, en comparant le vrai Claude Terminal à la démo web : « ouvre
+          #  pas comme je voyait sur vercel — 3e image, c'est ça qu'il veut
+          #  voir au début d'une session ». lexos-claude affiche maintenant un
+          #  mot-sigle avant de céder l'écran à Claude Code, avec un prénom
+          #  tiré du vrai mécanisme d'identité de LexOS (GECOS) — jamais un
+          #  nom écrit en dur, puisque ce fichier est embarqué dans l'ISO de
+          #  quiconque installe LexOS, pas seulement la machine d'Alex.
+          bash tests/test_lexos_claude.sh
 
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}

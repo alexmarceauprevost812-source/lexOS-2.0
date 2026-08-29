@@ -466,8 +466,22 @@ async function btCherche(){
   const r = await api("bt-chercher");
   await rafraichir(r.ok ? "Recherche terminée" : null);
 }
+//  ALEX : « pas capable d'écrire le mot de passe » du Wi-Fi — le champ
+//  affichait bien le contour orange du focus (CSS), mais aucune touche
+//  n'entrait dedans. rendSection() REMPLACE tout #content par du neuf
+//  (innerHTML) et .focus() était appelé sur ce nœud flambant neuf DANS LA
+//  MÊME PASSE SYNCHRONE — exactement le cas que QtWebEngine (le moteur de
+//  cette fenêtre, PySide6) documente comme instable : le focus DOM peut
+//  « prendre » visuellement avant que le moteur de rendu n'ait fini
+//  d'accepter le nouveau nœud, et les frappes clavier continuent d'aller
+//  nulle part jusqu'au clic suivant. Un requestAnimationFrame (déjà
+//  l'idiome du volet pour un problème de synchronisation voisin) repousse
+//  le focus au prochain repaint, une fois le nouveau champ vraiment prêt.
 function choisitWifi(ssid){ wifiChoisi = ssid; rendSection();
-  const c = document.getElementById("wifiMdp"); if(c) c.focus(); }
+  requestAnimationFrame(() => {
+    const c = document.getElementById("wifiMdp"); if(c) c.focus();
+  });
+}
 async function chercheWifi(){
   toast("Recherche des réseaux…");
   await api("wifi-rechercher");

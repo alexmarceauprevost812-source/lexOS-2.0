@@ -21,15 +21,59 @@ set -uo pipefail
 PROG="lexos claude"
 
 if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
-	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
 else
-	O=''; G=''; Y=''; E=''; B=''; R=''
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
 fi
 say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
 ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
 warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
 err()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; }
 die()  { err "$*"; exit 1; }
+
+# --- Le mot-sigle au début d'une session --------------------------------------
+#  ALEX, en montrant le vrai Claude Terminal à côté de la démo web : « claude
+#  terminal ouvre pas comme je voyait sur vercel — 3e image, c'est ça qu'il
+#  veut voir au début d'une session ». La démo (web-demo/index.html, fonction
+#  cctAccueilSession) affiche un mot-sigle « CLAUDE CODE » et « Bonjour,
+#  Alex » avant la conversation — ici, « claude » (exec, plus bas) prend tout
+#  de suite la main sur le terminal et dessine SA PROPRE interface (le choix
+#  du thème au tout premier lancement, puis son propre écran de démarrage) :
+#  impossible d'ajouter quoi que ce soit PENDANT cet écran-là sans construire
+#  un vrai enrobage de terminal (pty), fragile et hors de propos ici. Ce qui
+#  reste possible, et suffit : imprimer le même mot-sigle JUSTE AVANT de lui
+#  céder l'écran, comme un générique avant un film.
+#
+#  LE PRÉNOM NE VIENT PAS D'UN « Alex » ÉCRIT EN DUR. Ce script est embarqué
+#  dans l'ISO — donc dans la machine de quiconque installe LexOS, pas
+#  seulement celle d'Alex. La démo peut se permettre « Bonjour, Alex » (c'est
+#  une page taillée pour lui) ; un fichier système livré à tout le monde ne
+#  le peut pas. Le prénom vient du VRAI mécanisme d'identité de LexOS — le
+#  champ GECOS que pose « lexos utilisateurs nom-complet » — et retombe sur
+#  le nom du compte si personne ne l'a réglé.
+prenom() {
+	local plein
+	plein="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f5)"
+	plein="${plein%%,*}"   # GECOS : le nom complet, avant la première virgule
+	plein="${plein%% *}"   # le prénom seul, avant le premier espace
+	if [[ -n "$plein" ]]; then
+		printf '%s' "$plein"
+	else
+		local u; u="$(id -un)"
+		printf '%s' "${u^}"
+	fi
+}
+
+banniere() {
+	local h salut
+	h="$(date +%-H 2>/dev/null || date +%H)"; h="${h#0}"; h="${h:-0}"
+	#  Même règle que la démo (cctAccueilSession) : bonsoir de 18 h à 5 h.
+	if (( h >= 18 || h < 5 )); then salut="Bonsoir"; else salut="Bonjour"; fi
+	printf '\n%s%sCLAUDE\nCODE%s\n' "$B" "$O" "$R"
+	printf '%s✳ %s, %s%s\n' "$O" "$salut" "$(prenom)" "$R"
+	printf '%sLe terminal de Claude, et de personne d'"'"'autre.%s\n' "$D" "$R"
+	printf '%sConnexion au navigateur au premier lancement.%s\n\n' "$D" "$R"
+}
 
 usage() {
 	cat <<EOF
@@ -245,7 +289,14 @@ cmd_run() {
 		say "Modèle : ${m}"
 	fi
 
-	say "Claude Code — connexion au navigateur au premier lancement."
+	#  Le mot-sigle est un décor : sur une sortie qui n'est pas un vrai
+	#  terminal (script, pipe, NO_COLOR), on garde le seul message qui
+	#  porte une vraie information.
+	if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+		banniere
+	else
+		say "Claude Code — connexion au navigateur au premier lancement."
+	fi
 	exec claude "${choix[@]}" "$@"
 }
 

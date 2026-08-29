@@ -215,6 +215,14 @@ cat > "$BANC/etiquette_indicateur.json" <<'J'
  {"nom":"button","classes":[],"etats":["hover"]},
  {"nom":"label","classes":[]}]
 J
+#  LE BOUTON AU REPOS — « le bouton est pas activé » (Alex : le bouton
+#  ~power, Éteindre/Redémarrer, sur la page de choix d'utilisateur). Sans
+#  état hover, PAS un fixture inventé : c'est exactement l'état d'un bouton
+#  qu'on regarde sans y toucher, celui de la photo d'Alex.
+cat > "$BANC/bouton_indicateur_repos.json" <<'J'
+[{"nom":"window","id":"panel_window","classes":[]},
+ {"nom":"button","classes":[]}]
+J
 cat > "$BANC/champ.json" <<'J'
 [{"nom":"window","id":"login_window","classes":[]},
  {"nom":"entry","classes":[]}]
@@ -323,6 +331,17 @@ F="$(resout "$BANC/etiquette_indicateur.json" color)"
 [ "$F" = "#000000" ] \
 	&& ok "les boutons de la barre du HAUT restent lisibles au survol aussi" \
 	|| non "étiquette d'indicateur survolé = « $F » — « les boutons en haut était aussi »"
+
+#  « LE BOUTON EST PAS ACTIVÉ » — Alex, sur le bouton ~power (Éteindre /
+#  Redémarrer) de la page de choix d'utilisateur, SANS la souris dessus.
+#  Avant ce correctif, « #panel_window button » n'avait aucune règle hors
+#  :hover/:active/:checked — le fond restait celui de « #panel_window * »
+#  (transparent) et aucune bordure n'existait : un bouton qui ne ressemble
+#  à un bouton qu'au survol se lit comme un bouton désactivé.
+F="$(resout "$BANC/bouton_indicateur_repos.json" background-color)"
+[ "$F" != "" ] && [ "$F" != "transparent" ] \
+	&& ok "au repos, le bouton de la barre du haut a déjà un fond (« $F ») — pas juste au survol" \
+	|| non "fond du bouton au repos = « $F » — invisible tant qu'on n'y touche pas, la photo d'Alex"
 
 F="$(resout "$BANC/champ.json" color)"
 [ "$F" = "#E8590C" ] \

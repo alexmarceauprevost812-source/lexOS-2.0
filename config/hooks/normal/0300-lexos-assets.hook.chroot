@@ -57,6 +57,25 @@ if [ -r "$BRAND/logo-ti-lex-al-icon.png" ] && have convert; then
 		"$BG/wallpaper-demon.png" \
 		&& echo "[lexos]   -> $BG/wallpaper-demon.png" \
 		|| echo "[lexos]   !! échec : wallpaper-demon.png"
+
+	#  LE DÉMON DEVIENT LE FOND D'ÉCRAN OFFICIEL. Alex : « pour la prochaine
+	#  ios sa va etre le fond ecren officiel — mais toute noir — avec le
+	#  demon ». wallpaper.png (rendu plus haut depuis wallpaper.svg) est LE
+	#  fichier que lexos-firstrun applique au premier lancement et que le
+	#  repli XFCE ci-dessous copie — le remplacer ICI, une fois le démon
+	#  composé, suffit à changer l'officiel PARTOUT sans toucher trois
+	#  fichiers séparément.
+	#
+	#  UN LIEN SYMBOLIQUE, PAS UNE COPIE : les deux noms (« defaut » et
+	#  « demon » dans settings.py, FONDS) doivent rester LA MÊME image pour
+	#  toujours — une copie se dédouble en silence si un correctif futur ne
+	#  touche que l'un des deux fichiers. « ln -sf » écrase sans se plaindre
+	#  ce que « render » venait de poser deux blocs plus haut.
+	if [ -r "$BG/wallpaper-demon.png" ]; then
+		ln -sf wallpaper-demon.png "$BG/wallpaper.png" \
+			&& echo "[lexos]   -> wallpaper.png pointe maintenant sur le démon (fond officiel)" \
+			|| echo "[lexos]   !! échec : wallpaper.png n'a pas pu pointer sur le démon"
+	fi
 fi
 
 # --- Le fond de l'ÉCRAN DE CONNEXION ---------------------------------------

@@ -34,24 +34,34 @@ const non = m => { console.log("  \x1b[31m❌\x1b[0m " + m); echoues++; };
 const titre = m => console.log("\n\x1b[1m═══ " + m + " ═══\x1b[0m");
 
 /* --- Le décor minimal : ce que la page touche au chargement --------------- */
+//  #wifiMdp EST UN OBJET STABLE, PAS UN GÉNÉRIQUE JETABLE — c'est justement
+//  celui que le test du focus différé (section 4) doit pouvoir espionner
+//  après coup. requestAnimationFrame FILE la fonction au lieu de l'exécuter
+//  tout de suite : c'est ce qui permet au banc de vérifier qu'aucune touche
+//  ne serait perdue avant le prochain repaint (le bogue d'Alex, « pas
+//  capable d'écrire le mot de passe »).
+const wifiMdpEspion = { valeurFocus: 0, focus(){ this.valeurFocus++; } };
+const rafFile = [];
 function faux() {
   const el = () => ({ innerHTML:"", textContent:"", hidden:true, style:{}, dataset:{},
                       classList:{add(){}, remove(){}, toggle(){}},
                       querySelectorAll:() => [], appendChild(){}, focus(){} });
   return {
-    document: { getElementById: el, querySelectorAll: () => [], body: el(),
+    document: { getElementById: id => id === "wifiMdp" ? wifiMdpEspion : el(),
+                querySelectorAll: () => [], body: el(),
                 documentElement: { style:{ setProperty(){} }, dataset:{} },
                 addEventListener(){} },
     location: { hash:"" },
     window: { confirm: () => true },
     fetch: () => Promise.reject(new Error("pas de pont dans le banc")),
+    requestAnimationFrame: cb => { rafFile.push(cb); return rafFile.length; },
     setTimeout, clearTimeout, console,
   };
 }
 
 const source = fs.readFileSync(APP, "utf8")
   + "\n;globalThis.__banc = { wifiGlyph, contenu, pose: e => { etat = e; },"
-  + "  nav: NAV };\n";
+  + "  nav: NAV, choisitWifi };\n";
 const bac = vm.createContext(faux());
 bac.globalThis = bac;
 vm.runInContext(source, bac, { filename: "app.js" });
@@ -153,6 +163,40 @@ for (const [nom, motif] of [
 ]) {
   if (motif.test(css)) ok(nom + " est dans ui.css");
   else non(nom + " manque dans ui.css — le pictogramme serait un carré vide");
+}
+
+/* ========================================================================== */
+titre("4. « pas capable d'écrire le mot de passe » — le focus arrive après le repaint");
+/* ========================================================================== */
+//  ALEX : le champ montrait bien le contour orange du focus, mais aucune
+//  touche n'y entrait. rendSection() remplace tout #content par du neuf
+//  (innerHTML) ; appeler .focus() sur le nouveau champ DANS LA MÊME PASSE
+//  SYNCHRONE est justement le cas que QtWebEngine — le moteur de cette
+//  fenêtre — documente comme instable : le focus DOM « prend » à l'écran
+//  avant que le moteur de rendu n'ait fini d'accepter le nœud, et les
+//  frappes se perdent jusqu'au clic suivant. choisitWifi() doit donc
+//  DIFFÉRER l'appel à .focus() d'un repaint (requestAnimationFrame),
+//  jamais l'appeler tout de suite.
+T.pose({ wifi: {radio:"enabled", reseau:"", signal:0, internet:"none",
+                auto:false,
+                reseaux:[{ssid:"BELL507", signal:100, protege:true,
+                          securite:"WPA2", actif:false}]} });
+rafFile.length = 0;
+wifiMdpEspion.valeurFocus = 0;
+T.choisitWifi("BELL507");
+if (wifiMdpEspion.valeurFocus === 0)
+  ok("choisitWifi() ne fixe pas le focus tout de suite (synchrone)");
+else non("le focus est posé dans la même passe que le rendu — le bogue d'Alex reviendrait");
+if (rafFile.length === 1)
+  ok("…mais file exactement un rappel pour le prochain repaint");
+else non("aucun requestAnimationFrame en attente — le focus ne serait jamais posé");
+if (rafFile.length > 0) {
+  rafFile.shift()();
+  if (wifiMdpEspion.valeurFocus >= 1)
+    ok("une fois le repaint passé, le champ reçoit bien le focus");
+  else non("le rappel différé n'a pas focus le champ du mot de passe");
+} else {
+  non("pas de rappel en file — le focus ne se posera jamais (rien à rejouer)");
 }
 
 console.log(`\n\x1b[1m${reussis} réussis, ${echoues} échoués\x1b[0m`);

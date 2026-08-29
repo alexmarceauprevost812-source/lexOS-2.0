@@ -59,6 +59,20 @@ genere() { # genere <accent> <mode-terminal>
 RC="$BANC/t/.config/xfce4/terminal/terminalrc"
 XML="$BANC/t/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-terminal.xml"
 
+#  xfconfd n'est PAS sur le PATH (activé à la demande par D-Bus, pas un
+#  binaire qu'on lance à la main) : son chemin dépend de l'architecture
+#  (…/x86_64-linux-gnu/… sur le runner CI). « [ -x /usr/lib/*/… ] » ne
+#  fait PAS ce qu'on croit : shellcheck (SC2144) le refuse à raison — un
+#  glob dans « [ ] » n'est pas développé de façon fiable. La boucle est la
+#  bonne façon de le faire.
+xfconfd_present() {
+	command -v xfconfd >/dev/null 2>&1 && return 0
+	for f in /usr/lib/*/xfce4/xfconf/xfconfd; do
+		[ -x "$f" ] && return 0
+	done
+	return 1
+}
+
 # =============================================================================
 titre "1. La police, et les couleurs, sont les MÊMES dans les deux fichiers"
 # =============================================================================
@@ -131,18 +145,40 @@ titre "3. La preuve par l'exécution — quand le vrai xfce4-terminal est là"
 #  orthographiée serait ignorée par Xfconf EN SILENCE (il ignore toute clé
 #  qu'il ne reconnaît pas) : aucun test structurel ne peut voir cette
 #  faute-là, seul le vrai programme le peut.
-if command -v xfce4-terminal >/dev/null 2>&1 && command -v Xvfb >/dev/null 2>&1; then
+#  LA GARDE DOIT COUVRIR CE DONT LE MÉCANISME A VRAIMENT BESOIN, PAS
+#  SEULEMENT LE BINAIRE VISIBLE. xfce4-terminal et Xvfb suffisaient à faire
+#  DÉMARRER le terminal, mais pas à lui donner un canal Xfconf à LIRE :
+#  sans démon xfconfd ni bus de session D-Bus, le terminal voit un canal
+#  vide et migre — exactement le faux négatif que ce banc a fini par
+#  produire en CI (xfce4-terminal ne DÉPEND que de la bibliothèque
+#  libxfconf-0-3, pas du paquet xfconf qui porte xfconfd ; il ne fait que
+#  RECOMMANDER un bus D-Bus, qu'un --no-install-recommends écarte). Sur une
+#  vraie LexOS le métapaquet « xfce4 » amène xfconfd : le cas réel n'a
+#  jamais eu ce trou, seul le banc l'avait.
+if command -v xfce4-terminal >/dev/null 2>&1 \
+	&& command -v Xvfb >/dev/null 2>&1 \
+	&& command -v dbus-run-session >/dev/null 2>&1 \
+	&& xfconfd_present; then
 	genere orange suivre
 	DISP=":$((90 + RANDOM % 400))"
 	Xvfb "$DISP" -screen 0 1024x768x24 >/dev/null 2>&1 &
 	XVFB_PID=$!
 	sleep 1
 
-	AVANT="$(md5sum "$XML" | cut -d' ' -f1)"
+	AVANT_FONT="$(sed -n 's/.*name="font-name"[^>]*value="\([^"]*\)".*/\1/p' "$XML")"
+	AVANT_FG="$(sed -n 's/.*name="color-foreground"[^>]*value="\([^"]*\)".*/\1/p' "$XML")"
+	AVANT_BG="$(sed -n 's/.*name="color-background"[^>]*value="\([^"]*\)".*/\1/p' "$XML")"
+	#  dbus-run-session DÉMARRE le bus et xfconfd s'active À LA DEMANDE par
+	#  D-Bus (service .service, pas un démon qu'on lance à la main) : le
+	#  délai passe de 4 à 8 secondes pour laisser ce démarrage se faire
+	#  avant que le terminal ne lise quoi que ce soit — 4 s suffisaient à un
+	#  terminal qui ne parlait à personne, elles ne suffisent plus.
 	SORTIE="$(DISPLAY="$DISP" HOME="$BANC/t" XDG_CONFIG_HOME="$BANC/t/.config" \
-		timeout 4 xfce4-terminal --disable-server -e /bin/sleep\ 2 2>&1)"
+		dbus-run-session -- timeout 8 xfce4-terminal --disable-server -e /bin/sleep\ 2 2>&1)"
 	sleep 0.3
-	APRES="$(md5sum "$XML" | cut -d' ' -f1)"
+	APRES_FONT="$(sed -n 's/.*name="font-name"[^>]*value="\([^"]*\)".*/\1/p' "$XML")"
+	APRES_FG="$(sed -n 's/.*name="color-foreground"[^>]*value="\([^"]*\)".*/\1/p' "$XML")"
+	APRES_BG="$(sed -n 's/.*name="color-background"[^>]*value="\([^"]*\)".*/\1/p' "$XML")"
 
 	kill "$XVFB_PID" 2>/dev/null; wait "$XVFB_PID" 2>/dev/null
 
@@ -156,11 +192,25 @@ if command -v xfce4-terminal >/dev/null 2>&1 && command -v Xvfb >/dev/null 2>&1;
 	else
 		ok "aucune clé rejetée — les 24 noms vérifiés sont tous corrects"
 	fi
-	[ "$AVANT" = "$APRES" ] \
-		&& ok "notre fichier n'a pas été réécrit par le lancement (il fait déjà foi)" \
-		|| non "xfce4-terminal a réécrit notre fichier — nos valeurs n'auraient pas tenu"
+	#  LES VALEURS, PAS LES OCTETS. Avec xfconfd réellement en marche, il
+	#  DEVIENT propriétaire du fichier et peut le réécrire dans sa forme
+	#  canonique en s'arrêtant (ordre des propriétés, indentation,
+	#  attributs) SANS changer une seule valeur — un md5sum le verrait
+	#  comme « réécrit » pour une raison qui n'intéresse personne. La vraie
+	#  promesse, c'est « nos valeurs tiennent », pas « le fichier n'a pas
+	#  bougé d'un octet ».
+	if [ "$AVANT_FONT" = "$APRES_FONT" ] && [ "$AVANT_FG" = "$APRES_FG" ] && [ "$AVANT_BG" = "$APRES_BG" ]; then
+		ok "nos valeurs tiennent après le lancement (police, avant-plan, fond) — xfconfd a pu réécrire la forme, jamais le fond"
+	else
+		non "xfce4-terminal a changé une valeur : police $AVANT_FONT->$APRES_FONT, avant-plan $AVANT_FG->$APRES_FG, fond $AVANT_BG->$APRES_BG"
+	fi
 else
-	printf '  \033[2mxfce4-terminal ou Xvfb absent de cette machine — preuve par l'"'"'exécution sautée (le reste tient quand même)\033[0m\n'
+	MANQUE=""
+	command -v xfce4-terminal >/dev/null 2>&1 || MANQUE="${MANQUE} xfce4-terminal"
+	command -v Xvfb >/dev/null 2>&1 || MANQUE="${MANQUE} Xvfb"
+	command -v dbus-run-session >/dev/null 2>&1 || MANQUE="${MANQUE} dbus-run-session"
+	xfconfd_present || MANQUE="${MANQUE} xfconfd"
+	printf '  \033[2mpreuve par l'"'"'exécution sautée — absent de cette machine :%s (le reste tient quand même)\033[0m\n' "$MANQUE"
 fi
 
 # =============================================================================
