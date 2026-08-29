@@ -26,6 +26,14 @@ titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 
 [ -x "$OUTIL" ] || { echo "lexos-app-settings introuvable ou non exécutable"; exit 1; }
 
+#  CHEMIN ABSOLU, RÉSOLU MAINTENANT — avant qu'aucun PATH restreint n'existe.
+#  « PATH=xxx bash … » chercherait « bash » LUI-MÊME dans ce PATH restreint
+#  (bash cherche la commande avec l'environnement qu'elle est en train de lui
+#  construire, pas avec le PATH actuel du shell appelant) — et échouerait
+#  avec « bash: command not found » avant même d'atteindre le script. Un
+#  chemin absolu saute la recherche par PATH entièrement.
+BASH_BIN="$(command -v bash)"
+
 FAUXBIN="$BANC/bin"
 CLASSE_F="$BANC/classe"
 APPELE_F="$BANC/appele"
@@ -63,13 +71,43 @@ retire_faux() { rm -f "$FAUXBIN/$1"; } # simule un binaire absent du système
 
 lance() { # lance -> ce que APPELE_F contient après un run (vidé avant)
 	rm -f "$APPELE_F"
-	PATH="$FAUXBIN:$PATH" "$OUTIL" >/dev/null 2>&1
+	#  PATH FERMÉ, PAS SEULEMENT COMPLÉTÉ. « $FAUXBIN:$PATH » ne faisait que
+	#  PRÉFIXER le vrai PATH — un vrai binaire, quand il existe, restait
+	#  joignable dès qu'aucun faux ne le masquait. Sans conséquence en local
+	#  (pas de firefox réel sur la machine de dev), mais le runner
+	#  « ubuntu-latest » de GitHub Actions EN EMBARQUE UN — et le scénario 9
+	#  (« aucun binaire firefox présent ») ne pose exprès AUCUN faux pour le
+	#  masquer. lexos-app-settings trouvait donc le VRAI firefox, l'exécutait
+	#  (exec, sans afficheur), et $APPELE_F restait vide : le banc annonçait
+	#  « obtenu «  » » au lieu du repli attendu. Un PATH fermé — seul
+	#  $FAUXBIN, rien derrière — est ce que le commentaire d'en-tête de ce
+	#  fichier promettait déjà (« un PATH fermé ») : le code ne le tenait pas.
+	#
+	#  « bash "$OUTIL" », PAS « "$OUTIL" » TOUT COURT. L'outil commence par
+	#  « #!/usr/bin/env bash » : lancé directement, c'est le NOYAU qui invoque
+	#  /usr/bin/env (chemin absolu, indifférent au PATH), mais env doit ensuite
+	#  trouver « bash » lui-même — EN CHERCHANT DANS LE PATH FERMÉ qu'on vient
+	#  de poser, où bash n'existe pas. L'outil ne démarrerait alors jamais, et
+	#  $APPELE_F resterait vide pour TOUS les scénarios, pas seulement le 9e —
+	#  exactement ce qui s'est produit à la première tentative de ce correctif.
+	#  Appeler bash nous-mêmes résout « bash » AVANT que PATH ne soit restreint
+	#  (cette assignation ne vaut que pour la commande qui suit), et contourne
+	#  le shebang entièrement.
+	PATH="$FAUXBIN" "$BASH_BIN" "$OUTIL" >/dev/null 2>&1
 	cat "$APPELE_F" 2>/dev/null
 }
 
 reinit() { # repart d'un dossier de faux binaires vide, à chaque scénario
 	rm -rf "$FAUXBIN"; mkdir -p "$FAUXBIN"
 	pose_faux lexos-settings
+	#  LES DEUX SEULS OUTILS RÉELS DONT LE PATH FERMÉ A BESOIN — ni testés ni
+	#  faux, juste de la plomberie que le banc et l'outil emploient TOUJOURS :
+	#  « cat » dans le faux xdotool de pose_classe(), « tr » dans
+	#  lexos-app-settings lui-même (mise en minuscules de la classe). Un lien
+	#  vers le vrai binaire, jamais retiré, jamais confondu avec les
+	#  applications qu'on fait exprès d'ajouter ou d'enlever.
+	ln -sf "$(command -v cat)" "$FAUXBIN/cat"
+	ln -sf "$(command -v tr)"  "$FAUXBIN/tr"
 }
 
 # =============================================================================

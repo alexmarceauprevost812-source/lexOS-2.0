@@ -90,13 +90,27 @@ class Journal:
         Lève OSError si l'écriture est impossible — l'appelant doit
         traiter ça comme un échec de l'action, pas comme un détail.
         """
-        os.makedirs(REPERTOIRE, mode=0o755, exist_ok=True)
+        #  BOGUE CORRIGÉ ICI : cette ligne créait REPERTOIRE (le chemin
+        #  SYSTÈME, /var/lib/lexos/boost) sans se soucier de self.chemin —
+        #  même quand l'appelant avait délibérément donné un autre chemin
+        #  au constructeur (Journal(chemin=...), fait pour ça). Un Journal
+        #  pointé vers un dossier temporaire de test tentait quand même de
+        #  créer /var/lib/lexos, avec les droits d'écriture que ça suppose.
+        #  Sur un poste installé ça passait inaperçu (Boost tourne en
+        #  root) ; sur le banc CI (utilisateur ordinaire) c'est
+        #  PermissionError: [Errno 13] à chaque test qui écrit — trois
+        #  échecs, TestJournal en entier. Le dossier à créer est celui de
+        #  self.chemin, calculé une seule fois et servant aussi au fichier
+        #  temporaire juste en dessous — REPERTOIRE reste le bon choix
+        #  pour journal_accessible(), qui vérifie explicitement le chemin
+        #  SYSTÈME, pas une instance.
+        repertoire = os.path.dirname(self.chemin) or "."
+        os.makedirs(repertoire, mode=0o755, exist_ok=True)
         contenu = {
             "version": VERSION_FORMAT,
             "ecrit_le": time.time(),
             "entrees": [e.en_dict() for e in self.entrees],
         }
-        repertoire = os.path.dirname(self.chemin) or "."
         descripteur, temporaire = tempfile.mkstemp(dir=repertoire, prefix=".journal-", suffix=".tmp")
         try:
             with os.fdopen(descripteur, "w", encoding="utf-8") as f:
