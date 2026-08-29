@@ -17,6 +17,7 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y shellcheck libxml2-utils
 
       - name: shellcheck
+        if: ${{ !cancelled() }}
         run: |
           shellcheck -S warning \
             build.sh \
@@ -29,6 +30,7 @@ jobs:
             config/includes.chroot/usr/share/lexos/shell/*.sh
 
       - name: Syntaxe des fichiers de complétion (touche Tab)
+        if: ${{ !cancelled() }}
         run: |
           #  Ces fichiers ne passent pas par shellcheck : ils emploient les
           #  tournures de bash-completion (COMPREPLY, compgen, _filedir) que
@@ -44,12 +46,14 @@ jobs:
           done
 
       - name: Syntaxe bash des outils embarqués
+        if: ${{ !cancelled() }}
         run: |
           for f in config/includes.chroot/usr/bin/*; do
             head -n1 "$f" | grep -q bash && bash -n "$f"
           done
 
       - name: Syntaxe Python des rouages internes
+        if: ${{ !cancelled() }}
         run: |
           # ast.parse plutôt que py_compile : vérifie la syntaxe sans écrire de
           # __pycache__ dans config/includes.chroot, qui partirait dans l'ISO.
@@ -59,6 +63,7 @@ jobs:
           done
 
       - name: Pas de script Python dans /usr/bin
+        if: ${{ !cancelled() }}
         run: |
           # /usr/bin ne contient que des commandes shell — shellcheck les passe
           # toutes en revue et s'étrangle sur un fichier Python. Les aides en
@@ -71,6 +76,7 @@ jobs:
           echo "  ok — aucun script Python dans /usr/bin"
 
       - name: Validité des SVG
+        if: ${{ !cancelled() }}
         run: |
           #  LE FOND DU MENU BIOS S'APPELLE « splash.svg.in », PAS « .svg ».
           #  live-build ne lit QUE le .in : il le rend en splash.png, puis
@@ -94,12 +100,14 @@ jobs:
           exit $bad
 
       - name: Validité des XML de configuration XFCE
+        if: ${{ !cancelled() }}
         run: |
           for f in $(find config/includes.chroot -name '*.xml'); do
             xmllint --noout "$f" && echo "ok  $f"
           done
 
       - name: Un paquet n'est pas à la fois obligatoire et « au mieux »
+        if: ${{ !cancelled() }}
         run: |
           #  LES DEUX RÉGIMES NE FONT PAS LA MÊME PROMESSE.
           #  Une liste .list.chroot est OBLIGATOIRE : si le paquet manque, la
@@ -139,6 +147,7 @@ jobs:
           exit "$bad"
 
       - name: Le Wi-Fi cliquable et ses outils sont OBLIGATOIRES
+        if: ${{ !cancelled() }}
         run: |
           #  LE MOTEUR DU WI-FI EST LÀ TROIS FOIS — les quatre composantes
           #  d'archive ouvertes, --firmware-chroot/--firmware-binary, et
@@ -194,6 +203,7 @@ jobs:
           exit "$bad"
 
       - name: Listes de paquets bien formées
+        if: ${{ !cancelled() }}
         run: |
           #  Une LIGNE peut proposer plusieurs noms séparés par « | » : le hook
           #  0250 les essaie dans l'ordre et garde le premier qui s'installe
@@ -237,6 +247,7 @@ jobs:
           exit $bad
 
       - name: Les tuiles du panneau n'emploient que des balises que genmon connaît
+        if: ${{ !cancelled() }}
         run: |
           #  LE SILENCE QUE CE CONTRÔLE ATTRAPE.
           #  genmon lit la sortie d'un script et n'y comprend qu'un jeu FERMÉ
@@ -280,6 +291,7 @@ jobs:
           exit $bad
 
       - name: Le contrôle 16 dit la même chose dans toutes les locales
+        if: ${{ !cancelled() }}
         run: |
           #  NÉ D'UNE CI ROUGE POUR RIEN. Le contrôle 16 attrapait les alias
           #  accentués du dispatcheur avec la classe [à-ÿ]. Un intervalle de
@@ -301,6 +313,7 @@ jobs:
           bash tests/test_verifier_parametres.sh
 
       - name: Contrôle 16 — chaque outil est branché (Paramètres, case, aide)
+        if: ${{ !cancelled() }}
         run: |
           #  Le script vit à la racine pour qu'Alex puisse le lancer à la main.
           #  --strict : une erreur du contrôle 16 arrête la CI. Les
@@ -308,6 +321,7 @@ jobs:
           ./verifier-parametres.sh --strict
 
       - name: Un paquet de backports exige que backports soit ouvert
+        if: ${{ !cancelled() }}
         run: |
           #  LE SILENCE QUE CE CONTRÔLE ATTRAPE.
           #  Un paquet qui n'existe QUE dans trixie-backports, écrit dans une
@@ -397,6 +411,7 @@ jobs:
           exit $bad
 
       - name: Le matériel vital ne disparaît plus en silence — hook 0250 sur un banc
+        if: ${{ !cancelled() }}
         run: |
           #  RELEVÉ SUR L'ALIENWARE AURORA ACT1250 D'ALEX. firmware-iwlwifi
           #  (son Wi-Fi 7 BE200), firmware-realtek, intel-microcode… vivent
@@ -414,6 +429,7 @@ jobs:
           bash tests/test_lexos_optional_firmware.sh
 
       - name: Un Windows chiffré n'est pas un disque vide — lexos-dualboot sur un banc
+        if: ${{ !cancelled() }}
         run: |
           #  BitLocker ne présente pas « ntfs » à lsblk mais « BitLocker » :
           #  lexos-dualboot ne trouvait donc rien sur un disque chiffré, et
@@ -431,6 +447,7 @@ jobs:
           bash tests/test_lexos_dualboot_bitlocker.sh
 
       - name: L'accent n'est écrit qu'à un seul endroit
+        if: ${{ !cancelled() }}
         run: |
           #  CE QUE CE CONTRÔLE PROTÈGE.
           #  Avant ui.css, l'orange #E8590C était écrit en dur dans les
@@ -509,6 +526,7 @@ jobs:
           exit $bad
 
       - name: La palette des panneaux est celle du bureau
+        if: ${{ !cancelled() }}
         run: |
           #  CE QUE CE CONTRÔLE PROTÈGE, ET POURQUOI IL EXISTE.
           #
@@ -618,6 +636,7 @@ jobs:
           exit $bad
 
       - name: Rien ne reste noir en mode clair
+        if: ${{ !cancelled() }}
         run: |
           #  CE QUE CE CONTRÔLE PROTÈGE.
           #  Le mode clair a été ajouté à ui.css : les jetons changent, et les
@@ -662,6 +681,7 @@ jobs:
           exit $bad
 
       - name: Les points des bureaux restent centrés dans la barre
+        if: ${{ !cancelled() }}
         run: |
           #  CE CONTRÔLE EXISTE PARCE QUE LE PIÈGE A DÉJÀ FONCTIONNÉ DEUX FOIS.
           #  Les points des espaces de travail sont centrés dans la barre du
@@ -707,6 +727,7 @@ jobs:
           echo "  ok — ${MARGE} + ${HAUT} + ${MARGE} = ${BARRE} px, les points sont centrés"
 
       - name: Aucun dossier ne reste bleu
+        if: ${{ !cancelled() }}
         run: |
           #  PHOTO D'ALEX, DANS FICHIERS : « Bureau » et « Desktop » BLEUS, au
           #  milieu des poches orange. Le thème LexOS était pourtant bien actif.
@@ -769,6 +790,7 @@ jobs:
           exit $bad
 
       - name: Les trois boutons de capture ne se ressemblent pas
+        if: ${{ !cancelled() }}
         run: |
           #  PHOTO D'ALEX, ISO 73 : « sur l'ISO, 1re image, y a 3 appareils
           #  photo ». Les trois lanceurs de capture de la barre du haut —
@@ -817,6 +839,7 @@ jobs:
           exit $bad
 
       - name: Le menu emploie la clé que whiskermenu lit vraiment
+        if: ${{ !cancelled() }}
         run: |
           #  « item-icon-size » était posé dans le xfconf du panneau depuis des
           #  builds, et n'a JAMAIS rien réglé. Dans whiskermenu 2.8.3 (trixie),
@@ -836,6 +859,7 @@ jobs:
           exit $bad
 
       - name: Bits d'exécution présents
+        if: ${{ !cancelled() }}
         run: |
           bad=0
           for f in build.sh auto/config auto/build auto/clean \
@@ -847,6 +871,7 @@ jobs:
           exit $bad
 
       - name: Cohérence de lexos.conf
+        if: ${{ !cancelled() }}
         run: |
           # shellcheck disable=SC1091
           . ./lexos.conf
@@ -879,6 +904,34 @@ jobs:
           fi
           echo "lexos.conf : $LEXOS_NAME $LEXOS_VERSION ($LEXOS_FLAVOUR / $LEXOS_ACCENT_NAME)"
 
+      - name: Aucun banc d'essai orphelin
+        if: ${{ !cancelled() }}
+        run: |
+          #  Deux fois le même piège : le banc Boost décroché pendant cinq
+          #  ISO (builds 73 à 77), puis test_lexos_fuseau_gps.sh, présent
+          #  dans le dépôt mais appelé par AUCUN travail de cette CI. Un banc
+          #  que personne ne lance ne protège rien — et ça ne se voit pas,
+          #  parce que la CI reste verte. On le rend visible ici.
+          #
+          #  [ -f "$t" ] : seuls les FICHIERS comptent. « tests/*ARBRE
+          #  __pycache__ » (bytecode Python, gitignore ligne 42) n'existe
+          #  jamais sur un clone frais de la CI, mais existe très bien chez
+          #  un développeur qui vient de lancer les tests en local — sans ce
+          #  filtre, ce garde-fou se déclencherait pour la mauvaise raison
+          #  sur SA machine, exactement le genre de faux positif qui apprend
+          #  à ignorer les rouges.
+          orphelins=0
+          for t in tests/*; do
+            [ -f "$t" ] || continue
+            n="$(basename "$t")"
+            if ! grep -qF "$n" .github/workflows/ci.yml; then
+              echo "::error file=$t::'$n' n'est lancé par aucune tâche de ci.yml — un banc qui ne tourne pas ne protège rien."
+              orphelins=$((orphelins + 1))
+            fi
+          done
+          [ "$orphelins" = 0 ] && echo "  ok — les $(find tests -maxdepth 1 -type f | wc -l) bancs sont tous branchés"
+          exit "$orphelins"
+
   theme:
     name: Génération du thème
     runs-on: ubuntu-latest
@@ -886,6 +939,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Chaque accent produit un thème complet
+        if: ${{ !cancelled() }}
         run: |
           for accent in orange bleu rouge vert gris violet neon; do
             out="/tmp/theme-$accent"
@@ -899,6 +953,7 @@ jobs:
           echo "7 accents validés."
 
       - name: Un accent inconnu est refusé
+        if: ${{ !cancelled() }}
         run: |
           if HOME=/tmp/x ./config/includes.chroot/usr/bin/lexos-theme-gen mauve 2>/dev/null; then
             echo "Un accent invalide aurait dû être rejeté"; exit 1
@@ -912,6 +967,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Profils de performance — tous chargeables
+        if: ${{ !cancelled() }}
         run: |
           for p in petit medium performant max; do
             ./config/includes.chroot/usr/bin/lexos-perf "$p" --user-only --quiet \
@@ -921,6 +977,7 @@ jobs:
           echo "4 profils validés."
 
       - name: Profil inconnu refusé
+        if: ${{ !cancelled() }}
         run: |
           if ./config/includes.chroot/usr/bin/lexos-perf turbo 2>/dev/null; then
             echo "un profil invalide aurait dû être rejeté"; exit 1
@@ -928,6 +985,7 @@ jobs:
           echo ok
 
       - name: Commande d'écran inconnue refusée
+        if: ${{ !cancelled() }}
         run: |
           if ./config/includes.chroot/usr/bin/lexos-display teleporter 2>/dev/null; then
             echo "une commande invalide aurait dû être rejetée"; exit 1
@@ -935,6 +993,7 @@ jobs:
           echo ok
 
       - name: Position de dock inconnue refusée
+        if: ${{ !cancelled() }}
         run: |
           if ./config/includes.chroot/usr/bin/lexos dock diagonale 2>/dev/null; then
             echo "une position invalide aurait dû être rejetée"; exit 1
@@ -942,6 +1001,7 @@ jobs:
           echo ok
 
       - name: Catalogues de la Logithèque identiques
+        if: ${{ !cancelled() }}
         run: |
           # La démo web annonce les VRAIS noms de paquets Debian, ceux que
           # « lexos logitheque install » utilise. Si les deux catalogues
@@ -969,6 +1029,7 @@ jobs:
           EOF
 
       - name: Classement du matériel Apple
+        if: ${{ !cancelled() }}
         run: |
           # 36 machines dont on connaît la réponse : Mac Intel, T2, EFI 32
           # bits, Core Duo, Apple Silicon, et des PC qui ne sont pas des Mac.
@@ -977,6 +1038,7 @@ jobs:
           bash tests/test_lexos_mac.sh
 
       - name: Le coffre chiffré raisonne juste (lexos-prive)
+        if: ${{ !cancelled() }}
         run: |
           #  Le plus gros outil du dépôt n'avait aucun test — c'est l'audit
           #  d'Alex qui l'a nommé. On ne teste pas gocryptfs (son travail à
@@ -985,6 +1047,7 @@ jobs:
           bash tests/test_prive.sh
 
       - name: La page matériel — fuites, injection, verdict mémoire
+        if: ${{ !cancelled() }}
         run: |
           #  Trois silences dans un seul outil, et un banc de faux outils
           #  pour les trois — aucun vrai matériel n'est nécessaire.
@@ -1000,6 +1063,7 @@ jobs:
           bash tests/test_lexos_materiel.sh
 
       - name: Tous les boutons sont lisibles
+        if: ${{ !cancelled() }}
         run: |
           #  « Regarde que tous les boutons soient corrects » — Alex, après la
           #  photo de la fenêtre de bienvenue : le libellé posé sur un
@@ -1022,6 +1086,7 @@ jobs:
           bash tests/test_boutons.sh
 
       - name: Boutons de fenêtre — le hook 0610 sur un banc
+        if: ${{ !cancelled() }}
         run: |
           #  POURQUOI CE BANC EXISTE. Le hook 0905 a coûté TROIS ISO — 66, 68,
           #  69 — parce qu'on ne pouvait le lancer que dans une vraie
@@ -1059,6 +1124,7 @@ jobs:
           bash tests/test_lexos_fenetres.sh
 
       - name: Le bouton rouge — lexos-session sur un banc
+        if: ${{ !cancelled() }}
         run: |
           #  UN OUTIL QUI ÉTEINT LA MACHINE NE SE TESTE PAS EN LE LANÇANT.
           #  Le banc lui donne de faux outils sur un PATH fermé et regarde ce
@@ -1072,6 +1138,7 @@ jobs:
           bash tests/test_lexos_session.sh
 
       - name: Les réglages de la fenêtre active — lexos-app-settings sur un banc
+        if: ${{ !cancelled() }}
         run: |
           #  Alex : « le bouton vert doit ouvrir les paramètres de LA FENÊTRE,
           #  pas de l'ordinateur ». Un thème de barre de titre ne sait lancer
@@ -1094,6 +1161,7 @@ jobs:
           bash tests/test_lexos_app_settings.sh
 
       - name: L'écran de connexion — noir, orange, et le démon derrière
+        if: ${{ !cancelled() }}
         run: |
           #  ON NE PEUT PAS AFFICHER L'ÉCRAN DE CONNEXION ICI : pas de serveur
           #  X, donc pas de rendu. Le banc résout la cascade CSS lui-même —
@@ -1109,6 +1177,7 @@ jobs:
           bash tests/test_lexos_connexion.sh
 
       - name: L'écran de connexion — le bouton « Éteindre » fait quelque chose
+        if: ${{ !cancelled() }}
         run: |
           #  « J'avais beau cliquer pour arrêter l'ordinateur et j'étais pas
           #  capable. » Le menu ~power demandait une autorisation que rien ne
@@ -1125,6 +1194,7 @@ jobs:
           node tests/test_lexos_connexion_arret.js
 
       - name: La page Wi-Fi — le pictogramme et les outils
+        if: ${{ !cancelled() }}
         run: |
           #  ALEX A COMPARÉ LES DEUX PAGES CÔTE À CÔTE : « wi-fi, utiliser lui
           #  la 2e image » puis « il manque des outils, la 2e image a plus
@@ -1139,6 +1209,7 @@ jobs:
           node tests/test_lexos_wifi.js
 
       - name: Le volet — le thème jour/nuit suit vraiment un clic sur sa tuile
+        if: ${{ !cancelled() }}
         run: |
           #  PHOTO D'ALEX : « le thème jour/nuit qui fonctionne pas dans les
           #  boutons en haut à droite ». La tuile changeait bien le réglage
@@ -1149,6 +1220,7 @@ jobs:
           node tests/test_lexos_volet_mode.js
 
       - name: Santé du démarrage — Secure Boot, mode RAID, règle de version NVIDIA
+        if: ${{ !cancelled() }}
         run: |
           #  DEUX RÉGLAGES DU BIOS FONT PASSER L'ALIENWARE POUR CASSÉE, et
           #  aucun des deux ne se voyait : Secure Boot refuse le pilote NVIDIA
@@ -1169,6 +1241,7 @@ jobs:
           bash tests/test_lexos_boot.sh
 
       - name: Garde-fou de démo — la machine installée n'ouvre plus la démo
+        if: ${{ !cancelled() }}
         run: |
           #  LE CORRECTIF DU 12 AOÛT, ENFIN PROTÉGÉ. Commit bd7b999 : « le
           #  système installé ouvrait la session de démo, jamais celle de
@@ -1186,6 +1259,7 @@ jobs:
           bash tests/test_lexos_demo_guard.sh
 
       - name: Compiz — partage d'écran (grid), moitiés et quarts d'écran
+        if: ${{ !cancelled() }}
         run: |
           #  ALEX : « quand on met une fenêtre dans le coin, qu'elle se
           #  divise à 50 % de l'écran, pour en mettre une autre à côté —
@@ -1202,6 +1276,7 @@ jobs:
           bash tests/test_lexos_compiz_grid.sh
 
       - name: Écrans — xrandr garanti, la section qui explique, un seul écran partagé
+        if: ${{ !cancelled() }}
         run: |
           #  TROIS TROUS, TOUS DE LA MÊME FAMILLE : la machine sait quelque
           #  chose et le garde pour elle.
@@ -1222,6 +1297,7 @@ jobs:
           bash tests/test_lexos_ecrans.sh
 
       - name: Fond d'écran (images téléchargées, fond noir) et pile de la batterie
+        if: ${{ !cancelled() }}
         run: |
           #  DEUX DEMANDES D'ALEX LE MÊME JOUR. Les images TÉLÉCHARGÉES
           #  deviennent des fonds d'écran (Téléchargements n'était pas ratissé,
@@ -1239,6 +1315,7 @@ jobs:
           bash tests/test_lexos_fond_batterie.sh
 
       - name: Luminosité — le curseur et le panneau lisent la même interface
+        if: ${{ !cancelled() }}
         run: |
           #  ALEX : « dans les paramètres, la luminosité de l'écran ne
           #  marche pas ». Beaucoup de portables exposent DEUX interfaces
@@ -1253,6 +1330,7 @@ jobs:
           bash tests/test_lexos_brightness.sh
 
       - name: Le terminal — la police et les couleurs suivent le canal Xfconf
+        if: ${{ !cancelled() }}
         run: |
           #  DÉCOUVERTE EN CHERCHANT POURQUOI LA POLICE D'ALEX NE GROSSISSAIT
           #  JAMAIS : depuis Xfce 4.20 (celle de trixie), xfce4-terminal MIGRE
@@ -1273,6 +1351,7 @@ jobs:
           bash tests/test_lexos_terminal.sh
 
       - name: Bluetooth — un balayage refusé n'est plus annoncé comme réussi
+        if: ${{ !cancelled() }}
         run: |
           #  ALEX : « dans les paramètres Bluetooth, il ne trouve rien ».
           #  act_bt_chercher() (settings.py) et « lexos bt scan »
@@ -1284,6 +1363,7 @@ jobs:
           bash tests/test_lexos_bluetooth.sh
 
       - name: Fond animé — les icônes du bureau ne disparaissent plus derrière
+        if: ${{ !cancelled() }}
         run: |
           #  ALEX, photo à l'appui : « quand le fond écran animé tourne, on
           #  ne voit pas les applications qu'on met sur le bureau — avec un
@@ -1297,6 +1377,7 @@ jobs:
           bash tests/test_lexos_fond_anime.sh
 
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
+        if: ${{ !cancelled() }}
         run: |
           #  ALEX : « fais en sorte que tout se mette à jour au fur et à
           #  mesure en cliquant sur mise à jour ». « Vérifier » et « Tout
@@ -1332,6 +1413,7 @@ jobs:
           bash tests/test_lexos_heure.sh
 
       - name: Tables de modèles Mac identiques
+        if: ${{ !cancelled() }}
         run: |
           # Le panneau « Mac (Apple) » de la démo répond exactement à la même
           # question que « lexos mac » sur l'ISO : cette machine peut-elle
@@ -1377,6 +1459,7 @@ jobs:
           EOF
 
       - name: Services de comptes en ligne identiques
+        if: ${{ !cancelled() }}
         run: |
           # Le « type rclone » est ce que la démo affiche sous chaque service
           # et ce que « lexos comptes ajouter » dit de répondre. Une faute
@@ -1410,6 +1493,7 @@ jobs:
           EOF
 
       - name: Dispositions de clavier et VPN identiques
+        if: ${{ !cancelled() }}
         run: |
           # Deux tables de plus dupliquées entre la démo et l'ISO. Pour le
           # clavier, une faute sur le couple (disposition, variante) donne
@@ -1459,6 +1543,7 @@ jobs:
           EOF
 
       - name: Aucune variable CSS fantôme dans la démo
+        if: ${{ !cancelled() }}
         run: |
           # Une var(--nom) qui n'existe pas ne provoque aucune erreur : la
           # propriété est simplement ignorée. Une bordure devient invisible,
@@ -1481,6 +1566,7 @@ jobs:
           EOF
 
       - name: Aides affichables sans erreur
+        if: ${{ !cancelled() }}
         run: |
           for t in lexos lexfetch lexos-perf lexos-net lexos-share lexos-display lexos-mac lexos-comptes lexos-bienetre lexos-clavier; do
             ./config/includes.chroot/usr/bin/$t help >/dev/null \
@@ -1490,6 +1576,7 @@ jobs:
           echo ok
 
       - name: Alignement des colonnes hors locale UTF-8
+        if: ${{ !cancelled() }}
         run: |
           # lexfetch aligne ses colonnes avec ${#chaine}. Sans locale
           # multi-octets, bash compte les octets et l'art ASCII décale tout.
@@ -1506,6 +1593,7 @@ jobs:
           EOF
 
       - name: Wi-Fi — le réseau connecté vient de l'appareil, pas du balayage
+        if: ${{ !cancelled() }}
         run: |
           #  PHOTO D'ALEX : « il dit que je ne suis pas connecté, mais je le
           #  suis ». _wifi_etat() lisait le balayage de bornes (nmcli device
@@ -1517,6 +1605,19 @@ jobs:
           #  échouer 4 des 7 cas).
           python3 tests/test_lexos_wifi_etat.py
 
+      - name: Fuseau horaire — la position réelle, pas Toronto par défaut
+        if: ${{ !cancelled() }}
+        run: |
+          #  « LexOS s'installait TOUJOURS à l'heure de Toronto, même à
+          #  l'autre bout du monde » (en-tête du banc). Ce test existait déjà
+          #  dans le dépôt mais n'était appelé par AUCUN travail de cette CI —
+          #  exactement le même défaut qui a laissé le banc Boost décroché
+          #  pendant cinq constructions (builds 73 à 77). Un banc que
+          #  personne ne lance ne protège rien, et ça ne se voit pas : la CI
+          #  reste verte. 15 vérifications (détecteur GPS, repli IP, repli
+          #  Toronto, confirmeur, intégration à lexos-install).
+          bash tests/test_lexos_fuseau_gps.sh
+
   partage:
     name: Serveur de partage
     runs-on: ubuntu-latest
@@ -1524,9 +1625,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Téléchargement, envoi, collisions, remontée de chemin
+        if: ${{ !cancelled() }}
         run: python3 tests/test_share_server.py
 
       - name: LexOS Boost — le profil suit le matériel, et tout se défait
+        if: ${{ !cancelled() }}
         run: |
           #  BANC ORPHELIN PENDANT CINQ ISO. Ajouté le 21 août avec LexOS
           #  Boost, il n'était lancé par aucune tâche : 23 cas d'essai qui

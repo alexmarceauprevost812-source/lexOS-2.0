@@ -24,3 +24,18 @@ wine64
 pipewire
 pipewire-pulse
 wireplumber
+
+# LE SON BLUETOOTH — Alex a un casque Bluetooth, ça le concerne directement.
+# pipewire (ci-dessus) n'installe JAMAIS le greffon Bluetooth tout seul :
+# lu directement dans les paquets trixie, pipewire ne le mentionne nulle
+# part, et pipewire-pulse ne fait que le SUGGÉRER (Suggests:) — or APT
+# n'installe jamais un Suggests, même avec --apt-recommends true. Sans
+# libspa-0.2-bluetooth, un casque s'appaire, se connecte, apparaît dans la
+# liste des périphériques... et reste muet. Aucune erreur nulle part.
+# pipewire-audio est le SEUL paquet qui le tire en dépendance DURE
+# (Depends:, pas Suggests:) — un seul nom suffit, et s'il disparaissait un
+# jour de Debian, la construction s'arrêterait au lieu de sortir une ISO
+# au casque muet. C'était avant dans optional-packages/20-desktop.list, un
+# monde « au mieux » où un échec ne dit rien et l'ISO sort quand même :
+# beaucoup trop discret pour quelque chose d'aussi audible.
+pipewire-audio
