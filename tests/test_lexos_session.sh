@@ -278,18 +278,27 @@ PYLAST
 #  les LIGNES d'une liste verticale, et l'aiguillage se fait maintenant sur
 #  le libellé rendu, plus sur un code de sortie. On éprouve donc la ligne ET
 #  son aiguillage, comme avant, mais dans la nouvelle forme.
-verifie_geste() { # verifie_geste <libellé> <fonction>
+#  ═══ LA LIGNE PORTE MAINTENANT DEUX COLONNES ═══
+#  ALEX : « on aimerait ajouter des logos où la fenêtre pour fermer ou
+#  redémarrer l'ordinateur. » Chaque geste est précédé de son image, désignée
+#  par un CHEMIN vers branding/ — pas par un nom d'icône qu'on espérerait
+#  trouver dans le thème, le pari qui a coûté trois ISO au gestionnaire de
+#  fichiers.
+#
+#  On éprouve les deux d'un coup, et c'est voulu : un libellé qui perdrait
+#  son image ne serait plus la fenêtre qu'Alex a demandée.
+verifie_geste() { # verifie_geste <libellé> <fonction> <nom de l'image>
 	#  Les lignes de la liste se terminent par «  \ » (continuation) : le
 	#  motif doit l'accepter, sinon aucune ne correspond jamais.
-	grep -qE "^[[:space:]]+\"$1\"[[:space:]]*\\\\?$" "$OUTIL" \
-		&& ok "la fenêtre propose « $1 »" \
-		|| non "« $1 » a disparu à la fois de la barre ET de la fenêtre"
+	grep -qE "^[[:space:]]+\"\\\$IMG_$(printf '%s' "$3" | tr '[:lower:]' '[:upper:]')\"[[:space:]]+\"$1\"[[:space:]]*\\\\?$" "$OUTIL" \
+		&& ok "la fenêtre propose « $1 », avec son logo ($3)" \
+		|| non "« $1 » a disparu de la fenêtre, ou a perdu son logo"
 	grep -qE "\"$1\"\)[[:space:]]+$2 ;;" "$OUTIL" \
 		&& ok "…et « $1 » appelle bien le geste $2()" \
 		|| non "« $1 » est affiché mais n'appelle rien"
 }
-verifie_geste "Redémarrer" redemarrer
-verifie_geste "Mise en veille" veille
+verifie_geste "Redémarrer" redemarrer redemarrer
+verifie_geste "Mise en veille" veille veille
 
 #  LA PETITE FENÊTRE SUR LE CÔTÉ, c'est la demande elle-même : une liste
 #  verticale (la largeur ne dépend plus du nombre de gestes) et une position
@@ -309,10 +318,184 @@ grep -q 'POSITION=(--center)' "$OUTIL" \
 #  puis il l'a redemandé — cette fois dans la fenêtre du bouton rouge, avec
 #  arrêter/redémarrer/veille/changer d'utilisateur. Il doit donc y être, par
 #  la vraie commande système (xflock4), pas par l'ancien greffon.
-verifie_geste "Verrouiller l'écran" verrouiller
+verifie_geste "Verrouiller l'écran" verrouiller verrouiller
 grep -q 'dispo xflock4' "$OUTIL" \
 	&& ok "verrouiller() passe par xflock4 — pas par l'ancien greffon cassé" \
 	|| non "verrouiller() ne s'appuie pas sur xflock4"
+
+# ═════════════════════════════════════════════════════════════════════════════
+titre "6. Un logo par geste — et ils EXISTENT vraiment"
+# ═════════════════════════════════════════════════════════════════════════════
+#  ALEX, photo de la fenêtre : « on aimerait ajouter des logos où la fenêtre
+#  pour fermer ou redémarrer l'ordinateur. » Six lignes de texte nu, toutes
+#  de la même couleur — rien ne distinguait « Déconnexion » d'« Éteindre »
+#  avant de les avoir lues, et ce sont les deux qu'on ne veut pas confondre.
+#
+#  ═══ POURQUOI CE BANC OUVRE LES FICHIERS ═══
+#  Vérifier que le script CITE six images ne prouve rien : cinq d'entre elles
+#  viennent d'être dessinées, et un chemin qui ne mène à rien laisse une case
+#  vide sans le moindre message. C'est le défaut exact de l'icône du
+#  gestionnaire de fichiers — un correctif qui se lit bien et ne s'exécute
+#  jamais. On ouvre donc chaque fichier, on le REND à 28 px (la taille réelle
+#  dans la liste) et on compte les pixels peints.
+BRANDING="$RACINE/branding"
+IMAGES="utilisateur deconnexion arret redemarrer veille verrouiller"
+
+for I in $IMAGES; do
+	F="$BRANDING/icon-$I.svg"
+	if [ ! -r "$F" ]; then
+		non "« icon-$I.svg » manque : la ligne correspondante n'aurait pas d'image"
+		continue
+	fi
+	if ! python3 -c "import xml.etree.ElementTree as E,sys; E.parse(sys.argv[1])" "$F" 2>/dev/null; then
+		non "« icon-$I.svg » n'est pas un SVG valide"
+		continue
+	fi
+	#  ET IL DOIT DESSINER QUELQUE CHOSE. Un SVG parfaitement valide et
+	#  entièrement transparent passerait les deux contrôles ci-dessus.
+	if command -v rsvg-convert >/dev/null 2>&1 && python3 -c "import PIL" 2>/dev/null; then
+		PEINTS="$(rsvg-convert -w 28 -h 28 -o "$BANC/$I.png" "$F" 2>/dev/null \
+			&& python3 -c "
+from PIL import Image
+import sys
+a = Image.open(sys.argv[1]).convert('RGBA').getchannel('A')
+print(sum(n for v, n in enumerate(a.histogram()) if v > 40))
+" "$BANC/$I.png")"
+		if [ "${PEINTS:-0}" -ge 60 ]; then
+			ok "« icon-$I.svg » se rend et peint $PEINTS pixels à 28 px — visible dans la liste"
+		else
+			non "« icon-$I.svg » ne peint que ${PEINTS:-0} pixels à 28 px : invisible ou presque"
+		fi
+	else
+		non "rsvg-convert ou Pillow absent : « icon-$I.svg » n'a PAS été rendu"
+	fi
+done
+
+#  ═══ LA COULEUR DIT LE DANGER, ET ELLE NE SUIT PAS L'ACCENT ═══
+#  Même règle que l'en-tête de branding/icon-arret.svg : le rouge n'est pas
+#  une préférence, c'est un avertissement. Sous un accent vert, une flèche de
+#  redémarrage verte dirait « vas-y » à l'endroit précis où il faut dire
+#  « attention ». Les quatre autres gestes ne coupent rien : ils portent le
+#  jeton #E8590C et suivent donc l'accent choisi.
+#  ON DÉPOUILLE LES COMMENTAIRES D'ABORD. Premier jet de ce contrôle : il
+#  déclarait icon-arret.svg fautive parce que son EN-TÊTE explique pourquoi
+#  elle ne porte pas #E8590C — le mot y était, dans une phrase qui dit le
+#  contraire. Ce dépôt s'est déjà fait prendre trois fois par un banc qui
+#  lisait de la prose ; on lit le dessin.
+couleurs() { # couleurs <fichier svg> -> le SVG sans ses commentaires
+	python3 -c "
+import re, sys
+print(re.sub(r'<!--[\s\S]*?-->', '', open(sys.argv[1], encoding='utf-8').read()))
+" "$1"
+}
+for I in arret redemarrer; do
+	D="$(couleurs "$BRANDING/icon-$I.svg")"
+	if printf '%s' "$D" | grep -q '#E5484D' && ! printf '%s' "$D" | grep -q '#E8590C'; then
+		ok "« $I » est rouge d'avertissement et NE suit pas l'accent"
+	else
+		non "« $I » coupe la machine et devrait rester rouge, jamais teint par l'accent"
+	fi
+done
+#  ═══ LE PIÈGE QU'UNE MAQUETTE A ATTRAPÉ AVANT LA LIVRAISON ═══
+#  Les quatre logos neutres étaient d'abord à l'accent, comme le reste du
+#  système. Une maquette de la fenêtre l'a réfuté : la ligne SÉLECTIONNÉE est
+#  peinte en accent (règle « treeview.view:selected » de lexos-theme-gen) et
+#  yad sélectionne la première d'office — le logo qu'on regarde aurait été le
+#  seul invisible. Contrastes calculés : l'accent donne 4,9:1 sur le panneau
+#  noir mais 1,0:1 sur lui-même ; le blanc donne 18,4:1 et 3,4:1.
+#  Ce contrôle-là empêche quiconque de « rétablir » l'accent sans revivre le
+#  même défaut.
+for I in utilisateur deconnexion veille verrouiller; do
+	D="$(couleurs "$BRANDING/icon-$I.svg")"
+	if printf '%s' "$D" | grep -q '#FFFFFF' \
+		&& ! printf '%s' "$D" | grep -q '#E8590C' \
+		&& ! printf '%s' "$D" | grep -q '#E5484D'; then
+		ok "« $I » est blanc — visible aussi sur la ligne sélectionnée"
+	else
+		non "« $I » n'est pas blanc : à l'accent il disparaîtrait sur la ligne sélectionnée"
+	fi
+done
+
+#  ═══ ET LE THÈME DE JOUR N'EST PAS OUBLIÉ ═══
+#  Du blanc sur du crème ne se voit pas davantage. lexos-theme-gen écrit une
+#  copie à l'encre sombre que lexos-session préfère ; sans ce couple-là, le
+#  thème de jour perdrait les six logos d'un coup.
+GEN="$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen"
+grep -q 'SESSION_DST=' "$GEN" \
+	&& ok "lexos-theme-gen écrit une copie des logos pour le thème de jour" \
+	|| non "rien n'est prévu pour le mode clair : six logos blancs sur du crème"
+grep -q 'rm -rf "$SESSION_DST"' "$GEN" \
+	&& ok "…et il l'efface en repassant en sombre — sinon l'encre noire y resterait" \
+	|| non "les copies du mode clair survivraient au retour en sombre : logos noirs sur noir"
+grep -q 'SESSION_ICONES' "$OUTIL" \
+	&& ok "…et la fenêtre préfère cette copie quand elle existe" \
+	|| non "la fenêtre ignore la copie : elle serait écrite pour rien"
+
+#  ON NE SE FIE PAS AU grep : on FAIT TOURNER le générateur dans les deux
+#  modes et on regarde ce qu'il écrit. C'est la seule façon de savoir si la
+#  substitution atteint vraiment les traits — un sed trop prudent (ou trop
+#  gourmand, qui irait réécrire le commentaire) passerait le grep.
+if [ -x "$GEN" ] || [ -r "$GEN" ]; then
+	FOYER="$BANC/foyer"; mkdir -p "$FOYER"
+	LEXOS_BRANDING="$BRANDING" HOME="$FOYER" bash "$GEN" orange --mode clair >/dev/null 2>&1
+	CLAIR="$FOYER/.config/lexos/session-icons/icon-verrouiller.svg"
+	if [ -r "$CLAIR" ] && grep -q 'stroke="#1B1A17"' "$CLAIR"; then
+		ok "en mode clair, le trait passe VRAIMENT à l'encre sombre (#1B1A17)"
+	else
+		non "en mode clair, le trait n'a pas été réencré : logos blancs sur crème"
+	fi
+	if [ -r "$CLAIR" ] && grep -q 'POURQUOI BLANC' "$CLAIR"; then
+		ok "…et le fichier garde son en-tête, qui explique pourquoi il est blanc"
+	else
+		non "l'en-tête a été emporté par la substitution : le fichier ne s'explique plus"
+	fi
+	LEXOS_BRANDING="$BRANDING" HOME="$FOYER" bash "$GEN" orange --mode sombre >/dev/null 2>&1
+	if [ ! -d "$FOYER/.config/lexos/session-icons" ]; then
+		ok "en repassant en sombre, les copies claires sont effacées"
+	else
+		non "les copies claires survivent au retour en sombre — logos noirs sur noir"
+	fi
+fi
+
+#  ═══ ET LES SIX SONT BIEN CITÉS PAR LA FENÊTRE ═══
+#  Une image dessinée que personne n'affiche, c'est le travail d'hier :
+#  cinq icônes livrées dans l'ISO et jamais regardées.
+for I in $IMAGES; do
+	grep -q "img $I " "$OUTIL" \
+		&& ok "la fenêtre yad emploie « icon-$I.svg »" \
+		|| non "« icon-$I.svg » est dessinée mais la fenêtre ne l'emploie pas"
+done
+
+#  Le repli zenity aussi : sans lui, une machine sans yad retomberait sur six
+#  lignes nues et la demande ne serait honorée qu'à moitié.
+#  Les six chemins sont résolus UNE FOIS dans des variables, et les deux
+#  listes emploient les mêmes : deux listes écrites séparément finissent par
+#  diverger sans que personne ne s'en aperçoive.
+ZEN="$(sed -n '/zenity --list/,/Verrouiller/p' "$OUTIL")"
+MANQUE_ZEN=""
+for I in $IMAGES; do
+	V="IMG_$(printf '%s' "$I" | tr '[:lower:]' '[:upper:]')"
+	printf '%s' "$ZEN" | grep -q "\$$V" || MANQUE_ZEN="$MANQUE_ZEN $I"
+done
+if [ -z "$MANQUE_ZEN" ]; then
+	ok "le repli zenity montre les mêmes six logos (mêmes variables, pas une copie)"
+else
+	non "le repli zenity oublie :$MANQUE_ZEN"
+fi
+#  Et il ne doit pas montrer une liste à moitié illustrée : zenity ne sait
+#  lire que des CHEMINS, un nom de thème y laisserait une case vide.
+grep -q 'ZEN_IMAGES=0' "$OUTIL" \
+	&& ok "…et il repasse en liste nue si une seule image manque, plutôt qu'à moitié" \
+	|| non "aucun repli : une image manquante donnerait une liste bancale"
+
+#  ═══ LE CHOIX RESTE LISIBLE APRÈS L'AJOUT DE LA COLONNE ═══
+#  yad rend la colonne demandée par --print-column. Elle valait 1 quand le
+#  libellé était seul ; l'image est passée devant, donc c'est 2. Rester à 1
+#  ferait renvoyer un CHEMIN D'IMAGE au « case » — aucune branche ne
+#  correspondrait, et la fenêtre se fermerait sans rien faire. Panne muette.
+grep -q -- '--print-column=2' "$OUTIL" \
+	&& ok "yad renvoie la colonne du LIBELLÉ (2), pas celle de l'image" \
+	|| non "--print-column ne pointe pas sur le libellé : la fenêtre ne ferait plus rien"
 
 # ═════════════════════════════════════════════════════════════════════════════
 printf '\n%s réussi(s), %s échoué(s)\n' "$REUSSIS" "$ECHOUES"

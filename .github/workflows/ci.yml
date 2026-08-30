@@ -1135,6 +1135,18 @@ jobs:
           #  « changer d'utilisateur » et « déconnexion » doivent avoir quitté
           #  la rangée du panneau, et le greffon 17 (le rouge) être le dernier
           #  — c'est ce qui le met tout à droite de l'écran.
+          #  ALEX : « on aimerait ajouter des logos où la fenêtre pour fermer
+          #  ou redémarrer l'ordinateur. » Cinq icônes ont été dessinées pour
+          #  ça. Le banc ne se contente pas de vérifier que le script les
+          #  CITE — il les ouvre, les rend à 28 px (la taille réelle dans la
+          #  liste) et compte les pixels peints : un SVG valide et
+          #  entièrement transparent passerait tous les autres contrôles.
+          #  D'où ces deux outils, sans lesquels il échoue au lieu de se
+          #  sauter en silence.
+          command -v rsvg-convert >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends librsvg2-bin >/dev/null
+          python3 -c 'import PIL' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
           bash tests/test_lexos_session.sh
 
       - name: Gros texte et bulle de capture — deux gestes du quotidien

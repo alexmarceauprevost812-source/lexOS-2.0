@@ -1281,6 +1281,46 @@ elif [[ -d "$DOSSIERS_SRC" ]]; then
 fi
 
 # =============================================================================
+#  4 bis. Les logos de la fenêtre de session, à l'encre du mode
+# =============================================================================
+#  lexos-session désigne ses six logos par un CHEMIN, pas par un nom d'icône :
+#  c'est le seul moyen sûr après trois ISO passées à espérer qu'un nom se
+#  trouve dans un thème (voir l'engrenage du gestionnaire de fichiers).
+#
+#  ═══ POURQUOI CE N'EST PAS L'ACCENT QU'ON SUBSTITUE ICI ═══
+#  Premier jet : teindre ces logos à l'accent, comme les autres. Une maquette
+#  de la fenêtre l'a réfuté avant qu'elle ne parte — la ligne SÉLECTIONNÉE est
+#  peinte en accent (règle « treeview.view:selected », quelques centaines de
+#  lignes plus haut dans ce même fichier), et yad sélectionne la première
+#  ligne d'office. Un logo de la couleur du fond n'est plus un logo : on
+#  aurait livré une fenêtre dont l'icône regardée est la seule invisible.
+#
+#  Les six sont donc dessinés en BLANC — la seule valeur qui tienne à la fois
+#  sur le panneau noir (18,4:1) et sur l'accent (3,4:1) — sauf « arret » et
+#  « redemarrer », rouges parce que le rouge y est un avertissement.
+#
+#  Reste le thème de JOUR, qui renverse le fond : du blanc sur du crème ne se
+#  voit pas. C'est CE cas-là qu'on répare ici, et lui seul.
+SESSION_DST="$CONF_DIR/session-icons"
+#  On efface TOUJOURS d'abord : sans ça, repasser en sombre laisserait les
+#  copies à l'encre noire du mode clair, et les logos disparaîtraient dans le
+#  noir. Même piège, et même remède, que la copie du thème d'icônes.
+rm -rf "$SESSION_DST"
+if [[ "$MODE" == "clair" ]]; then
+	mkdir -p "$SESSION_DST"
+	for N in utilisateur deconnexion veille verrouiller; do
+		SESSION_SRC="${LEXOS_BRANDING:-/usr/share/lexos/branding}/icon-${N}.svg"
+		[[ -r "$SESSION_SRC" ]] || continue
+		#  Seuls les attributs de dessin sont touchés : un « #FFFFFF » cité
+		#  dans le commentaire d'en-tête n'a aucun effet, et le remplacer non
+		#  plus — mais on ne réécrit que les lignes qui peignent, pour que le
+		#  fichier livré continue d'expliquer POURQUOI il est blanc.
+		sed '/^\s*<!--/,/-->/!s/#FFFFFF/'"${FG}"'/gI' "$SESSION_SRC" \
+			> "$SESSION_DST/icon-${N}.svg"
+	done
+fi
+
+# =============================================================================
 #  5. Mémoriser l'accent pour les autres outils
 # =============================================================================
 cat > "$CONF_DIR/theme.conf" <<EOF

@@ -16,4 +16,30 @@
           noms secs se parcourt bien plus lentement qu'une liste illustrée. -->
     <property name="show-menu-icons" type="bool" value="true"/>
   </property>
+
+  <!--  ═══ LES ICÔNES DU BUREAU, PLUS GROSSES ═══
+        ALEX, capture d'un bureau sur plusieurs écrans : « le texte des
+        applications est correct, c'est juste les images des applications
+        qui sont pas assez grosses. Peux-tu juste grossir les images des
+        applications et garder le texte comme il est. »
+
+        La demande porte donc une CONTRAINTE : ne pas toucher au texte.
+        xfdesktop a deux réglages bien distincts, et c'est une chance —
+        « /desktop-icons/icon-size » ne dit que la taille du dessin ; le
+        libellé, lui, suit « /desktop-icons/font-size », qui n'est lu que si
+        « use-custom-font-size » est vrai. Ni l'un ni l'autre n'est écrit
+        ici : le texte garde exactement la police du bureau, et donc la
+        taille qu'Alex juge déjà bonne.
+
+        64 px, c'est la taille du dock (voir icon-size dans
+        00-lexos-dock) : les deux rangées d'icônes du bureau se répondent au
+        lieu de se contredire. C'est aussi plus que tous les défauts de
+        xfdesktop, quel que soit celui que la version livrée applique — on
+        n'a donc pas à parier sur sa valeur.
+
+        Le réglage reste modifiable à la souris : clic droit sur le bureau →
+        Réglages du bureau → Icônes.  -->
+  <property name="desktop-icons" type="empty">
+    <property name="icon-size" type="uint" value="64"/>
+  </property>
 </channel>

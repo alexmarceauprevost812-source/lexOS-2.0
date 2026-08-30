@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — icône « Redémarrer ». Flèche circulaire ouverte en haut, même
+  cercle et même trait que icon-arret.svg : dans la fenêtre de session, les
+  six gestes doivent se lire comme une famille, pas comme six dessins
+  ramassés ailleurs.
+
+  ═══ POURQUOI ELLE EST ROUGE, COMME « ÉTEINDRE » ═══
+  Même raison, mot pour mot, que icon-arret.svg : le rouge n'est pas une
+  préférence, c'est un avertissement — « ce bouton coupe la machine ».
+  Redémarrer la coupe aussi. Sous un accent vert, une flèche verte dirait
+  « vas-y » à l'endroit précis où il faut dire « attention ».
+  #E5484D, le rouge unique du système.
+
+  ═══ LA POINTE EST CONSTRUITE, PAS PLACÉE À L'ŒIL ═══
+  Premier jet : un triangle posé au jugé au bout de l'arc. Rendu et regardé,
+  il ne ressemblait pas à une pointe de flèche mais à un éclat de verre —
+  ni dans l'axe du trait, ni de la bonne taille. La géométrie reprise ici
+  est celle d'icon-maj.svg, qui porte la même flèche circulaire depuis
+  longtemps et se lit bien : l'arc s'arrête à gauche (96,256) et la pointe
+  descend, base à cheval sur la fin du trait.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Redémarrer — LexOS">
+
+  <!--  Arc des trois quarts : du haut, par la droite et le bas, jusqu'à
+        gauche. Rayon 160 autour de (256,256), comme l'interrupteur. -->
+  <path d="M 256,96 A 160,160 0 1 1 96,256"
+        fill="none" stroke="#E5484D" stroke-width="42" stroke-linecap="round"/>
+
+  <!--  La pointe, au bout gauche, tournée vers le bas : le sens de rotation. -->
+  <path d="M 58,240 L 134,240 L 96,320 Z" fill="#E5484D"/>
+</svg>
