@@ -414,6 +414,74 @@ treeview.view, iconview, assistant, messagedialog {
     color: ${FG};
 }
 
+/* --- LE BUREAU N'EST PAS UNE FENETRE ------------------------------------ */
+/*  ALEX, DEUX PHOTOS : « quand je clique sur le bouton droit de la souris,
+    il devient tout noir ». Une icone du bureau choisie porte une tuile
+    orange ; des que le menu du clic droit s'ouvre, la tuile disparait dans
+    le noir et il ne reste que le libelle.
+
+    ═══ LA CAUSE, RELEVEE DANS LE BINAIRE DE XFDESKTOP ═══
+    xfdesktop embarque SA feuille de style, qu'on a lue dans le binaire
+    (« strings /usr/bin/xfdesktop ») plutot que devinee :
+
+        XfdesktopIconView.view          { background: transparent; … }
+        XfdesktopIconView.view:active   { background: alpha(@theme_selected_bg_color, 0.5); }
+
+    Sa vue est donc TRANSPARENTE au repos — c'est ce qui laisse voir le fond
+    d'ecran entre les icones — et la tuile choisie est l'accent a moitie.
+
+    Or ce noeud porte la classe « view », et la regle juste au-dessus liste
+    « .view » parmi tout ce qui doit etre noir. Notre feuille est chargee en
+    priorite UTILISATEUR, celle de xfdesktop en priorite APPLICATION : la
+    notre gagne, sur TOUS les etats. Mesure sur un vrai GTK 3.24, les deux
+    feuilles chargees a leurs vraies priorites :
+
+        XfdesktopIconView.view  au repos ............ #000000 a=1,00
+        XfdesktopIconView.view  choisie (:active) ... #000000 a=1,00
+        XfdesktopIconView.view  choisie + backdrop .. #000000 a=1,00
+
+    Un noir OPAQUE la ou xfdesktop veut du transparent. C'est le meme defaut
+    que le rectangle de selection de Thunar, rejoue sur le bureau : une regle
+    ecrite pour les listes qui attrape au passage un noeud qui n'en est pas
+    une.
+
+    ═══ CE QU'ON ECRIT A LA PLACE ═══
+    On rend la vue transparente — c'est le bureau, on doit voir le fond
+    d'ecran — et on dit NOUS-MEMES la couleur de la tuile choisie, dans les
+    QUATRE etats ou elle peut se trouver. « :active » et « :selected » parce
+    que xfdesktop emploie l'un ou l'autre selon sa version ; « :backdrop »
+    parce que c'est exactement l'etat dans lequel le bureau passe quand le
+    menu du clic droit s'ouvre — et une regle qui oublie le backdrop est une
+    regle qui s'eteint des qu'on clique ailleurs.
+
+    L'accent PLEIN et non a moitie : a 50 % sur un fond d'ecran sombre, la
+    tuile de xfdesktop rend un orange eteint. Alex la voit orange vif sur sa
+    photo, et c'est ce qu'on garde. */
+XfdesktopIconView,
+XfdesktopIconView.view {
+    background-color: transparent;
+}
+XfdesktopIconView.view:active,
+XfdesktopIconView.view:active:backdrop,
+XfdesktopIconView.view:active:hover,
+XfdesktopIconView.view:selected,
+XfdesktopIconView.view:selected:backdrop,
+XfdesktopIconView.view:selected:hover {
+    background-color: ${ACCENT};
+    color: ${BTN_FG};
+    border-radius: 8px;
+}
+XfdesktopIconView.view .label:active,
+XfdesktopIconView.view .label:active:backdrop,
+XfdesktopIconView.view .label:selected,
+XfdesktopIconView.view .label:selected:backdrop {
+    color: ${BTN_FG};
+}
+XfdesktopIconView .rubberband {
+    background-color: alpha(${ACCENT}, 0.20);
+    border: 1px solid ${ACCENT};
+}
+
 /*  LES NŒUDS DE MISE EN PAGE NE PEIGNENT RIEN. Ils gardent la couleur de
     texte — sinon le libellé d'une boîte perdrait le blanc — mais laissent
     voir ce qu'il y a derrière, fenêtre noire ou tuile colorée. */
@@ -636,18 +704,27 @@ entry:focus, spinbutton:focus {
     border-color: ${ACCENT};
     box-shadow: inset 0 0 0 1px ${ACCENT};
 }
-/*  DEUX REGLES ET NON UNE, ET C'EST TOUTE LA DIFFERENCE. Elles etaient
-    ecrites « selection, ::selection { … } ». Or « ::selection » n'est pas un
-    pseudo-element que GTK3 connait — et selon la regle du CSS, un selecteur
-    invalide dans une liste invalide la REGLE ENTIERE. Le « selection » nu,
-    lui, est un vrai noeud GTK3 depuis la 3.20 ; il partait a la poubelle avec
-    l'autre, et la selection de texte restait BLEUE, celle d'Arc-Dark.
-    Separees, la premiere s'applique et la seconde est ignoree toute seule. */
+/*  UNE SEULE REGLE, ET « ::selection » A ETE RETIRE.
+    Elles etaient ecrites « selection, ::selection { … } » : un selecteur
+    invalide dans une liste invalide la REGLE ENTIERE, et la selection de
+    texte restait BLEUE, celle d'Arc-Dark. On les avait donc separees, en
+    laissant « ::selection » de cote « ignore tout seul ».
+
+    IL N'ETAIT PAS IGNORE TOUT SEUL. Mesure sur un vrai GTK 3.24 :
+    gtk_css_provider_load_from_path() a deux comportements selon que
+    l'appelant demande l'erreur ou non. Sans pointeur d'erreur (le cas de
+    GTK quand il lit ~/.config/gtk-3.0/gtk.css), il ecrit un
+    avertissement et garde le reste. AVEC pointeur d'erreur, il REMET LA
+    FEUILLE A ZERO : tout le theme de LexOS disparait, y compris les
+    regles ECRITES AVANT. Mesure : la couleur de « window » retombait au
+    #F6F5F4 d'Adwaita au lieu du noir.
+
+    Autrement dit, ce bloc ne servait a rien (GTK3 comme GTK4 emploient le
+    noeud « selection », jamais « ::selection ») et il posait une mine
+    sous chaque outil qui lit notre feuille en demandant les erreurs — un
+    banc d'essai, par exemple. Il salissait aussi la sortie de chaque
+    application GTK : « Theme parsing error: gtk.css:603:1 ». */
 selection {
-    background-color: ${ACCENT};
-    color: ${BTN_FG};
-}
-::selection {
     background-color: ${ACCENT};
     color: ${BTN_FG};
 }

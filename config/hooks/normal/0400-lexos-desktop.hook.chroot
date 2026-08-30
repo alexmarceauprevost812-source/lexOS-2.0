@@ -159,12 +159,40 @@ if [ -r /usr/share/lexos/branding/mascot.png ]; then
 fi
 
 # --- Navigateur et applications par défaut ----------------------------------
+#  ALEX, PHOTO DU FICHIER « Navigateur Web Chromium » : « garder lui officiel
+#  comme navigateur ». Ce fichier disait firefox-esr, et lui seul.
+#
+#  ON NE DEVINE PAS LE NOM DU .desktop, ON LE CHERCHE — meme lecon que pour le
+#  gestionnaire de fichiers, ou trois correctifs de suite ont vise un nom
+#  suppose. Le hook 0250 installe deja chromium (optional-packages/
+#  20-desktop.list), il est donc present quand on passe ici.
+#
+#  ET LES DEUX SONT ECRITS, DANS CET ORDRE. La valeur de « [Default
+#  Applications] » est une LISTE essayee dans l'ordre, en sautant ce qui n'est
+#  pas installe : si Chromium venait a manquer, firefox-esr prend le relais
+#  sans qu'on ait a le detecter. Un seul nom aurait laisse LexOS sans
+#  navigateur par defaut le jour ou ce paquet change.
+NAVIGATEURS=""
+for N in chromium.desktop chromium-browser.desktop firefox-esr.desktop; do
+	for R in /usr/local/share/applications /usr/share/applications; do
+		if [ -r "$R/$N" ]; then
+			NAVIGATEURS="${NAVIGATEURS}${N};"
+			break
+		fi
+	done
+done
+#  Aucun des deux installe (ISO minimale, construction partielle) : on ecrit
+#  quand meme la paire attendue plutot qu'une ligne vide, qui laisserait XFCE
+#  sans reponse du tout.
+[ -n "$NAVIGATEURS" ] || NAVIGATEURS="chromium.desktop;firefox-esr.desktop;"
+echo "[lexos]   navigateur par defaut : ${NAVIGATEURS}"
+
 mkdir -p /etc/xdg
-cat > /etc/xdg/mimeapps.list <<'EOF'
+cat > /etc/xdg/mimeapps.list <<EOF
 [Default Applications]
-text/html=firefox-esr.desktop
-x-scheme-handler/http=firefox-esr.desktop
-x-scheme-handler/https=firefox-esr.desktop
+text/html=${NAVIGATEURS}
+x-scheme-handler/http=${NAVIGATEURS}
+x-scheme-handler/https=${NAVIGATEURS}
 text/plain=org.xfce.mousepad.desktop
 inode/directory=thunar.desktop
 image/png=org.xfce.ristretto.desktop

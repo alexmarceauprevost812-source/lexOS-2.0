@@ -1,0 +1,94 @@
+#!/bin/sh
+set -e
+# =============================================================================
+#  hook 0445 — le haut du navigateur, et qui est le navigateur officiel
+# =============================================================================
+#  ALEX, CAPTURE DU NAVIGATEUR : « en haut du navigateur il est trop noir,
+#  changer pour qu'il soit un peu gris ». Et, sur la photo du fichier
+#  « Navigateur Web Chromium » : « garder lui officiel comme navigateur ».
+#
+#  ═══ D'OU VENAIT LE NOIR, MESURE ET NON SUPPOSE ═══
+#  Chromium a ete lance pour de vrai (Chromium 141, sous Xvfb), sa fenetre
+#  photographiee, et les pixels de la bande du haut releves. Trois etats,
+#  trois resultats :
+#
+#     theme du systeme (GTK), notre gtk.css ... cadre #0A0A0B  barre #000000
+#     theme interne de Chromium ............... cadre #1F2020  barre #3C3C3C
+#     theme interne + BrowserThemeColor ....... cadre #26262B  barre #46464E
+#
+#  La premiere ligne est exactement ce qu'Alex voit : Chromium suit le theme
+#  GTK de LexOS, dont l'entete vaut #0A0A0B et le fond #000000. Du noir, donc,
+#  parce que c'est NOTRE noir — pas un defaut de Chromium.
+#
+#  ═══ POURQUOI DEUX RÉGLAGES ET PAS UN ═══
+#  « BrowserThemeColor » (politique d'entreprise, relevee dans le binaire, pas
+#  devinee) donne au CADRE exactement la couleur demandee et en DERIVE une
+#  barre d'outils plus claire. Mais tant que Chromium suit le theme GTK, elle
+#  ne repeint QUE la barre d'outils : la bande d'onglets — le « haut » qu'Alex
+#  montre du doigt — reste noire. Mesure :
+#
+#     GTK + politique ......................... cadre #0A0A0B  barre #46464E
+#
+#  Un demi-correctif, autrement dit : le defaut le plus repete de ce depot.
+#  Il faut DONC les deux — dire a Chromium d'employer son propre theme, et lui
+#  donner la couleur. Le premier passe par les preferences du profil
+#  (« extensions.theme.system_theme », 0 = theme interne, 1 = GTK, 2 = Qt),
+#  livrees dans /etc/skel : le profil est cree au premier lancement, il trouve
+#  le fichier deja la. Eprouve : un fichier de preferences minimal suffit,
+#  Chromium complete le reste tout seul.
+#
+#  ═══ LE GRIS ═══
+#  #26262B, choisi par Alex sur trois propositions rendues cote a cote
+#  (« 3er aime bien gris »). Gris franchement neutre, un cran seulement
+#  au-dessus du noir de LexOS.
+#
+#  ═══ CE QUE CE HOOK NE FAIT PAS ═══
+#  Il ne suit PAS le theme de jour. Une politique vit dans /etc, ecrite par
+#  root a la construction ; lexos-theme-gen, lui, ecrit dans le dossier de
+#  l'utilisateur et ne peut pas y toucher. Le haut du navigateur reste donc
+#  gris sombre meme en theme de jour. C'est assume, et c'est ecrit ici pour
+#  que personne ne le redecouvre en le prenant pour un bogue.
+# =============================================================================
+echo "[lexos] hook 0445 : le haut du navigateur, et le navigateur officiel"
+
+#  Surchargeables pour que ce hook soit eprouvable sur un banc, comme
+#  LEXOS_THEMES du hook 0610. Les valeurs par defaut sont les vraies.
+POL_CHROMIUM="${LEXOS_POL_CHROMIUM:-/etc/chromium/policies/managed}"
+POL_CHROME="${LEXOS_POL_CHROME:-/etc/opt/chrome/policies/managed}"
+SKEL="${LEXOS_SKEL:-/etc/skel}"
+GRIS="${LEXOS_NAVIGATEUR_GRIS:-#26262B}"
+
+# --- 1. La couleur, par la politique ----------------------------------------
+#  Le meme fichier pour les deux navigateurs : Chromium lit
+#  /etc/chromium/policies/managed, Google Chrome /etc/opt/chrome/policies/
+#  managed. Les deux chemins sont dans les binaires respectifs, on ne les
+#  invente pas.
+for D in "$POL_CHROMIUM" "$POL_CHROME"; do
+	mkdir -p "$D"
+	cat > "$D/lexos-couleurs.json" <<EOF
+{
+  "BrowserThemeColor": "${GRIS}"
+}
+EOF
+	echo "[lexos]   politique de couleur posee : $D/lexos-couleurs.json"
+done
+
+# --- 2. Le theme interne plutot que GTK, pour que la bande d'onglets suive ---
+#  UN FICHIER MINIMAL, EXPRES. Y mettre un profil complet reviendrait a figer
+#  des dizaines de reglages dont aucun n'est demande, et a se battre avec
+#  Chromium a chaque version. On n'ecrit que ce qu'on veut dire.
+for P in chromium google-chrome; do
+	mkdir -p "$SKEL/.config/$P/Default"
+	cat > "$SKEL/.config/$P/Default/Preferences" <<'EOF'
+{"extensions":{"theme":{"system_theme":0,"id":""}}}
+EOF
+	echo "[lexos]   $P : theme interne (la bande d'onglets suit la couleur)"
+done
+
+# --- 3. Chromium officiel : c'est le hook 0400 qui l'ecrit ------------------
+#  ALEX : « garder lui officiel comme navigateur ». Le reglage vit dans
+#  /etc/xdg/mimeapps.list, et ce fichier a DEJA un auteur : le hook 0400. On
+#  l'y a corrige plutot que de le reecrire ici. Deux hooks qui ecrivent le
+#  meme fichier, c'est la faute qui a donne trois palettes de panneaux
+#  differentes dans ce depot ; on ne la refait pas pour un navigateur.
+echo "[lexos]   navigateur officiel : ecrit par le hook 0400 (mimeapps.list)"
