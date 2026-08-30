@@ -1432,34 +1432,6 @@ jobs:
           #  n'a rien vu, pas d'une recherche qui n'a jamais eu lieu.
           bash tests/test_lexos_bluetooth.sh
 
-      - name: Fond animé — les icônes du bureau ne disparaissent plus derrière
-        if: ${{ !cancelled() }}
-        run: |
-          #  ALEX, photo à l'appui : « quand le fond écran animé tourne, on
-          #  ne voit pas les applications qu'on met sur le bureau — avec un
-          #  fond fixe, on les voit ». Notre fenêtre de fond ET xfdesktop
-          #  (qui dessine les icônes) sont toutes les deux de type
-          #  _NET_WM_WINDOW_TYPE_DESKTOP : xfwm4 garantit qu'elles restent
-          #  sous les fenêtres normales, mais PAS l'ordre RELATIF entre deux
-          #  fenêtres du même calque. remonte_xfdesktop() force cet ordre,
-          #  au démarrage et par une minuterie (un changement d'accent
-          #  recharge xfdesktop et peut redéfaire l'ordre plus tard).
-          bash tests/test_lexos_fond_anime.sh
-
-      - name: Fond vidéo — le même correctif d'icônes que le fond animé
-        if: ${{ !cancelled() }}
-        run: |
-          #  ALEX, photo à l'appui (un fond VIDÉO cette fois, pas animé) :
-          #  « on voit les applications du bureau juste au moment où on
-          #  change le fond d'écran ». Même bogue que le fond animé
-          #  (_NET_WM_WINDOW_TYPE_DESKTOP, ordre relatif non garanti dans le
-          #  calque) — mais fond-video.py n'avait JAMAIS reçu le correctif,
-          #  découvert en relisant la description d'Alex plutôt que par un
-          #  document d'audit. Port shell de remonte_xfdesktop(), rappelée
-          #  par une boucle de fond tant que mpv tourne, et PID_ICONES
-          #  ajouté au nettoyage de cmd_arreter().
-          bash tests/test_lexos_fond_video.sh
-
       - name: Claude Terminal — un mot-sigle au début d'une session, un vrai prénom
         if: ${{ !cancelled() }}
         run: |

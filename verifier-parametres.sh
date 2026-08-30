@@ -165,8 +165,6 @@ lexos-theme-gen
 lexos-settings
 lexos-ecran-telephone
 lexos-unzip
-lexos-fond-anime
-lexos-fond-video
 "
 
 # Applis AUTONOMES : leur maison est le menu et le dock, pas les Paramètres.

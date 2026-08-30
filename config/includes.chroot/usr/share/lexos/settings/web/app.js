@@ -456,11 +456,6 @@ async function setCaptureFormat(v){
   const r = await api("capture-format", v);
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "refusé"));
 }
-async function setFondQualite(v){
-  const r = await api("fond-qualite", v);
-  await rafraichir(r.ok ? "Au prochain démarrage du fond"
-                        : "Échec : " + (r.erreur || "refusé"));
-}
 async function btBranche(adresse){
   toast("Connexion en cours…");
   const r = await api("bt-connecter", adresse);
@@ -797,13 +792,6 @@ async function setFond(f){
 async function fondPerso(){
   const r = await api("fond-perso", "remplir");
   if(r.ok) toast("Fond d'écran appliqué");
-}
-/* Fonds animés : le nom part tel quel au moteur, qui le valide contre les
-   scènes RÉELLEMENT présentes sur le disque avant de lancer quoi que ce soit. */
-async function setFondAnime(nom){
-  const r = await api("fond-anime", nom);
-  if(r.ok) toast(nom === "off" ? "Fond animé retiré" : "Fond animé : " + nom);
-  else toast(r.erreur || "Scène indisponible");
 }
 /* Capture d'écran → fond d'écran, en un seul geste. */
 async function fondCapture(mode){
@@ -1260,21 +1248,6 @@ function contenu(cle){
       })()}
 
       <div class="srow" style="display:block">
-        <div class="t" style="margin-bottom:8px">Fonds animés</div>
-        <div class="sub" style="margin-bottom:8px">Dessinés en direct, et figés
-        tout seuls dès le passage sur batterie.</div>
-        <div class="row">
-          <button class="btn ghost" onclick="setFondAnime('code')">⌨ Le code s'écrit</button>
-          <button class="btn ghost" onclick="setFondAnime('pluie')">🌧 Pluie</button>
-          <button class="btn ghost" onclick="setFondAnime('braises')">🔥 Braises</button>
-          <button class="btn ghost" onclick="setFondAnime('etoiles')">✨ Ciel</button>
-          <button class="btn ghost" onclick="setFondAnime('atelier')">🛠 Atelier</button>
-          <button class="btn ghost" onclick="setFondAnime('lexis-3d')">🧊 Lexis 3D — suit la souris</button>
-          <button class="btn" onclick="setFondAnime('off')">Revenir au fond fixe</button>
-        </div>
-      </div>
-
-      <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Autocollants sur le fond</div>
         <div class="sub" style="margin-bottom:8px">Un personnage posé sur ton
         fond d'écran, comme dans la démo. Ils s'empilent ; « Enlever »
@@ -1298,28 +1271,7 @@ function contenu(cle){
       </div>
 
       <p class="notice">Aussi : clic droit sur une image dans Fichiers →
-      « Définir comme fond d'écran », ou <code>lexos wallpaper ~/Images/photo.jpg</code>.
-      Vidéo en fond : <code>lexos wallpaper video ~/Vidéos/boucle.mp4</code>.
-      Pour fabriquer ton propre fond animé :
-      <code>lexos wallpaper anime nouveau mon-fond</code> — un fichier de couches
-      commenté, avec <code>… apercu mon-fond</code> pour voir avant de poser.</p>
-      ${(() => {
-        const q = (etat.image && etat.image.fond) || "equilibre";
-        const CH = [["economie","Économie","Décodage par la carte graphique, 24 images/s"],
-                    ["equilibre","Équilibré","Le réglage par défaut"],
-                    ["belle","Belle image","Haute qualité — ça chauffe, secteur conseillé"]];
-        return `<div class="sub" style="margin-top:20px">Qualité du fond animé</div>
-        <div class="srow" style="display:block">
-          <div class="t" style="margin-bottom:8px">Qualité d'image</div>
-          <div class="row">${CH.map(([v,t,d]) =>
-            `<button class="btn ${v===q?"sel":"ghost"}" title="${d}"
-               onclick="setFondQualite('${v}')">${t}</button>`).join("")}</div>
-          <div class="sub" style="margin-top:8px">Un fond animé décode une vidéo
-            <b>en continu, pour toujours</b> — sur un portable, c'est une à deux
-            heures d'autonomie. Le changement prend effet au prochain démarrage
-            du fond.</div>
-        </div>`;
-      })()}
+      « Définir comme fond d'écran », ou <code>lexos wallpaper ~/Images/photo.jpg</code>.</p>
       ${(() => {
         //  Les captures n'ont pas de section à elles, et en créer une pour un
         //  seul réglage donnerait une page presque vide. Elles vivent donc

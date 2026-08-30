@@ -49,7 +49,7 @@ DMI_DIR = Path(os.environ.get("LEXOS_DMI", "/sys/class/dmi/id"))
 #  échoué, ou tourne encore. MAJ_ETAT_DIR est où on laisse une trace de ce
 #  terminal (début, puis fin + code de sortie) pour que la page puisse
 #  SAVOIR, en la relisant, au lieu de deviner. Même principe d'emplacement
-#  que lexos-fond-anime (XDG_RUNTIME_DIR, avec /tmp en repli).
+#  que lexos-capture (XDG_RUNTIME_DIR, avec /tmp en repli).
 #
 #  DEUX SEGMENTS (« lexos », puis « maj »), PAS UN NOM À TRAIT D'UNION.
 #  verifier-parametres.sh lit ce fichier à la recherche des outils appelés
@@ -367,32 +367,25 @@ def act_fond(arg):
 #  L'aide du terminal annonçait « ciel » alors que le fichier s'appelle
 #  « etoiles » : la commande copiée de la documentation échouait mot pour mot.
 #  Une liste écrite à la main finit toujours par mentir ; celle-ci ne peut pas.
-FONDS_ANIMES_DIRS = ("/usr/share/lexos/fonds", "~/.config/lexos/fonds")
-
-
-def _animes_disponibles():
-    noms = set()
-    for d in FONDS_ANIMES_DIRS:
-        try:
-            for f in Path(d).expanduser().glob("*.json"):
-                # « modele » est le gabarit à copier, pas une scène à poser.
-                if f.stem != "modele":
-                    noms.add(f.stem)
-        except OSError:
-            continue
-    return noms
-
-
-def act_fond_anime(arg):
-    """Pose un fond animé, ou le retire. Le nom vient de la page : il est donc
-    validé contre ce qui existe RÉELLEMENT sur le disque avant tout appel."""
-    if arg in ("off", "stop", "arret"):
-        return _run(["lexos", "wallpaper", "anime", "off"])
-    dispo = _animes_disponibles()
-    if arg not in dispo:
-        connues = " · ".join(sorted(dispo)) or "aucune"
-        return {"ok": False, "erreur": f"scène inconnue. Installées : {connues}"}
-    return _run(["lexos", "wallpaper", "anime", arg])
+#  ═══ LES FONDS ANIMÉS ONT ÉTÉ RETIRÉS ═══
+#  ALEX : « on perd toutes les applications du bureau quand on met un effet
+#  animé ; les icônes restent seulement avec un fond d'écran fixe. »
+#
+#  LA CAUSE, ET POURQUOI ELLE N'A PAS ÉTÉ RÉPARÉE. Le moteur posait sa
+#  fenêtre dans le calque _NET_WM_WINDOW_TYPE_DESKTOP — celui de xfdesktop,
+#  qui dessine les icônes. xfwm4 garantit que ce calque reste sous les
+#  fenêtres normales, mais PAS l'ordre relatif de deux fenêtres DANS ce
+#  calque. Notre fond pouvait donc passer devant les icônes, et rien dans le
+#  code n'était « cassé » pour autant. Deux correctifs ont été tentés (faire
+#  remonter xfdesktop par xdotool, puis par ses deux champs WM_CLASS) : les
+#  deux ont échoué chez Alex, et aucune des machines de construction n'a de
+#  serveur X pour éprouver le troisième. Deviner une fois de plus aurait
+#  autant de chances de retomber à côté.
+#
+#  On retire donc la fonctionnalité plutôt que de livrer un bureau dont les
+#  icônes disparaissent. Le fond VIDÉO est parti avec, pour la même raison :
+#  son outil partageait le défaut mot pour mot, et son propre en-tête le
+#  disait déjà. Tout le code reste dans l'historique git.
 
 
 def act_fond_capture(arg):
@@ -1256,13 +1249,6 @@ def act_capture_format(arg):
     return _run(["lexos-capture", "format", arg])
 
 
-def act_fond_qualite(arg):
-    """La qualité du fond animé — donc ce qu'il coûte en batterie."""
-    if arg not in ("economie", "equilibre", "belle"):
-        return {"ok": False, "erreur": "valeur inattendue"}
-    return _run(["lexos-fond-video", "qualite", arg])
-
-
 def act_son_sortie(arg):
     """Envoyer le son vers une autre sortie — les haut-parleurs, le casque,
     la télé en HDMI, ou une enceinte Bluetooth.
@@ -1343,7 +1329,6 @@ ACTIONS = {
     "distant-partage": act_distant_partage,
     "distant-vers": act_distant_vers,
     "capture-format": act_capture_format,
-    "fond-qualite": act_fond_qualite,
     "souris": act_souris,
     "bluetooth-radio": act_bluetooth,
     "crt": act_crt,
@@ -1377,7 +1362,6 @@ ACTIONS = {
     "fond-perso": act_fond_perso,
     "fond-fichier": act_fond_fichier,
     "fond-ouvrir": act_fond_ouvrir,
-    "fond-anime": act_fond_anime,
     "fond-capture": act_fond_capture,
     "langue": act_langue,
     "capture": act_capture,
@@ -1721,13 +1705,10 @@ def _image_etat():
         capture = "png"
     if capture not in ("png", "jpeg"):
         capture = "png"
-    try:
-        fond = (conf / "fond-video" / "qualite").read_text().strip()
-    except OSError:
-        fond = "equilibre"
-    if fond not in ("economie", "equilibre", "belle"):
-        fond = "equilibre"
-    return {"capture": capture, "fond": fond}
+    #  Il y avait ici une « qualité du fond animé » : elle ne réglait que le
+    #  décodage du fond vidéo, retiré avec les fonds animés. Un réglage qui
+    #  ne pilote plus rien est un bouton qui ment — on l'enlève aussi.
+    return {"capture": capture}
 
 
 def _echelle_etat():

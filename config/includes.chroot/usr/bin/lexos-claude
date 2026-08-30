@@ -23,8 +23,8 @@ PROG="lexos claude"
 if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
 	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
 	#  RG (rouge) : PAS un rouge inventé pour l'occasion — c'est « rouge_hi »,
-	#  le même accent que fond-anime.py (ACCENTS["rouge"] = #8A1512/#C4211E/
-	#  #D8352E) et que le reste de LexOS. En vrai 24 bits, pas en 256 couleurs
+	#  le même accent que le reste de LexOS (lexos-theme-gen, cas « rouge » :
+	#  #8A1512 / #C4211E / #D8352E). En vrai 24 bits, pas en 256 couleurs
 	#  approché : xfce4-terminal (où ce script tourne toujours) le rend sans
 	#  arrondi, et « --color-bg »/« --color-text » de lexos-claude-terminal,
 	#  juste à côté, sont déjà écrits en hexadécimal littéral — même langage.

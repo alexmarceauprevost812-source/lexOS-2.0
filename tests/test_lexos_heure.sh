@@ -89,16 +89,22 @@ esac
 # =============================================================================
 titre "3. Les couleurs sont celles de LexOS, pas inventées pour l'occasion"
 # =============================================================================
-#  #3584E4 = l'accent bleu « haut » et #E8590C = l'orange par défaut, tous
-#  deux déjà vérifiés dans ACCENTS (fond-anime.py). Un badge qui piocherait
-#  des teintes au hasard sur la photo d'Alex divergerait du reste de LexOS
-#  à la première mise à jour du thème.
-FOND_ANIME="$RACINE/config/includes.chroot/usr/lib/lexos/fond-anime.py"
-grep -q '"bleu":.*"#3584E4"' "$FOND_ANIME" \
+#  #3584E4 = l'accent bleu « haut » et #E8590C = l'orange par défaut. Un
+#  badge qui piocherait des teintes au hasard sur la photo d'Alex divergerait
+#  du reste de LexOS à la première mise à jour du thème.
+#
+#  LA SOURCE A CHANGÉ DE FICHIER, PAS DE VALEUR. Ce contrôle lisait ACCENTS
+#  dans fond-anime.py ; les fonds animés ont été retirés (ils recouvraient les
+#  icônes du bureau) et ce fichier n'existe plus. La palette, elle, n'a jamais
+#  vécu QUE là : lexos-theme-gen la porte aussi, et c'est lui qui la donne
+#  vraiment au système. On éprouve donc contre lui — même exigence, source
+#  plus solide, puisque c'est celle qui peint réellement le thème.
+THEME_GEN="$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen"
+grep -q 'ACCENT_HI="#3584E4"' "$THEME_GEN" \
 	&& echo "$MARKUP" | grep -qF '#3584E4' \
-	&& ok "le bleu du badge (#3584E4) est bien l'accent « bleu haut » déjà utilisé ailleurs" \
-	|| non "le bleu du badge ne correspond pas à un accent déjà vérifié dans fond-anime.py"
-grep -q '"orange":.*"#E8590C"' "$FOND_ANIME" \
+	&& ok "le bleu du badge (#3584E4) est bien l'accent « bleu haut » de lexos-theme-gen" \
+	|| non "le bleu du badge ne correspond pas à un accent réel de lexos-theme-gen"
+grep -q 'ACCENT="#E8590C"' "$THEME_GEN" \
 	&& echo "$MARKUP" | grep -qF '#E8590C' \
 	&& ok "l'éclair (#E8590C) est bien l'orange par défaut de LexOS" \
 	|| non "l'orange de l'éclair ne correspond pas à l'accent par défaut"

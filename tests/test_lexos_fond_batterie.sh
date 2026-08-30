@@ -135,19 +135,15 @@ case "$DEPART" in
 esac
 
 # =============================================================================
-titre "3. Poser un fond ARRÊTE l'animation qui le recouvrirait"
+titre "3. Poser un fond : l'image entière, sur du noir, par les deux portes"
 # =============================================================================
-#  LE DÉFAUT QUI RENDAIT TOUT LE RESTE INUTILE. lexos-firstrun démarre le fond
-#  animé « code » à la première session. Il recouvre le fond fixe. « lexos
-#  wallpaper » l'arrêtait déjà ; le chemin du MENU — celui que tout le monde
-#  prend — ne l'arrêtait pas. L'image était posée, et invisible.
+#  Cette section éprouvait aussi l'arrêt du fond animé avant la pose. Les
+#  fonds animés ont été retirés (ils recouvraient les icônes du bureau) : il
+#  n'y a plus rien à arrêter, et ces deux contrôles-là sont partis avec. Le
+#  reste — cadrage, couleur de débord, parité entre le menu et le clic droit
+#  — vaut toujours et reste éprouvé ici.
 BIN2="$BANC/bin2"; mkdir -p "$BIN2"
 JOURNAL="$BANC/appels.txt"; : > "$JOURNAL"
-cat > "$BIN2/lexos-fond-anime" <<ANIM
-#!/bin/sh
-printf 'anime %s\n' "\$*" >> "$JOURNAL"
-exit 0
-ANIM
 cat > "$BIN2/xfconf-query" <<XFC
 #!/bin/sh
 case "\$*" in
@@ -166,18 +162,6 @@ chmod +x "$BIN2"/*
 HOME="$FOYER" PATH="$BIN2:$PATH" DISPLAY=":0" \
 	bash "$FOND" "$FOYER/Images/choisie.png" >/dev/null 2>&1
 
-grep -q '^anime off' "$JOURNAL" \
-	&& ok "l'animation est arrêtée — l'image choisie se voit vraiment" \
-	|| non "l'animation continue par-dessus : l'image est posée et invisible"
-#  ET DANS CET ORDRE. En arrêtant APRÈS, l'arrêt remet le fond d'avant
-#  par-dessus celui qu'on vient de choisir.
-LIGNE_ANIME="$(grep -n '^anime off' "$JOURNAL" | head -1 | cut -d: -f1)"
-LIGNE_POSE="$(grep -n '^xfconf.*last-image' "$JOURNAL" | head -1 | cut -d: -f1)"
-if [ -n "$LIGNE_ANIME" ] && [ -n "$LIGNE_POSE" ] && [ "$LIGNE_ANIME" -lt "$LIGNE_POSE" ]; then
-	ok "et AVANT la pose (sinon l'arrêt remettrait le fond d'avant par-dessus)"
-else
-	non "ordre : anime=$LIGNE_ANIME pose=$LIGNE_POSE"
-fi
 #  « fais les images sur un fond noir avec les images » : l'image ENTIÈRE
 #  (style 4 — une photo de téléphone est verticale, le style 5 n'en montrait
 #  que la bande du milieu), et ce qui dépasse est NOIR, pas le bleu de XFCE.
@@ -209,31 +193,51 @@ grep -q 'actuel=' "$FIRSTRUN" \
 	&& ok "la boucle relit ce qui est posé avant de réécrire" \
 	|| non "la boucle réécrit sans regarder — le choix de l'utilisateur est effacé"
 
-#  ═══ AUCUN FOND ANIMÉ AU DÉMARRAGE ═══
-#  ALEX : « fond d'écran animé, on peut l'enlever — on voit pas les
-#  applications du bureau quand on fait [celui] les textes. On va mettre un
-#  fond d'écran tout noir, comme ça on va voir si c'est [le] fond d'écran ou
-#  bien une erreur au démarrage. » lexos-firstrun lançait
-#  « lexos-fond-anime start code » d'office à la première session : le fond
-#  animé démarrait tout seul, et c'est au-dessus de lui que les icônes du
-#  bureau disparaissaient (deux correctifs déjà payés là-dessus —
-#  remonte_xfdesktop dans fond-anime.py, puis le même porté dans
-#  lexos-fond-video). Ce qu'on n'allume pas ne peut rien recouvrir.
-#  Le grep exclut les lignes de commentaire : le fichier EXPLIQUE en prose
-#  ce qu'il ne fait plus, et cette prose ne doit pas déclencher le garde-fou.
-if grep -v '^[[:space:]]*#' "$FIRSTRUN" | grep -qE 'fond-anime[[:space:]]+start'; then
-	non "lexos-firstrun relance un fond animé d'office — les icônes du bureau repasseraient dessous"
+#  ═══ PLUS AUCUN FOND ANIMÉ, NULLE PART ═══
+#  ALEX, PREMIÈRE FOIS : « fond d'écran animé, on peut l'enlever — on voit
+#  pas les applications du bureau. » On avait alors seulement coupé le
+#  démarrage d'office, pour trancher le diagnostic sans rien détruire.
+#  ALEX, APRÈS ESSAI : « dans les paramètres ça fonctionne tout, mais on perd
+#  toutes les applications du bureau quand on met un effet animé ; les
+#  applications du bureau restent juste quand [il y] a un fond d'écran fixe. »
+#  Verdict rendu : le fond animé était bien le coupable, et le bogue se
+#  déclenche dès qu'on en pose un, pas seulement au démarrage.
+#
+#  LA CAUSE EST STRUCTURELLE, PAS UN OUBLI. La fenêtre du fond vivait dans le
+#  calque _NET_WM_WINDOW_TYPE_DESKTOP — celui de xfdesktop, qui dessine les
+#  icônes. xfwm4 ordonne ce calque SOUS les fenêtres normales, mais n'ordonne
+#  pas deux fenêtres ENTRE ELLES dans ce calque : le fond pouvait donc passer
+#  devant les icônes sans qu'une seule ligne soit fautive. Deux correctifs
+#  tentés (remonte_xfdesktop, puis son portage shell), deux échecs constatés
+#  en photo, et aucune machine de construction ici n'a de serveur X pour
+#  éprouver le troisième.
+#
+#  CE CONTRÔLE EST UN GARDE-FOU DE NON-RETOUR. Il ne dit pas « le fond animé
+#  est bien réglé » : il dit qu'il n'y en a plus, nulle part — ni au
+#  démarrage, ni en ligne de commande, ni dans les Paramètres. Si quelqu'un
+#  le remet un jour sans avoir résolu le calque, ce banc devient rouge avant
+#  qu'Alex ne reperde ses icônes.
+if grep -v '^[[:space:]]*#' "$FIRSTRUN" | grep -qE 'fond-anime|fond-video'; then
+	non "lexos-firstrun touche encore à un fond animé — les icônes du bureau repasseraient dessous"
 else
-	ok "aucun fond animé n'est lancé au démarrage (le bureau s'ouvre sur le fond fixe)"
+	ok "rien au démarrage : le bureau s'ouvre sur le fond fixe"
 fi
-#  MAIS IL N'A PAS ÉTÉ SUPPRIMÉ POUR AUTANT : il reste à un clic. Retirer la
-#  fonction au lieu de son automatisme serait une autre panne.
 grep -q "wallpaper anime" "$RACINE/config/includes.chroot/usr/bin/lexos" \
-	&& ok "…mais « lexos wallpaper anime » existe toujours pour le rallumer" \
-	|| non "le fond animé n'est plus atteignable du tout — on a retiré la fonction, pas l'automatisme"
-grep -q "setFondAnime" "$APP" \
-	&& ok "…et les Paramètres → Bureau LexOS le proposent toujours" \
-	|| non "les Paramètres ne proposent plus les fonds animés"
+	&& non "« lexos wallpaper anime » est revenu — le bogue des icônes avec" \
+	|| ok "« lexos wallpaper anime » n'existe plus"
+grep -q "setFondAnime\|fond-anime" "$APP" \
+	&& non "les Paramètres proposent de nouveau un fond animé" \
+	|| ok "les Paramètres ne proposent plus aucun effet animé"
+for OUTIL in lexos-fond-anime lexos-fond-video; do
+	if [ -e "$RACINE/config/includes.chroot/usr/bin/$OUTIL" ]; then
+		non "$OUTIL est de retour dans l'ISO"
+	else
+		ok "$OUTIL ne part plus dans l'ISO"
+	fi
+done
+[ -e "$RACINE/config/includes.chroot/usr/lib/lexos/fond-anime.py" ] \
+	&& non "le moteur fond-anime.py est de retour dans l'ISO" \
+	|| ok "le moteur des scènes ne part plus dans l'ISO"
 
 #  ═══ LA BOUCLE EST JOUÉE POUR DE VRAI, PAS DEVINÉE PAR UN GREP ═══
 #  Un simple « grep -q '[[ -n \"\$actuel\" ... ]] && break' » disait que la ligne

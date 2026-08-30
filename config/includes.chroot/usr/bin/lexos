@@ -95,13 +95,6 @@ ${B}APPARENCE${R}
   ${A}ecran${R}               Plusieurs écrans : étendre, dupliquer, principal
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
   ${A}wallpaper${R} <image> <cadrage>  remplir · ajuster · etirer · centrer · mosaique
-  ${A}wallpaper video${R} <fichier> Une vidéo en fond ${D}(en pause sur batterie, sans son)${R}
-  ${A}wallpaper anime${R}     Fonds animés ${D}(défaut : « code », le fond qui s'écrit)${R}
-  ${A}wallpaper anime liste${R}      Ceux qui existent : code · pluie · braises · etoiles · atelier
-  ${A}wallpaper anime nouveau${R} <nom>  Fabriquer le sien ${D}(modèle commenté, JSON)${R}
-  ${A}wallpaper anime apercu${R} <nom>   Une image, sans rien poser
-  ${A}wallpaper anime off${R}     Revenir au fond fixe
-                      ${D}Tout se fige sur batterie, sans exception.${R}
   ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
 
 ${B}LANGUE${R}
@@ -570,26 +563,13 @@ wallpaper_style() {
 }
 
 cmd_wallpaper() {
-	#  « wallpaper video … » part vers l'outil dédié : une vidéo de fond
-	#  n'est pas une propriété xfconf mais un processus qui tourne, avec sa
-	#  surveillance de batterie et son arrêt propre.
-	if [[ "${1:-}" == "video" || "${1:-}" == "vidéo" ]]; then
-		shift; exec lexos-fond-video "$@"
-	fi
-
-	#  « wallpaper anime … » : les fonds dessinés en direct. Même raison que
-	#  la vidéo — ce n'est pas une propriété xfconf mais un programme qui
-	#  tourne, avec sa surveillance de batterie.
-	if [[ "${1:-}" == "anime" || "${1:-}" == "animé" || "${1:-}" == "anim" ]]; then
-		shift; exec lexos-fond-anime "$@"
-	fi
-	#  « wallpaper code » : le raccourci vers la scène du même nom, celle qui
-	#  écrit du code. C'est le fond animé par défaut de LexOS.
-	if [[ "${1:-}" == "code" || "${1:-}" == "ecriture" || "${1:-}" == "écriture" ]]; then
-		shift
-		[[ "${1:-}" == "off" ]] && exec lexos-fond-anime off
-		exec lexos-fond-anime code
-	fi
+	#  LES FONDS ANIMÉS ET VIDÉO ONT ÉTÉ RETIRÉS. Ils posaient leur fenêtre
+	#  dans le calque _NET_WM_WINDOW_TYPE_DESKTOP, celui de xfdesktop qui
+	#  dessine les icônes du bureau : xfwm4 n'ordonne pas deux fenêtres DE CE
+	#  calque entre elles, et le fond passait devant les icônes. Alex les
+	#  perdait dès qu'il posait un effet animé. Deux correctifs tentés, deux
+	#  échecs, aucun serveur X ici pour éprouver le troisième — on retire
+	#  plutôt que de livrer un bureau sans ses icônes. Tout est dans git.
 
 	local img="${1:-/usr/share/backgrounds/lexos/wallpaper.png}"
 	local cadrage="${2:-remplir}"
@@ -619,13 +599,6 @@ cmd_wallpaper() {
 	#  Chemin absolu : xfconf garde la chaîne telle quelle, et un chemin
 	#  relatif ne voudrait plus rien dire à la prochaine ouverture de session.
 	img="$(readlink -f "$img")"
-
-	#  Un fond animé recouvre le fond fixe : on l'arrête AVANT de poser
-	#  l'image. Dans l'autre ordre, l'arrêt remettrait le fond d'avant
-	#  par-dessus celui qu'on vient de choisir.
-	if command -v lexos-fond-anime >/dev/null 2>&1; then
-		lexos-fond-anime off >/dev/null 2>&1 || true
-	fi
 
 	#  ═══ CE QUI DÉPASSE DE L'IMAGE EST NOIR ═══
 	#  Alex : « fais les images sur un fond noir avec les images ». En cadrage

@@ -175,8 +175,8 @@ if command -v script >/dev/null 2>&1; then
 		banniere
 	" /dev/null 2>/dev/null | tr -d '\r')"
 
-	#  #D8352E — pas un rouge inventé : « rouge_hi » dans ACCENTS de
-	#  fond-anime.py, le même accent que le reste de LexOS. En 24 bits
+	#  #D8352E — pas un rouge inventé : c'est ACCENT_HI du cas « rouge » dans
+	#  lexos-theme-gen, le même accent que le reste de LexOS. En 24 bits
 	#  littéral (216;53;46), pas les 256 couleurs approchées.
 	if printf '%s' "$SORTIE" | grep -qF $'\033[38;2;216;53;46m'; then
 		ok "le mot-sigle et le salut portent le VRAI rouge de LexOS (#D8352E), pas une couleur inventée"
