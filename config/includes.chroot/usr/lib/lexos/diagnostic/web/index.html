@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lexOS diagnostic</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="entete">
+  <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
+    <defs>
+      <filter id="lueur" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="7" result="flou"/>
+        <feMerge><feMergeNode in="flou"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <path d="M 118 332 L 394 332 L 436 372 Q 438 378 432 378 L 80 378 Q 74 378 76 372 Z" fill="#131311" stroke="#FF8C1A" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="122" y="320" width="268" height="16" rx="6" fill="#0d0d0b" stroke="#FF8C1A" stroke-width="2.5"/>
+    <rect x="104" y="88" width="304" height="238" rx="18" fill="#0d0d0b" stroke="#FF8C1A" stroke-width="4"/>
+    <rect x="128" y="110" width="256" height="194" rx="8" fill="#050504"/>
+    <g filter="url(#lueur)" stroke="#FF8C1A" stroke-width="3.5" stroke-linecap="round" fill="none">
+      <path d="M228 196 L176 196"/><path d="M228 220 L160 220"/>
+      <path d="M284 196 L336 196"/><path d="M284 220 L352 220"/>
+      <path d="M244 180 L244 140"/><path d="M268 180 L268 150"/>
+      <path d="M244 236 L244 276"/><path d="M268 236 L268 266"/>
+      <rect x="228" y="180" width="56" height="56" rx="7" fill="#0d0d0b" stroke="#FF8C1A" stroke-width="3.5"/>
+      <circle cx="176" cy="196" r="6" fill="#FF8C1A" stroke="none"/><circle cx="160" cy="220" r="6" fill="#FF8C1A" stroke="none"/>
+      <circle cx="336" cy="196" r="6" fill="#FF8C1A" stroke="none"/><circle cx="352" cy="220" r="6" fill="#FF8C1A" stroke="none"/>
+      <circle cx="244" cy="140" r="6" fill="#FF8C1A" stroke="none"/><circle cx="268" cy="150" r="6" fill="#FF8C1A" stroke="none"/>
+      <circle cx="244" cy="276" r="6" fill="#FF8C1A" stroke="none"/><circle cx="268" cy="266" r="6" fill="#FF8C1A" stroke="none"/>
+    </g>
+    <path d="M148 270 L190 270 L202 246 L216 292 L228 254 L240 270 L364 270" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" filter="url(#lueur)"/>
+  </svg>
+  <h1><span class="invite">❯</span> lexos-diagnostic <span class="attenue">— matériel / médecin / disques</span></h1>
+  <div class="droite">
+    <span id="syst-resume">…</span>
+    <span class="temoin-direct" id="temoin"><i class="point"></i> EN DIRECT</span>
+  </div>
+</header>
+
+<nav class="onglets">
+  <button class="onglet" data-onglet="materiel">Matériel</button>
+  <button class="onglet" data-onglet="medecin">Médecin</button>
+  <button class="onglet" data-onglet="disques">Disques</button>
+</nav>
+
+<main>
+
+  <!-- ================= MATÉRIEL ================= -->
+  <section id="page-materiel" class="page">
+    <div class="grille">
+
+      <div class="carte">
+        <div class="carte-titre"><h2>Processeur</h2><span class="valeur-mise-en-avant" id="cpu-pct-txt">—</span></div>
+        <div class="carte-sous-titre" id="cpu-modele">…</div>
+        <div class="jauge"><i id="cpu-jauge" style="width:0%"></i></div>
+        <div class="jauges-coeurs" id="cpu-coeurs" title="Utilisation par cœur"></div>
+        <div class="ligne-stat"><span>Fréquence</span><b id="cpu-freq">—</b></div>
+        <div class="ligne-stat"><span>Charge (1 / 5 / 15 min)</span><b id="cpu-charge">—</b></div>
+        <div class="ligne-stat"><span>Température</span><b id="cpu-temp">—</b></div>
+        <canvas class="tendance" id="cpu-tendance" height="46"></canvas>
+      </div>
+
+      <div class="carte">
+        <div class="carte-titre"><h2>Mémoire (RAM)</h2><span class="valeur-mise-en-avant" id="ram-pct-txt">—</span></div>
+        <div class="carte-sous-titre" id="ram-detail">…</div>
+        <div class="jauge"><i id="ram-jauge" style="width:0%"></i></div>
+        <div class="ligne-stat"><span>Échange (swap)</span><b id="ram-swap">—</b></div>
+        <canvas class="tendance" id="ram-tendance" height="46"></canvas>
+      </div>
+
+      <div class="carte" id="gpu-carte">
+        <div class="carte-titre"><h2>Carte graphique</h2><span class="valeur-mise-en-avant" id="gpu-pct-txt">—</span></div>
+        <div class="carte-sous-titre" id="gpu-nom">…</div>
+        <div class="jauge"><i id="gpu-jauge" style="width:0%"></i></div>
+        <div class="ligne-stat"><span>VRAM</span><b id="gpu-vram">—</b></div>
+        <div class="ligne-stat"><span>Température</span><b id="gpu-temp">—</b></div>
+        <div class="ligne-stat"><span>Puissance</span><b id="gpu-puissance">—</b></div>
+        <canvas class="tendance" id="gpu-tendance" height="46"></canvas>
+      </div>
+
+      <div class="carte">
+        <div class="carte-titre"><h2>Ventilateurs</h2></div>
+        <div id="ventilos-liste"><p class="vide">…</p></div>
+      </div>
+
+      <div class="carte">
+        <div class="carte-titre"><h2>Réseau</h2></div>
+        <div id="reseau-liste"><p class="vide">…</p></div>
+        <canvas class="tendance" id="reseau-tendance" height="46"></canvas>
+      </div>
+
+      <div class="carte" id="batterie-carte" style="display:none">
+        <div class="carte-titre"><h2>Batterie</h2><span class="valeur-mise-en-avant" id="batterie-pct-txt">—</span></div>
+        <div class="jauge vert"><i id="batterie-jauge" style="width:0%"></i></div>
+        <div class="ligne-stat"><span>État</span><b id="batterie-etat">—</b></div>
+      </div>
+
+      <div class="carte">
+        <div class="carte-titre"><h2>Disques — espace</h2></div>
+        <div id="disques-espace-mini"><p class="vide">…</p></div>
+      </div>
+
+      <div class="carte">
+        <div class="carte-titre"><h2>Système</h2></div>
+        <div class="ligne-stat"><span>Machine</span><b id="info-machine">—</b></div>
+        <div class="ligne-stat"><span>LexOS</span><b id="info-version">—</b></div>
+        <div class="ligne-stat"><span>Noyau</span><b id="info-noyau">—</b></div>
+        <div class="ligne-stat"><span>Démarré depuis</span><b id="info-uptime">—</b></div>
+      </div>
+
+    </div>
+
+    <div class="grille large" style="margin-top:14px">
+      <div class="carte">
+        <div class="carte-titre"><h2>Processus — CPU</h2></div>
+        <table class="processus">
+          <thead><tr><th>PID</th><th>Nom</th><th>CPU %</th><th>RAM %</th></tr></thead>
+          <tbody id="proc-cpu-corps"></tbody>
+        </table>
+      </div>
+      <div class="carte">
+        <div class="carte-titre"><h2>Processus — RAM</h2></div>
+        <table class="processus">
+          <thead><tr><th>PID</th><th>Nom</th><th>CPU %</th><th>RAM %</th></tr></thead>
+          <tbody id="proc-ram-corps"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MÉDECIN ================= -->
+  <section id="page-medecin" class="page">
+    <div class="barre-actions">
+      <button class="action" id="med-actualiser">Actualiser le bilan</button>
+      <button class="action discret" id="med-copier">Copier le rapport</button>
+      <span class="vide" id="med-copier-statut"></span>
+    </div>
+
+    <div class="grille">
+      <div class="carte">
+        <div class="carte-titre"><h2>Outils lexos-*</h2><span class="badge inconnu" id="med-outils-badge">…</span></div>
+        <div class="ligne-stat"><span>Installés sur cette machine</span><b id="med-outils-total">—</b></div>
+        <ul class="liste-problemes" id="med-outils-problemes"></ul>
+      </div>
+
+      <div class="carte">
+        <div class="bilan-ligne"><span class="libelle">Son</span><span class="badge inconnu" id="med-son">…</span></div>
+        <div class="bilan-ligne"><span class="libelle">Wi-Fi</span><span class="badge inconnu" id="med-wifi">…</span></div>
+        <div class="bilan-ligne"><span class="libelle">Journal (erreurs au démarrage)</span><span class="badge inconnu" id="med-journal">…</span></div>
+      </div>
+
+      <div class="carte">
+        <div class="carte-titre"><h2>Espace disque</h2></div>
+        <div id="med-disques-pleins"><p class="vide">…</p></div>
+      </div>
+
+      <div class="carte">
+        <div class="carte-titre"><h2>Firmware / BIOS</h2></div>
+        <div class="carte-sous-titre" id="firmware-message">…</div>
+        <div id="firmware-liste"></div>
+        <div class="barre-actions" style="margin-top:10px;margin-bottom:0">
+          <button class="action" id="firmware-verifier">Vérifier les mises à jour</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="carte" style="margin-top:14px">
+      <div class="carte-titre"><h2>Rapport — copiez-collez pour demander de l'aide</h2></div>
+      <pre class="rapport" id="med-rapport-texte">…</pre>
+    </div>
+  </section>
+
+  <!-- ================= DISQUES ================= -->
+  <section id="page-disques" class="page">
+    <div class="barre-actions">
+      <button class="action" id="disques-actualiser">Actualiser</button>
+      <span class="vide" id="disques-outils-note"></span>
+    </div>
+
+    <div class="grille">
+      <div class="carte">
+        <div class="carte-titre"><h2>Santé SMART / NVMe</h2></div>
+        <div id="disques-sante-liste"><p class="vide">…</p></div>
+      </div>
+
+      <div class="carte">
+        <div class="carte-titre"><h2>Espace utilisé</h2></div>
+        <div id="disques-espace-liste"><p class="vide">…</p></div>
+      </div>
+    </div>
+
+    <div class="carte" style="margin-top:14px">
+      <div class="carte-titre"><h2>Doublons</h2></div>
+      <p class="note">Recherche des fichiers en double dans un dossier (rmlint). Peut prendre du temps sur un gros dossier — commencez par un sous-dossier si besoin.</p>
+      <div class="barre-actions">
+        <input class="champ" id="doublons-dossier" placeholder="Dossier (vide = dossier personnel)" style="flex:1;min-width:220px">
+        <button class="action" id="doublons-lancer">Chercher les doublons</button>
+      </div>
+      <div id="doublons-resultats"></div>
+    </div>
+
+    <div class="carte" style="margin-top:14px">
+      <div class="carte-titre"><h2>Tester une clé USB</h2></div>
+      <p class="note">Ce test écrit sur le périphérique choisi : se tromper de cible efface des données, donc il ne se lance pas depuis un clic. Repérez d'abord la clé (<code>lsblk</code>), puis dans un terminal :</p>
+      <code class="commande">f3write /media/VOTRE-CLE &amp;&amp; f3read /media/VOTRE-CLE</code>
+      <p class="note">Nécessite le paquet <code>f3</code> (déjà dans 59-diagnostic.list).</p>
+    </div>
+  </section>
+
+</main>
+
+<p class="pied">LexOS Diagnostic — lecture locale uniquement, rien ne quitte la machine.</p>
+
+<script src="app.js"></script>
+</body>
+</html>

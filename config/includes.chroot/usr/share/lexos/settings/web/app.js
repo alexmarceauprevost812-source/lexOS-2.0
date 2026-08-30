@@ -32,7 +32,8 @@ const NAV = [
     ["wifi",wifiGlyph,"Wi-Fi"], ["reseau","🌐","Réseau"], ["bluetooth","🅱","Bluetooth"]]},
   {grp:"Matériel", items:[
     ["ecrans","🖥","Écrans"], ["son","🔊","Son"], ["energie","🔋","Énergie"],
-    ["usb","🔌","Appareils USB"], ["mac","🍎","Mac (Apple)"]]},
+    ["usb","🔌","Appareils USB"], ["mac","🍎","Mac (Apple)"],
+    ["diagnostic","🩺","Diagnostic"]]},
   {grp:"Personnalisation", items:[
     ["apparence","🎨","Apparence"], ["bureau","🖼","Bureau LexOS"],
     ["multitaches","🗔","Multi-tâches"], ["applications","🧩","Applications"],
@@ -1893,6 +1894,29 @@ function contenu(cle){
       <p class="notice">${r.outil
         ? "Un bureau à distance ouvre ta machine au réseau : il ne démarre jamais tout seul, et jamais sans mot de passe."
         : "Pour se laisser voir, il faut d'abord un serveur : <code>lexos install x11vnc</code>. Pour aller voir ailleurs, il faut Remmina : <code>lexos install remmina</code>."}</p>`;
+    }
+    case "diagnostic": {
+      /*  LexOS Diagnostic : le panneau en direct — matériel, santé, disques.
+          Il arrive comme module séparé (usr/lib/lexos/diagnostic) et avait
+          son icône, son .desktop et sa branche « lexos diagnostic », mais
+          AUCUN chemin depuis les Paramètres : le contrôle 16 l'a nommé, tout
+          comme il avait nommé LexOS Boost avant lui. C'est cette page-ci qui
+          le branche.
+
+          Elle n'essaie pas de refaire le panneau en petit : elle dit ce
+          qu'il montre et l'ouvre. Dupliquer ses mesures ici donnerait deux
+          endroits où un bogue pourrait un jour raconter deux choses
+          différentes — la même raison qui garde la liste des réseaux Wi-Fi
+          hors du volet. */
+      corps.innerHTML = `<h2>Diagnostic</h2>
+        <p class="d">La machine en direct : processeur, mémoire, carte
+        graphique, températures, ventilateurs, réseau, batterie — puis un
+        bilan de santé et l'état des disques (SMART, NVMe, espace).</p>
+        ${btnOuvrir("diagnostic","Ouvrir LexOS Diagnostic")}
+        <p class="d" style="margin-top:14px">Les mêmes réponses en terminal,
+        sans fenêtre : <code>lexos materiel</code>, <code>lexos medecin</code>,
+        <code>lexos disques</code>.</p>`;
+      break;
     }
     case "tiers": {
       /*  LexOS dit « 100 % Linux », et c'est vrai. Mais « libre » et

@@ -1169,6 +1169,34 @@ jobs:
             || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
           bash tests/test_lexos_fond_nomad.sh
 
+      - name: LexOS Diagnostic — le panneau matériel/médecin/disques
+        if: ${{ !cancelled() }}
+        run: |
+          #  Module apporté par Alex, relu avant d'être posé : lecture seule,
+          #  aucun shell=True, aucun sudo, HTML échappé partout. Deux choses
+          #  ont été ajoutées à l'intégration, et ce banc les tient :
+          #
+          #  · le serveur écoute sur un port FIXE (7861), contrairement à
+          #    celui des Paramètres qui tire un port libre. Un port local
+          #    prévisible est joignable par n'importe quelle page web que
+          #    l'utilisateur ouvre — le banc DÉMARRE le vrai serveur et
+          #    vérifie qu'une origine étrangère et un Host étranger (« DNS
+          #    rebinding ») sont refusés, sans gêner notre propre page ;
+          #  · le moteur importe psutil sans repli, alors que python3-psutil
+          #    voyage dans une liste optionnelle.
+          #
+          #  psutil est donc installé ici : sans lui le banc échouerait faute
+          #  d'outil, et on répare l'outillage, pas le contrôle.
+          python3 -c 'import psutil' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-psutil >/dev/null
+          #  Le fichier est nommé ICI en toutes lettres, et pas seulement
+          #  sous sa forme de module : le garde-fou anti-orphelin de ce
+          #  dépôt cherche le NOM DE FICHIER dans ce workflow, et
+          #  « tests.test_lexos_diagnostic » ne lui ressemble pas. Un banc
+          #  que personne ne lance ne protège rien, et ça ne se voit pas.
+          test -f tests/test_lexos_diagnostic.py
+          python3 -m unittest tests.test_lexos_diagnostic -v
+
       - name: Gros texte et bulle de capture — deux gestes du quotidien
         if: ${{ !cancelled() }}
         run: |

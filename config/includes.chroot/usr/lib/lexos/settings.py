@@ -326,6 +326,11 @@ def act_ouvrir(arg):
         #  parlaient pas. Le contrôle 16 l'a nommé — c'est cette ligne qui
         #  le branche.
         "boost":      lambda: _run(["lexos-boost"], detach=True),
+        #  LexOS Diagnostic — le panneau en direct (matériel/médecin/disques).
+        #  Même histoire que Boost juste au-dessus : il avait son icône, son
+        #  .desktop et sa branche dans le dispatcheur, mais aucun chemin
+        #  depuis ici. Le contrôle 16 l'a nommé.
+        "diagnostic": lambda: _run(["lexos-diagnostic"], detach=True),
         #  Le coffre parle en TERMINAL (menu, questions, mot de passe) : le
         #  lancer détaché ferait un bouton qui ne fait rien — vérifié dans son
         #  routeur, « gui » n'existe pas, l'entrée par défaut est « menu ».
