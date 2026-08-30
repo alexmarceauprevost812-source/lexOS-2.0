@@ -53,13 +53,19 @@ esac
 #      de diverger — et sur le fond crème du thème de jour, les deux
 #      devenaient illisibles ensemble.
 #
+#  __LEXOS_C_TEXTE s'appelait __LEXOS_C_SAISIE et valait l'orange de
+#  l'accent. Il porte maintenant le BLANC de la frappe (voir la règle de
+#  couleur plus bas). L'orange n'a pas quitté le terminal pour autant : il
+#  est resté le curseur, la sélection et l'onglet actif — mais il ne touche
+#  plus à l'invite, et c'est pour ça que le nom a changé avec lui.
+#
 #  Les valeurs de repli ci-dessous sont exactement celles d'avant (LexOS
 #  Noir) : sans thème généré, rien ne change pour personne.
 LEXOS_TERM_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/terminal.env"
 
 __lexos_couleurs() {
 	__LEXOS_C_MACHINE='38;5;35'
-	__LEXOS_C_SAISIE='38;5;208'
+	__LEXOS_C_TEXTE='38;5;15'
 	__LEXOS_C_ERREUR='1;38;5;196'
 	__LEXOS_C_DIM='2'
 	[ -r "$LEXOS_TERM_ENV" ] || return 0
@@ -71,13 +77,13 @@ __lexos_couleurs() {
 	case "${COLORTERM:-}" in
 		truecolor|24bit)
 			__LEXOS_C_MACHINE="${LEXOS_PS_MACHINE:-$__LEXOS_C_MACHINE}"
-			__LEXOS_C_SAISIE="${LEXOS_PS_SAISIE:-$__LEXOS_C_SAISIE}"
+			__LEXOS_C_TEXTE="${LEXOS_PS_TEXTE:-$__LEXOS_C_TEXTE}"
 			__LEXOS_C_ERREUR="${LEXOS_PS_ERREUR:-$__LEXOS_C_ERREUR}"
 			__LEXOS_C_DIM="${LEXOS_PS_DIM:-$__LEXOS_C_DIM}"
 			;;
 		*)
 			__LEXOS_C_MACHINE="${LEXOS_PS_MACHINE_256:-$__LEXOS_C_MACHINE}"
-			__LEXOS_C_SAISIE="${LEXOS_PS_SAISIE_256:-$__LEXOS_C_SAISIE}"
+			__LEXOS_C_TEXTE="${LEXOS_PS_TEXTE_256:-$__LEXOS_C_TEXTE}"
 			__LEXOS_C_ERREUR="${LEXOS_PS_ERREUR_256:-$__LEXOS_C_ERREUR}"
 			__LEXOS_C_DIM="${LEXOS_PS_DIM_256:-$__LEXOS_C_DIM}"
 			;;
@@ -88,19 +94,34 @@ __lexos_couleurs
 # --- Invite de commande ------------------------------------------------------
 #  Reposée à chaque passage, exprès : voir l'explication en tête de fichier.
 #
-#  LA RÈGLE DE COULEUR, la même dans la démo web et sur la vraie machine,
-#  de jour comme de nuit :
-#    · vert    — tout ce que la MACHINE écrit (l'invite, les réponses)
-#    · orange  — tout ce que VOUS tapez
+#  LA RÈGLE DE COULEUR, de jour comme de nuit — ALEX, PHOTO DU TERMINAL :
+#  « écriture blanc pour écriture de utilisateur, vert pour lexos » :
+#    · vert    — tout ce que la MACHINE écrit : le nom, la machine, le
+#                CHEMIN et le CHEVRON. L'invite entière, donc.
+#    · blanc   — tout ce que VOUS tapez
 #    · rouge   — ce qui n'a pas marché (fausse commande, commande en échec)
 #
-#  De jour, ce sont les mêmes trois rôles, en versions assombries : c'est
-#  lexos-theme-gen qui fait la conversion, l'invite ne s'en occupe pas.
+#  Le chemin et le chevron étaient orange. Ils sont écrits par la MACHINE :
+#  ils passent au vert. Le chevron garde son rouge quand la commande
+#  précédente a échoué — c'est le seul signal que porte l'invite, on n'y
+#  touche pas.
 #
-#  L'orange de la frappe tient à un détail : PS1 se termine par une couleur
+#  De jour, ce sont les mêmes trois rôles, en versions assombries : c'est
+#  lexos-theme-gen qui fait la conversion, l'invite ne s'en occupe pas. Le
+#  blanc y devient l'encre foncée, sans quoi la frappe disparaîtrait sur le
+#  crème.
+#
+#  Le blanc de la frappe tient à un détail : PS1 se termine par une couleur
 #  qu'on ne referme PAS. Elle déborde donc sur ce qui est saisi ensuite —
 #  c'est voulu. PS0, affiché juste après Entrée et avant l'exécution, remet
 #  le tout à zéro pour que la sortie de la commande retrouve le vert.
+#
+#  UNE SEULE LIGNE. ALEX, PHOTO DU TERMINAL : « l'écriture, la ligne est pas
+#  complète et a déjà une espace — faire en sorte que ça suive ---> ». PS1
+#  portait un saut de ligne juste avant le chevron : le nom, la machine et
+#  le chemin sur une ligne, le chevron seul sur la suivante. Il est remplacé
+#  par une espace. Celle qui SUIT le chevron était déjà là — c'est ce
+#  qu'Alex avait relevé — et elle n'a pas été doublée.
 if [ -n "${BASH_VERSION:-}" ]; then
 	case "${TERM:-dumb}" in
 		dumb|linux-m|unknown) ;;
@@ -121,20 +142,20 @@ if [ -n "${BASH_VERSION:-}" ]; then
 				"")  PROMPT_COMMAND="__lexos_etat" ;;
 				*)   PROMPT_COMMAND="__lexos_etat; $PROMPT_COMMAND" ;;
 			esac
-			#  Le chevron : couleur de saisie quand tout va bien, ROUGE
-			#  quand la commande précédente a échoué — une commande qui
-			#  n'existe pas rend 127, et la ligne suivante s'ouvre donc en
-			#  rouge.
+			#  Le chevron : VERT quand tout va bien — c'est la machine qui
+			#  l'écrit, comme le nom et le chemin —, ROUGE quand la commande
+			#  précédente a échoué. Une commande qui n'existe pas rend 127,
+			#  et l'invite suivante s'ouvre donc en rouge.
 			__lexos_fleche() {
 				if [ "${__lexos_code:-0}" = "0" ]; then
-					printf '\033[%sm' "$__LEXOS_C_SAISIE"
+					printf '\033[%sm' "$__LEXOS_C_MACHINE"
 				else
 					printf '\033[%sm' "$__LEXOS_C_ERREUR"
 				fi
 			}
 			#  PS1 est en apostrophes simples : bash le REDÉVELOPPE à chaque
 			#  affichage, donc les ${__LEXOS_C_*} suivent le thème courant.
-			PS1='\[\033[${__LEXOS_C_MACHINE}m\]\u\[\033[2m\]@\[\033[0m\033[${__LEXOS_C_MACHINE}m\]\h\[\033[0m\] \[\033[${__LEXOS_C_SAISIE}m\]\w\[\033[0m\]\[\033[${__LEXOS_C_DIM}m\]$(__lexos_git_branch)\[\033[0m\]\n\[$(__lexos_fleche)\]❯\[\033[0m\] \[\033[${__LEXOS_C_SAISIE}m\]'
+			PS1='\[\033[${__LEXOS_C_MACHINE}m\]\u\[\033[2m\]@\[\033[0m\033[${__LEXOS_C_MACHINE}m\]\h\[\033[0m\] \[\033[${__LEXOS_C_MACHINE}m\]\w\[\033[0m\]\[\033[${__LEXOS_C_DIM}m\]$(__lexos_git_branch)\[\033[0m\] \[$(__lexos_fleche)\]❯\[\033[0m\] \[\033[${__LEXOS_C_TEXTE}m\]'
 			PS0='\e[0m'
 			;;
 	esac

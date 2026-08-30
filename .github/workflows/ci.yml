@@ -1480,6 +1480,23 @@ jobs:
           done
           bash tests/test_lexos_terminal.sh
 
+      - name: L'invite du terminal — une ligne, vert pour LexOS, blanc pour la frappe
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, PHOTO DU TERMINAL, DEUX REMARQUES : « la ligne est pas
+          #  complète et a déjà une espace, faire en sorte que ça suive » —
+          #  l'invite tenait sur deux lignes, le chevron seul sur la seconde ;
+          #  et « écriture blanc pour écriture de utilisateur, vert pour
+          #  lexos » — le chemin et le chevron étaient orange, et la frappe
+          #  héritait de cet orange.
+          #
+          #  Aucun banc de ce dépôt ne lisait interactive.sh : l'invite était
+          #  la pièce la plus vue de LexOS et la seule sans filet. Celui-ci
+          #  fait DÉVELOPPER PS1 par un vrai bash interactif (${PS1@P}) et
+          #  relit les séquences ANSI qui en sortent — il ne cherche pas
+          #  « \n » dans le fichier, il regarde ce que le terminal affichera.
+          bash tests/test_lexos_invite.sh
+
       - name: Bluetooth — un balayage refusé n'est plus annoncé comme réussi
         if: ${{ !cancelled() }}
         run: |
