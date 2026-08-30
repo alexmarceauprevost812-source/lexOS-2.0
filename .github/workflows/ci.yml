@@ -1508,6 +1508,25 @@ jobs:
           #  posait.
           bash tests/test_lexos_icones_theme.sh
 
+      - name: Le gestionnaire de fichiers — le dossier orange, pas un engrenage
+        if: ${{ !cancelled() }}
+        run: |
+          #  TROISIÈME SIGNALEMENT D'ALEX SUR LE MÊME SUJET. Les deux
+          #  correctifs précédents partaient du même pari : que Thunar
+          #  réclame une des écritures qu'on a devinées, et que GTK aille la
+          #  chercher là où on croit. Le second était même un NON-ÉVÉNEMENT —
+          #  le crochet 0605 réécrit index.theme d'après le disque, donc le
+          #  dossier qu'on venait d'y déclarer y figurait déjà.
+          #
+          #  On n'espère plus : une copie du .desktop de Thunar est posée
+          #  dans /usr/local/share/applications avec « Icon=folder-open »,
+          #  le seul dossier du thème dont les photos prouvent qu'il est
+          #  parcouru. Le banc EXÉCUTE le vrai fragment du crochet 0400 sur
+          #  trois disques fabriqués — nom Debian classique, nom renommé,
+          #  .desktop sans ligne Icon= — et sur un disque vide, pour vérifier
+          #  qu'une absence de Thunar se DIT au lieu de casser l'ISO.
+          bash tests/test_lexos_fichiers_icone.sh
+
       - name: Carrés noirs de la Logithèque et luminosité des Paramètres
         if: ${{ !cancelled() }}
         run: |
