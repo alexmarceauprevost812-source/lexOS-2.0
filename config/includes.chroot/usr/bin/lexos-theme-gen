@@ -1297,6 +1297,40 @@ LEXOS_BTN_FG=${BTN_FG}
 LEXOS_TERM_FG=${TERM_FG}
 EOF
 
+# =============================================================================
+#  6. Dire le mode à libadwaita, qui n'écoute PAS GTK 3
+# =============================================================================
+#  ALEX, PHOTOS DE LA LOGITHÈQUE : « on voit pas les écritures ». Cartes
+#  blanches, nom écrit en blanc dessus. La cause, relevée mot pour mot dans le
+#  binaire de libadwaita :
+#
+#      « Using GtkSettings:gtk-application-prefer-dark-theme with libadwaita
+#        is unsupported. Please use AdwStyleManager:color-scheme instead. »
+#
+#  Tout le mode sombre de LexOS passe par ce réglage GTK 3. Les applications
+#  GTK 4 + libadwaita — la Logithèque en tête — l'ignorent explicitement et
+#  rendent en CLAIR. Ce qu'elles lisent, c'est « org.gnome.desktop.interface
+#  color-scheme » (relevé dans le même binaire, valeurs confirmées dans le
+#  schéma de gsettings-desktop-schemas : default | prefer-dark | prefer-light).
+#
+#  Le DÉFAUT de la clé est posé pour tout le monde par
+#  90-lexos-sombre.gschema.override, compilé par le crochet 0600. Ce bloc-ci
+#  fait l'autre moitié, celle que la surcharge ne peut pas faire : suivre le
+#  mode COURANT. Sans lui, « lexos theme clair » donnerait un bureau de jour
+#  avec une Logithèque restée sombre — le même désaccord, dans l'autre sens.
+#
+#  ═══ POURQUOI TANT DE GARDES ═══
+#  Ce générateur tourne aussi dans le chroot de construction (HOME=/etc/skel),
+#  où il n'y a ni session ni bus D-Bus : gsettings n'y écrirait rien et
+#  crierait sur la sortie d'erreur. On n'essaie donc QUE si l'on écrit dans
+#  son propre foyer ET qu'un bus de session existe. Un échec ne coûte rien :
+#  le défaut de la surcharge reste le bon point de départ.
+if [[ "$TARGET" == "$HOME" && -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]] \
+   && command -v gsettings >/dev/null 2>&1; then
+	if [[ "$MODE" == "clair" ]]; then COLOR_SCHEME="prefer-light"; else COLOR_SCHEME="prefer-dark"; fi
+	gsettings set org.gnome.desktop.interface color-scheme "$COLOR_SCHEME" 2>/dev/null || true
+fi
+
 if [[ "$MODE" == "clair" ]]; then
 	printf 'Thème LexOS — jour (clair) généré — accent : %s (%s)\n' "$ACCENT_NAME" "$ACCENT"
 else

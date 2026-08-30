@@ -2320,6 +2320,12 @@ body:not(.crt) .win.closing{animation:fadeOut .15s ease-in forwards}
 .qs-headbtn{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;
   justify-content:center;color:var(--fg-dim);font-size:14px}
 .qs-headbtn:hover{background:var(--bg-hi);color:var(--fg)}
+/*  Le gris des espaces vides — voir qsRender(). Même valeur que --qs-plaque
+    dans ui.css côté ISO : un blanc à 8 %, qui suit donc le mode clair sans
+    règle supplémentaire. */
+.qs-plaque{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.07);
+  border-radius:14px;padding:10px}
+body.light .qs-plaque{background:rgba(0,0,0,.05);border-color:rgba(0,0,0,.07)}
 .qs-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .qs-grid.compact{grid-template-columns:repeat(4,1fr)}
 .qs-tile{background:var(--bg-hi);border:1px solid var(--bd);border-radius:12px;
@@ -9493,16 +9499,24 @@ function qsRender(){
   if(!compact){
     tiles.push(
       qsTileHTML("perf",perfGauge(19),"Performance", PERF_LABEL[state.perf].split(" —")[0], state.perf==="performant"||state.perf==="max", false, false),
-      qsTileHTML("theme", state.mode==="clair"?"☀":"🌑", state.mode==="clair"?"Style clair":"Style sombre",
-        state.mode==="clair"?"Thème de jour":"LexOS Noir", state.mode==="clair", false, false),
+      /*  PAS DE TUILE JOUR/NUIT ICI. Alex : « les paramètres rapides,
+          supprimer pour le thème de jour et de nuit, et garder le thème de
+          nuit officiel. » LexOS Noir est le thème, pas une option parmi deux.
+          La bascule reste dans Paramètres → Apparence (setMode), comme sur
+          l'ISO où « lexos theme clair » et la page Apparence la gardent :
+          c'est le raccourci qui disparaît, pas la possibilité. */
       qsTileHTML("clavier","⌨","Clavier", "Français (Québec)", false, false, false),
       qsTileHTML("crt","📺","Effets TV 1980", state.crt?"Activés":"Désactivés", state.crt, false, false),
     );
   }
   const sub = (qsExpanded && !compact) ? `<div class="qs-sub">${qsSubHTML(qsExpanded)}</div>` : "";
+  /*  LA PLAQUE GRISE. Alex : « les boutons sont bien parfaits, juste ajouter
+      du gris autour des boutons. » Les tuiles ne changent pas ; c'est le vide
+      entre elles et autour d'elles qui prend une couleur. Même règle et même
+      jeton que dans l'ISO (volet/web/style.css, .qs-plaque) : parité oblige. */
   return `<div class="qs-head"><span class="t">Paramètres rapides</span>`+
     `<button class="qs-headbtn" onclick="event.stopPropagation();qsToggleCompact()" title="${compact?"Agrandir":"Réduire"}">${compact?"⤢":"⤡"}</button></div>`+
-    `<div class="qs-grid${compact?" compact":""}">${tiles.join("")}${sub}</div>`;
+    `<div class="qs-plaque"><div class="qs-grid${compact?" compact":""}">${tiles.join("")}${sub}</div></div>`;
 }
 function qsExpand(key){ qsExpanded=(qsExpanded===key)?null:key; qsRefresh(); }
 function qsTileClick(key){

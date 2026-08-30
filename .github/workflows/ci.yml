@@ -1781,6 +1781,50 @@ jobs:
           #  redemanderait un mot de passe à chaque ouverture.
           bash tests/test_lexos_logitheque.sh
 
+      - name: La Logithèque doit être SOMBRE — sinon son écriture est invisible
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, trois photos : « la Logithèque, on voit pas les écritures ».
+          #  Cartes blanches, nom écrit en blanc dessus. La cause est dans le
+          #  binaire de libadwaita, mot pour mot : « Using GtkSettings:gtk-
+          #  application-prefer-dark-theme with libadwaita is unsupported. »
+          #  Tout notre mode sombre passe par CE réglage-là : la Logithèque
+          #  l'ignorait et rendait en clair.
+          #
+          #  Le banc ne se contente pas de lire le fichier de surcharge : il
+          #  le COMPILE avec le vrai glib-compile-schemas et RELIT la valeur
+          #  avec gsettings, puis retire la surcharge et recompile pour
+          #  prouver qu'il voit la différence. Sans ces deux paquets, il
+          #  échouerait faute d'outil — et il a raison d'échouer plutôt que
+          #  de se sauter en silence : on répare l'outillage, pas le contrôle.
+          command -v glib-compile-schemas >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends libglib2.0-bin >/dev/null
+          [ -r /usr/share/glib-2.0/schemas/org.gnome.desktop.interface.gschema.xml ] \
+            || sudo apt-get install -y --no-install-recommends gsettings-desktop-schemas >/dev/null
+          bash tests/test_lexos_logitheque_sombre.sh
+
+      - name: Paramètres rapides — le gris autour des boutons, mesuré à l'écran
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « les boutons sont bien parfaits, juste ajouter du gris
+          #  autour des boutons » — et, dans le même message, retirer la
+          #  bascule jour/nuit du volet.
+          #
+          #  La contrainte compte autant que l'envie : les tuiles ne doivent
+          #  PAS changer. Une couleur composée de trois calques translucides
+          #  ne se lit pas dans la feuille de style, alors le banc rend le
+          #  VRAI balisage dans un vrai moteur et relève les pixels : le vide
+          #  doit devenir gris, la tuile rester exactement #141416. Puis il
+          #  neutralise la plaque et recommence — si rien ne change, la mesure
+          #  ne prouvait rien.
+          python3 -c 'import PIL' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
+          command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1 \
+            || command -v google-chrome >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends chromium-browser >/dev/null 2>&1 \
+            || sudo snap install chromium >/dev/null 2>&1 || true
+          bash tests/test_lexos_rapides_gris.sh
+
       - name: Fuseau horaire — la position réelle, pas Toronto par défaut
         if: ${{ !cancelled() }}
         run: |

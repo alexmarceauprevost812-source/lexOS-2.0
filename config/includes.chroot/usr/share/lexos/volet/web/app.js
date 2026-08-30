@@ -266,13 +266,33 @@ function rapidesHTML(){
     qsTileHTML("avion", "✈️", "Mode avion", avionOn ? "Activé" : "Désactivé", avionOn, false),
     qsTileHTML("partage", "📤", "Partager", "Envoyer un fichier", false, false),
     qsTileHTML("perf", "⚡", "Performance", r.perfLabel || "", r.perf === "performant" || r.perf === "max", false),
-    qsTileHTML("theme", r.theme === "clair" ? "☀️" : "🌑", r.theme === "clair" ? "Style clair" : "Style sombre",
-               r.theme === "clair" ? "Thème de jour" : "LexOS Noir", r.theme === "clair", false),
+    //  ═══ PAS DE TUILE JOUR/NUIT ICI ═══
+    //  ALEX : « les paramètres rapides, supprimer pour le thème de jour et de
+    //  nuit, et garder le thème de nuit officiel. » LexOS Noir EST le thème,
+    //  pas une option parmi deux : une bascule à portée de pouce invitait à
+    //  quitter le seul mode que tout le reste de l'ISO suppose.
+    //
+    //  Le thème de jour n'est pas supprimé pour autant — « lexos theme clair »
+    //  le donne toujours, et cette page le suit (voir appliqueModeVolet()).
+    //  Ce qui disparaît, c'est le raccourci, pas la possibilité.
     qsTileHTML("clavier", "⌨️", "Clavier", "Français (Québec)", false, false),
     qsTileHTML("crt", "📺", "Effets TV 1980", r.crt ? "Activés" : "Désactivés", r.crt, false),
   ];
-  return `<div class="qs-head"><span class="t">Paramètres rapides</span></div>
-    <div class="qs-grid">${tuiles.join("")}</div>`;
+  //  ═══ LA PLAQUE GRISE ═══
+  //  ALEX : « autour des boutons c'est déjà joli, mais on pourrait mettre du
+  //  gris où les espaces vides pour que ça fasse encore plus joli » — puis,
+  //  pour lever le doute : « les boutons sont bien parfaits, juste ajouter
+  //  du gris autour des boutons. »
+  //
+  //  Les tuiles ne bougent donc PAS d'un pixel. Ce qui change, c'est le vide
+  //  autour : elles touchaient presque le bord du volet (2 px), posées à même
+  //  le noir. Elles reposent maintenant sur une plaque grise qui prend toute
+  //  la hauteur restante — le gris remplit les gouttières entre les tuiles,
+  //  le pourtour, et le grand vide sous la dernière rangée.
+  return `<div class="qs">
+      <div class="qs-head"><span class="t">Paramètres rapides</span></div>
+      <div class="qs-plaque"><div class="qs-grid">${tuiles.join("")}</div></div>
+    </div>`;
 }
 async function rapidesClic(cle){
   await api(`rapides-${cle}`);

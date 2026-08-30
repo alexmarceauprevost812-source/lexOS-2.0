@@ -231,6 +231,50 @@ if [ -f "$DOCK_DB" ] && [ -n "${LEXOS_DOCK_POSITION:-}" ]; then
 	esac
 fi
 
+# --- Schémas GSettings : compiler NOS surcharges ----------------------------
+#  ALEX, PHOTOS DE LA LOGITHÈQUE : « on voit pas les écritures ». Les cartes
+#  des applications étaient BLANCHES, le nom écrit en blanc dessus.
+#
+#  La cause tient en une phrase, et c'est libadwaita qui la dit — relevée mot
+#  pour mot dans son binaire : « Using GtkSettings:gtk-application-prefer-dark-
+#  theme with libadwaita is unsupported. » Notre mode sombre est annoncé par
+#  CE réglage-là (juste au-dessus, dans /etc/gtk-3.0/settings.ini), donc la
+#  Logithèque — GTK 4 + libadwaita — l'ignorait et rendait en CLAIR.
+#  90-lexos-sombre.gschema.override lui parle enfin sa langue :
+#  « org.gnome.desktop.interface color-scheme=prefer-dark ».
+#
+#  ═══ ET SANS CETTE LIGNE-CI, CE FICHIER NE SERVIRAIT À RIEN ═══
+#  Une surcharge n'agit qu'une fois COMPILÉE dans gschemas.compiled. Les
+#  paquets le font par un déclencheur dpkg — mais eux s'installent AVANT que
+#  includes.chroot ne dépose notre fichier. Le correctif serait donc arrivé
+#  après le seul moment où quelqu'un compilait : présent dans l'ISO, et sans
+#  aucun effet. Exactement le piège des icônes non déclarées.
+#
+#  Non bloquant, et sûr : glib-compile-schemas IGNORE une surcharge qui vise
+#  un schéma absent (vérifié — code de retour 0, gschemas.compiled quand même
+#  écrit), donc une Logithèque non installée ne peut pas casser la construction.
+SCHEMAS_DIR="/usr/share/glib-2.0/schemas"
+if command -v glib-compile-schemas >/dev/null 2>&1; then
+	if glib-compile-schemas "$SCHEMAS_DIR" >/dev/null 2>&1; then
+		echo "[lexos]   schémas GSettings recompilés"
+	else
+		echo "[lexos]   !! glib-compile-schemas a échoué (non bloquant)"
+	fi
+	#  ON VÉRIFIE, AU LIEU D'ESPÉRER. Une surcharge silencieusement écartée
+	#  (schéma absent, faute de frappe dans le nom de la clé) ne se verrait
+	#  autrement que sur une photo de la Logithèque, trois jours plus tard.
+	if command -v gsettings >/dev/null 2>&1; then
+		VU_SCHEME="$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null || true)"
+		case "$VU_SCHEME" in
+			*prefer-dark*) echo "[lexos]   color-scheme : ${VU_SCHEME} — la Logithèque sera sombre" ;;
+			"")            echo "[lexos]   !! org.gnome.desktop.interface absent — surcharge sans effet (Logithèque non installée ?)" ;;
+			*)             echo "[lexos]   !! color-scheme vaut ${VU_SCHEME} : la Logithèque resterait en clair" ;;
+		esac
+	fi
+else
+	echo "[lexos]   !! glib-compile-schemas absent — la Logithèque resterait en clair"
+fi
+
 # --- Base de données dconf (dock Plank + effets Compiz) ---------------------
 if command -v dconf >/dev/null 2>&1; then
 	dconf update >/dev/null 2>&1 \
