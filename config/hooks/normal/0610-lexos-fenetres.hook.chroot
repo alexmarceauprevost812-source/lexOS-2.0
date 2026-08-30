@@ -346,6 +346,9 @@ pose_conf() {
 #  L'état « inactive » reste GRIS pour tous : Arc grise les boutons d'une
 #  fenêtre sans focus, le rouge compris. Des pastilles vives sur une fenêtre
 #  d'arrière-plan attireraient l'œil vers la mauvaise.
+#  Le cran de réduction des trois pastilles, en pourcentage du diamètre
+#  relevé sur le bouton fermer. 100 = la taille d'origine.
+PASTILLE_ECHELLE="${LEXOS_PASTILLE_ECHELLE:-78}"
 PASTILLE_INACTIVE="#666A74"
 #  Jaune — réduire.
 JAUNE_ACTIF="#E5B027"; JAUNE_SURVOL="#F0C351"; JAUNE_PRESSE="#C4941A"
@@ -421,6 +424,15 @@ pastille() {
 	_diam="$7"
 	case "$_diam" in ''|*[!0-9]*) _diam=0 ;; esac
 	[ "$_diam" -gt 3 ] && [ "$_diam" -le "$_c" ] || _diam=$(( _c * 7 / 10 ))
+	#  ═══ UN CRAN PLUS PETIT ═══
+	#  ALEX, après l'ISO 97 : « on pourrait les mettre un peu plus petits, les
+	#  3 boutons à droite de l'écran ». Le diamètre relevé sur le bouton fermer
+	#  reste la RÉFÉRENCE — c'est lui qui garantit que les trois se
+	#  ressemblent, et il ne faut surtout pas y renoncer — mais on le réduit
+	#  d'un cran avant de dessiner. Réduire ici plutôt qu'ailleurs garde la
+	#  propriété qui compte : les trois passent par le même chiffre.
+	_diam=$(( _diam * PASTILLE_ECHELLE / 100 ))
+	[ "$_diam" -gt 3 ] || _diam=4
 	_r=$(( _diam / 2 ))         # le rayon du disque
 	_m=$(( _c / 2 ))            # le centre
 	_d=$(( _r / 2 ))            # demi-largeur du glyphe : 50 % du disque

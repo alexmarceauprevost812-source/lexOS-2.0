@@ -485,30 +485,58 @@ for f in FAM:
     if taille != (40, 40):
         pb.append("%s : toile %dx%d au lieu de 40x40" % ((f,) + taille))
 
-#  2. Et le dessin À L'INTÉRIEUR fait la même hauteur partout : c'est la
-#     demande exacte — agrandir et menu aussi gros que fermer.
+#  2. Et le dessin À L'INTÉRIEUR fait la même hauteur DANS CHAQUE FAMILLE.
+#
+#     DEUX FAMILLES, ET C'EST VOULU DEPUIS QU'ALEX A DEMANDÉ « un peu plus
+#     petits ». Les trois pastilles (fermer, réduire, mettre de côté) sont
+#     NOS dessins : peintes en dernier, à un diamètre réduit d'un cran, et
+#     rigoureusement identiques entre elles — la section 7 le vérifie au
+#     cadre près. Les autres (menu, ombrer, épingler) restent les images
+#     d'Arc passées par l'égalisation, et ne figurent même pas dans la
+#     rangée de titre de LexOS (button_layout = « |HMC »).
+#
+#     Exiger une seule taille pour les six rendrait ce contrôle FAUX : il
+#     rougirait sur un choix délibéré. Exiger la cohérence DANS chaque
+#     famille garde ce qu'il protégeait vraiment — la panne d'origine, où
+#     « menu » restait à 16 px pendant que le reste passait à 40.
+PASTILLES = ("close", "hide", "maximize")
+AUTRES = tuple(f for f in FAM if f not in PASTILLES)
 hauteurs = {f: encre(f + "-active")[1] for f in FAM}
-ref = hauteurs["close"]
-if ref <= 0:
+if hauteurs["close"] <= 0:
     pb.append("fermer n'a pas de dessin")
-for f, h in hauteurs.items():
-    if abs(h - ref) > 1:
-        pb.append("%s : dessin de %d px contre %d pour fermer" % (f, h, ref))
+for famille, nom in ((PASTILLES, "pastilles"), (AUTRES, "autres boutons")):
+    refs = [hauteurs[f] for f in famille if hauteurs[f] > 0]
+    if len(refs) != len(famille):
+        pb.append("%s : un dessin manque" % nom)
+        continue
+    r = refs[0]
+    for f in famille:
+        if abs(hauteurs[f] - r) > 1:
+            pb.append("%s : %s fait %d px contre %d" % (nom, f, hauteurs[f], r))
+#     ET LES PASTILLES DOIVENT ÊTRE PLUS PETITES QUE LES AUTRES, sinon la
+#     réduction demandée n'a pas eu lieu là où on la regarde.
+if hauteurs["close"] >= hauteurs["menu"]:
+    pb.append("les pastilles (%d px) n'ont pas rétréci face aux autres (%d px)"
+              % (hauteurs["close"], hauteurs["menu"]))
 
-#  3. Le dessin ne doit pas non plus déborder : « -extent » rognerait.
-if ref > 40:
-    pb.append("le dessin (%d) depasse la toile (40)" % ref)
+#  3. Aucun dessin ne déborde de sa toile : « -extent » rognerait.
+#  4. Et aucun n'est resté minuscule : sur le faux thème, « agrandir » part de
+#     10 px d'encre dans 28 de toile, et c'est la panne d'origine — un bouton
+#     qu'on ne peut pas viser. Les DEUX familles sont mesurées : les pastilles
+#     ont beau être réduites d'un cran, elles doivent rester cliquables.
+for f in FAM:
+    h = hauteurs[f]
+    if h > 40:
+        pb.append("%s : le dessin (%d) depasse la toile (40)" % (f, h))
+    if h < 20:
+        pb.append("%s : dessin de %d px seulement — trop petit pour être visé" % (f, h))
 
-#  4. Et il doit avoir GRANDI par rapport à la source : sur le faux thème,
-#     « agrandir » partait de 10 px d'encre dans 28 de toile.
-if ref < 20:
-    pb.append("dessin de %d px seulement — les boutons n'ont pas grossi" % ref)
-
-print("OK %d px" % ref if not pb else "PB " + " | ".join(pb))
+print("OK pastilles %d px, autres %d px" % (hauteurs["close"], hauteurs["menu"])
+      if not pb else "PB " + " | ".join(pb))
 PY
 )"
 	case "$VB" in
-		OK*) ok "les six familles de boutons : même toile, même dessin ($VB)" ;;
+		OK*) ok "boutons : même toile pour les six, et chaque famille à sa taille ($VB)" ;;
 		*)   non "boutons : $VB" ;;
 	esac
 
@@ -635,16 +663,38 @@ PY3
 		non "les pastilles diffèrent : $PB7"
 	fi
 
-	#  ═══ ET LE ROUGE N'A PAS MAIGRI ═══ « Que le bouton rouge reste la même
-	#  grandeur que sa photo. » Il est repeint, donc il pourrait rétrécir sans
-	#  que le contrôle d'égalité ci-dessus s'en aperçoive — les trois
-	#  rétréciraient ensemble.
+	#  ═══ LE CRAN DE RÉDUCTION EST APPLIQUÉ, ET AUX TROIS ═══
+	#  ALEX, après l'ISO 97 : « on pourrait les mettre un peu plus petits, les
+	#  3 boutons à droite de l'écran ».
+	#
+	#  Le diamètre relevé sur le bouton fermer reste la RÉFÉRENCE — c'est lui
+	#  qui garantit que les trois se ressemblent. On le réduit d'un cran avant
+	#  de dessiner, et ce contrôle vérifie que la réduction a bien eu lieu :
+	#  sans lui, remettre le facteur à 100 passerait inaperçu, le contrôle
+	#  d'égalité ci-dessus restant vert — les trois grossiraient ENSEMBLE.
+	ECHELLE7="$(sed -n 's/^PASTILLE_ECHELLE=.*:-\([0-9]*\)}"$/\1/p' "$HOOK" | head -1)"
 	DIAM7="$(printf '%s' "$SORTIE7" | sed -n 's/.*diamètre du bouton rouge relevé à \([0-9]*\) px.*/\1/p' | head -1)"
 	TAILLE7="$(lire7 TAILLE)"; TAILLE7="${TAILLE7%%x*}"
-	if [ -n "$DIAM7" ] && [ -n "$TAILLE7" ] 		&& [ "$TAILLE7" -ge "$(( DIAM7 - 2 ))" ] && [ "$TAILLE7" -le "$(( DIAM7 + 2 ))" ]; then
-		ok "le rouge garde son diamètre (relevé ${DIAM7} px, redessiné ${TAILLE7} px)"
+	if [ -z "$ECHELLE7" ]; then
+		non "le facteur de réduction est introuvable dans le crochet"
+	elif [ "$ECHELLE7" -ge 100 ]; then
+		non "le facteur vaut ${ECHELLE7} % : les pastilles n'ont pas rétréci"
+	elif [ "$ECHELLE7" -lt 50 ]; then
+		non "le facteur vaut ${ECHELLE7} % : les pastilles seraient difficiles à viser"
 	else
-		non "le rouge a changé de taille : relevé « ${DIAM7:-?} », redessiné « ${TAILLE7:-?} »"
+		ok "les pastilles sont réduites à ${ECHELLE7} % — « un peu plus petits »"
+	fi
+	#  Et la réduction se retrouve DANS L'IMAGE, pas seulement dans la
+	#  variable : le dessin doit mesurer le diamètre relevé fois le facteur.
+	if [ -n "$DIAM7" ] && [ -n "$TAILLE7" ] && [ -n "$ECHELLE7" ]; then
+		ATTENDU7=$(( DIAM7 * ECHELLE7 / 100 ))
+		if [ "$TAILLE7" -ge "$(( ATTENDU7 - 2 ))" ] && [ "$TAILLE7" -le "$(( ATTENDU7 + 2 ))" ]; then
+			ok "et l'image le montre : ${DIAM7} px relevés → ${TAILLE7} px dessinés"
+		else
+			non "l'image ne suit pas le facteur : attendu ~${ATTENDU7} px, dessiné ${TAILLE7} px"
+		fi
+	else
+		non "impossible de comparer : relevé « ${DIAM7:-?} », dessiné « ${TAILLE7:-?} »"
 	fi
 
 	#  Et chacune garde SA couleur : trois pastilles identiques mais toutes
