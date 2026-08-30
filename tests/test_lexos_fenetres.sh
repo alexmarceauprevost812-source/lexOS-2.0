@@ -528,5 +528,154 @@ PY
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
+titre "7. Les trois pastilles, à la taille du bouton rouge"
+# ═════════════════════════════════════════════════════════════════════════════
+#  ALEX, capture zoomée de la barre de titre : « ils sont pas de la même
+#  grandeur — ce qu'on a ajouté pour réduire les fenêtres, les mettre de la
+#  même grandeur », puis, sans ambiguïté : « fais en sorte que le bouton rouge
+#  reste la même grandeur que sa photo », « même grandeur que le rouge ».
+#
+#  ═══ CE QUI N'ALLAIT PAS, ET POURQUOI AUCUN BANC NE L'A VU ═══
+#  Les pastilles étaient peintes à la taille d'ORIGINE, puis egaliser_boutons()
+#  devait les mettre à l'échelle avec le reste. Cette fonction normalise le
+#  rapport encre/toile — elle ne peut égaliser que ce qu'elle a réussi à
+#  mesurer ET à retailler, et tout bouton qu'elle saute reste à 28 px pendant
+#  que les autres passent à 40. Deux mécaniques devaient tomber d'accord ;
+#  chez Alex elles ne sont pas tombées d'accord.
+#
+#  Reproduit sur ce banc AVANT le correctif : tant que tout se passait bien,
+#  les trois sortaient identiques. Autrement dit l'accord tenait par chance,
+#  et rien ne le garantissait — un banc qui n'éprouve que le beau temps.
+#
+#  ═══ CE QUE CE CONTRÔLE ÉPROUVE ═══
+#  Il donne au faux thème un bouton FERMER d'une autre taille que les deux
+#  autres — la situation même qui produit la photo d'Alex — puis exige que
+#  les trois sortent RIGOUREUSEMENT identiques. Avec le vrai ImageMagick :
+#  un faux binaire dirait oui à n'importe quoi.
+if [ -z "${VRAI_IM:-}" ]; then
+	non "ni magick ni convert — la taille des pastilles n'a PAS été éprouvée"
+else
+	prepare
+	rm -rf "${BANC:?}/bin"; mkdir -p "$BANC/bin"
+	ln -sf "$VRAI_IM" "$BANC/bin/$VRAI_NOM"
+	fabrique_theme "$BANC/racine/themes/Arc-Dark"
+
+	#  Le bouton rouge d'Arc porte un disque, les deux autres de simples
+	#  traits : c'est cette DISSYMÉTRIE qui a fait diverger les tailles.
+	D0="$BANC/racine/themes/Arc-Dark/xfwm4"
+	python3 - "$D0" <<'PY2'
+import sys
+from PIL import Image, ImageDraw
+d = sys.argv[1]
+for etat in ("active", "prelight", "pressed", "inactive"):
+    im = Image.new("RGBA", (28, 28), (0, 0, 0, 0))
+    g = ImageDraw.Draw(im)
+    #  Disque de 22 px : nettement plus gros que le trait de 11x3 des deux
+    #  autres. Sans cet écart, le banc ne reproduirait rien.
+    g.ellipse((3, 3, 25, 25), fill=(204, 87, 93, 255))
+    g.line((10, 10, 18, 18), fill=(47, 52, 63, 255), width=2)
+    g.line((18, 10, 10, 18), fill=(47, 52, 63, 255), width=2)
+    im.save(f"{d}/close-{etat}.png")
+    plat = Image.new("RGBA", (28, 28), (0, 0, 0, 0))
+    ImageDraw.Draw(plat).rectangle((9, 13, 19, 15), fill=(182, 186, 196, 255))
+    plat.save(f"{d}/hide-{etat}.png")
+    carre = Image.new("RGBA", (28, 28), (0, 0, 0, 0))
+    ImageDraw.Draw(carre).rectangle((9, 9, 19, 19), outline=(182, 186, 196, 255), width=2)
+    carre.save(f"{d}/maximize-{etat}.png")
+PY2
+
+	SORTIE7="$(lance)"
+	D7="$BANC/racine/themes/LexOS-Arc-Dark/xfwm4"
+
+	#  Le journal doit DIRE le diamètre relevé : sans cette ligne, une mesure
+	#  qui retombe sur son repli passerait inaperçue.
+	echo "$SORTIE7" | grep -q 'diamètre du bouton rouge relevé' 		&& ok "le crochet relève le diamètre du bouton rouge et l'annonce" 		|| non "le diamètre du rouge n'est pas mesuré : la référence d'Alex est perdue"
+
+	for B in close hide maximize; do
+		echo "$SORTIE7" | grep -q "pastille « $B » peinte : 4/4" 			&& ok "« $B » est peinte dans ses quatre états" 			|| non "« $B » n'est pas peinte dans les quatre états"
+	done
+
+	VERDICT7="$(python3 - "$D7" <<'PY3'
+import sys
+from PIL import Image
+d = sys.argv[1]
+pb, mesures = [], {}
+for b in ("close", "hide", "maximize"):
+    try:
+        im = Image.open(f"{d}/{b}-active.png").convert("RGBA")
+    except Exception as e:
+        pb.append(f"{b} illisible ({e})")
+        continue
+    mesures[b] = (im.size, im.getbbox())
+
+if len(mesures) == 3:
+    toiles = {m[0] for m in mesures.values()}
+    encres = {m[1] for m in mesures.values()}
+    if len(toiles) != 1:
+        pb.append("toiles différentes : " + ", ".join(
+            f"{b}={m[0][0]}x{m[0][1]}" for b, m in mesures.items()))
+    if len(encres) != 1:
+        #  On donne le CADRE ENTIER, pas seulement sa largeur et sa hauteur :
+        #  deux dessins de 33x33 posés à des endroits différents ne sont pas
+        #  identiques, et un message qui n'affiche que « 33x33, 33x33 » laisse
+        #  le lecteur croire à un banc devenu fou.
+        pb.append("dessins non superposables (gauche,haut,droite,bas) : " + ", ".join(
+            f"{b}={m[1]}" for b, m in mesures.items()))
+    b0 = mesures["close"][1]
+    print("TAILLE:%dx%d" % (b0[2] - b0[0], b0[3] - b0[1]))
+    print("TOILE:%dx%d" % mesures["close"][0])
+print("PB:" + " | ".join(pb))
+PY3
+)"
+	lire7() { printf '%s' "$VERDICT7" | sed -n "s/^$1://p"; }
+	PB7="$(lire7 PB)"
+	if [ -z "$PB7" ]; then
+		ok "les trois pastilles sont RIGOUREUSEMENT identiques (dessin $(lire7 TAILLE) dans une toile de $(lire7 TOILE))"
+	else
+		non "les pastilles diffèrent : $PB7"
+	fi
+
+	#  ═══ ET LE ROUGE N'A PAS MAIGRI ═══ « Que le bouton rouge reste la même
+	#  grandeur que sa photo. » Il est repeint, donc il pourrait rétrécir sans
+	#  que le contrôle d'égalité ci-dessus s'en aperçoive — les trois
+	#  rétréciraient ensemble.
+	DIAM7="$(printf '%s' "$SORTIE7" | sed -n 's/.*diamètre du bouton rouge relevé à \([0-9]*\) px.*/\1/p' | head -1)"
+	TAILLE7="$(lire7 TAILLE)"; TAILLE7="${TAILLE7%%x*}"
+	if [ -n "$DIAM7" ] && [ -n "$TAILLE7" ] 		&& [ "$TAILLE7" -ge "$(( DIAM7 - 2 ))" ] && [ "$TAILLE7" -le "$(( DIAM7 + 2 ))" ]; then
+		ok "le rouge garde son diamètre (relevé ${DIAM7} px, redessiné ${TAILLE7} px)"
+	else
+		non "le rouge a changé de taille : relevé « ${DIAM7:-?} », redessiné « ${TAILLE7:-?} »"
+	fi
+
+	#  Et chacune garde SA couleur : trois pastilles identiques mais toutes
+	#  grises seraient « de la même grandeur » et parfaitement inutiles.
+	COUL7="$(python3 - "$D7" <<'PY4'
+import sys
+from PIL import Image
+d = sys.argv[1]
+attendu = {"close": (204, 87, 93), "hide": (229, 176, 39), "maximize": (154, 160, 172)}
+mauvais = []
+for b, cible in attendu.items():
+    im = Image.open(f"{d}/{b}-active.png").convert("RGBA")
+    L, H = im.size
+    #  Un point DANS le disque mais hors du glyphe central. Le premier jet
+    #  échantillonnait à L/5 du centre et tombait PILE sur le bord du tiret :
+    #  il lisait la couleur du creux et accusait le jaune d'être gris. Le
+    #  glyphe fait la moitié du rayon ; à 0,3 x la largeur on est dedans le
+    #  disque et dehors le glyphe, pour les trois dessins.
+    px = im.getpixel((L // 2 - int(L * 0.3), H // 2))
+    if px[3] < 200 or max(abs(a - b2) for a, b2 in zip(px[:3], cible)) > 12:
+        mauvais.append(f"{b}={px[:3]} au lieu de {cible}")
+print(" | ".join(mauvais))
+PY4
+)"
+	if [ -z "$COUL7" ]; then
+		ok "rouge, jaune et gris sont bien à leur place"
+	else
+		non "couleur(s) fausse(s) : $COUL7"
+	fi
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
 printf '\n%s réussi(s), %s échoué(s)\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

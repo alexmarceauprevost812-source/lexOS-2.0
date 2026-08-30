@@ -352,6 +352,10 @@ JAUNE_ACTIF="#E5B027"; JAUNE_SURVOL="#F0C351"; JAUNE_PRESSE="#C4941A"
 #  Gris — mettre de côté. Plus clair que la barre, sinon la pastille
 #  disparaîtrait dans le fond au lieu de se voir.
 GRIS_ACTIF="#9AA0AC";  GRIS_SURVOL="#B4BAC6";  GRIS_PRESSE="#7C8290"
+#  Rouge — fermer. #CC575D est LA couleur d'Arc, relevée dans close-active.png :
+#  on ne réinvente pas le bouton qu'Alex trouve déjà bon, on le REDESSINE avec
+#  la même géométrie que les deux autres. Voir juste en dessous pourquoi.
+ROUGE_ACTIF="#CC575D"; ROUGE_SURVOL="#DC6E73"; ROUGE_PRESSE="#B4454B"
 
 fond_barre() { # fond_barre <dossier xfwm4> → la couleur de la barre de titre
 	for _t in title-1-active title-3-active title-1-inactive; do
@@ -362,8 +366,10 @@ fond_barre() { # fond_barre <dossier xfwm4> → la couleur de la barre de titre
 	return 1
 }
 
-#  pastille <dossier> <bouton> <glyphe> <actif> <survol> <pressé>
-#  <glyphe> vaut « tiret » (réduire) ou « carre » (mettre de côté).
+#  pastille <dossier> <bouton> <glyphe> <actif> <survol> <pressé> <diamètre>
+#  <glyphe> vaut « croix » (fermer), « tiret » (réduire) ou « carre »
+#  (mettre de côté). <diamètre> est celui du bouton rouge, mesuré par
+#  pastilles_couleur() : les trois le partagent, c'est tout le correctif.
 pastille() {
 	_pd="$1"; _pb="$2"; _pg="$3"
 	if [ ! -f "$_pd/$_pb-active.png" ]; then
@@ -375,12 +381,47 @@ pastille() {
 		echo "[lexos]   !! barre de titre illisible — pastille $_pb non peinte"
 		return 1
 	fi
-	#  La toile garde EXACTEMENT la taille de l'original : egaliser_boutons()
-	#  compare les hauteurs entre boutons, une toile différente le fausserait.
-	_c="$(hauteur_png "$_pd/$_pb-active.png")"
-	case "$_c" in ''|*[!0-9]*) _c="$HAUTEUR_SRC" ;; esac
-	[ "$_c" -gt 0 ] || _c="$HAUTEUR_SRC"
-	_r=$(( _c / 4 ))            # rayon : la moitié du disque de 14 sur 28
+	#  ═══ LA TAILLE EST IMPOSÉE, PLUS DÉDUITE ═══
+	#  ALEX, capture zoomée de la barre de titre : « ils sont pas de la même
+	#  grandeur — ce qu'on a ajouté pour réduire les fenêtres, les mettre de
+	#  la même grandeur », puis « fais qu'il soit la même grandeur que le
+	#  bouton rouge ». Sur sa photo, le rouge est plus gros que le jaune et
+	#  le gris.
+	#
+	#  LE PREMIER MONTAGE DEMANDAIT À DEUX MÉCANIQUES DE TOMBER D'ACCORD.
+	#  On peignait les pastilles à la taille d'ORIGINE, puis on laissait
+	#  egaliser_boutons() les mettre à l'échelle avec les autres. Cette
+	#  fonction normalise le rapport ENCRE/TOILE : elle ne peut égaliser que
+	#  ce qu'elle a réussi à mesurer et à retailler, et tout bouton qu'elle
+	#  saute (encre illisible, retaille refusée) reste à 28 px pendant que
+	#  les autres passent à 40. C'est exactement ce que montre la photo.
+	#
+	#  Reproduit ici sur un faux thème Arc : tant que tout se passe bien, les
+	#  trois sortent identiques — donc l'accord tenait par chance, et rien ne
+	#  le garantissait. Sur la machine d'Alex il n'a pas tenu.
+	#
+	#  On arrête de dépendre de cet accord. Les pastilles sont maintenant
+	#  peintes APRÈS l'agrandissement, directement à la taille FINALE, avec
+	#  la même géométrie pour les trois. Elles ne peuvent plus différer : ce
+	#  sont trois exécutions du même dessin, aux mêmes chiffres.
+	#  ═══ ET LE DIAMÈTRE EST CELUI DU ROUGE, MESURÉ ═══
+	#  ALEX, en deux temps : « fais en sorte que le bouton rouge reste la
+	#  même grandeur que sa photo et mettre les autres [pareils] », puis
+	#  « même grandeur que le rouge ». Le rouge est donc la RÉFÉRENCE : il ne
+	#  doit pas bouger, les deux autres doivent le rejoindre.
+	#
+	#  On ne fixe donc pas un diamètre choisi ici — on MESURE celui que le
+	#  bouton fermer a déjà, tel qu'il sort d'egaliser_boutons(), et on peint
+	#  les trois à cette taille-là. Le rouge garde exactement l'allure de sa
+	#  photo, et le jaune et le gris deviennent son jumeau.
+	#  Le repli (14 sur 40, le disque d'Arc à l'échelle) ne sert que si la
+	#  mesure échoue : mieux vaut trois pastilles d'une taille raisonnable
+	#  que trois pastilles d'aucune taille.
+	_c="$HAUTEUR_DST"
+	_diam="$7"
+	case "$_diam" in ''|*[!0-9]*) _diam=0 ;; esac
+	[ "$_diam" -gt 3 ] && [ "$_diam" -le "$_c" ] || _diam=$(( _c * 7 / 10 ))
+	_r=$(( _diam / 2 ))         # le rayon du disque
 	_m=$(( _c / 2 ))            # le centre
 	_d=$(( _r / 2 ))            # demi-largeur du glyphe : 50 % du disque
 	[ "$_d" -gt 0 ] || _d=1
@@ -388,7 +429,13 @@ pastille() {
 	for _paire in "active:$4" "prelight:$5" "pressed:$6" "inactive:$PASTILLE_INACTIVE"; do
 		_etat="${_paire%%:*}"; _teinte="${_paire#*:}"
 		[ -f "$_pd/$_pb-$_etat.png" ] || continue
-		if [ "$_pg" = "carre" ]; then
+		if [ "$_pg" = "croix" ]; then
+			#  La croix de « fermer ». Même demi-largeur que le carré et
+			#  le tiret : c'est ce qui fait que les trois se ressemblent.
+			set -- -fill none -stroke "$_creux" -strokewidth 2 \
+			       -draw "line $(( _m - _d )),$(( _m - _d )) $(( _m + _d )),$(( _m + _d ))" \
+			       -draw "line $(( _m + _d )),$(( _m - _d )) $(( _m - _d )),$(( _m + _d ))"
+		elif [ "$_pg" = "carre" ]; then
 			#  Un carré CREUX : c'est le dessin universel d'« agrandir /
 			#  restaurer », et il se distingue du tiret d'un coup d'œil.
 			set -- -fill none -stroke "$_creux" -strokewidth 2 			       -draw "rectangle $(( _m - _d )),$(( _m - _d )) $(( _m + _d )),$(( _m + _d ))"
@@ -407,8 +454,29 @@ pastille() {
 }
 
 pastilles_couleur() { # pastilles_couleur <dossier xfwm4>
-	pastille "$1" hide     tiret "$JAUNE_ACTIF" "$JAUNE_SURVOL" "$JAUNE_PRESSE" || true
-	pastille "$1" maximize carre "$GRIS_ACTIF"  "$GRIS_SURVOL"  "$GRIS_PRESSE"  || true
+	#  ─── LA MESURE, PRISE UNE FOIS ET AVANT DE REPEINDRE QUOI QUE CE SOIT ───
+	#  Le bouton rouge est la référence d'Alex. On relève le diamètre qu'il a
+	#  DÉJÀ, tel qu'il sort de la chaîne d'agrandissement — après quoi il sera
+	#  repeint à ce même diamètre, donc sans changer d'allure, et les deux
+	#  autres avec lui. Mesurer après l'avoir repeint mesurerait notre propre
+	#  dessin : la référence serait perdue.
+	_pcd=0
+	if [ -f "$1/close-active.png" ]; then
+		_pcd="$(encre_hauteur "$1/close-active.png")"
+		case "$_pcd" in ''|*[!0-9]*) _pcd=0 ;; esac
+	fi
+	echo "[lexos]   pastilles : diamètre du bouton rouge relevé à ${_pcd} px"
+
+	#  LE ROUGE AUSSI EST REPEINT, et c'est le cœur du correctif. Le laisser
+	#  tel qu'Arc le livre, c'était garder comme référence une géométrie qu'on
+	#  ne contrôle pas. Repeint au diamètre qu'on vient de lui mesurer, il ne
+	#  change pas d'allure — mais les trois portent désormais le même disque,
+	#  au même centre, dans la même toile. « La même grandeur que le bouton
+	#  rouge » devient vrai par construction, et non par un calcul qui doit
+	#  tomber juste.
+	pastille "$1" close    croix "$ROUGE_ACTIF" "$ROUGE_SURVOL" "$ROUGE_PRESSE" "$_pcd" || true
+	pastille "$1" hide     tiret "$JAUNE_ACTIF" "$JAUNE_SURVOL" "$JAUNE_PRESSE" "$_pcd" || true
+	pastille "$1" maximize carre "$GRIS_ACTIF"  "$GRIS_SURVOL"  "$GRIS_PRESSE"  "$_pcd" || true
 }
 
 derive() {
@@ -421,11 +489,6 @@ derive() {
 	rm -rf "${THEMES:?}/${NOM_DST:?}"
 	mkdir -p "$DST"
 	cp -a "$SRC"/. "$DST"/
-	#  AVANT tout agrandissement : le bouton jaune doit passer par
-	#  egaliser_boutons() comme les autres, sinon il ressortirait d'une
-	#  autre taille qu'eux.
-	pastilles_couleur "$DST"
-
 	AGRANDIS=0
 	IGNORES=0
 	for f in "$DST"/*.png; do
@@ -448,6 +511,14 @@ derive() {
 
 	BOUTONS_FAITS="$(egaliser_boutons "$DST" "$HAUTEUR_DST")"
 	case "$BOUTONS_FAITS" in ''|*[!0-9]*) BOUTONS_FAITS=0 ;; esac
+
+	#  ═══ LES TROIS PASTILLES, EN DERNIER ET À LA TAILLE FINALE ═══
+	#  Elles étaient peintes avant l'agrandissement, à charge pour
+	#  egaliser_boutons() de les mettre à l'échelle avec les autres. Alex a
+	#  photographié le résultat : le rouge plus gros que le jaune et le gris.
+	#  Peintes ICI, après tout le reste, elles sortent aux mêmes chiffres
+	#  quoi qu'il arrive en amont — voir le long commentaire dans pastille().
+	pastilles_couleur "$DST"
 	AGRANDIS=$((AGRANDIS + BOUTONS_FAITS))
 
 	echo "[lexos]   $1 : ${AGRANDIS} images de la rangée du titre agrandies (${HAUTEUR_SRC} -> ${HAUTEUR_DST} px, boutons compris), ${IGNORES} bordures intactes"
