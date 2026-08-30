@@ -1432,6 +1432,20 @@ jobs:
           #  n'a rien vu, pas d'une recherche qui n'a jamais eu lieu.
           bash tests/test_lexos_bluetooth.sh
 
+      - name: Thème d'icônes — un dossier livré que GTK ne regardait pas
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, DEUX PHOTOS DU DOCK : « toujours le gestionnaire de
+          #  fichiers, il garde jamais l'image du fichier. » Les cinq icônes
+          #  de Thunar étaient bien dans l'ISO, dans apps/scalable — mais
+          #  « Directories= » de index.theme ne listait que places/scalable,
+          #  et la spécification freedesktop est formelle : un dossier absent
+          #  de cette liste n'est PAS parcouru. Cinq icônes livrées,
+          #  installées, jamais regardées. Ce banc éprouve que CHAQUE dossier
+          #  présent sur le disque est déclaré — la question que personne ne
+          #  posait.
+          bash tests/test_lexos_icones_theme.sh
+
       - name: Carrés noirs de la Logithèque et luminosité des Paramètres
         if: ${{ !cancelled() }}
         run: |
