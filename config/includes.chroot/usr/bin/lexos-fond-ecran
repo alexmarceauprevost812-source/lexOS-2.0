@@ -14,7 +14,7 @@
 #  l'utilisateur croit que ça n'a pas marché.
 #
 #  Limite dite franchement : un GIF animé posé ici ne bougera PAS — xfdesktop
-#  n'affiche que la première image. Pour un fond qui bouge : lexos-fond-anime.
+#  n'affiche que la première image.
 # =============================================================================
 set -uo pipefail
 
@@ -41,7 +41,6 @@ Usage :
   $PROG liste            Toutes les images trouvées, numérotées
   $PROG <numéro>         Appliquer l'image numéro N de la liste
   $PROG aleatoire        Une image au hasard
-  $PROG anime [fichier]  Fond ANIMÉ (vidéo ou GIF) — passe à lexos-fond-anime
   $PROG autocollant                    Les personnages posables, et ceux posés
   $PROG autocollant poser <nom> [coin] Poser un personnage sur le fond
   $PROG autocollant enlever            Retrouver le fond sans autocollants
@@ -111,11 +110,6 @@ appliquer() {
 	#  posée, mais recouverte. « Ça n'a pas marché », photo à l'appui.
 	#  « lexos wallpaper » le faisait déjà ; cette porte-ci l'oubliait — et
 	#  c'est la porte du MENU, celle que tout le monde prend.
-	#  Dans CET ordre : l'arrêt d'abord, la pose ensuite. En arrêtant après,
-	#  l'arrêt remettrait le fond d'avant par-dessus celui qu'on vient de
-	#  choisir.
-	command -v lexos-fond-anime >/dev/null 2>&1 \
-		&& lexos-fond-anime off >/dev/null 2>&1 || true
 	props="$(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -E '/backdrop/.*last-image$')"
 	[[ -n "$props" ]] || die "xfdesktop ne semble pas actif — aucun réglage de fond trouvé."
 	while IFS= read -r p; do
@@ -145,7 +139,6 @@ appliquer() {
 	case "$img" in
 		*.gif|*.GIF)
 			warn "Un GIF posé en fond ne bouge pas — xfdesktop n'en montre que la première image."
-			say  "Pour l'animer : ${B}lexos-fond-anime \"${img}\"${R}"
 			;;
 	esac
 }
@@ -312,12 +305,6 @@ case "$CMD" in
 		IMG="$(lister_images | shuf -n1)"
 		[[ -n "$IMG" ]] || die "Aucune image trouvée."
 		appliquer "$IMG"
-		;;
-	anime|anim|video)
-		shift
-		command -v lexos-fond-anime >/dev/null 2>&1 \
-			|| die "lexos-fond-anime absent de cette machine."
-		exec lexos-fond-anime "$@"
 		;;
 	autocollant|autocollants|sticker)
 		shift

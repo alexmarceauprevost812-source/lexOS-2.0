@@ -266,27 +266,25 @@ fi
 #  fond d'écran tout noir, comme ça on va voir si c'est [le] fond d'écran ou
 #  bien une erreur au démarrage. »
 #
-#  Ce script lançait « lexos-fond-anime start code » à la première session :
-#  le fond animé « le code s'écrit » démarrait donc TOUT SEUL, sans que
-#  personne l'ait demandé. C'est lui qu'Alex voit sur ses photos, et c'est
-#  au-dessus de lui que les icônes du bureau disparaissent.
+#  Ce script lançait un fond animé à la première session. On l'a d'abord
+#  rendu non automatique, pour trancher le diagnostic — et le verdict est
+#  tombé : ALEX, APRÈS ESSAI, « dans les paramètres ça fonctionne tout, mais
+#  on perd toutes les applications du bureau quand on met un effet animé ;
+#  les applications du bureau restent juste quand [il y] a un fond d'écran
+#  fixe. » Le fond animé ÉTAIT bien le coupable.
 #
-#  TROIS RAISONS DE NE PLUS LE LANCER D'OFFICE, ET LA PREMIÈRE EST LA SIENNE :
-#    · elle tranche son diagnostic. Le bureau démarre maintenant sur le fond
-#      fixe — le démon sur noir. Si les icônes sont là, le coupable était le
-#      fond animé ; si elles manquent encore, c'est autre chose au démarrage,
-#      et on aura enfin éliminé une hypothèse au lieu d'en inventer une ;
-#    · le recouvrement des icônes par une fenêtre de fond a déjà coûté DEUX
-#      correctifs (remonte_xfdesktop dans fond-anime.py, puis le même porté
-#      dans lexos-fond-video). Ce qu'on n'allume pas ne peut pas recouvrir ;
-#    · un décodeur qui tourne sans arrêt coûte une à deux heures d'autonomie
-#      sur un portable — c'est lexos-fond-video qui le dit dans son propre
-#      en-tête. Un réglage à ce prix-là se CHOISIT, il ne s'impose pas.
+#  LES FONDS ANIMÉS ET VIDÉO SONT DONC RETIRÉS POUR DE BON. La cause est
+#  structurelle : leur fenêtre vivait dans le calque
+#  _NET_WM_WINDOW_TYPE_DESKTOP, celui de xfdesktop qui dessine les icônes.
+#  xfwm4 garantit que ce calque reste sous les fenêtres normales, mais PAS
+#  l'ordre relatif de deux fenêtres DANS ce calque — le fond pouvait donc
+#  passer devant les icônes sans qu'aucune ligne ne soit « cassée ». Deux
+#  correctifs ont été tentés (remonte_xfdesktop, puis son portage shell) ;
+#  les deux ont échoué chez Alex, et aucune machine de construction n'a de
+#  serveur X pour éprouver le troisième.
 #
-#  IL N'EST PAS SUPPRIMÉ, IL N'EST PLUS AUTOMATIQUE. « lexos wallpaper anime
-#  code » le rallume, et les six scènes restent à un clic dans
-#  Paramètres → Bureau LexOS. Rien n'a été retiré du système : c'est le
-#  démarrage d'office qui disparaît, pas la fonction.
+#  Un bureau qui perd ses icônes est plus grave qu'un bureau sans animation.
+#  Tout le code reste dans l'historique git si la question revient.
 
 # --- Matériel Apple ---------------------------------------------------------
 #  Sur un Mac, quelques réglages ne se devinent pas : les ventilateurs qui

@@ -35,18 +35,6 @@
 	<image-files/>
 </action>
 <action>
-	<icon>preferences-desktop-wallpaper</icon>
-	<name>Fond d'écran animé</name>
-	<submenu></submenu>
-	<unique-id>1000000000000000-3</unique-id>
-	<command>lexos-fond-anime %f</command>
-	<description>Anime le bureau avec cette vidéo ou ce GIF</description>
-	<range></range>
-	<patterns>*.gif;*.mp4;*.webm;*.mkv;*.GIF;*.MP4</patterns>
-	<image-files/>
-	<video-files/>
-</action>
-<action>
 	<icon>changes-prevent</icon>
 	<name>Mettre en privé</name>
 	<submenu></submenu>

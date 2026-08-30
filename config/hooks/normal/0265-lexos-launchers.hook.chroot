@@ -35,7 +35,6 @@ mkdir -p "$APPS"
 #  nommable indépendamment de la commande qu'elle lance.
 TABLE="
 lexos-fond-ecran|lexos-fond-ecran choisir|Fond d'écran|preferences-desktop-wallpaper|non|Settings;DesktopSettings;|Choisir l'image du bureau
-lexos-fond-anime|lexos-fond-anime mascotte|Fond animé (mascotte)|preferences-desktop-screensaver|non|Settings;DesktopSettings;|La mascotte LexOS animée en fond
 lexos-musique|lexos-musique|Musique LexOS|multimedia-audio-player|non|AudioVideo;Audio;Player;|Écouter le dossier Musique
 lexos-chrome|lexos-chrome|Google Chrome (LexOS)|web-browser|non|Network;WebBrowser;|Ouvre Chrome, l'installe s'il manque
 lexos-claude|lexos-claude|Claude|web-browser|non|Network;Development;|Claude Code ou claude.ai

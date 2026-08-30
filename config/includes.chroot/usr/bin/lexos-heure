@@ -65,8 +65,8 @@ format() {
 #  plus bas) afficherait les balises telles quelles, illisibles.
 #
 #  Les couleurs ne sont pas choisies au hasard sur la photo : ce sont
-#  celles de LexOS, déjà vérifiées ailleurs dans le dépôt (ACCENTS, dans
-#  fond-anime.py) — #3584E4 est le bleu « haut » de l'accent bleu, #E8590C
+#  celles de LexOS, déjà vérifiées ailleurs dans le dépôt (les accents de
+#  lexos-theme-gen) — #3584E4 est le bleu « haut » de l'accent bleu, #E8590C
 #  l'orange par défaut de LexOS. Le badge reste donc lui-même même si
 #  quelqu'un cherchait un jour d'où viennent ces teintes précises.
 badge_panneau() {

@@ -295,8 +295,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
     « <[lexOS⚡pro]> » — pour le haut de l'écran. Le globe qui tourne (déjà
     au bleu — drop-shadow rgba(60,140,240,…) ci-dessus) fait le porte-clés ;
     les crochets ci-dessous reprennent LE MÊME bleu que le badge de l'ISO
-    (lexos-heure, #3584E4 — l'accent « bleu » vérifié dans ACCENTS de
-    fond-anime.py), pour que démo et ISO montrent la même chose. */
+    (lexos-heure, #3584E4 — l'accent « bleu haut » de lexos-theme-gen),
+    pour que démo et ISO montrent la même chose. */
 #clock .clk-brand .brk{color:#3584E4}
 #clock #clkdate{color:var(--fg-dim)}
 /*  Chaque caractère de l'heure occupe une cellule de largeur FIXE : les
@@ -3915,8 +3915,6 @@ const TERM_SUGGESTIONS = [
   ["lexos crt off",     "coupe l'effet écran de télé 1980"],
   ["lexos musique",     "ouvre lexOS_musique, le lecteur audio local"],
   ["lexos chrome",      "ouvre Google Chrome (propose de l'installer au 1er lancement)"],
-  ["lexos wallpaper anime", "fonds animés : code · pluie · braises · ciel · atelier · lexis-3d"],
-  ["lexos wallpaper anime nouveau mon-fond", "fabriquer son propre fond animé"],
   ["lexos claude",      "ouvre Claude Code, l'assistant de programmation"],
   ["lexos studio",      "ouvre Studio+ : photo, vidéo et son"],
   ["lexos avion on",    "coupe Wi-Fi et Bluetooth (mode avion)"],
@@ -7178,23 +7176,16 @@ function settingsSection(key){
         beaucoup moins la machine qu'un film — et sur un fond, personne ne verra
         la différence.</div>` : ""}
 
-      <p class="notice"><b>Le code qui s'écrit derrière la marque, ici, est le fond
-      d'écran PAR DÉFAUT de la vraie ISO</b> — dessiné en direct, pas une vidéo, et figé
-      dès le passage sur batterie. Quatre autres sont livrés (pluie de caractères,
-      braises, ciel, atelier avec l'heure, et <b>Lexis 3D</b> — la marque en
-      relief qui suit la souris d'un petit mouvement)&nbsp;:
-      <code>lexos wallpaper anime liste</code>.
-      Et on fabrique le sien sans programmer&nbsp;:
-      <code>lexos wallpaper anime nouveau mon-fond</code> ouvre un fichier de couches
-      commenté — fond, grille, braises, code, pluie, étoiles, horloge — avec
-      <code>… apercu mon-fond</code> pour voir avant de poser.
-      <code>lexos wallpaper anime off</code> remet le fond fixe.
-      <br>Sur la vraie ISO&nbsp;: <code>lexos wallpaper ~/Images/photo.jpg</code>,
-      <code>lexos wallpaper video ~/Vidéos/boucle.mp4</code> pour une vidéo,
+      <p class="notice">Sur la vraie ISO&nbsp;: <code>lexos wallpaper ~/Images/photo.jpg</code>,
       ou un <b>clic droit sur l'image</b> dans Fichiers →
       « Définir comme fond d'écran ». Sans argument, <code>lexos wallpaper</code>
-      remet celui par défaut. Les quatre fonds ci-dessus vivent dans
-      <code>/usr/share/backgrounds/lexos/</code>.</p>`;
+      remet celui par défaut. Les fonds livrés vivent dans
+      <code>/usr/share/backgrounds/lexos/</code>.
+      <br><b>Les fonds animés ont été retirés</b>&nbsp;: leur fenêtre partageait
+      le calque de xfdesktop, celui qui dessine les icônes du bureau, et
+      pouvait passer devant — les applications posées sur le bureau
+      disparaissaient. Un bureau qui garde ses icônes vaut mieux qu'un fond
+      qui bouge.</p>`;
     case "multitaches": return `<h2>Multi-tâches</h2><div class="sub">Bureaux virtuels</div>
       <div class="srow"><div><div class="t">Bureaux virtuels</div>
         <div class="d">${bureauxN()} bureau${bureauxN()>1?"x":""} en ce moment, ${BUREAUX_MAX} au maximum — plusieurs écrans sur le même écran.
@@ -8465,7 +8456,6 @@ const CC_SAVOIR = [
       <li><code>lexos dock &lt;position&gt;</code> — droite, gauche, bas, haut</li>
       <li><code>lexos perf &lt;profil&gt;</code> — petit, medium, performant, max</li>
       <li><code>lexos crt on|off</code> — les effets de fenêtres façon téléviseur 1980</li>
-      <li><code>lexos wallpaper anime</code> — les fonds animés</li>
       <li><code>lexos claude</code> — Claude Code</li>
       <li><code>lexos studio</code> — Studio+ (photo, vidéo, son)</li>
       <li><code>lexos musique</code> — le lecteur audio</li>
@@ -8510,9 +8500,7 @@ const CC_SAVOIR = [
     le bureau change en direct, <b>👁 Voir le bureau</b> efface la fenêtre le
     temps de regarder, et rien n'est retenu tant que tu n'as pas cliqué
     <b>✓ Enregistrer</b> — <b>↺ Annuler</b> remet ce qui était là.
-    <br><br>Au terminal : <code>lexos wallpaper anime</code> pour les fonds
-    animés (code, pluie, braises, ciel, atelier), et
-    <code>lexos wallpaper anime nouveau mon-fond</code> pour fabriquer le sien.`},
+    <br><br>Au terminal : <code>lexos wallpaper ~/Images/photo.jpg</code>.`},
 
   {c:["telephone","android","samsung","mobile","portable","arm"], r:
    `<b>L'ISO ne s'installera jamais sur un téléphone</b> — elle est x86_64, et un
