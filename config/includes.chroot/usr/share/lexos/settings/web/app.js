@@ -738,6 +738,29 @@ async function basculeFuseauAuto(){
   const r = await api("fuseau-auto", "toggle");
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
 }
+//  MÊME LISTE que FUSEAUX_CANADA dans settings.py (act_fuseau) et LIEUX_CANADA
+//  dans lexos-datetime — les trois doivent rester d'accord, sinon un bouton
+//  posé ici serait refusé côté Python, ou l'inverse. Treize provinces et
+//  territoires, onze fuseaux IANA : le Nouveau-Brunswick et l'Île-du-Prince-
+//  Édouard partagent celui des Maritimes, le Nunavut (trois fuseaux à lui
+//  seul) est représenté par sa capitale, Iqaluit.
+const FUSEAUX_CANADA = [
+  ["America/Vancouver",   "Colombie-Britannique (Vancouver)"],
+  ["America/Whitehorse",  "Yukon (Whitehorse)"],
+  ["America/Edmonton",    "Alberta (Edmonton)"],
+  ["America/Yellowknife", "Territoires du Nord-Ouest (Yellowknife)"],
+  ["America/Regina",      "Saskatchewan (Regina)"],
+  ["America/Winnipeg",    "Manitoba (Winnipeg)"],
+  ["America/Iqaluit",     "Nunavut (Iqaluit)"],
+  ["America/Toronto",     "Ontario (Toronto)"],
+  ["America/Montreal",    "Québec (Montréal)"],
+  ["America/Halifax",     "Maritimes (Halifax)"],
+  ["America/St_Johns",    "Terre-Neuve (St. John's)"],
+];
+async function setFuseau(zone){
+  const r = await api("fuseau", zone);
+  await rafraichir(r.ok ? "Fuseau horaire réglé" : "Échec : " + (r.erreur || "mot de passe refusé"));
+}
 async function basculeHeureAuto(){
   const r = await api("heure-auto", "toggle");
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "mot de passe refusé"));
@@ -1725,6 +1748,17 @@ function contenu(cle){
              h.lieu_connu ? sw(h.fuseau_auto, "basculeFuseauAuto()")
                           : `<span class="etat abs">aucun lieu</span>`)}
       ${h.fuseau ? srow("Fuseau horaire", esc(h.fuseau)) : ""}
+
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Choisir son lieu (Canada)</div>
+        <div class="row" style="flex-wrap:wrap">${FUSEAUX_CANADA.map(([z,t])=>
+          `<button class="btn ${z===h.fuseau?"sel":"ghost"}" onclick="setFuseau('${z}')">${t}</button>`).join("")}</div>
+      </div>
+      <p class="notice">Treize provinces et territoires, onze fuseaux — le Nouveau-Brunswick et
+      l'Île-du-Prince-Édouard partagent celui des Maritimes, et le Nunavut (trois fuseaux à lui
+      seul) est représenté par sa capitale, Iqaluit. Choisir ici règle le fuseau tout de suite ;
+      si le fuseau automatique est actif (au-dessus), il pourra le reprendre à sa prochaine
+      vérification.</p>
 
       <div class="sub" style="margin-top:20px">Horloge de la barre du haut</div>
       ${srow("Format de l'heure",

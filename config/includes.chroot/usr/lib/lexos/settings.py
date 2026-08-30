@@ -844,6 +844,48 @@ def act_fuseau_auto(arg):
     return _run(["lexos-datetime", "fuseau-auto", arg])
 
 
+#  LES TREIZE PROVINCES ET TERRITOIRES DU CANADA, EN FUSEAUX IANA. MÊME
+#  LISTE que LIEUX_CANADA dans lexos-datetime — les deux doivent rester
+#  d'accord, sinon un fuseau proposé ici et refusé là-bas (ou l'inverse)
+#  serait un bouton qui ment. Chaque zone a été vérifiée pour de vrai
+#  (Python, zoneinfo), jamais copiée de mémoire. La Saskatchewan, le
+#  Yukon, les Territoires du Nord-Ouest et le Nunavut ont chacun leur
+#  propre fuseau IANA (voir le commentaire de LIEUX_CANADA pour le
+#  pourquoi) ; le Nouveau-Brunswick et l'Île-du-Prince-Édouard partagent
+#  celui des Maritimes au chiffre près.
+FUSEAUX_CANADA = {
+    "America/Vancouver":  "Colombie-Britannique (Vancouver)",
+    "America/Whitehorse": "Yukon (Whitehorse)",
+    "America/Edmonton":   "Alberta (Edmonton)",
+    "America/Yellowknife": "Territoires du Nord-Ouest (Yellowknife)",
+    "America/Regina":     "Saskatchewan (Regina)",
+    "America/Winnipeg":   "Manitoba (Winnipeg)",
+    "America/Iqaluit":    "Nunavut (Iqaluit)",
+    "America/Toronto":    "Ontario (Toronto)",
+    "America/Montreal":   "Québec (Montréal)",
+    "America/Halifax":    "Maritimes (Halifax)",
+    "America/St_Johns":   "Terre-Neuve (St. John's)",
+}
+
+
+def act_fuseau(arg):
+    """Change le fuseau horaire pour de vrai — pas seulement celui que suit
+    la ville de la météo (act_fuseau_auto). « arg » est validé contre
+    FUSEAUX_CANADA, un ensemble FERMÉ : jamais une chaîne de la page
+    interpolée telle quelle dans une commande qui touche à l'horloge du
+    système.
+
+    pkexec, même schéma que act_heure_auto() : changer le fuseau demande
+    les droits d'administration, et on veut la fenêtre de mot de passe
+    habituelle plutôt qu'un échec muet."""
+    if arg not in FUSEAUX_CANADA:
+        return {"ok": False, "erreur": "valeur inattendue"}
+    outil = "pkexec" if shutil.which("pkexec") else "timedatectl"
+    argv = ([outil, "timedatectl", "set-timezone", arg] if outil == "pkexec"
+            else ["timedatectl", "set-timezone", arg])
+    return _run(argv)
+
+
 def act_autocollant(arg):
     """Poser un personnage sur le fond d'écran, ou tout enlever. Les noms
     forment un ensemble fermé — le shell ne voit jamais la valeur brute."""
@@ -1315,6 +1357,7 @@ ACTIONS = {
     "bureaux": act_bureaux,
     "horloge": act_horloge,
     "fuseau-auto": act_fuseau_auto,
+    "fuseau": act_fuseau,
     "autocollant": act_autocollant,
     "coin": act_coin,
     "super_apercu": act_super_apercu,

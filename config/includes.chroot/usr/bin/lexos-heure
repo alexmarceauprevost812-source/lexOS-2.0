@@ -33,9 +33,14 @@ if [ -r "$ETAT" ]; then
 	. "$ETAT" 2>/dev/null || true
 fi
 
+#  format <préfixe> — le préfixe est ce qui vient AVANT la date/l'heure. En
+#  console c'est « lexOS » tout simple ; dans le panneau c'est le badge
+#  stylé de badge_panneau(). Les deux passent par la même horloge derrière :
+#  un « lexOS » qui ne dit pas l'heure serait deux vérités séparées à tenir
+#  d'accord, exactement le genre de piège que ce fichier évite déjà pour
+#  Alt+F7/F8 ailleurs dans le dépôt.
 format() {
-	#  « lexOS » en tête : c'est la signature de la barre, comme dans la démo.
-	F="lexOS "
+	F="${1:-lexOS }"
 	[ "$JOUR" = oui ] && F="$F %a"
 	F="$F %d %b "
 	if [ "$H12" = oui ]; then
@@ -49,11 +54,36 @@ format() {
 	printf '%s' "$F"
 }
 
+#  LE BADGE DE LA BARRE. Alex a envoyé une image — un porte-clés bleu de
+#  chaque côté, un fond noir, le texte « <[lexOS⚡pro]> » — et a demandé la
+#  même chose en haut de l'écran, « ça va être joli ».
+#
+#  genmon affiche <txt> avec gtk_label_set_markup() (vérifié : le vrai
+#  binaire de xfce4-genmon-plugin appelle cette fonction GTK), donc le
+#  Pango en balises <span> s'y rend pour de vrai — pas un espoir. C'est
+#  RÉSERVÉ au panneau : la même chaîne dans un terminal (le cas « *) »
+#  plus bas) afficherait les balises telles quelles, illisibles.
+#
+#  Les couleurs ne sont pas choisies au hasard sur la photo : ce sont
+#  celles de LexOS, déjà vérifiées ailleurs dans le dépôt (ACCENTS, dans
+#  fond-anime.py) — #3584E4 est le bleu « haut » de l'accent bleu, #E8590C
+#  l'orange par défaut de LexOS. Le badge reste donc lui-même même si
+#  quelqu'un cherchait un jour d'où viennent ces teintes précises.
+badge_panneau() {
+	printf '🔵 <span font_family="monospace" weight="bold">'
+	printf '<span foreground="#3584E4">&lt;[</span>'
+	printf '<span foreground="#FFFFFF">lexOS</span>'
+	printf '<span foreground="#E8590C">⚡</span>'
+	printf '<span foreground="#FFFFFF">pro</span>'
+	printf '<span foreground="#3584E4">]&gt;</span>'
+	printf '</span> 🔵'
+}
+
 case "${1:-}" in
 	--panneau|panneau)
 		#  genmon lit cette sortie : <txt> s'affiche, <tool> est l'infobulle,
 		#  <txtclick> est ce que fait un clic.
-		printf '<txt> %s </txt>' "$(date "+$(format)")"
+		printf '<txt> %s </txt>' "$(date "+$(format "$(badge_panneau) ")")"
 		printf '<tool>%s\nClique pour les notifications et l'"'"'agenda</tool>' \
 			"$(date '+%A %d %B %Y')"
 		printf '<txtclick>lexos-volet agenda</txtclick>\n'
