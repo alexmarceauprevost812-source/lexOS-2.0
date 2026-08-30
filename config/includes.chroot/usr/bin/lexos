@@ -113,6 +113,9 @@ ${B}ÉNERGIE${R}
   ${A}sauvegarde${R}          Tes fichiers, copiés pour de vrai ${D}(borg, chiffré)${R}
   ${A}sauvegarde init${R} <d>  Créer le coffre ${D}(disque externe conseillé)${R}
   ${A}sauvegarde maintenant${R} Copier Documents, Images, Musique, Vidéos, Bureau
+  ${A}epingler${R} <app>      Mettre une application sur le dock ${D}(--enlever pour la retirer)${R}
+  ${A}etiquette${R} <dossier>  Écrit les 3 premières lettres SUR le dossier ${D}(--maison pour les tiens)${R}
+  ${A}diagnostic${R} [onglet]  La machine en direct, dans une fenêtre ${D}(materiel|medecin|disques)${R}
   ${A}medecin${R}             « Qu'est-ce qui ne va pas ? » — le tri complet, traduit
   ${A}disques${R}             La santé des disques AVANT qu'ils meurent ${D}(SMART, espace)${R}
   ${A}materiel${R}            Ce qu'il y a DANS la machine ${D}(aussi : machine)${R}
@@ -1064,8 +1067,18 @@ case "$CMD" in
 	#  outil qu'on ne pouvait pas taper. Le contrôle 16 l'a nommé.
 	boost|scan|optimisation) exec lexos-boost "$@" ;;
 	sauvegarde|backup|sauve) exec lexos-sauvegarde "$@" ;;
+	epingler|epingle|pin) exec lexos-epingler "$@" ;;
+	etiquette|etiqueter|etiquettes) exec lexos-etiquette "$@" ;;
 	disques|disque|disks)  exec lexos-disques "$@" ;;
-	medecin|médecin|diagnostic|doc) exec lexos-medecin "$@" ;;
+	#  ═══ « diagnostic » CHANGE DE MAIN, ET C'EST VOULU ═══
+	#  Il était un simple synonyme de « medecin » — deux mots pour la même
+	#  sortie de terminal. Le panneau graphique porte maintenant ce nom-là
+	#  (LexOS Diagnostic : matériel + médecin + disques dans une fenêtre à
+	#  onglets), alors « diagnostic » l'ouvre. Rien n'est perdu : « medecin »,
+	#  « disques » et « materiel » gardent leurs outils de terminal, qui font
+	#  autre chose — un bilan lisible dans un tuyau, sans navigateur.
+	diagnostic|panneau-diagnostic) exec lexos-diagnostic "${2:-materiel}" ;;
+	medecin|médecin|doc) exec lexos-medecin "$@" ;;
 	materiel|matériel|machine|hardware) exec lexos-materiel "$@" ;;
 	parametres|paramètres|reglages|réglages|settings) exec lexos-settings "$@" ;;
 	reglages-fenetre|réglages-fenêtre|app-settings|window-settings) exec lexos-app-settings ;;

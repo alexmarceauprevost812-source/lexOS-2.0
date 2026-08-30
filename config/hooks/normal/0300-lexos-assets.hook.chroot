@@ -49,6 +49,19 @@ render "$BRAND/wallpaper-crt.svg" 1920 1080 "$BG/wallpaper-crt.png"
 render "$BRAND/wallpaper-secu.svg" 1920 1080 "$BG/wallpaper-secu.png"
 render "$BRAND/wallpaper-secu.svg" 3840 2160 "$BG/wallpaper-secu-4k.png"
 
+#  ═══ LE FOND « NOMAD » — LE BUREAU DE LA DÉMO ═══
+#  ALEX, capture de la démo à l'appui : « ajouter ce fond d'écran officiel
+#  comme fond d'écran », puis « mettre ces images dans l'ISO 96, dans le
+#  fichier images, si je veux les avoir comme fond d'écran ». C'est le
+#  bureau de web-demo/index.html — logo ASCII orange, filet, TI·LEX·AL,
+#  2.0.0 NOMAD — repris valeur par valeur (voir l'en-tête du SVG).
+#
+#  Trois tailles, comme le fond par défaut : sans la 4K, un écran 3840 de
+#  large étirerait la 1920 et le filet passerait de 2 px à 4 px flous.
+render "$BRAND/wallpaper-nomad.svg" 1920 1080 "$BG/wallpaper-nomad.png"
+render "$BRAND/wallpaper-nomad.svg" 3840 2160 "$BG/wallpaper-nomad-4k.png"
+render "$BRAND/wallpaper-nomad.svg" 1366  768 "$BG/wallpaper-nomad-hd.png"
+
 # Fond d'écran « LexOS 1.0 » : le logo TI-LEX-AL, posé sur fond noir — même
 # composition que le sélecteur de la démo web (Paramètres → Bureau LexOS).
 if [ -r "$BRAND/logo-ti-lex-al-icon.png" ] && have convert; then

@@ -148,6 +148,15 @@ texte_lisible() {   # <#rrggbb> → #000000 ou #FFFFFF, celui qui contraste le m
 
 BTN_FG="$(texte_lisible "$ACCENT")"
 
+#  ═══ LE GRIS DE LA GRILLE D'APPLICATIONS ═══
+#  Voir la règle « iconview:selected » plus bas : la tuile sélectionnée de la
+#  Liste des applications ne prend PAS l'accent, à la demande d'Alex. Un gris
+#  pâle, identique dans les deux modes — il se détache aussi bien du noir que
+#  du crème — et son texte calculé par la même fonction que tous les autres
+#  boutons, pour n'avoir qu'une seule idée du contraste dans ce fichier.
+SEL_GRILLE="#C4C8D0"
+SEL_GRILLE_TXT="$(texte_lisible "$SEL_GRILLE")"
+
 #  r, g, b restent nécessaires ailleurs : bloc_panneau() traduit les rgba() du
 #  squelette avec « ${r}, ${g}, ${b} ». Les avoir fondus dans texte_lisible()
 #  les a fait disparaître d'ici — et le générateur s'est arrêté sur « r :
@@ -712,9 +721,32 @@ rubberband {
 
 /* --- Sélection dans les listes ------------------------------------------ */
 row:selected, list row:selected, treeview.view:selected,
-iconview:selected, flowboxchild:selected, menuitem:hover, .menuitem:hover {
+menuitem:hover, .menuitem:hover {
     background-color: ${ACCENT};
     color: ${BTN_FG};
+}
+
+/* --- LA GRILLE D'APPLICATIONS FAIT EXCEPTION --------------------------- */
+/*  ALEX, capture de la Liste des applications : « la couleur de
+    l'application une fois sélectionnée, il faudrait que le carré orange
+    reste de couleur gris pâle », « au lieu de faire tout un carré orange ».
+
+    Ailleurs, l'accent sur la sélection est juste : une ligne de liste est un
+    ruban fin, l'accent la souligne. Ici c'est une TUILE de 190 px qui porte
+    déjà une icône colorée — un aplat d'accent de cette taille écrase le
+    dessin qu'on est justement en train de choisir, et il n'y en a qu'un à la
+    fois : personne ne peut le confondre avec autre chose.
+
+    Un gris pâle et des coins arrondis suffisent à dire « celle-ci », sans
+    repeindre le quart de l'écran. Le texte suit texte_lisible(), la même
+    fonction WCAG que partout ailleurs : sur ce gris-là elle rend du noir, et
+    le libellé reste lisible — en blanc il aurait disparu. */
+iconview:selected, iconview:selected:focus,
+flowboxchild:selected, flowboxchild:selected:focus,
+iconview .cell:selected {
+    background-color: ${SEL_GRILLE};
+    color: ${SEL_GRILLE_TXT};
+    border-radius: 10px;
 }
 row:hover, list row:hover { background-color: ${BG_HI}; }
 
@@ -964,11 +996,43 @@ EOF
 #  quelques lignes plus haut) : une icône blanche sur l'orange de LexOS tombe
 #  sous le seuil lisible (3,4:1), le noir passe (6,1:1). Pas une deuxième
 #  règle de contraste à tenir à jour à côté de la première.
+#  ═══ POURQUOI L'ACCENT « HAUT » ET PAS L'ACCENT PRINCIPAL ═══
+#  ALEX, PHOTO DU PANNEAU D'AIDE : « quand on prend une capture d'écran,
+#  faire en sorte que ce soit écriture noire s'il vous plaît. » Le rappel des
+#  raccourcis (Souris · Entrée · Molette · Clic droit · Espace · Échap)
+#  s'affichait en BLANC sur l'orange : 3,58:1, sous le seuil lisible.
+#
+#  ET CE TEXTE-LÀ NE SUIT PAS « contrastUiColor ». On l'a éprouvé pour de
+#  vrai — flameshot lancé sous un serveur X virtuel (Xvfb), le panneau
+#  photographié, les pixels relus — et non deviné : avec contrastUiColor déjà
+#  à #000000, l'écriture restait blanche. flameshot la choisit LUI-MÊME
+#  d'après la clarté de « uiColor », et aucune clé ne le contredit
+#  (« flameshot config » n'en écrit que deux, on le lui a fait faire).
+#
+#  MESURÉ, COULEUR PAR COULEUR, DANS LE VRAI RENDU :
+#      #E8590C (accent) ......... écriture BLANCHE
+#      #FF7A33 (accent haut) .... écriture SOMBRE
+#  La bascule est entre les deux. On prend donc l'accent HAUT — qui n'est pas
+#  une couleur inventée pour l'occasion : c'est ACCENT_HI, le ton de survol
+#  que LexOS emploie déjà partout. La barre d'outils reste orange, d'un
+#  orange un peu plus vif, et flameshot bascule son texte tout seul.
+#
+#  contrastUiColor SUIT LA MÊME COULEUR. Il peint l'icône POSÉE SUR le
+#  bouton : la calculer sur l'accent principal alors que le fond est
+#  l'accent haut serait mesurer le contraste sur la mauvaise couleur.
 mkdir -p "$TARGET/.config/flameshot"
 cat > "$TARGET/.config/flameshot/flameshot.ini" <<EOF
 [General]
-uiColor=${ACCENT}
-contrastUiColor=${BTN_FG}
+uiColor=${ACCENT_HI}
+contrastUiColor=$(texte_lisible "$ACCENT_HI")
+#  DEUX BULLES POUR UNE SEULE CAPTURE. Photo d'Alex : « Capture d'écran »
+#  (la nôtre, avec ses boutons) ET « Flameshot Info — Capture saved as … »
+#  empilées dans le coin. La seconde ne dit rien de plus, en anglais, et
+#  sans rien à cliquer. On la coupe : lexos-capture annonce déjà la
+#  capture, avec le nom du fichier et ce qu'on peut en faire.
+#  Clé relevée dans le binaire (« showDesktopNotificationChanged »), pas
+#  devinée — « flameshot config --help » ne la documente pas.
+showDesktopNotification=false
 EOF
 
 # =============================================================================
@@ -1249,6 +1313,46 @@ elif [[ -d "$DOSSIERS_SRC" ]]; then
 fi
 
 # =============================================================================
+#  4 bis. Les logos de la fenêtre de session, à l'encre du mode
+# =============================================================================
+#  lexos-session désigne ses six logos par un CHEMIN, pas par un nom d'icône :
+#  c'est le seul moyen sûr après trois ISO passées à espérer qu'un nom se
+#  trouve dans un thème (voir l'engrenage du gestionnaire de fichiers).
+#
+#  ═══ POURQUOI CE N'EST PAS L'ACCENT QU'ON SUBSTITUE ICI ═══
+#  Premier jet : teindre ces logos à l'accent, comme les autres. Une maquette
+#  de la fenêtre l'a réfuté avant qu'elle ne parte — la ligne SÉLECTIONNÉE est
+#  peinte en accent (règle « treeview.view:selected », quelques centaines de
+#  lignes plus haut dans ce même fichier), et yad sélectionne la première
+#  ligne d'office. Un logo de la couleur du fond n'est plus un logo : on
+#  aurait livré une fenêtre dont l'icône regardée est la seule invisible.
+#
+#  Les six sont donc dessinés en BLANC — la seule valeur qui tienne à la fois
+#  sur le panneau noir (18,4:1) et sur l'accent (3,4:1) — sauf « arret » et
+#  « redemarrer », rouges parce que le rouge y est un avertissement.
+#
+#  Reste le thème de JOUR, qui renverse le fond : du blanc sur du crème ne se
+#  voit pas. C'est CE cas-là qu'on répare ici, et lui seul.
+SESSION_DST="$CONF_DIR/session-icons"
+#  On efface TOUJOURS d'abord : sans ça, repasser en sombre laisserait les
+#  copies à l'encre noire du mode clair, et les logos disparaîtraient dans le
+#  noir. Même piège, et même remède, que la copie du thème d'icônes.
+rm -rf "$SESSION_DST"
+if [[ "$MODE" == "clair" ]]; then
+	mkdir -p "$SESSION_DST"
+	for N in utilisateur deconnexion veille verrouiller; do
+		SESSION_SRC="${LEXOS_BRANDING:-/usr/share/lexos/branding}/icon-${N}.svg"
+		[[ -r "$SESSION_SRC" ]] || continue
+		#  Seuls les attributs de dessin sont touchés : un « #FFFFFF » cité
+		#  dans le commentaire d'en-tête n'a aucun effet, et le remplacer non
+		#  plus — mais on ne réécrit que les lignes qui peignent, pour que le
+		#  fichier livré continue d'expliquer POURQUOI il est blanc.
+		sed '/^\s*<!--/,/-->/!s/#FFFFFF/'"${FG}"'/gI' "$SESSION_SRC" \
+			> "$SESSION_DST/icon-${N}.svg"
+	done
+fi
+
+# =============================================================================
 #  5. Mémoriser l'accent pour les autres outils
 # =============================================================================
 cat > "$CONF_DIR/theme.conf" <<EOF
@@ -1264,6 +1368,40 @@ LEXOS_FG=${FG}
 LEXOS_BTN_FG=${BTN_FG}
 LEXOS_TERM_FG=${TERM_FG}
 EOF
+
+# =============================================================================
+#  6. Dire le mode à libadwaita, qui n'écoute PAS GTK 3
+# =============================================================================
+#  ALEX, PHOTOS DE LA LOGITHÈQUE : « on voit pas les écritures ». Cartes
+#  blanches, nom écrit en blanc dessus. La cause, relevée mot pour mot dans le
+#  binaire de libadwaita :
+#
+#      « Using GtkSettings:gtk-application-prefer-dark-theme with libadwaita
+#        is unsupported. Please use AdwStyleManager:color-scheme instead. »
+#
+#  Tout le mode sombre de LexOS passe par ce réglage GTK 3. Les applications
+#  GTK 4 + libadwaita — la Logithèque en tête — l'ignorent explicitement et
+#  rendent en CLAIR. Ce qu'elles lisent, c'est « org.gnome.desktop.interface
+#  color-scheme » (relevé dans le même binaire, valeurs confirmées dans le
+#  schéma de gsettings-desktop-schemas : default | prefer-dark | prefer-light).
+#
+#  Le DÉFAUT de la clé est posé pour tout le monde par
+#  90-lexos-sombre.gschema.override, compilé par le crochet 0600. Ce bloc-ci
+#  fait l'autre moitié, celle que la surcharge ne peut pas faire : suivre le
+#  mode COURANT. Sans lui, « lexos theme clair » donnerait un bureau de jour
+#  avec une Logithèque restée sombre — le même désaccord, dans l'autre sens.
+#
+#  ═══ POURQUOI TANT DE GARDES ═══
+#  Ce générateur tourne aussi dans le chroot de construction (HOME=/etc/skel),
+#  où il n'y a ni session ni bus D-Bus : gsettings n'y écrirait rien et
+#  crierait sur la sortie d'erreur. On n'essaie donc QUE si l'on écrit dans
+#  son propre foyer ET qu'un bus de session existe. Un échec ne coûte rien :
+#  le défaut de la surcharge reste le bon point de départ.
+if [[ "$TARGET" == "$HOME" && -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]] \
+   && command -v gsettings >/dev/null 2>&1; then
+	if [[ "$MODE" == "clair" ]]; then COLOR_SCHEME="prefer-light"; else COLOR_SCHEME="prefer-dark"; fi
+	gsettings set org.gnome.desktop.interface color-scheme "$COLOR_SCHEME" 2>/dev/null || true
+fi
 
 if [[ "$MODE" == "clair" ]]; then
 	printf 'Thème LexOS — jour (clair) généré — accent : %s (%s)\n' "$ACCENT_NAME" "$ACCENT"

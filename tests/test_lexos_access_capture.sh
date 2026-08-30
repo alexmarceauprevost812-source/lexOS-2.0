@@ -206,5 +206,70 @@ grep -A3 "bulle de notification" "$CAPTURE" | grep -q "Voir dans mes images" \
 	&& ok "l'aide de « lexos capture » annonce les deux boutons" \
 	|| non "l'aide n'a pas suivi : elle décrit encore une bulle à un seul bouton"
 
+titre "4. Les icônes du bureau grossissent SANS emporter le texte"
+# =============================================================================
+#  ALEX, capture d'un bureau sur plusieurs écrans : « le texte des
+#  applications est correct, c'est juste les images des applications qui sont
+#  pas assez grosses. Peux-tu juste grossir les images et garder le texte
+#  comme il est. »
+#
+#  ═══ POURQUOI CE CONTRÔLE VIT ICI ═══
+#  Parce que c'est le banc du GROS TEXTE, et que les deux réglages se
+#  frôlent : « /desktop-icons/icon-size » dit la taille du dessin,
+#  « /desktop-icons/font-size » celle du libellé. Les confondre casserait
+#  soit la demande d'Alex, soit l'accessibilité — et personne ne le verrait
+#  avant une photo. On éprouve donc les deux ensemble : le squelette grossit
+#  le dessin et NE touche pas au texte ; lexos-access continue de ne toucher
+#  qu'au texte.
+BUREAU_XML="$RACINE/config/includes.chroot/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml"
+if [ ! -r "$BUREAU_XML" ]; then
+	non "xfce4-desktop.xml introuvable — la taille des icônes du bureau n'est réglée nulle part"
+else
+	TAILLE="$(python3 - "$BUREAU_XML" <<'PY2'
+import sys, xml.etree.ElementTree as E
+r = E.parse(sys.argv[1]).getroot()
+for p in r.iter("property"):
+    if p.get("name") == "desktop-icons":
+        for q in p.iter("property"):
+            if q.get("name") == "icon-size":
+                print("%s|%s" % (q.get("value", ""), q.get("type", "")))
+                raise SystemExit
+print("|")
+PY2
+)"
+	VALEUR="${TAILLE%%|*}"; TYPE="${TAILLE##*|}"
+	if [ -n "$VALEUR" ] && [ "$VALEUR" -ge 56 ] 2>/dev/null; then
+		ok "les icônes du bureau font $VALEUR px — nettement plus que tous les défauts de xfdesktop"
+	else
+		non "icon-size vaut « ${VALEUR:-rien} » : les icônes resteraient petites"
+	fi
+	#  Le type compte : xfconf refuse une propriété mal typée, en silence.
+	if [ "$TYPE" = "uint" ]; then
+		ok "…et elle est déclarée « uint », le type que xfconf attend pour cette clé"
+	else
+		non "icon-size est de type « $TYPE » : xfconf l'écarterait sans rien dire"
+	fi
+	#  LA CONTRAINTE D'ALEX, et c'est elle le vrai sujet : « garder le texte
+	#  comme il est ». Écrire font-size ici figerait le libellé et le
+	#  soustrairait au gros texte de lexos-access.
+	if python3 -c "
+import sys, xml.etree.ElementTree as E
+r = E.parse(sys.argv[1]).getroot()
+noms = {q.get('name') for q in r.iter('property')}
+sys.exit(0 if not (noms & {'font-size', 'use-custom-font-size'}) else 1)
+" "$BUREAU_XML"; then
+		ok "le squelette ne touche PAS au texte du bureau — la contrainte est tenue"
+	else
+		non "le squelette fige la police du bureau : le texte changerait, et le gros texte serait bloqué"
+	fi
+	#  ET LE CHEMIN INVERSE : l'accessibilité ne doit pas se mettre à
+	#  redimensionner les dessins sous prétexte d'agrandir le texte.
+	if grep -q 'desktop-icons/icon-size' "$ACCESS"; then
+		non "lexos-access touche à la taille des ICÔNES : il ne doit régler que le texte"
+	else
+		ok "lexos-access ne règle que le texte — les deux outils ne se marchent pas dessus"
+	fi
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

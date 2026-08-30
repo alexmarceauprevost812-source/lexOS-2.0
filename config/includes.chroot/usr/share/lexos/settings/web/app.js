@@ -32,7 +32,8 @@ const NAV = [
     ["wifi",wifiGlyph,"Wi-Fi"], ["reseau","🌐","Réseau"], ["bluetooth","🅱","Bluetooth"]]},
   {grp:"Matériel", items:[
     ["ecrans","🖥","Écrans"], ["son","🔊","Son"], ["energie","🔋","Énergie"],
-    ["usb","🔌","Appareils USB"], ["mac","🍎","Mac (Apple)"]]},
+    ["usb","🔌","Appareils USB"], ["mac","🍎","Mac (Apple)"],
+    ["diagnostic","🩺","Diagnostic"]]},
   {grp:"Personnalisation", items:[
     ["apparence","🎨","Apparence"], ["bureau","🖼","Bureau LexOS"],
     ["multitaches","🗔","Multi-tâches"], ["applications","🧩","Applications"],
@@ -340,7 +341,26 @@ function btnOuvrir(section, libelle){
 }
 
 /* --- Actions déclenchées par la page ------------------------------------- */
-async function ouvrir(section){ await api("ouvrir", section); }
+/*  ═══ UNE FENÊTRE QUI NE S'OUVRE PAS DOIT LE DIRE ═══
+    ALEX : « regarde bien pour que tous les boutons et les fenêtres ouvrent
+    fluidement. »
+
+    Cette fonction JETAIT la réponse. Quand l'outil manquait, le moteur
+    renvoyait pourtant le motif exact — « Outil absent : … » — et personne ne
+    le lisait : on cliquait, rien ne s'ouvrait, aucun message. Un bouton mort
+    et muet, impossible à distinguer d'un bouton lent.
+
+    C'est ainsi que deux fenêtres (« Applications par défaut » et
+    « Applications ») sont restées mortes sans que rien ne le signale : elles
+    appelaient exo-preferred-applications, retiré de XFCE depuis longtemps.
+    Le programme manquait ; le silence, lui, était de notre fait.
+
+    Même faute et même correctif que le curseur de luminosité et le bouton du
+    dock — on lit la réponse. */
+async function ouvrir(section){
+  const r = await api("ouvrir", section);
+  if(!r.ok) toast("Impossible d'ouvrir : " + (r.erreur || "refusé"));
+}
 async function ouvreBoost(){
   const r = await api("ouvrir", "boost");
   if(r.ok) toast("LexOS Boost s'ouvre dans sa fenêtre");
@@ -553,6 +573,39 @@ async function setDistantPartage(){
     ? (on ? "Partage arrêté"
           : "Une fenêtre s'ouvre : elle demande le mot de passe à donner")
     : "Échec : " + (r.erreur || "refusé"));
+
+  /*  ═══ POURQUOI ON RELIT ENCORE, PLUS TARD ═══
+      ALEX : « le bouton ne devient pas à droite pour dire qu'il est activé,
+      dans Bureau à distance. »
+
+      LE PARTAGE NE DÉMARRE PAS QUAND ON CLIQUE. Il ouvre un TERMINAL qui
+      demande un mot de passe — c'est voulu, et le commentaire de
+      act_distant_partage() explique pourquoi : un partage sans mot de passe
+      ouvrirait la machine au réseau. x11vnc ne tourne donc PAS encore au
+      moment où on relit l'état, et l'interrupteur reste à gauche à juste
+      titre… puis n'a plus jamais l'occasion de bouger, parce que rien ne
+      relit la machine une fois le mot de passe tapé.
+
+      L'interrupteur ne mentait pas : il était en retard. On relit donc
+      quelques secondes plus tard, le temps que le mot de passe soit saisi et
+      que x11vnc s'installe.
+
+      TROIS RELECTURES ESPACÉES plutôt qu'une seule : taper un mot de passe
+      prend le temps qu'il prend. On s'arrête dès que l'état est devenu
+      « actif », pour ne pas redessiner la page sous les doigts de quelqu'un
+      qui lit déjà l'adresse à dicter.
+
+      Rien de tout cela à l'ARRÊT : « lexos-distant arreter » ne demande
+      rien, il a déjà agi quand il rend la main. */
+  if(r.ok && !on){
+    for(const delai of [2500, 6000, 12000]){
+      setTimeout(async () => {
+        if(sectionActive !== "distant") return;          // on a changé de page
+        if(etat.distant && etat.distant.actif) return;   // déjà rattrapé
+        await rafraichir();
+      }, delai);
+    }
+  }
 }
 /*  Pas de rafraichir() ici : relire l'état réécrirait le panneau et effacerait
     l'adresse qu'on vient de taper, juste au moment où on voudrait la corriger
@@ -1242,6 +1295,21 @@ function contenu(cle){
           <button class="btn ghost" onclick="setFond('secu')">Sécurité</button>
           <button class="btn ghost" onclick="setFond('demon')">LexOS 1.0</button>
           <button class="btn ghost" onclick="setFond('keyart')">Explorateur</button>
+          <button class="btn ghost" onclick="setFond('nomad')">Nomad</button>
+        </div>
+        <h3 style="margin-top:18px">Étiquettes des dossiers</h3>
+        <p class="d">Les dossiers standards portent déjà leurs trois lettres
+        (DOC, IMG, MUS…). Pour ceux que tu crées ou renommes, cette commande
+        les écrit aussi — relance-la après un renommage.</p>
+        <div class="row">
+          <button class="btn" onclick="ouvrir('etiquettes')">Étiqueter mes dossiers</button>
+        </div>
+        <h3 style="margin-top:18px">Applications sur le dock</h3>
+        <p class="d">Pour en ajouter une : clic droit sur son icône (bureau ou
+        Fichiers) → « Épingler au dock ». Pour en retirer une : clic droit sur
+        elle DANS le dock → décocher « Garder dans le dock ».</p>
+        <div class="row">
+          <button class="btn ghost" onclick="ouvrir('dock-epingles')">Voir ce qui est épinglé</button>
           <button class="btn" onclick="fondPerso()">🖼 Une image à moi…</button>
         </div>
       </div>
@@ -1840,6 +1908,29 @@ function contenu(cle){
       <p class="notice">${r.outil
         ? "Un bureau à distance ouvre ta machine au réseau : il ne démarre jamais tout seul, et jamais sans mot de passe."
         : "Pour se laisser voir, il faut d'abord un serveur : <code>lexos install x11vnc</code>. Pour aller voir ailleurs, il faut Remmina : <code>lexos install remmina</code>."}</p>`;
+    }
+    case "diagnostic": {
+      /*  LexOS Diagnostic : le panneau en direct — matériel, santé, disques.
+          Il arrive comme module séparé (usr/lib/lexos/diagnostic) et avait
+          son icône, son .desktop et sa branche « lexos diagnostic », mais
+          AUCUN chemin depuis les Paramètres : le contrôle 16 l'a nommé, tout
+          comme il avait nommé LexOS Boost avant lui. C'est cette page-ci qui
+          le branche.
+
+          Elle n'essaie pas de refaire le panneau en petit : elle dit ce
+          qu'il montre et l'ouvre. Dupliquer ses mesures ici donnerait deux
+          endroits où un bogue pourrait un jour raconter deux choses
+          différentes — la même raison qui garde la liste des réseaux Wi-Fi
+          hors du volet. */
+      corps.innerHTML = `<h2>Diagnostic</h2>
+        <p class="d">La machine en direct : processeur, mémoire, carte
+        graphique, températures, ventilateurs, réseau, batterie — puis un
+        bilan de santé et l'état des disques (SMART, NVMe, espace).</p>
+        ${btnOuvrir("diagnostic","Ouvrir LexOS Diagnostic")}
+        <p class="d" style="margin-top:14px">Les mêmes réponses en terminal,
+        sans fenêtre : <code>lexos materiel</code>, <code>lexos medecin</code>,
+        <code>lexos disques</code>.</p>`;
+      break;
     }
     case "tiers": {
       /*  LexOS dit « 100 % Linux », et c'est vrai. Mais « libre » et

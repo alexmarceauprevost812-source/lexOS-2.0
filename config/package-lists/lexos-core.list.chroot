@@ -181,3 +181,16 @@ qrencode
 #  (xfce4-appfinder.xml dans le squelette) : ce réglage n'aurait servi à
 #  rien sans le programme qui le lit.
 xfce4-appfinder
+
+# --- De quoi compiler nos surcharges de schémas GSettings -------------------
+#  ALEX, PHOTOS DE LA LOGITHÈQUE : « on voit pas les écritures ». Le correctif
+#  est une surcharge de schéma (90-lexos-sombre.gschema.override) qui dit à
+#  libadwaita ce que gtk-application-prefer-dark-theme ne lui dit pas. Mais une
+#  surcharge n'existe qu'une fois COMPILÉE, et c'est glib-compile-schemas qui
+#  compile — livré par libglib2.0-bin.
+#
+#  Il arrivait jusqu'ici par ricochet : packagekit en dépend, et packagekit
+#  voyage dans la liste OPTIONNELLE de la Logithèque. Autrement dit le
+#  correctif dépendait du temps qu'il faisait sur les miroirs Debian — la
+#  panne des dossiers blancs de l'ISO 72, encore une fois. Ici, c'est écrit.
+libglib2.0-bin

@@ -205,6 +205,117 @@ else
 	echo "[lexos]   mousepad absent — pas de « Note perso » à habiller"
 fi
 
+# --- « Fichiers » : l'icône du gestionnaire de fichiers, pour de bon ---------
+#  ALEX, TROISIÈME SIGNALEMENT : « le gestionnaire de fichiers est toujours
+#  avec un engrenage au lieu du fichier. » Quatrième icône du dock, juste
+#  après le terminal : un engrenage bleu-gris.
+#
+#  ═══ POURQUOI LES DEUX CORRECTIFS PRÉCÉDENTS N'ONT RIEN CHANGÉ ═══
+#  On avait posé cinq alias dans le thème (Thunar, thunar, org.xfce.thunar,
+#  file-manager, system-file-manager → folder-open), puis déclaré
+#  « apps/scalable » dans index.theme. Les deux étaient de bonnes idées, et
+#  aucune n'a produit d'effet — le crochet 0605 RÉÉCRIT index.theme d'après le
+#  disque, donc apps/scalable y était déjà. Le second correctif était un
+#  non-événement, et on l'a livré sans le savoir.
+#
+#  ═══ ON ARRÊTE DE DEVINER LE NOM QUE THUNAR DEMANDE ═══
+#  Toutes ces tentatives partageaient un pari : que Thunar réclame l'une des
+#  cinq écritures qu'on a devinées, et que GTK aille la chercher là où on
+#  croit. Deux inconnues, et aucune vérifiable depuis ce dépôt.
+#
+#  Ici, plus de pari : on ne fournit plus une icône en espérant qu'on la
+#  demande, ON ÉCRIT LA DEMANDE. Une copie du .desktop de Thunar est posée
+#  dans /usr/local/share/applications — qui passe AVANT /usr/share dans
+#  XDG_DATA_DIRS, exactement le procédé déjà employé pour « Note perso » juste
+#  au-dessus — avec « Icon=folder-open ». Ce nom-là n'est pas un pari : c'est
+#  le dossier orange que le thème porte dans « places/scalable », le SEUL
+#  dossier dont les photos d'Alex prouvent qu'il est bien parcouru.
+#
+#  Une seule entrée de menu, pas de doublon : c'est le MÊME fichier, masqué.
+#
+#  ═══ ET LE NOM DU FICHIER LUI-MÊME EST CHERCHÉ, PAS SUPPOSÉ ═══
+#  Trois endroits écrivaient « thunar.desktop » en dur (le dock, les favoris
+#  du menu, les applications par défaut). Si Debian l'a renommé en
+#  « org.xfce.thunar.desktop », ces trois-là pointent déjà dans le vide — et
+#  un lanceur introuvable est précisément ce qui fait afficher un engrenage
+#  générique. On le cherche donc sur le disque, et on recale les trois.
+#  Les quatre chemins sont surchargeables pour que ce bloc soit ÉPROUVABLE
+#  hors ISO — même procédé que le bloc « connexion » du crochet 0600, et pour
+#  la même raison : sans ça, ces vingt lignes ne se vérifient qu'en
+#  construisant une image et en la démarrant. Les marqueurs ci-dessous ne sont
+#  pas des décorations : tests/test_lexos_fichiers_icone.sh découpe entre les
+#  deux et EXÉCUTE ce fragment.
+# >>> banc: fichiers
+FIC_APPS="${LEXOS_APPS:-/usr/share/applications}"
+FIC_LOCAL="${LEXOS_APPS_LOCAL:-/usr/local/share/applications}"
+FIC_SKEL="${LEXOS_SKEL:-/etc/skel}"
+FIC_MIME="${LEXOS_MIMEAPPS:-/etc/xdg/mimeapps.list}"
+
+THUNAR_DESKTOP=""
+for C in "$FIC_APPS/thunar.desktop" \
+         "$FIC_APPS/org.xfce.thunar.desktop" \
+         "$FIC_APPS/Thunar.desktop"; do
+	if [ -r "$C" ]; then THUNAR_DESKTOP="$C"; break; fi
+done
+if [ -z "$THUNAR_DESKTOP" ]; then
+	for C in "$FIC_APPS"/*[Tt]hunar*.desktop; do
+		[ -r "$C" ] || continue
+		#  Les fenêtres annexes de Thunar (réglages, gravure) ont leur propre
+		#  .desktop : on ne veut que le gestionnaire lui-même.
+		grep -q '^NoDisplay=true' "$C" && continue
+		THUNAR_DESKTOP="$C"; break
+	done
+fi
+
+if [ -n "$THUNAR_DESKTOP" ] && [ -r "$THUNAR_DESKTOP" ]; then
+	THUNAR_ID="$(basename "$THUNAR_DESKTOP")"
+	#  LA PREUVE QU'ON N'AVAIT PAS. Ces deux lignes disent, dans le journal de
+	#  construction, le vrai nom du fichier et le vrai nom d'icône qu'il
+	#  réclame. Si la 95 montre encore un engrenage, on saura enfin laquelle
+	#  des hypothèses était la bonne au lieu d'en inventer une quatrième.
+	echo "[lexos]   gestionnaire de fichiers : ${THUNAR_ID}"
+	echo "[lexos]   il réclamait : Icon=$(sed -n 's/^Icon=//p' "$THUNAR_DESKTOP" | head -1)"
+
+	mkdir -p "$FIC_LOCAL"
+	sed 's|^Icon=.*|Icon=folder-open|' "$THUNAR_DESKTOP" > "$FIC_LOCAL/$THUNAR_ID"
+	#  Un .desktop sans ligne « Icon= » : le sed n'aurait rien eu à remplacer.
+	#  On l'insère alors DANS le premier groupe — l'ajouter à la fin la
+	#  poserait dans la dernière action, où elle ne servirait à rien.
+	if ! grep -q '^Icon=folder-open$' "$FIC_LOCAL/$THUNAR_ID"; then
+		sed -i '0,/^\[Desktop Entry\]/s//&\nIcon=folder-open/' "$FIC_LOCAL/$THUNAR_ID"
+	fi
+	echo "[lexos]   Fichiers porte maintenant le dossier orange (Icon=folder-open)"
+
+	#  ─── LE DOCK ───
+	#  Plank ne lit pas XDG_DATA_DIRS : son .dockitem porte un CHEMIN. Il
+	#  faut donc le faire pointer sur la copie, sinon le dock resterait le
+	#  seul endroit du bureau à montrer l'ancienne icône.
+	DOCKITEM="$FIC_SKEL/.config/plank/dock1/launchers/02-files.dockitem"
+	if [ -f "$DOCKITEM" ]; then
+		{
+			echo "[PlankDockItemPreferences]"
+			echo "Launcher=file://$FIC_LOCAL/$THUNAR_ID"
+		} > "$DOCKITEM"
+		echo "[lexos]   dock : 02-files pointe sur ${THUNAR_ID}"
+	fi
+
+	#  ─── LES FAVORIS DU MENU ET LES APPLICATIONS PAR DÉFAUT ───
+	#  Ceux-là désignent le fichier par son IDENTIFIANT, que XDG_DATA_DIRS
+	#  résout vers notre copie : il n'y a qu'à corriger le nom s'il a changé.
+	if [ "$THUNAR_ID" != "thunar.desktop" ]; then
+		PANNEAU="$FIC_SKEL/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
+		[ -f "$PANNEAU" ] && sed -i "s|thunar\.desktop|${THUNAR_ID}|g" "$PANNEAU"
+		[ -f "$FIC_MIME" ] && \
+			sed -i "s|^inode/directory=.*|inode/directory=${THUNAR_ID}|" "$FIC_MIME"
+		echo "[lexos]   « thunar.desktop » n'existe plus : trois références recalées sur ${THUNAR_ID}"
+	fi
+else
+	#  Ce n'est pas anodin : sans lui, le dock a un lanceur mort, les dossiers
+	#  ne s'ouvrent sur rien, et l'engrenage générique reste.
+	echo "[lexos]   !! AUCUN .desktop de gestionnaire de fichiers trouvé — le dock gardera un engrenage"
+fi
+# <<< banc: fichiers
+
 # --- Entrées de menu LexOS ---------------------------------------------------
 mkdir -p /usr/share/applications
 

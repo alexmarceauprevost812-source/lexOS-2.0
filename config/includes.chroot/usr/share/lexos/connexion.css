@@ -297,14 +297,68 @@ treeview.view cell:selected {
 }
 
 /* --- Le champ du mot de passe --------------------------------------------- */
+/*  ═══ CE QU'ON TAPE DOIT SE LIRE, ET L'ORANGE NE SUFFISAIT PAS ═══
+    ALEX, DEUX PHOTOS DE « CHANGER D'UTILISATEUR » : « quand je veux changer
+    d'utilisateur il y a un problème — on voit pas l'écriture. » Sur la
+    seconde, l'invite « Saisir votre mot de passe » est à peine devinable.
+
+    LA CAUSE EST DANS GTK, PAS DANS UNE RÈGLE OUBLIÉE. Le texte du champ
+    était en @lexos_accent — de l'orange sur #0B0B0C, soit 4,9:1 : passable
+    pour un libellé, juste au-dessus du seuil. Mais GtkEntry ne dessine pas
+    l'INVITE avec cette couleur telle quelle : il lui applique une opacité
+    réduite (attribut d'alpha sur le texte, ~55 %). L'orange à 55 % sur du
+    quasi-noir tombe à ~2:1 — sous le seuil, et c'est exactement ce que
+    montre la photo. Aucune règle CSS ne peut relever cette opacité-là :
+    elle est posée par le widget, pas par la feuille de style.
+
+    ON CHANGE DONC LA COULEUR DE BASE, la seule prise qu'on ait. Le BLANC
+    donne 18,3:1 pour ce qu'on tape, et son invite à 55 % tient encore
+    ~7:1 — au-dessus du seuil, cette fois avec de la marge.
+
+    L'orange reste partout ailleurs : c'est la couleur de LexOS. Ici, il
+    s'agit de lire ce qu'on tape à l'aveugle sur un écran de connexion, et
+    la lisibilité passe avant la teinte. */
 #login_window entry {
 	background-color: #0B0B0C;
 	background-image: none;
-	color: @lexos_accent;
-	caret-color: @lexos_accent;
+	color: #FFFFFF;
+	caret-color: #FFFFFF;
 	border: 1px solid alpha(@lexos_accent, 0.55);
 	border-radius: 9px;
 	padding: 7px 10px;
+}
+/*  LE NŒUD « text » À L'INTÉRIEUR DU CHAMP. Depuis GTK 3.20 le contenu d'un
+    GtkEntry vit dans un nœud « text » à lui. Selon la version du greeter,
+    c'est l'un ou l'autre qui porte la couleur du texte saisi — et « #login_window * »,
+    tout en haut de ce fichier, correspond DIRECTEMENT à ce nœud-là. Une
+    correspondance directe bat l'héritage du champ, quelle que soit la
+    spécificité : c'est la leçon déjà payée trois fois dans ce fichier, pour
+    les menus puis pour les boutons. Sans cette règle, le texte resterait
+    orange même après avoir blanchi le champ. Isolée, comme tout ici. */
+#login_window entry text {
+	color: #FFFFFF;
+	caret-color: #FFFFFF;
+}
+/*  L'INVITE, NOMMÉMENT. Certaines versions exposent un nœud « placeholder » ;
+    quand il existe, on lui donne un blanc franchement adouci — assez pour se
+    distinguer du texte réel, assez pour rester lisible. Quand il n'existe
+    pas, la règle ne coûte rien et c'est l'opacité du widget qui joue, sur du
+    blanc désormais. */
+#login_window entry placeholder {
+	color: alpha(#FFFFFF, 0.72);
+}
+#login_window entry text placeholder {
+	color: alpha(#FFFFFF, 0.72);
+}
+/*  LE NOM D'UTILISATEUR N'EST PAS TOUJOURS UN « entry » NU. Selon la
+    configuration, le greeter propose une LISTE déroulante de comptes — un
+    combobox qui porte son propre champ. Sur la première photo d'Alex, deux
+    cadres sont vides : le mot de passe ET celui-là. Les mêmes couleurs, pour
+    que les deux se lisent pareil. */
+#login_window combobox entry,
+#login_window combobox text,
+#login_window combobox button label {
+	color: #FFFFFF;
 }
 #login_window entry:focus {
 	border-color: @lexos_accent;

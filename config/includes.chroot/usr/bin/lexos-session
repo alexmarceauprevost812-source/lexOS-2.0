@@ -253,7 +253,70 @@ Tu es connecté en tant que <b>${QUI}</b>."
 #  d'après la largeur réelle de l'écran (xrandr, déjà employé ailleurs ici).
 #  Sans xrandr, on ne devine pas une position au hasard : on retombe sur
 #  « --center », le comportement d'avant.
-LARGEUR_F=300
+# =============================================================================
+#  UN LOGO PAR GESTE
+# =============================================================================
+#  ALEX, photo de la fenêtre à l'appui : « on aimerait ajouter des logos où
+#  la fenêtre pour fermer ou redémarrer l'ordinateur. » Six lignes de texte
+#  nu, toutes de la même couleur : rien ne distingue « Déconnexion » de
+#  « Éteindre » avant de les avoir lues — et ce sont les deux gestes qu'on ne
+#  veut surtout pas confondre.
+#
+#  ═══ NOS PROPRES DESSINS, PAS DES NOMS DU THÈME ═══
+#  On aurait pu passer des noms d'icônes (« system-shutdown »,
+#  « system-reboot »…) et laisser le thème les trouver. C'est exactement le
+#  pari qui a coûté trois ISO à l'icône du gestionnaire de fichiers : un nom
+#  qu'on suppose présent, dans un thème dont on suppose qu'il est parcouru.
+#  Les six icônes sont donc dessinées dans branding/ et désignées par leur
+#  CHEMIN — aucune recherche, aucune supposition.
+#
+#  Le nom du thème reste en repli pour la seule situation où le chemin ne
+#  vaut rien : un LexOS incomplet, ou cet outil lancé sur une autre machine.
+#
+#  ═══ ROUGE POUR CE QUI COUPE, ACCENT POUR LE RESTE ═══
+#  « Éteindre » et « Redémarrer » portent le rouge d'avertissement ; les
+#  quatre autres portent le jeton d'accent et suivent donc la couleur choisie
+#  par l'utilisateur. Voir l'en-tête de branding/icon-arret.svg : sous un
+#  accent vert, un bouton d'arrêt vert dirait « vas-y » là où il faut dire
+#  « attention ».
+#  ═══ POURQUOI ELLES SONT BLANCHES ET NON À L'ACCENT ═══
+#  Parce que la ligne SÉLECTIONNÉE est peinte en accent (voir la règle
+#  « treeview.view:selected » de lexos-theme-gen) et que yad sélectionne la
+#  première d'office : un logo à l'accent y serait invisible — justement
+#  celui qu'on regarde. Contrastes calculés plutôt qu'estimés : l'accent
+#  donne 4,9:1 sur le panneau noir mais 1,0:1 sur lui-même ; le blanc donne
+#  18,4:1 et 3,4:1. Le blanc est la seule valeur qui tienne des deux côtés,
+#  et c'est aussi la couleur du libellé sélectionné.
+#
+#  Le thème de JOUR renverse le fond : lexos-theme-gen écrit alors une copie
+#  à l'encre sombre dans ~/.config/lexos/session-icons, qu'on préfère quand
+#  elle existe. En sombre elle n'existe pas — la source dit déjà juste.
+SESSION_ICONES="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/session-icons"
+
+img() {   # img <nom du fichier branding> <nom de repli dans le thème>
+	if [[ -r "$SESSION_ICONES/icon-$1.svg" ]]; then
+		printf '%s' "$SESSION_ICONES/icon-$1.svg"
+	elif [[ -r "$BRAND/icon-$1.svg" ]]; then
+		printf '%s' "$BRAND/icon-$1.svg"
+	else
+		printf '%s' "$2"
+	fi
+}
+
+#  Résolus UNE FOIS, pour que yad et son repli zenity montrent exactement la
+#  même chose. Deux listes écrites séparément, c'est deux fenêtres qui
+#  finissent par diverger sans que personne ne s'en aperçoive.
+IMG_UTILISATEUR="$(img utilisateur system-users)"
+IMG_DECONNEXION="$(img deconnexion system-log-out)"
+IMG_ARRET="$(img arret system-shutdown)"
+IMG_REDEMARRER="$(img redemarrer system-reboot)"
+IMG_VEILLE="$(img veille system-suspend)"
+IMG_VERROUILLER="$(img verrouiller system-lock-screen)"
+
+#  La colonne d'images élargit la fenêtre d'une quarantaine de points : sans
+#  ce rattrapage, les libellés les plus longs (« Changer d'utilisateur »)
+#  seraient coupés par des points de suspension.
+LARGEUR_F=344
 POSITION=(--center)
 if command -v xrandr >/dev/null 2>&1; then
 	ECRAN_L="$(xrandr 2>/dev/null | sed -n 's/^.*current \([0-9]\+\) x [0-9]\+.*$/\1/p' | head -1)"
@@ -268,14 +331,15 @@ if command -v yad >/dev/null 2>&1; then
 		--width="$LARGEUR_F" --height=330 --borders=12 --on-top \
 		"${POSITION[@]}" \
 		--text="$TEXTE" \
-		--no-headers --column="Que faire ?" --print-column=1 \
+		--no-headers \
+		--column=" ":IMG --column="Que faire ?" --print-column=2 \
 		--button="Annuler:1" --button="Choisir:0" \
-		"Changer d'utilisateur" \
-		"Déconnexion" \
-		"Éteindre" \
-		"Redémarrer" \
-		"Mise en veille" \
-		"Verrouiller l'écran" \
+		"$IMG_UTILISATEUR" "Changer d'utilisateur" \
+		"$IMG_DECONNEXION" "Déconnexion" \
+		"$IMG_ARRET"       "Éteindre" \
+		"$IMG_REDEMARRER"  "Redémarrer" \
+		"$IMG_VEILLE"      "Mise en veille" \
+		"$IMG_VERROUILLER" "Verrouiller l'écran" \
 		2>/dev/null)"
 	#  yad termine les lignes de « --print-column » par le séparateur « | » :
 	#  sans ce nettoyage, aucune correspondance ne tomberait juste et la
@@ -297,10 +361,34 @@ fi
 if command -v zenity >/dev/null 2>&1; then
 	#  zenity ne sait pas poser six boutons : on passe par une liste, qui
 	#  dit la même chose et se lit aussi bien. Rien n'est retiré au passage.
-	CHOIX="$(zenity --list --title="Session — LexOS" \
-		--text="Tu es connecté en tant que ${QUI}." \
-		--column="Que faire ?" \
-		"Changer d'utilisateur" "Déconnexion" "Mise en veille" "Redémarrer" "Éteindre" "Verrouiller l'écran" 2>/dev/null)"
+	#  LES MÊMES LOGOS ICI, MAIS SEULEMENT S'ILS SONT TOUS LÀ. zenity ne
+	#  connaît que des CHEMINS dans une colonne d'images : un nom de thème y
+	#  laisserait une case vide. Plutôt que six lignes dont deux illustrées,
+	#  on garde alors la liste nue — la même information, sans le bancal.
+	ZEN_IMAGES=1
+	for I in "$IMG_UTILISATEUR" "$IMG_DECONNEXION" "$IMG_ARRET" \
+	         "$IMG_REDEMARRER" "$IMG_VEILLE" "$IMG_VERROUILLER"; do
+		#  img() rend un NOM de thème quand le fichier manque : zenity, lui,
+		#  ne sait lire qu'un chemin. Un seul nom dans le lot et on renonce.
+		[[ "$I" == /* && -r "$I" ]] || ZEN_IMAGES=0
+	done
+	if [[ "$ZEN_IMAGES" == "1" ]]; then
+		CHOIX="$(zenity --list --title="Session — LexOS" \
+			--text="Tu es connecté en tant que ${QUI}." \
+			--imagelist --hide-header --print-column=2 \
+			--column=" " --column="Que faire ?" \
+			"$IMG_UTILISATEUR" "Changer d'utilisateur" \
+			"$IMG_DECONNEXION" "Déconnexion" \
+			"$IMG_VEILLE"      "Mise en veille" \
+			"$IMG_REDEMARRER"  "Redémarrer" \
+			"$IMG_ARRET"       "Éteindre" \
+			"$IMG_VERROUILLER" "Verrouiller l'écran" 2>/dev/null)"
+	else
+		CHOIX="$(zenity --list --title="Session — LexOS" \
+			--text="Tu es connecté en tant que ${QUI}." \
+			--column="Que faire ?" \
+			"Changer d'utilisateur" "Déconnexion" "Mise en veille" "Redémarrer" "Éteindre" "Verrouiller l'écran" 2>/dev/null)"
+	fi
 	case "$CHOIX" in
 		"Changer d'utilisateur") changer_utilisateur ;;
 		"Déconnexion")           deconnexion ;;

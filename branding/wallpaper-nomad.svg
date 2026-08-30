@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — fond d'écran « Nomad » : le bureau de la démo web, en image.
+  ══════════════════════════════════════════════════════════════════════════
+  ALEX, capture de la démo à l'appui : « ajouter ce fond d'écran officiel
+  comme fond d'écran », puis « mettre ces images dans l'ISO 96, dans le
+  fichier images, si je veux les avoir comme fond d'écran ».
+
+  C'est le bureau de web-demo/index.html, repris valeur par valeur — pas
+  redessiné à l'œil :
+
+      fond .......... #000
+      grille ........ 64 px, rgba(232,135,58,.05)   (#desktop)
+      braise ........ ellipse 60 % x 45 % au point (50 %, 55 %),
+                      rgba(232,135,58,.14), éteinte à 70 %
+      logo .......... l'ASCII de build.sh, en #E8590C (la variable d'accent)
+      halo .......... 0 0 24px rgba(232,89,12,.35)  (text-shadow)
+      filet ......... dégradé transparent -> accent -> transparent
+      marque ........ #b8b8bc, chasse 0.7em
+      version ....... #86868c, chasse 0.35em
+      code .......... #b8b8bc à 40 %, en haut à gauche
+
+  ═══ POURQUOI LE LOGO N'EST PAS DU TEXTE ═══
+  Un dessin ASCII n'a de sens que si CHAQUE caractère occupe exactement la
+  même chasse. Le confier à une police, c'est parier qu'elle sera installée
+  au moment où le crochet 0300 rend l'image — or fonts-firacode et
+  fonts-dejavu voyagent dans une liste OPTIONNELLE. Un repli non
+  monospace ne casserait pas la construction : il produirait une bouillie,
+  en silence, et on la découvrirait sur une photo.
+
+  Les six formes employées (/ < > \ _ |) sont donc tracées ici comme des
+  segments, sur une grille de 27.0 x 47.0. Aucune police n'intervient, le
+  rendu est identique partout, et les traits ont des bouts ronds que même
+  Fira Code ne donnait pas.
+
+  Fabriqué par tools/gen-fond-nomad.py — modifier le script, pas ce fichier.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"
+     viewBox="0 0 1920 1080" role="img"
+     aria-label="LexOS — TI·LEX·AL 2.0.0 Nomad">
+  <defs>
+    <!--  La braise : « radial-gradient(60% 45% at 50% 55%, …, transparent 70%) ».
+          En SVG, le rayon se donne en fraction de la boîte : 0.60 et 0.45. -->
+    <radialGradient id="braise" cx="0.5" cy="0.55" r="0.5">
+      <stop offset="0%"  stop-color="#E8873A" stop-opacity="0.14"/>
+      <stop offset="70%" stop-color="#E8873A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="filet" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#E8590C" stop-opacity="0"/>
+      <stop offset="50%"  stop-color="#E8590C" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E8590C" stop-opacity="0"/>
+    </linearGradient>
+    <!--  Le halo du logo : « text-shadow: 0 0 24px rgba(232,89,12,.35) ». -->
+    <filter id="halo" x="-30%" y="-60%" width="160%" height="220%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <pattern id="grille" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path d="M64 0 H0 V64" fill="none" stroke="#E8873A"
+            stroke-opacity="0.05" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#000000"/>
+  <rect width="1920" height="1080" fill="url(#grille)"/>
+  <!--  L'ellipse porte la braise : 60 % de la largeur, 45 % de la hauteur,
+        centrée au point (50 %, 55 %) comme dans la feuille de style. -->
+  <ellipse cx="960" cy="594" rx="1152" ry="486"
+           fill="url(#braise)"/>
+
+  <!--  Le code du fond : les trois premières lignes de lexos-settings, comme
+        sur la capture d'Alex. Décoratif, discret, et volontairement court :
+        une page entière passerait derrière les icônes du bureau. -->
+  <g font-family="DejaVu Sans Mono, Liberation Mono, monospace" font-size="20"
+     fill="#B8B8BC" opacity="0.40" xml:space="preserve">
+    <text x="46" y="60">#!/usr/bin/env bash</text>
+    <text x="46" y="94"># =============================================================================</text>
+    <text x="46" y="128">#  lexos-settings — Paramètres LexOS</text>
+  </g>
+  <rect x="482" y="112" width="11" height="22" fill="#B8B8BC" opacity="0.40"/>
+
+  <!--  LE LOGO. Deux fois le même tracé : une passe floue pour le halo, une
+        passe nette par-dessus. -->
+  <g fill="none" stroke="#E8590C" stroke-width="5.4"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M690.0 400.3L717.0 400.3 M717.0 400.3L744.0 400.3 M987.0 400.3L1014.0 400.3 M1014.0 400.3L1041.0 400.3 M1041.0 400.3L1068.0 400.3 M1068.0 400.3L1095.0 400.3 M1095.0 400.3L1122.0 400.3 M1149.0 400.3L1176.0 400.3 M1176.0 400.3L1203.0 400.3 M1203.0 400.3L1230.0 400.3 M1230.0 400.3L1257.0 400.3 M1257.0 400.3L1284.0 400.3 M664.5 448.0L688.5 405.0 M718.5 448.0L742.5 405.0 M798.0 447.3L825.0 447.3 M825.0 447.3L852.0 447.3 M852.0 447.3L879.0 447.3 M879.0 447.3L906.0 447.3 M906.0 447.3L933.0 447.3 M961.5 448.0L985.5 405.0 M1014.0 447.3L1041.0 447.3 M1041.0 447.3L1068.0 447.3 M1135.5 405.0L1135.5 448.0 M1203.0 447.3L1230.0 447.3 M1230.0 447.3L1257.0 447.3 M1257.0 447.3L1284.0 447.3 M1297.5 405.0L1297.5 448.0 M637.5 495.0L661.5 452.0 M691.5 495.0L715.5 452.0 M772.5 495.0L796.5 452.0 M825.0 494.3L852.0 494.3 M880.5 452.0L904.5 495.0 M934.5 452.0L958.5 495.0 M961.5 495.0L985.5 452.0 M1015.5 495.0L1039.5 452.0 M1081.5 452.0L1081.5 495.0 M1135.5 452.0L1135.5 495.0 M1189.5 452.0L1189.5 495.0 M1203.0 494.3L1230.0 494.3 M1230.0 494.3L1257.0 494.3 M1257.0 494.3L1284.0 494.3 M610.5 542.0L634.5 499.0 M664.5 542.0L688.5 499.0 M690.0 541.3L717.0 541.3 M717.0 541.3L744.0 541.3 M757.5 499.0L757.5 542.0 M825.0 541.3L852.0 541.3 M852.0 541.3L879.0 541.3 M880.5 542.0L904.5 499.0 M910.9 504.5L927.6 520.5L910.9 536.5 M1009.1 504.5L992.4 520.5L1009.1 536.5 M1081.5 499.0L1081.5 542.0 M1135.5 499.0L1135.5 542.0 M1149.0 541.3L1176.0 541.3 M1176.0 541.3L1203.0 541.3 M1203.0 541.3L1230.0 541.3 M1297.5 499.0L1297.5 542.0 M610.5 546.0L634.5 589.0 M636.0 588.3L663.0 588.3 M663.0 588.3L690.0 588.3 M690.0 588.3L717.0 588.3 M717.0 588.3L744.0 588.3 M745.5 589.0L769.5 546.0 M772.5 546.0L796.5 589.0 M798.0 588.3L825.0 588.3 M825.0 588.3L852.0 588.3 M852.0 588.3L879.0 588.3 M880.5 589.0L904.5 546.0 M906.0 588.3L933.0 588.3 M934.5 589.0L958.5 546.0 M961.5 546.0L985.5 589.0 M987.0 588.3L1014.0 588.3 M1015.5 546.0L1039.5 589.0 M1081.5 546.0L1081.5 589.0 M1095.0 588.3L1122.0 588.3 M1122.0 588.3L1149.0 588.3 M1149.0 588.3L1176.0 588.3 M1176.0 588.3L1203.0 588.3 M1203.0 588.3L1230.0 588.3 M1231.5 589.0L1255.5 546.0" opacity="0.55" filter="url(#halo)"/>
+    <path d="M690.0 400.3L717.0 400.3 M717.0 400.3L744.0 400.3 M987.0 400.3L1014.0 400.3 M1014.0 400.3L1041.0 400.3 M1041.0 400.3L1068.0 400.3 M1068.0 400.3L1095.0 400.3 M1095.0 400.3L1122.0 400.3 M1149.0 400.3L1176.0 400.3 M1176.0 400.3L1203.0 400.3 M1203.0 400.3L1230.0 400.3 M1230.0 400.3L1257.0 400.3 M1257.0 400.3L1284.0 400.3 M664.5 448.0L688.5 405.0 M718.5 448.0L742.5 405.0 M798.0 447.3L825.0 447.3 M825.0 447.3L852.0 447.3 M852.0 447.3L879.0 447.3 M879.0 447.3L906.0 447.3 M906.0 447.3L933.0 447.3 M961.5 448.0L985.5 405.0 M1014.0 447.3L1041.0 447.3 M1041.0 447.3L1068.0 447.3 M1135.5 405.0L1135.5 448.0 M1203.0 447.3L1230.0 447.3 M1230.0 447.3L1257.0 447.3 M1257.0 447.3L1284.0 447.3 M1297.5 405.0L1297.5 448.0 M637.5 495.0L661.5 452.0 M691.5 495.0L715.5 452.0 M772.5 495.0L796.5 452.0 M825.0 494.3L852.0 494.3 M880.5 452.0L904.5 495.0 M934.5 452.0L958.5 495.0 M961.5 495.0L985.5 452.0 M1015.5 495.0L1039.5 452.0 M1081.5 452.0L1081.5 495.0 M1135.5 452.0L1135.5 495.0 M1189.5 452.0L1189.5 495.0 M1203.0 494.3L1230.0 494.3 M1230.0 494.3L1257.0 494.3 M1257.0 494.3L1284.0 494.3 M610.5 542.0L634.5 499.0 M664.5 542.0L688.5 499.0 M690.0 541.3L717.0 541.3 M717.0 541.3L744.0 541.3 M757.5 499.0L757.5 542.0 M825.0 541.3L852.0 541.3 M852.0 541.3L879.0 541.3 M880.5 542.0L904.5 499.0 M910.9 504.5L927.6 520.5L910.9 536.5 M1009.1 504.5L992.4 520.5L1009.1 536.5 M1081.5 499.0L1081.5 542.0 M1135.5 499.0L1135.5 542.0 M1149.0 541.3L1176.0 541.3 M1176.0 541.3L1203.0 541.3 M1203.0 541.3L1230.0 541.3 M1297.5 499.0L1297.5 542.0 M610.5 546.0L634.5 589.0 M636.0 588.3L663.0 588.3 M663.0 588.3L690.0 588.3 M690.0 588.3L717.0 588.3 M717.0 588.3L744.0 588.3 M745.5 589.0L769.5 546.0 M772.5 546.0L796.5 589.0 M798.0 588.3L825.0 588.3 M825.0 588.3L852.0 588.3 M852.0 588.3L879.0 588.3 M880.5 589.0L904.5 546.0 M906.0 588.3L933.0 588.3 M934.5 589.0L958.5 546.0 M961.5 546.0L985.5 589.0 M987.0 588.3L1014.0 588.3 M1015.5 546.0L1039.5 589.0 M1081.5 546.0L1081.5 589.0 M1095.0 588.3L1122.0 588.3 M1122.0 588.3L1149.0 588.3 M1149.0 588.3L1176.0 588.3 M1176.0 588.3L1203.0 588.3 M1203.0 588.3L1230.0 588.3 M1231.5 589.0L1255.5 546.0"/>
+  </g>
+
+  <rect x="615" y="621" width="690" height="2"
+        fill="url(#filet)"/>
+
+  <text x="960" y="665" text-anchor="middle"
+        font-family="DejaVu Sans Mono, Liberation Mono, monospace"
+        font-size="25" letter-spacing="17.5" fill="#B8B8BC"
+        >T I · L E X · A L</text>
+  <text x="960" y="703" text-anchor="middle"
+        font-family="DejaVu Sans Mono, Liberation Mono, monospace"
+        font-size="19" letter-spacing="6.7" fill="#86868C"
+        >2.0.0 — NOMAD</text>
+</svg>

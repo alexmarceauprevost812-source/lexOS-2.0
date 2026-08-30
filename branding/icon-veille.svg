@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — icône « Mise en veille ». Un croissant de lune : le symbole que
+  tout le monde lit sans légende, et celui de la démo web.
+
+  ═══ LA MORSURE SE CALCULE ═══
+  Premier jet : un creux de rayon 148 pour un disque de 176. Rendu et
+  regardé, ça ne faisait pas une lune mais un disque croqué — un Pac-Man.
+  Les deux bouts du croissant doivent se REJOINDRE en pointe, ce qui impose
+  un creux à peine plus grand que la demi-corde qui relie ces bouts.
+  Ici : bouts à ±70° du sommet, corde de 330, creux de rayon 200 (le minimum
+  est 165). Il mord 87 px dans un disque de 352 — le croissant garde 149 px
+  au plus épais et ses deux cornes se ferment.
+
+  Trois morsures ont été rendues et comparées (175, 200, 225) : la première
+  donnait une lame trop fine, la dernière un disque à peine entamé.
+
+  Rempli, pas au trait : sous 32 px — la taille dans la liste — un croissant
+  au trait seul se referme visuellement et redevient un rond.
+
+  ═══ POURQUOI BLANC, ET PAS LA COULEUR D'ACCENT ═══
+  Premier jet : le jeton #E8590C, pour que le logo suive l'accent comme le
+  reste. Rendu et REGARDÉ dans une maquette de la fenêtre, le défaut saute
+  aux yeux — la ligne SÉLECTIONNÉE est peinte en accent (voir la règle
+  « treeview.view:selected » de lexos-theme-gen), et un logo de la couleur du
+  fond n'est plus un logo. Or yad sélectionne la première ligne d'office :
+  on aurait livré une fenêtre dont une icône sur six est invisible, celle
+  qu'on regarde.
+
+  Les contrastes, calculés (WCAG) plutôt qu'estimés :
+      accent sur le panneau noir  4,9:1   ·  accent sur l'accent   1,0:1
+      blanc  sur le panneau noir 18,4:1   ·  blanc  sur l'accent   3,4:1
+  Le blanc est la SEULE valeur qui tienne sur les deux surfaces. C'est aussi
+  la couleur du libellé de la ligne sélectionnée : le logo et son texte
+  disent la même chose.
+
+  Le thème de JOUR renverse le fond : lexos-theme-gen écrit alors une copie
+  où ce blanc devient l'encre sombre du mode clair (~/.config/lexos/
+  session-icons), que lexos-session préfère. Voir sa section « 4 bis ».
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Mise en veille — LexOS">
+  <path d="M 316,91
+           A 176,176 0 1 0 316,421
+           A 200,200 0 0 1 316,91 Z"
+        fill="#FFFFFF"/>
+</svg>

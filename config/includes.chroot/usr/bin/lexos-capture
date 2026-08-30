@@ -274,9 +274,26 @@ avertir_capture() {
 	if notify-send --help 2>&1 | grep -q -- '--action' \
 	   && command -v lexos >/dev/null 2>&1; then
 		(
-			reponse="$(notify-send -w -i "$fichier" \
+			#  ═══ UN BOUTON POUR LA FAIRE PARTIR ═══
+			#  ALEX : « pouvoir fermer la fenêtre de la capture
+			#  d'écran ». « notify-send -w » ATTEND qu'on clique une
+			#  action : sans action de sortie, la bulle restait là, et
+			#  ses deux boutons FAISAIENT quelque chose — impossible de
+			#  s'en débarrasser sans ouvrir un dossier ou changer son
+			#  fond d'écran.
+			#
+			#  « fermer » n'a pas de branche dans le « case » plus bas,
+			#  et c'est exprès : cliquer dessus ferme la bulle et ne
+			#  fait rien d'autre. C'est tout ce qu'on lui demande.
+			#
+			#  ET UNE EXPIRATION, pour qui ne clique rien : quinze
+			#  secondes, le temps de lire le nom du fichier et de
+			#  décider. Sans elle, une bulle ignorée occupait le coin
+			#  de l'écran jusqu'à la fin de la session.
+			reponse="$(notify-send -w -t 15000 -i "$fichier" \
 				-A "voir=Voir dans mes images" \
 				-A "fond=En faire mon fond d'écran" \
+				-A "fermer=Fermer" \
 				"$titre" "$corps" 2>/dev/null)"
 			case "$reponse" in
 				voir)

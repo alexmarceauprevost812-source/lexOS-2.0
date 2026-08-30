@@ -1,0 +1,72 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS Diagnostic — lanceur
+# =============================================================================
+#  Démarre le serveur local (usr/lib/lexos/diagnostic/serveur.py) s'il ne
+#  tourne pas déjà, puis ouvre le navigateur sur l'onglet demandé. Si le
+#  serveur tourne déjà (deuxième clic sur l'icône, ou un alias appelé
+#  pendant que la fenêtre est ouverte), on se contente d'ouvrir un onglet
+#  dessus plutôt que d'en relancer un second.
+#
+#  Usage : lexos-diagnostic [materiel|medecin|disques]
+#  Alias : lexos-materiel, lexos-medecin, lexos-disques (voir ce dossier).
+# =============================================================================
+set -e
+
+MOTEUR_DIR=/usr/lib/lexos/diagnostic
+PORT="${LEXOS_DIAGNOSTIC_PORT:-7861}"
+ONGLET="${1:-materiel}"
+
+case "$ONGLET" in
+	materiel|medecin|disques) ;;
+	*) ONGLET="materiel" ;;
+esac
+
+URL="http://127.0.0.1:${PORT}/#${ONGLET}"
+
+deja_lance() {
+	command -v curl >/dev/null 2>&1 || return 1
+	code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 1 "http://127.0.0.1:${PORT}/" 2>/dev/null || true)
+	[ "$code" = "200" ]
+}
+
+if ! command -v python3 >/dev/null 2>&1; then
+	echo "[lexos-diagnostic] python3 introuvable — le paquet python3 (socle) est-il installé ?" >&2
+	exit 1
+fi
+
+#  ═══ AJOUT LexOS : psutil, ET ON LE DIT AU LIEU DE VOMIR UNE TRACE ═══
+#  moteur.py fait « import psutil » en tête, sans repli. Or python3-psutil
+#  voyage dans 59-diagnostic.list, une liste OPTIONNELLE : elle est posée
+#  « au mieux » par le crochet 0250, et une absence n'arrête pas la
+#  construction. Sans ce contrôle, cliquer l'icône ouvrirait un terminal
+#  crachant un ModuleNotFoundError — la panne des dossiers blancs de l'ISO
+#  72 dans une autre robe : un paquet posé au mieux dont dépend quelque
+#  chose de visible.
+if ! python3 -c 'import psutil' >/dev/null 2>&1; then
+	echo "[lexos-diagnostic] python3-psutil manque : le panneau ne peut pas mesurer la machine." >&2
+	echo "[lexos-diagnostic] À installer :  sudo apt install python3-psutil" >&2
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -i dialog-warning "LexOS Diagnostic" \
+			"python3-psutil manque. Ouvre un terminal et tape : sudo apt install python3-psutil" \
+			>/dev/null 2>&1 || true
+	fi
+	exit 1
+fi
+
+if deja_lance; then
+	if command -v xdg-open >/dev/null 2>&1; then
+		xdg-open "$URL" >/dev/null 2>&1 &
+	else
+		echo "[lexos-diagnostic] déjà lancé : $URL"
+	fi
+	exit 0
+fi
+
+# Le serveur ouvre lui-même le navigateur une fois prêt (voir serveur.py) et
+# reste ensuite au premier plan : c'est lui qui porte le cycle de vie de
+# l'appli. Fermer l'onglet du navigateur ne l'arrête pas — c'est voulu (le
+# rouvrir doit rester instantané) ; Ctrl+C dans le terminal l'arrête, tout
+# comme fermer la session. Piste possible : arrêt automatique après un long
+# moment sans requête, si ça s'avère gênant à l'usage.
+exec python3 "$MOTEUR_DIR/serveur.py" --port "$PORT" --onglet "$ONGLET"

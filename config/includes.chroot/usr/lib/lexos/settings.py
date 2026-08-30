@@ -227,6 +227,10 @@ FONDS = {
     "secu":    "/usr/share/backgrounds/lexos/wallpaper-secu.png",
     "demon":   "/usr/share/backgrounds/lexos/wallpaper-demon.png",
     "keyart":  "/usr/share/backgrounds/lexos/wallpaper-keyart.png",
+    #  « Nomad » : le bureau de la démo web, demandé par Alex sur capture —
+    #  logo ASCII orange, filet, TI·LEX·AL, 2.0.0 NOMAD. Le crochet 0300 le
+    #  rend en trois tailles depuis branding/wallpaper-nomad.svg.
+    "nomad":   "/usr/share/backgrounds/lexos/wallpaper-nomad.png",
 }
 LANGUES = {
     "fr_CA.UTF-8", "fr_FR.UTF-8", "en_US.UTF-8", "en_CA.UTF-8", "en_GB.UTF-8",
@@ -243,14 +247,36 @@ def act_ouvrir(arg):
         "reseau":     lambda: _terminal("Réseau — LexOS", "lexos net status; echo; lexos vpn"),
         "bluetooth":  lambda: _terminal("Bluetooth — LexOS", "lexos bt scan"),
         "ecrans":     lambda: _run(["lexos-display", "gui"], detach=True),
-        "son":        lambda: _xfce([["pavucontrol"], ["xfce4-mixer"]]),
+        #  « xfce4-mixer » a été RETIRÉ de Debian (il dépendait de
+        #  GStreamer 0.10) : « apt-get download xfce4-mixer » ne le trouve
+        #  plus du tout. Le garder en repli donnait l'illusion d'un filet
+        #  qui ne pouvait jamais se déployer. Le vrai filet est celui de
+        #  _xfce() : à défaut de pavucontrol, le gestionnaire général.
+        "son":        lambda: _xfce([["pavucontrol"]]),
         "energie":    lambda: _terminal("Énergie — LexOS", "lexos perf status; echo; lexos lumiere"),
         "usb":        lambda: _terminal("USB — LexOS", "lexos usb; echo; echo 'Formater un support : lexos format'"),
         "mac":        lambda: _terminal("Mac (Apple) — LexOS", "lexos mac"),
         "apparence":  lambda: _xfce([["xfce4-appearance-settings"]]),
         "bureau":     lambda: _xfce([["xfdesktop-settings"]]),
         "multitaches": lambda: _xfce([["xfwm4-workspace-settings"], ["xfwm4-settings"]]),
-        "applications": lambda: _run(["exo-preferred-applications"], detach=True),
+        #  ═══ « exo-preferred-applications » N'EXISTE PLUS ═══
+        #  ALEX : « regarde bien pour que tous les boutons et les fenêtres
+        #  ouvrent fluidement. » Celui-ci n'ouvrait rien du tout, et le
+        #  bouton « Applications par défaut » non plus (même cible).
+        #
+        #  VÉRIFIÉ SUR LES VRAIS PAQUETS, pas deviné : exo-utils ne livre que
+        #  exo-open, exo-desktop-item-edit et exo-helper — plus de
+        #  « preferred-applications ». XFCE a déplacé cette fenêtre dans
+        #  xfce4-settings, où le fichier .desktop s'intitule très exactement
+        #  « Default Applications » et lance « xfce4-mime-settings ».
+        #
+        #  On passe par _xfce() plutôt que _run() : il essaie chaque nom à
+        #  son tour et, si aucun n'est là, ouvre le gestionnaire général
+        #  plutôt que de ne rien faire. C'est la règle que cette fonction
+        #  s'était déjà donnée — « un bouton doit toujours mener quelque
+        #  part » — et que ces deux entrées-ci ne suivaient pas.
+        "applications": lambda: _xfce([["xfce4-mime-settings"],
+                                       ["exo-preferred-applications"]]),
         "notifications": lambda: _run(["xfce4-notifyd-config"], detach=True),
         "recherche":  lambda: _run(["xfce4-appfinder", "--collapsed"], detach=True),
         #  Le bouton rouge de la barre ouvre la même fenêtre. Elle est ici
@@ -288,7 +314,9 @@ def act_ouvrir(arg):
                                           "'  invite  — Invité, session limitée sans mot de passe' ''"),
         "clavier":    lambda: _xfce([["xfce4-keyboard-settings"]]),
         "datetime":   lambda: _terminal("Date et heure — LexOS", "timedatectl"),
-        "defaut":     lambda: _run(["exo-preferred-applications"], detach=True),
+        #  Même fenêtre, même correctif (voir « applications » ci-dessus).
+        "defaut":     lambda: _xfce([["xfce4-mime-settings"],
+                                     ["exo-preferred-applications"]]),
         "distant":    lambda: _terminal("Bureau à distance — LexOS", "lexos distant"),
         "comptes":    lambda: _terminal("Comptes en ligne — LexOS", "lexos comptes"),
         "bienetre":   lambda: _terminal("Bien-être numérique — LexOS", "lexos bienetre"),
@@ -298,6 +326,23 @@ def act_ouvrir(arg):
         #  parlaient pas. Le contrôle 16 l'a nommé — c'est cette ligne qui
         #  le branche.
         "boost":      lambda: _run(["lexos-boost"], detach=True),
+        #  LexOS Diagnostic — le panneau en direct (matériel/médecin/disques).
+        #  Même histoire que Boost juste au-dessus : il avait son icône, son
+        #  .desktop et sa branche dans le dispatcheur, mais aucun chemin
+        #  depuis ici. Le contrôle 16 l'a nommé.
+        "diagnostic": lambda: _run(["lexos-diagnostic"], detach=True),
+        #  Étiqueter les dossiers : l'outil PARLE (il liste ce qu'il a fait,
+        #  ou dit pourquoi il n'a rien fait). Le lancer détaché donnerait un
+        #  bouton qui a l'air de ne rien faire — le défaut le plus répété de
+        #  ce dépôt. Il passe donc par un terminal, comme le coffre privé.
+        "etiquettes": lambda: _terminal("Étiqueter les dossiers — LexOS",
+                                        "lexos etiquette --maison"),
+        #  Ce qui est sur le dock, en une commande. Épingler se fait au clic
+        #  droit sur l'application ; ici on ne fait que MONTRER, et c'est
+        #  volontaire : une liste qu'on peut lire vaut mieux qu'un deuxième
+        #  endroit où épingler, qui finirait par diverger du premier.
+        "dock-epingles": lambda: _terminal("Applications sur le dock — LexOS",
+                                           "lexos epingler --liste"),
         #  Le coffre parle en TERMINAL (menu, questions, mot de passe) : le
         #  lancer détaché ferait un bouton qui ne fait rien — vérifié dans son
         #  routeur, « gui » n'existe pas, l'entrée par défaut est « menu ».

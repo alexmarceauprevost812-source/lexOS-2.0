@@ -644,5 +644,108 @@ else
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
+titre "8. La grille d'applications ne se peint plus en orange"
+# ═════════════════════════════════════════════════════════════════════════════
+#  ALEX, capture de la Liste des applications : « la couleur de l'application
+#  une fois sélectionnée, il faudrait que le carré orange reste de couleur
+#  gris pâle », « au lieu de faire tout un carré orange ».
+#
+#  Ailleurs, l'accent sur la sélection est juste : une ligne de liste est un
+#  ruban fin. Ici c'est une TUILE qui porte déjà une icône colorée — un aplat
+#  d'accent de cette taille écrase le dessin qu'on est en train de choisir.
+#
+#  ═══ DEUX CHOSES À TENIR EN MÊME TEMPS ═══
+#  Retirer l'accent de la grille, ET ne pas le retirer partout ailleurs : la
+#  règle d'origine nommait la grille, les listes et le survol des menus dans
+#  un seul sélecteur. Les séparer sans regarder ce que devient l'autre
+#  moitié, c'est repeindre tout le bureau en gris sans s'en apercevoir.
+for MODE in sombre clair; do
+	for ACC in orange bleu; do
+		rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
+		HOME="$BANC/t" LEXOS_BRANDING="$RACINE/branding" \
+			bash "$GEN" "$ACC" --mode "$MODE" --target "$BANC/t" >/dev/null 2>&1
+		CSS8="$BANC/t/.config/gtk-3.0/gtk.css"
+		if [ ! -r "$CSS8" ]; then
+			non "$ACC/$MODE : aucune feuille produite"
+			continue
+		fi
+		VERDICT8="$(python3 - "$CSS8" <<'PY2'
+import re, sys
+css = open(sys.argv[1], encoding="utf-8").read()
+css = re.sub(r'/\*[\s\S]*?\*/', '', css)   # la prose ne compte pas
+
+
+def bloc(motif):
+    m = re.search(motif + r'[^{]*\{([^}]*)\}', css)
+    return m.group(1) if m else None
+
+
+def val(corps, prop):
+    #  « color » ne doit PAS attraper « background-color » : sans l'ancre de
+    #  début de ligne, le premier jet lisait le fond et annonçait un contraste
+    #  de 1,00 — le libellé accusé d'être illisible alors qu'il est noir.
+    if corps is None:
+        return None
+    m = re.search(r'^\s*' + prop + r'\s*:\s*([^;]+);', corps, re.M)
+    return m.group(1).strip() if m else None
+
+
+def lum(h):
+    h = h.lstrip("#")
+    c = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+
+grille = bloc(r'iconview:selected')
+listes = bloc(r'row:selected, list row:selected, treeview\.view:selected')
+fg, bg = val(grille, "color"), val(grille, "background-color")
+print("GRILLE_BG:%s" % (bg or ""))
+print("GRILLE_FG:%s" % (fg or ""))
+print("LISTE_BG:%s" % (val(listes, "background-color") or ""))
+print("RAYON:%s" % (val(grille, "border-radius") or ""))
+if bg and fg and bg.startswith("#") and fg.startswith("#"):
+    a, b = lum(bg) + 0.05, lum(fg) + 0.05
+    print("CONTRASTE:%.2f" % (max(a, b) / min(a, b)))
+PY2
+)"
+		lire8() { printf '%s' "$VERDICT8" | sed -n "s/^$1://p"; }
+		G_BG="$(lire8 GRILLE_BG)"; G_FG="$(lire8 GRILLE_FG)"
+		L_BG="$(lire8 LISTE_BG)"; RAY="$(lire8 RAYON)"; CTR="$(lire8 CONTRASTE)"
+
+		if [ -z "$G_BG" ]; then
+			non "$ACC/$MODE : aucune règle pour la grille — la sélection reprendrait l'accent"
+			continue
+		fi
+		#  LE CŒUR : la tuile ne doit PAS porter l'accent, quel qu'il soit.
+		if [ "$G_BG" = "$L_BG" ]; then
+			non "$ACC/$MODE : la grille porte encore la couleur des listes ($G_BG)"
+		else
+			ok "$ACC/$MODE : la grille ($G_BG) ne prend plus l'accent ($L_BG)"
+		fi
+		#  ET L'AUTRE MOITIÉ N'A PAS ÉTÉ EMPORTÉE : les listes et le survol des
+		#  menus gardent l'accent. Sans ce contrôle, tout repeindre en gris
+		#  passerait pour un succès.
+		if [ -n "$L_BG" ] && [ "$L_BG" != "$G_BG" ]; then
+			ok "$ACC/$MODE : les listes et les menus gardent bien l'accent"
+		else
+			non "$ACC/$MODE : la sélection des listes a été emportée avec la grille"
+		fi
+		#  Le libellé doit rester lisible SUR ce gris : en blanc il disparaît.
+		if [ -n "$CTR" ] && [ "${CTR%%.*}" -ge 4 ]; then
+			ok "$ACC/$MODE : le libellé garde un contraste de ${CTR}:1 sur la tuile"
+		else
+			non "$ACC/$MODE : contraste « ${CTR:-?} » entre $G_FG et $G_BG — libellé illisible"
+		fi
+		#  « Au lieu de faire tout un carré » : des coins, donc.
+		if [ -n "$RAY" ]; then
+			ok "$ACC/$MODE : la tuile a des coins arrondis ($RAY)"
+		else
+			non "$ACC/$MODE : la tuile reste un carré franc"
+		fi
+	done
+done
+
+# ═════════════════════════════════════════════════════════════════════════════
 printf '\n%s réussi(s), %s échoué(s)\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

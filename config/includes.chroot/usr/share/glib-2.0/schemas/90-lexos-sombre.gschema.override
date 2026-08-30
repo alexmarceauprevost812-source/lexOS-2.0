@@ -1,0 +1,37 @@
+# =============================================================================
+#  LexOS — dire à libadwaita que le bureau est sombre
+# =============================================================================
+#  ALEX, PHOTOS DE LA LOGITHÈQUE : « on voit pas les écritures ». Les cartes
+#  des applications sont BLANCHES, avec un carré gris au milieu et aucun nom
+#  lisible — le nom est là, en blanc sur blanc.
+#
+#  ═══ LA CAUSE, ET C'EST libadwaita QUI LA DIT ═══
+#  LexOS annonce son mode sombre par « gtk-application-prefer-dark-theme »,
+#  posé dans settings.ini et par le crochet 0600. C'est le mécanisme de
+#  GTK 3. La Logithèque (gnome-software) est en GTK 4 + libadwaita, et le
+#  binaire de libadwaita porte ce message noir sur blanc :
+#
+#      « Using GtkSettings:gtk-application-prefer-dark-theme with libadwaita
+#        is unsupported. Please use AdwStyleManager:color-scheme instead. »
+#
+#  Notre réglage n'est donc pas seulement inefficace : il est EXPLICITEMENT
+#  ignoré. La Logithèque rendait en CLAIR — d'où ses cartes blanches — pendant
+#  que notre feuille de style forçait le texte en blanc. Blanc sur blanc.
+#
+#  ═══ CE QUE libadwaita ÉCOUTE VRAIMENT ═══
+#  Relevé dans le même binaire : « org.gnome.desktop.interface » et
+#  « org.freedesktop.appearance », clé « color-scheme », valeurs
+#  « default | prefer-dark | prefer-light » — le schéma de
+#  gsettings-desktop-schemas le confirme mot pour mot.
+#
+#  ═══ POURQUOI UNE SURCHARGE DE SCHÉMA, ET PAS UN RÉGLAGE PAR UTILISATEUR ═══
+#  Un fichier de surcharge change la VALEUR PAR DÉFAUT pour tout le monde,
+#  dès la première session, sans dconf à peupler ni script à lancer au bon
+#  moment. Un compte créé plus tard en hérite aussi — ce qu'un réglage posé
+#  une fois dans le squelette n'aurait pas fait.
+#
+#  Ce n'est qu'un DÉFAUT : « lexos theme clair » le remplace par
+#  « prefer-light » pour l'utilisateur courant (voir lexos-theme-gen), et ce
+#  choix-là gagne. On donne le bon point de départ, on n'impose rien.
+[org.gnome.desktop.interface]
+color-scheme='prefer-dark'

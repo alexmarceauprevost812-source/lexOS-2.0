@@ -227,6 +227,24 @@ cat > "$BANC/champ.json" <<'J'
 [{"nom":"window","id":"login_window","classes":[]},
  {"nom":"entry","classes":[]}]
 J
+#  LE NOEUD « text » A L'INTERIEUR DU CHAMP. Depuis GTK 3.20 le contenu d'un
+#  GtkEntry vit dans son propre noeud, et « #login_window * » le matche
+#  DIRECTEMENT — une correspondance directe bat l'heritage du champ. Resoudre
+#  la couleur sur le champ seul serait vert pendant qu'on ne voit toujours
+#  rien a l'ecran : le piege deja paye pour les menus, puis pour les
+#  etiquettes de boutons.
+cat > "$BANC/champ_texte.json" <<'J'
+[{"nom":"window","id":"login_window","classes":[]},
+ {"nom":"entry","classes":[]},
+ {"nom":"text","classes":[]}]
+J
+#  Le nom d'utilisateur n'est pas toujours un champ nu : selon la
+#  configuration, c'est une LISTE de comptes, donc un combobox a lui.
+cat > "$BANC/champ_liste.json" <<'J'
+[{"nom":"window","id":"login_window","classes":[]},
+ {"nom":"combobox","classes":[]},
+ {"nom":"entry","classes":[]}]
+J
 cat > "$BANC/photo.json" <<'J'
 [{"nom":"window","id":"login_window","classes":[]},
  {"nom":"image","id":"user_image","classes":[]}]
@@ -368,10 +386,72 @@ F="$(resout "$BANC/bouton_indicateur_repos.json" background-color)"
 	&& ok "au repos, le bouton de la barre du haut a déjà un fond (« $F ») — pas juste au survol" \
 	|| non "fond du bouton au repos = « $F » — invisible tant qu'on n'y touche pas, la photo d'Alex"
 
-F="$(resout "$BANC/champ.json" color)"
-[ "$F" = "#E8590C" ] \
-	&& ok "ce qu'on tape dans le champ du mot de passe est orange" \
-	|| non "le champ écrit « $F »"
+#  ═══ CE QU'ON TAPE DOIT SE LIRE — ET ON MESURE, ON N'AFFIRME PAS UNE TEINTE ═══
+#  ALEX, DEUX PHOTOS DE « CHANGER D'UTILISATEUR » : « on voit pas l'écriture ».
+#
+#  Ce contrôle exigeait « #E8590C » — l'orange. Il était donc VERT sur la
+#  version que montrent ses photos : il vérifiait la couleur qu'on avait
+#  choisie, pas qu'on puisse lire. Une couleur en dur ne dit rien de la
+#  lisibilité ; c'est le contraste qui la dit.
+#
+#  ET IL FAUT LE MESURER DEUX FOIS. GtkEntry ne dessine pas l'INVITE
+#  (« Saisir votre mot de passe ») avec la couleur telle quelle : il lui
+#  applique une opacité réduite, ~55 %, posée par le widget — aucune règle
+#  CSS ne la relève. L'orange tombait de 4,9:1 à ~2:1, sous le seuil : la
+#  photo. On exige donc 4,5:1 pour le texte saisi ET 3:1 pour l'invite une
+#  fois estompée, ce qui écarte d'avance toute teinte trop sombre.
+#  Le calcul WCAG, écrit une fois dans un fichier : l'imbriquer dans la
+#  fonction ferait entrer un « heredoc » dans un autre, et c'est le genre de
+#  détail qui casse un banc sans rapport avec ce qu'il éprouve.
+cat > "$BANC/contraste.py" <<'CALC'
+import sys
+
+
+def rvb(h):
+    h = h.strip().lstrip("#")
+    if len(h) != 6:
+        raise ValueError(h)
+    return [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+
+
+def lum(c):
+    c = [x / 255 for x in c]
+    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+
+try:
+    t, f, a = rvb(sys.argv[1]), rvb(sys.argv[2]), float(sys.argv[3])
+except Exception:
+    print("0")
+    raise SystemExit
+#  L'estompage se fait SUR le fond : c'est ce que l'oeil voit, pas une
+#  couleur flottant dans le vide.
+vu = [t[i] * a + f[i] * (1 - a) for i in range(3)]
+x, y = lum(vu) + 0.05, lum(f) + 0.05
+print("%.2f" % (max(x, y) / min(x, y)))
+CALC
+
+FOND="$(resout "$BANC/champ.json" background-color)"
+contraste_champ() { # contraste_champ <couleur> <fond> <alpha>
+	python3 "$BANC/contraste.py" "$1" "$2" "$3"
+}
+for PAIRE in "champ:le champ du mot de passe" "champ_texte:le nœud texte du champ" \
+             "champ_liste:le champ de la liste des comptes"; do
+	NOEUD="${PAIRE%%:*}"; QUOI="${PAIRE#*:}"
+	F="$(resout "$BANC/$NOEUD.json" color)"
+	if [ -z "$F" ]; then
+		non "$QUOI n'a aucune couleur de texte : elle serait héritée, donc imprévisible"
+		continue
+	fi
+	C="$(contraste_champ "$F" "${FOND:-#0B0B0C}" 1.0)"
+	CI="$(contraste_champ "$F" "${FOND:-#0B0B0C}" 0.55)"
+	if [ "${C%%.*}" -ge 4 ] && [ "${CI%%.*}" -ge 3 ]; then
+		ok "$QUOI se lit : $C:1 pour la saisie, $CI:1 pour l'invite estompée ($F)"
+	else
+		non "$QUOI illisible : $C:1 pour la saisie, $CI:1 pour l'invite ($F sur $FOND)"
+	fi
+done
 
 F="$(resout "$BANC/photo.json" border-radius)"
 [ "$F" = "50%" ] \

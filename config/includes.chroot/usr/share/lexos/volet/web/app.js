@@ -130,7 +130,7 @@ function agendaHTML(){
   const duJour = evts[vue.sel] || [];
   const listeJour = duJour.length
     ? duJour.map((e,i)=>`<div class="ag-evt">
-        <span class="h">${esc(e.heure || "—")}</span>
+        <span class="h">${esc(e.heure || "—")}${e.fin ? " → " + esc(e.fin) : ""}</span>
         <span class="t">${esc(e.titre)}</span>
         <button class="btn ghost mini" style="margin-left:auto"
                 onclick="agEnleve('${vue.sel}',${i})">✕</button>
@@ -153,7 +153,15 @@ function agendaHTML(){
       ${listeJour}
       <div class="ag-ajout">
         <input class="h" id="agH" placeholder="09:00" maxlength="5"
-               aria-label="Heure">
+               aria-label="Heure de début">
+        <!--  ALEX : « ajouter une heure de fin d'événement ». Facultative :
+              beaucoup de rendez-vous n'en ont pas, et l'exiger casserait le
+              geste rapide qui marchait déjà. Le « à » entre les deux champs
+              dit à quoi sert le second sans mot d'explication. -->
+        <span class="ag-a">à</span>
+        <input class="h" id="agF" placeholder="10:00" maxlength="5"
+               aria-label="Heure de fin (facultative)"
+               onkeydown="if(event.key==='Enter')agAjoute()">
         <input class="t" id="agT" placeholder="Ajouter un rendez-vous…"
                maxlength="120" aria-label="Titre"
                onkeydown="if(event.key==='Enter')agAjoute()">
@@ -164,11 +172,17 @@ function agendaHTML(){
 async function agAjoute(){
   const t = document.getElementById("agT");
   const h = document.getElementById("agH");
+  const f = document.getElementById("agF");
   if(!t || !t.value.trim()) return;
   const r = await api("agenda-ajoute",
-    {jour: vue.sel, titre: t.value.trim(), heure: h.value.trim()});
+    {jour: vue.sel, titre: t.value.trim(),
+     heure: h ? h.value.trim() : "", fin: f ? f.value.trim() : ""});
+  //  LE MOTIF DU REFUS, PAS UN « ajout refusé » GÉNÉRIQUE. Le moteur sait
+  //  déjà dire « la fin doit venir après le début » ou « une heure de fin
+  //  demande une heure de début » : le taire obligerait à deviner ce qu'on
+  //  a mal tapé.
   if(!r.ok){ alert(r.erreur || "Ajout refusé"); return; }
-  t.value = ""; h.value = "";
+  t.value = ""; h.value = ""; if(f) f.value = "";
   await rafraichir();
 }
 async function agEnleve(jour, rang){
@@ -252,13 +266,33 @@ function rapidesHTML(){
     qsTileHTML("avion", "✈️", "Mode avion", avionOn ? "Activé" : "Désactivé", avionOn, false),
     qsTileHTML("partage", "📤", "Partager", "Envoyer un fichier", false, false),
     qsTileHTML("perf", "⚡", "Performance", r.perfLabel || "", r.perf === "performant" || r.perf === "max", false),
-    qsTileHTML("theme", r.theme === "clair" ? "☀️" : "🌑", r.theme === "clair" ? "Style clair" : "Style sombre",
-               r.theme === "clair" ? "Thème de jour" : "LexOS Noir", r.theme === "clair", false),
+    //  ═══ PAS DE TUILE JOUR/NUIT ICI ═══
+    //  ALEX : « les paramètres rapides, supprimer pour le thème de jour et de
+    //  nuit, et garder le thème de nuit officiel. » LexOS Noir EST le thème,
+    //  pas une option parmi deux : une bascule à portée de pouce invitait à
+    //  quitter le seul mode que tout le reste de l'ISO suppose.
+    //
+    //  Le thème de jour n'est pas supprimé pour autant — « lexos theme clair »
+    //  le donne toujours, et cette page le suit (voir appliqueModeVolet()).
+    //  Ce qui disparaît, c'est le raccourci, pas la possibilité.
     qsTileHTML("clavier", "⌨️", "Clavier", "Français (Québec)", false, false),
     qsTileHTML("crt", "📺", "Effets TV 1980", r.crt ? "Activés" : "Désactivés", r.crt, false),
   ];
-  return `<div class="qs-head"><span class="t">Paramètres rapides</span></div>
-    <div class="qs-grid">${tuiles.join("")}</div>`;
+  //  ═══ LA PLAQUE GRISE ═══
+  //  ALEX : « autour des boutons c'est déjà joli, mais on pourrait mettre du
+  //  gris où les espaces vides pour que ça fasse encore plus joli » — puis,
+  //  pour lever le doute : « les boutons sont bien parfaits, juste ajouter
+  //  du gris autour des boutons. »
+  //
+  //  Les tuiles ne bougent donc PAS d'un pixel. Ce qui change, c'est le vide
+  //  autour : elles touchaient presque le bord du volet (2 px), posées à même
+  //  le noir. Elles reposent maintenant sur une plaque grise qui prend toute
+  //  la hauteur restante — le gris remplit les gouttières entre les tuiles,
+  //  le pourtour, et le grand vide sous la dernière rangée.
+  return `<div class="qs">
+      <div class="qs-head"><span class="t">Paramètres rapides</span></div>
+      <div class="qs-plaque"><div class="qs-grid">${tuiles.join("")}</div></div>
+    </div>`;
 }
 async function rapidesClic(cle){
   await api(`rapides-${cle}`);

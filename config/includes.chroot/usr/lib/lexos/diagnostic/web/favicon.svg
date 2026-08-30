@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS Diagnostic — icône de l'application.
+  Inspirée de l'image fournie par Alex (téléphone en écorché, circuits qui
+  brillent sous la coque translucide) : même idée — un appareil dont on voit
+  l'intérieur vivant — mais un ordinateur portable plutôt qu'un téléphone
+  (LexOS tourne sur Alienware/ThinkPad), et recolorée au thème orange sur
+  noir de l'application plutôt qu'au bleu/cyan de la référence, pour rester
+  cohérente avec lexos-couleurs-terminal.md (#FF8C1A / #00AF5F / #FF4B4B).
+
+  Emplacement standard (spécification des thèmes d'icônes) :
+    usr/share/icons/hicolor/scalable/apps/lexos-diagnostic.svg
+  Copie de travail/source ici : branding/icon-diagnostic.svg
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <filter id="lueur" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7" result="flou"/>
+      <feMerge>
+        <feMergeNode in="flou"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <radialGradient id="ambiance" cx="50%" cy="42%" r="60%">
+      <stop offset="0%" stop-color="#FF8C1A" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#FF8C1A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- lueur d'ambiance derrière l'appareil -->
+  <circle cx="256" cy="230" r="230" fill="url(#ambiance)"/>
+
+  <!-- base / clavier, en perspective légère -->
+  <path d="M 118 332 L 394 332 L 436 372 Q 438 378 432 378 L 80 378 Q 74 378 76 372 Z"
+        fill="#131311" stroke="#FF8C1A" stroke-width="3" stroke-linejoin="round"/>
+  <rect x="226" y="352" width="60" height="7" rx="3.5" fill="#FF8C1A" opacity="0.55"/>
+
+  <!-- charnière -->
+  <rect x="122" y="320" width="268" height="16" rx="6" fill="#0d0d0b" stroke="#FF8C1A" stroke-width="2.5"/>
+
+  <!-- écran -->
+  <rect x="104" y="88" width="304" height="238" rx="18"
+        fill="#0d0d0b" stroke="#FF8C1A" stroke-width="4"/>
+  <rect x="128" y="110" width="256" height="194" rx="8" fill="#050504"/>
+
+  <!-- circuit interne, qui brille -->
+  <g filter="url(#lueur)" stroke="#FF8C1A" stroke-width="3.5" stroke-linecap="round" fill="none">
+    <path d="M228 196 L176 196"/>
+    <path d="M228 220 L160 220"/>
+    <path d="M284 196 L336 196"/>
+    <path d="M284 220 L352 220"/>
+    <path d="M244 180 L244 140"/>
+    <path d="M268 180 L268 150"/>
+    <path d="M244 236 L244 276"/>
+    <path d="M268 236 L268 266"/>
+    <rect x="228" y="180" width="56" height="56" rx="7" fill="#0d0d0b" stroke="#FF8C1A" stroke-width="3.5"/>
+    <circle cx="176" cy="196" r="6" fill="#FF8C1A" stroke="none"/>
+    <circle cx="160" cy="220" r="6" fill="#FF8C1A" stroke="none"/>
+    <circle cx="336" cy="196" r="6" fill="#FF8C1A" stroke="none"/>
+    <circle cx="352" cy="220" r="6" fill="#FF8C1A" stroke="none"/>
+    <circle cx="244" cy="140" r="6" fill="#FF8C1A" stroke="none"/>
+    <circle cx="268" cy="150" r="6" fill="#FF8C1A" stroke="none"/>
+    <circle cx="244" cy="276" r="6" fill="#FF8C1A" stroke="none"/>
+    <circle cx="268" cy="266" r="6" fill="#FF8C1A" stroke="none"/>
+  </g>
+
+  <!-- pouls en direct, par-dessus le circuit -->
+  <path d="M148 270 L190 270 L202 246 L216 292 L228 254 L240 270 L364 270"
+        fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linejoin="round"
+        stroke-linecap="round" filter="url(#lueur)"/>
+</svg>

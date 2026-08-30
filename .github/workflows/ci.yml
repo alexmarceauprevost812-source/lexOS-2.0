@@ -1135,7 +1135,67 @@ jobs:
           #  « changer d'utilisateur » et « déconnexion » doivent avoir quitté
           #  la rangée du panneau, et le greffon 17 (le rouge) être le dernier
           #  — c'est ce qui le met tout à droite de l'écran.
+          #  ALEX : « on aimerait ajouter des logos où la fenêtre pour fermer
+          #  ou redémarrer l'ordinateur. » Cinq icônes ont été dessinées pour
+          #  ça. Le banc ne se contente pas de vérifier que le script les
+          #  CITE — il les ouvre, les rend à 28 px (la taille réelle dans la
+          #  liste) et compte les pixels peints : un SVG valide et
+          #  entièrement transparent passerait tous les autres contrôles.
+          #  D'où ces deux outils, sans lesquels il échoue au lieu de se
+          #  sauter en silence.
+          command -v rsvg-convert >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends librsvg2-bin >/dev/null
+          python3 -c 'import PIL' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
           bash tests/test_lexos_session.sh
+
+      - name: Le fond d'écran « Nomad » — le bureau de la démo, sur l'ISO
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, capture de la démo : « mettre ces images dans l'ISO 96,
+          #  dans le fichier images, si je veux les avoir comme fond
+          #  d'écran ». Il ne demande pas qu'on lui impose ce fond : il
+          #  demande qu'il soit LÀ, choisissable.
+          #
+          #  Le logo ASCII est tracé en SEGMENTS, pas écrit en texte : une
+          #  police monospace absente au moment du rendu (fonts-firacode et
+          #  fonts-dejavu voyagent dans une liste optionnelle) donnerait une
+          #  bouillie, en silence. Le banc re-rend donc le SVG avec le vrai
+          #  rsvg-convert et COMPTE les pixels orange — c'est la seule façon
+          #  de distinguer un dessin d'un fichier valide et noir.
+          command -v rsvg-convert >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends librsvg2-bin >/dev/null
+          python3 -c 'import PIL' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
+          bash tests/test_lexos_fond_nomad.sh
+
+      - name: LexOS Diagnostic — le panneau matériel/médecin/disques
+        if: ${{ !cancelled() }}
+        run: |
+          #  Module apporté par Alex, relu avant d'être posé : lecture seule,
+          #  aucun shell=True, aucun sudo, HTML échappé partout. Deux choses
+          #  ont été ajoutées à l'intégration, et ce banc les tient :
+          #
+          #  · le serveur écoute sur un port FIXE (7861), contrairement à
+          #    celui des Paramètres qui tire un port libre. Un port local
+          #    prévisible est joignable par n'importe quelle page web que
+          #    l'utilisateur ouvre — le banc DÉMARRE le vrai serveur et
+          #    vérifie qu'une origine étrangère et un Host étranger (« DNS
+          #    rebinding ») sont refusés, sans gêner notre propre page ;
+          #  · le moteur importe psutil sans repli, alors que python3-psutil
+          #    voyage dans une liste optionnelle.
+          #
+          #  psutil est donc installé ici : sans lui le banc échouerait faute
+          #  d'outil, et on répare l'outillage, pas le contrôle.
+          python3 -c 'import psutil' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-psutil >/dev/null
+          #  Le fichier est nommé ICI en toutes lettres, et pas seulement
+          #  sous sa forme de module : le garde-fou anti-orphelin de ce
+          #  dépôt cherche le NOM DE FICHIER dans ce workflow, et
+          #  « tests.test_lexos_diagnostic » ne lui ressemble pas. Un banc
+          #  que personne ne lance ne protège rien, et ça ne se voit pas.
+          test -f tests/test_lexos_diagnostic.py
+          python3 -m unittest tests.test_lexos_diagnostic -v
 
       - name: Gros texte et bulle de capture — deux gestes du quotidien
         if: ${{ !cancelled() }}
@@ -1432,6 +1492,37 @@ jobs:
           #  n'a rien vu, pas d'une recherche qui n'a jamais eu lieu.
           bash tests/test_lexos_bluetooth.sh
 
+      - name: Les trois pastilles, la capture fermable, l'agenda qui a une fin
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, QUATRE DEMANDES : « bouton rouge pour fermer, jaune pour
+          #  réduire, gris pour mettre la page de côté » (il n'y avait AUCUN
+          #  bouton réduire) ; « pouvoir fermer la fenêtre de la capture » ;
+          #  « écriture noire » sur le rappel des raccourcis ; « ajouter une
+          #  heure de fin d'événement ».
+          #  Le banc FAIT TOURNER le crochet sur un vrai thème Arc et relit
+          #  les pixels — une première version du tiret traversait tout le
+          #  disque, et seule l'image l'a montré. Il fait tourner l'agenda de
+          #  bout en bout : l'heure de fin était écrite puis JETÉE à la
+          #  relecture par le filtre de _agenda_lit().
+          bash tests/test_lexos_fenetres_capture.sh
+
+      - name: Chaque bouton fait quelque chose, chaque fenêtre mène quelque part
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « regarde bien pour que tous les boutons et les fenêtres
+          #  ouvrent fluidement. » L'audit a trouvé deux fenêtres MORTES sur
+          #  trente-cinq : « Applications » et « Applications par défaut »
+          #  lançaient exo-preferred-applications, que XFCE ne livre plus
+          #  (vérifié dans exo-utils : il ne reste qu'exo-open,
+          #  exo-desktop-item-edit et exo-helper). Et le silence était de
+          #  notre fait — le moteur renvoyait « Outil absent », la page
+          #  jetait la réponse.
+          #  Le commentaire de _xfce() raconte que ce défaut avait DÉJÀ tué
+          #  neuf fenêtres auparavant. C'est le défaut le plus répété du
+          #  dépôt, et rien ne le surveillait.
+          bash tests/test_lexos_boutons_fenetres.sh
+
       - name: L'accent des pages web — une seule table, trois surfaces
         if: ${{ !cancelled() }}
         run: |
@@ -1476,6 +1567,64 @@ jobs:
           #  présent sur le disque est déclaré — la question que personne ne
           #  posait.
           bash tests/test_lexos_icones_theme.sh
+
+      - name: Les trois lettres sur les dossiers
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « ajouter toujours sur les dossiers, quand on renomme les
+          #  dossiers, l'écriture des 3 premières lettres sur le dossier. »
+          #
+          #  Deux causes, deux correctifs : Bureau, Modèles et Public étaient
+          #  des LIENS vers le dossier nu (trois fichiers à écrire) ; les
+          #  dossiers qu'Alex crée lui-même n'ont aucun nom d'icône, et aucun
+          #  thème ne peut deviner « PRO » à partir d'un nom de dossier — d'où
+          #  lexos-etiquette, qui fabrique l'image et la colle sur le dossier.
+          #
+          #  Le banc DESSINE l'étiquette avec le vrai rsvg-convert et compare
+          #  au pixel près la position de la pastille avec celle du thème : une
+          #  étiquette maison mal alignée avec DOC et IMG se verrait tout de
+          #  suite. Il éprouve aussi le repliage des accents, où deux jets ont
+          #  échoué (iconv qui supprime les accents, puis sed qui découpe
+          #  l'UTF-8 en octets) — deux pannes muettes sans ce contrôle.
+          command -v rsvg-convert >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends librsvg2-bin >/dev/null
+          python3 -c 'import PIL' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
+          bash tests/test_lexos_etiquette.sh
+
+      - name: Épingler une application au dock, d'un clic droit
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, photo du clic droit sur une icône du bureau : « on voit pas
+          #  "épingler" pour le mettre sur le dock ». Plank ne lit pas une
+          #  liste dans un réglage : chaque icône épinglée est un fichier
+          #  .dockitem dans un dossier qu'il surveille.
+          #
+          #  Le piège que ce banc garde : l'icône du bureau est un .desktop
+          #  posé dans ~/Bureau. L'épingler TEL QUEL marche jusqu'au jour où
+          #  Alex efface l'icône du bureau — le dock garde alors un lanceur
+          #  mort. Quand le même nom existe au catalogue, c'est celui-là qu'il
+          #  faut épingler, et ça ne se voit pas à la lecture du code.
+          bash tests/test_lexos_epingler.sh
+
+      - name: Le gestionnaire de fichiers — le dossier orange, pas un engrenage
+        if: ${{ !cancelled() }}
+        run: |
+          #  TROISIÈME SIGNALEMENT D'ALEX SUR LE MÊME SUJET. Les deux
+          #  correctifs précédents partaient du même pari : que Thunar
+          #  réclame une des écritures qu'on a devinées, et que GTK aille la
+          #  chercher là où on croit. Le second était même un NON-ÉVÉNEMENT —
+          #  le crochet 0605 réécrit index.theme d'après le disque, donc le
+          #  dossier qu'on venait d'y déclarer y figurait déjà.
+          #
+          #  On n'espère plus : une copie du .desktop de Thunar est posée
+          #  dans /usr/local/share/applications avec « Icon=folder-open »,
+          #  le seul dossier du thème dont les photos prouvent qu'il est
+          #  parcouru. Le banc EXÉCUTE le vrai fragment du crochet 0400 sur
+          #  trois disques fabriqués — nom Debian classique, nom renommé,
+          #  .desktop sans ligne Icon= — et sur un disque vide, pour vérifier
+          #  qu'une absence de Thunar se DIT au lieu de casser l'ISO.
+          bash tests/test_lexos_fichiers_icone.sh
 
       - name: Carrés noirs de la Logithèque et luminosité des Paramètres
         if: ${{ !cancelled() }}
@@ -1749,6 +1898,50 @@ jobs:
           #  session active (allow_active=yes), l'envelopper dans sudo
           #  redemanderait un mot de passe à chaque ouverture.
           bash tests/test_lexos_logitheque.sh
+
+      - name: La Logithèque doit être SOMBRE — sinon son écriture est invisible
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, trois photos : « la Logithèque, on voit pas les écritures ».
+          #  Cartes blanches, nom écrit en blanc dessus. La cause est dans le
+          #  binaire de libadwaita, mot pour mot : « Using GtkSettings:gtk-
+          #  application-prefer-dark-theme with libadwaita is unsupported. »
+          #  Tout notre mode sombre passe par CE réglage-là : la Logithèque
+          #  l'ignorait et rendait en clair.
+          #
+          #  Le banc ne se contente pas de lire le fichier de surcharge : il
+          #  le COMPILE avec le vrai glib-compile-schemas et RELIT la valeur
+          #  avec gsettings, puis retire la surcharge et recompile pour
+          #  prouver qu'il voit la différence. Sans ces deux paquets, il
+          #  échouerait faute d'outil — et il a raison d'échouer plutôt que
+          #  de se sauter en silence : on répare l'outillage, pas le contrôle.
+          command -v glib-compile-schemas >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends libglib2.0-bin >/dev/null
+          [ -r /usr/share/glib-2.0/schemas/org.gnome.desktop.interface.gschema.xml ] \
+            || sudo apt-get install -y --no-install-recommends gsettings-desktop-schemas >/dev/null
+          bash tests/test_lexos_logitheque_sombre.sh
+
+      - name: Paramètres rapides — le gris autour des boutons, mesuré à l'écran
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « les boutons sont bien parfaits, juste ajouter du gris
+          #  autour des boutons » — et, dans le même message, retirer la
+          #  bascule jour/nuit du volet.
+          #
+          #  La contrainte compte autant que l'envie : les tuiles ne doivent
+          #  PAS changer. Une couleur composée de trois calques translucides
+          #  ne se lit pas dans la feuille de style, alors le banc rend le
+          #  VRAI balisage dans un vrai moteur et relève les pixels : le vide
+          #  doit devenir gris, la tuile rester exactement #141416. Puis il
+          #  neutralise la plaque et recommence — si rien ne change, la mesure
+          #  ne prouvait rien.
+          python3 -c 'import PIL' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
+          command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1 \
+            || command -v google-chrome >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends chromium-browser >/dev/null 2>&1 \
+            || sudo snap install chromium >/dev/null 2>&1 || true
+          bash tests/test_lexos_rapides_gris.sh
 
       - name: Fuseau horaire — la position réelle, pas Toronto par défaut
         if: ${{ !cancelled() }}

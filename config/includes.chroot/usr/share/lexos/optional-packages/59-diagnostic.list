@@ -10,6 +10,16 @@
 #  Déjà au socle, pas répétés ici : smartmontools et fwupd (15-essentiel),
 #  lm-sensors (47-apple), hwinfo (00-core).
 
+# --- Le moteur de mesure du panneau LexOS Diagnostic -------------------------
+#  usr/lib/lexos/diagnostic/moteur.py s'appuie sur psutil pour le processeur,
+#  la mémoire, le réseau, la batterie, les processus et les capteurs — plus
+#  fiable que reparser /proc à la main pour ces mesures-là.
+#
+#  Le lanceur VÉRIFIE sa présence et le dit clairement s'il manque, au lieu
+#  de laisser le panneau s'ouvrir sur une trace Python : cette liste est
+#  optionnelle, donc posée « au mieux ».
+python3-psutil
+
 # --- Santé des disques -------------------------------------------------------
 #  smartctl en fenêtre, avec un voyant vert ou rouge.
 gsmartcontrol

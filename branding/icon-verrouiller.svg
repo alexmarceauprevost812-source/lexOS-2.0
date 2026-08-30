@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — icône « Verrouiller l'écran ». Cadenas fermé : anse en haut, corps
+  plein. Même trait (42) que le reste de la famille.
+
+  ═══ POURQUOI BLANC, ET PAS LA COULEUR D'ACCENT ═══
+  Premier jet : le jeton #E8590C, pour que le logo suive l'accent comme le
+  reste. Rendu et REGARDÉ dans une maquette de la fenêtre, le défaut saute
+  aux yeux — la ligne SÉLECTIONNÉE est peinte en accent (voir la règle
+  « treeview.view:selected » de lexos-theme-gen), et un logo de la couleur du
+  fond n'est plus un logo. Or yad sélectionne la première ligne d'office :
+  on aurait livré une fenêtre dont une icône sur six est invisible, celle
+  qu'on regarde.
+
+  Les contrastes, calculés (WCAG) plutôt qu'estimés :
+      accent sur le panneau noir  4,9:1   ·  accent sur l'accent   1,0:1
+      blanc  sur le panneau noir 18,4:1   ·  blanc  sur l'accent   3,4:1
+  Le blanc est la SEULE valeur qui tienne sur les deux surfaces. C'est aussi
+  la couleur du libellé de la ligne sélectionnée : le logo et son texte
+  disent la même chose.
+
+  Le thème de JOUR renverse le fond : lexos-theme-gen écrit alors une copie
+  où ce blanc devient l'encre sombre du mode clair (~/.config/lexos/
+  session-icons), que lexos-session préfère. Voir sa section « 4 bis ».
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Verrouiller l'écran — LexOS">
+
+  <!--  L'anse part du corps et y revient : une anse posée au-dessus, sans
+        contact, donne un cadenas OUVERT — le contraire de ce qu'on dit. -->
+  <path d="M 166,232 V 168 A 90,90 0 0 1 346,168 V 232"
+        fill="none" stroke="#FFFFFF" stroke-width="42"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="124" y="232" width="264" height="184" rx="36"
+        fill="none" stroke="#FFFFFF" stroke-width="42" stroke-linejoin="round"/>
+
+  <!--  Le trou de serrure : sans lui, le corps est un rectangle et l'objet
+        peut se lire « valise ». -->
+  <circle cx="256" cy="304" r="24" fill="#FFFFFF"/>
+  <path d="M 256,318 V 358" fill="none" stroke="#FFFFFF" stroke-width="30"
+        stroke-linecap="round"/>
+</svg>

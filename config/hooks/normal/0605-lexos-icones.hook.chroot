@@ -204,6 +204,63 @@ else
 	dire "!! gtk-update-icon-cache absent — pas de cache (GTK lira les fichiers)"
 fi
 
+#  ─── LE GESTIONNAIRE DE FICHIERS : ON SUPPRIME LA RECHERCHE ────────────────
+#  ALEX, QUATRIÈME SIGNALEMENT : « le gestionnaire de fichiers, c'est toujours
+#  le même problème » — et, plus précis la fois d'avant : « quand on passe
+#  dessus avec la souris, il change d'image ».
+#
+#  ═══ CE QUE « AU SURVOL » NOUS APPREND ═══
+#  Le dock grossit l'icône au survol (zoom 130 % de 64 px, soit ~83 px). Une
+#  image qui change entre 64 et 83, c'est une RECHERCHE PAR NOM qui ne rend
+#  pas la même chose selon la taille demandée : à 64, un dossier de taille
+#  fixe existe et gagne ; à 83, aucun dossier fixe ne correspond, GTK passe au
+#  « scalable », et si ce SVG-là ne se charge pas il continue la chaîne
+#  d'héritage jusqu'à un engrenage générique. Au repos le bon dessin, au
+#  survol l'engrenage : exactement la photo.
+#
+#  ═══ TROIS CORRECTIFS ONT DÉJÀ PARIÉ, ON ARRÊTE ═══
+#  Les alias dans le thème, « apps/scalable » déclaré, puis « Icon=folder-open »
+#  dans une copie du .desktop : les trois supposaient que la recherche par nom
+#  finirait par tomber juste. Ici, il n'y a plus de recherche du tout — le
+#  .desktop reçoit un CHEMIN ABSOLU vers un fichier précis. GTK ouvre ce
+#  fichier, quelle que soit la taille demandée. Aucun nom, aucun dossier de
+#  taille, aucune chaîne d'héritage, aucun greffon SVG à espérer.
+#
+#  On vise un PNG, et le plus grand disponible : il se réduit proprement à
+#  n'importe quelle taille et ne demande aucun moteur de rendu (même leçon
+#  que les PNG de secours plus haut dans ce crochet). Le SVG ne sert que de
+#  dernier recours, si aucun PNG n'a pu être rendu.
+#
+#  Ce bloc tourne APRÈS le rendu des PNG : il ne peut donc désigner qu'un
+#  fichier dont il vient de constater l'existence.
+FIC_LOCAL="${LEXOS_APPS_LOCAL:-/usr/local/share/applications}"
+ICONE_FICHIERS=""
+for T in 256 128 64 48; do
+	if [ -r "$THEME/places/${T}x${T}/folder-open.png" ]; then
+		ICONE_FICHIERS="$THEME/places/${T}x${T}/folder-open.png"
+		break
+	fi
+done
+[ -n "$ICONE_FICHIERS" ] || [ ! -r "$THEME/places/scalable/folder-open.svg" ] 	|| ICONE_FICHIERS="$THEME/places/scalable/folder-open.svg"
+
+if [ -z "$ICONE_FICHIERS" ]; then
+	dire "!! aucun dossier-ouvert rendu — l'icône du gestionnaire reste un nom à chercher"
+else
+	N_PATCHES=0
+	for D in "$FIC_LOCAL"/*[Tt]hunar*.desktop; do
+		[ -f "$D" ] || continue
+		sed -i "s|^Icon=.*|Icon=${ICONE_FICHIERS}|" "$D"
+		N_PATCHES=$((N_PATCHES + 1))
+	done
+	if [ "$N_PATCHES" -gt 0 ]; then
+		dire "gestionnaire de fichiers : $N_PATCHES .desktop pointe(nt) sur $ICONE_FICHIERS"
+	else
+		#  Le crochet 0400 pose cette copie. Si elle manque, c'est LUI qui a
+		#  echoue — et on le dit ici plutot que de le decouvrir sur une photo.
+		dire "!! aucun .desktop de gestionnaire dans $FIC_LOCAL — le crochet 0400 a-t-il tourne ?"
+	fi
+fi
+
 #  ─── LE VERDICT, LISIBLE D'UN COUP D'ŒIL ────────────────────────────────────
 dire "thème : $THEME"
 dire "à vérifier sur la machine : gtk-update-icon-cache -f -t $THEME ; puis rouvrir Fichiers"

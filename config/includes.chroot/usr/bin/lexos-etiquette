@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-etiquette — les trois premières lettres, sur n'importe quel dossier
+# =============================================================================
+#  ALEX, captures de Fichiers : « ajouter toujours sur les dossiers, quand on
+#  renomme les dossiers, l'écriture des 3 premières lettres sur le dossier. »
+#
+#  ═══ CE QUE LE THÈME SAIT FAIRE, ET OÙ IL S'ARRÊTE ═══
+#  Les dossiers standards portent déjà leur pastille : DOC, IMG, MUS, VID, DL,
+#  BUR, MOD, PUB. Elles viennent du THÈME D'ICÔNES, qui associe un dessin à un
+#  NOM d'icône — « folder-documents », « user-desktop »… GIO ne demande ces
+#  noms-là que pour les dossiers XDG connus.
+#
+#  Un dossier que TU crées — « Projets LexOS » sur ta capture — n'a pas de nom
+#  d'icône à lui : GIO demande « folder », le dossier nu. Aucun thème au monde
+#  ne peut deviner « PRO » à partir de son nom, parce qu'un thème ne voit pas
+#  les noms de dossiers. C'est une limite de forme, pas un oubli.
+#
+#  ═══ CE QUE CET OUTIL FAIT ═══
+#  Il fabrique l'icône lui-même — le dossier orange de LexOS, avec les trois
+#  lettres dessus — et la colle SUR CE DOSSIER-LÀ, par l'attribut que Thunar
+#  emploie déjà quand on change une icône à la main (metadata::custom-icon).
+#  Rien d'exotique : c'est le clic droit -> Propriétés -> icône, en automatique
+#  et avec le dessin de la maison.
+#
+#  ═══ CE QU'IL NE FAIT PAS, ET IL FAUT LE DIRE ═══
+#  Il ne se déclenche pas TOUT SEUL quand tu renommes un dossier. Thunar
+#  n'offre aucun crochet de renommage, et surveiller tout le disque en
+#  permanence pour ça coûterait plus cher que ça ne rapporte. Une étiquette
+#  qui garde les lettres de l'ANCIEN nom serait pire que pas d'étiquette du
+#  tout — alors on la refait sur demande : clic droit sur le dossier ->
+#  « Étiqueter ce dossier », ou « lexos etiquette <dossier> ».
+#
+#  LECTURE SEULE SUR TON CONTENU. On n'écrit que deux choses : une image dans
+#  ~/.local/share/lexos/etiquettes, et l'attribut d'icône du dossier. Aucun
+#  fichier à toi n'est déplacé, renommé ni touché.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos-etiquette"
+MODELE="${LEXOS_ICONES:-/usr/share/icons/LexOS}/places/scalable/folder.svg"
+CACHE="${XDG_DATA_HOME:-$HOME/.local/share}/lexos/etiquettes"
+TAILLE=256
+
+die() { printf '%s : %s\n' "$PROG" "$1" >&2; exit 1; }
+
+aide() {
+	cat <<'AIDE'
+
+  Les trois premières lettres, écrites sur le dossier.
+
+    lexos etiquette <dossier>…      étiqueter ces dossiers
+    lexos etiquette --maison        étiqueter les dossiers de ton dossier personnel
+    lexos etiquette --enlever <d>…  retirer l'étiquette
+    lexos etiquette aide            ce texte
+
+  Les dossiers standards (Documents, Images, Musique, Vidéos,
+  Téléchargements, Bureau, Modèles, Public) portent déjà leur pastille : elle
+  vient du thème, il n'y a rien à faire pour eux.
+
+  Cet outil sert aux AUTRES — ceux que tu crées ou que tu renommes. Il ne se
+  redéclenche pas tout seul après un renommage : relance-le sur le dossier,
+  ou par un clic droit -> « Étiqueter ce dossier ».
+
+AIDE
+}
+
+#  ─── LES TROIS LETTRES ──────────────────────────────────────────────────────
+#  « Téléchargements » doit donner TEL : une pastille de trois signes n'a pas
+#  la place d'un accent, et le monospace les aligne mal.
+#
+#  ═══ POURQUOI PAS iconv //TRANSLIT ═══
+#  C'était le premier jet, et il donnait « TLC ». Vérifié plutôt que supposé :
+#  hors d'une locale qui s'y prête, //TRANSLIT ne translittère pas le « é »,
+#  il le SUPPRIME — « Téléchargements » devient « Tlchargements », « école »
+#  devient « cole ». Le résultat dépendait donc de la locale de la session :
+#  TEL sur une machine, TLC sur une autre, sans que rien ne le signale.
+#
+#  La table ci-dessous ne dépend de rien. Elle couvre le français, qui est la
+#  langue de ce système ; tout autre signe est simplement écarté ensuite.
+etiquette_de() { # etiquette_de <nom de dossier> → jusqu'à 3 majuscules
+	local nom="$1" propre
+	#  ═══ UN « -e » PAR LETTRE, ET C'EST VOULU ═══
+	#  Deux jets ont échoué avant celui-ci, tous deux vérifiés au lieu d'être
+	#  supposés :
+	#
+	#    1) « iconv -t ASCII//TRANSLIT » : hors d'une locale qui s'y prête, il
+	#       ne translittère pas le « é », il le SUPPRIME. « Téléchargements »
+	#       donnait TLC, « école » donnait COL — et le résultat changeait
+	#       d'une machine à l'autre sans que rien ne le signale.
+	#
+	#    2) « s/[àâäÀÂÄ]/a/g » : sed compare des OCTETS. En UTF-8, « é » et
+	#       « à » commencent par le même octet (0xC3) ; la classe entre
+	#       crochets le remplace seul et laisse l'octet de queue. On obtenait
+	#       TAE et AEC — de la bouillie, en silence.
+	#
+	#  Une substitution par lettre ENTIÈRE, en revanche, compare une suite
+	#  d'octets exacte. C'est verbeux, ça ne dépend de rien, et ça donne le
+	#  même résultat partout.
+	propre="$(printf '%s' "$nom" | sed \
+		-e 's/à/a/g' -e 's/À/a/g' \
+		-e 's/â/a/g' -e 's/Â/a/g' \
+		-e 's/ä/a/g' -e 's/Ä/a/g' \
+		-e 's/é/e/g' -e 's/É/e/g' \
+		-e 's/è/e/g' -e 's/È/e/g' \
+		-e 's/ê/e/g' -e 's/Ê/e/g' \
+		-e 's/ë/e/g' -e 's/Ë/e/g' \
+		-e 's/î/i/g' -e 's/Î/i/g' \
+		-e 's/ï/i/g' -e 's/Ï/i/g' \
+		-e 's/ô/o/g' -e 's/Ô/o/g' \
+		-e 's/ö/o/g' -e 's/Ö/o/g' \
+		-e 's/ù/u/g' -e 's/Ù/u/g' \
+		-e 's/û/u/g' -e 's/Û/u/g' \
+		-e 's/ü/u/g' -e 's/Ü/u/g' \
+		-e 's/ç/c/g' -e 's/Ç/c/g' \
+		-e 's/ÿ/y/g' -e 's/Ÿ/y/g' \
+		-e 's/æ/ae/g' -e 's/Æ/ae/g' -e 's/œ/oe/g' -e 's/Œ/oe/g')"
+	propre="$(printf '%s' "$propre" | tr -cd '[:alnum:]' | tr '[:lower:]' '[:upper:]')"
+	printf '%s' "${propre:0:3}"
+}
+
+#  Un nom de fichier sûr pour le cache, dérivé du chemin complet : deux
+#  dossiers « Photos » à deux endroits doivent avoir deux images à eux, sinon
+#  renommer l'un changerait l'icône de l'autre.
+cle_de() { printf '%s' "$1" | md5sum | cut -c1-32; }
+
+fabrique() { # fabrique <étiquette> <destination png> → 0 si l'image est là
+	local etiq="$1" dst="$2" tmp
+	[[ -r "$MODELE" ]] || { printf '%s : dossier modèle introuvable (%s)\n' "$PROG" "$MODELE" >&2; return 1; }
+	command -v rsvg-convert >/dev/null 2>&1 \
+		|| { printf '%s : rsvg-convert manque — impossible de dessiner\n' "$PROG" >&2; return 1; }
+	tmp="$(mktemp -t lexos-etiq-XXXXXX.svg)" || return 1
+	#  Le texte est posé aux MÊMES coordonnées que les pastilles du thème
+	#  (x=256, y=345, corps 104, mono gras) : une étiquette maison qui ne
+	#  s'aligne pas avec DOC et IMG se verrait tout de suite.
+	awk -v e="$etiq" '
+		/<\/svg>/ {
+			print "  <text x=\"256\" y=\"371\" text-anchor=\"middle\" fill=\"#ffffff\""
+			print "        opacity=\"0.95\" font-family=\"monospace\" font-weight=\"700\""
+			print "        font-size=\"104\">" e "</text>"
+		}
+		{ print }
+	' "$MODELE" > "$tmp" || { rm -f "$tmp"; return 1; }
+	mkdir -p "$(dirname "$dst")"
+	rsvg-convert -w "$TAILLE" -h "$TAILLE" -o "$dst" "$tmp" 2>/dev/null
+	local code=$?
+	rm -f "$tmp"
+	[[ "$code" -eq 0 && -s "$dst" ]]
+}
+
+pose() { # pose <dossier>
+	local d="$1" nom etiq png
+	[[ -d "$d" ]] || { printf '%s : « %s » n'"'"'est pas un dossier — ignoré\n' "$PROG" "$d" >&2; return 1; }
+	d="$(cd "$d" && pwd)" || return 1
+	nom="$(basename "$d")"
+	etiq="$(etiquette_de "$nom")"
+	if [[ -z "$etiq" ]]; then
+		printf '%s : « %s » ne donne aucune lettre — ignoré\n' "$PROG" "$nom" >&2
+		return 1
+	fi
+	png="$CACHE/$(cle_de "$d").png"
+	fabrique "$etiq" "$png" || return 1
+	if ! command -v gio >/dev/null 2>&1; then
+		printf '%s : gio manque (paquet libglib2.0-bin) — image prête mais non posée\n' "$PROG" >&2
+		return 1
+	fi
+	if gio set -t string "$d" metadata::custom-icon "file://$png" 2>/dev/null; then
+		printf '%s  →  %s\n' "$etiq" "$d"
+		return 0
+	fi
+	printf '%s : le système a refusé de poser l'"'"'icône sur « %s »\n' "$PROG" "$d" >&2
+	return 1
+}
+
+enleve() { # enleve <dossier>
+	local d="$1"
+	[[ -d "$d" ]] || return 1
+	d="$(cd "$d" && pwd)" || return 1
+	command -v gio >/dev/null 2>&1 || return 1
+	gio set -t unset "$d" metadata::custom-icon 2>/dev/null
+	rm -f "$CACHE/$(cle_de "$d").png"
+	printf 'étiquette retirée  →  %s\n' "$d"
+}
+
+#  ─── LES DOSSIERS DÉJÀ SERVIS PAR LE THÈME ──────────────────────────────────
+#  Leur pastille vient du thème d'icônes et suit la langue du système. Leur
+#  coller une icône FIXE en plus, c'est figer ce que le thème sait faire
+#  mieux — et se condamner à la refaire à chaque changement d'accent.
+deja_servi() { # deja_servi <chemin>
+	local n; n="$(basename "$1")"
+	case "$n" in
+		Desktop|Bureau|Documents|Images|Pictures|Musique|Music|Vidéos|Videos|Video) return 0 ;;
+		Téléchargements|Telechargements|Downloads|Modèles|Modeles|Templates|Public|Publique) return 0 ;;
+	esac
+	return 1
+}
+
+case "${1:-aide}" in
+	aide|-h|--help|help) aide ;;
+	--enlever)
+		shift
+		[[ $# -gt 0 ]] || die "quel dossier ? « lexos etiquette --enlever <dossier> »"
+		for d in "$@"; do enleve "$d"; done
+		;;
+	--maison)
+		FAITS=0
+		for d in "$HOME"/*/; do
+			[[ -d "$d" ]] || continue
+			deja_servi "$d" && continue
+			pose "$d" && FAITS=$((FAITS + 1))
+		done
+		if [[ "$FAITS" -eq 0 ]]; then
+			echo "Rien à étiqueter : tes dossiers portent déjà leur pastille."
+		else
+			echo "$FAITS dossier(s) étiqueté(s). Ferme et rouvre Fichiers pour les voir."
+		fi
+		;;
+	*)
+		FAITS=0
+		for d in "$@"; do pose "$d" && FAITS=$((FAITS + 1)); done
+		[[ "$FAITS" -gt 0 ]] || exit 1
+		;;
+esac

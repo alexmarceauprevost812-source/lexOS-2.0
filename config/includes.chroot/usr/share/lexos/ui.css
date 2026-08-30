@@ -120,6 +120,18 @@
   --voile:rgba(20, 18, 22, .96);
   --voile-bord:rgba(255, 255, 255, .09);
 
+  /*  LE GRIS AUTOUR DES BOUTONS. ALEX : « autour des boutons c'est déjà joli,
+      mais on pourrait mettre du gris où les espaces vides » — et, pour lever
+      tout doute : « les boutons sont bien parfaits, juste ajouter du gris
+      autour. » Les tuiles ne changent donc pas ; c'est le VIDE qui prend une
+      couleur. Elles touchaient presque le bord du volet, posées à même le
+      noir ; elles reposent maintenant sur cette plaque.
+      Un blanc à 8 % sur le voile (20,18,22) donne (39,37,41) : un gris franc
+      contre le noir du bureau, assez sourd pour que l'orange des tuiles
+      allumées reste la seule couleur vive du panneau. */
+  --qs-plaque:rgba(255, 255, 255, .08);
+  --qs-plaque-bord:rgba(255, 255, 255, .07);
+
   /* --- Formes ------------------------------------------------------------- */
   --rayon:8px;         /* cartes, champs, blocs                              */
   --rayon-bouton:999px;/* les boutons sont des pastilles                     */
@@ -210,6 +222,12 @@
       liseré blanc — sur du crème, un blanc à 9 % ne se voit pas. */
   --voile:rgba(247, 245, 240, .97);
   --voile-bord:rgba(0, 0, 0, .12);
+
+  /*  La même plaque en clair : sur du crème, un blanc à 8 % ne se verrait
+      pas — c'est un noir très dilué qui creuse le fond au lieu de l'éclaircir.
+      Même rôle, même intention, couleur inversée. */
+  --qs-plaque:rgba(0, 0, 0, .05);
+  --qs-plaque-bord:rgba(0, 0, 0, .07);
 }
 
 /* --- Les pictogrammes d'état (voir --m-wifi plus haut) ------------------- */

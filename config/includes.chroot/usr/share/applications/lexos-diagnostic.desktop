@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=LexOS Diagnostic
+Name[fr]=LexOS Diagnostic
+Comment=Voir l'état de la machine en direct — matériel, santé, disques
+Comment[fr]=Voir l'état de la machine en direct — matériel, santé, disques
+Exec=/usr/bin/lexos-diagnostic materiel
+Icon=lexos-diagnostic
+Terminal=false
+Categories=System;Monitor;
+Keywords=materiel;hardware;disque;disk;smart;temperature;cpu;gpu;ram;reseau;diagnostic;
+StartupNotify=true
