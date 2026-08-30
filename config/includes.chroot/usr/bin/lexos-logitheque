@@ -300,6 +300,49 @@ cmd_boutique() {
 				https://dl.flathub.org/repo/flathub.flatpakrepo >/dev/null 2>&1 \
 				|| say "Flathub non ajouté (pas de réseau ?) — les dépôts Debian restent disponibles"
 		}
+
+		#  ═══ LES CARRÉS NOIRS DE LA LOGITHÈQUE ═══
+		#  ALEX, photos à l'appui : « les couleurs, le noir en carré — je
+		#  veux pas voir le noir en carré, ça fait pas très joli, dans
+		#  logithèque ». Sur ses captures, la moitié des applications
+		#  proposées (ImageFan Reloaded, Boxy SVG, Deezer, Lotti…) montrent
+		#  un carré sombre à la place de leur icône, pendant que d'autres
+		#  (Zen, Bouteilles, HashVerifier) s'affichent normalement.
+		#
+		#  LA CAUSE, ET ELLE ÉTAIT ICI. « flatpak remote-add » ne fait
+		#  qu'ENREGISTRER le dépôt — c'est tout ce que son aide annonce
+		#  (« Add a new remote repository (by URL) »). Les métadonnées
+		#  AppStream, qui portent le nom, le résumé ET LES ICÔNES de chaque
+		#  application, sont téléchargées par une AUTRE commande :
+		#  « flatpak update --appstream » (son aide : « Update appstream for
+		#  remote »). Elle n'a jamais été appelée nulle part dans LexOS. La
+		#  Logithèque affichait donc ce que GNOME Logiciels avait pu
+		#  glaner — des noms, des résumés — et un carré vide partout où
+		#  l'icône manquait.
+		#
+		#  AUCUN MOT DE PASSE NE SERA DEMANDÉ, et c'est vérifié plutôt que
+		#  supposé : dans la politique polkit livrée par flatpak
+		#  (/usr/share/polkit-1/actions/org.freedesktop.Flatpak.policy),
+		#  l'action « org.freedesktop.Flatpak.appstream-update » porte
+		#  « <allow_active>yes</allow_active> » — une session locale active
+		#  y a droit sans authentification. C'est ce qui permet de la lancer
+		#  à chaque ouverture sans transformer la boutique en interrogatoire.
+		#
+		#  EN TÂCHE DE FOND, ET LA BOUTIQUE S'OUVRE TOUT DE SUITE. Le premier
+		#  téléchargement pèse quelques dizaines de mégaoctets : l'attendre
+		#  ferait passer « j'ai cliqué sur Logithèque » pour un plantage.
+		#  Les fois suivantes, la commande est incrémentale et ne coûte
+		#  presque rien. Sans réseau, elle échoue dans son coin, sans un mot
+		#  à l'écran — les dépôts Debian, eux, marchent toujours.
+		#
+		#  setsid détache vraiment : sans lui, « exec gnome-software » plus
+		#  bas remplace ce shell, et le sort du téléchargement dépendrait de
+		#  la façon dont le terminal range ses enfants.
+		if command -v setsid >/dev/null 2>&1; then
+			setsid flatpak update --appstream -y >/dev/null 2>&1 &
+		else
+			flatpak update --appstream -y >/dev/null 2>&1 &
+		fi
 	fi
 	if command -v gnome-software >/dev/null 2>&1; then
 		say "Ouverture de GNOME Logiciels…"

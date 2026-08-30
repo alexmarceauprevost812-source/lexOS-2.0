@@ -1633,6 +1633,23 @@ jobs:
           #  échouer 4 des 7 cas).
           python3 tests/test_lexos_wifi_etat.py
 
+      - name: Logithèque — les icônes ne sont plus des carrés noirs
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, trois photos : « le noir en carré — je veux pas voir le
+          #  noir en carré, ça fait pas très joli, dans logithèque ». La
+          #  moitié des applications proposées n'avaient pas d'icône.
+          #  « flatpak remote-add » n'ENREGISTRE que le dépôt ; ce sont les
+          #  métadonnées AppStream qui portent les icônes, et elles se
+          #  téléchargent avec « flatpak update --appstream » — jamais
+          #  appelée nulle part dans LexOS. Le banc tourne sur un PATH
+          #  FERMÉ (de faux flatpak/gnome-software qui NOTENT au lieu
+          #  d'agir) et vérifie que chaque appel AppStream est lancé, en
+          #  tâche de fond, et SANS sudo — polkit l'autorise déjà pour une
+          #  session active (allow_active=yes), l'envelopper dans sudo
+          #  redemanderait un mot de passe à chaque ouverture.
+          bash tests/test_lexos_logitheque.sh
+
       - name: Fuseau horaire — la position réelle, pas Toronto par défaut
         if: ${{ !cancelled() }}
         run: |
