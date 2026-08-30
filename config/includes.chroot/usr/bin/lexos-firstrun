@@ -260,18 +260,33 @@ if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
 	) >/dev/null 2>&1 &
 fi
 
-# --- Fond animé par défaut : le code qui s'écrit ----------------------------
-#  Le fond fixe ci-dessus reste posé DESSOUS : c'est lui qu'on retrouve dès
-#  qu'on arrête l'animation (« lexos wallpaper anime off »), et c'est lui
-#  qu'on voit si l'animation ne peut pas démarrer — pas de bureau noir.
+# --- PLUS DE FOND ANIMÉ AU DÉMARRAGE ----------------------------------------
+#  ALEX : « fond d'écran animé, on peut l'enlever — on voit pas les
+#  applications du bureau quand on fait [celui] les textes. On va mettre un
+#  fond d'écran tout noir, comme ça on va voir si c'est [le] fond d'écran ou
+#  bien une erreur au démarrage. »
 #
-#  lexos-fond-anime refuse tout seul quand il manque quelque chose (pas de
-#  compositeur, python3-gi absent, pas de session graphique) : d'où le
-#  « || true ». Un fond d'écran ne doit jamais faire échouer une ouverture
-#  de session.
-if command -v lexos-fond-anime >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
-	lexos-fond-anime start code >/dev/null 2>&1 || true
-fi
+#  Ce script lançait « lexos-fond-anime start code » à la première session :
+#  le fond animé « le code s'écrit » démarrait donc TOUT SEUL, sans que
+#  personne l'ait demandé. C'est lui qu'Alex voit sur ses photos, et c'est
+#  au-dessus de lui que les icônes du bureau disparaissent.
+#
+#  TROIS RAISONS DE NE PLUS LE LANCER D'OFFICE, ET LA PREMIÈRE EST LA SIENNE :
+#    · elle tranche son diagnostic. Le bureau démarre maintenant sur le fond
+#      fixe — le démon sur noir. Si les icônes sont là, le coupable était le
+#      fond animé ; si elles manquent encore, c'est autre chose au démarrage,
+#      et on aura enfin éliminé une hypothèse au lieu d'en inventer une ;
+#    · le recouvrement des icônes par une fenêtre de fond a déjà coûté DEUX
+#      correctifs (remonte_xfdesktop dans fond-anime.py, puis le même porté
+#      dans lexos-fond-video). Ce qu'on n'allume pas ne peut pas recouvrir ;
+#    · un décodeur qui tourne sans arrêt coûte une à deux heures d'autonomie
+#      sur un portable — c'est lexos-fond-video qui le dit dans son propre
+#      en-tête. Un réglage à ce prix-là se CHOISIT, il ne s'impose pas.
+#
+#  IL N'EST PAS SUPPRIMÉ, IL N'EST PLUS AUTOMATIQUE. « lexos wallpaper anime
+#  code » le rallume, et les six scènes restent à un clic dans
+#  Paramètres → Bureau LexOS. Rien n'a été retiré du système : c'est le
+#  démarrage d'office qui disparaît, pas la fonction.
 
 # --- Matériel Apple ---------------------------------------------------------
 #  Sur un Mac, quelques réglages ne se devinent pas : les ventilateurs qui

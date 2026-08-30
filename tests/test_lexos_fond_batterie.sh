@@ -209,6 +209,32 @@ grep -q 'actuel=' "$FIRSTRUN" \
 	&& ok "la boucle relit ce qui est posé avant de réécrire" \
 	|| non "la boucle réécrit sans regarder — le choix de l'utilisateur est effacé"
 
+#  ═══ AUCUN FOND ANIMÉ AU DÉMARRAGE ═══
+#  ALEX : « fond d'écran animé, on peut l'enlever — on voit pas les
+#  applications du bureau quand on fait [celui] les textes. On va mettre un
+#  fond d'écran tout noir, comme ça on va voir si c'est [le] fond d'écran ou
+#  bien une erreur au démarrage. » lexos-firstrun lançait
+#  « lexos-fond-anime start code » d'office à la première session : le fond
+#  animé démarrait tout seul, et c'est au-dessus de lui que les icônes du
+#  bureau disparaissaient (deux correctifs déjà payés là-dessus —
+#  remonte_xfdesktop dans fond-anime.py, puis le même porté dans
+#  lexos-fond-video). Ce qu'on n'allume pas ne peut rien recouvrir.
+#  Le grep exclut les lignes de commentaire : le fichier EXPLIQUE en prose
+#  ce qu'il ne fait plus, et cette prose ne doit pas déclencher le garde-fou.
+if grep -v '^[[:space:]]*#' "$FIRSTRUN" | grep -qE 'fond-anime[[:space:]]+start'; then
+	non "lexos-firstrun relance un fond animé d'office — les icônes du bureau repasseraient dessous"
+else
+	ok "aucun fond animé n'est lancé au démarrage (le bureau s'ouvre sur le fond fixe)"
+fi
+#  MAIS IL N'A PAS ÉTÉ SUPPRIMÉ POUR AUTANT : il reste à un clic. Retirer la
+#  fonction au lieu de son automatisme serait une autre panne.
+grep -q "wallpaper anime" "$RACINE/config/includes.chroot/usr/bin/lexos" \
+	&& ok "…mais « lexos wallpaper anime » existe toujours pour le rallumer" \
+	|| non "le fond animé n'est plus atteignable du tout — on a retiré la fonction, pas l'automatisme"
+grep -q "setFondAnime" "$APP" \
+	&& ok "…et les Paramètres → Bureau LexOS le proposent toujours" \
+	|| non "les Paramètres ne proposent plus les fonds animés"
+
 #  ═══ LA BOUCLE EST JOUÉE POUR DE VRAI, PAS DEVINÉE PAR UN GREP ═══
 #  Un simple « grep -q '[[ -n \"\$actuel\" ... ]] && break' » disait que la ligne
 #  existe — pas ce qu'elle FAIT. Et elle faisait la mauvaise chose : le
