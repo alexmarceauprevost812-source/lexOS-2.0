@@ -340,7 +340,26 @@ function btnOuvrir(section, libelle){
 }
 
 /* --- Actions déclenchées par la page ------------------------------------- */
-async function ouvrir(section){ await api("ouvrir", section); }
+/*  ═══ UNE FENÊTRE QUI NE S'OUVRE PAS DOIT LE DIRE ═══
+    ALEX : « regarde bien pour que tous les boutons et les fenêtres ouvrent
+    fluidement. »
+
+    Cette fonction JETAIT la réponse. Quand l'outil manquait, le moteur
+    renvoyait pourtant le motif exact — « Outil absent : … » — et personne ne
+    le lisait : on cliquait, rien ne s'ouvrait, aucun message. Un bouton mort
+    et muet, impossible à distinguer d'un bouton lent.
+
+    C'est ainsi que deux fenêtres (« Applications par défaut » et
+    « Applications ») sont restées mortes sans que rien ne le signale : elles
+    appelaient exo-preferred-applications, retiré de XFCE depuis longtemps.
+    Le programme manquait ; le silence, lui, était de notre fait.
+
+    Même faute et même correctif que le curseur de luminosité et le bouton du
+    dock — on lit la réponse. */
+async function ouvrir(section){
+  const r = await api("ouvrir", section);
+  if(!r.ok) toast("Impossible d'ouvrir : " + (r.erreur || "refusé"));
+}
 async function ouvreBoost(){
   const r = await api("ouvrir", "boost");
   if(r.ok) toast("LexOS Boost s'ouvre dans sa fenêtre");

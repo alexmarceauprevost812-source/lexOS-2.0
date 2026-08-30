@@ -1432,6 +1432,22 @@ jobs:
           #  n'a rien vu, pas d'une recherche qui n'a jamais eu lieu.
           bash tests/test_lexos_bluetooth.sh
 
+      - name: Chaque bouton fait quelque chose, chaque fenêtre mène quelque part
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « regarde bien pour que tous les boutons et les fenêtres
+          #  ouvrent fluidement. » L'audit a trouvé deux fenêtres MORTES sur
+          #  trente-cinq : « Applications » et « Applications par défaut »
+          #  lançaient exo-preferred-applications, que XFCE ne livre plus
+          #  (vérifié dans exo-utils : il ne reste qu'exo-open,
+          #  exo-desktop-item-edit et exo-helper). Et le silence était de
+          #  notre fait — le moteur renvoyait « Outil absent », la page
+          #  jetait la réponse.
+          #  Le commentaire de _xfce() raconte que ce défaut avait DÉJÀ tué
+          #  neuf fenêtres auparavant. C'est le défaut le plus répété du
+          #  dépôt, et rien ne le surveillait.
+          bash tests/test_lexos_boutons_fenetres.sh
+
       - name: L'accent des pages web — une seule table, trois surfaces
         if: ${{ !cancelled() }}
         run: |
