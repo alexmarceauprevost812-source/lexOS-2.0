@@ -1149,6 +1149,26 @@ jobs:
             || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
           bash tests/test_lexos_session.sh
 
+      - name: Le fond d'écran « Nomad » — le bureau de la démo, sur l'ISO
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, capture de la démo : « mettre ces images dans l'ISO 96,
+          #  dans le fichier images, si je veux les avoir comme fond
+          #  d'écran ». Il ne demande pas qu'on lui impose ce fond : il
+          #  demande qu'il soit LÀ, choisissable.
+          #
+          #  Le logo ASCII est tracé en SEGMENTS, pas écrit en texte : une
+          #  police monospace absente au moment du rendu (fonts-firacode et
+          #  fonts-dejavu voyagent dans une liste optionnelle) donnerait une
+          #  bouillie, en silence. Le banc re-rend donc le SVG avec le vrai
+          #  rsvg-convert et COMPTE les pixels orange — c'est la seule façon
+          #  de distinguer un dessin d'un fichier valide et noir.
+          command -v rsvg-convert >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends librsvg2-bin >/dev/null
+          python3 -c 'import PIL' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
+          bash tests/test_lexos_fond_nomad.sh
+
       - name: Gros texte et bulle de capture — deux gestes du quotidien
         if: ${{ !cancelled() }}
         run: |

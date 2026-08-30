@@ -1294,6 +1294,7 @@ function contenu(cle){
           <button class="btn ghost" onclick="setFond('secu')">Sécurité</button>
           <button class="btn ghost" onclick="setFond('demon')">LexOS 1.0</button>
           <button class="btn ghost" onclick="setFond('keyart')">Explorateur</button>
+          <button class="btn ghost" onclick="setFond('nomad')">Nomad</button>
           <button class="btn" onclick="fondPerso()">🖼 Une image à moi…</button>
         </div>
       </div>

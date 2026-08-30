@@ -227,6 +227,10 @@ FONDS = {
     "secu":    "/usr/share/backgrounds/lexos/wallpaper-secu.png",
     "demon":   "/usr/share/backgrounds/lexos/wallpaper-demon.png",
     "keyart":  "/usr/share/backgrounds/lexos/wallpaper-keyart.png",
+    #  « Nomad » : le bureau de la démo web, demandé par Alex sur capture —
+    #  logo ASCII orange, filet, TI·LEX·AL, 2.0.0 NOMAD. Le crochet 0300 le
+    #  rend en trois tailles depuis branding/wallpaper-nomad.svg.
+    "nomad":   "/usr/share/backgrounds/lexos/wallpaper-nomad.png",
 }
 LANGUES = {
     "fr_CA.UTF-8", "fr_FR.UTF-8", "en_US.UTF-8", "en_CA.UTF-8", "en_GB.UTF-8",
