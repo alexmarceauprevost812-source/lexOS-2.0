@@ -148,6 +148,15 @@ texte_lisible() {   # <#rrggbb> → #000000 ou #FFFFFF, celui qui contraste le m
 
 BTN_FG="$(texte_lisible "$ACCENT")"
 
+#  ═══ LE GRIS DE LA GRILLE D'APPLICATIONS ═══
+#  Voir la règle « iconview:selected » plus bas : la tuile sélectionnée de la
+#  Liste des applications ne prend PAS l'accent, à la demande d'Alex. Un gris
+#  pâle, identique dans les deux modes — il se détache aussi bien du noir que
+#  du crème — et son texte calculé par la même fonction que tous les autres
+#  boutons, pour n'avoir qu'une seule idée du contraste dans ce fichier.
+SEL_GRILLE="#C4C8D0"
+SEL_GRILLE_TXT="$(texte_lisible "$SEL_GRILLE")"
+
 #  r, g, b restent nécessaires ailleurs : bloc_panneau() traduit les rgba() du
 #  squelette avec « ${r}, ${g}, ${b} ». Les avoir fondus dans texte_lisible()
 #  les a fait disparaître d'ici — et le générateur s'est arrêté sur « r :
@@ -712,9 +721,32 @@ rubberband {
 
 /* --- Sélection dans les listes ------------------------------------------ */
 row:selected, list row:selected, treeview.view:selected,
-iconview:selected, flowboxchild:selected, menuitem:hover, .menuitem:hover {
+menuitem:hover, .menuitem:hover {
     background-color: ${ACCENT};
     color: ${BTN_FG};
+}
+
+/* --- LA GRILLE D'APPLICATIONS FAIT EXCEPTION --------------------------- */
+/*  ALEX, capture de la Liste des applications : « la couleur de
+    l'application une fois sélectionnée, il faudrait que le carré orange
+    reste de couleur gris pâle », « au lieu de faire tout un carré orange ».
+
+    Ailleurs, l'accent sur la sélection est juste : une ligne de liste est un
+    ruban fin, l'accent la souligne. Ici c'est une TUILE de 190 px qui porte
+    déjà une icône colorée — un aplat d'accent de cette taille écrase le
+    dessin qu'on est justement en train de choisir, et il n'y en a qu'un à la
+    fois : personne ne peut le confondre avec autre chose.
+
+    Un gris pâle et des coins arrondis suffisent à dire « celle-ci », sans
+    repeindre le quart de l'écran. Le texte suit texte_lisible(), la même
+    fonction WCAG que partout ailleurs : sur ce gris-là elle rend du noir, et
+    le libellé reste lisible — en blanc il aurait disparu. */
+iconview:selected, iconview:selected:focus,
+flowboxchild:selected, flowboxchild:selected:focus,
+iconview .cell:selected {
+    background-color: ${SEL_GRILLE};
+    color: ${SEL_GRILLE_TXT};
+    border-radius: 10px;
 }
 row:hover, list row:hover { background-color: ${BG_HI}; }
 
