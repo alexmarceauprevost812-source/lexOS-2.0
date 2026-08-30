@@ -1432,6 +1432,21 @@ jobs:
           #  n'a rien vu, pas d'une recherche qui n'a jamais eu lieu.
           bash tests/test_lexos_bluetooth.sh
 
+      - name: La barre — la flèche des Paramètres rapides, et la cloche retirée
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « changer l'image pour une flèche qui pointe vers le bas,
+          #  pour les paramètres rapides » — le bouton portait la MÊME roue
+          #  dentée que les Paramètres complets, deux boutons voisins sans
+          #  rien pour les distinguer. Et : « Notifications, on peut l'ôter de
+          #  là, pis juste le garder dans les Paramètres ».
+          #  Ce banc éprouve la CHAÎNE ENTIÈRE de l'icône (source, crochet qui
+          #  la rend, lanceur qui la demande) — le maillon coupé au milieu est
+          #  exactement ce qui avait rendu l'icône de Thunar invisible — et,
+          #  pour la cloche, les deux bouts : partie de la barre sans y
+          #  laisser de trou, mais toujours joignable dans les Paramètres.
+          bash tests/test_lexos_barre_volet.sh
+
       - name: Thème d'icônes — un dossier livré que GTK ne regardait pas
         if: ${{ !cancelled() }}
         run: |

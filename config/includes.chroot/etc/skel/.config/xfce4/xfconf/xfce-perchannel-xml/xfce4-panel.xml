@@ -86,7 +86,6 @@
         <value type="int" value="5"/>
         <value type="int" value="6"/>
         <value type="int" value="7"/>
-        <value type="int" value="15"/>
         <value type="int" value="12"/>
         <!--  17 EST LE DERNIER, ET C'EST TOUTE LA DEMANDE D'ALEX.
               « mettre le bouton rouge totalement à droite de l'écran ».
@@ -216,12 +215,24 @@
       <property name="numbering"           type="bool" value="false"/>
     </property>
 
-    <!-- 15 · LE CENTRE DE NOTIFICATIONS — la cloche et son compteur.
-         Autre manque de l'audit : rien ne signalait passivement qu'une
-         notification était passée. Une notification manquée était perdue
-         pour de bon. Ce greffon (fourni par xfce4-notifyd) garde le journal,
-         affiche un point quand il y a du non-lu, et donne « Tout effacer ». -->
+    <!-- 15 · LE CENTRE DE NOTIFICATIONS A ÉTÉ RETIRÉ DE LA BARRE.
+         ALEX : « Notifications, on peut l'ôter de là, pis juste le garder
+         dans les Paramètres. » La cloche avait été ajoutée pour qu'une
+         notification manquée ne soit pas perdue ; Alex préfère une barre
+         plus courte, et les Paramètres portent déjà toute la section
+         Notifications — « Ne pas déranger » d'un clic, et « Réglages fins »
+         qui ouvre xfce4-notifyd-config.
+
+         CE QU'ON PERD, ET IL FAUT LE DIRE : le point de non-lu et le
+         JOURNAL des notifications passées vivaient dans ce greffon, pas
+         ailleurs. xfce4-notifyd continue de tenir ce journal
+         (notification-log reste à « true » dans xfce4-notifyd.xml, donc
+         rien n'est jeté), mais plus rien dans l'interface ne permet de le
+         relire. Remettre la cloche suffirait à le retrouver : rajouter 15
+         dans « plugin-ids » et redéclarer la propriété ci-dessous.
+
     <property name="plugin-15" type="string" value="notification-plugin"/>
+    -->
 
     <property name="plugin-13" type="string" value="genmon">
       <property name="command"       type="string" value="lexos-meteo --panneau"/>

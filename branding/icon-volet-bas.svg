@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Paramètres rapides (le volet qu'on tire vers le bas).
+
+  ALEX : « changer l'image pour une flèche qui pointe vers le bas, pour les
+  paramètres rapides. » Le bouton portait la roue dentée des Réglages — la
+  MÊME image que les Paramètres complets, deux boutons voisins dans la barre
+  et rien pour les distinguer. La flèche dit ce que le bouton FAIT : elle
+  tire un volet vers le bas, comme sur un téléphone.
+
+  Dessin original, construit par calcul : une hampe arrondie et une pointe
+  triangulaire. Les angles de la pointe sont adoucis par un contour de la
+  même couleur que le remplissage (stroke-linejoin="round") — c'est ce qui
+  donne le même arrondi que les « rx » des autres icônes de la maison,
+  qu'un polygone nu ne saurait pas produire.
+
+  Géométrie, pour qui voudra la retoucher : la hampe descend de 88 à 278, la
+  pointe de 250 à 412 ; avec le contour, l'ensemble occupe environ 308 de
+  large sur 342 de haut. Ces mesures ne sont pas prises au hasard — la roue
+  dentée voisine occupe 368 de côté, et une première version de cette flèche,
+  à 214 de large, paraissait maigre à côté d'elle dans la barre. On juge une
+  icône dans sa famille, pas toute seule.
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen —
+  la flèche suit donc la couleur choisie, comme toutes les autres.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Paramètres rapides — LexOS">
+  <!-- Cadre : mêmes mesures que toutes les icônes LexOS (432 de côté, rx 96) -->
+  <rect x="40" y="40" width="432" height="432" rx="96" fill="#E8590C"/>
+  <!-- Le reflet du haut, à 12 % — la signature commune de la famille -->
+  <rect x="40" y="40" width="432" height="200" rx="96" fill="#FFFFFF" opacity="0.12"/>
+
+  <!-- La flèche -->
+  <g fill="#FFFFFF">
+    <!-- La hampe -->
+    <rect x="212" y="88" width="88" height="190" rx="44"/>
+    <!-- La pointe. Le contour de même couleur arrondit les trois angles. -->
+    <path d="M120 250 L256 412 L392 250 Z"
+          stroke="#FFFFFF" stroke-width="36" stroke-linejoin="round"/>
+  </g>
+</svg>
