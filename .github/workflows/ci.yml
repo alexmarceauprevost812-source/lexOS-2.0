@@ -1432,6 +1432,21 @@ jobs:
           #  n'a rien vu, pas d'une recherche qui n'a jamais eu lieu.
           bash tests/test_lexos_bluetooth.sh
 
+      - name: Carrés noirs de la Logithèque et luminosité des Paramètres
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, DEUX PHOTOS. « encore dans des carrés noirs — écriture » :
+          #  les tuiles de catégorie de la Logithèque portaient un rectangle
+          #  noir opaque par-dessus leur dégradé. Vérifié sur le vrai binaire
+          #  (strings gnome-software) : la tuile est un GtkFlowBoxChild, pas
+          #  un GtkButton, donc l'exception « button box » ne la couvrait pas
+          #  et notre thème peignait sa « box » en noir.
+          #  « les outils pour la luminosité fonctionnent, mais pas dans les
+          #  Paramètres » : sudo ne peut pas demander de mot de passe sans
+          #  terminal, et brightnessctl mourait au lieu de retomber sur la
+          #  voie qui sait les demander.
+          bash tests/test_lexos_luminosite_carres.sh
+
       - name: Claude Terminal — un mot-sigle au début d'une session, un vrai prénom
         if: ${{ !cancelled() }}
         run: |

@@ -336,12 +336,59 @@ cat <<EOF
 @define-color popover_bg_color          ${BG_ALT};
 @define-color popover_fg_color          ${FG};
 
-/* --- Fonds : noir pur --------------------------------------------------- */
+/* --- Fonds : noir pur, MAIS SEULEMENT SUR LES VRAIES SURFACES -----------
+   ALEX, PHOTO DE LA LOGITHÈQUE : « encore dans des carrés noirs — écriture ».
+   Les tuiles de catégorie (Jouer, Développer, Travailler…) portent un beau
+   dégradé coloré, et par-dessus, un RECTANGLE NOIR opaque contenant l'icône
+   et le texte. C'était nous.
+
+   ═══ LA CAUSE, VÉRIFIÉE SUR LE VRAI BINAIRE ═══
+   « strings /usr/bin/gnome-software » livre le gabarit de la tuile :
+
+       <template class="GsCategoryTile" parent="GtkFlowBoxChild">
+         <style><class name="card"/><class name="category-tile"/></style>
+         <child><object class="GtkBox" id="box">
+           <child><object class="GtkImage" id="image"/></child>
+           <child><object class="GtkLabel" id="label"/></child>
+
+   La tuile est un GtkFlowBoxChild — PAS un GtkButton. Le dégradé est peint
+   par gnome-software sur « .card.category-tile » ; la « box » qui tient
+   l'icône et le libellé est un simple nœud de MISE EN PAGE, transparent chez
+   tout le monde. Cette règle la peignait en noir opaque : un rectangle noir
+   estampé sur le dégradé, exactement la photo.
+
+   ═══ POURQUOI L'EXCEPTION EXISTANTE NE COUVRAIT PAS LE CAS ═══
+   Un correctif plus bas rend transparents les descendants d'un BOUTON, et
+   seulement eux — il énumère ses nœuds un à un. Le parent est ici un
+   flowboxchild : la règle ne mordait pas, et personne ne pouvait le voir en
+   lisant la feuille — il fallait connaître l'arbre de widgets de l'appli.
+
+   ═══ LE CORRECTIF ═══
+   On sépare les VRAIES SURFACES (une fenêtre, une liste, une vue : des
+   choses qui ont légitimement un fond) des NŒUDS DE MISE EN PAGE (box,
+   grid, overlay, flowbox, viewport, frame, stack : des boîtes qui ne font
+   que placer leurs enfants). Les premières restent noires ; les secondes
+   deviennent TRANSPARENTES.
+
+   Transparent, et pas simplement absent : l'intention d'origine était de
+   battre le fond que le thème de base dessine, et « transparent » l'écrase
+   tout aussi fort que « noir » — sans estamper de couleur. Sur une fenêtre
+   ordinaire le rendu ne bouge pas d'un pixel : la fenêtre est noire, et les
+   boîtes laissent voir ce noir au travers. Sur une tuile colorée, le dégradé
+   se voit enfin. */
 window, dialog, .background, popover, popover.background,
-notebook, notebook > stack, paned, box, grid, viewport,
-scrolledwindow, frame, list, listbox, flowbox, .view, textview,
-treeview.view, iconview, stack, overlay, assistant, messagedialog {
+notebook, notebook > stack, paned, scrolledwindow,
+list, listbox, .view, textview,
+treeview.view, iconview, assistant, messagedialog {
     background-color: ${BG};
+    color: ${FG};
+}
+
+/*  LES NŒUDS DE MISE EN PAGE NE PEIGNENT RIEN. Ils gardent la couleur de
+    texte — sinon le libellé d'une boîte perdrait le blanc — mais laissent
+    voir ce qu'il y a derrière, fenêtre noire ou tuile colorée. */
+box, grid, viewport, frame, flowbox, stack, overlay {
+    background-color: transparent;
     color: ${FG};
 }
 
