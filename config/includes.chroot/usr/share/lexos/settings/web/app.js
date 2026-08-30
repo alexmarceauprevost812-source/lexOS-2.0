@@ -768,7 +768,20 @@ async function setPerf(p){
   const r = await api("perf", p);
   if(r.ok){ etat.perf = p; rendSection(); toast("Profil : " + p); }
 }
-async function setLum(n){ await api("lumiere", n); }
+/*  ALEX : « les outils pour la luminosité fonctionnent, mais pas dans les
+    Paramètres. » Cette fonction JETAIT la réponse. Quand le réglage était
+    refusé — droits manquants sur le rétroéclairage, le cas d'Alex — la page
+    ne disait RIEN : le curseur glissait, l'écran ne bougeait pas, et aucun
+    motif nulle part. Le moteur, lui, renvoie déjà la raison exacte dans
+    « erreur » ; personne ne la lisait.
+
+    Même faute que le bouton du dock, et même correctif : on lit la réponse,
+    et on rafraîchit pour que le curseur retombe sur la valeur RÉELLE de la
+    machine plutôt que de rester là où le doigt l'a laissé. */
+async function setLum(n){
+  const r = await api("lumiere", n);
+  if(!r.ok){ await rafraichir("Luminosité : " + (r.erreur || "refusé")); }
+}
 async function setTheme(t){
   const r = await api("theme", t);
   //  appliqueApparence() manquait ICI, et seulement ici : setPolice et

@@ -104,25 +104,68 @@ lire() {
 	esac
 }
 
+#  ═══ ÉCRIRE DANS /sys, EN DEMANDANT LES DROITS S'IL LE FAUT ═══
+#  ALEX : « ça fonctionne mais pas dans les Paramètres. » C'EST TOUT LE
+#  BOGUE, ET IL TIENT EN UN MOT : « sudo » NE PEUT PAS DEMANDER DE MOT DE
+#  PASSE SANS TERMINAL. Au terminal, sudo pose sa question, Alex répond, et
+#  la luminosité change. Lancé depuis les Paramètres — un service sans
+#  terminal — sudo n'a personne à qui demander : il refuse, tout de suite et
+#  en silence. Même commande, même machine, deux résultats : exactement ce
+#  qu'Alex décrit.
+#
+#  L'ORDRE CI-DESSOUS EST CELUI DU MOINS DE DÉRANGEMENT :
+#    1. le fichier est déjà accessible en écriture — rien à demander ;
+#    2. « sudo -n » : autorisé sans mot de passe. « -n » est la clé — sans
+#       lui, sudo BLOQUE en attendant une saisie qui ne viendra jamais ;
+#    3. pkexec : il passe par l'agent graphique de la session, qui SAIT
+#       afficher une fenêtre de mot de passe. C'est la voie des Paramètres ;
+#    4. un vrai terminal ([[ -t 0 ]]) : sudo peut poser sa question ;
+#    5. sinon on le DIT, avec le pourquoi — un échec muet renvoie chercher
+#       du côté du bouton, et c'est là qu'on a perdu du temps.
+ecrire_sysfs() { # ecrire_sysfs <pourcentage>
+	local p="$1" max val
+	max="$(cat "$BL/max_brightness" 2>/dev/null)"
+	[[ -n "$max" && "$max" -gt 0 ]] || die "Rétroéclairage illisible : $BL/max_brightness"
+	val=$(( max * p / 100 ))
+
+	if [[ -w "$BL/brightness" ]]; then
+		printf '%s\n' "$val" > "$BL/brightness" \
+			|| die "Écriture refusée sur $BL/brightness"
+	elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+		printf '%s\n' "$val" | sudo -n tee "$BL/brightness" >/dev/null \
+			|| die "Écriture refusée sur $BL/brightness"
+	elif command -v pkexec >/dev/null 2>&1; then
+		#  pkexec veut un PROGRAMME, pas une redirection : « tee » en est un.
+		printf '%s\n' "$val" | pkexec tee "$BL/brightness" >/dev/null \
+			|| die "Réglage refusé (mot de passe administrateur non fourni)."
+	elif [[ -t 0 ]] && command -v sudo >/dev/null 2>&1; then
+		printf '%s\n' "$val" | sudo tee "$BL/brightness" >/dev/null \
+			|| die "Écriture refusée sur $BL/brightness"
+	else
+		die "Droits insuffisants sur le rétroéclairage, et aucun moyen de les demander (ni sudo sans mot de passe, ni pkexec)."
+	fi
+}
+
 ecrire() { # ecrire <pourcentage>
 	local p="$1"
 	(( p < 5 ))   && p=5            # jamais un écran totalement noir
 	(( p > 100 )) && p=100
 	case "$(moyen)" in
 		brightnessctl)
-			brightnessctl -q set "${p}%" 2>/dev/null || die "brightnessctl a refusé le réglage." ;;
+			#  ALEX : « les outils pour la luminosité fonctionnent, mais pas
+			#  dans les Paramètres. » brightnessctl écrit dans
+			#  /sys/class/backlight ; la règle udev de son paquet n'ouvre ce
+			#  fichier qu'au groupe « video ». Un compte hors de ce groupe le
+			#  voit ÉCHOUER — et on abandonnait là, par un « die », alors que
+			#  la voie sysfs juste en dessous sait, elle, demander les droits.
+			#  On ne meurt donc plus sur cet échec : on RETOMBE dessus.
+			if brightnessctl -q set "${p}%" 2>/dev/null; then
+				ok "Luminosité : ${p}%"; return 0
+			fi
+			warn "brightnessctl a refusé (droits ?) — on passe par le fichier système."
+			ecrire_sysfs "$p" ;;
 		sysfs)
-			local max val
-			max="$(cat "$BL/max_brightness")"
-			val=$(( max * p / 100 ))
-			if [[ -w "$BL/brightness" ]]; then
-				printf '%s\n' "$val" > "$BL/brightness"
-			elif command -v sudo >/dev/null 2>&1; then
-				printf '%s\n' "$val" | sudo tee "$BL/brightness" >/dev/null \
-					|| die "Écriture refusée sur $BL/brightness"
-			else
-				die "Droits insuffisants pour régler le rétroéclairage."
-			fi ;;
+			ecrire_sysfs "$p" ;;
 		xrandr)
 			local sorties
 			sorties="$(xrandr --query 2>/dev/null | awk '/ connected/{print $1}')"
