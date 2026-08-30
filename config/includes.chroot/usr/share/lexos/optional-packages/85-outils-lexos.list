@@ -1,0 +1,60 @@
+# Les outils dont LexOS SE SERT LUI-MÊME.
+#
+# ═══ POURQUOI CETTE LISTE EXISTE ═══
+# ALEX : « on a toutes les applications téléchargées dans l'ISO — j'aimerais,
+# pour faire de la place, que les applications restent dans la Logithèque et
+# qu'on puisse les télécharger à partir de là. Là, elles sont toutes
+# téléchargées d'avance, ça prend la place pour rien. »
+#
+# Quatre familles d'applications sortent donc de l'ISO (46-studio, 50-dev,
+# 60-full, 75-pro-gamer — environ 1,6 Go). Mais douze paquets y dormaient
+# qui ne sont PAS des applications pour l'utilisateur : ce sont les outils
+# que les commandes de LexOS appellent elles-mêmes. Les sortir avec le reste
+# aurait cassé, en silence, une fonction par paquet.
+#
+# LE CAS QUI RÉSUME TOUT : « npm » vivait dans la liste « développement ».
+# C'est lui qui installe et met à jour Claude Code (hook 0420,
+# lexos-claude, lexos-claude-installation). Sortir la liste dev sans le
+# rapatrier aurait retiré Claude Code de l'ISO — précisément ce qu'Alex
+# demandait de GARDER dans la même phrase.
+#
+# Ils ne sont pas choisis à la main : un contrôle de la CI relit tout le code
+# de LexOS, relève chaque outil qu'il invoque, et exige qu'il soit installé.
+# Si quelqu'un ajoute demain un « command -v machin » sans mettre « machin »
+# quelque part, la CI le dit avant qu'une ISO parte sans lui.
+
+# --- Le fond d'écran vidéo (lexos-fond-video) --------------------------------
+mpv
+
+# --- L'enregistrement vidéo de « lexos capture » -----------------------------
+ffmpeg
+
+# --- Claude Code : installation et mises à jour (hook 0420, lexos-claude) ----
+npm
+
+# --- « lexos dev » : l'outil GitHub en ligne de commande ---------------------
+gh
+
+# --- L'invite et les alias du terminal (shell/interactive.sh) ----------------
+bat
+
+# --- « lexos theme » relit ses propres scripts avant de les écrire ----------
+shellcheck
+
+# --- « lexos net » : le balayage du réseau local ------------------------------
+nmap
+
+# --- « lexos distant » : prendre la main sur une autre machine ---------------
+remmina
+
+# --- « lexos sauvegarde » : les instantanés du système ----------------------
+timeshift
+
+# --- « lexos game » : le compteur d'images par seconde ----------------------
+mangohud
+
+# --- « lexos game » : le profil de performance pendant une partie ----------
+#  Le programme s'appelle « gamemoderun », le paquet « gamemode » : c'est
+#  ce décalage nom-de-commande / nom-de-paquet qui l'avait fait manquer au
+#  premier relevé. Le banc, lui, porte la correspondance et l'a rattrapé.
+gamemode

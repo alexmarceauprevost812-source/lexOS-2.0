@@ -1153,6 +1153,20 @@ jobs:
           #  Faux xfconf-query sur un PATH fermé, qui NOTE au lieu d'agir.
           bash tests/test_lexos_access_capture.sh
 
+      - name: Les applications sortent de l'ISO, pas les outils de LexOS
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « toutes les applications sont téléchargées dans l'ISO —
+          #  j'aimerais, pour faire de la place, qu'elles restent dans la
+          #  Logithèque ». Quatre familles sortent (~1,6 Go, 136 paquets).
+          #  LE DANGER : douze de ces paquets n'étaient pas des applications
+          #  mais des outils que LexOS appelle lui-même — dont « npm », qui
+          #  installe Claude Code. Ce banc relève ce que le code déclare
+          #  appeler et refuse qu'un seul soit parti avec la coupe. Il a
+          #  d'ailleurs trouvé « gamemode » que le relevé à la main avait
+          #  manqué (la commande s'appelle « gamemoderun »).
+          bash tests/test_lexos_paquets_outils.sh
+
       - name: Les réglages de la fenêtre active — lexos-app-settings sur un banc
         if: ${{ !cancelled() }}
         run: |

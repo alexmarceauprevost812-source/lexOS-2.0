@@ -63,6 +63,9 @@ LISTES="config/includes.chroot/usr/share/lexos/optional-packages"
 APPS="config/includes.chroot/usr/share/applications"
 HOOKS="config/hooks/normal"
 HOOK_OPT="$HOOKS/0250-lexos-optional.hook.chroot"
+#  La Logithèque : c'est elle qui rend atteignables les familles qui ne sont
+#  plus pré-installées (voir le contrôle 4).
+LOGITHEQUE="config/includes.chroot/usr/bin/lexos-logitheque"
 DISPATCH="$BIN/lexos"
 SET_PY="$LIB/settings.py"
 SET_JS="config/includes.chroot/usr/share/lexos/settings/web/app.js"
@@ -326,9 +329,26 @@ else
     | sed -n 's/\.list$//p' | grep -E '^[0-9]{2}-' | sort -u)
   PRESENTES=$(find "$LISTES" -name '*.list' -printf '%f\n' | sed 's/\.list$//' | sort -u)
 
+  #  ═══ UN RETRAIT VOLONTAIRE N'EST PAS UN OUBLI ═══
+  #  ALEX : « toutes les applications sont téléchargées dans l'ISO —
+  #  j'aimerais, pour faire de la place, qu'elles restent dans la Logithèque
+  #  et qu'on puisse les télécharger à partir de là. » Quatre familles ne
+  #  sont donc plus pré-installées, EXPRÈS. Ce contrôle, écrit contre les
+  #  oublis, les prenait pour des oublis — à juste titre tant qu'il n'y avait
+  #  aucune autre façon de les atteindre.
+  #
+  #  La différence entre un oubli et un retrait volontaire n'est pas une
+  #  déclaration d'intention : c'est qu'il existe un CHEMIN pour les
+  #  installer. On l'exige donc — la liste doit être nommée dans
+  #  lexos-logitheque. Une famille retirée ET introuvable reste une erreur,
+  #  exactement comme avant.
   while IFS= read -r l; do
     [ -n "$l" ] || continue
-    err "$l.list existe mais n'est réclamée nulle part dans le hook 0250 → jamais installée, en silence"
+    if grep -q "$l\.list" "$LOGITHEQUE" 2>/dev/null; then
+      ok "$l.list n'est pas pré-installée, mais « lexos logitheque famille » sait l'installer"
+    else
+      err "$l.list existe mais n'est réclamée nulle part dans le hook 0250 → jamais installée, en silence"
+    fi
   done < <(comm -13 <(printf '%s\n' "$RECLAMEES") <(printf '%s\n' "$PRESENTES"))
 
   while IFS= read -r l; do
@@ -338,7 +358,12 @@ else
 
   n_r=$(printf '%s\n' "$RECLAMEES" | grep -c . || true)
   n_p=$(printf '%s\n' "$PRESENTES" | grep -c . || true)
-  [ "$n_r" = "$n_p" ] && ok "$n_r listes réclamées, $n_p présentes — les deux comptes concordent"
+  #  Les familles offertes par la Logithèque comptent comme atteignables :
+  #  sans elles, les deux totaux ne concorderaient plus jamais.
+  n_f=$(comm -13 <(printf '%s\n' "$RECLAMEES") <(printf '%s\n' "$PRESENTES") \
+        | while IFS= read -r l; do [ -n "$l" ] && grep -q "$l\.list" "$LOGITHEQUE" 2>/dev/null && echo x; done | grep -c . || true)
+  [ "$((n_r + n_f))" = "$n_p" ] \
+    && ok "$n_r listes installées + $n_f offertes par la Logithèque = $n_p présentes"
 fi
 
 # =============================================================================
