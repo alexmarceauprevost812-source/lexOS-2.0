@@ -251,5 +251,67 @@ else
 	non "elle ne rafraîchit pas : le curseur mentirait sur l'état de l'écran"
 fi
 
+# =============================================================================
+titre "4. Le menu du clic droit est lisible (la photo du dock d'Alex)"
+# =============================================================================
+#  ALEX : « le menu quand on clique sur le bouton droit de la souris — il
+#  ouvre le menu mais il est trop petit à mon goût, peux-tu faire en sorte
+#  qu'il soit plus visible. »
+#
+#  LE MENU PHOTOGRAPHIÉ EST CELUI DE PLANK. « Épingler au Dock » est sa propre
+#  traduction française de « _Keep in Dock » — relevée dans le plank.mo du
+#  paquet, pas devinée. Plank dessine ses menus avec GTK : ça se règle donc
+#  dans NOTRE feuille de style, pas dans un réglage de plank.
+#
+#  On éprouve la feuille GÉNÉRÉE, celle que GTK reçoit — pas le squelette qui
+#  la nourrit : c'est la sortie qui compte.
+corps_regle() { # corps_regle <fichier> <fragment de sélecteur>
+	python3 -c '
+import re, sys
+src = re.sub(r"/\*.*?\*/", "", open(sys.argv[1], encoding="utf-8").read(), flags=re.S)
+cible = sys.argv[2]
+for sel, corps in re.findall(r"([^{}]+)\{([^{}]*)\}", src):
+    if cible in " ".join(sel.split()):
+        print(corps.strip().replace("\n", " "))
+' "$1" "$2"
+}
+
+for V in 3 4; do
+	F="$FOYER/.config/gtk-${V}.0/gtk.css"
+	CORPS="$(corps_regle "$F" "menu menuitem")"
+	if printf '%s' "$CORPS" | grep -q 'font-size:[[:space:]]*1\.12em'; then
+		ok "GTK $V : les entrées de menu sont agrandies (1.12em)"
+	else
+		non "GTK $V : le menu n'a pas de taille agrandie — $CORPS"
+	fi
+	#  LA TAILLE SEULE NE SUFFIT PAS : à 4 px de haut les rangées se touchent
+	#  et on clique la voisine. C'est le rembourrage qui fait la cible.
+	if printf '%s' "$CORPS" | grep -qE 'padding:[[:space:]]*([89]|1[0-9])px'; then
+		ok "GTK $V : les rangées sont assez hautes pour être visées"
+	else
+		non "GTK $V : rembourrage trop faible, les rangées se toucheraient — $CORPS"
+	fi
+done
+
+#  ═══ « em », PAS DES PIXELS ═══ Une taille figée annulerait « lexos access
+#  gros-texte » précisément là où il sert le plus. C'est la règle que le dépôt
+#  s'était déjà donnée pour les boutons ; le menu doit la suivre.
+CORPS="$(corps_regle "$FOYER/.config/gtk-3.0/gtk.css" "menu menuitem")"
+if printf '%s' "$CORPS" | grep -qE 'font-size:[[:space:]]*[0-9]+px'; then
+	non "la taille du menu est figée en pixels : le gros-texte n'y ferait plus rien"
+else
+	ok "la taille est relative — elle suivra « lexos access gros-texte »"
+fi
+
+#  ═══ ET LES MENUS DE GTK 4 ═══ La même feuille sert aux deux versions, mais
+#  GTK 4 n'emploie plus « menuitem » : sans règle « modelbutton », le correctif
+#  ne vaudrait que pour la moitié des applications.
+if grep -q 'popover.menu modelbutton' "$FOYER/.config/gtk-4.0/gtk.css"; then
+	ok "les menus de GTK 4 (modelbutton) sont couverts eux aussi"
+else
+	non "GTK 4 non couvert : le clic droit resterait minuscule dans ces applications"
+fi
+
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$reussis" "$echoues"
 [[ "$echoues" -eq 0 ]]
