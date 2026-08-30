@@ -225,28 +225,71 @@ Tu es connecté en tant que <b>${QUI}</b>."
 #  yad d'abord (il est dans lexos-core.list.chroot, donc strict), zenity en
 #  repli. Les codes de retour sont ceux qu'on déclare après le « ! » dans
 #  chaque bouton : yad les rend tels quels.
+# =============================================================================
+#  UNE PETITE FENÊTRE SUR LE CÔTÉ, PAS UNE BARRE EN TRAVERS DE L'ÉCRAN
+# =============================================================================
+#  ALEX, photo à l'appui : « j'aimerais que ce soit une petite fenêtre qui
+#  ouvre dans le côté, au lieu de le voir comme sur la 2e image » — pour
+#  arrêter, redémarrer ou changer d'utilisateur.
+#
+#  CE QU'IL VOYAIT, ET POURQUOI. Les sept gestes étaient sept BOUTONS DE
+#  DIALOGUE (--button). yad range ces boutons-là sur UNE SEULE RANGÉE
+#  horizontale, en bas de la fenêtre, et élargit la fenêtre jusqu'à ce
+#  qu'ils tiennent tous. Avec sept libellés français — « Changer
+#  d'utilisateur », « Verrouiller l'écran »… — la fenêtre finissait par
+#  traverser l'écran de bout en bout. Le « --width=560 » n'y pouvait rien :
+#  c'est un plancher, pas un plafond. Boutons horizontaux et fenêtre étroite
+#  sont incompatibles par construction ; il fallait changer de forme.
+#
+#  LA LISTE VERTICALE RÈGLE LES DEUX À LA FOIS : les gestes s'empilent, donc
+#  la largeur ne dépend plus de leur nombre ni de la longueur des mots. Il ne
+#  reste que deux boutons en bas (Annuler / le choix), et la fenêtre peut
+#  enfin être petite. C'est EXACTEMENT la forme que le repli zenity, juste
+#  en dessous, emploie depuis toujours — les deux chemins disent maintenant
+#  la même chose, au lieu de deux dialogues différents selon l'outil présent.
+#
+#  ET SUR LE CÔTÉ. yad accepte « --posx » (vérifié dans son manuel). On la
+#  pose contre le bord droit, sous la barre du haut, en calculant la place
+#  d'après la largeur réelle de l'écran (xrandr, déjà employé ailleurs ici).
+#  Sans xrandr, on ne devine pas une position au hasard : on retombe sur
+#  « --center », le comportement d'avant.
+LARGEUR_F=300
+POSITION=(--center)
+if command -v xrandr >/dev/null 2>&1; then
+	ECRAN_L="$(xrandr 2>/dev/null | sed -n 's/^.*current \([0-9]\+\) x [0-9]\+.*$/\1/p' | head -1)"
+	if [[ "$ECRAN_L" =~ ^[0-9]+$ ]] && (( ECRAN_L > LARGEUR_F + 80 )); then
+		POSITION=(--posx="$(( ECRAN_L - LARGEUR_F - 40 ))" --posy=60)
+	fi
+fi
+
 if command -v yad >/dev/null 2>&1; then
-	yad --title="Session — LexOS" \
+	CHOIX="$(yad --list --title="Session — LexOS" \
 		--window-icon=lexos-arret \
-		--image="$ICON" --image-on-top \
-		--width=560 --borders=18 --center --on-top \
+		--width="$LARGEUR_F" --height=330 --borders=12 --on-top \
+		"${POSITION[@]}" \
 		--text="$TEXTE" \
-		--button="Annuler:1" \
-		--button="Changer d'utilisateur:2" \
-		--button="Déconnexion:3" \
-		--button="Éteindre:4" \
-		--button="Redémarrer:5" \
-		--button="Mise en veille:6" \
-		--button="Verrouiller l'écran:7" \
-		>/dev/null 2>&1
-	case $? in
-		2) changer_utilisateur ;;
-		3) deconnexion ;;
-		4) eteindre ;;
-		5) redemarrer ;;
-		6) veille ;;
-		7) verrouiller ;;
-		*) : ;;   # 1, la croix, Échap : on ne fait rien, et c'est voulu
+		--no-headers --column="Que faire ?" --print-column=1 \
+		--button="Annuler:1" --button="Choisir:0" \
+		"Changer d'utilisateur" \
+		"Déconnexion" \
+		"Éteindre" \
+		"Redémarrer" \
+		"Mise en veille" \
+		"Verrouiller l'écran" \
+		2>/dev/null)"
+	#  yad termine les lignes de « --print-column » par le séparateur « | » :
+	#  sans ce nettoyage, aucune correspondance ne tomberait juste et la
+	#  fenêtre se fermerait sans rien faire — une panne muette.
+	CHOIX="${CHOIX%|}"
+	CHOIX="${CHOIX%$'\n'}"
+	case "$CHOIX" in
+		"Changer d'utilisateur") changer_utilisateur ;;
+		"Déconnexion")           deconnexion ;;
+		"Éteindre")              eteindre ;;
+		"Redémarrer")            redemarrer ;;
+		"Mise en veille")        veille ;;
+		"Verrouiller l'écran")   verrouiller ;;
+		*) : ;;   # Annuler, ou la fenêtre fermée : on ne fait RIEN
 	esac
 	exit 0
 fi
