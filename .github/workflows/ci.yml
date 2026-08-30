@@ -1137,6 +1137,22 @@ jobs:
           #  — c'est ce qui le met tout à droite de l'écran.
           bash tests/test_lexos_session.sh
 
+      - name: Gros texte et bulle de capture — deux gestes du quotidien
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « quand on fait agrandissement 100 % de l'écriture,
+          #  faudrait que celle du bureau grossisse aussi ». Le gros texte
+          #  réglait la police GTK et le facteur GNOME — jamais le BUREAU,
+          #  dessiné par xfdesktop avec sa propre taille. Et le piège :
+          #  « /desktop-icons/font-size » ne sert à RIEN tant que
+          #  « use-custom-font-size » est faux — le réglage qui a l'air posé
+          #  et ne change rien, déjà vu avec « item-icon-size » au build 74.
+          #  ALEX AUSSI : « peux-tu le changer pour qu'on puisse aller la voir
+          #  directement dans le dossier images ? » — la bulle de capture ne
+          #  proposait que « En faire mon fond d'écran ».
+          #  Faux xfconf-query sur un PATH fermé, qui NOTE au lieu d'agir.
+          bash tests/test_lexos_access_capture.sh
+
       - name: Les réglages de la fenêtre active — lexos-app-settings sur un banc
         if: ${{ !cancelled() }}
         run: |
