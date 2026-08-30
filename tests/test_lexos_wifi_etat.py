@@ -106,6 +106,64 @@ check("un SSID avec un « : » dedans n'est pas tronqué (device status)",
 check("...ni dans la recherche du signal (device wifi)",
       r["signal"] == 60, f"signal={r['signal']!r}")
 
+# --- 4. SE DÉCONNECTER : le bouton qui manquait --------------------------
+#  ALEX, photo à l'appui : « quand je suis connecté sur le wi-fi, il dit pas
+#  de déconnecter une fois connecté — là je suis connecté à BELL507 mais il
+#  dit pas déconnecter ». La ligne du réseau actif ne portait qu'une pastille
+#  « connecté », sans rien à cliquer : couper le Wi-Fi demandait le terminal,
+#  alors que le Bluetooth a son bouton « Déconnecter » dans la même fenêtre.
+#
+#  CE QUI EST ÉPROUVÉ ICI, C'EST L'ARGUMENT QU'ON NE PASSE PAS. act_wifi_
+#  deconnecter() ne prend RIEN de la page : elle relit elle-même quel
+#  appareil Wi-Fi est connecté. Le banc vérifie donc que la commande lancée
+#  vise bien CET appareil-là, et jamais un nom venu d'ailleurs.
+JOURNAL = os.path.join(tempfile.mkdtemp(), "appels")
+
+REP_DECO = '''
+echo "$*" >> "%s"
+case "$*" in
+  *"device status"*) echo "eth0:ethernet:connected:Filaire"
+                     echo "wlan0:wifi:connected:BELL507" ;;
+  *"device disconnect"*) exit 0 ;;
+esac
+''' % JOURNAL
+
+r = avec_nmcli(REP_DECO, lambda: settings.act_wifi_deconnecter(None))
+check("la déconnexion réussit quand un Wi-Fi est actif", r.get("ok") is True, repr(r))
+appels = open(JOURNAL, encoding="utf-8").read() if os.path.exists(JOURNAL) else ""
+check("c'est bien l'appareil WI-FI qui est coupé, pas le filaire",
+      "device disconnect wlan0" in appels, f"appels={appels!r}")
+check("...et le filaire n'est jamais touché",
+      "disconnect eth0" not in appels, f"appels={appels!r}")
+
+#  RIEN À COUPER : un refus clair, jamais un succès inventé — la même règle
+#  que partout ailleurs dans ce fichier.
+REP_RIEN = '''
+case "$*" in
+  *"device status"*) echo "eth0:ethernet:connected:Filaire"
+                     echo "wlan0:wifi:disconnected:" ;;
+esac
+'''
+r = avec_nmcli(REP_RIEN, lambda: settings.act_wifi_deconnecter(None))
+check("sans Wi-Fi actif, la fonction refuse au lieu de prétendre avoir coupé",
+      r.get("ok") is False and "aucune" in r.get("erreur", "").lower(), repr(r))
+
+#  nmcli qui échoue : le motif remonte à la page, il ne disparaît pas.
+REP_ECHEC = '''
+case "$*" in
+  *"device status"*) echo "wlan0:wifi:connected:BELL507" ;;
+  *"device disconnect"*) echo "Error: not authorized." >&2; exit 4 ;;
+esac
+'''
+r = avec_nmcli(REP_ECHEC, lambda: settings.act_wifi_deconnecter(None))
+check("un échec de nmcli remonte son motif au lieu d'être avalé",
+      r.get("ok") is False and "not authorized" in r.get("erreur", ""), repr(r))
+
+#  ET LA LISTE BLANCHE : une action qui existe mais n'est branchée nulle part
+#  est une action que le bouton de la page appelle dans le vide.
+check("« wifi-deconnecter » est branchée dans ACTIONS",
+      settings.ACTIONS.get("wifi-deconnecter") is settings.act_wifi_deconnecter)
+
 print()
 if fails:
     print(f"{len(fails)} échoué(s) : {', '.join(fails)}")

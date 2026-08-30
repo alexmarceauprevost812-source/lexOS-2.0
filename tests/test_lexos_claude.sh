@@ -154,5 +154,55 @@ else
 	non "cmd_run ne semble plus garder le message informatif dans les deux cas"
 fi
 
+# =============================================================================
+titre "6. Le thème rouge sur fond noir, écriture blanche"
+# =============================================================================
+#  ALEX, sur l'ISO déjà construite : « je veux il est un theme rouge dans
+#  ios dans un fond bien noir et une belle ecriture blanc ». Le fond est
+#  --color-bg dans lexos-claude-terminal (déjà noir) ; xfce4-terminal
+#  n'offre AUCUN troisième réglage de couleur par fenêtre (vérifié dans son
+#  manuel — seuls --color-bg et --color-text existent), donc le rouge ne
+#  peut vivre que dans ce que ce script imprime lui-même : le mot-sigle.
+#
+#  UN VRAI TERMINAL, PAS UNE SORTIE EN TUBE. « [[ -t 1 ]] » répond faux dès
+#  que la sortie de banniere() est capturée par une simple substitution de
+#  commande — un banc naïf « verrait » toujours des couleurs vides et ne
+#  prouverait rien. « script » alloue un vrai pseudo-terminal : c'est la
+#  seule façon d'éprouver le VRAI chemin (couleurs allumées), pas son repli.
+if command -v script >/dev/null 2>&1; then
+	SORTIE="$(PATH="$BAC/bin:$PATH" script -qec "
+		source '$BAC/fonctions.sh'
+		banniere
+	" /dev/null 2>/dev/null | tr -d '\r')"
+
+	#  #D8352E — pas un rouge inventé : « rouge_hi » dans ACCENTS de
+	#  fond-anime.py, le même accent que le reste de LexOS. En 24 bits
+	#  littéral (216;53;46), pas les 256 couleurs approchées.
+	if printf '%s' "$SORTIE" | grep -qF $'\033[38;2;216;53;46m'; then
+		ok "le mot-sigle et le salut portent le VRAI rouge de LexOS (#D8352E), pas une couleur inventée"
+	else
+		non "le rouge #D8352E (38;2;216;53;46) n'apparaît pas dans la bannière"
+	fi
+	if printf '%s' "$SORTIE" | grep -qF $'\033[38;2;255;255;255m'; then
+		ok "le texte d'accompagnement est en BLANC franc (255;255;255), plus atténué"
+	else
+		non "le blanc franc (38;2;255;255;255) n'apparaît pas dans la bannière"
+	fi
+	if printf '%s' "$SORTIE" | grep -q 'CLAUDE'; then
+		ok "…et le mot-sigle est toujours là, la couleur n'a pas mangé le texte"
+	else
+		non "le mot-sigle a disparu avec le changement de couleur"
+	fi
+else
+	non "« script » (util-linux) est absent — impossible d'éprouver les vraies couleurs sur un pseudo-terminal"
+fi
+
+grep -q "color-bg='#000000'" "$RACINE/config/includes.chroot/usr/bin/lexos-claude-terminal" \
+	&& ok "lexos-claude-terminal : le fond reste noir franc" \
+	|| non "le fond de lexos-claude-terminal n'est plus #000000"
+grep -q "color-text='#FFFFFF'" "$RACINE/config/includes.chroot/usr/bin/lexos-claude-terminal" \
+	&& ok "lexos-claude-terminal : l'écriture est BLANCHE (« une belle ecriture blanc »)" \
+	|| non "l'écriture de lexos-claude-terminal n'est plus #FFFFFF"
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

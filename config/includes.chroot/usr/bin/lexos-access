@@ -481,6 +481,81 @@ police_agrandie() {
 	printf '%s %s\n' "$nom" "$(( (taille * facteur + 50) / 100 ))"
 }
 
+# =============================================================================
+#  Le texte SOUS LES ICÔNES DU BUREAU
+# =============================================================================
+#  ALEX : « quand on fait agrandissement 100 % de l'écriture, faudrait que
+#  celle du bureau grossisse aussi ».
+#
+#  Le gros texte réglait deux choses — le facteur GSettings (les logiciels
+#  GNOME) et /Gtk/FontName (les logiciels GTK). Ni l'un ni l'autre n'atteint
+#  le BUREAU : les noms sous les icônes sont dessinés par xfdesktop, qui a
+#  sa propre taille dans son propre canal. Tout grossissait sauf l'endroit
+#  qu'on regarde en premier.
+#
+#  LES DEUX CLÉS SONT LUES DANS LE VRAI BINAIRE de xfdesktop 4.18, pas
+#  devinées : « /desktop-icons/font-size » et
+#  « /desktop-icons/use-custom-font-size ». LA SECONDE EST UN VERROU — tant
+#  qu'elle est fausse, xfdesktop suit la police du système et IGNORE
+#  complètement font-size. Écrire la taille sans lever le verrou n'aurait
+#  strictement rien fait : le genre de réglage qui a l'air posé et ne
+#  change rien, déjà vu ici avec « item-icon-size » du menu (build 74).
+#
+#  LE TYPE N'EST PAS DEVINÉ NON PLUS. xfdesktop lit cette clé par
+#  xfconf_channel_get_property (une GValue générique) : le type dépend de ce
+#  qui est déjà stocké. On tente donc d'abord une écriture SANS type — elle
+#  réutilise le type existant, c'est-à-dire le bon — et on ne se rabat sur
+#  « double » puis « int » que si la propriété n'existe pas encore. Imposer
+#  un type à une propriété existante est exactement ce qui marche sur une
+#  version de XFCE et pas sur la suivante (la leçon de pose_fond, dans
+#  lexos-firstrun).
+bureau_taille_ecrire() {
+	local valeur="$1"
+	present xfconf-query || return 1
+	xfconf-query -c xfce4-desktop -p /desktop-icons/font-size -s "$valeur" >/dev/null 2>&1 && return 0
+	xfconf-query -c xfce4-desktop -p /desktop-icons/font-size -n -t double -s "$valeur" >/dev/null 2>&1 && return 0
+	xfconf-query -c xfce4-desktop -p /desktop-icons/font-size -n -t int -s "${valeur%%.*}" >/dev/null 2>&1
+}
+
+#  Grossir le bureau. « base » est la taille d'ORIGINE de la police du
+#  système (le même nombre qui sert à /Gtk/FontName) : on repart toujours
+#  d'elle, jamais de la taille courante — sinon deux « on » de suite
+#  doubleraient, la panne du « 1150 % » corrigée juste au-dessus.
+bureau_agrandi() {
+	local base="$1" facteur="$2" avant_taille avant_custom
+	present xfconf-query || return 1
+
+	#  L'état d'AVANT n'est noté qu'une fois, et il note aussi le cas « la
+	#  clé n'existait pas » (marqueur « aucune ») : sans lui, « off »
+	#  laisserait un réglage sur mesure là où il n'y en avait jamais eu.
+	if [[ -z "$(etat_lire bureau_taille_avant)" ]]; then
+		avant_taille="$(xf_lire xfce4-desktop /desktop-icons/font-size)" || avant_taille=""
+		etat_ecrire bureau_taille_avant "${avant_taille:-aucune}"
+		avant_custom="$(xf_lire xfce4-desktop /desktop-icons/use-custom-font-size)" || avant_custom=""
+		etat_ecrire bureau_custom_avant "${avant_custom:-false}"
+	fi
+
+	xf_ecrire xfce4-desktop /desktop-icons/use-custom-font-size bool true || return 1
+	bureau_taille_ecrire "$(( (base * facteur + 50) / 100 ))"
+}
+
+bureau_retabli() {
+	local taille custom
+	present xfconf-query || return 1
+	taille="$(etat_lire bureau_taille_avant)" || taille=""
+	custom="$(etat_lire bureau_custom_avant)" || custom=""
+	[[ -z "$taille" ]] && return 1
+
+	#  « aucune » veut dire qu'il n'y avait pas de taille sur mesure avant
+	#  nous : on ne réinvente pas un nombre, on relâche le verrou et
+	#  xfdesktop reprend la police du système, comme au premier jour.
+	[[ "$taille" != "aucune" ]] && bureau_taille_ecrire "$taille"
+	xf_ecrire xfce4-desktop /desktop-icons/use-custom-font-size bool "${custom:-false}"
+	etat_effacer bureau_taille_avant
+	etat_effacer bureau_custom_avant
+	return 0
+}
+
 gros_texte() {
 	local mode="$1" pct="${2:-}" police avant nouvelle
 	case "$mode" in
@@ -558,10 +633,27 @@ gros_texte() {
 			xf_ecrire xsettings /Gtk/FontName string "$nouvelle" \
 				|| { warn "L'écriture de la police a échoué."; return 1; }
 			ok "Gros texte activé : « $nouvelle » (base « $base », écran ×$(printf '%d,%02d' $(( facteur / 100 )) $(( facteur % 100 ))))."
+
+			#  LE BUREAU SUIT, DEMANDE D'ALEX. On repart de la taille
+			#  d'origine (« base » finit par le nombre), jamais de la
+			#  police déjà grossie. Un échec ici ne fait pas échouer le
+			#  gros texte : le reste de l'écran a bien grossi, et le dire
+			#  vaut mieux que tout annuler.
+			local base_taille="${base##* }"
+			if [[ "$base_taille" =~ ^[0-9]+$ ]] && bureau_agrandi "$base_taille" "$facteur"; then
+				ok "Le texte sous les icônes du bureau suit aussi ($(( (base_taille * facteur + 50) / 100 )))."
+			else
+				warn "Le texte du bureau n'a pas pu être agrandi (xfconf absent ou session non XFCE)."
+				astuce "À la main : Paramètres XFCE → Bureau → Icônes → Taille du texte."
+			fi
 			;;
 		off)
 			gs_ecrire org.gnome.desktop.interface text-scaling-factor 1.0
 			avant="$(etat_lire police_avant)" || avant=""
+			#  Le bureau redescend AVEC le reste : on l'a monté, on le
+			#  redescend. Silencieux quand il n'y avait rien à défaire —
+			#  « off » sur un système déjà normal ne doit pas inquiéter.
+			bureau_retabli && say "Le texte du bureau est revenu à sa taille."
 			if [[ -n "$avant" ]]; then
 				xf_ecrire xsettings /Gtk/FontName string "$avant"
 				etat_effacer police_avant

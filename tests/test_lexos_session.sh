@@ -268,30 +268,48 @@ PYLAST
 
 #  VEILLE ET REDÉMARRER DOIVENT DONC VIVRE ICI, DANS LA FENÊTRE — sinon ils
 #  ont disparu du système tout entier, pas juste de la barre.
-grep -q 'Redémarrer:5' "$OUTIL" \
-	&& ok "la fenêtre porte un bouton « Redémarrer »" \
-	|| non "« Redémarrer » a disparu à la fois de la barre ET de la fenêtre"
-grep -q 'Mise en veille:6' "$OUTIL" \
-	&& ok "…et un bouton « Mise en veille »" \
-	|| non "« Mise en veille » a disparu à la fois de la barre ET de la fenêtre"
-grep -q '5) redemarrer ;;' "$OUTIL" \
-	&& ok "le bouton « Redémarrer » appelle bien le geste redemarrer()" \
-	|| non "« Redémarrer » est affiché mais n'appelle rien"
-grep -q '6) veille ;;' "$OUTIL" \
-	&& ok "le bouton « Mise en veille » appelle bien le geste veille()" \
-	|| non "« Mise en veille » est affiché mais n'appelle rien"
+#
+#  ═══ LA FENÊTRE A CHANGÉ DE FORME, ET CES CONTRÔLES AVEC ELLE ═══
+#  ALEX : « j'aimerais que ce soit une petite fenêtre qui ouvre dans le
+#  côté, au lieu de le voir comme sur la 2e image ». Les six gestes étaient
+#  six BOUTONS DE DIALOGUE (--button="…:5") ; yad range ces boutons-là sur
+#  une seule rangée horizontale et élargit la fenêtre jusqu'à ce qu'ils
+#  tiennent tous — d'où la barre qui traversait l'écran. Ils sont devenus
+#  les LIGNES d'une liste verticale, et l'aiguillage se fait maintenant sur
+#  le libellé rendu, plus sur un code de sortie. On éprouve donc la ligne ET
+#  son aiguillage, comme avant, mais dans la nouvelle forme.
+verifie_geste() { # verifie_geste <libellé> <fonction>
+	#  Les lignes de la liste se terminent par «  \ » (continuation) : le
+	#  motif doit l'accepter, sinon aucune ne correspond jamais.
+	grep -qE "^[[:space:]]+\"$1\"[[:space:]]*\\\\?$" "$OUTIL" \
+		&& ok "la fenêtre propose « $1 »" \
+		|| non "« $1 » a disparu à la fois de la barre ET de la fenêtre"
+	grep -qE "\"$1\"\)[[:space:]]+$2 ;;" "$OUTIL" \
+		&& ok "…et « $1 » appelle bien le geste $2()" \
+		|| non "« $1 » est affiché mais n'appelle rien"
+}
+verifie_geste "Redémarrer" redemarrer
+verifie_geste "Mise en veille" veille
+
+#  LA PETITE FENÊTRE SUR LE CÔTÉ, c'est la demande elle-même : une liste
+#  verticale (la largeur ne dépend plus du nombre de gestes) et une position
+#  calculée sur le bord, pas au centre.
+grep -q -- '--list' "$OUTIL" \
+	&& ok "les gestes sont une LISTE verticale — la fenêtre peut rester étroite" \
+	|| non "la fenêtre emploie encore des boutons en rangée : elle traversera l'écran"
+grep -q -- '--posx=' "$OUTIL" \
+	&& ok "elle s'ouvre sur le côté (position calculée d'après la largeur de l'écran)" \
+	|| non "aucune position : la fenêtre resterait au centre"
+grep -q 'POSITION=(--center)' "$OUTIL" \
+	&& ok "…et sans xrandr, elle retombe au centre plutôt que sur une position inventée" \
+	|| non "sans xrandr, la position serait devinée"
 
 #  VERROUILLER — TROISIÈME PASSE. Alex l'avait jugé inutile devant un damier
 #  gris (l'icône CASSÉE du greffon d'actions, pas le verrouillage lui-même),
 #  puis il l'a redemandé — cette fois dans la fenêtre du bouton rouge, avec
 #  arrêter/redémarrer/veille/changer d'utilisateur. Il doit donc y être, par
 #  la vraie commande système (xflock4), pas par l'ancien greffon.
-grep -q "Verrouiller l'écran:7" "$OUTIL" \
-	&& ok "la fenêtre porte un bouton « Verrouiller l'écran »" \
-	|| non "« Verrouiller l'écran » demandé par Alex n'est pas dans la fenêtre"
-grep -q '7) verrouiller ;;' "$OUTIL" \
-	&& ok "…et ce bouton appelle bien le geste verrouiller()" \
-	|| non "« Verrouiller l'écran » est affiché mais n'appelle rien"
+verifie_geste "Verrouiller l'écran" verrouiller
 grep -q 'dispo xflock4' "$OUTIL" \
 	&& ok "verrouiller() passe par xflock4 — pas par l'ancien greffon cassé" \
 	|| non "verrouiller() ne s'appuie pas sur xflock4"

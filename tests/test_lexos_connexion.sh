@@ -268,6 +268,31 @@ cat > "$BANC/etiquette_menu_orphelin.json" <<'J'
  {"nom":"menuitem","classes":[],"etats":["hover"]},
  {"nom":"label","classes":[]}]
 J
+#  ═══ LE MENU AU REPOS — la photo suivante d'Alex ═══
+#  « on voit pas bien les couleurs quand on [va] pour changer d'utilisateur » :
+#  le menu d'arrêt était une BARRE CLAIRE illisible, et ne redevenait lisible
+#  qu'une fois la souris dessus. Tout le bloc sans ancre ne couvrait que des
+#  ÉTATS (:hover, :selected) ; le REPOS n'avait aucune règle de nous. Ces
+#  fixtures-ci n'ont donc AUCUN état — c'est exactement un menu qu'on regarde
+#  sans y toucher, et c'est le cas que le banc ne modélisait pas.
+cat > "$BANC/menu_repos.json" <<'J'
+[{"nom":"window","id":"","classes":["popup"]},
+ {"nom":"menu","classes":[]}]
+J
+cat > "$BANC/popup_repos.json" <<'J'
+[{"nom":"window","id":"","classes":["popup"]}]
+J
+cat > "$BANC/menuitem_repos.json" <<'J'
+[{"nom":"window","id":"","classes":["popup"]},
+ {"nom":"menu","classes":[]},
+ {"nom":"menuitem","classes":[]}]
+J
+cat > "$BANC/etiquette_menuitem_repos.json" <<'J'
+[{"nom":"window","id":"","classes":["popup"]},
+ {"nom":"menu","classes":[]},
+ {"nom":"menuitem","classes":[]},
+ {"nom":"label","classes":[]}]
+J
 
 #  LES DEUX RÉGIMES. En 800 (le CSS de l'utilisateur du compte lightdm) la
 #  priorité suffit. En 200 (notre thème LexOS-Connexion, à égalité avec la
@@ -390,7 +415,40 @@ for PRIO in 800 200; do
 	[ "$F" = "#000000" ] \
 		&& ok "priorité $PRIO : … et celle d'un popup SANS ancêtre nommé aussi" \
 		|| non "priorité $PRIO : étiquette sans ancêtre = « $F »"
+
+	#  ═══ LE MENU AU REPOS — « on voit pas bien les couleurs » ═══
+	#  Un menu qu'on REGARDE, sans souris dessus. Le fond du popup doit être
+	#  NOIR et l'écriture ORANGE, comme la boîte de connexion : c'est le cas
+	#  qui laissait une barre claire illisible jusqu'au survol.
+	F="$(resout "$BANC/menu_repos.json" background-color "$PRIO")"
+	[ "$F" = "#000000" ] \
+		&& ok "priorité $PRIO : au REPOS, le fond du menu est noir" \
+		|| non "priorité $PRIO : fond du menu au repos = « $F » — la barre claire d'Alex"
+	F="$(resout "$BANC/popup_repos.json" background-color "$PRIO")"
+	[ "$F" = "#000000" ] \
+		&& ok "priorité $PRIO : … et la fenêtre du popup elle-même aussi" \
+		|| non "priorité $PRIO : fond de window.popup = « $F »"
+	F="$(resout "$BANC/menuitem_repos.json" color "$PRIO")"
+	[ "$F" = "#E8590C" ] \
+		&& ok "priorité $PRIO : au REPOS, une ligne de menu écrit en orange" \
+		|| non "priorité $PRIO : écriture d'un menuitem au repos = « $F » — illisible"
+	F="$(resout "$BANC/etiquette_menuitem_repos.json" color "$PRIO")"
+	[ "$F" = "#E8590C" ] \
+		&& ok "priorité $PRIO : … y compris son ÉTIQUETTE (la leçon déjà payée deux fois)" \
+		|| non "priorité $PRIO : étiquette d'un menuitem au repos = « $F »"
 done
+
+#  ET LE SURVOL DOIT TOUJOURS L'EMPORTER SUR LE REPOS. Les règles de repos
+#  qu'on vient d'ajouter sont écrites AVANT « :hover » exprès : si elles
+#  passaient après, elles repeindraient la ligne survolée et on aurait
+#  échangé un bogue contre un autre.
+REPOS="$(grep -n '^menuitem {$' "$CSS" | head -1 | cut -d: -f1)"
+SURVOL="$(grep -n '^menuitem:hover {$' "$CSS" | head -1 | cut -d: -f1)"
+if [ -n "$REPOS" ] && [ -n "$SURVOL" ] && [ "$REPOS" -lt "$SURVOL" ]; then
+	ok "l'état de repos est écrit AVANT le survol (le survol garde le dernier mot)"
+else
+	non "ordre des états : repos=$REPOS survol=$SURVOL — le repos repeindrait le survol"
+fi
 
 #  L'ORDRE. « #login_window * » et « #login_window button » ont la MÊME
 #  spécificité : si le large passait APRÈS, il repeindrait les boutons et on

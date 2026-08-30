@@ -161,6 +161,56 @@
     son ancêtre. Isolées une par une, comme partout dans ce fichier : un
     sélecteur invalide sur GTK 3.24 (menuitem existe, row peut ne pas
     exister sur une vieille version) ne doit faire tomber que lui-même. */
+
+/*  ═══ L'ÉTAT AU REPOS, QUI MANQUAIT — ET C'EST TOUT LE BOGUE SUIVANT ═══
+    ALEX, DEUX PHOTOS DU MENU D'ARRÊT : « on voit pas bien les couleurs quand
+    on [va] pour changer d'utilisateur ». Sur la première, le menu est une
+    BARRE CLAIRE où l'on ne lit RIEN ; sur la seconde, la souris dessus, la
+    même ligne devient lisible (« Éteindre… Alt+F4 »).
+
+    La cause est écrite juste au-dessus, à un mot près : tout ce bloc SANS
+    ANCRE ne couvrait que des ÉTATS — « :hover » et « :selected ». Le menu
+    au REPOS, lui, n'avait AUCUNE règle de nous : ni fond pour le popup, ni
+    couleur d'écriture pour ses lignes. Il retombait donc sur ce que le
+    thème de base voulait bien donner à une fenêtre de haut niveau qui n'est
+    ni #login_window ni #panel_window — un fond clair, avec une écriture
+    claire par-dessus. On ne voyait le texte qu'une fois la ligne survolée,
+    parce que le survol, lui, était couvert. Le correctif précédent avait
+    réparé le survol et laissé le repos derrière lui.
+
+    Ces deux règles-ci sont donc les mêmes que les suivantes, pour l'état
+    qu'on avait oublié : le popup prend le NOIR de LexOS, ses lignes
+    l'ORANGE — exactement ce que la boîte de connexion fait déjà. Elles sont
+    écrites AVANT « :hover » : à spécificité voisine, la dernière écrite
+    gagne, et c'est le survol qui doit l'emporter sur le repos, jamais
+    l'inverse (la règle d'ordre annoncée en tête de fichier).
+
+    « menu » et « window.popup » sont les deux nœuds qu'un GtkMenu porte
+    dans GTK 3 — le widget et la fenêtre de haut niveau qui l'accueille. On
+    peint les deux, parce que selon la version c'est l'un ou l'autre qui
+    porte le fond visible, et parce qu'une règle qui ne correspond à rien ne
+    coûte rien. Isolées une par une, comme tout ce fichier. */
+menu {
+	background-color: @lexos_noir;
+}
+window.popup {
+	background-color: @lexos_noir;
+}
+menu decoration {
+	background-color: @lexos_noir;
+}
+menuitem {
+	background-color: transparent;
+	color: @lexos_accent;
+}
+/*  L'ÉTIQUETTE DE LA LIGNE AU REPOS, et pas seulement la ligne. C'est la
+    leçon déjà payée deux fois plus bas dans ce fichier : poser la couleur
+    sur le menuitem ne descend PAS jusqu'au label si quelque chose matche le
+    label directement. Ici c'est ce qui laissait l'écriture claire sur clair
+    même une fois le fond corrigé. */
+menuitem label {
+	color: @lexos_accent;
+}
 menuitem:hover {
 	background-color: @lexos_accent;
 	color: @lexos_noir;

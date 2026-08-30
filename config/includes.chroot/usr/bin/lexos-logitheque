@@ -16,10 +16,10 @@ set -uo pipefail
 PROG="${0##*/}"
 
 if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
-	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'; Y=$'\033[33m'
 	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
 else
-	O=''; E=''; V=''; B=''; D=''; R=''
+	O=''; E=''; V=''; Y=''; B=''; D=''; R=''
 fi
 say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
 ok()   { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
@@ -247,6 +247,98 @@ cmd_liste() {
 		"$B" "$R" "$PROG" "$D" "$R"
 }
 
+# =============================================================================
+#  Les familles d'applications, sorties de l'ISO pour lui rendre 1,6 Go
+# =============================================================================
+#  ALEX : « on a toutes les applications téléchargées dans l'ISO — j'aimerais,
+#  pour faire de la place, que les applications restent dans la Logithèque et
+#  qu'on puisse les télécharger à partir de là. »
+#
+#  Elles ne sont plus pré-installées (hook 0250), mais les listes voyagent
+#  toujours dans l'ISO : une famille se réinstalle donc d'UNE commande, sans
+#  avoir à retenir quarante noms de paquets. C'est le pendant exact de ce
+#  qu'on vient de retirer — sortir des applications sans laisser le moyen de
+#  les faire revenir aurait été une perte, pas un gain.
+#  Le dossier est surchargeable par la MÊME variable que le hook 0250
+#  (LEXOS_OPTIONAL_DIR) : un banc peut ainsi éprouver le vrai code sur les
+#  vraies listes du dépôt, sans avoir à installer quoi que ce soit.
+DIR_FAMILLES="${LEXOS_OPTIONAL_DIR:-/usr/share/lexos/optional-packages}"
+#  nom simple | fichier | ce qu'on y trouve
+FAMILLES="
+studio|46-studio.list|Image, son et vidéo — GIMP, Krita, Inkscape, Blender, Kdenlive, Audacity, Ardour
+dev|50-dev.list|Programmation — Java, Go, Rust, PHP, QEMU, virt-manager, Podman
+bureautique|60-full.list|Bureautique et disques — LibreOffice français, Thunderbird, GParted, Timeshift
+jeux|75-pro-gamer.list|Jeux — Steam, Lutris, Wine, émulateurs, MangoHud
+"
+
+#  Un « case » plutôt qu'une boucle dans un tube : « return » depuis un
+#  « while » alimenté par un tube s'exécute dans un sous-shell et ne rend
+#  pas la main à la fonction. Ici la correspondance est fixe et courte —
+#  autant l'écrire de la façon qui ne peut pas se tromper.
+famille_fichier() {
+	case "$1" in
+		studio)       printf '46-studio.list' ;;
+		dev)          printf '50-dev.list' ;;
+		bureautique)  printf '60-full.list' ;;
+		jeux)         printf '75-pro-gamer.list' ;;
+		*)            return 1 ;;
+	esac
+}
+
+famille_compte() {
+	[ -r "$DIR_FAMILLES/$1" ] || { printf '?'; return 0; }
+	grep -cEv '^[[:space:]]*(#|$)' "$DIR_FAMILLES/$1" 2>/dev/null || printf '?'
+}
+
+cmd_familles() {
+	printf '\n%sFamilles d'"'"'applications%s\n' "$B" "$R"
+	say "Elles ne sont plus embarquées dans l'ISO — elles s'installent d'ici."
+	printf '\n'
+	local nom fic desc
+	printf '%s\n' "$FAMILLES" | while IFS='|' read -r nom fic desc; do
+		[ -n "$nom" ] || continue
+		printf '  %s%-12s%s %s%s paquets%s\n      %s%s%s\n' \
+			"$O" "$nom" "$R" "$D" "$(famille_compte "$fic")" "$R" "$D" "$desc" "$R"
+	done
+	printf '\n'
+	say "Pour en installer une : ${B}$PROG famille studio${R}"
+}
+
+cmd_famille() {
+	local nom="${1:-}"
+	[ -n "$nom" ] || { cmd_familles; return 0; }
+	local fic; fic="$(famille_fichier "$nom")"
+	[ -n "$fic" ] || die "Famille inconnue : $nom   (voir « $PROG familles »)"
+	local chemin="$DIR_FAMILLES/$fic"
+	[ -r "$chemin" ] || die "Liste manquante : $chemin"
+
+	#  LES NOMS DE RECHANGE (« a|b|c ») : on garde le PREMIER, comme le hook
+	#  0250. Un paquet renommé entre deux versions de Debian ne doit pas
+	#  faire échouer toute la famille — d'où la reprise un par un plus bas.
+	local pkgs; pkgs="$(grep -Ev '^[[:space:]]*(#|$)' "$chemin" | cut -d'|' -f1 | tr '\n' ' ')"
+	[ -n "$pkgs" ] || die "La famille « $nom » est vide."
+
+	say "Installation de la famille ${B}${nom}${R}…"
+	say "${D}Ça peut être long : c'est ce qui a été retiré de l'ISO pour lui faire de la place.${R}"
+	sudo_cmd apt-get update -qq || say "apt-get update a échoué — on tente quand même"
+	# shellcheck disable=SC2086
+	if sudo_cmd apt-get install -y $pkgs; then
+		ok "Famille « $nom » installée."
+		return 0
+	fi
+	#  UN PAQUET QUI MANQUE NE DOIT PAS EMPORTER LES QUARANTE AUTRES.
+	say "Au moins un paquet pose problème — reprise un par un."
+	local p echecs=""
+	for p in $pkgs; do
+		sudo_cmd apt-get install -y "$p" >/dev/null 2>&1 || echecs="$echecs $p"
+	done
+	if [ -n "$echecs" ]; then
+		say "${Y}Non installés :${R}$echecs"
+		say "${D}Ils n'existent peut-être plus sous ce nom dans cette version de Debian.${R}"
+	fi
+	ok "Famille « $nom » installée (sauf ce qui est listé ci-dessus)."
+}
+
 cmd_install() {
 	[[ $# -gt 0 ]] || die "Rien à installer. Essaie « $PROG liste » pour voir le catalogue."
 	local pkgs=() nom pkg
@@ -300,6 +392,49 @@ cmd_boutique() {
 				https://dl.flathub.org/repo/flathub.flatpakrepo >/dev/null 2>&1 \
 				|| say "Flathub non ajouté (pas de réseau ?) — les dépôts Debian restent disponibles"
 		}
+
+		#  ═══ LES CARRÉS NOIRS DE LA LOGITHÈQUE ═══
+		#  ALEX, photos à l'appui : « les couleurs, le noir en carré — je
+		#  veux pas voir le noir en carré, ça fait pas très joli, dans
+		#  logithèque ». Sur ses captures, la moitié des applications
+		#  proposées (ImageFan Reloaded, Boxy SVG, Deezer, Lotti…) montrent
+		#  un carré sombre à la place de leur icône, pendant que d'autres
+		#  (Zen, Bouteilles, HashVerifier) s'affichent normalement.
+		#
+		#  LA CAUSE, ET ELLE ÉTAIT ICI. « flatpak remote-add » ne fait
+		#  qu'ENREGISTRER le dépôt — c'est tout ce que son aide annonce
+		#  (« Add a new remote repository (by URL) »). Les métadonnées
+		#  AppStream, qui portent le nom, le résumé ET LES ICÔNES de chaque
+		#  application, sont téléchargées par une AUTRE commande :
+		#  « flatpak update --appstream » (son aide : « Update appstream for
+		#  remote »). Elle n'a jamais été appelée nulle part dans LexOS. La
+		#  Logithèque affichait donc ce que GNOME Logiciels avait pu
+		#  glaner — des noms, des résumés — et un carré vide partout où
+		#  l'icône manquait.
+		#
+		#  AUCUN MOT DE PASSE NE SERA DEMANDÉ, et c'est vérifié plutôt que
+		#  supposé : dans la politique polkit livrée par flatpak
+		#  (/usr/share/polkit-1/actions/org.freedesktop.Flatpak.policy),
+		#  l'action « org.freedesktop.Flatpak.appstream-update » porte
+		#  « <allow_active>yes</allow_active> » — une session locale active
+		#  y a droit sans authentification. C'est ce qui permet de la lancer
+		#  à chaque ouverture sans transformer la boutique en interrogatoire.
+		#
+		#  EN TÂCHE DE FOND, ET LA BOUTIQUE S'OUVRE TOUT DE SUITE. Le premier
+		#  téléchargement pèse quelques dizaines de mégaoctets : l'attendre
+		#  ferait passer « j'ai cliqué sur Logithèque » pour un plantage.
+		#  Les fois suivantes, la commande est incrémentale et ne coûte
+		#  presque rien. Sans réseau, elle échoue dans son coin, sans un mot
+		#  à l'écran — les dépôts Debian, eux, marchent toujours.
+		#
+		#  setsid détache vraiment : sans lui, « exec gnome-software » plus
+		#  bas remplace ce shell, et le sort du téléchargement dépendrait de
+		#  la façon dont le terminal range ses enfants.
+		if command -v setsid >/dev/null 2>&1; then
+			setsid flatpak update --appstream -y >/dev/null 2>&1 &
+		else
+			flatpak update --appstream -y >/dev/null 2>&1 &
+		fi
 	fi
 	if command -v gnome-software >/dev/null 2>&1; then
 		say "Ouverture de GNOME Logiciels…"
@@ -329,6 +464,8 @@ ${B}$PROG${R} — installer des applications en quelques clics
   ${O}$PROG install${R} <nom…>     Installe (nom simple ou paquet Debian)
   ${O}$PROG retirer${R} <nom…>     Désinstalle
   ${O}$PROG chercher${R} <mot>     Cherche dans tous les paquets Debian
+  ${O}$PROG familles${R}           Les familles d'applications retirées de l'ISO
+  ${O}$PROG famille${R} <nom>      En réinstaller une ${D}(studio · dev · bureautique · jeux)${R}
 
 ${D}Exemples :
   $PROG install vlc photo bureautique
@@ -344,6 +481,8 @@ case "${1:-}" in
 	install|installer|ajouter) shift; cmd_install "$@" ;;
 	retirer|remove|desinstaller) shift; cmd_retirer "$@" ;;
 	chercher|search)  shift; cmd_chercher "$@" ;;
+	familles|groupes) cmd_familles ;;
+	famille|groupe)   shift; cmd_famille "${1:-}" ;;
 	-h|--help|aide)   usage ;;
 	site|lien)        shift; cmd_site "$@" ;;
 	*)                say "Commande inconnue : $1"; printf '\n'; usage; exit 1 ;;

@@ -189,18 +189,6 @@ cmd_video() {
 	fi
 }
 
-# =============================================================================
-#  Après la capture : « En faire mon fond d'écran »
-# =============================================================================
-#  Les deux morceaux existaient déjà — lexos-capture écrit une image, « lexos
-#  wallpaper » en pose une — mais rien ne les reliait : il fallait retenir le
-#  chemin du fichier et le retaper. La notification propose maintenant le
-#  geste directement.
-#
-#  notify-send -A affiche un bouton et REND la clé de l'action cliquée ; -w
-#  attend ce clic. On lance donc l'attente en arrière-plan, sinon la commande
-#  de capture resterait bloquée tant que la bulle est à l'écran.
-#  Tous les serveurs de notification ne gèrent pas les actions : si -A n'est
 # --- Le format des images ----------------------------------------------------
 #  « png » (défaut) : sans perte, le texte reste parfaitement net.
 #  « jpeg » : nettement plus léger, au prix d'un texte très légèrement adouci.
@@ -231,23 +219,76 @@ ecrire_format() {
 	[ "$1" = "jpeg" ] && say "Plus léger. Pour du texte à lire, le PNG reste plus net."
 }
 
+# =============================================================================
+#  Après la capture : la retrouver, ou en faire son fond d'écran
+# =============================================================================
+#  ALEX : « quand on prend une capture d'écran, elle mettait en bas à gauche
+#  de l'écran, en écrivant [fond écran] — peux-tu le changer pour qu'on
+#  puisse aller la voir directement dans le dossier images ? »
+#
+#  La bulle ne proposait QU'UN seul geste : « En faire mon fond d'écran ».
+#  C'est utile, il l'avait demandé — mais ce n'est pas ce qu'on veut faire
+#  neuf fois sur dix d'une capture. Le geste courant, c'est ALLER LA VOIR,
+#  et pour ça il fallait retenir le chemin et ouvrir le gestionnaire de
+#  fichiers à la main : le fichier est écrit dans un SOUS-dossier
+#  (~/Images/Captures), donc même en connaissant « Images » on ne tombe pas
+#  dessus du premier coup.
+#
+#  « Voir dans mes images » passe donc EN PREMIER — les serveurs de
+#  notification affichent les boutons dans l'ordre où on les déclare, et le
+#  premier est celui qu'on atteint sans réfléchir. Le fond d'écran reste
+#  juste à côté : on ajoute un geste, on n'en retire pas un qu'Alex avait
+#  demandé.
+#
+#  ON OUVRE LE DOSSIER, PAS L'IMAGE. « aller la voir dans le dossier
+#  images » : c'est le dossier qu'on veut, avec les captures précédentes
+#  autour. Ouvrir l'image seule dans une visionneuse répondrait à une autre
+#  question — et le clic sur le corps de la bulle le fait déjà.
+#
+#  notify-send -A affiche un bouton et REND la clé de l'action cliquée ; -w
+#  attend ce clic. On lance donc l'attente en arrière-plan, sinon la commande
+#  de capture resterait bloquée tant que la bulle est à l'écran.
+#  Tous les serveurs de notification ne gèrent pas les actions : si -A n'est
 #  pas accepté, on retombe sur la notification simple, sans bouton.
+ouvrir_dossier() {
+	#  thunar est le gestionnaire de fichiers de LexOS ; xdg-open reste le
+	#  repli, comme partout ailleurs — un dossier qui ne s'ouvre pas vaut
+	#  mieux qu'un plantage, et un message honnête vaut mieux que les deux.
+	if command -v thunar >/dev/null 2>&1; then
+		thunar "$1" >/dev/null 2>&1 &
+	elif command -v xdg-open >/dev/null 2>&1; then
+		xdg-open "$1" >/dev/null 2>&1 &
+	else
+		return 1
+	fi
+	return 0
+}
+
 avertir_capture() {
 	local fichier="$1"
 	command -v notify-send >/dev/null 2>&1 || return 0
 	local titre="Capture d'écran"
 	local corps; corps="$(basename "$fichier")"
+	local dossier; dossier="$(dirname "$fichier")"
 
 	if notify-send --help 2>&1 | grep -q -- '--action' \
 	   && command -v lexos >/dev/null 2>&1; then
 		(
 			reponse="$(notify-send -w -i "$fichier" \
+				-A "voir=Voir dans mes images" \
 				-A "fond=En faire mon fond d'écran" \
 				"$titre" "$corps" 2>/dev/null)"
-			if [ "$reponse" = "fond" ]; then
-				lexos wallpaper "$fichier" remplir >/dev/null 2>&1 \
-					&& notify-send -i "$fichier" "Fond d'écran posé" "$corps" 2>/dev/null
-			fi
+			case "$reponse" in
+				voir)
+					ouvrir_dossier "$dossier" \
+						|| notify-send "$titre" \
+						   "Aucun gestionnaire de fichiers pour ouvrir $dossier" 2>/dev/null
+					;;
+				fond)
+					lexos wallpaper "$fichier" remplir >/dev/null 2>&1 \
+						&& notify-send -i "$fichier" "Fond d'écran posé" "$corps" 2>/dev/null
+					;;
+			esac
 		) >/dev/null 2>&1 &
 		return 0
 	fi
@@ -292,8 +333,9 @@ ${B}VIDÉO${R}
 ${B}FOND D'ÉCRAN${R}
   ${O}$PROG fond${R}             Capture l'écran et en fait ton fond d'écran
   ${O}$PROG fond zone${R}        Pareil, mais sur une zone choisie à la souris
-  ${D}Après chaque capture, la bulle de notification propose aussi le
-  bouton « En faire mon fond d'écran ».${R}
+  ${D}Après chaque capture, la bulle de notification propose deux boutons :
+  « Voir dans mes images » (ouvre le dossier des captures) et
+  « En faire mon fond d'écran ».${R}
 
 ${B}DIVERS${R}
   ${O}$PROG dossier${R}          Où sont rangées les captures

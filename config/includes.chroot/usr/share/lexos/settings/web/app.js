@@ -413,6 +413,19 @@ async function setFondFichier(i){
   await rafraichir(r.ok ? "Fond d'écran appliqué : " + nom
                         : "Échec : " + (r.erreur || "commande refusée"));
 }
+/*  Voir l'image EN GRAND, dans un vrai visionneur (ristretto) — pas
+    seulement la vignette 96x56. Alex : « ouvrir directement image sur une
+    fenetre pour voir image en plus gros ». MÊME RÈGLE que setFondFichier,
+    juste au-dessus : aucun nom de fichier interpolé dans le HTML, l'indice
+    seul traverse l'attribut onclick, le nom se relit dans l'état déjà
+    chargé. */
+async function ouvreFondFichier(i){
+  const i0 = Number(i) | 0;
+  const f = (etat.fonds_perso || []).find(x => Number(x.i) === i0);
+  if(!f) return toast("Cette image n'est plus dans la galerie");
+  const r = await api("fond-ouvrir", {i: i0, nom: f.nom});
+  if(!r.ok) toast(r.erreur || "Impossible d'ouvrir l'image");
+}
 async function basculeMuet(){
   const r = await api("son-muet", "toggle");
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
@@ -482,6 +495,19 @@ function choisitWifi(ssid){ wifiChoisi = ssid; rendSection();
     const c = document.getElementById("wifiMdp"); if(c) c.focus();
   });
 }
+/*  ALEX : « quand je suis connecté sur le wi-fi, il dit pas de déconnecter
+    une fois connecté ». La ligne du réseau actif portait une pastille
+    « connecté » et RIEN à cliquer — se déconnecter demandait le terminal,
+    alors que le Bluetooth, dans la même fenêtre, a son btCoupe() depuis
+    toujours. AUCUN ARGUMENT N'EST ENVOYÉ : la machine sait déjà quelle
+    connexion Wi-Fi est active (nmcli device status), et ne rien envoyer
+    vaut mieux que valider une chaîne — la page ne peut désigner ni le
+    câble, ni un VPN. */
+async function coupeWifi(){
+  const r = await api("wifi-deconnecter");
+  await rafraichir(r.ok ? "Déconnecté du Wi-Fi"
+                        : "Échec : " + (r.erreur || "commande refusée"));
+}
 async function chercheWifi(){
   toast("Recherche des réseaux…");
   await api("wifi-rechercher");
@@ -529,6 +555,28 @@ async function setVolume(v){
   const r = await api("son-volume", String(v));
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
 }
+/*  ═══ CETTE FONCTION ÉTAIT DÉFINIE DEUX FOIS, ET C'EST TOUT LE BOGUE ═══
+    ALEX : « quand je clique sur le bouton pour changer le dock de position,
+    il change de position, mais dans les paramètres il change pas — il reste
+    à droite ».
+
+    Les deux moitiés du symptôme s'expliquent d'un coup. Une SECONDE
+    définition de setDock() vivait 190 lignes plus bas, et se contentait d'un
+    toast : ni mise à jour de l'état, ni nouveau rendu. En JavaScript, deux
+    déclarations de fonction du même nom dans la même portée ne cohabitent
+    pas — LA DERNIÈRE ÉCRASE LA PREMIÈRE. Celle-ci, la bonne, ne s'exécutait
+    donc jamais : du code mort qui avait l'air vivant.
+
+    Le dock bougeait quand même (l'appel « api("dock", …) » partait bien dans
+    les deux versions), mais le bouton en surbrillance suit « etat.dock », que
+    seule cette version-ci met à jour — via rafraichir(), qui relit l'état de
+    la MACHINE au lieu de le supposer. D'où « il change de position mais dans
+    les paramètres il reste à droite », mot pour mot.
+
+    setLangue() portait exactement le même doublon, avec la même conséquence
+    invisible : la langue changeait, le bouton sélectionné ne bougeait pas.
+    Les deux doublons sont retirés ; un contrôle de la CI refuse désormais
+    qu'une fonction de cette page soit déclarée deux fois. */
 async function setDock(d){
   const r = await api("dock", d);
   await rafraichir(r.ok ? "Dock : " + d : "Échec : " + (r.erreur || "commande refusée"));
@@ -742,10 +790,6 @@ async function setAccent(a){
   const r = await api("accent", a);
   if(r.ok){ etat.accent = a; appliqueApparence(); rendSection(); toast("Accent : " + a); }
 }
-async function setDock(d){
-  const r = await api("dock", d);
-  if(r.ok) toast("Barre d'outils : " + d);
-}
 async function setFond(f){
   const r = await api("fond", f);
   if(r.ok) toast("Fond d'écran appliqué");
@@ -765,10 +809,6 @@ async function setFondAnime(nom){
 async function fondCapture(mode){
   const r = await api("fond-capture", mode);
   if(r.ok) toast(mode === "zone" ? "Cadre la zone à la souris…" : "Capture en cours…");
-}
-async function setLangue(l){
-  const r = await api("langue", l);
-  if(r.ok) toast("Langue changée — reconnecte-toi pour l'appliquer partout");
 }
 async function capture(mode){ await api("capture", mode); }
 
@@ -835,7 +875,8 @@ function contenu(cle){
           </div>
           ${barres(r.signal)}
           ${r.actif
-            ? `<span class="etat ok">connecté</span>`
+            ? `<span class="etat ok">connecté</span>
+               <button class="btn ghost" onclick="coupeWifi()">Déconnecter</button>`
             : `<button class="btn ghost" onclick="choisitWifi('${esc(r.ssid).replace(/'/g,"&#39;")}')">Se connecter</button>`}
         </div>
         ${wifiChoisi === r.ssid && !r.actif ? `<div class="srow" style="display:block">
@@ -1207,9 +1248,13 @@ function contenu(cle){
             les plus récentes d'abord. Un clic : l'image entière, sur fond
             noir, sur tous les écrans.</div>
           <div class="row" style="gap:10px">
-            ${fp.map(f => `<button class="wall-swatch" title="${esc(f.nom)}"
-               onclick="setFondFichier(${Number(f.i) | 0})"
-               style="width:96px;height:56px;background:#000 url('/api/fond-vignette?i=${Number(f.i) | 0}') center/contain no-repeat"></button>`).join("")}
+            ${fp.map(f => `<div class="wall-item">
+               <button class="wall-swatch" title="${esc(f.nom)}"
+                  onclick="setFondFichier(${Number(f.i) | 0})"
+                  style="width:96px;height:56px;background:#000 url('/api/fond-vignette?i=${Number(f.i) | 0}') center/contain no-repeat"></button>
+               <button class="wall-voir" title="Voir en grand"
+                  onclick="event.stopPropagation();ouvreFondFichier(${Number(f.i) | 0})">🔍</button>
+              </div>`).join("")}
           </div>
         </div>`;
       })()}

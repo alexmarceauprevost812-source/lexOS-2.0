@@ -220,3 +220,16 @@ kbd{display:inline-block;padding:1px 6px;border-radius:5px;
   cursor:pointer;background-size:cover;background-position:center;flex:none;
   padding:0;transition:border-color .15s ease}
 .wall-swatch:hover,.wall-swatch:focus-visible{border-color:var(--ac);outline:none}
+/*  LA LOUPE — ALEX : « ouvrir directement image sur une fenetre pour voir
+    image en plus gros ». Un clic sur la vignette pose le fond ; la loupe,
+    posée par-dessus dans son coin, ouvre l'image EN GRAND dans un vrai
+    visionneur (ristretto) sans toucher au fond actuel. Cachée au repos —
+    la galerie reste une rangée de vignettes, pas une rangée de boutons —
+    et révélée au survol ou au focus clavier, jamais par un second clic
+    qu'il faudrait deviner. */
+.wall-item{position:relative;flex:none}
+.wall-voir{position:absolute;top:3px;right:3px;width:20px;height:20px;
+  border-radius:50%;border:1px solid var(--bd);background:rgba(0,0,0,.6);
+  color:#fff;font-size:11px;line-height:18px;text-align:center;cursor:pointer;
+  padding:0;opacity:0;transition:opacity .15s ease}
+.wall-item:hover .wall-voir,.wall-voir:focus-visible{opacity:1;outline:none}

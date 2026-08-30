@@ -1137,6 +1137,36 @@ jobs:
           #  — c'est ce qui le met tout à droite de l'écran.
           bash tests/test_lexos_session.sh
 
+      - name: Gros texte et bulle de capture — deux gestes du quotidien
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « quand on fait agrandissement 100 % de l'écriture,
+          #  faudrait que celle du bureau grossisse aussi ». Le gros texte
+          #  réglait la police GTK et le facteur GNOME — jamais le BUREAU,
+          #  dessiné par xfdesktop avec sa propre taille. Et le piège :
+          #  « /desktop-icons/font-size » ne sert à RIEN tant que
+          #  « use-custom-font-size » est faux — le réglage qui a l'air posé
+          #  et ne change rien, déjà vu avec « item-icon-size » au build 74.
+          #  ALEX AUSSI : « peux-tu le changer pour qu'on puisse aller la voir
+          #  directement dans le dossier images ? » — la bulle de capture ne
+          #  proposait que « En faire mon fond d'écran ».
+          #  Faux xfconf-query sur un PATH fermé, qui NOTE au lieu d'agir.
+          bash tests/test_lexos_access_capture.sh
+
+      - name: Les applications sortent de l'ISO, pas les outils de LexOS
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « toutes les applications sont téléchargées dans l'ISO —
+          #  j'aimerais, pour faire de la place, qu'elles restent dans la
+          #  Logithèque ». Quatre familles sortent (~1,6 Go, 136 paquets).
+          #  LE DANGER : douze de ces paquets n'étaient pas des applications
+          #  mais des outils que LexOS appelle lui-même — dont « npm », qui
+          #  installe Claude Code. Ce banc relève ce que le code déclare
+          #  appeler et refuse qu'un seul soit parti avec la coupe. Il a
+          #  d'ailleurs trouvé « gamemode » que le relevé à la main avait
+          #  manqué (la commande s'appelle « gamemoderun »).
+          bash tests/test_lexos_paquets_outils.sh
+
       - name: Les réglages de la fenêtre active — lexos-app-settings sur un banc
         if: ${{ !cancelled() }}
         run: |
@@ -1221,6 +1251,20 @@ jobs:
           #  orange quand on est connecté sans internet, la bascule apparaît-
           #  elle, et la liste des réseaux que l'ISO avait EN PLUS survit-elle.
           node tests/test_lexos_wifi.js
+
+      - name: Aucune fonction des Paramètres déclarée deux fois
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « quand je clique sur le bouton pour changer le dock de
+          #  position, il change de position, mais dans les paramètres il
+          #  change pas — il reste à droite ». setDock() était déclarée DEUX
+          #  FOIS : la première rafraîchissait la page, la seconde se
+          #  contentait d'un toast. En JavaScript la dernière écrase la
+          #  première — la bonne version était du code mort qui avait l'air
+          #  vivant. setLangue() portait le même doublon. Ni « node --check »
+          #  (le fichier se parse : c'est du JavaScript valide) ni aucun banc
+          #  de rendu ne pouvait le voir. Ce contrôle-ci est structurel.
+          node tests/test_lexos_doublons_js.js
 
       - name: Le volet — le thème jour/nuit suit vraiment un clic sur sa tuile
         if: ${{ !cancelled() }}
@@ -1656,6 +1700,23 @@ jobs:
           #  nmcli sur un PATH fermé, mutation-testé (le vieux code fait
           #  échouer 4 des 7 cas).
           python3 tests/test_lexos_wifi_etat.py
+
+      - name: Logithèque — les icônes ne sont plus des carrés noirs
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, trois photos : « le noir en carré — je veux pas voir le
+          #  noir en carré, ça fait pas très joli, dans logithèque ». La
+          #  moitié des applications proposées n'avaient pas d'icône.
+          #  « flatpak remote-add » n'ENREGISTRE que le dépôt ; ce sont les
+          #  métadonnées AppStream qui portent les icônes, et elles se
+          #  téléchargent avec « flatpak update --appstream » — jamais
+          #  appelée nulle part dans LexOS. Le banc tourne sur un PATH
+          #  FERMÉ (de faux flatpak/gnome-software qui NOTENT au lieu
+          #  d'agir) et vérifie que chaque appel AppStream est lancé, en
+          #  tâche de fond, et SANS sudo — polkit l'autorise déjà pour une
+          #  session active (allow_active=yes), l'envelopper dans sudo
+          #  redemanderait un mot de passe à chaque ouverture.
+          bash tests/test_lexos_logitheque.sh
 
       - name: Fuseau horaire — la position réelle, pas Toronto par défaut
         if: ${{ !cancelled() }}

@@ -59,12 +59,36 @@ fi
 #  l'écran noir qu'on passe justement notre temps à chasser).
 #
 #  « minimal » reste à part : c'est une ISO sans bureau, par définition.
+#  ═══ LES APPLICATIONS NE SONT PLUS EMBARQUÉES — DEMANDE D'ALEX ═══
+#  « on a toutes les applications téléchargées dans l'ISO — j'aimerais, pour
+#  faire de la place, que les applications restent dans la Logithèque et
+#  qu'on puisse les télécharger à partir de là. Là, elles sont toutes
+#  téléchargées d'avance, ça prend la place pour rien. »
+#
+#  Quatre familles sortent donc de la construction : 46-studio (GIMP, Krita,
+#  Blender, Kdenlive, Ardour…), 50-dev (Java, Go, Rust, PHP, QEMU…),
+#  60-full (LibreOffice FR, Thunderbird, GParted…) et 75-pro-gamer (Steam,
+#  Lutris, Wine, émulateurs, jeux). Mesuré paquet par paquet : environ
+#  1,6 Go, les deux tiers de tout l'optionnel, en 136 paquets.
+#
+#  ELLES NE SONT PAS SUPPRIMÉES, ELLES NE SONT PLUS PRÉ-INSTALLÉES. Les
+#  fichiers .list restent livrés dans /usr/share/lexos/optional-packages :
+#  « lexos logitheque famille studio » (ou dev, bureautique, jeux) installe
+#  une famille entière d'une commande, et GNOME Logiciels les propose une
+#  par une comme n'importe quel paquet Debian.
+#
+#  ET 85-outils-lexos.list RAPATRIE CE QUI N'EST PAS UNE APPLICATION. Douze
+#  paquets de ces familles ne servaient pas à l'utilisateur mais à LexOS
+#  lui-même — mpv fait tourner le fond vidéo, ffmpeg enregistre les captures,
+#  et surtout npm installe Claude Code. Les sortir avec le reste aurait cassé
+#  une fonction par paquet, en silence. Le contrôle « Aucun outil de LexOS
+#  absent de l'ISO » (ci.yml) relit tout le code et rend ce trou impossible.
 LISTS="00-core.list 10-installer.list"
 BUREAU_COMPLET="15-essentiel.list 20-desktop.list 30-dock-effets.list \
-40-partage.list 41-reseau-plus.list 45-capture.list 46-studio.list 47-apple.list 48-comptes.list \
-49-bienetre.list 50-dev.list 51-dev-outils.list 52-ia-locale.list 54-sauvegarde.list 55-cartes.list 56-reglages.list 57-python.list \
+40-partage.list 41-reseau-plus.list 45-capture.list 47-apple.list 48-comptes.list \
+49-bienetre.list 51-dev-outils.list 52-ia-locale.list 54-sauvegarde.list 55-cartes.list 56-reglages.list 57-python.list \
 58-prive.list 59-diagnostic.list \
-60-full.list 70-gaming.list 75-pro-gamer.list 80-securite.list \
+70-gaming.list 80-securite.list 85-outils-lexos.list \
 90-decoupe-image.list 95-logitheque.list"
 
 case "$FLAVOUR" in
