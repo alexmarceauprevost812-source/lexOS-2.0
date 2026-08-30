@@ -280,6 +280,18 @@ function appliqueModeVolet(){
   const theme = etat.rapides && etat.rapides.theme;
   if(theme === "clair") document.documentElement.dataset.mode = "clair";
   else if(theme === "sombre") delete document.documentElement.dataset.mode;
+  //  ═══ ET L'ACCENT, QUI N'ÉTAIT POSÉ NULLE PART ═══
+  //  ALEX : « c'est la couleur orange qui ne change pas. » Ce volet-ci était
+  //  le pire cas : il ne remplaçait JAMAIS l'accent. ui.css en pose un par
+  //  défaut — l'orange — et rien ici ne l'écrasait, donc les tuiles
+  //  restaient orange même avec un accent bleu partout ailleurs sur le
+  //  bureau. Pas un bogue de rafraîchissement : la ligne n'existait pas.
+  //
+  //  « etat.accent » vient du même /api/etat que tout le reste de cette
+  //  page ; il était donc déjà reçu, et simplement ignoré. La table des
+  //  couleurs vit dans ui.css, partagée avec les Paramètres : poser
+  //  l'attribut suffit, et les deux fenêtres ne peuvent plus diverger.
+  if(etat.accent) document.documentElement.dataset.accent = etat.accent;
 }
 function rend(){
   document.getElementById("dedans").innerHTML =

@@ -1432,6 +1432,22 @@ jobs:
           #  n'a rien vu, pas d'une recherche qui n'a jamais eu lieu.
           bash tests/test_lexos_bluetooth.sh
 
+      - name: L'accent des pages web — une seule table, trois surfaces
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « dans les paramètres les boutons fonctionnent tous, mais
+          #  c'est la couleur orange qui ne change pas — pour le dock
+          #  surtout. » Deux défauts : rafraichir() relisait l'accent sur la
+          #  machine sans jamais le reposer (seul rend(), au démarrage, le
+          #  faisait), et le volet des Paramètres rapides ne le posait NULLE
+          #  PART — il était orange à vie.
+          #  Ce banc interdit surtout la divergence : si une pastille offerte
+          #  n'a pas son bloc dans ui.css, le clic ne changerait rien, et on
+          #  retrouverait exactement le symptôme d'Alex. Il mesure aussi le
+          #  contraste du texte posé sur chaque accent — le noir en dur
+          #  donnait 3,34:1 sur le bleu.
+          node tests/test_lexos_accents_web.js
+
       - name: La barre — la flèche des Paramètres rapides, et la cloche retirée
         if: ${{ !cancelled() }}
         run: |
