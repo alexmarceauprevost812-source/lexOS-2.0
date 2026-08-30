@@ -21,9 +21,16 @@ set -uo pipefail
 PROG="lexos claude"
 
 if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
-	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+	#  RG (rouge) : PAS un rouge inventé pour l'occasion — c'est « rouge_hi »,
+	#  le même accent que fond-anime.py (ACCENTS["rouge"] = #8A1512/#C4211E/
+	#  #D8352E) et que le reste de LexOS. En vrai 24 bits, pas en 256 couleurs
+	#  approché : xfce4-terminal (où ce script tourne toujours) le rend sans
+	#  arrondi, et « --color-bg »/« --color-text » de lexos-claude-terminal,
+	#  juste à côté, sont déjà écrits en hexadécimal littéral — même langage.
+	RG=$'\033[38;2;216;53;46m'; W=$'\033[38;2;255;255;255m'
 else
-	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+	O=''; G=''; Y=''; E=''; B=''; R=''; RG=''; W=''
 fi
 say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
 ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
@@ -64,15 +71,22 @@ prenom() {
 	fi
 }
 
+#  ALEX, sur l'ISO déjà construite avec ce mot-sigle : « je veux il est un
+#  theme rouge dans ios dans un fond bien noir et une belle ecriture
+#  blanc ». Le mot-sigle passe donc de l'orange de LexOS (accent par
+#  défaut, mais Claude Terminal n'est pas « le reste de LexOS ») au rouge
+#  ci-dessus, et le texte d'accompagnement — jusqu'ici atténué (« $D ») — en
+#  BLANC franc, comme demandé. Le fond, lui, est déjà noir : c'est
+#  --color-bg dans lexos-claude-terminal, réglé plus tôt.
 banniere() {
 	local h salut
 	h="$(date +%-H 2>/dev/null || date +%H)"; h="${h#0}"; h="${h:-0}"
 	#  Même règle que la démo (cctAccueilSession) : bonsoir de 18 h à 5 h.
 	if (( h >= 18 || h < 5 )); then salut="Bonsoir"; else salut="Bonjour"; fi
-	printf '\n%s%sCLAUDE\nCODE%s\n' "$B" "$O" "$R"
-	printf '%s✳ %s, %s%s\n' "$O" "$salut" "$(prenom)" "$R"
-	printf '%sLe terminal de Claude, et de personne d'"'"'autre.%s\n' "$D" "$R"
-	printf '%sConnexion au navigateur au premier lancement.%s\n\n' "$D" "$R"
+	printf '\n%s%sCLAUDE\nCODE%s\n' "$B" "$RG" "$R"
+	printf '%s✳ %s, %s%s\n' "$RG" "$salut" "$(prenom)" "$R"
+	printf '%sLe terminal de Claude, et de personne d'"'"'autre.%s\n' "$W" "$R"
+	printf '%sConnexion au navigateur au premier lancement.%s\n\n' "$W" "$R"
 }
 
 usage() {
