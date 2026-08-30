@@ -433,8 +433,35 @@ def _fonds_perso():
     gestionnaire de fichiers — au-delà, le bouton « Une image à moi… » ouvre
     le vrai sélecteur. Le tri par date de modification met en tête ce qu'on
     vient de télécharger : c'est précisément l'image qu'on vient chercher.
+
+    UN NIVEAU DE SOUS-DOSSIERS EN PLUS — ALEX : « quand on prend une
+    capture d'écran, j'aimerais qu'on la retrouve où sont les images [...]
+    on voit pas ça [dans la galerie], j'aimerais qu'on voie les images de
+    capture d'écran à la place ». lexos-capture écrit dans
+    ~/Images/Captures (voir ce script) : un SOUS-dossier d'« Images », que
+    ce simple iterdir() ne voyait jamais. lexos-fond-ecran (le même
+    ratissage, en bash) descend déjà à « find -maxdepth 2 » — les deux
+    listes avaient divergé, exactement le piège que le commentaire de
+    FONDS_PERSO_DIRS met en garde contre plus haut. On aligne : chaque
+    dossier ET ses sous-dossiers immédiats, jamais plus profond (une
+    galerie qui plonge sans fond n'est plus une galerie).
     """
     vus, images = set(), []
+
+    def ajoute(dossier):
+        for f in dossier.iterdir():
+            if f.is_file() and f.suffix.lower() in FONDS_PERSO_EXT:
+                try:
+                    st = f.stat()
+                    #  Un fichier trop lourd n'est pas un fond d'écran :
+                    #  on ne le propose pas plutôt que d'afficher une
+                    #  vignette qui ne chargera jamais.
+                    if st.st_size > FONDS_PERSO_POIDS_MAX:
+                        continue
+                    images.append((st.st_mtime, str(f)))
+                except OSError:
+                    continue
+
     for nom in FONDS_PERSO_DIRS:
         d = Path.home() / nom
         try:
@@ -442,18 +469,18 @@ def _fonds_perso():
             if not d.is_dir() or reel in vus:
                 continue
             vus.add(reel)
-            for f in d.iterdir():
-                if f.is_file() and f.suffix.lower() in FONDS_PERSO_EXT:
-                    try:
-                        st = f.stat()
-                        #  Un fichier trop lourd n'est pas un fond d'écran :
-                        #  on ne le propose pas plutôt que d'afficher une
-                        #  vignette qui ne chargera jamais.
-                        if st.st_size > FONDS_PERSO_POIDS_MAX:
-                            continue
-                        images.append((st.st_mtime, str(f)))
-                    except OSError:
+            ajoute(d)
+            for sous in d.iterdir():
+                if not sous.is_dir():
+                    continue
+                try:
+                    sreel = sous.resolve()
+                    if sreel in vus:
                         continue
+                    vus.add(sreel)
+                    ajoute(sous)
+                except OSError:
+                    continue
         except OSError:
             continue
     images.sort(reverse=True)
@@ -496,6 +523,44 @@ def act_fond_fichier(arg):
     #  fond noir avec les images ». Une photo de téléphone est verticale ;
     #  « remplir » n'en montrait que la bande du milieu.
     return _run(["lexos", "wallpaper", chemin, "ajuster"])
+
+
+def act_fond_ouvrir(arg):
+    """Ouvre l'image de la galerie EN GRAND, dans un vrai visionneur — pas
+    seulement la vignette 96x56 de la page. Alex : « ouvrir directement
+    image sur une fenetre pour voir image en plus gros [...] avoir le
+    mettre sur une autre application » — une fenêtre séparée, pas un
+    agrandissement dans la page elle-même.
+
+    MÊME VALIDATION QUE act_fond_fichier, et pour la même raison : l'indice
+    est REVALIDÉ contre une ré-énumération, jamais un chemin fourni par la
+    page — voir son commentaire.
+
+    ristretto est déjà le visionneur par défaut de LexOS pour image/png et
+    image/jpeg (hook 0400) : on ouvre CELUI-LÀ, pas un outil nouveau.
+    xdg-open en repli si ristretto manquait un jour (il est dans la liste
+    OPTIONNELLE des paquets, jamais garanti).
+    """
+    if isinstance(arg, dict):
+        i, nom = arg.get("i", -1), arg.get("nom", "")
+    else:
+        i, nom = arg, ""
+    try:
+        i = int(i)
+    except (TypeError, ValueError):
+        return {"ok": False, "erreur": "indice invalide"}
+    fonds = _fonds_perso()
+    if not (0 <= i < len(fonds)):
+        return {"ok": False, "erreur": "image inconnue — pas dans la galerie"}
+    chemin = fonds[i]
+    if nom and Path(chemin).name != nom:
+        return {"ok": False, "erreur":
+                "la galerie a changé depuis l'affichage — rouvre la section"}
+    if shutil.which("ristretto"):
+        return _run(["ristretto", chemin], detach=True)
+    if shutil.which("xdg-open"):
+        return _run(["xdg-open", chemin], detach=True)
+    return {"ok": False, "erreur": "aucun visionneur d'images installé (ristretto)"}
 
 
 def act_fond_perso(arg):
@@ -1218,6 +1283,7 @@ ACTIONS = {
     "fond": act_fond,
     "fond-perso": act_fond_perso,
     "fond-fichier": act_fond_fichier,
+    "fond-ouvrir": act_fond_ouvrir,
     "fond-anime": act_fond_anime,
     "fond-capture": act_fond_capture,
     "langue": act_langue,

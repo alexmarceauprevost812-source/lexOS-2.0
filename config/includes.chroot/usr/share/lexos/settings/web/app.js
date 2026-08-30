@@ -413,6 +413,19 @@ async function setFondFichier(i){
   await rafraichir(r.ok ? "Fond d'écran appliqué : " + nom
                         : "Échec : " + (r.erreur || "commande refusée"));
 }
+/*  Voir l'image EN GRAND, dans un vrai visionneur (ristretto) — pas
+    seulement la vignette 96x56. Alex : « ouvrir directement image sur une
+    fenetre pour voir image en plus gros ». MÊME RÈGLE que setFondFichier,
+    juste au-dessus : aucun nom de fichier interpolé dans le HTML, l'indice
+    seul traverse l'attribut onclick, le nom se relit dans l'état déjà
+    chargé. */
+async function ouvreFondFichier(i){
+  const i0 = Number(i) | 0;
+  const f = (etat.fonds_perso || []).find(x => Number(x.i) === i0);
+  if(!f) return toast("Cette image n'est plus dans la galerie");
+  const r = await api("fond-ouvrir", {i: i0, nom: f.nom});
+  if(!r.ok) toast(r.erreur || "Impossible d'ouvrir l'image");
+}
 async function basculeMuet(){
   const r = await api("son-muet", "toggle");
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "commande refusée"));
@@ -1184,9 +1197,13 @@ function contenu(cle){
             les plus récentes d'abord. Un clic : l'image entière, sur fond
             noir, sur tous les écrans.</div>
           <div class="row" style="gap:10px">
-            ${fp.map(f => `<button class="wall-swatch" title="${esc(f.nom)}"
-               onclick="setFondFichier(${Number(f.i) | 0})"
-               style="width:96px;height:56px;background:#000 url('/api/fond-vignette?i=${Number(f.i) | 0}') center/contain no-repeat"></button>`).join("")}
+            ${fp.map(f => `<div class="wall-item">
+               <button class="wall-swatch" title="${esc(f.nom)}"
+                  onclick="setFondFichier(${Number(f.i) | 0})"
+                  style="width:96px;height:56px;background:#000 url('/api/fond-vignette?i=${Number(f.i) | 0}') center/contain no-repeat"></button>
+               <button class="wall-voir" title="Voir en grand"
+                  onclick="event.stopPropagation();ouvreFondFichier(${Number(f.i) | 0})">🔍</button>
+              </div>`).join("")}
           </div>
         </div>`;
       })()}

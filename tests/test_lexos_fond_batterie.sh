@@ -49,12 +49,16 @@ titre "1. Une image téléchargée est un fond comme un autre"
 #  français des ISO fr_CA, l'anglais d'une session créée avant la traduction,
 #  et Images pour comparer.
 FOYER="$BANC/foyer"
-mkdir -p "$FOYER/Images" "$FOYER/Téléchargements" "$FOYER/Downloads"
+mkdir -p "$FOYER/Images" "$FOYER/Téléchargements" "$FOYER/Downloads" "$FOYER/Images/Captures"
 : > "$FOYER/Images/deja-la.png"
 : > "$FOYER/Téléchargements/photo-telechargee.jpg"
 : > "$FOYER/Downloads/autre-telechargement.webp"
 : > "$FOYER/Téléchargements/document.pdf"          # ne doit PAS être proposé
 : > "$FOYER/Téléchargements/moderne.avif"          # format récent, doit passer
+#  ALEX : « quand on prend une capture d'écran, j'aimerais qu'on la
+#  retrouve où sont les images [...] on voit pas ça [dans la galerie] ».
+#  lexos-capture écrit dans ~/Images/Captures — un SOUS-dossier.
+: > "$FOYER/Images/Captures/capture-2026-08-29.png"
 
 liste() {
 	HOME="$FOYER" XDG_PICTURES_DIR="" XDG_DOWNLOAD_DIR="" \
@@ -77,6 +81,12 @@ grep -q 'moderne.avif' <<< "$L" \
 grep -q 'document.pdf' <<< "$L" \
 	&& non "un PDF est proposé comme fond d'écran" \
 	|| ok "un PDF n'est pas proposé"
+#  « find -maxdepth 2 » depuis ~/Images atteint déjà ~/Images/Captures —
+#  vrai depuis toujours côté bash, PAS côté Python (voir section 6, la
+#  vraie régression qu'Alex a signalée).
+grep -q 'capture-2026-08-29.png' <<< "$L" \
+	&& ok "lexos-fond-ecran (bash) voit déjà les captures d'écran, un niveau plus bas" \
+	|| non "même le ratissage bash ne descend plus dans ~/Images/Captures"
 
 #  XDG_DOWNLOAD_DIR : le dossier peut s'appeler autrement. On le suit.
 mkdir -p "$BANC/ailleurs"
@@ -354,6 +364,16 @@ grep -q 'document.pdf' <<< "$R" \
 	&& non "un PDF dans la galerie de fonds" \
 	|| ok "et n'y met pas les PDF"
 
+#  LA VRAIE RÉGRESSION QU'ALEX A SIGNALÉE : « quand on prend une capture
+#  d'écran, j'aimerais qu'on la retrouve où sont les images [...] on voit
+#  pas ça [dans la galerie des Paramètres] ». lexos-capture écrit dans
+#  ~/Images/Captures ; _fonds_perso() ne faisait qu'un iterdir() sur
+#  ~/Images elle-même — un sous-dossier entier restait invisible, alors
+#  que lexos-fond-ecran (bash, section 1 plus haut) le voyait déjà.
+grep -q 'capture-2026-08-29.png' <<< "$R" \
+	&& ok "la galerie des Paramètres voit maintenant les captures d'écran (~/Images/Captures)" \
+	|| non "la galerie ignore toujours ~/Images/Captures — c'est le bogue d'Alex : $R"
+
 #  LE TRI : la plus récente d'abord — celle qu'on vient de télécharger est
 #  celle qu'on vient chercher.
 touch -d '2020-01-01' "$FOYER/Images/deja-la.png"
@@ -393,6 +413,60 @@ print(json.dumps(m.act_fond_fichier({"i": 0, "nom": "photo-telechargee.jpg"})))'
 grep -q '"ajuster"' <<< "$R" && grep -q 'photo-telechargee.jpg' <<< "$R" \
 	&& ok "l'indice valide applique l'image en « ajuster » (entière, sur noir)" \
 	|| non "chemin heureux : $R"
+
+# =============================================================================
+#  act_fond_ouvrir() — « voir en grand », ALEX : « ouvrir directement image
+#  sur une fenetre pour voir image en plus gros [...] avoir le mettre sur
+#  une autre application ». MÊME liste blanche qu'act_fond_fichier — un
+#  chemin qui applique un fond et un chemin qui l'affiche partagent le même
+#  risque (n'importe quel fichier lu au bureau), donc la même revalidation.
+# =============================================================================
+R="$(galerie 'm._run = lambda argv, **k: {"ok": True, "argv": argv}
+print(json.dumps(m.act_fond_ouvrir("/etc/passwd")))' 2>/dev/null)"
+grep -q '"ok": false' <<< "$R" \
+	&& ok "act_fond_ouvrir refuse aussi un chemin libre" \
+	|| non "act_fond_ouvrir a accepté un chemin : $R"
+R="$(galerie 'm._run = lambda argv, **k: {"ok": True, "argv": argv}
+print(json.dumps(m.act_fond_ouvrir(999)))' 2>/dev/null)"
+grep -q '"ok": false' <<< "$R" \
+	&& ok "act_fond_ouvrir refuse un indice hors de la galerie" \
+	|| non "indice 999 accepté par act_fond_ouvrir : $R"
+R="$(galerie 'print(json.dumps(m.act_fond_ouvrir({"i": 0, "nom": "autre-nom.png"})))' 2>/dev/null)"
+grep -q 'rouvre la section' <<< "$R" \
+	&& ok "act_fond_ouvrir refuse aussi un nom qui ne correspond plus" \
+	|| non "indice + mauvais nom acceptés par act_fond_ouvrir : $R"
+
+#  LE VISIONNEUR RÉEL DE LexOS D'ABORD (ristretto), déjà celui du hook 0400
+#  pour image/png et image/jpeg — jamais un outil inventé pour l'occasion.
+R="$(galerie 'm.shutil.which = lambda p: "/usr/bin/ristretto" if p == "ristretto" else None
+m._run = lambda argv, **k: {"ok": True, "argv": argv}
+print(json.dumps(m.act_fond_ouvrir({"i": 0, "nom": "photo-telechargee.jpg"})))' 2>/dev/null)"
+grep -q '"ristretto"' <<< "$R" && grep -q 'photo-telechargee.jpg' <<< "$R" \
+	&& ok "avec ristretto dispo, l'image s'ouvre dedans (chemin heureux)" \
+	|| non "chemin heureux d'act_fond_ouvrir : $R"
+
+#  SANS RISTRETTO, xdg-open EN REPLI — jamais un échec silencieux quand un
+#  autre visionneur ferait très bien l'affaire.
+R="$(galerie 'm.shutil.which = lambda p: "/usr/bin/xdg-open" if p == "xdg-open" else None
+m._run = lambda argv, **k: {"ok": True, "argv": argv}
+print(json.dumps(m.act_fond_ouvrir({"i": 0, "nom": "photo-telechargee.jpg"})))' 2>/dev/null)"
+grep -q '"xdg-open"' <<< "$R" \
+	&& ok "sans ristretto, xdg-open prend le relais" \
+	|| non "le repli xdg-open n'a pas eu lieu : $R"
+
+#  NI L'UN NI L'AUTRE : le repli honnête habituel de ce fichier — un motif
+#  clair, jamais un succès inventé ni un échec muet.
+R="$(galerie 'm.shutil.which = lambda p: None
+print(json.dumps(m.act_fond_ouvrir({"i": 0, "nom": "photo-telechargee.jpg"})))' 2>/dev/null)"
+grep -q '"ok": false' <<< "$R" && grep -qi 'visionneur' <<< "$R" \
+	&& ok "sans aucun visionneur, l'échec est clair (pas un succès inventé)" \
+	|| non "ni ristretto ni xdg-open, et pourtant : $R"
+
+#  ET LA LOUPE EST BIEN BRANCHÉE DANS LA LISTE BLANCHE — sans ça, la page
+#  appellerait une action qui n'existe pour personne.
+grep -q '"fond-ouvrir": act_fond_ouvrir' "$SETTINGS" \
+	&& ok "« fond-ouvrir » est bien dans ACTIONS, la liste blanche du pont" \
+	|| non "act_fond_ouvrir existe mais n'est branchée nulle part — la loupe de la page appellerait dans le vide"
 
 #  LA ROUTE DES VIGNETTES ne sert que des indices — jamais un chemin. On
 #  vérifie la propriété sur le CODE : la route relit _fonds_perso() et
@@ -467,6 +541,13 @@ esac
 case "$GAL" in
 	*"setFondFichier(0)"*) ok "le gestionnaire ne reçoit qu'un ENTIER (aucune chaîne dans le HTML)" ;;
 	*) non "le gestionnaire reçoit autre chose qu'un entier" ;;
+esac
+#  LA LOUPE — ALEX : « ouvrir directement image sur une fenetre pour voir
+#  image en plus gros ». Même garde-fou qu'au-dessus : un entier seul, rien
+#  du nom piégé ne doit transiter par cet attribut-là non plus.
+case "$GAL" in
+	*"ouvreFondFichier(0)"*) ok "la loupe aussi ne reçoit qu'un ENTIER — même garde-fou que setFondFichier" ;;
+	*) non "la loupe (« voir en grand ») est absente du rendu, ou reçoit autre chose qu'un entier" ;;
 esac
 case "$GAL" in
 	*"&quot;&gt;&lt;img"*) ok "et l'infobulle est échappée (guillemet et chevrons)" ;;
