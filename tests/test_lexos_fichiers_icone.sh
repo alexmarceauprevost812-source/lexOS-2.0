@@ -245,5 +245,140 @@ else
 	non "le journal ne dit pas quel fichier a été retenu"
 fi
 
+# =============================================================================
+titre "6. QUATRIÈME SIGNALEMENT : plus aucune recherche par nom"
+# =============================================================================
+#  ALEX : « le gestionnaire de fichiers, c'est toujours le même problème » —
+#  et, la fois d'avant, le détail qui explique tout : « quand on passe dessus
+#  avec la souris, il change d'image ».
+#
+#  ═══ CE QUE « AU SURVOL » NOUS APPREND ═══
+#  Le dock grossit l'icône au survol (130 % de 64 px, soit ~83 px). Une image
+#  qui CHANGE entre 64 et 83, c'est une recherche PAR NOM qui ne rend pas la
+#  même chose selon la taille : à 64 un dossier de taille fixe existe et
+#  gagne ; à 83 aucun ne correspond, GTK bascule sur le « scalable », et si ce
+#  SVG ne se charge pas la chaîne d'héritage continue jusqu'à un engrenage
+#  générique. Au repos le bon dessin, au survol l'engrenage.
+#
+#  Trois correctifs ont parié que la recherche finirait par tomber juste :
+#  les alias dans le thème, « apps/scalable » déclaré, puis « Icon=folder-open ».
+#  Le quatrième ne parie plus — le .desktop reçoit un CHEMIN ABSOLU, et GTK
+#  ouvre ce fichier-là quelle que soit la taille demandée.
+#
+#  Ce contrôle enchaîne les DEUX crochets, dans l'ordre de la construction
+#  (0400 pose la copie, 0605 rend les PNG puis y écrit le chemin), et regarde
+#  le résultat — pas le code.
+HOOK_ICONES="$RACINE/config/hooks/normal/0605-lexos-icones.hook.chroot"
+SVG_SOURCE="$RACINE/config/includes.chroot/usr/share/icons/LexOS/places/scalable/folder-open.svg"
+
+if ! command -v rsvg-convert >/dev/null 2>&1; then
+	non "rsvg-convert absent : la chaîne complète n'a PAS été éprouvée"
+elif [[ ! -r "$HOOK_ICONES" || ! -r "$SVG_SOURCE" ]]; then
+	non "crochet 0605 ou folder-open.svg introuvable — rien à enchaîner"
+else
+	CH="$BANC/chaine"
+	mkdir -p "$CH/apps" "$CH/local" "$CH/skel" "$CH/etc" "$CH/theme/places/scalable"
+	cp "$SVG_SOURCE" "$CH/theme/places/scalable/"
+	printf '[Icon Theme]\nName=LexOS\nDirectories=places/scalable\n' > "$CH/theme/index.theme"
+	{
+		echo "[Desktop Entry]"; echo "Type=Application"; echo "Name=Thunar"
+		echo "Icon=org.xfce.thunar"; echo "Exec=thunar %F"
+	} > "$CH/apps/thunar.desktop"
+
+	LEXOS_APPS="$CH/apps" LEXOS_APPS_LOCAL="$CH/local" LEXOS_SKEL="$CH/skel" \
+		LEXOS_MIMEAPPS="$CH/etc/mimeapps.list" sh "$FRAGMENT" >/dev/null 2>&1
+	LEXOS_ICONES="$CH/theme" LEXOS_RAPPORT_ICONES="$CH/rapport" \
+		LEXOS_APPS_LOCAL="$CH/local" sh "$HOOK_ICONES" > "$CH/journal.txt" 2>&1
+
+	ICO="$(sed -n 's/^Icon=//p' "$CH/local/thunar.desktop" 2>/dev/null | head -1)"
+	if [[ "$ICO" == /* ]]; then
+		ok "l'icône est un CHEMIN, plus un nom à chercher"
+	else
+		non "l'icône vaut encore « ${ICO:-rien} » : la recherche par nom reste en jeu"
+	fi
+	if [[ -n "$ICO" && -r "$ICO" ]]; then
+		ok "…et le fichier désigné existe vraiment"
+	else
+		non "le chemin « $ICO » ne mène à rien — pire que le nom qu'il remplace"
+	fi
+	#  UN PNG, PAS UN SVG. C'est la leçon des PNG de secours du crochet 0605 :
+	#  un SVG demande un greffon gdk-pixbuf, un PNG ne demande rien. Si la
+	#  chaîne retombe sur le SVG alors que les PNG sont là, on a reintroduit
+	#  la dependance qu'on voulait supprimer.
+	if [[ "$ICO" == *.png ]]; then
+		ok "c'est un PNG — aucun moteur de rendu à espérer au survol"
+	else
+		non "c'est « ${ICO##*.} » et non un PNG : le survol dépendrait encore d'un greffon"
+	fi
+	#  ET C'EST BIEN NOTRE DOSSIER ORANGE, pas un fichier quelconque.
+	if python3 -c "import PIL" 2>/dev/null && [[ "$ICO" == *.png ]]; then
+		ORANGE="$(python3 - "$ICO" <<'PY2'
+from PIL import Image
+import sys
+im = Image.open(sys.argv[1]).convert("RGBA")
+L, H = im.size
+px = im.load()
+n = 0
+for y in range(0, H, 3):
+    for x in range(0, L, 3):
+        r, g, b, a = px[x, y]
+        if a > 100 and r > 150 and 40 < g < 170 and b < 100:
+            n += 1
+print(n)
+PY2
+)"
+		if [[ "${ORANGE:-0}" -ge 200 ]]; then
+			ok "le fichier porte bien le dossier orange ($ORANGE points relevés)"
+		else
+			non "seulement ${ORANGE:-0} points orange : ce n'est pas notre dossier"
+		fi
+	else
+		non "Pillow absent : le contenu de l'icône n'a PAS été vérifié"
+	fi
+	#  Le journal doit le DIRE : sans cette ligne, un jour où le bloc ne
+	#  trouverait aucun .desktop, personne ne s'en apercevrait.
+	if grep -q 'gestionnaire de fichiers : 1 .desktop' "$CH/journal.txt"; then
+		ok "le journal de construction nomme le fichier retenu"
+	else
+		non "le journal ne dit pas quelle icône a été posée : on resterait aveugle"
+	fi
+
+	#  ═══ LE REPLI ═══ Sans aucun PNG rendu (pas de rsvg-convert sur la
+	#  machine de construction), le bloc doit se rabattre sur le SVG plutôt
+	#  que de laisser un nom — un SVG qui marche parfois vaut mieux qu'un
+	#  engrenage garanti.
+	CH2="$BANC/chaine-sans-png"
+	mkdir -p "$CH2/local" "$CH2/theme/places/scalable"
+	cp "$SVG_SOURCE" "$CH2/theme/places/scalable/"
+	printf '[Icon Theme]\nName=LexOS\nDirectories=places/scalable\n' > "$CH2/theme/index.theme"
+	cp "$CH/local/thunar.desktop" "$CH2/local/"
+	sed -i 's|^Icon=.*|Icon=org.xfce.thunar|' "$CH2/local/thunar.desktop"
+	#  ON NEUTRALISE VRAIMENT LE RENDU. Premier jet : un dossier vide en tête
+	#  de PATH — mais /usr/bin restait derrière, rsvg-convert répondait, des
+	#  PNG étaient rendus, et ce contrôle passait au vert sans jamais éprouver
+	#  le repli. Un banc vert pour la mauvaise raison est pire qu'un rouge.
+	#  Un faux rsvg-convert qui ÉCHOUE le met en situation : la commande
+	#  existe, aucun PNG ne sort.
+	mkdir -p "$BANC/sansrendu"
+	printf '#!/bin/sh\nexit 1\n' > "$BANC/sansrendu/rsvg-convert"
+	chmod +x "$BANC/sansrendu/rsvg-convert"
+	PATH="$BANC/sansrendu:$PATH" LEXOS_ICONES="$CH2/theme" \
+		LEXOS_RAPPORT_ICONES="$CH2/rapport" LEXOS_APPS_LOCAL="$CH2/local" \
+		sh "$HOOK_ICONES" >/dev/null 2>&1
+	#  Et on vérifie que la mise en situation a bien pris : sans ça, on
+	#  éprouverait de nouveau le beau temps.
+	if ls "$CH2/theme/places"/[0-9]*/folder-open.png >/dev/null 2>&1; then
+		non "des PNG ont quand même été rendus : le repli n'a PAS été mis à l'épreuve"
+	else
+		ok "aucun PNG rendu — le repli est bien mis à l'épreuve"
+	fi
+	ICO2="$(sed -n 's/^Icon=//p' "$CH2/local/thunar.desktop" | head -1)"
+	if [[ "$ICO2" == /* && -r "$ICO2" && "$ICO2" == *.svg ]]; then
+		ok "sans PNG, il se rabat sur le SVG — un chemin qui existe quand même"
+	else
+		non "sans PNG rendu, l'icône retombe sur « ${ICO2:-rien} » : le nom revient"
+	fi
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$reussis" "$echoues"
 [[ "$echoues" -eq 0 ]]
