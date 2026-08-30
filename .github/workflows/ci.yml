@@ -1252,6 +1252,20 @@ jobs:
           #  elle, et la liste des réseaux que l'ISO avait EN PLUS survit-elle.
           node tests/test_lexos_wifi.js
 
+      - name: Aucune fonction des Paramètres déclarée deux fois
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « quand je clique sur le bouton pour changer le dock de
+          #  position, il change de position, mais dans les paramètres il
+          #  change pas — il reste à droite ». setDock() était déclarée DEUX
+          #  FOIS : la première rafraîchissait la page, la seconde se
+          #  contentait d'un toast. En JavaScript la dernière écrase la
+          #  première — la bonne version était du code mort qui avait l'air
+          #  vivant. setLangue() portait le même doublon. Ni « node --check »
+          #  (le fichier se parse : c'est du JavaScript valide) ni aucun banc
+          #  de rendu ne pouvait le voir. Ce contrôle-ci est structurel.
+          node tests/test_lexos_doublons_js.js
+
       - name: Le volet — le thème jour/nuit suit vraiment un clic sur sa tuile
         if: ${{ !cancelled() }}
         run: |
