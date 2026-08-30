@@ -68,6 +68,10 @@
   --ac-txt:#000;       /* CE QU'ON ÉCRIT SUR L'ACCENT. Noir, pas blanc :
                           blanc sur #E8590C donne 3,4:1 de contraste — sous
                           le seuil lisible ; noir donne 6,1:1.               */
+  /*  Le même, atténué — pour un sous-titre posé sur l'accent. Défini
+      ICI AUSSI et pas seulement dans les blocs [data-accent] : sans accent
+      posé, une variable absente rendrait la déclaration invalide. */
+  --ac-txt-dim:rgba(0,0,0,.65);
 
   /*  LE SOUFFLE ORANGE au survol d'un bouton. Il est DÉRIVÉ de --ac, et ce
       n'est pas un détail : les Paramètres réécrivent --ac et --ac-hi à chaud
@@ -126,6 +130,41 @@
      dans Apparence : ce fichier n'est qu'un repli. */
   --police:"Noto Sans","DejaVu Sans",sans-serif;
 }
+
+
+/* ═══ LES AUTRES ACCENTS ═══════════════════════════════════════════════════
+   ALEX : « dans les Paramètres les boutons fonctionnent tous, mais c'est la
+   couleur orange qui ne change pas — pour le dock surtout. »
+
+   LE :root CI-DESSUS NE CONNAÎT QUE L'ORANGE. C'était la seule couleur
+   d'accent que les pages web de LexOS savaient porter : les Paramètres la
+   remplaçaient à la main en JavaScript, et le volet des Paramètres rapides
+   ne la remplaçait PAS DU TOUT — il était orange à vie, quel que soit
+   l'accent choisi.
+
+   Les valeurs ci-dessous sont celles de lexos-theme-gen, RECOPIÉES DE LUI et
+   pas recalculées : c'est lui qui peint le bureau, la barre et le dock. Les
+   pages web doivent dire la même chose que ce qu'on voit autour d'elles,
+   sinon la fenêtre où l'on choisit la couleur est la seule à ne pas la
+   porter. (Les Paramètres calculaient jusqu'ici leur ton de survol par
+   éclaircissement : le résultat divergeait de celui du bureau. Ici, les deux
+   viennent de la même table.)
+
+   ═══ --ac-txt N'EST PAS UN DÉTAIL ═══
+   Le texte posé SUR l'accent était noir en dur. Mesuré, accent par accent :
+   noir sur le bleu #1A5FB4 donne 3,34:1 et sur le rouge #C4211E 3,58:1 —
+   sous le seuil lisible de 4,5:1. Blanc y donne 6,29:1 et 5,86:1. Faire
+   suivre la couleur sans corriger le texte aurait rendu ces deux accents
+   illisibles : on aurait échangé un défaut contre un pire. Chaque ligne
+   porte donc la couleur de texte qui gagne le contraste sur SON fond. */
+:root[data-accent="orange"]       { --ac:#E8590C; --ac-hi:#FF7A33; --ac-lo:#A84007; --ac-txt:#000; --ac-txt-dim:rgba(0,0,0,.65); }
+:root[data-accent="orange-rouge"] { --ac:#D97757; --ac-hi:#E8834F; --ac-lo:#C4211E; --ac-txt:#000; --ac-txt-dim:rgba(0,0,0,.65); }
+:root[data-accent="bleu"]         { --ac:#1A5FB4; --ac-hi:#3584E4; --ac-lo:#10375F; --ac-txt:#FFF; --ac-txt-dim:rgba(255,255,255,.75); }
+:root[data-accent="rouge"]        { --ac:#C4211E; --ac-hi:#D8352E; --ac-lo:#8A1512; --ac-txt:#FFF; --ac-txt-dim:rgba(255,255,255,.75); }
+:root[data-accent="vert"]         { --ac:#1F8F4E; --ac-hi:#2DBF6B; --ac-lo:#125C32; --ac-txt:#000; --ac-txt-dim:rgba(0,0,0,.65); }
+:root[data-accent="gris"]         { --ac:#8A8A8A; --ac-hi:#B4B4B4; --ac-lo:#5A5A5A; --ac-txt:#000; --ac-txt-dim:rgba(0,0,0,.65); }
+:root[data-accent="violet"]       { --ac:#8B5CF6; --ac-hi:#A78BFA; --ac-lo:#6234D1; --ac-txt:#000; --ac-txt-dim:rgba(0,0,0,.65); }
+:root[data-accent="neon"]         { --ac:#39FF14; --ac-hi:#7BFF5C; --ac-lo:#1FA30A; --ac-txt:#000; --ac-txt-dim:rgba(0,0,0,.65); }
 
 /* =============================================================================
    LE MODE CLAIR — il n'existait pas, et ça se voyait du premier coup d'œil

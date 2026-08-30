@@ -98,7 +98,7 @@ lexos-apercu|lexos-apercu ouvrir|Vue d'ensemble|preferences-desktop-workspaces|n
 lexos-volet|lexos-volet agenda|Notifications et agenda|appointment-soon|non|Utility;Calendar;|Le volet qui descend de la barre
 #  Le volet des paramètres rapides — même raison que ci-dessus, pour le
 #  bouton « ▲ » (greffon 12).
-lexos-volet-rapides|lexos-volet rapides|Paramètres rapides|preferences-system|non|Settings;|Wi-Fi, Bluetooth, mode avion, performance, thème, effets TV
+lexos-volet-rapides|lexos-volet rapides|Paramètres rapides|lexos-volet-bas|non|Settings;|Wi-Fi, Bluetooth, mode avion, performance, thème, effets TV
 "
 
 CREES=0

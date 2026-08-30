@@ -1457,7 +1457,7 @@ def _wifi_etat():
     internet = _sortie(["nmcli", "-t", "networking", "connectivity"]) or "unknown"
     return {"radio": radio, "reseau": reseau, "signal": signal,
             "auto": _wifi_auto_lu(), "internet": internet,
-            "reseaux": _wifi_reseaux() if radio == "enabled" else []}
+            "reseaux": _wifi_reseaux(reseau) if radio == "enabled" else []}
 
 
 def _terse(ligne):
@@ -1484,8 +1484,12 @@ def _terse(ligne):
     return champs
 
 
-def _wifi_reseaux():
+def _wifi_reseaux(connecte=""):
     """Les réseaux à portée, du plus fort au plus faible.
+
+    « connecte » EST LE NOM DU RÉSEAU RÉELLEMENT CONNECTÉ, tel que
+    _wifi_etat() vient de l'établir. Voir plus bas pourquoi cette fonction ne
+    le déduit plus elle-même.
 
     CE QUI MANQUAIT. Le panneau savait dire « connecté » ou « aucun », et
     rien d'autre : sans réseau, il fallait deviner qu'un bouton ouvrait un
@@ -1514,6 +1518,32 @@ def _wifi_reseaux():
         #  « lexos wifi », qui sait demander le nom.
         if not ssid:
             continue
+        #  ═══ CE RÉSEAU EST-IL LE RÉSEAU CONNECTÉ ? ═══
+        #  ALEX : « une fois connecté à un réseau internet, il n'affiche pas
+        #  pour se déconnecter. » Le bouton Déconnecter EXISTE : la page le
+        #  dessine dès que la ligne est marquée active. Elle ne l'était
+        #  jamais.
+        #
+        #  LE MÊME CORRECTIF AVAIT DÉJÀ ÉTÉ FAIT — À MOITIÉ. Le haut de la
+        #  page disait autrefois « aucun réseau » alors qu'Alex était
+        #  connecté ; _wifi_etat() a été réparé en lisant « device status »
+        #  (l'état de l'APPAREIL) au lieu du balayage des bornes. La leçon
+        #  était écrite noir sur blanc dans son commentaire : un balayage est
+        #  un instantané des bornes VUES, pas de la connexion ACTIVE.
+        #
+        #  Cette fonction-ci, elle, est restée sur le balayage : elle jugeait
+        #  « connecté » sur le champ ACTIVE de « device wifi list ». D'où la
+        #  photo d'Alex — le haut de la page affiche « Réseau connecté :
+        #  BELL507 », et trois centimètres plus bas la même borne propose
+        #  « Se connecter ». Deux réponses contradictoires dans une seule
+        #  fenêtre, parce que deux sources différentes.
+        #
+        #  On prend donc la MÊME source de vérité que le haut de la page : le
+        #  nom du réseau connecté, établi par « device status ». Le champ
+        #  ACTIVE reste en second recours — s'il dit vrai, tant mieux ; s'il
+        #  se tait (le cas d'Alex), le nom tranche. Deux signaux valent mieux
+        #  qu'un quand l'un a déjà prouvé qu'il pouvait manquer.
+        est_actif = (bool(connecte) and ssid == connecte) or actif == "yes"
         force = int(signal) if signal.isdigit() else 0
         #  Une borne peut émettre en 2,4 GHz ET en 5 GHz sous le même nom :
         #  deux lignes, un seul réseau aux yeux de celui qui regarde. On garde
@@ -1523,8 +1553,8 @@ def _wifi_reseaux():
             par_nom[ssid] = {"ssid": ssid, "signal": force,
                              "protege": bool(securite.strip()),
                              "securite": securite.strip(),
-                             "actif": actif == "yes"}
-        elif actif == "yes":
+                             "actif": est_actif}
+        elif est_actif:
             ancien["actif"] = True
     return sorted(par_nom.values(),
                   key=lambda r: (not r["actif"], -r["signal"]))

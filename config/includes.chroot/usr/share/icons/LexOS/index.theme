@@ -31,6 +31,30 @@
 #      folder-downloads (au pluriel)    — selon l'application qui demande
 #      folder-images, folder-video      — mêmes dossiers, autres écritures
 #  Un contrôle de CI vérifie qu'aucun de ces noms ne redisparaît.
+#
+#  ═══ UN DOSSIER QUI EXISTE MAIS QUE PERSONNE NE REGARDE ═══
+#  ALEX, DEUX PHOTOS DU DOCK : « toujours le gestionnaire de fichiers, il
+#  garde jamais l'image du fichier. » Au repos une poche orange, au survol un
+#  engrenage bleu-vert — jamais l'icône qu'on lui a dessinée.
+#
+#  Le correctif avait pourtant été fait : « apps/scalable » contient cinq
+#  liens (Thunar.svg, thunar.svg, org.xfce.thunar.svg, file-manager.svg,
+#  system-file-manager.svg) vers folder-open.svg, pour couvrir toutes les
+#  écritures qu'une application peut demander. Le vrai thunar.desktop, lui,
+#  demande « org.xfce.thunar » — vérifié dans le paquet Debian, pas deviné.
+#  Le lien EXISTE. Il partait dans l'ISO. Et il n'a jamais servi.
+#
+#  LA RAISON, ET ELLE TIENT EN UNE LIGNE : « Directories= » ne listait que
+#  « places/scalable ». La spécification freedesktop est formelle — un dossier
+#  ABSENT de cette liste n'est PAS parcouru. GTK ne cherchait donc même pas
+#  dans apps/scalable ; il continuait la chaîne d'héritage jusqu'à trouver un
+#  engrenage générique. Aucune erreur nulle part, aucun fichier manquant :
+#  cinq icônes livrées, installées, et invisibles.
+#
+#  C'est exactement le péché que ce dépôt se répète : un correctif qui se lit
+#  très bien et ne s'exécute jamais. Un banc de CI éprouve désormais que
+#  CHAQUE dossier présent sur le disque est déclaré ici — pas seulement que
+#  les fichiers existent.
 # =============================================================================
 [Icon Theme]
 Name=LexOS
@@ -38,11 +62,22 @@ Name[en]=LexOS
 Comment=Les dossiers de LexOS, hérité de Papirus pour tout le reste
 Comment[en]=LexOS folders, inheriting Papirus for everything else
 Inherits=Papirus-Dark,Papirus,Adwaita,hicolor
-Directories=places/scalable
+Directories=places/scalable,apps/scalable
 
 [places/scalable]
 Size=512
 MinSize=16
 MaxSize=512
 Context=Places
+Type=Scalable
+
+#  Les icônes d'application : pour l'instant les seules cinq écritures du
+#  gestionnaire de fichiers. « Context=Applications » est ce que GTK attend
+#  pour un dossier « apps » — un mauvais contexte n'empêche pas la recherche,
+#  mais fausse les outils qui trient les icônes par catégorie.
+[apps/scalable]
+Size=512
+MinSize=16
+MaxSize=512
+Context=Applications
 Type=Scalable

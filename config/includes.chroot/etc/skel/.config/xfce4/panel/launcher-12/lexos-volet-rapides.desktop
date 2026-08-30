@@ -4,6 +4,6 @@ Version=1.0
 Name=Paramètres rapides
 Comment=Wi-Fi, Bluetooth, mode avion, performance, thème, effets TV — d'un clic
 Exec=lexos-volet rapides
-Icon=lexos-reglages
+Icon=lexos-volet-bas
 Terminal=false
 Categories=Settings;

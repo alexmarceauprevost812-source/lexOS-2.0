@@ -245,7 +245,7 @@ for NAME in files zip share wifi wifi-ok wifi-warn wifi-off bluetooth \
              perf-petit perf-medium perf-performant perf-max \
              folder-ferme folder-ouvert musique usb secure terminal camera \
              capture-zone capture-video arret \
-             reglages navigateur note couleurs maj disque mac; do
+             reglages volet-bas navigateur note couleurs maj disque mac; do
 	SRC="$BRAND/icon-${NAME}.svg"
 	[ -r "$SRC" ] || continue
 	for SIZE in 16 22 24 32 48 64 128 256; do

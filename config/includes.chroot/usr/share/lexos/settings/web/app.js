@@ -352,6 +352,29 @@ async function ouvreBoost(){
     Wi-Fi sans l'avoir éteint. */
 async function rafraichir(msg){
   await chargeEtat();
+  //  ═══ ET L'APPARENCE AVEC. ALEX : « dans les Paramètres les boutons
+  //  fonctionnent tous, mais c'est la couleur orange qui ne change pas dans
+  //  les Paramètres — pour le dock surtout. » ═══
+  //
+  //  chargeEtat() vient de relire l'accent, la police et le mode SUR LA
+  //  MACHINE. Sans cette ligne, la page les recevait et n'en faisait rien :
+  //  seul rend() posait les variables CSS, et rend() ne tourne qu'au
+  //  démarrage. Une fenêtre déjà ouverte gardait donc son orange quoi qu'il
+  //  arrive — même après un changement d'accent fait ailleurs (le volet des
+  //  Paramètres rapides, « lexos accent bleu » au terminal), même après un
+  //  simple rafraîchissement.
+  //
+  //  Le dock est l'endroit où ça sautait aux yeux, comme Alex l'a vu : la
+  //  rangée Droite · Gauche · Bas · Haut montre en permanence un bouton
+  //  sélectionné, donc un aplat de couleur qui aurait dû suivre l'accent.
+  //
+  //  ENCORE UN CORRECTIF À MOITIÉ, LE TROISIÈME DE LA SEMAINE. Le
+  //  commentaire de setTheme() plus haut raconte le premier round : on avait
+  //  ajouté appliqueApparence() aux TROIS boutons qui changent l'apparence,
+  //  « et seulement ici ». Personne n'avait regardé le chemin par lequel la
+  //  page se resynchronise avec la machine — c'est-à-dire tous les autres
+  //  boutons, et toutes les modifications venues du dehors.
+  appliqueApparence();
   //  LA BARRE LATÉRALE AUSSI. Le pictogramme Wi-Fi dit l'état par sa
   //  couleur : si on ne redessine que la page, on éteint le Wi-Fi et
   //  l'antenne reste verte à gauche — un interrupteur qui ment, exactement
@@ -1969,13 +1992,23 @@ function appliqueApparence(){
   //  Repli sur la famille par défaut si l'état nomme une police inconnue —
   //  mieux qu'une page sans police déclarée du tout.
   r.setProperty("--police", pol ? pol[2] : TOUTES_POLICES[0][2]);
-  const ac = ACCENTS[etat.accent];
-  if(ac){
-    r.setProperty("--ac", ac);
-    //  La teinte survolée : la même, éclaircie. Sans elle, un accent bleu
-    //  garderait un survol orange — le défaut se verrait au premier bouton.
-    r.setProperty("--ac-hi", eclaircir(ac, 0.22));
-  }
+  //  ═══ L'ACCENT VIENT MAINTENANT DE ui.css, PAS D'UN CALCUL ICI ═══
+  //  On posait « --ac » à la main et on DÉDUISAIT le ton de survol en
+  //  éclaircissant. Deux défauts à cela.
+  //
+  //  1. Le volet des Paramètres rapides, lui, ne posait rien du tout : il
+  //     restait orange à vie. Une couleur d'accent qui ne vaut que pour une
+  //     fenêtre sur deux n'est pas une couleur d'accent.
+  //  2. Le ton de survol calculé n'était PAS celui du bureau.
+  //     lexos-theme-gen porte un triplet par accent, choisi à la main ; un
+  //     éclaircissement mécanique tombait à côté, et la fenêtre où l'on
+  //     choisit la couleur était la seule à ne pas la porter exactement.
+  //
+  //  ui.css porte désormais la table complète, recopiée de lexos-theme-gen,
+  //  avec la couleur de TEXTE qui va sur chaque fond (le noir en dur donnait
+  //  3,34:1 sur le bleu — illisible). Poser l'attribut suffit, et les trois
+  //  surfaces web de LexOS y puisent la même chose.
+  if(etat.accent) document.documentElement.dataset.accent = etat.accent;
   //  LE MODE, À CHAUD. La page reçoit déjà le mode par ?mode= au démarrage
   //  (le lanceur lit ~/.config/lexos/mode). Mais c'est ICI qu'on en change :
   //  cliquer « ☀ Clair » sans cette ligne repeignait tout le bureau et
@@ -1985,17 +2018,16 @@ function appliqueApparence(){
   if(etat.theme === "clair"){ document.documentElement.dataset.mode = "clair"; }
   else { delete document.documentElement.dataset.mode; }
 }
-/*  Éclaircir une couleur #rrggbb vers le blanc, d'une fraction donnée.
-    Calcul plutôt que table : un accent ajouté un jour aura son survol
-    sans qu'on ait à penser à l'écrire quelque part. */
-function eclaircir(hex, part){
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
-  if(!m) return hex;
-  const n = parseInt(m[1], 16);
-  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-    .map(v => Math.round(v + (255 - v) * part));
-  return "#" + c.map(v => v.toString(16).padStart(2, "0")).join("");
-}
+/*  « eclaircir() » VIVAIT ICI ET N'A PLUS D'APPELANT.
+    Elle calculait le ton de survol en éclaircissant l'accent, faute de table.
+    ui.css porte maintenant le triplet complet de chaque accent, recopié de
+    lexos-theme-gen — celui qui peint réellement le bureau. Le calcul tombait
+    à côté de ces valeurs-là, et la fenêtre où l'on choisit la couleur était
+    la seule à ne pas la porter exactement.
+
+    On la RETIRE au lieu de la laisser dormir : une fonction sans appelant qui
+    se lit très bien est exactement ce que ce dépôt paie le plus cher — on la
+    croit vivante et on cherche le défaut ailleurs. Elle est dans git. */
 
 function rend(){ appliqueApparence(); rendNav(); rendSection(); }
 

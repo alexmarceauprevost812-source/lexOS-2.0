@@ -98,10 +98,47 @@
     C'est le genre de détail qu'on ne sait pas nommer mais qu'on voit. */
 menu, .menu, popover, .popup {
 	border-radius: 14px;
+	/*  ALEX, PHOTO DU MENU DU DOCK : « il ouvre le menu mais il est trop
+	    petit à mon goût — peux-tu faire en sorte qu'il soit plus visible ».
+	    Le menu photographié est celui de plank : « Épingler au Dock » est sa
+	    propre traduction française de « _Keep in Dock » (vérifié dans le
+	    plank.mo du paquet, pas deviné). Plank dessine ses menus avec GTK :
+	    c'est donc ICI que ça se règle, pas dans un réglage de plank.
+
+	    Un peu d'air autour de la liste : le menu était collé à sa bordure,
+	    ce qui le faisait paraître plus petit encore qu'il n'était. */
+	padding: 6px;
 }
 menu menuitem, .menu menuitem {
 	border-radius: 8px;
-	padding: 4px 8px;
+	/*  ═══ POURQUOI « em » ET PAS UNE TAILLE EN PIXELS ═══
+	    Même raison que les boutons plus bas (1.06em) : le texte doit suivre
+	    « lexos access gros-texte » et le facteur d'échelle de l'écran. Une
+	    taille figée en pixels annulerait l'agrandissement précisément là où
+	    il sert le plus — un menu qu'on n'arrive pas à lire. 1.12em plutôt
+	    que davantage : un menu contextuel qui dépasse la taille du texte des
+	    fenêtres cesse de ressembler au reste du système.
+
+	    LE REMBOURRAGE COMPTE AUTANT QUE LA POLICE. À 4px de haut, les
+	    rangées se touchaient : on visait la bonne et on cliquait la
+	    voisine. 8px les sépare, et « min-height » garantit une hauteur de
+	    rangée même pour un libellé court, sans quoi « Nouvelle fenêtre »
+	    et une entrée d'un seul mot n'auraient pas la même taille de cible. */
+	font-size: 1.12em;
+	padding: 8px 14px;
+	min-height: 24px;
+}
+
+/*  LES MENUS DE GTK 4 — la même feuille sert aux deux versions (voir
+    lexos-theme-gen, qui l'écrit dans gtk-3.0 ET gtk-4.0). GTK 4 ne construit
+    plus ses menus avec « menuitem » mais avec « modelbutton » dans un
+    « popover.menu » : sans ces lignes, le correctif ci-dessus ne vaudrait que
+    pour les applications GTK 3, et le clic droit resterait minuscule dans les
+    autres. GTK 3 ignore simplement des noms de nœuds qu'il ne connaît pas. */
+popover.menu modelbutton, popover.menu .model {
+	font-size: 1.12em;
+	padding: 8px 14px;
+	min-height: 24px;
 }
 
 /*  ENCORE CARRÉ MALGRÉ CE QUI PRÉCÈDE : le volet de xfce4-power-manager-
