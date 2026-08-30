@@ -24,6 +24,18 @@
 	<directories/>
 </action>
 <action>
+	<icon>folder</icon>
+	<name>Étiqueter ce dossier</name>
+	<submenu></submenu>
+	<unique-id>1756569600000000-1</unique-id>
+	<command>lexos-etiquette %F</command>
+	<description>Écrit les trois premières lettres de son nom sur le dossier</description>
+	<range></range>
+	<patterns>*</patterns>
+	<startup-notify/>
+	<directories/>
+</action>
+<action>
 	<icon>preferences-desktop-wallpaper</icon>
 	<name>Définir comme fond d'écran</name>
 	<submenu></submenu>

@@ -331,6 +331,12 @@ def act_ouvrir(arg):
         #  .desktop et sa branche dans le dispatcheur, mais aucun chemin
         #  depuis ici. Le contrôle 16 l'a nommé.
         "diagnostic": lambda: _run(["lexos-diagnostic"], detach=True),
+        #  Étiqueter les dossiers : l'outil PARLE (il liste ce qu'il a fait,
+        #  ou dit pourquoi il n'a rien fait). Le lancer détaché donnerait un
+        #  bouton qui a l'air de ne rien faire — le défaut le plus répété de
+        #  ce dépôt. Il passe donc par un terminal, comme le coffre privé.
+        "etiquettes": lambda: _terminal("Étiqueter les dossiers — LexOS",
+                                        "lexos etiquette --maison"),
         #  Le coffre parle en TERMINAL (menu, questions, mot de passe) : le
         #  lancer détaché ferait un bouton qui ne fait rien — vérifié dans son
         #  routeur, « gui » n'existe pas, l'entrée par défaut est « menu ».

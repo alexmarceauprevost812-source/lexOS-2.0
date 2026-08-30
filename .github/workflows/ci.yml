@@ -1568,6 +1568,30 @@ jobs:
           #  posait.
           bash tests/test_lexos_icones_theme.sh
 
+      - name: Les trois lettres sur les dossiers
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « ajouter toujours sur les dossiers, quand on renomme les
+          #  dossiers, l'écriture des 3 premières lettres sur le dossier. »
+          #
+          #  Deux causes, deux correctifs : Bureau, Modèles et Public étaient
+          #  des LIENS vers le dossier nu (trois fichiers à écrire) ; les
+          #  dossiers qu'Alex crée lui-même n'ont aucun nom d'icône, et aucun
+          #  thème ne peut deviner « PRO » à partir d'un nom de dossier — d'où
+          #  lexos-etiquette, qui fabrique l'image et la colle sur le dossier.
+          #
+          #  Le banc DESSINE l'étiquette avec le vrai rsvg-convert et compare
+          #  au pixel près la position de la pastille avec celle du thème : une
+          #  étiquette maison mal alignée avec DOC et IMG se verrait tout de
+          #  suite. Il éprouve aussi le repliage des accents, où deux jets ont
+          #  échoué (iconv qui supprime les accents, puis sed qui découpe
+          #  l'UTF-8 en octets) — deux pannes muettes sans ce contrôle.
+          command -v rsvg-convert >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends librsvg2-bin >/dev/null
+          python3 -c 'import PIL' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
+          bash tests/test_lexos_etiquette.sh
+
       - name: Le gestionnaire de fichiers — le dossier orange, pas un engrenage
         if: ${{ !cancelled() }}
         run: |

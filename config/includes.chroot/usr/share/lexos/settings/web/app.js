@@ -1296,6 +1296,13 @@ function contenu(cle){
           <button class="btn ghost" onclick="setFond('demon')">LexOS 1.0</button>
           <button class="btn ghost" onclick="setFond('keyart')">Explorateur</button>
           <button class="btn ghost" onclick="setFond('nomad')">Nomad</button>
+        </div>
+        <h3 style="margin-top:18px">Étiquettes des dossiers</h3>
+        <p class="d">Les dossiers standards portent déjà leurs trois lettres
+        (DOC, IMG, MUS…). Pour ceux que tu crées ou renommes, cette commande
+        les écrit aussi — relance-la après un renommage.</p>
+        <div class="row">
+          <button class="btn" onclick="ouvrir('etiquettes')">Étiqueter mes dossiers</button>
           <button class="btn" onclick="fondPerso()">🖼 Une image à moi…</button>
         </div>
       </div>
