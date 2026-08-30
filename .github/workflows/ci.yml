@@ -1432,6 +1432,21 @@ jobs:
           #  n'a rien vu, pas d'une recherche qui n'a jamais eu lieu.
           bash tests/test_lexos_bluetooth.sh
 
+      - name: Les trois pastilles, la capture fermable, l'agenda qui a une fin
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, QUATRE DEMANDES : « bouton rouge pour fermer, jaune pour
+          #  réduire, gris pour mettre la page de côté » (il n'y avait AUCUN
+          #  bouton réduire) ; « pouvoir fermer la fenêtre de la capture » ;
+          #  « écriture noire » sur le rappel des raccourcis ; « ajouter une
+          #  heure de fin d'événement ».
+          #  Le banc FAIT TOURNER le crochet sur un vrai thème Arc et relit
+          #  les pixels — une première version du tiret traversait tout le
+          #  disque, et seule l'image l'a montré. Il fait tourner l'agenda de
+          #  bout en bout : l'heure de fin était écrite puis JETÉE à la
+          #  relecture par le filtre de _agenda_lit().
+          bash tests/test_lexos_fenetres_capture.sh
+
       - name: Chaque bouton fait quelque chose, chaque fenêtre mène quelque part
         if: ${{ !cancelled() }}
         run: |

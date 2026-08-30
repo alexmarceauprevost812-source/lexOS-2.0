@@ -178,8 +178,20 @@ def _agenda_lit():
                 continue
             titre = str(e.get("titre", ""))[:120]
             heure = str(e.get("heure", ""))[:5]
+            #  LA FIN AUSSI. Ce filtre ne recopie que les champs qu'il
+            #  connaît — c'est sa raison d'être, un fichier édité à la main
+            #  ne doit pas pouvoir injecter n'importe quoi dans la page. Mais
+            #  un champ NOUVEAU qu'on oublie d'ajouter ici est écrit sur le
+            #  disque et jeté à la relecture : le rendez-vous s'enregistre,
+            #  et son heure de fin disparaît sans un mot.
+            #
+            #  C'est exactement ce qui est arrivé en ajoutant « fin » : le
+            #  moteur l'acceptait, la page l'envoyait, le fichier la portait
+            #  — et elle n'arrivait jamais à l'écran. Trouvé en FAISANT
+            #  TOURNER le circuit complet, pas en le relisant.
+            fin = str(e.get("fin", ""))[:5]
             if titre:
-                evenements.append({"titre": titre, "heure": heure})
+                evenements.append({"titre": titre, "heure": heure, "fin": fin})
         if evenements:
             propre[jour] = evenements
     return propre
@@ -216,16 +228,37 @@ def act_agenda_ajoute(arg):
     jour = str(arg.get("jour", ""))
     titre = str(arg.get("titre", "")).strip()[:120]
     heure = str(arg.get("heure", "")).strip()[:5]
+    #  ALEX : « ajouter une heure de fin d'événement — dans le calendrier ».
+    #  Un rendez-vous n'avait qu'un début : « 09:00 Dentiste » ne disait pas
+    #  s'il fallait garder l'avant-midi. La fin reste FACULTATIVE — beaucoup
+    #  de rendez-vous n'en ont pas, et en exiger une ferait du tort au geste
+    #  rapide qui marchait déjà.
+    fin = str(arg.get("fin", "")).strip()[:5]
     if not _jour_valide(jour):
         return {"ok": False, "erreur": "date invalide"}
     if not titre:
         return {"ok": False, "erreur": "il faut un titre"}
-    if heure and not (len(heure) == 5 and heure[2] == ":"
-                      and heure[:2].isdigit() and heure[3:].isdigit()
-                      and int(heure[:2]) < 24 and int(heure[3:]) < 60):
+    #  UNE SEULE RÈGLE D'HEURE, POUR LES DEUX. Deux copies de la même
+    #  vérification, c'est deux chances de diverger — le défaut que ce dépôt
+    #  paie le plus cher.
+    def _heure_valide(h):
+        return (len(h) == 5 and h[2] == ":" and h[:2].isdigit()
+                and h[3:].isdigit() and int(h[:2]) < 24 and int(h[3:]) < 60)
+    if heure and not _heure_valide(heure):
         return {"ok": False, "erreur": "heure invalide (HH:MM)"}
+    if fin and not _heure_valide(fin):
+        return {"ok": False, "erreur": "heure de fin invalide (HH:MM)"}
+    #  UNE FIN SANS DÉBUT NE VEUT RIEN DIRE. On le dit plutôt que de la
+    #  ranger en silence : l'utilisateur croirait l'avoir enregistrée.
+    if fin and not heure:
+        return {"ok": False, "erreur": "une heure de fin demande une heure de début"}
+    #  ET ELLE DOIT VENIR APRÈS. « de 14:00 à 09:00 » n'est pas un
+    #  rendez-vous, c'est une faute de frappe — autant la relever tout de
+    #  suite, pendant qu'on a encore le clavier sous les doigts.
+    if fin and heure and fin <= heure:
+        return {"ok": False, "erreur": "la fin doit venir après le début"}
     donnees = _agenda_lit()
-    donnees.setdefault(jour, []).append({"titre": titre, "heure": heure})
+    donnees.setdefault(jour, []).append({"titre": titre, "heure": heure, "fin": fin})
     #  Triés par heure : un jour chargé se lit dans l'ordre où il se vivra.
     donnees[jour].sort(key=lambda e: e.get("heure") or "99:99")
     return _agenda_ecrit(donnees)

@@ -27,8 +27,25 @@
           côte. Alex : « faire la page des fichiers pareille comme la 2e
           image ». -->
     <property name="title_alignment"           type="string" value="left"/>
-    <!-- Comme la démo (openWin()) : menu, agrandir, fermer — pas de réduire. -->
-    <property name="button_layout"             type="string" value="|OMC"/>
+    <!--  ALEX : « ajouter un bouton jaune pour réduire les fenêtres, à droite
+          de l'écran ». Il n'y en avait AUCUN : « |OMC » ne porte que le menu,
+          l'agrandissement et la fermeture, et sans le « H » (hide) aucune
+          fenêtre ne pouvait être réduite à la souris.
+
+          ALEX, PRÉCISION : « on pourrait garder en haut à droite : bouton
+          rouge pour fermer, bouton jaune pour réduire, bouton gris pour
+          mettre la page de côté. » TROIS boutons — le « O » du menu est
+          donc retiré : il n'était d'ailleurs pas visible sur ses photos,
+          Arc livrant une icône de menu vide.
+
+          L'ORDRE EST CELUI QUE TOUT LE MONDE CONNAÎT : réduire, agrandir,
+          fermer — la fermeture au bout, la plus loin du doigt qui vise
+          « réduire ». Tout ce qui suit la barre verticale est aligné à
+          DROITE, ce qu'Alex demande.
+
+          Le crochet 0610 redessine le bouton « réduire » en disque jaune,
+          dans le langage du thème : rouge pour fermer, jaune pour réduire. -->
+    <property name="button_layout"             type="string" value="|HMC"/>
     <property name="use_compositing"           type="bool"   value="true"/>
     <property name="frame_opacity"             type="int"    value="100"/>
     <property name="inactive_opacity"          type="int"    value="100"/>

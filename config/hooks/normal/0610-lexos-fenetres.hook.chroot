@@ -283,6 +283,134 @@ pose_conf() {
 }
 
 #  Dériver UN thème. Renvoie 0 s'il y a désormais un thème dérivé utilisable.
+# =============================================================================
+#  LE BOUTON « RÉDUIRE », EN JAUNE
+# =============================================================================
+#  ALEX : « ajouter un bouton jaune pour réduire les fenêtres, à droite de
+#  l'écran ». Deux choses manquaient, pas une.
+#
+#  1. LE BOUTON N'ÉTAIT PAS DANS LA BARRE. button_layout valait « |OMC » —
+#     menu, agrandir, fermer. Le « H » (hide) n'y figurait pas : aucune
+#     fenêtre ne pouvait être réduite à la souris. Corrigé dans xfwm4.xml.
+#
+#  2. IL N'AURAIT PAS ÉTÉ JAUNE. Arc dessine « fermer » en DISQUE ROUGE et
+#     « réduire » en simple tiret gris — mesuré dans les vraies images :
+#     close-active.png porte un disque de 14 px (#CC575D) centré en
+#     (13,5 · 13,5) dans une toile de 28 ; hide-active.png n'a qu'un trait.
+#
+#  ON REDESSINE DONC « réduire » DANS LE LANGAGE DU THÈME : le même disque,
+#  au même endroit, en jaune, avec un tiret creusé dedans — exactement comme
+#  la croix est creusée dans le disque rouge. Rouge pour fermer, jaune pour
+#  réduire : la convention que tout le monde connaît déjà.
+#
+#  LA COULEUR DU TIRET EST LUE DANS LE THÈME, pas écrite en dur. Elle doit
+#  être celle de la barre de titre pour que le tiret paraisse CREUSÉ ; or
+#  Arc-Dark a une barre sombre et Arc une barre claire. Un ton en dur aurait
+#  donné un bouton juste en sombre et faux en clair — le genre de correctif
+#  qui a l'air de se défaire tout seul quand on change de thème.
+#
+#  On dessine à la taille SOURCE et AVANT l'agrandissement : le bouton passe
+#  ensuite par egaliser_boutons() comme tous les autres et ressort à leur
+#  taille. Le dessiner après aurait demandé de refaire ce calcul à la main.
+#  ═══ LES TROIS PASTILLES DE LA BARRE DE TITRE ═══
+#  ALEX : « on pourrait garder, en haut à droite : bouton rouge pour fermer
+#  la fenêtre, bouton jaune pour réduire la fenêtre, bouton gris pour mettre
+#  la page de côté. »
+#
+#  ARC N'EN DESSINE QU'UNE. Mesuré dans les vraies images : close-active.png
+#  porte un DISQUE ROUGE de 14 px (#CC575D) centré en (13,5 · 13,5) dans une
+#  toile de 28, avec la croix CREUSÉE dedans — le creux est de la couleur de
+#  la barre de titre. hide et maximize, eux, ne sont que des traits gris
+#  posés à plat : pas de disque, pas de couleur.
+#
+#  On redessine donc les deux manquantes DANS LE LANGAGE DU THÈME, en
+#  reprenant exactement la géométrie du bouton rouge. Rouge, jaune, gris :
+#  la convention que tout le monde reconnaît sans qu'on l'explique.
+#
+#  LES PROPORTIONS SONT MESURÉES, PAS CHOISIES. Le profil de la ligne
+#  centrale du bouton rouge donne « ##RRRRR####RRRRR## » : la croix occupe
+#  4 px sur 14, soit 29 % du disque. Une première version traçait un tiret
+#  d'un bord à l'autre — vu en RENDANT le bouton, pas en relisant le calcul.
+#
+#  LA COULEUR DU CREUX EST LUE DANS LE THÈME, jamais écrite en dur : elle
+#  doit être celle de la barre de titre pour que le glyphe paraisse creusé,
+#  et Arc-Dark a une barre sombre quand Arc l'a claire. Un ton figé aurait
+#  donné des boutons justes en sombre et faux en clair — le genre de
+#  correctif qui a l'air de se défaire tout seul quand on change de thème.
+#
+#  On dessine à la taille SOURCE et AVANT l'agrandissement : les pastilles
+#  passent ensuite par egaliser_boutons() comme les autres et ressortent à
+#  leur taille. Les dessiner après aurait demandé de refaire ce calcul à la
+#  main, avec une chance de tomber à côté.
+#
+#  L'état « inactive » reste GRIS pour tous : Arc grise les boutons d'une
+#  fenêtre sans focus, le rouge compris. Des pastilles vives sur une fenêtre
+#  d'arrière-plan attireraient l'œil vers la mauvaise.
+PASTILLE_INACTIVE="#666A74"
+#  Jaune — réduire.
+JAUNE_ACTIF="#E5B027"; JAUNE_SURVOL="#F0C351"; JAUNE_PRESSE="#C4941A"
+#  Gris — mettre de côté. Plus clair que la barre, sinon la pastille
+#  disparaîtrait dans le fond au lieu de se voir.
+GRIS_ACTIF="#9AA0AC";  GRIS_SURVOL="#B4BAC6";  GRIS_PRESSE="#7C8290"
+
+fond_barre() { # fond_barre <dossier xfwm4> → la couleur de la barre de titre
+	for _t in title-1-active title-3-active title-1-inactive; do
+		if [ -r "$1/$_t.png" ]; then
+			"$IM" "$1/$_t.png" -format '%[pixel:p{2,2}]' info: 2>/dev/null && return 0
+		fi
+	done
+	return 1
+}
+
+#  pastille <dossier> <bouton> <glyphe> <actif> <survol> <pressé>
+#  <glyphe> vaut « tiret » (réduire) ou « carre » (mettre de côté).
+pastille() {
+	_pd="$1"; _pb="$2"; _pg="$3"
+	if [ ! -f "$_pd/$_pb-active.png" ]; then
+		echo "[lexos]   !! pas de $_pb-active.png — pastille $_pb non peinte"
+		return 1
+	fi
+	_creux="$(fond_barre "$_pd")"
+	if [ -z "$_creux" ]; then
+		echo "[lexos]   !! barre de titre illisible — pastille $_pb non peinte"
+		return 1
+	fi
+	#  La toile garde EXACTEMENT la taille de l'original : egaliser_boutons()
+	#  compare les hauteurs entre boutons, une toile différente le fausserait.
+	_c="$(hauteur_png "$_pd/$_pb-active.png")"
+	case "$_c" in ''|*[!0-9]*) _c="$HAUTEUR_SRC" ;; esac
+	[ "$_c" -gt 0 ] || _c="$HAUTEUR_SRC"
+	_r=$(( _c / 4 ))            # rayon : la moitié du disque de 14 sur 28
+	_m=$(( _c / 2 ))            # le centre
+	_d=$(( _r / 2 ))            # demi-largeur du glyphe : 50 % du disque
+	[ "$_d" -gt 0 ] || _d=1
+	_faits=0
+	for _paire in "active:$4" "prelight:$5" "pressed:$6" "inactive:$PASTILLE_INACTIVE"; do
+		_etat="${_paire%%:*}"; _teinte="${_paire#*:}"
+		[ -f "$_pd/$_pb-$_etat.png" ] || continue
+		if [ "$_pg" = "carre" ]; then
+			#  Un carré CREUX : c'est le dessin universel d'« agrandir /
+			#  restaurer », et il se distingue du tiret d'un coup d'œil.
+			set -- -fill none -stroke "$_creux" -strokewidth 2 			       -draw "rectangle $(( _m - _d )),$(( _m - _d )) $(( _m + _d )),$(( _m + _d ))"
+		else
+			set -- -fill "$_creux" -stroke none 			       -draw "rectangle $(( _m - _d )),$(( _m - 1 )) $(( _m + _d )),$(( _m + 1 ))"
+		fi
+		if "$IM" -size "${_c}x${_c}" xc:none 			-fill "$_teinte" -stroke none 			-draw "circle $_m,$_m $_m,$(( _m - _r ))" 			"$@" -depth 8 "$_pd/$_pb-$_etat.png" 2>/dev/null
+		then
+			_faits=$(( _faits + 1 ))
+		else
+			echo "[lexos]   !! échec du dessin de $_pb-$_etat — laissé tel quel"
+		fi
+	done
+	echo "[lexos]   pastille « $_pb » peinte : ${_faits}/4 états (disque ${_r} px, creux ${_creux})"
+	[ "$_faits" -gt 0 ]
+}
+
+pastilles_couleur() { # pastilles_couleur <dossier xfwm4>
+	pastille "$1" hide     tiret "$JAUNE_ACTIF" "$JAUNE_SURVOL" "$JAUNE_PRESSE" || true
+	pastille "$1" maximize carre "$GRIS_ACTIF"  "$GRIS_SURVOL"  "$GRIS_PRESSE"  || true
+}
+
 derive() {
 	SRC="$THEMES/$1/xfwm4"
 	NOM_DST="LexOS-$1"
@@ -293,6 +421,10 @@ derive() {
 	rm -rf "${THEMES:?}/${NOM_DST:?}"
 	mkdir -p "$DST"
 	cp -a "$SRC"/. "$DST"/
+	#  AVANT tout agrandissement : le bouton jaune doit passer par
+	#  egaliser_boutons() comme les autres, sinon il ressortirait d'une
+	#  autre taille qu'eux.
+	pastilles_couleur "$DST"
 
 	AGRANDIS=0
 	IGNORES=0

@@ -130,7 +130,7 @@ function agendaHTML(){
   const duJour = evts[vue.sel] || [];
   const listeJour = duJour.length
     ? duJour.map((e,i)=>`<div class="ag-evt">
-        <span class="h">${esc(e.heure || "—")}</span>
+        <span class="h">${esc(e.heure || "—")}${e.fin ? " → " + esc(e.fin) : ""}</span>
         <span class="t">${esc(e.titre)}</span>
         <button class="btn ghost mini" style="margin-left:auto"
                 onclick="agEnleve('${vue.sel}',${i})">✕</button>
@@ -153,7 +153,15 @@ function agendaHTML(){
       ${listeJour}
       <div class="ag-ajout">
         <input class="h" id="agH" placeholder="09:00" maxlength="5"
-               aria-label="Heure">
+               aria-label="Heure de début">
+        <!--  ALEX : « ajouter une heure de fin d'événement ». Facultative :
+              beaucoup de rendez-vous n'en ont pas, et l'exiger casserait le
+              geste rapide qui marchait déjà. Le « à » entre les deux champs
+              dit à quoi sert le second sans mot d'explication. -->
+        <span class="ag-a">à</span>
+        <input class="h" id="agF" placeholder="10:00" maxlength="5"
+               aria-label="Heure de fin (facultative)"
+               onkeydown="if(event.key==='Enter')agAjoute()">
         <input class="t" id="agT" placeholder="Ajouter un rendez-vous…"
                maxlength="120" aria-label="Titre"
                onkeydown="if(event.key==='Enter')agAjoute()">
@@ -164,11 +172,17 @@ function agendaHTML(){
 async function agAjoute(){
   const t = document.getElementById("agT");
   const h = document.getElementById("agH");
+  const f = document.getElementById("agF");
   if(!t || !t.value.trim()) return;
   const r = await api("agenda-ajoute",
-    {jour: vue.sel, titre: t.value.trim(), heure: h.value.trim()});
+    {jour: vue.sel, titre: t.value.trim(),
+     heure: h ? h.value.trim() : "", fin: f ? f.value.trim() : ""});
+  //  LE MOTIF DU REFUS, PAS UN « ajout refusé » GÉNÉRIQUE. Le moteur sait
+  //  déjà dire « la fin doit venir après le début » ou « une heure de fin
+  //  demande une heure de début » : le taire obligerait à deviner ce qu'on
+  //  a mal tapé.
   if(!r.ok){ alert(r.erreur || "Ajout refusé"); return; }
-  t.value = ""; h.value = "";
+  t.value = ""; h.value = ""; if(f) f.value = "";
   await rafraichir();
 }
 async function agEnleve(jour, rang){

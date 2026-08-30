@@ -572,6 +572,39 @@ async function setDistantPartage(){
     ? (on ? "Partage arrêté"
           : "Une fenêtre s'ouvre : elle demande le mot de passe à donner")
     : "Échec : " + (r.erreur || "refusé"));
+
+  /*  ═══ POURQUOI ON RELIT ENCORE, PLUS TARD ═══
+      ALEX : « le bouton ne devient pas à droite pour dire qu'il est activé,
+      dans Bureau à distance. »
+
+      LE PARTAGE NE DÉMARRE PAS QUAND ON CLIQUE. Il ouvre un TERMINAL qui
+      demande un mot de passe — c'est voulu, et le commentaire de
+      act_distant_partage() explique pourquoi : un partage sans mot de passe
+      ouvrirait la machine au réseau. x11vnc ne tourne donc PAS encore au
+      moment où on relit l'état, et l'interrupteur reste à gauche à juste
+      titre… puis n'a plus jamais l'occasion de bouger, parce que rien ne
+      relit la machine une fois le mot de passe tapé.
+
+      L'interrupteur ne mentait pas : il était en retard. On relit donc
+      quelques secondes plus tard, le temps que le mot de passe soit saisi et
+      que x11vnc s'installe.
+
+      TROIS RELECTURES ESPACÉES plutôt qu'une seule : taper un mot de passe
+      prend le temps qu'il prend. On s'arrête dès que l'état est devenu
+      « actif », pour ne pas redessiner la page sous les doigts de quelqu'un
+      qui lit déjà l'adresse à dicter.
+
+      Rien de tout cela à l'ARRÊT : « lexos-distant arreter » ne demande
+      rien, il a déjà agi quand il rend la main. */
+  if(r.ok && !on){
+    for(const delai of [2500, 6000, 12000]){
+      setTimeout(async () => {
+        if(sectionActive !== "distant") return;          // on a changé de page
+        if(etat.distant && etat.distant.actif) return;   // déjà rattrapé
+        await rafraichir();
+      }, delai);
+    }
+  }
 }
 /*  Pas de rafraichir() ici : relire l'état réécrirait le panneau et effacerait
     l'adresse qu'on vient de taper, juste au moment où on voudrait la corriger
