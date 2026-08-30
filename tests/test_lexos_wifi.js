@@ -199,5 +199,68 @@ if (rafFile.length > 0) {
   non("pas de rappel en file — le focus ne se posera jamais (rien à rejouer)");
 }
 
+/* ========================================================================== */
+titre("5. « il dit pas déconnecter » — la ligne du réseau actif a son bouton");
+/* ========================================================================== */
+//  ALEX, photo à l'appui : « quand je suis connecté sur le wi-fi, il dit pas
+//  de déconnecter une fois connecté — là je suis connecté à BELL507 mais il
+//  dit pas déconnecter ». La ligne du réseau actif ne portait qu'une pastille
+//  « connecté » : rien à cliquer. Couper le Wi-Fi demandait le terminal,
+//  alors que le Bluetooth, DANS LA MÊME FENÊTRE, a son bouton « Déconnecter »
+//  depuis toujours (btCoupe). Deux poids, deux mesures dans une seule page.
+T.pose({ wifi: {radio:"enabled", reseau:"BELL507", signal:100, internet:"full",
+                auto:false,
+                reseaux:[{ssid:"BELL507", signal:100, protege:true,
+                          securite:"WPA2", actif:true},
+                         {ssid:"dlink-4538", signal:37, protege:true,
+                          securite:"WPA2", actif:false}]} });
+page = T.contenu("wifi");
+
+if (/coupeWifi\(\)/.test(page))
+  ok("le réseau connecté porte un bouton qui appelle coupeWifi()");
+else non("aucun bouton « Déconnecter » sur le réseau actif — le bogue d'Alex");
+
+if (/Déconnecter/.test(page))
+  ok("…et il est écrit « Déconnecter », en toutes lettres");
+else non("le mot « Déconnecter » n'apparaît nulle part dans la page");
+
+//  LA PASTILLE RESTE : le bouton s'AJOUTE à l'état, il ne le remplace pas.
+//  Sans elle, on ne saurait plus lequel des réseaux est le bon.
+if (/connecté<\/span>/.test(page))
+  ok("la pastille « connecté » n'a pas été remplacée par le bouton");
+else non("la pastille d'état a disparu — on ne voit plus quel réseau est actif");
+
+//  ET SURTOUT : le bouton ne doit exister QUE sur la ligne connectée. Un
+//  « Déconnecter » sur un réseau auquel on n'est pas connecté n'aurait aucun
+//  sens, et couperait le vrai réseau par surprise.
+const lignes = page.split(/<div class="srow wifi-l">/).slice(1);
+const avecCoupe = lignes.filter(l => /coupeWifi\(\)/.test(l)).length;
+if (avecCoupe === 1)
+  ok("exactement UNE ligne porte le bouton (celle du réseau connecté)");
+else non(`${avecCoupe} ligne(s) portent « Déconnecter » — attendu exactement 1`);
+
+//  Le réseau NON connecté garde son « Se connecter », inchangé.
+const inactive = lignes.find(l => /dlink-4538/.test(l)) || "";
+if (/choisitWifi\(/.test(inactive) && !/coupeWifi\(\)/.test(inactive))
+  ok("un réseau à portée garde « Se connecter », sans bouton de déconnexion");
+else non("la ligne d'un réseau non connecté a été abîmée");
+
+//  Aucun réseau connecté : personne ne doit proposer de déconnecter.
+T.pose({ wifi: {radio:"enabled", reseau:"", signal:0, internet:"none",
+                auto:false,
+                reseaux:[{ssid:"dlink-4538", signal:37, protege:true,
+                          securite:"WPA2", actif:false}]} });
+if (!/coupeWifi\(\)/.test(T.contenu("wifi")))
+  ok("sans réseau connecté, aucun bouton « Déconnecter » n'est proposé");
+else non("un bouton de déconnexion apparaît alors que rien n'est connecté");
+
+//  LE GESTIONNAIRE N'ENVOIE AUCUN NOM, et c'est le fond du correctif : la
+//  machine sait déjà quelle connexion couper (nmcli device status). Ne rien
+//  envoyer vaut mieux que valider une chaîne — la page ne peut désigner ni
+//  le câble, ni un VPN.
+if (/coupeWifi\(\)"/.test(page))
+  ok("coupeWifi() est appelée SANS argument (rien de la page n'atteint la commande)");
+else non("coupeWifi() reçoit un argument — la page pourrait désigner autre chose");
+
 console.log(`\n\x1b[1m${reussis} réussis, ${echoues} échoués\x1b[0m`);
 process.exit(echoues === 0 ? 0 : 1);

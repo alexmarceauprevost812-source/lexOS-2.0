@@ -495,6 +495,19 @@ function choisitWifi(ssid){ wifiChoisi = ssid; rendSection();
     const c = document.getElementById("wifiMdp"); if(c) c.focus();
   });
 }
+/*  ALEX : « quand je suis connecté sur le wi-fi, il dit pas de déconnecter
+    une fois connecté ». La ligne du réseau actif portait une pastille
+    « connecté » et RIEN à cliquer — se déconnecter demandait le terminal,
+    alors que le Bluetooth, dans la même fenêtre, a son btCoupe() depuis
+    toujours. AUCUN ARGUMENT N'EST ENVOYÉ : la machine sait déjà quelle
+    connexion Wi-Fi est active (nmcli device status), et ne rien envoyer
+    vaut mieux que valider une chaîne — la page ne peut désigner ni le
+    câble, ni un VPN. */
+async function coupeWifi(){
+  const r = await api("wifi-deconnecter");
+  await rafraichir(r.ok ? "Déconnecté du Wi-Fi"
+                        : "Échec : " + (r.erreur || "commande refusée"));
+}
 async function chercheWifi(){
   toast("Recherche des réseaux…");
   await api("wifi-rechercher");
@@ -825,7 +838,8 @@ function contenu(cle){
           </div>
           ${barres(r.signal)}
           ${r.actif
-            ? `<span class="etat ok">connecté</span>`
+            ? `<span class="etat ok">connecté</span>
+               <button class="btn ghost" onclick="coupeWifi()">Déconnecter</button>`
             : `<button class="btn ghost" onclick="choisitWifi('${esc(r.ssid).replace(/'/g,"&#39;")}')">Se connecter</button>`}
         </div>
         ${wifiChoisi === r.ssid && !r.actif ? `<div class="srow" style="display:block">

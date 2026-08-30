@@ -1014,6 +1014,55 @@ def act_wifi_connecter(arg):
     return {"ok": False, "erreur": detail[:300] or "connexion refusée"}
 
 
+def act_wifi_deconnecter(arg):
+    """Se déconnecter du réseau Wi-Fi actif.
+
+    ALEX, PHOTO À L'APPUI : « quand je suis connecté sur le wi-fi, il dit
+    pas de déconnecter une fois connecté — là je suis connecté à BELL507
+    mais il dit pas déconnecter ». La page montrait bien « connecté » sur la
+    ligne du réseau actif, mais RIEN à cliquer : pour se déconnecter il
+    fallait passer par le terminal. Le Bluetooth, dans la même fenêtre, a
+    son bouton « Déconnecter » depuis toujours (act_bt_deconnecter) — deux
+    poids, deux mesures dans une seule page.
+
+    AUCUN NOM NE VIENT DE LA PAGE, ET C'EST VOULU. Se déconnecter, c'est
+    « coupe la connexion Wi-Fi EN COURS » : la machine sait déjà laquelle,
+    par « nmcli device status » (voir _wifi_etat). On ne prend donc aucun
+    argument — ni SSID, ni nom d'appareil. Rien de ce que la page envoie ne
+    peut désigner une AUTRE connexion (le câble, un VPN), parce que la page
+    n'envoie rien du tout. C'est plus fort que valider une chaîne.
+
+    L'appareil est trouvé exactement comme dans « lexos net disconnect » —
+    le premier appareil de type « wifi » à l'état « connected ».
+    """
+    if not shutil.which("nmcli"):
+        return {"ok": False, "erreur": "nmcli absent"}
+    appareil = ""
+    for ligne in _sortie(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE",
+                          "device", "status"]).splitlines():
+        champs = _terse(ligne)
+        if len(champs) >= 3 and champs[1] == "wifi" and champs[2] == "connected":
+            appareil = champs[0]
+            break
+    if not appareil:
+        return {"ok": False, "erreur": "aucune connexion Wi-Fi active"}
+    try:
+        #  20 s : couper est bien plus rapide qu'associer (pas de DHCP à
+        #  attendre), mais NetworkManager peut prendre son temps à ranger
+        #  la connexion. Court, mais pas au point d'annoncer un échec sur
+        #  une déconnexion en train de réussir.
+        r = subprocess.run(["nmcli", "device", "disconnect", appareil],
+                           capture_output=True, text=True, timeout=20)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "erreur": "la déconnexion n'a pas abouti à temps"}
+    except (subprocess.SubprocessError, OSError) as e:
+        return {"ok": False, "erreur": str(e)}
+    if r.returncode == 0:
+        return {"ok": True}
+    detail = (r.stderr or r.stdout or "").strip()
+    return {"ok": False, "erreur": detail[:300] or "déconnexion refusée"}
+
+
 def act_bt_connecter(arg):
     """Se connecter à un appareil Bluetooth — ou l'appairer s'il est nouveau.
 
@@ -1247,6 +1296,7 @@ ACTIONS = {
     "bt-deconnecter": act_bt_deconnecter,
     "bt-chercher": act_bt_chercher,
     "wifi-connecter": act_wifi_connecter,
+    "wifi-deconnecter": act_wifi_deconnecter,
     "wifi-rechercher": act_wifi_rechercher,
     "distant-partage": act_distant_partage,
     "distant-vers": act_distant_vers,
