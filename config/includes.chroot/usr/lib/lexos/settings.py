@@ -337,6 +337,12 @@ def act_ouvrir(arg):
         #  ce dépôt. Il passe donc par un terminal, comme le coffre privé.
         "etiquettes": lambda: _terminal("Étiqueter les dossiers — LexOS",
                                         "lexos etiquette --maison"),
+        #  Ce qui est sur le dock, en une commande. Épingler se fait au clic
+        #  droit sur l'application ; ici on ne fait que MONTRER, et c'est
+        #  volontaire : une liste qu'on peut lire vaut mieux qu'un deuxième
+        #  endroit où épingler, qui finirait par diverger du premier.
+        "dock-epingles": lambda: _terminal("Applications sur le dock — LexOS",
+                                           "lexos epingler --liste"),
         #  Le coffre parle en TERMINAL (menu, questions, mot de passe) : le
         #  lancer détaché ferait un bouton qui ne fait rien — vérifié dans son
         #  routeur, « gui » n'existe pas, l'entrée par défaut est « menu ».

@@ -1303,6 +1303,13 @@ function contenu(cle){
         les écrit aussi — relance-la après un renommage.</p>
         <div class="row">
           <button class="btn" onclick="ouvrir('etiquettes')">Étiqueter mes dossiers</button>
+        </div>
+        <h3 style="margin-top:18px">Applications sur le dock</h3>
+        <p class="d">Pour en ajouter une : clic droit sur son icône (bureau ou
+        Fichiers) → « Épingler au dock ». Pour en retirer une : clic droit sur
+        elle DANS le dock → décocher « Garder dans le dock ».</p>
+        <div class="row">
+          <button class="btn ghost" onclick="ouvrir('dock-epingles')">Voir ce qui est épinglé</button>
           <button class="btn" onclick="fondPerso()">🖼 Une image à moi…</button>
         </div>
       </div>

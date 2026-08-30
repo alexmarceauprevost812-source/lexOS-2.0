@@ -24,6 +24,19 @@
 	<directories/>
 </action>
 <action>
+	<icon>user-bookmarks</icon>
+	<name>Épingler au dock</name>
+	<submenu></submenu>
+	<unique-id>1756569600000000-2</unique-id>
+	<command>lexos-epingler %F</command>
+	<description>Garder cette application sous la main, sur le dock</description>
+	<range></range>
+	<patterns>*.desktop</patterns>
+	<startup-notify/>
+	<other-files/>
+	<text-files/>
+</action>
+<action>
 	<icon>folder</icon>
 	<name>Étiqueter ce dossier</name>
 	<submenu></submenu>

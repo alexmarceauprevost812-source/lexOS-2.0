@@ -1592,6 +1592,21 @@ jobs:
             || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
           bash tests/test_lexos_etiquette.sh
 
+      - name: Épingler une application au dock, d'un clic droit
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, photo du clic droit sur une icône du bureau : « on voit pas
+          #  "épingler" pour le mettre sur le dock ». Plank ne lit pas une
+          #  liste dans un réglage : chaque icône épinglée est un fichier
+          #  .dockitem dans un dossier qu'il surveille.
+          #
+          #  Le piège que ce banc garde : l'icône du bureau est un .desktop
+          #  posé dans ~/Bureau. L'épingler TEL QUEL marche jusqu'au jour où
+          #  Alex efface l'icône du bureau — le dock garde alors un lanceur
+          #  mort. Quand le même nom existe au catalogue, c'est celui-là qu'il
+          #  faut épingler, et ça ne se voit pas à la lecture du code.
+          bash tests/test_lexos_epingler.sh
+
       - name: Le gestionnaire de fichiers — le dossier orange, pas un engrenage
         if: ${{ !cancelled() }}
         run: |

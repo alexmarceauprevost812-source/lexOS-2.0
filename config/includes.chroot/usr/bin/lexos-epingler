@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-epingler — mettre une application sur le dock, d'un clic droit
+# =============================================================================
+#  ALEX, photo du clic droit sur une icône du bureau : « on voit pas
+#  "épingler" pour le mettre sur le dock ». Le menu propose Exécuter,
+#  Modifier le lanceur, Ouvrir avec, Couper, Copier, Corbeille, Renommer,
+#  Créer une archive, Propriétés — et rien pour dire « garde-la sous la
+#  main ».
+#
+#  ═══ CE QU'IL FAUT SAVOIR SUR LE DOCK ═══
+#  Le dock (Plank) ne lit pas une liste dans un réglage : chaque icône
+#  épinglée est un petit fichier « .dockitem » dans
+#  ~/.config/plank/dock1/launchers. Plank surveille ce dossier et prend en
+#  compte tout fichier qui y apparaît — c'est exactement ce qu'il fait
+#  lui-même quand on glisse une application dessus. On écrit donc le fichier,
+#  et le dock suit sans qu'on ait à le redémarrer.
+#
+#  ═══ ON PRÉFÈRE LE LANCEUR DU SYSTÈME À LA COPIE DU BUREAU ═══
+#  L'icône du bureau est un .desktop posé dans ~/Bureau. L'épingler TEL QUEL
+#  marcherait… jusqu'au jour où Alex efface l'icône du bureau : le dock
+#  garderait un lanceur mort. Quand le même nom existe dans le catalogue des
+#  applications, c'est CELUI-LÀ qu'on épingle — il survit au ménage du
+#  bureau.
+#
+#  LECTURE SEULE SUR TES FICHIERS. On n'écrit qu'un fichier de quelques
+#  octets dans la configuration du dock. Rien de ce qui t'appartient n'est
+#  déplacé, copié ni modifié.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos-epingler"
+LANCEURS="${LEXOS_PLANK:-${XDG_CONFIG_HOME:-$HOME/.config}/plank/dock1/launchers}"
+CATALOGUES="${LEXOS_APPS_DIRS:-/usr/local/share/applications /usr/share/applications}"
+
+die() { printf '%s : %s\n' "$PROG" "$1" >&2; exit 1; }
+
+#  Le dock est parfois absent (saveur minimale, ou Plank remplacé) : on le dit
+#  au lieu d'écrire dans un dossier que personne ne lit.
+dit() { # dit <message> — à l'écran ET en bulle, selon ce qui est là
+	printf '%s\n' "$1"
+	command -v notify-send >/dev/null 2>&1 \
+		&& notify-send -i user-bookmarks "LexOS" "$1" >/dev/null 2>&1 || true
+}
+
+aide() {
+	cat <<'AIDE'
+
+  Mettre une application sur le dock.
+
+    lexos epingler <application.desktop>…   l'ajouter au dock
+    lexos epingler --enlever <app.desktop>… la retirer du dock
+    lexos epingler --liste                  ce qui est épinglé
+    lexos epingler aide                     ce texte
+
+  Le plus simple : CLIC DROIT sur l'icône d'une application (sur le bureau
+  ou dans Fichiers) -> « Épingler au dock ». Le dock se met à jour tout
+  seul, il n'y a rien à redémarrer.
+
+AIDE
+}
+
+#  ─── LE VRAI LANCEUR ────────────────────────────────────────────────────────
+canonique() { # canonique <chemin .desktop> → le chemin à épingler
+	local f="$1" base d
+	base="$(basename "$f")"
+	for d in $CATALOGUES; do
+		if [[ -r "$d/$base" ]]; then printf '%s' "$d/$base"; return 0; fi
+	done
+	#  Pas au catalogue : c'est un lanceur à lui, on épingle celui-là.
+	printf '%s' "$(cd "$(dirname "$f")" && pwd)/$base"
+}
+
+#  Le nom du .dockitem. On garde le nom de l'application dedans : un dossier
+#  de « 50-a3f9.dockitem » ne se relit pas, et Alex pourrait vouloir y faire
+#  le ménage à la main un jour.
+nom_item() { # nom_item <chemin .desktop> → 50-<app>.dockitem
+	local base; base="$(basename "$1" .desktop)"
+	base="$(printf '%s' "$base" | tr -cd '[:alnum:]._-')"
+	printf '50-%s.dockitem' "${base:-app}"
+}
+
+deja_epingle() { # deja_epingle <chemin .desktop>
+	local cible="$1" f
+	for f in "$LANCEURS"/*.dockitem; do
+		[[ -f "$f" ]] || continue
+		grep -qxF "Launcher=file://$cible" "$f" && return 0
+	done
+	return 1
+}
+
+epingle() { # epingle <chemin>
+	local f="$1" cible item
+	[[ -f "$f" ]] || { printf '%s : « %s » introuvable\n' "$PROG" "$f" >&2; return 1; }
+	case "$f" in
+		*.desktop) ;;
+		*) dit "« $(basename "$f") » n'est pas une application — seules les applications s'épinglent."
+		   return 1 ;;
+	esac
+	cible="$(canonique "$f")"
+	if [[ ! -d "$LANCEURS" ]]; then
+		#  Sans le dossier, Plank n'est pas là (ou pas encore lancé). On le
+		#  crée quand même : Plank le relira à son démarrage.
+		mkdir -p "$LANCEURS" 2>/dev/null \
+			|| { dit "Le dock est introuvable — rien n'a été épinglé."; return 1; }
+	fi
+	if deja_epingle "$cible"; then
+		dit "« $(basename "$cible" .desktop) » est déjà sur le dock."
+		return 0
+	fi
+	item="$LANCEURS/$(nom_item "$cible")"
+	#  Un nom déjà pris par une AUTRE application : on suffixe plutôt que
+	#  d'écraser le lanceur de quelqu'un d'autre.
+	local n=2
+	while [[ -e "$item" ]]; do
+		item="$LANCEURS/$(nom_item "$cible")"
+		item="${item%.dockitem}-$n.dockitem"
+		n=$((n + 1))
+	done
+	{
+		echo "[PlankDockItemPreferences]"
+		echo "Launcher=file://$cible"
+	} > "$item" || { dit "Le dock a refusé l'écriture."; return 1; }
+	dit "« $(basename "$cible" .desktop) » est maintenant sur le dock."
+}
+
+desepingle() { # desepingle <chemin>
+	local f="$1" cible trouve=0 d
+	cible="$(canonique "$f")"
+	for d in "$LANCEURS"/*.dockitem; do
+		[[ -f "$d" ]] || continue
+		if grep -qxF "Launcher=file://$cible" "$d"; then
+			rm -f "$d" && trouve=1
+		fi
+	done
+	if [[ "$trouve" -eq 1 ]]; then
+		dit "« $(basename "$cible" .desktop) » a été retirée du dock."
+	else
+		dit "« $(basename "$cible" .desktop) » n'était pas sur le dock."
+	fi
+}
+
+liste() {
+	local f n=0
+	for f in "$LANCEURS"/*.dockitem; do
+		[[ -f "$f" ]] || continue
+		printf '  %s\n' "$(sed -n 's|^Launcher=file://||p' "$f" | head -1)"
+		n=$((n + 1))
+	done
+	[[ "$n" -gt 0 ]] || echo "  (rien sur le dock, ou le dock n'est pas installé)"
+}
+
+case "${1:-aide}" in
+	aide|-h|--help|help) aide ;;
+	--liste|liste) liste ;;
+	--enlever|enlever)
+		shift
+		[[ $# -gt 0 ]] || die "quelle application ? « lexos epingler --enlever <app.desktop> »"
+		for f in "$@"; do desepingle "$f"; done
+		;;
+	*)
+		FAITS=0
+		for f in "$@"; do epingle "$f" && FAITS=$((FAITS + 1)); done
+		[[ "$FAITS" -gt 0 ]] || exit 1
+		;;
+esac
