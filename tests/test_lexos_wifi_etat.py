@@ -164,6 +164,87 @@ check("un échec de nmcli remonte son motif au lieu d'être avalé",
 check("« wifi-deconnecter » est branchée dans ACTIONS",
       settings.ACTIONS.get("wifi-deconnecter") is settings.act_wifi_deconnecter)
 
+# =============================================================================
+#  LA LISTE MARQUE LE RÉSEAU CONNECTÉ — SINON PAS DE BOUTON « DÉCONNECTER »
+# =============================================================================
+#  ALEX, PHOTO : « une fois connecté à un réseau internet, il n'affiche pas
+#  pour se déconnecter. » Sur l'image, le haut de la page dit « Réseau
+#  connecté : BELL507 — signal 100 % », et trois centimètres plus bas la même
+#  borne, dans « Réseaux à portée », propose « Se connecter ».
+#
+#  LE BOUTON EXISTAIT DÉJÀ. La page le dessine dès que la ligne porte
+#  « actif ». Elle ne le portait jamais : _wifi_reseaux() jugeait « connecté »
+#  sur le champ ACTIVE du BALAYAGE — la source dont le commentaire de
+#  _wifi_etat() dit déjà, noir sur blanc, qu'elle peut être en retard sur la
+#  vraie connexion. Le correctif d'alors n'avait été appliqué qu'à la moitié
+#  haute de la page.
+#
+#  CE BANC REPRODUIT EXACTEMENT LA PHOTO : « device status » dit BELL507
+#  connecté, le balayage répond ACTIVE=no pour tout le monde.
+REP_LISTE = '''
+case "$*" in
+  *"radio wifi"*) echo "enabled" ;;
+  *"device status"*) echo "wlan0:wifi:connected:BELL507" ;;
+  *"networking connectivity"*) echo "full" ;;
+  *"device wifi list --rescan auto"*)
+     echo "no:BELL507:100:WPA2"
+     echo "no:COGECO:52:WPA2" ;;
+  *"device wifi"*) echo "BELL507:100" ;;
+esac
+'''
+r = avec_nmcli(REP_LISTE, settings._wifi_etat)
+res = {x["ssid"]: x for x in r.get("reseaux", [])}
+check("les deux bornes du balayage sont bien listées",
+      set(res) == {"BELL507", "COGECO"}, repr(sorted(res)))
+check("BELL507 est marqué ACTIF alors que le balayage dit ACTIVE=no "
+      "(le bouton Déconnecter apparaît enfin)",
+      res.get("BELL507", {}).get("actif") is True, repr(res.get("BELL507")))
+check("COGECO n'est PAS marqué actif — on ne déconnecte pas d'un réseau "
+      "auquel on n'est pas",
+      res.get("COGECO", {}).get("actif") is False, repr(res.get("COGECO")))
+#  ET IL REMONTE EN TÊTE : le tri place l'actif en premier. Une ligne juste
+#  mais noyée au milieu de sept bornes serait à moitié réparée.
+check("le réseau connecté est en tête de liste",
+      r["reseaux"][0]["ssid"] == "BELL507", repr([x["ssid"] for x in r["reseaux"]]))
+
+#  LE HAUT ET LE BAS DE LA PAGE DISENT LA MÊME CHOSE. C'est la contradiction
+#  qu'Alex voyait, et c'est elle qu'on interdit désormais.
+actifs = [x["ssid"] for x in r["reseaux"] if x["actif"]]
+check("le haut de la page et la liste ne se contredisent plus",
+      actifs == [r["reseau"]], f"haut={r['reseau']!r} liste={actifs!r}")
+
+#  LE CHAMP ACTIVE RESTE UN SECOND RECOURS : s'il dit vrai, on le croit —
+#  même sans confirmation par le nom (profil nommé autrement que le SSID).
+REP_ACTIVE = '''
+case "$*" in
+  *"radio wifi"*) echo "enabled" ;;
+  *"device status"*) echo "wlan0:wifi:connected:mon-profil-a-moi" ;;
+  *"networking connectivity"*) echo "full" ;;
+  *"device wifi list --rescan auto"*) echo "yes:BELL507:100:WPA2" ;;
+  *"device wifi"*) echo "BELL507:100" ;;
+esac
+'''
+r2 = avec_nmcli(REP_ACTIVE, settings._wifi_etat)
+res2 = {x["ssid"]: x for x in r2.get("reseaux", [])}
+check("ACTIVE=yes suffit quand le profil porte un autre nom que le SSID",
+      res2.get("BELL507", {}).get("actif") is True, repr(res2.get("BELL507")))
+
+#  ET SANS AUCUNE CONNEXION, RIEN N'EST MARQUÉ ACTIF : un bouton
+#  « Déconnecter » sur une borne à laquelle on n'est pas serait pire que pas
+#  de bouton du tout.
+REP_HORS = '''
+case "$*" in
+  *"radio wifi"*) echo "enabled" ;;
+  *"device status"*) echo "wlan0:wifi:disconnected:" ;;
+  *"networking connectivity"*) echo "none" ;;
+  *"device wifi list --rescan auto"*) echo "no:BELL507:100:WPA2" ;;
+esac
+'''
+r3 = avec_nmcli(REP_HORS, settings._wifi_etat)
+check("déconnecté : aucune borne n'est marquée active",
+      all(not x["actif"] for x in r3.get("reseaux", [])), repr(r3.get("reseaux")))
+
+
 print()
 if fails:
     print(f"{len(fails)} échoué(s) : {', '.join(fails)}")
