@@ -204,7 +204,7 @@ else
 		Xvfb :95 -screen 0 1280x800x24 >/dev/null 2>&1 &
 		XP=$!
 		i=0; while [ ! -e /tmp/.X11-unix/X95 ] && [ "$i" -lt 60 ]; do i=$((i+1)); read -r -t 0.2 < /dev/zero; done
-		env DISPLAY=:95 HOME="$H" XDG_CONFIG_HOME="$H/.config" GTK_THEME=Arc-Dark \
+		env DISPLAY=:95 HOME="$H" XDG_CONFIG_HOME="$H/.config" GTK_THEME=LexOS-Noir \
 			"$CHROME_BIN" --no-sandbox --disable-dev-shm-usage \
 			--no-first-run --no-default-browser-check --disable-gpu \
 			--user-data-dir="$H/prof" --window-size=1280,800 --window-position=0,0 \
@@ -274,7 +274,7 @@ PY
 			#  parce que, sans bureau, son choix par défaut n'est pas garanti.
 			printf '{"extensions":{"theme":{"system_theme":1,"id":""}}}' \
 				> "$H/prof2/Default/Preferences"
-			env DISPLAY=:95 HOME="$H" XDG_CONFIG_HOME="$H/.config" GTK_THEME=Arc-Dark \
+			env DISPLAY=:95 HOME="$H" XDG_CONFIG_HOME="$H/.config" GTK_THEME=LexOS-Noir \
 				"$CHROME_BIN" --no-sandbox --disable-dev-shm-usage \
 				--no-first-run --no-default-browser-check --disable-gpu \
 				--user-data-dir="$H/prof2" --window-size=1280,800 --window-position=0,0 \

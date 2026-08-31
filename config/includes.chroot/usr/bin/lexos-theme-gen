@@ -1031,10 +1031,6 @@ EOF
 #  ATOMIQUE : on génère dans un fichier temporaire et on ne remplace la
 #  cible qu'une fois la génération finie — une génération interrompue ne
 #  doit pas laisser l'utilisateur sans aucun style.
-TMP_CSS="$(mktemp "$TARGET/.config/gtk-3.0/gtk.css.XXXXXX")" \
-	&& gen_gtk_css > "$TMP_CSS" && mv -f "$TMP_CSS" "$TARGET/.config/gtk-3.0/gtk.css"
-TMP_CSS="$(mktemp "$TARGET/.config/gtk-4.0/gtk.css.XXXXXX")" \
-	&& gen_gtk_css > "$TMP_CSS" && mv -f "$TMP_CSS" "$TARGET/.config/gtk-4.0/gtk.css"
 
 # =============================================================================
 #  1 bis. LE MÊME STYLE, MAIS COMME UN VRAI THÈME
@@ -1087,12 +1083,17 @@ TMP_CSS="$(mktemp "$TARGET/.config/gtk-4.0/gtk.css.XXXXXX")" \
 #  RECOPIE donc les lignes d'import du thème de base, telles qu'elles sont
 #  écrites chez lui.
 #
-#  ═══ CE QUE CETTE ÉTAPE NE FAIT PAS ═══
-#  Elle ne change RIEN à l'écran, et c'est voulu : ~/.config/gtk-3.0/gtk.css
-#  reste en place et garde la priorité. Le thème est posé, chargé, éprouvable
-#  — mais tant qu'on n'a pas mesuré, règle par règle, ce qui continue de
-#  gagner une fois descendu au rang de thème, on ne retire rien. Une règle
-#  qui gagnait par PRIORITÉ ne gagne plus que par SPÉCIFICITÉ.
+#  ═══ LA FEUILLE UTILISATEUR N'EST PLUS ÉCRITE (étape 4) ═══
+#  ~/.config/gtk-3.0/gtk.css n'existe plus : l'écrire encore aurait rechargé
+#  tout ceci en priorité UTILISATEUR et réécrasé les applications — le tour
+#  complet pour revenir au point de départ. Conséquence assumée, MESURÉE :
+#  la feuille de xfdesktop (priorité APPLICATION) repasse devant la nôtre,
+#  et la tuile du bureau choisie est peinte par LUI — l'accent à 50 %, la
+#  couleur demandée AU THÈME (#E8590C:0.50). L'application garde son dessin,
+#  le thème fournit les couleurs : c'est le contrat, et le banc du bureau le
+#  tient. Seule exception : le foyer de lightdm (hook 0410) garde une
+#  feuille en priorité utilisateur, parce que le greeter a son propre thème
+#  et que c'est la seule façon de passer devant — voulu, et écrit là-bas.
 THEME_NOM="LexOS-Noir"
 THEME_DIR="$TARGET/.themes/$THEME_NOM"
 BASE_DIR="${LEXOS_THEMES_SYS:-/usr/share/themes}/${LEXOS_GTK_BASE:-Arc-Dark}"

@@ -91,8 +91,43 @@ else
 fi
 
 # =============================================================================
-titre "3. LE CŒUR — le thème seul rend ce que rend la pile actuelle"
+titre "3. LE CŒUR — le thème seul rend les couleurs de la palette"
 # =============================================================================
+#  ═══ CE QUE CE CONTRÔLE MESURAIT AVANT, ET POURQUOI IL A CHANGÉ ═══
+#  À l'étape 1, il comparait DEUX montages : la feuille utilisateur (priorité
+#  UTILISATEUR) contre le thème seul. Il exigeait zéro différence, et c'est
+#  ainsi qu'on a su qu'on pouvait retirer la feuille sans rien casser — il a
+#  d'ailleurs trouvé la seule règle qui tombait, l'infobulle.
+#
+#  La feuille utilisateur n'existe plus. Comparer le thème à elle n'aurait
+#  plus aucun sens : il ne resterait qu'un banc vert parce qu'il ne mesure
+#  rien. On compare donc le thème à la SOURCE DE VÉRITÉ — les variables de
+#  palette de lexos-theme-gen. Non circulaire : d'un côté ce que le
+#  générateur DIT vouloir, de l'autre ce que GTK rend VRAIMENT.
+#
+#  ON N'ÉPLUCHE PAS LES COMMENTAIRES pour lire ces variables : « sed
+#  s/#.*$// » mangerait le « # » des couleurs elles-mêmes, et tous les motifs
+#  deviendraient vides. On ancre l'affectation en début de ligne — une ligne
+#  de commentaire commence par « # », donc ce qui est ancré ainsi est du code.
+palette() { # palette <nom> -> la valeur de nuit
+	awk -v k="$1" '
+		/^else$/          { nuit = 1 }
+		/^fi$/            { nuit = 0 }
+		nuit && $0 ~ "^[ \t]*" k "=\"#" {
+			sub(/^[^"]*"/, ""); sub(/".*$/, ""); print; exit
+		}' "$GEN"
+}
+BG="$(palette BG)"; HEADER="$(palette HEADER)"; FG="$(palette FG)"
+BG_ALT="$(palette BG_ALT)"
+ACCENT="#E8590C"          # l'accent orange, celui que le banc demande
+GRILLE="$(grep -m1 '^SEL_GRILLE="#' "$GEN" | sed 's/^[^"]*"//; s/".*$//')"
+
+if [ -z "$BG" ] || [ -z "$HEADER" ] || [ -z "$GRILLE" ]; then
+	non "impossible de relire la palette dans lexos-theme-gen (BG=$BG HEADER=$HEADER GRILLE=$GRILLE)"
+else
+	ok "palette relue : fond $BG · en-tête $HEADER · grille $GRILLE"
+fi
+
 PY=""
 for C in python3.12 python3.13 python3.11 python3; do
 	command -v "$C" >/dev/null 2>&1 || continue
@@ -100,10 +135,9 @@ for C in python3.12 python3.13 python3.11 python3; do
 		&& { PY="$C"; break; }
 done
 if [ -z "$PY" ]; then
-	saut "aucun python avec GTK 3 : l'égalité n'a PAS été mesurée"
-	saut "c'est la partie qui compte : installer « python3-gi gir1.2-gtk-3.0 »"
+	saut "aucun python avec GTK 3 : les couleurs n'ont PAS été mesurées"
 elif [ ! -d "$BASE" ]; then
-	saut "Arc-Dark absent : l'égalité n'a PAS été mesurée"
+	saut "Arc-Dark absent : les couleurs n'ont PAS été mesurées"
 else
 	cat > "$BANC/mes.py" <<'PY'
 import sys, warnings, gi
@@ -114,73 +148,72 @@ ecran = Gdk.Screen.get_default()
 if ecran is None:
     print("PAS-D-ECRAN"); sys.exit(0)
 st = Gtk.Settings.get_default()
-st.set_property("gtk-theme-name", sys.argv[1])
+st.set_property("gtk-theme-name", "LexOS-Noir")
 st.set_property("gtk-application-prefer-dark-theme", True)
-if len(sys.argv) > 2 and sys.argv[2]:
-    p = Gtk.CssProvider(); p.connect("parsing-error", lambda *a: None)
-    try: p.load_from_path(sys.argv[2])
-    except Exception as e: print("FEUILLE-REJETEE", e)
-    Gtk.StyleContext.add_provider_for_screen(ecran, p, Gtk.STYLE_PROVIDER_PRIORITY_USER)
 F = Gtk.StateFlags
-def hexa(c): return "#%02X%02X%02X:%.2f" % (round(c.red*255), round(c.green*255),
-                                            round(c.blue*255), c.alpha)
+def hexa(c): return "#%02X%02X%02X" % (round(c.red*255), round(c.green*255), round(c.blue*255))
 def couleur(nom, classes, etat, quoi):
     w = Gtk.WidgetPath(); w.append_type(GObject.TYPE_NONE); w.iter_set_object_name(-1, nom)
     for c in classes: w.iter_add_class(-1, c)
     ctx = Gtk.StyleContext(); ctx.set_screen(ecran); ctx.set_path(w); ctx.set_state(etat)
     return hexa(ctx.get_background_color(etat) if quoi == "bg" else ctx.get_color(etat))
-#  Les pièces que quelqu'un REGARDE. Pas un échantillon au hasard : le fond,
-#  l'en-tête, les trois sortes de sélection (liste, grille, Thunar), le bureau,
-#  les menus, la saisie, les boutons, l'infobulle et la sélection de texte.
 CAS = [
- ("fenetre",           "window",  ["background"], F.NORMAL,  "bg"),
- ("fenetre-texte",     "window",  ["background"], F.NORMAL,  "fg"),
- ("en-tete",           "headerbar", ["titlebar"], F.NORMAL,  "bg"),
- ("vue-repos",         "treeview", ["view"],      F.NORMAL,  "bg"),
- ("liste-choisie",     "treeview", ["view"],      F.SELECTED, "bg"),
- ("grille-choisie",    "iconview", ["view"],      F.SELECTED, "bg"),
- ("thunar-choisi",     "ExoIconView", ["view"],   F.SELECTED, "bg"),
- ("bureau-choisi",     "XfdesktopIconView", ["view"], F.ACTIVE, "bg"),
- ("bureau-repos",      "XfdesktopIconView", ["view"], F.NORMAL, "bg"),
- ("ligne-choisie",     "row",     [],             F.SELECTED, "bg"),
- ("menu",              "menu",    [],             F.NORMAL,  "bg"),
- ("saisie",            "entry",   [],             F.NORMAL,  "bg"),
- ("saisie-texte",      "entry",   [],             F.NORMAL,  "fg"),
- ("popover",           "popover", ["background"], F.NORMAL,  "bg"),
- ("infobulle",         "tooltip", ["background"], F.NORMAL,  "bg"),
- ("infobulle-texte",   "tooltip", ["background"], F.NORMAL,  "fg"),
- ("ascenseur",         "scrollbar", [],           F.NORMAL,  "bg"),
- ("selection-texte",   "selection", [],           F.NORMAL,  "bg"),
+ ("fenetre",         "window",    ["background"], F.NORMAL,   "bg"),
+ ("fenetre-texte",   "window",    ["background"], F.NORMAL,   "fg"),
+ ("en-tete",         "headerbar", ["titlebar"],   F.NORMAL,   "bg"),
+ ("vue-repos",       "treeview",  ["view"],       F.NORMAL,   "bg"),
+ ("liste-choisie",   "treeview",  ["view"],       F.SELECTED, "bg"),
+ ("grille-choisie",  "iconview",  ["view"],       F.SELECTED, "bg"),
+ ("thunar-choisi",   "ExoIconView", ["view"],     F.SELECTED, "bg"),
+ ("bureau-choisi",   "XfdesktopIconView", ["view"], F.ACTIVE, "bg"),
+ ("menu",            "menu",      [],             F.NORMAL,   "bg"),
+ ("infobulle",       "tooltip",   ["background"], F.NORMAL,   "bg"),
+ ("selection-texte", "selection", [],             F.NORMAL,   "bg"),
 ]
 for nom, n, cl, fl, q in CAS:
     print("%s\t%s" % (nom, couleur(n, cl, fl, q)))
 PY
-	#  Le thème doit être trouvable par GTK : il le cherche dans ~/.themes.
 	mkdir -p "$BANC/home/.themes"
 	cp -r "$TH" "$BANC/home/.themes/"
-	mesure() { HOME="$BANC/home" "$PY" "$BANC/mes.py" "$@" 2>/dev/null; }
-	mesure Arc-Dark "$BANC/t/.config/gtk-3.0/gtk.css" > "$BANC/avant.txt"
-	mesure LexOS-Noir ""                              > "$BANC/apres.txt"
-
-	if grep -q "PAS-D-ECRAN" "$BANC/avant.txt" 2>/dev/null; then
-		saut "aucun écran X (relancer sous « xvfb-run ») : l'égalité n'a PAS été mesurée"
-	elif [ ! -s "$BANC/avant.txt" ] || [ ! -s "$BANC/apres.txt" ]; then
+	HOME="$BANC/home" "$PY" "$BANC/mes.py" > "$BANC/vu.txt" 2>/dev/null
+	if grep -q "PAS-D-ECRAN" "$BANC/vu.txt" 2>/dev/null; then
+		saut "aucun écran X (relancer sous « xvfb-run ») : rien n'a été MESURÉ"
+	elif [ ! -s "$BANC/vu.txt" ]; then
 		non "la mesure n'a rien rendu"
 	else
-		DIFFS=0
-		while IFS=$'\t' read -r NOM VAL; do
-			VAL2="$(awk -F'\t' -v k="$NOM" '$1==k{print $2}' "$BANC/apres.txt")"
-			if [ "$VAL" != "$VAL2" ]; then
-				non "$NOM : la pile actuelle rend $VAL, le thème seul rend $VAL2"
-				DIFFS=$((DIFFS + 1))
-			fi
-		done < "$BANC/avant.txt"
-		N="$(wc -l < "$BANC/avant.txt")"
-		[ "$DIFFS" = 0 ] \
-			&& ok "les $N couleurs sont IDENTIQUES — le thème seul suffirait déjà" \
-			|| non "$DIFFS règle(s) cesseraient de gagner : à écrire à la bonne spécificité"
+		val() { awk -F'\t' -v k="$1" '$1==k{print $2}' "$BANC/vu.txt"; }
+		verifie() { # verifie <clé> <attendu> <ce que ça veut dire>
+			local v; v="$(val "$1")"
+			[ "$v" = "$2" ] && ok "$3 : $2" || non "$3 : attendu $2, rendu $v"
+		}
+		verifie fenetre        "$BG"      "le fond des fenêtres est le noir de LexOS"
+		verifie fenetre-texte  "$FG"      "l'écriture des fenêtres"
+		verifie en-tete        "$HEADER"  "le haut des fenêtres est le gris choisi par Alex"
+		verifie vue-repos      "$BG"      "une vue au repos"
+		verifie liste-choisie  "$ACCENT"  "une ligne de liste choisie garde l'accent"
+		verifie grille-choisie "$GRILLE"  "la grille d'applications prend le gris pâle"
+		verifie thunar-choisi  "$GRILLE"  "le dossier choisi dans Thunar aussi"
+		verifie bureau-choisi  "$ACCENT"  "l'icône choisie du bureau garde l'accent plein"
+		verifie menu           "$BG_ALT"  "les menus"
+		verifie infobulle      "$BG"      "l'infobulle, dite exprès depuis l'étape 1"
+		verifie selection-texte "$ACCENT" "la sélection de texte"
 	fi
 fi
+
+# =============================================================================
+titre "3 bis. La feuille utilisateur n'est PLUS écrite"
+# =============================================================================
+#  C'EST TOUT L'OBJET DE L'ÉTAPE 4. Tant qu'un ~/.config/gtk-3.0/gtk.css
+#  existe, il est chargé en priorité UTILISATEUR et écrase de nouveau les
+#  applications — on aurait fait le tour complet pour revenir au point de
+#  départ. Le banc l'interdit.
+DEBORDE=""
+for V in 3 4; do
+	[ -e "$BANC/t/.config/gtk-${V}.0/gtk.css" ] && DEBORDE="$DEBORDE gtk-${V}.0"
+done
+[ -z "$DEBORDE" ] \
+	&& ok "aucune feuille en priorité utilisateur — les applications gardent leur dessin" \
+	|| non "une feuille est encore écrite ($DEBORDE) : elle réécraserait les applications"
 
 # =============================================================================
 titre "4. Le hook ne déclare le thème que s'il EXISTE"

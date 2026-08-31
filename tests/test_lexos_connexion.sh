@@ -603,6 +603,12 @@ head -1 "$TH" | grep -q "^@import url(\"file://$BANC/racine/themes/Arc-Dark/gtk-
 grep -q '#login_window' "$TH" \
 	&& ok "et nos règles suivent l'import" \
 	|| non "les règles LexOS ne sont pas dans le thème"
+#  LE FOYER DE LIGHTDM GARDE UN gtk.css UTILISATEUR, ET C'EST VOULU.
+#  Ailleurs, le style de LexOS est descendu au rang de THEME pour cesser
+#  d'ecraser les applications. Ici NON : le greeter a son propre theme, et
+#  la seule facon de passer devant est la priorite utilisateur. Ce n'est pas
+#  un oubli de la bascule, c'est le seul endroit ou l'ancien mecanisme est
+#  le bon.
 [ -r "$BANC/racine/var/lightdm/.config/gtk-3.0/gtk.css" ] \
 	&& ok "la même feuille est posée dans le foyer du compte lightdm (priorité 800)" \
 	|| non "pas de gtk.css dans le foyer de lightdm — un seul chemin au lieu de deux"

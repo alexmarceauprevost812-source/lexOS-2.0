@@ -106,11 +106,13 @@ fi
 #  thème introuvable donne un bureau CLAIR par défaut, sans qu'une seule ligne
 #  du journal ne le signale. On vérifie le fichier, pas l'intention.
 #
-#  CETTE ÉTAPE NE CHANGE RIEN À L'ÉCRAN, et c'est voulu :
-#  ~/.config/gtk-3.0/gtk.css reste en place et garde la priorité. Mesuré sur
-#  un vrai GTK 3.24, dix-huit couleurs relevées dans les deux montages : zéro
-#  différence. Le thème est posé et chargé ; on ne retirera la feuille
-#  utilisateur qu'à l'étape suivante, une fois cette égalité tenue par un banc.
+#  DEPUIS L'ÉTAPE 4, LE THÈME EST SEUL : la feuille utilisateur n'est plus
+#  écrite du tout. L'égalité entre les deux montages avait d'abord été tenue
+#  par la mesure (dix-huit couleurs, zéro différence) AVANT de retirer quoi
+#  que ce soit ; le banc du thème garde maintenant la palette elle-même comme
+#  référence. Seul le foyer de lightdm (hook 0410) conserve une feuille en
+#  priorité utilisateur : le greeter a son propre thème, c'est la seule façon
+#  de passer devant, et c'est écrit là-bas.
 THEME_LEXOS="LexOS-Noir"
 if [ -r "/etc/skel/.themes/${THEME_LEXOS}/gtk-3.0/gtk.css" ]; then
 	GTK_BASE="$THEME_LEXOS"

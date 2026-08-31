@@ -108,7 +108,7 @@ for MODE in sombre clair; do
 		rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
 		LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
 			bash "$GEN" --target "$BANC/t" --mode "$MODE" "$A" >/dev/null 2>&1
-		CSS="$BANC/t/.config/gtk-3.0/gtk.css"
+		CSS="$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css"
 		[ -r "$CSS" ] || { non "$A/$MODE : aucune feuille produite"; continue; }
 		while IFS='|' read -r cle libelle fond txt ratio; do
 			TOTAL=$((TOTAL + 1))
@@ -133,7 +133,7 @@ titre "2. Le libellé prend la couleur de SON bouton"
 rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
 LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
 	bash "$GEN" --target "$BANC/t" orange >/dev/null 2>&1
-CSS="$BANC/t/.config/gtk-3.0/gtk.css"
+CSS="$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css"
 
 #  On lit le BLOC en entier, pas deux lignes après le sélecteur : la première
 #  version faisait « grep -A2 » et ratait « color: inherit » dès qu'on ajoutait
@@ -345,7 +345,7 @@ for MODE in sombre clair; do
 				non "$A/$MODE · $forme : $txt sur $fond = ${ratio}:1 — le texte du bouton est illisible"
 				MAUVAIS3=$((MAUVAIS3 + 1))
 			fi
-		done < <(cascade "$BANC/t/.config/gtk-3.0/gtk.css")
+		done < <(cascade "$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css")
 	done
 done
 if [ "$VU3" = "0" ]; then
@@ -359,7 +359,7 @@ fi
 rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
 LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
 	bash "$GEN" --target "$BANC/t" orange >/dev/null 2>&1
-LIGNE="$(cascade "$BANC/t/.config/gtk-3.0/gtk.css" | grep '^icone + texte|')"
+LIGNE="$(cascade "$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css" | grep '^icone + texte|')"
 COUL="$(printf '%s' "$LIGNE" | cut -d'|' -f2)"
 [ "$COUL" = "#000000" ] \
 	&& ok "bouton à icône : le libellé est NOIR — il n'hérite plus du blanc de la box" \
@@ -402,7 +402,7 @@ for MODE in sombre clair; do
 		rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
 		LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
 			bash "$GEN" --target "$BANC/t" --mode "$MODE" "$A" >/dev/null 2>&1
-		VERDICT="$(python3 - "$BANC/t/.config/gtk-3.0/gtk.css" <<'PY'
+		VERDICT="$(python3 - "$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css" <<'PY'
 import re, sys
 
 css = re.sub(r"/\*.*?\*/", "", open(sys.argv[1], encoding="utf-8").read(), flags=re.S)
@@ -664,7 +664,7 @@ for MODE in sombre clair; do
 		rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
 		HOME="$BANC/t" LEXOS_BRANDING="$RACINE/branding" \
 			bash "$GEN" "$ACC" --mode "$MODE" --target "$BANC/t" >/dev/null 2>&1
-		CSS8="$BANC/t/.config/gtk-3.0/gtk.css"
+		CSS8="$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css"
 		if [ ! -r "$CSS8" ]; then
 			non "$ACC/$MODE : aucune feuille produite"
 			continue

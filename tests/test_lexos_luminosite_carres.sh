@@ -53,8 +53,8 @@ LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" HOME="$FOYER" \
 	bash "$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen" orange \
 	>/dev/null 2>&1
 
-CSS4="$FOYER/.config/gtk-4.0/gtk.css"
-CSS3="$FOYER/.config/gtk-3.0/gtk.css"
+CSS4="$FOYER/.themes/LexOS-Noir/gtk-4.0/gtk.css"
+CSS3="$FOYER/.themes/LexOS-Noir/gtk-3.0/gtk.css"
 
 if [[ -r "$CSS4" && -r "$CSS3" ]]; then
 	ok "les deux feuilles (GTK 3 et GTK 4) ont bien été écrites"
@@ -277,7 +277,7 @@ for sel, corps in re.findall(r"([^{}]+)\{([^{}]*)\}", src):
 }
 
 for V in 3 4; do
-	F="$FOYER/.config/gtk-${V}.0/gtk.css"
+	F="$FOYER/.themes/LexOS-Noir/gtk-${V}.0/gtk.css"
 	CORPS="$(corps_regle "$F" "menu menuitem")"
 	if printf '%s' "$CORPS" | grep -q 'font-size:[[:space:]]*1\.12em'; then
 		ok "GTK $V : les entrées de menu sont agrandies (1.12em)"
@@ -296,7 +296,7 @@ done
 #  ═══ « em », PAS DES PIXELS ═══ Une taille figée annulerait « lexos access
 #  gros-texte » précisément là où il sert le plus. C'est la règle que le dépôt
 #  s'était déjà donnée pour les boutons ; le menu doit la suivre.
-CORPS="$(corps_regle "$FOYER/.config/gtk-3.0/gtk.css" "menu menuitem")"
+CORPS="$(corps_regle "$FOYER/.themes/LexOS-Noir/gtk-3.0/gtk.css" "menu menuitem")"
 if printf '%s' "$CORPS" | grep -qE 'font-size:[[:space:]]*[0-9]+px'; then
 	non "la taille du menu est figée en pixels : le gros-texte n'y ferait plus rien"
 else
@@ -306,7 +306,7 @@ fi
 #  ═══ ET LES MENUS DE GTK 4 ═══ La même feuille sert aux deux versions, mais
 #  GTK 4 n'emploie plus « menuitem » : sans règle « modelbutton », le correctif
 #  ne vaudrait que pour la moitié des applications.
-if grep -q 'popover.menu modelbutton' "$FOYER/.config/gtk-4.0/gtk.css"; then
+if grep -q 'popover.menu modelbutton' "$FOYER/.themes/LexOS-Noir/gtk-4.0/gtk.css"; then
 	ok "les menus de GTK 4 (modelbutton) sont couverts eux aussi"
 else
 	non "GTK 4 non couvert : le clic droit resterait minuscule dans ces applications"
