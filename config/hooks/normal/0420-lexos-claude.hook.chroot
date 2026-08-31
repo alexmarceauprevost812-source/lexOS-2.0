@@ -27,10 +27,29 @@ echo "[lexos] hook 0420 : Claude et Claude Code"
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# --- Icône Claude (le « burst » orange) ------------------------------------
-SVG="/usr/share/lexos/branding/claude-icon.svg"
-[ -r "$SVG" ] || SVG="branding/claude-icon.svg"          # selon le contexte du hook
-if [ -r "$SVG" ]; then
+# --- Les DEUX icônes : Claude, et Claude Terminal ---------------------------
+#  ALEX, PHOTO DU DOCK : deux étoiles identiques, côte à côte. Les deux
+#  lanceurs portaient « Icon=lexos-claude » — le même dessin pour
+#  l'application claude.ai et pour le terminal de Claude. Rien ne disait
+#  lequel ouvrait quoi.
+#
+#  Claude Terminal a donc son icône : icon-terminal.svg au trait près, cadre
+#  ROUGE au lieu de l'accent (« même logo que celui-là », « le logo Claude
+#  Terminal le mettre rouge »). Trois icônes, trois lectures — le Terminal à
+#  l'accent, Claude Terminal en rouge, Claude sur son crème.
+#
+#  UNE SEULE BOUCLE POUR LES DEUX. Les écrire l'une après l'autre aurait
+#  donné deux blocs à tenir à jour, et le second aurait fini par oublier ce
+#  que le premier avait appris — les tailles 16, 22 et 24, précisément.
+ICONES="claude-icon:lexos-claude claude-terminal-icon:lexos-claude-terminal"
+for PAIRE in $ICONES; do
+	SRC="${PAIRE%%:*}"; NOM="${PAIRE#*:}"
+	SVG="/usr/share/lexos/branding/${SRC}.svg"
+	[ -r "$SVG" ] || SVG="branding/${SRC}.svg"       # selon le contexte du hook
+	if [ ! -r "$SVG" ]; then
+		echo "[lexos]   !! ${SRC}.svg introuvable — « $NOM » sera une icône générique"
+		continue
+	fi
 	#  MÊMES TAILLES QUE TOUTES LES AUTRES ICÔNES LexOS (hook 0300).
 	#  Ce hook avait exactement le même trou que celui de Chrome : 16, 22 et
 	#  24 px manquaient. Aux tailles absentes, GTK bascule sur la version
@@ -38,24 +57,26 @@ if [ -r "$SVG" ]; then
 	#  change sous la souris. Alex avait bien dit « plusieurs applications » —
 	#  il y en avait deux, et c'est le contrôle du hook 0700 qui a nommé la
 	#  seconde, dès la première construction où il tournait.
+	POSEES=0
 	for SIZE in 16 22 24 32 48 64 128 256; do
 		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
 		mkdir -p "$DIR"
 		if have rsvg-convert; then
-			rsvg-convert -w "$SIZE" -h "$SIZE" "$SVG" -o "$DIR/lexos-claude.png" 2>/dev/null \
-				&& echo "[lexos]   icône ${SIZE}px" || true
+			rsvg-convert -w "$SIZE" -h "$SIZE" "$SVG" -o "$DIR/${NOM}.png" 2>/dev/null \
+				&& POSEES=$((POSEES + 1)) || true
 		elif have convert; then
-			convert -background none -resize "${SIZE}x${SIZE}" "$SVG" "$DIR/lexos-claude.png" 2>/dev/null || true
+			convert -background none -resize "${SIZE}x${SIZE}" "$SVG" "$DIR/${NOM}.png" 2>/dev/null \
+				&& POSEES=$((POSEES + 1)) || true
 		fi
 	done
-	# La version SVG elle-même, pour les thèmes vectoriels.
+	echo "[lexos]   $NOM : ${POSEES}/8 tailles"
+	#  Et PAS de version vectorielle : à 83 px (le dock au survol, zoom 130 %)
+	#  seul « scalable » répondrait, et l'image changerait sous la souris.
 	VDIR="/usr/share/icons/hicolor/scalable/apps"
-	mkdir -p "$VDIR"; rm -f "$VDIR/lexos-claude.svg"
-	have gtk-update-icon-cache && \
-		gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
-else
-	echo "[lexos]   !! icône Claude introuvable — les lanceurs utiliseront une icône générique"
-fi
+	mkdir -p "$VDIR"; rm -f "$VDIR/${NOM}.svg"
+done
+have gtk-update-icon-cache && \
+	gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
 
 # --- Claude Code : DANS L'IMAGE, dès la construction ------------------------
 #  UN RETOUR EN ARRIÈRE ASSUMÉ, ET C'EST ALEX QUI L'A DEMANDÉ : « Claude
@@ -138,7 +159,7 @@ Name[en]=Claude Terminal
 Comment=Le terminal de Claude — s'ouvre directement dans Claude Code (compte Anthropic requis)
 Comment[en]=Claude's own terminal — opens straight into Claude Code (Anthropic account required)
 Exec=lexos-claude-terminal
-Icon=lexos-claude
+Icon=lexos-claude-terminal
 Terminal=false
 StartupNotify=true
 Categories=Development;Utility;

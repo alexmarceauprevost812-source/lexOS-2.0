@@ -16,7 +16,8 @@
 #  de commande — chaque option ci-dessous est documentée dans
 #  man xfce4-terminal(1), vérifiée avant d'être écrite :
 #    --title       le nom de la fenêtre (fixe, ignore le titre dynamique) ;
-#    --icon        l'icône « burst » de Claude, posée par le hook 0420 ;
+#    --icon        l'icône ROUGE de Claude Terminal, posée par le hook 0420
+#                  (le « burst » crème reste celui de l'application Claude) ;
 #    --hide-menubar / --hide-toolbar : pas de barre de menus ni d'outils —
 #                  cette fenêtre ne sert qu'à parler à Claude, tout habillage
 #                  de terminal généraliste y serait du bruit ;
@@ -60,7 +61,7 @@ set -u
 if command -v xfce4-terminal >/dev/null 2>&1; then
 	exec xfce4-terminal \
 		--title="Claude Terminal" \
-		--icon=lexos-claude \
+		--icon=lexos-claude-terminal \
 		--hide-menubar --hide-toolbar \
 		--color-bg='#000000' --color-text='#FFFFFF' \
 		--hold \
