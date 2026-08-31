@@ -20,34 +20,49 @@ set -e
 #  GTK de LexOS, dont l'entete vaut #0A0A0B et le fond #000000. Du noir, donc,
 #  parce que c'est NOTRE noir — pas un defaut de Chromium.
 #
-#  ═══ POURQUOI DEUX RÉGLAGES ET PAS UN ═══
-#  « BrowserThemeColor » (politique d'entreprise, relevee dans le binaire, pas
-#  devinee) donne au CADRE exactement la couleur demandee et en DERIVE une
-#  barre d'outils plus claire. Mais tant que Chromium suit le theme GTK, elle
-#  ne repeint QUE la barre d'outils : la bande d'onglets — le « haut » qu'Alex
-#  montre du doigt — reste noire. Mesure :
+#  ═══ CE HOOK A MAIGRI — DEMANDE D'ALEX ═══
+#  « Pour pas avoir a changer les couleurs et tout le kit sur chaque appli. »
+#  Il posait DEUX choses : la politique de couleur, ET un fichier de
+#  preferences qui forcait Chromium a employer son theme INTERNE plutot que
+#  celui du systeme. Ce second fichier a disparu.
 #
-#     GTK + politique ......................... cadre #0A0A0B  barre #46464E
+#  POURQUOI IL EXISTAIT : tant que le haut des fenetres de LexOS valait
+#  #0A0A0B, la politique ne repeignait que la barre d'outils et la bande
+#  d'onglets restait noire. Il fallait donc sortir Chromium du theme systeme.
 #
-#  Un demi-correctif, autrement dit : le defaut le plus repete de ce depot.
-#  Il faut DONC les deux — dire a Chromium d'employer son propre theme, et lui
-#  donner la couleur. Le premier passe par les preferences du profil
-#  (« extensions.theme.system_theme », 0 = theme interne, 1 = GTK, 2 = Qt),
-#  livrees dans /etc/skel : le profil est cree au premier lancement, il trouve
-#  le fichier deja la. Eprouve : un fichier de preferences minimal suffit,
-#  Chromium complete le reste tout seul.
+#  POURQUOI IL NE SERT PLUS : le gris est maintenant dans le THEME (voir
+#  HEADER dans lexos-theme-gen). Chromium lit les couleurs GTK comme
+#  n'importe quelle application, et prend la bande d'onglets tout seul.
+#  Mesure des trois montages, vrai Chromium sous Xvfb :
+#
+#     GTK, en-tete noir ....................... onglets #0A0A0B  barre #000000
+#     GTK, en-tete GRIS, sans politique ....... onglets #26262B  barre #000000
+#     GTK, en-tete GRIS, avec politique ....... onglets #26262B  barre #46464E
+#     theme interne + politique (l'ISO 101) ... onglets #26262B  barre #46464E
+#
+#  Les deux dernieres lignes sont IDENTIQUES : on peut donc rendre Chromium
+#  au theme du systeme sans que rien ne bouge a l'ecran. Un fichier de moins,
+#  et un navigateur qui suit desormais le theme comme les autres.
+#
+#  ═══ POURQUOI LA POLITIQUE, ELLE, RESTE ═══
+#  Parce qu'elle n'est PAS un bricolage : « BrowserThemeColor » est le
+#  mecanisme officiel de Chromium, releve dans son binaire. Et parce que la
+#  retirer coute la barre d'outils : ligne 2 du tableau, elle redevient
+#  #000000 — plus noire qu'aujourd'hui, exactement ce dont Alex se plaignait.
+#  Chromium n'est pas une application GTK : il LIT les couleurs GTK mais se
+#  peint lui-meme, et sa barre d'outils suit le fond de fenetre, qui est le
+#  noir de LexOS. On ne va pas eclaircir tout le bureau pour un navigateur.
 #
 #  ═══ LE GRIS ═══
 #  #26262B, choisi par Alex sur trois propositions rendues cote a cote
-#  (« 3er aime bien gris »). Gris franchement neutre, un cran seulement
-#  au-dessus du noir de LexOS.
+#  (« 3er aime bien gris »).
 #
 #  ═══ CE QUE CE HOOK NE FAIT PAS ═══
-#  Il ne suit PAS le theme de jour. Une politique vit dans /etc, ecrite par
-#  root a la construction ; lexos-theme-gen, lui, ecrit dans le dossier de
-#  l'utilisateur et ne peut pas y toucher. Le haut du navigateur reste donc
-#  gris sombre meme en theme de jour. C'est assume, et c'est ecrit ici pour
-#  que personne ne le redecouvre en le prenant pour un bogue.
+#  La politique ne suit PAS le theme de jour : elle vit dans /etc, ecrite par
+#  root a la construction, tandis que lexos-theme-gen n'ecrit que dans le
+#  dossier de l'utilisateur. La barre d'outils du navigateur reste donc
+#  derivee de ce gris meme en theme de jour. C'est assume, et c'est ecrit ici
+#  pour que personne ne le redecouvre en le prenant pour un bogue.
 # =============================================================================
 echo "[lexos] hook 0445 : le haut du navigateur, et le navigateur officiel"
 
@@ -73,16 +88,23 @@ EOF
 	echo "[lexos]   politique de couleur posee : $D/lexos-couleurs.json"
 done
 
-# --- 2. Le theme interne plutot que GTK, pour que la bande d'onglets suive ---
-#  UN FICHIER MINIMAL, EXPRES. Y mettre un profil complet reviendrait a figer
-#  des dizaines de reglages dont aucun n'est demande, et a se battre avec
-#  Chromium a chaque version. On n'ecrit que ce qu'on veut dire.
+# --- 2. Chromium suit le theme du systeme, comme les autres -----------------
+#  On lui posait ici un fichier de preferences (« system_theme: 0 ») pour le
+#  sortir du theme GTK. Il ne sert plus : le gris est dans le theme, Chromium
+#  le lit tout seul. Voir l'explication et les mesures en tete de fichier.
+#
+#  ET ON EFFACE CELUI QU'ON A DEJA POSE. Une ISO installee garde /etc/skel de
+#  sa construction ; sans ce menage, une machine passee par l'ISO 101 garderait
+#  un profil qui ignore le theme, et le jour ou Alex changerait d'accent son
+#  navigateur serait le seul a ne pas suivre. On ne touche qu'au fichier qu'on
+#  a ecrit nous-memes, et seulement s'il dit exactement ce qu'on y avait mis.
 for P in chromium google-chrome; do
-	mkdir -p "$SKEL/.config/$P/Default"
-	cat > "$SKEL/.config/$P/Default/Preferences" <<'EOF'
-{"extensions":{"theme":{"system_theme":0,"id":""}}}
-EOF
-	echo "[lexos]   $P : theme interne (la bande d'onglets suit la couleur)"
+	F="$SKEL/.config/$P/Default/Preferences"
+	if [ -f "$F" ] && grep -q '"system_theme":0' "$F" 2>/dev/null; then
+		rm -f "$F"
+		rmdir "$SKEL/.config/$P/Default" "$SKEL/.config/$P" 2>/dev/null || true
+		echo "[lexos]   $P : ancien forcage de theme retire — il suit le systeme"
+	fi
 done
 
 # --- 3. Chromium officiel : c'est le hook 0400 qui l'ecrit ------------------

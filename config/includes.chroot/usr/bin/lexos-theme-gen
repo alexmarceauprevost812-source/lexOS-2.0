@@ -278,6 +278,10 @@ if [[ "$MODE" == "clair" ]]; then
 	BORDER="#D9D2C3"
 	FG="#1B1A17"
 	FG_DIM="#6B675E"
+	#  Le haut des fenêtres. De jour il reste le crème du reste : le gris
+	#  demandé pour la nuit y ferait une bande sombre sur un bureau clair —
+	#  la même règle, retranscrite pour un fond clair, comme pour le terminal.
+	HEADER="$BG_ALT"
 else
 	# LexOS Noir : noir pur, écriture blanche.
 	BG="#000000"
@@ -286,6 +290,22 @@ else
 	BORDER="#232326"
 	FG="#FFFFFF"
 	FG_DIM="#B8B8BC"
+	#  ═══ LE HAUT DES FENÊTRES — DEMANDE D'ALEX ═══
+	#  « En haut du navigateur il est trop noir, changer pour qu'il soit un
+	#  peu gris » — puis, sur trois gris rendus côte à côte : « 3e, aime bien
+	#  gris ». #26262B.
+	#
+	#  ET IL EST ICI, PAS DANS UN RÉGLAGE DE CHROMIUM. C'est la deuxième
+	#  moitié de sa demande : « pour pas avoir à changer les couleurs et tout
+	#  le kit sur chaque appli ». Écrit dans le thème, le gris vaut pour TOUS
+	#  les hauts de fenêtre — et Chromium, qui lit les couleurs GTK, le prend
+	#  tout seul. Mesuré : la bande d'onglets rend #26262B sans qu'on lui
+	#  pose quoi que ce soit dans son profil.
+	#
+	#  UN CRAN AU-DESSUS DU FOND, PAS DEUX. Le fond des fenêtres reste
+	#  #000000 : c'est le noir de LexOS, et Alex n'a jamais demandé à le
+	#  changer. Seul le haut se détache.
+	HEADER="#26262B"
 fi
 
 mkdir -p "$CONF_DIR" "$TARGET/.config/gtk-3.0" "$TARGET/.config/gtk-4.0" \
@@ -361,7 +381,7 @@ cat <<EOF
 @define-color window_fg_color           ${FG};
 @define-color view_bg_color             ${BG};
 @define-color view_fg_color             ${FG};
-@define-color headerbar_bg_color        ${BG_ALT};
+@define-color headerbar_bg_color        ${HEADER};
 @define-color headerbar_fg_color        ${FG};
 @define-color popover_bg_color          ${BG_ALT};
 @define-color popover_fg_color          ${FG};
@@ -490,9 +510,13 @@ box, grid, viewport, frame, flowbox, stack, overlay {
     color: ${FG};
 }
 
+/*  LE HAUT DES FENÊTRES est le seul endroit qui prend ${HEADER} et non
+    ${BG_ALT} : de nuit, un gris franc un cran au-dessus du noir. Voir la
+    palette en tête de fichier — et c'est aussi ce que Chromium lit pour sa
+    bande d'onglets, sans un seul réglage de son côté. */
 headerbar, .titlebar, toolbar, actionbar, searchbar, infobar,
 .csd .titlebar, menubar, .menubar {
-    background-color: ${BG_ALT};
+    background-color: ${HEADER};
     background-image: none;
     color: ${FG};
     border-color: ${BORDER};

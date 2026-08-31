@@ -92,17 +92,58 @@ else
 	saut "aucun navigateur sur la machine : le nom de la clé n'a pas été revérifié"
 fi
 
+#  ═══ ET IL NE POSE PLUS RIEN DANS LE PROFIL — DEMANDE D'ALEX ═══
+#  « Pour pas avoir à changer les couleurs et tout le kit sur chaque appli. »
+#  Ce hook forçait Chromium à employer son thème INTERNE (« system_theme: 0 »)
+#  parce que le haut des fenêtres de LexOS valait #0A0A0B et que la politique
+#  seule ne repeignait que la barre d'outils.
+#
+#  Le gris est maintenant dans le THÈME. Chromium lit les couleurs GTK comme
+#  n'importe quelle application et prend la bande d'onglets tout seul —
+#  mesuré identique. Le fichier a donc disparu, et le hook EFFACE celui qu'une
+#  ISO précédente aurait laissé : sans ce ménage, une machine passée par
+#  l'ISO 101 garderait un navigateur qui ignore le thème.
 for P in chromium google-chrome; do
 	F="$BANC/skel/.config/$P/Default/Preferences"
-	if [ ! -r "$F" ]; then
-		non "$P : aucune préférence livrée dans /etc/skel"
-		continue
-	fi
-	ST="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['extensions']['theme']['system_theme'])" "$F" 2>/dev/null || echo ABSENT)"
-	[ "$ST" = "0" ] \
-		&& ok "$P : system_theme = 0 (thème interne) — la bande d'onglets suivra la couleur" \
-		|| non "$P : system_theme vaut « $ST » ; à 1 (GTK) le haut resterait NOIR"
+	[ ! -e "$F" ] \
+		&& ok "$P : aucun forçage de thème posé — il suit le système" \
+		|| non "$P : le hook pose encore un Preferences ($(cat "$F"))"
 done
+
+#  LE MÉNAGE, ÉPROUVÉ POUR DE VRAI : on repose l'ancien fichier et on
+#  redemande au hook de tourner.
+mkdir -p "$BANC/skel2/.config/chromium/Default"
+printf '{"extensions":{"theme":{"system_theme":0,"id":""}}}\n' \
+	> "$BANC/skel2/.config/chromium/Default/Preferences"
+LEXOS_POL_CHROMIUM="$BANC/p2a" LEXOS_POL_CHROME="$BANC/p2b" LEXOS_SKEL="$BANC/skel2" \
+	sh "$HOOK" >/dev/null 2>&1
+[ ! -e "$BANC/skel2/.config/chromium/Default/Preferences" ] \
+	&& ok "un forçage laissé par une ISO précédente est bien EFFACÉ" \
+	|| non "l'ancien forçage survit : le navigateur ignorerait le thème"
+
+#  ET ON NE TOUCHE PAS À CE QUI N'EST PAS À NOUS. Un profil que l'utilisateur
+#  a lui-même réglé ne doit pas disparaître parce qu'on passe par là.
+mkdir -p "$BANC/skel3/.config/chromium/Default"
+printf '{"extensions":{"theme":{"system_theme":2,"id":"a"}},"moi":1}\n' \
+	> "$BANC/skel3/.config/chromium/Default/Preferences"
+LEXOS_POL_CHROMIUM="$BANC/p3a" LEXOS_POL_CHROME="$BANC/p3b" LEXOS_SKEL="$BANC/skel3" \
+	sh "$HOOK" >/dev/null 2>&1
+grep -q '"moi":1' "$BANC/skel3/.config/chromium/Default/Preferences" 2>/dev/null \
+	&& ok "un profil qui n'est pas le nôtre est laissé intact" \
+	|| non "le hook a effacé un profil qu'il n'avait pas écrit"
+
+#  ═══ ET LE GRIS VIENT DU THÈME, PAS D'ICI ═══
+GEN="$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen"
+#  PAS DE DÉPOUILLEUR DE COMMENTAIRES ICI. « sed s/#.*$// » mangerait le
+#  « # » de la couleur elle-même : le motif cherché deviendrait
+#  « HEADER=" » et le contrôle ne pourrait JAMAIS passer. On ancre plutôt
+#  l'affectation en début de ligne — une ligne de commentaire commence par
+#  « # », donc ce qui est ancré ainsi est forcément du code.
+if grep -qE "^[[:space:]]*HEADER=\"$GRIS\"" "$GEN"; then
+	ok "le gris $GRIS est écrit dans le thème (HEADER) — tous les hauts de fenêtre le prennent"
+else
+	non "le thème ne porte pas HEADER=$GRIS : Chromium serait le seul gris"
+fi
 
 # =============================================================================
 titre "2. Chromium est le navigateur officiel — et il a un filet"
@@ -144,8 +185,14 @@ if [ -n "$MANQUE" ]; then
 else
 	#  On monte exactement ce que le hook a produit : la politique là où le
 	#  navigateur la lit, les préférences dans un profil neuf.
-	H="$BANC/home"; mkdir -p "$H/prof"
-	cp -r "$BANC/skel/.config/chromium/Default" "$H/prof/Default"
+	#  PROFIL NEUF, SANS PRÉFÉRENCES : c'est exactement ce que trouvera un
+	#  utilisateur au premier lancement maintenant qu'on ne pose plus rien.
+	#  Chromium part donc sur le thème du SYSTÈME, et c'est ce qu'on veut
+	#  mesurer — le gris doit venir du thème GTK, pas d'un réglage à lui.
+	H="$BANC/home"; mkdir -p "$H/prof" "$H/.config/gtk-3.0"
+	LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+		bash "$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen" \
+		--target "$H" --mode sombre orange >/dev/null 2>&1
 	POL="/etc/chromium/policies/managed"
 	POSEE=0
 	if mkdir -p "$POL" 2>/dev/null && cp "$BANC/pol-chromium/lexos-couleurs.json" "$POL/" 2>/dev/null; then
@@ -157,7 +204,8 @@ else
 		Xvfb :95 -screen 0 1280x800x24 >/dev/null 2>&1 &
 		XP=$!
 		i=0; while [ ! -e /tmp/.X11-unix/X95 ] && [ "$i" -lt 60 ]; do i=$((i+1)); read -r -t 0.2 < /dev/zero; done
-		env DISPLAY=:95 HOME="$H" "$CHROME_BIN" --no-sandbox --disable-dev-shm-usage \
+		env DISPLAY=:95 HOME="$H" XDG_CONFIG_HOME="$H/.config" GTK_THEME=Arc-Dark \
+			"$CHROME_BIN" --no-sandbox --disable-dev-shm-usage \
 			--no-first-run --no-default-browser-check --disable-gpu \
 			--user-data-dir="$H/prof" --window-size=1280,800 --window-position=0,0 \
 			about:blank >/dev/null 2>&1 &
@@ -204,6 +252,53 @@ PY
 				non "la barre d'outils est restée NOIRE : seul le cadre a changé"
 			else
 				ok "la barre d'outils en dérive, plus claire ($BARRE)"
+			fi
+
+			#  ═══ D'OÙ VIENT LE GRIS ? LE CONTRÔLE PRÉCÉDENT NE LE DIT PAS ═══
+			#  La politique DONNE la couleur ; le thème aussi. Une photo où
+			#  la bande est grise ne dit pas lequel des deux l'a peinte —
+			#  éprouvé : en retirant le gris du thème, l'image restait grise
+			#  grâce à la politique seule, et le banc n'y voyait rien.
+			#
+			#  On relance donc SANS politique. Ce qui reste gris vient
+			#  forcément du thème, et c'est tout l'objet de l'étape : le haut
+			#  des fenêtres est gris pour TOUT LE MONDE, le navigateur n'y a
+			#  plus de traitement à part.
+			rm -f "$POL/lexos-couleurs.json"
+			Xvfb :95 -screen 0 1280x800x24 >/dev/null 2>&1 &
+			XP=$!
+			i=0; while [ ! -e /tmp/.X11-unix/X95 ] && [ "$i" -lt 60 ]; do i=$((i+1)); read -r -t 0.2 < /dev/zero; done
+			rm -rf "$H/prof2"; mkdir -p "$H/prof2/Default"
+			#  « system_theme: 1 » = le thème du système, ce que Chromium
+			#  emploie sur un vrai bureau XFCE. On le dit explicitement ici
+			#  parce que, sans bureau, son choix par défaut n'est pas garanti.
+			printf '{"extensions":{"theme":{"system_theme":1,"id":""}}}' \
+				> "$H/prof2/Default/Preferences"
+			env DISPLAY=:95 HOME="$H" XDG_CONFIG_HOME="$H/.config" GTK_THEME=Arc-Dark \
+				"$CHROME_BIN" --no-sandbox --disable-dev-shm-usage \
+				--no-first-run --no-default-browser-check --disable-gpu \
+				--user-data-dir="$H/prof2" --window-size=1280,800 --window-position=0,0 \
+				about:blank >/dev/null 2>&1 &
+			CP=$!
+			for i in $(seq 1 14); do read -r -t 1 < /dev/zero; done
+			DISPLAY=:95 import -window root "$BANC/sans-politique.png" 2>/dev/null
+			kill "$CP" 2>/dev/null; kill "$XP" 2>/dev/null; wait 2>/dev/null
+			if [ -s "$BANC/sans-politique.png" ]; then
+				SEUL="$(python3 - "$BANC/sans-politique.png" <<'PY2'
+from PIL import Image
+from collections import Counter
+import sys
+im = Image.open(sys.argv[1]).convert("RGB")
+L, _ = im.size
+c = Counter(im.getpixel((x, 5)) for x in range(0, L, 7)).most_common(1)[0][0]
+print("#%02X%02X%02X" % c)
+PY2
+)"
+				[ "$SEUL" = "$GRIS" ] \
+					&& ok "sans politique, la bande reste $SEUL : le gris vient bien du THÈME" \
+					|| non "sans politique la bande vaut $SEUL — le gris ne venait que de la politique"
+			else
+				non "aucune image pour l'essai sans politique"
 			fi
 		fi
 	fi
