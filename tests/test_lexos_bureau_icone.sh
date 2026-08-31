@@ -44,7 +44,7 @@ saut() { printf '  \033[33m—\033[0m  %s\n' "$1"; }
 titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 
 mkdir -p "$BANC/t"
-LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" \
 	bash "$GEN" --target "$BANC/t" --terminal nuit orange >"$BANC/gen.log" 2>&1
 CSS="$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css"
 [ -r "$CSS" ] || { non "aucun gtk.css produit"; exit 1; }

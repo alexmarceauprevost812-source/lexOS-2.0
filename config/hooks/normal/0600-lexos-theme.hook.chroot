@@ -80,11 +80,23 @@ if [ -x /usr/bin/lexos-theme-gen ]; then
 	#  à elle. « suivre » = le terminal suit le thème du bureau, ce qui
 	#  reproduit l'ancien comportement en sombre tout en donnant enfin un
 	#  VRAI terminal clair au thème de jour — il restait noir jusqu'ici.
-	HOME=/etc/skel /usr/bin/lexos-theme-gen "$ACCENT_NAME" \
+	#  LE THÈME DE BASE RETENU LUI EST PASSÉ ICI, ET C'EST NÉCESSAIRE.
+	#  Le thème LexOS-Noir pose un lien vers la ressource compilée du thème
+	#  de base et importe son adresse : il doit donc savoir LEQUEL a
+	#  réellement été retenu quelques lignes plus haut. Sans ça il viserait
+	#  Arc-Dark en dur, et sur une machine où arc-theme manque le lien
+	#  pointerait dans le vide — bureau NU, ni en-tête ni sélection, pour un
+	#  simple avertissement dans le journal.
+	#
+	#  On le passe À L'APPEL et non par build.conf : ce fichier n'est écrit
+	#  que bien plus bas, après ces deux lignes. Il aurait été lu vide.
+	HOME=/etc/skel LEXOS_GTK_BASE_THEME="$GTK_BASE" \
+		/usr/bin/lexos-theme-gen "$ACCENT_NAME" \
 		--terminal "$TERM_MODE" --target /etc/skel \
 		|| echo "[lexos]   !! génération du thème échouée (non bloquant)"
 	# Même thème pour root, utile en console de secours.
-	HOME=/root /usr/bin/lexos-theme-gen "$ACCENT_NAME" \
+	HOME=/root LEXOS_GTK_BASE_THEME="$GTK_BASE" \
+		/usr/bin/lexos-theme-gen "$ACCENT_NAME" \
 		--terminal "$TERM_MODE" --target /root >/dev/null 2>&1 || true
 else
 	echo "[lexos]   !! lexos-theme-gen absent"

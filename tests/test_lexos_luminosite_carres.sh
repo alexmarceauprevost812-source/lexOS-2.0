@@ -49,7 +49,7 @@ titre "1. Le thème ne peint plus de rectangle noir sur les tuiles colorées"
 #  ON GÉNÈRE LE THÈME POUR DE VRAI. Greper le script qui l'écrit dirait que la
 #  ligne existe, pas ce que GTK recevra. C'est la feuille livrée qu'on relit.
 FOYER="$BANC/foyer"; mkdir -p "$FOYER"
-LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" HOME="$FOYER" \
+LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" HOME="$FOYER" \
 	bash "$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen" orange \
 	>/dev/null 2>&1
 

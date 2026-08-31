@@ -325,7 +325,7 @@ printf '%s\n' "$TERM_MODE" > "$CONF_DIR/terminal-mode"
 #  détruisait tout ça à la PREMIÈRE ouverture de session, sans une erreur.
 #  Le fichier était dans l'ISO, installé, et mort avant d'avoir servi.
 #
-#  La source de vérité est /etc/skel/.config/gtk-3.0/gtk.css — présent sur
+#  La source de vérité est /usr/share/lexos/gtk-panneau.css — présent sur
 #  toute machine LexOS. On le recopie EN TÊTE de la sortie, en traduisant
 #  l'accent : le orange par défaut (#E8590C, #FF7A33, #A84007 et le triplet
 #  rgba « 232, 89, 12 ») devient l'accent choisi. Si le squelette manque
@@ -335,7 +335,20 @@ bloc_panneau() {
 	#  Surchargeable pour être ÉPROUVABLE hors ISO — même procédé que
 	#  LEXOS_ICONES plus bas : sans ça, ce bloc ne se vérifie qu'en
 	#  construisant et démarrant une image.
-	local squelette="${LEXOS_SKEL:-/etc/skel}/.config/gtk-3.0/gtk.css"
+	#  ═══ CE FICHIER N'EST PLUS DANS /etc/skel, ET C'EST CAPITAL ═══
+	#  Il y a vécu longtemps, et ça se tenait tant que la feuille de LexOS
+	#  était elle-même un fichier d'utilisateur. Depuis l'étape 4, non :
+	#  tout ce qui est dans /etc/skel/.config/gtk-3.0/ ARRIVE dans le
+	#  ~/.config de chaque compte, où GTK le charge en priorité UTILISATEUR.
+	#  Le laisser là aurait rendu aux applications le poids qu'on vient de
+	#  leur retirer — l'étape 4 annulée sur la vraie machine, tous les bancs
+	#  restant verts, parce qu'ils travaillent dans un foyer neuf où
+	#  /etc/skel n'a pas été recopié.
+	#
+	#  Il est donc dans /usr/share/lexos : une ENTRÉE du générateur, jamais
+	#  un fichier d'utilisateur. Un contrôle de CI interdit désormais qu'un
+	#  gtk.css réapparaisse sous etc/skel/.config.
+	local squelette="${LEXOS_PANNEAU_CSS:-/usr/share/lexos/gtk-panneau.css}"
 	if [[ ! -r "$squelette" ]]; then
 		printf '/* squelette %s illisible : style du panneau non repris */\n' "$squelette"
 		return 0
@@ -1096,7 +1109,20 @@ EOF
 #  et que c'est la seule façon de passer devant — voulu, et écrit là-bas.
 THEME_NOM="LexOS-Noir"
 THEME_DIR="$TARGET/.themes/$THEME_NOM"
-BASE_DIR="${LEXOS_THEMES_SYS:-/usr/share/themes}/${LEXOS_GTK_BASE:-Arc-Dark}"
+#  ═══ LE NOM DE LA VARIABLE COMPTE, ET IL ÉTAIT FAUX ═══
+#  On lisait « LEXOS_GTK_BASE ». Le hook 0600, lui, calcule le thème de base
+#  RÉELLEMENT présent (arc-theme voyage dans les paquets optionnels) et
+#  l'exporte sous « LEXOS_GTK_BASE_THEME ». Deux noms voisins, jamais le
+#  même : le repli du hook n'arrivait donc pas jusqu'ici. Sur une machine
+#  sans Arc-Dark, on aurait posé un lien vers une ressource ABSENTE et un
+#  « @import » vers une adresse introuvable — c'est-à-dire, mesuré au début
+#  de ce chantier, un bureau NU : ni en-tête, ni sélection, et un simple
+#  avertissement perdu dans le journal.
+#
+#  On lit donc le vrai nom, en gardant l'ancien comme second choix pour
+#  qui appellerait ce script à la main.
+BASE_NOM="${LEXOS_GTK_BASE_THEME:-${LEXOS_GTK_BASE:-Arc-Dark}}"
+BASE_DIR="${LEXOS_THEMES_SYS:-/usr/share/themes}/${BASE_NOM}"
 
 gen_theme() {
 	local v="$1"                      # « gtk-3.0 » ou « gtk-4.0 »
@@ -1138,7 +1164,7 @@ Encoding=UTF-8
 
 [X-GNOME-Metatheme]
 GtkTheme=${THEME_NOM}
-MetacityTheme=${LEXOS_GTK_BASE:-Arc-Dark}
+MetacityTheme=${BASE_NOM}
 IconTheme=LexOS
 CursorTheme=DMZ-Black
 ButtonLayout=menu:minimize,maximize,close

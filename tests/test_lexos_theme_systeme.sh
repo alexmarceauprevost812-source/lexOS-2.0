@@ -42,7 +42,7 @@ saut() { printf '  \033[33m—\033[0m  %s\n' "$1"; }
 titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 
 mkdir -p "$BANC/t"
-LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" \
 	bash "$GEN" --target "$BANC/t" --terminal nuit orange >"$BANC/gen.log" 2>&1
 TH="$BANC/t/.themes/LexOS-Noir"
 
@@ -214,6 +214,67 @@ done
 [ -z "$DEBORDE" ] \
 	&& ok "aucune feuille en priorité utilisateur — les applications gardent leur dessin" \
 	|| non "une feuille est encore écrite ($DEBORDE) : elle réécraserait les applications"
+
+# =============================================================================
+titre "3 ter. RIEN sous etc/skel/.config ne peut redevenir prioritaire"
+# =============================================================================
+#  ═══ LE PIÈGE QUI A FAILLI PARTIR DANS UNE ISO ═══
+#  Le squelette du panneau vivait dans includes.chroot/etc/skel/.config/
+#  gtk-3.0/gtk.css. Tant que la feuille de LexOS était elle-même un fichier
+#  d'utilisateur, ça se tenait. Depuis l'étape 4, NON : tout ce qui est sous
+#  /etc/skel/.config arrive dans le ~/.config de chaque compte, où GTK le
+#  charge en priorité UTILISATEUR. Ce fichier de 14 kio aurait rendu aux
+#  applications, sur la VRAIE machine, le poids qu'on venait de leur retirer.
+#
+#  ET AUCUN BANC NE L'AURAIT VU : ils travaillent tous dans un foyer neuf,
+#  où /etc/skel n'est jamais recopié. Vert partout, cassé chez Alex — le
+#  défaut exact que ce dépôt se répète. Trouvé par un balayage avant de
+#  pousser, pas par un banc ; celui-ci existe pour que ce soit un banc la
+#  prochaine fois.
+IC="$RACINE/config/includes.chroot"
+DEBORDE=""
+for F in "$IC/etc/skel/.config/gtk-3.0/gtk.css" "$IC/etc/skel/.config/gtk-4.0/gtk.css"; do
+	[ -e "$F" ] && DEBORDE="$DEBORDE ${F#"$IC/"}"
+done
+[ -z "$DEBORDE" ] \
+	&& ok "l'ISO ne livre aucun gtk.css sous etc/skel/.config" \
+	|| non "livré dans /etc/skel :$DEBORDE — chaque compte le recevrait en priorité utilisateur"
+
+#  Et le squelette du panneau est bien là où il doit être : une ENTRÉE.
+[ -r "$IC/usr/share/lexos/gtk-panneau.css" ] \
+	&& ok "le squelette du panneau est une entrée (/usr/share/lexos), pas un fichier d'utilisateur" \
+	|| non "gtk-panneau.css introuvable — le style du panneau serait perdu"
+
+# =============================================================================
+titre "3 quater. Le thème de base RETENU arrive jusqu'au générateur"
+# =============================================================================
+#  arc-theme voyage dans les paquets OPTIONNELS. Le hook 0600 choisit donc le
+#  premier thème sombre réellement présent — mais il l'exportait sous
+#  « LEXOS_GTK_BASE_THEME » tandis que le générateur lisait
+#  « LEXOS_GTK_BASE ». Deux noms voisins, jamais le même : le repli
+#  n'arrivait pas. Sur une machine sans Arc-Dark on aurait pose un lien vers
+#  une ressource ABSENTE — bureau NU, pour un avertissement dans le journal.
+CODE_H="$(sed 's/#.*$//' "$HOOK")"
+if printf '%s' "$CODE_H" | grep -q 'LEXOS_GTK_BASE_THEME="\$GTK_BASE"'; then
+	ok "le hook passe le thème de base retenu À L'APPEL du générateur"
+else
+	non "le hook n'informe pas le générateur du thème de base : le repli n'arriverait pas"
+fi
+
+#  ET IL EN TIENT COMPTE : avec un autre thème de base, aucun lien mort.
+rm -rf "$BANC/autre"; mkdir -p "$BANC/autre"
+LEXOS_PANNEAU_CSS="$IC/usr/share/lexos/gtk-panneau.css" \
+	LEXOS_GTK_BASE_THEME="ThemeQuiNexistePas" \
+	bash "$GEN" --target "$BANC/autre" orange >/dev/null 2>&1
+LIEN="$BANC/autre/.themes/LexOS-Noir/gtk-3.0/gtk.gresource"
+if [ -L "$LIEN" ] && [ ! -r "$LIEN" ]; then
+	non "un lien MORT est posé quand le thème de base manque"
+else
+	ok "thème de base absent : aucun lien mort posé"
+fi
+grep -q "^MetacityTheme=ThemeQuiNexistePas$" "$BANC/autre/.themes/LexOS-Noir/index.theme" 2>/dev/null \
+	&& ok "le nom du thème de base retenu est bien repris dans index.theme" \
+	|| non "index.theme ne reprend pas le thème de base qu'on lui a donné"
 
 # =============================================================================
 titre "4. Le hook ne déclare le thème que s'il EXISTE"

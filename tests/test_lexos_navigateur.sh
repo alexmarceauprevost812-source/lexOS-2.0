@@ -190,7 +190,7 @@ else
 	#  Chromium part donc sur le thème du SYSTÈME, et c'est ce qu'on veut
 	#  mesurer — le gris doit venir du thème GTK, pas d'un réglage à lui.
 	H="$BANC/home"; mkdir -p "$H/prof" "$H/.config/gtk-3.0"
-	LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+	LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" \
 		bash "$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen" \
 		--target "$H" --mode sombre orange >/dev/null 2>&1
 	POL="/etc/chromium/policies/managed"
