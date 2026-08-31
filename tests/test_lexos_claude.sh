@@ -204,5 +204,206 @@ grep -q "color-text='#FFFFFF'" "$RACINE/config/includes.chroot/usr/bin/lexos-cla
 	&& ok "lexos-claude-terminal : l'écriture est BLANCHE (« une belle ecriture blanc »)" \
 	|| non "l'écriture de lexos-claude-terminal n'est plus #FFFFFF"
 
+# =============================================================================
+titre "L'icône de Claude Terminal — elle ne doit plus être celle de Claude"
+# =============================================================================
+#  ALEX, PHOTO DU DOCK : deux étoiles identiques, côte à côte. Les DEUX
+#  lanceurs portaient « Icon=lexos-claude ». Rien ne disait lequel ouvrait
+#  l'application claude.ai et lequel ouvrait le terminal.
+#
+#  Puis, photo de l'icône du Terminal : « pour le [terminal], même logo que
+#  celui-là s'il vous plaît » — et, juste avant : « le logo Claude Terminal
+#  le mettre ROUGE ».
+HOOK="$RACINE/config/hooks/normal/0420-lexos-claude.hook.chroot"
+SVG_CT="$RACINE/branding/claude-terminal-icon.svg"
+SVG_T="$RACINE/branding/icon-terminal.svg"
+SVG_CL="$RACINE/branding/claude-icon.svg"
+BANC_IC="$(mktemp -d)"
+trap 'rm -rf "$BANC_IC"' EXIT
+
+#  LE CŒUR : les deux lanceurs ne partagent plus leur icône. On lit les
+#  blocs .desktop du hook, pas des commentaires : « Icon= » en début de
+#  ligne, dans le heredoc qui suit chaque « Exec= ».
+IC_TERM="$(sed -n '/^Exec=lexos-claude-terminal$/,/^EOF$/s/^Icon=//p' "$HOOK")"
+IC_APP="$(sed -n '/^Exec=lexos claude app$/,/^EOF$/s/^Icon=//p' "$HOOK")"
+if [ -z "$IC_TERM" ] || [ -z "$IC_APP" ]; then
+	non "impossible de relire les deux lignes Icon= des lanceurs ($IC_TERM / $IC_APP)"
+elif [ "$IC_TERM" = "$IC_APP" ]; then
+	non "les deux lanceurs portent encore la MÊME icône ($IC_TERM) — c'est la photo d'Alex"
+else
+	ok "Claude Terminal ($IC_TERM) et Claude ($IC_APP) ont des icônes différentes"
+fi
+
+#  ET LA FENÊTRE SUIT LE LANCEUR. Sans ce contrôle, la barre des tâches
+#  garderait l'ancienne icône : le lanceur corrigé, la fenêtre non — le
+#  correctif à moitié, le défaut le plus répété de ce dépôt.
+IC_FEN="$(sed -n "s/^[[:space:]]*--icon=\([a-z-]*\) .*/\1/p" \
+	"$RACINE/config/includes.chroot/usr/bin/lexos-claude-terminal" | head -1)"
+[ -n "$IC_FEN" ] && [ "$IC_FEN" = "$IC_TERM" ] \
+	&& ok "la fenêtre porte la même icône que le lanceur ($IC_FEN)" \
+	|| non "la fenêtre porte « $IC_FEN » et le lanceur « $IC_TERM » — la barre des tâches montrerait l'ancienne"
+
+#  Le hook doit vraiment POSER cette icône, sinon « Icon= » désigne un nom
+#  qui n'existe pas et GTK retombe sur une icône générique.
+if grep -q "claude-terminal-icon:${IC_TERM}" "$HOOK"; then
+	ok "le hook 0420 rend bien claude-terminal-icon.svg sous le nom « $IC_TERM »"
+else
+	non "le hook ne pose aucune icône nommée « $IC_TERM » — le lanceur pointerait dans le vide"
+fi
+
+if [ ! -r "$SVG_CT" ]; then
+	non "branding/claude-terminal-icon.svg est absent"
+else
+	#  « LOGO OFFICIEL DE CLAUDE MAIS EN ROUGE » : le tracé doit être celui
+	#  d'Anthropic, à l'identique. On compare les DEUX tracés, pas les
+	#  fichiers — ils n'ont pas les mêmes explications en tête, et pas la
+	#  même couleur, ce qui est justement le but.
+	#
+	#  (Première lecture, corrigée par Alex : j'avais compris « le dessin du
+	#  Terminal, en rouge ». C'est l'ÉTOILE qu'il voulait. Le contrôle porte
+	#  donc sur claude-icon.svg, pas sur icon-terminal.svg.)
+	trace_de() { grep -oE '<path d="M52\.4285[^"]*"' "$1"; }
+	if [ -n "$(trace_de "$SVG_CT")" ] && [ "$(trace_de "$SVG_CT")" = "$(trace_de "$SVG_CL")" ]; then
+		ok "c'est le tracé OFFICIEL de Claude, au caractère près"
+	else
+		non "le tracé n'est pas celui de claude-icon.svg — « logo officiel de Claude »"
+	fi
+
+	#  LE ROUGE EST CELUI DE LexOS, PAS UN ROUGE INVENTÉ. #E5484D est DANGER
+	#  dans lexos-theme-gen : celui de la pastille de fermeture et des
+	#  icônes « arrêter » / « redémarrer ».
+	GEN="$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen"
+	ROUGE="$(sed -n 's/^DANGER="\(#[0-9A-Fa-f]*\)"$/\1/p' "$GEN" | head -1)"
+	#  PAS D'ANCRE « $ » ICI : la ligne se termine par « #E5484D"/> », donc un
+	#  motif ancré en fin de ligne n'accroche rien et le contrôle se plaint
+	#  d'une couleur VIDE alors qu'elle est là. On prend la dernière
+	#  occurrence de la ligne du tracé, ce qui est la couleur du remplissage.
+	ETOILE="$(grep -oE 'M52\.4285.*fill="#[0-9A-Fa-f]{6}"' "$SVG_CT" | grep -oE '#[0-9A-Fa-f]{6}' | tail -1)"
+	if [ -n "$ROUGE" ] && [ "$ETOILE" = "$ROUGE" ]; then
+		ok "l'étoile est le rouge de LexOS ($ROUGE), celui de lexos-theme-gen"
+	else
+		non "l'étoile vaut $ETOILE ; le rouge de LexOS est $ROUGE"
+	fi
+
+	#  ET LE FOND EST NOIR — « bien noir avec un tit tin de gris autour ».
+	#  Le crème de l'application Claude ici rendrait les deux icônes
+	#  presque identiques dans le dock, à la teinte du trait près.
+	FOND="$(grep -m1 '<rect width="256" height="256"' "$SVG_CT" | grep -oE '#[0-9A-Fa-f]{6}')"
+	case "$FOND" in
+		'#0B0B0C'|'#000000') ok "le fond est le noir de LexOS ($FOND), pas le crème de Claude" ;;
+		*) non "le fond vaut $FOND — Alex demandait « bien noir »" ;;
+	esac
+	if grep -q 'stroke-opacity="0.18"' "$SVG_CT"; then
+		ok "…avec le liseré discret autour (« un tit tin de gris »)"
+	else
+		non "le liseré autour de l'icône a disparu"
+	fi
+
+	#  ET IL NE DOIT PAS SUIVRE L'ACCENT. #E8590C est un JETON que
+	#  lexos-theme-gen remplace par l'accent courant. Si le rouge en était
+	#  un, « lexos accent rouge » rendrait les deux icônes identiques et on
+	#  serait revenu au problème du départ.
+	#  ON LIT LE TRACÉ, PAS LES COMMENTAIRES. Le fichier EXPLIQUE en tête
+	#  pourquoi il n'emploie pas de jeton d'accent — un banc naïf lirait
+	#  cette explication et se déclarerait en échec. Ce dépôt s'est déjà
+	#  fait prendre quatre fois à cette faute.
+	if perl -0777 -pe 's/<!--.*?-->//gs' "$SVG_CT" | grep -qE '#(E8590C|FF7A33|A84007)'; then
+		non "le fichier contient un jeton d'accent : la couleur changerait avec le thème"
+	else
+		ok "aucun jeton d'accent : le rouge reste rouge quel que soit le thème"
+	fi
+
+	#  ═══ ET LE MIROIR : LE TERMINAL, LUI, NE DOIT PAS AVOIR BOUGÉ ═══
+	#  ALEX, APRÈS COUP : « garder le terminal pareil à l'image de la démo
+	#  Vercel, avec son orange. » Donner son icône à Claude Terminal ne
+	#  devait rien changer au Terminal — et c'est exactement le genre de
+	#  dégât qu'on ne voit qu'une ISO plus tard.
+	#
+	#  Les deux contrôles vont par paire, et c'est voulu : le Claude Terminal
+	#  ne doit PAS suivre l'accent (sinon « lexos accent rouge » rendrait les
+	#  deux icônes identiques), le Terminal DOIT le suivre.
+	if perl -0777 -pe 's/<!--.*?-->//gs' "$SVG_T" | grep -q '#E8590C'; then
+		ok "le Terminal garde son jeton d'accent — il reste orange, et suit le thème"
+	else
+		non "le Terminal n'a plus de jeton d'accent : son orange ne suivrait plus le thème"
+	fi
+
+	#  ET IL EST TOUJOURS LE MÊME DESSIN QUE LA DÉMO. La comparaison est
+	#  NUMÉRIQUE, pas textuelle : la démo écrit « .12 » là où le SVG écrit
+	#  « 0.12 ». Le même nombre, deux écritures — un banc qui comparerait les
+	#  chaînes crierait au loup sur une différence qui n'existe pas.
+	DEMO="$RACINE/web-demo/index.html"
+	if [ -r "$DEMO" ] && command -v python3 >/dev/null 2>&1; then
+		VERDICT_IC="$(python3 - "$RACINE/branding/icon-terminal.svg" "$DEMO" <<'PY'
+import re, sys
+svg = re.sub(r"<!--.*?-->", "", open(sys.argv[1], encoding="utf-8").read(), flags=re.S)
+demo = open(sys.argv[2], encoding="utf-8").read()
+m = re.search(r"function terminalGlyph\(size\)\{(.*?)\n\}", demo, re.S)
+if not m:
+    print("PAS-DE-GLYPHE"); sys.exit()
+def formes(t):
+    out = []
+    for f in re.finditer(r"<(rect|path)([^>]*?)/?>", t):
+        at = dict(re.findall(r'([a-z-]+)="([^"]*)"', f.group(2)))
+        for k in ("class", "aria-hidden", "width", "height", "viewBox"):
+            at.pop(k, None)
+        #  L'accent s'écrit « #E8590C » dans le SVG et « var(--ac) » dans la
+        #  démo : c'est la MÊME couleur, dite dans deux langues.
+        if at.get("fill") in ("#E8590C", "var(--ac)"):
+            at["fill"] = "ACCENT"
+        #  « .12 » et « 0.12 » sont le même nombre.
+        for k, v in list(at.items()):
+            try: at[k] = "%g" % float(v)
+            except ValueError: pass
+        out.append((f.group(1), tuple(sorted(at.items()))))
+    return out
+print("PAREIL" if formes(svg) == formes(m.group(1)) else "DIFFERENT")
+PY
+)"
+		case "$VERDICT_IC" in
+			PAREIL) ok "l'icône du Terminal est le MÊME dessin que celui de la démo" ;;
+			PAS-DE-GLYPHE) non "terminalGlyph() est introuvable dans la démo" ;;
+			*) non "l'icône du Terminal a divergé de celle de la démo" ;;
+		esac
+	fi
+
+	#  LES HUIT TAILLES, RENDUES POUR DE VRAI. 16, 22 et 24 ont déjà manqué
+	#  deux fois dans ce dépôt : aux tailles absentes le dock agrandit la
+	#  version vectorielle, et le dessin change sous la souris.
+	if command -v rsvg-convert >/dev/null 2>&1; then
+		MANQUE=""
+		for T in 16 22 24 32 48 64 128 256; do
+			rsvg-convert -w "$T" -h "$T" "$SVG_CT" -o "$BANC_IC/$T.png" 2>/dev/null \
+				|| MANQUE="$MANQUE $T"
+			[ -s "$BANC_IC/$T.png" ] || MANQUE="$MANQUE $T"
+		done
+		[ -z "$MANQUE" ] \
+			&& ok "les huit tailles se rendent (16 à 256), aucune ne retombe sur le vectoriel" \
+			|| non "tailles qui ne se rendent pas :$MANQUE"
+
+		#  ET LE ROUGE EST VRAIMENT À L'ÉCRAN — pas seulement dans le texte
+		#  du fichier. On relit les pixels du cadre à 128 px.
+		if [ -s "$BANC_IC/128.png" ] && python3 -c "import PIL" 2>/dev/null; then
+			VU="$(python3 - "$BANC_IC/128.png" <<'PY'
+from PIL import Image
+import sys
+im = Image.open(sys.argv[1]).convert("RGBA")
+#  Le CENTRE de l'étoile : c'est là que tous les rayons convergent, donc le
+#  seul point dont on sait qu'il est peint quelle que soit la taille rendue.
+#  Un point pris sur un rayon tomberait à côté au moindre décalage.
+print("#%02X%02X%02X" % im.getpixel((64, 64))[:3])
+PY
+)"
+			[ "$VU" = "$ROUGE" ] \
+				&& ok "au rendu, l'étoile est bien $VU — mesuré sur les pixels" \
+				|| non "au rendu l'étoile vaut $VU et non $ROUGE"
+		else
+			printf '  \033[33m—\033[0m  Pillow absent : la couleur RENDUE n'"'"'a pas été mesurée\n'
+		fi
+	else
+		printf '  \033[33m—\033[0m  rsvg-convert absent : les huit tailles n'"'"'ont PAS été rendues\n'
+	fi
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

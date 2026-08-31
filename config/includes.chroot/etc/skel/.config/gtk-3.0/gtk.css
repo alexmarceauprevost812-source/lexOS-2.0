@@ -274,11 +274,14 @@ iconview.view:hover {
 iconview.view .cell:hover {
 	border-radius: 10px;
 }
-/*  La sélection garde l'accent : c'est déjà la langue du reste de LexOS. */
-.thunar iconview:selected,
-.thunar treeview.view:selected,
-iconview.view:selected {
-	background-color: rgba(232, 89, 12, 0.85);
-	color: #ffffff;
-	border-radius: 10px;
-}
+/*  LA COULEUR DE LA SÉLECTION N'EST PLUS ÉCRITE ICI.
+    Elle valait l'accent à 85 % — un aplat orange sur la tuile entière. ALEX,
+    DEUX PHOTOS DE THUNAR : « on pourrait ajouter un gris pâle à la place de
+    tout le mettre orange, ce serait plus joli », « gris pâle pour bien voir
+    le fichier ».
+
+    Elle est désormais écrite PAR lexos-theme-gen, avec le même gris pâle que
+    la grille d'applications (SEL_GRILLE). Deux écritures de la même couleur
+    finissent toujours par diverger : c'est ce dépôt qui l'a appris à ses
+    dépens, et cette règle-ci en était un exemple — elle nommait des nœuds
+    (« iconview ») que la vue de Thunar ne porte même pas. */

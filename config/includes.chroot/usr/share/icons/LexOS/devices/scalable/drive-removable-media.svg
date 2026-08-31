@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — clé USB.
+  Dessinée à plat puis pivotée d'un bloc : le corps, le collier et le
+  connecteur restent alignés au pixel, ce qu'un dessin fait directement de
+  travers n'aurait pas garanti. Le texte est pivoté avec, donc il suit la
+  clé sans calcul séparé.
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Clé USB — LexOS">
+  <!-- Agrandie autour du même centre que la rotation (256,256) : la clé
+       n'occupait que 64%x55% du carré, contre 75%+ pour les autres icônes. -->
+  <g transform="translate(256,256) scale(1.4) translate(-256,-256)">
+  <g transform="rotate(-38 256 256)">
+    <!-- Connecteur métallique -->
+    <rect x="352" y="228" width="82" height="56" rx="6" fill="#B9BCC2"/>
+    <rect x="352" y="228" width="82" height="26" rx="6" fill="#D6D9DE"/>
+    <rect x="372" y="240" width="20" height="14" rx="2" fill="#6E727A"/>
+    <rect x="372" y="262" width="20" height="14" rx="2" fill="#6E727A"/>
+    <!-- Collier -->
+    <rect x="330" y="218" width="30" height="76" rx="4" fill="#8E9299"/>
+    <!-- Corps -->
+    <rect x="86" y="212" width="250" height="88" rx="20" fill="#E8590C"/>
+    <rect x="86" y="212" width="250" height="42" rx="20" fill="#FFFFFF" opacity="0.12"/>
+    <!-- Témoin d'activité -->
+    <circle cx="116" cy="256" r="11" fill="#FFFFFF" opacity="0.85"/>
+    <!-- Étiquette -->
+    <text x="232" y="272" text-anchor="middle" fill="#000000"
+          font-family="'DejaVu Sans',Arial,sans-serif" font-weight="700"
+          font-size="52" letter-spacing="4">USB</text>
+  </g>
+  </g>
+</svg>

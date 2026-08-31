@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Disque / formatage.
+  Disque dur vu de dessus : plateau rond avec bras de lecture, dans un
+  boîtier arrondi. Dessin original, à distinguer de icon-usb.svg (clé USB
+  en biais) : celle-ci représente un support de stockage interne/formatable
+  en général (voir lexos-format).
+
+  #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Disque — LexOS">
+  <!-- Cadre -->
+  <rect x="40" y="40" width="432" height="432" rx="96" fill="#E8590C"/>
+  <rect x="40" y="40" width="432" height="200" rx="96" fill="#FFFFFF" opacity="0.12"/>
+
+  <!-- Plateau -->
+  <circle cx="256" cy="256" r="146" fill="#FFFFFF"/>
+  <circle cx="256" cy="256" r="146" fill="none" stroke="#E8590C" stroke-width="10"/>
+  <circle cx="256" cy="256" r="34" fill="#E8590C"/>
+
+  <!-- Bras de lecture -->
+  <path d="M 256 256 L 372 158" fill="none" stroke="#E8590C" stroke-width="16" stroke-linecap="round"/>
+  <circle cx="372" cy="158" r="14" fill="#E8590C"/>
+</svg>

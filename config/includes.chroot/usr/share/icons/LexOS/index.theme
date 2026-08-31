@@ -1,9 +1,9 @@
 # =============================================================================
 #  LexOS — thème d'icônes
 # =============================================================================
-#  IL NE REDÉFINIT QUE LES DOSSIERS. Tout le reste — applications, périphé-
-#  riques, actions, types de fichiers — est hérité de Papirus-Dark, puis
-#  d'Adwaita, puis de hicolor. Un thème complet, ce sont des milliers
+#  IL NE REDÉFINIT QUE LES DOSSIERS, LE GESTIONNAIRE DE FICHIERS ET LES
+#  DISQUES. Tout le reste — actions, types de fichiers, autres applications —
+#  est hérité de Papirus-Dark, puis d'Adwaita, puis de hicolor. Un thème complet, ce sont des milliers
 #  d'icônes à tenir à jour ; celui-ci en porte sept et laisse le reste à
 #  ceux dont c'est le métier. Si Papirus n'est pas installé (la liste
 #  20-desktop est optionnelle), la chaîne continue sur Adwaita : aucune
@@ -56,13 +56,38 @@
 #  CHAQUE dossier présent sur le disque est déclaré ici — pas seulement que
 #  les fichiers existent.
 # =============================================================================
+#  ═══ LE DISQUE DUR, AJOUTÉ POUR LA MÊME RAISON QUE « user-desktop » ═══
+#  ALEX, PHOTO DU DOCK : le disque dur porte l'icône générique grise et bleue
+#  héritée de Papirus, au milieu des poches orange de LexOS. Le thème ne
+#  redéfinissait que les dossiers ; le disque était donc hérité, comme le
+#  Bureau l'était avant qu'on ne trouve « user-desktop ».
+#
+#  LES NOMS SONT RELEVÉS, PAS DEVINÉS — la leçon du gestionnaire de fichiers.
+#  « drive-harddisk » et « drive-removable-media » sont dans le binaire de GIO
+#  lui-même : c'est GIO qui nomme l'icône d'un volume monté, et c'est lui que
+#  Plank, Thunar et le bureau interrogent. Les autres écritures
+#  (drive-harddisk-system, -usb, -scsi, -ieee1394, drive-multidisk, harddisk,
+#  media-removable, drive-removable-media-usb…) viennent des thèmes installés,
+#  qui suivent ce que les applications demandent. Ce sont des LIENS vers les
+#  deux dessins : pas un dessin de plus à tenir à jour.
+#
+#  DEUX DESSINS ET NON UN : le disque interne prend icon-disque.svg (plateau
+#  et bras de lecture), les supports amovibles icon-usb.svg (la clé). Les
+#  confondre ferait passer une clé USB pour un disque dur.
+#
+#  CE QU'ON NE PREND PAS. Les « -symbolic » sont des traits monochromes pour
+#  les barres d'outils : y poser un dessin en couleur ferait une tache dans
+#  une rangée d'icônes au trait. Et « drive-optical » est un disque optique,
+#  pas un disque dur — LexOS n'a pas de dessin pour ça, l'héritage fait mieux
+#  que nous.
+# =============================================================================
 [Icon Theme]
 Name=LexOS
 Name[en]=LexOS
 Comment=Les dossiers de LexOS, hérité de Papirus pour tout le reste
 Comment[en]=LexOS folders, inheriting Papirus for everything else
 Inherits=Papirus-Dark,Papirus,Adwaita,hicolor
-Directories=places/scalable,apps/scalable
+Directories=places/scalable,apps/scalable,devices/scalable
 
 [places/scalable]
 Size=512
@@ -80,4 +105,15 @@ Size=512
 MinSize=16
 MaxSize=512
 Context=Applications
+Type=Scalable
+
+#  Les périphériques : le disque dur et les supports amovibles. « Context=
+#  Devices » est ce que la spécification attend ici — un mauvais contexte
+#  n'empêche pas la recherche, mais fausse les outils qui trient par
+#  catégorie, et surtout il ment sur ce que le dossier contient.
+[devices/scalable]
+Size=512
+MinSize=16
+MaxSize=512
+Context=Devices
 Type=Scalable

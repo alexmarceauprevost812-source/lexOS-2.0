@@ -173,5 +173,74 @@ else
 	non "« hicolor » absent : les icônes propres aux applications seraient perdues"
 fi
 
+# =============================================================================
+titre "5. Le disque dur porte le dessin de LexOS, pas celui de Papirus"
+# =============================================================================
+#  ALEX, PHOTO DU DOCK : le disque dur est une icône générique grise et bleue
+#  au milieu des poches orange de LexOS. Le thème ne redéfinissait que les
+#  dossiers ; le disque était hérité — exactement comme le Bureau l'était
+#  avant qu'on ne trouve « user-desktop ».
+DEV="$THEME/devices/scalable"
+
+#  LES NOMS SONT CEUX DE GIO, RELEVÉS DANS SON BINAIRE — c'est GIO qui nomme
+#  l'icône d'un volume monté, et c'est lui que Plank, Thunar et le bureau
+#  interrogent. Les autres écritures viennent des thèmes installés.
+MANQUE=""
+for N in drive-harddisk drive-harddisk-system drive-harddisk-scsi \
+         drive-harddisk-ieee1394 drive-multidisk harddisk \
+         drive-removable-media drive-removable-media-usb \
+         drive-removable-media-ieee1394 drive-harddisk-usb media-removable; do
+	#  « -r » SUIT LE LIEN : un alias cassé répond non, et c'est voulu — un
+	#  lien qui pointe dans le vide a l'air présent et ne l'est pas. C'est la
+	#  faute que ce banc a déjà attrapée une fois, dans places/.
+	[ -r "$DEV/$N.svg" ] || MANQUE="$MANQUE $N"
+done
+[ -z "$MANQUE" ] \
+	&& ok "les onze écritures du disque et des supports amovibles sont là" \
+	|| non "écritures ABSENTES ou liens cassés :$MANQUE"
+
+#  DEUX DESSINS ET NON UN. Les confondre ferait passer une clé USB pour un
+#  disque dur — et personne ne s'en apercevrait avant une photo.
+if [ -r "$DEV/drive-harddisk.svg" ] && [ -r "$DEV/drive-removable-media.svg" ]; then
+	if cmp -s "$DEV/drive-harddisk.svg" "$DEV/drive-removable-media.svg"; then
+		non "le disque et la clé USB sont le MÊME dessin"
+	else
+		ok "le disque interne et les supports amovibles ont chacun leur dessin"
+	fi
+fi
+
+#  ET CE SONT BIEN LES DESSINS DE LexOS, pas des copies qui ont divergé.
+for PAIRE in "drive-harddisk:icon-disque" "drive-removable-media:icon-usb"; do
+	CIBLE="$DEV/${PAIRE%%:*}.svg"; SRC="$RACINE/branding/${PAIRE#*:}.svg"
+	if [ -r "$CIBLE" ] && [ -r "$SRC" ]; then
+		cmp -s "$CIBLE" "$SRC" \
+			&& ok "${PAIRE%%:*} est bien ${PAIRE#*:}.svg, au fichier près" \
+			|| non "${PAIRE%%:*} a divergé de branding/${PAIRE#*:}.svg"
+	else
+		non "${PAIRE%%:*} ou branding/${PAIRE#*:}.svg est introuvable"
+	fi
+done
+
+#  ON NE DÉTOURNE PAS LES « -symbolic ». Ce sont des traits monochromes pour
+#  les barres d'outils : y poser un dessin en couleur ferait une tache dans
+#  une rangée d'icônes au trait. Et « drive-optical » est un disque OPTIQUE,
+#  pas un disque dur — l'héritage fait mieux que nous.
+INTRUS=""
+for N in "$DEV"/*-symbolic.svg "$DEV"/drive-optical*.svg; do
+	[ -e "$N" ] && INTRUS="$INTRUS $(basename "$N")"
+done
+[ -z "$INTRUS" ] \
+	&& ok "aucun « -symbolic » ni « drive-optical » détourné — l'héritage les garde" \
+	|| non "dessins en couleur posés là où il faut du trait :$INTRUS"
+
+#  ET LE HOOK LES REND EN PNG. Un SVG seul a besoin de librsvg branché dans
+#  gdk-pixbuf ; c'est précisément ce qui a manqué pendant trois ISO.
+HOOK="$RACINE/config/hooks/normal/0605-lexos-icones.hook.chroot"
+if sed 's/#.*$//' "$HOOK" | grep -q "for CAT in apps devices"; then
+	ok "le hook 0605 rend aussi les PNG de « devices »"
+else
+	non "le hook ne rend pas les PNG des périphériques — le SVG seul peut ne pas s'afficher"
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$reussis" "$echoues"
 [[ "$echoues" -eq 0 ]]
