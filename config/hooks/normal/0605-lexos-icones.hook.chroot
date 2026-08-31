@@ -105,6 +105,32 @@ else
 	dire "tous les noms que GTK réclame pour un dossier sont présents"
 fi
 
+#  ─── ET LES PÉRIPHÉRIQUES ──────────────────────────────────────────────────
+#  ALEX, PHOTO DU DOCK : le disque dur porte l'icône générique grise et bleue
+#  de Papirus, au milieu des poches orange de LexOS. Le thème ne redéfinissait
+#  que les dossiers ; tout le reste était hérité, disque compris.
+#
+#  LES NOMS NE SONT PAS DEVINÉS. « drive-harddisk » et « drive-removable-
+#  media » sont relevés dans le binaire de GIO lui-même (c'est GIO qui nomme
+#  l'icône d'un volume monté) ; les autres viennent des thèmes installés, qui
+#  suivent ce que les applications demandent.
+#
+#  PAS LES « -symbolic » : ce sont des traits monochromes pour les barres
+#  d'outils. Y poser un dessin en couleur ferait une tache dans une rangée
+#  d'icônes au trait. Pas « drive-optical » non plus : un disque optique n'est
+#  pas un disque dur, et LexOS n'a pas de dessin pour ça.
+DEV="$THEME/devices/scalable"
+MANQUE_DEV=""
+for N in drive-harddisk drive-harddisk-system drive-harddisk-usb \
+         drive-removable-media media-removable drive-multidisk; do
+	[ -r "$DEV/$N.svg" ] || MANQUE_DEV="$MANQUE_DEV $N"
+done
+if [ -n "$MANQUE_DEV" ]; then
+	dire "!! noms de périphériques réclamés et ABSENTS :$MANQUE_DEV"
+else
+	dire "le disque dur et les supports amovibles portent le dessin de LexOS"
+fi
+
 #  ─── LES PNG, PARCE QU'ILS NE DEMANDENT AUCUN MOTEUR ────────────────────────
 #  Un SVG a besoin de librsvg branché dans gdk-pixbuf. Un PNG, non. Si c'est là
 #  que ça cassait depuis trois ISO, ceci le répare ; si ce n'est pas là, ceci
@@ -130,21 +156,25 @@ else
 	done
 	dire "$RENDUS PNG rendus sur 8 tailles, $ECHECS échec(s)"
 
-	#  Les icônes d'application (le lanceur Fichiers) suivent le même chemin.
-	if [ -d "$THEME/apps/scalable" ]; then
+	#  Les icônes d'application (le lanceur Fichiers) et de PÉRIPHÉRIQUE (le
+	#  disque dur) suivent le même chemin. Une seule boucle pour les deux :
+	#  celle des applications était déjà une copie de celle des dossiers, une
+	#  troisième copie aurait fini par oublier ce que les deux autres savent.
+	for CAT in apps devices; do
+		[ -d "$THEME/$CAT/scalable" ] || continue
 		A_RENDUS=0
 		for T in $TAILLES; do
-			mkdir -p "$THEME/apps/${T}x${T}"
-			for f in "$THEME/apps/scalable"/*.svg; do
+			mkdir -p "$THEME/$CAT/${T}x${T}"
+			for f in "$THEME/$CAT/scalable"/*.svg; do
 				[ -r "$f" ] || continue
 				B="$(basename "$f" .svg)"
 				rsvg-convert -w "$T" -h "$T" \
-					-o "$THEME/apps/${T}x${T}/${B}.png" "$f" 2>/dev/null \
+					-o "$THEME/$CAT/${T}x${T}/${B}.png" "$f" 2>/dev/null \
 					&& A_RENDUS=$((A_RENDUS + 1))
 			done
 		done
-		dire "$A_RENDUS PNG rendus pour les icônes d'application"
-	fi
+		dire "$A_RENDUS PNG rendus pour les icônes « $CAT »"
+	done
 fi
 
 #  ─── index.theme RÉÉCRIT D'APRÈS CE QUI EXISTE ──────────────────────────────
@@ -152,7 +182,7 @@ fi
 #  absent, ou qui oublie un dossier présent, est ignoré en partie — sans rien
 #  dire. On énumère donc le disque.
 DIRS=""
-for d in "$THEME"/places/* "$THEME"/apps/*; do
+for d in "$THEME"/places/* "$THEME"/apps/* "$THEME"/devices/*; do
 	[ -d "$d" ] || continue
 	#  Un dossier vide ne compte pas : le déclarer ferait chercher GTK pour rien.
 	set -- "$d"/*
@@ -167,13 +197,18 @@ done
 	echo "Comment=Les dossiers de LexOS, hérité de Papirus pour tout le reste"
 	echo "Inherits=Papirus-Dark,Papirus,Adwaita,hicolor"
 	echo "Directories=$DIRS"
-	for d in "$THEME"/places/* "$THEME"/apps/*; do
+	for d in "$THEME"/places/* "$THEME"/apps/* "$THEME"/devices/*; do
 		[ -d "$d" ] || continue
 		set -- "$d"/*
 		[ -e "$1" ] || continue
 		REL="${d#"$THEME"/}"
+		#  Un mauvais contexte n'empêche pas la recherche, mais fausse les
+		#  outils qui trient les icônes par catégorie — et surtout, il ment.
 		CTX="Places"
-		case "$REL" in apps/*) CTX="Applications" ;; esac
+		case "$REL" in
+			apps/*)    CTX="Applications" ;;
+			devices/*) CTX="Devices" ;;
+		esac
 		TAILLE="${REL##*/}"
 		echo ""
 		echo "[$REL]"
