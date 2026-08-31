@@ -979,6 +979,23 @@ menu, .menu, .context-menu, popover.menu {
     border-radius: 8px;
 }
 
+/* --- Infobulles ----------------------------------------------------------- */
+/*  DITE EXPRÈS, ET C'EST NEUF. Cette feuille n'avait AUCUNE règle
+    d'infobulle : le noir venait par accident de la règle des fonds, qui
+    liste « .background » — et une infobulle porte cette classe. Ça marchait
+    tant que la feuille gagnait par PRIORITÉ.
+
+    Mesuré au moment de la descendre au rang de thème : c'était la SEULE des
+    dix-sept couleurs éprouvées à changer (#000000 → #4B5162, le gris-bleu
+    d'Arc), parce qu'« tooltip.background » d'Arc est plus spécifique que
+    notre « .background » nu. Une couleur obtenue par accident est une
+    couleur qu'on perd sans le voir. On l'écrit donc, à la spécificité
+    d'Arc — à égalité, c'est la nôtre qui passe, puisqu'elle vient après. */
+tooltip.background, tooltip.background label {
+    background-color: ${BG};
+    color: ${FG};
+}
+
 /* --- Terminal XFCE : toujours noir + vert foncé, même en thème de jour --- */
 terminal-window, vte-terminal { background-color: ${TERM_BG}; color: ${TERM_FG}; }
 
@@ -994,6 +1011,113 @@ TMP_CSS="$(mktemp "$TARGET/.config/gtk-3.0/gtk.css.XXXXXX")" \
 	&& gen_gtk_css > "$TMP_CSS" && mv -f "$TMP_CSS" "$TARGET/.config/gtk-3.0/gtk.css"
 TMP_CSS="$(mktemp "$TARGET/.config/gtk-4.0/gtk.css.XXXXXX")" \
 	&& gen_gtk_css > "$TMP_CSS" && mv -f "$TMP_CSS" "$TARGET/.config/gtk-4.0/gtk.css"
+
+# =============================================================================
+#  1 bis. LE MÊME STYLE, MAIS COMME UN VRAI THÈME
+# =============================================================================
+#  ALEX : « les thèmes des applications, on peut-tu faire que ça soit pas trop
+#  compliqué et que ça reste tout officiel normal, pour pas avoir à changer
+#  les couleurs et tout le kit sur chaque appli ».
+#
+#  ═══ POURQUOI IL A RAISON, ET CE QUE ÇA A DÉJÀ COÛTÉ ═══
+#  Ce que LexOS écrit juste au-dessus part dans ~/.config/gtk-3.0/gtk.css. Or
+#  GTK charge CE fichier-là en priorité UTILISATEUR — la plus forte qui
+#  existe. Il n'écrase pas seulement le thème de base : il écrase AUSSI
+#  chaque application par-dessus. D'où, dans le seul mois écoulé :
+#
+#    · l'icône du bureau peinte en NOIR alors que xfdesktop la veut
+#      transparente (règle « .view », attrapée au passage) ;
+#    · le dossier choisi dans Thunar réduit à une silhouette noire, même
+#      cause, autre application ;
+#    · la Logithèque en GTK4 qui ignorait tout et qu'il a fallu convaincre
+#      par un réglage à part.
+#
+#  Chaque fois : une règle sur mesure pour CETTE application. C'est le « kit
+#  sur chaque appli », et il grandit à chaque ISO.
+#
+#  ═══ CE QU'ON POSE, ET COMMENT ON L'A ÉPROUVÉ ═══
+#  Un vrai thème, dans ~/.themes/LexOS-Noir. GTK le charge alors en priorité
+#  THÈME : SOUS les applications au lieu de par-dessus. Elles gardent leur
+#  dessin, on arrête de se battre.
+#
+#  LE PIÈGE, MESURÉ SUR UN VRAI GTK 3.24 AVANT D'ÉCRIRE UNE LIGNE : le
+#  gtk.css d'Arc-Dark n'est PAS une feuille de style. C'est une seule ligne
+#  qui pointe vers une ressource COMPILÉE (gtk.gresource), enregistrée par
+#  GTK uniquement quand il charge Arc PAR SON NOM. Un thème qui se
+#  contenterait d'importer ce fichier par son chemin obtient :
+#
+#      « Failed to import: The resource … does not exist »
+#      window #123456 · headerbar TRANSPARENT · sélection TRANSPARENTE
+#
+#  — c'est-à-dire un bureau NU, sans en-tête ni sélection, et l'avertissement
+#  se perd dans le journal. Avec la ressource posée à côté de notre gtk.css,
+#  la même feuille rend window #383C4A, headerbar #2F343F, sélection #5294E2 :
+#  toute la couverture d'Arc, retrouvée.
+#
+#  UN LIEN ET NON UNE COPIE : 380 kio de moins, aucune question de
+#  redistribution, et si arc-theme disparaît le lien casse BRUYAMMENT au lieu
+#  de nous laisser croire que tout va bien.
+#
+#  ON NE DEVINE PAS L'ADRESSE DE LA RESSOURCE. Elle vaut « resource:///org/
+#  gnome/arc-theme/… » pour Arc, autre chose pour un thème de repli. On
+#  RECOPIE donc les lignes d'import du thème de base, telles qu'elles sont
+#  écrites chez lui.
+#
+#  ═══ CE QUE CETTE ÉTAPE NE FAIT PAS ═══
+#  Elle ne change RIEN à l'écran, et c'est voulu : ~/.config/gtk-3.0/gtk.css
+#  reste en place et garde la priorité. Le thème est posé, chargé, éprouvable
+#  — mais tant qu'on n'a pas mesuré, règle par règle, ce qui continue de
+#  gagner une fois descendu au rang de thème, on ne retire rien. Une règle
+#  qui gagnait par PRIORITÉ ne gagne plus que par SPÉCIFICITÉ.
+THEME_NOM="LexOS-Noir"
+THEME_DIR="$TARGET/.themes/$THEME_NOM"
+BASE_DIR="${LEXOS_THEMES_SYS:-/usr/share/themes}/${LEXOS_GTK_BASE:-Arc-Dark}"
+
+gen_theme() {
+	local v="$1"                      # « gtk-3.0 » ou « gtk-4.0 »
+	local dst="$THEME_DIR/$v"
+	local src="$BASE_DIR/$v"
+	mkdir -p "$dst"
+
+	#  La ressource compilée du thème de base, posée À CÔTÉ de notre feuille :
+	#  c'est ce qui rend son adresse « resource:// » résoluble.
+	rm -f "$dst/gtk.gresource"
+	if [[ -r "$src/gtk.gresource" ]]; then
+		ln -s "$src/gtk.gresource" "$dst/gtk.gresource"
+	fi
+
+	{
+		printf '/* LexOS Noir — thème GTK, généré par lexos-theme-gen.
+'
+		printf '   Ne pas éditer : sera écrasé à chaque « lexos accent … ». */
+'
+		#  Les lignes d'import du thème de base, RECOPIÉES telles quelles.
+		if [[ -r "$src/gtk.css" ]]; then
+			grep -E '^[[:space:]]*@import' "$src/gtk.css" || true
+		fi
+		printf '
+'
+		gen_gtk_css
+	} > "$dst/gtk.css.tmp" && mv -f "$dst/gtk.css.tmp" "$dst/gtk.css"
+}
+
+mkdir -p "$THEME_DIR"
+gen_theme gtk-3.0
+gen_theme gtk-4.0
+cat > "$THEME_DIR/index.theme" <<EOF
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=${THEME_NOM}
+Comment=LexOS Noir — le noir de LexOS, l'accent ${ACCENT_NAME}
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=${THEME_NOM}
+MetacityTheme=${LEXOS_GTK_BASE:-Arc-Dark}
+IconTheme=LexOS
+CursorTheme=DMZ-Black
+ButtonLayout=menu:minimize,maximize,close
+EOF
 
 # =============================================================================
 #  2. GTK 2 (vieilles applications)

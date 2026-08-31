@@ -63,6 +63,11 @@ fi
 
 #  Les bordures de fenêtre sont un thème à part (xfwm4). Arc-Dark en fournit
 #  un ; les thèmes de repli pas toujours. « Default » est livré avec xfwm4.
+#  Les bordures de fenêtre restent celles du thème de BASE : LexOS-Noir est
+#  une feuille de style, il ne fournit pas de xfwm4. Cette ligne est calculée
+#  AVANT que GTK_BASE ne devienne « LexOS-Noir », plus bas — sans quoi on
+#  chercherait « /usr/share/themes/LexOS-Noir/xfwm4 », qui n'existe pas, et
+#  toutes les fenêtres retomberaient sur les bordures grises de « Default ».
 XFWM_THEME="$GTK_BASE"
 [ -d "/usr/share/themes/${XFWM_THEME}/xfwm4" ] || XFWM_THEME="Default"
 
@@ -83,6 +88,35 @@ if [ -x /usr/bin/lexos-theme-gen ]; then
 		--terminal "$TERM_MODE" --target /root >/dev/null 2>&1 || true
 else
 	echo "[lexos]   !! lexos-theme-gen absent"
+fi
+
+# --- LexOS-Noir : le style devient un VRAI THÈME ---------------------------
+#  ALEX : « les thèmes des applications, on peut-tu faire que ça soit pas trop
+#  compliqué et que ça reste tout officiel normal, pour pas avoir à changer
+#  les couleurs et tout le kit sur chaque appli ».
+#
+#  Le style de LexOS partait dans ~/.config/gtk-3.0/gtk.css, que GTK charge en
+#  priorité UTILISATEUR : il écrasait le thème de base ET chaque application
+#  par-dessus. D'où les correctifs sur mesure, application par application.
+#  lexos-theme-gen écrit maintenant le MÊME style dans ~/.themes/LexOS-Noir,
+#  que GTK charge en priorité THÈME — sous les applications, pas dessus.
+#
+#  ON NE DÉCLARE LE THÈME QUE S'IL EST RÉELLEMENT LÀ. Même règle que pour
+#  Arc-Dark vingt lignes plus haut, et pour la même raison : écrire un nom de
+#  thème introuvable donne un bureau CLAIR par défaut, sans qu'une seule ligne
+#  du journal ne le signale. On vérifie le fichier, pas l'intention.
+#
+#  CETTE ÉTAPE NE CHANGE RIEN À L'ÉCRAN, et c'est voulu :
+#  ~/.config/gtk-3.0/gtk.css reste en place et garde la priorité. Mesuré sur
+#  un vrai GTK 3.24, dix-huit couleurs relevées dans les deux montages : zéro
+#  différence. Le thème est posé et chargé ; on ne retirera la feuille
+#  utilisateur qu'à l'étape suivante, une fois cette égalité tenue par un banc.
+THEME_LEXOS="LexOS-Noir"
+if [ -r "/etc/skel/.themes/${THEME_LEXOS}/gtk-3.0/gtk.css" ]; then
+	GTK_BASE="$THEME_LEXOS"
+	echo "[lexos]   thème LexOS-Noir posé — GTK le chargera par son nom"
+else
+	echo "[lexos]   !! ~/.themes/${THEME_LEXOS} absent — on reste sur ${GTK_BASE}"
 fi
 
 # --- Réglages GTK système ----------------------------------------------------
