@@ -1522,6 +1522,24 @@ jobs:
           done
           bash tests/test_lexos_navigateur.sh
 
+      - name: Les applications Qt suivent le sombre, sans un kit chacune
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « pour pas avoir à changer les couleurs et tout le kit sur
+          #  chaque appli ». LexOS embarque SEPT applications Qt et rien ne
+          #  leur disait de suivre le thème : elles s'ouvraient BLANCHES.
+          #
+          #  CE BANC MESURE, IL NE LIT PAS UNE VARIABLE. Vérifier la présence
+          #  de « QT_QPA_PLATFORMTHEME=gtk3 » aurait été VERT sur un bureau
+          #  resté blanc : ce greffon est bien chargé, mais celui de Qt5
+          #  fournit les dialogues et les polices, PAS la palette. Seul le
+          #  pixel tranche, et il tranche sur le vrai flameshot.
+          for p in xvfb imagemagick python3-pil adwaita-qt flameshot; do
+            dpkg -s "$p" >/dev/null 2>&1 \
+              || sudo apt-get install -y --no-install-recommends "$p" >/dev/null
+          done
+          bash tests/test_lexos_qt.sh
+
       - name: LexOS-Noir — le style devient un vrai thème, sans rien changer à l'écran
         if: ${{ !cancelled() }}
         run: |

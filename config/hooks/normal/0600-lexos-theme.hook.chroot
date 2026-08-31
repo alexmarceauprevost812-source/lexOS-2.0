@@ -119,6 +119,47 @@ else
 	echo "[lexos]   !! ~/.themes/${THEME_LEXOS} absent — on reste sur ${GTK_BASE}"
 fi
 
+# --- Les applications Qt suivent, elles aussi -------------------------------
+#  ALEX : « pour pas avoir a changer les couleurs et tout le kit sur chaque
+#  appli ». LexOS embarque sept applications Qt (audacity, flameshot,
+#  kdenlive, keepassxc, krita, scribus, vlc) et rien ne leur disait de suivre
+#  le theme : elles s'ouvraient BLANCHES au milieu d'un bureau noir.
+#
+#  DEUX VARIABLES, DEUX ROLES — mesure sur le vrai flameshot sous Xvfb :
+#     rien ............................ fond #FBFBFB (blanc)
+#     QT_QPA_PLATFORMTHEME=gtk3 ....... fond #FBFBFB (blanc)
+#     QT_STYLE_OVERRIDE=Adwaita-Dark .. fond #303030 (sombre)
+#
+#  Le greffon gtk3 EST bien charge — verifie avec QT_DEBUG_PLUGINS — mais
+#  celui de Qt5 fournit les dialogues, les polices et les icones, PAS la
+#  palette. C'est le STYLE qui peint. On garde les deux : la couleur d'un
+#  cote, les fenetres « ouvrir un fichier » du systeme de l'autre.
+#
+#  /etc/environment ET PAS profile.d : profile.d n'est lu que par un shell de
+#  CONNEXION. Une application lancee depuis le dock n'en voit rien.
+#  /etc/environment est lu par PAM, donc par toute session graphique — c'est
+#  le chemin officiel, et le seul qui couvre le cas reel.
+#
+#  ON AJOUTE, ON NE REECRIT PAS : Debian y met PATH. Et on ne le fait qu'une
+#  fois — un hook rejoue ne doit pas empiler dix lignes identiques.
+ENVF="${LEXOS_ENVIRONMENT:-/etc/environment}"
+touch "$ENVF"
+if ! grep -q "^QT_STYLE_OVERRIDE=" "$ENVF" 2>/dev/null; then
+	{
+		echo "# LexOS : les applications Qt suivent le sombre (voir hook 0600)."
+		echo "QT_QPA_PLATFORMTHEME=gtk3"
+		echo "QT_STYLE_OVERRIDE=Adwaita-Dark"
+	} >> "$ENVF"
+	echo "[lexos]   Qt : style sombre + dialogues GTK posés dans $ENVF"
+else
+	echo "[lexos]   Qt : $ENVF porte déjà le réglage"
+fi
+#  CE QUE ÇA NE FAIT PAS : suivre le thème de JOUR. /etc/environment est
+#  ecrit par root a la construction ; lexos-theme-gen n'ecrit que dans le
+#  dossier de l'utilisateur et ne peut pas y toucher. Les applications Qt
+#  restent donc sombres meme en theme de jour — meme limite que la politique
+#  de couleur du navigateur, et pour la meme raison. C'est assume.
+
 # --- Réglages GTK système ----------------------------------------------------
 mkdir -p /etc/gtk-3.0
 cat > /etc/gtk-3.0/settings.ini <<EOF

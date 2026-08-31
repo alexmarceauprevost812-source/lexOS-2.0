@@ -90,6 +90,30 @@ printer-driver-all
 firefox-esr-l10n-fr
 chromium
 chromium-l10n
+
+# --- Les applications Qt suivent le sombre, sans un kit par appli -----------
+#  ALEX : « pour pas avoir a changer les couleurs et tout le kit sur chaque
+#  appli ». LexOS embarque SEPT applications Qt — audacity, flameshot,
+#  kdenlive, keepassxc, krita, scribus, vlc — et RIEN ne leur disait de suivre
+#  le theme. Elles s'ouvraient blanches au milieu d'un bureau noir.
+#
+#  DEUX REGLAGES, ET ILS NE FONT PAS LA MEME CHOSE. Mesure sur le vrai
+#  flameshot sous Xvfb, fond de sa fenetre releve :
+#
+#     rien ............................... #FBFBFB  (blanc)
+#     QT_QPA_PLATFORMTHEME=gtk3 .......... #FBFBFB  (blanc — le greffon EST
+#                                          charge, verifie ; mais celui de
+#                                          Qt5 fournit les dialogues, les
+#                                          polices et les icones, PAS la
+#                                          palette)
+#     QT_STYLE_OVERRIDE=Adwaita-Dark ..... #303030  (sombre)
+#
+#  On garde les DEUX : le style pour la couleur, le greffon GTK pour que les
+#  fenetres « ouvrir un fichier » soient celles du systeme et non celles de Qt.
+adwaita-qt
+adwaita-qt6
+qt5-gtk-platformtheme
+qt6-gtk-platformtheme
 mousepad
 ristretto
 xarchiver
