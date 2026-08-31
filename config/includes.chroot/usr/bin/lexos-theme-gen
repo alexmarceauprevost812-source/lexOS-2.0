@@ -62,11 +62,13 @@ case "${MODE,,}" in
 esac
 
 # --- Mode du TERMINAL : suivre le bureau, ou épinglé jour / nuit -------------
-#  DEMANDE D'ALEX : « je veux que ce qu'on tape au terminal soit couleur
-#  orange ». C'est le rôle de TERM_SAISIE plus bas — et c'est PS1 qui le
-#  porte : l'invite se termine par cette couleur, PS0 la remet à zéro quand
-#  on appuie sur Entrée. Résultat : la frappe est orange, la SORTIE de la
-#  commande ne l'est pas. Sans PS0, tout l'écran deviendrait orange.
+#  DEMANDE D'ALEX, DEUXIÈME VERSION : « écriture blanc pour écriture de
+#  utilisateur, vert pour lexos ». (La première disait « orange » ; c'est
+#  celle-ci qui vaut.) C'est le rôle de TERM_TEXTE plus bas — et c'est PS1
+#  qui le porte : l'invite se termine par cette couleur SANS la refermer,
+#  PS0 la remet à zéro quand on appuie sur Entrée. Résultat : la frappe est
+#  blanche, la SORTIE de la commande ne l'est pas. Sans PS0, tout l'écran
+#  deviendrait blanc.
 #
 #  « auto » n'est PAS résolu ici : c'est lexos-terminal qui connaît l'heure
 #  et l'horaire choisi, et qui rappelle ce script avec jour ou nuit. Si le
@@ -181,14 +183,25 @@ DANGER_FG="$(texte_lisible "$DANGER")"
 #     TERM_BG        le fond
 #     TERM_FG        le vert de la MACHINE — ce qu'elle répond
 #     TERM_FG_HI     le même en gras
-#     TERM_SAISIE    l'orange de CE QUE VOUS TAPEZ
+#     TERM_SAISIE    l'orange de l'ACCENT dans le terminal (curseur,
+#                    sélection, onglet actif) — PAS l'invite
+#     TERM_TEXTE     l'encre de CE QUE VOUS TAPEZ (blanche de nuit)
 #     TERM_ERREUR    le rouge de l'échec
 #     TERM_DIM       le gris des détails (branche git)
 #     TERM_CURSEUR   le curseur
 #
 #  LA RÈGLE DE COULEUR NE CHANGE PAS d'un mode à l'autre — vert = la machine,
-#  orange = vous, rouge = l'échec. Le jour n'est pas une autre identité, c'est
-#  la même règle retranscrite pour un fond clair.
+#  blanc = vous, rouge = l'échec. Le jour n'est pas une autre identité, c'est
+#  la même règle retranscrite pour un fond clair : le « blanc » de nuit y
+#  devient l'encre foncée, sans quoi la frappe disparaîtrait sur le crème.
+#
+#  ALEX, PHOTO DU TERMINAL : « écriture blanc pour écriture de utilisateur,
+#  vert pour lexos ». L'invite était orange sur son chemin et sur son
+#  chevron, et la frappe héritait de cet orange. Désormais TOUT ce que la
+#  machine écrit est vert (le nom, la machine, le chemin, le chevron) et
+#  TOUT ce qu'on tape est blanc. L'orange n'a pas disparu du terminal pour
+#  autant : il reste le curseur, la sélection et l'onglet actif — c'est
+#  TERM_SAISIE, qui ne touche plus à l'invite.
 #
 #  LES CONTRASTES SONT MESURÉS, PAS ESTIMÉS (WCAG, sur leur propre fond) :
 #     nuit  : vert 7,30 · orange 5,87 · rouge 5,37
@@ -212,6 +225,10 @@ if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	TERM_FG="#0B6B3A"
 	TERM_FG_HI="#084F2B"
 	TERM_SAISIE="$ACCENT_LO"
+	#  L'encre de la frappe. Le « blanc » de nuit n'a pas de sens sur du
+	#  crème : on prend le noir de la palette claire (#1B1A17, sa couleur
+	#  0), qui donne 15,9:1 sur ce fond — mesuré, pas estimé.
+	TERM_TEXTE="#1B1A17"
 	TERM_ERREUR="#B3261E"
 	TERM_DIM="#6B675E"
 	TERM_CURSEUR="$ACCENT_LO"
@@ -239,6 +256,10 @@ else
 	TERM_FG="#00D700"
 	TERM_FG_HI="#00FF5F"
 	TERM_SAISIE="$ACCENT"
+	#  Le blanc demandé, franc : 21:1 sur le noir. C'est aussi la couleur
+	#  15 de TERM_PALETTE (le « blanc brillant ») — une seule valeur pour
+	#  la frappe et pour le blanc du terminal, pas deux libres de diverger.
+	TERM_TEXTE="#FFFFFF"
 	TERM_ERREUR="#E5484D"
 	TERM_DIM="#8A8A90"
 	TERM_CURSEUR="$ACCENT"
@@ -391,6 +412,74 @@ list, listbox, .view, textview,
 treeview.view, iconview, assistant, messagedialog {
     background-color: ${BG};
     color: ${FG};
+}
+
+/* --- LE BUREAU N'EST PAS UNE FENETRE ------------------------------------ */
+/*  ALEX, DEUX PHOTOS : « quand je clique sur le bouton droit de la souris,
+    il devient tout noir ». Une icone du bureau choisie porte une tuile
+    orange ; des que le menu du clic droit s'ouvre, la tuile disparait dans
+    le noir et il ne reste que le libelle.
+
+    ═══ LA CAUSE, RELEVEE DANS LE BINAIRE DE XFDESKTOP ═══
+    xfdesktop embarque SA feuille de style, qu'on a lue dans le binaire
+    (« strings /usr/bin/xfdesktop ») plutot que devinee :
+
+        XfdesktopIconView.view          { background: transparent; … }
+        XfdesktopIconView.view:active   { background: alpha(@theme_selected_bg_color, 0.5); }
+
+    Sa vue est donc TRANSPARENTE au repos — c'est ce qui laisse voir le fond
+    d'ecran entre les icones — et la tuile choisie est l'accent a moitie.
+
+    Or ce noeud porte la classe « view », et la regle juste au-dessus liste
+    « .view » parmi tout ce qui doit etre noir. Notre feuille est chargee en
+    priorite UTILISATEUR, celle de xfdesktop en priorite APPLICATION : la
+    notre gagne, sur TOUS les etats. Mesure sur un vrai GTK 3.24, les deux
+    feuilles chargees a leurs vraies priorites :
+
+        XfdesktopIconView.view  au repos ............ #000000 a=1,00
+        XfdesktopIconView.view  choisie (:active) ... #000000 a=1,00
+        XfdesktopIconView.view  choisie + backdrop .. #000000 a=1,00
+
+    Un noir OPAQUE la ou xfdesktop veut du transparent. C'est le meme defaut
+    que le rectangle de selection de Thunar, rejoue sur le bureau : une regle
+    ecrite pour les listes qui attrape au passage un noeud qui n'en est pas
+    une.
+
+    ═══ CE QU'ON ECRIT A LA PLACE ═══
+    On rend la vue transparente — c'est le bureau, on doit voir le fond
+    d'ecran — et on dit NOUS-MEMES la couleur de la tuile choisie, dans les
+    QUATRE etats ou elle peut se trouver. « :active » et « :selected » parce
+    que xfdesktop emploie l'un ou l'autre selon sa version ; « :backdrop »
+    parce que c'est exactement l'etat dans lequel le bureau passe quand le
+    menu du clic droit s'ouvre — et une regle qui oublie le backdrop est une
+    regle qui s'eteint des qu'on clique ailleurs.
+
+    L'accent PLEIN et non a moitie : a 50 % sur un fond d'ecran sombre, la
+    tuile de xfdesktop rend un orange eteint. Alex la voit orange vif sur sa
+    photo, et c'est ce qu'on garde. */
+XfdesktopIconView,
+XfdesktopIconView.view {
+    background-color: transparent;
+}
+XfdesktopIconView.view:active,
+XfdesktopIconView.view:active:backdrop,
+XfdesktopIconView.view:active:hover,
+XfdesktopIconView.view:selected,
+XfdesktopIconView.view:selected:backdrop,
+XfdesktopIconView.view:selected:hover {
+    background-color: ${ACCENT};
+    color: ${BTN_FG};
+    border-radius: 8px;
+}
+XfdesktopIconView.view .label:active,
+XfdesktopIconView.view .label:active:backdrop,
+XfdesktopIconView.view .label:selected,
+XfdesktopIconView.view .label:selected:backdrop {
+    color: ${BTN_FG};
+}
+XfdesktopIconView .rubberband {
+    background-color: alpha(${ACCENT}, 0.20);
+    border: 1px solid ${ACCENT};
 }
 
 /*  LES NŒUDS DE MISE EN PAGE NE PEIGNENT RIEN. Ils gardent la couleur de
@@ -615,18 +704,27 @@ entry:focus, spinbutton:focus {
     border-color: ${ACCENT};
     box-shadow: inset 0 0 0 1px ${ACCENT};
 }
-/*  DEUX REGLES ET NON UNE, ET C'EST TOUTE LA DIFFERENCE. Elles etaient
-    ecrites « selection, ::selection { … } ». Or « ::selection » n'est pas un
-    pseudo-element que GTK3 connait — et selon la regle du CSS, un selecteur
-    invalide dans une liste invalide la REGLE ENTIERE. Le « selection » nu,
-    lui, est un vrai noeud GTK3 depuis la 3.20 ; il partait a la poubelle avec
-    l'autre, et la selection de texte restait BLEUE, celle d'Arc-Dark.
-    Separees, la premiere s'applique et la seconde est ignoree toute seule. */
+/*  UNE SEULE REGLE, ET « ::selection » A ETE RETIRE.
+    Elles etaient ecrites « selection, ::selection { … } » : un selecteur
+    invalide dans une liste invalide la REGLE ENTIERE, et la selection de
+    texte restait BLEUE, celle d'Arc-Dark. On les avait donc separees, en
+    laissant « ::selection » de cote « ignore tout seul ».
+
+    IL N'ETAIT PAS IGNORE TOUT SEUL. Mesure sur un vrai GTK 3.24 :
+    gtk_css_provider_load_from_path() a deux comportements selon que
+    l'appelant demande l'erreur ou non. Sans pointeur d'erreur (le cas de
+    GTK quand il lit ~/.config/gtk-3.0/gtk.css), il ecrit un
+    avertissement et garde le reste. AVEC pointeur d'erreur, il REMET LA
+    FEUILLE A ZERO : tout le theme de LexOS disparait, y compris les
+    regles ECRITES AVANT. Mesure : la couleur de « window » retombait au
+    #F6F5F4 d'Adwaita au lieu du noir.
+
+    Autrement dit, ce bloc ne servait a rien (GTK3 comme GTK4 emploient le
+    noeud « selection », jamais « ::selection ») et il posait une mine
+    sous chaque outil qui lit notre feuille en demandant les erreurs — un
+    banc d'essai, par exemple. Il salissait aussi la sortie de chaque
+    application GTK : « Theme parsing error: gtk.css:603:1 ». */
 selection {
-    background-color: ${ACCENT};
-    color: ${BTN_FG};
-}
-::selection {
     background-color: ${ACCENT};
     color: ${BTN_FG};
 }
@@ -1056,11 +1154,11 @@ ansi_vrai() { printf '38;2;%d;%d;%d' "$((16#${1:1:2}))" "$((16#${1:3:2}))" "$((1
 
 if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	PS_MACHINE_256="38;5;22"    # vert foncé
-	PS_SAISIE_256="38;5;94"     # brun-orange foncé
+	PS_TEXTE_256="38;5;234"     # #1C1C1C, le plus proche de #1B1A17
 	PS_ERREUR_256="1;38;5;88"   # rouge foncé
 else
 	PS_MACHINE_256="38;5;40"    # exactement #00D700, voir la section terminal plus haut
-	PS_SAISIE_256="38;5;208"
+	PS_TEXTE_256="38;5;15"      # le blanc brillant de la palette
 	PS_ERREUR_256="1;38;5;196"
 fi
 
@@ -1075,11 +1173,11 @@ LEXOS_TERM_BG=${TERM_BG}
 LEXOS_TERM_FG=${TERM_FG}
 LEXOS_TERM_CURSEUR=${TERM_CURSEUR}
 LEXOS_PS_MACHINE='$(ansi_vrai "$TERM_FG")'
-LEXOS_PS_SAISIE='$(ansi_vrai "$TERM_SAISIE")'
+LEXOS_PS_TEXTE='$(ansi_vrai "$TERM_TEXTE")'
 LEXOS_PS_ERREUR='1;$(ansi_vrai "$TERM_ERREUR")'
 LEXOS_PS_DIM='$(ansi_vrai "$TERM_DIM")'
 LEXOS_PS_MACHINE_256='${PS_MACHINE_256}'
-LEXOS_PS_SAISIE_256='${PS_SAISIE_256}'
+LEXOS_PS_TEXTE_256='${PS_TEXTE_256}'
 LEXOS_PS_ERREUR_256='${PS_ERREUR_256}'
 LEXOS_PS_DIM_256='2'
 EOF

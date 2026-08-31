@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  L'icône du bureau ne doit pas s'éteindre quand on fait un clic droit
+# =============================================================================
+#  ALEX, DEUX PHOTOS : « quand je clique sur le bouton droit de la souris, il
+#  devient tout noir ». Une icône choisie sur le bureau porte une tuile
+#  orange ; dès que le menu du clic droit s'ouvre, la tuile disparaît dans le
+#  noir et il ne reste que le libellé.
+#
+#  ═══ LA CAUSE, RELEVÉE DANS LE BINAIRE DE XFDESKTOP ═══
+#  xfdesktop embarque SA feuille de style. On l'a lue dans le binaire plutôt
+#  que devinée :
+#
+#      XfdesktopIconView.view        { background: transparent; … }
+#      XfdesktopIconView.view:active { background: alpha(@theme_selected_bg_color, 0.5); }
+#
+#  Sa vue est TRANSPARENTE au repos — c'est ce qui laisse voir le fond d'écran
+#  entre les icônes. Or ce nœud porte la classe « view », et notre règle des
+#  fonds liste « .view » parmi tout ce qui doit être noir. Notre feuille est
+#  chargée en priorité UTILISATEUR, celle de xfdesktop en priorité
+#  APPLICATION : la nôtre gagnait, sur TOUS les états.
+#
+#  ═══ CE BANC MESURE, IL NE LIT PAS ═══
+#  Il ne cherche pas « XfdesktopIconView » dans le fichier — une chaîne
+#  présente ne prouve pas qu'elle l'emporte dans la cascade. Il charge les
+#  DEUX feuilles dans un vrai GTK 3.24, à leurs vraies priorités, et demande à
+#  GTK la couleur résolue du nœud dans chacun des états. C'est la seule façon
+#  de voir qui gagne.
+#
+#  Sans python3-gi ni GTK, la partie mesurée est SAUTÉE proprement — elle ne
+#  se fait pas passer pour verte.
+# =============================================================================
+set -uo pipefail
+
+RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+GEN="$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen"
+BANC="$(mktemp -d)"
+trap 'rm -rf "$BANC"' EXIT
+
+REUSSIS=0; ECHOUES=0
+ok()   { printf '  \033[32m✅\033[0m %s\n' "$1"; REUSSIS=$((REUSSIS+1)); }
+non()  { printf '  \033[31m❌\033[0m %s\n' "$1"; ECHOUES=$((ECHOUES+1)); }
+saut() { printf '  \033[33m—\033[0m  %s\n' "$1"; }
+titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
+
+mkdir -p "$BANC/t"
+LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+	bash "$GEN" --target "$BANC/t" --terminal nuit orange >"$BANC/gen.log" 2>&1
+CSS="$BANC/t/.config/gtk-3.0/gtk.css"
+[ -r "$CSS" ] || { non "aucun gtk.css produit"; exit 1; }
+
+# =============================================================================
+titre "1. La feuille est acceptée EN ENTIER par GTK"
+# =============================================================================
+#  POURQUOI CE CONTRÔLE EXISTE. La feuille contenait « ::selection », que GTK3
+#  ne connaît pas. On croyait ce bloc « ignoré tout seul ». Mesure : il ne
+#  l'était pas. gtk_css_provider_load_from_path() a DEUX comportements — sans
+#  pointeur d'erreur il avertit et garde le reste ; AVEC pointeur d'erreur il
+#  REMET LA FEUILLE À ZÉRO. Tout le thème disparaissait pour qui lisait notre
+#  feuille en demandant les erreurs, y compris les règles écrites AVANT.
+PY312=""
+for P in python3.12 python3.13 python3.11 python3; do
+	command -v "$P" >/dev/null 2>&1 || continue
+	if "$P" -c "import gi; gi.require_version('Gtk','3.0'); from gi.repository import Gtk" 2>/dev/null; then
+		PY312="$P"; break
+	fi
+done
+
+if [ -z "$PY312" ]; then
+	saut "aucun python avec GTK 3 (python3-gi + gir1.2-gtk-3.0) : rien n'a été MESURÉ"
+	saut "installer « python3-gi gir1.2-gtk-3.0 » pour éprouver ce correctif"
+else
+	cat > "$BANC/mesure.py" <<'PY'
+import sys, warnings, gi
+warnings.filterwarnings("ignore")
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, Gdk, GObject
+ecran = Gdk.Screen.get_default()
+if ecran is None:
+    print("PAS-D-ECRAN"); sys.exit(0)
+st = Gtk.Settings.get_default()
+st.set_property("gtk-theme-name", "Arc-Dark")
+st.set_property("gtk-application-prefer-dark-theme", True)
+
+#  La feuille de xfdesktop, telle qu'elle est dans SON binaire.
+xfd = Gtk.CssProvider()
+xfd.load_from_data(sys.argv[2].encode())
+Gtk.StyleContext.add_provider_for_screen(ecran, xfd, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+#  La nôtre, à la priorité où GTK lit ~/.config/gtk-3.0/gtk.css.
+notre = Gtk.CssProvider()
+try:
+    notre.load_from_path(sys.argv[1])
+    print("FEUILLE-ENTIERE")
+except Exception as e:
+    print("FEUILLE-REJETEE %s" % str(e).split("quark: ")[-1].replace("\n", " "))
+Gtk.StyleContext.add_provider_for_screen(ecran, notre, Gtk.STYLE_PROVIDER_PRIORITY_USER)
+
+def couleur(nom, classes, etat):
+    p = Gtk.WidgetPath(); p.append_type(GObject.TYPE_NONE)
+    p.iter_set_object_name(-1, nom)
+    for c in classes: p.iter_add_class(-1, c)
+    c = Gtk.StyleContext(); c.set_screen(ecran); c.set_path(p); c.set_state(etat)
+    g = c.get_background_color(etat)
+    return "#%02X%02X%02X:%.2f" % (round(g.red*255), round(g.green*255), round(g.blue*255), g.alpha)
+
+F = Gtk.StateFlags
+print("repos     " + couleur("XfdesktopIconView", ["view"], F.NORMAL))
+print("active    " + couleur("XfdesktopIconView", ["view"], F.ACTIVE))
+print("actbd     " + couleur("XfdesktopIconView", ["view"], F.ACTIVE | F.BACKDROP))
+print("selected  " + couleur("XfdesktopIconView", ["view"], F.SELECTED))
+print("selbd     " + couleur("XfdesktopIconView", ["view"], F.SELECTED | F.BACKDROP))
+print("fenetre   " + couleur("window", ["background"], F.NORMAL))
+PY
+
+	#  La feuille de xfdesktop : relevée dans SON binaire quand il est là,
+	#  sinon la copie qu'on en a faite — et le banc le dit.
+	XFD_CSS=""
+	if command -v xfdesktop >/dev/null 2>&1; then
+		XFD_CSS="$(strings -a "$(command -v xfdesktop)" 2>/dev/null \
+			| grep -m1 '^XfdesktopIconView.view {' | sed 's/}/}\n/g')"
+	fi
+	if [ -n "$XFD_CSS" ]; then
+		ok "feuille de xfdesktop relevée dans SON binaire (pas une copie de mémoire)"
+	else
+		XFD_CSS='XfdesktopIconView.view { background: transparent; color: @theme_selected_fg_color; border-radius: 3px; }
+XfdesktopIconView.view:active { background: alpha(@theme_selected_bg_color, 0.5); }
+XfdesktopIconView .rubberband { background: alpha(@theme_selected_bg_color, 0.2); }'
+		saut "xfdesktop absent : on emploie la copie relevée dans son binaire au moment du correctif"
+	fi
+
+	SORTIE="$("$PY312" "$BANC/mesure.py" "$CSS" "$XFD_CSS" 2>/dev/null)"
+	if printf '%s' "$SORTIE" | grep -q "PAS-D-ECRAN"; then
+		saut "aucun écran X (installer xvfb et relancer sous « xvfb-run ») : rien n'a été MESURÉ"
+	elif [ -z "$SORTIE" ]; then
+		non "la mesure GTK n'a rien rendu"
+	else
+		val() { printf '%s' "$SORTIE" | awk -v k="$1" '$1==k{print $2}'; }
+
+		if printf '%s' "$SORTIE" | grep -q "^FEUILLE-ENTIERE"; then
+			ok "GTK accepte la feuille en entier — aucun sélecteur qu'il refuse"
+		else
+			non "GTK REJETTE la feuille : $(printf '%s' "$SORTIE" | grep '^FEUILLE-REJETEE')"
+			non "  (un lecteur qui demande les erreurs perd TOUT le thème, même les règles d'avant)"
+		fi
+
+		# =============================================================
+		titre "2. La vue du bureau laisse voir le fond d'écran"
+		# =============================================================
+		REPOS="$(val repos)"
+		case "$REPOS" in
+			*:0.00) ok "au repos, la vue est transparente ($REPOS) : le fond d'écran passe au travers" ;;
+			*)      non "au repos, la vue est OPAQUE ($REPOS) — elle cache le fond d'écran" ;;
+		esac
+		FEN="$(val fenetre)"
+		[ "${FEN%%:*}" = "#000000" ] \
+			&& ok "et une vraie fenêtre, elle, reste noire ($FEN) : la règle n'a pas débordé" \
+			|| non "une fenêtre ordinaire ne vaut plus le noir de LexOS ($FEN)"
+
+		# =============================================================
+		titre "3. La tuile choisie reste allumée, MENU OUVERT COMPRIS"
+		# =============================================================
+		#  C'est le contrôle qu'Alex a demandé. « backdrop » est l'état où
+		#  passe le bureau quand le menu du clic droit prend la main : une
+		#  règle qui l'oublie s'éteint au moment précis où on regarde.
+		ACCENT="#E8590C"
+		for CAS in "active:choisie" "actbd:choisie, menu ouvert" \
+		           "selected:choisie (autre version de xfdesktop)" \
+		           "selbd:choisie + menu ouvert (autre version)"; do
+			K="${CAS%%:*}"; L="${CAS#*:}"
+			V="$(val "$K")"
+			if [ "${V%%:*}" = "$ACCENT" ] && [ "${V##*:}" = "1.00" ]; then
+				ok "$L : $ACCENT plein"
+			elif [ "${V##*:}" = "0.00" ]; then
+				non "$L : TRANSPARENTE ($V) — la tuile a disparu"
+			else
+				non "$L : $V au lieu de $ACCENT plein"
+			fi
+		done
+
+		#  Et le cœur du bogue, dit en une phrase : les deux états doivent
+		#  rendre EXACTEMENT la même chose. C'est ce qui manquait.
+		if [ "$(val active)" = "$(val actbd)" ] && [ "$(val selected)" = "$(val selbd)" ]; then
+			ok "ouvrir le menu du clic droit ne change RIEN à la tuile"
+		else
+			non "la tuile change quand le menu s'ouvre : $(val active) → $(val actbd)"
+		fi
+	fi
+fi
+
+# =============================================================================
+titre "4. Le correctif est expliqué dans le générateur, pas seulement ici"
+# =============================================================================
+if grep -q "XfdesktopIconView" "$GEN"; then
+	ok "lexos-theme-gen porte les règles du bureau"
+else
+	non "lexos-theme-gen ne dit rien du bureau — le correctif vient d'ailleurs ?"
+fi
+if grep -q "strings /usr/bin/xfdesktop\|binaire de xfdesktop\|dans le binaire" "$GEN"; then
+	ok "…et dit d'où vient la feuille de xfdesktop : relevée, pas supposée"
+else
+	non "la provenance de la feuille de xfdesktop n'est écrite nulle part"
+fi
+
+# =============================================================================
+printf '\n\033[1m═══ VERDICT ═══\033[0m\n'
+printf '  %d réussis, %d échoués\n' "$REUSSIS" "$ECHOUES"
+[ "$ECHOUES" -eq 0 ] || exit 1
+printf '  \033[32mL'"'"'icône choisie garde sa tuile orange, menu ouvert compris.\033[0m\n'
