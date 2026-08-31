@@ -111,6 +111,19 @@ print("actbd     " + couleur("XfdesktopIconView", ["view"], F.ACTIVE | F.BACKDRO
 print("selected  " + couleur("XfdesktopIconView", ["view"], F.SELECTED))
 print("selbd     " + couleur("XfdesktopIconView", ["view"], F.SELECTED | F.BACKDROP))
 print("fenetre   " + couleur("window", ["background"], F.NORMAL))
+
+#  LES VUES DE FICHIERS. Thunar teinte l'icone choisie avec la couleur de
+#  fond lue a l'etat « selected » sur le noeud de classe « view ». Trois
+#  noeuds, trois roles : la vue en ICONES de Thunar et la grille
+#  d'applications doivent rendre le gris pale ; la vue en LISTE garde
+#  l'accent, comme toutes les listes de LexOS.
+for nom, cle in (("ExoIconView", "thunar-icones"), ("iconview", "grille"),
+                 ("treeview", "liste")):
+    for suffixe, fl in (("", F.SELECTED), ("-focus", F.SELECTED | F.FOCUSED),
+                        ("-bd", F.SELECTED | F.BACKDROP),
+                        ("-bdf", F.SELECTED | F.BACKDROP | F.FOCUSED)):
+        print("%s%s %s" % (cle, suffixe, couleur(nom, ["view"], fl)))
+    print("%s-repos %s" % (cle, couleur(nom, ["view"], F.NORMAL)))
 PY
 
 	#  La feuille de xfdesktop : relevée dans SON binaire quand il est là,
@@ -185,6 +198,53 @@ XfdesktopIconView .rubberband { background: alpha(@theme_selected_bg_color, 0.2)
 		else
 			non "la tuile change quand le menu s'ouvre : $(val active) → $(val actbd)"
 		fi
+
+		# =============================================================
+		titre "3 bis. THUNAR — le dossier choisi ne devient plus une silhouette"
+		# =============================================================
+		#  ALEX, DEUX PHOTOS DE THUNAR : le dossier choisi devenait une
+		#  SILHOUETTE NOIRE, icone comprise ; et « on pourrait ajouter un gris
+		#  pale a la place de tout le mettre orange », « gris pale pour bien
+		#  voir le fichier ».
+		#
+		#  MEME CAUSE QUE LE BUREAU. Thunar TEINTE l'icone choisie avec la
+		#  couleur de fond lue a l'etat « selected » sur le noeud de classe
+		#  « view ». Notre feuille n'avait aucune regle « .view:selected » :
+		#  la lecture retombait sur la regle des fonds, ou « .view » vaut le
+		#  noir de LexOS. Icone noire sur fond noir.
+		#
+		#  LE SELECTEUR A ETE TROUVE PAR SONDAGE, en lancant le vrai Thunar
+		#  sous Xvfb avec une couleur criarde posee sur un candidat a la fois :
+		#      ExoIconView:selected ....... rien
+		#      .standard-view:selected .... rien
+		#      .view:selected ............. TEINTE
+		GRIS="#C4C8D0"
+		ACCENT="#E8590C"
+		for CLE in thunar-icones grille; do
+			MAUVAIS=0
+			for E in "" -focus -bd -bdf; do
+				V="$(val "${CLE}${E}")"
+				[ "${V%%:*}" = "$GRIS" ] || { non "$CLE$E : $V au lieu de $GRIS"; MAUVAIS=1; }
+			done
+			[ "$MAUVAIS" = 0 ] && ok "$CLE : gris pâle dans les quatre états, backdrop compris"
+			R="$(val "${CLE}-repos")"
+			case "$R" in
+				"#000000:1.00") ok "$CLE : au repos, la vue reste noire" ;;
+				*) non "$CLE : au repos la vue vaut $R — le fond de fenêtre a bougé" ;;
+			esac
+		done
+		#  ET L'AUTRE MOITIÉ N'A PAS ÉTÉ EMPORTÉE. Le gris de la grille passe
+		#  par « .view:selected » NU, seul sélecteur qui atteigne Thunar. Or
+		#  « .view:selected:focus » pèse plus lourd que « treeview.view:
+		#  selected » : sans renfort, une ligne de LISTE devenait grise dès
+		#  qu'elle prenait le focus. Une ligne qui change de couleur selon
+		#  qu'on l'a cliquée ou non — mesuré, pas imaginé.
+		MAUVAIS=0
+		for E in "" -focus -bd -bdf; do
+			V="$(val "liste${E}")"
+			[ "${V%%:*}" = "$ACCENT" ] || { non "liste$E : $V au lieu de l'accent $ACCENT"; MAUVAIS=1; }
+		done
+		[ "$MAUVAIS" = 0 ] && ok "les listes gardent l'accent dans les quatre états — le gris n'a pas débordé"
 	fi
 fi
 

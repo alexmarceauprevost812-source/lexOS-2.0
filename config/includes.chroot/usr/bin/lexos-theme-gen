@@ -823,6 +823,28 @@ menuitem:hover, .menuitem:hover {
     background-color: ${ACCENT};
     color: ${BTN_FG};
 }
+/*  ET LA MEME CHOSE DANS TOUS LES ETATS DE LA LIGNE.
+    La regle du dessus pese (0,2,1) pour « treeview.view:selected ». Celle de
+    la grille, plus bas, doit employer « .view:selected » nu — c'est le SEUL
+    selecteur qui atteigne la vue en icones de Thunar (mesure : ni
+    « ExoIconView:selected » ni « .standard-view:selected » ne la touchent).
+    Or « .view:selected:focus » pese (0,3,0) : des qu'une ligne de LISTE prend
+    le focus, le gris de la grille lui passerait devant. Mesure avant ce
+    renfort, sur « treeview.view » :
+
+        choisi ............... #E8590C   (l'accent, voulu)
+        choisi + focus ....... #C4C8D0   (le gris de la grille, PAS voulu)
+        choisi + backdrop .... #C4C8D0
+
+    Une ligne qui change de couleur selon qu'on l'a cliquee ou non. On repose
+    donc l'accent avec le nom du noeud, ce qui remet la balance a (0,3,1). */
+treeview.view:selected:focus, treeview.view:selected:hover,
+treeview.view:selected:backdrop, treeview.view:selected:focus:backdrop,
+row:selected:focus, row:selected:backdrop,
+list row:selected:focus, list row:selected:backdrop {
+    background-color: ${ACCENT};
+    color: ${BTN_FG};
+}
 
 /* --- LA GRILLE D'APPLICATIONS FAIT EXCEPTION --------------------------- */
 /*  ALEX, capture de la Liste des applications : « la couleur de
@@ -839,9 +861,52 @@ menuitem:hover, .menuitem:hover {
     repeindre le quart de l'écran. Le texte suit texte_lisible(), la même
     fonction WCAG que partout ailleurs : sur ce gris-là elle rend du noir, et
     le libellé reste lisible — en blanc il aurait disparu. */
+/*  ═══ ET THUNAR EN FAIT PARTIE — MAIS PAS PAR LE NŒUD QU'ON CROYAIT ═══
+    ALEX, DEUX PHOTOS DE THUNAR : le dossier choisi devenait une SILHOUETTE
+    NOIRE, icone comprise ; et « on pourrait ajouter un gris pâle à la place
+    de tout le mettre orange ».
+
+    LES DEUX ONT LA MEME CAUSE, TROUVEE EN LANÇANT LE VRAI THUNAR SOUS XVFB
+    ET EN SONDANT SELECTEUR PAR SELECTEUR (magenta vif, capture, comptage
+    des pixels) :
+
+        ExoIconView:selected ....... rien
+        .standard-view:selected .... rien
+        .view:selected ............. TEINTE
+
+    Thunar TEINTE l'icone choisie avec la couleur de fond lue a l'etat
+    « selected » sur le noeud de classe « view ». Notre feuille n'avait
+    AUCUNE regle « .view:selected » : la lecture retombait donc sur la regle
+    des fonds, ou « .view » vaut le noir de LexOS. D'ou une icone noire sur
+    fond noir — le dossier disparaissait.
+
+    L'ancienne regle du squelette visait « .thunar iconview:selected » et
+    « iconview.view:selected ». Mesure : elle ne teintait RIEN. La vue de
+    Thunar ne porte pas le noeud « iconview » (c'est une ExoIconView), et
+    personne ne s'en etait apercu parce que la couleur avait l'air d'exister.
+    Meme lecon que XfdesktopIconView, un ecran plus loin.
+
+    Le gris pale sert donc DEUX choses d'un coup : la tuile ne repeint plus
+    le quart de l'ecran en orange, et l'icone teintee de ce gris reste
+    parfaitement lisible. */
 iconview:selected, iconview:selected:focus,
 flowboxchild:selected, flowboxchild:selected:focus,
-iconview .cell:selected {
+iconview .cell:selected,
+.view:selected, .view:selected:focus,
+.thunar .standard-view:selected,
+ExoIconView:selected, ExoIconView .cell:selected {
+    background-color: ${SEL_GRILLE};
+    color: ${SEL_GRILLE_TXT};
+    border-radius: 10px;
+}
+/*  ET EN « BACKDROP » — l'etat ou passe la vue quand le menu du clic droit
+    prend la main. Une regle qui l'oublie s'eteint au moment precis ou on
+    regarde : c'est le meme oubli qui noircissait l'icone du bureau. */
+iconview:selected:backdrop, flowboxchild:selected:backdrop,
+iconview .cell:selected:backdrop,
+.view:selected:backdrop,
+.thunar .standard-view:selected:backdrop,
+ExoIconView:selected:backdrop, ExoIconView .cell:selected:backdrop {
     background-color: ${SEL_GRILLE};
     color: ${SEL_GRILLE_TXT};
     border-radius: 10px;
