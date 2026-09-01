@@ -80,7 +80,14 @@ chown -R "${LEXOS_LIVE_USER}:${GROUPE}" "$MAISON"
 #  et le bureau live repartirait sans son thème — on le dit fort dans le
 #  journal de construction plutôt que de le découvrir sur l'écran d'Alex.
 MANQUE=""
-for F in .config/gtk-3.0/gtk.css \
+#  LE THEME, ET PLUS LA FEUILLE UTILISATEUR. Le style de LexOS a ete
+#  descendu au rang de theme (~/.themes/LexOS-Noir) pour cesser d'ecraser
+#  les applications ; ~/.config/gtk-3.0/gtk.css n'est plus ecrit du tout.
+#  Ce garde-fou aurait continue a surveiller un fichier disparu — c'est-a-dire
+#  a ne surveiller rien, sans le dire.
+for F in .themes/LexOS-Noir/gtk-3.0/gtk.css \
+         .themes/LexOS-Noir/gtk-4.0/gtk.css \
+         .themes/LexOS-Noir/index.theme \
          .config/xfce4/terminal/terminalrc \
          .config/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml; do
 	#  On ne se plaint que de ce qui existe VRAIMENT dans /etc/skel : si le

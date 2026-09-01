@@ -1522,6 +1522,47 @@ jobs:
           done
           bash tests/test_lexos_navigateur.sh
 
+      - name: Les applications Qt suivent le sombre, sans un kit chacune
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « pour pas avoir à changer les couleurs et tout le kit sur
+          #  chaque appli ». LexOS embarque SEPT applications Qt et rien ne
+          #  leur disait de suivre le thème : elles s'ouvraient BLANCHES.
+          #
+          #  CE BANC MESURE, IL NE LIT PAS UNE VARIABLE. Vérifier la présence
+          #  de « QT_QPA_PLATFORMTHEME=gtk3 » aurait été VERT sur un bureau
+          #  resté blanc : ce greffon est bien chargé, mais celui de Qt5
+          #  fournit les dialogues et les polices, PAS la palette. Seul le
+          #  pixel tranche, et il tranche sur le vrai flameshot.
+          for p in xvfb imagemagick python3-pil adwaita-qt flameshot; do
+            dpkg -s "$p" >/dev/null 2>&1 \
+              || sudo apt-get install -y --no-install-recommends "$p" >/dev/null
+          done
+          bash tests/test_lexos_qt.sh
+
+      - name: LexOS-Noir — le style devient un vrai thème, sans rien changer à l'écran
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « les thèmes des applications, on peut-tu faire que ça soit
+          #  pas trop compliqué et que ça reste tout officiel normal, pour pas
+          #  avoir à changer les couleurs et tout le kit sur chaque appli. »
+          #
+          #  Le style partait dans ~/.config/gtk-3.0/gtk.css, chargé en priorité
+          #  UTILISATEUR : il écrasait le thème de base ET chaque application
+          #  par-dessus. C'est la cause de l'icône du bureau noircie, du dossier
+          #  Thunar en silhouette, et des correctifs sur mesure qui allaient avec.
+          #
+          #  ÉTAPE 1 : le thème existe et rend EXACTEMENT ce que rend la pile
+          #  actuelle. Ce banc mesure les deux montages sur un vrai GTK 3.24 et
+          #  exige zéro différence — une règle qui gagnait par PRIORITÉ ne gagne
+          #  plus que par SPÉCIFICITÉ, et il est là pour nommer celles qui
+          #  tombent. Il en a déjà trouvé une (l'infobulle).
+          for p in xvfb python3-gi gir1.2-gtk-3.0 arc-theme; do
+            dpkg -s "$p" >/dev/null 2>&1 \
+              || sudo apt-get install -y --no-install-recommends "$p" >/dev/null
+          done
+          xvfb-run -a bash tests/test_lexos_theme_systeme.sh
+
       - name: L'icône du bureau ne s'éteint pas au clic droit
         if: ${{ !cancelled() }}
         run: |

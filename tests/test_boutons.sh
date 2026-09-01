@@ -106,9 +106,9 @@ TOTAL=0
 for MODE in sombre clair; do
 	for A in $ACCENTS; do
 		rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
-		LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+		LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" \
 			bash "$GEN" --target "$BANC/t" --mode "$MODE" "$A" >/dev/null 2>&1
-		CSS="$BANC/t/.config/gtk-3.0/gtk.css"
+		CSS="$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css"
 		[ -r "$CSS" ] || { non "$A/$MODE : aucune feuille produite"; continue; }
 		while IFS='|' read -r cle libelle fond txt ratio; do
 			TOTAL=$((TOTAL + 1))
@@ -131,9 +131,9 @@ printf '     \033[2mle plus juste : %s = %s:1\033[0m\n' "$PIRE_QUOI" "$PIRE"
 # ═════════════════════════════════════════════════════════════════════════════
 titre "2. Le libellé prend la couleur de SON bouton"
 rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
-LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" \
 	bash "$GEN" --target "$BANC/t" orange >/dev/null 2>&1
-CSS="$BANC/t/.config/gtk-3.0/gtk.css"
+CSS="$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css"
 
 #  On lit le BLOC en entier, pas deux lignes après le sélecteur : la première
 #  version faisait « grep -A2 » et ratait « color: inherit » dès qu'on ajoutait
@@ -334,7 +334,7 @@ MAUVAIS3=0; VU3=0
 for MODE in sombre clair; do
 	for A in orange bleu neon; do
 		rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
-		LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+		LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" \
 			bash "$GEN" --target "$BANC/t" --mode "$MODE" "$A" >/dev/null 2>&1
 		while IFS='|' read -r forme txt fond ratio; do
 			VU3=$((VU3 + 1))
@@ -345,7 +345,7 @@ for MODE in sombre clair; do
 				non "$A/$MODE · $forme : $txt sur $fond = ${ratio}:1 — le texte du bouton est illisible"
 				MAUVAIS3=$((MAUVAIS3 + 1))
 			fi
-		done < <(cascade "$BANC/t/.config/gtk-3.0/gtk.css")
+		done < <(cascade "$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css")
 	done
 done
 if [ "$VU3" = "0" ]; then
@@ -357,9 +357,9 @@ fi
 #  Et la forme qui a piégé la première version, nommée à part pour que le
 #  message dise quelque chose le jour où elle revient.
 rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
-LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" \
 	bash "$GEN" --target "$BANC/t" orange >/dev/null 2>&1
-LIGNE="$(cascade "$BANC/t/.config/gtk-3.0/gtk.css" | grep '^icone + texte|')"
+LIGNE="$(cascade "$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css" | grep '^icone + texte|')"
 COUL="$(printf '%s' "$LIGNE" | cut -d'|' -f2)"
 [ "$COUL" = "#000000" ] \
 	&& ok "bouton à icône : le libellé est NOIR — il n'hérite plus du blanc de la box" \
@@ -400,9 +400,9 @@ MAUVAIS5=0; VU5=0
 for MODE in sombre clair; do
 	for A in orange bleu neon; do
 		rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
-		LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+		LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" \
 			bash "$GEN" --target "$BANC/t" --mode "$MODE" "$A" >/dev/null 2>&1
-		VERDICT="$(python3 - "$BANC/t/.config/gtk-3.0/gtk.css" <<'PY'
+		VERDICT="$(python3 - "$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css" <<'PY'
 import re, sys
 
 css = re.sub(r"/\*.*?\*/", "", open(sys.argv[1], encoding="utf-8").read(), flags=re.S)
@@ -531,7 +531,7 @@ chmod +x "$CASSE6/rsvg-convert"
 
 theme_utilisateur() {   # <accent> <PATH> ; écrit le dossier du thème sur stdout
 	rm -rf "${BANC:?}/u"; mkdir -p "$BANC/u"
-	PATH="$1" HOME="$BANC/u" LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+	PATH="$1" HOME="$BANC/u" LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" \
 		LEXOS_ICONES="$RACINE/config/includes.chroot/usr/share/icons/LexOS" \
 		bash "$GEN" --target "$BANC/u" "$2" >/dev/null 2>&1
 	printf '%s' "$BANC/u/.local/share/icons/LexOS"
@@ -595,7 +595,7 @@ titre "7. flameshot suit l'accent, et pas l'inverse"
 #  tiers que la section 1 ne regarde pas.
 for A in orange bleu violet neon rouge vert gris; do
 	rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
-	LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" 		bash "$GEN" --target "$BANC/t" "$A" >/dev/null 2>&1
+	LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" 		bash "$GEN" --target "$BANC/t" "$A" >/dev/null 2>&1
 	INI="$BANC/t/.config/flameshot/flameshot.ini"
 	[ -r "$INI" ] || { non "$A : aucun flameshot.ini produit"; continue; }
 
@@ -636,7 +636,7 @@ done
 #  format en se faisant confiance à soi-même.
 if command -v flameshot >/dev/null 2>&1; then
 	rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
-	LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" 		bash "$GEN" --target "$BANC/t" orange >/dev/null 2>&1
+	LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" 		bash "$GEN" --target "$BANC/t" orange >/dev/null 2>&1
 	SORTIE_FS="$(HOME="$BANC/t" QT_QPA_PLATFORM=offscreen flameshot config --check 2>&1)"
 	echo "$SORTIE_FS" | grep -qi 'no errors' 		&& ok "le flameshot RÉELLEMENT installé valide notre fichier sans se plaindre" 		|| non "flameshot rejette notre fichier : $SORTIE_FS"
 else
@@ -664,7 +664,7 @@ for MODE in sombre clair; do
 		rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
 		HOME="$BANC/t" LEXOS_BRANDING="$RACINE/branding" \
 			bash "$GEN" "$ACC" --mode "$MODE" --target "$BANC/t" >/dev/null 2>&1
-		CSS8="$BANC/t/.config/gtk-3.0/gtk.css"
+		CSS8="$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css"
 		if [ ! -r "$CSS8" ]; then
 			non "$ACC/$MODE : aucune feuille produite"
 			continue

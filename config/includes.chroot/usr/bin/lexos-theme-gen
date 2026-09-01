@@ -278,6 +278,10 @@ if [[ "$MODE" == "clair" ]]; then
 	BORDER="#D9D2C3"
 	FG="#1B1A17"
 	FG_DIM="#6B675E"
+	#  Le haut des fenêtres. De jour il reste le crème du reste : le gris
+	#  demandé pour la nuit y ferait une bande sombre sur un bureau clair —
+	#  la même règle, retranscrite pour un fond clair, comme pour le terminal.
+	HEADER="$BG_ALT"
 else
 	# LexOS Noir : noir pur, écriture blanche.
 	BG="#000000"
@@ -286,6 +290,22 @@ else
 	BORDER="#232326"
 	FG="#FFFFFF"
 	FG_DIM="#B8B8BC"
+	#  ═══ LE HAUT DES FENÊTRES — DEMANDE D'ALEX ═══
+	#  « En haut du navigateur il est trop noir, changer pour qu'il soit un
+	#  peu gris » — puis, sur trois gris rendus côte à côte : « 3e, aime bien
+	#  gris ». #26262B.
+	#
+	#  ET IL EST ICI, PAS DANS UN RÉGLAGE DE CHROMIUM. C'est la deuxième
+	#  moitié de sa demande : « pour pas avoir à changer les couleurs et tout
+	#  le kit sur chaque appli ». Écrit dans le thème, le gris vaut pour TOUS
+	#  les hauts de fenêtre — et Chromium, qui lit les couleurs GTK, le prend
+	#  tout seul. Mesuré : la bande d'onglets rend #26262B sans qu'on lui
+	#  pose quoi que ce soit dans son profil.
+	#
+	#  UN CRAN AU-DESSUS DU FOND, PAS DEUX. Le fond des fenêtres reste
+	#  #000000 : c'est le noir de LexOS, et Alex n'a jamais demandé à le
+	#  changer. Seul le haut se détache.
+	HEADER="#26262B"
 fi
 
 mkdir -p "$CONF_DIR" "$TARGET/.config/gtk-3.0" "$TARGET/.config/gtk-4.0" \
@@ -305,7 +325,7 @@ printf '%s\n' "$TERM_MODE" > "$CONF_DIR/terminal-mode"
 #  détruisait tout ça à la PREMIÈRE ouverture de session, sans une erreur.
 #  Le fichier était dans l'ISO, installé, et mort avant d'avoir servi.
 #
-#  La source de vérité est /etc/skel/.config/gtk-3.0/gtk.css — présent sur
+#  La source de vérité est /usr/share/lexos/gtk-panneau.css — présent sur
 #  toute machine LexOS. On le recopie EN TÊTE de la sortie, en traduisant
 #  l'accent : le orange par défaut (#E8590C, #FF7A33, #A84007 et le triplet
 #  rgba « 232, 89, 12 ») devient l'accent choisi. Si le squelette manque
@@ -315,7 +335,20 @@ bloc_panneau() {
 	#  Surchargeable pour être ÉPROUVABLE hors ISO — même procédé que
 	#  LEXOS_ICONES plus bas : sans ça, ce bloc ne se vérifie qu'en
 	#  construisant et démarrant une image.
-	local squelette="${LEXOS_SKEL:-/etc/skel}/.config/gtk-3.0/gtk.css"
+	#  ═══ CE FICHIER N'EST PLUS DANS /etc/skel, ET C'EST CAPITAL ═══
+	#  Il y a vécu longtemps, et ça se tenait tant que la feuille de LexOS
+	#  était elle-même un fichier d'utilisateur. Depuis l'étape 4, non :
+	#  tout ce qui est dans /etc/skel/.config/gtk-3.0/ ARRIVE dans le
+	#  ~/.config de chaque compte, où GTK le charge en priorité UTILISATEUR.
+	#  Le laisser là aurait rendu aux applications le poids qu'on vient de
+	#  leur retirer — l'étape 4 annulée sur la vraie machine, tous les bancs
+	#  restant verts, parce qu'ils travaillent dans un foyer neuf où
+	#  /etc/skel n'a pas été recopié.
+	#
+	#  Il est donc dans /usr/share/lexos : une ENTRÉE du générateur, jamais
+	#  un fichier d'utilisateur. Un contrôle de CI interdit désormais qu'un
+	#  gtk.css réapparaisse sous etc/skel/.config.
+	local squelette="${LEXOS_PANNEAU_CSS:-/usr/share/lexos/gtk-panneau.css}"
 	if [[ ! -r "$squelette" ]]; then
 		printf '/* squelette %s illisible : style du panneau non repris */\n' "$squelette"
 		return 0
@@ -361,7 +394,7 @@ cat <<EOF
 @define-color window_fg_color           ${FG};
 @define-color view_bg_color             ${BG};
 @define-color view_fg_color             ${FG};
-@define-color headerbar_bg_color        ${BG_ALT};
+@define-color headerbar_bg_color        ${HEADER};
 @define-color headerbar_fg_color        ${FG};
 @define-color popover_bg_color          ${BG_ALT};
 @define-color popover_fg_color          ${FG};
@@ -490,9 +523,13 @@ box, grid, viewport, frame, flowbox, stack, overlay {
     color: ${FG};
 }
 
+/*  LE HAUT DES FENÊTRES est le seul endroit qui prend ${HEADER} et non
+    ${BG_ALT} : de nuit, un gris franc un cran au-dessus du noir. Voir la
+    palette en tête de fichier — et c'est aussi ce que Chromium lit pour sa
+    bande d'onglets, sans un seul réglage de son côté. */
 headerbar, .titlebar, toolbar, actionbar, searchbar, infobar,
 .csd .titlebar, menubar, .menubar {
-    background-color: ${BG_ALT};
+    background-color: ${HEADER};
     background-image: none;
     color: ${FG};
     border-color: ${BORDER};
@@ -979,6 +1016,23 @@ menu, .menu, .context-menu, popover.menu {
     border-radius: 8px;
 }
 
+/* --- Infobulles ----------------------------------------------------------- */
+/*  DITE EXPRÈS, ET C'EST NEUF. Cette feuille n'avait AUCUNE règle
+    d'infobulle : le noir venait par accident de la règle des fonds, qui
+    liste « .background » — et une infobulle porte cette classe. Ça marchait
+    tant que la feuille gagnait par PRIORITÉ.
+
+    Mesuré au moment de la descendre au rang de thème : c'était la SEULE des
+    dix-sept couleurs éprouvées à changer (#000000 → #4B5162, le gris-bleu
+    d'Arc), parce qu'« tooltip.background » d'Arc est plus spécifique que
+    notre « .background » nu. Une couleur obtenue par accident est une
+    couleur qu'on perd sans le voir. On l'écrit donc, à la spécificité
+    d'Arc — à égalité, c'est la nôtre qui passe, puisqu'elle vient après. */
+tooltip.background, tooltip.background label {
+    background-color: ${BG};
+    color: ${FG};
+}
+
 /* --- Terminal XFCE : toujours noir + vert foncé, même en thème de jour --- */
 terminal-window, vte-terminal { background-color: ${TERM_BG}; color: ${TERM_FG}; }
 
@@ -990,10 +1044,131 @@ EOF
 #  ATOMIQUE : on génère dans un fichier temporaire et on ne remplace la
 #  cible qu'une fois la génération finie — une génération interrompue ne
 #  doit pas laisser l'utilisateur sans aucun style.
-TMP_CSS="$(mktemp "$TARGET/.config/gtk-3.0/gtk.css.XXXXXX")" \
-	&& gen_gtk_css > "$TMP_CSS" && mv -f "$TMP_CSS" "$TARGET/.config/gtk-3.0/gtk.css"
-TMP_CSS="$(mktemp "$TARGET/.config/gtk-4.0/gtk.css.XXXXXX")" \
-	&& gen_gtk_css > "$TMP_CSS" && mv -f "$TMP_CSS" "$TARGET/.config/gtk-4.0/gtk.css"
+
+# =============================================================================
+#  1 bis. LE MÊME STYLE, MAIS COMME UN VRAI THÈME
+# =============================================================================
+#  ALEX : « les thèmes des applications, on peut-tu faire que ça soit pas trop
+#  compliqué et que ça reste tout officiel normal, pour pas avoir à changer
+#  les couleurs et tout le kit sur chaque appli ».
+#
+#  ═══ POURQUOI IL A RAISON, ET CE QUE ÇA A DÉJÀ COÛTÉ ═══
+#  Ce que LexOS écrit juste au-dessus part dans ~/.config/gtk-3.0/gtk.css. Or
+#  GTK charge CE fichier-là en priorité UTILISATEUR — la plus forte qui
+#  existe. Il n'écrase pas seulement le thème de base : il écrase AUSSI
+#  chaque application par-dessus. D'où, dans le seul mois écoulé :
+#
+#    · l'icône du bureau peinte en NOIR alors que xfdesktop la veut
+#      transparente (règle « .view », attrapée au passage) ;
+#    · le dossier choisi dans Thunar réduit à une silhouette noire, même
+#      cause, autre application ;
+#    · la Logithèque en GTK4 qui ignorait tout et qu'il a fallu convaincre
+#      par un réglage à part.
+#
+#  Chaque fois : une règle sur mesure pour CETTE application. C'est le « kit
+#  sur chaque appli », et il grandit à chaque ISO.
+#
+#  ═══ CE QU'ON POSE, ET COMMENT ON L'A ÉPROUVÉ ═══
+#  Un vrai thème, dans ~/.themes/LexOS-Noir. GTK le charge alors en priorité
+#  THÈME : SOUS les applications au lieu de par-dessus. Elles gardent leur
+#  dessin, on arrête de se battre.
+#
+#  LE PIÈGE, MESURÉ SUR UN VRAI GTK 3.24 AVANT D'ÉCRIRE UNE LIGNE : le
+#  gtk.css d'Arc-Dark n'est PAS une feuille de style. C'est une seule ligne
+#  qui pointe vers une ressource COMPILÉE (gtk.gresource), enregistrée par
+#  GTK uniquement quand il charge Arc PAR SON NOM. Un thème qui se
+#  contenterait d'importer ce fichier par son chemin obtient :
+#
+#      « Failed to import: The resource … does not exist »
+#      window #123456 · headerbar TRANSPARENT · sélection TRANSPARENTE
+#
+#  — c'est-à-dire un bureau NU, sans en-tête ni sélection, et l'avertissement
+#  se perd dans le journal. Avec la ressource posée à côté de notre gtk.css,
+#  la même feuille rend window #383C4A, headerbar #2F343F, sélection #5294E2 :
+#  toute la couverture d'Arc, retrouvée.
+#
+#  UN LIEN ET NON UNE COPIE : 380 kio de moins, aucune question de
+#  redistribution, et si arc-theme disparaît le lien casse BRUYAMMENT au lieu
+#  de nous laisser croire que tout va bien.
+#
+#  ON NE DEVINE PAS L'ADRESSE DE LA RESSOURCE. Elle vaut « resource:///org/
+#  gnome/arc-theme/… » pour Arc, autre chose pour un thème de repli. On
+#  RECOPIE donc les lignes d'import du thème de base, telles qu'elles sont
+#  écrites chez lui.
+#
+#  ═══ LA FEUILLE UTILISATEUR N'EST PLUS ÉCRITE (étape 4) ═══
+#  ~/.config/gtk-3.0/gtk.css n'existe plus : l'écrire encore aurait rechargé
+#  tout ceci en priorité UTILISATEUR et réécrasé les applications — le tour
+#  complet pour revenir au point de départ. Conséquence assumée, MESURÉE :
+#  la feuille de xfdesktop (priorité APPLICATION) repasse devant la nôtre,
+#  et la tuile du bureau choisie est peinte par LUI — l'accent à 50 %, la
+#  couleur demandée AU THÈME (#E8590C:0.50). L'application garde son dessin,
+#  le thème fournit les couleurs : c'est le contrat, et le banc du bureau le
+#  tient. Seule exception : le foyer de lightdm (hook 0410) garde une
+#  feuille en priorité utilisateur, parce que le greeter a son propre thème
+#  et que c'est la seule façon de passer devant — voulu, et écrit là-bas.
+THEME_NOM="LexOS-Noir"
+THEME_DIR="$TARGET/.themes/$THEME_NOM"
+#  ═══ LE NOM DE LA VARIABLE COMPTE, ET IL ÉTAIT FAUX ═══
+#  On lisait « LEXOS_GTK_BASE ». Le hook 0600, lui, calcule le thème de base
+#  RÉELLEMENT présent (arc-theme voyage dans les paquets optionnels) et
+#  l'exporte sous « LEXOS_GTK_BASE_THEME ». Deux noms voisins, jamais le
+#  même : le repli du hook n'arrivait donc pas jusqu'ici. Sur une machine
+#  sans Arc-Dark, on aurait posé un lien vers une ressource ABSENTE et un
+#  « @import » vers une adresse introuvable — c'est-à-dire, mesuré au début
+#  de ce chantier, un bureau NU : ni en-tête, ni sélection, et un simple
+#  avertissement perdu dans le journal.
+#
+#  On lit donc le vrai nom, en gardant l'ancien comme second choix pour
+#  qui appellerait ce script à la main.
+BASE_NOM="${LEXOS_GTK_BASE_THEME:-${LEXOS_GTK_BASE:-Arc-Dark}}"
+BASE_DIR="${LEXOS_THEMES_SYS:-/usr/share/themes}/${BASE_NOM}"
+
+gen_theme() {
+	local v="$1"                      # « gtk-3.0 » ou « gtk-4.0 »
+	local dst="$THEME_DIR/$v"
+	local src="$BASE_DIR/$v"
+	mkdir -p "$dst"
+
+	#  La ressource compilée du thème de base, posée À CÔTÉ de notre feuille :
+	#  c'est ce qui rend son adresse « resource:// » résoluble.
+	rm -f "$dst/gtk.gresource"
+	if [[ -r "$src/gtk.gresource" ]]; then
+		ln -s "$src/gtk.gresource" "$dst/gtk.gresource"
+	fi
+
+	{
+		printf '/* LexOS Noir — thème GTK, généré par lexos-theme-gen.
+'
+		printf '   Ne pas éditer : sera écrasé à chaque « lexos accent … ». */
+'
+		#  Les lignes d'import du thème de base, RECOPIÉES telles quelles.
+		if [[ -r "$src/gtk.css" ]]; then
+			grep -E '^[[:space:]]*@import' "$src/gtk.css" || true
+		fi
+		printf '
+'
+		gen_gtk_css
+	} > "$dst/gtk.css.tmp" && mv -f "$dst/gtk.css.tmp" "$dst/gtk.css"
+}
+
+mkdir -p "$THEME_DIR"
+gen_theme gtk-3.0
+gen_theme gtk-4.0
+cat > "$THEME_DIR/index.theme" <<EOF
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=${THEME_NOM}
+Comment=LexOS Noir — le noir de LexOS, l'accent ${ACCENT_NAME}
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=${THEME_NOM}
+MetacityTheme=${BASE_NOM}
+IconTheme=LexOS
+CursorTheme=DMZ-Black
+ButtonLayout=menu:minimize,maximize,close
+EOF
 
 # =============================================================================
 #  2. GTK 2 (vieilles applications)

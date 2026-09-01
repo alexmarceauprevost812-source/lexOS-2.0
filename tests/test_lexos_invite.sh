@@ -247,7 +247,7 @@ titre "5. Les couleurs viennent du fichier GÉNÉRÉ, pas d'une valeur en dur"
 #  plus tôt dans la chaîne qui ne la lit plus.
 for MODE in nuit jour; do
 	rm -rf "${BANC:?}/t"; mkdir -p "$BANC/t"
-	LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+	LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" \
 		bash "$GEN" --target "$BANC/t" --terminal "$MODE" orange \
 		>"$BANC/gen-$MODE.log" 2>&1
 	ENV="$BANC/t/.config/lexos/terminal.env"

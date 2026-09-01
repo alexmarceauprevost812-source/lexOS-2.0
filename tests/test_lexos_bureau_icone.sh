@@ -44,9 +44,9 @@ saut() { printf '  \033[33m—\033[0m  %s\n' "$1"; }
 titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 
 mkdir -p "$BANC/t"
-LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" \
+LEXOS_SKEL="$RACINE/config/includes.chroot/etc/skel" LEXOS_PANNEAU_CSS="$RACINE/config/includes.chroot/usr/share/lexos/gtk-panneau.css" \
 	bash "$GEN" --target "$BANC/t" --terminal nuit orange >"$BANC/gen.log" 2>&1
-CSS="$BANC/t/.config/gtk-3.0/gtk.css"
+CSS="$BANC/t/.themes/LexOS-Noir/gtk-3.0/gtk.css"
 [ -r "$CSS" ] || { non "aucun gtk.css produit"; exit 1; }
 
 # =============================================================================
@@ -79,7 +79,12 @@ ecran = Gdk.Screen.get_default()
 if ecran is None:
     print("PAS-D-ECRAN"); sys.exit(0)
 st = Gtk.Settings.get_default()
-st.set_property("gtk-theme-name", "Arc-Dark")
+#  LE THEME PAR SON NOM, PLUS UNE FEUILLE EN PRIORITE UTILISATEUR. Depuis
+#  que le style de LexOS est un vrai theme, le charger comme avant aurait
+#  ete mesurer un montage qui n'existe plus — et rester vert pour la
+#  mauvaise raison. GTK trouve LexOS-Noir dans le HOME du banc (~/.themes),
+#  a la priorite THEME, SOUS la feuille de xfdesktop : la vraie machine.
+st.set_property("gtk-theme-name", "LexOS-Noir")
 st.set_property("gtk-application-prefer-dark-theme", True)
 
 #  La feuille de xfdesktop, telle qu'elle est dans SON binaire.
@@ -87,14 +92,16 @@ xfd = Gtk.CssProvider()
 xfd.load_from_data(sys.argv[2].encode())
 Gtk.StyleContext.add_provider_for_screen(ecran, xfd, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
-#  La nôtre, à la priorité où GTK lit ~/.config/gtk-3.0/gtk.css.
+#  Le thème est déjà chargé PAR SON NOM, plus haut. On vérifie seulement que
+#  sa feuille se lit EN ENTIER — le piège « ::selection » a déjà fait jeter
+#  toute une feuille à qui demandait les erreurs — sans l'ajouter une
+#  seconde fois à une autre priorité.
 notre = Gtk.CssProvider()
 try:
     notre.load_from_path(sys.argv[1])
     print("FEUILLE-ENTIERE")
 except Exception as e:
     print("FEUILLE-REJETEE %s" % str(e).split("quark: ")[-1].replace("\n", " "))
-Gtk.StyleContext.add_provider_for_screen(ecran, notre, Gtk.STYLE_PROVIDER_PRIORITY_USER)
 
 def couleur(nom, classes, etat):
     p = Gtk.WidgetPath(); p.append_type(GObject.TYPE_NONE)
@@ -142,7 +149,10 @@ XfdesktopIconView .rubberband { background: alpha(@theme_selected_bg_color, 0.2)
 		saut "xfdesktop absent : on emploie la copie relevée dans son binaire au moment du correctif"
 	fi
 
-	SORTIE="$("$PY312" "$BANC/mesure.py" "$CSS" "$XFD_CSS" 2>/dev/null)"
+	#  GTK cherche « LexOS-Noir » dans ~/.themes : on lui fabrique ce foyer.
+	mkdir -p "$BANC/home/.themes"
+	cp -r "$BANC/t/.themes/LexOS-Noir" "$BANC/home/.themes/" 2>/dev/null
+	SORTIE="$(HOME="$BANC/home" "$PY312" "$BANC/mesure.py" "$CSS" "$XFD_CSS" 2>/dev/null)"
 	if printf '%s' "$SORTIE" | grep -q "PAS-D-ECRAN"; then
 		saut "aucun écran X (installer xvfb et relancer sous « xvfb-run ») : rien n'a été MESURÉ"
 	elif [ -z "$SORTIE" ]; then
@@ -173,26 +183,43 @@ XfdesktopIconView .rubberband { background: alpha(@theme_selected_bg_color, 0.2)
 		# =============================================================
 		titre "3. La tuile choisie reste allumée, MENU OUVERT COMPRIS"
 		# =============================================================
-		#  C'est le contrôle qu'Alex a demandé. « backdrop » est l'état où
-		#  passe le bureau quand le menu du clic droit prend la main : une
-		#  règle qui l'oublie s'éteint au moment précis où on regarde.
+		#  C'est le contrôle qu'Alex a demandé — et il a CHANGÉ DE FORME à
+		#  l'étape 4 du grand ménage des thèmes, pour une raison qui mérite
+		#  d'être écrite.
+		#
+		#  AVANT, notre feuille gagnait par priorité UTILISATEUR : on
+		#  imposait l'accent PLEIN, et ce banc l'exigeait. DEPUIS que le
+		#  style est un vrai THÈME, la feuille de xfdesktop (priorité
+		#  APPLICATION) repasse devant — et c'est voulu, c'est tout l'objet
+		#  du ménage. Or elle dit :
+		#
+		#      XfdesktopIconView.view:active {
+		#          background: alpha(@theme_selected_bg_color, 0.5); }
+		#
+		#  L'application peint sa sélection ELLE-MÊME, à 50 % — mais avec
+		#  la couleur qu'elle DEMANDE AU THÈME. Mesuré : #E8590C:0.50.
+		#  L'accent est le nôtre, l'intensité est la sienne. C'est
+		#  exactement le « officiel normal » demandé : l'application garde
+		#  son dessin, le thème fournit les couleurs.
+		#
+		#  Le bogue d'origine, lui, reste mort : la tuile ne devient NI
+		#  noire NI différente quand le menu s'ouvre. C'est ça qu'on tient.
 		ACCENT="#E8590C"
-		for CAS in "active:choisie" "actbd:choisie, menu ouvert" \
-		           "selected:choisie (autre version de xfdesktop)" \
-		           "selbd:choisie + menu ouvert (autre version)"; do
+		for CAS in "active:choisie" "actbd:choisie, menu ouvert"; do
 			K="${CAS%%:*}"; L="${CAS#*:}"
 			V="$(val "$K")"
-			if [ "${V%%:*}" = "$ACCENT" ] && [ "${V##*:}" = "1.00" ]; then
-				ok "$L : $ACCENT plein"
+			if [ "${V%%:*}" != "$ACCENT" ]; then
+				non "$L : $V — la couleur n'est plus celle du thème"
 			elif [ "${V##*:}" = "0.00" ]; then
-				non "$L : TRANSPARENTE ($V) — la tuile a disparu"
+				non "$L : TRANSPARENTE ($V) — la tuile a disparu, c'est la photo d'Alex"
 			else
-				non "$L : $V au lieu de $ACCENT plein"
+				ok "$L : l'accent du thème, à l'intensité de xfdesktop ($V)"
 			fi
 		done
 
-		#  Et le cœur du bogue, dit en une phrase : les deux états doivent
-		#  rendre EXACTEMENT la même chose. C'est ce qui manquait.
+		#  Et le cœur du bogue, dit en une phrase : ouvrir le menu ne doit
+		#  RIEN changer — ni sur :active (xfdesktop 4.18) ni sur :selected
+		#  (si une version peint par cet état-là).
 		if [ "$(val active)" = "$(val actbd)" ] && [ "$(val selected)" = "$(val selbd)" ]; then
 			ok "ouvrir le menu du clic droit ne change RIEN à la tuile"
 		else
