@@ -1,0 +1,111 @@
+#!/bin/sh
+set -e
+# =============================================================================
+#  hook 0425 — OpenCode, l'agent de code open source
+# =============================================================================
+#  ALEX : « peux-tu faire en sorte qu'OpenCode s'installe sur LexOS pro », et
+#  pour lever l'ambiguïté : « open source ». Il s'agit donc d'opencode-ai,
+#  l'agent de code en terminal, sous licence MIT.
+#
+#  POURQUOI UN HOOK À PART, ET PAS UNE SECTION DU 0420.
+#  Le 0420 porte Claude : ses deux icônes, ses deux lanceurs, et l'embarquement
+#  de Claude Code. Y ajouter OpenCode ferait un fichier qui répond à deux
+#  demandes sans rapport, et le jour où l'une casse, l'autre tombe avec (le
+#  « set -e » en tête ne fait pas de différence entre elles). Numéro 0425 :
+#  entre Claude (0420) et la musique (0430), il n'y avait personne.
+#
+#  ═══ CE QUE CE HOOK FAIT ═══
+#    1. L'icône, aux huit tailles — comme toutes les icônes LexOS.
+#    2. OpenCode DANS L'IMAGE, par npm, au moment de la construction.
+#    3. Le lanceur du dock.
+#
+#  BEST-EFFORT, ET BRUYANT. Si npm manque ou si le réseau du chroot refuse,
+#  la construction CONTINUE : lexos-opencode installe au premier lancement.
+#  Mais on le DIT dans le journal, fort, plutôt que de laisser croire que
+#  l'image contient quelque chose qu'elle n'a pas. Même règle que le 0420.
+# =============================================================================
+echo "[lexos] hook 0425 : OpenCode"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+#  Surchargeables pour éprouver ce hook sur un banc sans construire une ISO —
+#  même procédé que LEXOS_THEMES au 0610. Les défauts sont les vrais.
+ICONES_DIR="${LEXOS_ICONES_HICOLOR:-/usr/share/icons/hicolor}"
+APPS_DIR="${LEXOS_APPS_DIR:-/usr/share/applications}"
+
+# --- 1. L'icône -------------------------------------------------------------
+#  MÊMES TAILLES QUE TOUTES LES AUTRES ICÔNES LexOS (hook 0300), et pour la
+#  raison apprise au build 70 : aux tailles absentes, GTK bascule sur la
+#  version vectorielle, et comme le dock AGRANDIT l'icône survolée, le dessin
+#  change sous la souris. D'où aussi l'absence de « scalable » : à 83 px (le
+#  dock au survol, zoom 130 %) seul lui répondrait, et on aurait le défaut
+#  qu'on cherche à éviter.
+NOM="lexos-opencode"
+SVG="/usr/share/lexos/branding/opencode-icon.svg"
+[ -r "$SVG" ] || SVG="branding/opencode-icon.svg"   # selon le contexte du hook
+if [ -r "$SVG" ]; then
+	POSEES=0
+	for SIZE in 16 22 24 32 48 64 128 256; do
+		DIR="${ICONES_DIR}/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		if have rsvg-convert; then
+			rsvg-convert -w "$SIZE" -h "$SIZE" "$SVG" -o "$DIR/${NOM}.png" 2>/dev/null \
+				&& POSEES=$((POSEES + 1)) || true
+		elif have convert; then
+			convert -background none -resize "${SIZE}x${SIZE}" "$SVG" "$DIR/${NOM}.png" 2>/dev/null \
+				&& POSEES=$((POSEES + 1)) || true
+		fi
+	done
+	echo "[lexos]   $NOM : ${POSEES}/8 tailles"
+	VDIR="${ICONES_DIR}/scalable/apps"
+	mkdir -p "$VDIR"; rm -f "$VDIR/${NOM}.svg"
+	have gtk-update-icon-cache && \
+		gtk-update-icon-cache -f "$ICONES_DIR" >/dev/null 2>&1 || true
+else
+	echo "[lexos]   !! opencode-icon.svg introuvable — OpenCode aura une icône générique"
+fi
+
+# --- 2. OpenCode dans l'image ----------------------------------------------
+#  LE NOM DU PAQUET EST « opencode-ai », PAS « opencode ». Les deux existent
+#  sur npm et ce ne sont pas les mêmes. Relevé dans le README du projet au
+#  moment d'écrire ce hook, avec la commande officielle :
+#      npm i -g opencode-ai@latest
+#  Se tromper de nom installerait silencieusement autre chose — l'ISO
+#  sortirait avec un programme qui n'est pas celui qu'Alex a demandé, et
+#  rien ne le dirait.
+if have npm; then
+	if npm install -g opencode-ai@latest >/dev/null 2>&1; then
+		echo "[lexos]   OpenCode embarqué dans l'image (npm, canal officiel)"
+	else
+		echo "[lexos]   !! npm n'a pas pu installer OpenCode (réseau du chroot ?)"
+		echo "[lexos]   !! — lexos-opencode l'installera au premier lancement"
+	fi
+else
+	echo "[lexos]   !! npm absent au moment du hook 0425 — OpenCode non embarqué"
+	echo "[lexos]   !! — lexos-opencode l'installera au premier lancement"
+fi
+
+# --- 3. Le lanceur ----------------------------------------------------------
+#  « --fenetre » et pas un second script : voir l'explication dans
+#  lexos-opencode. Terminal=false parce que c'est LUI qui ouvre sa fenêtre,
+#  avec son titre, ses couleurs et son icône ; laisser le bureau le faire
+#  donnerait une fenêtre sans habillage.
+mkdir -p "$APPS_DIR"
+cat > "$APPS_DIR/lexos-opencode.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=OpenCode
+Name[en]=OpenCode
+Comment=L'agent de code open source — s'ouvre dans son propre terminal
+Comment[en]=The open-source coding agent — opens in its own terminal
+Exec=lexos-opencode --fenetre
+Icon=lexos-opencode
+Terminal=false
+StartupNotify=true
+Categories=Development;Utility;
+Keywords=opencode;code;ia;ai;assistant;programmation;developpement;cli;libre;open source;
+EOF
+echo "[lexos]   lanceur posé : $APPS_DIR/lexos-opencode.desktop"
+
+echo "[lexos] hook 0425 : ok"

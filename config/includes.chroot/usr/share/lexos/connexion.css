@@ -350,14 +350,66 @@ treeview.view cell:selected {
 #login_window entry text placeholder {
 	color: alpha(#FFFFFF, 0.72);
 }
-/*  LE NOM D'UTILISATEUR N'EST PAS TOUJOURS UN « entry » NU. Selon la
-    configuration, le greeter propose une LISTE déroulante de comptes — un
-    combobox qui porte son propre champ. Sur la première photo d'Alex, deux
-    cadres sont vides : le mot de passe ET celui-là. Les mêmes couleurs, pour
-    que les deux se lisent pareil. */
-#login_window combobox entry,
-#login_window combobox text,
-#login_window combobox button label {
+/*  ═══ LA LISTE DES COMPTES — L'ARBRE, DEMANDÉ À GTK ═══
+    ALEX, PHOTO DE L'ÉCRAN DE CONNEXION : « la page pour changer
+    d'utilisateur, on voit pas les écritures ». Le champ n'était pas vide :
+    en éclaircissant sa photo, on lit « invité (LexOS) — session limitée »
+    en NOIR sur un fond quasi noir.
+
+    LES TROIS SÉLECTEURS D'AVANT NE VISAIENT RIEN. Ils cherchaient
+    « combobox entry », « combobox text » et « combobox button label ».
+    Voici l'arbre que GTK 3.24 construit VRAIMENT, obtenu de lui-même par
+    gtk_style_context_to_string() plutôt que deviné :
+
+        combobox
+          box.linked.horizontal
+            button.combo
+              box.horizontal
+                cellview      <- c'est LUI qui dessine le texte
+                arrow
+
+    Ni « entry », ni « text », ni « label » : aucun des trois n'existe. Les
+    règles étaient donc mortes depuis le premier jour, et rien ne le disait —
+    une feuille de style ne se plaint pas d'un sélecteur qui ne rencontre
+    personne.
+
+    MESURE AVANT CORRECTION, par le chemin de widget exact :
+        combobox      fond #141416   texte #E8590C
+        button.combo  fond #141416   texte #E8590C
+        cellview      fond transp.   texte #000000   <- noir sur noir
+        arrow         fond transp.   texte #000000
+    Pour comparaison, le champ du mot de passe, lui, est correct :
+        entry         fond #0B0B0C   texte #FFFFFF
+
+    On donne donc au combobox le fond du champ, et à cellview et arrow la
+    couleur d'écriture du champ. Les états sont écrits explicitement : le
+    greeter rend cette liste INSENSIBLE quand un seul compte existe, et une
+    règle sans état se fait battre par « :disabled » du thème de base. */
+#login_window #user_combo,
+#login_window combobox,
+#login_window combobox box,
+#login_window combobox button,
+#login_window combobox button.combo {
+	background-color: #0B0B0C;
+	background-image: none;
+	color: #FFFFFF;
+}
+#login_window combobox button.combo:hover,
+#login_window combobox button.combo:focus,
+#login_window combobox button.combo:disabled {
+	background-color: #0B0B0C;
+	background-image: none;
+	color: #FFFFFF;
+}
+/*  LE TEXTE ET LA FLÈCHE. Règle séparée du fond : si un jour un de ces deux
+    noms disparaît d'une version de GTK, seule cette règle-ci tombe, pas le
+    fond avec. */
+#login_window combobox cellview,
+#login_window combobox arrow {
+	color: #FFFFFF;
+}
+#login_window combobox cellview:disabled,
+#login_window combobox arrow:disabled {
 	color: #FFFFFF;
 }
 #login_window entry:focus {
@@ -443,13 +495,19 @@ treeview.view cell:selected {
 	color: alpha(@lexos_accent, 0.45);
 }
 
-/* --- La liste des comptes (« Autre… ») ------------------------------------ */
-#login_window #user_combo,
-#login_window combobox,
-#login_window combobox button {
-	background-color: #141416;
-	color: @lexos_accent;
-}
+/* --- La liste des comptes, OUVERTE ---------------------------------------- */
+/*  LE BLOC QUI PEIGNAIT LE COMBOBOX FERMÉ A ÉTÉ RETIRÉ D'ICI.
+    Il disait « background-color: #141416 ; color: @lexos_accent » sur
+    « #login_window combobox » et « #login_window combobox button » — et
+    comme il était écrit APRÈS les règles du champ, à spécificité égale
+    c'est lui qui gagnait. Deux endroits décidaient la même couleur, avec
+    deux avis contraires ; c'est la faute qui a donné trois palettes de
+    panneaux différentes dans ce dépôt.
+
+    L'orange qu'il posait n'atteignait de toute façon jamais l'écriture :
+    mesuré, le « cellview » qui la dessine restait à #000000. Le combobox
+    fermé est maintenant décidé au même endroit que le champ du mot de
+    passe, plus haut. Ne restent ici que les nœuds de la liste OUVERTE. */
 #login_window combobox window,
 #login_window combobox menu,
 #login_window combobox list {

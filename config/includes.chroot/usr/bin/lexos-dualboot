@@ -1,6 +1,6 @@
 #!/bin/sh
 # =============================================================================
-#  lexos-dualboot — vérifier qu'installer À CÔTÉ DE WINDOWS va bien se passer
+#  lexos-dualboot — vérifier qu'installer À CÔTÉ D'UN AUTRE SYSTÈME ira bien
 # =============================================================================
 #  CE QUE CET OUTIL FAIT, ET SURTOUT CE QU'IL NE FAIT PAS.
 #
@@ -51,6 +51,12 @@ info()  { printf '    %s%s%s\n' "$D" "$*" "$R"; }
 
 #  La place visée pour LexOS, en gigaoctets. 40 Go est le choix d'Alex :
 #  assez pour être à l'aise, et un plafond qu'il ne veut pas dépasser.
+#  ALEX : « je voudrais qu'on choisisse le nombre de mémoire qu'il peut
+#  prendre ». C'était une variable d'environnement — donc, en pratique,
+#  inatteignable : personne n'écrit « LEXOS_DUALBOOT_CIBLE_GO=60 lexos
+#  dualboot » devant un disque qu'il a peur d'abîmer. Ça se demande
+#  maintenant en clair : « lexos dualboot 60 ». La variable reste, pour les
+#  bancs et pour qui scripte.
 CIBLE_GO="${LEXOS_DUALBOOT_CIBLE_GO:-40}"
 #  Ce dont LexOS a réellement besoin — le même plancher que requiredStorage
 #  dans partition.conf. En dessous, ça ne rentre pas.
@@ -59,15 +65,21 @@ PLANCHER_GO="${LEXOS_DUALBOOT_PLANCHER_GO:-25}"
 #  restante, Windows commence à mal fonctionner (mises à jour qui échouent,
 #  fichier d'échange à l'étroit).
 WINDOWS_LIBRE_MIN_GO="${LEXOS_WINDOWS_LIBRE_MIN_GO:-30}"
+#  Le même seuil pour un Linux voisin, mais PLUS BAS, et ce n'est pas un
+#  arrondi : Windows a besoin d'air pour ses mises à jour cumulatives et son
+#  fichier d'échange, un Linux beaucoup moins. Lui prendre 30 Go « par
+#  symétrie » aurait refusé des découpes parfaitement saines.
+LINUX_LIBRE_MIN_GO="${LEXOS_LINUX_LIBRE_MIN_GO:-10}"
 
 case "${1:-}" in
 	-h|--help|aide|help)
 		cat <<AIDE
-${B}${PROG}${R} — vérifier avant d'installer LexOS à côté de Windows
+${B}${PROG}${R} — vérifier avant d'installer LexOS à côté d'un autre système
 
-  ${O}${PROG}${R}              Le bilan complet — Windows, la place, le démarrage
+  ${O}${PROG}${R}              Le bilan complet — le voisin, la place, le démarrage
+  ${O}${PROG} ${B}60${R}${R}           Le même bilan, en visant ${B}60 Go${R} pour LexOS
 
-Le bilan tient en un écran : il n'y a pas de sous-commande à retenir.
+Le voisin peut être ${B}Windows${R} ou un autre ${B}Linux${R} (Ubuntu, Mint, Fedora…).
 
 ${B}Cet outil ne modifie RIEN.${R} Il lit le disque et te dit quoi faire.
 Le redimensionnement, c'est l'installateur qui le fait, avec sa
@@ -76,10 +88,51 @@ confirmation à l'écran.
 Réglages (variables d'environnement) :
   ${D}LEXOS_DUALBOOT_CIBLE_GO${R}       place visée pour LexOS   ${D}(défaut : 40)${R}
   ${D}LEXOS_WINDOWS_LIBRE_MIN_GO${R}    libre à laisser à Windows ${D}(défaut : 30)${R}
+  ${D}LEXOS_LINUX_LIBRE_MIN_GO${R}      libre à laisser au Linux voisin ${D}(défaut : 10)${R}
 AIDE
 		exit 0
 		;;
 esac
+
+# --- La taille demandée, s'il y en a une ------------------------------------
+#  ON REFUSE PLUTÔT QUE DE DEVINER. « lexos dualboot 60Go », « lexos dualboot
+#  soixante », « lexos dualboot -60 » : chacun a l'air d'un chiffre et n'en
+#  est pas un. Les prendre pour 0 ou pour 60 au petit bonheur donnerait un
+#  conseil de découpe faux sur le disque qui contient les jeux d'Alex. On dit
+#  ce qu'on a compris et on s'arrête, avant d'avoir rien affiché d'autre.
+#
+#  Le PLANCHER est le même que « requiredStorage » dans partition.conf : sous
+#  ce chiffre, LexOS ne rentre pas, et conseiller une découpe qui ne rentre
+#  pas ne rend service à personne. Le PLAFOND (4000 Go) n'existe que pour
+#  attraper la faute de frappe — « 400 » tapé « 4000 » sur un disque de 500.
+TAILLE_DEMANDEE=""
+case "${1:-}" in
+	"")           ;;
+	--taille)     TAILLE_DEMANDEE="${2:-}" ;;
+	--taille=*)   TAILLE_DEMANDEE="${1#--taille=}" ;;
+	*)            TAILLE_DEMANDEE="$1" ;;
+esac
+if [ -n "$TAILLE_DEMANDEE" ]; then
+	case "$TAILLE_DEMANDEE" in
+		''|*[!0-9]*)
+			printf '%s : « %s » n'\''est pas un nombre de gigaoctets.\n' \
+				"$PROG" "$TAILLE_DEMANDEE" >&2
+			printf '  Exemple : %s 60   (soixante gigaoctets pour LexOS)\n' "$PROG" >&2
+			exit 2
+			;;
+	esac
+	if [ "$TAILLE_DEMANDEE" -lt "$PLANCHER_GO" ]; then
+		printf '%s : %s Go, c'\''est moins que le minimum de %s Go — LexOS n'\''y tiendrait pas.\n' \
+			"$PROG" "$TAILLE_DEMANDEE" "$PLANCHER_GO" >&2
+		exit 2
+	fi
+	if [ "$TAILLE_DEMANDEE" -gt 4000 ]; then
+		printf '%s : %s Go, c'\''est plus grand que tout disque courant — faute de frappe ?\n' \
+			"$PROG" "$TAILLE_DEMANDEE" >&2
+		exit 2
+	fi
+	CIBLE_GO="$TAILLE_DEMANDEE"
+fi
 
 # --- Trouver Windows --------------------------------------------------------
 #  On cherche la plus GROSSE partition NTFS, pas la première : un disque
@@ -105,8 +158,71 @@ trouver_windows_chiffre() {
 		| sort -rn | head -1 | awk '{print $2}'
 }
 
+# --- Trouver un AUTRE LINUX -------------------------------------------------
+#  ALEX : « l'ISO, peux-tu l'installer à côté d'un autre logiciel comme
+#  Ubuntu ? » Oui — Calamares sait déjà découper une partition ext4 comme il
+#  découpe une NTFS, et os-prober voit un Ubuntu comme il voit un Windows.
+#  Ce qui manquait, c'était CET OUTIL : il ne cherchait que du NTFS, donc
+#  devant un disque Ubuntu il annonçait « aucune partition Windows trouvée »
+#  et laissait Alex sans le chiffre à régler sur le curseur.
+#
+#  ON EXCLUT NOTRE PROPRE RACINE, et ce n'est pas une précaution théorique :
+#  lancé depuis un LexOS DÉJÀ INSTALLÉ, l'ext4 le plus gros du disque est le
+#  nôtre. Sans ce filtre, l'outil proposerait sereinement de se réduire
+#  lui-même pour se faire de la place. Depuis la clé USB le cas ne se pose
+#  pas (la racine est un squashfs), donc il ne se verrait qu'après coup, sur
+#  la machine d'Alex.
+racine_a_nous() {
+	_ra="$(findmnt -no SOURCE / 2>/dev/null | head -1)"
+	case "$_ra" in
+		/dev/*) printf '%s' "${_ra#/dev/}" ;;
+		*)      printf '' ;;
+	esac
+}
+
+trouver_linux() {
+	_tlnous="$(racine_a_nous)"
+	lsblk -brno NAME,FSTYPE,SIZE 2>/dev/null \
+		| awk -v nous="$_tlnous" '
+			($2=="ext4" || $2=="ext3" || $2=="btrfs" || $2=="xfs") \
+			&& $3+0 > 20000000000 && $1 != nous {print $3, $1, $2}' \
+		| sort -rn | head -1 | awk '{print $2, $3}'
+}
+
+#  LA PLACE OCCUPÉE DANS UN EXT4, SANS LE MONTER. C'est l'équivalent exact de
+#  « ntfsresize --info » pour Windows : dumpe2fs -h ne lit que le superbloc,
+#  n'écrit jamais rien, et vient d'e2fsprogs, qui est dans la liste des
+#  paquets OBLIGATOIRES de LexOS. Il donne aussi l'état du système de
+#  fichiers : un ext4 « not clean » ne se redimensionne pas plus qu'un
+#  Windows hiberné.
+#  Rend « <utilisé en Go> <état> » ; rien du tout s'il n'a pas pu lire.
+mesurer_ext4() { # mesurer_ext4 <périphérique>
+	command -v dumpe2fs >/dev/null 2>&1 || return 1
+	dumpe2fs -h "$1" 2>/dev/null | awk '
+		/^Block count:/      { bc = $3 }
+		/^Free blocks:/      { fb = $3 }
+		/^Block size:/       { bs = $3 }
+		#  « not clean » fait DEUX mots : prendre $3 seul aurait affiché
+		#  « état : not », qui ne veut rien dire pour qui le lit.
+		/^Filesystem state:/ { st = $3; for (i = 4; i <= NF; i++) st = st " " $i }
+		END {
+			if (bc == "" || fb == "" || bs == "") exit 1
+			printf "%d %s\n", (bc - fb) * bs / 1000000000, (st == "" ? "inconnu" : st)
+		}'
+}
+
 # --- Le disque et la partition ----------------------------------------------
 WIN_PART="$(trouver_windows)"
+
+#  ON CHERCHE LE VOISIN LINUX ICI, AVANT D'AFFICHER QUOI QUE CE SOIT.
+#  Sa SECTION vient plus bas, mais son existence change ce que la section
+#  Windows a le droit de dire : « aucune partition Windows — l'installateur
+#  proposera d'utiliser tout le disque » est rassurant sur un disque vide et
+#  FAUX sur un disque qui porte un Ubuntu. C'est la phrase qui déciderait
+#  Alex à laisser l'installateur tout prendre.
+LNX_LIGNE="$(trouver_linux)"
+LNX_PART="${LNX_LIGNE%% *}"
+LNX_FS="${LNX_LIGNE##* }"
 
 titre "WINDOWS"
 if [ -z "$WIN_PART" ]; then
@@ -132,7 +248,11 @@ if [ -z "$WIN_PART" ]; then
 	else
 		attn "aucune partition Windows (NTFS) de plus de 20 Go trouvée"
 		info "Soit ce disque n'a pas Windows, soit il n'est pas branché."
-		info "Dans ce cas l'installateur proposera d'utiliser tout le disque."
+		if [ -n "$LNX_PART" ]; then
+			info "Mais il y a un autre Linux dessus — voir la section suivante."
+		else
+			info "Dans ce cas l'installateur proposera d'utiliser tout le disque."
+		fi
 	fi
 	WIN_DEV=""
 else
@@ -183,7 +303,57 @@ if [ -n "$WIN_DEV" ]; then
 	fi
 fi
 
+# --- Le voisin Linux, s'il y en a un ----------------------------------------
+titre "UN AUTRE LINUX ?"
+LNX_DEV=""
+if [ -n "$LNX_PART" ]; then
+	LNX_DEV="/dev/${LNX_PART}"
+	LNX_TAILLE_O="$(lsblk -brno SIZE "$LNX_DEV" 2>/dev/null | head -1)"
+	LNX_TAILLE_GO=$(( ${LNX_TAILLE_O:-0} / 1000000000 ))
+	ok "un autre Linux occupe ${LNX_DEV} (${LNX_FS}, ${LNX_TAILLE_GO} Go)"
+	info "Ubuntu, Mint, Fedora… — l'installateur sait le découper comme il découpe Windows."
+	info "Et os-prober le mettra dans le menu de démarrage, au même titre."
+else
+	info "aucune autre partition Linux de plus de 20 Go sur ce disque."
+fi
+
 # --- Combien de place peut-on prendre ? -------------------------------------
+#  ═══ UN SEUL CALCUL, DEUX VOISINS ═══
+#  Ce raisonnement — ce qui est libre, moins ce qu'on laisse au voisin, contre
+#  ce qu'on vise — était écrit en dur pour Windows. Le recopier pour Linux
+#  aurait donné deux versions à tenir d'accord, et c'est exactement la faute
+#  qui a donné trois palettes de panneaux différentes dans ce dépôt. Il est
+#  donc dans une fonction, et les deux voisins l'appellent.
+conseil_place() { # conseil_place <nom> <taille Go> <utilisé Go> <libre mini Go> <astuce>
+	_cn="$1"; _ct="$2"; _cu="$3"; _cmin="$4"; _cast="$5"
+	_clib=$((_ct - _cu))
+	info "${_cn} utilise ${_cu} Go sur ${_ct} Go (${_clib} Go de libre)"
+
+	_cess=$((_clib - _cmin))
+	[ "$_cess" -lt 0 ] && _cess=0
+
+	if [ "$_cess" -ge "$CIBLE_GO" ]; then
+		ok "il y a de quoi donner ${CIBLE_GO} Go à LexOS"
+		printf '\n'
+		printf '  %sSur l'\''écran « Installer à côté de », règle le curseur à :%s\n' "$B" "$R"
+		printf '      %s%s Go pour LexOS%s\n' "$B$O" "$CIBLE_GO" "$R"
+		printf '\n'
+		info "${_cn} garderait alors $((_ct - CIBLE_GO)) Go, dont $((_clib - CIBLE_GO)) Go de libre."
+	elif [ "$_cess" -ge "$PLANCHER_GO" ]; then
+		attn "les ${CIBLE_GO} Go visés ne rentrent pas, mais LexOS tient quand même"
+		printf '\n'
+		printf '  %sRègle le curseur à au plus :%s %s%s Go%s\n' "$B" "$R" "$B$O" "$_cess" "$R"
+		printf '\n'
+		info "Pour atteindre ${CIBLE_GO} Go, libère $((CIBLE_GO - _cess)) Go dans ${_cn}"
+		info "$_cast"
+	else
+		non "pas assez de place : ${_cess} Go cessibles, il en faut ${PLANCHER_GO} au minimum"
+		printf '\n'
+		info "Libère au moins $((PLANCHER_GO - _cess)) Go dans ${_cn}, puis relance cette vérification."
+		info "$_cast"
+	fi
+}
+
 titre "LA PLACE POUR LEXOS"
 if [ -n "$WIN_DEV" ]; then
 	#  L'espace occupé DANS Windows, lu par ntfsresize (lecture seule). C'est
@@ -196,37 +366,41 @@ if [ -n "$WIN_DEV" ]; then
 	fi
 
 	if [ -n "$UTILISE_GO" ] && [ "$UTILISE_GO" -gt 0 ]; then
-		LIBRE_DANS_WIN_GO=$((WIN_TAILLE_GO - UTILISE_GO))
-		info "Windows utilise ${UTILISE_GO} Go sur ${WIN_TAILLE_GO} Go (${LIBRE_DANS_WIN_GO} Go de libre)"
-
-		#  Ce qu'on peut prendre sans descendre sous le plancher de Windows.
-		CESSIBLE_GO=$((LIBRE_DANS_WIN_GO - WINDOWS_LIBRE_MIN_GO))
-		[ "$CESSIBLE_GO" -lt 0 ] && CESSIBLE_GO=0
-
-		if [ "$CESSIBLE_GO" -ge "$CIBLE_GO" ]; then
-			ok "il y a de quoi donner ${CIBLE_GO} Go à LexOS"
-			printf '\n'
-			printf '  %sSur l'\''écran « Installer à côté de », règle le curseur à :%s\n' "$B" "$R"
-			printf '      %s%s Go pour LexOS%s\n' "$B$O" "$CIBLE_GO" "$R"
-			printf '\n'
-			info "Windows garderait alors $((WIN_TAILLE_GO - CIBLE_GO)) Go, dont $((LIBRE_DANS_WIN_GO - CIBLE_GO)) Go de libre."
-		elif [ "$CESSIBLE_GO" -ge "$PLANCHER_GO" ]; then
-			attn "les ${CIBLE_GO} Go visés ne rentrent pas, mais LexOS tient quand même"
-			printf '\n'
-			printf '  %sRègle le curseur à au plus :%s %s%s Go%s\n' "$B" "$R" "$B$O" "$CESSIBLE_GO" "$R"
-			printf '\n'
-			info "Pour atteindre ${CIBLE_GO} Go, libère $((CIBLE_GO - CESSIBLE_GO)) Go dans Windows"
-			info "(corbeille, Téléchargements, un gros jeu réinstallable plus tard)."
-		else
-			non "pas assez de place : ${CESSIBLE_GO} Go cessibles, il en faut ${PLANCHER_GO} au minimum"
-			printf '\n'
-			info "Libère au moins $((PLANCHER_GO - CESSIBLE_GO)) Go dans Windows, puis relance cette vérification."
-			info "Windows → Paramètres → Système → Stockage montre ce qui prend de la place."
-		fi
+		conseil_place "Windows" "$WIN_TAILLE_GO" "$UTILISE_GO" "$WINDOWS_LIBRE_MIN_GO" \
+			"Windows → Paramètres → Système → Stockage montre ce qui prend de la place."
 	else
 		attn "impossible de lire la place utilisée dans Windows"
 		info "L'installateur le mesurera lui-même sur son écran de partage."
 		info "Vise ${CIBLE_GO} Go pour LexOS, et laisse au moins ${WINDOWS_LIBRE_MIN_GO} Go de libre à Windows."
+	fi
+elif [ -n "$LNX_DEV" ]; then
+	#  MÊME RAISONNEMENT, AUTRE INSTRUMENT. ntfsresize lit le NTFS ; dumpe2fs
+	#  lit l'ext4. Les deux ne font que lire.
+	LNX_MESURE=""
+	case "$LNX_FS" in ext4|ext3) LNX_MESURE="$(mesurer_ext4 "$LNX_DEV")" ;; esac
+	LNX_UTILISE_GO="${LNX_MESURE%% *}"
+	#  « # » ET PAS « ## ». L'état tient en DEUX mots — « not clean » — et
+	#  « ${x##* } » retire le plus long préfixe finissant par une espace,
+	#  donc rendait « clean » sur un système de fichiers qui ne l'était pas.
+	#  L'avertissement ne se serait jamais déclenché, et Alex aurait
+	#  redimensionné un disque en cours d'utilisation sur la foi d'un outil
+	#  qui disait que tout allait bien. Attrapé au banc d'essai, pas en
+	#  relisant.
+	LNX_ETAT="${LNX_MESURE#* }"
+
+	if [ -n "$LNX_MESURE" ] && [ "$LNX_ETAT" != "clean" ]; then
+		attn "le système de fichiers de ${LNX_DEV} n'est pas « clean » (état : ${LNX_ETAT})"
+		info "Éteins ce Linux proprement — pas de veille, pas d'hibernation — puis relance."
+		info "Un système de fichiers en cours d'utilisation ne se redimensionne pas sans risque."
+	fi
+
+	if [ -n "$LNX_UTILISE_GO" ] && [ "$LNX_UTILISE_GO" -gt 0 ]; then
+		conseil_place "ce Linux" "$LNX_TAILLE_GO" "$LNX_UTILISE_GO" "$LINUX_LIBRE_MIN_GO" \
+			"Dans ce Linux : vide la corbeille, les Téléchargements, et « sudo apt clean »."
+	else
+		attn "impossible de lire la place utilisée dans ${LNX_DEV} (${LNX_FS})"
+		info "dumpe2fs ne lit que l'ext2/3/4 ; pour btrfs ou xfs, l'installateur mesurera lui-même."
+		info "Vise ${CIBLE_GO} Go pour LexOS, et laisse au moins ${LINUX_LIBRE_MIN_GO} Go de libre au voisin."
 	fi
 
 	#  L'espace déjà NON PARTITIONNÉ : s'il y en a, rien à redimensionner.
@@ -240,15 +414,15 @@ if [ -n "$WIN_DEV" ]; then
 		fi
 	fi
 else
-	info "Sans Windows sur le disque, la question ne se pose pas."
+	info "Aucun voisin sur le disque : l'installateur proposera de l'utiliser en entier."
 fi
 
 # --- Le menu de démarrage ---------------------------------------------------
 titre "LE MENU DE DÉMARRAGE"
 if command -v os-prober >/dev/null 2>&1; then
-	ok "os-prober présent — le menu de LexOS pourra proposer Windows"
+	ok "os-prober présent — le menu de LexOS pourra proposer l'autre système"
 else
-	non "os-prober absent — Windows n'apparaîtrait PAS dans le menu"
+	non "os-prober absent — l'autre système n'apparaîtrait PAS dans le menu"
 	info "C'est un paquet obligatoire de LexOS : signale-le, c'est un défaut."
 fi
 
@@ -260,21 +434,28 @@ else
 fi
 
 if [ -d /sys/firmware/efi ]; then
-	ok "démarrage en mode UEFI — le bon, celui que Windows utilise aussi"
+	ok "démarrage en mode UEFI — le bon, celui que les autres systèmes utilisent aussi"
 	if command -v efibootmgr >/dev/null 2>&1; then
 		N="$(efibootmgr 2>/dev/null | grep -c '^Boot[0-9]')"
 		info "${N} entrée(s) de démarrage aujourd'hui ; après installation il en faut une de plus"
 	fi
 else
 	attn "démarrage en mode BIOS/CSM, pas UEFI"
-	info "Windows est presque sûrement installé en UEFI : les deux systèmes"
-	info "doivent utiliser le MÊME mode, sinon le menu ne verra pas Windows."
+	info "Le système déjà installé est presque sûrement en UEFI : les deux"
+	info "doivent employer le MÊME mode, sinon le menu ne verra pas le voisin."
 	info "Redémarre sur la clé en choisissant l'entrée UEFI dans le menu de démarrage."
 fi
 
 # --- Le résumé --------------------------------------------------------------
 titre "CE QU'IL FAUT RETENIR"
-printf '  1. Dans Windows : décocher le %sDémarrage rapide%s, puis %sArrêter%s.\n' "$B" "$R" "$B" "$R"
+#  La première consigne ne vaut que pour un voisin Windows : le « démarrage
+#  rapide » est une invention de Windows, et l'afficher devant un disque
+#  Ubuntu enverrait Alex chercher une case qui n'existe nulle part.
+if [ -n "$WIN_DEV" ] || [ -n "${WIN_CHIFFRE:-}" ]; then
+	printf '  1. Dans Windows : décocher le %sDémarrage rapide%s, puis %sArrêter%s.\n' "$B" "$R" "$B" "$R"
+else
+	printf '  1. Éteindre le système voisin %sproprement%s — pas en veille, pas en hibernation.\n' "$B" "$R"
+fi
 printf '  2. Sauvegarder ce qui compte. %sPar principe%s, avant tout partage de disque.\n' "$B" "$R"
 printf '  3. Dans le BIOS (F2) : %sSecure Boot → Disabled%s.\n' "$B" "$R"
 printf '  4. Dans l'\''installateur : %s« Installer à côté de »%s, curseur à %s%s Go%s.\n' "$B" "$R" "$B$O" "$CIBLE_GO" "$R"

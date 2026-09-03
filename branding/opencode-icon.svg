@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — OpenCode.
+
+  ALEX : « peux-tu faire en sorte qu'OpenCode s'installe sur LexOS pro »,
+  puis, quand je lui ai demandé de confirmer : « open source ».
+
+  POURQUOI CE DESSIN, ET PAS LE LOGO D'OPENCODE.
+  OpenCode est sous licence MIT (relevée dans son LICENSE : « Copyright (c)
+  2025 opencode »), ce qui couvre son CODE — pas forcément sa marque. Pour
+  Claude, on emploie le tracé officiel d'Anthropic parce que le lanceur ouvre
+  bel et bien l'application d'Anthropic, du même usage qu'une icône de favori.
+  Ici on n'a pas besoin d'aller si loin : un signe de code suffit à dire ce
+  que ça ouvre, et il est de nous. Le jour où OpenCode publie une icône claire
+  à réemployer, ce fichier est le seul à changer.
+
+  LA COULEUR N'EST PAS INVENTÉE POUR L'OCCASION : #2DBF6B est le ACCENT_HI de
+  l'accent « vert » de lexos-theme-gen. Trois terminaux, trois lectures — et
+  c'est tout l'enjeu, parce qu'ils vivent côte à côte dans le dock :
+
+    Terminal ......... cadre à l'accent, un écran et « >_ »
+    Claude Terminal .. l'étoile d'Anthropic, ROUGE sur noir
+    OpenCode ......... deux chevrons VERTS sur noir
+
+  ET IL EST ÉCRIT EN DUR, EXPRÈS. L'orange d'icon-terminal.svg est un JETON
+  que lexos-theme-gen remplace par l'accent courant — le Terminal suit le
+  thème, c'est voulu. Ici non : si le vert suivait l'accent, choisir
+  « lexos accent vert » rendrait OpenCode et le Terminal identiques. Le vert
+  est ce qui DISTINGUE ; il ne peut pas être la couleur qui change. Même
+  raisonnement que pour le rouge de Claude Terminal, et pour la même raison.
+
+  LE DESSIN TIENT À 16 px, ET C'EST LUI QUI A DÉCIDÉ DE SA FORME.
+  Le premier jet était un « </> » — le signe de code habituel. Rendu aux
+  quatre tailles que le dock emploie vraiment (16, 22, 24, 32) et regardé
+  agrandi, le trait oblique touche les deux chevrons dès 24 px et l'ensemble
+  devient une tache verte à 16. Deux autres géométries ont été essayées côte
+  à côte — chevrons écartés et trait plus fin, puis oblique décalée — et
+  aucune ne tenait à 16.
+
+  Il reste donc DEUX chevrons. Trois éléments ne peuvent pas se distinguer
+  dans un carré de seize pixels ; deux, oui, et à toutes les tailles. On perd
+  la barre oblique, on garde une icône qu'on reconnaît du premier coup d'œil
+  dans le dock — ce qui est le seul travail d'une icône. Mesuré, pas jugé à
+  l'œil sur la grande version.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"
+     role="img" aria-label="OpenCode — LexOS">
+  <rect width="256" height="256" rx="56" fill="#0B0B0C"/>
+  <!-- Le liseré est posé À L'INTÉRIEUR du carré : un contour centré sur le
+       bord serait rogné de moitié au rendu, et l'icône paraîtrait sans
+       bordure aux petites tailles — celles, justement, où le dock l'affiche.
+       Même procédé et même valeur que claude-terminal-icon.svg, pour que les
+       deux aient le même poids dans le dock. -->
+  <rect x="3" y="3" width="250" height="250" rx="53"
+        fill="none" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="6"/>
+  <g fill="none" stroke="#2DBF6B" stroke-width="22"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M104 74 L56 128 L104 182"/>
+    <path d="M152 74 L200 128 L152 182"/>
+  </g>
+</svg>

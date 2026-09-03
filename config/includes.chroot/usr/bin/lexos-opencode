@@ -1,0 +1,155 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-opencode — OpenCode, l'agent de code OPEN SOURCE, dans LexOS
+# =============================================================================
+#  ALEX : « peux-tu faire en sorte qu'OpenCode s'installe sur LexOS pro ».
+#  Puis, quand je lui ai demandé de confirmer de quel OpenCode il parlait :
+#  « open source ». C'est donc bien opencode-ai, l'agent de code en terminal,
+#  et non un quelconque format de conteneur.
+#
+#  CE QU'IL EST, ET POURQUOI IL A SA PLACE À CÔTÉ DE CLAUDE TERMINAL.
+#  LexOS embarque déjà Claude Code, qui exige un compte Anthropic. OpenCode
+#  est sous licence MIT (relevée dans son fichier LICENSE : « Copyright (c)
+#  2025 opencode ») et sait parler à plusieurs fournisseurs de modèles. Les
+#  deux ne se remplacent pas : ils vivent côte à côte dans le dock, chacun
+#  avec son icône. C'est aussi la règle que ce dépôt s'est donnée — « aucun
+#  outil propriétaire » là où un libre fait le travail.
+#
+#  ═══ LES COMMANDES D'INSTALLATION NE SONT PAS ÉCRITES DE MÉMOIRE ═══
+#  Elles viennent du README du projet, relu au moment d'écrire ce fichier :
+#     npm i -g opencode-ai@latest          (canal npm officiel)
+#     curl -fsSL https://opencode.ai/install | bash    (script officiel)
+#  Le nom du paquet npm est « opencode-ai » — pas « opencode », qui est un
+#  autre paquet. Se tromper là-dessus installerait silencieusement autre
+#  chose ; c'est précisément le genre de détail qu'on ne devine pas.
+#
+#  MÊME ORDRE QUE POUR CLAUDE CODE, ET POUR LES MÊMES RAISONS : npm d'abord
+#  (le paquet est déjà là si le hook 0425 a pu l'embarquer à la construction,
+#  et npm sait le mettre à jour), le script officiel ensuite, en repli quand
+#  npm manque ou que l'écriture globale est refusée.
+#
+#  CE SCRIPT NE FAIT QU'UNE CHOSE DE PLUS QUE LANCER : il installe au besoin.
+#  Il n'écrit aucune clé d'API, ne choisit aucun modèle, ne touche à aucun
+#  réglage d'OpenCode. Sa configuration lui appartient — on ne s'invite pas
+#  dans les fichiers d'un autre programme.
+# =============================================================================
+set -u
+
+PROG="${0##*/}"
+PAQUET_NPM="opencode-ai"
+INSTALLEUR="https://opencode.ai/install"
+
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+	V=$(printf '\033[32m'); E=$(printf '\033[31m')
+	B=$(printf '\033[1m');  D=$(printf '\033[2m'); R=$(printf '\033[0m')
+else
+	V=''; E=''; B=''; D=''; R=''
+fi
+dire() { printf '%s\n' "$*"; }
+ok()   { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+rate() { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; }
+meurt(){ rate "$*"; exit 1; }
+
+#  OpenCode s'installe volontiers dans ~/.local/bin (son script officiel suit
+#  la spécification XDG). Ce dossier n'est pas toujours déjà dans le PATH de
+#  la session en cours — d'où cette ligne, sans quoi on viendrait d'installer
+#  un programme qu'on ne trouve pas.
+chemin_local() {
+	case ":$PATH:" in
+		*":$HOME/.local/bin:"*) ;;
+		*) PATH="$HOME/.local/bin:$PATH"; export PATH ;;
+	esac
+}
+
+present() { command -v opencode >/dev/null 2>&1; }
+
+installer() {
+	chemin_local
+	if present; then ok "OpenCode est déjà installé."; return 0; fi
+
+	# 1) Le canal npm officiel.
+	if command -v npm >/dev/null 2>&1; then
+		dire "Installation d'OpenCode (canal npm officiel)…"
+		if npm install -g "${PAQUET_NPM}@latest" >/dev/null 2>&1; then
+			chemin_local; present && { ok "OpenCode installé."; return 0; }
+		fi
+		#  Écriture globale refusée : on repasse avec sudo, mais UNIQUEMENT
+		#  si sudo est là et ne réclamera pas de mot de passe dans le vide —
+		#  un script qui bloque sur une invite invisible est pire qu'un échec
+		#  franc.
+		if command -v sudo >/dev/null 2>&1; then
+			dire "Nouvelle tentative avec sudo…"
+			if sudo npm install -g "${PAQUET_NPM}@latest" >/dev/null 2>&1; then
+				chemin_local; present && { ok "OpenCode installé."; return 0; }
+			fi
+		fi
+	fi
+
+	# 2) L'installeur officiel du projet.
+	command -v curl >/dev/null 2>&1 || meurt "curl est requis pour l'installation."
+	dire "Installation d'OpenCode (installeur officiel du projet)…"
+	if curl -fsSL "$INSTALLEUR" | bash >/dev/null 2>&1; then
+		chemin_local; present && { ok "OpenCode installé."; return 0; }
+	fi
+
+	meurt "Échec de l'installation d'OpenCode. Vérifie la connexion, puis : ${PROG} setup"
+}
+
+#  ═══ LA FENÊTRE ═══
+#  Le lanceur du dock passe par ici plutôt que par un second script.
+#  lexos-claude-terminal existe parce que Claude Terminal a été demandé comme
+#  une APPLICATION à part entière ; en recopier une deuxième version pour
+#  OpenCode donnerait deux fichiers identiques à 90 %, qui finiraient par
+#  diverger — c'est la faute qui a donné trois palettes de panneaux
+#  différentes dans ce dépôt. Une option suffit.
+#
+#  Les options d'xfce4-terminal sont celles de man xfce4-terminal(1), les
+#  mêmes que pour Claude Terminal, à l'icône près.
+fenetre() {
+	if command -v xfce4-terminal >/dev/null 2>&1; then
+		exec xfce4-terminal \
+			--title="OpenCode" \
+			--icon=lexos-opencode \
+			--hide-menubar --hide-toolbar \
+			--color-bg='#000000' --color-text='#FFFFFF' \
+			--hold \
+			-e "$PROG"
+	fi
+	if command -v x-terminal-emulator >/dev/null 2>&1; then
+		exec x-terminal-emulator -e "$PROG"
+	fi
+	#  Sans aucun émulateur graphique, on démarre ici même : mieux vaut
+	#  OpenCode sans son costume que pas d'OpenCode du tout.
+	exec "$0"
+}
+
+aide() {
+	cat <<AIDE
+${B}${PROG}${R} — OpenCode, l'agent de code open source (licence MIT)
+
+  ${B}${PROG}${R}                Ouvre OpenCode ${D}(l'installe au besoin)${R}
+  ${B}${PROG} setup${R}          (Ré)installe ou met à jour OpenCode
+  ${B}${PROG} --fenetre${R}      Ouvre OpenCode dans sa propre fenêtre
+  ${B}${PROG} --version${R}      La version installée
+
+Tout autre argument est passé tel quel à OpenCode.
+
+${D}LexOS ne touche à aucun réglage d'OpenCode : sa configuration, ses clés et
+son choix de modèle lui appartiennent.${R}
+AIDE
+}
+
+case "${1:-}" in
+	-h|--help|aide|help) aide; exit 0 ;;
+	setup|installer|install) installer; exit $? ;;
+	--fenetre|--window) fenetre ;;
+	--version|-v)
+		chemin_local
+		present || meurt "OpenCode n'est pas installé. Lance : ${PROG} setup"
+		exec opencode --version
+		;;
+esac
+
+chemin_local
+present || installer || exit 1
+exec opencode "$@"

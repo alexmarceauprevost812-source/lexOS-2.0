@@ -32,6 +32,9 @@ REUSSIS=0; ECHOUES=0
 ok()   { printf '  \033[32m✅\033[0m %s\n' "$1"; REUSSIS=$((REUSSIS+1)); }
 non()  { printf '  \033[31m❌\033[0m %s\n' "$1"; ECHOUES=$((ECHOUES+1)); }
 titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
+#  Ni vert ni rouge : « on n'a pas pu mesurer ». Compter un vert ferait
+#  croire à une preuve ; un rouge accuserait la mauvaise pièce.
+saute(){ printf '  \033[33m•\033[0m %s\n' "$1"; }
 
 # =============================================================================
 #  Un moteur de cascade GTK, réduit à ce dont on a besoin
@@ -764,6 +767,97 @@ if [ "${1:-}" != "--enfant" ]; then
 		"s|^\tif ! grep -q '\^theme-name=LexOS-Connexion\$' \"\$CONNEXION_CONF\"; then\$|\tif true; then|"
 	mutation "le 0410 nomme un thème qu'il n'a pas fabriqué" "$HOOK" \
 		's|^GREETER_THEME="${LEXOS_GTK_BASE_THEME}"$|GREETER_THEME="LexOS-Connexion"|'
+fi
+
+# =============================================================================
+titre "La liste des comptes se LIT — mesuré sur les vrais nœuds de GTK"
+# =============================================================================
+#  ALEX, PHOTO : « la page pour changer d'utilisateur, on voit pas les
+#  écritures ». Le champ n'était pas vide : en éclaircissant sa photo on lit
+#  « invité (LexOS) — session limitée », en NOIR sur un fond quasi noir.
+#
+#  CE BANC MESURE, IL NE GREPPE PAS, et c'est tout l'enjeu. Les règles
+#  fautives disaient « color: #FFFFFF » — un contrôle qui aurait cherché
+#  cette chaîne aurait été VERT pendant que l'écran était illisible. Elles
+#  visaient « combobox entry », « combobox text » et « combobox button
+#  label » : aucun de ces trois nœuds n'existe dans l'arbre que GTK 3.24
+#  construit réellement. On demande donc à GTK la couleur résolue sur le
+#  chemin de widget exact, et on regarde le CONTRASTE.
+#  ON CHERCHE L'INTERPRÉTEUR QUI A « gi », pas le premier venu. Sur une
+#  machine où deux python cohabitent, « python3 » peut très bien être celui
+#  qui ne l'a pas — le banc sauterait alors sur une machine parfaitement
+#  équipée, et le défaut repasserait inaperçu.
+PY_GI=""
+for P in python3 python3.13 python3.12 python3.11; do
+	command -v "$P" >/dev/null 2>&1 || continue
+	"$P" -c "import gi; gi.require_version('Gtk','3.0')" 2>/dev/null || continue
+	PY_GI="$P"; break
+done
+if [ -z "$PY_GI" ] || ! command -v xvfb-run >/dev/null 2>&1; then
+	saute "gi/GTK ou Xvfb absents : les couleurs de la liste n'ont PAS été mesurées"
+else
+	cat > "$BANC/liste.py" <<'PYCX'
+import sys, gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, Gdk
+Gtk.init([])
+prov = Gtk.CssProvider()
+prov.load_from_path(sys.argv[1])
+
+def ctx(noeuds):
+    ch = Gtk.WidgetPath()
+    for nom, classes in noeuds:
+        i = ch.append_type(Gtk.Widget.__gtype__)
+        ch.iter_set_object_name(i, nom)
+        for c in classes:
+            ch.iter_add_class(i, c)
+    ch.iter_set_name(0, "login_window")
+    c = Gtk.StyleContext(); c.set_path(ch)
+    c.add_provider(prov, Gtk.STYLE_PROVIDER_PRIORITY_USER)
+    return c
+
+#  L'arbre vient de gtk_style_context_to_string() sur un vrai GtkComboBox :
+#  combobox > box.linked > button.combo > box > cellview.
+BASE = [("window", ["background"]), ("combobox", []),
+        ("box", ["linked", "horizontal"]), ("button", ["combo"]),
+        ("box", ["horizontal"])]
+
+def lum(c):
+    def v(x):
+        return x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4
+    return 0.2126 * v(c.red) + 0.7152 * v(c.green) + 0.0722 * v(c.blue)
+
+fond = ctx(BASE[:4]).get_property("background-color", Gtk.StateFlags.NORMAL)
+for nom, chemin in (("cellview", BASE + [("cellview", [])]),
+                    ("arrow",    BASE + [("arrow", [])])):
+    t = ctx(chemin).get_color(Gtk.StateFlags.NORMAL)
+    a, b = sorted((lum(fond), lum(t)))
+    ratio = (b + 0.05) / (a + 0.05)
+    teinte = "#%02X%02X%02X" % (round(t.red*255), round(t.green*255), round(t.blue*255))
+    #  4,5:1 est le seuil AA pour du texte courant — le meme que celui deja
+    #  employe pour l'invite du terminal.
+    verdict = "OK" if ratio >= 4.5 else "NON"
+    mot = "se lit sur le fond de la liste" if ratio >= 4.5 else "ne se lit PAS (seuil 4,5)"
+    print("%s|« %s » %s : %.2f:1 (%s sur %s)" % (
+        verdict, nom, mot, ratio, teinte,
+        "#%02X%02X%02X" % (round(fond.red*255), round(fond.green*255), round(fond.blue*255))))
+PYCX
+	#  ON NE GARDE QUE LES LIGNES DE VERDICT. xvfb-run et GTK bavardent sur
+	#  la sortie standard (« dbind-WARNING », entre autres) ; sans ce filtre,
+	#  une de ces lignes se faisait lire comme un verdict et le banc affichait
+	#  un rouge SANS MESSAGE — un échec qui n'apprend rien à personne.
+	SORTIE_CX="$(xvfb-run -a "$PY_GI" "$BANC/liste.py" "$CSS" 2>/dev/null \
+		| grep -E '^(OK|NON)\|' || true)"
+	if [ -z "$SORTIE_CX" ]; then
+		non "la mesure des couleurs de la liste n'a rien rendu"
+	else
+		while IFS='|' read -r VERDICT MESSAGE; do
+			[ -n "$VERDICT" ] || continue
+			[ "$VERDICT" = "OK" ] && ok "$MESSAGE" || non "$MESSAGE"
+		done <<EOF
+$SORTIE_CX
+EOF
+	fi
 fi
 
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
