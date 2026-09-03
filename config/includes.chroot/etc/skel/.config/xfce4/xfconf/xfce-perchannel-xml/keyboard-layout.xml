@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — la disposition du clavier
+
+  ═══ POURQUOI CE FICHIER EXISTE ═══
+  ALEX : « dans les paramètres de clavier, une fois installé, on n'est pas
+  capable de changer de clavier », et « comme pour le @, je suis pas capable
+  de le faire ».
+
+  LexOS ne livrait AUCUN keyboard-layout.xml. XFCE appliquait donc son
+  défaut — et son défaut verrouille tout. Vérifié dans le GtkBuilder du
+  binaire lui-même, pas supposé :
+
+      <object class="GtkSwitch" id="xkb_use_system_default_switch">
+        <property name="active">True</property>
+
+  « Utiliser les réglages système » est ACTIF au départ, et tant qu'il l'est,
+  XFCE grise le cadre du modèle, celui de la bascule et TOUTE la liste des
+  dispositions. La fenêtre s'ouvre, tout est là, et rien ne se clique. C'est
+  mot pour mot « pas capable de changer de clavier ».
+
+  Et comme on ne peut pas en changer, on reste sur la disposition posée à
+  l'installation — d'où le « @ » introuvable : sur un clavier canadien
+  français, il ne se tape pas là où il se tape sur un clavier américain.
+
+  ═══ CE QUE CE FICHIER FAIT, ET RIEN DE PLUS ═══
+  Il met « XkbDisableAll » à false, c'est-à-dire : NE PAS s'en remettre aux
+  réglages système. C'est le seul réglage qui déverrouille la page.
+
+  IL NE FIXE AUCUNE DISPOSITION. On aurait pu écrire « ca » ici, et ç'aurait
+  été une faute : la disposition est choisie à l'installation, elle vit dans
+  /etc/default/keyboard, et l'écraser depuis le squelette imposerait le
+  clavier d'Alex à quiconque installe LexOS ailleurs. On ouvre la porte, on
+  ne choisit pas à la place des gens.
+
+  ═══ CE QUI ÉCRIT ICI ENSUITE ═══
+  « lexos clavier » (et la page Clavier des Paramètres, qui l'appelle) pose
+  XkbLayout et XkbVariant dans ce même canal. Ce fichier est leur point de
+  départ ; ils le complètent, ils ne le remplacent pas.
+-->
+<channel name="keyboard-layout" version="1.0">
+  <property name="Default" type="empty">
+    <property name="XkbDisableAll" type="bool" value="false"/>
+  </property>
+</channel>

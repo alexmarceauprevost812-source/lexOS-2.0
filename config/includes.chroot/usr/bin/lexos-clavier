@@ -259,6 +259,77 @@ cmd_bascule() {
 	ok "$(bascule_nom "$v") fait passer à la disposition suivante."
 }
 
+# =============================================================================
+#  --json : le catalogue et l'etat, pour la page des Parametres
+# =============================================================================
+#  ALEX : « dans les parametres de clavier, une fois installe, on n'est pas
+#  capable de changer de clavier », puis « faire en sorte qu'on puisse avoir
+#  tous les parametres de clavier ».
+#
+#  La page des Parametres se contentait d'AFFICHER les dispositions et de
+#  passer la main au dialogue de XFCE. Elle peut maintenant les changer
+#  elle-meme — mais on ne va pas lui faire recopier ce catalogue. C'est la
+#  regle que ce depot s'est donnee, ecrite noir sur blanc dans settings.py a
+#  propos de lexos-distant : « ON LUI DEMANDE PLUTOT QUE DE REFAIRE SON
+#  TRAVAIL […] deux copies de la meme logique finiraient par ne plus dire la
+#  meme chose. »
+#
+#  Le JSON est ecrit a la main plutot que par un outil : ce script est du
+#  shell, il n'a pas de bibliotheque JSON, et les seules valeurs qui sortent
+#  d'ici viennent du CATALOGUE et des BASCULES ci-dessus — des chaines que
+#  nous ecrivons, sans guillemet ni antislash. Rien d'exterieur ne transite.
+cmd_json() {
+	charge
+	printf '{\n'
+	printf '  "liste": "%s",\n' "$LISTE"
+	printf '  "bascule": "%s",\n' "$BASCULE"
+
+	#  Les dispositions ACTIVES, dans l'ordre : la premiere est celle du
+	#  demarrage.
+	printf '  "actives": ['
+	local premier=1 cle
+	IFS=',' read -ra _c <<< "$LISTE"
+	for cle in "${_c[@]}"; do
+		[[ -n "$cle" ]] || continue
+		(( premier )) || printf ', '
+		premier=0
+		printf '{"cle": "%s", "nom": "%s"}' "$cle" "$(nom_de "$cle")"
+	done
+	printf '],\n'
+
+	printf '  "catalogue": ['
+	premier=1
+	while IFS='|' read -r c _x _v nom fam; do
+		[[ -n "$c" ]] || continue
+		(( premier )) || printf ', '
+		premier=0
+		printf '{"cle": "%s", "nom": "%s", "famille": "%s"}' "$c" "$nom" "$fam"
+	done <<< "$CATALOGUE"
+	printf '],\n'
+
+	printf '  "bascules": ['
+	premier=1
+	while IFS='|' read -r c _opt nom; do
+		[[ -n "$c" ]] || continue
+		(( premier )) || printf ', '
+		premier=0
+		printf '{"cle": "%s", "nom": "%s"}' "$c" "$nom"
+	done <<< "$BASCULES"
+	printf '],\n'
+
+	#  CE QUE X APPLIQUE VRAIMENT, et pas seulement ce que notre fichier dit.
+	#  Les deux peuvent differer — un « setxkbmap » lance a la main, une
+	#  session qui n'a pas encore relu le reglage — et c'est precisement
+	#  l'ecart qu'il faut pouvoir montrer plutot que cacher.
+	local x=""
+	if command -v setxkbmap >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+		x="$(setxkbmap -query 2>/dev/null | sed -n 's/^layout:[[:space:]]*//p')"
+	fi
+	printf '  "x_applique": "%s",\n' "$x"
+	printf '  "max": 4\n'
+	printf '}\n'
+}
+
 usage() {
 	cat <<EOF
 ${B}$PROG${R} — plusieurs dispositions, et de quoi passer de l'une à l'autre
@@ -289,5 +360,6 @@ case "${1:-}" in
 	retirer|remove|rm)       shift; cmd_retirer "${1:-}" ;;
 	dabord|premier|first)    shift; cmd_dabord "${1:-}" ;;
 	bascule|toggle)          shift; cmd_bascule "${1:-}" ;;
+	--json|json)             cmd_json ;;
 	*) die "Sous-commande inconnue : $1  (essaie : $PROG --help)" ;;
 esac

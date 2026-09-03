@@ -1843,6 +1843,22 @@ jobs:
           done
           bash tests/test_lexos_opencode.sh
 
+      - name: Le clavier se change depuis les Paramètres — et XFCE n'est plus grisé
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, PHOTO DE LA PAGE : « Dispositions actives : ca », un bouton,
+          #  et une phrase qui renvoie au terminal. Rien à régler. Et le
+          #  dialogue de XFCE, lui, s'ouvre TOUT GRISÉ : « Utiliser les
+          #  réglages système » est actif par défaut (relevé dans le
+          #  GtkBuilder du binaire), et LexOS ne livrait aucun
+          #  keyboard-layout.xml pour dire le contraire. D'où « pas capable
+          #  de changer de clavier », et le « @ » introuvable.
+          #
+          #  Le banc fait TOURNER les gestes plutôt que lire le code : un
+          #  contrôle qui vérifierait qu'une fonction existe serait vert avec
+          #  une fonction qui ne fait rien.
+          bash tests/test_lexos_clavier.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |

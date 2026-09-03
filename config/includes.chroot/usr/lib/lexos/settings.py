@@ -1356,8 +1356,55 @@ def act_heure_auto(arg):
     return _run(argv)
 
 
+def _clavier_cle_connue(cle):
+    """La clé est-elle dans le catalogue que lexos-clavier publie ?
+
+    CE QUE CE CONTRÔLE FAIT, ET CE QU'IL NE FAIT PAS — parce que la première
+    version de ce commentaire se vantait de trop. Il n'empêche AUCUNE
+    injection : _run() reçoit une LISTE d'arguments, il n'y a pas de shell,
+    et « ; rm -rf / » ne serait jamais qu'un nom de disposition farfelu passé
+    à lexos-clavier, qui le refuserait. Dire l'inverse aurait fait croire à
+    une protection qui vit ailleurs.
+
+    Ce qu'il fait vraiment : refuser au niveau des Paramètres, avec un motif
+    QUI NOMME LE CATALOGUE, plutôt que de lancer un programme pour rien et de
+    renvoyer son message à lui. La page peut alors dire à l'utilisateur que
+    la disposition n'existe pas, ce qui est l'information utile.
+    """
+    e = _clavier_etat()
+    return any(c.get("cle") == cle for c in e.get("catalogue", []))
+
+
+def _clavier_bascule_connue(cle):
+    e = _clavier_etat()
+    return any(b.get("cle") == cle for b in e.get("bascules", []))
+
+
+def act_clavier(arg):
+    """Changer la disposition du clavier — « quoi:clé ».
+
+    Quatre gestes, tous rendus par lexos-clavier :
+      dabord:<clé>   la mettre en premier, c'est-à-dire celle du démarrage
+      ajouter:<clé>  en ajouter une deuxième (quatre au maximum, limite de X)
+      retirer:<clé>  en enlever une
+      bascule:<clé>  quelles touches passent de l'une à l'autre
+    """
+    if not shutil.which("lexos-clavier"):
+        return {"ok": False, "erreur": "lexos-clavier introuvable"}
+    quoi, _, cle = (arg or "").partition(":")
+    if quoi not in ("dabord", "ajouter", "retirer", "bascule"):
+        return {"ok": False, "erreur": "geste inattendu"}
+    if not cle:
+        return {"ok": False, "erreur": "aucune disposition donnée"}
+    verifie = _clavier_bascule_connue if quoi == "bascule" else _clavier_cle_connue
+    if not verifie(cle):
+        return {"ok": False, "erreur": "« %s » n'est pas dans le catalogue" % cle}
+    return _run(["lexos-clavier", quoi, cle])
+
+
 ACTIONS = {
     "ouvrir": act_ouvrir,
+    "clavier": act_clavier,
     "wifi-radio": act_wifi,
     "wifi-auto": act_wifi_auto,
     "son-muet": act_son_muet,
@@ -2427,15 +2474,50 @@ def _imprimantes_etat():
 
 
 def _clavier_etat():
-    """Les dispositions de clavier actives, et laquelle est en service."""
-    dispos, courante = [], ""
-    if shutil.which("setxkbmap"):
-        for ligne in _sortie(["setxkbmap", "-query"]).splitlines():
-            if ligne.startswith("layout:"):
-                dispos = [d for d in ligne.split(":", 1)[1].strip().split(",") if d]
-    if shutil.which("xkb-switch"):
-        courante = _sortie(["xkb-switch"])
-    return {"dispositions": dispos, "courante": courante or (dispos[0] if dispos else "")}
+    """Le clavier, tel que lexos-clavier le voit.
+
+    ALEX : « dans les paramètres de clavier, une fois installé, on n'est pas
+    capable de changer de clavier », puis « faire en sorte qu'on puisse
+    avoir tous les paramètres de clavier ».
+
+    CETTE SECTION NE SAVAIT QUE LIRE. Elle appelait « setxkbmap -query »,
+    affichait les dispositions, et pour changer quoi que ce soit renvoyait
+    au dialogue de XFCE — lequel s'ouvre TOUT GRISÉ tant que « Utiliser les
+    réglages système » est actif, ce qui est son défaut (vérifié dans le
+    GtkBuilder du binaire : xkb_use_system_default_switch, active=True).
+    Deux impasses, et rien pour le dire.
+
+    ON DEMANDE À lexos-clavier PLUTÔT QUE DE REFAIRE SON TRAVAIL. Il porte
+    déjà le catalogue des vingt dispositions, les six bascules, et il sait
+    appliquer ET conserver. Relire setxkbmap de notre côté ferait deux
+    copies de la même logique, qui finiraient par ne plus dire la même
+    chose — exactement le raisonnement tenu pour lexos-distant plus bas.
+    """
+    vide = {"dispositions": [], "courante": "", "actives": [],
+            "catalogue": [], "bascules": [], "bascule": "", "max": 4,
+            "x_applique": ""}
+    if not shutil.which("lexos-clavier"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-clavier", "--json"],
+                           capture_output=True, text=True, timeout=15)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    actives = d.get("actives", [])
+    return {
+        #  « dispositions » et « courante » restent servis : la page les
+        #  affichait déjà sous ces noms, et un renommage silencieux aurait
+        #  vidé l'écran sans qu'une seule erreur ne le dise.
+        "dispositions": [a.get("cle", "") for a in actives],
+        "courante": actives[0].get("cle", "") if actives else "",
+        "actives": actives,
+        "catalogue": d.get("catalogue", []),
+        "bascules": d.get("bascules", []),
+        "bascule": d.get("bascule", ""),
+        "max": d.get("max", 4),
+        "x_applique": d.get("x_applique", ""),
+    }
 
 
 def _distant_etat():

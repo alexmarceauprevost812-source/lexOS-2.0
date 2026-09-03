@@ -832,6 +832,31 @@ async function setFuseau(zone){
   const r = await api("fuseau", zone);
   await rafraichir(r.ok ? "Fuseau horaire réglé" : "Échec : " + (r.erreur || "mot de passe refusé"));
 }
+/*  LE CLAVIER. Quatre gestes, tous rendus par lexos-clavier via l'action
+    « clavier » du moteur. On rafraichit apres chaque geste : la liste des
+    dispositions vient de changer, et une page qui montre l'ancien etat
+    ferait croire que le clic n'a rien fait. */
+function nomBascule(bascules, cle){
+  const b = (bascules || []).find(x => x.cle === cle);
+  return b ? b.nom : (cle || "");
+}
+async function clavierDabord(cle){
+  const r = await api("clavier", "dabord:" + cle);
+  await rafraichir(r.ok ? "Disposition changée" : "Échec : " + (r.erreur || "refusé"));
+}
+async function clavierAjouter(cle){
+  if(!cle) return;
+  const r = await api("clavier", "ajouter:" + cle);
+  await rafraichir(r.ok ? "Disposition ajoutée" : "Échec : " + (r.erreur || "refusé"));
+}
+async function clavierRetirer(cle){
+  const r = await api("clavier", "retirer:" + cle);
+  await rafraichir(r.ok ? "Disposition retirée" : "Échec : " + (r.erreur || "refusé"));
+}
+async function clavierBascule(cle){
+  const r = await api("clavier", "bascule:" + cle);
+  await rafraichir(r.ok ? "Touches de bascule changées" : "Échec : " + (r.erreur || "refusé"));
+}
 async function basculeHeureAuto(){
   const r = await api("heure-auto", "toggle");
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "mot de passe refusé"));
@@ -1773,18 +1798,82 @@ function contenu(cle){
       <p class="notice">Le changement s'applique à la prochaine ouverture de session :
       les applications lisent leur langue au démarrage, pas en cours de route.</p>`;
     }
+    /*  ═══ LE CLAVIER SE CHANGE ICI, ET PLUS SEULEMENT SE REGARDE ═══
+        ALEX : « dans les paramètres de clavier, une fois installé, on n'est
+        pas capable de changer de clavier », et « comme pour le @, je suis
+        pas capable de le faire ».
+
+        CETTE PAGE NE SAVAIT QUE LIRE. Elle affichait les dispositions et
+        renvoyait au dialogue de XFCE pour en changer — lequel s'ouvre TOUT
+        GRISÉ tant que « Utiliser les réglages système » est actif, ce qui
+        est son défaut. Vérifié dans le GtkBuilder du binaire lui-même :
+        « xkb_use_system_default_switch », active=True. Deux impasses, et
+        rien à l'écran pour l'expliquer.
+
+        Le catalogue et les gestes viennent de lexos-clavier, qui les portait
+        déjà : on ne recopie pas vingt dispositions dans cette page. */
     case "clavier": {
       const k = etat.clavier || {};
-      const d = k.dispositions || [];
+      const act = k.actives || [];
+      const cat = k.catalogue || [];
+      const bas = k.bascules || [];
+      const dejaLa = new Set(act.map(a => a.cle));
+      const reste = cat.filter(c => !dejaLa.has(c.cle));
+      const plein = act.length >= (k.max || 4);
+
+      if(!cat.length){
+        return `<h2>Clavier</h2><div class="sub">Dispositions et raccourcis</div>
+        <p class="notice">lexos-clavier n'a pas répondu : les dispositions ne
+        peuvent pas être changées d'ici. En ligne de commande :
+        <code>lexos clavier</code>.</p>${btnOuvrir("clavier","Réglages du clavier")}`;
+      }
+
+      /*  La PREMIÈRE de la liste est celle du démarrage : c'est la règle de
+          lexos-clavier, et on la dit plutôt que de la laisser deviner. */
+      const lignes = act.map((a, i) => srow(
+        esc(a.nom),
+        i === 0 ? "Celle du démarrage" : "Bascule : " + esc(nomBascule(bas, k.bascule)),
+        (i === 0 ? `<span class="etat ok">active</span>`
+                 : `<button class="btn" onclick="clavierDabord('${esc(a.cle)}')">Mettre en premier</button>`) +
+        (act.length > 1
+          ? ` <button class="btn" onclick="clavierRetirer('${esc(a.cle)}')">Retirer</button>`
+          : "")
+      )).join("");
+
+      const ajout = plein
+        ? `<p class="notice">Quatre dispositions au maximum — c'est la limite de X,
+           pas la nôtre.</p>`
+        : srow("Ajouter une disposition",
+               "Elle s'ajoute à la suite ; la bascule permet de passer de l'une à l'autre",
+               `<select onchange="clavierAjouter(this.value)"
+                  style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+                         border-radius:6px;padding:6px 8px;font:inherit">
+                  <option value="">Choisir…</option>` +
+                reste.map(c => `<option value="${esc(c.cle)}">${esc(c.nom)}</option>`).join("") +
+               `</select>`);
+
+      const bascule = act.length > 1
+        ? srow("Passer d'une disposition à l'autre", "Les touches qui font la bascule",
+               `<select onchange="clavierBascule(this.value)"
+                  style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+                         border-radius:6px;padding:6px 8px;font:inherit">` +
+                bas.map(b => `<option value="${esc(b.cle)}"${b.cle===k.bascule?" selected":""}>${esc(b.nom)}</option>`).join("") +
+               `</select>`)
+        : "";
+
+      /*  CE QUE X APPLIQUE VRAIMENT, quand ça diffère de notre réglage. Un
+          écart se voit alors au lieu de laisser croire à une panne. */
+      const ecart = (k.x_applique && act.length &&
+                     k.x_applique !== act.map(a=>a.cle).join(",") )
+        ? `<p class="notice">X applique en ce moment : <code>${esc(k.x_applique)}</code>.
+           Le réglage ci-dessus prend effet tout de suite ; s'il ne bouge pas,
+           il s'appliquera à la prochaine ouverture de session.</p>`
+        : "";
+
       return `<h2>Clavier</h2><div class="sub">Dispositions et raccourcis</div>
-      ${d.length
-        ? srow("Dispositions actives", d.join(" · ") +
-               (d.length > 1 ? " — Maj+Alt bascule de l'une à l'autre" : ""),
-               `<span class="etat ok">${esc(k.courante || d[0])}</span>`)
-        : `<p class="notice">Disposition illisible (setxkbmap absent ou session Wayland).</p>`}
-      ${btnOuvrir("clavier","Réglages du clavier")}
-      <p class="notice">En ligne de commande : <code>lexos clavier</code> ajoute une
-      disposition, en enlève une, ou change la touche de bascule.</p>`;
+      ${lignes}${ajout}${bascule}${ecart}
+      ${btnOuvrir("clavier","Réglages du clavier (XFCE)")}
+      <p class="notice">En ligne de commande : <code>lexos clavier</code>.</p>`;
     }
     case "datetime": {
       const h = etat.heure || {};
