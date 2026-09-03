@@ -310,6 +310,7 @@ ${B}IA${R}
   ${A}claude${R}               Claude Code : l'assistant de programmation d'Anthropic
   ${A}claude-terminal${R}      Le terminal de Claude — sa fenêtre à lui, direct dans Claude Code
   ${A}claude app${R}           L'application Claude (claude.ai) en fenêtre dédiée
+  ${A}opencode${R}             OpenCode : l'agent de code OPEN SOURCE ${D}(licence MIT)${R}
   ${A}assistants${R}          Les six assistants IA en ligne ${D}(Claude, ChatGPT, Gemini…)${R}
   ${A}assistants${R} <nom>    En ouvrir un ${D}(ex. : assistants perplexity)${R}
                       ${D}Claude tourne dans le nuage : connexion et compte requis${R}
@@ -1087,6 +1088,8 @@ case "$CMD" in
 	assistants|assistant) exec lexos-assistants "$@" ;;
 	claude|cc)            exec lexos-claude "$@" ;;
 	claude-terminal|terminal-claude) exec lexos-claude-terminal ;;
+	#  « oc » comme raccourci, au même titre que « cc » pour Claude Code.
+	opencode|oc)          exec lexos-opencode "$@" ;;
 	dev|devs|developpement|développement) exec lexos-dev "$@" ;;
 	firmware|bios|micrologiciel) exec lexos-firmware "$@" ;;
 	meteo|météo|weather|temps) exec lexos-meteo "$@" ;;

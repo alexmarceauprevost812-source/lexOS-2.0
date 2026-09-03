@@ -177,6 +177,7 @@ lexos-cartes
 lexos-chrome
 lexos-claude
 lexos-claude-terminal
+lexos-opencode
 lexos-dev
 lexos-dualboot
 lexos-game

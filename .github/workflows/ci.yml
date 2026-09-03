@@ -1823,6 +1823,26 @@ jobs:
           #  quiconque installe LexOS, pas seulement la machine d'Alex.
           bash tests/test_lexos_claude.sh
 
+      - name: OpenCode — le bon paquet, une icône qui distingue, un lanceur branché
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « peux-tu faire en sorte qu'OpenCode s'installe sur LexOS
+          #  pro », puis « open source ». C'est opencode-ai, l'agent de code
+          #  en terminal, sous licence MIT.
+          #
+          #  LE PIÈGE QUE CE BANC GARDE : « opencode-ai » et « opencode »
+          #  existent TOUS LES DEUX sur npm, et ce ne sont pas les mêmes. Se
+          #  tromper de nom n'échoue pas — ça installe silencieusement autre
+          #  chose, et l'ISO sort avec un programme qui n'est pas celui qu'on
+          #  a demandé. Le banc fait aussi tourner le hook pour de vrai et
+          #  mesure l'icône À 16 px : le premier dessin, un « </> », s'y
+          #  écrasait en une seule tache.
+          for p in librsvg2-bin python3-pil; do
+            dpkg -s "$p" >/dev/null 2>&1 \
+              || sudo apt-get install -y --no-install-recommends "$p" >/dev/null
+          done
+          bash tests/test_lexos_opencode.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |
