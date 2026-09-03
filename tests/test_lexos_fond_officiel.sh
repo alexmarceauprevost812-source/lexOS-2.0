@@ -38,6 +38,9 @@ trap 'rm -rf "$BANC"' EXIT
 REUSSIS=0; ECHOUES=0
 ok()   { printf '  \033[32m✅\033[0m %s\n' "$1"; REUSSIS=$((REUSSIS+1)); }
 non()  { printf '  \033[31m❌\033[0m %s\n' "$1"; ECHOUES=$((ECHOUES+1)); }
+#  Ni vert ni rouge : « on n'a pas pu mesurer ». Un compte qui monterait
+#  ferait croire à une preuve, un rouge accuserait la mauvaise pièce.
+saute(){ printf '  \033[33m•\033[0m %s\n' "$1"; }
 titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 
 [ -r "$HOOK" ] || { non "hook 0300 introuvable"; echo; exit 1; }
@@ -58,6 +61,25 @@ echo "$BLOC" | grep -q 'ln -sf wallpaper-demon.png' \
 # =============================================================================
 titre "1. Le vrai extrait, avec un vrai ImageMagick — wallpaper.png devient le démon"
 # =============================================================================
+#  ═══ SANS IMAGEMAGICK, ON LE DIT — ON N'ACCUSE PAS LE FOND D'ÉCRAN ═══
+#  Le 3 septembre, le miroir Debian du coureur avait retiré la révision de
+#  python3-pil que son index nommait ; l'« apt-get install » d'une étape
+#  précédente a rendu 100, et ImageMagick n'a jamais été posé. Ce banc a
+#  alors affiché QUATRE rouges — « wallpaper.png n'est pas un lien
+#  symbolique », « le contenu diffère » — dont pas un seul ne nommait la
+#  vraie cause : « convert: command not found », noyé au-dessus.
+#
+#  Un rouge qui accuse la mauvaise pièce coûte plus cher qu'un rouge absent :
+#  on part corriger un fond d'écran qui n'a rien. On saute donc, en disant
+#  quoi installer. La CI, elle, pose l'outil AVANT de lancer ce banc — c'est
+#  là que l'absence doit faire échouer, pas ici.
+if ! command -v convert >/dev/null 2>&1 && ! command -v magick >/dev/null 2>&1; then
+	saute "ni convert ni magick : la composition n'a PAS pu être éprouvée (installer imagemagick)"
+	IM_LA=0
+else
+	IM_LA=1
+fi
+
 prepare() {
 	rm -rf "${BANC:?}/racine"
 	mkdir -p "$BANC/racine/brand" "$BANC/racine/bg"
@@ -73,6 +95,7 @@ lance() {
 		' 2>&1
 }
 
+if [ "$IM_LA" = 1 ]; then
 prepare
 SORTIE="$(lance)"
 DEMON="$BANC/racine/bg/wallpaper-demon.png"
@@ -98,11 +121,16 @@ if [ -r "$OFFICIEL" ] && cmp -s "$OFFICIEL" "$DEMON"; then
 else
 	non "le contenu de wallpaper.png (suivi) diffère de wallpaper-demon.png"
 fi
+fi
 
 # =============================================================================
 titre "2. Sans logo ou sans ImageMagick : ni crash, ni lien fantôme"
 # =============================================================================
-prepare
+#  Cette section-ci n'a PAS besoin d'ImageMagick pour ce qu'elle prouve —
+#  elle retire le logo source, donc rien n'est composé de toute façon. Elle
+#  reste donc éprouvée même sur une machine sans ImageMagick : c'est
+#  exactement le cas « sans ImageMagick » que son titre annonce.
+prepare 2>/dev/null || true
 rm -f "$BANC/racine/brand/logo-ti-lex-al-icon.png"
 SORTIE="$(lance)"
 [ ! -e "$BANC/racine/bg/wallpaper-demon.png" ] \

@@ -990,6 +990,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      #  ═══ POURQUOI CETTE ÉTAPE EXISTE, ET POURQUOI ELLE EST EN PREMIER ═══
+      #  Cette tâche pose une quinzaine de paquets au fil de ses étapes
+      #  (imagemagick, python3-pil, librsvg2-bin, flameshot…), chaque fois
+      #  avec « apt-get install » SANS rafraîchir l'index. Ça marche tant que
+      #  l'index pré-cuit dans l'image du coureur correspond au miroir. Le
+      #  3 septembre, il ne correspondait plus :
+      #
+      #    E: Failed to fetch .../python3-pil_10.2.0-1ubuntu1.2_amd64.deb
+      #       404 Not Found
+      #
+      #  Le miroir avait publié une révision plus récente et retiré celle que
+      #  l'index nommait. apt rend 100, « bash -e » tue l'étape, et QUATRE
+      #  étapes sont tombées d'un coup — dont une qui n'installait rien et se
+      #  contentait d'employer l'ImageMagick d'une étape précédente : elle a
+      #  annoncé « wallpaper.png n'est pas un lien symbolique », ce qui ne
+      #  nomme pas le vrai défaut. Une demi-journée de rouge pour une ligne.
+      #
+      #  La tâche « Scripts et configuration » ne tombait pas : elle fait
+      #  « apt-get update » avant d'installer, depuis toujours. On applique
+      #  ici la même règle, une fois pour toute la tâche.
+      - name: Rafraîchir l'index apt — sinon les paquets d'étape 404
+        if: ${{ !cancelled() }}
+        run: sudo apt-get update -qq
+
       - name: Profils de performance — tous chargeables
         if: ${{ !cancelled() }}
         run: |
@@ -1300,8 +1324,16 @@ jobs:
           #  wallpaper.png lui-même (un lien symbolique, pas une copie qui
           #  pourrait diverger) — le fichier que lexos-firstrun pose au
           #  premier lancement et que le repli XFCE du même hook recopie.
-          #  Le banc fait tourner le VRAI extrait du hook avec le VRAI
-          #  ImageMagick installé juste au-dessus pour test_lexos_fenetres.sh.
+          #  Le banc fait tourner le VRAI extrait du hook avec un VRAI
+          #  ImageMagick.
+          #
+          #  ET IL LE DEMANDE LUI-MÊME. Cette étape se contentait d'employer
+          #  celui qu'une étape PRÉCÉDENTE avait posé pour un autre banc.
+          #  Le jour où cette étape-là est tombée, celle-ci est tombée avec,
+          #  en accusant le fond d'écran. Une étape qui dépend d'une autre
+          #  sans le dire, c'est un diagnostic faux garanti le jour venu.
+          command -v convert >/dev/null 2>&1 || command -v magick >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends imagemagick >/dev/null
           bash tests/test_lexos_fond_officiel.sh
 
       - name: L'écran de connexion — le bouton « Éteindre » fait quelque chose
