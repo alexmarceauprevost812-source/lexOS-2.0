@@ -39,7 +39,25 @@ ACCENT="orange"
 )"
 [[ -r "$CONF_DIR/accent" ]] && ACCENT="$(cat "$CONF_DIR/accent")"
 
-command -v lexos-theme-gen >/dev/null 2>&1 && lexos-theme-gen "$ACCENT" >/dev/null 2>&1
+#  ON REFABRIQUE LE THÈME SUR LE MÊME SOCLE QU'À LA CONSTRUCTION.
+#  Sans cette ligne, le générateur reprenait son socle par DÉFAUT — Arc-Dark.
+#  Sur une machine où arc-theme n'a pas été posé (il voyage dans les paquets
+#  optionnels), le hook 0600 avait choisi un autre thème sombre et bâti
+#  LexOS-Noir dessus ; la première session le rebâtissait sur un Arc-Dark
+#  absent, donc sans socle du tout. L'ISO était juste, le premier démarrage
+#  ne l'était plus, et rien ne le disait.
+#
+#  On passe « LEXOS_GTK_SOCLE » et surtout PAS « LEXOS_GTK_BASE_THEME » :
+#  dans build.conf, cette seconde clé porte le thème que la session AFFICHE
+#  (LexOS-Noir), et la donner au générateur lui demanderait de construire
+#  LexOS-Noir sur lui-même. Voir le hook 0600, qui écrit les deux.
+SOCLE=""
+[[ -r /etc/lexos/build.conf ]] && SOCLE="$(
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf 2>/dev/null; printf '%s' "${LEXOS_GTK_SOCLE:-}"
+)"
+command -v lexos-theme-gen >/dev/null 2>&1 \
+	&& LEXOS_GTK_SOCLE="$SOCLE" lexos-theme-gen "$ACCENT" >/dev/null 2>&1
 
 if command -v xfconf-query >/dev/null 2>&1; then
 	#  Le repli nomme LexOS, pas Papirus : c'est ce repli qui repeignait les

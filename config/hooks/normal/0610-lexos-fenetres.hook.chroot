@@ -372,14 +372,26 @@ ROUGE_ACTIF="#CC575D"; ROUGE_SURVOL="#DC6E73"; ROUGE_PRESSE="#B4454B"
 #
 #  Le milieu de l'image ne peut ni attraper le reflet du haut ni la bordure
 #  du bas, quelle que soit la hauteur de la barre — aujourd'hui et la
-#  prochaine fois qu'Alex la fera grandir. « -gravity center -crop 1x1+0+0 »
-#  découpe ce pixel-là et se lit pareil sur ImageMagick 6 et 7.
+#  prochaine fois qu'Alex la fera grandir.
+#
+#  LA HAUTEUR EST LUE DANS L'EN-TÊTE DU PNG, par hauteur_png(), et pas
+#  demandée à ImageMagick. On aurait pu écrire « -gravity center -crop
+#  1x1+0+0 » ou « p{2,h/2} » ; les deux marchent ici. Mais ce crochet tourne
+#  dans le chroot de construction, où ImageMagick peut être la 6 ou la 7
+#  selon ce que le miroir Debian a posé ce jour-là, et un relevé de couleur
+#  qui se trompe ne fait pas échouer la construction : il sort une ISO avec
+#  des pastilles d'un gris légèrement faux, et personne ne le voit avant la
+#  clé USB. Une division entière du shell, elle, donne le même nombre
+#  partout. C'est déjà le raisonnement de hauteur_png() vingt lignes plus
+#  haut : « pas besoin d'ImageMagick pour MESURER ».
 fond_barre() { # fond_barre <dossier xfwm4> → la couleur de la barre de titre
 	for _t in title-1-active title-3-active title-1-inactive; do
-		if [ -r "$1/$_t.png" ]; then
-			"$IM" "$1/$_t.png" -gravity center -crop 1x1+0+0 +repage \
-				-format '%[pixel:p{0,0}]' info: 2>/dev/null && return 0
-		fi
+		[ -r "$1/$_t.png" ] || continue
+		_fh="$(hauteur_png "$1/$_t.png")"
+		case "$_fh" in ''|*[!0-9]*) continue ;; esac
+		[ "$_fh" -gt 1 ] || continue
+		"$IM" "$1/$_t.png" -format "%[pixel:p{2,$(( _fh / 2 ))}]" info: \
+			2>/dev/null && return 0
 	done
 	return 1
 }

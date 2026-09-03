@@ -33,10 +33,21 @@ have() { command -v "$1" >/dev/null 2>&1; }
 #  l'application claude.ai et pour le terminal de Claude. Rien ne disait
 #  lequel ouvrait quoi.
 #
-#  Claude Terminal a donc son icône : icon-terminal.svg au trait près, cadre
-#  ROUGE au lieu de l'accent (« même logo que celui-là », « le logo Claude
-#  Terminal le mettre rouge »). Trois icônes, trois lectures — le Terminal à
-#  l'accent, Claude Terminal en rouge, Claude sur son crème.
+#  Claude Terminal a donc son icône : le tracé OFFICIEL d'Anthropic, celui de
+#  claude-icon.svg, inchangé — mais ROUGE sur le noir de LexOS au lieu du
+#  terracotta sur crème.
+#
+#  CE COMMENTAIRE A DÉJÀ DIT LE CONTRAIRE, ET C'EST INSTRUCTIF. J'avais lu
+#  « pour le terminal, même logo que celui-là » comme « fais-lui l'icône du
+#  Terminal », et livré le cadre et le « >_ » d'icon-terminal.svg repeints en
+#  rouge. Alex a repris : « logo officiel de Claude mais en ROUGE ». Le
+#  dessin a été refait, la ligne qui décrivait l'ancien est restée — une
+#  description fausse dans un fichier qu'on relit pour comprendre, c'est
+#  l'erreur qui se rejoue toute seule à la prochaine lecture.
+#
+#  Trois icônes, trois lectures — le Terminal garde son cadre à l'accent et
+#  son « >_ », Claude Terminal est l'étoile ROUGE sur noir, Claude l'étoile
+#  terracotta sur crème.
 #
 #  UNE SEULE BOUCLE POUR LES DEUX. Les écrire l'une après l'autre aurait
 #  donné deux blocs à tenir à jour, et le second aurait fini par oublier ce
