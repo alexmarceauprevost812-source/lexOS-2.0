@@ -1119,9 +1119,29 @@ THEME_DIR="$TARGET/.themes/$THEME_NOM"
 #  de ce chantier, un bureau NU : ni en-tête, ni sélection, et un simple
 #  avertissement perdu dans le journal.
 #
-#  On lit donc le vrai nom, en gardant l'ancien comme second choix pour
-#  qui appellerait ce script à la main.
-BASE_NOM="${LEXOS_GTK_BASE_THEME:-${LEXOS_GTK_BASE:-Arc-Dark}}"
+#  ═══ ET LE NOM A ENCORE CHANGÉ, POUR LA MÊME RAISON ═══
+#  « LEXOS_GTK_BASE_THEME » sert désormais À DEUX CHOSES. À l'appel du hook
+#  0600, il dit bien le socle. Mais dans /etc/lexos/build.conf, la même clé
+#  porte le thème que la SESSION doit afficher — « LexOS-Noir » — parce que
+#  c'est ce que lexos-firstrun y lit pour xfconf. Qui relirait build.conf
+#  pour appeler ce script demanderait donc de bâtir LexOS-Noir SUR
+#  LexOS-Noir : /usr/share/themes/LexOS-Noir n'existe pas (le thème vit dans
+#  le foyer), d'où ni @import ni ressource — un thème sans socle, en silence.
+#
+#  Le socle a donc sa clé à lui, « LEXOS_GTK_SOCLE », et c'est elle que le
+#  hook 0600 écrit dans build.conf et que firstrun repasse ici.
+#  « LEXOS_GTK_BASE » — le tout premier nom, celui de la faute d'origine — a
+#  été retiré : plus personne ne l'écrivait, et trois noms voisins pour une
+#  seule idée sont précisément ce qui a produit les deux bogues.
+BASE_NOM="${LEXOS_GTK_SOCLE:-${LEXOS_GTK_BASE_THEME:-Arc-Dark}}"
+#  UN THÈME NE PEUT PAS ÊTRE SON PROPRE SOCLE. Le garde-fou vaut quelle que
+#  soit la clé qui a porté la valeur : il ferme le piège au lieu de compter
+#  sur le fait que personne ne s'y prendra mal.
+if [[ "$BASE_NOM" == "$THEME_NOM" ]]; then
+	printf '%s : « %s » ne peut pas être son propre socle — on reprend Arc-Dark\n' \
+		"${0##*/}" "$THEME_NOM" >&2
+	BASE_NOM="Arc-Dark"
+fi
 BASE_DIR="${LEXOS_THEMES_SYS:-/usr/share/themes}/${BASE_NOM}"
 
 gen_theme() {

@@ -187,6 +187,58 @@ var etat={rapides:{wifi:true,bt:true,avion:false,perf:"performant",perfLabel:"Pe
 PY
 }
 
+#  ═══ OÙ EST LA GOUTTIÈRE ? ON LA CHERCHE, ON NE LA DEVINE PLUS ═══
+#  Ce banc relevait la gouttière entre les deux colonnes en (253,260),
+#  écrit à la main. Cette gouttière fait HUIT pixels de large — 246 à 253 —
+#  et 253 en est le dernier. Sur le coureur de la CI, où les polices ne sont
+#  pas celles de cette machine, la grille s'est décalée de deux pixels : le
+#  relevé est tombé sur la tuile, le banc a annoncé « les gouttières sont
+#  restées noires » et il avait tort. Un rouge par jour qui n'est pas un
+#  défaut, c'est un banc qu'on apprend à ignorer.
+#
+#  On la CALCULE donc. La plaque est la couleur la plus répandue de l'image
+#  (elle occupe tout le vide sous les tuiles) ; une gouttière est une plage
+#  de plaque qui, sur une même ligne, a du contenu des DEUX côtés sans
+#  toucher aux bords de la plaque — autrement dit, encadrée par deux tuiles.
+#  Le grand vide du bas touche les bords, il est donc écarté : les deux
+#  relevés continuent de prouver deux choses différentes. On prend la plus
+#  large et on vise son MILIEU, ce qui laisse quatre pixels de marge de
+#  chaque côté au lieu de zéro. Éprouvé en décalant l'image de 1 à 8 pixels :
+#  l'ancien point tombe sur la tuile dès −2, le point calculé reste juste.
+cat > "$BANC/gouttiere.py" <<'GOUTT'
+from PIL import Image
+from collections import Counter
+import sys
+im = Image.open(sys.argv[1]).convert("RGB")
+w, h = im.size
+px = im.load()
+PLAQUE = Counter(px[x, y] for y in range(h) for x in range(w)).most_common(1)[0][0]
+bx = [(x, y) for y in range(h) for x in range(w) if px[x, y] == PLAQUE]
+x0, x1 = min(p[0] for p in bx), max(p[0] for p in bx)
+y0, y1 = min(p[1] for p in bx), max(p[1] for p in bx)
+cands = []
+for y in range(y0, y1 + 1):
+    x = x0
+    while x <= x1:
+        if px[x, y] != PLAQUE:
+            x += 1
+            continue
+        d = x
+        while x <= x1 and px[x, y] == PLAQUE:
+            x += 1
+        f = x - 1
+        #  Strictement à l'intérieur : encadrée par des tuiles, pas par le
+        #  bord de la plaque. C'est ce qui distingue une gouttière du vide.
+        if d - 1 > x0 and f + 1 < x1:
+            cands.append((f - d + 1, y, (d + f) // 2))
+if not cands:
+    sys.exit("aucune gouttière encadrée par deux tuiles")
+larg = max(c[0] for c in cands)
+bons = sorted(c for c in cands if c[0] == larg)
+c = bons[len(bons) // 2]
+print("%d %d" % (c[2], c[1]))
+GOUTT
+
 pixel() { # pixel <png> <x> <y>  -> "r,v,b"
 	python3 - "$1" "$2" "$3" <<'PY'
 from PIL import Image
@@ -205,15 +257,20 @@ else
 	if rendre "$BANC/avec"; then
 		ok "le panneau se rend (navigateur : $(basename "$NAVIGATEUR"))"
 
-		#  Trois points, choisis pour ce qu'ils prouvent chacun :
+		#  Quatre points, choisis pour ce qu'ils prouvent chacun :
 		#    · (400,12)  la bande du titre — HORS de la plaque : le voile ;
 		#    · (220,480) le grand vide sous la dernière rangée ;
-		#    · (253,260) la gouttière ENTRE deux tuiles ;
+		#    · la gouttière ENTRE deux tuiles — CALCULÉE, voir plus haut ;
 		#    · (150,190) le corps d'une tuile éteinte.
 		VOILE="$(pixel "$BANC/avec/rendu.png" 400 12)"
 		VIDE="$(pixel  "$BANC/avec/rendu.png" 220 480)"
-		GOUT="$(pixel  "$BANC/avec/rendu.png" 253 260)"
 		TUILE="$(pixel "$BANC/avec/rendu.png" 150 190)"
+		G_XY="$(python3 "$BANC/gouttiere.py" "$BANC/avec/rendu.png" 2>&1)"
+		if [[ "$G_XY" =~ ^[0-9]+\ [0-9]+$ ]]; then
+			GOUT="$(pixel "$BANC/avec/rendu.png" $G_XY)"
+		else
+			GOUT=""
+		fi
 
 		#  « Plus clair que le voile, d'au moins 10 niveaux » : en deçà, l'œil
 		#  ne distingue rien sur un écran de portable et la demande n'est pas
@@ -224,10 +281,12 @@ else
 		else
 			non "le vide ($VIDE) ne se détache pas du voile ($VOILE) : gris invisible"
 		fi
-		if (( R_GOUT >= R_VOILE + 10 )); then
-			ok "les gouttières entre les tuiles sont grises aussi ($GOUT)"
+		if [[ -z "$GOUT" ]]; then
+			non "aucune gouttière trouvée dans le rendu : $G_XY"
+		elif (( R_GOUT >= R_VOILE + 10 )); then
+			ok "les gouttières entre les tuiles sont grises aussi ($GOUT en $G_XY)"
 		else
-			non "les gouttières ($GOUT) sont restées noires"
+			non "les gouttières ($GOUT en $G_XY) sont restées noires"
 		fi
 		#  ET LA TUILE N'A PAS BOUGÉ : --bg-hi vaut #141416 en sombre.
 		if [[ "$TUILE" == "20,20,22" ]]; then
@@ -238,8 +297,14 @@ else
 
 		#  ═══ LA MUTATION ═══
 		monter "$BANC/sans" 0
-		if rendre "$BANC/sans"; then
-			G2="$(pixel "$BANC/sans/rendu.png" 253 260)"
+		if [[ -z "$GOUT" ]]; then
+			non "sans point de mesure, la mutation ne prouverait rien"
+		elif rendre "$BANC/sans"; then
+			#  LE MÊME POINT que le rendu de référence : la plaque ne
+			#  change que de COULEUR entre les deux montages, la grille ne
+			#  bouge pas d'un pixel. Recalculer ici chercherait une
+			#  gouttière dans une image qui n'en a plus.
+			G2="$(pixel "$BANC/sans/rendu.png" $G_XY)"
 			if [[ "$G2" != "$GOUT" ]]; then
 				ok "sans la plaque la gouttière retombe à $G2 — la mesure voit la différence"
 			else

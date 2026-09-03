@@ -277,6 +277,88 @@ grep -q "^MetacityTheme=ThemeQuiNexistePas$" "$BANC/autre/.themes/LexOS-Noir/ind
 	|| non "index.theme ne reprend pas le thème de base qu'on lui a donné"
 
 # =============================================================================
+titre "3 quinquies. Le SOCLE a une clé à lui — et un thème ne se bâtit pas sur lui-même"
+# =============================================================================
+#  TROUVÉ AU BALAYAGE D'AVANT-ISO 103, PAS PAR UN BANC.
+#  « LEXOS_GTK_BASE_THEME » servait à DEUX choses. À l'appel du hook 0600, il
+#  nomme le socle — le thème sur lequel LexOS-Noir est construit. Dans
+#  /etc/lexos/build.conf, la MÊME clé porte le thème que la session doit
+#  afficher, « LexOS-Noir », parce que c'est ce que lexos-firstrun y lit pour
+#  xfconf. Relire build.conf pour appeler le générateur revenait donc à lui
+#  demander de bâtir LexOS-Noir SUR LexOS-Noir : mesuré, une feuille sans
+#  @import et sans ressource — un thème sans socle, et pas une ligne de
+#  journal.
+#
+#  Ça ne cassait rien AUJOURD'HUI, par chance et non par construction :
+#  firstrun lisait build.conf dans un sous-shell et n'exportait rien, donc le
+#  générateur retombait sur son défaut. Mais ce défaut est « Arc-Dark », et
+#  arc-theme voyage dans les paquets OPTIONNELS : sur une machine où il
+#  manque, le hook avait choisi un autre socle, et la première session
+#  rebâtissait le thème sur un Arc-Dark absent. ISO juste, premier démarrage
+#  faux, silence complet.
+#
+#  C'est la faute « LEXOS_GTK_BASE / LEXOS_GTK_BASE_THEME » de l'ISO 102, une
+#  ligne plus loin. Deux sens sous un nom.
+FIRSTRUN="$IC/usr/bin/lexos-firstrun"
+CODE_S="$(sed 's/#.*$//' "$HOOK")"
+
+#  1. Le socle est retenu AVANT la bascule, comme les bordures de fenêtre.
+L_SOC="$(grep -n 'GTK_SOCLE="\$GTK_BASE"' "$HOOK" | head -1 | cut -d: -f1)"
+L_SW="$(grep -n 'GTK_BASE="\$THEME_LEXOS"' "$HOOK" | head -1 | cut -d: -f1)"
+if [ -n "$L_SOC" ] && [ -n "$L_SW" ] && [ "$L_SOC" -lt "$L_SW" ]; then
+	ok "le socle est retenu avant la bascule (ligne $L_SOC < $L_SW)"
+else
+	non "le socle n'est pas retenu avant la bascule : build.conf y mettrait « LexOS-Noir »"
+fi
+
+#  2. Et il part dans build.conf sous SA clé.
+if printf '%s' "$CODE_S" | grep -q 'LEXOS_GTK_SOCLE=\${GTK_SOCLE}'; then
+	ok "build.conf reçoit LEXOS_GTK_SOCLE — la première session saura sur quoi bâtir"
+else
+	non "le hook n'écrit pas le socle dans build.conf : firstrun retomberait sur Arc-Dark"
+fi
+
+#  3. firstrun le repasse au générateur — et ne lui donne PAS l'autre clé.
+if [ -r "$FIRSTRUN" ]; then
+	CODE_F="$(sed 's/#.*$//' "$FIRSTRUN")"
+	if printf '%s' "$CODE_F" | grep -q 'LEXOS_GTK_SOCLE="\$SOCLE" lexos-theme-gen'; then
+		ok "lexos-firstrun refabrique le thème sur le socle de la construction"
+	else
+		non "lexos-firstrun n'informe pas le générateur du socle : premier démarrage différent de l'ISO"
+	fi
+	if printf '%s' "$CODE_F" | grep -q 'LEXOS_GTK_BASE_THEME=.*lexos-theme-gen'; then
+		non "lexos-firstrun passe LEXOS_GTK_BASE_THEME au générateur — il vaut « LexOS-Noir » dans build.conf"
+	else
+		ok "lexos-firstrun ne donne pas au générateur la clé qui porte « LexOS-Noir »"
+	fi
+else
+	non "lexos-firstrun introuvable — la première session n'a pas pu être éprouvée"
+fi
+
+#  4. LA MESURE, pas la lecture : le socle donné est bien celui employé.
+rm -rf "$BANC/socle"; mkdir -p "$BANC/socle"
+LEXOS_PANNEAU_CSS="$IC/usr/share/lexos/gtk-panneau.css" LEXOS_GTK_SOCLE="Arc-Darker" \
+	bash "$GEN" --target "$BANC/socle" orange >/dev/null 2>&1
+if grep -q "^MetacityTheme=Arc-Darker$" "$BANC/socle/.themes/LexOS-Noir/index.theme" 2>/dev/null; then
+	ok "LEXOS_GTK_SOCLE est bien la clé lue par le générateur"
+else
+	non "le générateur ignore LEXOS_GTK_SOCLE : la clé de firstrun n'arriverait nulle part"
+fi
+
+#  5. ET LE PIÈGE EST FERMÉ, quelle que soit la clé qui porte la valeur.
+for CLE in LEXOS_GTK_SOCLE LEXOS_GTK_BASE_THEME; do
+	rm -rf "$BANC/lui-meme"; mkdir -p "$BANC/lui-meme"
+	env "$CLE=LexOS-Noir" LEXOS_PANNEAU_CSS="$IC/usr/share/lexos/gtk-panneau.css" \
+		bash "$GEN" --target "$BANC/lui-meme" orange >/dev/null 2>&1
+	F="$BANC/lui-meme/.themes/LexOS-Noir/gtk-3.0/gtk.css"
+	if grep -q '@import' "$F" 2>/dev/null; then
+		ok "« $CLE=LexOS-Noir » : le thème garde un socle au lieu de se bâtir sur lui-même"
+	else
+		non "« $CLE=LexOS-Noir » : thème SANS socle — ni @import ni ressource, en silence"
+	fi
+done
+
+# =============================================================================
 titre "4. Le hook ne déclare le thème que s'il EXISTE"
 # =============================================================================
 #  Écrire un nom de thème introuvable donne un bureau CLAIR par défaut, sans

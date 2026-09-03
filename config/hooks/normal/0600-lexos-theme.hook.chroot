@@ -71,6 +71,26 @@ fi
 XFWM_THEME="$GTK_BASE"
 [ -d "/usr/share/themes/${XFWM_THEME}/xfwm4" ] || XFWM_THEME="Default"
 
+#  ─── LE SOCLE ───────────────────────────────────────────────────────────────
+#  Le thème sur lequel LexOS-Noir est CONSTRUIT — pas celui que la session
+#  affiche. Comme XFWM_THEME juste au-dessus, il se retient AVANT la bascule.
+#
+#  POURQUOI IL LUI FAUT UN NOM À LUI. Vingt lignes plus bas, GTK_BASE devient
+#  « LexOS-Noir » ; c'est cette valeur-là qui part dans build.conf sous
+#  « LEXOS_GTK_BASE_THEME », et c'est correct : ce que lexos-firstrun y lit,
+#  c'est le thème à poser dans xfconf. Mais lexos-theme-gen lit un réglage du
+#  MÊME NOM pour savoir sur quoi construire. Réinjecter la valeur de
+#  build.conf dans le générateur lui demanderait donc de bâtir LexOS-Noir sur
+#  LexOS-Noir : mesuré, ça donne une feuille SANS @import et SANS ressource,
+#  c'est-à-dire un thème sans socle — des fenêtres nues, et rien dans le
+#  journal. Personne ne fait ça aujourd'hui, par chance et non par
+#  construction : firstrun lit build.conf dans un sous-shell et n'exporte
+#  rien. Une ligne déplacée suffisait.
+#
+#  C'est exactement la faute « LEXOS_GTK_BASE / LEXOS_GTK_BASE_THEME » du
+#  balayage précédent : deux sens sous un nom. Le socle a le sien.
+GTK_SOCLE="$GTK_BASE"
+
 echo "[lexos]   thème : ${GTK_BASE} · icônes : ${ICONS} · fenêtres : ${XFWM_THEME}"
 
 # --- Génère le thème dans /etc/skel (hérité par tout nouveau compte) --------
@@ -281,7 +301,16 @@ fi
 #  l'ouverture de session — c'est lui qui a le dernier mot sur l'écran.
 mkdir -p /etc/lexos
 touch /etc/lexos/build.conf
-for PAIRE in "LEXOS_GTK_BASE_THEME=${GTK_BASE}" "LEXOS_ICON_THEME=${ICONS}" \
+#  DEUX CLÉS, DEUX SENS, ET IL FAUT LES LIRE COMME TELLES :
+#    · LEXOS_GTK_BASE_THEME = le thème que la SESSION affiche (LexOS-Noir).
+#      C'est ce que firstrun pose dans xfconf. Ne pas le donner au générateur.
+#    · LEXOS_GTK_SOCLE      = le thème sur lequel LexOS-Noir est CONSTRUIT.
+#      C'est celui-là que firstrun passe à lexos-theme-gen, pour que la
+#      première session refabrique le MÊME thème que la construction — y
+#      compris sur une machine où arc-theme n'a pas été posé, où le socle
+#      retenu ici n'est pas celui par défaut.
+for PAIRE in "LEXOS_GTK_BASE_THEME=${GTK_BASE}" "LEXOS_GTK_SOCLE=${GTK_SOCLE}" \
+             "LEXOS_ICON_THEME=${ICONS}" \
              "LEXOS_TERMINAL_MODE=${TERM_MODE}"; do
 	CLE="${PAIRE%%=*}"
 	if grep -q "^${CLE}=" /etc/lexos/build.conf; then

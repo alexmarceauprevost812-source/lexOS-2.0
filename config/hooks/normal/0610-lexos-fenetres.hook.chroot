@@ -360,11 +360,38 @@ GRIS_ACTIF="#9AA0AC";  GRIS_SURVOL="#B4BAC6";  GRIS_PRESSE="#7C8290"
 #  la même géométrie que les deux autres. Voir juste en dessous pourquoi.
 ROUGE_ACTIF="#CC575D"; ROUGE_SURVOL="#DC6E73"; ROUGE_PRESSE="#B4454B"
 
+#  ON RELÈVE AU MILIEU DE LA BARRE, PAS À DEUX PIXELS DU HAUT.
+#  La première version lisait p{2,2}. Sur l'Arc-Dark d'origine — 28 px de
+#  haut — ça tombait dans l'aplat : srgb(47,52,63), la bonne couleur. Mais
+#  ces images sont ÉTIRÉES juste avant, parce que la barre de titre de LexOS
+#  est plus haute que celle d'Arc (28 → 40 px). Le mince trait clair qu'Arc
+#  pose sur sa toute première ligne s'étale alors, et vient couvrir la
+#  deuxième : p{2,2} lisait srgb(52,57,70), c'est-à-dire le REFLET du haut
+#  et non le fond. Le creux des trois pastilles sortait donc d'un ton trop
+#  clair, sur toutes les fenêtres, depuis que la barre a grandi.
+#
+#  Le milieu de l'image ne peut ni attraper le reflet du haut ni la bordure
+#  du bas, quelle que soit la hauteur de la barre — aujourd'hui et la
+#  prochaine fois qu'Alex la fera grandir.
+#
+#  LA HAUTEUR EST LUE DANS L'EN-TÊTE DU PNG, par hauteur_png(), et pas
+#  demandée à ImageMagick. On aurait pu écrire « -gravity center -crop
+#  1x1+0+0 » ou « p{2,h/2} » ; les deux marchent ici. Mais ce crochet tourne
+#  dans le chroot de construction, où ImageMagick peut être la 6 ou la 7
+#  selon ce que le miroir Debian a posé ce jour-là, et un relevé de couleur
+#  qui se trompe ne fait pas échouer la construction : il sort une ISO avec
+#  des pastilles d'un gris légèrement faux, et personne ne le voit avant la
+#  clé USB. Une division entière du shell, elle, donne le même nombre
+#  partout. C'est déjà le raisonnement de hauteur_png() vingt lignes plus
+#  haut : « pas besoin d'ImageMagick pour MESURER ».
 fond_barre() { # fond_barre <dossier xfwm4> → la couleur de la barre de titre
 	for _t in title-1-active title-3-active title-1-inactive; do
-		if [ -r "$1/$_t.png" ]; then
-			"$IM" "$1/$_t.png" -format '%[pixel:p{2,2}]' info: 2>/dev/null && return 0
-		fi
+		[ -r "$1/$_t.png" ] || continue
+		_fh="$(hauteur_png "$1/$_t.png")"
+		case "$_fh" in ''|*[!0-9]*) continue ;; esac
+		[ "$_fh" -gt 1 ] || continue
+		"$IM" "$1/$_t.png" -format "%[pixel:p{2,$(( _fh / 2 ))}]" info: \
+			2>/dev/null && return 0
 	done
 	return 1
 }
