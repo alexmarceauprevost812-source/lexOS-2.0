@@ -1312,6 +1312,15 @@ jobs:
           #  réécrivait « theme-name » SANS CONDITION et aurait annulé tout le
           #  travail en silence, exactement comme le paquet terminal du
           #  build 76 aurait remis Papirus-Dark.
+          #  LE BANC MESURE MAINTENANT DE VRAIES COULEURS GTK — il lui faut
+          #  donc gi et un écran. Sans ces paquets il SAUTE proprement en le
+          #  disant, ce qui est honnête mais ne protège rien : la liste des
+          #  comptes est justement passée illisible sans qu'aucun contrôle ne
+          #  bronche. On les pose ici pour que le contrôle existe vraiment.
+          for p in xvfb python3-gi gir1.2-gtk-3.0; do
+            dpkg -s "$p" >/dev/null 2>&1 \
+              || sudo apt-get install -y --no-install-recommends "$p" >/dev/null
+          done
           bash tests/test_lexos_connexion.sh
 
       - name: Le fond d'écran officiel — le démon, pas juste une variante
