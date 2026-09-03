@@ -43,6 +43,19 @@ titre() { printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 
 XFWM="$RACINE/config/includes.chroot/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml"
 HOOK="$RACINE/config/hooks/normal/0610-lexos-fenetres.hook.chroot"
+
+#  La couleur DOMINANTE d'une image — c'est-à-dire, pour une barre de titre,
+#  son aplat : le reflet du haut et la bordure du bas ne font qu'une ligne
+#  chacun. Écrit dans un FICHIER et non donné à python sur son entrée
+#  standard : « python3 - <<PY » consomme cette entrée pour y lire son propre
+#  script, et un banc de ce dépôt s'est déjà fait avoir — vingt verdicts
+#  calculés sur une chaîne vide.
+cat > "$BANC/aplat.py" <<'APLAT'
+from PIL import Image
+import sys
+im = Image.open(sys.argv[1]).convert("RGB")
+print("%d,%d,%d" % max(im.getcolors(im.size[0] * im.size[1]))[1])
+APLAT
 CAPTURE="$RACINE/config/includes.chroot/usr/bin/lexos-capture"
 THEME_GEN="$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen"
 VOLET_PY="$RACINE/config/includes.chroot/usr/lib/lexos/volet.py"
@@ -147,13 +160,64 @@ PY
 	fi | while IFS='|' read -r verdict message; do
 		[[ "$verdict" == "OK" ]] && ok "$message" || non "$message"
 	done
-	#  LE CREUX SUIT LE THÈME, il n'est pas écrit en dur : sombre pour
-	#  Arc-Dark, clair pour Arc. Un ton figé aurait donné des boutons justes
-	#  en sombre et faux en clair.
-	if printf '%s' "$SORTIE" | grep -q 'creux srgba\?(4[0-9],'; then
-		ok "le creux a été LU dans le thème sombre, pas écrit en dur"
+	#  ═══ LE CREUX : DEUX CHOSES À PROUVER, ET L'ANCIEN CONTRÔLE N'EN
+	#      PROUVAIT AUCUNE ═══
+	#  Il cherchait « creux srgb(4X, » — un intervalle de valeurs écrit à la
+	#  main. Ça ne dit pas que la couleur vient du thème : un ton figé en dur
+	#  dans le crochet serait passé aussi longtemps qu'il commençait par un 4.
+	#  Et le jour où la barre de titre a grandi (28 → 40 px), le relevé est
+	#  tombé sur le reflet du haut au lieu de l'aplat, le contrôle a viré au
+	#  rouge, et son message ne disait pas pourquoi : il annonçait « ne vient
+	#  pas du thème » alors que la couleur venait bel et bien du thème — au
+	#  mauvais endroit. Un rouge qui ne nomme pas son défaut finit ignoré.
+	#
+	#  On prouve donc les deux choses séparément.
+	CREUX_SOMBRE="$(printf '%s' "$SORTIE" | grep -o 'creux [^)]*)' | head -1 \
+	                | grep -oE '[0-9]+,[0-9]+,[0-9]+' | head -1)"
+
+	#  1. C'EST L'APLAT DE LA BARRE, pas son reflet ni sa bordure. Le banc
+	#     relit l'image lui-même et en prend la couleur DOMINANTE : celle qui
+	#     couvre le plus de pixels EST le fond, quelle que soit la hauteur de
+	#     la barre et sans qu'aucune coordonnée soit écrite ici. C'est ce
+	#     contrôle-là qui aurait nommé le vrai défaut du premier coup.
+	BARRE_PNG=""
+	for _t in title-1-active title-3-active title-1-inactive; do
+		[[ -r "$D/$_t.png" ]] && { BARRE_PNG="$D/$_t.png"; break; }
+	done
+	if [[ -z "$CREUX_SOMBRE" ]]; then
+		non "le crochet n'a annoncé aucun creux : $(printf '%s' "$SORTIE" | grep -o 'creux[^)]*)' | head -1)"
+	elif [[ -z "$BARRE_PNG" ]] || ! python3 -c "import PIL" 2>/dev/null; then
+		saute "barre de titre illisible sans Pillow : le creux n'a pas pu être recoupé"
 	else
-		non "le creux ne vient pas du thème : $(printf '%s' "$SORTIE" | grep -o 'creux [^)]*)' | head -1)"
+		APLAT="$(python3 "$BANC/aplat.py" "$BARRE_PNG")"
+		if [[ "$CREUX_SOMBRE" == "$APLAT" ]]; then
+			ok "le creux ($CREUX_SOMBRE) est bien l'aplat de la barre, pas son reflet du haut"
+		else
+			non "le creux vaut $CREUX_SOMBRE alors que l'aplat de la barre vaut $APLAT — relevé au mauvais endroit"
+		fi
+	fi
+
+	#  2. IL SUIT LE THÈME. On refait tourner le crochet sur Arc CLAIR : si
+	#     la couleur était écrite en dur, les deux sorties seraient
+	#     identiques. Un ton figé donnerait des boutons justes en sombre et
+	#     faux en clair — c'est exactement ce qu'on veut interdire.
+	ARC_CLAIR="$(ls -d /usr/share/themes/Arc 2>/dev/null | head -1)"
+	if [[ -z "$ARC_CLAIR" ]]; then
+		saute "Arc clair absent : le creux n'a pas pu être comparé d'un thème à l'autre"
+	else
+		mkdir -p "$BANC/clair"
+		cp -a "$ARC_CLAIR" "$BANC/clair/" 2>/dev/null
+		CREUX_CLAIR="$(LEXOS_THEMES="$BANC/clair" LEXOS_BUILD_CONF="$BANC/bc.conf" \
+		               LEXOS_XFWM_XML="$BANC/fc.xml" sh "$HOOK" 2>&1 \
+		               | grep -o 'creux [^)]*)' | head -1 \
+		               | grep -oE '[0-9]+,[0-9]+,[0-9]+' | head -1)"
+		if [[ -z "$CREUX_CLAIR" ]]; then
+			non "le crochet n'a peint aucune pastille sur Arc clair : la comparaison ne conclut pas"
+		elif [[ "$CREUX_CLAIR" == "$CREUX_SOMBRE" ]]; then
+			non "même creux en sombre et en clair ($CREUX_SOMBRE) : la couleur est écrite en dur"
+		else
+			ok "le creux suit le thème : $CREUX_SOMBRE en sombre, $CREUX_CLAIR en clair"
+		fi
 	fi
 fi
 

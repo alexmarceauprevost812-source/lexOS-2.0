@@ -205,9 +205,18 @@ fi
 #  que jusqu'à ce que bash l'interprète. Comparer la chaîne brute ferait
 #  passer un PS0 écrit autrement (« \033[0m », « \[\e[0m\] ») pour un
 #  PS0 cassé, et l'inverse.
-PS0_VU="$(HOME="$BANC/home" bash --norc --noprofile -i -c \
+#  TERM EST POSÉ ICI COMME DANS invite(), ET CE N'EST PAS UN DÉTAIL.
+#  interactive.sh ne pose l'invite que si le terminal sait l'afficher :
+#  « case "${TERM:-dumb}" in dumb|linux-m|unknown) ;; ». Ces deux
+#  sous-shells-ci l'avaient oublié. Sur cette machine ça ne se voyait pas —
+#  TERM y est hérité —, mais sur le coureur de la CI il ne l'est PAS : le
+#  fichier se retirait, PS0 n'existait pas, et le banc annonçait un défaut
+#  qui n'en était pas un. Vingt et un verts et un rouge, tous les jours,
+#  pour une variable d'environnement. Le contrôle suivant fige le
+#  comportement au lieu de le subir.
+PS0_VU="$(HOME="$BANC/home" TERM=xterm-256color bash --norc --noprofile -i -c \
 	". \"$SH\"; printf '%s' \"\${PS0-ABSENT}\"" 2>/dev/null)"
-PS0_DEV="$(HOME="$BANC/home" bash --norc --noprofile -i -c \
+PS0_DEV="$(HOME="$BANC/home" TERM=xterm-256color bash --norc --noprofile -i -c \
 	". \"$SH\"; printf '%s' \"\${PS0@P}\"" 2>/dev/null | tr -d '\001\002')"
 if [ "$PS0_VU" = "ABSENT" ]; then
 	non "PS0 n'est pas posé : tout l'écran prendrait la couleur de la frappe"
@@ -215,6 +224,18 @@ elif [ "$PS0_DEV" = $'\033[0m' ]; then
 	ok "PS0 remet la couleur à zéro : la sortie des commandes n'est pas blanche"
 else
 	non "PS0 ne remet pas à zéro (développé : $(printf '%q' "$PS0_DEV"))"
+fi
+
+#  ET SUR UN TERMINAL QUI NE SAIT PAS AFFICHER DE COULEUR, ON NE POSE RIEN.
+#  C'est ce que dit le « case TERM » d'interactive.sh, et c'est ce qui rend
+#  la ligne ci-dessus obligatoire. Un banc qui hérite de TERM sans le dire
+#  éprouve la machine qui le fait tourner, pas le fichier.
+PS0_DUMB="$(HOME="$BANC/home" TERM=dumb bash --norc --noprofile -i -c \
+	". \"$SH\"; printf '%s' \"\${PS0-ABSENT}\"" 2>/dev/null)"
+if [ "$PS0_DUMB" = "ABSENT" ]; then
+	ok "terminal « dumb » : aucune invite en couleur n'est posée — le repli marche"
+else
+	non "terminal « dumb » : une invite en couleur est quand même posée ($(printf '%q' "$PS0_DUMB"))"
 fi
 
 # =============================================================================

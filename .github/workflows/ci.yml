@@ -701,7 +701,14 @@ jobs:
           #  Deux secondes de calcul valent mieux qu'un commentaire qu'on
           #  espère voir.
           XML="config/includes.chroot/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
-          CSS="config/includes.chroot/etc/skel/.config/gtk-3.0/gtk.css"
+          #  LE SQUELETTE DU PANNEAU A DÉMÉNAGÉ (ISO 102). Il vivait dans
+          #  etc/skel/.config/gtk-3.0/gtk.css, c'est-à-dire à la priorité
+          #  UTILISATEUR de GTK — celle qui écrase le thème ET les
+          #  applications. C'était toute la cause des icônes noires et des
+          #  dossiers orange ; la feuille est passée dans /usr/share/lexos,
+          #  d'où lexos-theme-gen la recopie DANS le thème. Les règles du
+          #  pager, elles, n'ont pas bougé d'une ligne.
+          CSS="config/includes.chroot/usr/share/lexos/gtk-panneau.css"
           for f in "$XML" "$CSS"; do
             [ -r "$f" ] || { echo "::error::$f introuvable"; exit 1; }
           done
@@ -945,10 +952,27 @@ jobs:
             out="/tmp/theme-$accent"
             mkdir -p "$out"
             HOME="$out" ./config/includes.chroot/usr/bin/lexos-theme-gen "$accent" --target "$out"
-            test -s "$out/.config/gtk-3.0/gtk.css"
+            #  LE STYLE EST UN VRAI THÈME DEPUIS L'ISO 102. Il partait dans
+            #  ~/.config/gtk-3.0/gtk.css, que GTK charge en priorité
+            #  UTILISATEUR : au-dessus du thème, et au-dessus de ce que
+            #  chaque application demande pour elle-même. D'où les icônes du
+            #  bureau qui viraient au noir et les dossiers de Fichiers qui
+            #  restaient orange. Il s'écrit maintenant dans
+            #  ~/.themes/LexOS-Noir, que GTK charge à sa place — au rang du
+            #  thème, où les applications peuvent encore avoir le dernier mot.
+            THEME="$out/.themes/LexOS-Noir/gtk-3.0/gtk.css"
+            test -s "$THEME"
+            test -s "$out/.themes/LexOS-Noir/index.theme"
             test -s "$out/.config/xfce4/terminal/terminalrc"
             test -s "$out/.gtkrc-2.0"
-            grep -q '#000000' "$out/.config/gtk-3.0/gtk.css"
+            grep -q '#000000' "$THEME"
+            #  ET SURTOUT : PLUS RIEN à la priorité utilisateur. C'est la
+            #  moitié du correctif ; sans ce contrôle, un retour en arrière
+            #  passerait inaperçu et ramènerait les icônes noires.
+            if [ -e "$out/.config/gtk-3.0/gtk.css" ] || [ -e "$out/.config/gtk-4.0/gtk.css" ]; then
+              echo "::error::une feuille est revenue dans ~/.config/gtk-*.0 — priorité UTILISATEUR, elle écraserait le thème et les applications"
+              exit 1
+            fi
           done
           echo "7 accents validés."
 
