@@ -31,7 +31,12 @@ trap 'rm -rf "$BANC"' EXIT
 
 REUSSIS=0; ECHOUES=0
 ok()   { printf '  \033[32m✅\033[0m %s\n' "$1"; REUSSIS=$((REUSSIS+1)); }
-non()  { printf '  \033[31m❌\033[0m %s\n' "$1"; ECHOUES=$((ECHOUES+1)); }
+#  « %b » ET PAS « %s » : plusieurs messages de ce banc joignent la sortie de
+#  l'outil derrière un « \n ». Avec %s, cette séquence s'affichait telle
+#  quelle — « :\n » — et la sortie qui devait expliquer l'échec restait
+#  invisible. Un rouge qui ne montre pas ce qu'il a vu fait perdre le temps
+#  qu'il était censé faire gagner.
+non()  { printf '  \033[31m❌\033[0m %b\n' "$1"; ECHOUES=$((ECHOUES+1)); }
 titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 
 [ -x "$OUTIL" ] || { echo "lexos-dualboot introuvable ou non exécutable"; exit 1; }
@@ -44,15 +49,63 @@ pose_table() { # pose_table "nom1 fstype1 taille1" "nom2 fstype2 taille2" ...
 	printf '%s\n' "$@" > "$TABLE"
 	cat > "$FAUXBIN/lsblk" <<EOF
 #!/bin/sh
-#  Seule la forme "-brno NAME,FSTYPE,SIZE" (aucun périphérique donné) sert
-#  cette table : c'est la seule que l'outil appelle quand WIN_DEV est vide,
-#  exactement les scénarios de ce banc.
+#  Trois formes suffisent, et ce sont les trois que l'outil emploie :
+#    · "-brno NAME,FSTYPE,SIZE" sans périphérique : toute la table ;
+#    · "-brno SIZE /dev/xxx"    : la taille de CETTE partition ;
+#    · "-rno PKNAME /dev/xxx"   : le disque qui la porte.
+#  Les deux dernières ont été ajoutées avec le voisin Linux : sans elles, sa
+#  taille revenait vide et le banc mesurait un disque de 0 Go — vert, et
+#  ne prouvant rien.
 case "\$*" in
 	*"NAME,FSTYPE,SIZE"*) cat "$TABLE" ;;
+	*SIZE*)
+		for a in \$*; do case "\$a" in /dev/*) d="\${a#/dev/}" ;; esac; done
+		awk -v n="\$d" '\$1 == n { print \$3 }' "$TABLE"
+		;;
+	*PKNAME*)
+		for a in \$*; do case "\$a" in /dev/*) d="\${a#/dev/}" ;; esac; done
+		printf '%s\\n' "\${d%%[0-9]*}"
+		;;
 	*) exit 0 ;;
 esac
 EOF
 	chmod +x "$FAUXBIN/lsblk"
+	#  Par défaut, notre racine n'est AUCUNE partition du disque : on est sur
+	#  la clé USB, comme Alex le sera. Les essais qui veulent le contraire
+	#  reposent findmnt eux-mêmes.
+	pose_racine "/dev/loop0"
+}
+
+#  Ce que « findmnt -no SOURCE / » répondra — c'est-à-dire NOTRE racine.
+pose_racine() { # pose_racine <source>
+	mkdir -p "$FAUXBIN"
+	cat > "$FAUXBIN/findmnt" <<EOF
+#!/bin/sh
+printf '%s\\n' "$1"
+EOF
+	chmod +x "$FAUXBIN/findmnt"
+}
+
+#  Ce que dumpe2fs racontera du voisin ext4 : place et propreté.
+pose_ext4() { # pose_ext4 <blocs totaux> <blocs libres> <état>
+	mkdir -p "$FAUXBIN"
+	cat > "$FAUXBIN/dumpe2fs" <<EOF
+#!/bin/sh
+echo "Filesystem state:         $3"
+echo "Block count:              $1"
+echo "Free blocks:              $2"
+echo "Block size:               4096"
+EOF
+	chmod +x "$FAUXBIN/dumpe2fs"
+}
+
+#  Sans dumpe2fs du tout — le cas d'un voisin btrfs ou xfs.
+retire_ext4() { rm -f "$FAUXBIN/dumpe2fs"; }
+
+lance_avec() { # lance_avec <arguments…> -> la sortie ; le code dans $BANC/code
+	PATH="$FAUXBIN:$PATH" NO_COLOR=1 sh "$OUTIL" "$@" > "$BANC/sortie" 2>&1
+	echo "$?" > "$BANC/code"
+	cat "$BANC/sortie"
 }
 
 lance() { # lance -> la sortie complète (sans couleur) + $? dans $BANC/code
@@ -149,6 +202,125 @@ if echo "$S" | grep -q "CHIFFRÉ (BitLocker)"; then
 else
 	ok "une petite partition BitLocker (< 20 Go) est bien ignorée, comme pour le NTFS"
 fi
+
+# =============================================================================
+titre "6. Un voisin LINUX (Ubuntu) — trouvé, mesuré, et le curseur est chiffré"
+# =============================================================================
+#  ALEX : « l'ISO, peux-tu l'installer à côté d'un autre logiciel comme
+#  Ubuntu ? » L'outil ne cherchait que du NTFS : devant un disque Ubuntu il
+#  annonçait « aucune partition Windows trouvée » et laissait Alex sans le
+#  chiffre à régler. Calamares, lui, savait déjà le faire.
+#  300 Go, dont 120 utilisés : 73242187 blocs de 4 kio, 43945312 libres.
+pose_table "nvme0n1p2 ext4 300000000000"
+pose_ext4 73242187 43945312 "clean"
+S="$(lance)"
+echo "$S" | grep -q "un autre Linux occupe /dev/nvme0n1p2" \
+	&& ok "le voisin Linux est trouvé et nommé" \
+	|| non "le voisin Linux (ext4, 300 Go) n'a pas été vu :\n$S"
+echo "$S" | grep -q "utilise 120 Go sur 300 Go" \
+	&& ok "sa place occupée est MESURÉE (dumpe2fs), pas devinée" \
+	|| non "la place occupée du voisin Linux n'est pas mesurée :\n$S"
+echo "$S" | grep -q "40 Go pour LexOS" \
+	&& ok "le chiffre exact à régler sur le curseur est donné" \
+	|| non "aucun chiffre de découpe pour un voisin Linux"
+#  ET IL NE DIT PLUS QUE LE DISQUE EST LIBRE. Sans Windows, l'outil
+#  concluait « l'installateur proposera d'utiliser tout le disque » — vrai
+#  sur un disque vide, FAUX ici, et c'est la phrase qui déciderait Alex à
+#  laisser tout effacer. Écrit d'abord comme un contrôle qui appelait ok()
+#  dans ses DEUX branches : il ne pouvait pas échouer, donc ne prouvait
+#  rien. C'est en le rendant capable d'échouer qu'il a montré le défaut.
+if echo "$S" | grep -q "proposera d'utiliser tout le disque"; then
+	non "il annonce que l'installateur prendra TOUT le disque — il y a un Linux dessus"
+else
+	ok "il ne prétend plus que le disque est libre à prendre en entier"
+fi
+
+#  Et sur un disque VRAIMENT vide, la phrase rassurante doit rester.
+pose_table "sda1 vfat 200000000"
+S_VIDE="$(lance)"
+echo "$S_VIDE" | grep -q "proposera d'utiliser tout le disque" \
+	&& ok "…mais sur un disque sans voisin, elle est toujours là" \
+	|| non "la phrase du disque vide a disparu — elle était juste, elle"
+pose_table "nvme0n1p2 ext4 300000000000"
+
+# =============================================================================
+titre "7. ON NE SE PROPOSE JAMAIS DE SE RÉDUIRE SOI-MÊME"
+# =============================================================================
+#  Le piège n'est pas théorique : lancé depuis un LexOS DÉJÀ INSTALLÉ, l'ext4
+#  le plus gros du disque est le NÔTRE. Sans le filtre sur la racine, l'outil
+#  conseillerait posément de découper la partition sur laquelle il tourne.
+#  Depuis la clé USB le cas ne se voit pas (la racine est un squashfs) — il
+#  n'apparaîtrait donc que sur la machine d'Alex, après installation.
+pose_table "nvme0n1p2 ext4 300000000000"
+pose_ext4 73242187 43945312 "clean"
+pose_racine "/dev/nvme0n1p2"
+S="$(lance)"
+if echo "$S" | grep -q "un autre Linux occupe"; then
+	non "notre PROPRE racine est proposée comme voisin à réduire :\n$S"
+else
+	ok "notre propre racine n'est jamais prise pour un voisin"
+fi
+pose_racine "/dev/loop0"
+
+# =============================================================================
+titre "8. « not clean » se lit en DEUX mots — le défaut que ce banc a attrapé"
+# =============================================================================
+#  L'état revenait de mesurer_ext4() collé à la place occupée : « 120 not
+#  clean ». On le découpait avec « ${x##* } », qui retire le PLUS LONG
+#  préfixe finissant par une espace — donc rendait « clean » sur un système
+#  de fichiers qui ne l'était pas. L'avertissement ne se serait jamais
+#  déclenché, et on aurait redimensionné un disque en cours d'utilisation sur
+#  la foi d'un outil affirmant que tout allait bien.
+pose_table "nvme0n1p2 ext4 300000000000"
+pose_ext4 73242187 43945312 "not clean"
+S="$(lance)"
+echo "$S" | grep -q "n'est pas « clean » (état : not clean)" \
+	&& ok "un ext4 « not clean » est signalé, avec son état complet" \
+	|| non "un ext4 sale passe pour propre — le découpage serait conseillé quand même :\n$S"
+pose_ext4 73242187 43945312 "clean"
+S="$(lance)"
+echo "$S" | grep -q "n'est pas « clean »" \
+	&& non "fausse alerte : un ext4 propre est signalé comme sale" \
+	|| ok "…et un ext4 propre ne déclenche aucune fausse alerte"
+
+# =============================================================================
+titre "9. La taille se CHOISIT — la demande d'Alex"
+# =============================================================================
+#  « Je voudrais qu'on choisisse le nombre de mémoire qu'il peut prendre. »
+#  C'était une variable d'environnement, donc en pratique inatteignable :
+#  personne n'écrit « LEXOS_DUALBOOT_CIBLE_GO=60 lexos dualboot » devant un
+#  disque qu'il a peur d'abîmer.
+pose_table "nvme0n1p2 ext4 300000000000"
+pose_ext4 73242187 43945312 "clean"
+S="$(lance_avec 120)"
+echo "$S" | grep -q "120 Go pour LexOS" \
+	&& ok "« lexos dualboot 120 » vise bien 120 Go" \
+	|| non "la taille demandée en ligne de commande est ignorée :\n$S"
+S="$(lance_avec --taille 90)"
+echo "$S" | grep -q "90 Go pour LexOS" \
+	&& ok "« --taille 90 » marche aussi" \
+	|| non "la forme --taille est ignorée"
+
+#  ET CE QUI N'EST PAS UN NOMBRE EST REFUSÉ, PAS DEVINÉ. « 60Go » ressemble à
+#  un chiffre et n'en est pas un ; le prendre pour 0 ou pour 60 au petit
+#  bonheur donnerait un conseil de découpe faux sur un disque qui contient
+#  les jeux d'Alex.
+for MAUVAIS in 60Go soixante -40; do
+	S="$(lance_avec "$MAUVAIS")"
+	CODE="$(cat "$BANC/code")"
+	if [ "$CODE" = "2" ] && ! echo "$S" | grep -q "LA PLACE POUR LEXOS"; then
+		ok "« $MAUVAIS » est refusé net (code 2), sans afficher de conseil"
+	else
+		non "« $MAUVAIS » n'est pas refusé proprement (code $CODE) :\n$S"
+	fi
+done
+
+#  Sous le plancher, on refuse aussi : conseiller une découpe où LexOS ne
+#  rentre pas ne rend service à personne.
+S="$(lance_avec 10)"
+[ "$(cat "$BANC/code")" = "2" ] \
+	&& ok "10 Go — sous le minimum — est refusé avec son motif" \
+	|| non "une taille sous le plancher est acceptée"
 
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

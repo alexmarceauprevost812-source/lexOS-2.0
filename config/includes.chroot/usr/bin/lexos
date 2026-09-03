@@ -269,7 +269,8 @@ ${B}FOND D'ÉCRAN${R}
                       ${D}ou clic droit sur une image dans Fichiers${R}
 
 ${B}INSTALLER À CÔTÉ DE WINDOWS${R}
-  ${A}dualboot${R}            Tout vérifier avant d'installer ${D}(ne modifie rien)${R}
+  ${A}dualboot${R} ${D}[Go]${R}       Tout vérifier avant d'installer ${D}(ne modifie rien)${R}
+                      ${D}Windows ou un autre Linux ; « dualboot 60 » vise 60 Go${R}
                       ${D}place cessible par Windows, démarrage rapide, UEFI${R}
 
 ${B}COMPTES EN LIGNE${R}
