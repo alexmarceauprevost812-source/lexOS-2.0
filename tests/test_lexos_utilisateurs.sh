@@ -133,6 +133,17 @@ SH
 chmod +x "$BANC/bin"/*
 : > "$BANC/trace"
 
+#  ═══ LightDM VIENT DU DÉCOR, PAS DE LA MACHINE ═══
+#  Ce banc vérifie que « connexion automatique » ouvre un terminal avec la
+#  bonne commande. L'outil refuse ce geste quand LightDM n'est pas là — et il
+#  a raison. Mais le banc lisait le VRAI /etc/lightdm : présent sur la machine
+#  de développement, ABSENT sur le coureur de la CI. Vert ici, ROUGE là-bas,
+#  et c'est exactement ce qui est arrivé à la construction de l'ISO 105.
+#  Un banc qui mesure la machine n'éprouve pas le dépôt.
+mkdir -p "$BANC/etc/lightdm"
+printf '[Seat:*]\n' > "$BANC/etc/lightdm/lightdm.conf"
+export LEXOS_LIGHTDM_CONF="$BANC/etc/lightdm/lightdm.conf"
+
 export BANC_DECOR="$BANC" BANC_TRACE="$BANC/trace"
 CHEMIN="$BANC/bin:$RACINE/config/includes.chroot/usr/bin:$PATH"
 lexutil() { PATH="$CHEMIN" bash "$OUTIL" "$@"; }
@@ -396,6 +407,25 @@ EOF
 $SORTIE_G
 EOF
 	fi
+fi
+
+#  ═══ ET SANS LightDM, LE GESTE EST REFUSÉ ═══
+#  L'autre sens du même contrôle : un réglage qui ne s'appliquerait à rien ne
+#  doit pas être offert. C'est le cas du coureur de la CI, et il faut qu'il
+#  soit éprouvé pour lui-même plutôt que subi.
+if command -v python3 >/dev/null 2>&1; then
+	MSG="$(cd "$RACINE" && PATH="$CHEMIN" LEXOS_LIGHTDM_CONF="$BANC/sans-lightdm/lightdm.conf" \
+		python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import settings
+print(settings.act_utilisateur("auto:banc-marie").get("erreur", "ACCEPTÉ"))
+' "$RACINE/config/includes.chroot/usr/lib/lexos" 2>/dev/null)"
+	case "$MSG" in
+		*"LightDM n'est pas installé"*)
+			ok "sans LightDM, la connexion automatique est refusée avec son motif" ;;
+		*) non "sans LightDM, réponse inattendue (« $MSG »)" ;;
+	esac
 fi
 
 #  ═══ L'OUTIL MUET N'EST PAS L'OUTIL ABSENT ═══

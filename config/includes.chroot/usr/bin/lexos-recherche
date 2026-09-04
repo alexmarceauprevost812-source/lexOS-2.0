@@ -36,7 +36,20 @@ die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
 # Au-delà, l'écran défile et plus personne ne lit. Les compteurs disent
 # toujours combien de résultats existent en tout.
 readonly MAX_RESULTATS=30
-readonly BASE_PLOCATE=/var/lib/plocate/plocate.db
+#  L'INDEX DE plocate. Le chemin est celui de Debian ; LEXOS_PLOCATE_DB le
+#  déplace, et ce seuil existe pour une raison précise.
+#
+#  UN BANC QUI DÉPEND DE LA MACHINE N'ÉPROUVE PAS LE DÉPÔT. Le banc des pages
+#  de Paramètres vérifie qu'une recherche par NOM est refusée quand il n'y a
+#  pas d'index. Il lisait le vrai /var/lib/plocate/plocate.db : vert sur une
+#  machine sans plocate, ROUGE dès qu'un updatedb passait — ce qui est arrivé
+#  au milieu d'une session, sans qu'une ligne de code ait bougé. C'est la
+#  faute que ce dépôt a déjà payée avec deux bancs qui éprouvaient la machine
+#  du développeur plutôt que le dépôt.
+#
+#  Même procédé et même famille que LEXOS_BIENETRE_DIR, LEXOS_NUAGE,
+#  LEXOS_RCLONE_REMOTES et LEXOS_HOSTNAME_RACINE.
+readonly BASE_PLOCATE="${LEXOS_PLOCATE_DB:-/var/lib/plocate/plocate.db}"
 
 usage() {
 	cat <<EOF

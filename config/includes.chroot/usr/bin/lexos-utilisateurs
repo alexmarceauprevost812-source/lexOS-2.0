@@ -44,7 +44,25 @@ die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
 # Le groupe qui donne les pleins pouvoirs sur Debian. Nommé une seule fois :
 # c'est lui que compte la protection du dernier administrateur.
 GROUPE_ADMIN=sudo
-LIGHTDM_CONF=/etc/lightdm/lightdm.conf
+#  LE FICHIER DE LightDM. LEXOS_LIGHTDM_CONF le déplace, et ce seuil existe
+#  pour une raison mesurée : le banc des comptes vérifie que « connexion
+#  automatique » ouvre un terminal avec la bonne commande. Il lisait le vrai
+#  /etc/lightdm — présent sur la machine de développement, ABSENT sur le
+#  coureur de la CI. Le banc était donc vert ici et ROUGE là-bas, et c'est
+#  exactement ce qui est arrivé à la construction de l'ISO 105.
+#
+#  Même famille que LEXOS_BIENETRE_DIR, LEXOS_NUAGE, LEXOS_RCLONE_REMOTES,
+#  LEXOS_HOSTNAME_RACINE et LEXOS_PLOCATE_DB : on déplace, on ne donne aucun
+#  droit.
+LIGHTDM_CONF="${LEXOS_LIGHTDM_CONF:-/etc/lightdm/lightdm.conf}"
+LIGHTDM_DIR="$(dirname "$LIGHTDM_CONF")"
+
+#  « LightDM est-il là ? » — une seule réponse, employée par la commande comme
+#  par « --json ». Les deux la calculaient séparément, avec le chemin écrit en
+#  dur des deux côtés.
+lightdm_present() {
+	command -v lightdm >/dev/null 2>&1 || [[ -d "$LIGHTDM_DIR" ]]
+}
 
 # Le nom complet d'une personne peut contenir un guillemet ou un antislash :
 # c'est du texte libre, écrit par quelqu'un. Sans échappement, « --json »
@@ -549,7 +567,7 @@ lire_auto_connexion() {
 
 ecrire_auto_connexion() {
 	local utilisateur="$1" tmp=""
-	mkdir -p /etc/lightdm || die "Impossible de créer /etc/lightdm."
+	mkdir -p "$LIGHTDM_DIR" || die "Impossible de créer $LIGHTDM_DIR."
 	[[ -f "$LIGHTDM_CONF" ]] || printf '[Seat:*]\n' > "$LIGHTDM_CONF"
 	# Une seule sauvegarde, faite avant la première modification : c'est l'état
 	# livré par Debian qu'on veut pouvoir retrouver, pas les dix essais d'après.
@@ -597,7 +615,7 @@ cmd_auto_connexion() {
 	besoin_root "auto-connexion $cible"
 	# Écrire cette clé pour un autre gestionnaire de session ne ferait
 	# strictement rien, et en silence. Mieux vaut le dire.
-	if ! command -v lightdm >/dev/null 2>&1 && [[ ! -d /etc/lightdm ]]; then
+	if ! lightdm_present; then
 		die "LightDM n'est pas installé : cet outil ne sait régler la connexion automatique que pour LightDM."
 	fi
 
@@ -675,8 +693,7 @@ cmd_json() {
 	printf '  "nb_admins": %s,\n' "$(nombre_admins)"
 	printf '  "groupe_admin": "%s",\n' "$GROUPE_ADMIN"
 	printf '  "root": %s,\n' "$( (( EUID == 0 )) && echo true || echo false)"
-	printf '  "lightdm": %s,\n' \
-		"$(command -v lightdm >/dev/null 2>&1 || [[ -d /etc/lightdm ]] && echo true || echo false)"
+	printf '  "lightdm": %s,\n' "$(lightdm_present && echo true || echo false)"
 	printf '  "nom_regex": "%s"\n}\n' "$REGEX_NOM"
 }
 

@@ -79,6 +79,15 @@ export HOME="$BANC/foyer"
 printf 'drive-alex:\nphotos:\n' > "$BANC/remotes"
 export LEXOS_RCLONE_REMOTES="$BANC/remotes"
 
+#  ═══ L'INDEX DE plocate EST CELUI DU DÉCOR, PAS CELUI DE LA MACHINE ═══
+#  Ce banc vérifie qu'une recherche par NOM est refusée faute d'index. Il
+#  lisait le vrai /var/lib/plocate/plocate.db : vert sur une machine sans
+#  plocate, ROUGE dès qu'un updatedb passait. C'est arrivé au milieu d'une
+#  session — le banc est devenu rouge sans qu'une ligne de code ait bougé, et
+#  la CI serait tombée à la poussée suivante. Un banc qui mesure la machine
+#  n'éprouve pas le dépôt.
+export LEXOS_PLOCATE_DB="$BANC/pas-d-index"
+
 # =============================================================================
 titre "1. Les quatre « --json » — chacun publie ce que sa page ne peut pas deviner"
 # =============================================================================
@@ -271,13 +280,29 @@ try:
             ("comptes",       "ajouter:pigeon",   "n'est pas un service connu", "un service inventé"),
             ("comptes",       "demonter:photos",  "n'est pas ouvert",   "refermer un compte déjà fermé"),
             ("recherche",     "contenu:",         "il faut un mot",     "une recherche sans mot"),
-            ("recherche",     "nom:rapport",      "plocate",            "la recherche par nom sans index"),
+            ("recherche",     "nom:rapport",      "index",              "la recherche par nom sans index"),
             ("recherche",     "truc:x",           "geste inattendu",    "un geste de recherche inventé")):
         avant = derniere()
         r, cmd, fenetre = geste(action, arg)
         print(("OK|" if (not r.get("ok") and bout in r.get("erreur", "") and not fenetre)
                else "NON|") +
               "refusé sans rien lancer : %s (%s)" % (quoi, r.get("erreur", "ACCEPTÉ !")))
+
+    #  ═══ ET L'AUTRE SENS : AVEC UN INDEX, ÇA DOIT PASSER ═══
+    #  Un refus permanent est un défaut aussi, et c'est le plus facile à
+    #  écrire sans s'en apercevoir. Sans ce contrôle, une recherche par nom
+    #  cassée pour toujours resterait verte.
+    import os, pathlib
+    db = pathlib.Path(os.environ["LEXOS_PLOCATE_DB"])
+    db.write_text("faux index", encoding="utf-8")
+    try:
+        r, cmd, fenetre = geste("recherche", "nom:rapport")
+        print(("OK|" if (r.get("ok") and fenetre and
+                         cmd == "lexos-recherche nom rapport; bash") else "NON|") +
+              "avec un index, la recherche par nom part (%s)"
+              % (cmd or r.get("erreur", "REFUSÉE")))
+    finally:
+        db.unlink(missing_ok=True)
 except Exception as _e:
     print("NON|le banc s'est arrêté : %s: %s" % (type(_e).__name__, _e))
 print("FIN|")
