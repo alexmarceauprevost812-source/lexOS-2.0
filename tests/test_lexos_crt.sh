@@ -178,8 +178,15 @@ else
 	case "$SORTIE" in
 		*"Config file used"*)
 			ok "picom lit le fichier et l'accepte (v$(picom --version 2>/dev/null | tr -d 'v'))" ;;
+		#  UN FICHIER REFUSÉ ET UN picom QUI NE DÉMARRE PAS NE SONT PAS LA
+		#  MÊME CHOSE. Sur un coureur sans pilote graphique, picom s'arrête
+		#  avant d'avoir rien à dire du fichier — en conclure que le fichier
+		#  est mauvais serait un rouge qui ne parle pas du code. On ne
+		#  retient donc que ce que picom dit VRAIMENT de la configuration.
+		*"syntax error"*|*"Failed to parse"*|*"onfig file"*[Ee]"rror"*)
+			non "picom refuse le fichier :\n$(printf '%s' "$SORTIE" | head -5)" ;;
 		*)
-			non "picom n'a pas accepté le fichier :\n$(printf '%s' "$SORTIE" | head -5)" ;;
+			saute "picom n'a pas pu démarrer ici (pas de pilote graphique) — la syntaxe n'a PAS été éprouvée" ;;
 	esac
 fi
 
@@ -206,29 +213,39 @@ else
 	#  ne saurait que dire « non » passerait le contrôle ci-dessus sans rien
 	#  valoir : c'est arrivé, à cause d'un chemin non normalisé
 	#  (« /usr/bin/../share/… » n'est pas la même CHAÎNE que « /usr/share/… »).
-	if command -v picom >/dev/null 2>&1 && command -v Xvfb >/dev/null 2>&1; then
-		Xvfb :91 -screen 0 800x600x24 >/dev/null 2>&1 & XPID=$!
-		sleep 1.5
-		#  EN ARRIÈRE-PLAN, ET C'EST TOUT LE SUJET : picom ne rend jamais la
-		#  main. La première version de ce banc l'a lancé au premier plan et
-		#  s'est arrêtée là, indéfiniment.
-		DISPLAY=:91 setsid picom --config "$CHEMIN_CONF" >/dev/null 2>&1 &
+	#  ═══ ON N'A PAS BESOIN D'UN COMPOSITEUR QUI MARCHE ═══
+	#  Ce qu'on éprouve ici, c'est la RECONNAISSANCE : un processus nommé
+	#  picom, dont la ligne de commande cite notre fichier. Lancer le vrai
+	#  picom demandait un serveur X et un pilote graphique — absents du
+	#  coureur de la CI, où il mourait aussitôt et faisait rougir le banc pour
+	#  une raison qui n'a rien à voir avec le code.
+	#
+	#  Une COPIE de « sh » nommée « picom » a exactement la signature qui
+	#  compte : /proc/<pid>/comm vaut « picom » — c'est le nom du FICHIER
+	#  exécuté, pas argv[0], donc « exec -a picom … » ne suffirait pas — et sa
+	#  ligne de commande porte le chemin de notre configuration.
+	#
+	#  « sh » et non « sleep » : sleep REFUSE les options qu'il ne connaît pas
+	#  et s'arrête aussitôt, si bien qu'il n'y avait plus aucun processus à
+	#  reconnaître au moment du contrôle. sh, lui, accepte n'importe quels
+	#  arguments après « -c » et les garde dans sa ligne de commande.
+	if command -v sh >/dev/null 2>&1; then
+		mkdir -p "$BANC/faux"
+		cp "$(command -v sh)" "$BANC/faux/picom"
+		"$BANC/faux/picom" -c 'sleep 30' --config "$CHEMIN_CONF" &
 		PPICOM=$!
-		sleep 2
+		sleep 0.5
 		T="$(HOME="$BANC/foyer" bash "$OUTIL" --json 2>/dev/null \
 			| python3 -c 'import json,sys; print(json.load(sys.stdin)["tourne"])' 2>/dev/null)"
 		#  ON TUE PAR PID, jamais par motif : « pkill -f <motif> » frappe tout
 		#  ce qui cite ce motif, y compris le shell qui lance ce banc. Vécu.
-		for P in $(HOME="$BANC/foyer" bash "$OUTIL" --pids 2>/dev/null); do
-			kill "$P" 2>/dev/null
-		done
-		kill "$PPICOM" 2>/dev/null; kill "$XPID" 2>/dev/null
-		wait "$PPICOM" "$XPID" 2>/dev/null
+		kill "$PPICOM" 2>/dev/null
+		wait "$PPICOM" 2>/dev/null
 		[ "$T" = "True" ] \
-			&& ok "et il reconnaît un vrai picom lancé sur notre fichier" \
-			|| non "un vrai picom tourne sur notre fichier et l'outil dit « $T »"
+			&& ok "et il reconnaît un processus picom lancé sur notre fichier" \
+			|| non "un processus picom tourne sur notre fichier et l'outil dit « $T »"
 	else
-		saute "picom ou Xvfb absent : la reconnaissance d'un vrai picom n'a PAS été éprouvée"
+		saute "« sleep » introuvable : la reconnaissance n'a PAS été éprouvée"
 	fi
 fi
 

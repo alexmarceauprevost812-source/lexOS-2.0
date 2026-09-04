@@ -59,6 +59,18 @@ SH
 #  d'arriver au contrôle qu'on voulait éprouver — et le banc annonçait un
 #  rouge qui ne parlait pas du code. Les comptes eux-mêmes viennent de
 #  LEXOS_RCLONE_REMOTES, qui a la priorité : cette doublure n'a qu'à exister.
+#  ═══ ET UNE DOUBLURE DE plocate ═══
+#  « Par nom » lit un index, et l'outil refuse d'abord si le BINAIRE plocate
+#  manque. Sur le coureur de la CI, il manque — le contrôle « avec un index,
+#  la recherche par nom part » tombait donc sur ce refus-là, pas sur celui
+#  qu'il éprouve. Vert ici, rouge là-bas : le même défaut que /etc/lightdm,
+#  refait le jour même. Le décor fournit donc le binaire, et l'index reste
+#  gouverné par LEXOS_PLOCATE_DB.
+cat > "$BANC/bin/plocate" <<'SH'
+#!/bin/sh
+exit 0
+SH
+
 cat > "$BANC/bin/rclone" <<'SH'
 #!/bin/sh
 case "$1" in
