@@ -276,8 +276,11 @@ def act_ouvrir(arg):
         #  plutôt que de ne rien faire. C'est la règle que cette fonction
         #  s'était déjà donnée — « un bouton doit toujours mener quelque
         #  part » — et que ces deux entrées-ci ne suivaient pas.
-        "applications": lambda: _xfce([["xfce4-mime-settings"],
-                                       ["exo-preferred-applications"]]),
+        #  CETTE ENTRÉE OUVRAIT LE DIALOGUE DES TYPES DE FICHIERS, c'est-à-dire
+        #  exactement ce qu'ouvre « Applications par défaut ». La section
+        #  « Applications » parle maintenant d'installer et de retirer des
+        #  logiciels : c'est la logithèque qu'elle doit ouvrir.
+        "applications": lambda: _terminal("Logithèque LexOS", "lexos logitheque"),
         "notifications": lambda: _run(["xfce4-notifyd-config"], detach=True),
         "recherche":  lambda: _run(["xfce4-appfinder", "--collapsed"], detach=True),
         #  Le bouton rouge de la barre ouvre la même fenêtre. Elle est ici
@@ -1415,6 +1418,231 @@ def act_defaut(arg):
     return _run(["lexos-defaut", categorie, appli])
 
 
+def _recherche_etat():
+    """De quoi la recherche dispose sur cette machine.
+
+    LA PAGE DISAIT : « LexOS n'indexe pas le disque en tâche de fond ». C'est
+    vrai — plocate n'est pas livré — mais elle s'arrêtait là, sans dire ce qui
+    en découle : la recherche par NOM lit cet index et ne fonctionne donc pas
+    tant que plocate n'est pas installé, alors que la recherche par CONTENU
+    marche tout de suite. Deux recherches, deux états, et un seul mot pour les
+    deux.
+    """
+    vide = {"plocate": False, "index": False, "index_jours": -1,
+            "catfish": False, "max": 0, "dispo": False}
+    if not shutil.which("lexos-recherche"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-recherche", "--json"],
+                           capture_output=True, text=True, timeout=15)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if "plocate" not in d:
+        return vide
+    d["dispo"] = True
+    return d
+
+
+#  Les recherches qui n'attendent aucun mot : le titre de la fenêtre, et les
+#  arguments de lexos-recherche. Une table plutôt qu'une cascade de « if » —
+#  ce que la page peut demander se lit d'un coup d'œil.
+_RECHERCHE_SANS_MOT = {
+    "gros":     ("Les plus gros fichiers — LexOS", ["gros"]),
+    "recent":   ("Fichiers récents — LexOS", ["recent"]),
+    "doublons": ("Fichiers en double — LexOS", ["doublons"]),
+    "index":    ("Reconstruire l'index — LexOS", None),
+}
+
+
+def act_recherche(arg):
+    """Chercher — « nom:<mot> », « contenu:<mot> », « gros: », « recent: »,
+    « doublons: », « index: », « fenetre: ».
+
+    POURQUOI UN TERMINAL PLUTÔT QUE LA PAGE. Une recherche rend des dizaines
+    de lignes de chemins, qu'on veut pouvoir relire, copier et faire défiler.
+    Les recopier dans un panneau de réglages serait refaire un terminal en
+    moins bien. La page sert à LANCER la bonne commande sans avoir à la
+    connaître — c'est le travail d'une page de réglages, pas d'un afficheur.
+
+    Le mot cherché est du texte libre : il entre dans une chaîne qu'un shell
+    redécoupe, donc il est cité par shlex.quote. On refuse d'abord ce qui ne
+    peut rien donner : un mot vide, ou plus long qu'une ligne.
+    """
+    if not shutil.which("lexos-recherche"):
+        return {"ok": False, "erreur": "lexos-recherche introuvable"}
+    e = _recherche_etat()
+    quoi, _, mot = (arg or "").partition(":")
+
+    if quoi in ("nom", "contenu", "fenetre"):
+        mot = mot.strip()
+        if not mot and quoi != "fenetre":
+            return {"ok": False, "erreur": "il faut un mot à chercher"}
+        if len(mot) > 200:
+            return {"ok": False, "erreur": "ce mot est trop long"}
+        if quoi == "nom" and not e.get("plocate"):
+            return {"ok": False,
+                    "erreur": "la recherche par nom lit l'index de plocate, "
+                              "qui n'est pas installé : « lexos install plocate »"}
+        if quoi == "nom" and not e.get("index"):
+            return {"ok": False,
+                    "erreur": "l'index n'a jamais été construit — « Reconstruire l'index » d'abord"}
+        if quoi == "fenetre":
+            if not e.get("catfish"):
+                return {"ok": False,
+                        "erreur": "catfish n'est pas installé : « lexos install catfish »"}
+            return _run(["lexos-recherche", "fenetre"] + ([mot] if mot else []),
+                        detach=True)
+        return _terminal("Recherche — LexOS",
+                         "lexos-recherche %s %s" % (quoi, shlex.quote(mot)))
+
+    if quoi in _RECHERCHE_SANS_MOT:
+        titre, args = _RECHERCHE_SANS_MOT[quoi]
+        if quoi == "index":
+            #  updatedb parcourt tout le disque et écrit dans /var/lib : c'est
+            #  le seul geste de cette page qui demande les droits
+            #  d'administrateur, et lexos-recherche ne s'élève pas de lui-même.
+            if not e.get("plocate"):
+                return {"ok": False,
+                        "erreur": "plocate n'est pas installé : « lexos install plocate »"}
+            return _terminal(titre, "sudo lexos-recherche index")
+        return _terminal(titre, "lexos-recherche " + " ".join(args))
+
+    return {"ok": False, "erreur": "geste inattendu"}
+
+
+def act_comptes(arg):
+    """Les comptes en ligne — « monter:<nom> », « demonter:<nom> »,
+    « ajouter:<service> », « retirer:<nom> ».
+
+    DEUX GESTES AGISSENT TOUT DE SUITE, DEUX PASSENT PAR UN TERMINAL, et ce
+    n'est pas arbitraire : monter et démonter ne posent aucune question, alors
+    qu'« ajouter » lance « rclone config », qui interroge et ouvre le
+    navigateur pour l'autorisation, et que « retirer » exige une confirmation.
+    Ces deux-là n'ont nulle part où poser leur question dans une page web.
+
+    Les noms viennent de ce que l'outil publie — un compte qui existe, un
+    service du catalogue — parce que deux d'entre eux entrent dans une
+    commande de terminal, c'est-à-dire dans une chaîne qu'un shell redécoupe.
+    Ils y sont cités par shlex.quote en plus.
+    """
+    if not shutil.which("lexos-comptes"):
+        return {"ok": False, "erreur": "lexos-comptes introuvable"}
+    e = _comptes_etat()
+    if not e.get("dispo"):
+        return {"ok": False, "erreur": "lexos-comptes n'a pas répondu"}
+    quoi, _, valeur = (arg or "").partition(":")
+    comptes = {c.get("nom"): c for c in e.get("comptes", [])}
+
+    if quoi == "ajouter":
+        if not e.get("rclone"):
+            return {"ok": False,
+                    "erreur": "rclone n'est pas installé : « lexos install rclone »"}
+        if valeur not in [x.get("cle") for x in e.get("services", [])]:
+            return {"ok": False, "erreur": "« %s » n'est pas un service connu" % valeur}
+        return _terminal("Relier un compte — LexOS",
+                         "lexos-comptes ajouter %s" % shlex.quote(valeur))
+
+    if valeur not in comptes:
+        return {"ok": False, "erreur": "« %s » n'est pas un compte relié" % valeur}
+    if quoi == "monter":
+        if comptes[valeur].get("monte"):
+            return {"ok": False, "erreur": "« %s » est déjà ouvert" % valeur}
+        return _run(["lexos-comptes", "monter", valeur])
+    if quoi == "demonter":
+        if not comptes[valeur].get("monte"):
+            return {"ok": False, "erreur": "« %s » n'est pas ouvert" % valeur}
+        return _run(["lexos-comptes", "demonter", valeur])
+    if quoi == "retirer":
+        return _terminal("Retirer un compte — LexOS",
+                         "lexos-comptes retirer %s" % shlex.quote(valeur))
+    return {"ok": False, "erreur": "geste inattendu"}
+
+
+def act_bienetre(arg):
+    """Le bien-être numérique — « compteur:on|off », « limite:<min>|off »,
+    « pauses:on|off », « nuit:on|off », « oublier: ».
+
+    Rien ici ne demande les droits d'administrateur : lexos-bienetre n'écrit
+    que dans le dossier de la personne connectée, et démarre ou arrête des
+    programmes de sa propre session. La page agit donc directement.
+
+    ON REFUSE D'ALLUMER CE QUI N'EST PAS LÀ, avec un motif que la page peut
+    montrer : workrave et redshift ne sont pas livrés avec LexOS. Sans ce
+    refus, le clic partirait, l'outil dirait « n'est pas installé » dans une
+    sortie que personne ne lit, et l'interrupteur reviendrait tout seul à sa
+    place — le geste le plus déroutant qui soit.
+    """
+    if not shutil.which("lexos-bienetre"):
+        return {"ok": False, "erreur": "lexos-bienetre introuvable"}
+    quoi, _, valeur = (arg or "").partition(":")
+    e = _bienetre_etat()
+    if quoi == "compteur":
+        if valeur not in ("on", "off"):
+            return {"ok": False, "erreur": "il faut « on » ou « off »"}
+        return _run(["lexos-bienetre", "demarrer" if valeur == "on" else "arreter"])
+    if quoi == "limite":
+        if valeur == "off":
+            return _run(["lexos-bienetre", "limite", "off"])
+        if not valeur.isdigit() or not (1 <= int(valeur) <= 1440):
+            return {"ok": False,
+                    "erreur": "la limite est un nombre de minutes entre 1 et 1440, ou « off »"}
+        return _run(["lexos-bienetre", "limite", valeur])
+    if quoi in ("pauses", "nuit"):
+        if valeur not in ("on", "off"):
+            return {"ok": False, "erreur": "il faut « on » ou « off »"}
+        installe = e.get("pauses_installe" if quoi == "pauses" else "nuit_installe")
+        if valeur == "on" and not installe:
+            programme = "workrave" if quoi == "pauses" else "redshift"
+            return {"ok": False,
+                    "erreur": "%s n'est pas installé : « lexos install %s »"
+                              % (programme, programme)}
+        return _run(["lexos-bienetre", quoi, valeur])
+    if quoi == "oublier":
+        #  ═══ CELUI-CI PASSE PAR UN TERMINAL, ET IL LE FAUT ═══
+        #  « lexos-bienetre oublier » demande de TAPER le mot « effacer »
+        #  avant de supprimer quoi que ce soit. Lancé sans terminal, ce
+        #  « read » échoue, la réponse reste vide, l'outil répond « Annulé. »
+        #  — et rend 0. Le moteur aurait donc annoncé « ok », la page aurait
+        #  affiché « Historique effacé », et rien n'aurait été effacé. Un
+        #  succès annoncé pour une action qui n'a pas eu lieu est pire que
+        #  l'échec : on ne recommence pas.
+        return _terminal("Effacer l'historique — LexOS", "lexos-bienetre oublier")
+    return {"ok": False, "erreur": "geste inattendu"}
+
+
+def act_terminal(arg):
+    """Le mode du terminal — « mode:<jour|nuit|auto|suivre> » ou « horaire:HH:MM-HH:MM ».
+
+    ICI, PAS DE TERMINAL À OUVRIR : lexos-terminal n'écrit que dans le dossier
+    de configuration de la personne connectée, il ne demande aucun droit
+    d'administrateur. La page agit donc directement, et le changement est
+    instantané — les fenêtres déjà ouvertes se repeignent.
+
+    L'HEURE EST VÉRIFIÉE ICI AUSSI, et pas seulement par l'outil : la page
+    doit pouvoir dire « ce n'est pas une heure » plutôt que d'afficher le
+    message brut d'un programme.
+    """
+    if not shutil.which("lexos-terminal"):
+        return {"ok": False, "erreur": "lexos-terminal introuvable"}
+    quoi, _, valeur = (arg or "").partition(":")
+    if quoi == "mode":
+        if valeur not in ("jour", "nuit", "auto", "suivre"):
+            return {"ok": False, "erreur": "mode inattendu"}
+        return _run(["lexos-terminal", valeur])
+    if quoi == "horaire":
+        debut, _, fin = valeur.partition("-")
+        for h in (debut, fin):
+            if not re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", h or ""):
+                return {"ok": False,
+                        "erreur": "il faut deux heures au format HH:MM (00:00 à 23:59)"}
+        if debut == fin:
+            return {"ok": False,
+                    "erreur": "le début et la fin du jour ne peuvent pas être la même heure"}
+        return _run(["lexos-terminal", "horaire", debut, fin])
+    return {"ok": False, "erreur": "geste inattendu"}
+
+
 def act_partage(arg):
     """Changer le nom de la machine — « nom:<nouveau> ».
 
@@ -1609,6 +1837,10 @@ ACTIONS = {
     "defaut-appli": act_defaut,
     "utilisateur": act_utilisateur,
     "partage-nom": act_partage,
+    "terminal-mode": act_terminal,
+    "bienetre": act_bienetre,
+    "comptes": act_comptes,
+    "recherche": act_recherche,
     "wifi-radio": act_wifi,
     "wifi-auto": act_wifi_auto,
     "son-muet": act_son_muet,
@@ -2874,6 +3106,31 @@ def _mac_etat():
     return {"apple": "apple" in vendeur.lower(), "modele": modele}
 
 
+def _terminal_etat():
+    """Le terminal de jour et le terminal de nuit, tels que lexos-terminal les
+    voit.
+
+    LA PAGE N'AVAIT AUCUN ÉTAT : elle listait quatre commandes à taper. Elle ne
+    disait donc ni ce qui est choisi, ni ce qui s'applique en ce moment — et
+    ces deux-là diffèrent dès qu'on est en « auto » ou en « suivre ». C'est
+    précisément l'écart entre les deux qui explique ce qu'on a sous les yeux.
+    """
+    vide = {"mode": "", "effectif": "", "bureau": "", "debut": "", "fin": "",
+            "minuterie": False, "dispo": False}
+    if not shutil.which("lexos-terminal"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-terminal", "--json"],
+                           capture_output=True, text=True, timeout=15)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if not d.get("mode"):
+        return vide
+    d["dispo"] = True
+    return d
+
+
 def _partage_etat():
     """Le partage, tel que lexos-share le voit.
 
@@ -2906,60 +3163,80 @@ def _partage_etat():
 
 
 def _comptes_etat():
-    """Les comptes en ligne reliés. Deux mécanismes cohabitent sous Linux et
-    ne font pas la même chose : GNOME Online Accounts ouvre le compte DANS le
-    gestionnaire de fichiers (rien n'est copié), rclone sait en plus
-    synchroniser pour l'hors-ligne. On dit lequel est disponible."""
-    liens = []
-    if shutil.which("rclone"):
-        for ligne in _sortie(["rclone", "listremotes"]).splitlines():
-            nom = ligne.strip().rstrip(":")
-            if nom:
-                liens.append({"nom": nom, "par": "rclone"})
-    return {"rclone": bool(shutil.which("rclone")),
-            "goa": bool(shutil.which("gnome-control-center")
-                        or Path("/usr/lib/gnome-online-accounts").exists()),
-            "liens": liens}
+    """Les comptes en ligne — demandés à lexos-comptes.
 
+    CE QUE CETTE FONCTION FAISAIT. Elle appelait « rclone listremotes »
+    elle-même. Elle savait donc quels comptes sont CONFIGURÉS, et rien de
+    plus — surtout pas lesquels sont MONTÉS, c'est-à-dire lesquels sont
+    réellement là, dans Fichiers, en ce moment. C'est pourtant toute la
+    différence pour qui cherche ses documents.
+
+    Et elle ignorait le catalogue des services. La page ne pouvait donc pas
+    proposer d'en relier un : il fallait passer par le terminal ne serait-ce
+    que pour apprendre les noms acceptés. Ce catalogue vit dans lexos-comptes,
+    avec le type rclone exact de chaque service — celui qui fait la différence
+    entre une commande qui marche et un « unknown remote type ». Le recopier
+    ici aurait donné deux listes destinées à diverger.
+    """
+    vide = {"rclone": False, "gvfs": False, "nuage": "", "comptes": [],
+            "services": [], "dispo": False,
+            #  Ancien nom, encore lu ailleurs dans la page.
+            "liens": [], "goa": False}
+    if not shutil.which("lexos-comptes"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-comptes", "--json"],
+                           capture_output=True, text=True, timeout=20)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if not isinstance(d.get("services"), list):
+        return vide
+    d["dispo"] = True
+    d["liens"] = [{"nom": c.get("nom", ""), "par": "rclone"}
+                  for c in d.get("comptes", [])]
+    d["goa"] = bool(d.get("gvfs"))
+    return d
 
 def _bienetre_etat():
-    """Temps d'écran du jour, et si le compteur tourne seulement.
+    """Temps d'écran, limite, pauses, lumière du soir — demandés à l'outil.
 
-    CORRECTION D'UNE ERREUR : cette fonction lisait
-    ~/.config/lexos/ecran-aujourdhui, au format « date minutes ». Ce fichier
-    n'existe nulle part et personne ne l'écrit. lexos-bienetre range son
-    relevé AILLEURS et AUTREMENT : un fichier par jour, nommé AAAA-MM-JJ,
-    dans ~/.local/share/lexos/bienetre/, contenant le seul nombre de minutes.
-    La section affichait donc éternellement « pas de relevé » alors que le
-    compteur faisait son travail.
+    DEUX CORRECTIONS SUCCESSIVES, ET LA SECONDE EST CELLE-CI.
+    La première version lisait ~/.config/lexos/ecran-aujourdhui, un fichier
+    que personne n'écrit : la section affichait éternellement « pas de
+    relevé ». La deuxième lisait le bon dossier, mais à la main — donc une
+    deuxième copie du format de lexos-bienetre, qui aurait fini par ne plus
+    dire la même chose. On demande maintenant à l'outil, comme pour le
+    clavier, les applications par défaut et les comptes.
 
-    ET UNE DISTINCTION QUI COMPTE : le compteur est ARRÊTÉ par défaut —
-    mesurer le temps de quelqu'un ne se fait pas sans qu'il le demande. « 0
-    minute » et « le compteur ne tourne pas » ne veulent donc pas dire la
-    même chose, et la page doit pouvoir les distinguer."""
-    from datetime import date
-    dossier = Path(os.environ.get(
-        "LEXOS_BIENETRE_DIR",
-        Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
-        / "lexos" / "bienetre"))
-    minutes = 0
+    ET ELLE NE SAVAIT QUE DEUX CHOSES : les minutes du jour, et si le
+    compteur tourne. Ni la limite, ni la semaine, ni l'état réel de workrave
+    et de redshift — d'où une page sans un seul réglage.
+
+    TROIS DISTINCTIONS À GARDER : « zéro minute » n'est pas « le compteur est
+    arrêté » ; « workrave n'est pas installé » n'est pas « les rappels sont
+    arrêtés » ; une limite de zéro n'est pas une limite atteinte.
+    """
+    vide = {"tourne": False, "minutes": 0, "limite": 0,
+            "pauses_installe": False, "pauses_actif": False,
+            "nuit_installe": False, "nuit_actif": False,
+            "semaine": [], "total_semaine": 0, "dispo": False,
+            #  Anciens noms, encore lus ailleurs dans la page.
+            "pauses": False, "soir": False}
+    if not shutil.which("lexos-bienetre"):
+        return vide
     try:
-        brut = (dossier / date.today().isoformat()).read_text().strip()
-        if brut.isdigit():
-            minutes = int(brut)
-    except (OSError, ValueError):
-        pass
-    #  Le compteur tourne-t-il ? C'est une minuterie systemd de l'utilisateur.
-    tourne = False
-    if shutil.which("systemctl"):
-        tourne = _sortie(["systemctl", "--user", "is-active",
-                          "lexos-bienetre.timer"]) == "active"
-    return {"minutes": minutes,
-            "tourne": tourne,
-            "releve": (dossier / date.today().isoformat()).exists(),
-            "pauses": bool(shutil.which("workrave")),
-            "soir": bool(shutil.which("redshift") or shutil.which("gammastep"))}
-
+        r = subprocess.run(["lexos-bienetre", "--json"],
+                           capture_output=True, text=True, timeout=20)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if "minutes" not in d:
+        return vide
+    d["dispo"] = True
+    d["pauses"] = bool(d.get("pauses_installe"))
+    d["soir"] = bool(d.get("nuit_installe"))
+    return d
 
 def _heure_etat():
     """Fuseau et synchronisation automatique, via timedatectl."""
@@ -3105,6 +3382,8 @@ def etat():
         "notif": _notif_etat(),
         "mac": _mac_etat(),
         "partage": _partage_etat(),
+        "terminal": _terminal_etat(),
+        "recherche": _recherche_etat(),
         "comptes": _comptes_etat(),
         "bienetre": _bienetre_etat(),
         "langue": _sortie(["sh", "-c", "printf %s \"${LANG:-}\""]) or os.environ.get("LANG", ""),

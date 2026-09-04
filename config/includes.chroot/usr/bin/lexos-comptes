@@ -257,6 +257,63 @@ cmd_ouvrir() {
 	fi
 }
 
+# =============================================================================
+#  L'état, pour la page des Paramètres
+# =============================================================================
+#  --json : les comptes reliés, lesquels sont montés, et les services qu'on
+#  sait relier.
+#
+#  LA PAGE NE DEVINAIT RIEN. Elle listait les remotes de rclone, sans savoir
+#  lesquels sont MONTÉS — et c'est toute la différence entre « le compte est
+#  configuré » et « ses fichiers sont là, dans Fichiers, maintenant ». Elle ne
+#  connaissait pas non plus la liste des services : impossible d'en relier un
+#  sans passer par le terminal pour découvrir les noms acceptés.
+#
+#  Le catalogue des services vit ICI, une seule fois, et « --json » le publie.
+#  Le recopier dans les Paramètres aurait donné deux listes qui auraient fini
+#  par ne plus dire la même chose — et l'une des deux aurait proposé un type
+#  que « rclone config » refuse avec « unknown remote type ».
+_lib_json="$(dirname "$(readlink -f "$0")")/../share/lexos/shell/json.sh"
+[[ -r $_lib_json ]] || _lib_json=/usr/share/lexos/shell/json.sh
+if [[ -r $_lib_json ]]; then
+	# shellcheck source=/dev/null
+	. "$_lib_json"
+else
+	json_texte() { die "json.sh est introuvable : impossible d'écrire du JSON sûr."; }
+fi
+
+cmd_json() {
+	printf '{\n'
+	printf '  "rclone": %s,\n' "$(command -v rclone >/dev/null 2>&1 && echo true || echo false)"
+	printf '  "gvfs": %s,\n' "$(command -v gio >/dev/null 2>&1 && echo true || echo false)"
+	printf '  "nuage": "%s",\n' "$(json_texte "$NUAGE")"
+
+	printf '  "comptes": ['
+	local premier=1 nom
+	while IFS= read -r nom; do
+		[[ -n "$nom" ]] || continue
+		nom="${nom%:}"
+		(( premier )) || printf ', '
+		premier=0
+		printf '{"nom": "%s", "monte": %s}' \
+			"$(json_texte "$nom")" "$(est_monte "$nom" && echo true || echo false)"
+	done < <(remotes)
+	printf '],\n'
+
+	printf '  "services": ['
+	premier=1
+	local cle type etiquette note
+	while IFS='|' read -r cle type etiquette note; do
+		[[ -n "$cle" ]] || continue
+		(( premier )) || printf ', '
+		premier=0
+		printf '{"cle": "%s", "type": "%s", "nom": "%s", "note": "%s"}' \
+			"$(json_texte "$cle")" "$(json_texte "$type")" \
+			"$(json_texte "$etiquette")" "$(json_texte "$note")"
+	done <<< "$SERVICES"
+	printf ']\n}\n'
+}
+
 usage() {
 	cat <<EOF
 ${B}$PROG${R} — relier LexOS à tes comptes en ligne
@@ -284,5 +341,6 @@ case "${1:-}" in
 	demonter|démonter|umount) shift; cmd_demonter "${1:-}" ;;
 	retirer|supprimer)     shift; cmd_retirer "${1:-}" ;;
 	panneau|gui)           cmd_ouvrir ;;
+	--json|json)           cmd_json ;;
 	*) die "Sous-commande inconnue : $1  (essaie : $PROG --help)" ;;
 esac

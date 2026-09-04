@@ -1934,6 +1934,27 @@ jobs:
           #  Énergie serait restée muette le jour où lexos-perf manquerait.
           bash tests/test_lexos_sections.sh
 
+      - name: Les quatre pages qui ne servaient qu'à regarder
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « le contenu comme Ubuntu », puis « là tu fais tous les
+          #  paramètres ». Un inventaire mesuré — chaque section rendue, ses
+          #  boutons comptés — a nommé les pages sans un seul réglage. Quatre
+          #  n'avaient aucune excuse matérielle : Terminal jour/nuit,
+          #  Bien-être numérique, Comptes en ligne, Recherche. Elles
+          #  recopiaient des commandes à taper dans un terminal, pour des
+          #  réglages qui ne demandent rien de plus qu'un clic.
+          #
+          #  CE QUE CE BANC GARDE SURTOUT : les gestes qui DÉTRUISENT ou qui
+          #  ATTENDENT UNE RÉPONSE doivent passer par un terminal.
+          #  « lexos-bienetre oublier » fait taper le mot « effacer » ; lancé
+          #  sans terminal, ce « read » échoue, l'outil répond « Annulé. » et
+          #  rend 0 — la page aurait annoncé « Historique effacé » sans que
+          #  rien ne soit effacé. La mutation qui remet ce défaut fait sortir
+          #  le banc en TimeoutExpired : la commande attend une réponse qui ne
+          #  viendra jamais.
+          bash tests/test_lexos_pages_vides.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |

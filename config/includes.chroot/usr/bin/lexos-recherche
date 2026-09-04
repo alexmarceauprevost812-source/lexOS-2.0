@@ -335,6 +335,36 @@ doublons() {
 	return 0
 }
 
+# --- L'état, pour la page des Paramètres -------------------------------------
+#
+#  --json : de quoi la recherche dispose VRAIMENT sur cette machine.
+#
+#  LA PAGE DES PARAMÈTRES DISAIT : « LexOS n'indexe pas le disque en tâche de
+#  fond ». C'est vrai — plocate n'est pas livré — mais elle s'arrêtait là, et
+#  ne disait donc pas ce qui EN DÉCOULE : la recherche par nom, qui lit cet
+#  index, ne fonctionne pas tant que plocate n'est pas installé, alors que la
+#  recherche par contenu, elle, marche tout de suite. Deux recherches, deux
+#  états, et un seul mot pour les deux.
+#
+#  L'ÂGE DE L'INDEX COMPTE AUTANT QUE SA PRÉSENCE. Un index de trois semaines
+#  ne trouve pas le fichier d'hier, et l'absence de résultat ressemble alors
+#  à un fichier perdu. On publie donc l'âge en jours, et -1 quand il n'y a
+#  pas d'index du tout : « pas d'index » et « index d'aujourd'hui » ne
+#  peuvent pas se confondre.
+cmd_json() {
+	local jours=-1 horodatage
+	if horodatage=$(stat -c '%Y' -- "$BASE_PLOCATE" 2>/dev/null); then
+		jours=$(( ( $(date +%s) - horodatage ) / 86400 ))
+		(( jours < 0 )) && jours=0
+	fi
+	printf '{\n'
+	printf '  "plocate": %s,\n' "$(command -v plocate >/dev/null 2>&1 && echo true || echo false)"
+	printf '  "index": %s,\n' "$( [[ -r $BASE_PLOCATE ]] && echo true || echo false)"
+	printf '  "index_jours": %s,\n' "$jours"
+	printf '  "catfish": %s,\n' "$(command -v catfish >/dev/null 2>&1 && echo true || echo false)"
+	printf '  "max": %s\n}\n' "$MAX_RESULTATS"
+}
+
 # --- Mise à jour de l'index --------------------------------------------------
 
 maj_index() {
@@ -420,6 +450,9 @@ case "${1:-}" in
 	fenetre)
 		shift
 		fenetre "${1:-}"
+		;;
+	--json|json)
+		cmd_json
 		;;
 	-*)
 		usage >&2
