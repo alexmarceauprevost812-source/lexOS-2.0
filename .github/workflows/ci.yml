@@ -1898,6 +1898,23 @@ jobs:
           #  parce qu'elle part dans une chaîne qu'un shell redécoupe.
           bash tests/test_lexos_utilisateurs.sh
 
+      - name: Partage — le nom que les autres appareils voient, et ce qui manque
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « le contenu comme Ubuntu ». Sa page « Partage » commence
+          #  par le NOM DE L'ORDINATEUR ; ici il n'y avait qu'une ligne,
+          #  « serveur actif » ou « au repos », et LexOS n'avait AUCUN moyen
+          #  de changer ce nom — ni fenêtre, ni commande.
+          #
+          #  DEUX PIÈGES QUE CE BANC GARDE. « pgrep -f share-server.py »
+          #  compare la ligne de commande ENTIÈRE : n'importe quelle commande
+          #  citant ce nom faisait dire « partage actif » — le banc lance un
+          #  processus leurre pour le prouver. Et renommer une machine sans
+          #  toucher à la ligne 127.0.1.1 de /etc/hosts laisse un système où
+          #  chaque sudo attend puis dit « unable to resolve host » : le banc
+          #  renomme une machine inventée et relit les DEUX fichiers.
+          bash tests/test_lexos_partage.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |

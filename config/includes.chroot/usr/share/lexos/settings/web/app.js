@@ -840,6 +840,18 @@ function nomBascule(bascules, cle){
   const b = (bascules || []).find(x => x.cle === cle);
   return b ? b.nom : (cle || "");
 }
+/*  Le nom de la machine. Comme pour les comptes, le geste ouvre un terminal :
+    il touche à /etc/hostname ET à /etc/hosts, et il demande les droits
+    d'administrateur. On ne rafraîchit pas derrière — au moment où la réponse
+    revient, le terminal vient de s'ouvrir et rien n'a encore changé. */
+async function setNomMachine(){
+  const c = document.getElementById("partageNom");
+  const nom = (c && c.value || "").trim();
+  if(!nom){ toast("Il faut un nom de machine"); return; }
+  const r = await api("partage-nom", "nom:" + nom);
+  toast(r.ok ? "Un terminal s'ouvre : la commande y est écrite en clair"
+             : "Refusé : " + (r.erreur || "nom impossible"));
+}
 /*  LES COMPTES. Chaque geste ouvre un terminal — c'est là que se tapent les
     mots de passe et les confirmations — donc on ne rafraîchit PAS derrière :
     au moment où la réponse revient, le terminal vient tout juste de s'ouvrir
@@ -1587,13 +1599,55 @@ function contenu(cle){
       les deux, et le dit avant de choisir pour toi.</p>`;
     }
     case "partage": {
+      /*  ═══ LE CONTENU D'UBUNTU, LES MOYENS DE LexOS ═══
+          ALEX : « le contenu comme Ubuntu ». Sa page « Partage » commence par
+          le NOM DE L'ORDINATEUR — celui que les autres appareils voient —
+          puis dit ce qui est partagé et comment. Ici, il n'y avait qu'une
+          ligne : « serveur actif » ou « au repos ».
+
+          Ce que LexOS partage n'est pas ce que partage Ubuntu, et on ne
+          l'invente pas : pas de dossier public Samba, pas de serveur SSH
+          livré. Ce qu'il y a — QR code, KDE Connect, Bluetooth — est dit
+          avec ce qui manque, parce qu'un moyen absent présenté comme
+          disponible envoie cliquer dans le vide. */
       const p = etat.partage || {};
-      return `<h2>Partage</h2><div class="sub">Envoyer un fichier à un téléphone ou à un autre poste</div>
+      if(!p.dispo){
+        return `<h2>Partage</h2><div class="sub">Ce que les autres appareils voient</div>
+        <p class="notice">lexos-share n'a pas répondu : le partage ne peut pas
+        être réglé d'ici. En ligne de commande : <code>lexos share</code>.</p>`;
+      }
+      const moyen = (la, titre, quoi, absent) => srow(titre, la ? quoi : absent,
+        `<span class="etat ${la?"ok":"abs"}">${la?"prêt":"absent"}</span>`);
+      return `<h2>Partage</h2><div class="sub">Ce que les autres appareils voient</div>
+      ${srow("Nom de cet ordinateur",
+             "C'est ce nom qui s'affiche sur le téléphone, sur le réseau et dans le terminal",
+             `<input class="champ" id="partageNom" type="text" autocomplete="off"
+                value="${esc(p.nom)}" placeholder="nom de la machine"
+                onkeydown="if(event.key==='Enter')setNomMachine()"
+                style="max-width:200px">
+              <button class="btn ghost" onclick="setNomMachine()">Renommer</button>`)}
       ${srow("Serveur de partage",
-             p.actif ? "En marche — un QR code suffit à recevoir"
+             p.actif ? `En marche — il s'arrête tout seul après ${p.minutes} minutes`
                      : "Arrêté — il démarre quand tu partages quelque chose",
              `<span class="etat ${p.actif?"ok":"abs"}">${p.actif?"actif":"au repos"}</span>`)}
+      ${moyen(p.qr, "QR code", "Marche avec n'importe quel téléphone, sans rien y installer",
+              "Le serveur de partage manque sur cette machine")}
+      ${moyen(p.kde, "KDE Connect", "Appareils appairés, transfert direct",
+              "kdeconnect-cli n'est pas installé")}
+      ${moyen(p.bt, "Bluetooth", "Quand il n'y a pas de réseau du tout",
+              "bluetoothctl n'est pas installé")}
+      ${srow("Fichiers reçus", "Où arrivent les fichiers envoyés depuis le téléphone",
+             `<span class="etat abs">${esc(p.recus)}</span>`)}
+      ${srow("Connexion à distance (SSH)",
+             p.ssh_serveur
+               ? "Un serveur SSH est installé : on peut ouvrir un terminal sur cette machine depuis ailleurs"
+               : "LexOS ne livre que le client SSH — rien n'écoute sur cette machine",
+             `<span class="etat ${p.ssh_serveur?"ok":"abs"}">${p.ssh_serveur?"installé":"non installé"}</span>`)}
       ${btnOuvrir("partage","Ouvrir le partage")}
+      ${p.ssh_serveur ? "" : `<p class="notice">Pour ouvrir cette machine à
+      distance en ligne de commande : <code>lexos install openssh-server</code>.
+      Tant qu'il n'est pas installé, personne ne peut s'y connecter — c'est
+      voulu, et c'est plus sûr ainsi.</p>`}
       <p class="notice">Le partage montre un QR code et sert une page locale :
       ça marche avec <b>n'importe quel</b> téléphone, sans rien y installer.
       Le serveur ne tourne que le temps du transfert.</p>`;

@@ -1415,6 +1415,43 @@ def act_defaut(arg):
     return _run(["lexos-defaut", categorie, appli])
 
 
+def act_partage(arg):
+    """Changer le nom de la machine — « nom:<nouveau> ».
+
+    Comme pour les comptes, le geste ouvre un TERMINAL : changer le nom touche
+    à /etc/hostname ET à /etc/hosts, il faut les droits d'administrateur, et
+    lexos-share ne s'élève pas de lui-même. La commande est écrite en toutes
+    lettres sous les yeux de qui tape son mot de passe.
+
+    La règle du nom est celle que l'outil publie (RFC 1123) : on ne la recopie
+    pas ici. On refuse AVANT d'ouvrir la fenêtre — un terminal qui s'ouvre
+    pour mourir aussitôt ressemble à une panne.
+    """
+    e = _partage_etat()
+    if not e.get("dispo"):
+        return {"ok": False,
+                "erreur": ("lexos-share n'a pas répondu"
+                           if shutil.which("lexos-share")
+                           else "lexos-share introuvable")}
+    quoi, _, valeur = (arg or "").partition(":")
+    if quoi != "nom":
+        return {"ok": False, "erreur": "geste inattendu"}
+    if not valeur:
+        return {"ok": False, "erreur": "il faut un nom de machine"}
+    regex = e.get("nom_regex") or ""
+    #  re.fullmatch, pas re.match : en Python « $ » accepte un retour à la
+    #  ligne final, et « poste\n » se retrouverait cité dans la commande.
+    if not regex or not re.fullmatch(regex, valeur):
+        return {"ok": False,
+                "erreur": "nom de machine invalide : lettres, chiffres et "
+                          "« - » seulement, 63 caractères au plus, et pas de "
+                          "« - » au début ni à la fin"}
+    if valeur == e.get("nom"):
+        return {"ok": False, "erreur": "la machine s'appelle déjà « %s »" % valeur}
+    return _terminal("Nom de la machine — LexOS",
+                     "sudo lexos-share nom %s" % shlex.quote(valeur))
+
+
 #  LES GESTES SUR LES COMPTES, ET LA COMMANDE QUE CHACUN LANCE.
 #  Écrits ici une fois, plutôt qu'en cascade de « if » : la table dit d'un
 #  coup d'œil ce que la page peut demander, et rien d'autre ne peut passer.
@@ -1571,6 +1608,7 @@ ACTIONS = {
     "clavier": act_clavier,
     "defaut-appli": act_defaut,
     "utilisateur": act_utilisateur,
+    "partage-nom": act_partage,
     "wifi-radio": act_wifi,
     "wifi-auto": act_wifi_auto,
     "son-muet": act_son_muet,
@@ -2837,9 +2875,34 @@ def _mac_etat():
 
 
 def _partage_etat():
-    """Le serveur de partage tourne-t-il ?"""
-    actif = bool(_sortie(["pgrep", "-f", "share-server.py"])) if shutil.which("pgrep") else False
-    return {"actif": actif}
+    """Le partage, tel que lexos-share le voit.
+
+    CETTE FONCTION NE SAVAIT QU'UNE CHOSE : si le serveur tourne. La page
+    n'avait donc qu'une ligne à afficher — « actif » ou « au repos » — là où
+    Ubuntu met le NOM DE L'ORDINATEUR en haut de sa page « Partage », et pour
+    une bonne raison : ce nom n'a d'usage que vu d'ailleurs. C'est lui que le
+    téléphone affiche dans sa liste d'appareils.
+
+    Elle cherchait aussi « share-server.py » avec pgrep -f, qui compare la
+    ligne de commande entière : n'importe quelle commande mentionnant ce nom
+    faisait dire « partage actif ». lexos-share cherche maintenant le chemin
+    complet, et c'est lui qu'on interroge.
+    """
+    vide = {"actif": False, "nom": "", "nom_regex": "", "recus": "",
+            "minutes": 0, "kde": False, "bt": False, "qr": False,
+            "ssh_serveur": False, "dispo": False}
+    if not shutil.which("lexos-share"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-share", "--json"],
+                           capture_output=True, text=True, timeout=15)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if "nom" not in d:
+        return vide
+    d["dispo"] = True
+    return d
 
 
 def _comptes_etat():
