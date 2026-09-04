@@ -840,6 +840,16 @@ function nomBascule(bascules, cle){
   const b = (bascules || []).find(x => x.cle === cle);
   return b ? b.nom : (cle || "");
 }
+/*  Le choix d'une application par défaut. On rafraîchit après coup : régler
+    une catégorie peut en changer une autre (choisir un navigateur déplace
+    aussi http et https), et une page qui montre l'ancien état ferait croire
+    que le clic n'a rien fait. */
+async function setDefautAppli(categorie, appli){
+  if(!appli) return;
+  const r = await api("defaut-appli", categorie + ":" + appli);
+  await rafraichir(r.ok ? "Application par défaut changée"
+                        : "Échec : " + (r.erreur || "refusé"));
+}
 async function clavierDabord(cle){
   const r = await api("clavier", "dabord:" + cle);
   await rafraichir(r.ok ? "Disposition changée" : "Échec : " + (r.erreur || "refusé"));
@@ -1919,15 +1929,54 @@ function contenu(cle){
       ${btnOuvrir("datetime","État complet (timedatectl)")}`;
     }
     case "defaut": {
+      /*  ═══ ON CHOISIT ICI, ON NE FAIT PLUS QUE LIRE ═══
+          ALEX : « le contenu comme Ubuntu », « commence par applications par
+          défaut ». La page affichait cinq lignes sans rien à cliquer et
+          renvoyait à l'outil de XFCE pour en changer.
+
+          UBUNTU EN OFFRE SIX (web, courriel, agenda, musique, vidéo, photos),
+          LexOS en a DIX — on n'en retire aucun pour « faire comme » : le
+          lecteur audio, l'éditeur de texte, le gestionnaire de fichiers, les
+          archives et le terminal ne sont pas dans la page d'Ubuntu, et les
+          enlever d'ici n'aiderait personne.
+
+          Les catégories, les applications candidates et le choix courant
+          viennent de lexos-defaut : cette page ne connaît aucun type MIME. */
       const d = etat.defaut || {};
-      const a = d.assoc || {};
-      const noms = {texte:"Fichiers texte", image:"Images", pdf:"Documents PDF",
-                    musique:"Musique", video:"Vidéos"};
+      const cats = d.categories || [];
+      if(!cats.length){
+        return `<h2>Applications par défaut</h2><div class="sub">Quel logiciel ouvre quoi</div>
+        <p class="notice">lexos-defaut n'a pas répondu : les applications par
+        défaut ne peuvent pas être changées d'ici. En ligne de commande :
+        <code>lexos defaut</code>.</p>${btnOuvrir("defaut","Ouvrir l'outil de XFCE")}`;
+      }
+      const lignes = cats.map(c => {
+        /*  Une catégorie sans aucune application capable de l'ouvrir : on le
+            DIT, au lieu d'afficher une liste vide qui laisserait croire à une
+            panne. Le terminal est toujours dans ce cas — il n'a aucun type
+            MIME, XFCE le range dans son propre réglage. */
+        if(!c.choix || !c.choix.length){
+          return srow(esc(c.titre),
+            c.cle === "terminal"
+              ? "Le terminal n'a pas de type de fichier — il se règle dans l'outil de XFCE"
+              : "Aucune application installée ne sait ouvrir ces fichiers",
+            `<span class="etat abs">${esc(c.courant_nom || "aucune")}</span>`);
+        }
+        /*  « Choisir… » en tête quand rien n'est réglé : sans cette entrée, la
+            liste afficherait la première application comme si elle était le
+            choix en place, ce qui serait faux. */
+        const rien = c.courant ? "" : `<option value="" selected>Choisir…</option>`;
+        return srow(esc(c.titre), "",
+          `<select onchange="setDefautAppli('${esc(c.cle)}', this.value)"
+             style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+                    border-radius:6px;padding:6px 8px;font:inherit;max-width:60%">${rien}` +
+          c.choix.map(x =>
+            `<option value="${esc(x.id)}"${x.id===c.courant?" selected":""}>${esc(x.nom)}</option>`
+          ).join("") + `</select>`);
+      }).join("");
       return `<h2>Applications par défaut</h2><div class="sub">Quel logiciel ouvre quoi</div>
-      ${srow("Navigateur web", esc(d.navigateur || "non défini"))}
-      ${Object.keys(noms).map(k=>
-        a[k] ? srow(noms[k], esc(a[k])) : "").join("")}
-      ${btnOuvrir("defaut","Changer les applications par défaut")}
+      ${lignes}
+      ${btnOuvrir("defaut","Réglages fins (XFCE)")}
       <p class="notice">Autre façon de faire, souvent plus rapide : clic droit sur
       un fichier → <b>Ouvrir avec</b> → <b>Définir par défaut</b>. En ligne de
       commande : <code>lexos defaut</code>.</p>`;

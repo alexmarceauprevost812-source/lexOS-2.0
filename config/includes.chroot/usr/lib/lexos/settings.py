@@ -1380,6 +1380,34 @@ def _clavier_bascule_connue(cle):
     return any(b.get("cle") == cle for b in e.get("bascules", []))
 
 
+def _defaut_choix_connu(categorie, appli):
+    """Cette application est-elle proposée pour cette catégorie ?
+
+    Ce qu'il fait, et ce qu'il ne fait pas : il n'empêche aucune injection —
+    _run() reçoit une liste d'arguments, il n'y a pas de shell. Il refuse au
+    niveau des Paramètres, avec un motif qui nomme la catégorie, plutôt que
+    de lancer un programme pour rien.
+    """
+    for c in _defaut_etat().get("categories", []):
+        if c.get("cle") != categorie:
+            continue
+        return any(x.get("id") == appli for x in c.get("choix", []))
+    return False
+
+
+def act_defaut(arg):
+    """Choisir l'application par défaut d'une catégorie — « categorie:appli »."""
+    if not shutil.which("lexos-defaut"):
+        return {"ok": False, "erreur": "lexos-defaut introuvable"}
+    categorie, _, appli = (arg or "").partition(":")
+    if not categorie or not appli:
+        return {"ok": False, "erreur": "il faut une catégorie et une application"}
+    if not _defaut_choix_connu(categorie, appli):
+        return {"ok": False,
+                "erreur": "« %s » n'est pas proposée pour « %s »" % (appli, categorie)}
+    return _run(["lexos-defaut", categorie, appli])
+
+
 def act_clavier(arg):
     """Changer la disposition du clavier — « quoi:clé ».
 
@@ -1405,6 +1433,7 @@ def act_clavier(arg):
 ACTIONS = {
     "ouvrir": act_ouvrir,
     "clavier": act_clavier,
+    "defaut-appli": act_defaut,
     "wifi-radio": act_wifi,
     "wifi-auto": act_wifi_auto,
     "son-muet": act_son_muet,
@@ -2573,31 +2602,50 @@ def _reseau_etat():
 
 
 def _defaut_etat():
-    """Quel logiciel ouvre quoi. xdg-settings dit le navigateur ; pour le
-    reste on lit le fichier d'associations, celui que le bureau consulte."""
-    nav = _sortie(["xdg-settings", "get", "default-web-browser"]) if shutil.which("xdg-settings") else ""
-    assoc = {}
-    chemins = [Path.home() / ".config/mimeapps.list",
-               Path("/usr/share/applications/mimeapps.list")]
-    interesse = {"text/plain": "texte", "image/png": "image",
-                 "application/pdf": "pdf", "audio/mpeg": "musique",
-                 "video/mp4": "video"}
-    for f in chemins:
-        try:
-            dedans = False
-            for ligne in f.read_text().splitlines():
-                l = ligne.strip()
-                if l.startswith("["):
-                    dedans = l == "[Default Applications]"
-                    continue
-                if dedans and "=" in l:
-                    mime, appli = l.split("=", 1)
-                    cle = interesse.get(mime.strip())
-                    if cle and cle not in assoc:
-                        assoc[cle] = appli.split(";")[0].replace(".desktop", "")
-        except OSError:
-            continue
-    return {"navigateur": nav.replace(".desktop", ""), "assoc": assoc}
+    """Quel logiciel ouvre quoi — et lesquels pourraient le faire.
+
+    ALEX : « le contenu comme Ubuntu », « commence par applications par
+    défaut ». La page LISAIT le fichier d'associations et affichait cinq
+    lignes sans rien à cliquer ; pour changer quoi que ce soit, elle passait
+    la main à l'outil de XFCE.
+
+    ON DEMANDE À lexos-defaut PLUTÔT QUE DE REFAIRE SON TRAVAIL. Il porte
+    déjà les dix catégories, leurs types MIME, la lecture des .desktop et la
+    liste des applications capables d'ouvrir chaque type. La version
+    précédente de cette fonction relisait mimeapps.list à la main avec sa
+    propre table de cinq types — deux sources pour la même question, qui
+    auraient fini par ne plus dire la même chose. Même raisonnement que pour
+    lexos-clavier et lexos-distant.
+
+    UBUNTU EN OFFRE SIX, ON EN GARDE DIX. On ne retire pas des réglages pour
+    « faire comme » : le lecteur audio, l'éditeur de texte, le gestionnaire
+    de fichiers, les archives et le terminal n'existent pas dans la page
+    d'Ubuntu, et les enlever d'ici n'aiderait personne.
+    """
+    vide = {"navigateur": "", "assoc": {}, "categories": []}
+    if not shutil.which("lexos-defaut"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-defaut", "--json"],
+                           capture_output=True, text=True, timeout=30)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    cats = d.get("categories", [])
+
+    #  « navigateur » et « assoc » restent servis sous leurs anciens noms :
+    #  d'autres endroits de la page les lisent, et un renommage silencieux
+    #  aurait vidé l'écran sans qu'une seule erreur ne le dise.
+    ancien = {"texte": "texte", "images": "image", "pdf": "pdf",
+              "audio": "musique", "video": "video"}
+    assoc, nav = {}, ""
+    for c in cats:
+        courant = (c.get("courant") or "").replace(".desktop", "")
+        if c.get("cle") == "navigateur":
+            nav = courant
+        elif c.get("cle") in ancien and courant:
+            assoc[ancien[c["cle"]]] = courant
+    return {"navigateur": nav, "assoc": assoc, "categories": cats}
 
 
 def _couleurs_etat():

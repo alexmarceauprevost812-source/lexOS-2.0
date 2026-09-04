@@ -1859,6 +1859,25 @@ jobs:
           #  une fonction qui ne fait rien.
           bash tests/test_lexos_clavier.sh
 
+      - name: Applications par défaut — on choisit dans la page, on ne fait plus que lire
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « le contenu comme Ubuntu », puis « commence par
+          #  applications par défaut ». La page affichait cinq lignes lues à
+          #  la main dans mimeapps.list et RIEN À CLIQUER : pour changer quoi
+          #  que ce soit, elle passait la main à l'outil de XFCE.
+          #
+          #  LE BANC POSE SON PROPRE DÉCOR — un HOME jetable, quatre .desktop
+          #  à nous, un faux xdg-mime qui se souvient — parce que les
+          #  applications proposées dépendent de ce qui est installé : un banc
+          #  qui exigerait VLC serait vert sur une machine et rouge sur une
+          #  autre sans qu'une ligne de code ait bougé. Décor posé, il fait
+          #  TOURNER les gestes et mesure l'application en place avant et
+          #  après, puis il REND la page : ses listes déroulantes dépendent
+          #  des données, donc un grep de « <select » serait vert sur une page
+          #  qui n'en affiche jamais.
+          bash tests/test_lexos_defaut.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |
