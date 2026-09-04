@@ -130,9 +130,9 @@ fi
 # =============================================================================
 titre "3. RENOMMER LA MACHINE — les DEUX fichiers, ou rien"
 # =============================================================================
-#  On fait tourner cmd_nom sur une machine inventée : son /etc/hostname, son
-#  /etc/hosts, son hostnamectl. Écrire l'un sans l'autre laisse un système où
-#  chaque sudo attend cinq secondes avant de répondre.
+#  On fait tourner cmd_nom sur une machine inventée : son /etc/hostname et son
+#  /etc/hosts, tous deux sous le décor. Écrire l'un sans l'autre laisse un
+#  système où chaque sudo attend puis dit « unable to resolve host ».
 mkdir -p "$BANC/etc"
 printf 'ancien-poste\n' > "$BANC/etc/hostname"
 cat > "$BANC/etc/hosts" <<'HOSTS'
@@ -140,27 +140,26 @@ cat > "$BANC/etc/hosts" <<'HOSTS'
 127.0.1.1	ancien-poste
 ::1	localhost ip6-localhost ip6-loopback
 HOSTS
-cat > "$BANC/bin/hostnamectl" <<'SH'
-#!/bin/sh
-case "$1" in
-  --static) cat "${BANC_ETC:?}/hostname" ;;
-  set-hostname) printf '%s\n' "$2" > "${BANC_ETC:?}/hostname" ;;
-  *) exit 1 ;;
-esac
-SH
-chmod +x "$BANC/bin/hostnamectl"
-export BANC_ETC="$BANC/etc"
-
-#  L'outil écrit dans /etc/hosts, chemin ABSOLU : on ne peut pas le détourner
-#  sans toucher au code. On le fait tourner dans une copie du script où la
-#  seule chose changée est ce chemin — et on VÉRIFIE que la substitution a eu
-#  lieu, sinon le contrôle ne prouverait rien (ou pire : écrirait dans le vrai
-#  /etc/hosts de la machine qui fait tourner le banc).
-sed "s|^HOSTS=/etc/hosts$|HOSTS=$BANC/etc/hosts|" "$OUTIL" > "$BANC/share-detourne"
-chmod +x "$BANC/share-detourne"
-if grep -q "^HOSTS=$BANC/etc/hosts$" "$BANC/share-detourne"; then
-	ok "le banc a bien détourné /etc/hosts vers son décor"
-	SORTIE="$(PATH="$BANC/bin:$PATH" bash "$BANC/share-detourne" nom nouveau-poste 2>&1)"
+#  ═══ LE DÉCOR PASSE PAR LE SEUIL DE L'OUTIL, PAS PAR UNE COPIE MODIFIÉE ═══
+#  La première version de ce banc recopiait le script en remplaçant le chemin
+#  de /etc/hosts par sed. Deux défauts, et le second est celui qui compte :
+#
+#    · on éprouvait une COPIE, pas le programme livré dans l'image ;
+#    · renommer la machine exige root, et le coureur de la CI n'est pas root.
+#      Toute cette section serait donc restée ROUGE là-bas — c'est-à-dire que
+#      la partie la plus utile de ce code (la ligne 127.0.1.1 de /etc/hosts,
+#      celle sans laquelle chaque sudo attend puis dit « unable to resolve
+#      host ») n'aurait été éprouvée nulle part où ça compte.
+#
+#  lexos-share porte donc un seuil documenté, LEXOS_HOSTNAME_RACINE, sur le
+#  modèle de LEXOS_BIENETRE_DIR et LEXOS_NUAGE : il déplace /etc/hostname ET
+#  /etc/hosts sous un dossier à part, et n'exige plus root puisqu'il n'y a
+#  plus rien de partagé à écrire.
+export LEXOS_HOSTNAME_RACINE="$BANC"
+if [ "$(LEXOS_HOSTNAME_RACINE="$BANC" bash "$OUTIL" --json 2>/dev/null \
+        | sed -n 's/.*"nom": "\([^"]*\)".*/\1/p')" = "ancien-poste" ]; then
+	ok "le seuil du banc détourne bien /etc/hostname et /etc/hosts vers son décor"
+	SORTIE="$(PATH="$BANC/bin:$PATH" bash "$OUTIL" nom nouveau-poste 2>&1)"
 	CODE=$?
 	NOM_APRES="$(cat "$BANC/etc/hostname")"
 	[ "$NOM_APRES" = "nouveau-poste" ] \
@@ -183,7 +182,7 @@ if grep -q "^HOSTS=$BANC/etc/hosts$" "$BANC/share-detourne"; then
 	#  toutes les images : si elle manque, il faut l'AJOUTER, pas abandonner.
 	printf '127.0.0.1\tlocalhost\n' > "$BANC/etc/hosts"
 	rm -f "$BANC/etc/hosts.lexos-avant"
-	PATH="$BANC/bin:$PATH" bash "$BANC/share-detourne" nom autre-poste >/dev/null 2>&1
+	PATH="$BANC/bin:$PATH" bash "$OUTIL" nom autre-poste >/dev/null 2>&1
 	grep -q '^127\.0\.1\.1[[:space:]]*autre-poste$' "$BANC/etc/hosts" \
 		&& ok "si la ligne 127.0.1.1 manque, elle est ajoutée" \
 		|| non "aucune ligne 127.0.1.1 ajoutée : le nom ne se résoudra pas"
@@ -191,13 +190,13 @@ if grep -q "^HOSTS=$BANC/etc/hosts$" "$BANC/share-detourne"; then
 	#  ═══ LES NOMS REFUSÉS ═══ avant d'avoir rien écrit.
 	for MAUVAIS in "-poste" "poste-" "un poste" "poste_2" "" ; do
 		AVANT="$(cat "$BANC/etc/hostname")"
-		PATH="$BANC/bin:$PATH" bash "$BANC/share-detourne" nom "$MAUVAIS" >/dev/null 2>&1
+		PATH="$BANC/bin:$PATH" bash "$OUTIL" nom "$MAUVAIS" >/dev/null 2>&1
 		[ "$(cat "$BANC/etc/hostname")" = "$AVANT" ] \
 			&& ok "refusé sans rien écrire : « ${MAUVAIS:-（vide）} »" \
 			|| non "« $MAUVAIS » a été accepté comme nom de machine"
 	done
 else
-	non "le banc n'a pas pu détourner /etc/hosts — contrôle non joué (jamais sur le vrai fichier)"
+	non "le seuil du banc n'a pas pris — contrôle non joué (jamais sur le vrai /etc)"
 fi
 
 # =============================================================================

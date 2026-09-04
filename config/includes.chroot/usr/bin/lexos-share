@@ -318,10 +318,36 @@ cmd_devices() {
 #  n'a rien à voir avec le nom : chaque sudo attend, puis affiche
 #  « sudo: unable to resolve host … ». On règle donc les deux, ou rien.
 
-HOSTS=/etc/hosts
+#  ═══ LES DEUX FICHIERS DU NOM, ET LE SEUIL QUI PERMET DE LES ÉPROUVER ═══
+#  LEXOS_HOSTNAME_RACINE déplace À LA FOIS /etc/hostname et /etc/hosts sous un
+#  dossier à part. Vide — le cas normal, et le seul en usage réel —, les deux
+#  chemins restent ceux du système.
+#
+#  POURQUOI CE SEUIL EXISTE, ET POURQUOI IL EST HONNÊTE.
+#  Renommer la machine écrit dans /etc : l'outil exige donc les droits
+#  d'administrateur. Un banc d'essai, lui, ne les a pas — le coureur de la CI
+#  n'est pas root — et sans ce seuil, la partie la plus utile de ce code (la
+#  mise à jour de la ligne 127.0.1.1, celle qui évite « sudo: unable to
+#  resolve host ») ne serait éprouvée NULLE PART où ça compte. Un banc qui ne
+#  tourne pas là où le code tourne ne protège rien.
+#
+#  Ce seuil ne donne aucun droit : il déplace les écritures dans un dossier
+#  que l'appelant possède déjà. C'est exactement le procédé déjà employé dans
+#  ce dépôt par LEXOS_BIENETRE_DIR, LEXOS_NUAGE, LEXOS_RCLONE_REMOTES et
+#  LEXOS_DATE, et pour la même raison.
+RACINE_NOM="${LEXOS_HOSTNAME_RACINE:-}"
+HOSTS="${RACINE_NOM}/etc/hosts"
+HOSTNAME_F="${RACINE_NOM}/etc/hostname"
 
 nom_actuel() {
-	hostnamectl --static 2>/dev/null || cat /etc/hostname 2>/dev/null || uname -n
+	#  Sous le seuil, on ne demande PAS à hostnamectl : il répondrait le vrai
+	#  nom de la machine, pas celui du décor, et le banc éprouverait autre
+	#  chose que ce qu'il croit.
+	if [[ -n "$RACINE_NOM" ]]; then
+		cat "$HOSTNAME_F" 2>/dev/null || printf 'inconnu\n'
+		return 0
+	fi
+	hostnamectl --static 2>/dev/null || cat "$HOSTNAME_F" 2>/dev/null || uname -n
 }
 
 # Les règles d'un nom de machine (RFC 1123), écrites UNE fois : la commande
@@ -344,15 +370,21 @@ cmd_nom() {
 		say "La machine s'appelle déjà « $neuf » — rien à changer."
 		return 0
 	fi
-	if (( EUID != 0 )); then
+	#  Sous le seuil, il n'y a plus rien de partagé à écrire : root n'a plus
+	#  de raison d'être exigé.
+	if [[ -z "$RACINE_NOM" ]] && (( EUID != 0 )); then
 		warn "Changer le nom de la machine touche à tout le système."
 		die "Relancez :  ${B}sudo $PROG nom $neuf${R}"
 	fi
 
-	if command -v hostnamectl >/dev/null 2>&1; then
+	if [[ -n "$RACINE_NOM" ]]; then
+		mkdir -p "$(dirname "$HOSTNAME_F")" 2>/dev/null || true
+		printf '%s\n' "$neuf" > "$HOSTNAME_F" \
+			|| die "Impossible d'écrire $HOSTNAME_F."
+	elif command -v hostnamectl >/dev/null 2>&1; then
 		hostnamectl set-hostname "$neuf" || die "hostnamectl a refusé « $neuf »."
 	else
-		printf '%s\n' "$neuf" > /etc/hostname || die "Impossible d'écrire /etc/hostname."
+		printf '%s\n' "$neuf" > "$HOSTNAME_F" || die "Impossible d'écrire $HOSTNAME_F."
 		hostname "$neuf" 2>/dev/null || true
 	fi
 

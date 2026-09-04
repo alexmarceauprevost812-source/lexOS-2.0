@@ -159,6 +159,28 @@ function toast(msg){
 const esc = s => String(s).replace(/[&<>"]/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
+/*  ═══ UNE VALEUR DU SYSTÈME DANS UN onclick="f('…')" ═══
+    esc() protège le HTML. Elle n'échappe PAS l'apostrophe — et c'est
+    l'apostrophe qui ferme la chaîne JavaScript à l'intérieur de l'attribut.
+
+    MESURÉ, PAS SUPPOSÉ. Un compte nommé « o'brien » produisait
+    onclick="utilGeste('motdepasse','o'brien')" : le navigateur décode les
+    entités de l'attribut, PUIS lit le JavaScript, et trouve « missing ) after
+    argument list ». Le bouton s'affiche, se clique, et il ne se passe RIEN —
+    l'erreur va dans une console que personne n'ouvre. C'est exactement le
+    défaut des trois sélecteurs morts de l'écran de connexion, sous une autre
+    forme.
+
+    ET « &#39; » NE RÉPARE RIEN. Le Wi-Fi le faisait déjà pour les noms de
+    réseau : le navigateur décode &#39; EN apostrophe avant de lire le
+    JavaScript, donc la chaîne se ferme quand même. Un réseau « Chez Léa's »
+    avait un bouton « Se connecter » mort. Vérifié en rendant la page et en
+    passant l'attribut décodé à new Function().
+
+    L'ORDRE COMPTE : l'antislash d'abord (sinon on doublerait celui qu'on vient
+    de poser), l'apostrophe ensuite, l'échappement HTML en dernier. */
+const jsq = s => esc(String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
+
 function srow(titre, desc, droite){
   return `<div class="srow"><div><div class="t">${titre}</div>
     ${desc?`<div class="d">${desc}</div>`:""}</div>${droite||""}</div>`;
@@ -1105,7 +1127,7 @@ function contenu(cle){
           ${r.actif
             ? `<span class="etat ok">connecté</span>
                <button class="btn ghost" onclick="coupeWifi()">Déconnecter</button>`
-            : `<button class="btn ghost" onclick="choisitWifi('${esc(r.ssid).replace(/'/g,"&#39;")}')">Se connecter</button>`}
+            : `<button class="btn ghost" onclick="choisitWifi('${jsq(r.ssid)}')">Se connecter</button>`}
         </div>
         ${wifiChoisi === r.ssid && !r.actif ? `<div class="srow" style="display:block">
           ${r.protege
@@ -1189,8 +1211,8 @@ function contenu(cle){
             d.connecte ? "Connecté — le son peut sortir ici"
                        : (d.appaire ? "Appairé, pas connecté" : "À portée, jamais appairé"),
             d.connecte
-              ? `<button class="btn ghost" onclick="btCoupe('${d.adresse}')">Déconnecter</button>`
-              : `<button class="btn ghost" onclick="btBranche('${d.adresse}')">${d.appaire ? "Connecter" : "Appairer"}</button>`
+              ? `<button class="btn ghost" onclick="btCoupe('${jsq(d.adresse)}')">Déconnecter</button>`
+              : `<button class="btn ghost" onclick="btBranche('${jsq(d.adresse)}')">${d.appaire ? "Connecter" : "Appairer"}</button>`
           )).join("")
           : `<p class="notice">Aucun appareil connu. Mets ton enceinte ou ta
              barre de son en <b>mode appairage</b> (souvent un bouton Bluetooth
@@ -1233,7 +1255,7 @@ function contenu(cle){
               e.principal ? " (écran principal)" : ""}</div>
             <div class="row">${e.modes.slice(0,8).map(m =>
               `<button class="btn ${m===e.definition?"sel":"ghost"}"
-                 onclick="setDefinition('${esc(e.nom)}','${esc(m)}')">${esc(m)}</button>`
+                 onclick="setDefinition('${jsq(e.nom)}','${jsq(m)}')">${esc(m)}</button>`
               ).join("")}</div>
           </div>`;
         }
@@ -1278,7 +1300,7 @@ function contenu(cle){
           <div class="t" style="margin-bottom:8px">Sortie audio</div>
           <div class="row">${so.map(x =>
             `<button class="btn ${x.actif?"sel":"ghost"}"
-               onclick="setSortieSon('${esc(x.nom)}')"
+               onclick="setSortieSon('${jsq(x.nom)}')"
                title="${esc(x.nom)}">${esc(x.titre)}</button>`).join("")}</div>
           <div class="sub" style="margin-top:8px">Haut-parleurs, casque, télé en
             HDMI, cinéma maison, enceinte Bluetooth — ce qui joue déjà suit
@@ -1356,7 +1378,7 @@ function contenu(cle){
             <div class="d">${a.monte ? "Monté sur " + esc(a.monte)
                                      : "Branché, pas encore ouvert"} · ${esc(a.dev)}</div>
           </div>
-          <button class="btn ghost" onclick="ejecte('${esc(a.dev)}')">Éjecter</button>
+          <button class="btn ghost" onclick="ejecte('${jsq(a.dev)}')">Éjecter</button>
         </div>`).join("")
         : `<p class="notice">Aucun support amovible branché. Branche une clé ou un
            disque : il apparaîtra ici. Le disque système n'est jamais listé —
@@ -1777,9 +1799,9 @@ function contenu(cle){
                   : "Configuré, mais pas ouvert : ses fichiers ne sont pas sur cette machine",
           `<span class="etat ${l.monte?"ok":"abs"}">${l.monte?"ouvert":"fermé"}</span>` +
           (l.monte
-            ? ` <button class="btn ghost" onclick="setCompte('demonter','${esc(l.nom)}')">Refermer</button>`
-            : ` <button class="btn ghost" onclick="setCompte('monter','${esc(l.nom)}')">Ouvrir</button>`) +
-          ` <button class="btn ghost" onclick="setCompte('retirer','${esc(l.nom)}')">Retirer</button>`
+            ? ` <button class="btn ghost" onclick="setCompte('demonter','${jsq(l.nom)}')">Refermer</button>`
+            : ` <button class="btn ghost" onclick="setCompte('monter','${jsq(l.nom)}')">Ouvrir</button>`) +
+          ` <button class="btn ghost" onclick="setCompte('retirer','${jsq(l.nom)}')">Retirer</button>`
         )).join("")
         : srow("Comptes reliés", "Aucun pour l'instant", `<span class="etat abs">aucun</span>`)}
       ${c.rclone
@@ -2044,7 +2066,7 @@ function contenu(cle){
       </div>
       ${srow("Fichiers privés",
              "Un coffre chiffré (gocryptfs) pour ce qui ne regarde personne",
-             `<button class="btn ghost" onclick="api('ouvrir','prive').then(()=>toast('Fichiers privés s\'ouvre'))">Ouvrir</button>`)}
+             `<button class="btn ghost" onclick="api('ouvrir','prive').then(()=>toast('Fichiers privés s\\'ouvre'))">Ouvrir</button>`)}
       <p class="notice">Ces outils demandent les droits d'administration et posent
       des questions : ils s'ouvrent dans un terminal, pour qu'on puisse LIRE ce
       qu'ils font. Les lancer en silence derrière un interrupteur cacherait
@@ -2145,13 +2167,13 @@ function contenu(cle){
             machine sans administrateur ne se répare plus depuis le bureau. On
             n'affiche donc pas des boutons qui ne peuvent que refuser. */
         const gestes =
-          `<button class="btn ghost" onclick="utilGeste('motdepasse','${esc(p.nom)}')">Mot de passe</button>` +
+          `<button class="btn ghost" onclick="utilGeste('motdepasse','${jsq(p.nom)}')">Mot de passe</button>` +
           (seul ? ""
-                : ` <button class="btn ghost" onclick="utilGeste('${p.admin?"admin-off":"admin-on"}','${esc(p.nom)}')">` +
+                : ` <button class="btn ghost" onclick="utilGeste('${p.admin?"admin-off":"admin-on"}','${jsq(p.nom)}')">` +
                   `${p.admin ? "Retirer l'admin" : "Rendre admin"}</button>` +
-                  ` <button class="btn ghost" onclick="utilGeste('${p.verrou==="verrouille"?"deverrouiller":"verrouiller"}','${esc(p.nom)}')">` +
+                  ` <button class="btn ghost" onclick="utilGeste('${p.verrou==="verrouille"?"deverrouiller":"verrouiller"}','${jsq(p.nom)}')">` +
                   `${p.verrou === "verrouille" ? "Déverrouiller" : "Verrouiller"}</button>` +
-                  (p.moi ? "" : ` <button class="btn ghost" onclick="utilGeste('supprimer','${esc(p.nom)}')">Supprimer</button>`));
+                  (p.moi ? "" : ` <button class="btn ghost" onclick="utilGeste('supprimer','${jsq(p.nom)}')">Supprimer</button>`));
         return `<div class="srow" style="display:block">
           <div class="t">${esc(p.complet || p.nom)}${p.moi ? " — c'est toi" : ""}
             <span class="etat ${p.admin?"ok":"abs"}" style="margin-left:8px">${p.admin?"admin":"normal"}</span>
@@ -2160,9 +2182,9 @@ function contenu(cle){
           <div class="row" style="margin-top:8px;flex-wrap:wrap">
             <input class="champ" id="nomAff-${esc(p.nom)}" type="text" autocomplete="off"
                    placeholder="nom affiché" value="${esc(p.complet)}"
-                   onkeydown="if(event.key==='Enter')utilNomComplet('${esc(p.nom)}')"
+                   onkeydown="if(event.key==='Enter')utilNomComplet('${jsq(p.nom)}')"
                    style="max-width:220px">
-            <button class="btn ghost" onclick="utilNomComplet('${esc(p.nom)}')">Renommer</button>
+            <button class="btn ghost" onclick="utilNomComplet('${jsq(p.nom)}')">Renommer</button>
             ${gestes}
           </div>
           ${seul ? `<div class="sub" style="margin-top:6px">Seul administrateur de
@@ -2326,9 +2348,9 @@ function contenu(cle){
         esc(a.nom),
         i === 0 ? "Celle du démarrage" : "Bascule : " + esc(nomBascule(bas, k.bascule)),
         (i === 0 ? `<span class="etat ok">active</span>`
-                 : `<button class="btn" onclick="clavierDabord('${esc(a.cle)}')">Mettre en premier</button>`) +
+                 : `<button class="btn" onclick="clavierDabord('${jsq(a.cle)}')">Mettre en premier</button>`) +
         (act.length > 1
-          ? ` <button class="btn" onclick="clavierRetirer('${esc(a.cle)}')">Retirer</button>`
+          ? ` <button class="btn" onclick="clavierRetirer('${jsq(a.cle)}')">Retirer</button>`
           : "")
       )).join("");
 
@@ -2449,7 +2471,7 @@ function contenu(cle){
             choix en place, ce qui serait faux. */
         const rien = c.courant ? "" : `<option value="" selected>Choisir…</option>`;
         return srow(esc(c.titre), "",
-          `<select onchange="setDefautAppli('${esc(c.cle)}', this.value)"
+          `<select onchange="setDefautAppli('${jsq(c.cle)}', this.value)"
              style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
                     border-radius:6px;padding:6px 8px;font:inherit;max-width:60%">${rien}` +
           c.choix.map(x =>

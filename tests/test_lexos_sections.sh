@@ -114,8 +114,130 @@ try {
   dit(manquantes.size === 0,
       `chaque bouton vise une fonction qui existe (${[...manquantes].join(", ") || "aucune manquante"})`);
 
+  /*  ═══ CHAQUE ATTRIBUT DOIT ÊTRE DU JAVASCRIPT VALIDE ═══
+      Un bouton mort ne se voit pas : il s'affiche, se clique, et l'erreur va
+      dans une console que personne n'ouvre.
+
+      LE CAS RÉEL QUI A AMENÉ CE CONTRÔLE : un compte nommé « o'brien »
+      produisait onclick="utilGeste('motdepasse','o'brien')". Le navigateur
+      décode les entités de l'attribut, PUIS lit le JavaScript, et trouve
+      « missing ) after argument list ». Le Wi-Fi avait le même défaut depuis
+      plus longtemps, avec un remède qui n'en était pas un : « &#39; » se
+      décode EN apostrophe avant que le JavaScript soit lu, donc la chaîne se
+      ferme quand même — un réseau « Chez Léa's » avait un bouton mort.
+
+      ON EMPOISONNE TOUT L'ÉTAT et on rend tout. Chaque chaîne de l'état reçoit
+      une apostrophe, un antislash, un guillemet, un chevron et une esperluette ;
+      puis chaque attribut rendu est décodé comme le ferait le navigateur et
+      passé à new Function(). C'est la seule façon de couvrir les valeurs qui
+      viennent du système — noms de comptes, de réseaux, de sorties audio,
+      d'écrans, de comptes en nuage — sans écrire un décor par section. */
+  const POISON = "a'b\\c\"d<e&f";
+  /*  ON N'EMPOISONNE QUE LES CHAMPS DE NOM, ET C'EST UNE CORRECTION.
+      La première version empoisonnait TOUTES les chaînes de l'état. Elle
+      changeait alors le contrôle du programme autant que ses données : w.radio
+      ne valait plus « enabled », donc la page Wi-Fi n'affichait plus aucun
+      réseau, donc le bouton qu'on voulait éprouver n'était pas rendu. Mesuré :
+      en remettant le faux remède « &#39; » du Wi-Fi, le banc restait VERT.
+
+      On empoisonne donc les clés qui portent un NOM ou un IDENTIFIANT — celles
+      qui finissent dans un onclick — et on laisse intactes celles qui décident
+      de ce qui s'affiche. */
+  const CLES_NOM = ["ssid", "adresse", "nom", "dev", "cle", "id", "complet"];
+  const empoisonne = (v, cle) => {
+    if (typeof v === "string") return CLES_NOM.includes(cle) ? v + POISON : v;
+    if (Array.isArray(v)) return v.map((x) => empoisonne(x, cle));
+    if (v && typeof v === "object") {
+      const o = {};
+      for (const k of Object.keys(v)) o[k] = empoisonne(v[k], k);
+      return o;
+    }
+    return v;
+  };
+  const decodeHtml = (x) => x.replace(/&quot;/g, '"').replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+
+  /*  ON COMPLÈTE L'ÉTAT AVANT DE L'EMPOISONNER, ET C'EST NÉCESSAIRE.
+      L'état réel vient de la machine qui fait tourner le banc : ni réseau
+      Wi-Fi, ni appareil Bluetooth, ni sortie audio, ni compte en nuage. Les
+      boutons de ces listes ne sont donc JAMAIS rendus, et le poison ne les
+      atteint pas. Mesuré : en remettant le faux remède « &#39; » du Wi-Fi, le
+      banc restait vert — il ne rendait aucun réseau.
+
+      On pose donc une liste de chaque sorte, avec les clés que la page lit
+      vraiment. Ces valeurs ne servent qu'à faire NAÎTRE les boutons ; ce sont
+      les caractères du poison, ajoutés juste après, qui les éprouvent. */
+  const OVERLAY = {
+    wifi: {radio:"enabled", reseau:"Reseau", internet:"full", auto:true,
+           reseaux:[{ssid:"Reseau", actif:false, protege:true, force:70},
+                    {ssid:"Autre", actif:true, protege:false, force:40}]},
+    bluetooth: {radio:true, appareils:[{nom:"Casque", adresse:"AA:BB:CC:DD:EE:FF",
+                 genre:"audio-headset", connecte:false, appaire:true},
+                {nom:"Souris", adresse:"11:22:33:44:55:66", connecte:true, appaire:true}]},
+    son: {muet:false, volume:55, sorties:[{nom:"Haut-parleurs", actif:true},
+                                          {nom:"Casque", actif:false}]},
+    //  « ecrans » est une LISTE, pas un objet : la forme vient de
+    //  _ecrans_etat(), pas d'une supposition. Un décor de la mauvaise forme
+    //  fait lever la section et donne un rouge qui ne parle pas du code.
+    ecrans: [{nom:"eDP-1", principal:true, definition:"1920x1080",
+              modes:["1920x1080","1280x720"]}],
+    amovibles: {monter:true, ouvrir:true, photos:false, musique:false},
+    //  Les supports branchés vivent sous « usb », pas sous « amovibles » :
+    //  relevé dans la page, pas supposé. Sans cette liste, le bouton
+    //  « Éjecter » n'est jamais rendu et le poison ne l'atteint pas.
+    usb: [{nom:"Clé", taille:"32 Go", dev:"/dev/sdb1", monte:"/media/x", disque:false}],
+    comptes: {dispo:true, rclone:true, gvfs:true, nuage:"/home/x/Nuage",
+              comptes:[{nom:"drive", monte:true},{nom:"photos", monte:false}],
+              services:[{cle:"google", type:"drive", nom:"Google Drive", note:""}]},
+    utilisateurs: {dispo:true, nb_admins:2, auto:"", lightdm:true,
+      comptes:[{nom:"un", complet:"Un", uid:1000, admin:true, moi:false,
+                verrou:"actif", derniere:"jamais", groupes:"sudo"},
+               {nom:"deux", complet:"Deux", uid:1001, admin:false, moi:true,
+                verrou:"verrouille", derniere:"hier", groupes:"aucun"}]},
+    defaut: {categories:[{cle:"images", titre:"Images", courant:"a.desktop",
+              courant_nom:"A", choix:[{id:"a.desktop", nom:"A"},{id:"b.desktop", nom:"B"}]}]},
+    clavier: {liste:"ca,us", bascule:"alt-maj", max:4,
+      actives:[{cle:"ca-fr", nom:"Canadien"},{cle:"us", nom:"US"}],
+      catalogue:[{cle:"fr", nom:"Français"}], bascules:[{cle:"alt-maj", nom:"Alt+Maj"}]},
+    partage: {dispo:true, nom:"poste", nom_regex:"^x$", actif:true, recus:"/r",
+              minutes:15, kde:true, bt:true, qr:true, ssh_serveur:false},
+    terminal: {dispo:true, mode:"auto", effectif:"nuit", bureau:"sombre",
+               debut:"07:00", fin:"19:00", minuterie:true},
+    bienetre: {dispo:true, tourne:true, minutes:60, limite:120,
+               pauses_installe:true, pauses_actif:true,
+               nuit_installe:true, nuit_actif:false,
+               semaine:[{jour:"2026-01-01", nom:"lun", minutes:30}], total_semaine:30},
+    recherche: {dispo:true, plocate:true, index:true, index_jours:3,
+                catfish:true, max:30},
+    imprimantes: {dispo:true, liste:[{nom:"HP", etat:"prête", defaut:true}]},
+    couleurs: {dispo:true, ecrans:[{nom:"eDP-1", profil:"sRGB"}]},
+    tablette: {branchee:true, noms:["Wacom"]},
+    mac: {apple:true, modele:"MacBookPro11,1"},
+    distant: {outil:"x11vnc", actif:true, adresses:["192.168.1.2"], ports:"5900",
+              remmina:true, ssh:true},
+  };
+  const complet = Object.assign({}, plein, OVERLAY);
+  T.pose(empoisonne(complet));
+  const casses2 = [], mauvais = [];
+  for (const [cle] of sections) {
+    let h;
+    try { h = T.contenu(cle) || ""; }
+    catch (e) { casses2.push(`${cle} (${e.message})`); continue; }
+    for (const m of h.matchAll(/\son(?:click|change|input|keydown)="([^"]*)"/g)) {
+      const code = decodeHtml(m[1]);
+      try { new Function(code); }
+      catch (e) { mauvais.push(`${cle} : ${code.slice(0, 70)}`); }
+    }
+  }
+  dit(casses2.length === 0,
+      `état empoisonné : aucune section ne lève (${casses2.join(", ") || "36/36"})`);
+  dit(mauvais.length === 0,
+      `état empoisonné : chaque attribut reste du JavaScript valide (${
+        mauvais.length ? mauvais.slice(0, 3).join(" | ") : "tous"})`);
+
   /*  ET CHAQUE SECTION A UN TITRE. Une page sans <h2> est une page dont on ne
       sait pas où l'on est. */
+  T.pose(plein);
   const sansTitre = [];
   for (const [cle] of sections) {
     let h = "";
