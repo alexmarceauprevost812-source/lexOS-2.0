@@ -65,7 +65,22 @@ ecris_conf() {
 		"$PROG" "$LIMITE" > "$CONF"
 }
 
-minutes_de() { local f="$DIR/$1"; [[ -r "$f" ]] && cat "$f" 2>/dev/null || printf '0'; }
+#  LES MINUTES D'UN JOUR — TOUJOURS UN ENTIER, JAMAIS UNE CHAÎNE VIDE.
+#  Le repli « || printf 0 » ne couvrait que le fichier ABSENT. Sur un fichier
+#  qui EXISTE mais qui est vide — ce que laisse une coupure de courant ou un
+#  disque plein pendant « printf > », qui tronque avant d'écrire — cat réussit
+#  et rend le vide. « --json » sortait alors « "minutes": , », du JSON
+#  invalide : la page des Paramètres n'affichait plus « 0 minute », elle
+#  déclarait TOUTE la section Bien-être indisponible. Et comme seul le fichier
+#  DU JOUR est réécrit, un fichier abîmé de la veille empoisonnait la sortie
+#  pendant sept jours.
+#  Même vérification que charge_conf fait déjà pour LIMITE, deux lignes plus bas.
+minutes_de() {
+	local f="$DIR/$1" v=""
+	[[ -r "$f" ]] && v="$(cat "$f" 2>/dev/null)"
+	[[ "$v" =~ ^[0-9]+$ ]] || v=0
+	printf '%s' "$v"
+}
 
 hhmm() {
 	local m="$1"

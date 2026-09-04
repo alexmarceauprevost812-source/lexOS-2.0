@@ -126,8 +126,18 @@ chercher_nom() {
 	local motif="$1"
 	besoin plocate plocate
 
-	if [[ ! -r $BASE_PLOCATE ]]; then
-		warn "L'index de plocate est absent ou illisible ($BASE_PLOCATE)."
+	#  ═══ « -e », ET SURTOUT PAS « -r » ═══
+	#  L'index de plocate appartient à root:plocate en 0640 : AUCUN utilisateur
+	#  ordinaire ne peut le lire. Le test « -r » était donc faux pour tout le
+	#  monde, tout le temps — la recherche par nom refusait de partir même
+	#  juste après « sudo lexos recherche index ». Et ça ne se voyait pas en
+	#  développement, où l'on est root.
+	#
+	#  plocate, lui, N'A PAS BESOIN qu'on puisse lire ce fichier : son binaire
+	#  est setgid plocate, c'est lui qui l'ouvre. La seule question qui compte
+	#  ici est donc « l'index EXISTE-t-il ? ».
+	if [[ ! -e $BASE_PLOCATE ]]; then
+		warn "L'index de plocate est absent ($BASE_PLOCATE)."
 		say "Construisez-le une première fois : sudo $PROG index"
 		return 1
 	fi
@@ -372,7 +382,9 @@ cmd_json() {
 	fi
 	printf '{\n'
 	printf '  "plocate": %s,\n' "$(command -v plocate >/dev/null 2>&1 && echo true || echo false)"
-	printf '  "index": %s,\n' "$( [[ -r $BASE_PLOCATE ]] && echo true || echo false)"
+	#  « -e » : voir chercher_nom(). L'index n'est pas lisible par un
+	#  utilisateur ordinaire, et il n'a pas à l'être.
+	printf '  "index": %s,\n' "$( [[ -e $BASE_PLOCATE ]] && echo true || echo false)"
 	printf '  "index_jours": %s,\n' "$jours"
 	printf '  "catfish": %s,\n' "$(command -v catfish >/dev/null 2>&1 && echo true || echo false)"
 	printf '  "max": %s\n}\n' "$MAX_RESULTATS"
