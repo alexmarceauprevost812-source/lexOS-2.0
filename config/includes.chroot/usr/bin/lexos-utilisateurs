@@ -46,6 +46,24 @@ die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
 GROUPE_ADMIN=sudo
 LIGHTDM_CONF=/etc/lightdm/lightdm.conf
 
+# Le nom complet d'une personne peut contenir un guillemet ou un antislash :
+# c'est du texte libre, écrit par quelqu'un. Sans échappement, « --json »
+# rendrait un JSON cassé et la page des Paramètres resterait blanche, sans
+# message. La fonction vit dans un fichier commun — lexos-defaut en a besoin
+# aussi, et deux copies de trois lignes finissent toujours par diverger. Le
+# chemin est calculé depuis ce script-ci pour que les bancs puissent faire
+# tourner l'outil depuis le dépôt, sans rien installer.
+_lib_json="$(dirname "$(readlink -f "$0")")/../share/lexos/shell/json.sh"
+[[ -r $_lib_json ]] || _lib_json=/usr/share/lexos/shell/json.sh
+if [[ -r $_lib_json ]]; then
+	# shellcheck source=/dev/null
+	. "$_lib_json"
+else
+	json_texte() {
+		die "json.sh est introuvable : impossible d'écrire du JSON sûr."
+	}
+fi
+
 usage() {
 	cat <<EOF
 ${B}$PROG${R} — qui peut ouvrir une session sur cette machine, et avec quels droits
@@ -128,10 +146,17 @@ est_humain() {
 	(( uid >= 1000 && uid != 65534 ))
 }
 
+# La règle des noms de compte d'adduser sur Debian (NAME_REGEX), écrite UNE
+# fois : valider_nom l'applique ici, « --json » la publie pour que la page des
+# Paramètres refuse un nom fautif AVANT d'ouvrir un terminal pour rien. Une
+# deuxième copie dans les Paramètres aurait fini par accepter ce que cet
+# outil-ci refuse, ou l'inverse.
+REGEX_NOM='^[a-z_][a-z0-9_-]*$'
+
 valider_nom() {
-	# Les règles d'adduser sur Debian (NAME_REGEX). On refuse ici pour donner
-	# un message clair en français plutôt que l'erreur brute d'adduser.
-	[[ "$1" =~ ^[a-z_][a-z0-9_-]*$ ]] && return 0
+	# On refuse ici pour donner un message clair en français plutôt que
+	# l'erreur brute d'adduser.
+	[[ "$1" =~ $REGEX_NOM ]] && return 0
 	die "Nom de compte invalide : « $1 ». Minuscules, chiffres, « - » et « _ » uniquement, en commençant par une lettre."
 }
 
@@ -185,17 +210,34 @@ proteger_dernier_admin() {
 # donc réservé à root.
 etat_shadow() { passwd -S "$1" 2>/dev/null | awk '{ print $2 }'; }
 
-etat_verrou() {
-	local champ=""
+# L'état du compte en UN MOT, sans accent ni majuscule : c'est ce que « --json »
+# publie et ce sur quoi la page décide quoi afficher. Une page qui trierait sur
+# « AUCUN mot de passe » se casserait le jour où on corrige la casse de cette
+# phrase — ce qui est arrivé ailleurs dans ce dépôt.
+etat_verrou_code() {
 	# passwd -S lit /etc/shadow : hors root, la réponse serait fausse ou vide.
 	# On préfère dire qu'on ne sait pas.
-	(( EUID == 0 )) || { printf 'inconnu (demande les droits root)'; return 0; }
-	champ="$(etat_shadow "$1")"
-	case "$champ" in
-		L)  printf 'verrouillé' ;;
-		NP) printf 'AUCUN mot de passe' ;;
+	(( EUID == 0 )) || { printf 'inconnu'; return 0; }
+	case "$(etat_shadow "$1")" in
+		L)  printf 'verrouille' ;;
+		NP) printf 'sans-mot-de-passe' ;;
 		P)  printf 'actif' ;;
 		*)  printf 'inconnu' ;;
+	esac
+}
+
+etat_verrou() {
+	local code=""
+	code="$(etat_verrou_code "$1")"
+	if [[ "$code" == inconnu ]] && (( EUID != 0 )); then
+		printf 'inconnu (demande les droits root)'
+		return 0
+	fi
+	case "$code" in
+		verrouille)        printf 'verrouillé' ;;
+		sans-mot-de-passe) printf 'AUCUN mot de passe' ;;
+		actif)             printf 'actif' ;;
+		*)                 printf 'inconnu' ;;
 	esac
 }
 
@@ -240,22 +282,39 @@ groupes_importants() {
 
 # --- Sous-commandes ----------------------------------------------------------
 
-cmd_lister() {
-	local nom="" uid="" gecos="" plein="" trouve=0 nb=0 auto=""
-	printf '%s»%s %sComptes de cette machine%s\n\n' "$O" "$R" "$B" "$R"
+# Les comptes de PERSONNES, un par ligne : « nom<TAB>uid<TAB>nom complet ».
+# Sous 1000 : comptes de service (root, daemon, www-data…). Personne ne
+# s'assoit devant la machine avec ceux-là. 65534 est « nobody ».
+#
+# ÉCRIT UNE SEULE FOIS, EXPRÈS. Cette règle vivait en trois endroits : ici
+# (la liste du terminal), dans est_humain(), et dans settings.py — qui, lui,
+# la disait AUTREMENT (UID < 65000, et un shell qui n'est pas nologin). Trois
+# copies, trois réponses possibles à la même question. La page des Paramètres
+# lit maintenant « --json », qui lit cette fonction-ci.
+#
+# La tabulation sépare : un nom complet contient des espaces (« Marie
+# Tremblay »), jamais de tabulation — le champ GECOS de /etc/passwd est
+# lui-même séparé par des deux-points.
+comptes_humains() {
+	local nom="" uid="" gecos=""
 	while IFS=: read -r nom _ uid _ gecos _ _; do
-		# Sous 1000 : comptes de service (root, daemon, www-data…). Personne
-		# ne s'assoit devant la machine avec ceux-là.
 		[[ "$uid" =~ ^[0-9]+$ ]] || continue
 		(( uid >= 1000 && uid != 65534 )) || continue
+		printf '%s\t%s\t%s\n' "$nom" "$uid" "${gecos%%,*}"
+	done < <(getent passwd)
+}
+
+cmd_lister() {
+	local nom="" uid="" plein="" trouve=0 nb=0 auto=""
+	printf '%s»%s %sComptes de cette machine%s\n\n' "$O" "$R" "$B" "$R"
+	while IFS=$'\t' read -r nom uid plein; do
 		trouve=1
-		plein="${gecos%%,*}"
 		printf '  %s%s%s %s(UID %s)%s\n' "$B" "$nom" "$R" "$D" "$uid" "$R"
 		printf '      Nom complet ........ %s\n' "${plein:-non renseigné}"
 		printf '      Droits ............. %s\n' "$(groupes_importants "$nom")"
 		printf '      Dernière connexion . %s\n' "$(derniere_connexion "$nom")"
 		printf '      État du compte ..... %s\n\n' "$(etat_verrou "$nom")"
-	done < <(getent passwd)
+	done < <(comptes_humains)
 
 	(( trouve == 1 )) || warn "Aucun compte de personne trouvé (UID ≥ 1000)."
 
@@ -568,6 +627,59 @@ cmd_auto_connexion() {
 	say "Pour revenir en arrière :  ${B}sudo $PROG auto-connexion off${R}"
 }
 
+# --- L'état pour la page des Paramètres --------------------------------------
+#
+#  --json : les comptes et ce qui les concerne, pour la page des Paramètres.
+#
+#  POURQUOI CETTE SORTIE EXISTE. La page « Utilisateurs » lisait /etc/passwd
+#  et /etc/group ELLE-MÊME, avec sa propre règle — et cette règle n'était pas
+#  la nôtre : elle comptait « adm » et « wheel » comme des droits
+#  d'administrateur. Quelqu'un qui n'est que dans « adm » (lecture des
+#  journaux) s'affichait donc « admin » dans les Paramètres alors qu'il ne
+#  peut pas lancer un seul sudo. Deux définitions de « administrateur » dans
+#  le même système, et la fausse était celle qu'on montrait.
+#
+#  Ici, une seule : est_admin(), qui compte l'appartenance au groupe $GROUPE_ADMIN,
+#  groupe principal compris — la même que celle qui protège le dernier
+#  administrateur.
+#
+#  CE QU'ON PUBLIE ET QU'ON NE POURRAIT PAS DEVINER DE L'EXTÉRIEUR :
+#    · « nom_regex » — la règle des noms de compte (celle de valider_nom, qui
+#      est celle d'adduser). La page peut refuser AVANT d'ouvrir un terminal
+#      pour rien, sans recopier la règle.
+#    · « nb_admins » — de quoi savoir qu'un compte est le DERNIER
+#      administrateur, ce que l'outil refusera de rétrograder ou d'effacer.
+#    · « root » — si on lit en root, l'état verrouillé est vrai ; sinon il
+#      vaut « inconnu », et la page doit le dire au lieu d'inventer.
+#
+#  Le nom complet vient du champ GECOS : c'est la seule valeur d'ici qui ne
+#  sorte pas de nos tables, et elle est échappée par json.sh.
+cmd_json() {
+	local nom="" uid="" plein="" moi="" premier=1 auto=""
+	moi="${SUDO_USER:-$(id -un 2>/dev/null)}"
+	auto="$(lire_auto_connexion)"
+	printf '{\n  "comptes": ['
+	while IFS=$'\t' read -r nom uid plein; do
+		(( premier )) || printf ', '
+		premier=0
+		printf '{"nom": "%s", "uid": %s, "complet": "%s"' \
+			"$(json_texte "$nom")" "$uid" "$(json_texte "$plein")"
+		printf ', "admin": %s' "$(est_admin "$nom" && echo true || echo false)"
+		printf ', "moi": %s' "$([[ "$nom" == "$moi" ]] && echo true || echo false)"
+		printf ', "verrou": "%s"' "$(etat_verrou_code "$nom")"
+		printf ', "derniere": "%s"' "$(json_texte "$(derniere_connexion "$nom")")"
+		printf ', "groupes": "%s"}' "$(json_texte "$(groupes_importants "$nom")")"
+	done < <(comptes_humains)
+	printf '],\n'
+	printf '  "auto": "%s",\n' "$(json_texte "$auto")"
+	printf '  "nb_admins": %s,\n' "$(nombre_admins)"
+	printf '  "groupe_admin": "%s",\n' "$GROUPE_ADMIN"
+	printf '  "root": %s,\n' "$( (( EUID == 0 )) && echo true || echo false)"
+	printf '  "lightdm": %s,\n' \
+		"$(command -v lightdm >/dev/null 2>&1 || [[ -d /etc/lightdm ]] && echo true || echo false)"
+	printf '  "nom_regex": "%s"\n}\n' "$REGEX_NOM"
+}
+
 cmd_panneau() {
 	if ! command -v users-admin >/dev/null 2>&1; then
 		warn "La fenêtre « Utilisateurs » (users-admin) n'est pas installée."
@@ -601,6 +713,7 @@ case "$commande" in
 	nom-complet)          cmd_nom_complet "${1:-}" "${2:-}" ;;
 	auto-connexion)       cmd_auto_connexion "${1:-}" ;;
 	panneau)              cmd_panneau ;;
+	--json|json)          cmd_json ;;
 	*)
 		warn "Commande inconnue : « $commande »"
 		printf '\n'

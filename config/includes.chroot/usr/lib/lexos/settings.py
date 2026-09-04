@@ -19,6 +19,7 @@ import http.server
 import json
 import mimetypes
 import os
+import re
 import shlex
 import shutil
 import socket
@@ -308,10 +309,16 @@ def act_ouvrir(arg):
                                              "lexos net status; echo; lexos secure"),
         "maj":        lambda: _terminal("Mises à jour — LexOS", "lexos doctor"),
         "accessibilite": lambda: _xfce([["xfce4-accessibility-settings"]]),
+        #  CETTE ENTRÉE AFFICHAIT UNE LISTE INVENTÉE. Elle imprimait « lex —
+        #  Principal, administrateur » et « invite — Invité », deux comptes
+        #  écrits en dur ici : pas lus, pas vérifiés, pas forcément existants.
+        #  Sur la machine d'Alex, le compte ne s'appelle ni « lex » ni
+        #  « invite ». Un écran qui ment est pire qu'un écran vide — on ne
+        #  sait même pas qu'il faut chercher ailleurs.
+        #  lexos-utilisateurs, lui, LIT les comptes : nom complet, droits,
+        #  dernière connexion, état du mot de passe.
         "utilisateurs": lambda: _terminal("Utilisateurs — LexOS",
-                                          "printf '%s\\n' 'Comptes locaux de LexOS :' '' "
-                                          "'  lex     — Principal, administrateur' "
-                                          "'  invite  — Invité, session limitée sans mot de passe' ''"),
+                                          "lexos utilisateurs"),
         "clavier":    lambda: _xfce([["xfce4-keyboard-settings"]]),
         "datetime":   lambda: _terminal("Date et heure — LexOS", "timedatectl"),
         #  Même fenêtre, même correctif (voir « applications » ci-dessus).
@@ -1408,6 +1415,135 @@ def act_defaut(arg):
     return _run(["lexos-defaut", categorie, appli])
 
 
+#  LES GESTES SUR LES COMPTES, ET LA COMMANDE QUE CHACUN LANCE.
+#  Écrits ici une fois, plutôt qu'en cascade de « if » : la table dit d'un
+#  coup d'œil ce que la page peut demander, et rien d'autre ne peut passer.
+#  La valeur est le titre de la fenêtre et les arguments de lexos-utilisateurs
+#  — « {} » sera remplacé par le nom du compte, cité.
+_UTIL_GESTES = {
+    "motdepasse":    ("Mot de passe — LexOS",      ["motdepasse"]),
+    "admin-on":      ("Droits d'administrateur — LexOS", ["admin", "{}", "on"]),
+    "admin-off":     ("Droits d'administrateur — LexOS", ["admin", "{}", "off"]),
+    "verrouiller":   ("Verrouiller un compte — LexOS",   ["verrouiller"]),
+    "deverrouiller": ("Déverrouiller un compte — LexOS", ["deverrouiller"]),
+    "supprimer":     ("Supprimer un compte — LexOS",     ["supprimer"]),
+}
+
+
+def act_utilisateur(arg):
+    """Agir sur un compte — « geste:nom ».
+
+    TOUT CE QUI TOUCHE AUX COMPTES PASSE PAR UN TERMINAL, ET C'EST VOULU.
+    Ces gestes demandent les droits d'administrateur, et lexos-utilisateurs
+    ne s'élève JAMAIS de lui-même : « un outil qui s'élève tout seul habitue à
+    taper son mot de passe sans lire ce qui va s'exécuter » (son propre
+    commentaire). La page ouvre donc un terminal où la commande est écrite en
+    toutes lettres, et où la personne tape son mot de passe en la voyant.
+
+    C'est aussi la seule façon qui marche : adduser pose des questions,
+    passwd lit un mot de passe qui ne s'affiche pas, et « supprimer » fait
+    RECOPIER le nom du compte avant d'effacer. Rien de tout cela ne peut se
+    faire dans une fenêtre qui n'a pas de clavier.
+
+    CE QUI EST VÉRIFIÉ ICI, ET POURQUOI ICI. La commande part dans une chaîne
+    que xfce4-terminal découpe comme un shell — ce n'est PAS le cas de _run(),
+    qui reçoit une liste. Un nom de compte venu de la page ne peut donc pas y
+    entrer sans contrôle. Deux verrous, dans cet ordre :
+      1. le nom doit être un compte QUI EXISTE, tel que l'outil le publie
+         (ou, pour « ajouter », respecter la règle d'adduser qu'il publie) ;
+      2. il est cité par shlex.quote avant d'entrer dans la commande.
+    Le premier suffirait ; le second existe parce qu'une liste de comptes est
+    un ensemble qui peut grandir, et qu'on ne veut pas que la sûreté de cette
+    ligne dépende de ce qui a le droit de s'appeler un compte.
+    """
+    e = _utilisateurs_etat()
+    if not e.get("dispo"):
+        #  DEUX PANNES DIFFÉRENTES, DEUX MESSAGES. « Introuvable » quand
+        #  l'outil n'est pas là ; « n'a pas répondu » quand il est là mais
+        #  que sa sortie est inutilisable. Dire « introuvable » d'un
+        #  programme installé envoie chercher au mauvais endroit.
+        return {"ok": False,
+                "erreur": ("lexos-utilisateurs n'a pas répondu"
+                           if shutil.which("lexos-utilisateurs")
+                           else "lexos-utilisateurs introuvable")}
+    geste, _, reste = (arg or "").partition(":")
+    comptes = {c.get("nom"): c for c in e.get("comptes", [])}
+
+    #  ═══ CRÉER UN COMPTE ═══ le seul nom qui ne doit PAS déjà exister.
+    if geste == "ajouter":
+        regex = e.get("nom_regex") or ""
+        if not reste:
+            return {"ok": False, "erreur": "il faut un nom de compte"}
+        if reste in comptes:
+            return {"ok": False, "erreur": "« %s » existe déjà" % reste}
+        #  La règle est celle d'adduser, publiée par l'outil : on ne la
+        #  recopie pas ici. Sans elle, on n'ouvre pas de terminal du tout —
+        #  un terminal qui s'ouvre pour mourir aussitôt ressemble à une panne.
+        #  re.fullmatch, PAS re.match. En Python, « $ » accepte un retour à
+        #  la ligne final : « marie\n » passe re.match(« ^…$ ») et se
+        #  retrouverait cité dans la commande du terminal. fullmatch exige
+        #  que TOUTE la chaîne soit consommée, retour à la ligne compris.
+        if not regex or not re.fullmatch(regex, reste):
+            return {"ok": False,
+                    "erreur": "nom de compte invalide : minuscules, chiffres, "
+                              "« - » et « _ », en commençant par une lettre"}
+        return _terminal("Créer un compte — LexOS",
+                         "sudo lexos-utilisateurs ajouter %s" % shlex.quote(reste))
+
+    #  ═══ LA CONNEXION AUTOMATIQUE ═══ « off » n'est pas un compte.
+    if geste == "auto":
+        if reste != "off" and reste not in comptes:
+            return {"ok": False, "erreur": "« %s » n'est pas un compte de cette machine" % reste}
+        if not e.get("lightdm"):
+            return {"ok": False,
+                    "erreur": "LightDM n'est pas installé : la connexion "
+                              "automatique ne se règle que pour lui"}
+        return _terminal("Connexion automatique — LexOS",
+                         "sudo lexos-utilisateurs auto-connexion %s" % shlex.quote(reste))
+
+    #  ═══ LE NOM AFFICHÉ ═══ deux morceaux : le compte, puis le texte libre.
+    if geste == "nom-complet":
+        nom, _, plein = reste.partition(":")
+        if nom not in comptes:
+            return {"ok": False, "erreur": "« %s » n'est pas un compte de cette machine" % nom}
+        if not plein.strip():
+            return {"ok": False, "erreur": "il faut un nom à afficher"}
+        #  On ne rejoue PAS ici la règle du champ GECOS (ni virgule, ni
+        #  deux-points, ni signe égal) : elle vit dans lexos-utilisateurs, qui
+        #  la dira dans le terminal, sous les yeux de la personne. La citer
+        #  ici en ferait une deuxième copie, à tenir à jour pour rien.
+        return _terminal("Nom affiché — LexOS",
+                         "sudo lexos-utilisateurs nom-complet %s %s"
+                         % (shlex.quote(nom), shlex.quote(plein.strip())))
+
+    #  ═══ LES GESTES SUR UN COMPTE EXISTANT ═══
+    if geste not in _UTIL_GESTES:
+        return {"ok": False, "erreur": "geste inattendu"}
+    if reste not in comptes:
+        return {"ok": False, "erreur": "« %s » n'est pas un compte de cette machine" % reste}
+
+    #  DEUX REFUS QUI ÉVITENT UN TERMINAL POUR RIEN. lexos-utilisateurs
+    #  refuse déjà ces deux-là — c'est sa seule interdiction dure — mais il le
+    #  fait APRÈS avoir ouvert une fenêtre et demandé un mot de passe. Le
+    #  dire tout de suite est plus honnête, et la page peut l'afficher.
+    dernier_admin = comptes[reste].get("admin") and e.get("nb_admins", 0) <= 1
+    if geste in ("admin-off", "supprimer", "verrouiller") and dernier_admin:
+        return {"ok": False,
+                "erreur": "« %s » est le seul administrateur : sans lui, cette "
+                          "machine ne peut plus être administrée depuis le bureau" % reste}
+    if geste == "supprimer" and comptes[reste].get("moi"):
+        return {"ok": False,
+                "erreur": "« %s » est le compte ouvert en ce moment : on ne "
+                          "supprime pas la branche sur laquelle on est assis" % reste}
+
+    titre, gabarit = _UTIL_GESTES[geste]
+    args = [a.replace("{}", reste) if a == "{}" else a for a in gabarit]
+    if "{}" not in gabarit:
+        args = args + [reste]
+    return _terminal(titre, "sudo lexos-utilisateurs "
+                     + " ".join(shlex.quote(a) for a in args))
+
+
 def act_clavier(arg):
     """Changer la disposition du clavier — « quoi:clé ».
 
@@ -1434,6 +1570,7 @@ ACTIONS = {
     "ouvrir": act_ouvrir,
     "clavier": act_clavier,
     "defaut-appli": act_defaut,
+    "utilisateur": act_utilisateur,
     "wifi-radio": act_wifi,
     "wifi-auto": act_wifi_auto,
     "son-muet": act_son_muet,
@@ -2454,33 +2591,38 @@ def _maj_etat():
 
 
 def _utilisateurs_etat():
-    """Les VRAIS comptes de la machine. On lit /etc/passwd et on garde les
-    comptes humains : UID >= 1000 et un shell qui n'est pas nologin. Les
-    dizaines de comptes de service (www-data, systemd-*) n'ont rien à faire
-    dans une liste d'utilisateurs."""
-    gens = []
+    """Les comptes de la machine — demandés à lexos-utilisateurs.
+
+    CE QUE CETTE FONCTION FAISAIT, ET POURQUOI C'ÉTAIT FAUX. Elle lisait
+    /etc/passwd et /etc/group elle-même, avec sa PROPRE définition de
+    « administrateur » : appartenir à sudo, wheel OU adm. Or « adm » ne donne
+    que la lecture des journaux. Quelqu'un qui n'est que dans « adm »
+    s'affichait « administrateur » dans les Paramètres alors qu'il ne peut
+    pas lancer un seul sudo — et lexos-utilisateurs, lui, ne le comptait pas
+    comme administrateur. Deux définitions du même mot dans le même système,
+    et c'est la fausse qu'on montrait à l'écran.
+
+    Elle filtrait aussi les comptes autrement (UID < 65000 et un shell qui
+    n'est pas nologin, là où l'outil dit UID >= 1000 et pas « nobody ») :
+    deux listes de comptes possibles, pour la même machine.
+
+    Une seule source, donc, et c'est l'outil — comme pour lexos-clavier,
+    lexos-defaut et lexos-distant.
+    """
+    vide = {"comptes": [], "auto": "", "nb_admins": 0, "groupe_admin": "sudo",
+            "root": False, "lightdm": False, "nom_regex": "", "dispo": False}
+    if not shutil.which("lexos-utilisateurs"):
+        return vide
     try:
-        admins = set()
-        for ligne in Path(ETC_DIR / "group").read_text().splitlines():
-            champs = ligne.split(":")
-            if len(champs) >= 4 and champs[0] in ("sudo", "wheel", "adm"):
-                admins.update(m for m in champs[3].split(",") if m)
-        for ligne in Path(ETC_DIR / "passwd").read_text().splitlines():
-            champs = ligne.split(":")
-            if len(champs) < 7:
-                continue
-            nom, _, uid, _, complet, foyer, shell = champs[:7]
-            if not uid.isdigit() or int(uid) < 1000 or int(uid) >= 65000:
-                continue
-            if shell.endswith(("nologin", "false")):
-                continue
-            gens.append({"nom": nom,
-                         "complet": (complet.split(",")[0] or nom).strip(),
-                         "admin": nom in admins,
-                         "moi": nom == os.environ.get("USER", "")})
-    except OSError:
-        pass
-    return gens
+        r = subprocess.run(["lexos-utilisateurs", "--json"],
+                           capture_output=True, text=True, timeout=30)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if not isinstance(d.get("comptes"), list):
+        return vide
+    d["dispo"] = True
+    return d
 
 
 def _imprimantes_etat():

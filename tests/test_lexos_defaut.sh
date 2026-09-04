@@ -187,80 +187,103 @@ import sys
 sys.path.insert(0, sys.argv[1])
 import settings
 
-def courant(cle):
-    for c in settings._defaut_etat().get("categories", []):
-        if c.get("cle") == cle:
-            return c.get("courant") or ""
-    return None
+try:
+    def courant(cle):
+        for c in settings._defaut_etat().get("categories", []):
+            if c.get("cle") == cle:
+                return c.get("courant") or ""
+        return None
 
-#  ═══ LE CHEMIN xdg-mime ═══
-avant = courant("images")
-r = settings.act_defaut("images:banc-visionneuse.desktop")
-apres = courant("images")
-print(("OK|" if (r.get("ok") and apres == "banc-visionneuse.desktop"
-                 and apres != avant) else "NON|") +
-      "« images » passe de « %s » à « %s »" % (avant or "rien", apres or "rien"))
+    #  ═══ LE CHEMIN xdg-mime ═══
+    avant = courant("images")
+    r = settings.act_defaut("images:banc-visionneuse.desktop")
+    apres = courant("images")
+    print(("OK|" if (r.get("ok") and apres == "banc-visionneuse.desktop"
+                     and apres != avant) else "NON|") +
+          "« images » passe de « %s » à « %s »" % (avant or "rien", apres or "rien"))
 
-#  ET ON EN CHANGE UNE DEUXIÈME FOIS : un réglage qui ne saurait qu'écrire la
-#  première valeur passerait le contrôle ci-dessus.
-r = settings.act_defaut("images:banc-autre.desktop")
-print(("OK|" if (r.get("ok") and courant("images") == "banc-autre.desktop") else "NON|") +
-      "on peut en changer une deuxième fois (%s)" % courant("images"))
+    #  ET ON EN CHANGE UNE DEUXIÈME FOIS : un réglage qui ne saurait qu'écrire la
+    #  première valeur passerait le contrôle ci-dessus.
+    r = settings.act_defaut("images:banc-autre.desktop")
+    print(("OK|" if (r.get("ok") and courant("images") == "banc-autre.desktop") else "NON|") +
+          "on peut en changer une deuxième fois (%s)" % courant("images"))
 
-#  ═══ LE CHEMIN xdg-settings ═══ — le navigateur ne passe pas par xdg-mime.
-avant = courant("navigateur")
-r = settings.act_defaut("navigateur:banc-fureteur.desktop")
-print(("OK|" if (r.get("ok") and courant("navigateur") == "banc-fureteur.desktop"
-                 and courant("navigateur") != avant) else "NON|") +
-      "« navigateur » passe de « %s » à « %s »" % (avant or "rien", courant("navigateur")))
+    #  ═══ LE CHEMIN xdg-settings ═══ — le navigateur ne passe pas par xdg-mime.
+    avant = courant("navigateur")
+    r = settings.act_defaut("navigateur:banc-fureteur.desktop")
+    print(("OK|" if (r.get("ok") and courant("navigateur") == "banc-fureteur.desktop"
+                     and courant("navigateur") != avant) else "NON|") +
+          "« navigateur » passe de « %s » à « %s »" % (avant or "rien", courant("navigateur")))
 
-#  ═══ CE QUI DOIT ÊTRE REFUSÉ ═══
-#  Ces valeurs viennent d'une page web. Aucune n'atteint un shell — _run()
-#  reçoit une liste d'arguments, il n'y en a pas — mais toutes doivent être
-#  refusées AVEC UN MOTIF que la page puisse montrer.
-#
-#  ET LE REFUS DOIT VENIR DES PARAMÈTRES. lexos-defaut refuse lui aussi une
-#  application absente (« Aucune application… »), donc un contrôle qui se
-#  contenterait de « ok vaut faux » serait VERT même si le moteur ne
-#  vérifiait plus rien — la faute exacte qu'a connue le banc du clavier. On
-#  exige donc le motif du moteur, celui qui nomme la catégorie.
-for mauvais, quoi in (
-        ("images:pas-installee.desktop", "une application qui n'existe pas"),
-        ("texte:banc-visionneuse.desktop", "une application proposée pour une AUTRE catégorie"),
-        ("inconnue:banc-visionneuse.desktop", "une catégorie inventée"),
-        ("images:; rm -rf /", "une commande glissée à la place du nom")):
-    r = settings.act_defaut(mauvais)
-    motif = r.get("erreur", "")
-    print(("OK|" if (not r.get("ok") and "n'est pas proposée pour" in motif) else "NON|") +
-          "refusé PAR LES PARAMÈTRES : %s (%s)" % (quoi, motif or "ACCEPTÉ !"))
+    #  ═══ CE QUI DOIT ÊTRE REFUSÉ ═══
+    #  Ces valeurs viennent d'une page web. Aucune n'atteint un shell — _run()
+    #  reçoit une liste d'arguments, il n'y en a pas — mais toutes doivent être
+    #  refusées AVEC UN MOTIF que la page puisse montrer.
+    #
+    #  ET LE REFUS DOIT VENIR DES PARAMÈTRES. lexos-defaut refuse lui aussi une
+    #  application absente (« Aucune application… »), donc un contrôle qui se
+    #  contenterait de « ok vaut faux » serait VERT même si le moteur ne
+    #  vérifiait plus rien — la faute exacte qu'a connue le banc du clavier. On
+    #  exige donc le motif du moteur, celui qui nomme la catégorie.
+    for mauvais, quoi in (
+            ("images:pas-installee.desktop", "une application qui n'existe pas"),
+            ("texte:banc-visionneuse.desktop", "une application proposée pour une AUTRE catégorie"),
+            ("inconnue:banc-visionneuse.desktop", "une catégorie inventée"),
+            ("images:; rm -rf /", "une commande glissée à la place du nom")):
+        r = settings.act_defaut(mauvais)
+        motif = r.get("erreur", "")
+        print(("OK|" if (not r.get("ok") and "n'est pas proposée pour" in motif) else "NON|") +
+              "refusé PAR LES PARAMÈTRES : %s (%s)" % (quoi, motif or "ACCEPTÉ !"))
 
-for mauvais, quoi in (("images:", "une application vide"),
-                      (":banc-autre.desktop", "une catégorie vide"),
-                      ("", "rien du tout")):
-    r = settings.act_defaut(mauvais)
-    print(("OK|" if (not r.get("ok") and "il faut une catégorie" in r.get("erreur", ""))
-           else "NON|") + "refusé : %s (%s)" % (quoi, r.get("erreur", "ACCEPTÉ !")))
+    for mauvais, quoi in (("images:", "une application vide"),
+                          (":banc-autre.desktop", "une catégorie vide"),
+                          ("", "rien du tout")):
+        r = settings.act_defaut(mauvais)
+        print(("OK|" if (not r.get("ok") and "il faut une catégorie" in r.get("erreur", ""))
+               else "NON|") + "refusé : %s (%s)" % (quoi, r.get("erreur", "ACCEPTÉ !")))
 
-#  ═══ LES ANCIENS NOMS SONT TOUJOURS SERVIS ═══
-#  D'autres endroits de la page lisent « navigateur » et « assoc ». Les
-#  renommer en silence aurait vidé ces lignes sans qu'une seule erreur ne le
-#  dise — un écran qui ment est pire qu'un écran qui plante.
-e = settings._defaut_etat()
-print(("OK|" if e.get("navigateur") == "banc-fureteur" else "NON|") +
-      "l'ancien nom « navigateur » est encore servi (%s)" % e.get("navigateur"))
-print(("OK|" if e.get("assoc", {}).get("image") == "banc-autre" else "NON|") +
-      "l'ancienne table « assoc » est encore servie (%s)" % e.get("assoc"))
+    #  ═══ LES ANCIENS NOMS SONT TOUJOURS SERVIS ═══
+    #  D'autres endroits de la page lisent « navigateur » et « assoc ». Les
+    #  renommer en silence aurait vidé ces lignes sans qu'une seule erreur ne le
+    #  dise — un écran qui ment est pire qu'un écran qui plante.
+    e = settings._defaut_etat()
+    print(("OK|" if e.get("navigateur") == "banc-fureteur" else "NON|") +
+          "l'ancien nom « navigateur » est encore servi (%s)" % e.get("navigateur"))
+    print(("OK|" if e.get("assoc", {}).get("image") == "banc-autre" else "NON|") +
+          "l'ancienne table « assoc » est encore servie (%s)" % e.get("assoc"))
+except Exception as _e:
+    #  UN PLANTAGE EST UN ROUGE, PAS UN SILENCE. Sans ce filet, une exception
+    #  au milieu du script emporte tous les contrôles qui suivent : le banc
+    #  affiche moins de coches et reste vert.
+    print("NON|le banc s'est arrêté : %s: %s" % (type(_e).__name__, _e))
+print("FIN|")
+
 PY
 	SORTIE_G="$(cd "$RACINE" && PATH="$CHEMIN" HOME="$FOYER" \
 		python3 "$BANC/gestes.py" \
 		"$RACINE/config/includes.chroot/usr/lib/lexos" 2>/dev/null \
-		| grep -E '^(OK|NON)\|' || true)"
+		| grep -E '^(OK|NON|FIN)\|' || true)"
+	#  LA SENTINELLE. Sans elle, un banc qui S'ARRÊTE au milieu reste VERT :
+	#  les contrôles déjà écrits passent, ceux qui n'ont jamais été atteints
+	#  disparaissent en silence — il y a juste moins de coches. C'est ce qui
+	#  est arrivé ici : retirer la vérification du nom de compte faisait lever
+	#  une KeyError au contrôle suivant, et le banc n'a rien vu du tout.
+	#  Le script rend une dernière ligne « FIN| » ; son absence est un rouge.
 	if [ -z "$SORTIE_G" ]; then
 		non "les gestes n'ont rien rendu — le moteur n'a pas pu être appelé"
+	elif ! printf '%s\n' "$SORTIE_G" | grep -q '^FIN|'; then
+		non "le banc s'est arrêté avant la fin — des contrôles n'ont jamais tourné"
+		while IFS='|' read -r V M; do
+			[ "$V" = "NON" ] && non "$M"
+		done <<EOF
+$SORTIE_G
+EOF
 	else
 		while IFS='|' read -r V M; do
-			[ -n "$V" ] || continue
-			[ "$V" = "OK" ] && ok "$M" || non "$M"
+			case "$V" in
+				OK)  ok "$M" ;;
+				NON) non "$M" ;;
+			esac
 		done <<EOF
 $SORTIE_G
 EOF
@@ -311,82 +334,106 @@ vm.runInContext(source, bac, {filename:"app.js"});
 const T = bac.__banc;
 
 const dit = (bon, m) => console.log((bon ? "OK|" : "NON|") + m);
-const etat = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
-T.pose({ defaut: etat });
-const h = T.contenu("defaut");
 
-const avecChoix = etat.categories.filter(c => c.choix && c.choix.length);
-//  LE DÉCOR DOIT POUVOIR FAIRE ÉCHOUER LES CONTRÔLES QUI SUIVENT. S'il ne
-//  contenait que des catégories non réglées, « c'est la bonne qui est cochée »
-//  serait vrai sans rien vérifier. On l'exige, plutôt que de le supposer.
-dit(avecChoix.some(c => c.courant) && avecChoix.some(c => !c.courant),
-    "le décor mêle des catégories réglées et non réglées — les contrôles peuvent échouer");
-const sans      = etat.categories.filter(c => !c.choix || !c.choix.length);
-const listes = (h.match(/<select /g) || []).length;
-dit(listes === avecChoix.length,
-    `une liste déroulante par catégorie qui a des candidates (${listes}/${avecChoix.length})`);
+try {
+  const etat = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+  T.pose({ defaut: etat });
+  const h = T.contenu("defaut");
 
-//  CHAQUE liste appelle l'action, avec SA propre clé. Une page qui n'en
-//  brancherait qu'une seule aurait le même nombre de « <select » que celle-ci.
-const branchees = avecChoix.filter(c =>
-  h.includes(`setDefautAppli('${c.cle}', this.value)`)).length;
-dit(branchees === avecChoix.length,
-    `chacune appelle setDefautAppli avec sa catégorie (${branchees}/${avecChoix.length})`);
+  const avecChoix = etat.categories.filter(c => c.choix && c.choix.length);
+  //  LE DÉCOR DOIT POUVOIR FAIRE ÉCHOUER LES CONTRÔLES QUI SUIVENT. S'il ne
+  //  contenait que des catégories non réglées, « c'est la bonne qui est cochée »
+  //  serait vrai sans rien vérifier. On l'exige, plutôt que de le supposer.
+  dit(avecChoix.some(c => c.courant) && avecChoix.some(c => !c.courant),
+      "le décor mêle des catégories réglées et non réglées — les contrôles peuvent échouer");
+  const sans      = etat.categories.filter(c => !c.choix || !c.choix.length);
+  const listes = (h.match(/<select /g) || []).length;
+  dit(listes === avecChoix.length,
+      `une liste déroulante par catégorie qui a des candidates (${listes}/${avecChoix.length})`);
 
-//  L'IDENTIFIANT DE L'APPLICATION NE RENTRE PAS DANS LE CODE JS de l'attribut :
-//  il passe par « this.value ». C'est ce qui fait qu'un .desktop au nom tordu
-//  ne peut pas casser l'attribut onchange — value="" l'échappe, une chaîne JS
-//  collée à la main ne l'aurait pas fait.
-dit(!/setDefautAppli\('[^']*', *['"]/.test(h),
-    "l'identifiant passe par this.value, jamais collé dans le code de l'attribut");
+  //  CHAQUE liste appelle l'action, avec SA propre clé. Une page qui n'en
+  //  brancherait qu'une seule aurait le même nombre de « <select » que celle-ci.
+  const branchees = avecChoix.filter(c =>
+    h.includes(`setDefautAppli('${c.cle}', this.value)`)).length;
+  dit(branchees === avecChoix.length,
+      `chacune appelle setDefautAppli avec sa catégorie (${branchees}/${avecChoix.length})`);
 
-//  L'APPLICATION EN PLACE EST CELLE QUI EST COCHÉE. Sans cela, la page
-//  afficherait la première de la liste comme si elle était le choix courant.
-const marquees = avecChoix.filter(c => !c.courant ||
-  h.includes(`value="${c.courant}" selected>`)).length;
-dit(marquees === avecChoix.length,
-    `l'application en place est celle qui est sélectionnée (${marquees}/${avecChoix.length})`);
+  //  L'IDENTIFIANT DE L'APPLICATION NE RENTRE PAS DANS LE CODE JS de l'attribut :
+  //  il passe par « this.value ». C'est ce qui fait qu'un .desktop au nom tordu
+  //  ne peut pas casser l'attribut onchange — value="" l'échappe, une chaîne JS
+  //  collée à la main ne l'aurait pas fait.
+  dit(!/setDefautAppli\('[^']*', *['"]/.test(h),
+      "l'identifiant passe par this.value, jamais collé dans le code de l'attribut");
 
-//  ET « Choisir… » EXACTEMENT LÀ OÙ RIEN N'EST RÉGLÉ, ni ailleurs.
-const attendu = avecChoix.filter(c => !c.courant).length;
-const trouve  = (h.match(/Choisir…/g) || []).length;
-dit(trouve === attendu,
-    `« Choisir… » n'apparaît que là où rien n'est réglé (${trouve}/${attendu})`);
+  //  L'APPLICATION EN PLACE EST CELLE QUI EST COCHÉE. Sans cela, la page
+  //  afficherait la première de la liste comme si elle était le choix courant.
+  const marquees = avecChoix.filter(c => !c.courant ||
+    h.includes(`value="${c.courant}" selected>`)).length;
+  dit(marquees === avecChoix.length,
+      `l'application en place est celle qui est sélectionnée (${marquees}/${avecChoix.length})`);
 
-//  UNE CATÉGORIE SANS CANDIDATE LE DIT. Une ligne vide laisserait croire à
-//  une panne ; le terminal, lui, a sa propre explication — il n'a aucun type
-//  MIME, XFCE le range dans son réglage à part.
-const muettes = sans.filter(c => c.cle !== "terminal").length;
-const dites = (h.match(/Aucune application installée/g) || []).length;
-dit(dites === muettes,
-    `les catégories sans candidate le disent (${dites}/${muettes})`);
-dit(!sans.some(c => c.cle === "terminal") ||
-    h.includes("Le terminal n'a pas de type de fichier"),
-    "le terminal explique pourquoi il n'a pas de liste");
+  //  ET « Choisir… » EXACTEMENT LÀ OÙ RIEN N'EST RÉGLÉ, ni ailleurs.
+  const attendu = avecChoix.filter(c => !c.courant).length;
+  const trouve  = (h.match(/Choisir…/g) || []).length;
+  dit(trouve === attendu,
+      `« Choisir… » n'apparaît que là où rien n'est réglé (${trouve}/${attendu})`);
 
-//  LE NOM PIÉGÉ EST ÉCHAPPÉ EN HTML. Il a déjà traversé le JSON ; il lui
-//  reste à traverser le rendu sans ouvrir un attribut.
-dit(!/dit "bonjour"/.test(h) && h.includes("&quot;bonjour&quot;"),
-    "un nom à guillemets est échappé dans le HTML");
+  //  UNE CATÉGORIE SANS CANDIDATE LE DIT. Une ligne vide laisserait croire à
+  //  une panne ; le terminal, lui, a sa propre explication — il n'a aucun type
+  //  MIME, XFCE le range dans son réglage à part.
+  const muettes = sans.filter(c => c.cle !== "terminal").length;
+  const dites = (h.match(/Aucune application installée/g) || []).length;
+  dit(dites === muettes,
+      `les catégories sans candidate le disent (${dites}/${muettes})`);
+  dit(!sans.some(c => c.cle === "terminal") ||
+      h.includes("Le terminal n'a pas de type de fichier"),
+      "le terminal explique pourquoi il n'a pas de liste");
 
-//  L'OUTIL MUET NE DONNE PAS UNE PAGE VIDE.
-T.pose({ defaut: {} });
-dit(T.contenu("defaut").includes("lexos-defaut n'a pas répondu"),
-    "si l'outil ne répond pas, la page le dit au lieu de rester blanche");
+  //  LE NOM PIÉGÉ EST ÉCHAPPÉ EN HTML. Il a déjà traversé le JSON ; il lui
+  //  reste à traverser le rendu sans ouvrir un attribut.
+  dit(!/dit "bonjour"/.test(h) && h.includes("&quot;bonjour&quot;"),
+      "un nom à guillemets est échappé dans le HTML");
 
-//  ET LA SECTION EST ATTEIGNABLE : une page parfaite dans un menu qui ne la
-//  nomme pas n'existe pas.
-dit(T.nav.some(g => g.items.some(i => i[0] === "defaut")),
-    "« Applications par défaut » est dans le menu de gauche");
+  //  L'OUTIL MUET NE DONNE PAS UNE PAGE VIDE.
+  T.pose({ defaut: {} });
+  dit(T.contenu("defaut").includes("lexos-defaut n'a pas répondu"),
+      "si l'outil ne répond pas, la page le dit au lieu de rester blanche");
+
+  //  ET LA SECTION EST ATTEIGNABLE : une page parfaite dans un menu qui ne la
+  //  nomme pas n'existe pas.
+  dit(T.nav.some(g => g.items.some(i => i[0] === "defaut")),
+      "« Applications par défaut » est dans le menu de gauche");
+} catch (e) {
+  /*  UN PLANTAGE EST UN ROUGE, PAS UN SILENCE. Sans ce filet, une exception au
+      milieu du rendu emporte tous les contrôles qui suivent : le banc affiche
+      moins de coches et reste vert. */
+  console.log("NON|le rendu s'est arrêté : " + (e && e.message || e));
+}
+console.log("FIN|");
 JS
 	SORTIE_P="$(node "$BANC/rendu.js" "$PAGE" "$BANC/etat.json" 2>&1 \
-		| grep -E '^(OK|NON)\|' || true)"
+		| grep -E '^(OK|NON|FIN)\|' || true)"
+	#  LA SENTINELLE. Sans elle, un banc qui S'ARRÊTE au milieu reste VERT :
+	#  les contrôles déjà écrits passent, ceux qui n'ont jamais été atteints
+	#  disparaissent en silence — il y a juste moins de coches. C'est ce qui
+	#  est arrivé ici : retirer la vérification du nom de compte faisait lever
+	#  une KeyError au contrôle suivant, et le banc n'a rien vu du tout.
+	#  Le script rend une dernière ligne « FIN| » ; son absence est un rouge.
 	if [ -z "$SORTIE_P" ]; then
 		non "la page n'a rien rendu — app.js n'a pas pu être chargé"
+	elif ! printf '%s\n' "$SORTIE_P" | grep -q '^FIN|'; then
+		non "le banc s'est arrêté avant la fin — des contrôles n'ont jamais tourné"
+		while IFS='|' read -r V M; do
+			[ "$V" = "NON" ] && non "$M"
+		done <<EOF
+$SORTIE_P
+EOF
 	else
 		while IFS='|' read -r V M; do
-			[ -n "$V" ] || continue
-			[ "$V" = "OK" ] && ok "$M" || non "$M"
+			case "$V" in
+				OK)  ok "$M" ;;
+				NON) non "$M" ;;
+			esac
 		done <<EOF
 $SORTIE_P
 EOF

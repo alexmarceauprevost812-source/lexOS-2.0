@@ -1878,6 +1878,26 @@ jobs:
           #  qui n'en affiche jamais.
           bash tests/test_lexos_defaut.sh
 
+      - name: Utilisateurs — des comptes lus, pas inventés, et de quoi les changer
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « le contenu comme Ubuntu ». La page Utilisateurs affichait
+          #  une liste et renvoyait au terminal — et cette liste mentait deux
+          #  fois : le bouton « Détail » imprimait DEUX COMPTES ÉCRITS EN DUR
+          #  (« lex », « invite ») qui n'existent sur aucune machine d'Alex, et
+          #  la page comptait « adm » comme un droit d'administrateur, alors
+          #  qu'« adm » ne donne que la lecture des journaux.
+          #
+          #  LE BANC INVENTE UNE MACHINE — son /etc/passwd, son /etc/group,
+          #  l'état de ses mots de passe — et fait tourner l'outil dessus.
+          #  C'est la seule façon d'éprouver « le dernier administrateur »,
+          #  « c'est toi » ou un nom complet à guillemets : aucune de ces
+          #  situations n'existe sur le coureur, et un banc qui attend
+          #  qu'elles arrivent n'éprouve rien. Le terminal est une doublure
+          #  qui note la LIGNE DE COMMANDE exacte : c'est elle qu'on vérifie,
+          #  parce qu'elle part dans une chaîne qu'un shell redécoupe.
+          bash tests/test_lexos_utilisateurs.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |

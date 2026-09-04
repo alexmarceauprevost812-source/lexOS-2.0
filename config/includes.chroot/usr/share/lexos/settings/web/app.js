@@ -840,6 +840,35 @@ function nomBascule(bascules, cle){
   const b = (bascules || []).find(x => x.cle === cle);
   return b ? b.nom : (cle || "");
 }
+/*  LES COMPTES. Chaque geste ouvre un terminal — c'est là que se tapent les
+    mots de passe et les confirmations — donc on ne rafraîchit PAS derrière :
+    au moment où la réponse revient, le terminal vient tout juste de s'ouvrir
+    et rien n'a encore changé. Une page rafraîchie à cet instant afficherait
+    l'ancien état, ce qui ferait croire que le clic n'a rien fait. On dit ce
+    qui se passe, et la page se remet à jour à son rythme habituel. */
+async function utilGeste(quoi, nom){
+  if(!nom) return;
+  const r = await api("utilisateur", quoi + ":" + nom);
+  toast(r.ok ? "Un terminal s'ouvre : la commande y est écrite en clair"
+             : "Refusé : " + (r.erreur || "geste impossible"));
+}
+async function utilAjouter(){
+  const c = document.getElementById("utilNouveau");
+  const nom = (c && c.value || "").trim();
+  if(!nom){ toast("Il faut un nom de compte"); return; }
+  const r = await api("utilisateur", "ajouter:" + nom);
+  if(r.ok && c) c.value = "";
+  toast(r.ok ? "Un terminal s'ouvre : adduser va poser ses questions"
+             : "Refusé : " + (r.erreur || "nom impossible"));
+}
+async function utilNomComplet(nom){
+  const c = document.getElementById("nomAff-" + nom);
+  const plein = (c && c.value || "").trim();
+  if(!plein){ toast("Il faut un nom à afficher"); return; }
+  const r = await api("utilisateur", "nom-complet:" + nom + ":" + plein);
+  toast(r.ok ? "Un terminal s'ouvre pour changer le nom affiché"
+             : "Refusé : " + (r.erreur || "nom impossible"));
+}
 /*  Le choix d'une application par défaut. On rafraîchit après coup : régler
     une catégorie peut en changer une autre (choisir un navigateur déplace
     aussi http et https), et une page qui montre l'ancien état ferait croire
@@ -1756,17 +1785,107 @@ function contenu(cle){
       tout le monde : Orca est embarqué d'office, pas en option.</p>`;
     }
     case "utilisateurs": {
-      const g = etat.utilisateurs || [];
+      /*  ═══ ON AGIT ICI, ON NE FAIT PLUS QUE LIRE ═══
+          ALEX : « le contenu comme Ubuntu ». La page d'Ubuntu permet
+          d'ajouter un compte, d'en changer le nom affiché, de donner ou
+          retirer les droits d'administrateur, de changer le mot de passe et
+          d'allumer la connexion automatique. Ici, on affichait une liste et
+          une phrase disant d'aller au terminal.
+
+          CHAQUE GESTE OUVRE UN TERMINAL, ET C'EST LE BON CHOIX, PAS UN PIS-
+          ALLER. adduser pose des questions, passwd lit un mot de passe qui ne
+          s'affiche pas, et supprimer un compte fait RECOPIER son nom avant
+          d'effacer. Rien de tout ça ne tient dans une fenêtre sans clavier.
+          Et lexos-utilisateurs ne s'élève jamais tout seul : la commande est
+          écrite en toutes lettres, sous les yeux de qui tape son mot de
+          passe. Ce que la page apporte, c'est de ne plus avoir à connaître
+          ni la commande, ni le nom du compte, ni la syntaxe.
+
+          Les comptes, les droits et l'état des mots de passe viennent de
+          lexos-utilisateurs : cette page ne lit ni /etc/passwd ni /etc/group. */
+      const u = etat.utilisateurs || {};
+      const gens = u.comptes || [];
+      if(!u.dispo){
+        return `<h2>Utilisateurs</h2><div class="sub">Comptes de cette machine</div>
+        <p class="notice">lexos-utilisateurs n'a pas répondu : les comptes ne
+        peuvent pas être lus d'ici. En ligne de commande :
+        <code>lexos utilisateurs</code>.</p>`;
+      }
+
+      /*  L'ÉTAT DU MOT DE PASSE N'EST LISIBLE QUE PAR root. On le dit au lieu
+          d'afficher « actif » par défaut : un compte verrouillé qu'on croit
+          ouvert, c'est une porte qu'on pense fermée. */
+      const ETAT_MDP = {actif:["ok","mot de passe actif"],
+                        verrouille:["abs","verrouillé"],
+                        "sans-mot-de-passe":["warn","AUCUN mot de passe"],
+                        inconnu:["abs","état inconnu"]};
+
+      const lignes = gens.map(p => {
+        const seul = p.admin && (u.nb_admins || 0) <= 1;
+        const [cl, mot] = ETAT_MDP[p.verrou] || ETAT_MDP.inconnu;
+        /*  Le DERNIER administrateur ne peut être ni rétrogradé, ni verrouillé,
+            ni supprimé — c'est la seule interdiction dure de l'outil, et une
+            machine sans administrateur ne se répare plus depuis le bureau. On
+            n'affiche donc pas des boutons qui ne peuvent que refuser. */
+        const gestes =
+          `<button class="btn ghost" onclick="utilGeste('motdepasse','${esc(p.nom)}')">Mot de passe</button>` +
+          (seul ? ""
+                : ` <button class="btn ghost" onclick="utilGeste('${p.admin?"admin-off":"admin-on"}','${esc(p.nom)}')">` +
+                  `${p.admin ? "Retirer l'admin" : "Rendre admin"}</button>` +
+                  ` <button class="btn ghost" onclick="utilGeste('${p.verrou==="verrouille"?"deverrouiller":"verrouiller"}','${esc(p.nom)}')">` +
+                  `${p.verrou === "verrouille" ? "Déverrouiller" : "Verrouiller"}</button>` +
+                  (p.moi ? "" : ` <button class="btn ghost" onclick="utilGeste('supprimer','${esc(p.nom)}')">Supprimer</button>`));
+        return `<div class="srow" style="display:block">
+          <div class="t">${esc(p.complet || p.nom)}${p.moi ? " — c'est toi" : ""}
+            <span class="etat ${p.admin?"ok":"abs"}" style="margin-left:8px">${p.admin?"admin":"normal"}</span>
+            <span class="etat ${cl}" style="margin-left:6px">${mot}</span></div>
+          <div class="d">${esc(p.nom)} · ${esc(p.groupes)} · dernière connexion : ${esc(p.derniere)}</div>
+          <div class="row" style="margin-top:8px;flex-wrap:wrap">
+            <input class="champ" id="nomAff-${esc(p.nom)}" type="text" autocomplete="off"
+                   placeholder="nom affiché" value="${esc(p.complet)}"
+                   onkeydown="if(event.key==='Enter')utilNomComplet('${esc(p.nom)}')"
+                   style="max-width:220px">
+            <button class="btn ghost" onclick="utilNomComplet('${esc(p.nom)}')">Renommer</button>
+            ${gestes}
+          </div>
+          ${seul ? `<div class="sub" style="margin-top:6px">Seul administrateur de
+            cette machine : ses droits ne peuvent être ni retirés, ni verrouillés,
+            ni supprimés tant qu'il n'y en a pas un autre.</div>` : ""}
+        </div>`;
+      }).join("");
+
+      /*  « Choisir… » n'est pas une option de la connexion automatique : il y a
+          toujours une réponse — désactivée, ou un compte. */
+      const auto = srow("Connexion automatique",
+        u.lightdm
+          ? "Ouvre la session au démarrage sans demander de mot de passe"
+          : "LightDM n'est pas installé : ce réglage ne s'applique pas ici",
+        u.lightdm
+          ? `<select onchange="utilGeste('auto', this.value)"
+               style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+                      border-radius:6px;padding:6px 8px;font:inherit">
+               <option value="off"${u.auto ? "" : " selected"}>Désactivée</option>` +
+             gens.map(p => `<option value="${esc(p.nom)}"${p.nom===u.auto?" selected":""}>${esc(p.complet || p.nom)}</option>`).join("") +
+            `</select>`
+          : `<span class="etat abs">indisponible</span>`);
+
       return `<h2>Utilisateurs</h2><div class="sub">Comptes de cette machine</div>
-      ${g.length ? g.map(u=>srow(
-          esc(u.complet) + (u.moi ? " — c'est toi" : ""),
-          esc(u.nom) + (u.admin ? " · administrateur" : " · session ordinaire"),
-          `<span class="etat ${u.admin?"ok":"abs"}">${u.admin?"admin":"normal"}</span>`)).join("")
-        : `<p class="notice">Aucun compte lu.</p>`}
+      ${lignes || `<p class="notice">Aucun compte de personne trouvé (UID ≥ 1000).</p>`}
+      ${srow("Ajouter un compte",
+             "Minuscules, chiffres, « - » et « _ », en commençant par une lettre",
+             `<input class="champ" id="utilNouveau" type="text" autocomplete="off"
+                placeholder="nom du compte" style="max-width:200px"
+                onkeydown="if(event.key==='Enter')utilAjouter()">
+              <button class="btn" onclick="utilAjouter()">Créer</button>`)}
+      ${auto}
+      ${u.auto ? `<p class="notice">La connexion automatique est active pour
+      « ${esc(u.auto)} » : cette machine s'ouvre sans mot de passe. Le trousseau
+      de clés, lui, redemandera le vôtre — il n'a plus la connexion pour se
+      déverrouiller.</p>` : ""}
       ${btnOuvrir("utilisateurs","Détail (terminal)")}
-      <p class="notice">Ajouter ou retirer un compte touche à tout le système :
-      ça passe par <code>lexos utilisateurs</code>, dans un terminal, avec le
-      mot de passe d'administration — pas par un bouton qu'on clique sans y penser.</p>`;
+      <p class="notice">Chaque geste ouvre un terminal où la commande est écrite
+      en clair, et demande le mot de passe d'administration. En ligne de
+      commande : <code>lexos utilisateurs</code>.</p>`;
     }
     case "terminal": {
       /*  Le terminal a son propre mode, indépendant du bureau : on peut
