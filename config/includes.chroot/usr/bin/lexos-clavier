@@ -144,7 +144,13 @@ applique() {
 			|| warn "setxkbmap a refusé — disposition inconnue de X ?"
 	fi
 	if command -v xfconf-query >/dev/null 2>&1; then
-		xfconf-query -c keyboard-layout -p /Default/XkbDisableAll -n -t bool -s false 2>/dev/null || true
+		#  « XkbDisable », et surtout pas « XkbDisableAll » : ce dernier nom
+		#  n'existe pas dans XFCE. Releve dans son code, pas devine —
+		#  xfsettingsd/keyboard-layout.c:106 lit "/Default/XkbDisable" avec TRUE
+		#  par defaut. Tant qu'il vaut vrai, xfsettingsd n'applique PAS XkbLayout :
+		#  la disposition ecrite juste en dessous etait donc ignoree, et le cadre
+		#  du dialogue XFCE restait grise. Deux images ont ete livrees ainsi.
+		xfconf-query -c keyboard-layout -p /Default/XkbDisable -n -t bool -s false 2>/dev/null || true
 		xfconf-query -c keyboard-layout -p /Default/XkbLayout  -n -t string -s "$xkbs" 2>/dev/null || true
 		xfconf-query -c keyboard-layout -p /Default/XkbVariant -n -t string -s "$vars" 2>/dev/null || true
 		[[ -n "$opt" ]] && xfconf-query -c keyboard-layout -p /Default/XkbOptions/Group \

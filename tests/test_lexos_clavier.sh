@@ -59,11 +59,50 @@ else
 			&& ok "il se parse — xfconf ne l'ignorera pas en silence" \
 			|| non "XML invalide : xfconf le jetterait sans rien dire"
 	fi
-	#  LA VALEUR, pas seulement la présence du fichier.
-	if grep -q 'name="XkbDisableAll"[^/]*value="false"' "$XML"; then
-		ok "XkbDisableAll=false : la liste des dispositions est cliquable"
+	#  ═══ LE NOM DE LA PROPRIÉTÉ, ET IL A ÉTÉ FAUX PENDANT DEUX IMAGES ═══
+	#  Ce fichier écrivait « XkbDisableAll ». Ce nom N'EXISTE PAS dans XFCE :
+	#  le fichier était inerte, le dialogue restait grisé, et — plus grave —
+	#  xfsettingsd n'appliquait pas non plus les dispositions écrites par
+	#  « lexos clavier », puisque la vraie propriété gardait sa valeur par
+	#  défaut (TRUE = « s'en remettre aux réglages système »).
+	#
+	#  Le vrai nom est « XkbDisable » (xfsettingsd/keyboard-layout.c:106).
+	if grep -q 'name="XkbDisable"[^/]*value="false"' "$XML"; then
+		ok "XkbDisable=false : la liste des dispositions est cliquable"
 	else
-		non "XkbDisableAll n'est pas à false — XFCE grisera tout"
+		non "XkbDisable n'est pas à false — XFCE grisera tout"
+	fi
+	if grep -q 'name="XkbDisableAll"' "$XML"; then
+		non "« XkbDisableAll » est de retour : ce nom n'existe pas, le fichier serait inerte"
+	else
+		ok "aucun « XkbDisableAll » — ce nom n'a jamais été lu par XFCE"
+	fi
+
+	#  ═══ ET ON LE DEMANDE AU BINAIRE, PAS À NOTRE MÉMOIRE ═══
+	#  C'est ce contrôle qui aurait évité la faute : xfsettingsd porte en
+	#  clair les noms des propriétés qu'il lit. Quand il est là, on compare.
+	if command -v xfsettingsd >/dev/null 2>&1 && command -v strings >/dev/null 2>&1; then
+		strings /usr/bin/xfsettingsd 2>/dev/null | grep -E '^/Default/Xkb' | sort -u > "$BANC/props" || true
+		if [ ! -s "$BANC/props" ]; then
+			saute "xfsettingsd ne livre pas ses noms de propriétés — comparaison impossible"
+		else
+			grep -qx '/Default/XkbDisable' "$BANC/props" \
+				&& ok "xfsettingsd lit bien « /Default/XkbDisable » (relevé dans le binaire)" \
+				|| non "xfsettingsd ne lit pas « /Default/XkbDisable » : notre fichier viserait à côté"
+			grep -qx '/Default/XkbDisableAll' "$BANC/props" \
+				&& non "xfsettingsd lirait « XkbDisableAll » — alors le correctif était inutile" \
+				|| ok "et il n'a jamais lu « /Default/XkbDisableAll »"
+			#  Les propriétés que l'outil écrit doivent exister aussi.
+			MANQUE_P=""
+			for P in XkbLayout XkbVariant; do
+				grep -qx "/Default/$P" "$BANC/props" || MANQUE_P="$MANQUE_P $P"
+			done
+			[ -z "$MANQUE_P" ] \
+				&& ok "les propriétés écrites par lexos-clavier existent dans xfsettingsd" \
+				|| non "propriétés inconnues de xfsettingsd :$MANQUE_P"
+		fi
+	else
+		saute "xfsettingsd absent : les noms de propriétés n'ont PAS été confrontés au binaire"
 	fi
 	#  ET IL NE DOIT IMPOSER AUCUNE DISPOSITION. La disposition est choisie à
 	#  l'installation et vit dans /etc/default/keyboard ; l'écraser depuis le
@@ -73,6 +112,21 @@ else
 	else
 		ok "aucune disposition imposée : on ouvre la porte, on ne choisit pas à la place"
 	fi
+fi
+
+#  ET L'OUTIL ÉCRIT LE MÊME NOM QUE LE SQUELETTE. Ils étaient tous les deux
+#  faux ; les corriger l'un sans l'autre aurait laissé « lexos clavier » sans
+#  effet durable, ce qui est le défaut le plus difficile à voir : la
+#  disposition change à l'écran (setxkbmap l'applique tout de suite) et
+#  revient à la session suivante.
+#  ON LIT LE CODE, COMMENTAIRES RETIRÉS : l'explication du correctif cite
+#  justement le mauvais nom pour dire de ne plus l'employer. Un contrôle rouge
+#  à cause du texte qui explique le correctif est le pire des faux positifs.
+sed 's/#.*$//' "$OUTIL" > "$BANC/outil-nu.sh"
+if grep -q 'XkbDisableAll' "$BANC/outil-nu.sh"; then
+	non "lexos-clavier écrit encore « XkbDisableAll » : xfsettingsd ignorerait ses dispositions"
+else
+	ok "lexos-clavier écrit « XkbDisable », le nom que XFCE lit vraiment"
 fi
 
 # =============================================================================
@@ -118,65 +172,78 @@ import sys
 sys.path.insert(0, sys.argv[1])
 import settings
 
-def cles():
-    return [a["cle"] for a in settings._clavier_etat()["actives"]]
+try:
+    def cles():
+        return [a["cle"] for a in settings._clavier_etat()["actives"]]
 
-def bascule():
-    return settings._clavier_etat()["bascule"]
+    def bascule():
+        return settings._clavier_etat()["bascule"]
 
-depart = cles()
-if depart != ["ca-fr"]:
-    print("NON|l'état de départ n'est pas « ca-fr » mais %s" % depart)
+    depart = cles()
+    if depart != ["ca-fr"]:
+        print("NON|l'état de départ n'est pas « ca-fr » mais %s" % depart)
 
-r = settings.act_clavier("ajouter:us")
-print(("OK|" if (r.get("ok") and "us" in cles()) else "NON|") +
-      "« ajouter » met une deuxième disposition (%s)" % cles())
+    r = settings.act_clavier("ajouter:us")
+    print(("OK|" if (r.get("ok") and "us" in cles()) else "NON|") +
+          "« ajouter » met une deuxième disposition (%s)" % cles())
 
-r = settings.act_clavier("dabord:us")
-print(("OK|" if (r.get("ok") and cles()[:1] == ["us"]) else "NON|") +
-      "« dabord » change celle du démarrage (%s)" % cles())
+    r = settings.act_clavier("dabord:us")
+    print(("OK|" if (r.get("ok") and cles()[:1] == ["us"]) else "NON|") +
+          "« dabord » change celle du démarrage (%s)" % cles())
 
-r = settings.act_clavier("bascule:ctrl-maj")
-print(("OK|" if (r.get("ok") and bascule() == "ctrl-maj") else "NON|") +
-      "« bascule » change les touches (%s)" % bascule())
+    r = settings.act_clavier("bascule:ctrl-maj")
+    print(("OK|" if (r.get("ok") and bascule() == "ctrl-maj") else "NON|") +
+          "« bascule » change les touches (%s)" % bascule())
 
-r = settings.act_clavier("retirer:ca-fr")
-print(("OK|" if (r.get("ok") and "ca-fr" not in cles()) else "NON|") +
-      "« retirer » enlève une disposition (%s)" % cles())
+    r = settings.act_clavier("retirer:ca-fr")
+    print(("OK|" if (r.get("ok") and "ca-fr" not in cles()) else "NON|") +
+          "« retirer » enlève une disposition (%s)" % cles())
 
-#  ═══ CE QUI DOIT ÊTRE REFUSÉ ═══
-#  Ces valeurs viennent d'une page web. Aucune ne peut atteindre un shell —
-#  _run() reçoit une liste d'arguments, il n'y en a pas — mais toutes doivent
-#  être refusées AVEC UN MOTIF.
-for mauvais, quoi in (("ajouter:; rm -rf /", "une commande glissée dans la clé"),
-                      ("effacer:us",          "un geste inconnu"),
-                      ("ajouter:",            "une clé vide"),
-                      ("bascule:us",          "une disposition donnée comme bascule")):
-    r = settings.act_clavier(mauvais)
-    print(("OK|" if not r.get("ok") else "NON|") +
-          "refusé : %s (%s)" % (quoi, r.get("erreur", "ACCEPTÉ !")))
+    #  ═══ CE QUI DOIT ÊTRE REFUSÉ ═══
+    #  Ces valeurs viennent d'une page web. Aucune ne peut atteindre un shell —
+    #  _run() reçoit une liste d'arguments, il n'y en a pas — mais toutes doivent
+    #  être refusées AVEC UN MOTIF.
+    for mauvais, quoi in (("ajouter:; rm -rf /", "une commande glissée dans la clé"),
+                          ("effacer:us",          "un geste inconnu"),
+                          ("ajouter:",            "une clé vide"),
+                          ("bascule:us",          "une disposition donnée comme bascule")):
+        r = settings.act_clavier(mauvais)
+        print(("OK|" if not r.get("ok") else "NON|") +
+              "refusé : %s (%s)" % (quoi, r.get("erreur", "ACCEPTÉ !")))
 
-#  ET LE REFUS VIENT DES PARAMÈTRES, PAS SEULEMENT DE L'OUTIL.
-#  lexos-clavier refuse aussi une clé inconnue — « Disposition inconnue ».
-#  Un contrôle qui se contenterait de « ok vaut faux » serait donc VERT même
-#  si le moteur ne vérifiait plus rien : la mutation est passée inaperçue à
-#  la première écriture de ce banc. On exige le motif du moteur, celui qui
-#  nomme le catalogue, parce que c'est lui qui permet à la page de dire à
-#  l'utilisateur ce qui ne va pas.
-r = settings.act_clavier("ajouter:pas-une-cle")
-print(("OK|" if (not r.get("ok") and "catalogue" in r.get("erreur", "")) else "NON|") +
-      "une clé hors catalogue est refusée PAR LES PARAMÈTRES (%s)" % r.get("erreur", "ACCEPTÉE !"))
+    #  ET LE REFUS VIENT DES PARAMÈTRES, PAS SEULEMENT DE L'OUTIL.
+    #  lexos-clavier refuse aussi une clé inconnue — « Disposition inconnue ».
+    #  Un contrôle qui se contenterait de « ok vaut faux » serait donc VERT même
+    #  si le moteur ne vérifiait plus rien : la mutation est passée inaperçue à
+    #  la première écriture de ce banc. On exige le motif du moteur, celui qui
+    #  nomme le catalogue, parce que c'est lui qui permet à la page de dire à
+    #  l'utilisateur ce qui ne va pas.
+    r = settings.act_clavier("ajouter:pas-une-cle")
+    print(("OK|" if (not r.get("ok") and "catalogue" in r.get("erreur", "")) else "NON|") +
+          "une clé hors catalogue est refusée PAR LES PARAMÈTRES (%s)" % r.get("erreur", "ACCEPTÉE !"))
+except Exception as _e:
+    #  UN PLANTAGE EST UN ROUGE, PAS UN SILENCE. Sans ce filet, une exception
+    #  au milieu emporte tous les contrôles qui suivent : le banc affiche
+    #  moins de coches et reste vert.
+    print("NON|le banc s'est arrêté : %s: %s" % (type(_e).__name__, _e))
+print("FIN|")
 PY
 	SORTIE_G="$(cd "$RACINE" && PATH="$RACINE/config/includes.chroot/usr/bin:$PATH" \
 		LEXOS_SANS_X=1 HOME="$BANC/foyer" python3 "$BANC/gestes.py" \
 		"$RACINE/config/includes.chroot/usr/lib/lexos" 2>/dev/null \
-		| grep -E '^(OK|NON)\|' || true)"
+		| grep -E '^(OK|NON|FIN)\|' || true)"
 	if [ -z "$SORTIE_G" ]; then
 		non "les gestes n'ont rien rendu — le moteur n'a pas pu être appelé"
+	elif ! printf '%s\n' "$SORTIE_G" | grep -q '^FIN|'; then
+		non "le banc s'est arrêté avant la fin — des contrôles n'ont jamais tourné"
+		while IFS='|' read -r V M; do
+			[ "$V" = "NON" ] && non "$M"
+		done <<EOF
+$SORTIE_G
+EOF
 	else
 		while IFS='|' read -r V M; do
-			[ -n "$V" ] || continue
-			[ "$V" = "OK" ] && ok "$M" || non "$M"
+			case "$V" in OK) ok "$M" ;; NON) non "$M" ;; esac
 		done <<EOF
 $SORTIE_G
 EOF
