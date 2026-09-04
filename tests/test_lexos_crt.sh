@@ -57,6 +57,17 @@ LISTE="$RACINE/config/includes.chroot/usr/share/lexos/optional-packages/30-dock-
 BANC="$(mktemp -d)"
 trap 'rm -rf "$BANC"' EXIT
 
+#  ═══ LE FOYER DU BANC EST AUSSI SON DOSSIER DE RÉGLAGES ═══
+#  lexos-crt lit son état dans « ${XDG_CONFIG_HOME:-$HOME/.config}/lexos/crt ».
+#  Poser HOME ne suffit donc PAS : là où XDG_CONFIG_HOME est déjà dans
+#  l'environnement — c'est le cas du coureur de la CI — l'outil allait lire un
+#  fichier que le banc n'écrit jamais, et « voulu() » rendait son défaut « on ».
+#  Trois contrôles rougissaient pour cette seule raison : « effets éteints »
+#  voyait un allumage, et les deux bascules répondaient à l'envers.
+#  On épingle les DEUX variables, ensemble, partout où le banc joue au foyer.
+export XDG_CONFIG_HOME="$BANC/foyer/.config"
+mkdir -p "$XDG_CONFIG_HOME/lexos"
+
 REUSSIS=0; ECHOUES=0
 ok()   { printf '  \033[32m✅\033[0m %s\n' "$1"; REUSSIS=$((REUSSIS+1)); }
 non()  { printf '  \033[31m❌\033[0m %s\n' "$1"; ECHOUES=$((ECHOUES+1)); }
