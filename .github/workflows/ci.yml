@@ -1955,6 +1955,33 @@ jobs:
           #  viendra jamais.
           bash tests/test_lexos_pages_vides.sh
 
+      - name: L'extinction « téléviseur 1980 » à la fermeture des fenêtres
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « une animation pour fermer les fenêtres comme une vieille
+          #  T.V. — l'effet d'animation n'est pas là quand je ferme des
+          #  fenêtres ». Il avait raison, et ce n'était PAS un réglage de
+          #  travers : l'effet était configuré pour COMPIZ, retiré de Debian
+          #  trixie. lexos-wm ne trouvait plus le binaire et se repliait sur
+          #  xfwm4, QUI N'A AUCUNE ANIMATION. L'interrupteur des Paramètres
+          #  restait là et ne commandait plus rien.
+          #
+          #  picom le fait, depuis sa v12. Le banc éprouve le script
+          #  d'animation contre ce que le manuel de picom EXIGE — en
+          #  particulier « opacity » dans le bloc « close », sans laquelle la
+          #  fenêtre est invisible dès la première image et l'animation joue
+          #  pour rien ; et les deux « offset », sans lesquels l'écrasement se
+          #  colle en haut au lieu de se refermer sur le centre.
+          #
+          #  On installe picom pour que le fichier soit lu par un VRAI picom :
+          #  une accolade oubliée et il refuse tout, ce qu'aucune relecture ne
+          #  dit. La version d'Ubuntu est trop ancienne pour jouer les
+          #  animations — elle suffit pour la syntaxe et pour la détection.
+          for p in picom xvfb; do
+            dpkg -s "$p" >/dev/null 2>&1               || sudo apt-get install -y --no-install-recommends "$p" >/dev/null
+          done
+          bash tests/test_lexos_crt.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |

@@ -78,4 +78,23 @@ else
 	log "accélération 3D indisponible — xfwm4"
 fi
 
+#  ═══ LES EFFETS « TÉLÉVISEUR », SANS COMPIZ ═══
+#  ALEX : « l'effet d'animation n'est pas là quand je ferme des fenêtres ».
+#  Il avait raison, et ce n'était pas un réglage : Compiz a été RETIRÉ de
+#  Debian trixie, donc has_3d() ci-dessus échoue toujours sur son premier
+#  test — « compiz absent » — et on se replie ici, sur un xfwm4 qui n'a
+#  AUCUNE animation d'ouverture ni de fermeture.
+#
+#  lexos-crt reprend ce travail avec picom, qui sait animer depuis sa v12.
+#  Il vérifie lui-même tout ce qu'il faut (effets demandés, picom présent et
+#  assez récent, accélération 3D réelle, aucun Compiz en marche) et ne fait
+#  rien si une condition manque : on peut donc l'appeler sans condition ici.
+#
+#  EN ARRIÈRE-PLAN ET DÉTACHÉ, parce que la ligne suivante REMPLACE ce
+#  processus par xfwm4 : un enfant non détaché n'y survivrait pas. Et c'est
+#  lui qui attend que le remplacement soit fini avant de lancer picom.
+if command -v lexos-crt >/dev/null 2>&1; then
+	setsid lexos-crt --demarrer >/dev/null 2>&1 &
+fi
+
 exec xfwm4 --replace

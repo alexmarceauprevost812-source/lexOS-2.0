@@ -815,12 +815,41 @@ def act_usb(arg):
 
 
 def act_crt(arg):
-    """Effets d'ouverture façon téléviseur cathodique."""
+    """Les effets de fenêtres « téléviseur 1980 » — « on », « off », « toggle ».
+
+    CE QUI A CHANGÉ SOUS CETTE ACTION. Les effets étaient rendus par COMPIZ,
+    retiré de Debian trixie : lexos-wm ne le trouvait plus et se repliait sur
+    xfwm4, qui n'a AUCUNE animation. L'interrupteur de cette page a donc
+    passé plusieurs images à ne rien commander — ALEX : « l'effet d'animation
+    n'est pas là quand je ferme des fenêtres ». C'est picom qui fait le
+    travail maintenant, piloté par lexos-crt.
+
+    ON REFUSE D'ALLUMER CE QUI NE PEUT PAS MARCHER, avec le motif exact.
+    Sans ce refus, le clic partirait, l'outil dirait « picom est trop ancien »
+    dans une sortie que personne ne lit, et l'interrupteur reviendrait tout
+    seul à sa place — le geste le plus déroutant qu'une page puisse offrir.
+    """
+    if not shutil.which("lexos-crt"):
+        return {"ok": False, "erreur": "lexos-crt introuvable"}
     if arg not in ("on", "off", "toggle"):
         return {"ok": False, "erreur": "valeur inattendue"}
+    e = _crt_etat()
     if arg == "toggle":
-        arg = "off" if _crt_etat() else "on"
-    return _run(["lexos", "crt", arg])
+        arg = "off" if e.get("voulu") == "on" else "on"
+    if arg == "on":
+        if not e.get("picom"):
+            return {"ok": False,
+                    "erreur": "picom n'est pas installé : « lexos install picom »"}
+        v, mini = e.get("picom_version", 0), e.get("picom_min", 12)
+        if v and v < mini:
+            return {"ok": False,
+                    "erreur": "picom v%s est trop ancien : les animations "
+                              "arrivent à la v%s" % (v, mini)}
+        if not e.get("accel3d"):
+            return {"ok": False,
+                    "erreur": "pas d'accélération 3D réelle sur cette machine : "
+                              "les effets resteraient saccadés"}
+    return _run(["lexos-crt", arg])
 
 
 def act_barre_cachee(arg):
@@ -2476,17 +2505,6 @@ def _dock_etat():
         return "droite"
 
 
-def _crt_etat():
-    """Les effets d'ouverture façon téléviseur cathodique sont-ils demandés ?
-    « demandés » et pas « actifs » : ils exigent Compiz, qui ne démarre que
-    s'il y a une accélération 3D. lexos-wm replie sur xfwm4 sinon."""
-    conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
-    try:
-        return (conf / "crt").read_text().strip() != "off"
-    except OSError:
-        return True
-
-
 def _libre_etat():
     """Ce qui, dans CETTE machine, n'est pas du logiciel libre.
 
@@ -3106,6 +3124,36 @@ def _mac_etat():
     return {"apple": "apple" in vendeur.lower(), "modele": modele}
 
 
+def _crt_etat():
+    """Les effets de fenêtres « téléviseur 1980 » — demandés à lexos-crt.
+
+    ALEX : « l'effet d'animation n'est pas là quand je ferme des fenêtres ».
+    Il avait raison, et ce n'était pas un réglage de travers : l'effet était
+    configuré pour COMPIZ, retiré de Debian trixie. lexos-wm se repliait donc
+    sur xfwm4, qui n'a aucune animation d'ouverture ni de fermeture.
+
+    CE QUE CETTE PAGE DOIT POUVOIR DIRE : non pas « allumé / éteint », mais
+    POURQUOI c'est éteint quand ça l'est — picom absent, picom trop ancien,
+    ou pas d'accélération 3D. Un interrupteur qui revient tout seul à sa place
+    sans un mot est le geste le plus déroutant qu'une page puisse offrir.
+    """
+    vide = {"voulu": "off", "tourne": False, "picom": False,
+            "picom_version": 0, "picom_min": 12, "accel3d": False,
+            "script": False, "dispo": False}
+    if not shutil.which("lexos-crt"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-crt", "--json"],
+                           capture_output=True, text=True, timeout=20)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if "voulu" not in d:
+        return vide
+    d["dispo"] = True
+    return d
+
+
 def _terminal_etat():
     """Le terminal de jour et le terminal de nuit, tels que lexos-terminal les
     voit.
@@ -3362,7 +3410,6 @@ def etat():
         "energie": _energie_etat(),
         "bluetooth": _bluetooth_complet(),
         "dock": _dock_etat(),
-        "crt": _crt_etat(),
         "barreCachee": _barre_cachee(),
         "bureaux": _bureaux_etat(),
         "apercu": _apercu_etat(),
@@ -3383,6 +3430,7 @@ def etat():
         "mac": _mac_etat(),
         "partage": _partage_etat(),
         "terminal": _terminal_etat(),
+        "crt": _crt_etat(),
         "recherche": _recherche_etat(),
         "comptes": _comptes_etat(),
         "bienetre": _bienetre_etat(),

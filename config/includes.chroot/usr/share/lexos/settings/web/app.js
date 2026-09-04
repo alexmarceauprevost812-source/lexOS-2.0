@@ -689,7 +689,10 @@ async function basculeBarre(){
 }
 async function basculeCrt(){
   const r = await api("crt", "toggle");
-  await rafraichir(r.ok ? "À la prochaine ouverture de session" : "Échec : " + (r.erreur || "commande refusée"));
+  //  « À la prochaine ouverture de session » était vrai du temps de Compiz.
+  //  picom démarre et s'arrête dans la session en cours : on le dit.
+  await rafraichir(r.ok ? "C'est réglé — ferme une fenêtre pour voir"
+                        : "Échec : " + (r.erreur || "commande refusée"));
 }
 async function setBureaux(sens){
   const r = await api("bureaux", sens);
@@ -1454,12 +1457,47 @@ function contenu(cle){
       </div>
       ${srow("Masquer la barre d'outils","Elle glisse hors de l'écran ; la poignée du bord la ramène",
              sw(etat.barreCachee, "basculeBarre()"))}
-      ${srow("Effets d'ouverture/fermeture (TV 1980)","Fenêtres façon téléviseur cathodique",
-             sw(etat.crt, "basculeCrt()"))}
+      ${(() => {
+        /*  ═══ L'INTERRUPTEUR QUI NE COMMANDAIT PLUS RIEN ═══
+            ALEX : « l'effet d'animation n'est pas là quand je ferme des
+            fenêtres ». Il avait raison, et ce n'était pas un réglage de
+            travers : ces effets étaient rendus par COMPIZ, retiré de Debian
+            trixie. lexos-wm ne le trouvait plus et se repliait sur xfwm4, qui
+            n'a AUCUNE animation. L'interrupteur restait là, se cliquait, et
+            ne commandait rien.
+
+            C'est picom qui fait le travail maintenant. Et cette ligne DIT ce
+            qui manque quand il manque quelque chose : un interrupteur qui
+            revient tout seul à sa place sans un mot est le geste le plus
+            déroutant qu'une page puisse offrir. */
+        const c = etat.crt || {};
+        if(!c.dispo){
+          return srow("Effets d'ouverture/fermeture (TV 1980)",
+            "lexos-crt n'a pas répondu — en ligne de commande : <code>lexos crt</code>",
+            `<span class="etat abs">indisponible</span>`);
+        }
+        const manque = !c.picom
+            ? "picom n'est pas installé — <code>lexos install picom</code>"
+            : (c.picom_version && c.picom_version < c.picom_min
+                ? `picom v${c.picom_version} est trop ancien : les animations arrivent à la v${c.picom_min}`
+                : (!c.accel3d
+                    ? "pas d'accélération 3D réelle sur cette machine — les effets resteraient saccadés"
+                    : ""));
+        const desc = manque
+          ? manque
+          : (c.tourne ? "En marche — la fenêtre s'écrase vers une ligne, puis s'éteint"
+                      : "La fenêtre s'écrase vers une ligne, la ligne se referme en un point");
+        return srow("Effets d'ouverture/fermeture (TV 1980)", desc,
+          manque ? `<span class="etat abs">impossible ici</span>`
+                 : sw(c.voulu === "on", "basculeCrt()"));
+      })()}
       ${btnOuvrir("apparence","Réglages fins (XFCE)")}
-      <p class="notice">Les effets exigent une accélération 3D : sans elle,
-      LexOS replie sur xfwm4 et le dit dans <code>lexos crt status</code>.
-      Le changement s'applique à la prochaine ouverture de session.</p>`;
+      <p class="notice">L'extinction « téléviseur » est jouée par picom, et
+      elle exige une vraie accélération 3D — sur du rendu logiciel, mettre une
+      fenêtre à l'échelle soixante fois par seconde rendrait la machine
+      collante. <code>lexos crt status</code> dit ce qui manque, le cas
+      échéant. Le changement s'applique tout de suite : pas besoin de fermer
+      la session.</p>`;
     case "bureau": return `<h2>Bureau LexOS</h2><div class="sub">Fond d'écran</div>
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Fond d'écran</div>

@@ -785,30 +785,6 @@ Disponibles : ${DISPO_POLICES}"
 	say "Les fenêtres déjà ouvertes gardent l'ancienne — rouvre-les."
 }
 
-cmd_crt() {
-	local mode="${1:-status}"
-	local state_dir="$HOME/.config/lexos"
-	mkdir -p "$state_dir"
-	case "$mode" in
-		on|off)
-			printf '%s\n' "$mode" > "$state_dir/crt"
-			ok "Effets CRT : ${mode} — déconnecte-toi et reconnecte-toi pour appliquer."
-			;;
-		status)
-			local cur="on"
-			[[ -r "$state_dir/crt" ]] && cur="$(cat "$state_dir/crt")"
-			printf 'Effets CRT demandés : %s%s%s\n' "$O" "$cur" "$R"
-			if pgrep -x compiz >/dev/null 2>&1; then
-				ok "Compiz tourne — les effets sont actifs."
-			else
-				warn "Compiz ne tourne pas (repli xfwm4, sûrement pas d'accélération 3D)."
-				[[ -r "$state_dir/wm.log" ]] && tail -n 5 "$state_dir/wm.log"
-			fi
-			;;
-		*) die "Usage : ${PROG} crt <on|off|status>" ;;
-	esac
-}
-
 cmd_demo() {
 	load_release
 	local live=0
@@ -1131,7 +1107,10 @@ case "$CMD" in
 	#  « lexos terminal jour|nuit|auto|suivre ». Le defaut est « suivre »,
 	#  qui le fait suivre « lexos theme sombre|clair ».
 	terminal|term)        exec lexos-terminal "$@" ;;
-	crt)                  cmd_crt "$@" ;;
+	#  L'outil vit dans son propre fichier : il doit aussi savoir se lancer
+	#  depuis lexos-wm (« --demarrer »), et une fonction enfermée ici ne le
+	#  pourrait pas. Même forme que « logitheque ».
+	crt)                  exec lexos-crt "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;
 	*)
