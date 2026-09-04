@@ -211,8 +211,17 @@ function gaugeDial(){
          `<g fill="currentColor" opacity=".85" font-family="ui-monospace,monospace" font-weight="700" font-size="38">${nb}</g>`;
 }
 //  size : côté en pixels. profil : clé de PERF_RPM (défaut : profil courant).
+//
+//  « state » N'EXISTE PAS DANS CE FICHIER — l'état s'appelle « etat ». La
+//  ligne ci-dessous levait donc une ReferenceError… mais seulement quand
+//  « profil » est vide, c'est-à-dire quand etat.perf ne répond pas. Sur une
+//  machine où lexos-perf va bien, l'unique appel passe etat.perf et le défaut
+//  ne se voyait jamais. Il attendait le jour où l'outil manquerait — et ce
+//  jour-là, la page Énergie n'aurait rien affiché du tout, sans message :
+//  rendSection() fait « content.innerHTML = contenu(...) », et quand contenu()
+//  lève, l'écran garde la section précédente. Même mécanique que « Diagnostic ».
 function perfGauge(size, profil){
-  const v = PERF_RPM[profil || state.perf] ?? 4;
+  const v = PERF_RPM[profil || etat.perf] ?? 4;
   return `<svg class="gauge" viewBox="0 0 512 512" width="${size}" height="${size}" aria-hidden="true">`+
     gaugeDial()+
     `<g class="needle" style="transform:rotate(${gaugeAngle(v)}deg)">`+
@@ -2233,7 +2242,20 @@ function contenu(cle){
           endroits où un bogue pourrait un jour raconter deux choses
           différentes — la même raison qui garde la liste des réseaux Wi-Fi
           hors du volet. */
-      corps.innerHTML = `<h2>Diagnostic</h2>
+      /*  ═══ CETTE PAGE NE S'AFFICHAIT PAS DU TOUT ═══
+          Elle écrivait « corps.innerHTML = … » puis « break », alors que
+          toutes les autres RENDENT une chaîne. Deux fautes d'un coup :
+          « corps » n'existe nulle part dans ce fichier — une ReferenceError
+          à chaque clic — et la fonction ne rendait rien.
+
+          Et le symptôme ne ressemblait pas à une erreur : rendSection() fait
+          « content.innerHTML = contenu(...) ». Quand contenu() lève, la
+          droite n'est jamais évaluée, l'affectation n'a pas lieu, et l'écran
+          GARDE LA SECTION PRÉCÉDENTE. On cliquait « Diagnostic », et il ne
+          se passait rien — pas de page blanche, pas de message : rien.
+          Aucun banc ne rendait les sections une par une ; il y en a un
+          maintenant, et il les rend TOUTES. */
+      return `<h2>Diagnostic</h2>
         <p class="d">La machine en direct : processeur, mémoire, carte
         graphique, températures, ventilateurs, réseau, batterie — puis un
         bilan de santé et l'état des disques (SMART, NVMe, espace).</p>
@@ -2241,7 +2263,6 @@ function contenu(cle){
         <p class="d" style="margin-top:14px">Les mêmes réponses en terminal,
         sans fenêtre : <code>lexos materiel</code>, <code>lexos medecin</code>,
         <code>lexos disques</code>.</p>`;
-      break;
     }
     case "tiers": {
       /*  LexOS dit « 100 % Linux », et c'est vrai. Mais « libre » et

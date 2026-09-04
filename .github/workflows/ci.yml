@@ -1915,6 +1915,25 @@ jobs:
           #  renomme une machine inventée et relit les DEUX fichiers.
           bash tests/test_lexos_partage.sh
 
+      - name: Les 36 sections des Paramètres se rendent toutes
+        if: ${{ !cancelled() }}
+        run: |
+          #  « Diagnostic » ne s'affichait PAS. Elle écrivait
+          #  « corps.innerHTML = … » puis « break » là où toutes les autres
+          #  rendent une chaîne : « corps » n'existe nulle part, donc une
+          #  ReferenceError à chaque clic. Et le symptôme ne ressemblait pas
+          #  à une erreur — rendSection() fait « content.innerHTML =
+          #  contenu(...) », et quand contenu() lève, l'affectation n'a pas
+          #  lieu : l'écran GARDE la section précédente. On cliquait, il ne
+          #  se passait rien. « node --check » ne dit qu'une chose : le
+          #  fichier se parse. Il se parsait très bien.
+          #
+          #  Le même banc a trouvé un deuxième défaut, endormi celui-là :
+          #  perfGauge() lisait « state.perf » — l'état s'appelle « etat » —
+          #  et n'y arrivait que si etat.perf ne répondait pas. La page
+          #  Énergie serait restée muette le jour où lexos-perf manquerait.
+          bash tests/test_lexos_sections.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |
