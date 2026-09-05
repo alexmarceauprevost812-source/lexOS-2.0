@@ -225,28 +225,59 @@ window.csd.popup {
 
    La molette au-dessus de la rangée change d'espace : c'est le sélecteur qui
    le fait lui-même (workspace-scrolling), pas cette feuille. */
+/*  ═══ LA RANGÉE N'EST PAS COLLÉE AU BORD ═══
+    ALEX : « petit espace pour que ce soit pas collé à l'écran ». Les points
+    sont le tout premier élément de la barre, en haut à gauche : sans cette
+    ligne, le premier touchait presque le bord.
+
+    L'ÉCART EST POSÉ SUR LA RANGÉE, PAS SUR LES BOUTONS, et c'est la seule
+    façon correcte. Élargir la marge de chaque bouton aurait aussi élargi
+    l'écart ENTRE les points — les 7 px mesurés sur les captures d'Alex
+    (3.5 px de chaque côté) seraient tombés. Ici on déplace le groupe entier,
+    les points gardent leur espacement.
+
+    Ce que ça donne au total, côté gauche : 4 px de marge du panneau
+    (#XfcePanelWindow, plus haut) + 8 px ici + 3.5 px du premier bouton. */
+#XfcePanelWindow .pager,
+#XfcePanelWindow .pager-buttons,
+#XfcePanelWindow #pager {
+	margin-left: 8px;
+}
+
 #XfcePanelWindow .pager button,
 #XfcePanelWindow .pager-buttons button,
 #XfcePanelWindow #pager button {
-	/*  LA GÉOMÉTRIE VIENT DE LA DÉMO, TRADUITE POUR UNE BARRE DE 32 px.
+	/*  LA GÉOMÉTRIE VIENT DE LA DÉMO, TRADUITE POUR LA BARRE DE LEXOS.
 	    Sur logiciel-ti-lex.vercel.app/demo : point de 7 px, écart de 5 px,
-	    et l'espace courant devient une PILULE de 20 px — pas un point plus
-	    gros, une pilule. C'est ce mouvement-là qu'Alex reconnaît.
-	    Ici la rangée fait 52 px (xfce4-panel.xml, « size » — 32 à l'origine,
-	    44 au build 70, 52 au build 74, chaque fois à la demande d'Alex).
-	    La marge haute et basse centre la pastille : 21 + 10 + 21 = 52.
-	    Si la barre change encore, c'est CETTE ligne qu'il faut refaire —
-	    sinon les points se recollent en haut.
+	    et l'espace courant devient une PILULE — pas un point plus gros,
+	    une pilule. C'est ce mouvement-là qu'Alex reconnaît.
 
-	    ET CE PIÈGE A DÉSORMAIS FONCTIONNÉ DEUX FOIS, comme annoncé : la
-	    barre est passée à 44, ce commentaire a nommé la ligne ; elle est
-	    passée à 52, il l'a nommée encore. Un commentaire qui dit « voici
-	    la ligne à refaire » vaut mieux qu'un calcul astucieux que personne
-	    ne retrouve. */
+	    ═══ LA MARGE SE CALCULE, ELLE NE SE COPIE PAS ═══
+	    La marge haute + la hauteur + la marge basse doivent faire EXACTEMENT
+	    la hauteur de la rangée, sinon les points se recollent en haut de la
+	    barre. La formule, une fois pour toutes :
+
+	        marge = (hauteur_de_la_barre − min-height) / 2
+
+	    La hauteur de la barre est « size » dans xfce4-panel.xml. Elle vaut
+	    52 aujourd'hui (32 à l'origine, 44 au build 70, 52 au build 74,
+	    chaque fois à la demande d'Alex). Avec une pastille de 8 px :
+
+	        (52 − 8) / 2 = 22        →  22 + 8 + 22 = 52  ✅
+
+	    Pour mémoire : une barre de 32 donnerait 12px, une barre de 44
+	    donnerait 18px.
+
+	    ET CE PIÈGE A FONCTIONNÉ DEUX FOIS — barre passée à 44, puis à 52.
+	    Le commentaire l'a rattrapé les deux fois, mais un commentaire ne
+	    rattrape que ce qu'on lit. tests/test_lexos_pager.sh extrait
+	    maintenant les DEUX nombres des DEUX fichiers et refuse toute
+	    combinaison qui ne tombe pas juste, quelle que soit la hauteur.
+	    C'est ce qu'un banc doit faire à la place d'un commentaire. */
 	padding: 0;
-	margin: 21px 3px;
-	min-width: 10px;
-	min-height: 10px;
+	margin: 22px 3.5px;
+	min-width: 6px;
+	min-height: 8px;
 	border: 0;
 	background-image: none;
 	background-color: transparent;
@@ -255,8 +286,8 @@ window.csd.popup {
 	    police tient donc lieu de taille de point, et doit rester au plus
 	    égale à la hauteur ci-dessus — sinon le glyphe regonfle le bouton
 	    et la rangée redevient une rangée de boutons. */
-	font-size: 10px;
-	color: rgba(255, 255, 255, 0.30);
+	font-size: 7px;
+	color: rgba(255, 255, 255, 0.40);
 	border-radius: 99px;
 	/*  La pilule GRANDIT, elle n'apparaît pas. C'est l'animation de la
 	    démo (transition sur la largeur), et c'est elle qui fait lire le
@@ -269,25 +300,39 @@ window.csd.popup {
 #XfcePanelWindow #pager button:hover {
 	color: rgba(255, 255, 255, 0.72);
 }
-/*  L'espace où l'on est : une pilule orange PLEINE, comme dans la démo.
+/*  L'espace où l'on est : une pilule BLANCHE PLEINE, comme dans la démo.
     « checked » est l'état que le sélecteur pose sur le bouton courant ;
     « active » couvre le thème qui n'utiliserait que celui-là.
+
+    ═══ ELLE NE SUIT PLUS L'ACCENT, ET C'EST VOULU — 5 SEPTEMBRE 2026 ═══
+    Elle était peinte avec le jeton d'accent (la couleur E8590C, écrite ici
+    sans son croisillon EXPRÈS : lexos-theme-gen remplace ce jeton par sed
+    dans ce fichier même, et un commentaire qui le contiendrait se ferait
+    réécrire lui aussi, en racontant ensuite une couleur qui n'est plus la
+    bonne). La pilule changeait donc de couleur avec « lexos accent bleu ».
+
+    Alex a demandé le BLANC en montrant deux captures. #EDEDED n'est pas un
+    jeton : la pilule reste blanche quel que soit l'accent choisi. CE N'EST
+    PAS UN OUBLI — c'est la demande. Écrit ici pour que personne ne
+    « répare » ça dans six mois en croyant à une substitution manquée.
+    tests/test_lexos_pager.sh lance le générateur avec un accent non-orange
+    et vérifie que le blanc n'a pas bougé.
 
     POURQUOI LE GLYPHE PREND LA COULEUR DU FOND. On ne le cache pas avec
     « font-size: 0 » ni « color: transparent » : si une version de GTK
     n'appliquait pas le fond, un point invisible laisserait un sélecteur
-    d'espaces qu'on ne voit plus du tout. En lui donnant l'orange du fond,
-    le pire des cas redonne exactement ce qu'on avait avant — un point
-    orange — au lieu de rien. */
+    d'espaces qu'on ne voit plus du tout. En lui donnant la couleur du fond,
+    le pire des cas redonne exactement ce qu'on avait avant — un point — au
+    lieu de rien. Seule la couleur a changé, la règle vaut toujours. */
 #XfcePanelWindow .pager button:checked,
 #XfcePanelWindow .pager button:active,
 #XfcePanelWindow .pager-buttons button:checked,
 #XfcePanelWindow .pager-buttons button:active,
 #XfcePanelWindow #pager button:checked,
 #XfcePanelWindow #pager button:active {
-	min-width: 24px;
-	background-color: #E8590C;
-	color: #E8590C;
+	min-width: 26px;
+	background-color: #EDEDED;
+	color: #EDEDED;
 }
 
 /* --- Fichiers (Thunar) : le survol de la démo -------------------------------

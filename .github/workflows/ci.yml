@@ -1966,6 +1966,27 @@ jobs:
           #  jeton changerait de couleur avec l'accent.
           bash tests/test_lexos_plymouth.sh
 
+      - name: Les points des espaces de travail — la pilule blanche, la somme juste
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, deux captures : la pilule de l'espace courant passe au
+          #  BLANC, les points au repos s'affinent, et la rangée n'est plus
+          #  collée au bord de l'écran.
+          #
+          #  L'ASSERTION QUI COMPTE : marge + hauteur + marge doit valoir
+          #  EXACTEMENT la hauteur de la barre déclarée dans
+          #  xfce4-panel.xml, sinon les points se recollent en haut. Ce
+          #  piège s'est refermé DEUX fois (barre passée à 44, puis à 52) et
+          #  c'est un commentaire qui l'a rattrapé les deux fois. Le banc
+          #  extrait maintenant les deux nombres des deux fichiers.
+          #
+          #  Il lance aussi le générateur avec un accent non-orange : la
+          #  pilule blanche NE DOIT PLUS suivre l'accent (demande d'Alex),
+          #  et un contre-contrôle vérifie que la substitution tourne
+          #  toujours — sinon « rien n'a changé » serait vert pour la
+          #  mauvaise raison.
+          bash tests/test_lexos_pager.sh
+
       - name: Carrés noirs de la Logithèque et luminosité des Paramètres
         if: ${{ !cancelled() }}
         run: |
