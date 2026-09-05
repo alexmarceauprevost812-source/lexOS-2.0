@@ -194,11 +194,21 @@ slideshowAPI:            2
 #  Les quatre clés étaient écrites en minuscule initiale
 #  (« sidebarBackground »…). Calamares 3.3 les compare aux noms de son enum
 #  C++ Branding::StyleEntry, résolus par QMetaEnum::valueToKey — donc avec
-#  une MAJUSCULE initiale. Vérifié deux fois : les seules chaînes présentes
-#  dans le libcalamaresui.so livré sont « SidebarBackground »,
-#  « SidebarBackgroundCurrent », « SidebarText » et « SidebarTextCurrent »,
-#  et l'exemple officiel amont (src/branding/default/branding.desc) les
-#  écrit bien ainsi.
+#  une MAJUSCULE initiale. Vérifié trois fois : les seules chaînes présentes
+#  dans un libcalamaresui.so 3.3 installé pour l'occasion sont
+#  « SidebarBackground », « SidebarBackgroundCurrent », « SidebarText » et
+#  « SidebarTextCurrent » ; l'exemple officiel amont
+#  (src/branding/default/branding.desc) les écrit ainsi ; et la source au tag
+#  v3.3.14 — la version empaquetée par trixie — les déclare comme les noms
+#  mêmes de l'enum StyleEntry, comparés aux clés du YAML SANS normaliser la
+#  casse.
+#
+#  D'OÙ VENAIT LA MAUVAISE ÉCRITURE. La minuscule ET « sidebarTextSelect »
+#  sont celles de Calamares 3.2. Le passage en 3.3 a changé la casse ET le
+#  sens des noms d'un seul coup. Et un commentaire PÉRIMÉ subsiste en amont
+#  dans Branding.h, affirmant encore que SidebarTextCurrent « s'appelle
+#  sidebarTextSelect dans le fichier de branding » : le suivre menait droit
+#  ici.
 #
 #  CONSÉQUENCE, ET ELLE EST SILENCIEUSE : une clé inconnue n'arrête rien.
 #  Calamares écrit « Unknown branding *style* entry » dans un journal que
