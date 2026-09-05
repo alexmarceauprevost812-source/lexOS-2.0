@@ -600,13 +600,22 @@ fi
 
 #  ═══ LA SOURCE UNIQUE ═══
 #  Ces deux clés sont ce que lexos-firstrun et « lexos theme » liront. Sans
-#  elles, ils écriraient « Arc-Dark » par-dessus notre thème à la première
-#  session — la panne des icônes du build 70, refaite à l'identique.
-#  Repli explicite sur le thème d'origine quand un mode n'a pas pu être
-#  dérivé : mieux vaut des petits boutons qu'un nom de thème qui n'existe pas,
-#  qui ferait retomber XFCE sur son habillage clair par défaut.
-[ -n "$XFWM_SOMBRE" ] || XFWM_SOMBRE="Arc-Dark"
-[ -n "$XFWM_CLAIR" ]  || XFWM_CLAIR="Arc"
+#  elles, ils écriraient le SOCLE par-dessus notre thème dérivé à la première
+#  session (« Arc-Dark » à l'époque où le bogue a été trouvé, « Yaru-dark »
+#  aujourd'hui) — la panne des icônes du build 70, refaite à l'identique.
+#  Repli quand un mode n'a pas pu être dérivé : mieux vaut des petits boutons
+#  qu'un nom de thème qui n'existe pas, qui ferait retomber XFCE sur son
+#  habillage clair par défaut.
+#
+#  CE REPLI NOMMAIT « Arc-Dark » ET « Arc », ET C'ÉTAIT DEVENU FAUX. Depuis
+#  l'ISO 109, le socle est Yaru-dark et arc-theme n'est plus qu'un paquet
+#  OPTIONNEL, gardé pour la seule dérivation ci-dessus. Un mode non dérivé,
+#  c'est précisément le cas où arc-theme manque : y renvoyer, c'était nommer
+#  le thème absent. On nomme donc le socle, qui est en liste STRICTE et dont
+#  on a MESURÉ qu'il a un dossier xfwm4 (/usr/share/themes/Yaru-dark/xfwm4,
+#  et /usr/share/themes/Yaru/xfwm4 pour le clair).
+[ -n "$XFWM_SOMBRE" ] || XFWM_SOMBRE="Yaru-dark"
+[ -n "$XFWM_CLAIR" ]  || XFWM_CLAIR="Yaru"
 pose_conf LEXOS_XFWM_THEME        "$XFWM_SOMBRE"
 pose_conf LEXOS_XFWM_THEME_CLAIR  "$XFWM_CLAIR"
 

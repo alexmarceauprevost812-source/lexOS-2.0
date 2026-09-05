@@ -1074,9 +1074,9 @@ EOF
 #  dessin, on arrête de se battre.
 #
 #  LE PIÈGE, MESURÉ SUR UN VRAI GTK 3.24 AVANT D'ÉCRIRE UNE LIGNE : le
-#  gtk.css d'Arc-Dark n'est PAS une feuille de style. C'est une seule ligne
+#  gtk.css du socle n'est PAS une feuille de style. C'est une seule ligne
 #  qui pointe vers une ressource COMPILÉE (gtk.gresource), enregistrée par
-#  GTK uniquement quand il charge Arc PAR SON NOM. Un thème qui se
+#  GTK uniquement quand il charge le socle PAR SON NOM. Un thème qui se
 #  contenterait d'importer ce fichier par son chemin obtient :
 #
 #      « Failed to import: The resource … does not exist »
@@ -1084,17 +1084,22 @@ EOF
 #
 #  — c'est-à-dire un bureau NU, sans en-tête ni sélection, et l'avertissement
 #  se perd dans le journal. Avec la ressource posée à côté de notre gtk.css,
-#  la même feuille rend window #383C4A, headerbar #2F343F, sélection #5294E2 :
-#  toute la couverture d'Arc, retrouvée.
+#  la même feuille rendait, du temps d'Arc-Dark, window #383C4A,
+#  headerbar #2F343F, sélection #5294E2 : toute la couverture du socle,
+#  retrouvée. Le mécanisme n'a pas changé avec Yaru-dark, seule l'adresse.
 #
-#  UN LIEN ET NON UNE COPIE : 380 kio de moins, aucune question de
-#  redistribution, et si arc-theme disparaît le lien casse BRUYAMMENT au lieu
-#  de nous laisser croire que tout va bien.
+#  UN LIEN ET NON UNE COPIE : 1,1 Mio épargné dans chaque foyer avec
+#  Yaru-dark (mesuré : 719 kio pour gtk-3.0/gtk.gresource, 425 kio pour celui
+#  de gtk-4.0 ; Arc-Dark en pesait 377), aucune question de redistribution,
+#  et si le paquet du socle disparaît le lien casse BRUYAMMENT au lieu de
+#  nous laisser croire que tout va bien.
 #
-#  ON NE DEVINE PAS L'ADRESSE DE LA RESSOURCE. Elle vaut « resource:///org/
-#  gnome/arc-theme/… » pour Arc, autre chose pour un thème de repli. On
-#  RECOPIE donc les lignes d'import du thème de base, telles qu'elles sont
-#  écrites chez lui.
+#  ON NE DEVINE PAS L'ADRESSE DE LA RESSOURCE. MESURÉE, pas supposée :
+#  « resource:///com/ubuntu/themes/Yaru-dark/3.0/gtk.css » pour Yaru-dark,
+#  « resource:///org/gnome/arc-theme/… » pour Arc, autre chose encore pour un
+#  thème de repli. On RECOPIE donc les lignes d'import du thème de base,
+#  telles qu'elles sont écrites chez lui — c'est ce qui a permis de changer
+#  de socle sans toucher à une seule ligne de gen_theme().
 #
 #  ═══ LA FEUILLE UTILISATEUR N'EST PLUS ÉCRITE (étape 4) ═══
 #  ~/.config/gtk-3.0/gtk.css n'existe plus : l'écrire encore aurait rechargé
@@ -1111,13 +1116,12 @@ THEME_NOM="LexOS-Noir"
 THEME_DIR="$TARGET/.themes/$THEME_NOM"
 #  ═══ LE NOM DE LA VARIABLE COMPTE, ET IL ÉTAIT FAUX ═══
 #  On lisait « LEXOS_GTK_BASE ». Le hook 0600, lui, calcule le thème de base
-#  RÉELLEMENT présent (arc-theme voyage dans les paquets optionnels) et
-#  l'exporte sous « LEXOS_GTK_BASE_THEME ». Deux noms voisins, jamais le
-#  même : le repli du hook n'arrivait donc pas jusqu'ici. Sur une machine
-#  sans Arc-Dark, on aurait posé un lien vers une ressource ABSENTE et un
-#  « @import » vers une adresse introuvable — c'est-à-dire, mesuré au début
-#  de ce chantier, un bureau NU : ni en-tête, ni sélection, et un simple
-#  avertissement perdu dans le journal.
+#  RÉELLEMENT présent et l'exporte sous « LEXOS_GTK_BASE_THEME ». Deux noms
+#  voisins, jamais le même : le repli du hook n'arrivait donc pas jusqu'ici.
+#  Sur une machine sans le socle, on aurait posé un lien vers une ressource
+#  ABSENTE et un « @import » vers une adresse introuvable — c'est-à-dire,
+#  mesuré au début de ce chantier, un bureau NU : ni en-tête, ni sélection,
+#  et un simple avertissement perdu dans le journal.
 #
 #  ═══ ET LE NOM A ENCORE CHANGÉ, POUR LA MÊME RAISON ═══
 #  « LEXOS_GTK_BASE_THEME » sert désormais À DEUX CHOSES. À l'appel du hook
@@ -1133,14 +1137,34 @@ THEME_DIR="$TARGET/.themes/$THEME_NOM"
 #  « LEXOS_GTK_BASE » — le tout premier nom, celui de la faute d'origine — a
 #  été retiré : plus personne ne l'écrivait, et trois noms voisins pour une
 #  seule idée sont précisément ce qui a produit les deux bogues.
-BASE_NOM="${LEXOS_GTK_SOCLE:-${LEXOS_GTK_BASE_THEME:-Arc-Dark}}"
+#  ═══ LE SOCLE PAR DÉFAUT, ET POURQUOI IL A CHANGÉ ═══
+#  « Arc-Dark » jusqu'à l'ISO 108, « Yaru-dark » depuis. Deux raisons, toutes
+#  deux mesurées dans le gtk.css compilé des deux thèmes :
+#
+#    · theme_bg_color vaut #2c2c2c chez Yaru-dark contre #383C4A chez
+#      Arc-Dark. Le gris d'Arc tire sur le BLEU ; celui de Yaru est neutre.
+#      Sous une feuille qui repeint tout en noir, un socle neutre laisse
+#      moins de bleu passer là où on l'a oublié.
+#    · theme_selected_bg_color vaut #E95420 chez Yaru-dark contre #5294E2
+#      chez Arc-Dark. C'est LITTÉRALEMENT la panne notée plus haut, ligne
+#      « des interrupteurs BLEUS (Arc-Dark) au milieu » : le socle d'Arc
+#      peignait en bleu tout ce que notre feuille n'avait pas encore attrapé.
+#      L'orange de Yaru (#E95420) est à un cheveu de l'accent de LexOS
+#      (#E8590C) : le socle ne se bat plus contre le thème.
+#
+#  CE DÉFAUT DOIT RESTER LE MÊME QUE CELUI DU HOOK 0600 (« GTK_BASE »).
+#  Deux valeurs par défaut qui divergent, c'est un thème qui se construit
+#  différemment selon le chemin emprunté — l'ISO d'un côté, un appel à la
+#  main de l'autre — et rien ne le signalerait. test_lexos_theme_systeme.sh
+#  compare les deux fichiers et refuse qu'ils s'éloignent.
+BASE_NOM="${LEXOS_GTK_SOCLE:-${LEXOS_GTK_BASE_THEME:-Yaru-dark}}"
 #  UN THÈME NE PEUT PAS ÊTRE SON PROPRE SOCLE. Le garde-fou vaut quelle que
 #  soit la clé qui a porté la valeur : il ferme le piège au lieu de compter
 #  sur le fait que personne ne s'y prendra mal.
 if [[ "$BASE_NOM" == "$THEME_NOM" ]]; then
-	printf '%s : « %s » ne peut pas être son propre socle — on reprend Arc-Dark\n' \
+	printf '%s : « %s » ne peut pas être son propre socle — on reprend Yaru-dark\n' \
 		"${0##*/}" "$THEME_NOM" >&2
-	BASE_NOM="Arc-Dark"
+	BASE_NOM="Yaru-dark"
 fi
 BASE_DIR="${LEXOS_THEMES_SYS:-/usr/share/themes}/${BASE_NOM}"
 
@@ -1193,8 +1217,18 @@ EOF
 # =============================================================================
 #  2. GTK 2 (vieilles applications)
 # =============================================================================
-GTK2_THEME="Arc-Dark"; GTK2_ICONS="Papirus-Dark"
-[[ "$MODE" == "clair" ]] && { GTK2_THEME="Arc"; GTK2_ICONS="Papirus"; }
+#  Ces deux noms suivent le socle, et ce n'est pas cosmétique. Ils nommaient
+#  « Arc-Dark » / « Arc » ; depuis l'ISO 109, arc-theme n'est plus qu'un
+#  paquet OPTIONNEL, gardé pour la seule dérivation des boutons de fenêtre
+#  (hook 0610). Un paquet optionnel peut manquer sans que la construction
+#  s'arrête : ces deux lignes désignaient donc un thème qui peut être ABSENT,
+#  et GTK 2 sans thème, c'est son gris clair d'origine — au milieu d'un
+#  bureau noir. Le socle, lui, est en liste STRICTE : il est toujours là.
+#  MESURÉ : yaru-theme-gtk livre bien /usr/share/themes/Yaru-dark/gtk-2.0
+#  (gtkrc, main.rc, apps.rc, hacks.rc, assets) et /usr/share/themes/Yaru/
+#  gtk-2.0 pour le mode clair. Le remplacement est complet, pas approximatif.
+GTK2_THEME="Yaru-dark"; GTK2_ICONS="Papirus-Dark"
+[[ "$MODE" == "clair" ]] && { GTK2_THEME="Yaru"; GTK2_ICONS="Papirus"; }
 cat > "$TARGET/.gtkrc-2.0" <<EOF
 # LexOS — généré par lexos-theme-gen (mode : ${MODE})
 gtk-theme-name="${GTK2_THEME}"

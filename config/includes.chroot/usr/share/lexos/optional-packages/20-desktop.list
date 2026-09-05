@@ -50,6 +50,31 @@ lightdm-gtk-greeter-settings
 # lightdm-guest-session RETIRÉ : ce nom n'existe pas dans Debian, la
 # session invité est intégrée à lightdm et s'active par sa configuration
 # (déjà faite dans le hook 0400).
+#  arc-theme a été le SOCLE de LexOS-Noir jusqu'à l'ISO 108. Il ne l'est
+#  plus : Yaru-dark a pris la place, en liste STRICTE (lexos-core), parce
+#  qu'un socle absent casse le thème en silence.
+#
+#  MAIS IL RESTE ICI, ET CE N'EST PAS UN OUBLI. Le hook 0610 ne lit pas le
+#  socle : il lit le thème XFWM4 d'Arc pour en DÉRIVER « LexOS-Arc-Dark » et
+#  « LexOS-Arc » — les gros boutons de fenêtre, et les trois pastilles rouge
+#  / jaune / grise qu'Alex a demandées puis fait corriger deux fois. Retirer
+#  arc-theme, c'était faire échouer les deux dérivations, donc livrer les
+#  boutons d'origine : un correctif qui disparaît sans qu'une ligne du
+#  journal le dise. C'est exactement la panne des dossiers blancs de l'ISO 72,
+#  sur une autre clé.
+#
+#  IL EST OPTIONNEL, ET C'EST ASSUMÉ. Son absence ne casse plus le THÈME
+#  (le socle est ailleurs) : elle rend seulement les boutons plus petits, et
+#  le hook 0610 le DIT (« aucun thème dérivé — boutons inchangés »). Les
+#  replis du hook nomment maintenant Yaru-dark / Yaru, jamais Arc.
+#
+#  POURQUOI PAS DÉRIVER DE YARU DIRECTEMENT : ce serait mieux, et ce n'est
+#  pas fait ici. MESURÉ dans /usr/share/themes/Yaru-dark/xfwm4 : la rangée du
+#  titre fait 36 px (Arc : 28), les coins sont des images 10x10 (Arc : 4x28),
+#  et les 36 images de boutons sont carrées 36x36. Le hook a « HAUTEUR_SRC=28 »
+#  et un dessin de coin calculé sur la géométrie d'Arc : le retarger demande
+#  de reprendre ces mesures ET le faux thème du banc. C'est un chantier à
+#  part, pas un effet de bord d'un changement de socle.
 arc-theme
 # papirus-icon-theme — PASSÉ EN STRICT (lexos-core.list.chroot) après l'ISO 72 :
 #   son absence rendait tous les dossiers blancs, sans que rien ne le dise.

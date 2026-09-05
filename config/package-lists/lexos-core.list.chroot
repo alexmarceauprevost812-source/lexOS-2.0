@@ -78,6 +78,22 @@ calamares-settings-debian
 #  pour être garanti présent au moment où grub-install l'appelle.
 efibootmgr
 
+# --- Le socle du thème -------------------------------------------------------
+#  LexOS-Noir n'est pas un thème complet : c'est une feuille posée PAR-DESSUS
+#  un socle, dont il reprend l'@import et la ressource compilée. Un socle
+#  absent, ce n'est donc pas « un peu moins joli » — c'est un thème sans
+#  socle, en silence, et XFCE qui retombe sur son thème CLAIR par défaut.
+#
+#  EN STRICT, ET POUR LA MÊME RAISON QU'adwaita-icon-theme APRÈS L'ISO 72 :
+#  ce qui est indispensable au rendu ne peut pas voyager dans les paquets
+#  optionnels, où une absence est tolérée sans arrêter la construction. On
+#  livrait alors une ISO qui ne ressemblait pas à LexOS, sans qu'aucune ligne
+#  du journal ne le dise.
+#
+#  Yaru remplace Arc-Dark comme socle. Il est dans Debian trixie directement
+#  (source « yaru-theme »), pas de dépôt tiers.
+yaru-theme-gtk
+
 # --- Programme de démarrage installé sur le disque cible ---------------------
 #  Calamares appelle grub-install à la dernière étape de l'installation. Ces
 #  paquets DOIVENT être dans le squashfs : sans réseau au moment de

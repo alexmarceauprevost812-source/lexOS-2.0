@@ -47,7 +47,10 @@ fi
 
 echo "[lexos] hook 0410 : écran de connexion"
 
-LEXOS_GTK_BASE_THEME="Arc-Dark"
+#  Le socle par défaut, quand build.conf n'a rien à dire. « Yaru-dark »
+#  depuis l'ISO 109 (auparavant « Arc-Dark ») : il doit nommer un thème
+#  RÉELLEMENT installé, sinon le greeter perd son habillage.
+LEXOS_GTK_BASE_THEME="Yaru-dark"
 LEXOS_ICON_THEME="LexOS"
 
 BUILD_CONF="${LEXOS_BUILD_CONF:-/etc/lexos/build.conf}"

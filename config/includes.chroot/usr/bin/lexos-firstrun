@@ -40,12 +40,12 @@ ACCENT="orange"
 [[ -r "$CONF_DIR/accent" ]] && ACCENT="$(cat "$CONF_DIR/accent")"
 
 #  ON REFABRIQUE LE THÈME SUR LE MÊME SOCLE QU'À LA CONSTRUCTION.
-#  Sans cette ligne, le générateur reprenait son socle par DÉFAUT — Arc-Dark.
-#  Sur une machine où arc-theme n'a pas été posé (il voyage dans les paquets
-#  optionnels), le hook 0600 avait choisi un autre thème sombre et bâti
-#  LexOS-Noir dessus ; la première session le rebâtissait sur un Arc-Dark
-#  absent, donc sans socle du tout. L'ISO était juste, le premier démarrage
-#  ne l'était plus, et rien ne le disait.
+#  Sans cette ligne, le générateur reprenait son socle par DÉFAUT — Yaru-dark
+#  depuis l'ISO 109, Arc-Dark avant. Si le hook 0600 avait dû choisir un autre
+#  thème sombre parce que celui-là manquait, il avait bâti LexOS-Noir dessus ;
+#  la première session le rebâtissait sur le socle par défaut, absent, donc
+#  sans socle du tout. L'ISO était juste, le premier démarrage ne l'était
+#  plus, et rien ne le disait.
 #
 #  On passe « LEXOS_GTK_SOCLE » et surtout PAS « LEXOS_GTK_BASE_THEME » :
 #  dans build.conf, cette seconde clé porte le thème que la session AFFICHE
@@ -70,15 +70,25 @@ if command -v xfconf-query >/dev/null 2>&1; then
 	#  ait pu les voir. Exactement la panne des icônes du build 70, sur une
 	#  autre clé. Le nom retenu se lit maintenant dans build.conf, où 0610
 	#  l'écrit ; le repli reste le thème GTK, comme avant.
-	BASE_THEME="Arc-Dark"; ICONS="LexOS"; XFWM_THEME=""
+	BASE_THEME="Yaru-dark"; ICONS="LexOS"; XFWM_THEME=""
 	[[ -r /etc/lexos/build.conf ]] && eval "$(
 		# shellcheck disable=SC1091
 		. /etc/lexos/build.conf 2>/dev/null
 		printf 'BASE_THEME=%q; ICONS=%q; XFWM_THEME=%q' \
-			"${LEXOS_GTK_BASE_THEME:-Arc-Dark}" "${LEXOS_ICON_THEME:-LexOS}" \
+			"${LEXOS_GTK_BASE_THEME:-Yaru-dark}" "${LEXOS_ICON_THEME:-LexOS}" \
 			"${LEXOS_XFWM_THEME:-}"
 	)"
 	[[ -n "$XFWM_THEME" ]] || XFWM_THEME="$BASE_THEME"
+	#  UN NOM DE THÈME DE FENÊTRE QUI N'EXISTE PAS FAIT PIRE QUE RIEN : xfwm4
+	#  retombe alors sur « Default », des bordures GRISES au milieu d'un
+	#  bureau noir. Le repli ci-dessus nomme BASE_THEME, qui vaut
+	#  « LexOS-Noir » dès que build.conf existe — or LexOS-Noir est une
+	#  feuille de style dans le foyer, il n'a PAS de dossier xfwm4. Le cas se
+	#  produisait pour de vrai quand le hook 0610 n'avait rien pu dériver et
+	#  s'était arrêté avant d'écrire sa clé. « lexos theme » a la même garde
+	#  depuis toujours ; elle manquait ici. Le socle, lui, en a un (mesuré :
+	#  /usr/share/themes/Yaru-dark/xfwm4 existe).
+	[[ -d "/usr/share/themes/${XFWM_THEME}/xfwm4" ]] || XFWM_THEME="Yaru-dark"
 	xfconf-query -c xsettings -p /Net/ThemeName     -s "$BASE_THEME" 2>/dev/null || true
 	xfconf-query -c xsettings -p /Net/IconThemeName -s "$ICONS"      2>/dev/null || true
 	xfconf-query -c xfwm4     -p /general/theme     -s "$XFWM_THEME" 2>/dev/null || true

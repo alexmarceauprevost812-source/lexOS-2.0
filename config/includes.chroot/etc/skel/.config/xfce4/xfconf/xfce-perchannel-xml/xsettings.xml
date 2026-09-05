@@ -2,7 +2,7 @@
 <!-- LexOS — réglages généraux d'apparence -->
 <channel name="xsettings" version="1.0">
   <property name="Net" type="empty">
-    <property name="ThemeName"        type="string" value="Arc-Dark"/>
+    <property name="ThemeName"        type="string" value="Yaru-dark"/>
     <!-- « LexOS » ne contient QUE les dossiers et hérite de Papirus-Dark
          pour tout le reste (voir /usr/share/icons/LexOS/index.theme). On ne
          perd donc aucune icône : on remplace les six poches du dossier

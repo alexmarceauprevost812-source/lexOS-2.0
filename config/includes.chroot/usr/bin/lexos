@@ -701,7 +701,7 @@ cmd_accent() {
 	# Recharge à chaud ce qui peut l'être.
 	if command -v xfconf-query >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
 		local t
-		t="$(xfconf-query -c xsettings -p /Net/ThemeName 2>/dev/null || echo Arc-Dark)"
+		t="$(xfconf-query -c xsettings -p /Net/ThemeName 2>/dev/null || echo Yaru-dark)"
 		xfconf-query -c xsettings -p /Net/ThemeName -s "Adwaita"  2>/dev/null || true
 		xfconf-query -c xsettings -p /Net/ThemeName -s "$t"       2>/dev/null || true
 	fi
@@ -890,8 +890,8 @@ cmd_theme() {
 		#  orange et hérite du reste — le passer en clair ne change que le
 		#  thème GTK, les poches restent celles de la démo. C'est ce
 		#  sélecteur qui remettait Papirus par-dessus à chaque changement.
-		dark|sombre|nuit)   gtk="Arc-Dark"; icons="LexOS"; lexos_mode="sombre" ;;
-		light|clair|jour)   gtk="Arc";      icons="LexOS"; lexos_mode="clair"  ;;
+		dark|sombre|nuit)   gtk="Yaru-dark"; icons="LexOS"; lexos_mode="sombre" ;;
+		light|clair|jour)   gtk="Yaru";      icons="LexOS"; lexos_mode="clair"  ;;
 		#  (le thème de FENÊTRE est choisi plus bas — il ne suit pas « gtk »)
 		accent) shift; cmd_accent "$@"; return ;;
 		*) die "Usage : ${PROG} theme <sombre|clair>  ·  ${PROG} accent <couleur>" ;;

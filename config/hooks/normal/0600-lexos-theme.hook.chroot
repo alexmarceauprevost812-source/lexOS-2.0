@@ -7,7 +7,7 @@ set -e
 echo "[lexos] hook 0600 : thème LexOS Noir"
 
 ACCENT_NAME="orange"
-GTK_BASE="Arc-Dark"
+GTK_BASE="Yaru-dark"
 ICONS="LexOS"
 TERM_MODE="suivre"
 LEXOS_DOCK_POSITION="right"
@@ -16,15 +16,19 @@ if [ -r /etc/lexos/build.conf ]; then
 	# shellcheck disable=SC1091
 	. /etc/lexos/build.conf
 	ACCENT_NAME="${LEXOS_ACCENT_NAME:-orange}"
-	GTK_BASE="${LEXOS_GTK_BASE_THEME:-Arc-Dark}"
+	GTK_BASE="${LEXOS_GTK_BASE_THEME:-Yaru-dark}"
 	ICONS="${LEXOS_ICON_THEME:-LexOS}"
 	TERM_MODE="${LEXOS_TERMINAL_MODE:-suivre}"
 fi
 
 # --- Le thème demandé est-il RÉELLEMENT installé ? --------------------------
-#  arc-theme et papirus-icon-theme voyagent dans les paquets OPTIONNELS : ils
-#  sont posés en « best effort » par le hook 0250, et une absence n'arrête pas
-#  la construction. Mais si on continue quand même à écrire « Arc-Dark »
+#  LE SOCLE N'EST PLUS OPTIONNEL — yaru-theme-gtk est en liste STRICTE
+#  (lexos-core), justement parce que ce bloc existait. Le raisonnement qui
+#  suit reste vrai pour les icônes et pour tout socle de repli, et il dit
+#  pourquoi le socle a changé de liste.
+#  papirus-icon-theme, lui, voyage toujours dans les paquets OPTIONNELS : il
+#  est posé en « best effort » par le hook 0250, et son absence n'arrête pas
+#  la construction. Mais si on continue quand même à écrire « Yaru-dark »
 #  partout, XFCE ne trouve rien et retombe sur son thème CLAIR par défaut :
 #  on livre alors une ISO qui ne ressemble pas du tout à LexOS, sans qu'aucune
 #  ligne du journal ne l'ait signalé. On vérifie donc sur le disque, et on
@@ -48,7 +52,7 @@ premier_present() {
 GTK_DEMANDE="$GTK_BASE"
 if [ ! -d "/usr/share/themes/${GTK_BASE}" ]; then
 	GTK_BASE="$(premier_present /usr/share/themes \
-		Arc-Dark Adwaita-dark Greybird-dark Materia-dark Yaru-dark Numix)" \
+		Yaru-dark Adwaita-dark Greybird-dark Materia-dark Numix Arc-Dark)" \
 		|| GTK_BASE="Adwaita"
 	echo "[lexos]   !! thème « ${GTK_DEMANDE} » absent — remplacé par « ${GTK_BASE} »"
 fi
@@ -61,8 +65,14 @@ if [ ! -d "/usr/share/icons/${ICONS}" ]; then
 	echo "[lexos]   !! icônes « ${ICONS_DEMANDE} » absentes — remplacées par « ${ICONS} »"
 fi
 
-#  Les bordures de fenêtre sont un thème à part (xfwm4). Arc-Dark en fournit
-#  un ; les thèmes de repli pas toujours. « Default » est livré avec xfwm4.
+#  Les bordures de fenêtre sont un thème à part (xfwm4). MESURÉ, pas supposé :
+#  yaru-theme-gtk livre bien un /usr/share/themes/Yaru-dark/xfwm4 — on
+#  s'attendait au contraire, Yaru visant GNOME. Les bordures suivent donc le
+#  socle sans rien faire de plus. Les thèmes de repli, eux, n'en ont pas
+#  toujours : « Default » est livré avec xfwm4 et sert de dernier recours.
+#  Un socle GTK et un thème de bordures peuvent parfaitement venir de deux
+#  paquets différents — ce n'est pas une incohérence, et la ligne ci-dessous
+#  s'en accommode d'elle-même.
 #  Les bordures de fenêtre restent celles du thème de BASE : LexOS-Noir est
 #  une feuille de style, il ne fournit pas de xfwm4. Cette ligne est calculée
 #  AVANT que GTK_BASE ne devienne « LexOS-Noir », plus bas — sans quoi on
@@ -104,7 +114,7 @@ if [ -x /usr/bin/lexos-theme-gen ]; then
 	#  Le thème LexOS-Noir pose un lien vers la ressource compilée du thème
 	#  de base et importe son adresse : il doit donc savoir LEQUEL a
 	#  réellement été retenu quelques lignes plus haut. Sans ça il viserait
-	#  Arc-Dark en dur, et sur une machine où arc-theme manque le lien
+	#  Yaru-dark en dur, et sur une machine où le socle manque le lien
 	#  pointerait dans le vide — bureau NU, ni en-tête ni sélection, pour un
 	#  simple avertissement dans le journal.
 	#
@@ -134,7 +144,7 @@ fi
 #  que GTK charge en priorité THÈME — sous les applications, pas dessus.
 #
 #  ON NE DÉCLARE LE THÈME QUE S'IL EST RÉELLEMENT LÀ. Même règle que pour
-#  Arc-Dark vingt lignes plus haut, et pour la même raison : écrire un nom de
+#  le socle vingt lignes plus haut, et pour la même raison : écrire un nom de
 #  thème introuvable donne un bureau CLAIR par défaut, sans qu'une seule ligne
 #  du journal ne le signale. On vérifie le fichier, pas l'intention.
 #
@@ -226,9 +236,10 @@ EOF
 
 # --- Propager les noms RETENUS partout où ils étaient écrits en dur --------
 #  Les fichiers ci-dessous ont été écrits par des hooks antérieurs avec le nom
-#  DEMANDÉ (« Arc-Dark »). Si on vient d'en choisir un autre parce que celui-là
-#  manquait, il faut les corriger, sinon la vérification ci-dessus n'aura servi
-#  à rien : XFCE lirait toujours « Arc-Dark » dans son XML.
+#  DEMANDÉ (« Yaru-dark » aujourd'hui, « Arc-Dark » jusqu'à l'ISO 108). Si on
+#  vient d'en choisir un autre parce que celui-là manquait, il faut les
+#  corriger, sinon la vérification ci-dessus n'aura servi à rien : XFCE lirait
+#  toujours l'ancien nom dans son XML.
 SKEL_XFCONF="/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"
 
 if [ -f "$SKEL_XFCONF/xsettings.xml" ]; then
@@ -272,7 +283,7 @@ if [ -f "$CONNEXION_CONF" ]; then
 fi
 
 #  L'import du thème de connexion pointe vers le thème de base DEMANDÉ par le
-#  hook 0410. Si la vérification plus haut en a retenu un autre (Arc-Dark
+#  hook 0410. Si la vérification plus haut en a retenu un autre (le socle
 #  absent), l'import montrerait un dossier qui n'existe pas et l'écran de
 #  connexion perdrait sa mise en forme de base. On le réécrit d'après le nom
 #  RÉELLEMENT retenu — même raison que pour xsettings.xml juste au-dessus.
@@ -319,10 +330,20 @@ touch /etc/lexos/build.conf
 #    · LEXOS_GTK_SOCLE      = le thème sur lequel LexOS-Noir est CONSTRUIT.
 #      C'est celui-là que firstrun passe à lexos-theme-gen, pour que la
 #      première session refabrique le MÊME thème que la construction — y
-#      compris sur une machine où arc-theme n'a pas été posé, où le socle
+#      compris sur une machine où le socle demandé n'a pas été posé, où celui
 #      retenu ici n'est pas celui par défaut.
+#    · LEXOS_XFWM_THEME     = le thème de BORDURES DE FENÊTRE. Il était écrit
+#      par le seul hook 0610, qui dérive « LexOS-Arc-… ». Or 0610 s'arrête
+#      AVANT d'écrire quoi que ce soit quand il n'a rien pu dériver (pas
+#      d'arc-theme, pas d'ImageMagick) — la clé restait alors ABSENTE, et
+#      lexos-firstrun retombait sur LEXOS_GTK_BASE_THEME, c'est-à-dire
+#      « LexOS-Noir »… qui n'a pas de dossier xfwm4, étant une feuille de
+#      style dans le foyer. Résultat : xfwm4 retombait sur « Default », des
+#      bordures GRISES au milieu d'un bureau noir, sans un mot dans le
+#      journal. On publie donc ICI la valeur déjà calculée plus haut ; 0610
+#      la remplace par la sienne quand il réussit, puisqu'il passe après.
 for PAIRE in "LEXOS_GTK_BASE_THEME=${GTK_BASE}" "LEXOS_GTK_SOCLE=${GTK_SOCLE}" \
-             "LEXOS_ICON_THEME=${ICONS}" \
+             "LEXOS_ICON_THEME=${ICONS}" "LEXOS_XFWM_THEME=${XFWM_THEME}" \
              "LEXOS_TERMINAL_MODE=${TERM_MODE}"; do
 	CLE="${PAIRE%%=*}"
 	if grep -q "^${CLE}=" /etc/lexos/build.conf; then
