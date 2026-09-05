@@ -2164,6 +2164,22 @@ jobs:
           #  renomme une machine inventée et relit les DEUX fichiers.
           bash tests/test_lexos_partage.sh
 
+      - name: Le panneau « Partager » — la page, et le repli qui la sauve
+        if: ${{ !cancelled() }}
+        run: |
+          #  « lexos share qr » ouvrait une fenêtre yad : un dialogue GTK
+          #  générique, qui ne prend pas le thème LexOS. Alex, photo de l'ISO
+          #  72 : « la page pour partager, elle est pas pareille ». Elle est
+          #  maintenant une page web locale dans une fenêtre Qt, comme tous
+          #  les autres panneaux.
+          #  CE QUE CE BANC GARDE SURTOUT, ce n'est pas l'apparence : c'est le
+          #  REPLI. Quatre gardes font retomber la commande sur le QR en
+          #  caractères quand la fenêtre est impossible — sans bureau, sans
+          #  Qt, sans le panneau. Et FENETRE_PID, sans lequel fermer la
+          #  fenêtre laisserait un serveur en train de servir le dossier
+          #  personnel sur le réseau.
+          bash tests/test_lexos_partage_page.sh
+
       - name: Les 36 sections des Paramètres se rendent toutes
         if: ${{ !cancelled() }}
         run: |

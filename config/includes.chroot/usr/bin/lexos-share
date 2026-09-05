@@ -15,6 +15,12 @@ set -uo pipefail
 
 PROG="${0##*/}"
 SERVER="/usr/lib/lexos/share-server.py"
+#  LA FENÊTRE DU PARTAGE. Elle n'est PAS le serveur : share-server.py écoute
+#  sur le réseau pour que le téléphone l'atteigne, partage.py ne fait
+#  qu'AFFICHER l'adresse déjà servie. Un seul chemin démarre un serveur, un
+#  seul l'arrête — sinon on finit un jour avec un serveur oublié en train de
+#  servir le dossier personnel sur le réseau.
+PANNEAU="${LEXOS_PARTAGE_PY:-/usr/lib/lexos/partage.py}"
 RECV_DIR="${XDG_DOWNLOAD_DIR:-$HOME/Téléchargements}"
 [[ -d "$RECV_DIR" ]] || RECV_DIR="$HOME/Downloads"
 [[ -d "$RECV_DIR" ]] || RECV_DIR="$HOME"
@@ -98,51 +104,52 @@ cmd_qr() {
 	#  chose qui marche chez celui qui l'a écrit et pas chez l'autre.
 	#
 	#  On rend donc un vrai PNG et on l'affiche dans une fenêtre. Le terminal
-	#  reste le REPLI : sans yad, ou sans serveur graphique — en console, en mode
-	#  secours — le QR en caractères vaut toujours mieux que rien. La commande
-	#  garde ainsi sa raison d'être là où il n'y a pas de bureau.
+	#  reste le REPLI : sans serveur graphique, sans Qt, ou sans le panneau —
+	#  en console, en mode secours, par SSH — le QR en caractères vaut toujours
+	#  mieux que rien. La commande garde ainsi sa raison d'être là où il n'y a
+	#  pas de bureau.
+	#
+	#  ═══ CE N'EST PLUS UNE FENÊTRE yad ═══
+	#  Elle l'a été, et elle ne pouvait pas ressembler au reste : un dialogue
+	#  GTK générique ne prend pas le thème LexOS, et son bouton reste celui du
+	#  thème GTK courant. On passe au patron de tous les autres panneaux — une
+	#  page web locale dans une fenêtre Qt (settings.py, volet.py, cartes.py) —
+	#  parce que c'est le seul moyen SÛR que l'apparence reste la même partout,
+	#  plutôt que de redessiner à la main d'un panneau à l'autre.
 	fenetre_qr() {
-		command -v yad >/dev/null 2>&1 || return 1
+		#  ═══ QUATRE RAISONS DE NE PAS S'AFFICHER, ET ELLES RENDENT TOUTES 1 ═══
+		#  Ce « return 1 » est ce qui fait retomber la commande sur le QR en
+		#  caractères, plus bas. Sans lui, « lexos share qr » ne servirait plus à
+		#  rien sur une machine sans bureau graphique — en console, en mode
+		#  secours, par SSH — là où c'est justement le plus utile.
 		[[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || return 1
-		command -v qrencode >/dev/null 2>&1 || return 1
+		command -v python3 >/dev/null 2>&1 || return 1
+		[[ -r "$PANNEAU" ]] || return 1
+		#  ON DEMANDE L'IMPORT, ON NE CHERCHE PAS LE FICHIER. Le paquet peut être
+		#  posé sans que l'import marche — mauvaise architecture, Qt incomplet.
+		#  La seule question qui compte est « est-ce que ça démarre ? ».
+		python3 -c 'import PySide6.QtWebEngineWidgets' >/dev/null 2>&1 || return 1
 
-		local png
-		png="$(mktemp -t lexos-share-qr-XXXXXX.png)" || return 1
-		#  -s 8 : huit pixels par module, lisible d'un bras de distance.
-		#  -m 2 : la marge blanche que la norme réclame — sans elle, beaucoup
-		#         d'appareils photo ne détectent pas le code du tout.
-		#  -l M : correction d'erreur moyenne, pour qu'un reflet ne suffise pas
-		#         à rendre le code illisible.
-		qrencode -t PNG -s 8 -m 2 -l M -o "$png" "$url" 2>/dev/null || {
-			rm -f "$png"; return 1; }
+		#  Ce qu'on montre, c'est ce que le téléphone verra : le contenu du
+		#  dossier temporaire, et non les chemins d'origine — un fichier écarté
+		#  plus haut (illisible, copie impossible) n'y est pas.
+		local -a partages=()
+		(( n > 0 )) && partages=("$stage"/*)
 
-		local texte
-		texte="<span size='x-large' weight='bold'>Partager un fichier</span>
-
-<span size='large'><tt>${url}</tt></span>
-
-Scanne le code avec l'appareil photo du téléphone,
-ou tape l'adresse dans son navigateur.
-
-<span alpha='75%'>Tu peux aussi t'envoyer des fichiers DEPUIS le téléphone :
-ils arrivent dans ${RECV_DIR}</span>
-
-<span alpha='75%'>Fermeture automatique dans ${MINUTES} min.</span>"
-
-		#  --on-top et --center : le partage dure quelques minutes, la fenêtre
-		#  ne doit pas se perdre sous les autres pendant qu'on cherche son
-		#  téléphone. --no-buttons : il n'y a rien à décider, seulement à lire.
-		yad --image="$png" --image-on-top \
-			--title="Partage LexOS" --window-icon=lexos \
-			--center --on-top --borders=18 --width=420 \
-			--text="$texte" \
-			--button="Fermer le partage:0" 2>/dev/null &
+		python3 "$PANNEAU" \
+			--url "$url" --recus "$RECV_DIR" --minutes "$MINUTES" \
+			"${partages[@]}" >/dev/null 2>&1 &
+		#  LE PID EST LE CONTRAT AVEC LA SUITE : le « wait -n » plus bas attend
+		#  la première des deux fins — la fenêtre ou Ctrl+C — pour arrêter le
+		#  serveur. Sans ce PID, fermer la fenêtre laisserait le partage ouvert.
 		FENETRE_PID=$!
-		QR_PNG="$png"
 		return 0
 	}
 
-	FENETRE_PID=""; QR_PNG=""
+	#  Le fichier temporaire du QR a disparu avec la fenêtre yad : l'image est
+	#  maintenant fabriquée par le panneau et rendue en data: URI dans la page.
+	#  Il n'y a plus rien à retirer après coup.
+	FENETRE_PID=""
 	printf '\n'
 	if ! fenetre_qr; then
 		#  Le repli, et il est assumé : en console il n'y a pas de fenêtre à
@@ -178,7 +185,6 @@ ils arrivent dans ${RECV_DIR}</span>
 		wait -n "$pid" "$FENETRE_PID" 2>/dev/null || true
 		kill "$pid" "$FENETRE_PID" 2>/dev/null || true
 		wait "$pid" "$FENETRE_PID" 2>/dev/null || true
-		[[ -n "$QR_PNG" ]] && rm -f "$QR_PNG"
 	else
 		wait "$pid" 2>/dev/null
 	fi

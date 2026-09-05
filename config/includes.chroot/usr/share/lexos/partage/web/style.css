@@ -1,0 +1,155 @@
+/* =============================================================================
+   Partager — ce qui est PROPRE à ce panneau
+   =============================================================================
+   Les jetons communs (fonds, texte, accent, bordures) viennent de ui.css,
+   chargé juste avant. AUCUNE COULEUR EN DUR ICI : c'est la règle du dépôt, et
+   un contrôle de CI la vérifie. La seule exception est le blanc du cadre du QR,
+   qui n'est pas une couleur d'interface mais une contrainte de lecture optique
+   — commentée à l'endroit où elle sert.
+   ========================================================================== */
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--fg);
+  font:14px/1.5 var(--police,"Inter","Ubuntu","DejaVu Sans",system-ui,sans-serif);
+  -webkit-font-smoothing:antialiased;
+}
+#app{min-height:100%;display:flex;flex-direction:column}
+
+/* --- Entête --------------------------------------------------------------- */
+.tete{padding:20px 22px 0}
+.tete h1{font-size:21px;font-weight:700;letter-spacing:-.015em}
+.tete p{color:var(--fg-dim);font-size:13px;margin-top:6px;max-width:56ch;line-height:1.55}
+
+/* --- Le haut : QR à gauche, tout le reste à droite ------------------------ */
+.haut{
+  display:grid;grid-template-columns:200px 1fr;gap:20px;
+  padding:18px 22px 0;align-items:start;
+}
+@media (max-width:560px){.haut{grid-template-columns:1fr}}
+
+/*  LE BLANC EST OBLIGATOIRE, PAS DÉCORATIF. Voir le commentaire d'index.html :
+    un QR clair sur fond sombre n'est pas lu par une partie des appareils
+    photo. C'est la seule surface blanche de LexOS, et elle a une raison
+    fonctionnelle. Le padding reproduit la « zone calme » du code. */
+.cadre-qr{background:#FFFFFF;border-radius:10px;padding:11px}
+.cadre-qr img{display:block;width:100%;height:auto;image-rendering:pixelated}
+.legende{color:var(--fg-dim);font-size:12px;text-align:center;margin-top:8px;line-height:1.45}
+
+.etiquette{color:var(--fg-dim);font-size:12px;margin-bottom:6px}
+
+.adresse{
+  display:flex;align-items:center;gap:10px;
+  background:var(--bg-hi);border:1px solid var(--bd);
+  border-radius:10px;padding:9px 11px;
+}
+.adresse code{
+  flex:1;min-width:0;
+  font-family:ui-monospace,"DejaVu Sans Mono",monospace;font-size:13.5px;
+  color:var(--ac);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+.bloc{margin-top:15px}
+
+/* --- Les fichiers partagés ------------------------------------------------ */
+.fichier{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 11px;margin-top:6px;
+  background:var(--bg-side);border:1px solid var(--bd);border-radius:9px;
+  font-size:13px;
+}
+.fichier .nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fichier .taille{
+  margin-left:auto;flex:none;
+  color:var(--fg-dim);font-family:ui-monospace,"DejaVu Sans Mono",monospace;
+  font-size:12px;
+}
+.vide{color:var(--fg-dim);font-size:13px;padding:8px 0}
+
+/*  LE LISERÉ EST À GAUCHE SEULEMENT, DONC PAS D'ARRONDI. Des coins ronds sur
+    une bordure d'un seul côté laissent un trait qui flotte : l'arrondi n'a
+    rien à quoi se raccrocher en haut et en bas. */
+.retour{
+  margin-top:15px;padding:11px 13px;
+  background:var(--bg-hi);
+  border:1px solid var(--bd);border-left:3px solid var(--ac);
+  border-radius:0;
+}
+.retour b{font-weight:600;font-size:13px}
+.retour span{display:block;color:var(--fg-dim);font-size:12.5px;margin-top:4px;line-height:1.5}
+.retour code{
+  font-family:ui-monospace,"DejaVu Sans Mono",monospace;
+  color:var(--ac);font-size:12px;
+}
+
+/* --- Les autres moyens ---------------------------------------------------- */
+.autres{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:16px 22px 0}
+@media (max-width:560px){.autres{grid-template-columns:1fr}}
+.moyen{
+  display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  padding:10px 12px;
+  background:var(--bg-side);border:1px solid var(--bd);border-radius:10px;
+  color:var(--fg);font:inherit;font-size:13px;cursor:default;
+}
+.moyen .t{font-weight:600}
+.moyen .d{display:block;color:var(--fg-dim);font-size:12px;margin-top:2px}
+.moyen .etat{margin-left:auto;flex:none;font-size:12px;color:var(--fg-dim)}
+.moyen .etat.on{color:var(--ok)}
+
+/* --- Pied ----------------------------------------------------------------- */
+.pied{
+  margin-top:auto;
+  border-top:1px solid var(--bd);background:var(--bg-side);
+  padding:13px 20px;
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+}
+.minuterie{
+  margin-right:auto;color:var(--fg-dim);font-size:12.5px;
+  display:flex;align-items:center;gap:8px;
+}
+.minuterie b{
+  font-family:ui-monospace,"DejaVu Sans Mono",monospace;
+  color:var(--fg);font-weight:400;
+}
+.temoin{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.temoin.mort{background:var(--fg-dim)}
+
+/* --- Boutons -------------------------------------------------------------- */
+/*  Pilule complète, comme .btn des Paramètres. Le texte est NOIR sur l'accent
+    (--ac-txt), et ce n'est pas un goût : mesuré sur l'orange de LexOS, le
+    blanc donne 3,58:1 de contraste et le noir 5,87:1 — le seuil lisible est
+    à 4,5.
+    LE CODE DE L'ACCENT N'EST PAS ÉCRIT ICI, MÊME EN COMMENTAIRE. Le contrôle
+    de CI « L'accent n'est écrit qu'à un seul endroit » lit le fichier entier,
+    commentaires compris : une explication qui cite la couleur ferait rougir
+    la construction pour une ligne qui n'a aucun effet. Même famille de piège
+    que les six faux verts trouvés dans les bancs — un contrôle qui lit un
+    commentaire en croyant lire du code. */
+.btn{
+  padding:9px 19px;border-radius:999px;
+  border:1px solid var(--ac);background:var(--ac);color:var(--ac-txt);
+  font:inherit;font-weight:600;cursor:pointer;
+  transition:background .14s,border-color .14s,box-shadow .14s;
+}
+.btn:hover{background:var(--ac-hi);border-color:var(--ac-hi)}
+.btn:active{box-shadow:0 0 0 4px var(--ac-halo)}
+.btn:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+
+.btn.gris{background:none;color:var(--fg);border-color:var(--bd)}
+.btn.gris:hover{background:none;border-color:var(--ac);color:var(--ac-hi)}
+
+.mini{
+  flex:none;padding:5px 13px;border-radius:999px;
+  border:1px solid var(--bd);background:none;color:var(--fg);
+  font:inherit;font-size:12px;cursor:pointer;
+}
+.mini:hover{border-color:var(--ac);color:var(--ac-hi)}
+.mini:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.mini.fait{border-color:var(--ok);color:var(--ok)}
+
+@media (prefers-reduced-motion:reduce){
+  .btn,.mini{transition:none}
+}

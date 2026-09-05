@@ -1,0 +1,363 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  Le panneau « Partager » — la page, et le chemin qui y mène
+# =============================================================================
+#  ALEX, PHOTO DE L'ISO 72 : « la page pour partager, elle est pas pareille ».
+#  Elle ne pouvait pas l'être : « lexos share qr » ouvrait une fenêtre yad, un
+#  dialogue GTK générique qui ne prend pas le thème LexOS. Le panneau la
+#  remplace par le patron de tous les autres — une page web locale dans une
+#  fenêtre Qt.
+#
+#  ═══ CE QUE CE BANC GARDE, ET POURQUOI CHAQUE POINT A COÛTÉ QUELQUE CHOSE ═══
+#  · LE REPLI TERMINAL. Sans lui, « lexos share qr » ne servirait plus à rien
+#    sur une machine sans bureau — en console, par SSH, en mode secours — là
+#    où c'est justement le plus utile. Quatre conditions le déclenchent, et
+#    elles doivent TOUTES rendre 1.
+#  · FENETRE_PID. Le « wait -n » de lexos-share attend la première des deux
+#    fins pour arrêter le serveur de partage. Sans ce PID, fermer la fenêtre
+#    laisse un partage ouvert — un serveur qu'on croit fermé et qui sert
+#    encore le dossier personnel sur le réseau.
+#  · UN SEUL CHEMIN DÉMARRE UN SERVEUR. partage.py ne doit JAMAIS lancer
+#    share-server.py : deux chemins qui démarrent, deux façons d'arrêter, et
+#    un jour un serveur oublié.
+#  · 127.0.0.1. Le serveur de la fenêtre sert l'interface, pas les fichiers :
+#    il n'a aucune raison d'être joignable depuis le réseau.
+#  · AUCUNE COULEUR EN DUR. La règle du dépôt, déjà tenue par un contrôle de
+#    CI ; on la tient aussi ici, et de la MÊME façon que lui — un banc plus
+#    tolérant que la CI laisserait passer une construction rouge.
+# =============================================================================
+set -uo pipefail
+
+#  ═══ AUCUNE VARIABLE NE REPART DANS UN TUYAU VERS « grep -q » ═══
+#  Mesuré sur test_lexos_installateur_bandeau.sh : 54 échecs sur 300 essais.
+#  « grep -q » s'arrête au premier résultat et ferme le tuyau ; ce qui écrivait
+#  encore prend une erreur, et « pipefail » transforme ça en condition FAUSSE
+#  alors que le motif a été trouvé. On emploie « <<< » partout.
+RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+IC="$RACINE/config/includes.chroot"
+WEB="$IC/usr/share/lexos/partage/web"
+PY="$IC/usr/lib/lexos/partage.py"
+SHARE="$IC/usr/bin/lexos-share"
+
+REUSSIS=0; ECHOUES=0
+ok()    { printf '  \033[32m✅\033[0m %s\n' "$1"; REUSSIS=$((REUSSIS+1)); }
+non()   { printf '  \033[31m❌\033[0m %b\n' "$1"; ECHOUES=$((ECHOUES+1)); }
+saut()  { printf '  \033[33m—\033[0m  %s\n' "$1"; }
+titre() { printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
+
+# =============================================================================
+titre "1. Les fichiers du panneau sont là"
+# =============================================================================
+for F in "$WEB/index.html" "$WEB/style.css" "$WEB/app.js" "$PY"; do
+	if [[ -s "$F" ]]; then
+		ok "${F#"$IC/"} est posé"
+	else
+		non "${F#"$IC/"} MANQUE ou est vide"
+	fi
+done
+
+if [[ -x "$PY" ]]; then
+	ok "partage.py est exécutable"
+else
+	non "partage.py n'est pas exécutable — lexos-share le lance par python3, mais le bit dit l'intention"
+fi
+
+# =============================================================================
+titre "2. ui.css est un LIEN, pas une copie"
+# =============================================================================
+#  Une copie diverge le jour où l'accent change, et personne ne s'en aperçoit :
+#  le panneau garde l'ancienne palette et a l'air « presque » juste. Les autres
+#  panneaux (settings, ia, volet) pointent tous sur ../../ui.css.
+if [[ -L "$WEB/ui.css" ]]; then
+	CIBLE="$(readlink "$WEB/ui.css")"
+	if [[ -r "$WEB/ui.css" ]]; then
+		ok "ui.css est un lien vers « $CIBLE », et il résout"
+	else
+		non "ui.css est un lien CASSÉ vers « $CIBLE » — sans lui, aucun var() ne résout : texte sans couleur sur fond sans couleur"
+	fi
+else
+	non "ui.css est une COPIE — elle divergera de la source unique sans que personne ne le voie"
+fi
+
+#  Le fichier d'aperçu détourne fetch pour montrer des données d'exemple :
+#  livré dans l'ISO, il ferait une page qui ment.
+if [[ -e "$WEB/apercu.html" ]]; then
+	non "apercu.html est dans l'ISO — c'est un fichier de travail qui simule les données"
+else
+	ok "apercu.html n'est pas embarqué"
+fi
+
+# =============================================================================
+titre "3. Aucune couleur en dur, sauf le cadre blanc du QR"
+# =============================================================================
+#  ═══ ON LIT LE FICHIER ENTIER, COMMENTAIRES COMPRIS ═══
+#  C'est ce que fait le contrôle de CI « L'accent n'est écrit qu'à un seul
+#  endroit ». Un banc qui décommenterait serait PLUS TOLÉRANT que la CI :
+#  il passerait au vert sur un fichier qui fait échouer la construction.
+#  Conséquence assumée : on n'explique pas une couleur en citant son code,
+#  même dans un commentaire.
+for F in "$WEB/style.css" "$WEB/index.html"; do
+	DURES="$(grep -oniE '#[0-9A-Fa-f]{3,8}\b|rgba?\([0-9 ,.]+\)' "$F" | grep -v '#FFFFFF' || true)"
+	if [[ -z "$DURES" ]]; then
+		ok "$(basename "$F") n'écrit aucune couleur en dur (hors #FFFFFF)"
+	else
+		non "$(basename "$F") écrit des couleurs en dur :\n$(sed 's/^/       /' <<< "$DURES")"
+	fi
+done
+
+#  Et le blanc doit rester ce qu'il est : le cadre du QR, et rien d'autre.
+NB_BLANC="$(grep -ocE '#FFFFFF' "$WEB/style.css" || true)"
+if [[ "$NB_BLANC" -le 1 ]]; then
+	ok "le blanc n'apparaît qu'une fois — le cadre du QR"
+else
+	non "le blanc apparaît $NB_BLANC fois : il n'est justifié QUE pour le cadre du QR"
+fi
+
+# =============================================================================
+titre "4. lexos-share ouvre le panneau, et garde son repli"
+# =============================================================================
+#  ═══ ON DÉCOMMENTE D'ABORD ═══
+#  Les commentaires de lexos-share racontent justement le passage de yad au
+#  panneau : ils CITENT « yad ». Un contrôle qui lit le fichier brut trouverait
+#  l'explication et croirait lire du code — le faux rouge de la famille qui
+#  s'est refermée six fois sur ce dépôt.
+CODE="$(sed 's/^[[:space:]]*#.*$//' "$SHARE")"
+QR="$(sed -n '/^cmd_qr() {/,/^}/p' <<< "$CODE")"
+
+if [[ -z "${QR//[[:space:]]/}" ]]; then
+	non "cmd_qr n'a pas pu être extraite de lexos-share — rien n'a été mesuré"
+else
+	ok "cmd_qr extraite ($(grep -c . <<< "$QR") lignes de code)"
+fi
+
+if grep -q 'yad' <<< "$QR"; then
+	non "cmd_qr appelle encore yad — la fenêtre ne prendra pas le thème LexOS"
+else
+	ok "cmd_qr n'appelle plus yad"
+fi
+
+if grep -q 'partage.py\|\$PANNEAU\|"\$PANNEAU"' <<< "$QR"; then
+	ok "cmd_qr lance bien le panneau"
+else
+	non "cmd_qr ne lance pas partage.py — « lexos share qr » n'ouvrirait plus rien"
+fi
+
+if grep -q 'FENETRE_PID=\$!' <<< "$QR"; then
+	ok "FENETRE_PID est posé — le « wait -n » pourra arrêter le serveur"
+else
+	non "FENETRE_PID n'est plus posé : fermer la fenêtre laisserait le partage OUVERT"
+fi
+
+for ARG in -- --url --recus --minutes; do
+	[[ "$ARG" == "--" ]] && continue
+	if grep -q -- "$ARG" <<< "$QR"; then
+		ok "…et $ARG lui est passé"
+	else
+		non "$ARG n'est pas passé au panneau"
+	fi
+done
+
+#  LES QUATRE PORTES DU REPLI. Chacune doit rendre 1 : c'est ce qui fait
+#  retomber la commande sur le QR en caractères.
+FEN="$(sed -n '/fenetre_qr() {/,/^\t}/p' <<< "$CODE")"
+declare -A PORTES=(
+	["DISPLAY"]="ni DISPLAY ni WAYLAND_DISPLAY"
+	["command -v python3"]="python3 absent"
+	["PANNEAU"]="partage.py absent"
+	["PySide6"]="PySide6 absent"
+)
+for MOTIF in "${!PORTES[@]}"; do
+	if grep -q -- "$MOTIF" <<< "$FEN"; then
+		ok "repli prévu : ${PORTES[$MOTIF]}"
+	else
+		non "aucune garde pour « ${PORTES[$MOTIF]} » — la commande mourrait au lieu de retomber sur le terminal"
+	fi
+done
+
+NB_RET="$(grep -c 'return 1' <<< "$FEN" || true)"
+if [[ "$NB_RET" -ge 4 ]]; then
+	ok "fenetre_qr rend 1 dans $NB_RET cas — le repli reste atteignable"
+else
+	non "fenetre_qr ne rend 1 que $NB_RET fois : une garde a perdu son repli"
+fi
+
+if grep -q 'qrencode -t ANSIUTF8' <<< "$CODE"; then
+	ok "le repli terminal (QR en caractères) est toujours là"
+else
+	non "le QR en caractères a disparu — sur une machine sans bureau, la commande ne montre plus rien"
+fi
+
+#  QR_PNG a disparu avec yad. Un « rm -f » sur une variable qui n'existe plus
+#  ne retire rien, mais il ment sur ce que fait le code.
+if grep -q 'QR_PNG' <<< "$CODE"; then
+	non "QR_PNG survit dans le code alors que le fichier temporaire n'existe plus"
+else
+	ok "QR_PNG a disparu du code avec le fichier temporaire"
+fi
+
+# =============================================================================
+titre "5. Le panneau n'est pas un deuxième serveur de partage"
+# =============================================================================
+#  ═══ LA VRAIE QUESTION EST « EST-CE QU'IL LE LANCE ? » ═══
+#  Deux jets ont manqué la cible avant celui-ci, et les deux étaient des faux
+#  ROUGES sur de la prose :
+#    · chercher « share-server » dans le fichier décommenté trouvait la
+#      DOCSTRING, qui explique justement que ce panneau ne le démarre pas ;
+#    · retirer aussi les docstrings trouvait encore le texte d'aide d'une
+#      option (« adresse déjà servie par share-server »).
+#  Dans les deux cas, la seule façon de faire passer le banc aurait été
+#  d'effacer une explication juste : le contrôle aurait gagné contre la
+#  documentation. On regarde donc les APPELS, dans l'arbre syntaxique :
+#  subprocess, os.exec*, os.system, Popen — et on refuse qu'un seul d'entre
+#  eux porte le nom du serveur de partage. Un import du module aussi.
+LANCEMENTS=""
+if command -v python3 >/dev/null 2>&1; then
+	LANCEMENTS="$(python3 - "$PY" <<'PYEOF'
+import ast, sys
+
+src = open(sys.argv[1], encoding="utf-8").read()
+arbre = ast.parse(src)
+FAUTIF = ("share-server", "share_server")
+
+def nom_appele(f):
+    if isinstance(f, ast.Name):
+        return f.id
+    if isinstance(f, ast.Attribute):
+        base = nom_appele(f.value)
+        return f"{base}.{f.attr}" if base else f.attr
+    return ""
+
+trouves = []
+for n in ast.walk(arbre):
+    if isinstance(n, (ast.Import, ast.ImportFrom)):
+        mods = [a.name for a in n.names]
+        if isinstance(n, ast.ImportFrom) and n.module:
+            mods.append(n.module)
+        for m in mods:
+            if any(f in m for f in FAUTIF):
+                trouves.append(f"import {m}")
+        continue
+    if not isinstance(n, ast.Call):
+        continue
+    appele = nom_appele(n.func)
+    if not (appele.startswith("subprocess.") or appele.startswith("os.exec")
+            or appele in ("os.system", "os.spawnv", "Popen", "run")):
+        continue
+    for c in ast.walk(n):
+        if isinstance(c, ast.Constant) and isinstance(c.value, str) \
+           and any(f in c.value for f in FAUTIF):
+            trouves.append(f"{appele}(… {c.value!r} …)")
+print("\n".join(trouves))
+PYEOF
+)" || LANCEMENTS="ERREUR"
+fi
+
+if [[ "$LANCEMENTS" == "ERREUR" ]]; then
+	non "partage.py n'a pas pu être analysé — le contrôle « un seul serveur » n'est pas éprouvé"
+elif [[ -z "$LANCEMENTS" ]]; then
+	ok "partage.py ne LANCE aucun serveur de partage : un seul chemin le démarre, un seul l'arrête"
+else
+	non "partage.py lance le serveur de partage :\n$(sed 's/^/       /' <<< "$LANCEMENTS")"
+fi
+
+#  ═══ ON NE CONCLUT JAMAIS UNE ABSENCE SUR UN TEXTE VIDE ═══
+#  Ce contrôle a été VERT SUR DU VIDE pendant deux exécutions : la variable
+#  qu'il lisait n'existait plus, « grep » échouait sur une variable non
+#  définie, et la branche « rien trouvé » se déclarait satisfaite. Une
+#  assertion d'absence sur un texte vide passe toujours — c'est le même piège
+#  que la plage sed qui sortait vide dans le banc de l'écran de démarrage.
+#  On mesure donc d'abord que le texte est là.
+NU_PY=""
+if command -v python3 >/dev/null 2>&1; then
+	NU_PY="$(python3 - "$PY" <<'PYEOF'
+import ast, sys
+a = ast.parse(open(sys.argv[1], encoding="utf-8").read())
+for n in ast.walk(a):
+    if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        c = n.body
+        if c and isinstance(c[0], ast.Expr) and isinstance(c[0].value, ast.Constant) \
+           and isinstance(c[0].value.value, str):
+            n.body = c[1:] or [ast.Pass()]
+print(ast.unparse(a))
+PYEOF
+)" || NU_PY=""
+fi
+
+if [[ "$(printf '%s' "$NU_PY" | wc -l)" -lt 50 ]]; then
+	non "le code de partage.py n'a pas pu être lu ($(printf '%s' "$NU_PY" | wc -l) lignes) — les contrôles d'écoute ne prouveraient rien"
+else
+	ok "le code de partage.py est lisible ($(printf '%s' "$NU_PY" | wc -l) lignes, prose retirée)"
+
+	if grep -q "'127.0.0.1'" <<< "$NU_PY"; then
+		ok "le serveur de la fenêtre n'écoute que sur 127.0.0.1"
+	else
+		non "le serveur de la fenêtre ne se lie pas explicitement à 127.0.0.1"
+	fi
+
+	if grep -qE "0\\.0\\.0\\.0|'', *port|\"\", *port" <<< "$NU_PY"; then
+		non "le serveur de la fenêtre écoute sur toutes les interfaces — l'interface deviendrait joignable du réseau"
+	else
+		ok "…et il n'écoute sur aucune autre interface"
+	fi
+fi
+
+# =============================================================================
+titre "6. La liste des actions est FERMÉE"
+# =============================================================================
+#  ═══ ON IMPORTE LE MODULE, ON NE LE RELIT PAS ═══
+#  Les imports Qt de partage.py sont DANS main() — le module s'importe donc
+#  sans serveur graphique. On lit ACTIONS pour de vrai : un grep aurait trouvé
+#  la même chose dans un commentaire, et n'aurait rien dit d'un ensemble
+#  construit ailleurs.
+if command -v python3 >/dev/null 2>&1; then
+	LU="$(python3 - "$PY" <<'PYEOF'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("partage", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+a = getattr(m, "ACTIONS", None)
+print(type(a).__name__, "|", ",".join(sorted(a)) if isinstance(a, (set, frozenset)) else a)
+PYEOF
+)" || LU=""
+	case "$LU" in
+		"set | fermer,ouvrir-recus"|"frozenset | fermer,ouvrir-recus")
+			ok "ACTIONS = {fermer, ouvrir-recus}, et rien d'autre" ;;
+		"")
+			non "partage.py ne s'importe pas — la liste des actions n'a pas pu être lue" ;;
+		*)
+			non "ACTIONS a changé : « $LU » (attendu : set | fermer,ouvrir-recus)" ;;
+	esac
+else
+	saut "python3 absent : la liste des actions n'a pas été lue"
+fi
+
+# =============================================================================
+titre "7. Le python compile"
+# =============================================================================
+if command -v python3 >/dev/null 2>&1; then
+	if SORTIE="$(python3 -m py_compile "$PY" 2>&1)"; then
+		ok "partage.py passe py_compile"
+	else
+		non "partage.py ne compile pas :\n$(sed 's/^/       /' <<< "$SORTIE")"
+	fi
+	find "$IC/usr/lib/lexos" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+else
+	saut "python3 absent : la compilation n'a pas été éprouvée"
+fi
+
+# =============================================================================
+titre "8. La page charge les jetons communs AVANT les siens"
+# =============================================================================
+#  style.css redéfinit des choses par-dessus ui.css. Dans l'autre ordre, les
+#  jetons communs écraseraient le panneau — et le panneau aurait l'air à
+#  moitié thémé, ce qui est plus dur à diagnostiquer qu'une page toute nue.
+ORD_UI="$(grep -n 'href="ui.css"' "$WEB/index.html" | head -1 | cut -d: -f1)"
+ORD_ST="$(grep -n 'href="style.css"' "$WEB/index.html" | head -1 | cut -d: -f1)"
+if [[ -n "$ORD_UI" && -n "$ORD_ST" && "$ORD_UI" -lt "$ORD_ST" ]]; then
+	ok "ui.css est chargé avant style.css (lignes $ORD_UI puis $ORD_ST)"
+else
+	non "l'ordre des feuilles est faux ou l'une manque (ui.css=$ORD_UI, style.css=$ORD_ST)"
+fi
+
+printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
+[[ "$ECHOUES" -eq 0 ]]
