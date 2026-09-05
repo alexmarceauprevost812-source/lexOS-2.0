@@ -25,6 +25,24 @@
 #     touché, même avec --tout. On pose des témoins et on les relit.
 #  3. Toutes les portes mènent au même endroit, et AUCUNE ne duplique la
 #     logique de copie.
+#
+#  ═══ ON N'ENVOIE PLUS UNE VARIABLE DANS UN TUYAU VERS grep. JAMAIS. ═══
+#  CE BANC A ROUGI EN CI POUR CETTE RAISON, ET LA CAUSE N'AVAIT RIEN À VOIR
+#  AVEC CE QU'IL ÉPROUVE :
+#      tests/test_lexos_mise_a_jour.sh: line 355: printf: write error: Broken pipe
+#      ❌ le dispatcheur n'appelle pas l'outil par exec
+#  Le dispatcheur fait 43 ko ; « exec /usr/bin/lexos-mise-a-jour » est au tiers
+#  du fichier. « grep -q » S'ARRÊTE AU PREMIER RÉSULTAT et ferme le tuyau —
+#  printf, qui écrivait encore, reçoit une erreur. Avec « pipefail », c'est
+#  TOUT LE TUYAU qui échoue, donc la condition est fausse ALORS QUE LE MOTIF A
+#  ÉTÉ TROUVÉ. C'est une course : elle se perd sur une machine chargée, et se
+#  gagne sur la nôtre — le pire genre de défaut.
+#  ET LE FAUX ROUGE N'EST PAS LE PLUS GRAVE. Dans un contrôle inversé — « si
+#  ce motif est là, ROUGIS » — la même course donne un FAUX VERT : le motif
+#  interdit est trouvé, le tuyau échoue, et le banc annonce que tout va bien.
+#  La forme sûre est « grep motif <<< "$VAR" » : bash passe le texte par un
+#  fichier, il n'y a plus de tuyau à casser. La section 8 le vérifie sur ce
+#  banc lui-même.
 # =============================================================================
 set -uo pipefail
 
@@ -35,11 +53,47 @@ MISS="$IC/usr/bin/miss"
 DISPATCH="$IC/usr/bin/lexos"
 GARDE="$RACINE/config/hooks/normal/0255-lexos-noms-reserves.hook.chroot"
 BANC="$(mktemp -d)"
-trap 'rm -rf "$BANC"' EXIT
 
-reussis=0; echoues=0
+#  ═══ LE MÉNAGE DIT CE QU'IL N'A PAS PU FAIRE ═══
+#  Un « rm » qui échoue à la fin laisse des dossiers root dans /tmp à chaque
+#  exécution, et son message brut n'apprend rien à qui le lit. C'est arrivé à
+#  Alex : trois « Permission denied » sous le résumé, sans un mot sur leur
+#  cause. Il n'y en a qu'une, et on la NOMME.
+nettoyer() {
+	rm -rf "$BANC" 2>/dev/null
+	if [ -d "$BANC" ]; then
+		printf '\n  \033[31m❌\033[0m il reste des fichiers non supprimables dans %s\n' "$BANC"
+		printf "     C'est que l'outil s'est ÉLEVÉ sous sudo pendant le banc : un\n"
+		printf "     dossier créé par root ne se vide pas depuis un compte ordinaire.\n"
+	fi
+}
+trap nettoyer EXIT
+
+#  ═══ UN FAUX « sudo » EN TÊTE DU PATH, POUR TOUT LE BANC ═══
+#  Un banc doit tourner SEUL — sans mot de passe — et ne rien laisser derrière
+#  lui. Si l'outil se relance sous sudo, celui-ci laisse un témoin et échoue :
+#  la section 8 le dira nommément, au lieu de trois lignes de « rm » que
+#  personne ne sait relier à quoi que ce soit.
+mkdir -p "$BANC/faux"
+{
+	printf '#!/bin/sh\n'
+	printf ': > "%s"\n' "$BANC/sudo-appele"
+	printf 'echo "banc : sudo a ete appele" >&2\n'
+	printf 'exit 1\n'
+} > "$BANC/faux/sudo"
+chmod 755 "$BANC/faux/sudo"
+export PATH="$BANC/faux:$PATH"
+BASH_ABS="$(command -v bash)"
+
+#  ═══ ON SE SOUVIENT DE CE QUI A ÉCHOUÉ ═══
+#  Un ❌ à la ligne 12 d'un banc qui en affiche quarante a défilé bien avant
+#  qu'on lise le résumé. Alex n'a pu coller que « 34 réussis, 1 échoués » : il
+#  a fallu deviner LEQUEL. On les redit donc à la fin, juste avant le compte.
+reussis=0; echoues=0; ECHECS=""
 ok()    { printf '  \033[32m✅\033[0m %s\n' "$1"; reussis=$((reussis+1)); }
-non()   { printf '  \033[31m❌\033[0m %s\n' "$1"; echoues=$((echoues+1)); }
+non()   { printf '  \033[31m❌\033[0m %s\n' "$1"; echoues=$((echoues+1))
+          ECHECS="${ECHECS}  · ${1}
+"; }
 saut()  { printf '  \033[33m—\033[0m  %s\n' "$1"; }
 titre() { printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 
@@ -111,7 +165,7 @@ else
 	non "« --essai » A MODIFIÉ la destination :"
 	diff <(printf '%s\n' "$AVANT") <(printf '%s\n' "$APRES") | head -8 | sed 's/^/       /'
 fi
-if printf '%s' "$SORTIE_ESSAI" | grep -q 'usr/bin/lexos-truc'; then
+if grep -q 'usr/bin/lexos-truc' <<< "$SORTIE_ESSAI"; then
 	ok "… et il DIT quand même ce qui serait copié"
 else
 	non "« --essai » ne dit pas ce qu'il copierait — il ne sert à rien"
@@ -239,7 +293,7 @@ done
 JS
 } > "$BANC/interdits.sh"
 RES="$(bash "$BANC/interdits.sh" 2>&1)"
-if printf '%s' "$RES" | grep -q 'RATE'; then
+if grep -q 'RATE' <<< "$RES"; then
 	non "interdit() se trompe :"
 	printf '%s\n' "$RES" | sed 's/^/       /'
 else
@@ -291,7 +345,7 @@ fi
 #  déclencher une vraie mise à jour Debian sur la machine de construction pour
 #  savoir qu'elle n'aurait pas dû se déclencher.
 CODE="$(sed 's/[[:space:]]*#.*$//' "$OUTIL")"
-NB_APT="$(printf '%s' "$CODE" | grep -c 'apt-get\|apt ')"
+NB_APT="$(grep -c 'apt-get\|apt ' <<< "$CODE")"
 if [ "$NB_APT" = "0" ]; then
 	ok "aucun appel à apt dans le programme — Debian n'est touché que par « lexos upgrade »"
 else
@@ -299,7 +353,7 @@ else
 fi
 
 #  Sans --skel, on ne touche pas au compte courant.
-if printf '%s' "$SORTIE" | grep -q "n'a PAS été reporté"; then
+if grep -q "n'a PAS été reporté" <<< "$SORTIE"; then
 	ok "sans --skel, le compte courant n'est pas touché — et c'est DIT"
 else
 	non "rien ne signale que /etc/skel n'a pas été reporté : on croirait la mise à jour complète"
@@ -339,7 +393,7 @@ essai_porte "a jour --essai" a jour --essai
 #  Un enrobage qui avale n'importe quoi en silence fera croire un jour qu'une
 #  mise à jour a eu lieu alors qu'il y avait une faute de frappe.
 SORTIE_F="$(sh "$BANC/miss" mizajour 2>&1)"; CODE_F=$?
-if [ "$CODE_F" -ne 0 ] && printf '%s' "$SORTIE_F" | grep -q 'sudo miss a jour'; then
+if [ "$CODE_F" -ne 0 ] && grep -q 'sudo miss a jour' <<< "$SORTIE_F"; then
 	ok "« miss mizajour » est refusé, et le message dit quoi taper"
 else
 	non "« miss mizajour » : code $CODE_F, sortie « $SORTIE_F »"
@@ -347,12 +401,12 @@ fi
 
 #  ═══ LE DISPATCHEUR AUSSI ═══
 CODE_D="$(sed 's/[[:space:]]*#.*$//' "$DISPATCH")"
-if printf '%s' "$CODE_D" | grep -q 'maj|mise-a-jour'; then
+if grep -q 'maj|mise-a-jour' <<< "$CODE_D"; then
 	ok "« lexos maj » et « lexos mise-a-jour » sont dans le dispatcheur"
 else
 	non "le dispatcheur ne connaît pas « maj »"
 fi
-if printf '%s' "$CODE_D" | grep -q 'exec /usr/bin/lexos-mise-a-jour'; then
+if grep -q 'exec /usr/bin/lexos-mise-a-jour' <<< "$CODE_D"; then
 	ok "le dispatcheur fait EXEC vers l'outil — il ne réimplémente rien"
 else
 	non "le dispatcheur n'appelle pas l'outil par exec"
@@ -374,7 +428,7 @@ DOUBLON=0
 for F in "$MISS" "$DISPATCH"; do
 	NU="$(sed 's/[[:space:]]*#.*$//' "$F")"
 	for MOTIF in 'rsync' 'cp -a' '\.lexos-bak'; do
-		if printf '%s' "$NU" | grep -q -- "$MOTIF"; then
+		if grep -q -- "$MOTIF" <<< "$NU"; then
 			non "$(basename "$F") contient « $MOTIF » : la logique de copie est dupliquée"
 			DOUBLON=1
 		fi
@@ -435,6 +489,93 @@ else
 fi
 
 # =============================================================================
+titre "8. Le banc n'a pas besoin de root — et la porte des droits tient"
+# =============================================================================
+#  POURQUOI CETTE SECTION EXISTE. Alex a lancé ce banc depuis son compte. À
+#  chaque passage non-essai, l'outil se relançait sous sudo, écrivait dans le
+#  faux système SOUS ROOT, et le ménage de fin échouait sur trois fichiers.
+#  Un banc qui réclame un mot de passe ne tourne plus tout seul, et un banc
+#  qui laisse des dossiers root dans /tmp salit la machine à chaque essai.
+if [ -e "$BANC/sudo-appele" ]; then
+	non "l'outil s'est élevé sous sudo pendant le banc — il écrirait en root dans /tmp"
+else
+	ok "le banc n'a jamais eu besoin de sudo — rien de root ne traîne dans /tmp"
+fi
+
+#  ═══ ET LA PORTE RESTE GARDÉE, DANS L'AUTRE SENS ═══
+#  Le contrôle ci-dessus dit « il ne s'élève pas ». Seul, il serait TOUT AUSSI
+#  content d'un outil qui n'exige plus jamais les droits — et qui, le jour où
+#  quelqu'un tape la commande sans sudo, échouerait à mi-chemin en laissant
+#  /usr à moitié écrit. On éprouve donc le sens inverse : destination NON
+#  inscriptible et aucun sudo joignable — l'outil doit refuser en le disant.
+#  En root la question ne se pose pas (EUID vaut 0, et root écrit partout) :
+#  on le DIT plutôt que d'afficher un vert qui ne prouve rien.
+if [ "$(id -u)" -eq 0 ]; then
+	saut "banc lancé en root : le refus faute de droits n'a PAS été éprouvé"
+else
+	mkdir -p "$BANC/verrou"
+	chmod 500 "$BANC/verrou"
+	VU="$(LEXOS_MAJ_DEST="$BANC/verrou" LEXOS_MAJ_ETC="$BANC/verrou/etc" \
+	      PATH=/inexistant "$BASH_ABS" "$OUTIL" --depuis "$SRC" 2>&1)"
+	CODE=$?
+	if [ "$CODE" -ne 0 ] && grep -q 'droits administrateur' <<< "$VU"; then
+		ok "destination non inscriptible, sudo injoignable : l'outil refuse, et le dit"
+	else
+		non "aucune demande de droits sur une destination non inscriptible : code $CODE, sortie « $VU »"
+	fi
+	chmod 700 "$BANC/verrou"
+
+	#  ═══ ET SURTOUT AVEC LA DESTINATION DE PRODUCTION ═══
+	#  Le contrôle ci-dessus passe par la couture du banc. Celui-ci n'en met
+	#  AUCUNE : sans LEXOS_MAJ_DEST, la destination est celle de la vraie vie
+	#  (« / »), et c'est ce chemin-là qu'il faut pouvoir montrer gardé — une
+	#  couture qu'on éprouve à la place de la valeur réelle finit par diverger
+	#  d'elle sans que personne ne le voie.
+	#  ON POINTE EXPRÈS UNE SOURCE QUI N'EST PAS UN CLONE : si un jour la porte
+	#  des droits saute, l'outil s'arrête au marqueur suivant, et ce banc
+	#  n'aura jamais eu l'occasion d'écrire quoi que ce soit dans le vrai /usr.
+	#  Le message attendu tranche entre les deux refus.
+	VU="$(PATH=/inexistant "$BASH_ABS" "$OUTIL" --depuis "$BANC/pasunclone" 2>&1)"
+	CODE=$?
+	if [ "$CODE" -ne 0 ] && grep -q 'droits administrateur' <<< "$VU"; then
+		ok "sans couture, destination « / » : les droits sont réclamés AVANT toute lecture"
+	else
+		non "destination réelle « / » : pas de demande de droits (code $CODE) — « $VU »"
+	fi
+fi
+
+#  ═══ ET AUCUN GROS TEXTE NE REPART DANS UN TUYAU VERS grep ═══
+#  Le défaut qui a fait rougir ce banc en CI n'était pas dans ce qu'il
+#  éprouve : « printf "$CODE_D" | grep -q » perdait la course contre le
+#  « grep -q » qui s'arrête au premier résultat, et pipefail transformait ça
+#  en condition fausse. On relit donc CE FICHIER, et on exige qu'il n'y reste
+#  aucun tuyau de ce genre.
+#  DEUX PRÉCAUTIONS, ET CHACUNE A DÉJÀ SERVI DANS CE CHANTIER :
+#  · ON DÉCOMMENTE D'ABORD. Le paragraphe ci-dessus CITE le tuyau fautif pour
+#    l'expliquer ; sans ce décommentage, le contrôle trouvait sa propre
+#    explication et rougissait — c'est le faux vert (ici faux rouge) de la
+#    famille « le contrôle lit un commentaire en croyant lire du code », qui
+#    s'est refermé six fois sur ce dépôt.
+#  · LE MOTIF S'ÉCRIT « [|] » ET NON « | », pour ne pas se trouver lui-même.
+#  Et le décommentage passe par une VARIABLE, pas par « sed | grep » : ce
+#  serait le tuyau même qu'on interdit.
+MOTIF_TUYAU='(printf|echo)[^|]*[|] *grep'
+NU_BANC="$(sed 's/[[:space:]]*#.*$//' "$0")"
+if grep -qE "$MOTIF_TUYAU" <<< "$NU_BANC"; then
+	non "ce banc renvoie encore une variable dans un tuyau vers grep — tuyau cassé possible"
+	grep -nE -m3 "$MOTIF_TUYAU" <<< "$NU_BANC" | sed 's/^/       /'
+else
+	ok "aucune variable ne repart dans un tuyau vers grep — la course ne peut plus se perdre"
+fi
+
+# =============================================================================
+#  ═══ LE RAPPEL, PARCE QU'UN ❌ A DÉJÀ DÉFILÉ ═══
+#  Quand on colle la fin d'un banc, on colle le résumé. Sans ce rappel, « 1
+#  échoués » ne dit pas lequel, et le diagnostic commence par une devinette.
+if [ "$echoues" -gt 0 ]; then
+	printf '\n\033[1mCE QUI A ÉCHOUÉ\033[0m\n'
+	printf '%s' "$ECHECS"
+fi
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$reussis" "$echoues"
 [ "$echoues" -eq 0 ] || exit 1
 printf '  \033[32mToutes les portes mènent au même endroit, et « --essai » n'\''écrit rien.\033[0m\n'

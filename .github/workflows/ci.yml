@@ -63,9 +63,24 @@ jobs:
       - name: Syntaxe bash des outils embarqués
         if: ${{ !cancelled() }}
         run: |
+          #  LA FORME « head | grep -q bash && bash -n » A FAIT ROUGIR LA CI
+          #  POUR RIEN. Le code de sortie d'une étape est celui de sa DERNIÈRE
+          #  commande : au dernier tour de boucle, un fichier en « #!/bin/sh »
+          #  fait échouer le grep, donc la liste « && », donc l'étape — alors
+          #  que la syntaxe de tout le monde est bonne. Tant que le dernier
+          #  fichier du glob était un « lexos-* » en bash, personne ne l'a vu ;
+          #  « miss » trie APRÈS tous les « lexos-* », et le piège s'est
+          #  refermé au premier ajout.
+          #  Un « if » ne rend pas le code du test, et le compte final donne à
+          #  l'étape un état qui ne dépend plus de l'ordre alphabétique.
+          vus=0
           for f in config/includes.chroot/usr/bin/*; do
-            head -n1 "$f" | grep -q bash && bash -n "$f"
+            if head -n1 "$f" | grep -q bash; then
+              bash -n "$f"
+              vus=$((vus + 1))
+            fi
           done
+          echo "  ok — $vus outil(s) bash de syntaxe correcte"
 
       - name: Syntaxe Python des rouages internes
         if: ${{ !cancelled() }}

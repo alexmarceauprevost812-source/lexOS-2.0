@@ -120,13 +120,41 @@ done
 #  need_root se relance sous sudo tout seul, comme les autres commandes.
 #  Le « sudo » tapé à la main ne dérange rien : EUID vaut alors 0 et on ne
 #  fait rien de plus.
+#
+#  ═══ LA QUESTION EXACTE EST « PEUT-ON ÉCRIRE LÀ OÙ ON VA ? » ═══
+#  Et non « suis-je root ? ». Les deux se confondent en production — la
+#  destination est « / », et personne d'autre que root n'y écrit — mais elles
+#  se séparent au banc, ET LA DIFFÉRENCE S'EST PAYÉE :
+#  Alex a lancé le banc depuis son compte. Chaque passage non-essai se
+#  relançait sous sudo, écrivait dans le faux système SOUS ROOT, et le
+#  ménage de fin échouait sur trois fichiers (« rm: cannot remove … :
+#  Permission denied ») — les dossiers créés par root ne se vident pas depuis
+#  un compte ordinaire. Un banc qui réclame un mot de passe ne tourne plus
+#  tout seul, et un banc qui laisse des dossiers root dans /tmp salit la
+#  machine à chaque exécution.
+#  En posant la vraie question, le banc écrit dans son propre dossier
+#  temporaire sans jamais s'élever, et la production ne bouge pas d'un poil :
+#  « / » n'est inscriptible que par root.
 need_root() {
-	if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-		if command -v sudo >/dev/null 2>&1; then
-			exec sudo -E "$0" "$@"
-		fi
-		die "Cette commande demande les droits administrateur (root)."
+	#  Déjà root : il n'y a rien à demander.
+	if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+		return 0
 	fi
+	#  Destination inscriptible par le compte courant : root n'apporterait
+	#  rien de plus. En production DEST est vide — donc « / » — et ceci est
+	#  faux pour tout le monde sauf root.
+	#  MESURÉ : « ${DEST:-/} » et « ${DEST} » se comportent pareil ici — « -w »
+	#  sur une chaîne vide est faux, comme « -w / » l'est pour un compte
+	#  ordinaire, et root est déjà ressorti plus haut. La forme explicite est
+	#  écrite pour qui lit ; une mutation qui l'enlève reste verte au banc, et
+	#  c'est normal — mutation faible, pas trou de couverture.
+	if [[ -w "${DEST:-/}" ]]; then
+		return 0
+	fi
+	if command -v sudo >/dev/null 2>&1; then
+		exec sudo -E "$0" "$@"
+	fi
+	die "Cette commande demande les droits administrateur (root)."
 }
 [[ "$ESSAI" -eq 1 ]] || need_root "${ARGS_ORIGINE[@]}"
 
