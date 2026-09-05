@@ -377,6 +377,40 @@ def main():
 
     vue = QWebEngineView(fenetre)
     fenetre.setCentralWidget(vue)
+
+    #  ═══ LE PRESSE-PAPIER, ET POURQUOI IL FAUT DEUX RÉGLAGES ═══
+    #  ALEX : le copier-coller ne fonctionnait pas. Deux causes distinctes ;
+    #  celle-ci est côté Qt. QtWebEngine DÉSACTIVE PAR DÉFAUT l'accès de
+    #  JavaScript au presse-papier — tant que ces attributs ne sont pas
+    #  posés, la page ne peut ni écrire ni lire dedans, quoi qu'elle tente.
+    #
+    #  LES DEUX SONT NÉCESSAIRES ET NE FONT PAS LA MÊME CHOSE :
+    #    · JavascriptCanAccessClipboard autorise l'ÉCRITURE (copier) ;
+    #    · JavascriptCanPaste          autorise la LECTURE  (coller).
+    #  N'en poser qu'un donne un copier-coller à moitié réparé — le collage
+    #  marche mais pas la copie, ou l'inverse — et c'est plus long à
+    #  diagnostiquer qu'une panne franche.
+    #
+    #  AVANT le load : après le chargement, les réglages peuvent ne pas
+    #  s'appliquer à la page déjà en cours.
+    #
+    #  ET SOUS try/except, PARCE QU'UN TERMINAL QUI NE S'OUVRE PAS EST PIRE.
+    #  Si une version de PySide6 renomme ou déplace ces attributs, la fenêtre
+    #  doit s'ouvrir QUAND MÊME, sans presse-papier. Un presse-papier absent
+    #  est un désagrément ; une fenêtre qui refuse de s'ouvrir laisse un
+    #  système où l'on ne peut plus rien lancer du tout — c'est la règle
+    #  écrite en tête de ce fichier. On journalise l'échec, on ne l'avale pas.
+    try:
+        from PySide6.QtWebEngineCore import QWebEngineSettings
+        reglages = vue.settings()
+        reglages.setAttribute(
+            QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, True)
+        reglages.setAttribute(
+            QWebEngineSettings.WebAttribute.JavascriptCanPaste, True)
+    except Exception as e:  # noqa: BLE001 — voir le commentaire ci-dessus
+        print(f"[lexos-terminal-pro] presse-papier non activé : {e}",
+              file=sys.stderr)
+
     vue.load(QUrl(url))
     fenetre.show()
 

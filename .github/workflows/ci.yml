@@ -1987,6 +1987,28 @@ jobs:
           #  mauvaise raison.
           bash tests/test_lexos_pager.sh
 
+      - name: Le copier-coller du terminal — deux causes, deux correctifs
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « le copier-coller ne fonctionne pas ». DEUX causes, et
+          #  c'est ce qui rendait la panne difficile à lire.
+          #
+          #  1) Ctrl+C était AVALÉ : le gestionnaire ne regardait que la
+          #     sélection du CHAMP DE SAISIE. Sélectionner dans la SORTIE —
+          #     le cas normal — laissait la condition vraie, et on obtenait
+          #     « ^C » au lieu du texte dans le presse-papier.
+          #  2) QtWebEngine INTERDIT le presse-papier par défaut. Il faut
+          #     JavascriptCanAccessClipboard (écrire) ET JavascriptCanPaste
+          #     (lire) : n'en poser qu'un donne un correctif à moitié, plus
+          #     dur à diagnostiquer qu'une panne franche.
+          #
+          #  Le banc EXÉCUTE la logique de sélection extraite du fichier sur
+          #  les quatre cas qui comptent, et vérifie que les réglages Qt sont
+          #  sous try/except — un presse-papier absent est un désagrément, un
+          #  terminal qui refuse de s'ouvrir laisse un système où l'on ne
+          #  peut plus rien lancer.
+          bash tests/test_lexos_terminal_copier.sh
+
       - name: Carrés noirs de la Logithèque et luminosité des Paramètres
         if: ${{ !cancelled() }}
         run: |

@@ -454,6 +454,31 @@ class Fenetre {
   }
   focus(){ if(!this.occupe) this.champ.focus({preventScroll:true}); this.bas(); }
 
+  /* --- Y a-t-il du texte sélectionné, N'IMPORTE OÙ dans la page ? ---
+     ALEX : le copier-coller ne marchait pas. La cause n'était pas le
+     presse-papier mais CETTE question, mal posée : le gestionnaire de Ctrl+C
+     ne regardait que la sélection DANS LE CHAMP DE SAISIE. Quand on
+     sélectionne du texte dans la SORTIE — le cas normal, on veut copier le
+     résultat d'une commande — la condition restait vraie, preventDefault()
+     s'exécutait, et la copie était avalée : on obtenait « ^C » à la place du
+     texte dans le presse-papier.
+
+     ET L'ANCIEN TEST ÉTAIT FAUX MÊME POUR LE CHAMP : il niait selectionEnd,
+     qui vaut 0 quand le curseur est au DÉBUT sans rien sélectionner — la
+     condition se trompait donc déjà dans ce cas-là. Une sélection se mesure
+     en COMPARANT début et fin, pas en testant la nullité de la fin.
+
+     LE MOTIF FAUTIF N'EST PAS RECOPIÉ ICI, EXPRÈS. Le banc interdit son
+     écriture dans ce fichier ; un commentaire qui le citerait déclencherait
+     le garde-fou pour rien — ou pire, apprendrait à l'émousser pour le faire
+     taire. C'est la même règle que pour le triplet d'accent dans la feuille
+     du panneau. */
+  aSelection(){
+    const sel = window.getSelection();
+    if(sel && !sel.isCollapsed && String(sel).length > 0) return true;
+    return this.champ.selectionStart !== this.champ.selectionEnd;
+  }
+
   /* --- clavier --- */
   touche(e){
     if(Terminal.prefixe) return;             /* le mode préfixe a la priorité */
@@ -477,13 +502,68 @@ class Fenetre {
       e.preventDefault(); this.completer();
     } else if(e.key === "l" && e.ctrlKey){
       e.preventDefault(); this.effacer();
-    } else if(e.key === "c" && e.ctrlKey && !this.champ.selectionEnd){
+    } else if(e.key === "c" && e.ctrlKey && !e.shiftKey && !this.aSelection()){
+      /*  Pas de sélection : Ctrl+C ANNULE LA LIGNE. C'est un terminal, ce
+          comportement doit rester — et c'est celui de GNOME Console et de
+          xfce4-terminal : Ctrl+C copie s'il y a une sélection, interrompt
+          sinon. Quand il y a une sélection, on ne fait RIEN : ni
+          preventDefault, ni « ^C ». On laisse le navigateur copier. */
       e.preventDefault();
       this.ecrire(this.ps1El.innerHTML + esc(this.champ.value) + '<span class="r">^C</span>');
       this.champ.value = ""; this.annule = true; this.majCurseur();
+    } else if(e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "c"){
+      /*  Les raccourcis habituels des terminaux sous Linux. Ils ne se
+          contentent pas de « laisser faire le navigateur » : dans une vue
+          QtWebEngine, Ctrl+Maj+C n'a aucune action par défaut. On copie donc
+          nous-mêmes. */
+      e.preventDefault(); this.copier();
+    } else if(e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "v"){
+      e.preventDefault(); this.coller();
     } else if(e.key === "u" && e.ctrlKey){
       e.preventDefault(); this.champ.value = ""; this.majCurseur();
     }
+  }
+
+  /* --- Presse-papier ---------------------------------------------------
+     DEUX CHEMINS, ET LE SECOND N'EST PAS DU ZÈLE. navigator.clipboard est
+     l'API moderne, mais elle est refusée hors contexte sûr selon la version
+     de QtWebEngine ; document.execCommand est obsolète et marche encore
+     partout. Sans le repli, le raccourci serait muet sur certaines versions
+     — et un raccourci muet, on croit que c'est le presse-papier qui est
+     cassé. */
+  async copier(){
+    const texte = String(window.getSelection() || "");
+    if(!texte) return;
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        await navigator.clipboard.writeText(texte); return;
+      }
+    }catch(_){ /* on tombe sur le repli */ }
+    try{ document.execCommand("copy"); }catch(_){}
+  }
+  async coller(){
+    let texte = "";
+    try{
+      if(navigator.clipboard && navigator.clipboard.readText){
+        texte = await navigator.clipboard.readText();
+      }
+    }catch(_){ texte = ""; }
+    if(!texte){
+      /*  Rien lu : on laisse le collage natif faire son travail (menu du
+          clic droit, Ctrl+V). Mieux vaut ne rien faire que d'effacer la
+          ligne en croyant coller. */
+      try{ document.execCommand("paste"); }catch(_){}
+      return;
+    }
+    /*  On insère AU CURSEUR, pas à la fin : coller au milieu d'une commande
+        déjà tapée est le cas courant. */
+    const d = this.champ.selectionStart ?? this.champ.value.length;
+    const f = this.champ.selectionEnd ?? d;
+    const v = this.champ.value;
+    this.champ.value = v.slice(0, d) + texte + v.slice(f);
+    const pos = d + texte.length;
+    this.champ.setSelectionRange(pos, pos);
+    this.majCurseur();
   }
   finLigne(){
     const n = this.champ.value.length;
@@ -952,7 +1032,10 @@ cmd("aide", "afficher cette aide", f => {
    ["Ctrl+B  Z","plein écran"],["Ctrl+B  O","fenêtre suivante"],["Ctrl+B  ←↑↓→","changer de fenêtre"],
    ["Ctrl+B  T","nouvelle page (onglet)"],["Ctrl+B  N / P","page suivante / précédente"],
    ["Ctrl+B  1-9","aller à la page"],["Ctrl+PgDn/PgUp","glisser d'une page à l'autre"],
-   ["Ctrl+L","effacer l'écran"],["Ctrl+C","annuler la ligne"],["↑ / ↓","historique"],["Tab","complétion"]]
+   ["Ctrl+L","effacer l'écran"],["Ctrl+C","copier si du texte est sélectionné, sinon annuler la ligne"],
+   ["Ctrl+Maj+C","copier la sélection"],["Ctrl+Maj+V","coller"],
+   ["Clic droit","copier / coller par le menu"],
+   ["↑ / ↓","historique"],["Tab","complétion"]]
    .forEach(([k,d]) => f.ecrire('  <span class="m">' + esc(k.padEnd(13)) + '</span><span class="t2">' + esc(d) + '</span>'));
   f.saut();
   f.ecrire('<span class="j gras">Tout le reste</span><span class="s"> part vers bash pour de vrai : </span><span class="d">ls</span><span class="s">, </span><span class="d">cd</span><span class="s">, </span><span class="d">cat</span><span class="s">, </span><span class="d">sudo</span><span class="s">, </span><span class="d">lexos …</span><span class="s"> — n\'importe quel programme installé.</span>');
