@@ -19,6 +19,14 @@ jobs:
       - name: shellcheck
         if: ${{ !cancelled() }}
         run: |
+          #  usr/lib/lexos/*.sh n'existe pas : ce dossier mélange du bash SANS
+          #  extension et du Python (settings.py…) — un glob large y ferait
+          #  s'étrangler shellcheck sur les .py (mesuré : SC1071) et sur les
+          #  sous-dossiers (boost/, diagnostic/ : « is a directory »). On nomme
+          #  donc les scripts un par un, plutôt que de les laisser hors de
+          #  toute analyse statique (angle mort trouvé par une revue
+          #  adversariale : une erreur de syntaxe après le dernier point de
+          #  sortie de polkit-agent n'était vue ni ici ni par « bash -n »).
           shellcheck -S warning \
             build.sh \
             auto/config auto/build auto/clean \
@@ -27,7 +35,14 @@ jobs:
             config/hooks/normal/*.hook.binary \
             config/includes.chroot/usr/bin/* \
             config/includes.chroot/etc/profile.d/lexos.sh \
-            config/includes.chroot/usr/share/lexos/shell/*.sh
+            config/includes.chroot/usr/share/lexos/shell/*.sh \
+            config/includes.chroot/usr/lib/lexos/claude-apres-installation \
+            config/includes.chroot/usr/lib/lexos/demo-guard \
+            config/includes.chroot/usr/lib/lexos/gpu-garde \
+            config/includes.chroot/usr/lib/lexos/grub-defaut-windows \
+            config/includes.chroot/usr/lib/lexos/lexos-fuseau-confirmer \
+            config/includes.chroot/usr/lib/lexos/lexos-fuseau-position \
+            config/includes.chroot/usr/lib/lexos/polkit-agent
 
       - name: Syntaxe des fichiers de complétion (touche Tab)
         if: ${{ !cancelled() }}

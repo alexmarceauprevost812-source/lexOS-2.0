@@ -115,6 +115,12 @@ titre_de() {
 # Le PREMIER type de chaque liste sert de représentant : c'est lui qu'on
 # interroge pour connaître l'application en place et pour dresser la liste des
 # remplaçantes possibles. Les suivants ne servent qu'au moment de régler.
+#
+# application/x-shellscript N'EST PLUS ICI, et c'est voulu : le hook 0400
+# câble ce type vers lexos-ouvrir (double-clic sur un .sh téléchargé = montré
+# puis lancé avec confirmation), pas vers un éditeur de texte. Le remettre
+# ici ferait réécrire ~/.config/mimeapps.list au premier réglage de cette
+# page et annulerait ce câblage en silence.
 mimes_de() {
 	case "$1" in
 		navigateur) printf '%s\n' 'text/html x-scheme-handler/http x-scheme-handler/https' ;;
@@ -122,7 +128,7 @@ mimes_de() {
 		video)      printf '%s\n' 'video/mp4 video/x-matroska video/x-msvideo video/quicktime video/webm video/mpeg video/ogg video/3gpp' ;;
 		audio)      printf '%s\n' 'audio/mpeg audio/flac audio/x-wav audio/ogg audio/mp4 audio/aac audio/x-vorbis+ogg audio/x-opus+ogg' ;;
 		images)     printf '%s\n' 'image/jpeg image/png image/gif image/webp image/bmp image/tiff image/svg+xml' ;;
-		texte)      printf '%s\n' 'text/plain text/markdown text/csv application/x-shellscript' ;;
+		texte)      printf '%s\n' 'text/plain text/markdown text/csv' ;;
 		fichiers)   printf '%s\n' 'inode/directory' ;;
 		archives)   printf '%s\n' 'application/zip application/x-tar application/gzip application/x-xz application/x-bzip2 application/x-7z-compressed application/vnd.rar' ;;
 		pdf)        printf '%s\n' 'application/pdf' ;;

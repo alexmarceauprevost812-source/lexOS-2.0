@@ -226,6 +226,8 @@ application/vnd.flatpak.ref=${OUVRIR_DESKTOP}
 application/vnd.flatpak.repo=${OUVRIR_DESKTOP}
 application/x-rpm=${OUVRIR_DESKTOP}
 application/x-redhat-package-manager=${OUVRIR_DESKTOP}
+application/x-shellscript=${OUVRIR_DESKTOP}
+application/x-executable=${OUVRIR_DESKTOP}
 EOF
 #  LES DEUX TYPES D'AppImage, PAS UN SEUL. Le motif « *.appimage » pese 60
 #  pour application/vnd.appimage et 50 pour application/x-iso9660-appimage :
@@ -238,6 +240,16 @@ EOF
 #  sans cette ligne, un .rpm telecharge ne fait rien et personne ne sait
 #  pourquoi. Avec elle, lexos-ouvrir explique que c'est le paquet de Fedora
 #  et renvoie a la Logitheque, au lieu d'un silence.
+#
+#  x-shellscript ET x-executable : deux des quatre formats que lexos-ouvrir
+#  annonce lui-meme au double-clic (.deb, AppImage, .sh, .flatpakref) restaient
+#  sans reponse ici — un .sh telecharge s'ouvrait dans Mousepad (sous-classe
+#  de text/plain), un ELF nu n'avait aucun gestionnaire du tout. Sans cette
+#  ligne, poser_script et sa barriere « montre le script puis tape lancer »
+#  ne sont atteignables qu'en ligne de commande. INDISPENSABLE : lexos-defaut
+#  doit aussi cesser de ranger x-shellscript dans sa categorie « texte »,
+#  sinon le premier reglage « Editeur de texte » des Parametres reecrit
+#  ~/.config/mimeapps.list et annule cette ligne.
 #
 #  Et on rafraichit le cache : « [Default Applications] » suffit au
 #  double-clic, mais c'est mimeinfo.cache qui fait apparaitre « Installer ce

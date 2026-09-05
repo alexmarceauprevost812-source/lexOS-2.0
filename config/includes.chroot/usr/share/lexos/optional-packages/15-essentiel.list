@@ -9,11 +9,9 @@
 #    · printer-driver-cups-pdf, et non « cups-pdf » — c'est le nom Debian ;
 #    · plocate seul, sans mlocate : plocate le remplace et les deux
 #      installés ensemble se disputent la même base d'index.
-#  Deux autres ont été écartés :
+#  Un autre a été écarté :
 #    · apt-transport-https est intégré à apt depuis des années, le paquet
-#      n'est plus qu'une coquille de transition ;
-#    · policykit-1-gnome est l'agent de GNOME ; sous XFCE c'est xfce-polkit
-#      qui affiche les demandes de mot de passe.
+#      n'est plus qu'une coquille de transition.
 
 # --- Micrologiciel ------------------------------------------------------
 # fwupd met à jour le BIOS, les SSD et les périphériques depuis le bureau,
@@ -97,7 +95,7 @@ desktop-file-utils
 # douzaine d'outils LexOS aussi en mode graphique. Sur une machine sans agent,
 # tous ces boutons sont muets — exactement le symptôme décrit.
 #
-# ON EN NOMME TROIS, ET C'EST VOULU. Cette liste est « au mieux » : un nom
+# ON EN NOMME DEUX, ET C'EST VOULU. Cette liste est « au mieux » : un nom
 # absent de l'archive est consigné dans /etc/lexos/optional-report et ne fait
 # pas échouer la construction. Nommer plusieurs candidats coûte donc une ligne
 # de journal et garantit qu'il en reste un.
@@ -105,17 +103,22 @@ desktop-file-utils
 #   · policykit-1-gnome — LE bon pour XFCE, malgré son nom : son propre
 #     fichier d'autostart porte « OnlyShowIn=XFCE;Unity;X-Cinnamon; ».
 #     Relevé dans le paquet, pas supposé.
-#   · lxpolkit — plus léger. Attention : son autostart Debian porte
+#   · lxpolkit — plus léger, et complémentaire : son autostart Debian porte
 #     « Hidden=true », il ne démarre donc JAMAIS de lui-même. C'est
 #     /usr/lib/lexos/polkit-agent (autostart lexos-polkit-agent.desktop) qui
-#     le lance.
-#   · mate-polkit — ne livre aucun autostart du tout ; même remarque.
+#     le lance, uniquement si policykit-1-gnome n'est pas là.
+#
+# mate-polkit N'EST PAS DEMANDÉ ICI, et c'est voulu : il livre LUI AUSSI son
+# propre autostart (via mate-polkit-common, « NotShowIn=GNOME;KDE; », donc
+# actif sous XFCE — relevé dans le paquet, pas supposé). Avec policykit-1-
+# gnome, les deux démarreraient seuls, en même temps, et l'un des deux
+# échouerait TOUJOURS à s'enregistrer auprès de polkitd (« Cannot register
+# authentication agent: An authentication agent already exists »).
 #
 # « xfce-polkit » reste écarté : ce nom n'existe pas dans Debian (journal de
 # la construction 8), et le paquet ne s'est jamais matérialisé depuis.
 policykit-1-gnome
 lxpolkit
-mate-polkit
 # Le sélecteur de fichiers des applications Flatpak, qui sinon n'en ont pas.
 xdg-desktop-portal-gtk
 

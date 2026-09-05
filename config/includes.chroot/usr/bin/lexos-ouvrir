@@ -35,10 +35,12 @@
 #    · le bouton porte la conséquence — « Installer ce paquet », jamais
 #      « OK » — comme lexos-format:180 le fait déjà pour l'effacement ;
 #    · le refus est le bouton par défaut ;
-#    · un SCRIPT garde le mot à taper. Un paquet passe par apt, une AppImage
-#      ne touche que ton dossier personnel ; un script, lui, fait n'importe
-#      quoi avec tes droits. Ce n'est pas le même risque, ce n'est pas la
-#      même barrière.
+#    · un SCRIPT garde le mot à taper. Un paquet passe par apt, qui expose au
+#      moins ce qu'il installe ; une AppImage ou un programme compilé, eux,
+#      sont un exécutable natif ILLISIBLE : ils font ce que TON compte peut
+#      faire, ni plus ni moins — ce n'est pas confiné au dossier personnel.
+#      Ce n'est pas le même risque, ce n'est pas la même barrière ; c'est un
+#      choix de doctrine assumé, pas une garantie de confinement.
 #    · et devant un format inconnu, on n'essaie RIEN. On le dit.
 #
 #  ── ON NE DEVINE PAS LE FORMAT À L'EXTENSION ────────────────────────────────
@@ -256,18 +258,18 @@ echouer() {
 #  terminal, où sudo, lui, sait demander. Mieux vaut une fenêtre noire qu'un
 #  silence.
 agent_polkit() {
-	local p
-	for p in $(pgrep -x polkit-gnome-au 2>/dev/null) \
-	         $(pgrep -x polkit-mate-aut 2>/dev/null) \
-	         $(pgrep -x lxpolkit 2>/dev/null) \
-	         $(pgrep -x lxqt-policykit 2>/dev/null) \
-	         $(pgrep -x xfce-polkit 2>/dev/null); do
-		[[ -n "$p" ]] && return 0
-	done
-	#  Les noms de processus sont tronqués à 15 caractères par le noyau : on
-	#  regarde donc AUSSI les lignes de commande complètes, sans jamais
-	#  employer « pgrep -f », qui se reconnaît dans sa propre commande.
-	for p in $(pgrep -x polkit-agent-he 2>/dev/null); do
+	local p u
+	u="$(id -u)"
+	#  Les noms de processus sont tronqués à 15 caractères par le noyau — d'où
+	#  « lxqt-policykit- » (tiret final compris : /usr/bin/lxqt-policykit-agent
+	#  tronqué). Et « -u "$u" » restreint la recherche à NOTRE session : sans
+	#  ça, l'agent d'un AUTRE utilisateur connecté (changement d'utilisateur
+	#  LightDM, session invitée) ferait croire à tort qu'on a un agent ici.
+	for p in $(pgrep -x -u "$u" polkit-gnome-au 2>/dev/null) \
+	         $(pgrep -x -u "$u" polkit-mate-aut 2>/dev/null) \
+	         $(pgrep -x -u "$u" lxpolkit 2>/dev/null) \
+	         $(pgrep -x -u "$u" lxqt-policykit- 2>/dev/null) \
+	         $(pgrep -x -u "$u" xfce-polkit 2>/dev/null); do
 		[[ -n "$p" ]] && return 0
 	done
 	return 1
@@ -295,7 +297,7 @@ terminal_admin() {
 #  Les quatre gestes
 # =============================================================================
 poser_paquet() {
-	local f="$1" info=""
+	local f="$1" info="" rc=0
 	command -v dpkg-deb >/dev/null 2>&1 && info="$(dpkg-deb -f -- "$f" Package Version Description 2>/dev/null)"
 	[[ -n "$info" ]] || info="$(basename -- "$f")"
 
@@ -308,15 +310,34 @@ Un paquet installe des fichiers dans tout le système et peut lancer ses propres
 		"Installer ce paquet" || { say "Annulé — rien n'a été installé."; exit 0; }
 
 	#  gdebi sait faire, et il demande le mot de passe par polkit lui-même.
+	#  Il est TERMINAL dans les deux sens : soit il a déjà demandé le mot de
+	#  passe lui-même, soit l'humain a fermé sa fenêtre. Son code de sortie
+	#  ne veut jamais dire « installé » (fermer la fenêtre rend 0 sans rien
+	#  faire) : on ne s'en sert donc que pour savoir si gdebi a eu la main,
+	#  jamais pour annoncer un succès qu'on n'a pas vérifié. 127 = gdebi n'a
+	#  pas pu démarrer du tout : seule panne de MÉCANISME qui mérite un
+	#  repli. Tout le reste (fenêtre fermée, mot de passe refusé, apt a
+	#  échoué DANS gdebi) veut dire que l'humain a eu la main : on s'arrête.
 	if graphique && command -v gdebi-gtk >/dev/null 2>&1; then
-		gdebi-gtk -- "$f" && { bon "Installé."; exit 0; }
+		gdebi-gtk -- "$f"; rc=$?
+		if [[ $rc -ne 127 ]]; then
+			say "gdebi a rendu la main — rien de plus n'a été tenté."
+			exit 0
+		fi
 	fi
 	if [[ "$(id -u)" -eq 0 ]]; then
 		apt-get install -y -- "$f" && { bon "Installé."; exit 0; }
 		echouer "Installation impossible" "apt n'a pas pu installer ce paquet."
 	fi
+	#  126 = pkexec a demandé le mot de passe et l'humain l'a refusé : un
+	#  refus, pas une panne de mécanisme. Le convertir en tentative
+	#  supplémentaire (terminal + sudo, plus privilégié) transformerait un
+	#  « non » en une deuxième question qu'on ne pose jamais explicitement.
+	#  Seul 127 (agent absent, ou pkexec non autorisé) mérite le repli.
 	if graphique && agent_polkit && command -v pkexec >/dev/null 2>&1; then
-		pkexec apt-get install -y -- "$f" && { bon "Installé."; exit 0; }
+		pkexec apt-get install -y -- "$f"; rc=$?
+		[[ $rc -eq 0 ]]   && { bon "Installé."; exit 0; }
+		[[ $rc -eq 126 ]] && { say "Annulé — le mot de passe n'a pas été donné, rien n'a été installé."; exit 0; }
 	fi
 	terminal_admin "Installer $(basename -- "$f") — LexOS" "apt-get install -y $(printf '%q' "$f")" \
 		|| { command -v sudo >/dev/null 2>&1 && sudo apt-get install -y -- "$f" && { bon "Installé."; exit 0; }; }
@@ -333,7 +354,11 @@ poser_appimage() {
 
 Une AppImage ne s'installe pas : c'est l'application entière dans un seul fichier.
 
-Elle sera copiée dans $APPS_MAISON, rendue exécutable, ajoutée à ton menu, puis lancée. Elle n'écrit rien hors de ton dossier personnel." \
+Elle sera copiée dans $APPS_MAISON, rendue exécutable, ajoutée à ton menu, puis lancée.
+
+C'est un programme compilé : LexOS ne peut pas te montrer ce qu'il fait, il n'est pas lisible.
+
+Il s'exécutera avec TES droits — tes fichiers, ta session." \
 		"Installer et lancer" || { say "Annulé."; exit 0; }
 
 	mkdir -p -- "$APPS_MAISON" || echouer "Copie impossible" "Impossible de créer $APPS_MAISON."
@@ -351,12 +376,32 @@ Elle sera copiée dans $APPS_MAISON, rendue exécutable, ajoutée à ton menu, p
 	mkdir -p -- "$APPS_LOCAL"
 	local titre="${nom%.[Aa]pp[Ii]mage}"
 	titre="${titre//-/ }"
-	cat > "$APPS_LOCAL/lexos-appimage-${nom%.*}.desktop" <<EOF
+	#  Un caractère de contrôle (dont un saut de ligne, choisi par qui a nommé
+	#  le fichier) injecterait des clés dans le .desktop généré : on le
+	#  retire du nom AVANT d'écrire, pas seulement après. Puis on double
+	#  chaque barre oblique inverse : c'est le seul échappement que le
+	#  format key-file connaisse pour Name=.
+	titre="$(printf '%s' "$titre" | LC_ALL=C tr -d '\000-\037\177')"
+	titre="${titre//\\/\\\\}"
+	local base
+	base="$(printf '%s' "${nom%.*}" | LC_ALL=C tr -d '\000-\037\177/')"
+	#  QUOTING DESKTOP ENTRY, PAS SHELL. printf %q cite pour bash ; le format
+	#  key-file, lui, n'admet que \s \n \t \r \\ comme échappements valides —
+	#  « \ », « \( », « \$ »… y rendent la valeur ININTERPRÉTABLE et GIO
+	#  laisse alors l'entrée sans Exec : le menu existe, cliquer dessus ne
+	#  fait rien, en silence. On compose donc DEUX couches : la citation de
+	#  la ligne de commande (entre guillemets doubles, où seuls " $ ` \
+	#  s'échappent), PUIS la citation key-file par-dessus (chaque barre
+	#  oblique inverse se redouble).
+	local q="$dest"
+	q="${q//\\/\\\\}"; q="${q//\"/\\\"}"; q="${q//\$/\\\$}"; q="${q//\`/\\\`}"
+	q="${q//\\/\\\\}"
+	cat > "$APPS_LOCAL/lexos-appimage-$base.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=$titre
 Comment=Application autonome (AppImage) installée par LexOS
-Exec=$(printf '%q' "$dest") %U
+Exec="$q" %U
 Icon=application-x-executable
 Terminal=false
 Categories=Utility;
@@ -398,7 +443,10 @@ On ne lance pas ce qu'on n'a pas pu montrer. Rien n'a été exécuté."
 	mot_de_passe_du_risque "Lancer $nom ?" \
 		|| { say "Annulé — rien n'a été exécuté."; exit 0; }
 
-	chmod +x -- "$f" 2>/dev/null || true
+	#  PAS de chmod +x ici : les deux chemins ci-dessous lancent "bash $f",
+	#  jamais "$f" directement — le bit d'exécution ne sert à rien, et le
+	#  laisser au fichier original dans Téléchargements le rendrait
+	#  relançable d'un simple double-clic ultérieur, hors de ce garde-fou.
 	if graphique; then
 		terminal_admin_libre "$nom — LexOS" "$f" && exit 0
 	fi
@@ -505,8 +553,19 @@ C'est un programme compilé : LexOS ne peut pas te montrer ce qu'il fait, il n'e
 
 Il s'exécutera avec TES droits — tes fichiers, ta session." \
 				"Lancer ce programme" || { say "Annulé — rien n'a été exécuté."; exit 0; }
-			chmod +x -- "$f" 2>/dev/null || true
-			setsid "$f" >/dev/null 2>&1 &
+			#  On rend exécutable une COPIE, jamais le fichier original de
+			#  Téléchargements : sinon il resterait +x pour tout le monde
+			#  (umask 022) et un double-clic ultérieur l'exécuterait tout
+			#  seul, hors de cette fenêtre de consentement. Le dossier
+			#  d'origine reste le répertoire de travail, pour les
+			#  programmes qui cherchent leurs fichiers voisins.
+			local lance="${XDG_CACHE_HOME:-$HOME/.cache}/lexos/lances"
+			local copie
+			copie="$lance/$(basename -- "$f")"
+			mkdir -p -- "$lance" || echouer "Lancement impossible" "Impossible de créer $lance."
+			cp -- "$f" "$copie" && chmod +x -- "$copie" \
+				|| { rm -f -- "$copie"; echouer "Lancement impossible" "La copie a échoué."; }
+			( cd "$(dirname -- "$f")" && setsid "$copie" >/dev/null 2>&1 & )
 			bon "Lancé." ;;
 		*)
 			dire "LexOS ne sait pas quoi faire de ce fichier" \

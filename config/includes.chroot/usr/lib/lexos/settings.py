@@ -143,7 +143,7 @@ def _run(argv, *, detach=False):
 #  PAS pkexec pour qu'il échoue en silence. On rend un motif, que la page
 #  affiche.
 _AGENTS_POLKIT = ("polkit-gnome-au", "polkit-mate-aut", "lxpolkit",
-                  "lxqt-policykit", "polkit-agent-he")
+                  "lxqt-policykit-")
 
 
 def _agent_polkit():
@@ -153,12 +153,21 @@ def _agent_polkit():
     dans la ligne de commande du pgrep lui-même, qui se reconnaît alors et
     répond toujours oui. Le dépôt s'est fait prendre trois fois (lexos-share,
     lexos-crt). Les noms ci-dessus sont tronqués à quinze caractères parce
-    que c'est ainsi que le noyau les stocke."""
+    que c'est ainsi que le noyau les stocke (« lxqt-policykit- » : tiret
+    final compris, troncature exacte de lxqt-policykit-agent). Et « -u » se
+    restreint à NOTRE session : sans lui, l'agent d'un AUTRE utilisateur
+    connecté (changement d'utilisateur LightDM, session invitée) ferait
+    croire à tort qu'on a un agent ici. On ne cherche plus
+    « polkit-agent-he » : ce n'est pas un agent, c'est le mouchard setuid
+    qu'un agent lance le temps de vérifier un mot de passe — jamais présent
+    au moment où on pose la question."""
     if shutil.which("pgrep") is None:
         return False
+    uid = str(os.getuid())
     for nom in _AGENTS_POLKIT:
         try:
-            if subprocess.run(["pgrep", "-x", nom], capture_output=True,
+            if subprocess.run(["pgrep", "-x", "-u", uid, nom],
+                              capture_output=True,
                               timeout=5).returncode == 0:
                 return True
         except (OSError, subprocess.SubprocessError):
@@ -179,7 +188,7 @@ def _run_admin(argv):
         return {"ok": False,
                 "erreur": "Aucune fenêtre de mot de passe n'est disponible "
                           "sur cette session (agent polkit absent). "
-                          "Installe-le : sudo apt install policykit-1-gnome, "
+                          "Installe-le : sudo apt install lxpolkit, "
                           "puis rouvre la session."}
     return _run(["pkexec"] + argv)
 
@@ -286,8 +295,13 @@ POLICES = {
 }
 DOCKS = {"droite", "gauche", "bas", "haut"}
 CADRAGES = {"remplir", "ajuster", "etirer", "centrer", "mosaique"}
+#  PAS DE CLÉ « defaut » : depuis le crochet 0300, wallpaper.png EST un lien
+#  symbolique vers wallpaper-demon.png (les deux noms doivent rester la même
+#  image pour toujours). realpath() les rend donc indiscernables dans
+#  _fond_etat() ci-dessous ; avec les deux clés présentes, c'est TOUJOURS la
+#  première insérée qui gagnait — « demon » ne pouvait alors jamais s'allumer
+#  dans la galerie. Une seule clé pour une seule image réelle : « demon ».
 FONDS = {
-    "defaut":  "/usr/share/backgrounds/lexos/wallpaper.png",
     "secu":    "/usr/share/backgrounds/lexos/wallpaper-secu.png",
     "demon":   "/usr/share/backgrounds/lexos/wallpaper-demon.png",
     "keyart":  "/usr/share/backgrounds/lexos/wallpaper-keyart.png",
@@ -2659,8 +2673,15 @@ def _libre_etat():
     On ne regarde que la présence, jamais l'usage. Rien n'est envoyé nulle
     part : dpkg et /sys répondent depuis le disque."""
     def paquet(nom):
-        r = subprocess.run(["dpkg-query", "-W", "-f=${db:Status-Status}", nom],
-                           capture_output=True, text=True)
+        #  Toutes les autres sondes de etat() se protègent (which(), except
+        #  OSError, timeout=15) ; celle-ci était la seule nue. Sous un PATH
+        #  dépouillé (dpkg-query absent), elle levait FileNotFoundError et
+        #  faisait tomber tout /api/etat sans réponse.
+        try:
+            r = subprocess.run(["dpkg-query", "-W", "-f=${db:Status-Status}", nom],
+                               capture_output=True, text=True, timeout=15)
+        except (subprocess.SubprocessError, OSError):
+            return False
         return r.returncode == 0 and r.stdout.strip() == "installed"
 
     #  Les micrologiciels : on compte les paquets « firmware-* » plutôt que
@@ -2668,9 +2689,10 @@ def _libre_etat():
     firmwares = []
     try:
         r = subprocess.run(["dpkg-query", "-W", "-f=${binary:Package}\n",
-                            "firmware-*"], capture_output=True, text=True)
+                            "firmware-*"], capture_output=True, text=True,
+                           timeout=15)
         firmwares = [l for l in r.stdout.split() if l]
-    except OSError:
+    except (subprocess.SubprocessError, OSError):
         pass
 
     return {
@@ -3517,6 +3539,14 @@ def etat():
     except OSError:
         perf = "medium"
 
+    #  Un seul ratissage du disque, pour DEUX clés. _fonds_perso() n'a pas de
+    #  cache : l'appeler deux fois (une par clé, comme avant) double le coût
+    #  à chaque rafraîchissement ET peut faire correspondre chaque clé à un
+    #  instantané différent si le dossier surveillé change entre les deux
+    #  appels (justement ~/Téléchargements) — l'indice mis en évidence
+    #  désignerait alors la mauvaise vignette.
+    perso = _fonds_perso()
+
     return {
         "perf": perf,
         "theme": fichier("mode", "sombre"),
@@ -3539,12 +3569,12 @@ def etat():
         #  et les vignettes passent par /api/fond-vignette, jamais par un
         #  chemin que la page choisirait.
         "fonds_perso": [{"i": i, "nom": Path(c).name}
-                        for i, c in enumerate(_fonds_perso())],
+                        for i, c in enumerate(perso)],
         #  ALEX : « pour changer de couleur sur le bouton sélectionné ». Sans
         #  cette clé, la page n'avait RIEN à comparer : les cinq fonds
         #  intégrés et les vignettes de la galerie étaient les seuls choix de
         #  toute l'interface à ne pas montrer lequel était posé.
-        "fond": _fond_etat(_fonds_perso()),
+        "fond": _fond_etat(perso),
         #  Vide n'est pas une réponse. Quand la liste ci-dessus l'est, celle-ci
         #  dit POURQUOI — et la page peut enfin l'écrire au lieu de laisser
         #  croire qu'aucun écran n'est branché.

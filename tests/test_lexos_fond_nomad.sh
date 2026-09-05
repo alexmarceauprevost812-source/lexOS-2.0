@@ -182,8 +182,12 @@ else
 	non "le moteur pointe sur « $CHEMIN », que rien ne produit"
 fi
 
-#  ═══ ET LES QUATRE AUTRES N'ONT PAS ÉTÉ CASSÉS AU PASSAGE ═══
-for CLE in defaut secu demon keyart; do
+#  ═══ ET LES TROIS AUTRES N'ONT PAS ÉTÉ CASSÉS AU PASSAGE ═══
+#  PAS « defaut » : cette clé a été retirée (realpath() la rendait
+#  indiscernable de « demon », wallpaper.png étant un lien symbolique vers
+#  wallpaper-demon.png depuis le crochet 0300 — « demon » ne pouvait alors
+#  JAMAIS s'allumer dans la galerie des Paramètres).
+for CLE in secu demon keyart; do
 	grep -q "\"$CLE\":" "$SET" && grep -q "setFond('$CLE')" "$APP" \
 		&& ok "« $CLE » est toujours là, des deux côtés" \
 		|| non "« $CLE » a disparu d'un des deux côtés"

@@ -12,5 +12,5 @@ Icon=system-software-install
 Terminal=false
 StartupNotify=true
 Categories=System;PackageManager;
-MimeType=application/vnd.debian.binary-package;application/vnd.appimage;application/x-iso9660-appimage;application/vnd.flatpak.ref;application/vnd.flatpak.repo;application/x-rpm;application/x-redhat-package-manager;
+MimeType=application/vnd.debian.binary-package;application/vnd.appimage;application/x-iso9660-appimage;application/vnd.flatpak.ref;application/vnd.flatpak.repo;application/x-rpm;application/x-redhat-package-manager;application/x-shellscript;application/x-executable;
 Keywords=installer;installation;paquet;deb;appimage;flatpak;téléchargement;telechargement;install;package;

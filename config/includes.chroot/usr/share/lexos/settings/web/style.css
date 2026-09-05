@@ -63,12 +63,6 @@ h2{font-size:22px;font-weight:700}
 .swatch{width:34px;height:34px;border-radius:50%;border:2px solid transparent;
   cursor:pointer}
 .swatch.sel{border-color:#fff;outline:2px solid var(--ac)}
-/*  La vignette du fond POSÉ. Même dessin que .swatch.sel — un contour
-    d'accent, pas un fond : la vignette EST l'image, la repeindre la
-    cacherait. Sans cette règle, la classe « sel » posée par app.js sur
-    .wall-swatch ne changerait rien à l'écran. */
-.wall-swatch.sel{outline:3px solid var(--ac);outline-offset:2px;
-  border-color:var(--ac)}
 /*  Le rond de couleur porté DANS le bouton des deux styles mis en avant :
     le nom dit lequel c'est, la pastille montre à quoi ça ressemble. Bordure
     translucide pour que le rond reste visible sur un bouton déjà peint de
@@ -226,6 +220,14 @@ kbd{display:inline-block;padding:1px 6px;border-radius:5px;
   cursor:pointer;background-size:cover;background-position:center;flex:none;
   padding:0;transition:border-color .15s ease}
 .wall-swatch:hover,.wall-swatch:focus-visible{border-color:var(--ac);outline:none}
+/*  La vignette du fond POSÉ. Même dessin que .swatch.sel — un contour
+    d'accent, pas un fond : la vignette EST l'image, la repeindre la
+    cacherait. DOIT rester déclarée APRÈS la règle :hover/:focus-visible
+    ci-dessus : même spécificité (0,2,0), donc la dernière du fichier gagne —
+    avant elle survivait au survol, ce qui éteignait le contour de sélection
+    juste au moment où le pointeur arrive dessus (donc juste après un clic). */
+.wall-swatch.sel{outline:3px solid var(--ac);outline-offset:2px;
+  border-color:var(--ac)}
 /*  LA LOUPE — ALEX : « ouvrir directement image sur une fenetre pour voir
     image en plus gros ». Un clic sur la vignette pose le fond ; la loupe,
     posée par-dessus dans son coin, ouvre l'image EN GRAND dans un vrai

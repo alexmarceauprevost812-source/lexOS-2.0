@@ -170,7 +170,13 @@ while IFS=$'\t' read -r cle corps; do
 		continue
 	fi
 	#  Un programme tiers : il doit être dans la liste vérifiée en tête.
-	printf '%s' "$TIERS" | grep -q "^$PROG|" \
+	#  PAS DE TUYAU (même règle qu'écrite dans test_lexos_ouvrir.sh:291-296,
+	#  pas reprise ici jusqu'ici) : sous « pipefail », « … | grep -q motif »
+	#  peut rendre 141 (SIGPIPE : grep quitte dès la 1re correspondance, avant
+	#  que l'amont ait fini d'écrire) MÊME quand le motif est trouvé — un
+	#  résultat qui dépend du hasard du minutage plutôt que du contenu. La
+	#  comparaison native ne lance aucun sous-processus : rien à intercepter.
+	[[ "$TIERS" == *$'\n'"$PROG|"* ]] \
 		|| MORTES="$MORTES $cle($PROG non vérifié)"
 done <<< "$FEN"
 
@@ -182,7 +188,7 @@ fi
 
 #  ═══ LE MORT NOMMÉMENT ═══ Si quelqu'un le remet, le message dit tout de
 #  suite de quoi il s'agit au lieu de laisser chercher.
-if printf '%s' "$FEN" | grep -q '_run(\["exo-preferred-applications"'; then
+if [[ "$FEN" == *'_run(["exo-preferred-applications"'* ]]; then
 	non "« exo-preferred-applications » est de retour en appel direct — ce programme n'existe plus"
 else
 	ok "« exo-preferred-applications » n'est plus appelé sans repli"
@@ -212,12 +218,12 @@ t = re.sub(r'^\s*//.*$', '', t, flags=re.M)
 print(t)
 PY
 )"
-if printf '%s' "$CORPS_OUVRIR" | grep -q 'api('; then
+if [[ "$CORPS_OUVRIR" == *'api('* ]]; then
 	ok "ouvrir() a bien été trouvée"
 else
 	non "ouvrir() introuvable — les contrôles suivants seraient creux"
 fi
-if printf '%s' "$CORPS_OUVRIR" | grep -q 'erreur'; then
+if [[ "$CORPS_OUVRIR" == *'erreur'* ]]; then
 	ok "elle lit le motif du refus au lieu de jeter la réponse"
 else
 	non "elle jette la réponse : un outil absent resterait totalement muet"
@@ -247,40 +253,69 @@ grep -q '^def _fond_actuel():' "$SET" && grep -q 'chemin = _fond_actuel()' "$SET
 	&& ok "…et il le lit dans XFCE, il ne le devine pas" \
 	|| non "aucun lecteur du fond courant, ou il n'est pas appelé"
 
-#  La page doit s'en servir POUR LES DEUX listes.
-python3 - "$APP" > "$BANC5/fonds" <<'PY2'
-import re, sys
-s = open(sys.argv[1], encoding="utf-8").read()
-m = re.search(r'case "bureau":([\s\S]*?)case "multitaches":', s)
-b = m.group(1) if m else ""
-#  Les cinq fonds intégrés : au moins un « sel » conditionnel, et plus aucun
-#  « btn ghost » écrit en dur sur un setFond(...).
-#  Les cinq boutons sortent d'un .map() : « setFond( » n'apparaît qu'une fois
-#  dans la source. On compte donc les CLÉS, qui, elles, y sont toutes.
-print("INTEGRES:%d" % sum(1 for k in ("defaut","secu","demon","keyart","nomad") if '"%s"' % k in b))
-print("DUR:%d" % len(re.findall(r'class="btn ghost"[^>]*onclick="setFond\(', b)))
-print("SELFOND:%d" % len(re.findall(r'etat\.fond[^\n]*sel', b)))
-#  « (etat.fond||{}) » contient une accolade fermante : « [^}]* » s'y arrêtait.
-print("SELWALL:%d" % len(re.findall(r'wall-swatch\$\{.*?sel', b)))
-PY2
-LU_INT="$(sed -n 's/^INTEGRES://p' "$BANC5/fonds")"
-LU_DUR="$(sed -n 's/^DUR://p' "$BANC5/fonds")"
-LU_SF="$(sed -n 's/^SELFOND://p' "$BANC5/fonds")"
-LU_SW="$(sed -n 's/^SELWALL://p' "$BANC5/fonds")"
-[[ "${LU_INT:-0}" -ge 5 ]] \
-	&& ok "les cinq fonds intégrés sont bien tous là ($LU_INT)" \
-	|| non "moins de cinq fonds intégrés relevés — le contrôle suivant serait creux"
-[[ "${LU_DUR:-1}" -eq 0 ]] \
-	&& ok "aucun fond intégré n'est écrit « ghost » en dur" \
-	|| non "$LU_DUR fond(s) intégré(s) gardent « btn ghost » en dur : le fond posé ressemble aux autres"
-[[ "${LU_SF:-0}" -ge 1 ]] \
-	&& ok "le fond posé prend la classe « sel »" \
-	|| non "aucun fond ne prend « sel » : impossible de voir lequel est choisi"
-[[ "${LU_SW:-0}" -ge 1 ]] \
-	&& ok "…et la vignette de « Mes images » aussi" \
-	|| non "la galerie ne met jamais la vignette posée en évidence"
+#  LA PAGE DOIT S'EN SERVIR POUR LES DEUX LISTES — ÉPROUVÉ PAR UN VRAI RENDU,
+#  PAS PAR DU TEXTE. Un contrôle textuel (compter des clés, des motifs
+#  « ghost » en dur) reste vert même quand la comparaison qui décide de la
+#  couleur est cassée pour de bon — mesuré : « F === k » saboté en
+#  « F === k + "zz" » laissait TOUS les anciens contrôles au vert alors
+#  qu'AUCUN fond ne peut plus s'allumer. On pose donc l'état et on relit la
+#  classe réellement rendue, avec le même bac à sable node/vm que
+#  test_lexos_sections.sh.
+if command -v node >/dev/null 2>&1; then
+	cat > "$BANC5/rendu_fond.js" <<'JS'
+"use strict";
+const fs = require("fs"), vm = require("vm");
+const source = fs.readFileSync(process.argv[2], "utf8")
+  + "\n;globalThis.__banc = { contenu, pose: e => { etat = e; } };\n";
+const el = () => ({ innerHTML:"", textContent:"", hidden:true, style:{}, dataset:{},
+                    classList:{add(){},remove(){},toggle(){}},
+                    querySelectorAll:()=>[], appendChild(){}, focus(){} });
+const bac = vm.createContext({
+  document:{ getElementById:()=>el(), querySelectorAll:()=>[], body:el(),
+             documentElement:{style:{setProperty(){}},dataset:{}}, addEventListener(){} },
+  location:{hash:""}, window:{confirm:()=>true},
+  fetch:()=>Promise.reject(new Error("pas de pont dans le banc")),
+  requestAnimationFrame:()=>0, setTimeout, clearTimeout, console });
+bac.globalThis = bac;
+vm.runInContext(source, bac, {filename:"app.js"});
+const T = bac.__banc;
+const dit = (bon, m) => console.log((bon ? "OK|" : "NON|") + m);
+try {
+  const mauvais = [];
+  for (const pose of ["secu", "demon", "keyart", "nomad"]) {
+    T.pose({ fond: { chemin: "/x", cle: pose, i: null }, fonds_perso: [] });
+    const h = T.contenu("bureau");
+    const sels = [...h.matchAll(/<button class="([^"]*)"\s+onclick="setFond\('(\w+)'\)"/g)]
+      .filter(m => /\bsel\b/.test(m[1])).map(m => m[2]);
+    if (sels.length !== 1 || sels[0] !== pose) mauvais.push(`${pose}->[${sels.join(",")}]`);
+  }
+  dit(mauvais.length === 0,
+      `chaque fond intégré posé est le SEUL de son groupe à porter « sel » (${mauvais.length ? mauvais.join(" ") : "4/4"})`);
+  T.pose({ fond: { cle: "", i: 1 }, fonds_perso: [{ i: 0 }, { i: 1 }, { i: 2 }] });
+  const hg = T.contenu("bureau");
+  const wsels = [...hg.matchAll(/<button class="wall-swatch([^"]*)"[\s\S]*?onclick="setFondFichier\((\d+)\)"/g)]
+    .filter(m => /\bsel\b/.test(m[1])).map(m => Number(m[2]));
+  dit(wsels.length === 1 && wsels[0] === 1,
+      `la vignette posée (i=1) est la SEULE de la galerie à porter « sel » (${wsels.join(",") || "aucune"})`);
+} catch (e) {
+  dit(false, "le rendu s'est arrêté : " + e.message);
+}
+JS
+	while IFS='|' read -r V M; do
+		case "$V" in OK) ok "$M" ;; NON) non "$M" ;; esac
+	done < <(node "$BANC5/rendu_fond.js" "$APP")
+else
+	saute "node absent : le rendu du fond posé n'a PAS été éprouvé"
+fi
+#  CE QUE LE RENDU CI-DESSUS NE PEUT PAS VOIR : il pose etat.fond LUI-MÊME,
+#  donc il resterait vert si settings.py et app.js divergeaient sur le NOM du
+#  champ (mesuré : "cle" renommé en "key" d'un seul côté). Un contrôle textuel
+#  du contrat complète le rendu, il ne le remplace pas.
+grep -q '"cle": cle' "$SET" && grep -q '(etat.fond || {}).cle' "$APP" \
+	&& ok "le moteur publie « cle » et la page lit « cle » — même contrat" \
+	|| non "le nom de la clé publiée par le moteur et celui que la page lit ont divergé"
 grep -q '^\.wall-swatch\.sel{' "$CSS" \
-	&& ok "…et la feuille de style sait la dessiner" \
+	&& ok "…et la feuille de style sait dessiner la vignette sélectionnée" \
 	|| non "la classe « sel » est posée sur la vignette mais aucune règle CSS ne la dessine — rien ne changerait à l'écran"
 
 #  ═══ UNE FONCTION QUI N'EST ATTEINTE PAR AUCUN BOUTON N'EXISTE PAS ═══

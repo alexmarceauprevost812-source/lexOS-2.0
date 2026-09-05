@@ -66,11 +66,22 @@ CANDIDATS="${LEXOS_POLKIT_AGENTS:-/usr/lib/policykit-1-gnome/polkit-gnome-authen
 #  du pgrep lui-même, qui se reconnaît alors et répond toujours oui. Le dépôt
 #  s'est fait avoir trois fois (lexos-share, lexos-crt). On compare donc le
 #  NOM du programme, que le noyau tronque à 15 caractères — d'où les noms
-#  coupés ci-dessous, qui sont les vrais.
+#  coupés ci-dessous (« lxqt-policykit- » : tiret final compris, c'est la
+#  troncature exacte de lxqt-policykit-agent), qui sont les vrais. Et
+#  « -u "$u" » restreint la recherche à NOTRE session : sans ça, l'agent
+#  d'un AUTRE utilisateur connecté (changement d'utilisateur LightDM, session
+#  invitée) ferait croire à tort qu'on a déjà un agent ici. On ne cherche
+#  plus « polkit-agent-he » : ce n'est pas un agent, c'est le mouchard setuid
+#  qu'un agent lance le temps de vérifier un mot de passe.
 deja_la() {
-	local n
-	for n in polkit-gnome-au polkit-mate-aut lxpolkit lxqt-policykit polkit-agent-he; do
-		pgrep -x "$n" >/dev/null 2>&1 && return 0
+	#  Couture d'essai : un banc qui veut éprouver « aucun agent en marche »
+	#  ne peut pas dépendre de ce qui tourne réellement sur la machine du
+	#  développeur.
+	[ "${LEXOS_POLKIT_DEJA:-}" = "non" ] && return 1
+	local n u
+	u="$(id -u)"
+	for n in polkit-gnome-au polkit-mate-aut lxpolkit lxqt-policykit-; do
+		pgrep -x -u "$u" "$n" >/dev/null 2>&1 && return 0
 	done
 	return 1
 }
@@ -79,19 +90,38 @@ if deja_la; then
 	exit 0
 fi
 
+#  Un agent dont le FOURNISSEUR livre son propre autostart, actif et non
+#  masqué, va démarrer tout seul dans cette session : le relancer ici ferait
+#  un doublon dont l'enregistrement auprès de polkitd échoue (« Cannot
+#  register authentication agent: An authentication agent already exists »).
+AUTOSTART_DIR="${LEXOS_AUTOSTART_DIR:-/etc/xdg/autostart}"
+demarre_tout_seul() {
+	local D
+	case "$1" in
+		*/polkit-gnome-authentication-agent-1) D=polkit-gnome-authentication-agent-1 ;;
+		*/polkit-mate-authentication-agent-1)  D=polkit-mate-authentication-agent-1 ;;
+		*) return 1 ;;
+	esac
+	[ -r "$AUTOSTART_DIR/$D.desktop" ] || return 1
+	grep -qi '^Hidden[[:space:]]*=[[:space:]]*true' "$AUTOSTART_DIR/$D.desktop" && return 1
+	return 0
+}
+
 #  L'agent doit rester en vie tant que la session dure : on ne le détache pas,
 #  c'est le gestionnaire de session qui le tient.
 IFS='
 '
 for A in $CANDIDATS; do
 	[ -n "$A" ] || continue
-	if [ -x "$A" ]; then
+	if [ -x "$A" ] && ! demarre_tout_seul "$A"; then
 		exec "$A"
 	fi
 done
 
 #  Aucun agent installé. On ne peut pas le réparer d'ici, mais on peut cesser
-#  de le cacher : la ligne part dans le journal de la session, et lexos-medecin
-#  la relit.
+#  de le cacher : la ligne part sur la sortie d'erreur de la session — sous
+#  LightDM, ~/.xsession-errors (jamais journald). Le signal que VOIT
+#  l'utilisateur, lui, est ailleurs : settings.py::_run_admin() refuse de
+#  lancer pkexec sans agent et affiche le motif dans la page des Paramètres.
 printf 'lexos: aucun agent d'"'"'authentification polkit installé — les fenêtres de mot de passe ne pourront pas s'"'"'afficher\n' >&2
 exit 1

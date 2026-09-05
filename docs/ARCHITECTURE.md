@@ -610,13 +610,12 @@ importants, parce qu'ils ne se rattrapent pas facilement à la main :
   bibliothèque mise à jour ; sans lui, un correctif de sécurité peut rester
   sans effet jusqu'au prochain redémarrage, sans que personne le sache.
 
-Trois noms diffèrent volontairement de ceux d'Ubuntu :
+Deux noms diffèrent volontairement de ceux d'Ubuntu :
 
 | Ubuntu | LexOS | Pourquoi |
 |---|---|---|
 | `cups-pdf` | `printer-driver-cups-pdf` | C'est le nom Debian |
 | `mlocate` | `plocate` seul | plocate le remplace ; les deux ensemble se disputent le même index |
-| `policykit-1-gnome` | `xfce-polkit` | L'agent de mot de passe de GNOME n'a rien à faire sous XFCE |
 
 Et `apt-transport-https` est écarté : intégré à apt depuis des années, le
 paquet n'est plus qu'une coquille de transition.

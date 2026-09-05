@@ -1052,11 +1052,11 @@ async function setAccent(a){
 }
 async function setFond(f){
   const r = await api("fond", f);
-  if(r.ok) toast("Fond d'écran appliqué");
+  await rafraichir(r.ok ? "Fond d'écran appliqué" : "Échec : " + (r.erreur || "commande refusée"));
 }
 async function fondPerso(){
   const r = await api("fond-perso", "remplir");
-  if(r.ok) toast("Fond d'écran appliqué");
+  await rafraichir(r.ok ? "Fond d'écran appliqué" : "Échec : " + (r.erreur || "commande refusée"));
 }
 /* Capture d'écran → fond d'écran, en un seul geste. */
 async function fondCapture(mode){
@@ -1521,7 +1521,6 @@ function contenu(cle){
                 Ce qui manquait était de l'autre côté : etat() ne disait pas
                 quel fond est posé. */""}
           ${(() => { const F = (etat.fond || {}).cle; const c = k => F === k ? "sel" : "ghost"; return `
-          <button class="btn ${c("defaut")}" onclick="setFond('defaut')">Défaut</button>
           <button class="btn ${c("secu")}" onclick="setFond('secu')">Sécurité</button>
           <button class="btn ${c("demon")}" onclick="setFond('demon')">LexOS 1.0</button>
           <button class="btn ${c("keyart")}" onclick="setFond('keyart')">Explorateur</button>

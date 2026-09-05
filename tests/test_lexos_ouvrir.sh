@@ -55,6 +55,7 @@ LISTE="$RACINE/config/includes.chroot/usr/share/lexos/optional-packages/15-essen
 MOTEUR="$RACINE/config/includes.chroot/usr/lib/lexos/settings.py"
 DISPATCH="$RACINE/config/includes.chroot/usr/bin/lexos"
 COMPLETION="$RACINE/config/includes.chroot/usr/share/bash-completion/completions/lexos"
+DEFAUT="$RACINE/config/includes.chroot/usr/bin/lexos-defaut"
 BANC="$(mktemp -d)"
 trap 'rm -rf "$BANC"' EXIT
 
@@ -72,7 +73,7 @@ saute(){ printf '  \033[33m•\033[0m %s\n' "$1"; }
 titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 
 for F in "$OUTIL" "$BUREAU" "$AGENT" "$AUTOSTART" "$HOOK" "$LISTE" "$MOTEUR" \
-         "$DISPATCH" "$COMPLETION"; do
+         "$DISPATCH" "$COMPLETION" "$DEFAUT"; do
 	[ -r "$F" ] || { echo "introuvable : $F"; exit 1; }
 done
 
@@ -184,6 +185,11 @@ essai_script $'\n'           non "on appuie sur Entrée sans rien taper : rien n
 essai_script $'oui\noui'     non "on accepte de VOIR, puis on tape « oui » au lieu de « lancer » : rien ne tourne"
 essai_script $'oui\nLANCER'  non "« LANCER » en majuscules ne compte pas : rien ne tourne"
 essai_script $'oui\nlancer'  oui "« lancer » écrit exactement : là, il tourne"
+#  UNE INVERSION BANALE — « accepter seulement "oui" » DEVENU « refuser
+#  seulement "non" » — doit rougir ce banc. Une seule réponse ne suffit pas :
+#  mesuré, "ok" seul repasse par la 2ᵉ porte (« lancer ») qui, elle, annule
+#  sur EOF — donc "ok" seul ne tue pas la mutation. Il faut la paire.
+essai_script $'ok\nlancer'   non "« ok » n'est pas un accord à la 1ʳᵉ question : rien ne tourne"
 rm -f "$TRACE"
 
 #  LE MOT EST DANS LE CODE, ET IL N'Y A PAS DE PORTE DÉROBÉE.
@@ -212,19 +218,23 @@ else
 fi
 
 #  UN .deb NE DOIT PAS S'INSTALLER SANS ACCORD NON PLUS. On lui donne un faux
-#  apt-get qui NOTE au lieu d'installer, et on refuse.
+#  apt-get qui NOTE au lieu d'installer, et on refuse — sur DEUX réponses
+#  différentes : "non" seul ne tuerait pas la même inversion de porte que
+#  ci-dessus (« accepter seulement "oui" » -> « refuser seulement "non" »).
 mkdir -p "$BANC/bin"
 cat > "$BANC/bin/apt-get" <<SH
 #!/bin/sh
 printf '%s\n' "\$*" >> "$BANC/apt-appels"
 SH
 chmod +x "$BANC/bin/apt-get"
-: > "$BANC/apt-appels"
-printf 'non\n' | env -u DISPLAY -u WAYLAND_DISPLAY PATH="$BANC/bin:$PATH" \
-	bash "$OUTIL" "$D/paquet.deb" >/dev/null 2>&1
-[ ! -s "$BANC/apt-appels" ] \
-	&& ok "un paquet refusé n'appelle jamais apt" \
-	|| non "apt a été appelé alors qu'on avait refusé : $(cat "$BANC/apt-appels")"
+for R in non ok; do
+	: > "$BANC/apt-appels"
+	printf '%s\n' "$R" | env -u DISPLAY -u WAYLAND_DISPLAY PATH="$BANC/bin:$PATH" \
+		bash "$OUTIL" "$D/paquet.deb" >/dev/null 2>&1
+	[ ! -s "$BANC/apt-appels" ] \
+		&& ok "un paquet non accepté (« $R ») n'appelle jamais apt" \
+		|| non "apt a été appelé sur « $R » : $(cat "$BANC/apt-appels")"
+done
 
 #  UNE AppImage REFUSÉE NE DOIT RIEN COPIER.
 printf 'non\n' | sans_ecran bash "$OUTIL" "$D/appli.AppImage" >/dev/null 2>&1
@@ -256,6 +266,148 @@ fi
 	&& ok "aucune copie partielle laissée derrière" \
 	|| non "un fichier .part traîne dans le dossier des applications"
 
+#  UN NOM D'AppImage AVEC DES CARACTÈRES PIÉGÉS NE DOIT PAS PRODUIRE UNE
+#  ENTRÉE DE MENU MORTE. printf %q cite pour bash ; le format key-file du
+#  .desktop, lui, n'admet que \s \n \t \r \\ — tout le reste (espace, \(,
+#  \", \$…) rend la valeur ININTERPRÉTABLE et GIO laisse l'entrée sans Exec,
+#  en silence. On ne peut pas s'appuyer sur un vrai GLib ici (python3-gi est
+#  cassé dans ce bac à sable, comme il l'était pendant la revue) : on
+#  réimplémente donc les DEUX règles réelles (décodage key-file, puis
+#  g_shell_parse_argv pour une valeur entre guillemets doubles) et on
+#  vérifie que le chemin RESSORT identique à ce qu'on a copié.
+cat > "$BANC/decode_desktop_entry.py" <<'PY'
+import sys
+
+def decode_keyfile(s):
+    out, i = [], 0
+    while i < len(s):
+        c = s[i]
+        if c == '\\':
+            if i + 1 >= len(s):
+                raise ValueError("barre oblique inverse en fin de valeur")
+            n = s[i+1]
+            m = {'s': ' ', 'n': '\n', 't': '\t', 'r': '\r', '\\': '\\'}
+            if n not in m:
+                raise ValueError("échappement key-file invalide: \\%s" % n)
+            out.append(m[n]); i += 2
+        else:
+            out.append(c); i += 1
+    return ''.join(out)
+
+def shell_parse_argv0_dquote(s):
+    assert s.startswith('"'), "la valeur ne commence pas par un guillemet double"
+    out, i = [], 1
+    while i < len(s):
+        c = s[i]
+        if c == '"':
+            return out and ''.join(out)
+        if c == '\\' and i + 1 < len(s) and s[i+1] in '"$`\\':
+            out.append(s[i+1]); i += 2
+        else:
+            out.append(c); i += 1
+    raise ValueError("guillemet fermant manquant")
+
+fichier, attendu = sys.argv[1], sys.argv[2]
+brut = open(fichier, encoding="utf-8").read()
+ligne = next((l[len("Exec="):] for l in brut.splitlines() if l.startswith("Exec=")), None)
+if ligne is None:
+    print("NON : aucune ligne Exec= dans %s" % fichier); sys.exit(1)
+try:
+    argv0 = shell_parse_argv0_dquote(decode_keyfile(ligne))
+except Exception as e:
+    print("NON : %s (Exec=%s)" % (e, ligne)); sys.exit(1)
+if argv0 == attendu:
+    print("OK"); sys.exit(0)
+print("NON : décodé « %s », attendu « %s » (Exec=%s)" % (argv0, attendu, ligne)); sys.exit(1)
+PY
+essai_nom_piege() { # $1 = nom de fichier piégé
+	local nom="$1" dest desktop res
+	rm -f "$LEXOS_APPS_LOCAL_USER"/*.desktop
+	cp -- "$D/appli.AppImage" "$D/$nom"
+	printf 'oui\n' | sans_ecran bash "$OUTIL" "$D/$nom" >/dev/null 2>&1
+	dest="$LEXOS_APPIMAGE_DIR/$nom"
+	desktop="$(ls "$LEXOS_APPS_LOCAL_USER"/*.desktop 2>/dev/null | head -1)"
+	if [ -z "$desktop" ]; then
+		non "aucune AppImage nommée « $nom » : aucun .desktop écrit"
+		return
+	fi
+	res="$(python3 "$BANC/decode_desktop_entry.py" "$desktop" "$dest" 2>&1)"
+	if [ "$res" = "OK" ] && [ -x "$dest" ]; then
+		ok "« $nom » : l'entrée de menu retrouve exactement le bon programme"
+	else
+		non "« $nom » : $res"
+	fi
+}
+essai_nom_piege "App (1)'s.AppImage"
+essai_nom_piege 'App"Q\W.AppImage'
+
+#  ET LE GESTE PRINCIPAL — UN .deb ACCEPTÉ DOIT VRAIMENT PARTIR CHEZ apt. Sans
+#  ce contrôle en sens positif, on peut vider poser_paquet() de tout son
+#  travail (elle annonce « Installé. » et sort) sans que le banc bronche.
+#  On masque aussi les terminaux : hors root ET sans agent polkit, le geste
+#  passe par terminal_admin, qui « exec » un terminal — sans ce masque, la
+#  mesure dépendrait de qui lance ce banc (root en CI, un compte ordinaire
+#  ailleurs).
+for T in xfce4-terminal x-terminal-emulator gnome-terminal xterm sudo; do
+	cp "$BANC/bin/apt-get" "$BANC/bin/$T"
+done
+: > "$BANC/apt-appels"
+printf 'oui\n' | env -u DISPLAY -u WAYLAND_DISPLAY PATH="$BANC/bin:$PATH" \
+	bash "$OUTIL" "$D/paquet.deb" >/dev/null 2>&1
+grep -q 'install' "$BANC/apt-appels" \
+	&& ok "un paquet accepté est bel et bien remis à apt" \
+	|| non "un paquet accepté n'appelle jamais apt : rien ne s'installe"
+
+#  ANNULER DANS gdebi (fenêtre fermée, rc=0 — qui NE VEUT PAS DIRE installé)
+#  NE DOIT RIEN RELANCER DE PLUS PRIVILÉGIÉ. Il faut un DISPLAY et un zenity
+#  pour atteindre la branche graphique où vit gdebi-gtk.
+mkdir -p "$BANC/bin-gdebi"
+printf '#!/bin/sh\ncase "$1" in --question) exit 0 ;; *) exit 1 ;; esac\n' \
+	> "$BANC/bin-gdebi/zenity"; chmod +x "$BANC/bin-gdebi/zenity"
+printf '#!/bin/sh\nexit 0\n' > "$BANC/bin-gdebi/gdebi-gtk"; chmod +x "$BANC/bin-gdebi/gdebi-gtk"
+for T in pkexec xfce4-terminal x-terminal-emulator gnome-terminal xterm sudo apt-get; do
+	printf '#!/bin/sh\nprintf '"'"'%%s\n'"'"' "$*" >> "%s"\n' "$BANC/traces-gdebi" > "$BANC/bin-gdebi/$T"
+	chmod +x "$BANC/bin-gdebi/$T"
+done
+: > "$BANC/traces-gdebi"
+SORTIE_GDEBI="$(DISPLAY=:99 PATH="$BANC/bin-gdebi:$PATH" bash "$OUTIL" "$D/paquet.deb" 2>&1)"
+if [ -s "$BANC/traces-gdebi" ]; then
+	non "après gdebi, autre chose a quand même été appelé : $(cat "$BANC/traces-gdebi")"
+elif printf '%s' "$SORTIE_GDEBI" | grep -qi 'installé'; then
+	#  LE VRAI DÉFAUT (constat #6, point « CE QUI SE REPRODUIT QUAND MÊME ») :
+	#  gdebi-gtk rend 0 aussi bien quand il a installé QUE quand sa fenêtre a
+	#  simplement été fermée sans rien faire (SimpleGtkbuilderApp.run() ->
+	#  Gtk.main_quit() -> retour normal). Annoncer « Installé » sur ce rc=0 est
+	#  un FAUX succès ; seul « rien de plus tenté » est vrai dans les deux cas.
+	non "gdebi a rendu la main (fenêtre fermée), mais lexos-ouvrir annonce quand même un succès : $SORTIE_GDEBI"
+else
+	ok "gdebi a rendu la main (fenêtre fermée) : ni faux succès, ni tentative plus privilégiée"
+fi
+
+#  REFUSER LE MOT DE PASSE DE pkexec (code 126) EST UN REFUS, PAS UNE PANNE DE
+#  MÉCANISME : ça ne doit PAS retomber sur un terminal + sudo, plus privilégié.
+#  gdebi-gtk est ABSENT ici (on veut atteindre la branche pkexec), pgrep est
+#  faussé pour dire qu'un agent tourne, et « id » pour dire qu'on n'est pas
+#  root (sinon la branche root, qui vient avant, absorberait tout le test).
+mkdir -p "$BANC/bin-pkexec"
+cp "$BANC/bin-gdebi/zenity" "$BANC/bin-pkexec/zenity"
+printf '#!/bin/sh\ncase "$1" in -u) echo 1000 ;; *) exec /usr/bin/id "$@" ;; esac\n' \
+	> "$BANC/bin-pkexec/id"; chmod +x "$BANC/bin-pkexec/id"
+#  pgrep -x DOIT IMPRIMER un pid pour que agent_polkit() (qui lit la SORTIE,
+#  pas le code de retour) voie un agent : un simple « exit 0 » muet équivaut
+#  à « rien trouvé ».
+printf '#!/bin/sh\necho 12345\n' > "$BANC/bin-pkexec/pgrep"; chmod +x "$BANC/bin-pkexec/pgrep"
+printf '#!/bin/sh\nexit 126\n' > "$BANC/bin-pkexec/pkexec"; chmod +x "$BANC/bin-pkexec/pkexec"
+for T in xfce4-terminal x-terminal-emulator gnome-terminal xterm sudo apt-get; do
+	printf '#!/bin/sh\nprintf '"'"'%%s\n'"'"' "$*" >> "%s"\n' "$BANC/traces-pkexec" > "$BANC/bin-pkexec/$T"
+	chmod +x "$BANC/bin-pkexec/$T"
+done
+: > "$BANC/traces-pkexec"
+DISPLAY=:99 PATH="$BANC/bin-pkexec:$PATH" bash "$OUTIL" "$D/paquet.deb" >/dev/null 2>&1
+[ ! -s "$BANC/traces-pkexec" ] \
+	&& ok "le mot de passe pkexec refusé (126) n'est pas converti en tentative supplémentaire" \
+	|| non "un refus pkexec a quand même relancé quelque chose de plus privilégié : $(cat "$BANC/traces-pkexec")"
+
 # =============================================================================
 titre "3. LE DOUBLE-CLIC EST VRAIMENT BRANCHÉ"
 # =============================================================================
@@ -278,7 +430,8 @@ grep -q '^Terminal=false' "$BUREAU" \
 	|| non "le .desktop ouvre un terminal"
 
 for T in application/vnd.debian.binary-package application/vnd.appimage \
-         application/x-iso9660-appimage application/vnd.flatpak.ref; do
+         application/x-iso9660-appimage application/vnd.flatpak.ref \
+         application/x-shellscript application/x-executable; do
 	grep -q "MimeType=.*$T" "$BUREAU" \
 		&& ok "le .desktop se déclare pour $T" \
 		|| non "le .desktop ne se déclare pas pour $T"
@@ -301,7 +454,7 @@ if [ ! -s "$HEREDOC" ]; then
 else
 	for T in application/vnd.debian.binary-package application/vnd.appimage \
 	         application/x-iso9660-appimage application/vnd.flatpak.ref \
-	         application/x-rpm; do
+	         application/x-rpm application/x-shellscript application/x-executable; do
 		grep -q "^$T=" "$HEREDOC" \
 			&& ok "mimeapps.list désigne un gestionnaire pour $T" \
 			|| non "mimeapps.list ne dit rien de $T — le double-clic ne fera rien"
@@ -310,6 +463,18 @@ else
 		&& ok "…et c'est lexos-ouvrir qui répond" \
 		|| non "mimeapps.list ne renvoie pas à lexos-ouvrir"
 fi
+
+#  INDISPENSABLE, SINON LE CÂBLAGE CI-DESSUS EST ANNULÉ EN SILENCE : si
+#  lexos-defaut range encore application/x-shellscript dans sa catégorie
+#  « texte », le premier réglage « Éditeur de texte » des Paramètres écrit
+#  ~/.config/mimeapps.list, qui l'emporte sur /etc/xdg — le .sh repart vers
+#  Mousepad au premier passage dans les Paramètres.
+#  Sur le CODE, jamais sur le fichier entier : son propre commentaire NOMME
+#  x-shellscript pour expliquer pourquoi il n'y est plus.
+sed 's/#.*$//' "$DEFAUT" > "$BANC/defaut-nu"
+grep -q 'application/x-shellscript' "$BANC/defaut-nu" \
+	&& non "lexos-defaut range encore x-shellscript dans une catégorie : Paramètres > Éditeur de texte annulerait le câblage vers lexos-ouvrir" \
+	|| ok "lexos-defaut ne range plus x-shellscript nulle part — le câblage tient"
 
 #  LE FICHIER A UN SEUL AUTEUR. Si quelqu'un ajoute un jour un mimeapps.list
 #  ailleurs, le heredoc du 0400 l'écrasera sans prévenir.
@@ -345,8 +510,12 @@ grep -q '^OnlyShowIn=.*XFCE' "$AUTOSTART" \
 	|| non "l'autostart ne se déclare pas pour XFCE"
 
 #  LES TROIS COMPORTEMENTS DU LANCEUR.
+#  LEXOS_POLKIT_DEJA=non : sans cette couture, un agent RÉELLEMENT en marche
+#  sur la machine qui lance ce banc (session XFCE de développement, ou un
+#  résidu d'un tour précédent) ferait rougir ces deux contrôles — deja_la()
+#  répondrait vrai pour de bonnes raisons, mais pour la mauvaise mesure.
 mkdir -p "$BANC/agents"
-LEXOS_POLKIT_AGENTS="$BANC/agents/absent" bash "$AGENT" > "$BANC/ag1" 2>&1; CODE=$?
+LEXOS_POLKIT_DEJA=non LEXOS_POLKIT_AGENTS="$BANC/agents/absent" bash "$AGENT" > "$BANC/ag1" 2>&1; CODE=$?
 SORTIE="$(cat "$BANC/ag1")"
 if [ "$CODE" -ne 0 ] && grep -qi 'aucun agent' "$BANC/ag1"; then
 	ok "aucun agent installé : il le DIT et sort en erreur (au lieu de se taire)"
@@ -355,12 +524,30 @@ else
 fi
 
 printf '#!/bin/sh\necho AGENT-LANCE\n' > "$BANC/agents/faux"; chmod +x "$BANC/agents/faux"
-LEXOS_POLKIT_AGENTS="$BANC/agents/absent
+LEXOS_POLKIT_DEJA=non LEXOS_POLKIT_AGENTS="$BANC/agents/absent
 $BANC/agents/faux" bash "$AGENT" > "$BANC/ag2" 2>&1 || true
 SORTIE="$(cat "$BANC/ag2")"
 grep -q 'AGENT-LANCE' "$BANC/ag2" \
 	&& ok "un agent présent est lancé, même si un candidat plus prioritaire manque" \
 	|| non "l'agent présent n'a pas été lancé (sortie : $SORTIE)"
+
+#  UN CANDIDAT DONT LE FOURNISSEUR DÉMARRE DÉJÀ TOUT SEUL (autostart actif,
+#  non masqué) NE DOIT PAS ÊTRE RELANCÉ ICI (constat #10) : ça ferait un
+#  doublon dont l'enregistrement auprès de polkitd échoue à coup sûr.
+mkdir -p "$BANC/autostart-fournisseur" "$BANC/agents-fournisseur"
+cat > "$BANC/autostart-fournisseur/polkit-gnome-authentication-agent-1.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+OnlyShowIn=XFCE;
+EOF
+printf '#!/bin/sh\necho AGENT-LANCE\n' > "$BANC/agents-fournisseur/polkit-gnome-authentication-agent-1"
+chmod +x "$BANC/agents-fournisseur/polkit-gnome-authentication-agent-1"
+LEXOS_POLKIT_DEJA=non LEXOS_AUTOSTART_DIR="$BANC/autostart-fournisseur" \
+LEXOS_POLKIT_AGENTS="$BANC/agents-fournisseur/polkit-gnome-authentication-agent-1" \
+	bash "$AGENT" > "$BANC/ag4" 2>&1
+grep -q 'AGENT-LANCE' "$BANC/ag4" \
+	&& non "un candidat dont le fournisseur démarre déjà seul a quand même été relancé — doublon garanti" \
+	|| ok "…et un candidat dont le fournisseur démarre déjà seul (autostart non masqué) est sauté"
 
 #  DÉJÀ EN MARCHE : ON NE DOIT PAS EN LANCER UN DEUXIÈME. Une COPIE de « sh »
 #  nommée « lxpolkit » suffit : ce qui compte est /proc/<pid>/comm, c'est-à-dire
@@ -376,6 +563,20 @@ if command -v pgrep >/dev/null 2>&1 && command -v sh >/dev/null 2>&1; then
 	grep -q 'AGENT-LANCE' "$BANC/ag3" \
 		&& non "un deuxième agent a été lancé alors qu'un agent tournait déjà" \
 		|| ok "un agent tourne déjà : on n'en lance pas un deuxième"
+
+	#  LE MÊME ESSAI, MAIS AVEC LE NOM QUI SE FAIT TRONQUER. « lxqt-policykit »
+	#  (sans le tiret final) ne correspond à AUCUN /proc/<pid>/comm réel — le
+	#  noyau tronque « lxqt-policykit-agent » à 15 caractères, tiret compris.
+	#  C'est le cas que la copie « lxpolkit » ci-dessus, trop courte pour être
+	#  tronquée, ne peut structurellement pas révéler.
+	cp "$(command -v sh)" "$BANC/agents/lxqt-policykit-agent"
+	"$BANC/agents/lxqt-policykit-agent" -c 'sleep 20' & FAUX_PID2=$!
+	sleep 0.5
+	LEXOS_POLKIT_AGENTS="$BANC/agents/faux" bash "$AGENT" > "$BANC/ag3b" 2>&1 || true
+	kill "$FAUX_PID2" 2>/dev/null; wait "$FAUX_PID2" 2>/dev/null
+	grep -q 'AGENT-LANCE' "$BANC/ag3b" \
+		&& non "l'agent LXQt (comm tronqué « lxqt-policykit- ») n'a pas été reconnu comme déjà en marche" \
+		|| ok "…et le nom tronqué de l'agent LXQt (« lxqt-policykit- ») est bien reconnu"
 else
 	saute "pgrep ou sh absent : le doublon d'agent n'a PAS été éprouvé"
 fi
