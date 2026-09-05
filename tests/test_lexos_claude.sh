@@ -170,10 +170,26 @@ titre "6. Le thème rouge sur fond noir, écriture blanche"
 #  prouverait rien. « script » alloue un vrai pseudo-terminal : c'est la
 #  seule façon d'éprouver le VRAI chemin (couleurs allumées), pas son repli.
 if command -v script >/dev/null 2>&1; then
-	SORTIE="$(PATH="$BAC/bin:$PATH" script -qec "
+	#  « bash -c » À L'INTÉRIEUR DE script, ET CE N'EST PAS UNE CEINTURE DE
+	#  PLUS. « script -qec » lance ce qu'on lui donne avec $SHELL, et à défaut
+	#  avec /bin/sh — qui est dash sur Debian. Or « source » est un bashisme :
+	#  sous dash, ça donne « source: not found », la bannière sort VIDE, et
+	#  les trois contrôles qui suivent accusent lexos-claude d'avoir perdu ses
+	#  couleurs alors que son code est intact.
+	#
+	#  Le piège est qu'il ne se voit PAS partout : là où $SHELL vaut déjà
+	#  /bin/bash (une session interactive, la machine d'Alex), le banc passe
+	#  au vert et ne prouve rien de plus. Il rougit dès que $SHELL manque ou
+	#  vaut dash — un cron, un service, un coureur d'intégration, un compte
+	#  dont le shell de connexion n'est pas bash. Un banc ne doit pas
+	#  dépendre du shell ambiant : il exige celui dont il a besoin.
+	#
+	#  appelle() ligne 69 le faisait déjà correctement ; cette capture-ci
+	#  l'avait oublié.
+	SORTIE="$(PATH="$BAC/bin:$PATH" script -qec "bash -c \"
 		source '$BAC/fonctions.sh'
 		banniere
-	" /dev/null 2>/dev/null | tr -d '\r')"
+	\"" /dev/null 2>/dev/null | tr -d '\r')"
 
 	#  #D8352E — pas un rouge inventé : c'est ACCENT_HI du cas « rouge » dans
 	#  lexos-theme-gen, le même accent que le reste de LexOS. En 24 bits

@@ -41,3 +41,10 @@ preview/
 # --- Caches Python -----------------------------------------------------------
 __pycache__/
 *.pyc
+
+# --- Outils téléchargés, jamais versionnés ----------------------------------
+#  Un .whl de shellcheck (3,7 Mio) avait fini committé à la racine : c'est un
+#  binaire d'outillage, pas une source du projet. La cible « lint » du
+#  Makefile cherche shellcheck dans le PATH et dit quoi installer s'il
+#  manque — le dépôt n'a pas à porter le binaire.
+*.whl
