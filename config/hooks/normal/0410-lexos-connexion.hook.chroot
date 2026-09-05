@@ -14,12 +14,19 @@
 #      comme fond d'écran »
 #
 #  Trois choses à poser, et une seule est un réglage :
-#    · LE FOND — clé « background ». L'image est composée par le hook 0300
-#      (lexos-connexion.png : le logo TI·LEX·AL sur noir).
-#    · LA PHOTO DU PROFIL — clé « hide-user-image=false ». Le greeter montre
+#    · LE FOND — clé « background ». C'est fond-connexion.png : le noir, la
+#      pluie Matrix verte et la grosse mascotte au masque, cuits ensemble.
+#      Le greeter ne sait dessiner qu'une image de fond et sa boîte ; on ne
+#      peut pas lui faire placer une mascotte à part. Voir plus bas.
+#    · LA PASTILLE DU PROFIL — clé « hide-user-image=false ». Le greeter montre
 #      alors l'image du compte SÉLECTIONNÉ (son ~/.face, posé dans /etc/skel
 #      par le hook 0300, ou son avatar AccountsService). « default-user-image »
 #      ne sert qu'aux comptes qui n'en ont aucune.
+#      ELLE POINTAIT SUR mascot.png, ET C'ÉTAIT VISIBLEMENT FAUX. Ce fichier
+#      fait 599×720 — un RECTANGLE. Découpé en rond par « round-user-image »,
+#      il ne montrait pas le visage mais l'ÉPAULE ET LA MAIN. avatar-masque.png
+#      est carré (256×256) et cadré sur le masque et les lunettes : le rond
+#      tombe juste par construction, pas par chance.
 #    · LE NOIR ET L'ORANGE — aucune clé. lightdm-gtk-greeter ne sait pas
 #      nommer une couleur. Le gris qu'Alex a vu est celui d'Arc-Dark, le thème
 #      GTK que le greeter porte. Ça se joue en CSS (connexion.css).
@@ -37,6 +44,7 @@ LIGHTDM_DIR="${LEXOS_LIGHTDM_DIR:-/etc/lightdm}"
 LIGHTDM_HOME="${LEXOS_LIGHTDM_HOME:-/var/lib/lightdm}"
 THEMES="${LEXOS_THEMES:-/usr/share/themes}"
 BG_DIR="${LEXOS_BG_DIR:-/usr/share/backgrounds/lexos}"
+BRAND="${LEXOS_BRANDING:-/usr/share/lexos/branding}"
 CSS_SRC="${LEXOS_CONNEXION_CSS:-/usr/share/lexos/connexion.css}"
 LIGHTDM_BIN="${LEXOS_LIGHTDM_BIN:-/usr/sbin/lightdm}"
 
@@ -65,8 +73,23 @@ fi
 #  lightdm afficherait du gris uni — exactement ce dont Alex ne veut plus.
 #  La dernière valeur n'est pas un fichier mais une COULEUR : la clé accepte
 #  les deux, et du noir vaut mieux qu'un fond manquant.
+#  ═══ « fond-connexion.png » EN TÊTE, ET CE QU'IL CONTIENT ═══
+#  Le noir, la pluie Matrix verte ET la grosse mascotte au masque, cuits dans
+#  une seule image 1920×1080.
+#
+#  CUITS, ET IL N'Y A PAS D'AUTRE FAÇON DE FAIRE. lightdm-gtk-greeter ne sait
+#  dessiner que DEUX choses : une image de fond et sa boîte de connexion. On
+#  ne peut pas lui dire « mets cette image ici et la boîte là-dessous ». Ne
+#  cherchez pas un moyen détourné, il n'y en a pas — et une pluie ANIMÉE
+#  demanderait de remplacer le greeter au complet.
+#
+#  CONSÉQUENCE À TENIR : la mascotte est dessinée dans le HAUT du fond, et la
+#  boîte est ancrée à 88 % PAR LE BAS (voir « position » plus bas). CES DEUX
+#  VALEURS VONT ENSEMBLE. Si quelqu'un déplace l'une, l'autre doit suivre,
+#  sinon la boîte monte dans le visage de la mascotte.
 GREETER_BG="#000000"
-for CAND in "$BG_DIR/lexos-connexion.png" \
+for CAND in "$BRAND/fond-connexion.png" \
+            "$BG_DIR/lexos-connexion.png" \
             "$BG_DIR/wallpaper-demon.png" \
             "$BG_DIR/wallpaper.png"; do
 	if [ -r "$CAND" ]; then GREETER_BG="$CAND"; break; fi
@@ -139,7 +162,7 @@ xft-rgba=rgb
 indicators=~host;~spacer;~clock;~spacer;~layout;~session;~a11y;~power
 clock-format=%A %d %B — %H:%M
 position=50%,center 88%,end
-default-user-image=/usr/share/lexos/branding/mascot.png
+default-user-image=${BRAND}/avatar-masque.png
 user-background=false
 hide-user-image=false
 round-user-image=true
@@ -150,4 +173,11 @@ EOF
 #  le logo tranquille en haut — une boîte centrée grandit des DEUX côtés et
 #  finit par monter dans le visage du démon dès qu'un message d'erreur
 #  s'ajoute (« Votre mot de passe est incorrect », sur la photo d'Alex).
+#
+#  CES 88 % VONT AVEC LE FOND, ET LE FOND AVEC EUX. La mascotte est DESSINÉE
+#  dans le haut de fond-connexion.png (voir le choix du fond, plus haut) :
+#  le greeter ne sait pas placer une image, on ne peut donc pas déplacer la
+#  mascotte. Si la boîte remonte, elle entre dans son visage. Un « nettoyage »
+#  qui recentrerait la boîte casserait l'écran sans qu'aucun test ne le dise —
+#  c'est pour ça que le banc l'exige inchangée.
 echo "[lexos]   position : boîte ancrée par le bas à 88 % — le logo reste dégagé"

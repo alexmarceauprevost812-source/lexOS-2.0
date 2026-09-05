@@ -122,10 +122,17 @@
     lisible. Un encadré sombre à bordure orange suffit à dire « ceci se
     clique », et laisse le plein orange du survol/de l'appui, juste
     au-dessous, pour la réponse visible au doigt. */
+/*  ═══ LES BOUTONS DU BAS SONT DISCRETS, ET C'EST LE BUT ═══
+    Session, accessibilité, arrêt. Ils portaient un liseré orange à 55 % :
+    trois petits boutons accentués qui se disputaient l'œil avec le SEUL
+    bouton qui compte, celui de la connexion. Fond #121214, bordure blanche
+    très pâle, coins à 10 px comme le reste de l'écran : on les trouve quand
+    on les cherche, ils ne se proposent pas.
+    L'orange revient au survol (règle suivante) — la où il DIT quelque chose. */
 #panel_window button {
-	background-color: #0B0B0C;
-	border: 1px solid alpha(@lexos_accent, 0.55);
-	border-radius: 6px;
+	background-color: #121214;
+	border: 1px solid rgba(255, 255, 255, 0.10);
+	border-radius: 10px;
 }
 #panel_window button:hover,
 #panel_window button:active,
@@ -270,10 +277,20 @@ treeview.view cell:selected {
     en gris ; on les reprend tous les trois, sinon il reste une bande grise
     sous les boutons — le genre de moitié de correction qui se voit sur la
     photo suivante. */
+/*  ═══ LA CARTE : UN NOIR PRESQUE PLEIN, POUR QUE LA PLUIE TRANSPARAISSE ═══
+    Le fond de l'écran porte maintenant la pluie Matrix (fond-connexion.png).
+    Une carte parfaitement opaque la découpe net ; à 0.94 d'opacité, on
+    devine les colonnes derrière sans jamais gêner la lecture du mot de
+    passe. Le noir reste FRANC — rgb(8, 8, 9), pas un gris.
+
+    LA BORDURE N'EST PLUS ORANGE. Un liseré accentué de 2 px autour de la
+    carte entrait en concurrence avec le SEUL élément qui doit attirer l'œil :
+    le bouton de connexion. Un filet blanc à 8 % suffit à détacher la carte
+    du fond, et l'orange reste au bouton. */
 #login_window {
-	background-color: @lexos_noir;
-	border: 2px solid @lexos_accent;
-	border-radius: 14px;
+	background-color: rgba(8, 8, 9, 0.94);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 18px;
 	padding: 12px;
 }
 #login_window #content_frame,
@@ -318,13 +335,21 @@ treeview.view cell:selected {
     L'orange reste partout ailleurs : c'est la couleur de LexOS. Ici, il
     s'agit de lire ce qu'on tape à l'aveugle sur un écran de connexion, et
     la lisibilité passe avant la teinte. */
+/*  ═══ LE CHAMP SE DÉTACHE DE LA CARTE, ET L'ORANGE ARRIVE AU FOCUS ═══
+    Le fond passe de #0B0B0C à #141416 : sur une carte à rgb(8, 8, 9), un
+    champ du même noir ne se voyait pas — on ne savait pas où cliquer.
+
+    LA BORDURE FAIT 2 px DÈS LE DÉPART, en blanc très pâle, et ne CHANGE QUE
+    DE COULEUR au focus. C'est délibéré : passer de 1 px à 2 px décalerait le
+    contenu du champ d'un pixel au moment où on clique dedans, et ce
+    sautillement se voit. L'épaisseur ne bouge pas, la couleur seule parle. */
 #login_window entry {
-	background-color: #0B0B0C;
+	background-color: #141416;
 	background-image: none;
 	color: #FFFFFF;
 	caret-color: #FFFFFF;
-	border: 1px solid alpha(@lexos_accent, 0.55);
-	border-radius: 9px;
+	border: 2px solid rgba(255, 255, 255, 0.10);
+	border-radius: 10px;
 	padding: 7px 10px;
 }
 /*  LE NŒUD « text » À L'INTÉRIEUR DU CHAMP. Depuis GTK 3.20 le contenu d'un
@@ -450,26 +475,50 @@ treeview.view cell:selected {
     LES ÉTATS restent distincts pour qu'un bouton réponde visiblement au
     doigt : accent au repos, accent clair au survol, accent foncé à
     l'enfoncement — la même grammaire que le dock et la fenêtre de session.
-    Contraste noir sur #E8590C ≈ 6,6:1, sur #FF7A33 ≈ 9,2:1, sur #A84007
-    ≈ 3,6:1 (état bref, pendant le clic). */
+    (Les contrastes de l'écriture NOIRE qui figuraient ici ne valent plus :
+    l'étiquette est passée au BLANC à la demande d'Alex, et les chiffres
+    refaits sont juste en dessous.) */
+/*  ═══ LE TEXTE PASSE AU BLANC — ET VOICI LE CHIFFRE QUE ÇA COÛTE ═══
+    ALEX A DEMANDÉ LE BLANC, capture à l'appui. MESURÉ (WCAG 2.1, luminance
+    relative) sur l'accent #E8590C :
+
+        écriture NOIRE  ... 5,87:1
+        écriture BLANCHE .. 3,58:1
+
+    Le blanc est donc MOINS contrasté que le noir. Il passe quand même le
+    seuil AA, mais uniquement au titre du GRAND TEXTE (3:1 au lieu de 4,5:1),
+    et le grand texte commence à 18,66 px EN GRAS.
+
+    C'EST POUR ÇA QUE LA TAILLE ET LA GRAISSE SONT ÉCRITES ICI. Elles ne sont
+    pas décoratives : elles sont la condition qui rend le blanc conforme. 19 px
+    en 700 franchit le seuil ; les baisser ferait tomber le bouton sous la
+    norme sans que rien ne le dise. Si un jour quelqu'un veut du texte plus
+    petit sur ce bouton, il doit repasser au noir. */
 #login_window button {
 	background-image: none;
 	background-color: @lexos_accent;
-	color: @lexos_noir;
+	color: #FFFFFF;
 	border: 1px solid @lexos_accent;
-	border-radius: 9px;
-	padding: 7px 16px;
+	border-radius: 10px;
+	padding: 9px 16px;
+	font-size: 19px;
+	font-weight: 700;
 	text-shadow: none;
 }
 #login_window button:hover {
 	background-color: @lexos_accent_hi;
-	color: @lexos_noir;
+	color: #FFFFFF;
 	border-color: @lexos_accent_hi;
 }
+/*  À L'ENFONCEMENT, LE BLANC N'EST PAS UN COMPROMIS — IL EST MEILLEUR.
+    MESURÉ sur #A84007 : écriture blanche 6,17:1, écriture noire 3,40:1.
+    C'est l'inverse de l'accent plein. Le noir aurait fait passer le bouton
+    SOUS le seuil pendant le clic, au moment précis où l'on regarde s'il a
+    été pris. */
 #login_window button:active,
 #login_window button:checked {
 	background-color: @lexos_accent_lo;
-	color: @lexos_noir;
+	color: #FFFFFF;
 }
 /*  Désactivé : le SEUL état qui reste creux. Un bouton grisé doit se
     distinguer d'un bouton vivant au premier coup d'oeil — le remplir
@@ -482,14 +531,23 @@ treeview.view cell:selected {
 /*  L'ÉTIQUETTE ELLE-MÊME, dans tous les états — c'est la moitié qui
     manquait. Mêmes règles que « menuitem:hover * » plus haut, ici pour les
     boutons. « #login_window button * » (1,0,1) bat « #login_window * »
-    (1,0,0), donc l'étiquette suit enfin son bouton. */
+    (1,0,0), donc l'étiquette suit enfin son bouton.
+
+    ET C'EST CETTE MOITIÉ-LÀ QUI COMPTE QUAND ON CHANGE LA COULEUR DU TEXTE.
+    Le passage au blanc avait été écrit sur « #login_window button » seul :
+    à l'écran, l'étiquette serait RESTÉE NOIRE, parce que cette règle-ci est
+    plus spécifique et la repeignait juste après. Le changement n'aurait rien
+    donné, et on ne s'en serait aperçu qu'au redémarrage suivant — c'est le
+    banc qui l'a attrapé, en mesurant la couleur RÉSOLUE du nœud « label »
+    et pas celle du bouton. Les deux moitiés vont ensemble, dans tous les
+    états. */
 #login_window button * {
-	color: @lexos_noir;
+	color: #FFFFFF;
 }
 #login_window button:hover *,
 #login_window button:active *,
 #login_window button:checked * {
-	color: @lexos_noir;
+	color: #FFFFFF;
 }
 #login_window button:disabled * {
 	color: alpha(@lexos_accent, 0.45);

@@ -320,10 +320,27 @@ J
 #  base) c'est la spécificité et l'ordre qui doivent gagner — c'est LÀ que les
 #  sélecteurs composés servent, et c'est le régime qu'on oublierait de tester.
 for PRIO in 800 200; do
+	#  ═══ LA CARTE N'EST PLUS TOUT À FAIT OPAQUE, ET C'EST VOULU ═══
+	#  Le fond de l'écran porte la pluie Matrix : une carte parfaitement
+	#  opaque la découpe net. À 0.94 on devine les colonnes derrière sans
+	#  gêner la lecture. Ce qui devait rester vrai — et qui reste éprouvé
+	#  ici — c'est que le fond est un NOIR FRANC et non le gris d'Arc : on
+	#  vérifie donc les composantes, pas une chaîne exacte, et on exige que
+	#  l'opacité reste haute. Un contrôle sur « #000000 » aurait interdit
+	#  toute transparence ; un contrôle sur « ça contient rgba » aurait
+	#  laissé passer un gris translucide.
 	F="$(resout "$BANC/boite.json" background-color "$PRIO")"
-	[ "$F" = "#000000" ] \
-		&& ok "priorité $PRIO : la boîte est NOIRE (#000000), plus le gris d'Arc" \
-		|| non "priorité $PRIO : la boîte vaut « $F » au lieu de #000000"
+	CLAIR=$(printf '%s' "$F" | sed -n 's/^rgba\?(\([0-9]*\), *\([0-9]*\), *\([0-9]*\).*/\1+\2+\3/p')
+	SOMME=$( [ -n "$CLAIR" ] && echo $(( CLAIR )) || echo -1 )
+	ALPHA=$(printf '%s' "$F" | sed -n 's/.*, *\(0\.[0-9]*\))$/\1/p')
+	if [ "$F" = "#000000" ]; then
+		ok "priorité $PRIO : la boîte est NOIRE (#000000), plus le gris d'Arc"
+	elif [ "$SOMME" -ge 0 ] && [ "$SOMME" -le 60 ] \
+	     && [ -n "$ALPHA" ] && [ "${ALPHA#0.9}" != "$ALPHA" ]; then
+		ok "priorité $PRIO : la boîte est un noir franc à peine translucide ($F)"
+	else
+		non "priorité $PRIO : la boîte vaut « $F » — ni noir franc, ni opacité ≥ 0.9"
+	fi
 
 	F="$(resout "$BANC/contenu.json" background-color "$PRIO")"
 	[ "$F" = "#000000" ] \
@@ -350,27 +367,80 @@ F="$(resout "$BANC/bouton.json" background-color)"
 [ "$F" = "#E8590C" ] \
 	&& ok "les boutons sont ORANGE PLEIN dès le repos" \
 	|| non "fond de bouton : « $F » au lieu de #E8590C"
+#  ═══ L'ÉCRITURE EST PASSÉE AU BLANC — ET LE BANC PORTE LE CHIFFRE ═══
+#  Demande d'Alex, capture à l'appui. MESURÉ ici même, pas recopié : le
+#  contraste blanc-sur-accent est CALCULÉ à partir de la couleur de fond que
+#  GTK vient de résoudre. Le blanc est moins contrasté que le noir (3,58:1
+#  contre 5,87:1 sur #E8590C) : il ne passe le seuil AA qu'au titre du GRAND
+#  TEXTE, à partir de 3:1. La taille et la graisse écrites dans la feuille
+#  sont donc la CONDITION de sa conformité, pas une décoration — et c'est
+#  pour ça qu'on les éprouve juste après.
 F="$(resout "$BANC/bouton.json" color)"
-[ "$F" = "#000000" ] \
-	&& ok "… et ils écrivent en NOIR dessus" \
-	|| non "les boutons écrivent « $F » au lieu de #000000"
+[ "$F" = "#FFFFFF" ] \
+	&& ok "… et ils écrivent en BLANC dessus (demande d'Alex)" \
+	|| non "les boutons écrivent « $F » au lieu de #FFFFFF"
+
+FOND="$(resout "$BANC/bouton.json" background-color)"
+if command -v python3 >/dev/null 2>&1 && [ -n "$FOND" ] && [ -n "$F" ]; then
+	RATIO="$(python3 - "$FOND" "$F" <<'PYEOF'
+import sys
+def lum(h):
+    h = h.lstrip('#')
+    c = [int(h[i:i+2], 16) / 255 for i in (0, 2, 4)]
+    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2]
+a, b = lum(sys.argv[1]), lum(sys.argv[2])
+hi, lo = max(a, b), min(a, b)
+print("%.2f" % ((hi + 0.05) / (lo + 0.05)))
+PYEOF
+)"
+	#  3:1 est le seuil AA du GRAND TEXTE. C'est celui qui s'applique, et
+	#  seulement parce que la feuille impose 19 px en 700.
+	if python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= 3.0 else 1)" "$RATIO"; then
+		ok "contraste MESURÉ de l'étiquette sur le bouton : ${RATIO}:1 (seuil grand texte : 3:1)"
+	else
+		non "contraste de l'étiquette : ${RATIO}:1 — sous le seuil du grand texte"
+	fi
+else
+	saut "contraste du bouton non calculé (python3 ou couleur manquante)"
+fi
+
+#  LA CONDITION QUI REND LE BLANC CONFORME. Le grand texte commence à
+#  18,66 px en gras : si quelqu'un rapetisse cette étiquette, le bouton
+#  tombe sous la norme sans qu'aucun pixel ne change de couleur.
+BLOC_BTN="$(awk '/^#login_window button \{/{d=1} d{print} d&&/^}/{exit}' "$CSS")"
+TAILLE="$(printf '%s' "$BLOC_BTN" | sed -n 's/.*font-size:[[:space:]]*\([0-9.]*\)px.*/\1/p')"
+GRAISSE="$(printf '%s' "$BLOC_BTN" | sed -n 's/.*font-weight:[[:space:]]*\([0-9]*\).*/\1/p')"
+if [ -n "$TAILLE" ] && [ -n "$GRAISSE" ] \
+   && python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= 18.66 and int(sys.argv[2]) >= 700 else 1)" "$TAILLE" "$GRAISSE" 2>/dev/null; then
+	ok "l'étiquette fait ${TAILLE}px en ${GRAISSE} — au-dessus du seuil « grand texte »"
+else
+	non "étiquette ${TAILLE:-?}px / ${GRAISSE:-?} : sous 18,66px en 700, le blanc n'est plus conforme"
+fi
 
 #  LA MOITIÉ QUI MANQUAIT, ET QUI EST TOUT LE BOGUE D'ALEX. Poser la couleur
 #  sur le BOUTON ne suffit pas : « #login_window * » matche directement
 #  l'étiquette à l'intérieur. Sans règle qui la vise, elle reste ORANGE — sur
 #  un fond devenu orange. Le bouton se vide à l'écran.
+#  ═══ L'ÉTIQUETTE, ET LE PIÈGE QUE CE CONTRÔLE VIENT D'ATTRAPER ═══
+#  « #login_window button * » (1,0,1) est plus spécifique que
+#  « #login_window button » : elle repeint le nœud « label » APRÈS. Le
+#  passage au blanc avait d'abord été écrit sur le bouton seul — à l'écran,
+#  l'étiquette serait restée NOIRE et le changement n'aurait rien donné.
+#  Ce contrôle mesure la couleur RÉSOLUE du label, pas celle du bouton :
+#  c'est lui qui l'a vu.
 F="$(resout "$BANC/etiquette_bouton.json" color)"
-[ "$F" = "#000000" ] \
-	&& ok "l'ÉTIQUETTE du bouton est noire elle aussi (pas seulement le bouton)" \
-	|| non "étiquette de bouton = « $F » — orange sur orange, le bouton serait vide"
+[ "$F" = "#FFFFFF" ] \
+	&& ok "l'ÉTIQUETTE du bouton est blanche elle aussi (pas seulement le bouton)" \
+	|| non "étiquette de bouton = « $F » — le bouton et son texte ne suivent pas la même règle"
 
 F="$(resout "$BANC/bouton_survol.json" background-color)"
 [ "$F" = "#FF7A33" ] \
 	&& ok "au survol le bouton s'éclaircit (il répond au doigt, il ne disparaît pas)" \
 	|| non "fond de bouton survolé = « $F » au lieu de #FF7A33"
 F="$(resout "$BANC/etiquette_bouton_survol.json" color)"
-[ "$F" = "#000000" ] \
-	&& ok "… et son étiquette reste noire au survol — LA PHOTO D'ALEX" \
+[ "$F" = "#FFFFFF" ] \
+	&& ok "… et son étiquette reste blanche au survol (elle ne disparaît pas)" \
 	|| non "étiquette de bouton survolé = « $F » — « il devenait tout orange puis non visible »"
 
 F="$(resout "$BANC/etiquette_indicateur.json" color)"
@@ -559,6 +629,7 @@ prepare() {
 	rm -rf "${BANC:?}/racine"
 	mkdir -p "$BANC/racine/etc/lightdm" "$BANC/racine/var/lightdm" \
 	         "$BANC/racine/themes/Arc-Dark/gtk-3.0" "$BANC/racine/fonds" \
+	         "$BANC/racine/branding" \
 	         "$BANC/racine/etc/lexos" "$BANC/racine/skel/.config/lexos"
 	echo '/* le vrai Arc-Dark */' > "$BANC/racine/themes/Arc-Dark/gtk-3.0/gtk.css"
 	cat > "$BANC/racine/etc/lexos/build.conf" <<'CONF'
@@ -572,6 +643,7 @@ lance() {
 	LEXOS_LIGHTDM_HOME="$BANC/racine/var/lightdm" \
 	LEXOS_THEMES="$BANC/racine/themes" \
 	LEXOS_BG_DIR="$BANC/racine/fonds" \
+	LEXOS_BRANDING="$BANC/racine/branding" \
 	LEXOS_CONNEXION_CSS="${CSS_UTILISE:-$CSS}" \
 	LEXOS_BUILD_CONF="$BANC/racine/etc/lexos/build.conf" \
 	LEXOS_LIGHTDM_BIN="/bin/sh" \
@@ -858,6 +930,168 @@ PYCX
 $SORTIE_CX
 EOF
 	fi
+fi
+
+# =============================================================================
+titre "L'écran refait : la mascotte au masque, la pluie, le bouton orange"
+# =============================================================================
+BRANDING="$RACINE/branding"
+
+#  ═══ LES DEUX IMAGES, AUX DIMENSIONS EXACTES ═══
+#  On lit l'en-tête PNG (octets 16 à 23, gros boutiste) : aucune dépendance,
+#  et la même mesure qu'un outil d'image.
+dim_png() {
+	od -An -tu1 -j16 -N8 "$1" 2>/dev/null | awk '
+		{ printf "%dx%d",
+			$1*16777216 + $2*65536 + $3*256 + $4,
+			$5*16777216 + $6*65536 + $7*256 + $8 }'
+}
+for PAIRE in "fond-connexion.png 1920x1080" "avatar-masque.png 256x256"; do
+	F="${PAIRE%% *}"; ATTENDU="${PAIRE##* }"
+	if [ ! -r "$BRANDING/$F" ]; then
+		non "$F absent de branding/"
+	elif [ "$(dim_png "$BRANDING/$F")" = "$ATTENDU" ]; then
+		ok "$F : $ATTENDU"
+	else
+		non "$F fait $(dim_png "$BRANDING/$F") au lieu de $ATTENDU"
+	fi
+done
+
+#  ═══ LA PASTILLE EST RONDE : SES COINS DOIVENT ÊTRE TRANSPARENTS ═══
+#  « round-user-image=true » découpe un disque dans l'image. Si les coins
+#  sont opaques, on obtient un disque posé sur un carré noir — et sur un fond
+#  sombre, ce carré ne se voit qu'à la limite du disque, là où l'œil
+#  l'attribue à un défaut d'affichage. On mesure les QUATRE coins.
+if ! command -v python3 >/dev/null 2>&1; then
+	saut "python3 absent : le détourage de la pastille n'a PAS été mesuré"
+elif [ ! -r "$BRANDING/avatar-masque.png" ]; then
+	saut "avatar-masque.png absent : détourage non mesuré"
+else
+	COINS="$(python3 - "$BRANDING/avatar-masque.png" 2>/dev/null <<'PYEOF'
+import sys, zlib, struct
+d = open(sys.argv[1], 'rb').read()
+pos, idat, ihdr = 8, b'', None
+while pos < len(d):
+    ln = struct.unpack('>I', d[pos:pos+4])[0]
+    t = d[pos+4:pos+8]
+    if t == b'IHDR': ihdr = struct.unpack('>IIBBBBB', d[pos+8:pos+8+13])
+    elif t == b'IDAT': idat += d[pos+8:pos+8+ln]
+    pos += 12 + ln
+w, h, depth, ctype, _, _, entrelace = ihdr
+if depth != 8 or ctype != 6 or entrelace != 0:
+    print("FORME"); raise SystemExit
+brut = zlib.decompress(idat)
+stride, bpp = w * 4, 4
+lignes, prec, i = [], bytearray(stride), 0
+for _ in range(h):
+    f = brut[i]; i += 1
+    l = bytearray(brut[i:i+stride]); i += stride
+    for x in range(stride):
+        a = l[x-bpp] if x >= bpp else 0
+        b = prec[x]; c = prec[x-bpp] if x >= bpp else 0
+        if f == 1:   l[x] = (l[x] + a) & 255
+        elif f == 2: l[x] = (l[x] + b) & 255
+        elif f == 3: l[x] = (l[x] + (a + b) // 2) & 255
+        elif f == 4:
+            pp = a + b - c
+            pa, pb, pc = abs(pp-a), abs(pp-b), abs(pp-c)
+            l[x] = (l[x] + (a if (pa <= pb and pa <= pc) else (b if pb <= pc else c))) & 255
+    lignes.append(l); prec = l
+#  Les quatre coins, alpha de chacun.
+print(lignes[0][3], lignes[0][(w-1)*4+3], lignes[h-1][3], lignes[h-1][(w-1)*4+3])
+PYEOF
+)"
+	if [ "$COINS" = "FORME" ] || [ -z "$COINS" ]; then
+		non "avatar-masque.png n'est pas du 8 bits RVB+alpha : détourage non mesurable"
+	else
+		OPAQUES=0
+		for A in $COINS; do [ "$A" -gt 32 ] 2>/dev/null && OPAQUES=$((OPAQUES+1)); done
+		if [ "$OPAQUES" = 0 ]; then
+			ok "les quatre coins de la pastille sont transparents (alpha : $COINS)"
+		else
+			non "$OPAQUES coin(s) opaque(s) — la pastille ronde aurait des coins carrés (alpha : $COINS)"
+		fi
+	fi
+fi
+
+#  ═══ LE HOOK ÉCRIT LA BONNE PASTILLE ═══
+#  mascot.png fait 599×720 — un RECTANGLE. Découpé en rond, il montrait
+#  l'ÉPAULE ET LA MAIN, pas le visage. C'est le correctif visible.
+prepare
+: > "$BANC/racine/branding/fond-connexion.png"
+: > "$BANC/racine/branding/avatar-masque.png"
+SORTIE_N="$(lance)"
+CONF_N="$BANC/racine/etc/lightdm/lightdm-gtk-greeter.conf"
+
+grep -q "^default-user-image=$BANC/racine/branding/avatar-masque.png$" "$CONF_N" \
+	&& ok "la pastille par défaut est avatar-masque.png" \
+	|| non "default-user-image : $(grep '^default-user-image=' "$CONF_N")"
+if grep -q 'mascot.png' "$CONF_N"; then
+	non "mascot.png est encore nommé — le rond montrerait l'épaule et la main"
+else
+	ok "mascot.png ne sert plus de pastille"
+fi
+grep -q '^round-user-image=true$' "$CONF_N" \
+	&& ok "la pastille reste ronde" \
+	|| non "round-user-image : $(grep '^round-user-image=' "$CONF_N")"
+grep -q '^hide-user-image=false$' "$CONF_N" \
+	&& ok "la pastille est affichée" \
+	|| non "hide-user-image : $(grep '^hide-user-image=' "$CONF_N")"
+
+#  ═══ LE FOND COMPLET PASSE DEVANT LES AUTRES CANDIDATS ═══
+: > "$BANC/racine/fonds/lexos-connexion.png"
+SORTIE_F="$(lance)"
+grep -q "^background=$BANC/racine/branding/fond-connexion.png$" "$CONF_N" \
+	&& ok "fond-connexion.png passe AVANT les anciens candidats" \
+	|| non "background : $(grep '^background=' "$CONF_N")"
+
+#  ═══ CES 88 % VONT AVEC LE FOND — ASSERTION IMPORTANTE ═══
+#  La mascotte est DESSINÉE dans le haut de fond-connexion.png : le greeter
+#  ne sait pas placer une image, on ne peut donc pas la déplacer. Si la boîte
+#  remonte, elle entre dans son visage — et c'est déjà arrivé une fois, avec
+#  un message d'erreur qui faisait grandir la boîte des deux côtés. Un futur
+#  « nettoyage » qui recentrerait la boîte casserait l'écran sans qu'aucun
+#  test ne le dise.
+grep -q '^position=50%,center 88%,end$' "$CONF_N" \
+	&& ok "la boîte reste ancrée par le bas à 88 % — elle ne monte pas dans le visage" \
+	|| non "position : $(grep '^position=' "$CONF_N")"
+
+#  ═══ LE FOND EST UNE DÉCORATION : SANS LUI, ON DOIT POUVOIR SE CONNECTER ═══
+#  On le retire POUR DE VRAI et on regarde. Sans écran de connexion, Alex ne
+#  peut plus ouvrir sa session du tout : une image manquante ne doit jamais
+#  pouvoir en arriver là.
+prepare
+: > "$BANC/racine/branding/avatar-masque.png"
+SORTIE_S="$(lance)"
+if [ -r "$CONF_N" ] && grep -q '^background=' "$CONF_N"; then
+	VALEUR="$(sed -n 's/^background=//p' "$CONF_N")"
+	case "$VALEUR" in
+		*fond-connexion.png) non "le hook nomme une image absente : le greeter afficherait du gris" ;;
+		"#000000")           ok "sans fond-connexion.png, on retombe sur le noir uni — l'écran marche" ;;
+		*)                   ok "sans fond-connexion.png, on retombe sur « $VALEUR »" ;;
+	esac
+else
+	non "sans fond-connexion.png, le hook n'écrit plus de configuration du tout"
+fi
+
+#  ═══ AUCUN FOND CLAIR DANS LA FEUILLE ═══
+#  L'écran doit rester noir quoi qu'il arrive. Un fond clair posé par mégarde
+#  rendrait l'écriture blanche invisible — et on ne le verrait qu'au
+#  redémarrage suivant.
+#  ON N'EMPLOIE PAS strtonum() : c'est une EXTENSION GNU, absente de mawk —
+#  l'awk par défaut de Debian. Une première version s'en servait : awk
+#  échouait, ne rendait rien, et le contrôle passait au vert sans avoir rien
+#  lu. Faux vert trouvé en lisant la sortie d'erreur, pas le verdict.
+CLAIRS="$(grep -oE 'background(-color)?:[[:space:]]*#[0-9A-Fa-f]{6}' "$CSS" \
+	| sed 's/.*#//' \
+	| while read -r HEX; do
+		R=$((16#${HEX%????})); V=$((16#${HEX:2:2})); B=$((16#${HEX:4:2}))
+		[ $(( (R + V + B) / 3 )) -gt 128 ] && printf '#%s ' "$HEX"
+	done)"
+if [ -z "$CLAIRS" ]; then
+	ok "aucun fond clair dans connexion.css — l'écran reste noir"
+else
+	non "fond(s) clair(s) dans connexion.css : $(printf '%s' "$CLAIRS" | tr '\n' ' ')"
 fi
 
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
