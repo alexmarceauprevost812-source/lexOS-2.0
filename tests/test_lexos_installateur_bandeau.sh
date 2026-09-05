@@ -166,5 +166,70 @@ else
 	non "le hook 0500 ne se parse plus :\n$(bash -n "$HOOK" 2>&1 | head -3)"
 fi
 
+# =============================================================================
+titre "5. Le ménage de fin d'installation ne fait pas ÉCHOUER l'installation"
+# =============================================================================
+#  ALEX, PHOTO : « L'installation a échoué — Erreur du gestionnaire de
+#  paquets … code d'erreur 100 », à la toute dernière étape, après la copie du
+#  système.
+#
+#  La liste de calamares-settings-debian nomme neuf paquets ; LexOS n'en
+#  installe que trois. Et la FORME de l'opération décide de tout, comme le dit
+#  le module livré (calamares/modules/packages/main.py) :
+#    · « remove »     -> UN SEUL apt-get avec toute la liste : un nom absent
+#      fait échouer l'appel entier, donc l'installation ;
+#    · « try_remove » -> un par un, un échec ne donne qu'un avertissement.
+#
+#  C'est CE contrôle qui garde l'installation. Le reste du banc garde des
+#  couleurs ; celui-ci garde le fait qu'on puisse installer LexOS.
+BLOCP="$(sed -n '/cat > "\$PKGCONF" <<.PKGEOF./,/^PKGEOF$/p' "$HOOK")"
+
+#  ET IL FAUT VÉRIFIER OÙ ÇA VA. Le heredoc écrit vers « $PKGCONF » : lire
+#  son contenu ne dit rien de sa DESTINATION. Repéré en cassant exprès la
+#  variable — le banc restait vert alors que le fichier serait parti dans le
+#  vide, et la liste Debian se serait appliquée telle quelle.
+if grep -qE '^PKGCONF="/etc/calamares/modules/packages\.conf"$' "$HOOK"; then
+	ok "la liste est écrite au bon endroit (/etc/calamares/modules/packages.conf)"
+else
+	non "PKGCONF ne pointe pas sur /etc/calamares/modules/packages.conf — la liste Debian s'appliquerait"
+fi
+
+if [[ -z "$BLOCP" ]]; then
+	non "le hook n'écrit pas packages.conf — la liste Debian s'appliquerait telle quelle"
+else
+	ok "le hook écrit sa propre liste de ménage (packages.conf)"
+
+	if printf '%s' "$BLOCP" | grep -qE '^[[:space:]]*-[[:space:]]*try_remove:'; then
+		ok "…et elle emploie « try_remove » : un paquet absent n'arrête plus rien"
+	else
+		non "la liste n'emploie pas « try_remove » — un seul paquet absent ferait ÉCHOUER l'installation"
+	fi
+
+	#  « remove: » tout court ne doit PAS revenir : c'est exactement la forme
+	#  qui a cassé l'installation d'Alex.
+	if printf '%s' "$BLOCP" | grep -qE '^[[:space:]]*-[[:space:]]*remove:'; then
+		non "la forme fatale « remove: » est de retour dans la liste"
+	else
+		ok "…et la forme fatale « remove: » n'y est pas"
+	fi
+
+	#  Les trois paquets que LexOS installe VRAIMENT doivent être nommés,
+	#  sinon le ménage ne se ferait plus et la clé laisserait ses traces sur
+	#  le disque installé.
+	for P in live-boot live-config calamares-settings-debian; do
+		if printf '%s' "$BLOCP" | grep -q "'$P'"; then
+			ok "…$P (installé par LexOS) est bien retiré du système installé"
+		else
+			non "$P est installé par LexOS mais n'est plus retiré : la clé laisserait ses traces"
+		fi
+	done
+
+	if printf '%s' "$BLOCP" | grep -q '^backend: apt$'; then
+		ok "…et le moteur déclaré est bien apt"
+	else
+		non "le moteur de paquets déclaré n'est pas apt"
+	fi
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [[ "$ECHOUES" -eq 0 ]]

@@ -365,6 +365,65 @@ if [ -d /etc/initramfs-tools ]; then
 	printf 'CRYPTSETUP=y\n' > /etc/initramfs-tools/conf.d/lexos-crypt.conf
 fi
 
+# --- Le ménage de fin d'installation ne doit pas FAIRE ÉCHOUER l'installation
+#  ═══ ALEX, PHOTO : « L'installation a échoué — Erreur du gestionnaire de
+#      paquets … a renvoyé le code d'erreur 100. » ═══
+#
+#  À la toute dernière étape, Calamares retire du système installé les paquets
+#  qui n'ont de sens que sur la clé USB. La liste vient de
+#  calamares-settings-debian, et elle est écrite pour une image Debian
+#  officielle. Elle nomme neuf paquets ; LexOS n'en installe QUE TROIS :
+#  live-boot, live-config et calamares-settings-debian. Les six autres
+#  (live-boot-doc, live-config-doc, live-config-systemd, live-tools,
+#  live-task-localisation, live-task-recommended) ne sont dans aucune de nos
+#  listes.
+#
+#  ET C'EST FATAL, à cause de la forme de l'opération. Lu dans le module
+#  livré (/usr/lib/*/calamares/modules/packages/main.py) :
+#    · « remove: »     -> operation_remove() fait UN SEUL « apt-get remove »
+#      avec TOUTE la liste. Un seul nom qu'apt ne peut pas localiser — et
+#      dans le système fraîchement déballé, apt ne connaît que ce qui est
+#      INSTALLÉ — fait échouer l'appel entier, donc l'installation.
+#    · « try_remove: » -> operation_try_remove() les retire UN PAR UN et se
+#      contente d'un avertissement en cas d'échec (« no package-installation
+#      exceptions should be raised », dit sa propre documentation).
+#
+#  On réécrit donc la liste en « try_remove ». On la garde COMPLÈTE plutôt que
+#  de la réduire aux trois paquets d'aujourd'hui : si LexOS embarque un jour
+#  live-tools, il sera retiré comme il faut, et s'il ne l'embarque pas, son
+#  absence ne coûte qu'une ligne de journal. Le ménage reste fait ; il ne peut
+#  simplement plus emporter l'installation avec lui.
+PKGCONF="/etc/calamares/modules/packages.conf"
+if [ -f "$PKGCONF" ]; then
+	echo "[lexos]   ménage de fin d'installation : liste Debian remplacée par une liste tolérante"
+	cat > "$PKGCONF" <<'PKGEOF'
+# Écrit par le hook 0500 de LexOS — voir ce hook pour le pourquoi.
+#
+# « try_remove » et NON « remove » : Calamares retire alors les paquets un par
+# un et n'échoue pas sur un nom absent. Avec « remove », un seul paquet non
+# installé faisait échouer TOUTE l'installation, à sa dernière étape, après
+# la copie du système — code d'erreur 100.
+backend: apt
+
+operations:
+  - try_remove:
+      - 'live-boot'
+      - 'live-boot-doc'
+      - 'live-config'
+      - 'live-config-doc'
+      - 'live-config-systemd'
+      - 'live-tools'
+      - 'live-task-localisation'
+      - 'live-task-recommended'
+      - 'calamares-settings-debian'
+PKGEOF
+else
+	#  Le fichier vient de calamares-settings-debian, qui est en liste
+	#  OBLIGATOIRE. Son absence est donc anormale et vaut d'être dite : sans
+	#  lui, on ne sait pas quelle liste Calamares appliquera.
+	echo "[lexos]   !! $PKGCONF absent — le ménage de fin d'installation n'est pas maîtrisé"
+fi
+
 # --- Raccourci « Installer LexOS » ------------------------------------------
 #  Exec pointe sur lexos-install, PAS directement sur calamares : ce wrapper
 #  vérifie qu'on est bien en session démo et exige une confirmation avant
