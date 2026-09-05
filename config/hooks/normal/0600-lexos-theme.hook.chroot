@@ -195,6 +195,17 @@ fi
 #  de couleur du navigateur, et pour la meme raison. C'est assume.
 
 # --- Réglages GTK système ----------------------------------------------------
+#  DEUX ENDROITS POUR UN SEUL RÉGLAGE, ET LES DEUX SONT NÉCESSAIRES.
+#  « gtk-icon-sizes » ci-dessous double la propriété Gtk/IconSizes de
+#  /etc/skel/…/xsettings.xml, et ce n'est pas un oubli de ménage : sous XFCE,
+#  xfsettingsd exporte ses propres réglages vers GTK et ÉCRASE settings.ini
+#  pour les clés qu'il gère, une fois la session ouverte. Mais settings.ini
+#  sert AVANT lui — dans l'installateur Calamares, notamment, qui tourne sans
+#  session XFCE complète. N'écrire qu'à un seul endroit donne donc une taille
+#  d'icônes dans l'installateur et une autre dans la session, sans qu'aucune
+#  erreur ne se lève nulle part.
+#  LES DEUX VALEURS DOIVENT RESTER IDENTIQUES ; tests/test_lexos_taille_icones_fichiers.sh
+#  les compare, précisément parce que rien d'autre ne le ferait.
 mkdir -p /etc/gtk-3.0
 cat > /etc/gtk-3.0/settings.ini <<EOF
 [Settings]
@@ -209,6 +220,7 @@ gtk-xft-hinting=1
 gtk-xft-hintstyle=hintslight
 gtk-xft-rgba=rgb
 gtk-menu-images=1
+gtk-icon-sizes=gtk-menu=24,24
 gtk-button-images=1
 EOF
 

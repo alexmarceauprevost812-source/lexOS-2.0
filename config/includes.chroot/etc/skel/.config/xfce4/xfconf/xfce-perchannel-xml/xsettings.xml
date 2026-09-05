@@ -27,6 +27,22 @@
     <property name="DecorationLayout"   type="string" value="icon:minimize,maximize,close"/>
     <property name="ButtonImages"       type="bool"   value="true"/>
     <property name="MenuImages"         type="bool"   value="true"/>
+    <!-- LA TAILLE DES ICÔNES DU SÉLECTEUR DE FICHIERS, ET C'EST LA SEULE
+         MANIÈRE. GtkFileChooserWidget lit GTK_ICON_SIZE_MENU dans
+         change_icon_theme() — la liste de « Ouvrir les fichiers » n'a pas
+         de taille à elle. 24 px au lieu des 16 par défaut : un dossier se
+         distingue d'un fichier sans se pencher sur l'écran.
+         AUCUN CSS NE PEUT LE FAIRE : « -gtk-icon-size » n'existe qu'en
+         GTK 4. Ne pas retenter dans lexos-theme-gen ni dans
+         prive-theme/gtk-3.0/gtk.css, c'est mesuré.
+         LA MÊME VALEUR EST ÉCRITE DANS /etc/gtk-3.0/settings.ini par le
+         hook 0600, et les deux doivent rester d'accord : xfsettingsd
+         écrase settings.ini une fois la session ouverte, mais settings.ini
+         sert AVANT — notamment dans l'installateur. Un banc les compare.
+         CONSÉQUENCE ASSUMÉE : les icônes des MENUS grossissent aussi
+         (MenuImages=true, juste au-dessus). C'est le même jeton GTK ;
+         on ne peut pas séparer les deux. -->
+    <property name="IconSizes"          type="string" value="gtk-menu=24,24"/>
     <property name="ApplicationPreferDarkTheme" type="bool" value="true"/>
   </property>
 </channel>

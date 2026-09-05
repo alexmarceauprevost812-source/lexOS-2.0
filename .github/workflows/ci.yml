@@ -1769,6 +1769,23 @@ jobs:
           #  posait.
           bash tests/test_lexos_icones_theme.sh
 
+      - name: Les icônes du sélecteur de fichiers — une seule taille, écrite deux fois
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, SUR LE THINKPAD : les icônes de « Ouvrir les fichiers »
+          #  font 16 px, trop petit pour distinguer un dossier d'un fichier.
+          #  Ce n'est pas réglable en CSS : GtkFileChooserWidget lit
+          #  GTK_ICON_SIZE_MENU dans change_icon_theme(), et
+          #  « -gtk-icon-size » n'existe qu'en GTK 4. Le seul levier est
+          #  « gtk-icon-sizes ».
+          #  Il s'écrit à DEUX endroits parce qu'il le faut : xfsettingsd
+          #  écrase /etc/gtk-3.0/settings.ini une fois la session ouverte,
+          #  mais settings.ini sert AVANT — dans l'installateur. Ce banc
+          #  garde surtout leur ACCORD : un désaccord ne casse aucune
+          #  construction et donnerait deux tailles différentes selon
+          #  l'endroit, sans qu'aucune erreur ne se lève.
+          bash tests/test_lexos_taille_icones_fichiers.sh
+
       - name: Les trois lettres sur les dossiers
         if: ${{ !cancelled() }}
         run: |
