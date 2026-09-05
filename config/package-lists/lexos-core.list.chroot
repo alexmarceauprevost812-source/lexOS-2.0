@@ -78,6 +78,28 @@ calamares-settings-debian
 #  pour être garanti présent au moment où grub-install l'appelle.
 efibootmgr
 
+# --- Programme de démarrage installé sur le disque cible ---------------------
+#  Calamares appelle grub-install à la dernière étape de l'installation. Ces
+#  paquets DOIVENT être dans le squashfs : sans réseau au moment de
+#  l'installation, apt ne pourrait pas les chercher, et l'échec arriverait
+#  après le redimensionnement de la partition voisine — le pire moment
+#  possible. Rien ne garantissait leur présence : aucun n'était nommé ici, et
+#  compter sur les recommandations de calamares-settings-debian pour un
+#  paquet aussi critique n'est pas une garantie.
+#  grub-efi-amd64 : machines UEFI (toutes les machines modernes).
+grub-efi-amd64
+#  grub-pc-bin : les binaires du mode BIOS/CSM, pour les vieilles machines.
+#  N'entre PAS en conflit avec grub-efi-amd64 (contrairement à grub-pc, qui
+#  possède /boot/grub/grub.cfg et empêcherait les deux d'être installés
+#  ensemble).
+grub-pc-bin
+grub2-common
+#  Secure Boot : auto/config a --uefi-secure-boot enable, donc le système
+#  installé doit pouvoir démarrer avec Secure Boot actif lui aussi — pas
+#  seulement la clé USB de démonstration.
+grub-efi-amd64-signed
+shim-signed
+
 # --- Disques & systèmes de fichiers -----------------------------------------
 parted
 gdisk
