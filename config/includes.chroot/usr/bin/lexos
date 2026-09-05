@@ -330,6 +330,9 @@ ${B}DÉVELOPPEMENT${R}
   ${A}dev install${R}         Installe les trois ${D}(depuis leur source officielle)${R}
   ${A}dev install${R} <outil> ${D}claude · gh · vercel${R}
   ${A}dev update${R}          Met à jour ceux qui sont installés
+  ${A}dev-sync${R} ${D}--essai${R}     Pose les scripts et le style du dépôt sur CE système,
+                      sans reconstruire d'ISO ${D}(outil de développement)${R}
+                      ${D}--essai montre ce qui serait copié, sans rien écrire${R}
                       ${D}Ces outils sortent une version par semaine : les figer
                       dans l'ISO les livrerait périmés. Le nécessaire (nodejs,
                       npm, git, curl) est, lui, déjà installé.${R}
@@ -1078,6 +1081,10 @@ case "$CMD" in
 	#  « oc » comme raccourci, au même titre que « cc » pour Claude Code.
 	opencode|oc)          exec lexos-opencode "$@" ;;
 	dev|devs|developpement|développement) exec lexos-dev "$@" ;;
+	#  Poser le dépôt sur le système en marche, sans reconstruire d'ISO.
+	#  Outil de DÉVELOPPEMENT : le vrai canal (paquet .deb + dépôt APT)
+	#  reste à faire, et celui-ci ne le remplace pas.
+	dev-sync|devsync|sync-dev) exec lexos-dev-sync "$@" ;;
 	firmware|bios|micrologiciel) exec lexos-firmware "$@" ;;
 	meteo|météo|weather|temps) exec lexos-meteo "$@" ;;
 	tv|televiseur|téléviseur|hdmi) exec lexos-tv "$@" ;;

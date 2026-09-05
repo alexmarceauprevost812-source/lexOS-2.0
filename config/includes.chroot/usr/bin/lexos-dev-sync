@@ -1,0 +1,392 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-dev-sync — poser le dépôt sur le système en marche, sans ISO
+# =============================================================================
+#  LE PROBLÈME. Changer une ligne d'un script ou d'une feuille CSS demandait
+#  une ISO complète : des heures de construction, une gravure, une
+#  réinstallation. On en est à la 108e. Or ces fichiers-là sont des scripts et
+#  des données — rien qui exige une image.
+#
+#  ═══ CE N'EST PAS UN CANAL DE MISE À JOUR ═══
+#  C'est un outil de DÉVELOPPEMENT, pour la machine d'Alex et pour elle seule.
+#  Le vrai canal — un paquet .deb dans un dépôt APT — reste à faire, et cet
+#  outil ne le remplace pas : il ne signe rien, ne versionne rien, ne sait pas
+#  revenir en arrière autrement qu'en recopiant, et ne touche qu'une machine à
+#  la fois. Ne pas s'en servir pour livrer quoi que ce soit à quelqu'un.
+#
+#  ═══ CE QUI NE PEUT PAS SE POSER À CHAUD, ET POURQUOI ═══
+#  Le noyau, l'initramfs, GRUB, la couche live et l'installateur ne sont pas
+#  des fichiers qu'on remplace : ils sont assemblés à la construction et lus
+#  AVANT que le système ne soit là pour les remplacer. Et /etc/lexos/version,
+#  release et build.conf sont estampillés par la construction : les réécrire
+#  ici ferait mentir la machine sur ce qu'elle est. Ils sont donc refusés, et
+#  l'outil le dit à la fin plutôt que de laisser croire que tout est à jour.
+#
+#  ═══ LE PIÈGE PRINCIPAL — /etc/skel ═══
+#  Les fichiers de /etc/skel ne sont copiés QU'À LA CRÉATION d'un compte. Le
+#  compte d'Alex existe depuis longtemps : y écrire ne change RIEN pour lui.
+#  La synchronisation aurait l'air d'avoir échoué alors qu'elle aurait
+#  simplement atterri là où personne ne regarde. D'où « --skel », qui reporte
+#  en plus les fichiers dans le compte courant — et qui n'est PAS le défaut,
+#  parce que ça écrase des réglages qu'on a pu ajuster à la main.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; A=$'\033[38;5;215m'; D=$'\033[2m'
+	G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; A=''; D=''; G=''; Y=''; E=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+err()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; }
+die()  { err "$*"; exit 1; }
+titre(){ printf '\n%s%s%s\n' "$B$O" "$*" "$R"; }
+
+#  SEAM DE BANC. Toute écriture passe par ce préfixe : un banc peut donc
+#  éprouver l'outil entier dans un dossier temporaire, sans toucher à la
+#  machine qui le fait tourner. Vide en usage normal — la racine réelle.
+DEST="${LEXOS_DEV_SYNC_DEST:-}"
+
+# --- Arguments ---------------------------------------------------------------
+SRC=""
+SKEL=0
+ESSAI=0
+TOUT=0
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		--depuis) SRC="${2:-}"; shift 2 ;;
+		--depuis=*) SRC="${1#--depuis=}"; shift ;;
+		--skel)   SKEL=1; shift ;;
+		--essai|--dry-run) ESSAI=1; shift ;;
+		--tout)   TOUT=1; shift ;;
+		-h|--help|help|aide) SRC="__AIDE__"; shift ;;
+		*) die "Option inconnue : $1  (${PROG} --help)" ;;
+	esac
+done
+
+#  Défini AVANT cmd_help, qui le cite : sous « set -u », une aide appelée
+#  plus tôt planterait sur une variable non définie.
+DEFAUT_SRC="/home/alex/Projets LexOS/lexOS-2.0"
+
+cmd_help() {
+	cat <<AIDE
+
+${B}${O}${PROG}${R} — poser le dépôt sur le système en marche, sans reconstruire d'ISO
+
+${B}LE RÉFLEXE${R}
+  ${A}${PROG} --essai${R}       ${D}Montre ce qui SERAIT copié. N'écrit rien.${R}
+                          ${D}À faire d'abord, toujours : c'est la seule façon${R}
+                          ${D}de voir ce qui va changer avant que ça change.${R}
+
+${B}USAGE${R}
+  ${A}${PROG}${R} [${A}--depuis${R} <clone>] [${A}--skel${R}] [${A}--essai${R}] [${A}--tout${R}]
+
+  ${A}--depuis${R} <clone>   Racine du clone git du dépôt.
+                      ${D}Sans lui : ${DEFAUT_SRC}, s'il existe.${R}
+  ${A}--essai${R}            Ne copie rien ; dit ce qu'il ferait.
+  ${A}--skel${R}             Reporte aussi /etc/skel dans le compte courant.
+                      ${D}Sans ça, les fichiers de /etc/skel sont posés mais${R}
+                      ${D}n'atteignent AUCUN compte existant : ils ne servent${R}
+                      ${D}qu'aux comptes créés ensuite.${R}
+  ${A}--tout${R}             Recopie même les fichiers identiques.
+                      ${D}Sans ça, seuls ceux dont le contenu diffère.${R}
+
+${B}CE QUE ÇA NE FAIT PAS${R}
+  Le noyau, l'initramfs, GRUB, la couche live et l'installateur ne se posent
+  pas à chaud : ils demandent une ISO. /etc/lexos/version, release et
+  build.conf sont estampillés à la construction et ne sont jamais réécrits.
+
+  ${D}Ceci est un outil de développement, pas un canal de mise à jour :${R}
+  ${D}pas de signature, pas de retour arrière, une seule machine.${R}
+
+AIDE
+}
+
+if [[ "$SRC" == "__AIDE__" ]]; then cmd_help; exit 0; fi
+
+# --- Les droits --------------------------------------------------------------
+#  Même règle que les autres commandes qui écrivent hors du foyer : on
+#  re-exécute sous sudo plutôt que d'échouer sèchement.
+if [[ $EUID -ne 0 ]] && [[ -z "$DEST" ]]; then
+	if command -v sudo >/dev/null 2>&1; then
+		exec sudo -E "$0" "$@"
+	fi
+	die "Cette commande demande les droits administrateur (root)."
+fi
+
+# --- La source ---------------------------------------------------------------
+#  ON NE DEVINE PAS EN SILENCE. Un chemin par défaut qui n'existe pas doit
+#  donner une erreur qui NOMME ce qu'on attend, pas une synchronisation vide
+#  qui laisse croire que tout allait bien.
+if [[ -z "$SRC" ]]; then
+	if [[ -d "$DEFAUT_SRC" ]]; then
+		SRC="$DEFAUT_SRC"
+	else
+		err "Où est le clone du dépôt ?"
+		printf '  Le chemin par défaut n'\''existe pas ici :\n    %s\n\n' "$DEFAUT_SRC"
+		printf '  Donne-le : %s%s --depuis /chemin/vers/lexOS-2.0%s\n\n' "$A" "$PROG" "$R"
+		exit 1
+	fi
+fi
+SRC="${SRC%/}"
+
+#  ET ON VÉRIFIE QUE C'EST BIEN NOTRE DÉPÔT. Sans ce contrôle, un chemin tapé
+#  de travers copierait n'importe quoi dans /usr/bin — en root. Deux repères,
+#  pas un : un dossier quelconque peut avoir un « config/ », mais pas les deux.
+[[ -d "$SRC" ]] || die "Introuvable : $SRC"
+if [[ ! -d "$SRC/config/includes.chroot" ]] || [[ ! -f "$SRC/lexos.conf" ]]; then
+	err "Ce n'est pas un clone de lexOS-2.0 : $SRC"
+	printf '  Il y manque %sconfig/includes.chroot%s ou %slexos.conf%s.\n' "$B" "$R" "$B" "$R"
+	exit 1
+fi
+INC="$SRC/config/includes.chroot"
+
+COMMIT="$(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || printf 'inconnu')"
+BRANCHE="$(git -C "$SRC" rev-parse --abbrev-ref HEAD 2>/dev/null || printf '?')"
+SALE=""
+[[ -n "$(git -C "$SRC" status --porcelain 2>/dev/null)" ]] && SALE=" (avec des modifications non commitées)"
+
+# =============================================================================
+#  CE QUI SE SYNCHRONISE
+# =============================================================================
+#  Des scripts et des données, rien d'autre. Tout ce qui est assemblé à la
+#  construction reste dehors — voir l'en-tête.
+ARBRES=(
+	"usr/bin"
+	"usr/lib/lexos"
+	"usr/share/lexos"
+	"usr/share/applications"
+	"usr/share/icons"
+	"etc/skel"
+)
+
+#  JAMAIS, quoi qu'il arrive et même avec --tout. La liste des arbres
+#  ci-dessus les exclut déjà par construction ; ce garde-fou existe pour le
+#  jour où quelqu'un ajoutera un arbre sans y penser.
+INTERDITS=(
+	"boot/"
+	"etc/lexos/version"
+	"etc/lexos/release"
+	"etc/lexos/build.conf"
+	"etc/initramfs-tools/"
+	"etc/default/grub"
+	"lib/live/"
+	"etc/calamares/"
+)
+
+interdit() { # interdit <chemin relatif>
+	local rel="$1" i
+	for i in "${INTERDITS[@]}"; do
+		case "$rel" in
+			"$i"*) return 0 ;;
+		esac
+	done
+	return 1
+}
+
+HORODATE="$(date +%Y%m%d-%H%M%S)"
+N_COPIES=0; N_IDENTIQUES=0; N_NOUVEAUX=0; N_SAUVES=0; N_REFUSES=0
+ARBRES_TOUCHES=""
+
+copier_un() { # copier_un <source> <destination> <chemin relatif>
+	local s="$1" d="$2" rel="$3"
+
+	if interdit "$rel"; then
+		N_REFUSES=$((N_REFUSES+1))
+		return 0
+	fi
+
+	if [[ -e "$d" ]] && cmp -s "$s" "$d"; then
+		N_IDENTIQUES=$((N_IDENTIQUES+1))
+		(( TOUT )) || return 0
+	fi
+
+	if [[ ! -e "$d" ]]; then
+		N_NOUVEAUX=$((N_NOUVEAUX+1))
+		printf '  %s+%s %s\n' "$G" "$R" "$rel"
+	else
+		printf '  %s~%s %s\n' "$A" "$R" "$rel"
+	fi
+
+	(( ESSAI )) && { N_COPIES=$((N_COPIES+1)); return 0; }
+
+	mkdir -p "$(dirname "$d")"
+	#  SAUVEGARDE AVANT D'ÉCRASER. Un réglage ajusté à la main ne doit pas
+	#  disparaître sans trace. On ne sauvegarde que si le contenu DIFFÈRE :
+	#  recopier un fichier identique n'a rien à sauver.
+	if [[ -e "$d" ]] && ! cmp -s "$s" "$d"; then
+		cp -p "$d" "${d}.lexos-bak-${HORODATE}" 2>/dev/null && N_SAUVES=$((N_SAUVES+1))
+	fi
+	#  « cp -p » : les 80 outils sont en 755. Un bit d'exécution perdu, et la
+	#  commande n'existe plus — une panne muette et pénible à comprendre.
+	cp -p "$s" "$d" || { err "copie impossible : $rel"; return 1; }
+	N_COPIES=$((N_COPIES+1))
+	return 0
+}
+
+# =============================================================================
+#  L'annonce
+# =============================================================================
+titre "SYNCHRONISATION DE DÉVELOPPEMENT"
+printf '  source  : %s\n' "$SRC"
+printf '  commit  : %s%s%s (%s)%s\n' "$B" "$COMMIT" "$R" "$BRANCHE" "$SALE"
+printf '  cible   : %s\n' "${DEST:-/}"
+if (( ESSAI )); then
+	printf '  mode    : %sESSAI — rien ne sera écrit%s\n' "$B$Y" "$R"
+else
+	printf '  mode    : %sécriture%s\n' "$B" "$R"
+fi
+
+for ARBRE in "${ARBRES[@]}"; do
+	SRC_ARBRE="$INC/$ARBRE"
+	[[ -d "$SRC_ARBRE" ]] || continue
+	AVANT="$N_COPIES"
+	titre "$ARBRE"
+	while IFS= read -r -d '' f; do
+		rel="${f#"$INC"/}"
+		copier_un "$f" "${DEST}/${rel}" "$rel"
+	done < <(find "$SRC_ARBRE" -type f -print0 2>/dev/null | sort -z)
+	if (( N_COPIES > AVANT )); then
+		ARBRES_TOUCHES="$ARBRES_TOUCHES $ARBRE"
+	else
+		printf '  %srien à changer%s\n' "$D" "$R"
+	fi
+done
+
+# =============================================================================
+#  /etc/skel — le piège
+# =============================================================================
+#  Poser les fichiers ne suffit pas : ils ne servent qu'aux comptes CRÉÉS
+#  ENSUITE. Sans --skel, on le dit, on ne le fait pas.
+COMPTE=""
+if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+	COMPTE="$SUDO_USER"
+elif command -v logname >/dev/null 2>&1; then
+	COMPTE="$(logname 2>/dev/null || true)"
+fi
+
+if (( SKEL )); then
+	titre "REPORT DANS LE COMPTE COURANT"
+	if [[ -z "$COMPTE" || "$COMPTE" == "root" ]]; then
+		warn "Impossible de savoir quel compte reporter (ni SUDO_USER ni logname)."
+		warn "Relance depuis la session d'Alex, avec sudo."
+	else
+		FOYER="$(getent passwd "$COMPTE" 2>/dev/null | cut -d: -f6)"
+		[[ -n "$FOYER" ]] || FOYER="/home/$COMPTE"
+		printf '  compte  : %s%s%s  (%s)\n' "$B" "$COMPTE" "$R" "$FOYER"
+
+		SKEL_SRC="$INC/etc/skel"
+		if [[ -d "$SKEL_SRC" ]]; then
+			while IFS= read -r -d '' f; do
+				rel="${f#"$SKEL_SRC"/}"
+				copier_un "$f" "${DEST}${FOYER}/${rel}" "compte:$rel"
+			done < <(find "$SKEL_SRC" -type f -print0 2>/dev/null | sort -z)
+			#  Les fichiers viennent d'être écrits par root : sans ça, le
+			#  compte ne pourrait plus les modifier lui-même.
+			(( ESSAI )) || chown -R "$COMPTE" "${DEST}${FOYER}" 2>/dev/null || true
+		fi
+
+		#  ═══ ON RÉUTILISE lexos-firstrun, ON N'EN RÉÉCRIT PAS UN DEUXIÈME ═══
+		#  Il sait déjà refabriquer le thème et les réglages dans un compte
+		#  qui existe : accent, socle GTK, fond d'écran, dossiers. Écrire une
+		#  seconde version de ce raisonnement ici, c'est se garantir que les
+		#  deux divergeront.
+		if (( ESSAI )); then
+			printf '  %s(essai)%s lexos-firstrun --force serait relancé pour %s\n' "$D" "$R" "$COMPTE"
+		elif command -v lexos-firstrun >/dev/null 2>&1; then
+			say "refabrication du thème et des réglages (lexos-firstrun --force)…"
+			sudo -u "$COMPTE" DISPLAY="${DISPLAY:-:0}" lexos-firstrun --force >/dev/null 2>&1 \
+				&& ok "thème et réglages refaits dans le compte" \
+				|| warn "lexos-firstrun n'a pas abouti — refais-le depuis la session d'Alex"
+		else
+			warn "lexos-firstrun introuvable : le thème n'a pas été refait"
+		fi
+	fi
+else
+	titre "/etc/skel EST POSÉ, MAIS N'ATTEINT AUCUN COMPTE"
+	printf '  Ces fichiers ne sont copiés QU'\''À LA CRÉATION d'\''un compte.\n'
+	printf '  Le compte %s%s%s existe déjà : rien n'\''a changé pour lui.\n' "$B" "${COMPTE:-courant}" "$R"
+	printf '  Pour les y reporter : %s%s --skel%s\n' "$A" "$PROG" "$R"
+fi
+
+# =============================================================================
+#  La trace — sans elle on ne sait plus ce que la machine porte
+# =============================================================================
+#  DEUX HEURES PERDUES SE JOUENT ICI. Sans cette trace, un système synchronisé
+#  et un système d'origine sont indiscernables : on déboguerait un fichier
+#  qu'on croit à jour et qui ne l'est pas, ou l'inverse.
+TRACE="${DEST}/etc/lexos/dev-sync"
+if (( ESSAI )); then
+	printf '\n  %s(essai)%s la trace serait écrite dans /etc/lexos/dev-sync\n' "$D" "$R"
+else
+	mkdir -p "$(dirname "$TRACE")" 2>/dev/null
+	{
+		printf 'commit=%s\n' "$COMMIT"
+		printf 'branche=%s\n' "$BRANCHE"
+		printf 'date=%s\n' "$(date -Is 2>/dev/null || date)"
+		printf 'source=%s\n' "$SRC"
+		printf 'fichiers=%s\n' "$N_COPIES"
+	} > "$TRACE" 2>/dev/null && ok "trace écrite : /etc/lexos/dev-sync (commit $COMMIT)"
+fi
+
+# =============================================================================
+#  Le bilan
+# =============================================================================
+titre "BILAN"
+if (( ESSAI )); then
+	printf '  %s%d fichiers SERAIENT copiés%s (%d déjà identiques)\n' "$B" "$N_COPIES" "$R" "$N_IDENTIQUES"
+	printf '  %sRien n'\''a été écrit.%s Relance sans --essai pour le faire.\n' "$D" "$R"
+else
+	printf '  %s%d fichiers copiés%s — %d nouveaux, %d déjà identiques\n' \
+		"$B" "$N_COPIES" "$R" "$N_NOUVEAUX" "$N_IDENTIQUES"
+	if (( N_SAUVES > 0 )); then
+		printf '  %d ancien(s) fichier(s) sauvegardé(s) en .lexos-bak-%s\n' "$N_SAUVES" "$HORODATE"
+	fi
+fi
+(( N_REFUSES > 0 )) && printf '  %d fichier(s) refusé(s) par le garde-fou\n' "$N_REFUSES"
+
+# --- Ce qui demande encore une ISO -------------------------------------------
+titre "CE QUI N'A PAS ÉTÉ TOUCHÉ — ET DEMANDE UNE ISO"
+printf '  · le noyau, l'\''initramfs et GRUB\n'
+printf '  · la couche live (ce qui démarre depuis la clé)\n'
+printf '  · l'\''installateur et son habillage\n'
+printf '  · les hooks de construction (config/hooks) — ils ne tournent qu'\''à la construction\n'
+printf '  · les listes de paquets — un paquet neuf s'\''installe avec « lexos install »\n'
+printf '  · /etc/lexos/version, release et build.conf, estampillés à la construction\n'
+
+# --- Quoi relancer -----------------------------------------------------------
+#  ON NE RELANCE RIEN D'AUTORITÉ. Alex peut être en train de travailler dans
+#  une fenêtre ; redémarrer son panneau ou sa session sous ses doigts serait
+#  la pire façon de rendre service.
+titre "À RELANCER, SELON CE QUI A CHANGÉ"
+RIEN=1
+case "$ARBRES_TOUCHES" in
+	*usr/share/lexos*)
+		printf '  · feuilles de style ou thème :  %slexos-theme-gen%s puis rouvrir la session\n' "$A" "$R"
+		printf '  · le panneau seul :             %sxfce4-panel -r%s\n' "$A" "$R"
+		RIEN=0 ;;
+esac
+case "$ARBRES_TOUCHES" in
+	*etc/skel*)
+		printf '  · réglages du squelette :       visibles au prochain compte, ou avec %s--skel%s\n' "$A" "$R"
+		RIEN=0 ;;
+esac
+case "$ARBRES_TOUCHES" in
+	*usr/share/applications*)
+		printf '  · lanceurs :                    %supdate-desktop-database%s\n' "$A" "$R"
+		RIEN=0 ;;
+esac
+case "$ARBRES_TOUCHES" in
+	*usr/bin*|*usr/lib/lexos*)
+		printf '  · outils en ligne de commande : %srien à relancer%s, la prochaine exécution suffit\n' "$D" "$R"
+		RIEN=0 ;;
+esac
+(( RIEN )) && printf '  %srien à relancer%s\n' "$D" "$R"
+
+printf '\n'
+exit 0

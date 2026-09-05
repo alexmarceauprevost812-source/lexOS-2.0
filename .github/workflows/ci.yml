@@ -1769,6 +1769,26 @@ jobs:
           #  posait.
           bash tests/test_lexos_icones_theme.sh
 
+      - name: lexos dev-sync — poser le dépôt sans reconstruire l'ISO
+        if: ${{ !cancelled() }}
+        run: |
+          #  Changer une ligne d'un script demandait une ISO complète. Cet
+          #  outil pose les fichiers du dépôt sur le système en marche — et
+          #  comme il écrit dans /usr en root, presque tout le banc porte sur
+          #  ce qu'il REFUSE de faire.
+          #
+          #  L'assertion la plus importante : « --essai » n'écrit RIEN. On le
+          #  lance justement pour regarder avant de décider ; un essai qui
+          #  écrit quand même est pire que pas d'essai du tout. Le banc compare
+          #  les sommes de contrôle de toute la destination, avant et après.
+          #
+          #  Le banc éprouve aussi le garde-fou des zones interdites
+          #  DIRECTEMENT, en extrayant sa fonction du fichier : les témoins
+          #  posés dans /boot restaient intacts même garde-fou cassé, parce que
+          #  ces chemins ne sont dans aucun arbre parcouru. Deux protections
+          #  qui ne se recouvrent pas, donc deux contrôles distincts.
+          bash tests/test_lexos_dev_sync.sh
+
       - name: Les outils système trouvent leurs commandes depuis le bureau
         if: ${{ !cancelled() }}
         run: |

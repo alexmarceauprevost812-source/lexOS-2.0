@@ -180,6 +180,11 @@ lexos-claude
 lexos-claude-terminal
 lexos-opencode
 lexos-dev
+#  Outil de DÉVELOPPEMENT, pour la machine d'Alex : il pose le dépôt sur
+#  le système en marche sans reconstruire d'ISO. Il n'a rien à faire dans
+#  les Paramètres — on n'expose pas un bouton « écrase /usr depuis un
+#  clone git » à côté du réglage de la luminosité.
+lexos-dev-sync
 lexos-dualboot
 lexos-game
 lexos-gps
