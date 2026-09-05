@@ -208,7 +208,10 @@ ${B}STUDIO+${R}
   ${A}studio ouvrir${R} <atelier>  photo · peinture · vectoriel · video · capture · son
                       ${D}propose d'installer l'atelier s'il manque${R}
 
-${B}ARCHIVES${R}
+${B}FICHIERS TÉLÉCHARGÉS${R}
+  ${A}ouvrir${R} <fichier>     Installe ou lance ce qu'on vient de télécharger
+                      ${D}.deb · AppImage · script · flatpak — c'est ce que le${R}
+                      ${D}double-clic appelle. Montre, demande, puis agit.${R}
   ${A}run-ins${R} <archive.zip> Installe une application livrée en .zip
                       ${D}montre ce qu'elle contient et demande avant d'exécuter${R}
 
@@ -1038,6 +1041,7 @@ case "$CMD" in
 	volet|notifications|notif) exec lexos-volet "${1:-agenda}" ;;
 	horloge)              exec lexos-heure "$@" ;;
 	run-ins|runins)       exec lexos-run-ins "$@" ;;
+	ouvrir|installer-fichier) exec lexos-ouvrir "$@" ;;
 	studio)               exec lexos-studio "$@" ;;
 	sticker|autocollant)  exec lexos-sticker "$@" ;;
 	ia|agent)             exec lexos-ia "$@" ;;

@@ -187,6 +187,28 @@ done
 [ -n "$NAVIGATEURS" ] || NAVIGATEURS="chromium.desktop;firefox-esr.desktop;"
 echo "[lexos]   navigateur par defaut : ${NAVIGATEURS}"
 
+# --- Ce qu'on telecharge s'installe d'un double-clic -------------------------
+#  ALEX : « quand on telecharge, l'application soit deja installee au lieu de
+#  passer par le terminal ».
+#
+#  Avant ces lignes, mimeapps.list ne nommait que sept types : les pages web,
+#  le texte, les dossiers, le PNG et le JPEG. Un .deb, une AppImage, un
+#  .flatpakref double-clique ne trouvait AUCUNE reponse — le double-clic ne
+#  faisait litteralement rien.
+#
+#  ET LE PIEGE QUI REND CES LIGNES MUETTES : GIO IGNORE EN SILENCE un .desktop
+#  dont le programme « Exec= » n'existe pas. Il ne le signale nulle part, et
+#  update-desktop-database l'inscrit quand meme dans mimeinfo.cache — on croit
+#  donc l'association posee alors que « gio mime » repond « No default
+#  applications ». On verifie donc que le programme est la, et on l'ecrit dans
+#  le journal de construction.
+OUVRIR_DESKTOP="lexos-ouvrir.desktop"
+if [ -x /usr/bin/lexos-ouvrir ] && [ -r "/usr/share/applications/$OUVRIR_DESKTOP" ]; then
+	echo "[lexos]   double-clic sur un fichier telecharge : $OUVRIR_DESKTOP"
+else
+	echo "[lexos]   !! lexos-ouvrir ou son .desktop manque — le double-clic sur un .deb ne fera rien"
+fi
+
 mkdir -p /etc/xdg
 cat > /etc/xdg/mimeapps.list <<EOF
 [Default Applications]
@@ -197,7 +219,33 @@ text/plain=org.xfce.mousepad.desktop
 inode/directory=thunar.desktop
 image/png=org.xfce.ristretto.desktop
 image/jpeg=org.xfce.ristretto.desktop
+application/vnd.debian.binary-package=${OUVRIR_DESKTOP}
+application/vnd.appimage=${OUVRIR_DESKTOP}
+application/x-iso9660-appimage=${OUVRIR_DESKTOP}
+application/vnd.flatpak.ref=${OUVRIR_DESKTOP}
+application/vnd.flatpak.repo=${OUVRIR_DESKTOP}
+application/x-rpm=${OUVRIR_DESKTOP}
+application/x-redhat-package-manager=${OUVRIR_DESKTOP}
 EOF
+#  LES DEUX TYPES D'AppImage, PAS UN SEUL. Le motif « *.appimage » pese 60
+#  pour application/vnd.appimage et 50 pour application/x-iso9660-appimage :
+#  sur le seul nom, c'est vnd.appimage qui gagne, mais des que le contenu est
+#  reniflé — et Thunar le renifle — une AppImage de type 1 redevient
+#  x-iso9660-appimage. Une regle qui n'en couvrirait qu'un laisserait la
+#  moitie des AppImage sans reponse.
+#
+#  LE .rpm EST LA EXPRES. Ce n'est pas un format de LexOS, et justement :
+#  sans cette ligne, un .rpm telecharge ne fait rien et personne ne sait
+#  pourquoi. Avec elle, lexos-ouvrir explique que c'est le paquet de Fedora
+#  et renvoie a la Logitheque, au lieu d'un silence.
+#
+#  Et on rafraichit le cache : « [Default Applications] » suffit au
+#  double-clic, mais c'est mimeinfo.cache qui fait apparaitre « Installer ce
+#  fichier » dans le menu « Ouvrir avec ». Le hook 0265 le fait deja pour ce
+#  dossier ; le refaire ici ne coute rien et ne depend plus de l'ordre.
+if command -v update-desktop-database >/dev/null 2>&1; then
+	update-desktop-database /usr/share/applications 2>/dev/null || true
+fi
 
 # --- « Note perso » — l'identité LexOS de l'éditeur de texte -----------------
 #  Dans la démo, l'éditeur s'appelle « Note perso » et porte le carnet orange

@@ -1398,7 +1398,14 @@ function contenu(cle){
       d'un téléphone (MTP/iPhone) ou d'une clé. <code>lexos usb terminal</code> ouvre un
       terminal <b>sur le téléphone</b> (adb, débogage USB requis).
       <code>lexos format</code> formate une clé ou un téléphone — jamais le disque
-      système, et seulement après confirmation explicite.</p>`;
+      système, et seulement après confirmation explicite.</p>
+      ${/*  ═══ UNE CIBLE SERVIE PAR LE MOTEUR, JAMAIS PROPOSÉE PAR LA PAGE ═══
+            act_ouvrir déclare 38 fenêtres ; la page n'en offrait que 35.
+            « usb », « confidentialite » et « maj » étaient écrites, testées
+            par le banc des boutons… et impossibles à déclencher depuis
+            l'écran. Le banc vérifiait donc du code que personne ne pouvait
+            atteindre. */""}
+      ${btnOuvrir("usb","Ouvrir l'outil complet (terminal)")}`;
     }
     case "mac": {
       const m = etat.mac || {};
@@ -1502,11 +1509,23 @@ function contenu(cle){
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Fond d'écran</div>
         <div class="row">
-          <button class="btn ghost" onclick="setFond('defaut')">Défaut</button>
-          <button class="btn ghost" onclick="setFond('secu')">Sécurité</button>
-          <button class="btn ghost" onclick="setFond('demon')">LexOS 1.0</button>
-          <button class="btn ghost" onclick="setFond('keyart')">Explorateur</button>
-          <button class="btn ghost" onclick="setFond('nomad')">Nomad</button>
+          ${/*  ═══ LE CHOIX COURANT SE VOIT — ALEX : « POUR CHANGER DE
+                   COULEUR SUR LE BOUTON SÉLECTIONNÉ » ═══
+                Ces cinq boutons étaient écrits en dur « btn ghost », sans la
+                moindre condition : le fond posé ressemblait aux quatre
+                autres. C'était le seul choix de toute la page dans ce cas,
+                avec la galerie juste en dessous — partout ailleurs (thème,
+                accent, police, dock, définition d'écran, profil de
+                performance) le dépôt écrit déjà « btn ${x ? "sel" : "ghost"} ».
+                La classe .sel existe depuis toujours dans style.css:52.
+                Ce qui manquait était de l'autre côté : etat() ne disait pas
+                quel fond est posé. */""}
+          ${(() => { const F = (etat.fond || {}).cle; const c = k => F === k ? "sel" : "ghost"; return `
+          <button class="btn ${c("defaut")}" onclick="setFond('defaut')">Défaut</button>
+          <button class="btn ${c("secu")}" onclick="setFond('secu')">Sécurité</button>
+          <button class="btn ${c("demon")}" onclick="setFond('demon')">LexOS 1.0</button>
+          <button class="btn ${c("keyart")}" onclick="setFond('keyart')">Explorateur</button>
+          <button class="btn ${c("nomad")}" onclick="setFond('nomad')">Nomad</button>`; })()}
         </div>
         <h3 style="margin-top:18px">Étiquettes des dossiers</h3>
         <p class="d">Les dossiers standards portent déjà leurs trois lettres
@@ -1552,7 +1571,7 @@ function contenu(cle){
             noir, sur tous les écrans.</div>
           <div class="row" style="gap:10px">
             ${fp.map(f => `<div class="wall-item">
-               <button class="wall-swatch" title="${esc(f.nom)}"
+               <button class="wall-swatch${((etat.fond||{}).i === f.i) ? " sel" : ""}" title="${esc(f.nom)}"
                   onclick="setFondFichier(${Number(f.i) | 0})"
                   style="width:96px;height:56px;background:#000 url('/api/fond-vignette?i=${Number(f.i) | 0}') center/contain no-repeat"></button>
                <button class="wall-voir" title="Voir en grand"
@@ -1606,6 +1625,23 @@ function contenu(cle){
             <b>montrer du texte</b> : le PNG le garde parfaitement net. Le JPEG
             pèse deux à quatre fois moins — pratique pour envoyer par message,
             au prix d'un texte très légèrement adouci.</div>
+          ${/*  ═══ TROIS BOUTONS QUI N'EXISTAIENT PAS ═══
+                La fonction capture() était écrite (app.js), l'action
+                « capture » était dans la table ACTIONS, act_capture était
+                implémentée et acceptait photo|zone|fenetre — et AUCUN bouton,
+                aucun onclick, aucune autre fonction ne l'appelait. Du code
+                complet, relié des deux côtés, et injoignable depuis l'écran.
+                Le réglage du format était là, juste au-dessus, sans le geste
+                qu'il règle. */""}
+          <div class="t" style="margin:16px 0 8px">Prendre une capture</div>
+          <div class="row">
+            <button class="btn" onclick="capture('photo')">Tout l'écran</button>
+            <button class="btn ghost" onclick="capture('zone')">Une zone…</button>
+            <button class="btn ghost" onclick="capture('fenetre')">Une fenêtre</button>
+          </div>
+          <div class="sub" style="margin-top:8px">Aussi au clavier :
+            <b>Impr. écran</b> pour tout l'écran, <b>Maj + Impr. écran</b> pour
+            une zone. Les images vont dans <b>Images/Captures</b>.</div>
         </div>`;
       })()}
       ${btnOuvrir("bureau","Réglages fins (XFCE)")}`;
@@ -1712,6 +1748,9 @@ function contenu(cle){
       ${srow("Ajouter ou retirer un logiciel",
              "La logithèque LexOS : installer, mettre à jour, désinstaller",
              `<button class="btn" onclick="ouvrir('applications')">Ouvrir la logithèque</button>`)}
+      ${srow("Un logiciel téléchargé sur le web",
+             "Un paquet .deb, une AppImage, un script : double-clique dessus et LexOS l'installe. Il te montre d'abord ce que c'est et ce qui va se passer — et rien ne part sans ton accord. C'est « lexos-ouvrir » qui répond au double-clic.",
+             `<button class="btn" onclick="ouvrir('fichier-telecharge')">Installer un fichier</button>`)}
       ${srow("Applications par défaut",
              "Quel logiciel ouvre les images, les PDF, les liens…",
              `<button class="btn ghost" onclick="allerA('defaut')">Y aller</button>`)}
@@ -2104,12 +2143,25 @@ function contenu(cle){
       </div>
       ${srow("Fichiers privés",
              "Un coffre chiffré (gocryptfs) pour ce qui ne regarde personne",
-             `<button class="btn ghost" onclick="api('ouvrir','prive').then(()=>toast('Fichiers privés s\\'ouvre'))">Ouvrir</button>`)}
+             /*  ═══ CE BOUTON ANNONÇAIT LE SUCCÈS MÊME QUAND L'OUVERTURE
+                        ÉCHOUAIT ═══
+                 Il était le SEUL des 38 boutons d'ouverture à ne pas passer
+                 par ouvrir(). Il écrivait :
+                     api('ouvrir','prive').then(()=>toast('… s'ouvre'))
+                 Or api() affiche déjà « ✗ » et le motif quand l'action
+                 échoue ; le .then() s'exécute ensuite QUOI QU'IL ARRIVE et
+                 REMPLACE ce message par « Fichiers privés s'ouvre ». Sans
+                 gocryptfs installé, ou sans coffre créé, on lisait donc un
+                 succès et il ne se passait rien.
+                 ouvrir() fait exactement ce qu'il faut, et le dit quand ça
+                 rate (app.js, fonction ouvrir()). */
+             `<button class="btn ghost" onclick="ouvrir('prive')">Ouvrir</button>`)}
       <p class="notice">Ces outils demandent les droits d'administration et posent
       des questions : ils s'ouvrent dans un terminal, pour qu'on puisse LIRE ce
       qu'ils font. Les lancer en silence derrière un interrupteur cacherait
       justement ce qu'il faut voir. En ligne de commande :
-      <code>lexos secure</code> · <code>lexos prive</code>.</p>`;
+      <code>lexos secure</code> · <code>lexos prive</code>.</p>
+      ${btnOuvrir("confidentialite","Tout vérifier d'un coup (terminal)")}`;
     }
     case "maj": {
       const m = etat.maj || {};
@@ -2141,7 +2193,8 @@ function contenu(cle){
       <p class="notice">Les mises à jour de sécurité s'installent seules ; le reste
       attend que tu le demandes. Une mise à jour pose des questions et prend du
       temps : elle s'ouvre dans un terminal pour qu'on voie ce qui se passe — et
-      cette page se met à jour toute seule pendant que ça tourne.</p>`;
+      cette page se met à jour toute seule pendant que ça tourne.</p>
+      ${btnOuvrir("maj","Diagnostic complet du système (terminal)")}`;
     }
     case "accessibilite": {
       const a = etat.access || {};

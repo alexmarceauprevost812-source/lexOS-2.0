@@ -63,6 +63,12 @@ h2{font-size:22px;font-weight:700}
 .swatch{width:34px;height:34px;border-radius:50%;border:2px solid transparent;
   cursor:pointer}
 .swatch.sel{border-color:#fff;outline:2px solid var(--ac)}
+/*  La vignette du fond POSÉ. Même dessin que .swatch.sel — un contour
+    d'accent, pas un fond : la vignette EST l'image, la repeindre la
+    cacherait. Sans cette règle, la classe « sel » posée par app.js sur
+    .wall-swatch ne changerait rien à l'écran. */
+.wall-swatch.sel{outline:3px solid var(--ac);outline-offset:2px;
+  border-color:var(--ac)}
 /*  Le rond de couleur porté DANS le bouton des deux styles mis en avant :
     le nom dit lequel c'est, la pastille montre à quoi ça ressemble. Bordure
     translucide pour que le rond reste visible sur un bouton déjà peint de

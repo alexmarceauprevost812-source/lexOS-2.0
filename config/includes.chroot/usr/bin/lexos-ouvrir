@@ -1,0 +1,544 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-ouvrir — ce qu'on vient de télécharger s'installe, sans terminal
+# =============================================================================
+#  ALEX : « quand on télécharge, l'application soit déjà installée au lieu de
+#  passer par le terminal », et avant ça « qu'on puisse les exécuter comme
+#  Windows, pas avoir besoin de passer par le terminal tout le temps ».
+#
+#  IL AVAIT RAISON, ET LE TROU ÉTAIT COMPLET. Avant ce fichier, LexOS n'avait
+#  AUCUNE réponse écrite à « avec quoi j'ouvre ce paquet » :
+#
+#    · /etc/xdg/mimeapps.list ne nommait que sept types — les pages web, le
+#      texte, les dossiers, le PNG et le JPEG. Rien pour un paquet, un
+#      programme, une archive.
+#    · le seul outil d'installation, lexos-run-ins, REFUSE tout ce qui n'est
+#      pas un .zip (lexos-run-ins:109-112), et on ne l'atteignait que par un
+#      clic droit qui ouvre un terminal.
+#    · un fichier téléchargé arrive en 0644 : même une AppImage, que Thunar
+#      saurait lancer, ne partait pas — il lui manque le bit d'exécution.
+#
+#  Résultat mesurable : double-cliquer sur un .deb, une AppImage, un .sh ou un
+#  .flatpakref ne faisait RIEN. Le terminal n'était pas un contournement,
+#  c'était le seul chemin qui existait.
+#
+#  ── CE QUI NE CHANGE PAS, ET POURQUOI ───────────────────────────────────────
+#  L'en-tête de lexos-run-ins pose la doctrine de la maison, et elle tient :
+#  « Une archive téléchargée est du code venu d'ailleurs. Exécuter son script
+#  d'installation, c'est lui donner tes droits […] Il n'y a pas de mode "ne
+#  plus demander". Ce serait la seule option vraiment dangereuse de tout
+#  LexOS. »
+#
+#  Ce fichier ne lève PAS cette règle : il la rend cliquable.
+#    · rien ne part avant que la fenêtre ait dit CE QUE C'EST et CE QUI VA SE
+#      PASSER ;
+#    · le bouton porte la conséquence — « Installer ce paquet », jamais
+#      « OK » — comme lexos-format:180 le fait déjà pour l'effacement ;
+#    · le refus est le bouton par défaut ;
+#    · un SCRIPT garde le mot à taper. Un paquet passe par apt, une AppImage
+#      ne touche que ton dossier personnel ; un script, lui, fait n'importe
+#      quoi avec tes droits. Ce n'est pas le même risque, ce n'est pas la
+#      même barrière.
+#    · et devant un format inconnu, on n'essaie RIEN. On le dit.
+#
+#  ── ON NE DEVINE PAS LE FORMAT À L'EXTENSION ────────────────────────────────
+#  Un fichier téléchargé porte le nom que le serveur a bien voulu. On lit donc
+#  les PREMIERS OCTETS, et l'extension ne sert que de départage. Les signatures
+#  ci-dessous sont relevées, pas récitées :
+#    · .deb    : « !<arch> » puis l'entrée « debian-binary » (format ar)
+#    · AppImage: ELF, puis 0x41 0x49 (« AI ») aux octets 8 et 9, puis 0x02
+#                (type 2) ou 0x01 (type 1) à l'octet 10 — c'est exactement la
+#                magie que shared-mime-info emploie pour application/
+#                vnd.appimage et application/x-iso9660-appimage
+#    · .rpm    : ed ab ee db
+#    · script  : « #! » à l'octet 0
+#
+#  « file --mime-type » N'EST PAS employé : mesuré, il annonce une AppImage
+#  comme « application/x-pie-executable », un type qui n'existe même pas dans
+#  shared-mime-info, et un .rpm fabriqué comme « text/plain ».
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; V=$'\033[32m'; Y=$'\033[33m'
+	B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; V=''; Y=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+bon()  { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+avert(){ printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+#  ═══ LES COUTURES ═══
+#  Mêmes raisons qu'ailleurs dans le dépôt : sans elles, ces lignes ne se
+#  vérifient qu'en construisant une image et en la démarrant. Les défauts sont
+#  les vrais.
+APPS_MAISON="${LEXOS_APPIMAGE_DIR:-$HOME/Applications}"
+APPS_LOCAL="${LEXOS_APPS_LOCAL_USER:-$HOME/.local/share/applications}"
+
+#  Y a-t-il un écran ? Sans lui, aucune fenêtre ne peut poser la question, et
+#  la règle de la maison est déjà écrite (ia-agent.py:243-253) : quand on ne
+#  peut pas demander, on n'exécute pas — on retombe sur le terminal, qui, lui,
+#  sait demander.
+graphique() {
+	[[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1
+}
+
+# =============================================================================
+#  Reconnaître le fichier — par son contenu
+# =============================================================================
+#  Rend un mot : deb · appimage · rpm · script · flatpakref · flatpakrepo ·
+#  archive · programme · inconnu
+sorte_de() {
+	local f="$1" tete="" hexa=""
+	[[ -f "$f" ]] || { printf 'inconnu'; return; }
+
+	#  16 octets suffisent pour toutes les signatures qui suivent. On lit en
+	#  hexadécimal : un fichier binaire ne passe pas dans une variable shell
+	#  (les octets nuls sont perdus), l'hexadécimal, oui.
+	hexa="$(od -An -tx1 -N 16 -- "$f" 2>/dev/null | tr -d ' \n')"
+
+	#  ON LIT PAR POSITION, JAMAIS PAR MOTIF. Un motif « 7f454c46*4149* »
+	#  serait vrai pour n'importe quel ELF portant ces deux octets ailleurs
+	#  dans son en-tête. Ici, chaque octet est lu à sa place.
+	[[ "${hexa:0:8}" == "edabeedb" ]] && { printf 'rpm'; return; }
+	if [[ "${hexa:0:8}" == "7f454c46" ]]; then
+		#  ELF, puis « AI » (4149) aux octets 8-9, puis 02 (type 2) ou 01
+		#  (type 1) à l'octet 10.
+		if [[ "${hexa:16:4}" == "4149" ]] && { [[ "${hexa:20:2}" == "01" ]] || [[ "${hexa:20:2}" == "02" ]]; }; then
+			printf 'appimage'; return
+		fi
+	fi
+
+	#  .deb : archive « ar » dont la première entrée est « debian-binary ».
+	if [[ "${hexa:0:14}" == "213c617263683e" ]]; then
+		if head -c 72 -- "$f" 2>/dev/null | grep -q 'debian-binary'; then
+			printf 'deb'; return
+		fi
+		printf 'archive'; return
+	fi
+
+	#  Texte : shebang, ou en-tête Flatpak.
+	if [[ "${hexa:0:4}" == "2321" ]]; then printf 'script'; return; fi
+	#  On ne lit le début EN TEXTE que si le fichier commence par « [ » (5b).
+	#  Sans cette garde, bash prévient « ignored null byte in input » sur tout
+	#  binaire — un avertissement sur la sortie d'erreur, à chaque double-clic.
+	if [[ "${hexa:0:2}" == "5b" ]]; then
+		tete="$(head -c 64 -- "$f" 2>/dev/null | tr -d '\r\000')"
+		case "$tete" in
+			'[Flatpak Ref]'*)  printf 'flatpakref';  return ;;
+			'[Flatpak Repo]'*) printf 'flatpakrepo'; return ;;
+		esac
+	fi
+
+	#  Archives — elles ont déjà leurs outils dans LexOS (lexos-unzip,
+	#  lexos-run-ins), on ne refait pas leur travail.
+	case "${hexa:0:8}" in
+		504b0304|504b0506|504b0708) printf 'archive'; return ;;   # zip
+		fd377a58)                   printf 'archive'; return ;;   # xz
+		377abcaf)                   printf 'archive'; return ;;   # 7z
+		52617221)                   printf 'archive'; return ;;   # rar
+	esac
+	case "${hexa:0:6}" in
+		1f8b08) printf 'archive'; return ;;                       # gzip
+		425a68) printf 'archive'; return ;;                       # bzip2
+	esac
+	#  tar simple : « ustar » (75 73 74 61 72) à l'octet 257. Relu en
+	#  hexadécimal, comme le reste : un dd sur un binaire ferait râler bash.
+	if [[ "$(od -An -tx1 -j 257 -N 5 -- "$f" 2>/dev/null | tr -d ' \n')" == "7573746172" ]]; then
+		printf 'archive'; return
+	fi
+
+	#  ELF sans la marque AppImage : un programme ordinaire.
+	[[ "${hexa:0:8}" == "7f454c46" ]] && { printf 'programme'; return; }
+
+	#  Dernier recours, et SEULEMENT lui : l'extension. Un « .run » n'a aucune
+	#  signature — il n'existe même aucun motif pour lui dans toute la base
+	#  MIME du système (vérifié : aucune ligne « run » dans /usr/share/mime/
+	#  globs). C'est le seul cas où le nom est tout ce qu'on a.
+	case "$f" in
+		*.run|*.RUN) printf 'script'; return ;;
+		*.sh|*.SH|*.bash) printf 'script'; return ;;
+		*.deb|*.DEB) printf 'deb'; return ;;
+		*.flatpakref) printf 'flatpakref'; return ;;
+		*.flatpakrepo) printf 'flatpakrepo'; return ;;
+	esac
+	printf 'inconnu'
+}
+
+# =============================================================================
+#  Demander — la fenêtre, ou le terminal quand il n'y a pas d'écran
+# =============================================================================
+#  $1 = titre · $2 = texte · $3 = libellé du bouton qui AGIT
+#  Le bouton d'annulation est le choix par défaut : c'est le réglage que la
+#  démo emploie déjà pour sa boîte générique (« le refus est le choix par
+#  défaut »).
+demander() {
+	local titre="$1" texte="$2" bouton="$3" rep=""
+	if graphique; then
+		zenity --question --width=560 --title="$titre" --text="$texte" \
+			--ok-label="$bouton" --cancel-label="Annuler" \
+			--default-cancel 2>/dev/null
+		return $?
+	fi
+	printf '\n%s%s%s\n\n%s\n\n' "$B" "$titre" "$R" "$texte"
+	printf '%sPour continuer, tape %soui%s puis Entrée (autre chose = annuler) : %s' \
+		"$B" "$O" "$R$B" "$R"
+	read -r rep || true
+	[[ "$rep" == "oui" ]]
+}
+
+#  LA BARRIÈRE DES SCRIPTS. Elle ne se franchit pas d'un clic, même en
+#  graphique : le mot se tape, comme dans lexos-run-ins:98-104. Un script
+#  reçu fait n'importe quoi avec tes droits ; un clic distrait ne doit pas
+#  suffire.
+mot_de_passe_du_risque() {
+	local titre="$1" mot=""
+	if graphique; then
+		mot="$(zenity --entry --width=520 --title="$titre" \
+			--text="Ce script s'exécutera avec TES droits, et s'il appelle sudo il aura les droits d'administration.
+
+Pour le lancer, écris le mot :  lancer" 2>/dev/null)" || return 1
+	else
+		printf '\n%sPour lancer, tape le mot %slancer%s puis Entrée (autre chose = annuler) : %s' \
+			"$B" "$O" "$R$B" "$R"
+		read -r mot || true
+	fi
+	[[ "$mot" == "lancer" ]]
+}
+
+#  Montrer un texte en entier avant de demander quoi que ce soit.
+montrer_texte() {
+	local titre="$1" fichier="$2"
+	if graphique; then
+		zenity --text-info --width=760 --height=520 --title="$titre" \
+			--filename="$fichier" 2>/dev/null || true
+	else
+		printf '\n%s┌─ %s ─%s\n' "$Y" "$titre" "$R"
+		nl -ba -- "$fichier" | head -200
+		local total; total="$(wc -l < "$fichier")"
+		[[ "$total" -gt 200 ]] && avert "… $((total - 200)) lignes de plus, non affichées."
+		printf '%s└──────────────────────────────────────────%s\n' "$Y" "$R"
+	fi
+}
+
+dire() {
+	local titre="$1" texte="$2"
+	if graphique; then
+		zenity --info --width=520 --title="$titre" --text="$texte" 2>/dev/null || true
+	else
+		say "$texte"
+	fi
+	return 0
+}
+
+echouer() {
+	local titre="$1" texte="$2"
+	if graphique; then
+		zenity --error --width=520 --title="$titre" --text="$texte" 2>/dev/null || true
+		exit 1
+	fi
+	die "$texte"
+}
+
+# =============================================================================
+#  Les droits d'administration — et le piège qui rend tout muet
+# =============================================================================
+#  pkexec n'ouvre PAS lui-même la fenêtre du mot de passe : il la demande à un
+#  « agent d'authentification » qui doit tourner dans la session. S'il n'y en
+#  a pas, pkexec échoue — sans fenêtre, sans message, sans rien. C'est
+#  exactement la panne « le bouton ne fait rien ».
+#
+#  On ne prend donc ce chemin QUE si un agent est là. Sinon on ouvre un
+#  terminal, où sudo, lui, sait demander. Mieux vaut une fenêtre noire qu'un
+#  silence.
+agent_polkit() {
+	local p
+	for p in $(pgrep -x polkit-gnome-au 2>/dev/null) \
+	         $(pgrep -x polkit-mate-aut 2>/dev/null) \
+	         $(pgrep -x lxpolkit 2>/dev/null) \
+	         $(pgrep -x lxqt-policykit 2>/dev/null) \
+	         $(pgrep -x xfce-polkit 2>/dev/null); do
+		[[ -n "$p" ]] && return 0
+	done
+	#  Les noms de processus sont tronqués à 15 caractères par le noyau : on
+	#  regarde donc AUSSI les lignes de commande complètes, sans jamais
+	#  employer « pgrep -f », qui se reconnaît dans sa propre commande.
+	for p in $(pgrep -x polkit-agent-he 2>/dev/null); do
+		[[ -n "$p" ]] && return 0
+	done
+	return 1
+}
+
+terminal_admin() {
+	local titre="$1"; shift
+	local cmd="$*"
+	local T
+	for T in xfce4-terminal x-terminal-emulator gnome-terminal xterm; do
+		command -v "$T" >/dev/null 2>&1 || continue
+		case "$T" in
+			xfce4-terminal)
+				exec "$T" --title="$titre" --hold --command="bash -lc $(printf '%q' "sudo $cmd")" ;;
+			gnome-terminal)
+				exec "$T" --title="$titre" -- bash -lc "sudo $cmd; echo; read -r -p 'Entrée pour fermer…'" ;;
+			*)
+				exec "$T" -T "$titre" -e bash -lc "sudo $cmd; echo; read -r -p 'Entrée pour fermer…'" ;;
+		esac
+	done
+	return 1
+}
+
+# =============================================================================
+#  Les quatre gestes
+# =============================================================================
+poser_paquet() {
+	local f="$1" info=""
+	command -v dpkg-deb >/dev/null 2>&1 && info="$(dpkg-deb -f -- "$f" Package Version Description 2>/dev/null)"
+	[[ -n "$info" ]] || info="$(basename -- "$f")"
+
+	demander "Installer ce paquet ?" \
+"$info
+
+Il sera installé par apt, qui vérifie sa cohérence et ira chercher ce qui lui manque.
+
+Un paquet installe des fichiers dans tout le système et peut lancer ses propres scripts avec les droits d'administration." \
+		"Installer ce paquet" || { say "Annulé — rien n'a été installé."; exit 0; }
+
+	#  gdebi sait faire, et il demande le mot de passe par polkit lui-même.
+	if graphique && command -v gdebi-gtk >/dev/null 2>&1; then
+		gdebi-gtk -- "$f" && { bon "Installé."; exit 0; }
+	fi
+	if [[ "$(id -u)" -eq 0 ]]; then
+		apt-get install -y -- "$f" && { bon "Installé."; exit 0; }
+		echouer "Installation impossible" "apt n'a pas pu installer ce paquet."
+	fi
+	if graphique && agent_polkit && command -v pkexec >/dev/null 2>&1; then
+		pkexec apt-get install -y -- "$f" && { bon "Installé."; exit 0; }
+	fi
+	terminal_admin "Installer $(basename -- "$f") — LexOS" "apt-get install -y $(printf '%q' "$f")" \
+		|| { command -v sudo >/dev/null 2>&1 && sudo apt-get install -y -- "$f" && { bon "Installé."; exit 0; }; }
+	echouer "Installation impossible" "Aucun moyen d'obtenir les droits d'administration."
+}
+
+poser_appimage() {
+	local f="$1" nom dest
+	nom="$(basename -- "$f")"
+	dest="$APPS_MAISON/$nom"
+
+	demander "Lancer cette application ?" \
+"$nom
+
+Une AppImage ne s'installe pas : c'est l'application entière dans un seul fichier.
+
+Elle sera copiée dans $APPS_MAISON, rendue exécutable, ajoutée à ton menu, puis lancée. Elle n'écrit rien hors de ton dossier personnel." \
+		"Installer et lancer" || { say "Annulé."; exit 0; }
+
+	mkdir -p -- "$APPS_MAISON" || echouer "Copie impossible" "Impossible de créer $APPS_MAISON."
+	#  ATOMIQUE. Le dépôt a déjà la leçon (lexos-install-chrome:39-50) : une
+	#  copie interrompue ne doit pas laisser un exécutable à demi écrit, que
+	#  le menu proposerait et qui planterait.
+	local part="$dest.part"
+	cp -- "$f" "$part" || echouer "Copie impossible" "La copie a échoué."
+	chmod +x -- "$part" && mv -f -- "$part" "$dest" \
+		|| { rm -f -- "$part"; echouer "Copie impossible" "La copie a échoué."; }
+
+	#  LE MENU. Sans ça, l'AppImage n'existe que dans un dossier que rien ne
+	#  connaît — c'est ce que faisait lexos-run-ins:140-145, et son conseil
+	#  « lance-la depuis Fichiers » pointait vers le vide.
+	mkdir -p -- "$APPS_LOCAL"
+	local titre="${nom%.[Aa]pp[Ii]mage}"
+	titre="${titre//-/ }"
+	cat > "$APPS_LOCAL/lexos-appimage-${nom%.*}.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=$titre
+Comment=Application autonome (AppImage) installée par LexOS
+Exec=$(printf '%q' "$dest") %U
+Icon=application-x-executable
+Terminal=false
+Categories=Utility;
+EOF
+	command -v update-desktop-database >/dev/null 2>&1 \
+		&& update-desktop-database "$APPS_LOCAL" >/dev/null 2>&1
+
+	#  ON LA LANCE DÉTACHÉE : sinon elle meurt avec cette fenêtre.
+	setsid "$dest" >/dev/null 2>&1 &
+	bon "Installée dans $APPS_MAISON et ajoutée au menu."
+	exit 0
+}
+
+poser_script() {
+	local f="$1" nom
+	nom="$(basename -- "$f")"
+
+	demander "Regarder ce script ?" \
+"$nom
+
+C'est un script : une suite de commandes écrites par quelqu'un d'autre.
+
+LexOS va te le MONTRER en entier. Rien ne s'exécutera tant que tu n'auras pas écrit le mot « lancer »." \
+		"Voir le script" || { say "Annulé — rien n'a été exécuté."; exit 0; }
+
+	#  Un « .run » est souvent un exécutable auto-extractible : les premières
+	#  lignes sont du texte, la suite est binaire. On ne prétend pas l'avoir
+	#  montré.
+	if grep -qI . -- "$f" 2>/dev/null; then
+		montrer_texte "$nom — lis-le avant de décider" "$f"
+	else
+		dire "Ce fichier n'est pas lisible" \
+"$nom n'est pas du texte : LexOS ne peut pas te le montrer.
+
+On ne lance pas ce qu'on n'a pas pu montrer. Rien n'a été exécuté."
+		exit 0
+	fi
+
+	mot_de_passe_du_risque "Lancer $nom ?" \
+		|| { say "Annulé — rien n'a été exécuté."; exit 0; }
+
+	chmod +x -- "$f" 2>/dev/null || true
+	if graphique; then
+		terminal_admin_libre "$nom — LexOS" "$f" && exit 0
+	fi
+	( cd "$(dirname -- "$f")" && bash -- "$f" ) \
+		&& { bon "Terminé."; exit 0; } || die "Le script s'est arrêté sur une erreur."
+}
+
+#  Le même terminal, mais SANS sudo : un script se lance avec les droits de
+#  celui qui l'ouvre, jamais plus. C'est lui qui demandera s'il en veut plus.
+terminal_admin_libre() {
+	local titre="$1" f="$2" T
+	for T in xfce4-terminal x-terminal-emulator gnome-terminal xterm; do
+		command -v "$T" >/dev/null 2>&1 || continue
+		case "$T" in
+			xfce4-terminal)
+				exec "$T" --title="$titre" --hold \
+					--working-directory="$(dirname -- "$f")" \
+					--command="bash $(printf '%q' "$f")" ;;
+			gnome-terminal)
+				exec "$T" --title="$titre" -- bash -lc "cd $(printf '%q' "$(dirname -- "$f")") && bash $(printf '%q' "$f"); echo; read -r -p 'Entrée pour fermer…'" ;;
+			*)
+				exec "$T" -T "$titre" -e bash -lc "cd $(printf '%q' "$(dirname -- "$f")") && bash $(printf '%q' "$f"); echo; read -r -p 'Entrée pour fermer…'" ;;
+		esac
+	done
+	return 1
+}
+
+poser_flatpak() {
+	local f="$1" quoi="$2"
+	command -v flatpak >/dev/null 2>&1 || {
+		dire "Flatpak n'est pas installé" \
+"Ce fichier désigne une application Flatpak, mais Flatpak n'est pas installé sur cette machine.
+
+Ouvre la Logithèque : elle sait l'installer."
+		exit 0; }
+
+	demander "Installer depuis Flathub ?" \
+"$(basename -- "$f")
+
+Ce fichier ne contient pas l'application : il dit seulement où aller la chercher. Flatpak la téléchargera depuis son dépôt." \
+		"Installer" || { say "Annulé."; exit 0; }
+
+	case "$quoi" in
+		flatpakref)  flatpak install --user -y -- "$f" ;;
+		flatpakrepo) flatpak remote-add --user --if-not-exists --from -- "$f" ;;
+	esac && { bon "Fait."; exit 0; }
+	echouer "Installation impossible" "Flatpak n'a pas pu aller au bout."
+}
+
+# =============================================================================
+#  L'aide
+# =============================================================================
+usage() {
+	cat <<EOF
+${B}$PROG${R} — ouvrir un fichier téléchargé sans passer par le terminal
+
+  ${O}$PROG${R} <fichier>        Reconnaît, montre, demande, puis agit
+  ${O}$PROG --quoi${R} <fichier> Dit seulement ce que c'est, sans rien faire
+
+Reconnus : ${B}.deb${R} (apt) · ${B}AppImage${R} (copiée dans ~/Applications et
+mise au menu) · ${B}script${R} (montré en entier, puis le mot « lancer ») ·
+${B}.flatpakref${R} / ${B}.flatpakrepo${R} (flatpak) · ${B}archive${R} (lexos-unzip).
+
+${D}C'est ce programme que le double-clic appelle. Rien ne part sans que la
+fenêtre ait dit ce que c'est et ce qui va se passer, et le bouton qui agit
+porte toujours la conséquence — jamais « OK ».${R}
+EOF
+}
+
+# =============================================================================
+#  Le point d'entrée
+# =============================================================================
+cmd_ouvrir() {
+	local f="$1" sorte
+	[[ -e "$f" ]] || echouer "Fichier introuvable" "Ce fichier n'existe plus : $f"
+	f="$(readlink -f -- "$f")" || die "Chemin illisible."
+	[[ -f "$f" ]] || echouer "Ce n'est pas un fichier" "$f n'est pas un fichier ordinaire."
+
+	sorte="$(sorte_de "$f")"
+	case "$sorte" in
+		deb)         poser_paquet   "$f" ;;
+		appimage)    poser_appimage "$f" ;;
+		script)      poser_script   "$f" ;;
+		flatpakref)  poser_flatpak  "$f" flatpakref ;;
+		flatpakrepo) poser_flatpak  "$f" flatpakrepo ;;
+		archive)
+			if command -v lexos-unzip >/dev/null 2>&1; then
+				exec lexos-unzip "$f"
+			fi
+			dire "Archive" "Ce fichier est une archive. Clic droit → « Extraire ici »." ;;
+		rpm)
+			#  On ne tente RIEN. « alien » convertit parfois, souvent mal, et
+			#  un paquet converti casse le système à la mise à jour suivante.
+			dire "Ce paquet n'est pas pour LexOS" \
+"$(basename -- "$f") est un paquet RPM — le format de Fedora et d'openSUSE.
+
+LexOS est bâti sur Debian : il lui faut un .deb. Cherche la version Debian ou Ubuntu de ce logiciel, ou regarde dans la Logithèque." ;;
+		programme)
+			#  Un ELF nu : on peut le lancer, mais on ne sait RIEN de lui.
+			demander "Lancer ce programme ?" \
+"$(basename -- "$f")
+
+C'est un programme compilé : LexOS ne peut pas te montrer ce qu'il fait, il n'est pas lisible.
+
+Il s'exécutera avec TES droits — tes fichiers, ta session." \
+				"Lancer ce programme" || { say "Annulé — rien n'a été exécuté."; exit 0; }
+			chmod +x -- "$f" 2>/dev/null || true
+			setsid "$f" >/dev/null 2>&1 &
+			bon "Lancé." ;;
+		*)
+			dire "LexOS ne sait pas quoi faire de ce fichier" \
+"$(basename -- "$f")
+
+Ce n'est ni un paquet, ni une application, ni un script que LexOS reconnaisse.
+
+Rien n'a été fait. Clic droit → « Ouvrir avec » si tu sais quoi en faire." ;;
+	esac
+}
+
+#  SANS ARGUMENT ET AVEC UN ÉCRAN : on ouvre le sélecteur de fichiers, sur le
+#  dossier des téléchargements. C'est ce que fait l'entrée « Installer ce
+#  fichier » du menu — sans ça, ce serait un lanceur qui ne fait rien de
+#  visible, exactement le défaut qu'on est en train de réparer.
+choisir_fichier() {
+	local dep="$HOME" f=""
+	command -v xdg-user-dir >/dev/null 2>&1 && dep="$(xdg-user-dir DOWNLOAD 2>/dev/null)"
+	[[ -d "$dep" ]] || dep="$HOME"
+	f="$(zenity --file-selection --title="Quel fichier veux-tu installer ?" \
+		--filename="$dep/" 2>/dev/null)" || return 1
+	[[ -n "$f" ]] || return 1
+	cmd_ouvrir "$f"
+}
+
+case "${1:-}" in
+	-h|--help|aide|help) usage ;;
+	"")
+		if graphique; then choisir_fichier || say "Annulé."
+		else usage; fi ;;
+	--quoi|-q)
+		shift; [[ $# -gt 0 ]] || die "Donne un fichier."
+		printf '%s\n' "$(sorte_de "$(readlink -f -- "$1")")" ;;
+	*) cmd_ouvrir "$1" ;;
+esac

@@ -84,23 +84,52 @@ JOURNAL="$BANC/appels.txt"
 faux_outil pkexec "$JOURNAL"
 faux_outil timedatectl "$JOURNAL"
 
-appelle_fuseau() { # appelle_fuseau <zone>
+#  ═══ ON JOUE UN COMPTE ORDINAIRE, PAS root ═══
+#  act_fuseau passe maintenant par _run_admin(), qui n'enveloppe dans pkexec
+#  QUE si l'euid n'est pas 0 — un banc lancé en root ne verrait donc jamais
+#  pkexec, et le contrôle mesurerait le compte du coureur au lieu du code.
+#  On force donc l'euid et la présence d'un agent d'authentification.
+#
+#  ET CET AGENT COMPTE. pkexec ne dessine PAS lui-même la fenêtre du mot de
+#  passe : il la demande à un agent qui doit tourner dans la session. Sans
+#  agent, pkexec échoue sans fenêtre et sans message — c'est exactement la
+#  panne « le bouton ne fait rien » qu'Alex a décrite sur son vieil
+#  ordinateur. Le moteur refuse donc désormais AVANT de lancer un pkexec
+#  qui se tairait, et les deux cas sont éprouvés ici.
+appelle_fuseau() { # appelle_fuseau <zone> [agent:oui|non]
 	: > "$JOURNAL"
-	PATH="$BANC:/usr/bin:/bin" python3 -c "
-import sys, importlib.util
+	PATH="$BANC:/usr/bin:/bin" AGENT="${2:-oui}" python3 -c "
+import os, importlib.util
 spec = importlib.util.spec_from_file_location('s', '$SETTINGS')
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
+m.os.geteuid = lambda: 1000
+m._agent_polkit = lambda: os.environ.get('AGENT') == 'oui'
 print(m.act_fuseau('$1'))
 "
 	cat "$JOURNAL" 2>/dev/null
 }
 
-SORTIE="$(appelle_fuseau "America/Toronto")"
+SORTIE="$(appelle_fuseau "America/Toronto" oui)"
 case "$SORTIE" in
 	*"'ok': True"*"pkexec timedatectl set-timezone America/Toronto"*)
 		ok "un fuseau VALIDE (Ontario) -> pkexec timedatectl set-timezone, avec la fenêtre de mot de passe" ;;
 	*) non "America/Toronto (valide) n'a pas donné le bon appel : $SORTIE" ;;
+esac
+
+#  SANS AGENT : il doit REFUSER en le disant, et ne RIEN lancer.
+SORTIE="$(appelle_fuseau "America/Toronto" non)"
+case "$SORTIE" in
+	*"'ok': False"*)
+		if printf '%s' "$SORTIE" > "$BANC/sortie-sans-agent" && grep -q "timedatectl set-timezone" "$BANC/sortie-sans-agent"; then
+			non "sans agent d'authentification, timedatectl a quand même été lancé : $SORTIE"
+		else
+			printf '%s' "$SORTIE" > "$BANC/sortie-sans-agent"
+			grep -qi "agent" "$BANC/sortie-sans-agent" \
+				&& ok "sans agent d'authentification : il refuse et DIT ce qui manque, au lieu d'un bouton muet" \
+				|| non "il refuse sans dire pourquoi : le bouton paraîtrait mort ($SORTIE)"
+		fi ;;
+	*) non "sans agent, changer le fuseau aurait dû être refusé : $SORTIE" ;;
 esac
 
 SORTIE="$(appelle_fuseau "America/New_York")"

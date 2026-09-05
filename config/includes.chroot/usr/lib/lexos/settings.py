@@ -121,6 +121,69 @@ def _run(argv, *, detach=False):
     return {"ok": False, "erreur": motif, "sortie": sortie}
 
 
+#  ═══ LE MOT DE PASSE D'ADMINISTRATEUR, ET LE SILENCE QUI TUE LES BOUTONS ═══
+#  ALEX, sur son vieil ordinateur : « les boutons dans les paramètres ne
+#  fonctionnaient pas ».
+#
+#  « pkexec » NE DESSINE PAS LA FENÊTRE DU MOT DE PASSE. Il la demande à un
+#  « agent d'authentification » qui doit tourner dans la session. polkitd, le
+#  démon, ne suffit pas : c'est l'agent qui parle à l'humain. Sans agent,
+#  pkexec échoue tout de suite — pas de fenêtre, pas de message, rien dans la
+#  page. Le bouton « ne fait rien », et on va chercher du côté du bouton.
+#
+#  Le dépôt croyait cet agent garanti : optional-packages/15-essentiel.list
+#  affirmait qu'il arrivait « par les Recommends de xfce4-session ». Vérifié,
+#  c'est faux — ces Recommends ne nomment aucun agent (dbus, logind, un
+#  économiseur d'écran, upower, xfdesktop4, xfwm4). Trois candidats sont
+#  maintenant nommés dans la liste, et /usr/lib/lexos/polkit-agent les
+#  démarre ; il reste que sur une machine INSTALLÉE avant ce correctif, il n'y
+#  en a aucun.
+#
+#  Alors on cesse de faire semblant : quand aucun agent ne tourne, on ne lance
+#  PAS pkexec pour qu'il échoue en silence. On rend un motif, que la page
+#  affiche.
+_AGENTS_POLKIT = ("polkit-gnome-au", "polkit-mate-aut", "lxpolkit",
+                  "lxqt-policykit", "polkit-agent-he")
+
+
+def _agent_polkit():
+    """Un agent d'authentification tourne-t-il dans cette session ?
+
+    « pgrep -x » et JAMAIS « pgrep -f » : avec -f, le motif cherché apparaît
+    dans la ligne de commande du pgrep lui-même, qui se reconnaît alors et
+    répond toujours oui. Le dépôt s'est fait prendre trois fois (lexos-share,
+    lexos-crt). Les noms ci-dessus sont tronqués à quinze caractères parce
+    que c'est ainsi que le noyau les stocke."""
+    if shutil.which("pgrep") is None:
+        return False
+    for nom in _AGENTS_POLKIT:
+        try:
+            if subprocess.run(["pgrep", "-x", nom], capture_output=True,
+                              timeout=5).returncode == 0:
+                return True
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return False
+
+
+def _run_admin(argv):
+    """Lance argv avec les droits d'administration, ou dit pourquoi c'est
+    impossible. Ne rend jamais un succès qu'on n'a pas obtenu."""
+    if os.geteuid() == 0:
+        return _run(argv)
+    if shutil.which("pkexec") is None:
+        return {"ok": False,
+                "erreur": "pkexec est absent : impossible de demander les "
+                          "droits d'administration depuis une fenêtre."}
+    if not _agent_polkit():
+        return {"ok": False,
+                "erreur": "Aucune fenêtre de mot de passe n'est disponible "
+                          "sur cette session (agent polkit absent). "
+                          "Installe-le : sudo apt install policykit-1-gnome, "
+                          "puis rouvre la session."}
+    return _run(["pkexec"] + argv)
+
+
 def _terminal(titre, commande):
     """Ouvre un outil en ligne de commande dans un terminal, comme le faisait
     l'ancien routeur bash — même forme d'appel que les .desktop du hook 0400
@@ -281,6 +344,13 @@ def act_ouvrir(arg):
         #  « Applications » parle maintenant d'installer et de retirer des
         #  logiciels : c'est la logithèque qu'elle doit ouvrir.
         "applications": lambda: _terminal("Logithèque LexOS", "lexos logitheque"),
+        #  ALEX : « quand on télécharge, l'application soit déjà installée au
+        #  lieu de passer par le terminal ». C'est lexos-ouvrir qui le fait,
+        #  et c'est lui que le double-clic appelle. Ici, sans argument, il
+        #  ouvre le sélecteur de fichiers sur le dossier des téléchargements —
+        #  donc PAS de _terminal() : le sujet même de cette entrée est de ne
+        #  plus passer par le terminal.
+        "fichier-telecharge": lambda: _run(["lexos-ouvrir"], detach=True),
         "notifications": lambda: _run(["xfce4-notifyd-config"], detach=True),
         "recherche":  lambda: _run(["xfce4-appfinder", "--collapsed"], detach=True),
         #  Le bouton rouge de la barre ouvre la même fenêtre. Elle est ici
@@ -535,6 +605,85 @@ def _fonds_perso():
     return [c for _, c in images[:FONDS_PERSO_MAX]]
 
 
+#  ═══ QUEL FOND EST POSÉ ? — ALEX : « POUR CHANGER DE COULEUR SUR LE BOUTON
+#      SÉLECTIONNÉ, POUR QU'IL CHANGE DE COULEUR » ═══
+#  Les cinq fonds intégrés et les vignettes de « Mes images » étaient les
+#  SEULS choix de toute la page à ne jamais montrer lequel était le choix
+#  courant : leurs boutons étaient écrits en dur « class="btn ghost" », sans
+#  la moindre condition. Partout ailleurs le dépôt le fait — le thème,
+#  l'accent, la police, le dock, la définition d'écran, le profil de
+#  performance portent tous « class="btn ${x ? 'sel' : 'ghost'}" ».
+#
+#  ET CE N'ÉTAIT PAS UN OUBLI D'UNE LIGNE : rien dans etat() ne DISAIT quel
+#  fond est posé. Il n'y avait rien à comparer. Voilà la clé qui manquait.
+def _fond_actuel():
+    """Le chemin de l'image posée sur le bureau, tel que XFCE le connaît.
+
+    On lit la même propriété que lexos-fond-ecran (fond_actuel(), ligne 90) :
+    la PREMIÈRE propriété du canal xfce4-desktop qui finit par « last-image ».
+    Une machine à deux écrans en a plusieurs, toutes égales quand le fond a
+    été posé par LexOS — qui les écrit toutes.
+
+    Rend "" quand on ne peut pas savoir : sans serveur X, sans xfconf-query,
+    ou quand aucune propriété n'existe encore. Ne JAMAIS rendre un chemin
+    inventé : une vignette mise en évidence à tort est pire que pas de
+    vignette en évidence du tout."""
+    if shutil.which("xfconf-query") is None:
+        return ""
+    try:
+        r = subprocess.run(["xfconf-query", "-c", "xfce4-desktop", "-l"],
+                           capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if r.returncode != 0:
+        return ""
+    prop = next((l.strip() for l in r.stdout.splitlines()
+                 if l.strip().endswith("/last-image")), "")
+    if not prop:
+        return ""
+    try:
+        v = subprocess.run(["xfconf-query", "-c", "xfce4-desktop", "-p", prop],
+                           capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return v.stdout.strip() if v.returncode == 0 else ""
+
+
+def _fond_etat(perso=None):
+    """Ce que la page a besoin de savoir pour mettre le bon bouton en couleur.
+
+    · « chemin » : ce qui est posé, ou "" si on ne sait pas ;
+    · « cle »    : la clé de FONDS (defaut, secu, demon, keyart, nomad) si
+                   c'est l'un des cinq intégrés, sinon "" ;
+    · « i »      : l'indice dans la galerie « Mes images » si c'en est une,
+                   sinon None.
+
+    « perso » est passé par etat() pour ne pas relire deux fois le disque —
+    la liste vient d'être calculée juste au-dessus."""
+    chemin = _fond_actuel()
+    vide = {"chemin": "", "cle": "", "i": None}
+    if not chemin:
+        return vide
+    #  On compare des chemins RÉSOLUS : /usr/share/backgrounds/lexos/x.png et
+    #  un lien symbolique vers lui sont le même fond, et le dépôt en pose
+    #  justement (le fond officiel est un lien, hook 0300).
+    def reel(c):
+        try:
+            return os.path.realpath(c)
+        except OSError:
+            return c
+    r_chemin = reel(chemin)
+    cle = next((k for k, v in FONDS.items() if reel(v) == r_chemin), "")
+    idx = None
+    if perso is None:
+        perso = _fonds_perso()
+    for i, c in enumerate(perso):
+        if reel(c) == r_chemin:
+            idx = i
+            break
+    return {"chemin": chemin, "cle": cle, "i": idx}
+
+
 def act_fond_fichier(arg):
     """Applique une image de la galerie — désignée par son INDICE, jamais par
     un chemin.
@@ -688,9 +837,7 @@ def act_wifi_auto(arg):
     if not os.path.exists(outil):
         return {"ok": False, "erreur": "lexos-net introuvable"}
     argv = [outil, "auto", arg, "--confirme"]
-    if os.geteuid() != 0 and shutil.which("pkexec"):
-        argv = ["pkexec"] + argv
-    return _run(argv)
+    return _run_admin(argv)
 
 
 def act_son_muet(arg):
@@ -957,10 +1104,7 @@ def act_fuseau(arg):
     habituelle plutôt qu'un échec muet."""
     if arg not in FUSEAUX_CANADA:
         return {"ok": False, "erreur": "valeur inattendue"}
-    outil = "pkexec" if shutil.which("pkexec") else "timedatectl"
-    argv = ([outil, "timedatectl", "set-timezone", arg] if outil == "pkexec"
-            else ["timedatectl", "set-timezone", arg])
-    return _run(argv)
+    return _run_admin(["timedatectl", "set-timezone", arg])
 
 
 def act_autocollant(arg):
@@ -1387,12 +1531,10 @@ def act_heure_auto(arg):
         return {"ok": False, "erreur": "valeur inattendue"}
     if arg == "toggle":
         arg = "off" if _heure_etat()["auto"] else "on"
-    #  pkexec : changer l'heure demande les droits d'administration, et on
-    #  veut la fenêtre de mot de passe habituelle plutôt qu'un échec muet.
-    outil = "pkexec" if shutil.which("pkexec") else "timedatectl"
-    argv = ([outil, "timedatectl", "set-ntp", arg] if outil == "pkexec"
-            else ["timedatectl", "set-ntp", arg])
-    return _run(argv)
+    #  _run_admin plutôt que pkexec en direct : quand aucun agent
+    #  d'authentification ne tourne, pkexec échoue SANS FENÊTRE ET SANS
+    #  MESSAGE, et le bouton paraît mort. Le motif est rendu à la page.
+    return _run_admin(["timedatectl", "set-ntp", arg])
 
 
 def _clavier_cle_connue(cle):
@@ -3398,6 +3540,11 @@ def etat():
         #  chemin que la page choisirait.
         "fonds_perso": [{"i": i, "nom": Path(c).name}
                         for i, c in enumerate(_fonds_perso())],
+        #  ALEX : « pour changer de couleur sur le bouton sélectionné ». Sans
+        #  cette clé, la page n'avait RIEN à comparer : les cinq fonds
+        #  intégrés et les vignettes de la galerie étaient les seuls choix de
+        #  toute l'interface à ne pas montrer lequel était posé.
+        "fond": _fond_etat(_fonds_perso()),
         #  Vide n'est pas une réponse. Quand la liste ci-dessus l'est, celle-ci
         #  dit POURQUOI — et la page peut enfin l'écrire au lieu de laisser
         #  croire qu'aucun écran n'est branché.

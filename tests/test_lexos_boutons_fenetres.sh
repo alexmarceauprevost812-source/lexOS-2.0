@@ -107,7 +107,13 @@ py = open(sys.argv[2], encoding="utf-8").read()
 m = re.search(r'^ACTIONS\s*=\s*\{(.*?)^\}', py, re.S | re.M) or \
     re.search(r'ACTIONS\s*=\s*\{(.*?)\n\}', py, re.S)
 actions = set(re.findall(r'"([^"]+)"\s*:', m.group(1))) if m else set()
-appels  = set(re.findall(r'\bapi\(\s*"([^"]+)"', js))
+#  LES DEUX SORTES DE GUILLEMETS. Ce motif ne voyait que api("nom") : un
+#  appel écrit api('nom') lui échappait complètement. Ce n'est pas
+#  théorique — app.js portait « api('ouvrir','prive') » dans un attribut
+#  onclick, et ce contrôle ne l'a jamais vu. Un futur api('nom-inexistant')
+#  serait passé au vert de la même façon.
+appels  = set(re.findall(r'\bapi\(\s*"([^"]+)"', js)) \
+        | set(re.findall(r"\bapi\(\s*'([^']+)'", js))
 print("N:%d" % len(appels))
 print("ORPH:" + ",".join(sorted(appels - actions)))
 PY
@@ -216,6 +222,123 @@ if printf '%s' "$CORPS_OUVRIR" | grep -q 'erreur'; then
 else
 	non "elle jette la réponse : un outil absent resterait totalement muet"
 fi
+
+
+# =============================================================================
+titre "5. LE CHOIX COURANT SE VOIT — et aucun bouton n'annonce un faux succès"
+# =============================================================================
+CSS="$RACINE/config/includes.chroot/usr/share/lexos/settings/web/style.css"
+BANC5="$(mktemp -d)"
+trap 'rm -rf "$BANC5"' EXIT
+
+#  ═══ ALEX : « POUR CHANGER DE COULEUR SUR LE BOUTON SÉLECTIONNÉ, POUR QU'IL
+#      CHANGE DE COULEUR » ═══
+#  Les cinq fonds d'écran intégrés et les vignettes de « Mes images » étaient
+#  les SEULS choix de toute la page à ne jamais montrer lequel était posé :
+#  leurs boutons portaient « class="btn ghost" » écrit en dur, sans condition.
+#  Et ce n'était pas un oubli d'une ligne — etat() ne DISAIT pas quel fond est
+#  posé, il n'y avait rien à comparer.
+grep -q '"fond": _fond_etat(' "$SET" \
+	&& ok "le moteur publie QUEL fond est posé (sans ça, rien à mettre en couleur)" \
+	|| non "etat() ne dit pas quel fond est posé : aucun bouton ne peut se colorer"
+#  Le nom EXACT, et son emploi : « def _fond_actuel » tout court laissait
+#  passer un « _fond_actuel_retire » — mesuré par mutation.
+grep -q '^def _fond_actuel():' "$SET" && grep -q 'chemin = _fond_actuel()' "$SET" \
+	&& ok "…et il le lit dans XFCE, il ne le devine pas" \
+	|| non "aucun lecteur du fond courant, ou il n'est pas appelé"
+
+#  La page doit s'en servir POUR LES DEUX listes.
+python3 - "$APP" > "$BANC5/fonds" <<'PY2'
+import re, sys
+s = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r'case "bureau":([\s\S]*?)case "multitaches":', s)
+b = m.group(1) if m else ""
+#  Les cinq fonds intégrés : au moins un « sel » conditionnel, et plus aucun
+#  « btn ghost » écrit en dur sur un setFond(...).
+#  Les cinq boutons sortent d'un .map() : « setFond( » n'apparaît qu'une fois
+#  dans la source. On compte donc les CLÉS, qui, elles, y sont toutes.
+print("INTEGRES:%d" % sum(1 for k in ("defaut","secu","demon","keyart","nomad") if '"%s"' % k in b))
+print("DUR:%d" % len(re.findall(r'class="btn ghost"[^>]*onclick="setFond\(', b)))
+print("SELFOND:%d" % len(re.findall(r'etat\.fond[^\n]*sel', b)))
+#  « (etat.fond||{}) » contient une accolade fermante : « [^}]* » s'y arrêtait.
+print("SELWALL:%d" % len(re.findall(r'wall-swatch\$\{.*?sel', b)))
+PY2
+LU_INT="$(sed -n 's/^INTEGRES://p' "$BANC5/fonds")"
+LU_DUR="$(sed -n 's/^DUR://p' "$BANC5/fonds")"
+LU_SF="$(sed -n 's/^SELFOND://p' "$BANC5/fonds")"
+LU_SW="$(sed -n 's/^SELWALL://p' "$BANC5/fonds")"
+[[ "${LU_INT:-0}" -ge 5 ]] \
+	&& ok "les cinq fonds intégrés sont bien tous là ($LU_INT)" \
+	|| non "moins de cinq fonds intégrés relevés — le contrôle suivant serait creux"
+[[ "${LU_DUR:-1}" -eq 0 ]] \
+	&& ok "aucun fond intégré n'est écrit « ghost » en dur" \
+	|| non "$LU_DUR fond(s) intégré(s) gardent « btn ghost » en dur : le fond posé ressemble aux autres"
+[[ "${LU_SF:-0}" -ge 1 ]] \
+	&& ok "le fond posé prend la classe « sel »" \
+	|| non "aucun fond ne prend « sel » : impossible de voir lequel est choisi"
+[[ "${LU_SW:-0}" -ge 1 ]] \
+	&& ok "…et la vignette de « Mes images » aussi" \
+	|| non "la galerie ne met jamais la vignette posée en évidence"
+grep -q '^\.wall-swatch\.sel{' "$CSS" \
+	&& ok "…et la feuille de style sait la dessiner" \
+	|| non "la classe « sel » est posée sur la vignette mais aucune règle CSS ne la dessine — rien ne changerait à l'écran"
+
+#  ═══ UNE FONCTION QUI N'EST ATTEINTE PAR AUCUN BOUTON N'EXISTE PAS ═══
+#  capture() était écrite, l'action « capture » était dans ACTIONS,
+#  act_capture était implémentée et acceptait photo|zone|fenetre — et AUCUN
+#  onclick ne l'appelait. Du code complet, relié des deux côtés, injoignable.
+for M in photo zone fenetre; do
+	grep -q "capture('$M')" "$APP" \
+		&& ok "un bouton appelle capture('$M')" \
+		|| non "capture('$M') n'est atteinte par aucun bouton — l'action est injoignable"
+done
+
+#  ═══ AUCUN BOUTON N'ANNONCE UN SUCCÈS QU'IL N'A PAS OBTENU ═══
+#  « api('ouvrir','prive').then(()=>toast('… s'ouvre')) » : api() affiche déjà
+#  « ✗ » et le motif quand ça rate, puis le .then() s'exécute QUOI QU'IL
+#  ARRIVE et REMPLACE ce message par un succès. On lisait « Fichiers privés
+#  s'ouvre » alors qu'il ne se passait rien.
+python3 - "$APP" > "$BANC5/menteurs" <<'PY2'
+import re, sys
+s = open(sys.argv[1], encoding="utf-8").read()
+s = re.sub(r'/\*[\s\S]*?\*/', '', s)
+#  un api(...) suivi d'un .then( qui ne regarde jamais la réponse
+mauvais = re.findall(r'api\([^)]*\)\s*\.then\(\s*\(\s*\)\s*=>', s)
+print("MENTEURS:%d" % len(mauvais))
+PY2
+LU_M="$(sed -n 's/^MENTEURS://p' "$BANC5/menteurs")"
+[[ "${LU_M:-1}" -eq 0 ]] \
+	&& ok "aucun bouton n'annonce le succès sans regarder la réponse" \
+	|| non "$LU_M bouton(s) annoncent le succès quoi qu'il arrive — un échec passerait pour une réussite"
+
+#  ═══ CHAQUE FENÊTRE DÉCLARÉE EST OFFERTE QUELQUE PART ═══
+#  L'inverse du contrôle 3 : act_ouvrir servait 38 cibles, la page n'en
+#  proposait que 35. « usb », « confidentialite » et « maj » étaient testées
+#  ici alors qu'aucun écran ne pouvait les déclencher.
+python3 - "$SET" "$APP" > "$BANC5/orphelines" <<'PY2'
+import re, sys
+py = open(sys.argv[1], encoding="utf-8").read()
+js = open(sys.argv[2], encoding="utf-8").read()
+deb = py.index("def act_ouvrir(arg):")
+bloc = py[deb:py.index("\n\n\ndef ", deb)]
+cibles = set(re.findall(r'^\s{8}"([a-z0-9-]+)":\s*lambda', bloc, re.M))
+offertes = set(re.findall(r'btnOuvrir\(\s*"([a-z0-9-]+)"', js))
+offertes |= set(re.findall(r"ouvrir\(\s*'([a-z0-9-]+)'", js))
+offertes |= set(re.findall(r'ouvrir\(\s*"([a-z0-9-]+)"', js))
+#  …et l'appel direct api("ouvrir", "x"), que « boost » emploie (app.js:396).
+offertes |= set(re.findall(r'api\(\s*"ouvrir"\s*,\s*"([a-z0-9-]+)"', js))
+offertes |= set(re.findall(r"api\(\s*'ouvrir'\s*,\s*'([a-z0-9-]+)'", js))
+print("CIBLES:%d" % len(cibles))
+print("ORPH:" + ",".join(sorted(cibles - offertes)))
+PY2
+LU_C="$(sed -n 's/^CIBLES://p' "$BANC5/orphelines")"
+LU_O="$(sed -n 's/^ORPH://p' "$BANC5/orphelines")"
+[[ "${LU_C:-0}" -ge 30 ]] \
+	&& ok "les $LU_C fenêtres du moteur ont bien été relues" \
+	|| non "la table act_ouvrir n'a pas été relue — le contrôle serait creux"
+[[ -z "$LU_O" ]] \
+	&& ok "chacune est offerte par au moins un bouton de la page" \
+	|| non "fenêtre(s) servies par le moteur mais offertes nulle part : $LU_O"
 
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$reussis" "$echoues"
 [[ "$echoues" -eq 0 ]]

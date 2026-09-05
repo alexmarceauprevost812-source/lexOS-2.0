@@ -1982,6 +1982,47 @@ jobs:
           done
           bash tests/test_lexos_crt.sh
 
+      - name: Un fichier téléchargé s'installe d'un double-clic, sans terminal
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, deux fois le même jour : « peux-tu faire aussi que tout ce
+          #  qu'on télécharge, on puisse les exécuter comme Windows, pas
+          #  avoir besoin de passer par le terminal tout le temps », puis
+          #  « quand on télécharge, l'application soit déjà installée au lieu
+          #  de passer par le terminal ».
+          #
+          #  Il avait raison, et le trou était COMPLET : /etc/xdg/mimeapps.list
+          #  ne nommait que sept types (pages web, texte, dossiers, PNG, JPEG).
+          #  Double-cliquer sur un .deb, une AppImage ou un .flatpakref ne
+          #  faisait littéralement rien, et le seul outil d'installation,
+          #  lexos-run-ins, refuse tout ce qui n'est pas un .zip.
+          #
+          #  CE QUE CE BANC PROTÈGE, ET QUI EST FACILE À CASSER SANS LE VOIR :
+          #
+          #   · LA RECONNAISSANCE SE FAIT DANS LES OCTETS. « file --mime-type »
+          #     ne peut pas servir de référence : mesuré, il annonce une
+          #     AppImage comme « application/x-pie-executable », un type qui
+          #     n'existe même pas dans shared-mime-info.
+          #   · RIEN NE S'EXÉCUTE SANS ACCORD. C'est la doctrine écrite du
+          #     dépôt (lexos-run-ins:9-23). Le banc lâche un script PIÈGE qui
+          #     laisse une trace et vérifie qu'il ne laisse rien tant que le
+          #     mot « lancer » n'a pas été tapé.
+          #   · GIO IGNORE EN SILENCE un .desktop dont le « Exec= » ne mène
+          #     nulle part — et update-desktop-database l'inscrit quand même.
+          #     On croit l'association posée ; « gio mime » répond « No default
+          #     applications ». Le banc vérifie que le programme existe.
+          #   · L'AGENT POLKIT. Le dépôt affirmait que l'agent du mot de passe
+          #     « arrive par les Recommends de xfce4-session » : c'est FAUX
+          #     (ces Recommends ne nomment que dbus, logind, un économiseur
+          #     d'écran, upower, xfdesktop4, xfwm4). Sans agent, pkexec échoue
+          #     sans fenêtre et sans message — tous les boutons
+          #     d'administration des Paramètres sont muets, ce qu'Alex a
+          #     décrit sur son vieil ordinateur.
+          #
+          #  Le banc n'a besoin d'aucun écran : sans DISPLAY, l'outil prend son
+          #  chemin terminal, qui porte exactement le même garde-fou.
+          bash tests/test_lexos_ouvrir.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |
