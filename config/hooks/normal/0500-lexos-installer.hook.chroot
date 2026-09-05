@@ -186,11 +186,39 @@ images:
 slideshow:               "show.qml"
 slideshowAPI:            2
 
+#  ═══ LA CASSE DE CES QUATRE CLÉS N'EST PAS UN DÉTAIL DE STYLE ═══
+#  ALEX, PHOTO DE L'INSTALLATEUR : le bandeau de gauche était ILLISIBLE —
+#  seule l'étape courante se distinguait, les autres n'apparaissaient pas du
+#  tout. Ce n'était pas un manque de contraste : c'était du NOIR SUR NOIR.
+#
+#  Les quatre clés étaient écrites en minuscule initiale
+#  (« sidebarBackground »…). Calamares 3.3 les compare aux noms de son enum
+#  C++ Branding::StyleEntry, résolus par QMetaEnum::valueToKey — donc avec
+#  une MAJUSCULE initiale. Vérifié deux fois : les seules chaînes présentes
+#  dans le libcalamaresui.so livré sont « SidebarBackground »,
+#  « SidebarBackgroundCurrent », « SidebarText » et « SidebarTextCurrent »,
+#  et l'exemple officiel amont (src/branding/default/branding.desc) les
+#  écrit bien ainsi.
+#
+#  CONSÉQUENCE, ET ELLE EST SILENCIEUSE : une clé inconnue n'arrête rien.
+#  Calamares écrit « Unknown branding *style* entry » dans un journal que
+#  personne ne lit, puis styleString() rend une chaîne VIDE pour chacune des
+#  quatre vraies entrées. QColor("") est invalide, et une couleur invalide
+#  se peint en NOIR. Le bandeau avait donc son texte noir sur son fond noir,
+#  sans le moindre message d'erreur.
+#
+#  « sidebarTextSelect » n'existe dans AUCUNE casse : c'est une clé de
+#  Calamares 3.2, disparue en 3.3. La bonne quatrième clé est
+#  SidebarBackgroundCurrent — le fond de l'étape courante. Sans elle, ce
+#  fond retombait sur palette().window() du style Qt.
+#
+#  Le couple courant suit le motif de l'exemple amont : texte SOMBRE sur le
+#  surlignage d'accent, et non l'inverse.
 style:
-    sidebarBackground:    "#141110"
-    sidebarText:          "#F4EFEA"
-    sidebarTextSelect:    "#E8590C"
-    sidebarTextCurrent:   "#FFB067"
+    SidebarBackground:        "#141110"
+    SidebarText:              "#F4EFEA"
+    SidebarTextCurrent:       "#141110"
+    SidebarBackgroundCurrent: "#E8590C"
 EOF
 
 # --- Diaporama pendant l'installation ---------------------------------------

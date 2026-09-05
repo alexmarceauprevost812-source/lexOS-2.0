@@ -1769,6 +1769,31 @@ jobs:
           #  posait.
           bash tests/test_lexos_icones_theme.sh
 
+      - name: Le bandeau de l'installateur est lisible — casse des clés ET contraste
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, PHOTO DE L'INSTALLATEUR : le bandeau de gauche était
+          #  ILLISIBLE — seule l'étape courante se distinguait. Pas un manque
+          #  de contraste : du NOIR SUR NOIR.
+          #
+          #  Les quatre clés de « style: » étaient écrites en minuscule
+          #  initiale. Calamares 3.3 les compare aux noms de son enum C++
+          #  (QMetaEnum::valueToKey), donc avec une MAJUSCULE. Établi deux
+          #  fois : les seules chaînes du libcalamaresui.so livré sont
+          #  SidebarBackground / SidebarBackgroundCurrent / SidebarText /
+          #  SidebarTextCurrent, et l'exemple officiel amont les écrit ainsi.
+          #
+          #  Et la panne était MUETTE : une clé inconnue n'arrête rien,
+          #  Calamares le note dans un journal que personne ne lit, puis
+          #  styleString() rend une chaîne vide — QColor("") est invalide et
+          #  se peint en noir.
+          #
+          #  Le banc garde la casse, refuse toute clé inconnue, et surtout
+          #  calcule le CONTRASTE : écrire les bonnes clés ne suffit pas, un
+          #  texte sombre sur fond sombre referait la même panne avec des
+          #  clés parfaitement valides.
+          bash tests/test_lexos_installateur_bandeau.sh
+
       - name: Le menu Whisker — noir, et sa règle picom passe en premier
         if: ${{ !cancelled() }}
         run: |
