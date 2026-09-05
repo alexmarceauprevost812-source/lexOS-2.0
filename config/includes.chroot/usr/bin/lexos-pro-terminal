@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-pro-terminal — LexOS Pro Terminal, le terminal officiel
+# =============================================================================
+#  ALEX : « c'est le new terminal officiel de LexOS Pro, pour le terminal
+#  normal je veux que ce soit lui qui le remplace. »
+#
+#  Même patron que lexos-settings et lexos-cartes : une fenêtre Qt (PySide6)
+#  affiche une page web servie en local ; le pont terminal-pro.py exécute de
+#  VRAIES commandes bash, avec les droits de la personne qui les tape.
+#
+#  ── CE QUI RESTE, ET POURQUOI ────────────────────────────────────────────
+#  Cette fenêtre n'a pas de curseur qu'on déplace ni d'écran qu'on efface :
+#  les programmes PLEIN ÉCRAN (vim, nano, htop, less, man…) ne peuvent pas
+#  s'y afficher. Le Terminal classique (xfce4-terminal) reste installé et
+#  atteignable — « lexos-pro-terminal --classique », ou le clic droit sur
+#  l'icône du dock — pour ceux-là et pour tout script qui a besoin d'un vrai
+#  pty (Claude Code, OpenCode, l'installation d'un paquet qui pose une
+#  question en cours de route).
+#
+#  ── LE FILET : SI CETTE FENÊTRE NE PEUT PAS S'OUVRIR ────────────────────
+#  Un Paramètres cassé laisse quand même un système utilisable. Un TERMINAL
+#  cassé, quand il a remplacé le seul raccourci qu'on connaît (Super+T, le
+#  dock), laisse un système où on ne peut plus rien lancer du tout. Alors
+#  si PySide6 WebEngine manque, on ne meurt pas en silence derrière un
+#  raccourci clavier : on ouvre le Terminal classique à la place.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; E=$'\033[31m'; Y=$'\033[33m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; E=''; Y=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+CODE="/usr/lib/lexos/terminal-pro.py"
+DONNEES="${LEXOS_TERMINAL_PRO_WEB:-/usr/share/lexos/terminal-pro/web}"
+
+classique() {
+	#  Même liste, même ordre que lexos-ouvrir et lexos-welcome : on ne
+	#  devine pas un seul nom, on essaie ceux qui existent vraiment sur une
+	#  install Debian/XFCE.
+	for T in x-terminal-emulator xfce4-terminal gnome-terminal xterm; do
+		command -v "$T" >/dev/null 2>&1 && exec "$T"
+	done
+	die "Aucun terminal disponible (ni LexOS Pro Terminal, ni un terminal classique)."
+}
+
+case "${1:-}" in
+	-h|--help|aide|help)
+		cat <<AIDE
+${PROG} — LexOS Pro Terminal
+
+  ${O}${PROG}${R}              Ouvre LexOS Pro Terminal (le terminal officiel)
+  ${O}${PROG} --classique${R}  Ouvre le Terminal classique (xfce4-terminal)
+
+Onglets, fenêtres divisibles, les vraies commandes du système. Les
+programmes plein écran (vim, nano, htop, less, man…) ont besoin du
+Terminal classique — ${O}${PROG} --classique${R}.
+AIDE
+		exit 0 ;;
+	--classique|classique) classique ;;
+esac
+
+[[ -r "$CODE" ]]        || die "Fichier manquant : $CODE"
+[[ -d "$DONNEES" ]]     || die "Fichiers de l'interface introuvables : $DONNEES"
+
+#  PySide6 vient des paquets Debian, jamais de « pip --break-system-packages » :
+#  ce commutateur écrase des fichiers appartenant à dpkg et finit par casser
+#  des logiciels sans rapport (même règle que lexos-settings).
+if ! python3 -c "import PySide6.QtWebEngineWidgets" >/dev/null 2>&1; then
+	warn "Le composant Qt WebEngine de PySide6 est absent — ouverture du Terminal classique à la place."
+	say  "   ${D}sudo apt install python3-pyside6.qtwebenginewidgets python3-pyside6.qtwidgets${R}"
+	classique
+fi
+
+exec python3 "$CODE" "$@"

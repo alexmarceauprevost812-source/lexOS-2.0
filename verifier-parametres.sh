@@ -175,6 +175,7 @@ AUTONOMES="
 lexos-assistants
 lexos-cartes
 lexos-chrome
+lexos-pro-terminal
 lexos-claude
 lexos-claude-terminal
 lexos-opencode

@@ -2023,6 +2023,34 @@ jobs:
           #  chemin terminal, qui porte exactement le même garde-fou.
           bash tests/test_lexos_ouvrir.sh
 
+      - name: LexOS Pro Terminal — le terminal officiel qui remplace l'ancien
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « c'est le new terminal officiel de LexOS Pro, pour le
+          #  terminal normal je veux que ce soit lui qui le remplace. »
+          #
+          #  Une page HTML ne peut, seule, qu'afficher du texte qui défile :
+          #  toutes les commandes passent par un pont local
+          #  (terminal-pro.py) qui les exécute pour de vrai dans bash, avec
+          #  les droits de la personne qui les tape.
+          #
+          #  CE QUE CE BANC PROTÈGE :
+          #   · LE PONT EXÉCUTE N'IMPORTE QUOI, EXPRÈS — donc seul QUI peut
+          #     l'atteindre compte : 127.0.0.1 seulement, un jeton tiré au
+          #     hasard exigé dans un EN-TÊTE (jamais l'URL seule — une
+          #     requête simple part avant toute vérification CORS), et
+          #     l'Origine quand le navigateur en pose une.
+          #   · CE QUI NE PEUT PAS S'AFFICHER EST DIT, PAS CACHÉ. Les
+          #     programmes plein écran (vim, nano, htop, less, man…) sont
+          #     reconnus AVANT d'être lancés et renvoient au Terminal
+          #     classique, plutôt qu'un carnage de codes d'échappement.
+          #   · AUCUNE COMMANDE FICTIVE NE MASQUE PLUS UNE VRAIE COMMANDE.
+          #     La page reçue réimplémentait ls/cd/cat/mkdir/whoami/ps…
+          #     contre un système de fichiers en mémoire ; si un seul de ces
+          #     noms redevenait un built-in local, taper « ls » ne
+          #     montrerait plus jamais le vrai dossier.
+          bash tests/test_lexos_terminal_pro.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |

@@ -1,0 +1,66 @@
+#!/bin/sh
+set -e
+# =============================================================================
+#  hook 0455 — LexOS Pro Terminal : l'icône
+# =============================================================================
+#  ALEX : « c'est le new terminal officiel de LexOS Pro, pour le terminal
+#  normal je veux que ce soit lui qui le remplace. »
+#
+#  L'application elle-même (lexos-pro-terminal, /usr/lib/lexos/terminal-pro.py,
+#  /usr/share/lexos/terminal-pro/web/ et le lanceur de menu) vient de
+#  config/includes.chroot — même patron que Paramètres LexOS et Cartes
+#  LexOS (hook 0450 : « ce hook ne fait que poser l'entrée de menu »). Ici,
+#  seule l'icône a besoin d'un pas imprévisible (rendre un SVG en PNG) ; le
+#  reste est déjà écrit noir sur blanc dans le dépôt.
+#
+#  ON REPEINT « icon-terminal.svg », PAS UN DESSIN NEUF. C'est le même
+#  écran-et-chevron « >_ » qui sert déjà de socle à l'icône de Claude
+#  Terminal (0420) : un terminal générique, reconnaissable, sans en
+#  commander un nouveau.
+# =============================================================================
+echo "[lexos] hook 0455 : LexOS Pro Terminal"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+#  Surchargeables pour éprouver ce hook sur un banc sans construire une ISO —
+#  même procédé que LEXOS_THEMES au 0610 et LEXOS_ICONES_HICOLOR au 0425.
+ICONES_DIR="${LEXOS_ICONES_HICOLOR:-/usr/share/icons/hicolor}"
+
+NOM="lexos-pro-terminal"
+SVG="/usr/share/lexos/branding/icon-terminal.svg"
+[ -r "$SVG" ] || SVG="branding/icon-terminal.svg"   # selon le contexte du hook
+
+if [ -r "$SVG" ]; then
+	POSEES=0
+	for SIZE in 16 22 24 32 48 64 128 256; do
+		DIR="${ICONES_DIR}/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		if have rsvg-convert; then
+			rsvg-convert -w "$SIZE" -h "$SIZE" "$SVG" -o "$DIR/${NOM}.png" 2>/dev/null \
+				&& POSEES=$((POSEES + 1)) || true
+		elif have convert; then
+			convert -background none -resize "${SIZE}x${SIZE}" "$SVG" "$DIR/${NOM}.png" 2>/dev/null \
+				&& POSEES=$((POSEES + 1)) || true
+		fi
+	done
+	echo "[lexos]   $NOM : ${POSEES}/8 tailles"
+	#  PAS DE VERSION SCALABLE : à la taille du dock survolé (le zoom
+	#  agrandit l'icône), une version vectorielle changerait de dessin sous
+	#  la souris — la leçon retenue à la construction 70 (hook 0700 le
+	#  vérifie).
+	VDIR="${ICONES_DIR}/scalable/apps"
+	mkdir -p "$VDIR"; rm -f "$VDIR/${NOM}.svg"
+	have gtk-update-icon-cache && \
+		gtk-update-icon-cache -f "$ICONES_DIR" >/dev/null 2>&1 || true
+else
+	echo "[lexos]   !! icon-terminal.svg introuvable — LexOS Pro Terminal aura une icône générique"
+fi
+
+if [ ! -x "${LEXOS_BIN_DIR:-/usr/bin}/lexos-pro-terminal" ]; then
+	echo "[lexos]   !! /usr/bin/lexos-pro-terminal manquant — l'entrée de menu n'ouvrira rien"
+fi
+if [ ! -r "${LEXOS_TERMINAL_PRO_WEB:-/usr/share/lexos/terminal-pro/web}/index.html" ]; then
+	echo "[lexos]   !! l'interface web de LexOS Pro Terminal est manquante"
+fi
+
+echo "[lexos] hook 0455 : ok"

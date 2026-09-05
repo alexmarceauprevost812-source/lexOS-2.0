@@ -163,7 +163,7 @@
       <property name="position-categories-horizontal" type="bool" value="false"/>
       <property name="favorites" type="array">
         <value type="string" value="firefox-esr.desktop"/>
-        <value type="string" value="xfce4-terminal.desktop"/>
+        <value type="string" value="lexos-pro-terminal.desktop"/>
         <value type="string" value="thunar.desktop"/>
         <value type="string" value="org.xfce.mousepad.desktop"/>
         <value type="string" value="lexos-github.desktop"/>

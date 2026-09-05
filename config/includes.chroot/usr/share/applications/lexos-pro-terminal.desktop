@@ -1,0 +1,22 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LexOS Pro Terminal
+Name[en]=LexOS Pro Terminal
+GenericName=Terminal
+GenericName[en]=Terminal
+Comment=Le terminal officiel de LexOS Pro — onglets, fenêtres divisibles, vraies commandes
+Comment[en]=The official LexOS Pro terminal — tabs, splittable panes, real commands
+Exec=lexos-pro-terminal
+Icon=lexos-pro-terminal
+Terminal=false
+StartupNotify=true
+StartupWMClass=LexOS Pro Terminal
+Categories=System;TerminalEmulator;
+Keywords=terminal;console;shell;bash;ligne de commande;commandes;
+Actions=classique;
+
+[Desktop Action classique]
+Name=Terminal classique
+Name[en]=Classic terminal
+Exec=lexos-pro-terminal --classique

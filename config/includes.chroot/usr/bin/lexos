@@ -208,6 +208,13 @@ ${B}STUDIO+${R}
   ${A}studio ouvrir${R} <atelier>  photo · peinture · vectoriel · video · capture · son
                       ${D}propose d'installer l'atelier s'il manque${R}
 
+${B}TERMINAL${R}
+  ${A}terminal-pro${R}         LexOS Pro Terminal — le terminal officiel
+                      ${D}onglets, fenêtres divisibles, vraies commandes${R}
+  ${A}terminal-pro --classique${R} Le Terminal classique (xfce4-terminal)
+                      ${D}pour vim, nano, htop… — les programmes plein écran${R}
+  ${A}terminal jour|nuit|auto${R} Palette du terminal, indépendante du bureau
+
 ${B}FICHIERS TÉLÉCHARGÉS${R}
   ${A}ouvrir${R} <fichier>     Installe ou lance ce qu'on vient de télécharger
                       ${D}.deb · AppImage · script · flatpak — c'est ce que le${R}
@@ -1111,6 +1118,11 @@ case "$CMD" in
 	#  « lexos terminal jour|nuit|auto|suivre ». Le defaut est « suivre »,
 	#  qui le fait suivre « lexos theme sombre|clair ».
 	terminal|term)        exec lexos-terminal "$@" ;;
+	#  ALEX : « c'est le new terminal officiel de LexOS Pro, pour le
+	#  terminal normal je veux que ce soit lui qui le remplace. » « terminal »
+	#  reste le jour/nuit (ligne au-dessus, depuis avant) ; le voici sous son
+	#  propre nom.
+	terminal-pro|pro-terminal) exec lexos-pro-terminal "$@" ;;
 	#  L'outil vit dans son propre fichier : il doit aussi savoir se lancer
 	#  depuis lexos-wm (« --demarrer »), et une fonction enfermée ici ne le
 	#  pourrait pas. Même forme que « logitheque ».
