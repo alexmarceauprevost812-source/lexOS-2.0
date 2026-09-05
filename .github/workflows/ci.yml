@@ -1653,7 +1653,22 @@ jobs:
           #  exige zéro différence — une règle qui gagnait par PRIORITÉ ne gagne
           #  plus que par SPÉCIFICITÉ, et il est là pour nommer celles qui
           #  tombent. Il en a déjà trouvé une (l'infobulle).
-          for p in xvfb python3-gi gir1.2-gtk-3.0 arc-theme; do
+          #  ═══ LE SOCLE S'INSTALLE ICI PAR SON NOM, ET CE NOM A CHANGÉ ═══
+          #  yaru-theme-gtk livre Yaru-dark, sur quoi LexOS-Noir est construit
+          #  depuis l'ISO 110 (arc-theme jusqu'à la 109). Ce n'est pas un
+          #  détail d'outillage : SANS LE SOCLE, LE BANC NE TOMBE PAS EN
+          #  ROUGE — IL SE SAUTE. Toute la section 3, les treize couleurs
+          #  MESURÉES sur un vrai GTK 3.24, disparaît derrière un « — » et la
+          #  CI reste verte en n'ayant plus rien éprouvé. C'est le faux vert
+          #  qu'on traque partout ailleurs, et il s'est produit pour de vrai à
+          #  la première construction de la 110.
+          #  Le banc refuse maintenant que cette liste et le socle par défaut
+          #  de lexos-theme-gen s'éloignent l'un de l'autre : changer le socle
+          #  sans changer cette ligne rougit, au lieu de vider le banc en
+          #  silence.
+          #  arc-theme reste : il est encore un paquet optionnel de LexOS (le
+          #  hook 0610 en dérive les gros boutons de fenêtre).
+          for p in xvfb python3-gi gir1.2-gtk-3.0 yaru-theme-gtk arc-theme; do
             dpkg -s "$p" >/dev/null 2>&1 \
               || sudo apt-get install -y --no-install-recommends "$p" >/dev/null
           done

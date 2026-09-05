@@ -477,6 +477,35 @@ else
 	non "GTK 2 nomme « $G2S » / « $G2C » — hors du paquet du socle « $RACINE_PAQ »"
 fi
 
+#  ═══ ET LA CI L'INSTALLE, SOUS SON NOM DU JOUR ═══
+#  CE CONTRÔLE EXISTE PARCE QUE LA PANNE A EU LIEU. Première construction de
+#  l'ISO 110 : la CI installait « arc-theme », l'ancien socle. Yaru-dark
+#  n'était donc pas là, et le banc NE S'EST PAS MIS EN ROUGE — il s'est SAUTÉ.
+#  La section 2 (« la ressource est atteignable ») et surtout la section 3 —
+#  les treize couleurs MESURÉES sur un vrai GTK 3.24, le cœur du banc — sont
+#  passées derrière un « — », et il ne restait plus que des lectures de
+#  fichiers. Deux contrôles ont fini par rougir, presque par accident : ceux
+#  qui exigent qu'un thème refusant de se bâtir sur lui-même retombe sur un
+#  socle RÉEL. Sans eux, la CI serait restée verte en n'éprouvant plus rien.
+#
+#  C'est exactement le faux vert que ce dépôt traque depuis le banc Boost
+#  décroché pendant cinq constructions. On le ferme ici : la ligne
+#  d'installation de la CI doit nommer le paquet du socle. Changer le socle
+#  sans changer cette ligne rougit maintenant, au lieu de vider le banc.
+CI_YML="$RACINE/.github/workflows/ci.yml"
+L_INV="$(grep -n 'bash tests/test_lexos_theme_systeme.sh' "$CI_YML" 2>/dev/null \
+	| head -1 | cut -d: -f1)"
+LISTE_CI=""
+[ -n "$L_INV" ] && LISTE_CI="$(awk -v n="$L_INV" \
+	'NR < n && /for p in /{ l = $0 } END { print l }' "$CI_YML")"
+if [ -z "$LISTE_CI" ]; then
+	non "impossible de relire la liste de paquets de la CI pour ce banc"
+elif printf '%s' "$LISTE_CI" | grep -qE "(^|[[:space:]])${RACINE_PAQ:-@}[a-z0-9.+-]*([[:space:]]|;)"; then
+	ok "la CI installe bien le paquet du socle avant de lancer ce banc"
+else
+	non "la CI n'installe aucun « ${RACINE_PAQ}… » : le banc se SAUTERAIT au lieu de mesurer"
+fi
+
 #  Et il ne voyage PAS AUSSI dans les optionnels : deux listes pour un même
 #  paquet, c'est l'apt-get de trop et surtout la fausse impression qu'on peut
 #  le retirer de la stricte sans conséquence.
