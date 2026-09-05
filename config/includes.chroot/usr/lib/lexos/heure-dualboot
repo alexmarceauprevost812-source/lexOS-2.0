@@ -1,0 +1,97 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — accorder l'horloge avec Windows quand Windows est là
+# =============================================================================
+#  LE PROBLÈME, QUI NE SE VOIT QU'APRÈS COUP.
+#  Linux garde l'horloge MATÉRIELLE (celle de la carte mère, qui tourne même
+#  éteinte) en UTC, et calcule l'heure locale par-dessus. Windows, lui, écrit
+#  l'heure LOCALE directement dans cette horloge. Les deux conventions sont
+#  défendables ; ce qui ne l'est pas, c'est de les faire cohabiter sans rien
+#  dire.
+#
+#  Sur une machine à double démarrage, chaque bascule décale donc l'heure de
+#  l'autre système — 4 h l'hiver, 5 h l'été au Québec. On règle l'heure dans
+#  Windows, on redémarre sur LexOS, elle est fausse ; on la corrige dans
+#  LexOS, on retourne dans Windows, elle est fausse. Personne ne comprend
+#  pourquoi, et ça n'a l'air d'un défaut d'aucun des deux.
+#
+#  POURQUOI ON PLIE LEXOS PLUTÔT QUE WINDOWS. Le registre de Windows sait
+#  faire l'inverse (RealTimeIsUniversal), mais il faut aller dans Windows
+#  pour le poser, et une grosse mise à jour peut le reprendre. Un réglage
+#  qu'on doit reposer après chaque mise à jour n'est pas un réglage, c'est
+#  une corvée. Côté LexOS, timedatectl le fait en une commande, dans le
+#  système qu'on maîtrise.
+#
+#  SI WINDOWS N'EST PAS LÀ, RIEN N'EST MODIFIÉ. Sur une machine qui n'a que
+#  LexOS, UTC est le bon choix — c'est celui de Debian, celui qui traverse
+#  les changements d'heure sans hoquet — et on n'y touche pas. Le
+#  comportement par défaut reste le sûr.
+#
+#  PAS EN SESSION DÉMO. Le grub.cfg lisible depuis la clé USB est celui de la
+#  clé, pas celui du disque : il ne parle pas de Windows même quand Windows
+#  est là, et l'horloge de la machine ne nous regarde pas tant que rien n'est
+#  installé.
+# =============================================================================
+set -e
+
+#  Mêmes seams que gpu-garde (LEXOS_RACINE) et demo-guard (LEXOS_CMDLINE) :
+#  les bancs posent une fausse racine et une fausse ligne de commande noyau
+#  pour éprouver le script sans toucher à la vraie machine.
+R="${LEXOS_RACINE:-}"
+CMDLINE="${LEXOS_CMDLINE:-/proc/cmdline}"
+JOURNAL="${R}/var/log/lexos-heure-dualboot.log"
+dire() {
+	echo "[lexos-heure] $*"
+	printf '%s %s\n' "$(date -Is 2>/dev/null || echo '?')" "$*" >> "$JOURNAL" 2>/dev/null || true
+}
+
+# --- Jamais en session démo -------------------------------------------------
+#  Même repère que grub-defaut-windows et que le garde-fou de la démo.
+if grep -qa 'boot=live' "$CMDLINE" 2>/dev/null; then
+	exit 0
+fi
+
+# --- L'outil est-il là ? -----------------------------------------------------
+if ! command -v timedatectl >/dev/null 2>&1; then
+	dire "timedatectl absent — rien à faire"
+	exit 0
+fi
+
+# --- Windows est-il dans le menu de démarrage ? -----------------------------
+GRUBCFG=""
+for F in "${R}/boot/grub/grub.cfg" "${R}/boot/grub2/grub.cfg"; do
+	[ -r "$F" ] && { GRUBCFG="$F"; break; }
+done
+
+if [ -z "$GRUBCFG" ]; then
+	dire "aucun grub.cfg lisible — rien à faire"
+	exit 0
+fi
+
+#  ON ACCEPTE AUSSI LES ENTRÉES « RECOVERY », contrairement à
+#  grub-defaut-windows qui les écarte — et ce n'est pas une distraction.
+#  Là-bas, la question est « sur quoi démarrer par défaut ? », et démarrer
+#  sur la récupération de Windows ne lance pas Windows. Ici la question est
+#  « Windows existe-t-il sur cette machine ? », et une partition de
+#  récupération Windows prouve qu'il existe. Deux questions différentes,
+#  deux filtres différents.
+if ! grep -qi 'menuentry.*windows' "$GRUBCFG" 2>/dev/null; then
+	dire "pas de Windows dans le menu — l'horloge matérielle reste en UTC"
+	exit 0
+fi
+
+# --- Accorder l'horloge ------------------------------------------------------
+#  DÉJÀ FAIT ? ON NE REFAIT PAS. --adjust-system-clock décale l'heure du
+#  système pour compenser le changement de convention ; l'appeler une seconde
+#  fois alors que LocalRTC est déjà posé n'est pas neutre.
+ETAT="$(timedatectl show -p LocalRTC --value 2>/dev/null || echo '')"
+if [ "$ETAT" = "yes" ]; then
+	dire "horloge matérielle déjà en heure locale — rien à changer"
+	exit 0
+fi
+
+if timedatectl set-local-rtc 1 --adjust-system-clock 2>/dev/null; then
+	dire "Windows détecté : horloge matérielle passée en heure locale"
+else
+	dire "!! échec du réglage de l'horloge — l'heure restera décalée entre les deux systèmes"
+fi

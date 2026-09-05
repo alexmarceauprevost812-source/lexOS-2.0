@@ -65,6 +65,19 @@ if command -v systemctl >/dev/null 2>&1; then
 		|| echo "[lexos]   !! service lexos-grub-defaut non activé"
 fi
 
+# --- L'heure juste dans les DEUX systèmes ------------------------------------
+#  preseed.cfg met l'horloge matérielle en UTC — le bon choix pour Linux seul,
+#  et exactement ce qui décale l'heure de 4 ou 5 h à chaque bascule quand
+#  Windows partage la machine (lui la lit en heure locale). Ce service regarde
+#  si Windows est dans le menu au premier démarrage du système installé et
+#  aligne LexOS sur lui le cas échéant. Sans Windows, rien n'est modifié.
+chmod 0755 /usr/lib/lexos/heure-dualboot 2>/dev/null || true
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl enable lexos-heure-dualboot.service >/dev/null 2>&1 \
+		&& echo "[lexos]   horloge accordée avec Windows s'il est présent" \
+		|| echo "[lexos]   !! service lexos-heure-dualboot non activé"
+fi
+
 # --- La même ISO sur n'importe quelle machine --------------------------------
 #  L'ISO « pro » embarque le pilote NVIDIA et pose deux fichiers dans
 #  /etc/modprobe.d/ — dont l'interdiction de nouveau, sans laquelle la RTX 5060

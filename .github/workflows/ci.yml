@@ -461,6 +461,22 @@ jobs:
           #  Windows.
           bash tests/test_lexos_dualboot_bitlocker.sh
 
+      - name: L'heure juste dans les deux systèmes — heure-dualboot sur un banc
+        if: ${{ !cancelled() }}
+        run: |
+          #  Linux garde l'horloge matérielle en UTC, Windows la lit en heure
+          #  locale : sur une machine à double démarrage, chaque bascule
+          #  décale donc l'heure de l'autre système — 4 h l'hiver, 5 h l'été
+          #  au Québec. preseed.cfg posait UTC et rien ne rattrapait le coup.
+          #  Le banc vérifie les deux moitiés de la règle : l'horloge passe
+          #  en heure locale QUAND Windows est dans le menu, et RIEN n'est
+          #  touché sinon — une machine sans Windows n'a aucune raison de
+          #  quitter UTC.
+          #  Il vérifie aussi qu'un réglage déjà posé n'est pas refait :
+          #  --adjust-system-clock décale l'heure système pour compenser, et
+          #  l'appeler deux fois la décalerait deux fois.
+          bash tests/test_lexos_heure_dualboot.sh
+
       - name: L'accent n'est écrit qu'à un seul endroit
         if: ${{ !cancelled() }}
         run: |

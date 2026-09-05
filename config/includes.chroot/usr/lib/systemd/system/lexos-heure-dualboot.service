@@ -1,0 +1,28 @@
+[Unit]
+Description=LexOS — accorder l'horloge matérielle avec Windows quand il est installé à côté
+Documentation=file:/usr/lib/lexos/heure-dualboot
+#  APRÈS le montage des disques, pour la même raison que lexos-grub-defaut :
+#  le script lit /boot/grub/grub.cfg, qui n'existe pas avant local-fs.target
+#  sur une installation avec /boot séparé.
+After=local-fs.target
+#  ET après que systemd-timedated soit joignable : c'est lui que timedatectl
+#  interroge par D-Bus. Sans ça, « timedatectl show » pourrait répondre à
+#  côté au tout premier démarrage, et le script conclurait « déjà en heure
+#  locale » sur une machine qui ne l'est pas.
+After=dbus.service
+#  PAS de ConditionPathExists, même raisonnement que lexos-grub-defaut : une
+#  condition sur un fichier qu'on lit empêcherait l'unité de se relancer si
+#  le menu changeait plus tard — un Windows installé APRÈS LexOS, par
+#  exemple. Le script sort de lui-même en quelques millisecondes quand il
+#  n'y a rien à faire, et tout de suite en session démo.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/lexos/heure-dualboot
+#  Un échec ici ne doit jamais empêcher la machine de démarrer : au pire
+#  l'horloge reste en UTC, ce qui est le comportement d'avant ce service.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target
