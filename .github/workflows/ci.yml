@@ -1769,6 +1769,26 @@ jobs:
           #  posait.
           bash tests/test_lexos_icones_theme.sh
 
+      - name: Le menu Whisker — noir, et sa règle picom passe en premier
+        if: ${{ !cancelled() }}
+        run: |
+          #  Le menu du bouton LexOS sortait gris, et la barre du haut aussi :
+          #  (20, 18, 22) est un gris violacé, pas le noir du reste du système.
+          #
+          #  MESURÉ EN SESSION X RÉELLE (whiskermenu 2.8.3, la version de
+          #  trixie), et c'est cette mesure qui décide de tout :
+          #      WM_CLASS   = "wrapper-2.0", "Wrapper-2.0"
+          #      WINDOW_TYPE = _NET_WM_WINDOW_TYPE_MENU
+          #      WM_NAME    = "Whisker Menu"
+          #  Le type contient « menu » : la fenêtre était donc déjà attrapée
+          #  par la règle générique de lexos-tv.conf. Sa règle à elle doit
+          #  passer AVANT, puisque picom s'arrête à la première
+          #  correspondance — c'est l'assertion centrale de ce banc, et rien
+          #  d'autre ne signalerait un fichier réordonné.
+          #  Et la classe « wrapper-2.0 » est celle de TOUS les greffons du
+          #  panneau : matcher dessus attraperait l'horloge et la batterie.
+          bash tests/test_lexos_menu_whisker.sh
+
       - name: Les icônes du sélecteur de fichiers — une seule taille, écrite deux fois
         if: ${{ !cancelled() }}
         run: |

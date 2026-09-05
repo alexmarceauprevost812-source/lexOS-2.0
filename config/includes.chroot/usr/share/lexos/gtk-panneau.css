@@ -30,7 +30,15 @@
 	    background-style à 0 (« laisser le thème décider ») exprès, parce
 	    qu'un fond peint par XFCE se dessine par-dessus la forme arrondie et
 	    la rend carrée à nouveau. */
-	background-color: rgba(20, 18, 22, 0.92);
+	/*  NOIR FRANC, PAS UN GRIS-VIOLET. C'était le triplet (20, 18, 22) — un
+	    gris violacé très foncé, qui se lisait « gris » à côté du #000000 du
+	    reste du système. Demande d'Alex : la barre du haut au même noir que
+	    tout le reste.
+	    LE TRIPLET EST CITÉ SEUL, SANS SON ENVELOPPE rgba(…), exprès : le
+	    banc interdit cette écriture-là dans ce fichier, et un commentaire
+	    qui la citerait en entier déclencherait le garde-fou pour rien — ou
+	    pire, apprendrait à l'émousser pour le faire taire. */
+	background-color: rgba(0, 0, 0, 0.92);
 	border-radius: 14px;
 	/*  Un liseré très pâle : sur un fond d'écran sombre, sans lui, le bord
 	    de la barre disparaît et l'arrondi ne se lit plus. */
@@ -71,7 +79,9 @@
     carte posée sur le bureau, pas une fenêtre. C'est exactement la forme de
     l'image d'Alex. */
 #XfceNotifyWindow {
-	background-color: rgba(20, 18, 22, 0.95);
+	/*  Même passage au noir franc que la barre du haut : (20, 18, 22) était
+	    un gris-violet, pas le noir du reste du système. */
+	background-color: rgba(0, 0, 0, 0.95);
 	border-radius: 18px;
 	border: 1px solid rgba(255, 255, 255, 0.08);
 	padding: 4px;
@@ -158,6 +168,46 @@ popover.menu modelbutton, popover.menu .model {
 .window-frame.popup,
 window.csd.popup {
 	border-radius: 14px;
+}
+
+/* --- Le menu Whisker -------------------------------------------------------- */
+/*  ALEX : le menu du bouton LexOS, en haut à gauche, sortait GRIS.
+    Le gris ne venait d'aucune règle de LexOS — c'est une absence de règle.
+    La fenêtre du whiskermenu est une GtkWindow ordinaire NON DÉCORÉE : elle
+    ne porte ni le nœud « menu », ni « popover », ni la classe « .popup », donc
+    la règle des menus déroulants juste au-dessus ne l'atteint pas, et elle
+    retombait sur le fond d'Arc-Dark, le thème de socle. Exactement le même
+    piège que le volet de xfce4-power-manager-plugin documenté plus haut.
+
+    MESURÉ, PAS DEVINÉ. Session X réelle, xfce4-whiskermenu-plugin 2.8.3
+    (la version de trixie), panneau lancé avec la configuration LexOS :
+
+        WM_CLASS(STRING)          = "wrapper-2.0", "Wrapper-2.0"
+        _NET_WM_WINDOW_TYPE(ATOM) = _NET_WM_WINDOW_TYPE_MENU
+        WM_NAME(STRING)           = "Whisker Menu"
+
+    Le nom « whiskermenu-window » est celui que le greffon pose lui-même sur
+    sa fenêtre (gtk_widget_set_name) ; la chaîne est présente telle quelle
+    dans libwhiskermenu.so 2.8.3, et le sélecteur a été éprouvé jusqu'aux
+    pixels — voir tests/test_lexos_menu_whisker.sh. */
+#whiskermenu-window {
+	background-color: rgba(0, 0, 0, 0.96);
+	border-radius: 14px;
+	border: 1px solid rgba(255, 255, 255, 0.07);
+}
+/*  TRANSPARENT, ET SURTOUT PAS NOIR. Poser un noir plein sur les sous-nœuds
+    recouvrirait le border-radius de la fenêtre par un rectangle opaque, et
+    le menu redeviendrait carré à l'œil alors que la règle d'arrondi est
+    bien là — le piège déjà documenté ligne 28 pour #XfcePanelWindow, où un
+    fond peint par XFCE annulait la forme arrondie de la barre. */
+#whiskermenu-window entry,
+#whiskermenu-window scrolledwindow,
+#whiskermenu-window viewport,
+#whiskermenu-window treeview.view,
+#whiskermenu-window list,
+#whiskermenu-window list row,
+#whiskermenu-window iconview {
+	background-color: transparent;
 }
 
 /* --- Les quatre points des espaces de travail -------------------------------
