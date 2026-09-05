@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  polkit-agent — sans lui, tous les boutons qui demandent le mot de passe
+#                 d'administrateur ne font RIEN, en silence
+# =============================================================================
+#  ALEX, sur son vieil ordinateur : « les boutons dans les paramètres ne
+#  fonctionnaient pas ».
+#
+#  CE FICHIER EXISTE À CAUSE D'UNE PHRASE FAUSSE ÉCRITE DANS LE DÉPÔT.
+#  optional-packages/15-essentiel.list disait, pour justifier de ne nommer
+#  aucun agent : « L'agent qui affiche les demandes de mot de passe arrive par
+#  les Recommends de xfce4-session ». C'est faux, et ça se vérifie en une
+#  commande :
+#
+#      apt-cache show xfce4-session | grep ^Recommends:
+#      → default-dbus-session-bus | dbus-session-bus, default-logind | logind,
+#        light-locker | xfce4-screensaver | xscreensaver | gnome-screensaver |
+#        mate-screensaver, systemd-sysv, upower, xfdesktop4, xfwm4
+#
+#  Aucun agent d'authentification. Pas un.
+#
+#  ── POURQUOI C'EST GRAVE, ET POURQUOI ÇA NE SE VOIT PAS ─────────────────────
+#  polkitd, le démon, est bien installé (flavours/standard/desktop.list.chroot).
+#  Mais le démon n'est pas l'agent : « pkexec » ne dessine pas lui-même la
+#  fenêtre du mot de passe, il la DEMANDE à un agent qui doit tourner dans la
+#  session. S'il n'y en a aucun, pkexec échoue — sans fenêtre, sans message,
+#  sans rien dans le journal de l'utilisateur.
+#
+#  Or les Paramètres passent par pkexec pour la luminosité et pour le fuseau
+#  horaire (settings.py), et une douzaine d'outils LexOS font pareil en mode
+#  graphique (lexos-prive, lexos-chrome, lexos-mac, lexos-brightness,
+#  lexos-datetime, lexos-format, lexos-studio, lexos-logitheque…). Sur une
+#  machine sans agent, TOUS ces boutons sont muets. C'est exactement le
+#  symptôme décrit.
+#
+#  ── CE QUE FAIT CE SCRIPT ───────────────────────────────────────────────────
+#  Il démarre l'agent qui est là, quel qu'il soit. Il ne suppose pas lequel :
+#  les paquets ont été relevés, pas récités.
+#
+#    · policykit-1-gnome  → /usr/lib/policykit-1-gnome/polkit-gnome-authentication-agent-1
+#      C'est LE bon pour XFCE : son propre fichier d'autostart porte
+#      « OnlyShowIn=XFCE;Unity;X-Cinnamon; ». S'il est installé, il démarre
+#      donc tout seul et ce script n'a rien à faire.
+#    · lxpolkit           → /usr/bin/lxpolkit
+#      Son autostart Debian porte « Hidden=true » : il ne démarre JAMAIS de
+#      lui-même. Sans ce script, l'installer ne servirait à rien.
+#    · mate-polkit        → /usr/libexec/polkit-mate-authentication-agent-1
+#      Il ne livre aucun autostart du tout.
+#
+#  (« xfce-polkit » n'existe pas dans Debian — le dépôt l'avait déjà appris à
+#  la construction 8. On ne le cherche donc pas.)
+# =============================================================================
+set -u
+
+#  Les chemins sont surchargeables pour que ce script soit éprouvable sans
+#  installer d'agent — même procédé que LEXOS_THEMES au 0610.
+CANDIDATS="${LEXOS_POLKIT_AGENTS:-/usr/lib/policykit-1-gnome/polkit-gnome-authentication-agent-1
+/usr/libexec/polkit-gnome-authentication-agent-1
+/usr/libexec/polkit-mate-authentication-agent-1
+/usr/lib/mate-polkit/polkit-mate-authentication-agent-1
+/usr/bin/lxpolkit
+/usr/bin/lxqt-policykit-agent}"
+
+#  ═══ UN AGENT TOURNE-T-IL DÉJÀ ? ═══
+#  JAMAIS « pgrep -f » : le motif cherché apparaît dans la ligne de commande
+#  du pgrep lui-même, qui se reconnaît alors et répond toujours oui. Le dépôt
+#  s'est fait avoir trois fois (lexos-share, lexos-crt). On compare donc le
+#  NOM du programme, que le noyau tronque à 15 caractères — d'où les noms
+#  coupés ci-dessous, qui sont les vrais.
+deja_la() {
+	local n
+	for n in polkit-gnome-au polkit-mate-aut lxpolkit lxqt-policykit polkit-agent-he; do
+		pgrep -x "$n" >/dev/null 2>&1 && return 0
+	done
+	return 1
+}
+
+if deja_la; then
+	exit 0
+fi
+
+#  L'agent doit rester en vie tant que la session dure : on ne le détache pas,
+#  c'est le gestionnaire de session qui le tient.
+IFS='
+'
+for A in $CANDIDATS; do
+	[ -n "$A" ] || continue
+	if [ -x "$A" ]; then
+		exec "$A"
+	fi
+done
+
+#  Aucun agent installé. On ne peut pas le réparer d'ici, mais on peut cesser
+#  de le cacher : la ligne part dans le journal de la session, et lexos-medecin
+#  la relit.
+printf 'lexos: aucun agent d'"'"'authentification polkit installé — les fenêtres de mot de passe ne pourront pas s'"'"'afficher\n' >&2
+exit 1

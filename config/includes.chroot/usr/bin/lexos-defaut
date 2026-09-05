@@ -528,6 +528,110 @@ panneau() {
 	return 0
 }
 
+# =============================================================================
+#  --json : les categories et leurs candidates, pour la page des Parametres
+# =============================================================================
+#  ALEX : « fais en sorte qu'on ait tous les parametres », « le contenu comme
+#  Ubuntu », « commence par applications par defaut ».
+#
+#  La page des Parametres AFFICHAIT les applications par defaut et renvoyait
+#  a un autre outil pour en changer. Elle peut maintenant choisir elle-meme —
+#  mais on ne va pas lui faire recopier les dix categories, leurs types MIME
+#  et la lecture des .desktop. C'est la regle de ce depot, deja appliquee au
+#  clavier et ecrite dans settings.py a propos de lexos-distant : on demande
+#  a l'outil plutot que de refaire son travail.
+#
+#  UBUNTU EN OFFRE SIX (web, courriel, agenda, musique, video, photos) ; on en
+#  a DIX. On ne retire rien pour « faire comme » : un reglage en moins n'a
+#  jamais aide personne. L'agenda est le seul qu'Ubuntu ait et pas nous, et il
+#  n'a pas de type MIME propre a interroger — on ne l'invente pas ici.
+#
+#  Le JSON est ecrit a la main : ce script est du bash, il n'a pas de
+#  bibliotheque JSON. Les noms d'applications viennent de fichiers .desktop
+#  du systeme et peuvent contenir des guillemets ou des antislash — ils sont
+#  donc echappes. C'est la seule donnee d'ici qui ne vienne pas de nos
+#  propres tables.
+#
+#  L'ECHAPPEMENT VIT DANS UN FICHIER COMMUN : lexos-utilisateurs en a besoin
+#  aussi (le nom complet d'une personne, lu dans /etc/passwd), et deux copies
+#  de trois lignes finissent toujours par diverger. On s'arrete net s'il
+#  manque : ecrire du JSON sans echapper produirait une page blanche, sans
+#  message — exactement ce que cette fonction existe pour eviter.
+#
+#  LE CHEMIN EST CALCULE DEPUIS CE SCRIPT-CI, pas ecrit en dur. Dans l'ISO,
+#  ce fichier est /usr/bin/lexos-defaut et « ../share/lexos/shell/json.sh »
+#  donne /usr/share/lexos/shell/json.sh ; dans le depot, il est
+#  config/includes.chroot/usr/bin/lexos-defaut et la meme expression donne le
+#  fichier voisin. Une seule ligne, et les bancs peuvent faire tourner l'outil
+#  sans rien installer — un outil qu'on ne peut eprouver que sur une machine
+#  construite n'est eprouve nulle part.
+_lib_json="$(dirname "$(readlink -f "$0")")/../share/lexos/shell/json.sh"
+[[ -r $_lib_json ]] || _lib_json=/usr/share/lexos/shell/json.sh
+if [[ -r $_lib_json ]]; then
+	# shellcheck source=/dev/null
+	. "$_lib_json"
+else
+	json_texte() {
+		die "json.sh est introuvable : impossible d'ecrire du JSON sur."
+	}
+fi
+
+cmd_json() {
+	local categorie principal courant nom
+	local -a mimes=() installees=()
+	printf '{\n  "categories": ['
+	local premiere=1
+	while read -r categorie; do
+		(( premiere )) || printf ', '
+		premiere=0
+		printf '{"cle": "%s", "titre": "%s"' \
+			"$categorie" "$(json_texte "$(titre_de "$categorie")")"
+
+		#  L'APPLICATION EN PLACE, sans les couleurs de defaut_de() : cette
+		#  fonction-la ecrit pour un terminal (elle enrobe le nom de codes
+		#  ANSI et ajoute « (identifiant) »). On refait donc la lecture ici,
+		#  en brut. C'est la seule duplication assumee, et elle porte sur
+		#  trois lignes, pas sur le catalogue.
+		courant=""
+		case "$categorie" in
+			navigateur) courant=$(xdg-settings get default-web-browser 2>/dev/null) ;;
+			terminal)   courant=$(terminal_actuel 2>/dev/null) || courant="" ;;
+			*)
+				mimes=()
+				read -r -a mimes <<<"$(mimes_de "$categorie")"
+				(( ${#mimes[@]} > 0 )) && courant=$(xdg-mime query default "${mimes[0]}" 2>/dev/null)
+				;;
+		esac
+		nom=""
+		[[ -n $courant ]] && { nom=$(nom_appli "$courant" 2>/dev/null) || nom=""; }
+		printf ', "courant": "%s", "courant_nom": "%s"' \
+			"$(json_texte "$courant")" "$(json_texte "${nom:-$courant}")"
+
+		#  LES CANDIDATES. Le terminal n'a aucun type MIME — XFCE le range
+		#  dans son propre reglage —, donc pas de liste a proposer ici : la
+		#  page dira de passer par l'outil.
+		printf ', "choix": ['
+		if [[ $categorie != terminal ]]; then
+			mimes=()
+			read -r -a mimes <<<"$(mimes_de "$categorie")"
+			principal="${mimes[0]:-}"
+			installees=()
+			[[ -n $principal ]] && mapfile -t installees < <(applications_pour "$principal")
+			local premier=1 app
+			for app in "${installees[@]}"; do
+				[[ -n $app ]] || continue
+				nom=$(nom_appli "$app" 2>/dev/null) || nom="$app"
+				(( premier )) || printf ', '
+				premier=0
+				printf '{"id": "%s", "nom": "%s"}' \
+					"$(json_texte "$app")" "$(json_texte "${nom:-$app}")"
+			done
+		fi
+		printf ']}'
+	done < <(liste_categories)
+	printf '],\n  "total": %s\n}\n' "$(liste_categories | grep -c .)"
+}
+
 # --- Aiguillage --------------------------------------------------------------
 
 case "${1:-}" in
@@ -552,6 +656,9 @@ case "${1:-}" in
 		;;
 	panneau)
 		panneau
+		;;
+	--json|json)
+		cmd_json
 		;;
 	*)
 		usage >&2

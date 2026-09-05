@@ -65,7 +65,22 @@ ecris_conf() {
 		"$PROG" "$LIMITE" > "$CONF"
 }
 
-minutes_de() { local f="$DIR/$1"; [[ -r "$f" ]] && cat "$f" 2>/dev/null || printf '0'; }
+#  LES MINUTES D'UN JOUR — TOUJOURS UN ENTIER, JAMAIS UNE CHAÎNE VIDE.
+#  Le repli « || printf 0 » ne couvrait que le fichier ABSENT. Sur un fichier
+#  qui EXISTE mais qui est vide — ce que laisse une coupure de courant ou un
+#  disque plein pendant « printf > », qui tronque avant d'écrire — cat réussit
+#  et rend le vide. « --json » sortait alors « "minutes": , », du JSON
+#  invalide : la page des Paramètres n'affichait plus « 0 minute », elle
+#  déclarait TOUTE la section Bien-être indisponible. Et comme seul le fichier
+#  DU JOUR est réécrit, un fichier abîmé de la veille empoisonnait la sortie
+#  pendant sept jours.
+#  Même vérification que charge_conf fait déjà pour LIMITE, deux lignes plus bas.
+minutes_de() {
+	local f="$DIR/$1" v=""
+	[[ -r "$f" ]] && v="$(cat "$f" 2>/dev/null)"
+	[[ "$v" =~ ^[0-9]+$ ]] || v=0
+	printf '%s' "$v"
+}
 
 hhmm() {
 	local m="$1"
@@ -287,6 +302,51 @@ cmd_etat() {
 	printf '\n  %sTout reste sur cette machine, en texte, dans %s%s\n' "$D" "$DIR" "$R"
 }
 
+# =============================================================================
+#  L'état, pour la page des Paramètres
+# =============================================================================
+#  --json : ce que la page ne peut pas deviner, et ce qu'elle affichait faux.
+#
+#  TROIS DISTINCTIONS QUE CETTE SORTIE REND POSSIBLES, et sans lesquelles la
+#  page ment sans le savoir :
+#
+#    · « zéro minute » n'est pas « le compteur ne tourne pas ». Le compteur
+#      est ARRÊTÉ par défaut — mesurer le temps de quelqu'un ne se décide pas
+#      à sa place — et une page qui afficherait « 0 h 00 » laisserait croire
+#      qu'on n'a pas touché à la machine de la journée.
+#    · « workrave n'est pas installé » n'est pas « les rappels sont
+#      arrêtés ». Un interrupteur pour un programme absent ne commande rien.
+#    · une limite de zéro n'est pas une limite atteinte.
+#
+#  La semaine est publiée aussi : sept nombres, c'est ce qui transforme un
+#  compteur en information. Rien de tout cela ne quitte la machine — ces
+#  minutes viennent de fichiers texte, un par jour.
+cmd_json() {
+	charge_conf
+	local j m i total=0
+	j="$(jour)"; m="$(minutes_de "$j")"
+	printf '{\n'
+	printf '  "tourne": %s,\n' "$(actif && echo true || echo false)"
+	printf '  "minutes": %s,\n' "$m"
+	printf '  "limite": %s,\n' "$LIMITE"
+	printf '  "pauses_installe": %s,\n' "$(command -v workrave >/dev/null 2>&1 && echo true || echo false)"
+	printf '  "pauses_actif": %s,\n' "$(pgrep -x workrave >/dev/null 2>&1 && echo true || echo false)"
+	printf '  "nuit_installe": %s,\n' "$(command -v redshift >/dev/null 2>&1 && echo true || echo false)"
+	printf '  "nuit_actif": %s,\n' "$(pgrep -x redshift >/dev/null 2>&1 && echo true || echo false)"
+	printf '  "semaine": ['
+	for (( i = 6; i >= 0; i-- )); do
+		local d dm
+		d="$(date -d "${LEXOS_DATE:-today} -$i day" +%F 2>/dev/null)" || d="$j"
+		dm="$(minutes_de "$d")"
+		total=$(( total + dm ))
+		(( i == 6 )) || printf ', '
+		printf '{"jour": "%s", "nom": "%s", "minutes": %s}' \
+			"$d" "$(jour_fr "$d")" "$dm"
+	done
+	printf '],\n'
+	printf '  "total_semaine": %s\n}\n' "$total"
+}
+
 usage() {
 	cat <<EOF
 ${B}$PROG${R} — temps d’écran, pauses, lumière du soir
@@ -310,6 +370,7 @@ case "${1:-}" in
 	""|etat|état|status)    cmd_etat ;;
 	-h|--help|aide|help)    usage ;;
 	--tic)                  cmd_tic ;;
+	--json|json)            cmd_json ;;
 	semaine|week)           cmd_semaine ;;
 	demarrer|démarrer|start) cmd_demarrer ;;
 	arreter|arrêter|stop)   cmd_arreter ;;

@@ -178,6 +178,33 @@ minuterie() {
 	fi
 }
 
+# --- L'état, pour la page des Paramètres -------------------------------------
+#
+#  --json : le mode choisi, le mode qui s'applique EN CE MOMENT, et l'horaire.
+#
+#  POURQUOI LES DEUX MODES, ET PAS UN SEUL. « suivre » et « auto » ne sont pas
+#  des couleurs : ce sont des règles. Une page qui n'afficherait que le mode
+#  choisi laisserait quelqu'un en « auto » se demander pourquoi son terminal
+#  est noir à quatorze heures ; une page qui n'afficherait que la couleur
+#  effective lui ferait croire qu'il a choisi « nuit ». Il faut les deux, et
+#  c'est l'écart entre les deux qui explique ce qu'il voit.
+cmd_json() {
+	local m eff
+	m="$(mode_courant)"; eff="$(effectif)"
+	lire_horaire
+	printf '{\n'
+	printf '  "mode": "%s",\n' "$m"
+	printf '  "effectif": "%s",\n' "$eff"
+	printf '  "bureau": "%s",\n' "$(mode_bureau)"
+	printf '  "debut": "%s",\n' "$JOUR_DEBUT"
+	printf '  "fin": "%s",\n' "$JOUR_FIN"
+	#  La minuterie n'existe que pour « auto ». Le dire évite la question
+	#  « pourquoi ça ne change pas tout seul » quand systemd --user manque.
+	printf '  "minuterie": %s\n}\n' \
+		"$( [[ "$m" == auto ]] && command -v systemctl >/dev/null 2>&1 \
+		    && [[ -n "${XDG_RUNTIME_DIR:-}" ]] && echo true || echo false)"
+}
+
 # --- Commandes ---------------------------------------------------------------
 case "${1:-}" in
 	""|etat|état|status)
@@ -210,6 +237,9 @@ case "${1:-}" in
 		ecrire_horaire "$2" "$3"
 		if [[ "$(mode_courant)" == "auto" ]]; then appliquer; fi
 		ok "Jour de $2 à $3."
+		;;
+	--json|json)
+		cmd_json
 		;;
 	--appliquer|appliquer)
 		#  Chemin de la minuterie et de l'ouverture de session : silencieux,

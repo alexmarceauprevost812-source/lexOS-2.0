@@ -1843,6 +1843,186 @@ jobs:
           done
           bash tests/test_lexos_opencode.sh
 
+      - name: Le clavier se change depuis les Paramètres — et XFCE n'est plus grisé
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, PHOTO DE LA PAGE : « Dispositions actives : ca », un bouton,
+          #  et une phrase qui renvoie au terminal. Rien à régler. Et le
+          #  dialogue de XFCE, lui, s'ouvre TOUT GRISÉ : « Utiliser les
+          #  réglages système » est actif par défaut (relevé dans le
+          #  GtkBuilder du binaire), et LexOS ne livrait aucun
+          #  keyboard-layout.xml pour dire le contraire. D'où « pas capable
+          #  de changer de clavier », et le « @ » introuvable.
+          #
+          #  Le banc fait TOURNER les gestes plutôt que lire le code : un
+          #  contrôle qui vérifierait qu'une fonction existe serait vert avec
+          #  une fonction qui ne fait rien.
+          bash tests/test_lexos_clavier.sh
+
+      - name: Applications par défaut — on choisit dans la page, on ne fait plus que lire
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « le contenu comme Ubuntu », puis « commence par
+          #  applications par défaut ». La page affichait cinq lignes lues à
+          #  la main dans mimeapps.list et RIEN À CLIQUER : pour changer quoi
+          #  que ce soit, elle passait la main à l'outil de XFCE.
+          #
+          #  LE BANC POSE SON PROPRE DÉCOR — un HOME jetable, quatre .desktop
+          #  à nous, un faux xdg-mime qui se souvient — parce que les
+          #  applications proposées dépendent de ce qui est installé : un banc
+          #  qui exigerait VLC serait vert sur une machine et rouge sur une
+          #  autre sans qu'une ligne de code ait bougé. Décor posé, il fait
+          #  TOURNER les gestes et mesure l'application en place avant et
+          #  après, puis il REND la page : ses listes déroulantes dépendent
+          #  des données, donc un grep de « <select » serait vert sur une page
+          #  qui n'en affiche jamais.
+          bash tests/test_lexos_defaut.sh
+
+      - name: Utilisateurs — des comptes lus, pas inventés, et de quoi les changer
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « le contenu comme Ubuntu ». La page Utilisateurs affichait
+          #  une liste et renvoyait au terminal — et cette liste mentait deux
+          #  fois : le bouton « Détail » imprimait DEUX COMPTES ÉCRITS EN DUR
+          #  (« lex », « invite ») qui n'existent sur aucune machine d'Alex, et
+          #  la page comptait « adm » comme un droit d'administrateur, alors
+          #  qu'« adm » ne donne que la lecture des journaux.
+          #
+          #  LE BANC INVENTE UNE MACHINE — son /etc/passwd, son /etc/group,
+          #  l'état de ses mots de passe — et fait tourner l'outil dessus.
+          #  C'est la seule façon d'éprouver « le dernier administrateur »,
+          #  « c'est toi » ou un nom complet à guillemets : aucune de ces
+          #  situations n'existe sur le coureur, et un banc qui attend
+          #  qu'elles arrivent n'éprouve rien. Le terminal est une doublure
+          #  qui note la LIGNE DE COMMANDE exacte : c'est elle qu'on vérifie,
+          #  parce qu'elle part dans une chaîne qu'un shell redécoupe.
+          bash tests/test_lexos_utilisateurs.sh
+
+      - name: Partage — le nom que les autres appareils voient, et ce qui manque
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « le contenu comme Ubuntu ». Sa page « Partage » commence
+          #  par le NOM DE L'ORDINATEUR ; ici il n'y avait qu'une ligne,
+          #  « serveur actif » ou « au repos », et LexOS n'avait AUCUN moyen
+          #  de changer ce nom — ni fenêtre, ni commande.
+          #
+          #  DEUX PIÈGES QUE CE BANC GARDE. « pgrep -f share-server.py »
+          #  compare la ligne de commande ENTIÈRE : n'importe quelle commande
+          #  citant ce nom faisait dire « partage actif » — le banc lance un
+          #  processus leurre pour le prouver. Et renommer une machine sans
+          #  toucher à la ligne 127.0.1.1 de /etc/hosts laisse un système où
+          #  chaque sudo attend puis dit « unable to resolve host » : le banc
+          #  renomme une machine inventée et relit les DEUX fichiers.
+          bash tests/test_lexos_partage.sh
+
+      - name: Les 36 sections des Paramètres se rendent toutes
+        if: ${{ !cancelled() }}
+        run: |
+          #  « Diagnostic » ne s'affichait PAS. Elle écrivait
+          #  « corps.innerHTML = … » puis « break » là où toutes les autres
+          #  rendent une chaîne : « corps » n'existe nulle part, donc une
+          #  ReferenceError à chaque clic. Et le symptôme ne ressemblait pas
+          #  à une erreur — rendSection() fait « content.innerHTML =
+          #  contenu(...) », et quand contenu() lève, l'affectation n'a pas
+          #  lieu : l'écran GARDE la section précédente. On cliquait, il ne
+          #  se passait rien. « node --check » ne dit qu'une chose : le
+          #  fichier se parse. Il se parsait très bien.
+          #
+          #  Le même banc a trouvé un deuxième défaut, endormi celui-là :
+          #  perfGauge() lisait « state.perf » — l'état s'appelle « etat » —
+          #  et n'y arrivait que si etat.perf ne répondait pas. La page
+          #  Énergie serait restée muette le jour où lexos-perf manquerait.
+          bash tests/test_lexos_sections.sh
+
+      - name: Les quatre pages qui ne servaient qu'à regarder
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « le contenu comme Ubuntu », puis « là tu fais tous les
+          #  paramètres ». Un inventaire mesuré — chaque section rendue, ses
+          #  boutons comptés — a nommé les pages sans un seul réglage. Quatre
+          #  n'avaient aucune excuse matérielle : Terminal jour/nuit,
+          #  Bien-être numérique, Comptes en ligne, Recherche. Elles
+          #  recopiaient des commandes à taper dans un terminal, pour des
+          #  réglages qui ne demandent rien de plus qu'un clic.
+          #
+          #  CE QUE CE BANC GARDE SURTOUT : les gestes qui DÉTRUISENT ou qui
+          #  ATTENDENT UNE RÉPONSE doivent passer par un terminal.
+          #  « lexos-bienetre oublier » fait taper le mot « effacer » ; lancé
+          #  sans terminal, ce « read » échoue, l'outil répond « Annulé. » et
+          #  rend 0 — la page aurait annoncé « Historique effacé » sans que
+          #  rien ne soit effacé. La mutation qui remet ce défaut fait sortir
+          #  le banc en TimeoutExpired : la commande attend une réponse qui ne
+          #  viendra jamais.
+          bash tests/test_lexos_pages_vides.sh
+
+      - name: L'extinction « téléviseur 1980 » à la fermeture des fenêtres
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « une animation pour fermer les fenêtres comme une vieille
+          #  T.V. — l'effet d'animation n'est pas là quand je ferme des
+          #  fenêtres ». Il avait raison, et ce n'était PAS un réglage de
+          #  travers : l'effet était configuré pour COMPIZ, retiré de Debian
+          #  trixie. lexos-wm ne trouvait plus le binaire et se repliait sur
+          #  xfwm4, QUI N'A AUCUNE ANIMATION. L'interrupteur des Paramètres
+          #  restait là et ne commandait plus rien.
+          #
+          #  picom le fait, depuis sa v12. Le banc éprouve le script
+          #  d'animation contre ce que le manuel de picom EXIGE — en
+          #  particulier « opacity » dans le bloc « close », sans laquelle la
+          #  fenêtre est invisible dès la première image et l'animation joue
+          #  pour rien ; et les deux « offset », sans lesquels l'écrasement se
+          #  colle en haut au lieu de se refermer sur le centre.
+          #
+          #  On installe picom pour que le fichier soit lu par un VRAI picom :
+          #  une accolade oubliée et il refuse tout, ce qu'aucune relecture ne
+          #  dit. La version d'Ubuntu est trop ancienne pour jouer les
+          #  animations — elle suffit pour la syntaxe et pour la détection.
+          for p in picom xvfb; do
+            dpkg -s "$p" >/dev/null 2>&1               || sudo apt-get install -y --no-install-recommends "$p" >/dev/null
+          done
+          bash tests/test_lexos_crt.sh
+
+      - name: Un fichier téléchargé s'installe d'un double-clic, sans terminal
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, deux fois le même jour : « peux-tu faire aussi que tout ce
+          #  qu'on télécharge, on puisse les exécuter comme Windows, pas
+          #  avoir besoin de passer par le terminal tout le temps », puis
+          #  « quand on télécharge, l'application soit déjà installée au lieu
+          #  de passer par le terminal ».
+          #
+          #  Il avait raison, et le trou était COMPLET : /etc/xdg/mimeapps.list
+          #  ne nommait que sept types (pages web, texte, dossiers, PNG, JPEG).
+          #  Double-cliquer sur un .deb, une AppImage ou un .flatpakref ne
+          #  faisait littéralement rien, et le seul outil d'installation,
+          #  lexos-run-ins, refuse tout ce qui n'est pas un .zip.
+          #
+          #  CE QUE CE BANC PROTÈGE, ET QUI EST FACILE À CASSER SANS LE VOIR :
+          #
+          #   · LA RECONNAISSANCE SE FAIT DANS LES OCTETS. « file --mime-type »
+          #     ne peut pas servir de référence : mesuré, il annonce une
+          #     AppImage comme « application/x-pie-executable », un type qui
+          #     n'existe même pas dans shared-mime-info.
+          #   · RIEN NE S'EXÉCUTE SANS ACCORD. C'est la doctrine écrite du
+          #     dépôt (lexos-run-ins:9-23). Le banc lâche un script PIÈGE qui
+          #     laisse une trace et vérifie qu'il ne laisse rien tant que le
+          #     mot « lancer » n'a pas été tapé.
+          #   · GIO IGNORE EN SILENCE un .desktop dont le « Exec= » ne mène
+          #     nulle part — et update-desktop-database l'inscrit quand même.
+          #     On croit l'association posée ; « gio mime » répond « No default
+          #     applications ». Le banc vérifie que le programme existe.
+          #   · L'AGENT POLKIT. Le dépôt affirmait que l'agent du mot de passe
+          #     « arrive par les Recommends de xfce4-session » : c'est FAUX
+          #     (ces Recommends ne nomment que dbus, logind, un économiseur
+          #     d'écran, upower, xfdesktop4, xfwm4). Sans agent, pkexec échoue
+          #     sans fenêtre et sans message — tous les boutons
+          #     d'administration des Paramètres sont muets, ce qu'Alex a
+          #     décrit sur son vieil ordinateur.
+          #
+          #  Le banc n'a besoin d'aucun écran : sans DISPLAY, l'outil prend son
+          #  chemin terminal, qui porte exactement le même garde-fou.
+          bash tests/test_lexos_ouvrir.sh
+
       - name: Mises à jour — la page suit le terminal au lieu de rester figée
         if: ${{ !cancelled() }}
         run: |

@@ -36,7 +36,20 @@ die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
 # Au-delà, l'écran défile et plus personne ne lit. Les compteurs disent
 # toujours combien de résultats existent en tout.
 readonly MAX_RESULTATS=30
-readonly BASE_PLOCATE=/var/lib/plocate/plocate.db
+#  L'INDEX DE plocate. Le chemin est celui de Debian ; LEXOS_PLOCATE_DB le
+#  déplace, et ce seuil existe pour une raison précise.
+#
+#  UN BANC QUI DÉPEND DE LA MACHINE N'ÉPROUVE PAS LE DÉPÔT. Le banc des pages
+#  de Paramètres vérifie qu'une recherche par NOM est refusée quand il n'y a
+#  pas d'index. Il lisait le vrai /var/lib/plocate/plocate.db : vert sur une
+#  machine sans plocate, ROUGE dès qu'un updatedb passait — ce qui est arrivé
+#  au milieu d'une session, sans qu'une ligne de code ait bougé. C'est la
+#  faute que ce dépôt a déjà payée avec deux bancs qui éprouvaient la machine
+#  du développeur plutôt que le dépôt.
+#
+#  Même procédé et même famille que LEXOS_BIENETRE_DIR, LEXOS_NUAGE,
+#  LEXOS_RCLONE_REMOTES et LEXOS_HOSTNAME_RACINE.
+readonly BASE_PLOCATE="${LEXOS_PLOCATE_DB:-/var/lib/plocate/plocate.db}"
 
 usage() {
 	cat <<EOF
@@ -113,8 +126,18 @@ chercher_nom() {
 	local motif="$1"
 	besoin plocate plocate
 
-	if [[ ! -r $BASE_PLOCATE ]]; then
-		warn "L'index de plocate est absent ou illisible ($BASE_PLOCATE)."
+	#  ═══ « -e », ET SURTOUT PAS « -r » ═══
+	#  L'index de plocate appartient à root:plocate en 0640 : AUCUN utilisateur
+	#  ordinaire ne peut le lire. Le test « -r » était donc faux pour tout le
+	#  monde, tout le temps — la recherche par nom refusait de partir même
+	#  juste après « sudo lexos recherche index ». Et ça ne se voyait pas en
+	#  développement, où l'on est root.
+	#
+	#  plocate, lui, N'A PAS BESOIN qu'on puisse lire ce fichier : son binaire
+	#  est setgid plocate, c'est lui qui l'ouvre. La seule question qui compte
+	#  ici est donc « l'index EXISTE-t-il ? ».
+	if [[ ! -e $BASE_PLOCATE ]]; then
+		warn "L'index de plocate est absent ($BASE_PLOCATE)."
 		say "Construisez-le une première fois : sudo $PROG index"
 		return 1
 	fi
@@ -335,6 +358,38 @@ doublons() {
 	return 0
 }
 
+# --- L'état, pour la page des Paramètres -------------------------------------
+#
+#  --json : de quoi la recherche dispose VRAIMENT sur cette machine.
+#
+#  LA PAGE DES PARAMÈTRES DISAIT : « LexOS n'indexe pas le disque en tâche de
+#  fond ». C'est vrai — plocate n'est pas livré — mais elle s'arrêtait là, et
+#  ne disait donc pas ce qui EN DÉCOULE : la recherche par nom, qui lit cet
+#  index, ne fonctionne pas tant que plocate n'est pas installé, alors que la
+#  recherche par contenu, elle, marche tout de suite. Deux recherches, deux
+#  états, et un seul mot pour les deux.
+#
+#  L'ÂGE DE L'INDEX COMPTE AUTANT QUE SA PRÉSENCE. Un index de trois semaines
+#  ne trouve pas le fichier d'hier, et l'absence de résultat ressemble alors
+#  à un fichier perdu. On publie donc l'âge en jours, et -1 quand il n'y a
+#  pas d'index du tout : « pas d'index » et « index d'aujourd'hui » ne
+#  peuvent pas se confondre.
+cmd_json() {
+	local jours=-1 horodatage
+	if horodatage=$(stat -c '%Y' -- "$BASE_PLOCATE" 2>/dev/null); then
+		jours=$(( ( $(date +%s) - horodatage ) / 86400 ))
+		(( jours < 0 )) && jours=0
+	fi
+	printf '{\n'
+	printf '  "plocate": %s,\n' "$(command -v plocate >/dev/null 2>&1 && echo true || echo false)"
+	#  « -e » : voir chercher_nom(). L'index n'est pas lisible par un
+	#  utilisateur ordinaire, et il n'a pas à l'être.
+	printf '  "index": %s,\n' "$( [[ -e $BASE_PLOCATE ]] && echo true || echo false)"
+	printf '  "index_jours": %s,\n' "$jours"
+	printf '  "catfish": %s,\n' "$(command -v catfish >/dev/null 2>&1 && echo true || echo false)"
+	printf '  "max": %s\n}\n' "$MAX_RESULTATS"
+}
+
 # --- Mise à jour de l'index --------------------------------------------------
 
 maj_index() {
@@ -420,6 +475,9 @@ case "${1:-}" in
 	fenetre)
 		shift
 		fenetre "${1:-}"
+		;;
+	--json|json)
+		cmd_json
 		;;
 	-*)
 		usage >&2

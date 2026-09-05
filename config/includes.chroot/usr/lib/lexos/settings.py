@@ -19,6 +19,7 @@ import http.server
 import json
 import mimetypes
 import os
+import re
 import shlex
 import shutil
 import socket
@@ -118,6 +119,69 @@ def _run(argv, *, detach=False):
     if not motif:
         motif = f"« {argv[0]} » a échoué (code {r.returncode})"
     return {"ok": False, "erreur": motif, "sortie": sortie}
+
+
+#  ═══ LE MOT DE PASSE D'ADMINISTRATEUR, ET LE SILENCE QUI TUE LES BOUTONS ═══
+#  ALEX, sur son vieil ordinateur : « les boutons dans les paramètres ne
+#  fonctionnaient pas ».
+#
+#  « pkexec » NE DESSINE PAS LA FENÊTRE DU MOT DE PASSE. Il la demande à un
+#  « agent d'authentification » qui doit tourner dans la session. polkitd, le
+#  démon, ne suffit pas : c'est l'agent qui parle à l'humain. Sans agent,
+#  pkexec échoue tout de suite — pas de fenêtre, pas de message, rien dans la
+#  page. Le bouton « ne fait rien », et on va chercher du côté du bouton.
+#
+#  Le dépôt croyait cet agent garanti : optional-packages/15-essentiel.list
+#  affirmait qu'il arrivait « par les Recommends de xfce4-session ». Vérifié,
+#  c'est faux — ces Recommends ne nomment aucun agent (dbus, logind, un
+#  économiseur d'écran, upower, xfdesktop4, xfwm4). Trois candidats sont
+#  maintenant nommés dans la liste, et /usr/lib/lexos/polkit-agent les
+#  démarre ; il reste que sur une machine INSTALLÉE avant ce correctif, il n'y
+#  en a aucun.
+#
+#  Alors on cesse de faire semblant : quand aucun agent ne tourne, on ne lance
+#  PAS pkexec pour qu'il échoue en silence. On rend un motif, que la page
+#  affiche.
+_AGENTS_POLKIT = ("polkit-gnome-au", "polkit-mate-aut", "lxpolkit",
+                  "lxqt-policykit", "polkit-agent-he")
+
+
+def _agent_polkit():
+    """Un agent d'authentification tourne-t-il dans cette session ?
+
+    « pgrep -x » et JAMAIS « pgrep -f » : avec -f, le motif cherché apparaît
+    dans la ligne de commande du pgrep lui-même, qui se reconnaît alors et
+    répond toujours oui. Le dépôt s'est fait prendre trois fois (lexos-share,
+    lexos-crt). Les noms ci-dessus sont tronqués à quinze caractères parce
+    que c'est ainsi que le noyau les stocke."""
+    if shutil.which("pgrep") is None:
+        return False
+    for nom in _AGENTS_POLKIT:
+        try:
+            if subprocess.run(["pgrep", "-x", nom], capture_output=True,
+                              timeout=5).returncode == 0:
+                return True
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return False
+
+
+def _run_admin(argv):
+    """Lance argv avec les droits d'administration, ou dit pourquoi c'est
+    impossible. Ne rend jamais un succès qu'on n'a pas obtenu."""
+    if os.geteuid() == 0:
+        return _run(argv)
+    if shutil.which("pkexec") is None:
+        return {"ok": False,
+                "erreur": "pkexec est absent : impossible de demander les "
+                          "droits d'administration depuis une fenêtre."}
+    if not _agent_polkit():
+        return {"ok": False,
+                "erreur": "Aucune fenêtre de mot de passe n'est disponible "
+                          "sur cette session (agent polkit absent). "
+                          "Installe-le : sudo apt install policykit-1-gnome, "
+                          "puis rouvre la session."}
+    return _run(["pkexec"] + argv)
 
 
 def _terminal(titre, commande):
@@ -275,8 +339,18 @@ def act_ouvrir(arg):
         #  plutôt que de ne rien faire. C'est la règle que cette fonction
         #  s'était déjà donnée — « un bouton doit toujours mener quelque
         #  part » — et que ces deux entrées-ci ne suivaient pas.
-        "applications": lambda: _xfce([["xfce4-mime-settings"],
-                                       ["exo-preferred-applications"]]),
+        #  CETTE ENTRÉE OUVRAIT LE DIALOGUE DES TYPES DE FICHIERS, c'est-à-dire
+        #  exactement ce qu'ouvre « Applications par défaut ». La section
+        #  « Applications » parle maintenant d'installer et de retirer des
+        #  logiciels : c'est la logithèque qu'elle doit ouvrir.
+        "applications": lambda: _terminal("Logithèque LexOS", "lexos logitheque"),
+        #  ALEX : « quand on télécharge, l'application soit déjà installée au
+        #  lieu de passer par le terminal ». C'est lexos-ouvrir qui le fait,
+        #  et c'est lui que le double-clic appelle. Ici, sans argument, il
+        #  ouvre le sélecteur de fichiers sur le dossier des téléchargements —
+        #  donc PAS de _terminal() : le sujet même de cette entrée est de ne
+        #  plus passer par le terminal.
+        "fichier-telecharge": lambda: _run(["lexos-ouvrir"], detach=True),
         "notifications": lambda: _run(["xfce4-notifyd-config"], detach=True),
         "recherche":  lambda: _run(["xfce4-appfinder", "--collapsed"], detach=True),
         #  Le bouton rouge de la barre ouvre la même fenêtre. Elle est ici
@@ -308,10 +382,16 @@ def act_ouvrir(arg):
                                              "lexos net status; echo; lexos secure"),
         "maj":        lambda: _terminal("Mises à jour — LexOS", "lexos doctor"),
         "accessibilite": lambda: _xfce([["xfce4-accessibility-settings"]]),
+        #  CETTE ENTRÉE AFFICHAIT UNE LISTE INVENTÉE. Elle imprimait « lex —
+        #  Principal, administrateur » et « invite — Invité », deux comptes
+        #  écrits en dur ici : pas lus, pas vérifiés, pas forcément existants.
+        #  Sur la machine d'Alex, le compte ne s'appelle ni « lex » ni
+        #  « invite ». Un écran qui ment est pire qu'un écran vide — on ne
+        #  sait même pas qu'il faut chercher ailleurs.
+        #  lexos-utilisateurs, lui, LIT les comptes : nom complet, droits,
+        #  dernière connexion, état du mot de passe.
         "utilisateurs": lambda: _terminal("Utilisateurs — LexOS",
-                                          "printf '%s\\n' 'Comptes locaux de LexOS :' '' "
-                                          "'  lex     — Principal, administrateur' "
-                                          "'  invite  — Invité, session limitée sans mot de passe' ''"),
+                                          "lexos utilisateurs"),
         "clavier":    lambda: _xfce([["xfce4-keyboard-settings"]]),
         "datetime":   lambda: _terminal("Date et heure — LexOS", "timedatectl"),
         #  Même fenêtre, même correctif (voir « applications » ci-dessus).
@@ -525,6 +605,85 @@ def _fonds_perso():
     return [c for _, c in images[:FONDS_PERSO_MAX]]
 
 
+#  ═══ QUEL FOND EST POSÉ ? — ALEX : « POUR CHANGER DE COULEUR SUR LE BOUTON
+#      SÉLECTIONNÉ, POUR QU'IL CHANGE DE COULEUR » ═══
+#  Les cinq fonds intégrés et les vignettes de « Mes images » étaient les
+#  SEULS choix de toute la page à ne jamais montrer lequel était le choix
+#  courant : leurs boutons étaient écrits en dur « class="btn ghost" », sans
+#  la moindre condition. Partout ailleurs le dépôt le fait — le thème,
+#  l'accent, la police, le dock, la définition d'écran, le profil de
+#  performance portent tous « class="btn ${x ? 'sel' : 'ghost'}" ».
+#
+#  ET CE N'ÉTAIT PAS UN OUBLI D'UNE LIGNE : rien dans etat() ne DISAIT quel
+#  fond est posé. Il n'y avait rien à comparer. Voilà la clé qui manquait.
+def _fond_actuel():
+    """Le chemin de l'image posée sur le bureau, tel que XFCE le connaît.
+
+    On lit la même propriété que lexos-fond-ecran (fond_actuel(), ligne 90) :
+    la PREMIÈRE propriété du canal xfce4-desktop qui finit par « last-image ».
+    Une machine à deux écrans en a plusieurs, toutes égales quand le fond a
+    été posé par LexOS — qui les écrit toutes.
+
+    Rend "" quand on ne peut pas savoir : sans serveur X, sans xfconf-query,
+    ou quand aucune propriété n'existe encore. Ne JAMAIS rendre un chemin
+    inventé : une vignette mise en évidence à tort est pire que pas de
+    vignette en évidence du tout."""
+    if shutil.which("xfconf-query") is None:
+        return ""
+    try:
+        r = subprocess.run(["xfconf-query", "-c", "xfce4-desktop", "-l"],
+                           capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if r.returncode != 0:
+        return ""
+    prop = next((l.strip() for l in r.stdout.splitlines()
+                 if l.strip().endswith("/last-image")), "")
+    if not prop:
+        return ""
+    try:
+        v = subprocess.run(["xfconf-query", "-c", "xfce4-desktop", "-p", prop],
+                           capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return v.stdout.strip() if v.returncode == 0 else ""
+
+
+def _fond_etat(perso=None):
+    """Ce que la page a besoin de savoir pour mettre le bon bouton en couleur.
+
+    · « chemin » : ce qui est posé, ou "" si on ne sait pas ;
+    · « cle »    : la clé de FONDS (defaut, secu, demon, keyart, nomad) si
+                   c'est l'un des cinq intégrés, sinon "" ;
+    · « i »      : l'indice dans la galerie « Mes images » si c'en est une,
+                   sinon None.
+
+    « perso » est passé par etat() pour ne pas relire deux fois le disque —
+    la liste vient d'être calculée juste au-dessus."""
+    chemin = _fond_actuel()
+    vide = {"chemin": "", "cle": "", "i": None}
+    if not chemin:
+        return vide
+    #  On compare des chemins RÉSOLUS : /usr/share/backgrounds/lexos/x.png et
+    #  un lien symbolique vers lui sont le même fond, et le dépôt en pose
+    #  justement (le fond officiel est un lien, hook 0300).
+    def reel(c):
+        try:
+            return os.path.realpath(c)
+        except OSError:
+            return c
+    r_chemin = reel(chemin)
+    cle = next((k for k, v in FONDS.items() if reel(v) == r_chemin), "")
+    idx = None
+    if perso is None:
+        perso = _fonds_perso()
+    for i, c in enumerate(perso):
+        if reel(c) == r_chemin:
+            idx = i
+            break
+    return {"chemin": chemin, "cle": cle, "i": idx}
+
+
 def act_fond_fichier(arg):
     """Applique une image de la galerie — désignée par son INDICE, jamais par
     un chemin.
@@ -678,9 +837,7 @@ def act_wifi_auto(arg):
     if not os.path.exists(outil):
         return {"ok": False, "erreur": "lexos-net introuvable"}
     argv = [outil, "auto", arg, "--confirme"]
-    if os.geteuid() != 0 and shutil.which("pkexec"):
-        argv = ["pkexec"] + argv
-    return _run(argv)
+    return _run_admin(argv)
 
 
 def act_son_muet(arg):
@@ -805,12 +962,41 @@ def act_usb(arg):
 
 
 def act_crt(arg):
-    """Effets d'ouverture façon téléviseur cathodique."""
+    """Les effets de fenêtres « téléviseur 1980 » — « on », « off », « toggle ».
+
+    CE QUI A CHANGÉ SOUS CETTE ACTION. Les effets étaient rendus par COMPIZ,
+    retiré de Debian trixie : lexos-wm ne le trouvait plus et se repliait sur
+    xfwm4, qui n'a AUCUNE animation. L'interrupteur de cette page a donc
+    passé plusieurs images à ne rien commander — ALEX : « l'effet d'animation
+    n'est pas là quand je ferme des fenêtres ». C'est picom qui fait le
+    travail maintenant, piloté par lexos-crt.
+
+    ON REFUSE D'ALLUMER CE QUI NE PEUT PAS MARCHER, avec le motif exact.
+    Sans ce refus, le clic partirait, l'outil dirait « picom est trop ancien »
+    dans une sortie que personne ne lit, et l'interrupteur reviendrait tout
+    seul à sa place — le geste le plus déroutant qu'une page puisse offrir.
+    """
+    if not shutil.which("lexos-crt"):
+        return {"ok": False, "erreur": "lexos-crt introuvable"}
     if arg not in ("on", "off", "toggle"):
         return {"ok": False, "erreur": "valeur inattendue"}
+    e = _crt_etat()
     if arg == "toggle":
-        arg = "off" if _crt_etat() else "on"
-    return _run(["lexos", "crt", arg])
+        arg = "off" if e.get("voulu") == "on" else "on"
+    if arg == "on":
+        if not e.get("picom"):
+            return {"ok": False,
+                    "erreur": "picom n'est pas installé : « lexos install picom »"}
+        v, mini = e.get("picom_version", 0), e.get("picom_min", 12)
+        if v and v < mini:
+            return {"ok": False,
+                    "erreur": "picom v%s est trop ancien : les animations "
+                              "arrivent à la v%s" % (v, mini)}
+        if not e.get("accel3d"):
+            return {"ok": False,
+                    "erreur": "pas d'accélération 3D réelle sur cette machine : "
+                              "les effets resteraient saccadés"}
+    return _run(["lexos-crt", arg])
 
 
 def act_barre_cachee(arg):
@@ -918,10 +1104,7 @@ def act_fuseau(arg):
     habituelle plutôt qu'un échec muet."""
     if arg not in FUSEAUX_CANADA:
         return {"ok": False, "erreur": "valeur inattendue"}
-    outil = "pkexec" if shutil.which("pkexec") else "timedatectl"
-    argv = ([outil, "timedatectl", "set-timezone", arg] if outil == "pkexec"
-            else ["timedatectl", "set-timezone", arg])
-    return _run(argv)
+    return _run_admin(["timedatectl", "set-timezone", arg])
 
 
 def act_autocollant(arg):
@@ -1348,16 +1531,487 @@ def act_heure_auto(arg):
         return {"ok": False, "erreur": "valeur inattendue"}
     if arg == "toggle":
         arg = "off" if _heure_etat()["auto"] else "on"
-    #  pkexec : changer l'heure demande les droits d'administration, et on
-    #  veut la fenêtre de mot de passe habituelle plutôt qu'un échec muet.
-    outil = "pkexec" if shutil.which("pkexec") else "timedatectl"
-    argv = ([outil, "timedatectl", "set-ntp", arg] if outil == "pkexec"
-            else ["timedatectl", "set-ntp", arg])
-    return _run(argv)
+    #  _run_admin plutôt que pkexec en direct : quand aucun agent
+    #  d'authentification ne tourne, pkexec échoue SANS FENÊTRE ET SANS
+    #  MESSAGE, et le bouton paraît mort. Le motif est rendu à la page.
+    return _run_admin(["timedatectl", "set-ntp", arg])
+
+
+def _clavier_cle_connue(cle):
+    """La clé est-elle dans le catalogue que lexos-clavier publie ?
+
+    CE QUE CE CONTRÔLE FAIT, ET CE QU'IL NE FAIT PAS — parce que la première
+    version de ce commentaire se vantait de trop. Il n'empêche AUCUNE
+    injection : _run() reçoit une LISTE d'arguments, il n'y a pas de shell,
+    et « ; rm -rf / » ne serait jamais qu'un nom de disposition farfelu passé
+    à lexos-clavier, qui le refuserait. Dire l'inverse aurait fait croire à
+    une protection qui vit ailleurs.
+
+    Ce qu'il fait vraiment : refuser au niveau des Paramètres, avec un motif
+    QUI NOMME LE CATALOGUE, plutôt que de lancer un programme pour rien et de
+    renvoyer son message à lui. La page peut alors dire à l'utilisateur que
+    la disposition n'existe pas, ce qui est l'information utile.
+    """
+    e = _clavier_etat()
+    return any(c.get("cle") == cle for c in e.get("catalogue", []))
+
+
+def _clavier_bascule_connue(cle):
+    e = _clavier_etat()
+    return any(b.get("cle") == cle for b in e.get("bascules", []))
+
+
+def _defaut_choix_connu(categorie, appli):
+    """Cette application est-elle proposée pour cette catégorie ?
+
+    Ce qu'il fait, et ce qu'il ne fait pas : il n'empêche aucune injection —
+    _run() reçoit une liste d'arguments, il n'y a pas de shell. Il refuse au
+    niveau des Paramètres, avec un motif qui nomme la catégorie, plutôt que
+    de lancer un programme pour rien.
+    """
+    for c in _defaut_etat().get("categories", []):
+        if c.get("cle") != categorie:
+            continue
+        return any(x.get("id") == appli for x in c.get("choix", []))
+    return False
+
+
+def act_defaut(arg):
+    """Choisir l'application par défaut d'une catégorie — « categorie:appli »."""
+    if not shutil.which("lexos-defaut"):
+        return {"ok": False, "erreur": "lexos-defaut introuvable"}
+    categorie, _, appli = (arg or "").partition(":")
+    if not categorie or not appli:
+        return {"ok": False, "erreur": "il faut une catégorie et une application"}
+    if not _defaut_choix_connu(categorie, appli):
+        return {"ok": False,
+                "erreur": "« %s » n'est pas proposée pour « %s »" % (appli, categorie)}
+    return _run(["lexos-defaut", categorie, appli])
+
+
+def _recherche_etat():
+    """De quoi la recherche dispose sur cette machine.
+
+    LA PAGE DISAIT : « LexOS n'indexe pas le disque en tâche de fond ». C'est
+    vrai — plocate n'est pas livré — mais elle s'arrêtait là, sans dire ce qui
+    en découle : la recherche par NOM lit cet index et ne fonctionne donc pas
+    tant que plocate n'est pas installé, alors que la recherche par CONTENU
+    marche tout de suite. Deux recherches, deux états, et un seul mot pour les
+    deux.
+    """
+    vide = {"plocate": False, "index": False, "index_jours": -1,
+            "catfish": False, "max": 0, "dispo": False}
+    if not shutil.which("lexos-recherche"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-recherche", "--json"],
+                           capture_output=True, text=True, timeout=15)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if "plocate" not in d:
+        return vide
+    d["dispo"] = True
+    return d
+
+
+#  Les recherches qui n'attendent aucun mot : le titre de la fenêtre, et les
+#  arguments de lexos-recherche. Une table plutôt qu'une cascade de « if » —
+#  ce que la page peut demander se lit d'un coup d'œil.
+_RECHERCHE_SANS_MOT = {
+    "gros":     ("Les plus gros fichiers — LexOS", ["gros"]),
+    "recent":   ("Fichiers récents — LexOS", ["recent"]),
+    "doublons": ("Fichiers en double — LexOS", ["doublons"]),
+    "index":    ("Reconstruire l'index — LexOS", None),
+}
+
+
+def act_recherche(arg):
+    """Chercher — « nom:<mot> », « contenu:<mot> », « gros: », « recent: »,
+    « doublons: », « index: », « fenetre: ».
+
+    POURQUOI UN TERMINAL PLUTÔT QUE LA PAGE. Une recherche rend des dizaines
+    de lignes de chemins, qu'on veut pouvoir relire, copier et faire défiler.
+    Les recopier dans un panneau de réglages serait refaire un terminal en
+    moins bien. La page sert à LANCER la bonne commande sans avoir à la
+    connaître — c'est le travail d'une page de réglages, pas d'un afficheur.
+
+    Le mot cherché est du texte libre : il entre dans une chaîne qu'un shell
+    redécoupe, donc il est cité par shlex.quote. On refuse d'abord ce qui ne
+    peut rien donner : un mot vide, ou plus long qu'une ligne.
+    """
+    if not shutil.which("lexos-recherche"):
+        return {"ok": False, "erreur": "lexos-recherche introuvable"}
+    e = _recherche_etat()
+    quoi, _, mot = (arg or "").partition(":")
+
+    if quoi in ("nom", "contenu", "fenetre"):
+        mot = mot.strip()
+        if not mot and quoi != "fenetre":
+            return {"ok": False, "erreur": "il faut un mot à chercher"}
+        if len(mot) > 200:
+            return {"ok": False, "erreur": "ce mot est trop long"}
+        if quoi == "nom" and not e.get("plocate"):
+            return {"ok": False,
+                    "erreur": "la recherche par nom lit l'index de plocate, "
+                              "qui n'est pas installé : « lexos install plocate »"}
+        if quoi == "nom" and not e.get("index"):
+            return {"ok": False,
+                    "erreur": "l'index n'a jamais été construit — « Reconstruire l'index » d'abord"}
+        if quoi == "fenetre":
+            if not e.get("catfish"):
+                return {"ok": False,
+                        "erreur": "catfish n'est pas installé : « lexos install catfish »"}
+            return _run(["lexos-recherche", "fenetre"] + ([mot] if mot else []),
+                        detach=True)
+        return _terminal("Recherche — LexOS",
+                         "lexos-recherche %s %s" % (quoi, shlex.quote(mot)))
+
+    if quoi in _RECHERCHE_SANS_MOT:
+        titre, args = _RECHERCHE_SANS_MOT[quoi]
+        if quoi == "index":
+            #  updatedb parcourt tout le disque et écrit dans /var/lib : c'est
+            #  le seul geste de cette page qui demande les droits
+            #  d'administrateur, et lexos-recherche ne s'élève pas de lui-même.
+            if not e.get("plocate"):
+                return {"ok": False,
+                        "erreur": "plocate n'est pas installé : « lexos install plocate »"}
+            return _terminal(titre, "sudo lexos-recherche index")
+        return _terminal(titre, "lexos-recherche " + " ".join(args))
+
+    return {"ok": False, "erreur": "geste inattendu"}
+
+
+def act_comptes(arg):
+    """Les comptes en ligne — « monter:<nom> », « demonter:<nom> »,
+    « ajouter:<service> », « retirer:<nom> ».
+
+    DEUX GESTES AGISSENT TOUT DE SUITE, DEUX PASSENT PAR UN TERMINAL, et ce
+    n'est pas arbitraire : monter et démonter ne posent aucune question, alors
+    qu'« ajouter » lance « rclone config », qui interroge et ouvre le
+    navigateur pour l'autorisation, et que « retirer » exige une confirmation.
+    Ces deux-là n'ont nulle part où poser leur question dans une page web.
+
+    Les noms viennent de ce que l'outil publie — un compte qui existe, un
+    service du catalogue — parce que deux d'entre eux entrent dans une
+    commande de terminal, c'est-à-dire dans une chaîne qu'un shell redécoupe.
+    Ils y sont cités par shlex.quote en plus.
+    """
+    if not shutil.which("lexos-comptes"):
+        return {"ok": False, "erreur": "lexos-comptes introuvable"}
+    e = _comptes_etat()
+    if not e.get("dispo"):
+        return {"ok": False, "erreur": "lexos-comptes n'a pas répondu"}
+    quoi, _, valeur = (arg or "").partition(":")
+    comptes = {c.get("nom"): c for c in e.get("comptes", [])}
+
+    if quoi == "ajouter":
+        if not e.get("rclone"):
+            return {"ok": False,
+                    "erreur": "rclone n'est pas installé : « lexos install rclone »"}
+        if valeur not in [x.get("cle") for x in e.get("services", [])]:
+            return {"ok": False, "erreur": "« %s » n'est pas un service connu" % valeur}
+        return _terminal("Relier un compte — LexOS",
+                         "lexos-comptes ajouter %s" % shlex.quote(valeur))
+
+    if valeur not in comptes:
+        return {"ok": False, "erreur": "« %s » n'est pas un compte relié" % valeur}
+    if quoi == "monter":
+        if comptes[valeur].get("monte"):
+            return {"ok": False, "erreur": "« %s » est déjà ouvert" % valeur}
+        return _run(["lexos-comptes", "monter", valeur])
+    if quoi == "demonter":
+        if not comptes[valeur].get("monte"):
+            return {"ok": False, "erreur": "« %s » n'est pas ouvert" % valeur}
+        return _run(["lexos-comptes", "demonter", valeur])
+    if quoi == "retirer":
+        return _terminal("Retirer un compte — LexOS",
+                         "lexos-comptes retirer %s" % shlex.quote(valeur))
+    return {"ok": False, "erreur": "geste inattendu"}
+
+
+def act_bienetre(arg):
+    """Le bien-être numérique — « compteur:on|off », « limite:<min>|off »,
+    « pauses:on|off », « nuit:on|off », « oublier: ».
+
+    Rien ici ne demande les droits d'administrateur : lexos-bienetre n'écrit
+    que dans le dossier de la personne connectée, et démarre ou arrête des
+    programmes de sa propre session. La page agit donc directement.
+
+    ON REFUSE D'ALLUMER CE QUI N'EST PAS LÀ, avec un motif que la page peut
+    montrer : workrave et redshift ne sont pas livrés avec LexOS. Sans ce
+    refus, le clic partirait, l'outil dirait « n'est pas installé » dans une
+    sortie que personne ne lit, et l'interrupteur reviendrait tout seul à sa
+    place — le geste le plus déroutant qui soit.
+    """
+    if not shutil.which("lexos-bienetre"):
+        return {"ok": False, "erreur": "lexos-bienetre introuvable"}
+    quoi, _, valeur = (arg or "").partition(":")
+    e = _bienetre_etat()
+    if quoi == "compteur":
+        if valeur not in ("on", "off"):
+            return {"ok": False, "erreur": "il faut « on » ou « off »"}
+        return _run(["lexos-bienetre", "demarrer" if valeur == "on" else "arreter"])
+    if quoi == "limite":
+        if valeur == "off":
+            return _run(["lexos-bienetre", "limite", "off"])
+        if not valeur.isdigit() or not (1 <= int(valeur) <= 1440):
+            return {"ok": False,
+                    "erreur": "la limite est un nombre de minutes entre 1 et 1440, ou « off »"}
+        return _run(["lexos-bienetre", "limite", valeur])
+    if quoi in ("pauses", "nuit"):
+        if valeur not in ("on", "off"):
+            return {"ok": False, "erreur": "il faut « on » ou « off »"}
+        installe = e.get("pauses_installe" if quoi == "pauses" else "nuit_installe")
+        if valeur == "on" and not installe:
+            programme = "workrave" if quoi == "pauses" else "redshift"
+            return {"ok": False,
+                    "erreur": "%s n'est pas installé : « lexos install %s »"
+                              % (programme, programme)}
+        return _run(["lexos-bienetre", quoi, valeur])
+    if quoi == "oublier":
+        #  ═══ CELUI-CI PASSE PAR UN TERMINAL, ET IL LE FAUT ═══
+        #  « lexos-bienetre oublier » demande de TAPER le mot « effacer »
+        #  avant de supprimer quoi que ce soit. Lancé sans terminal, ce
+        #  « read » échoue, la réponse reste vide, l'outil répond « Annulé. »
+        #  — et rend 0. Le moteur aurait donc annoncé « ok », la page aurait
+        #  affiché « Historique effacé », et rien n'aurait été effacé. Un
+        #  succès annoncé pour une action qui n'a pas eu lieu est pire que
+        #  l'échec : on ne recommence pas.
+        return _terminal("Effacer l'historique — LexOS", "lexos-bienetre oublier")
+    return {"ok": False, "erreur": "geste inattendu"}
+
+
+def act_terminal(arg):
+    """Le mode du terminal — « mode:<jour|nuit|auto|suivre> » ou « horaire:HH:MM-HH:MM ».
+
+    ICI, PAS DE TERMINAL À OUVRIR : lexos-terminal n'écrit que dans le dossier
+    de configuration de la personne connectée, il ne demande aucun droit
+    d'administrateur. La page agit donc directement, et le changement est
+    instantané — les fenêtres déjà ouvertes se repeignent.
+
+    L'HEURE EST VÉRIFIÉE ICI AUSSI, et pas seulement par l'outil : la page
+    doit pouvoir dire « ce n'est pas une heure » plutôt que d'afficher le
+    message brut d'un programme.
+    """
+    if not shutil.which("lexos-terminal"):
+        return {"ok": False, "erreur": "lexos-terminal introuvable"}
+    quoi, _, valeur = (arg or "").partition(":")
+    if quoi == "mode":
+        if valeur not in ("jour", "nuit", "auto", "suivre"):
+            return {"ok": False, "erreur": "mode inattendu"}
+        return _run(["lexos-terminal", valeur])
+    if quoi == "horaire":
+        debut, _, fin = valeur.partition("-")
+        for h in (debut, fin):
+            if not re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", h or ""):
+                return {"ok": False,
+                        "erreur": "il faut deux heures au format HH:MM (00:00 à 23:59)"}
+        if debut == fin:
+            return {"ok": False,
+                    "erreur": "le début et la fin du jour ne peuvent pas être la même heure"}
+        return _run(["lexos-terminal", "horaire", debut, fin])
+    return {"ok": False, "erreur": "geste inattendu"}
+
+
+def act_partage(arg):
+    """Changer le nom de la machine — « nom:<nouveau> ».
+
+    Comme pour les comptes, le geste ouvre un TERMINAL : changer le nom touche
+    à /etc/hostname ET à /etc/hosts, il faut les droits d'administrateur, et
+    lexos-share ne s'élève pas de lui-même. La commande est écrite en toutes
+    lettres sous les yeux de qui tape son mot de passe.
+
+    La règle du nom est celle que l'outil publie (RFC 1123) : on ne la recopie
+    pas ici. On refuse AVANT d'ouvrir la fenêtre — un terminal qui s'ouvre
+    pour mourir aussitôt ressemble à une panne.
+    """
+    e = _partage_etat()
+    if not e.get("dispo"):
+        return {"ok": False,
+                "erreur": ("lexos-share n'a pas répondu"
+                           if shutil.which("lexos-share")
+                           else "lexos-share introuvable")}
+    quoi, _, valeur = (arg or "").partition(":")
+    if quoi != "nom":
+        return {"ok": False, "erreur": "geste inattendu"}
+    if not valeur:
+        return {"ok": False, "erreur": "il faut un nom de machine"}
+    regex = e.get("nom_regex") or ""
+    #  re.fullmatch, pas re.match : en Python « $ » accepte un retour à la
+    #  ligne final, et « poste\n » se retrouverait cité dans la commande.
+    if not regex or not re.fullmatch(regex, valeur):
+        return {"ok": False,
+                "erreur": "nom de machine invalide : lettres, chiffres et "
+                          "« - » seulement, 63 caractères au plus, et pas de "
+                          "« - » au début ni à la fin"}
+    if valeur == e.get("nom"):
+        return {"ok": False, "erreur": "la machine s'appelle déjà « %s »" % valeur}
+    return _terminal("Nom de la machine — LexOS",
+                     "sudo lexos-share nom %s" % shlex.quote(valeur))
+
+
+#  LES GESTES SUR LES COMPTES, ET LA COMMANDE QUE CHACUN LANCE.
+#  Écrits ici une fois, plutôt qu'en cascade de « if » : la table dit d'un
+#  coup d'œil ce que la page peut demander, et rien d'autre ne peut passer.
+#  La valeur est le titre de la fenêtre et les arguments de lexos-utilisateurs
+#  — « {} » sera remplacé par le nom du compte, cité.
+_UTIL_GESTES = {
+    "motdepasse":    ("Mot de passe — LexOS",      ["motdepasse"]),
+    "admin-on":      ("Droits d'administrateur — LexOS", ["admin", "{}", "on"]),
+    "admin-off":     ("Droits d'administrateur — LexOS", ["admin", "{}", "off"]),
+    "verrouiller":   ("Verrouiller un compte — LexOS",   ["verrouiller"]),
+    "deverrouiller": ("Déverrouiller un compte — LexOS", ["deverrouiller"]),
+    "supprimer":     ("Supprimer un compte — LexOS",     ["supprimer"]),
+}
+
+
+def act_utilisateur(arg):
+    """Agir sur un compte — « geste:nom ».
+
+    TOUT CE QUI TOUCHE AUX COMPTES PASSE PAR UN TERMINAL, ET C'EST VOULU.
+    Ces gestes demandent les droits d'administrateur, et lexos-utilisateurs
+    ne s'élève JAMAIS de lui-même : « un outil qui s'élève tout seul habitue à
+    taper son mot de passe sans lire ce qui va s'exécuter » (son propre
+    commentaire). La page ouvre donc un terminal où la commande est écrite en
+    toutes lettres, et où la personne tape son mot de passe en la voyant.
+
+    C'est aussi la seule façon qui marche : adduser pose des questions,
+    passwd lit un mot de passe qui ne s'affiche pas, et « supprimer » fait
+    RECOPIER le nom du compte avant d'effacer. Rien de tout cela ne peut se
+    faire dans une fenêtre qui n'a pas de clavier.
+
+    CE QUI EST VÉRIFIÉ ICI, ET POURQUOI ICI. La commande part dans une chaîne
+    que xfce4-terminal découpe comme un shell — ce n'est PAS le cas de _run(),
+    qui reçoit une liste. Un nom de compte venu de la page ne peut donc pas y
+    entrer sans contrôle. Deux verrous, dans cet ordre :
+      1. le nom doit être un compte QUI EXISTE, tel que l'outil le publie
+         (ou, pour « ajouter », respecter la règle d'adduser qu'il publie) ;
+      2. il est cité par shlex.quote avant d'entrer dans la commande.
+    Le premier suffirait ; le second existe parce qu'une liste de comptes est
+    un ensemble qui peut grandir, et qu'on ne veut pas que la sûreté de cette
+    ligne dépende de ce qui a le droit de s'appeler un compte.
+    """
+    e = _utilisateurs_etat()
+    if not e.get("dispo"):
+        #  DEUX PANNES DIFFÉRENTES, DEUX MESSAGES. « Introuvable » quand
+        #  l'outil n'est pas là ; « n'a pas répondu » quand il est là mais
+        #  que sa sortie est inutilisable. Dire « introuvable » d'un
+        #  programme installé envoie chercher au mauvais endroit.
+        return {"ok": False,
+                "erreur": ("lexos-utilisateurs n'a pas répondu"
+                           if shutil.which("lexos-utilisateurs")
+                           else "lexos-utilisateurs introuvable")}
+    geste, _, reste = (arg or "").partition(":")
+    comptes = {c.get("nom"): c for c in e.get("comptes", [])}
+
+    #  ═══ CRÉER UN COMPTE ═══ le seul nom qui ne doit PAS déjà exister.
+    if geste == "ajouter":
+        regex = e.get("nom_regex") or ""
+        if not reste:
+            return {"ok": False, "erreur": "il faut un nom de compte"}
+        if reste in comptes:
+            return {"ok": False, "erreur": "« %s » existe déjà" % reste}
+        #  La règle est celle d'adduser, publiée par l'outil : on ne la
+        #  recopie pas ici. Sans elle, on n'ouvre pas de terminal du tout —
+        #  un terminal qui s'ouvre pour mourir aussitôt ressemble à une panne.
+        #  re.fullmatch, PAS re.match. En Python, « $ » accepte un retour à
+        #  la ligne final : « marie\n » passe re.match(« ^…$ ») et se
+        #  retrouverait cité dans la commande du terminal. fullmatch exige
+        #  que TOUTE la chaîne soit consommée, retour à la ligne compris.
+        if not regex or not re.fullmatch(regex, reste):
+            return {"ok": False,
+                    "erreur": "nom de compte invalide : minuscules, chiffres, "
+                              "« - » et « _ », en commençant par une lettre"}
+        return _terminal("Créer un compte — LexOS",
+                         "sudo lexos-utilisateurs ajouter %s" % shlex.quote(reste))
+
+    #  ═══ LA CONNEXION AUTOMATIQUE ═══ « off » n'est pas un compte.
+    if geste == "auto":
+        if reste != "off" and reste not in comptes:
+            return {"ok": False, "erreur": "« %s » n'est pas un compte de cette machine" % reste}
+        if not e.get("lightdm"):
+            return {"ok": False,
+                    "erreur": "LightDM n'est pas installé : la connexion "
+                              "automatique ne se règle que pour lui"}
+        return _terminal("Connexion automatique — LexOS",
+                         "sudo lexos-utilisateurs auto-connexion %s" % shlex.quote(reste))
+
+    #  ═══ LE NOM AFFICHÉ ═══ deux morceaux : le compte, puis le texte libre.
+    if geste == "nom-complet":
+        nom, _, plein = reste.partition(":")
+        if nom not in comptes:
+            return {"ok": False, "erreur": "« %s » n'est pas un compte de cette machine" % nom}
+        if not plein.strip():
+            return {"ok": False, "erreur": "il faut un nom à afficher"}
+        #  On ne rejoue PAS ici la règle du champ GECOS (ni virgule, ni
+        #  deux-points, ni signe égal) : elle vit dans lexos-utilisateurs, qui
+        #  la dira dans le terminal, sous les yeux de la personne. La citer
+        #  ici en ferait une deuxième copie, à tenir à jour pour rien.
+        return _terminal("Nom affiché — LexOS",
+                         "sudo lexos-utilisateurs nom-complet %s %s"
+                         % (shlex.quote(nom), shlex.quote(plein.strip())))
+
+    #  ═══ LES GESTES SUR UN COMPTE EXISTANT ═══
+    if geste not in _UTIL_GESTES:
+        return {"ok": False, "erreur": "geste inattendu"}
+    if reste not in comptes:
+        return {"ok": False, "erreur": "« %s » n'est pas un compte de cette machine" % reste}
+
+    #  DEUX REFUS QUI ÉVITENT UN TERMINAL POUR RIEN. lexos-utilisateurs
+    #  refuse déjà ces deux-là — c'est sa seule interdiction dure — mais il le
+    #  fait APRÈS avoir ouvert une fenêtre et demandé un mot de passe. Le
+    #  dire tout de suite est plus honnête, et la page peut l'afficher.
+    dernier_admin = comptes[reste].get("admin") and e.get("nb_admins", 0) <= 1
+    if geste in ("admin-off", "supprimer", "verrouiller") and dernier_admin:
+        return {"ok": False,
+                "erreur": "« %s » est le seul administrateur : sans lui, cette "
+                          "machine ne peut plus être administrée depuis le bureau" % reste}
+    if geste == "supprimer" and comptes[reste].get("moi"):
+        return {"ok": False,
+                "erreur": "« %s » est le compte ouvert en ce moment : on ne "
+                          "supprime pas la branche sur laquelle on est assis" % reste}
+
+    titre, gabarit = _UTIL_GESTES[geste]
+    args = [a.replace("{}", reste) if a == "{}" else a for a in gabarit]
+    if "{}" not in gabarit:
+        args = args + [reste]
+    return _terminal(titre, "sudo lexos-utilisateurs "
+                     + " ".join(shlex.quote(a) for a in args))
+
+
+def act_clavier(arg):
+    """Changer la disposition du clavier — « quoi:clé ».
+
+    Quatre gestes, tous rendus par lexos-clavier :
+      dabord:<clé>   la mettre en premier, c'est-à-dire celle du démarrage
+      ajouter:<clé>  en ajouter une deuxième (quatre au maximum, limite de X)
+      retirer:<clé>  en enlever une
+      bascule:<clé>  quelles touches passent de l'une à l'autre
+    """
+    if not shutil.which("lexos-clavier"):
+        return {"ok": False, "erreur": "lexos-clavier introuvable"}
+    quoi, _, cle = (arg or "").partition(":")
+    if quoi not in ("dabord", "ajouter", "retirer", "bascule"):
+        return {"ok": False, "erreur": "geste inattendu"}
+    if not cle:
+        return {"ok": False, "erreur": "aucune disposition donnée"}
+    verifie = _clavier_bascule_connue if quoi == "bascule" else _clavier_cle_connue
+    if not verifie(cle):
+        return {"ok": False, "erreur": "« %s » n'est pas dans le catalogue" % cle}
+    return _run(["lexos-clavier", quoi, cle])
 
 
 ACTIONS = {
     "ouvrir": act_ouvrir,
+    "clavier": act_clavier,
+    "defaut-appli": act_defaut,
+    "utilisateur": act_utilisateur,
+    "partage-nom": act_partage,
+    "terminal-mode": act_terminal,
+    "bienetre": act_bienetre,
+    "comptes": act_comptes,
+    "recherche": act_recherche,
     "wifi-radio": act_wifi,
     "wifi-auto": act_wifi_auto,
     "son-muet": act_son_muet,
@@ -1993,17 +2647,6 @@ def _dock_etat():
         return "droite"
 
 
-def _crt_etat():
-    """Les effets d'ouverture façon téléviseur cathodique sont-ils demandés ?
-    « demandés » et pas « actifs » : ils exigent Compiz, qui ne démarre que
-    s'il y a une accélération 3D. lexos-wm replie sur xfwm4 sinon."""
-    conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
-    try:
-        return (conf / "crt").read_text().strip() != "off"
-    except OSError:
-        return True
-
-
 def _libre_etat():
     """Ce qui, dans CETTE machine, n'est pas du logiciel libre.
 
@@ -2378,33 +3021,38 @@ def _maj_etat():
 
 
 def _utilisateurs_etat():
-    """Les VRAIS comptes de la machine. On lit /etc/passwd et on garde les
-    comptes humains : UID >= 1000 et un shell qui n'est pas nologin. Les
-    dizaines de comptes de service (www-data, systemd-*) n'ont rien à faire
-    dans une liste d'utilisateurs."""
-    gens = []
+    """Les comptes de la machine — demandés à lexos-utilisateurs.
+
+    CE QUE CETTE FONCTION FAISAIT, ET POURQUOI C'ÉTAIT FAUX. Elle lisait
+    /etc/passwd et /etc/group elle-même, avec sa PROPRE définition de
+    « administrateur » : appartenir à sudo, wheel OU adm. Or « adm » ne donne
+    que la lecture des journaux. Quelqu'un qui n'est que dans « adm »
+    s'affichait « administrateur » dans les Paramètres alors qu'il ne peut
+    pas lancer un seul sudo — et lexos-utilisateurs, lui, ne le comptait pas
+    comme administrateur. Deux définitions du même mot dans le même système,
+    et c'est la fausse qu'on montrait à l'écran.
+
+    Elle filtrait aussi les comptes autrement (UID < 65000 et un shell qui
+    n'est pas nologin, là où l'outil dit UID >= 1000 et pas « nobody ») :
+    deux listes de comptes possibles, pour la même machine.
+
+    Une seule source, donc, et c'est l'outil — comme pour lexos-clavier,
+    lexos-defaut et lexos-distant.
+    """
+    vide = {"comptes": [], "auto": "", "nb_admins": 0, "groupe_admin": "sudo",
+            "root": False, "lightdm": False, "nom_regex": "", "dispo": False}
+    if not shutil.which("lexos-utilisateurs"):
+        return vide
     try:
-        admins = set()
-        for ligne in Path(ETC_DIR / "group").read_text().splitlines():
-            champs = ligne.split(":")
-            if len(champs) >= 4 and champs[0] in ("sudo", "wheel", "adm"):
-                admins.update(m for m in champs[3].split(",") if m)
-        for ligne in Path(ETC_DIR / "passwd").read_text().splitlines():
-            champs = ligne.split(":")
-            if len(champs) < 7:
-                continue
-            nom, _, uid, _, complet, foyer, shell = champs[:7]
-            if not uid.isdigit() or int(uid) < 1000 or int(uid) >= 65000:
-                continue
-            if shell.endswith(("nologin", "false")):
-                continue
-            gens.append({"nom": nom,
-                         "complet": (complet.split(",")[0] or nom).strip(),
-                         "admin": nom in admins,
-                         "moi": nom == os.environ.get("USER", "")})
-    except OSError:
-        pass
-    return gens
+        r = subprocess.run(["lexos-utilisateurs", "--json"],
+                           capture_output=True, text=True, timeout=30)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if not isinstance(d.get("comptes"), list):
+        return vide
+    d["dispo"] = True
+    return d
 
 
 def _imprimantes_etat():
@@ -2427,15 +3075,50 @@ def _imprimantes_etat():
 
 
 def _clavier_etat():
-    """Les dispositions de clavier actives, et laquelle est en service."""
-    dispos, courante = [], ""
-    if shutil.which("setxkbmap"):
-        for ligne in _sortie(["setxkbmap", "-query"]).splitlines():
-            if ligne.startswith("layout:"):
-                dispos = [d for d in ligne.split(":", 1)[1].strip().split(",") if d]
-    if shutil.which("xkb-switch"):
-        courante = _sortie(["xkb-switch"])
-    return {"dispositions": dispos, "courante": courante or (dispos[0] if dispos else "")}
+    """Le clavier, tel que lexos-clavier le voit.
+
+    ALEX : « dans les paramètres de clavier, une fois installé, on n'est pas
+    capable de changer de clavier », puis « faire en sorte qu'on puisse
+    avoir tous les paramètres de clavier ».
+
+    CETTE SECTION NE SAVAIT QUE LIRE. Elle appelait « setxkbmap -query »,
+    affichait les dispositions, et pour changer quoi que ce soit renvoyait
+    au dialogue de XFCE — lequel s'ouvre TOUT GRISÉ tant que « Utiliser les
+    réglages système » est actif, ce qui est son défaut (vérifié dans le
+    GtkBuilder du binaire : xkb_use_system_default_switch, active=True).
+    Deux impasses, et rien pour le dire.
+
+    ON DEMANDE À lexos-clavier PLUTÔT QUE DE REFAIRE SON TRAVAIL. Il porte
+    déjà le catalogue des vingt dispositions, les six bascules, et il sait
+    appliquer ET conserver. Relire setxkbmap de notre côté ferait deux
+    copies de la même logique, qui finiraient par ne plus dire la même
+    chose — exactement le raisonnement tenu pour lexos-distant plus bas.
+    """
+    vide = {"dispositions": [], "courante": "", "actives": [],
+            "catalogue": [], "bascules": [], "bascule": "", "max": 4,
+            "x_applique": ""}
+    if not shutil.which("lexos-clavier"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-clavier", "--json"],
+                           capture_output=True, text=True, timeout=15)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    actives = d.get("actives", [])
+    return {
+        #  « dispositions » et « courante » restent servis : la page les
+        #  affichait déjà sous ces noms, et un renommage silencieux aurait
+        #  vidé l'écran sans qu'une seule erreur ne le dise.
+        "dispositions": [a.get("cle", "") for a in actives],
+        "courante": actives[0].get("cle", "") if actives else "",
+        "actives": actives,
+        "catalogue": d.get("catalogue", []),
+        "bascules": d.get("bascules", []),
+        "bascule": d.get("bascule", ""),
+        "max": d.get("max", 4),
+        "x_applique": d.get("x_applique", ""),
+    }
 
 
 def _distant_etat():
@@ -2491,31 +3174,50 @@ def _reseau_etat():
 
 
 def _defaut_etat():
-    """Quel logiciel ouvre quoi. xdg-settings dit le navigateur ; pour le
-    reste on lit le fichier d'associations, celui que le bureau consulte."""
-    nav = _sortie(["xdg-settings", "get", "default-web-browser"]) if shutil.which("xdg-settings") else ""
-    assoc = {}
-    chemins = [Path.home() / ".config/mimeapps.list",
-               Path("/usr/share/applications/mimeapps.list")]
-    interesse = {"text/plain": "texte", "image/png": "image",
-                 "application/pdf": "pdf", "audio/mpeg": "musique",
-                 "video/mp4": "video"}
-    for f in chemins:
-        try:
-            dedans = False
-            for ligne in f.read_text().splitlines():
-                l = ligne.strip()
-                if l.startswith("["):
-                    dedans = l == "[Default Applications]"
-                    continue
-                if dedans and "=" in l:
-                    mime, appli = l.split("=", 1)
-                    cle = interesse.get(mime.strip())
-                    if cle and cle not in assoc:
-                        assoc[cle] = appli.split(";")[0].replace(".desktop", "")
-        except OSError:
-            continue
-    return {"navigateur": nav.replace(".desktop", ""), "assoc": assoc}
+    """Quel logiciel ouvre quoi — et lesquels pourraient le faire.
+
+    ALEX : « le contenu comme Ubuntu », « commence par applications par
+    défaut ». La page LISAIT le fichier d'associations et affichait cinq
+    lignes sans rien à cliquer ; pour changer quoi que ce soit, elle passait
+    la main à l'outil de XFCE.
+
+    ON DEMANDE À lexos-defaut PLUTÔT QUE DE REFAIRE SON TRAVAIL. Il porte
+    déjà les dix catégories, leurs types MIME, la lecture des .desktop et la
+    liste des applications capables d'ouvrir chaque type. La version
+    précédente de cette fonction relisait mimeapps.list à la main avec sa
+    propre table de cinq types — deux sources pour la même question, qui
+    auraient fini par ne plus dire la même chose. Même raisonnement que pour
+    lexos-clavier et lexos-distant.
+
+    UBUNTU EN OFFRE SIX, ON EN GARDE DIX. On ne retire pas des réglages pour
+    « faire comme » : le lecteur audio, l'éditeur de texte, le gestionnaire
+    de fichiers, les archives et le terminal n'existent pas dans la page
+    d'Ubuntu, et les enlever d'ici n'aiderait personne.
+    """
+    vide = {"navigateur": "", "assoc": {}, "categories": []}
+    if not shutil.which("lexos-defaut"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-defaut", "--json"],
+                           capture_output=True, text=True, timeout=30)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    cats = d.get("categories", [])
+
+    #  « navigateur » et « assoc » restent servis sous leurs anciens noms :
+    #  d'autres endroits de la page les lisent, et un renommage silencieux
+    #  aurait vidé l'écran sans qu'une seule erreur ne le dise.
+    ancien = {"texte": "texte", "images": "image", "pdf": "pdf",
+              "audio": "musique", "video": "video"}
+    assoc, nav = {}, ""
+    for c in cats:
+        courant = (c.get("courant") or "").replace(".desktop", "")
+        if c.get("cle") == "navigateur":
+            nav = courant
+        elif c.get("cle") in ancien and courant:
+            assoc[ancien[c["cle"]]] = courant
+    return {"navigateur": nav, "assoc": assoc, "categories": cats}
 
 
 def _couleurs_etat():
@@ -2564,67 +3266,167 @@ def _mac_etat():
     return {"apple": "apple" in vendeur.lower(), "modele": modele}
 
 
+def _crt_etat():
+    """Les effets de fenêtres « téléviseur 1980 » — demandés à lexos-crt.
+
+    ALEX : « l'effet d'animation n'est pas là quand je ferme des fenêtres ».
+    Il avait raison, et ce n'était pas un réglage de travers : l'effet était
+    configuré pour COMPIZ, retiré de Debian trixie. lexos-wm se repliait donc
+    sur xfwm4, qui n'a aucune animation d'ouverture ni de fermeture.
+
+    CE QUE CETTE PAGE DOIT POUVOIR DIRE : non pas « allumé / éteint », mais
+    POURQUOI c'est éteint quand ça l'est — picom absent, picom trop ancien,
+    ou pas d'accélération 3D. Un interrupteur qui revient tout seul à sa place
+    sans un mot est le geste le plus déroutant qu'une page puisse offrir.
+    """
+    vide = {"voulu": "off", "tourne": False, "picom": False,
+            "picom_version": 0, "picom_min": 12, "accel3d": False,
+            "script": False, "dispo": False}
+    if not shutil.which("lexos-crt"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-crt", "--json"],
+                           capture_output=True, text=True, timeout=20)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if "voulu" not in d:
+        return vide
+    d["dispo"] = True
+    return d
+
+
+def _terminal_etat():
+    """Le terminal de jour et le terminal de nuit, tels que lexos-terminal les
+    voit.
+
+    LA PAGE N'AVAIT AUCUN ÉTAT : elle listait quatre commandes à taper. Elle ne
+    disait donc ni ce qui est choisi, ni ce qui s'applique en ce moment — et
+    ces deux-là diffèrent dès qu'on est en « auto » ou en « suivre ». C'est
+    précisément l'écart entre les deux qui explique ce qu'on a sous les yeux.
+    """
+    vide = {"mode": "", "effectif": "", "bureau": "", "debut": "", "fin": "",
+            "minuterie": False, "dispo": False}
+    if not shutil.which("lexos-terminal"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-terminal", "--json"],
+                           capture_output=True, text=True, timeout=15)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if not d.get("mode"):
+        return vide
+    d["dispo"] = True
+    return d
+
+
 def _partage_etat():
-    """Le serveur de partage tourne-t-il ?"""
-    actif = bool(_sortie(["pgrep", "-f", "share-server.py"])) if shutil.which("pgrep") else False
-    return {"actif": actif}
+    """Le partage, tel que lexos-share le voit.
+
+    CETTE FONCTION NE SAVAIT QU'UNE CHOSE : si le serveur tourne. La page
+    n'avait donc qu'une ligne à afficher — « actif » ou « au repos » — là où
+    Ubuntu met le NOM DE L'ORDINATEUR en haut de sa page « Partage », et pour
+    une bonne raison : ce nom n'a d'usage que vu d'ailleurs. C'est lui que le
+    téléphone affiche dans sa liste d'appareils.
+
+    Elle cherchait aussi « share-server.py » avec pgrep -f, qui compare la
+    ligne de commande entière : n'importe quelle commande mentionnant ce nom
+    faisait dire « partage actif ». lexos-share cherche maintenant le chemin
+    complet, et c'est lui qu'on interroge.
+    """
+    vide = {"actif": False, "nom": "", "nom_regex": "", "recus": "",
+            "minutes": 0, "kde": False, "bt": False, "qr": False,
+            "ssh_serveur": False, "dispo": False}
+    if not shutil.which("lexos-share"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-share", "--json"],
+                           capture_output=True, text=True, timeout=15)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if "nom" not in d:
+        return vide
+    d["dispo"] = True
+    return d
 
 
 def _comptes_etat():
-    """Les comptes en ligne reliés. Deux mécanismes cohabitent sous Linux et
-    ne font pas la même chose : GNOME Online Accounts ouvre le compte DANS le
-    gestionnaire de fichiers (rien n'est copié), rclone sait en plus
-    synchroniser pour l'hors-ligne. On dit lequel est disponible."""
-    liens = []
-    if shutil.which("rclone"):
-        for ligne in _sortie(["rclone", "listremotes"]).splitlines():
-            nom = ligne.strip().rstrip(":")
-            if nom:
-                liens.append({"nom": nom, "par": "rclone"})
-    return {"rclone": bool(shutil.which("rclone")),
-            "goa": bool(shutil.which("gnome-control-center")
-                        or Path("/usr/lib/gnome-online-accounts").exists()),
-            "liens": liens}
+    """Les comptes en ligne — demandés à lexos-comptes.
 
+    CE QUE CETTE FONCTION FAISAIT. Elle appelait « rclone listremotes »
+    elle-même. Elle savait donc quels comptes sont CONFIGURÉS, et rien de
+    plus — surtout pas lesquels sont MONTÉS, c'est-à-dire lesquels sont
+    réellement là, dans Fichiers, en ce moment. C'est pourtant toute la
+    différence pour qui cherche ses documents.
+
+    Et elle ignorait le catalogue des services. La page ne pouvait donc pas
+    proposer d'en relier un : il fallait passer par le terminal ne serait-ce
+    que pour apprendre les noms acceptés. Ce catalogue vit dans lexos-comptes,
+    avec le type rclone exact de chaque service — celui qui fait la différence
+    entre une commande qui marche et un « unknown remote type ». Le recopier
+    ici aurait donné deux listes destinées à diverger.
+    """
+    vide = {"rclone": False, "gvfs": False, "nuage": "", "comptes": [],
+            "services": [], "dispo": False,
+            #  Ancien nom, encore lu ailleurs dans la page.
+            "liens": [], "goa": False}
+    if not shutil.which("lexos-comptes"):
+        return vide
+    try:
+        r = subprocess.run(["lexos-comptes", "--json"],
+                           capture_output=True, text=True, timeout=20)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if not isinstance(d.get("services"), list):
+        return vide
+    d["dispo"] = True
+    d["liens"] = [{"nom": c.get("nom", ""), "par": "rclone"}
+                  for c in d.get("comptes", [])]
+    d["goa"] = bool(d.get("gvfs"))
+    return d
 
 def _bienetre_etat():
-    """Temps d'écran du jour, et si le compteur tourne seulement.
+    """Temps d'écran, limite, pauses, lumière du soir — demandés à l'outil.
 
-    CORRECTION D'UNE ERREUR : cette fonction lisait
-    ~/.config/lexos/ecran-aujourdhui, au format « date minutes ». Ce fichier
-    n'existe nulle part et personne ne l'écrit. lexos-bienetre range son
-    relevé AILLEURS et AUTREMENT : un fichier par jour, nommé AAAA-MM-JJ,
-    dans ~/.local/share/lexos/bienetre/, contenant le seul nombre de minutes.
-    La section affichait donc éternellement « pas de relevé » alors que le
-    compteur faisait son travail.
+    DEUX CORRECTIONS SUCCESSIVES, ET LA SECONDE EST CELLE-CI.
+    La première version lisait ~/.config/lexos/ecran-aujourdhui, un fichier
+    que personne n'écrit : la section affichait éternellement « pas de
+    relevé ». La deuxième lisait le bon dossier, mais à la main — donc une
+    deuxième copie du format de lexos-bienetre, qui aurait fini par ne plus
+    dire la même chose. On demande maintenant à l'outil, comme pour le
+    clavier, les applications par défaut et les comptes.
 
-    ET UNE DISTINCTION QUI COMPTE : le compteur est ARRÊTÉ par défaut —
-    mesurer le temps de quelqu'un ne se fait pas sans qu'il le demande. « 0
-    minute » et « le compteur ne tourne pas » ne veulent donc pas dire la
-    même chose, et la page doit pouvoir les distinguer."""
-    from datetime import date
-    dossier = Path(os.environ.get(
-        "LEXOS_BIENETRE_DIR",
-        Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
-        / "lexos" / "bienetre"))
-    minutes = 0
+    ET ELLE NE SAVAIT QUE DEUX CHOSES : les minutes du jour, et si le
+    compteur tourne. Ni la limite, ni la semaine, ni l'état réel de workrave
+    et de redshift — d'où une page sans un seul réglage.
+
+    TROIS DISTINCTIONS À GARDER : « zéro minute » n'est pas « le compteur est
+    arrêté » ; « workrave n'est pas installé » n'est pas « les rappels sont
+    arrêtés » ; une limite de zéro n'est pas une limite atteinte.
+    """
+    vide = {"tourne": False, "minutes": 0, "limite": 0,
+            "pauses_installe": False, "pauses_actif": False,
+            "nuit_installe": False, "nuit_actif": False,
+            "semaine": [], "total_semaine": 0, "dispo": False,
+            #  Anciens noms, encore lus ailleurs dans la page.
+            "pauses": False, "soir": False}
+    if not shutil.which("lexos-bienetre"):
+        return vide
     try:
-        brut = (dossier / date.today().isoformat()).read_text().strip()
-        if brut.isdigit():
-            minutes = int(brut)
-    except (OSError, ValueError):
-        pass
-    #  Le compteur tourne-t-il ? C'est une minuterie systemd de l'utilisateur.
-    tourne = False
-    if shutil.which("systemctl"):
-        tourne = _sortie(["systemctl", "--user", "is-active",
-                          "lexos-bienetre.timer"]) == "active"
-    return {"minutes": minutes,
-            "tourne": tourne,
-            "releve": (dossier / date.today().isoformat()).exists(),
-            "pauses": bool(shutil.which("workrave")),
-            "soir": bool(shutil.which("redshift") or shutil.which("gammastep"))}
-
+        r = subprocess.run(["lexos-bienetre", "--json"],
+                           capture_output=True, text=True, timeout=20)
+        d = json.loads(r.stdout or "{}")
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return vide
+    if "minutes" not in d:
+        return vide
+    d["dispo"] = True
+    d["pauses"] = bool(d.get("pauses_installe"))
+    d["soir"] = bool(d.get("nuit_installe"))
+    return d
 
 def _heure_etat():
     """Fuseau et synchronisation automatique, via timedatectl."""
@@ -2738,6 +3540,11 @@ def etat():
         #  chemin que la page choisirait.
         "fonds_perso": [{"i": i, "nom": Path(c).name}
                         for i, c in enumerate(_fonds_perso())],
+        #  ALEX : « pour changer de couleur sur le bouton sélectionné ». Sans
+        #  cette clé, la page n'avait RIEN à comparer : les cinq fonds
+        #  intégrés et les vignettes de la galerie étaient les seuls choix de
+        #  toute l'interface à ne pas montrer lequel était posé.
+        "fond": _fond_etat(_fonds_perso()),
         #  Vide n'est pas une réponse. Quand la liste ci-dessus l'est, celle-ci
         #  dit POURQUOI — et la page peut enfin l'écrire au lieu de laisser
         #  croire qu'aucun écran n'est branché.
@@ -2750,7 +3557,6 @@ def etat():
         "energie": _energie_etat(),
         "bluetooth": _bluetooth_complet(),
         "dock": _dock_etat(),
-        "crt": _crt_etat(),
         "barreCachee": _barre_cachee(),
         "bureaux": _bureaux_etat(),
         "apercu": _apercu_etat(),
@@ -2770,6 +3576,9 @@ def etat():
         "notif": _notif_etat(),
         "mac": _mac_etat(),
         "partage": _partage_etat(),
+        "terminal": _terminal_etat(),
+        "crt": _crt_etat(),
+        "recherche": _recherche_etat(),
         "comptes": _comptes_etat(),
         "bienetre": _bienetre_etat(),
         "langue": _sortie(["sh", "-c", "printf %s \"${LANG:-}\""]) or os.environ.get("LANG", ""),

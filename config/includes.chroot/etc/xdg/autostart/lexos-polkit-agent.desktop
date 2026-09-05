@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LexOS — fenêtre du mot de passe administrateur
+Name[en]=LexOS — administrator password prompt
+Comment=Sans lui, tous les boutons qui demandent le mot de passe d'administrateur ne font rien, en silence
+Comment[en]=Without it, every button that asks for the administrator password does nothing, silently
+Exec=/usr/lib/lexos/polkit-agent
+Icon=dialog-password
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-AutoRestart=true
+OnlyShowIn=XFCE;LXDE;LXQt;MATE;

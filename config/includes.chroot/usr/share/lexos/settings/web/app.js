@@ -159,6 +159,28 @@ function toast(msg){
 const esc = s => String(s).replace(/[&<>"]/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
+/*  ═══ UNE VALEUR DU SYSTÈME DANS UN onclick="f('…')" ═══
+    esc() protège le HTML. Elle n'échappe PAS l'apostrophe — et c'est
+    l'apostrophe qui ferme la chaîne JavaScript à l'intérieur de l'attribut.
+
+    MESURÉ, PAS SUPPOSÉ. Un compte nommé « o'brien » produisait
+    onclick="utilGeste('motdepasse','o'brien')" : le navigateur décode les
+    entités de l'attribut, PUIS lit le JavaScript, et trouve « missing ) after
+    argument list ». Le bouton s'affiche, se clique, et il ne se passe RIEN —
+    l'erreur va dans une console que personne n'ouvre. C'est exactement le
+    défaut des trois sélecteurs morts de l'écran de connexion, sous une autre
+    forme.
+
+    ET « &#39; » NE RÉPARE RIEN. Le Wi-Fi le faisait déjà pour les noms de
+    réseau : le navigateur décode &#39; EN apostrophe avant de lire le
+    JavaScript, donc la chaîne se ferme quand même. Un réseau « Chez Léa's »
+    avait un bouton « Se connecter » mort. Vérifié en rendant la page et en
+    passant l'attribut décodé à new Function().
+
+    L'ORDRE COMPTE : l'antislash d'abord (sinon on doublerait celui qu'on vient
+    de poser), l'apostrophe ensuite, l'échappement HTML en dernier. */
+const jsq = s => esc(String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
+
 function srow(titre, desc, droite){
   return `<div class="srow"><div><div class="t">${titre}</div>
     ${desc?`<div class="d">${desc}</div>`:""}</div>${droite||""}</div>`;
@@ -211,8 +233,17 @@ function gaugeDial(){
          `<g fill="currentColor" opacity=".85" font-family="ui-monospace,monospace" font-weight="700" font-size="38">${nb}</g>`;
 }
 //  size : côté en pixels. profil : clé de PERF_RPM (défaut : profil courant).
+//
+//  « state » N'EXISTE PAS DANS CE FICHIER — l'état s'appelle « etat ». La
+//  ligne ci-dessous levait donc une ReferenceError… mais seulement quand
+//  « profil » est vide, c'est-à-dire quand etat.perf ne répond pas. Sur une
+//  machine où lexos-perf va bien, l'unique appel passe etat.perf et le défaut
+//  ne se voyait jamais. Il attendait le jour où l'outil manquerait — et ce
+//  jour-là, la page Énergie n'aurait rien affiché du tout, sans message :
+//  rendSection() fait « content.innerHTML = contenu(...) », et quand contenu()
+//  lève, l'écran garde la section précédente. Même mécanique que « Diagnostic ».
 function perfGauge(size, profil){
-  const v = PERF_RPM[profil || state.perf] ?? 4;
+  const v = PERF_RPM[profil || etat.perf] ?? 4;
   return `<svg class="gauge" viewBox="0 0 512 512" width="${size}" height="${size}" aria-hidden="true">`+
     gaugeDial()+
     `<g class="needle" style="transform:rotate(${gaugeAngle(v)}deg)">`+
@@ -658,7 +689,10 @@ async function basculeBarre(){
 }
 async function basculeCrt(){
   const r = await api("crt", "toggle");
-  await rafraichir(r.ok ? "À la prochaine ouverture de session" : "Échec : " + (r.erreur || "commande refusée"));
+  //  « À la prochaine ouverture de session » était vrai du temps de Compiz.
+  //  picom démarre et s'arrête dans la session en cours : on le dit.
+  await rafraichir(r.ok ? "C'est réglé — ferme une fenêtre pour voir"
+                        : "Échec : " + (r.erreur || "commande refusée"));
 }
 async function setBureaux(sens){
   const r = await api("bureaux", sens);
@@ -832,6 +866,148 @@ async function setFuseau(zone){
   const r = await api("fuseau", zone);
   await rafraichir(r.ok ? "Fuseau horaire réglé" : "Échec : " + (r.erreur || "mot de passe refusé"));
 }
+/*  LE CLAVIER. Quatre gestes, tous rendus par lexos-clavier via l'action
+    « clavier » du moteur. On rafraichit apres chaque geste : la liste des
+    dispositions vient de changer, et une page qui montre l'ancien etat
+    ferait croire que le clic n'a rien fait. */
+function nomBascule(bascules, cle){
+  const b = (bascules || []).find(x => x.cle === cle);
+  return b ? b.nom : (cle || "");
+}
+/*  La recherche. Les résultats vont dans un terminal, donc on ne rafraîchit
+    pas la page : rien n'y change. On dit seulement ce qui se passe. */
+async function lancerRecherche(quoi){
+  const c = document.getElementById("rechMot");
+  const mot = (c && c.value || "").trim();
+  const r = await api("recherche", quoi + ":" + mot);
+  if(r.ok){
+    toast(quoi === "fenetre" ? "La fenêtre de recherche s'ouvre"
+                             : "Un terminal s'ouvre avec les résultats");
+  } else {
+    toast("Refusé : " + (r.erreur || "impossible"));
+  }
+}
+/*  Les comptes en ligne. « ajouter » et « retirer » ouvrent un terminal — on
+    ne rafraîchit donc pas derrière, rien n'a encore changé au moment où la
+    réponse revient. « monter » et « demonter », eux, agissent tout de suite. */
+async function setCompte(quoi, nom){
+  if(!nom) return;
+  const r = await api("comptes", quoi + ":" + nom);
+  if(quoi === "ajouter" || quoi === "retirer"){
+    toast(r.ok ? "Un terminal s'ouvre : la suite s'y passe"
+               : "Refusé : " + (r.erreur || "impossible"));
+    return;
+  }
+  await rafraichir(r.ok ? (quoi === "monter" ? "Compte ouvert" : "Compte refermé")
+                        : "Échec : " + (r.erreur || "refusé"));
+}
+/*  Le bien-être numérique. On rafraîchit après coup : allumer le compteur ou
+    poser une limite change ce que la page affiche juste au-dessus. */
+async function setBienetre(quoi, valeur){
+  const v = valeur === true ? "on" : (valeur === false ? "off" : valeur);
+  const r = await api("bienetre", quoi + ":" + v);
+  await rafraichir(r.ok ? "C'est réglé" : "Échec : " + (r.erreur || "refusé"));
+}
+async function setBienetreLimite(){
+  const c = document.getElementById("bienLimite");
+  const v = (c && c.value || "").trim();
+  if(!v){ toast("Donne un nombre de minutes"); return; }
+  const r = await api("bienetre", "limite:" + v);
+  await rafraichir(r.ok ? "Limite enregistrée" : "Échec : " + (r.erreur || "refusé"));
+}
+/*  Effacer l'historique est le seul geste de cette page qui DÉTRUIT quelque
+    chose, et il passe par un terminal : lexos-bienetre fait taper le mot
+    « effacer » avant de supprimer. On ne double pas cette confirmation d'une
+    boîte de dialogue — demander deux fois la même chose apprend à répondre
+    oui sans lire. Et on n'annonce PAS « effacé » : au moment où la réponse
+    revient, le terminal vient de s'ouvrir et rien n'est encore fait. */
+async function oublierBienetre(){
+  const r = await api("bienetre", "oublier:");
+  toast(r.ok ? "Un terminal s'ouvre : il faudra y taper « effacer »"
+             : "Refusé : " + (r.erreur || "impossible"));
+}
+/*  Le terminal de jour et le terminal de nuit. On rafraîchit après coup : le
+    mode effectif vient de changer, et une page qui montre l'ancien ferait
+    croire que le clic n'a rien fait. */
+async function setTerminalMode(mode){
+  const r = await api("terminal-mode", "mode:" + mode);
+  await rafraichir(r.ok ? "Terminal : " + mode : "Échec : " + (r.erreur || "refusé"));
+}
+async function setTerminalHoraire(){
+  const d = document.getElementById("termDebut"), f = document.getElementById("termFin");
+  const r = await api("terminal-mode",
+                      "horaire:" + ((d && d.value) || "") + "-" + ((f && f.value) || ""));
+  await rafraichir(r.ok ? "Heures du jour enregistrées"
+                        : "Échec : " + (r.erreur || "refusé"));
+}
+/*  Le nom de la machine. Comme pour les comptes, le geste ouvre un terminal :
+    il touche à /etc/hostname ET à /etc/hosts, et il demande les droits
+    d'administrateur. On ne rafraîchit pas derrière — au moment où la réponse
+    revient, le terminal vient de s'ouvrir et rien n'a encore changé. */
+async function setNomMachine(){
+  const c = document.getElementById("partageNom");
+  const nom = (c && c.value || "").trim();
+  if(!nom){ toast("Il faut un nom de machine"); return; }
+  const r = await api("partage-nom", "nom:" + nom);
+  toast(r.ok ? "Un terminal s'ouvre : la commande y est écrite en clair"
+             : "Refusé : " + (r.erreur || "nom impossible"));
+}
+/*  LES COMPTES. Chaque geste ouvre un terminal — c'est là que se tapent les
+    mots de passe et les confirmations — donc on ne rafraîchit PAS derrière :
+    au moment où la réponse revient, le terminal vient tout juste de s'ouvrir
+    et rien n'a encore changé. Une page rafraîchie à cet instant afficherait
+    l'ancien état, ce qui ferait croire que le clic n'a rien fait. On dit ce
+    qui se passe, et la page se remet à jour à son rythme habituel. */
+async function utilGeste(quoi, nom){
+  if(!nom) return;
+  const r = await api("utilisateur", quoi + ":" + nom);
+  toast(r.ok ? "Un terminal s'ouvre : la commande y est écrite en clair"
+             : "Refusé : " + (r.erreur || "geste impossible"));
+}
+async function utilAjouter(){
+  const c = document.getElementById("utilNouveau");
+  const nom = (c && c.value || "").trim();
+  if(!nom){ toast("Il faut un nom de compte"); return; }
+  const r = await api("utilisateur", "ajouter:" + nom);
+  if(r.ok && c) c.value = "";
+  toast(r.ok ? "Un terminal s'ouvre : adduser va poser ses questions"
+             : "Refusé : " + (r.erreur || "nom impossible"));
+}
+async function utilNomComplet(nom){
+  const c = document.getElementById("nomAff-" + nom);
+  const plein = (c && c.value || "").trim();
+  if(!plein){ toast("Il faut un nom à afficher"); return; }
+  const r = await api("utilisateur", "nom-complet:" + nom + ":" + plein);
+  toast(r.ok ? "Un terminal s'ouvre pour changer le nom affiché"
+             : "Refusé : " + (r.erreur || "nom impossible"));
+}
+/*  Le choix d'une application par défaut. On rafraîchit après coup : régler
+    une catégorie peut en changer une autre (choisir un navigateur déplace
+    aussi http et https), et une page qui montre l'ancien état ferait croire
+    que le clic n'a rien fait. */
+async function setDefautAppli(categorie, appli){
+  if(!appli) return;
+  const r = await api("defaut-appli", categorie + ":" + appli);
+  await rafraichir(r.ok ? "Application par défaut changée"
+                        : "Échec : " + (r.erreur || "refusé"));
+}
+async function clavierDabord(cle){
+  const r = await api("clavier", "dabord:" + cle);
+  await rafraichir(r.ok ? "Disposition changée" : "Échec : " + (r.erreur || "refusé"));
+}
+async function clavierAjouter(cle){
+  if(!cle) return;
+  const r = await api("clavier", "ajouter:" + cle);
+  await rafraichir(r.ok ? "Disposition ajoutée" : "Échec : " + (r.erreur || "refusé"));
+}
+async function clavierRetirer(cle){
+  const r = await api("clavier", "retirer:" + cle);
+  await rafraichir(r.ok ? "Disposition retirée" : "Échec : " + (r.erreur || "refusé"));
+}
+async function clavierBascule(cle){
+  const r = await api("clavier", "bascule:" + cle);
+  await rafraichir(r.ok ? "Touches de bascule changées" : "Échec : " + (r.erreur || "refusé"));
+}
 async function basculeHeureAuto(){
   const r = await api("heure-auto", "toggle");
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "mot de passe refusé"));
@@ -954,7 +1130,7 @@ function contenu(cle){
           ${r.actif
             ? `<span class="etat ok">connecté</span>
                <button class="btn ghost" onclick="coupeWifi()">Déconnecter</button>`
-            : `<button class="btn ghost" onclick="choisitWifi('${esc(r.ssid).replace(/'/g,"&#39;")}')">Se connecter</button>`}
+            : `<button class="btn ghost" onclick="choisitWifi('${jsq(r.ssid)}')">Se connecter</button>`}
         </div>
         ${wifiChoisi === r.ssid && !r.actif ? `<div class="srow" style="display:block">
           ${r.protege
@@ -1038,8 +1214,8 @@ function contenu(cle){
             d.connecte ? "Connecté — le son peut sortir ici"
                        : (d.appaire ? "Appairé, pas connecté" : "À portée, jamais appairé"),
             d.connecte
-              ? `<button class="btn ghost" onclick="btCoupe('${d.adresse}')">Déconnecter</button>`
-              : `<button class="btn ghost" onclick="btBranche('${d.adresse}')">${d.appaire ? "Connecter" : "Appairer"}</button>`
+              ? `<button class="btn ghost" onclick="btCoupe('${jsq(d.adresse)}')">Déconnecter</button>`
+              : `<button class="btn ghost" onclick="btBranche('${jsq(d.adresse)}')">${d.appaire ? "Connecter" : "Appairer"}</button>`
           )).join("")
           : `<p class="notice">Aucun appareil connu. Mets ton enceinte ou ta
              barre de son en <b>mode appairage</b> (souvent un bouton Bluetooth
@@ -1082,7 +1258,7 @@ function contenu(cle){
               e.principal ? " (écran principal)" : ""}</div>
             <div class="row">${e.modes.slice(0,8).map(m =>
               `<button class="btn ${m===e.definition?"sel":"ghost"}"
-                 onclick="setDefinition('${esc(e.nom)}','${esc(m)}')">${esc(m)}</button>`
+                 onclick="setDefinition('${jsq(e.nom)}','${jsq(m)}')">${esc(m)}</button>`
               ).join("")}</div>
           </div>`;
         }
@@ -1127,7 +1303,7 @@ function contenu(cle){
           <div class="t" style="margin-bottom:8px">Sortie audio</div>
           <div class="row">${so.map(x =>
             `<button class="btn ${x.actif?"sel":"ghost"}"
-               onclick="setSortieSon('${esc(x.nom)}')"
+               onclick="setSortieSon('${jsq(x.nom)}')"
                title="${esc(x.nom)}">${esc(x.titre)}</button>`).join("")}</div>
           <div class="sub" style="margin-top:8px">Haut-parleurs, casque, télé en
             HDMI, cinéma maison, enceinte Bluetooth — ce qui joue déjà suit
@@ -1205,7 +1381,7 @@ function contenu(cle){
             <div class="d">${a.monte ? "Monté sur " + esc(a.monte)
                                      : "Branché, pas encore ouvert"} · ${esc(a.dev)}</div>
           </div>
-          <button class="btn ghost" onclick="ejecte('${esc(a.dev)}')">Éjecter</button>
+          <button class="btn ghost" onclick="ejecte('${jsq(a.dev)}')">Éjecter</button>
         </div>`).join("")
         : `<p class="notice">Aucun support amovible branché. Branche une clé ou un
            disque : il apparaîtra ici. Le disque système n'est jamais listé —
@@ -1222,7 +1398,14 @@ function contenu(cle){
       d'un téléphone (MTP/iPhone) ou d'une clé. <code>lexos usb terminal</code> ouvre un
       terminal <b>sur le téléphone</b> (adb, débogage USB requis).
       <code>lexos format</code> formate une clé ou un téléphone — jamais le disque
-      système, et seulement après confirmation explicite.</p>`;
+      système, et seulement après confirmation explicite.</p>
+      ${/*  ═══ UNE CIBLE SERVIE PAR LE MOTEUR, JAMAIS PROPOSÉE PAR LA PAGE ═══
+            act_ouvrir déclare 38 fenêtres ; la page n'en offrait que 35.
+            « usb », « confidentialite » et « maj » étaient écrites, testées
+            par le banc des boutons… et impossibles à déclencher depuis
+            l'écran. Le banc vérifiait donc du code que personne ne pouvait
+            atteindre. */""}
+      ${btnOuvrir("usb","Ouvrir l'outil complet (terminal)")}`;
     }
     case "mac": {
       const m = etat.mac || {};
@@ -1281,21 +1464,68 @@ function contenu(cle){
       </div>
       ${srow("Masquer la barre d'outils","Elle glisse hors de l'écran ; la poignée du bord la ramène",
              sw(etat.barreCachee, "basculeBarre()"))}
-      ${srow("Effets d'ouverture/fermeture (TV 1980)","Fenêtres façon téléviseur cathodique",
-             sw(etat.crt, "basculeCrt()"))}
+      ${(() => {
+        /*  ═══ L'INTERRUPTEUR QUI NE COMMANDAIT PLUS RIEN ═══
+            ALEX : « l'effet d'animation n'est pas là quand je ferme des
+            fenêtres ». Il avait raison, et ce n'était pas un réglage de
+            travers : ces effets étaient rendus par COMPIZ, retiré de Debian
+            trixie. lexos-wm ne le trouvait plus et se repliait sur xfwm4, qui
+            n'a AUCUNE animation. L'interrupteur restait là, se cliquait, et
+            ne commandait rien.
+
+            C'est picom qui fait le travail maintenant. Et cette ligne DIT ce
+            qui manque quand il manque quelque chose : un interrupteur qui
+            revient tout seul à sa place sans un mot est le geste le plus
+            déroutant qu'une page puisse offrir. */
+        const c = etat.crt || {};
+        if(!c.dispo){
+          return srow("Effets d'ouverture/fermeture (TV 1980)",
+            "lexos-crt n'a pas répondu — en ligne de commande : <code>lexos crt</code>",
+            `<span class="etat abs">indisponible</span>`);
+        }
+        const manque = !c.picom
+            ? "picom n'est pas installé — <code>lexos install picom</code>"
+            : (c.picom_version && c.picom_version < c.picom_min
+                ? `picom v${c.picom_version} est trop ancien : les animations arrivent à la v${c.picom_min}`
+                : (!c.accel3d
+                    ? "pas d'accélération 3D réelle sur cette machine — les effets resteraient saccadés"
+                    : ""));
+        const desc = manque
+          ? manque
+          : (c.tourne ? "En marche — la fenêtre s'écrase vers une ligne, puis s'éteint"
+                      : "La fenêtre s'écrase vers une ligne, la ligne se referme en un point");
+        return srow("Effets d'ouverture/fermeture (TV 1980)", desc,
+          manque ? `<span class="etat abs">impossible ici</span>`
+                 : sw(c.voulu === "on", "basculeCrt()"));
+      })()}
       ${btnOuvrir("apparence","Réglages fins (XFCE)")}
-      <p class="notice">Les effets exigent une accélération 3D : sans elle,
-      LexOS replie sur xfwm4 et le dit dans <code>lexos crt status</code>.
-      Le changement s'applique à la prochaine ouverture de session.</p>`;
+      <p class="notice">L'extinction « téléviseur » est jouée par picom, et
+      elle exige une vraie accélération 3D — sur du rendu logiciel, mettre une
+      fenêtre à l'échelle soixante fois par seconde rendrait la machine
+      collante. <code>lexos crt status</code> dit ce qui manque, le cas
+      échéant. Le changement s'applique tout de suite : pas besoin de fermer
+      la session.</p>`;
     case "bureau": return `<h2>Bureau LexOS</h2><div class="sub">Fond d'écran</div>
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Fond d'écran</div>
         <div class="row">
-          <button class="btn ghost" onclick="setFond('defaut')">Défaut</button>
-          <button class="btn ghost" onclick="setFond('secu')">Sécurité</button>
-          <button class="btn ghost" onclick="setFond('demon')">LexOS 1.0</button>
-          <button class="btn ghost" onclick="setFond('keyart')">Explorateur</button>
-          <button class="btn ghost" onclick="setFond('nomad')">Nomad</button>
+          ${/*  ═══ LE CHOIX COURANT SE VOIT — ALEX : « POUR CHANGER DE
+                   COULEUR SUR LE BOUTON SÉLECTIONNÉ » ═══
+                Ces cinq boutons étaient écrits en dur « btn ghost », sans la
+                moindre condition : le fond posé ressemblait aux quatre
+                autres. C'était le seul choix de toute la page dans ce cas,
+                avec la galerie juste en dessous — partout ailleurs (thème,
+                accent, police, dock, définition d'écran, profil de
+                performance) le dépôt écrit déjà « btn ${x ? "sel" : "ghost"} ».
+                La classe .sel existe depuis toujours dans style.css:52.
+                Ce qui manquait était de l'autre côté : etat() ne disait pas
+                quel fond est posé. */""}
+          ${(() => { const F = (etat.fond || {}).cle; const c = k => F === k ? "sel" : "ghost"; return `
+          <button class="btn ${c("defaut")}" onclick="setFond('defaut')">Défaut</button>
+          <button class="btn ${c("secu")}" onclick="setFond('secu')">Sécurité</button>
+          <button class="btn ${c("demon")}" onclick="setFond('demon')">LexOS 1.0</button>
+          <button class="btn ${c("keyart")}" onclick="setFond('keyart')">Explorateur</button>
+          <button class="btn ${c("nomad")}" onclick="setFond('nomad')">Nomad</button>`; })()}
         </div>
         <h3 style="margin-top:18px">Étiquettes des dossiers</h3>
         <p class="d">Les dossiers standards portent déjà leurs trois lettres
@@ -1341,7 +1571,7 @@ function contenu(cle){
             noir, sur tous les écrans.</div>
           <div class="row" style="gap:10px">
             ${fp.map(f => `<div class="wall-item">
-               <button class="wall-swatch" title="${esc(f.nom)}"
+               <button class="wall-swatch${((etat.fond||{}).i === f.i) ? " sel" : ""}" title="${esc(f.nom)}"
                   onclick="setFondFichier(${Number(f.i) | 0})"
                   style="width:96px;height:56px;background:#000 url('/api/fond-vignette?i=${Number(f.i) | 0}') center/contain no-repeat"></button>
                <button class="wall-voir" title="Voir en grand"
@@ -1395,6 +1625,23 @@ function contenu(cle){
             <b>montrer du texte</b> : le PNG le garde parfaitement net. Le JPEG
             pèse deux à quatre fois moins — pratique pour envoyer par message,
             au prix d'un texte très légèrement adouci.</div>
+          ${/*  ═══ TROIS BOUTONS QUI N'EXISTAIENT PAS ═══
+                La fonction capture() était écrite (app.js), l'action
+                « capture » était dans la table ACTIONS, act_capture était
+                implémentée et acceptait photo|zone|fenetre — et AUCUN bouton,
+                aucun onclick, aucune autre fonction ne l'appelait. Du code
+                complet, relié des deux côtés, et injoignable depuis l'écran.
+                Le réglage du format était là, juste au-dessus, sans le geste
+                qu'il règle. */""}
+          <div class="t" style="margin:16px 0 8px">Prendre une capture</div>
+          <div class="row">
+            <button class="btn" onclick="capture('photo')">Tout l'écran</button>
+            <button class="btn ghost" onclick="capture('zone')">Une zone…</button>
+            <button class="btn ghost" onclick="capture('fenetre')">Une fenêtre</button>
+          </div>
+          <div class="sub" style="margin-top:8px">Aussi au clavier :
+            <b>Impr. écran</b> pour tout l'écran, <b>Maj + Impr. écran</b> pour
+            une zone. Les images vont dans <b>Images/Captures</b>.</div>
         </div>`;
       })()}
       ${btnOuvrir("bureau","Réglages fins (XFCE)")}`;
@@ -1475,14 +1722,50 @@ function contenu(cle){
       à l'un d'eux. Rien n'est fermé en changeant de bureau — les fenêtres sont
       mises de côté et retrouvées telles quelles.</p>`;
     }
-    case "applications": return `<h2>Applications</h2><div class="sub">Applications par défaut</div>
-      ${srow("Navigateur, courrier, gestionnaire de fichiers","Quelle application ouvre quoi")}
-      ${btnOuvrir("applications")}
+    case "applications": {
+      /*  ═══ CETTE PAGE ÉTAIT UNE DEUXIÈME PAGE D'APPLICATIONS PAR DÉFAUT ═══
+          Elle affichait « Navigateur, courrier, gestionnaire de fichiers —
+          quelle application ouvre quoi », et son bouton ouvrait le dialogue
+          des types de fichiers de XFCE. C'est mot pour mot le sujet de la
+          section « Applications par défaut », qui, elle, le fait pour de
+          vrai. Deux pages pour la même chose, et la moins complète des deux
+          arrivait la première dans le menu.
+
+          CE QU'UBUNTU MET ICI, ET CE QU'ON PEUT HONNÊTEMENT EN REPRENDRE.
+          Sa page « Applications » liste les logiciels installés et, pour
+          chacun, ses PERMISSIONS : appareil photo, micro, notifications,
+          accès aux fichiers. Ces permissions n'existent que parce que ses
+          applications tournent en bac à sable (Flatpak, snap) et passent par
+          des portails qui savent dire non.
+
+          LexOS est un système Debian classique : un programme installé a les
+          droits de la personne qui le lance, point. Fabriquer ici des
+          interrupteurs « micro » ou « appareil photo » donnerait des boutons
+          qui ne commanderaient RIEN — la pire chose qu'une page de réglages
+          puisse faire. On le dit, et on renvoie là où il y a de vrais
+          réglages. */
+      return `<h2>Applications</h2><div class="sub">Installer, retirer, et qui a le droit de quoi</div>
+      ${srow("Ajouter ou retirer un logiciel",
+             "La logithèque LexOS : installer, mettre à jour, désinstaller",
+             `<button class="btn" onclick="ouvrir('applications')">Ouvrir la logithèque</button>`)}
+      ${srow("Un logiciel téléchargé sur le web",
+             "Un paquet .deb, une AppImage, un script : double-clique dessus et LexOS l'installe. Il te montre d'abord ce que c'est et ce qui va se passer — et rien ne part sans ton accord. C'est « lexos-ouvrir » qui répond au double-clic.",
+             `<button class="btn" onclick="ouvrir('fichier-telecharge')">Installer un fichier</button>`)}
+      ${srow("Applications par défaut",
+             "Quel logiciel ouvre les images, les PDF, les liens…",
+             `<button class="btn ghost" onclick="allerA('defaut')">Y aller</button>`)}
+      ${srow("Réglages d'une application",
+             "Le bouton vert d'une fenêtre — ou Super + virgule — ouvre les réglages de CETTE application, pas ceux de l'ordinateur",
+             `<span class="etat ok">Super + ,</span>`)}
+      ${srow("Permissions par application",
+             "Sur un système Debian classique, un programme a les droits de qui le lance : il n'y a pas de bac à sable par application à régler ici",
+             `<button class="btn ghost" onclick="allerA('confidentialite')">Confidentialité</button>`)}
       <p class="notice">Firefox et Chromium sont installés. Google Chrome, lui,
       n'est pas libre : il ne peut pas être livré dans l'ISO. Son icône est
       quand même dans le dock — le premier clic l'installe depuis le dépôt
       officiel de Google (aussi : <code>lexos chrome</code>, ou
       <code>lexos install chrome</code>).</p>`;
+    }
     case "notifications": {
       const n = etat.notif || {};
       return `<h2>Notifications</h2><div class="sub">Ce qui apparaît, et combien de temps</div>
@@ -1495,69 +1778,266 @@ function contenu(cle){
       notifications s'empilent et se relisent après.</p>`;
     }
     case "recherche": {
+      /*  ═══ CHERCHER DEPUIS ICI, ET SAVOIR AVEC QUOI ═══
+          La page disait une chose vraie — « LexOS n'indexe pas le disque en
+          tâche de fond » — et s'arrêtait là. Elle ne disait donc pas ce qui
+          en découle : la recherche par NOM lit l'index de plocate, qui n'est
+          pas livré, et ne fonctionne pas tant qu'on ne l'installe pas ; la
+          recherche par CONTENU, elle, marche tout de suite. Deux recherches,
+          deux états, et un seul mot pour les deux.
+
+          Les résultats s'affichent dans un TERMINAL, et c'est voulu : une
+          recherche rend des dizaines de chemins qu'on veut relire, copier,
+          faire défiler. Les recopier dans un panneau de réglages serait
+          refaire un terminal en moins bien. Cette page sert à lancer la
+          bonne commande sans avoir à la connaître. */
+      const r = etat.recherche || {};
+      if(!r.dispo){
+        return `<h2>Recherche</h2><div class="sub">Trouver un fichier ou une application</div>
+        <p class="notice">lexos-recherche n'a pas répondu. En ligne de
+        commande : <code>lexos recherche</code>.</p>`;
+      }
+      const ageIndex = r.index_jours < 0 ? "jamais construit"
+        : (r.index_jours === 0 ? "refait aujourd'hui"
+          : (r.index_jours === 1 ? "refait hier" : `vieux de ${r.index_jours} jours`));
       return `<h2>Recherche</h2><div class="sub">Trouver un fichier ou une application</div>
-      ${srow("Chercher une application","Le menu Applications filtre à la frappe")}
-      ${srow("Chercher un fichier","Par nom ou par contenu — <code>lexos recherche</code>")}
-      ${btnOuvrir("recherche","Ouvrir la recherche")}
-      <p class="notice">LexOS n'indexe pas le disque en tâche de fond : rien ne
-      tourne en permanence à lire tes fichiers, et rien ne ralentit la machine
-      pour un service qu'on utilise trois fois par semaine. La recherche
-      parcourt au moment où on la demande.</p>`;
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Chercher un fichier</div>
+        <div class="row" style="align-items:center;flex-wrap:wrap">
+          <input class="champ" id="rechMot" type="text" autocomplete="off"
+                 placeholder="un mot du nom, ou du texte à trouver"
+                 onkeydown="if(event.key==='Enter')lancerRecherche('contenu')"
+                 style="min-width:220px">
+          <button class="btn" onclick="lancerRecherche('nom')">Par nom</button>
+          <button class="btn" onclick="lancerRecherche('contenu')">Dans le contenu</button>
+          ${r.catfish ? `<button class="btn ghost" onclick="lancerRecherche('fenetre')">Fenêtre</button>` : ""}
+        </div>
+        <div class="d" style="margin-top:6px">Par nom : instantané, mais lit un
+        index. Dans le contenu : lit les fichiers, plus lent, toujours à jour.</div>
+      </div>
+      ${srow("Index des noms (plocate)",
+             !r.plocate ? "Pas installé — la recherche par nom ne peut pas fonctionner"
+                        : (r.index ? `Index ${ageIndex} — un fichier créé depuis n'y figure pas`
+                                   : "plocate est là, mais l'index n'a jamais été construit"),
+             (!r.plocate
+               ? `<span class="etat abs">absent</span>`
+               : `<span class="etat ${r.index && r.index_jours <= 7 ? "ok" : "warn"}">${
+                   r.index ? ageIndex : "aucun index"}</span>
+                  <button class="btn ghost" onclick="lancerRecherche('index')">Reconstruire</button>`))}
+      ${r.plocate ? "" : `<p class="notice">Pour la recherche par nom :
+      <code>lexos install plocate</code>. LexOS ne le livre pas d'office, et
+      c'est un choix : un index se reconstruit en lisant TOUT le disque, à
+      intervalle régulier, pour un service qu'on utilise trois fois par
+      semaine.</p>`}
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Faire le ménage</div>
+        <div class="row" style="flex-wrap:wrap">
+          <button class="btn ghost" onclick="lancerRecherche('gros')">Les plus gros fichiers</button>
+          <button class="btn ghost" onclick="lancerRecherche('recent')">Modifiés récemment</button>
+          <button class="btn ghost" onclick="lancerRecherche('doublons')">Fichiers en double</button>
+        </div>
+        <div class="d" style="margin-top:6px">Les résultats s'ouvrent dans un
+        terminal — ${r.max} lignes au plus, avec le compte exact au-dessus.</div>
+      </div>
+      ${srow("Chercher une application", "Le menu Applications filtre à la frappe",
+             "")}
+      ${btnOuvrir("recherche","Ouvrir la recherche d'applications")}
+      <p class="notice">Rien ne tourne en permanence à lire tes fichiers tant
+      que plocate n'est pas installé : la recherche parcourt au moment où on la
+      demande.</p>`;
     }
     case "comptes": {
+      /*  ═══ RELIER, OUVRIR, REFERMER — DEPUIS ICI ═══
+          ALEX : « le contenu comme Ubuntu ». La page « Comptes en ligne »
+          d'Ubuntu sert à AJOUTER un compte, et à voir ceux qui sont là.
+          Ici, on affichait une liste et « rclone : prêt ».
+
+          ET IL MANQUAIT LA SEULE CHOSE QUI COMPTE VRAIMENT quand on cherche
+          ses documents : un compte CONFIGURÉ n'est pas un compte OUVERT.
+          Tant qu'il n'est pas monté, ses fichiers ne sont nulle part sur
+          cette machine — et rien ne le disait.
+
+          Monter et démonter agissent tout de suite. Relier et retirer
+          ouvrent un terminal : « rclone config » pose des questions et
+          ouvre le navigateur pour l'autorisation, « retirer » exige une
+          confirmation. Ni l'un ni l'autre n'a où poser sa question ici. */
       const c = etat.comptes || {};
+      if(!c.dispo){
+        return `<h2>Comptes en ligne</h2><div class="sub">Drive, OneDrive, Nextcloud, Dropbox…</div>
+        <p class="notice">lexos-comptes n'a pas répondu : les comptes ne
+        peuvent pas être réglés d'ici. En ligne de commande :
+        <code>lexos comptes</code>.</p>`;
+      }
+      const relies = c.comptes || [];
       return `<h2>Comptes en ligne</h2><div class="sub">Drive, OneDrive, Nextcloud, Dropbox…</div>
-      ${c.liens && c.liens.length
-        ? c.liens.map(l=>srow(esc(l.nom), "Relié par " + esc(l.par),
-            `<span class="etat ok">relié</span>`)).join("")
-        : srow("Comptes reliés", "Aucun pour l'instant",
-               `<span class="etat abs">aucun</span>`)}
-      ${srow("rclone", c.rclone ? "Disponible — synchronise ou monte comme un disque"
-                                : "Pas installé",
-             `<span class="etat ${c.rclone?"ok":"abs"}">${c.rclone?"prêt":"absent"}</span>`)}
-      ${btnOuvrir("comptes","Relier un compte")}
+      ${relies.length ? relies.map(l => srow(
+          esc(l.nom),
+          l.monte ? `Ouvert dans ${esc(c.nuage)}/${esc(l.nom)} — visible dans Fichiers`
+                  : "Configuré, mais pas ouvert : ses fichiers ne sont pas sur cette machine",
+          `<span class="etat ${l.monte?"ok":"abs"}">${l.monte?"ouvert":"fermé"}</span>` +
+          (l.monte
+            ? ` <button class="btn ghost" onclick="setCompte('demonter','${jsq(l.nom)}')">Refermer</button>`
+            : ` <button class="btn ghost" onclick="setCompte('monter','${jsq(l.nom)}')">Ouvrir</button>`) +
+          ` <button class="btn ghost" onclick="setCompte('retirer','${jsq(l.nom)}')">Retirer</button>`
+        )).join("")
+        : srow("Comptes reliés", "Aucun pour l'instant", `<span class="etat abs">aucun</span>`)}
+      ${c.rclone
+        ? srow("Relier un compte", "L'autorisation se fait dans le navigateur ; aucun mot de passe n'est conservé",
+            `<select onchange="setCompte('ajouter', this.value)"
+               style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+                      border-radius:6px;padding:6px 8px;font:inherit">
+               <option value="">Choisir un service…</option>` +
+             (c.services || []).map(x => `<option value="${esc(x.cle)}">${esc(x.nom)}</option>`).join("") +
+            `</select>`)
+        : srow("rclone", "Pas installé — c'est lui qui parle aux services de nuage",
+            `<span class="etat abs">absent</span>`)}
+      ${c.rclone ? "" : `<p class="notice">Pour relier un compte :
+      <code>lexos install rclone</code>.</p>`}
+      ${srow("GVFS", c.gvfs ? "Les comptes s'ouvrent aussi depuis Fichiers"
+                            : "Absent (paquet gvfs-backends)",
+             `<span class="etat ${c.gvfs?"ok":"abs"}">${c.gvfs?"prêt":"absent"}</span>`)}
+      ${btnOuvrir("comptes","Ouvrir le panneau")}
       <p class="notice">Deux façons de faire, qui ne se valent pas :
       <b>monter</b> le compte l'ouvre dans le gestionnaire de fichiers sans rien
       copier — pratique, mais inutilisable hors ligne ; <b>synchroniser</b> en
       garde une copie sur le disque, disponible même sans réseau. LexOS propose
-      les deux, et le dit avant de choisir pour toi.</p>`;
+      les deux, et le dit avant de choisir pour toi.</p>
+      <p class="notice">Aucun mot de passe de compte n'est conservé : chaque
+      service remet un jeton révocable. Le révoquer chez le fournisseur suffit
+      à tout couper.</p>`;
     }
     case "partage": {
+      /*  ═══ LE CONTENU D'UBUNTU, LES MOYENS DE LexOS ═══
+          ALEX : « le contenu comme Ubuntu ». Sa page « Partage » commence par
+          le NOM DE L'ORDINATEUR — celui que les autres appareils voient —
+          puis dit ce qui est partagé et comment. Ici, il n'y avait qu'une
+          ligne : « serveur actif » ou « au repos ».
+
+          Ce que LexOS partage n'est pas ce que partage Ubuntu, et on ne
+          l'invente pas : pas de dossier public Samba, pas de serveur SSH
+          livré. Ce qu'il y a — QR code, KDE Connect, Bluetooth — est dit
+          avec ce qui manque, parce qu'un moyen absent présenté comme
+          disponible envoie cliquer dans le vide. */
       const p = etat.partage || {};
-      return `<h2>Partage</h2><div class="sub">Envoyer un fichier à un téléphone ou à un autre poste</div>
+      if(!p.dispo){
+        return `<h2>Partage</h2><div class="sub">Ce que les autres appareils voient</div>
+        <p class="notice">lexos-share n'a pas répondu : le partage ne peut pas
+        être réglé d'ici. En ligne de commande : <code>lexos share</code>.</p>`;
+      }
+      const moyen = (la, titre, quoi, absent) => srow(titre, la ? quoi : absent,
+        `<span class="etat ${la?"ok":"abs"}">${la?"prêt":"absent"}</span>`);
+      return `<h2>Partage</h2><div class="sub">Ce que les autres appareils voient</div>
+      ${srow("Nom de cet ordinateur",
+             "C'est ce nom qui s'affiche sur le téléphone, sur le réseau et dans le terminal",
+             `<input class="champ" id="partageNom" type="text" autocomplete="off"
+                value="${esc(p.nom)}" placeholder="nom de la machine"
+                onkeydown="if(event.key==='Enter')setNomMachine()"
+                style="max-width:200px">
+              <button class="btn ghost" onclick="setNomMachine()">Renommer</button>`)}
       ${srow("Serveur de partage",
-             p.actif ? "En marche — un QR code suffit à recevoir"
+             p.actif ? `En marche — il s'arrête tout seul après ${p.minutes} minutes`
                      : "Arrêté — il démarre quand tu partages quelque chose",
              `<span class="etat ${p.actif?"ok":"abs"}">${p.actif?"actif":"au repos"}</span>`)}
+      ${moyen(p.qr, "QR code", "Marche avec n'importe quel téléphone, sans rien y installer",
+              "Le serveur de partage manque sur cette machine")}
+      ${moyen(p.kde, "KDE Connect", "Appareils appairés, transfert direct",
+              "kdeconnect-cli n'est pas installé")}
+      ${moyen(p.bt, "Bluetooth", "Quand il n'y a pas de réseau du tout",
+              "bluetoothctl n'est pas installé")}
+      ${srow("Fichiers reçus", "Où arrivent les fichiers envoyés depuis le téléphone",
+             `<span class="etat abs">${esc(p.recus)}</span>`)}
+      ${srow("Connexion à distance (SSH)",
+             p.ssh_serveur
+               ? "Un serveur SSH est installé : on peut ouvrir un terminal sur cette machine depuis ailleurs"
+               : "LexOS ne livre que le client SSH — rien n'écoute sur cette machine",
+             `<span class="etat ${p.ssh_serveur?"ok":"abs"}">${p.ssh_serveur?"installé":"non installé"}</span>`)}
       ${btnOuvrir("partage","Ouvrir le partage")}
+      ${p.ssh_serveur ? "" : `<p class="notice">Pour ouvrir cette machine à
+      distance en ligne de commande : <code>lexos install openssh-server</code>.
+      Tant qu'il n'est pas installé, personne ne peut s'y connecter — c'est
+      voulu, et c'est plus sûr ainsi.</p>`}
       <p class="notice">Le partage montre un QR code et sert une page locale :
       ça marche avec <b>n'importe quel</b> téléphone, sans rien y installer.
       Le serveur ne tourne que le temps du transfert.</p>`;
     }
     case "bienetre": {
+      /*  ═══ TROIS INTERRUPTEURS, ET TROIS DISTINCTIONS QU'ILS RESPECTENT ═══
+          Cette page affichait trois lignes sans un seul réglage : le temps
+          d'écran, « workrave est là », « redshift est là ». Pour démarrer le
+          compteur ou poser une limite, il fallait le terminal.
+
+          Et elle confondait ce qu'il ne faut pas confondre :
+            · « zéro minute » n'est pas « le compteur est arrêté ». Le
+              compteur est ARRÊTÉ par défaut — mesurer le temps de quelqu'un
+              ne se décide pas à sa place — et « 0 h 00 » laisserait croire
+              qu'on n'a pas touché à la machine.
+            · « workrave n'est pas installé » n'est pas « les rappels sont
+              arrêtés ». Un interrupteur pour un programme absent ne
+              commande rien : on affiche alors la commande qui l'installe,
+              pas une bascule qui reviendrait toute seule à sa place. */
       const b = etat.bienetre || {};
-      const h = Math.floor((b.minutes||0)/60), m = (b.minutes||0)%60;
+      if(!b.dispo){
+        return `<h2>Bien-être numérique</h2><div class="sub">Temps d'écran, pauses, lumière du soir</div>
+        <p class="notice">lexos-bienetre n'a pas répondu : rien ne peut être
+        réglé d'ici. En ligne de commande : <code>lexos bienetre</code>.</p>`;
+      }
+      const hm = m => `${Math.floor((m||0)/60)} h ${String((m||0)%60).padStart(2,"0")}`;
+      const sem = b.semaine || [];
+      const maxi = Math.max(1, ...sem.map(j => j.minutes || 0));
+
+      /*  Une bascule pour un programme absent ne commande rien. On met la
+          commande d'installation à la place — c'est ça, l'information utile. */
+      const confort = (cle, titre, quoi, prog, installe, actif) => srow(titre,
+        installe ? quoi : `${prog} n'est pas installé — <code>lexos install ${prog}</code>`,
+        installe ? sw(actif, `setBienetre('${cle}', ${actif ? "false" : "true"})`)
+                 : `<span class="etat abs">absent</span>`);
+
       return `<h2>Bien-être numérique</h2><div class="sub">Temps d'écran, pauses, lumière du soir</div>
-      ${srow("Temps d'écran aujourd'hui",
-             !b.tourne
-               ? "Le compteur est arrêté — il ne mesure rien tant qu'on ne le demande pas"
-               : (b.minutes
-                   ? `${h} h ${String(m).padStart(2,"0")}` +
-                     " — compté depuis la dernière activité, pas depuis l'allumage"
-                   : "Compteur en marche, rien d'enregistré encore aujourd'hui"),
-             b.tourne && b.minutes
-               ? jauge(Math.min(100, Math.round(b.minutes/480*100)))
-               : `<span class="etat ${b.tourne?"ok":"abs"}">${b.tourne?"en marche":"arrêté"}</span>`)}
-      ${srow("Rappels de pause", b.pauses ? "workrave est là — il rappelle de lever les yeux"
-                                          : "Pas installé",
-             `<span class="etat ${b.pauses?"ok":"abs"}">${b.pauses?"prêt":"absent"}</span>`)}
-      ${srow("Lumière du soir", b.soir ? "Réchauffe l'écran à la tombée du jour"
-                                       : "Pas installé",
-             `<span class="etat ${b.soir?"ok":"abs"}">${b.soir?"prêt":"absent"}</span>`)}
+      ${srow("Compter le temps d'écran",
+             b.tourne ? "Une minute comptée par minute d'usage RÉEL — un ordinateur laissé ouvert la nuit ne compte pas"
+                      : "À l'arrêt : rien n'est mesuré tant qu'on ne le demande pas",
+             sw(!!b.tourne, `setBienetre('compteur', ${b.tourne ? "false" : "true"})`))}
+      ${srow("Aujourd'hui",
+             b.tourne ? (b.limite ? (b.minutes >= b.limite
+                          ? `Limite de ${hm(b.limite)} dépassée de ${hm(b.minutes - b.limite)}`
+                          : `Il reste ${hm(b.limite - b.minutes)} avant la limite`)
+                        : "Aucune limite posée")
+                      : "Le compteur est arrêté — ce n'est pas « zéro », c'est « on ne sait pas »",
+             `<span class="etat ${b.tourne ? (b.limite && b.minutes >= b.limite ? "warn" : "ok") : "abs"}">${
+               b.tourne ? hm(b.minutes) : "arrêté"}</span>`)}
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Limite du jour</div>
+        <div class="row" style="align-items:center;flex-wrap:wrap">
+          <input class="champ" id="bienLimite" type="number" min="1" max="1440" step="15"
+                 value="${b.limite || ""}" placeholder="minutes" style="max-width:130px">
+          <button class="btn" onclick="setBienetreLimite()">Enregistrer</button>
+          ${b.limite ? `<button class="btn ghost" onclick="setBienetre('limite','off')">Retirer la limite</button>` : ""}
+        </div>
+        <div class="d" style="margin-top:6px">Une notification prévient au-delà.
+        La limite n'éteint rien et ne bloque rien : elle avertit.</div>
+      </div>
+      ${confort("pauses", "Rappels de pause",
+                "Micro-pauses, pauses longues, limite quotidienne (workrave)",
+                "workrave", b.pauses_installe, b.pauses_actif)}
+      ${confort("nuit", "Lumière du soir",
+                "Réchauffe l'écran au coucher du soleil (redshift)",
+                "redshift", b.nuit_installe, b.nuit_actif)}
+      ${sem.length ? `<div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Les sept derniers jours —
+          ${hm(b.total_semaine)} en tout</div>
+        ${sem.map(j => `<div class="row" style="align-items:center;gap:8px">
+          <span class="d" style="width:38px">${esc(j.nom)}</span>
+          <span style="flex:1;background:var(--bg-hi);border-radius:4px;height:10px;overflow:hidden">
+            <span style="display:block;height:100%;width:${Math.round((j.minutes||0)*100/maxi)}%;background:var(--ac)"></span>
+          </span>
+          <span class="d" style="width:64px;text-align:right">${hm(j.minutes)}</span>
+        </div>`).join("")}
+      </div>` : ""}
+      ${srow("Effacer l'historique", "Les relevés sont des fichiers texte, un par jour",
+             `<button class="btn ghost" onclick="oublierBienetre()">Tout effacer</button>`)}
       ${btnOuvrir("bienetre","Ouvrir le détail")}
-      <p class="notice">Le temps d'écran compte l'usage RÉEL : un ordinateur
-      laissé ouvert toute la nuit ne compte pas huit heures. Un compteur qui
-      prétendrait le contraire ne vaudrait rien.</p>`;
+      <p class="notice">Rien ne quitte cette machine : un fichier texte par
+      jour, et pas une ligne de code qui ouvre une connexion.</p>`;
     }
     case "souris": {
       const m = etat.souris || {};
@@ -1663,12 +2143,25 @@ function contenu(cle){
       </div>
       ${srow("Fichiers privés",
              "Un coffre chiffré (gocryptfs) pour ce qui ne regarde personne",
-             `<button class="btn ghost" onclick="api('ouvrir','prive').then(()=>toast('Fichiers privés s\'ouvre'))">Ouvrir</button>`)}
+             /*  ═══ CE BOUTON ANNONÇAIT LE SUCCÈS MÊME QUAND L'OUVERTURE
+                        ÉCHOUAIT ═══
+                 Il était le SEUL des 38 boutons d'ouverture à ne pas passer
+                 par ouvrir(). Il écrivait :
+                     api('ouvrir','prive').then(()=>toast('… s'ouvre'))
+                 Or api() affiche déjà « ✗ » et le motif quand l'action
+                 échoue ; le .then() s'exécute ensuite QUOI QU'IL ARRIVE et
+                 REMPLACE ce message par « Fichiers privés s'ouvre ». Sans
+                 gocryptfs installé, ou sans coffre créé, on lisait donc un
+                 succès et il ne se passait rien.
+                 ouvrir() fait exactement ce qu'il faut, et le dit quand ça
+                 rate (app.js, fonction ouvrir()). */
+             `<button class="btn ghost" onclick="ouvrir('prive')">Ouvrir</button>`)}
       <p class="notice">Ces outils demandent les droits d'administration et posent
       des questions : ils s'ouvrent dans un terminal, pour qu'on puisse LIRE ce
       qu'ils font. Les lancer en silence derrière un interrupteur cacherait
       justement ce qu'il faut voir. En ligne de commande :
-      <code>lexos secure</code> · <code>lexos prive</code>.</p>`;
+      <code>lexos secure</code> · <code>lexos prive</code>.</p>
+      ${btnOuvrir("confidentialite","Tout vérifier d'un coup (terminal)")}`;
     }
     case "maj": {
       const m = etat.maj || {};
@@ -1700,7 +2193,8 @@ function contenu(cle){
       <p class="notice">Les mises à jour de sécurité s'installent seules ; le reste
       attend que tu le demandes. Une mise à jour pose des questions et prend du
       temps : elle s'ouvre dans un terminal pour qu'on voie ce qui se passe — et
-      cette page se met à jour toute seule pendant que ça tourne.</p>`;
+      cette page se met à jour toute seule pendant que ça tourne.</p>
+      ${btnOuvrir("maj","Diagnostic complet du système (terminal)")}`;
     }
     case "accessibilite": {
       const a = etat.access || {};
@@ -1721,33 +2215,169 @@ function contenu(cle){
       tout le monde : Orca est embarqué d'office, pas en option.</p>`;
     }
     case "utilisateurs": {
-      const g = etat.utilisateurs || [];
+      /*  ═══ ON AGIT ICI, ON NE FAIT PLUS QUE LIRE ═══
+          ALEX : « le contenu comme Ubuntu ». La page d'Ubuntu permet
+          d'ajouter un compte, d'en changer le nom affiché, de donner ou
+          retirer les droits d'administrateur, de changer le mot de passe et
+          d'allumer la connexion automatique. Ici, on affichait une liste et
+          une phrase disant d'aller au terminal.
+
+          CHAQUE GESTE OUVRE UN TERMINAL, ET C'EST LE BON CHOIX, PAS UN PIS-
+          ALLER. adduser pose des questions, passwd lit un mot de passe qui ne
+          s'affiche pas, et supprimer un compte fait RECOPIER son nom avant
+          d'effacer. Rien de tout ça ne tient dans une fenêtre sans clavier.
+          Et lexos-utilisateurs ne s'élève jamais tout seul : la commande est
+          écrite en toutes lettres, sous les yeux de qui tape son mot de
+          passe. Ce que la page apporte, c'est de ne plus avoir à connaître
+          ni la commande, ni le nom du compte, ni la syntaxe.
+
+          Les comptes, les droits et l'état des mots de passe viennent de
+          lexos-utilisateurs : cette page ne lit ni /etc/passwd ni /etc/group. */
+      const u = etat.utilisateurs || {};
+      const gens = u.comptes || [];
+      if(!u.dispo){
+        return `<h2>Utilisateurs</h2><div class="sub">Comptes de cette machine</div>
+        <p class="notice">lexos-utilisateurs n'a pas répondu : les comptes ne
+        peuvent pas être lus d'ici. En ligne de commande :
+        <code>lexos utilisateurs</code>.</p>`;
+      }
+
+      /*  L'ÉTAT DU MOT DE PASSE N'EST LISIBLE QUE PAR root. On le dit au lieu
+          d'afficher « actif » par défaut : un compte verrouillé qu'on croit
+          ouvert, c'est une porte qu'on pense fermée. */
+      const ETAT_MDP = {actif:["ok","mot de passe actif"],
+                        verrouille:["abs","verrouillé"],
+                        "sans-mot-de-passe":["warn","AUCUN mot de passe"],
+                        inconnu:["abs","état inconnu"]};
+
+      const lignes = gens.map(p => {
+        const seul = p.admin && (u.nb_admins || 0) <= 1;
+        const [cl, mot] = ETAT_MDP[p.verrou] || ETAT_MDP.inconnu;
+        /*  Le DERNIER administrateur ne peut être ni rétrogradé, ni verrouillé,
+            ni supprimé — c'est la seule interdiction dure de l'outil, et une
+            machine sans administrateur ne se répare plus depuis le bureau. On
+            n'affiche donc pas des boutons qui ne peuvent que refuser. */
+        const gestes =
+          `<button class="btn ghost" onclick="utilGeste('motdepasse','${jsq(p.nom)}')">Mot de passe</button>` +
+          (seul ? ""
+                : ` <button class="btn ghost" onclick="utilGeste('${p.admin?"admin-off":"admin-on"}','${jsq(p.nom)}')">` +
+                  `${p.admin ? "Retirer l'admin" : "Rendre admin"}</button>` +
+                  ` <button class="btn ghost" onclick="utilGeste('${p.verrou==="verrouille"?"deverrouiller":"verrouiller"}','${jsq(p.nom)}')">` +
+                  `${p.verrou === "verrouille" ? "Déverrouiller" : "Verrouiller"}</button>` +
+                  (p.moi ? "" : ` <button class="btn ghost" onclick="utilGeste('supprimer','${jsq(p.nom)}')">Supprimer</button>`));
+        return `<div class="srow" style="display:block">
+          <div class="t">${esc(p.complet || p.nom)}${p.moi ? " — c'est toi" : ""}
+            <span class="etat ${p.admin?"ok":"abs"}" style="margin-left:8px">${p.admin?"admin":"normal"}</span>
+            <span class="etat ${cl}" style="margin-left:6px">${mot}</span></div>
+          <div class="d">${esc(p.nom)} · ${esc(p.groupes)} · dernière connexion : ${esc(p.derniere)}</div>
+          <div class="row" style="margin-top:8px;flex-wrap:wrap">
+            <input class="champ" id="nomAff-${esc(p.nom)}" type="text" autocomplete="off"
+                   placeholder="nom affiché" value="${esc(p.complet)}"
+                   onkeydown="if(event.key==='Enter')utilNomComplet('${jsq(p.nom)}')"
+                   style="max-width:220px">
+            <button class="btn ghost" onclick="utilNomComplet('${jsq(p.nom)}')">Renommer</button>
+            ${gestes}
+          </div>
+          ${seul ? `<div class="sub" style="margin-top:6px">Seul administrateur de
+            cette machine : ses droits ne peuvent être ni retirés, ni verrouillés,
+            ni supprimés tant qu'il n'y en a pas un autre.</div>` : ""}
+        </div>`;
+      }).join("");
+
+      /*  « Choisir… » n'est pas une option de la connexion automatique : il y a
+          toujours une réponse — désactivée, ou un compte. */
+      const auto = srow("Connexion automatique",
+        u.lightdm
+          ? "Ouvre la session au démarrage sans demander de mot de passe"
+          : "LightDM n'est pas installé : ce réglage ne s'applique pas ici",
+        u.lightdm
+          ? `<select onchange="utilGeste('auto', this.value)"
+               style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+                      border-radius:6px;padding:6px 8px;font:inherit">
+               <option value="off"${u.auto ? "" : " selected"}>Désactivée</option>` +
+             gens.map(p => `<option value="${esc(p.nom)}"${p.nom===u.auto?" selected":""}>${esc(p.complet || p.nom)}</option>`).join("") +
+            `</select>`
+          : `<span class="etat abs">indisponible</span>`);
+
       return `<h2>Utilisateurs</h2><div class="sub">Comptes de cette machine</div>
-      ${g.length ? g.map(u=>srow(
-          esc(u.complet) + (u.moi ? " — c'est toi" : ""),
-          esc(u.nom) + (u.admin ? " · administrateur" : " · session ordinaire"),
-          `<span class="etat ${u.admin?"ok":"abs"}">${u.admin?"admin":"normal"}</span>`)).join("")
-        : `<p class="notice">Aucun compte lu.</p>`}
+      ${lignes || `<p class="notice">Aucun compte de personne trouvé (UID ≥ 1000).</p>`}
+      ${srow("Ajouter un compte",
+             "Minuscules, chiffres, « - » et « _ », en commençant par une lettre",
+             `<input class="champ" id="utilNouveau" type="text" autocomplete="off"
+                placeholder="nom du compte" style="max-width:200px"
+                onkeydown="if(event.key==='Enter')utilAjouter()">
+              <button class="btn" onclick="utilAjouter()">Créer</button>`)}
+      ${auto}
+      ${u.auto ? `<p class="notice">La connexion automatique est active pour
+      « ${esc(u.auto)} » : cette machine s'ouvre sans mot de passe. Le trousseau
+      de clés, lui, redemandera le vôtre — il n'a plus la connexion pour se
+      déverrouiller.</p>` : ""}
       ${btnOuvrir("utilisateurs","Détail (terminal)")}
-      <p class="notice">Ajouter ou retirer un compte touche à tout le système :
-      ça passe par <code>lexos utilisateurs</code>, dans un terminal, avec le
-      mot de passe d'administration — pas par un bouton qu'on clique sans y penser.</p>`;
+      <p class="notice">Chaque geste ouvre un terminal où la commande est écrite
+      en clair, et demande le mot de passe d'administration. En ligne de
+      commande : <code>lexos utilisateurs</code>.</p>`;
     }
     case "terminal": {
-      /*  Le terminal a son propre mode, indépendant du bureau : on peut
-          garder le bureau noir et le terminal clair, ou l'inverse. « suivre »
-          — le défaut — les relie. La règle de couleur, elle, ne change pas
-          d'un mode à l'autre : vert = la machine, orange = ce que vous
-          tapez, rouge = ce qui a échoué. */
+      /*  ═══ ON CHOISIT ICI, ON NE RECOPIE PLUS DES COMMANDES ═══
+          Cette page listait quatre commandes à taper dans un terminal — pour
+          régler… le terminal. Elle ne disait ni ce qui est choisi, ni ce qui
+          s'applique en ce moment.
+
+          ET CES DEUX-LÀ DIFFÈRENT. « auto » et « suivre » ne sont pas des
+          couleurs, ce sont des règles : en « auto », le terminal est clair le
+          jour et noir le soir. Une page qui n'afficherait que le mode choisi
+          laisserait quelqu'un se demander pourquoi son terminal est noir à
+          quatorze heures ; une page qui n'afficherait que la couleur du
+          moment lui ferait croire qu'il a choisi « nuit ». On montre les
+          deux, et l'écart entre les deux est justement l'explication.
+
+          Rien ici ne demande les droits d'administrateur — lexos-terminal
+          n'écrit que dans le dossier de la personne connectée — donc pas de
+          terminal à ouvrir : on agit, et c'est instantané. */
+      const t = etat.terminal || {};
+      if(!t.dispo){
+        return `<h2>Terminal jour / nuit</h2><div class="sub">Deux palettes, la même règle de couleur</div>
+        <p class="notice">lexos-terminal n'a pas répondu : le mode du terminal
+        ne peut pas être réglé d'ici. En ligne de commande :
+        <code>lexos terminal</code>.</p>${btnOuvrir("terminal","Ouvrir")}`;
+      }
+      const MODES = [["suivre","Suivre le bureau","Le terminal change avec le thème du bureau"],
+                     ["jour","Toujours clair","Fond crème, écriture foncée"],
+                     ["nuit","Toujours noir","LexOS Noir"],
+                     ["auto","L'heure décide","Clair le jour, noir le soir"]];
+      const courant = MODES.find(m => m[0] === t.mode) || MODES[0];
       return `<h2>Terminal jour / nuit</h2><div class="sub">Deux palettes, la même règle de couleur</div>
-      <p class="notice">Le terminal suit le thème du bureau par défaut.
-      Pour le découpler : <code>lexos terminal jour</code>,
-      <code>lexos terminal nuit</code>, <code>lexos terminal auto</code>
-      (l'heure décide), <code>lexos terminal suivre</code>.
-      Les raccourcis <code>jour</code> et <code>nuit</code> font la même chose.</p>
+      ${srow("En ce moment",
+             t.mode === "suivre"
+               ? `Suit le bureau, qui est en « ${esc(t.bureau || "?")} »`
+               : (t.mode === "auto"
+                   ? `L'heure décide : jour de ${esc(t.debut)} à ${esc(t.fin)}`
+                   : esc(courant[2])),
+             `<span class="etat ${t.effectif==="jour"?"warn":"ok"}">${esc(t.effectif || "?")}</span>`)}
+      <div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Mode du terminal</div>
+        <div class="row" style="flex-wrap:wrap">${MODES.map(([v,titre]) =>
+          `<button class="btn ${v===t.mode?"sel":"ghost"}" onclick="setTerminalMode('${v}')">${titre}</button>`
+        ).join("")}</div>
+        <div class="d" style="margin-top:6px">${esc(courant[2])}</div>
+      </div>
+      ${t.mode === "auto" ? `<div class="srow" style="display:block">
+        <div class="t" style="margin-bottom:8px">Heures du jour</div>
+        <div class="row" style="align-items:center;flex-wrap:wrap">
+          <input class="champ" id="termDebut" type="time" value="${esc(t.debut)}" style="max-width:130px">
+          <span class="d">à</span>
+          <input class="champ" id="termFin" type="time" value="${esc(t.fin)}" style="max-width:130px">
+          <button class="btn" onclick="setTerminalHoraire()">Enregistrer</button>
+        </div>
+        ${t.minuterie ? "" : `<div class="d" style="margin-top:6px">La minuterie n'est
+          pas armée : le mode changera à la prochaine ouverture de session, pas à
+          l'heure dite.</div>`}
+      </div>` : ""}
+      ${btnOuvrir("terminal","Ouvrir")}
       <p class="notice">Le changement est instantané : les fenêtres déjà
       ouvertes se repeignent, l'invite change à la ligne suivante. Rien à rouvrir.</p>
-      ${btnOuvrir("terminal","Ouvrir")}`;
+      <p class="notice">La règle de couleur ne change pas d'un mode à l'autre :
+      vert = la machine, orange = ce que vous tapez, rouge = ce qui a échoué.</p>`;
     }
     case "session": {
       /*  Le bouton rouge de la barre du haut ouvre exactement cette fenêtre.
@@ -1773,18 +2403,82 @@ function contenu(cle){
       <p class="notice">Le changement s'applique à la prochaine ouverture de session :
       les applications lisent leur langue au démarrage, pas en cours de route.</p>`;
     }
+    /*  ═══ LE CLAVIER SE CHANGE ICI, ET PLUS SEULEMENT SE REGARDE ═══
+        ALEX : « dans les paramètres de clavier, une fois installé, on n'est
+        pas capable de changer de clavier », et « comme pour le @, je suis
+        pas capable de le faire ».
+
+        CETTE PAGE NE SAVAIT QUE LIRE. Elle affichait les dispositions et
+        renvoyait au dialogue de XFCE pour en changer — lequel s'ouvre TOUT
+        GRISÉ tant que « Utiliser les réglages système » est actif, ce qui
+        est son défaut. Vérifié dans le GtkBuilder du binaire lui-même :
+        « xkb_use_system_default_switch », active=True. Deux impasses, et
+        rien à l'écran pour l'expliquer.
+
+        Le catalogue et les gestes viennent de lexos-clavier, qui les portait
+        déjà : on ne recopie pas vingt dispositions dans cette page. */
     case "clavier": {
       const k = etat.clavier || {};
-      const d = k.dispositions || [];
+      const act = k.actives || [];
+      const cat = k.catalogue || [];
+      const bas = k.bascules || [];
+      const dejaLa = new Set(act.map(a => a.cle));
+      const reste = cat.filter(c => !dejaLa.has(c.cle));
+      const plein = act.length >= (k.max || 4);
+
+      if(!cat.length){
+        return `<h2>Clavier</h2><div class="sub">Dispositions et raccourcis</div>
+        <p class="notice">lexos-clavier n'a pas répondu : les dispositions ne
+        peuvent pas être changées d'ici. En ligne de commande :
+        <code>lexos clavier</code>.</p>${btnOuvrir("clavier","Réglages du clavier")}`;
+      }
+
+      /*  La PREMIÈRE de la liste est celle du démarrage : c'est la règle de
+          lexos-clavier, et on la dit plutôt que de la laisser deviner. */
+      const lignes = act.map((a, i) => srow(
+        esc(a.nom),
+        i === 0 ? "Celle du démarrage" : "Bascule : " + esc(nomBascule(bas, k.bascule)),
+        (i === 0 ? `<span class="etat ok">active</span>`
+                 : `<button class="btn" onclick="clavierDabord('${jsq(a.cle)}')">Mettre en premier</button>`) +
+        (act.length > 1
+          ? ` <button class="btn" onclick="clavierRetirer('${jsq(a.cle)}')">Retirer</button>`
+          : "")
+      )).join("");
+
+      const ajout = plein
+        ? `<p class="notice">Quatre dispositions au maximum — c'est la limite de X,
+           pas la nôtre.</p>`
+        : srow("Ajouter une disposition",
+               "Elle s'ajoute à la suite ; la bascule permet de passer de l'une à l'autre",
+               `<select onchange="clavierAjouter(this.value)"
+                  style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+                         border-radius:6px;padding:6px 8px;font:inherit">
+                  <option value="">Choisir…</option>` +
+                reste.map(c => `<option value="${esc(c.cle)}">${esc(c.nom)}</option>`).join("") +
+               `</select>`);
+
+      const bascule = act.length > 1
+        ? srow("Passer d'une disposition à l'autre", "Les touches qui font la bascule",
+               `<select onchange="clavierBascule(this.value)"
+                  style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+                         border-radius:6px;padding:6px 8px;font:inherit">` +
+                bas.map(b => `<option value="${esc(b.cle)}"${b.cle===k.bascule?" selected":""}>${esc(b.nom)}</option>`).join("") +
+               `</select>`)
+        : "";
+
+      /*  CE QUE X APPLIQUE VRAIMENT, quand ça diffère de notre réglage. Un
+          écart se voit alors au lieu de laisser croire à une panne. */
+      const ecart = (k.x_applique && act.length &&
+                     k.x_applique !== act.map(a=>a.cle).join(",") )
+        ? `<p class="notice">X applique en ce moment : <code>${esc(k.x_applique)}</code>.
+           Le réglage ci-dessus prend effet tout de suite ; s'il ne bouge pas,
+           il s'appliquera à la prochaine ouverture de session.</p>`
+        : "";
+
       return `<h2>Clavier</h2><div class="sub">Dispositions et raccourcis</div>
-      ${d.length
-        ? srow("Dispositions actives", d.join(" · ") +
-               (d.length > 1 ? " — Maj+Alt bascule de l'une à l'autre" : ""),
-               `<span class="etat ok">${esc(k.courante || d[0])}</span>`)
-        : `<p class="notice">Disposition illisible (setxkbmap absent ou session Wayland).</p>`}
-      ${btnOuvrir("clavier","Réglages du clavier")}
-      <p class="notice">En ligne de commande : <code>lexos clavier</code> ajoute une
-      disposition, en enlève une, ou change la touche de bascule.</p>`;
+      ${lignes}${ajout}${bascule}${ecart}
+      ${btnOuvrir("clavier","Réglages du clavier (XFCE)")}
+      <p class="notice">En ligne de commande : <code>lexos clavier</code>.</p>`;
     }
     case "datetime": {
       const h = etat.heure || {};
@@ -1830,15 +2524,54 @@ function contenu(cle){
       ${btnOuvrir("datetime","État complet (timedatectl)")}`;
     }
     case "defaut": {
+      /*  ═══ ON CHOISIT ICI, ON NE FAIT PLUS QUE LIRE ═══
+          ALEX : « le contenu comme Ubuntu », « commence par applications par
+          défaut ». La page affichait cinq lignes sans rien à cliquer et
+          renvoyait à l'outil de XFCE pour en changer.
+
+          UBUNTU EN OFFRE SIX (web, courriel, agenda, musique, vidéo, photos),
+          LexOS en a DIX — on n'en retire aucun pour « faire comme » : le
+          lecteur audio, l'éditeur de texte, le gestionnaire de fichiers, les
+          archives et le terminal ne sont pas dans la page d'Ubuntu, et les
+          enlever d'ici n'aiderait personne.
+
+          Les catégories, les applications candidates et le choix courant
+          viennent de lexos-defaut : cette page ne connaît aucun type MIME. */
       const d = etat.defaut || {};
-      const a = d.assoc || {};
-      const noms = {texte:"Fichiers texte", image:"Images", pdf:"Documents PDF",
-                    musique:"Musique", video:"Vidéos"};
+      const cats = d.categories || [];
+      if(!cats.length){
+        return `<h2>Applications par défaut</h2><div class="sub">Quel logiciel ouvre quoi</div>
+        <p class="notice">lexos-defaut n'a pas répondu : les applications par
+        défaut ne peuvent pas être changées d'ici. En ligne de commande :
+        <code>lexos defaut</code>.</p>${btnOuvrir("defaut","Ouvrir l'outil de XFCE")}`;
+      }
+      const lignes = cats.map(c => {
+        /*  Une catégorie sans aucune application capable de l'ouvrir : on le
+            DIT, au lieu d'afficher une liste vide qui laisserait croire à une
+            panne. Le terminal est toujours dans ce cas — il n'a aucun type
+            MIME, XFCE le range dans son propre réglage. */
+        if(!c.choix || !c.choix.length){
+          return srow(esc(c.titre),
+            c.cle === "terminal"
+              ? "Le terminal n'a pas de type de fichier — il se règle dans l'outil de XFCE"
+              : "Aucune application installée ne sait ouvrir ces fichiers",
+            `<span class="etat abs">${esc(c.courant_nom || "aucune")}</span>`);
+        }
+        /*  « Choisir… » en tête quand rien n'est réglé : sans cette entrée, la
+            liste afficherait la première application comme si elle était le
+            choix en place, ce qui serait faux. */
+        const rien = c.courant ? "" : `<option value="" selected>Choisir…</option>`;
+        return srow(esc(c.titre), "",
+          `<select onchange="setDefautAppli('${jsq(c.cle)}', this.value)"
+             style="background:var(--bg-hi);color:var(--fg);border:1px solid var(--bd);
+                    border-radius:6px;padding:6px 8px;font:inherit;max-width:60%">${rien}` +
+          c.choix.map(x =>
+            `<option value="${esc(x.id)}"${x.id===c.courant?" selected":""}>${esc(x.nom)}</option>`
+          ).join("") + `</select>`);
+      }).join("");
       return `<h2>Applications par défaut</h2><div class="sub">Quel logiciel ouvre quoi</div>
-      ${srow("Navigateur web", esc(d.navigateur || "non défini"))}
-      ${Object.keys(noms).map(k=>
-        a[k] ? srow(noms[k], esc(a[k])) : "").join("")}
-      ${btnOuvrir("defaut","Changer les applications par défaut")}
+      ${lignes}
+      ${btnOuvrir("defaut","Réglages fins (XFCE)")}
       <p class="notice">Autre façon de faire, souvent plus rapide : clic droit sur
       un fichier → <b>Ouvrir avec</b> → <b>Définir par défaut</b>. En ligne de
       commande : <code>lexos defaut</code>.</p>`;
@@ -1922,7 +2655,20 @@ function contenu(cle){
           endroits où un bogue pourrait un jour raconter deux choses
           différentes — la même raison qui garde la liste des réseaux Wi-Fi
           hors du volet. */
-      corps.innerHTML = `<h2>Diagnostic</h2>
+      /*  ═══ CETTE PAGE NE S'AFFICHAIT PAS DU TOUT ═══
+          Elle écrivait « corps.innerHTML = … » puis « break », alors que
+          toutes les autres RENDENT une chaîne. Deux fautes d'un coup :
+          « corps » n'existe nulle part dans ce fichier — une ReferenceError
+          à chaque clic — et la fonction ne rendait rien.
+
+          Et le symptôme ne ressemblait pas à une erreur : rendSection() fait
+          « content.innerHTML = contenu(...) ». Quand contenu() lève, la
+          droite n'est jamais évaluée, l'affectation n'a pas lieu, et l'écran
+          GARDE LA SECTION PRÉCÉDENTE. On cliquait « Diagnostic », et il ne
+          se passait rien — pas de page blanche, pas de message : rien.
+          Aucun banc ne rendait les sections une par une ; il y en a un
+          maintenant, et il les rend TOUTES. */
+      return `<h2>Diagnostic</h2>
         <p class="d">La machine en direct : processeur, mémoire, carte
         graphique, températures, ventilateurs, réseau, batterie — puis un
         bilan de santé et l'état des disques (SMART, NVMe, espace).</p>
@@ -1930,7 +2676,6 @@ function contenu(cle){
         <p class="d" style="margin-top:14px">Les mêmes réponses en terminal,
         sans fenêtre : <code>lexos materiel</code>, <code>lexos medecin</code>,
         <code>lexos disques</code>.</p>`;
-      break;
     }
     case "tiers": {
       /*  LexOS dit « 100 % Linux », et c'est vrai. Mais « libre » et
@@ -2120,6 +2865,20 @@ function appliqueApparence(){
     se lit très bien est exactement ce que ce dépôt paie le plus cher — on la
     croit vivante et on cherche le défaut ailleurs. Elle est dans git. */
 
+/*  ALLER À UNE AUTRE SECTION DEPUIS UNE PAGE.
+    Certaines pages renvoient à une autre — « Applications » vers
+    « Applications par défaut », par exemple. Sans ce geste, elles ne
+    pouvaient que NOMMER la section, à charge d'aller la chercher dans le
+    menu de gauche : c'est ce qui a fait de « Applications » une deuxième
+    page d'applications par défaut, à moitié.
+    On repose le « hash » comme le fait le menu, pour que le bouton Retour du
+    navigateur continue de fonctionner. */
+function allerA(cle){
+  if(!NAV.some(g => g.items.some(([c]) => c === cle))) return;
+  sectionActive = cle;
+  location.hash = cle;
+  rend();
+}
 function rend(){ appliqueApparence(); rendNav(); rendSection(); }
 
 /* --- Démarrage ------------------------------------------------------------ */

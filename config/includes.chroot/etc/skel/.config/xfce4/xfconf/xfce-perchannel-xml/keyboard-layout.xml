@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — la disposition du clavier
+
+  ═══ POURQUOI CE FICHIER EXISTE ═══
+  ALEX : « dans les paramètres de clavier, une fois installé, on n'est pas
+  capable de changer de clavier », et « comme pour le @, je suis pas capable
+  de le faire ».
+
+  LexOS ne livrait AUCUN keyboard-layout.xml. XFCE appliquait donc son
+  défaut — et son défaut verrouille tout. Vérifié dans le GtkBuilder du
+  binaire lui-même, pas supposé :
+
+      <object class="GtkSwitch" id="xkb_use_system_default_switch">
+        <property name="active">True</property>
+
+  « Utiliser les réglages système » est ACTIF au départ, et tant qu'il l'est,
+  XFCE grise le cadre du modèle, celui de la bascule et TOUTE la liste des
+  dispositions. La fenêtre s'ouvre, tout est là, et rien ne se clique. C'est
+  mot pour mot « pas capable de changer de clavier ».
+
+  Et comme on ne peut pas en changer, on reste sur la disposition posée à
+  l'installation — d'où le « @ » introuvable : sur un clavier canadien
+  français, il ne se tape pas là où il se tape sur un clavier américain.
+
+  ═══ CE QUE CE FICHIER FAIT, ET RIEN DE PLUS ═══
+  Il met « XkbDisable » à false, c'est-à-dire : NE PAS s'en remettre aux
+  réglages système. C'est le seul réglage qui déverrouille la page.
+
+  ═══ LE NOM EXACT, ET COMMENT ON L'A EU ═══
+  La première version de ce fichier écrivait « XkbDisableAll ». Ce nom
+  N'EXISTE PAS : XFCE ne l'a jamais lu, et le fichier était donc inerte —
+  livré dans deux images, sans rien déverrouiller du tout. Alex aurait
+  retrouvé son dialogue grisé exactement comme avant.
+
+  Le vrai nom est relevé dans le code de XFCE, pas deviné :
+
+      xfsettingsd/keyboard-layout.c:106
+        helper->xkb_disable_settings =
+            xfconf_channel_get_bool (helper->channel, "/Default/XkbDisable", TRUE);
+
+      dialogs/keyboard-settings/xfce-keyboard-settings.c:551
+        xfconf_g_property_bind (…, "/Default/XkbDisable", G_TYPE_BOOLEAN, …)
+
+  La valeur par défaut est TRUE : sans ce fichier, on s'en remet aux réglages
+  système, et TOUT le cadre des dispositions est grisé. Pire encore : tant que
+  cette propriété vaut vrai, xfsettingsd n'applique PAS XkbLayout — les
+  dispositions écrites par « lexos clavier » étaient donc ignorées elles aussi.
+
+  IL NE FIXE AUCUNE DISPOSITION. On aurait pu écrire « ca » ici, et ç'aurait
+  été une faute : la disposition est choisie à l'installation, elle vit dans
+  /etc/default/keyboard, et l'écraser depuis le squelette imposerait le
+  clavier d'Alex à quiconque installe LexOS ailleurs. On ouvre la porte, on
+  ne choisit pas à la place des gens.
+
+  ═══ CE QUI ÉCRIT ICI ENSUITE ═══
+  « lexos clavier » (et la page Clavier des Paramètres, qui l'appelle) pose
+  XkbLayout et XkbVariant dans ce même canal. Ce fichier est leur point de
+  départ ; ils le complètent, ils ne le remplacent pas.
+-->
+<channel name="keyboard-layout" version="1.0">
+  <property name="Default" type="empty">
+    <property name="XkbDisable" type="bool" value="false"/>
+  </property>
+</channel>

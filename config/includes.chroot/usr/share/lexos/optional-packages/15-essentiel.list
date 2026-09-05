@@ -71,12 +71,51 @@ printer-driver-cups-pdf
 # les nommer garantit qu'ils sont là.
 shared-mime-info
 desktop-file-utils
-# L'agent qui affiche les demandes de mot de passe sous XFCE.
-# xfce-polkit RETIRÉ : ce nom n'existe pas dans Debian (journal de la
-# construction 8). L'agent qui affiche les demandes de mot de passe arrive
-# par les Recommends de xfce4-session, et --apt-recommends est à true dans
-# auto/config : il est donc déjà là. Le nommer ici ne servait qu'à faire
-# échouer une ligne.
+# ═══ L'AGENT QUI AFFICHE LA FENÊTRE DU MOT DE PASSE ═══
+# ALEX, sur son vieil ordinateur : « les boutons dans les paramètres ne
+# fonctionnaient pas ».
+#
+# CE QUI ÉTAIT ÉCRIT ICI ÉTAIT FAUX. Ces lignes disaient : « L'agent qui
+# affiche les demandes de mot de passe arrive par les Recommends de
+# xfce4-session, et --apt-recommends est à true dans auto/config : il est
+# donc déjà là. » Vérifié, et ça ne tient pas :
+#
+#     apt-cache show xfce4-session | grep ^Recommends:
+#     → default-dbus-session-bus | dbus-session-bus,
+#       default-logind | logind,
+#       light-locker | xfce4-screensaver | xscreensaver |
+#       gnome-screensaver | mate-screensaver,
+#       systemd-sysv, upower, xfdesktop4, xfwm4
+#
+# Aucun agent d'authentification là-dedans. Pas un.
+#
+# polkitd, le démon, est bien installé (desktop.list.chroot) — mais le démon
+# n'est PAS l'agent. « pkexec » ne dessine pas lui-même la fenêtre du mot de
+# passe : il la demande à un agent qui doit tourner dans la session. Sans
+# agent, pkexec échoue sans fenêtre, sans message, sans rien. Et les
+# Paramètres passent par pkexec pour la luminosité et le fuseau horaire, une
+# douzaine d'outils LexOS aussi en mode graphique. Sur une machine sans agent,
+# tous ces boutons sont muets — exactement le symptôme décrit.
+#
+# ON EN NOMME TROIS, ET C'EST VOULU. Cette liste est « au mieux » : un nom
+# absent de l'archive est consigné dans /etc/lexos/optional-report et ne fait
+# pas échouer la construction. Nommer plusieurs candidats coûte donc une ligne
+# de journal et garantit qu'il en reste un.
+#
+#   · policykit-1-gnome — LE bon pour XFCE, malgré son nom : son propre
+#     fichier d'autostart porte « OnlyShowIn=XFCE;Unity;X-Cinnamon; ».
+#     Relevé dans le paquet, pas supposé.
+#   · lxpolkit — plus léger. Attention : son autostart Debian porte
+#     « Hidden=true », il ne démarre donc JAMAIS de lui-même. C'est
+#     /usr/lib/lexos/polkit-agent (autostart lexos-polkit-agent.desktop) qui
+#     le lance.
+#   · mate-polkit — ne livre aucun autostart du tout ; même remarque.
+#
+# « xfce-polkit » reste écarté : ce nom n'existe pas dans Debian (journal de
+# la construction 8), et le paquet ne s'est jamais matérialisé depuis.
+policykit-1-gnome
+lxpolkit
+mate-polkit
 # Le sélecteur de fichiers des applications Flatpak, qui sinon n'en ont pas.
 xdg-desktop-portal-gtk
 

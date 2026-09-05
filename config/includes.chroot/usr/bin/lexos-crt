@@ -1,0 +1,321 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-crt — l'extinction « téléviseur 1980 » quand on ferme une fenêtre
+# =============================================================================
+#  ALEX : « une animation pour fermer les fenêtres comme une vieille T.V. —
+#  l'effet d'animation n'est pas là quand je ferme des fenêtres ».
+#
+#  ═══ POURQUOI IL N'Y AVAIT RIEN, ET POURQUOI CE N'ÉTAIT PAS UN RÉGLAGE ═══
+#  L'effet ÉTAIT configuré — pour Compiz. 01-lexos-compiz pose
+#  « close-effects = Glide 2 », qui est exactement ce geste. Mais Compiz a été
+#  RETIRÉ de Debian trixie : lexos-wm cherche le binaire, ne le trouve pas,
+#  écrit « compiz absent » dans son journal, et se replie sur xfwm4. Or xfwm4
+#  n'a AUCUNE animation d'ouverture ni de fermeture. Il n'y avait donc pas un
+#  réglage de travers : il n'y avait pas de moteur du tout.
+#
+#  picom sait animer depuis sa version 12 (son propre CHANGELOG : « Animations!
+#  Yes, now picom officially supports animations », v12-rc1). C'est lui qu'on
+#  emploie, avec un script écrit à la main dans
+#  /usr/share/lexos/picom/lexos-tv.conf.
+#
+#  ═══ TROIS CONDITIONS, ET ON LE DIT QUAND ELLES MANQUENT ═══
+#  L'effet ne s'allume que si les trois sont réunies :
+#    · picom est installé ;
+#    · sa version est ≥ 12 — avant, l'option « animations » n'existe pas et le
+#      fichier serait lu sans effet, ce qui donnerait un compositeur de plus
+#      pour rien ;
+#    · l'accélération 3D est RÉELLE — pas llvmpipe, pas swrast. Mettre une
+#      fenêtre à l'échelle soixante fois par seconde sur un rendu logiciel
+#      rend la machine collante.
+#  « lexos crt status » dit laquelle manque. Un effet absent sans explication,
+#  c'est ce qu'Alex a vécu pendant plusieurs images.
+#
+#  ═══ ET LE COMPOSITEUR DE xfwm4 DOIT S'ÉTEINDRE ═══
+#  Deux compositeurs sur le même écran se battent : scintillement, tearing,
+#  fenêtres noires. On éteint donc celui de xfwm4 pendant que picom tourne —
+#  et on le RALLUME quand picom s'arrête, quelle qu'en soit la raison. Sans ce
+#  retour, une panne de picom laisserait un bureau sans ombres ni transparence,
+#  et personne ne ferait le lien avec une animation.
+# =============================================================================
+set -uo pipefail
+
+PROG="lexos crt"
+
+#  LE SCRIPT D'ANIMATION EST CHERCHÉ À CÔTÉ DE CET OUTIL D'ABORD. Dans l'image,
+#  cet outil est /usr/bin/lexos-crt et « ../share/lexos/picom/… » donne
+#  /usr/share/lexos/picom/lexos-tv.conf ; dans le dépôt, la même expression
+#  donne le fichier voisin. Une seule ligne, et les bancs peuvent faire tourner
+#  l'outil sans rien installer — un outil qu'on ne peut éprouver que sur une
+#  machine construite n'est éprouvé nulle part. Même procédé que json.sh.
+#  ET LE CHEMIN EST NORMALISÉ. « …/usr/bin/../share/… » et
+#  « …/usr/share/… » désignent le même fichier mais ne sont pas la même
+#  CHAÎNE — et c'est une chaîne qu'on cherchera plus bas dans la ligne de
+#  commande de picom. Mesuré : sans readlink -f, l'outil ne reconnaissait pas
+#  son propre picom, lancé pourtant deux secondes plus tôt.
+CONF_PICOM="$(readlink -f "$(dirname "$(readlink -f "$0")")/../share/lexos/picom/lexos-tv.conf" 2>/dev/null)"
+[[ -n "$CONF_PICOM" && -r "$CONF_PICOM" ]] || CONF_PICOM=/usr/share/lexos/picom/lexos-tv.conf
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+ETAT="$CONF_DIR/crt"
+LOG="$CONF_DIR/crt.log"
+#  La version de picom à partir de laquelle « animations » existe. Nommée une
+#  fois : le contrôle, le message et le JSON la lisent tous ici.
+PICOM_MIN=12
+
+mkdir -p "$CONF_DIR" 2>/dev/null || true
+
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+log()  { printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" >> "$LOG" 2>/dev/null || true; }
+
+usage() {
+	cat <<EOF
+${B}$PROG${R} — l'extinction « téléviseur 1980 » à la fermeture des fenêtres
+
+  ${O}$PROG${R}                Où on en est, et ce qui manque le cas échéant
+  ${O}$PROG on${R}             Allumer les effets (tout de suite si possible)
+  ${O}$PROG off${R}            Les éteindre
+  ${O}$PROG status${R}         Comme sans argument
+
+La fenêtre s'écrase vers une ligne, la ligne se referme en un point, le point
+s'éteint — trois dixièmes de seconde, le geste d'un tube cathodique qu'on coupe.
+
+Il faut picom ${PICOM_MIN} ou plus récent et une vraie accélération 3D. Sans l'un
+des deux, le bureau reste tel quel et « $PROG » dit lequel manque.
+EOF
+}
+
+# --- Ce que la machine sait faire -------------------------------------------
+
+#  La version MAJEURE de picom, ou vide si on ne sait pas la lire. picom écrit
+#  « v10 », « v12.5 », parfois « vgit-… » pour une version compilée à la main.
+picom_majeur() {
+	command -v picom >/dev/null 2>&1 || return 1
+	picom --version 2>/dev/null | sed -n '1s/^v\([0-9][0-9]*\).*/\1/p'
+}
+
+#  L'accélération 3D est-elle réelle ? Même mesure que lexos-wm, et pour la
+#  même raison : llvmpipe/softpipe/swrast sont du rendu LOGICIEL — le pilote
+#  répond « oui » à tout, et la machine rame.
+accel_3d() {
+	command -v glxinfo >/dev/null 2>&1 || return 1
+	local info
+	info="$(timeout 10 glxinfo 2>/dev/null)" || return 1
+	grep -q 'direct rendering: Yes' <<< "$info" || return 1
+	if grep -Ei 'OpenGL renderer string.*(llvmpipe|softpipe|swrast)' <<< "$info" >/dev/null; then
+		return 1
+	fi
+	return 0
+}
+
+#  Ce que l'utilisateur a demandé. L'état écrit gagne ; sinon le défaut de la
+#  construction ; sinon « on ».
+#
+#  ÉCRIT ICI UNE SEULE FOIS. lexos-wm lisait build.conf de son côté avec son
+#  propre défaut, et son commentaire annonçait « le défaut est désormais off »
+#  pendant que son code disait « on ». Deux réponses possibles à « les effets
+#  sont-ils demandés ? », dans le même dépôt.
+voulu() {
+	if [[ -r "$ETAT" ]]; then
+		local v; v="$(cat "$ETAT" 2>/dev/null)"
+		[[ "$v" == "on" || "$v" == "off" ]] && { printf '%s' "$v"; return 0; }
+	fi
+	if [[ -r /etc/lexos/build.conf ]]; then
+		# shellcheck disable=SC1091
+		local d; d="$(. /etc/lexos/build.conf 2>/dev/null; printf '%s' "${LEXOS_CRT_EFFECTS:-on}")"
+		[[ "$d" == "off" ]] && { printf 'off'; return 0; }
+	fi
+	printf 'on'
+}
+
+#  ═══ NOTRE picom TOURNE-T-IL ? ═══
+#  Deux exigences, et il faut les DEUX : que ce soit un processus picom, et
+#  qu'il emploie NOTRE fichier de configuration. Un picom lancé par quelqu'un
+#  d'autre avec ses propres réglages n'est pas le nôtre.
+#
+#  ET SURTOUT PAS « pgrep -f <chemin> » SEUL. pgrep -f compare la ligne de
+#  commande ENTIÈRE de chaque processus : n'importe quelle commande citant ce
+#  chemin — un éditeur ouvert dessus, un grep, le shell d'un banc d'essai —
+#  suffisait à faire répondre « en marche ». Mesuré ici même : la première
+#  version de cet outil a répondu « tourne: true » sur une machine où picom
+#  n'était pas lancé du tout, parce que la commande qui l'interrogeait
+#  contenait le mot. C'est le défaut exact corrigé dans lexos-share pour le
+#  serveur de partage, refait par distraction.
+#
+#  On lit donc /proc/<pid>/cmdline des seuls processus NOMMÉS picom.
+#  Pas de « | grep » : sous « pipefail », grep -q qui trouve ferme le tuyau,
+#  tr prend un SIGPIPE, et la commande rend 141 — une correspondance vraie
+#  rendue comme un échec. Ce dépôt a déjà payé ce piège deux fois.
+pids_picom() {
+	local pid ligne
+	for pid in $(pgrep -x picom 2>/dev/null); do
+		ligne="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)" || continue
+		case "$ligne" in
+			*"$CONF_PICOM"*) printf '%s\n' "$pid" ;;
+		esac
+	done
+}
+
+tourne() { [[ -n "$(pids_picom)" ]]; }
+
+# --- Le compositeur de xfwm4 -------------------------------------------------
+xfwm_compositing() {
+	command -v xfconf-query >/dev/null 2>&1 || return 0
+	xfconf-query -c xfwm4 -p /general/use_compositing -s "$1" >/dev/null 2>&1 || true
+}
+
+# --- Le superviseur (appelé par lexos-wm) ------------------------------------
+cmd_demarrer() {
+	if [[ "$(voulu)" != "on" ]]; then
+		log "effets non demandés — rien à faire"
+		exit 0
+	fi
+	local maj; maj="$(picom_majeur)" || { log "picom absent"; exit 0; }
+	if [[ -n "$maj" ]] && (( maj < PICOM_MIN )); then
+		log "picom v$maj < $PICOM_MIN — pas d'animations dans cette version"
+		exit 0
+	fi
+	[[ -r "$CONF_PICOM" ]] || { log "configuration absente : $CONF_PICOM"; exit 0; }
+	if ! accel_3d; then
+		log "pas d'accélération 3D réelle — on laisse xfwm4 tel quel"
+		exit 0
+	fi
+	if tourne; then
+		log "déjà en marche"
+		exit 0
+	fi
+	#  DEUX COMPOSITEURS SE BATTENT. Compiz a été retiré de Debian trixie, donc
+	#  ce cas ne devrait pas arriver — mais lexos-wm sait encore le lancer si
+	#  le binaire réapparaît un jour, et un scintillement d'écran est un prix
+	#  trop cher pour une ligne de garde qu'on n'a pas écrite.
+	if pgrep -x compiz >/dev/null 2>&1; then
+		log "compiz tourne — il fait déjà les effets, on ne s'en mêle pas"
+		exit 0
+	fi
+
+	#  ON ATTEND LE GESTIONNAIRE DE FENÊTRES. lexos-wm lance ce superviseur
+	#  puis remplace xfwm4 ; démarrer picom avant que le remplacement soit
+	#  fini le ferait composer sous un gestionnaire en train de partir.
+	sleep "${LEXOS_CRT_DELAI:-2}"
+
+	#  LE RETOUR EN ARRIÈRE EST POSÉ AVANT LE DÉPART. Si picom meurt, si la
+	#  session se ferme, si on reçoit un signal — le compositeur de xfwm4
+	#  revient. Un bureau sans ombres après une panne d'animation serait une
+	#  régression que personne ne saurait relier à ceci.
+	trap 'xfwm_compositing true; log "compositeur xfwm4 rendu"' EXIT INT TERM
+
+	xfwm_compositing false
+	log "picom v${maj:-?} — $CONF_PICOM"
+	picom --config "$CONF_PICOM" >>"$LOG" 2>&1
+	log "picom s'est arrêté (code $?)"
+}
+
+# --- Commandes ---------------------------------------------------------------
+cmd_on() {
+	printf 'on\n' > "$ETAT"
+	ok "Effets de fenêtres demandés."
+	if tourne; then
+		say "Ils tournent déjà."
+		return 0
+	fi
+	#  On applique TOUT DE SUITE quand c'est possible : demander de fermer sa
+	#  session pour voir une animation, c'est ne pas la voir.
+	local maj; maj="$(picom_majeur)" || { warn "picom n'est pas installé — rien ne changera."; say "  ${D}lexos install picom${R}"; return 0; }
+	if [[ -n "$maj" ]] && (( maj < PICOM_MIN )); then
+		warn "picom v$maj est trop ancien : les animations existent à partir de la v$PICOM_MIN."
+		return 0
+	fi
+	if ! accel_3d; then
+		warn "Pas d'accélération 3D réelle sur cette machine — les effets resteraient saccadés."
+		say "  Le bureau ne change pas. ${D}lexos materiel${R} dit ce que la carte graphique sait faire."
+		return 0
+	fi
+	LEXOS_CRT_DELAI=0 setsid "$0" --demarrer >/dev/null 2>&1 &
+	sleep 2
+	tourne && ok "En marche — ferme une fenêtre pour voir." \
+	       || warn "picom n'a pas démarré. ${D}$LOG${R} dit pourquoi."
+}
+
+cmd_off() {
+	printf 'off\n' > "$ETAT"
+	if tourne; then
+		#  On tue les PID relevés, pas un motif : « pkill -f <chemin> »
+		#  frapperait tout ce qui cite ce chemin, y compris un shell.
+		local pid
+		for pid in $(pids_picom); do kill "$pid" 2>/dev/null; done
+		sleep 1
+		xfwm_compositing true
+		ok "Effets arrêtés — le compositeur de xfwm4 reprend la main."
+	else
+		ok "Effets éteints. Ils ne repartiront pas à la prochaine session."
+	fi
+}
+
+cmd_status() {
+	local v maj
+	v="$(voulu)"
+	printf 'Effets de fenêtres demandés : %s%s%s\n' "$O" "$v" "$R"
+
+	if tourne; then
+		ok "En marche — l'extinction « téléviseur » joue à la fermeture."
+	else
+		warn "À l'arrêt."
+	fi
+
+	#  CE QUI MANQUE, NOMMÉ. C'est tout l'intérêt de cette commande : un effet
+	#  absent sans raison donnée envoie chercher n'importe où.
+	if ! maj="$(picom_majeur)"; then
+		say "picom n'est pas installé.   ${D}lexos install picom${R}"
+	elif [[ -n "$maj" ]] && (( maj < PICOM_MIN )); then
+		say "picom v$maj : trop ancien, les animations arrivent à la v$PICOM_MIN."
+	else
+		say "picom v${maj:-?} : les animations sont disponibles."
+	fi
+	[[ -r "$CONF_PICOM" ]] \
+		&& say "Script d'animation : $CONF_PICOM" \
+		|| say "Script d'animation ABSENT : $CONF_PICOM"
+	if accel_3d; then
+		say "Accélération 3D : réelle."
+	else
+		say "Accélération 3D : absente ou logicielle — les effets resteraient saccadés."
+	fi
+	[[ -r "$LOG" ]] && { printf '\n%sDernières lignes du journal :%s\n' "$D" "$R"; tail -n 4 "$LOG"; }
+	return 0
+}
+
+cmd_json() {
+	local v maj a3 t
+	v="$(voulu)"
+	maj="$(picom_majeur)" || maj=""
+	accel_3d && a3=true || a3=false
+	tourne && t=true || t=false
+	printf '{\n'
+	printf '  "voulu": "%s",\n' "$v"
+	printf '  "tourne": %s,\n' "$t"
+	printf '  "picom": %s,\n' "$(command -v picom >/dev/null 2>&1 && echo true || echo false)"
+	printf '  "picom_version": %s,\n' "${maj:-0}"
+	printf '  "picom_min": %s,\n' "$PICOM_MIN"
+	printf '  "accel3d": %s,\n' "$a3"
+	printf '  "script": %s\n}\n' "$( [[ -r "$CONF_PICOM" ]] && echo true || echo false)"
+}
+
+case "${1:-status}" in
+	''|status|etat|état) cmd_status ;;
+	on|marche)           cmd_on ;;
+	off|arret|arrêt)     cmd_off ;;
+	--demarrer)          cmd_demarrer ;;
+	#  Les PID de NOTRE picom, un par ligne. Sert à l'arrêter avec précision —
+	#  et aux bancs d'essai, qui doivent pouvoir faire le ménage sans employer
+	#  « pkill -f <motif> » : un motif frappe tout ce qui le cite, y compris le
+	#  shell qui a lancé le banc. C'est arrivé en écrivant celui-ci.
+	--pids)              pids_picom ;;
+	--json|json)         cmd_json ;;
+	-h|--help|aide)      usage ;;
+	*) usage >&2; die "Commande inconnue : « $1 »" ;;
+esac
