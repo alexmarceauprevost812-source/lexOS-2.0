@@ -322,5 +322,98 @@ S="$(lance_avec 10)"
 	&& ok "10 Go — sous le minimum — est refusé avec son motif" \
 	|| non "une taille sous le plancher est acceptée"
 
+# =============================================================================
+titre "10. Un voisin Linux CHIFFRÉ ou en LVM — le cas de l'Alienware"
+# =============================================================================
+#  LE MÊME PIÈGE QUE BITLOCKER, À L'AUTRE BOUT. Dans un LUKS, lsblk montre
+#  « crypto_LUKS » sur la partition ; l'ext4 n'apparaît qu'APRÈS
+#  déverrouillage, sur un /dev/mapper qui n'existe pas encore. Dans un LVM,
+#  c'est « LVM2_member ». trouver_linux() ne cherchait ni l'un ni l'autre :
+#  devant l'Ubuntu chiffré de l'Alienware, l'outil disait « aucune autre
+#  partition Linux » puis « aucun voisin : l'installateur proposera d'utiliser
+#  le disque en entier » — sur le disque qui porte ce système-là.
+pose_table "nvme0n1p3 crypto_LUKS 400000000000"
+S="$(lance)"
+
+echo "$S" | grep -qi "chiffré (LUKS)" \
+	&& ok "le voisin chiffré est nommé pour ce qu'il est (LUKS)" \
+	|| non "le système chiffré n'est pas signalé :\n$S"
+
+echo "$S" | grep -q "nvme0n1p3" \
+	&& ok "…et son périphérique est cité" \
+	|| non "le périphérique chiffré n'est pas nommé"
+
+if echo "$S" | grep -q "proposera d'utiliser tout le disque\|proposera de l'utiliser en entier"; then
+	non "l'outil propose ENCORE d'utiliser tout le disque — sur un disque qui porte un système"
+else
+	ok "la phrase « l'installateur prendra tout le disque » n'apparaît plus"
+fi
+
+echo "$S" | grep -q "partitionnement manuel\|partitionnement MANUEL" \
+	&& ok "le chemin de sortie (partitionnement manuel) est donné" \
+	|| non "aucune consigne de partitionnement manuel :\n$S"
+
+#  ON EXIGE LA LISTE NUMÉROTÉE, pas une mention quelque part. Les cinq noms
+#  apparaissent AUSSI en une ligne dans le résumé final : un simple grep sur
+#  « resize2fs » restait donc vert même en supprimant toute la marche à
+#  suivre détaillée. Attrapé en cassant le bloc exprès.
+N=1
+for ETAPE in resize2fs lvreduce pvresize "cryptsetup resize" GParted; do
+	echo "$S" | grep -qE "^ +$N\. +$ETAPE" \
+		&& ok "…la marche à suivre donne l'étape $N dans l'ordre : $ETAPE" \
+		|| non "l'étape $N ($ETAPE) manque de la marche à suivre numérotée"
+	N=$((N+1))
+done
+
+if echo "$S" | grep -q "curseur à"; then
+	non "le résumé conseille encore le curseur « Installer à côté de » — inutilisable ici"
+else
+	ok "le résumé ne renvoie plus vers « Installer à côté de », qui ne sait pas faire"
+fi
+
+#  UN LVM NON CHIFFRÉ EST LE MÊME PROBLÈME : Calamares ne le redimensionne
+#  pas davantage.
+pose_table "sda2 LVM2_member 300000000000"
+S="$(lance)"
+echo "$S" | grep -qi "volume LVM" \
+	&& ok "un LVM non chiffré est signalé aussi" \
+	|| non "le LVM2_member n'est pas reconnu :\n$S"
+
+#  MÊME SEUIL QUE LES AUTRES : une petite partition chiffrée (un /boot
+#  chiffré, une partition de récupération) n'est pas LE système voisin.
+pose_table "sda3 crypto_LUKS 900000000"
+S="$(lance)"
+if echo "$S" | grep -qi "chiffré (LUKS)"; then
+	non "une partition LUKS de moins de 20 Go a été prise pour le système voisin"
+else
+	ok "une petite partition LUKS (< 20 Go) est ignorée, comme pour le NTFS"
+fi
+
+#  ET ON NE SE SIGNALE PAS SOI-MÊME. Lancé depuis un LexOS déjà installé sur
+#  un disque chiffré, le LUKS le plus gros est le NÔTRE — le même piège que
+#  la section 7, à l'autre bout.
+pose_table "nvme0n1p3 crypto_LUKS 400000000000"
+pose_racine "/dev/nvme0n1p3"
+S="$(lance)"
+if echo "$S" | grep -qi "chiffré (LUKS)"; then
+	non "l'outil signale NOTRE PROPRE racine chiffrée comme un système voisin"
+else
+	ok "notre propre racine chiffrée n'est pas prise pour un voisin"
+fi
+pose_racine "/dev/loop0"
+
+#  UN VOISIN EN CLAIR PREND LE PAS : un disque qui porte un /boot ext4 et un
+#  LVM chiffré à côté, c'est UN système, pas deux. Deux annonces
+#  embrouilleraient plus qu'elles n'aideraient.
+pose_table "sda2 ext4 300000000000" "sda3 crypto_LUKS 400000000000"
+pose_ext4 50000000 40000000 clean
+S="$(lance)"
+if echo "$S" | grep -qi "chiffré (LUKS)"; then
+	non "le voisin chiffré est annoncé EN PLUS du voisin en clair — deux annonces pour un système"
+else
+	ok "quand un voisin en clair existe, lui seul est annoncé"
+fi
+retire_ext4
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

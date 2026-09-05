@@ -189,6 +189,32 @@ trouver_linux() {
 		| sort -rn | head -1 | awk '{print $2, $3}'
 }
 
+#  UN LINUX CHIFFRÉ OU EN LVM N'EST PAS UN DISQUE VIDE NON PLUS — et c'est
+#  EXACTEMENT le cas de l'Alienware d'Alex, dont l'Ubuntu est en LUKS2 + LVM.
+#
+#  Le même piège que BitLocker, à l'autre bout : dans un LUKS, lsblk montre
+#  « crypto_LUKS » sur la partition, et l'ext4 n'apparaît qu'APRÈS
+#  déverrouillage, sur un périphérique /dev/mapper qui n'existe pas encore.
+#  Dans un LVM, c'est « LVM2_member ». Dans les deux cas trouver_linux() ne
+#  voyait rien, et l'outil enchaînait « aucune autre partition Linux » puis
+#  « aucun voisin : l'installateur proposera d'utiliser le disque en entier ».
+#  Sur le disque qui porte l'Ubuntu d'Alex. C'est la phrase la plus dangereuse
+#  que cet outil pouvait prononcer, et il la prononçait avec aplomb.
+#
+#  ON NE MESURE PAS CE VOISIN-LÀ, et ce n'est pas un manque de courage :
+#  Calamares ne sait PAS redimensionner une partition chiffrée ni un volume
+#  LVM. Donner un chiffre à régler sur un curseur qui n'apparaîtra jamais
+#  serait pire que de se taire. Ce qu'il faut dire, c'est qu'il y a quelque
+#  chose là, et par où passer.
+trouver_linux_chiffre() {
+	_tlcnous="$(racine_a_nous)"
+	lsblk -brno NAME,FSTYPE,SIZE 2>/dev/null \
+		| awk -v nous="$_tlcnous" '
+			($2=="crypto_LUKS" || $2=="LVM2_member") \
+			&& $3+0 > 20000000000 && $1 != nous {print $3, $1, $2}' \
+		| sort -rn | head -1 | awk '{print $2, $3}'
+}
+
 #  LA PLACE OCCUPÉE DANS UN EXT4, SANS LE MONTER. C'est l'équivalent exact de
 #  « ntfsresize --info » pour Windows : dumpe2fs -h ne lit que le superbloc,
 #  n'écrit jamais rien, et vient d'e2fsprogs, qui est dans la liste des
@@ -224,6 +250,20 @@ LNX_LIGNE="$(trouver_linux)"
 LNX_PART="${LNX_LIGNE%% *}"
 LNX_FS="${LNX_LIGNE##* }"
 
+#  ET LE VOISIN CHIFFRÉ / LVM, pour la même raison, au même moment : sa
+#  présence change elle aussi ce que les sections suivantes ont le droit de
+#  dire. On ne le cherche que si aucun voisin en clair n'a été trouvé — un
+#  disque qui porte les deux (un /boot ext4 et un LVM chiffré à côté) est
+#  déjà couvert par le voisin en clair, et deux annonces pour un seul
+#  système embrouilleraient plus qu'elles n'aideraient.
+LNXC_PART=""
+LNXC_FS=""
+if [ -z "$LNX_PART" ]; then
+	LNXC_LIGNE="$(trouver_linux_chiffre)"
+	LNXC_PART="${LNXC_LIGNE%% *}"
+	LNXC_FS="${LNXC_LIGNE##* }"
+fi
+
 titre "WINDOWS"
 if [ -z "$WIN_PART" ]; then
 	WIN_CHIFFRE="$(trouver_windows_chiffre)"
@@ -250,6 +290,11 @@ if [ -z "$WIN_PART" ]; then
 		info "Soit ce disque n'a pas Windows, soit il n'est pas branché."
 		if [ -n "$LNX_PART" ]; then
 			info "Mais il y a un autre Linux dessus — voir la section suivante."
+		elif [ -n "$LNXC_PART" ]; then
+			#  LA PHRASE « l'installateur proposera d'utiliser tout le disque »
+			#  N'A PAS LE DROIT DE SORTIR ICI : il y a bien un système, il est
+			#  seulement illisible d'ici.
+			info "Mais il y a un système CHIFFRÉ ou en LVM dessus — voir la section suivante."
 		else
 			info "Dans ce cas l'installateur proposera d'utiliser tout le disque."
 		fi
@@ -313,6 +358,30 @@ if [ -n "$LNX_PART" ]; then
 	ok "un autre Linux occupe ${LNX_DEV} (${LNX_FS}, ${LNX_TAILLE_GO} Go)"
 	info "Ubuntu, Mint, Fedora… — l'installateur sait le découper comme il découpe Windows."
 	info "Et os-prober le mettra dans le menu de démarrage, au même titre."
+elif [ -n "$LNXC_PART" ]; then
+	LNXC_DEV="/dev/${LNXC_PART}"
+	LNXC_TAILLE_O="$(lsblk -brno SIZE "$LNXC_DEV" 2>/dev/null | head -1)"
+	LNXC_TAILLE_GO=$(( ${LNXC_TAILLE_O:-0} / 1000000000 ))
+	case "$LNXC_FS" in
+		crypto_LUKS) QUOI="chiffré (LUKS)" ;;
+		LVM2_member) QUOI="en volume LVM" ;;
+		*)           QUOI="$LNXC_FS" ;;
+	esac
+	non "un système ${QUOI} occupe ${LNXC_DEV} (${LNXC_TAILLE_GO} Go)"
+	printf '\n'
+	printf '  Ce n'\''est PAS un disque vide — il y a un système là-dedans, et\n'
+	printf '  personne ne peut le mesurer sans le déverrouiller d'\''abord.\n\n'
+	printf '  %sCalamares ne sait pas redimensionner ça.%s L'\''écran « Installer à\n' "$B" "$R"
+	printf '  côté de » ne fera donc pas le travail : il faut libérer la place\n'
+	printf '  À LA MAIN, depuis ce système-là, AVANT d'\''installer LexOS.\n\n'
+	printf '  %sDans l'\''ordre, et jamais dans l'\''autre :%s\n' "$B" "$R"
+	printf '    1. resize2fs    — réduire le système de fichiers\n'
+	printf '    2. lvreduce     — réduire le volume logique\n'
+	printf '    3. pvresize     — réduire le volume physique\n'
+	printf '    4. cryptsetup resize — réduire le conteneur chiffré\n'
+	printf '    5. GParted      — réduire enfin la partition\n\n'
+	info "Puis : installer LexOS en partitionnement MANUEL, dans l'espace non alloué."
+	info "Sauvegarde d'abord. Cette suite-là ne pardonne pas une étape sautée."
 else
 	info "aucune autre partition Linux de plus de 20 Go sur ce disque."
 fi
@@ -413,6 +482,12 @@ elif [ -n "$LNX_DEV" ]; then
 				info "C'est peut-être suffisant sans toucher à Windows du tout."
 		fi
 	fi
+elif [ -n "$LNXC_PART" ]; then
+	#  MÊME INTERDIT QU'À LA SECTION WINDOWS : il y a un système là, on ne
+	#  dit pas à Alex que l'installateur peut prendre le disque en entier.
+	non "la place ne se calcule pas ici : le voisin est chiffré ou en LVM"
+	info "Libère l'espace depuis ce système-là (voir la section précédente),"
+	info "puis reviens — LexOS s'installera dans l'espace non alloué."
 else
 	info "Aucun voisin sur le disque : l'installateur proposera de l'utiliser en entier."
 fi
@@ -458,8 +533,20 @@ else
 fi
 printf '  2. Sauvegarder ce qui compte. %sPar principe%s, avant tout partage de disque.\n' "$B" "$R"
 printf '  3. Dans le BIOS (F2) : %sSecure Boot → Disabled%s.\n' "$B" "$R"
-printf '  4. Dans l'\''installateur : %s« Installer à côté de »%s, curseur à %s%s Go%s.\n' "$B" "$R" "$B$O" "$CIBLE_GO" "$R"
-printf '  5. Lire l'\''écran de résumé avant de valider. Rien n'\''est écrit avant.\n'
+#  DEVANT UN VOISIN CHIFFRÉ OU EN LVM, LA CONSIGNE 4 SERAIT FAUSSE : l'écran
+#  « Installer à côté de » ne sait pas découper ça, et son curseur ne
+#  proposerait rien d'utilisable. Envoyer Alex l'y chercher quand même, c'est
+#  l'envoyer buter sur un écran qui ne répond pas — ou pire, cliquer ailleurs.
+if [ -n "${LNXC_PART:-}" ] && [ -z "${WIN_DEV:-}" ] && [ -z "${LNX_DEV:-}" ]; then
+	printf '  4. %sLibérer la place D'\''ABORD%s, depuis le système voisin (resize2fs,\n' "$B" "$R"
+	printf '     lvreduce, pvresize, cryptsetup resize, GParted — dans cet ordre).\n'
+	printf '  5. Puis installer en %spartitionnement manuel%s, dans l'\''espace non alloué.\n' "$B" "$R"
+	printf '     %sPas%s « Installer à côté de » : il ne sait pas redimensionner un\n' "$B" "$R"
+	printf '     disque chiffré ni un volume LVM.\n'
+else
+	printf '  4. Dans l'\''installateur : %s« Installer à côté de »%s, curseur à %s%s Go%s.\n' "$B" "$R" "$B$O" "$CIBLE_GO" "$R"
+	printf '  5. Lire l'\''écran de résumé avant de valider. Rien n'\''est écrit avant.\n'
+fi
 printf '\n'
 printf '  %sCet outil n'\''a rien modifié.%s Relance-le autant de fois que tu veux.\n' "$D" "$R"
 printf '\n'
