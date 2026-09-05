@@ -47,8 +47,40 @@ h2{font-size:22px;font-weight:700}
 .btn{padding:9px 18px;border:1px solid var(--ac);border-radius:999px;
   background:var(--ac);color:var(--ac-txt);font:inherit;font-weight:600;cursor:pointer}
 .btn:hover{background:var(--ac-hi);border-color:var(--ac-hi)}
+/*  ═══ DEUX FAMILLES DE BOUTONS, ET ELLES NE DOIVENT PAS SE RESSEMBLER ═══
+    ALEX : « beaucoup de boutons ne changent pas de couleur en orange quand
+    on clique dessus. » Compté dans app.js : 47 boutons « ghost ».
+
+    · BOUTONS DE CHOIX (accent, thème, police, définition…) — ils portent
+      « sel » quand leur choix est actif et restent accentués TANT QUE c'est
+      le cas. C'est un ÉTAT.
+    · BOUTONS D'ACTION (les « ghost ») — ils lancent quelque chose, puis
+      c'est fini. Ils FLASHENT pendant l'appui, puis redeviennent gris.
+
+    SI LES BOUTONS D'ACTION RESTAIENT ACCENTUÉS APRÈS LE CLIC, on ne saurait
+    plus lequel est un réglage actif et lequel est une commande déjà lancée.
+    C'est toute la raison d'être de la distinction.
+
+    CE QUI NE MARCHAIT PAS. Le survol posait « var(--bg-hi) », soit #141416
+    sur un fond #0B0B0C : un gris à peine plus clair, invisible à l'œil. Et
+    au clic, le seul retour était un rétrécissement de 5 % qu'on ne remarque
+    pas. Les boutons fonctionnaient ; ils ne le DISAIENT pas. */
 .btn.ghost{background:none;color:var(--fg);border-color:var(--bd)}
-.btn.ghost:hover{background:var(--bg-hi)}
+/*  Le survol dit « c'est cliquable » : la bordure et le texte prennent
+    l'accent, le fond reste noir. */
+.btn.ghost:hover{background:none;border-color:var(--ac);color:var(--ac-hi)}
+/*  ═══ LE CLIC DIT « C'EST PARTI » — ET LE FLASH SURVIT À UN CLIC VIF ═══
+    « :active » ne dure que le temps où le bouton de souris est enfoncé. Un
+    clic rapide dure 40 ms : le flash serait invisible, et Alex croirait que
+    rien n'a changé. La classe « press », posée par app.js et retirée après
+    160 ms, garantit une durée minimale.
+
+    LES DEUX SÉLECTEURS PARTAGENT LE MÊME BLOC, et ce n'est pas de la
+    coquetterie : s'ils divergeaient, le flash d'un clic vif n'aurait pas la
+    même allure que celui d'un clic maintenu, et personne ne comprendrait
+    pourquoi. Le banc l'exige. */
+.btn.ghost:active,
+.btn.ghost.press{background:var(--ac);border-color:var(--ac);color:var(--ac-txt)}
 .btn.sel{background:var(--ac);color:var(--ac-txt);border-color:var(--ac)}
 
 /* --- Interrupteur -------------------------------------------------------- */
@@ -200,16 +232,27 @@ kbd{display:inline-block;padding:1px 6px;border-radius:5px;
 
    prefers-reduced-motion est respecté : le mouvement disparaît, la couleur
    reste — on ne prive personne du retour, on change sa forme. */
+/*  background-color ET border-color sont dans la liste : sans elles, le
+    retour du flash à l'état gris serait brutal — la couleur sauterait
+    pendant que la taille, elle, reviendrait en douceur. */
 .btn{transition:transform .18s cubic-bezier(.2,.8,.3,1),
-                background .15s ease, box-shadow .18s ease}
+                background-color .15s ease, border-color .15s ease,
+                color .15s ease, box-shadow .18s ease}
 .btn:hover{box-shadow:0 2px 12px var(--ac-halo)}
-.btn:active{transform:scale(.95);transition-duration:.09s;
+.btn:active,
+.btn.ghost.press{transform:scale(.95);transition-duration:.09s;
             box-shadow:0 1px 4px rgba(0,0,0,.35) inset}
 .btn:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 
+/*  LA COULEUR RESTE, LE MOUVEMENT PART. Pour qui demande moins d'animation,
+    le flash de couleur est le SEUL retour disponible : le supprimer aussi
+    laisserait ces gens-là sans aucun signe que le clic a été pris. On ne
+    prive personne du retour, on change sa forme. */
 @media (prefers-reduced-motion: reduce){
-  .btn{transition:background .15s ease}
-  .btn:active{transform:none}
+  .btn{transition:background-color .15s ease, border-color .15s ease,
+                  color .15s ease}
+  .btn:active,
+  .btn.ghost.press{transform:none}
 }
 
 /* --- Les vignettes de la galerie de fonds (section Bureau LexOS) ---------- */

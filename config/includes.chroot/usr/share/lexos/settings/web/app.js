@@ -155,6 +155,46 @@ function toast(msg){
   clearTimeout(toastT); toastT = setTimeout(()=>{ t.hidden = true; }, 2600);
 }
 
+/*  ═══ LE FLASH DU CLIC, POSÉ EN UN SEUL ENDROIT ═══
+    ALEX : « beaucoup de boutons ne changent pas de couleur en orange quand
+    on clique dessus. » Le style du flash vit dans style.css (.btn.ghost.press) ;
+    ici on se contente de poser la classe et de la retirer.
+
+    POURQUOI UN ÉCOUTEUR DÉLÉGUÉ, ET PAS 47 GESTIONNAIRES. Les boutons sont
+    écrits avec des attributs « onclick » en ligne, et chaque section se
+    redessine entièrement à chaque changement d'état : accrocher quoi que ce
+    soit bouton par bouton serait à refaire à chaque rendu, et on en
+    oublierait. Un seul écouteur sur le document, en phase de CAPTURE, voit
+    tous les boutons — y compris ceux qui n'existaient pas encore.
+
+    POURQUOI « pointerdown » ET PAS « click ». On veut le retour au moment où
+    le doigt appuie, comme « :active », pas au relâchement. Et pointerdown
+    couvre la souris comme le tactile.
+
+    POURQUOI 160 ms. « :active » ne dure que le temps de l'appui : un clic
+    vif dure 40 ms et le flash serait invisible. 160 ms est le plancher qui
+    rend le retour perceptible sans le faire traîner.
+
+    ═══ ON NE FLASHE PAS UN BOUTON DÉJÀ CHOISI ═══
+    Les boutons de CHOIX portent « sel » quand leur choix est actif : ils
+    sont déjà accentués en permanence, et y ajouter « press » ferait se
+    battre deux règles pour le même fond.
+
+    MESURÉ, ET C'EST UNE LIMITE À CONNAÎTRE : un bouton de choix NON
+    sélectionné s'écrit « class="btn ghost" », exactement comme un bouton
+    d'action — le dépôt écrit « btn ${x ? "sel" : "ghost"} ». Rien dans le
+    DOM ne les distingue à ce moment-là. Il flashera donc lui aussi, et
+    c'est le bon comportement : il est en train de DEVENIR le choix actif,
+    le flash accentué enchaîne sur l'accent permanent que le rendu suivant
+    lui donnera. La règle utile est donc bien « ne pas flasher ce qui est
+    déjà sel », pas « deviner la famille ». */
+document.addEventListener("pointerdown", ev => {
+  const b = ev.target && ev.target.closest ? ev.target.closest(".btn.ghost") : null;
+  if(!b || b.classList.contains("sel") || b.disabled) return;
+  b.classList.add("press");
+  setTimeout(() => b.classList.remove("press"), 160);
+}, true);
+
 /* --- Briques d'interface -------------------------------------------------- */
 const esc = s => String(s).replace(/[&<>"]/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));

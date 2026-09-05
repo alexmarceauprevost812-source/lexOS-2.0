@@ -334,5 +334,139 @@ else
 	ok "aucun « break » ne remplace un « return » dans contenu()"
 fi
 
+# =============================================================================
+titre "Les boutons d'action répondent au clic"
+# =============================================================================
+#  ALEX : « beaucoup de boutons ne changent pas de couleur en orange quand on
+#  clique dessus. » Ce n'était pas un problème de JavaScript — les boutons
+#  marchaient, ils ne le DISAIENT pas. Le survol posait « var(--bg-hi) »,
+#  #141416 sur un fond #0B0B0C : invisible. Et au clic, le seul retour était
+#  un rétrécissement de 5 %, qu'on ne remarque pas.
+#
+#  POURQUOI CE BLOC EST ICI ET PAS DANS UN TROISIÈME BANC. La consigne
+#  nommait test_lexos_app_settings.sh et test_verifier_parametres.sh — mais
+#  MESURÉ, le premier éprouve « lexos-app-settings » (les réglages de LA
+#  FENÊTRE, un autre outil) et le second le contrôle 16 du vérificateur.
+#  Ni l'un ni l'autre ne lit la feuille des Paramètres. Celui-ci, si : il
+#  charge app.js pour de vrai. C'est le banc des Paramètres, c'est ici que ça
+#  va.
+STYLE="$RACINE/config/includes.chroot/usr/share/lexos/settings/web/style.css"
+if [ ! -r "$STYLE" ]; then
+	non "feuille des Paramètres introuvable : $STYLE"
+else
+	#  On isole chaque règle par son sélecteur : trouver la bonne valeur dans
+	#  la mauvaise règle serait un faux vert.
+	regle() { awk -v c="$1" 'index($0, c)==1 { d=1 } d { print; if (/}/) exit }' "$STYLE"; }
+
+	SURVOL="$(regle '.btn.ghost:hover')"
+	if printf '%s' "$SURVOL" | grep -q 'border-color:var(--ac)'; then
+		ok "le survol accentue la BORDURE — plus seulement un gris invisible"
+	else
+		non "le survol ne change pas la bordure : « c'est cliquable » ne se lit toujours pas"
+	fi
+
+	#  ═══ LES DEUX SÉLECTEURS PARTAGENT LE MÊME BLOC ═══
+	#  « :active » ne dure que le temps de l'appui — 40 ms pour un clic vif,
+	#  invisible. « press » est posée par app.js et retirée après 160 ms.
+	#  S'ils divergeaient, le flash d'un clic rapide n'aurait pas la même
+	#  allure que celui d'un clic maintenu, et personne ne comprendrait
+	#  pourquoi. On exige donc qu'ils soient déclarés ENSEMBLE.
+	if grep -q '^\.btn\.ghost:active,$' "$STYLE" \
+	   && grep -q '^\.btn\.ghost\.press{' "$STYLE"; then
+		ok ":active et .press partagent le même bloc — même flash au clic vif et au clic tenu"
+	else
+		non ":active et .press ne sont pas déclarés ensemble : deux flashs différents"
+	fi
+
+	PRESSE="$(regle '.btn.ghost:active,')"
+	if printf '%s' "$PRESSE" | grep -q 'background:var(--ac)'; then
+		ok "le clic pose l'accent en fond — « c'est parti » se voit"
+	else
+		non "le clic ne pose pas de fond accentué : aucun retour de couleur"
+	fi
+
+	#  ═══ L'ASSERTION QUI COMPTE ═══
+	#  --ac et ses variantes sont réécrites À CHAUD quand Alex change
+	#  d'accent. Une couleur écrite en dur ne suivrait pas : les boutons
+	#  resteraient orange sur un thème bleu. Ça ne casse pas bruyamment — ça
+	#  ne se voit qu'en changeant d'accent, ce que personne ne fait en
+	#  vérifiant un correctif.
+	DUR="$(grep -n '#E8590C\|#FF7A33\|#A84007\|232, 89, 12' "$STYLE" || true)"
+	if [ -z "$DUR" ]; then
+		ok "aucune couleur d'accent écrite en dur dans la feuille"
+	else
+		non "couleur d'accent en dur — les boutons ne suivraient pas « lexos accent » :"
+		printf '%s\n' "$DUR" | sed 's/^/       /'
+	fi
+
+	#  Sans ces deux propriétés en transition, le retour du flash au gris
+	#  serait brutal : la couleur sauterait pendant que la taille revient en
+	#  douceur.
+	TRANS="$(regle '.btn{transition:')"
+	if printf '%s' "$TRANS" | grep -q 'background-color' \
+	   && printf '%s' "$TRANS" | grep -q 'border-color'; then
+		ok "background-color et border-color sont en transition — le retour est doux"
+	else
+		non "la couleur n'est pas en transition : le retour au gris serait brutal"
+	fi
+
+	#  ═══ LA COULEUR SURVIT À prefers-reduced-motion ═══
+	#  Pour qui demande moins d'animation, le flash de couleur est le SEUL
+	#  retour disponible. Le supprimer aussi laisserait ces gens-là sans
+	#  aucun signe que le clic a été pris.
+	#  ON DÉCOUPE LE BON BLOC, ET C'EST UNE LEÇON PAYÉE ICI. La feuille
+	#  contient DEUX « @media (prefers-reduced-motion » : celui de l'aiguille
+	#  du cadran, écrit sur UNE SEULE LIGNE, et celui des boutons. Une
+	#  première version partait du premier et, faute de « } » en début de
+	#  ligne, avalait cent lignes jusqu'à la fermeture du SECOND — en
+	#  ramassant au passage la règle « .btn{transition:…background-color…} »
+	#  qui vit en dehors de toute media query. Le contrôle trouvait donc
+	#  « background-color » quoi qu'il arrive : une mutation qui vidait le
+	#  vrai bloc restait verte.
+	#  On ne retient donc que les blocs OUVERTS EN FIN DE LIGNE — le
+	#  une-ligne ne peut plus être pris pour un début — et on garde le
+	#  dernier, celui qui porte les boutons.
+	RM="$(awk '
+		/^@media \(prefers-reduced-motion[^}]*\{$/ { d = 1; buf = "" }
+		d { buf = buf $0 "\n" }
+		d && /^}/ { dernier = buf; d = 0 }
+		END { printf "%s", dernier }
+	' "$STYLE")"
+	if printf '%s' "$RM" | grep -q 'transform:none' \
+	   && printf '%s' "$RM" | grep -q 'background-color'; then
+		ok "en mouvement réduit, le transform part mais la COULEUR reste"
+	else
+		non "le mode « mouvement réduit » emporte la couleur avec le mouvement : plus aucun retour"
+	fi
+
+	#  Les boutons de CHOIX gardent leur état permanent : c'est ce qui
+	#  distingue un réglage actif d'une commande déjà lancée.
+	SEL="$(regle '.btn.sel{')"
+	if printf '%s' "$SEL" | grep -q 'background:var(--ac)'; then
+		ok ".btn.sel pose toujours l'accent — l'état des boutons de choix est intact"
+	else
+		non ".btn.sel ne pose plus l'accent : on ne verrait plus quel réglage est actif"
+	fi
+fi
+
+#  ═══ POSÉE EN UN SEUL ENDROIT, PAS 47 FOIS ═══
+#  Les boutons sont écrits avec des « onclick » en ligne et chaque section se
+#  redessine entièrement : accrocher quoi que ce soit bouton par bouton
+#  serait à refaire à chaque rendu, et on en oublierait.
+N_PRESS="$(grep -c 'classList.add("press")' "$PAGE" || true)"
+if [ "$N_PRESS" = "1" ]; then
+	ok "« press » est posée en UN SEUL endroit (écouteur délégué)"
+else
+	non "« press » est posée $N_PRESS fois : un écouteur par bouton se perdra au prochain rendu"
+fi
+
+#  Et jamais sur un bouton déjà choisi : il est accentué en permanence, les
+#  deux règles se battraient pour le même fond.
+if grep -q 'classList.contains("sel")' "$PAGE"; then
+	ok "un bouton déjà choisi n'est pas flashé"
+else
+	non "rien n'exclut les boutons déjà choisis du flash"
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]
