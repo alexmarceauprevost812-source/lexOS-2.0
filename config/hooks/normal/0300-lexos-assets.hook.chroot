@@ -337,10 +337,66 @@ if [ -n "$FACE" ]; then
 fi
 
 # --- Thème Plymouth ----------------------------------------------------------
-PLY_SRC="/usr/share/plymouth/themes/spinner"
-PLY_DST="/usr/share/plymouth/themes/lexos"
-FRAME_DIR="$BRAND/mascot-anim-frames"
-FRAME_FIRST="$FRAME_DIR/mascot-anim-00.png"
+#  ═══ CE QUE CET ÉCRAN MONTRE, ET POURQUOI IL A CHANGÉ ═══
+#  Jusqu'à l'ISO 110 : la mascotte s'agitait en 16 images de 240×240, et une
+#  barre orange dessous. Deux problèmes, tous deux visibles à l'écran :
+#
+#    · 240×240 sur un 1920×1080, c'est un timbre-poste, et l'agrandissement
+#      des 16 images les rendait floues. On ne distinguait ni le masque, ni
+#      les lunettes, ni le geste de la main.
+#    · DEUX ANIMATIONS EN MÊME TEMPS, L'ŒIL NE SAIT PLUS OÙ REGARDER. Le
+#      mouvement de cet écran, c'est maintenant le logo qui s'écrit ; la
+#      mascotte est ce qu'on regarde pendant ce temps-là. Elle ne bouge donc
+#      plus, et elle passe à 449×540.
+#
+#  LES 16 IMAGES RESTENT DANS branding/ — ON NE LES EFFACE PAS. Elles servent
+#  ailleurs : mascot-anim-web.gif et mascot-anim.gif sont montés à partir
+#  d'elles pour le site. Elles ne sont simplement plus copiées dans le thème
+#  Plymouth. Écrit ici pour que personne ne les recâble dans six mois en
+#  croyant réparer un oubli.
+#  ═══ LES TROIS CHEMINS SONT SURCHARGEABLES, ET C'EST POUR LE BANC ═══
+#  Pas pour qu'on les change en production : pour que cette section soit
+#  ÉPROUVABLE ailleurs que dans une vraie construction. Le banc découpe le
+#  fragment entre les deux marqueurs ci-dessous et le fait tourner sur un
+#  faux thème « spinner », un faux dossier de marque et un faux ImageMagick.
+#  Sans ça, la seule façon de savoir si l'écran de démarrage se génère serait
+#  de graver une clé et de redémarrer — le pire cycle de retour du dépôt.
+# >>> banc: plymouth
+PLY_SRC="${LEXOS_PLYMOUTH_SRC:-/usr/share/plymouth/themes/spinner}"
+PLY_DST="${LEXOS_PLYMOUTH_DST:-/usr/share/plymouth/themes/lexos}"
+PLY_MASCOTTE="$BRAND/mascotte-splash.png"
+
+#  ═══ LA PLUIE MATRIX ═══
+#  Une couche RGBA 1920×1080 : des colonnes de katakana et de chiffres en
+#  vert #1F9E3D, très peu opaques (42 sur 255 pour la traînée, 88 pour le
+#  caractère de tête), avec un trou en fondu derrière la mascotte et derrière
+#  le logo pour que rien ne devienne illisible.
+#
+#  ELLE NE BOUGE PAS, ET C'EST UN CHOIX. Animer une pluie de 1920×1080 dans
+#  Plymouth demanderait des dizaines d'images pleine résolution DANS
+#  L'INITRAMFS — on ralentirait le démarrage pour un effet que personne ne
+#  regarde plus de deux secondes. C'est un instantané figé.
+#
+#  ET ELLE EST FACULTATIVE. Une décoration ne doit jamais pouvoir casser
+#  l'écran de démarrage : si l'image manque, le thème se construit SANS elle
+#  et le journal le dit. Le banc l'éprouve en la retirant pour de vrai.
+#
+#  tools/faire-pluie.py sait la refabriquer à une autre résolution ou avec un
+#  autre dosage. On ne l'appelle PAS d'ici : Python et Pillow n'ont pas à
+#  devenir des dépendances de construction pour une décoration. L'image est
+#  dans le dépôt, ça suffit.
+PLY_PLUIE="$BRAND/pluie-demarrage.png"
+
+#  Les cinq lettres du logo, déjà détourées et déjà agrandies ×2 en PLUS
+#  PROCHE VOISIN par Alex. ON NE LES RÉÉCHANTILLONNE PAS : le logo est du
+#  pixel carré, et n'importe quel agrandissement lissé lui ferait perdre son
+#  air d'écran cathodique. Elles sont copiées telles quelles, jamais passées
+#  dans convert.
+PLY_LETTRES_OK=1
+for I in 0 1 2 3 4; do
+	[ -r "$BRAND/lexos-lettre-$I.png" ] || PLY_LETTRES_OK=0
+done
+[ -r "$PLY_MASCOTTE" ] || PLY_LETTRES_OK=0
 
 if [ -d "$PLY_SRC" ]; then
 	rm -rf "$PLY_DST"
@@ -351,75 +407,192 @@ if [ -d "$PLY_SRC" ]; then
 		convert "$LOGO_SRC" -resize 200x200 "$PLY_DST/watermark.png" || true
 	fi
 
-	if [ -r "$FRAME_FIRST" ] && have convert; then
-		# --- Mascotte animée (16 images, ~90ms/frame) : thème "script" ------
-		for F in "$FRAME_DIR"/mascot-anim-*.png; do
-			[ -e "$F" ] || continue
-			cp "$F" "$PLY_DST/$(basename "$F")"
+	if [ "$PLY_LETTRES_OK" = 1 ] && have convert; then
+		# --- Mascotte fixe + logo qui s'écrit lettre par lettre -------------
+		cp "$PLY_MASCOTTE" "$PLY_DST/mascotte-splash.png"
+		for I in 0 1 2 3 4; do
+			cp "$BRAND/lexos-lettre-$I.png" "$PLY_DST/lexos-lettre-$I.png"
 		done
 
+		#  ═══ LA BARRE EST VERTE, ET ELLE LE RESTE ═══
+		#  #1F9E3D, le vert choisi par Alex. Le fond gris #1A1A1C ne change
+		#  pas.
+		#
+		#  ET ELLE NE SUIT PAS L'ACCENT — VÉRIFIÉ, PAS SUPPOSÉ. #E8590C est
+		#  l'accent orange de LexOS, et il est remplacé par sed à trois
+		#  endroits : le squelette du panneau (gtk-panneau.css) et les icônes
+		#  SVG dans lexos-theme-gen, la feuille de l'écran de connexion dans
+		#  le hook 0600. AUCUN de ces trois chemins ne touche
+		#  /usr/share/plymouth/themes/ — lexos-theme-gen ne nomme même pas
+		#  Plymouth. La barre de démarrage est donc hors du périmètre de la
+		#  substitution par construction, et « lexos accent bleu » la laisse
+		#  verte. Le banc tests/test_lexos_plymouth.sh le MESURE en lançant
+		#  le générateur avec un accent non-orange.
 		convert -size 1x1 xc:'#1A1A1C' "$PLY_DST/progress-bg.png" || true
-		convert -size 1x1 xc:'#E8590C' "$PLY_DST/progress-fg.png" || true
+		convert -size 1x1 xc:'#1F9E3D' "$PLY_DST/progress-fg.png" || true
 
-		cat > "$PLY_DST/lexos.script" <<'SCRIPT_EOF'
-// LexOS — thème Plymouth animé (mascotte, 16 images)
+		if [ -r "$PLY_PLUIE" ]; then
+			cp "$PLY_PLUIE" "$PLY_DST/pluie-demarrage.png"
+			echo "[lexos]   pluie Matrix : posée en fond de l'écran de démarrage"
+		else
+			echo "[lexos]   pluie-demarrage.png absente — écran de démarrage SANS pluie (décoration, non bloquant)"
+		fi
+
+		{
+		cat <<'SCRIPT_TETE'
+// LexOS — thème Plymouth : mascotte fixe, logo qui s'écrit lettre par lettre.
 // Généré par config/hooks/normal/0300-lexos-assets.hook.chroot — ne pas éditer à la main.
 
 Window.SetBackgroundTopColor(0, 0, 0);
 Window.SetBackgroundBottomColor(0, 0, 0);
 
-frame_count = 16;
-frame_delay = 0.09;
-frame_index = 0;
-frame_start_time = -1;
+// ═══ LES RÉGLAGES, TOUS ICI ═══
+// SI L'ANIMATION SE FAIT COUPER — sur un SSD rapide, Plymouth peut
+// disparaître avant que le S soit arrivé : l'entrée complète dure
+// glisse + 4 × retard, soit environ 1.06 s. Descendre à 0.30 et 0.10
+// ramène le total à 0.70 s. Ce sont les deux seules valeurs à toucher.
+glisse_duree = 0.42;    // temps de trajet d'UNE lettre
+lettre_retard = 0.16;   // décalage de départ entre deux lettres
+barre_largeur_ratio = 0.26;
+barre_hauteur = 6;
+barre_y_ratio = 0.88;
+mascotte_centre_y = 0.36;   // le CENTRE de la mascotte, en fraction de hauteur
+logo_haut_y = 0.69;         // le HAUT du logo, en fraction de hauteur
 
-frame_image[0]  = Image("mascot-anim-00.png");
-frame_image[1]  = Image("mascot-anim-01.png");
-frame_image[2]  = Image("mascot-anim-02.png");
-frame_image[3]  = Image("mascot-anim-03.png");
-frame_image[4]  = Image("mascot-anim-04.png");
-frame_image[5]  = Image("mascot-anim-05.png");
-frame_image[6]  = Image("mascot-anim-06.png");
-frame_image[7]  = Image("mascot-anim-07.png");
-frame_image[8]  = Image("mascot-anim-08.png");
-frame_image[9]  = Image("mascot-anim-09.png");
-frame_image[10] = Image("mascot-anim-10.png");
-frame_image[11] = Image("mascot-anim-11.png");
-frame_image[12] = Image("mascot-anim-12.png");
-frame_image[13] = Image("mascot-anim-13.png");
-frame_image[14] = Image("mascot-anim-14.png");
-frame_image[15] = Image("mascot-anim-15.png");
+// Décalages horizontaux des lettres, mesurés sur le logo d'origine.
+// La dernière commence à 418 et fait 100 de large : 518 en tout.
+lettre_dx[0] = 0;
+lettre_dx[1] = 102;
+lettre_dx[2] = 202;
+lettre_dx[3] = 304;
+lettre_dx[4] = 418;
+logo_largeur = 518;
 
-mascot_sprite = Sprite();
-mascot_sprite.SetImage(frame_image[0]);
-mascot_sprite.SetX(Window.GetWidth() / 2 - frame_image[0].GetWidth() / 2);
-mascot_sprite.SetY(Window.GetHeight() * 0.38 - frame_image[0].GetHeight() / 2);
-mascot_sprite.SetZ(10);
-mascot_sprite.SetOpacity(1);
+SCRIPT_TETE
+
+		#  La pluie n'entre dans le script QUE si son image a été posée.
+		#  Écrire « Image("pluie-demarrage.png") » sans le fichier laisserait
+		#  Plymouth avec une image nulle et un Sprite qui n'affiche rien — au
+		#  mieux. On ne parie pas : on n'écrit la ligne que si elle a un sens.
+		if [ -r "$PLY_DST/pluie-demarrage.png" ]; then
+			cat <<'SCRIPT_PLUIE'
+// --- La pluie Matrix, tout au fond ------------------------------------------
+// SetZ(1) : sous la mascotte (10), sous les lettres (15), sous la barre (20).
+// Étirée à la fenêtre — c'est un fond, une légère déformation ne se voit pas,
+// contrairement aux lettres, qui gardent leur taille native.
+pluie_image = Image("pluie-demarrage.png");
+pluie_sprite = Sprite();
+pluie_sprite.SetImage(pluie_image.Scale(Window.GetWidth(), Window.GetHeight()));
+pluie_sprite.SetX(0);
+pluie_sprite.SetY(0);
+pluie_sprite.SetZ(1);
+pluie_sprite.SetOpacity(1);
+SCRIPT_PLUIE
+		else
+			printf '// pluie-demarrage.png absente a la construction : pas de couche de pluie.\n'
+		fi
+
+		cat <<'SCRIPT_CORPS'
+// --- La mascotte, fixe ------------------------------------------------------
+mascotte_image = Image("mascotte-splash.png");
+mascotte_sprite = Sprite();
+mascotte_sprite.SetImage(mascotte_image);
+mascotte_sprite.SetX(Window.GetWidth() / 2 - mascotte_image.GetWidth() / 2);
+mascotte_sprite.SetY(Window.GetHeight() * mascotte_centre_y - mascotte_image.GetHeight() / 2);
+mascotte_sprite.SetZ(10);
+mascotte_sprite.SetOpacity(1);
+
+// --- Les cinq lettres -------------------------------------------------------
+// Chacune est son propre Sprite : elles n'arrivent pas en même temps.
+logo_x = Window.GetWidth() / 2 - logo_largeur / 2;
+logo_y = Window.GetHeight() * logo_haut_y;
+depart_x = Window.GetWidth() + 80;   // hors écran, à droite
+
+lettre_image[0] = Image("lexos-lettre-0.png");
+lettre_image[1] = Image("lexos-lettre-1.png");
+lettre_image[2] = Image("lexos-lettre-2.png");
+lettre_image[3] = Image("lexos-lettre-3.png");
+lettre_image[4] = Image("lexos-lettre-4.png");
+
+lettre_sprite[0] = Sprite();
+lettre_sprite[1] = Sprite();
+lettre_sprite[2] = Sprite();
+lettre_sprite[3] = Sprite();
+lettre_sprite[4] = Sprite();
+
+fun preparer_lettre(i) {
+    lettre_sprite[i].SetImage(lettre_image[i]);
+    lettre_sprite[i].SetX(depart_x);
+    lettre_sprite[i].SetY(logo_y);
+    lettre_sprite[i].SetZ(15);
+    lettre_sprite[i].SetOpacity(0);
+}
+
+preparer_lettre(0);
+preparer_lettre(1);
+preparer_lettre(2);
+preparer_lettre(3);
+preparer_lettre(4);
+
+debut_temps = -1;
+
+// Place UNE lettre selon le temps écoulé.
+//
+// LA COURBE EST CUBIQUE, ET C'EST TOUT L'EFFET : p = 1 - (1-t)^3. La lettre
+// part vite et se pose en douceur. Une interpolation linéaire (p = t)
+// donnerait un mouvement de robot avec un arrêt net à l'arrivée — c'est
+// exactement ce qu'Alex ne voulait pas.
+//
+// L'OPACITÉ MONTE PENDANT LE PREMIER TIERS DU TRAJET. Sans ça, la lettre
+// surgit d'un coup au bord de l'écran : ça se voit, et ça fait sale.
+fun placer_lettre(i, ecoule) {
+    t = (ecoule - i * lettre_retard) / glisse_duree;
+    if (t < 0) {
+        t = 0;
+    }
+    if (t > 1) {
+        t = 1;
+    }
+
+    reste = 1 - t;
+    p = 1 - reste * reste * reste;
+
+    cible = logo_x + lettre_dx[i];
+    lettre_sprite[i].SetX(depart_x + (cible - depart_x) * p);
+
+    opacite = p * 2.2;
+    if (opacite > 1) {
+        opacite = 1;
+    }
+    lettre_sprite[i].SetOpacity(opacite);
+}
 
 fun refresh_callback() {
     now = Plymouth.GetTime();
 
-    if (frame_start_time < 0) {
-        frame_start_time = now;
+    if (debut_temps < 0) {
+        debut_temps = now;
     }
 
-    if (now - frame_start_time >= frame_delay) {
-        frame_start_time = now;
-        frame_index = frame_index + 1;
-        if (frame_index >= frame_count) {
-            frame_index = 0;
-        }
-        mascot_sprite.SetImage(frame_image[frame_index]);
-    }
+    ecoule = now - debut_temps;
+
+    placer_lettre(0, ecoule);
+    placer_lettre(1, ecoule);
+    placer_lettre(2, ecoule);
+    placer_lettre(3, ecoule);
+    placer_lettre(4, ecoule);
 }
 
 Plymouth.SetRefreshFunction(refresh_callback);
 
-// Barre de progression (fond gris ProgressBarBackgroundColor=0x1A1A1C,
-// remplissage orange ProgressBarForegroundColor=0xE8590C), redessinée par
-// mise à l'échelle d'un pixel de couleur unie — le module "script" ne
-// fournit pas de barre de progression native comme "two-step".
+// --- La barre de progression -------------------------------------------------
+// Fond gris, remplissage VERT, redessinés par mise à l'échelle d'un pixel de
+// couleur unie — le module "script" ne fournit pas de barre native comme
+// "two-step". Ce n'est pas un contournement à simplifier : c'est le procédé.
+//
+// ELLE SUIT LE VRAI DÉMARRAGE. progress vient de Plymouth, pas d'une
+// minuterie : une barre qui fait semblant d'avancer est un mensonge poli, et
+// elle ment surtout le jour où le démarrage bloque.
 progress_bg_image = Image("progress-bg.png");
 progress_fg_image = Image("progress-fg.png");
 progress_bg_sprite = Sprite();
@@ -430,10 +603,10 @@ progress_bg_sprite.SetZ(20);
 progress_fg_sprite.SetZ(21);
 
 fun progress_callback(duration, progress) {
-    bar_width = Window.GetWidth() * 0.3;
-    bar_height = 4;
+    bar_width = Window.GetWidth() * barre_largeur_ratio;
+    bar_height = barre_hauteur;
     bar_x = Window.GetWidth() / 2 - bar_width / 2;
-    bar_y = Window.GetHeight() * 0.72;
+    bar_y = Window.GetHeight() * barre_y_ratio;
 
     progress_bg_sprite.SetImage(progress_bg_image.Scale(bar_width, bar_height));
     progress_bg_sprite.SetX(bar_x);
@@ -450,12 +623,13 @@ fun progress_callback(duration, progress) {
 }
 
 Plymouth.SetBootProgressFunction(progress_callback);
-SCRIPT_EOF
+SCRIPT_CORPS
+		} > "$PLY_DST/lexos.script"
 
 		cat > "$PLY_DST/lexos.plymouth" <<'EOF'
 [Plymouth Theme]
 Name=LexOS
-Description=Ecran de demarrage LexOS (mascotte animee)
+Description=Ecran de demarrage LexOS (logo qui s'ecrit)
 ModuleName=script
 
 [script]
@@ -463,7 +637,16 @@ ImageDir=/usr/share/plymouth/themes/lexos
 ScriptFile=/usr/share/plymouth/themes/lexos/lexos.script
 EOF
 	else
-		echo "[lexos]   images d'animation absentes ou convert manquant — thème Plymouth statique (watermark)"
+		#  LE REPLI EXISTE, ET IL SE DIT. Une lettre manquante, la mascotte
+		#  absente ou convert introuvable, et on retombe sur le thème
+		#  "two-step" avec le watermark — pas sur un thème VIDE. Le message
+		#  part dans le journal de construction : sans lui, on livrerait un
+		#  écran de démarrage nu sans que rien ne l'ait dit, et on ne s'en
+		#  apercevrait qu'au redémarrage suivant.
+		#  SA BARRE RESTE ORANGE (ProgressBarForegroundColor plus bas) : c'est
+		#  un autre thème, dessiné par Plymouth lui-même, et le vert d'Alex
+		#  vise l'écran qu'on livre vraiment. Choix conscient, pas un oubli.
+		echo "[lexos]   lettres ou mascotte absentes, ou convert manquant — thème Plymouth statique (watermark)"
 		cat > "$PLY_DST/lexos.plymouth" <<'EOF'
 [Plymouth Theme]
 Name=LexOS
@@ -511,6 +694,7 @@ EOF
 else
 	echo "[lexos]   thème 'spinner' absent — Plymouth non personnalisé"
 fi
+# <<< banc: plymouth
 
 # --- Le cache des polices ----------------------------------------------------
 #  POURQUOI C'EST NÉCESSAIRE, ET CE QUI SE PASSAIT SANS.

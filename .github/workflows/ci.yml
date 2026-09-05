@@ -1945,6 +1945,27 @@ jobs:
           #  qu'une absence de Thunar se DIT au lieu de casser l'ISO.
           bash tests/test_lexos_fichiers_icone.sh
 
+      - name: L'écran de démarrage — la mascotte se tient, le logo s'écrit
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : mascotte fixe en haut, « LEXOS » qui s'écrit lettre par
+          #  lettre en dessous, barre de progression passée au vert.
+          #
+          #  UN ÉCRAN DE DÉMARRAGE NE SE REGARDE QU'AU DÉMARRAGE SUIVANT :
+          #  une lettre de la mauvaise taille décale tout l'alignement, une
+          #  lettre au fond OPAQUE découpe ses voisines pendant le
+          #  glissement, une courbe linéaire donne un mouvement de robot — et
+          #  rien de tout ça ne se voit avant d'avoir gravé une clé et
+          #  redémarré une machine. C'est le pire cycle de retour du dépôt.
+          #
+          #  Le banc ne peut pas regarder l'écran, alors il mesure : les
+          #  dimensions lues dans l'en-tête PNG, le canal alpha DÉCODÉ pixel
+          #  par pixel, et le script Plymouth découpé du hook 0300 lui-même.
+          #  Il lance aussi « lexos accent bleu » pour de vrai, parce que
+          #  #E8590C est un jeton remplacé par sed : une barre écrite avec ce
+          #  jeton changerait de couleur avec l'accent.
+          bash tests/test_lexos_plymouth.sh
+
       - name: Carrés noirs de la Logithèque et luminosité des Paramètres
         if: ${{ !cancelled() }}
         run: |
