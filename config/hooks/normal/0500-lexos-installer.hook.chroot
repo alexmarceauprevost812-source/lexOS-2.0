@@ -136,7 +136,14 @@ if [ -r /etc/lexos/build.conf ]; then
 	. /etc/lexos/build.conf
 fi
 
-BRANDING_DIR="/usr/share/calamares/branding/lexos"
+# >>> banc: apparence
+#  ═══ LA COUTURE, POUR QUE CE BLOC SOIT ÉPROUVABLE ═══
+#  Un hook qui écrit dans /usr/share ne se teste pas en le lançant pour de
+#  vrai. Le banc détourne donc la destination vers un dossier temporaire et
+#  EXÉCUTE le bloc marqué ci-dessous, au lieu de relire le hook en espérant
+#  que ce qu'il y lit est ce qui sortira. Vide de sens en production : la
+#  valeur par défaut est la vraie.
+BRANDING_DIR="${LEXOS_BRANDING_DIR:-/usr/share/calamares/branding/lexos}"
 mkdir -p "$BRANDING_DIR"
 
 # --- Visuels de l'installateur ----------------------------------------------
@@ -151,6 +158,31 @@ if [ -r "$SRC/wallpaper.svg" ] && command -v rsvg-convert >/dev/null 2>&1; then
 	rsvg-convert -w 1280 -h 720 -o "$BRANDING_DIR/welcome.png" "$SRC/wallpaper.svg" || true
 fi
 
+# --- La palette de l'installateur -------------------------------------------
+#  ═══ ELLE NE SE CHOISIT PAS ICI ═══
+#  Ce sont les valeurs de /usr/share/lexos/ui.css, la source unique de
+#  l'apparence des panneaux LexOS, recopiées à l'identique. L'installateur est
+#  la PREMIÈRE chose qu'on voit de LexOS : s'il ne ressemble pas au bureau
+#  qu'il installe, il ment sur ce qu'on est en train d'installer.
+#  Jusqu'ici il portait #141110 sur #F4EFEA — la vieille palette chaude,
+#  abandonnée par le bureau il y a des versions. Personne ne l'a vu parce que
+#  personne ne regarde l'installateur deux fois.
+#  Le banc test_lexos_installateur_bandeau.sh compare ces valeurs à ui.css :
+#  si l'accent bouge là-bas, il rougit ici.
+LEX_BG="#000000"       # le fond des pages
+LEX_SIDE="#0A0A0B"     # le bandeau des étapes, à peine détaché du fond
+LEX_HI="#141416"       # champs, survols, zones en relief
+LEX_FG="#FFFFFF"       # le texte
+LEX_DIM="#B8B8BC"      # le texte secondaire
+LEX_BD="#232326"       # les bordures
+LEX_AC="#E8590C"       # l'accent
+LEX_AC_HI="#FF7A33"    # l'accent au survol
+#  ═══ CE QU'ON ÉCRIT SUR L'ACCENT EST NOIR, PAS BLANC ═══
+#  Ce n'est pas un goût : blanc sur #E8590C donne 3,4:1, sous le seuil
+#  lisible ; noir donne 6,1:1. Même décision que --ac-txt dans ui.css, et le
+#  banc recalcule les deux contrastes plutôt que de croire ce commentaire.
+LEX_AC_TXT="#000000"
+
 cat > "$BRANDING_DIR/branding.desc" <<EOF
 ---
 componentName: lexos
@@ -159,7 +191,13 @@ welcomeStyleCalamares: false
 welcomeExpandingLogo: true
 
 windowExpanding: normal
-windowSize: 800px,520px
+#  ═══ 980x640 ET NON 800x520 ═══
+#  Le bandeau des étapes prend 240 px à gauche ; il restait 560 px de contenu,
+#  et la page du partitionnement — la seule qui ne pardonne pas d'être lue de
+#  travers — s'y défilait. À 980x640 il reste 740 px : la liste des disques et
+#  le résumé tiennent d'un coup d'œil. La hauteur reste sous les 768 px du
+#  plus petit écran qu'on vise, bordure comprise.
+windowSize: 980px,640px
 windowPlacement: center
 
 navigation: widget
@@ -224,14 +262,219 @@ slideshowAPI:            2
 #
 #  Le couple courant suit le motif de l'exemple amont : texte SOMBRE sur le
 #  surlignage d'accent, et non l'inverse.
+#
+#  LES QUATRE VALEURS VIENNENT DE LA PALETTE CI-DESSUS, pas d'un choix pris
+#  ici : c'est le seul endroit de l'installateur que le QSS NE PEUT PAS
+#  peindre (« the list can **not** be styled, since it has its own custom C++
+#  delegate code », dit le stylesheet.qss de référence livré par Calamares).
 style:
-    SidebarBackground:        "#141110"
-    SidebarText:              "#F4EFEA"
-    SidebarTextCurrent:       "#141110"
-    SidebarBackgroundCurrent: "#E8590C"
+    SidebarBackground:        "${LEX_SIDE}"
+    SidebarText:              "${LEX_FG}"
+    SidebarTextCurrent:       "${LEX_AC_TXT}"
+    SidebarBackgroundCurrent: "${LEX_AC}"
+EOF
+
+# --- La feuille de style de l'installateur -----------------------------------
+#  ═══ POURQUOI UNE FEUILLE, ET PAS SEULEMENT LES QUATRE CLÉS ═══
+#  Les quatre clés de branding.desc ne peignent QUE le bandeau des étapes.
+#  Tout le reste — les pages, les champs, les boutons, la barre de progression
+#  — prenait le thème Qt ambiant. Vérifié dans le binaire livré : Calamares
+#  3.3 lit « stylesheet.qss » dans le dossier du branding
+#  (Calamares::Branding::stylesheet), et son branding par défaut en livre un,
+#  commenté, qui sert de référence aux sélecteurs employés ici.
+#
+#  ═══ ET SURTOUT : L'INSTALLATEUR NE TOURNE PAS SOUS TON THÈME ═══
+#  lexos-install fait « sudo -E calamares ». Selon la configuration de sudo,
+#  l'environnement passe ou ne passe pas — donc le thème Qt sombre de la
+#  session peut très bien NE PAS suivre, et Calamares se peindre avec la
+#  palette Qt par défaut, qui est CLAIRE. Un texte blanc posé sur ce fond-là
+#  est invisible.
+#  C'EST EXACTEMENT LA PANNE QU'ALEX A PHOTOGRAPHIÉE pour le bandeau, dans
+#  l'autre sens : du noir sur du noir. D'où la règle qui gouverne toute cette
+#  feuille — ON N'ÉCRIT JAMAIS UNE COULEUR DE TEXTE SANS POSER SON FOND. La
+#  première règle pose donc les deux sur QWidget, pour que rien ne puisse
+#  retomber sur une palette qu'on ne maîtrise pas.
+#
+#  ═══ L'ORDRE DES RÈGLES NE SE TOUCHE PAS À LA LÉGÈRE ═══
+#  Qt applique les priorités CSS2 : « QWidget » vaut (0,0,1) et se fait
+#  battre par n'importe quel sélecteur d'identifiant comme « #sidebarApp »
+#  (1,0,0). C'est ce qui permet au fond général d'être posé d'abord et
+#  rattrapé ensuite. Écrire « #mainApp QWidget » (1,0,1) à la place du
+#  « QWidget » nu inverserait le rapport et le bandeau redeviendrait noir.
+cat > "$BRANDING_DIR/stylesheet.qss" <<EOF
+/* =============================================================================
+   LexOS — feuille de style de l'installateur
+   Écrite par le hook 0500. Les couleurs viennent de ui.css : ne les changez
+   pas ici, changez-les là-bas.
+   ========================================================================== */
+
+/*  LE FOND ET LE TEXTE, ENSEMBLE ET D'ABORD. Voir le hook : l'installateur
+    peut tourner sans notre thème Qt, et une moitié de couleur donne un écran
+    illisible. */
+QWidget {
+	background-color: ${LEX_BG};
+	color: ${LEX_FG};
+}
+
+/*  Le bandeau des étapes. Ses TEXTES viennent des quatre clés de
+    branding.desc — ici on ne peint que le fond autour d'eux. */
+#sidebarApp,
+#sidebarMenuApp,
+#logoApp {
+	background-color: ${LEX_SIDE};
+}
+
+/*  Les champs. Rayon 10 px, comme les champs des Paramètres. */
+QLineEdit,
+QComboBox,
+QAbstractSpinBox {
+	background-color: ${LEX_HI};
+	color: ${LEX_FG};
+	border: 1px solid ${LEX_BD};
+	border-radius: 10px;
+	padding: 7px 11px;
+	selection-background-color: ${LEX_AC};
+	selection-color: ${LEX_AC_TXT};
+}
+QLineEdit:focus,
+QComboBox:focus,
+QAbstractSpinBox:focus {
+	border-color: ${LEX_AC};
+}
+QLineEdit:disabled,
+QComboBox:disabled {
+	color: ${LEX_DIM};
+}
+/*  La liste déroulante est une fenêtre à part : sans cette règle elle
+    retombe sur la palette Qt, donc du noir sur blanc au milieu du reste. */
+QComboBox QAbstractItemView {
+	background-color: ${LEX_SIDE};
+	color: ${LEX_FG};
+	border: 1px solid ${LEX_BD};
+	selection-background-color: ${LEX_AC};
+	selection-color: ${LEX_AC_TXT};
+}
+
+/*  Les boutons. Pilule complète, comme ceux du bureau.
+    L'ACCENT NE VA QU'AU BOUTON PAR DÉFAUT, et il y a une raison mesurée :
+    dans le binaire livré, les boutons de navigation n'ont AUCUN objectName
+    — on ne peut donc pas viser « Suivant » nommément. La forme sombre est
+    donc la forme de base, et « :default » n'est qu'un bonus si Qt marque le
+    bouton d'avancement : quoi qu'il arrive, aucun bouton n'est illisible. */
+QPushButton {
+	background-color: ${LEX_HI};
+	color: ${LEX_FG};
+	border: 1px solid ${LEX_BD};
+	border-radius: 999px;
+	padding: 8px 22px;
+	font-weight: 600;
+}
+QPushButton:hover {
+	border-color: ${LEX_AC};
+	color: ${LEX_AC_HI};
+}
+QPushButton:pressed {
+	background-color: ${LEX_BD};
+	color: ${LEX_FG};
+}
+QPushButton:disabled {
+	background-color: ${LEX_HI};
+	color: ${LEX_DIM};
+	border-color: ${LEX_BD};
+}
+QPushButton:default {
+	background-color: ${LEX_AC};
+	color: ${LEX_AC_TXT};
+	border-color: ${LEX_AC};
+}
+QPushButton:default:hover {
+	background-color: ${LEX_AC_HI};
+	color: ${LEX_AC_TXT};
+	border-color: ${LEX_AC_HI};
+}
+
+/*  La barre de progression de l'écran d'installation. */
+QProgressBar {
+	background-color: ${LEX_HI};
+	color: ${LEX_FG};
+	border: 0;
+	border-radius: 5px;
+	max-height: 10px;
+	text-align: center;
+}
+QProgressBar::chunk {
+	background-color: ${LEX_AC};
+	border-radius: 5px;
+}
+
+/*  Les listes : disques, partitions, résumé. */
+QTreeView,
+QListView,
+QTableView {
+	background-color: ${LEX_SIDE};
+	color: ${LEX_FG};
+	border: 1px solid ${LEX_BD};
+	border-radius: 14px;
+}
+QTreeView::item:selected,
+QListView::item:selected,
+QTableView::item:selected {
+	background-color: ${LEX_AC};
+	color: ${LEX_AC_TXT};
+}
+QHeaderView::section {
+	background-color: ${LEX_HI};
+	color: ${LEX_DIM};
+	border: 0;
+	padding: 6px 10px;
+}
+
+/*  Les cadres, rayon 14 px comme les cartes des Paramètres. */
+QGroupBox {
+	background-color: ${LEX_BG};
+	color: ${LEX_FG};
+	border: 1px solid ${LEX_BD};
+	border-radius: 14px;
+	margin-top: 14px;
+	padding-top: 12px;
+}
+QGroupBox::title {
+	color: ${LEX_DIM};
+	subcontrol-origin: margin;
+	left: 14px;
+	padding: 0 6px;
+}
+
+/*  Les barres de défilement : discrètes, et l'accent seulement sous le doigt. */
+QScrollBar:vertical {
+	background-color: ${LEX_SIDE};
+	width: 10px;
+	margin: 0;
+}
+QScrollBar::handle:vertical {
+	background-color: ${LEX_BD};
+	border-radius: 5px;
+	min-height: 30px;
+}
+QScrollBar::handle:vertical:hover {
+	background-color: ${LEX_AC};
+}
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+	height: 0;
+	width: 0;
+}
 EOF
 
 # --- Diaporama pendant l'installation ---------------------------------------
+#  ═══ QUATRE ÉCRANS, ET AUCUN NE MENT ═══
+#  C'est le seul moment où quelqu'un regarde LexOS sans pouvoir rien faire
+#  d'autre : dix minutes de temps d'attention offert. On s'en sert pour dire
+#  ce que la machine sera, pas pour meubler.
+#  LE « 36 » N'EST PAS DÉCORATIF. Le banc compte les sections que les
+#  Paramètres déclarent vraiment et exige que ce nombre soit celui-là : une
+#  diapositive qui vieillit dans une ISO annonce un chiffre faux à chaque
+#  installation, et personne ne la relit jamais.
 cat > "$BRANDING_DIR/show.qml" <<EOF
 import QtQuick 2.0
 import calamares.slideshow 1.0
@@ -239,8 +482,11 @@ import calamares.slideshow 1.0
 Presentation {
     id: presentation
 
+    //  Six secondes : le temps de lire quatre lignes sans se sentir pressé.
+    //  Douze — la valeur d'avant — laissait l'écran figé assez longtemps pour
+    //  qu'on croie l'installation bloquée.
     Timer {
-        interval: 12000
+        interval: 6000
         running: true
         repeat: true
         onTriggered: presentation.goToNextSlide()
@@ -249,46 +495,25 @@ Presentation {
     Slide {
         Rectangle {
             anchors.fill: parent
-            color: "#141110"
-            Column {
-                anchors.centerIn: parent
-                spacing: 18
-                Text {
-                    text: "${LEXOS_NAME} ${LEXOS_VERSION}"
-                    color: "#E8590C"
-                    font.pixelSize: 34
-                    font.bold: true
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
-                Text {
-                    text: "Installation en cours — ça ne prend que quelques minutes."
-                    color: "#F4EFEA"
-                    font.pixelSize: 16
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
-            }
-        }
-    }
-
-    Slide {
-        Rectangle {
-            anchors.fill: parent
-            color: "#141110"
+            color: "${LEX_BG}"
             Column {
                 anchors.centerIn: parent
                 spacing: 14
+                width: parent.width * 0.8
                 Text {
                     text: "Tout est à toi"
-                    color: "#E8590C"
+                    color: "${LEX_AC}"
                     font.pixelSize: 30
                     font.bold: true
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 Text {
-                    text: "Pas de télémétrie, pas de compte obligatoire, pas de pub."
-                    color: "#F4EFEA"
+                    text: "Pas de télémétrie, pas de compte obligatoire, pas de pub.\nLe code est sur GitHub, sous licence MIT."
+                    color: "${LEX_DIM}"
                     font.pixelSize: 16
-                    anchors.horizontalCenter: parent.horizontalCenter
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    width: parent.width
                 }
             }
         }
@@ -297,22 +522,79 @@ Presentation {
     Slide {
         Rectangle {
             anchors.fill: parent
-            color: "#141110"
+            color: "${LEX_BG}"
             Column {
                 anchors.centerIn: parent
                 spacing: 14
+                width: parent.width * 0.8
                 Text {
-                    text: "Après l'installation"
-                    color: "#E8590C"
+                    text: "Le terminal"
+                    color: "${LEX_AC}"
                     font.pixelSize: 30
                     font.bold: true
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 Text {
-                    text: "Ouvre un terminal et tape « lexos help »."
-                    color: "#F4EFEA"
+                    text: "Fond noir, réponses en vert, le logo LEXOS quand tu tapes « lexos ».\nTape « lexos help » pour la liste des commandes."
+                    color: "${LEX_DIM}"
                     font.pixelSize: 16
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    width: parent.width
+                }
+            }
+        }
+    }
+
+    Slide {
+        Rectangle {
+            anchors.fill: parent
+            color: "${LEX_BG}"
+            Column {
+                anchors.centerIn: parent
+                spacing: 14
+                width: parent.width * 0.8
+                Text {
+                    text: "Les Paramètres"
+                    color: "${LEX_AC}"
+                    font.pixelSize: 30
+                    font.bold: true
                     anchors.horizontalCenter: parent.horizontalCenter
+                }
+                Text {
+                    text: "Trente-six sections, de l'affichage au réseau.\nTout est réglable sans ligne de commande."
+                    color: "${LEX_DIM}"
+                    font.pixelSize: 16
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    width: parent.width
+                }
+            }
+        }
+    }
+
+    Slide {
+        Rectangle {
+            anchors.fill: parent
+            color: "${LEX_BG}"
+            Column {
+                anchors.centerIn: parent
+                spacing: 14
+                width: parent.width * 0.8
+                Text {
+                    text: "Quatre profils de performance"
+                    color: "${LEX_AC}"
+                    font.pixelSize: 30
+                    font.bold: true
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+                Text {
+                    text: "Petit, médium, performant, max — la machine s'adapte à ce que tu\nfais, et à sa batterie."
+                    color: "${LEX_DIM}"
+                    font.pixelSize: 16
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    width: parent.width
                 }
             }
         }
@@ -323,6 +605,7 @@ Presentation {
 }
 EOF
 
+# <<< banc: apparence
 # --- Activer notre branding --------------------------------------------------
 if [ -f /etc/calamares/settings.conf ]; then
 	sed -i 's/^branding:.*/branding: lexos/' /etc/calamares/settings.conf
