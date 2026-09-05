@@ -39,6 +39,18 @@ if ! grep -rqs '^GRUB_DISABLE_OS_PROBER=false' /etc/default/grub /etc/default/gr
 fi
 echo "[lexos]   double démarrage : os-prober présent, recherche des autres systèmes active"
 
+#  Même logique que pour os-prober juste au-dessus : Calamares appellera
+#  grub-install sur le disque cible à la TOUTE DERNIÈRE étape de
+#  l'installation, une fois la partition voisine déjà redimensionnée. Si le
+#  paquet manque à ce moment-là (pas de réseau, le cas normal), l'échec
+#  arrive après coup — le pire moment possible. On l'arrête ici plutôt que
+#  de livrer une ISO qui échouerait tard.
+if [ ! -x /usr/sbin/grub-install ] && [ ! -x /usr/bin/grub-install ]; then
+	echo "[lexos]   !! grub-install absent : l'installation échouerait à l'étape du démarrage"
+	exit 1
+fi
+echo "[lexos]   programme de démarrage : grub-install présent"
+
 # --- Windows par défaut au démarrage, quand Windows est là -------------------
 #  Demande d'Alex : Windows sert à jouer, LexOS à travailler ; au démarrage le
 #  menu propose les deux et part sur Windows si personne ne touche à rien.
