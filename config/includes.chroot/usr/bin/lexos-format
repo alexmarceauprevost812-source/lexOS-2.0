@@ -10,6 +10,39 @@
 # =============================================================================
 set -uo pipefail
 
+# =============================================================================
+#  LES OUTILS DE DISQUE NE SONT PAS DANS LE PATH D'UN PROGRAMME DU BUREAU
+# =============================================================================
+#  ALEX : « pas capable de faire formater ma clé USB, il affiche outil
+#  manquant ». Le message vient d'ici — de need() plus bas — et il était
+#  TROMPEUR : l'outil n'était pas absent de la machine, il était absent du
+#  PATH.
+#
+#  Le clic droit « Formater ce support… » lance « lexos-format --gui » depuis
+#  Thunar, donc sous le compte ordinaire. Or Debian ne met les répertoires
+#  sbin dans le PATH que pour root (/etc/profile fait le test sur l'UID) :
+#  un utilisateur normal reçoit /usr/local/bin:/usr/bin:/bin et rien d'autre.
+#  Et parted, mkfs.vfat, mkfs.ext4, mkfs.exfat et wipefs vivent tous dans
+#  /usr/sbin. « command -v parted » répondait donc NON sur une machine où
+#  parted est parfaitement installé.
+#
+#  On ajoute donc les sbin à notre propre PATH — EN QUEUE, jamais en tête.
+#  Mis devant, ils passeraient AVANT ce que l'utilisateur, ou un banc
+#  d'essai, a déjà mis dans le sien : deux bancs de ce dépôt injectent de
+#  faux outils par un répertoire en tête de PATH, et les doubler par les
+#  vrais les a rendus aveugles sur-le-champ. Ils ont rougi tout de suite,
+#  et c'est comme ça que la première version de ce correctif a été prise en
+#  faute.
+#  C'est sans risque là où ces répertoires n'existent pas ou ne sont que des
+#  liens vers /usr/bin : un chemin absent du disque ne coûte rien dans un
+#  PATH.
+#  SEAM DE BANC. Un banc qui simule un outil ABSENT le fait en
+#  restreignant le PATH ; lui rajouter les sbin le rendrait aveugle et
+#  ferait passer pour presente une commande que la machine reelle
+#  n'aurait pas. LEXOS_SANS_SBIN=1 desactive l'ajout.
+[ "${LEXOS_SANS_SBIN:-}" = "1" ] || PATH="$PATH:/usr/local/sbin:/usr/sbin:/sbin"
+export PATH
+
 PROG="${0##*/}"
 GUI=0
 TARGET=""
@@ -52,7 +85,24 @@ EOF
 }
 [[ "${TARGET:-}" == "help" || "${TARGET:-}" == "--help" || "${TARGET:-}" == "-h" ]] && { cmd_help; exit 0; }
 
-need() { command -v "$1" >/dev/null 2>&1 || die "Outil manquant : $1"; }
+#  UN OUTIL VRAIMENT ABSENT DOIT DIRE QUOI INSTALLER. « Outil manquant :
+#  parted » n'apprend rien à qui ne sait pas que parted vient du paquet
+#  parted — et surtout rien à qui ne sait pas qu'on peut l'installer. Même
+#  règle que partout ailleurs dans LexOS : on nomme la condition qui manque.
+paquet_de() { # paquet_de <commande> -> le paquet Debian qui la fournit
+	case "$1" in
+		parted)     printf 'parted' ;;
+		mkfs.vfat)  printf 'dosfstools' ;;
+		mkfs.ext4)  printf 'e2fsprogs' ;;
+		mkfs.exfat) printf 'exfatprogs' ;;
+		wipefs|lsblk|findmnt) printf 'util-linux' ;;
+		*)          printf '%s' "$1" ;;
+	esac
+}
+need() {
+	command -v "$1" >/dev/null 2>&1 && return 0
+	die "Outil manquant : $1 — installe-le avec :  lexos install $(paquet_de "$1")"
+}
 need lsblk
 need findmnt
 

@@ -67,8 +67,14 @@ minimal() {
 }
 #  $BANC/bin d'abord (les faux outils du scénario), puis le minimum vital.
 #  Rien d'autre : ni /usr/sbin, ni /usr/bin.
+#  LEXOS_SANS_SBIN=1 : sans lui, l'outil ajoute /usr/sbin à son PATH — ce
+#  qui est le bon comportement sur une vraie machine (les commandes de
+#  matériel y vivent, et le PATH d'un compte ordinaire ne les contient pas)
+#  mais rendrait CE banc aveugle : il simule un outil ABSENT en restreignant
+#  le PATH, et les vrais dmidecode/lspci de la machine du coureur
+#  reviendraient par la porte de derrière. Le seam existe pour ça.
 lance() { PATH="$BANC/bin:$BANC/min" LEXOS_SYS="$BANC/sys" DISPLAY='' NO_COLOR=1 \
-	bash "$OUTIL" "$@" 2>&1; }
+	LEXOS_SANS_SBIN=1 bash "$OUTIL" "$@" 2>&1; }
 
 # =============================================================================
 echo "═══ 1. Les numéros de série ne sortent jamais ═══"

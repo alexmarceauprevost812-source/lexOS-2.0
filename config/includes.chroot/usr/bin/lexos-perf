@@ -18,6 +18,28 @@
 # =============================================================================
 set -uo pipefail
 
+#  LES OUTILS DE DISQUE ET DE MATERIEL NE SONT PAS DANS LE PATH D'UN
+#  PROGRAMME DU BUREAU. Debian ne met les repertoires sbin dans le PATH que
+#  pour root (/etc/profile teste l'UID) : un compte ordinaire recoit
+#  /usr/local/bin:/usr/bin:/bin et rien d'autre. Un outil lance depuis une
+#  action du clic droit ou depuis les Parametres ne trouvait donc pas des
+#  commandes pourtant installees, et annoncait « outil manquant » a tort.
+#  Voir lexos-format, ou le defaut s'est vu en premier.
+#  EN QUEUE, JAMAIS EN TETE, et ce n'est pas un detail de style : mis
+#  devant, ces repertoires passeraient AVANT ce que l'utilisateur — ou un
+#  banc d'essai — a deja mis dans son PATH. Les bancs de ce depot injectent
+#  de faux outils par un repertoire en tete de PATH ; les doubler par les
+#  vrais aurait rendu ces bancs aveugles. Attrape par deux d'entre eux, qui
+#  ont rougi tout de suite.
+#  Sans risque la ou ces repertoires n'existent pas : un chemin absent du
+#  disque ne coute rien dans un PATH.
+#  SEAM DE BANC. Un banc qui simule un outil ABSENT le fait en
+#  restreignant le PATH ; lui rajouter les sbin le rendrait aveugle et
+#  ferait passer pour presente une commande que la machine reelle
+#  n'aurait pas. LEXOS_SANS_SBIN=1 desactive l'ajout.
+[ "${LEXOS_SANS_SBIN:-}" = "1" ] || PATH="$PATH:/usr/local/sbin:/usr/sbin:/sbin"
+export PATH
+
 PROG="${0##*/}"
 
 # Les libellés sont accentués : sans locale multi-octets, printf %-Ns aligne sur

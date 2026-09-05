@@ -1769,6 +1769,27 @@ jobs:
           #  posait.
           bash tests/test_lexos_icones_theme.sh
 
+      - name: Les outils système trouvent leurs commandes depuis le bureau
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « pas capable de faire formater ma clé USB, il affiche
+          #  outil manquant ». Le message était TROMPEUR : l'outil n'était pas
+          #  absent de la machine, il était absent du PATH.
+          #
+          #  Debian ne met les répertoires sbin dans le PATH que pour root —
+          #  /etc/profile teste l'UID. Un outil lancé depuis le bureau (action
+          #  du clic droit, .desktop, page des Paramètres) tourne sous le
+          #  compte ordinaire et ne trouvait donc pas parted, mkfs.vfat,
+          #  dmidecode, usermod… pourtant installés.
+          #
+          #  Le banc est un garde-fou de CLASSE : il vérifie les huit outils
+          #  concernés, pas un seul cas, et il attrape aussi le prochain
+          #  qu'on écrira. Il garde deux détails pris en faute pendant la
+          #  correction : les sbin vont EN QUEUE du PATH (mis devant, ils
+          #  rendaient deux bancs aveugles), et le seam LEXOS_SANS_SBIN doit
+          #  survivre pour qu'un banc puisse encore simuler une vraie absence.
+          bash tests/test_lexos_path_sbin.sh
+
       - name: Le bandeau de l'installateur est lisible — casse des clés ET contraste
         if: ${{ !cancelled() }}
         run: |
