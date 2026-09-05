@@ -40,19 +40,19 @@ titre "1. Le panneau porte bien le badge, en Pango bien formé"
 SORTIE="$(HOME="$BANC" "$OUTIL" --panneau)"
 MARKUP="$(printf '%s' "$SORTIE" | sed -n 's/.*<txt> \(.*\) <\/txt>.*/\1/p')"
 
-echo "$MARKUP" | grep -qF '🔵' \
+grep -qF '🔵' <<< "$MARKUP" \
 	&& ok "les deux porte-clés bleus (🔵) sont là" \
 	|| non "aucun porte-clés bleu dans la sortie du panneau"
-echo "$MARKUP" | grep -qF 'lexOS' \
+grep -qF 'lexOS' <<< "$MARKUP" \
 	&& ok "« lexOS » est présent" \
 	|| non "« lexOS » a disparu de la sortie"
-echo "$MARKUP" | grep -qF '⚡' \
+grep -qF '⚡' <<< "$MARKUP" \
 	&& ok "l'éclair (⚡) sépare bien lexOS et pro, comme sur l'image d'Alex" \
 	|| non "l'éclair a disparu"
-echo "$MARKUP" | grep -qF '>pro<' \
+grep -qF '>pro<' <<< "$MARKUP" \
 	&& ok "« pro » est présent" \
 	|| non "« pro » a disparu"
-echo "$MARKUP" | grep -qF '&lt;[' && echo "$MARKUP" | grep -qF ']&gt;' \
+grep -qF '&lt;[' <<< "$MARKUP" && grep -qF ']&gt;' <<< "$MARKUP" \
 	&& ok "les crochets « <[ » et « ]> » sont bien ÉCHAPPÉS (&lt; / &gt;), pas des balises brutes" \
 	|| non "les crochets ne sont pas correctement échappés — Pango les lirait comme des balises"
 
@@ -101,11 +101,11 @@ titre "3. Les couleurs sont celles de LexOS, pas inventées pour l'occasion"
 #  plus solide, puisque c'est celle qui peint réellement le thème.
 THEME_GEN="$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen"
 grep -q 'ACCENT_HI="#3584E4"' "$THEME_GEN" \
-	&& echo "$MARKUP" | grep -qF '#3584E4' \
+	&& grep -qF '#3584E4' <<< "$MARKUP" \
 	&& ok "le bleu du badge (#3584E4) est bien l'accent « bleu haut » de lexos-theme-gen" \
 	|| non "le bleu du badge ne correspond pas à un accent réel de lexos-theme-gen"
 grep -q 'ACCENT="#E8590C"' "$THEME_GEN" \
-	&& echo "$MARKUP" | grep -qF '#E8590C' \
+	&& grep -qF '#E8590C' <<< "$MARKUP" \
 	&& ok "l'éclair (#E8590C) est bien l'orange par défaut de LexOS" \
 	|| non "l'orange de l'éclair ne correspond pas à l'accent par défaut"
 
@@ -117,7 +117,7 @@ titre "4. « date » avale le badge sans jamais le confondre avec une directive"
 #  vérifie en cherchant un « % » NU dans la sortie du panneau — en dehors
 #  des directives légitimes déjà consommées par « date » (donc absentes du
 #  résultat final).
-echo "$SORTIE" | grep -qF '%' \
+grep -qF '%' <<< "$SORTIE" \
 	&& non "un « % » brut traîne dans la sortie du panneau — « date » l'aurait interprété" \
 	|| ok "aucun « % » ne traîne dans la sortie finale — rien que « date » ait pu mal lire"
 

@@ -220,7 +220,7 @@ PY
 		*) non "la règle des noms n'est pas publiée telle quelle" ;;
 	esac
 	VER="$(printf '%s\n' "$LU" | sed -n 's/^VERROUS //p')"
-	if printf '%s' "$LU" | grep -q '^ROOT oui'; then
+	if grep -q '^ROOT oui' <<< "$LU" ; then
 		ATTENDU="banc-alex=actif,banc-marie=verrouille,banc-jo=sans-mot-de-passe,banc-bloque=inconnu"
 		[ "$VER" = "$ATTENDU" ] \
 			&& ok "en root, l'état de chaque mot de passe est lu : $VER" \
@@ -390,7 +390,7 @@ PY
 	#  Le script rend une dernière ligne « FIN| » ; son absence est un rouge.
 	if [ -z "$SORTIE_G" ]; then
 		non "les gestes n'ont rien rendu — le moteur n'a pas pu être appelé"
-	elif ! printf '%s\n' "$SORTIE_G" | grep -q '^FIN|'; then
+	elif ! grep -q '^FIN|' <<< "$SORTIE_G"; then
 		non "le banc s'est arrêté avant la fin — des contrôles n'ont jamais tourné"
 		while IFS='|' read -r V M; do
 			[ "$V" = "NON" ] && non "$M"
@@ -532,7 +532,7 @@ PY
 	#  Le script rend une dernière ligne « FIN| » ; son absence est un rouge.
 	if [ -z "$SORTIE_D" ]; then
 		non "la protection du dernier administrateur n'a rien rendu"
-	elif ! printf '%s\n' "$SORTIE_D" | grep -q '^FIN|'; then
+	elif ! grep -q '^FIN|' <<< "$SORTIE_D"; then
 		non "le banc s'est arrêté avant la fin — des contrôles n'ont jamais tourné"
 		while IFS='|' read -r V M; do
 			[ "$V" = "NON" ] && non "$M"
@@ -673,7 +673,7 @@ JS
 	#  Le script rend une dernière ligne « FIN| » ; son absence est un rouge.
 	if [ -z "$SORTIE_P" ]; then
 		non "la page n'a rien rendu — app.js n'a pas pu être chargé"
-	elif ! printf '%s\n' "$SORTIE_P" | grep -q '^FIN|'; then
+	elif ! grep -q '^FIN|' <<< "$SORTIE_P"; then
 		non "le banc s'est arrêté avant la fin — des contrôles n'ont jamais tourné"
 		while IFS='|' read -r V M; do
 			[ "$V" = "NON" ] && non "$M"

@@ -326,7 +326,7 @@ PY
 		| grep -E '^(OK|NON|FIN)\|' || true)"
 	if [ -z "$SORTIE_G" ]; then
 		non "les gestes n'ont rien rendu — le moteur n'a pas pu être appelé"
-	elif ! printf '%s\n' "$SORTIE_G" | grep -q '^FIN|'; then
+	elif ! grep -q '^FIN|' <<< "$SORTIE_G"; then
 		non "le banc s'est arrêté avant la fin — des contrôles n'ont jamais tourné"
 		while IFS='|' read -r V M; do
 			[ "$V" = "NON" ] && non "$M"
@@ -481,7 +481,7 @@ JS
 	SORTIE_P="$(node "$BANC/rendu.js" "$PAGE" 2>&1 | grep -E '^(OK|NON|FIN)\|' || true)"
 	if [ -z "$SORTIE_P" ]; then
 		non "les pages n'ont rien rendu"
-	elif ! printf '%s\n' "$SORTIE_P" | grep -q '^FIN|'; then
+	elif ! grep -q '^FIN|' <<< "$SORTIE_P"; then
 		non "le rendu s'est arrêté avant la fin — des contrôles n'ont jamais tourné"
 		while IFS='|' read -r V M; do
 			[ "$V" = "NON" ] && non "$M"

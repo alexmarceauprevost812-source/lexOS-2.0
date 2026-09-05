@@ -77,7 +77,7 @@ titre "1. prenom() — le vrai mécanisme d'identité, jamais un nom en dur"
 #  Les LIGNES DE COMMENTAIRE sont exclues : ce fichier explique justement,
 #  en commentaire, pourquoi il NE fait PAS ce que la démo fait — le mot
 #  « Alex » y figure donc légitimement en prose, jamais dans du code exécuté.
-if grep -v '^[[:space:]]*#' "$SCRIPT" | grep -qE '"Alex"|, Alex'; then
+if grep -qE '"Alex"|, Alex' < <(grep -v '^[[:space:]]*#' "$SCRIPT"); then
 	non "lexos-claude exécute du code contenant « Alex » en dur — faux pour qui n'est pas Alex"
 else
 	ok "aucun prénom écrit en dur dans le code de lexos-claude (contrairement à la démo, c'est un fichier de tout le monde)"
@@ -116,7 +116,7 @@ titre "3. banniere() — l'heure décide comme dans la démo (cctAccueilSession)
 for cas in "0:Bonsoir" "4:Bonsoir" "5:Bonjour" "13:Bonjour" "17:Bonjour" "18:Bonsoir" "23:Bonsoir"; do
 	h="${cas%%:*}"; attendu="${cas##*:}"
 	SORTIE="$(MOCK_HOUR="$h" appelle banniere)"
-	if printf '%s' "$SORTIE" | grep -q "$attendu"; then
+	if grep -q "$attendu" <<< "$SORTIE" ; then
 		ok "${h} h -> ${attendu}"
 	else
 		non "${h} h aurait dû dire « ${attendu} », sortie : $SORTIE"
@@ -128,7 +128,7 @@ titre "4. banniere() — le mot-sigle ET l'information essentielle, tous les deu
 # =============================================================================
 SORTIE="$(MOCK_HOUR=12 appelle banniere)"
 for attendu in "CLAUDE" "CODE" "Connexion au navigateur au premier lancement."; do
-	if printf '%s' "$SORTIE" | grep -qF "$attendu"; then
+	if grep -qF "$attendu" <<< "$SORTIE" ; then
 		ok "la bannière contient « $attendu »"
 	else
 		non "la bannière ne contient pas « $attendu » — sortie : $SORTIE"
@@ -145,10 +145,8 @@ titre "5. cmd_run — la bannière est un décor, jamais au prix de l'informatio
 #  branches — la casse du C initial diffère (une phrase à elle seule dans
 #  banniere(), la suite de « Claude Code — » dans le repli say()), ce n'est
 #  pas ce qu'on éprouve ici.
-if grep -A6 'if \[\[ -t 1 \]\] && \[\[ "\${NO_COLOR:-}" == "" \]\]; then' "$SCRIPT" \
-	| grep -q 'banniere' \
-	&& grep -A8 'if \[\[ -t 1 \]\] && \[\[ "\${NO_COLOR:-}" == "" \]\]; then' "$SCRIPT" \
-	| grep -q 'navigateur au premier lancement'; then
+if grep -q 'banniere' < <(grep -A6 'if \[\[ -t 1 \]\] && \[\[ "\${NO_COLOR:-}" == "" \]\]; then' "$SCRIPT") \
+	&& grep -q 'navigateur au premier lancement' < <(grep -A8 'if \[\[ -t 1 \]\] && \[\[ "\${NO_COLOR:-}" == "" \]\]; then' "$SCRIPT"); then
 	ok "cmd_run affiche banniere() sur un vrai terminal, et le message brut sinon"
 else
 	non "cmd_run ne semble plus garder le message informatif dans les deux cas"
@@ -194,17 +192,17 @@ if command -v script >/dev/null 2>&1; then
 	#  #D8352E — pas un rouge inventé : c'est ACCENT_HI du cas « rouge » dans
 	#  lexos-theme-gen, le même accent que le reste de LexOS. En 24 bits
 	#  littéral (216;53;46), pas les 256 couleurs approchées.
-	if printf '%s' "$SORTIE" | grep -qF $'\033[38;2;216;53;46m'; then
+	if grep -qF $'\033[38;2;216;53;46m' <<< "$SORTIE"; then
 		ok "le mot-sigle et le salut portent le VRAI rouge de LexOS (#D8352E), pas une couleur inventée"
 	else
 		non "le rouge #D8352E (38;2;216;53;46) n'apparaît pas dans la bannière"
 	fi
-	if printf '%s' "$SORTIE" | grep -qF $'\033[38;2;255;255;255m'; then
+	if grep -qF $'\033[38;2;255;255;255m' <<< "$SORTIE"; then
 		ok "le texte d'accompagnement est en BLANC franc (255;255;255), plus atténué"
 	else
 		non "le blanc franc (38;2;255;255;255) n'apparaît pas dans la bannière"
 	fi
-	if printf '%s' "$SORTIE" | grep -q 'CLAUDE'; then
+	if grep -q 'CLAUDE' <<< "$SORTIE" ; then
 		ok "…et le mot-sigle est toujours là, la couleur n'a pas mangé le texte"
 	else
 		non "le mot-sigle a disparu avec le changement de couleur"
@@ -323,7 +321,7 @@ else
 	#  pourquoi il n'emploie pas de jeton d'accent — un banc naïf lirait
 	#  cette explication et se déclarerait en échec. Ce dépôt s'est déjà
 	#  fait prendre quatre fois à cette faute.
-	if perl -0777 -pe 's/<!--.*?-->//gs' "$SVG_CT" | grep -qE '#(E8590C|FF7A33|A84007)'; then
+	if grep -qE '#(E8590C|FF7A33|A84007)' < <(perl -0777 -pe 's/<!--.*?-->//gs' "$SVG_CT"); then
 		non "le fichier contient un jeton d'accent : la couleur changerait avec le thème"
 	else
 		ok "aucun jeton d'accent : le rouge reste rouge quel que soit le thème"
@@ -338,7 +336,7 @@ else
 	#  Les deux contrôles vont par paire, et c'est voulu : le Claude Terminal
 	#  ne doit PAS suivre l'accent (sinon « lexos accent rouge » rendrait les
 	#  deux icônes identiques), le Terminal DOIT le suivre.
-	if perl -0777 -pe 's/<!--.*?-->//gs' "$SVG_T" | grep -q '#E8590C'; then
+	if grep -q '#E8590C' < <(perl -0777 -pe 's/<!--.*?-->//gs' "$SVG_T"); then
 		ok "le Terminal garde son jeton d'accent — il reste orange, et suit le thème"
 	else
 		non "le Terminal n'a plus de jeton d'accent : son orange ne suivrait plus le thème"

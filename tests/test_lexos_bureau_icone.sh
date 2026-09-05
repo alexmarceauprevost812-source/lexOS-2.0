@@ -137,8 +137,13 @@ PY
 	#  sinon la copie qu'on en a faite — et le banc le dit.
 	XFD_CSS=""
 	if command -v xfdesktop >/dev/null 2>&1; then
-		XFD_CSS="$(strings -a "$(command -v xfdesktop)" 2>/dev/null \
-			| grep -m1 '^XfdesktopIconView.view {' | sed 's/}/}\n/g')"
+		#  ON LIT TOUT, PUIS ON FILTRE. « strings … | grep -m1 » ferait sortir
+		#  grep au premier résultat et casserait le tuyau sous le nez de
+		#  strings : sous « pipefail », l'affectation prend alors un code non
+		#  nul. Ici personne ne le teste, mais la règle du dépôt ne souffre pas
+		#  d'exception au cas par cas — une exception se recopie.
+		XFD_BRUT="$(strings -a "$(command -v xfdesktop)" 2>/dev/null)"
+		XFD_CSS="$(grep -m1 '^XfdesktopIconView.view {' <<< "$XFD_BRUT" | sed 's/}/}\n/g')"
 	fi
 	if [ -n "$XFD_CSS" ]; then
 		ok "feuille de xfdesktop relevée dans SON binaire (pas une copie de mémoire)"
@@ -153,14 +158,14 @@ XfdesktopIconView .rubberband { background: alpha(@theme_selected_bg_color, 0.2)
 	mkdir -p "$BANC/home/.themes"
 	cp -r "$BANC/t/.themes/LexOS-Noir" "$BANC/home/.themes/" 2>/dev/null
 	SORTIE="$(HOME="$BANC/home" "$PY312" "$BANC/mesure.py" "$CSS" "$XFD_CSS" 2>/dev/null)"
-	if printf '%s' "$SORTIE" | grep -q "PAS-D-ECRAN"; then
+	if grep -q "PAS-D-ECRAN" <<< "$SORTIE" ; then
 		saut "aucun écran X (installer xvfb et relancer sous « xvfb-run ») : rien n'a été MESURÉ"
 	elif [ -z "$SORTIE" ]; then
 		non "la mesure GTK n'a rien rendu"
 	else
 		val() { printf '%s' "$SORTIE" | awk -v k="$1" '$1==k{print $2}'; }
 
-		if printf '%s' "$SORTIE" | grep -q "^FEUILLE-ENTIERE"; then
+		if grep -q "^FEUILLE-ENTIERE" <<< "$SORTIE" ; then
 			ok "GTK accepte la feuille en entier — aucun sélecteur qu'il refuse"
 		else
 			non "GTK REJETTE la feuille : $(printf '%s' "$SORTIE" | grep '^FEUILLE-REJETEE')"

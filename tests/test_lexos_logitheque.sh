@@ -214,7 +214,7 @@ grep -q "remote-add" <<< "$J" \
 	|| non "Flathub manquant et jamais ajouté : $J"
 #  Celui-là, en revanche, DOIT être élevé : modifier les dépôts du système
 #  est « configure-remote » côté polkit, avec auth_admin.
-grep "SUDO" <<< "$J" | grep -q "remote-add" \
+grep -q "remote-add" < <(grep "SUDO" <<< "$J") \
 	&& ok "…et l'ajout du dépôt, lui, passe bien par les droits d'administration" \
 	|| non "l'ajout du dépôt ne passe pas par sudo : $J"
 

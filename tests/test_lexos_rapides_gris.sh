@@ -67,7 +67,7 @@ VOL_NU="$(sans_commentaires "$VOL_JS")"
 #  banc, qui a déclaré disparues deux choses parfaitement présentes.
 #  On y cherche donc des fragments de CODE que la prose ne peut pas contenir.
 
-if printf '%s' "$VOL_NU" | grep -q 'qsTileHTML("theme"'; then
+if grep -q 'qsTileHTML("theme"' <<< "$VOL_NU" ; then
 	non "le volet de l'ISO propose encore la bascule jour/nuit"
 else
 	ok "volet de l'ISO : plus de tuile « Style sombre / Style clair »"
@@ -95,7 +95,7 @@ fi
 # =============================================================================
 titre "2. La plaque existe — dans le balisage ET dans la feuille de style"
 # =============================================================================
-if printf '%s' "$VOL_NU" | grep -q 'class="qs-plaque"'; then
+if grep -q 'class="qs-plaque"' <<< "$VOL_NU" ; then
 	ok "le volet enveloppe bien sa grille dans la plaque"
 else
 	non "aucune plaque dans le balisage : la règle CSS ne s'appliquerait à rien"
@@ -127,8 +127,8 @@ titre "3. LES TUILES N'ONT PAS BOUGÉ — la contrainte d'Alex"
 #  « Les boutons sont bien parfaits. » Leur surface et leur bord doivent
 #  rester les jetons communs, pas devenir des couleurs propres à ce panneau.
 LIGNE_TUILE="$(grep -A2 '^\.qs-tile{' "$VOL_CSS" | tr '\n' ' ')"
-if printf '%s' "$LIGNE_TUILE" | grep -q 'background:var(--bg-hi)' \
-	&& printf '%s' "$LIGNE_TUILE" | grep -q 'border:1px solid var(--bd)'; then
+if grep -q 'background:var(--bg-hi)' <<< "$LIGNE_TUILE" \
+	&& grep -q 'border:1px solid var(--bd)' <<< "$LIGNE_TUILE" ; then
 	ok "la tuile garde --bg-hi et --bd : rien n'a été repeint pour l'occasion"
 else
 	non "la surface ou le bord des tuiles a changé — Alex les voulait intactes"

@@ -373,7 +373,7 @@ done
 SORTIE_GDEBI="$(DISPLAY=:99 PATH="$BANC/bin-gdebi:$PATH" bash "$OUTIL" "$D/paquet.deb" 2>&1)"
 if [ -s "$BANC/traces-gdebi" ]; then
 	non "après gdebi, autre chose a quand même été appelé : $(cat "$BANC/traces-gdebi")"
-elif printf '%s' "$SORTIE_GDEBI" | grep -qi 'installé'; then
+elif grep -qi 'installé' <<< "$SORTIE_GDEBI" ; then
 	#  LE VRAI DÉFAUT (constat #6, point « CE QUI SE REPRODUIT QUAND MÊME ») :
 	#  gdebi-gtk rend 0 aussi bien quand il a installé QUE quand sa fenêtre a
 	#  simplement été fermée sans rien faire (SimpleGtkbuilderApp.run() ->

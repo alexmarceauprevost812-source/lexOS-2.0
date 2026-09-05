@@ -672,7 +672,7 @@ grep -q '^icon-theme-name=LexOS$' "$CONF" \
 	|| non "icon-theme-name : $(grep '^icon-theme-name=' "$CONF")"
 
 TH="$BANC/racine/themes/LexOS-Connexion/gtk-3.0/gtk.css"
-head -1 "$TH" | grep -q "^@import url(\"file://$BANC/racine/themes/Arc-Dark/gtk-3.0/gtk.css\");$" \
+grep -q "^@import url(\"file://$BANC/racine/themes/Arc-Dark/gtk-3.0/gtk.css\");$" < <(head -1 "$TH") \
 	&& ok "le thème importe le thème de base EN PREMIÈRE LIGNE (règle du langage)" \
 	|| non "première ligne du thème : $(head -1 "$TH")"
 grep -q '#login_window' "$TH" \
@@ -714,14 +714,14 @@ grep -q '^theme-name=Arc-Dark$' "$CONF" \
 [ ! -d "$BANC/racine/themes/LexOS-Connexion" ] \
 	&& ok "et ne laisse pas un thème vide derrière lui" \
 	|| non "un LexOS-Connexion a été créé sans feuille de style"
-echo "$SORTIE" | grep -q 'absent' \
+grep -q 'absent' <<< "$SORTIE" \
 	&& ok "il le DIT dans le journal" \
 	|| non "aucun CSS, et rien dans le journal"
 
 prepare
 rm -rf "$BANC/racine/themes/Arc-Dark"
 SORTIE="$(lance)"
-head -1 "$TH" | grep -q '^/\* thème de base introuvable' \
+grep -q '^/\* thème de base introuvable' < <(head -1 "$TH") \
 	&& ok "sans thème de base, pas d'import vers un dossier qui n'existe pas" \
 	|| non "première ligne : $(head -1 "$TH")"
 grep -q '#login_window' "$TH" \
@@ -764,7 +764,7 @@ grep -q '^theme-name=LexOS-Connexion$' "$CONF" \
 mkdir -p "$BANC/racine/themes/Adwaita-dark/gtk-3.0"
 echo '/* Adwaita */' > "$BANC/racine/themes/Adwaita-dark/gtk-3.0/gtk.css"
 frag0600 Adwaita-dark LexOS >/dev/null
-head -1 "$TH" | grep -q "Adwaita-dark/gtk-3.0/gtk.css" \
+grep -q "Adwaita-dark/gtk-3.0/gtk.css" < <(head -1 "$TH") \
 	&& ok "l'import suit le thème RÉELLEMENT retenu quand Arc-Dark manque" \
 	|| non "import : $(head -1 "$TH")"
 

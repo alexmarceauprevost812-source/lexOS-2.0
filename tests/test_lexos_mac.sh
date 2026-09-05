@@ -117,7 +117,7 @@ carte() { # id-pci  mot-attendu
 	local f="$BASE/lspci.txt" vu
 	printf '02:00.0 Network controller [0280]: Broadcom Inc. Device [%s]\n' "$1" > "$f"
 	vu="$(LEXOS_DMI_DIR="$d" LEXOS_MACHINE=x86_64 LEXOS_LSPCI="$f" NO_COLOR=1 "$BIN" wifi)"
-	if printf '%s' "$vu" | grep -q "$2"; then
+	if grep -q "$2" <<< "$vu" ; then
 		printf 'ok    %s → %s\n' "$1" "$2"
 	else
 		printf 'ÉCHEC %s : « %s » attendu, obtenu :\n%s\n' "$1" "$2" "$vu"

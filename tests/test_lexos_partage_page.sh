@@ -133,7 +133,7 @@ else
 	non "le cadre du QR n'emploie pas var(--qr-fond)"
 fi
 #  Hors des blocs de mode : le blanc ne doit PAS être redéfini en clair.
-if sed -n '/data-mode="clair"/,/^}/p' "$UICSS" | grep -q -- '--qr-fond'; then
+if grep -q -- '--qr-fond' < <(sed -n '/data-mode="clair"/,/^}/p' "$UICSS"); then
 	non "--qr-fond est redéfini dans le bloc du mode clair — le QR suivrait le thème au lieu de rester lisible"
 else
 	ok "…et il n'est redéfini par aucun mode : le QR reste lisible sur un bureau clair"

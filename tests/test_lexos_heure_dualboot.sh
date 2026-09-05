@@ -101,7 +101,7 @@ grep -q 'adjust-system-clock' "$APPELS" \
 	&& ok "…avec --adjust-system-clock (sinon l'heure affichée saute d'un coup)" \
 	|| non "--adjust-system-clock manque : l'heure système sauterait de 4 h"
 
-echo "$S" | grep -qi "heure locale" \
+grep -qi "heure locale" <<< "$S" \
 	&& ok "le journal dit ce qui a changé" \
 	|| non "rien dans le journal :\n$S"
 
@@ -131,7 +131,7 @@ a_regle_lhorloge \
 	&& non "l'horloge a été changée sur une machine SANS Windows — UTC devait rester" \
 	|| ok "aucune modification de l'horloge : UTC reste le défaut"
 
-echo "$S" | grep -qi "pas de Windows" \
+grep -qi "pas de Windows" <<< "$S" \
 	&& ok "le journal dit pourquoi il n'a rien fait" \
 	|| non "le journal n'explique pas l'abstention :\n$S"
 
@@ -149,7 +149,7 @@ a_regle_lhorloge \
 	&& non "set-local-rtc rappelé alors que LocalRTC était déjà « yes » — double décalage" \
 	|| ok "rien n'est rappelé quand l'horloge est déjà en heure locale"
 
-echo "$S" | grep -qi "déjà" \
+grep -qi "déjà" <<< "$S" \
 	&& ok "le journal le dit" \
 	|| non "le journal ne mentionne pas l'état déjà bon :\n$S"
 
@@ -194,7 +194,7 @@ fi
 #  affirmait qu'il n'y avait pas de Windows. Même comportement, mauvaise
 #  explication : exactement le genre de phrase qui envoie chercher la panne
 #  ailleurs six mois plus tard.
-if echo "$S" | grep -qi "aucun grub.cfg"; then
+if grep -qi "aucun grub.cfg" <<< "$S" ; then
 	ok "…et le journal dit la VRAIE raison (grub.cfg illisible), pas « pas de Windows »"
 else
 	non "le journal n'explique pas que le grub.cfg est illisible :\n$S"
@@ -205,7 +205,7 @@ rm -f "$FAUXBIN/timedatectl"
 pose_racine "$MENU_WINDOWS"
 S="$(PATH="$FAUXBIN:/usr/bin:/bin" LEXOS_RACINE="$FAUXRACINE" LEXOS_CMDLINE="$BANC/cmdline" \
 	sh "$OUTIL" 2>&1; echo "code=$?")"
-if echo "$S" | grep -q "code=0"; then
+if grep -q "code=0" <<< "$S" ; then
 	ok "sans timedatectl : sortie propre, code 0"
 else
 	non "sans timedatectl, le script échoue :\n$S"

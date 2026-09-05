@@ -88,7 +88,7 @@ for NOEUD in box grid overlay flowbox stack viewport frame; do
 	CORPS="$(regle_de "$CSS4" "$NOEUD")"
 	if [[ -z "$CORPS" ]]; then
 		ok "« $NOEUD » n'est plus peint du tout — rien à estamper"
-	elif printf '%s' "$CORPS" | grep -qi 'background-color:[[:space:]]*transparent'; then
+	elif grep -qi 'background-color:[[:space:]]*transparent' <<< "$CORPS" ; then
 		ok "« $NOEUD » est transparent — le dégradé de la tuile se voit"
 	else
 		non "« $NOEUD » porte encore un fond opaque : $CORPS"
@@ -99,7 +99,7 @@ done
 #  transparente échangerait un défaut contre un pire.
 for NOEUD in window dialog popover textview; do
 	CORPS="$(regle_de "$CSS4" "$NOEUD")"
-	if printf '%s' "$CORPS" | grep -qiE 'background-color:[[:space:]]*#0{6}'; then
+	if grep -qiE 'background-color:[[:space:]]*#0{6}' <<< "$CORPS" ; then
 		ok "« $NOEUD » reste noir — le fond des fenêtres n'a pas bougé"
 	else
 		non "« $NOEUD » n'est plus noir : le correctif a débordé sur les surfaces"
@@ -109,7 +109,7 @@ done
 #  LA MÊME EXIGENCE EN GTK 3 : la Logithèque est en GTK 4, mais les deux
 #  feuilles sortent du même générateur et une divergence serait invisible.
 CORPS3="$(regle_de "$CSS3" "box")"
-if [[ -z "$CORPS3" ]] || printf '%s' "$CORPS3" | grep -qi 'transparent'; then
+if [[ -z "$CORPS3" ]] || grep -qi 'transparent' <<< "$CORPS3"; then
 	ok "GTK 3 dit la même chose que GTK 4"
 else
 	non "GTK 3 peint encore « box » en opaque : $CORPS3"
@@ -239,13 +239,13 @@ else
 	non "setLum() introuvable — les contrôles suivants seraient creux"
 fi
 
-if printf '%s' "$CORPS_LUM" | grep -q 'r.erreur\|erreur'; then
+if grep -q 'r.erreur\|erreur' <<< "$CORPS_LUM"; then
 	ok "elle lit le motif du refus au lieu de jeter la réponse"
 else
 	non "elle jette encore la réponse : un refus resterait muet, comme sur la photo"
 fi
 
-if printf '%s' "$CORPS_LUM" | grep -q 'rafraichir('; then
+if grep -q 'rafraichir(' <<< "$CORPS_LUM" ; then
 	ok "elle rafraîchit — le curseur retombe sur la valeur réelle de la machine"
 else
 	non "elle ne rafraîchit pas : le curseur mentirait sur l'état de l'écran"
@@ -279,14 +279,14 @@ for sel, corps in re.findall(r"([^{}]+)\{([^{}]*)\}", src):
 for V in 3 4; do
 	F="$FOYER/.themes/LexOS-Noir/gtk-${V}.0/gtk.css"
 	CORPS="$(corps_regle "$F" "menu menuitem")"
-	if printf '%s' "$CORPS" | grep -q 'font-size:[[:space:]]*1\.12em'; then
+	if grep -q 'font-size:[[:space:]]*1\.12em' <<< "$CORPS"; then
 		ok "GTK $V : les entrées de menu sont agrandies (1.12em)"
 	else
 		non "GTK $V : le menu n'a pas de taille agrandie — $CORPS"
 	fi
 	#  LA TAILLE SEULE NE SUFFIT PAS : à 4 px de haut les rangées se touchent
 	#  et on clique la voisine. C'est le rembourrage qui fait la cible.
-	if printf '%s' "$CORPS" | grep -qE 'padding:[[:space:]]*([89]|1[0-9])px'; then
+	if grep -qE 'padding:[[:space:]]*([89]|1[0-9])px' <<< "$CORPS"; then
 		ok "GTK $V : les rangées sont assez hautes pour être visées"
 	else
 		non "GTK $V : rembourrage trop faible, les rangées se toucheraient — $CORPS"
@@ -297,7 +297,7 @@ done
 #  gros-texte » précisément là où il sert le plus. C'est la règle que le dépôt
 #  s'était déjà donnée pour les boutons ; le menu doit la suivre.
 CORPS="$(corps_regle "$FOYER/.themes/LexOS-Noir/gtk-3.0/gtk.css" "menu menuitem")"
-if printf '%s' "$CORPS" | grep -qE 'font-size:[[:space:]]*[0-9]+px'; then
+if grep -qE 'font-size:[[:space:]]*[0-9]+px' <<< "$CORPS" ; then
 	non "la taille du menu est figée en pixels : le gros-texte n'y ferait plus rien"
 else
 	ok "la taille est relative — elle suivra « lexos access gros-texte »"

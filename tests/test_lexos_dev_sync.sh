@@ -83,11 +83,11 @@ else
 	non "--essai A ÉCRIT :\n$(diff <(printf '%s' "$AVANT") <(printf '%s' "$APRES") | head -6)"
 fi
 
-printf '%s' "$SORTIE" | grep -q "ESSAI" \
+grep -q "ESSAI" <<< "$SORTIE" \
 	&& ok "…et il annonce clairement qu'il est en essai" \
 	|| non "l'essai ne se signale pas dans la sortie"
 
-printf '%s' "$SORTIE" | grep -q "usr/bin/lexos-truc" \
+grep -q "usr/bin/lexos-truc" <<< "$SORTIE" \
 	&& ok "…tout en disant ce qu'il COPIERAIT" \
 	|| non "l'essai ne montre pas les fichiers concernés"
 
@@ -224,7 +224,7 @@ else
 	non "aucune sauvegarde : un réglage ajusté à la main disparaîtrait sans trace"
 fi
 
-printf '%s' "$SORTIE" | grep -q "sauvegardé" \
+grep -q "sauvegardé" <<< "$SORTIE" \
 	&& ok "…et le bilan dit combien de fichiers ont été sauvegardés" \
 	|| non "le bilan ne mentionne pas les sauvegardes"
 
@@ -281,11 +281,11 @@ AP_FOYER="$(find "$FOYER" -type f -exec md5sum {} \; | sort)"
 
 #  ET IL DOIT LE DIRE, sinon la synchronisation a l'air d'avoir échoué.
 SORTIE="$(lance --depuis "$CLONE")"
-printf '%s' "$SORTIE" | grep -q "N'ATTEINT AUCUN COMPTE" \
+grep -q "N'ATTEINT AUCUN COMPTE" <<< "$SORTIE" \
 	&& ok "…et il explique pourquoi /etc/skel ne change rien pour un compte existant" \
 	|| non "rien n'explique que /etc/skel n'atteint aucun compte : on croirait à un échec"
 
-printf '%s' "$SORTIE" | grep -q -- "--skel" \
+grep -q -- "--skel" <<< "$SORTIE" \
 	&& ok "…et il nomme l'option qui le ferait" \
 	|| non "le message ne dit pas quelle option reporte les fichiers"
 
@@ -293,11 +293,11 @@ printf '%s' "$SORTIE" | grep -q -- "--skel" \
 titre "8. Le bilan et le branchement"
 # =============================================================================
 SORTIE="$(lance --depuis "$CLONE" --essai)"
-printf '%s' "$SORTIE" | grep -q "DEMANDE UNE ISO" \
+grep -q "DEMANDE UNE ISO" <<< "$SORTIE" \
 	&& ok "le bilan rappelle ce qui exige encore une ISO" \
 	|| non "rien ne rappelle ce que la synchronisation ne peut pas faire"
 
-printf '%s' "$SORTIE" | grep -qi "relancer" \
+grep -qi "relancer" <<< "$SORTIE" \
 	&& ok "…et ce qu'il faut relancer selon ce qui a changé" \
 	|| non "rien ne dit quoi relancer après la copie"
 

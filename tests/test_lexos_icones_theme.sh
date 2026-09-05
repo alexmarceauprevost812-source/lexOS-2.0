@@ -167,7 +167,7 @@ fi
 #  « hicolor » DOIT terminer la chaîne : c'est le thème de dernier recours de
 #  la spécification, celui où toute application dépose ses propres icônes. Si
 #  Papirus n'est pas installé (sa liste est optionnelle), c'est lui qui reste.
-if printf '%s' "$HERITE" | grep -q 'hicolor'; then
+if grep -q 'hicolor' <<< "$HERITE" ; then
 	ok "« hicolor » ferme la chaîne — le dernier recours de la spécification"
 else
 	non "« hicolor » absent : les icônes propres aux applications seraient perdues"
@@ -236,7 +236,7 @@ done
 #  ET LE HOOK LES REND EN PNG. Un SVG seul a besoin de librsvg branché dans
 #  gdk-pixbuf ; c'est précisément ce qui a manqué pendant trois ISO.
 HOOK="$RACINE/config/hooks/normal/0605-lexos-icones.hook.chroot"
-if sed 's/#.*$//' "$HOOK" | grep -q "for CAT in apps devices"; then
+if grep -q "for CAT in apps devices" < <(sed 's/#.*$//' "$HOOK"); then
 	ok "le hook 0605 rend aussi les PNG de « devices »"
 else
 	non "le hook ne rend pas les PNG des périphériques — le SVG seul peut ne pas s'afficher"

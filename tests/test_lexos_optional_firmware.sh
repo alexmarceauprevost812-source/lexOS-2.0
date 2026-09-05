@@ -139,7 +139,7 @@ touch "$CTRL/bulk_echoue"          # force la reprise un par un
 touch "$CTRL/echoue_firmware-iwlwifi"
 S="$(lance env)"
 CODE="$(cat "$BANC/code")"
-if echo "$S" | grep -q "MATÉRIEL VITAL ABSENT :.*firmware-iwlwifi"; then
+if grep -q "MATÉRIEL VITAL ABSENT :.*firmware-iwlwifi" <<< "$S" ; then
 	ok "l'absence de firmware-iwlwifi est signalée EN CLAIR dans le journal"
 else
 	non "rien vu sur le matériel vital manquant :\n$S"
@@ -160,7 +160,7 @@ CODE="$(cat "$BANC/code")"
 [ "$CODE" = "1" ] \
 	&& ok "LEXOS_STRICT_FIRMWARE=1 fait échouer la construction (code 1)" \
 	|| non "attendu code 1, obtenu $CODE"
-echo "$S" | grep -q "on s'arrête ici" \
+grep -q "on s'arrête ici" <<< "$S" \
 	&& ok "et le dit explicitement, pas un échec muet" \
 	|| non "le journal ne dit pas pourquoi ça s'est arrêté"
 
@@ -173,12 +173,12 @@ touch "$CTRL/bulk_echoue"          # force quand même la reprise un par un
 S="$(lance env)"
 CODE="$(cat "$BANC/code")"
 [ "$CODE" = "0" ] || non "code inattendu : $CODE"
-if echo "$S" | grep -q "MATÉRIEL VITAL ABSENT"; then
+if grep -q "MATÉRIEL VITAL ABSENT" <<< "$S" ; then
 	non "une alerte est sortie alors que rien de vital ne manquait :\n$S"
 else
 	ok "aucune alerte matériel vital quand tout est là"
 fi
-echo "$S" | grep -q "matériel vital : 6 paquets, tous présents" \
+grep -q "matériel vital : 6 paquets, tous présents" <<< "$S" \
 	&& ok "et le journal le confirme positivement (6 paquets vitaux, tous présents)" \
 	|| non "le message positif attendu est absent"
 
@@ -195,10 +195,10 @@ pose_listes "firmware-iwlwifi" "thunar"
 S="$(lance env)"
 CODE="$(cat "$BANC/code")"
 [ "$CODE" = "0" ] || non "code inattendu : $CODE"
-echo "$S" | grep -q "tous les paquets optionnels installés d'un bloc" \
+grep -q "tous les paquets optionnels installés d'un bloc" <<< "$S" \
 	&& ok "la passe groupée a bien réussi d'un bloc" \
 	|| non "la passe groupée n'a pas pris le chemin attendu :\n$S"
-if echo "$S" | grep -qE "MATÉRIEL VITAL|matériel vital :"; then
+if grep -qE "MATÉRIEL VITAL|matériel vital :" <<< "$S"; then
 	non "le bloc matériel vital a tourné après un succès groupé — il ne devrait pas"
 else
 	ok "le bloc matériel vital ne tourne pas après un succès groupé (comportement voulu)"
@@ -212,7 +212,7 @@ pose_listes "thunar"
 touch "$FWDIR/iwlwifi-gl-c0-fm-c0-92.ucode"
 touch "$FWDIR/iwlwifi-gl-c0-fm-c0.pnvm"
 S="$(lance env)"
-if echo "$S" | grep -q "iwlwifi-gl-c0-fm-c0-92.ucode" && echo "$S" | grep -q "présents dans l'image"; then
+if grep -q "iwlwifi-gl-c0-fm-c0-92.ucode" <<< "$S" && grep -q "présents dans l'image" <<< "$S"; then
 	ok "les fichiers iwlwifi réellement présents sont listés"
 else
 	non "les fichiers présents n'apparaissent pas dans le journal :\n$S"
@@ -229,7 +229,7 @@ reinit
 pose_listes "thunar"
 # $FWDIR existe (via reinit) mais reste VIDE : aucun fichier iwlwifi-gl-*
 S="$(lance env)"
-if echo "$S" | grep -q "AUCUN fichier iwlwifi-gl"; then
+if grep -q "AUCUN fichier iwlwifi-gl" <<< "$S" ; then
 	ok "un dossier de micrologiciels vide est signalé « AUCUN fichier », pas passé sous silence"
 else
 	non "le repli « aucun fichier » ne s'est PAS déclenché sur un dossier vide :\n$S"
@@ -242,7 +242,7 @@ reinit
 pose_listes "thunar"
 printf 'firmware: iwlwifi-gl-c0-fm-c0-92.ucode\nfirmware: iwlwifi-gl-c0-fm-c0-93.ucode\n' > "$CTRL/modinfo_sortie"
 S="$(lance env)"
-if echo "$S" | grep -q "versions réclamées par le pilote iwlwifi" && echo "$S" | grep -q "iwlwifi-gl-c0-fm-c0-92.ucode"; then
+if grep -q "versions réclamées par le pilote iwlwifi" <<< "$S" && grep -q "iwlwifi-gl-c0-fm-c0-92.ucode" <<< "$S"; then
 	ok "les versions réclamées par le pilote (modinfo) sont répétées dans le journal"
 else
 	non "les versions réclamées n'apparaissent pas :\n$S"
@@ -255,7 +255,7 @@ reinit
 pose_listes "thunar"
 # pas de $CTRL/modinfo_sortie : le faux modinfo ne rend rien
 S="$(lance env)"
-if echo "$S" | grep -q "modinfo muet"; then
+if grep -q "modinfo muet" <<< "$S" ; then
 	ok "modinfo sans résultat est signalé, pas silencieusement ignoré"
 else
 	non "aucun message quand modinfo ne rend rien :\n$S"
@@ -277,17 +277,17 @@ reinit
 pose_listes "thunar"
 touch "$CTRL/dpkg_installe_libspa-0.2-bluetooth"   # PulseAudio absent, greffon présent
 S="$(lance env)"
-if echo "$S" | grep -q "son : PipeWire seul, pas de PulseAudio"; then
+if grep -q "son : PipeWire seul, pas de PulseAudio" <<< "$S" ; then
 	ok "PulseAudio absent -> ça le dit calmement, pas d'alerte"
 else
 	non "rien vu sur l'absence de PulseAudio :\n$S"
 fi
-if echo "$S" | grep -q "son Bluetooth : greffon libspa-0.2-bluetooth présent"; then
+if grep -q "son Bluetooth : greffon libspa-0.2-bluetooth présent" <<< "$S" ; then
 	ok "greffon Bluetooth présent -> ça le dit calmement"
 else
 	non "rien vu sur la présence du greffon Bluetooth :\n$S"
 fi
-if echo "$S" | grep -q "PULSEAUDIO EST INSTALLÉ"; then
+if grep -q "PULSEAUDIO EST INSTALLÉ" <<< "$S" ; then
 	non "fausse alerte PulseAudio alors qu'il n'est pas installé :\n$S"
 else
 	ok "pas de fausse alerte quand tout va bien"
@@ -303,12 +303,12 @@ reinit
 pose_listes "thunar"
 touch "$CTRL/dpkg_installe_pulseaudio"
 S="$(lance env)"
-if echo "$S" | grep -q "PULSEAUDIO EST INSTALLÉ alors que LexOS tourne sur PipeWire"; then
+if grep -q "PULSEAUDIO EST INSTALLÉ alors que LexOS tourne sur PipeWire" <<< "$S" ; then
 	ok "PulseAudio installé -> alerte EN CLAIR dans le journal"
 else
 	non "PulseAudio installé sans que rien ne le signale :\n$S"
 fi
-echo "$S" | grep -q "apt-cache rdepends --installed pulseaudio" \
+grep -q "apt-cache rdepends --installed pulseaudio" <<< "$S" \
 	&& ok "et la commande pour trouver qui l'a tiré est donnée" \
 	|| non "aucune piste pour savoir qui a tiré PulseAudio"
 
@@ -324,7 +324,7 @@ reinit
 pose_listes "thunar"
 # ni $CTRL/dpkg_installe_pulseaudio ni …_libspa-0.2-bluetooth : rien n'est installé
 S="$(lance env)"
-if echo "$S" | grep -q "GREFFON BLUETOOTH ABSENT"; then
+if grep -q "GREFFON BLUETOOTH ABSENT" <<< "$S" ; then
 	ok "greffon Bluetooth absent -> alerte EN CLAIR, pas un silence"
 else
 	non "greffon Bluetooth absent sans que rien ne le signale :\n$S"

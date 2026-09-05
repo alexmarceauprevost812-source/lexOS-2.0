@@ -265,7 +265,7 @@ titre "3 quater. Le thème de base RETENU arrive jusqu'au générateur"
 #  n'arrivait pas. Sur une machine sans le socle on aurait posé un lien vers
 #  une ressource ABSENTE — bureau NU, pour un avertissement dans le journal.
 CODE_H="$(sed 's/#.*$//' "$HOOK")"
-if printf '%s' "$CODE_H" | grep -q 'LEXOS_GTK_BASE_THEME="\$GTK_BASE"'; then
+if grep -q 'LEXOS_GTK_BASE_THEME="\$GTK_BASE"' <<< "$CODE_H"; then
 	ok "le hook passe le thème de base retenu À L'APPEL du générateur"
 else
 	non "le hook n'informe pas le générateur du thème de base : le repli n'arriverait pas"
@@ -322,7 +322,7 @@ else
 fi
 
 #  2. Et il part dans build.conf sous SA clé.
-if printf '%s' "$CODE_S" | grep -q 'LEXOS_GTK_SOCLE=\${GTK_SOCLE}'; then
+if grep -q 'LEXOS_GTK_SOCLE=\${GTK_SOCLE}' <<< "$CODE_S"; then
 	ok "build.conf reçoit LEXOS_GTK_SOCLE — la première session saura sur quoi bâtir"
 else
 	non "le hook n'écrit pas le socle dans build.conf : firstrun retomberait sur son défaut"
@@ -331,12 +331,12 @@ fi
 #  3. firstrun le repasse au générateur — et ne lui donne PAS l'autre clé.
 if [ -r "$FIRSTRUN" ]; then
 	CODE_F="$(sed 's/#.*$//' "$FIRSTRUN")"
-	if printf '%s' "$CODE_F" | grep -q 'LEXOS_GTK_SOCLE="\$SOCLE" lexos-theme-gen'; then
+	if grep -q 'LEXOS_GTK_SOCLE="\$SOCLE" lexos-theme-gen' <<< "$CODE_F"; then
 		ok "lexos-firstrun refabrique le thème sur le socle de la construction"
 	else
 		non "lexos-firstrun n'informe pas le générateur du socle : premier démarrage différent de l'ISO"
 	fi
-	if printf '%s' "$CODE_F" | grep -q 'LEXOS_GTK_BASE_THEME=.*lexos-theme-gen'; then
+	if grep -q 'LEXOS_GTK_BASE_THEME=.*lexos-theme-gen' <<< "$CODE_F" ; then
 		non "lexos-firstrun passe LEXOS_GTK_BASE_THEME au générateur — il vaut « LexOS-Noir » dans build.conf"
 	else
 		ok "lexos-firstrun ne donne pas au générateur la clé qui porte « LexOS-Noir »"
@@ -500,7 +500,7 @@ LISTE_CI=""
 	'NR < n && /for p in /{ l = $0 } END { print l }' "$CI_YML")"
 if [ -z "$LISTE_CI" ]; then
 	non "impossible de relire la liste de paquets de la CI pour ce banc"
-elif printf '%s' "$LISTE_CI" | grep -qE "(^|[[:space:]])${RACINE_PAQ:-@}[a-z0-9.+-]*([[:space:]]|;)"; then
+elif grep -qE "(^|[[:space:]])${RACINE_PAQ:-@}[a-z0-9.+-]*([[:space:]]|;)" <<< "$LISTE_CI"; then
 	ok "la CI installe bien le paquet du socle avant de lancer ce banc"
 else
 	non "la CI n'installe aucun « ${RACINE_PAQ}… » : le banc se SAUTERAIT au lieu de mesurer"
@@ -523,7 +523,7 @@ titre "4. Le hook ne déclare le thème que s'il EXISTE"
 #  qu'une ligne du journal ne le signale. C'est la faute que le garde-fou
 #  du socle évite déjà vingt lignes plus haut ; celui-ci fait pareil.
 CODE="$(sed 's/#.*$//' "$HOOK")"
-if printf '%s' "$CODE" | grep -q '\-r "/etc/skel/.themes/${THEME_LEXOS}/gtk-3.0/gtk.css"'; then
+if grep -q '\-r "/etc/skel/.themes/${THEME_LEXOS}/gtk-3.0/gtk.css"' <<< "$CODE"; then
 	ok "le hook vérifie le FICHIER avant de déclarer le thème"
 else
 	non "le hook déclare LexOS-Noir sans vérifier qu'il est là"
@@ -551,7 +551,7 @@ fi
 #  des bordures GRISES au milieu d'un bureau noir, et pas une ligne de
 #  journal. 0600 publie donc sa valeur ; 0610 la remplace par la sienne quand
 #  il réussit, puisqu'il passe après.
-if printf '%s' "$CODE" | grep -q 'LEXOS_XFWM_THEME=\${XFWM_THEME}'; then
+if grep -q 'LEXOS_XFWM_THEME=\${XFWM_THEME}' <<< "$CODE"; then
 	ok "le hook 0600 publie LEXOS_XFWM_THEME — 0610 muet ne laisse plus la clé vide"
 else
 	non "LEXOS_XFWM_THEME n'est pas publié par 0600 : bordures grises si 0610 ne dérive rien"

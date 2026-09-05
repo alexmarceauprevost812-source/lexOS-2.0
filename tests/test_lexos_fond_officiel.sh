@@ -55,7 +55,7 @@ extrait() {
 }
 BLOC="$(extrait)"
 [ -n "$BLOC" ] || { non "extraction ratée : le bloc du démon officiel n'a pas été trouvé dans le hook"; echo; exit 1; }
-echo "$BLOC" | grep -q 'ln -sf wallpaper-demon.png' \
+grep -q 'ln -sf wallpaper-demon.png' <<< "$BLOC" \
 	|| { non "extraction ratée : le lien symbolique n'est pas dans le bloc extrait — repère déplacé ?"; echo; exit 1; }
 
 # =============================================================================

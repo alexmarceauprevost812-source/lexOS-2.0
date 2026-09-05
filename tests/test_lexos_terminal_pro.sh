@@ -165,7 +165,7 @@ PY
 	SORTIE_B="$(yes 2>/dev/null | python3 "$BANC/b1.py" "$BACKEND" 2>/dev/null | grep -E '^(OK|NON|FIN)\|' || true)"
 	if [ -z "$SORTIE_B" ]; then
 		non "le backend n'a rien rendu"
-	elif ! printf '%s\n' "$SORTIE_B" | grep -q '^FIN|'; then
+	elif ! grep -q '^FIN|' <<< "$SORTIE_B"; then
 		non "le banc du backend s'est arrêté avant la fin"
 	else
 		while IFS='|' read -r V M; do
@@ -233,7 +233,7 @@ PY
 )"
 	if [ -z "$SORTIE_S" ]; then
 		non "le banc de sécurité n'a rien rendu"
-	elif ! printf '%s\n' "$SORTIE_S" | grep -q '^FIN|'; then
+	elif ! grep -q '^FIN|' <<< "$SORTIE_S"; then
 		non "le banc de sécurité s'est arrêté avant la fin"
 	else
 		while IFS='|' read -r V M; do
@@ -318,7 +318,7 @@ NODEJS
 )"
 	if [ -z "$SORTIE_J" ]; then
 		non "le front-end n'a rien rendu"
-	elif ! printf '%s\n' "$SORTIE_J" | grep -q '^FIN|'; then
+	elif ! grep -q '^FIN|' <<< "$SORTIE_J"; then
 		non "le rendu du front-end s'est arrêté avant la fin"
 	else
 		while IFS='|' read -r V M; do

@@ -65,7 +65,7 @@ fi
 #  LE FOND DE LA RÈGLE ELLE-MÊME, pas un noir trouvé ailleurs dans le
 #  fichier : on lit le bloc, du sélecteur à son accolade fermante.
 BLOC="$(sed -n '/^#whiskermenu-window {/,/^}/p' "$CSS")"
-if printf '%s' "$BLOC" | grep -qE 'background-color:[[:space:]]*(rgba\([[:space:]]*0,[[:space:]]*0,[[:space:]]*0|#000000|#000\b)'; then
+if grep -qE 'background-color:[[:space:]]*(rgba\([[:space:]]*0,[[:space:]]*0,[[:space:]]*0|#000000|#000\b)' <<< "$BLOC"; then
 	ok "…et elle pose un fond NOIR"
 else
 	non "le fond de #whiskermenu-window n'est pas noir :\n$BLOC"
@@ -78,7 +78,7 @@ fi
 if grep -qE '^#whiskermenu-window (list|scrolledwindow|viewport|treeview\.view|iconview|entry)' "$CSS"; then
 	ok "les sous-nœuds du menu ont leur propre règle"
 	SOUS="$(sed -n '/^#whiskermenu-window entry,/,/^}/p' "$CSS")"
-	if printf '%s' "$SOUS" | grep -q 'background-color:[[:space:]]*transparent'; then
+	if grep -q 'background-color:[[:space:]]*transparent' <<< "$SOUS" ; then
 		ok "…et ils sont TRANSPARENTS, pas noirs (sinon l'arrondi serait recouvert)"
 	else
 		non "les sous-nœuds ne sont pas transparents : l'arrondi du menu serait recouvert"
@@ -100,7 +100,7 @@ fi
 
 for N in XfcePanelWindow XfceNotifyWindow; do
 	B="$(sed -n "/^#${N} {/,/^}/p" "$CSS")"
-	if printf '%s' "$B" | grep -qE 'background-color:[[:space:]]*rgba\([[:space:]]*0,[[:space:]]*0,[[:space:]]*0'; then
+	if grep -qE 'background-color:[[:space:]]*rgba\([[:space:]]*0,[[:space:]]*0,[[:space:]]*0' <<< "$B"; then
 		ok "#${N} est passé au noir franc"
 	else
 		non "#${N} n'a pas un fond noir :\n$(printf '%s' "$B" | grep background-color)"
@@ -205,7 +205,7 @@ fi
 #  classe « wrapper-2.0 » est celle de TOUS les greffons du panneau.
 BLOCP="$(sed -n "${L_WHISKER:-1},/^	},/p" "$PICOM" 2>/dev/null)"
 if [[ -n "$L_WHISKER" ]]; then
-	if printf '%s' "$BLOCP" | grep -q "class_g"; then
+	if grep -q "class_g" <<< "$BLOCP" ; then
 		non "la règle Whisker matche sur la CLASSE : « wrapper-2.0 » attraperait tout le panneau"
 	else
 		ok "…et elle matche sur WM_NAME, seul discriminant (la classe est partagée)"
@@ -221,11 +221,11 @@ if [[ -n "$L_WHISKER" ]]; then
 		non "« opacity » n'est pas défini aux deux déclencheurs ($N_OPAC) : l'animation serait invisible"
 	fi
 
-	printf '%s' "$BLOCP" | grep -q 'offset-y' \
+	grep -q 'offset-y' <<< "$BLOCP" \
 		&& ok "…le menu DESCEND en s'ouvrant (offset-y), ce n'est pas qu'un fondu" \
 		|| non "aucun offset-y : le menu ne ferait que se fondre"
 
-	printf '%s' "$BLOCP" | grep -qE 'shadow[[:space:]]*=[[:space:]]*true' \
+	grep -qE 'shadow[[:space:]]*=[[:space:]]*true' <<< "$BLOCP" \
 		&& ok "…et son ombre reste ALLUMÉE (grande surface noire sur fond sombre)" \
 		|| non "l'ombre du menu Whisker est éteinte : son bord se perdrait"
 fi
@@ -277,9 +277,9 @@ else
 	#  graphique (« Failed to enable vsync », EGL…) qui n'ont rien à voir
 	#  avec le fichier, ni les options que la version installée ne connaît
 	#  pas encore — « rules » et « animations » datent de picom 12.
-	if printf '%s' "$SORTIE" | grep -qiE 'syntax error|parse error|configuration file|unmatched|expected'; then
+	if grep -qiE 'syntax error|parse error|configuration file|unmatched|expected' <<< "$SORTIE"; then
 		non "picom signale une erreur de syntaxe :\n$(printf '%s' "$SORTIE" | grep -iE 'syntax|parse|expected' | head -3)"
-	elif printf '%s' "$SORTIE" | grep -q 'Config file used'; then
+	elif grep -q 'Config file used' <<< "$SORTIE" ; then
 		ok "picom lit le fichier sans erreur de syntaxe ($(printf '%s' "$SORTIE" | grep -oE '\*\*Version:\*\* v[0-9]+' | head -1))"
 	else
 		saute "picom n'a pas pu s'initialiser ici (pilote graphique) — syntaxe non jugée par lui"

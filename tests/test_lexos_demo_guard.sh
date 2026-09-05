@@ -103,7 +103,7 @@ done
 	&& ok "l'ouverture automatique sur « lex » est retirée — on atteint enfin l'écran de connexion" \
 	|| non "60-lexos-autologin.conf est resté : la machine installée rouvrira la session de démo"
 
-echo "$SORTIE" | grep -q "réglages de démo retirés" \
+grep -q "réglages de démo retirés" <<< "$SORTIE" \
 	&& ok "le garde-fou DIT ce qu'il a retiré, au lieu d'agir en silence" \
 	|| non "rien n'a été annoncé dans le journal : « $SORTIE »"
 
@@ -141,7 +141,7 @@ RC2=$?
 	&& ok "relancé sur un système déjà nettoyé, il sort proprement (code 0)" \
 	|| non "au deuxième passage, code de sortie $RC2 — l'unité tomberait en échec à chaque démarrage"
 
-echo "$SORTIE2" | grep -q "réglages de démo retirés" \
+grep -q "réglages de démo retirés" <<< "$SORTIE2" \
 	&& non "au deuxième passage il annonce encore des retraits alors qu'il n'y avait plus rien" \
 	|| ok "au deuxième passage, il n'annonce rien : il n'y avait plus rien à faire"
 

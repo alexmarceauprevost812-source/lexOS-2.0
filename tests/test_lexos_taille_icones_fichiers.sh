@@ -73,7 +73,7 @@ if [[ -r "$XSET" ]]; then
 	#  Le bloc Gtk, et pas ailleurs : xsettings.xml porte plusieurs canaux
 	#  (Net, Xft…), et une propriété rangée dans le mauvais n'atteindrait
 	#  jamais GTK.
-	if sed -n '/<property name="Gtk"/,/<\/property>/p' "$XSET" | grep -q 'name="IconSizes"'; then
+	if grep -q 'name="IconSizes"' < <(sed -n '/<property name="Gtk"/,/<\/property>/p' "$XSET"); then
 		ok "…et elle est bien DANS le bloc « Gtk », pas dans un autre canal"
 	else
 		non "IconSizes est hors du bloc « Gtk » : xfsettingsd ne l'exporterait pas vers GTK"
@@ -120,8 +120,8 @@ if [[ -r "$HOOK" ]]; then
 
 	#  DANS le heredoc, pas à côté : une ligne écrite après « EOF » ne
 	#  partirait pas dans settings.ini.
-	if sed -n '/cat > \/etc\/gtk-3.0\/settings.ini <<EOF/,/^EOF$/p' "$HOOK" \
-		| sed 's/#.*$//' | grep -q '^gtk-icon-sizes='; then
+	if grep -q '^gtk-icon-sizes=' \
+		< <(sed -n '/cat > \/etc\/gtk-3.0\/settings.ini <<EOF/,/^EOF$/p' "$HOOK" | sed 's/#.*$//'); then
 		ok "…et la ligne est bien DANS le bloc écrit vers settings.ini"
 	else
 		non "gtk-icon-sizes est hors du heredoc : rien n'atteindrait settings.ini"

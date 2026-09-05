@@ -78,9 +78,9 @@ PY
 )"
 lire() { printf '%s' "$LU" | sed -n "s/^$1://p"; }
 
-if printf '%s' "$LU" | grep -q '^ERREUR:'; then
+if grep -q '^ERREUR:' <<< "$LU" ; then
 	non "le fichier ne se parse pas : $(lire ERREUR)"
-elif printf '%s' "$(lire SECTIONS)" | grep -q 'org\.gnome\.desktop\.interface'; then
+elif grep -q 'org\.gnome\.desktop\.interface' < <(printf '%s' "$(lire SECTIONS)"); then
 	ok "il vise « org.gnome.desktop.interface » — le schéma que libadwaita lit"
 else
 	non "mauvaise section : « $(lire SECTIONS) » — libadwaita ne lirait rien"
@@ -237,7 +237,7 @@ X
 		else
 			non "sans bus de session il appelle quand même gsettings : « $vu »"
 		fi
-	elif printf '%s' "$vu" | grep -q "set org.gnome.desktop.interface color-scheme $attendu"; then
+	elif grep -q "set org.gnome.desktop.interface color-scheme $attendu" <<< "$vu" ; then
 		ok "mode « ${mode:-sombre} » → color-scheme $attendu"
 	else
 		non "mode « ${mode:-sombre} » : attendu « $attendu », vu « ${vu:-aucun appel} »"

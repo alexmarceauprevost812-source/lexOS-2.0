@@ -182,12 +182,12 @@ if command -v xfce4-terminal >/dev/null 2>&1 \
 
 	kill "$XVFB_PID" 2>/dev/null; wait "$XVFB_PID" 2>/dev/null
 
-	if printf '%s' "$SORTIE" | grep -qi 'migrated'; then
+	if grep -qi 'migrated' <<< "$SORTIE" ; then
 		non "xfce4-terminal a migré terminalrc au lieu de lire notre canal — il l'a donc trouvé VIDE"
 	else
 		ok "aucun message de migration : le vrai xfce4-terminal a trouvé le canal déjà rempli"
 	fi
-	if printf '%s' "$SORTIE" | grep -qi 'unrecognized\|unknown.*setting\|no such property'; then
+	if grep -qi 'unrecognized\|unknown.*setting\|no such property' <<< "$SORTIE"; then
 		non "xfce4-terminal signale une clé qu'il ne reconnaît pas : $SORTIE"
 	else
 		ok "aucune clé rejetée — les 24 noms vérifiés sont tous corrects"

@@ -957,6 +957,52 @@ jobs:
           fi
           echo "lexos.conf : $LEXOS_NAME $LEXOS_VERSION ($LEXOS_FLAVOUR / $LEXOS_ACCENT_NAME)"
 
+      - name: Aucun banc ne renvoie un texte dans « grep -q »
+        if: ${{ !cancelled() }}
+        run: |
+          #  ═══ CE QUE CE CONTRÔLE PROTÈGE, ET IL A DÉJÀ MORDU ═══
+          #  « grep -q » S'ARRÊTE AU PREMIER RÉSULTAT et ferme le tuyau. Ce
+          #  qui écrivait encore — printf, sed, une commande — reçoit une
+          #  erreur d'écriture, et sous « set -o pipefail » c'est TOUT LE
+          #  TUYAU qui échoue : la condition devient FAUSSE alors que le motif
+          #  A ÉTÉ TROUVÉ.
+          #
+          #  MESURÉ, PAS SUPPOSÉ. Sur test_lexos_installateur_bandeau.sh, la
+          #  forme « sed … | grep -q » échouait 54 fois sur 300 essais — un
+          #  faux rouge une fois sur cinq, depuis toujours, sur un banc que
+          #  cette CI lance à chaque construction. C'est aussi ce qui a fait
+          #  rougir la CI de l'ISO 111 pour rien.
+          #
+          #  ET LE FAUX ROUGE N'EST PAS LE PLUS GRAVE. Dans un contrôle
+          #  INVERSÉ — « si ce motif est là, rougis » — la même course donne
+          #  un FAUX VERT : le motif interdit est trouvé, le tuyau échoue, et
+          #  le banc annonce que tout va bien.
+          #
+          #  LA FORME SÛRE : « grep motif <<< "$VAR" » quand le texte est déjà
+          #  en mémoire, « grep motif < <(commande) » sinon — la substitution
+          #  de processus sort le producteur du tuyau, donc son erreur ne
+          #  compte plus dans PIPESTATUS.
+          #
+          #  ON DÉCOMMENTE D'ABORD : les explications comme celle-ci CITENT le
+          #  motif fautif. Un contrôle qui lit la prose se déclenche sur sa
+          #  propre justification — c'est arrivé sept fois dans ce chantier.
+          bad=0
+          for f in tests/*.sh; do
+            [ -r "$f" ] || continue
+            #  Sans « pipefail », l'erreur du producteur ne remonte pas : le
+            #  tuyau garde le code de grep, et la course est sans effet.
+            grep -q 'pipefail' "$f" || continue
+            #  « [^|] » écarte « || grep -q », qui n'est pas un tuyau.
+            DUR="$(sed 's/^[[:space:]]*#.*$//' "$f"                    | grep -nE '[^|]\|[[:space:]]*grep[[:space:]]+-[a-zA-Z]*[qm]' || true)"
+            if [ -n "$DUR" ]; then
+              echo "::error file=$f::un texte repart dans « grep -q » — la course peut se perdre :"
+              printf '%s\n' "$DUR" | sed 's/^/      /'
+              bad=1
+            fi
+          done
+          [ "$bad" = "0" ] && echo "  ok — aucun banc ne renvoie un texte dans « grep -q »"
+          exit $bad
+
       - name: Aucun banc d'essai orphelin
         if: ${{ !cancelled() }}
         run: |

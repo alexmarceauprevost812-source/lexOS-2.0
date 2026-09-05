@@ -288,7 +288,7 @@ fi
 SORTIE="$(node "$BANC/rendu.js" "$PAGE" "$ETAT" 2>&1 | grep -E '^(OK|NON|INFO|FIN)\|' || true)"
 if [ -z "$SORTIE" ]; then
 	non "rien n'a été rendu — app.js n'a pas pu être chargé"
-elif ! printf '%s\n' "$SORTIE" | grep -q '^FIN|'; then
+elif ! grep -q '^FIN|' <<< "$SORTIE"; then
 	non "le rendu s'est arrêté avant la fin — des contrôles n'ont jamais tourné"
 	printf '%s\n' "$SORTIE" | while IFS='|' read -r V M; do
 		[ "$V" = "NON" ] && printf '  \033[31m❌\033[0m %s\n' "$M"
@@ -328,7 +328,7 @@ if grep -nE '\bcorps\.innerHTML' "$BANC/page.js"; then
 else
 	ok "aucune section n'écrit dans « corps »"
 fi
-if grep -nE '^\s+break;\s*$' "$BANC/page.js" | grep -q .; then
+if grep -q . < <(grep -nE '^\s+break;\s*$' "$BANC/page.js"); then
 	non "un « break » traîne dans contenu() : la section rendrait « undefined »"
 else
 	ok "aucun « break » ne remplace un « return » dans contenu()"
@@ -359,7 +359,7 @@ else
 	regle() { awk -v c="$1" 'index($0, c)==1 { d=1 } d { print; if (/}/) exit }' "$STYLE"; }
 
 	SURVOL="$(regle '.btn.ghost:hover')"
-	if printf '%s' "$SURVOL" | grep -q 'border-color:var(--ac)'; then
+	if grep -q 'border-color:var(--ac)' <<< "$SURVOL" ; then
 		ok "le survol accentue la BORDURE — plus seulement un gris invisible"
 	else
 		non "le survol ne change pas la bordure : « c'est cliquable » ne se lit toujours pas"
@@ -379,7 +379,7 @@ else
 	fi
 
 	PRESSE="$(regle '.btn.ghost:active,')"
-	if printf '%s' "$PRESSE" | grep -q 'background:var(--ac)'; then
+	if grep -q 'background:var(--ac)' <<< "$PRESSE" ; then
 		ok "le clic pose l'accent en fond — « c'est parti » se voit"
 	else
 		non "le clic ne pose pas de fond accentué : aucun retour de couleur"
@@ -403,8 +403,8 @@ else
 	#  serait brutal : la couleur sauterait pendant que la taille revient en
 	#  douceur.
 	TRANS="$(regle '.btn{transition:')"
-	if printf '%s' "$TRANS" | grep -q 'background-color' \
-	   && printf '%s' "$TRANS" | grep -q 'border-color'; then
+	if grep -q 'background-color' <<< "$TRANS" \
+	   && grep -q 'border-color' <<< "$TRANS" ; then
 		ok "background-color et border-color sont en transition — le retour est doux"
 	else
 		non "la couleur n'est pas en transition : le retour au gris serait brutal"
@@ -432,8 +432,8 @@ else
 		d && /^}/ { dernier = buf; d = 0 }
 		END { printf "%s", dernier }
 	' "$STYLE")"
-	if printf '%s' "$RM" | grep -q 'transform:none' \
-	   && printf '%s' "$RM" | grep -q 'background-color'; then
+	if grep -q 'transform:none' <<< "$RM" \
+	   && grep -q 'background-color' <<< "$RM" ; then
 		ok "en mouvement réduit, le transform part mais la COULEUR reste"
 	else
 		non "le mode « mouvement réduit » emporte la couleur avec le mouvement : plus aucun retour"
@@ -442,7 +442,7 @@ else
 	#  Les boutons de CHOIX gardent leur état permanent : c'est ce qui
 	#  distingue un réglage actif d'une commande déjà lancée.
 	SEL="$(regle '.btn.sel{')"
-	if printf '%s' "$SEL" | grep -q 'background:var(--ac)'; then
+	if grep -q 'background:var(--ac)' <<< "$SEL" ; then
 		ok ".btn.sel pose toujours l'accent — l'état des boutons de choix est intact"
 	else
 		non ".btn.sel ne pose plus l'accent : on ne verrait plus quel réglage est actif"

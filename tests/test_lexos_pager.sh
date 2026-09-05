@@ -134,7 +134,7 @@ else
 
 	#  La pilule GRANDIT, elle n'apparaît pas : c'est la transition sur la
 	#  largeur qui fait lire le déplacement d'un espace à l'autre.
-	if printf '%s\n' "$REPOS" | grep -q 'transition:.*min-width'; then
+	if grep -q 'transition:.*min-width' <<< "$REPOS" ; then
 		ok "la transition sur min-width est là — la pilule glisse au lieu de sauter"
 	else
 		non "plus de transition sur min-width : le changement d'espace serait net"
@@ -262,9 +262,9 @@ else
 		SQUELETTE="$(awk '/Style du panneau, repris du squelette/{d=1} d{print} /Fin du bloc squelette/{exit}' "$PRODUIT")"
 		if [ "$(printf '%s' "$SQUELETTE" | grep -c .)" -lt 10 ]; then
 			non "bloc du squelette introuvable dans la feuille produite — le contre-contrôle ne prouve rien"
-		elif printf '%s' "$SQUELETTE" | grep -q '232, 89, 12'; then
+		elif grep -q '232, 89, 12' <<< "$SQUELETTE" ; then
 			non "le triplet orange a survécu à un accent bleu : la substitution ne tourne plus, le contrôle ci-dessus ne prouve rien"
-		elif printf '%s' "$SQUELETTE" | grep -q '26, 95, 180'; then
+		elif grep -q '26, 95, 180' <<< "$SQUELETTE" ; then
 			ok "le squelette a bien été substitué (triplet passé à l'accent bleu) — le contrôle du blanc a un sens"
 		else
 			non "ni l'orange ni le bleu dans le bloc du squelette : on ne mesure plus rien"

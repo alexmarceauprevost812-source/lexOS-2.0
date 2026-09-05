@@ -124,7 +124,7 @@ titre "4. Aucune interface du tout -> ça le dit, ça n'invente rien"
 # =============================================================================
 vide_bl
 SORTIE="$(LEXOS_BL="$BANC/bl" "$OUTIL" 2>&1)"
-echo "$SORTIE" | grep -qi "aucun moyen" \
+grep -qi "aucun moyen" <<< "$SORTIE" \
 	&& ok "sans aucune interface, lexos-brightness le dit clairement" \
 	|| non "sortie inattendue sans interface : $SORTIE"
 

@@ -58,7 +58,7 @@ fi
 #  « -- ». L'en-tête citait « var(‑‑ac) », le nom CSS de l'accent, et librsvg
 #  a refusé le fichier ENTIER. Un parseur permissif ne l'aurait pas dit.
 ENTETE="$(sed -n '/<!--/,/-->/p' "$SVG" | sed 's/<!--//' | sed 's/-->//')"
-if printf '%s' "$ENTETE" | grep -q -- '--'; then
+if grep -q -- '--' <<< "$ENTETE" ; then
 	non "l'en-tête contient « -- » : librsvg refusera le fichier entier"
 else
 	ok "aucun double tiret dans le commentaire — librsvg ne le refusera pas"

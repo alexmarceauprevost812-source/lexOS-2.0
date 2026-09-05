@@ -125,13 +125,13 @@ PY
 lire() { printf '%s' "$ETAT" | grep "^$1:" | cut -d: -f2-; }
 
 IDS="$(lire IDS)"
-if printf '%s' ",$IDS," | grep -q ',15,'; then
+if grep -q ',15,' < <(printf '%s' ",$IDS,"); then
 	non "le greffon 15 (la cloche) est encore dans l'ordre de la barre"
 else
 	ok "la cloche ne figure plus dans l'ordre de la barre"
 fi
 
-if printf '%s' "$(lire DECLARES)" | grep -qw 'plugin-15'; then
+if grep -qw 'plugin-15' < <(printf '%s' "$(lire DECLARES)"); then
 	non "« plugin-15 » est encore déclaré : le greffon reviendrait"
 else
 	ok "« plugin-15 » n'est plus déclaré"

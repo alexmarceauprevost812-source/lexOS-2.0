@@ -217,7 +217,7 @@ grep -q 'actuel=' "$FIRSTRUN" \
 #  démarrage, ni en ligne de commande, ni dans les Paramètres. Si quelqu'un
 #  le remet un jour sans avoir résolu le calque, ce banc devient rouge avant
 #  qu'Alex ne reperde ses icônes.
-if grep -v '^[[:space:]]*#' "$FIRSTRUN" | grep -qE 'fond-anime|fond-video'; then
+if grep -qE 'fond-anime|fond-video' < <(grep -v '^[[:space:]]*#' "$FIRSTRUN"); then
 	non "lexos-firstrun touche encore à un fond animé — les icônes du bureau repasseraient dessous"
 else
 	ok "rien au démarrage : le bureau s'ouvre sur le fond fixe"
@@ -363,7 +363,7 @@ grep -q 'batGlyph(state.batt' "$DEMO" \
 
 #  LES COULEURS D'ÉTAT NE SUIVENT PAS L'ACCENT. Une batterie à plat doit
 #  rester rouge sur une ISO montée en bleu, comme l'antenne Wi-Fi coupée.
-if grep -A 6 'const BAT_PALIERS' "$APP" | grep -q 'var(--ac)'; then
+if grep -q 'var(--ac)' < <(grep -A 6 'const BAT_PALIERS' "$APP"); then
 	non "un palier suit l'accent — une batterie à plat deviendrait bleue"
 else
 	ok "aucun palier ne suit l'accent : le rouge reste rouge"
@@ -503,7 +503,7 @@ grep -q '"fond-ouvrir": act_fond_ouvrir' "$SETTINGS" \
 #  n'accepte qu'un entier borné.
 grep -q 'api/fond-vignette' "$SETTINGS" \
 	&& ok "la route des vignettes existe" || non "pas de route de vignettes"
-if sed -n '/fond-vignette/,/return super().do_GET()/p' "$SETTINGS" | grep -q 'self.path.split\|os.path.join(.*query\|open(.*query'; then
+if grep -q 'self.path.split\|os.path.join(.*query\|open(.*query' < <(sed -n '/fond-vignette/,/return super().do_GET()/p' "$SETTINGS"); then
 	non "la route compose un chemin depuis la requête — traversée possible"
 else
 	ok "la route ne lit que par indice revalidé (aucun chemin ne vient de la page)"

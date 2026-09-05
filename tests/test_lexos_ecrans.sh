@@ -154,10 +154,10 @@ faux_xrandr oui
 [ -z "$(clip '')" ] \
 	&& ok "sans --ecran, aucun -clip : on partage tout, comme avant" \
 	|| non "un -clip est posé sans qu'on l'ait demandé"
-messages '' | grep -q '3 ÉCRANS' \
+grep -q '3 ÉCRANS' < <(messages '') \
 	&& ok "mais on PRÉVIENT qu'on montre les trois écrans d'un coup" \
 	|| non "trois écrans partagés sans un mot"
-messages '' | grep -q -- '--ecran' \
+grep -q -- '--ecran' < <(messages '') \
 	&& ok "et on dit comment n'en montrer qu'un" || non "l'avertissement ne dit pas quoi faire"
 
 #  Une sortie inconnue doit ARRÊTER, pas partager tout par défaut : partager

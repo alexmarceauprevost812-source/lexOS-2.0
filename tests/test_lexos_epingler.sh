@@ -59,7 +59,7 @@ else
 	non "$(items) fichier(s) écrit(s) au lieu d'un : $SORTIE"
 fi
 F="$(ls "$BANC/d/lanceurs"/*.dockitem 2>/dev/null | head -1)"
-if [[ -n "$F" ]] && head -1 "$F" | grep -qx '\[PlankDockItemPreferences\]'; then
+if [[ -n "$F" ]] && grep -qx '\[PlankDockItemPreferences\]' < <(head -1 "$F"); then
 	ok "il porte l'en-tête que Plank attend"
 else
 	non "en-tête absent ou faux — Plank ignorerait le fichier"
@@ -110,7 +110,7 @@ if [[ "$(items)" == "1" ]]; then
 else
 	non "$(items) fichiers après deux épinglages : le dock aurait l'icône en double"
 fi
-if printf '%s' "$SORTIE2" | grep -qi 'déjà'; then
+if grep -qi 'déjà' <<< "$SORTIE2" ; then
 	ok "…et il le DIT au lieu de faire semblant"
 else
 	non "il ne dit rien : on cliquerait à nouveau sans savoir"
@@ -122,7 +122,7 @@ if [[ "$CODE3" -ne 0 && "$(items)" == "0" ]]; then
 else
 	non "une image a été épinglée, ou l'échec est passé pour un succès"
 fi
-if printf '%s' "$SORTIE3" | grep -qi "n'est pas une application"; then
+if grep -qi "n'est pas une application" <<< "$SORTIE3" ; then
 	ok "…avec un message qui dit pourquoi"
 else
 	non "refus muet : « $SORTIE3 »"
@@ -148,14 +148,14 @@ if [[ "$(vise | grep -c .)" == "1" && "$(vise)" == *mon-script* ]]; then
 else
 	non "le retrait n'a pas trouvé l'entrée : reste « $(vise) »"
 fi
-if lance --liste | grep -q 'mon-script'; then
+if grep -q 'mon-script' < <(lance --liste); then
 	ok "la liste montre ce qui reste"
 else
 	non "la liste ne montre pas ce qui est épinglé"
 fi
 #  Sans dock du tout, l'outil ne doit pas planter en silence.
 rm -rf "$BANC/d/lanceurs"
-if lance --liste | grep -qi 'rien sur le dock'; then
+if grep -qi 'rien sur le dock' < <(lance --liste); then
 	ok "sans dock installé, il le dit au lieu de rendre une liste vide muette"
 else
 	non "sans dock, la sortie ne dit rien"

@@ -398,7 +398,7 @@ else
 	else
 		ok "le script ne charge pas d'image de pluie absente"
 	fi
-	if printf '%s' "$J2" | grep -q 'pluie-demarrage.png absente'; then
+	if grep -q 'pluie-demarrage.png absente' <<< "$J2" ; then
 		ok "l'absence de la pluie se DIT dans le journal de construction"
 	else
 		non "la pluie manque en silence — on ne saurait pas pourquoi l'écran est nu"
@@ -426,7 +426,7 @@ else
 	else
 		non "un lexos.script traîne alors qu'on est en repli"
 	fi
-	if printf '%s' "$J3" | grep -q 'lettres ou mascotte absentes'; then
+	if grep -q 'lettres ou mascotte absentes' <<< "$J3" ; then
 		ok "le repli se DIT dans le journal de construction"
 	else
 		non "le repli est silencieux — on livrerait un écran nu sans le savoir"
@@ -518,7 +518,7 @@ else
 	ok "bloc Plymouth découpé du hook ($(printf '%s' "$BLOC_PLY" | grep -c .) lignes)"
 fi
 
-if printf '%s' "$BLOC_PLY" | grep -q "xc:'#E8590C'"; then
+if grep -q "xc:'#E8590C'" <<< "$BLOC_PLY" ; then
 	non "la barre de démarrage est peinte avec le JETON d'accent : elle suivrait « lexos accent »"
 else
 	ok "la barre n'emploie pas le jeton d'accent — elle est hors du chemin de substitution"

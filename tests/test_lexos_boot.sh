@@ -92,9 +92,9 @@ pose_dev sans-nvme; faux_lspci
 pose_efi 1
 demande secure_boot_actif && ok "actif : le cinquième octet vaut 1 → on le dit" \
 	|| non "Secure Boot actif non détecté — l'écran noir resterait inexpliqué"
-dit secure_boot_dire | grep -q 'SECURE BOOT : ACTIF' \
+grep -q 'SECURE BOOT : ACTIF' < <(dit secure_boot_dire) \
 	&& ok "et le message le nomme en toutes lettres" || non "message d'alerte absent"
-dit secure_boot_dire | grep -q 'F2' \
+grep -q 'F2' < <(dit secure_boot_dire) \
 	&& ok "le message dit QUELLE TOUCHE taper (pas « voir le BIOS »)" \
 	|| non "le message n'explique pas comment le désactiver"
 
@@ -124,9 +124,9 @@ pose_dev sans-nvme; faux_lspci "$VMD" "$GPU"
 demande mode_raid_probable \
 	&& ok "contrôleur VMD présent ET aucun NVMe derrière → on prévient" \
 	|| non "le cas exact de l'Alienware d'usine n'est pas détecté"
-dit mode_raid_dire | grep -q 'AHCI' \
+grep -q 'AHCI' < <(dit mode_raid_dire) \
 	&& ok "et le message nomme le réglage à changer" || non "le message ne dit pas quoi faire"
-dit mode_raid_dire | grep -q 'INACCESSIBLE_BOOT_DEVICE' \
+grep -q 'INACCESSIBLE_BOOT_DEVICE' < <(dit mode_raid_dire) \
 	&& ok "il prévient aussi pour Windows (le piège du double démarrage)" \
 	|| non "rien sur Windows — l'utilisateur perdrait son autre système sans être prévenu"
 
@@ -149,7 +149,7 @@ titre "3. Sans lspci : dire « je ne peux pas savoir », pas « tout va bien »"
 pose_dev sans-nvme; faux_lspci
 demande mode_raid_probable && non "sans lspci, il conclut quand même au mode RAID" \
 	|| ok "sans lspci, il ne conclut pas au mode RAID"
-dit mode_raid_dire | grep -q 'impossible à vérifier' \
+grep -q 'impossible à vérifier' < <(dit mode_raid_dire) \
 	&& ok "et il DIT qu'il n'a pas pu vérifier (pas « rien d'anormal »)" \
 	|| non "sans lspci, il annonce « rien d'anormal » — un contrôle qui ne contrôle rien"
 

@@ -120,22 +120,22 @@ titre "1. Disque chiffré (BitLocker) -> ça le dit clairement, pas « pas de Wi
 pose_table "nvme0n1p3 BitLocker 500000000000"
 S="$(lance)"
 CODE="$(cat "$BANC/code")"
-if echo "$S" | grep -q "CHIFFRÉ (BitLocker)"; then
+if grep -q "CHIFFRÉ (BitLocker)" <<< "$S" ; then
 	ok "le disque chiffré est signalé comme CHIFFRÉ, pas comme absent"
 else
 	non "aucune mention de BitLocker dans la sortie :\n$S"
 fi
-if echo "$S" | grep -q "nvme0n1p3"; then
+if grep -q "nvme0n1p3" <<< "$S" ; then
 	ok "le nom du périphérique chiffré est cité"
 else
 	non "le périphérique n'est pas nommé"
 fi
-if echo "$S" | grep -q "aucune partition Windows"; then
+if grep -q "aucune partition Windows" <<< "$S" ; then
 	non "le message « aucune partition Windows » est ENCORE affiché — c'est faux ici, Windows existe"
 else
 	ok "le message « aucune partition Windows » (faux dans ce cas) n'apparaît plus"
 fi
-echo "$S" | grep -q "clé de récupération" \
+grep -q "clé de récupération" <<< "$S" \
 	&& ok "le conseil de noter la clé de récupération est présent" \
 	|| non "aucun rappel de la clé de récupération"
 [ "$CODE" = "0" ] \
@@ -153,10 +153,10 @@ titre "2. Disque chiffré -> le reste du bilan (menu de démarrage) s'affiche qu
 #  cette partie utile pour rien.
 pose_table "nvme0n1p3 BitLocker 500000000000"
 S="$(lance)"
-echo "$S" | grep -q "LE MENU DE DÉMARRAGE" \
+grep -q "LE MENU DE DÉMARRAGE" <<< "$S" \
 	&& ok "le bilan continue jusqu'à la section du menu de démarrage" \
 	|| non "le bilan s'est arrêté avant la section du menu de démarrage :\n$S"
-echo "$S" | grep -q "CE QU'IL FAUT RETENIR" \
+grep -q "CE QU'IL FAUT RETENIR" <<< "$S" \
 	&& ok "…et jusqu'au résumé final" \
 	|| non "le résumé final n'a pas été atteint"
 
@@ -165,12 +165,12 @@ titre "3. Windows en clair (NTFS) -> comportement d'origine intact, pas de régr
 # =============================================================================
 pose_table "nvme0n1p3 ntfs 500000000000"
 S="$(lance)"
-if echo "$S" | grep -q "Windows trouvé sur /dev/nvme0n1p3"; then
+if grep -q "Windows trouvé sur /dev/nvme0n1p3" <<< "$S" ; then
 	ok "un Windows NTFS normal est toujours trouvé exactement comme avant"
 else
 	non "régression : Windows NTFS non détecté :\n$S"
 fi
-if echo "$S" | grep -qi "BitLocker\|CHIFFRÉ"; then
+if grep -qi "BitLocker\|CHIFFRÉ" <<< "$S"; then
 	non "une mention de chiffrement est apparue alors que le disque est en clair"
 else
 	ok "aucune fausse alerte de chiffrement sur un disque en clair"
@@ -181,10 +181,10 @@ titre "4. Aucun Windows du tout (ni NTFS ni BitLocker) -> le message d'origine, 
 # =============================================================================
 pose_table "sda1 vfat 200000000"
 S="$(lance)"
-echo "$S" | grep -q "aucune partition Windows (NTFS) de plus de 20 Go trouvée" \
+grep -q "aucune partition Windows (NTFS) de plus de 20 Go trouvée" <<< "$S" \
 	&& ok "le message d'origine (aucun Windows) est toujours affiché tel quel" \
 	|| non "le message d'absence de Windows a changé ou disparu :\n$S"
-if echo "$S" | grep -qi "BitLocker\|CHIFFRÉ"; then
+if grep -qi "BitLocker\|CHIFFRÉ" <<< "$S"; then
 	non "une mention de chiffrement est apparue sans disque chiffré"
 else
 	ok "aucune fausse alerte de chiffrement sans disque chiffré"
@@ -197,7 +197,7 @@ titre "5. Une petite partition BitLocker (< 20 Go, ex. Recovery) -> ignorée, co
 #  minuscule ne doit pas être prise pour LE Windows chiffré à déverrouiller.
 pose_table "nvme0n1p1 BitLocker 800000000"
 S="$(lance)"
-if echo "$S" | grep -q "CHIFFRÉ (BitLocker)"; then
+if grep -q "CHIFFRÉ (BitLocker)" <<< "$S" ; then
 	non "une partition BitLocker de moins de 20 Go a été prise pour le Windows chiffré"
 else
 	ok "une petite partition BitLocker (< 20 Go) est bien ignorée, comme pour le NTFS"
@@ -214,13 +214,13 @@ titre "6. Un voisin LINUX (Ubuntu) — trouvé, mesuré, et le curseur est chiff
 pose_table "nvme0n1p2 ext4 300000000000"
 pose_ext4 73242187 43945312 "clean"
 S="$(lance)"
-echo "$S" | grep -q "un autre Linux occupe /dev/nvme0n1p2" \
+grep -q "un autre Linux occupe /dev/nvme0n1p2" <<< "$S" \
 	&& ok "le voisin Linux est trouvé et nommé" \
 	|| non "le voisin Linux (ext4, 300 Go) n'a pas été vu :\n$S"
-echo "$S" | grep -q "utilise 120 Go sur 300 Go" \
+grep -q "utilise 120 Go sur 300 Go" <<< "$S" \
 	&& ok "sa place occupée est MESURÉE (dumpe2fs), pas devinée" \
 	|| non "la place occupée du voisin Linux n'est pas mesurée :\n$S"
-echo "$S" | grep -q "40 Go pour LexOS" \
+grep -q "40 Go pour LexOS" <<< "$S" \
 	&& ok "le chiffre exact à régler sur le curseur est donné" \
 	|| non "aucun chiffre de découpe pour un voisin Linux"
 #  ET IL NE DIT PLUS QUE LE DISQUE EST LIBRE. Sans Windows, l'outil
@@ -229,7 +229,7 @@ echo "$S" | grep -q "40 Go pour LexOS" \
 #  laisser tout effacer. Écrit d'abord comme un contrôle qui appelait ok()
 #  dans ses DEUX branches : il ne pouvait pas échouer, donc ne prouvait
 #  rien. C'est en le rendant capable d'échouer qu'il a montré le défaut.
-if echo "$S" | grep -q "proposera d'utiliser tout le disque"; then
+if grep -q "proposera d'utiliser tout le disque" <<< "$S" ; then
 	non "il annonce que l'installateur prendra TOUT le disque — il y a un Linux dessus"
 else
 	ok "il ne prétend plus que le disque est libre à prendre en entier"
@@ -238,7 +238,7 @@ fi
 #  Et sur un disque VRAIMENT vide, la phrase rassurante doit rester.
 pose_table "sda1 vfat 200000000"
 S_VIDE="$(lance)"
-echo "$S_VIDE" | grep -q "proposera d'utiliser tout le disque" \
+grep -q "proposera d'utiliser tout le disque" <<< "$S_VIDE" \
 	&& ok "…mais sur un disque sans voisin, elle est toujours là" \
 	|| non "la phrase du disque vide a disparu — elle était juste, elle"
 pose_table "nvme0n1p2 ext4 300000000000"
@@ -255,7 +255,7 @@ pose_table "nvme0n1p2 ext4 300000000000"
 pose_ext4 73242187 43945312 "clean"
 pose_racine "/dev/nvme0n1p2"
 S="$(lance)"
-if echo "$S" | grep -q "un autre Linux occupe"; then
+if grep -q "un autre Linux occupe" <<< "$S" ; then
 	non "notre PROPRE racine est proposée comme voisin à réduire :\n$S"
 else
 	ok "notre propre racine n'est jamais prise pour un voisin"
@@ -274,12 +274,12 @@ titre "8. « not clean » se lit en DEUX mots — le défaut que ce banc a attra
 pose_table "nvme0n1p2 ext4 300000000000"
 pose_ext4 73242187 43945312 "not clean"
 S="$(lance)"
-echo "$S" | grep -q "n'est pas « clean » (état : not clean)" \
+grep -q "n'est pas « clean » (état : not clean)" <<< "$S" \
 	&& ok "un ext4 « not clean » est signalé, avec son état complet" \
 	|| non "un ext4 sale passe pour propre — le découpage serait conseillé quand même :\n$S"
 pose_ext4 73242187 43945312 "clean"
 S="$(lance)"
-echo "$S" | grep -q "n'est pas « clean »" \
+grep -q "n'est pas « clean »" <<< "$S" \
 	&& non "fausse alerte : un ext4 propre est signalé comme sale" \
 	|| ok "…et un ext4 propre ne déclenche aucune fausse alerte"
 
@@ -293,11 +293,11 @@ titre "9. La taille se CHOISIT — la demande d'Alex"
 pose_table "nvme0n1p2 ext4 300000000000"
 pose_ext4 73242187 43945312 "clean"
 S="$(lance_avec 120)"
-echo "$S" | grep -q "120 Go pour LexOS" \
+grep -q "120 Go pour LexOS" <<< "$S" \
 	&& ok "« lexos dualboot 120 » vise bien 120 Go" \
 	|| non "la taille demandée en ligne de commande est ignorée :\n$S"
 S="$(lance_avec --taille 90)"
-echo "$S" | grep -q "90 Go pour LexOS" \
+grep -q "90 Go pour LexOS" <<< "$S" \
 	&& ok "« --taille 90 » marche aussi" \
 	|| non "la forme --taille est ignorée"
 
@@ -308,7 +308,7 @@ echo "$S" | grep -q "90 Go pour LexOS" \
 for MAUVAIS in 60Go soixante -40; do
 	S="$(lance_avec "$MAUVAIS")"
 	CODE="$(cat "$BANC/code")"
-	if [ "$CODE" = "2" ] && ! echo "$S" | grep -q "LA PLACE POUR LEXOS"; then
+	if [ "$CODE" = "2" ] && ! grep -q "LA PLACE POUR LEXOS" <<< "$S"; then
 		ok "« $MAUVAIS » est refusé net (code 2), sans afficher de conseil"
 	else
 		non "« $MAUVAIS » n'est pas refusé proprement (code $CODE) :\n$S"
@@ -335,21 +335,21 @@ titre "10. Un voisin Linux CHIFFRÉ ou en LVM — le cas de l'Alienware"
 pose_table "nvme0n1p3 crypto_LUKS 400000000000"
 S="$(lance)"
 
-echo "$S" | grep -qi "chiffré (LUKS)" \
+grep -qi "chiffré (LUKS)" <<< "$S" \
 	&& ok "le voisin chiffré est nommé pour ce qu'il est (LUKS)" \
 	|| non "le système chiffré n'est pas signalé :\n$S"
 
-echo "$S" | grep -q "nvme0n1p3" \
+grep -q "nvme0n1p3" <<< "$S" \
 	&& ok "…et son périphérique est cité" \
 	|| non "le périphérique chiffré n'est pas nommé"
 
-if echo "$S" | grep -q "proposera d'utiliser tout le disque\|proposera de l'utiliser en entier"; then
+if grep -q "proposera d'utiliser tout le disque\|proposera de l'utiliser en entier" <<< "$S"; then
 	non "l'outil propose ENCORE d'utiliser tout le disque — sur un disque qui porte un système"
 else
 	ok "la phrase « l'installateur prendra tout le disque » n'apparaît plus"
 fi
 
-echo "$S" | grep -q "partitionnement manuel\|partitionnement MANUEL" \
+grep -q "partitionnement manuel\|partitionnement MANUEL" <<< "$S" \
 	&& ok "le chemin de sortie (partitionnement manuel) est donné" \
 	|| non "aucune consigne de partitionnement manuel :\n$S"
 
@@ -359,13 +359,13 @@ echo "$S" | grep -q "partitionnement manuel\|partitionnement MANUEL" \
 #  suivre détaillée. Attrapé en cassant le bloc exprès.
 N=1
 for ETAPE in resize2fs lvreduce pvresize "cryptsetup resize" GParted; do
-	echo "$S" | grep -qE "^ +$N\. +$ETAPE" \
+	grep -qE "^ +$N\. +$ETAPE" <<< "$S" \
 		&& ok "…la marche à suivre donne l'étape $N dans l'ordre : $ETAPE" \
 		|| non "l'étape $N ($ETAPE) manque de la marche à suivre numérotée"
 	N=$((N+1))
 done
 
-if echo "$S" | grep -q "curseur à"; then
+if grep -q "curseur à" <<< "$S" ; then
 	non "le résumé conseille encore le curseur « Installer à côté de » — inutilisable ici"
 else
 	ok "le résumé ne renvoie plus vers « Installer à côté de », qui ne sait pas faire"
@@ -375,7 +375,7 @@ fi
 #  pas davantage.
 pose_table "sda2 LVM2_member 300000000000"
 S="$(lance)"
-echo "$S" | grep -qi "volume LVM" \
+grep -qi "volume LVM" <<< "$S" \
 	&& ok "un LVM non chiffré est signalé aussi" \
 	|| non "le LVM2_member n'est pas reconnu :\n$S"
 
@@ -383,7 +383,7 @@ echo "$S" | grep -qi "volume LVM" \
 #  chiffré, une partition de récupération) n'est pas LE système voisin.
 pose_table "sda3 crypto_LUKS 900000000"
 S="$(lance)"
-if echo "$S" | grep -qi "chiffré (LUKS)"; then
+if grep -qi "chiffré (LUKS)" <<< "$S" ; then
 	non "une partition LUKS de moins de 20 Go a été prise pour le système voisin"
 else
 	ok "une petite partition LUKS (< 20 Go) est ignorée, comme pour le NTFS"
@@ -395,7 +395,7 @@ fi
 pose_table "nvme0n1p3 crypto_LUKS 400000000000"
 pose_racine "/dev/nvme0n1p3"
 S="$(lance)"
-if echo "$S" | grep -qi "chiffré (LUKS)"; then
+if grep -qi "chiffré (LUKS)" <<< "$S" ; then
 	non "l'outil signale NOTRE PROPRE racine chiffrée comme un système voisin"
 else
 	ok "notre propre racine chiffrée n'est pas prise pour un voisin"
@@ -408,7 +408,7 @@ pose_racine "/dev/loop0"
 pose_table "sda2 ext4 300000000000" "sda3 crypto_LUKS 400000000000"
 pose_ext4 50000000 40000000 clean
 S="$(lance)"
-if echo "$S" | grep -qi "chiffré (LUKS)"; then
+if grep -qi "chiffré (LUKS)" <<< "$S" ; then
 	non "le voisin chiffré est annoncé EN PLUS du voisin en clair — deux annonces pour un système"
 else
 	ok "quand un voisin en clair existe, lui seul est annoncé"

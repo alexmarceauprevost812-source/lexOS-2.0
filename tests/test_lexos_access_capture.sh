@@ -111,7 +111,7 @@ grep -q "/desktop-icons/font-size" <<< "$J" \
 	|| non "le bureau est oublié — « celle du bureau » ne grossit toujours pas : $J"
 
 #  ET LE VERROU, SANS QUOI LA LIGNE PRÉCÉDENTE NE SERT À RIEN.
-if grep "/desktop-icons/use-custom-font-size" <<< "$J" | grep -q "true"; then
+if grep -q "true" < <(grep "/desktop-icons/use-custom-font-size" <<< "$J"); then
 	ok "le verrou « use-custom-font-size » est levé (sinon xfdesktop ignore la taille)"
 else
 	non "le verrou n'est pas levé : la taille est écrite et xfdesktop l'ignore — réglage inerte"
@@ -120,7 +120,7 @@ fi
 #  LA VALEUR EST CALCULÉE, PAS COPIÉE. Base « Noto Sans 10 », facteur 150 %
 #  → 15. Un banc qui ne regarde que « la clé est écrite » laisserait passer
 #  une taille inchangée.
-if grep "/desktop-icons/font-size" <<< "$J" | grep -qE '(^| )15( |$)'; then
+if grep -qE '(^| )15( |$)' < <(grep "/desktop-icons/font-size" <<< "$J"); then
 	ok "la taille vaut bien 15 (base 10 × 150 %) — elle est calculée, pas recopiée"
 else
 	non "taille du bureau inattendue : $(grep '/desktop-icons/font-size' <<< "$J")"
@@ -140,7 +140,7 @@ timeout 20 env PATH="$BANC/bin:$BANC/sysbin" HOME="$BANC/foyer" NO_COLOR=1 \
 	"$BASH" "$ACCESS" gros-texte off >/dev/null 2>&1
 J="$(cat "$BANC/journal")"
 
-if grep "/desktop-icons/use-custom-font-size" <<< "$J" | grep -q "false"; then
+if grep -q "false" < <(grep "/desktop-icons/use-custom-font-size" <<< "$J"); then
 	ok "« off » relâche le verrou — xfdesktop reprend la police du système"
 else
 	non "« off » laisse le bureau sur une taille sur mesure : $J"
@@ -202,7 +202,7 @@ grep -q "Aucun gestionnaire de fichiers" "$CAPTURE" \
 #  L'AIDE SUIT LE CODE. Une aide qui annonce un seul bouton alors qu'il y en
 #  a deux est une aide qui ment — et c'est par elle qu'on découvre l'outil.
 grep -q "Voir dans mes images" "$CAPTURE" && \
-grep -A3 "bulle de notification" "$CAPTURE" | grep -q "Voir dans mes images" \
+grep -q "Voir dans mes images" < <(grep -A3 "bulle de notification" "$CAPTURE") \
 	&& ok "l'aide de « lexos capture » annonce les deux boutons" \
 	|| non "l'aide n'a pas suivi : elle décrit encore une bulle à un seul bouton"
 

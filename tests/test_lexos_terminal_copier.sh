@@ -111,7 +111,7 @@ fi
 
 #  ET L'ÉCHEC SE DIT. Un except muet, c'est un presse-papier qui disparaît
 #  sans que rien ne l'explique.
-if awk -v d="${EXC:-0}" 'NR>=d && NR<=d+3' "$PY" | grep -q 'presse-papier non activé'; then
+if grep -q 'presse-papier non activé' < <(awk -v d="${EXC:-0}" 'NR>=d && NR<=d+3' "$PY"); then
 	ok "un échec d'activation est journalisé, pas avalé"
 else
 	non "l'except est muet : le presse-papier disparaîtrait sans un mot"
@@ -198,7 +198,7 @@ cas("selection dans le CHAMP",                    vide,  {selectionStart:1, sele
 JS
 		} > "$BANC/sel.js"
 		SORTIE="$(node "$BANC/sel.js" 2>&1)"
-		if printf '%s' "$SORTIE" | grep -q 'RATE'; then
+		if grep -q 'RATE' <<< "$SORTIE" ; then
 			non "aSelection() se trompe :"
 			printf '%s\n' "$SORTIE" | sed 's/^/       /'
 		else
@@ -273,7 +273,7 @@ titre "4. L'aide ne ment pas"
 LIGNE_CTRLC="$(grep -o '\["Ctrl+C","[^"]*"\]' "$HTML" | head -1)"
 if [ -z "$LIGNE_CTRLC" ]; then
 	non "aucune entrée « Ctrl+C » dans l'aide"
-elif printf '%s' "$LIGNE_CTRLC" | grep -qi 'copier'; then
+elif grep -qi 'copier' <<< "$LIGNE_CTRLC" ; then
 	ok "l'aide dit les deux comportements de Ctrl+C"
 else
 	non "l'aide réduit Ctrl+C à $LIGNE_CTRLC — elle ne dit pas qu'il copie"

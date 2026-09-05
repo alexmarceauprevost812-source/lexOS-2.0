@@ -152,12 +152,12 @@ titre "2. Chromium est le navigateur officiel — et il a un filet"
 #  bien d'autres choses (comptes, PAM). On lit sa ligne, en s'assurant qu'elle
 #  vient du code et pas d'un commentaire.
 CODE_0400="$(sed 's/#.*$//' "$HOOK_BUREAU")"
-if printf '%s' "$CODE_0400" | grep -q "chromium.desktop"; then
+if grep -q "chromium.desktop" <<< "$CODE_0400" ; then
 	ok "le hook 0400 connaît chromium.desktop"
 else
 	non "le hook 0400 ne nomme plus Chromium : le navigateur officiel a changé"
 fi
-if printf '%s' "$CODE_0400" | grep -q "firefox-esr.desktop"; then
+if grep -q "firefox-esr.desktop" <<< "$CODE_0400" ; then
 	ok "…et garde firefox-esr en second, comme filet"
 else
 	non "plus aucun filet : si Chromium manque, LexOS n'a plus de navigateur par défaut"

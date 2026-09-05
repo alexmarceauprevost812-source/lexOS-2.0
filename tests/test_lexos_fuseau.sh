@@ -54,7 +54,7 @@ N="$(echo "$ZONES_PY" | head -1)"
 	&& ok "onze fuseaux dans FUSEAUX_CANADA (les treize provinces/territoires, deux partagent)" \
 	|| non "FUSEAUX_CANADA porte $N fuseaux, pas 11"
 
-if echo "$ZONES_PY" | grep -q '^FAIL'; then
+if grep -q '^FAIL' <<< "$ZONES_PY" ; then
 	non "au moins un fuseau n'est pas un vrai fuseau IANA : $(echo "$ZONES_PY" | grep '^FAIL')"
 else
 	ok "les onze fuseaux sont de VRAIS fuseaux IANA (zoneinfo les reconnaît tous)"
@@ -64,7 +64,7 @@ fi
 titre "2. Les quatre provinces/territoires qui manquaient sont bien là"
 # =============================================================================
 for Z in America/Regina America/Whitehorse America/Yellowknife America/Iqaluit; do
-	echo "$ZONES_PY" | grep -q "^Z $Z\$" \
+	grep -q "^Z $Z\$" <<< "$ZONES_PY" \
 		&& ok "$Z présent (manquait avant)" \
 		|| non "$Z toujours absent"
 done
@@ -135,7 +135,7 @@ esac
 SORTIE="$(appelle_fuseau "America/New_York")"
 case "$SORTIE" in
 	*"'ok': False"*)
-		echo "$SORTIE" | grep -q "pkexec\|timedatectl" \
+		grep -q "pkexec\|timedatectl" <<< "$SORTIE" \
 			&& non "America/New_York (hors liste) a quand même appelé timedatectl : $SORTIE" \
 			|| ok "un fuseau HORS LISTE (America/New_York, réel mais pas canadien) est refusé, rien n'est exécuté" ;;
 	*) non "America/New_York aurait dû être refusé : $SORTIE" ;;
@@ -144,7 +144,7 @@ esac
 SORTIE="$(appelle_fuseau "America/Toronto; rm -rf /tmp/rien")"
 case "$SORTIE" in
 	*"'ok': False"*)
-		echo "$SORTIE" | grep -q "pkexec\|timedatectl" \
+		grep -q "pkexec\|timedatectl" <<< "$SORTIE" \
 			&& non "une tentative d'injection a quand même déclenché une commande : $SORTIE" \
 			|| ok "une chaîne avec un point-virgule est refusée telle quelle, jamais découpée par un shell" ;;
 	*) non "l'injection aurait dû être refusée : $SORTIE" ;;
@@ -186,11 +186,11 @@ ZONES_PY_LISTE="$(echo "$ZONES_PY" | sed -n 's/^Z //p' | sort -u)"
 DESACCORD=0
 while read -r Z; do
 	[ -n "$Z" ] || continue
-	if ! echo "$ZONES_JS" | grep -qxF "$Z"; then
+	if ! grep -qxF "$Z" <<< "$ZONES_JS" ; then
 		non "« $Z » est dans settings.py mais AUCUN bouton ne l'offre dans app.js"
 		DESACCORD=1
 	fi
-	if ! echo "$ZONES_SH" | grep -qxF "$Z"; then
+	if ! grep -qxF "$Z" <<< "$ZONES_SH" ; then
 		non "« $Z » est dans settings.py mais n'est pas dans LIEUX_CANADA (lexos-datetime)"
 		DESACCORD=1
 	fi

@@ -115,15 +115,15 @@ else
 
 	#  « a déjà une espace » : Alex avait relevé que l'espace existait déjà.
 	#  Le saut de ligne devait donc devenir UNE espace, pas deux.
-	if printf '%s' "$VISIBLE" | grep -q '  ❯'; then
+	if grep -q '  ❯' <<< "$VISIBLE" ; then
 		non "deux espaces avant le chevron — le saut de ligne a été doublé"
-	elif printf '%s' "$VISIBLE" | grep -q ' ❯ '; then
+	elif grep -q ' ❯ ' <<< "$VISIBLE" ; then
 		ok "une seule espace de chaque côté du chevron"
 	else
 		non "l'espace avant le chevron manque : «$VISIBLE»"
 	fi
 
-	if printf '%s' "$VISIBLE" | grep -q '❯  '; then
+	if grep -q '❯  ' <<< "$VISIBLE" ; then
 		non "deux espaces APRÈS le chevron"
 	else
 		ok "une seule espace après le chevron"
@@ -347,12 +347,12 @@ titre "6. L'orange a quitté l'INVITE, pas le TERMINAL"
 #  explication et se déclarerait en échec. Ce dépôt s'est déjà fait prendre
 #  trois fois à cette faute ; on coupe les commentaires d'abord.
 code_seul() { sed 's/#.*$//' "$1"; }
-if code_seul "$SH" | grep -q 'C_SAISIE\|PS_SAISIE'; then
+if grep -q 'C_SAISIE\|PS_SAISIE' < <(code_seul "$SH"); then
 	non "interactive.sh emploie encore « saisie » dans son code : l'ancien nom traîne"
 else
 	ok "interactive.sh ne connaît plus que C_MACHINE, C_TEXTE, C_ERREUR et C_DIM"
 fi
-if code_seul "$GEN" | grep -q "LEXOS_PS_SAISIE"; then
+if grep -q "LEXOS_PS_SAISIE" < <(code_seul "$GEN"); then
 	non "lexos-theme-gen écrit encore LEXOS_PS_SAISIE — une clé que personne ne lit"
 else
 	ok "lexos-theme-gen n'écrit plus de clé d'invite orpheline"

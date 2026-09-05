@@ -57,7 +57,7 @@ titre "1. LE NOM DU PAQUET — « opencode-ai », et pas « opencode »"
 CODE_H="$(sed 's/#.*$//' "$HOOK")"
 CODE_O="$(sed 's/#.*$//' "$OUTIL")"
 
-if printf '%s' "$CODE_H" | grep -q 'npm install -g opencode-ai@latest'; then
+if grep -q 'npm install -g opencode-ai@latest' <<< "$CODE_H" ; then
 	ok "le hook installe bien « opencode-ai@latest »"
 else
 	non "le hook n'installe pas « opencode-ai@latest » — il poserait autre chose"
@@ -65,13 +65,13 @@ fi
 
 #  ET SURTOUT PAS « opencode » TOUT COURT. On cherche la faute exacte :
 #  « -g opencode » non suivi de « -ai ».
-if printf '%s' "$CODE_H$CODE_O" | grep -qE '\-g +opencode([^-]|$)'; then
+if grep -qE '\-g +opencode([^-]|$)' < <(printf '%s' "$CODE_H$CODE_O"); then
 	non "un « npm install -g opencode » (sans « -ai ») traîne — ce n'est PAS le bon paquet"
 else
 	ok "aucun « npm install -g opencode » nu : le paquet voisin n'est jamais posé par erreur"
 fi
 
-if printf '%s' "$CODE_O" | grep -q 'PAQUET_NPM="opencode-ai"'; then
+if grep -q 'PAQUET_NPM="opencode-ai"' <<< "$CODE_O" ; then
 	ok "le lanceur emploie le même nom de paquet que le hook"
 else
 	non "le lanceur et le hook ne s'accordent pas sur le nom du paquet"
@@ -205,12 +205,12 @@ fi
 titre "5. LE LANCEUR — branché, et honnête quand OpenCode manque"
 # =============================================================================
 CODE_L="$(sed 's/#.*$//' "$LEXOS")"
-if printf '%s' "$CODE_L" | grep -q 'opencode|oc)'; then
+if grep -q 'opencode|oc)' <<< "$CODE_L"; then
 	ok "« lexos opencode » (et « lexos oc ») mènent à lexos-opencode"
 else
 	non "la commande « lexos opencode » n'est branchée nulle part"
 fi
-printf '%s' "$CODE_L" | grep -q 'lexos-opencode' \
+grep -q 'lexos-opencode' <<< "$CODE_L" \
 	&& ok "l'aide de « lexos » nomme OpenCode" \
 	|| non "OpenCode n'apparaît pas dans lexos"
 
@@ -222,7 +222,7 @@ for C in sh sed grep printf command; do
 done
 SORTIE_V="$(PATH="$VIDE" HOME="$BANC" NO_COLOR=1 sh "$OUTIL" --version 2>&1)"
 CODE_V=$?
-if [ "$CODE_V" != "0" ] && printf '%s' "$SORTIE_V" | grep -q "setup"; then
+if [ "$CODE_V" != "0" ] && grep -q "setup" <<< "$SORTIE_V"; then
 	ok "sans OpenCode, « --version » refuse (code $CODE_V) en disant quoi faire"
 else
 	non "sans OpenCode, « --version » répond « $SORTIE_V » (code $CODE_V)"

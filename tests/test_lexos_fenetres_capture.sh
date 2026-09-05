@@ -119,7 +119,7 @@ else
 	SORTIE="$(LEXOS_THEMES="$BANC/themes" LEXOS_BUILD_CONF="$BANC/b.conf" \
 	          LEXOS_XFWM_XML="$BANC/f.xml" sh "$HOOK" 2>&1 || true)"
 	for B in hide maximize; do
-		if printf '%s' "$SORTIE" | grep -q "pastille « $B » peinte : 4/4"; then
+		if grep -q "pastille « $B » peinte : 4/4" <<< "$SORTIE" ; then
 			ok "« $B » : les quatre états peints (actif, survol, pressé, inactif)"
 		else
 			non "« $B » : les quatre états n'ont pas été peints"
