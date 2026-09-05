@@ -1,0 +1,95 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — aucun de nos outils ne marche sur les plates-bandes de Debian
+# =============================================================================
+#  LA QUESTION QU'ON NE PEUT PAS RÉPONDRE DEPUIS LE DÉPÔT, ET QUI SE RÉPOND
+#  ICI.
+#
+#  LexOS pose ~80 fichiers dans /usr/bin par includes.chroot, en dehors de
+#  dpkg. La plupart s'appellent « lexos-quelque-chose » et ne risquent rien.
+#  Mais certains sont COURTS et GÉNÉRIQUES — « miss », le raccourci d'Alex
+#  vers lexos-mise-a-jour, est le premier du genre.
+#
+#  DEUX PAQUETS QUI POSENT LE MÊME FICHIER, C'EST UNE INSTALLATION QUI CASSE.
+#  Et le symptôme n'arrive pas tout de suite : il arrive le jour où apt
+#  installe le paquet concurrent, des mois plus tard, sur une machine qu'on ne
+#  peut plus réparer à distance. Le fichier de LexOS disparaît sans un mot, ou
+#  celui de Debian ne s'installe pas et emporte sa dépendance avec lui.
+#
+#  ═══ POURQUOI CE CONTRÔLE EST ICI ET PAS DANS UN BANC ═══
+#  Un banc tourne sur la machine de développement, qui n'est pas le système
+#  cible : « apt-file » y demande un index qu'on n'a pas toujours, et
+#  « dpkg -S » n'y répond que pour les paquets installés LÀ. La seule machine
+#  qui connaisse la vérité, c'est le chroot en cours de construction — dpkg y
+#  sait exactement qui possède quoi, pour la suite Debian qu'on est en train
+#  d'assembler. C'est donc ici que la question se pose, et ici qu'elle
+#  s'arrête.
+#
+#  ═══ CE HOOK ÉCHOUE, ET C'EST TOUT SON INTÉRÊT ═══
+#  Les autres hooks de LexOS sont écrits pour ne jamais casser une
+#  construction. Celui-là fait l'inverse ET C'EST VOULU : une collision de nom
+#  est exactement le genre de défaut qu'il ne faut PAS livrer. Mieux vaut une
+#  ISO qui ne se construit pas, avec un message qui dit quel nom changer,
+#  qu'une ISO qui s'installe et se casse plus tard.
+#
+#  IL PASSE APRÈS 0250 (les paquets optionnels) : c'est seulement une fois
+#  TOUS les paquets posés que dpkg connaît l'ensemble des chemins revendiqués.
+#  Le vérifier avant laisserait passer une collision avec un paquet installé
+#  au dernier moment.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0255 : noms réservés"
+
+BIN="${LEXOS_BIN_DIR:-/usr/bin}"
+
+if ! command -v dpkg >/dev/null 2>&1; then
+	echo "[lexos]   !! dpkg introuvable — aucune collision n'a pu être vérifiée"
+	exit 0
+fi
+
+COLLISIONS=0
+EXAMINES=0
+
+for F in "$BIN"/*; do
+	[ -f "$F" ] || continue
+	NOM="${F##*/}"
+
+	#  On ne teste QUE ce que LexOS pose. Un binaire Debian ordinaire est
+	#  évidemment revendiqué par son propre paquet — le signaler serait du
+	#  bruit qui finirait par faire ignorer le vrai message.
+	#
+	#  COMMENT ON SAIT QU'IL EST À NOUS : dpkg ne le connaît pas. Les fichiers
+	#  d'includes.chroot arrivent en dehors de dpkg, donc « dpkg -S » ne les
+	#  trouve pas. Un fichier que dpkg NE connaît PAS et qui porte un de nos
+	#  noms est à nous ; un fichier que dpkg connaît ET qui porte un de nos
+	#  noms est une COLLISION — Debian l'a écrasé, ou va l'écraser.
+	case "$NOM" in
+		lexos*|miss) ;;
+		*) continue ;;
+	esac
+
+	EXAMINES=$((EXAMINES + 1))
+	PAQUET="$(dpkg -S "$BIN/$NOM" 2>/dev/null | head -1 | cut -d: -f1)"
+	if [ -n "$PAQUET" ]; then
+		echo "[lexos]   !! COLLISION : ${BIN}/${NOM} est revendiqué par le paquet « ${PAQUET} »"
+		COLLISIONS=$((COLLISIONS + 1))
+	fi
+done
+
+if [ "$COLLISIONS" -gt 0 ]; then
+	echo "[lexos]   !!"
+	echo "[lexos]   !! ${COLLISIONS} nom(s) en conflit avec un paquet Debian."
+	echo "[lexos]   !! Deux paquets qui posent le même fichier, c'est une"
+	echo "[lexos]   !! installation qui casse — des mois plus tard, sur une"
+	echo "[lexos]   !! machine qu'on ne peut plus réparer à distance."
+	echo "[lexos]   !!"
+	echo "[lexos]   !! À FAIRE : renommer l'outil de LexOS (et son appel dans"
+	echo "[lexos]   !! le dispatcheur et les bancs), PAS retirer le paquet Debian."
+	echo "[lexos]   !! Ce hook échoue exprès : mieux vaut pas d'ISO qu'une ISO"
+	echo "[lexos]   !! qui se casse après l'installation."
+	exit 1
+fi
+
+echo "[lexos]   ${EXAMINES} nom(s) de LexOS examiné(s), aucune collision"
+echo "[lexos] hook 0255 : ok"

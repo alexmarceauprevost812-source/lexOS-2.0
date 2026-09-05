@@ -73,8 +73,11 @@ ${B}SYSTÈME${R}
   ${A}logs${R} [n]            ${D}n${R} dernières erreurs du journal (défaut : 40)
 
 ${B}PAQUETS${R}
-  ${A}update${R}              Rafraîchir la liste des paquets
-  ${A}upgrade${R}             Mettre à jour tout le système
+  ${A}update${R}              Rafraîchir la liste des paquets Debian
+  ${A}upgrade${R}             Mettre à jour les paquets Debian
+  ${A}maj${R}                 Mettre à jour LexOS lui-même depuis le dépôt
+                      ${D}aussi : ${A}mise-a-jour${R}${D} · ${A}sudo miss a jour${R}
+                      ${D}${A}--essai${R}${D} montre ce qui changerait, sans rien écrire${R}
   ${A}install${R} <paquets…>  Installer des paquets
   ${A}remove${R}  <paquets…>  Désinstaller des paquets
   ${A}search${R}  <terme>     Chercher un paquet
@@ -398,6 +401,22 @@ cmd_upgrade() {
 	DEBIAN_FRONTEND=noninteractive apt-get -y full-upgrade || die "Échec de la mise à jour"
 	apt-get -y autoremove --purge
 	ok "Système à jour"
+}
+
+#  ═══ AUCUNE LOGIQUE ICI — C'EST UN AIGUILLAGE ═══
+#  Toute la mise à jour vit dans /usr/bin/lexos-mise-a-jour. Ce dispatcheur ne
+#  fait que « exec », comme cmd_install le fait déjà pour Chrome. Deux copies
+#  de la même logique divergent, et c'est celle qu'on ne relit jamais qui
+#  devient fausse — le banc vérifie qu'aucune trace de copie (« rsync »,
+#  « cp -a », « .lexos-bak ») ne se glisse dans ce fichier.
+#
+#  ON NE MET PAS need_root ICI : lexos-mise-a-jour le fait lui-même, et
+#  seulement quand il doit ÉCRIRE. « lexos maj --essai » se lance donc sans
+#  mot de passe — c'est ce qui fait qu'on prend l'habitude de regarder avant.
+cmd_maj() {
+	[[ -x /usr/bin/lexos-mise-a-jour ]] \
+		|| die "lexos-mise-a-jour introuvable — cette ISO est trop ancienne."
+	exec /usr/bin/lexos-mise-a-jour "$@"
 }
 
 cmd_install() {
@@ -1018,6 +1037,7 @@ case "$CMD" in
 	info|status)          cmd_info ;;
 	update)               cmd_update ;;
 	upgrade|up)           cmd_upgrade ;;
+	maj|mise-a-jour|mise-à-jour) cmd_maj "$@" ;;
 	install|add)          cmd_install "$@" ;;
 	remove|rm|uninstall)  cmd_remove "$@" ;;
 	search|find)          cmd_search "$@" ;;

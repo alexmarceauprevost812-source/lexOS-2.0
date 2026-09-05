@@ -1,0 +1,396 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-mise-a-jour — poser le dépôt sur le système en marche
+# =============================================================================
+#  LE PROBLÈME. Chaque modification d'un script, d'une feuille CSS ou d'une
+#  icône demandait une ISO complète : une heure de CI, la gravure, la
+#  réinstallation. On en est à l'ISO 110. Or ces fichiers-là sont de simples
+#  scripts et fichiers de données — ils n'ont aucune raison d'exiger une image.
+#
+#  ═══ CE N'EST PAS LE CANAL DE MISE À JOUR DÉFINITIF ═══
+#  Le vrai — paquet .deb et dépôt APT publié — viendra plus tard. Cette
+#  commande ne le remplace pas et ne prétend pas le faire. Elle rend une
+#  boucle de correction de quelques secondes là où il en fallait une heure.
+#
+#  ═══ CE QUI NE PEUT PAS SE METTRE À JOUR AINSI ═══
+#  /boot, l'initramfs, GRUB, la couche live et l'installateur vivent dans
+#  l'image, pas dans le système de fichiers qu'on écrit ici. Et
+#  /etc/lexos/build.conf, version et release sont estampillés à la
+#  construction : les réécrire ferait mentir la machine sur ce qu'elle est.
+#  La commande le DIT à la fin plutôt que de laisser croire que tout est passé.
+#
+#  ═══ LE PIÈGE PRINCIPAL : /etc/skel ═══
+#  Ces fichiers ne sont copiés QU'À LA CRÉATION d'un compte. Le compte d'Alex
+#  existe déjà : écrire dans /etc/skel ne change RIEN pour lui. La mise à jour
+#  aurait l'air d'avoir échoué alors qu'elle aurait juste atterri ailleurs.
+#  C'est vrai pour xfce4-panel.xml, xsettings.xml, le dock, les raccourcis.
+#  D'où « --skel », qui reporte dans le compte courant — et qui réutilise
+#  lexos-firstrun plutôt que d'écrire un deuxième mécanisme.
+# =============================================================================
+set -uo pipefail
+
+PROG="${0##*/}"
+O=$'\033[38;5;208m'; V=$'\033[32m'; R=$'\033[0m'; B=$'\033[1m'; D=$'\033[2m'
+J=$'\033[33m'; RG=$'\033[31m'
+
+info() { printf '%s\n' "$*"; }
+ok()   { printf '  %s✓%s %s\n' "$V" "$R" "$*"; }
+att()  { printf '  %s!%s %s\n' "$J" "$R" "$*"; }
+die()  { printf '%serreur :%s %s\n' "$RG" "$R" "$*" >&2; exit 1; }
+
+# --- Les coutures, pour que ce programme soit ÉPROUVABLE ---------------------
+#  Un outil qui écrit dans /usr ne se teste pas en le lançant pour de vrai.
+#  Chaque racine est donc détournable, et le banc s'en sert pour monter un
+#  faux système dans un dossier temporaire. Vide de sens en production : les
+#  valeurs par défaut sont les vraies.
+DEST="${LEXOS_MAJ_DEST:-}"
+ETC_LEXOS="${LEXOS_MAJ_ETC:-/etc/lexos}"
+DEFAUT_SRC="${LEXOS_MAJ_SRC_DEFAUT:-/home/alex/Projets LexOS/lexOS-2.0}"
+
+# =============================================================================
+#  Les arguments
+# =============================================================================
+SRC=""
+ESSAI=0
+SKEL=0
+PAQUETS=0
+TOUT=0
+
+aide() {
+	cat <<AIDE
+${B}${O}lexos-mise-a-jour${R} — poser le dépôt sur le système en marche
+
+  ${B}Le réflexe à prendre :${R}
+      ${O}sudo miss a jour --essai${R}
+  Montre ce qui SERAIT copié, et ne copie rien. À faire avant chaque vraie
+  mise à jour : on voit d'abord, on agit ensuite.
+
+${B}USAGE${R}
+  ${O}${PROG}${R} [--depuis <chemin>] [--essai] [--skel] [--paquets] [--tout]
+
+${B}OPTIONS${R}
+  ${O}--essai${R}          Ne copie rien. Dit ce qui changerait.
+  ${O}--depuis${R} <chemin> Racine du clone git.
+                   ${D}Défaut : ${DEFAUT_SRC}${R}
+                   ${D}S'il n'existe pas, le chemin est EXIGÉ — on ne devine pas.${R}
+  ${O}--skel${R}           Reporte aussi /etc/skel dans le compte courant.
+                   ${D}Sans cette option, les réglages de /etc/skel n'atteignent${R}
+                   ${D}QUE les comptes créés ensuite — pas le vôtre.${R}
+  ${O}--paquets${R}        Enchaîne avec la mise à jour Debian (lexos upgrade).
+                   ${D}Séparé exprès : mettre à jour LexOS et mettre à jour${R}
+                   ${D}Debian n'ont ni la même durée ni le même risque.${R}
+  ${O}--tout${R}           Recopie même les fichiers identiques.
+
+${B}LES AUTRES PORTES, TOUTES ÉQUIVALENTES${R}
+  ${O}sudo miss a jour${R}       ${D}le raccourci${R}
+  ${O}lexos maj${R}              ${D}l'abrégé du dispatcheur${R}
+  ${O}lexos mise-a-jour${R}      ${D}le nom long${R}
+
+${B}CE QUE CETTE COMMANDE NE PEUT PAS FAIRE${R}
+  /boot, l'initramfs, GRUB, la couche live et l'installateur vivent dans
+  l'image : ils demandent une ISO. /etc/lexos/build.conf, version et release
+  sont estampillés à la construction et ne sont jamais touchés.
+AIDE
+}
+
+#  On garde les arguments d'ORIGINE : need_root se relance sous sudo avec
+#  eux, et une boucle qui a déjà consommé « $@ » les aurait perdus.
+ARGS_ORIGINE=("$@")
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		--depuis|--from) shift; [[ $# -gt 0 ]] || die "--depuis attend un chemin."; SRC="$1" ;;
+		--essai|--dry-run|-n) ESSAI=1 ;;
+		--skel)          SKEL=1 ;;
+		--paquets)       PAQUETS=1 ;;
+		--tout|--all)    TOUT=1 ;;
+		-h|--help|aide)  aide; exit 0 ;;
+		*) die "Option inconnue : $1   (« ${PROG} --help »)" ;;
+	esac
+	shift
+done
+
+# =============================================================================
+#  Les droits
+# =============================================================================
+#  ═══ ROOT SEULEMENT POUR ÉCRIRE ═══
+#  « --essai » ne fait que LIRE : l'exiger en root ferait prendre l'habitude
+#  de taper « sudo » avant de regarder, et l'habitude finirait par sauter
+#  l'essai. Le vrai passage, lui, écrit dans /usr et demande les droits —
+#  need_root se relance sous sudo tout seul, comme les autres commandes.
+#  Le « sudo » tapé à la main ne dérange rien : EUID vaut alors 0 et on ne
+#  fait rien de plus.
+need_root() {
+	if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+		if command -v sudo >/dev/null 2>&1; then
+			exec sudo -E "$0" "$@"
+		fi
+		die "Cette commande demande les droits administrateur (root)."
+	fi
+}
+[[ "$ESSAI" -eq 1 ]] || need_root "${ARGS_ORIGINE[@]}"
+
+# =============================================================================
+#  La source : un vrai clone, ou rien
+# =============================================================================
+if [[ -z "$SRC" ]]; then
+	if [[ -d "$DEFAUT_SRC" ]]; then
+		SRC="$DEFAUT_SRC"
+	else
+		die "Aucun dépôt indiqué et « ${DEFAUT_SRC} » n'existe pas.
+       Donnez le chemin : ${PROG} --depuis /chemin/vers/lexOS-2.0
+       On ne devine pas en silence : copier le mauvais dossier sur /usr
+       serait pire que ne rien faire."
+	fi
+fi
+SRC="${SRC%/}"
+
+#  ═══ EST-CE BIEN UN CLONE DE lexOS-2.0 ? ═══
+#  Deux marqueurs, pas un : un dossier peut contenir « config » par hasard,
+#  il ne contient pas « lexos.conf » ET « config/includes.chroot » par hasard.
+#  Sans ce contrôle, un chemin tapé de travers déverserait n'importe quoi
+#  dans /usr/bin — et il n'y a pas de retour en arrière pour ça.
+[[ -d "$SRC" ]]                        || die "Source introuvable : $SRC"
+[[ -d "$SRC/config/includes.chroot" ]] || die "« $SRC » n'a pas de config/includes.chroot — ce n'est pas un clone de lexOS-2.0."
+[[ -r "$SRC/lexos.conf" ]]             || die "« $SRC » n'a pas de lexos.conf — ce n'est pas un clone de lexOS-2.0."
+
+# =============================================================================
+#  Le dépôt doit être PROPRE, et à jour
+# =============================================================================
+COMMIT="(hors git)"
+if command -v git >/dev/null 2>&1 && [[ -d "$SRC/.git" ]]; then
+	#  ═══ UN DÉPÔT EN COURS D'ÉDITION NE S'INSTALLE PAS ═══
+	#  Copier un arbre qui porte des modifications non commitées, c'est poser
+	#  du code à moitié écrit sur le système — et le symptôme sera
+	#  incompréhensible, parce que le fichier fautif n'existe dans aucun
+	#  commit qu'on puisse relire.
+	SALE="$(git -C "$SRC" status --porcelain 2>/dev/null)"
+	if [[ -n "$SALE" ]]; then
+		printf '%s\n' "$SALE" | head -20 >&2
+		die "Le dépôt a des modifications non commitées (ci-dessus).
+       Committez-les ou rangez-les (git stash) avant de mettre à jour :
+       installer un arbre en cours d'édition pose du code à moitié écrit."
+	fi
+
+	if [[ "$ESSAI" -eq 1 ]]; then
+		att "essai : « git pull » n'est PAS lancé"
+	else
+		info "${B}Récupération du dépôt${R}"
+		if git -C "$SRC" pull --ff-only 2>&1 | sed 's/^/  /'; then
+			:
+		else
+			att "« git pull » a échoué — on continue avec ce qui est déjà là"
+		fi
+	fi
+	COMMIT="$(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || echo '?')"
+	SUJET="$(git -C "$SRC" log -1 --pretty=%s 2>/dev/null || echo '')"
+	info "  commit : ${O}${COMMIT}${R}${SUJET:+  ${D}${SUJET}${R}}"
+else
+	att "pas un dépôt git (ou git absent) : aucune récupération, aucun commit à noter"
+fi
+
+# =============================================================================
+#  Ce qu'on copie
+# =============================================================================
+#  ═══ LA LISTE EST BLANCHE, PAS NOIRE ═══
+#  On NOMME ce qui peut voyager, au lieu d'exclure ce qui ne le peut pas. Une
+#  liste noire oublie toujours quelque chose, et l'oubli se paie sur /boot.
+#  ═══ LA LISTE EST SURCHARGEABLE, ET C'EST POUR LE BANC ═══
+#  Telle quelle, elle ne visite ni « boot » ni « etc » : le garde-fou
+#  interdit() ci-dessous n'est donc JAMAIS atteint pour ces chemins-là, et
+#  trois mutations qui le vidaient sont restées vertes. Une ceinture
+#  qu'aucun test ne serre finit par se détacher sans qu'on le sache.
+#  Le banc élargit donc la liste par cette couture, pousse un chemin interdit
+#  dans le circuit, et exige qu'il soit refusé QUAND MÊME. Vide de sens en
+#  production : la valeur par défaut est la vraie.
+ARBRES="${LEXOS_MAJ_ARBRES:-
+usr/bin
+usr/lib/lexos
+usr/share/lexos
+usr/share/applications
+usr/share/icons
+}"
+BASE="$SRC/config/includes.chroot"
+
+#  ═══ CE QUI EST REFUSÉ, MÊME AVEC --tout ═══
+#  Deux familles. Ce qui vit dans l'IMAGE (/boot, l'initramfs, GRUB, la
+#  couche live, l'installateur) : le poser ici ne servirait à rien et
+#  pourrait rendre la machine non démarrable. Et ce qui est ESTAMPILLÉ à la
+#  construction (build.conf, version, release) : le réécrire ferait mentir la
+#  machine sur ce qu'elle est, et on ne saurait plus quelle ISO elle porte.
+INTERDITS="
+boot/
+etc/lexos/build.conf
+etc/lexos/version
+etc/lexos/release
+lib/live/
+usr/lib/live/
+"
+interdit() { # interdit <chemin relatif>
+	local c="$1" i
+	for i in $INTERDITS; do
+		case "$c/" in "$i"*) return 0 ;; esac
+		case "$c"  in "$i"*) return 0 ;; esac
+	done
+	return 1
+}
+
+# =============================================================================
+#  La copie
+# =============================================================================
+COPIES=0; IDENTIQUES=0; SAUVES=0; REFUSES=0
+DATE="$(date +%Y%m%d-%H%M%S)"
+CHANGE_BIN=0; CHANGE_CSS=0; CHANGE_PANNEAU=0; CHANGE_PLYMOUTH=0
+
+copier_un() { # copier_un <source> <relatif>
+	local src="$1" rel="$2"
+	local dst="$DEST/$rel"
+
+	if interdit "$rel"; then
+		REFUSES=$((REFUSES + 1))
+		return 0
+	fi
+
+	if [[ -e "$dst" ]] && cmp -s "$src" "$dst"; then
+		IDENTIQUES=$((IDENTIQUES + 1))
+		[[ "$TOUT" -eq 1 ]] || return 0
+	fi
+
+	case "$rel" in
+		usr/bin/*)                       CHANGE_BIN=1 ;;
+		usr/share/lexos/gtk-panneau.css) CHANGE_PANNEAU=1 ;;
+		usr/share/lexos/*.css)           CHANGE_CSS=1 ;;
+	esac
+	case "$rel" in *plymouth*) CHANGE_PLYMOUTH=1 ;; esac
+
+	if [[ "$ESSAI" -eq 1 ]]; then
+		printf '  %s→%s %s\n' "$O" "$R" "$rel"
+		COPIES=$((COPIES + 1))
+		return 0
+	fi
+
+	mkdir -p "$(dirname "$dst")"
+	#  ═══ ON SAUVEGARDE AVANT D'ÉCRASER ═══
+	#  Un fichier qu'Alex aurait ajusté à la main ne doit pas disparaître sans
+	#  trace. La copie porte la date : on retrouve laquelle est laquelle.
+	if [[ -e "$dst" ]] && ! cmp -s "$src" "$dst"; then
+		cp -a "$dst" "$dst.lexos-bak-$DATE" 2>/dev/null && SAUVES=$((SAUVES + 1))
+	fi
+	#  « cp -a » conserve le bit d'exécution. Les 80 outils sont en 755 ; un
+	#  chmod perdu et la commande n'existe plus.
+	if cp -a "$src" "$dst"; then
+		COPIES=$((COPIES + 1))
+	else
+		att "échec : $rel"
+	fi
+}
+
+info ""
+info "${B}Fichiers${R}${D}   source : ${SRC}${R}"
+[[ "$ESSAI" -eq 1 ]] && att "ESSAI — rien ne sera écrit"
+
+for ARBRE in $ARBRES; do
+	[[ -d "$BASE/$ARBRE" ]] || continue
+	while IFS= read -r F; do
+		REL="${F#"$BASE/"}"
+		copier_un "$F" "$REL"
+	done < <(find "$BASE/$ARBRE" -type f | sort)
+done
+
+# =============================================================================
+#  /etc/skel — le piège
+# =============================================================================
+if [[ "$SKEL" -eq 1 ]]; then
+	info ""
+	info "${B}Réglages du compte courant${R}"
+	#  ═══ ON RÉUTILISE lexos-firstrun, ON N'EN ÉCRIT PAS UN DEUXIÈME ═══
+	#  Il sait déjà refabriquer thème et configuration dans un compte qui
+	#  existe. Deux mécanismes qui font la même chose divergent, et c'est
+	#  celui qu'on ne relit jamais qui devient faux.
+	if [[ "$ESSAI" -eq 1 ]]; then
+		att "essai : lexos-firstrun --force n'est PAS lancé"
+	elif command -v lexos-firstrun >/dev/null 2>&1; then
+		if lexos-firstrun --force >/dev/null 2>&1; then
+			ok "réglages reportés dans le compte courant (lexos-firstrun)"
+		else
+			att "lexos-firstrun a échoué — les réglages de /etc/skel n'ont pas été reportés"
+		fi
+	else
+		att "lexos-firstrun introuvable — /etc/skel n'a pas été reporté"
+	fi
+else
+	att "/etc/skel n'a PAS été reporté dans votre compte (« --skel » pour le faire)"
+	info "     ${D}Sans ça, xfce4-panel.xml, le dock et les raccourcis n'atteignent${R}"
+	info "     ${D}que les comptes créés APRÈS — pas le vôtre.${R}"
+fi
+
+# =============================================================================
+#  La trace
+# =============================================================================
+#  ═══ SANS ÇA, ON NE SAIT PLUS CE QUE LA MACHINE PORTE ═══
+#  Un système mis à jour et un système d'origine se ressemblent trait pour
+#  trait. Sans cette ligne, on perd deux heures à déboguer un fichier qu'on
+#  croyait posé.
+if [[ "$ESSAI" -eq 0 ]]; then
+	mkdir -p "$ETC_LEXOS"
+	printf '%s  %s  %s\n' "$(date -Is)" "$COMMIT" "$SRC" >> "$ETC_LEXOS/maj"
+fi
+
+# =============================================================================
+#  Le résumé, et QUOI RELANCER
+# =============================================================================
+info ""
+info "${B}Résumé${R}"
+if [[ "$ESSAI" -eq 1 ]]; then
+	ok "$COPIES fichier(s) SERAIENT copiés · $IDENTIQUES déjà identique(s)"
+else
+	ok "$COPIES fichier(s) copié(s) · $IDENTIQUES déjà identique(s)"
+	[[ "$SAUVES" -gt 0 ]] && ok "$SAUVES ancien(s) fichier(s) sauvegardé(s) en .lexos-bak-$DATE"
+fi
+[[ "$REFUSES" -gt 0 ]] && att "$REFUSES fichier(s) refusé(s) — ils vivent dans l'image"
+
+info ""
+info "${B}Ce qui demande une ISO, et que ceci ne fera jamais${R}"
+info "  ${D}/boot, l'initramfs, GRUB, la couche live, l'installateur${R}"
+info "  ${D}/etc/lexos/build.conf, version, release — estampillés à la construction${R}"
+
+#  ═══ RIEN NE SE RECHARGE TOUT SEUL, ET C'EST VOULU ═══
+#  Alex peut être en train de travailler dans une fenêtre. On DIT quoi
+#  relancer, on ne le fait pas d'autorité.
+info ""
+info "${B}À relancer vous-même${R}"
+RIEN=1
+if [[ "$CHANGE_PANNEAU" -eq 1 ]]; then
+	info "  ${O}xfce4-panel -r${R}   ${D}la barre du haut${R}"; RIEN=0
+fi
+if [[ "$CHANGE_CSS" -eq 1 ]]; then
+	info "  ${O}lexos-theme-gen \$(cat ~/.config/lexos/accent 2>/dev/null || echo orange)${R}"
+	info "                   ${D}puis fermez et rouvrez la session${R}"; RIEN=0
+fi
+if [[ "$CHANGE_PLYMOUTH" -eq 1 ]]; then
+	info "  ${O}sudo update-initramfs -u${R}  ${D}puis REDÉMARRER — l'écran de démarrage${R}"
+	info "                   ${D}vit dans l'initramfs, pas sur le disque${R}"; RIEN=0
+fi
+if [[ "$CHANGE_BIN" -eq 1 && "$RIEN" -eq 1 ]]; then
+	info "  ${D}rien : les outils en ligne de commande sont pris au prochain appel${R}"
+	RIEN=0
+fi
+[[ "$RIEN" -eq 1 ]] && info "  ${D}rien${R}"
+
+# =============================================================================
+#  Les paquets Debian, seulement si on l'a demandé
+# =============================================================================
+if [[ "$PAQUETS" -eq 1 ]]; then
+	info ""
+	info "${B}Paquets Debian${R}"
+	if [[ "$ESSAI" -eq 1 ]]; then
+		att "essai : la mise à jour Debian n'est PAS lancée"
+	elif command -v lexos >/dev/null 2>&1; then
+		lexos upgrade
+	else
+		att "« lexos » introuvable — mise à jour Debian non lancée"
+	fi
+fi
+
+info ""
+info "${D}Avant la prochaine : ${R}${O}sudo miss a jour --essai${R}${D} — on voit d'abord.${R}"

@@ -1,0 +1,70 @@
+#!/bin/sh
+# =============================================================================
+#  miss — le raccourci d'Alex vers lexos-mise-a-jour
+# =============================================================================
+#  ALEX TAPE « sudo miss a jour ». Ce n'est pas une lubie : c'est la commande
+#  qu'il tapera dix fois par jour, elle doit lui tomber sous les doigts. Le
+#  shell lit ça comme la commande « miss » avec les arguments « a » et
+#  « jour » — d'où ce fichier.
+#
+#  ═══ AUCUNE LOGIQUE ICI, ET C'EST LA RÈGLE ═══
+#  Cet enrobage reconnaît trois façons d'écrire « à jour », puis fait EXEC.
+#  Toute la mise à jour vit dans lexos-mise-a-jour. Deux implémentations qui
+#  divergent, c'est la panne qu'on ne trouve pas : le banc vérifie qu'aucune
+#  logique de copie (« rsync », « cp -a », « .lexos-bak ») ne se glisse ici.
+#
+#  ═══ POURQUOI PAS « sudo-lexos-miss-a-jour », LE PREMIER NOM PROPOSÉ ═══
+#  Consigné pour que la question ne revienne pas :
+#    · « sudo- » dans un nom de fichier ne donne AUCUN droit ; il faudrait
+#      taper « sudo sudo-lexos-… ». Et c'est inutile : lexos-mise-a-jour se
+#      relance lui-même sous sudo quand il doit écrire ;
+#    · « miss a jour » comme NOM DE FICHIER s'écrit « mise-a-jour » : le
+#      dépôt est public, un nom de fichier ne se change plus une fois pris ;
+#    · pas d'accent dans un nom de fichier — complétion Tab et scripts. Même
+#      convention que lexos-fuseau-position.
+#  Le raccourci « miss » couvre le besoin sans ces trois défauts.
+#
+#  ═══ « miss » EST UN NOM TRÈS GÉNÉRIQUE POUR /usr/bin ═══
+#  Deux paquets qui posent le même fichier, c'est une installation qui casse,
+#  et le symptôme apparaît des mois plus tard sur une machine qu'on ne peut
+#  plus réparer à distance. La question « un paquet Debian revendique-t-il ce
+#  chemin ? » ne peut pas se répondre depuis un dépôt : elle se répond dans le
+#  chroot, où dpkg sait qui possède quoi. C'est ce que fait le hook
+#  0255-lexos-noms-reserves — et il ARRÊTE la construction en cas de collision.
+# =============================================================================
+set -eu
+
+CIBLE=/usr/bin/lexos-mise-a-jour
+
+#  Les quatre façons de le dire mènent au même endroit : un outil qu'on tape
+#  vite doit pardonner l'accent et l'espace.
+case "${1:-}" in
+	a)
+		#  « miss a jour » : on avale les deux mots, on passe la suite.
+		shift
+		if [ "${1:-}" = "jour" ]; then shift; fi
+		;;
+	à)
+		shift
+		if [ "${1:-}" = "jour" ]; then shift; fi
+		;;
+	ajour|àjour|a-jour|à-jour|jour)
+		shift
+		;;
+	""|-*)
+		#  Rien du tout, ou directement une option (« miss --essai ») :
+		#  on passe tout tel quel.
+		;;
+	*)
+		#  ═══ ON REFUSE, ON N'AVALE PAS ═══
+		#  Un enrobage qui accepte n'importe quoi en silence fera croire un
+		#  jour qu'une mise à jour a eu lieu alors qu'il y avait une faute de
+		#  frappe. On dit quoi taper, et on sort en erreur.
+		printf "miss : « %s » n'est pas compris.\n" "$1" >&2
+		printf "  À taper :  sudo miss a jour            (ou « à jour », « ajour »)\n" >&2
+		printf "             sudo miss a jour --essai    pour voir sans rien changer\n" >&2
+		exit 2
+		;;
+esac
+
+exec "$CIBLE" "$@"

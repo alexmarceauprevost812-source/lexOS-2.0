@@ -2009,6 +2009,27 @@ jobs:
           #  peut plus rien lancer.
           bash tests/test_lexos_terminal_copier.sh
 
+      - name: « sudo miss a jour » — poser le dépôt sans reconstruire l'ISO
+        if: ${{ !cancelled() }}
+        run: |
+          #  Chaque modification d'un script demandait une ISO complète : une
+          #  heure de CI, la gravure, la réinstallation. Cette commande pose
+          #  le dépôt sur le système en marche. CE N'EST PAS le canal de mise
+          #  à jour définitif (paquet .deb + dépôt APT) et elle ne le
+          #  remplace pas.
+          #
+          #  L'ASSERTION QUI COMPTE : « --essai » n'écrit RIEN. Un essai qui
+          #  écrit est pire que pas d'essai du tout, parce qu'on lui fait
+          #  confiance pour regarder avant d'agir — le banc compare les
+          #  empreintes de TOUTE la destination, avant et après.
+          #
+          #  Le banc éprouve aussi le hook 0255, qui demande à dpkg — dans le
+          #  chroot, la seule machine qui connaisse la vérité — si un paquet
+          #  Debian revendique « /usr/bin/miss », et ARRÊTE la construction si
+          #  c'est le cas. Il le vérifie dans les deux sens, dont une
+          #  collision provoquée pour de vrai.
+          bash tests/test_lexos_mise_a_jour.sh
+
       - name: Carrés noirs de la Logithèque et luminosité des Paramètres
         if: ${{ !cancelled() }}
         run: |

@@ -191,6 +191,15 @@ lexos-gps
 lexos-jeux
 lexos-logitheque
 lexos-meteo
+#  La mise à jour de LexOS lui-même, depuis le dépôt. Elle est ATTEINTE par
+#  le dispatcheur (« lexos maj ») et par l'enrobage « miss » ; elle n'a pas
+#  de page dans les Paramètres, et c'est voulu : « écrase /usr depuis un
+#  clone git » n'est pas un bouton qu'on met à côté de la luminosité.
+lexos-mise-a-jour
+#  L'enrobage d'Alex : « sudo miss a jour ». Dix lignes qui font exec vers
+#  lexos-mise-a-jour, sans aucune logique — il est ici pour que le contrôle
+#  16 sache qu'il est branché exprès et pas oublié.
+miss
 lexos-musique
 lexos-studio
 lexos-temp
