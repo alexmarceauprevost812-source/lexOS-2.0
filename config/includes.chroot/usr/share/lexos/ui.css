@@ -93,6 +93,20 @@
   --ok:#22C55E;   --warn:#F59E0B;  --off:#EF4444;
   --att:#F59E0B;  --non:#EF4444;
 
+  /* --- LE BLANC DU CADRE DU QR -------------------------------------------
+     ═══ CE N'EST PAS UNE COULEUR DE THÈME, C'EST UNE EXIGENCE DE LECTURE ═══
+     Un QR clair sur fond sombre est refusé par une bonne partie des appareils
+     photo, et la marge autour du code fait partie de la NORME — qrencode la
+     dessine (-m 2), et la rogner pour gagner de la place casse la lecture.
+     Ce blanc-là ne suit donc PAS le mode : il reste blanc sur un bureau clair
+     comme sur un bureau sombre, parce que c'est la caméra du téléphone qui
+     décide, pas le goût du moment. D'où sa place ici, hors des deux blocs de
+     mode, et non écrit en dur dans le panneau de partage : le contrôle de CI
+     « Rien ne reste noir en mode clair » refuse toute couleur en dur dans une
+     feuille de panneau, et il a raison de ne pas faire d'exception au cas par
+     cas — une exception se recopie, un jeton s'explique une fois. */
+  --qr-fond:#FFFFFF;
+
   /* --- LES PICTOGRAMMES QUI DISENT LEUR ÉTAT PAR LA COULEUR --------------
      CE QU'ALEX A VU. Photo des Paramètres de l'ISO 76, colonne de gauche :
      à côté de « Wi-Fi », un carré jaune. C'est l'émoji 📶 rendu SANS police

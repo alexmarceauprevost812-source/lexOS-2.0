@@ -206,6 +206,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return self._json(200, {"ok": True})
 
 
+#  LE MODE D'APPARENCE, POUR LA PAGE.
+#  lexos-theme-gen écrit « sombre » ou « clair » dans ~/.config/lexos/mode.
+#  On le passe en ?mode=… — pas de nouveau point d'entrée, pas de requête
+#  supplémentaire, et l'attribut est posé avant le premier rendu. Sans ça,
+#  « lexos theme clair » laisserait cette fenêtre noire au milieu d'un bureau
+#  crème. Même fonction, au mot près, que settings.py et volet.py.
+def mode_apparence():
+    try:
+        base = os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")
+        valeur = (Path(base) / "lexos" / "mode").read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError, ValueError):
+        #  PAS SEULEMENT OSError : un fichier « mode » écrit dans un autre
+        #  encodage lève UnicodeDecodeError, qui n'en est pas une. Un réglage
+        #  d'apparence illisible doit faire retomber sur le sombre, jamais
+        #  empêcher la fenêtre de s'ouvrir.
+        return "sombre"
+    #  Tout ce qui n'est pas explicitement « clair » reste sombre : un fichier
+    #  vide ou tronqué ne doit pas blanchir l'écran d'un coup.
+    return "clair" if valeur == "clair" else "sombre"
+
+
 def port_libre():
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
@@ -253,7 +274,7 @@ def main():
     vue = QWebEngineView()
     vue.setWindowTitle("Partager — LexOS")
     vue.resize(620, 660)
-    vue.load(QUrl(f"http://127.0.0.1:{port}/index.html"))
+    vue.load(QUrl(f"http://127.0.0.1:{port}/index.html?mode={mode_apparence()}"))
     vue.show()
 
     #  Deux façons de finir, et elles se rejoignent ici : le bouton de la page

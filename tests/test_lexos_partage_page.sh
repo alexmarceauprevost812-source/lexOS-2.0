@@ -88,7 +88,7 @@ else
 fi
 
 # =============================================================================
-titre "3. Aucune couleur en dur, sauf le cadre blanc du QR"
+titre "3. Aucune couleur en dur — le blanc du QR est un jeton"
 # =============================================================================
 #  ═══ ON LIT LE FICHIER ENTIER, COMMENTAIRES COMPRIS ═══
 #  C'est ce que fait le contrôle de CI « L'accent n'est écrit qu'à un seul
@@ -96,21 +96,47 @@ titre "3. Aucune couleur en dur, sauf le cadre blanc du QR"
 #  il passerait au vert sur un fichier qui fait échouer la construction.
 #  Conséquence assumée : on n'explique pas une couleur en citant son code,
 #  même dans un commentaire.
+#  ═══ ZÉRO COULEUR EN DUR, Y COMPRIS LE BLANC DU QR ═══
+#  Premier jet : on tolérait #FFFFFF dans style.css, « justifié en
+#  commentaire ». LA CI L'A REFUSÉ, et elle avait raison — deux contrôles,
+#  que je ne connaissais pas en écrivant le panneau :
+#    · « Rien ne reste noir en mode clair » interdit TOUTE couleur opaque
+#      posée en fond ou en texte dans une feuille de panneau. Une exception
+#      « justifiée en commentaire » se recopie ; un jeton s'explique une fois.
+#    · « L'accent n'est écrit qu'à un seul endroit » lit le fichier ENTIER,
+#      commentaires compris.
+#  Le blanc du QR est donc devenu --qr-fond dans ui.css, hors des deux blocs
+#  de mode : ce n'est pas une couleur de thème mais une exigence de LECTURE
+#  — c'est la caméra du téléphone qui décide, pas le mode du bureau.
 for F in "$WEB/style.css" "$WEB/index.html"; do
-	DURES="$(grep -oniE '#[0-9A-Fa-f]{3,8}\b|rgba?\([0-9 ,.]+\)' "$F" | grep -v '#FFFFFF' || true)"
+	DURES="$(grep -oniE '#[0-9A-Fa-f]{3,8}\b|rgba?\([0-9 ,.]+\)' "$F" || true)"
 	if [[ -z "$DURES" ]]; then
-		ok "$(basename "$F") n'écrit aucune couleur en dur (hors #FFFFFF)"
+		ok "$(basename "$F") n'écrit AUCUNE couleur en dur"
 	else
 		non "$(basename "$F") écrit des couleurs en dur :\n$(sed 's/^/       /' <<< "$DURES")"
 	fi
 done
 
-#  Et le blanc doit rester ce qu'il est : le cadre du QR, et rien d'autre.
-NB_BLANC="$(grep -ocE '#FFFFFF' "$WEB/style.css" || true)"
-if [[ "$NB_BLANC" -le 1 ]]; then
-	ok "le blanc n'apparaît qu'une fois — le cadre du QR"
+#  LE JETON DOIT EXISTER LÀ OÙ IL EST DÉCLARÉ, sinon var(--qr-fond) ne résout
+#  pas et le cadre du QR devient transparent — un QR sombre sur fond sombre,
+#  que l'appareil photo ne lit plus. La panne serait invisible au banc si on
+#  se contentait de vérifier que style.css emploie le jeton.
+UICSS="$IC/usr/share/lexos/ui.css"
+if grep -qE '^\s*--qr-fond:\s*#FFFFFF;' "$UICSS"; then
+	ok "--qr-fond est déclaré blanc dans ui.css, hors des blocs de mode"
 else
-	non "le blanc apparaît $NB_BLANC fois : il n'est justifié QUE pour le cadre du QR"
+	non "--qr-fond n'est pas déclaré blanc dans ui.css — le cadre du QR serait transparent"
+fi
+if grep -q 'var(--qr-fond)' "$WEB/style.css"; then
+	ok "…et le cadre du QR l'emploie"
+else
+	non "le cadre du QR n'emploie pas var(--qr-fond)"
+fi
+#  Hors des blocs de mode : le blanc ne doit PAS être redéfini en clair.
+if sed -n '/data-mode="clair"/,/^}/p' "$UICSS" | grep -q -- '--qr-fond'; then
+	non "--qr-fond est redéfini dans le bloc du mode clair — le QR suivrait le thème au lieu de rester lisible"
+else
+	ok "…et il n'est redéfini par aucun mode : le QR reste lisible sur un bureau clair"
 fi
 
 # =============================================================================
@@ -357,6 +383,58 @@ if [[ -n "$ORD_UI" && -n "$ORD_ST" && "$ORD_UI" -lt "$ORD_ST" ]]; then
 	ok "ui.css est chargé avant style.css (lignes $ORD_UI puis $ORD_ST)"
 else
 	non "l'ordre des feuilles est faux ou l'une manque (ui.css=$ORD_UI, style.css=$ORD_ST)"
+fi
+
+# =============================================================================
+titre "9. Le panneau suit le mode clair"
+# =============================================================================
+#  ═══ LA CI L'A VU AVANT MOI, ET C'EST UN VRAI DÉFAUT ═══
+#  « lexos theme clair » repeint le bureau en crème. Sans ce câblage, CETTE
+#  fenêtre serait restée noire au milieu — en négatif du reste, exactement le
+#  défaut trouvé après l'ISO 71 sur les trois autres panneaux.
+#  Le mode voyage par l'adresse : le lanceur lit ~/.config/lexos/mode et
+#  l'ajoute en ?mode=…, la page pose l'attribut AVANT le premier rendu.
+if grep -q 'dataset.mode' "$WEB/index.html"; then
+	ok "la page lit ?mode= et pose l'attribut"
+else
+	non "la page ne lit pas ?mode= — elle resterait sombre sur un bureau clair"
+fi
+
+if grep -q 'index.html?mode=' "$PY"; then
+	ok "le lanceur passe le mode dans l'adresse"
+else
+	non "le lanceur ne passe pas ?mode= — la page ne saurait jamais qu'on est en clair"
+fi
+
+#  ═══ ET LE REPLI DE LA LECTURE : SOMBRE, TOUJOURS ═══
+#  On EXÉCUTE la fonction sur les cas qui comptent plutôt que de relire son
+#  code : un fichier illisible ne doit pas empêcher la fenêtre de s'ouvrir.
+if command -v python3 >/dev/null 2>&1; then
+	VU="$(python3 - "$PY" <<'PYEOF'
+import importlib.util, os, sys, tempfile
+spec = importlib.util.spec_from_file_location("partage", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+res = []
+with tempfile.TemporaryDirectory() as d:
+    os.environ["XDG_CONFIG_HOME"] = d
+    res.append(("absent", m.mode_apparence()))
+    os.makedirs(os.path.join(d, "lexos"), exist_ok=True)
+    f = os.path.join(d, "lexos", "mode")
+    for nom, octets in (("clair", b"clair\n"), ("sombre", b"sombre\n"),
+                        ("vide", b""), ("illisible", b"\xff\xfe cassE")):
+        open(f, "wb").write(octets)
+        res.append((nom, m.mode_apparence()))
+print(";".join(f"{a}={b}" for a, b in res))
+PYEOF
+)" || VU=""
+	if [[ "$VU" == "absent=sombre;clair=clair;sombre=sombre;vide=sombre;illisible=sombre" ]]; then
+		ok "le mode est lu juste sur les cinq cas (absent, clair, sombre, vide, illisible)"
+	else
+		non "la lecture du mode ne répond pas juste : « $VU »"
+	fi
+else
+	saut "python3 absent : la lecture du mode n'a pas été éprouvée"
 fi
 
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"

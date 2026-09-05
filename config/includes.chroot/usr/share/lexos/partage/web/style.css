@@ -34,7 +34,7 @@ body{
     un QR clair sur fond sombre n'est pas lu par une partie des appareils
     photo. C'est la seule surface blanche de LexOS, et elle a une raison
     fonctionnelle. Le padding reproduit la « zone calme » du code. */
-.cadre-qr{background:#FFFFFF;border-radius:10px;padding:11px}
+.cadre-qr{background:var(--qr-fond);border-radius:10px;padding:11px}
 .cadre-qr img{display:block;width:100%;height:auto;image-rendering:pixelated}
 .legende{color:var(--fg-dim);font-size:12px;text-align:center;margin-top:8px;line-height:1.45}
 
