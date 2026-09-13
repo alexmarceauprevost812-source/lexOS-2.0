@@ -288,8 +288,14 @@ done
 LOGO_SRC=""
 if [ -r "$BRAND/logo-ti-lex-al-icon.png" ]; then
 	LOGO_SRC="$BRAND/logo-ti-lex-al-icon.png"
-elif [ -r "$BRAND/logo-ti-lex-al.png" ]; then
-	LOGO_SRC="$BRAND/logo-ti-lex-al.png"
+#  ET LE REPLI S'APPELLE .jpg, PARCE QUE C'EST UN JPEG. Le fichier
+#  portait l'extension .png et « file » dit : « JPEG image data,
+#  1024x1024 ». Personne ne l'avait vu — ce repli ne se déclenche que
+#  si logo-ti-lex-al-icon.png manque, ce qui n'arrive jamais. Le
+#  convertir en vrai PNG coûtait 6,3 fois sa taille (134 ko -> 843 ko) ;
+#  on l'a donc renommé pour ce qu'il est.
+elif [ -r "$BRAND/logo-ti-lex-al.jpg" ]; then
+	LOGO_SRC="$BRAND/logo-ti-lex-al.jpg"
 elif [ -r "$BRAND/logo.svg" ]; then
 	LOGO_SRC="$BRAND/logo.svg"
 fi

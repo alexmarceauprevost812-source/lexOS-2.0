@@ -4232,7 +4232,7 @@ function filesVueBascule(){
     démonstrations attachées à des fichiers précis. */
 const FICHIERS_RACINE = [
   {nom:"mascot.png",          ic:"🖼", taille:"304 Ko", special:"sticker"},
-  {nom:"logo-ti-lex-al.png",  ic:"🖼", taille:"131 Ko"},
+  {nom:"logo-ti-lex-al.jpg",  ic:"🖼", taille:"131 Ko"},
   {nom:"wallpaper-crt.png",   ic:"🌄", taille:"2,1 Mo"},
   {nom:"notes.txt",           ic:"📄", taille:"1 Ko"},
   {nom:"demo-mix.ogg",        ic:"🎵", taille:"4,8 Mo"},
@@ -4264,7 +4264,7 @@ function ficVignetteReelle(nom){
   //  entre guillemets doubles — un url("…") aurait refermé l'attribut au
   //  tout premier guillemet et tronqué la balise. base64 n'en produit jamais.
   if(nom === "mascot.png")         return `url('${MASCOT_URI}')`;
-  if(nom === "logo-ti-lex-al.png") return "var(--logo-icon)";
+  if(nom === "logo-ti-lex-al.jpg") return "var(--logo-icon)";
   if(nom === "wallpaper-crt.png")  return "var(--wall-demon)";
   return null;
 }

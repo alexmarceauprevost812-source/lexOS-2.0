@@ -605,7 +605,7 @@ flavours/full/office-media.list.chroot        ← bureautique & création
 
 | Fichier | Rôle |
 |---|---|
-| `logo-ti-lex-al.png` | Logo officiel : icônes, Plymouth, installateur |
+| `logo-ti-lex-al.jpg` | Logo officiel : icônes, Plymouth, installateur |
 | `logo.svg` | Variante vectorielle du masque |
 | `wallpaper.svg` | Fond d'écran par défaut |
 | `wallpaper-crt.svg` | Variante lignes de balayage |

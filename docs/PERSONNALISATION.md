@@ -263,7 +263,7 @@ et tout suit automatiquement.
 
 | Fichier | Où ça apparaît | Format conseillé |
 |---|---|---|
-| `logo-ti-lex-al.png` | Icônes système, Plymouth, Calamares | PNG carré ≥ 512 px |
+| `logo-ti-lex-al.jpg` | Repli du logo (le principal est `-icon.png`) | JPEG 1024 px |
 | `logo.svg` | Icône vectorielle (menus, panneau) | SVG 512×512 |
 | `wallpaper.svg` | Fond d'écran par défaut, LightDM, GRUB | SVG 16:9 |
 | `wallpaper-crt.svg` | Fond alternatif | SVG 16:9 |

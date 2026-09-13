@@ -1,0 +1,38 @@
+# =============================================================================
+#  LexOS — ce que git doit traiter comme des OCTETS, pas comme du texte
+# =============================================================================
+#  POURQUOI CE FICHIER EXISTE. Sans lui, rien ne dit à git qu'un PNG est
+#  binaire. Un clone sur une machine configurée en CRLF, une fusion, un outil
+#  qui « normalise les fins de ligne » — et l'image arrive corrompue, sans
+#  que personne ne touche au fichier. C'est l'outil de vérification d'Alex
+#  (tools/verifier-images.py) qui a signalé son absence.
+#
+#  On ne pose PAS « * text=auto » : cela réécrirait les fins de ligne de tout
+#  le dépôt au prochain enregistrement, ce qui est exactement le genre de
+#  grand geste silencieux qu'on évite ici. On déclare seulement ce qui doit
+#  rester intact.
+
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.webp   binary
+*.ico    binary
+*.bmp    binary
+*.tga    binary
+*.xpm    binary
+*.mp4    binary
+*.webm   binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.otf    binary
+*.pf2    binary
+*.efi    binary
+*.iso    binary
+
+#  Les SVG sont du XML : du texte, et c'est bien qu'on puisse les relire dans
+#  un diff. Mais les fins de ligne restent celles du dépôt : le fond du menu
+#  BIOS est rendu par live-build, et un CRLF s'y verrait.
+*.svg    text eol=lf
+*.svg.in text eol=lf

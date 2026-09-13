@@ -205,6 +205,26 @@ BRAND_DST="config/includes.chroot/usr/share/lexos/branding"
 mkdir -p "$BRAND_DST"
 rm -f "$BRAND_DST"/*
 cp branding/*.svg branding/*.png "$BRAND_DST"/ 2>/dev/null || true
+#  ═══ LES .jpg — ET C'EST LE PLUS GROS TROU QU'ON AIT TROUVÉ ICI ═══
+#  Cette ligne n'existait pas. Les deux fonds d'écran d'Alex,
+#  fond-mascotte.jpg et fond-tilexal-banniere.jpg, sont des .jpg : ils
+#  n'arrivaient donc JAMAIS dans le chroot. Le hook 0300 les cherche à
+#  « /usr/share/lexos/branding/ », ne les trouvait pas, imprimait
+#  « pas de fond mascotte : branding/fond-mascotte.jpg absent » — et
+#  passait. Aucune ISO publiée n'a jamais contenu ces deux fonds d'écran.
+#
+#  POURQUOI PERSONNE NE L'A VU. Le banc tests/test_lexos_fonds_alex.sh est
+#  vert depuis le début : il recopie lui-même les deux fichiers depuis
+#  branding/ dans sa fausse arborescence, puis vérifie que le hook les
+#  découpe bien. Il éprouve la RECETTE et jamais la LIVRAISON. Un banc peut
+#  être juste et complet sur ce qu'il regarde, et laisser passer ce qu'il
+#  ne regarde pas. Le contrôle qui manquait est maintenant dans
+#  tests/test_lexos_images.sh : tout fichier qu'un hook lit sous $BRAND
+#  doit être copié ici.
+#
+#  Mesuré avant correction, en rejouant ces lignes dans un dossier vide :
+#  71 fichiers copiés, 0 .jpg.
+cp branding/*.jpg branding/*.jpeg "$BRAND_DST"/ 2>/dev/null || true
 #  Les .webp (mascottes rock et salut) et le .gif animé : le hook 0300 les
 #  attend pour les convertir en PNG — sans cette ligne, sa boucle « *.webp »
 #  tournait sur un dossier qui n'en avait aucun, en silence.

@@ -1849,6 +1849,29 @@ jobs:
           #  qui n'a rien prouve.
           LEXOS_FLUIDE_EXIGER_MESURE=1 bash tests/test_lexos_fluide.sh
 
+      - name: Les fonds d'écran d'Alex arrivent-ils VRAIMENT dans l'ISO — images sur un banc
+        if: ${{ !cancelled() }}
+        run: |
+          #  Alex a depose verifier-images.py sans consigne. Eprouve en le
+          #  faisant tourner : DEUX vrais defauts, SIX faux — et en tirant sur
+          #  un de ses fils, le plus gros trou du depot a ce jour.
+          #
+          #  build.sh recopiait branding/*.svg *.png *.webp *.gif *.mp4 dans
+          #  l'image. PAS les .jpg. Or fond-mascotte.jpg et
+          #  fond-tilexal-banniere.jpg — les deux fonds d'ecran d'Alex — sont
+          #  des .jpg : ils n'arrivaient JAMAIS dans le chroot. Le hook 0300
+          #  imprimait « absent » et passait. Aucune ISO publiee ne les a
+          #  jamais contenus.
+          #
+          #  Et tests/test_lexos_fonds_alex.sh etait VERT dessus depuis le
+          #  debut : il recopie lui-meme les deux fichiers dans sa fausse
+          #  arborescence, puis verifie que le hook les decoupe bien. Il
+          #  eprouve la RECETTE ; personne n'eprouvait la LIVRAISON.
+          #
+          #  Le controle 2 de ce banc est celui qui manquait : tout fichier de
+          #  branding/ qu'un hook lit sous $BRAND doit etre copie par build.sh.
+          bash tests/test_lexos_images.sh
+
       - name: Les réglages de la fenêtre active — lexos-app-settings sur un banc
         if: ${{ !cancelled() }}
         run: |
