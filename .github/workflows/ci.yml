@@ -1840,7 +1840,14 @@ jobs:
           #  les plus graves ne se voient que la) et de fausses machines : une
           #  avec carte NVIDIA, partage NFS et modem — celle sur laquelle le
           #  script d'origine aurait coupe nvidia-persistenced.
-          bash tests/test_lexos_fluide.sh
+          #  ET LA CI EXIGE LA MESURE. Ce banc etait VERT sur la machine de
+          #  developpement (root) et ROUGE ici (l'usager « runner ») :
+          #  15 reussis, 14 echoues — l'outil refuse d'agir sans les droits,
+          #  donc rien de ce qui compte n'etait eprouve. Il se relance
+          #  maintenant sous sudo ; si sudo manquait, il dirait « non mesure »
+          #  et cette variable en fait une erreur franche, plutot qu'un vert
+          #  qui n'a rien prouve.
+          LEXOS_FLUIDE_EXIGER_MESURE=1 bash tests/test_lexos_fluide.sh
 
       - name: Les réglages de la fenêtre active — lexos-app-settings sur un banc
         if: ${{ !cancelled() }}

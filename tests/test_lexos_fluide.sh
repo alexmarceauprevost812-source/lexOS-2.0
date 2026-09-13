@@ -27,6 +27,39 @@ set -uo pipefail
 
 RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTIL="$RACINE/config/includes.chroot/usr/bin/lexos-fluide"
+
+# =============================================================================
+#  CE BANC A BESOIN DES DROITS — ET IL EST ROUGE SANS EUX, PAS VERT
+# =============================================================================
+#  MESURÉ, ET C'EST MOI QUI ME SUIS FAIT AVOIR. Ce banc était vert sur la
+#  machine de développement (root) et ROUGE sur le coureur GitHub (l'usager
+#  « runner ») : 15 réussis, 14 échoués. L'outil refuse d'agir sans les
+#  droits — c'est son travail — donc aucune des mesures qui comptent ne se
+#  faisait. Vert ici, rouge là-bas : le même piège que la locale, une passe
+#  de plus dans le même environnement ne l'aurait jamais montré.
+#
+#  ET DEUX CONTRÔLES ÉTAIENT VERTS SUR ZÉRO : « l'annulation remet bien les
+#  0 services ». Un contrôle qui se satisfait de rien est pire qu'un rouge.
+#  Ils exigent maintenant qu'il y ait eu quelque chose à remettre.
+#
+#  On se relance donc sous sudo. Le faux systemctl et LEXOS_FLUIDE_ETC font
+#  que RIEN du vrai système n'est touché : tout vit dans un dossier
+#  temporaire. Si sudo n'est pas là, on le DIT (« non mesuré ») au lieu de
+#  rendre des verts qui n'ont rien éprouvé — et LEXOS_FLUIDE_EXIGER_MESURE=1
+#  (posé par la CI) en fait une erreur franche.
+if [ "$(id -u)" -ne 0 ]; then
+	if sudo -n true 2>/dev/null; then
+		exec sudo -n --preserve-env=LEXOS_FLUIDE_EXIGER_MESURE bash "$0" "$@"
+	fi
+	printf '\n\033[90m— lexos-fluide : NON MESURÉ (ni root, ni sudo sans mot de passe)\033[0m\n'
+	printf '\033[90m  L'"'"'outil refuse d'"'"'agir sans les droits : les contrôles ne prouveraient rien.\033[0m\n'
+	if [ "${LEXOS_FLUIDE_EXIGER_MESURE:-0}" = "1" ]; then
+		printf '\033[31m  LEXOS_FLUIDE_EXIGER_MESURE=1 : c'"'"'est une erreur.\033[0m\n'
+		exit 1
+	fi
+	exit 0
+fi
+
 BANC="$(mktemp -d)"
 trap 'rm -rf "$BANC"' EXIT
 
@@ -115,15 +148,23 @@ lancer >/dev/null
 N2="$(grep -c '^service ' "$BANC/etc/fluide.etat" 2>/dev/null || echo 0)"
 [ "$N1" -gt 0 ] && ok "un passage enregistre $N1 service(s) pour l'annulation" \
 	|| non "le premier passage n'enregistre rien"
-[ "$N2" = "$N1" ] && ok "…et un second passage les conserve tous ($N2)" \
-	|| non "le second passage a ramené l'enregistrement de $N1 à $N2"
+#  « $N2 = $N1 » ÉTAIT VRAI QUAND LES DEUX VALAIENT ZÉRO, et le contrôle
+#  passait donc sur un banc qui n'avait rien fait. On exige d'abord qu'il y
+#  ait eu quelque chose — sinon la comparaison ne compare rien.
+if [ "$N1" -gt 0 ] && [ "$N2" = "$N1" ]; then
+	ok "…et un second passage les conserve tous ($N2)"
+else
+	non "le second passage a ramené l'enregistrement de $N1 à $N2"
+fi
 
 : > "$SYSD_JOURNAL"
 S="$(lancer --annuler)"
 REMIS="$(grep -c '^ENABLE ' "$SYSD_JOURNAL" || true)"
-[ "$REMIS" -ge "$N1" ] \
-	&& ok "après DEUX passages, l'annulation remet bien les $N1 services" \
-	|| non "l'annulation n'a remis que $REMIS service(s) sur $N1 :\n$S"
+if [ "$N1" -gt 0 ] && [ "$REMIS" -ge "$N1" ]; then
+	ok "après DEUX passages, l'annulation remet bien les $N1 services"
+else
+	non "l'annulation n'a remis que $REMIS service(s) sur $N1 :\n$S"
+fi
 
 # =============================================================================
 titre "2. Un service qui refuse est NOMMÉ, pas passé sous silence"
