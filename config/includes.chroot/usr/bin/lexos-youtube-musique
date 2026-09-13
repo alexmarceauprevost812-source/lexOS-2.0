@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-youtube-musique — YouTube Music en APPLICATION, pas en onglet
+# =============================================================================
+#  Alex : « 1 youtube musique ». Il y avait déjà un lien « YouTube Music ↗ »
+#  au fond de la page de lexOS_musique : un lien, donc un onglet de plus dans
+#  un navigateur déjà chargé, qui se perd à la première fermeture. Ici c'est
+#  une entrée du menu et du dock, une fenêtre à soi, une icône à soi.
+#
+#  ═══ CE QU'IL FAUT DIRE, ET QUE lexOS_musique N'A PAS À DIRE ═══
+#  lexOS_musique joue TES fichiers : rien ne sort de la machine. Celui-ci est
+#  l'exact contraire — c'est un service en ligne de Google. Ce que tu écoutes,
+#  cherches et aimes part chez eux, et il faut un compte pour la plupart des
+#  fonctions. Ce n'est pas une raison de ne pas le proposer ; c'en est une
+#  pour l'écrire en clair, ici et dans la fiche du lanceur.
+#
+#  ═══ POURQUOI TROIS CHEMINS, ET PAS UN ═══
+#  « Fenêtre dédiée » est une promesse que tous les navigateurs ne tiennent
+#  pas :
+#    · chromium & cie connaissent « --app= » : vraie fenêtre, sans barre
+#      d'adresse ni onglets. C'est le chemin voulu, et chromium est dans
+#      20-desktop.list, donc présent sur une LexOS de série ;
+#    · firefox n'a PAS de mode application. « --new-window » ouvre une
+#      fenêtre, mais avec sa barre d'adresse. On le dit au lieu de laisser
+#      croire à une fenêtre d'application ;
+#    · sinon le navigateur par défaut, et là c'est un onglet. On le dit aussi.
+#
+#  Aucun de ces cas n'est un échec silencieux : chacun annonce ce qu'il fait.
+#
+#  LexOS 2.0 « Nomad »
+# =============================================================================
+set -uo pipefail
+
+URL="https://music.youtube.com"
+
+if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+	ORANGE=$'\033[38;5;208m'; ROUGE=$'\033[31m'; GRIS=$'\033[90m'; ZERO=$'\033[0m'
+else
+	ORANGE=''; ROUGE=''; GRIS=''; ZERO=''
+fi
+
+note()   { printf '%s›%s %s\n' "$ORANGE" "$ZERO" "$*" >&2; }
+erreur() { printf '%s✗%s %s\n' "$ROUGE" "$ZERO" "$*" >&2; }
+
+aide() {
+	cat <<AIDE
+lexos youtube-musique — ouvre YouTube Music dans sa propre fenêtre
+
+  lexos youtube-musique          ouvre $URL
+  lexos youtube-musique --aide   ce texte
+
+C'est un SERVICE EN LIGNE de Google : ce que tu écoutes part chez eux, et
+un compte est nécessaire pour la plupart des fonctions. Pour écouter tes
+propres fichiers sans que rien ne sorte de la machine : « lexos musique ».
+AIDE
+}
+
+case "${1:-}" in
+	--aide|--help|-h|aide) aide; exit 0 ;;
+	'') : ;;
+	*)  erreur "argument inconnu : $1"; aide >&2; exit 2 ;;
+esac
+
+# --- 1. Le mode application : une vraie fenêtre -----------------------------
+for NAV in chromium chromium-browser google-chrome google-chrome-stable \
+           brave-browser microsoft-edge vivaldi-stable; do
+	if command -v "$NAV" >/dev/null 2>&1; then
+		exec "$NAV" --app="$URL" \
+			--class=lexOS-youtube-musique --name=lexos-youtube-musique \
+			>/dev/null 2>&1
+	fi
+done
+
+# --- 2. Firefox : une fenêtre, mais avec sa barre d'adresse -----------------
+for NAV in firefox-esr firefox; do
+	if command -v "$NAV" >/dev/null 2>&1; then
+		note "$NAV n'a pas de mode application : fenêtre normale, barre d'adresse comprise."
+		note "${GRIS}Installe chromium pour la fenêtre dédiée : lexos logitheque installer chromium${ZERO}"
+		exec "$NAV" --new-window "$URL" >/dev/null 2>&1
+	fi
+done
+
+# --- 3. Le navigateur par défaut : ce sera un onglet ------------------------
+if command -v xdg-open >/dev/null 2>&1; then
+	note "aucun navigateur connu n'est installé : ouverture dans le navigateur par défaut, en onglet."
+	exec xdg-open "$URL"
+fi
+
+erreur "aucun navigateur n'est installé — impossible d'ouvrir $URL"
+erreur "installe-en un : lexos logitheque installer chromium"
+exit 1

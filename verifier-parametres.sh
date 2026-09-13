@@ -223,6 +223,11 @@ lexos-mise-a-jour
 #  16 sache qu'il est branché exprès et pas oublié.
 miss
 lexos-musique
+#  Un LANCEUR d'application, comme lexos-musique juste au-dessus : il
+#  ouvre un site dans sa propre fenetre. Il n'y a rien a regler dedans —
+#  une section dans les Parametres serait une page vide avec un bouton
+#  « ouvrir ». Atteint par le menu, le dock, et « lexos youtube-musique ».
+lexos-youtube-musique
 lexos-studio
 lexos-temp
 lexos-tv

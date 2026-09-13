@@ -296,10 +296,18 @@ else
 		#  « paquets » sur deux lignes. Le contrôle annonçait deux fichiers
 		#  et n'en regardait qu'un : mesuré, il restait vert alors que le
 		#  hook mentait. Un contrôle qui saute est un contrôle qui dort.
-		LIGNE="$(grep -iE "[^a-zà-ÿ](neuf|dix|onze|douze|treize|quatorze) paquets" "$f" || true)"
+		#  ═══ « \b » ET NON « [^a-zà-ÿ] » : UNE DÉPENDANCE À LA LOCALE ═══
+		#  La première écriture bornait le mot par une classe niée contenant
+		#  des lettres accentuées. Vert ici, ROUGE SUR LE COUREUR :
+		#      grep: Invalid collation character
+		#  En C.UTF-8 — la locale de la CI — une plage « à-ÿ » n'a pas de
+		#  collation définie et grep refuse le motif ; la ligne sortait vide,
+		#  le contrôle concluait « aucun compte écrit » et rougissait sur un
+		#  dépôt sain. Mesuré dans les trois locales depuis.
+		LIGNE="$(grep -iE "\\b(neuf|dix|onze|douze|treize|quatorze) paquets" "$f" || true)"
 		if [ -z "$LIGNE" ]; then
 			PROSE_KO="$PROSE_KO $(basename "$f")(aucun compte écrit)"
-		elif ! grep -qiE "[^a-zà-ÿ]$MOT paquets" <<< "$LIGNE"; then
+		elif ! grep -qiE "\\b$MOT paquets" <<< "$LIGNE"; then
 			PROSE_KO="$PROSE_KO $(basename "$f")"
 		fi
 	done

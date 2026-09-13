@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LexOS — Musique en ligne.
+
+  POURQUOI UN CARRÉ ARRONDI ET UNE LECTURE, ET PAS UNE NOTE.
+  Premier dessin essayé : une note portée par des ondes, sur pastille ronde.
+  Rendu et regardé à 48 px à côté de icon-musique.svg (le lecteur local, un
+  globe filaire) : deux ronds orange, deux dessins circulaires, impossible à
+  distinguer d'un coup d'œil dans le menu — et c'est la taille à laquelle on
+  les voit. La silhouette carrée tranche AVANT même qu'on lise le symbole,
+  et le triangle de lecture dit « ça joue depuis ailleurs » là où le globe
+  dit « ta collection ».
+
+  Dessin original : ni mot-symbole, ni bandeau, ni palette empruntés à une
+  marque existante — le service qu'il ouvre a les siens, on ne les imite
+  pas. #E8590C est un JETON, remplacé par lexos-theme-gen.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Musique en ligne — LexOS">
+  <rect x="56" y="56" width="400" height="400" rx="92" fill="#1A1A1D"/>
+  <rect x="56" y="56" width="400" height="400" rx="92" fill="none"
+        stroke="#E8590C" stroke-width="16" opacity="0.55"/>
+
+  <!-- Le flux : deux ondes qui entrent par la gauche. -->
+  <g fill="none" stroke="#E8590C" stroke-width="20" stroke-linecap="round" opacity="0.8">
+      <path d="M 132 214 A 60 60 0 0 0 132 298"/>
+      <path d="M 104 176 A 104 104 0 0 0 104 336"/>
+  </g>
+
+  <!-- La lecture : ça joue, et ça vient d'ailleurs. -->
+  <path d="M 214 154 L 214 358 L 386 256 Z" fill="#E8590C"/>
+</svg>

@@ -36,16 +36,57 @@ terminal-border:"0"
 terminal-box:   "terminal_box_*.png"
 
 # ───────────────────── LISTE DES DÉMARRAGES ─────────────────────
-# Géométrie calée sur le cadre dessiné dans background.png :
-#   cadre  : x 520 → 1400   (largeur 880)   y 400 → 843
-#   entrées: x 534 → 1386   (largeur 852)   y 449, hauteur 60, gouttière 4
+#  ═══ EN POURCENTAGES, ET C'EST TOUT LE CORRECTIF ═══
+#  ALEX, ESSAI SUR L'ALIENWARE : « tout est déformé et les places pour le
+#  boot ne sont pas bien placées ».
+#
+#  La géométrie était en PIXELS ABSOLUS, calée sur 1920x1080. Or le hook 0910
+#  demande « gfxmode=1920x1080,1280x720,1024x768,auto » : dès que le firmware
+#  ne rend pas le 1920x1080, GRUB prend un repli — et GRUB NE REDIMENSIONNE
+#  PAS UN THÈME. Le fond, lui, est bien étiré à l'écran. Résultat : le cadre
+#  dessiné se déplace, les entrées restent à 534/449, elles tombent à côté.
+#  Et si le repli est du 1024x768 (4:3), un fond 16:9 étiré est déformé.
+#  Les deux moitiés de la phrase d'Alex, et la même cause.
+#
+#  Un pourcentage, lui, suit l'étirement du fond exactement : le cadre est à
+#  une FRACTION fixe de l'image, l'étirement l'envoie à la même fraction de
+#  l'écran, et l'entrée posée à cette fraction-là reste dedans. Quelle que
+#  soit la définition, quel que soit le rapport d'image.
+#
+#  MESURÉ DANS background.png, PAS LU DANS UN COMMENTAIRE (les ruptures de
+#  luminance de l'image donnent le cadre au pixel près) :
+#    cadre   : x 520 → 1400 (27,08 % → 72,92 %)   y 400 → 843 (37,04 % → 78,06 %)
+#    entrées : x 534 → 1386 (27,81 % → 72,19 %)   y 449 (41,57 %), hauteur 380
+#
+#  Les pourcentages ci-dessous sont arrondis à l'entier VERS L'INTÉRIEUR du
+#  cadre — GRUB fait « pourcentage x total / 100 » en entier, et une entrée
+#  qui déborde d'un pixel se voit. Le banc tests/test_lexos_grub_theme.sh
+#  refait ce calcul pour six définitions, dont du 4:3 et du 16:10.
+#
+#  CE QUI RESTE EN PIXELS, ET POURQUOI ON L'ASSUME : item_height et les
+#  polices. La syntaxe des thèmes GRUB ne prend pas de pourcentage pour
+#  celles-là. En basse définition, les entrées restent donc à leur taille et
+#  la boîte rétrécit : le banc vérifie qu'il en tient au moins six partout,
+#  parce qu'une entrée hors de la boîte est SILENCIEUSEMENT invisible
+#  (scrollbar = false) — et choisir « secours » en croyant prendre « démo »,
+#  c'est exactement ce qui met quelqu'un devant une console.
 + boot_menu {
-    left   = 534
-    top    = 449
-    width  = 852
-    height = 380
+    left   = 28%
+    top    = 42%
+    width  = 44%
+    height = 35%
 
-    item_height     = 60
+    #  52 ET NON 60, ET C'EST UNE MESURE, PAS UN GOÛT. La boîte vaut 35 % de
+    #  la hauteur d'écran ; item_height, lui, ne sait pas être un pourcentage
+    #  (la syntaxe des thèmes GRUB ne l'accepte pas). Calculé pour les six
+    #  définitions du banc, avec 60 px : à 1280x720 il ne tenait plus que
+    #  TROIS entrées sur les cinq du menu. On peut encore les atteindre — la
+    #  liste défile à la flèche — mais voir trois entrées quand il y en a
+    #  cinq, sur un écran où tout est déjà mal placé, c'est exactement la
+    #  situation où l'on choisit « secours » en croyant prendre « démo ».
+    #  52 px en rend quatre là, six à 1920x1080, et ne coûte que 13 % de
+    #  hauteur de ligne à la définition de référence.
+    item_height     = 52
     item_spacing    = 4
     item_padding    = 0
     item_icon_space = 18
@@ -76,8 +117,8 @@ terminal-box:   "terminal_box_*.png"
     id    = "__timeout__"
     text  = "Démarrage automatique dans %d s"
     left  = 0
-    top   = 880
-    width = 1920
+    top   = 81%
+    width = 100%
     align = "center"
     color = "#5a5a63"
     font  = "LexOS Medium 14"
@@ -85,9 +126,9 @@ terminal-box:   "terminal_box_*.png"
 
 + progress_bar {
     id           = "__timeout__"
-    left         = 680
-    top          = 912
-    width        = 560
+    left         = 35%
+    top          = 84%
+    width        = 30%
     height       = 3
     show_text    = false
     bg_color     = "#1c1c22"

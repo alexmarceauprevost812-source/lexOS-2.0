@@ -1,0 +1,69 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — YouTube Music : une application, pas un lien au fond d'une page
+# =============================================================================
+#  Alex : « 1 youtube musique ». Un lien « YouTube Music ↗ » existait déjà
+#  au fond de la page de lexOS_musique — donc un onglet de plus, qui se perd
+#  à la première fermeture du navigateur. Ce hook lui donne ce qui fait une
+#  application sur un bureau : une entrée de menu, une icône à soi, une place
+#  dans le dock et dans la recherche.
+#
+#  IL EST À CÔTÉ DE 0430 (lexOS_musique) ET C'EST VOULU : les deux sont de la
+#  musique, et ils sont l'exact contraire l'un de l'autre. 0430 joue TES
+#  fichiers, rien ne sort de la machine. Celui-ci est un service en ligne de
+#  Google. La fiche du lanceur le dit, en français et en anglais — un
+#  utilisateur qui ouvre « Musique » doit savoir laquelle des deux il ouvre.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0431 : YouTube Music (application)"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# --- Icône ------------------------------------------------------------------
+SVG="/usr/share/lexos/branding/icon-youtube-musique.svg"
+[ -r "$SVG" ] || SVG="branding/icon-youtube-musique.svg"
+if [ -r "$SVG" ]; then
+	#  LES HUIT TAILLES, COMME EN 0430. Le hook 0430 porte la trace d'un
+	#  défaut qui a vécu : une même icône rendue par deux hooks depuis deux
+	#  dessins, chacun sur une partie des tailles. Aucun contrôle ne pouvait
+	#  le voir — toutes les tailles étaient là. Ce hook est le seul à écrire
+	#  « lexos-youtube-musique », et il les écrit toutes.
+	for SIZE in 16 22 24 32 48 64 128 256; do
+		DIR="/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+		mkdir -p "$DIR"
+		if have rsvg-convert; then
+			rsvg-convert -w "$SIZE" -h "$SIZE" "$SVG" \
+				-o "$DIR/lexos-youtube-musique.png" 2>/dev/null || true
+		elif have convert; then
+			convert -background none -resize "${SIZE}x${SIZE}" "$SVG" \
+				"$DIR/lexos-youtube-musique.png" 2>/dev/null || true
+		fi
+	done
+	have gtk-update-icon-cache && \
+		gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+else
+	echo "[lexos]   !! icône introuvable ($SVG) — icône générique utilisée"
+fi
+
+# --- Lanceur ----------------------------------------------------------------
+mkdir -p /usr/share/applications
+
+cat > /usr/share/applications/lexos-youtube-musique.desktop <<DESKTOP
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Musique en ligne (YouTube Music)
+Name[en]=Online Music (YouTube Music)
+Comment=Service en ligne de Google : ce que tu écoutes part chez eux. Pour tes propres fichiers, ouvre lexOS_musique.
+Comment[en]=Google online service: what you listen to goes to them. For your own files, open lexOS_musique.
+Exec=lexos youtube-musique
+Icon=lexos-youtube-musique
+Terminal=false
+StartupNotify=true
+StartupWMClass=lexOS-youtube-musique
+Categories=AudioVideo;Audio;Player;Network;
+Keywords=musique;music;youtube;ytmusic;streaming;ligne;online;audio;
+DESKTOP
+
+echo "[lexos]   lanceur posé : lexos-youtube-musique.desktop"

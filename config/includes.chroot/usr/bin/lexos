@@ -208,6 +208,7 @@ ${B}CAPTURE${R}
 
 ${B}STUDIO+${R}
   ${A}musique${R}             lexOS_musique : lecteur audio local ${D}(crate, playlists)${R}
+  ${A}youtube-musique${R}     YouTube Music en fenêtre dédiée ${D}(service en ligne de Google)${R}
   ${A}studio${R}              Studio+ LexOS : ateliers image, vidéo et son
   ${A}studio ouvrir${R} <atelier>  photo · peinture · vectoriel · video · capture · son
                       ${D}propose d'installer l'atelier s'il manque${R}
@@ -1120,6 +1121,10 @@ case "$CMD" in
 	meteo|météo|weather|temps) exec lexos-meteo "$@" ;;
 	tv|televiseur|téléviseur|hdmi) exec lexos-tv "$@" ;;
 	musique|music)        exec lexos-musique "$@" ;;
+	#  L'AUTRE musique : celle qui vient du réseau. Deux commandes parce
+	#  que ce sont deux choses opposées — « musique » ne sort rien de la
+	#  machine, « youtube-musique » est un service de Google.
+	youtube-musique|ytmusic|musique-ligne) exec lexos-youtube-musique "$@" ;;
 	chrome|google-chrome) exec lexos-chrome "$@" ;;
 	#  « jeux » ouvre la BIBLIOTHÈQUE (la liste de ce qu'on possède) : c'est
 	#  ce que quelqu'un veut dire en tapant « mes jeux ». « game » reste la

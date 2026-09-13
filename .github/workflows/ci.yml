@@ -1133,6 +1133,58 @@ jobs:
           [ "$bad" = "0" ] && echo "  ok — aucun banc ne renvoie un texte dans « grep -q »"
           exit $bad
 
+      - name: Aucune plage de lettres accentuées dans un motif de banc
+        if: ${{ !cancelled() }}
+        run: |
+          #  CE QUE ÇA RÉPARE, ET ÇA VIENT D'ARRIVER. Un contrôle bornait un
+          #  mot par « [^a-zà-ÿ] ». Vert sur la machine de développement
+          #  (locale POSIX), ROUGE ICI :
+          #      grep: Invalid collation character
+          #  En C.UTF-8 — la locale de ce coureur — une plage entre lettres
+          #  accentuées n'a pas de collation définie : grep REFUSE le motif,
+          #  rend une ligne vide, et le contrôle conclut de travers. Le pire
+          #  cas n'est pas ce rouge-là : c'est le VERT qu'une telle plage
+          #  peut donner quand l'absence de correspondance vaut succès.
+          #
+          #  La borne portable est « \b » (ou « [[:alpha:]] »), qui ne
+          #  dépend d'aucune collation.
+          #
+          #  On lit le CODE, pas la prose : ce commentaire-ci cite justement
+          #  la plage fautive, et un contrôle qui se déclenche sur sa propre
+          #  justification apprend à ignorer les rouges.
+          #  ET LA PREMIÈRE ÉCRITURE DE CE CONTRÔLE-CI EST TOMBÉE DANS SON
+          #  PROPRE PIÈGE : elle cherchait « [^[:ascii:]] ». « ascii » n'est
+          #  PAS une classe POSIX — grep répondait « Invalid character class
+          #  name » sur les quatre-vingt-neuf bancs, puis le contrôle
+          #  affichait vert. Un contrôle qui ne peut pas rougir. D'où Python,
+          #  qui n'a ni collation ni classes exotiques à deviner.
+          python3 - <<'PY'
+          import glob, re, sys
+
+          #  Une plage dans une expression entre crochets dont une borne
+          #  n'est pas de l'ASCII : « [a-zà-ÿ] », « [^à-ÿ] »…
+          CROCHETS = re.compile(r'\[[^\]]*\]')
+          PLAGE    = re.compile(r'[^\x00-\x7f]\s*-|-\s*[^\x00-\x7f]')
+
+          mauvais = []
+          for f in sorted(glob.glob("tests/*.sh")):
+              for n, ligne in enumerate(open(f, encoding="utf-8"), 1):
+                  #  ON LIT LE CODE, PAS LA PROSE : ce fichier-ci cite la
+                  #  plage fautive pour l'expliquer, et un contrôle qui se
+                  #  déclenche sur sa propre justification apprend à ignorer
+                  #  les rouges.
+                  code = re.sub(r'\s*#.*$', '', ligne)
+                  for bloc in CROCHETS.findall(code):
+                      if PLAGE.search(bloc):
+                          mauvais.append(f"{f}:{n} : {bloc}")
+
+          for m in mauvais:
+              print(f"::error::{m} — plage non-ASCII : « Invalid collation character » en C.UTF-8")
+          if not mauvais:
+              print("ok  aucun motif de banc ne dépend de la collation")
+          sys.exit(1 if mauvais else 0)
+          PY
+
       - name: Aucun banc d'essai orphelin
         if: ${{ !cancelled() }}
         run: |
@@ -1742,6 +1794,37 @@ jobs:
           #  d'ailleurs trouvé « gamemode » que le relevé à la main avait
           #  manqué (la commande s'appelle « gamemoderun »).
           bash tests/test_lexos_paquets_outils.sh
+
+      - name: Le menu de démarrage doit tenir à toute définition — thème GRUB sur un banc
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, ESSAI SUR L'ALIENWARE : « tout est déformé et les places
+          #  pour le boot ne sont pas bien placées ».
+          #
+          #  La géométrie du thème était en PIXELS ABSOLUS, calée sur
+          #  1920x1080. Le hook 0910 demande des replis (1280x720, 1024x768,
+          #  auto) et GRUB NE REDIMENSIONNE PAS UN THÈME — mais il étire le
+          #  fond. Dès que le firmware ne rend pas le 1920x1080, le cadre
+          #  dessiné se déplace et les entrées tombent à côté ; en 4:3 le
+          #  fond 16:9 est en plus déformé.
+          #
+          #  Le banc ne démarre pas GRUB — aucun coureur ne le peut. Il refait
+          #  son arithmétique pour six définitions et relève le cadre DANS
+          #  background.png, au lieu de croire le commentaire qui l'annonce.
+          #  Pillow est nécessaire à cette mesure : sans lui le banc dit
+          #  « non mesuré », ce qui n'est pas ce qu'on veut d'une CI.
+          python3 -c 'import PIL' 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-pil >/dev/null
+          bash tests/test_lexos_grub_theme.sh
+
+      - name: YouTube Music est une application, pas un lien — lexos-youtube-musique sur un banc
+        if: ${{ !cancelled() }}
+        run: |
+          #  Un lanceur qui promet « une fenêtre dédiée » doit la tenir, ou
+          #  dire qu'il ne la tient pas. Le banc lui donne trois mondes —
+          #  chromium présent, seulement firefox, aucun navigateur — et
+          #  vérifie l'argument exact passé dans chacun.
+          bash tests/test_lexos_youtube_musique.sh
 
       - name: Les réglages de la fenêtre active — lexos-app-settings sur un banc
         if: ${{ !cancelled() }}
