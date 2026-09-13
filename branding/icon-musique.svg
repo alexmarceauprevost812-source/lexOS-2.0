@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Musique — LexOS">
 <!--
   LexOS — Musique.
   Un globe filaire : la musique vient de partout. Les méridiens sont groupés
@@ -8,8 +10,6 @@
   Dessin original : ni mot-symbole, ni bandeau, ni palette empruntés à une
   marque existante. #E8590C est un JETON, remplacé par lexos-theme-gen.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Musique — LexOS">
   <circle cx="256" cy="256" r="196" fill="#1A1A1D"/>
   <circle cx="256" cy="256" r="150" fill="#E8590C" opacity="0.16"/>
 

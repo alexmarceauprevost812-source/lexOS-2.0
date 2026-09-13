@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
 <!--
   LexOS Diagnostic — icône de l'application.
   Inspirée de l'image fournie par Alex (téléphone en écorché, circuits qui
@@ -12,7 +13,6 @@
     usr/share/icons/hicolor/scalable/apps/lexos-diagnostic.svg
   Copie de travail/source ici : branding/icon-diagnostic.svg
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <filter id="lueur" x="-60%" y="-60%" width="220%" height="220%">
       <feGaussianBlur stdDeviation="7" result="flou"/>

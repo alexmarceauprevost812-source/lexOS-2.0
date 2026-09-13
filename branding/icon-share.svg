@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Partager — LexOS">
 <!--
   LexOS — icône « Partager ». Pastille ronde + pictogramme de partage.
 
@@ -13,9 +15,6 @@
   #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen
   avant le rendu des PNG — comme icon-files.svg et icon-zip.svg.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Partager — LexOS">
-
   <!-- Fond : pastille ronde -->
   <circle cx="256" cy="256" r="212" fill="#E8590C"/>
   <path d="M 256 44 A 212 212 0 0 1 468 256 A 212 212 0 0 0 256 44 Z"

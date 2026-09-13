@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Enregistrer l'écran — LexOS">
 <!--
   LexOS — icône « Enregistrer l'écran en vidéo ».
 
@@ -20,9 +22,6 @@
 
   Jeton #E8590C, remplacé par l'accent courant — comme ses deux voisines.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Enregistrer l'écran — LexOS">
-
   <circle cx="256" cy="256" r="196"
           fill="none" stroke="#E8590C" stroke-width="34"/>
   <circle cx="256" cy="256" r="112" fill="#E8590C"/>

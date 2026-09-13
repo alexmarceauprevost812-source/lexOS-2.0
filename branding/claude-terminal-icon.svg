@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"
+     role="img" aria-label="Claude Terminal — LexOS">
 <!--
   LexOS — Claude Terminal.
 
@@ -49,8 +51,6 @@
   Exactement la construction de claude-icon.svg, pour que les deux icônes
   aient le même poids visuel dans le dock.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"
-     role="img" aria-label="Claude Terminal — LexOS">
   <rect width="256" height="256" rx="56" fill="#0B0B0C"/>
   <!-- Le liseré est posé À L'INTÉRIEUR du carré : un contour centré sur le
        bord serait rogné de moitié au rendu, et l'icône paraîtrait sans

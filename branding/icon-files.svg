@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Fichiers LexOS">
 <!--
   LexOS — icône des outils fichiers (partage, pièces jointes).
   Reprise vectorielle du visuel officiel : document au coin plié + trombone.
@@ -7,9 +9,6 @@
   couleur d'accent courante avant de rendre les PNG. Ne pas la changer ici
   sans adapter la substitution dans lexos-theme-gen.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Fichiers LexOS">
-
   <!-- Document : contour épais, coin supérieur droit plié -->
   <g fill="none" stroke="#E8590C" stroke-width="34"
      stroke-linecap="round" stroke-linejoin="round">

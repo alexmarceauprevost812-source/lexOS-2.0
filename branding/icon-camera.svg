@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Capture d'écran — LexOS">
 <!--
   LexOS — icône « Capture d'écran ». Appareil photo au trait.
 
@@ -14,9 +16,6 @@
   stroke-linejoin="round" arrondit les jonctions de la bosse : sans lui,
   les deux angles au-dessus des pentes ressortent en pointes sèches.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Capture d'écran — LexOS">
-
   <g fill="none" stroke="#E8590C" stroke-width="34"
      stroke-linejoin="round" stroke-linecap="round">
 

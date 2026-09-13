@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- LexOS — variante « CRT » : lignes de balayage façon téléviseur 1980 -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"
      viewBox="0 0 1920 1080" role="img" aria-label="LexOS CRT">
+<!-- LexOS — variante « CRT » : lignes de balayage façon téléviseur 1980 -->
   <defs>
     <radialGradient id="tube" cx="0.5" cy="0.5" r="0.72">
       <stop offset="0%"   stop-color="#1A0F06"/>

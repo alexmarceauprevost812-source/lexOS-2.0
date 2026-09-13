@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="512" height="512" viewBox="0 0 512 512" role="img"
+     aria-label="Archive — LexOS">
 <!--
   LexOS — archives (ZIP, tar, 7z…).
   Une boîte en carton vue de trois quarts, rabats ouverts, avec le ti-démon
@@ -10,9 +13,6 @@
   Seul le bandeau « ZIP » prend l'accent — #E8590C est un JETON, remplacé
   par lexos-theme-gen avant le rendu des PNG.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="512" height="512" viewBox="0 0 512 512" role="img"
-     aria-label="Archive — LexOS">
   <defs>
     <linearGradient id="av" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#F2F0EA"/><stop offset="1" stop-color="#CFCBC0"/>

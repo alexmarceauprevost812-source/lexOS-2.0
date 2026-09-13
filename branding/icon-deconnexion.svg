@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Déconnexion — LexOS">
 <!--
   LexOS — icône « Déconnexion ». Une porte ouverte à droite, une flèche qui
   en sort. Même trait (42) et même famille que icon-arret.svg.
@@ -27,9 +29,6 @@
   où ce blanc devient l'encre sombre du mode clair (~/.config/lexos/
   session-icons), que lexos-session préfère. Voir sa section « 4 bis ».
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Déconnexion — LexOS">
-
   <!--  Le cadre, ouvert du côté où l'on sort : un rectangle fermé dirait
         « fenêtre », pas « porte ». -->
   <path d="M 292,116 H 148 A 32,32 0 0 0 116,148 V 364 A 32,32 0 0 0 148,396 H 292"

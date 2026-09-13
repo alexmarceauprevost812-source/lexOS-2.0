@@ -167,7 +167,43 @@ def bloc(nom):
             prof -= 1
             if prof == 0: return js[m.start():k + 1]
     raise SystemExit("bloc %s non refermé" % nom)
-src = bloc("qsTileHTML") + "\n" + bloc("rapidesHTML")
+#  ═══ ON PRENAIT DEUX FONCTIONS ; IL EN FAUT MAINTENANT SIX ═══
+#  Ce banc extrayait « qsTileHTML » et « rapidesHTML », et rien d'autre. Le
+#  jour où rapidesHTML() s'est mis à appeler sonHTML() (le bandeau de son) et
+#  photoHTML() (le choix de l'appareil photo), l'extrait a levé une
+#  ReferenceError : la page s'est rendue VIDE, et les contrôles de couleur
+#  ont annoncé « le gris ne se détache pas du voile ». Ils mesuraient un
+#  écran noir et le disaient en termes de gris.
+#
+#  ON SUIT DONC LE FICHIER AU LIEU DE RECOPIER UNE LISTE. Toutes les
+#  fonctions de premier niveau sont prises, plus les déclarations « let » et
+#  « const » de premier niveau — sauf « etat », que la page d'essai fournit
+#  elle-même. Une déclaration ne coûte rien : seule rapidesHTML() est
+#  APPELÉE. Le jour où une septième fonction s'ajoute, ce banc la prend tout
+#  seul.
+morceaux = []
+for m in re.finditer(r'^function (\w+)\(', js, re.M):
+    morceaux.append(bloc(m.group(1)))
+#  Les déclarations de premier niveau : une seule ligne, ou plusieurs jusqu'à
+#  la ligne qui ferme. On prend celles qui tiennent sur des lignes commençant
+#  à la colonne 0, ce qui est la forme de ce fichier.
+for m in re.finditer(r'^(?:let|const) (\w+)[^\n]*(?:\n(?![a-zA-Z(/]).*)*', js, re.M):
+    #  « etat » est fourni par la page d'essai (c'est le décor qu'on choisit).
+    #  Tout le reste est pris tel quel — « esc » COMPRIS : la page en avait
+    #  une copie écrite à la main, et deux déclarations du même nom au premier
+    #  niveau lèvent « Identifier 'esc' has already been declared », ce qui
+    #  vidait la page. On prend la VRAIE, celle du fichier, et la page n'en
+    #  déclare plus.
+    if m.group(1) in ("etat",):
+        continue
+    morceaux.append(m.group(0))
+src = "\n".join(morceaux)
+#  ═══ ET ON REFUSE D'ALLER PLUS LOIN SI L'EXTRAIT NE TIENT PAS DEBOUT ═══
+#  Sans ce garde-fou, un extrait incomplet donne une page vide, et tout ce
+#  qui suit mesure du noir en croyant mesurer du gris.
+for indispensable in ("qsTileHTML", "rapidesHTML"):
+    if ("function %s(" % indispensable) not in src:
+        raise SystemExit("EXTRAIT INCOMPLET : %s manque" % indispensable)
 open(os.path.join(d, "extrait.js"), "w", encoding="utf-8").write(src)
 #  LA MUTATION : on neutralise la plaque en la rendant transparente, sans
 #  toucher au balisage — la grille garde sa place, seul le gris s'en va.
@@ -178,11 +214,21 @@ open(os.path.join(d, "essai.html"), "w", encoding="utf-8").write(
 <style>html,body{margin:0;height:100%%;background:#000}</style>%s</head><body>
 <div class="shade on" style="position:absolute;inset:0"><div class="shade-in" id="dedans"></div></div>
 <script>
-function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+//  « esc » N'EST PLUS RECOPIÉE ICI : elle vient de l'extrait, donc du vrai
+//  fichier. Deux déclarations du même nom au premier niveau lèvent une
+//  erreur de syntaxe et la page reste vide — ce qui se lisait ensuite comme
+//  « le gris ne se détache pas du voile ».
 var etat={rapides:{wifi:true,bt:true,avion:false,perf:"performant",perfLabel:"Performant",crt:true}};
 </script>
 <script src="extrait.js"></script>
-<script>document.getElementById("dedans").innerHTML=rapidesHTML();</script>
+<script>
+//  SI rapidesHTML() LÈVE, ON LE DIT DANS LA PAGE — un écran noir mesuré
+//  comme « le gris est invisible » est un rouge qui accuse la mauvaise
+//  chose. Le titre de la page porte le verdict, et le banc le lit.
+try{ document.getElementById("dedans").innerHTML=rapidesHTML();
+     document.title = document.querySelector(".qs-tile") ? "OK" : "VIDE"; }
+catch(e){ document.title = "ERREUR: " + e.message; }
+</script>
 </body></html>""" % mut)
 PY
 }

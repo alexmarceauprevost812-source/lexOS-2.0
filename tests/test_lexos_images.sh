@@ -199,6 +199,158 @@ else
 	non ".gitattributes absent : un clone peut abîmer les images sans qu'on y touche"
 fi
 
+# =============================================================================
+titre "5. TOUT SVG DU DÉPÔT EST RECONNU COMME UNE IMAGE — pas seulement le thème"
+# =============================================================================
+#  ALEX, 13 SEPTEMBRE : « le répertoire personnel et le système de fichiers,
+#  on voit plus l'image sur le bureau ». La cause : gdk-pixbuf ne renifle que
+#  les ~256 premiers octets pour deviner le format, et l'en-tête de
+#  commentaire posé AVANT « <svg » l'en empêchait. rsvg-convert, lui, rendait
+#  ces fichiers sans broncher — d'où des PNG corrects à la construction et un
+#  défaut invisible jusqu'à ce que GTK doive lire le SVG lui-même.
+#
+#  ═══ POURQUOI CE CONTRÔLE EXISTE EN PLUS DE LA SECTION 6 DE
+#      test_lexos_icones_theme.sh ═══
+#  Celle-là ne regarde que usr/share/icons/LexOS/*/scalable/. C'est le thème
+#  livré, et c'était le symptôme d'Alex — mais pas toute la surface. DEUX
+#  fichiers ont traversé le correctif sans être vus :
+#
+#      usr/share/icons/hicolor/scalable/apps/lexos-diagnostic.svg
+#      usr/lib/lexos/diagnostic/web/favicon.svg
+#
+#  Ce sont deux COPIES figées de branding/icon-diagnostic.svg, dans des
+#  dossiers que la section 6 ne balaie pas. Un contrôle dont la portée est
+#  plus étroite que le défaut laisse forcément passer quelque chose — et ici
+#  on sait exactement quoi, parce que c'est arrivé.
+#
+#  CELUI-CI BALAIE TOUT LE DÉPÔT. Aucune liste d'exceptions à tenir à jour :
+#  une liste se périme, un balayage complet non.
+#  ═══ « -type f » : LES LIENS SYMBOLIQUES SONT ÉCARTÉS, ET C'EST VOULU ═══
+#  Le thème d'icônes est bâti de liens : drive-harddisk-usb.svg pointe sur
+#  icon-usb.svg, et une douzaine d'autres font de même. Contrôler la forme
+#  d'un lien, c'est contrôler DEUX FOIS le même fichier — et si sa cible est
+#  mauvaise, le rapport nommerait le lien au lieu du dessin à corriger.
+#  D'où deux chiffres différents plus bas, et ils sont justes tous les deux :
+#  61 fichiers réguliers pour la FORME, 83 entrées pour le CHARGEMENT (qui
+#  suit les liens, comme GTK le fera).
+SVG_TOUS="$(cd "$RACINE" && find . -name '*.svg' -type f -not -path './.git/*' | sort)"
+NB_SVG="$(printf '%s\n' "$SVG_TOUS" | grep -c . || true)"
+if [ "${NB_SVG:-0}" -lt 10 ]; then
+	non "seulement ${NB_SVG} SVG trouvés dans le dépôt — le balayage n'a pas eu lieu"
+else
+	#  ── MAILLON 1 : LA FORME, qui se mesure partout ───────────────────────
+	#  Sans gdk-pixbuf on peut quand même éprouver la CAUSE : « <svg » doit
+	#  ouvrir le fichier, juste après la déclaration XML. C'est ce qui rend ce
+	#  contrôle utile même là où le lecteur SVG n'est pas installé.
+	#  ═══ CE MAILLON NE DÉPEND D'AUCUN INTERPRÉTEUR, ET C'EST VOULU ═══
+	#  Premier jet : un petit python3 par fichier. Éprouvé en remplaçant
+	#  python3 par un script qui sort 1 — le contrôle a accusé LES 61
+	#  FICHIERS d'être malformés, alors que le seul défaut était
+	#  l'interpréteur. C'est la faute que ce dépôt a déjà payée quatre fois :
+	#  un contrôle qui ne distingue pas « c'est faux » de « je n'ai pas pu
+	#  regarder ». En shell pur, il n'y a plus rien à casser.
+	#
+	#  On retire la déclaration XML puis TOUTE espace, et on regarde les
+	#  quatre premiers caractères qui restent. « head -c » ne lit que le
+	#  début : le poids du fichier ne compte pas.
+	MAL=""
+	for F in $SVG_TOUS; do
+		DEBUT="$(sed -e 's/<?xml[^?]*?>//' "$RACINE/${F#./}" | tr -d '[:space:]' | head -c 4)"
+		[ "$DEBUT" = "<svg" ] || MAL="$MAL ${F#./}"
+	done
+	if [ -z "$MAL" ]; then
+		ok "les ${NB_SVG} dessins du dépôt (hors liens) ouvrent sur « <svg » — gdk-pixbuf reconnaîtra le format"
+	else
+		non "« <svg » n'ouvre pas le fichier (GTK dira « format non reconnu ») :$MAL"
+	fi
+
+	#  ── MAILLON 2 : LE VRAI SYMPTÔME, quand on peut le mesurer ───────────
+	#  Le maillon 1 éprouve la cause, celui-ci le SYMPTÔME. Il faut les deux :
+	#  la forme peut être bonne et le fichier refusé pour une autre raison.
+	#
+	#  ON CHERCHE UN INTERPRÉTEUR QUI SAIT, et on exige LE LECTEUR SVG, pas
+	#  seulement le module « gi ». C'est le rouge de la CI 603 : « import gi »
+	#  réussit sur le coureur GitHub (Ubuntu livre python3-gi) mais sans
+	#  librsvg2-common il n'y a pas de lecteur SVG, et gdk-pixbuf refuse TOUS
+	#  les fichiers — le banc accusait alors les dessins d'Alex d'un paquet
+	#  absent sur la machine d'essai. Sans lecteur : « non mesuré », jamais un
+	#  verdict.
+	PYGI=""
+	for C in python3 python3.13 python3.12 python3.11 /usr/bin/python3.12 /usr/bin/python3.11; do
+		command -v "$C" >/dev/null 2>&1 || continue
+		"$C" -c '
+import gi
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import GdkPixbuf
+assert any(f.get_name() == "svg" or "svg" in (f.get_extensions() or [])
+           for f in GdkPixbuf.Pixbuf.get_formats()), "aucun lecteur SVG"
+' 2>/dev/null || continue
+		PYGI="$C"; break
+	done
+	if [ -z "$PYGI" ]; then
+		gris "aucun interpréteur avec un LECTEUR SVG gdk-pixbuf : le chargement réel n'est PAS mesuré (python3-gi, gir1.2-gdkpixbuf-2.0, librsvg2-common)"
+		if [ "${LEXOS_IMAGES_EXIGER_MESURE:-}" = "1" ]; then
+			non "…et LEXOS_IMAGES_EXIGER_MESURE=1 : en CI, un « non mesuré » vaut un échec"
+		fi
+	else
+		REFUS="$("$PYGI" -c '
+import gi, os, sys
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import GdkPixbuf
+racine = sys.argv[1]
+mauvais, n = [], 0
+for d, _, fs in os.walk(racine):
+    if ".git" in d.split(os.sep):
+        continue
+    for f in fs:
+        if not f.endswith(".svg"):
+            continue
+        n += 1
+        c = os.path.join(d, f)
+        try:
+            GdkPixbuf.Pixbuf.new_from_file(c)
+        except Exception:
+            mauvais.append(os.path.relpath(c, racine))
+print("%d|%s" % (n, " ".join(sorted(mauvais))))
+' "$RACINE")"
+		VUS="${REFUS%%|*}"; LISTE="${REFUS#*|}"
+		if [ "${VUS:-0}" -lt 10 ]; then
+			non "le chargement n'a vu que ${VUS} SVG : le contrôle n'a rien mesuré"
+		elif [ -z "$LISTE" ]; then
+			ok "…et gdk-pixbuf les charge pour de vrai : ${VUS} entrées (liens du thème compris), aucune refusée — mesuré avec $PYGI"
+		else
+			non "gdk-pixbuf REFUSE : $LISTE"
+		fi
+	fi
+fi
+
+#  ═══ LES COPIES D'UN MÊME DESSIN NE DOIVENT PAS DIVERGER ═══
+#  branding/icon-diagnostic.svg existe en TROIS exemplaires dans le dépôt, et
+#  rien ne les régénère à la construction : aucun hook ne les nomme. Elles se
+#  tiennent à la main, donc elles se désynchronisent en silence — c'est
+#  exactement ce qui vient d'arriver, et le défaut a survécu un correctif
+#  entier.
+#  On ne restructure rien ici (ce sont les dessins d'Alex) : on MESURE que les
+#  copies restent identiques à leur source, pour que la prochaine divergence
+#  se voie tout de suite.
+DIVERGENT=""
+for COUPLE in \
+	"branding/icon-diagnostic.svg|config/includes.chroot/usr/lib/lexos/diagnostic/web/favicon.svg" \
+	"branding/icon-diagnostic.svg|config/includes.chroot/usr/share/icons/hicolor/scalable/apps/lexos-diagnostic.svg"
+do
+	SRC="$RACINE/${COUPLE%%|*}"; CPY="$RACINE/${COUPLE##*|}"
+	if [ ! -r "$SRC" ] || [ ! -r "$CPY" ]; then
+		DIVERGENT="$DIVERGENT ${COUPLE##*|}(absent)"
+	elif ! cmp -s "$SRC" "$CPY"; then
+		DIVERGENT="$DIVERGENT ${COUPLE##*|}"
+	fi
+done
+if [ -z "$DIVERGENT" ]; then
+	ok "les copies figées d'icon-diagnostic.svg sont identiques à leur source"
+else
+	non "des copies ont divergé de leur source (rien ne les régénère) :$DIVERGENT"
+fi
+
 printf '\n\033[1m%d réussis, %d échoués, %d non mesurés\033[0m\n' \
 	"$REUSSIS" "$ECHOUES" "$NONMESURE"
 [ "$ECHOUES" -eq 0 ]

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Changer d'utilisateur — LexOS">
 <!--
   LexOS — icône « Changer d'utilisateur ». Deux silhouettes côte à côte :
   c'est le 👥 de la démo web, redessiné au trait de la famille.
@@ -31,9 +33,6 @@
   où ce blanc devient l'encre sombre du mode clair (~/.config/lexos/
   session-icons), que lexos-session préfère. Voir sa section « 4 bis ».
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Changer d'utilisateur — LexOS">
-
   <!--  Le sens de l'arc a été choisi en rendant les DEUX : « sweep=0 » donne
         un sourire (l'arc creuse vers le bas), « sweep=1 » la coupole qu'on
         veut. Le premier jet portait des sourires sous deux têtes — deux

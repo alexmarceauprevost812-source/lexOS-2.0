@@ -1908,7 +1908,26 @@ jobs:
           #
           #  Le controle 2 de ce banc est celui qui manquait : tout fichier de
           #  branding/ qu'un hook lit sous $BRAND doit etre copie par build.sh.
-          bash tests/test_lexos_images.sh
+          #
+          #  ═══ ET LE CONTROLE 5, QUI COUVRE UNE SURFACE PLUS LARGE ═══
+          #  gdk-pixbuf ne renifle que les ~256 premiers octets pour deviner le
+          #  format : un commentaire pose AVANT « <svg » l'en empechait, et il
+          #  refusait 36 des 83 SVG du depot. rsvg-convert, lui, les rendait
+          #  sans broncher — d'ou des PNG corrects a la construction et un
+          #  defaut invisible jusqu'a ce que GTK doive lire le SVG lui-meme.
+          #  La section 6 de test_lexos_icones_theme.sh ne balayait que le
+          #  theme livre ; DEUX fichiers ont traverse le correctif sans etre
+          #  vus. Celui-ci balaie TOUT le depot.
+          #
+          #  Les paquets sont installes ICI pour la meme raison que pour le
+          #  banc des icones : « import gi » reussit sur ce coureur (Ubuntu
+          #  livre python3-gi) mais SANS librsvg2-common il n'y a pas de
+          #  lecteur SVG, et gdk-pixbuf refuse alors TOUS les fichiers.
+          #  EXIGER_MESURE=1 fait d'un « non mesure » un echec franc : une
+          #  ligne grise dans un journal de deux cents etapes ne se voit pas.
+          sudo apt-get install -y --no-install-recommends \
+            python3-gi gir1.2-gdkpixbuf-2.0 librsvg2-common >/dev/null 2>&1 || true
+          LEXOS_IMAGES_EXIGER_MESURE=1 bash tests/test_lexos_images.sh
 
       - name: Les réglages de la fenêtre active — lexos-app-settings sur un banc
         if: ${{ !cancelled() }}

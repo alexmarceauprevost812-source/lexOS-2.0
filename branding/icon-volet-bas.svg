@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Paramètres rapides — LexOS">
 <!--
   LexOS — Paramètres rapides (le volet qu'on tire vers le bas).
 
@@ -24,8 +26,6 @@
   #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen —
   la flèche suit donc la couleur choisie, comme toutes les autres.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Paramètres rapides — LexOS">
   <!-- Cadre : mêmes mesures que toutes les icônes LexOS (432 de côté, rx 96) -->
   <rect x="40" y="40" width="432" height="432" rx="96" fill="#E8590C"/>
   <!-- Le reflet du haut, à 12 % — la signature commune de la famille -->

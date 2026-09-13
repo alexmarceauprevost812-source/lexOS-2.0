@@ -232,8 +232,14 @@ fi
 
 #  Elles doivent appeler « lexos son », pas du pactl écrit en dur : le moteur
 #  du son reste à un seul endroit.
-if grep -E 'name="XF86Audio' "$RACCOURCIS" | grep -qv 'value="lexos son'; then
-	non "une touche de volume n'appelle pas « lexos son » : $(grep -E 'name="XF86Audio' "$RACCOURCIS" | grep -v 'value="lexos son')"
+#  « grep -q » S'ARRÊTE AU PREMIER RÉSULTAT et ferme le tuyau : sous
+#  « pipefail », le producteur reçoit une erreur d'écriture et TOUT le tuyau
+#  échoue — dans un contrôle inversé comme celui-ci, ça donne un FAUX VERT.
+#  On met donc le texte en mémoire d'abord, et on l'interroge par here-string.
+LIGNES_AUDIO="$(grep -E 'name="XF86Audio' "$RACCOURCIS" || true)"
+HORS="$(grep -v 'value="lexos son' <<< "$LIGNES_AUDIO" || true)"
+if [[ -n "$HORS" ]]; then
+	non "une touche de volume n'appelle pas « lexos son » : $HORS"
 else
 	ok "…et toutes appellent « lexos son », pas du pactl écrit dans le XML"
 fi
@@ -248,7 +254,8 @@ SON="$RACINE/config/includes.chroot/usr/bin/lexos-son"
 for T in XF86AudioRaiseVolume XF86AudioLowerVolume XF86AudioMute XF86AudioMicMute; do
 	V="$(sed -n "s/.*name=\"$T\"[^>]*value=\"lexos son \([^\"]*\)\".*/\1/p" "$RACCOURCIS" | head -1)"
 	[[ -n "$V" ]] || { non "$T : aucune valeur « lexos son … » lue"; continue; }
-	if NO_COLOR=1 LEXOS_SON_BULLE=0 bash "$SON" $V </dev/null 2>&1 | grep -q "Commande inconnue"; then
+	REPONSE="$(NO_COLOR=1 LEXOS_SON_BULLE=0 bash "$SON" $V </dev/null 2>&1 || true)"
+	if grep -q "Commande inconnue" <<< "$REPONSE"; then
 		non "$T appelle « lexos son $V », que lexos-son ne connaît pas"
 	else
 		ok "$T -> « lexos son $V » : un verbe que lexos-son connaît"
@@ -523,7 +530,8 @@ DEF="$(sed -n 's/^DELAI_CAPTURE=\([0-9]*\)$/\1/p' "$CAPTURE" | head -1)"
 	&& ok "…et il vaut 0 par défaut : touche Impr écr et lanceurs de la barre inchangés" \
 	|| non "le délai par défaut vaut « $DEF » : toutes les captures attendraient"
 #  Et le volet se ferme APRÈS avoir demandé l'action, pas avant.
-grep -A2 "await api(\"rapides-photo\"" "$VOLET_APP" | grep -q 'window.close()' \
+APRES_PHOTO="$(grep -A2 "await api(\"rapides-photo\"" "$VOLET_APP" || true)"
+grep -q 'window.close()' <<< "$APRES_PHOTO" \
 	&& ok "le volet se ferme APRÈS avoir lancé la capture (l'ordre compte)" \
 	|| non "le volet ne se ferme pas après la demande de capture"
 

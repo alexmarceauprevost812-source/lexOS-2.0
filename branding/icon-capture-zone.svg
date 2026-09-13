@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Cadrer une zone — LexOS">
 <!--
   LexOS — icône « Cadrer une zone ».
 
@@ -19,9 +21,6 @@
   « on choisit une découpe ». Même trait, mêmes bouts ronds et même jeton
   #E8590C que icon-camera.svg : les trois boutons restent une famille.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Cadrer une zone — LexOS">
-
   <g fill="none" stroke="#E8590C" stroke-width="38"
      stroke-linejoin="round" stroke-linecap="round">
 

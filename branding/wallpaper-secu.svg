@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"
+     viewBox="0 0 1920 1080" role="img" aria-label="LexOS — Sécurité">
 <!--
   LexOS — fond d'écran « Sécurité » (1920x1080).
   Pluie de binaire rouge sur fond noir, silhouette chapeau + masque dans un
@@ -9,8 +11,6 @@
 
   Choisissable dans Paramètres → Bureau LexOS, à côté du fond par défaut.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"
-     viewBox="0 0 1920 1080" role="img" aria-label="LexOS — Sécurité">
   <defs>
     <linearGradient id="secfire" x1="0" y1="1" x2="0" y2="0">
       <stop offset="0%"   stop-color="#B4230A"/>

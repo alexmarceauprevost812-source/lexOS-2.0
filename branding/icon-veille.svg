@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Mise en veille — LexOS">
 <!--
   LexOS — icône « Mise en veille ». Un croissant de lune : le symbole que
   tout le monde lit sans légende, et celui de la démo web.
@@ -38,8 +40,6 @@
   où ce blanc devient l'encre sombre du mode clair (~/.config/lexos/
   session-icons), que lexos-session préfère. Voir sa section « 4 bis ».
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Mise en veille — LexOS">
   <path d="M 316,91
            A 176,176 0 1 0 316,421
            A 200,200 0 0 1 316,91 Z"

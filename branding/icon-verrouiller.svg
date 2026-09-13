@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Verrouiller l'écran — LexOS">
 <!--
   LexOS — icône « Verrouiller l'écran ». Cadenas fermé : anse en haut, corps
   plein. Même trait (42) que le reste de la famille.
@@ -23,9 +25,6 @@
   où ce blanc devient l'encre sombre du mode clair (~/.config/lexos/
   session-icons), que lexos-session préfère. Voir sa section « 4 bis ».
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Verrouiller l'écran — LexOS">
-
   <!--  L'anse part du corps et y revient : une anse posée au-dessus, sans
         contact, donne un cadenas OUVERT — le contraire de ce qu'on dit. -->
   <path d="M 166,232 V 168 A 90,90 0 0 1 346,168 V 232"

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Icône lexOS_musique : un vinyle qui tourne, aux couleurs de la maison. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<!-- Icône lexOS_musique : un vinyle qui tourne, aux couleurs de la maison. -->
   <defs>
     <radialGradient id="disque" cx="50%" cy="50%" r="50%">
       <stop offset="0%" stop-color="#2a2a2a"/>

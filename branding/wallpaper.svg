@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- LexOS — fond d'écran par défaut : noir pur + braise orange (1920x1080) -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"
      viewBox="0 0 1920 1080" role="img" aria-label="LexOS">
+<!-- LexOS — fond d'écran par défaut : noir pur + braise orange (1920x1080) -->
   <defs>
     <radialGradient id="ember" cx="0.5" cy="0.52" r="0.55">
       <stop offset="0%"   stop-color="#FF8A1F" stop-opacity="0.30"/>

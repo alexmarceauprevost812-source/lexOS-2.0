@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Confidentialité et sécurité — LexOS">
 <!--
   LexOS — Confidentialité et sécurité.
   Écusson + cadenas, dessin original (aucune forme copiée de la référence,
@@ -9,8 +11,6 @@
   l'écusson porte donc la couleur choisie par l'utilisateur, comme les
   autres icônes teintables (files, zip, share…).
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Confidentialité et sécurité — LexOS">
   <!-- Écusson -->
   <path d="M256 40
            L 392 92

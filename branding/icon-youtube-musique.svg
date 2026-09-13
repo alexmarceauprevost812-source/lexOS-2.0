@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Musique en ligne — LexOS">
 <!--
   LexOS — Musique en ligne.
 
@@ -15,8 +17,6 @@
   marque existante — le service qu'il ouvre a les siens, on ne les imite
   pas. #E8590C est un JETON, remplacé par lexos-theme-gen.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Musique en ligne — LexOS">
   <rect x="56" y="56" width="400" height="400" rx="92" fill="#1A1A1D"/>
   <rect x="56" y="56" width="400" height="400" rx="92" fill="none"
         stroke="#E8590C" stroke-width="16" opacity="0.55"/>

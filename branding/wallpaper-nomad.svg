@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"
+     viewBox="0 0 1920 1080" role="img"
+     aria-label="LexOS — TI·LEX·AL 2.0.0 Nomad">
 <!--
   LexOS — fond d'écran « Nomad » : le bureau de la démo web, en image.
   ══════════════════════════════════════════════════════════════════════════
@@ -35,9 +38,6 @@
 
   Fabriqué par tools/gen-fond-nomad.py — modifier le script, pas ce fichier.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"
-     viewBox="0 0 1920 1080" role="img"
-     aria-label="LexOS — TI·LEX·AL 2.0.0 Nomad">
   <defs>
     <!--  La braise : « radial-gradient(60% 45% at 50% 55%, …, transparent 70%) ».
           En SVG, le rayon se donne en fraction de la boîte : 0.60 et 0.45. -->

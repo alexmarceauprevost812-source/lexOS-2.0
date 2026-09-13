@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Redémarrer — LexOS">
 <!--
   LexOS — icône « Redémarrer ». Flèche circulaire ouverte en haut, même
   cercle et même trait que icon-arret.svg : dans la fenêtre de session, les
@@ -20,9 +22,6 @@
   longtemps et se lit bien : l'arc s'arrête à gauche (96,256) et la pointe
   descend, base à cheval sur la fin du trait.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Redémarrer — LexOS">
-
   <!--  Arc des trois quarts : du haut, par la droite et le bas, jusqu'à
         gauche. Rayon 160 autour de (256,256), comme l'interrupteur. -->
   <path d="M 256,96 A 160,160 0 1 1 96,256"
