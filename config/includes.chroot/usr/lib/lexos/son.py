@@ -150,10 +150,35 @@ def etat():
     « volume: -1 » et « micro: None » sont les deux façons de dire
     INDISPONIBLE. La page s'en sert pour ne pas dessiner ce qui ne marcherait
     pas — jamais pour afficher un zéro à la place.
+
+    ═══ LES TROIS LECTURES PARTENT ENSEMBLE ═══
+    Elles étaient écrites les unes sous les autres, donc lancées les unes
+    APRÈS les autres : trois appels à pactl en file. MESURÉ avec un pactl qui
+    répond en 1,5 s — ce que fait un serveur de son qui démarre, ou qui est
+    occupé :
+
+        en file (avant) .... 4,5 s
+        de front (après) ... 1,5 s
+
+    Ce n'est pas une optimisation de confort : ce volet-ci s'ouvre sous le
+    doigt d'Alex, et c'est MOI qui y ai ajouté ces trois appels avec le
+    bandeau de son. Les laisser en file, c'était rendre le volet plus lent
+    qu'avant de l'améliorer.
+
+    Les trois lectures sont indépendantes — aucune ne dépend du résultat
+    d'une autre — donc rien ne s'ordonne ici. Chacune a déjà sa propre borne
+    (DELAI), et _sortie() ne lève jamais : un fil qui échoue rend sa valeur
+    neutre, comme s'il avait été appelé seul.
     """
     if not disponible():
         return {"volume": -1, "muet": False, "micro": None}
-    return {"volume": volume(), "muet": muet(), "micro": micro_muet()}
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+        f_vol = pool.submit(volume)
+        f_muet = pool.submit(muet)
+        f_mic = pool.submit(micro_muet)
+        return {"volume": f_vol.result(), "muet": f_muet.result(),
+                "micro": f_mic.result()}
 
 
 # =============================================================================

@@ -2916,6 +2916,27 @@ jobs:
           #  Énergie serait restée muette le jour où lexos-perf manquerait.
           bash tests/test_lexos_sections.sh
 
+      - name: L'ouverture des Paramètres — mesurée, pas supposée
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « quand on ouvre la page des paramètres ça prend environ
+          #  3 secondes avant de voir de quoi ». Mesuré avec des outils qui
+          #  répondent en 1,2 s : 4001 ms — pas 3800, pas 4200 : le PLAFOND
+          #  de _ETAT_DELAI. L'ouverture n'attendait pas les quarante
+          #  collecteurs, elle attendait qu'ils ABANDONNENT, pour dessiner
+          #  UNE section. La machinerie pour demander moins existait déjà et
+          #  la navigation s'en servait ; seule l'ouverture ne l'avait pas.
+          #
+          #  Demander moins ouvre un trou que la lenteur cachait : une
+          #  section peut LIRE une clé qu'elle ne DEMANDE pas — elle serait
+          #  vide, et ne la redemanderait JAMAIS. Ce banc rend les
+          #  trente-sept sections derrière un état qui NOTE chaque clé
+          #  consultée, et compare. C'est comme ça qu'on a trouvé
+          #  « barreCachee » : app.js l'affichait depuis toujours, etat() ne
+          #  l'a jamais produite, et l'interrupteur « Masquer la barre »
+          #  était donc éteint pour tout le monde, barre cachée ou non.
+          bash tests/test_lexos_moteur_ouverture.sh
+
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}
         run: |

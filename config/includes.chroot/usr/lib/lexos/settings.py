@@ -1210,7 +1210,14 @@ def act_barre_cachee(arg):
     if arg not in ("on", "off", "toggle"):
         return {"ok": False, "erreur": "valeur inattendue"}
     if arg == "toggle":
-        arg = "off" if _barre_cachee() else "on"
+        #  BASCULER SUPPOSE SAVOIR D'OÙ L'ON PART. _barre_cachee() rend
+        #  maintenant None quand xfconf-query est absent ou muet ; le prendre
+        #  pour un « non » ferait cacher une barre déjà cachée, sans un mot.
+        actuel = _barre_cachee()
+        if actuel is None:
+            return {"ok": False,
+                    "erreur": "état de la barre inconnu (xfconf-query muet)"}
+        arg = "off" if actuel else "on"
     return _run(["xfconf-query", "-c", "xfce4-panel",
                  "-p", "/panels/panel-1/autohide-behavior",
                  "-n", "-t", "int", "-s", "1" if arg == "on" else "0"])
@@ -3228,9 +3235,20 @@ def _apercu_etat():
 def _barre_cachee():
     """La barre du haut se cache-t-elle toute seule ? XFCE range ça dans
     autohide-behavior : 0 = toujours visible, 1 = intelligent, 2 = toujours
-    cachée. On considère « cachée » dès que ce n'est plus 0."""
+    cachée. On considère « cachée » dès que ce n'est plus 0.
+
+    ═══ RIEN LU N'EST PAS « NON » ═══
+    Cette fonction rendait « False » dans DEUX cas qui n'ont rien à voir :
+    la barre est visible, et « xfconf-query est absent ou muet ». Tant
+    qu'elle ne servait qu'à act_barre_cachee() — qui bascule, et se trompe
+    au pire d'un clic — ça passait. Maintenant que la page l'AFFICHE, la
+    confusion redevient le bogue du dock : un interrupteur éteint qui
+    affirme « la barre ne se cache pas » sans en rien savoir.
+    None veut dire « je n'ai pas pu lire ». La page sait le dire."""
     v = _xfconf_lire("xfce4-panel", "/panels/panel-1/autohide-behavior")
-    return v.isdigit() and int(v) != 0
+    if not v.isdigit():
+        return None
+    return int(v) != 0
 
 
 def _bureaux_etat():
@@ -4017,6 +4035,14 @@ def etat(cles=None):
         "partage": _partage_etat,
         "terminal": _terminal_etat,
         "crt": _crt_etat,
+        #  ═══ LA CLÉ QUE LA PAGE LISAIT ET QUE PERSONNE N'ÉCRIVAIT ═══
+        #  app.js fait « sw(etat.barreCachee, …) » depuis toujours, et etat()
+        #  ne l'a JAMAIS produite : l'interrupteur « Masquer la barre » était
+        #  donc éteint en permanence, quelle que soit la vraie barre. Trouvé
+        #  en mesurant quelles clés chaque section LIT contre celles qu'elle
+        #  DEMANDE — le trou était là depuis le début, invisible tant que
+        #  l'ouverture chargeait tout sans regarder ce qu'elle chargeait.
+        "barreCachee": _barre_cachee,
         "recherche": _recherche_etat,
         "comptes": _comptes_etat,
         "bienetre": _bienetre_etat,
@@ -4140,10 +4166,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             #  inconnue ne correspond simplement à aucun collecteur et ne
             #  produit rien. Refuser aurait demandé de tenir une seconde
             #  liste, qui aurait fini par diverger de la première.
+            #  ═══ « ?cles= » VIDE VEUT DIRE « RIEN », PAS « TOUT » ═══
+            #  « etat(demande) if demande else etat() » renvoyait au plein
+            #  tarif dès que la liste était vide — donc pour les sections qui
+            #  n'ont besoin d'AUCUN collecteur, c'est-à-dire précisément
+            #  celles qui auraient dû être instantanées. On distingue
+            #  maintenant le paramètre ABSENT (tout) du paramètre PRÉSENT ET
+            #  VIDE (rien que les clés gratuites).
             from urllib.parse import parse_qs, urlparse
-            brut = parse_qs(urlparse(self.path).query).get("cles", [""])[0]
-            demande = [c for c in brut.split(",") if c]
-            return self._json(200, etat(demande) if demande else etat())
+            q = parse_qs(urlparse(self.path).query)
+            if "cles" not in q:
+                return self._json(200, etat())
+            demande = [c for c in q["cles"][0].split(",") if c]
+            return self._json(200, etat(demande))
         #  ═══ LES VIGNETTES DE LA GALERIE ═══
         #  La page ne demande JAMAIS un chemin — seulement un indice, revalidé
         #  contre une énumération fraîche. Servir un chemin venu de la page,

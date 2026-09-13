@@ -40,6 +40,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from datetime import datetime, date
 from pathlib import Path
 
@@ -405,27 +406,134 @@ def _crt_rapides_etat():
         return True
 
 
+#  ═══ SIX SECONDES POUR OUVRIR UN VOLET DE 340 PIXELS ═══
+#  ALEX : « quand on ouvre la page des paramètres ça prend environ 3 secondes
+#  avant de voir de quoi ». MESURÉ sur ce volet-ci, avec des outils qui
+#  répondent en 1,5 s — ce que fait une vraie machine quand nmcli interroge
+#  la radio, bluetoothctl un adaptateur, pactl un serveur de son qui démarre :
+#
+#      volet « rapides », en file (avant) ...... 6032 ms
+#      volet « agenda » / « météo » ............    0 ms
+#
+#  Six secondes, et personne ne s'attendait : ces appels étaient écrits les
+#  uns SOUS les autres, donc lancés les uns APRÈS les autres. Sept commandes
+#  externes en file — dont TROIS que j'ai ajoutées moi-même avec le bandeau
+#  de son. C'est ma correction qui a fait passer ce volet de trois secondes
+#  à six.
+#
+#  LES PARAMÈTRES, EUX, AVAIENT DÉJÀ LE REMÈDE : settings.py mène ses
+#  collecteurs de front (_de_front) avec un délai. Ce volet-ci ne l'avait pas.
+#  On ne recopie pas ce code — il tient à un pool, un délai et une règle :
+#  ce qui n'a pas répondu vaut « je ne sais pas », JAMAIS une valeur inventée.
+#  C'est la leçon du bogue du dock, où « je ne sais pas » était devenu
+#  « c'est à droite ».
+_RAPIDES_DELAI = float(os.environ.get("LEXOS_VOLET_DELAI", "2"))
+
+
+def _de_front(taches):
+    """Lance les lectures EN MÊME TEMPS, borné. Rend {clé: valeur}, et la
+    valeur convenue de l'appelant quand le délai passe.
+
+    ⚠ CETTE FONCTION EST LE DEUXIÈME EXEMPLAIRE, ET C'EST ASSUMÉ POUR L'INSTANT.
+    settings.py a la sienne (_de_front, l. ~4053), dont elle reprend le piège
+    du « with » et la règle du « je ne sais pas ». Les deux doivent partir
+    dans usr/lib/lexos/moteur/etat.py — c'est l'étape 3 du moteur commun. On
+    ne la déplace PAS dans le même geste que la correction de lenteur :
+    déplacer et changer le comportement à la fois rend impossible de savoir
+    lequel des deux accuser quand ça casse.
+
+    ═══ PAS DE « with » ICI, ET C'EST TOUT LE POINT ═══
+    La sortie d'un « with ThreadPoolExecutor » appelle shutdown(wait=True) :
+    elle ATTENDRAIT les fils qu'on vient justement d'abandonner, et le délai
+    ne tiendrait pas. Même piège que dans settings.py, même remède — on ferme
+    à la main, sans attendre. Le fil qui traîne finit dans son coin ; son
+    propre timeout le borne.
+    """
+    import concurrent.futures
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(taches)))
+    futurs = {c: pool.submit(f) for c, (f, _) in taches.items()}
+    fin = time.monotonic() + _RAPIDES_DELAI
+    out = {}
+    for c, fu in futurs.items():
+        reste = max(0.0, fin - time.monotonic())
+        try:
+            out[c] = fu.result(timeout=reste)
+        except Exception:
+            #  « je n'ai pas pu lire » — la valeur de repli est celle que
+            #  l'appelant a choisie pour cette clé-là, pas un zéro générique.
+            out[c] = taches[c][1]
+    pool.shutdown(wait=False)
+    return out
+
+
+def _radio_nmcli(quoi):
+    """Une seule lecture de radio, brute. Rend « enabled », « disabled »,
+    « missing » — ou None quand on n'a pas pu lire.
+
+    ═══ « nmcli -t radio wifi » ÉTAIT APPELÉ DEUX FOIS ═══
+    Une fois par _avion_radio_etat (qui lit wifi ET wwan pour décider du mode
+    avion), une fois par _wifi_radio_etat. Le même processus, la même réponse,
+    deux attentes. Ici on lit chaque radio UNE fois, les deux de front, et on
+    DÉDUIT les deux réponses. Les deux fonctions d'origine restent : les
+    actions (act_rapides_wifi, act_rapides_avion) s'en servent, et elles n'ont
+    qu'une seule lecture à faire au moment d'un clic.
+
+    « -t » (terse) donne des mots-clés fixes, jamais traduits — contrairement
+    à la sortie normale de nmcli, qui suit la langue du système (fr_CA sur
+    LexOS).
+    """
+    if shutil.which("nmcli") is None:
+        return None
+    try:
+        return subprocess.run(["nmcli", "-t", "radio", quoi],
+                              capture_output=True, text=True,
+                              timeout=5).stdout.strip()
+    except (subprocess.SubprocessError, OSError):
+        return None
+
+
 def _rapides_etat():
-    avion = _avion_radio_etat()
-    perf = _perf_etat()
+    #  Tout part en même temps. Chaque entrée dit sa valeur de repli : ce que
+    #  la page doit afficher quand la machine n'a pas répondu à temps.
+    lu = _de_front({
+        "r_wifi": (lambda: _radio_nmcli("wifi"), None),
+        "r_wwan": (lambda: _radio_nmcli("wwan"), None),
+        "bt_brut": (_bt_radio_etat, None),
+        "perf": (_perf_etat, "medium"),
+        "theme": (_mode_apparence, "sombre"),
+        "crt": (_crt_rapides_etat, True),
+        "son": (_son.etat, {"volume": -1, "muet": False, "micro": None}),
+    })
+    #  Le même calcul qu'avion_state() dans lexos-net, à partir des deux
+    #  lectures brutes. Une radio qu'on n'a PAS pu lire (None) ne compte pas
+    #  comme « éteinte » : on ne déclare pas le mode avion sur une absence de
+    #  réponse — ce serait afficher Wi-Fi et Bluetooth éteints sur une
+    #  machine où ils marchent.
+    avion = (lu["r_wifi"] == "disabled"
+             and lu["r_wwan"] in ("disabled", "missing", ""))
+    perf = lu["perf"] if lu["perf"] in PERF_LABEL else "medium"
     return {
         "avion": avion,
         #  Wi-Fi et Bluetooth s'affichent éteints sous le mode avion, comme
         #  dans la démo — même si la radio répond encore « enabled » entre
         #  deux secondes de bascule.
-        "wifi": False if avion else _wifi_radio_etat(),
-        "bt": None if avion else _bt_radio_etat(),
+        #  On lit les deux radios de front et on décide ICI, au lieu de
+        #  demander d'abord le mode avion puis, selon la réponse, la radio :
+        #  deux commandes lancées ensemble coûtent moins qu'une seule en file
+        #  derrière une autre.
+        "wifi": False if avion else (lu["r_wifi"] == "enabled"),
+        "bt": None if avion else lu["bt_brut"],
         "perf": perf,
         "perfLabel": PERF_LABEL[perf],
-        "theme": _mode_apparence(),
-        "crt": _crt_rapides_etat(),
+        "theme": lu["theme"],
+        "crt": lu["crt"],
         #  ═══ « volume: -1 » ET « micro: null » VEULENT DIRE INDISPONIBLE ═══
         #  Pas de pactl -> volume -1, et la page n'affiche PAS le bandeau du
         #  tout : une saveur sans serveur de son ne doit pas montrer un
         #  curseur qui ne fait rien. Pas de micro -> micro null, et le bouton
         #  micro n'apparaît pas — le même raisonnement que la tuile Bluetooth,
         #  qui sait déjà dire « Absent ».
-        **_son.etat(),
+        **lu["son"],
     }
 
 

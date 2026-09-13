@@ -158,8 +158,17 @@ const CLES_SECTION = {
   energie:     ["energie", "batterie", "lumiere"],
   usb:         ["usb"],
   diagnostic:  [],
-  apparence:   [],
-  bureau:      ["fond", "intro", "dock", "crt", "apercu"],
+  //  ═══ CES QUATRE LISTES ÉTAIENT VIDES, ET « VIDE » VOULAIT DIRE « TOUT » ═══
+  //  Une liste vide ne produisait pas de « ?cles= » : la page redemandait
+  //  donc les QUARANTE collecteurs. Pour « apparence », qui s'ouvre par
+  //  ?mode= et que le thème clair traverse, c'était la section la plus
+  //  visitée qui payait le plein tarif. Elle a de vraies clés : thème,
+  //  accent et police sont gratuits côté machine, mais « dock », « crt » et
+  //  « barreCachee » interrogent, eux, et doivent être demandés.
+  apparence:   ["dock", "crt", "barreCachee"],
+  //  « image » : la section lit etat.image (le filtre lumière chaude) pour
+  //  l'aperçu du fond. Mesuré, pas supposé — voir le banc des clés.
+  bureau:      ["fond", "intro", "dock", "crt", "apercu", "image"],
   multitaches: ["bureaux", "apercu", "crt"],
   applications:["defaut"],
   notifications:["notif"],
@@ -176,7 +185,9 @@ const CLES_SECTION = {
   formatage:   [],
   tablette:    ["tablette"],
   confidentialite: ["securite"],
-  maj:         ["maj"],
+  //  La page affiche la version et le noyau à côté des mises à jour.
+  //  « version » est gratuit ; « noyau » appelle uname et doit être demandé.
+  maj:         ["maj", "noyau"],
   accessibilite: ["access"],
   utilisateurs:["utilisateurs"],
   region:      ["langue", "heure"],
@@ -185,7 +196,9 @@ const CLES_SECTION = {
   defaut:      ["defaut"],
   distant:     ["distant"],
   tiers:       ["tiers", "libre"],
-  apropos:     ["version", "noyau", "hote", "perf"],
+  //  « libre » : la place disque, lue par df. Elle manquait, et la ligne
+  //  restait vide à chaque ouverture directe sur #apropos.
+  apropos:     ["version", "noyau", "hote", "perf", "libre"],
   mac:         ["mac"],
   son:         ["son"],
 };
@@ -193,11 +206,19 @@ function clesDeSection(cle){
   const c = CLES_SECTION[cle];
   return c === undefined ? [cle] : c;
 }
-/*  Sans argument : tout, comme avant — c'est ce que fait l'ouverture de la
-    fenêtre, et ce que demande le bouton « tout relire ». Avec une liste :
-    la machine ne relit que ces collecteurs-là. */
+/*  Sans argument : tout — c'est ce que demande le bouton « tout relire ».
+    Avec une liste : la machine ne relit que ces collecteurs-là.
+
+    ═══ UNE LISTE VIDE N'EST PAS « PAS DE LISTE » ═══
+    « cles && cles.length » confondait les deux : une section qui n'a
+    BESOIN de rien redemandait donc TOUT, c'est-à-dire le contraire. Quatre
+    sections étaient dans ce cas, dont « apparence ». On distingue
+    maintenant l'absence d'argument (tout) de la liste vide (rien que le
+    gratuit) — et le serveur fait la même distinction, sinon elle ne
+    servirait à rien. */
 async function chargeEtat(cles){
-  const q = (cles && cles.length) ? "?cles=" + encodeURIComponent(cles.join(",")) : "";
+  const q = cles === undefined ? ""
+          : "?cles=" + encodeURIComponent(cles.join(","));
   try{ etat = Object.assign(etat, await (await fetch("/api/etat" + q)).json()); }
   catch(e){}
 }
@@ -1958,8 +1979,18 @@ function contenu(cle){
           <code>gsettings</code> ne répond pas. Aucun bouton n'est allumé :
           la position réelle du dock n'est pas connue.</div>` : ""}
       </div>
-      ${srow("Masquer la barre d'outils","Elle glisse hors de l'écran ; la poignée du bord la ramène",
-             sw(etat.barreCachee, "basculeBarre()"))}
+      ${/*  ═══ CET INTERRUPTEUR ÉTAIT ÉTEINT POUR TOUT LE MONDE ═══
+             Il lisait « etat.barreCachee », qu'aucune version d'/api/etat n'a
+             jamais écrite : undefined, donc éteint, TOUJOURS — même barre
+             cachée. Trouvé en comparant les clés que chaque section LIT à
+             celles qu'elle DEMANDE ; la clé est maintenant produite, et elle
+             rend null quand xfconf-query ne répond pas. */""}
+      ${vu("barreCachee") == null
+        ? srow("Masquer la barre d'outils",
+               "État inconnu — <code>xfconf-query</code> ne répond pas. Aucun interrupteur allumé : on ne devine pas.",
+               "")
+        : srow("Masquer la barre d'outils","Elle glisse hors de l'écran ; la poignée du bord la ramène",
+               sw(vu("barreCachee"), "basculeBarre()"))}
       ${(() => {
         /*  ═══ L'INTERRUPTEUR QUI NE COMMANDAIT PLUS RIEN ═══
             ALEX : « l'effet d'animation n'est pas là quand je ferme des
@@ -3394,8 +3425,18 @@ function appliqueApparence(){
   //  laissait CETTE fenêtre-là noire, la seule qu'Alex regardait à ce
   //  moment précis. etat.theme vient de /api/etat, qui l'expose depuis
   //  toujours sous cette clé — rien de nouveau à brancher.
-  if(vu("theme") === "clair"){ document.documentElement.dataset.mode = "clair"; }
-  else { delete document.documentElement.dataset.mode; }
+  //  ═══ « ELSE » TOUT SEC EFFAÇAIT LE MODE VENU DE L'ADRESSE ═══
+  //  Ce rendu-ci a désormais lieu AVANT que /api/etat ait répondu (voir le
+  //  démarrage, en bas de fichier) : « vu("theme") » y vaut undefined. Avec
+  //  un « else » sans condition, la page effaçait alors l'attribut que
+  //  index.html venait de poser d'après ?mode=… — et quelqu'un en mode
+  //  clair voyait sa fenêtre s'ouvrir NOIRE, puis redevenir claire. Un
+  //  éclair à l'envers, causé par la correction de l'attente.
+  //  On ne touche au mode que quand on le CONNAÎT. Indéfini veut dire
+  //  « l'état n'est pas encore arrivé », pas « sombre ».
+  const _mode = vu("theme");
+  if(_mode === "clair"){ document.documentElement.dataset.mode = "clair"; }
+  else if(_mode){ delete document.documentElement.dataset.mode; }
 }
 /*  « eclaircir() » VIVAIT ICI ET N'A PLUS D'APPELANT.
     Elle calculait le ton de survol en éclaircissant l'accent, faute de table.
@@ -3425,9 +3466,43 @@ function allerA(cle){
 function rend(){ appliqueApparence(); rendNav(); rendSection(); }
 
 /* --- Démarrage ------------------------------------------------------------ */
+/*  ═══ ALEX : « ça prend environ 3 secondes avant de voir de quoi » ═══
+    MESURÉ, PAS SUPPOSÉ. Avec des outils qui répondent en 1,5 s — ce que fait
+    une vraie machine quand nmcli interroge la radio, bluetoothctl un
+    adaptateur, lpstat une imprimante réseau :
+
+        ouverture d'avant, etat() sans clés ....... 4001 ms
+        etat() limité à la section affichée ....... 1 ms (« apparence »)
+
+    4001 ms, et non 4200 ou 3800 : l'ouverture touchait le PLAFOND de
+    _ETAT_DELAI. Elle attendait les QUARANTE collecteurs — imprimantes,
+    Bluetooth, comptes en ligne, utilisateurs — pour dessiner UNE section.
+
+    DEUX CHANGEMENTS, ET LE PREMIER COMPTE PLUS QUE LE SECOND.
+
+    1. ON DESSINE AVANT DE LIRE. Le menu, le titre, la section : tout ce qui
+       ne dépend pas de la machine s'affiche TOUT DE SUITE. C'est ça qu'Alex
+       regarde — « voir de quoi ». Même sur une section dont les outils
+       traînent, la fenêtre est habitée à la première image au lieu d'être
+       blanche.
+       Les rendus tolèrent un état vide : vu() rend undefined, et chaque
+       section affiche son « Indisponible » habituel — exactement ce qu'elle
+       montre déjà quand un outil manque. Ce n'est pas un cas nouveau.
+
+    2. ON NE LIT QUE LA SECTION AFFICHÉE. clesDeSection() existait déjà et la
+       NAVIGATION s'en servait depuis toujours ; seule l'OUVERTURE demandait
+       tout. Les trente-six autres sections se liront quand on ira dessus,
+       et le commentaire de /api/etat le disait déjà : « changer la couleur
+       d'accent ne modifie ni les imprimantes ni le Bluetooth ».
+
+    CE QUI N'A PAS BOUGÉ : « tout relire » (le bouton) appelle toujours
+    chargeEtat() sans argument. Rien n'est perdu, seulement différé.          */
 (async function(){
   const h = location.hash.replace("#","");
   if(h && NAV.some(g=>g.items.some(([c])=>c===h))) sectionActive = h;
-  await chargeEtat();
+  //  1. La fenêtre est habitée immédiatement.
+  rend();
+  //  2. Puis on interroge la machine, pour cette section-là seulement.
+  await chargeEtat(clesDeSection(sectionActive));
   rend();
 })();
