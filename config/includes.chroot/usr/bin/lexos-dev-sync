@@ -192,6 +192,16 @@ interdit() { # interdit <chemin relatif>
 HORODATE="$(date +%Y%m%d-%H%M%S)"
 N_COPIES=0; N_IDENTIQUES=0; N_NOUVEAUX=0; N_SAUVES=0; N_REFUSES=0
 ARBRES_TOUCHES=""
+CHANGE_ICONES=0
+
+#  ═══ L'index.theme DU THÈME D'ICÔNES NE VOYAGE PAS ═══
+#  ALEX, 13 SEPTEMBRE : « le répertoire personnel et le système de fichiers,
+#  on voit plus l'image sur le bureau ». Cet outil avait recopié l'index.theme
+#  du dépôt — « scalable » seulement — par-dessus celui que le hook 0605 avait
+#  réécrit à la construction avec ses huit tailles de PNG. GTK ne regardait
+#  plus que les SVG, et les refusait. On ne le copie donc jamais ; le hook est
+#  rejoué après la copie et le réécrit d'après ce qui est sur le disque.
+ICONES_REL="usr/share/icons/LexOS"
 
 copier_un() { # copier_un <source> <destination> <chemin relatif>
 	local s="$1" d="$2" rel="$3"
@@ -200,6 +210,8 @@ copier_un() { # copier_un <source> <destination> <chemin relatif>
 		N_REFUSES=$((N_REFUSES+1))
 		return 0
 	fi
+
+	[[ "$rel" == "$ICONES_REL/index.theme" ]] && return 0
 
 	if [[ -e "$d" ]] && cmp -s "$s" "$d"; then
 		N_IDENTIQUES=$((N_IDENTIQUES+1))
@@ -212,6 +224,7 @@ copier_un() { # copier_un <source> <destination> <chemin relatif>
 	else
 		printf '  %s~%s %s\n' "$A" "$R" "$rel"
 	fi
+	[[ "$rel" == "$ICONES_REL"/* ]] && CHANGE_ICONES=1
 
 	(( ESSAI )) && { N_COPIES=$((N_COPIES+1)); return 0; }
 
@@ -257,6 +270,31 @@ for ARBRE in "${ARBRES[@]}"; do
 		printf '  %srien à changer%s\n' "$D" "$R"
 	fi
 done
+
+# =============================================================================
+#  Le thème d'icônes — ce que le hook 0605 fabrique, refait ici
+# =============================================================================
+#  Un SVG neuf posé à chaud ne suffit pas : les PNG de secours ont été rendus
+#  d'après l'ANCIEN dessin, et c'est eux que GTK choisit à taille fixe. On
+#  rejoue le hook lui-même plutôt que d'en écrire une deuxième copie : PNG
+#  rendus, index.theme réécrit d'après le disque, cache reconstruit. Aussi
+#  quand index.theme manque : sans lui, GTK ignore le thème ENTIER.
+HOOK_ICONES="$SRC/config/hooks/normal/0605-lexos-icones.hook.chroot"
+if (( CHANGE_ICONES )) || [[ -d "$DEST/$ICONES_REL" && ! -e "$DEST/$ICONES_REL/index.theme" ]]; then
+	titre "THÈME D'ICÔNES"
+	if [[ ! -r "$HOOK_ICONES" ]]; then
+		warn "hook 0605 introuvable dans le dépôt — PNG et index.theme NON refaits"
+	elif (( ESSAI )); then
+		printf '  %s(essai)%s le hook 0605 serait rejoué (PNG, index.theme, cache)\n' "$D" "$R"
+	elif LEXOS_ICONES="$DEST/$ICONES_REL" \
+		LEXOS_RAPPORT_ICONES="$DEST/etc/lexos/icones-report" \
+		LEXOS_APPS_LOCAL="$DEST/usr/local/share/applications" \
+		sh "$HOOK_ICONES" 2>&1 | grep -E '!!|PNG rendus|index.theme|cache' | sed 's/^\[lexos\] */  /'; [[ "${PIPESTATUS[0]}" -eq 0 ]]; then
+		ok "hook 0605 rejoué : PNG, index.theme et cache refaits"
+	else
+		warn "le hook 0605 a échoué — voir /etc/lexos/icones-report"
+	fi
+fi
 
 # =============================================================================
 #  /etc/skel — le piège

@@ -242,5 +242,120 @@ else
 	non "le hook ne rend pas les PNG des périphériques — le SVG seul peut ne pas s'afficher"
 fi
 
+# =============================================================================
+titre "6. GTK reconnaît nos SVG comme des images"
+# =============================================================================
+#  ALEX, 13 SEPTEMBRE : « le répertoire personnel et le système de fichiers,
+#  on voit plus l'image sur le bureau ». lexos-dev-sync avait recopié
+#  l'index.theme du dépôt (SVG seulement) par-dessus celui du hook (PNG
+#  déclarés) : GTK n'avait plus que les SVG — et les refusait TOUS, « format
+#  d'image non reconnu ». rsvg-convert, lui, les rendait sans broncher.
+#
+#  LA CAUSE : gdk-pixbuf devine le format d'après les premiers octets, et
+#  l'en-tête de commentaire posé AVANT « <svg » l'empêchait de reconnaître un
+#  SVG. Le commentaire vit donc JUSTE APRÈS la balise ouvrante. On éprouve la
+#  forme (sans dépendre de GTK en CI) et, si gdk-pixbuf est là, le chargement.
+MAUVAIS=""
+for F in "$THEME"/*/scalable/*.svg; do
+	[ -L "$F" ] && continue
+	python3 - "$F" <<'PY' || MAUVAIS="$MAUVAIS ${F#"$THEME"/}"
+import re, sys
+s = open(sys.argv[1], encoding="utf-8").read()
+s = re.sub(r"^\s*<\?xml[^>]*\?>\s*", "", s)
+sys.exit(0 if s.startswith("<svg") else 1)
+PY
+done
+[ -z "$MAUVAIS" ] \
+	&& ok "aucun SVG n'a de commentaire avant « <svg » — gdk-pixbuf les reconnaît" \
+	|| non "« <svg » n'ouvre pas le fichier, GTK dira « format non reconnu » :$MAUVAIS"
+
+if python3 -c "import gi; gi.require_version('GdkPixbuf','2.0'); from gi.repository import GdkPixbuf" 2>/dev/null; then
+	REFUS="$(python3 - "$THEME" <<'PY'
+import glob, os, sys, gi
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import GdkPixbuf
+for f in sorted(glob.glob(os.path.join(sys.argv[1], "*/scalable/*.svg"))):
+    try:
+        GdkPixbuf.Pixbuf.new_from_file_at_size(f, 64, 64)
+    except Exception:
+        print(os.path.relpath(f, sys.argv[1]), end=" ")
+PY
+)"
+	[ -z "$REFUS" ] \
+		&& ok "gdk-pixbuf charge chaque SVG du thème, comme le bureau et Thunar" \
+		|| non "gdk-pixbuf refuse : $REFUS"
+fi
+
+# =============================================================================
+titre "7. Une mise à jour à chaud ne rend plus le bureau aveugle"
+# =============================================================================
+#  LA SECTION 6 SOIGNE LE SYMPTÔME, CELLE-CI LA CAUSE. Les SVG reconnus, il
+#  reste que lexos-dev-sync et lexos-mise-a-jour recopiaient l'index.theme du
+#  dépôt (scalable seulement) sur celui que le hook 0605 avait réécrit avec
+#  ses PNG. Les deux outils sautent désormais ce fichier et rejouent le hook.
+#
+#  On monte donc la machine telle que la construction la laisse — thème du
+#  dépôt, un dossier de PNG, index.theme qui le déclare — on change un dessin
+#  dans le clone, et on exige qu'après le passage les PNG soient ENCORE
+#  déclarés. Le vrai hook tourne : c'est lui qui répare, c'est lui qu'on
+#  éprouve. Sans rsvg-convert il ne rend rien, mais énumère toujours le disque.
+BANC7="$(mktemp -d)"
+trap 'rm -rf "$BANC7"' EXIT
+HOOK="$RACINE/config/hooks/normal/0605-lexos-icones.hook.chroot"
+
+monte7() { # monte7 <dossier> — un clone et un système neufs
+	local C="$1/clone" S="$1/systeme"
+	mkdir -p "$C/config/includes.chroot/usr/share/icons" "$C/config/hooks/normal" \
+	         "$S/usr/share/icons" "$S/etc/lexos"
+	: > "$C/lexos.conf"
+	cp -a "$THEME" "$C/config/includes.chroot/usr/share/icons/"
+	cp "$HOOK" "$C/config/hooks/normal/"
+	cp -a "$THEME" "$S/usr/share/icons/"
+	#  Ce que la construction laisse : des PNG, et un index.theme qui les nomme.
+	mkdir -p "$S/usr/share/icons/LexOS/places/48x48"
+	cp "$S/usr/share/icons/LexOS/places/scalable/folder.svg" "$S/usr/share/icons/LexOS/places/48x48/folder.png"
+	LEXOS_ICONES="$S/usr/share/icons/LexOS" LEXOS_RAPPORT_ICONES="$S/etc/lexos/icones-report" \
+		LEXOS_APPS_LOCAL="$S/usr/local/share/applications" sh "$HOOK" >/dev/null 2>&1
+	#  Un dessin qui change dans le clone : le déclencheur d'une vraie mise à jour.
+	printf '<!-- retouche -->\n' >> "$C/config/includes.chroot/usr/share/icons/LexOS/places/scalable/folder.svg"
+}
+
+declare_png() { grep -q '^Directories=.*places/48x48' "$1/systeme/usr/share/icons/LexOS/index.theme" 2>/dev/null; }
+
+for OUTIL7 in lexos-mise-a-jour lexos-dev-sync; do
+	D7="$BANC7/$OUTIL7"
+	monte7 "$D7"
+	if ! declare_png "$D7"; then
+		non "$OUTIL7 : le banc n'a pas su monter une machine avec ses PNG déclarés"
+		continue
+	fi
+	lance7() {
+		NO_COLOR=1 LEXOS_MAJ_DEST="$D7/systeme" LEXOS_MAJ_ETC="$D7/systeme/etc/lexos" \
+			LEXOS_MAJ_SRC_DEFAUT="$D7/nulle-part" LEXOS_DEV_SYNC_DEST="$D7/systeme" \
+			bash "$RACINE/config/includes.chroot/usr/bin/$OUTIL7" --depuis "$D7/clone" "$@" 2>&1
+	}
+
+	AVANT7="$(md5sum "$D7/systeme/usr/share/icons/LexOS/index.theme")"
+	lance7 --essai >/dev/null
+	[ "$AVANT7" = "$(md5sum "$D7/systeme/usr/share/icons/LexOS/index.theme")" ] \
+		&& ok "$OUTIL7 --essai laisse index.theme intact" \
+		|| non "$OUTIL7 --essai a touché index.theme"
+
+	SORTIE7="$(lance7)"
+	if declare_png "$D7"; then
+		ok "$OUTIL7 : après le passage, les PNG sont TOUJOURS déclarés"
+	else
+		non "$OUTIL7 a rendu les PNG invisibles — les icônes du bureau redeviennent blanches"
+	fi
+	if ls "$D7/systeme/usr/share/icons/LexOS/"index.theme.lexos-bak-* >/dev/null 2>&1; then
+		non "$OUTIL7 a encore recopié l'index.theme du dépôt (une sauvegarde en témoigne)"
+	else
+		ok "$OUTIL7 ne recopie pas l'index.theme du dépôt"
+	fi
+	grep -q 'hook 0605 rejoué' <<< "$SORTIE7" \
+		&& ok "$OUTIL7 rejoue le hook 0605 quand un dessin change" \
+		|| non "$OUTIL7 n'a pas rejoué le hook 0605 — les PNG gardent l'ancien dessin"
+done
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$reussis" "$echoues"
 [[ "$echoues" -eq 0 ]]

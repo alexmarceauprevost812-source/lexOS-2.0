@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512" role="img" aria-label="Clé USB — LexOS">
 <!--
   LexOS — clé USB.
   Dessinée à plat puis pivotée d'un bloc : le corps, le collier et le
@@ -8,8 +10,6 @@
 
   #E8590C est un JETON, remplacé par l'accent courant par lexos-theme-gen.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
-     viewBox="0 0 512 512" role="img" aria-label="Clé USB — LexOS">
   <!-- Agrandie autour du même centre que la rotation (256,256) : la clé
        n'occupait que 64%x55% du carré, contre 75%+ pour les autres icônes. -->
   <g transform="translate(256,256) scale(1.4) translate(-256,-256)">

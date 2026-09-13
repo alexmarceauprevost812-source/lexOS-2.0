@@ -297,7 +297,18 @@ interdit() { # interdit <chemin relatif>
 # =============================================================================
 COPIES=0; IDENTIQUES=0; SAUVES=0; REFUSES=0
 DATE="$(date +%Y%m%d-%H%M%S)"
-CHANGE_BIN=0; CHANGE_CSS=0; CHANGE_PANNEAU=0; CHANGE_PLYMOUTH=0
+CHANGE_BIN=0; CHANGE_CSS=0; CHANGE_PANNEAU=0; CHANGE_PLYMOUTH=0; CHANGE_ICONES=0
+
+#  ═══ L'index.theme DU THÈME D'ICÔNES NE VOYAGE PAS ═══
+#  ALEX, 13 SEPTEMBRE : « le répertoire personnel et le système de fichiers,
+#  on voit plus l'image sur le bureau ». Celui du dépôt ne déclare que les
+#  dossiers « scalable » — c'est tout ce que le dépôt contient. Sur la
+#  machine, le hook 0605 l'a RÉÉCRIT à la construction pour y ajouter les
+#  huit tailles de PNG qu'il a rendues. Recopier la version du dépôt
+#  par-dessus effaçait les PNG de la liste : GTK ne regardait plus que les
+#  SVG, et les refusait. On ne le copie donc jamais ; on rejoue le hook
+#  (voir rejouer_icones), qui le réécrit d'après ce qui est sur le disque.
+ICONES_REL="usr/share/icons/LexOS"
 
 copier_un() { # copier_un <source> <relatif>
 	local src="$1" rel="$2"
@@ -308,6 +319,8 @@ copier_un() { # copier_un <source> <relatif>
 		return 0
 	fi
 
+	[[ "$rel" == "$ICONES_REL/index.theme" ]] && return 0
+
 	if [[ -e "$dst" ]] && cmp -s "$src" "$dst"; then
 		IDENTIQUES=$((IDENTIQUES + 1))
 		[[ "$TOUT" -eq 1 ]] || return 0
@@ -317,6 +330,7 @@ copier_un() { # copier_un <source> <relatif>
 		usr/bin/*)                       CHANGE_BIN=1 ;;
 		usr/share/lexos/gtk-panneau.css) CHANGE_PANNEAU=1 ;;
 		usr/share/lexos/*.css)           CHANGE_CSS=1 ;;
+		"$ICONES_REL"/*)                 CHANGE_ICONES=1 ;;
 	esac
 	case "$rel" in *plymouth*) CHANGE_PLYMOUTH=1 ;; esac
 
@@ -392,6 +406,32 @@ for ARBRE in $ARBRES; do
 		copier_un "$F" "$REL"
 	done < <(find "$BASE/$ARBRE" -type f | sort)
 done
+
+# =============================================================================
+#  Le thème d'icônes — ce que le hook 0605 fabrique, refait ici
+# =============================================================================
+#  Un SVG neuf posé à chaud ne suffit pas : les PNG de secours ont été rendus
+#  d'après l'ANCIEN dessin, et c'est eux que GTK choisit à taille fixe. On
+#  rejoue donc le hook lui-même plutôt que d'en écrire une deuxième copie :
+#  PNG rendus, index.theme réécrit d'après le disque, cache reconstruit.
+#  Aussi quand index.theme manque : sans lui, GTK ignore le thème ENTIER.
+HOOK_ICONES="$SRC/config/hooks/normal/0605-lexos-icones.hook.chroot"
+if [[ "$CHANGE_ICONES" -eq 1 || ( -d "$DEST/$ICONES_REL" && ! -e "$DEST/$ICONES_REL/index.theme" ) ]]; then
+	info ""
+	info "${B}Thème d'icônes${R}"
+	if [[ ! -r "$HOOK_ICONES" ]]; then
+		att "hook 0605 introuvable dans le dépôt — PNG et index.theme NON refaits"
+	elif [[ "$ESSAI" -eq 1 ]]; then
+		att "essai : le hook 0605 n'est PAS rejoué (PNG, index.theme, cache)"
+	elif LEXOS_ICONES="$DEST/$ICONES_REL" \
+		LEXOS_RAPPORT_ICONES="$ETC_LEXOS/icones-report" \
+		LEXOS_APPS_LOCAL="$DEST/usr/local/share/applications" \
+		sh "$HOOK_ICONES" 2>&1 | grep -E '!!|PNG rendus|index.theme|cache' | sed 's/^\[lexos\] */  /'; [[ "${PIPESTATUS[0]}" -eq 0 ]]; then
+		ok "hook 0605 rejoué : PNG, index.theme et cache refaits"
+	else
+		att "le hook 0605 a échoué — voir $ETC_LEXOS/icones-report"
+	fi
+fi
 
 # =============================================================================
 #  /etc/skel — le piège
