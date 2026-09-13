@@ -12,7 +12,7 @@
 #  en 136 paquets.
 #
 #  ═══ LE DANGER, ET C'EST TOUT L'OBJET DE CE BANC ═══
-#  Douze paquets de ces listes n'étaient pas des applications pour
+#  Onze paquets de ces listes n'étaient pas des applications pour
 #  l'utilisateur, mais des OUTILS QUE LEXOS APPELLE LUI-MÊME. Les sortir avec
 #  le reste aurait cassé une fonction par paquet, en silence.
 #
@@ -164,7 +164,7 @@ titre "4. La liste de rapatriement existe et est installée"
 # =============================================================================
 grep -qx "85-outils-lexos.list" <<< "$INSTALLEES" \
 	&& ok "85-outils-lexos.list est bien installée d'avance" \
-	|| non "85-outils-lexos.list n'est pas dans BUREAU_COMPLET — les douze outils manqueraient"
+	|| non "85-outils-lexos.list n'est pas dans BUREAU_COMPLET — les onze outils manqueraient"
 
 [ -r "$DIR/85-outils-lexos.list" ] \
 	&& ok "…et le fichier existe" || non "85-outils-lexos.list est déclarée mais absente du dépôt"
@@ -210,6 +210,104 @@ if grep -qi "inconnue" <<< "$INCONNUE"; then
 	ok "une famille inconnue est refusée avec un message clair"
 else
 	non "« famille nexistepas » n'est pas refusée proprement"
+fi
+
+# =============================================================================
+titre "6. Rien ne dort dans la liste de rapatriement"
+# =============================================================================
+#  LE CONTRÔLE 3 REGARDE DANS UN SEUL SENS : un outil appelé doit être
+#  installé. Rien ne regardait l'autre sens — un paquet rapatrié « parce
+#  qu'on croit que LexOS s'en sert ». Et le sens manquant coûtait :
+#  « shellcheck » a dormi ici sur une justification fausse (« lexos theme
+#  relit ses propres scripts »), 18,5 Mo dans chaque ISO, alors qu'AUCUNE
+#  commande de LexOS ne l'appelle — les seules occurrences dans le code sont
+#  des directives « # shellcheck disable=… », qui sont des annotations pour
+#  l'outil, pas des appels. C'est ce contrôle-ci qui l'a trouvé.
+#
+#  On exige donc que chaque paquet d'ici soit VRAIMENT invoqué. La
+#  correspondance nom-de-commande / nom-de-paquet est la même qu'au
+#  contrôle 3 (node→nodejs, batcat→bat, gamemoderun→gamemode).
+SORTIE_INV="$(python3 - "$RACINE" "$DIR" <<'PY'
+import glob, os, re, sys
+racine, dossier = sys.argv[1:3]
+
+appels = {}
+for pat in ("config/includes.chroot/usr/bin/*",
+            "config/includes.chroot/usr/lib/lexos/*",
+            "config/includes.chroot/usr/share/lexos/shell/*"):
+    for f in glob.glob(os.path.join(racine, pat)):
+        if not os.path.isfile(f):
+            continue
+        txt = open(f, errors="ignore", encoding="utf-8").read()
+        for rx in (r'command -v ([A-Za-z0-9][A-Za-z0-9._+-]*)',
+                   r'shutil\.which\(["\']([A-Za-z0-9][A-Za-z0-9._+-]*)["\']\)'):
+            for m in re.finditer(rx, txt):
+                appels.setdefault(m.group(1), set()).add(os.path.basename(f))
+
+PAQUET = {"node": "nodejs", "batcat": "bat", "gamemoderun": "gamemode"}
+
+#  Un paquet est « invoqué » si l'une de ses commandes l'est.
+invoques = {}
+for outil, ou in appels.items():
+    invoques.setdefault(PAQUET.get(outil, outil), set()).update(ou)
+
+rapatries = []
+for ligne in open(os.path.join(dossier, "85-outils-lexos.list"), encoding="utf-8"):
+    ligne = ligne.strip()
+    if ligne and not ligne.startswith("#"):
+        rapatries.append(ligne.split(":")[0].strip())
+
+orphelins = [p for p in rapatries if p not in invoques]
+
+print("NOMBRE=%d" % len(rapatries))
+print("ORPHELINS=%d" % len(orphelins))
+for p in orphelins:
+    print("  - " + p)
+PY
+)"
+
+NB_RAP="$(sed -n 's/^NOMBRE=//p' <<< "$SORTIE_INV")"
+NB_ORP="$(sed -n 's/^ORPHELINS=//p' <<< "$SORTIE_INV")"
+
+if [ "${NB_ORP:-1}" = "0" ]; then
+	ok "les $NB_RAP paquets rapatriés sont tous vraiment appelés par LexOS"
+else
+	non "$NB_ORP paquet(s) rapatriés que RIEN dans LexOS n'appelle :"
+	sed -n '/^  - /p' <<< "$SORTIE_INV" | while read -r l; do printf '        %s\n' "$l"; done
+fi
+
+#  ET LE COMPTE ÉCRIT DANS LA PROSE DIT VRAI. Il avait déjà dérivé : trois
+#  fichiers annonçaient « douze » quand la liste en portait onze. Un chiffre
+#  faux dans un commentaire est une petite chose ; c'est aussi ce qu'on lit
+#  quand on cherche à comprendre, et il n'y a pas de raison de le laisser.
+case "$NB_RAP" in
+	9)  MOT="neuf" ;; 10) MOT="dix"    ;; 11) MOT="onze"  ;;
+	12) MOT="douze" ;; 13) MOT="treize" ;; 14) MOT="quatorze" ;;
+	*)  MOT="" ;;
+esac
+if [ -z "$MOT" ]; then
+	non "le banc ne sait pas écrire $NB_RAP en toutes lettres — ajoute-le au « case »"
+else
+	PROSE_KO=""
+	for f in "$DIR/85-outils-lexos.list" "$HOOK"; do
+		#  UN FICHIER SANS PHRASE DE COMPTE EST UN ÉCHEC, PAS UN SAUT.
+		#  La première écriture faisait « continue » quand rien ne
+		#  correspondait — et le hook 0250 coupait justement « Onze » et
+		#  « paquets » sur deux lignes. Le contrôle annonçait deux fichiers
+		#  et n'en regardait qu'un : mesuré, il restait vert alors que le
+		#  hook mentait. Un contrôle qui saute est un contrôle qui dort.
+		LIGNE="$(grep -iE "[^a-zà-ÿ](neuf|dix|onze|douze|treize|quatorze) paquets" "$f" || true)"
+		if [ -z "$LIGNE" ]; then
+			PROSE_KO="$PROSE_KO $(basename "$f")(aucun compte écrit)"
+		elif ! grep -qiE "[^a-zà-ÿ]$MOT paquets" <<< "$LIGNE"; then
+			PROSE_KO="$PROSE_KO $(basename "$f")"
+		fi
+	done
+	if [ -z "$PROSE_KO" ]; then
+		ok "la prose dit « $MOT paquets » — c'est bien ce que la liste contient"
+	else
+		non "le compte écrit ne correspond plus à la liste ($NB_RAP =« $MOT ») :$PROSE_KO"
+	fi
 fi
 
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"

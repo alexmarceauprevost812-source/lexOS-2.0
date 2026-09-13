@@ -210,5 +210,83 @@ grep -q 'applis' <<< "$(sed -n '/^aide()/,/^}/p' "$RACINE/config/includes.chroot
 	&& ok "…et il figure dans l'aide" \
 	|| non "l'outil n'apparaît nulle part dans l'aide"
 
+# =============================================================================
+titre "8. fzf est un confort, pas une dépendance"
+# =============================================================================
+#  POURQUOI CE CONTRÔLE EXISTE. fzf vient de 50-dev.list, une des quatre
+#  familles sorties de l'ISO pour faire de la place. Le contrôle « Aucun
+#  outil de LexOS absent de l'ISO » l'a signalé, et on l'a rapatrié dans
+#  85-outils-lexos.list en ÉCRIVANT, dans un fichier livré, que son absence
+#  ne casse rien : « lexos applis » retombe sur menu_simple.
+#
+#  Cette phrase-là était une affirmation. Ici elle est mesurée — sans fzf ET
+#  avec fzf — parce que si elle était fausse, fzf ne serait pas un confort
+#  mais une dépendance, et la section du fichier .list mentirait.
+#
+#  LE MENU N'EXISTE QUE DANS UN VRAI TERMINAL : « lexos applis » vérifie
+#  « -t 0 » et « -t 1 » et rend la liste brute sinon. On lui en fabrique un
+#  avec « script », sinon les deux contrôles mesureraient la branche
+#  non-terminal et seraient verts pour rien.
+if ! command -v script >/dev/null 2>&1; then
+	non "« script » (util-linux) manque : la branche menu n'a PAS été mesurée"
+else
+	#  UN PATH SANS fzf, QUOI QU'IL Y AIT SUR LE COUREUR. La première
+	#  écriture listait à la main les commandes que l'outil emploie
+	#  (awk, sed, find…) : elle en a oublié deux — bash, puis xargs — et
+	#  chaque oubli donnait un rouge qui parlait du PATH du banc, pas de
+	#  lexos-applis. On recopie donc tout /usr/bin et /bin en liens, SAUF
+	#  fzf : le seul écart avec la machine est celui qu'on mesure.
+	MINI="$BANC/mini"; mkdir -p "$MINI"
+	for d in /usr/bin /bin; do
+		[ -d "$d" ] || continue
+		for c in "$d"/*; do
+			[ -x "$c" ] || continue
+			[ "$(basename "$c")" = "fzf" ] && continue
+			ln -sf "$c" "$MINI/$(basename "$c")" 2>/dev/null || true
+		done
+	done
+
+	pty() { # pty <PATH> — le menu, dans un terminal, Entrée pour sortir
+		printf 'exec env -i HOME=%s PATH=%s XDG_DATA_HOME=%s XDG_DATA_DIRS=%s NO_COLOR=1 LC_ALL=C bash %s\n' \
+			"$BANC" "$1" "$BANC/data" "$BANC/data" "$OUTIL" > "$BANC/run.sh"
+		printf '\n' | script -qec "sh $BANC/run.sh" /dev/null 2>&1
+	}
+
+	SANS="$(pty "$FAUXBIN:$MINI")"
+	if grep -q 'applications installées' <<< "$SANS" && grep -q 'Mon Editeur' <<< "$SANS"; then
+		ok "sans fzf, le menu simple s'affiche et liste les applications"
+	else
+		non "sans fzf, aucun menu utilisable :\n$SANS"
+	fi
+
+	#  AVEC fzf : un faux fzf qui note ce qu'on lui a donné et sort comme si
+	#  l'utilisateur avait fait Échap. On mesure deux choses — que la branche
+	#  fzf est bien prise, et qu'elle reçoit de VRAIES lignes (un fzf appelé
+	#  avec une entrée vide serait un menu vide, donc une régression muette).
+	SEL="$BANC/sel"; mkdir -p "$SEL"
+	cat > "$SEL/fzf" <<'FZF'
+#!/bin/sh
+cat > "$MARQUE"
+exit 1
+FZF
+	chmod +x "$SEL/fzf"
+	MARQUE="$BANC/recu-par-fzf"; rm -f "$MARQUE"
+	printf 'exec env -i HOME=%s PATH=%s XDG_DATA_HOME=%s XDG_DATA_DIRS=%s MARQUE=%s NO_COLOR=1 LC_ALL=C bash %s\n' \
+		"$BANC" "$SEL:$FAUXBIN:$MINI" "$BANC/data" "$BANC/data" "$MARQUE" "$OUTIL" > "$BANC/run.sh"
+	AVEC="$(printf '\n' | script -qec "sh $BANC/run.sh" /dev/null 2>&1)"
+
+	if [ -s "$MARQUE" ] && grep -q 'Mon Editeur' "$MARQUE"; then
+		ok "avec fzf, c'est fzf qui reçoit la liste — et elle n'est pas vide"
+	else
+		non "la branche fzf n'a pas été prise, ou fzf a reçu une liste vide"
+	fi
+
+	if grep -q 'applications installées' <<< "$AVEC"; then
+		non "les deux menus s'affichent : la branche fzf ne remplace pas l'autre"
+	else
+		ok "…et le menu simple ne s'affiche pas en plus"
+	fi
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

@@ -77,12 +77,16 @@ fi
 #  une famille entière d'une commande, et GNOME Logiciels les propose une
 #  par une comme n'importe quel paquet Debian.
 #
-#  ET 85-outils-lexos.list RAPATRIE CE QUI N'EST PAS UNE APPLICATION. Douze
-#  paquets de ces familles ne servaient pas à l'utilisateur mais à LexOS
-#  lui-même — mpv fait tourner le fond vidéo, ffmpeg enregistre les captures,
+#  ET 85-outils-lexos.list RAPATRIE CE QUI N'EST PAS UNE APPLICATION.
+#  Onze paquets de ces familles ne servaient pas à l'utilisateur mais à
+#  LexOS lui-même — mpv fait tourner le fond vidéo, ffmpeg les captures,
 #  et surtout npm installe Claude Code. Les sortir avec le reste aurait cassé
-#  une fonction par paquet, en silence. Le contrôle « Aucun outil de LexOS
-#  absent de l'ISO » (ci.yml) relit tout le code et rend ce trou impossible.
+#  une fonction par paquet, en silence — sauf le onzième, fzf, qui est un
+#  confort et non une dépendance : la liste écrit pourquoi il revient quand
+#  même. Le contrôle « Aucun outil de LexOS absent de l'ISO » (ci.yml) relit
+#  tout le code et rend ce trou impossible ; celui de « rien ne dort dans la
+#  liste » regarde l'autre sens et a rendu 18,5 Mo (shellcheck, qui n'était
+#  appelé nulle part).
 LISTS="00-core.list 10-installer.list"
 BUREAU_COMPLET="15-essentiel.list 20-desktop.list 30-dock-effets.list \
 40-partage.list 41-reseau-plus.list 45-capture.list 47-apple.list 48-comptes.list \

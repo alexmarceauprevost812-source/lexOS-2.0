@@ -7,10 +7,12 @@
 # téléchargées d'avance, ça prend la place pour rien. »
 #
 # Quatre familles d'applications sortent donc de l'ISO (46-studio, 50-dev,
-# 60-full, 75-pro-gamer — environ 1,6 Go). Mais douze paquets y dormaient
+# 60-full, 75-pro-gamer — environ 1,6 Go). Mais onze paquets y dormaient
 # qui ne sont PAS des applications pour l'utilisateur : ce sont les outils
-# que les commandes de LexOS appellent elles-mêmes. Les sortir avec le reste
-# aurait cassé, en silence, une fonction par paquet.
+# que les commandes de LexOS appellent elles-mêmes. Pour DIX d'entre eux,
+# les sortir avec le reste aurait cassé, en silence, une fonction par paquet.
+# Le onzième, fzf, est le seul facultatif : sa section, en bas, dit pourquoi
+# il revient quand même et à quelle condition un autre pourrait le suivre.
 #
 # LE CAS QUI RÉSUME TOUT : « npm » vivait dans la liste « développement ».
 # C'est lui qui installe et met à jour Claude Code (hook 0420,
@@ -38,8 +40,19 @@ gh
 # --- L'invite et les alias du terminal (shell/interactive.sh) ----------------
 bat
 
-# --- « lexos theme » relit ses propres scripts avant de les écrire ----------
-shellcheck
+# --- CE QUI A ÉTÉ RETIRÉ D'ICI, ET POURQUOI ---------------------------------
+#  « shellcheck » a dormi dans cette liste sur une justification FAUSSE :
+#  « lexos theme relit ses propres scripts avant de les écrire ». Mesuré —
+#  aucune commande de LexOS n'appelle shellcheck. Les seules occurrences dans
+#  le code sont des directives « # shellcheck disable=… », qui sont des
+#  annotations pour l'outil, pas des appels, et une fiche de la Logithèque.
+#  C'est la CI, sur la machine de construction, qui le fait tourner — pas
+#  l'ISO. 18,5 Mo rendus, et il reste à une commande : « lexos logitheque
+#  installer shellcheck », ou la famille « dev ».
+#
+#  C'est le contrôle « Rien ne dort dans la liste de rapatriement » (banc
+#  tests/test_lexos_paquets_outils.sh) qui l'a trouvé : il exige maintenant
+#  que CHAQUE paquet d'ici soit vraiment invoqué par du code de LexOS.
 
 # --- « lexos net » : le balayage du réseau local ------------------------------
 nmap
@@ -58,3 +71,24 @@ mangohud
 #  ce décalage nom-de-commande / nom-de-paquet qui l'avait fait manquer au
 #  premier relevé. Le banc, lui, porte la correspondance et l'a rattrapé.
 gamemode
+
+# --- « lexos applis » : le menu flou du sélecteur d'applications -------------
+#  CELUI-CI N'EST PAS COMME LES DIX AUTRES, ET IL FAUT LE DIRE. Tous ceux
+#  du dessus sont indispensables : sans eux, une fonction de LexOS casse en
+#  silence. fzf, lui, est FACULTATIF — « lexos applis » porte un menu de repli
+#  complet (menu_simple : numéros + filtre texte) et ne perd rien d'essentiel
+#  s'il manque.
+#
+#  Il est rapatrié quand même, pour deux raisons mesurées :
+#   • le contrôle « Aucun outil de LexOS absent de l'ISO » relève les appels,
+#     pas les replis : il ne sait pas distinguer « appelle » de « se sert si
+#     présent ». L'affaiblir pour un seul cas coûterait plus cher que le
+#     paquet, et un contrôle qu'on sait faire taire ne protège plus rien ;
+#   • le paquet pèse 3,6 Mo installés et ne dépend que de la libc — 0,2 % des
+#     1,6 Go libérés — et il donne le menu flou à TOUT LE MONDE, pas seulement
+#     à qui a installé la famille « développement » d'où il vient.
+#
+#  CE N'EST PAS UN PRÉCÉDENT. Un outil facultatif ne revient ici que s'il est
+#  vraiment appelé par le code de LexOS ET qu'il pèse quelques mégaoctets.
+#  Sinon, la bonne réponse est de retirer l'appel, pas de regrossir l'ISO.
+fzf
