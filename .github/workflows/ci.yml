@@ -2372,8 +2372,20 @@ jobs:
           #  meme pas — 29 controles chez Alex, 28 ailleurs, et rien pour
           #  dire lequel manquait. On installe donc de quoi mesurer, et
           #  LEXOS_ICONES_EXIGER_MESURE=1 refuse le silence.
-          python3 -c "import gi; gi.require_version('GdkPixbuf','2.0'); from gi.repository import GdkPixbuf" 2>/dev/null \
-            || sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gdkpixbuf-2.0 librsvg2-common >/dev/null
+          #  ON SONDE LA CAPACITE, PAS LE MODULE. La premiere ecriture
+          #  installait « si import gi echoue ». Or sur ce coureur il
+          #  REUSSIT — Ubuntu livre python3-gi — donc l'installation etait
+          #  sautee et librsvg2-common, qui fournit le LECTEUR SVG, restait
+          #  absent. gdk-pixbuf refusait alors tous les SVG et le banc
+          #  accusait les dessins d'Alex. On demande donc au sondage ce qui
+          #  compte vraiment : y a-t-il un lecteur SVG ?
+          python3 - <<'PROBE' 2>/dev/null || sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gdkpixbuf-2.0 librsvg2-common >/dev/null
+          import gi
+          gi.require_version("GdkPixbuf", "2.0")
+          from gi.repository import GdkPixbuf
+          assert any(f.get_name() == "svg" or "svg" in (f.get_extensions() or [])
+                     for f in GdkPixbuf.Pixbuf.get_formats())
+          PROBE
           LEXOS_ICONES_EXIGER_MESURE=1 bash tests/test_lexos_icones_theme.sh
 
       - name: lexos dev-sync — poser le dépôt sans reconstruire l'ISO

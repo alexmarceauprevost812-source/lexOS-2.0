@@ -281,15 +281,33 @@ done
 #  module compilé pour 3.12 : l'import échoue sur un décalage de version, pas
 #  sur une absence. On cherche donc un interpréteur QUI SAIT, au lieu de
 #  supposer que c'est celui du PATH — et s'il n'y en a aucun, on le DIT.
+#  ET ON EXIGE LE LECTEUR SVG, PAS SEULEMENT LE MODULE. Mesuré sur le
+#  coureur GitHub, et c'est le rouge de la CI 603 : « import gi » y réussit
+#  (Ubuntu livre python3-gi), gdk-pixbuf se charge — mais SANS le lecteur SVG
+#  de librsvg2-common. Il refusait donc TOUS les SVG, et ce banc annonçait
+#  « gdk-pixbuf refuse : Thunar.svg file-manager.svg … » : un rouge qui
+#  accusait les dessins d'Alex d'un paquet absent sur la machine d'essai.
+#
+#  C'est la quatrième fois de la journée que la même faute se referme :
+#  un contrôle qui ne distingue pas « la chose est fausse » de « je n'ai pas
+#  pu regarder ». Ici la différence est explicite — sans lecteur SVG, c'est
+#  « non mesuré », jamais un échec.
 PY_GI=""
 for CANDIDAT in python3 /usr/bin/python3 python3.13 python3.12 python3.11; do
 	command -v "$CANDIDAT" >/dev/null 2>&1 || continue
-	if "$CANDIDAT" -c "import gi; gi.require_version('GdkPixbuf','2.0'); from gi.repository import GdkPixbuf" 2>/dev/null; then
-		PY_GI="$CANDIDAT"; break
-	fi
+	"$CANDIDAT" - <<'PY' 2>/dev/null || continue
+import gi
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import GdkPixbuf
+#  Le module ne suffit pas : il faut un lecteur qui sache lire du SVG.
+formats = GdkPixbuf.Pixbuf.get_formats()
+assert any(f.get_name() == "svg" or "svg" in (f.get_extensions() or [])
+           for f in formats), "aucun lecteur SVG"
+PY
+	PY_GI="$CANDIDAT"; break
 done
 if [ -z "$PY_GI" ]; then
-	gris "gdk-pixbuf injoignable (paquets python3-gi / gir1.2-gdkpixbuf-2.0) : le chargement des SVG n'est PAS mesuré"
+	gris "gdk-pixbuf sans lecteur SVG (paquets python3-gi, gir1.2-gdkpixbuf-2.0, librsvg2-common) : le chargement n'est PAS mesuré"
 else
 	REFUS="$("$PY_GI" - "$THEME" <<'PY'
 import glob, os, sys, gi
