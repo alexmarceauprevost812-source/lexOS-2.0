@@ -526,6 +526,27 @@ jobs:
           #  partout ailleurs dans ce fichier.
           LEXOS_PRO_EXIGER_MESURE=1 bash tests/test_lexos_pro.sh
 
+      - name: lexos-applis — le filtre s'applique, et Exec n'est pas un shell
+        if: ${{ !cancelled() }}
+        run: |
+          #  TROIS DÉFAUTS MESURÉS SUR LA VERSION D'ORIGINE DE L'OUTIL, et les
+          #  deux premiers sont de la pire sorte — la commande répond, sans
+          #  message, avec une liste plausible qui n'est pas la réponse à la
+          #  question posée :
+          #    · « lexos applis --liste settings » rendait les 29 applications
+          #      au lieu des 4 qui correspondent ;
+          #    · « lexos applis settings | … » aussi, par la branche
+          #      « sortie non-terminal ».
+          #  Le troisième est une injection : un « ; » NON protégé dans la
+          #  ligne Exec lançait une seconde commande, parce que la ligne
+          #  partait dans « eval ». Or ~/.local/share/applications s'écrit
+          #  sans aucun privilège. Lancé par gio, ce fichier n'aurait obtenu
+          #  qu'un argument bizarre ; avec eval, il obtenait un shell.
+          #
+          #  Le banc monte une fausse arborescence de .desktop et un PATH
+          #  fermé : aucune application du coureur n'entre dans la mesure.
+          bash tests/test_lexos_applis.sh
+
       - name: Un Windows chiffré n'est pas un disque vide — lexos-dualboot sur un banc
         if: ${{ !cancelled() }}
         run: |

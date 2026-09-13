@@ -213,6 +213,7 @@ ${B}STUDIO+${R}
                       ${D}propose d'installer l'atelier s'il manque${R}
 
 ${B}TERMINAL${R}
+  ${A}applis${R}               Les applications installees, depuis le terminal
   ${A}pro${R}                  LEXOS PRO — tableau de bord du systeme
   ${A}terminal-pro${R}         LexOS Pro Terminal — le terminal officiel
                       ${D}onglets, fenêtres divisibles, vraies commandes${R}
@@ -1166,6 +1167,10 @@ case "$CMD" in
 	#  mais l'ordre reste la façon de lire — le terminal s'est nommé le
 	#  premier, il garde sa place.
 	pro|tableau-de-bord)  exec lexos-pro "$@" ;;
+	#  Les applications installées, depuis le terminal. Complète la
+	#  Logithèque (qui INSTALLE) et la page Applications de LEXOS PRO
+	#  (qui a une fenêtre) : celui-ci se met dans un tuyau.
+	applis|applications)  exec lexos-applis "$@" ;;
 	#  « multi » : le terminal en volets et en onglets. Il est aussi appelé par
 	#  un alias du shell (interactive.sh) — c'est comme ça qu'on l'écrit au
 	#  quotidien — mais il doit exister ici aussi : tout outil « lexos-* » doit

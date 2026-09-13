@@ -1,0 +1,421 @@
+#!/usr/bin/env bash
+#
+# lexos-applis — lister et lancer, depuis le terminal, les applications
+#                déjà installées sur LexOS.
+#
+#   lexos applis              menu : tout ce qui est installé
+#   lexos applis gimp         lance directement ce qui correspond
+#   lexos applis --liste      liste brute, une par ligne (pour un tuyau)
+#
+# Aucune dépendance nouvelle : bash, awk, coreutils, util-linux.
+# Se sert de fzf, gio ou gtk-launch s'ils sont là ; s'en passe sinon.
+#
+# LexOS 2.0 « Nomad »
+
+set -uo pipefail
+
+VERSION="1.0"
+
+# ── Couleurs (thème LexOS : vert, orange, rouge sur noir) ───────────────────
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    VERT=$'\033[32m'; ORANGE=$'\033[38;5;208m'; ROUGE=$'\033[31m'
+    GRIS=$'\033[90m'; GRAS=$'\033[1m';          ZERO=$'\033[0m'
+else
+    VERT=''; ORANGE=''; ROUGE=''; GRIS=''; GRAS=''; ZERO=''
+fi
+
+erreur() { printf '%s✗ %s%s\n' "$ROUGE" "$*" "$ZERO" >&2; }
+
+aide() {
+    cat <<AIDE
+${GRAS}lexos applis${ZERO} — les applications installées, depuis le terminal
+
+  ${ORANGE}lexos applis${ZERO}                menu : tout ce qui est installé
+  ${ORANGE}lexos applis ${GRIS}mot${ZERO}            lance l'application qui correspond
+  ${ORANGE}lexos applis ${GRIS}-l, --liste${ZERO}    les noms, un par ligne
+  ${ORANGE}lexos applis ${GRIS}-t, --tout${ZERO}     inclut les entrées cachées
+  ${ORANGE}lexos applis ${GRIS}-h, --aide${ZERO}     cette aide
+
+Dans le menu : un numéro pour lancer, du texte pour filtrer,
+Entrée seule pour sortir.
+AIDE
+}
+
+# ── Où vivent les .desktop ──────────────────────────────────────────────────
+dossiers() {
+    local d
+    local -a liste=() base=()
+    local maison="${XDG_DATA_HOME:-${HOME:-/root}/.local/share}"
+    IFS=':' read -r -a base <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+    liste+=("$maison")
+    liste+=("${base[@]}")
+    liste+=("$maison/flatpak/exports/share" "/var/lib/flatpak/exports/share")
+    liste+=("/var/lib/snapd/desktop")
+    for d in "${liste[@]}"; do
+        [ -n "$d" ] || continue
+        [ -d "$d/applications" ] && printf '%s\n' "$d/applications"
+    done | awk '!vu[$0]++'
+}
+
+# ── Lecture des .desktop → une ligne par application ────────────────────────
+# Champs séparés par 0x1F (US) et non par une tabulation : « read » avec IFS
+# tabulation fusionne les champs vides, ce qui décale toutes les colonnes.
+# id ␟ nom ␟ tryexec ␟ terminal ␟ exec ␟ chemin ␟ commentaire
+# shellcheck disable=SC2016  # programme awk : les $1/$0 ne doivent pas être développés
+LIRE_AWK='
+BEGIN { S = sprintf("%c", 31) }
+function net(s) { gsub(/[\t\r\n\037]/, " ", s); return s }
+function pousser(   nom, com, exe, typ, i, n, p) {
+    if (fichier == "") return
+    typ = v["Type"]
+    if (typ != "" && typ != "Application") return
+    if (tout != "1" && (tolower(v["NoDisplay"]) == "true" || tolower(v["Hidden"]) == "true")) return
+    exe = v["Exec"]
+    if (exe == "") return
+    nom = ""
+    if (loc  != "" && v["Name[" loc  "]"] != "") nom = v["Name[" loc  "]"]
+    if (nom  == "" && lng != "" && v["Name[" lng "]"] != "") nom = v["Name[" lng "]"]
+    if (nom  == "") nom = v["Name"]
+    com = ""
+    if (loc  != "" && v["Comment[" loc  "]"] != "") com = v["Comment[" loc  "]"]
+    if (com  == "" && lng != "" && v["Comment[" lng "]"] != "") com = v["Comment[" lng "]"]
+    if (com  == "") com = v["Comment"]
+    n = split(fichier, p, "/")
+    id = p[n]
+    if (nom == "") { nom = id; sub(/\.desktop$/, "", nom) }
+    print net(id) S net(nom) S net(v["TryExec"]) S \
+          (tolower(v["Terminal"]) == "true" ? 1 : 0) S \
+          net(exe) S net(fichier) S net(com)
+}
+FNR == 1 { pousser(); delete v; fichier = FILENAME; groupe = 0 }
+/^[ \t]*\[/ {
+    ligne = $0
+    sub(/^[ \t]+/, "", ligne); sub(/[ \t\r]+$/, "", ligne)
+    groupe = (ligne == "[Desktop Entry]") ? 1 : 0
+    next
+}
+groupe && /=/ {
+    cle = $0
+    sub(/=.*/, "", cle); sub(/^[ \t]+/, "", cle); sub(/[ \t]+$/, "", cle)
+    val = $0
+    sub(/^[^=]*=[ \t]*/, "", val); sub(/[ \t\r]+$/, "", val)
+    if (cle != "" && !(cle in v)) v[cle] = val
+}
+END { pousser() }
+'
+
+recolter() {
+    local tout="$1" loc lng
+    local -a dirs=()
+    loc="${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}"
+    loc="${loc%%.*}"; loc="${loc%%@*}"
+    lng="${loc%%_*}"
+    mapfile -t dirs < <(dossiers)
+    [ "${#dirs[@]}" -gt 0 ] || return 0
+    find -L "${dirs[@]}" -name '*.desktop' -type f -print0 2>/dev/null \
+        | xargs -0 -r awk -v tout="$tout" -v loc="$loc" -v lng="$lng" "$LIRE_AWK" \
+        | awk -F'\037' '!vu[$1]++' \
+        | LC_ALL=C sort -t $'\037' -k2,2f
+}
+
+# ── Le binaire est-il vraiment là ? ─────────────────────────────────────────
+installe() {
+    local bin="$1"
+    [ -n "$bin" ] || return 0
+    case "$bin" in
+        /*) [ -x "$bin" ] ;;
+         *) command -v -- "$bin" >/dev/null 2>&1 ;;
+    esac
+}
+
+premier_mot() {
+    local exe="$1" mot
+    exe="${exe#"${exe%%[![:space:]]*}"}"
+    mot="${exe%%[[:space:]]*}"
+    mot="${mot%\"}"; mot="${mot#\"}"
+    printf '%s' "$mot"
+}
+
+nettoyer_exec() {
+    printf '%s' "$1" \
+        | sed -e 's/%[fFuUdDnNickvm]//g' -e 's/%%/%/g' \
+              -e 's/[[:space:]]\{2,\}/ /g' -e 's/[[:space:]]*$//'
+}
+
+# ── Découper Exec en ARGUMENTS, sans passer par un shell ────────────────────
+#  MESURÉ, PAS SUPPOSÉ. La version d'origine faisait « eval "$cmd" ». Avec un
+#  argument entre guillemets, elle tenait :
+#      Exec=/bin/echo "titre; touch /tmp/PREUVE"   → pas d'injection
+#  Mais avec un point-virgule NON protégé, elle lançait une seconde commande :
+#      Exec=/bin/echo bonjour; touch /tmp/PREUVE   → le fichier est créé
+#
+#  Ce second fichier est malformé au regard de la spécification freedesktop —
+#  et c'est précisément ce qu'écrirait quelqu'un de malveillant. Or
+#  ~/.local/share/applications s'écrit SANS aucun privilège : n'importe quel
+#  programme lancé par l'utilisateur peut y déposer un .desktop. Lancé par
+#  gio ou gtk-launch, ce fichier n'aurait obtenu qu'un argument bizarre ; avec
+#  « eval », il obtient un shell. On ne rend donc PAS à un fichier de données
+#  un pouvoir que le chemin normal ne lui donne pas.
+#
+#  La découpe suit la spécification : guillemets doubles, et à l'intérieur
+#  seuls \\ \" \` \$ sont des échappements. Le reste est littéral.
+decouper_exec() {
+    local chaine="$1" i=0 c suivant
+    local -a args=()
+    local mot='' en_cours=0 guillemets=0
+    while [ "$i" -lt "${#chaine}" ]; do
+        c="${chaine:$i:1}"
+        if [ "$guillemets" = "1" ]; then
+            if [ "$c" = '\\' ]; then
+                suivant="${chaine:$((i+1)):1}"
+                case "$suivant" in
+                    '\\'|'"'|'`'|'$') mot+="$suivant"; i=$((i+2)); continue ;;
+                    *)                 mot+="$c";       i=$((i+1)); continue ;;
+                esac
+            fi
+            if [ "$c" = '"' ]; then guillemets=0; i=$((i+1)); continue; fi
+            mot+="$c"; i=$((i+1)); continue
+        fi
+        case "$c" in
+            '"') guillemets=1; en_cours=1; i=$((i+1)); continue ;;
+            ' '|$'\t')
+                if [ "$en_cours" = "1" ]; then args+=("$mot"); mot=''; en_cours=0; fi
+                i=$((i+1)); continue ;;
+            *) mot+="$c"; en_cours=1; i=$((i+1)); continue ;;
+        esac
+    done
+    [ "$en_cours" = "1" ] && args+=("$mot")
+    #  Les codes de champ (%f, %U…) n'ont pas de sens ici : aucun fichier
+    #  n'est passé. On les retire APRÈS la découpe, pour ne pas couper un
+    #  argument en deux au passage.
+    local a
+    for a in "${args[@]}"; do
+        case "$a" in
+            %[fFuUdDnNickvm]) continue ;;
+            %%) printf '%s\0' '%' ;;
+            *)  printf '%s\0' "$a" ;;
+        esac
+    done
+}
+
+# ── Chargement en mémoire ───────────────────────────────────────────────────
+IDS=(); NOMS=(); TERMS=(); EXECS=(); CHEMINS=(); COMS=()
+
+charger() {
+    local tout="$1"
+    local id nom try term exe chemin com bin
+    while IFS=$'\037' read -r id nom try term exe chemin com; do
+        [ -n "$id" ] || continue
+        bin="$try"
+        [ -n "$bin" ] || bin="$(premier_mot "$(nettoyer_exec "$exe")")"
+        if [ "$tout" != "1" ]; then
+            installe "$bin" || continue
+        fi
+        IDS+=("$id"); NOMS+=("$nom"); TERMS+=("$term")
+        EXECS+=("$exe"); CHEMINS+=("$chemin"); COMS+=("$com")
+    done < <(recolter "$tout")
+}
+
+# ── Recherche ───────────────────────────────────────────────────────────────
+correspondances() {
+    local motif="$1" i cible
+    local -a exactes=() partielles=()
+    motif="${motif,,}"
+    for i in "${!NOMS[@]}"; do
+        cible="${NOMS[$i],,}"
+        if [ "$cible" = "$motif" ]; then
+            exactes+=("$i")
+        elif [[ "$cible" == *"$motif"* || "${IDS[$i],,}" == *"$motif"* \
+             || "${COMS[$i],,}" == *"$motif"* ]]; then
+            partielles+=("$i")
+        fi
+    done
+    if [ "${#exactes[@]}" -gt 0 ]; then
+        printf '%s\n' "${exactes[@]}"
+    elif [ "${#partielles[@]}" -gt 0 ]; then
+        printf '%s\n' "${partielles[@]}"
+    fi
+}
+
+# ── Lancement ───────────────────────────────────────────────────────────────
+lancer() {
+    local i="$1"
+    local nom="${NOMS[$i]}" chemin="${CHEMINS[$i]}"
+
+    local -a argv=()
+    mapfile -d '' -t argv < <(decouper_exec "${EXECS[$i]}")
+    if [ "${#argv[@]}" -eq 0 ]; then
+        erreur "« $nom » n'a pas de commande exploitable"
+        return 1
+    fi
+
+    if [ "${TERMS[$i]}" = "1" ]; then
+        # Application texte : elle tourne ici même, dans ce terminal.
+        printf '%s▸ %s%s\n' "$VERT" "$nom" "$ZERO"
+        "${argv[@]}"
+        return $?
+    fi
+
+    printf '%s▸ %s%s\n' "$VERT" "$nom" "$ZERO"
+    if command -v gio >/dev/null 2>&1; then
+        setsid --fork gio launch "$chemin" >/dev/null 2>&1 && return 0
+    fi
+    if command -v gtk-launch >/dev/null 2>&1; then
+        setsid --fork gtk-launch "${IDS[$i]%.desktop}" >/dev/null 2>&1 && return 0
+    fi
+    setsid --fork "${argv[@]}" >/dev/null 2>&1 &
+    disown 2>/dev/null || true
+    return 0
+}
+
+# ── Menu ────────────────────────────────────────────────────────────────────
+afficher() {
+    local -a idx=("$@")
+    local rang=1 i nom com bourre
+    # Le remplissage se compte en caractères et non en octets : « %-26s »
+    # décalerait toutes les colonnes dès qu'un nom porte un accent.
+    for i in "${idx[@]}"; do
+        nom="${NOMS[$i]:0:26}"
+        com="${COMS[$i]:0:44}"
+        printf -v bourre '%*s' $((26 - ${#nom})) ''
+        if [ -n "$com" ]; then
+            printf '%s%3d%s) %s%s%s%s %s%s%s\n' \
+                "$ORANGE" "$rang" "$ZERO" "$GRAS" "$nom" "$ZERO" "$bourre" \
+                "$GRIS" "$com" "$ZERO"
+        else
+            printf '%s%3d%s) %s%s%s\n' \
+                "$ORANGE" "$rang" "$ZERO" "$GRAS" "$nom" "$ZERO"
+        fi
+        rang=$((rang + 1))
+    done
+}
+
+menu_fzf() {
+    local -a idx=("$@")
+    local i choix
+    choix=$(
+        for i in "${idx[@]}"; do
+            printf '%s\t%s\t%s\n' "$i" "${NOMS[$i]}" "${COMS[$i]}"
+        done | fzf --delimiter='\t' --with-nth=2,3 --reverse --height=70% \
+                   --prompt='applis › ' --info=inline \
+                   --header="${#idx[@]} applications installées — Échap pour sortir"
+    ) || return 1
+    [ -n "$choix" ] || return 1
+    lancer "${choix%%$'\t'*}"
+}
+
+menu_simple() {
+    local -a idx=("$@")
+    local reponse i
+    while :; do
+        printf '\n%s%d applications installées%s  %s(numéro, ou du texte pour filtrer, Entrée pour sortir)%s\n\n' \
+            "$GRAS" "${#idx[@]}" "$ZERO" "$GRIS" "$ZERO"
+        afficher "${idx[@]}"
+        printf '\n%sapplis ›%s ' "$VERT" "$ZERO"
+        IFS= read -r reponse || { printf '\n'; return 0; }
+        case "$reponse" in
+            '')      return 0 ;;
+            *[!0-9]*)
+                mapfile -t idx < <(correspondances "$reponse")
+                if [ "${#idx[@]}" -eq 0 ]; then
+                    erreur "rien qui ressemble à « $reponse »"
+                    return 1
+                fi
+                if [ "${#idx[@]}" -eq 1 ]; then
+                    lancer "${idx[0]}"
+                    return $?
+                fi
+                ;;
+            *)
+                i=$((reponse - 1))
+                if [ "$i" -lt 0 ] || [ "$i" -ge "${#idx[@]}" ]; then
+                    erreur "numéro hors de la liste"
+                    continue
+                fi
+                lancer "${idx[$i]}"
+                return $?
+                ;;
+        esac
+    done
+}
+
+# ── Arguments ───────────────────────────────────────────────────────────────
+TOUT=0
+LISTE=0
+MOTS=()
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--aide|--help)    aide; exit 0 ;;
+        --version)           printf 'lexos-applis %s\n' "$VERSION"; exit 0 ;;
+        -l|--liste|--list)   LISTE=1 ;;
+        -t|--tout|--all)     TOUT=1 ;;
+        --)                  shift; MOTS+=("$@"); break ;;
+        -*)                  erreur "option inconnue : $1"; aide >&2; exit 2 ;;
+        *)                   MOTS+=("$1") ;;
+    esac
+    shift
+done
+
+charger "$TOUT"
+
+if [ "${#NOMS[@]}" -eq 0 ]; then
+    erreur "aucune application trouvée dans les dossiers .desktop"
+    exit 1
+fi
+
+# ── LE FILTRE S'APPLIQUE D'ABORD, ET À TOUS LES CHEMINS ─────────────────────
+#  DEUX DÉFAUTS MESURÉS SUR LA VERSION D'ORIGINE, et tous deux du même genre :
+#  le filtre était calculé, puis ignoré.
+#
+#    · « lexos applis --liste settings » rendait les 29 applications au lieu
+#      des 4 qui correspondent : le bloc --liste passait AVANT le filtre.
+#    · « lexos applis settings | cat » rendait aussi les 29 : la branche
+#      « sortie non-terminal » imprimait $NOMS et non les correspondances.
+#
+#  Ce n'est pas une erreur qui saute aux yeux : la commande répond, sans
+#  message, avec une liste plausible — simplement ce n'est pas la réponse à
+#  la question posée. C'est la pire sorte, et celle contre laquelle un tuyau
+#  ne proteste jamais.
+if [ "${#MOTS[@]}" -gt 0 ]; then
+    mapfile -t TROUVES < <(correspondances "${MOTS[*]}")
+    if [ "${#TROUVES[@]}" -eq 0 ]; then
+        erreur "aucune application installée ne correspond à « ${MOTS[*]} »"
+        printf '%sTape « lexos applis » sans rien pour voir la liste.%s\n' "$GRIS" "$ZERO" >&2
+        exit 1
+    fi
+else
+    TROUVES=("${!NOMS[@]}")
+fi
+
+noms_trouves() {
+    local i
+    for i in "${TROUVES[@]}"; do printf '%s\n' "${NOMS[$i]}"; done
+}
+
+#  « --liste » LISTE, toujours. Il ne lance jamais rien, même sur une seule
+#  correspondance : c'est la forme faite pour être mise dans un tuyau, et une
+#  commande qui lance une application au milieu d'un tuyau surprendrait.
+if [ "$LISTE" = "1" ]; then
+    noms_trouves
+    exit 0
+fi
+
+#  Une seule correspondance : on lance, c'est le service rendu par
+#  « lexos applis gimp ».
+if [ "${#MOTS[@]}" -gt 0 ] && [ "${#TROUVES[@]}" -eq 1 ]; then
+    lancer "${TROUVES[0]}"
+    exit $?
+fi
+
+#  Sans terminal, aucun menu n'est possible : on rend ce qu'on a trouvé.
+if [ ! -t 0 ] || [ ! -t 1 ]; then
+    noms_trouves
+    exit 0
+fi
+
+if command -v fzf >/dev/null 2>&1; then
+    menu_fzf "${TROUVES[@]}"
+else
+    menu_simple "${TROUVES[@]}"
+fi

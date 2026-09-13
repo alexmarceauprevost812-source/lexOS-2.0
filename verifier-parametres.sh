@@ -182,6 +182,10 @@ lexos-pro-terminal
 #  « ouvrir les parametres » DANS les parametres. Elle est atteinte par
 #  « lexos pro », par son lanceur du menu, et par le dock.
 lexos-pro
+#  Une COMMANDE : elle liste et lance les applications depuis le terminal,
+#  et se met dans un tuyau. Sa fenetre EST le terminal ; une section dans
+#  les Parametres n'aurait rien a y regler. Atteinte par « lexos applis ».
+lexos-applis
 lexos-claude
 lexos-claude-terminal
 lexos-opencode
