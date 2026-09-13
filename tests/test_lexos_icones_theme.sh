@@ -34,9 +34,10 @@ RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 THEME="$RACINE/config/includes.chroot/usr/share/icons/LexOS"
 INDEX="$THEME/index.theme"
 
-reussis=0; echoues=0
+reussis=0; echoues=0; nonmesure=0
 ok()    { printf '  \033[32m✅\033[0m %s\n' "$1"; reussis=$((reussis+1)); }
 non()   { printf '  \033[31m❌\033[0m %s\n' "$1"; echoues=$((echoues+1)); }
+gris()  { printf '  \033[90m—\033[0m %s\n' "$1"; nonmesure=$((nonmesure+1)); }
 titre() { printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 
 # =============================================================================
@@ -269,8 +270,28 @@ done
 	&& ok "aucun SVG n'a de commentaire avant « <svg » — gdk-pixbuf les reconnaît" \
 	|| non "« <svg » n'ouvre pas le fichier, GTK dira « format non reconnu » :$MAUVAIS"
 
-if python3 -c "import gi; gi.require_version('GdkPixbuf','2.0'); from gi.repository import GdkPixbuf" 2>/dev/null; then
-	REFUS="$(python3 - "$THEME" <<'PY'
+#  ═══ CE CONTRÔLE SE SAUTAIT EN SILENCE, ET C'EST LUI QUI COMPTE ═══
+#  C'est le seul qui éprouve le VRAI symptôme : gdk-pixbuf refusant le
+#  fichier. Il était gardé par « python3 -c import gi » et, quand ça ratait,
+#  il ne s'affichait pas du tout — pas une ligne, pas un gris. Mesuré :
+#  29 contrôles sur la machine d'Alex, 28 ici, et rien pour dire lequel
+#  manquait ni pourquoi.
+#
+#  Ici, « python3 » est un 3.11 local alors que le paquet Debian livre son
+#  module compilé pour 3.12 : l'import échoue sur un décalage de version, pas
+#  sur une absence. On cherche donc un interpréteur QUI SAIT, au lieu de
+#  supposer que c'est celui du PATH — et s'il n'y en a aucun, on le DIT.
+PY_GI=""
+for CANDIDAT in python3 /usr/bin/python3 python3.13 python3.12 python3.11; do
+	command -v "$CANDIDAT" >/dev/null 2>&1 || continue
+	if "$CANDIDAT" -c "import gi; gi.require_version('GdkPixbuf','2.0'); from gi.repository import GdkPixbuf" 2>/dev/null; then
+		PY_GI="$CANDIDAT"; break
+	fi
+done
+if [ -z "$PY_GI" ]; then
+	gris "gdk-pixbuf injoignable (paquets python3-gi / gir1.2-gdkpixbuf-2.0) : le chargement des SVG n'est PAS mesuré"
+else
+	REFUS="$("$PY_GI" - "$THEME" <<'PY'
 import glob, os, sys, gi
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf
@@ -282,7 +303,7 @@ for f in sorted(glob.glob(os.path.join(sys.argv[1], "*/scalable/*.svg"))):
 PY
 )"
 	[ -z "$REFUS" ] \
-		&& ok "gdk-pixbuf charge chaque SVG du thème, comme le bureau et Thunar" \
+		&& ok "gdk-pixbuf ($PY_GI) charge chaque SVG du thème, comme le bureau et Thunar" \
 		|| non "gdk-pixbuf refuse : $REFUS"
 fi
 
@@ -357,5 +378,14 @@ for OUTIL7 in lexos-mise-a-jour lexos-dev-sync; do
 		|| non "$OUTIL7 n'a pas rejoué le hook 0605 — les PNG gardent l'ancien dessin"
 done
 
-printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$reussis" "$echoues"
-[[ "$echoues" -eq 0 ]]
+printf '\n\033[1m%d réussis, %d échoués, %d non mesurés\033[0m\n' \
+	"$reussis" "$echoues" "$nonmesure"
+
+#  EN CI, RIEN NE RESTE « NON MESURÉ ». Une ligne grise dans un journal de
+#  deux cents étapes ne se voit pas ; la variable en fait un échec franc.
+[[ "$echoues" -eq 0 ]] || exit 1
+if [[ "${LEXOS_ICONES_EXIGER_MESURE:-0}" == "1" && "$nonmesure" -gt 0 ]]; then
+	printf '\033[31m  LEXOS_ICONES_EXIGER_MESURE=1 : %d contrôle(s) non mesuré(s).\033[0m\n' "$nonmesure"
+	exit 1
+fi
+exit 0

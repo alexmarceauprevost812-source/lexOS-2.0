@@ -2365,7 +2365,16 @@ jobs:
           #  installées, jamais regardées. Ce banc éprouve que CHAQUE dossier
           #  présent sur le disque est déclaré — la question que personne ne
           #  posait.
-          bash tests/test_lexos_icones_theme.sh
+          #  ═══ LE CONTRÔLE QUI COMPTE SE SAUTAIT EN SILENCE ═══
+          #  La section 6 eprouve le VRAI symptome : gdk-pixbuf refusant le
+          #  fichier (« Couldn't recognize the image file format »). Sans
+          #  python3-gi et l'introspection GdkPixbuf, elle ne s'affichait
+          #  meme pas — 29 controles chez Alex, 28 ailleurs, et rien pour
+          #  dire lequel manquait. On installe donc de quoi mesurer, et
+          #  LEXOS_ICONES_EXIGER_MESURE=1 refuse le silence.
+          python3 -c "import gi; gi.require_version('GdkPixbuf','2.0'); from gi.repository import GdkPixbuf" 2>/dev/null \
+            || sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gdkpixbuf-2.0 librsvg2-common >/dev/null
+          LEXOS_ICONES_EXIGER_MESURE=1 bash tests/test_lexos_icones_theme.sh
 
       - name: lexos dev-sync — poser le dépôt sans reconstruire l'ISO
         if: ${{ !cancelled() }}
