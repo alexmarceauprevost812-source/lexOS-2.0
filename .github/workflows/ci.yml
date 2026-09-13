@@ -1826,6 +1826,22 @@ jobs:
           #  vérifie l'argument exact passé dans chacun.
           bash tests/test_lexos_youtube_musique.sh
 
+      - name: Rendre la machine fluide sans casser ce qui sert — lexos-fluide sur un banc
+        if: ${{ !cancelled() }}
+        run: |
+          #  Alex a depose lexos-fluide.sh sans consigne. Eprouve en le FAISANT
+          #  TOURNER : cinq defauts, aucun visible en lecture (l'analyse
+          #  statique etait muette). Le pire se declenche au geste le plus
+          #  banal — relancer la commande vidait le fichier de restauration,
+          #  et « --annuler » repondait « tout est revenu comme avant » sans
+          #  rien remettre.
+          #
+          #  Le banc monte un faux systemd qui sait ECHOUER (les deux defauts
+          #  les plus graves ne se voient que la) et de fausses machines : une
+          #  avec carte NVIDIA, partage NFS et modem — celle sur laquelle le
+          #  script d'origine aurait coupe nvidia-persistenced.
+          bash tests/test_lexos_fluide.sh
+
       - name: Les réglages de la fenêtre active — lexos-app-settings sur un banc
         if: ${{ !cancelled() }}
         run: |

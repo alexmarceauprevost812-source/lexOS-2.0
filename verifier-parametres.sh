@@ -228,6 +228,13 @@ lexos-musique
 #  une section dans les Parametres serait une page vide avec un bouton
 #  « ouvrir ». Atteint par le menu, le dock, et « lexos youtube-musique ».
 lexos-youtube-musique
+#  Une COMMANDE d'administration, comme lexos-dev-sync : elle coupe des
+#  services et pose de la memoire compressee, une fois, puis c'est fait.
+#  Elle s'annule (« lexos fluide --annuler ») et se lit sans droits
+#  (« --etat », « --simulation »). Rien a regler dans les Parametres :
+#  un bouton « rendre fluide » a cote de la luminosite serait un bouton
+#  qu'on clique sans savoir ce qu'il coupe.
+lexos-fluide
 lexos-studio
 lexos-temp
 lexos-tv

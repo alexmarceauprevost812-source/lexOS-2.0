@@ -209,6 +209,7 @@ ${B}CAPTURE${R}
 ${B}STUDIO+${R}
   ${A}musique${R}             lexOS_musique : lecteur audio local ${D}(crate, playlists)${R}
   ${A}youtube-musique${R}     YouTube Music en fenêtre dédiée ${D}(service en ligne de Google)${R}
+  ${A}fluide${R}              Rend la machine plus fluide ${D}(zram + services inutiles, annulable)${R}
   ${A}studio${R}              Studio+ LexOS : ateliers image, vidéo et son
   ${A}studio ouvrir${R} <atelier>  photo · peinture · vectoriel · video · capture · son
                       ${D}propose d'installer l'atelier s'il manque${R}
@@ -1121,6 +1122,11 @@ case "$CMD" in
 	meteo|météo|weather|temps) exec lexos-meteo "$@" ;;
 	tv|televiseur|téléviseur|hdmi) exec lexos-tv "$@" ;;
 	musique|music)        exec lexos-musique "$@" ;;
+	#  « fluide » : mémoire compressée + arrêt des services dont
+	#  l'inutilité est CONSTATÉE sur cette machine. Il ne touche pas au
+	#  processeur — « boost --appliquer » le remettrait en économie
+	#  d'énergie et contredirait « lexos perf ».
+	fluide|fluidite|fluidité) exec lexos-fluide "$@" ;;
 	#  L'AUTRE musique : celle qui vient du réseau. Deux commandes parce
 	#  que ce sont deux choses opposées — « musique » ne sort rien de la
 	#  machine, « youtube-musique » est un service de Google.

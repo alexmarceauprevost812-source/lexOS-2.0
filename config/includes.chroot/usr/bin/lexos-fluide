@@ -1,0 +1,358 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-fluide — rendre la machine plus fluide, sans rien casser d'autre
+# =============================================================================
+#  D'APRÈS LE SCRIPT D'ALEX (lexos-fluide.sh, écrit pour son T460 : i5-6300U,
+#  7 Go, SSD). L'idée est la sienne et elle est juste : de la mémoire
+#  compressée, et l'arrêt des services qui ne servent à rien SUR CETTE
+#  MACHINE-LÀ. Ce qui suit garde son intention, ses messages et son
+#  « --annuler ». Ce qui change vient de cinq défauts MESURÉS en le faisant
+#  tourner — shellcheck, lui, n'avait rien à dire.
+#
+#  ═══ 1. RELANCER LE SCRIPT DÉTRUISAIT L'ANNULATION ═══
+#  Le fichier de restauration était remis à zéro à chaque passage. Au second
+#  passage, les services étaient déjà coupés : plus rien à enregistrer, donc
+#  fichier VIDE. « --annuler » répondait alors « ✓ Tout est revenu comme
+#  avant » et ne remettait RIEN — neuf services coupés pour de bon, avec un
+#  message qui dit le contraire. C'est le pire des défauts : il se déclenche
+#  au geste le plus naturel du monde, relancer une commande.
+#  Ici l'état d'avant s'écrit UNE FOIS et ne se réécrit jamais.
+#
+#  ═══ 2. UN SERVICE QUI REFUSE ÉTAIT PASSÉ SOUS SILENCE ═══
+#  Mesuré avec rpcbind qui échoue : les huit autres défilent, « Terminé. »
+#  s'affiche, le code de sortie est 0, et pas un mot sur celui qui n'a pas
+#  bougé. Ici chaque échec est nommé et le code de sortie le dit.
+#
+#  ═══ 3. UN ÉTAT À MOITIÉ APPLIQUÉ, EN SILENCE ═══
+#  Si lexos-zram.service ne démarre pas (zramctl absent, unité manquante sur
+#  une LexOS ancienne), « set -e » arrêtait tout : zram.conf était déjà
+#  écrit, AUCUN service n'était traité, et le seul message était celui de
+#  systemd, en anglais. Ici on vérifie AVANT d'écrire, et les services sont
+#  traités même si la mémoire compressée n'a pas pu se faire.
+#
+#  ═══ 4. LE RÉGLAGE ZRAM EXISTANT ÉTAIT ÉCRASÉ SANS SAUVEGARDE ═══
+#  Mesuré : une machine dont LexOS Boost avait réglé zram à 2048 Mo en lzo
+#  se retrouvait à 8037 Mo en zstd, sans .bak — et « --annuler » SUPPRIMAIT
+#  le fichier et coupait zram, qui était pourtant actif AVANT. « Tout est
+#  revenu comme avant » était faux. (Et la consigne d'Alex est explicite :
+#  sauvegarde avant toute modification d'un fichier de configuration.)
+#
+#  ═══ 5. LES RAISONS ÉTAIENT SUPPOSÉES, JAMAIS VÉRIFIÉES ═══
+#  « pas de carte NVIDIA », « aucun partage NFS », « aucun modem 4G » : vrai
+#  sur le T460, écrit en commentaire, vérifié nulle part. Le même script sur
+#  l'Alienware d'Alex coupait nvidia-persistenced sur une machine qui A une
+#  RTX. Et il posait 8 Go de zram sur une machine de 16 Go, alors que LexOS
+#  Boost refuse explicitement ce cas (« 16 Go de RAM ou plus : zram
+#  n'apporterait rien »). Ici chaque raison est CONSTATÉE sur la machine, et
+#  un service épargné dit pourquoi il l'est.
+#
+#  ON NE PASSE TOUJOURS PAS PAR « lexos boost --appliquer » : il remettrait
+#  le processeur en économie d'énergie et contredirait le profil performant
+#  de lexos-perf. C'est le choix d'Alex, il est bon, on le garde.
+#
+#  LexOS 2.0 « Nomad »
+# =============================================================================
+set -u
+
+VERSION="2.0"
+
+#  ═══ LES POINTS D'ENTRÉE DU BANC ═══
+#  Un banc ne peut pas fabriquer une carte NVIDIA ni un partage NFS. Sans
+#  ces variables, les contrôles ne pourraient éprouver QUE la machine du
+#  coureur — c'est-à-dire toujours le même cas, et jamais celui qui compte
+#  (la machine d'Alex avec sa RTX). Elles ne changent rien en usage réel :
+#  chacune vaut son chemin habituel quand elle n'est pas posée.
+DOSSIER="${LEXOS_FLUIDE_ETC:-/etc/lexos}"
+SYS="${LEXOS_FLUIDE_SYS:-/sys}"
+PROC="${LEXOS_FLUIDE_PROC:-/proc}"
+FSTAB="${LEXOS_FLUIDE_FSTAB:-/etc/fstab}"
+DEV="${LEXOS_FLUIDE_DEV:-/dev}"
+ETAT="$DOSSIER/fluide.etat"
+ZRAM_CONF="$DOSSIER/zram.conf"
+ZRAM_BAK="$DOSSIER/zram.conf.avant-fluide"
+
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+	VERT=$(printf '\033[32m');   ORANGE=$(printf '\033[38;5;208m')
+	ROUGE=$(printf '\033[31m');  GRIS=$(printf '\033[90m')
+	GRAS=$(printf '\033[1m');    ZERO=$(printf '\033[0m')
+else
+	VERT=''; ORANGE=''; ROUGE=''; GRIS=''; GRAS=''; ZERO=''
+fi
+
+fait()   { printf '%s✓%s %s\n' "$VERT" "$ZERO" "$*"; }
+saute()  { printf '%s·%s %s%s%s\n' "$GRIS" "$ZERO" "$GRIS" "$*" "$ZERO"; }
+alerte() { printf '%s!%s %s\n' "$ORANGE" "$ZERO" "$*" >&2; }
+erreur() { printf '%s✗%s %s\n' "$ROUGE" "$ZERO" "$*" >&2; }
+
+ECHECS=0
+
+aide() {
+	cat <<AIDE
+${GRAS}lexos fluide${ZERO} — rendre la machine plus fluide
+
+  lexos fluide                applique
+  lexos fluide --simulation   montre ce qui serait fait, ne touche à rien
+  lexos fluide --etat         où en est cette machine
+  lexos fluide --annuler      remet exactement l'état d'avant
+
+Deux choses, et rien d'autre :
+  1. mémoire compressée (zram) quand elle sert vraiment — les règles sont
+     celles de LexOS Boost : inutile si zram tourne déjà ou si la machine a
+     16 Go ou plus, impossible sans zramctl ;
+  2. arrêt des services dont l'inutilité est CONSTATÉE sur CETTE machine.
+     Un service dont la raison ne se vérifie pas n'est pas touché, et il
+     est dit pourquoi.
+
+Le processeur n'est pas touché : « lexos boost --appliquer » le remettrait
+en économie d'énergie, ce qui contredirait « lexos perf ».
+AIDE
+}
+
+# =============================================================================
+#  CE QU'ON CONSTATE SUR LA MACHINE — jamais ce qu'on suppose
+# =============================================================================
+ram_mo() { awk '/^MemTotal:/ {print int($2/1024)}' "$PROC/meminfo"; }
+
+zram_actif() {
+	#  La même mesure que LexOS Boost (materiel.py) : un périphérique zram
+	#  ET de l'espace d'échange déclaré. Un /sys/block/zram0 sans swap est
+	#  un module chargé qui ne sert à rien.
+	TROUVE=0
+	for D in "$SYS"/block/zram*; do [ -e "$D" ] && TROUVE=1; done
+	[ "$TROUVE" -eq 1 ] || return 1
+	awk '/^SwapTotal:/ {exit !($2 > 0)}' "$PROC/meminfo"
+}
+
+carte_nvidia() {
+	#  Sans lspci : l'identifiant de fabricant est dans /sys. 0x10de = NVIDIA.
+	for V in "$SYS"/bus/pci/devices/*/vendor; do
+		[ -r "$V" ] || continue
+		[ "$(cat "$V")" = "0x10de" ] && return 0
+	done
+	[ -d "$PROC/driver/nvidia" ] && return 0
+	return 1
+}
+
+partage_nfs() {
+	[ -r "$FSTAB" ] && awk '$3 ~ /^nfs4?$/ {trouve=1} END {exit !trouve}' "$FSTAB" && return 0
+	[ -r "$PROC/mounts" ] && awk '$3 ~ /^nfs4?$/ {trouve=1} END {exit !trouve}' "$PROC/mounts" && return 0
+	return 1
+}
+
+modem_present() {
+	for I in "$SYS"/class/net/ww*;  do [ -e "$I" ] && return 0; done
+	for W in "$DEV"/cdc-wdm*;       do [ -e "$W" ] && return 0; done
+	return 1
+}
+
+# =============================================================================
+#  LA TABLE : un service, sa raison, et la FONCTION qui vérifie cette raison
+# =============================================================================
+#  « garder_si » rend 0 quand il faut GARDER le service. Un service dont la
+#  raison ne se vérifie pas est épargné, et la ligne dit pourquoi — c'est
+#  toute la différence avec une liste écrite d'avance.
+raison_de_garder() {
+	case "$1" in
+		nvidia-persistenced.service|nvidia-powerd.service)
+			carte_nvidia && echo "une carte NVIDIA est présente sur cette machine" ;;
+		nfs-client.target|rpcbind.service|rpcbind.socket|nfs-blkmap.service)
+			partage_nfs && echo "un partage NFS est monté ou déclaré dans /etc/fstab" ;;
+		ModemManager.service)
+			modem_present && echo "un modem (interface ww* ou /dev/cdc-wdm) est présent" ;;
+	esac
+	return 0
+}
+
+SERVICES="nvidia-persistenced.service nvidia-powerd.service
+NetworkManager-wait-online.service nfs-client.target rpcbind.service
+rpcbind.socket nfs-blkmap.service ModemManager.service cups-browsed.service"
+
+sc() { systemctl "$@" 2>/dev/null; }
+
+# =============================================================================
+#  LES MODES
+# =============================================================================
+etat_machine() {
+	printf '%sCette machine%s\n' "$GRAS" "$ZERO"
+	printf '  RAM ................ %s Mo\n' "$(ram_mo)"
+	printf '  zram ............... %s\n' "$(zram_actif && echo actif || echo inactif)"
+	printf '  carte NVIDIA ....... %s\n' "$(carte_nvidia && echo oui || echo non)"
+	printf '  partage NFS ........ %s\n' "$(partage_nfs && echo oui || echo non)"
+	printf '  modem .............. %s\n' "$(modem_present && echo oui || echo non)"
+	printf '  zramctl ............ %s\n' "$(command -v zramctl >/dev/null 2>&1 && echo présent || echo ABSENT)"
+	printf '\n%sÉtat de lexos fluide%s\n' "$GRAS" "$ZERO"
+	if [ -s "$ETAT" ]; then
+		printf '  appliqué — %s service(s) enregistrés pour l'\''annulation :\n' \
+			"$(grep -c '^service ' "$ETAT" 2>/dev/null || echo 0)"
+		sed -n 's/^service /    · /p' "$ETAT"
+		sed -n 's/^zram_avant /  zram avant : /p' "$ETAT"
+	else
+		printf '  pas appliqué\n'
+	fi
+}
+
+case "${1:-}" in
+	--aide|--help|-h|aide) aide; exit 0 ;;
+	--etat|etat)           etat_machine; exit 0 ;;
+	--version)             echo "lexos-fluide $VERSION"; exit 0 ;;
+	--simulation|-n)       SIMULATION=1; MODE=appliquer ;;
+	--annuler)             SIMULATION=0; MODE=annuler ;;
+	'')                    SIMULATION=0; MODE=appliquer ;;
+	*) erreur "argument inconnu : $1"; aide >&2; exit 2 ;;
+esac
+
+#  La lecture seule ne demande rien ; tout le reste exige les droits.
+if [ "$(id -u)" -ne 0 ]; then
+	erreur "à lancer avec sudo : sudo lexos fluide ${1:-}"
+	erreur "(« lexos fluide --etat » et « --simulation » se lisent sans droits)"
+	[ "${SIMULATION:-0}" -eq 1 ] || exit 1
+fi
+
+# =============================================================================
+#  ANNULER
+# =============================================================================
+if [ "$MODE" = "annuler" ]; then
+	if [ ! -s "$ETAT" ]; then
+		erreur "rien à annuler : aucun état enregistré ($ETAT)"
+		exit 1
+	fi
+
+	#  zram : on remet CE QU'IL Y AVAIT, pas « rien ».
+	ZAVANT="$(sed -n 's/^zram_avant //p' "$ETAT")"
+	if [ -r "$ZRAM_BAK" ]; then
+		mv -f "$ZRAM_BAK" "$ZRAM_CONF" && fait "zram.conf remis dans son état d'avant"
+	elif [ "$ZAVANT" = "aucun" ]; then
+		rm -f "$ZRAM_CONF" && fait "zram.conf retiré (il n'existait pas avant)"
+	fi
+	if [ "$ZAVANT" = "actif" ]; then
+		sc enable --now lexos-zram.service && fait "mémoire compressée remise en marche (elle l'était avant)" \
+			|| { erreur "lexos-zram.service n'a pas pu être remis en marche"; ECHECS=$((ECHECS+1)); }
+	else
+		sc disable --now lexos-zram.service >/dev/null 2>&1
+		fait "mémoire compressée arrêtée (elle ne tournait pas avant)"
+	fi
+
+	sed -n 's/^service //p' "$ETAT" | while read -r S; do
+		if sc enable "$S" >/dev/null 2>&1; then
+			fait "remis : $S"
+		else
+			erreur "n'a pas pu être remis : $S"
+		fi
+	done
+	#  Le sous-shell du tube ne peut pas incrémenter ECHECS : on recompte.
+	MANQUE=0
+	for S in $(sed -n 's/^service //p' "$ETAT"); do
+		[ "$(sc is-enabled "$S" 2>/dev/null)" = "enabled" ] || MANQUE=$((MANQUE+1))
+	done
+	ECHECS=$((ECHECS + MANQUE))
+
+	if [ "$ECHECS" -eq 0 ]; then
+		rm -f "$ETAT"
+		echo
+		fait "Tout est revenu comme avant. Redémarre pour finir."
+		exit 0
+	fi
+	echo
+	erreur "$ECHECS chose(s) n'ont pas pu être remises — l'état est CONSERVÉ ($ETAT)"
+	erreur "relance « sudo lexos fluide --annuler » après avoir regardé le journal"
+	exit 1
+fi
+
+# =============================================================================
+#  APPLIQUER
+# =============================================================================
+[ "$SIMULATION" -eq 1 ] && printf '%s— simulation : rien ne sera modifié —%s\n\n' "$ORANGE" "$ZERO"
+
+[ "$SIMULATION" -eq 1 ] || mkdir -p "$DOSSIER"
+
+#  L'ÉTAT D'AVANT S'ÉCRIT UNE FOIS. C'est le correctif du défaut nº 1 : un
+#  second passage ne doit jamais pouvoir effacer ce qui permet de revenir.
+PREMIER=1
+[ -s "$ETAT" ] && PREMIER=0
+
+if [ "$PREMIER" -eq 0 ]; then
+	saute "déjà appliqué : l'état d'avant est conservé, il ne sera pas réécrit"
+fi
+
+# --- 1. Mémoire compressée --------------------------------------------------
+RAM="$(ram_mo)"
+if zram_actif; then
+	saute "mémoire compressée : déjà active — on n'y touche pas"
+elif [ "$RAM" -ge 16384 ]; then
+	saute "mémoire compressée : $RAM Mo de RAM (16 Go ou plus) — LexOS Boost la juge inutile ici"
+elif ! command -v zramctl >/dev/null 2>&1; then
+	alerte "mémoire compressée : zramctl absent (paquet util-linux) — impossible"
+elif ! sc cat lexos-zram.service >/dev/null 2>&1 && ! sc list-unit-files lexos-zram.service >/dev/null 2>&1; then
+	alerte "mémoire compressée : lexos-zram.service introuvable sur ce système"
+else
+	TAILLE=$((RAM / 2))
+	if [ "$SIMULATION" -eq 1 ]; then
+		saute "mémoire compressée : serait réglée à $TAILLE Mo (zstd)"
+	else
+		#  SAUVEGARDE AVANT ÉCRITURE — défaut nº 4. UNIQUEMENT AU PREMIER
+		#  PASSAGE, et c'est une correction trouvée en mesurant MA propre
+		#  version : au second passage, « $ZRAM_CONF existe et pas de .bak »
+		#  était vrai — parce que le fichier présent était celui que ce
+		#  script venait d'écrire. La sauvegarde capturait donc mon réglage
+		#  au lieu de celui d'avant, et « --annuler » le REMETTAIT au lieu
+		#  de l'effacer. Le même piège que le défaut nº 1, un cran plus bas :
+		#  ce qui décrit « l'avant » ne s'écrit qu'une fois.
+		if [ "$PREMIER" -eq 1 ] && [ -r "$ZRAM_CONF" ] && [ ! -r "$ZRAM_BAK" ]; then
+			cp -p "$ZRAM_CONF" "$ZRAM_BAK" && fait "réglage zram existant sauvegardé : $ZRAM_BAK"
+		fi
+		[ "$PREMIER" -eq 1 ] && {
+			mkdir -p "$DOSSIER"
+			if [ -r "$ZRAM_BAK" ]; then echo "zram_avant existant" >> "$ETAT"
+			else echo "zram_avant aucun" >> "$ETAT"; fi
+		}
+		printf '# Écrit par lexos-fluide\nTAILLE_MO=%s\nALGO=zstd\n' "$TAILLE" > "$ZRAM_CONF"
+		#  DÉFAUT Nº 3 : un échec ici ne doit PLUS emporter la suite.
+		if sc enable --now lexos-zram.service >/dev/null 2>&1; then
+			fait "mémoire compressée : $TAILLE Mo (zstd)"
+		else
+			alerte "mémoire compressée : lexos-zram.service n'a pas démarré — on continue"
+			alerte "  (« systemctl status lexos-zram.service » dira pourquoi)"
+			ECHECS=$((ECHECS+1))
+		fi
+	fi
+fi
+[ "$PREMIER" -eq 1 ] && [ "$SIMULATION" -eq 0 ] && [ ! -s "$ETAT" ] && echo "zram_avant aucun" >> "$ETAT"
+
+# --- 2. Services ------------------------------------------------------------
+echo
+for S in $SERVICES; do
+	POURQUOI="$(raison_de_garder "$S")"
+	if [ -n "$POURQUOI" ]; then
+		saute "gardé : $S — $POURQUOI"
+		continue
+	fi
+	if [ "$(sc is-enabled "$S" 2>/dev/null)" != "enabled" ]; then
+		saute "déjà inactif : $S"
+		continue
+	fi
+	if [ "$SIMULATION" -eq 1 ]; then
+		saute "serait désactivé : $S"
+		continue
+	fi
+	if sc disable --now "$S" >/dev/null 2>&1; then
+		echo "service $S" >> "$ETAT"
+		fait "désactivé : $S"
+	else
+		#  DÉFAUT Nº 2 : un refus se dit, il ne se tait pas.
+		erreur "n'a PAS pu être désactivé : $S"
+		ECHECS=$((ECHECS+1))
+	fi
+done
+
+echo
+if [ "$SIMULATION" -eq 1 ]; then
+	saute "simulation terminée — rien n'a été modifié."
+	exit 0
+fi
+if [ "$ECHECS" -gt 0 ]; then
+	erreur "terminé avec $ECHECS problème(s) — relis les lignes ci-dessus"
+	echo "Pour tout annuler : sudo lexos fluide --annuler"
+	exit 1
+fi
+fait "Terminé. Redémarre pour profiter du démarrage plus rapide."
+echo "Pour tout annuler : sudo lexos fluide --annuler"
