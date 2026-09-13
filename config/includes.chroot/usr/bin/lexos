@@ -288,10 +288,12 @@ ${B}FOND D'ÉCRAN${R}
   ${A}fond-ecran aleatoire${R} Au hasard
                       ${D}ou clic droit sur une image dans Fichiers${R}
 
-${B}INSTALLER À CÔTÉ DE WINDOWS${R}
+${B}INSTALLER À CÔTÉ DE WINDOWS OU D'UN AUTRE LINUX${R}
   ${A}dualboot${R} ${D}[Go]${R}       Tout vérifier avant d'installer ${D}(ne modifie rien)${R}
                       ${D}Windows ou un autre Linux ; « dualboot 60 » vise 60 Go${R}
-                      ${D}place cessible par Windows, démarrage rapide, UEFI${R}
+                      ${D}mode d'amorçage, place cessible, place sur l'EFI${R}
+  ${A}dualboot defaut${R}     Quel système démarre tout seul après les 8 s
+                      ${D}« defaut lexos » ou « defaut voisin » pour changer${R}
 
 ${B}COMPTES EN LIGNE${R}
   ${A}comptes${R}             Ce qui est relié, ce qui est monté

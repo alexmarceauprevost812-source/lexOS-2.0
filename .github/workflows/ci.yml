@@ -565,6 +565,44 @@ jobs:
           #  Windows.
           bash tests/test_lexos_dualboot_bitlocker.sh
 
+      - name: LexOS à côté d'UBUNTU — les pièges qui se voient tard
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « j'aimerais aussi que LexOS Pro soit capable de se mettre
+          #  à côté d'Ubuntu 26.04.1 dans mon ThinkPad ». Le voisin Windows
+          #  était déjà éprouvé ; ce banc couvre le voisin LINUX, et surtout
+          #  les trois pièges qui ne se voient pas le jour de l'installation :
+          #    · UEFI d'un bord, BIOS de l'autre : deux systèmes vivants dont
+          #      aucun ne voit l'autre. Le ThinkPad avait une table MS-DOS en
+          #      juillet — la signature du mode BIOS. Ça doit être dit AVANT
+          #      de toucher au disque, pas après ;
+          #    · le GRUB d'Ubuntu ne cherche PAS les voisins depuis GRUB 2.06 :
+          #      sa prochaine mise à jour de noyau efface LexOS de SON menu,
+          #      des semaines après l'installation. Les trois commandes à
+          #      taper côté Ubuntu doivent sortir, exactes ;
+          #    · la partition EFI est RÉUTILISÉE (partition.conf), donc c'est
+          #      celle d'Ubuntu, à sa taille. Trop juste, et l'installation
+          #      échoue à la TOUTE DERNIÈRE étape, grub-install.
+          #  Le banc vérifie aussi que l'outil monte l'EFI en LECTURE SEULE et
+          #  la démonte : son contrat « il lit, il ne modifie rien » tient.
+          bash tests/test_lexos_dualboot_linux.sh
+
+      - name: Quel système démarre tout seul — grub-defaut-voisin sur un banc
+        if: ${{ !cancelled() }}
+        run: |
+          #  Le script cherchait « menuentry … windows » et rien d'autre :
+          #  devant un Ubuntu il ne trouvait JAMAIS rien et sortait sur
+          #  « aucune entrée Windows — LexOS reste le démarrage par défaut ».
+          #  LexOS devenait le défaut sans que personne ne l'ait décidé, alors
+          #  qu'Alex veut « travailler avec les 2 ».
+          #  Le banc tient les trois états : sans choix écrit, Windows devient
+          #  le défaut (la demande d'origine, intacte) mais un voisin LINUX
+          #  non ; « defaut voisin » pose l'entrée du voisin — jamais son mode
+          #  de récupération, jamais une des nôtres ; « defaut lexos » RETIRE
+          #  saved_entry au lieu d'écrire notre titre, qui se périmerait à la
+          #  première mise à jour de noyau.
+          bash tests/test_lexos_grub_defaut.sh
+
       - name: L'heure juste dans les deux systèmes — heure-dualboot sur un banc
         if: ${{ !cancelled() }}
         run: |

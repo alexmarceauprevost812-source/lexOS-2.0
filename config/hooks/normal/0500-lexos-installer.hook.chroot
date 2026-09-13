@@ -55,13 +55,18 @@ echo "[lexos]   programme de démarrage : grub-install présent"
 #  Demande d'Alex : Windows sert à jouer, LexOS à travailler ; au démarrage le
 #  menu propose les deux et part sur Windows si personne ne touche à rien.
 #  Le hook 0100 a posé GRUB_DEFAULT=saved, GRUB_TIMEOUT=8 et
-#  GRUB_TIMEOUT_STYLE=menu ; ce service écrit l'entrée Windows dans grubenv au
-#  premier démarrage du système installé, quand os-prober a enfin vu le vrai
-#  disque. En session démo il sort immédiatement.
-chmod 0755 /usr/lib/lexos/grub-defaut-windows 2>/dev/null || true
+#  GRUB_TIMEOUT_STYLE=menu ; ce service écrit l'entrée du voisin dans grubenv
+#  au premier démarrage du système installé, quand os-prober a enfin vu le
+#  vrai disque. En session démo il sort immédiatement.
+#  DEPUIS LE ThinkPad À CÔTÉ D'UBUNTU : le voisin peut être un Linux. Le
+#  script s'appelle grub-defaut-voisin ; l'ancien nom grub-defaut-windows
+#  reste un alias pour les machines déjà installées. Sans choix écrit
+#  (« lexos dualboot defaut … »), un voisin LINUX ne devient PAS le défaut :
+#  LexOS reste le défaut et le menu reste 8 s — et le journal le dit.
+chmod 0755 /usr/lib/lexos/grub-defaut-voisin /usr/lib/lexos/grub-defaut-windows 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
 	systemctl enable lexos-grub-defaut.service >/dev/null 2>&1 \
-		&& echo "[lexos]   démarrage par défaut : Windows s'il est présent (menu 8 s)" \
+		&& echo "[lexos]   démarrage par défaut : Windows s'il est présent, sinon LexOS (menu 8 s) ; « lexos dualboot defaut » pour choisir" \
 		|| echo "[lexos]   !! service lexos-grub-defaut non activé"
 fi
 

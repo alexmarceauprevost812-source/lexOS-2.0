@@ -649,6 +649,71 @@ GParted voit le LVM et le chiffrement, et son affichage graphique rend l'état
 du disque plus lisible. C'est le seul avantage qu'il a ici : dans le cas
 ordinaire, l'installateur fait la même chose sans redémarrage.
 
+#### ⚠ Le piège du duo Linux + Linux : Ubuntu ne verra pas LexOS dans SON menu
+
+C'est le vrai piège d'un LexOS à côté d'un Ubuntu (ou d'un Mint, d'un
+Fedora…), et il ne se voit pas le jour de l'installation. Il se voit **des
+semaines plus tard**, à la première mise à jour de noyau d'Ubuntu.
+
+Depuis GRUB 2.06, la recherche des autres systèmes (`os-prober`) est
+**désactivée par défaut**. LexOS l'active chez lui — mais pas chez Ubuntu. Or
+Ubuntu relance `update-grub` à chaque mise à jour de noyau. Si c'est le GRUB
+d'Ubuntu qui tient l'amorçage, son menu n'affichera plus qu'Ubuntu, et LexOS
+disparaîtra du démarrage. Rien n'est perdu sur le disque, mais tu ne pourras
+plus y entrer sans passer par le BIOS.
+
+**Deux protections, à faire dans l'ordre :**
+
+1. **Installe Ubuntu en premier, LexOS en deuxième.** Comme ça, c'est le
+   GRUB de LexOS — celui qui cherche les voisins — qui tient le menu.
+2. **Une fois, côté Ubuntu** (dans un terminal d'Ubuntu), pour le jour où il
+   reprendrait l'amorçage :
+
+   ```bash
+   sudo sed -i 's/^#*GRUB_DISABLE_OS_PROBER=.*/GRUB_DISABLE_OS_PROBER=false/' /etc/default/grub
+   grep -q GRUB_DISABLE_OS_PROBER /etc/default/grub || echo 'GRUB_DISABLE_OS_PROBER=false' | sudo tee -a /etc/default/grub
+   sudo update-grub
+   ```
+
+   Pourquoi : sans ce réglage, le GRUB d'Ubuntu ne cherche pas les autres
+   systèmes, et sa prochaine mise à jour de noyau efface LexOS de son menu.
+
+`lexos dualboot`, lancé depuis la clé, te dit **lequel des deux GRUB tient
+l'amorçage** aujourd'hui et réaffiche ces trois commandes.
+
+#### Les deux systèmes dans le MÊME mode d'amorçage — à vérifier AVANT
+
+Un LexOS en mode BIOS/CSM à côté d'un Ubuntu en UEFI (ou l'inverse) donne
+deux systèmes vivants sur le disque **dont aucun ne voit l'autre**. Ce n'est
+pas théorique : une table de partitions MS-DOS (« partition primaire n°1 »,
+« partition logique n°5 ») est la signature d'une installation en mode BIOS.
+
+`lexos dualboot` le lit en premier — le mode de la session, la table du
+disque, la partition EFI et le chargeur du voisin — et le dit fort si ça ne
+concorde pas. Le réglage : BIOS → *Startup* → **UEFI Only** (F1 sur le
+ThinkPad, F2 sur l'Alienware), puis démarrer la clé sur son entrée « UEFI: … ».
+**Secure Boot peut rester activé** : LexOS embarque `grub-efi-amd64-signed`.
+
+#### La place sur la partition EFI partagée
+
+LexOS **réutilise** la partition EFI d'Ubuntu (il ne la reformate pas). Sa
+taille est donc ce qu'Ubuntu a choisi, et LexOS y ajoute son `shim` et son
+`grubx64.efi`. `lexos dualboot` mesure la place libre et prévient sous
+50 Mo — parce qu'une installation qui échoue à la toute dernière étape,
+celle de `grub-install`, est le pire moment possible.
+
+#### Quel système démarre tout seul
+
+Après l'installation, le menu montre LexOS et Ubuntu pendant 8 secondes.
+Sans rien régler, **LexOS** part tout seul (avec un Windows à côté, c'est
+Windows — la demande d'origine). Pour choisir :
+
+```bash
+sudo lexos dualboot defaut voisin    # Ubuntu part tout seul
+sudo lexos dualboot defaut lexos     # LexOS part tout seul
+lexos dualboot defaut                # voir le choix actuel (lecture seule)
+```
+
 #### Et si l'autre système est chiffré ? (`crypto_LUKS`)
 
 C'est le cas le plus difficile, et il vaut mieux le savoir avant de commencer

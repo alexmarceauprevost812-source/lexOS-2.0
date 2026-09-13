@@ -46,7 +46,7 @@ dire() {
 }
 
 # --- Jamais en session démo -------------------------------------------------
-#  Même repère que grub-defaut-windows et que le garde-fou de la démo.
+#  Même repère que grub-defaut-voisin et que le garde-fou de la démo.
 if grep -qa 'boot=live' "$CMDLINE" 2>/dev/null; then
 	exit 0
 fi
@@ -69,7 +69,7 @@ if [ -z "$GRUBCFG" ]; then
 fi
 
 #  ON ACCEPTE AUSSI LES ENTRÉES « RECOVERY », contrairement à
-#  grub-defaut-windows qui les écarte — et ce n'est pas une distraction.
+#  grub-defaut-voisin qui les écarte — et ce n'est pas une distraction.
 #  Là-bas, la question est « sur quoi démarrer par défaut ? », et démarrer
 #  sur la récupération de Windows ne lance pas Windows. Ici la question est
 #  « Windows existe-t-il sur cette machine ? », et une partition de

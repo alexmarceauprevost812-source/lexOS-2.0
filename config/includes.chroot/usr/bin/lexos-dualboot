@@ -101,6 +101,10 @@ ${B}${PROG}${R} — vérifier avant d'installer LexOS à côté d'un autre syst�
   ${O}${PROG}${R}              Le bilan complet — le voisin, la place, le démarrage
   ${O}${PROG} ${B}60${R}${R}           Le même bilan, en visant ${B}60 Go${R} pour LexOS
 
+  ${O}${PROG} defaut${R}       Quel système démarre tout seul aujourd'hui
+  ${O}${PROG} defaut lexos${R}  LexOS part tout seul après les 8 secondes
+  ${O}${PROG} defaut voisin${R} C'est le voisin qui part tout seul
+
 Le voisin peut être ${B}Windows${R} ou un autre ${B}Linux${R} (Ubuntu, Mint, Fedora…).
 
 ${B}Cet outil ne modifie RIEN.${R} Il lit le disque et te dit quoi faire.
@@ -115,6 +119,104 @@ AIDE
 		exit 0
 		;;
 esac
+
+# =============================================================================
+#  « defaut » — LA SEULE COMMANDE DE CE FICHIER QUI ÉCRIVE QUELQUE CHOSE
+# =============================================================================
+#  L'en-tête dit « il LIT, il ne modifie rien » et ça reste vrai de TOUT le
+#  bilan : lancé sans argument, ou avec un nombre de gigaoctets, cet outil ne
+#  touche à rien. « defaut » est une commande à part, qu'il faut taper, qui
+#  porte son effet dans son nom, et qui n'écrit NI sur une partition NI dans
+#  une table de partitions : une ligne dans /etc/lexos/dualboot-defaut.
+#
+#  POURQUOI ELLE EXISTE. Le choix passait par une variable d'environnement —
+#  donc, en pratique, par personne : « la raison est écrite noir sur blanc »
+#  quelques lignes plus haut pour la taille, et elle vaut mot pour mot ici.
+#
+#  UN SEUL ÉCRIVAIN DE grubenv. On n'écrit PAS grubenv d'ici : on pose le
+#  choix, puis on relance /usr/lib/lexos/grub-defaut-voisin, qui est déjà le
+#  service qui le fait à chaque démarrage. Deux écrivains pour un fichier,
+#  c'est deux vérités — la faute que ce dépôt a déjà payée ailleurs.
+CHOIX_FICHIER="${LEXOS_DUALBOOT_DEFAUT_FICHIER:-/etc/lexos/dualboot-defaut}"
+SERVICE_DEFAUT="${LEXOS_GRUB_DEFAUT_BIN:-/usr/lib/lexos/grub-defaut-voisin}"
+
+lire_choix() {
+	[ -r "$CHOIX_FICHIER" ] || { printf ''; return 0; }
+	_lc="$(tr -d '[:space:]' < "$CHOIX_FICHIER" 2>/dev/null)"
+	case "$_lc" in lexos|voisin) printf '%s' "$_lc" ;; *) printf '' ;; esac
+}
+
+if [ "${1:-}" = "defaut" ]; then
+	titre "LE SYSTÈME QUI DÉMARRE TOUT SEUL"
+	ACTUEL="$(lire_choix)"
+	case "${2:-}" in
+		"")
+			#  LECTURE SEULE : on dit ce qui est écrit, et ce que ça donne.
+			if [ -z "$ACTUEL" ]; then
+				info "aucun choix écrit dans $CHOIX_FICHIER"
+				ok "LexOS part tout seul, sauf si un Windows est installé à côté"
+				info "(Windows d'abord : c'est la demande d'origine — Windows pour jouer.)"
+			else
+				ok "choix écrit : ${B}${ACTUEL}${R}"
+			fi
+			if command -v grub-editenv >/dev/null 2>&1; then
+				EN="$(grub-editenv - list 2>/dev/null | sed -n 's/^saved_entry=//p' | head -1)"
+				if [ -n "$EN" ]; then
+					info "grubenv désigne aujourd'hui : ${EN}"
+				else
+					info "grubenv ne désigne rien : GRUB part sur sa première entrée (LexOS)."
+				fi
+			else
+				attn "grub-editenv absent — l'état réel de grubenv n'a PAS été lu"
+			fi
+			printf '\n'
+			info "Pour changer : ${PROG} defaut lexos   ·   ${PROG} defaut voisin"
+			exit 0
+			;;
+		lexos|voisin)
+			VOULU="$2"
+			#  ═══ IL FAUT LES DROITS, ET ON NE LES DEMANDE PAS SOI-MÊME ═══
+			#  Pas d'invite de mot de passe maison : on dit la commande
+			#  exacte à retaper. C'est la règle du dépôt, et c'est aussi la
+			#  seule façon qu'Alex voie ce qu'il autorise.
+			if [ "$(id -u)" != "0" ]; then
+				non "il faut les droits d'administrateur pour écrire ce choix"
+				printf '\n'
+				printf '  %sÀ retaper tel quel :%s\n' "$B" "$R"
+				printf '      %ssudo %s defaut %s%s\n' "$B$O" "$PROG" "$VOULU" "$R"
+				printf '\n'
+				exit 1
+			fi
+			mkdir -p "$(dirname "$CHOIX_FICHIER")" 2>/dev/null || true
+			if printf '%s\n' "$VOULU" > "$CHOIX_FICHIER" 2>/dev/null; then
+				ok "choix enregistré : ${VOULU}  (${CHOIX_FICHIER})"
+			else
+				non "impossible d'écrire $CHOIX_FICHIER — rien n'a changé"
+				exit 1
+			fi
+			#  ON APPLIQUE TOUT DE SUITE. Sans ça, le choix ne prendrait effet
+			#  qu'au démarrage SUIVANT — et un réglage qui ne se voit pas
+			#  passe pour un réglage qui ne marche pas.
+			if [ -x "$SERVICE_DEFAUT" ]; then
+				if "$SERVICE_DEFAUT"; then
+					ok "appliqué maintenant — le menu reste 8 s pour choisir l'autre"
+				else
+					attn "le choix est écrit, mais son application a échoué"
+					info "Il sera repris au prochain démarrage (service lexos-grub-defaut)."
+				fi
+			else
+				attn "$SERVICE_DEFAUT introuvable — le choix est écrit mais PAS appliqué"
+				info "Il sera repris au prochain démarrage si le service est installé."
+			fi
+			exit 0
+			;;
+		*)
+			non "« $2 » : je ne connais que « lexos » et « voisin »"
+			printf '  Exemple : %s defaut voisin\n' "$PROG" >&2
+			exit 2
+			;;
+	esac
+fi
 
 # --- La taille demandée, s'il y en a une ------------------------------------
 #  ON REFUSE PLUTÔT QUE DE DEVINER. « lexos dualboot 60Go », « lexos dualboot
@@ -259,6 +361,74 @@ mesurer_ext4() { # mesurer_ext4 <périphérique>
 		}'
 }
 
+# --- La partition EFI, la table de partitions, et comment on les lit --------
+#  ═══ B3/B4 : LE MODE D'AMORÇAGE ET LA PLACE SUR L'EFI PARTAGÉE ═══
+#  ALEX : « LexOS Pro à côté d'Ubuntu 26.04.1 dans mon ThinkPad ».
+#  Deux pièges qui se voient TARD — après l'installation, ou des semaines
+#  après — et qui doivent être dits AVANT de toucher au disque :
+#    · UEFI d'un bord, BIOS de l'autre : deux systèmes vivants dont aucun ne
+#      voit l'autre. Pas théorique sur cette machine : l'installation de
+#      juillet sur le ThinkPad avait une table MS-DOS (« partition primaire
+#      n°1 » + « logique n°5 »), signature du mode BIOS.
+#    · une partition EFI trop petite : partition.conf RÉUTILISE celle du
+#      voisin, et sa taille est ce qu'Ubuntu a choisi. LexOS y ajoute shim
+#      et grubx64.efi. Une installation qui échoue à la TOUTE DERNIÈRE
+#      étape, celle de grub-install, est le pire moment possible.
+
+#  La partition EFI par son TYPE de partition, pas par son nom ni par son
+#  drapeau : c12a7328-… est le GUID que la norme UEFI lui réserve sur une
+#  table GPT ; 0xef est son équivalent sur une table MS-DOS.
+trouver_esp() {
+	lsblk -brno NAME,PARTTYPE 2>/dev/null \
+		| awk 'tolower($2)=="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" || tolower($2)=="0xef" {print $1; exit}'
+}
+
+#  La table de partitions d'un disque : « gpt » ou « msdos », lu par parted
+#  print (lecture seule). Rien du tout si parted manque ou ne répond pas.
+table_du_disque() { # table_du_disque </dev/sdX>
+	command -v parted >/dev/null 2>&1 || return 1
+	parted -sm "$1" print 2>/dev/null | awk -F: 'NR==2 {print $6}'
+}
+
+#  ═══ LIRE L'EFI SANS RIEN Y ÉCRIRE ═══
+#  Depuis la clé USB, la partition EFI du disque n'est montée nulle part —
+#  et df, comme ls, ne sait rien d'une partition non montée. On la monte
+#  donc EN LECTURE SEULE (-o ro), dans un dossier temporaire, et on la
+#  démonte aussitôt après. Un montage « ro » n'écrit pas un octet sur la
+#  partition : le contrat « il lit » tient. Sans les droits, on ne monte
+#  pas — et on DIT que la mesure n'a pas été faite, au lieu d'inventer.
+#  Si elle est déjà montée (LexOS installé : /boot/efi), on lit là où elle
+#  est et on ne touche à rien.
+ESP_MNT=""
+ESP_MONTEE_PAR_NOUS=""
+ESP_RAISON=""
+ouvrir_esp() { # ouvrir_esp <nom de partition sans /dev/>
+	_oe="/dev/$1"
+	ESP_MNT="$(findmnt -no TARGET "$_oe" 2>/dev/null | head -1)"
+	[ -n "$ESP_MNT" ] && return 0
+	if [ "$(id -u)" != "0" ]; then
+		ESP_RAISON="partition EFI non montée et pas les droits pour la lire — relance avec sudo pour cette mesure"
+		return 1
+	fi
+	_oed="$(mktemp -d -t lexos-dualboot-efi.XXXXXX 2>/dev/null)" || { ESP_RAISON="mktemp a échoué"; return 1; }
+	if mount -o ro,noatime "$_oe" "$_oed" 2>/dev/null; then
+		ESP_MNT="$_oed"; ESP_MONTEE_PAR_NOUS=1
+		return 0
+	fi
+	rmdir "$_oed" 2>/dev/null
+	ESP_RAISON="mount -o ro a refusé $_oe"
+	return 1
+}
+fermer_esp() {
+	[ -n "$ESP_MONTEE_PAR_NOUS" ] || return 0
+	umount "$ESP_MNT" 2>/dev/null && rmdir "$ESP_MNT" 2>/dev/null
+	ESP_MONTEE_PAR_NOUS=""
+	return 0
+}
+#  Quoi qu'il arrive — Ctrl-C au milieu compris — on ne laisse pas un
+#  montage temporaire derrière nous.
+trap fermer_esp EXIT INT TERM
+
 # --- Le disque et la partition ----------------------------------------------
 WIN_PART="$(trouver_windows)"
 
@@ -391,12 +561,29 @@ elif [ -n "$LNXC_PART" ]; then
 	esac
 	non "un système ${QUOI} occupe ${LNXC_DEV} (${LNXC_TAILLE_GO} Go)"
 	printf '\n'
-	printf '  Ce n'\''est PAS un disque vide — il y a un système là-dedans, et\n'
-	printf '  personne ne peut le mesurer sans le déverrouiller d'\''abord.\n\n'
+	#  ═══ B5 : LE CAS NOMMÉ, POUR QU'ALEX S'Y RECONNAISSE ═══
+	#  « crypto_LUKS » ne parle à personne. « Ubuntu installé avec le
+	#  chiffrement complet du disque » est la case qu'il a cochée — ou pas —
+	#  dans l'installateur d'Ubuntu, et c'est par ce nom-là qu'il la
+	#  retrouvera.
+	printf '  C'\''est ce qu'\''on obtient avec %s« Ubuntu installé avec le chiffrement\n' "$B"
+	printf '  complet du disque »%s (la case cochée dans l'\''installateur d'\''Ubuntu),\n' "$R"
+	printf '  ou avec un Linux posé en LVM. Ce n'\''est PAS un disque vide — il y a un\n'
+	printf '  système là-dedans, et personne ne peut le mesurer sans le\n'
+	printf '  déverrouiller d'\''abord.\n\n'
 	printf '  %sCalamares ne sait pas redimensionner ça.%s L'\''écran « Installer à\n' "$B" "$R"
-	printf '  côté de » ne fera donc pas le travail : il faut libérer la place\n'
-	printf '  À LA MAIN, depuis ce système-là, AVANT d'\''installer LexOS.\n\n'
-	printf '  %sDans l'\''ordre, et jamais dans l'\''autre :%s\n' "$B" "$R"
+	printf '  côté de » ne s'\''affichera donc pas.\n\n'
+	#  LA SEULE SORTIE VRAIMENT SIMPLE, EN PREMIER. Réduire après coup un
+	#  LUKS + LVM, c'est quatre commandes qui ne pardonnent pas une étape
+	#  sautée ; laisser de la place AU MOMENT d'installer Ubuntu, c'est un
+	#  curseur. On donne le curseur d'abord, et les quatre commandes après,
+	#  pour qui sait ce qu'il fait — pas comme conseil par défaut.
+	printf '  %sLa sortie simple :%s laisser de l'\''espace libre AU MOMENT d'\''installer\n' "$B" "$R"
+	printf '  Ubuntu — « Installation personnalisée », et ne pas lui donner tout le\n'
+	printf '  disque (garder %s Go non alloués). Puis installer LexOS dans cet espace.\n' "$CIBLE_GO"
+	printf '  Si Ubuntu est déjà posé et chiffré, le plus sûr est de le RÉINSTALLER\n'
+	printf '  ainsi, sauvegarde faite, plutôt que de le réduire après coup.\n\n'
+	printf '  %sRéduire après coup — pour qui sait ce qu'\''il fait, dans l'\''ordre :%s\n' "$B" "$R"
 	printf '    1. resize2fs    — réduire le système de fichiers\n'
 	printf '    2. lvreduce     — réduire le volume logique\n'
 	printf '    3. pvresize     — réduire le volume physique\n'
@@ -444,6 +631,145 @@ conseil_place() { # conseil_place <nom> <taille Go> <utilisé Go> <libre mini Go
 		info "$_cast"
 	fi
 }
+
+# --- B3 : le mode d'amorçage, AVANT de parler de place ----------------------
+#  ═══ UEFI D'UN BORD, BIOS DE L'AUTRE = LES DEUX NE SE VERRONT JAMAIS ═══
+#  Trois lectures, toutes sans écriture :
+#    1. le système COURANT démarre-t-il en UEFI ?  -> /sys/firmware/efi
+#    2. la table du disque est-elle GPT ou MS-DOS ? -> parted print
+#    3. y a-t-il une partition EFI, et le voisin y a-t-il son dossier ?
+#  Si les trois ne concordent pas, on le dit FORT et on dit quoi faire —
+#  AVANT de donner un chiffre à régler sur un curseur.
+titre "LE MODE D'AMORÇAGE"
+#  Le disque du voisin, quel qu'il soit. Avant, WIN_DISQUE n'existait que
+#  pour Windows : la mesure d'espace non partitionné, plus bas, ne tournait
+#  donc JAMAIS devant un voisin Linux. Un seul nom pour les deux.
+DISQUE=""
+for _cand in "${WIN_DEV:-}" "${LNX_DEV:-}" "${LNXC_DEV:-}"; do
+	[ -n "$_cand" ] || continue
+	_pk="$(lsblk -rno PKNAME "$_cand" 2>/dev/null | head -1)"
+	[ -n "$_pk" ] && { DISQUE="/dev/$_pk"; break; }
+done
+[ -n "${WIN_DISQUE:-}" ] || WIN_DISQUE="$DISQUE"
+
+if [ -d /sys/firmware/efi ]; then MODE_ICI="UEFI"; else MODE_ICI="BIOS"; fi
+TABLE=""
+[ -n "$DISQUE" ] && TABLE="$(table_du_disque "$DISQUE")"
+ESP_PART="$(trouver_esp)"
+
+if [ "$MODE_ICI" = "UEFI" ]; then
+	ok "cette session a démarré en UEFI"
+else
+	attn "cette session a démarré en BIOS/CSM"
+fi
+case "$TABLE" in
+	gpt)   ok "table de partitions GPT sur ${DISQUE} — celle qu'UEFI attend" ;;
+	msdos) attn "table de partitions MS-DOS sur ${DISQUE} — la signature d'une installation en mode BIOS" ;;
+	"")    attn "table de partitions non lue$( [ -n "$DISQUE" ] && printf ' sur %s' "$DISQUE" ) (parted absent, ou pas de voisin trouvé)" ;;
+	*)     info "table de partitions : ${TABLE}" ;;
+esac
+
+VOISIN_UEFI=""      # "" = pas mesuré · "oui" · "non"
+VOISIN_UEFI_NOM=""
+if [ -n "$ESP_PART" ]; then
+	ok "partition EFI présente : /dev/${ESP_PART}"
+	if ouvrir_esp "$ESP_PART"; then
+		#  Les dossiers de /EFI, sauf BOOT (le chargeur de secours, pas un
+		#  système) et le nôtre. Ce qui reste, c'est le voisin.
+		AUTRES=""; TOUS=""
+		for _d in "$ESP_MNT"/EFI/*/; do
+			[ -d "$_d" ] || continue
+			_n="$(basename "$_d")"
+			TOUS="$TOUS $_n"
+			case "$(printf '%s' "$_n" | tr '[:upper:]' '[:lower:]')" in
+				boot|*lexos*) ;;
+				*) AUTRES="$AUTRES $_n" ;;
+			esac
+		done
+		if [ -n "$AUTRES" ]; then
+			VOISIN_UEFI="oui"; VOISIN_UEFI_NOM="${AUTRES# }"; VOISIN_UEFI_NOM="${VOISIN_UEFI_NOM%% *}"
+			ok "le voisin y a son chargeur : EFI/${VOISIN_UEFI_NOM} — il démarre en UEFI"
+		else
+			VOISIN_UEFI="non"
+			attn "aucun chargeur de voisin dans EFI/ (seulement :${TOUS:- rien})"
+		fi
+	else
+		info "le contenu de la partition EFI n'a PAS été lu : ${ESP_RAISON}"
+	fi
+elif [ "$MODE_ICI" = "UEFI" ]; then
+	non "aucune partition EFI sur ce disque — et cette session est en UEFI"
+	info "L'installateur devra en CRÉER une : partition.conf compte sur celle du voisin."
+fi
+
+#  ═══ LE VERDICT : ÇA CONCORDE, OU ÇA NE CONCORDE PAS ═══
+DISCORDE=""
+[ "$MODE_ICI" = "UEFI" ] && [ "$TABLE" = "msdos" ]    && DISCORDE="${DISCORDE}A"
+[ "$MODE_ICI" = "BIOS" ] && [ "$VOISIN_UEFI" = "oui" ] && DISCORDE="${DISCORDE}B"
+[ "$MODE_ICI" = "UEFI" ] && [ -z "$ESP_PART" ]         && DISCORDE="${DISCORDE}C"
+[ "$MODE_ICI" = "BIOS" ] && [ "$TABLE" = "gpt" ] && [ -n "$ESP_PART" ] && DISCORDE="${DISCORDE}D"
+
+if [ -n "$DISCORDE" ]; then
+	printf '\n'
+	non "LES DEUX SYSTÈMES NE SERAIENT PAS DANS LE MÊME MODE D'AMORÇAGE"
+	printf '\n'
+	printf '  Un LexOS en BIOS à côté d'\''un Ubuntu en UEFI (ou l'\''inverse) donne deux\n'
+	printf '  systèmes vivants sur le disque dont AUCUN ne voit l'\''autre dans son menu.\n'
+	printf '  Ça ne se voit pas à l'\''installation : ça se voit au redémarrage suivant.\n\n'
+	printf '  %sÀ faire AVANT de toucher au disque :%s\n' "$B" "$R"
+	case "$DISCORDE" in
+		*B*|*D*)
+			printf '    · Redémarre sur la clé %sen UEFI%s : BIOS (F1 sur le ThinkPad) → Startup →\n' "$B" "$R"
+			printf '      %sUEFI Only%s, puis choisis l'\''entrée « UEFI: … » de la clé.\n' "$B" "$R"
+			printf '      Le voisin est en UEFI ; LexOS doit l'\''être aussi.\n'
+			;;
+		*A*)
+			printf '    · Ce disque a une table MS-DOS : il a été préparé pour le mode BIOS.\n'
+			printf '      Le plus sain sur cette machine : %sles deux en UEFI%s — Ubuntu réinstallé\n' "$B" "$R"
+			printf '      en UEFI (table GPT, partition EFI), puis LexOS à côté.\n'
+			printf '      Sinon, les deux en BIOS : redémarre la clé en mode « Legacy ».\n'
+			;;
+		*C*)
+			printf '    · Aucune partition EFI : ou bien le voisin est en BIOS (alors démarre\n'
+			printf '      la clé en Legacy aussi), ou bien le disque est vide de tout système.\n'
+			;;
+	esac
+	printf '\n'
+	info "Tant que ça ne concorde pas, le chiffre de place ci-dessous ne sert à rien."
+else
+	ok "cohérent : session ${MODE_ICI}$( [ -n "$TABLE" ] && printf ', table %s' "$TABLE" )$( [ "$VOISIN_UEFI" = "oui" ] && printf ', voisin en UEFI' )"
+	[ -z "$VOISIN_UEFI" ] && [ -n "$ESP_PART" ] && info "(le mode du voisin lui-même n'a pas été lu — voir ci-dessus)"
+fi
+
+# --- B4 : la place sur la partition EFI partagée ----------------------------
+#  partition.conf RÉUTILISE l'EFI existante — donc celle du voisin, à la
+#  taille qu'il a choisie. LexOS y ajoute shim + grubx64.efi (quelques Mo).
+#  On mesure la place LIBRE avec df (lecture seule), et on prévient sous
+#  50 Mo, AVEC LE CHIFFRE : le hook 0500 tient déjà ce raisonnement pour
+#  grub-install lui-même — même logique, autre ressource.
+EFI_LIBRE_MIN_MO="${LEXOS_EFI_LIBRE_MIN_MO:-50}"
+if [ -n "$ESP_PART" ]; then
+	if [ -n "$ESP_MNT" ]; then
+		EFI_LIBRE_KO="$(df -Pk "$ESP_MNT" 2>/dev/null | awk 'NR==2 {print $4}')"
+		EFI_TAILLE_KO="$(df -Pk "$ESP_MNT" 2>/dev/null | awk 'NR==2 {print $2}')"
+		if [ -n "$EFI_LIBRE_KO" ]; then
+			EFI_LIBRE_MO=$((EFI_LIBRE_KO / 1024)); EFI_TAILLE_MO=$((${EFI_TAILLE_KO:-0} / 1024))
+			if [ "$EFI_LIBRE_MO" -lt "$EFI_LIBRE_MIN_MO" ]; then
+				non "partition EFI presque pleine : ${EFI_LIBRE_MO} Mo libres sur ${EFI_TAILLE_MO} Mo (il en faut ${EFI_LIBRE_MIN_MO})"
+				info "LexOS y ajoute son shim et son grubx64.efi. Trop juste, et l'installation"
+				info "échouerait à la TOUTE DERNIÈRE étape, celle de grub-install — après le"
+				info "redimensionnement. Fais de la place dans EFI/ (vieux noyaux, anciens"
+				info "chargeurs) depuis le voisin, puis relance."
+			else
+				ok "partition EFI : ${EFI_LIBRE_MO} Mo libres sur ${EFI_TAILLE_MO} Mo — de quoi ajouter LexOS"
+			fi
+		else
+			attn "place libre sur la partition EFI : NON MESURÉE (df n'a rien rendu sur ${ESP_MNT})"
+		fi
+	else
+		attn "place libre sur la partition EFI : NON MESURÉE — ${ESP_RAISON:-partition non lue}"
+	fi
+fi
+fermer_esp
 
 titre "LA PLACE POUR LEXOS"
 if [ -n "$WIN_DEV" ]; then
@@ -495,13 +821,15 @@ elif [ -n "$LNX_DEV" ]; then
 	fi
 
 	#  L'espace déjà NON PARTITIONNÉ : s'il y en a, rien à redimensionner.
-	if command -v parted >/dev/null 2>&1 && [ -n "${WIN_DISQUE:-}" ]; then
-		LIBRE_BRUT="$(parted -sm "$WIN_DISQUE" unit GB print free 2>/dev/null \
+	#  « DISQUE », pas « WIN_DISQUE » : celui-là n'existait que devant un
+	#  Windows, et cette mesure ne tournait donc jamais devant un Ubuntu.
+	if command -v parted >/dev/null 2>&1 && [ -n "${DISQUE:-}" ]; then
+		LIBRE_BRUT="$(parted -sm "$DISQUE" unit GB print free 2>/dev/null \
 			| awk -F: '/free/ {gsub("GB","",$4); if ($4+0 > 1) s+=$4} END {print int(s)}')"
 		if [ -n "$LIBRE_BRUT" ] && [ "$LIBRE_BRUT" -ge 1 ]; then
 			ok "${LIBRE_BRUT} Go déjà libres hors partition sur ce disque"
 			[ "$LIBRE_BRUT" -ge "$PLANCHER_GO" ] && \
-				info "C'est peut-être suffisant sans toucher à Windows du tout."
+				info "C'est peut-être suffisant sans toucher au voisin du tout."
 		fi
 	fi
 elif [ -n "$LNXC_PART" ]; then
@@ -530,17 +858,75 @@ else
 	info "Après installation : sudo lexos-dualboot pour revérifier."
 fi
 
-if [ -d /sys/firmware/efi ]; then
-	ok "démarrage en mode UEFI — le bon, celui que les autres systèmes utilisent aussi"
-	if command -v efibootmgr >/dev/null 2>&1; then
-		N="$(efibootmgr 2>/dev/null | grep -c '^Boot[0-9]')"
-		info "${N} entrée(s) de démarrage aujourd'hui ; après installation il en faut une de plus"
+#  Le mode d'amorçage a sa propre section plus haut (B3). Ici : les entrées
+#  du micrologiciel, et LE piège du duo Linux + Linux.
+if [ "$MODE_ICI" = "UEFI" ] && command -v efibootmgr >/dev/null 2>&1; then
+	EFI_SORTIE="$(efibootmgr 2>/dev/null)"
+	N="$(printf '%s\n' "$EFI_SORTIE" | grep -c '^Boot[0-9]')"
+	info "${N} entrée(s) de démarrage UEFI aujourd'hui ; après installation il en faut une de plus"
+fi
+
+# --- B2 : UBUNTU, LUI, NE VERRA PAS LEXOS DANS SON MENU ---------------------
+#  ═══ LE VRAI PIÈGE DU DUO LINUX + LINUX, ET IL SE VOIT DES SEMAINES APRÈS ═══
+#  Depuis GRUB 2.06, os-prober est DÉSACTIVÉ par défaut. LexOS corrige ça
+#  chez lui (GRUB_DISABLE_OS_PROBER=false, hook 0100) — mais pas chez le
+#  voisin. Or Ubuntu relance update-grub à chaque mise à jour de noyau. Si
+#  c'est le GRUB d'Ubuntu qui tient l'amorçage, son menu n'affichera
+#  qu'Ubuntu, et LexOS disparaîtra du démarrage. Rien ne sera perdu sur le
+#  disque, mais on ne pourra plus y entrer sans passer par le BIOS — et ça
+#  n'arrivera pas le jour de l'installation : ça arrivera à la première mise
+#  à jour de noyau d'Ubuntu.
+#
+#  On LIT l'ordre de démarrage UEFI (efibootmgr sans argument = lecture
+#  seule), on dit lequel des deux GRUB est aux commandes, et si c'est celui
+#  du voisin, on donne les commandes exactes à taper CHEZ LUI. On ne les
+#  exécute pas : ce n'est pas notre système.
+if [ -n "${LNX_DEV:-}" ] || [ -n "${LNXC_PART:-}" ]; then
+	printf '\n'
+	QUI_COMMANDE=""   # "" = pas lu · "lexos" · "voisin" · "autre"
+	if [ "$MODE_ICI" = "UEFI" ] && [ -n "${EFI_SORTIE:-}" ]; then
+		#  BootOrder: 0002,0001,… — la PREMIÈRE entrée est celle qui part.
+		PREMIER="$(printf '%s\n' "$EFI_SORTIE" | sed -n 's/^BootOrder: *\([0-9A-Fa-f]*\).*/\1/p' | head -1)"
+		if [ -n "$PREMIER" ]; then
+			PREMIER_NOM="$(printf '%s\n' "$EFI_SORTIE" | sed -n "s/^Boot${PREMIER}\*\{0,1\}[[:space:]]*\(.*\)$/\1/p" | head -1)"
+			case "$(printf '%s' "$PREMIER_NOM" | tr '[:upper:]' '[:lower:]')" in
+				*lexos*)                     QUI_COMMANDE="lexos" ;;
+				*ubuntu*|*debian*|*fedora*|*mint*|*grub*|*shim*|*linux*) QUI_COMMANDE="voisin" ;;
+				"")                          QUI_COMMANDE="" ;;
+				*)                           QUI_COMMANDE="autre" ;;
+			esac
+		fi
 	fi
-else
-	attn "démarrage en mode BIOS/CSM, pas UEFI"
-	info "Le système déjà installé est presque sûrement en UEFI : les deux"
-	info "doivent employer le MÊME mode, sinon le menu ne verra pas le voisin."
-	info "Redémarre sur la clé en choisissant l'entrée UEFI dans le menu de démarrage."
+	case "$QUI_COMMANDE" in
+		lexos)
+			ok "c'est le GRUB de LexOS qui tient l'amorçage (première entrée UEFI : « ${PREMIER_NOM} »)"
+			info "Son os-prober est actif : le menu montrera les deux systèmes."
+			;;
+		voisin)
+			attn "c'est le GRUB du VOISIN qui tient l'amorçage (première entrée UEFI : « ${PREMIER_NOM} »)"
+			;;
+		autre)
+			info "première entrée UEFI : « ${PREMIER_NOM} » — ni LexOS ni un Linux reconnu"
+			;;
+		*)
+			info "l'ordre de démarrage UEFI n'a pas été lu (mode BIOS, ou efibootmgr absent) :"
+			info "on ne sait pas lequel des deux GRUB commande."
+			;;
+	esac
+	#  LES COMMANDES SONT DONNÉES DANS TOUS LES CAS où le voisin est un
+	#  Linux — même quand LexOS commande aujourd'hui : le jour où Ubuntu
+	#  reprendra l'amorçage (une réinstallation de son GRUB, un changement
+	#  d'ordre dans le BIOS), c'est CE réglage-là qui évitera la disparition.
+	#  Et on dit POURQUOI en une phrase : sans ça, personne ne le refera dans
+	#  six mois.
+	printf '\n'
+	printf '  %sUne fois, côté Ubuntu (dans un terminal d'\''Ubuntu, pas d'\''ici) :%s\n' "$B" "$R"
+	printf '    sudo sed -i '\''s/^#*GRUB_DISABLE_OS_PROBER=.*/GRUB_DISABLE_OS_PROBER=false/'\'' /etc/default/grub\n'
+	printf '    grep -q GRUB_DISABLE_OS_PROBER /etc/default/grub || echo '\''GRUB_DISABLE_OS_PROBER=false'\'' | sudo tee -a /etc/default/grub\n'
+	printf '    sudo update-grub\n'
+	printf '\n'
+	info "Pourquoi : le GRUB d'Ubuntu ne cherche PAS les autres systèmes par défaut ;"
+	info "sans ce réglage, sa prochaine mise à jour de noyau efface LexOS de SON menu."
 fi
 
 # --- Le résumé --------------------------------------------------------------
@@ -554,7 +940,16 @@ else
 	printf '  1. Éteindre le système voisin %sproprement%s — pas en veille, pas en hibernation.\n' "$B" "$R"
 fi
 printf '  2. Sauvegarder ce qui compte. %sPar principe%s, avant tout partage de disque.\n' "$B" "$R"
-printf '  3. Dans le BIOS (F2) : %sSecure Boot → Disabled%s.\n' "$B" "$R"
+#  ═══ SECURE BOOT PEUT RESTER ACTIVÉ, ET CETTE LIGNE DISAIT LE CONTRAIRE ═══
+#  grub-efi-amd64-signed et shim-signed sont dans la liste OBLIGATOIRE de
+#  LexOS (lexos-core.list.chroot) : le système installé démarre avec Secure
+#  Boot actif. Dire « Disabled » envoyait Alex désactiver une protection
+#  pour rien — et sur un disque partagé avec Ubuntu, toucher au Secure Boot
+#  est un réglage de plus à défaire. La touche du BIOS n'est pas la même
+#  partout non plus : F2 sur l'Alienware, F1 sur le ThinkPad (le menu F12
+#  n'y répond pas, même avec Fn).
+printf '  3. Dans le BIOS (F1 sur le ThinkPad, F2 sur l'\''Alienware) : %sUEFI Only%s.\n' "$B" "$R"
+printf '     Secure Boot peut %srester activé%s — LexOS embarque grub-efi-amd64-signed.\n' "$B" "$R"
 #  DEVANT UN VOISIN CHIFFRÉ OU EN LVM, LA CONSIGNE 4 SERAIT FAUSSE : l'écran
 #  « Installer à côté de » ne sait pas découper ça, et son curseur ne
 #  proposerait rien d'utilisable. Envoyer Alex l'y chercher quand même, c'est

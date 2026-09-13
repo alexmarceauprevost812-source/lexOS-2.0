@@ -136,6 +136,30 @@ grep -qi "pas de Windows" <<< "$S" \
 	|| non "le journal n'explique pas l'abstention :\n$S"
 
 # =============================================================================
+titre "2 bis. Un voisin LINUX (Ubuntu) -> on ne touche à RIEN non plus"
+# =============================================================================
+#  ALEX : « LexOS Pro à côté d'Ubuntu 26.04.1 dans mon ThinkPad ». Les deux
+#  Linux lisent l'horloge matérielle en UTC : il n'y a rien à aligner, et
+#  passer en heure locale ici DÉCALERAIT Ubuntu de 4 ou 5 h. Ce cas existe
+#  pour qu'une correction future — « on aligne sur le voisin, quel qu'il
+#  soit » — ne casse pas ça par inadvertance : il échoue le jour où le
+#  script se met à réagir à une entrée qui n'est pas Windows.
+pose_racine "menuentry 'LexOS GNU/Linux' --class lexos {
+menuentry 'Ubuntu 26.04.1 LTS (26.04) (sur /dev/nvme0n1p2)' --class ubuntu --class gnu-linux {
+menuentry 'Ubuntu 26.04.1 LTS (26.04) (sur /dev/nvme0n1p2) (mode de récupération)' --class ubuntu {"
+pose_timedatectl "no"
+S="$(lance)"
+a_regle_lhorloge \
+	&& non "l'horloge a été passée en heure locale avec un voisin UBUNTU — les deux Linux lisent l'UTC, Ubuntu serait décalé de 4 h" \
+	|| ok "voisin Ubuntu : aucune modification de l'horloge — les deux Linux lisent l'UTC"
+[ "$(cat "$BANC/code")" = "0" ] \
+	&& ok "…et le script sort avec le code 0" \
+	|| non "code $(cat "$BANC/code") devant un voisin Linux"
+grep -qi "pas de Windows" <<< "$S" \
+	&& ok "…et le journal dit pourquoi (pas de Windows), sans confondre Ubuntu avec lui" \
+	|| non "le journal n'explique pas l'abstention devant Ubuntu :\n$S"
+
+# =============================================================================
 titre "3. Déjà en heure locale -> on ne refait pas le réglage"
 # =============================================================================
 #  --adjust-system-clock DÉCALE l'heure système pour compenser le changement

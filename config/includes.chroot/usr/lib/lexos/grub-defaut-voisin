@@ -1,0 +1,211 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — quel système démarre tout seul, quand il y a un voisin
+# =============================================================================
+#  CE QU'ALEX A DEMANDÉ LA PREMIÈRE FOIS, ET POURQUOI C'EST RAISONNABLE.
+#  Windows sert à jouer, LexOS à travailler. Sur une machine partagée entre
+#  ces deux usages, celui qui allume pour jouer ne devrait rien avoir à
+#  faire ; celui qui vient travailler appuie sur une flèche. Le menu reste
+#  visible huit secondes, avec les deux systèmes.
+#
+#  ═══ ET CE QU'IL DEMANDE MAINTENANT : UN VOISIN QUI N'EST PAS WINDOWS ═══
+#  « j'aimerais aussi que LexOS Pro soit capable de se mettre à côté
+#  d'Ubuntu 26.04.1 dans mon ThinkPad […] pour avoir 2 logiciels pour être
+#  capable de travailler avec les 2 ».
+#
+#  Ce script s'appelait grub-defaut-windows et ne cherchait QUE « windows »
+#  dans les titres du menu. Devant un Ubuntu il ne trouvait donc jamais rien
+#  et sortait sur « aucune entrée Windows — LexOS reste le démarrage par
+#  défaut ». LexOS devenait le défaut SANS QUE PERSONNE NE L'AIT DÉCIDÉ :
+#  un effet de bord, pas un choix. Alex veut travailler avec les deux — le
+#  choix doit être le sien.
+#
+#  ═══ LES TROIS ÉTATS, ET CE QUI SE PASSE DANS CHACUN ═══
+#  Le choix se lit dans /etc/lexos/dualboot-defaut, écrit par
+#  « lexos dualboot defaut lexos » ou « … defaut voisin ».
+#
+#    · le fichier dit « lexos »  -> on EFFACE saved_entry. GRUB repart sur sa
+#      première entrée, qui est LexOS.
+#    · le fichier dit « voisin » -> on pose le voisin. Windows D'ABORD s'il
+#      est là (c'est la demande d'origine), sinon le Linux voisin.
+#    · le fichier n'existe pas   -> on garde EXACTEMENT le comportement
+#      d'avant : Windows devient le défaut s'il est là, et rien d'autre ne
+#      le devient. Sur le ThinkPad, dont le voisin est Ubuntu, cela veut dire
+#      que LexOS reste le défaut et que le menu reste 8 secondes — et le
+#      journal le DIT, au lieu de laisser Alex le déduire.
+#
+#  POURQUOI CE SCRIPT EXISTE AU LIEU D'UN SIMPLE « GRUB_DEFAULT=0 ».
+#  « 0 » désigne la première entrée du menu, et la première entrée est LexOS :
+#  os-prober tourne dans /etc/grub.d/30_os-prober, après le 10_linux qui
+#  liste les noyaux LexOS. On pourrait renuméroter os-prober en 09 et
+#  désactiver le 30 — mais ce fichier appartient au paquet grub-common, et
+#  une mise à jour lui rendrait son droit d'exécution : Windows apparaîtrait
+#  deux fois dans le menu, sans que personne comprenne pourquoi.
+#
+#  GRUB a un mécanisme fait pour ça : GRUB_DEFAULT=saved (posé par le hook
+#  0100) lit l'entrée par défaut dans /boot/grub/grubenv, et grub-set-default
+#  l'y écrit par son TITRE. Aucun fichier de Debian n'est modifié.
+#
+#  QUAND CE SCRIPT PEUT TRAVAILLER. Pas dans la session démo : le menu de la
+#  clé USB n'est pas celui du disque, et il n'y a pas de grubenv à écrire. Et
+#  pas avant qu'os-prober ait vu le vrai disque — ce qui arrive à
+#  l'installation, quand Calamares lance update-grub sur le système cible.
+#  Donc : au premier démarrage du système installé.
+#
+#  SI WINDOWS N'EST PAS LÀ, RIEN N'EST ÉCRIT. grubenv reste vide et GRUB
+#  démarre sur LexOS. Le comportement par défaut est toujours le sûr.
+# =============================================================================
+set -e
+
+JOURNAL="/var/log/lexos-grub-defaut.log"
+dire() {
+	echo "[lexos-grub-defaut] $*"
+	printf '%s %s\n' "$(date -Is 2>/dev/null || echo '?')" "$*" >> "$JOURNAL" 2>/dev/null || true
+}
+
+# --- Jamais en session démo -------------------------------------------------
+#  Même repère que le garde-fou de la démo : « boot=live » dans la ligne de
+#  commande du noyau. En live, /boot/grub du disque n'est même pas monté.
+if grep -qa 'boot=live' /proc/cmdline 2>/dev/null; then
+	exit 0
+fi
+
+# --- Les outils sont-ils là ? ------------------------------------------------
+GRUBCFG=""
+for F in /boot/grub/grub.cfg /boot/grub2/grub.cfg; do
+	[ -r "$F" ] && { GRUBCFG="$F"; break; }
+done
+
+if [ -z "$GRUBCFG" ]; then
+	dire "aucun grub.cfg lisible — rien à faire"
+	exit 0
+fi
+
+if ! command -v grub-set-default >/dev/null 2>&1; then
+	dire "grub-set-default absent — rien à faire"
+	exit 0
+fi
+
+# --- Ce qu'Alex a choisi ----------------------------------------------------
+#  Un fichier d'une ligne, écrit par « lexos dualboot defaut … ». Absent =
+#  personne n'a choisi, et on garde le comportement d'avant (voir l'en-tête).
+#  Une valeur inconnue vaut « absent » : un fichier abîmé ne décide pas à la
+#  place d'Alex, et le journal dit ce qu'il a lu.
+CHOIX_FICHIER="${LEXOS_DUALBOOT_DEFAUT_FICHIER:-/etc/lexos/dualboot-defaut}"
+CHOIX=""
+if [ -r "$CHOIX_FICHIER" ]; then
+	LU="$(tr -d '[:space:]' < "$CHOIX_FICHIER" 2>/dev/null)"
+	case "$LU" in
+		lexos|voisin) CHOIX="$LU" ;;
+		"")           ;;
+		*)            dire "choix « $LU » inconnu dans $CHOIX_FICHIER — ignoré" ;;
+	esac
+fi
+
+# --- Les titres du menu -----------------------------------------------------
+#  On lit les titres des entrées de premier niveau. Le format d'une entrée
+#  est : menuentry 'Titre' --class ... {
+#  Le titre peut être entre apostrophes ou entre guillemets selon la version
+#  d'os-prober : on accepte les deux.
+TITRES="$(
+	sed -n "s/^menuentry[[:space:]]\+['\"]\([^'\"]*\)['\"].*/\1/p" "$GRUBCFG"
+)"
+
+#  ═══ ON ÉCARTE LES ENTRÉES DE RÉCUPÉRATION, ET PAS QUE CELLES DE WINDOWS ═══
+#  Démarrer sur « Windows Recovery Environment » lance le dépanneur, pas
+#  Windows. Démarrer sur « Ubuntu, avec Linux … (recovery mode) » ouvre un
+#  menu de dépannage en mode mono-utilisateur. Dans les deux cas, un système
+#  par DÉFAUT qui n'est pas le système : la même faute, deux orthographes.
+sans_secours() {
+	grep -vi 'recovery\|récupération\|recuperation\|rescue\|dépannage\|depannage'
+}
+
+TITRE_WIN="$(printf '%s\n' "$TITRES" | grep -i 'windows' | sans_secours | head -1)"
+
+#  ═══ LE LINUX VOISIN : CE QU'ON PREND, ET SURTOUT CE QU'ON ÉCARTE ═══
+#  os-prober écrit les systèmes voisins dans /etc/grub.d/30_os-prober, APRÈS
+#  les entrées de LexOS lui-même. On ne peut donc PAS prendre « la deuxième
+#  entrée » : il faut écarter les nôtres par leur nom.
+#  GRUB_DISTRIBUTOR vaut « LexOS » (hook 0100) : toutes nos entrées portent
+#  ce mot. Sans ce filtre, « defaut voisin » aurait pu poser… LexOS.
+#  On écarte aussi les entrées de mémoire et de micrologiciel, qui ne sont
+#  pas des systèmes : memtest, et « UEFI Firmware Settings ».
+NOUS="${LEXOS_GRUB_DISTRIBUTOR:-LexOS}"
+TITRE_LNX="$(
+	printf '%s\n' "$TITRES" \
+	| grep -vi "$NOUS" \
+	| grep -vi 'windows' \
+	| sans_secours \
+	| grep -vi 'memtest\|firmware\|setup\|uefi firmware' \
+	| head -1
+)"
+
+# --- Décider -----------------------------------------------------------------
+#  ═══ « lexos » : ON EFFACE, ON N'ÉCRIT PAS « LexOS » ═══
+#  grub-set-default sur notre propre titre marcherait… jusqu'à la première
+#  mise à jour de noyau, qui change le titre et laisserait grubenv désigner
+#  une entrée disparue. GRUB retombe alors sur la première entrée — la bonne,
+#  par chance. On ne construit pas sur la chance : effacer saved_entry dit
+#  exactement « pas de préférence », et ça reste vrai après chaque noyau.
+if [ "$CHOIX" = "lexos" ]; then
+	if command -v grub-editenv >/dev/null 2>&1; then
+		AV="$(grub-editenv - list 2>/dev/null | sed -n 's/^saved_entry=//p' | head -1)"
+		if [ -z "$AV" ]; then
+			exit 0
+		fi
+		if grub-editenv - unset saved_entry 2>/dev/null; then
+			dire "démarrage par défaut : LexOS (choix d'Alex) — « $AV » retiré de grubenv"
+		else
+			dire "!! grub-editenv a refusé d'effacer saved_entry — « $AV » reste le défaut"
+		fi
+	else
+		dire "!! grub-editenv absent — impossible d'effacer le défaut enregistré"
+	fi
+	exit 0
+fi
+
+#  ═══ QUI EST LE VOISIN, SI ON DOIT EN POSER UN ═══
+#  Windows D'ABORD quand les deux sont là : c'est la demande d'origine
+#  d'Alex (Windows pour jouer), et elle n'est pas annulée par la nouvelle.
+if [ -n "$TITRE_WIN" ]; then
+	TITRE="$TITRE_WIN"
+elif [ "$CHOIX" = "voisin" ] && [ -n "$TITRE_LNX" ]; then
+	#  UN LINUX VOISIN NE DEVIENT LE DÉFAUT QUE SI ON L'A DEMANDÉ.
+	#  Sans choix écrit, on ne touche à rien : deux Linux dans un menu, celui
+	#  qui part tout seul doit être décidé, pas deviné.
+	TITRE="$TITRE_LNX"
+else
+	TITRE=""
+fi
+
+if [ -z "$TITRE" ]; then
+	if [ -n "$TITRE_LNX" ]; then
+		#  LE CAS DU ThinkPad, DIT EN CLAIR DANS LE JOURNAL.
+		dire "voisin Linux dans le menu (« $TITRE_LNX »), aucun choix écrit :"
+		dire "LexOS reste le démarrage par défaut et le menu reste 8 s à l'écran."
+		dire "Pour changer : « lexos dualboot defaut voisin » (ou « … defaut lexos »)."
+	else
+		dire "aucun système voisin dans le menu — LexOS reste le démarrage par défaut"
+	fi
+	exit 0
+fi
+
+# --- Est-ce déjà fait ? -----------------------------------------------------
+#  Le service tourne à chaque démarrage (volontairement : sans condition de
+#  fichier, il se relance même si quelque chose a réécrit grubenv). Il ne doit
+#  donc rien faire quand c'est déjà bon.
+if command -v grub-editenv >/dev/null 2>&1; then
+	DEJA="$(grub-editenv - list 2>/dev/null | sed -n 's/^saved_entry=//p' | head -1)"
+	if [ "$DEJA" = "$TITRE" ]; then
+		exit 0
+	fi
+fi
+
+# --- Poser le défaut --------------------------------------------------------
+if grub-set-default "$TITRE" 2>/dev/null; then
+	dire "démarrage par défaut : ${TITRE}"
+	dire "le menu reste affiché 8 s — les flèches permettent de choisir LexOS"
+else
+	dire "!! grub-set-default a échoué pour « ${TITRE} » — LexOS reste le défaut"
+	exit 0
+fi
