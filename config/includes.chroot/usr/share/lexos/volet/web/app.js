@@ -255,6 +255,125 @@ function qsTileHTML(cle, icone, titre, sous, actif, desactive){
       <span class="su">${esc(sous)}</span>
     </div>`;
 }
+/*  ═══ LE BANDEAU DE SON — « en haut du volet » ═══
+ *  ALEX : « le volume, je veux qu'il s'en aille en haut du volet », « pour le
+ *  micro juste mettre activé ou désactivé ».
+ *
+ *  Il se place ENTRE le titre et la plaque : c'est ça, « en haut ». Le moteur
+ *  n'est pas ici — /usr/lib/lexos/son.py le tient pour les Paramètres, pour
+ *  ce volet et pour les touches XF86Audio* du clavier. Même règle que la
+ *  grille juste en dessous : un seul endroit, sinon deux vérités.
+ *
+ *  « volume === -1 » veut dire INDISPONIBLE (pas de pactl), et alors le
+ *  bandeau ne s'affiche PAS DU TOUT — pas un curseur mort. « micro === null »
+ *  veut dire « aucun micro sur cette machine », et alors c'est le bouton
+ *  micro qui disparaît, exactement comme la tuile Bluetooth sait déjà dire
+ *  « Absent ».                                                              */
+function iconeSon(vol, muet){
+  if(muet || vol <= 0) return "🔇";
+  return vol < 50 ? "🔉" : "🔊";
+}
+function sonHTML(){
+  const r = etat.rapides || {};
+  const vol = typeof r.volume === "number" ? r.volume : -1;
+  if(vol === -1) return "";          //  pas de serveur de son : rien à montrer
+  const muet = !!r.muet;
+  const micro = (r.micro === true || r.micro === false) ? r.micro : null;
+  const boutonMicro = micro === null ? "" :
+    `<div class="qs-son-micro${micro ? "" : " on"}" onclick="rapidesClic('micro')"
+          role="button" tabindex="0"
+          title="${micro ? "Micro désactivé" : "Micro activé"}">
+       <span class="ic">${micro ? "🚫🎤" : "🎤"}</span>
+       <span class="et">${micro ? "Désactivé" : "Activé"}</span>
+     </div>`;
+  return `<div class="qs-son">
+      <div class="qs-son-ligne">
+        <span class="qs-son-ic" onclick="rapidesClic('muet')" role="button" tabindex="0"
+              title="${muet ? "Rétablir le son" : "Couper le son"}">${iconeSon(vol, muet)}</span>
+        <input class="qs-son-curseur" type="range" min="0" max="100" step="1"
+               value="${muet ? 0 : vol}" aria-label="Volume"
+               oninput="sonGlisse(this.value)" onchange="sonPose(this.value)">
+        <span class="qs-son-pct" id="qs-son-pct">${muet ? 0 : vol} %</span>
+      </div>
+      ${boutonMicro}
+    </div>`;
+}
+
+/*  ═══ NE PAS MARTELER pactl SOIXANTE FOIS PAR SECONDE ═══
+ *  Un <input type="range"> émet un événement à CHAQUE pixel parcouru. Envoyer
+ *  chacun d'eux lancerait un processus pactl par pixel : la machine rame, et
+ *  les réglages arrivent dans le désordre.
+ *    · le CHIFFRE affiché suit tout de suite — il vient du navigateur, pas de
+ *      la machine, donc il ne coûte rien ;
+ *    · la VALEUR part au plus une fois toutes les 80 ms pendant le glissement
+ *      (« input »), et une dernière fois au relâchement (« change »), qui est
+ *      celle qui fait foi.
+ *  Le minuteur en attente est ANNULÉ par le relâchement : sans ça, une valeur
+ *  périmée pouvait partir APRÈS la valeur finale et écraser le bon réglage. */
+let sonMinuteur = null, sonDernier = null;
+const SON_ETRANGLE = 80;
+function sonAffiche(v){
+  const pct = document.getElementById("qs-son-pct");
+  if(pct) pct.textContent = `${v} %`;
+}
+function sonGlisse(v){
+  sonAffiche(v);
+  sonDernier = v;
+  if(sonMinuteur !== null) return;
+  sonMinuteur = setTimeout(()=>{
+    sonMinuteur = null;
+    api("rapides-volume", String(sonDernier));
+  }, SON_ETRANGLE);
+}
+async function sonPose(v){
+  if(sonMinuteur !== null){ clearTimeout(sonMinuteur); sonMinuteur = null; }
+  sonAffiche(v);
+  await api("rapides-volume", String(v));
+  await rafraichir();
+}
+
+/*  ═══ L'APPAREIL PHOTO — UN CLIC, PUIS UN CHOIX, DANS LE VOLET ═══
+ *  ALEX : « quand on va cliquer sur appareil photo il va apparaître le
+ *  menu » — écran complet, une partie, et à côté vidéo.
+ *
+ *  Cet état-là vit DANS LE JS, comme « vue » pour l'agenda : afficher trois
+ *  boutons ne vaut pas un aller-retour réseau. Les trois commandes existent
+ *  déjà (lexos-capture plein|zone|video) et sont les mêmes que les lanceurs
+ *  9, 10 et 11 de la barre : le volet est une troisième porte sur le même
+ *  outil, pas une réécriture.                                              */
+let photoOuvert = false;
+function photoHTML(){
+  return `<div class="qs-photo">
+      <div class="qs-photo-tete">
+        <span class="qs-photo-retour" onclick="photoFerme()" role="button" tabindex="0"
+              title="Revenir aux tuiles">‹</span>
+        <span class="qs-photo-titre">Appareil photo</span>
+      </div>
+      <div class="qs-photo-choix">
+        <div class="qs-photo-bt" onclick="photoLance('plein')" role="button" tabindex="0">
+          <span class="ic">🖥️</span><span class="ti">Écran complet</span></div>
+        <div class="qs-photo-bt" onclick="photoLance('zone')" role="button" tabindex="0">
+          <span class="ic">✂️</span><span class="ti">Une partie</span></div>
+        <div class="qs-photo-bt" onclick="photoLance('video')" role="button" tabindex="0">
+          <span class="ic">🎬</span><span class="ti">Vidéo</span></div>
+      </div>
+    </div>`;
+}
+function photoOuvre(){ photoOuvert = true;  rend(); }
+function photoFerme(){ photoOuvert = false; rend(); }
+
+/*  ═══ LE VOLET DOIT DISPARAÎTRE AVANT LA PHOTO ═══
+ *  Sinon il EST sur la photo. Pour « une partie », c'est pire : le sélecteur
+ *  s'ouvrirait sous un volet qui lui vole les clics.
+ *  On demande donc l'action — le Python lance lexos-capture avec son propre
+ *  délai, et en start_new_session pour que la fermeture du volet ne l'emporte
+ *  pas — PUIS on ferme la fenêtre tout de suite. picom joue son extinction
+ *  « vieille télé » pendant que la capture attend son tour.                 */
+async function photoLance(mode){
+  await api("rapides-photo", mode);
+  window.close();
+}
+
 function rapidesHTML(){
   const r = etat.rapides || {};
   const wifiOn = !!r.wifi, btOn = !!r.bt, avionOn = !!r.avion;
@@ -277,6 +396,10 @@ function rapidesHTML(){
     //  Ce qui disparaît, c'est le raccourci, pas la possibilité.
     qsTileHTML("clavier", "⌨️", "Clavier", "Français (Québec)", false, false),
     qsTileHTML("crt", "📺", "Effets TV 1980", r.crt ? "Activés" : "Désactivés", r.crt, false),
+    //  ALEX : « quand on va cliquer sur appareil photo il va apparaître le
+    //  menu » — écran complet, une partie, et à côté vidéo. Le clic ne sort
+    //  pas de fenêtre : il remplace le contenu de la plaque (photoHTML()).
+    qsTileHTML("photo", "📷", "Appareil photo", "Écran, partie ou vidéo", false, false),
   ];
   //  ═══ LA PLAQUE GRISE ═══
   //  ALEX : « autour des boutons c'est déjà joli, mais on pourrait mettre du
@@ -289,12 +412,22 @@ function rapidesHTML(){
   //  le noir. Elles reposent maintenant sur une plaque grise qui prend toute
   //  la hauteur restante — le gris remplit les gouttières entre les tuiles,
   //  le pourtour, et le grand vide sous la dernière rangée.
+  //  La plaque montre SOIT les tuiles, SOIT le choix de l'appareil photo.
+  //  Le bandeau de son, lui, reste : couper le son pendant qu'on choisit un
+  //  mode de capture est une chose qu'on peut vouloir faire.
+  const dedans = photoOuvert ? photoHTML() : `<div class="qs-grid">${tuiles.join("")}</div>`;
   return `<div class="qs">
       <div class="qs-head"><span class="t">Paramètres rapides</span></div>
-      <div class="qs-plaque"><div class="qs-grid">${tuiles.join("")}</div></div>
+      ${sonHTML()}
+      <div class="qs-plaque">${dedans}</div>
     </div>`;
 }
 async function rapidesClic(cle){
+  //  L'appareil photo n'est pas une bascule : il OUVRE un choix, sans rien
+  //  demander au Python. Il est traité ici plutôt que dans une action, pour
+  //  la même raison que « vue » dans l'agenda — afficher trois boutons ne
+  //  vaut pas un aller-retour réseau.
+  if(cle === "photo"){ photoOuvre(); return; }
   await api(`rapides-${cle}`);
   await rafraichir();
 }

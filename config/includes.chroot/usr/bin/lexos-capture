@@ -51,6 +51,46 @@ nom_libre() {
 	printf '%s\n' "$candidat"
 }
 
+# --- Le délai avant de déclencher --------------------------------------------
+#  ═══ POURQUOI IL EXISTE : LE VOLET SERAIT SUR LA PHOTO ═══
+#  ALEX a demandé une tuile « appareil photo » dans le volet des Paramètres
+#  rapides. Un clic dessus ferme le volet — avec son extinction « vieille
+#  télé », qui dure — PUIS déclenche la capture. Sans délai, la photo serait
+#  prise pendant que le volet s'éteint : on le verrait en haut à droite, sur
+#  l'image. Pour « une partie », c'est pire : le sélecteur s'ouvrirait sous un
+#  volet qui lui vole les clics.
+#
+#  LE DÉLAI EST TENU PAR L'OUTIL, PAS PAR UN « sleep » DANS L'APPELANT :
+#  xfce4-screenshooter a « -d <secondes> », fait pour ça. Là où on ne peut pas
+#  le déléguer (flameshot, scrot, import), on attend nous-mêmes AVANT de
+#  lancer l'outil — jamais après, sinon le sélecteur serait déjà à l'écran.
+#
+#  Il vaut 0 par défaut : toutes les autres portes d'entrée (touche Impr écr,
+#  lanceurs de la barre, ligne de commande) gardent exactement le comportement
+#  d'avant. Seul le volet le demande.
+DELAI_CAPTURE=0
+lire_delai() { # lire_delai "$@" — retire --delai N de la liste et le retient
+	ARGS_RESTANTS=""
+	while [ "$#" -gt 0 ]; do
+		case "$1" in
+			--delai)   DELAI_CAPTURE="${2:-0}"; shift 2 ;;
+			--delai=*) DELAI_CAPTURE="${1#--delai=}"; shift ;;
+			*)         ARGS_RESTANTS="$ARGS_RESTANTS $1"; shift ;;
+		esac
+	done
+	#  ON REFUSE PLUTÔT QUE DE DEVINER. Un délai non numérique passé à
+	#  « sleep » ou à « -d » ferait échouer la capture avec un message
+	#  d'outil que personne ne relie à la cause. Et on plafonne à 60 s : un
+	#  « --delai 6000 » (faute de frappe) laisserait un processus attendre
+	#  une heure et quarante minutes, invisible, puis photographier un
+	#  bureau qui n'a plus rien à voir.
+	case "$DELAI_CAPTURE" in
+		''|*[!0-9]*) DELAI_CAPTURE=0 ;;
+	esac
+	[ "$DELAI_CAPTURE" -gt 60 ] && DELAI_CAPTURE=60
+	return 0
+}
+
 # --- Photo -------------------------------------------------------------------
 #  mode : plein | fenetre | zone
 cmd_photo() {
@@ -83,6 +123,10 @@ cmd_photo() {
 	#  simple qu'une touche à retenir, la barre d'outils ne s'affiche même
 	#  plus.
 	if [[ "$mode" == "zone" ]] && command -v flameshot >/dev/null 2>&1; then
+		#  flameshot n'a pas de délai qui vaille ici : « --delay » retarde la
+		#  CAPTURE, pas l'ouverture du sélecteur — or c'est le sélecteur qui
+		#  ne doit pas s'ouvrir sous le volet. On attend donc nous-mêmes.
+		[ "$DELAI_CAPTURE" -gt 0 ] && sleep "$DELAI_CAPTURE"
 		say "Cadre la zone à la souris — relâche pour capturer, aucune touche à retenir."
 		#  flameshot gui écrit lui-même le fichier avec --path ; il sort en
 		#  code non nul si l'utilisateur annule, d'où le test sur le fichier.
@@ -106,9 +150,20 @@ cmd_photo() {
 			*)       die "Mode inconnu : $mode (plein, fenetre ou zone)" ;;
 		esac
 		say "Capture ${mode}…"
-		xfce4-screenshooter "$drapeau" -s "$fichier" >/dev/null 2>&1 \
-			|| die "xfce4-screenshooter a échoué."
+		#  « -d <secondes> » est la façon propre : c'est l'outil qui attend,
+		#  et il le fait sans garder la main sur l'écran entre-temps.
+		if [ "$DELAI_CAPTURE" -gt 0 ]; then
+			xfce4-screenshooter "$drapeau" -d "$DELAI_CAPTURE" -s "$fichier" >/dev/null 2>&1 \
+				|| die "xfce4-screenshooter a échoué."
+		else
+			xfce4-screenshooter "$drapeau" -s "$fichier" >/dev/null 2>&1 \
+				|| die "xfce4-screenshooter a échoué."
+		fi
 	elif command -v scrot >/dev/null 2>&1; then
+		#  scrot a « -d », mais seulement pour le plein écran : avec « -s »,
+		#  le sélecteur s'ouvre tout de suite. On attend avant, dans les deux
+		#  cas, plutôt que d'avoir deux comportements selon le mode.
+		[ "$DELAI_CAPTURE" -gt 0 ] && sleep "$DELAI_CAPTURE"
 		case "$mode" in
 			plein)   scrot "$fichier" ;;
 			fenetre) scrot -u "$fichier" ;;
@@ -116,6 +171,7 @@ cmd_photo() {
 			*)       die "Mode inconnu : $mode" ;;
 		esac || die "scrot a échoué."
 	elif command -v import >/dev/null 2>&1; then
+		[ "$DELAI_CAPTURE" -gt 0 ] && sleep "$DELAI_CAPTURE"
 		#  « import » sans argument demande de cliquer une fenêtre ;
 		#  -window root prend tout l'écran.
 		if [[ "$mode" == "plein" ]]; then
@@ -369,6 +425,12 @@ ${D}Raccourcis clavier du bureau :
   Super + Maj + 3      enregistrement vidéo${R}
 EOF
 }
+
+#  « --delai N » peut suivre n'importe quelle commande : on le retire de la
+#  liste d'abord, et le reste du dispatch ne le voit jamais.
+lire_delai "$@"
+# shellcheck disable=SC2086
+set -- $ARGS_RESTANTS
 
 case "${1:-}" in
 	""|plein|ecran|photo) cmd_photo plein ;;

@@ -88,6 +88,37 @@
       <property name="XF86Display"          type="string" value="lexos-display gui"/>
       <property name="XF86WLAN"             type="string" value="lexos-net avion toggle"/>
 
+      <!-- ═══ LES TOUCHES DE VOLUME — ET POURQUOI ELLES SONT ICI ═══
+           ALEX : « le volume, je veux qu'il s'en aille en haut du volet ».
+           Le greffon 6 (pulseaudio) a donc quitté la barre du haut
+           (xfce4-panel.xml). MAIS c'est LUI qui portait
+           « enable-keyboard-shortcuts », et c'est lui qui faisait marcher
+           les touches ↑ ↓ 🔇 du ThinkPad. Un greffon retiré du tableau
+           « plugin-ids » n'est pas caché : il n'est plus chargé du tout.
+           Sans ces quatre lignes, les touches seraient mortes — et ça ne se
+           verrait qu'en appuyant dessus, longtemps après.
+           Les deux changements vont ENSEMBLE, dans le même commit, et le
+           banc tests/test_lexos_barre_volet.sh les exige ensemble.
+
+           ON PASSE PAR « lexos son », PAS PAR DU pactl ÉCRIT EN DUR ICI :
+           cette commande EXISTE DÉJÀ (/usr/bin/lexos-son), elle parle à
+           WirePlumber par wpctl — le vrai chef d'orchestre de PipeWire, celui
+           qui RETIENT le choix d'une fois sur l'autre — et retombe sur pactl
+           quand wpctl manque. Écrire du pactl dans ce XML aurait été un
+           moteur de plus, et le premier à se périmer.
+
+           « lexos son » affiche une bulle avec un identifiant de
+           remplacement : le greffon avait « show-notifications=true », et
+           sans lui, monter le volume au clavier ne montrerait plus rien.
+           Dix appuis donnent une bulle qui change, pas dix bulles empilées. -->
+      <property name="XF86AudioRaiseVolume" type="string" value="lexos son +5"/>
+      <property name="XF86AudioLowerVolume" type="string" value="lexos son -5"/>
+      <property name="XF86AudioMute"        type="string" value="lexos son muet"/>
+      <!-- La touche micro n'existe pas sur tous les claviers ; sur celui du
+           ThinkPad, elle est à vérifier. Le raccourci ne coûte rien là où la
+           touche n'existe pas : il n'est simplement jamais déclenché. -->
+      <property name="XF86AudioMicMute"     type="string" value="lexos son micro"/>
+
       <!-- LA LOUPE. C'est ce qu'Alex a choisi quand on lui a demandé ce que
            voulait dire « la fenêtre reste à sa place, juste le reste zoome » :
            la loupe, pas les fenêtres bornées.

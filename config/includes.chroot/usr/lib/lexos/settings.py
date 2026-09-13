@@ -30,6 +30,16 @@ import threading
 import time
 from pathlib import Path
 
+#  ═══ LE MOTEUR DU SON EST PARTAGÉ, ET IL N'EST PAS ICI ═══
+#  Le volume et la sourdine étaient réglés ici seulement. Le volet
+#  « Paramètres rapides » en a besoin aussi (ALEX : « le volume, je veux
+#  qu'il s'en aille en haut du volet »), et les touches XF86Audio* du
+#  clavier une troisième fois. Trois appelants, un seul moteur :
+#  /usr/lib/lexos/son.py, à côté de ce fichier. C'est lui qui borne le
+#  volume à 0-100 et qui dit « indisponible » plutôt qu'un chiffre inventé.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import son as _son  # noqa: E402
+
 APP_NAME = "Paramètres LexOS"
 BASE_DIR = Path(os.environ.get("LEXOS_SETTINGS_DIR", "/usr/share/lexos/settings"))
 WEB_DIR = BASE_DIR / "web"
@@ -938,27 +948,19 @@ def act_wifi_auto(arg):
 
 
 def act_son_muet(arg):
-    """Coupe ou rétablit le son."""
-    if arg not in ("on", "off", "toggle"):
-        return {"ok": False, "erreur": "valeur inattendue"}
-    valeur = {"on": "1", "off": "0", "toggle": "toggle"}[arg]
-    return _run(["pactl", "set-sink-mute", "@DEFAULT_SINK@", valeur])
+    """Coupe ou rétablit le son. Le moteur est dans son.py — voir l'import
+    en tête de fichier : le volet et les touches du clavier appellent
+    exactement les mêmes commandes."""
+    return _son.regle_muet(arg)
 
 
 def act_son_volume(arg):
-    """Règle le volume. Le curseur envoie un nombre : on le BORNE à 0-100
-    avant de le transmettre. Sans cette borne, un « 400 » venu de la page
-    monterait le gain bien au-delà du niveau du matériel — de la distorsion,
-    et de quoi abîmer un haut-parleur."""
+    """Règle le volume. « plus »/« moins » sont des PAS, tout le reste est un
+    niveau absolu ; la borne 0-100 est dans son.py, au même endroit pour les
+    trois appelants."""
     if arg in ("moins", "plus"):
-        return _run(["pactl", "set-sink-volume", "@DEFAULT_SINK@",
-                     "-5%" if arg == "moins" else "+5%"])
-    try:
-        n = int(arg)
-    except (TypeError, ValueError):
-        return {"ok": False, "erreur": "valeur inattendue"}
-    n = max(0, min(100, n))
-    return _run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{n}%"])
+        return _son.regle_volume(arg, relatif=True)
+    return _son.regle_volume(arg)
 
 
 def act_notif(arg):
@@ -2610,18 +2612,18 @@ def _wifi_reseaux(connecte=""):
 
 
 def _son_etat():
-    """Volume en pour-cent et sourdine, via PipeWire/PulseAudio."""
-    if not shutil.which("pactl"):
+    """Volume en pour-cent et sourdine, via PipeWire/PulseAudio.
+
+    La lecture elle-même vit dans son.py — le même code que celui dont le
+    volet se sert. Ce qui reste ici est propre aux Paramètres : le casque et
+    la liste des sorties, que le volet n'affiche pas.
+    """
+    base = _son.etat()
+    if base["volume"] == -1 and not _son.disponible():
         return {"volume": -1, "muet": False}
-    volume = -1
-    sortie = _sortie(["pactl", "get-sink-volume", "@DEFAULT_SINK@"])
-    for morceau in sortie.replace("/", " ").split():
-        if morceau.endswith("%") and morceau[:-1].isdigit():
-            volume = int(morceau[:-1])
-            break
-    muet = _sortie(["pactl", "get-sink-mute", "@DEFAULT_SINK@"]).endswith("yes")
-    return {"volume": volume, "muet": muet, "casque": _casque_branche(),
-            "sorties": _sorties_audio()}
+    base["casque"] = _casque_branche()
+    base["sorties"] = _sorties_audio()
+    return base
 
 
 def _sorties_audio():

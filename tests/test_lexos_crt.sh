@@ -609,16 +609,34 @@ def attrape(cond, fen):
             return True
     return False
 
-#  Quatre fenêtres, et ce qu'on attend de chacune.
+#  ═══ LA RÈGLE ATTENDUE EST DÉSIGNÉE PAR SON CONTENU, PAS PAR SON RANG ═══
+#  Premier jet : un NUMÉRO de règle (0 pour Whisker, 1 pour les menus). Le
+#  jour où une règle s'est ajoutée entre les deux — celle du volet LexOS —
+#  ce contrôle a rougi sur du code parfaitement juste : la règle des menus
+#  était passée du rang 2 au rang 3, et rien d'autre n'avait changé. Un
+#  contrôle qui rougit à chaque insertion apprend à ignorer le rouge.
+#  On nomme donc un MORCEAU DE LA CONDITION attendue. Le rang, lui, reste
+#  mesuré — c'est l'ordre qui décide chez picom — mais il est DÉDUIT du
+#  fichier au lieu d'être recopié dans le banc.
 CAS = [
     ("une fenêtre ordinaire (un terminal, un navigateur)",
      {"window_type": "normal", "name": "Terminal", "class_g": "Xfce4-terminal"}, None),
     ("une boîte de dialogue",
      {"window_type": "dialog", "name": "Enregistrer sous", "class_g": "Thunar"}, None),
     ("le menu Whisker",
-     {"window_type": "menu", "name": "Whisker Menu", "class_g": "wrapper-2.0"}, 0),
+     {"window_type": "menu", "name": "Whisker Menu", "class_g": "wrapper-2.0"}, "Whisker Menu"),
     ("un menu contextuel (clic droit)",
-     {"window_type": "popup_menu", "name": "", "class_g": "Thunar"}, 1),
+     {"window_type": "popup_menu", "name": "", "class_g": "Thunar"}, "popup_menu"),
+    #  ═══ LE VOLET LEXOS — LE CAS QUI A MOTIVÉ SA PROPRE RÈGLE ═══
+    #  ALEX : « qu'il se ferme avec l'animation de vieille télévision ».
+    #  Le volet est en Qt.Tool, donc _NET_WM_WINDOW_TYPE_UTILITY : sans
+    #  règle à lui, PLACÉE AVANT la générique, il tombait dans celle qui
+    #  attrape « utility » et recevait le fondu de 80 ms des menus.
+    #  Ce cas-ci le mesure en ÉVALUANT les conditions, pas en comparant des
+    #  numéros de ligne : il rougit aussi bien si la règle disparaît que si
+    #  elle passe après la générique.
+    ("le volet LexOS (Qt.Tool → utility)",
+     {"window_type": "utility", "name": "Volet LexOS", "class_g": "python3"}, "Volet LexOS"),
 ]
 
 for libelle, fen, attendu in CAS:
@@ -627,19 +645,25 @@ for libelle, fen, attendu in CAS:
     except ValueError as e:
         print("INCONNU|opérateur non reconnu dans une condition : %s" % e)
         raise SystemExit
-    if touchee == attendu:
-        if attendu is None:
+    if attendu is None:
+        if touchee is None:
             print("OK|%s : aucune règle ne l'attrape → elle garde l'extinction « téléviseur »" % libelle)
         else:
-            print("OK|%s : attrapée par la règle n° %d, celle qui lui est destinée" % (libelle, attendu + 1))
-    elif attendu is None:
-        print("NON|%s est AVALÉE par la règle n° %d : elle perdrait l'extinction « téléviseur »"
-              % (libelle, touchee + 1))
+            print("NON|%s est AVALÉE par la règle n° %d (%s) : elle perdrait l'extinction « téléviseur »"
+                  % (libelle, touchee + 1, conditions[touchee][:50]))
+        continue
+    #  Le rang de la règle qui PORTE le motif attendu, lu dans le fichier.
+    rang = next((i for i, c in enumerate(conditions) if attendu in c), None)
+    if rang is None:
+        print("NON|%s : aucune règle ne porte « %s » — elle a disparu du fichier" % (libelle, attendu))
+    elif touchee == rang:
+        print("OK|%s : attrapée par la règle n° %d, celle qui lui est destinée (« %s »)"
+              % (libelle, rang + 1, attendu))
     elif touchee is None:
         print("NON|%s n'est attrapée par AUCUNE règle : elle s'éteindrait comme un téléviseur, ce qui est trop lent pour elle" % libelle)
     else:
-        print("NON|%s est attrapée par la règle n° %d au lieu de la n° %d"
-              % (libelle, touchee + 1, attendu + 1))
+        print("NON|%s est attrapée par la règle n° %d au lieu de la n° %d (« %s ») — l'ordre des règles ne va plus"
+              % (libelle, touchee + 1, rang + 1, attendu))
 PYEOF
 )"
 while IFS='|' read -r VERD MSG; do

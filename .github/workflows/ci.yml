@@ -2376,7 +2376,7 @@ jobs:
           #  donnait 3,34:1 sur le bleu.
           node tests/test_lexos_accents_web.js
 
-      - name: La barre — la flèche des Paramètres rapides, et la cloche retirée
+      - name: La barre et le volet — flèche, cloche, son, appareil photo, animation
         if: ${{ !cancelled() }}
         run: |
           #  ALEX : « changer l'image pour une flèche qui pointe vers le bas,
@@ -2389,6 +2389,25 @@ jobs:
           #  exactement ce qui avait rendu l'icône de Thunar invisible — et,
           #  pour la cloche, les deux bouts : partie de la barre sans y
           #  laisser de trou, mais toujours joignable dans les Paramètres.
+          #
+          #  ═══ ET LE VOLET « PARAMÈTRES RAPIDES » LUI-MÊME ═══
+          #  ALEX : « le volume, je veux qu'il s'en aille en haut du volet »,
+          #  « pour le micro juste mettre activé ou désactivé », « quand on va
+          #  cliquer sur appareil photo il va apparaître le menu », « qu'il
+          #  ouvre fluidement, et se ferme avec l'animation de vieille
+          #  télévision ».
+          #  Le piège principal est mesuré ICI, et les deux moitiés dans le
+          #  MÊME test : « enable-keyboard-shortcuts » du greffon pulseaudio
+          #  était ce qui faisait marcher les touches de volume du ThinkPad.
+          #  Un greffon retiré de « plugin-ids » n'est pas caché, il n'est
+          #  plus chargé du tout — un banc qui vérifierait le retrait sans le
+          #  remplacement serait vert le jour où les touches meurent.
+          #  Sont aussi mesurés en exécutant le vrai code : la borne 0-100 du
+          #  volume (un « 400 » venu de la page abîmerait un haut-parleur),
+          #  le bandeau qui DISPARAÎT au lieu d'être cassé quand pactl
+          #  manque, et l'ORDRE des règles picom — picom applique la première
+          #  correspondance et s'arrête là, donc une règle placée après la
+          #  générique ne serait jamais atteinte.
           bash tests/test_lexos_barre_volet.sh
 
       - name: Thème d'icônes — un dossier livré que GTK ne regardait pas

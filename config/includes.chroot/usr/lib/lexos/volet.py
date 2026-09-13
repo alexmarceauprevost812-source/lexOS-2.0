@@ -43,6 +43,17 @@ import threading
 from datetime import datetime, date
 from pathlib import Path
 
+#  ═══ LE MOTEUR DU SON EST PARTAGÉ — IL N'EST PAS ÉCRIT ICI ═══
+#  ALEX : « le volume, je veux qu'il s'en aille en haut du volet », « pour le
+#  micro juste mettre activé ou désactivé ».
+#  La règle est déjà écrite en tête de rapidesHTML() dans app.js : « la
+#  dupliquer ici donnerait deux endroits où un bogue pourrait un jour
+#  raconter deux choses différentes ». Les Paramètres, ce volet et les
+#  touches XF86Audio* du clavier appellent donc TOUS /usr/lib/lexos/son.py —
+#  mêmes commandes, mêmes bornes, mêmes replis.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import son as _son  # noqa: E402
+
 BASE_DIR = Path(os.environ.get("LEXOS_VOLET_DIR", "/usr/share/lexos/volet"))
 WEB_DIR = BASE_DIR / "web"
 
@@ -408,6 +419,13 @@ def _rapides_etat():
         "perfLabel": PERF_LABEL[perf],
         "theme": _mode_apparence(),
         "crt": _crt_rapides_etat(),
+        #  ═══ « volume: -1 » ET « micro: null » VEULENT DIRE INDISPONIBLE ═══
+        #  Pas de pactl -> volume -1, et la page n'affiche PAS le bandeau du
+        #  tout : une saveur sans serveur de son ne doit pas montrer un
+        #  curseur qui ne fait rien. Pas de micro -> micro null, et le bouton
+        #  micro n'apparaît pas — le même raisonnement que la tuile Bluetooth,
+        #  qui sait déjà dire « Absent ».
+        **_son.etat(),
     }
 
 
@@ -510,8 +528,68 @@ def act_rapides_clavier(_arg=None):
     return {"ok": True}
 
 
+def act_rapides_volume(arg=None):
+    """Le curseur du bandeau de son. La valeur est un niveau ABSOLU ; la
+    borne 0-100 est dans son.py, au même endroit que pour les Paramètres et
+    pour les touches du clavier."""
+    return _son.regle_volume(arg)
+
+
+def act_rapides_muet(_arg=None):
+    """Un clic sur l'icône haut-parleur : coupe / rétablit. C'est le geste
+    attendu sur cette icône — on ne l'invente pas ailleurs."""
+    return _son.regle_muet("toggle")
+
+
+def act_rapides_micro(_arg=None):
+    """ALEX : « pour le micro juste mettre activé ou désactivé ». Deux états,
+    pas de curseur. son.py refuse proprement quand il n'y a pas de micro,
+    avec une phrase qu'on comprend."""
+    return _son.regle_micro("toggle")
+
+
+#  ═══ LE VOLET DOIT AVOIR DISPARU AVANT QUE LA PHOTO SE PRENNE ═══
+#  Sinon il EST sur la photo — une capture plein écran où l'on voit le volet
+#  en haut à droite, c'est le défaut exact qu'on corrige. Pour « une partie »,
+#  c'est pire : le sélecteur s'ouvrirait sous un volet qui lui vole les clics.
+#
+#  L'enchaînement : le JS demande l'action, le Python lance lexos-capture AVEC
+#  SON PROPRE DÉLAI (« --delai »), puis le JS ferme la fenêtre. La capture
+#  attend pendant que picom joue l'extinction « vieille télé ». Le délai est
+#  tenu par lexos-capture (xfce4-screenshooter -d) et pas par un sleep ici :
+#  un sleep dans ce processus bloquerait le serveur du volet.
+#
+#  « start_new_session=True » est OBLIGATOIRE, et le commentaire du dépôt le
+#  dit déjà pour act_rapides_partage : « le volet doit pouvoir se refermer
+#  sans l'emporter ». Un enfant dans le même groupe de processus mourrait
+#  avec le volet — donc pas de capture du tout.
+CAPTURE_MODES = {"plein": "plein", "zone": "zone", "video": "video"}
+#  1 seconde : l'extinction du volet dure 0,30 s (lexos-tv.conf : 0,14 +
+#  0,10, l'opacité tombant à 0,24). Une seconde couvre ça largement sans
+#  qu'on ait l'impression d'attendre. À REVOIR SUR LA MACHINE : ce chiffre-ci
+#  est calculé sur les durées écrites dans la configuration de picom, pas
+#  constaté sur le ThinkPad.
+CAPTURE_DELAI = "1"
+
+
+def act_rapides_photo(arg=None):
+    mode = CAPTURE_MODES.get(arg or "")
+    if mode is None:
+        return {"ok": False, "erreur": "mode de capture inattendu"}
+    if shutil.which("lexos-capture") is None:
+        return {"ok": False, "erreur": "lexos-capture absent"}
+    subprocess.Popen(["lexos-capture", mode, "--delai", CAPTURE_DELAI],
+                     start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {"ok": True}
+
+
 ACTIONS = {
     "notif-vide": act_notif_vide,
+    "rapides-photo": act_rapides_photo,
+    "rapides-volume": act_rapides_volume,
+    "rapides-muet": act_rapides_muet,
+    "rapides-micro": act_rapides_micro,
     "agenda-ajoute": act_agenda_ajoute,
     "agenda-enleve": act_agenda_enleve,
     "meteo-ville": act_meteo_ville,
@@ -629,6 +707,20 @@ def main():
     app.setApplicationName("Volet LexOS")
 
     vue = QWebEngineView()
+    #  ═══ CE TITRE EST UN CONTRAT AVEC PICOM — NE PAS LE CHANGER SEUL ═══
+    #  picom choisit son animation par la PREMIÈRE règle qui correspond
+    #  (manuel, section RULES). Sans règle à lui, ce volet tombait dans la
+    #  règle générique « window_type = 'utility' » — car Qt.Tool devient
+    #  _NET_WM_WINDOW_TYPE_UTILITY — et recevait le fondu court des menus au
+    #  lieu de l'extinction « vieille télé » qu'Alex demande.
+    #  La règle dédiée vit dans usr/share/lexos/picom/lexos-tv.conf et
+    #  matche « name = 'Volet LexOS' ». On POSE donc ce titre explicitement
+    #  au lieu de compter sur celui que Qt déduirait du nom d'application :
+    #  une règle picom accrochée à une valeur PAR DÉFAUT, c'est une règle
+    #  qui se décroche en silence à la prochaine version de Qt. Ici, la
+    #  chaîne est écrite des deux côtés, et un banc vérifie qu'elles sont
+    #  les mêmes.
+    vue.setWindowTitle("Volet LexOS")
     #  SANS CE FOND TRANSPARENT, RIEN NE MARCHE. La page dessine un volet aux
     #  coins ronds sur du vide ; si la vue web peint un fond blanc derrière,
     #  on obtient un rectangle blanc avec un volet arrondi dedans — le
@@ -654,7 +746,13 @@ def main():
         gauche = ecran.x() + 14
     elif quoi == "rapides":
         largeur = min(340, ecran.width() - 24)
-        hauteur = min(460, hauteur)
+        #  460 -> 560 : le bandeau de son (curseur + micro) et la tuile
+        #  appareil photo ajoutent une rangée et demie.
+        #  LE « min » RESTE, et c'est lui qui compte : « hauteur » vaut déjà
+        #  78 % de l'écran disponible. Sur le ThinkPad — un écran de
+        #  portable, donc exactement la machine où ce garde-fou sert — le
+        #  volet s'arrête à ce plafond au lieu de dépasser en bas.
+        hauteur = min(560, hauteur)
         gauche = ecran.x() + ecran.width() - largeur - 14
     else:
         gauche = ecran.x() + (ecran.width() - largeur) // 2

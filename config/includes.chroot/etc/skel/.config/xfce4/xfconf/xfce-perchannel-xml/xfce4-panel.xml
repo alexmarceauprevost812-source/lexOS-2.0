@@ -84,7 +84,26 @@
         <value type="int" value="4"/>
         <value type="int" value="16"/>
         <value type="int" value="5"/>
-        <value type="int" value="6"/>
+        <!--  LE GREFFON 6 (« pulseaudio », le haut-parleur) A DISPARU DE CE
+              TABLEAU, et sa définition reste en place plus bas, commentée —
+              même traitement que le greffon 8 juste en dessous, et pour la
+              même raison, écrite par Alex lui-même : « trop d'outils
+              visibles en haut […] j'aimerais que tout soit dans le bouton
+              rouge, pour tout retrouver à la même place ».
+              Le volume est maintenant EN HAUT DU VOLET des Paramètres
+              rapides (le « ▲ », greffon 12), avec le micro à côté.
+
+              ⚠ CE RETRAIT NE VA PAS SEUL, ET C'EST TOUT LE PIÈGE.
+              « enable-keyboard-shortcuts » de ce greffon est ce qui faisait
+              marcher les touches de volume du clavier. Un greffon retiré de
+              ce tableau n'est pas « caché » : il n'est plus CHARGÉ DU TOUT,
+              et les touches ↑ ↓ 🔇 du ThinkPad seraient devenues mortes.
+              Les quatre raccourcis (XF86AudioRaiseVolume, LowerVolume,
+              Mute, MicMute) sont donc posés dans xfce4-keyboard-shortcuts
+              .xml, DANS LE MÊME CHANGEMENT — et le banc
+              tests/test_lexos_barre_volet.sh exige les deux ENSEMBLE : un
+              contrôle qui vérifierait le retrait sans le remplacement
+              validerait justement la panne. -->
         <value type="int" value="7"/>
         <value type="int" value="12"/>
         <!--  17 EST LE DERNIER, ET C'EST TOUTE LA DEMANDE D'ALEX.
@@ -293,11 +312,28 @@
       <property name="symbolic-icons" type="bool" value="true"/>
     </property>
 
-    <!-- 6 · Son -->
+    <!-- 6 · Son — RETIRÉ DE LA BARRE, gardé ici pour mémoire.
+         ALEX : « le volume, je veux qu'il s'en aille en haut du volet ».
+         C'est le même geste que pour le greffon 8 : un outil de moins dans
+         la barre, une chose de plus à la bonne place.
+
+         Sa définition est laissée en commentaire — pas supprimée — pour que
+         la remettre soit un geste de dix secondes, et pour que la raison de
+         son absence soit lisible ici, là où on la cherchera.
+
+         ⚠ « enable-keyboard-shortcuts » ÉTAIT CE QUI FAISAIT MARCHER LES
+         TOUCHES DE VOLUME. Elles sont reprises dans
+         etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/
+         xfce4-keyboard-shortcuts.xml, par « lexos son … » — un seul moteur,
+         /usr/lib/lexos/son.py, partagé avec le volet et les Paramètres.
+         Et « show-notifications » aussi : « lexos son » affiche une bulle
+         avec un identifiant de remplacement, pour qu'elles ne s'empilent pas.
+
     <property name="plugin-6" type="string" value="pulseaudio">
       <property name="enable-keyboard-shortcuts" type="bool" value="true"/>
       <property name="show-notifications"        type="bool" value="true"/>
     </property>
+    -->
 
     <!-- 7 · Batterie / énergie -->
     <property name="plugin-7" type="string" value="power-manager-plugin"/>

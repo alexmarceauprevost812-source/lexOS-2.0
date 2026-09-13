@@ -64,8 +64,9 @@ Usage :
   $PROG sortie <n>         Choisir la sortie par défaut
   $PROG entrees            Lister les entrées (micros), numérotées
   $PROG entree <n>         Choisir l'entrée par défaut
+  $PROG micro              Activer / désactiver le micro ${D}(touche MicMute)${R}
   $PROG micro <0-150>      Régler le volume du micro
-  $PROG micro muet         Basculer le silence du micro
+  $PROG micro muet         Pareil que « $PROG micro » tout seul
   $PROG test               Jouer un son de test sur la sortie active
   $PROG effets             Ouvrir EasyEffects (égaliseur, réduction de bruit)
   $PROG melangeur          Ouvrir le mélangeur (volume par application)
@@ -334,6 +335,87 @@ muet_lire() {
 	esac
 }
 
+# =============================================================================
+#  LA BULLE — ce que le greffon du panneau affichait, et qu'il n'affiche plus
+# =============================================================================
+#  ALEX : « le volume, je veux qu'il s'en aille en haut du volet ». Le greffon
+#  « pulseaudio » a donc quitté la barre du haut (xfce4-panel.xml). Il portait
+#  « show-notifications=true » : monter le volume au clavier montrait une
+#  bulle. Sans lui, on appuie sur la touche et RIEN ne bouge à l'écran — le
+#  genre de silence qu'on lit comme « la touche ne marche pas ».
+#
+#  Les quatre touches (XF86AudioRaiseVolume, LowerVolume, Mute, MicMute)
+#  appellent maintenant « lexos son … ». C'est donc ici que la bulle doit
+#  être affichée — et NULLE PART AILLEURS, pour qu'un « lexos son 40 » tapé
+#  dans un terminal ne vienne pas clignoter par-dessus ce qu'on regarde.
+#
+#  ═══ L'IDENTIFIANT DE REMPLACEMENT ═══
+#  « --replace-id N » remplace la bulle N au lieu d'en ajouter une. Le numéro
+#  est arbitraire mais doit être STABLE d'un appel à l'autre : c'est lui, et
+#  rien d'autre, qui fait que dix appuis sur la touche donnent une bulle qui
+#  change et non une pile de dix. 4210 n'est employé nulle part ailleurs dans
+#  LexOS.
+#
+#  ═══ ELLE NE PEUT JAMAIS FAIRE ÉCHOUER LA COMMANDE ═══
+#  notify-send absent, pas de serveur de notifications, pas de session D-Bus :
+#  dans tous les cas on continue. Une bulle qui manque est un désagrément ; un
+#  raccourci clavier qui plante en est un autre.
+BULLE_ID="4210"
+
+bulle() { # bulle <titre> <texte> <icône>
+	[[ "${LEXOS_SON_BULLE:-1}" == "1" ]] || return 0
+	command -v notify-send >/dev/null 2>&1 || return 0
+	notify-send --replace-id "$BULLE_ID" --expire-time 1500 \
+		--icon "$3" -- "$1" "$2" >/dev/null 2>&1 || true
+	return 0
+}
+
+#  L'icône suit le niveau : le thème d'icônes en fournit quatre, et c'est ce
+#  qui permet de lire le volume d'un coup d'œil sans lire le chiffre.
+icone_volume() { # icone_volume <pourcentage> <muet: oui|non>
+	[[ "${2:-non}" == "oui" || "${1:-0}" -le 0 ]] && { printf 'audio-volume-muted'; return; }
+	if   (( $1 < 34 )); then printf 'audio-volume-low'
+	elif (( $1 < 67 )); then printf 'audio-volume-medium'
+	else                     printf 'audio-volume-high'
+	fi
+}
+
+#  ON RELIT LA MACHINE APRÈS COUP, on n'annonce pas ce qu'on croit avoir
+#  demandé — même raison que dans muet_basculer juste en dessous : c'est la
+#  seule façon d'être sûr de ce qu'entend l'utilisateur. Si le serveur audio a
+#  imposé sa limite, la bulle affiche SON chiffre.
+bulle_volume() {
+	local vol muet barre pleins
+	vol="$(vol_lire sortie)" || vol=""
+	muet="$(muet_lire sortie)" || muet="non"
+	if [[ -z "$vol" ]]; then
+		bulle "Son" "Indisponible — le serveur audio ne répond pas" "audio-volume-muted"
+		return 0
+	fi
+	if [[ "$muet" == "oui" ]]; then
+		bulle "Son coupé" "🔇" "audio-volume-muted"
+		return 0
+	fi
+	#  Une barre de vingt crans, plus le chiffre : la barre se lit d'un coup
+	#  d'œil, le chiffre répond quand on veut le savoir exactement.
+	pleins=$(( (vol > 100 ? 100 : vol) / 5 ))
+	barre=""
+	for ((i = 0; i < 20; i++)); do
+		if (( i < pleins )); then barre+="█"; else barre+="░"; fi
+	done
+	bulle "Volume" "${barre}  ${vol} %" "$(icone_volume "$vol" "$muet")"
+}
+
+bulle_micro() {
+	local muet
+	muet="$(muet_lire entree)" || muet=""
+	case "$muet" in
+		oui) bulle "Micro désactivé" "🚫🎤" "microphone-sensitivity-muted" ;;
+		non) bulle "Micro activé"    "🎤"   "microphone-sensitivity-high" ;;
+		*)   bulle "Micro" "Aucune entrée audio sur cette machine" "microphone-sensitivity-muted" ;;
+	esac
+}
+
 muet_basculer() {
 	local direction="$1" apres
 	case "$BACKEND" in
@@ -517,13 +599,20 @@ case "${1:-}" in
 		;;
 	# Formes courtes : « lexos-son +10 ». Placées après -h pour ne pas capturer
 	# les options.
+	#  CE SONT LES TOUCHES DU CLAVIER QUI PASSENT PAR ICI :
+	#  XF86AudioRaiseVolume -> « lexos son +5 », LowerVolume -> « lexos son -5 »
+	#  (xfce4-keyboard-shortcuts.xml). D'où la bulle : le greffon du panneau
+	#  l'affichait, il n'est plus là, et une touche qui ne montre rien passe
+	#  pour une touche morte.
 	+[0-9]*|-[0-9]*)
 		detecter_backend
 		volume_regler sortie "$1"
+		bulle_volume
 		;;
 	muet|mute|silence)
 		detecter_backend
 		muet_basculer sortie
+		bulle_volume
 		;;
 	sorties)
 		detecter_backend
@@ -547,12 +636,24 @@ case "${1:-}" in
 		;;
 	micro)
 		shift
-		[[ $# -ge 1 ]] || die "Il manque la valeur. Exemples : $PROG micro 80  |  $PROG micro muet"
 		detecter_backend
-		case "$1" in
-			muet|mute|silence) muet_basculer entree ;;
-			*)                 volume_regler entree "$1" ;;
-		esac
+		#  ═══ « lexos son micro » TOUT SEUL BASCULE ═══
+		#  ALEX : « pour le micro juste mettre activé ou désactivé ». C'est
+		#  aussi ce que fait la touche XF86AudioMicMute, qui appelle
+		#  exactement cette forme-là : elle n'a pas d'argument à donner.
+		#  Avant, la commande nue s'arrêtait sur « Il manque la valeur » — la
+		#  touche aurait donc affiché une erreur au lieu de couper le micro.
+		#  Les formes avec argument ne changent pas : « micro 80 » règle le
+		#  niveau, « micro muet » bascule comme avant.
+		if [[ $# -eq 0 ]]; then
+			muet_basculer entree
+			bulle_micro
+		else
+			case "$1" in
+				muet|mute|silence) muet_basculer entree; bulle_micro ;;
+				*)                 volume_regler entree "$1" ;;
+			esac
+		fi
 		;;
 	test)
 		detecter_backend

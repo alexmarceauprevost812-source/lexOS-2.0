@@ -184,5 +184,437 @@ else
 	non "le journal n'est plus tenu : remettre la cloche ne ramènerait rien"
 fi
 
+# =============================================================================
+titre "4. LE SON QUITTE LA BARRE — mais les touches du clavier, JAMAIS"
+# =============================================================================
+#  ALEX : « le volume, je veux qu'il s'en aille en haut du volet ».
+#
+#  ═══ CES DEUX CONTRÔLES VONT ENSEMBLE, ET C'EST TOUT LEUR INTÉRÊT ═══
+#  « enable-keyboard-shortcuts » du greffon 6 (pulseaudio) est ce qui faisait
+#  marcher les touches ↑ ↓ 🔇 du ThinkPad. Un greffon retiré du tableau
+#  « plugin-ids » n'est pas caché : il n'est plus CHARGÉ DU TOUT, et les
+#  touches deviennent mortes. Un banc qui vérifierait le retrait sans le
+#  remplacement VALIDERAIT LA PANNE — il serait vert le jour où les touches
+#  cessent de répondre. Les deux sont donc dans le même test.
+RACCOURCIS="$RACINE/config/includes.chroot/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml"
+
+#  Le tableau plugin-ids, sans les commentaires : un « 6 » cité dans une
+#  explication ne doit pas passer pour un greffon actif. C'est le piège du
+#  contrôle qui lit la prose, et ce fichier-ci en est plein.
+IDS="$(python3 - "$PANEL" <<'PYIDS'
+import sys, xml.etree.ElementTree as E
+a = E.parse(sys.argv[1]).getroot()
+for p in a.iter("property"):
+    if p.get("name") == "plugin-ids":
+        print(" ".join(v.get("value") for v in p.findall("value")))
+        break
+PYIDS
+)"
+if [[ -z "$IDS" ]]; then
+	non "le tableau plugin-ids n'a pas pu être lu : rien n'est mesuré ici"
+elif grep -qw 6 <<< "$IDS"; then
+	non "le greffon 6 (pulseaudio) est ENCORE dans la barre : plugin-ids = $IDS"
+else
+	ok "le greffon 6 (pulseaudio) a quitté la barre — le volume est dans le volet"
+fi
+
+#  …ET LES QUATRE TOUCHES SONT REPRISES. Sans elles, le retrait ci-dessus est
+#  une régression, pas une amélioration.
+MANQUE=""
+for T in XF86AudioRaiseVolume XF86AudioLowerVolume XF86AudioMute XF86AudioMicMute; do
+	grep -q "name=\"$T\"" "$RACCOURCIS" || MANQUE="$MANQUE $T"
+done
+if [[ -z "$MANQUE" ]]; then
+	ok "les quatre touches de volume sont reprises dans xfce4-keyboard-shortcuts.xml"
+else
+	non "touches PERDUES avec le greffon 6 :$MANQUE — elles ne répondraient plus"
+fi
+
+#  Elles doivent appeler « lexos son », pas du pactl écrit en dur : le moteur
+#  du son reste à un seul endroit.
+if grep -E 'name="XF86Audio' "$RACCOURCIS" | grep -qv 'value="lexos son'; then
+	non "une touche de volume n'appelle pas « lexos son » : $(grep -E 'name="XF86Audio' "$RACCOURCIS" | grep -v 'value="lexos son')"
+else
+	ok "…et toutes appellent « lexos son », pas du pactl écrit dans le XML"
+fi
+
+#  ═══ ET LES VERBES APPELÉS EXISTENT VRAIMENT DANS lexos-son ═══
+#  Premier jet de ce banc : il vérifiait que les touches appellent « lexos
+#  son … » et s'arrêtait là. Il était vert avec « lexos son plus », un verbe
+#  QUI N'EXISTE PAS — lexos-son ne connaît que « +5 », « muet », « micro ».
+#  Un raccourci qui appelle un verbe inconnu affiche « Commande inconnue » et
+#  ne change pas le volume : exactement la panne qu'on prétendait éviter.
+SON="$RACINE/config/includes.chroot/usr/bin/lexos-son"
+for T in XF86AudioRaiseVolume XF86AudioLowerVolume XF86AudioMute XF86AudioMicMute; do
+	V="$(sed -n "s/.*name=\"$T\"[^>]*value=\"lexos son \([^\"]*\)\".*/\1/p" "$RACCOURCIS" | head -1)"
+	[[ -n "$V" ]] || { non "$T : aucune valeur « lexos son … » lue"; continue; }
+	if NO_COLOR=1 LEXOS_SON_BULLE=0 bash "$SON" $V </dev/null 2>&1 | grep -q "Commande inconnue"; then
+		non "$T appelle « lexos son $V », que lexos-son ne connaît pas"
+	else
+		ok "$T -> « lexos son $V » : un verbe que lexos-son connaît"
+	fi
+done
+
+#  La bulle : le greffon avait « show-notifications=true ». Sans elle, monter
+#  le volume au clavier ne montre plus rien, et on lit ça comme une touche
+#  morte. On exige l'identifiant de REMPLACEMENT : sans lui, dix appuis
+#  empileraient dix bulles.
+if grep -q 'replace-id' "$SON"; then
+	ok "lexos-son affiche une bulle avec un identifiant de remplacement (pas dix bulles empilées)"
+else
+	non "aucune bulle dans lexos-son : monter le volume au clavier ne montrerait rien"
+fi
+
+#  La définition du greffon reste, commentée, avec sa raison — comme pour le
+#  greffon 8. Ce dépôt explique ses retraits.
+if grep -q 'plugin-6.*pulseaudio' "$PANEL"; then
+	ok "la définition du greffon 6 reste dans le fichier, pour qu'on sache pourquoi elle n'est plus active"
+else
+	non "la définition du greffon 6 a été SUPPRIMÉE : la raison de son absence n'est plus lisible"
+fi
+
+# =============================================================================
+titre "5. LE BANDEAU DE SON DANS LE VOLET — et « indisponible » plutôt qu'un faux"
+# =============================================================================
+VOLET_APP="$RACINE/config/includes.chroot/usr/share/lexos/volet/web/app.js"
+VOLET_PY="$RACINE/config/includes.chroot/usr/lib/lexos/volet.py"
+SETTINGS_PY="$RACINE/config/includes.chroot/usr/lib/lexos/settings.py"
+SON_PY="$RACINE/config/includes.chroot/usr/lib/lexos/son.py"
+
+[[ -r "$SON_PY" ]] \
+	&& ok "le module partagé /usr/lib/lexos/son.py existe" \
+	|| non "son.py manque : le volet et les Paramètres auraient deux moteurs"
+
+#  ═══ UN SEUL ENDROIT OÙ pactl EST APPELÉ POUR LE VOLUME ═══
+#  C'est la raison d'être du module. Ce contrôle échoue le jour où quelqu'un
+#  recopie un « pactl set-sink-volume » dans l'une des deux pages.
+for F in "$VOLET_PY" "$SETTINGS_PY"; do
+	if grep -q 'set-sink-volume\|set-sink-mute\|set-source-mute' "$F"; then
+		non "$(basename "$F") appelle pactl en direct : deux moteurs pour un réglage"
+	else
+		ok "$(basename "$F") ne contient aucun appel pactl : tout passe par son.py"
+	fi
+done
+grep -q 'import son' "$VOLET_PY" && grep -q 'import son' "$SETTINGS_PY" \
+	&& ok "…et les deux importent bien le module partagé" \
+	|| non "l'un des deux n'importe pas son.py"
+
+#  ═══ LE VOLUME EST BORNÉ — 0-100, JAMAIS AU-DELÀ ═══
+#  Un « 400 » venu de la page monterait le gain bien au-delà du niveau du
+#  matériel : distorsion, et de quoi abîmer un haut-parleur. On FAIT TOURNER
+#  le module avec un faux exécuteur qui note ce qui partirait à pactl.
+BORNE="$(python3 - "$SON_PY" <<'PYB'
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("son", sys.argv[1])
+son = importlib.util.module_from_spec(spec); spec.loader.exec_module(son)
+vus = []
+son._run = lambda argv: (vus.append(argv[-1]), {"ok": True})[1]
+son.disponible = lambda: True
+for v in (-20, 250, 400, 0, 100, 55, "70"):
+    son.regle_volume(v)
+print(" ".join(vus))
+PYB
+)"
+MAUVAIS=""
+for V in $BORNE; do
+	N="${V%\%}"
+	case "$N" in ''|*[!0-9]*) MAUVAIS="$MAUVAIS $V"; continue ;; esac
+	{ [ "$N" -ge 0 ] && [ "$N" -le 100 ]; } || MAUVAIS="$MAUVAIS $V"
+done
+if [[ -z "$BORNE" ]]; then
+	non "le module n'a produit aucun appel : la borne n'est pas mesurée"
+elif [[ -z "$MAUVAIS" ]]; then
+	ok "volume borné : -20, 250 et 400 donnent des appels dans 0-100 ($BORNE)"
+else
+	non "des appels pactl SORTENT de 0-100 :$MAUVAIS (tous : $BORNE)"
+fi
+
+#  ═══ pactl ABSENT : LE BANDEAU DISPARAÎT, IL N'EST PAS CASSÉ ═══
+#  Une saveur sans PulseAudio ne doit pas montrer un curseur qui ne fait
+#  rien. « volume: -1 » est la façon de dire INDISPONIBLE, et app.js doit
+#  rendre une chaîne VIDE dans ce cas — mesuré en exécutant sonHTML().
+SANS="$(python3 - "$SON_PY" <<'PYS'
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("son", sys.argv[1])
+son = importlib.util.module_from_spec(spec); spec.loader.exec_module(son)
+son.shutil.which = lambda n: None          # pactl introuvable
+print(son.etat())
+PYS
+)"
+grep -q "'volume': -1" <<< "$SANS" && grep -q "'micro': None" <<< "$SANS" \
+	&& ok "sans pactl : volume -1 et micro None — « indisponible », pas un zéro inventé" \
+	|| non "sans pactl, le module rend : $SANS"
+
+if command -v node >/dev/null 2>&1; then
+	#  ═══ ON FAIT TOURNER LE VRAI sonHTML(), ON NE LE RELIT PAS ═══
+	#  Le fichier est un script de navigateur : il n'exporte rien et appelle
+	#  « fetch » au chargement. On le charge donc dans un contexte node où
+	#  les deux seules choses dont sonHTML() a besoin — « esc » et « etat » —
+	#  sont posées d'avance, et où tout le reste est inoffensif.
+	#  PREMIER JET : un « eval » sur un morceau découpé à l'expression
+	#  régulière. Il ne s'accrochait plus dès que le code bougeait d'une
+	#  ligne, et le contrôle rendait « ERREUR » — un rouge qui n'accusait
+	#  rien. On charge le fichier ENTIER, dans une vraie sandbox.
+	rendu_son() { # rendu_son <volume> <muet> <micro: true|false|null>
+		node - "$VOLET_APP" "$1" "$2" "$3" <<'PYNODE' 2>/dev/null || echo ERREUR
+const fs = require("fs"), vm = require("vm");
+const [, , fichier, vol, muet, micro] = process.argv;
+const bac = {
+  //  fetch et les minuteurs ne doivent RIEN faire : la page en appelle au
+  //  chargement, et on ne mesure ici que le rendu.
+  fetch: () => new Promise(() => {}),
+  setTimeout: () => 0, clearTimeout: () => {}, requestAnimationFrame: () => {},
+  addEventListener: () => {}, console,
+  document: { getElementById: () => null, documentElement: { dataset: {} } },
+  location: { hash: "#rapides" },
+};
+bac.window = bac; bac.globalThis = bac;
+vm.createContext(bac);
+vm.runInContext(fs.readFileSync(fichier, "utf8"), bac);
+//  ═══ « etat » EST UN « let », PAS UNE PROPRIÉTÉ DU GLOBAL ═══
+//  Premier jet : « bac.etat = {…} » depuis l'extérieur. Une déclaration
+//  « let » au premier niveau vit dans la portée lexicale du contexte, PAS
+//  sur l'objet global : l'affectation créait une deuxième variable que
+//  sonHTML() ne voyait pas, et la fonction rendait "" à tous les coups.
+//  Le contrôle « sans pactl, le bandeau disparaît » était donc VERT SANS
+//  RIEN MESURER — il l'aurait été avec n'importe quel volume. On affecte
+//  maintenant DANS le contexte, où le « let » est visible.
+const m = micro === "null" ? "null" : (micro === "true" ? "true" : "false");
+const r = vm.runInContext(
+  `etat = { rapides: { volume: ${Number(vol)}, muet: ${muet === "true"}, micro: ${m} } }; sonHTML();`,
+  bac);
+process.stdout.write(JSON.stringify(r));
+PYNODE
+	}
+	#  ═══ LE HARNAIS PROUVE D'ABORD QU'IL SAIT RENDRE QUELQUE CHOSE ═══
+	#  Sans ce contrôle-ci, « le bandeau disparaît quand volume vaut -1 » est
+	#  vert aussi bien quand la règle marche que quand le harnais est cassé.
+	#  C'est très exactement le faux vert qu'on vient de corriger.
+	TEMOIN="$(rendu_son 40 false false)"
+	if grep -q 'qs-son-curseur' <<< "$TEMOIN"; then
+		ok "le harnais rend bien le bandeau sur un cas normal — les contrôles qui suivent mesurent quelque chose"
+	else
+		non "le harnais ne rend RIEN sur un cas normal ($TEMOIN) : tout ce qui suit serait un faux vert"
+	fi
+	VIDE="$(rendu_son -1 false null)"
+	if [[ "$VIDE" == '""' ]]; then
+		ok "app.js : avec volume -1, sonHTML() rend une chaîne VIDE — pas de curseur mort"
+	elif [[ "$VIDE" == "ERREUR" ]]; then
+		non "app.js : sonHTML() n'a pas pu être exécuté — le rendu n'est PAS mesuré"
+	else
+		non "app.js : sans serveur de son, sonHTML() rend quand même quelque chose ($VIDE)"
+	fi
+	#  Avec un micro absent, c'est le BOUTON MICRO qui disparaît — pas le
+	#  bandeau entier. Même raisonnement que la tuile Bluetooth « Absent ».
+	SANS_MIC="$(rendu_son 40 false null)"
+	AVEC_MIC="$(rendu_son 40 false true)"
+	if [[ "$SANS_MIC" == "ERREUR" || "$AVEC_MIC" == "ERREUR" ]]; then
+		non "le rendu avec micro n'a pas pu être exécuté"
+	elif grep -q 'qs-son-curseur' <<< "$SANS_MIC" && ! grep -q 'qs-son-micro' <<< "$SANS_MIC" \
+	     && grep -q 'qs-son-micro' <<< "$AVEC_MIC"; then
+		ok "…et sans micro, seul le bouton micro disparaît — le curseur reste"
+	else
+		non "le bouton micro ne suit pas l'état « absent »"
+	fi
+	#  ═══ L'ICÔNE SUIT LE NIVEAU, ET LE MUET GAGNE SUR TOUT ═══
+	#  Trois dessins (muet / bas / haut) : c'est ce qui permet de lire l'état
+	#  sans lire le chiffre. Le cas qui compte est « muet à 80 % » : l'icône
+	#  doit dire coupé, pas fort.
+	I_BAS="$(rendu_son 20 false false)"
+	I_HAUT="$(rendu_son 80 false false)"
+	I_MUET="$(rendu_son 80 true false)"
+	if grep -q '🔉' <<< "$I_BAS" && grep -q '🔊' <<< "$I_HAUT" && grep -q '🔇' <<< "$I_MUET"; then
+		ok "l'icône suit le niveau (🔉 à 20 %, 🔊 à 80 %) et le MUET l'emporte (🔇 même à 80 %)"
+	else
+		non "l'icône du haut-parleur ne suit pas l'état"
+	fi
+	#  Et le curseur affiché tombe à 0 quand c'est coupé : montrer 80 % sur
+	#  un son muet est une valeur juste qui raconte une chose fausse.
+	#  Le rendu revient en JSON, donc les guillemets y sont échappés :
+	#  « value=\"0\" » et non « value="0" ». Écrit sans ça, ce contrôle
+	#  cherchait un motif qui ne pouvait PAS exister et rougissait sur du
+	#  code juste — un faux rouge coûte autant qu'un faux vert, il envoie
+	#  réparer ce qui n'est pas cassé.
+	grep -q 'value=\\"0\\"' <<< "$I_MUET" \
+		&& ok "…et le curseur retombe à 0 quand le son est coupé (montrer 80 % sur un son muet serait une valeur juste qui raconte une chose fausse)" \
+		|| non "le curseur affiche encore le niveau alors que le son est coupé : $I_MUET"
+else
+	printf '  \033[33m—\033[0m  node absent : le rendu de sonHTML() n'\''est PAS mesuré\n'
+fi
+
+#  Les trois actions existent côté Python.
+for A in rapides-volume rapides-muet rapides-micro; do
+	grep -q "\"$A\"" "$VOLET_PY" \
+		&& ok "l'action « $A » est enregistrée dans ACTIONS" \
+		|| non "l'action « $A » manque dans ACTIONS : le bandeau ne ferait rien"
+done
+
+#  L'étranglement : un <input type="range"> émet un événement par pixel.
+grep -q 'SON_ETRANGLE' "$VOLET_APP" && grep -qE 'SON_ETRANGLE *= *[0-9]+' "$VOLET_APP" \
+	&& ok "le curseur est étranglé (un appel toutes les ~80 ms), pas un pactl par pixel" \
+	|| non "aucun étranglement du curseur : pactl serait appelé soixante fois par seconde"
+grep -q 'clearTimeout(sonMinuteur)' "$VOLET_APP" \
+	&& ok "…et le minuteur en attente est ANNULÉ au relâchement (sinon une valeur périmée écraserait la bonne)" \
+	|| non "le minuteur n'est pas annulé au relâchement : une valeur périmée peut arriver après la finale"
+
+# =============================================================================
+titre "6. L'APPAREIL PHOTO — trois modes, et le volet parti avant la photo"
+# =============================================================================
+#  ALEX : « quand on va cliquer sur appareil photo il va apparaître le menu » —
+#  écran complet, une partie, et à côté vidéo.
+CAPTURE="$RACINE/config/includes.chroot/usr/bin/lexos-capture"
+grep -q 'qsTileHTML("photo"' "$VOLET_APP" \
+	&& ok "la tuile « appareil photo » est dans la grille" \
+	|| non "aucune tuile appareil photo dans le volet"
+for M in plein zone video; do
+	grep -q "photoLance('$M')" "$VOLET_APP" \
+		&& ok "le choix « $M » est proposé" \
+		|| non "le mode « $M » manque dans le choix"
+done
+
+#  ═══ LES TROIS MODES DOIVENT ÊTRE ACCEPTÉS PAR lexos-capture ═══
+#  Un bouton qui appelle un mode inconnu meurt sur « Commande inconnue ».
+for M in plein zone video; do
+	grep -qE "^\s+[^)]*\b$M\b[^)]*\)" "$CAPTURE" \
+		&& ok "lexos-capture connaît le mode « $M »" \
+		|| non "lexos-capture ne connaît pas « $M » : le bouton ne ferait rien"
+done
+
+#  ═══ start_new_session=True EST OBLIGATOIRE ═══
+#  Le commentaire du dépôt le dit déjà pour act_rapides_partage : « le volet
+#  doit pouvoir se refermer sans l'emporter ». Un enfant dans le même groupe
+#  de processus mourrait avec le volet — donc PAS DE CAPTURE DU TOUT.
+BLOC_PHOTO="$(sed -n '/^def act_rapides_photo/,/^def /p' "$VOLET_PY")"
+grep -q 'start_new_session=True' <<< "$BLOC_PHOTO" \
+	&& ok "act_rapides_photo lance lexos-capture en start_new_session : la capture survit à la fermeture du volet" \
+	|| non "start_new_session manque : la capture mourrait avec le volet"
+grep -q 'lexos-capture' <<< "$BLOC_PHOTO" \
+	&& ok "…et c'est bien lexos-capture qui est appelé, pas un outil réécrit" \
+	|| non "act_rapides_photo n'appelle pas lexos-capture"
+
+#  ═══ LE MODE EST VALIDÉ CONTRE UN ENSEMBLE FERMÉ ═══
+#  La doctrine du fichier : « les arguments sont validés contre des ensembles
+#  fermés ». On le MESURE en appelant l'action avec une valeur inventée.
+REFUS="$(python3 - "$VOLET_PY" <<'PYR'
+import sys, re
+src = open(sys.argv[1], encoding="utf-8").read()
+#  On n'exécute que le bloc de l'action et sa table, sans le reste du module
+#  (qui importerait PySide6). C'est le code réel, découpé.
+bloc = re.search(r"CAPTURE_MODES = .*?\n\n\ndef act_rapides_photo.*?\n\n", src, re.S)
+ns = {"shutil": __import__("shutil"), "subprocess": __import__("subprocess")}
+exec(bloc.group(0), ns)
+print(ns["act_rapides_photo"]("rm -rf"), ns["act_rapides_photo"](None))
+PYR
+)"
+grep -q "inattendu" <<< "$REFUS" \
+	&& ok "un mode inventé est REFUSÉ (ensemble fermé), pas transmis à un shell" \
+	|| non "un mode inventé n'est pas refusé : $REFUS"
+
+#  ═══ LE DÉLAI : SANS LUI, LE VOLET EST SUR LA PHOTO ═══
+grep -q '"--delai"' "$VOLET_PY" \
+	&& ok "un délai est passé à lexos-capture : la photo attend que le volet s'éteigne" \
+	|| non "aucun délai : la capture prendrait le volet en photo"
+grep -q 'DELAI_CAPTURE' "$CAPTURE" \
+	&& ok "lexos-capture sait tenir ce délai (option --delai)" \
+	|| non "lexos-capture n'a pas d'option --delai : le délai serait ignoré"
+#  Le délai ne doit PAS changer le comportement des autres portes d'entrée.
+DEF="$(sed -n 's/^DELAI_CAPTURE=\([0-9]*\)$/\1/p' "$CAPTURE" | head -1)"
+[[ "$DEF" == "0" ]] \
+	&& ok "…et il vaut 0 par défaut : touche Impr écr et lanceurs de la barre inchangés" \
+	|| non "le délai par défaut vaut « $DEF » : toutes les captures attendraient"
+#  Et le volet se ferme APRÈS avoir demandé l'action, pas avant.
+grep -A2 "await api(\"rapides-photo\"" "$VOLET_APP" | grep -q 'window.close()' \
+	&& ok "le volet se ferme APRÈS avoir lancé la capture (l'ordre compte)" \
+	|| non "le volet ne se ferme pas après la demande de capture"
+
+# =============================================================================
+titre "7. L'ANIMATION DU VOLET — la règle picom, et son ordre"
+# =============================================================================
+#  ALEX : « qu'il ouvre fluidement, et se ferme avec l'animation de vieille
+#  télévision ». picom applique la PREMIÈRE règle qui correspond et s'arrête
+#  là (manuel, section RULES). Le volet est en Qt.Tool, donc
+#  _NET_WM_WINDOW_TYPE_UTILITY : il tombait dans la règle générique qui
+#  attrape « utility », et recevait son fondu de 80 ms.
+#  L'ORDRE N'EST PAS UNE PRÉFÉRENCE DE LECTURE : c'est ce qui fait marcher la
+#  chose. Ce contrôle porte sur les NUMÉROS DE LIGNE des deux « match », et
+#  rien d'autre ne protégerait la règle d'un déplacement futur.
+TV="$RACINE/config/includes.chroot/usr/share/lexos/picom/lexos-tv.conf"
+#  ═══ ON LIT LES LIGNES DE CODE, JAMAIS LES COMMENTAIRES ═══
+#  Écrit d'abord avec un simple grep sur « window_type = 'utility' ». Il
+#  tombait sur le COMMENTAIRE de la règle du volet — qui cite la règle
+#  générique pour expliquer pourquoi il faut passer avant elle — et
+#  annonçait donc que la règle venait après elle-même. Le contrôle se
+#  déclenchait sur sa propre justification, exactement le piège que ce
+#  dépôt a déjà payé ailleurs. On n'accepte que les lignes qui COMMENCENT
+#  par « match = » (après l'indentation) : ce sont les seules qui comptent
+#  pour picom.
+L_VOLET="$(grep -nE "^[[:space:]]*match = \"name = 'Volet LexOS'\"" "$TV" | cut -d: -f1 | head -1)"
+L_GENERIQUE="$(grep -nE "^[[:space:]]*match = \"window_type .*utility" "$TV" | cut -d: -f1 | head -1)"
+if [[ -z "$L_VOLET" ]]; then
+	non "aucune règle picom pour le volet : il garderait le fondu court des menus"
+elif [[ -z "$L_GENERIQUE" ]]; then
+	non "la règle générique « utility » est introuvable : l'ordre n'est pas mesuré"
+elif (( L_VOLET < L_GENERIQUE )); then
+	ok "la règle du volet (ligne $L_VOLET) précède la générique (ligne $L_GENERIQUE)"
+else
+	non "la règle du volet (ligne $L_VOLET) vient APRÈS la générique (ligne $L_GENERIQUE) : elle ne serait jamais atteinte"
+fi
+
+#  ═══ LE SÉLECTEUR EST LE MÊME DES DEUX CÔTÉS ═══
+#  La règle matche « name = 'Volet LexOS' », et volet.py POSE ce titre. Une
+#  règle accrochée à une valeur que Qt déduirait se décrocherait en silence à
+#  la prochaine version. Les deux chaînes doivent rester identiques.
+grep -q 'setWindowTitle("Volet LexOS")' "$VOLET_PY" \
+	&& ok "volet.py pose lui-même le titre « Volet LexOS » que la règle picom attend" \
+	|| non "volet.py ne pose pas ce titre : la règle picom ne s'accrocherait à rien"
+
+#  ═══ LE BLOC « close » EST COMPLET ═══
+#  Chacune de ces quatre lignes corrige un piège documenté en tête de
+#  lexos-tv.conf. Un bloc « close » qui n'aurait que scale-y donnerait une
+#  fenêtre qui s'écrase vers son coin, sans ligne, et invisible dès la
+#  première image.
+BLOC_TV="$(sed -n "${L_VOLET},/^	},$/p" "$TV")"
+MANQUE_TV=""
+for C in 'offset-x' 'offset-y' 'shadow-opacity' 'scale-y' 'scale-x'; do
+	grep -q "$C" <<< "$BLOC_TV" || MANQUE_TV="$MANQUE_TV $C"
+done
+[[ -z "$MANQUE_TV" ]] \
+	&& ok "le bloc « close » du volet porte scale-x/y, offset-x/y et shadow-opacity" \
+	|| non "il manque dans le bloc « close » du volet :$MANQUE_TV"
+#  L'opacité RETARDÉE : sans le delay, la fenêtre serait invisible dès la
+#  première image et l'écrasement ne se verrait jamais.
+grep -Pzoq 'opacity = \{[^}]*delay = 0\.24' <<< "$BLOC_TV" \
+	&& ok "…et son opacité est RETARDÉE (delay 0,24 s) : l'écrasement a le temps de se voir" \
+	|| non "l'opacité du volet n'est pas retardée : la fenêtre disparaîtrait avant de s'écraser"
+
+#  ═══ L'OUVERTURE N'EST PAS L'ALLUMAGE TÉLÉ ═══
+#  La page a DÉJÀ son animation d'ouverture (.shade, 0,34 s). Si picom étirait
+#  en plus la fenêtre, les deux gestes se superposeraient.
+BLOC_OPEN="$(sed -n "${L_VOLET},${L_GENERIQUE}p" "$TV" | sed -n '/triggers = \[ "open" \]/,/},/p')"
+if grep -qE 'scale-x|scale-y' <<< "$BLOC_OPEN"; then
+	non "l'OUVERTURE du volet étire la fenêtre : elle se superposerait à l'animation CSS de .shade"
+else
+	ok "l'ouverture n'est qu'un fondu court — une seule animation d'ouverture, celle du CSS"
+fi
+
+#  ═══ ET LE CSS N'ANIME PLUS max-height ═══
+#  Animer une hauteur force le navigateur à refaire la mise en page à chaque
+#  image ; transform et opacity ne coûtent presque rien. C'est la correction
+#  qui se voit sur une machine à graphiques Intel — le ThinkPad.
+CSS="$RACINE/config/includes.chroot/usr/share/lexos/volet/web/style.css"
+SHADE="$(sed -n '/^\.shade{/,/^\.shade\.on{/p' "$CSS")"
+TRANS="$(sed -n '/transition:/,/;/p' <<< "$SHADE")"
+if grep -q 'max-height' <<< "$TRANS"; then
+	non "max-height est encore dans la transition de .shade : le dépliage saccade"
+else
+	ok ".shade n'anime plus max-height — transform et opacity seulement"
+fi
+grep -q 'transform-origin:top center' <<< "$SHADE" \
+	&& ok "…et l'origine du scaleY est bien en haut (sinon le volet se déplierait par le milieu)" \
+	|| non "transform-origin n'est plus en haut : le volet ne se déplierait pas depuis la barre"
+grep -q 'prefers-reduced-motion' "$CSS" \
+	&& ok "le réglage « moins d'animations » du système est toujours respecté" \
+	|| non "prefers-reduced-motion a disparu du CSS"
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$reussis" "$echoues"
 [[ "$echoues" -eq 0 ]]

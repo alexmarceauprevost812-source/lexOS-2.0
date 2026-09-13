@@ -246,9 +246,13 @@ ${B}CLAVIER${R}
 
 ${B}SON${R}
   ${A}son${R}                 Sortie, entrée, volume, muet
+  ${A}son +5${R} ${D}/${R} ${A}son -5${R}     Monter / baisser de 5 %  ${D}(les touches du clavier)${R}
+  ${A}son muet${R}            Couper ou rétablir le son
+  ${A}son micro${R}           Activer ou désactiver le micro
   ${A}son sortie${R} <n>      Choisir le haut-parleur ou le casque
   ${A}son test${R}            Vérifier gauche et droite
   ${A}son melangeur${R}       Le volume application par application ${D}(fenêtre)${R}
+  ${D}Le volume est aussi en haut du volet « ▲ », avec le micro à côté.${R}
 
 ${B}ACCESSIBILITÉ${R}
   ${A}access${R}              Ce qui est actif : voix, loupe, contraste
