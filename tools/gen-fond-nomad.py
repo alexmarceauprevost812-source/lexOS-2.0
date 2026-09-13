@@ -79,7 +79,25 @@ REGLE_L = 690
 #  « var(--ac) », le nom CSS de l'accent : librsvg a refusé le fichier tout
 #  entier (« Comment must not contain double-hyphen »). Le garde-fou ci-dessous
 #  attrape le cas au lieu d'écrire un SVG que personne ne peut lire.
+#  ═══ LA BALISE <svg> VIENT AVANT LE COMMENTAIRE, ET C'EST OBLIGATOIRE ═══
+#  gdk-pixbuf ne renifle que les ~256 premiers octets pour deviner le format
+#  d'un fichier. Un en-tête de commentaire posé DEVANT « <svg » l'en empêche,
+#  et il refuse le fichier : « Couldn't recognize the image file format ».
+#  rsvg-convert, lui, le rend sans broncher — d'où un défaut invisible à la
+#  construction, et visible seulement le jour où GTK doit lire le SVG.
+#  Le commentaire, lui, ne perd rien : il vit maintenant À L'INTÉRIEUR de
+#  l'élément, ce qui est du XML parfaitement valide.
+#
+#  CE SCRIPT-CI A ÉTÉ LE DERNIER CORRIGÉ, ET LE PLUS IMPORTANT. Les 41 autres
+#  dessins sont tenus à la main : les corriger suffit. Celui-ci est FABRIQUÉ —
+#  corriger le fichier livré sans corriger le script aurait laissé une bombe
+#  à retardement : la prochaine régénération aurait remis l'ancienne forme,
+#  en silence. Le banc test_lexos_fond_nomad.sh (section 3) compare les deux
+#  et c'est lui qui l'a attrapé.
 svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="{L}" height="{H}"
+     viewBox="0 0 {L} {H}" role="img"
+     aria-label="LexOS — TI·LEX·AL 2.0.0 Nomad">
 <!--
   LexOS — fond d'écran « Nomad » : le bureau de la démo web, en image.
   ══════════════════════════════════════════════════════════════════════════
@@ -116,9 +134,6 @@ svg = f'''<?xml version="1.0" encoding="UTF-8"?>
 
   Fabriqué par tools/gen-fond-nomad.py — modifier le script, pas ce fichier.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="{L}" height="{H}"
-     viewBox="0 0 {L} {H}" role="img"
-     aria-label="LexOS — TI·LEX·AL 2.0.0 Nomad">
   <defs>
     <!--  La braise : « radial-gradient(60% 45% at 50% 55%, …, transparent 70%) ».
           En SVG, le rayon se donne en fraction de la boîte : 0.60 et 0.45. -->

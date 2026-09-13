@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"
+     viewBox="0 0 640 480" role="img" aria-label="LexOS boot">
 <!-- =========================================================================
      LexOS — fond du menu de démarrage BIOS (isolinux / vesamenu.c32)
      =========================================================================
@@ -23,8 +25,6 @@
      exactement ce qui faisait apparaître le casque jaune « Debian
      GNU/Linux 13 (trixie) » à la place du visuel LexOS.
      ========================================================================= -->
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"
-     viewBox="0 0 640 480" role="img" aria-label="LexOS boot">
   <defs>
     <radialGradient id="halo" cx="0.5" cy="0.28" r="0.62">
       <stop offset="0%"   stop-color="#3a1a08"/>

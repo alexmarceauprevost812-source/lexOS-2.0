@@ -233,7 +233,14 @@ titre "5. TOUT SVG DU DÉPÔT EST RECONNU COMME UNE IMAGE — pas seulement le t
 #  D'où deux chiffres différents plus bas, et ils sont justes tous les deux :
 #  61 fichiers réguliers pour la FORME, 83 entrées pour le CHARGEMENT (qui
 #  suit les liens, comme GTK le fera).
-SVG_TOUS="$(cd "$RACINE" && find . -name '*.svg' -type f -not -path './.git/*' | sort)"
+#  ═══ « *.svg.in » AUSSI : UNE EXCEPTION SE PÉRIME ═══
+#  Écrit d'abord avec « -name '*.svg' » seulement. Il ratait
+#  config/bootloaders/isolinux/splash.svg.in — le fond du menu de démarrage
+#  BIOS, un GABARIT que le hook 0905 passe à rsvg-convert. Personne ne le
+#  charge par gdk-pixbuf aujourd'hui, donc le risque était nul — mais un
+#  balayage qui s'annonce complet et qui a un trou est pire qu'un balayage
+#  qui dit sa portée. On le prend, et il n'y a plus d'exception du tout.
+SVG_TOUS="$(cd "$RACINE" && find . \( -name '*.svg' -o -name '*.svg.in' \) -type f -not -path './.git/*' | sort)"
 NB_SVG="$(printf '%s\n' "$SVG_TOUS" | grep -c . || true)"
 if [ "${NB_SVG:-0}" -lt 10 ]; then
 	non "seulement ${NB_SVG} SVG trouvés dans le dépôt — le balayage n'a pas eu lieu"
