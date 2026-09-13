@@ -2955,6 +2955,24 @@ jobs:
           #  fonctions disent bien que les outils manquent.
           bash tests/test_lexos_moteur_outils.sh
 
+      - name: Un seul serveur local, une seule fenêtre
+        if: ${{ !cancelled() }}
+        run: |
+          #  Compté avant : la classe « Handler » existait en SIX exemplaires
+          #  et la fenêtre Qt en six aussi. Quatre des Handlers avaient
+          #  rigoureusement la même charpente, recopiée avec de petites
+          #  divergences — « ensure_ascii » ici et pas là, un
+          #  « Cache-Control » chez un seul, un plafond de corps chez un seul.
+          #
+          #  Ce banc MONTE chaque serveur sur un port réel et lui PARLE : un
+          #  « class Handler hérite de Service » vérifié au texte serait vert
+          #  même si la fusion avait cassé /api/action — et c'est exactement
+          #  ce qu'une fusion casse. Il a d'ailleurs trouvé un faux vert que
+          #  j'avais laissé à l'étape d'avant : parse_qs JETTE les valeurs
+          #  vides, donc « ?cles= » retombait sur l'état complet pendant que
+          #  le grep du banc voisin voyait la bonne ligne et disait vert.
+          bash tests/test_lexos_moteur_service.sh
+
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}
         run: |

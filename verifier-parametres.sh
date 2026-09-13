@@ -354,7 +354,11 @@ for f in "$SET_PY" "$SET_JS" "$DEMO"; do
     #  qui apprend à ignorer les rouges. On retire la CLASSE entière plutôt
     #  que d'allonger la liste : ce qui est écrit dans « name= » ou
     #  « thread_name_prefix= » ne sera jamais exécuté.
-  done < <(sed -E 's/thread_name_prefix[[:space:]]*=[[:space:]]*"[^"]*"//g; s/\bname[[:space:]]*=[[:space:]]*"lexos-[^"]*"//g' "$f" \
+    #  Le serveur local est monté par moteur/service.servir(), à qui le
+    #  module passe « nom_fil="lexos-…-http" ». C'est la MÊME classe que
+    #  « name= » : une chaîne qui ne sera jamais exécutée. On l'ajoute donc
+    #  au dépouillement, pas à la liste des faux amis.
+  done < <(sed -E 's/thread_name_prefix[[:space:]]*=[[:space:]]*"[^"]*"//g; s/\bname[[:space:]]*=[[:space:]]*"lexos-[^"]*"//g; s/\bnom_fil[[:space:]]*=[[:space:]]*"lexos-[^"]*"//g' "$f" \
              | grep -ohE 'lexos-[a-z0-9-]+' | sort -u)
 done
 [ "$TROUVE" = 0 ] && ok "aucune section ne pointe vers un outil inexistant"

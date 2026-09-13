@@ -50,6 +50,8 @@ from pathlib import Path
 #  et l'oublie sur demande — après une installation, notamment.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from moteur import outils as _outils  # noqa: E402
+from moteur import service as _service  # noqa: E402
+from moteur import fenetre as _fenetre  # noqa: E402
 
 APP_NAME = "IA locale — LexOS"
 BASE_DIR = Path(os.environ.get("LEXOS_IA_DIR", "/usr/share/lexos/ia"))
@@ -746,40 +748,17 @@ def _flux_llama(question, ecrire):
 #  Le pont HTTP
 # =============================================================================
 
-class Handler(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, fmt, *args):
-        pass
-
-    def _json(self, code, donnees):
-        corps = json.dumps(donnees, ensure_ascii=False).encode()
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(corps)))
-        self.end_headers()
-        self.wfile.write(corps)
-
-    def do_GET(self):
-        if self.path == "/api/etat":
-            return self._json(200, etat())
-        return super().do_GET()
+#  ═══ LA CHARPENTE EST PARTIE DANS moteur/service.py ═══
+#  Ce qui reste ici, c'est ce qui est PROPRE à l'IA locale : la réponse qui
+#  arrive mot par mot.
+class Handler(_service.Service):
+    etat_fn = staticmethod(etat)
+    actions = ACTIONS
 
     def do_POST(self):
         if self.path.startswith("/api/discussion"):
             return self._discussion()
-        if not self.path.startswith("/api/action"):
-            return self._json(404, {"ok": False, "erreur": "inconnu"})
-        try:
-            taille = int(self.headers.get("Content-Length", "0"))
-            requete = json.loads(self.rfile.read(taille) or b"{}")
-        except (ValueError, json.JSONDecodeError):
-            return self._json(400, {"ok": False, "erreur": "requête invalide"})
-        action = ACTIONS.get(requete.get("action", ""))
-        if action is None:
-            return self._json(400, {"ok": False, "erreur": "action inconnue"})
-        try:
-            return self._json(200, action(requete.get("arg")))
-        except Exception as e:                      # noqa: BLE001
-            return self._json(200, {"ok": False, "erreur": str(e)})
+        return super().do_POST()
 
     def _discussion(self):
         """La réponse arrive mot par mot, pas d'un bloc.
@@ -829,48 +808,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 pass
 
 
-def _port_libre():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
-
 def main():
     if not WEB_DIR.exists():
         print(f"Erreur : dossier web/ introuvable ({WEB_DIR})", file=sys.stderr)
         sys.exit(1)
 
-    mimetypes.add_type("text/javascript", ".js")
-    mimetypes.add_type("application/json", ".json")
-
     if len(sys.argv) > 1 and sys.argv[1] in ("--etat", "etat"):
         print(json.dumps(etat(), ensure_ascii=False, indent=2))
         return
 
-    port = _port_libre()
-    handler = functools.partial(Handler, directory=str(WEB_DIR))
-    serveur = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
-    threading.Thread(target=serveur.serve_forever, daemon=True,
-                     name="lexos-ia-http").start()
+    #  Les types web, le port libre et le fil du serveur : moteur/service.py.
+    serveur, port = _service.servir(WEB_DIR, Handler, nom_fil="lexos-ia-http")
 
     from PySide6.QtCore import QUrl
-    from PySide6.QtGui import QIcon
-    from PySide6.QtWidgets import QApplication, QMainWindow
-    from PySide6.QtWebEngineWidgets import QWebEngineView
 
-    app = QApplication(sys.argv)
-    app.setApplicationName(APP_NAME)
-    fenetre = QMainWindow()
-    fenetre.setWindowTitle(APP_NAME)
+    app = _fenetre.application(APP_NAME)
+    fenetre, vue = _fenetre.fenetre_cadree(
+        app, APP_NAME, "/usr/share/icons/hicolor/128x128/apps/lexos-ia.png")
     fenetre.resize(1000, 720)
-    icone = "/usr/share/icons/hicolor/128x128/apps/lexos-ia.png"
-    if Path(icone).exists():
-        fenetre.setWindowIcon(QIcon(icone))
-
-    vue = QWebEngineView(fenetre)
-    fenetre.setCentralWidget(vue)
     vue.load(QUrl(f"http://127.0.0.1:{port}/index.html?mode={_mode_apparence()}"))
     fenetre.show()
 

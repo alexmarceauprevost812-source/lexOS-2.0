@@ -569,12 +569,25 @@ else
 fi
 
 #  ═══ LE SÉLECTEUR EST LE MÊME DES DEUX CÔTÉS ═══
-#  La règle matche « name = 'Volet LexOS' », et volet.py POSE ce titre. Une
+#  La règle matche « name = 'Volet LexOS' », et le volet POSE ce titre. Une
 #  règle accrochée à une valeur que Qt déduirait se décrocherait en silence à
 #  la prochaine version. Les deux chaînes doivent rester identiques.
-grep -q 'setWindowTitle("Volet LexOS")' "$VOLET_PY" \
-	&& ok "volet.py pose lui-même le titre « Volet LexOS » que la règle picom attend" \
-	|| non "volet.py ne pose pas ce titre : la règle picom ne s'accrocherait à rien"
+#
+#  ⚠ LE setWindowTitle A CHANGÉ DE FICHIER, PAS DE VALEUR. Il vit maintenant
+#  dans moteur/fenetre.vue_transparente(), avec les trois autres gestes qui
+#  vont avec (fond transparent, Qt.Tool, pas d'ombre) ; volet.py lui passe la
+#  chaîne. On éprouve donc la CHAÎNE là où elle est écrite, des deux côtés —
+#  chercher la ligne « setWindowTitle » dans volet.py aurait accusé un code
+#  juste, et un faux rouge coûte le même prix qu'un faux vert.
+FABRIQUE="$(dirname "$VOLET_PY")/moteur/fenetre.py"
+if grep -q 'vue_transparente("Volet LexOS")' "$VOLET_PY" \
+   && grep -q 'setWindowTitle(titre)' "$FABRIQUE"; then
+	ok "le volet pose lui-même le titre « Volet LexOS » (par moteur/fenetre.py) que la règle picom attend"
+elif grep -q 'setWindowTitle("Volet LexOS")' "$VOLET_PY"; then
+	ok "volet.py pose lui-même le titre « Volet LexOS » que la règle picom attend"
+else
+	non "personne ne pose ce titre : la règle picom ne s'accrocherait à rien"
+fi
 
 #  ═══ LE BLOC « close » EST COMPLET ═══
 #  Chacune de ces quatre lignes corrige un piège documenté en tête de

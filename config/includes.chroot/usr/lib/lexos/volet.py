@@ -60,6 +60,8 @@ import son as _son  # noqa: E402
 #  lecture d'état. moteur/outils.py garde la réponse trente secondes
 #  et l'oublie sur demande — après une installation, notamment.
 from moteur import outils as _outils  # noqa: E402
+from moteur import service as _service  # noqa: E402
+from moteur import fenetre as _fenetre  # noqa: E402
 
 BASE_DIR = Path(os.environ.get("LEXOS_VOLET_DIR", "/usr/share/lexos/volet"))
 WEB_DIR = BASE_DIR / "web"
@@ -733,46 +735,19 @@ def etat(quoi):
 # =============================================================================
 #  Le petit serveur local — même forme que settings.py
 # =============================================================================
-class Handler(http.server.SimpleHTTPRequestHandler):
+#  ═══ LA CHARPENTE EST PARTIE DANS moteur/service.py ═══
+#  Il en existait six exemplaires dans ce dépôt, dont quatre rigoureusement
+#  identiques. Ce qui reste ici, c'est ce qui est PROPRE au volet : lequel
+#  des trois volets est ouvert.
+class Handler(_service.Service):
     quoi = "agenda"
+    actions = ACTIONS
 
-    def log_message(self, fmt, *args):
-        pass
-
-    def _json(self, code, donnees):
-        corps = json.dumps(donnees, ensure_ascii=False).encode()
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(corps)))
-        self.end_headers()
-        self.wfile.write(corps)
-
-    def do_GET(self):
-        if self.path == "/api/etat":
-            return self._json(200, etat(self.quoi))
-        return super().do_GET()
-
-    def do_POST(self):
-        if not self.path.startswith("/api/action"):
-            return self._json(404, {"ok": False, "erreur": "inconnu"})
-        try:
-            taille = int(self.headers.get("Content-Length", "0"))
-            requete = json.loads(self.rfile.read(taille) or b"{}")
-        except (ValueError, json.JSONDecodeError):
-            return self._json(400, {"ok": False, "erreur": "requête invalide"})
-        action = ACTIONS.get(requete.get("action", ""))
-        if action is None:
-            return self._json(400, {"ok": False, "erreur": "action inconnue"})
-        try:
-            return self._json(200, action(requete.get("arg")))
-        except Exception as e:      # le volet doit survivre à un outil qui casse
-            return self._json(200, {"ok": False, "erreur": str(e)})
-
-
-def _port_libre():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    #  ⚠ PAS « etat_fn = staticmethod(etat) » : la fonction etat() du volet
+    #  prend le NOM du volet, et ce nom est posé sur la classe au lancement
+    #  (Handler.quoi = …). On passe donc par une méthode, qui sait le lire.
+    def _etat(self):
+        return etat(type(self).quoi)
 
 
 def _hauteur_barre():
@@ -803,49 +778,18 @@ def main():
         print(f"Erreur : dossier web/ introuvable ({WEB_DIR})", file=sys.stderr)
         return 1
 
-    mimetypes.add_type("text/javascript", ".js")
-
     Handler.quoi = quoi
-    port = _port_libre()
-    handler = functools.partial(Handler, directory=str(WEB_DIR))
-    serveur = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
-    threading.Thread(target=serveur.serve_forever, daemon=True,
-                     name="lexos-volet-http").start()
+    #  Les types web, le port libre et le fil du serveur : moteur/service.py.
+    serveur, port = _service.servir(WEB_DIR, Handler, nom_fil="lexos-volet-http")
 
-    from PySide6.QtCore import QUrl, Qt, QTimer
-    from PySide6.QtGui import QColor
-    from PySide6.QtWidgets import QApplication
-    from PySide6.QtWebEngineWidgets import QWebEngineView
+    from PySide6.QtCore import QUrl
 
-    app = QApplication(sys.argv)
-    app.setApplicationName("Volet LexOS")
-
-    vue = QWebEngineView()
-    #  ═══ CE TITRE EST UN CONTRAT AVEC PICOM — NE PAS LE CHANGER SEUL ═══
-    #  picom choisit son animation par la PREMIÈRE règle qui correspond
-    #  (manuel, section RULES). Sans règle à lui, ce volet tombait dans la
-    #  règle générique « window_type = 'utility' » — car Qt.Tool devient
-    #  _NET_WM_WINDOW_TYPE_UTILITY — et recevait le fondu court des menus au
-    #  lieu de l'extinction « vieille télé » qu'Alex demande.
-    #  La règle dédiée vit dans usr/share/lexos/picom/lexos-tv.conf et
-    #  matche « name = 'Volet LexOS' ». On POSE donc ce titre explicitement
-    #  au lieu de compter sur celui que Qt déduirait du nom d'application :
-    #  une règle picom accrochée à une valeur PAR DÉFAUT, c'est une règle
-    #  qui se décroche en silence à la prochaine version de Qt. Ici, la
-    #  chaîne est écrite des deux côtés, et un banc vérifie qu'elles sont
-    #  les mêmes.
-    vue.setWindowTitle("Volet LexOS")
-    #  SANS CE FOND TRANSPARENT, RIEN NE MARCHE. La page dessine un volet aux
-    #  coins ronds sur du vide ; si la vue web peint un fond blanc derrière,
-    #  on obtient un rectangle blanc avec un volet arrondi dedans — le
-    #  contraire de ce qu'on veut. Les trois lignes vont ensemble.
-    vue.setAttribute(Qt.WA_TranslucentBackground, True)
-    vue.page().setBackgroundColor(QColor(Qt.transparent))
-    vue.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool
-                       | Qt.WindowStaysOnTopHint | Qt.NoDropShadowWindowHint)
-    vue.setAttribute(Qt.WA_DeleteOnClose, True)
-    #  Qt.Tool : pas d'entrée dans Alt+Tab ni dans la liste des fenêtres.
-    #  C'est ce qui fait la différence entre un volet et une fenêtre.
+    app = _fenetre.application("Volet LexOS")
+    #  La vue transparente, sans cadre, hors d'Alt+Tab — et le TITRE, qui est
+    #  un contrat avec picom : toute la raison est dans moteur/fenetre.py,
+    #  avec le commentaire qui explique pourquoi une règle accrochée à une
+    #  valeur par défaut de Qt se décroche un jour en silence.
+    vue = _fenetre.vue_transparente("Volet LexOS")
 
     ecran = app.primaryScreen().availableGeometry()
     largeur = min(560, ecran.width() - 24)
@@ -878,18 +822,11 @@ def main():
     vue.activateWindow()
 
     #  UN CLIC AILLEURS REFERME — c'est ce qui fait d'un volet un volet.
-    #  Le délai : au moment où la fenêtre apparaît, elle n'a pas encore le
-    #  focus, et fermer sur « pas de focus » la tuerait avant qu'elle
-    #  s'affiche. On n'arme la surveillance qu'une fois posée.
-    def surveille():
-        def verifie():
-            if not vue.isActiveWindow():
-                app.quit()
-        minuteur = QTimer(vue)
-        minuteur.timeout.connect(verifie)
-        minuteur.start(250)
-
-    QTimer.singleShot(700, surveille)
+    #  Le retard et le pas vivent dans moteur/fenetre.py, avec la raison du
+    #  retard : la fenêtre n'a pas encore le focus au moment où elle
+    #  apparaît, et fermer sur « pas de focus » la tuerait avant qu'elle
+    #  s'affiche.
+    _fenetre.ferme_au_flou(app, vue)
 
     return app.exec()
 

@@ -45,6 +45,8 @@ import son as _son  # noqa: E402
 #  lecture d'état. moteur/outils.py garde la réponse trente secondes
 #  et l'oublie sur demande — après une installation, notamment.
 from moteur import outils as _outils  # noqa: E402
+from moteur import service as _service  # noqa: E402
+from moteur import fenetre as _fenetre  # noqa: E402
 
 APP_NAME = "Paramètres LexOS"
 BASE_DIR = Path(os.environ.get("LEXOS_SETTINGS_DIR", "/usr/share/lexos/settings"))
@@ -4148,43 +4150,29 @@ def _sans_lever(f):
 #  Serveur : fichiers statiques + API.
 # =============================================================================
 
-class Handler(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, fmt, *args):
-        pass
-
-    def _json(self, code, donnees):
-        corps = json.dumps(donnees).encode()
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(corps)))
-        self.end_headers()
-        self.wfile.write(corps)
+#  ═══ LA CHARPENTE EST PARTIE DANS moteur/service.py ═══
+#  Elle existait en SIX exemplaires dans ce dépôt — journal muet, _json,
+#  /api/etat, /api/action — avec les mêmes petites divergences d'une copie
+#  à l'autre. Ce qui reste ici, ce sont les routes PROPRES aux Paramètres.
+class Handler(_service.Service):
+    etat_fn = staticmethod(etat)
+    actions = ACTIONS
+    etat_par_cles = True
+    #  ═══ APRÈS UNE ACTION, ON OUBLIE CE QU'ON CROYAIT SAVOIR DES OUTILS ═══
+    #  moteur/outils.py garde trente secondes la réponse à « cet outil
+    #  est-il là ? » — ce qui fait qu'une lecture d'état ne balaie plus le
+    #  PATH quarante fois. Mais une ACTION peut justement installer ou
+    #  retirer un outil : « Ouvrir un fichier téléchargé » installe un
+    #  paquet, les mises à jour en posent, un dépôt tiers en ajoute. Sans cet
+    #  oubli, la page dirait « Outil absent » pour un outil qu'Alex vient de
+    #  voir s'installer sous ses yeux, et il n'y aurait rien à comprendre.
+    #  On oublie après TOUTE action, sans chercher lesquelles installent :
+    #  une liste à tenir aurait fini par en oublier une, et le gain se joue
+    #  DANS une lecture d'état (quarante collecteurs qui demandent les mêmes
+    #  outils), pas entre deux clics.
+    apres_action = staticmethod(_outils.oublier)
 
     def do_GET(self):
-        if self.path == "/api/etat" or self.path.startswith("/api/etat?"):
-            #  ═══ « ?cles=a,b,c » : ne relis que ça ═══
-            #  Changer la couleur d'accent ne modifie ni les imprimantes ni le
-            #  Bluetooth ; les relire est du temps pur perdu, et c'est ce
-            #  temps-là qu'Alex voyait. La page dit ce qu'elle a besoin de
-            #  revoir ; sans paramètre, on rend tout — c'est ce que fait
-            #  l'ouverture de la fenêtre.
-            #  On NE VALIDE PAS la liste contre les clés connues : une clé
-            #  inconnue ne correspond simplement à aucun collecteur et ne
-            #  produit rien. Refuser aurait demandé de tenir une seconde
-            #  liste, qui aurait fini par diverger de la première.
-            #  ═══ « ?cles= » VIDE VEUT DIRE « RIEN », PAS « TOUT » ═══
-            #  « etat(demande) if demande else etat() » renvoyait au plein
-            #  tarif dès que la liste était vide — donc pour les sections qui
-            #  n'ont besoin d'AUCUN collecteur, c'est-à-dire précisément
-            #  celles qui auraient dû être instantanées. On distingue
-            #  maintenant le paramètre ABSENT (tout) du paramètre PRÉSENT ET
-            #  VIDE (rien que les clés gratuites).
-            from urllib.parse import parse_qs, urlparse
-            q = parse_qs(urlparse(self.path).query)
-            if "cles" not in q:
-                return self._json(200, etat())
-            demande = [c for c in q["cles"][0].split(",") if c]
-            return self._json(200, etat(demande))
         #  ═══ LES VIGNETTES DE LA GALERIE ═══
         #  La page ne demande JAMAIS un chemin — seulement un indice, revalidé
         #  contre une énumération fraîche. Servir un chemin venu de la page,
@@ -4221,111 +4209,42 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return None
         return super().do_GET()
 
-    def do_POST(self):
-        if not self.path.startswith("/api/action"):
-            return self._json(404, {"ok": False, "erreur": "inconnu"})
-        try:
-            taille = int(self.headers.get("Content-Length", "0"))
-            requete = json.loads(self.rfile.read(taille) or b"{}")
-        except (ValueError, json.JSONDecodeError):
-            return self._json(400, {"ok": False, "erreur": "requête invalide"})
-        action = ACTIONS.get(requete.get("action", ""))
-        if action is None:
-            return self._json(400, {"ok": False, "erreur": "action inconnue"})
-        try:
-            reponse = action(requete.get("arg"))
-        except subprocess.TimeoutExpired:
-            return self._json(200, {"ok": False, "erreur": "délai dépassé"})
-        except Exception as e:  # la fenêtre doit survivre à un outil qui casse
-            return self._json(200, {"ok": False, "erreur": str(e)})
-        #  ═══ APRÈS UNE ACTION, ON OUBLIE CE QU'ON CROYAIT SAVOIR DES OUTILS ═══
-        #  moteur/outils.py garde trente secondes la réponse à « cet outil
-        #  est-il là ? » — ce qui fait qu'une lecture d'état ne balaie plus
-        #  le PATH quarante fois. Mais une ACTION peut justement installer ou
-        #  retirer un outil : « Ouvrir un fichier téléchargé » installe un
-        #  paquet, les mises à jour en posent, un dépôt tiers en ajoute. Sans
-        #  cet oubli, la page dirait « Outil absent » pour un outil qu'Alex
-        #  vient de voir s'installer sous ses yeux, et il n'y aurait rien à
-        #  comprendre. On oublie après TOUTE action, sans chercher lesquelles
-        #  installent : une liste à tenir aurait fini par en oublier une, et
-        #  le gain se joue DANS une lecture d'état (quarante collecteurs qui
-        #  demandent les mêmes outils), pas entre deux clics.
-        _outils.oublier()
-        return self._json(200, reponse)
-
-
-def _port_libre():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
 
 def main():
     if not WEB_DIR.exists():
         print(f"Erreur : dossier web/ introuvable ({WEB_DIR})", file=sys.stderr)
         sys.exit(1)
 
-    mimetypes.add_type("text/javascript", ".js")
-    mimetypes.add_type("application/json", ".json")
-    mimetypes.add_type("image/svg+xml", ".svg")
-
     section = ""
     if len(sys.argv) > 1 and sys.argv[1].replace("-", "").isalnum():
         section = sys.argv[1]
 
-    port = _port_libre()
-    handler = functools.partial(Handler, directory=str(WEB_DIR))
-    serveur = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
-    threading.Thread(target=serveur.serve_forever, daemon=True,
-                     name="lexos-settings-http").start()
+    #  Les types web, le port libre et le fil du serveur : moteur/service.py.
+    serveur, port = _service.servir(WEB_DIR, Handler, nom_fil="lexos-settings-http")
 
     url = f"http://127.0.0.1:{port}/index.html?mode={_mode_apparence()}"
     if section:
         url += f"#{section}"
 
     from PySide6.QtCore import QUrl
-    from PySide6.QtGui import QIcon
-    from PySide6.QtWidgets import QApplication, QMainWindow
-    from PySide6.QtWebEngineWidgets import QWebEngineView
 
-    app = QApplication(sys.argv)
-    app.setApplicationName(APP_NAME)
+    app = _fenetre.application(APP_NAME)
+    fenetre, vue = _fenetre.fenetre_cadree(
+        app, APP_NAME,
+        "/usr/share/icons/hicolor/128x128/apps/lexos-reglages.png")
 
-    fenetre = QMainWindow()
-    fenetre.setWindowTitle(APP_NAME)
-
-    #  La fenêtre s'ouvrait à 980 x 700, quel que soit l'écran. Sur le
-    #  ThinkPad (1366 x 768), 700 pixels de haut coupaient la barre latérale
-    #  au milieu : Alex voyait la liste s'arrêter à « Partage » et pensait
-    #  qu'il manquait des sections. Les 32 sections sont bien là et la barre
-    #  défile — mais une fenêtre qui n'utilise pas l'écran donne l'impression
-    #  contraire.
-    #
-    #  Ubuntu ouvre ses Paramètres à la taille de l'écran disponible. On fait
-    #  pareil : on prend ce que le bureau laisse (barre du haut et dock
-    #  déduits, c'est ce que renvoie availableGeometry), sans jamais dépasser
-    #  une largeur confortable en lecture ni descendre sous une taille
-    #  utilisable.
-    ecran = app.primaryScreen()
-    if ecran is not None:
-        dispo = ecran.availableGeometry()
-        largeur = max(900, min(1180, int(dispo.width() * 0.92)))
-        hauteur = max(600, min(900, int(dispo.height() * 0.94)))
+    #  La taille et le centrage vivent dans moteur/fenetre.py, avec le
+    #  commentaire qui dit pourquoi : une fenêtre à 980 x 700 coupait la barre
+    #  latérale du ThinkPad au milieu, et Alex croyait qu'il manquait des
+    #  sections.
+    mesures = _fenetre.taille_ecran(app)
+    if mesures is not None:
+        largeur, hauteur, x, y = mesures
         fenetre.resize(largeur, hauteur)
-        #  Centrer : sur un petit écran, une fenêtre presque aussi grande que
-        #  le bureau posée en haut à gauche déborde à droite et en bas.
-        fenetre.move(
-            dispo.x() + (dispo.width() - largeur) // 2,
-            dispo.y() + (dispo.height() - hauteur) // 2,
-        )
+        fenetre.move(x, y)
     else:
         fenetre.resize(980, 700)
-    icone = "/usr/share/icons/hicolor/128x128/apps/lexos-reglages.png"
-    if Path(icone).exists():
-        fenetre.setWindowIcon(QIcon(icone))
 
-    vue = QWebEngineView(fenetre)
-    fenetre.setCentralWidget(vue)
     vue.load(QUrl(url))
     fenetre.show()
 

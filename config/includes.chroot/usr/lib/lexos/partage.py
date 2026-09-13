@@ -51,6 +51,8 @@ from pathlib import Path
 #  et l'oublie sur demande — après une installation, notamment.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from moteur import outils as _outils  # noqa: E402
+from moteur import service as _service  # noqa: E402
+from moteur import fenetre as _fenetre  # noqa: E402
 
 BASE_DIR = Path(os.environ.get("LEXOS_PARTAGE_DIR", "/usr/share/lexos/partage"))
 WEB_DIR = BASE_DIR / "web"
@@ -244,18 +246,20 @@ def diagnostic(url, pare_feu):
 #  écoute sur le réseau pour que le téléphone l'atteigne. CELUI-CI n'écoute
 #  que sur la boucle locale : il sert l'interface, pas les fichiers, et il n'a
 #  aucune raison d'être joignable depuis l'extérieur de la machine.
-class Handler(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, fmt, *args):
-        pass  # pas de journal : la fenêtre n'est pas un serveur web
-
-    def _json(self, code, obj):
-        corps = json.dumps(obj).encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(corps)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(corps)
+#  ═══ LA CHARPENTE EST PARTIE DANS moteur/service.py ═══
+#  Journal muet et _json viennent de là. Le reste est PROPRE au partage :
+#  son état a une forme à lui (un compte à rebours), ses actions ne se
+#  dispatchent pas par un dictionnaire d'appelables, et /api/appareils
+#  n'existe que pour ce module.
+#
+#  ⚠ SES PARTICULARITÉS RESTENT LES SIENNES, ET C'EST LE CONTRAT DE CETTE
+#  ÉTAPE : « no-store » sur le JSON — ce compte à rebours ne doit JAMAIS
+#  être relu d'un cache — et un corps de requête capé à 4 Ko. Fusionner
+#  n'est pas uniformiser : un module qui avait un garde-fou le garde.
+class Handler(_service.Service):
+    json_ascii = True
+    entetes_json = (("Cache-Control", "no-store"),)
+    corps_max = 4096
 
     def do_GET(self):
         if self.path.split("?")[0] == "/api/etat":
@@ -325,14 +329,6 @@ def mode_apparence():
     return "clair" if valeur == "clair" else "sombre"
 
 
-def port_libre():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
-
-
 # =============================================================================
 def main():
     ap = argparse.ArgumentParser(description="Fenêtre de partage LexOS")
@@ -360,21 +356,18 @@ def main():
         "_pare_feu": getattr(a, "pare_feu", "inconnu"),
     })
 
-    mimetypes.add_type("text/javascript", ".js")
-    port = port_libre()
-    serveur = http.server.ThreadingHTTPServer(
-        ("127.0.0.1", port), functools.partial(Handler, directory=str(WEB_DIR)))
-    threading.Thread(target=serveur.serve_forever, daemon=True,
-                     name="lexos-partage-http").start()
+    #  Les types web, le port libre et le fil du serveur : moteur/service.py.
+    serveur, port = _service.servir(WEB_DIR, Handler, nom_fil="lexos-partage-http")
 
     from PySide6.QtCore import QUrl, QTimer
-    from PySide6.QtWidgets import QApplication
     from PySide6.QtWebEngineWidgets import QWebEngineView
 
-    app = QApplication(sys.argv)
-    app.setApplicationName("Partager")
+    app = _fenetre.application("Partager")
     app.setDesktopFileName("lexos-share")
 
+    #  ⚠ PAS fenetre_cadree() ICI, ET C'EST VOULU. Cette fenêtre est une vue
+    #  web nue, pas une QMainWindow : lui donner un cadre changerait ce
+    #  qu'Alex voit, et cette étape ne change que l'ENDROIT du code.
     vue = QWebEngineView()
     vue.setWindowTitle("Partager — LexOS")
     vue.resize(620, 660)

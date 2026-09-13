@@ -314,13 +314,47 @@ if [[ "$(printf '%s' "$NU_PY" | wc -l)" -lt 50 ]]; then
 else
 	ok "le code de partage.py est lisible ($(printf '%s' "$NU_PY" | wc -l) lignes, prose retirée)"
 
-	if grep -q "'127.0.0.1'" <<< "$NU_PY"; then
+	#  ⚠ LE « bind » A CHANGÉ DE FICHIER, PAS DE VALEUR. Le petit serveur
+	#  local existait en six exemplaires ; il vit maintenant dans
+	#  moteur/service.py, et partage.py l'appelle. On lit donc les DEUX :
+	#  chercher l'adresse dans partage.py seul accuserait un code juste, et
+	#  un faux rouge coûte le même prix qu'un faux vert. Ce qui est éprouvé
+	#  reste le MÊME : cette fenêtre n'est joignable que de la machine.
+	#  ⚠ ET ON RETIRE SES DOCSTRINGS, PAS SEULEMENT SES « # ». Première
+	#  version : un grep -v sur les lignes de commentaire laissait passer la
+	#  docstring de port_libre(), qui CITE « 0.0.0.0 » pour dire qu'on ne
+	#  l'utilise pas — et le banc accusait le module de tout écouter, sur la
+	#  foi de la phrase qui jure le contraire. On passe donc service.py par
+	#  le même dépouilleur que partage.py.
+	SERVICE_PY="$(dirname "$PY")/moteur/service.py"
+	NU_SRV=""
+	if [ -r "$SERVICE_PY" ] && command -v python3 >/dev/null 2>&1; then
+		NU_SRV="$(python3 - "$SERVICE_PY" <<'PYEOF' 2>/dev/null
+import ast, sys
+a = ast.parse(open(sys.argv[1], encoding="utf-8").read())
+for n in ast.walk(a):
+    if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        c = n.body
+        if c and isinstance(c[0], ast.Expr) and isinstance(c[0].value, ast.Constant) \
+           and isinstance(c[0].value.value, str):
+            n.body = c[1:] or [ast.Pass()]
+print(ast.unparse(a))
+PYEOF
+)" || NU_SRV=""
+	fi
+	ECOUTE="$NU_PY
+$NU_SRV"
+	if [ -r "$SERVICE_PY" ] && [ -z "$NU_SRV" ]; then
+		non "moteur/service.py n'a pas pu être dépouillé : ce qu'il écoute n'a pas été mesuré"
+	fi
+
+	if grep -q "'127.0.0.1'" <<< "$ECOUTE" || grep -q '"127.0.0.1"' <<< "$ECOUTE"; then
 		ok "le serveur de la fenêtre n'écoute que sur 127.0.0.1"
 	else
 		non "le serveur de la fenêtre ne se lie pas explicitement à 127.0.0.1"
 	fi
 
-	if grep -qE "0\\.0\\.0\\.0|'', *port|\"\", *port" <<< "$NU_PY"; then
+	if grep -qE "0\\.0\\.0\\.0|'', *port|\"\", *port" <<< "$ECOUTE"; then
 		non "le serveur de la fenêtre écoute sur toutes les interfaces — l'interface deviendrait joignable du réseau"
 	else
 		ok "…et il n'écoute sur aucune autre interface"

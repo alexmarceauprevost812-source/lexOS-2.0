@@ -259,16 +259,21 @@ PY
 else
   muet "la page n'a pas été chargée : les adresses n'ont pas été mesurées"
 fi
-#  Côté serveur : « cles » présent mais vide ne doit PAS retomber sur etat().
-#  ⚠ ON NE LIT QUE LES LIGNES DE CODE. L'ancienne forme est CITÉE dans le
-#  commentaire qui explique pourquoi elle a disparu ; un grep sur tout le
-#  fichier se déclenchait donc sur l'explication du correctif lui-même.
+#  ═══ LE CÔTÉ SERVEUR SE MESURE AILLEURS, ET VOICI POURQUOI ═══
+#  Ce contrôle-ci cherchait la bonne ligne au GREP. Il était VERT pendant que
+#  le serveur, lui, rendait les cinquante et une clés pour « ?cles= » : par
+#  défaut parse_qs JETTE les valeurs vides, donc « cles » n'était pas dans la
+#  requête, donc « paramètre absent », donc tout. La ligne était juste et le
+#  comportement faux — un faux vert de manuel, et c'est moi qui l'avais écrit.
+#  La distinction est maintenant éprouvée sur un VRAI serveur, sur un vrai
+#  port, dans tests/test_lexos_moteur_service.sh (point 2). On garde ici la
+#  seule chose qu'un grep sait dire sans mentir : que l'ancienne forme a bien
+#  disparu du code.
 CODE_SRV="$(grep -v '^[[:space:]]*#' "$MOTEUR")"
-if grep -q 'if "cles" not in q' <<< "$CODE_SRV" \
-   && ! grep -q 'etat(demande) if demande else etat()' <<< "$CODE_SRV"; then
-  ok "le serveur distingue « pas de cles » de « cles vide »"
+if grep -q 'etat(demande) if demande else etat()' <<< "$CODE_SRV"; then
+  non "l'ancienne forme « etat(demande) if demande else etat() » est revenue"
 else
-  non "le serveur confond une liste vide avec l'absence de liste : la moitié du gain est perdue"
+  ok "l'ancienne forme du serveur a disparu (le comportement, lui, est mesuré dans test_lexos_moteur_service.sh)"
 fi
 
 # ===========================================================================
