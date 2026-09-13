@@ -43,6 +43,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+#  ═══ LES OUTILS DU SYSTÈME, DEMANDÉS UNE FOIS ═══
+#  « shutil.which » balaie le PATH répertoire par répertoire, et il
+#  était appelé cent dix fois dans ce dépôt, la plupart à CHAQUE
+#  lecture d'état. moteur/outils.py garde la réponse trente secondes
+#  et l'oublie sur demande — après une installation, notamment.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from moteur import outils as _outils  # noqa: E402
+
 HWMON = Path(os.environ.get("LEXOS_HWMON", "/sys/class/hwmon"))
 
 #  Seuils d'alerte, en °C. Ce ne sont pas des limites matérielles (un
@@ -174,7 +182,7 @@ _CHAMPS_NV = ("name", "temperature.gpu", "fan.speed", "utilization.gpu",
 
 
 def nvidia():
-    if shutil.which("nvidia-smi") is None:
+    if not _outils.commande_existe("nvidia-smi"):
         return []
     try:
         r = subprocess.run(

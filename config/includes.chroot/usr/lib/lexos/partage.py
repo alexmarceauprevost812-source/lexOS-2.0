@@ -44,6 +44,14 @@ import urllib.request
 import time
 from pathlib import Path
 
+#  ═══ LES OUTILS DU SYSTÈME, DEMANDÉS UNE FOIS ═══
+#  « shutil.which » balaie le PATH répertoire par répertoire, et il
+#  était appelé cent dix fois dans ce dépôt, la plupart à CHAQUE
+#  lecture d'état. moteur/outils.py garde la réponse trente secondes
+#  et l'oublie sur demande — après une installation, notamment.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from moteur import outils as _outils  # noqa: E402
+
 BASE_DIR = Path(os.environ.get("LEXOS_PARTAGE_DIR", "/usr/share/lexos/partage"))
 WEB_DIR = BASE_DIR / "web"
 
@@ -70,7 +78,7 @@ def qr_data_uri(url):
     -m 2 : la « zone calme » autour du code. Elle fait partie de la norme ;
     la rogner pour gagner de la place casse la lecture.
     """
-    if not shutil.which("qrencode"):
+    if not _outils.commande_existe("qrencode"):
         return None
     try:
         png = subprocess.run(
@@ -119,7 +127,7 @@ def moyens():
     liste = []
 
     nom, pret = "Aucun appareil apparié", False
-    if shutil.which("kdeconnect-cli"):
+    if _outils.commande_existe("kdeconnect-cli"):
         try:
             sortie = subprocess.run(
                 ["kdeconnect-cli", "--list-available", "--id-name-only"],
@@ -138,7 +146,7 @@ def moyens():
                       "etat": "Absent", "pret": False})
 
     allume = False
-    if shutil.which("bluetoothctl"):
+    if _outils.commande_existe("bluetoothctl"):
         try:
             s = subprocess.run(["bluetoothctl", "show"], capture_output=True,
                                text=True, timeout=4).stdout
@@ -286,7 +294,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             FERMER.set()
         elif quoi == "ouvrir-recus":
             dossier = ETAT.get("recus", "")
-            if dossier and shutil.which("xdg-open"):
+            if dossier and _outils.commande_existe("xdg-open"):
                 try:
                     subprocess.Popen(["xdg-open", dossier],
                                      stdout=subprocess.DEVNULL,

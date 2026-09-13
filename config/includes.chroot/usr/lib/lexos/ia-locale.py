@@ -43,6 +43,14 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+#  ═══ LES OUTILS DU SYSTÈME, DEMANDÉS UNE FOIS ═══
+#  « shutil.which » balaie le PATH répertoire par répertoire, et il
+#  était appelé cent dix fois dans ce dépôt, la plupart à CHAQUE
+#  lecture d'état. moteur/outils.py garde la réponse trente secondes
+#  et l'oublie sur demande — après une installation, notamment.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from moteur import outils as _outils  # noqa: E402
+
 APP_NAME = "IA locale — LexOS"
 BASE_DIR = Path(os.environ.get("LEXOS_IA_DIR", "/usr/share/lexos/ia"))
 WEB_DIR = BASE_DIR / "web"
@@ -102,7 +110,7 @@ def _mode_apparence() -> str:
 
 def _sortie(argv, *, timeout=15):
     """La sortie d'une commande, ou une chaîne vide. Ne lève jamais."""
-    if shutil.which(argv[0]) is None:
+    if not _outils.commande_existe(argv[0]):
         return ""
     try:
         r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
@@ -112,7 +120,7 @@ def _sortie(argv, *, timeout=15):
 
 
 def _run(argv, *, detach=False, timeout=120):
-    if shutil.which(argv[0]) is None:
+    if not _outils.commande_existe(argv[0]):
         return {"ok": False, "erreur": f"Outil absent : {argv[0]}"}
     if detach:
         subprocess.Popen(argv, start_new_session=True,
@@ -130,7 +138,7 @@ def _terminal(titre, commande):
     """Une commande qui pose des questions a besoin d'une fenêtre où répondre."""
     for term, gabarit in (("xfce4-terminal", ["--title", titre, "-e", commande]),
                           ("x-terminal-emulator", ["-e", commande])):
-        if shutil.which(term):
+        if _outils.commande_existe(term):
             return _run([term] + gabarit, detach=True)
     return {"ok": False, "erreur": "aucun terminal trouvé"}
 
@@ -274,8 +282,8 @@ def _backend():
 
 def _moteurs():
     return {
-        "llama": bool(shutil.which("llama-cli") or shutil.which("llama-server")),
-        "ollama": bool(shutil.which("ollama")),
+        "llama": bool(_outils.commande_existe("llama-cli") or _outils.commande_existe("llama-server")),
+        "ollama": bool(_outils.commande_existe("ollama")),
         "ollama_actif": _ollama_repond(),
     }
 
@@ -490,7 +498,7 @@ def act_installer_ollama(arg):
     script venu du réseau, c'est exactement ce qu'on ne fait pas.
     """
     del arg
-    if shutil.which("ollama"):
+    if _outils.commande_existe("ollama"):
         return {"ok": True, "message": "Ollama est déjà installé."}
     return _terminal("Installer Ollama — LexOS", "lexos ia setup")
 
@@ -532,10 +540,10 @@ def act_telecharger(arg):
                            f"et il en faut {besoin} + 2 de marge.")}
 
     if moteur == "ollama":
-        if not shutil.which("ollama"):
+        if not _outils.commande_existe("ollama"):
             return {"ok": False, "erreur": "Ollama n'est pas installé"}
         return _terminal(f"Télécharger {ref} — LexOS", f"ollama pull {ref}")
-    if not shutil.which("llama-cli"):
+    if not _outils.commande_existe("llama-cli"):
         return {"ok": False, "erreur": "llama.cpp n'est pas installé"}
     return _terminal(f"Télécharger {ref} — LexOS",
                      f"llama-cli -hf {ref} --no-conversation -p bonjour -n 1")
@@ -805,7 +813,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         try:
             if _ollama_repond() and modele:
                 _flux_ollama(question, modele, ecrire)
-            elif shutil.which("llama-cli"):
+            elif _outils.commande_existe("llama-cli"):
                 _flux_llama(question, ecrire)
             elif _ollama_repond():
                 _flux_ollama(question, "", ecrire)

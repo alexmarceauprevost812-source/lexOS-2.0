@@ -39,6 +39,12 @@ from pathlib import Path
 #  volume à 0-100 et qui dit « indisponible » plutôt qu'un chiffre inventé.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import son as _son  # noqa: E402
+#  ═══ LES OUTILS DU SYSTÈME, DEMANDÉS UNE FOIS ═══
+#  « shutil.which » balaie le PATH répertoire par répertoire, et il
+#  était appelé cent dix fois dans ce dépôt, la plupart à CHAQUE
+#  lecture d'état. moteur/outils.py garde la réponse trente secondes
+#  et l'oublie sur demande — après une installation, notamment.
+from moteur import outils as _outils  # noqa: E402
 
 APP_NAME = "Paramètres LexOS"
 BASE_DIR = Path(os.environ.get("LEXOS_SETTINGS_DIR", "/usr/share/lexos/settings"))
@@ -109,7 +115,7 @@ def _mode_apparence() -> str:
 
 def _run(argv, *, detach=False):
     """Lance une commande. detach=True pour les fenêtres graphiques."""
-    if shutil.which(argv[0]) is None:
+    if not _outils.commande_existe(argv[0]):
         return {"ok": False, "erreur": f"Outil absent : {argv[0]}"}
     if detach:
         subprocess.Popen(argv, start_new_session=True,
@@ -184,7 +190,7 @@ def _agent_polkit():
     « polkit-agent-he » : ce n'est pas un agent, c'est le mouchard setuid
     qu'un agent lance le temps de vérifier un mot de passe — jamais présent
     au moment où on pose la question."""
-    if shutil.which("pgrep") is None:
+    if not _outils.commande_existe("pgrep"):
         return False
     uid = str(os.getuid())
     for nom in _AGENTS_POLKIT:
@@ -203,7 +209,7 @@ def _run_admin(argv):
     impossible. Ne rend jamais un succès qu'on n'a pas obtenu."""
     if os.geteuid() == 0:
         return _run(argv)
-    if shutil.which("pkexec") is None:
+    if not _outils.commande_existe("pkexec"):
         return {"ok": False,
                 "erreur": "pkexec est absent : impossible de demander les "
                           "droits d'administration depuis une fenêtre."}
@@ -285,11 +291,11 @@ def _xfce(module):
     précis manque, on ouvre le gestionnaire de réglages complet plutôt que
     de ne rien faire. Un bouton doit toujours mener quelque part."""
     for argv in module if isinstance(module, list) else [[module]]:
-        if shutil.which(argv[0]):
+        if _outils.commande_existe(argv[0]):
             return _run(argv, detach=True)
     #  Rien de précis n'est installé : le gestionnaire général vaut mieux que
     #  le silence — l'utilisateur trouvera son réglage à la main.
-    if shutil.which("xfce4-settings-manager"):
+    if _outils.commande_existe("xfce4-settings-manager"):
         return _run(["xfce4-settings-manager"], detach=True)
     return {"ok": False, "erreur": "Aucun outil de réglages XFCE installé"}
 
@@ -624,7 +630,7 @@ def act_fond_capture(arg):
     """Capture l'écran et en fait le fond d'écran — les deux outils existaient
     déjà mais rien ne les reliait, il fallait retenir le chemin du fichier."""
     mode = arg if arg in ("plein", "zone") else "plein"
-    if shutil.which("lexos-capture") is None:
+    if not _outils.commande_existe("lexos-capture"):
         return {"ok": False, "erreur": "lexos-capture absent"}
     return _run(["lexos-capture", "fond", mode], detach=True)
 
@@ -735,7 +741,7 @@ def _fond_actuel():
     ou quand aucune propriété n'existe encore. Ne JAMAIS rendre un chemin
     inventé : une vignette mise en évidence à tort est pire que pas de
     vignette en évidence du tout."""
-    if shutil.which("xfconf-query") is None:
+    if not _outils.commande_existe("xfconf-query"):
         return ""
     try:
         r = subprocess.run(["xfconf-query", "-c", "xfce4-desktop", "-l"],
@@ -860,9 +866,9 @@ def act_fond_ouvrir(arg):
     if nom and Path(chemin).name != nom:
         return {"ok": False, "erreur":
                 "la galerie a changé depuis l'affichage — rouvre la section"}
-    if shutil.which("ristretto"):
+    if _outils.commande_existe("ristretto"):
         return _run(["ristretto", chemin], detach=True)
-    if shutil.which("xdg-open"):
+    if _outils.commande_existe("xdg-open"):
         return _run(["xdg-open", chemin], detach=True)
     return {"ok": False, "erreur": "aucun visionneur d'images installé (ristretto)"}
 
@@ -870,7 +876,7 @@ def act_fond_ouvrir(arg):
 def act_fond_perso(arg):
     """Ouvre un sélecteur de fichier (zenity) puis applique l'image choisie.
     Le chemin vient du sélecteur local, pas de la page."""
-    if shutil.which("zenity") is None:
+    if not _outils.commande_existe("zenity"):
         return {"ok": False, "erreur": "zenity absent"}
     r = subprocess.run(
         ["zenity", "--file-selection", "--title=Choisir un fond d'écran",
@@ -940,7 +946,7 @@ def act_wifi_auto(arg):
         return {"ok": False, "erreur": "valeur inattendue"}
     if arg == "toggle":
         arg = "off" if _wifi_auto_lu() else "on"
-    outil = shutil.which("lexos-net") or "/usr/bin/lexos-net"
+    outil = _outils.chemin("lexos-net") or "/usr/bin/lexos-net"
     if not os.path.exists(outil):
         return {"ok": False, "erreur": "lexos-net introuvable"}
     argv = [outil, "auto", arg, "--confirme"]
@@ -1084,7 +1090,7 @@ def act_usb(arg):
 #  « éjecter ». Sans lui, une page altérée pourrait proposer /dev/sda.
 def _formatage_liste():
     """Ce que lexos-format accepterait de formater, tel qu'il le dit."""
-    if shutil.which("lexos-format") is None:
+    if not _outils.commande_existe("lexos-format"):
         return None, "lexos-format est introuvable sur cette machine."
     try:
         r = subprocess.run(["lexos-format", "--json"],
@@ -1120,7 +1126,7 @@ def act_formatage(arg):
         return {"ok": True,
                 "supports": donnees.get("supports", []),
                 "systemes": donnees.get("systemes", []),
-                "pkexec": shutil.which("pkexec") is not None or admin,
+                "pkexec": _outils.commande_existe("pkexec") or admin,
                 "agent": admin or _agent_polkit()}
 
     if quoi == "lancer":
@@ -1182,7 +1188,7 @@ def act_crt(arg):
     dans une sortie que personne ne lit, et l'interrupteur reviendrait tout
     seul à sa place — le geste le plus déroutant qu'une page puisse offrir.
     """
-    if not shutil.which("lexos-crt"):
+    if not _outils.commande_existe("lexos-crt"):
         return {"ok": False, "erreur": "lexos-crt introuvable"}
     if arg not in ("on", "off", "toggle"):
         return {"ok": False, "erreur": "valeur inattendue"}
@@ -1253,7 +1259,7 @@ def act_horloge(arg):
     """
     if arg not in ("12h", "24h", "secondes", "jour"):
         return {"ok": False, "erreur": "valeur inattendue"}
-    if not shutil.which("lexos-heure"):
+    if not _outils.commande_existe("lexos-heure"):
         return {"ok": False, "erreur": "lexos-heure absent"}
 
     etat_h = _heure_etat()
@@ -1355,7 +1361,7 @@ def _geste_autocollant_etat():
     return {
         "actif": actif,
         "xlib": xlib,
-        "veilleur": bool(shutil.which("lexos-sticker")),
+        "veilleur": bool(_outils.commande_existe("lexos-sticker")),
     }
 
 
@@ -1389,7 +1395,7 @@ def _intro_etat():
         #  d'attente, on s'en souvient. L'option existe, elle n'est pas
         #  allumée d'office.
         "son": lu("intro-son", "off", ("on", "off")) == "on",
-        "mpv": bool(shutil.which("mpv")),
+        "mpv": bool(_outils.commande_existe("mpv")),
         #  ═══ LES NOMS SONT CEUX DES FICHIERS JOUÉS, PAS DE LA SOURCE ═══
         #  branding/apres-connexion.mp4 est le CARRÉ déposé par Alex : une
         #  source de construction, effacée du chroot une fois le 1920 × 1080
@@ -1587,7 +1593,7 @@ def act_wifi_connecter(arg):
     mot = str(arg.get("mot_de_passe", ""))
     if not ssid:
         return {"ok": False, "erreur": "il faut choisir un réseau"}
-    if not shutil.which("nmcli"):
+    if not _outils.commande_existe("nmcli"):
         return {"ok": False, "erreur": "nmcli absent"}
 
     connus = {r["ssid"] for r in _wifi_reseaux()}
@@ -1645,7 +1651,7 @@ def act_wifi_deconnecter(arg):
     L'appareil est trouvé exactement comme dans « lexos net disconnect » —
     le premier appareil de type « wifi » à l'état « connected ».
     """
-    if not shutil.which("nmcli"):
+    if not _outils.commande_existe("nmcli"):
         return {"ok": False, "erreur": "nmcli absent"}
     appareil = ""
     for ligne in _sortie(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE",
@@ -1683,7 +1689,7 @@ def act_bt_connecter(arg):
     code, le trust+pair direct est exactement ce que fait l'appairage simple.
     """
     adresse = str(arg or "").strip().upper()
-    if not shutil.which("bluetoothctl"):
+    if not _outils.commande_existe("bluetoothctl"):
         return {"ok": False, "erreur": "bluetoothctl absent"}
     connus = {d["adresse"].upper(): d for d in _bluetooth_appareils()}
     if adresse not in connus:
@@ -1708,7 +1714,7 @@ def act_bt_connecter(arg):
 def act_bt_deconnecter(arg):
     """Couper la connexion, sans désappairer : l'appareil reste connu."""
     adresse = str(arg or "").strip().upper()
-    if not shutil.which("bluetoothctl"):
+    if not _outils.commande_existe("bluetoothctl"):
         return {"ok": False, "erreur": "bluetoothctl absent"}
     connus = {d["adresse"].upper() for d in _bluetooth_appareils()}
     if adresse not in connus:
@@ -1737,7 +1743,7 @@ def act_bt_chercher(arg):
     lieu d'un succès qui n'en était pas un.
     """
     del arg
-    if not shutil.which("bluetoothctl"):
+    if not _outils.commande_existe("bluetoothctl"):
         return {"ok": False, "erreur": "bluetoothctl absent"}
     try:
         r = subprocess.run(["bluetoothctl", "--timeout", "12", "scan", "on"],
@@ -1765,7 +1771,7 @@ def act_wifi_rechercher(arg):
     en revanche, on veut pouvoir le demander.
     """
     del arg
-    if not shutil.which("nmcli"):
+    if not _outils.commande_existe("nmcli"):
         return {"ok": False, "erreur": "nmcli absent"}
     return _run(["nmcli", "device", "wifi", "rescan"], timeout=30)
 
@@ -1780,7 +1786,7 @@ def act_distant_partage(arg):
     rien : il peut partir directement."""
     if arg not in ("on", "off"):
         return {"ok": False, "erreur": "valeur inattendue"}
-    if not shutil.which("lexos-distant"):
+    if not _outils.commande_existe("lexos-distant"):
         return {"ok": False, "erreur": "lexos-distant absent"}
     if arg == "off":
         return _run(["lexos-distant", "arreter"])
@@ -1925,7 +1931,7 @@ def _defaut_choix_connu(categorie, appli):
 
 def act_defaut(arg):
     """Choisir l'application par défaut d'une catégorie — « categorie:appli »."""
-    if not shutil.which("lexos-defaut"):
+    if not _outils.commande_existe("lexos-defaut"):
         return {"ok": False, "erreur": "lexos-defaut introuvable"}
     categorie, _, appli = (arg or "").partition(":")
     if not categorie or not appli:
@@ -1948,7 +1954,7 @@ def _recherche_etat():
     """
     vide = {"plocate": False, "index": False, "index_jours": -1,
             "catfish": False, "max": 0, "dispo": False}
-    if not shutil.which("lexos-recherche"):
+    if not _outils.commande_existe("lexos-recherche"):
         return vide
     try:
         r = subprocess.run(["lexos-recherche", "--json"],
@@ -1987,7 +1993,7 @@ def act_recherche(arg):
     redécoupe, donc il est cité par shlex.quote. On refuse d'abord ce qui ne
     peut rien donner : un mot vide, ou plus long qu'une ligne.
     """
-    if not shutil.which("lexos-recherche"):
+    if not _outils.commande_existe("lexos-recherche"):
         return {"ok": False, "erreur": "lexos-recherche introuvable"}
     e = _recherche_etat()
     quoi, _, mot = (arg or "").partition(":")
@@ -2044,7 +2050,7 @@ def act_comptes(arg):
     commande de terminal, c'est-à-dire dans une chaîne qu'un shell redécoupe.
     Ils y sont cités par shlex.quote en plus.
     """
-    if not shutil.which("lexos-comptes"):
+    if not _outils.commande_existe("lexos-comptes"):
         return {"ok": False, "erreur": "lexos-comptes introuvable"}
     e = _comptes_etat()
     if not e.get("dispo"):
@@ -2091,7 +2097,7 @@ def act_bienetre(arg):
     sortie que personne ne lit, et l'interrupteur reviendrait tout seul à sa
     place — le geste le plus déroutant qui soit.
     """
-    if not shutil.which("lexos-bienetre"):
+    if not _outils.commande_existe("lexos-bienetre"):
         return {"ok": False, "erreur": "lexos-bienetre introuvable"}
     quoi, _, valeur = (arg or "").partition(":")
     e = _bienetre_etat()
@@ -2141,7 +2147,7 @@ def act_terminal(arg):
     doit pouvoir dire « ce n'est pas une heure » plutôt que d'afficher le
     message brut d'un programme.
     """
-    if not shutil.which("lexos-terminal"):
+    if not _outils.commande_existe("lexos-terminal"):
         return {"ok": False, "erreur": "lexos-terminal introuvable"}
     quoi, _, valeur = (arg or "").partition(":")
     if quoi == "mode":
@@ -2177,7 +2183,7 @@ def act_partage(arg):
     if not e.get("dispo"):
         return {"ok": False,
                 "erreur": ("lexos-share n'a pas répondu"
-                           if shutil.which("lexos-share")
+                           if _outils.commande_existe("lexos-share")
                            else "lexos-share introuvable")}
     quoi, _, valeur = (arg or "").partition(":")
     if quoi != "nom":
@@ -2247,7 +2253,7 @@ def act_utilisateur(arg):
         #  programme installé envoie chercher au mauvais endroit.
         return {"ok": False,
                 "erreur": ("lexos-utilisateurs n'a pas répondu"
-                           if shutil.which("lexos-utilisateurs")
+                           if _outils.commande_existe("lexos-utilisateurs")
                            else "lexos-utilisateurs introuvable")}
     geste, _, reste = (arg or "").partition(":")
     comptes = {c.get("nom"): c for c in e.get("comptes", [])}
@@ -2336,7 +2342,7 @@ def act_clavier(arg):
       retirer:<clé>  en enlever une
       bascule:<clé>  quelles touches passent de l'une à l'autre
     """
-    if not shutil.which("lexos-clavier"):
+    if not _outils.commande_existe("lexos-clavier"):
         return {"ok": False, "erreur": "lexos-clavier introuvable"}
     quoi, _, cle = (arg or "").partition(":")
     if quoi not in ("dabord", "ajouter", "retirer", "bascule"):
@@ -2472,7 +2478,7 @@ def _wifi_auto_lu():
 
 def _wifi_etat():
     """Radio Wi-Fi allumée ? réseau connecté ? force du signal ?"""
-    if not shutil.which("nmcli"):
+    if not _outils.commande_existe("nmcli"):
         return {"radio": "absent", "reseau": "", "signal": 0,
                 "auto": _wifi_auto_lu(), "internet": "absent"}
     #  « -t » (terse) donne des mots-clés fixes, jamais traduits — la sortie
@@ -2560,7 +2566,7 @@ def _wifi_reseaux(connecte=""):
     si son cache est vieux. Forcer un balayage à chaque ouverture de fenêtre
     coûterait trois secondes et couperait brièvement la connexion en cours.
     """
-    if not shutil.which("nmcli"):
+    if not _outils.commande_existe("nmcli"):
         return []
     lignes = _sortie(["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL,SECURITY",
                       "device", "wifi", "list", "--rescan", "auto"],
@@ -2651,7 +2657,7 @@ def _sorties_audio():
     pas à l'écran : on montre la description que donne le pilote (« Haut-
     parleurs », « LG Sound Bar »). Mais c'est le nom technique qui sert à
     basculer — et il est vérifié contre CETTE liste avant tout usage."""
-    if not shutil.which("pactl"):
+    if not _outils.commande_existe("pactl"):
         return []
     defaut = _sortie(["pactl", "get-default-sink"]).strip()
     sorties = []
@@ -2722,7 +2728,7 @@ def _ecrans_probleme():
     if os.environ.get("XDG_SESSION_TYPE") == "wayland":
         return ("Session Wayland : xrandr ne sait pas lire ses écrans. "
                 "LexOS ouvre XFCE en X11 — vérifie la session choisie à la connexion.")
-    if not shutil.which("xrandr"):
+    if not _outils.commande_existe("xrandr"):
         return ("L'outil qui lit les écrans (xrandr) n'est pas installé : "
                 "impossible de lister les écrans. Paquet : x11-xserver-utils.")
     if not os.environ.get("DISPLAY"):
@@ -2734,7 +2740,7 @@ def _ecrans_probleme():
 def _ecrans_etat():
     """Les sorties vidéo BRANCHÉES, avec leur définition courante."""
     ecrans = []
-    if not shutil.which("xrandr"):
+    if not _outils.commande_existe("xrandr"):
         return ecrans
     for ligne in _sortie(["xrandr", "--query"]).splitlines():
         if " connected" not in ligne:
@@ -2824,7 +2830,7 @@ def _echelle_etat():
 def _souris_etat():
     """Réglages du pavé tactile, lus dans xfconf (là où XFCE les garde)."""
     def prop(chemin, defaut=False):
-        if not shutil.which("xfconf-query"):
+        if not _outils.commande_existe("xfconf-query"):
             return defaut
         v = _sortie(["xfconf-query", "-c", "pointers", "-p", chemin])
         return v == "true" if v in ("true", "false") else defaut
@@ -2832,7 +2838,7 @@ def _souris_etat():
     #  Le nom du périphérique fait partie du chemin xfconf et varie d'une
     #  machine à l'autre : on cherche le premier qui ressemble à un pavé.
     pave = ""
-    if shutil.which("xfconf-query"):
+    if _outils.commande_existe("xfconf-query"):
         for p in _sortie(["xfconf-query", "-c", "pointers", "-l"]).splitlines():
             bas = p.lower()
             if "touchpad" in bas or "synaptics" in bas or "trackpad" in bas:
@@ -2850,7 +2856,7 @@ def _bluetooth_etat():
     de bluetoothctl. Renvoie None quand la machine n'a pas de Bluetooth du
     tout — la page n'affiche alors pas l'interrupteur plutôt que d'en montrer
     un qui ne servirait à rien."""
-    if not shutil.which("bluetoothctl"):
+    if not _outils.commande_existe("bluetoothctl"):
         return None
     sortie = _sortie(["bluetoothctl", "show"])
     if not sortie:
@@ -2881,7 +2887,7 @@ def _bluetooth_appareils():
     processus qui reste ouvert, pas une commande qui rend la main — c'est
     l'action « bt-chercher » qui s'en charge, sur demande.
     """
-    if not shutil.which("bluetoothctl"):
+    if not _outils.commande_existe("bluetoothctl"):
         return []
     appareils = {}
 
@@ -2922,7 +2928,7 @@ def _casque_branche():
     """Un casque est-il branché ? On lit le port ACTIF de la sortie audio.
     Sert à l'afficher, pas à le changer : on ne débranche pas un casque en
     logiciel, et un faux interrupteur serait un mensonge."""
-    if not shutil.which("pactl"):
+    if not _outils.commande_existe("pactl"):
         return False
     sortie = _sortie(["pactl", "list", "sinks"]).lower()
     for ligne in sortie.splitlines():
@@ -2973,7 +2979,7 @@ def _lumiere_etat():
 
 
 def _xfconf_lire(canal, propriete):
-    if not shutil.which("xfconf-query"):
+    if not _outils.commande_existe("xfconf-query"):
         return ""
     return _sortie(["xfconf-query", "-c", canal, "-p", propriete])
 
@@ -3026,7 +3032,7 @@ def _dock_etat():
     absent, Plank pas installé, schéma introuvable, valeur vide. La page
     n'allume alors AUCUN bouton et dit pourquoi en une ligne.
     """
-    if shutil.which("gsettings") is None:
+    if not _outils.commande_existe("gsettings"):
         return None
     try:
         r = subprocess.run(["gsettings", "get", DOCK_SCHEMA, "position"],
@@ -3175,7 +3181,7 @@ def _tiers_etat():
                 except OSError:
                     pass
             return False
-        if shutil.which(cle):
+        if _outils.commande_existe(cle):
             return True
         try:
             r = subprocess.run(["dpkg-query", "-W", "-f=${db:Status-Status}", cle],
@@ -3217,9 +3223,9 @@ def _apercu_etat():
         except OSError:
             return False
 
-    if shutil.which("xfdashboard"):
+    if _outils.commande_existe("xfdashboard"):
         moteur = "xfdashboard"
-    elif shutil.which("xfdesktop"):
+    elif _outils.commande_existe("xfdesktop"):
         moteur = "xfdesktop"
     else:
         moteur = ""
@@ -3228,7 +3234,7 @@ def _apercu_etat():
         "coin": drapeau("coin-actif"),
         "geste": _geste_autocollant_etat(),
         "super": drapeau("super-apercu"),
-        "xcape": bool(shutil.which("xcape")),
+        "xcape": bool(_outils.commande_existe("xcape")),
     }
 
 
@@ -3258,7 +3264,7 @@ def _bureaux_etat():
     nb = _xfconf_lire("xfwm4", "/general/workspace_count")
     nb = int(nb) if nb.isdigit() else 0
     courant, fenetres = 0, []
-    if shutil.which("wmctrl"):
+    if _outils.commande_existe("wmctrl"):
         for ligne in _sortie(["wmctrl", "-d"]).splitlines():
             champs = ligne.split()
             if len(champs) >= 2 and champs[1] == "*":
@@ -3285,7 +3291,7 @@ def _usb_etat():
     On ne liste QUE l'amovible (RM=1) ou l'USB (TRAN=usb) : le disque système
     n'a rien à faire dans une liste où le bouton d'à côté s'appelle
     « Formater ». C'est le genre de confusion qui coûte des données."""
-    if not shutil.which("lsblk"):
+    if not _outils.commande_existe("lsblk"):
         return []
     brut = _sortie(["lsblk", "-J", "-b", "-o",
                     "NAME,SIZE,LABEL,RM,TYPE,TRAN,MOUNTPOINT,MODEL"])
@@ -3335,7 +3341,7 @@ def _service_actif(nom):
     """Un service systemd tourne-t-il ? Renvoie None s'il n'est même pas
     installé — « éteint » et « absent » ne veulent pas dire la même chose,
     et la page doit pouvoir le dire."""
-    if not shutil.which("systemctl"):
+    if not _outils.commande_existe("systemctl"):
         return None
     etat_unite = _sortie(["systemctl", "is-enabled", nom])
     if not etat_unite or "not-found" in etat_unite:
@@ -3351,7 +3357,7 @@ def _securite_etat():
     #  ufw status demande les droits root ; sans eux on lit le fichier de
     #  configuration, qui dit la même chose et se lit sans privilège.
     feu = None
-    if shutil.which("ufw"):
+    if _outils.commande_existe("ufw"):
         feu = False
         try:
             for ligne in Path(ETC_DIR / "ufw/ufw.conf").read_text().splitlines():
@@ -3361,14 +3367,14 @@ def _securite_etat():
             pass
     #  Le disque est-il chiffré ? Un périphérique de type « crypt » suffit.
     chiffre = False
-    if shutil.which("lsblk"):
+    if _outils.commande_existe("lsblk"):
         chiffre = "crypt" in _sortie(["lsblk", "-o", "TYPE", "-n"]).split()
     return {
         "pareFeu": feu,
         "chiffre": chiffre,
         "antivirus": _service_actif("clamav-freshclam.service"),
         "intrusion": _service_actif("fail2ban.service"),
-        "rootkit": bool(shutil.which("rkhunter") or shutil.which("chkrootkit")),
+        "rootkit": bool(_outils.commande_existe("rkhunter") or _outils.commande_existe("chkrootkit")),
         "apparmor": _service_actif("apparmor.service"),
     }
 
@@ -3397,8 +3403,8 @@ def _access_etat():
     return {
         "contraste": "highcontrast" in theme.replace("-", "").replace(" ", ""),
         "curseurLarge": taille.isdigit() and int(taille) >= 32,
-        "orca": bool(shutil.which("orca")),
-        "onboard": bool(shutil.which("onboard")),
+        "orca": bool(_outils.commande_existe("orca")),
+        "onboard": bool(_outils.commande_existe("onboard")),
     }
 
 
@@ -3430,7 +3436,7 @@ def _maj_etat():
     except OSError:
         pass
     return {
-        "secu": secu, "tout": tout, "fwupd": bool(shutil.which("fwupdmgr")),
+        "secu": secu, "tout": tout, "fwupd": bool(_outils.commande_existe("fwupdmgr")),
         #  Ce que _terminal_suivi() a laissé derrière lui pour chaque geste —
         #  None si jamais lancé cette session, sinon en_cours/ok. C'est CE
         #  DICT que la page relit à chaque rafraîchissement pour savoir si
@@ -3460,7 +3466,7 @@ def _utilisateurs_etat():
     """
     vide = {"comptes": [], "auto": "", "nb_admins": 0, "groupe_admin": "sudo",
             "root": False, "lightdm": False, "nom_regex": "", "dispo": False}
-    if not shutil.which("lexos-utilisateurs"):
+    if not _outils.commande_existe("lexos-utilisateurs"):
         return vide
     try:
         r = subprocess.run(["lexos-utilisateurs", "--json"],
@@ -3476,7 +3482,7 @@ def _utilisateurs_etat():
 
 def _imprimantes_etat():
     """Les imprimantes connues de CUPS, et laquelle est par défaut."""
-    if not shutil.which("lpstat"):
+    if not _outils.commande_existe("lpstat"):
         return {"dispo": False, "liste": []}
     defaut = ""
     sortie = _sortie(["lpstat", "-d"])
@@ -3516,7 +3522,7 @@ def _clavier_etat():
     vide = {"dispositions": [], "courante": "", "actives": [],
             "catalogue": [], "bascules": [], "bascule": "", "max": 4,
             "x_applique": ""}
-    if not shutil.which("lexos-clavier"):
+    if not _outils.commande_existe("lexos-clavier"):
         return vide
     try:
         r = subprocess.run(["lexos-clavier", "--json"],
@@ -3552,7 +3558,7 @@ def _distant_etat():
     """
     vide = {"outil": "", "actif": False, "adresses": [], "ports": "",
             "remmina": False, "ssh": False}
-    if not shutil.which("lexos-distant"):
+    if not _outils.commande_existe("lexos-distant"):
         return vide
     try:
         r = subprocess.run(["lexos-distant", "--json"],
@@ -3573,7 +3579,7 @@ def _distant_etat():
 def _reseau_etat():
     """Le filaire : branché ou non, et avec quelle adresse. Une question
     simple qu'aucune section ne savait répondre."""
-    if not shutil.which("nmcli"):
+    if not _outils.commande_existe("nmcli"):
         return {"filaire": None, "ip": ""}
     filaire, ip = None, ""
     for ligne in _sortie(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE",
@@ -3614,7 +3620,7 @@ def _defaut_etat():
     d'Ubuntu, et les enlever d'ici n'aiderait personne.
     """
     vide = {"navigateur": "", "assoc": {}, "categories": []}
-    if not shutil.which("lexos-defaut"):
+    if not _outils.commande_existe("lexos-defaut"):
         return vide
     try:
         r = subprocess.run(["lexos-defaut", "--json"],
@@ -3641,7 +3647,7 @@ def _defaut_etat():
 
 def _couleurs_etat():
     """Les écrans connus de colord, et s'ils ont un profil de couleur."""
-    if not shutil.which("colormgr"):
+    if not _outils.commande_existe("colormgr"):
         return {"dispo": False, "ecrans": []}
     ecrans, courant = [], None
     for ligne in _sortie(["colormgr", "get-devices"]).splitlines():
@@ -3657,7 +3663,7 @@ def _couleurs_etat():
 def _tablette_etat():
     """Une tablette graphique est-elle branchée ? xsetwacom la voit quand le
     pilote est chargé ; sinon on cherche dans les périphériques d'entrée."""
-    if shutil.which("xsetwacom"):
+    if _outils.commande_existe("xsetwacom"):
         lignes = [l for l in _sortie(["xsetwacom", "--list", "devices"]).splitlines() if l.strip()]
         if lignes:
             return {"branchee": True,
@@ -3701,7 +3707,7 @@ def _crt_etat():
     vide = {"voulu": "off", "tourne": False, "picom": False,
             "picom_version": 0, "picom_min": 12, "accel3d": False,
             "script": False, "dispo": False}
-    if not shutil.which("lexos-crt"):
+    if not _outils.commande_existe("lexos-crt"):
         return vide
     try:
         r = subprocess.run(["lexos-crt", "--json"],
@@ -3726,7 +3732,7 @@ def _terminal_etat():
     """
     vide = {"mode": "", "effectif": "", "bureau": "", "debut": "", "fin": "",
             "minuterie": False, "dispo": False}
-    if not shutil.which("lexos-terminal"):
+    if not _outils.commande_existe("lexos-terminal"):
         return vide
     try:
         r = subprocess.run(["lexos-terminal", "--json"],
@@ -3757,7 +3763,7 @@ def _partage_etat():
     vide = {"actif": False, "nom": "", "nom_regex": "", "recus": "",
             "minutes": 0, "kde": False, "bt": False, "qr": False,
             "ssh_serveur": False, "dispo": False}
-    if not shutil.which("lexos-share"):
+    if not _outils.commande_existe("lexos-share"):
         return vide
     try:
         r = subprocess.run(["lexos-share", "--json"],
@@ -3791,7 +3797,7 @@ def _comptes_etat():
             "services": [], "dispo": False,
             #  Ancien nom, encore lu ailleurs dans la page.
             "liens": [], "goa": False}
-    if not shutil.which("lexos-comptes"):
+    if not _outils.commande_existe("lexos-comptes"):
         return vide
     try:
         r = subprocess.run(["lexos-comptes", "--json"],
@@ -3832,7 +3838,7 @@ def _bienetre_etat():
             "semaine": [], "total_semaine": 0, "dispo": False,
             #  Anciens noms, encore lus ailleurs dans la page.
             "pauses": False, "soir": False}
-    if not shutil.which("lexos-bienetre"):
+    if not _outils.commande_existe("lexos-bienetre"):
         return vide
     try:
         r = subprocess.run(["lexos-bienetre", "--json"],
@@ -3849,7 +3855,7 @@ def _bienetre_etat():
 
 def _heure_etat():
     """Fuseau et synchronisation automatique, via timedatectl."""
-    if not shutil.which("timedatectl"):
+    if not _outils.commande_existe("timedatectl"):
         return {"fuseau": "", "auto": False}
     fuseau, auto = "", False
     for ligne in _sortie(["timedatectl", "show"]).splitlines():
@@ -3870,7 +3876,7 @@ def _heure_etat():
     #  une tuile à la barre renumérote ces propriétés, et le réglage aurait
     #  fini par s'appliquer à autre chose.
     horloge = {"H12": "non", "SECONDES": "non", "JOUR": "oui"}
-    if shutil.which("lexos-heure"):
+    if _outils.commande_existe("lexos-heure"):
         for ligne in _sortie(["lexos-heure", "--etat"]).splitlines():
             if "=" in ligne:
                 cle, _, valeur = ligne.partition("=")
@@ -4062,7 +4068,7 @@ def _avion_etat():
     lexos-net : « -t » (terse) donne des mots-clés fixes, jamais traduits —
     contrairement à la sortie normale de nmcli, qui suit la langue du
     système (fr_CA par défaut sur LexOS)."""
-    if not shutil.which("nmcli"):
+    if not _outils.commande_existe("nmcli"):
         return "off"
     wifi = _sortie(["nmcli", "-t", "radio", "wifi"]) or "?"
     wwan = _sortie(["nmcli", "-t", "radio", "wwan"]) or "?"
@@ -4227,11 +4233,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if action is None:
             return self._json(400, {"ok": False, "erreur": "action inconnue"})
         try:
-            return self._json(200, action(requete.get("arg")))
+            reponse = action(requete.get("arg"))
         except subprocess.TimeoutExpired:
             return self._json(200, {"ok": False, "erreur": "délai dépassé"})
         except Exception as e:  # la fenêtre doit survivre à un outil qui casse
             return self._json(200, {"ok": False, "erreur": str(e)})
+        #  ═══ APRÈS UNE ACTION, ON OUBLIE CE QU'ON CROYAIT SAVOIR DES OUTILS ═══
+        #  moteur/outils.py garde trente secondes la réponse à « cet outil
+        #  est-il là ? » — ce qui fait qu'une lecture d'état ne balaie plus
+        #  le PATH quarante fois. Mais une ACTION peut justement installer ou
+        #  retirer un outil : « Ouvrir un fichier téléchargé » installe un
+        #  paquet, les mises à jour en posent, un dépôt tiers en ajoute. Sans
+        #  cet oubli, la page dirait « Outil absent » pour un outil qu'Alex
+        #  vient de voir s'installer sous ses yeux, et il n'y aurait rien à
+        #  comprendre. On oublie après TOUTE action, sans chercher lesquelles
+        #  installent : une liste à tenir aurait fini par en oublier une, et
+        #  le gain se joue DANS une lecture d'état (quarante collecteurs qui
+        #  demandent les mêmes outils), pas entre deux clics.
+        _outils.oublier()
+        return self._json(200, reponse)
 
 
 def _port_libre():

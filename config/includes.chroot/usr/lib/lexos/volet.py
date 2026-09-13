@@ -54,6 +54,12 @@ from pathlib import Path
 #  mêmes commandes, mêmes bornes, mêmes replis.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import son as _son  # noqa: E402
+#  ═══ LES OUTILS DU SYSTÈME, DEMANDÉS UNE FOIS ═══
+#  « shutil.which » balaie le PATH répertoire par répertoire, et il
+#  était appelé cent dix fois dans ce dépôt, la plupart à CHAQUE
+#  lecture d'état. moteur/outils.py garde la réponse trente secondes
+#  et l'oublie sur demande — après une installation, notamment.
+from moteur import outils as _outils  # noqa: E402
 
 BASE_DIR = Path(os.environ.get("LEXOS_VOLET_DIR", "/usr/share/lexos/volet"))
 WEB_DIR = BASE_DIR / "web"
@@ -297,7 +303,7 @@ def act_agenda_enleve(arg):
 #  La météo — on demande à lexos-meteo, qui sait déjà tout faire
 # =============================================================================
 def _meteo():
-    if shutil.which("lexos-meteo") is None:
+    if not _outils.commande_existe("lexos-meteo"):
         return {"ville": None, "erreur": "lexos-meteo absent"}
     try:
         r = subprocess.run(["lexos-meteo", "--json"],
@@ -310,7 +316,7 @@ def _meteo():
 def act_meteo_ville(_arg=None):
     """Ouvre le choix de ville. detach : c'est une fenêtre à part, et le volet
     doit pouvoir se refermer sans l'emporter."""
-    if shutil.which("lexos-meteo") is None:
+    if not _outils.commande_existe("lexos-meteo"):
         return {"ok": False, "erreur": "lexos-meteo absent"}
     subprocess.Popen(["lexos-meteo", "--choisir"], start_new_session=True,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -348,7 +354,7 @@ PERF_LABEL = {"petit": "Petit", "medium": "Médium",
 
 
 def _wifi_radio_etat():
-    if shutil.which("nmcli") is None:
+    if not _outils.commande_existe("nmcli"):
         return False
     try:
         r = subprocess.run(["nmcli", "-t", "radio", "wifi"],
@@ -361,7 +367,7 @@ def _wifi_radio_etat():
 def _bt_radio_etat():
     """None si la machine n'a pas de Bluetooth — la tuile s'affiche alors
     grisée plutôt que de prétendre pouvoir l'allumer."""
-    if shutil.which("bluetoothctl") is None:
+    if not _outils.commande_existe("bluetoothctl"):
         return None
     try:
         r = subprocess.run(["bluetoothctl", "show"],
@@ -379,7 +385,7 @@ def _bt_radio_etat():
 def _avion_radio_etat():
     """Même calcul que avion_state() dans lexos-net et _mode_apparence()
     ici : « -t » (terse) donne des mots-clés fixes, jamais traduits."""
-    if shutil.which("nmcli") is None:
+    if not _outils.commande_existe("nmcli"):
         return False
     try:
         wifi = subprocess.run(["nmcli", "-t", "radio", "wifi"],
@@ -482,7 +488,7 @@ def _radio_nmcli(quoi):
     à la sortie normale de nmcli, qui suit la langue du système (fr_CA sur
     LexOS).
     """
-    if shutil.which("nmcli") is None:
+    if not _outils.commande_existe("nmcli"):
         return None
     try:
         return subprocess.run(["nmcli", "-t", "radio", quoi],
@@ -538,7 +544,7 @@ def _rapides_etat():
 
 
 def act_rapides_wifi(_arg=None):
-    if shutil.which("nmcli") is None:
+    if not _outils.commande_existe("nmcli"):
         return {"ok": False, "erreur": "nmcli absent"}
     if _avion_radio_etat():
         return {"ok": False, "erreur": "mode avion actif"}
@@ -552,7 +558,7 @@ def act_rapides_wifi(_arg=None):
 
 
 def act_rapides_bt(_arg=None):
-    if shutil.which("bluetoothctl") is None:
+    if not _outils.commande_existe("bluetoothctl"):
         return {"ok": False, "erreur": "bluetoothctl absent"}
     if _avion_radio_etat():
         return {"ok": False, "erreur": "mode avion actif"}
@@ -568,7 +574,7 @@ def act_rapides_bt(_arg=None):
 
 
 def act_rapides_avion(_arg=None):
-    if shutil.which("lexos-net") is None:
+    if not _outils.commande_existe("lexos-net"):
         return {"ok": False, "erreur": "lexos-net absent"}
     try:
         r = subprocess.run(["lexos-net", "avion", "toggle"],
@@ -579,7 +585,7 @@ def act_rapides_avion(_arg=None):
 
 
 def act_rapides_perf(_arg=None):
-    if shutil.which("lexos-perf") is None:
+    if not _outils.commande_existe("lexos-perf"):
         return {"ok": False, "erreur": "lexos-perf absent"}
     ordre = ["petit", "medium", "performant", "max"]
     suivant = ordre[(ordre.index(_perf_etat()) + 1) % len(ordre)]
@@ -592,7 +598,7 @@ def act_rapides_perf(_arg=None):
 
 
 def act_rapides_theme(_arg=None):
-    if shutil.which("lexos") is None:
+    if not _outils.commande_existe("lexos"):
         return {"ok": False, "erreur": "lexos absent"}
     suivant = "clair" if _mode_apparence() == "sombre" else "sombre"
     try:
@@ -604,7 +610,7 @@ def act_rapides_theme(_arg=None):
 
 
 def act_rapides_crt(_arg=None):
-    if shutil.which("lexos") is None:
+    if not _outils.commande_existe("lexos"):
         return {"ok": False, "erreur": "lexos absent"}
     suivant = "off" if _crt_rapides_etat() else "on"
     try:
@@ -618,7 +624,7 @@ def act_rapides_crt(_arg=None):
 def act_rapides_partage(_arg=None):
     """Ouvre Partager. detach : une fenêtre à part, le volet doit pouvoir se
     refermer sans l'emporter — même raison que act_meteo_ville."""
-    if shutil.which("lexos-share") is None:
+    if not _outils.commande_existe("lexos-share"):
         return {"ok": False, "erreur": "lexos-share absent"}
     subprocess.Popen(["lexos-share", "devices"], start_new_session=True,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -629,7 +635,7 @@ def act_rapides_clavier(_arg=None):
     """Comme openSettings('clavier') dans la démo : la tuile Clavier n'essaie
     pas de changer de disposition elle-même, elle ouvre Paramètres sur sa
     page — voir la note plus haut sur ce qui est volontairement absent."""
-    if shutil.which("lexos-settings") is None:
+    if not _outils.commande_existe("lexos-settings"):
         return {"ok": False, "erreur": "lexos-settings absent"}
     subprocess.Popen(["lexos-settings", "clavier"], start_new_session=True,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -684,7 +690,7 @@ def act_rapides_photo(arg=None):
     mode = CAPTURE_MODES.get(arg or "")
     if mode is None:
         return {"ok": False, "erreur": "mode de capture inattendu"}
-    if shutil.which("lexos-capture") is None:
+    if not _outils.commande_existe("lexos-capture"):
         return {"ok": False, "erreur": "lexos-capture absent"}
     subprocess.Popen(["lexos-capture", mode, "--delai", CAPTURE_DELAI],
                      start_new_session=True,
@@ -776,7 +782,7 @@ def _hauteur_barre():
     verrait sinon le volet la chevaucher ou flotter loin d'elle. La marge de
     la feuille GTK (4 px de chaque côté) s'y ajoute."""
     defaut = 32 + 8
-    if shutil.which("xfconf-query") is None:
+    if not _outils.commande_existe("xfconf-query"):
         return defaut
     try:
         r = subprocess.run(["xfconf-query", "-c", "xfce4-panel",

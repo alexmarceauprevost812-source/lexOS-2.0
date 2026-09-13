@@ -12,6 +12,13 @@ Déroulé d'une optimisation :
 et à tout moment :
 
     annuler()   →  la machine revient exactement à son état d'origine
+
+⚠ À NE PAS CONFONDRE AVEC usr/lib/lexos/moteur/, le paquet qui porte le
+même mot et fait autre chose : lui est le socle commun des fenêtres —
+Paramètres, volet — et tient à un seul endroit le serveur local, la
+fenêtre Qt, les collecteurs et leur cache. Ce fichier-ci ne parle que des
+profils de performance. Les deux se renvoient l'un à l'autre parce que le
+lecteur de l'un tombera forcément sur l'autre un jour.
 """
 
 from __future__ import annotations

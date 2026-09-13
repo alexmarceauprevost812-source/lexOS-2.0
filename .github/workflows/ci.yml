@@ -2937,6 +2937,24 @@ jobs:
           #  était donc éteint pour tout le monde, barre cachée ou non.
           bash tests/test_lexos_moteur_ouverture.sh
 
+      - name: Les outils du système, demandés une fois
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX : « un moteur pour tous les paramètres, que ça soit encore
+          #  plus fluide ». Compté : « shutil.which » apparaissait 110 fois
+          #  dans usr/lib/lexos/, la plupart relues à CHAQUE lecture d'état.
+          #  Mesuré avant : UNE lecture d'état faisait 73 balayages du PATH
+          #  pour 47 outils distincts — xfconf-query cherché SEIZE fois.
+          #
+          #  ⚠ ET LE PIÈGE DE CETTE ÉTAPE, QUE CE BANC ÉPROUVE POUR DE VRAI :
+          #  commande_existe() rend un BOOLÉEN là où shutil.which rendait un
+          #  chemin ou None. Les vingt-quatre gardes « … is None » seraient
+          #  devenues TOUJOURS FAUSSES — « si l'outil est absent » serait
+          #  devenu « jamais », en silence, dans un fichier qui se parse
+          #  parfaitement. Le point 3 vide le PATH et vérifie que les
+          #  fonctions disent bien que les outils manquent.
+          bash tests/test_lexos_moteur_outils.sh
+
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}
         run: |

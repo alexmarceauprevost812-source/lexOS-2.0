@@ -50,6 +50,16 @@ recopiés entre settings.py et le volet — l'est.
 
 import shutil
 import subprocess
+import sys
+from pathlib import Path
+
+#  ═══ LES OUTILS DU SYSTÈME, DEMANDÉS UNE FOIS ═══
+#  « shutil.which » balaie le PATH répertoire par répertoire, et il
+#  était appelé cent dix fois dans ce dépôt, la plupart à CHAQUE
+#  lecture d'état. moteur/outils.py garde la réponse trente secondes
+#  et l'oublie sur demande — après une installation, notamment.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from moteur import outils as _outils  # noqa: E402
 
 #  pactl répond en quelques millisecondes quand tout va bien. La borne est là
 #  pour le cas où le serveur de son est en train de démarrer ou de mourir :
@@ -63,7 +73,7 @@ SOURCE = "@DEFAULT_SOURCE@"
 def disponible():
     """pactl est-il là ? C'est la seule question qui décide si le bandeau de
     son s'affiche du tout."""
-    return shutil.which("pactl") is not None
+    return _outils.commande_existe("pactl")
 
 
 def _sortie(argv):
@@ -81,7 +91,7 @@ def _run(argv):
     {"ok": bool} et, en cas d'échec, {"erreur": "…"}. La page n'affiche un
     motif que si la réponse porte la clé « erreur » — sans elle, on voit
     « Échec : commande refusée » et on cherche du côté du bouton."""
-    if shutil.which(argv[0]) is None:
+    if not _outils.commande_existe(argv[0]):
         return {"ok": False, "erreur": f"Outil absent : {argv[0]}"}
     try:
         r = subprocess.run(argv, capture_output=True, text=True,
