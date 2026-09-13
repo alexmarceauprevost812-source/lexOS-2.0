@@ -48,8 +48,16 @@ manpages
 gnupg
 unattended-upgrades
 apt-listchanges
-plymouth
-plymouth-themes
+# plymouth / plymouth-themes DÉPLACÉS AU SOCLE
+#   (config/package-lists/lexos-core.list.chroot). Ils étaient ici, donc
+#   installés « au mieux » — et quand ce mieux ratait, il n'y avait AUCUN
+#   écran de démarrage : les lignes de services défilaient du début à la
+#   fin. Le hook 0300 nommait déjà cette absence comme la cause la plus
+#   probable de son thème non posé.
+#   Ils ne sont plus ici du tout : le contrôle de la CI « un paquet n'est
+#   pas à la fois obligatoire et au mieux » l'interdit, et il a raison —
+#   deux listes pour un même paquet, c'est deux vérités dont l'une se
+#   périmera sans que personne ne le voie.
 webp
 imagemagick
 irqbalance

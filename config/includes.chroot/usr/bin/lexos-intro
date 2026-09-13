@@ -172,7 +172,132 @@ MBTN_RIGHT quit
 MBTN_MID quit
 TOUCHES
 fi
-nettoyer() { [ -n "$TABLE" ] && rm -f "$TABLE"; return 0; }
+# --- 6 bis. RIEN D'AUTRE QUE LA VIDÉO À L'ÉCRAN -----------------------------
+#  ALEX : « qu'on ne voie pas les outils ouvrir quand il fait l'animation ».
+#
+#  ═══ POURQUOI « --ontop » NE SUFFIT PAS, ET CE QU'ON EN SAIT VRAIMENT ═══
+#  « --ontop » demande l'état EWMH _NET_WM_STATE_ABOVE. Dans xfwm4 les
+#  couches sont numérotées : NORMAL 4, ABOVE 6, DOCK 8, FULLSCREEN 12. Le
+#  panneau du haut vit dans DOCK — donc AU-DESSUS de ce que « --ontop »
+#  obtient. Le plein écran, lui, passe devant le panneau… mais xfwm4 ne
+#  donne la couche FULLSCREEN qu'à la fenêtre plein écran QUI A LE FOCUS,
+#  précisément pour qu'on puisse revenir au panneau en changeant de fenêtre.
+#  Au démarrage de session, rien ne garantit qui a le focus.
+#
+#  CE QUE JE N'AI PAS PU MESURER, ET JE NE FAIS PAS SEMBLANT : il n'y a ni
+#  serveur X ni xfwm4 là où ce dépôt est construit. Ce qui précède est lu
+#  dans le code de xfwm4, pas constaté sur le ThinkPad. On garde donc les
+#  trois épaisseurs — plein écran, géométrie, et la mise en sourdine
+#  ci-dessous — plutôt que de parier sur une seule.
+#
+#  ═══ LA RÈGLE QUI PRIME SUR TOUT CE QUI SUIT ═══
+#  CE PROGRAMME NE DOIT JAMAIS EMPÊCHER D'OUVRIR SA SESSION. Chaque commande
+#  ajoutée ici est donc tolérée à l'échec, et chaque état modifié est
+#  rétabli par « nettoyer », appelé dans les trois trap (EXIT, INT, TERM).
+#  Un panneau caché qui ne revient jamais serait PIRE que le défaut qu'on
+#  corrige : mieux vaut une seconde de panneau visible qu'un bureau sans
+#  panneau.
+
+#  Ce qu'on a changé, et donc ce qu'il faut défaire. Vides = rien à défaire,
+#  et « nettoyer » peut être appelé deux fois sans dégât.
+PANNEAU_CACHE=""
+DND_AVANT=""      # "" = jamais touché · "absent" = la clé n'existait pas
+XQ="$(command -v xfconf-query 2>/dev/null || true)"
+XD="$(command -v xdotool 2>/dev/null || true)"
+
+#  ═══ AUCUNE DE CES COMMANDES N'A LE DROIT DE PRENDRE SON TEMPS ═══
+#  Mesuré ici : xfconf-query répond en 25 ms et xdotool en 7 ms quand tout
+#  va bien. Mais xfconf-query AUTOLANCE D-Bus quand xfconfd ne tourne pas
+#  encore — et à l'ouverture de session, c'est PRÉCISÉMENT le moment où il
+#  ne tourne pas encore. Un D-Bus qui met du temps à répondre retarderait
+#  d'autant la vidéo, et la règle de ce fichier est que rien de ce qu'on
+#  ajoute ne peut retarder la session.
+#  Deux secondes est large pour une lecture locale et court devant l'œil.
+#  Si la limite est atteinte, on n'a rien changé : la commande a échoué,
+#  et les fonctions ci-dessous traitent l'échec comme un « on n'y touche
+#  pas », jamais comme un « c'est fait ».
+BREF="${LEXOS_INTRO_BREF:-2}"
+bref() { # bref <commande…> — la même chose, mais jamais plus de 2 s
+	if command -v timeout >/dev/null 2>&1; then
+		timeout "$BREF" "$@"
+	else
+		"$@"
+	fi
+}
+
+#  ── Le panneau : on CACHE LA FENÊTRE, on ne reconfigure rien ──────────────
+#  xdotool windowunmap/windowmap agit sur la fenêtre elle-même. On ne touche
+#  NI à l'autohide, NI à la configuration d'Alex : le jour où ce programme
+#  n'existe plus, son panneau est exactement comme il l'a réglé.
+#  xdotool vit dans 56-reglages.list, une liste OPTIONNELLE : il PEUT
+#  manquer. Alors on le DIT dans le journal et on continue — on ne bricole
+#  pas un remplacement qui toucherait aux réglages.
+panneau_cacher() {
+	[ -n "$XD" ] || { dire "xdotool absent : le panneau n'est pas caché pendant la vidéo (paquet xdotool, liste 56-reglages)"; return 0; }
+	IDS="$(bref "$XD" search --class '^xfce4-panel$' 2>/dev/null || true)"
+	[ -n "$IDS" ] || { dire "aucune fenêtre xfce4-panel trouvée : rien à cacher"; return 0; }
+	for W in $IDS; do
+		bref "$XD" windowunmap "$W" 2>/dev/null && PANNEAU_CACHE="$PANNEAU_CACHE $W"
+	done
+	[ -n "$PANNEAU_CACHE" ] && dire "panneau caché le temps de la vidéo :$PANNEAU_CACHE"
+	return 0
+}
+panneau_montrer() {
+	[ -n "$PANNEAU_CACHE" ] || return 0
+	for W in $PANNEAU_CACHE; do
+		bref "$XD" windowmap "$W" 2>/dev/null || true
+	done
+	#  On vide AVANT de sortir : si « nettoyer » est rappelé (EXIT après
+	#  INT, par exemple), il ne retente rien et ne peut rien casser.
+	PANNEAU_CACHE=""
+	return 0
+}
+
+#  ── Les bulles de notification ───────────────────────────────────────────
+#  xfce4-notifyd a un « ne pas déranger » lisible et écrivable par xfconf.
+#  ON RELIT L'ÉTAT D'ABORD, et on remet EXACTEMENT celui-là : si la clé
+#  n'existait pas, on la SUPPRIME au lieu d'écrire « false » — sinon on
+#  laisserait derrière nous un réglage qu'Alex n'avait jamais posé.
+notifs_sourdine() {
+	[ -n "$XQ" ] || { dire "xfconf-query absent : les notifications ne sont pas mises en sourdine"; return 0; }
+	if AV="$(bref "$XQ" -c xfce4-notifyd -p /do-not-disturb 2>/dev/null)"; then
+		DND_AVANT="$AV"
+	else
+		DND_AVANT="absent"
+	fi
+	if bref "$XQ" -c xfce4-notifyd -p /do-not-disturb -n -t bool -s true 2>/dev/null \
+	   || bref "$XQ" -c xfce4-notifyd -p /do-not-disturb -s true 2>/dev/null; then
+		dire "notifications en sourdine (état d'avant : $DND_AVANT)"
+	else
+		#  Échec : on n'a RIEN changé, donc il n'y a rien à rétablir.
+		dire "sourdine des notifications refusée par xfconf — état inchangé"
+		DND_AVANT=""
+	fi
+	return 0
+}
+notifs_retablir() {
+	[ -n "$DND_AVANT" ] || return 0
+	if [ "$DND_AVANT" = "absent" ]; then
+		bref "$XQ" -c xfce4-notifyd -p /do-not-disturb -r 2>/dev/null || true
+	else
+		bref "$XQ" -c xfce4-notifyd -p /do-not-disturb -n -t bool -s "$DND_AVANT" 2>/dev/null \
+			|| bref "$XQ" -c xfce4-notifyd -p /do-not-disturb -s "$DND_AVANT" 2>/dev/null || true
+	fi
+	DND_AVANT=""
+	return 0
+}
+
+#  ═══ L'ORDRE DE « nettoyer » N'EST PAS INDIFFÉRENT ═══
+#  On rend le panneau AVANT de rendre les notifications : si une bulle
+#  arrivait entre les deux, elle se poserait sur un bureau qui a déjà sa
+#  barre. Et « return 0 » en dernière ligne, toujours : un trap qui rend
+#  autre chose que 0 changerait le code de sortie du programme.
+nettoyer() {
+	panneau_montrer
+	notifs_retablir
+	[ -n "$TABLE" ] && rm -f "$TABLE"
+	return 0
+}
 trap nettoyer EXIT
 trap 'nettoyer; exit 130' INT
 trap 'nettoyer; exit 143' TERM
@@ -224,5 +349,17 @@ fi
 #  un mpv figé ne peut pas garder l'écran. La sortie est ignorée — ce
 #  programme ne rend jamais autre chose que 0, il n'a rien à reprocher à
 #  personne.
+#  Les trap sont armés depuis la section 6 : à partir d'ici, TOUT ce qu'on
+#  change est défait, que mpv se termine, qu'il soit tué par la minuterie,
+#  ou que la session parte en TERM.
+notifs_sourdine
+panneau_cacher
+
 timeout -k 2 "$DELAI_MAX" mpv "${OPTS[@]}" -- "$FICHIER" >/dev/null 2>&1
+
+#  ON REND LA MAIN TOUT DE SUITE, sans attendre le trap EXIT : entre la fin
+#  de mpv et la fin du processus il peut s'écouler un instant, et c'est
+#  l'instant où Alex regarde son bureau. « nettoyer » est écrit pour être
+#  appelé deux fois sans dégât — le trap repassera derrière, sans rien faire.
+nettoyer
 exit 0

@@ -15,6 +15,29 @@ live-boot
 live-config
 systemd-sysv
 init
+#  ═══ plymouth / plymouth-themes : L'ÉCRAN DE DÉMARRAGE LUI-MÊME ═══
+#  ALEX : « la vidéo de démarrage, j'aimerais bien qu'on ne voie pas les
+#  outils ouvrir quand il est en train de faire l'animation ».
+#
+#  Ces deux paquets ne vivaient QUE dans optional-packages/00-core.list, que
+#  le hook 0250 installe en tolérant l'échec. Le hook 0300 nomme déjà cette
+#  absence comme « LA CAUSE LA PLUS PROBABLE » quand le thème lexos n'est pas
+#  posé — et ce qu'on voit alors n'est pas « un écran de démarrage moins
+#  joli », c'est AUCUN écran de démarrage : les lignes de services défilent
+#  du début à la fin. Exactement le symptôme d'Alex, dans sa forme complète.
+#
+#  Ils sont donc ICI, dans la liste obligatoire — même raisonnement que
+#  os-prober quinze lignes plus bas : une absence silencieuse coûte quelque
+#  chose qui ne se découvre qu'au redémarrage suivant, sur une machine déjà
+#  installée. Mieux vaut arrêter la construction.
+#
+#  Ils ne sont plus du tout dans optional-packages/00-core.list : le
+#  contrôle de la CI « un paquet n'est pas à la fois obligatoire et au
+#  mieux » l'interdit, et la raison écrite dans ce fichier-là tient —
+#  deux listes pour un seul paquet, c'est deux vérités dont l'une se
+#  périmera en silence.
+plymouth
+plymouth-themes
 #  os-prober cherche les AUTRES systèmes présents sur le disque (Windows,
 #  une autre distribution) pour que GRUB leur fasse une entrée dans le menu
 #  de démarrage. Sans lui, installer LexOS à côté de Windows donne un menu

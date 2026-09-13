@@ -40,7 +40,26 @@ BOOTAPPEND_BASE="${BOOTAPPEND_BASE} keyboard-layouts=${LEXOS_KEYBOARD_LAYOUT}"
 BOOTAPPEND_BASE="${BOOTAPPEND_BASE} keyboard-variants=${LEXOS_KEYBOARD_VARIANT}"
 BOOTAPPEND_BASE="${BOOTAPPEND_BASE} timezone=${LEXOS_TIMEZONE}"
 
+#  ── L'ANIMATION SEULE À L'ÉCRAN, SUR LA CLÉ AUSSI ───────────────────────
+#  ALEX : « qu'on ne voie pas les outils ouvrir quand il fait l'animation ».
+#  « quiet splash » ne suffit pas : quiet BAISSE le niveau des messages du
+#  noyau sans le couper, et il ne dit rien à systemd ni à udev — ceux-là
+#  mêmes qui écrivent les lignes de services par-dessus l'animation.
+#     loglevel=3 .................... les messages du noyau info/notice qui
+#                                     passent malgré quiet
+#     udev.log_level=3 .............. les lignes d'udev pendant la détection
+#                                     du matériel
+#     systemd.show_status=false ..... les « [  OK  ] Started … »
+#     rd.systemd.show_status=false .. les mêmes dans l'initramfs
+#     vt.global_cursor_default=0 .... le curseur qui clignote par-dessus
+#  Le hook 0100 pose exactement les mêmes réglages dans GRUB_CMDLINE_LINUX_
+#  DEFAULT pour le système INSTALLÉ. Les deux endroits vont ensemble : ici
+#  c'est la clé USB, là-bas c'est le disque. Le banc tests/test_lexos_
+#  plymouth.sh exige les six dans les deux fichiers.
 BOOTAPPEND="${BOOTAPPEND_BASE} quiet splash"
+BOOTAPPEND="${BOOTAPPEND} loglevel=3 udev.log_level=3"
+BOOTAPPEND="${BOOTAPPEND} systemd.show_status=false rd.systemd.show_status=false"
+BOOTAPPEND="${BOOTAPPEND} vt.global_cursor_default=0"
 
 #  ── NVIDIA (RTX 50 / Blackwell) : garder la console visible ─────────────
 #  Constaté sur une Alienware Aurora, RTX 5060, pilote 610.43.02 (dépôt

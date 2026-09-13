@@ -210,6 +210,146 @@ else
 fi
 
 # =============================================================================
+titre "2 bis. RIEN PAR-DESSUS LA VIDÉO — et TOUT revient, même quand mpv est tué"
+# =============================================================================
+#  ALEX : « qu'on ne voie pas les outils ouvrir quand il fait l'animation ».
+#  Le panneau (couche DOCK de xfwm4) passait au-dessus d'un mpv « --ontop »
+#  (couche ABOVE), et les bulles de notification aussi. Le programme cache
+#  donc la fenêtre du panneau (xdotool windowunmap) et met xfce4-notifyd en
+#  « ne pas déranger » le temps de la vidéo.
+#
+#  ═══ CE QU'ON MESURE AVANT TOUT : LA REMISE EN ÉTAT ═══
+#  Un panneau caché qui ne revient jamais est PIRE que le défaut corrigé.
+#  On rejoue donc les trois sorties possibles — mpv fini, mpv TUÉ PAR LA
+#  MINUTERIE, programme reçu TERM — et dans les trois, le faux xdotool doit
+#  avoir reçu autant de windowmap que de windowunmap, et le faux xfconf
+#  doit avoir REMIS la valeur d'avant (ou supprimé la clé s'il n'y en avait
+#  pas). Les faux outils NOTENT ce qu'on leur demande au lieu de le faire.
+SOURDINE="$BANC/sourdine"
+mkdir -p "$SOURDINE"
+APPELS_XD="$BANC/appels-xdotool"
+APPELS_XQ="$BANC/appels-xfconf"
+DND_ETAT="$BANC/dnd-etat"     # ce que « xfconf-query -p /do-not-disturb » répond ; absent = clé absente
+cat > "$SOURDINE/xdotool" <<EOF
+#!/bin/sh
+printf '%s\n' "\$*" >> "$APPELS_XD"
+case "\$1" in
+	search) printf '12345678\n87654321\n' ;;
+esac
+exit 0
+EOF
+cat > "$SOURDINE/xfconf-query" <<EOF
+#!/bin/sh
+printf '%s\n' "\$*" >> "$APPELS_XQ"
+#  Lecture : la valeur courante, ou échec si la clé n'existe pas.
+case "\$*" in
+	*" -s "*|*" -r"*|*" -r "*) exit 0 ;;
+	*)
+		[ -r "$DND_ETAT" ] || exit 1
+		cat "$DND_ETAT"
+		;;
+esac
+EOF
+chmod +x "$SOURDINE/xdotool" "$SOURDINE/xfconf-query"
+#  Un mpv qui « joue » une demi-seconde puis se termine normalement.
+printf '#!/bin/sh\nsleep 0.5\nexit 0\n' > "$SOURDINE/mpv"
+chmod +x "$SOURDINE/mpv"
+
+remise_en_etat_ok() { # remise_en_etat_ok <libellé du cas>
+	_cas="$1"
+	_unmap="$(grep -c '^windowunmap' "$APPELS_XD" 2>/dev/null || echo 0)"
+	_map="$(grep -c '^windowmap' "$APPELS_XD" 2>/dev/null || echo 0)"
+	if [ "$_unmap" -gt 0 ] && [ "$_map" = "$_unmap" ]; then
+		ok "$_cas : le panneau a été caché ($_unmap fenêtres) et REMONTRÉ autant de fois"
+	else
+		non "$_cas : $_unmap windowunmap pour $_map windowmap — un panneau resterait caché"
+	fi
+	if grep -q -- '-p /do-not-disturb.* -s true' "$APPELS_XQ" 2>/dev/null; then
+		ok "$_cas : les notifications ont été mises en sourdine"
+	else
+		non "$_cas : aucune mise en sourdine des notifications :\n$(cat "$APPELS_XQ" 2>/dev/null)"
+	fi
+}
+
+# --- Cas A : la clé existait (false), mpv se termine normalement ------------
+printf 'false\n' > "$DND_ETAT"; : > "$APPELS_XD"; : > "$APPELS_XQ"
+lance PATH="$SOURDINE:$PATH"
+RC=$?
+[ "$RC" = "0" ] && ok "mpv normal : code 0" || non "mpv normal : code $RC"
+remise_en_etat_ok "mpv normal"
+if [ "$(tail -1 "$APPELS_XQ" | grep -c -- '-s false')" = "1" ]; then
+	ok "mpv normal : la valeur d'AVANT (false) est remise — pas une valeur inventée"
+else
+	non "mpv normal : le dernier appel xfconf n'est pas « -s false » : $(tail -1 "$APPELS_XQ")"
+fi
+
+# --- Cas B : la clé N'EXISTAIT PAS -> on la SUPPRIME, on n'écrit pas false --
+#  Écrire « false » laisserait derrière nous un réglage qu'Alex n'avait
+#  jamais posé. La clé absente doit redevenir absente.
+rm -f "$DND_ETAT"; : > "$APPELS_XD"; : > "$APPELS_XQ"
+lance PATH="$SOURDINE:$PATH"
+if grep -q -- '-p /do-not-disturb -r' "$APPELS_XQ" 2>/dev/null; then
+	ok "clé absente avant : elle est SUPPRIMÉE après (-r), pas écrite à false"
+else
+	non "clé absente avant : elle n'est pas supprimée après :\n$(cat "$APPELS_XQ")"
+fi
+
+# --- Cas C : mpv TUÉ PAR LA MINUTERIE (timeout -k 2) -------------------------
+#  C'est le cas de la consigne : « la remise en état doit être vérifiée
+#  AUSSI quand mpv est tué par la minuterie, pas seulement quand il se
+#  termine normalement ». Le faux mpv ignore SIGTERM ; « timeout -k »
+#  l'achève en SIGKILL. Le programme, lui, survit — et doit tout remettre.
+FIGE2="$BANC/fige2"; mkdir -p "$FIGE2"
+cp "$SOURDINE/xdotool" "$SOURDINE/xfconf-query" "$FIGE2/"
+printf '#!/bin/bash\ntrap "" TERM\nexec -a lexosbancfige sleep 300\n' > "$FIGE2/mpv"
+chmod +x "$FIGE2/mpv"
+printf 'true\n' > "$DND_ETAT"; : > "$APPELS_XD"; : > "$APPELS_XQ"
+lance PATH="$FIGE2:$PATH" LEXOS_INTRO_DELAI=2
+RC=$?
+pkill -x lexosbancfige 2>/dev/null
+[ "$RC" = "0" ] && ok "mpv tué par la minuterie : code 0" || non "mpv tué par la minuterie : code $RC"
+remise_en_etat_ok "mpv tué par la minuterie"
+if [ "$(tail -1 "$APPELS_XQ" | grep -c -- '-s true')" = "1" ]; then
+	ok "mpv tué : la valeur d'avant (true — Alex avait DÉJÀ le mode sourdine) est remise telle quelle"
+else
+	non "mpv tué : la valeur d'avant n'est pas remise : $(tail -1 "$APPELS_XQ")"
+fi
+
+# --- Cas D : le PROGRAMME reçoit TERM (fin de session) -----------------------
+: > "$APPELS_XD"; : > "$APPELS_XQ"; printf 'false\n' > "$DND_ETAT"
+( env XDG_CONFIG_HOME="$BANC/conf" LEXOS_INTRO_DIR="$BANC/marque" \
+      LEXOS_CMDLINE="$BANC/cmdline" LEXOS_PERF_ETAT="$BANC/perf" DISPLAY=":99" \
+      PATH="$FIGE2:$PATH" LEXOS_INTRO_DELAI=30 bash "$OUTIL" ) >/dev/null 2>&1 &
+PID_INTRO=$!
+sleep 1
+kill -TERM "$PID_INTRO" 2>/dev/null
+wait "$PID_INTRO" 2>/dev/null
+pkill -x lexosbancfige 2>/dev/null
+remise_en_etat_ok "programme reçu TERM"
+
+# --- Cas E : sans xdotool ni xfconf-query -> on le DIT, on ne casse rien ----
+#  xdotool vit dans une liste optionnelle : il peut manquer. Alors pas de
+#  panneau caché, une ligne dans le journal, et la session part quand même.
+SANS_OUTILS="$BANC/sans-outils"; mkdir -p "$SANS_OUTILS"
+cp "$SOURDINE/mpv" "$SANS_OUTILS/mpv"
+for b in bash sh timeout mktemp grep tr rm cat logger printf sleep env; do
+	p="$(command -v "$b" 2>/dev/null)"; [ -n "$p" ] && ln -sf "$p" "$SANS_OUTILS/$b"
+done
+: > "$APPELS_XD"; : > "$APPELS_XQ"
+lance PATH="$SANS_OUTILS"
+RC=$?
+if [ "$RC" = "0" ] && grep -q 'xdotool absent' <<< "$(journal)" && grep -q 'xfconf-query absent' <<< "$(journal)"; then
+	ok "sans xdotool ni xfconf-query : code 0, et le journal nomme les deux absents"
+else
+	non "sans les outils : code $RC, journal « $(journal | tr '\n' ' ')»"
+fi
+if [ ! -s "$APPELS_XD" ] && [ ! -s "$APPELS_XQ" ]; then
+	ok "…et aucun appel n'a fui vers un outil qui n'était pas là"
+else
+	non "des appels sont partis sans outil : $(cat "$APPELS_XD" "$APPELS_XQ")"
+fi
+
+# =============================================================================
 titre "3. CE QUE LE PROGRAMME NE DOIT JAMAIS FAIRE"
 # =============================================================================
 CODE="$(sed 's/#.*$//' "$OUTIL")"

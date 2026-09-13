@@ -598,6 +598,10 @@ done
 #  La liste gelée sert quand Plymouth n'est pas installé sur la machine qui
 #  lance le banc. Elle a été RELEVÉE dans script.so 24.004.60, pas recopiée
 #  d'une documentation : ce sont les fonctions natives du module.
+#  SetMessageFunction y figure parce que le prélude du module la déclare
+#  comme ALIAS de SetDisplayMessageFunction — relevé dans le binaire, pas
+#  supposé. Elle n'est PAS une native : un thème qui ne pose qu'elle laisse
+#  SetHideMessageFunction au comportement par défaut.
 API_GELEE="SetRefreshRate SetRefreshFunction SetBootProgressFunction
 SetRootMountedFunction SetKeyboardInputFunction SetUpdateStatusFunction
 SetDisplayNormalFunction SetDisplayPasswordFunction SetDisplayQuestionFunction
@@ -606,8 +610,21 @@ SetHideMessageFunction SetMessageFunction SetQuitFunction
 SetSystemUpdateFunction SetValidateInputFunction GetMode GetCapslockState"
 
 if [ -n "$SO_SCRIPT" ]; then
-	API="$(strings "$SO_SCRIPT" 2>/dev/null | grep -xE '(Get|Set)[A-Za-z]+')"
-	ok "API relevée dans le vrai module ($SO_SCRIPT)"
+	#  ═══ DEUX SOURCES DANS LE MÊME BINAIRE, ET IL FAUT LES DEUX ═══
+	#  MESURÉ, pas supposé : script.so 24.004.60 contient les noms NATIFS
+	#  isolés sur leur propre chaîne (« SetDisplayMessageFunction »), MAIS
+	#  AUSSI un prélude en langage de script qui déclare des ALIAS :
+	#      Plymouth.SetMessageFunction = Plymouth.SetDisplayMessageFunction;
+	#  Le premier relevé ne prenait que les chaînes isolées. Il déclarait
+	#  donc inexistante une fonction que le module définit lui-même — un
+	#  FAUX ROUGE, qui coûte autant qu'un faux vert : il envoie réparer ce
+	#  qui n'est pas cassé, et il apprend à ignorer le rouge.
+	API_NATIF="$(strings "$SO_SCRIPT" 2>/dev/null | grep -xE '(Get|Set)[A-Za-z]+')"
+	API_ALIAS="$(strings "$SO_SCRIPT" 2>/dev/null \
+		| grep -oE 'Plymouth\.(Get|Set)[A-Za-z]+[[:space:]]*=' \
+		| sed 's/^Plymouth\.//; s/[[:space:]]*=$//')"
+	API="$(printf '%s\n%s\n' "$API_NATIF" "$API_ALIAS" | grep -E . | sort -u)"
+	ok "API relevée dans le vrai module ($SO_SCRIPT) : $(grep -c . <<< "$API_NATIF") natives + $(printf '%s\n' "$API_ALIAS" | grep -c . || true) alias du prélude"
 else
 	API="$(printf '%s\n' $API_GELEE)"
 	saut "plymouth absent : liste d'API gelée (relevée dans script.so 24.004.60)"
@@ -869,27 +886,38 @@ else
 	non "le mode sans échec ne coupe pas Plymouth : en dépannage on ne verrait pas les messages"
 fi
 
-#  2. Les paquets sont demandés, et par une liste posée pour toutes les saveurs.
+#  ═══ 2. LES PAQUETS SONT AU SOCLE STRICT — PLUS « AU MIEUX » ═══
+#  ALEX : « qu'on ne voie pas les outils ouvrir quand il fait l'animation ».
+#  Ce cas-ci NE MESURAIT PAS LE BON FICHIER. Il exigeait plymouth dans
+#  00-core.list — la liste que le hook 0250 pose EN TOLÉRANT L'ÉCHEC : le
+#  paquet est noté dans /etc/lexos/optional-report et la construction
+#  continue. Quand cette pose ratait, il n'y avait AUCUN écran de démarrage,
+#  donc tout le texte du démarrage à l'écran ; le hook 0300 nommait déjà
+#  cette absence comme « LA CAUSE LA PLUS PROBABLE ». Le contrôle était vert
+#  pendant que le symptôme d'Alex était possible.
+#  Il exige maintenant la liste OBLIGATOIRE : si le paquet manque, la
+#  construction s'arrête au lieu de sortir une ISO muette.
+for P in plymouth plymouth-themes; do
+	if grep -qxF "$P" < <(grep -Ev '^[[:space:]]*(#|$)' "$STRICT_LIST"); then
+		ok "« $P » est au socle OBLIGATOIRE (lexos-core.list.chroot) : un miroir qui hoquète ne peut plus l'emporter"
+	else
+		non "« $P » n'est pas dans lexos-core.list.chroot : posé « au mieux », donc absent sans bruit — et alors AUCUN écran de démarrage"
+	fi
+done
+#  …ET NULLE PART AILLEURS. Le contrôle de la CI « un paquet n'est pas à la
+#  fois obligatoire et au mieux » l'interdit, et sa raison tient : deux
+#  listes pour un même paquet, c'est deux vérités dont l'une se périmera.
 for P in plymouth plymouth-themes; do
 	if grep -qxF "$P" < <(grep -Ev '^[[:space:]]*(#|$)' "$CORE_LIST"); then
-		ok "« $P » est demandé par 00-core.list (ligne de code, pas un commentaire)"
+		non "« $P » est ENCORE dans 00-core.list en plus du socle : deux régimes pour un paquet, la CI le refuse"
 	else
-		non "« $P » n'est pas dans 00-core.list : sans lui, pas de thème du tout"
+		ok "« $P » n'est plus dans 00-core.list : une seule liste fait foi"
 	fi
 done
 if grep -qE '^LISTS="[^"]*\b00-core\.list\b' "$HOOK_0250"; then
 	ok "00-core.list est dans la liste de BASE du hook 0250 — posée même en saveur « minimal »"
 else
-	non "00-core.list n'est plus dans LISTS= du hook 0250 : une saveur pourrait partir sans Plymouth"
-fi
-#  CE QUE CETTE CHAÎNE A DE FRAGILE, DIT EN CLAIR. Le hook 0250 TOLÈRE un
-#  paquet qui ne s'installe pas : il le note dans /etc/lexos/optional-report
-#  et continue. Plymouth n'est pas au socle strict. Ce n'est pas un défaut
-#  à corriger ici — c'est une décision qu'Alex prend en connaissance de cause.
-if grep -qxF plymouth < <(grep -Ev '^[[:space:]]*(#|$)' "$STRICT_LIST"); then
-	ok "plymouth est au socle STRICT (lexos-core.list.chroot) : un miroir qui hoquète ne peut pas l'emporter"
-else
-	saut "plymouth N'EST PAS au socle strict : posé par 00-core.list, dont le hook 0250 tolère l'échec (le hook 0300 crie alors, la construction continue)"
+	non "00-core.list n'est plus dans LISTS= du hook 0250 : une saveur pourrait partir sans ses paquets de base"
 fi
 
 #  3. L'ordre des hooks : les paquets avant le thème.
@@ -932,6 +960,137 @@ else
 			non "plymouth-$U.service : pas voulu par $U.target, ou sans condition « splash », ou n'est plus plymouthd"
 		fi
 	done
+fi
+
+# =============================================================================
+titre "7 bis. RIEN D'AUTRE QUE L'ANIMATION À L'ÉCRAN"
+# =============================================================================
+#  ALEX : « la vidéo de démarrage, j'aimerais bien qu'on ne voie pas les
+#  outils ouvrir quand il est en train de faire l'animation ».
+#
+#  Trois causes distinctes, et chacune suffit à elle seule à faire écrire du
+#  texte par-dessus l'animation. La section 7 vient de couvrir la première
+#  (les paquets au socle). Restent :
+#    · l'initramfs sans pilote d'affichage — Plymouth démarre alors sur son
+#      greffon TEXTE, celui qui écrit les lignes de services ;
+#    · la ligne de commande du noyau qui s'arrêtait à « quiet splash » —
+#      quiet BAISSE le niveau des messages du noyau sans le couper, et ne dit
+#      RIEN à systemd ni à udev ;
+#    · le script du thème qui ne définissait aucune fonction de message —
+#      un silence, pas une décision.
+#
+#  ═══ ET CE QUI NE DOIT PAS ÊTRE FAIT TAIRE ═══
+#  Le mode secours garde ses messages : quand il sert, c'est qu'on cherche
+#  déjà pourquoi quelque chose ne marche pas. Un contrôle qui ne vérifierait
+#  que « les réglages sont là » laisserait passer le jour où quelqu'un les
+#  recopie dans BOOTAPPEND_FAILSAFE par symétrie.
+SPLASH_CONF="$RACINE/config/includes.chroot/etc/initramfs-tools/conf.d/lexos-splash.conf"
+
+#  --- 1. L'initramfs a de quoi dessiner dès la première seconde ------------
+if [ ! -r "$SPLASH_CONF" ]; then
+	non "etc/initramfs-tools/conf.d/lexos-splash.conf absent : sans FRAMEBUFFER=y, le hook plymouth n'embarque pas i915 et Plymouth démarre en mode TEXTE"
+elif grep -qxE '[[:space:]]*FRAMEBUFFER=y[[:space:]]*' "$SPLASH_CONF"; then
+	ok "FRAMEBUFFER=y : le hook plymouth d'initramfs-tools embarque le pilote d'affichage (i915 sur le ThinkPad)"
+else
+	non "lexos-splash.conf existe mais ne porte pas FRAMEBUFFER=y en ligne de CODE : le réglage ne s'applique pas"
+fi
+#  MODULES=dep n'embarquerait que le matériel du RUNNER, pas celui du
+#  ThinkPad ni de l'Alienware. Sur une ISO vivante c'est le mauvais choix —
+#  et le défaut Debian, « most », est le bon. On vérifie qu'aucun fichier de
+#  conf.d/ ne le force, pas seulement le nôtre.
+CONFD="$RACINE/config/includes.chroot/etc/initramfs-tools/conf.d"
+MOD_FORCE=""
+if [ -d "$CONFD" ]; then
+	for f in "$CONFD"/*; do
+		[ -r "$f" ] || continue
+		grep -qE '^[[:space:]]*MODULES=' "$f" && MOD_FORCE="$MOD_FORCE $(basename "$f")"
+	done
+fi
+if [ -z "$MOD_FORCE" ]; then
+	ok "aucun fichier de conf.d/ ne force MODULES= : l'initramfs garde le défaut Debian « most », celui qui démarre sur une machine inconnue"
+else
+	non "MODULES= est forcé dans :$MOD_FORCE — « dep » n'embarquerait que le matériel du runner de la CI"
+fi
+
+#  --- 2. Les six réglages, dans les DEUX fichiers --------------------------
+#  Les deux vont ensemble : le hook 0100 vaut pour le disque, auto/config
+#  pour la clé USB. Corriger l'un sans l'autre, c'est corriger une moitié
+#  d'Alex — et c'est la clé USB qu'il essaie en premier.
+REGLAGES="loglevel=3 udev.log_level=3 systemd.show_status=false rd.systemd.show_status=false vt.global_cursor_default=0"
+#  On relit le fichier de code du hook (CFG_CODE) et d'auto/config
+#  (AUTO_CODE) découpés en section 7 : jamais la prose. Un contrôle qui
+#  lirait les commentaires serait vert sur son propre mode d'emploi.
+MANQUE_CFG=""; MANQUE_AUTO=""
+for R in $REGLAGES; do
+	grep -qF -- "$R" <<< "$CFG_CODE"  || MANQUE_CFG="$MANQUE_CFG $R"
+	grep -qF -- "$R" <<< "$AUTO_CODE" || MANQUE_AUTO="$MANQUE_AUTO $R"
+done
+if [ -z "$MANQUE_CFG" ]; then
+	ok "système installé : les cinq réglages qui font taire noyau, udev, systemd et le curseur sont sur la ligne noyau (+ « splash », vu plus haut)"
+else
+	non "système installé : il manque sur la ligne noyau :$MANQUE_CFG — « quiet » seul ne coupe ni systemd ni udev"
+fi
+if [ -z "$MANQUE_AUTO" ]; then
+	ok "clé USB : les cinq mêmes réglages sont dans BOOTAPPEND d'auto/config"
+else
+	non "clé USB : il manque dans BOOTAPPEND :$MANQUE_AUTO — la correction ne vaudrait que pour le système installé"
+fi
+
+#  --- 3. …et PAS dans le mode secours -------------------------------------
+#  Ce cas-ci est l'inverse des deux précédents, et c'est pour ça qu'il
+#  existe : il échoue le jour où quelqu'un recopie les réglages partout
+#  « pour faire propre ». Un mode de secours muet ne sert plus à rien.
+FS_LIGNES="$(grep -E '^BOOTAPPEND_FAILSAFE=' <<< "$AUTO_CODE")"
+FS_BAVARD=""
+for R in $REGLAGES; do
+	grep -qF -- "$R" <<< "$FS_LIGNES" && FS_BAVARD="$FS_BAVARD $R"
+done
+if [ -z "$FS_LIGNES" ]; then
+	non "BOOTAPPEND_FAILSAFE n'existe plus dans auto/config : le mode secours n'est plus décrit du tout"
+elif [ -z "$FS_BAVARD" ]; then
+	ok "le mode secours ne reçoit AUCUN de ces réglages : ses messages restent visibles, c'est là qu'on en a besoin"
+else
+	non "le mode secours a été rendu muet lui aussi :$FS_BAVARD — en dépannage on ne lirait plus rien"
+fi
+
+#  --- 4. Le thème refuse d'écrire les messages de systemd ------------------
+#  Mesuré sur le SCRIPT PRODUIT (celui qu'a fabriqué la section 3), pas sur
+#  le hook : c'est le fichier que Plymouth lira.
+#  ═══ LES DEUX NOMS ONT ÉTÉ RELEVÉS DANS script.so, PAS RECOPIÉS ═══
+#  « SetMessageFunction » n'est PAS une native du module : c'est un alias
+#  que le prélude déclare pour SetDisplayMessageFunction. Un thème qui ne
+#  poserait que l'alias laisserait SetHideMessageFunction au comportement
+#  par défaut — la moitié du chemin. On exige LES DEUX natives.
+if [ ! -r "${SCRIPT:-}" ]; then
+	saut "le thème n'a pas été produit ici (ImageMagick ou une image manque) : les fonctions de message ne sont PAS mesurées"
+else
+	MSG_MANQUE=""
+	for F in SetDisplayMessageFunction SetHideMessageFunction; do
+		grep -qE "^[[:space:]]*Plymouth\.$F\(" "$SCRIPT" || MSG_MANQUE="$MSG_MANQUE $F"
+	done
+	if [ -z "$MSG_MANQUE" ]; then
+		ok "le script pose les DEUX fonctions natives de message : aucune version de Plymouth ne peindra « A start job is running for … » par-dessus l'animation"
+	else
+		non "il manque dans le script :$MSG_MANQUE — rien n'empêche Plymouth de peindre lui-même les messages de systemd"
+	fi
+	#  Le corps doit être VIDE. Une fonction qui dessine serait pire que pas
+	#  de fonction du tout : on aurait DEMANDÉ les messages au lieu de les taire.
+	CORPS_MSG="$(sed -n '/^fun message_callback(/,/^}/p' "$SCRIPT" | sed '1d;$d' | grep -Ev '^[[:space:]]*(//|$)')"
+	if [ -z "$CORPS_MSG" ]; then
+		non "message_callback est introuvable ou son corps est illisible — le contrôle n'a rien mesuré"
+	elif grep -qE 'Sprite|Image|SetText|Write' <<< "$CORPS_MSG"; then
+		non "message_callback DESSINE quelque chose : $(printf '%s' "$CORPS_MSG" | tr '\n' ' ')"
+	else
+		ok "…et son corps ne dessine rien du tout (ni Sprite ni Image)"
+	fi
+	#  ET ON NE TOUCHE PAS AU MOT DE PASSE. Si LexOS est installé chiffré,
+	#  c'est par là qu'Alex tape sa phrase de passe au démarrage : une
+	#  fonction de mot de passe muette rendrait la machine INDÉMARRABLE.
+	if grep -qE '^[[:space:]]*Plymouth\.SetDisplayPasswordFunction\(' "$SCRIPT"; then
+		non "le script pose une SetDisplayPasswordFunction : si elle est muette, une machine chiffrée ne démarre plus — ce n'était PAS demandé"
+	else
+		ok "aucune fonction de mot de passe n'a été ajoutée : la saisie de la phrase de passe LUKS reste celle de Plymouth"
+	fi
 fi
 
 # =============================================================================

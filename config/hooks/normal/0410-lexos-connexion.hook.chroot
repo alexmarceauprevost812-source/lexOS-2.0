@@ -181,3 +181,76 @@ EOF
 #  qui recentrerait la boîte casserait l'écran sans qu'aucun test ne le dise —
 #  c'est pour ça que le banc l'exige inchangée.
 echo "[lexos]   position : boîte ancrée par le bas à 88 % — le logo reste dégagé"
+
+# =============================================================================
+#  LE DERNIER CLIGNOTEMENT : LE PASSAGE DE L'ANIMATION À L'ÉCRAN DE CONNEXION
+# =============================================================================
+#  ALEX : « qu'on ne voie pas les outils ouvrir quand il fait l'animation ».
+#  Le hook 0300 fabrique l'animation, le hook 0100 fait taire le noyau,
+#  systemd et udev. Il reste UN endroit où du texte peut encore apparaître :
+#  la fraction de seconde entre la mort de Plymouth et le premier dessin du
+#  greeter. Si LightDM démarre AVANT que Plymouth ait rendu la main, on voit
+#  une console nue — noire, avec ce qui traînait dessus.
+#
+#  ═══ ON MESURE L'UNITÉ INSTALLÉE, ON NE DEVINE PAS ═══
+#  Debian ordonne DÉJÀ lightdm.service par rapport à Plymouth dans la plupart
+#  des versions. Écrire un supplément par-dessus sans regarder, c'est risquer
+#  de DÉFAIRE cet ordre : « After=plymouth-quit-wait.service » tout seul
+#  ferait ATTENDRE LightDM que Plymouth ait fini — soit exactement le trou
+#  qu'on veut boucher. Ce hook tourne dans le chroot, là où lightdm.service
+#  existe vraiment : on le LIT, et on n'écrit que si l'ordre manque.
+# >>> banc: connexion-splash
+LIGHTDM_UNIT="${LEXOS_LIGHTDM_UNIT:-/lib/systemd/system/lightdm.service}"
+[ -r "$LIGHTDM_UNIT" ] || LIGHTDM_UNIT="${LEXOS_LIGHTDM_UNIT2:-/usr/lib/systemd/system/lightdm.service}"
+DROPIN_DIR="${LEXOS_LIGHTDM_DROPIN:-/etc/systemd/system/lightdm.service.d}"
+
+if [ ! -r "$LIGHTDM_UNIT" ]; then
+	#  On ne prétend pas avoir vérifié ce qu'on n'a pas pu lire.
+	echo "[lexos]   !! lightdm.service introuvable — l'ordre vis-à-vis de Plymouth"
+	echo "[lexos]   !! n'a PAS été mesuré. Aucun supplément écrit : une correction"
+	echo "[lexos]   !! posée à l'aveugle sur un ordre inconnu peut l'empirer."
+elif grep -q 'plymouth' "$LIGHTDM_UNIT"; then
+	echo "[lexos]   passage à la connexion : lightdm.service nomme déjà Plymouth"
+	echo "[lexos]   ($(grep -c 'plymouth' "$LIGHTDM_UNIT") ligne(s)) — on ne touche à rien."
+else
+	#  Ici, et ici seulement, l'ordre manque VRAIMENT dans l'unité livrée.
+	#  On reprend alors mot pour mot ce que gdm et sddm déclarent en amont :
+	#    Conflicts= …  démarrer le greeter ANNULE « plymouth quit », donc
+	#                  l'animation reste à l'écran au lieu de s'éteindre
+	#                  pendant que le greeter se dessine ;
+	#    After=  …     mais on ne démarre pas AVANT que l'ordre de sortie
+	#                  ait été donné, sinon les deux se disputent le terminal.
+	mkdir -p "$DROPIN_DIR"
+	cat > "$DROPIN_DIR/lexos-splash.conf" <<'DROPIN'
+#  Écrit par le hook 0410 UNIQUEMENT parce que lightdm.service livré ne
+#  nommait Plymouth nulle part. Sans cet ordre, le greeter peut prendre
+#  l'écran avant que l'animation ait rendu la main : on voit une console
+#  nue entre les deux.
+[Unit]
+Conflicts=plymouth-quit.service
+After=plymouth-quit.service
+DROPIN
+	echo "[lexos]   !! lightdm.service ne nommait PAS Plymouth — supplément écrit"
+	echo "[lexos]   !! dans $DROPIN_DIR/lexos-splash.conf"
+fi
+
+#  ═══ ET LE FOND DU SERVEUR X, QUI N'A RIEN À VOIR AVEC L'ORDRE ═══
+#  Même quand l'ordre est bon, Xorg peint son fond de fenêtre racine — le
+#  vieux tissage gris, ou du noir — entre son démarrage et le premier dessin
+#  du greeter. « -background none » lui dit de ne rien peindre du tout : ce
+#  qui était à l'écran y reste jusqu'à ce que le greeter dessine par-dessus.
+#  C'est un drapeau ancien et sans effet de bord : s'il est déjà le
+#  comportement par défaut du serveur livré, le nommer ne change rien.
+#
+#  On écrit dans lightdm.conf.d/ et PAS dans lightdm.conf : LightDM lit
+#  /usr/share/lightdm/lightdm.conf.d/*.conf, puis /etc/lightdm/lightdm.conf.d/
+#  *.conf, puis /etc/lightdm/lightdm.conf. Écraser le fichier principal
+#  effacerait ce que Debian y met ; un fichier à part ne fait qu'ajouter.
+mkdir -p "$LIGHTDM_DIR/lightdm.conf.d"
+cat > "$LIGHTDM_DIR/lightdm.conf.d/90-lexos-splash.conf" <<'SEAT'
+#  LexOS — aucun fond peint entre l'animation de démarrage et le greeter.
+[Seat:*]
+xserver-command=X -background none
+SEAT
+echo "[lexos]   fond du serveur X : aucun (X -background none)"
+# <<< banc: connexion-splash

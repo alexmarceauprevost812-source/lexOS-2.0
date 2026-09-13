@@ -111,7 +111,25 @@ EOF
 mkdir -p /etc/default/grub.d
 cat > /etc/default/grub.d/lexos.cfg <<EOF
 GRUB_DISTRIBUTOR="${LEXOS_NAME}"
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+#  ── L'ANIMATION SEULE À L'ÉCRAN ─────────────────────────────────────────
+#  ALEX : « qu'on ne voie pas les outils ouvrir quand il fait l'animation ».
+#  « quiet splash » ne suffisait pas : quiet BAISSE le niveau des messages du
+#  noyau, il ne le coupe pas, et il ne dit rien du tout à systemd ni à udev —
+#  qui sont justement ceux qui écrivent les lignes de services.
+#     loglevel=3 .................... les messages du noyau de niveau
+#                                     info/notice, qui s'impriment malgré quiet
+#     udev.log_level=3 .............. les lignes d'udev pendant la détection
+#                                     du matériel
+#     systemd.show_status=false ..... les « [  OK  ] Started … » de systemd
+#     rd.systemd.show_status=false .. les mêmes, mais dans l'initramfs, AVANT
+#                                     que le vrai système ne démarre
+#     vt.global_cursor_default=0 .... le curseur qui clignote par-dessus
+#                                     l'animation
+#  Les mêmes réglages sont dans auto/config (BOOTAPPEND), sinon la correction
+#  ne vaudrait que pour le système installé et pas pour la clé USB.
+#  Ils ne sont PAS dans BOOTAPPEND_FAILSAFE, et c'est volontaire : le mode
+#  secours doit rester bavard — auto/config explique longuement pourquoi.
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash loglevel=3 udev.log_level=3 systemd.show_status=false rd.systemd.show_status=false vt.global_cursor_default=0"
 #  ── LE MENU DE DÉMARRAGE ────────────────────────────────────────────────
 #  Le thème vit dans /usr/share/grub/themes/lexos, livré par includes.chroot.
 #  Ce chemin-là est celui que Debian utilise pour ses propres thèmes
@@ -217,7 +235,7 @@ GRUB_TIMEOUT_STYLE=menu
 #        if [ "\${saved_entry}" = "" ]; then set timeout=3; fi
 #  « saved_entry » n'est écrit dans grubenv QUE par lexos-grub-defaut, et
 #  SEULEMENT quand il a trouvé une entrée Windows (voir
-#  /usr/lib/lexos/grub-defaut-windows). Vide veut donc dire « pas d'autre
+#  /usr/lib/lexos/grub-defaut-voisin). Vide veut donc dire « pas d'autre
 #  système ». La condition est relue à CHAQUE démarrage — installer Windows
 #  plus tard rend d'office ses 8 secondes au menu, sans rien reconstruire —
 #  et « load_env » est déjà émis par 00_header, donc la variable existe.

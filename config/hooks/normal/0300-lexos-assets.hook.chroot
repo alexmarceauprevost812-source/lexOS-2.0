@@ -1160,6 +1160,34 @@ fun refresh_callback() {
     }
 }
 
+// --- Les messages de systemd ne s'affichent JAMAIS -------------------------
+// ALEX : « on ne voie pas les outils ouvrir quand il fait l'animation ».
+// Ce script ne definissait AUCUNE SetMessageFunction. C'etait correct, mais
+// c'etait un SILENCE, pas une decision : rien n'empeche une version de
+// Plymouth de peindre elle-meme les messages que systemd lui envoie — dont
+// le fameux « A start job is running for ... (1min 30s / no limit) » quand
+// un service traine. Les fonctions existent donc, et elles ne dessinent
+// rien : c'est la seule facon de garantir qu'aucune version ne les peindra.
+//
+// LES NOMS ONT ETE RELEVES DANS script.so, PAS RECOPIES. « SetMessage-
+// Function » n'est PAS une fonction native du module : c'est un alias que le
+// prelude declare (« Plymouth.SetMessageFunction = Plymouth.SetDisplay-
+// MessageFunction; »). Les deux natives sont SetDisplayMessageFunction (on
+// affiche) et SetHideMessageFunction (on efface) — et il faut LES DEUX, car
+// le theme qui n'en pose qu'une laisse l'autre au comportement par defaut.
+// C'est exactement le piege de « Plymouth.GetTime() », qui n'existait pas et
+// qui a coute l'ISO 112 : l'interprete ne se plaint JAMAIS d'un nom inconnu.
+//
+// ON NE TOUCHE PAS A LA FONCTION DE MOT DE PASSE, et c'est important : si
+// LexOS est installe chiffre (enableLuksAutomatedPartitioning dans
+// partition.conf), c'est par elle qu'Alex tape sa phrase de passe au
+// demarrage. Une seule chose est mise en sourdine ici : les MESSAGES.
+fun message_callback(texte) {
+    texte = texte;
+}
+Plymouth.SetDisplayMessageFunction(message_callback);
+Plymouth.SetHideMessageFunction(message_callback);
+
 Plymouth.SetRefreshFunction(refresh_callback);
 SCRIPT_CORPS_FIN
 
