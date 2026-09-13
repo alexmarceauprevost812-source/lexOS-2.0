@@ -302,11 +302,33 @@ if [ "$(id -u)" -ne 0 ]; then
 		&& ok "sans les droits, il refuse et dit quoi faire" \
 		|| non "il ne refuse pas proprement sans les droits :\n$S"
 elif command -v setpriv >/dev/null 2>&1; then
-	S="$(NO_COLOR=1 PATH="$FAUX:$PATH" setpriv --reuid=65534 --regid=65534 --clear-groups sh "$OUTIL" 2>&1)"
+	#  ═══ L'USAGER SANS DROITS DOIT D'ABORD POUVOIR LIRE LE SCRIPT ═══
+	#  Mesuré sur le coureur GitHub, et c'est le rouge de la CI 600 :
+	#      sh: 0: cannot open …/lexos-fluide: Permission denied
+	#  Le depot y vit sous /home/runner/work, que « nobody » n'a pas le
+	#  droit de traverser. « sh » echouait donc AVANT que l'outil ne dise
+	#  quoi que ce soit, et le controle concluait « il ne refuse pas
+	#  proprement » — un rouge qui parlait des permissions du coureur et
+	#  pas du tout de l'outil. Le pire genre de rouge : il accuse le bon
+	#  code d'un defaut qu'il n'a pas.
+	#
+	#  On recopie donc l'outil dans un endroit que tout le monde peut
+	#  lire, et on mesure LA. Et si malgre tout l'ouverture echoue, on dit
+	#  « non mesure » plutot que de rendre un verdict sur rien.
+	OUVERT="$BANC/ouvert"
+	mkdir -p "$OUVERT"
+	chmod 755 "$BANC" "$OUVERT"
+	cp "$OUTIL" "$OUVERT/lexos-fluide" && chmod 755 "$OUVERT/lexos-fluide"
+	S="$(NO_COLOR=1 setpriv --reuid=65534 --regid=65534 --clear-groups \
+		sh "$OUVERT/lexos-fluide" 2>&1)"
 	CODE=$?
-	grep -qi "sudo" <<< "$S" && [ "$CODE" -ne 0 ] \
-		&& ok "sans les droits, il refuse et dit quoi faire" \
-		|| non "il ne refuse pas proprement sans les droits :\n$S"
+	if grep -qiE "permission denied|cannot open" <<< "$S"; then
+		gris "l'usager sans droits ne peut pas lire le script : refus NON mesuré"
+	elif grep -qi "sudo" <<< "$S" && [ "$CODE" -ne 0 ]; then
+		ok "sans les droits, il refuse et dit quoi faire"
+	else
+		non "il ne refuse pas proprement sans les droits :\n$S"
+	fi
 else
 	gris "banc lancé en root et setpriv absent : le refus sans droits n'est PAS mesuré"
 fi
@@ -324,4 +346,18 @@ grep -q 'lexos-fluide' "$RACINE/verifier-parametres.sh" \
 
 printf '\n\033[1m%d réussis, %d échoués, %d non mesurés\033[0m\n' \
 	"$REUSSIS" "$ECHOUES" "$NONMESURE"
-[ "$ECHOUES" -eq 0 ]
+
+#  ═══ EN CI, RIEN NE RESTE « NON MESURÉ » ═══
+#  Une ligne grise dans un journal de deux cents étapes ne se voit pas. La
+#  CI pose LEXOS_FLUIDE_EXIGER_MESURE=1 : là, un contrôle qui n'a pas pu
+#  mesurer est un échec, au même titre qu'un rouge. Ailleurs — sur une
+#  machine sans setpriv, sans sudo — il reste gris et honnête.
+if [ "$ECHOUES" -gt 0 ]; then
+	exit 1
+fi
+if [ "${LEXOS_FLUIDE_EXIGER_MESURE:-0}" = "1" ] && [ "$NONMESURE" -gt 0 ]; then
+	printf '\033[31m  LEXOS_FLUIDE_EXIGER_MESURE=1 : %d contrôle(s) non mesuré(s), c'"'"'est une erreur.\033[0m\n' \
+		"$NONMESURE"
+	exit 1
+fi
+exit 0
