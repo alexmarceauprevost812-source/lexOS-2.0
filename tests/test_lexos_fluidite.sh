@@ -74,7 +74,11 @@ const source = lireLaPage(process.argv[2])
   + "\n;globalThis.__banc = {"
   + " vu, montre, tranche, choisir,"
   + " etat: () => etat, pose: e => { etat = e; },"
-  + " attente: () => attente,"
+  //  L'attente vit dans moteur/web/client.js : c'est le patron optimiste
+  //  lui-même qui a déménagé, pour que le volet l'ait aussi. Le banc suit.
+  + " attente: () => { const o = {}; for (const c of"
+  + "   [\"theme\",\"accent\",\"police\",\"dock\",\"perf\",\"crt\",\"intro\"])"
+  + "   if (LexOS.enAttente(c)) o[c] = LexOS.vu(c, {}); return o; },"
   //  ⚠ ON REMPLACE LE TRANSPORT, PAS LA FONCTION DE LA PAGE. api() de
   //  app.js délègue maintenant à LexOS.api() — le client commun servi par
   //  moteur/service.py — et il est « const » : le réaffecter lève
@@ -187,9 +191,20 @@ for CLE in theme accent police dock; do
 done
 [ "$OUBLIS" = 0 ] && ok "les quatre réglages (thème, accent, police, dock) montrent vu()"
 
-grep -q 'function vu(' "$JS_NU" && grep -q 'function choisir(' "$JS_NU" \
-	&& ok "vu() et choisir() existent — le patron est écrit une fois, pas recopié" \
-	|| non "l'affichage optimiste n'est plus branché"
+#  ⚠ LE PATRON A DÉMÉNAGÉ, PAS DISPARU. montre/tranche/vu vivent dans
+#  moteur/web/client.js — il ne servait qu'aux Paramètres, et le volet, qui
+#  s'ouvre vingt fois par jour, ne l'avait pas. Chercher « function vu( »
+#  dans app.js accuserait donc un code juste. On éprouve que la page s'y
+#  BRANCHE, et que choisir() — le patron d'usage, qui lui reste ici — existe.
+if grep -qE '^const vu = cle => LexOS\.vu\(' "$JS_NU" \
+   && grep -q 'LexOS.montre' "$JS_NU" && grep -q 'LexOS.tranche' "$JS_NU" \
+   && grep -q 'function choisir(' "$JS_NU"; then
+	ok "la page se branche sur le patron optimiste commun, et choisir() l'utilise"
+elif grep -q 'function vu(' "$JS_NU" && grep -q 'function choisir(' "$JS_NU"; then
+	ok "vu() et choisir() existent — le patron est écrit une fois, pas recopié"
+else
+	non "l'affichage optimiste n'est plus branché"
+fi
 
 # =============================================================================
 titre "3. UN COLLECTEUR QUI N'ABOUTIT PAS NE BLOQUE PAS LES AUTRES"

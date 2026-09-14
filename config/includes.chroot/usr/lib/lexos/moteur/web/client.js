@@ -103,5 +103,39 @@ var LexOS = (function(){
     catch(e){ return null; }
   }
 
-  return {esc, toast, api, litEtat};
+  /* --- Montrer avant de savoir, sans jamais mentir ------------------------- */
+  /*  ═══ LE CLIC DOIT SE VOIR TOUT DE SUITE ═══
+      ALEX : « que ça soit encore plus fluide ». Aujourd'hui : clic → api() →
+      relecture → nouveau rendu. La tuile NE BOUGE PAS tant que nmcli n'a pas
+      répondu. Même à 200 ms ça se sent — on dirait que le clic n'a pas pris,
+      et on reclique.
+
+      Le patron : on affiche la valeur demandée AVANT l'aller-retour, et
+      l'état réel la remplace dès qu'il arrive.
+
+      ⚠ ET ON NE MENT JAMAIS. Si l'action échoue, la valeur optimiste est
+      JETÉE et la page redessine l'état RÉEL, visiblement, AVEC LE MOTIF. Un
+      bouton qui reste allumé sur un réglage qui n'a pas pris, c'est le
+      mensonge du bogue du dock — la page qui affirmait « c'est à droite »
+      sans le savoir. Et une tuile qui s'allume puis s'éteint toute seule
+      sans un mot est un bogue aux yeux de celui qui regarde : la
+      réconciliation doit DIRE pourquoi.
+
+      Déplacé de settings/web/app.js, où ce patron existait déjà et ne
+      servait qu'à cette page-là. */
+  const attente = {};
+  function montre(cle, valeur){ attente[cle] = valeur; }
+  /*  La machine a tranché : son mot remplace le nôtre, quel qu'il soit. */
+  function tranche(cle){ delete attente[cle]; }
+  /*  La valeur à AFFICHER : la nôtre tant qu'on attend, la sienne ensuite. */
+  function vu(cle, source){
+    return Object.prototype.hasOwnProperty.call(attente, cle)
+      ? attente[cle]
+      : (source ? source[cle] : undefined);
+  }
+  function enAttente(cle){
+    return Object.prototype.hasOwnProperty.call(attente, cle);
+  }
+
+  return {esc, toast, api, litEtat, montre, tranche, vu, enAttente};
 })();

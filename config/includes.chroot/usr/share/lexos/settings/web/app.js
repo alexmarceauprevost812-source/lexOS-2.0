@@ -532,16 +532,27 @@ async function ouvreBoost(){
 /*  TOUT RELIRE, sur demande explicite : à l'ouverture de la fenêtre, et
     quand quelque chose a pu changer hors de la section affichée. C'est le
     coût d'avant — 1,54 s sur le décor mesuré — assumé là où il se justifie. */
-async function rafraichirTout(msg){ await rafraichir(msg, []); }
-async function rafraichir(msg, cles){
+/*  ⚠ « [] » NE VEUT PLUS DIRE « TOUT », ET CETTE LIGNE LE DISAIT ENCORE.
+    Elle passait une liste VIDE en comptant sur l'ancienne convention
+    (« vide = pas de paramètre = tout »). Cette convention a été INVERSÉE
+    pour que les sections qui n'ont besoin de rien ne redemandent pas les
+    quarante collecteurs : une liste vide demande maintenant RIEN. Cette
+    fonction relisait donc exactement zéro clé. Elle n'a aucun appelant
+    aujourd'hui, ce qui est la seule raison pour laquelle ça ne s'est pas
+    vu — mais le prochain qui branche un bouton « tout relire » dessus
+    aurait eu un bouton qui ne relit rien, sans un mot. */
+async function rafraichirTout(msg){ await rafraichir(msg, undefined, true); }
+async function rafraichir(msg, cles, tout){
   /*  TROIS FORMES, ET UNE SEULE RÈGLE À RETENIR :
         rafraichir(msg)              -> la section AFFICHÉE, et elle seule ;
         rafraichir(msg, ["a","b"])   -> ces clés-là ;
         rafraichirTout(msg)          -> tout, comme avant.
-      La liste VIDE veut dire « tout » parce que c'est ce que comprend
-      /api/etat sans paramètre — une seule convention des deux côtés du pont
-      plutôt qu'une traduction au milieu. */
-  await chargeEtat(cles === undefined ? clesDeSection(sectionActive) : cles);
+      Et une liste VIDE veut dire RIEN — pas « tout ». C'est la convention
+      des deux côtés du pont depuis qu'une section sans collecteur a cessé
+      de redemander les quarante : « pas de paramètre » = tout, « paramètre
+      présent et vide » = rien que le gratuit. */
+  await chargeEtat(tout ? undefined
+                        : (cles === undefined ? clesDeSection(sectionActive) : cles));
   //  ═══ ET L'APPARENCE AVEC. ALEX : « dans les Paramètres les boutons
   //  fonctionnent tous, mais c'est la couleur orange qui ne change pas dans
   //  les Paramètres — pour le dock surtout. » ═══
@@ -1380,13 +1391,12 @@ async function setLum(n){
    bouton qui reste allumé sur un réglage qui n'a pas pris, c'est exactement
    le mensonge du bogue du dock — la page qui affirmait « c'est à droite »
    sans le savoir. On montre vite, on ne ment pas. */
-let attente = {};
-function vu(cle){
-  return Object.prototype.hasOwnProperty.call(attente, cle) ? attente[cle] : etat[cle];
-}
-function montre(cle, valeur){ attente[cle] = valeur; }
-/*  La machine a tranché : son mot remplace le nôtre, quel qu'il soit. */
-function tranche(cle){ delete attente[cle]; }
+/*  Le patron lui-même vit dans moteur/web/client.js : il ne servait qu'ICI,
+    et le volet — qui en a le plus besoin, vingt ouvertures par jour — ne
+    l'avait pas. Ce qui reste ici, c'est de quel état on parle. */
+const vu = cle => LexOS.vu(cle, etat);
+const montre = LexOS.montre;
+const tranche = LexOS.tranche;
 
 /*  Le patron commun des réglages « je choisis une valeur parmi N ».
     montre → agit → tranche → redessine. Trois lignes qui remplacent le
@@ -3369,7 +3379,13 @@ function rendNav(){
   ).join("");
   nav.querySelectorAll(".nav-item").forEach(b =>
     b.onclick = () => { sectionActive = b.dataset.cle;
-                        location.hash = sectionActive; rend(); });
+                        location.hash = sectionActive;
+                        //  1. la section apparaît TOUT DE SUITE, avec ce
+                        //     qu'on sait déjà ;
+                        rend();
+                        //  2. puis on lit LA MACHINE, pour cette section-là.
+                        rafraichir();
+                      });
 }
 function rendSection(){
   document.getElementById("content").innerHTML = contenu(sectionActive);
@@ -3452,11 +3468,30 @@ function appliqueApparence(){
     page d'applications par défaut, à moitié.
     On repose le « hash » comme le fait le menu, pour que le bouton Retour du
     navigateur continue de fonctionner. */
+/*  ═══ NAVIGUER, C'EST AUSSI ALLER LIRE ═══
+    ⚠ CE rafraichir() MANQUAIT, ET SON ABSENCE A ÉTÉ GRAVE PENDANT UNE NUIT.
+    Tant que l'OUVERTURE lisait les quarante collecteurs, la navigation
+    n'avait rien à relire : tout était déjà là. Le jour où l'ouverture s'est
+    mise à ne demander que SA section — pour les trois secondes d'écran vide
+    qu'Alex décrivait — les trente-deux autres sections se sont mises à
+    s'ouvrir VIDES. Et à le rester : rien, nulle part, ne rechargeait au
+    changement de section. Pas de hashchange, pas de minuteur.
+
+    Ce que ça donnait à l'écran : cliquer « Bluetooth » sur un portable qui
+    en a un affichait « Aucun contrôleur Bluetooth sur cette machine. »
+    DÉFINITIVEMENT. « Imprimantes » : « CUPS n'est pas là », définitivement.
+    Ce n'est pas de la lenteur, c'est le bogue du dock — « je ne sais pas »
+    devenu une affirmation — sur trente-deux écrans à la fois. Et la section
+    Bluetooth vide ne rend AUCUN bouton, donc pas même un geste pour relire.
+
+    L'ordre compte : rend() D'ABORD (la section apparaît au clic, c'est tout
+    l'intérêt de ne demander que ce qu'il faut), rafraichir() ENSUITE. */
 function allerA(cle){
   if(!NAV.some(g => g.items.some(([c]) => c === cle))) return;
   sectionActive = cle;
   location.hash = cle;
   rend();
+  rafraichir();
 }
 function rend(){ appliqueApparence(); rendNav(); rendSection(); }
 

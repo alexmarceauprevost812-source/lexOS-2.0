@@ -117,15 +117,25 @@ function lireLaPage(chemin){
 const src = lireLaPage(process.argv[2])
   + "\n;globalThis.__b = { contenu, pose: e => { etat = e; }, cles: clesDeSection,"
   + " nav: NAV, tbl: CLES_SECTION, charge: chargeEtat, apparence: appliqueApparence,"
+  + " allerA, tout: rafraichirTout, rendNav,"
   + " racine: () => document.documentElement };\n";
 const el = () => ({ innerHTML:"", textContent:"", hidden:true, style:{}, dataset:{},
                     classList:{add(){},remove(){},toggle(){},contains:()=>false},
                     querySelectorAll:()=>[], querySelector:()=>null,
                     appendChild(){}, focus(){}, addEventListener(){}, remove(){} });
+//  ═══ LA BARRE LATÉRALE REND DE VRAIS BOUTONS ═══
+//  rendNav() pose son onclick sur ce que querySelectorAll(".nav-item") lui
+//  rend. Avec un stub qui rend [], l'onclick n'est JAMAIS posé — et un banc
+//  qui n'éprouve que allerA() laisse passer le chemin qu'Alex emprunte
+//  réellement neuf fois sur dix : le bouton du menu.
+const boutonsNav = [];
+const sidebar = el();
+sidebar.querySelectorAll = sel => (sel === ".nav-item" ? boutonsNav : []);
 const racine = {style:{setProperty(){}}, dataset:{}};
 const vues = [];
 const bac = vm.createContext({
-  document:{ getElementById:()=>el(), querySelectorAll:()=>[], querySelector:()=>null,
+  document:{ getElementById:(id)=> (id === "sidebar" ? sidebar : el()),
+             querySelectorAll:()=>[], querySelector:()=>null,
              body:el(), createElement:()=>el(),
              documentElement:racine, addEventListener(){} },
   location:{hash:"", href:""}, window:{confirm:()=>true, matchMedia:()=>({matches:false})},
@@ -153,13 +163,49 @@ for (const s of sections) {
   B.pose({});
   rap.push({section:s, declare:B.cles(s), lues:[...lues].sort(), leve});
 }
+//  ═══ NAVIGUER DOIT ALLER LIRE ═══
+//  Ce point-ci manquait, et son absence a coute une nuit. Ce banc rendait
+//  les 37 sections sur un etat VIDE et verifiait qu'aucune ne leve : il
+//  CERTIFIAIT DONC VERT l'etat permanent du defaut au lieu de le detecter.
+//  Tant que l'ouverture lisait les quarante collecteurs, la navigation
+//  n'avait rien a relire. Depuis qu'elle ne demande que SA section, les
+//  trente-deux autres s'ouvraient vides ET LE RESTAIENT — aucun hashchange,
+//  aucun minuteur, rien. On CLIQUE donc pour de vrai, et on regarde ce qui
+//  part sur le reseau.
+vues.length = 0;
+const nav = [];
+for (const g of B.nav) for (const it of g.items) nav.push(it[0]);
+const apresClic = {};
+for (const cible of ["bluetooth", "imprimantes", "utilisateurs"]) {
+  vues.length = 0;
+  B.allerA(cible);
+  apresClic[cible] = vues.slice();
+}
+//  Et le chemin du BOUTON DU MENU, qui est celui qu'on emprunte vraiment.
+//  On peuple la barre, on la fait rendre, puis on appelle l'onclick que
+//  rendNav() vient de poser — exactement ce qu'un clic déclenche.
+boutonsNav.length = 0;
+for (const cle of nav) {
+  boutonsNav.push({dataset: {cle}, onclick: null, classList: {add(){}, remove(){}}});
+}
+B.rendNav();
+const parMenu = {};
+for (const cible of ["bluetooth", "imprimantes"]) {
+  const b = boutonsNav.find(x => x.dataset.cle === cible);
+  vues.length = 0;
+  if (b && typeof b.onclick === "function") { b.onclick(); parMenu[cible] = vues.slice(); }
+  else { parMenu[cible] = null; }   // null = le bouton n'a pas de gestionnaire
+}
+
 //  Ce que chargeEtat() met VRAIMENT dans l'adresse, pour les trois cas.
 //  ⚠ On vide d'abord : le démarrage de la page a DÉJÀ interrogé /api/etat au
 //  moment où le fichier s'est exécuté. Lire les trois premières adresses
 //  plutôt que les nôtres décalait tout d'un cran, et le banc accusait un
 //  code juste — un faux rouge coûte le même prix qu'un faux vert.
 vues.length = 0;
+vues.length = 0;
 B.charge(undefined); B.charge([]); B.charge(["wifi","avion"]);
+const vues0 = vues.slice();
 //  Le mode d'affichage quand le thème n'est pas encore connu.
 racine.dataset.mode = "clair";
 B.pose({});            // état vide : vu("theme") vaut undefined
@@ -168,7 +214,12 @@ const modeApresVide = racine.dataset.mode === undefined ? null : racine.dataset.
 B.pose({theme:"sombre"});
 B.apparence();
 const modeApresSombre = racine.dataset.mode === undefined ? null : racine.dataset.mode;
-console.log(JSON.stringify({rap, adresses:vues, modeApresVide, modeApresSombre}));
+//  « tout relire » doit vraiment tout relire.
+vues.length = 0;
+B.tout();
+const adressesTout = vues.slice();
+console.log(JSON.stringify({rap, adresses:vues0, apresClic, parMenu, adressesTout,
+                            modeApresVide, modeApresSombre}));
 JS
   if ! node "$BANC/sonde.js" "$PAGE" > "$BANC/sonde.json" 2>"$BANC/sonde.err"; then
     non "la page n'a pas pu être chargée par le banc : $(head -3 "$BANC/sonde.err" | tr '\n' ' ')"
@@ -290,6 +341,53 @@ if grep -q 'etat(demande) if demande else etat()' <<< "$CODE_SRV"; then
   non "l'ancienne forme « etat(demande) if demande else etat() » est revenue"
 else
   ok "l'ancienne forme du serveur a disparu (le comportement, lui, est mesuré dans test_lexos_moteur_service.sh)"
+fi
+
+# ===========================================================================
+titre "4 bis. CHANGER DE SECTION VA LIRE CETTE SECTION-LÀ"
+# ===========================================================================
+#  ═══ LE DÉFAUT QUE CE BANC A LAISSÉ PASSER UNE NUIT ENTIÈRE ═══
+#  Il rendait les 37 sections sur un état VIDE et vérifiait qu'aucune ne
+#  lève. C'est exactement l'état permanent du défaut : il le CERTIFIAIT
+#  VERT. Cliquer « Bluetooth » sur un portable qui en a un affichait
+#  « Aucun contrôleur Bluetooth sur cette machine. » définitivement — et la
+#  section vide ne rend aucun bouton, donc pas même un geste pour relire.
+#  On clique pour de vrai, et on regarde ce qui part sur le réseau.
+if [ -s "$BANC/sonde.json" ]; then
+  for CIBLE in bluetooth imprimantes utilisateurs; do
+    A="$(python3 -c '
+import json,sys
+d=json.load(open(sys.argv[1]))["apresClic"].get(sys.argv[2], [])
+print(" ".join(d) if d else "RIEN")' "$BANC/sonde.json" "$CIBLE")"
+    case "$A" in
+      RIEN) non "aller sur « $CIBLE » ne demande RIEN à la machine : la section resterait vide pour toujours" ;;
+      *"cles="*"$CIBLE"*) ok "aller sur « $CIBLE » demande ses clés : $A" ;;
+      *) non "aller sur « $CIBLE » demande « $A » — pas ses clés à elle" ;;
+    esac
+  done
+  for CIBLE in bluetooth imprimantes; do
+    A="$(python3 -c '
+import json,sys
+d=json.load(open(sys.argv[1]))["parMenu"].get(sys.argv[2])
+print("PAS_DE_GESTIONNAIRE" if d is None else (" ".join(d) if d else "RIEN"))' "$BANC/sonde.json" "$CIBLE")"
+    case "$A" in
+      PAS_DE_GESTIONNAIRE) non "le bouton « $CIBLE » du menu n'a aucun gestionnaire — le banc ne mesure pas le vrai chemin" ;;
+      RIEN) non "CLIQUER « $CIBLE » dans le menu ne demande RIEN : la section resterait vide pour toujours" ;;
+      *"cles="*"$CIBLE"*) ok "cliquer « $CIBLE » dans le menu demande ses clés : $A" ;;
+      *) non "cliquer « $CIBLE » demande « $A » — pas ses clés à elle" ;;
+    esac
+  done
+  T="$(python3 -c '
+import json,sys
+d=json.load(open(sys.argv[1]))["adressesTout"]
+print(" ".join(d) if d else "RIEN")' "$BANC/sonde.json")"
+  case "$T" in
+    "/api/etat") ok "« tout relire » demande bien tout l'etat : $T" ;;
+    RIEN)        non "« tout relire » ne demande RIEN — un bouton qui ne relit rien, sans un mot" ;;
+    *)           non "« tout relire » demande « $T » au lieu de tout" ;;
+  esac
+else
+  muet "la page n'''a pas été chargée : la navigation n'''a pas été mesurée"
 fi
 
 # ===========================================================================
