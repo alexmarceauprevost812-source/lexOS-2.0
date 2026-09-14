@@ -61,6 +61,7 @@ import son as _son  # noqa: E402
 #  et l'oublie sur demande — après une installation, notamment.
 from moteur import outils as _outils  # noqa: E402
 from moteur import service as _service  # noqa: E402
+from moteur import etat as _etat_moteur  # noqa: E402
 from moteur import fenetre as _fenetre  # noqa: E402
 
 BASE_DIR = Path(os.environ.get("LEXOS_VOLET_DIR", "/usr/share/lexos/volet"))
@@ -438,40 +439,20 @@ def _crt_rapides_etat():
 _RAPIDES_DELAI = float(os.environ.get("LEXOS_VOLET_DELAI", "2"))
 
 
+#  ═══ _de_front EST PARTI DANS moteur/etat.py ═══
+#  Il y en avait DEUX exemplaires, ici et dans settings.py, avec le même
+#  piège du « with ThreadPoolExecutor » (dont la sortie ATTEND les fils
+#  qu'on vient d'abandonner) et la même règle : ce qui n'a pas répondu vaut
+#  « je ne sais pas », JAMAIS une valeur inventée.
+#  Ce qui reste ICI, c'est la forme d'appel propre au volet : chaque tuile
+#  choisit SA valeur de repli — un booléen manquant n'a pas la même tête
+#  qu'une liste manquante — là où les Paramètres se contentent de None.
 def _de_front(taches):
-    """Lance les lectures EN MÊME TEMPS, borné. Rend {clé: valeur}, et la
-    valeur convenue de l'appelant quand le délai passe.
-
-    ⚠ CETTE FONCTION EST LE DEUXIÈME EXEMPLAIRE, ET C'EST ASSUMÉ POUR L'INSTANT.
-    settings.py a la sienne (_de_front, l. ~4053), dont elle reprend le piège
-    du « with » et la règle du « je ne sais pas ». Les deux doivent partir
-    dans usr/lib/lexos/moteur/etat.py — c'est l'étape 3 du moteur commun. On
-    ne la déplace PAS dans le même geste que la correction de lenteur :
-    déplacer et changer le comportement à la fois rend impossible de savoir
-    lequel des deux accuser quand ça casse.
-
-    ═══ PAS DE « with » ICI, ET C'EST TOUT LE POINT ═══
-    La sortie d'un « with ThreadPoolExecutor » appelle shutdown(wait=True) :
-    elle ATTENDRAIT les fils qu'on vient justement d'abandonner, et le délai
-    ne tiendrait pas. Même piège que dans settings.py, même remède — on ferme
-    à la main, sans attendre. Le fil qui traîne finit dans son coin ; son
-    propre timeout le borne.
-    """
-    import concurrent.futures
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(taches)))
-    futurs = {c: pool.submit(f) for c, (f, _) in taches.items()}
-    fin = time.monotonic() + _RAPIDES_DELAI
-    out = {}
-    for c, fu in futurs.items():
-        reste = max(0.0, fin - time.monotonic())
-        try:
-            out[c] = fu.result(timeout=reste)
-        except Exception:
-            #  « je n'ai pas pu lire » — la valeur de repli est celle que
-            #  l'appelant a choisie pour cette clé-là, pas un zéro générique.
-            out[c] = taches[c][1]
-    pool.shutdown(wait=False)
-    return out
+    """taches : {clé: (appelable, valeur de repli)}."""
+    return _etat_moteur.de_front(
+        {c: f for c, (f, _) in taches.items()},
+        _RAPIDES_DELAI,
+        replis={c: r for c, (_, r) in taches.items()})
 
 
 def _radio_nmcli(quoi):

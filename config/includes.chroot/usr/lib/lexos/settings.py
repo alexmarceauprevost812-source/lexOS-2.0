@@ -46,6 +46,7 @@ import son as _son  # noqa: E402
 #  et l'oublie sur demande — après une installation, notamment.
 from moteur import outils as _outils  # noqa: E402
 from moteur import service as _service  # noqa: E402
+from moteur import etat as _etat_moteur  # noqa: E402
 from moteur import fenetre as _fenetre  # noqa: E402
 
 APP_NAME = "Paramètres LexOS"
@@ -4084,68 +4085,18 @@ def _langue_etat():
             or os.environ.get("LANG", ""))
 
 
+#  ═══ _de_front ET _sans_lever SONT PARTIS DANS moteur/etat.py ═══
+#  Ils existaient en DEUX exemplaires — ici et dans volet.py — avec le même
+#  piège du « with » et la même règle du « je ne sais pas ». Leurs
+#  commentaires les ont suivis, y compris celui qui a coûté le plus cher :
+#  sans « pool.shutdown(wait=False) », la sortie du pool ATTEND les fils
+#  qu'on vient d'abandonner, et etat() rendait la main au bout de 63 s au
+#  lieu de 4. Le point 7 de tests/test_lexos_moteur_ouverture.sh a été écrit
+#  AVANT ce déménagement, pour qu'on sache si une ligne tombe en route.
 def _de_front(collecteurs):
-    """Lance les collecteurs EN MÊME TEMPS et rend {clé: valeur}.
-
-    ═══ CE QUE ÇA CHANGE, ET CE QUE ÇA NE CHANGE PAS ═══
-    Rien de ce que les collecteurs lisent ne bouge. Seul leur ORDONNANCEMENT
-    change : ils ne s'attendent plus les uns les autres.
-
-    ═══ CELUI QUI TRAÎNE NE RETIENT PLUS PERSONNE ═══
-    Une imprimante réseau éteinte, bluetoothctl sans adaptateur, nmcli
-    pendant un balayage : il suffisait d'UN outil lent pour que les
-    trente-sept autres sections attendent avec lui. Passé le délai, la clé
-    vaut None — « je ne sais pas » — et la page le dit. On n'invente pas de
-    valeur : c'est la leçon du bogue du dock, où « je ne sais pas » était
-    devenu « c'est à droite ».
-
-    Le fil qui traîne n'est PAS tué : on ne peut pas interrompre proprement
-    un appel système en cours, et l'essayer laisserait un sous-processus
-    orphelin. On cesse simplement de l'attendre ; il finira dans son coin,
-    et son propre timeout le bornera."""
-    if not collecteurs:
-        return {}
-    resultats = {}
-    fin = time.monotonic() + _ETAT_DELAI
-    #  ═══ PAS DE « with » ICI, ET C'EST TOUT LE POINT ═══
-    #  La sortie d'un « with ThreadPoolExecutor » appelle shutdown(wait=True) :
-    #  elle ATTEND tous les fils, y compris ceux qu'on vient d'abandonner.
-    #  Le délai ne tenait donc pas — mesuré : avec tous les outils muets,
-    #  etat() rendait la main au bout de 63 s au lieu des 4 s annoncées, parce
-    #  que la fermeture du pool rattrapait tout ce que la boucle avait lâché.
-    #  On ferme donc à la main, sans attendre.
-    pool = concurrent.futures.ThreadPoolExecutor(
-        max_workers=min(_ETAT_FRONTS, len(collecteurs)),
-        thread_name_prefix="lexos-etat")
-    try:
-        futurs = {pool.submit(_sans_lever, f): k for k, f in collecteurs.items()}
-        for fut, cle in futurs.items():
-            reste = max(0.0, fin - time.monotonic())
-            try:
-                resultats[cle] = fut.result(timeout=reste)
-            except concurrent.futures.TimeoutError:
-                resultats[cle] = None
-            except Exception:
-                resultats[cle] = None
-    finally:
-        #  Le fil qui traîne n'est PAS tué : on ne peut pas interrompre
-        #  proprement un appel système en cours, et l'essayer laisserait un
-        #  sous-processus orphelin. On cesse de l'attendre ; son propre
-        #  timeout (deux secondes de lecture) le bornera de toute façon.
-        pool.shutdown(wait=False)
-    return resultats
+    return _etat_moteur.de_front(collecteurs, _ETAT_DELAI, _ETAT_FRONTS)
 
 
-def _sans_lever(f):
-    """Un collecteur qui lève ne doit pas emporter les autres avec lui.
-
-    Ils sont écrits pour ne jamais lever ; ce filet existe parce que « écrit
-    pour » n'est pas « garanti », et qu'une exception dans un fil du pool
-    remonterait ici sous une forme méconnaissable."""
-    try:
-        return f()
-    except Exception:
-        return None
 # =============================================================================
 #  Serveur : fichiers statiques + API.
 # =============================================================================
