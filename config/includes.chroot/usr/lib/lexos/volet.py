@@ -369,21 +369,30 @@ def _wifi_radio_etat():
 
 
 def _bt_radio_etat():
-    """None si la machine n'a pas de Bluetooth — la tuile s'affiche alors
-    grisée plutôt que de prétendre pouvoir l'allumer."""
+    """True/False si on a lu l'état, « absent » s'il n'y a pas de Bluetooth
+    sur cette machine, None si on n'a PAS PU lire.
+
+    ═══ TROIS RÉPONSES, PAS DEUX ═══
+    Cette fonction rendait None dans les trois cas. « Pas de Bluetooth » et
+    « bluetoothctl n'a pas répondu » ne se ressemblent pourtant pas du tout à
+    l'écran : le premier est une tuile grisée définitive et juste, le second
+    une tuile qui doit dire « Inconnu » et redevenir vraie au prochain coup
+    d'œil. Les confondre, c'est annoncer à quelqu'un que sa machine n'a pas
+    de Bluetooth parce qu'un outil a traîné une seconde."""
     if not _outils.commande_existe("bluetoothctl"):
-        return None
+        return "absent"
     try:
         r = subprocess.run(["bluetoothctl", "show"],
-                           capture_output=True, text=True, timeout=5)
+                           capture_output=True, text=True, timeout=_LIRE_DELAI)
     except (subprocess.SubprocessError, OSError):
         return None
     if not r.stdout:
-        return None
+        #  bluetoothctl est là et ne dit rien : pas de contrôleur.
+        return "absent"
     for ligne in r.stdout.splitlines():
         if ligne.strip().startswith("Powered:"):
             return ligne.split(":", 1)[1].strip() == "yes"
-    return None
+    return "absent"
 
 
 def _avion_radio_etat():
@@ -439,6 +448,18 @@ def _crt_rapides_etat():
 #  « c'est à droite ».
 _RAPIDES_DELAI = float(os.environ.get("LEXOS_VOLET_DELAI", "2"))
 
+#  ═══ LE BUDGET DOIT ÊTRE PLUS GRAND QUE CE QU'IL BORNE ═══
+#  Première version : budget commun de 2 s, et des lectures à 5 s chacune.
+#  L'échéance tombait donc TOUJOURS la première, les délais internes ne
+#  servaient plus à rien, et le volet affichait ses valeurs de repli à
+#  chaque ouverture un peu lente. Un garde-fou plus court que ce qu'il
+#  garde ne garde rien.
+#  LIRE N'EST PAS AGIR : une seconde et demie pour demander l'état d'une
+#  radio, comme les deux secondes de settings.py. Les ACTIONS gardent leurs
+#  dix à vingt secondes — couper un « nmcli radio wifi on » au milieu est
+#  pire que d'attendre.
+_LIRE_DELAI = float(os.environ.get("LEXOS_VOLET_LIRE", "1.5"))
+
 
 #  ═══ _de_front EST PARTI DANS moteur/etat.py ═══
 #  Il y en avait DEUX exemplaires, ici et dans settings.py, avec le même
@@ -491,33 +512,85 @@ def _radio_nmcli(quoi):
     try:
         return subprocess.run(["nmcli", "-t", "radio", quoi],
                               capture_output=True, text=True,
-                              timeout=5).stdout.strip()
+                              timeout=_LIRE_DELAI).stdout.strip()
     except (subprocess.SubprocessError, OSError):
         return None
 
 
+#  ═══ « JE N'AI PAS PU LIRE » N'EST PAS UNE VALEUR ═══
+#  Ce jeton est le repli de CHAQUE lecture menée de front. Il ne peut se
+#  confondre avec rien : ni avec None (que _bt_radio_etat rend déjà pour
+#  « cette machine n'a pas de Bluetooth »), ni avec False, ni avec -1.
+#
+#  ⚠ POURQUOI IL A FALLU L'INVENTER, ET CE QUE ÇA A COÛTÉ. La première
+#  version donnait à chaque lecture une valeur de repli « raisonnable » :
+#  Wi-Fi → False, thème → « sombre », effets TV → True. Résultat mesuré sur
+#  le chemin du Wi-Fi : la lecture dépasse l'échéance, la tuile affiche
+#  « Désactivé » — une valeur INVENTÉE — et le clic, lui, appelle
+#  act_rapides_wifi() qui relit la VRAIE radio et bascule à partir d'elle.
+#  L'étiquette disait « allumer », le clic ÉTEIGNAIT un Wi-Fi qui marchait.
+#  C'est le bogue du dock, avec une action nuisible au bout.
+#
+#  On ne remplit donc plus les trous : on les DÉCLARE, et la page grise la
+#  tuile en disant « Inconnu ». Une tuile qu'on ne peut pas lire est une
+#  tuile qu'on ne doit pas laisser cliquer.
+_INCONNU = object()
+
+
 def _rapides_etat():
-    #  Tout part en même temps. Chaque entrée dit sa valeur de repli : ce que
-    #  la page doit afficher quand la machine n'a pas répondu à temps.
+    #  Tout part en même temps. AUCUNE valeur de repli : ce qui n'a pas
+    #  répondu est marqué inconnu, et la page le dit.
     lu = _de_front({
-        "r_wifi": (lambda: _radio_nmcli("wifi"), None),
-        "r_wwan": (lambda: _radio_nmcli("wwan"), None),
-        "bt_brut": (_bt_radio_etat, None),
-        "perf": (_perf_etat, "medium"),
-        "theme": (_mode_apparence, "sombre"),
-        "crt": (_crt_rapides_etat, True),
-        "son": (_son.etat, {"volume": -1, "muet": False, "micro": None}),
+        "r_wifi": (lambda: _radio_nmcli("wifi"), _INCONNU),
+        "r_wwan": (lambda: _radio_nmcli("wwan"), _INCONNU),
+        "bt_brut": (_bt_radio_etat, _INCONNU),
+        "perf": (_perf_etat, _INCONNU),
+        "theme": (_mode_apparence, _INCONNU),
+        "crt": (_crt_rapides_etat, _INCONNU),
+        "son": (_son.etat, _INCONNU),
     })
+    inconnu = []
     #  Le même calcul qu'avion_state() dans lexos-net, à partir des deux
     #  lectures brutes. Une radio qu'on n'a PAS pu lire (None) ne compte pas
     #  comme « éteinte » : on ne déclare pas le mode avion sur une absence de
     #  réponse — ce serait afficher Wi-Fi et Bluetooth éteints sur une
     #  machine où ils marchent.
-    avion = (lu["r_wifi"] == "disabled"
+    #  Une radio qu'on n'a PAS pu lire ne compte pas comme « éteinte » : on
+    #  ne déclare pas le mode avion sur une absence de réponse. Et si l'une
+    #  des deux manque, on ne sait pas non plus si l'avion est actif.
+    #  ⚠ « nmcli absent » COMPTE COMME « PAS LU », et il a fallu le mesurer
+    #  pour le voir : _radio_nmcli rend None aussi bien quand l'outil manque
+    #  que quand la lecture échoue, et « None == "enabled" » vaut False —
+    #  donc la tuile affichait « Désactivé » sur une machine sans nmcli, avec
+    #  le même clic nuisible au bout. Pour Alex, les deux cas sont le même :
+    #  on ne sait pas.
+    def _lu(cle):
+        return lu[cle] is not _INCONNU and lu[cle] is not None
+
+    radios_lues = _lu("r_wifi") and _lu("r_wwan")
+    avion = (radios_lues
+             and lu["r_wifi"] == "disabled"
              and lu["r_wwan"] in ("disabled", "missing", ""))
+    if not radios_lues:
+        inconnu.append("avion")
+    if not _lu("r_wifi"):
+        inconnu.append("wifi")
+    if lu["bt_brut"] is _INCONNU or lu["bt_brut"] is None:
+        inconnu.append("bt")
+    if lu["crt"] is _INCONNU:
+        inconnu.append("crt")
+    if lu["perf"] is _INCONNU:
+        inconnu.append("perf")
     perf = lu["perf"] if lu["perf"] in PERF_LABEL else "medium"
+    son = lu["son"] if lu["son"] is not _INCONNU else {
+        #  Pas lu = pas de bandeau, exactement comme « pas de pactl ». Mieux
+        #  vaut pas de curseur du tout qu'un curseur posé au hasard.
+        "volume": -1, "muet": False, "micro": None}
     return {
         "avion": avion,
+        #  La liste de ce qu'on n'a PAS pu lire. La page grise ces tuiles-là
+        #  et écrit « Inconnu » : ni allumées, ni éteintes, et pas cliquables.
+        "inconnu": inconnu,
         #  Wi-Fi et Bluetooth s'affichent éteints sous le mode avion, comme
         #  dans la démo — même si la radio répond encore « enabled » entre
         #  deux secondes de bascule.
@@ -526,18 +599,23 @@ def _rapides_etat():
         #  deux commandes lancées ensemble coûtent moins qu'une seule en file
         #  derrière une autre.
         "wifi": False if avion else (lu["r_wifi"] == "enabled"),
-        "bt": None if avion else lu["bt_brut"],
+        #  None = « absent » pour la page (sa convention d'origine) ;
+        #  « inconnu » dit le troisième cas.
+        "bt": None if (avion or lu["bt_brut"] in (_INCONNU, None, "absent"))
+              else lu["bt_brut"],
         "perf": perf,
-        "perfLabel": PERF_LABEL[perf],
-        "theme": lu["theme"],
-        "crt": lu["crt"],
+        "perfLabel": PERF_LABEL[perf] if lu["perf"] is not _INCONNU else "Inconnu",
+        #  Le thème non lu reste None : appliqueModeVolet() ne touche alors
+        #  à rien, plutôt que de basculer la surface du volet au hasard.
+        "theme": None if lu["theme"] is _INCONNU else lu["theme"],
+        "crt": False if lu["crt"] is _INCONNU else lu["crt"],
         #  ═══ « volume: -1 » ET « micro: null » VEULENT DIRE INDISPONIBLE ═══
         #  Pas de pactl -> volume -1, et la page n'affiche PAS le bandeau du
         #  tout : une saveur sans serveur de son ne doit pas montrer un
         #  curseur qui ne fait rien. Pas de micro -> micro null, et le bouton
         #  micro n'apparaît pas — le même raisonnement que la tuile Bluetooth,
         #  qui sait déjà dire « Absent ».
-        **lu["son"],
+        **son,
     }
 
 

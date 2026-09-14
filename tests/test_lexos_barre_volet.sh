@@ -653,5 +653,108 @@ grep -q 'prefers-reduced-motion' "$CSS" \
 	&& ok "le réglage « moins d'animations » du système est toujours respecté" \
 	|| non "prefers-reduced-motion a disparu du CSS"
 
+# =============================================================================
+titre "8. UNE TUILE QU'ON N'A PAS PU LIRE NE MENT PAS, ET NE SE CLIQUE PAS"
+# =============================================================================
+#  ═══ LE DÉFAUT LE PLUS NUISIBLE DE TOUT CE CHANTIER ═══
+#  Les lectures du volet partent de front, bornées par une échéance. La
+#  première version donnait à chacune une valeur de repli « raisonnable » :
+#  Wi-Fi → False. Résultat : la lecture dépasse l'échéance (ou nmcli manque),
+#  la tuile affiche « Désactivé » — une valeur INVENTÉE — et le clic, lui,
+#  appelle act_rapides_wifi() qui relit la VRAIE radio et bascule à partir
+#  d'elle. L'étiquette disait « allumer », le geste ÉTEIGNAIT un Wi-Fi qui
+#  marchait. Le bogue du dock, avec une action nuisible au bout.
+#
+#  On éprouve les DEUX moitiés : que la machine DÉCLARE ce qu'elle n'a pas
+#  pu lire, et que la page en fasse une tuile grise, muette et NON CLIQUABLE.
+if ! command -v python3 >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1; then
+	non "python3 ou node absent : les tuiles inconnues n'ont pas été éprouvées"
+else
+	#  Côté machine : aucun outil sur le PATH, donc rien n'est lisible.
+	#  ⚠ ON VIDE LE PATH DEPUIS L'INTÉRIEUR, PAS AVANT. Le faire devant la
+	#  commande emporte python3 lui-même : le sondage ne démarre pas, et le
+	#  banc annonce « pas pu mesurer » là où il croyait mesurer. Vu en le
+	#  faisant.
+	ETAT_NU="$(LEXOS_VOLET_DELAI=1 python3 - "$VOLET_PY" <<'PYEOF' 2>/dev/null
+import importlib.util, json, os, sys
+os.environ["PATH"] = "/nulle-part"          # aucun outil n'existe plus
+sys.path.insert(0, sys.argv[1].rsplit("/", 1)[0])
+spec = importlib.util.spec_from_file_location("v", sys.argv[1])
+v = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(v)
+r = v.etat("rapides")["rapides"]
+print(json.dumps({"inconnu": r.get("inconnu"), "wifi": r.get("wifi"),
+                  "theme": r.get("theme")}))
+PYEOF
+)"
+	if [ -z "$ETAT_NU" ]; then
+		non "volet.py n'a pas pu tourner ici : l'état inconnu n'a pas été mesuré"
+	else
+		INC="$(python3 -c 'import json,sys;print(",".join(json.loads(sys.argv[1])["inconnu"] or []))' "$ETAT_NU" 2>/dev/null || echo ERR)"
+		case ",$INC," in
+			*,wifi,*) ok "sans nmcli, la machine DÉCLARE le Wi-Fi inconnu au lieu d'inventer « Désactivé » ($INC)" ;;
+			*)        non "sans nmcli, « wifi » n'est pas déclaré inconnu (inconnu = « $INC ») : la tuile affirmerait un état qu'elle ignore" ;;
+		esac
+	fi
+
+	#  Côté page : la tuile inconnue est grise, dit « Inconnu », et n'a AUCUN
+	#  gestionnaire de clic. Le troisième point est celui qui protège le Wi-Fi.
+	RENDU="$(node - "$VOLET_APP" "$(dirname "$VOLET_PY")/moteur/web/client.js" <<'JSEOF' 2>/dev/null
+const fs = require("fs"), vm = require("vm");
+const src = fs.readFileSync(process.argv[3], "utf8") + "\n"
+          + fs.readFileSync(process.argv[2], "utf8")
+          + "\n;globalThis.__b = {rapidesHTML, pose: e => { etat = e; }};\n";
+const el = () => ({innerHTML:"", textContent:"", hidden:true, style:{}, dataset:{},
+  classList:{add(){},remove(){},toggle(){},contains:()=>false},
+  querySelectorAll:()=>[], querySelector:()=>null, appendChild(){}, focus(){}, addEventListener(){}});
+const bac = vm.createContext({document:{getElementById:()=>el(), querySelectorAll:()=>[],
+  querySelector:()=>null, body:el(), createElement:()=>el(),
+  documentElement:{style:{setProperty(){}}, dataset:{}}, addEventListener(){}},
+  location:{hash:"#rapides"}, window:{}, navigator:{}, fetch:()=>new Promise(()=>{}),
+  requestAnimationFrame:()=>0, setTimeout, clearTimeout, setInterval:()=>0, clearInterval,
+  console, JSON, Math, Date, encodeURIComponent, addEventListener(){}});
+bac.globalThis = bac;
+vm.runInContext(src, bac, {filename:"app.js"});
+const B = bac.__b;
+function tuile(html, titre){
+  for (const b of html.split('<div class="qs-tile').slice(1)) {
+    if (((b.match(/<span class="ti">([^<]*)</) || [])[1]) !== titre) continue;
+    const tete = b.slice(0, b.indexOf(">"));
+    return {gris: tete.includes("qs-disabled"), cliquable: tete.includes("onclick"),
+            sous: (b.match(/<span class="su">([^<]*)</) || [])[1]};
+  }
+  return null;
+}
+const base = {wifi:true, bt:true, avion:false, crt:true, perf:"medium",
+              perfLabel:"Médium", volume:50, muet:false, micro:false};
+B.pose({rapides: Object.assign({inconnu: []}, base)});
+const lu = tuile(B.rapidesHTML(), "Wi-Fi");
+B.pose({rapides: Object.assign({}, base, {inconnu: ["wifi", "avion"], wifi:false})});
+const pasLu = tuile(B.rapidesHTML(), "Wi-Fi");
+console.log(JSON.stringify({lu, pasLu}));
+JSEOF
+)"
+	if [ -z "$RENDU" ]; then
+		non "la page n'a pas pu être rendue : la tuile inconnue n'a pas été mesurée"
+	else
+		L_SOUS="$(python3 -c 'import json,sys;print(json.loads(sys.argv[1])["lu"]["sous"])' "$RENDU" 2>/dev/null || echo ERR)"
+		P_SOUS="$(python3 -c 'import json,sys;print(json.loads(sys.argv[1])["pasLu"]["sous"])' "$RENDU" 2>/dev/null || echo ERR)"
+		P_CLIC="$(python3 -c 'import json,sys;print(json.loads(sys.argv[1])["pasLu"]["cliquable"])' "$RENDU" 2>/dev/null || echo ERR)"
+		P_GRIS="$(python3 -c 'import json,sys;print(json.loads(sys.argv[1])["pasLu"]["gris"])' "$RENDU" 2>/dev/null || echo ERR)"
+		[ "$L_SOUS" = "Activé" ] \
+			&& ok "quand la lecture aboutit, la tuile dit ce qu'elle a lu ($L_SOUS)" \
+			|| non "la tuile lue affiche « $L_SOUS » — le témoin ne mesure rien, le reste est sans valeur"
+		[ "$P_SOUS" = "Inconnu" ] \
+			&& ok "quand elle n'aboutit pas, la tuile dit « Inconnu », ni Activé ni Désactivé" \
+			|| non "la tuile non lue affiche « $P_SOUS » — une valeur inventée"
+		[ "$P_GRIS" = "True" ] \
+			&& ok "…et elle est grisée" \
+			|| non "la tuile non lue n'est pas grisée : rien ne signale qu'elle ne sait pas"
+		[ "$P_CLIC" = "False" ] \
+			&& ok "…et elle n'a AUCUN gestionnaire de clic : impossible d'éteindre un Wi-Fi allumé en croyant l'allumer" \
+			|| non "la tuile non lue reste CLIQUABLE — le clic relirait la vraie radio et ferait l'inverse de l'étiquette"
+	fi
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$reussis" "$echoues"
 [[ "$echoues" -eq 0 ]]

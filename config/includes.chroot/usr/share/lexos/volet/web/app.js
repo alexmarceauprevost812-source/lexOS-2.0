@@ -377,14 +377,29 @@ async function photoLance(mode){
 function rapidesHTML(){
   const r = etat.rapides || {};
   const wifiOn = !!r.wifi, btOn = !!r.bt, avionOn = !!r.avion;
+  /*  ═══ CE QU'ON N'A PAS PU LIRE NE S'AFFICHE NI ALLUMÉ NI ÉTEINT ═══
+      volet.py rend la liste des tuiles dont la lecture n'a pas abouti. Une
+      valeur inventée coûte ici plus cher qu'ailleurs : la tuile Wi-Fi qui
+      affichait « Désactivé » faute de réponse invitait à cliquer, et le clic
+      relit la VRAIE radio pour basculer à partir d'elle — donc il ÉTEIGNAIT
+      un Wi-Fi qui marchait. L'étiquette disait « allumer », le geste faisait
+      l'inverse. Une tuile qu'on ne peut pas lire est une tuile qu'on ne doit
+      pas laisser cliquer. */
+  const pasLu = new Set(r.inconnu || []);
   const tuiles = [
-    qsTileHTML("wifi", "📶", "Wi-Fi", avionOn ? "Mode avion" : (wifiOn ? "Activé" : "Désactivé"),
-               wifiOn, avionOn),
-    qsTileHTML("bt", "🔵", "Bluetooth", avionOn ? "Mode avion" : (r.bt === null ? "Absent" : (btOn ? "Activé" : "Désactivé")),
-               btOn, avionOn || r.bt === null),
-    qsTileHTML("avion", "✈️", "Mode avion", avionOn ? "Activé" : "Désactivé", avionOn, false),
+    qsTileHTML("wifi", "📶", "Wi-Fi",
+               pasLu.has("wifi") ? "Inconnu" : (avionOn ? "Mode avion" : (wifiOn ? "Activé" : "Désactivé")),
+               !pasLu.has("wifi") && wifiOn, avionOn || pasLu.has("wifi")),
+    qsTileHTML("bt", "🔵", "Bluetooth",
+               pasLu.has("bt") ? "Inconnu" : (avionOn ? "Mode avion" : (r.bt === null ? "Absent" : (btOn ? "Activé" : "Désactivé"))),
+               !pasLu.has("bt") && btOn, avionOn || pasLu.has("bt") || r.bt === null),
+    qsTileHTML("avion", "✈️", "Mode avion",
+               pasLu.has("avion") ? "Inconnu" : (avionOn ? "Activé" : "Désactivé"),
+               !pasLu.has("avion") && avionOn, pasLu.has("avion")),
     qsTileHTML("partage", "📤", "Partager", "Envoyer un fichier", false, false),
-    qsTileHTML("perf", "⚡", "Performance", r.perfLabel || "", r.perf === "performant" || r.perf === "max", false),
+    qsTileHTML("perf", "⚡", "Performance", r.perfLabel || "",
+               !pasLu.has("perf") && (r.perf === "performant" || r.perf === "max"),
+               pasLu.has("perf")),
     //  ═══ PAS DE TUILE JOUR/NUIT ICI ═══
     //  ALEX : « les paramètres rapides, supprimer pour le thème de jour et de
     //  nuit, et garder le thème de nuit officiel. » LexOS Noir EST le thème,
@@ -395,7 +410,9 @@ function rapidesHTML(){
     //  le donne toujours, et cette page le suit (voir appliqueModeVolet()).
     //  Ce qui disparaît, c'est le raccourci, pas la possibilité.
     qsTileHTML("clavier", "⌨️", "Clavier", "Français (Québec)", false, false),
-    qsTileHTML("crt", "📺", "Effets TV 1980", r.crt ? "Activés" : "Désactivés", r.crt, false),
+    qsTileHTML("crt", "📺", "Effets TV 1980",
+               pasLu.has("crt") ? "Inconnu" : (r.crt ? "Activés" : "Désactivés"),
+               !pasLu.has("crt") && r.crt, pasLu.has("crt")),
     //  ALEX : « quand on va cliquer sur appareil photo il va apparaître le
     //  menu » — écran complet, une partie, et à côté vidéo. Le clic ne sort
     //  pas de fenêtre : il remplace le contenu de la plaque (photoHTML()).
@@ -444,6 +461,9 @@ async function rapidesClic(cle){
 //  volet-ci est ouvert (_rapides_etat() n'est peuplé que pour lui) — c'est
 //  justement le seul moment où ce bouton peut avoir été cliqué.
 function appliqueModeVolet(){
+  //  theme === null veut dire « pas lu » : on ne touche à RIEN. Basculer la
+  //  surface du volet sur une valeur qu'on n'a pas pu lire, c'est le faire
+  //  clignoter au hasard sous les yeux d'Alex.
   const theme = etat.rapides && etat.rapides.theme;
   if(theme === "clair") document.documentElement.dataset.mode = "clair";
   else if(theme === "sombre") delete document.documentElement.dataset.mode;
