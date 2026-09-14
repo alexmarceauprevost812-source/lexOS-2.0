@@ -365,6 +365,22 @@ if command -v node >/dev/null 2>&1; then
 	rendu_son() { # rendu_son <volume> <muet> <micro: true|false|null>
 		node - "$VOLET_APP" "$1" "$2" "$3" <<'PYNODE' 2>/dev/null || echo ERREUR
 const fs = require("fs"), vm = require("vm");
+
+//  ═══ LA PAGE TELLE QUE LE NAVIGATEUR LA CHARGE ═══
+//  index.html charge /moteur/client.js AVANT app.js : esc(), api(), litEtat()
+//  et le bandeau y vivent maintenant, pour les quatre fenêtres à la fois. Un
+//  banc qui ne lirait qu'app.js mesurerait une page amputée — « LexOS is not
+//  defined » dès la première ligne, et un rouge qui n'accuse que le harnais.
+//  On ne se tait PAS si le client manque : un banc qui mesure une page sans
+//  son client mesure autre chose que la page.
+function lireLaPage(chemin){
+  const i = String(chemin).indexOf("/usr/share/lexos/");
+  if(i < 0 || !String(chemin).endsWith(".js")) return fs.readFileSync(chemin, "utf8");
+  const client = String(chemin).slice(0, i) + "/usr/lib/lexos/moteur/web/client.js";
+  if(!fs.existsSync(client)) throw new Error("client commun introuvable : " + client);
+  return fs.readFileSync(client, "utf8") + "\n" + fs.readFileSync(chemin, "utf8");
+}
+
 const [, , fichier, vol, muet, micro] = process.argv;
 const bac = {
   //  fetch et les minuteurs ne doivent RIEN faire : la page en appelle au
@@ -377,7 +393,7 @@ const bac = {
 };
 bac.window = bac; bac.globalThis = bac;
 vm.createContext(bac);
-vm.runInContext(fs.readFileSync(fichier, "utf8"), bac);
+vm.runInContext(lireLaPage(fichier), bac);
 //  ═══ « etat » EST UN « let », PAS UNE PROPRIÉTÉ DU GLOBAL ═══
 //  Premier jet : « bac.etat = {…} » depuis l'extérieur. Une déclaration
 //  « let » au premier niveau vit dans la portée lexicale du contexte, PAS

@@ -147,6 +147,53 @@ for nom, fil in (("settings", "banc-settings"), ("volet", "banc-volet"),
         code, corps, _ = lit(base + "/index.html")
         v["page_code"] = code
         v["page_html"] = "<" in corps
+        #  ═══ LE CLIENT COMMUN, SERVI AUX QUATRE FENÊTRES ═══
+        #  index.html le charge AVANT app.js. S'il ne sort pas d'ici, la page
+        #  s'arrête sur « LexOS is not defined » à sa première ligne.
+        code, corps, ent = lit(base + "/moteur/client.js")
+        v["client_code"] = code
+        v["client_vrai"] = "var LexOS" in corps
+        v["client_genre"] = ent.get("Content-Type", "")
+        #  Un nom qui n'est pas dans la liste fermée n'est pas servi — et une
+        #  remontée de dossier encore moins : la page n'a aucun besoin
+        #  d'inventer des noms de fichiers.
+        #  ⚠ ON PARLE EN SOCKET NUE, ET C'EST TOUT LE POINT. urllib NORMALISE
+        #  le chemin avant de l'envoyer : « /moteur/../x » part en « /x », et
+        #  le serveur ne voit JAMAIS de remontée. Un contrôle écrit avec
+        #  urllib était donc vert quoi qu'il arrive — il a d'ailleurs
+        #  survécu, tout vert, à une mutation qui servait n'importe quel nom.
+        #  Une requête brute, elle, arrive telle qu'on l'écrit.
+        import socket as _sock
+        def brut(chemin):
+            c = _sock.create_connection(("127.0.0.1", port), timeout=10)
+            try:
+                c.sendall(f"GET {chemin} HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                          f"Connection: close\r\n\r\n".encode())
+                morceaux = []
+                while True:
+                    bout = c.recv(65536)
+                    if not bout:
+                        break
+                    morceaux.append(bout)
+                return b"".join(morceaux)
+            finally:
+                c.close()
+        #  ⚠ LES CIBLES SONT CHOISIES POUR EXISTER VRAIMENT. Une remontée
+        #  vers un fichier ABSENT rend 404 même sans garde-fou : le contrôle
+        #  serait vert par accident. « /moteur/../service.py » vise
+        #  moteur/web/../service.py, c'est-à-dire moteur/service.py — qui
+        #  existe, et qui est le code du serveur lui-même. C'est en cherchant
+        #  pourquoi une mutation restait verte qu'on l'a vu.
+        for essai in ("/moteur/zzz.js",
+                      "/moteur/../service.py",
+                      "/moteur/../outils.py",
+                      "/moteur/../../settings.py",
+                      "/moteur/..%2fservice.py",
+                      "/moteur/web/client.js"):
+            rep = brut(essai)
+            tete = rep.split(b"\r\n", 1)[0].decode("latin1")
+            if " 200" in tete:
+                v.setdefault("fuites", []).append(f"{essai} -> {tete.strip()}")
         serveur.shutdown()
     except Exception as ex:                      # noqa: BLE001
         v["erreur"] = f"{type(ex).__name__}: {ex}"
@@ -218,6 +265,19 @@ print(d)' "$V" "$1"; }
       [ "$PC" = "200" ] && [ "$PH" = "True" ] \
         && ok "$M : la page elle-même est toujours servie" \
         || non "$M : index.html → $PC (html : $PH)"
+      CC="$(lit "$M.client_code")"; CV="$(lit "$M.client_vrai")"; CG="$(lit "$M.client_genre")"
+      FU="$(lit "$M.fuites")"
+      if [ "$CC" = "200" ] && [ "$CV" = "True" ]; then
+        case "$CG" in
+          *javascript*) ok "$M : /moteur/client.js est servi, et en text/javascript" ;;
+          *) non "$M : /moteur/client.js sort en « $CG » — Chromium ne l'exécutera pas" ;;
+        esac
+      else
+        non "$M : /moteur/client.js → $CC (contenu réel : $CV) — la page s'arrêterait sur « LexOS is not defined »"
+      fi
+      [ "$FU" = "None" ] \
+        && ok "$M : rien d'autre ne sort de /moteur/ (ni nom inconnu, ni remontée de dossier)" \
+        || non "$M : /moteur/ sert des fichiers qu'il ne devrait pas : $FU"
     done
     CT="$(lit cles.tout)"; CV="$(lit cles.vide)"; CD="$(lit cles.deux)"
     if [ "$CT" = "None" ]; then
@@ -239,6 +299,36 @@ print(d)' "$V" "$1"; }
       || non "partage a un plafond de $PP au lieu de 4096"
   fi
 fi
+
+# ===========================================================================
+titre "2 bis. CHAQUE PAGE CHARGE LE CLIENT, ET AVANT SON PROPRE app.js"
+# ===========================================================================
+#  ═══ CE CONTRÔLE MANQUAIT, ET SON ABSENCE ÉTAIT UN FAUX VERT ═══
+#  Les bancs qui rendent les pages hors d'un navigateur ajoutent le client
+#  eux-mêmes (lireLaPage). Ils resteraient donc TOUS VERTS avec la balise
+#  retirée d'index.html — pendant que la vraie fenêtre s'arrêterait sur
+#  « LexOS is not defined » à la première ligne d'app.js, et resterait VIDE.
+#  Mesuré : la balise enlevée, pages_vides annonçait 79 verts.
+#  L'ORDRE compte autant que la présence : app.js s'en sert dès son
+#  exécution, pas seulement au premier clic.
+for PAGE in settings volet ia; do
+  IDX="$RACINE/config/includes.chroot/usr/share/lexos/$PAGE/web/index.html"
+  if [ ! -r "$IDX" ]; then
+    muet "$PAGE : index.html introuvable — le chargement du client n'a pas été vérifié"
+    continue
+  fi
+  L_CLIENT="$(grep -n 'src="/moteur/client.js"' "$IDX" | head -1 | cut -d: -f1)"
+  L_APP="$(grep -n 'src="app.js"' "$IDX" | head -1 | cut -d: -f1)"
+  if [ -z "$L_CLIENT" ]; then
+    non "$PAGE : index.html ne charge pas /moteur/client.js — la fenêtre s'ouvrirait VIDE"
+  elif [ -z "$L_APP" ]; then
+    non "$PAGE : index.html ne charge pas app.js — l'ordre n'est pas mesurable"
+  elif [ "$L_CLIENT" -lt "$L_APP" ]; then
+    ok "$PAGE : le client (ligne $L_CLIENT) est chargé avant app.js (ligne $L_APP)"
+  else
+    non "$PAGE : le client (ligne $L_CLIENT) est chargé APRÈS app.js (ligne $L_APP) : trop tard"
+  fi
+done
 
 # ===========================================================================
 titre "3. LES DEUX FABRIQUES DE FENÊTRE EXISTENT ET SE LISENT"

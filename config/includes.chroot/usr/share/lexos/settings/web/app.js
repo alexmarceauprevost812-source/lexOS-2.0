@@ -134,16 +134,14 @@ let distantProto = "auto";
 let wifiChoisi = "";
 
 /* --- API ------------------------------------------------------------------ */
-async function api(action, arg){
-  try{
-    const r = await fetch("/api/action", {method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({action, arg})});
-    const j = await r.json();
-    if(!j.ok && j.erreur) toast("✗ " + j.erreur);
-    return j;
-  }catch(e){ toast("✗ Le pont local ne répond pas"); return {ok:false}; }
-}
+/*  ═══ api(), litEtat(), esc() ET toast() SONT DANS moteur/web/client.js ═══
+    Il y en avait TROIS exemplaires dans ce dépôt — ici, dans le volet, dans
+    l'IA — avec de petites divergences d'une copie à l'autre. Ce qui reste
+    ICI, c'est ce que CETTE page-ci fait de particulier : elle annonce ses
+    refus dans son bandeau du bas, et elle dit « le pont local ne répond
+    pas » plutôt que de montrer l'erreur brute du navigateur. */
+const api = (action, arg) => LexOS.api(action, arg,
+  {annonce: toast, motifReseau: "Le pont local ne répond pas"});
 /*  ═══ NE RELIS QUE CE QUI A PU CHANGER ═══
     Chaque section des Paramètres lit UNE clé de l'état, qui porte son nom.
     Les exceptions sont ici, et elles seules : une section qui en regarde
@@ -217,18 +215,16 @@ function clesDeSection(cle){
     gratuit) — et le serveur fait la même distinction, sinon elle ne
     servirait à rien. */
 async function chargeEtat(cles){
-  const q = cles === undefined ? ""
-          : "?cles=" + encodeURIComponent(cles.join(","));
-  try{ etat = Object.assign(etat, await (await fetch("/api/etat" + q)).json()); }
-  catch(e){}
+  //  ═══ ON FUSIONNE, ON NE REMPLACE PAS ═══
+  //  Cette page ne demande qu'UNE section à la fois ; remplacer l'état
+  //  jetterait les trente-six autres, qu'il faudrait alors relire en entier
+  //  au prochain aller-retour — exactement la lenteur qu'on vient de
+  //  retirer. Le volet, lui, remplace : il n'a qu'un bloc.
+  const neuf = await LexOS.litEtat(cles);
+  if(neuf) etat = Object.assign(etat, neuf);
 }
 
-let toastT = null;
-function toast(msg){
-  const t = document.getElementById("toast");
-  t.textContent = msg; t.hidden = false;
-  clearTimeout(toastT); toastT = setTimeout(()=>{ t.hidden = true; }, 2600);
-}
+const toast = msg => LexOS.toast(msg, 2600);
 
 /*  ═══ LE FLASH DU CLIC, POSÉ EN UN SEUL ENDROIT ═══
     ALEX : « beaucoup de boutons ne changent pas de couleur en orange quand
@@ -282,8 +278,7 @@ document.addEventListener("pointerdown", ev => {
 }, true);
 
 /* --- Briques d'interface -------------------------------------------------- */
-const esc = s => String(s).replace(/[&<>"]/g,
-  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const esc = LexOS.esc;
 
 /*  ═══ UNE VALEUR DU SYSTÈME DANS UN onclick="f('…')" ═══
     esc() protège le HTML. Elle n'échappe PAS l'apostrophe — et c'est

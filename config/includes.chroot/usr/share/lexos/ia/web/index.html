@@ -29,4 +29,8 @@ try{var m=new URLSearchParams(location.search).get("mode");
   <main id="contenu"></main>
 </div>
 <div id="toast" hidden></div>
+<!--  Le client commun — esc(), api(), litEtat(), toast() — servi par
+      moteur/service.py pour les quatre fenêtres. Il DOIT précéder app.js :
+      celui-ci s'en sert dès son exécution.  -->
+<script src="/moteur/client.js"></script>
 <script src="app.js"></script>

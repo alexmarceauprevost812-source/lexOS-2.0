@@ -46,7 +46,23 @@ command -v node >/dev/null 2>&1 || { saute "node absent : rien n'a été rendu";
 cat > "$BANC/rendu.js" <<'JS'
 "use strict";
 const fs = require("fs"), vm = require("vm");
-const source = fs.readFileSync(process.argv[2], "utf8")
+
+//  ═══ LA PAGE TELLE QUE LE NAVIGATEUR LA CHARGE ═══
+//  index.html charge /moteur/client.js AVANT app.js : esc(), api(), litEtat()
+//  et le bandeau y vivent maintenant, pour les quatre fenêtres à la fois. Un
+//  banc qui ne lirait qu'app.js mesurerait une page amputée — « LexOS is not
+//  defined » dès la première ligne, et un rouge qui n'accuse que le harnais.
+//  On ne se tait PAS si le client manque : un banc qui mesure une page sans
+//  son client mesure autre chose que la page.
+function lireLaPage(chemin){
+  const i = String(chemin).indexOf("/usr/share/lexos/");
+  if(i < 0 || !String(chemin).endsWith(".js")) return fs.readFileSync(chemin, "utf8");
+  const client = String(chemin).slice(0, i) + "/usr/lib/lexos/moteur/web/client.js";
+  if(!fs.existsSync(client)) throw new Error("client commun introuvable : " + client);
+  return fs.readFileSync(client, "utf8") + "\n" + fs.readFileSync(chemin, "utf8");
+}
+
+const source = lireLaPage(process.argv[2])
   + "\n;globalThis.__banc = { contenu, pose: e => { etat = e; }, nav: NAV };\n";
 const el = () => ({ innerHTML:"", textContent:"", hidden:true, style:{}, dataset:{},
                     classList:{add(){},remove(){},toggle(){}},
@@ -68,7 +84,7 @@ try {
       page doit tenir DEBOUT là-dessus, parce que c'est ce que voit quelqu'un
       dont l'outil manque ou plante. « plein » est l'état réel de la machine
       qui fait tourner le banc, tel que settings.py le rend. */
-  const plein = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+  const plein = JSON.parse(lireLaPage(process.argv[3]));
   const sections = [];
   for (const g of T.nav) for (const it of g.items) sections.push(it);
 

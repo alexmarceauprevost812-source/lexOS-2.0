@@ -8,28 +8,19 @@ let etat = {};
 let vueActive = "etat";
 let enCours = false;
 
-const esc = s => String(s ?? "").replace(/[&<>"]/g,
-  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-
-async function api(action, arg){
-  try{
-    const r = await fetch("/api/action", {method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({action, arg})});
-    const j = await r.json();
-    if(!j.ok && j.erreur) toast("✗ " + j.erreur);
-    if(j.ok && j.message)  toast(j.message);
-    return j;
-  }catch(e){ toast("✗ Le pont local ne répond pas"); return {ok:false}; }
-}
+/*  esc(), api(), la lecture d'état et le bandeau sont dans
+    moteur/web/client.js. Ce qui reste ICI, ce sont les particularités de
+    cette page : elle annonce AUSSI les succès (« modèle téléchargé »), et
+    son bandeau reste affiché 3,6 s — une réponse de modèle se lit plus
+    lentement qu'un « Thème : sombre ». */
+const esc = LexOS.esc;
+const toast = msg => LexOS.toast(msg, 3600);
+const api = (action, arg) => LexOS.api(action, arg,
+  {annonce: toast, annonceSucces: true,
+   motifReseau: "Le pont local ne répond pas"});
 async function chargeEtat(){
-  try{ etat = await (await fetch("/api/etat")).json(); }catch(e){}
-}
-let toastT = null;
-function toast(msg){
-  const t = document.getElementById("toast");
-  t.textContent = msg; t.hidden = false;
-  clearTimeout(toastT); toastT = setTimeout(()=>{ t.hidden = true; }, 3600);
+  const neuf = await LexOS.litEtat();
+  if(neuf) etat = neuf;
 }
 function srow(titre, desc, droite){
   return `<div class="srow"><div><div class="t">${titre}</div>

@@ -8,23 +8,23 @@
  *  parlent aux mêmes commandes que la fenêtre des Paramètres. Le dessin, lui,
  *  est le même des deux côtés — c'est la règle qu'Alex a posée.
  * ===========================================================================*/
-const esc = s => String(s).replace(/[&<>"]/g,
-  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+/*  esc(), api() et la lecture d'état sont dans moteur/web/client.js — il y
+    en avait trois exemplaires dans ce dépôt. */
+const esc = LexOS.esc;
 
 let etat = {};
 const QUOI = (location.hash || "#agenda").slice(1);
 
-async function api(action, arg){
-  try{
-    const r = await fetch("/api/action", {method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({action, arg})});
-    return await r.json();
-  }catch(e){ return {ok:false, erreur:String(e)}; }
-}
+/*  PAS D'« annonce » ICI, ET C'EST VOULU : le volet n'a pas de bandeau du
+    bas. Il écrit le motif du refus DANS la tuile concernée — c'est déjà ce
+    qu'il fait pour l'agenda (« LE MOTIF DU REFUS, PAS UN "ajout refusé"
+    GÉNÉRIQUE »), et il a donc besoin de recevoir « erreur », pas de la voir
+    passer dans un bandeau qui n'existe pas. */
+const api = (action, arg) => LexOS.api(action, arg);
 async function chargeEtat(){
-  try{ etat = await (await fetch("/api/etat")).json(); }
-  catch(e){ etat = {}; }
+  //  ON REMPLACE : ce volet n'a qu'un bloc, et un état vide vaut mieux
+  //  qu'un état à moitié périmé dont on ne saurait plus dater les morceaux.
+  etat = await LexOS.litEtat() || {};
 }
 
 /* --- Les ciels — LA MÊME TABLE QUE LA DÉMO -------------------------------- */

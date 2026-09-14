@@ -27,6 +27,10 @@ try{var m=new URLSearchParams(location.search).get("mode");
 <div class="shade" id="volet" role="dialog">
   <div class="shade-in" id="dedans"></div>
 </div>
+<!--  Le client commun — esc(), api(), litEtat(), toast() — servi par
+      moteur/service.py pour les quatre fenêtres. Il DOIT précéder app.js :
+      celui-ci s'en sert dès son exécution.  -->
+<script src="/moteur/client.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

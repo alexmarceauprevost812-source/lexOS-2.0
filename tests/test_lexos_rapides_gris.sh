@@ -197,6 +197,20 @@ for m in re.finditer(r'^(?:let|const) (\w+)[^\n]*(?:\n(?![a-zA-Z(/]).*)*', js, r
     if m.group(1) in ("etat",):
         continue
     morceaux.append(m.group(0))
+#  ═══ ET LE CLIENT COMMUN VA DEVANT ═══
+#  esc() ne vit plus dans app.js : la page charge /moteur/client.js AVANT
+#  app.js, et « const esc = LexOS.esc » ne veut rien dire sans lui. Sans
+#  cette ligne, l'extrait lève « LexOS is not defined » et la page se rend
+#  VIDE — et les contrôles de couleur annoncent « le gris ne se détache pas
+#  du voile » en mesurant un écran noir. C'est exactement le défaut que le
+#  commentaire du dessus raconte, une deuxième fois, pour une autre raison.
+#  On ne se tait PAS si le client manque : mesurer une page sans son client,
+#  c'est mesurer autre chose que la page.
+_i = sys.argv[1].index("/usr/share/lexos/")
+_client = sys.argv[1][:_i] + "/usr/lib/lexos/moteur/web/client.js"
+if not os.path.exists(_client):
+    raise SystemExit("client commun introuvable : " + _client)
+morceaux.insert(0, open(_client, encoding="utf-8").read())
 src = "\n".join(morceaux)
 #  ═══ ET ON REFUSE D'ALLER PLUS LOIN SI L'EXTRAIT NE TIENT PAS DEBOUT ═══
 #  Sans ce garde-fou, un extrait incomplet donne une page vide, et tout ce

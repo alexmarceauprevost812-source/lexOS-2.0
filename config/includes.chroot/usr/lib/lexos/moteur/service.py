@@ -34,6 +34,7 @@ import json
 import mimetypes
 import socket
 import threading
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 
@@ -129,10 +130,45 @@ class Service(http.server.SimpleHTTPRequestHandler):
         quel — et ratait donc « /api/etat?x=1 »."""
         return urlparse(self.path).path
 
+    #  ═══ LE CLIENT COMMUN EST SERVI POUR LES QUATRE FENÊTRES ═══
+    #  Il vit dans usr/lib/lexos/moteur/web/, à côté du code qui le sert, et
+    #  pas dans le dossier web de chaque page — sinon ce serait de nouveau
+    #  quatre copies, ce qu'on vient justement de défaire.
+    MOTEUR_WEB = Path(__file__).resolve().parent / "web"
+    #  ⚠ UNE LISTE FERMÉE, PAS UN DOSSIER OUVERT. Servir « tout ce qui est
+    #  sous moteur/web/ » à partir d'un nom venu de la page, c'est la laisser
+    #  demander « ../../settings.py » — et les pages n'ont aucun besoin
+    #  d'inventer des noms. Ce qui n'est pas nommé ici n'est pas servi.
+    MOTEUR_FICHIERS = {
+        "client.js": "text/javascript; charset=utf-8",
+    }
+
     def do_GET(self):
-        if self.chemin_nu() == "/api/etat":
+        chemin = self.chemin_nu()
+        if chemin == "/api/etat":
             return self._json(200, self._etat())
+        if chemin.startswith("/moteur/"):
+            return self._moteur(chemin[len("/moteur/"):])
         return super().do_GET()
+
+    def _moteur(self, nom):
+        genre = self.MOTEUR_FICHIERS.get(nom)
+        if genre is None:
+            return self._json(404, {"ok": False, "erreur": "fichier inconnu"})
+        try:
+            corps = (self.MOTEUR_WEB / nom).read_bytes()
+        except OSError:
+            #  Le module est là mais son fichier manque : on le DIT. Une page
+            #  qui recevrait du vide échouerait plus loin, sur une fonction
+            #  introuvable, et personne ne remonterait jusqu'ici.
+            return self._json(404, {"ok": False,
+                                    "erreur": f"moteur/web/{nom} illisible"})
+        self.send_response(200)
+        self.send_header("Content-Type", genre)
+        self.send_header("Content-Length", str(len(corps)))
+        self.end_headers()
+        self.wfile.write(corps)
+        return None
 
     def _etat(self):
         """L'état, limité aux clés demandées quand le module sait le faire.
