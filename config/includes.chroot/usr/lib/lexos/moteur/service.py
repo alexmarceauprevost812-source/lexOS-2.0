@@ -66,8 +66,11 @@ class Service(http.server.SimpleHTTPRequestHandler):
                      demandées si « etat_par_cles » vaut True, rien sinon.
         actions      {nom: callable(arg) -> dict}
         etat_par_cles  True si etat_fn accepte « ?cles=a,b,c »
-        apres_action callable() appelée après TOUTE action, quelle qu'en soit
-                     l'issue (settings.py y oublie sa mémoire des outils)
+        apres_action callable(nom_action) appelée après TOUTE action, quelle
+                     qu'en soit l'issue. settings.py y oublie sa mémoire des
+                     outils ET périme du cache ce que cette action-là a pu
+                     changer — d'où le NOM en argument : sans lui, chaque
+                     clic périmerait tout, et le cache ne servirait à rien.
         corps_max    taille maximale d'un corps de requête, en octets
         entetes_json entêtes supplémentaires sur les réponses JSON
         json_ascii   False pour laisser passer les accents tels quels
@@ -174,7 +177,7 @@ class Service(http.server.SimpleHTTPRequestHandler):
             reponse = {"ok": False, "erreur": str(e)}
         apres = type(self).apres_action
         if apres is not None:
-            apres()
+            apres(requete.get("action", ""))
         return self._json(200, reponse)
 
 

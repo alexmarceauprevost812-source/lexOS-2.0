@@ -106,9 +106,17 @@ appels.clear()
 mod.etat()
 deuxieme = sum(appels.values())
 
-#  Après un oubli, on rebalaie : la mémoire n'est pas éternelle, et c'est
-#  ce qui permet à un outil installé pendant la session d'être vu.
-outils.oublier()
+#  Apres un clic, on rebalaie : la memoire n'est pas eternelle, et c'est ce
+#  qui permet a un outil installe pendant la session d'etre vu.
+#
+#  ⚠ ON PASSE PAR LE VRAI CHEMIN, ET CE BANC A DU L'APPRENDRE. Appeler
+#  outils.oublier() TOUT SEUL ne suffit plus : le cache d'etat (arrive a
+#  l'etape 3) repond desormais de memoire, et les collecteurs ne sont meme
+#  pas rappeles — donc aucun balayage du PATH, et le controle accusait une
+#  memoire qui s'oublie tres bien. Les deux caches se composent, et c'est
+#  _apres_action() qui les jette ENSEMBLE : c'est ce que fait un vrai clic,
+#  c'est donc ce qu'il faut mesurer.
+mod._apres_action("une-action-quelconque")
 appels.clear()
 mod.etat()
 apres_oubli = sum(appels.values())
@@ -147,9 +155,9 @@ PY
         non "la deuxième lecture a rebalayé $DEUX fois — la mémoire ne tient pas d'une lecture à l'autre"
       fi
       if [ "$OUB" -ge "$DIST" ]; then
-        ok "après oubli(), tout est rebalayé ($OUB) : un outil installé pendant la session sera vu"
+        ok "après un clic, tout est rebalayé ($OUB) : un outil installé pendant la session sera vu"
       else
-        non "après oubli(), seuls $OUB balayages ont eu lieu pour $DIST outils — la mémoire ne s'oublie pas"
+        non "après un clic, seuls $OUB balayages ont eu lieu pour $DIST outils — un outil installé resterait « absent »"
       fi
     fi
   fi

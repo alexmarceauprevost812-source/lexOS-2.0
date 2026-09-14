@@ -62,6 +62,7 @@ import son as _son  # noqa: E402
 from moteur import outils as _outils  # noqa: E402
 from moteur import service as _service  # noqa: E402
 from moteur import etat as _etat_moteur  # noqa: E402
+from moteur import registre as _registre  # noqa: E402
 from moteur import fenetre as _fenetre  # noqa: E402
 
 BASE_DIR = Path(os.environ.get("LEXOS_VOLET_DIR", "/usr/share/lexos/volet"))
@@ -447,12 +448,26 @@ _RAPIDES_DELAI = float(os.environ.get("LEXOS_VOLET_DELAI", "2"))
 #  Ce qui reste ICI, c'est la forme d'appel propre au volet : chaque tuile
 #  choisit SA valeur de repli — un booléen manquant n'a pas la même tête
 #  qu'une liste manquante — là où les Paramètres se contentent de None.
+#  ═══ LE VOLET S'OUVRE VINGT FOIS PAR JOUR, ET RELISAIT TOUT À CHAQUE CLIC ═══
+#  Le cache vaut encore plus ici que dans les Paramètres : une tuile qu'on
+#  bascule relançait nmcli, bluetoothctl et pactl pour redessiner la grille.
+#  Une seconde et demie de mémoire, et toute action la jette.
+_CACHE = _registre.Cache()
+_REGISTRE = _registre.Registre(_CACHE)
+
+
 def _de_front(taches):
     """taches : {clé: (appelable, valeur de repli)}."""
-    return _etat_moteur.de_front(
+    return _CACHE.lire(
         {c: f for c, (f, _) in taches.items()},
         _RAPIDES_DELAI,
         replis={c: r for c, (_, r) in taches.items()})
+
+
+def _apres_action(nom=""):
+    """Après un clic : la mémoire des outils et les lectures périmées."""
+    _outils.oublier()
+    _REGISTRE.apres(nom)
 
 
 def _radio_nmcli(quoi):
@@ -723,6 +738,7 @@ def etat(quoi):
 class Handler(_service.Service):
     quoi = "agenda"
     actions = ACTIONS
+    apres_action = staticmethod(_apres_action)
 
     #  ⚠ PAS « etat_fn = staticmethod(etat) » : la fonction etat() du volet
     #  prend le NOM du volet, et ce nom est posé sur la classe au lancement

@@ -47,6 +47,7 @@ import son as _son  # noqa: E402
 from moteur import outils as _outils  # noqa: E402
 from moteur import service as _service  # noqa: E402
 from moteur import etat as _etat_moteur  # noqa: E402
+from moteur import registre as _registre  # noqa: E402
 from moteur import fenetre as _fenetre  # noqa: E402
 
 APP_NAME = "Paramètres LexOS"
@@ -4093,8 +4094,36 @@ def _langue_etat():
 #  qu'on vient d'abandonner, et etat() rendait la main au bout de 63 s au
 #  lieu de 4. Le point 7 de tests/test_lexos_moteur_ouverture.sh a été écrit
 #  AVANT ce déménagement, pour qu'on sache si une ligne tombe en route.
+#  ═══ ET ON NE RELIT PLUS CE QU'ON VIENT DE LIRE ═══
+#  Cliquer une tuile, c'était : l'action, puis TOUT relire depuis zéro. Deux
+#  clics d'affilée payaient deux fois exactement la même lecture, à deux
+#  secondes d'intervalle. Le cache tient une seconde et demie — assez pour
+#  que deux clics rapprochés ne relisent pas deux fois, trop court pour
+#  mentir longtemps (Alex peut couper le Wi-Fi à la touche du clavier, en
+#  dehors de LexOS : c'est ce délai-là qui borne le mensonge possible).
+#  Et toute action PÉRIME ce qu'elle a pu changer, tout de suite : une tuile
+#  qui reviendrait à son ancienne valeur une demi-seconde après le clic
+#  serait pire que lente, elle serait fausse.
+_CACHE = _registre.Cache()
+_REGISTRE = _registre.Registre(_CACHE)
+
+
 def _de_front(collecteurs):
-    return _etat_moteur.de_front(collecteurs, _ETAT_DELAI, _ETAT_FRONTS)
+    return _CACHE.lire(collecteurs, _ETAT_DELAI, _ETAT_FRONTS)
+
+
+def _apres_action(nom=""):
+    """Ce qu'on jette après un clic : la mémoire des outils, et les lectures
+    que cette action-là a pu rendre fausses.
+
+    ⚠ UNE ACTION INCONNUE PÉRIME TOUT, et c'est le bon défaut. Déclarer
+    qu'une action ne touche qu'une clé est une promesse ; se tromper ne fait
+    pas planter, ça fait afficher une valeur périmée sans un mot. On n'opte
+    donc pas OUT de la justesse, on opte IN dans la précision — et pour
+    l'instant on n'a rien déclaré du tout : le gain se joue entre deux
+    lectures d'une MÊME page, pas entre deux clics."""
+    _outils.oublier()
+    _REGISTRE.apres(nom)
 
 
 # =============================================================================
@@ -4121,7 +4150,7 @@ class Handler(_service.Service):
     #  une liste à tenir aurait fini par en oublier une, et le gain se joue
     #  DANS une lecture d'état (quarante collecteurs qui demandent les mêmes
     #  outils), pas entre deux clics.
-    apres_action = staticmethod(_outils.oublier)
+    apres_action = staticmethod(_apres_action)
 
     def do_GET(self):
         #  ═══ LES VIGNETTES DE LA GALERIE ═══

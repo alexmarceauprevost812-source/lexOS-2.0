@@ -2973,6 +2973,26 @@ jobs:
           #  le grep du banc voisin voyait la bonne ligne et disait vert.
           bash tests/test_lexos_moteur_service.sh
 
+      - name: Le cache, compté en sous-processus
+        if: ${{ !cancelled() }}
+        run: |
+          #  Cliquer une tuile, c'était : l'action, puis TOUT relire depuis
+          #  zéro — nmcli, bluetoothctl, pactl, chacun un sous-processus.
+          #  Deux clics d'affilée payaient deux fois exactement la même
+          #  lecture, à deux secondes d'intervalle.
+          #
+          #  Ce banc remplace les outils par des scripts qui écrivent une
+          #  ligne à chaque appel, et COMPTE. Un grep sur « Cache » aurait
+          #  été vert même si le cache ne servait à rien.
+          #
+          #  ⚠ LES DEUX MOITIÉS COMPTENT AUTANT. Un cache qui retient bien
+          #  mais ne se périme pas est PIRE que pas de cache : la tuile
+          #  reviendrait à son ancienne valeur une demi-seconde après le
+          #  clic. Pas lent — FAUX. Et une action INCONNUE périme tout :
+          #  se tromper en déclarant ne doit jamais coûter un affichage
+          #  faux, seulement une relecture.
+          bash tests/test_lexos_moteur_cache.sh
+
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}
         run: |
