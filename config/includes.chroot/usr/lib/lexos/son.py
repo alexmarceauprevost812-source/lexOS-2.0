@@ -183,12 +183,29 @@ def etat():
     if not disponible():
         return {"volume": -1, "muet": False, "micro": None}
     import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+    #  ═══ PAS DE « with » ICI, ET C'EST LE MÊME PIÈGE QU'AILLEURS ═══
+    #  La sortie d'un « with ThreadPoolExecutor » appelle shutdown(wait=True) :
+    #  elle ATTEND tous les fils, y compris ceux qu'un appelant vient
+    #  d'abandonner. C'est ce qui faisait rendre la main au bout de 63 s au
+    #  lieu de 4 dans settings.py — le bogue que moteur/etat.de_front()
+    #  raconte en toutes lettres. Je l'avais réintroduit ici en parallélisant
+    #  ces trois lectures, à trois fichiers de distance du commentaire qui
+    #  l'explique.
+    #
+    #  Ce module est appelé DEPUIS un collecteur borné (le volet, les
+    #  Paramètres) : si son appelant abandonne, ce pool-ci ne doit pas le
+    #  retenir. On ferme à la main, sans attendre ; chaque pactl a son propre
+    #  délai (DELAI) et finira dans son coin.
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=3,
+                                                 thread_name_prefix="lexos-son")
+    try:
         f_vol = pool.submit(volume)
         f_muet = pool.submit(muet)
         f_mic = pool.submit(micro_muet)
         return {"volume": f_vol.result(), "muet": f_muet.result(),
                 "micro": f_mic.result()}
+    finally:
+        pool.shutdown(wait=False)
 
 
 # =============================================================================
