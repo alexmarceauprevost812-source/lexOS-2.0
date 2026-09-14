@@ -115,9 +115,13 @@ function lireLaPage(chemin){
 }
 
 const src = lireLaPage(process.argv[2])
+  //  L'état de DÉPART, capturé avant que quoi que ce soit ne le touche.
+  //  Par globalThis et pas par un « var » : le client commun ouvre le
+  //  fichier sur « "use strict" », où une affectation sans déclaration lève.
+  + "\n;globalThis.__depart = Object.assign({}, etat);"
   + "\n;globalThis.__b = { contenu, pose: e => { etat = e; }, cles: clesDeSection,"
   + " nav: NAV, tbl: CLES_SECTION, charge: chargeEtat, apparence: appliqueApparence,"
-  + " allerA, tout: rafraichirTout, rendNav,"
+  + " allerA, tout: rafraichirTout, rendNav, depart: () => Object.assign({}, globalThis.__depart),"
   + " racine: () => document.documentElement };\n";
 const el = () => ({ innerHTML:"", textContent:"", hidden:true, style:{}, dataset:{},
                     classList:{add(){},remove(){},toggle(){},contains:()=>false},
@@ -208,7 +212,14 @@ B.charge(undefined); B.charge([]); B.charge(["wifi","avion"]);
 const vues0 = vues.slice();
 //  Le mode d'affichage quand le thème n'est pas encore connu.
 racine.dataset.mode = "clair";
-B.pose({});            // état vide : vu("theme") vaut undefined
+//  ⚠ ON N'INVENTE PAS L'ÉTAT DE DÉPART, ON PREND LE VRAI. Poser « {} » à la
+//  main mesurait une page qui n'existe pas : le fichier déclare son propre
+//  état initial, et c'est LUI que la première image utilise. Tant qu'il
+//  contenait « theme:"sombre" », le garde-fou d'appliqueApparence() était
+//  inopérant — vu("theme") n'était pas undefined — et la fenêtre en mode
+//  clair s'ouvrait NOIRE malgré un contrôle tout vert qui mesurait un état
+//  fabriqué pour l'occasion.
+B.pose(B.depart());
 B.apparence();
 const modeApresVide = racine.dataset.mode === undefined ? null : racine.dataset.mode;
 B.pose({theme:"sombre"});

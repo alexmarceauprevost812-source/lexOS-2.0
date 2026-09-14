@@ -119,8 +119,26 @@ const LANGUES = [
   ["ja_JP.UTF-8","日本語"], ["ko_KR.UTF-8","한국어"], ["ar_SA.UTF-8","العربية"],
 ];
 
-let etat = {perf:"medium", theme:"sombre", accent:"orange", police:"defaut",
-            avion:"off", hote:"", version:"", noyau:""};
+/*  ═══ CE QU'ON PRÉTEND SAVOIR AVANT D'AVOIR RIEN LU ═══
+    Cet objet était le décor de départ du temps où l'ouverture chargeait les
+    quarante collecteurs AVANT de dessiner : personne ne le voyait jamais.
+    Depuis qu'on dessine d'abord, c'est la PREMIÈRE IMAGE — et deux de ses
+    valeurs étaient des affirmations fausses.
+
+    « theme:"sombre" » rendait inopérant le garde-fou d'appliqueApparence()
+    (« on ne touche au mode que quand on le CONNAÎT ») : vu("theme") valait
+    « sombre », donc pas undefined, donc la page EFFAÇAIT le mode clair posé
+    par ?mode= — et quelqu'un en clair voyait toujours sa fenêtre s'ouvrir
+    NOIRE puis redevenir claire. Le correctif ne corrigeait rien.
+
+    « avion:"off" » dessinait l'interrupteur du mode avion éteint sans avoir
+    lu la moindre radio.
+
+    Les deux sont partis. Ce qui RESTE est soit un vrai défaut (la police et
+    l'accent, dont appliqueApparence() se replit proprement et que /api/etat
+    rend gratuitement dès la première réponse), soit une chaîne VIDE — qui
+    n'affirme rien et n'affiche rien. */
+let etat = {accent:"orange", police:"defaut", hote:"", version:"", noyau:""};
 let sectionActive = "wifi";
 
 /*  Le protocole choisi pour aller voir ailleurs vit ICI et pas dans la page :
