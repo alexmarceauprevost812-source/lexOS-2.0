@@ -459,8 +459,63 @@ def _de_front(taches):
         replis={c: r for c, (_, r) in taches.items()})
 
 
+#  ═══ LES SEPT LECTURES MISES EN CACHE, NOMMÉES UNE FOIS ═══
+#  _rapides_etat() décide ce qui est réellement gardé ; cette liste-ci sert à
+#  écrire les déclarations ci-dessous sans se tromper de nom. Un banc compare
+#  les deux et rougit si elles divergent — une huitième lecture ajoutée un
+#  jour sans toucher cette liste cesserait d'être périmée, en silence.
+_CLES_RAPIDES = ("r_wifi", "r_wwan", "bt_brut", "perf", "theme", "crt", "son")
+
+
+def _verifie_declarations(table, cles):
+    """Refuse de démarrer si une déclaration nomme une clé qui n'existe pas.
+
+    ═══ POURQUOI UNE ERREUR ET PAS UN BANC ═══
+    Les deux fautes possibles n'ont pas du tout le même prix, et c'est
+    MESURÉ :
+
+      · un NOM D'ACTION mal orthographié — l'action réelle reste non
+        déclarée, donc tout est périmé, donc c'est seulement plus lent. Le
+        défaut protège.
+      · une CLÉ mal orthographiée — « wifi » au lieu de « r_wifi » — ne
+        périme RIEN. La valeur reste affichée, périmée, sans un mot. Et une
+        tuile périmée invite à un clic qui fera l'inverse de son étiquette,
+        parce que les actions relisent la VRAIE machine pour basculer. Ce
+        dépôt a déjà payé ce défaut une fois, avec un Wi-Fi qu'on éteignait
+        en croyant l'allumer.
+
+    La seconde faute ne doit donc pas être « remarquée un jour par un banc » :
+    elle doit empêcher le volet de démarrer, tout de suite, avec le nom de la
+    clé fautive."""
+    for action, declarees in table.items():
+        inconnues = sorted(set(declarees) - set(cles))
+        if inconnues:
+            raise ValueError(
+                f"volet.py : l'action « {action} » déclare périmer "
+                f"{inconnues}, qui ne sont pas des clés du cache "
+                f"({', '.join(cles)}). Une clé inconnue ne périme RIEN : "
+                f"la tuile afficherait une valeur périmée sans le dire.")
+    return table
+
+
+#  ═══ CE QUE CHAQUE ACTION PÉRIME — ET RIEN DE PLUS ═══
+#  (rempli à l'étape suivante, après avoir tracé ce que chaque commande
+#   change vraiment ; une action absente de cette table périme TOUT, ce qui
+#   est le défaut sûr)
+_PERIME = _verifie_declarations({}, _CLES_RAPIDES)
+for _nom, _cles in _PERIME.items():
+    _REGISTRE.action_perime(_nom, _cles)
+
+
 def _apres_action(nom=""):
-    """Après un clic : la mémoire des outils et les lectures périmées."""
+    """Après un clic : la mémoire des outils et les lectures périmées.
+
+    ⚠ L'OUBLI DES OUTILS, LUI, RESTE TOTAL. moteur/outils.py retient trente
+    secondes « cet outil est-il installé ? » ; une action peut en installer
+    un (les Paramètres posent des paquets), et la liste de celles qui le font
+    serait une liste à tenir — donc une liste qui finirait par en oublier
+    une. Ce qui se déclare finement ci-dessus, ce sont les LECTURES D'ÉTAT,
+    dont on peut tracer l'effet commande par commande."""
     _outils.oublier()
     _REGISTRE.apres(nom)
 

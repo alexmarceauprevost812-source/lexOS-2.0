@@ -3036,6 +3036,27 @@ jobs:
           #  que la bonne réponse EST.
           bash tests/test_lexos_moteur_doublons.sh
 
+      - name: Les clés partielles du volet — un clic ne périme que ce qu'il change
+        if: ${{ !cancelled() }}
+        run: |
+          #  MESURÉ, avec des outils qui répondent en 0,4 s : n'importe quel
+          #  clic coûte 6 lancements d'outils et ~411 ms — y compris celui de
+          #  l'appareil photo, qui ne change RIEN, et celui du muet, qui ne
+          #  change que le son.
+          #
+          #  ⚠ ET LE DANGER DE CETTE ÉTAPE EST SILENCIEUX. Déclarer qu'une
+          #  action ne touche qu'une clé est une PROMESSE : se tromper ne fait
+          #  pas planter, ça fait afficher une valeur périmée sans un mot — et
+          #  une tuile périmée invite à un clic qui fera l'inverse de son
+          #  étiquette, puisque les actions relisent la VRAIE machine pour
+          #  basculer.
+          #
+          #  Les deux fautes n'ont pas le même prix, et c'est mesuré : un NOM
+          #  d'action fautif retombe sur « tout périmer » (sans danger) ; une
+          #  CLÉ fautive ne périme RIEN. La seconde ne doit donc pas être
+          #  « remarquée un jour » — elle empêche le volet de démarrer.
+          bash tests/test_lexos_volet_cles.sh
+
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}
         run: |
