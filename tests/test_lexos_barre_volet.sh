@@ -295,8 +295,20 @@ SON_PY="$RACINE/config/includes.chroot/usr/lib/lexos/son.py"
 #  ═══ UN SEUL ENDROIT OÙ pactl EST APPELÉ POUR LE VOLUME ═══
 #  C'est la raison d'être du module. Ce contrôle échoue le jour où quelqu'un
 #  recopie un « pactl set-sink-volume » dans l'une des deux pages.
+#
+#  ⚠ ON RETIRE LES LIGNES DE COMMENTAIRE AVANT DE CHERCHER, ET C'EST MESURÉ :
+#  ce contrôle a rougi sur une PHRASE — le commentaire de volet.py qui dit
+#  précisément où son.py écrit, pour justifier qu'un clic sur le volume ne
+#  périme que la clé « son ». Un contrôle qu'un commentaire fait rougir finit
+#  par se faire contourner en reformulant au lieu de corriger, et il aurait
+#  fini par nous apprendre à ne plus écrire les noms des commandes dans les
+#  explications. C'est le CODE qu'on regarde.
 for F in "$VOLET_PY" "$SETTINGS_PY"; do
-	if grep -q 'set-sink-volume\|set-sink-mute\|set-source-mute' "$F"; then
+	#  « grep -c » et pas « grep -q » : en bout de tube, -q sort au premier
+	#  résultat et referme le tube — sous « pipefail », le contrôle peut
+	#  alors verdir sur une erreur. On compte, puis on décide.
+	SALE="$(grep -v '^[[:space:]]*#' "$F" | grep -c 'set-sink-volume\|set-sink-mute\|set-source-mute' || true)"
+	if [ "${SALE:-0}" != "0" ]; then
 		non "$(basename "$F") appelle pactl en direct : deux moteurs pour un réglage"
 	else
 		ok "$(basename "$F") ne contient aucun appel pactl : tout passe par son.py"

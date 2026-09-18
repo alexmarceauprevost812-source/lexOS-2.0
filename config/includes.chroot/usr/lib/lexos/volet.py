@@ -499,10 +499,123 @@ def _verifie_declarations(table, cles):
 
 
 #  ═══ CE QUE CHAQUE ACTION PÉRIME — ET RIEN DE PLUS ═══
-#  (rempli à l'étape suivante, après avoir tracé ce que chaque commande
-#   change vraiment ; une action absente de cette table périme TOUT, ce qui
-#   est le défaut sûr)
-_PERIME = _verifie_declarations({}, _CLES_RAPIDES)
+#  TRACÉ, PAS SUPPOSÉ. Chaque ligne nomme le fichier ou la commande qui fait
+#  le lien entre l'action et la clé. Une clé sans ce lien n'entre pas dans la
+#  table ; une action dont le tracé laisse un doute n'y entre pas non plus, et
+#  périme alors TOUT — le défaut sûr.
+#
+#  ═══ LES SEPT LECTURES NE COÛTENT PAS LE MÊME PRIX ═══
+#      r_wifi, r_wwan ....... nmcli ......... un lancement chacune
+#      bt_brut .............. bluetoothctl .. un lancement
+#      son .................. pactl × 3 ..... trois lancements
+#      perf, theme, crt ..... un fichier local, gratuit
+#
+#  MESURÉ AVANT, avec des outils qui répondent en 0,4 s : n'importe quel clic
+#  coûtait 6 lancements et ~411 ms — y compris celui de « Partager », qui
+#  n'ouvre qu'une fenêtre. Ce que la table ci-dessous donne, clic par clic :
+#      partage, clavier, notifications, agenda, météo ........... 6 → 0
+#      effets TV, thème ......................................... 6 → 0
+#      Wi-Fi .................................................... 6 → 1
+#      volume, muet, micro, appareil photo ...................... 6 → 3
+#      Bluetooth ................................................ 6 → 4
+#      mode avion ............................................... 6 → 6
+#      performance .............................. non déclarée → 6
+#
+#  Le mode avion est déclaré alors qu'il ne gagne rien : la table dit ce qui
+#  change, elle ne cherche pas le gain. Le jour où une huitième lecture
+#  arrive, l'avion ne la périmera pas pour rien.
+_PERIME = _verifie_declarations({
+    #  ── Ce qui n'ouvre qu'une fenêtre ou n'écrit qu'un fichier à soi ──────
+    #  Aucune des sept lectures ne bouge. C'est le plus gros gain de la
+    #  table, et le plus facile à croire faux : « ça ouvre les Paramètres,
+    #  donc tout peut changer ». Non — l'action LANCE la fenêtre et rend la
+    #  main ; ce que l'utilisateur y fera ensuite arrive des secondes plus
+    #  tard, quand le cache (1,5 s) est mort depuis longtemps.
+    "notif-vide": (),         # écrase ~/.cache/xfce4/notifyd/log
+    "agenda-ajoute": (),      # écrit le JSON de l'agenda
+    "agenda-enleve": (),      # idem
+    "meteo-ville": (),        # Popen lexos-meteo --choisir
+    "rapides-partage": (),    # Popen lexos-share devices — bluetoothctl en LECTURE seule (lexos-share:425-427)
+    "rapides-clavier": (),    # Popen lexos-settings clavier
+
+    #  ── Le son ───────────────────────────────────────────────────────────
+    #  son.py n'écrit que par pactl set-sink-volume / set-sink-mute /
+    #  set-source-mute (son.py:254-289), sur @DEFAULT_SINK@ et
+    #  @DEFAULT_SOURCE@. Rien d'autre des sept ne dépend du serveur de son.
+    "rapides-volume": ("son",),
+    "rapides-muet": ("son",),
+    "rapides-micro": ("son",),
+
+    #  ── L'appareil photo : « son », et la question A ÉTÉ POSÉE ───────────
+    #  Le tracé donne « rien » pour les modes plein et zone (lexos-capture
+    #  écrit une image et lance notify-send, c'est tout) — mais le mode
+    #  VIDÉO lance ffmpeg avec « -f pulse -ac 2 -i default »
+    #  (lexos-capture:218-223), donc OUVRE un flux de capture audio. Le
+    #  script n'émet lui-même aucun réglage de volume ; ce qu'on ne peut pas
+    #  établir en lisant le code, c'est si l'ouverture de ce flux fait
+    #  basculer un casque Bluetooth de A2DP vers HSP côté WirePlumber — ce
+    #  qui change la sortie par défaut, donc les trois valeurs lues.
+    #  On garde « son », et le prix est petit : le volet se ferme juste après
+    #  ce clic (app.js), donc rien n'est relu tout de suite ; c'est la
+    #  PROCHAINE ouverture qui repaiera trois pactl — depuis lexos-moteurd,
+    #  le cache lui survit. Trois lancements contre une icône de sourdine
+    #  périmée, et le bouton muet bascule l'état RÉEL : le choix est vite vu.
+    "rapides-photo": ("son",),
+
+    #  ── Les deux fichiers d'état ─────────────────────────────────────────
+    #  lexos-crt n'écrit que $XDG_CONFIG_HOME/lexos/crt (lexos-crt:58, 284,
+    #  309) et pose le compositing xfwm4 (:191) ; aucun nmcli, rfkill,
+    #  bluetoothctl ni pactl dans tout le fichier.
+    "rapides-crt": ("crt",),
+    #  « lexos theme » → lexos-theme-gen --mode, qui écrit
+    #  $HOME/.config/lexos/mode (lexos-theme-gen:368) — le fichier même que
+    #  _mode_apparence() lit — plus les thèmes GTK et trois xfconf-query.
+    #  Pas une ligne sur crt, picom, perf ou l'audio.
+    "rapides-theme": ("theme",),
+
+    #  ── Le Wi-Fi seul ────────────────────────────────────────────────────
+    #  « nmcli radio wifi on|off » : la commande porte son périmètre dans son
+    #  nom. Ni wwan, ni Bluetooth, ni son (aucun module audio par le réseau
+    #  n'est livré : rien pour raop ni zeroconf dans les listes de paquets).
+    "rapides-wifi": ("r_wifi",),
+
+    #  ── Le Bluetooth, et le son avec lui ─────────────────────────────────
+    #  « bluetoothctl power off » éteint l'adaptateur. Et si la sortie par
+    #  DÉFAUT est un casque Bluetooth, elle disparaît : le serveur de son
+    #  retombe sur une autre sortie, avec SON volume et SON état muet. Le
+    #  lien est indirect — on garde la clé quand même, parce que le bouton
+    #  muet bascule l'état RÉEL : une icône « coupé » périmée ferait COUPER
+    #  un son qui marchait. C'est le bogue du dock, encore.
+    "rapides-bt": ("bt_brut", "son"),
+
+    #  ── Le mode avion ────────────────────────────────────────────────────
+    #  « lexos-net avion toggle » (lexos-net:79-119) exécute « nmcli radio
+    #  all off|on » (:89, :98) — wifi ET wwan — puis « rfkill block|unblock
+    #  all » (:90, :97), « all » et pas « wifi » : le Bluetooth y passe
+    #  aussi, et le script le dit lui-même (:91 « Wi-Fi, Bluetooth et données
+    #  mobiles coupés », :111-115 sa branche status relit le soft-block
+    #  Bluetooth comme son propre effet). Le son suit le Bluetooth, même
+    #  raisonnement qu'au-dessus — et le dépôt raconte le cas, lexos-net:584 :
+    #  « Plus de réseau, plus d'enceinte ».
+    "rapides-avion": ("r_wifi", "r_wwan", "bt_brut", "son"),
+
+    #  ── ET « rapides-perf » N'EST PAS LÀ, EXPRÈS ─────────────────────────
+    #  Ce n'est pas un oubli : c'est le résultat du tracé. lexos-perf écrit
+    #  /etc/lexos/performance (:406) ET $XDG_CONFIG_HOME/lexos/crt (:423, et
+    #  apply_user tourne MÊME si le plan système est refusé, :735-741) — donc
+    #  perf et crt, certains. Mais apply_services (:371-388) fait aussi
+    #  « systemctl disable --now » sur bluetooth.service ET
+    #  ModemManager.service pour le seul profil « petit » (:121) : deux des
+    #  quatre transitions du cycle touchent donc bt_brut et r_wwan, et le son
+    #  avec le Bluetooth. Restent r_wifi (que seul un /etc/tlp.conf modifié à
+    #  la main pourrait atteindre, via « tlp start » :279 — ce dépôt n'en
+    #  livre aucun) et theme (rien dans le fichier ne l'écrit).
+    #  Déclarer « tout sauf theme » économiserait une lecture de fichier
+    #  local, c'est-à-dire rien, et laisserait une liste de six clés à tenir
+    #  à jour — une liste qui finirait par en oublier une. Le défaut sûr est
+    #  ici le bon choix, et il faut l'écrire pour que personne ne « complète »
+    #  la table un jour sans refaire le tracé.
+}, _CLES_RAPIDES)
 for _nom, _cles in _PERIME.items():
     _REGISTRE.action_perime(_nom, _cles)
 
