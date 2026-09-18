@@ -1111,7 +1111,7 @@ jobs:
             *) echo "LEXOS_DOCK_POSITION invalide : $LEXOS_DOCK_POSITION"; exit 1 ;;
           esac
           case "$LEXOS_PERF_PROFILE" in
-            auto|petit|medium|performant|max) ;;
+            auto|petit|medium|vif|performant|max) ;;
             *) echo "LEXOS_PERF_PROFILE invalide : $LEXOS_PERF_PROFILE"; exit 1 ;;
           esac
           case "$LEXOS_KERNEL_CHANNEL" in

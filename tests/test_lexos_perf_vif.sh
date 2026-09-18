@@ -194,7 +194,11 @@ titre "10. Les deux listes de profils disent la même chose"
 # -----------------------------------------------------------------------------
 #  ═══ LE BOGUE QUI A MOTIVÉ CETTE SECTION ═══
 #  PERFS, dans settings.py, valait { petit, medium, performant, max }. « vif »
-#  y manquait — et nulle part ailleurs. Le bouton partait, la réponse revenait
+#  y manquait. ⚠ CETTE NOTE A DIT « et nulle part ailleurs » PENDANT DES
+#  SEMAINES, et c'était faux trois fois : il manquait aussi dans volet.py
+#  (section 15), dans lexos-game (section 16) et dans la complétion bash.
+#  Une phrase qui dit « nulle part ailleurs » porte sur tout le dépôt : elle
+#  se vérifie, ou elle ne s'écrit pas. Le bouton partait, la réponse revenait
 #  « profil inconnu », et le seul profil que detect_profile() RECOMMANDE à un
 #  portable de 8 Go était le seul qu'on refusait de lui appliquer.
 #
@@ -590,6 +594,162 @@ VOLET_PY_FIN
 		"") non "l'action n'a pas pu être éprouvée sans profil" ;;
 		*)  non "sans profil lisible, l'action rend $(lit SANS_PROFIL) — attendu un refus explicite" ;;
 	esac
+
+	#  ═══ ET LE CORPS DE _perf_etat() EXÉCUTÉ POUR DE VRAI ═══
+	#  ⚠ CE BANC A LAISSÉ PASSER LA MOITIÉ DU CORRECTIF. Les points ci-dessus
+	#  éprouvent les LISTES et l'affichage, mais tous court-circuitent le
+	#  lecteur : deux le remplacent (« m._perf_etat = lambda: … »), les deux
+	#  autres pré-remplissent le cache, donc le collecteur n'est jamais lancé.
+	#  MESURÉ : remettre le « else "medium" » dans _perf_etat() laissait 31
+	#  points sur 31 au vert, dans ce banc et dans tous les autres du dépôt.
+	#  Un banc qui verdit sur le défaut qu'il raconte coûte plus cher que pas
+	#  de banc, parce qu'il rassure.
+	#  On lui donne donc un vrai fichier à lire, par la couture
+	#  LEXOS_PERF_ETAT — comme lexos-perf le fait déjà avec LEXOS_PERF_MEMINFO.
+	BANC_PROFIL="$(mktemp -d)"
+	CORPS="$(LEXOS_PERF_ETAT="$BANC_PROFIL/performance" \
+	         python3 - "$RACINE" "$BANC_PROFIL" <<'CORPS_PY' 2>&1
+import importlib.util, os, pathlib, sys
+RACINE, BANC = sys.argv[1:3]
+LIB = RACINE + "/config/includes.chroot/usr/lib/lexos"
+FICHIER = pathlib.Path(BANC) / "performance"
+os.environ["LEXOS_PERF_ETAT"] = str(FICHIER)
+os.environ["XDG_CONFIG_HOME"] = BANC
+sys.path.insert(0, LIB)
+spec = importlib.util.spec_from_file_location("v", LIB + "/volet.py")
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+if str(getattr(m, "PERF_FICHIER", "")) != str(FICHIER):
+    print("PAS_DE_COUTURE %r" % (getattr(m, "PERF_FICHIER", None),))
+    raise SystemExit
+
+def essai(contenu):
+    if contenu is None:
+        FICHIER.unlink(missing_ok=True)
+    else:
+        FICHIER.write_text(contenu, encoding="utf-8")
+    m._CACHE.perime()
+    #  AUCUN pré-remplissage, aucun remplacement : c'est _perf_etat() qui est
+    #  lancé par _de_front, comme dans le volet.
+    g = m.etat("rapides")["rapides"]
+    return "%r/%s/%s" % (m._perf_etat(), g["perfLabel"], "perf" in g["inconnu"])
+
+print("VIF      " + essai("vif\n"))
+print("INCONNU  " + essai("turbo\n"))
+print("VIDE     " + essai(""))
+print("ABSENT   " + essai(None))
+CORPS_PY
+)"
+	rm -rf "$BANC_PROFIL"
+
+	corps() { printf '%s\n' "$CORPS" | grep "^$1 " | sed "s/^$1  *//"; }
+	verdict_corps() {   # verdict_corps <étiquette> <attendu> <phrase>
+		local vu; vu="$(corps "$1")"
+		if [ -z "$vu" ]; then
+			muet_ou_non "$1"
+		elif [ "$vu" = "$2" ]; then
+			ok "$3"
+		else
+			non "$3 — mesuré : $vu (attendu : $2)"
+		fi
+	}
+	muet_ou_non() {
+		case "$CORPS" in
+			PAS_DE_COUTURE*) non "volet.py n'expose pas la couture PERF_FICHIER : le corps de _perf_etat() reste intestable ($CORPS)" ;;
+			*) non "« $1 » n'a pas pu être mesuré : $(printf '%s' "$CORPS" | tail -2 | tr '\n' ' ')" ;;
+		esac
+	}
+
+	verdict_corps VIF     "'vif'/Vif/False"      "_perf_etat() lit « vif » dans le vrai fichier et la tuile l'affiche"
+	verdict_corps INCONNU "None/Inconnu/True"    "…un profil qu'il ne connaît pas rend None, PAS « medium » — la tuile est grisée"
+	verdict_corps VIDE    "None/Inconnu/True"    "…un fichier vide aussi"
+	verdict_corps ABSENT  "None/Inconnu/True"    "…et un fichier absent aussi"
+fi
+
+
+# -----------------------------------------------------------------------------
+titre "16. « VIF » N'EST OUBLIÉ NULLE PART — et cette fois on cherche partout"
+# -----------------------------------------------------------------------------
+#  ═══ TROIS FOIS LA MÊME FAUTE, DONT DEUX FOIS DANS LA CORRECTION ═══
+#  La note de settings.py disait « vif manquait ici, et NULLE PART AILLEURS ».
+#  Faux : il manquait aussi dans volet.py. Corrigée, elle a dit « ici et dans
+#  le volet » — faux encore : il manquait AUSSI dans lexos-game, dans la
+#  complétion bash, et dans le contrôle de lexos.conf de l'intégration
+#  continue. Énumérer des endroits, c'est se tromper une fois de plus à chaque
+#  correction. On CHERCHE, au lieu d'énumérer.
+#
+#  LA RÈGLE : dans tout ce qui part sur l'ISO, une ligne qui nomme « petit »,
+#  « medium » ET « max » énumère les profils. Si « vif » n'y est pas, c'est un
+#  oubli. (README et web-demo/ sont hors ISO : la démo est le modèle d'Alex,
+#  pas du code livré — ils ne sont pas dans le périmètre.)
+OUBLIS=""
+for D in "$RACINE/config/includes.chroot/usr/bin" \
+         "$RACINE/config/includes.chroot/usr/lib/lexos" \
+         "$RACINE/config/includes.chroot/usr/share/lexos" \
+         "$RACINE/config/includes.chroot/usr/share/bash-completion" \
+         "$RACINE/.github/workflows"; do
+	[ -e "$D" ] || continue
+	TROUVE="$(grep -rIn 'petit' "$D" 2>/dev/null | grep 'medium' | grep 'max' | grep -v 'vif' || true)"
+	[ -n "$TROUVE" ] && OUBLIS="$OUBLIS$TROUVE
+"
+done
+if [ -z "$(printf '%s' "$OUBLIS" | grep . || true)" ]; then
+	ok "aucune énumération de profils sans « vif » dans ce qui part sur l'ISO"
+else
+	non "« vif » manque dans une liste de profils livrée :"
+	printf '%s\n' "$OUBLIS" | grep . | sed 's|'"$RACINE"'/||' | cut -c1-150 | sed 's/^/      /' >&2
+fi
+
+#  ═══ lexos-game : LA VALEUR INVENTÉE Y ÉTAIT ÉCRITE SUR LA MACHINE ═══
+#  current_profile() rendait « medium » sur un fichier illisible — et cette
+#  valeur REVIENT sur la machine à la fin de la partie (« lexos perf $prev »).
+#  Ce n'est pas un libellé faux, c'est un réglage imposé.
+#  Et son « case » ne connaissait que performant|max : un portable réglé en
+#  « vif » — ce que detect_profile lui SUGGÈRE — se voyait pousser à
+#  « performant », c'est-à-dire rallumer composition, effets TV, zoom du dock
+#  et vignettes, pour zéro gain processeur (même gouverneur).
+GAME="$RACINE/config/includes.chroot/usr/bin/lexos-game"
+if [[ ! -r "$GAME" ]]; then
+	non "lexos-game introuvable ($GAME)"
+else
+	BANC_GAME="$(mktemp -d)"
+	#  On EXÉCUTE la vraie fonction, extraite du fichier.
+	FONC="$(sed -n '/^current_profile()/,/^}/p' "$GAME")"
+	lu() { PERF_STATE="$1" bash -c "$FONC
+current_profile" 2>/dev/null; }
+	printf 'vif\n' > "$BANC_GAME/p"
+	[ "$(lu "$BANC_GAME/p")" = "vif" ] \
+		&& ok "lexos-game lit le vrai profil quand le fichier est là" \
+		|| non "lexos-game ne lit pas le profil : « $(lu "$BANC_GAME/p") »"
+	VIDE="$(lu "$BANC_GAME/absent")"
+	if [ -z "$VIDE" ]; then
+		ok "…et rend le VIDE quand il ne peut pas lire, au lieu d'inventer « medium »"
+	else
+		non "lexos-game invente « $VIDE » sur un fichier illisible — et cette valeur est RÉÉCRITE sur la machine à la fin de la partie"
+	fi
+
+	#  Le « case » lui-même, exécuté avec des say/warn bouchonnés.
+	CASE="$(sed -n '/case "\$prev" in/,/^	esac/p' "$GAME")"
+	decide() { prev="$1" bash -c '
+say()  { printf "SAY %s\n" "$*"; }
+warn() { printf "WARN %s\n" "$*"; }
+'"$CASE"'' 2>/dev/null | head -1; }
+	case "$(decide vif)" in
+		"SAY Profil déjà vif"*) ok "un portable réglé en « vif » est laissé tranquille" ;;
+		"SAY Passage temporaire"*) non "lexos-game pousse un « vif » vers « performant » : zéro gain processeur, et il rallume composition, effets TV, zoom et vignettes" ;;
+		*) non "le cas « vif » n'a pas pu être éprouvé : « $(decide vif) »" ;;
+	esac
+	case "$(decide '')" in
+		"WARN Profil de performance illisible"*) ok "…et un profil illisible ne déclenche aucune bascule à restaurer" ;;
+		"SAY "*) non "un profil illisible déclenche quand même une bascule : « $(decide '') »" ;;
+		*) non "le cas du profil illisible n'a pas pu être éprouvé : « $(decide '') »" ;;
+	esac
+	case "$(decide medium)" in
+		"SAY Passage temporaire"*) ok "…tandis qu'un profil sobre est bien poussé pour la partie" ;;
+		*) non "un profil sobre n'est plus poussé : « $(decide medium) »" ;;
+	esac
+	rm -rf "$BANC_GAME"
 fi
 
 printf '\n%s%d réussis, %d échoués%s\n\n' "$GRAS" "$REUSSIS" "$ECHOUES" "$FIN"

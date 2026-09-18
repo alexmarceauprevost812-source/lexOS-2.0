@@ -39,7 +39,7 @@ _lexos_accents='orange classique orange-rouge bleu rouge vert gris violet neon'
 _lexos_polices='defaut classique mono manuscrite bulle carnet ronde crayon plume marqueur architecte fleur cursive tableau craie liste'
 _lexos_themes='sombre clair'
 _lexos_docks='droite gauche bas haut'
-_lexos_perfs='petit medium performant max status auto'
+_lexos_perfs='petit medium vif performant max status auto'
 _lexos_cadrages='remplir ajuster etirer centrer mosaique'
 
 # Les scènes animées vraiment présentes, système + celles de l'utilisateur.

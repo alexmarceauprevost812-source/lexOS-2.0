@@ -238,16 +238,23 @@ def cout(action):
 
 m._CACHE.perime(); remet(); m.etat("rapides")
 print("ouverture " + (",".join(lus()) or "-"))
-for a in ("rapides-partage", "rapides-crt", "rapides-theme", "rapides-wifi",
-          "rapides-muet", "rapides-photo", "rapides-bt", "rapides-avion",
-          "rapides-perf", "action-inventee"):
+#  ⚠ LES SEIZE ACTIONS, PAS NEUF. La première version n'en mesurait que
+#  neuf, et la preuve que ça ne suffisait pas est mesurée : déclarer
+#  « rapides-volume »: () — le mensonge même que cette table existe pour
+#  interdire, le curseur qu'on bouge sans périmer le son — laissait le banc
+#  entièrement vert. On parcourt donc ACTIONS, et le banc rougit si une
+#  action apparaît sans que ce fichier-ci dise ce qu'elle doit coûter.
+for a in sorted(m.ACTIONS) + ["action-inventee"]:
     print(a + " " + (",".join(cout(a)) or "-"))
 MESURE_PY
 )"
 
 TOUT="bluetoothctl,nmcli,nmcli,pactl,pactl,pactl"
+ATTENDUES=""
 attendu() {          # attendu <action> <liste attendue> <phrase>
 	local ligne obtenu
+	[ "$1" = "ouverture" ] || ATTENDUES="$ATTENDUES$1
+"
 	ligne="$(printf '%s\n' "$MESURE" | grep "^$1 " || true)"
 	obtenu="${ligne#"$1" }"
 	if [ -z "$ligne" ]; then
@@ -260,16 +267,42 @@ attendu() {          # attendu <action> <liste attendue> <phrase>
 }
 
 attendu ouverture "$TOUT" "l'ouverture lit la machine : 6 lancements d'outils"
+
+#  Les huit qui ne relancent rien.
+attendu notif-vide "-" "vider les notifications ne relance rien (6 → 0)"
+attendu agenda-ajoute "-" "ajouter au calendrier ne relance rien (6 → 0)"
+attendu agenda-enleve "-" "enlever du calendrier ne relance rien (6 → 0)"
+attendu meteo-ville "-" "changer de ville ne relance rien (6 → 0)"
 attendu rapides-partage "-" "« Partager » ne relance RIEN : il n'ouvre qu'une fenêtre (6 → 0)"
+attendu rapides-clavier "-" "« Clavier » ouvre les Paramètres et ne relance rien (6 → 0)"
 attendu rapides-crt "-" "les effets TV ne relancent rien : seul un fichier local a changé (6 → 0)"
 attendu rapides-theme "-" "le thème ne relance rien : seul un fichier local a changé (6 → 0)"
+
+#  Les cinq qui ne relisent qu'une partie.
 attendu rapides-wifi "nmcli" "le Wi-Fi ne relit que le Wi-Fi (6 → 1)"
+attendu rapides-volume "pactl,pactl,pactl" "le curseur de volume ne relit que le son (6 → 3)"
 attendu rapides-muet "pactl,pactl,pactl" "le bouton muet ne relit que le son (6 → 3)"
+attendu rapides-micro "pactl,pactl,pactl" "le bouton micro ne relit que le son (6 → 3)"
 attendu rapides-photo "pactl,pactl,pactl" "l'appareil photo ne relit que le son — le mode vidéo ouvre un flux de capture (6 → 3)"
 attendu rapides-bt "bluetoothctl,pactl,pactl,pactl" "le Bluetooth relit le Bluetooth ET le son — la sortie par défaut a pu disparaître avec lui (6 → 4)"
+
+#  Les trois qui relisent tout, et c'est juste.
 attendu rapides-avion "$TOUT" "le mode avion relit les trois radios et le son : aucun gain, et c'est juste"
 attendu rapides-perf "$TOUT" "« performance » n'est pas déclarée : elle périme TOUT, le défaut sûr"
 attendu action-inventee "$TOUT" "une action inconnue périme TOUT — un nom mal orthographié coûte une relecture, jamais un affichage faux"
+
+#  ═══ ET AUCUNE ACTION NE DOIT ÉCHAPPER AU COMPTAGE ═══
+#  Les lignes ci-dessus sont écrites à la main ; ACTIONS, lui, peut grandir.
+#  Une action ajoutée demain sans ligne ici serait mesurée et jamais
+#  comparée : on vérifie donc que les deux listes coïncident.
+MESUREES="$(printf '%s\n' "$MESURE" | sed 's/ .*//' | grep . | grep -v '^ouverture$' | sort)"
+NOMMEES="$(printf '%s\n' "$ATTENDUES" | grep . | sort -u)"
+if [ "$MESUREES" = "$NOMMEES" ]; then
+	ok "les $(printf '%s' "$NOMMEES" | grep -c .) actions mesurées sont toutes nommées ci-dessus"
+else
+	non "des actions échappent au comptage :"
+	diff <(printf '%s\n' "$MESUREES") <(printf '%s\n' "$NOMMEES") | sed 's/^/      /' >&2
+fi
 
 # ===========================================================================
 titre "5. LE CACHE SERT LES VALEURS, IL NE SE CONTENTE PAS DE NE PAS LIRE"

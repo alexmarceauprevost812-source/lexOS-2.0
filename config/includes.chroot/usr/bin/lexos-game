@@ -30,7 +30,16 @@ warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
 die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
 
 current_profile() {
-	[[ -r "$PERF_STATE" ]] && cat "$PERF_STATE" || printf 'medium'
+	#  ⚠ AUCUN PROFIL INVENTÉ ICI, ET C'EST PIRE QU'AILLEURS.
+	#  Cette valeur ne fait pas que s'afficher : elle REVIENT SUR LA MACHINE
+	#  à la fin de la partie (« lexos perf "$prev" », plus bas). Rendre
+	#  « medium » quand le fichier est illisible, ce n'est pas afficher un
+	#  mauvais libellé — c'est RÉGLER la machine d'Alex à sa place, avec un
+	#  profil que personne n'a choisi. Et la fenêtre existe vraiment : le
+	#  défaut de lexos.conf est LEXOS_PERF_PROFILE="auto", et le hook 0200
+	#  n'écrit alors aucun fichier.
+	#  Sans fichier lisible on rend le VIDE, et cmd_run ne restaure rien.
+	[[ -r "$PERF_STATE" ]] && cat "$PERF_STATE" || printf ''
 }
 
 gpu_info() {
@@ -67,7 +76,19 @@ cmd_run() {
 	local prev; prev="$(current_profile)"
 	local bumped=0
 	case "$prev" in
-		performant|max) say "Profil déjà ${prev} — inchangé." ;;
+		#  ═══ « vif » EST DÉJÀ RAPIDE, ET LE POUSSER DÉGRADE LA MACHINE ═══
+		#  « vif » et « performant » ont le MÊME gouverneur (« performance »)
+		#  et le même EPP : zéro gain processeur. Ce qui change entre les deux,
+		#  c'est P_COMPOSITING 0→1, P_CRT off→on, P_DOCK_ZOOM false→true,
+		#  P_THUMBNAILS 0→1 — on RALLUME la composition et les effets. Sur la
+		#  machine dont lexos-perf dit que « son GPU peine à composer chaque
+		#  image », et à qui detect_profile SUGGÈRE justement « vif » dès
+		#  qu'elle est sur batterie. Le message annonçait un coup de fouet et
+		#  livrait une surcharge graphique, en silence.
+		vif|performant|max) say "Profil déjà ${prev} — inchangé." ;;
+		#  Profil illisible : on ne devine pas, et surtout on ne restaurera
+		#  rien à la fin (bumped reste à 0).
+		"") warn "Profil de performance illisible — la partie tourne avec le réglage actuel." ;;
 		*)
 			say "Passage temporaire au profil performant pour la partie…"
 			if command -v lexos >/dev/null 2>&1 && lexos perf performant >/dev/null 2>&1; then

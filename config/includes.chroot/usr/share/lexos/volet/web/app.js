@@ -388,8 +388,12 @@ function rapidesHTML(){
   const pasLu = new Set(r.inconnu || []);
   const tuiles = [
     qsTileHTML("wifi", "📶", "Wi-Fi",
-               pasLu.has("wifi") ? "Inconnu" : (avionOn ? "Mode avion" : (wifiOn ? "Activé" : "Désactivé")),
-               !pasLu.has("wifi") && wifiOn, avionOn || pasLu.has("wifi")),
+               /*  « Absent » comme pour le Bluetooth : r.wifi vaut null quand la
+                   machine n'a pas de carte. Avant, ce cas s'affichait
+                   « Désactivé » sur une tuile cliquable, et le clic allumait
+                   une radio qui n'existe pas. */
+               pasLu.has("wifi") ? "Inconnu" : (avionOn ? "Mode avion" : (r.wifi === null ? "Absent" : (wifiOn ? "Activé" : "Désactivé"))),
+               !pasLu.has("wifi") && wifiOn, avionOn || pasLu.has("wifi") || r.wifi === null),
     qsTileHTML("bt", "🔵", "Bluetooth",
                pasLu.has("bt") ? "Inconnu" : (avionOn ? "Mode avion" : (r.bt === null ? "Absent" : (btOn ? "Activé" : "Désactivé"))),
                !pasLu.has("bt") && btOn, avionOn || pasLu.has("bt") || r.bt === null),

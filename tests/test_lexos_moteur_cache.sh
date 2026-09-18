@@ -184,99 +184,195 @@ APRES="$(find "$BANC/h" -type f 2>/dev/null | wc -l)"
   || non "le cache a écrit sur le disque ($AVANT → $APRES fichiers) : il mentirait au démarrage suivant"
 
 # ===========================================================================
-titre "6. UNE LECTURE PARTIE AVANT UN CLIC NE REVIENT PAS S'INSTALLER APRÈS"
+titre "6. CE QU'UNE ACTION PÉRIME PENDANT UNE LECTURE NE SORT PAS QUAND MÊME"
 # ===========================================================================
 #  ═══ LE DÉFAUT QU'AUCUNE CLÉ N'AURAIT RÉPARÉ ═══
 #  Les lectures durent des secondes et se font HORS du verrou — c'est voulu,
 #  sinon le clic suivant attendrait derrière la lecture en cours. Mais une
-#  lecture partie AVANT un clic peut se terminer APRÈS lui. Telle quelle,
-#  elle rangeait sa valeur d'AVANT dans le cache, avec un TTL tout neuf : la
-#  tuile affichait l'état d'avant le clic pendant une seconde et demie.
+#  lecture partie AVANT un clic se termine APRÈS lui, et rendait alors l'état
+#  d'AVANT : rangé dans le cache avec un TTL tout neuf, puis servi à la page,
+#  qui REMPLACE toute la grille. La tuile se rallumait par-dessus l'optimiste,
+#  et le clic suivant faisait l'inverse de son étiquette.
 #
-#  C'est EXACTEMENT le périmé silencieux que ce module existe pour empêcher,
-#  et il ne se corrigeait pas en déclarant une clé de plus : le défaut est
-#  antérieur aux clés partielles et il était identique du temps où chaque
-#  action périmait tout. Il fallait une ESTAMPILLE, pas une déclaration.
+#  Deux moitiés, et la première version n'en avait corrigé qu'une :
+#    · la clé RELUE pendant l'action — corrigée d'abord ;
+#    · la clé servie DEPUIS LE CACHE dans le même appel, jugée fraîche à
+#      l'entrée et rendue à la sortie sans jamais être revérifiée. C'est le
+#      cas ORDINAIRE depuis les clés partielles : un clic ne périme qu'une
+#      clé, donc la lecture d'après a une clé à relire et six succès de cache.
 #
-#  ON LE MESURE EN FORÇANT LA COURSE, au lieu d'espérer la voir : le
-#  collecteur se bloque sur un signal, on périme pendant qu'il est bloqué,
-#  puis on le laisse finir.
+#  Ce qui sort d'un appel traversé par une action ne vaut pas « faux » : ça
+#  vaut « je n'ai pas pu lire ». On exige donc le REPLI, pas la valeur d'avant.
 COURSE="$(python3 - "$LIB" <<'COURSE_PY' 2>&1
-import importlib.util, sys, threading
+import sys, threading, importlib
 LIB = sys.argv[1]; sys.path.insert(0, LIB)
-spec = importlib.util.spec_from_file_location("registre", LIB + "/moteur/registre.py")
-#  Le module fait « from . import etat » : on le charge donc comme membre du
-#  paquet, sinon l'import relatif échoue.
-sys.path.insert(0, LIB)
-import importlib
 moteur = importlib.import_module("moteur.registre")
 
-C = moteur.Cache()
-parti = threading.Event()     # le collecteur a commencé
-liberer = threading.Event()   # il a le droit de finir
+def course(perime_quoi, cle_lente="a"):
+    """Renvoie (rendu_a, rendu_b) pour une action tombée PENDANT la lecture."""
+    C = moteur.Cache()
+    #  Cache chaud sur les deux clés.
+    C.lire({"a": lambda: "A0", "b": lambda: "B0"}, 5)
+    parti, liberer = threading.Event(), threading.Event()
 
-def lent():
-    parti.set()
-    liberer.wait(5)
-    return "AVANT-LE-CLIC"
+    def lente():
+        parti.set(); liberer.wait(5); return "A1"
 
-resultat = {}
-fil = threading.Thread(target=lambda: resultat.update(C.lire({"x": lent}, 5)))
-fil.start()
-if not parti.wait(5):
-    print("PAS_PARTI"); raise SystemExit
+    res = {}
+    fil = threading.Thread(target=lambda: res.update(C.lire(
+        {"a": lente, "b": lambda: "B1"}, 5,
+        replis={"a": "REPLI", "b": "REPLI"})))
+    #  « a » a expiré (on le périme avant) pour qu'il soit RELU, « b » reste
+    #  en mémoire et sera un succès de cache.
+    C.perime(["a"])
+    fil.start()
+    if not parti.wait(5):
+        return ("PAS_PARTI", "PAS_PARTI")
+    C.perime(perime_quoi)          # LE CLIC, pendant la lecture
+    liberer.set(); fil.join(5)
+    return (res.get("a"), res.get("b"))
 
-C.perime(["x"])               # LE CLIC arrive pendant la lecture
-liberer.set()
-fil.join(5)
-
-#  1. L'appelant qui a demandé AVANT le clic garde sa réponse : il a droit à
-#     ce qu'il a demandé.
-rendu = resultat.get("x")
-#  2. Mais cette valeur ne doit pas être RANGÉE. On redemande avec un autre
-#     collecteur : s'il n'est pas appelé, c'est qu'on sert du périmé.
-rappels = []
-def apres():
-    rappels.append(1)
-    return "APRES-LE-CLIC"
-
-vu = C.lire({"x": apres}, 5)["x"]
-print("RENDU %s RELU %s VU %s GARDE %d"
-      % (rendu, "oui" if rappels else "non", vu, C.garde()))
-
-#  3. Et la même course avec une invalidation TOTALE (perime()), qui doit
-#     couvrir aussi une clé jamais vue jusque-là.
-C2 = moteur.Cache()
-parti2 = threading.Event(); liberer2 = threading.Event()
-def lent2():
-    parti2.set(); liberer2.wait(5); return "AVANT-TOTAL"
-f2 = threading.Thread(target=lambda: C2.lire({"y": lent2}, 5))
-f2.start(); parti2.wait(5)
-C2.perime()                   # tout périmer, y compris ce qu'on n'a jamais vu
-liberer2.set(); f2.join(5)
-rappels2 = []
-C2.lire({"y": lambda: (rappels2.append(1), "APRES-TOTAL")[1]}, 5)
-print("TOTAL RELU %s" % ("oui" if rappels2 else "non"))
+a, b = course(["b"])               # l'action périme la clé SERVIE DU CACHE
+print("HIT a=%r b=%r" % (a, b))
+a, b = course(["a"])               # l'action périme la clé RELUE
+print("RELUE a=%r b=%r" % (a, b))
+a, b = course(None)                # invalidation TOTALE
+print("TOTAL a=%r b=%r" % (a, b))
 COURSE_PY
 )"
 
-case "$COURSE" in
-	*"RENDU AVANT-LE-CLIC RELU oui VU APRES-LE-CLIC"*)
-		ok "la lecture en vol rend sa valeur à son appelant, mais ne la range pas" ;;
-	*"RELU non"*)
-		non "la valeur d'AVANT le clic est servie APRÈS : la tuile ment pendant tout le TTL ($COURSE)" ;;
-	*PAS_PARTI*)
-		muet "le collecteur n'a pas démarré : la course n'a pas pu être forcée" ;;
-	*)
-		muet "la course n'a pas pu être mesurée : $(printf '%s' "$COURSE" | tail -2 | tr '\n' ' ')" ;;
-esac
+#  ⚠ UNE LIGNE PRÉSENTE MAIS DIFFÉRENTE EST UN ROUGE, PAS UN « NON MESURÉ ».
+#  Première version : le fourre-tout de fin retombait sur « muet ». Une
+#  mutation qui faisait tout jeter au lieu de la seule clé périmée ne rendait
+#  donc AUCUNE des deux formes attendues, tombait dans le fourre-tout, et le
+#  banc annonçait « rien n'a été mesuré » au lieu de rougir. Un contrôle qui
+#  se déclare incompétent devant un comportement inattendu ne garde rien.
+attendu_ligne() {   # attendu_ligne <étiquette> <valeur attendue> <phrase ok> <phrase rouge>
+	local ligne; ligne="$(printf '%s\n' "$COURSE" | grep "^$1 " || true)"
+	if [ -z "$ligne" ]; then
+		muet "« $1 » n'a pas été mesuré : $(printf '%s' "$COURSE" | tail -2 | tr '\n' ' ')"
+	elif [ "${ligne#"$1" }" = "$2" ]; then
+		ok "$3"
+	else
+		non "$4 — mesuré : ${ligne#"$1" }"
+	fi
+}
 
 case "$COURSE" in
-	*"TOTAL RELU oui"*)
-		ok "…et une invalidation TOTALE couvre aussi une clé jamais lue avant" ;;
-	*"TOTAL RELU non"*)
-		non "après perime() total, une lecture en vol se réinstalle quand même : l'époque ne sert à rien" ;;
-	*)  muet "le cas de l'invalidation totale n'a pas été mesuré" ;;
+	*PAS_PARTI*) muet "le collecteur ne s'est pas bloqué : la course n'a pas pu être forcée" ;;
+	*)
+		attendu_ligne HIT "a='A1' b='REPLI'" \
+			"une clé servie du cache et périmée pendant l'appel sort en « je n'ai pas pu lire »" \
+			"la clé servie du cache ne sort pas comme elle devrait : sa valeur d'AVANT le clic ferait mentir la tuile"
+		attendu_ligne RELUE "a='REPLI' b='B0'" \
+			"…et une clé RELUE pendant l'appel aussi, sans toucher à la clé saine" \
+			"la clé relue pendant l'action, ou la clé saine à côté, n'est pas celle attendue"
+		attendu_ligne TOTAL "a='REPLI' b='REPLI'" \
+			"…et une invalidation TOTALE emporte les deux, y compris la clé du cache" \
+			"l'invalidation totale ne prend pas exactement les deux clés"
+		;;
+esac
+
+#  ═══ ET SURTOUT : SANS ACTION, ON NE JETTE RIEN ═══
+#  Le risque symétrique de tout ce qui précède : un filtre trop large qui
+#  remplacerait des valeurs FRAÎCHES par le repli. Le cache ne servirait alors
+#  plus jamais, silencieusement — la lenteur d'avant, sans un mot.
+SANS_CLIC="$(python3 - "$LIB" <<'SANS_PY' 2>&1
+import sys, importlib
+LIB = sys.argv[1]; sys.path.insert(0, LIB)
+moteur = importlib.import_module("moteur.registre")
+C = moteur.Cache()
+r1 = C.lire({"a": lambda: "A", "b": lambda: "B"}, 5, replis={"a": "REPLI", "b": "REPLI"})
+rappels = []
+r2 = C.lire({"a": lambda: (rappels.append(1), "A2")[1], "b": lambda: "B2"}, 5,
+            replis={"a": "REPLI", "b": "REPLI"})
+print("SANS_CLIC r1=%r r2=%r relu=%s"
+      % (sorted(r1.items()), sorted(r2.items()), "oui" if rappels else "non"))
+SANS_PY
+)"
+case "$SANS_CLIC" in
+	"SANS_CLIC r1=[('a', 'A'), ('b', 'B')] r2=[('a', 'A'), ('b', 'B')] relu=non")
+		ok "sans action, aucune valeur fraîche n'est jetée et le cache sert bien" ;;
+	SANS_CLIC*) non "une lecture sans action ne rend pas ses vraies valeurs : $SANS_CLIC" ;;
+	*) muet "la lecture sans action n'a pas pu être mesurée : $SANS_CLIC" ;;
+esac
+
+#  Et le cache doit rester VIDE de ce qu'on vient de périmer : ce qui a bougé
+#  ne doit pas non plus avoir été rangé au passage.
+GARDE="$(python3 - "$LIB" <<'GARDE_PY' 2>&1
+import sys, threading, importlib
+LIB = sys.argv[1]; sys.path.insert(0, LIB)
+moteur = importlib.import_module("moteur.registre")
+C = moteur.Cache()
+parti, liberer = threading.Event(), threading.Event()
+def lente():
+    parti.set(); liberer.wait(5); return "AVANT"
+fil = threading.Thread(target=lambda: C.lire({"x": lente}, 5))
+fil.start(); parti.wait(5)
+C.perime(["x"])
+liberer.set(); fil.join(5)
+rappels = []
+C.lire({"x": lambda: (rappels.append(1), "APRES")[1]}, 5)
+print("RANGE %s" % ("non" if rappels else "oui"))
+GARDE_PY
+)"
+case "$GARDE" in
+	"RANGE non") ok "…et rien de périmé n'a été rangé au passage : la demande suivante relit" ;;
+	"RANGE oui") non "la valeur d'avant le clic a été RANGÉE : elle sera servie pendant tout le TTL" ;;
+	*) muet "le rangement n'a pas pu être vérifié : $GARDE" ;;
+esac
+
+# ===========================================================================
+titre "7. L'ÂGE SERVI NE DÉPASSE JAMAIS LE TTL, MÊME QUAND UN OUTIL TRAÎNE"
+# ===========================================================================
+#  ═══ LE TTL PARTAIT DE LA FIN DU LOT, PAS DE LA LECTURE ═══
+#  de_front lance les collecteurs ENSEMBLE et rend la main au plus lent.
+#  L'échéance était calculée après ce retour : une clé lue en 0 ms recevait
+#  donc la même que celle lue en 1,9 s, et le périmé servi valait « durée du
+#  lot + TTL » au lieu de « TTL ».
+#
+#  Ce n'est pas un réglage qu'on pourrait discuter : ce fichier GRAVE son
+#  plafond dans le code (TTL_MAX = 2.0) en écrivant qu'« une variable
+#  d'environnement mal réglée ne doit pas faire mentir le volet pendant dix
+#  secondes ». Un outil lent le faisait mentir pendant 3,25 s dans le volet et
+#  5,25 s dans les Paramètres. Et le cas est nommé par le dépôt lui-même :
+#  « une imprimante réseau éteinte, bluetoothctl sans adaptateur, nmcli
+#  pendant un balayage ».
+#
+#  ON MESURE LE COMPORTEMENT : un lot où une clé répond tout de suite et
+#  l'autre traîne, puis on attend et on regarde LAQUELLE est relue.
+AGE="$(python3 - "$LIB" <<'AGE_PY' 2>&1
+import sys, time, importlib
+LIB = sys.argv[1]; sys.path.insert(0, LIB)
+moteur = importlib.import_module("moteur.registre")
+
+TTL, LENT = 1.5, 0.8
+C = moteur.Cache(TTL)
+rappels = []
+
+def vite():
+    rappels.append("vite"); return "V"
+
+def lent():
+    time.sleep(LENT); rappels.append("lent"); return "L"
+
+C.lire({"vite": vite, "lent": lent}, 5)      # le lot dure LENT
+rappels.clear()
+#  On se place APRÈS l'échéance de « vite » (lue à t+0) et AVANT celle de
+#  « lent » (lue à t+0,8) : à t+1,7 avec un TTL de 1,5.
+time.sleep(TTL - LENT + 0.2)
+C.lire({"vite": vite, "lent": lent}, 5)
+print("RELUES " + ",".join(sorted(rappels)) if rappels else "RELUES -")
+AGE_PY
+)"
+case "$AGE" in
+	"RELUES vite")
+		ok "chaque clé porte l'heure de SA lecture : la rapide expire à l'heure, la lente garde la sienne" ;;
+	"RELUES -")
+		non "aucune clé n'est relue : l'échéance part de la fin du lot, donc la clé rapide est servie bien au-delà du TTL" ;;
+	"RELUES lent,vite")
+		muet "les deux ont été relues : la machine du banc est trop lente pour distinguer les deux échéances" ;;
+	*) muet "l'âge servi n'a pas pu être mesuré : $AGE" ;;
 esac
 
 printf '\n\033[1m%d réussis, %d échoués, %d non mesurés\033[0m\n' "$REUSSIS" "$ECHOUES" "$MUETS"

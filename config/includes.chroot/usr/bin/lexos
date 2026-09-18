@@ -107,7 +107,7 @@ ${B}LANGUE${R}
   ${A}lang toutes${R}          Liste TOUTES les langues installées ${D}(locales-all)${R}
 
 ${B}ÉNERGIE${R}
-  ${A}perf${R} <profil>       ${D}petit · medium · performant · max${R}
+  ${A}perf${R} <profil>       ${D}petit · medium · vif · performant · max${R}
   ${A}lumiere${R} <0-100>     Luminosité de l'écran ${D}(aussi : lumiere eco, lumiere +10)${R}
   ${A}perf status${R}         Ce que fait vraiment la machine
   ${A}perf auto${R}           Choisir d'après le matériel détecté

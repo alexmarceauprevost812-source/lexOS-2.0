@@ -768,5 +768,92 @@ JSEOF
 	fi
 fi
 
+
+# ===========================================================================
+titre "7. LA TUILE WI-FI SAIT DIRE « ABSENT » — quatre réponses, pas deux"
+# ===========================================================================
+#  ═══ LA MÊME MALADIE QUE LA TUILE PERFORMANCE, SUR L'AUTRE TUILE ═══
+#  moteur/radios.py définit QUATRE réponses pour une radio — allumée, éteinte,
+#  absente, pas lue — et son en-tête dit pourquoi : « annoncer à quelqu'un que
+#  sa machine n'a pas de Bluetooth parce qu'un outil a traîné une seconde,
+#  c'est le bogue du dock ».
+#
+#  Le volet lisait la chaîne BRUTE et la comparait à « enabled ». Tout le
+#  reste — « disabled », « missing » (PAS DE CARTE), la chaîne vide —
+#  devenait un seul False. Sur une machine sans carte Wi-Fi, la tuile
+#  affirmait donc « Désactivé », restait cliquable, et le clic lançait
+#  « nmcli radio wifi on » sur un matériel qui n'existe pas : bouton mort,
+#  étiquette fausse, aucun message. La tuile Bluetooth juste à côté savait
+#  déjà dire « Absent », et les Paramètres répondent « Aucune carte Wi-Fi
+#  détectée » sur la MÊME lecture — les deux pages divergeaient ici, et ici
+#  seulement.
+if ! command -v python3 >/dev/null 2>&1; then
+	muet "python3 absent : la tuile Wi-Fi n'a pas été mesurée"
+else
+	WIFI_VU="$(python3 - "$RACINE" <<'WIFI_PY' 2>&1
+import importlib.util, os, sys, tempfile
+RACINE = sys.argv[1]
+LIB = RACINE + "/config/includes.chroot/usr/lib/lexos"
+BANC = tempfile.mkdtemp()
+os.environ["PATH"] = BANC            # aucun outil réel ne répond
+os.environ["XDG_CONFIG_HOME"] = BANC
+sys.path.insert(0, LIB)
+spec = importlib.util.spec_from_file_location("v", LIB + "/volet.py")
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+def grille(wifi, wwan):
+    m._radios.lire = lambda quoi: wifi if quoi == "wifi" else wwan
+    m._CACHE.perime()
+    g = m.etat("rapides")["rapides"]
+    return "wifi=%r inconnu=%s avion=%r" % (
+        g["wifi"], "oui" if "wifi" in g["inconnu"] else "non", g["avion"])
+
+print("ALLUME   " + grille("enabled", "enabled"))
+print("ETEINT   " + grille("disabled", "enabled"))
+print("ABSENT   " + grille("missing", "enabled"))
+print("VIDE     " + grille("", "enabled"))
+print("PAS_LU   " + grille(None, "enabled"))
+
+#  Et l'action, qui ne doit pas se reposer sur la tuile.
+m._radios.lire = lambda quoi: "missing"
+m._outils.oublier()
+open(BANC + "/nmcli", "w").write("#!/bin/sh\nexit 0\n")
+os.chmod(BANC + "/nmcli", 0o755)
+r = m.act_rapides_wifi()
+print("CLIC_ABSENT ok=%r erreur=%r" % (r.get("ok"), r.get("erreur", "")))
+m._radios.lire = lambda quoi: None
+r = m.act_rapides_wifi()
+print("CLIC_PAS_LU ok=%r erreur=%r" % (r.get("ok"), r.get("erreur", "")))
+WIFI_PY
+)"
+	wifi_ligne() {   # wifi_ligne <étiquette> <attendu> <phrase>
+		local ligne; ligne="$(printf '%s\n' "$WIFI_VU" | grep "^$1 " || true)"
+		if [ -z "$ligne" ]; then
+			non "« $1 » n'a pas pu être mesuré : $(printf '%s' "$WIFI_VU" | tail -2 | tr '\n' ' ')"
+		elif [ "$(printf '%s' "${ligne#"$1"}" | sed 's/^ *//')" = "$2" ]; then
+			ok "$3"
+		else
+			non "$3 — mesuré : $(printf '%s' "${ligne#"$1"}" | sed 's/^ *//')"
+		fi
+	}
+	wifi_ligne ALLUME "wifi=True inconnu=non avion=False"  "une radio allumée s'affiche allumée"
+	wifi_ligne ETEINT "wifi=False inconnu=non avion=False" "une radio éteinte s'affiche éteinte"
+	wifi_ligne ABSENT "wifi=None inconnu=non avion=False"  "« missing » veut dire PAS DE CARTE — la page reçoit null, comme pour le Bluetooth"
+	wifi_ligne VIDE   "wifi=None inconnu=non avion=False"  "…et une réponse vide aussi, comme dans les Paramètres"
+	wifi_ligne PAS_LU "wifi=False inconnu=oui avion=False" "…tandis que « pas pu lire » reste « Inconnu », et ne se confond pas avec « absent »"
+	wifi_ligne CLIC_ABSENT "ok=False erreur='aucune carte Wi-Fi sur cette machine'" \
+		"le clic refuse proprement quand il n'y a pas de carte, au lieu d'allumer le vide"
+	wifi_ligne CLIC_PAS_LU "ok=False erreur=\"je n'ai pas pu lire l'état du Wi-Fi\"" \
+		"…et refuse aussi quand il n'a pas pu lire, au lieu de basculer au hasard"
+
+	#  La page doit savoir dessiner le cas, sinon le null ne sert à rien.
+	APPJS_VOLET="$RACINE/config/includes.chroot/usr/share/lexos/volet/web/app.js"
+	SALE="$(grep -v '^[[:space:]]*/\*' "$APPJS_VOLET" | grep -c 'r.wifi === null' || true)"
+	[ "${SALE:-0}" != "0" ] \
+		&& ok "…et la page dessine « Absent » et retire le clic (r.wifi === null)" \
+		|| non "la page ignore le cas « absent » du Wi-Fi : le null s'afficherait « Désactivé »"
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$reussis" "$echoues"
 [[ "$echoues" -eq 0 ]]

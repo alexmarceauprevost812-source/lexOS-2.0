@@ -106,6 +106,22 @@ class Cache:
         maintenant = time.monotonic()
         frais, a_lire = {}, {}
         with self._verrou:
+            #  ═══ LA MARQUE EST PRISE POUR TOUTES LES CLÉS, PAS SEULEMENT
+            #      CELLES QU'ON VA RELIRE ═══
+            #  La première version de l'estampille ne marquait que « reste ».
+            #  Une clé servie DEPUIS LE CACHE était jugée fraîche à l'entrée
+            #  de l'appel et rendue à la sortie, des secondes plus tard, sans
+            #  jamais être reconfrontée à une invalidation survenue entre les
+            #  deux. MESURÉ sur les sept clés du volet : clic Wi-Fi, la page
+            #  relit (un nmcli lent), deuxième clic sur Bluetooth pendant ce
+            #  nmcli — et la réponse rendait « bt_brut=True », l'état d'AVANT,
+            #  pendant que r_wifi, seule clé marquée, était juste. La page
+            #  REMPLACE toute la grille : la tuile Bluetooth se rallumait
+            #  par-dessus l'optimiste, et le clic suivant rallumait pour de
+            #  bon. Le clic qui fait l'inverse de son étiquette, la troisième
+            #  fois dans ce dépôt.
+            epoque = self._epoque
+            marques = {cle: self._gen.get(cle, 0) for cle in collecteurs}
             for cle, fonction in collecteurs.items():
                 garde = self._valeurs.get(cle)
                 if garde is not None and garde[0] > maintenant:
@@ -113,7 +129,7 @@ class Cache:
                 else:
                     a_lire[cle] = fonction
         if not a_lire:
-            return frais
+            return self._encore_valides(frais, epoque, marques, replis)
         #  ⚠ LES LECTURES SE FONT HORS DU VERROU DE LA MÉMOIRE. Elles durent
         #  des secondes ; le tenir pendant ce temps ferait attendre le clic
         #  suivant derrière la lecture en cours — exactement la lenteur qu'on
@@ -131,12 +147,31 @@ class Cache:
                         frais[cle] = garde[1]
                     else:
                         reste[cle] = fonction
-                #  La marque est prise ICI, sous le verrou, AVANT de lire.
-                epoque = self._epoque
-                marques = {cle: self._gen.get(cle, 0) for cle in reste}
-            neuves = _etat.de_front(reste, delai, fronts, replis) if reste else {}
+            #  ═══ CHAQUE CLÉ PORTE L'HEURE DE SA PROPRE LECTURE ═══
+            #  L'expiration se calculait APRÈS le retour du lot, donc une clé
+            #  lue en 0 ms recevait la même échéance que celle lue en 1,9 s :
+            #  le périmé servi valait « durée du lot + TTL », pas « TTL ».
+            #  MESURÉ, avec un outil qui traîne (le cas que etat.py nomme
+            #  lui-même : imprimante éteinte, bluetoothctl sans adaptateur) :
+            #  3,25 s d'âge dans le volet, 5,25 s dans les Paramètres — au
+            #  DESSUS du plafond TTL_MAX = 2,0 que ce fichier grave dans le
+            #  code deux écrans plus haut. Chaque collecteur note donc l'heure
+            #  à laquelle IL a fini.
+            debut = time.monotonic()
+            horodate: dict = {}
+
+            def _date(cle, fonction):
+                def _appel():
+                    try:
+                        return fonction()
+                    finally:
+                        horodate[cle] = time.monotonic()
+                return _appel
+
+            neuves = (_etat.de_front({c: _date(c, f) for c, f in reste.items()},
+                                     delai, fronts, replis)
+                      if reste else {})
         if neuves and self.ttl > 0:
-            expire = time.monotonic() + self.ttl
             with self._verrou:
                 for cle, valeur in neuves.items():
                     #  Une action a-t-elle périmé cette clé PENDANT la lecture ?
@@ -145,9 +180,30 @@ class Cache:
                     if (self._epoque != epoque
                             or self._gen.get(cle, 0) != marques.get(cle, 0)):
                         continue
-                    self._valeurs[cle] = (expire, valeur)
+                    #  Pas d'horodate = le collecteur n'a jamais fini (délai
+                    #  dépassé, c'est un repli) : on prend le début du lot,
+                    #  c'est-à-dire la borne la plus courte.
+                    self._valeurs[cle] = (horodate.get(cle, debut) + self.ttl,
+                                          valeur)
         frais.update(neuves)
-        return frais
+        return self._encore_valides(frais, epoque, marques, replis)
+
+    def _encore_valides(self, lu, epoque, marques, replis):
+        """Retire de la réponse ce qu'une action a périmé PENDANT l'appel.
+
+        Ce qui a bougé ne vaut pas « faux » : ça vaut « je n'ai pas pu lire ».
+        On rend donc le repli de l'appelant — dans le volet, le jeton qui
+        grise la tuile — et jamais la valeur d'avant le clic. Une tuile grise
+        pendant un rafraîchissement se rattrape ; une tuile qui ment invite à
+        un clic qui fait l'inverse de son étiquette."""
+        replis = replis or {}
+        with self._verrou:
+            bouge = [cle for cle in lu
+                     if self._epoque != epoque
+                     or self._gen.get(cle, 0) != marques.get(cle, 0)]
+        for cle in bouge:
+            lu[cle] = replis.get(cle)
+        return lu
 
     # -- invalidation ------------------------------------------------------
     def perime(self, cles=None) -> None:

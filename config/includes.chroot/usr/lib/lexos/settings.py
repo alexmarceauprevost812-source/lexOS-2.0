@@ -311,8 +311,12 @@ def _xfce(module):
 #  (volet.py, PERF_LABEL), et personne ne le voyait parce que le garde-fou
 #  ci-dessous ne regardait pas ce fichier-là. Une phrase qui dit « et nulle
 #  part ailleurs » est une affirmation sur TOUT LE DÉPÔT : elle se vérifie ou
-#  elle ne s'écrit pas. Corrigé des deux côtés, et le banc couvre les trois.
-#  « vif » manquait ici et dans le volet : lexos-perf le reconnaît
+#  elle ne s'écrit pas — et la première correction a REFAIT la même erreur en
+#  écrivant « ici et dans le volet », alors qu'il manquait aussi dans
+#  lexos-game, dans la complétion bash et dans le contrôle de lexos.conf.
+#  On n'énumère donc plus : tests/test_lexos_perf_vif.sh cherche dans TOUT le
+#  dépôt les endroits qui listent les profils, et rougit si « vif » y manque.
+#  lexos-perf le reconnaît
 #  (normalize, label, load_profile, detect_profile le suggère même aux
 #  portables de 8 Go), la page l'affiche dans sa rangée de boutons et lui
 #  donne 7 000 tr/min sur le compte-tours. Seul ce garde-fou l'ignorait —

@@ -375,6 +375,15 @@ PERF_LABEL = {"petit": "Petit", "medium": "Médium", "vif": "Vif",
 #  L'ordre du cycle, du plus sobre au plus gourmand : celui de lexos-perf.
 PERF_ORDRE = ("petit", "medium", "vif", "performant", "max")
 
+#  ═══ UNE COUTURE POUR QUE LE BANC PUISSE EXÉCUTER _perf_etat() ═══
+#  Le chemin est ABSOLU, donc aucun banc ne pouvait lui donner un profil à
+#  lire : les contrôles remplaçaient la fonction ou pré-remplissaient le
+#  cache, et le CORPS de _perf_etat() n'était exécuté par aucun banc du
+#  dépôt. Mesuré : remettre le « else "medium" » qu'on vient d'en retirer
+#  laissait 31 points sur 31 au vert. Même procédé que LEXOS_PERF_MEMINFO et
+#  LEXOS_PERF_POWER dans lexos-perf, et que LEXOS_CACHE_TTL dans le moteur.
+PERF_FICHIER = Path(os.environ.get("LEXOS_PERF_ETAT", "/etc/lexos/performance"))
+
 #  Les deux listes doivent nommer les mêmes profils, sinon le clic cycle vers
 #  un profil que la tuile ne saurait pas nommer. On refuse de démarrer plutôt
 #  que de le découvrir sur la machine — même raison que _verifie_declarations.
@@ -419,8 +428,8 @@ def _perf_etat():
     machine qui tournait en « vif ». On rend maintenant None — « je n'ai pas
     pu lire », le seul mot honnête — et _rapides_etat() grise la tuile."""
     try:
-        profil = Path("/etc/lexos/performance").read_text(encoding="utf-8").strip()
-    except OSError:
+        profil = PERF_FICHIER.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
         return None
     return profil if profil in PERF_LABEL else None
 
@@ -638,7 +647,7 @@ _PERIME = _verifie_declarations({
     #  apply_user tourne MÊME si le plan système est refusé, :735-741) — donc
     #  perf et crt, certains. Mais apply_services (:371-388) fait aussi
     #  « systemctl disable --now » sur bluetooth.service ET
-    #  ModemManager.service pour le seul profil « petit » (:121) : les deux
+    #  ModemManager.service pour le seul profil « petit » (:119) : les deux
     #  transitions du cycle qui entrent dans « petit » ou en sortent touchent
     #  donc bt_brut et r_wwan, et le son avec le Bluetooth. Restent r_wifi (que seul un /etc/tlp.conf modifié à
     #  la main pourrait atteindre, via « tlp start » :279 — ce dépôt n'en
@@ -741,7 +750,13 @@ def _rapides_etat():
     #  Le repli « medium » reste, mais seulement pour que la page ait une clé
     #  de style à poser : « perfLabel » dit « Inconnu » et la tuile est grisée.
     perf = lu["perf"] if lu["perf"] in PERF_LABEL else "medium"
-    son = lu["son"] if lu["son"] is not _INCONNU else {
+    #  ⚠ « pas un dictionnaire » COMPTE COMME « pas lu ». Le test ne portait
+    #  que sur _INCONNU — or moteur/etat.sans_lever() rend None, PAS le repli,
+    #  quand un collecteur LÈVE. Un son.etat() qui lèverait un jour donnerait
+    #  donc « son = None », et le « **son » ci-dessous lèverait un TypeError
+    #  qui emporterait TOUT l'état du volet : plus de grille du tout, pour une
+    #  lecture sur sept. On regarde la forme, pas le jeton.
+    son = lu["son"] if isinstance(lu["son"], dict) else {
         #  Pas lu = pas de bandeau, exactement comme « pas de pactl ». Mieux
         #  vaut pas de curseur du tout qu'un curseur posé au hasard.
         "volume": -1, "muet": False, "micro": None}
@@ -757,7 +772,24 @@ def _rapides_etat():
         #  demander d'abord le mode avion puis, selon la réponse, la radio :
         #  deux commandes lancées ensemble coûtent moins qu'une seule en file
         #  derrière une autre.
-        "wifi": False if avion else (lu["r_wifi"] == "enabled"),
+        #  ═══ QUATRE RÉPONSES POUR LE WI-FI AUSSI, PAS DEUX ═══
+        #  Cette ligne comparait la chaîne brute à « enabled » et rangeait
+        #  TOUT le reste — « disabled », « missing », « » — dans un seul
+        #  False. Or « missing » veut dire PAS DE CARTE : la tuile affichait
+        #  « Désactivé », restait cliquable, et le clic lançait
+        #  « nmcli radio wifi on » sur un matériel qui n'existe pas. Bouton
+        #  mort, étiquette fausse, aucun message — le bogue du dock, encore,
+        #  sur la seule tuile de la grille qui ne savait pas dire « Absent »
+        #  alors que le Bluetooth juste à côté le sait.
+        #  moteur/radios.py:82 contient déjà la traduction (« missing » →
+        #  « absent ») et les Paramètres répondent « Aucune carte Wi-Fi »
+        #  sur la même lecture (settings.py : « brut or "absent" ») : c'était
+        #  ici, et ici seulement, que les deux pages divergeaient.
+        #  None = « absent », la convention que la page applique déjà au
+        #  Bluetooth.
+        "wifi": (False if avion else
+                 (None if lu["r_wifi"] in ("missing", "")
+                  else lu["r_wifi"] == "enabled")),
         #  None = « absent » pour la page (sa convention d'origine) ;
         #  « inconnu » dit le troisième cas.
         "bt": None if (avion or lu["bt_brut"] in (_INCONNU, None, "absent"))
@@ -783,7 +815,18 @@ def act_rapides_wifi(_arg=None):
         return {"ok": False, "erreur": "nmcli absent"}
     if _avion_radio_etat():
         return {"ok": False, "erreur": "mode avion actif"}
-    allume = _wifi_radio_etat()
+    #  ⚠ LES QUATRE RÉPONSES, ICI AUSSI. _wifi_radio_etat() rend False aussi
+    #  bien pour « éteint » que pour « pas de carte » et « pas pu lire » : le
+    #  clic lançait donc « nmcli radio wifi on » sur une machine sans carte.
+    #  La tuile est déjà grisée depuis _rapides_etat(), mais une action ne se
+    #  repose pas sur sa tuile — c'est exactement ce que fait act_rapides_bt
+    #  trois fonctions plus bas.
+    etat = _radios.wifi()
+    if etat is None:
+        return {"ok": False, "erreur": "je n'ai pas pu lire l'état du Wi-Fi"}
+    if etat == "absent":
+        return {"ok": False, "erreur": "aucune carte Wi-Fi sur cette machine"}
+    allume = etat is True
     try:
         r = subprocess.run(["nmcli", "radio", "wifi", "off" if allume else "on"],
                            capture_output=True, text=True, timeout=10)
