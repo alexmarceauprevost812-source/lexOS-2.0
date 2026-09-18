@@ -2,7 +2,8 @@
 
 # LexOS 2.0.0 « Nomad »
 
-**TI·LEX·AL** — une distribution Linux complète, noire, à ma sauce.
+**TI·LEX·AL** — une distribution Linux complète, produit lac saint jean québec 
+.
 
 `Explore. Build. Own your machine.`
 
