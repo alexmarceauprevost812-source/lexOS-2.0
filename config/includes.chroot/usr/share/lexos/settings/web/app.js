@@ -181,7 +181,7 @@ const CLES_SECTION = {
   //  visitée qui payait le plein tarif. Elle a de vraies clés : thème,
   //  accent et police sont gratuits côté machine, mais « dock », « crt » et
   //  « barreCachee » interrogent, eux, et doivent être demandés.
-  apparence:   ["dock", "crt", "barreCachee"],
+  apparence:   ["dock", "crt", "barreCachee", "moteurd"],
   //  « image » : la section lit etat.image (le filtre lumière chaude) pour
   //  l'aperçu du fond. Mesuré, pas supposé — voir le banc des clés.
   bureau:      ["fond", "intro", "dock", "crt", "apercu", "image"],
@@ -1446,6 +1446,17 @@ async function choisir(cle, valeur, action, arg, motOk){
 async function setTheme(t){ await choisir("theme", t, "theme", undefined, "Thème"); }
 async function setPolice(p){ await choisir("police", p, "police", undefined, "Police"); }
 async function setAccent(a){ await choisir("accent", a, "accent", undefined, "Accent"); }
+async function basculeMoteurd(){
+  //  ON NE MONTRE PAS OPTIMISTE ICI, et c'est délibéré. Allumer le démon
+  //  lance un SERVICE : ça peut échouer (systemctl absent, unité non
+  //  installée), et l'interrupteur doit alors rester sur ce que la machine
+  //  fait vraiment, pas sur ce qu'on a demandé. Le motif du refus s'affiche
+  //  au lieu d'être avalé — act_moteurd() dit les deux moitiés quand le
+  //  réglage est écrit mais que le service n'a pas suivi.
+  const r = await api("moteurd", "toggle");
+  await rafraichir(r.ok ? null : ("Échec : " + (r.erreur || "commande refusée")),
+                   ["moteurd"]);
+}
 async function setFond(f){
   const r = await api("fond", f);
   await rafraichir(r.ok ? "Fond d'écran appliqué" : "Échec : " + (r.erreur || "commande refusée"));
@@ -2008,6 +2019,30 @@ function contenu(cle){
              cachée. Trouvé en comparant les clés que chaque section LIT à
              celles qu'elle DEMANDE ; la clé est maintenant produite, et elle
              rend null quand xfconf-query ne répond pas. */""}
+      ${(() => {
+        /*  ═══ « VOLET INSTANTANÉ » ═══
+            Le démon lexos-moteurd garde le volet et les Paramètres au chaud
+            entre deux ouvertures. MESURÉ : sans lui, chaque ouverture du
+            volet repaie l'import de volet.py (438 ms) et la lecture d'état
+            (1212 ms avec des outils lents). Avec lui, la lecture se fait
+            PENDANT que la fenêtre s'affiche : 1 ms au lieu de 1212.
+
+            ⚠ ON MONTRE DEUX CHOSES, PARCE QU'ELLES PEUVENT DIFFÉRER : ce
+            qu'Alex a choisi, et ce que la machine fait. Un interrupteur
+            allumé sur un démon mort, c'est le bogue du dock — et quelqu'un
+            qui se demande pourquoi son volet n'est pas instantané n'aurait
+            rien pour le voir.
+            « vivant » vaut null quand systemctl est absent : on ne sait pas,
+            et on le dit, plutôt que d'annoncer « arrêté ». */
+        const m = vu("moteurd");
+        if(m == null) return "";
+        const etatDit = m.vivant === null ? "état du service inconnu"
+                      : m.vivant ? "en marche"
+                      : (m.voulu ? "⚠ demandé, mais arrêté" : "arrêté");
+        return srow("Volet instantané",
+          `Garde le volet et les Paramètres au chaud — ${esc(etatDit)}`,
+          sw(m.voulu, "basculeMoteurd()"));
+      })()}
       ${vu("barreCachee") == null
         ? srow("Masquer la barre d'outils",
                "État inconnu — <code>xfconf-query</code> ne répond pas. Aucun interrupteur allumé : on ne devine pas.",

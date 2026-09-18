@@ -99,6 +99,7 @@ ${B}APPARENCE${R}
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
   ${A}wallpaper${R} <image> <cadrage>  remplir · ajuster · etirer · centrer · mosaique
   ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
+  ${A}moteurd${R} <etat|on|off> Le démon qui garde le volet et les Paramètres au chaud
 
 ${B}LANGUE${R}
   ${A}lang${R}                 Langue actuelle et langues courantes ${D}(français, québécois, anglais…)${R}
@@ -1198,6 +1199,7 @@ case "$CMD" in
 	#  depuis lexos-wm (« --demarrer »), et une fonction enfermée ici ne le
 	#  pourrait pas. Même forme que « logitheque ».
 	crt)                  exec lexos-crt "$@" ;;
+	moteurd)              exec lexos-moteurd "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;
 	*)

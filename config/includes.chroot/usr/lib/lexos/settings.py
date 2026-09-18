@@ -1369,6 +1369,32 @@ def _geste_autocollant_etat():
     }
 
 
+def _moteurd_etat():
+    """Le démon qui garde le volet et les Paramètres au chaud : voulu, et en
+    marche ?
+
+    ═══ DEUX QUESTIONS, ET LA PAGE DOIT LES DISTINGUER ═══
+    « voulu » est le réglage d'Alex. « vivant » est ce que la machine fait.
+    Les confondre donnerait un interrupteur allumé sur un démon mort — et
+    quelqu'un qui se demande pourquoi son volet n'est pas instantané n'aurait
+    aucun moyen de le voir. Quand on ne peut pas savoir si le démon tourne
+    (systemctl absent), « vivant » vaut None : la page dit « je ne sais pas »
+    plutôt que « arrêté »."""
+    conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
+    try:
+        voulu = (conf / "volet-instantane").read_text(encoding="utf-8").strip() != "off"
+    except (OSError, UnicodeDecodeError):
+        #  Pas de fichier = le réglage par défaut, qui est OUI.
+        voulu = True
+    vivant = None
+    if _outils.commande_existe("systemctl"):
+        code, sortie, _ = _outils.executer(
+            ["systemctl", "--user", "is-active", "lexos-moteurd.service"])
+        if sortie:
+            vivant = sortie.strip() == "active"
+    return {"voulu": voulu, "vivant": vivant}
+
+
 def _intro_etat():
     """La vidéo d'ouverture de session : quel réglage, et le son.
 
@@ -1409,6 +1435,49 @@ def _intro_etat():
         "fichiers": (marque / "apres-connexion-16-9-courte.mp4").exists()
                     and (marque / "apres-connexion-16-9.mp4").exists(),
     }
+
+
+def act_moteurd(arg):
+    """Allumer ou éteindre le démon — le réglage ET le service, ensemble.
+
+    ⚠ LES DEUX, ET PAS L'UN SANS L'AUTRE. Écrire le fichier sans toucher au
+    service laisserait un démon qui tourne alors qu'on vient de dire non ;
+    arrêter le service sans écrire le fichier le verrait revenir à la
+    prochaine session. Un interrupteur qui ne tient pas est pire qu'absent.
+
+    Et si systemctl n'est pas là, on le DIT : le réglage est écrit (il vaudra
+    à la prochaine session) et la réponse explique que le service n'a pas pu
+    être touché maintenant."""
+    if arg not in ("on", "off", "toggle"):
+        return {"ok": False, "erreur": "valeur inattendue"}
+    if arg == "toggle":
+        arg = "off" if _moteurd_etat()["voulu"] else "on"
+    conf = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lexos"
+    try:
+        conf.mkdir(parents=True, exist_ok=True)
+        (conf / "volet-instantane").write_text(arg + "\n", encoding="utf-8")
+    except OSError as e:
+        return {"ok": False, "erreur": f"réglage non enregistré : {e}"}
+    if not _outils.commande_existe("systemctl"):
+        return {"ok": True,
+                "message": "Réglage enregistré ; il vaudra à la prochaine session "
+                           "(systemctl est absent)."}
+    verbe = ["enable", "--now"] if arg == "on" else ["disable", "--now"]
+    code, _, err = _outils.executer(
+        ["systemctl", "--user"] + verbe + ["lexos-moteurd.service"],
+        delai=_outils.DELAI_AGIR)
+    _outils.oublier()
+    if code != 0:
+        #  Le RÉGLAGE est écrit, le SERVICE n'a pas suivi. On ne rend pas
+        #  « ok » — le démon ne tourne pas, et un interrupteur allumé sur un
+        #  démon mort serait le mensonge qu'on passe ce chantier à retirer.
+        #  Mais on dit les deux moitiés, parce que la moitié qui a marché
+        #  vaudra à la prochaine session.
+        return {"ok": False,
+                "erreur": f"Réglage enregistré, mais le service n'a pas pu être "
+                          f"{'démarré' if arg == 'on' else 'arrêté'} : "
+                          f"{err or 'systemctl a refusé'}"}
+    return {"ok": True}
 
 
 def act_intro(arg):
@@ -2424,6 +2493,7 @@ ACTIONS = {
     "fond-capture": act_fond_capture,
     "langue": act_langue,
     "capture": act_capture,
+    "moteurd": act_moteurd,
 }
 
 
@@ -4045,6 +4115,7 @@ def etat(cles=None):
         "partage": _partage_etat,
         "terminal": _terminal_etat,
         "crt": _crt_etat,
+        "moteurd": _moteurd_etat,
         #  ═══ LA CLÉ QUE LA PAGE LISAIT ET QUE PERSONNE N'ÉCRIVAIT ═══
         #  app.js fait « sw(etat.barreCachee, …) » depuis toujours, et etat()
         #  ne l'a JAMAIS produite : l'interrupteur « Masquer la barre » était

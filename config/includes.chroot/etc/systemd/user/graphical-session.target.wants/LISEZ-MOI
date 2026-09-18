@@ -1,0 +1,16 @@
+Ce dossier ACTIVE des services utilisateur dès la première session, sans que
+personne ait à taper « systemctl --user enable ».
+
+  lexos-moteurd.service — le démon qui garde le volet et les Paramètres au
+  chaud. ALEX l'a demandé activé par défaut (« Volet instantané »), et
+  l'interrupteur des Paramètres → Apparence le coupe en un clic.
+
+⚠ POURQUOI UN LIEN ET PAS UN HOOK. « systemctl --user enable » a besoin d'un
+bus utilisateur, qui n'existe pas pendant la construction de l'image : le
+hook échouerait ou, pire, réussirait à moitié. Le lien symbolique est
+exactement ce que « enable » aurait écrit, et il se lit dans le dépôt.
+
+⚠ ET LA MINUTERIE DU TERMINAL N'EST PAS ICI, EXPRÈS. lexos-terminal-auto.timer
+reste inactive à la construction (voir le hook 0120) : elle ne sert qu'au mode
+« auto », que personne n'a demandé. Un service par défaut se justifie quand il
+sert à tout le monde ; celui-là, non.

@@ -2993,6 +2993,26 @@ jobs:
           #  faux, seulement une relecture.
           bash tests/test_lexos_moteur_cache.sh
 
+      - name: Le démon résident — et surtout ce qui se passe sans lui
+        if: ${{ !cancelled() }}
+        run: |
+          #  MESURÉ, par ouverture du volet : import de volet.py 438 ms,
+          #  lecture d'état 1812 ms à froid. Monter le serveur et trouver un
+          #  port : 0 à 5 ms — donc PAS un coût, contrairement à ce qu'on
+          #  croyait. Dire le contraire aurait fait construire la mauvaise
+          #  moitié.
+          #
+          #  Le démon garde les deux premiers, et PRÉCHAUFFE : la lecture se
+          #  fait pendant que Chromium démarre. Mesuré dans ce banc avec des
+          #  outils à 1,2 s : 1212 ms sans, 1 ms avec, et le préchauffage
+          #  rend la main en 2 ms.
+          #
+          #  ⚠ LA MOITIÉ DE CE BANC PORTE SUR SON ABSENCE. Démon arrêté,
+          #  fichier de ports périmé, interrupteur coupé : les fenêtres
+          #  doivent s'ouvrir comme avant. Un accélérateur qui tombe ne doit
+          #  RIEN empêcher — la règle de lexos-intro.
+          bash tests/test_lexos_moteur_demon.sh
+
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}
         run: |

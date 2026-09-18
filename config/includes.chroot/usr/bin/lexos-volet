@@ -22,13 +22,27 @@ case "$QUOI" in
 esac
 
 MOTIF="/usr/lib/lexos/volet.py"
+#  ⚠ DEUX FORMES DE VOLET DEPUIS LE DÉMON, ET LE MOTIF DOIT LES CONNAÎTRE
+#  LES DEUX. Sans démon, le volet est « python3 …/volet.py rapides ». Avec,
+#  c'est « python3 …/moteur/vitrine.py volet <port> rapides … » — la fenêtre
+#  seule. Si ce motif n'attrapait que le premier, un deuxième clic sur la
+#  flèche OUVRIRAIT UN DEUXIÈME VOLET au lieu de fermer le premier : tout le
+#  préambule de ce fichier existe pour que ça n'arrive pas.
+MOTIF_VITRINE="/usr/lib/lexos/moteur/vitrine.py volet"
+ouverts()  { pgrep -f "python3 ${MOTIF}" 2>/dev/null; pgrep -f "python3 ${MOTIF_VITRINE}" 2>/dev/null; }
+#  « celui-ci est-il déjà ouvert ? » — le nom du volet est le DERNIER
+#  argument sans démon, et le troisième avec. On cherche donc le mot entier
+#  dans la ligne de commande, pas une position.
+meme()     { pgrep -af "python3 ${MOTIF} ${QUOI}\b" 2>/dev/null
+             pgrep -af "python3 ${MOTIF_VITRINE} [0-9]* ${QUOI}\b" 2>/dev/null; }
 
 #  Déjà ouvert ? On referme, et c'est tout.
 #  « pkill -f » sur le chemin complet : le motif ne peut pas attraper autre
 #  chose, et surtout pas le terminal depuis lequel on aurait tapé la commande.
-if pgrep -f "python3 ${MOTIF}" >/dev/null 2>&1; then
-	MEME="$(pgrep -af "python3 ${MOTIF} ${QUOI}" 2>/dev/null || true)"
+if [ -n "$(ouverts)" ]; then
+	MEME="$(meme || true)"
 	pkill -f "python3 ${MOTIF}" 2>/dev/null
+	pkill -f "python3 ${MOTIF_VITRINE}" 2>/dev/null
 	#  Si c'était l'AUTRE volet qui était ouvert (la météo alors qu'on clique
 	#  l'heure), on vient de le fermer et on ouvre celui qu'on demande : passer
 	#  de l'un à l'autre doit se faire d'un seul clic, pas de deux.
@@ -38,4 +52,77 @@ if pgrep -f "python3 ${MOTIF}" >/dev/null 2>&1; then
 	sleep 0.15
 fi
 
+# =============================================================================
+#  LE CHEMIN RAPIDE : le démon tient déjà tout au chaud
+# =============================================================================
+#  MESURÉ, par ouverture du volet :
+#      import de volet.py ....... 438 ms   (son.py, boost, moteur/outils…)
+#      lecture d'état à froid ... 1812 ms
+#      monter le serveur ........ 0 à 5 ms — ce n'était PAS un coût
+#
+#  Quand lexos-moteurd tourne, les deux premiers sont déjà payés : il a
+#  importé le module une fois pour la session, et il PRÉCHAUFFE l'état dès
+#  qu'on le prévient — pendant que Chromium démarre, au lieu d'après. La
+#  fenêtre, elle, n'a plus qu'à s'afficher : moteur/vitrine.py n'importe que
+#  Qt, pas l'arbre de volet.py.
+#
+#  ⚠ ET SI LE DÉMON N'EST PAS LÀ, RIEN NE CHANGE. Pas de message, pas
+#  d'erreur, pas d'attente : on retombe sur le chemin entier, celui d'avant.
+#  Un accélérateur qui tombe ne doit rien empêcher — c'est la règle de
+#  lexos-intro, et un banc l'éprouve en tuant le démon.
+#  ═══ L'INTERRUPTEUR « VOLET INSTANTANÉ » A LE DERNIER MOT ═══
+#  Normalement il suffit : le couper arrête le service, donc plus de fichier
+#  de ports, donc ce lanceur retombe tout seul sur le chemin entier. Mais
+#  sans systemctl (une session sans logind), le réglage s'écrit et le service
+#  ne bouge pas — et un interrupteur qui ne change rien est pire qu'absent.
+#  On le lit donc ICI aussi. Absent = oui, c'est le défaut.
+REGLAGE="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/volet-instantane"
+if [ -r "$REGLAGE" ] && [ "$(cat "$REGLAGE" 2>/dev/null)" = "off" ]; then
+	exec python3 "$MOTIF" "$QUOI"
+fi
+
+PORTS="${XDG_RUNTIME_DIR:-/tmp/lexos-$(id -u)}/lexos/moteur.json"
+[ -r "$PORTS" ] || PORTS="/tmp/lexos-$(id -u)/moteur.json"
+
+PORT=""
+if [ -r "$PORTS" ] && command -v python3 >/dev/null 2>&1; then
+	PORT="$(python3 -c '
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    p = int(d.get("ports", {}).get("volet", 0))
+except Exception:
+    p = 0
+print(p or "")' "$PORTS" 2>/dev/null || true)"
+fi
+
+if [ -n "$PORT" ]; then
+	#  Le démon répond-il VRAIMENT ? Un fichier de ports peut désigner un
+	#  démon mort — session brutalement fermée, XDG_RUNTIME_DIR non nettoyé.
+	#  On ne le croit pas sur parole, et on ne l'attend pas non plus : deux
+	#  secondes de plafond, après quoi c'est le chemin d'avant.
+	#  Cet appel PRÉCHAUFFE : il dit au démon quel volet s'ouvre, et la
+	#  lecture part tout de suite, en parallèle du démarrage de la fenêtre.
+	if python3 - "$PORT" "$QUOI" <<'PRE' >/dev/null 2>&1; then
+import sys, urllib.request
+port, quoi = sys.argv[1], sys.argv[2]
+with urllib.request.urlopen(
+        f"http://127.0.0.1:{port}/api/prechauffe?quoi={quoi}", timeout=2) as r:
+    sys.exit(0 if r.status == 200 else 1)
+PRE
+		MODE="$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/lexos/mode" 2>/dev/null || echo sombre)"
+		case "$MODE" in clair|sombre) ;; *) MODE=sombre ;; esac
+		#  La hauteur de la barre, pour poser le volet juste dessous. Lue dans
+		#  xfconf comme le faisait volet.py, avec le même repli et la même
+		#  marge de 8 px de la feuille GTK.
+		TAILLE="$(xfconf-query -c xfce4-panel -p /panels/panel-1/size 2>/dev/null || true)"
+		case "$TAILLE" in
+			''|*[!0-9]*) HAUT=40 ;;
+			*) HAUT=$((TAILLE + 8)) ;;
+		esac
+		exec python3 /usr/lib/lexos/moteur/vitrine.py volet "$PORT" "$QUOI" "$MODE" "$HAUT"
+	fi
+fi
+
+#  Pas de démon, ou un démon muet : le chemin entier, inchangé.
 exec python3 "$MOTIF" "$QUOI"

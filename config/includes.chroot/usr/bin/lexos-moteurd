@@ -1,0 +1,69 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-moteurd — le démon qui garde les Paramètres et le volet au chaud
+# =============================================================================
+#  Il ne s'appelle pas à la main : l'unité utilisateur lexos-moteurd.service
+#  le démarre avec la session graphique. Ce lanceur existe pour qu'on puisse
+#  le déboguer comme n'importe quel outil LexOS.
+#
+#  Ce qu'il retient, mesuré : l'import de volet.py (438 ms), celui de
+#  settings.py (86 ms), et la lecture d'état (1812 ms à froid, 0 ms à chaud).
+#  Ce qu'il ne retient PAS, parce que ça ne coûte rien : le port et le
+#  serveur HTTP — zéro à cinq millisecondes.
+#
+#  ⚠ CE N'EST QU'UN ACCÉLÉRATEUR. Arrêté, absent, ou muet, les fenêtres
+#  s'ouvrent comme avant — chacune monte son propre serveur. Un accélérateur
+#  qui tombe ne doit rien empêcher : même règle que lexos-intro.
+# =============================================================================
+set -u
+
+SERVICE="lexos-moteurd.service"
+
+usage() {
+	cat <<AIDE
+lexos-moteurd — le démon qui garde le volet et les Paramètres au chaud
+
+  lexos moteurd etat      dit s'il tourne, et où il écoute
+  lexos moteurd on        l'active pour cette session et les suivantes
+  lexos moteurd off       l'arrête et l'empêche de revenir
+  lexos moteurd --avant   le lance ICI, au premier plan (mise au point)
+
+Sans lui, tout marche comme avant : les fenêtres montent leur propre
+serveur. Ce n'est qu'un accélérateur.
+AIDE
+}
+
+PORTS="${XDG_RUNTIME_DIR:-/tmp/lexos-$(id -u)}/lexos/moteur.json"
+[ -r "$PORTS" ] || PORTS="/tmp/lexos-$(id -u)/moteur.json"
+
+case "${1:-etat}" in
+	-h|--help|aide|help) usage; exit 0 ;;
+	--avant)             exec python3 /usr/lib/lexos/moteur/demon.py ;;
+	on)
+		command -v systemctl >/dev/null 2>&1 || { echo "systemctl est absent." >&2; exit 1; }
+		exec systemctl --user enable --now "$SERVICE" ;;
+	off)
+		command -v systemctl >/dev/null 2>&1 || { echo "systemctl est absent." >&2; exit 1; }
+		exec systemctl --user disable --now "$SERVICE" ;;
+	etat)
+		if command -v systemctl >/dev/null 2>&1; then
+			printf 'service : %s
+' "$(systemctl --user is-active "$SERVICE" 2>/dev/null || echo inconnu)"
+		else
+			#  On ne DEVINE pas « arrêté » parce qu'on n'a pas l'outil pour
+			#  regarder : c'est la différence entre « c'est faux » et « je
+			#  n'ai pas pu voir », et tout ce dépôt tient à cette différence.
+			printf 'service : non mesuré (systemctl absent)
+'
+		fi
+		if [ -r "$PORTS" ]; then
+			printf 'ports   : %s
+' "$(cat "$PORTS")"
+		else
+			printf 'ports   : aucun fichier — aucun démon ne s'"'"'est annoncé
+'
+		fi
+		exit 0 ;;
+	*)
+		echo "Argument inattendu : $1" >&2; usage >&2; exit 1 ;;
+esac

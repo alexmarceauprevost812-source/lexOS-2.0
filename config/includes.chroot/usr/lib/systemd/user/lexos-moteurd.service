@@ -1,0 +1,29 @@
+[Unit]
+Description=LexOS — garder les Paramètres et le volet au chaud
+Documentation=man:lexos(1)
+#  Il sert une session GRAPHIQUE : rien à faire avant qu'elle existe, et il
+#  s'arrête avec elle.
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/lexos-moteurd --avant
+#  ═══ IL REDÉMARRE, MAIS IL N'INSISTE PAS ═══
+#  S'il meurt, on le relance : une fenêtre qui s'ouvre après coup doit
+#  retrouver un démon. Mais s'il meurt EN BOUCLE (un module cassé, par
+#  exemple), systemd doit finir par le laisser tranquille — sinon on paie un
+#  processus qui échoue toutes les cinq secondes pour rien, et les fenêtres,
+#  elles, continuent de s'ouvrir très bien sans lui.
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=120
+#  Il ne parle qu'à la boucle locale et n'écrit que sous XDG_RUNTIME_DIR.
+NoNewPrivileges=yes
+#  ⚠ PAS DE PrivateNetwork : il interroge nmcli et bluetoothctl, qui passent
+#  par D-Bus et par le réseau du système. lexos-terminal-auto, lui, peut se
+#  le permettre — il ne touche que des fichiers.
+
+[Install]
+WantedBy=graphical-session.target

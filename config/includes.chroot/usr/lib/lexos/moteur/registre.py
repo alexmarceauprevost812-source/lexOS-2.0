@@ -64,6 +64,16 @@ class Cache:
         self.ttl = max(0.0, min(ttl, TTL_MAX))
         self._valeurs: dict = {}      # clé -> (expire_a, valeur)
         self._verrou = threading.Lock()
+        #  ═══ DEUX LECTURES EN MÊME TEMPS N'EN FONT QU'UNE ═══
+        #  Le démon PRÉCHAUFFE : il lance la lecture d'état dès qu'on lui dit
+        #  qu'une fenêtre s'ouvre, pour qu'elle se fasse PENDANT le démarrage
+        #  de Chromium au lieu d'après. Mais la page, une seconde plus tard,
+        #  demande la même chose — et sans ce verrou elle lancerait une
+        #  SECONDE lecture complète en parallèle de la première : deux fois
+        #  les sous-processus, et le préchauffage ne servirait à rien.
+        #  Ici, la deuxième ATTEND la première et repart avec son résultat.
+        #  Ce n'est pas un cache plus long : c'est la même lecture, partagée.
+        self._en_vol = threading.Lock()
 
     # -- lecture -----------------------------------------------------------
     def lire(self, collecteurs, delai, fronts=_etat.FRONTS, replis=None):
@@ -84,10 +94,26 @@ class Cache:
                     frais[cle] = garde[1]
                 else:
                     a_lire[cle] = fonction
-        #  ⚠ LES LECTURES SE FONT HORS DU VERROU. Elles durent des secondes ;
-        #  le tenir pendant ce temps ferait attendre le clic suivant derrière
-        #  la lecture en cours — exactement la lenteur qu'on retire.
-        neuves = _etat.de_front(a_lire, delai, fronts, replis) if a_lire else {}
+        if not a_lire:
+            return frais
+        #  ⚠ LES LECTURES SE FONT HORS DU VERROU DE LA MÉMOIRE. Elles durent
+        #  des secondes ; le tenir pendant ce temps ferait attendre le clic
+        #  suivant derrière la lecture en cours — exactement la lenteur qu'on
+        #  retire. En revanche on prend « _en_vol », qui ne protège pas des
+        #  données mais empêche DEUX lectures identiques de partir ensemble.
+        with self._en_vol:
+            #  Pendant qu'on attendait notre tour, l'autre lecture a peut-être
+            #  déjà rempli le cache. On revérifie avant de payer.
+            maintenant = time.monotonic()
+            reste = {}
+            with self._verrou:
+                for cle, fonction in a_lire.items():
+                    garde = self._valeurs.get(cle)
+                    if garde is not None and garde[0] > maintenant:
+                        frais[cle] = garde[1]
+                    else:
+                        reste[cle] = fonction
+            neuves = _etat.de_front(reste, delai, fronts, replis) if reste else {}
         if neuves and self.ttl > 0:
             expire = time.monotonic() + self.ttl
             with self._verrou:

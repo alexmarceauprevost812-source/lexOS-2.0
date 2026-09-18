@@ -50,4 +50,49 @@ if ! python3 -c "import PySide6.QtWebEngineWidgets" >/dev/null 2>&1; then
 	exit 1
 fi
 
+# =============================================================================
+#  LE DÉMON, S'IL EST LÀ
+# =============================================================================
+#  Les Paramètres gagnent moins que le volet — ils s'ouvrent trois fois par
+#  semaine, pas vingt fois par jour — mais ils gagnent quand même : l'import
+#  de settings.py (86 ms mesurées) est déjà payé, et le cache d'état est
+#  encore chaud d'une ouverture à l'autre.
+#
+#  ⚠ ON NE PRÉCHAUFFE PAS ICI, ET C'EST ÉCRIT DANS LE DÉMON : la table des
+#  clés par section (CLES_SECTION) vit dans la PAGE. La recopier côté Python
+#  en ferait un deuxième endroit à tenir à jour ; préchauffer « tout » à la
+#  place lancerait quarante sous-processus pour une section qui en demande
+#  trois. On se contente donc de dire au démon qu'une fenêtre s'ouvre.
+#
+#  LA FENÊTRE PASSE PAR LE MÊME CLIENT LÉGER QUE LE VOLET. Les routes
+#  propres aux Paramètres (les vignettes de la galerie) suivent : le démon
+#  SOUS-CLASSE le Handler du module, il ne le remplace pas.
+PORTS="${XDG_RUNTIME_DIR:-/tmp/lexos-$(id -u)}/lexos/moteur.json"
+[[ -r "$PORTS" ]] || PORTS="/tmp/lexos-$(id -u)/moteur.json"
+
+if [[ -r "$PORTS" ]]; then
+	PORT="$(python3 -c '
+import json, sys
+try:
+    print(int(json.load(open(sys.argv[1])).get("ports", {}).get("settings", 0)) or "")
+except Exception:
+    print("")' "$PORTS" 2>/dev/null || true)"
+	#  Le démon répond-il VRAIMENT ? Un fichier de ports peut désigner un
+	#  démon mort (session fermée brutalement). On ne le croit pas sur
+	#  parole, et on ne l'attend pas : deux secondes de plafond.
+	if [[ -n "${PORT:-}" ]] && python3 - "$PORT" <<'PRE' >/dev/null 2>&1; then
+import sys, urllib.request
+with urllib.request.urlopen(
+        f"http://127.0.0.1:{sys.argv[1]}/api/prechauffe", timeout=2) as r:
+    sys.exit(0 if r.status == 200 else 1)
+PRE
+		SECTION=""
+		if [[ -n "${1:-}" ]] && [[ "${1//-/}" =~ ^[[:alnum:]]+$ ]]; then SECTION="$1"; fi
+		MODE="$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/lexos/mode" 2>/dev/null || echo sombre)"
+		case "$MODE" in clair|sombre) ;; *) MODE=sombre ;; esac
+		exec python3 /usr/lib/lexos/moteur/vitrine.py reglages "$PORT" "$SECTION" "$MODE"
+	fi
+fi
+
+#  Pas de démon, ou un démon muet : le chemin entier, inchangé.
 exec python3 "$CODE" "$@"
