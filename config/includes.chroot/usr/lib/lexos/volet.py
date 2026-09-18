@@ -63,6 +63,7 @@ from moteur import outils as _outils  # noqa: E402
 from moteur import service as _service  # noqa: E402
 from moteur import etat as _etat_moteur  # noqa: E402
 from moteur import registre as _registre  # noqa: E402
+from moteur import radios as _radios  # noqa: E402
 from moteur import fenetre as _fenetre  # noqa: E402
 
 BASE_DIR = Path(os.environ.get("LEXOS_VOLET_DIR", "/usr/share/lexos/volet"))
@@ -357,57 +358,30 @@ PERF_LABEL = {"petit": "Petit", "medium": "Médium",
               "performant": "Performant", "max": "Performance max"}
 
 
+#  ═══ LES TROIS LECTURES DE RADIO SONT PARTIES DANS moteur/radios.py ═══
+#  Elles existaient ici ET dans settings.py, et les deux copies du MODE AVION
+#  ne calculaient déjà pas la même chose : celle-ci comptait la chaîne vide
+#  comme « pas de modem », celle des Paramètres non. Sur une machine sans
+#  modem, le volet annonçait « mode avion » et les Paramètres « non ».
+#  C'est exactement ce que app.js de ce dossier nommait comme risque — « deux
+#  endroits où un bogue pourrait un jour raconter deux choses différentes » —
+#  et ce n'était plus un risque.
+#
+#  Ce qui reste ici, ce sont les ACTIONS : elles agissent, elles ne lisent
+#  pas, et leurs délais sont ceux d'une action (dix secondes), pas ceux d'une
+#  lecture (une seconde et demie).
 def _wifi_radio_etat():
-    if not _outils.commande_existe("nmcli"):
-        return False
-    try:
-        r = subprocess.run(["nmcli", "-t", "radio", "wifi"],
-                           capture_output=True, text=True, timeout=5)
-    except (subprocess.SubprocessError, OSError):
-        return False
-    return r.stdout.strip() == "enabled"
+    """Pour les actions seulement : True/False, et False si on ne sait pas.
+    Une action qui ne sait pas refuse plus haut (act_rapides_wifi le fait)."""
+    return _radios.wifi() is True
 
 
 def _bt_radio_etat():
-    """True/False si on a lu l'état, « absent » s'il n'y a pas de Bluetooth
-    sur cette machine, None si on n'a PAS PU lire.
-
-    ═══ TROIS RÉPONSES, PAS DEUX ═══
-    Cette fonction rendait None dans les trois cas. « Pas de Bluetooth » et
-    « bluetoothctl n'a pas répondu » ne se ressemblent pourtant pas du tout à
-    l'écran : le premier est une tuile grisée définitive et juste, le second
-    une tuile qui doit dire « Inconnu » et redevenir vraie au prochain coup
-    d'œil. Les confondre, c'est annoncer à quelqu'un que sa machine n'a pas
-    de Bluetooth parce qu'un outil a traîné une seconde."""
-    if not _outils.commande_existe("bluetoothctl"):
-        return "absent"
-    try:
-        r = subprocess.run(["bluetoothctl", "show"],
-                           capture_output=True, text=True, timeout=_LIRE_DELAI)
-    except (subprocess.SubprocessError, OSError):
-        return None
-    if not r.stdout:
-        #  bluetoothctl est là et ne dit rien : pas de contrôleur.
-        return "absent"
-    for ligne in r.stdout.splitlines():
-        if ligne.strip().startswith("Powered:"):
-            return ligne.split(":", 1)[1].strip() == "yes"
-    return "absent"
+    return _radios.bluetooth()
 
 
 def _avion_radio_etat():
-    """Même calcul que avion_state() dans lexos-net et _mode_apparence()
-    ici : « -t » (terse) donne des mots-clés fixes, jamais traduits."""
-    if not _outils.commande_existe("nmcli"):
-        return False
-    try:
-        wifi = subprocess.run(["nmcli", "-t", "radio", "wifi"],
-                              capture_output=True, text=True, timeout=5).stdout.strip()
-        wwan = subprocess.run(["nmcli", "-t", "radio", "wwan"],
-                              capture_output=True, text=True, timeout=5).stdout.strip()
-    except (subprocess.SubprocessError, OSError):
-        return False
-    return wifi == "disabled" and wwan in ("disabled", "missing", "")
+    return _radios.avion() is True
 
 
 def _perf_etat():
@@ -491,36 +465,11 @@ def _apres_action(nom=""):
     _REGISTRE.apres(nom)
 
 
-def _radio_nmcli(quoi):
-    """Une seule lecture de radio, brute. Rend « enabled », « disabled »,
-    « missing » — ou None quand on n'a pas pu lire.
-
-    ═══ « nmcli -t radio wifi » ÉTAIT APPELÉ DEUX FOIS ═══
-    Une fois par _avion_radio_etat (qui lit wifi ET wwan pour décider du mode
-    avion), une fois par _wifi_radio_etat. Le même processus, la même réponse,
-    deux attentes. Ici on lit chaque radio UNE fois, les deux de front, et on
-    DÉDUIT les deux réponses. Les deux fonctions d'origine restent : les
-    actions (act_rapides_wifi, act_rapides_avion) s'en servent, et elles n'ont
-    qu'une seule lecture à faire au moment d'un clic.
-
-    « -t » (terse) donne des mots-clés fixes, jamais traduits — contrairement
-    à la sortie normale de nmcli, qui suit la langue du système (fr_CA sur
-    LexOS).
-    """
-    if not _outils.commande_existe("nmcli"):
-        return None
-    try:
-        return subprocess.run(["nmcli", "-t", "radio", quoi],
-                              capture_output=True, text=True,
-                              timeout=_LIRE_DELAI).stdout.strip()
-    except (subprocess.SubprocessError, OSError):
-        return None
-
-
 #  ═══ « JE N'AI PAS PU LIRE » N'EST PAS UNE VALEUR ═══
 #  Ce jeton est le repli de CHAQUE lecture menée de front. Il ne peut se
-#  confondre avec rien : ni avec None (que _bt_radio_etat rend déjà pour
-#  « cette machine n'a pas de Bluetooth »), ni avec False, ni avec -1.
+#  confondre avec rien : ni avec None (que moteur/radios.bluetooth() rend
+#  pour « je n'ai pas pu lire »), ni avec « absent » (pas de matériel), ni
+#  avec False, ni avec -1.
 #
 #  ⚠ POURQUOI IL A FALLU L'INVENTER, ET CE QUE ÇA A COÛTÉ. La première
 #  version donnait à chaque lecture une valeur de repli « raisonnable » :
@@ -541,9 +490,9 @@ def _rapides_etat():
     #  Tout part en même temps. AUCUNE valeur de repli : ce qui n'a pas
     #  répondu est marqué inconnu, et la page le dit.
     lu = _de_front({
-        "r_wifi": (lambda: _radio_nmcli("wifi"), _INCONNU),
-        "r_wwan": (lambda: _radio_nmcli("wwan"), _INCONNU),
-        "bt_brut": (_bt_radio_etat, _INCONNU),
+        "r_wifi": (lambda: _radios.lire("wifi"), _INCONNU),
+        "r_wwan": (lambda: _radios.lire("wwan"), _INCONNU),
+        "bt_brut": (_radios.bluetooth, _INCONNU),
         "perf": (_perf_etat, _INCONNU),
         "theme": (_mode_apparence, _INCONNU),
         "crt": (_crt_rapides_etat, _INCONNU),
@@ -568,9 +517,11 @@ def _rapides_etat():
         return lu[cle] is not _INCONNU and lu[cle] is not None
 
     radios_lues = _lu("r_wifi") and _lu("r_wwan")
-    avion = (radios_lues
-             and lu["r_wifi"] == "disabled"
-             and lu["r_wwan"] in ("disabled", "missing", ""))
+    #  ⚠ LA RÈGLE DU MODE AVION N'EST PLUS ÉCRITE ICI. Elle vit dans
+    #  moteur/radios.avion(), en un seul exemplaire, et on lui passe les deux
+    #  lectures qu'on vient de faire — les relire doublerait deux
+    #  sous-processus pour rien.
+    avion = bool(_radios.avion(lu["r_wifi"], lu["r_wwan"])) if radios_lues else False
     if not radios_lues:
         inconnu.append("avion")
     if not _lu("r_wifi"):

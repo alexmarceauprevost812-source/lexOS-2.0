@@ -48,6 +48,7 @@ from moteur import outils as _outils  # noqa: E402
 from moteur import service as _service  # noqa: E402
 from moteur import etat as _etat_moteur  # noqa: E402
 from moteur import registre as _registre  # noqa: E402
+from moteur import radios as _radios  # noqa: E402
 from moteur import fenetre as _fenetre  # noqa: E402
 
 APP_NAME = "Paramètres LexOS"
@@ -2557,7 +2558,11 @@ def _wifi_etat():
                 "auto": _wifi_auto_lu(), "internet": "absent"}
     #  « -t » (terse) donne des mots-clés fixes, jamais traduits — la sortie
     #  normale de nmcli suit la langue du système (fr_CA sur LexOS).
-    radio = _sortie(["nmcli", "-t", "radio", "wifi"]) or "absent"
+    #  La lecture elle-même vit dans moteur/radios.py, en un exemplaire.
+    #  None = on n'a pas pu lire ; la page le dit au lieu d'afficher
+    #  « Carte radio éteinte » sur une carte qui marche.
+    brut = _radios.lire("wifi")
+    radio = "inconnu" if brut is None else (brut or "absent")
     #  PHOTO D'ALEX : « il dit que je ne suis pas connecté, mais je le suis ».
     #  LE RÉSEAU CONNECTÉ VIENT DE L'ÉTAT DE L'APPAREIL (« device status »),
     #  PAS D'UN BALAYAGE DE BORNES (« device wifi ») comme avant. Un balayage
@@ -2926,24 +2931,26 @@ def _souris_etat():
 
 
 def _bluetooth_etat():
-    """La radio Bluetooth est-elle allumée ? « Powered: yes » dans la sortie
-    de bluetoothctl. Renvoie None quand la machine n'a pas de Bluetooth du
-    tout — la page n'affiche alors pas l'interrupteur plutôt que d'en montrer
-    un qui ne servirait à rien."""
-    if not _outils.commande_existe("bluetoothctl"):
-        return None
-    sortie = _sortie(["bluetoothctl", "show"])
-    if not sortie:
-        return None
-    for ligne in sortie.splitlines():
-        if ligne.strip().startswith("Powered:"):
-            return ligne.split(":", 1)[1].strip() == "yes"
-    return None
+    """True, False, « absent » (pas de Bluetooth ici), ou None (pas pu lire).
+
+    ═══ CETTE LECTURE EXISTAIT EN DEUX EXEMPLAIRES ═══
+    Ici et dans volet.py. Elle vit maintenant dans moteur/radios.bluetooth(),
+    avec la distinction que les deux copies confondaient : « cette machine
+    n'a pas de Bluetooth » et « bluetoothctl n'a pas répondu ». La première
+    est une tuile grisée définitive et juste ; la seconde doit dire
+    « Inconnu » et redevenir vraie au prochain coup d'œil."""
+    return _radios.bluetooth()
 
 
 def _bluetooth_complet():
-    allume = _bluetooth_etat()
-    return {"radio": allume,
+    """Ce que la page reçoit. « radio » garde sa convention d'origine —
+    None veut dire « pas de Bluetooth sur cette machine » — et « inconnu »
+    porte le quatrième cas, celui qu'on ne pouvait pas dire avant."""
+    brut = _bluetooth_etat()
+    inconnu = brut is None
+    allume = brut is True
+    return {"radio": None if brut in (None, "absent") else allume,
+            "inconnu": inconnu,
             "appareils": _bluetooth_appareils() if allume else []}
 
 
@@ -4139,17 +4146,26 @@ def etat(cles=None):
 
 
 def _avion_etat():
-    """Le mode avion, d'après nmcli. Même règle que avion_state() dans
-    lexos-net : « -t » (terse) donne des mots-clés fixes, jamais traduits —
-    contrairement à la sortie normale de nmcli, qui suit la langue du
-    système (fr_CA par défaut sur LexOS)."""
-    if not _outils.commande_existe("nmcli"):
-        return "off"
-    wifi = _sortie(["nmcli", "-t", "radio", "wifi"]) or "?"
-    wwan = _sortie(["nmcli", "-t", "radio", "wwan"]) or "?"
-    if wifi == "disabled" and wwan in ("disabled", "missing"):
-        return "on"
-    return "off"
+    """« on », « off », ou « inconnu » quand on n'a pas pu lire.
+
+    ═══ LA RÈGLE A DÉMÉNAGÉ DANS moteur/radios.avion(), ET ELLE ÉTAIT FAUSSE
+    D'UN CÔTÉ ═══
+    Il y avait DEUX définitions du mode avion : celle-ci, et celle du volet.
+    Elles divergeaient sur la CHAÎNE VIDE — « nmcli -t radio wwan » rend une
+    ligne vide sur une machine sans modem, et cette copie-ci ne la comptait
+    pas. Sur une telle machine, le volet annonçait « mode avion » et les
+    Paramètres « non ». Deux fenêtres du même système, deux réponses.
+
+    ═══ ET IL RENDAIT « off » QUAND IL NE SAVAIT PAS ═══
+    Sans nmcli, ou quand la lecture échouait : « off ». L'interrupteur
+    s'affichait donc éteint, et basculeAvion() — qui inverse la valeur
+    AFFICHÉE — aurait fait l'inverse de l'étiquette, exactement comme la
+    tuile Wi-Fi du volet le faisait. Il rend maintenant « inconnu », et la
+    page grise l'interrupteur."""
+    v = _radios.avion()
+    if v is None:
+        return "inconnu"
+    return "on" if v else "off"
 
 
 def _langue_etat():

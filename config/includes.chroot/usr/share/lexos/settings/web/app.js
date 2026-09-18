@@ -1480,10 +1480,18 @@ function contenu(cle){
       //  avec quelle force. C'est ce qu'on vient vérifier neuf fois sur dix.
       const w = etat.wifi || {};
       const absent = w.radio === "absent";
+      /*  ═══ « inconnu » N'EST NI « absent » NI « éteint » ═══
+          nmcli est là mais n'a pas répondu : on ne sait pas si la carte est
+          allumée. Avant, ce cas tombait dans « pas enabled », donc « Carte
+          radio éteinte » — une affirmation sur une carte qui marche
+          peut-être très bien. */
+      const pasLu = w.radio === "inconnu";
       const allume = w.radio === "enabled";
       return `<h2>Wi-Fi</h2><div class="sub">Réseaux, connexion, mots de passe</div>
       ${absent
         ? `<p class="notice">Aucune carte Wi-Fi détectée sur cette machine.</p>`
+        : pasLu
+        ? srow("Wi-Fi", "État inconnu — <code>nmcli</code> n'a pas répondu. Aucun interrupteur allumé : on ne devine pas.", "")
         : srow("Wi-Fi", allume ? "Carte radio allumée" : "Carte radio éteinte",
                sw(allume, "basculeWifi()"))}
       ${/*  ═══ LE RÉSEAU CONNECTÉ NE S'ÉCRIT PLUS QU'UNE FOIS ═══
@@ -1588,8 +1596,18 @@ function contenu(cle){
     case "reseau": {
       const n = etat.reseau || {};
       return `<h2>Réseau</h2><div class="sub">Filaire, mode avion, VPN</div>
-      ${srow("Mode avion","Coupe Wi-Fi, Bluetooth et données",
-             sw(etat.avion==="on","basculeAvion()"))}
+      ${/*  ═══ L'INTERRUPTEUR QUI INVERSAIT UNE VALEUR INVENTÉE ═══
+             _avion_etat() rendait « off » quand il ne savait pas — sans
+             nmcli, ou quand la lecture échouait. L'interrupteur s'affichait
+             donc éteint, et basculeAvion() inverse la valeur AFFICHÉE : le
+             clic aurait fait l'inverse de l'étiquette, exactement comme la
+             tuile Wi-Fi du volet le faisait avant qu'on la répare.
+             Il rend « inconnu » maintenant, et on ne propose plus de
+             basculer ce qu'on n'a pas pu lire. */""}
+      ${vu("avion") === "inconnu"
+        ? srow("Mode avion", "État inconnu — <code>nmcli</code> n'a pas répondu. Aucun interrupteur allumé : on ne devine pas.", "")
+        : srow("Mode avion","Coupe Wi-Fi, Bluetooth et données",
+               sw(vu("avion")==="on","basculeAvion()"))}
       ${n.filaire === null || n.filaire === undefined
         ? ""
         : srow("Câble Ethernet",
@@ -1625,13 +1643,20 @@ function contenu(cle){
           Le cinéma maison d'Alex était introuvable, faute d'une liste où le
           voir. Appairés d'abord, puis ce que la recherche a entendu. */
       const bt = etat.bluetooth || {};
+      /*  « radio === null » veut dire « cette machine n'a pas de Bluetooth » ;
+          « inconnu » veut dire « bluetoothctl n'a pas répondu ». Les deux
+          rendaient null avant — donc on annonçait qu'une machine n'avait pas
+          de Bluetooth parce qu'un outil avait traîné une seconde. */
+      const btPasLu = bt.inconnu === true;
       const radio = bt.radio;
       const app = bt.appareils || [];
       const GENRES = {"audio-card":"🔊","audio-headset":"🎧","audio-headphones":"🎧",
                       "input-keyboard":"⌨","input-mouse":"🖱","phone":"📱",
                       "computer":"💻","input-gaming":"🎮"};
       return `<h2>Bluetooth</h2><div class="sub">Enceintes, cinéma maison, casques, manettes</div>
-      ${radio === null || radio === undefined
+      ${btPasLu
+        ? `<p class="notice">État du Bluetooth inconnu — <code>bluetoothctl</code> n'a pas répondu. Rien n'est affirmé ici.</p>`
+        : radio === null || radio === undefined
         ? `<p class="notice">Aucun contrôleur Bluetooth sur cette machine.</p>`
         : srow("Bluetooth", radio ? "Allumé" : "Éteint",
                sw(radio, "basculeBluetooth()"))}

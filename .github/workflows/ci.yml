@@ -3013,6 +3013,29 @@ jobs:
           #  RIEN empêcher — la règle de lexos-intro.
           bash tests/test_lexos_moteur_demon.sh
 
+      - name: Une seule copie de chaque lecture — la preuve du moteur
+        if: ${{ !cancelled() }}
+        run: |
+          #  Wi-Fi, Bluetooth et mode avion étaient lus en DEUX exemplaires,
+          #  dans settings.py et dans volet.py. Et les deux copies du mode
+          #  avion ne calculaient pas la même chose :
+          #
+          #      volet.py    : wwan dans ("disabled", "missing", "")
+          #      settings.py : wwan dans ("disabled", "missing")
+          #
+          #  Sur une machine sans modem — où « nmcli -t radio wwan » rend une
+          #  ligne vide, donc la plupart des machines de bureau — le volet
+          #  annonçait « mode avion » et les Paramètres « non ». app.js du
+          #  volet nommait ce risque : « deux endroits où un bogue pourrait
+          #  un jour raconter deux choses différentes ». Le jour était passé.
+          #
+          #  Ce banc ne compte pas des lignes : il fait répondre les DEUX
+          #  modules sur les MÊMES fausses machines et exige la même réponse.
+          #  Et comme s'accorder n'est pas avoir raison — depuis la fusion ils
+          #  s'accordent forcément, y compris sur une erreur — il dit aussi ce
+          #  que la bonne réponse EST.
+          bash tests/test_lexos_moteur_doublons.sh
+
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}
         run: |
