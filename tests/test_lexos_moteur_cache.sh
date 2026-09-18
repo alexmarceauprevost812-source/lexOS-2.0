@@ -183,5 +183,101 @@ APRES="$(find "$BANC/h" -type f 2>/dev/null | wc -l)"
   && ok "cinquante lectures mises en cache n'ont écrit aucun fichier ($APRES inchangé)" \
   || non "le cache a écrit sur le disque ($AVANT → $APRES fichiers) : il mentirait au démarrage suivant"
 
+# ===========================================================================
+titre "6. UNE LECTURE PARTIE AVANT UN CLIC NE REVIENT PAS S'INSTALLER APRÈS"
+# ===========================================================================
+#  ═══ LE DÉFAUT QU'AUCUNE CLÉ N'AURAIT RÉPARÉ ═══
+#  Les lectures durent des secondes et se font HORS du verrou — c'est voulu,
+#  sinon le clic suivant attendrait derrière la lecture en cours. Mais une
+#  lecture partie AVANT un clic peut se terminer APRÈS lui. Telle quelle,
+#  elle rangeait sa valeur d'AVANT dans le cache, avec un TTL tout neuf : la
+#  tuile affichait l'état d'avant le clic pendant une seconde et demie.
+#
+#  C'est EXACTEMENT le périmé silencieux que ce module existe pour empêcher,
+#  et il ne se corrigeait pas en déclarant une clé de plus : le défaut est
+#  antérieur aux clés partielles et il était identique du temps où chaque
+#  action périmait tout. Il fallait une ESTAMPILLE, pas une déclaration.
+#
+#  ON LE MESURE EN FORÇANT LA COURSE, au lieu d'espérer la voir : le
+#  collecteur se bloque sur un signal, on périme pendant qu'il est bloqué,
+#  puis on le laisse finir.
+COURSE="$(python3 - "$LIB" <<'COURSE_PY' 2>&1
+import importlib.util, sys, threading
+LIB = sys.argv[1]; sys.path.insert(0, LIB)
+spec = importlib.util.spec_from_file_location("registre", LIB + "/moteur/registre.py")
+#  Le module fait « from . import etat » : on le charge donc comme membre du
+#  paquet, sinon l'import relatif échoue.
+sys.path.insert(0, LIB)
+import importlib
+moteur = importlib.import_module("moteur.registre")
+
+C = moteur.Cache()
+parti = threading.Event()     # le collecteur a commencé
+liberer = threading.Event()   # il a le droit de finir
+
+def lent():
+    parti.set()
+    liberer.wait(5)
+    return "AVANT-LE-CLIC"
+
+resultat = {}
+fil = threading.Thread(target=lambda: resultat.update(C.lire({"x": lent}, 5)))
+fil.start()
+if not parti.wait(5):
+    print("PAS_PARTI"); raise SystemExit
+
+C.perime(["x"])               # LE CLIC arrive pendant la lecture
+liberer.set()
+fil.join(5)
+
+#  1. L'appelant qui a demandé AVANT le clic garde sa réponse : il a droit à
+#     ce qu'il a demandé.
+rendu = resultat.get("x")
+#  2. Mais cette valeur ne doit pas être RANGÉE. On redemande avec un autre
+#     collecteur : s'il n'est pas appelé, c'est qu'on sert du périmé.
+rappels = []
+def apres():
+    rappels.append(1)
+    return "APRES-LE-CLIC"
+
+vu = C.lire({"x": apres}, 5)["x"]
+print("RENDU %s RELU %s VU %s GARDE %d"
+      % (rendu, "oui" if rappels else "non", vu, C.garde()))
+
+#  3. Et la même course avec une invalidation TOTALE (perime()), qui doit
+#     couvrir aussi une clé jamais vue jusque-là.
+C2 = moteur.Cache()
+parti2 = threading.Event(); liberer2 = threading.Event()
+def lent2():
+    parti2.set(); liberer2.wait(5); return "AVANT-TOTAL"
+f2 = threading.Thread(target=lambda: C2.lire({"y": lent2}, 5))
+f2.start(); parti2.wait(5)
+C2.perime()                   # tout périmer, y compris ce qu'on n'a jamais vu
+liberer2.set(); f2.join(5)
+rappels2 = []
+C2.lire({"y": lambda: (rappels2.append(1), "APRES-TOTAL")[1]}, 5)
+print("TOTAL RELU %s" % ("oui" if rappels2 else "non"))
+COURSE_PY
+)"
+
+case "$COURSE" in
+	*"RENDU AVANT-LE-CLIC RELU oui VU APRES-LE-CLIC"*)
+		ok "la lecture en vol rend sa valeur à son appelant, mais ne la range pas" ;;
+	*"RELU non"*)
+		non "la valeur d'AVANT le clic est servie APRÈS : la tuile ment pendant tout le TTL ($COURSE)" ;;
+	*PAS_PARTI*)
+		muet "le collecteur n'a pas démarré : la course n'a pas pu être forcée" ;;
+	*)
+		muet "la course n'a pas pu être mesurée : $(printf '%s' "$COURSE" | tail -2 | tr '\n' ' ')" ;;
+esac
+
+case "$COURSE" in
+	*"TOTAL RELU oui"*)
+		ok "…et une invalidation TOTALE couvre aussi une clé jamais lue avant" ;;
+	*"TOTAL RELU non"*)
+		non "après perime() total, une lecture en vol se réinstalle quand même : l'époque ne sert à rien" ;;
+	*)  muet "le cas de l'invalidation totale n'a pas été mesuré" ;;
+esac
+
 printf '\n\033[1m%d réussis, %d échoués, %d non mesurés\033[0m\n' "$REUSSIS" "$ECHOUES" "$MUETS"
 [ "$ECHOUES" -eq 0 ]

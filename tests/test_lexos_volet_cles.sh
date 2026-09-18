@@ -292,6 +292,14 @@ spec = importlib.util.spec_from_file_location("v", LIB + "/volet.py")
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
+#  ⚠ ON NEUTRALISE LE LECTEUR DE PROFIL, ET SEULEMENT LUI. _perf_etat() vise
+#  /etc/lexos/performance, un chemin ABSOLU qu'aucun banc ne peut déplacer ;
+#  sur une machine de construction ce fichier n'existe pas, et _perf_etat()
+#  rend honnêtement None — donc « perf » arrive dans la liste « inconnu » et
+#  le garde-fou ci-dessous refuserait de mesurer quoi que ce soit. Ce point-ci
+#  éprouve le CACHE, pas la lecture du profil : on lui donne une valeur, et on
+#  ne touche à rien d'autre.
+m._perf_etat = lambda: "medium"
 m._CACHE.perime()
 avant = m.etat("rapides")["rapides"]
 m._apres_action("rapides-partage")

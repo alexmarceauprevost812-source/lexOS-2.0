@@ -74,6 +74,24 @@ class Cache:
         #  Ici, la deuxième ATTEND la première et repart avec son résultat.
         #  Ce n'est pas un cache plus long : c'est la même lecture, partagée.
         self._en_vol = threading.Lock()
+        #  ═══ UNE LECTURE PARTIE AVANT L'ACTION NE DOIT PAS REVENIR APRÈS ═══
+        #  Les lectures durent des secondes et se font HORS du verrou (voir
+        #  plus bas, c'est voulu). Une lecture partie AVANT un clic peut donc
+        #  se terminer APRÈS lui — et, telle quelle, elle réinsérait sa valeur
+        #  d'AVANT avec un TTL tout neuf. La tuile affichait alors l'état
+        #  d'avant le clic pendant une seconde et demie, exactement le périmé
+        #  silencieux que ce module existe pour empêcher. Le défaut était
+        #  antérieur aux clés partielles et identique avec l'ancien
+        #  « tout périmer » : ce n'est pas une clé qui manquait, c'est une
+        #  ESTAMPILLE.
+        #  On marque donc chaque clé : « _epoque » compte les invalidations
+        #  totales, « _gen[clé] » les invalidations ciblées. Une lecture note
+        #  la marque avant de partir et ne range son résultat que si la marque
+        #  n'a pas bougé. Sinon elle rend sa valeur à SON appelant — qui a
+        #  demandé avant le clic, et a droit à ce qu'il a demandé — mais ne la
+        #  garde pas.
+        self._epoque = 0
+        self._gen: dict = {}
 
     # -- lecture -----------------------------------------------------------
     def lire(self, collecteurs, delai, fronts=_etat.FRONTS, replis=None):
@@ -113,11 +131,20 @@ class Cache:
                         frais[cle] = garde[1]
                     else:
                         reste[cle] = fonction
+                #  La marque est prise ICI, sous le verrou, AVANT de lire.
+                epoque = self._epoque
+                marques = {cle: self._gen.get(cle, 0) for cle in reste}
             neuves = _etat.de_front(reste, delai, fronts, replis) if reste else {}
         if neuves and self.ttl > 0:
             expire = time.monotonic() + self.ttl
             with self._verrou:
                 for cle, valeur in neuves.items():
+                    #  Une action a-t-elle périmé cette clé PENDANT la lecture ?
+                    #  Alors ce qu'on tient est l'état d'AVANT : on ne le range
+                    #  pas. La prochaine demande relira, et c'est le prix juste.
+                    if (self._epoque != epoque
+                            or self._gen.get(cle, 0) != marques.get(cle, 0)):
+                        continue
                     self._valeurs[cle] = (expire, valeur)
         frais.update(neuves)
         return frais
@@ -131,9 +158,14 @@ class Cache:
         with self._verrou:
             if cles is None:
                 self._valeurs.clear()
+                #  L'époque couvre AUSSI les clés qu'on n'a jamais vues : une
+                #  lecture en vol sur une clé absente de _gen doit être jetée
+                #  elle aussi.
+                self._epoque += 1
             else:
                 for cle in cles:
                     self._valeurs.pop(cle, None)
+                    self._gen[cle] = self._gen.get(cle, 0) + 1
 
     # -- pour les bancs ----------------------------------------------------
     def garde(self) -> int:

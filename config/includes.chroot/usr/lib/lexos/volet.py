@@ -354,8 +354,34 @@ def act_meteo_ville(_arg=None):
 #  installée (sudo sans mot de passe n'existe que sur la session démo, voir
 #  le hook 0400) — une limite déjà présente dans les Paramètres, pas une
 #  régression de ce volet.
-PERF_LABEL = {"petit": "Petit", "medium": "Médium",
+#  ═══ CINQ PROFILS, PAS QUATRE — ET LE DÉPÔT L'AVAIT DÉJÀ PAYÉ UNE FOIS ═══
+#  settings.py raconte ce défaut sous le titre « CINQ PROFILS, PAS QUATRE » et
+#  affirme que « vif » manquait « ici, et NULLE PART AILLEURS ». C'ÉTAIT FAUX :
+#  il manquait AUSSI ici, et le garde-fou censé empêcher la divergence
+#  (tests/test_lexos_perf_vif.sh) ne regardait pas ce fichier.
+#
+#  Ce que ça donnait, et ce n'est pas théorique : lexos-perf connaît cinq
+#  profils, et detect_profile SUGGÈRE « vif » à tout portable sur batterie —
+#  donc à la machine d'Alex. Sur une machine réglée en « vif », _perf_etat()
+#  rendait « medium » : pas une tuile grisée, une tuile qui AFFIRME « Médium ».
+#  Une valeur INVENTÉE, exactement ce que le jeton _INCONNU plus bas existe
+#  pour interdire. Et le clic suivant partait de « medium » pour sauter à
+#  « performant » : « vif » devenait invisible ET inatteignable depuis le
+#  volet, sans qu'aucune invalidation de cache n'y puisse rien — le cache ne
+#  protège pas d'un LECTEUR qui invente.
+PERF_LABEL = {"petit": "Petit", "medium": "Médium", "vif": "Vif",
               "performant": "Performant", "max": "Performance max"}
+
+#  L'ordre du cycle, du plus sobre au plus gourmand : celui de lexos-perf.
+PERF_ORDRE = ("petit", "medium", "vif", "performant", "max")
+
+#  Les deux listes doivent nommer les mêmes profils, sinon le clic cycle vers
+#  un profil que la tuile ne saurait pas nommer. On refuse de démarrer plutôt
+#  que de le découvrir sur la machine — même raison que _verifie_declarations.
+if set(PERF_ORDRE) != set(PERF_LABEL):
+    raise ValueError(
+        "volet.py : PERF_ORDRE et PERF_LABEL doivent nommer les mêmes "
+        f"profils ; divergence : {sorted(set(PERF_ORDRE) ^ set(PERF_LABEL))}")
 
 
 #  ═══ LES TROIS LECTURES DE RADIO SONT PARTIES DANS moteur/radios.py ═══
@@ -385,11 +411,18 @@ def _avion_radio_etat():
 
 
 def _perf_etat():
+    """Le profil écrit par lexos-perf — ou None quand on ne le reconnaît pas.
+
+    ⚠ IL RENDAIT « medium » SUR N'IMPORTE QUOI. Fichier illisible, profil
+    inconnu, fichier vide : la même réponse, et cette réponse-là est une
+    VALEUR INVENTÉE. La tuile affichait « Médium » sans être grisée, sur une
+    machine qui tournait en « vif ». On rend maintenant None — « je n'ai pas
+    pu lire », le seul mot honnête — et _rapides_etat() grise la tuile."""
     try:
         profil = Path("/etc/lexos/performance").read_text(encoding="utf-8").strip()
     except OSError:
-        profil = ""
-    return profil if profil in PERF_LABEL else "medium"
+        return None
+    return profil if profil in PERF_LABEL else None
 
 
 def _crt_rapides_etat():
@@ -605,9 +638,9 @@ _PERIME = _verifie_declarations({
     #  apply_user tourne MÊME si le plan système est refusé, :735-741) — donc
     #  perf et crt, certains. Mais apply_services (:371-388) fait aussi
     #  « systemctl disable --now » sur bluetooth.service ET
-    #  ModemManager.service pour le seul profil « petit » (:121) : deux des
-    #  quatre transitions du cycle touchent donc bt_brut et r_wwan, et le son
-    #  avec le Bluetooth. Restent r_wifi (que seul un /etc/tlp.conf modifié à
+    #  ModemManager.service pour le seul profil « petit » (:121) : les deux
+    #  transitions du cycle qui entrent dans « petit » ou en sortent touchent
+    #  donc bt_brut et r_wwan, et le son avec le Bluetooth. Restent r_wifi (que seul un /etc/tlp.conf modifié à
     #  la main pourrait atteindre, via « tlp start » :279 — ce dépôt n'en
     #  livre aucun) et theme (rien dans le fichier ne l'écrit).
     #  Déclarer « tout sauf theme » économiserait une lecture de fichier
@@ -698,8 +731,15 @@ def _rapides_etat():
         inconnu.append("bt")
     if lu["crt"] is _INCONNU:
         inconnu.append("crt")
-    if lu["perf"] is _INCONNU:
+    #  ⚠ « PAS LU » ET « PROFIL QUE JE NE CONNAIS PAS » SONT LE MÊME CAS.
+    #  Ce contrôle testait « is _INCONNU » seul, donc un profil inconnu (« vif »,
+    #  avant qu'il soit dans PERF_LABEL) passait pour lu, et « perf » plus bas
+    #  le remplaçait par « medium » : la tuile affirmait un profil que la
+    #  machine n'avait pas. Un seul test, sur l'appartenance.
+    if lu["perf"] not in PERF_LABEL:
         inconnu.append("perf")
+    #  Le repli « medium » reste, mais seulement pour que la page ait une clé
+    #  de style à poser : « perfLabel » dit « Inconnu » et la tuile est grisée.
     perf = lu["perf"] if lu["perf"] in PERF_LABEL else "medium"
     son = lu["son"] if lu["son"] is not _INCONNU else {
         #  Pas lu = pas de bandeau, exactement comme « pas de pactl ». Mieux
@@ -723,7 +763,7 @@ def _rapides_etat():
         "bt": None if (avion or lu["bt_brut"] in (_INCONNU, None, "absent"))
               else lu["bt_brut"],
         "perf": perf,
-        "perfLabel": PERF_LABEL[perf] if lu["perf"] is not _INCONNU else "Inconnu",
+        "perfLabel": PERF_LABEL[perf] if lu["perf"] in PERF_LABEL else "Inconnu",
         #  Le thème non lu reste None : appliqueModeVolet() ne touche alors
         #  à rien, plutôt que de basculer la surface du volet au hasard.
         "theme": None if lu["theme"] is _INCONNU else lu["theme"],
@@ -782,8 +822,15 @@ def act_rapides_avion(_arg=None):
 def act_rapides_perf(_arg=None):
     if not _outils.commande_existe("lexos-perf"):
         return {"ok": False, "erreur": "lexos-perf absent"}
-    ordre = ["petit", "medium", "performant", "max"]
-    suivant = ordre[(ordre.index(_perf_etat()) + 1) % len(ordre)]
+    courant = _perf_etat()
+    if courant is None:
+        #  On ne devine pas d'où l'on cycle. La tuile est déjà grisée côté page
+        #  (« perf » est dans la liste « inconnu »), mais une requête peut
+        #  arriver quand même — et « ordre.index(None) » levait un ValueError,
+        #  soit une erreur 500 au lieu d'une phrase qu'on comprend.
+        return {"ok": False, "erreur": "profil de performance inconnu "
+                                       "(voir Paramètres → Performance)"}
+    suivant = PERF_ORDRE[(PERF_ORDRE.index(courant) + 1) % len(PERF_ORDRE)]
     try:
         r = subprocess.run(["lexos-perf", suivant],
                            capture_output=True, text=True, timeout=15)

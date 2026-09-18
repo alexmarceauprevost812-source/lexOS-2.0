@@ -449,5 +449,148 @@ else
 	non "$RESTES icon-perf-*.svg subsistent — jeu incomplet, embarqué pour rien"
 fi
 
+
+# -----------------------------------------------------------------------------
+titre "15. LE VOLET connaît les mêmes cinq profils — et n'en invente aucun"
+# -----------------------------------------------------------------------------
+#  ═══ CE BANC A DÉJÀ LAISSÉ PASSER « VIF » UNE FOIS ═══
+#  La section 10 compare settings.py à lexos-perf, et le commentaire de
+#  settings.py affirmait que « vif manquait ici, et NULLE PART AILLEURS ».
+#  C'était faux : il manquait AUSSI dans le volet — PERF_LABEL n'avait que
+#  quatre entrées — et ce banc ne regardait pas ce fichier-là, donc personne
+#  ne l'a vu. Une phrase qui dit « nulle part ailleurs » est une affirmation
+#  sur tout le dépôt : elle se vérifie, ou elle ne s'écrit pas.
+#
+#  ET LE SYMPTÔME ÉTAIT LE PIRE DE TOUS. _perf_etat() rendait « medium » sur
+#  un profil qu'il ne connaissait pas. Pas une tuile grisée : une tuile qui
+#  AFFIRME « Médium » sur une machine réglée en « vif ». Une valeur inventée,
+#  exactement ce que le jeton _INCONNU du volet existe pour interdire — et
+#  « vif » est justement ce que detect_profile() recommande à un portable,
+#  donc à la machine d'Alex. On MESURE donc le comportement, on ne relit pas
+#  la forme des listes.
+VOLET_PY="$RACINE/config/includes.chroot/usr/lib/lexos/volet.py"
+if [[ ! -r "$VOLET_PY" ]]; then
+	non "volet.py introuvable ($VOLET_PY)"
+elif ! command -v python3 >/dev/null 2>&1; then
+	non "python3 absent : le comportement du volet n'a pas été mesuré"
+else
+	BANC_VOLET="$(mktemp -d)"
+	FAUX_PERF="$BANC_VOLET/bin"; mkdir -p "$FAUX_PERF"
+	cat > "$FAUX_PERF/lexos-perf" <<'OUTIL'
+#!/bin/sh
+printf '%s\n' "$1" > "$LEXOS_BANC_PROFIL"
+OUTIL
+	chmod +x "$FAUX_PERF/lexos-perf"
+
+	VOLET_VU="$(LEXOS_BANC_PROFIL="$BANC_VOLET/demande" \
+	            python3 - "$RACINE" "$FAUX_PERF" "$BANC_VOLET" <<'VOLET_PY_FIN' 2>&1
+import importlib.util, os, sys
+RACINE, BIN, BANC = sys.argv[1:4]
+LIB = RACINE + "/config/includes.chroot/usr/lib/lexos"
+os.environ["PATH"] = BIN
+os.environ["XDG_CONFIG_HOME"] = BANC
+sys.path.insert(0, LIB)
+spec = importlib.util.spec_from_file_location("v", LIB + "/volet.py")
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+#  1. Les listes du volet, telles que le module les expose.
+print("LABEL " + ",".join(sorted(m.PERF_LABEL)))
+print("ORDRE " + ",".join(m.PERF_ORDRE))
+
+def grille(valeur):
+    """La grille telle que la page la recevrait, avec « perf » déjà en cache."""
+    m._CACHE.perime()
+    m._CACHE.lire({"perf": lambda: valeur}, 2)
+    return m.etat("rapides")["rapides"]
+
+g = grille("profil-que-personne-ne-connait")
+print("INCONNU label=%r grise=%r" % (g["perfLabel"], "perf" in g["inconnu"]))
+g = grille("vif")
+print("VIF label=%r grise=%r" % (g["perfLabel"], "perf" in g["inconnu"]))
+
+#  2. Le clic. On remplace la LECTURE (qui vise /etc/lexos/performance, hors
+#     de portée d'un banc) et on regarde ce que l'action DEMANDE vraiment au
+#     faux lexos-perf.
+#     ⚠ ON ENVELOPPE LES DEUX APPELS. Sans ça, une mutation qui fait LEVER
+#     l'action tuait le script du banc, et le contrôle se plaignait de « n'a
+#     pas pu être éprouvé » : un rouge vrai, mais qui ne dit pas ce qui s'est
+#     passé. Une exception ici, c'est une erreur 500 dans le volet — on veut
+#     le lire en toutes lettres.
+m._perf_etat = lambda: "vif"
+try:
+    m.act_rapides_perf()
+    try:
+        demande = open(os.environ["LEXOS_BANC_PROFIL"], encoding="utf-8").read().strip()
+    except OSError:
+        demande = "<rien>"
+except Exception as e:                                  # noqa: BLE001
+    demande = "leve=%s" % type(e).__name__
+print("APRES_VIF " + demande)
+
+m._perf_etat = lambda: None
+try:
+    r = m.act_rapides_perf()
+    print("SANS_PROFIL ok=%r erreur=%r" % (r.get("ok"), r.get("erreur", "")))
+except Exception as e:                                  # noqa: BLE001
+    print("SANS_PROFIL leve=%s: %s" % (type(e).__name__, e))
+VOLET_PY_FIN
+)"
+	rm -rf "$BANC_VOLET"
+
+	lit() { printf '%s\n' "$VOLET_VU" | grep "^$1 " | sed "s/^$1 //"; }
+
+	#  Les noms canoniques, repris de la section 10 : la source de vérité est
+	#  normalize() dans lexos-perf, pas une liste écrite à la main ici.
+	CANON="$(sed -n "/^normalize()/,/^}/p" "$PERF" \
+	        | sed -n "s/.*printf '\([a-z]*\)'.*/\1/p" | sort -u | tr '\n' ',' | sed 's/,$//')"
+	VU_LABEL="$(lit LABEL)"
+	if [ -z "$VU_LABEL" ]; then
+		non "volet.py n'a pas pu être importé : $(printf '%s' "$VOLET_VU" | tail -2 | tr '\n' ' ')"
+	elif [ "$VU_LABEL" = "$CANON" ]; then
+		ok "PERF_LABEL du volet = les profils de normalize() ($CANON)"
+	else
+		non "PERF_LABEL du volet diverge de lexos-perf : « $VU_LABEL » contre « $CANON »"
+	fi
+
+	VU_ORDRE="$(lit ORDRE)"
+	if [ "$(printf '%s' "$VU_ORDRE" | tr ',' '\n' | sort -u | tr '\n' ',' | sed 's/,$//')" = "$CANON" ]; then
+		ok "le cycle du clic parcourt les cinq profils ($VU_ORDRE)"
+	else
+		non "le cycle du volet n'a pas les mêmes profils : « $VU_ORDRE » contre « $CANON »"
+	fi
+
+	#  ═══ LE CONTRÔLE QUI AURAIT ATTRAPÉ LE DÉFAUT ═══
+	case "$(lit INCONNU)" in
+		"label='Inconnu' grise=True")
+			ok "un profil inconnu grise la tuile et dit « Inconnu »" ;;
+		"label='Médium'"*)
+			non "un profil inconnu s'affiche « Médium » : une valeur INVENTÉE, et le clic partira de là" ;;
+		"") non "la grille n'a pas pu être lue pour un profil inconnu" ;;
+		*)  non "un profil inconnu donne $(lit INCONNU) — attendu label='Inconnu' grise=True" ;;
+	esac
+
+	case "$(lit VIF)" in
+		"label='Vif' grise=False") ok "« vif » s'affiche « Vif », tuile vivante" ;;
+		"") non "la grille n'a pas pu être lue pour « vif »" ;;
+		*)  non "« vif » donne $(lit VIF) — attendu label='Vif' grise=False" ;;
+	esac
+
+	#  Le cycle, mesuré sur ce que l'action DEMANDE au vrai outil.
+	case "$(lit APRES_VIF)" in
+		performant) ok "un clic depuis « vif » demande « performant » — l'ordre de lexos-perf" ;;
+		"<rien>")   non "un clic depuis « vif » ne lance rien : le profil n'est pas dans le cycle" ;;
+		leve=*)     non "un clic depuis « vif » LÈVE ($(lit APRES_VIF)) : « vif » n'est pas dans PERF_ORDRE" ;;
+		*)          non "un clic depuis « vif » demande « $(lit APRES_VIF) », attendu « performant »" ;;
+	esac
+
+	case "$(lit SANS_PROFIL)" in
+		"ok=False erreur="*inconnu*) ok "…et sans profil lisible, une phrase claire au lieu d'une erreur 500" ;;
+		leve=*) non "sans profil lisible, l'action LÈVE ($(lit SANS_PROFIL)) : c'est une erreur 500 dans le volet, pas un refus" ;;
+		"") non "l'action n'a pas pu être éprouvée sans profil" ;;
+		*)  non "sans profil lisible, l'action rend $(lit SANS_PROFIL) — attendu un refus explicite" ;;
+	esac
+fi
+
 printf '\n%s%d réussis, %d échoués%s\n\n' "$GRAS" "$REUSSIS" "$ECHOUES" "$FIN"
 [[ "$ECHOUES" -eq 0 ]]

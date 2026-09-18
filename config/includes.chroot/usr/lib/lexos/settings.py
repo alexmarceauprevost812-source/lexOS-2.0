@@ -306,7 +306,13 @@ def _xfce(module):
 
 
 #  ═══ CINQ PROFILS, PAS QUATRE ═══
-#  « vif » manquait ici, et NULLE PART AILLEURS : lexos-perf le reconnaît
+#  ⚠ CETTE NOTE A DIT UNE CHOSE FAUSSE PENDANT DES SEMAINES : « vif manquait
+#  ici, et NULLE PART AILLEURS ». Il manquait aussi dans le volet
+#  (volet.py, PERF_LABEL), et personne ne le voyait parce que le garde-fou
+#  ci-dessous ne regardait pas ce fichier-là. Une phrase qui dit « et nulle
+#  part ailleurs » est une affirmation sur TOUT LE DÉPÔT : elle se vérifie ou
+#  elle ne s'écrit pas. Corrigé des deux côtés, et le banc couvre les trois.
+#  « vif » manquait ici et dans le volet : lexos-perf le reconnaît
 #  (normalize, label, load_profile, detect_profile le suggère même aux
 #  portables de 8 Go), la page l'affiche dans sa rangée de boutons et lui
 #  donne 7 000 tr/min sur le compte-tours. Seul ce garde-fou l'ignorait —
