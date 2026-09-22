@@ -96,6 +96,45 @@ secure_boot_dire() {
 		echo "    1. Redémarrer, appuyer sur F2 au logo du fabricant"
 		echo "    2. Boot  ->  Secure Boot  ->  Disabled"
 		echo "    3. Enregistrer et quitter (F10)"
+		echo
+		#  ═══ DEUX AVERTISSEMENTS QUI NE SE SÉPARENT JAMAIS DU REMÈDE ═══
+		#  Ce message-ci dit à quelqu'un de toucher au Secure Boot d'une
+		#  machine en double démarrage. Sur celle d'Alex, Windows 11 est à
+		#  côté et lui sert à jouer. Les deux conséquences sont connues,
+		#  immédiates, et aucune ne se devine :
+		#
+		#   · BitLocker. Le chiffrement de Windows scelle sa clé sur l'état
+		#     du micrologiciel, Secure Boot compris. Le changer fait réclamer
+		#     la CLÉ DE RÉCUPÉRATION au démarrage suivant de Windows. Sans
+		#     elle, Windows est inaccessible — pas « plus lent », pas
+		#     « dégradé » : inaccessible.
+		#   · Les anti-triche. Plusieurs jeux exigent Secure Boot ACTIF et
+		#     refusent de démarrer sans lui. Couper le Secure Boot pour voir
+		#     le bureau de LexOS, c'est perdre ces jeux-là sous Windows.
+		#
+		#  Un banc vérifie que ces deux mots ne peuvent pas disparaître du
+		#  message : c'est un conseil dangereux à moitié.
+		echo "  ⚠ AVANT DE LE FAIRE, SI WINDOWS EST INSTALLÉ SUR CETTE MACHINE :"
+		echo
+		echo "    · BitLocker. Si Windows est chiffré, changer l'état du Secure"
+		echo "      Boot lui fera réclamer sa CLÉ DE RÉCUPÉRATION au prochain"
+		echo "      démarrage. Sans cette clé, Windows devient inaccessible."
+		echo "      Récupère-la AVANT : dans Windows, Paramètres -> Confidentialité"
+		echo "      et sécurité -> Chiffrement de l'appareil -> Sauvegarder la clé,"
+		echo "      ou sur https://aka.ms/myrecoverykey"
+		echo
+		echo "    · Les anti-triche. Certains jeux (Valorant, Fortnite, Call of"
+		echo "      Duty…) EXIGENT le Secure Boot actif et refuseront de se"
+		echo "      lancer une fois qu'il est coupé."
+		echo
+		#  ⚠ ON NE PROMET PAS UNE COMMANDE QUI N'EXISTE PAS. Cette voie-là
+		#  arrive par étapes ; tant que l'outil n'est pas installé, on se tait
+		#  plutôt que d'envoyer quelqu'un taper une commande introuvable —
+		#  c'est déjà assez pénible d'être devant une console sans bureau.
+		if command -v lexos-signer-pilote >/dev/null 2>&1; then
+			echo "  Si tu veux garder Windows intact, la vraie réponse est de SIGNER"
+			echo "  le pilote au lieu de couper le Secure Boot :  sudo lexos-signer-pilote"
+		fi
 	else
 		echo "Secure Boot : inactif — le pilote NVIDIA peut se charger."
 	fi

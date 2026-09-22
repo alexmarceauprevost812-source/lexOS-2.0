@@ -271,6 +271,35 @@ if [ -n "${BASH_VERSION:-}" ] \
 	fi
 fi
 
+# --- LA PANNE AVANT LA BANNIÈRE ---------------------------------------------
+#  ═══ CE QU'ALEX A VU, ET CE QUI MANQUAIT ═══
+#  Alienware, RTX 5060, entrée normale du menu : le bureau ne démarre pas, la
+#  machine retombe en console — et la console affiche un masque en blocs, des
+#  couleurs et des chiffres qui ont l'air d'aller. Rien ne disait que quelque
+#  chose avait échoué. Il est arrivé sur un écran joyeux sans savoir s'il
+#  était au bon endroit.
+#
+#  La bannière reste : elle est utile, et c'est elle qui prouve qu'on est
+#  bien sur LexOS. Mais quand la session graphique a échoué, ça se dit AVANT,
+#  et ça se dit en français.
+#
+#  ⚠ ON NE CRIE PAS AU LOUP. session_graphique_absente() exige QUATRE
+#  conditions — pas de DISPLAY, pas de SSH, aucun serveur d'affichage nulle
+#  part, et une machine qui vise bien le graphique. Un Ctrl+Alt+F2 pendant
+#  que le bureau tourne ne déclenche rien : annoncer une panne à quelqu'un
+#  dont la machine va bien, c'est le même défaut à l'envers que la tuile qui
+#  affirme « Désactivé » faute d'avoir pu lire.
+if [ -n "${BASH_VERSION:-}" ] && [ -t 1 ] && [ -z "${DISPLAY:-}" ] \
+   && [ -z "${LEXOS_NO_BANNER:-}" ] \
+   && [ -r /usr/share/lexos/shell/session-graphique.sh ]; then
+	# shellcheck disable=SC1091
+	. /usr/share/lexos/shell/session-graphique.sh
+	if session_graphique_absente; then
+		echo
+		session_graphique_dire
+	fi
+fi
+
 # --- Bienvenue en console (pas dans les scripts, pas dans le terminal graphique)
 if [ -n "${BASH_VERSION:-}" ] && [ -t 1 ] && [ -z "${DISPLAY:-}" ] \
    && [ -z "${LEXOS_NO_BANNER:-}" ] && command -v lexfetch >/dev/null 2>&1; then

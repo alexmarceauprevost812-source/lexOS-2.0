@@ -3057,6 +3057,25 @@ jobs:
           #  « remarquée un jour » — elle empêche le volet de démarrer.
           bash tests/test_lexos_volet_cles.sh
 
+      - name: La console doit dire pourquoi le bureau n'a pas démarré
+        if: ${{ !cancelled() }}
+        run: |
+          #  Alienware, RTX 5060, entrée normale du menu : le bureau ne
+          #  démarre pas et la machine retombe en console — qui affiche la
+          #  bannière lexfetch, un masque en blocs et des chiffres qui ont
+          #  l'air d'aller. Rien ne disait que quelque chose avait échoué.
+          #
+          #  Ce banc éprouve les DEUX fautes symétriques : ne rien dire quand
+          #  la session a échoué, et crier au loup quand tout va bien (un
+          #  Ctrl+Alt+F2, un SSH, une machine en mode serveur).
+          #
+          #  Et surtout : le remède « Secure Boot -> Disabled » ne doit JAMAIS
+          #  partir sans ses deux avertissements. Sur une machine en double
+          #  démarrage, BitLocker réclamera sa clé de récupération au prochain
+          #  démarrage de Windows, et plusieurs jeux exigent le Secure Boot
+          #  actif. Un conseil dangereux à moitié est pire que pas de conseil.
+          bash tests/test_lexos_console_panne.sh
+
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}
         run: |
