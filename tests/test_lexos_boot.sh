@@ -328,5 +328,66 @@ menuentry "Mode de secours" { linux /live/vmlinuz boot=live nomodeset lexos.fail
 	esac
 fi
 
+# -----------------------------------------------------------------------------
+titre "7. ET LA PORTE DE SORTIE S'OUVRE VRAIMENT — par le chemin réel"
+# -----------------------------------------------------------------------------
+#  ═══ UN VERROU SANS CLÉ ═══
+#  Le contrôle ci-dessus fait ÉCHOUER la construction, et annonçait pour
+#  remède « LEXOS_SECOURS_FACULTATIF=1 ». MESURÉ : la porte était fermée.
+#  « sudo ./build.sh » — la seule façon documentée de construire — efface
+#  l'environnement (« Defaults env_reset »), donc
+#  « LEXOS_SECOURS_FACULTATIF=1 sudo ./build.sh » ne transmettait rien.
+#  Un drapeau, lui, est un ARGUMENT : il traverse sudo. build.sh l'EXPORTE
+#  ensuite, et ce hook-ci étant un .hook.binary — il tourne sur l'hôte, en
+#  enfant de « lb build » — il en hérite.
+#
+#  ⚠ ASYMÉTRIE À RETENIR : le hook 0260 (pilote NVIDIA) tourne DANS le chroot
+#  et reçoit sa clé par build.conf. Deux hooks, deux mécaniques, et c'est ce
+#  qui rendait le défaut invisible à la relecture : ils avaient l'air d'avoir
+#  la même porte de sortie, et une seule en avait une.
+SOUPAPE="$RACINE/tests/aide/soupape-build.py"
+if [[ ! -r "$SOUPAPE" ]] || ! command -v python3 >/dev/null 2>&1; then
+	non "tests/aide/soupape-build.py ou python3 manquant : le chemin de la soupape n'est pas éprouvé"
+else
+	AIDE_BUILD="$(bash "$RACINE/build.sh" --help 2>&1 || true)"
+	case "$AIDE_BUILD" in
+		*--sans-secours*) ok "« build.sh --help » documente --sans-secours" ;;
+		*) non "le drapeau --sans-secours n'est pas dans l'aide : personne ne le trouvera" ;;
+	esac
+
+	VU_SOUPAPE="$(python3 "$SOUPAPE" "$RACINE" 0 0 2>&1)"
+	case "$VU_SOUPAPE" in
+		*"ENV=0") ok "sans drapeau : rien n'est exporté (la porte reste fermée, c'est voulu)" ;;
+		SANS_ANCRE) non "build.sh n'a plus les lignes qui portent la soupape" ;;
+		*) non "sans drapeau, build.sh donne « $VU_SOUPAPE » — attendu ENV=0" ;;
+	esac
+
+	VU_SOUPAPE="$(python3 "$SOUPAPE" "$RACINE" 1 1 2>&1)"
+	case "$VU_SOUPAPE" in
+		*"ENV=1") ok "avec --sans-secours : la variable est EXPORTÉE, donc le hook binaire la voit" ;;
+		*"ENV=<non-exporte>"*) non "--sans-secours n'exporte rien : le hook ne la verra pas, le « exit 1 » est un verrou sans clé" ;;
+		*) non "avec drapeau, build.sh donne « $VU_SOUPAPE » — attendu ENV=1" ;;
+	esac
+
+	grep -q -- '--sans-secours' "$H0910" \
+		&& ok "…et le message d'échec nomme « --sans-secours », pas une variable qui ne passe pas" \
+		|| non "le message d'échec envoie encore poser une variable d'environnement : sudo l'efface"
+
+	#  ═══ ET LE MESSAGE NE DOIT PAS AFFIRMER PLUS QU'IL N'A LU ═══
+	#  Le contrôle ne sait qu'une chose : SON marqueur n'est pas là. En
+	#  conclure « il n'y a pas d'entrée de secours » serait affirmer plus que
+	#  ce qu'on a mesuré — le marqueur peut avoir changé de nom dans
+	#  auto/config et l'entrée être bien là. Les deux cas n'ont pas le même
+	#  remède, donc le message doit les distinguer.
+	SORTIE_ECHEC="$(sed -n '/ÉCHEC : le marqueur/,/====/p' "$H0910" || true)"
+	if [ -z "$SORTIE_ECHEC" ]; then
+		non "le message d'échec affirme encore « le menu n'a PAS d'entrée de secours » sans l'avoir mesuré"
+	else
+		printf '%s' "$SORTIE_ECHEC" | grep -q 'changé de nom' \
+			&& ok "…et il distingue « pas d'entrée » de « marqueur renommé » : deux remèdes différents" \
+			|| non "le message ne propose qu'une lecture alors qu'il y en a deux, avec des remèdes différents"
+	fi
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

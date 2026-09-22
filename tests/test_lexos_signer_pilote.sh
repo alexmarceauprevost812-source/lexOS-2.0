@@ -236,5 +236,77 @@ else
 	muet "le message du Secure Boot ne mentionne pas l'outil"
 fi
 
+# ===========================================================================
+titre "7. « JE N'AI PAS PU LIRE » NE DEVIENT PAS « TOUT VA BIEN »"
+# ===========================================================================
+#  ═══ LE BOGUE DU DOCK, À L'ENVERS, DANS L'OUTIL QUI SE DONNE LA RÈGLE ═══
+#  SIGNATURE vaut « inconnue » quand modinfo est introuvable. Le « case » de
+#  décision n'avait que deux branches — « NON signé » et « aucun module » — et
+#  « inconnue » ne correspondait à aucune : on tombait dans le bloc final, qui
+#  annonce « Tout est prêt : le module est signé », puis dans
+#  « mokutil --import ». L'écran se contredisait en deux lignes.
+#
+#  ET LE CAS EST ORDINAIRE, PAS THÉORIQUE : modinfo vit dans /usr/sbin, qui
+#  n'est pas dans le PATH d'un utilisateur ordinaire sous Debian.
+mkdir -p "$BANC/sans-modinfo"
+for B in sh bash grep sed awk od head tail cat printf id mktemp; do
+	C="$(command -v "$B" 2>/dev/null || true)"
+	[ -n "$C" ] && ln -sf "$C" "$BANC/sans-modinfo/$B"
+done
+ln -sf "$BANC/bin/mokutil" "$BANC/sans-modinfo/mokutil"
+
+: > "$BANC/trace"
+SANS_MODINFO="$(env -i PATH="$BANC/sans-modinfo" HOME="$BANC" NO_COLOR=1 TERM=dumb \
+	LEXOS_CMDLINE="$BANC/cmdline-installe" LEXOS_EFIVARS="$BANC/efi-on" \
+	LEXOS_DKMS_CONF="$BANC/dkms/framework.conf" LEXOS_DKMS_CONF_D="$BANC/dkms/conf.d" \
+	LEXOS_SHELL_DIR="$SHELL_DIR" LEXOS_MODULES="$BANC/modules" \
+	LEXOS_BANC_TRACE="$BANC/trace" LEXOS_MODINFO="modinfo-qui-n-existe-pas" \
+	bash "$OUTIL" --etat 2>&1)"
+case "$SANS_MODINFO" in
+	*"PAS PU savoir si le module est signé"*)
+		ok "modinfo introuvable : l'outil REFUSE au lieu d'annoncer « tout est prêt »" ;;
+	*"Tout est prêt"*)
+		non "l'outil annonce « le module est signé » juste après avoir écrit « inconnue » : il se contredit dans le même écran" ;;
+	*) non "le cas « modinfo introuvable » ne donne rien de reconnaissable : $(printf '%s' "$SANS_MODINFO" | tail -2 | tr '\n' ' ')" ;;
+esac
+TRACE_SM="$(cat "$BANC/trace" 2>/dev/null || true)"
+[ -z "$TRACE_SM" ] \
+	&& ok "…et il n'a lancé AUCUN outil : pas de mot de passe ni d'écran bleu pour rien" \
+	|| non "il est allé jusqu'à mokutil sans savoir si le module est signé : $TRACE_SM"
+
+#  Et il doit trouver modinfo là où il est VRAIMENT, sinon il refuse tout le
+#  temps sur une machine parfaitement saine.
+grep -vE '^\s*#' "$OUTIL" | grep -q '/usr/sbin/modinfo' \
+	&& ok "…mais il cherche d'abord modinfo dans /usr/sbin, où Debian le met" \
+	|| non "l'outil ne cherche modinfo que dans le PATH : il refuserait sur toute machine saine"
+
+# ===========================================================================
+titre "8. LES FAITS SUR DKMS SONT CEUX D'UN DKMS QUI EXISTE"
+# ===========================================================================
+#  ═══ UNE EXPLICATION FABRIQUÉE, RETIRÉE ═══
+#  L'en-tête donnait pour « lu » un réglage « try_sign_modules » valant
+#  « not_in_chroot », et s'en servait pour EXPLIQUER qu'une session live n'ait
+#  jamais de module signé. Vérification faite sur les sources : ce réglage
+#  n'existe dans AUCUN dkms publié — seulement sur la branche de
+#  développement d'amont, que Debian ne livre pas. L'affirmation aurait envoyé
+#  la prochaine lecture poser un réglage qui ne fait rien.
+#  Ce qui reste est ce qui a été confirmé sur un paquet dkms réel.
+#  ⚠ SANS LES COMMENTAIRES. L'en-tête EXPLIQUE que cette affirmation a été
+#  retirée — elle y est donc citée, et un grep nu comptait cette prose-là.
+#  Quatrième fois que ce dépôt paie « le contrôle qui lit la prose » ; à
+#  partir d'ici, tout contrôle qui cherche un jeton dans un fichier du dépôt
+#  retire d'abord les commentaires, sans exception.
+SALE="$(grep -vE '^\s*#' "$OUTIL" | grep -c 'try_sign_modules' || true)"
+[ "${SALE:-0}" = "0" ] \
+	&& ok "l'outil ne s'appuie plus sur « try_sign_modules », qui n'existe dans aucun dkms publié" \
+	|| non "l'outil affirme encore « try_sign_modules » ($SALE fois) : ce réglage n'existe pas dans les dkms livrés"
+
+#  « dkms generate_mok » n'existe qu'à partir de dkms 3.1 : trixie l'a,
+#  bookworm non — et README.md propose encore bookworm. L'outil doit DEMANDER
+#  à ce dkms-ci, pas supposer.
+grep -vE '^\s*#' "$OUTIL" | grep -q "dkms --help" \
+	&& ok "…et il demande à CE dkms s'il connaît « generate_mok » avant de le conseiller" \
+	|| non "l'outil conseille « dkms generate_mok » sans vérifier : sur dkms 3.0 (bookworm) la commande n'existe pas"
+
 printf '\n\033[1m%d réussis, %d échoués, %d non mesurés\033[0m\n' "$REUSSIS" "$ECHOUES" "$MUETS"
 [ "$ECHOUES" -eq 0 ]

@@ -16,11 +16,14 @@
 #  pilote.
 #
 #  ═══ POURQUOI UN FICHIER À PART, ET EN POSIX PUR ═══
-#  Trois appelants, trois shells : interactive.sh (sourcé par /bin/sh comme
-#  par bash), lexos-tv (#!/bin/sh) et les bancs. Même raison que
-#  secure-boot.sh juste à côté, et même interdit : ne pas « moderniser » avec
-#  [[ ]], un tableau ou une substitution bash — ça cesserait de marcher dans
-#  lexos-tv, et ça cesserait EN SILENCE.
+#  Deux appelants aujourd'hui : interactive.sh (sourcé aussi bien par /bin/sh
+#  que par bash) et le banc. Le POSIX pur n'est donc pas une contrainte du
+#  jour : c'est la même règle que secure-boot.sh juste à côté, pour que
+#  lexos-tv — qui est en #!/bin/sh — puisse le sourcer le jour où on le lui
+#  demandera, sans que personne ait à s'en souvenir.
+#  ⚠ CETTE NOTE A DIT « trois appelants, dont lexos-tv » ALORS QUE C'ÉTAIT
+#  FAUX : lexos-tv ne source que secure-boot.sh. Un commentaire faux est un
+#  défaut à part entière — la prochaine lecture s'y fie.
 #
 #  ═══ LA RÈGLE QUI COMPTE : NE JAMAIS CRIER AU LOUP ═══
 #  Une console sans DISPLAY, c'est aussi Ctrl+Alt+F2 pendant que le bureau
@@ -58,12 +61,25 @@ session_graphique_en_cours() {
 	return 1
 }
 
-#  Un module d'affichage est-il chargé ? On nomme les quatre qui pilotent un
-#  écran sur cette machine, et « nvidia » d'abord : c'est celui qui manque.
+#  Un module d'affichage est-il chargé ?
+#  ═══ TROIS RÉPONSES, PAS DEUX ═══
+#    0 = un pilote est chargé
+#    1 = AUCUN pilote chargé — c'est une mesure
+#    2 = je n'ai pas pu lire (pas de /proc/modules : chroot, conteneur…)
+#  La première version rendait 1 dans les deux derniers cas, et l'appelant
+#  imprimait alors « Mesuré : AUCUN pilote d'affichage n'est chargé » sur une
+#  machine où l'on n'avait simplement rien lu. C'est le bogue du dock, avec le
+#  mot « Mesuré » écrit dessus. secure-boot.sh fait déjà la distinction deux
+#  fichiers plus loin (mode_raid_dire : « impossible à vérifier » ≠ « rien
+#  d'anormal ») ; il n'y avait pas de raison de ne pas la faire ici.
 session_graphique_pilote() {
-	[ -r "$LEXOS_MODULES" ] || return 1
-	awk '{print $1}' "$LEXOS_MODULES" 2>/dev/null \
-		| grep -qE '^(nvidia|nouveau|i915|xe|amdgpu|radeon)$'
+	[ -r "$LEXOS_MODULES" ] || return 2
+	#  Les six modules qui pilotent un écran sur les machines visées.
+	if awk '{print $1}' "$LEXOS_MODULES" 2>/dev/null \
+		| grep -qE '^(nvidia|nouveau|i915|xe|amdgpu|radeon)$'; then
+		return 0
+	fi
+	return 1
 }
 
 #  La machine VISE-T-ELLE le graphique ? Sur une installation en mode serveur,
@@ -73,12 +89,23 @@ session_graphique_attendue() {
 	#  autrement qu'en relisant le code.
 	_sg_cible="${LEXOS_CIBLE_DEFAUT:-}"
 	if [ -z "$_sg_cible" ]; then
-		command -v systemctl >/dev/null 2>&1 || return 0
+		command -v systemctl >/dev/null 2>&1 || return 1
 		_sg_cible="$(systemctl get-default 2>/dev/null)"
 	fi
+	#  ═══ IL FAUT UNE RÉPONSE POSITIVE, PAS UNE ABSENCE DE REFUS ═══
+	#  La première version rendait 0 — « le graphique est attendu », donc feu
+	#  vert pour annoncer la panne — dans les deux cas où elle n'avait RIEN pu
+	#  mesurer : systemctl absent, et systemctl muet. Son propre commentaire
+	#  disait « on ne conclut pas » ; la valeur de retour, elle, concluait, et
+	#  du côté de l'alarme. C'est l'inverse exact de la doctrine de
+	#  secure-boot.sh : « le doute penche vers inactif — on préfère ne rien
+	#  dire à accuser Secure Boot d'un écran noir dont il n'est pas
+	#  responsable. »
+	#  Sur les machines visées, systemd est là et la cible est graphique : on
+	#  ne perd donc rien à exiger la réponse, et on cesse d'annoncer une panne
+	#  à une machine dont on ne sait rien.
 	case "$_sg_cible" in
 		graphical.target) return 0 ;;
-		"")               return 0 ;;   # systemd muet : on ne conclut pas
 		*)                return 1 ;;
 	esac
 }
@@ -115,6 +142,19 @@ _sg_nvidia_version() {
 	( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_VERSION:-}" )
 }
 
+#  ⚠ LA QUATRIÈME CLÉ, QUI MANQUAIT ICI. Le hook 0260 écrit aussi
+#  LEXOS_NVIDIA_MODULE (oui|non) : un pilote peut être installé sans que son
+#  module noyau ait été compilé — c'est arrivé, et ce dépôt a déjà livré deux
+#  ISO sur la foi d'un « apt a dit oui ». Sans cette lecture, le message
+#  annonçait « cette ISO embarque pourtant le pilote X » sur une ISO où RIEN
+#  ne pouvait prendre la carte : une consolation fausse, qui envoie chercher
+#  du côté du BIOS.
+_sg_nvidia_module() {
+	[ -r "$LEXOS_BUILD_CONF" ] || return 1
+	# shellcheck disable=SC1090
+	( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_MODULE:-}" )
+}
+
 #  ═══ LE MESSAGE ═══
 #  Quatre lignes au plus, en français, et dans cet ordre : ce qui n'a pas
 #  démarré, la cause MESURÉE, la commande pour en savoir plus, et la marche à
@@ -142,15 +182,43 @@ session_graphique_dire() {
 			;;
 	esac
 
-	#  Cause 2 : aucun pilote d'affichage chargé. C'est le cas d'Alex.
-	if ! session_graphique_pilote; then
+	#  ═══ ON SÉPARE « RIEN N'EST CHARGÉ » DE « JE N'AI PAS PU LIRE » ═══
+	session_graphique_pilote
+	_sg_p=$?
+
+	#  Cause 2a : on n'a pas pu lire la liste des modules. On ne prétend pas.
+	if [ "$_sg_p" = "2" ]; then
+		echo "  Je n'ai PAS PU lire la liste des modules du noyau"
+		echo "  (${LEXOS_MODULES}) : je ne sais donc pas quel pilote est chargé,"
+		echo "  et je ne vais pas l'inventer."
+		echo
+		echo "  Pour tout voir :  sudo lexos tv"
+		return 0
+	fi
+
+	#  Cause 2b : aucun pilote d'affichage chargé. C'est le cas d'Alex.
+	if [ "$_sg_p" = "1" ]; then
 		echo "  Mesuré : AUCUN pilote d'affichage n'est chargé (ni nvidia, ni"
 		echo "  nouveau, ni un pilote intégré). Le serveur graphique n'a donc"
 		echo "  rien pour dessiner."
-		#  Un « [ … ] && echo » ici rendrait 1 quand la condition est fausse.
-		#  Ce fragment est sourcé par lexos-tv, qui tourne sous « set -e » : la
-		#  ligne suivante ne serait jamais atteinte. On écrit donc un « if ».
+		#  Un « if », pas un « [ … ] && echo » : ce dernier rend 1 quand la
+		#  condition est fausse, et ce fragment est fait pour être sourcé par
+		#  n'importe quel appelant, y compris un qui tournerait sous
+		#  « set -e ». ⚠ LA PREMIÈRE VERSION DE CETTE NOTE JUSTIFIAIT LA MÊME
+		#  LIGNE PAR « lexos-tv tourne sous set -e » : doublement faux —
+		#  lexos-tv ne source pas ce fragment, et il est en « set -u ». Le
+		#  code était bon, sa raison était fabriquée.
 		_sg_v="$(_sg_nvidia_version 2>/dev/null || true)"
+		_sg_m="$(_sg_nvidia_module 2>/dev/null || true)"
+		if [ -n "$_sg_v" ] && [ "$_sg_m" = "non" ]; then
+			echo "  Cette ISO embarque le pilote NVIDIA ${_sg_v}, mais SON MODULE"
+			echo "  NOYAU n'a pas été compilé à la construction : il n'y a donc"
+			echo "  rien qui puisse prendre la carte. Une autre ISO est"
+			echo "  nécessaire — inutile de chercher du côté du BIOS."
+			echo
+			echo "  Pour tout voir :  sudo lexos tv"
+			return 0
+		fi
 		if [ -n "$_sg_v" ]; then
 			echo "  (Cette ISO embarque pourtant le pilote NVIDIA ${_sg_v}.)"
 		fi

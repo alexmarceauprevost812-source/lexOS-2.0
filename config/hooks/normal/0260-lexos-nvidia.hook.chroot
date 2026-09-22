@@ -595,8 +595,21 @@ if [ -z "$REUSSITE" ]; then
 		#  une clé USB, et la confiance dans le reste du projet. On échoue.
 		#
 		#  LA PORTE DE SORTIE EXISTE, et elle est bruyante exprès :
-		#  LEXOS_NVIDIA_FACULTATIF=1 dans build.conf ou dans l'environnement
-		#  laisse passer — mais l'ISO part alors marquée « absent-accepte »,
+		#  « sudo ./build.sh --sans-pilote » laisse passer — mais l'ISO part
+		#  alors marquée « absent-accepte »,
+		#
+		#  ⚠ POURQUOI UN DRAPEAU ET PAS UNE VARIABLE. Cette porte a d'abord
+		#  été annoncée comme « LEXOS_NVIDIA_FACULTATIF=1 dans build.conf ou
+		#  dans l'environnement ». Les deux étaient FERMÉES, et c'est mesuré :
+		#  « sudo » efface l'environnement (Defaults env_reset), live-build
+		#  lance les hooks .chroot sous « env -i » (donc rien ne traverse sans
+		#  un config/environment.chroot, que ce dépôt n'a pas), et build.sh
+		#  RÉÉCRIT build.conf depuis un gabarit figé avant chaque
+		#  construction. Un « exit 1 » dont le remède ne marche pas, c'est un
+		#  verrou sans clé : le jour où il se déclenche, la seule issue serait
+		#  d'éditer ce hook — c'est-à-dire de désactiver le contrôle.
+		#  build.sh pose donc la clé DANS build.conf, qui est copié dans le
+		#  chroot et sourcé en tête de ce hook.
 		#  et la console, lexfetch et lexos tv le disent aussi fort que pour
 		#  « absent ». Une porte de sortie silencieuse serait une porte qu'on
 		#  finit par laisser ouverte.
@@ -619,7 +632,8 @@ if [ -z "$REUSSITE" ]; then
 		echo "[lexos]"
 		echo "[lexos] Ce qui a été tenté est dans le rapport ci-dessous."
 		echo "[lexos] Pour construire quand même, en assumant une ISO sans"
-		echo "[lexos] pilote :  LEXOS_NVIDIA_FACULTATIF=1"
+		echo "[lexos] pilote :"
+		echo "[lexos]     sudo ./build.sh --flavour pro --sans-pilote"
 		echo "[lexos] ============================================================"
 		sed 's/^/[lexos] /' "$REPORT"
 		exit 1

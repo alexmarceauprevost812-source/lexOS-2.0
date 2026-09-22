@@ -119,7 +119,21 @@ if [[ -r "$LEXOS_BUILD_CONF" ]]; then
 	#  qu'on se pose devant un écran resté en console. Six saveurs existent
 	#  (minimal, standard, dev, full, gaming, pro) et elles se ressemblent
 	#  toutes une fois démarrées.
-	flavour="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_FLAVOUR:-}" )"
+	#
+	#  ⚠ ELLE EST DÉJÀ DANS /etc/os-release, ET C'EST LÀ QU'ON LA LIT.
+	#  Le hook 0100 l'y écrit (LEXOS_FLAVOUR), et ce fichier-ci source
+	#  os-release une cinquantaine de lignes plus haut : la variable est donc
+	#  DÉJÀ posée quand on arrive ici. La première version relisait quand même
+	#  build.conf « au cas où la clé manquerait », et son commentaire promettait
+	#  de ne rien inventer sur une ISO d'avant ce changement — mais la branche
+	#  n'était jamais atteinte, puisque os-release avait déjà tout dit. Le banc
+	#  la certifiait verte sans l'exercer : un faux vert de plus.
+	#  build.conf reste en second recours, pour une machine dont l'os-release
+	#  aurait été remplacé.
+	flavour="${LEXOS_FLAVOUR:-}"
+	if [[ -z "$flavour" ]]; then
+		flavour="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_FLAVOUR:-}" )"
+	fi
 	nv_etat="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_ETAT:-}" )"
 	nv_version="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_VERSION:-}" )"
 	nv_module="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_MODULE:-}" )"
@@ -168,8 +182,8 @@ add() { INFO+=("${A}${1}${R}${D}:${R} ${W}${2}${R}"); }
 if [[ -n "$flavour" ]]; then
 	add "OS       " "$os_pretty · $flavour · $arch"
 else
-	#  Pas de saveur inscrite = ISO d'avant ce changement. On n'invente pas
-	#  « standard » : on affiche la ligne comme avant.
+	#  Ni os-release ni build.conf ne la donnent : on n'invente pas
+	#  « standard », on affiche la ligne comme avant.
 	add "OS       " "$os_pretty $arch"
 fi
 [[ -n "$base" ]] && add "Base     " "Debian $base"

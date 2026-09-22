@@ -507,7 +507,7 @@ La fiche technique de la machine, avec le masque LexOS en art ASCII.
     ██ ▐████▌    ▐████▌ ██     Paquets  : 1842 (dpkg)
    ███▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀███    Bureau   : XFCE
     ███████▄▄▄▄▄▄▄▄███████     CPU      : Intel Core i5 (4 cœurs)
-    █████  ▄  ▄  ▄  █████      Pilote NV: 610.43.02
+    █████  ▄  ▄  ▄  █████      Pilote NV: 580.82.07-1
     ████   █  █  █   ████      Mémoire  : 1204 Mio / 7862 Mio
 ```
 
@@ -520,6 +520,12 @@ La fiche technique de la machine, avec le masque LexOS en art ASCII.
 > `/etc/lexos/build.conf`. La ligne « Pilote NV » n'apparaît que sur une
 > saveur qui en promet un ; elle affiche `ABSENT DE CETTE ISO` en clair quand
 > la cascade du pilote a échoué à la construction.
+>
+> *(La version montrée ici est d'une branche que la cascade peut réellement
+> retenir. Cet encadré a un temps affiché « 610.43.02 » — la seule branche que
+> le hook 0260 écarte exprès, à cause d'une régression HDMI sur téléviseur :
+> un exemple qui montrait précisément ce que la construction est bâtie pour ne
+> jamais livrer.)*
 
 ### `lexos`
 

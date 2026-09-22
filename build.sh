@@ -44,6 +44,11 @@ CHECK_ONLY=0
 CLI_FLAVOUR=""
 CLI_SUITE=""
 CLI_ARCH=""
+#  Les deux soupapes des hooks qui font échouer la construction. Elles se
+#  posent aussi dans lexos.conf, pour qu'une machine de construction puisse
+#  les tenir sans les retaper ; le drapeau a le dernier mot.
+SANS_PILOTE=0
+SANS_SECOURS=0""
 LB_EXTRA=()
 
 while [[ $# -gt 0 ]]; do
@@ -61,11 +66,35 @@ while [[ $# -gt 0 ]]; do
 			  sudo ./build.sh --suite trixie      change la base Debian
 			  sudo ./build.sh --arch amd64        architecture cible
 			  sudo ./build.sh --check             vérifie l'environnement et sort
+			  sudo ./build.sh --sans-pilote       accepte une ISO « pro » SANS pilote NVIDIA
+			                                      (sinon la construction échoue — voir hook 0260)
+			  sudo ./build.sh --sans-secours      accepte un menu UEFI SANS entrée de secours
+			                                      (sinon la construction échoue — voir hook 0910)
 			  ./build.sh --help                   cette aide
 
 			Tout ce qui suit « -- » est transmis tel quel à `lb build`.
 			USAGE
 			exit 0 ;;
+		#  ═══ LES DEUX SOUPAPES, EN DRAPEAUX ET PAS EN VARIABLES ═══
+		#  Deux hooks font désormais ÉCHOUER la construction : 0260 (une ISO
+		#  « pro » sans pilote NVIDIA) et 0910 (un menu UEFI sans entrée de
+		#  secours). Les deux annonçaient une porte de sortie par variable
+		#  d'environnement. MESURÉ : les deux portes étaient FERMÉES.
+		#    · « sudo ./build.sh » — la seule façon documentée de construire —
+		#      efface l'environnement (« Defaults env_reset » dans sudoers) ;
+		#    · et les hooks .chroot sont lancés par live-build sous
+		#      « env -i », qui repart d'un environnement vide : seul un
+		#      config/environment.chroot passerait, et ce dépôt n'en a pas ;
+		#    · et build.conf est RÉÉCRIT plus bas depuis un gabarit figé, donc
+		#      y poser la clé à la main ne survivait pas à la construction.
+		#  Un « exit 1 » dont le remède ne marche pas, c'est un verrou sans
+		#  clé : le jour où il se déclenche, la seule issue serait d'éditer le
+		#  hook et de repousser — c'est-à-dire de désactiver le contrôle,
+		#  exactement ce qu'on voulait éviter.
+		#  Un DRAPEAU, lui, traverse sudo : c'est un argument, pas un
+		#  environnement.
+		--sans-pilote)  SANS_PILOTE=1 ;;
+		--sans-secours) SANS_SECOURS=1 ;;
 		--) shift; LB_EXTRA+=("$@"); break ;;
 		*)  die "Option inconnue : $1  (essaie --help)" ;;
 	esac
@@ -81,7 +110,32 @@ source ./lexos.conf
 [[ -n "$CLI_FLAVOUR" ]] && LEXOS_FLAVOUR="$CLI_FLAVOUR"
 [[ -n "$CLI_SUITE"   ]] && LEXOS_DEBIAN_SUITE="$CLI_SUITE"
 [[ -n "$CLI_ARCH"    ]] && LEXOS_ARCH="$CLI_ARCH"
-export LEXOS_FLAVOUR LEXOS_DEBIAN_SUITE LEXOS_ARCH
+
+#  ═══ LES DEUX SOUPAPES, RÉSOLUES ICI, UNE FOIS ═══
+#  lexos.conf peut les poser ; le drapeau a le dernier mot. Ensuite :
+#    · LEXOS_NVIDIA_FACULTATIF part dans build.conf (plus bas), parce que le
+#      hook 0260 tourne DANS le chroot, où l'environnement de l'appelant
+#      n'arrive pas — mais où build.conf, lui, est copié et sourcé ;
+#    · LEXOS_SECOURS_FACULTATIF part dans l'ENVIRONNEMENT, parce que le hook
+#      0910 est un .hook.binary : il tourne sur l'hôte, comme un enfant de
+#      « lb build », donc il hérite de ce qu'on exporte ici.
+#  Deux hooks, deux mécaniques, et c'est justement ce qui rendait le défaut
+#  invisible à la relecture : ils avaient l'air d'avoir la même porte.
+[[ "$SANS_PILOTE"  = "1" ]] && LEXOS_NVIDIA_FACULTATIF=1
+[[ "$SANS_SECOURS" = "1" ]] && LEXOS_SECOURS_FACULTATIF=1
+LEXOS_NVIDIA_FACULTATIF="${LEXOS_NVIDIA_FACULTATIF:-0}"
+LEXOS_SECOURS_FACULTATIF="${LEXOS_SECOURS_FACULTATIF:-0}"
+export LEXOS_FLAVOUR LEXOS_DEBIAN_SUITE LEXOS_ARCH LEXOS_SECOURS_FACULTATIF
+
+if [[ "$LEXOS_NVIDIA_FACULTATIF" = "1" ]]; then
+	warn "--sans-pilote : une ISO « pro » sans pilote NVIDIA sera ACCEPTÉE."
+	warn "               Elle partira marquée « absent-accepte », et le dira."
+fi
+if [[ "$LEXOS_SECOURS_FACULTATIF" = "1" ]]; then
+	warn "--sans-secours : un menu UEFI sans entrée de secours sera ACCEPTÉ."
+	warn "                 Une machine dont l'affichage ne démarre pas n'aura"
+	warn "                 alors aucune façon d'arriver jusqu'à une console."
+fi
 
 case "$LEXOS_FLAVOUR" in
 	minimal|standard|dev|full|gaming|pro) ;;
@@ -195,6 +249,7 @@ LEXOS_WIFI_AUTO_OPEN="${LEXOS_WIFI_AUTO_OPEN}"
 LEXOS_DISK_ENCRYPTION="${LEXOS_DISK_ENCRYPTION}"
 LEXOS_KERNEL_CHANNEL="${LEXOS_KERNEL_CHANNEL}"
 LEXOS_NVIDIA_BRANCH="${LEXOS_NVIDIA_BRANCH:-}"
+LEXOS_NVIDIA_FACULTATIF="${LEXOS_NVIDIA_FACULTATIF}"
 LEXOS_BUILD_DATE="${BUILD_DATE}"
 LEXOS_BUILD_ID="${BUILD_ID}"
 EOF

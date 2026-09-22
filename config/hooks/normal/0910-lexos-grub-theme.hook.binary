@@ -94,7 +94,13 @@ CFG="${IMG}/boot/grub/grub.cfg"
 #  sans elle est une ISO qui abandonne quelqu'un devant un écran noir.
 #
 #  La porte de sortie, bruyante comme celle du pilote NVIDIA :
-#  LEXOS_SECOURS_FACULTATIF=1.
+#  « sudo ./build.sh --sans-secours ». Un DRAPEAU, pas une variable : « sudo »
+#  efface l'environnement (Defaults env_reset), donc
+#  « LEXOS_SECOURS_FACULTATIF=1 sudo ./build.sh » ne marchait pas. build.sh
+#  l'EXPORTE maintenant, et ce hook-ci est un .hook.binary — il tourne sur
+#  l'hôte, en enfant de « lb build », donc il en hérite. (Le hook 0260, lui,
+#  tourne dans le chroot et reçoit sa clé par build.conf : deux hooks, deux
+#  mécaniques, et c'est ce qui rendait le défaut invisible à la relecture.)
 if [ -r "$CFG" ]; then
 	if grep -q 'lexos\.failsafe=1' "$CFG"; then
 		echo "[lexos]   entrée de secours présente dans le menu UEFI (vérifié dans grub.cfg)"
@@ -103,18 +109,30 @@ if [ -r "$CFG" ]; then
 		echo "[lexos]      LEXOS_SECOURS_FACULTATIF=1, on laisse passer."
 	else
 		echo "[lexos] ============================================================"
-		echo "[lexos] ÉCHEC : le menu UEFI n'a PAS d'entrée de secours."
+		echo "[lexos] ÉCHEC : le marqueur « lexos.failsafe=1 » est ABSENT du"
+		echo "[lexos] menu UEFI de cette image."
 		echo "[lexos]"
-		echo "[lexos] auto/config passe bien --bootappend-live-failsafe, mais le"
-		echo "[lexos] grub.cfg de CETTE image ne contient pas le marqueur"
-		echo "[lexos] « lexos.failsafe=1 ». Sur une machine dont l'affichage ne"
-		echo "[lexos] démarre pas — c'est le cas qu'on corrige — il ne resterait"
-		echo "[lexos] aucune façon d'arriver jusqu'à une console."
+		#  ⚠ ON DIT CE QU'ON A MESURÉ, PAS CE QU'ON EN DÉDUIT. Ce contrôle ne
+		#  sait qu'une chose : SON marqueur n'est pas là. En conclure « il n'y
+		#  a pas d'entrée de secours » serait affirmer plus que ce qu'on a lu —
+		#  le marqueur peut avoir disparu parce qu'auto/config a changé, et
+		#  l'entrée être bien là. Le remède n'est pas le même dans les deux
+		#  cas, donc on imprime les entrées trouvées et on laisse lire.
+		echo "[lexos] auto/config passe bien --bootappend-live-failsafe et y pose"
+		echo "[lexos] ce marqueur. Deux lectures possibles, et elles n'ont pas le"
+		echo "[lexos] même remède :"
+		echo "[lexos]   · il n'y a vraiment pas d'entrée de secours — alors une"
+		echo "[lexos]     machine dont l'affichage ne démarre pas n'aurait aucune"
+		echo "[lexos]     façon d'arriver jusqu'à une console ;"
+		echo "[lexos]   · ou le marqueur a changé de nom dans auto/config, et il"
+		echo "[lexos]     faut le changer ici aussi."
+		echo "[lexos] Les entrées ci-dessous disent laquelle des deux."
 		echo "[lexos]"
 		echo "[lexos] Les entrées réellement présentes :"
 		grep -n '^menuentry\|^submenu' "$CFG" | sed 's/^/[lexos]   /' || true
 		echo "[lexos]"
-		echo "[lexos] Pour construire quand même : LEXOS_SECOURS_FACULTATIF=1"
+		echo "[lexos] Pour construire quand même :"
+		echo "[lexos]     sudo ./build.sh --sans-secours"
 		echo "[lexos] ============================================================"
 		exit 1
 	fi

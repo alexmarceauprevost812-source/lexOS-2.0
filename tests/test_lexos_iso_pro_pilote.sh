@@ -288,23 +288,44 @@ titre "6. LA SAVEUR SE VOIT — et l'exemple du README ne ment plus"
 #  se ressemblent toutes une fois démarrées. Or SEULE « pro » embarque un
 #  pilote NVIDIA : c'est exactement la question qu'on se pose devant un écran
 #  resté en console, et rien ne permettait d'y répondre DEPUIS la machine.
-saveur() {   # saveur <contenu de build.conf> -> la ligne OS
-	printf '%s' "$1" > "$BANC/build.conf"
-	LEXOS_BUILD_CONF="$BANC/build.conf" NO_COLOR=1 TERM=dumb \
+#  ⚠ LA SAVEUR VIENT D'ABORD DE /etc/os-release, ET C'EST MESURÉ ICI.
+#  Le hook 0100 y écrit LEXOS_FLAVOUR, et lexfetch source os-release avant
+#  d'arriver à ce bloc : la variable est donc DÉJÀ posée. La première version
+#  de ce contrôle ne jouait que build.conf, sur une machine de construction
+#  dont l'os-release n'a pas la clé — il certifiait donc verte une branche
+#  « clé absente » qui, sur une VRAIE machine LexOS, n'est jamais atteinte.
+#  On mesure maintenant les deux sources, et le cas où aucune ne répond.
+saveur() {   # saveur <contenu de build.conf> [VAR=val…] -> la ligne OS
+	local conf="$1"; shift
+	printf '%s' "$conf" > "$BANC/build.conf"
+	env -u LEXOS_FLAVOUR "$@" LEXOS_BUILD_CONF="$BANC/build.conf" \
+		NO_COLOR=1 TERM=dumb PATH="$PATH" HOME="$HOME" \
 		bash "$LEXFETCH" 2>/dev/null | grep -E 'OS  *:' | sed 's/.*OS  *: *//'
 }
+
+#  1. Par os-release — le chemin normal sur une machine LexOS. Sourcer
+#     os-release, c'est exactement poser la variable dans l'environnement.
+VU="$(saveur '' LEXOS_FLAVOUR=gaming)"
+case "$VU" in
+	*"· gaming ·"*) ok "la saveur d'os-release se lit sur la ligne « OS » (le chemin normal)" ;;
+	"")   non "lexfetch n'affiche plus de ligne OS du tout" ;;
+	*)    non "la saveur d'os-release ne se voit pas : « $VU »" ;;
+esac
+
+#  2. Par build.conf — le recours, si l'os-release a été remplacé.
 VU="$(saveur 'LEXOS_FLAVOUR="pro"
 ')"
 case "$VU" in
-	*"· pro ·"*) ok "la saveur gravée se lit sur la ligne « OS » de lexfetch" ;;
-	"")   non "lexfetch n'affiche plus de ligne OS du tout" ;;
-	*)    non "la saveur ne se voit pas : « $VU »" ;;
+	*"· pro ·"*) ok "…et build.conf sert de second recours quand os-release se tait" ;;
+	*)    non "sans os-release, la saveur de build.conf ne se voit pas : « $VU »" ;;
 esac
+
+#  3. Ni l'une ni l'autre : on n'invente pas « standard ».
 VU="$(saveur '')"
 case "$VU" in
-	*"·"*) non "sans saveur inscrite, lexfetch affiche un séparateur vide : « $VU »" ;;
+	*"·"*) non "sans aucune source, lexfetch affiche un séparateur vide : « $VU »" ;;
 	"")    non "lexfetch n'affiche plus de ligne OS du tout" ;;
-	*)     ok "…et une ISO d'avant ce changement garde sa ligne d'avant, sans rien inventer" ;;
+	*)     ok "…et quand aucune des deux ne répond, la ligne reste celle d'avant, sans rien inventer" ;;
 esac
 
 #  ═══ L'EXEMPLE DU README, COMPARÉ À LA CONFIGURATION RÉELLE ═══
@@ -342,6 +363,81 @@ else
 	grep -q "pas une capture d'une vraie machine" "$LISEZ" \
 		&& ok "…et l'encadré dit que c'est un EXEMPLE : on ne le recopiera plus comme un relevé" \
 		|| non "rien ne dit que l'exemple n'est pas une capture réelle — c'est ce qui a trompé une fois"
+
+	#  ═══ ET LA VERSION MONTRÉE DOIT ÊTRE LIVRABLE ═══
+	#  L'exemple a affiché « 610.43.02 » — la SEULE branche que le hook 0260
+	#  écarte exprès (régression HDMI sur téléviseur). Un exemple qui montre
+	#  précisément ce que la construction est bâtie pour ne jamais livrer.
+	#  On lit la liste des branches écartées dans le hook, on ne la recopie pas.
+	ECARTEES="$(sed -n 's/^BRANCHES_ECARTEES="\([^"]*\)".*/\1/p' \
+		"$RACINE/config/hooks/normal/0260-lexos-nvidia.hook.chroot" | head -1)"
+	VER_README="$(printf '%s' "$EXEMPLE" | sed -n 's/.*Pilote NV *: *\([0-9]*\)\..*/\1/p' | head -1)"
+	if [ -z "$ECARTEES" ]; then
+		muet "la liste des branches écartées n'a pas pu être lue dans le hook 0260"
+	elif [ -z "$VER_README" ]; then
+		muet "l'exemple du README n'affiche pas de ligne « Pilote NV »"
+	elif printf '%s' " $ECARTEES " | grep -q " $VER_README "; then
+		non "l'exemple du README montre la branche $VER_README, que le hook 0260 écarte exprès ($ECARTEES)"
+	else
+		ok "…et la version montrée est d'une branche que la cascade peut vraiment retenir (écartées : $ECARTEES)"
+	fi
+fi
+
+# ===========================================================================
+titre "7. LA PORTE DE SORTIE S'OUVRE VRAIMENT — par le chemin réel"
+# ===========================================================================
+#  ═══ UN VERROU SANS CLÉ ═══
+#  Le hook fait échouer la construction, et annonçait pour remède
+#  « LEXOS_NVIDIA_FACULTATIF=1 dans build.conf ou dans l'environnement ».
+#  MESURÉ : les deux voies étaient FERMÉES.
+#    · « sudo ./build.sh » — la seule façon documentée de construire — efface
+#      l'environnement (« Defaults env_reset ») ;
+#    · live-build lance les hooks .chroot sous « env -i », donc rien ne
+#      traverse sans un config/environment.chroot, que ce dépôt n'a pas ;
+#    · et build.sh RÉÉCRIT build.conf depuis un gabarit figé avant chaque
+#      construction : la clé posée à la main disparaissait.
+#  Le seul recours aurait été d'éditer le hook et de repousser — c'est-à-dire
+#  de désactiver le contrôle, exactement ce qu'on voulait éviter.
+#
+#  ⚠ ET LE BANC NE LE VOYAIT PAS : la section 3 pose la variable DANS le shell
+#  du hook. Elle éprouve la DÉCISION, ce qui reste juste ; elle n'éprouvait
+#  pas le CHEMIN. On joue donc ici les vraies lignes de build.sh.
+SOUPAPE="$RACINE/tests/aide/soupape-build.py"
+if [[ ! -r "$SOUPAPE" ]]; then
+	non "tests/aide/soupape-build.py manquant : le chemin de la soupape n'est pas éprouvé"
+else
+	AIDE="$(bash "$RACINE/build.sh" --help 2>&1 || true)"
+	case "$AIDE" in
+		*--sans-pilote*) ok "« build.sh --help » documente --sans-pilote" ;;
+		*) non "le drapeau --sans-pilote n'est pas dans l'aide : personne ne le trouvera" ;;
+	esac
+
+	VU="$(python3 "$SOUPAPE" "$RACINE" 0 0 2>&1)"
+	case "$VU" in
+		"CONF=0 ENV=0") ok "sans drapeau : la clé part à 0 dans build.conf" ;;
+		SANS_ANCRE) non "build.sh n'a plus les lignes qui portent la soupape : le contrôle ne contrôle rien" ;;
+		*) non "sans drapeau, build.sh écrit « $VU » — attendu CONF=0 ENV=0" ;;
+	esac
+
+	VU="$(python3 "$SOUPAPE" "$RACINE" 1 1 2>&1)"
+	case "$VU" in
+		"CONF=1 ENV=1")
+			ok "avec --sans-pilote : la clé arrive dans build.conf, que le hook du chroot SOURCE" ;;
+		"CONF=0"*) non "--sans-pilote n'atteint pas build.conf : la porte reste fermée, le « exit 1 » est un verrou sans clé" ;;
+		SANS_ANCRE) non "build.sh n'a plus les lignes qui portent la soupape" ;;
+		*) non "avec drapeau, build.sh écrit « $VU » — attendu CONF=1 ENV=1" ;;
+	esac
+
+	#  Et le hook doit bien LIRE build.conf pour y trouver la clé : c'est le
+	#  seul chemin qui traverse « env -i ».
+	sed -n '1,60p' "$HOOK" | grep -q '\. /etc/lexos/build\.conf' \
+		&& ok "…et le hook source bien build.conf en tête, donc il la voit" \
+		|| non "le hook ne source plus build.conf : la clé n'arriverait nulle part"
+
+	#  Le message d'échec doit nommer la commande qui MARCHE, pas la variable.
+	grep -q -- '--sans-pilote' "$HOOK" \
+		&& ok "…et le message d'échec nomme « --sans-pilote », pas une variable qui ne passe pas" \
+		|| non "le message d'échec envoie encore poser une variable d'environnement : elle n'arrivera jamais"
 fi
 
 printf '\n\033[1m%d réussis, %d échoués, %d non mesurés\033[0m\n' "$REUSSIS" "$ECHOUES" "$MUETS"

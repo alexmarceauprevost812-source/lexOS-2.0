@@ -24,25 +24,35 @@
 #  à la liste que le micrologiciel accepte (« MOK », Machine Owner Key).
 #
 #  ═══ CE QUE DKMS FAIT DÉJÀ TOUT SEUL, ET CE QU'IL NE PEUT PAS FAIRE ═══
-#  Lu dans la documentation d'amont de DKMS (dkms_framework.conf et dkms.8) :
-#    · « try_sign_modules » vaut « not_in_chroot » par défaut : DKMS essaie
-#      donc de signer, SAUF dans un chroot — c'est-à-dire sauf pendant la
-#      construction de l'ISO, ce qui explique qu'une session live n'ait jamais
-#      de module signé ;
+#  VÉRIFIÉ DANS UN PAQUET DKMS RÉEL (3.0.11), pas dans une page de manuel :
 #    · la clé et le certificat sont « mok_signing_key » et « mok_certificate »,
-#      par défaut /var/lib/dkms/mok.key et /var/lib/dkms/mok.pub, et DKMS les
-#      RECRÉE tout seul si l'un des deux manque ;
-#    · « dkms generate_mok » les fabrique à la demande.
-#  Autrement dit : sur un système INSTALLÉ, le module est probablement DÉJÀ
-#  signé. Ce qui manque est l'étape que DKMS ne peut pas faire à notre place —
-#  faire ACCEPTER ce certificat par le micrologiciel, ce qui demande une
+#      par défaut /var/lib/dkms/mok.key et /var/lib/dkms/mok.pub ;
+#    · DKMS les RECRÉE tout seul (openssl req -x509) si l'un des deux manque.
+#  Autrement dit : sur un système INSTALLÉ, le module est souvent DÉJÀ signé.
+#  Ce qui manque est l'étape que DKMS ne peut pas faire à notre place — faire
+#  ACCEPTER ce certificat par le micrologiciel, ce qui demande une
 #  manipulation au clavier avant tout système.
 #
-#  ⚠ CES NOMS VIENNENT DE LA DOCUMENTATION D'AMONT, PAS DU DKMS DE CETTE
-#  MACHINE. Le paquet de Debian peut changer un défaut. Cet outil ne suppose
-#  donc RIEN : il lit le framework.conf de la machine, vérifie que chaque
-#  fichier existe avant d'en parler, et dit « je ne sais pas » plutôt que
-#  d'affirmer. C'est la règle du dépôt, et elle vaut surtout ici.
+#  ⚠ UNE AFFIRMATION A ÉTÉ RETIRÉE D'ICI, ET IL FAUT DIRE LAQUELLE.
+#  Cette note a donné pour « lu » un réglage « try_sign_modules » valant
+#  « not_in_chroot », et s'en servait pour EXPLIQUER qu'une session live n'ait
+#  jamais de module signé. Vérification faite sur les sources : ce réglage
+#  n'existe dans AUCUN dkms publié — seulement sur la branche de
+#  développement d'amont, que Debian ne livre pas. L'explication était donc
+#  fabriquée, et elle aurait envoyé la prochaine lecture poser un réglage qui
+#  ne fait rien. Pourquoi une session live n'a pas de module signé reste à
+#  établir ; l'outil n'en a pas besoin pour faire son travail, et il refuse
+#  de toute façon en session live.
+#
+#  ⚠ ET « dkms generate_mok » N'EXISTE QU'À PARTIR DE DKMS 3.1. Trixie l'a,
+#  bookworm (dkms 3.0.x) ne l'a pas — et README.md propose encore bookworm.
+#  L'outil VÉRIFIE donc que l'action existe avant de la conseiller, au lieu
+#  d'envoyer taper une commande que dkms prendrait pour un nom de module.
+#
+#  Rien d'autre n'est supposé : l'outil lit le framework.conf de la machine,
+#  vérifie que chaque fichier existe avant d'en parler, et dit « je ne sais
+#  pas » plutôt que d'affirmer. C'est la règle du dépôt, et elle vaut surtout
+#  ici.
 #
 #  ═══ CE QU'IL NE FERA JAMAIS ═══
 #  · Il ne touche PAS à la clé privée : ni copie, ni déplacement, ni affichage.
@@ -158,15 +168,26 @@ if [ -r "$MODULES" ] && awk '{print $1}' "$MODULES" 2>/dev/null | grep -qx nvidi
 	MODULE_CHARGE=1
 fi
 
+#  ⚠ modinfo VIT DANS /usr/sbin, QUI N'EST PAS DANS LE PATH D'UN UTILISATEUR
+#  ORDINAIRE sous Debian (ENV_PATH de login.defs). « command -v modinfo »
+#  échouait donc pour l'utilisateur, et l'outil concluait « inconnue » — puis,
+#  plus bas, « tout est prêt ». On le cherche là où il est.
+#  La couture : sans elle, le cas « modinfo introuvable » n'est pas éprouvable,
+#  puisque les deux chemins absolus existent sur toute machine de banc.
+MODINFO=""
+for _m in ${LEXOS_MODINFO:-modinfo /usr/sbin/modinfo /sbin/modinfo}; do
+	if command -v "$_m" >/dev/null 2>&1; then MODINFO="$_m"; break; fi
+done
+
 SIGNATURE="inconnue"
-if command -v modinfo >/dev/null 2>&1; then
+if [ -n "$MODINFO" ]; then
 	#  « sig_id » n'existe que sur un module signé. Vide = pas de signature.
-	_sig="$(modinfo -F sig_id nvidia 2>/dev/null | head -1)"
+	_sig="$("$MODINFO" -F sig_id nvidia 2>/dev/null | head -1)"
 	if [ -n "$_sig" ]; then
 		SIGNATURE="signé ($_sig)"
 	else
 		#  modinfo peut aussi échouer parce qu'il n'y a pas de module du tout.
-		if modinfo nvidia >/dev/null 2>&1; then
+		if "$MODINFO" nvidia >/dev/null 2>&1; then
 			SIGNATURE="NON signé"
 		else
 			SIGNATURE="aucun module nvidia sur cette machine"
@@ -237,7 +258,13 @@ fi
 if [ ! -r "$CERT" ]; then
 	printf "  Le certificat de signature n'existe pas encore.\n\n"
 	if command -v dkms >/dev/null 2>&1; then
-		cat <<'FIN'
+		#  ⚠ « generate_mok » N'EXISTE QU'À PARTIR DE DKMS 3.1. Sur un dkms
+		#  3.0.x (bookworm), ce n'est pas une action : dkms la prend pour un
+		#  nom de module et répond à côté. On demande donc à CE dkms-ci s'il
+		#  la connaît, au lieu de le supposer — et sinon on donne le chemin
+		#  qui marche partout : une compilation recrée la paire toute seule.
+		if dkms --help 2>&1 | grep -q 'generate_mok'; then
+			cat <<'FIN'
   DKMS le fabrique tout seul au premier module qu'il compile, et sait aussi
   le faire à la demande. Dans l'ordre :
 
@@ -245,6 +272,16 @@ if [ ! -r "$CERT" ]; then
       sudo dkms autoinstall           (recompile et signe le module)
       sudo lexos-signer-pilote        (revenir ici pour l'inscription)
 FIN
+		else
+			cat <<'FIN'
+  DKMS fabrique la clé et le certificat tout seul au premier module qu'il
+  compile (ce dkms-ci n'a pas l'action « generate_mok », qui n'existe qu'à
+  partir de la version 3.1). Il suffit donc de recompiler :
+
+      sudo dkms autoinstall           (recompile, crée la paire, et signe)
+      sudo lexos-signer-pilote        (revenir ici pour l'inscription)
+FIN
+		fi
 	else
 		echo "  Et DKMS n'est pas installé sur cette machine : il n'y a donc"
 		echo "  aucun module compilé à signer. Vérifie d'abord le pilote avec :"
@@ -265,6 +302,25 @@ FIN
 fi
 
 case "$SIGNATURE" in
+	inconnue)
+		#  ═══ LE BOGUE DU DOCK, À L'ENVERS ═══
+		#  « inconnue » ne correspondait à aucune branche : on tombait dans le
+		#  bloc final, qui annonce « Tout est prêt : le module est signé », et
+		#  on allait jusqu'à « mokutil --import » — c'est-à-dire faire inscrire
+		#  une clé, avec mot de passe et écran bleu au redémarrage, dans l'état
+		#  précis dont l'outil dit lui-même qu'inscrire ne servirait à rien.
+		#  L'écran se contredisait en deux lignes : « Module nvidia : inconnue »
+		#  puis « le module est signé ».
+		cat <<'FIN'
+  Je n'ai PAS PU savoir si le module est signé : « modinfo » est introuvable.
+  Inscrire un certificat sans le savoir n'aurait aucun sens — au mieux c'est
+  inutile, au pire on tape un mot de passe et on redémarre pour rien.
+
+      sudo apt install kmod
+      sudo lexos-signer-pilote
+FIN
+		exit 1
+		;;
 	"NON signé")
 		cat <<'FIN'
   ⚠ Le module nvidia de cette machine n'est PAS signé. Inscrire le

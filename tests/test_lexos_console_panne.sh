@@ -249,10 +249,99 @@ else
 	else
 		non "la panne s'afficherait APRÈS le masque en blocs : c'est le défaut d'origine"
 	fi
-	grep -q 'session_graphique_absente' "$INTER" \
+	#  ⚠ ON RETIRE LES COMMENTAIRES AVANT DE CHERCHER, ET C'EST MESURÉ.
+	#  Ce contrôle cherchait « session_graphique_absente » dans TOUT
+	#  interactive.sh — or la ligne 286 de ce fichier est un COMMENTAIRE qui
+	#  nomme la fonction (« ⚠ ON NE CRIE PAS AU LOUP.
+	#  session_graphique_absente() exige QUATRE… »). Mutation jouée : on retire
+	#  le « if session_graphique_absente; then … fi » et on laisse le
+	#  commentaire — le banc restait à 23/23 VERTS, et chaque connexion SSH,
+	#  chaque Ctrl+Alt+F2 aurait annoncé une panne. C'est la faute n°1 de la
+	#  consigne, certifiée verte par le seul point du dépôt qui gardait cette
+	#  garde-là. Troisième fois que ce dépôt paie « le contrôle qui lit la
+	#  prose » ; il faudra finir par en faire une règle.
+	GARDE="$(grep -v '^[[:space:]]*#' "$INTER" | grep -c 'session_graphique_absente' || true)"
+	[ "${GARDE:-0}" != "0" ] \
 		&& ok "…et seulement quand les quatre conditions sont réunies" \
-		|| non "interactive.sh affiche le message sans vérifier qu'il y a vraiment une panne"
+		|| non "interactive.sh affiche le message sans vérifier qu'il y a vraiment une panne : chaque SSH et chaque Ctrl+Alt+F2 annoncerait une panne"
 fi
+
+# ===========================================================================
+titre "7. « JE N'AI PAS PU LIRE » N'EST PAS UNE MESURE"
+# ===========================================================================
+#  ═══ LE BOGUE DU DOCK, DANS LE FICHIER QUI LE RACONTE ═══
+#  Deux gardes concluaient quand elles n'avaient rien pu lire, et dans le sens
+#  qui CRIE AU LOUP :
+#    · session_graphique_attendue() rendait « le graphique est attendu » —
+#      donc feu vert pour annoncer la panne — quand systemctl était absent ou
+#      muet. Son propre commentaire disait « on ne conclut pas » ; la valeur
+#      de retour, elle, concluait.
+#    · session_graphique_pilote() rendait la même chose pour « aucun pilote
+#      chargé » et pour « /proc/modules illisible », et l'appelant imprimait
+#      alors le mot « Mesuré » sur ce qu'il n'avait pas lu.
+#  secure-boot.sh, deux fichiers plus loin, fait pourtant la distinction :
+#  « Mode du disque : impossible à vérifier » n'est pas « rien d'anormal ».
+#  On fabrique un PATH qui contient tout sauf systemctl, et un systemctl
+#  MUET : la couture LEXOS_CIBLE_DEFAUT ne suffit pas ici, puisque c'est
+#  justement le chemin « pas de couture » qu'on veut exercer.
+mkdir -p "$BANC/outils"
+for B in sh grep awk sed od tail head cat printf; do
+	CHEMIN="$(command -v "$B" 2>/dev/null || true)"
+	[ -n "$CHEMIN" ] && ln -sf "$CHEMIN" "$BANC/outils/$B"
+done
+cat > "$BANC/outils-muet-systemctl" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+mkdir -p "$BANC/outils-muet"
+cp -a "$BANC/outils/." "$BANC/outils-muet/" 2>/dev/null || true
+install -m 0755 "$BANC/outils-muet-systemctl" "$BANC/outils-muet/systemctl"
+
+sans_couture() {   # sans_couture <dossier de PATH>
+	env -i PATH="$1" HOME="$BANC" \
+		LEXOS_MODULES="$BANC/modules" LEXOS_X11_SOCKETS="$BANC/x11" \
+		LEXOS_BUILD_CONF="$BANC/build.conf" LEXOS_SHELL_DIR="$SHELL_DIR" \
+		sh -c '. "$0"; if session_graphique_absente; then echo oui; else echo non; fi' "$SG" 2>&1
+}
+
+VU_MUET="$(sans_couture "$BANC/outils-muet")"
+[ "$VU_MUET" = "non" ] \
+	&& ok "systemctl muet : on ne conclut PAS à la panne" \
+	|| non "systemd muet, et on annonce quand même une panne : le doute penche du côté de l'alarme (« $VU_MUET »)"
+
+VU_SANS="$(sans_couture "$BANC/outils")"
+[ "$VU_SANS" = "non" ] \
+	&& ok "…et sans systemctl du tout non plus (machine sans systemd, conteneur)" \
+	|| non "sans systemctl, on annonce une panne sur une machine dont on ne sait rien (« $VU_SANS »)"
+
+VU_ILLISIBLE="$(dire LEXOS_MODULES="$BANC/pas-de-modules")"
+case "$VU_ILLISIBLE" in
+	*"PAS PU lire la liste des modules"*)
+		ok "/proc/modules illisible : le message le DIT au lieu d'écrire « Mesuré »" ;;
+	*"Mesuré : AUCUN pilote"*)
+		non "le message écrit « Mesuré : AUCUN pilote » sur une liste qu'il n'a pas pu lire" ;;
+	*) non "le cas « modules illisibles » ne donne rien de reconnaissable : $(printf '%s' "$VU_ILLISIBLE" | tail -2 | tr '\n' ' ')" ;;
+esac
+
+# ===========================================================================
+titre "8. UN PILOTE LIVRÉ SANS SON MODULE NOYAU, ÇA SE DIT"
+# ===========================================================================
+#  Le hook 0260 écrit QUATRE clés, et le message n'en lisait que deux. Sur une
+#  ISO où le pilote est installé mais dont le module noyau n'a jamais été
+#  compilé — c'est arrivé, deux ISO ont été livrées sur la foi d'un « apt a
+#  dit oui » — le message annonçait « cette ISO embarque POURTANT le pilote
+#  NVIDIA 610.43.02 ». Une consolation fausse, qui envoie chercher du côté du
+#  BIOS alors qu'il n'y a rien à y trouver.
+printf 'LEXOS_NVIDIA_ETAT="ok"\nLEXOS_NVIDIA_VERSION="580.82.07"\nLEXOS_NVIDIA_MODULE="non"\n' > "$BANC/build.conf"
+VU_MOD="$(dire)"
+case "$VU_MOD" in
+	*"MODULE"*"pas été compilé"*"autre ISO"*)
+		ok "pilote sans module noyau : le message dit qu'il faut une autre ISO" ;;
+	*"embarque pourtant le pilote"*)
+		non "le message console comme si le pilote allait servir, alors que rien ne peut prendre la carte" ;;
+	*) non "le cas « module absent » ne donne rien de reconnaissable : $(printf '%s' "$VU_MOD" | tail -2 | tr '\n' ' ')" ;;
+esac
+rm -f "$BANC/build.conf"
 
 printf '\n\033[1m%d réussis, %d échoués, %d non mesurés\033[0m\n' "$REUSSIS" "$ECHOUES" "$MUETS"
 [ "$ECHOUES" -eq 0 ]
