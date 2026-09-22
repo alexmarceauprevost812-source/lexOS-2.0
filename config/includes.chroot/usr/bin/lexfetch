@@ -95,6 +95,36 @@ if [[ -r /proc/cpuinfo ]]; then
 	cpu="${cpu} (${cores} cœurs)"
 fi
 
+# --- Le pilote NVIDIA embarqué dans CETTE ISO -------------------------------
+#  ═══ POURQUOI ÇA SE LIT ICI, ET PAS SEULEMENT DANS UN RAPPORT ═══
+#  Une ISO « pro » peut partir sans pilote NVIDIA : la cascade du hook 0260 a
+#  quatre branches, et la dernière est « rien ». Avant, ça ne se voyait nulle
+#  part depuis la machine — ni ici, ni dans lexos tv. On démarrait, l'écran
+#  restait en console, et on cherchait du côté du BIOS pendant une soirée
+#  alors que l'ISO elle-même n'avait pas de quoi afficher quoi que ce soit.
+#  Le hook écrit maintenant son résultat dans build.conf ; il se lit d'un
+#  coup d'œil, et la ligne est ÉCRITE EN CLAIR quand le pilote manque.
+#
+#  TROIS RÉPONSES, PAS DEUX. « sans-objet » (saveur standard, qui ne promet
+#  aucun pilote NVIDIA) et clé absente (ISO d'avant ce changement) ne sont
+#  pas des pannes : on n'affiche alors RIEN, plutôt que d'inquiéter pour rien.
+nvidia_ligne=""
+LEXOS_BUILD_CONF="${LEXOS_BUILD_CONF:-/etc/lexos/build.conf}"
+if [[ -r "$LEXOS_BUILD_CONF" ]]; then
+	nv_etat="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_ETAT:-}" )"
+	nv_version="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_VERSION:-}" )"
+	nv_module="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_MODULE:-}" )"
+	case "$nv_etat" in
+		ok)
+			nvidia_ligne="${nv_version:-installé}"
+			[[ "$nv_module" == "non" ]] && nvidia_ligne="${nvidia_ligne} — module noyau ABSENT"
+			;;
+		absent|absent-accepte)
+			nvidia_ligne="ABSENT DE CETTE ISO — voir /etc/lexos/nvidia-report"
+			;;
+	esac
+fi
+
 gpu=""
 if command -v lspci >/dev/null 2>&1; then
 	gpu="$(lspci 2>/dev/null | grep -Ei 'vga|3d|display' \
@@ -137,6 +167,7 @@ add "Bureau   " "$de"
 add "Terminal " "$term_name"
 add "CPU      " "$cpu"
 [[ "$gpu" != "—" ]] && add "GPU      " "$gpu"
+[[ -n "$nvidia_ligne" ]] && add "Pilote NV" "$nvidia_ligne"
 add "Mémoire  " "$mem"
 add "Disque / " "$disk"
 INFO+=("")

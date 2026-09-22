@@ -176,6 +176,42 @@ decoder_edid() {
 	#  Et AUCUNE commande ne l'affichait. Il fallait savoir qu'il existe et
 	#  taper « cat » dessus. Un diagnostic que personne ne voit ne diagnostique
 	#  rien.
+	#  ═══ LA RÉPONSE EN UNE LIGNE, AVANT LE RAPPORT ═══
+	#  Le rapport ci-dessous est complet mais long : jusqu'à trente lignes de
+	#  trace de construction. Devant une machine qui ne démarre pas, la
+	#  première question est « est-ce que cette ISO a seulement un pilote ? »,
+	#  et elle doit se lire EN UNE SECONDE. Le hook 0260 l'écrit maintenant
+	#  dans build.conf ; on la sort ici, en clair, avant le détail.
+	if [ -r /etc/lexos/build.conf ]; then
+		NV_ETAT="$( . /etc/lexos/build.conf 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_ETAT:-}" )"
+		NV_VER="$( . /etc/lexos/build.conf 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_VERSION:-}" )"
+		NV_MOD="$( . /etc/lexos/build.conf 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_MODULE:-}" )"
+		NV_SRC="$( . /etc/lexos/build.conf 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_SOURCE:-}" )"
+		case "$NV_ETAT" in
+			absent|absent-accepte)
+				titre "PILOTE NVIDIA : ABSENT DE CETTE ISO"
+				echo "  Toutes les branches de la cascade ont échoué à la CONSTRUCTION."
+				echo "  Il n'y a rien à régler sur cette machine : il faut une autre ISO."
+				echo "  Le détail de ce qui a été tenté est juste en dessous."
+				if [ "$NV_ETAT" = "absent-accepte" ]; then
+					echo "  (Construite avec LEXOS_NVIDIA_FACULTATIF=1 — accepté sciemment.)"
+				fi
+				;;
+			ok)
+				titre "PILOTE NVIDIA EMBARQUÉ : ${NV_VER:-?}"
+				echo "  Source : ${NV_SRC:-?}"
+				if [ "$NV_MOD" = "non" ]; then
+					echo "  ⚠ Le MODULE NOYAU n'était pas compilé en fin de construction :"
+					echo "    le pilote est là, mais rien ne prendra la carte au démarrage."
+				fi
+				;;
+			sans-objet)
+				titre "PILOTE NVIDIA"
+				echo "  Cette saveur ne promet aucun pilote NVIDIA (${NV_SRC:-saveur standard})."
+				;;
+		esac
+	fi
+
 	if [ -r /etc/lexos/nvidia-report ]; then
 		titre "PILOTE NVIDIA EMBARQUÉ DANS CETTE ISO"
 		sed 's/^# \{0,1\}//; s/^/  /' /etc/lexos/nvidia-report

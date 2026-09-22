@@ -3076,6 +3076,24 @@ jobs:
           #  actif. Un conseil dangereux à moitié est pire que pas de conseil.
           bash tests/test_lexos_console_panne.sh
 
+      - name: Une ISO « pro » sans pilote NVIDIA ne part pas en silence
+        if: ${{ !cancelled() }}
+        run: |
+          #  La cascade du hook 0260 a quatre branches, et la dernière est
+          #  « rien ». Elle faisait « exit 0 » : la construction passait au
+          #  VERT et l'ISO partait sans pilote, ce qui ne se découvrait qu'en
+          #  démarrant la machine visée.
+          #
+          #  Une construction rouge se corrige en une heure ; une ISO verte
+          #  qui ne démarre pas coûte une soirée et une clé USB. Le hook
+          #  échoue donc, et la porte de sortie (LEXOS_NVIDIA_FACULTATIF=1)
+          #  laisse passer mais MARQUE l'ISO — une porte de sortie
+          #  silencieuse est une porte qu'on finit par laisser ouverte.
+          #
+          #  Le banc joue la décision au lieu de la relire, et vérifie que
+          #  lexfetch et lexos tv le disent en une seconde sur la machine.
+          bash tests/test_lexos_iso_pro_pilote.sh
+
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}
         run: |

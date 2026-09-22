@@ -46,10 +46,39 @@ if [ -r /etc/lexos/build.conf ]; then
 	BRANCHE="${LEXOS_NVIDIA_BRANCH:-}"
 fi
 
+#  ═══ CE QUE LA CASCADE A FAIT, ÉCRIT NOIR SUR BLANC ═══
+#  Jusqu'ici le résultat n'existait que dans le journal de construction — 450
+#  000 caractères dont l'API ne rend que la fin — et dans /etc/lexos/nvidia-
+#  report, un texte pour l'humain. Rien de LISIBLE PAR UN PROGRAMME : ni la
+#  console au démarrage, ni lexfetch, ni lexos tv ne pouvaient dire « cette
+#  ISO n'a pas de pilote ». On pose donc les quatre clés dans build.conf, à
+#  côté des autres, avec le même « remplacer sinon ajouter » que le hook 0600.
+#
+#    LEXOS_NVIDIA_ETAT     ok | absent | absent-accepte | sans-objet
+#    LEXOS_NVIDIA_VERSION  la version du PILOTE (pas du méta-paquet)
+#    LEXOS_NVIDIA_SOURCE   quelle branche de la cascade a gagné
+#    LEXOS_NVIDIA_MODULE   oui | non — le module noyau est-il compilé
+#
+#  « sans-objet » n'est pas « absent » : une saveur standard ne promet aucun
+#  pilote NVIDIA, et l'ABSENCE de la clé veut dire « ISO d'avant ce hook-ci ».
+#  Trois réponses, pas deux — la leçon de la tuile Bluetooth.
+conf_pose() {
+	#  $1 = clé, $2 = valeur
+	mkdir -p /etc/lexos
+	touch /etc/lexos/build.conf
+	if grep -q "^${1}=" /etc/lexos/build.conf; then
+		sed -i "s|^${1}=.*|${1}=\"${2}\"|" /etc/lexos/build.conf
+	else
+		echo "${1}=\"${2}\"" >> /etc/lexos/build.conf
+	fi
+}
+
 case "$FLAVOUR" in
 	pro) ;;
 	*)
 		echo "[lexos]   saveur ${FLAVOUR} : pas de pilote NVIDIA embarqué — rien à faire"
+		conf_pose LEXOS_NVIDIA_ETAT "sans-objet"
+		conf_pose LEXOS_NVIDIA_SOURCE "saveur ${FLAVOUR} — aucun pilote NVIDIA n'est promis"
 		exit 0
 		;;
 esac
@@ -57,6 +86,8 @@ esac
 ARCH="$(dpkg --print-architecture 2>/dev/null || echo inconnue)"
 if [ "$ARCH" != "amd64" ]; then
 	echo "[lexos]   architecture ${ARCH} : NVIDIA ne publie pas pour elle — rien à faire"
+	conf_pose LEXOS_NVIDIA_ETAT "sans-objet"
+	conf_pose LEXOS_NVIDIA_SOURCE "architecture ${ARCH} — NVIDIA ne publie pas de pilote pour elle"
 	exit 0
 fi
 
@@ -539,9 +570,59 @@ if [ -z "$REUSSITE" ]; then
 			echo "# Toutes les tentatives ont échoué (dépôt NVIDIA, Debian stable)."
 			echo "# Sur une carte NVIDIA récente : démarrer en fail-safe, puis suivre"
 			echo "# https://developer.nvidia.com — ou réessayer une ISO plus récente."
+			if [ -n "$TRACE" ]; then
+				echo "# Ce qui a été tenté, dans l'ordre :"
+				printf '%s' "$TRACE"
+			fi
 		} > "$REPORT"
-		echo "[lexos] hook 0260 : terminé (sans pilote, système propre)"
-		exit 0
+		conf_pose LEXOS_NVIDIA_VERSION ""
+		conf_pose LEXOS_NVIDIA_MODULE "non"
+		conf_pose LEXOS_NVIDIA_SOURCE "aucune — toutes les tentatives ont échoué à la construction"
+
+		# =====================================================================
+		#  UNE ISO « pro » SANS PILOTE NE PART PLUS EN SILENCE
+		# =====================================================================
+		#  CE QUE FAISAIT CETTE BRANCHE : « exit 0 ». La construction passait
+		#  au vert, l'ISO était publiée, et personne ne savait qu'elle ne
+		#  contenait pas de pilote — jusqu'à ce qu'une machine la démarre.
+		#  C'est un piège pour la saveur « pro » PRÉCISÉMENT parce que c'est
+		#  la seule qui promette les cartes NVIDIA récentes. La saveur
+		#  standard, elle, sort bien plus haut avec « sans-objet ».
+		#
+		#  LA DÉCISION, ET ELLE EST ÉCRITE ICI POUR QU'ON N'AIT PAS À LA
+		#  REDEMANDER : une construction rouge se corrige en une heure ; une
+		#  ISO verte qui ne démarre pas sur la machine visée coûte une soirée,
+		#  une clé USB, et la confiance dans le reste du projet. On échoue.
+		#
+		#  LA PORTE DE SORTIE EXISTE, et elle est bruyante exprès :
+		#  LEXOS_NVIDIA_FACULTATIF=1 dans build.conf ou dans l'environnement
+		#  laisse passer — mais l'ISO part alors marquée « absent-accepte »,
+		#  et la console, lexfetch et lexos tv le disent aussi fort que pour
+		#  « absent ». Une porte de sortie silencieuse serait une porte qu'on
+		#  finit par laisser ouverte.
+		if [ "${LEXOS_NVIDIA_FACULTATIF:-0}" = "1" ]; then
+			conf_pose LEXOS_NVIDIA_ETAT "absent-accepte"
+			echo "[lexos]   !! LEXOS_NVIDIA_FACULTATIF=1 — on laisse passer."
+			echo "[lexos]      L'ISO partira SANS pilote NVIDIA, et elle le dira :"
+			echo "[lexos]      LEXOS_NVIDIA_ETAT=absent-accepte dans build.conf."
+			echo "[lexos] hook 0260 : terminé (sans pilote, accepté explicitement)"
+			exit 0
+		fi
+		conf_pose LEXOS_NVIDIA_ETAT "absent"
+		echo "[lexos] ============================================================"
+		echo "[lexos] ÉCHEC : saveur « pro » sans pilote NVIDIA."
+		echo "[lexos]"
+		echo "[lexos] Toutes les branches de la cascade ont échoué. Cette ISO"
+		echo "[lexos] ne démarrerait PAS le bureau sur une carte RTX récente :"
+		echo "[lexos] elle retomberait en console, ce qui est exactement la"
+		echo "[lexos] panne qu'on est en train de corriger ailleurs."
+		echo "[lexos]"
+		echo "[lexos] Ce qui a été tenté est dans le rapport ci-dessous."
+		echo "[lexos] Pour construire quand même, en assumant une ISO sans"
+		echo "[lexos] pilote :  LEXOS_NVIDIA_FACULTATIF=1"
+		echo "[lexos] ============================================================"
+		sed 's/^/[lexos] /' "$REPORT"
+		exit 1
 	fi
 fi
 
@@ -731,6 +812,25 @@ META="$(dpkg-query -W -f='${Version}' nvidia-open 2>/dev/null || echo '')"
 } > "$REPORT"
 
 protege_alternative
+
+#  ═══ ET LE RÉSULTAT, LISIBLE PAR UN PROGRAMME ═══
+#  Le rapport ci-dessus est pour l'humain qui dépanne. Ces quatre clés-ci
+#  sont pour la console au démarrage, pour lexfetch et pour lexos tv : sans
+#  elles, aucun des trois ne peut distinguer « pas de pilote dans cette ISO »
+#  de « pilote refusé par le Secure Boot » — deux pannes qui se ressemblent à
+#  l'écran et qui n'ont pas du tout la même réponse.
+#  Le module est REVÉRIFIÉ ici plutôt que supposé depuis la cascade : entre
+#  la tentative et la fin du hook, il s'est passé un apt-mark et un
+#  autoremove, et ce dépôt a déjà vu neuf paquets disparaître à ce moment-là.
+if verifie_module >/dev/null 2>&1; then
+	conf_pose LEXOS_NVIDIA_MODULE "oui"
+else
+	conf_pose LEXOS_NVIDIA_MODULE "non"
+	echo "[lexos]   !! le module noyau n'est plus là en fin de hook — inscrit comme tel"
+fi
+conf_pose LEXOS_NVIDIA_ETAT "ok"
+conf_pose LEXOS_NVIDIA_VERSION "$VERSION"
+conf_pose LEXOS_NVIDIA_SOURCE "$REUSSITE"
 
 echo "[lexos]   pilote installé : ${VERSION} — ${REUSSITE}"
 echo "[lexos] hook 0260 : ok"
