@@ -68,6 +68,60 @@ THEME_REL="/boot/grub/themes/lexos"
 THEME_DIR="${IMG}${THEME_REL}"
 CFG="${IMG}/boot/grub/grub.cfg"
 
+# =============================================================================
+#  L'ENTRÉE DE SECOURS EXISTE-T-ELLE VRAIMENT DANS LE MENU UEFI ?
+# =============================================================================
+#  CE QU'ON NE SAVAIT PAS, ET POURQUOI ÇA COMPTE ICI.
+#  auto/config construit un BOOTAPPEND_FAILSAFE soigné — nomodeset, toute la
+#  pile NVIDIA et nouveau en liste noire, arrêt en console, TLP masqué — et le
+#  passe à live-build par « --bootappend-live-failsafe ». Mais la SEULE
+#  personnalisation de menu du dépôt est config/bootloaders/isolinux/, et
+#  ISOLINUX ne sert qu'au démarrage BIOS. L'Alienware démarre en UEFI, donc
+#  par GRUB, dont le menu est généré par live-build — et personne n'avait
+#  jamais VÉRIFIÉ, sur une ISO construite, que l'entrée de secours s'y trouve.
+#
+#  On ne se fie donc pas à ce que live-build est CENSÉ générer : on lit le
+#  grub.cfg de l'image qu'on vient de construire. Le marqueur cherché est
+#  « lexos.failsafe=1 », posé par auto/config précisément pour être
+#  reconnaissable — dans /proc/cmdline au moment d'un diagnostic, et ici.
+#
+#  ═══ ET CELUI-CI EST FATAL, CONTRAIREMENT AU RESTE DU HOOK ═══
+#  Tout le reste de ce fichier suit la règle « un menu bleu vaut mieux qu'une
+#  ISO qui ne démarre pas » et ne casse jamais la construction. Le thème est
+#  du confort. L'entrée de secours, non : c'est la seule façon de démarrer une
+#  machine dont l'affichage ne marche pas, et son absence se découvre
+#  EXACTEMENT au moment où l'on n'a plus aucun autre moyen. Une ISO livrée
+#  sans elle est une ISO qui abandonne quelqu'un devant un écran noir.
+#
+#  La porte de sortie, bruyante comme celle du pilote NVIDIA :
+#  LEXOS_SECOURS_FACULTATIF=1.
+if [ -r "$CFG" ]; then
+	if grep -q 'lexos\.failsafe=1' "$CFG"; then
+		echo "[lexos]   entrée de secours présente dans le menu UEFI (vérifié dans grub.cfg)"
+	elif [ "${LEXOS_SECOURS_FACULTATIF:-0}" = "1" ]; then
+		echo "[lexos]   !! AUCUNE entrée de secours dans le menu UEFI —"
+		echo "[lexos]      LEXOS_SECOURS_FACULTATIF=1, on laisse passer."
+	else
+		echo "[lexos] ============================================================"
+		echo "[lexos] ÉCHEC : le menu UEFI n'a PAS d'entrée de secours."
+		echo "[lexos]"
+		echo "[lexos] auto/config passe bien --bootappend-live-failsafe, mais le"
+		echo "[lexos] grub.cfg de CETTE image ne contient pas le marqueur"
+		echo "[lexos] « lexos.failsafe=1 ». Sur une machine dont l'affichage ne"
+		echo "[lexos] démarre pas — c'est le cas qu'on corrige — il ne resterait"
+		echo "[lexos] aucune façon d'arriver jusqu'à une console."
+		echo "[lexos]"
+		echo "[lexos] Les entrées réellement présentes :"
+		grep -n '^menuentry\|^submenu' "$CFG" | sed 's/^/[lexos]   /' || true
+		echo "[lexos]"
+		echo "[lexos] Pour construire quand même : LEXOS_SECOURS_FACULTATIF=1"
+		echo "[lexos] ============================================================"
+		exit 1
+	fi
+else
+	echo "[lexos]   !! ${CFG} illisible — l'entrée de secours n'a pas pu être vérifiée"
+fi
+
 # --- Le thème est-il bien arrivé dans l'image ? -----------------------------
 if [ ! -f "${THEME_DIR}/theme.txt" ]; then
 	echo "[lexos]   !! ${THEME_DIR}/theme.txt absent — menu laissé tel quel"

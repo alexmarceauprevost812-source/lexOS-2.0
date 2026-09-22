@@ -223,5 +223,110 @@ regle() { # regle <versions…>
 	&& ok "et si le dépôt n'a QUE du 610, il ne rend rien (le repli prend le relais)" \
 	|| non "une version écartée a été retenue"
 
+
+# ===========================================================================
+titre "6. L'ENTRÉE DE SECOURS EXISTE VRAIMENT DANS LE MENU UEFI"
+# ===========================================================================
+#  ═══ CE QUE PERSONNE N'AVAIT VÉRIFIÉ ═══
+#  auto/config construit un BOOTAPPEND_FAILSAFE soigné et le passe à
+#  live-build. Mais la SEULE personnalisation de menu du dépôt est
+#  config/bootloaders/isolinux/, et ISOLINUX ne sert qu'au démarrage BIOS.
+#  L'Alienware démarre en UEFI, donc par GRUB — et rien ne garantissait que
+#  l'entrée de secours s'y trouve. Une entrée de secours absente se découvre
+#  EXACTEMENT au moment où l'on n'a plus aucun autre moyen de démarrer.
+#
+#  On ne peut pas construire une ISO dans un banc. Ce qu'on peut faire, et
+#  c'est ce qui compte : s'assurer que la CONSTRUCTION, elle, le vérifie —
+#  sur le grub.cfg réel de l'image, pas sur ce que live-build est censé
+#  générer — et qu'elle échoue franchement sinon.
+AUTOCONF="$RACINE/auto/config"
+H0910="$RACINE/config/hooks/normal/0910-lexos-grub-theme.hook.binary"
+
+# --- Le contrat entre auto/config et le hook --------------------------------
+#  Le hook cherche « lexos.failsafe=1 ». Si auto/config cesse de le poser, le
+#  contrôle du hook deviendrait un FAUX ROUGE à chaque construction — et on
+#  finirait par le désactiver, ce qui est la pire des issues. Les deux doivent
+#  donc nommer le même marqueur, et c'est ça qu'on éprouve.
+if [[ ! -r "$AUTOCONF" || ! -r "$H0910" ]]; then
+	non "auto/config ou le hook 0910 est introuvable"
+else
+	#  ⚠ ON RETIRE LES COMMENTAIRES AVANT DE CHERCHER, ET C'EST MESURÉ : la
+	#  première version de ce contrôle est restée VERTE alors que le marqueur
+	#  avait été retiré de la vraie ligne — parce qu'il est aussi cité dans un
+	#  commentaire d'auto/config, trois lignes plus haut. Un contrôle qui lit
+	#  la prose au lieu du code ne contrôle rien. C'est la deuxième fois que
+	#  ce dépôt paie exactement cette faute.
+	POSE="$(grep -v '^[[:space:]]*#' "$AUTOCONF" | grep -c 'lexos\.failsafe=1' || true)"
+	[ "${POSE:-0}" != "0" ] \
+		&& ok "auto/config pose le marqueur « lexos.failsafe=1 » dans le mode de secours" \
+		|| non "auto/config ne pose plus le marqueur : le contrôle du hook rougirait pour rien"
+	grep -q 'lexos..failsafe=1' "$H0910" \
+		&& ok "…et le hook 0910 cherche CE marqueur-là dans le grub.cfg de l'image" \
+		|| non "le hook 0910 ne cherche pas le marqueur : l'entrée de secours n'est pas vérifiée"
+	grep -q -- '--bootappend-live-failsafe' "$AUTOCONF" \
+		&& ok "…et le mode de secours est bien passé à live-build" \
+		|| non "--bootappend-live-failsafe n'est plus passé : le menu n'aura pas d'entrée de secours du tout"
+	grep -qE -- '--bootloaders .*grub-efi' "$AUTOCONF" \
+		&& ok "…et grub-efi est bien construit (l'Alienware démarre en UEFI)" \
+		|| non "grub-efi n'est plus dans --bootloaders : il n'y aura pas de menu UEFI"
+fi
+
+# --- Et la vérification elle-même, JOUÉE sur de faux grub.cfg ---------------
+#  Le bloc est extrait du hook et exécuté sur trois images fabriquées. Ce
+#  qu'on mesure est le CODE DE SORTIE : c'est lui que live-build lit.
+#  Ce banc n'a que « ok » et « non » : on ne compte pas un « non mesuré »
+#  comme une réussite, donc python3 manquant est un rouge assumé ici — il est
+#  présent partout où ce dépôt tourne.
+if ! command -v python3 >/dev/null 2>&1; then
+	non "python3 absent : la vérification de l'entrée de secours n'a pas été jouée"
+else
+	secours() {   # secours <contenu grub.cfg> <LEXOS_SECOURS_FACULTATIF> -> "<code> <1re ligne>"
+		python3 - "$H0910" "$1" "$2" <<'SECOURS_PY' 2>&1
+import subprocess, sys, tempfile, os
+hook, contenu, facultatif = sys.argv[1:4]
+src = open(hook, encoding="utf-8").read()
+try:
+    i = src.index('if [ -r "$CFG" ]; then')
+    j = src.index('\n# --- Le thème est-il bien arrivé', i)
+except ValueError:
+    print("SANS_CONTROLE"); raise SystemExit
+d = tempfile.mkdtemp()
+cfg = os.path.join(d, "grub.cfg")
+open(cfg, "w", encoding="utf-8").write(contenu)
+script = 'CFG=%s\nLEXOS_SECOURS_FACULTATIF=%s\n' % (cfg, facultatif) + src[i:j]
+r = subprocess.run(["sh", "-c", script], capture_output=True, text=True)
+sortie = (r.stdout + r.stderr).strip().split("\n")
+print("%d %s" % (r.returncode, sortie[0] if sortie else ""))
+SECOURS_PY
+	}
+
+	AVEC='menuentry "LexOS" { linux /live/vmlinuz boot=live quiet }
+menuentry "Mode de secours" { linux /live/vmlinuz boot=live nomodeset lexos.failsafe=1 }'
+	SANS='menuentry "LexOS" { linux /live/vmlinuz boot=live quiet }'
+
+	VU="$(secours "$AVEC" 0)"
+	case "$VU" in
+		0*"entrée de secours présente"*) ok "un menu QUI A l'entrée de secours passe" ;;
+		SANS_CONTROLE) non "le hook 0910 ne vérifie plus rien : une ISO sans entrée de secours partirait en silence" ;;
+		*) non "un menu correct est refusé : $VU" ;;
+	esac
+
+	VU="$(secours "$SANS" 0)"
+	case "$VU" in
+		1*) ok "…et un menu SANS entrée de secours fait ÉCHOUER la construction" ;;
+		0*) non "un menu sans entrée de secours passe au vert : l'ISO abandonnerait quelqu'un devant un écran noir ($VU)" ;;
+		SANS_CONTROLE) non "le hook 0910 ne vérifie plus rien" ;;
+		*) non "le cas « sans entrée de secours » n'a pas pu être joué : $VU" ;;
+	esac
+
+	VU="$(secours "$SANS" 1)"
+	case "$VU" in
+		0*"AUCUNE entrée de secours"*) ok "…et la porte de sortie laisse passer, mais le DIT" ;;
+		1*) non "LEXOS_SECOURS_FACULTATIF=1 n'ouvre pas la porte de sortie ($VU)" ;;
+		0*) non "la porte de sortie laisse passer EN SILENCE : elle deviendrait invisible ($VU)" ;;
+		*) non "la porte de sortie n'a pas pu être jouée : $VU" ;;
+	esac
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]
