@@ -143,6 +143,15 @@ ${B}ÉNERGIE${R}
                       compare la version du pilote EMBARQUÉE dans l'ISO à
                       celle qui tourne VRAIMENT — la différence qui a déjà
                       fait passer une ISO buggée pour corrigée.${R}
+  ${A}signer-pilote${R}       ${B}Faire accepter le pilote NVIDIA par le Secure Boot${R}
+                      ${D}Le module NVIDIA est compilé sur la machine, donc
+                      signé par une clé que le micrologiciel ne connaît pas :
+                      avec Secure Boot actif, le noyau le REFUSE. Cette
+                      commande fait inscrire la clé, une fois pour toutes.
+                      Le Secure Boot reste ACTIF — donc BitLocker ne réclame
+                      aucune clé de récupération et les jeux à anti-triche
+                      continuent de fonctionner sous Windows. C'est toute la
+                      différence avec « couper le Secure Boot dans le BIOS ».${R}
   ${A}meteo${R}               Le temps qu'il fait, chez toi
   ${A}meteo ville${R} <nom>   Choisir ta ville ${D}(ex. : meteo ville Toronto)${R}
                       ${D}Aussi d'un clic sur la météo, dans la barre du haut.
@@ -1199,6 +1208,7 @@ case "$CMD" in
 	#  depuis lexos-wm (« --demarrer »), et une fonction enfermée ici ne le
 	#  pourrait pas. Même forme que « logitheque ».
 	crt)                  exec lexos-crt "$@" ;;
+	signer-pilote)        exec lexos-signer-pilote "$@" ;;
 	moteurd)              exec lexos-moteurd "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

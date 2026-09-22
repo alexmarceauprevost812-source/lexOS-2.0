@@ -1,0 +1,346 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  LexOS — signer le pilote NVIDIA au lieu de couper le Secure Boot
+# =============================================================================
+#  POURQUOI CET OUTIL EXISTE.
+#
+#  Le module NVIDIA est compilé sur la machine par DKMS. Un module compilé
+#  n'est pas signé par la clé de Debian : avec Secure Boot actif, le noyau
+#  REFUSE de le charger. Et comme LexOS écarte volontairement « nouveau » (il
+#  ne sait pas piloter les RTX 50), il ne reste alors AUCUN pilote graphique.
+#
+#  Jusqu'ici, la seule réponse de LexOS était « va couper le Secure Boot dans
+#  le BIOS ». Sur une machine en double démarrage — celle d'Alex l'est — ce
+#  conseil coûte cher :
+#    · BitLocker scelle sa clé sur l'état du micrologiciel. Changer le Secure
+#      Boot fait réclamer la CLÉ DE RÉCUPÉRATION au démarrage suivant de
+#      Windows. Sans elle, Windows est inaccessible.
+#    · Plusieurs jeux exigent le Secure Boot ACTIF et refusent de se lancer.
+#      Alex se sert de Windows pour jouer.
+#
+#  LA VRAIE RÉPONSE EST DE SIGNER LE MODULE, et elle ne touche à RIEN de tout
+#  ça : Secure Boot reste actif, BitLocker ne bronche pas, les jeux
+#  fonctionnent. On ajoute simplement une clé de confiance de plus, la nôtre,
+#  à la liste que le micrologiciel accepte (« MOK », Machine Owner Key).
+#
+#  ═══ CE QUE DKMS FAIT DÉJÀ TOUT SEUL, ET CE QU'IL NE PEUT PAS FAIRE ═══
+#  Lu dans la documentation d'amont de DKMS (dkms_framework.conf et dkms.8) :
+#    · « try_sign_modules » vaut « not_in_chroot » par défaut : DKMS essaie
+#      donc de signer, SAUF dans un chroot — c'est-à-dire sauf pendant la
+#      construction de l'ISO, ce qui explique qu'une session live n'ait jamais
+#      de module signé ;
+#    · la clé et le certificat sont « mok_signing_key » et « mok_certificate »,
+#      par défaut /var/lib/dkms/mok.key et /var/lib/dkms/mok.pub, et DKMS les
+#      RECRÉE tout seul si l'un des deux manque ;
+#    · « dkms generate_mok » les fabrique à la demande.
+#  Autrement dit : sur un système INSTALLÉ, le module est probablement DÉJÀ
+#  signé. Ce qui manque est l'étape que DKMS ne peut pas faire à notre place —
+#  faire ACCEPTER ce certificat par le micrologiciel, ce qui demande une
+#  manipulation au clavier avant tout système.
+#
+#  ⚠ CES NOMS VIENNENT DE LA DOCUMENTATION D'AMONT, PAS DU DKMS DE CETTE
+#  MACHINE. Le paquet de Debian peut changer un défaut. Cet outil ne suppose
+#  donc RIEN : il lit le framework.conf de la machine, vérifie que chaque
+#  fichier existe avant d'en parler, et dit « je ne sais pas » plutôt que
+#  d'affirmer. C'est la règle du dépôt, et elle vaut surtout ici.
+#
+#  ═══ CE QU'IL NE FERA JAMAIS ═══
+#  · Il ne touche PAS à la clé privée : ni copie, ni déplacement, ni affichage.
+#    Elle reste où DKMS l'a mise, sur cette machine, et nulle part ailleurs.
+#  · Il n'y a AUCUNE clé dans l'ISO. Une clé embarquée serait la même pour
+#    tout le monde : ce ne serait plus une signature, ce serait une porte.
+#  · En session live, il refuse : l'inscription d'une clé MOK demande un
+#    redémarrage, et une session live oublie tout en redémarrant.
+# =============================================================================
+set -u
+#  bash, pas sh : les couleurs ANSI-C ($'\033…') et « read -r » avec invite ne
+#  sont pas du POSIX. Ce fichier est un OUTIL, pas un fragment sourcé — il n'a
+#  donc pas la contrainte de secure-boot.sh, qu'il sait très bien sourcer.
+
+PROG="${0##*/}"
+
+if [ -t 1 ] && [ "${NO_COLOR:-}" = "" ]; then
+	O=$'\033[38;5;208m'; V=$'\033[32m'; E=$'\033[31m'; Y=$'\033[33m'
+	D=$'\033[2m'; B=$'\033[1m'; R=$'\033[0m'
+else
+	O=''; V=''; E=''; Y=''; D=''; B=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$V" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+titre(){ printf '\n%s%s%s\n' "$B" "$*" "$R"; }
+
+#  Les coutures. /proc, /sys et /var/lib ne se fabriquent pas dans un banc, et
+#  un outil qu'on ne peut que relire finit par mentir — c'est la leçon de
+#  verifier.sh, qui a passé des mois à ne rien vérifier sans que ça se voie.
+CMDLINE="${LEXOS_CMDLINE:-/proc/cmdline}"
+DKMS_CONF="${LEXOS_DKMS_CONF:-/etc/dkms/framework.conf}"
+DKMS_CONF_D="${LEXOS_DKMS_CONF_D:-/etc/dkms/framework.conf.d}"
+SHELL_DIR="${LEXOS_SHELL_DIR:-/usr/share/lexos/shell}"
+MODULES="${LEXOS_MODULES:-/proc/modules}"
+
+#  Les défauts documentés par DKMS. Ils ne servent que si le framework.conf
+#  de la machine ne dit rien — et on VÉRIFIE toujours que le fichier existe
+#  avant d'en parler.
+CERT_DEFAUT="/var/lib/dkms/mok.pub"
+
+case "${1:-}" in
+	-h|--help|aide|help)
+		cat <<AIDE
+${PROG} — faire accepter le pilote NVIDIA par le Secure Boot
+
+  ${O}sudo ${PROG}${R}           Vérifie, puis propose d'inscrire le certificat
+  ${O}${PROG} --etat${R}    Ne fait que dire où on en est (aucun changement)
+
+Signer le pilote laisse le Secure Boot ACTIF : ni BitLocker ni les jeux
+Windows ne sont touchés. C'est pour ça que c'est la bonne réponse.
+AIDE
+		exit 0
+		;;
+esac
+
+ETAT_SEUL=0
+[ "${1:-}" = "--etat" ] && ETAT_SEUL=1
+
+# =============================================================================
+#  1. UNE SESSION LIVE NE PEUT PAS INSCRIRE DE CLÉ
+# =============================================================================
+#  L'inscription passe par MokManager, qui s'affiche AU REDÉMARRAGE SUIVANT,
+#  avant tout système. Une session live n'a pas de redémarrage suivant : elle
+#  repart de l'ISO, sans rien de ce qu'on aurait fait. Le dire tout de suite
+#  vaut mieux que de laisser quelqu'un taper un mot de passe pour rien.
+EN_LIVE=0
+if [ -r "$CMDLINE" ] && grep -q 'boot=live' "$CMDLINE" 2>/dev/null; then
+	EN_LIVE=1
+fi
+
+# =============================================================================
+#  2. LE SECURE BOOT EST-IL SEULEMENT ACTIF ?
+# =============================================================================
+SB_ACTIF=0
+if [ -r "$SHELL_DIR/secure-boot.sh" ]; then
+	# shellcheck disable=SC1091
+	. "$SHELL_DIR/secure-boot.sh"
+	secure_boot_actif && SB_ACTIF=1
+fi
+
+# =============================================================================
+#  3. OÙ EST LE CERTIFICAT ? ON LE DEMANDE À LA MACHINE.
+# =============================================================================
+#  On lit le framework.conf de CETTE machine (et ses éventuels fragments),
+#  pas un défaut appris par cœur. « mok_certificate » peut y être redéfini
+#  par le paquet ou par l'utilisateur.
+cert_declare() {
+	_cc=""
+	for _f in "$DKMS_CONF" "$DKMS_CONF_D"/*.conf; do
+		[ -r "$_f" ] || continue
+		_l="$(grep -v '^[[:space:]]*#' "$_f" 2>/dev/null \
+			| sed -n 's/^[[:space:]]*mok_certificate=["'"'"']\{0,1\}\([^"'"'"']*\)["'"'"']\{0,1\}.*/\1/p' \
+			| tail -1)"
+		[ -n "$_l" ] && _cc="$_l"
+	done
+	printf '%s' "$_cc"
+}
+
+CERT="$(cert_declare)"
+CERT_SOURCE="framework.conf"
+if [ -z "$CERT" ]; then
+	CERT="$CERT_DEFAUT"
+	CERT_SOURCE="défaut documenté de DKMS"
+fi
+
+# =============================================================================
+#  4. LE MODULE EST-IL SIGNÉ, ET CHARGÉ ?
+# =============================================================================
+MODULE_CHARGE=0
+if [ -r "$MODULES" ] && awk '{print $1}' "$MODULES" 2>/dev/null | grep -qx nvidia; then
+	MODULE_CHARGE=1
+fi
+
+SIGNATURE="inconnue"
+if command -v modinfo >/dev/null 2>&1; then
+	#  « sig_id » n'existe que sur un module signé. Vide = pas de signature.
+	_sig="$(modinfo -F sig_id nvidia 2>/dev/null | head -1)"
+	if [ -n "$_sig" ]; then
+		SIGNATURE="signé ($_sig)"
+	else
+		#  modinfo peut aussi échouer parce qu'il n'y a pas de module du tout.
+		if modinfo nvidia >/dev/null 2>&1; then
+			SIGNATURE="NON signé"
+		else
+			SIGNATURE="aucun module nvidia sur cette machine"
+		fi
+	fi
+fi
+
+# =============================================================================
+#  LE RAPPORT
+# =============================================================================
+titre "Où on en est"
+if [ "$EN_LIVE" -eq 1 ]; then
+	printf '  Session      : %sLIVE%s (démarrée sur la clé USB)\n' "$Y" "$R"
+else
+	printf '  Session      : système installé\n'
+fi
+if [ "$SB_ACTIF" -eq 1 ]; then
+	printf '  Secure Boot  : %sACTIF%s\n' "$Y" "$R"
+else
+	printf '  Secure Boot  : inactif\n'
+fi
+printf '  Module nvidia: %s%s\n' "$SIGNATURE" \
+	"$([ "$MODULE_CHARGE" -eq 1 ] && printf ', chargé' || printf ', pas chargé')"
+if [ -r "$CERT" ]; then
+	printf '  Certificat   : %s  (%s)\n' "$CERT" "$CERT_SOURCE"
+else
+	printf '  Certificat   : %s — %sabsent%s  (%s)\n' "$CERT" "$Y" "$R" "$CERT_SOURCE"
+fi
+if command -v mokutil >/dev/null 2>&1; then
+	printf '  mokutil      : présent\n'
+else
+	printf '  mokutil      : %sabsent%s (paquet mokutil)\n' "$Y" "$R"
+fi
+
+# =============================================================================
+#  CE QU'IL FAUT FAIRE, SELON CE QU'ON VIENT DE LIRE
+# =============================================================================
+titre "Ce que ça veut dire"
+
+if [ "$EN_LIVE" -eq 1 ]; then
+	cat <<'FIN'
+  On est en session LIVE, et une clé MOK ne peut PAS s'inscrire d'ici.
+  L'inscription se termine dans MokManager, un écran bleu qui s'affiche au
+  REDÉMARRAGE SUIVANT — or une session live repart de l'ISO et oublie tout.
+
+  Depuis la clé USB, il n'y a que deux chemins :
+    · installer LexOS, puis relancer cette commande sur le système installé ;
+    · ou, le temps de l'installation seulement, choisir « Mode de secours »
+      dans le menu de démarrage : il coupe tous les pilotes graphiques et
+      s'arrête en console, ce qui suffit pour installer.
+FIN
+	exit 0
+fi
+
+if [ "$SB_ACTIF" -eq 0 ]; then
+	cat <<'FIN'
+  Le Secure Boot est INACTIF : le pilote peut se charger tel quel, il n'y a
+  rien à signer aujourd'hui.
+
+  Ça vaut quand même la peine de le faire un jour : une mise à jour du BIOS
+  ou une pile CMOS à plat réactivent le Secure Boot — les deux sont courants
+  sur ces machines — et l'écran redevient noir sans la moindre explication.
+  Relance cette commande une fois le Secure Boot réactivé.
+FIN
+	exit 0
+fi
+
+if [ ! -r "$CERT" ]; then
+	printf "  Le certificat de signature n'existe pas encore.\n\n"
+	if command -v dkms >/dev/null 2>&1; then
+		cat <<'FIN'
+  DKMS le fabrique tout seul au premier module qu'il compile, et sait aussi
+  le faire à la demande. Dans l'ordre :
+
+      sudo dkms generate_mok          (crée la clé et le certificat)
+      sudo dkms autoinstall           (recompile et signe le module)
+      sudo lexos-signer-pilote        (revenir ici pour l'inscription)
+FIN
+	else
+		echo "  Et DKMS n'est pas installé sur cette machine : il n'y a donc"
+		echo "  aucun module compilé à signer. Vérifie d'abord le pilote avec :"
+		echo "      sudo lexos tv"
+	fi
+	exit 1
+fi
+
+if ! command -v mokutil >/dev/null 2>&1; then
+	cat <<'FIN'
+  Le certificat est là, mais « mokutil » manque : c'est lui qui présente le
+  certificat au micrologiciel. Installe-le, puis relance :
+
+      sudo apt install mokutil
+      sudo lexos-signer-pilote
+FIN
+	exit 1
+fi
+
+case "$SIGNATURE" in
+	"NON signé")
+		cat <<'FIN'
+  ⚠ Le module nvidia de cette machine n'est PAS signé. Inscrire le
+  certificat ne servirait donc à rien tant qu'il ne l'est pas. Recompile-le
+  d'abord — DKMS signe pendant la compilation :
+
+      sudo dkms autoinstall
+      sudo lexos-signer-pilote
+FIN
+		exit 1
+		;;
+	"aucun module nvidia sur cette machine")
+		cat <<'FIN'
+  Il n'y a aucun module nvidia sur cette machine : il n'y a rien à signer.
+  Regarde d'abord ce que l'ISO contient et ce que la carte réclame :
+
+      sudo lexos tv
+FIN
+		exit 1
+		;;
+esac
+
+# =============================================================================
+#  L'INSCRIPTION
+# =============================================================================
+cat <<'FIN'
+  Tout est prêt : le module est signé, et il ne reste qu'à faire ACCEPTER
+  le certificat par le micrologiciel de la machine.
+
+  ═══ CE QUE ÇA CHANGE, ET SURTOUT CE QUE ÇA NE CHANGE PAS ═══
+  · Le Secure Boot reste ACTIF. On n'y touche pas.
+  · BitLocker ne bronchera pas : il ne réclamera aucune clé de récupération,
+    parce que l'état du Secure Boot ne change pas.
+  · Les jeux Windows qui exigent le Secure Boot continueront de fonctionner.
+  C'est toute la différence avec « aller couper le Secure Boot dans le BIOS ».
+
+  ═══ CE QUI VA SE PASSER ═══
+  1. mokutil va demander un mot de passe, DEUX FOIS. Il ne sert qu'une seule
+     fois, au prochain démarrage. Choisis-en un simple et note-le.
+  2. Au redémarrage, un écran bleu apparaît : MokManager. Il est en anglais.
+       · « Enroll MOK »  →  « Continue »  →  « Yes »
+       · il redemande le mot de passe du point 1
+       · « Reboot »
+  3. C'est fini, et c'est une fois pour toutes : les mises à jour du noyau
+     recompileront et resigneront le module avec la même clé.
+
+  ⚠ SI TU RATES L'ÉCRAN BLEU (c'est courant, il passe vite) : la machine
+  redémarre normalement, rien n'est cassé, et il suffit de relancer cette
+  commande.
+FIN
+
+if [ "$ETAT_SEUL" -eq 1 ]; then
+	printf "\n%s(--etat : rien n'a été fait.)%s\n" "$D" "$R"
+	exit 0
+fi
+
+if [ "$(id -u)" -ne 0 ]; then
+	printf '\n'
+	die "l'inscription demande les droits d'administration :  sudo ${PROG}"
+fi
+
+printf '\n'
+printf 'Inscrire ce certificat maintenant ? [o/N] '
+read -r REPONSE
+case "$REPONSE" in
+	o|O|oui|OUI|y|Y|yes) ;;
+	*) say "Rien n'a été fait."; exit 0 ;;
+esac
+
+say "mokutil va demander un mot de passe (deux fois)…"
+if mokutil --import "$CERT"; then
+	printf '\n'
+	ok "Certificat présenté au micrologiciel."
+	say "REDÉMARRE maintenant, et suis l'écran bleu « Enroll MOK »."
+	say "Ensuite, « sudo lexos tv » dira si le pilote est enfin pris."
+else
+	printf '\n'
+	die "mokutil a refusé. Rien n'a été inscrit ; la machine est intacte."
+fi

@@ -3094,6 +3094,24 @@ jobs:
           #  lexfetch et lexos tv le disent en une seconde sur la machine.
           bash tests/test_lexos_iso_pro_pilote.sh
 
+      - name: Signer le pilote plutôt que couper le Secure Boot
+        if: ${{ !cancelled() }}
+        run: |
+          #  Le module NVIDIA est compilé sur la machine, donc signé par une
+          #  clé que le micrologiciel ne connaît pas : avec Secure Boot actif,
+          #  le noyau le REFUSE. La seule réponse de LexOS était « va couper
+          #  le Secure Boot » — or sur une machine en double démarrage,
+          #  BitLocker réclame alors sa clé de récupération et les jeux à
+          #  anti-triche cessent de se lancer.
+          #
+          #  La bonne voie est de faire ACCEPTER la clé locale. Le banc
+          #  éprouve que l'outil refuse là où ça ne peut pas marcher (session
+          #  live), qu'il distingue les trois manques possibles, qu'il dit les
+          #  trois choses qui rendent cette voie meilleure, que « --etat » ne
+          #  lance rien — et qu'AUCUNE clé privée n'est versionnée, recherche
+          #  faite sur le CONTENU des fichiers et non sur leur nom.
+          bash tests/test_lexos_signer_pilote.sh
+
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}
         run: |

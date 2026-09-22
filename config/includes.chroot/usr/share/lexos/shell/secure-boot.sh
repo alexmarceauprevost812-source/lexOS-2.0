@@ -35,9 +35,18 @@
 #  réactivent — les deux sont courants sur ces machines — et l'écran redevient
 #  noir sans la moindre explication.
 #
-#  SIGNER LE MODULE N'EST PAS UNE OPTION ICI : inscrire une clé MOK demande
-#  une manipulation au clavier pendant le démarrage, avant tout système.
-#  Impossible depuis une ISO live. On ne le promet donc pas — on prévient.
+#  SIGNER LE MODULE N'EST PAS UNE OPTION EN SESSION LIVE : inscrire une clé
+#  MOK demande une manipulation au clavier pendant le démarrage, avant tout
+#  système, et une session live oublie tout en redémarrant. On ne le promet
+#  donc pas ici — on prévient.
+#
+#  ⚠ MAIS SUR UN SYSTÈME INSTALLÉ, SI. Cette note a longtemps dit « pas une
+#  option », tout court, et c'était trop large : DKMS signe déjà le module
+#  avec une clé locale, il ne manque que de la faire accepter par le
+#  micrologiciel — ce qui est une manipulation ordinaire, une fois pour
+#  toutes. C'est ce que fait « lexos signer-pilote », et c'est la BONNE
+#  réponse sur une machine en double démarrage : le Secure Boot reste actif,
+#  donc BitLocker ne réclame rien et les jeux à anti-triche continuent.
 # =============================================================================
 #
 #  Ce fragment est SOURCÉ, pas exécuté : pas de shebang, donc shellcheck ne

@@ -245,6 +245,7 @@ lexos-sauvegarde
 lexos-disques
 lexos-medecin
 lexos-materiel
+lexos-signer-pilote
 "
 
 [ "$CSV" = 1 ] && echo "outil;parametres;dispatcher;aide;lanceur"

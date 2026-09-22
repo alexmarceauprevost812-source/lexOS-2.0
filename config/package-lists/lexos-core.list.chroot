@@ -138,6 +138,18 @@ grub2-common
 #  seulement la clé USB de démonstration.
 grub-efi-amd64-signed
 shim-signed
+#  ═══ mokutil : LE SEUL MOYEN DE FAIRE ACCEPTER UNE CLÉ PAR LE MICROLOGICIEL ═══
+#  Le module NVIDIA est compilé par DKMS, donc signé par une clé locale que le
+#  micrologiciel ne connaît pas. Sans mokutil, il n'y a AUCUNE façon de la lui
+#  présenter — et la seule réponse restante serait « va couper le Secure Boot »,
+#  qui sur une machine en double démarrage fait réclamer la clé de récupération
+#  de BitLocker et casse les jeux à anti-triche.
+#  Il pesait son absence : la documentation le citait déjà comme outil de
+#  diagnostic (docs/LEXOS-PRO.md) alors qu'aucune liste ne l'installait.
+#  ⚠ secure-boot.sh continue de LIRE la variable EFI directement plutôt que
+#  d'appeler mokutil : un diagnostic ne doit pas dépendre d'un paquet. mokutil
+#  sert à ÉCRIRE (l'inscription), pas à lire.
+mokutil
 
 # --- Disques & systèmes de fichiers -----------------------------------------
 parted
