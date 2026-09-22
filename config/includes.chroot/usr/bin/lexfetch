@@ -109,8 +109,17 @@ fi
 #  aucun pilote NVIDIA) et clé absente (ISO d'avant ce changement) ne sont
 #  pas des pannes : on n'affiche alors RIEN, plutôt que d'inquiéter pour rien.
 nvidia_ligne=""
+flavour=""
 LEXOS_BUILD_CONF="${LEXOS_BUILD_CONF:-/etc/lexos/build.conf}"
 if [[ -r "$LEXOS_BUILD_CONF" ]]; then
+	#  ═══ LA SAVEUR, SUR LA LIGNE « OS » ═══
+	#  Rien ne permettait de savoir, DEPUIS LA MACHINE, quelle ISO avait été
+	#  gravée. Or les saveurs ne promettent pas la même chose : seule « pro »
+	#  embarque un pilote NVIDIA (hook 0260), et c'est exactement la question
+	#  qu'on se pose devant un écran resté en console. Six saveurs existent
+	#  (minimal, standard, dev, full, gaming, pro) et elles se ressemblent
+	#  toutes une fois démarrées.
+	flavour="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_FLAVOUR:-}" )"
 	nv_etat="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_ETAT:-}" )"
 	nv_version="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_VERSION:-}" )"
 	nv_module="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_MODULE:-}" )"
@@ -156,7 +165,13 @@ INFO+=("${B}${O}${user_name}${W}@${B}${O}${host_name}${R}")
 INFO+=("${D}────────────────────────────────${R}")
 add() { INFO+=("${A}${1}${R}${D}:${R} ${W}${2}${R}"); }
 
-add "OS       " "$os_pretty $arch"
+if [[ -n "$flavour" ]]; then
+	add "OS       " "$os_pretty · $flavour · $arch"
+else
+	#  Pas de saveur inscrite = ISO d'avant ce changement. On n'invente pas
+	#  « standard » : on affiche la ligne comme avant.
+	add "OS       " "$os_pretty $arch"
+fi
 [[ -n "$base" ]] && add "Base     " "Debian $base"
 add "Noyau    " "$kernel"
 add "Uptime   " "${uptime_h:-—}"

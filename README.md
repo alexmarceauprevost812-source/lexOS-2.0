@@ -500,15 +500,26 @@ La fiche technique de la machine, avec le masque LexOS en art ASCII.
 ```
         ▄▄██████████▄▄         lex@lexos
      ▄██████████████████▄      ────────────────────────────────
-  ▄████████████████████████▄   OS       : LexOS 2.0.0 (Nomad) x86_64
-  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀   Base     : Debian bookworm (12.5)
-   ███▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄███    Noyau    : 6.1.0-18-amd64
+  ▄████████████████████████▄   OS       : LexOS 2.0.0 (Nomad) · pro · x86_64
+  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀   Base     : Debian trixie (13)
+   ███▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄███    Noyau    : 6.12.48-amd64
     ██ ▐████▌    ▐████▌ ██     Uptime   : 14 minutes
     ██ ▐████▌    ▐████▌ ██     Paquets  : 1842 (dpkg)
    ███▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀███    Bureau   : XFCE
     ███████▄▄▄▄▄▄▄▄███████     CPU      : Intel Core i5 (4 cœurs)
-    █████  ▄  ▄  ▄  █████      Mémoire  : 1204 Mio / 7862 Mio
+    █████  ▄  ▄  ▄  █████      Pilote NV: 610.43.02
+    ████   █  █  █   ████      Mémoire  : 1204 Mio / 7862 Mio
 ```
+
+> **C'est un exemple, pas une capture d'une vraie machine.** Les chiffres
+> dépendent de la construction. Cet encadré a longtemps affiché « Debian
+> bookworm (12.5) » et un noyau « 6.1.0-18 » — LexOS 2.0 est construit sur
+> **trixie** avec un noyau **6.12** — et il a été recopié tel quel en croyant
+> qu'il venait d'une vraie machine. Les trois lignes qui viennent de la
+> construction (**saveur**, **base Debian**, **pilote NVIDIA**) sont lues dans
+> `/etc/lexos/build.conf`. La ligne « Pilote NV » n'apparaît que sur une
+> saveur qui en promet un ; elle affiche `ABSENT DE CETTE ISO` en clair quand
+> la cascade du pilote a échoué à la construction.
 
 ### `lexos`
 

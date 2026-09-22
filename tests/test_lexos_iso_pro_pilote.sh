@@ -280,5 +280,69 @@ case "$VU" in
 	*) non "le cas « ok » ne donne rien de reconnaissable : $VU" ;;
 esac
 
+# ===========================================================================
+titre "6. LA SAVEUR SE VOIT — et l'exemple du README ne ment plus"
+# ===========================================================================
+#  ═══ POURQUOI LA SAVEUR EST UNE INFORMATION DE PANNE ═══
+#  Six saveurs existent (minimal, standard, dev, full, gaming, pro) et elles
+#  se ressemblent toutes une fois démarrées. Or SEULE « pro » embarque un
+#  pilote NVIDIA : c'est exactement la question qu'on se pose devant un écran
+#  resté en console, et rien ne permettait d'y répondre DEPUIS la machine.
+saveur() {   # saveur <contenu de build.conf> -> la ligne OS
+	printf '%s' "$1" > "$BANC/build.conf"
+	LEXOS_BUILD_CONF="$BANC/build.conf" NO_COLOR=1 TERM=dumb \
+		bash "$LEXFETCH" 2>/dev/null | grep -E 'OS  *:' | sed 's/.*OS  *: *//'
+}
+VU="$(saveur 'LEXOS_FLAVOUR="pro"
+')"
+case "$VU" in
+	*"· pro ·"*) ok "la saveur gravée se lit sur la ligne « OS » de lexfetch" ;;
+	"")   non "lexfetch n'affiche plus de ligne OS du tout" ;;
+	*)    non "la saveur ne se voit pas : « $VU »" ;;
+esac
+VU="$(saveur '')"
+case "$VU" in
+	*"·"*) non "sans saveur inscrite, lexfetch affiche un séparateur vide : « $VU »" ;;
+	"")    non "lexfetch n'affiche plus de ligne OS du tout" ;;
+	*)     ok "…et une ISO d'avant ce changement garde sa ligne d'avant, sans rien inventer" ;;
+esac
+
+#  ═══ L'EXEMPLE DU README, COMPARÉ À LA CONFIGURATION RÉELLE ═══
+#  Il affichait « Debian bookworm (12.5) » et un noyau « 6.1.0-18 ». LexOS 2.0
+#  est construit sur trixie avec un noyau 6.12. Alex l'a collé en croyant
+#  qu'il venait de son Alienware — c'est dire à quel point il a l'air vrai.
+#  On ne relit donc pas l'exemple : on le COMPARE à lexos.conf.
+CONF="$RACINE/lexos.conf"
+LISEZ="$RACINE/README.md"
+if [[ ! -r "$CONF" || ! -r "$LISEZ" ]]; then
+	muet "lexos.conf ou README.md introuvable : l'exemple n'a pas été comparé"
+else
+	SUITE="$(sed -n 's/^LEXOS_DEBIAN_SUITE="\([^"]*\)".*/\1/p' "$CONF" | head -1)"
+	EXEMPLE="$(sed -n '/lex@lexos/,/^```$/p' "$LISEZ")"
+	if [ -z "$SUITE" ]; then
+		muet "LEXOS_DEBIAN_SUITE n'a pas pu être lu dans lexos.conf"
+	elif [ -z "$EXEMPLE" ]; then
+		non "l'exemple de lexfetch a disparu du README : le contrôle ne contrôle plus rien"
+	else
+		BASE_VUE="$(printf '%s' "$EXEMPLE" | sed -n 's/.*Base  *: *Debian \([a-z]*\).*/\1/p' | head -1)"
+		if [ "$BASE_VUE" = "$SUITE" ]; then
+			ok "l'exemple du README nomme la même base que lexos.conf ($SUITE)"
+		else
+			non "l'exemple du README dit « $BASE_VUE » alors que lexos.conf construit sur « $SUITE »"
+		fi
+		#  Le noyau : on vérifie la SÉRIE, pas le numéro exact (il change à
+		#  chaque point de Debian, et l'exiger ferait rougir le banc pour rien).
+		NOYAU_VU="$(printf '%s' "$EXEMPLE" | sed -n 's/.*Noyau  *: *\([0-9]*\.[0-9]*\).*/\1/p' | head -1)"
+		case "$NOYAU_VU" in
+			6.1) non "l'exemple du README montre un noyau 6.1 — c'est celui de bookworm, pas de $SUITE" ;;
+			"")  non "le noyau n'a pas pu être lu dans l'exemple du README" ;;
+			*)   ok "…et un noyau de la série $NOYAU_VU, pas celui d'une Debian précédente" ;;
+		esac
+	fi
+	grep -q "pas une capture d'une vraie machine" "$LISEZ" \
+		&& ok "…et l'encadré dit que c'est un EXEMPLE : on ne le recopiera plus comme un relevé" \
+		|| non "rien ne dit que l'exemple n'est pas une capture réelle — c'est ce qui a trompé une fois"
+fi
+
 printf '\n\033[1m%d réussis, %d échoués, %d non mesurés\033[0m\n' "$REUSSIS" "$ECHOUES" "$MUETS"
 [ "$ECHOUES" -eq 0 ]
