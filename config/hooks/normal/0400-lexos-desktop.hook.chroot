@@ -644,8 +644,8 @@ Keywords=formater;format;effacer;cle;usb;telephone;disque;
 EOF
 
 #  LE BOUTON MASCOTTE — « toutes les applications », dans le coin en bas.
-#  Il lance xfce4-appfinder, qui est la page des applications de LexOS depuis
-#  qu'elle est passée en grille (xfce4-appfinder.xml dans le squelette).
+#  Il lance la vue native des bureaux, des compteurs et des applications.
+#  Les applications installées sont présentées en pages verticales.
 #  L'entrée existe pour deux raisons : le lanceur du dock la vise, et le
 #  geste devient trouvable dans le menu et dans la recherche.
 cat > /usr/share/applications/lexos-applications.desktop <<EOF
@@ -655,7 +655,7 @@ Version=1.0
 Name=Toutes les applications
 Name[en]=All applications
 Comment=La page de toutes les applications installées
-Exec=xfce4-appfinder
+Exec=lexos-overview
 Icon=lexos-applications
 Terminal=false
 Categories=System;Utility;

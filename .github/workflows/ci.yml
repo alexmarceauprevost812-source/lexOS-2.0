@@ -526,6 +526,10 @@ jobs:
           #  partout ailleurs dans ce fichier.
           LEXOS_PRO_EXIGER_MESURE=1 bash tests/test_lexos_pro.sh
 
+      - name: Vue des bureaux — pages, filtres XDG et mesures indisponibles
+        if: ${{ !cancelled() }}
+        run: QT_QPA_PLATFORM=offscreen python3 tests/test_lexos_overview.py
+
       - name: lexos-applis — le filtre s'applique, et Exec n'est pas un shell
         if: ${{ !cancelled() }}
         run: |

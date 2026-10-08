@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Bouton des bureaux et applications LexOS
+Exec=lexos-overview --dock-button
+Icon=lexos-applications
+OnlyShowIn=XFCE;
+Terminal=false
+StartupNotify=false

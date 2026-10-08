@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+RUNTIME="${XDG_RUNTIME_DIR:-/tmp/lexos-$(id -u)}"
+mkdir -p "$RUNTIME"
+MODE="vue"
+[ "${1:-}" != "--dock-button" ] || MODE="bouton"
+exec 9>"$RUNTIME/lexos-overview-$MODE.lock"
+flock -n 9 || exit 0
+exec python3 /usr/lib/lexos/overview.py "$@"
