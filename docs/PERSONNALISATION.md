@@ -213,7 +213,7 @@ LEXOS_CRT_EFFECTS="on"          # effets TV activés par défaut
 LEXOS_PERF_PROFILE="auto"       # auto | petit | medium | performant | max
 LEXOS_WIFI_AUTO_OPEN="off"      # connexion auto aux réseaux ouverts
 LEXOS_DISK_ENCRYPTION="proposed" # chiffrement proposé à l'installation
-LEXOS_FLAVOUR="standard"
+LEXOS_FLAVOUR="pro"
 ```
 
 `LEXOS_LOCALE` ne fixe que la langue par défaut au premier démarrage : LexOS
