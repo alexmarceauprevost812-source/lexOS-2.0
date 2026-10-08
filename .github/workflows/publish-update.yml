@@ -1,6 +1,9 @@
 name: Publier une mise à jour LexOS Pro
 on:
   workflow_dispatch:
+  push:
+    branches: ['lexos-pro-terminal-kali']
+    paths: ['.lexos-update-request']
 permissions:
   contents: write
 concurrency:
