@@ -81,6 +81,7 @@ ${B}PAQUETS${R}
   ${A}install${R} <paquets…>  Installer des paquets
   ${A}remove${R}  <paquets…>  Désinstaller des paquets
   ${A}search${R}  <terme>     Chercher un paquet
+  ${A}outils-kali${R}        Installer des outils de sécurité (liste | etat | installer)
   ${A}clean${R}               Libérer de l'espace (caches, orphelins, journaux)
                       ${D}Les mises à jour de sécurité s'installent seules chaque jour
                       (unattended-upgrades) ; une notification prévient pour le reste.${R}
@@ -1209,6 +1210,7 @@ case "$CMD" in
 	#  pourrait pas. Même forme que « logitheque ».
 	crt)                  exec lexos-crt "$@" ;;
 	signer-pilote)        exec lexos-signer-pilote "$@" ;;
+	outils-kali|kali)     exec lexos-outils-kali "$@" ;;
 	moteurd)              exec lexos-moteurd "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

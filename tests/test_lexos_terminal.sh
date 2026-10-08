@@ -607,22 +607,24 @@ case "$DEV" in
 	*"${ESC}[38;2;0;215;0m"*) ok "…et le vert de la machine y est bien la valeur du terminal (38;2;0;215;0)" ;;
 	*) non "le vert de l'invite n'est pas celui du terminal" ;;
 esac
-#  LES TROIS COULEURS DE L'INVITE (consigne « terminal XFCE », partie 1) :
-#  le nom en rouge clair #FF7B7B, « LEXOS » en vert foncé #159A3D juste à
-#  côté, le vert machine pour le reste — et plus de « @machine ».
+#  Nom lime néon, lexOS orange, suffixe -PRO blanc.
 QUI="$(id -un)"
 case "$DEV" in
-	*"${ESC}[38;2;255;123;123m${FIN_RL}${QUI}"*) ok "nuit : le nom « $QUI » est en rouge clair (38;2;255;123;123 = #FF7B7B)" ;;
-	*) non "nuit : le nom n'est pas en rouge clair #FF7B7B" ;;
+	*"${ESC}[38;2;182;255;0m${FIN_RL}${QUI}"*) ok "nuit : le nom « $QUI » est en vert lime néon #B6FF00" ;;
+	*) non "nuit : le nom n'est pas en vert lime néon" ;;
 esac
 case "$DEV" in
-	*"${ESC}[38;2;21;154;61m${FIN_RL}LEXOS"*) ok "nuit : « LEXOS » est écrit en vert foncé (38;2;21;154;61 = #159A3D)" ;;
-	*) non "nuit : « LEXOS » manque, ou n'est pas en vert foncé #159A3D" ;;
+	*"${ESC}[38;2;255;106;0m${FIN_RL}lexOS"*) ok "nuit : « lexOS » est écrit en orange néon #FF6A00" ;;
+	*) non "nuit : « lexOS » manque, ou n'est pas en orange néon" ;;
 esac
 DEV_TEXTE="$(printf '%s' "$DEV" | tr -d '\001\002' | sed 's/\x1b\[[0-9;]*m//g')"
 case "$DEV_TEXTE" in
-	*"${QUI} LEXOS "*) ok "nuit : l'ordre est « $QUI LEXOS chemin » — LEXOS a pris la place de « @machine »" ;;
-	*) non "nuit : « LEXOS » n'est pas juste à côté du nom : « $DEV_TEXTE »" ;;
+	*"(${QUI}/lexOS-PRO)/ ❯ "*) ok "nuit : l'invite affiche utilisateur/lexOS-PRO sur une ligne" ;;
+	*) non "nuit : le format utilisateur/lexOS-PRO manque : « $DEV_TEXTE »" ;;
+esac
+case "$DEV" in
+	*"${ESC}[38;2;255;255;255m${FIN_RL}-PRO)/ "*) ok "nuit : le suffixe -PRO est blanc" ;;
+	*) non "nuit : le suffixe -PRO n'est pas blanc" ;;
 esac
 case "$DEV_TEXTE" in
 	*"@$(hostname)"*) non "nuit : « @$(hostname) » est toujours dans l'invite" ;;

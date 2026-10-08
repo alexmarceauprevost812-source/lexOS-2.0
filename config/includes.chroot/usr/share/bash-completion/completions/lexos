@@ -33,7 +33,7 @@ usb vide-memoire format capture run-ins ouvrir terminal-pro
 studio musique sticker chrome claude ia dev
 cartes gps clavier comptes bienetre mac
 session terminal
-demo install-disk signer-pilote'
+demo install-disk signer-pilote outils-kali kali'
 
 _lexos_accents='orange classique orange-rouge bleu rouge vert gris violet neon'
 _lexos_polices='defaut classique mono manuscrite bulle carnet ronde crayon plume marqueur architecte fleur cursive tableau craie liste'
@@ -180,6 +180,16 @@ claude-opus-5 claude-sonnet-5 claude-haiku-4-5" -- "$cur")
 				&& mapfile -t COMPREPLY < <(compgen -W "--liste" -- "$cur") ;;
 		secure|securite)
 			mapfile -t COMPREPLY < <(compgen -W "enable scan status" -- "$cur") ;;
+		outils-kali|kali)
+			if [ "$COMP_CWORD" -eq 2 ]; then
+				mapfile -t COMPREPLY < <(compgen -W "liste etat installer aide" -- "$cur")
+			elif [ "$sous" = "installer" ] || [ "$sous" = "etat" ]; then
+				if [ "$sous" = "installer" ]; then
+					mapfile -t COMPREPLY < <(compgen -W "reseau web wifi mots-de-passe tous --essai" -- "$cur")
+				else
+					mapfile -t COMPREPLY < <(compgen -W "reseau web wifi mots-de-passe tous" -- "$cur")
+				fi
+			fi ;;
 		vpn)
 			if [ "$COMP_CWORD" -eq 2 ]; then
 				mapfile -t COMPREPLY < <(compgen -W "import connect disconnect liste" -- "$cur")

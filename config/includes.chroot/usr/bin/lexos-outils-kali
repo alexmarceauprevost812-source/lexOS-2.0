@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Outils disponibles dans Kali et Debian, installés à la demande.
+set -euo pipefail
+
+die() { printf '%s\n' "$*" >&2; exit 1; }
+aide() {
+    cat <<'EOF'
+Outils de sécurité pour LexOS
+  lexos outils-kali liste
+  lexos outils-kali etat [groupe]
+  lexos outils-kali installer [groupe] [--essai]
+
+Groupes : reseau, web, wifi, mots-de-passe, tous (défaut).
+Les paquets viennent des dépôts APT configurés sur LexOS.
+--essai montre la résolution des dépendances sans modifier le système.
+EOF
+}
+ACTION="${1:-aide}"
+[[ $# -eq 0 ]] || shift
+case "$ACTION" in
+    aide|help|--help|-h) aide; exit 0 ;;
+    liste)
+        [[ $# -eq 0 ]] || die "Usage : lexos outils-kali liste"
+        printf '%s\n' \
+            'reseau : nmap, wireshark, tshark — analyse réseau' \
+            'web : sqlmap — audit web' \
+            'wifi : aircrack-ng — audit Wi-Fi' \
+            'mots-de-passe : john, hydra — audit des mots de passe' \
+            'tous : tous les groupes ci-dessus'
+        exit 0 ;;
+    installer|etat) ;;
+    *) die "Action inconnue : $ACTION. Voir lexos outils-kali aide." ;;
+esac
+
+GROUPE=tous
+GROUPE_CHOISI=0
+ESSAI=0
+for ARG in "$@"; do
+    case "$ARG" in
+        --essai) ESSAI=1 ;;
+        reseau|web|wifi|mots-de-passe|tous)
+            [[ "$GROUPE_CHOISI" -eq 0 ]] || die "Choisir un seul groupe."
+            GROUPE="$ARG"; GROUPE_CHOISI=1 ;;
+        *) die "Argument inconnu : $ARG" ;;
+    esac
+done
+case "$GROUPE" in
+    reseau) PAQUETS=(nmap wireshark tshark) ;;
+    web) PAQUETS=(sqlmap) ;;
+    wifi) PAQUETS=(aircrack-ng) ;;
+    mots-de-passe) PAQUETS=(john hydra) ;;
+    tous) PAQUETS=(nmap wireshark tshark sqlmap aircrack-ng john hydra) ;;
+esac
+
+if [[ "$ACTION" = etat ]]; then
+    [[ "$ESSAI" -eq 0 ]] || die "--essai s'utilise avec installer."
+    for PAQUET in "${PAQUETS[@]}"; do
+        ETAT="$(dpkg-query -W -f='${Status}' "$PAQUET" 2>/dev/null || true)"
+        if [[ "$ETAT" = 'install ok installed' ]]; then
+            printf '%s : installé\n' "$PAQUET"
+        else
+            printf '%s : non installé\n' "$PAQUET"
+        fi
+    done
+    exit 0
+fi
+
+command -v apt-get >/dev/null || die "APT est nécessaire sur LexOS."
+if [[ "$ESSAI" -eq 1 ]]; then
+    printf 'Simulation avec les index APT locaux : %s\n' "${PAQUETS[*]}"
+    exec apt-get --simulate --no-remove install "${PAQUETS[@]}"
+fi
+
+if [[ "$EUID" -ne 0 ]]; then
+    command -v sudo >/dev/null || die "Relancer avec les droits administrateur."
+    exec sudo -- "$0" installer "$GROUPE"
+fi
+apt-get update || die "Impossible de rafraîchir les index APT."
+apt-get --simulate --no-remove install "${PAQUETS[@]}" \
+    || die "Paquets indisponibles ou dépendances incompatibles : installation annulée."
+# APT affiche les changements et demande confirmation; aucune suppression permise.
+apt-get --no-remove install "${PAQUETS[@]}" \
+    || die "Installation interrompue ou échouée. Vérifier l'état des paquets."
+printf 'Installation terminée. Voir : lexos outils-kali etat %s\n' "$GROUPE"
