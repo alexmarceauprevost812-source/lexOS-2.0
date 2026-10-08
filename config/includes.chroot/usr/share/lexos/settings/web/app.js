@@ -961,6 +961,11 @@ function boutonMaj(cle, classe, libelle){
 }
 
 let majSondage = null;
+async function ouvreMajGitHub(quoi){
+  const r = await api("maj", quoi);
+  if(!r.ok) toast(r.erreur || "Impossible d'ouvrir GitHub");
+}
+
 async function actionMaj(quoi){
   const r = await api("maj", quoi);
   if(!r.ok){ toast("Échec : " + (r.erreur || "commande refusée")); return; }
@@ -2848,6 +2853,17 @@ function contenu(cle){
       attend que tu le demandes. Une mise à jour pose des questions et prend du
       temps : elle s'ouvre dans un terminal pour qu'on voie ce qui se passe — et
       cette page se met à jour toute seule pendant que ça tourne.</p>
+      <div class="srow" style="display:block">
+        <div class="t">LexOS sur GitHub</div>
+        <p>Retrouve le code source et les nouvelles ISO officielles de LexOS Pro.</p>
+        <div class="row">
+          <button class="btn" onclick="ouvreMajGitHub('versions')">Nouvelles versions de LexOS Pro</button>
+          <button class="btn ghost" onclick="ouvreMajGitHub('github')">Dépôt GitHub</button>
+        </div>
+        <p class="notice">« Tout mettre à jour » actualise les logiciels et pilotes depuis
+        leurs dépôts configurés. Les nouvelles ISO sont publiées sur GitHub ;
+        ce bouton n'installe pas automatiquement le code du dépôt dans le système.</p>
+      </div>
       ${btnOuvrir("maj","Diagnostic complet du système (terminal)")}`;
     }
     case "accessibilite": {

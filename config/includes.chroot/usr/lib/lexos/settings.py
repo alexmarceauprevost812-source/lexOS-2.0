@@ -1050,6 +1050,12 @@ def act_maj(arg):
     de clé de suivi : les trois gestes ont chacun leur propre fichier de fin,
     donc lancer « Vérifier » puis « Tout mettre à jour » n'écrase pas le
     suivi de l'un avec celui de l'autre."""
+    liens = {
+        "github": "https://github.com/alexmarceauprevost812-source/lexOS-2.0",
+        "versions": "https://github.com/alexmarceauprevost812-source/lexOS-2.0/releases/tag/latest-pro",
+    }
+    if arg in liens:
+        return _run(["xdg-open", liens[arg]], detach=True)
     outils = {
         "verifier":  ("Mises à jour — LexOS", "lexos doctor"),
         "tout":      ("Mise à jour — LexOS", "lexos upgrade"),
