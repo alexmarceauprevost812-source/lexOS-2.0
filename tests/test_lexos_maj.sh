@@ -140,12 +140,12 @@ case "$R" in
 esac
 
 # =============================================================================
-titre "4. _maj_etat() expose les trois gestes, sans jamais planter"
+titre "4. _maj_etat() expose les cinq gestes, sans jamais planter"
 # =============================================================================
 rm -rf "$ETAT"
 R="$(appelle "print(sorted(m._maj_etat()['progres'].keys()))")"
-[ "$R" = "['firmware', 'tout', 'verifier']" ] \
-	&& ok "_maj_etat()['progres'] porte bien les trois clés (verifier/tout/firmware)" \
+[ "$R" = "['firmware', 'lexos', 'lexos-verifier', 'tout', 'verifier']" ] \
+	&& ok "_maj_etat()['progres'] porte bien les cinq clés (verifier/tout/firmware/lexos/lexos-verifier)" \
 	|| non "clés inattendues dans progres : $R"
 
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"

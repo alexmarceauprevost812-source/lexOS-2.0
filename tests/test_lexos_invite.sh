@@ -188,21 +188,21 @@ couleur_de() { # couleur_de <texte cherché>
 }
 
 C_CHEVRON="$(couleur_de '❯' || true)"
-C_CHEMIN="$(couleur_de "$(basename "$BANC/home")" || true)"
+C_SUFFIX="$(couleur_de "$(basename "$BANC/home")" || true)"
 #  Le chemin développé par « \w » est le répertoire courant du banc, pas le
 #  faux HOME : on le cherche par son dernier segment, qui y figure toujours.
-C_CHEMIN="$(couleur_de "$(basename "$PWD")" || true)"
+C_SUFFIX="$(couleur_de "-PRO" || true)"
 C_NOM="$(couleur_de "$(id -un)" || true)"
-C_LOGO="$(couleur_de "LEXOS" || true)"
+C_LOGO="$(couleur_de "lexOS" || true)"
 
 if [ -z "$C_CHEVRON" ]; then
 	non "impossible de relever la couleur du chevron"
 else
 	ok "le chevron est peint (séquence $C_CHEVRON)"
-	if [ -n "$C_CHEMIN" ] && [ "$C_CHEMIN" = "$C_CHEVRON" ]; then
-		ok "le chemin porte la MÊME couleur que le chevron (vert machine)"
+	if [ -n "$C_SUFFIX" ] && { [ "$C_SUFFIX" = "37" ] || [ "$C_SUFFIX" = "38;5;15" ]; }; then
+		ok "le suffixe -PRO est blanc, séparé du chevron"
 	else
-		non "le chemin ($C_CHEMIN) et le chevron ($C_CHEVRON) ne sont pas de la même couleur"
+		non "le suffixe -PRO doit être blanc (37 ou palette 15), couleur observée : $C_SUFFIX"
 	fi
 	if [ -n "$C_NOM" ] && [ "$C_NOM" != "$C_CHEVRON" ]; then
 		ok "le nom d'utilisateur a SA couleur ($C_NOM), distincte du vert machine"
@@ -222,8 +222,8 @@ else
 	else
 		ok "plus de « @machine » : le mot LEXOS a pris la place"
 	fi
-	if [[ "$TEXTE_INVITE" == *"$(id -un) LEXOS "* ]]; then
-		ok "l'ordre est « nom LEXOS chemin » — LEXOS juste à côté du nom"
+	if [[ "$TEXTE_INVITE" == *"($(id -un)/lexOS-PRO)/ "* ]]; then
+		ok "le format est (utilisateur/lexOS-PRO)/"
 	else
 		non "LEXOS n'est pas juste à côté du nom : « $TEXTE_INVITE »"
 	fi
@@ -303,8 +303,8 @@ else
 	ok "après un code 127, le chevron change de couleur ($C_CHEVRON → $C_CHEVRON_KO)"
 fi
 #  Et le reste de l'invite, lui, ne bouge PAS : seul le chevron alerte.
-if [ "$(couleur_de "$(basename "$PWD")" || true)" = "$C_CHEMIN" ]; then
-	ok "le chemin, lui, garde son vert : seul le chevron alerte"
+if [ "$(couleur_de "-PRO" || true)" = "$C_SUFFIX" ]; then
+	ok "le suffixe -PRO garde sa couleur : seul le chevron alerte"
 else
 	non "l'échec a repeint autre chose que le chevron"
 fi
@@ -349,7 +349,7 @@ for MODE in nuit jour; do
 	ATTENDU_U="$(sed -n "s/^LEXOS_PS_UTILISATEUR='\(.*\)'$/\1/p" "$ENV")"
 	ATTENDU_L="$(sed -n "s/^LEXOS_PS_LOGO='\(.*\)'$/\1/p" "$ENV")"
 	VU_U="$(couleur_de "$(id -un)" || true)"
-	VU_L="$(couleur_de "LEXOS" || true)"
+	VU_L="$(couleur_de "lexOS" || true)"
 	[ -n "$ATTENDU_U" ] && [ "$VU_U" = "$ATTENDU_U" ] \
 		&& ok "$MODE : le rouge clair du nom est celui du fichier ($ATTENDU_U)" \
 		|| non "$MODE : le fichier dit « $ATTENDU_U » pour le nom, l'invite affiche « $VU_U »"
@@ -378,7 +378,7 @@ for MODE in nuit jour; do
 	ATTENDU_U256="$(sed -n "s/^LEXOS_PS_UTILISATEUR_256='\(.*\)'$/\1/p" "$ENV")"
 	ATTENDU_L256="$(sed -n "s/^LEXOS_PS_LOGO_256='\(.*\)'$/\1/p" "$ENV")"
 	VU_U256="$(couleur_de "$(id -un)" || true)"
-	VU_L256="$(couleur_de "LEXOS" || true)"
+	VU_L256="$(couleur_de "lexOS" || true)"
 	[ -n "$ATTENDU_U256" ] && [ "$VU_U256" = "$ATTENDU_U256" ] && [ -n "$ATTENDU_L256" ] && [ "$VU_L256" = "$ATTENDU_L256" ] \
 		&& ok "$MODE : en 256 couleurs, le nom ($ATTENDU_U256) et LEXOS ($ATTENDU_L256) retombent sur leurs replis" \
 		|| non "$MODE : replis 256 du nom/LEXOS attendus $ATTENDU_U256 / $ATTENDU_L256, vus $VU_U256 / $VU_L256"

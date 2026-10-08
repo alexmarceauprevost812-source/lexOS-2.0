@@ -14,6 +14,9 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QGridLayout, QStackedWidget, QLineEdit, QMessageBox, QScrollArea)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from moteur import outils as _outils
+
 
 def command(args):
     try:
@@ -48,7 +51,7 @@ def applications():
                 excluded = set(entry.get('NotShowIn', '').split(';'))
                 if (only and not desktops.intersection(only)) or desktops.intersection(excluded):
                     continue
-                if entry.get('TryExec') and not shutil.which(entry['TryExec']):
+                if entry.get('TryExec') and not _outils.commande_existe(entry['TryExec']):
                     continue
                 if not entry.get('Exec') and entry.get('DBusActivatable', '').lower() != 'true':
                     continue

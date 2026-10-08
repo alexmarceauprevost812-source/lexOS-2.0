@@ -236,11 +236,13 @@ dit(r.get("ok") is False and "ntfs" in (r.get("erreur") or ""),
 vrai_which = settings.shutil.which
 
 settings.shutil.which = lambda n: "/usr/bin/pkexec" if n == "pkexec" else vrai_which(n)
+settings._outils.oublier('pkexec')
 r = settings.act_formatage("lancer:/dev/sdb:vfat")
 dit(r.get("ok") is False and "agent polkit" in (r.get("erreur") or ""),
     "pkexec là mais aucun agent : un MOTIF, pas un silence")
 
 settings.shutil.which = lambda n: None if n == "pkexec" else vrai_which(n)
+settings._outils.oublier('pkexec')
 r = settings.act_formatage("lancer:/dev/sdb:vfat")
 dit(r.get("ok") is False and "pkexec" in (r.get("erreur") or ""),
     "pkexec absent : le motif nomme pkexec, pas l'agent — ce n'est pas le même geste")

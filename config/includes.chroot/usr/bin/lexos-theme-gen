@@ -1508,9 +1508,9 @@ if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	PS_MACHINE_256="38;5;22"    # vert foncé
 	PS_TEXTE_256="38;5;234"     # #1C1C1C, le plus proche de #1B1A17
 	PS_ERREUR_256="1;38;5;88"   # rouge foncé
-	PS_UTILISATEUR_256="38;5;64"   # vert olive lisible sur crème
+	PS_UTILISATEUR_256="38;5;58"   # vert olive lisible sur crème
 	#  Orange lisible sur le fond crème en palette 256.
-	PS_LOGO_256="38;5;130"        # orange assombri sur crème
+	PS_LOGO_256="38;5;94"        # orange assombri sur crème
 else
 	PS_MACHINE_256="38;5;40"    # exactement #00D700, voir la section terminal plus haut
 	PS_TEXTE_256="38;5;15"      # le blanc brillant de la palette
