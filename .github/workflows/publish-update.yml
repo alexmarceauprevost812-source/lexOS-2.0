@@ -1,0 +1,30 @@
+name: Publier une mise à jour LexOS Pro
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: lexos-pro-update-publication
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer les outils de création du paquet
+        run: sudo apt-get update && sudo apt-get install -y librsvg2-bin imagemagick
+      - name: Vérifier les protections de téléchargement
+        run: python3 tests/test_lexos_system_update.py
+      - name: Construire le paquet
+        run: |
+          VERSION="$(date -u +%Y%m%d%H%M%S)+${GITHUB_SHA:0:7}"
+          bash tools/build-update.sh "$VERSION" out
+      - name: Publier le paquet complet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PACKAGE="$(find out -name '*.deb' -print -quit)"
+          dpkg-deb --info "$PACKAGE"
+          dpkg-deb --contents "$PACKAGE" > out/inventaire.txt
+          gh release view updates-pro >/dev/null 2>&1 || gh release create updates-pro --target "$GITHUB_SHA" --title 'Mises à jour LexOS Pro' --notes 'Paquets permettant de mettre LexOS Pro à jour sans réinstaller.' --latest=false
+          gh release upload updates-pro "$PACKAGE"

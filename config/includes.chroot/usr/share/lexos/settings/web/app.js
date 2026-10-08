@@ -2859,10 +2859,14 @@ function contenu(cle){
         <div class="row">
           <button class="btn" onclick="ouvreMajGitHub('versions')">Nouvelles versions de LexOS Pro</button>
           <button class="btn ghost" onclick="ouvreMajGitHub('github')">Dépôt GitHub</button>
+          ${boutonMaj("lexos-verifier", "btn ghost", "Vérifier la version LexOS")}
+          ${boutonMaj("lexos", "btn", "Mettre LexOS à jour sans réinstaller")}
         </div>
         <p class="notice">« Tout mettre à jour » actualise les logiciels et pilotes depuis
         leurs dépôts configurés. Les nouvelles ISO sont publiées sur GitHub ;
-        ce bouton n'installe pas automatiquement le code du dépôt dans le système.</p>
+        « Mettre LexOS à jour » installe le paquet publié sur GitHub après vérification,
+        sans refaire de clé USB ni réinstaller. Certaines mises à jour du noyau ou
+        du pilote pourront demander un redémarrage du PC.</p>
       </div>
       ${btnOuvrir("maj","Diagnostic complet du système (terminal)")}`;
     }

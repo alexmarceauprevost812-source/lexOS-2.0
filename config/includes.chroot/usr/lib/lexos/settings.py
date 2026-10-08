@@ -1057,6 +1057,8 @@ def act_maj(arg):
     if arg in liens:
         return _run(["xdg-open", liens[arg]], detach=True)
     outils = {
+        "lexos":     ("Mise à jour de LexOS — GitHub", "lexos-system-update --install"),
+        "lexos-verifier": ("Version de LexOS — GitHub", "lexos-system-update --check"),
         "verifier":  ("Mises à jour — LexOS", "lexos doctor"),
         "tout":      ("Mise à jour — LexOS", "lexos upgrade"),
         "firmware":  ("Micrologiciel — LexOS", "lexos firmware"),
