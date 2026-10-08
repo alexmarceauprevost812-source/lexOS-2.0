@@ -85,7 +85,7 @@ def main():
                 if actual != expected:
                     raise RuntimeError(f'Paquet inattendu ({field}) : installation annulée.')
             # APT gère les dépendances, sans autoriser le retrait d'autres paquets.
-            subprocess.run(['apt-get', 'install', '--no-remove', str(target)], check=True)
+            subprocess.run(['apt-get', 'install', '--no-remove', '--no-install-recommends', str(target)], check=True)
         print('LexOS mis à jour. Ferme et rouvre les applications LexOS pour charger les nouveaux fichiers.')
         print('Aucune clé USB ni réinstallation nécessaire. Aucun redémarrage automatique.')
         return 0

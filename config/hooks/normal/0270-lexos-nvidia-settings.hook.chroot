@@ -13,7 +13,10 @@ fi
 echo '[lexos] hook 0270 : application NVIDIA Settings'
 # Une dépendance incompatible doit faire échouer la construction, pas retirer
 # les paquets du pilote retenu par 0260. Ses épingles APT restent en vigueur.
-apt-get install -y --no-remove nvidia-settings
+# Le paquet du dépôt NVIDIA recommande nvidia-driver. Ce méta-paquet
+# réinstalle une autre pile à côté de nvidia-open et retire nvidia-detect.
+# Les dépendances de Settings suffisent ; conserver le pilote de 0260.
+apt-get install -y --no-remove --no-install-recommends nvidia-settings
 apt-mark manual nvidia-settings
 command -v nvidia-settings >/dev/null 2>&1 || {
     echo '[lexos] ERREUR : nvidia-settings absent après installation' >&2
