@@ -1,0 +1,39 @@
+#!/bin/sh
+# Application de réglages NVIDIA obligatoire pour LexOS Pro.
+# Le pilote et son dépôt sont préparés auparavant par le hook 0260.
+set -eu
+
+LEXOS_FLAVOUR=standard
+if [ -r /etc/lexos/build.conf ]; then
+    # shellcheck source=/dev/null
+    . /etc/lexos/build.conf
+fi
+[ "$LEXOS_FLAVOUR" = pro ] || exit 0
+
+echo '[lexos] hook 0270 : application NVIDIA Settings'
+# Une dépendance incompatible doit faire échouer la construction, pas retirer
+# les paquets du pilote retenu par 0260. Ses épingles APT restent en vigueur.
+apt-get install -y --no-remove nvidia-settings
+apt-mark manual nvidia-settings
+command -v nvidia-settings >/dev/null 2>&1 || {
+    echo '[lexos] ERREUR : nvidia-settings absent après installation' >&2
+    exit 1
+}
+
+mkdir -p /usr/local/share/applications
+# Ce lanceur reste visible dans la grille et ne demande aucun droit root.
+cat > /usr/local/share/applications/lexos-nvidia.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Paramètres NVIDIA
+Name[en]=NVIDIA Settings
+Comment=Réglages du pilote et informations de la carte graphique NVIDIA
+Exec=nvidia-settings
+Icon=nvidia-settings
+Terminal=false
+StartupNotify=true
+Categories=Settings;HardwareSettings;
+Keywords=NVIDIA;RTX;5060;GPU;graphique;pilote;
+EOF
+
+echo '[lexos] hook 0270 : NVIDIA Settings installé et accessible dans les applications'
