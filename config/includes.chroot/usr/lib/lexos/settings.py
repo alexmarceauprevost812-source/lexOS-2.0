@@ -3540,7 +3540,7 @@ def _maj_etat():
         #  None si jamais lancé cette session, sinon en_cours/ok. C'est CE
         #  DICT que la page relit à chaque rafraîchissement pour savoir si
         #  elle doit encore attendre.
-        "progres": {cle: _maj_progres(cle) for cle in ("verifier", "tout", "firmware")},
+        "progres": {cle: _maj_progres(cle) for cle in ("verifier", "tout", "firmware", "lexos", "lexos-verifier")},
     }
 
 
