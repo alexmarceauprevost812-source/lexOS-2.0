@@ -125,7 +125,12 @@ case "$VU" in
 	*) non "certificat absent : la marche à suivre ne nomme pas dkms generate_mok" ;;
 esac
 
-VU="$(env -i PATH="/usr/bin:/bin" HOME="$BANC" NO_COLOR=1 TERM=dumb \
+# PATH fermé : aucun mokutil réel du runner ne doit entrer dans cette scène.
+mkdir -p "$BANC/sans-mokutil"
+for outil in bash awk cat grep head od sed tail; do
+	ln -s "$(command -v "$outil")" "$BANC/sans-mokutil/$outil"
+done
+VU="$(env -i PATH="$BANC/sans-mokutil" HOME="$BANC" NO_COLOR=1 TERM=dumb \
 	LEXOS_CMDLINE="$BANC/cmdline-installe" LEXOS_EFIVARS="$BANC/efi-on" \
 	LEXOS_DKMS_CONF="$BANC/dkms/framework.conf" LEXOS_DKMS_CONF_D="$BANC/dkms/conf.d" \
 	LEXOS_SHELL_DIR="$SHELL_DIR" LEXOS_MODULES="$BANC/modules" \

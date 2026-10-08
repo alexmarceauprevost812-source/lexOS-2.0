@@ -132,10 +132,14 @@ if [[ -r "$LEXOS_BUILD_CONF" ]]; then
 	#  aurait été remplacé.
 	flavour="${LEXOS_FLAVOUR:-}"
 	if [[ -z "$flavour" ]]; then
+		# shellcheck source=/dev/null
 		flavour="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_FLAVOUR:-}" )"
 	fi
+	# shellcheck source=/dev/null
 	nv_etat="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_ETAT:-}" )"
+	# shellcheck source=/dev/null
 	nv_version="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_VERSION:-}" )"
+	# shellcheck source=/dev/null
 	nv_module="$( . "$LEXOS_BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_NVIDIA_MODULE:-}" )"
 	case "$nv_etat" in
 		ok)
