@@ -492,6 +492,18 @@ jobs:
           bash tests/test_lexos_nvidia_module.sh
           bash tests/test_lexos_201_live.sh
 
+      - name: LexOS 2.0.2 — icônes poubelle et paramètres XFCE
+        if: ${{ !cancelled() }}
+        run: |
+          # Test explicite requis : la CI vérifie qu'aucun banc n'est orphelin.
+          # Exerce les SVG de la poubelle, de Paramètres et leur liaison GTK.
+          bash tests/test_lexos_202_icons.sh
+          python3 tests/test_lexos_202_desktop.py
+          python3 tests/test_lexos_audit_outils.py
+          sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-3.0 xvfb xauth
+          LEXOS_AUDIT_REQUIRE_GTK=1 xvfb-run -a /usr/bin/python3 tests/test_lexos_audit_menu.py
+          bash -n tools/verifier-secure-boot-build.sh
+
       - name: LEXOS PRO — services, gardes structurelles et démarrage graphique
         if: ${{ !cancelled() }}
         run: |
@@ -3849,3 +3861,25 @@ jobs:
           #  Aucune dépendance à installer : bibliothèque standard seulement,
           #  et le banc construit lui-même son chemin d'import.
           python3 tests/test_boost.py
+
+  johnny:
+    name: Johnny 2.2 — compilation Qt 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compiler la source officielle épinglée
+        run: |
+          bash .github/scripts/apt-sain.sh
+          sudo apt-get install -y --no-install-recommends build-essential qtbase5-dev qt5-qmake qtbase5-dev-tools john
+          git clone --branch v2.2 --depth 1 https://github.com/openwall/johnny.git /tmp/johnny-source
+          test "$(git -C /tmp/johnny-source rev-parse HEAD)" = c862833d4be43fad559d2d3866d514017d47e0c9
+          cd /tmp/johnny-source
+          QT_SELECT=qt5 qmake CONFIG+=release
+          make -j2
+          test -x johnny
+          ldd johnny > /tmp/johnny-libraries.txt
+          if grep -q 'not found' /tmp/johnny-libraries.txt; then cat /tmp/johnny-libraries.txt; exit 1; fi
+          status=0
+          QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= timeout 5 ./johnny > /tmp/johnny-start.log 2>&1 || status=$?
+          cat /tmp/johnny-start.log
+          test "$status" = 124

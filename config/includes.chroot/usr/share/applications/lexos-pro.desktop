@@ -14,3 +14,12 @@ Categories=System;Monitor;
 Keywords=lexos;systeme;system;parametres;settings;diagnostic;gpu;reseau;
 StartupNotify=true
 StartupWMClass=lexos-pro
+Actions=Unpin;Pin;
+
+[Desktop Action Unpin]
+Name=Retirer du dock
+Exec=lexos-epingler --enlever /usr/share/applications/lexos-pro.desktop
+
+[Desktop Action Pin]
+Name=Épingler au dock
+Exec=lexos-epingler /usr/share/applications/lexos-pro.desktop

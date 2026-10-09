@@ -142,7 +142,10 @@ titre "1. Les outils lexos-* et leurs branchements"
 #   lexos-claude-installation  : autostart de session, même mécanisme que
 #                                lexos-firstrun — rattrape la version de
 #                                Claude Code, ne se tape pas
+#   lexos-raccourcis-mosaique : migration XFCE unique lancée par autostart;
+#                             réparation manuelle documentée, sans section dédiée.
 SANS_SECTION="
+lexos-raccourcis-mosaique
 lexos-apercu
 lexos-app-settings
 lexos-claude-installation

@@ -198,6 +198,8 @@ set gfxpayload=keep
 terminal_output gfxterm
 set theme=${THEME_REL}/theme.txt
 export theme
+set timeout=8
+set timeout_style=menu
 # --- lexos-theme-fin --------------------------------------------------------
 EOF
 )"

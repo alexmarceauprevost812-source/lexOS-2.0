@@ -88,4 +88,14 @@
 	<startup-notify/>
 	<directories/>
 </action>
+<action>
+  <icon>user-bookmarks</icon>
+  <name>Retirer du dock</name>
+  <unique-id>1791540000000000-202</unique-id>
+  <command>lexos-epingler --enlever %F</command>
+  <description>Désépingler seulement cette application, conserver le dock</description>
+  <patterns>*.desktop</patterns>
+  <other-files/>
+  <text-files/>
+</action>
 </actions>

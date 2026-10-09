@@ -170,10 +170,14 @@ titre "4. SECURE BOOT : LE REMÈDE NE PART JAMAIS SANS SES DEUX AVERTISSEMENTS"
 #  Le contrôle ne cherche donc pas « le message parle de BitLocker quelque
 #  part » : il exige que DÈS QUE le mot « Disabled » apparaît, les deux
 #  avertissements soient là aussi.
-SB_ACTIF="$(env -i PATH="$PATH" LEXOS_EFIVARS="$BANC/efivars-on" \
-	sh -c '. "$0"; secure_boot_dire' "$SB" 2>&1)"
+mkdir -p "$BANC/sb-path"
+for sb_cmd in od awk; do
+	ln -s "$(command -v "$sb_cmd")" "$BANC/sb-path/$sb_cmd"
+done
+SB_ACTIF="$(env -i PATH="$BANC/sb-path" LEXOS_EFIVARS="$BANC/efivars-on" \
+	/bin/sh -c '. "$0"; secure_boot_dire' "$SB" 2>&1)"
 SB_INACTIF="$(env -i PATH="$PATH" LEXOS_EFIVARS="$BANC/efivars-off" \
-	sh -c '. "$0"; secure_boot_dire' "$SB" 2>&1)"
+	/bin/sh -c '. "$0"; secure_boot_dire' "$SB" 2>&1)"
 
 case "$SB_ACTIF" in
 	*"SECURE BOOT : ACTIF"*) ok "Secure Boot actif : détecté sur la vraie variable EFI (5e octet)" ;;
@@ -211,7 +215,10 @@ if grep -q 'Disabled' <<< "$VU_SB"; then
 		&& ok "le message de la console hérite des deux avertissements (un seul texte, pas deux)" \
 		|| non "le message de la console propose « Disabled » sans les avertissements : il a recopié au lieu de réutiliser"
 else
-	non "Secure Boot actif + aucun pilote chargé : le message n'en parle même pas"
+	grep -q 'SECURE BOOT : ACTIF' <<< "$VU_SB" && grep -q 'conserver ce réglage' <<< "$VU_SB" \
+		&& ok "la console signale Secure Boot actif et recommande de le conserver" \
+		|| non "Secure Boot actif + aucun pilote chargé : diagnostic absent"
+
 fi
 
 # ===========================================================================

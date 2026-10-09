@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Migration utilisateur unique : ne jamais éditer le XML pendant xfconfd.
+set -euo pipefail
+state="${XDG_STATE_HOME:-$HOME/.local/state}/lexos/mosaique-202"
+[[ ${1:-} == --force || ! -f "$state/done" ]] || exit 0
+command -v xfconf-query >/dev/null
+mkdir -p "$state"
+# Sauvegarde lisible avant toute modification. --force crée une nouvelle copie.
+snapshot=$(mktemp "$state/avant.XXXXXXXX")
+xfconf-query -c xfce4-keyboard-shortcuts -lv > "$snapshot"
+for direction in Left Right; do
+    action=tile_left_key
+    [[ $direction != Right ]] || action=tile_right_key
+    for key in "<Super>$direction" "<Super><Primary>$direction" "<Primary><Super>$direction" "<Control><Super>$direction" "<Super><Control>$direction"; do
+        # Retirer la même combinaison des commandes évite deux propriétaires.
+        prop="/commands/custom/$key"
+        if xfconf-query -c xfce4-keyboard-shortcuts -p "$prop" >/dev/null 2>&1; then
+            xfconf-query -c xfce4-keyboard-shortcuts -p "$prop" -r
+        fi
+        prop="/xfwm4/custom/$key"
+        if xfconf-query -c xfce4-keyboard-shortcuts -p "$prop" >/dev/null 2>&1; then
+            xfconf-query -c xfce4-keyboard-shortcuts -p "$prop" -s "$action"
+        else
+            xfconf-query -c xfce4-keyboard-shortcuts -p "$prop" -n -t string -s "$action"
+        fi
+    done
+done
+printf 'Ctrl + Windows + gauche/droite : mosaïque sur le même bureau.\n'
+touch "$state/done"
