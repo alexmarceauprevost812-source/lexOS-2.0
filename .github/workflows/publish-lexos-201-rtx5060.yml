@@ -1,0 +1,111 @@
+name: Publier LexOS Pro 2.0.1-rtx5060 depuis l'artefact valide
+
+on:
+  push:
+    branches: [fix/lexos-2.0.1-live-desktop-nvidia]
+    paths: [.github/workflows/publish-lexos-201-rtx5060.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: lexos-pro-201-rtx5060-publication
+  cancel-in-progress: false
+
+jobs:
+  publier:
+    name: Publier l'ISO de test sur une Release distincte
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Liberer de l'espace pour extraire et decouper 5 Gio
+        shell: bash
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/.ghcup /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost /usr/share/swift || true
+          sudo docker image prune -af >/dev/null 2>&1 || true
+          df -h /
+
+      - name: Recuperer exactement l'artefact de la construction USB validee
+        uses: actions/download-artifact@v4
+        with:
+          name: lexos-pro-test-bf5091c49ff22072e7cf5ad869e8d82f3945a96a
+          run-id: 37880351430
+          github-token: ${{ github.token }}
+          path: extrait
+
+      - name: Verifier SHA-256 et preparer des morceaux acceptes par GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd extrait
+          ISO="lexos-2.0.1-rtx5060-pro-amd64.hybrid.iso"
+          test -s "$ISO"
+          test -s SHA256SUMS
+          sha256sum -c SHA256SUMS
+          mkdir -p ../assets
+          cp SHA256SUMS "../assets/${ISO}.sha256"
+          split -b 1900M -d --suffix-length=2 "$ISO" "../assets/${ISO}.part-"
+          test "$(find ../assets -maxdepth 1 -name "${ISO}.part-*" -type f | wc -l)" -ge 3
+          ls -lh ../assets/
+          cd ..
+          df -h /
+
+      - name: Publier une preversion sans remplacer latest-pro
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="lexos-pro-2.0.1-rtx5060"
+          ISO="lexos-2.0.1-rtx5060-pro-amd64.hybrid.iso"
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::La Release $TAG existe deja : aucune substitution automatique."
+            exit 1
+          fi
+          cat > notes.md <<EOF
+          ## LexOS Pro 2.0.1-rtx5060 — ISO USB testee
+
+          Image ISO construite par GitHub Actions le 9 octobre 2026
+          a partir du commit \`bf5091c49ff22072e7cf5ad869e8d82f3945a96a\`.
+          Test utilisateur reussi : demarrage USB, bureau XFCE et detection
+          de la NVIDIA GeForce RTX 5060 par \`nvidia-smi\` (pilote 615.71.09).
+
+          ### Telecharger et reconstituer
+
+          Telecharger **tous** les fichiers \`${ISO}.part-XX\` ainsi que
+          \`${ISO}.sha256\` dans le meme dossier.
+
+          **Linux :**
+
+          \`cat ${ISO}.part-* > ${ISO}\`
+
+          \`sha256sum -c ${ISO}.sha256\`
+
+          **Windows (PowerShell) :** ouvrir PowerShell dans ce dossier et executer :
+
+          \`$iso = "${ISO}"; $out = [IO.File]::Create((Join-Path (Get-Location) $iso)); try { Get-ChildItem "$iso.part-*" | Sort-Object Name | ForEach-Object { $in = [IO.File]::OpenRead($_.FullName); try { $in.CopyTo($out) } finally { $in.Dispose() } } } finally { $out.Dispose() }; (Get-FileHash $iso -Algorithm SHA256).Hash\`
+
+          Comparer le SHA256 affiche avec la valeur contenue dans \`${ISO}.sha256\`.
+          Pour demarrer en Live sans toucher a Windows, graver l'ISO
+          reconstituee sur une cle USB de 16 Go ou plus.
+
+          **Attention :** preversion publique issue de l'artefact de test,
+          pas encore publication de remplacement pour \`latest-pro\`.
+          Ne pas lancer d'installation sur le SSD Windows sans sauvegarde.
+
+          [Construction et journaux d'origine](https://github.com/alexmarceauprevost812-source/lexOS-2.0/actions/runs/37880351430)
+          EOF
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target bf5091c49ff22072e7cf5ad869e8d82f3945a96a \
+            --title "LexOS Pro 2.0.1-rtx5060 — ISO USB" \
+            --notes-file notes.md \
+            --prerelease \
+            assets/*
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json url,assets \
+            --jq '{url:.url,assets:[.assets[].name]}'
