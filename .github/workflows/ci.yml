@@ -492,6 +492,13 @@ jobs:
           bash tests/test_lexos_nvidia_module.sh
           bash tests/test_lexos_201_live.sh
 
+      - name: LexOS 2.0.2 — icônes poubelle et paramètres XFCE
+        if: ${{ !cancelled() }}
+        run: |
+          # Test explicite requis : la CI vérifie qu'aucun banc n'est orphelin.
+          # Exerce les SVG de la poubelle, de Paramètres et leur liaison GTK.
+          bash tests/test_lexos_202_icons.sh
+
       - name: LEXOS PRO — services, gardes structurelles et démarrage graphique
         if: ${{ !cancelled() }}
         run: |
