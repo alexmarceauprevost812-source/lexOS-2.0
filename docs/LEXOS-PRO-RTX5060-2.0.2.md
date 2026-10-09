@@ -63,6 +63,34 @@ conservée. Si le retrait est interdit, vérifier `lock-items` et les droits de
 `~/.config/plank/dock1/launchers/`; ne pas supprimer tout le dossier.
 Aucun lanceur du tableau de bord n'est remis dans `/etc/skel`.
 
+## Sélection de 100 outils embarqués (Pro seulement)
+
+Le hook 0262, après le dépôt NVIDIA signé du hook 0260, installe les 99 paquets de `audit-tools.packages`, dont John et
+Hashcat, puis cuda-nvrtc-13-4 et cuda-nvrtc-dev-13-4. Il inscrit le chemin
+`/usr/local/cuda-13.4/targets/x86_64-linux/lib` dans la configuration ld.so
+puis lance ldconfig dans le chroot de construction. Aucun dépôt Kali ajouté.
+Johnny 2.2 est compilé depuis le dépôt Openwall, tag vérifié contre le commit
+`c862833d4be43fad559d2d3866d514017d47e0c9`, installé dans /usr/local/bin,
+avec sa licence et une entrée menu System/Security. Les dépendances directes
+de compilation nouvellement installées sont retirées, sans autoremove global;
+les paquets préexistants sont conservés. Des dépendances indirectes peuvent
+rester. Une installation/compilation échouée arrête la construction Pro.
+
+Johnny utilise John Debian, pas John Jumbo : les formats/fonctions disponibles
+peuvent différer de Kali et l'accélération GPU John n'est pas promise.
+Le moteur par défaut est cherché dans le PATH incluant /usr/sbin.
+
+Validation utilisateur sur le PC actuel : Hashcat 6.2.6, pilote 615.71.09,
+NVRTC 13.4.92, RTX 5060 : CUDA détecté et benchmark MD5 à 39587.3 MH/s.
+Ce résultat ne valide pas le pilote différent sélectionné lors d'un futur
+build ni Secure Boot. La disponibilité des paquets 13.4 et leur compatibilité
+avec le pilote effectivement embarqué doivent être confirmées à la construction
+et sur l'ISO. Les deux paquets NVRTC ont demandé 72,2 Mo téléchargés / 284 Mo
+installés sur le PC; la taille compressée et totale de l'ISO reste à mesurer.
+La sélection détaillée est consignée dans `docs/OUTILS-AUDIT-100.md`.
+Aucune VM ajoutée. Tests : fixtures du hook et compilation
+réelle de Johnny Qt 5, lancement hors écran réussi; GUI interactive à vérifier.
+
 ## Secure Boot activé — exigence ajoutée
 
 `auto/config` conserve `--uefi-secure-boot enable`; shim-signed,
@@ -90,6 +118,7 @@ Références : [Debian Secure Boot et DKMS](https://wiki.debian.org/SecureBoot),
 ```bash
 bash tests/test_lexos_202_icons.sh
 python3 tests/test_lexos_202_desktop.py
+python3 tests/test_lexos_audit_outils.py
 bash tests/test_lexos_epingler.sh
 bash tests/test_lexos_grub_theme.sh
 bash tests/test_lexos_signer_pilote.sh
