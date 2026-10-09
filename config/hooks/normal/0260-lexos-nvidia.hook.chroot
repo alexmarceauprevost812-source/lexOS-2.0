@@ -219,8 +219,10 @@ noyau_cible() {
 	ls -1 "$NOYAUX_DIR" 2>/dev/null | sort -V | tail -1
 }
 
-#  Une réussite d'apt ne suffit pas : la construction 29 a montré un module
-#  qui ne compile pas. On exige le .ko sur le disque (ou DKMS « installed »).
+#  Une réussite d'apt ne suffit pas. On exige le VRAI nvidia.ko sur disque.
+#  « nvidia*.ko* » acceptait à tort nvidia-wmi-ec-backlight.ko, présent
+#  sur l'ISO 2.0.0 alors que la RTX 5060 n'avait pas de pilote chargeable.
+#  DKMS « installed » sans fichier vérifiable n'est plus une preuve.
 #
 #  MAIS POUR LE BON NOYAU. La version d'avant balayait /lib/modules EN ENTIER
 #  et acceptait un nvidia.ko trouvé N'IMPORTE OÙ. Avec deux noyaux dans le
@@ -239,7 +241,7 @@ verifie_module() {
 	#  Le résultat se mesure sur une VARIABLE, pas sur le code de sortie d'un
 	#  tube : « find … | grep -q » rend la main dès la première ligne et tue
 	#  le producteur. C'est la règle du dépôt, et dash n'a pas de here-string.
-	KO="$(find "$NOYAUX_DIR/$KCIBLE" -name 'nvidia*.ko*' -print 2>/dev/null | head -1)"
+	KO="$(find "$NOYAUX_DIR/$KCIBLE" -type f -name 'nvidia.ko*' -print 2>/dev/null | head -1)"
 	if [ -n "$KO" ]; then
 		echo "[lexos]   module nvidia compilé pour $KCIBLE"
 		return 0
@@ -247,8 +249,7 @@ verifie_module() {
 	LIGNE="$(dkms status 2>/dev/null | grep -i nvidia | grep -- "$KCIBLE" \
 		| grep -i installed | head -1)"
 	if [ -n "$LIGNE" ]; then
-		echo "[lexos]   DKMS déclare nvidia installé pour $KCIBLE"
-		return 0
+		echo "[lexos]   !! DKMS dit installed pour $KCIBLE MAIS nvidia.ko est absent — refusé"
 	fi
 	echo "[lexos]   !! aucun module nvidia pour $KCIBLE (le noyau de l'image)"
 	return 1
@@ -840,7 +841,21 @@ if verifie_module >/dev/null 2>&1; then
 	conf_pose LEXOS_NVIDIA_MODULE "oui"
 else
 	conf_pose LEXOS_NVIDIA_MODULE "non"
-	echo "[lexos]   !! le module noyau n'est plus là en fin de hook — inscrit comme tel"
+	echo "[lexos]   !! nvidia.ko absent en fin de hook — ISO pro non exploitable"
+	if [ "${LEXOS_NVIDIA_FACULTATIF:-0}" = "1" ]; then
+		conf_pose LEXOS_NVIDIA_ETAT "absent-accepte"
+		echo "[lexos]   !! pilote absent accepté explicitement — vérifier avant publication"
+		exit 0
+	fi
+	conf_pose LEXOS_NVIDIA_ETAT "absent"
+	echo "[lexos]   ÉCHEC : un module annexe NVIDIA n'est PAS un pilote vidéo"
+	exit 1
+fi
+if ! command -v nvidia-smi >/dev/null 2>&1; then
+	conf_pose LEXOS_NVIDIA_MODULE "oui"
+	conf_pose LEXOS_NVIDIA_ETAT "absent"
+	echo "[lexos]   ÉCHEC : nvidia.ko existe mais nvidia-smi est absent du système pro"
+	exit 1
 fi
 conf_pose LEXOS_NVIDIA_ETAT "ok"
 conf_pose LEXOS_NVIDIA_VERSION "$VERSION"
