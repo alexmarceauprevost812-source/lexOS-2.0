@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 
 DATA = Path('/usr/share/lexos/audit-tools.packages')
 DESKTOP = 'lexos-audit.desktop'
+LOGO = Path('/usr/share/lexos/audit-kali-logo.png')
 GUI = {'johnny': 'johnny', 'wireshark': 'wireshark', 'zenmap': 'zenmap',
        'ophcrack': 'ophcrack'}
 LABELS = {'Reseau et DNS': 'Réseau et DNS',
@@ -222,54 +223,125 @@ def skeleton(root):
 def show():
     import gi
     gi.require_version('Gtk', '3.0')
-    from gi.repository import Gtk
+    from gi.repository import Gtk, Gdk, GdkPixbuf
     if not Gtk.init_check()[0]:
         raise SystemExit('Outils d’audit : aucun affichage graphique disponible.')
     window = Gtk.Window(title='Outils d’audit — LexOS Pro')
-    window.set_default_size(620, 540)
-    window.set_icon_name('lexos-kali-audit')
+    window.set_name('lexos-audit-menu')
+    window.set_default_size(720, 540)
+    window.set_position(Gtk.WindowPosition.MOUSE)
+    if LOGO.is_file():
+        window.set_icon_from_file(str(LOGO))
+    else:
+        window.set_icon_name('lexos-kali-audit')
     window.connect('destroy', Gtk.main_quit)
-    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-    box.set_border_width(16)
+    def keyboard(_window, event):
+        if event.keyval == Gdk.KEY_Escape:
+            window.destroy()
+            return True
+        return False
+    window.connect('key-press-event', keyboard)
+    css = Gtk.CssProvider()
+    css.load_from_data(b"""
+        #lexos-audit-menu, #lexos-audit-menu box,
+        #lexos-audit-menu list, #lexos-audit-menu viewport {
+            background-color: #121214; color: #eeeeee;
+        }
+        #lexos-audit-menu label { color: #eeeeee; }
+        #lexos-audit-menu entry { background: #202024; color: #eeeeee; }
+        #lexos-audit-menu row { border-radius: 4px; padding: 5px; }
+        #lexos-audit-menu row:hover { background-color: #303036; }
+        #lexos-audit-menu row:selected { background-color: #874000; }
+        #lexos-audit-menu row:selected label { color: #ffffff; }
+        #lexos-audit-menu row:disabled label { color: #999999; }
+        #lexos-audit-menu .audit-heading { color: #ff9c32; font-weight: bold; }
+    """)
+    Gtk.StyleContext.add_provider_for_screen(window.get_screen(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    box.set_border_width(10)
     window.add(box)
-    box.pack_start(Gtk.Label(label='Outils d’audit', xalign=0), False, False, 0)
-    search = Gtk.SearchEntry(placeholder_text='Rechercher un outil…')
+    search = Gtk.SearchEntry(placeholder_text='Rechercher un outil ou une catégorie…')
     box.pack_start(search, False, False, 0)
-    hint = Gtk.Label(label='Applications graphiques ou terminal avec la liste des commandes.', xalign=0)
-    hint.set_line_wrap(True)
-    box.pack_start(hint, False, False, 0)
-    scroll = Gtk.ScrolledWindow()
-    box.pack_start(scroll, True, True, 0)
-    listing = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-    scroll.add(listing)
+    split = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+    split.set_position(260)
+    box.pack_start(split, True, True, 0)
+    sidebar_scroll = Gtk.ScrolledWindow()
+    sidebar_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    split.pack1(sidebar_scroll, False, False)
+    sidebar = Gtk.ListBox()
+    sidebar.set_selection_mode(Gtk.SelectionMode.SINGLE)
+    sidebar_scroll.add(sidebar)
+    right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+    right.set_border_width(8)
+    split.pack2(right, True, False)
+    heading = Gtk.Label(label='Tous les outils', xalign=0)
+    heading.get_style_context().add_class('audit-heading')
+    right.pack_start(heading, False, False, 0)
+    tools_scroll = Gtk.ScrolledWindow()
+    tools_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    right.pack_start(tools_scroll, True, True, 0)
+    tools = Gtk.ListBox()
+    tools.set_selection_mode(Gtk.SelectionMode.NONE)
+    tools_scroll.add(tools)
+    groups = catalogue()
+    categories = [None] + list(groups)
+    for number, category in enumerate(categories):
+        row = Gtk.ListBoxRow()
+        label = Gtk.Label(label='Tous les outils' if category is None else f'{number:02d} · {category}', xalign=0)
+        label.set_line_wrap(True)
+        row.add(label)
+        sidebar.add(row)
     rows = []
-    for category, packages in catalogue().items():
-        expander = Gtk.Expander(label=category)
-        listing.pack_start(expander, False, False, 0)
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        expander.add(content)
-        children = []
+    theme = Gtk.IconTheme.get_default()
+    for category, packages in groups.items():
         for package in packages:
             available = installed(package)
-            button = Gtk.Button(label=package + (' — non installé' if not available else ''))
-            button.set_sensitive(available)
-            button.set_tooltip_text('Ouvrir l’application' if package in GUI else 'Ouvrir un terminal avec les commandes du paquet')
-            button.connect('clicked', activate, package, window)
-            content.pack_start(button, False, False, 0)
-            children.append((package, button))
-        rows.append((expander, children))
-    def filter_rows(entry):
-        query = entry.get_text().casefold().strip()
-        for expander, children in rows:
-            visible = 0
-            for package, button in children:
-                match = not query or query in package.casefold() or query in expander.get_label().casefold()
-                button.set_visible(match)
-                visible += match
-            expander.set_visible(bool(visible))
-            expander.set_expanded(bool(query and visible))
-    search.connect('search-changed', filter_rows)
+            row = Gtk.ListBoxRow()
+            row.set_activatable(available)
+            row.set_sensitive(available)
+            line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            icon = package if theme.has_icon(package) else ('application-x-executable' if package in GUI else 'utilities-terminal')
+            line.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.LARGE_TOOLBAR), False, False, 0)
+            label = Gtk.Label(label=package + (' — non installé' if not available else ''), xalign=0)
+            line.pack_start(label, True, True, 0)
+            row.add(line)
+            row.set_tooltip_text('Ouvrir l’application' if package in GUI else 'Ouvrir le terminal d’audit')
+            row.audit_package = package
+            tools.add(row)
+            rows.append((category, package, row))
+    tools.connect('row-activated', lambda _list, row: activate(row, row.audit_package, window))
+    empty = Gtk.Label(label='Aucun outil trouvé.', xalign=0)
+    right.pack_start(empty, False, False, 0)
+    footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+    if LOGO.is_file():
+        try:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(LOGO), 36, 44, True)
+            footer.pack_start(Gtk.Image.new_from_pixbuf(pixbuf), False, False, 0)
+        except Exception:
+            pass
+    footer.pack_start(Gtk.Label(label='Outils d’audit · LexOS Pro', xalign=0), True, True, 0)
+    close = Gtk.Button(label='Fermer')
+    close.connect('clicked', lambda _button: window.destroy())
+    footer.pack_end(close, False, False, 0)
+    box.pack_end(footer, False, False, 0)
+    def refresh(*_args):
+        query = search.get_text().casefold().strip()
+        selected = sidebar.get_selected_row()
+        category = categories[selected.get_index()] if selected else None
+        count = 0
+        for group, package, row in rows:
+            match = ((query in package.casefold() or query in group.casefold()) if query
+                     else category is None or category == group)
+            row.set_visible(match)
+            count += match
+        heading.set_text(('Résultats de recherche' if query else category or 'Tous les outils') + f' ({count})')
+        empty.set_visible(count == 0)
+    search.connect('search-changed', refresh)
+    sidebar.connect('row-selected', refresh)
     window.show_all()
+    sidebar.select_row(sidebar.get_row_at_index(0))
+    refresh()
+    search.grab_focus()
     Gtk.main()
 
 

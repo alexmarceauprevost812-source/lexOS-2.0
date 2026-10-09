@@ -101,17 +101,26 @@ class Menu(unittest.TestCase):
         def measure():
             window = next(w for w in Gtk.Window.list_toplevels() if w.get_title() == 'Outils d’audit — LexOS Pro')
             children = window.get_child().get_children()
-            search = children[1]
+            search, split = children[:2]
+            sidebar = split.get_child1().get_child().get_child()
+            right = split.get_child2()
+            heading, scroll = right.get_children()[:2]
+            tools = scroll.get_child().get_child()
+            self.assertEqual(len(sidebar.get_children()), 8)
+            sidebar.select_row(sidebar.get_row_at_index(4))
+            self.assertIn('Mots de passe', heading.get_text())
+            self.assertEqual(len([r for r in tools.get_children() if r.get_visible()]), 12)
             search.set_text('hashcat')
             search.emit('search-changed')
-            scroll = children[3]
-            categories = scroll.get_child().get_child().get_children()
-            visible = [c for c in categories if c.get_visible()]
-            self.assertEqual(len(visible), 1)
-            self.assertEqual(visible[0].get_label(), 'Mots de passe')
-            self.assertTrue(visible[0].get_expanded())
-            buttons = [b for b in visible[0].get_child().get_children() if b.get_visible()]
-            self.assertEqual([b.get_label() for b in buttons], ['hashcat'])
+            visible = [r for r in tools.get_children() if r.get_visible()]
+            self.assertEqual([r.audit_package for r in visible], ['hashcat'])
+            search.set_text('outil-introuvable')
+            search.emit('search-changed')
+            self.assertFalse(any(r.get_visible() for r in tools.get_children()))
+            self.assertTrue(right.get_children()[2].get_visible())
+            search.set_text('')
+            search.emit('search-changed')
+            self.assertEqual(len([r for r in tools.get_children() if r.get_visible()]), 12)
             # Hide first to avoid destroy callback ending a non-running GTK loop.
             window.hide()
         with patch.object(menu, 'DATA', INCLUDE/'usr/share/lexos/audit-tools.packages'), patch.object(menu, 'installed', return_value=True), patch.object(Gtk, 'main', side_effect=measure):
@@ -178,7 +187,8 @@ class Menu(unittest.TestCase):
     def test_logo_and_desktop(self):
         ET.parse(INCLUDE/'usr/share/icons/hicolor/scalable/apps/lexos-kali-audit.svg')
         desktop = (INCLUDE/'usr/share/applications/lexos-audit.desktop').read_text()
-        self.assertIn('Icon=lexos-kali-audit', desktop)
+        self.assertIn('Icon=/usr/share/lexos/audit-kali-logo.png', desktop)
+        self.assertEqual((INCLUDE/'usr/share/lexos/audit-kali-logo.png').read_bytes()[:8], b'\x89PNG\r\n\x1a\n')
         self.assertIn('Exec=/usr/bin/python3 /usr/lib/lexos/audit/menu.py', desktop)
 
 if __name__ == '__main__':

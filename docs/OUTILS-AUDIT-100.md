@@ -62,7 +62,7 @@ une ISO déjà construite n'est pas modifiée rétroactivement.
 
 Le hook Pro 0270 ajoute un lanceur « Outils d’audit » immédiatement après
 le menu principal. Le menu principal conserve Ti-Lex; le nouveau bouton
-emploie le dragon bleu Kali. La fenêtre suit le thème GTK LexOS, présente
+emploie l’image dragon + mot KALI fournie par l’utilisateur. La fenêtre suit le thème GTK LexOS, présente
 les sept catégories ci-dessus et une recherche par nom ou catégorie.
 Johnny est placé dans « Mots de passe ». Un outil absent est grisé avec
 « non installé » : le bouton n’installe aucun paquet à votre place.
@@ -128,3 +128,18 @@ est redirigée, avec `NO_COLOR`, ou dans un terminal `dumb`.
 Options XFCE vérifiées dans le binaire installé 1.1.4 : `--color-text`,
 `--color-bg`. Tests du formatage et de l’appel Nmap limité à `--help` ajoutés
 au banc du menu, exécuté par la CI.
+
+### Présentation inspirée du menu Kali
+
+La recherche est en haut, les sept catégories numérotées et « Tous les
+outils » sont à gauche, les outils avec icônes sont à droite. La recherche
+parcourt toutes les catégories; vider la recherche revient à la catégorie
+sélectionnée. Les outils absents restent marqués « non installé » et grisés.
+La fenêtre possède un bouton Fermer et se ferme aussi avec Échap. Le thème
+est sombre avec sélection orange et texte clair; il est limité à ce menu.
+
+Le bouton à côté de Ti-Lex et le pied du menu utilisent l’image fournie
+`capture_2026-10-09_14h23m10s.png`, copiée sans retouche dans
+`/usr/share/lexos/audit-kali-logo.png`. Le dragon bleu officiel précédemment
+ajouté reste une icône de secours. Le menu ne reprend que les catégories
+de la sélection LexOS, sans présenter des familles Kali non installées.
