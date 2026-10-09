@@ -255,6 +255,15 @@ verifie_module() {
 	return 1
 }
 
+# Installer l'outil Debian de diagnostic AVANT la pile NVIDIA officielle.
+# Une transaction apt après validation du pilote peut modifier ses dépendances
+# et déclencher DKMS. La construction de test a perdu son module entre ces
+# deux vérifications ; ne pas ajouter de paquet après la réussite de la cascade.
+apt-get update -qq || echo "[lexos]   !! index apt indisponible pour nvidia-detect"
+apt-get install -y nvidia-detect >/tmp/lexos-nvidia-detect.log 2>&1 \
+	&& echo "[lexos]   nvidia-detect installé avant la pile NVIDIA" \
+	|| { echo "[lexos]   nvidia-detect indisponible (sans gravité)"; cat /tmp/lexos-nvidia-detect.log; }
+
 # --- Les en-têtes du noyau : sans eux, DKMS ne compile rien -----------------
 #  ON DEMANDE LES EN-TÊTES DU NOYAU CIBLE, NOMMÉMENT. « linux-headers-amd64 »
 #  est un méta-paquet : il suit la suite, pas le noyau réellement installé.
@@ -670,12 +679,6 @@ if [ -n "$GARDER" ]; then
 		|| echo "[lexos]   !! apt-mark a échoué — la fin de construction pourrait retirer nvidia-smi"
 fi
 
-#  nvidia-detect (contrib Debian) : « quelle carte, quel pilote ? » en une
-#  commande. Précieux au premier dépannage ; jamais bloquant.
-apt-get install -y nvidia-detect >/dev/null 2>&1 \
-	&& echo "[lexos]   nvidia-detect installé" \
-	|| echo "[lexos]   nvidia-detect indisponible (sans gravité)"
-
 # --- LE RÉGLAGE QUI MANQUAIT : le kernel modesetting + le bug HDMI 610 ------
 #  Constaté sur l'Alienware Aurora, RTX 5060, pilote 610 installé avec succès
 #  (module compilé, alternative enregistrée) : le splash LexOS s'affiche, la
@@ -837,11 +840,14 @@ protege_alternative
 #  Le module est REVÉRIFIÉ ici plutôt que supposé depuis la cascade : entre
 #  la tentative et la fin du hook, il s'est passé un apt-mark et un
 #  autoremove, et ce dépôt a déjà vu neuf paquets disparaître à ce moment-là.
-if verifie_module >/dev/null 2>&1; then
+if verifie_module; then
 	conf_pose LEXOS_NVIDIA_MODULE "oui"
 else
 	conf_pose LEXOS_NVIDIA_MODULE "non"
 	echo "[lexos]   !! nvidia.ko absent en fin de hook — ISO pro non exploitable"
+	echo "[lexos]   diagnostic final : noyaux et fichiers NVIDIA"
+	find "$NOYAUX_DIR" -name '*nvidia*.ko*' -print 2>/dev/null || true
+	dkms status 2>/dev/null || true
 	if [ "${LEXOS_NVIDIA_FACULTATIF:-0}" = "1" ]; then
 		conf_pose LEXOS_NVIDIA_ETAT "absent-accepte"
 		echo "[lexos]   !! pilote absent accepté explicitement — vérifier avant publication"

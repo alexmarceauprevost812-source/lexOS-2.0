@@ -70,7 +70,7 @@ if sh "$T/hook.sh" > "$T/log" 2>&1; then exit 1; fi
 [ ! -s "$TEST_CALLS" ]
 
 # Jouer aussi la décision finale NVIDIA, après nettoyage des paquets.
-sed -n '/^if verifie_module >\/dev\/null 2>&1; then/,$p' "$N" > "$T/final.sh"
+sed -n '/^if verifie_module; then/,$p' "$N" > "$T/final.sh"
 grep -q 'conf_pose LEXOS_NVIDIA_ETAT "ok"' "$T/final.sh"
 final() {
     MODULE="$1" SMI="$2" LEXOS_NVIDIA_FACULTATIF="$3" sh -c '
@@ -78,8 +78,9 @@ final() {
         verifie_module() { [ "$MODULE" = oui ]; }
         command() { [ "$SMI" = oui ]; }
         VERSION=test REUSSITE=test
+        NOYAUX_DIR="$2"
         . "$1"
-    ' sh "$T/final.sh" > "$T/state" 2>&1
+    ' sh "$T/final.sh" "$T" > "$T/state" 2>&1
 }
 final oui oui 0
 grep -q '^LEXOS_NVIDIA_ETAT=ok$' "$T/state"
