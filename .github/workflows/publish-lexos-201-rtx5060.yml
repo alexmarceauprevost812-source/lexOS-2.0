@@ -67,38 +67,47 @@ jobs:
             echo "::error::La Release $TAG existe deja : aucune substitution automatique."
             exit 1
           fi
-          cat > notes.md <<EOF
-          ## LexOS Pro 2.0.1-rtx5060 — ISO USB testee
+          cat > notes.md <<'EOF'
+          ## LexOS Pro 2.0.1-rtx5060 — ISO USB testée
 
-          Image ISO construite par GitHub Actions le 9 octobre 2026
-          a partir du commit \`bf5091c49ff22072e7cf5ad869e8d82f3945a96a\`.
-          Test utilisateur reussi : demarrage USB, bureau XFCE et detection
-          de la NVIDIA GeForce RTX 5060 par \`nvidia-smi\` (pilote 615.71.09).
+          ISO construite par GitHub Actions le 9 octobre 2026
+          (commit `bf5091c49ff22072e7cf5ad869e8d82f3945a96a`).
+          Test USB utilisateur : XFCE et NVIDIA GeForce RTX 5060 reconnue par
+          `nvidia-smi` (pilote 615.71.09).
 
-          ### Telecharger et reconstituer
+          ### Télécharger et reconstituer l'ISO
 
-          Telecharger **tous** les fichiers \`${ISO}.part-XX\` ainsi que
-          \`${ISO}.sha256\` dans le meme dossier.
+          Téléchargez **tous les fichiers** `lexos-2.0.1-rtx5060-pro-amd64.hybrid.iso.part-XX` et
+          `lexos-2.0.1-rtx5060-pro-amd64.hybrid.iso.sha256` dans un même dossier.
 
           **Linux :**
 
-          \`cat ${ISO}.part-* > ${ISO}\`
+          `cat lexos-2.0.1-rtx5060-pro-amd64.hybrid.iso.part-* > lexos-2.0.1-rtx5060-pro-amd64.hybrid.iso`
 
-          \`sha256sum -c ${ISO}.sha256\`
+          `sha256sum -c lexos-2.0.1-rtx5060-pro-amd64.hybrid.iso.sha256`
 
-          **Windows (PowerShell) :** ouvrir PowerShell dans ce dossier et executer :
+          **Windows (PowerShell) :** ouvrez PowerShell dans le dossier puis collez :
 
-          \`$iso = "${ISO}"; $out = [IO.File]::Create((Join-Path (Get-Location) $iso)); try { Get-ChildItem "$iso.part-*" | Sort-Object Name | ForEach-Object { $in = [IO.File]::OpenRead($_.FullName); try { $in.CopyTo($out) } finally { $in.Dispose() } } } finally { $out.Dispose() }; (Get-FileHash $iso -Algorithm SHA256).Hash\`
+          ```powershell
+          $iso = "lexos-2.0.1-rtx5060-pro-amd64.hybrid.iso"
+          $out = [IO.File]::Create((Join-Path (Get-Location) $iso))
+          try {
+            Get-ChildItem "$iso.part-*" | Sort-Object Name | ForEach-Object {
+              $inputFile = [IO.File]::OpenRead($_.FullName)
+              try { $inputFile.CopyTo($out) } finally { $inputFile.Dispose() }
+            }
+          } finally { $out.Dispose() }
+          (Get-FileHash $iso -Algorithm SHA256).Hash
+          ```
 
-          Comparer le SHA256 affiche avec la valeur contenue dans \`${ISO}.sha256\`.
-          Pour demarrer en Live sans toucher a Windows, graver l'ISO
-          reconstituee sur une cle USB de 16 Go ou plus.
+          Comparez ce SHA256 avec le contenu du fichier `lexos-2.0.1-rtx5060-pro-amd64.hybrid.iso.sha256`.
+          Pour tester en Live, utilisez une clé USB de 16 Go ou plus.
 
-          **Attention :** preversion publique issue de l'artefact de test,
-          pas encore publication de remplacement pour \`latest-pro\`.
-          Ne pas lancer d'installation sur le SSD Windows sans sauvegarde.
+          **Attention :** préversion publique issue de l'artefact de test.
+          La Release existante `latest-pro` (2.0.0) n'est pas remplacée.
+          Ne lancez pas d'installation sur le SSD Windows sans sauvegarde.
 
-          [Construction et journaux d'origine](https://github.com/alexmarceauprevost812-source/lexOS-2.0/actions/runs/37880351430)
+          [Construction et diagnostics](https://github.com/alexmarceauprevost812-source/lexOS-2.0/actions/runs/37880351430)
           EOF
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
