@@ -1,0 +1,251 @@
+name: ISO de test 2.0.1 (sans publication)
+
+on:
+  push:
+    branches: [fix/lexos-2.0.1-live-desktop-nvidia]
+    paths: [.github/workflows/build-iso-test.yml]
+  workflow_dispatch:
+    inputs:
+      flavour:
+        description: Saveur de test
+        required: true
+        default: pro
+        type: choice
+        options: [pro]
+      suite:
+        description: Suite Debian
+        default: trixie
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iso-test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  iso:
+    name: ISO LexOS
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      #  Que construit-on ? Les paramètres viennent des entrées du workflow
+      #  quand il est lancé à la main, sinon de .iso-build-request.
+      # ------------------------------------------------------------------
+      - name: Déterminer la saveur et la suite
+        id: quoi
+        run: |
+          FLAVOUR="${{ inputs.flavour }}"
+          SUITE="${{ inputs.suite }}"
+
+          # Déclenché par un push : on lit .iso-build-request.
+          if [ -z "$FLAVOUR" ] && [ -r .iso-build-request ]; then
+            FLAVOUR="$(sed -n 's/^[[:space:]]*flavour:[[:space:]]*//p' .iso-build-request | head -1)"
+            SUITE="${SUITE:-$(sed -n 's/^[[:space:]]*suite:[[:space:]]*//p' .iso-build-request | head -1)}"
+            echo "Demande lue dans .iso-build-request → saveur ${FLAVOUR:-standard}"
+          fi
+
+          [ -n "$FLAVOUR" ] || FLAVOUR=standard
+          [ -n "$SUITE" ]   || SUITE=trixie
+
+          case "$FLAVOUR" in
+            minimal|standard|dev|full|gaming|pro) ;;
+            *) echo "::error::Saveur invalide dans .iso-build-request : '$FLAVOUR'"; exit 1 ;;
+          esac
+
+          echo "flavour=$FLAVOUR" >> "$GITHUB_OUTPUT"
+          echo "suite=$SUITE"     >> "$GITHUB_OUTPUT"
+          echo "## LexOS — saveur \`$FLAVOUR\` sur Debian \`$SUITE\`" >> "$GITHUB_STEP_SUMMARY"
+
+      # ------------------------------------------------------------------
+      #  Le runner GitHub arrive avec ~25 Go occupés par des SDK dont on
+      #  n'a aucun usage. Une ISO complète en réclame bien plus.
+      # ------------------------------------------------------------------
+      - name: Libérer de l'espace disque
+        run: |
+          echo "Avant :"; df -h / | tail -1
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            /usr/local/share/powershell \
+            /usr/lib/jvm \
+            /usr/share/swift || true
+          sudo docker image prune --all --force >/dev/null 2>&1 || true
+          sudo apt-get clean
+          echo "Après :"; df -h / | tail -1
+
+      - name: Installer live-build (version Debian)
+        run: |
+          #  ═══ L'ÉTAPE QUI A TUÉ L'ISO 120 ═══
+          #  « sudo apt-get update -qq » tout court. Le 9 septembre, le dépôt
+          #  apt de Google Chrome — que l'IMAGE DU COUREUR ajoute, et dont
+          #  LexOS ne prend rien — a servi un Packages.gz qui ne correspondait
+          #  plus à son fichier Release (« Hash Sum mismatch »). apt rend 100
+          #  dès qu'UN SEUL index échoue : la construction est morte ici, à la
+          #  sixième étape, avant même d'avoir commencé. Une heure de
+          #  construction perdue pour un dépôt qui ne nous sert à rien.
+          bash .github/scripts/apt-sain.sh
+          sudo apt-get install -y --no-install-recommends \
+            debootstrap debian-archive-keyring \
+            xorriso squashfs-tools \
+            rsync wget gnupg ca-certificates \
+            syslinux-common isolinux \
+            grub-efi-amd64-bin grub-pc-bin \
+            mtools dosfstools librsvg2-bin \
+            fonts-dejavu-core
+          #  fonts-dejavu-core N'EST PAS DÉCORATIF ICI.
+          #  Le fond du menu BIOS est un SVG que live-build rend en PNG
+          #  SUR CETTE MACHINE, avec rsvg. Le dessin demande « DejaVu
+          #  Sans » et « DejaVu Sans Mono ». Si la police manque, rsvg ne
+          #  se plaint pas : il prend un substitut, l'ISO se construit,
+          #  et le titre « LexOS » sort dans une autre fonte — visible
+          #  seulement une fois la clé USB gravée et démarrée. On ne
+          #  compte donc pas sur ce que l'image du runner contient déjà.
+
+          # Le live-build de l'archive Ubuntu est un fork figé en 3.0~a57 :
+          # il ne connaît ni --updates, ni --bootloaders, ni --uefi-secure-boot,
+          # ni --image-name. On installe celui de Debian trixie — l'outil
+          # officiel, celui pour lequel auto/config est écrit.
+          FILE="$(wget -qO- https://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.gz \
+                  | zcat | awk '/^Package: live-build$/{f=1} f && /^Filename:/{print $2; exit}')"
+          test -n "$FILE" || { echo "::error::live-build introuvable dans l'index Debian"; exit 1; }
+          wget -q "https://deb.debian.org/debian/${FILE}" -O /tmp/live-build.deb
+          sudo apt-get install -y --allow-downgrades /tmp/live-build.deb
+          echo "live-build $(dpkg-query -W -f='${Version}' live-build)"
+
+          # Le debootstrap d'Ubuntu peut ignorer le nom « trixie » : on pointe
+          # alors sur le script générique sid, identique dans les faits.
+          if [ ! -e /usr/share/debootstrap/scripts/trixie ]; then
+            sudo ln -s sid /usr/share/debootstrap/scripts/trixie
+            echo "debootstrap : script trixie ajouté (lien vers sid)"
+          fi
+
+      - name: Construire l'ISO
+        id: build
+        run: |
+          sudo ./build.sh \
+            --flavour "${{ steps.quoi.outputs.flavour }}" \
+            --suite   "${{ steps.quoi.outputs.suite }}"
+
+      # ------------------------------------------------------------------
+      #  Un rapport lisible, que la construction ait réussi ou non.
+      # ------------------------------------------------------------------
+      #  Le pilote NVIDIA, dans le JOURNAL et pas seulement dans le résumé.
+      #  Le résumé part dans $GITHUB_STEP_SUMMARY, que l'API ne rend pas :
+      #  trois constructions de suite ont été diagnostiquées à l'aveugle
+      #  faute de pouvoir lire cet inventaire. Sur stdout, il atterrit dans
+      #  le journal du job, lisible par l'API.
+      - name: Pilote NVIDIA — inventaire et version retenue
+        if: always()
+        run: |
+          echo "===== RAPPORT PILOTE NVIDIA ====="
+          cat chroot/etc/lexos/nvidia-report 2>/dev/null \
+            || echo "(pas de rapport : le chroot a été nettoyé ou le hook n'a pas tourné)"
+          echo "===== FIN RAPPORT PILOTE NVIDIA ====="
+
+      - name: Rapport
+        if: always()
+        run: |
+          {
+            if ls ./*.iso >/dev/null 2>&1; then
+              echo "### ✅ ISO construite"
+              echo
+              echo '```'
+              ls -lh ./*.iso | awk '{print $9, $5}'
+              cat ./*.iso.sha256 2>/dev/null || true
+              echo '```'
+              echo
+              echo "Télécharge-la dans **Artifacts**, au bas de cette page."
+              echo
+
+              # Le hook 0250 installe les paquets de confort un par un et note
+              # ceux que l'archive n'a pas. Ce rapport vit DANS l'ISO, à
+              # /etc/lexos/optional-report — donc invisible sans télécharger
+              # plusieurs gigaoctets. On le recopie ici, où il se lit d'un
+              # coup d'oeil : un nom de paquet qui a changé entre deux
+              # versions de Debian se voit alors tout de suite.
+              # Le pilote NVIDIA, en clair et tout de suite. Deux ISO ont été
+              # livrées avec la 610 buggée alors qu'on croyait avoir épinglé
+              # une autre branche : le journal le disait, mais noyé dans des
+              # centaines de milliers de lignes. Ici, ça se lit d'un coup.
+              NVREPORT="chroot/etc/lexos/nvidia-report"
+              if [ -r "$NVREPORT" ]; then
+                echo "### Pilote NVIDIA"
+                echo
+                echo '```'
+                cat "$NVREPORT"
+                echo '```'
+                echo
+              fi
+
+              RAPPORT="chroot/etc/lexos/optional-report"
+              if [ -r "$RAPPORT" ]; then
+                echo "### Paquets optionnels"
+                echo
+                echo '```'
+                head -3 "$RAPPORT"
+                echo '```'
+                if grep -q '^[a-z0-9]' "$RAPPORT" 2>/dev/null; then
+                  echo
+                  echo "<details><summary>Paquets non installés</summary>"
+                  echo
+                  echo '```'
+                  sed -n '/# Non install/,$p' "$RAPPORT" | tail -n +2
+                  echo '```'
+                  echo
+                  echo "</details>"
+                fi
+              fi
+            else
+              echo "### ❌ Aucune ISO produite"
+              echo
+              echo "Les 120 dernières lignes du journal :"
+              echo
+              echo '```'
+              tail -n 120 build.log 2>/dev/null || echo "(pas de build.log)"
+              echo '```'
+            fi
+            echo
+            echo "Espace disque restant :"
+            echo '```'
+            df -h / | tail -1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Empreinte de l'ISO de test
+        run: |
+          sudo chown "$(id -u):$(id -g)" ./*.iso
+          sha256sum ./*.iso | tee SHA256SUMS
+
+      - name: Conserver l'ISO de test (aucune Release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: lexos-pro-test-${{ github.sha }}
+          path: |
+            *.iso
+            SHA256SUMS
+          compression-level: 0
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Conserver les diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lexos-pro-test-log-${{ github.sha }}
+          path: |
+            build.log
+            config/includes.chroot/etc/lexos/build.conf
+            chroot/etc/lexos/nvidia-report
+            chroot/etc/lexos/build.conf
+          retention-days: 3
+          if-no-files-found: ignore
