@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import importlib.util
+import io
 import os
 from pathlib import Path
 import shutil
@@ -117,6 +118,38 @@ class Menu(unittest.TestCase):
             original = menu.catalogue
             with patch.object(menu, 'catalogue', side_effect=lambda: original(INCLUDE/'usr/share/lexos/audit-tools.packages')):
                 menu.show()
+
+    def test_banner_plain_when_redirected(self):
+        output = io.StringIO()
+        with patch.object(menu, 'tool_logo') as lookup:
+            menu.logo_banner('hashcat', [], output)
+        self.assertIn('hashcat · Outils d’audit LexOS', output.getvalue())
+        self.assertNotIn('\033', output.getvalue())
+        lookup.assert_not_called()
+
+    def test_banner_missing_logo_keeps_title(self):
+        output = io.StringIO()
+        output.isatty = lambda: True
+        with patch.dict(os.environ, {'TERM': 'xterm-256color', 'NO_COLOR': ''}), patch.object(menu, 'tool_logo', return_value=None):
+            menu.logo_banner('hashcat', [], output)
+        self.assertIn('hashcat · Outils d’audit LexOS', output.getvalue())
+
+    def test_banner_renders_installed_image(self):
+        import gi
+        gi.require_version('GdkPixbuf', '2.0')
+        from gi.repository import GdkPixbuf
+        # Exercise the real pixel renderer with a small installed-asset fixture.
+        with tempfile.TemporaryDirectory() as temp:
+            image = Path(temp)/'logo.png'
+            pixbuf = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, True, 8, 4, 4)
+            pixbuf.fill(0xff8000ff)
+            pixbuf.savev(str(image), 'png', [], [])
+            output = io.StringIO()
+            output.isatty = lambda: True
+            with patch.dict(os.environ, {'TERM': 'xterm-256color', 'NO_COLOR': ''}), patch.object(menu, 'tool_logo', return_value=image):
+                menu.logo_banner('hashcat', [], output)
+            self.assertIn('▀', output.getvalue())
+            self.assertIn('\033[38;2;255;128;0m', output.getvalue())
 
     def test_logo_and_desktop(self):
         ET.parse(INCLUDE/'usr/share/icons/hicolor/scalable/apps/lexos-kali-audit.svg')

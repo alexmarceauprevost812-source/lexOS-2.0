@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """Catalogue d'audit : aucune opération ni élévation lancée automatiquement."""
 import argparse
+import configparser
 import os
 from pathlib import Path
 import re
@@ -43,12 +44,94 @@ def installed(package):
     return p.returncode == 0 and p.stdout == 'install ok installed'
 
 
+def tool_logo(package, files):
+    """Utiliser uniquement une icône fournie par le paquet ou le thème installé."""
+    names = []
+    for filename in files:
+        if filename.endswith('.desktop') and Path(filename).is_file():
+            desktop = configparser.ConfigParser(interpolation=None)
+            try:
+                desktop.read(filename, encoding='utf-8')
+                icon = desktop.get('Desktop Entry', 'Icon', fallback='').strip()
+                if icon:
+                    names.append(icon)
+            except (OSError, UnicodeError, configparser.Error):
+                continue
+    names.append(package)
+    try:
+        import gi
+        gi.require_version('Gtk', '3.0')
+        from gi.repository import Gtk
+        if Gtk.init_check()[0]:
+            theme = Gtk.IconTheme.get_default()
+            for name in names:
+                if Path(name).is_absolute() and Path(name).is_file():
+                    return Path(name)
+                info = theme.lookup_icon(name, 48, 0)
+                if info and info.get_filename():
+                    return Path(info.get_filename())
+    except (ImportError, ValueError, RuntimeError):
+        pass
+    # Le terminal peut aussi fonctionner sans affichage GTK (SSH, console).
+    for name in names:
+        if Path(name).is_absolute() and Path(name).is_file():
+            return Path(name)
+        if '/' in name:
+            continue
+        for size in ('scalable', '48x48', '32x32', '24x24'):
+            for extension in ('.svg', '.png', '.xpm'):
+                path = Path('/usr/share/icons/hicolor') / size / 'apps' / (name + extension)
+                if path.is_file():
+                    return path
+    return None
+
+
+def logo_banner(package, files, stream=None):
+    stream = stream or sys.stdout
+    colour = stream.isatty() and not os.environ.get('NO_COLOR') and os.environ.get('TERM') != 'dumb'
+    if colour:
+        print('\033[1;38;5;208m' + '━' * 44 + '\n  ' + package + ' · Outils d’audit LexOS\n' + '━' * 44 + '\033[0m', file=stream)
+    else:
+        print(package + ' · Outils d’audit LexOS', file=stream)
+    if not colour:
+        return
+    image = tool_logo(package, files)
+    if image is None:
+        return
+    try:
+        import gi
+        gi.require_version('GdkPixbuf', '2.0')
+        from gi.repository import GdkPixbuf
+        # Deux pixels verticaux par caractère : image fidèle en petits blocs,
+        # compatible XFCE sans protocole d'images Kitty/Sixel ni paquet ajouté.
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(image), 24, 24, True)
+        width, height = pixbuf.get_width(), pixbuf.get_height()
+        pixels, stride, channels = pixbuf.get_pixels(), pixbuf.get_rowstride(), pixbuf.get_n_channels()
+        def rgb(x, y):
+            if y >= height:
+                return (18, 18, 20)
+            offset = y * stride + x * channels
+            values = pixels[offset:offset+3]
+            alpha = pixels[offset+3] if channels == 4 else 255
+            return tuple((int(value)*alpha + bg*(255-alpha))//255 for value, bg in zip(values, (18, 18, 20)))
+        for y in range(0, height, 2):
+            row = []
+            for x in range(width):
+                top, bottom = rgb(x, y), rgb(x, y+1)
+                row.append('\033[38;2;%d;%d;%dm\033[48;2;%d;%d;%dm▀' % (*top, *bottom))
+            print(''.join(row) + '\033[0m', file=stream)
+        print(file=stream)
+    except Exception:
+        # Une icône illisible ne doit jamais empêcher l'ouverture du terminal.
+        print('\033[0m', end='', file=stream)
+
+
 def console(package):
     # Ne pas lancer les outils avec un --help supposé : certains travaillent
     # dès le démarrage. Afficher les exécutables et ouvrir un shell ordinaire.
-    print('\nOutils d’audit LexOS — ' + package, flush=True)
-    print('Aucune opération lancée. Exécutables fournis par le paquet :', flush=True)
     result = subprocess.run(['dpkg-query', '-L', package], capture_output=True, text=True)
+    logo_banner(package, result.stdout.splitlines())
+    print('Aucune opération lancée. Exécutables fournis par le paquet :', flush=True)
     paths = [p for p in result.stdout.splitlines()
              if re.match(r'^/usr/(s?bin)/[^/]+$', p) and os.access(p, os.X_OK)]
     for p in paths:

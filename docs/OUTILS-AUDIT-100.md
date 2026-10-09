@@ -95,3 +95,15 @@ Validation : tests du catalogue complet, préservation et idempotence du
 panneau, séparation Pro/standard, lancement sans sudo, SVG et lanceur.
 La CI exerce également l’affichage GTK et le filtrage sous Xvfb. L’apparence
 finale sur la barre de la session live reste à vérifier avant l’ISO finale.
+
+### Titre et logo à l’ouverture du terminal
+
+Chaque terminal ouvert depuis le bouton porte le nom du paquet et affiche
+un en-tête orange « NOM · Outils d’audit LexOS ». Si le paquet fournit un
+lanceur avec une icône, ou si une icône à son nom existe dans le thème,
+son image est rendue en petits blocs couleur dans le terminal XFCE
+(24 × 24 pixels au maximum). Aucun logo n’est téléchargé au lancement.
+Une image absente ou illisible conserve le titre. Les sorties redirigées,
+`NO_COLOR` et les terminaux `dumb` restent en texte simple. Cela concerne
+les ouvertures depuis le catalogue, pas toutes les commandes tapées à la main.
+Le bouton Kali reste immédiatement à droite du menu Ti-Lex.
