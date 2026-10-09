@@ -383,7 +383,7 @@ else
 	if [ -z "$SORTIE_ECHEC" ]; then
 		non "le message d'échec affirme encore « le menu n'a PAS d'entrée de secours » sans l'avoir mesuré"
 	else
-		printf '%s' "$SORTIE_ECHEC" | grep -q 'changé de nom' \
+		grep -q 'changé de nom' <<< "$SORTIE_ECHEC" \
 			&& ok "…et il distingue « pas d'entrée » de « marqueur renommé » : deux remèdes différents" \
 			|| non "le message ne propose qu'une lecture alors qu'il y en a deux, avec des remèdes différents"
 	fi

@@ -490,6 +490,7 @@ jobs:
           #  scène : la nouvelle refuse, l'ANCIENNE accepte. C'est cette
           #  seconde moitié qui prouve que le défaut était réel.
           bash tests/test_lexos_nvidia_module.sh
+          bash tests/test_lexos_201_live.sh
 
       - name: LEXOS PRO — services, gardes structurelles et démarrage graphique
         if: ${{ !cancelled() }}

@@ -185,10 +185,10 @@ case "$SB_INACTIF" in
 esac
 
 #  LA RÈGLE, ÉPROUVÉE SUR LE TEXTE RENDU.
-if ! printf '%s' "$SB_ACTIF" | grep -q 'Disabled'; then
+if ! grep -q 'Disabled' <<< "$SB_ACTIF"; then
 	muet "le message ne propose pas de couper le Secure Boot : les avertissements ne s'appliquent pas"
 else
-	printf '%s' "$SB_ACTIF" | grep -qE 'BitLocker|BITLOCKER' \
+	grep -qE 'BitLocker|BITLOCKER' <<< "$SB_ACTIF" \
 		&& ok "le remède est accompagné de l'avertissement BitLocker" \
 		|| non "le message dit « Disabled » SANS parler de BitLocker : Windows peut devenir inaccessible"
 	#  ⚠ PAS DE « grep -i » SUR UN ACCENT. Le banc tourne sous « env -i »,
@@ -196,18 +196,18 @@ else
 	#  rougissait sur un message qui dit pourtant « CLÉ DE RÉCUPÉRATION » en
 	#  toutes lettres. Un faux rouge coûte exactement ce que coûte un faux
 	#  vert : on nomme donc les deux casses.
-	printf '%s' "$SB_ACTIF" | grep -qE 'récupération|RÉCUPÉRATION' \
+	grep -qE 'récupération|RÉCUPÉRATION' <<< "$SB_ACTIF" \
 		&& ok "…et nomme la CLÉ DE RÉCUPÉRATION, qu'il faut avoir AVANT" \
 		|| non "BitLocker est nommé mais pas sa clé de récupération : l'avertissement ne sert à rien"
-	printf '%s' "$SB_ACTIF" | grep -qE 'anti-triche|ANTI-TRICHE' \
+	grep -qE 'anti-triche|ANTI-TRICHE' <<< "$SB_ACTIF" \
 		&& ok "…et l'avertissement anti-triche (Alex joue sous Windows)" \
 		|| non "le message dit « Disabled » SANS avertir que des jeux exigent le Secure Boot"
 fi
 
 #  Et dans le message de panne complet, qui l'inclut par référence.
 VU_SB="$(dire LEXOS_EFIVARS="$BANC/efivars-on")"
-if printf '%s' "$VU_SB" | grep -q 'Disabled'; then
-	printf '%s' "$VU_SB" | grep -qE 'BitLocker|BITLOCKER' && printf '%s' "$VU_SB" | grep -qE 'anti-triche|ANTI-TRICHE' \
+if grep -q 'Disabled' <<< "$VU_SB"; then
+	grep -qE 'BitLocker|BITLOCKER' <<< "$VU_SB" && grep -qE 'anti-triche|ANTI-TRICHE' <<< "$VU_SB" \
 		&& ok "le message de la console hérite des deux avertissements (un seul texte, pas deux)" \
 		|| non "le message de la console propose « Disabled » sans les avertissements : il a recopié au lieu de réutiliser"
 else
@@ -220,7 +220,7 @@ titre "5. ON NE PROMET PAS UNE COMMANDE QUI N'EXISTE PAS"
 #  La voie propre (signer le pilote) arrive par étapes. Tant que l'outil
 #  n'est pas installé, l'envoyer taper une commande introuvable devant une
 #  console sans bureau serait la pire des réponses.
-if printf '%s' "$SB_ACTIF" | grep -q 'lexos-signer-pilote'; then
+if grep -q 'lexos-signer-pilote' <<< "$SB_ACTIF"; then
 	non "le message propose « lexos-signer-pilote » alors que la commande n'est pas dans le PATH du banc"
 else
 	ok "aucune commande introuvable n'est proposée"

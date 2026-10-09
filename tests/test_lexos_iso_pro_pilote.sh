@@ -376,7 +376,7 @@ else
 		muet "la liste des branches écartées n'a pas pu être lue dans le hook 0260"
 	elif [ -z "$VER_README" ]; then
 		muet "l'exemple du README n'affiche pas de ligne « Pilote NV »"
-	elif printf '%s' " $ECARTEES " | grep -q " $VER_README "; then
+	elif grep -q " $VER_README " <<< " $ECARTEES "; then
 		non "l'exemple du README montre la branche $VER_README, que le hook 0260 écarte exprès ($ECARTEES)"
 	else
 		ok "…et la version montrée est d'une branche que la cascade peut vraiment retenir (écartées : $ECARTEES)"
@@ -430,7 +430,7 @@ else
 
 	#  Et le hook doit bien LIRE build.conf pour y trouver la clé : c'est le
 	#  seul chemin qui traverse « env -i ».
-	sed -n '1,60p' "$HOOK" | grep -q '\. /etc/lexos/build\.conf' \
+	grep -q '\. /etc/lexos/build\.conf' < <(sed -n '1,60p' "$HOOK") \
 		&& ok "…et le hook source bien build.conf en tête, donc il la voit" \
 		|| non "le hook ne source plus build.conf : la clé n'arriverait nulle part"
 

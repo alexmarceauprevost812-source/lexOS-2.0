@@ -243,7 +243,7 @@ done
 
 essai_lanceur() {   # $1 = description du décor ; rend le chemin pris
 	: > "$JOURNAL"
-	PATH="$FAUX:$PATH" XDG_RUNTIME_DIR="$1" HOME="$BANC/home" \
+	PATH="$FAUX:$PATH" XDG_RUNTIME_DIR="$1" HOME="$BANC/home" XDG_CONFIG_HOME="$BANC/home/.config" \
 		sh "$BIN/lexos-volet" rapides >/dev/null 2>&1
 	cat "$JOURNAL" 2>/dev/null
 }

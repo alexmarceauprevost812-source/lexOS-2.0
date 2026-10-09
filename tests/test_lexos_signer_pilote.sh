@@ -129,7 +129,13 @@ VU="$(env -i PATH="/usr/bin:/bin" HOME="$BANC" NO_COLOR=1 TERM=dumb \
 	LEXOS_CMDLINE="$BANC/cmdline-installe" LEXOS_EFIVARS="$BANC/efi-on" \
 	LEXOS_DKMS_CONF="$BANC/dkms/framework.conf" LEXOS_DKMS_CONF_D="$BANC/dkms/conf.d" \
 	LEXOS_SHELL_DIR="$SHELL_DIR" LEXOS_MODULES="$BANC/modules" \
-	bash "$OUTIL" --etat 2>&1)"
+	bash -c '
+        command() {
+            if [ "$*" = "-v mokutil" ]; then return 1; fi
+            builtin command "$@"
+        }
+        . "$1" --etat
+    ' bash "$OUTIL" 2>&1)"
 case "$VU" in
 	*"mokutil"*"apt install mokutil"*) ok "mokutil absent → la commande exacte pour l'installer" ;;
 	*) non "mokutil absent : l'outil ne dit pas comment l'obtenir" ;;
@@ -151,16 +157,16 @@ titre "3. QUAND TOUT EST PRÊT : LES TROIS CHOSES QUI FONT LA DIFFÉRENCE"
 #  voie de « va couper le Secure Boot » — et personne ne comprendra pourquoi
 #  elle est meilleure. Les trois affirmations sont la raison d'être de l'outil.
 VU="$(joue "$BANC/cmdline-installe" "$BANC/efi-on" "$BANC/dkms/framework.conf")"
-printf '%s' "$VU" | grep -qE 'Secure Boot reste ACTIF' \
+grep -qE 'Secure Boot reste ACTIF' <<< "$VU" \
 	&& ok "il dit que le Secure Boot reste ACTIF" \
 	|| non "il ne dit pas que le Secure Boot reste actif : rien ne distingue cette voie de l'autre"
-printf '%s' "$VU" | grep -qE 'BitLocker ne bronchera pas' \
+grep -qE 'BitLocker ne bronchera pas' <<< "$VU" \
 	&& ok "…que BitLocker ne réclamera aucune clé de récupération" \
 	|| non "il ne rassure pas sur BitLocker — c'est pourtant le premier risque de l'autre voie"
-printf '%s' "$VU" | grep -qE 'jeux Windows' \
+grep -qE 'jeux Windows' <<< "$VU" \
 	&& ok "…et que les jeux à anti-triche continueront de fonctionner" \
 	|| non "il ne dit rien des jeux : Alex se sert de Windows pour ça"
-printf '%s' "$VU" | grep -qE 'Enroll MOK' \
+grep -qE 'Enroll MOK' <<< "$VU" \
 	&& ok "…et il nomme l'écran bleu et ses boutons, en anglais comme à l'écran" \
 	|| non "il ne décrit pas MokManager : l'écran bleu passera vite et sans rien faire"
 
@@ -229,7 +235,7 @@ fi
 #  il envoie taper une commande introuvable devant une console sans bureau.
 SB="$SHELL_DIR/secure-boot.sh"
 if grep -q 'lexos-signer-pilote' "$SB"; then
-	grep -B2 'lexos-signer-pilote' "$SB" | grep -q 'command -v lexos-signer-pilote' \
+	grep -q 'command -v lexos-signer-pilote' < <(grep -B2 'lexos-signer-pilote' "$SB") \
 		&& ok "…et le message du Secure Boot ne le propose que si la commande existe" \
 		|| non "le message propose la commande sans vérifier qu'elle est là"
 else
@@ -276,7 +282,7 @@ TRACE_SM="$(cat "$BANC/trace" 2>/dev/null || true)"
 
 #  Et il doit trouver modinfo là où il est VRAIMENT, sinon il refuse tout le
 #  temps sur une machine parfaitement saine.
-grep -vE '^\s*#' "$OUTIL" | grep -q '/usr/sbin/modinfo' \
+grep -q '/usr/sbin/modinfo' < <(grep -vE '^\s*#' "$OUTIL") \
 	&& ok "…mais il cherche d'abord modinfo dans /usr/sbin, où Debian le met" \
 	|| non "l'outil ne cherche modinfo que dans le PATH : il refuserait sur toute machine saine"
 
@@ -304,7 +310,7 @@ SALE="$(grep -vE '^\s*#' "$OUTIL" | grep -c 'try_sign_modules' || true)"
 #  « dkms generate_mok » n'existe qu'à partir de dkms 3.1 : trixie l'a,
 #  bookworm non — et README.md propose encore bookworm. L'outil doit DEMANDER
 #  à ce dkms-ci, pas supposer.
-grep -vE '^\s*#' "$OUTIL" | grep -q "dkms --help" \
+grep -q "dkms --help" < <(grep -vE '^\s*#' "$OUTIL") \
 	&& ok "…et il demande à CE dkms s'il connaît « generate_mok » avant de le conseiller" \
 	|| non "l'outil conseille « dkms generate_mok » sans vérifier : sur dkms 3.0 (bookworm) la commande n'existe pas"
 
