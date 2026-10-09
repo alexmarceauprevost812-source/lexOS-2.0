@@ -107,3 +107,24 @@ Une image absente ou illisible conserve le titre. Les sorties redirigées,
 `NO_COLOR` et les terminaux `dumb` restent en texte simple. Cela concerne
 les ouvertures depuis le catalogue, pas toutes les commandes tapées à la main.
 Le bouton Kali reste immédiatement à droite du menu Ti-Lex.
+
+### Couleurs du terminal d’audit
+
+Les fenêtres du catalogue utilisent un texte clair `#E6E6E6` sur un fond
+`#121214`, via les options par fenêtre du terminal XFCE, sans modifier
+le profil des autres terminaux. Les chemins des commandes sont cyan.
+Les aides de Nmap et Hashcat (`--help`, sans cible ni opération) apparaissent
+à l’ouverture : rubriques orange, options vert doux, paramètres cyan,
+descriptions en texte clair. La sortie originale est conservée caractère
+pour caractère après retrait des codes couleur. Les autres outils ne sont
+pas lancés automatiquement; leurs couleurs propres restent celles du programme.
+
+Pour colorer volontairement une autre aide :
+`COMMANDE --help | python3 /usr/lib/lexos/audit/menu.py --colorer-aide`.
+Vérifier d’abord que cette commande fournit bien une aide sans opération.
+Le filtre ne lance aucun outil et garde le texte simple lorsque sa sortie
+est redirigée, avec `NO_COLOR`, ou dans un terminal `dumb`.
+
+Options XFCE vérifiées dans le binaire installé 1.1.4 : `--color-text`,
+`--color-bg`. Tests du formatage et de l’appel Nmap limité à `--help` ajoutés
+au banc du menu, exécuté par la CI.

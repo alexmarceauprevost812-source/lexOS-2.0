@@ -57,6 +57,8 @@ class Menu(unittest.TestCase):
             args = popen.call_args.args[0]
             self.assertEqual(args[0], '/usr/bin/xfce4-terminal')
             self.assertEqual(args[-2:], ['--console', 'hashcat'])
+            self.assertIn('--color-text=#E6E6E6', args)
+            self.assertIn('--color-bg=#121214', args)
             self.assertNotIn('sudo', args)
             self.assertNotIn('shell', popen.call_args.kwargs)
 
@@ -150,6 +152,28 @@ class Menu(unittest.TestCase):
                 menu.logo_banner('hashcat', [], output)
             self.assertIn('▀', output.getvalue())
             self.assertIn('\033[38;2;255;128;0m', output.getvalue())
+
+    def test_help_colours_preserve_content(self):
+        text = 'SCAN TECHNIQUES:\n  -sS --top-ports <number> [default: 100]\n'
+        coloured = menu.colour_help(text)
+        self.assertIn('\033[1;38;5;208mSCAN TECHNIQUES:', coloured)
+        self.assertIn('\033[38;5;114m--top-ports', coloured)
+        self.assertIn('\033[38;5;81m<number>', coloured)
+        self.assertEqual(menu.ANSI.sub('', coloured), text)
+        self.assertEqual(menu.colour_help(text, False), text)
+        self.assertEqual(menu.colour_help('\033[32mAlready coloured\033[0m'), '\033[32mAlready coloured\033[0m')
+
+    def test_only_help_runs_without_scan(self):
+        with patch.object(menu.shutil, 'which', return_value='/usr/bin/nmap'), patch.object(menu.subprocess, 'run') as run:
+            run.return_value.returncode = 0
+            run.return_value.stdout = 'SCAN TECHNIQUES:\n'
+            with patch('sys.stdout', io.StringIO()):
+                menu.tool_help('nmap')
+            self.assertEqual(run.call_args.args[0], ['nmap', '--help'])
+            self.assertEqual(run.call_args.kwargs['timeout'], 10)
+            run.reset_mock()
+            menu.tool_help('testdisk')
+            run.assert_not_called()
 
     def test_logo_and_desktop(self):
         ET.parse(INCLUDE/'usr/share/icons/hicolor/scalable/apps/lexos-kali-audit.svg')

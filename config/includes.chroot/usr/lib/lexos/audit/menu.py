@@ -126,16 +126,57 @@ def logo_banner(package, files, stream=None):
         print('\033[0m', end='', file=stream)
 
 
+HELP = {'nmap': ['nmap', '--help'], 'hashcat': ['hashcat', '--help']}
+ANSI = re.compile(r'\x1b\[[0-9;]*m')
+
+
+def use_colour(stream=None):
+    stream = stream or sys.stdout
+    return stream.isatty() and not os.environ.get('NO_COLOR') and os.environ.get('TERM') != 'dumb'
+
+
+def colour_help(text, enabled=True):
+    if not enabled or '\033' in text:
+        return text
+    # Only add SGR colours; retain every character and line of the help.
+    result = []
+    tokens = re.compile(r'(--?[A-Za-z][A-Za-z0-9_-]*|<[^>\n]+>|\[[^]\n]+\])')
+    for line in text.splitlines(keepends=True):
+        if re.match(r'^[A-Z][A-Z0-9 /(),&_-]+:', line):
+            body = line.rstrip('\r\n')
+            result.append('\033[1;38;5;208m' + body + '\033[0m' + line[len(body):])
+        else:
+            def highlight(match):
+                colour = '81' if match.group().startswith(('<', '[')) else '114'
+                return '\033[38;5;' + colour + 'm' + match.group() + '\033[0m'
+            result.append(tokens.sub(highlight, line))
+    return ''.join(result)
+
+
+def tool_help(package):
+    args = HELP.get(package)
+    if args is None or not shutil.which(args[0]):
+        return
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            print(colour_help(result.stdout, use_colour()), end='', flush=True)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
 def console(package):
-    # Ne pas lancer les outils avec un --help supposé : certains travaillent
-    # dès le démarrage. Afficher les exécutables et ouvrir un shell ordinaire.
+    # Seules les aides explicitement autorisées (Nmap/Hashcat) sont lancées.
+    # Les autres outils restent des commandes à exécuter volontairement.
     result = subprocess.run(['dpkg-query', '-L', package], capture_output=True, text=True)
     logo_banner(package, result.stdout.splitlines())
-    print('Aucune opération lancée. Exécutables fournis par le paquet :', flush=True)
+    notice = 'Aucune opération lancée. Exécutables fournis par le paquet :'
+    print(('\033[38;5;250m' + notice + '\033[0m') if use_colour() else notice, flush=True)
     paths = [p for p in result.stdout.splitlines()
              if re.match(r'^/usr/(s?bin)/[^/]+$', p) and os.access(p, os.X_OK)]
     for p in paths:
-        print('  ' + p)
+        print(('\033[38;5;81m  ' + p + '\033[0m') if use_colour() else '  ' + p)
+    tool_help(package)
     print('\nAide : man NOM_DE_COMMANDE. Tape exit pour fermer.\n', flush=True)
     os.execv('/bin/bash', ['/bin/bash', '-i'])
 
@@ -150,7 +191,8 @@ def launch(package):
         terminal = shutil.which('xfce4-terminal')
         if not terminal:
             raise RuntimeError('Le terminal XFCE est indisponible.')
-        subprocess.Popen([terminal, '--disable-server', '--title=Audit — ' + package,
+        subprocess.Popen([terminal, '--disable-server', '--color-text=#E6E6E6',
+                          '--color-bg=#121214', '--title=Audit — ' + package,
                           '-x', '/usr/bin/python3', str(Path(__file__).resolve()),
                           '--console', package])
 
@@ -247,8 +289,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--installer-squelette', type=Path)
     parser.add_argument('--console')
+    parser.add_argument('--colorer-aide', action='store_true', help='Colorer une aide reçue sur stdin')
     args = parser.parse_args()
-    if args.installer_squelette is not None:
+    if args.colorer_aide:
+        print(colour_help(sys.stdin.read(), use_colour()), end='')
+    elif args.installer_squelette is not None:
         skeleton(args.installer_squelette)
     elif args.console:
         if args.console not in {p for group in catalogue().values() for p in group}:
