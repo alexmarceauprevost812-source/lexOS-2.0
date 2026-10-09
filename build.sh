@@ -222,6 +222,7 @@ cat > config/includes.chroot/etc/lexos/build.conf <<EOF
 # Généré par build.sh — ne pas éditer à la main.
 LEXOS_NAME="${LEXOS_NAME}"
 LEXOS_ID="${LEXOS_ID}"
+LEXOS_GRUB_LABEL="${LEXOS_GRUB_LABEL:-${LEXOS_NAME}}"
 LEXOS_VERSION="${LEXOS_VERSION}"
 LEXOS_CODENAME="${LEXOS_CODENAME}"
 LEXOS_TAGLINE="${LEXOS_TAGLINE}"

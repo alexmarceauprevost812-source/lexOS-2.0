@@ -498,6 +498,8 @@ jobs:
           # Test explicite requis : la CI vérifie qu'aucun banc n'est orphelin.
           # Exerce les SVG de la poubelle, de Paramètres et leur liaison GTK.
           bash tests/test_lexos_202_icons.sh
+          python3 tests/test_lexos_202_desktop.py
+          bash -n tools/verifier-secure-boot-build.sh
 
       - name: LEXOS PRO — services, gardes structurelles et démarrage graphique
         if: ${{ !cancelled() }}

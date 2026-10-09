@@ -160,11 +160,11 @@ VU="$(joue "$BANC/cmdline-installe" "$BANC/efi-on" "$BANC/dkms/framework.conf")"
 grep -qE 'Secure Boot reste ACTIF' <<< "$VU" \
 	&& ok "il dit que le Secure Boot reste ACTIF" \
 	|| non "il ne dit pas que le Secure Boot reste actif : rien ne distingue cette voie de l'autre"
-grep -qE 'BitLocker ne bronchera pas' <<< "$VU" \
-	&& ok "…que BitLocker ne réclamera aucune clé de récupération" \
-	|| non "il ne rassure pas sur BitLocker — c'est pourtant le premier risque de l'autre voie"
+grep -qE 'clé de récupération BitLocker' <<< "$VU" \
+	&& ok "…de conserver la clé de récupération BitLocker" \
+	|| non "il ne rappelle pas de conserver la clé BitLocker"
 grep -qE 'jeux Windows' <<< "$VU" \
-	&& ok "…et que les jeux à anti-triche continueront de fonctionner" \
+	&& ok "…et que les jeux Windows restent à vérifier" \
 	|| non "il ne dit rien des jeux : Alex se sert de Windows pour ça"
 grep -qE 'Enroll MOK' <<< "$VU" \
 	&& ok "…et il nomme l'écran bleu et ses boutons, en anglais comme à l'écran" \

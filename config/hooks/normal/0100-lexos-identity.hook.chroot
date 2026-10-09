@@ -110,7 +110,7 @@ EOF
 # --- GRUB du système installé ------------------------------------------------
 mkdir -p /etc/default/grub.d
 cat > /etc/default/grub.d/lexos.cfg <<EOF
-GRUB_DISTRIBUTOR="${LEXOS_NAME}"
+GRUB_DISTRIBUTOR="${LEXOS_GRUB_LABEL:-${LEXOS_NAME}}"
 #  ── L'ANIMATION SEULE À L'ÉCRAN ─────────────────────────────────────────
 #  ALEX : « qu'on ne voie pas les outils ouvrir quand il fait l'animation ».
 #  « quiet splash » ne suffisait pas : quiet BAISSE le niveau des messages du

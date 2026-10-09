@@ -103,8 +103,8 @@ ${PROG} — faire accepter le pilote NVIDIA par le Secure Boot
   ${O}sudo ${PROG}${R}           Vérifie, puis propose d'inscrire le certificat
   ${O}${PROG} --etat${R}    Ne fait que dire où on en est (aucun changement)
 
-Signer le pilote laisse le Secure Boot ACTIF : ni BitLocker ni les jeux
-Windows ne sont touchés. C'est pour ça que c'est la bonne réponse.
+Signer le pilote laisse le Secure Boot ACTIF. L'inscription MOK modifie
+la confiance UEFI; conserver la clé BitLocker et valider les jeux Windows.
 AIDE
 		exit 0
 		;;
@@ -352,9 +352,10 @@ cat <<'FIN'
 
   ═══ CE QUE ÇA CHANGE, ET SURTOUT CE QUE ÇA NE CHANGE PAS ═══
   · Le Secure Boot reste ACTIF. On n'y touche pas.
-  · BitLocker ne bronchera pas : il ne réclamera aucune clé de récupération,
-    parce que l'état du Secure Boot ne change pas.
-  · Les jeux Windows qui exigent le Secure Boot continueront de fonctionner.
+  · Conserver la clé de récupération BitLocker avant une modification de
+    confiance ou de démarrage : son comportement dépend du firmware et des PCR.
+  · Les jeux Windows peuvent exiger Secure Boot; leur fonctionnement reste
+    à vérifier après inscription. Aucune garantie automatique.
   C'est toute la différence avec « aller couper le Secure Boot dans le BIOS ».
 
   ═══ CE QUI VA SE PASSER ═══
