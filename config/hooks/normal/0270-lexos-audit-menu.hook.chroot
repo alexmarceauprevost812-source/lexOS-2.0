@@ -1,0 +1,12 @@
+#!/bin/bash
+# Ajouter le bouton uniquement au squelette de la prochaine ISO Pro.
+set -euo pipefail
+CONF="${LEXOS_AUDIT_CONF:-/etc/lexos/build.conf}"
+DEST="${LEXOS_AUDIT_ROOT:-}"
+LEXOS_FLAVOUR=standard
+if [[ -r $CONF ]]; then
+    # shellcheck disable=SC1090
+    . "$CONF"
+fi
+[[ $LEXOS_FLAVOUR == pro ]] || exit 0
+/usr/bin/python3 "$DEST/usr/lib/lexos/audit/menu.py" --installer-squelette "${DEST:-/}"

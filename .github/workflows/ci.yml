@@ -500,6 +500,8 @@ jobs:
           bash tests/test_lexos_202_icons.sh
           python3 tests/test_lexos_202_desktop.py
           python3 tests/test_lexos_audit_outils.py
+          sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-3.0 xvfb xauth
+          LEXOS_AUDIT_REQUIRE_GTK=1 xvfb-run -a /usr/bin/python3 tests/test_lexos_audit_menu.py
           bash -n tools/verifier-secure-boot-build.sh
 
       - name: LEXOS PRO — services, gardes structurelles et démarrage graphique
