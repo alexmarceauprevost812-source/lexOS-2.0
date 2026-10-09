@@ -129,7 +129,13 @@ VU="$(env -i PATH="/usr/bin:/bin" HOME="$BANC" NO_COLOR=1 TERM=dumb \
 	LEXOS_CMDLINE="$BANC/cmdline-installe" LEXOS_EFIVARS="$BANC/efi-on" \
 	LEXOS_DKMS_CONF="$BANC/dkms/framework.conf" LEXOS_DKMS_CONF_D="$BANC/dkms/conf.d" \
 	LEXOS_SHELL_DIR="$SHELL_DIR" LEXOS_MODULES="$BANC/modules" \
-	bash "$OUTIL" --etat 2>&1)"
+	bash -c '
+        command() {
+            if [ "$*" = "-v mokutil" ]; then return 1; fi
+            builtin command "$@"
+        }
+        . "$1" --etat
+    ' bash "$OUTIL" 2>&1)"
 case "$VU" in
 	*"mokutil"*"apt install mokutil"*) ok "mokutil absent → la commande exacte pour l'installer" ;;
 	*) non "mokutil absent : l'outil ne dit pas comment l'obtenir" ;;
