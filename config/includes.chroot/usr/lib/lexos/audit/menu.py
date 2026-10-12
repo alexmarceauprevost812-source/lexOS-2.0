@@ -10,6 +10,10 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
+# Images du paquet source Kali, téléchargées volontairement et vérifiées
+# par SHA-256 : aucune dépendance obligatoire au réseau.
+from icones import icone_locale
+
 DATA = Path('/usr/share/lexos/audit-tools.packages')
 DESKTOP = 'lexos-audit.desktop'
 LOGO = Path('/usr/share/lexos/audit-kali-logo.png')
@@ -87,6 +91,61 @@ def tool_logo(package, files):
     return None
 
 
+def commandes_package(paquet: str, liste_fichiers: str | None = None) -> list[str]:
+    """Les commandes RÉELLEMENT installées par un paquet, sans les exécuter.
+
+    Ni options d'attaque, ni commandes construites par supposition : seulement
+    les exécutables lus dans la base dpkg. L'ordre est stable et les doublons
+    sont éliminés, y compris sur Debian usrmerge.
+    """
+    if paquet == "johnny":
+        executable = shutil.which("johnny")
+        return [executable] if executable else []
+    if liste_fichiers is None:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9.+-]*", paquet):
+            return []
+        try:
+            r = subprocess.run(
+                ["dpkg-query", "-L", paquet], capture_output=True,
+                text=True, timeout=6, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            return []
+        if r.returncode != 0:
+            return []
+        liste_fichiers = r.stdout
+    programmes = set()
+    for ligne in liste_fichiers.splitlines():
+        if not re.fullmatch(
+                r"/(?:usr/(?:local/)?(?:s?bin)|s?bin)/[^/]+", ligne):
+            continue
+        if not os.access(ligne, os.X_OK):
+            continue
+        programmes.add(ligne)
+    return sorted(programmes, key=lambda nom: (Path(nom).name.lower(), nom))
+
+
+def toutes_commandes(groupes=None, ecrire=print) -> int:
+    """Catalogue lecture seule de tous les exécutables des 100 entrées."""
+    groupes = groupes if groupes is not None else catalogue()
+    nombre = 0
+    for categorie, paquets in groupes.items():
+        ecrire("\n" + categorie)
+        ecrire("=" * len(categorie))
+        for paquet in paquets:
+            if not installed(paquet):
+                ecrire("  " + paquet + " — non installé")
+                continue
+            commandes = commandes_package(paquet)
+            ecrire("  " + paquet + " :")
+            if not commandes:
+                ecrire("    Aucune commande directe détectée dans les chemins système.")
+            for commande in commandes:
+                ecrire("    " + commande)
+            nombre += len(commandes)
+    ecrire("\n%d commandes exécutables recensées (aucune lancée)." % nombre)
+    return nombre
+
+
 def logo_banner(package, files, stream=None):
     stream = stream or sys.stdout
     colour = stream.isatty() and not os.environ.get('NO_COLOR') and os.environ.get('TERM') != 'dumb'
@@ -96,7 +155,7 @@ def logo_banner(package, files, stream=None):
         print(package + ' · Outils d’audit LexOS', file=stream)
     if not colour:
         return
-    image = tool_logo(package, files)
+    image = icone_locale(package) or tool_logo(package, files)
     if image is None:
         return
     try:
@@ -173,8 +232,7 @@ def console(package):
     logo_banner(package, result.stdout.splitlines())
     notice = 'Aucune opération lancée. Exécutables fournis par le paquet :'
     print(('\033[38;5;250m' + notice + '\033[0m') if use_colour() else notice, flush=True)
-    paths = [p for p in result.stdout.splitlines()
-             if re.match(r'^/usr/(s?bin)/[^/]+$', p) and os.access(p, os.X_OK)]
+    paths = commandes_package(package, result.stdout)
     for p in paths:
         print(('\033[38;5;81m  ' + p + '\033[0m') if use_colour() else '  ' + p)
     tool_help(package)
@@ -239,20 +297,9 @@ def menu_terminal(lire=input, ecrire=print):
             if paquet == "johnny":
                 ecrire("johnny : interface graphique installée (aucun démarrage automatique).")
                 continue
-            try:
-                resultat = subprocess.run(
-                    ["dpkg-query", "-L", paquet],
-                    capture_output=True, text=True, timeout=5)
-            except (OSError, subprocess.TimeoutExpired):
-                ecrire("Impossible de lire les exécutables du paquet.")
-                continue
-            chemins = [
-                ligne for ligne in resultat.stdout.splitlines()
-                if re.fullmatch(r"/usr/(?:s?bin)/[^/]+", ligne)
-                and os.access(ligne, os.X_OK)
-            ]
+            chemins = commandes_package(paquet)
             ecrire(f"\n{paquet} : exécutables installés :")
-            for chemin in chemins[:40]:
+            for chemin in chemins:
                 ecrire("  " + chemin)
             if not chemins:
                 ecrire("  Aucun exécutable direct détecté.")
@@ -441,12 +488,16 @@ if __name__ == '__main__':
     parser.add_argument('--console')
     parser.add_argument('--terminal', action='store_true',
                         help='Parcourir les outils dans LexOS Pro Terminal')
+    parser.add_argument('--toutes-commandes', action='store_true',
+                        help='Lister les exécutables installés de toutes les catégories')
     parser.add_argument('--colorer-aide', action='store_true', help='Colorer une aide reçue sur stdin')
     args = parser.parse_args()
     if args.colorer_aide:
         print(colour_help(sys.stdin.read(), use_colour()), end='')
     elif args.installer_squelette is not None:
         skeleton(args.installer_squelette)
+    elif args.toutes_commandes:
+        toutes_commandes()
     elif args.terminal:
         menu_terminal()
     elif args.console:
