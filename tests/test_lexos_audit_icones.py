@@ -110,7 +110,7 @@ class AuditImages(unittest.TestCase):
     def test_icon_fallback_is_explicit(self):
         menu = (ROOT / "config/includes.chroot/usr/lib/lexos/audit/menu.py").read_text()
         self.assertIn("icone_locale(package)", menu)
-        self.assertIn("Gtk.Image.new_from_file", menu)
+        self.assertIn("GdkPixbuf.Pixbuf.new_from_file_at_scale", menu)
         self.assertIn("tool_logo(package, files)", menu)
         self.assertIn("theme.has_icon(package)", menu)
 
