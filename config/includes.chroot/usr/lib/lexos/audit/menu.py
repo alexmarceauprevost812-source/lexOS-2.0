@@ -12,6 +12,8 @@ import xml.etree.ElementTree as ET
 
 # Images du paquet source Kali, téléchargées volontairement et vérifiées
 # par SHA-256 : aucune dépendance obligatoire au réseau.
+# Le catalogue est importé par des bancs d'essai hors de son répertoire.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from icones import icone_locale
 
 DATA = Path('/usr/share/lexos/audit-tools.packages')
@@ -298,6 +300,9 @@ def menu_terminal(lire=input, ecrire=print):
                 ecrire("johnny : interface graphique installée (aucun démarrage automatique).")
                 continue
             chemins = commandes_package(paquet)
+            # Si une icône Kali vérifiée existe, la rendre sans protocole
+            # propriétaire : de petits blocs de couleur ANSI. Sinon titre.
+            logo_banner(paquet, [])
             ecrire(f"\n{paquet} : exécutables installés :")
             for chemin in chemins:
                 ecrire("  " + chemin)
@@ -343,6 +348,38 @@ def skeleton(root):
     ids.insert(1, ET.Element('value', type='int', value=str(number)))
     ET.indent(tree, space='  ')
     tree.write(path, encoding='UTF-8', xml_declaration=True)
+
+
+def montrer_commandes(paquet, fenetre, Gtk):
+    """Fenêtre consultable et copiable ; ne lance AUCUN exécutable d'audit."""
+    chemins = commandes_package(paquet)
+    texte = (
+        "Commandes réellement installées : " + paquet + "\n\n"
+        + ("\n".join(chemins) if chemins else
+           "Aucune commande directe dans les dossiers exécutables classiques.")
+        + "\n\nListe informative : aucune analyse lancée."
+    )
+    fen = Gtk.Dialog(
+        title="Commandes disponibles — " + paquet,
+        transient_for=fenetre, flags=Gtk.DialogFlags.MODAL)
+    fen.add_button("Fermer", Gtk.ResponseType.CLOSE)
+    fen.set_default_size(680, 440)
+    defile = Gtk.ScrolledWindow()
+    defile.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+    defile.set_hexpand(True)
+    defile.set_vexpand(True)
+    texte_vue = Gtk.TextView()
+    texte_vue.set_editable(False)
+    texte_vue.set_cursor_visible(False)
+    texte_vue.set_monospace(True)
+    texte_vue.get_buffer().set_text(texte)
+    defile.add(texte_vue)
+    fen.get_content_area().pack_start(defile, True, True, 8)
+    fen.show_all()
+    try:
+        fen.run()
+    finally:
+        fen.destroy()
 
 
 def show():
@@ -425,10 +462,25 @@ def show():
             row.set_activatable(available)
             row.set_sensitive(available)
             line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-            icon = package if theme.has_icon(package) else ('application-x-executable' if package in GUI else 'utilities-terminal')
-            line.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.LARGE_TOOLBAR), False, False, 0)
+            logo = icone_locale(package)
+            if logo:
+                # Source officielle Kali figée et vérifiée, pas une imitation.
+                image = Gtk.Image.new_from_file(str(logo))
+                image.set_pixel_size(32)
+            else:
+                icon = (package if theme.has_icon(package) else
+                        ('application-x-executable' if package in GUI else 'utilities-terminal'))
+                image = Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.LARGE_TOOLBAR)
+            line.pack_start(image, False, False, 0)
             label = Gtk.Label(label=package + (' — non installé' if not available else ''), xalign=0)
             line.pack_start(label, True, True, 0)
+            if available:
+                bouton = Gtk.Button(label="Commandes")
+                bouton.set_tooltip_text("Afficher toutes les commandes installées — lecture seule")
+                bouton.connect(
+                    'clicked',
+                    lambda _bouton, p=package: montrer_commandes(p, window, Gtk))
+                line.pack_end(bouton, False, False, 0)
             row.add(line)
             row.set_tooltip_text('Ouvrir l’application' if package in GUI else 'Ouvrir une fiche dans LexOS Pro Terminal')
             row.audit_package = package
