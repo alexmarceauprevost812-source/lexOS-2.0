@@ -508,6 +508,8 @@ jobs:
           bash tests/test_lexos_202_effets.sh
           # Le menu du coin haut-droit choisit les profils sans risque de commande arbitraire.
           python3 tests/test_lexos_202_effets_volet.py
+          # Thunar 4.20 : XFCONF réel, vues et aperçu de photos à droite.
+          python3 tests/test_lexos_202_fichiers_vues.py
           node tests/test_lexos_202_effets_volet.js
           python3 tests/test_lexos_audit_outils.py
           sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-3.0 xvfb xauth
