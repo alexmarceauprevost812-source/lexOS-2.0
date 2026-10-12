@@ -503,6 +503,8 @@ jobs:
           python3 tests/test_lexos_202_desktop.py
           # Snap Assist 50/50 : événements de souris simulés, jamais X11 réel.
           python3 tests/test_lexos_202_snap_assist.py
+          # Profils picom supplémentaires (sans session graphique/GPU).
+          bash tests/test_lexos_202_effets.sh
           python3 tests/test_lexos_audit_outils.py
           sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gtk-3.0 xvfb xauth
           LEXOS_AUDIT_REQUIRE_GTK=1 xvfb-run -a /usr/bin/python3 tests/test_lexos_audit_menu.py
