@@ -8,39 +8,58 @@ existants restent la référence.
 
 Les sources sont sous
 `config/includes.chroot/usr/share/lexos/picom/lexos-effets`.
-Ce programme n'est pas encore enregistré dans `lexos` et dans l'interface
-Paramètres : **il n'est pas annoncé comme opérationnel par défaut dans l'ISO**.
-Il s'installe dans le compte utilisateur pour essais, sans sudo ni changement
-de pilote, de session, d'UEFI ou de fichiers originaux.
+Le panneau **Paramètres rapides**, dans le coin droit de l'écran, comporte
+maintenant une tuile **Animations fenêtres** (auparavant « Effets TV 1980 »).
+Cliquer ouvre un menu avec six choix : CRT vieille télévision, Fluide,
+Hologramme simulé, Néon orange, Portail vers le centre et Sans animation.
+Le bouton retour « ‹ » ou Échap referme le menu. Un seul effet peut être
+activé; l'interface explique les erreurs au lieu de masquer les refus.
 
-## Installation sur LexOS installé
+**Toujours expérimental** : le menu existe dans le code de la branche, mais
+son fonctionnement graphique doit être validé sur une session XFCE réelle.
+Aucun sudo ne sert à choisir un profil.
 
-Exécuter dans une session XFCE/X11 où `lexos crt status` montre picom en
-marche et `glxinfo -B` affiche bien NVIDIA :
+## Mise à jour sur un LexOS déjà installé
+
+Dans le clone de la branche
+`feature/lexos-pro-2.0.2-rtx5060-icons` :
 
 ```bash
-mkdir -p "$HOME/.local/bin"
-curl -fL --retry 2 \
-  "https://raw.githubusercontent.com/alexmarceauprevost812-source/lexOS-2.0/feature/lexos-pro-2.0.2-rtx5060-icons/config/includes.chroot/usr/share/lexos/picom/lexos-effets" \
-  -o "$HOME/.local/bin/lexos-effets"
-bash -n "$HOME/.local/bin/lexos-effets" &&
-chmod 700 "$HOME/.local/bin/lexos-effets" &&
-"$HOME/.local/bin/lexos-effets" installer
+git -C "$HOME/Projets LexOS/lexOS-2.0" branch --show-current
+sudo miss a jour --essai
+sudo miss a jour
 ```
 
-Un fichier téléchargé de GitHub reste du code exécutable : il est bon de le
-relire avant le `chmod` pour un poste sensible. Le SHA du commit GitHub peut
-être substitué au nom de la branche pour figer une version testée.
+La mise à jour copie le **panneau Web**, son action Python autorisée, le
+superviseur CRT corrigé et le script
+`/usr/share/lexos/picom/lexos-effets`. Fermer puis rouvrir le
+panneau **Paramètres rapides** pour charger sa nouvelle interface;
+cliquer « Animations fenêtres » pour ouvrir la liste.
+
+Le premier clic sur un profil personnalisé prépare les quatre configurations
+et réécrit l'autostart utilisateur vers **la version globale mise à jour**.
+Ainsi une ancienne copie `~/.local/bin/lexos-effets` ne sera pas
+appelée par erreur depuis le panneau. En ligne de commande, utiliser
+`bash /usr/share/lexos/picom/lexos-effets neon` (et pas l'ancienne copie).
+
+Le superviseur attend maintenant que le picom CRT se ferme réellement
+avant d'en lancer un autre et refuse de démarrer si un compositeur externe
+est toujours actif. Le profil CRT d'origine reste inchangé.
+
+Pour ces fichiers de la session graphique, aucune nouvelle ISO n'est
+nécessaire. Les composants GRUB, noyau et installateur restent exclus de
+`sudo miss a jour`. L'option `--skel` n'est pas nécessaire pour ce
+panneau global.
 
 ## Choisir un profil
 
 ```bash
-"$HOME/.local/bin/lexos-effets" fluide
-"$HOME/.local/bin/lexos-effets" hologramme
-"$HOME/.local/bin/lexos-effets" neon
-"$HOME/.local/bin/lexos-effets" portail
+bash /usr/share/lexos/picom/lexos-effets fluide
+bash /usr/share/lexos/picom/lexos-effets hologramme
+bash /usr/share/lexos/picom/lexos-effets neon
+bash /usr/share/lexos/picom/lexos-effets portail
 
-"$HOME/.local/bin/lexos-effets" status
+bash /usr/share/lexos/picom/lexos-effets status
 ```
 
 Un seul profil peut être actif à la fois. La commande arrête uniquement le
@@ -54,20 +73,20 @@ le superviseur rend le compositeur de xfwm4 quand picom quitte.
 ### Retour arrière
 
 ```bash
-"$HOME/.local/bin/lexos-effets" crt
+bash /usr/share/lexos/picom/lexos-effets crt
 lexos crt status
 ```
 
 Pour éteindre complètement les animations :
 ```bash
-"$HOME/.local/bin/lexos-effets" off
+bash /usr/share/lexos/picom/lexos-effets off
 ```
 
 Pour supprimer uniquement le pack expérimental après l'avoir éteint :
 ```bash
-"$HOME/.local/bin/lexos-effets" crt
+bash /usr/share/lexos/picom/lexos-effets crt
 rm -f "$HOME/.config/autostart/lexos-effets.desktop"
-rm -f "$HOME/.local/bin/lexos-effets"
+rm -f bash /usr/share/lexos/picom/lexos-effets
 ```
 
 Les réglages expérimentaux restent dans
@@ -79,6 +98,10 @@ NVIDIA. Ne pas supprimer ce dossier pendant qu'un profil tourne.
 - `bash tests/test_lexos_202_effets.sh` : génération sans GPU, conservation
   du CRT original, compatibilité source/règles, 4 profils et ombre néon.
 - `shellcheck -S warning` sur l'outil et `bash -n`.
+- `python3 tests/test_lexos_202_effets_volet.py` : actions autorisées,
+  messages d'erreur, lecture du profil et choix sans sudo.
+- `node tests/test_lexos_202_effets_volet.js` : menu des six effets
+  et retour vers la grille, sans lancer de vraie session XFCE.
 - Sur la RTX 5060 réelle : ouvrir/fermer Thunar/Firefox; vérifier logs,
   mise en veille, sortie plein écran, performance et retour à CRT/xfwm4.
 - Les effets Glitch RGB, véritable halo et démarrage rétro restent
