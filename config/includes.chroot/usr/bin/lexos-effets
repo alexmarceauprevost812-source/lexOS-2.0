@@ -12,8 +12,8 @@ STATE="$BASE/profil"
 PIDFILE="$BASE/superviseur.pid"
 LOG="$BASE/journal.log"
 AUTOSTART="$HOME_CONF/autostart/lexos-effets.desktop"
-SOURCE="/usr/share/lexos/picom/lexos-tv.conf"
-CRT="/usr/bin/lexos-crt"
+SOURCE="${LEXOS_EFFETS_SOURCE:-/usr/share/lexos/picom/lexos-tv.conf}"
+CRT="${LEXOS_EFFETS_CRT:-/usr/bin/lexos-crt}"
 
 dire() { printf '%s\n' "$*"; }
 erreur() { printf '✗ %s\n' "$*" >&2; return 1; }
