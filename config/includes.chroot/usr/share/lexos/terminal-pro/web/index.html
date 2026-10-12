@@ -132,6 +132,17 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--orange);ou
 #plus{
   width:36px;flex:none;font-size:18px;color:var(--texte-3);
 }
+/* Le catalogue d'audit se trouve DANS le terminal officiel, pas dans
+   une deuxième application. La barre XFCE continue de n'avoir besoin
+   que de l'icône Terminal existante. */
+#audit{
+  flex:none;display:flex;align-items:center;gap:6px;
+  padding:0 12px;color:var(--texte-2);font-size:12px;
+  border-left:1px solid var(--ligne);white-space:nowrap;
+}
+#audit .pic{font-size:15px;color:var(--orange)}
+#audit:hover{background:var(--chrome-hi);color:var(--orange)}
+@media(max-width:680px){#audit .libelle{display:none}#audit{padding:0 10px}}
 #plus:hover{color:var(--texte);background:var(--chrome-hi)}
 
 /* ---------- espace de travail ---------- */
@@ -246,6 +257,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--orange);ou
   <div id="barre">
     <div id="marque"><span class="lys">⚜</span><span class="nomlex">LexOS</span><span>&nbsp;Pro</span></div>
     <div id="onglets" role="tablist"></div>
+    <button id="audit" type="button" title="Ouvrir les outils d’audit dans un onglet de ce terminal" aria-label="Outils d’audit"><span class="pic" aria-hidden="true">🛡</span><span class="libelle">Audit</span></button>
     <button id="plus" title="Nouvelle page (Ctrl+B puis T)" aria-label="Nouvelle page">+</button>
   </div>
   <div id="travail"></div>
@@ -881,6 +893,7 @@ const Terminal = {
     this.travail = document.getElementById("travail");
     this.barre   = document.getElementById("onglets");
     document.getElementById("plus").addEventListener("click", () => this.nouvelOnglet());
+    document.getElementById("audit").addEventListener("click", () => this.ouvrirAudit());
     window.addEventListener("keydown", e => this.clavier(e), true);
     this.nouvelOnglet();
     setInterval(() => this.horloge(), 1000); this.horloge();
@@ -896,6 +909,25 @@ const Terminal = {
   },
 
   get onglet(){ return this.onglets[this.iOnglet]; },
+
+  ouvrirAudit(){
+    // L'action reste dans le VRAI PTY d'un NOUVEL onglet : jamais
+    // de commande injectée dans une session qui exécute déjà un programme.
+    // Commande fixe, aucune entrée venant d'une page ou d'un paquet.
+    if(!_port || !_jeton){
+      if(this.active && this.active.term)
+        this.active.term.write("\r\n\x1b[33m— le catalogue d'audit demande LexOS Pro Terminal en session réelle.\x1b[0m\r\n");
+      return;
+    }
+    this.nouvelOnglet();
+    if(this.active){
+      this.active.titre = "Audit";
+      this.active.majTitre();
+      // envoyer() conserve le texte jusqu'à la création de la session PTY.
+      this.active.envoyer("python3 /usr/lib/lexos/audit/menu.py --terminal\r");
+      if(this.active.term) this.active.term.focus();
+    }
+  },
 
   nouvelOnglet(){
     const fen = new Fenetre(ACCUEIL);
@@ -1174,6 +1206,8 @@ function aide(fen){
   l(J + G + "Tout le reste" + R + " appartient au shell : " + S +
     "ls, cd, sudo, git, claude, vim, htop, less…" + R);
   l(S + "C'est un vrai pseudo-terminal — les programmes plein écran s'affichent ici." + R);
+  l(M + "Audit : clique sur 🛡 Audit dans la barre supérieure pour parcourir les outils" + R);
+  l(M + "sans quitter LexOS Pro Terminal, et sans lancer d'analyse automatiquement." + R);
   l("");
 }
 
