@@ -99,13 +99,13 @@ class Menu(unittest.TestCase):
         self.assertNotIn('/etc/config', '\n'.join(sortie))
 
     def test_commande_listing_filters_only_installed_executables(self):
-        fixture = ('/usr/bin/afficher-exemple\\n'
-                   '/usr/sbin/verifier-exemple\\n'
-                   '/usr/local/bin/outil-local\\n'
-                   '/usr/share/doc/test/fichier\\n'
-                   '/etc/inconnu\\n'
-                   '/usr/bin/afficher-exemple\\n')
-        with patch.object(menu.os, 'access', return_value=True), \\
+        fixture = ('/usr/bin/afficher-exemple\n'
+                   '/usr/sbin/verifier-exemple\n'
+                   '/usr/local/bin/outil-local\n'
+                   '/usr/share/doc/test/fichier\n'
+                   '/etc/inconnu\n'
+                   '/usr/bin/afficher-exemple\n')
+        with patch.object(menu.os, 'access', return_value=True), \
              patch.object(menu.subprocess, 'run') as run:
             commandes = menu.commandes_package('exemple', fixture)
             run.assert_not_called()
@@ -117,14 +117,14 @@ class Menu(unittest.TestCase):
     def test_all_commands_for_every_installed_package_is_read_only(self):
         groupes = {'Diagnostic': ['alpha', 'beta']}
         outputs = []
-        with patch.object(menu, 'installed', side_effect=lambda p: p == 'alpha'), \\
+        with patch.object(menu, 'installed', side_effect=lambda p: p == 'alpha'), \
              patch.object(menu, 'commandes_package',
-                          side_effect=lambda p: ['/usr/bin/exemple'] if p == 'alpha' else []), \\
+                          side_effect=lambda p: ['/usr/bin/exemple'] if p == 'alpha' else []), \
              patch.object(menu.subprocess, 'Popen') as popen:
             total = menu.toutes_commandes(groupes, outputs.append)
             popen.assert_not_called()
         self.assertEqual(total, 1)
-        contenu = '\\n'.join(outputs)
+        contenu = '\n'.join(outputs)
         self.assertIn('alpha', contenu)
         self.assertIn('beta — non installé', contenu)
         self.assertIn('/usr/bin/exemple', contenu)
@@ -133,8 +133,8 @@ class Menu(unittest.TestCase):
     def test_100_tools_have_access_to_same_command_catalogue(self):
         groupes = menu.catalogue(INCLUDE/'usr/share/lexos/audit-tools.packages')
         vus = []
-        with patch.object(menu, 'installed', return_value=True), \\
-             patch.object(menu, 'commandes_package', side_effect=lambda p: vus.append(p) or []), \\
+        with patch.object(menu, 'installed', return_value=True), \
+             patch.object(menu, 'commandes_package', side_effect=lambda p: vus.append(p) or []), \
              patch.object(menu.subprocess, 'Popen') as popen:
             menu.toutes_commandes(groupes, lambda _: None)
             popen.assert_not_called()
