@@ -463,11 +463,18 @@ def show():
             row.set_sensitive(available)
             line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
             logo = icone_locale(package)
+            image = None
             if logo:
-                # Source officielle Kali figée et vérifiée, pas une imitation.
-                image = Gtk.Image.new_from_file(str(logo))
-                image.set_pixel_size(32)
-            else:
+                # Le SVG officiel peut faire 512 px : il doit être RENDU en
+                # vignette 36x36, sinon toute la liste grandit d'un coup.
+                # Si librsvg manque, revenir à l'icône GTK existante.
+                try:
+                    pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                        str(logo), 36, 36, True)
+                    image = Gtk.Image.new_from_pixbuf(pixbuf)
+                except Exception:
+                    image = None
+            if image is None:
                 icon = (package if theme.has_icon(package) else
                         ('application-x-executable' if package in GUI else 'utilities-terminal'))
                 image = Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.LARGE_TOOLBAR)
