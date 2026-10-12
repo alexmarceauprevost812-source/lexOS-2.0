@@ -237,6 +237,7 @@ ${B}TERMINAL${R}
   ${A}applis${R}               Les applications installees, depuis le terminal
   ${A}pro${R}                  LEXOS PRO — tableau de bord du systeme
   ${A}terminal-pro${R}         LexOS Pro Terminal — le terminal officiel
+  ${A}audit${R}                Catalogue des outils d'audit dans ce même terminal
                       ${D}onglets, fenêtres divisibles, vraies commandes${R}
   ${A}terminal-pro --classique${R} Le Terminal classique (xfce4-terminal)
                       ${D}pour vim, nano, htop… — les programmes plein écran${R}
@@ -1197,6 +1198,7 @@ case "$CMD" in
 	#  terminal normal je veux que ce soit lui qui le remplace. » « terminal »
 	#  reste le jour/nuit (ligne au-dessus, depuis avant) ; le voici sous son
 	#  propre nom.
+	audit|outils-audit)    exec /usr/bin/python3 /usr/lib/lexos/audit/menu.py --terminal ;;
 	terminal-pro|pro-terminal) exec lexos-pro-terminal "$@" ;;
 	#  LEXOS PRO — le tableau de bord natif (PySide6). « pro » tout court
 	#  DOIT venir APRÈS « terminal-pro » dans ce case : bash retient la
