@@ -107,6 +107,14 @@ python3-pyside6.qtwidgets
 python3-pyside6.qtwebenginewidgets
 zenity
 
+# --- Assistant mosaïque 50/50, à la souris (XFCE/X11) ------------------------
+# python3-xlib est déjà obligatoire dans lexos-core.list.chroot.
+# Le sélecteur de fenêtres est un processus GTK 3 utilisateur, indépendant
+# du compositeur picom et des pilotes NVIDIA. Une dépendance manquante doit
+# bloquer la construction au lieu de livrer une option muette.
+python3-gi
+gir1.2-gtk-3.0
+
 # --- Politique d'autorisations ----------------------------------------------
 # (« policykit-1 » n'existe plus dans trixie — le paquet réel est polkitd)
 polkitd
