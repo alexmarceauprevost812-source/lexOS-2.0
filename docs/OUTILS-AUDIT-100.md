@@ -58,88 +58,74 @@ La taille compressée de l'ISO et l'espace installé restent à mesurer. Les
 paquets sont présents dès le live et sur une installation issue de cette ISO;
 une ISO déjà construite n'est pas modifiée rétroactivement.
 
-## Bouton indépendant dans la barre du haut
+## Un seul terminal : bouton Audit dans LexOS Pro Terminal
 
-Le hook Pro 0270 ajoute un lanceur « Outils d’audit » immédiatement après
-le menu principal. Le menu principal conserve Ti-Lex; le nouveau bouton
-emploie l’image dragon + mot KALI fournie par l’utilisateur. La fenêtre suit le thème GTK LexOS, présente
-les sept catégories ci-dessus et une recherche par nom ou catégorie.
-Johnny est placé dans « Mots de passe ». Un outil absent est grisé avec
-« non installé » : le bouton n’installe aucun paquet à votre place.
+La demande est de garder l'icône **Terminal LexOS Pro** en haut du bureau
+et d'accéder à l'audit **à l'intérieur** de ce terminal, plutôt que d'avoir
+un terminal distinct réservé aux outils d'audit.
 
-Johnny, Wireshark, Zenmap et Ophcrack ouvrent leur interface graphique,
-sans sudo. Les autres entrées ouvrent un terminal XFCE, affichent les
-exécutables réellement fournis par le paquet et indiquent `man NOM_DE_COMMANDE`.
-Aucun scan, capture, test de mot de passe ou opération disque ne démarre au clic.
-Les commandes d’Impacket, Scapy, Sleuthkit et autres familles sont ainsi
-listées depuis le paquet installé, sans inventer de commande identique au
-nom du paquet. L’élévation nécessaire à une opération reste à votre choix.
+La barre du haut du terminal officiel comporte maintenant un bouton
+**🛡 Audit**, près du bouton « + ». Le bouton crée un **nouvel onglet**
+dans le **même LexOS Pro Terminal** et y saisit la commande fixe
+`lexos audit`, à travers le vrai pseudo-terminal. Cela évite de
+modifier la commande en cours dans un autre onglet.
 
-Le hook modifie uniquement le squelette de la future ISO Pro. Il choisit
-un identifiant de greffon libre, conserve les autres éléments du panneau,
-et ne duplique pas son bouton lorsqu’il est rejoué.
-Pour un compte existant après la mise à jour des fichiers : clic droit
-sur la barre → Tableau de bord → Ajouter de nouveaux éléments → Lanceur,
-puis Propriétés du lanceur → Ajouter « Outils d’audit »; déplacer le bouton
-près du menu principal. Ne pas remplacer tout votre panneau par `/etc/skel`.
-Ce lanceur reste retirable depuis les propriétés de la barre XFCE.
+`lexos audit` affiche un catalogue texte de **sept catégories** et
+**100 entrées**. L'utilisateur choisit les catégories et peut afficher
+les exécutables des paquets installés. **Aucune commande d'audit,
+analyse ou action privilégiée ne démarre automatiquement**. La sortie
+« non installé » ne déclenche aucune installation. On quitte avec
+`q` pour revenir au terminal normal.
 
-Logo copié sans retouche depuis les ressources graphiques officielles Kali :
-https://gitlab.com/kalilinux/documentation/graphic-resources,
-commit `ace9d74f7a8894e9ed00967c19f6d6ce187c0712`, fichier
-`kali-icon/circle-4/kali-dragon-circle-simple-blue.svg`.
-Kali et son logo appartiennent à leurs titulaires; LexOS reste une sélection
-Debian indépendante, sans dépôt Kali ni prétention d’être une distribution Kali.
+Les applications graphiques éventuellement ouvertes depuis l'ancien
+catalogue GTK restent indépendantes, mais les fiches en console de ce
+catalogue passent désormais par `lexos-pro-terminal`, plus par
+`xfce4-terminal`. Le raccourci « Outils d'audit » du menu Applications
+ouvre lui aussi le catalogue **dans le terminal officiel**.
 
-Validation : tests du catalogue complet, préservation et idempotence du
-panneau, séparation Pro/standard, lancement sans sudo, SVG et lanceur.
-La CI exerce également l’affichage GTK et le filtrage sous Xvfb. L’apparence
-finale sur la barre de la session live reste à vérifier avant l’ISO finale.
+### Barre XFCE et comptes existants
 
-### Titre et logo à l’ouverture du terminal
+Le hook `0270-lexos-audit-menu.hook.chroot` n'ajoute **plus** de
+deuxième icône Audit à la barre du haut des nouvelles ISO Pro.
+L'icône **Terminal LexOS Pro** demeure celle qui ouvre le programme.
+Le hook ne change pas le menu Applications ni les autres boutons.
 
-Chaque terminal ouvert depuis le bouton porte le nom du paquet et affiche
-un en-tête orange « NOM · Outils d’audit LexOS ». Si le paquet fournit un
-lanceur avec une icône, ou si une icône à son nom existe dans le thème,
-son image est rendue en petits blocs couleur dans le terminal XFCE
-(24 × 24 pixels au maximum). Aucun logo n’est téléchargé au lancement.
-Une image absente ou illisible conserve le titre. Les sorties redirigées,
-`NO_COLOR` et les terminaux `dumb` restent en texte simple. Cela concerne
-les ouvertures depuis le catalogue, pas toutes les commandes tapées à la main.
-Le bouton Kali reste immédiatement à droite du menu Ti-Lex.
+Sur un **compte XFCE déjà existant**, `sudo miss a jour` met à jour
+les scripts et le HTML du terminal, **sans écraser les raccourcis
+personnels de la barre**. Si l'ancien bouton d'audit reste visible,
+le retirer manuellement dans les Préférences du panneau XFCE
+(Éléments → sélectionner le lanceur Audit → « - »). Ne pas restaurer
+tout `/etc/skel` et ne pas supprimer le terminal principal.
 
-### Couleurs du terminal d’audit
+### Essai sur LexOS installé
 
-Les fenêtres du catalogue utilisent un texte clair `#E6E6E6` sur un fond
-`#121214`, via les options par fenêtre du terminal XFCE, sans modifier
-le profil des autres terminaux. Les chemins des commandes sont cyan.
-Les aides de Nmap et Hashcat (`--help`, sans cible ni opération) apparaissent
-à l’ouverture : rubriques orange, options vert doux, paramètres cyan,
-descriptions en texte clair. La sortie originale est conservée caractère
-pour caractère après retrait des codes couleur. Les autres outils ne sont
-pas lancés automatiquement; leurs couleurs propres restent celles du programme.
+```bash
+sudo miss a jour --essai
+sudo miss a jour
+lexos audit
+```
 
-Pour colorer volontairement une autre aide :
-`COMMANDE --help | python3 /usr/lib/lexos/audit/menu.py --colorer-aide`.
-Vérifier d’abord que cette commande fournit bien une aide sans opération.
-Le filtre ne lance aucun outil et garde le texte simple lorsque sa sortie
-est redirigée, avec `NO_COLOR`, ou dans un terminal `dumb`.
+Fermer puis relancer **LexOS Pro Terminal** depuis l'icône du haut pour
+charger son nouveau HTML. Cliquer sur **🛡 Audit** et vérifier qu'un
+nouvel onglet s'ouvre, puis sélectionner une catégorie. Les catégories
+ne doivent pas déclencher d'analyse.
 
-Options XFCE vérifiées dans le binaire installé 1.1.4 : `--color-text`,
-`--color-bg`. Tests du formatage et de l’appel Nmap limité à `--help` ajoutés
-au banc du menu, exécuté par la CI.
+Les fichiers concernés sont le catalogue
+`/usr/lib/lexos/audit/menu.py`, le terminal
+`/usr/share/lexos/terminal-pro/web/index.html`, le lanceur
+`/usr/share/applications/lexos-audit.desktop`, le répartiteur
+`/usr/bin/lexos` et le hook 0270. Aucune ISO nouvelle n'est
+publiée par ce changement.
 
-### Présentation inspirée du menu Kali
+### Tests et limites
 
-La recherche est en haut, les sept catégories numérotées et « Tous les
-outils » sont à gauche, les outils avec icônes sont à droite. La recherche
-parcourt toutes les catégories; vider la recherche revient à la catégorie
-sélectionnée. Les outils absents restent marqués « non installé » et grisés.
-La fenêtre possède un bouton Fermer et se ferme aussi avec Échap. Le thème
-est sombre avec sélection orange et texte clair; il est limité à ce menu.
+`python3 tests/test_lexos_audit_menu.py` vérifie le catalogue, les
+100 entrées, le choix par numéros, le refus d'entrées non valides,
+l'absence de lancement automatique, l'appel du bon terminal et
+l'absence de doublon dans le panneau d'une nouvelle ISO.
+La CI exerce aussi l'ancien menu GTK facultatif sous Xvfb.
 
-Le bouton à côté de Ti-Lex et le pied du menu utilisent l’image fournie
-`capture_2026-10-09_14h23m10s.png`, copiée sans retouche dans
-`/usr/share/lexos/audit-kali-logo.png`. Le dragon bleu officiel précédemment
-ajouté reste une icône de secours. Le menu ne reprend que les catégories
-de la sélection LexOS, sans présenter des familles Kali non installées.
+La validation sur une session XFCE réelle demeure nécessaire :
+bouton visible, nouvel onglet avec vrai PTY, retour à l'invite shell
+et conservation des raccourcis de l'utilisateur. Le catalogue ne
+promet pas que tous les outils Debian installés ont été testés.
