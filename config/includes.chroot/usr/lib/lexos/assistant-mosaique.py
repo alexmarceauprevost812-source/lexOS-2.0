@@ -456,9 +456,14 @@ class Watcher:
                 (self.armed and self.armed[0] == xid
                  and now - self.armed[1] < ARMED_SEC)
                 or (last is not None and last != frame and near_left))
-            if not intentional_drag:
+            # La géométrie peut rester stable après le relâchement. Garder
+            # le déclencheur pendant STABLE_SEC, sinon le choix n'apparaît
+            # jamais si l'événement n'a été vu qu'un seul sondage.
+            if intentional_drag:
+                self.left_seen.setdefault(xid, now)
+            first = self.left_seen.get(xid)
+            if first is None:
                 return True
-            first = self.left_seen.setdefault(xid, now)
             if now - first < STABLE_SEC or self.last_shown[0] == xid and now - self.last_shown[1] < 5:
                 return True
             choices = self.x.candidates(xid)
