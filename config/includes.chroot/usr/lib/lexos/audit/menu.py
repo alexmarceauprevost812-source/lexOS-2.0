@@ -182,6 +182,83 @@ def console(package):
     os.execv('/bin/bash', ['/bin/bash', '-i'])
 
 
+def menu_terminal(lire=input, ecrire=print):
+    """Navigateur texte des 100 entrées, dans LexOS Pro Terminal.
+
+    Les entrées sont exclusivement les noms du manifeste audité. Aucun choix
+    n'exécute nmap, hashcat, john ou un autre outil : seule la liste de fichiers
+    du paquet est consultée pour indiquer où trouver ses commandes.
+    Ctrl+C ou fin de l'entrée retourne proprement au shell.
+    """
+    groupes = catalogue()
+    noms = list(groupes)
+    ecrire("\n\033[1;38;5;208m⚜ LexOS Pro · Catalogue d'audit\033[0m")
+    ecrire("Consultation seulement — aucun outil n'est exécuté automatiquement.")
+    def demander(texte):
+        try:
+            return lire(texte).strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            return "q"
+
+    while True:
+        ecrire("\nCatégories :")
+        for numero, categorie in enumerate(noms, 1):
+            ecrire(f"  {numero:2}. {categorie} ({len(groupes[categorie])})")
+        entree = demander("Catégorie [numéro, q pour quitter] : ")
+        if entree in ("q", "quitter", "exit", "0"):
+            return
+        if not entree.isascii() or not entree.isdecimal():
+            ecrire("Choisis un numéro valide.")
+            continue
+        indice = int(entree)
+        if indice < 1 or indice > len(noms):
+            ecrire("Catégorie inconnue.")
+            continue
+        nom = noms[indice - 1]
+        paquets = groupes[nom]
+        while True:
+            ecrire(f"\n\033[1;38;5;208m{nom}\033[0m")
+            for numero, paquet in enumerate(paquets, 1):
+                ecrire(f"  {numero:2}. {paquet}")
+            entree = demander("Paquet [numéro, b retour, q quitter] : ")
+            if entree in ("q", "quitter", "exit", "0"):
+                return
+            if entree in ("b", "retour", ""):
+                break
+            if not entree.isascii() or not entree.isdecimal():
+                ecrire("Choisis un numéro valide.")
+                continue
+            choix = int(entree)
+            if choix < 1 or choix > len(paquets):
+                ecrire("Paquet inconnu.")
+                continue
+            paquet = paquets[choix - 1]
+            if not installed(paquet):
+                ecrire(f"{paquet} : non installé. Aucune opération lancée.")
+                continue
+            if paquet == "johnny":
+                ecrire("johnny : interface graphique installée (aucun démarrage automatique).")
+                continue
+            try:
+                resultat = subprocess.run(
+                    ["dpkg-query", "-L", paquet],
+                    capture_output=True, text=True, timeout=5)
+            except (OSError, subprocess.TimeoutExpired):
+                ecrire("Impossible de lire les exécutables du paquet.")
+                continue
+            chemins = [
+                ligne for ligne in resultat.stdout.splitlines()
+                if re.fullmatch(r"/usr/(?:s?bin)/[^/]+", ligne)
+                and os.access(ligne, os.X_OK)
+            ]
+            ecrire(f"\n{paquet} : exécutables installés :")
+            for chemin in chemins[:40]:
+                ecrire("  " + chemin)
+            if not chemins:
+                ecrire("  Aucun exécutable direct détecté.")
+            ecrire("Tu restes dans ton terminal habituel. Aucun outil n'a été lancé.")
+
+
 def launch(package):
     if package in GUI:
         executable = shutil.which(GUI[package])
@@ -189,13 +266,14 @@ def launch(package):
             raise RuntimeError('Application indisponible : ' + package)
         subprocess.Popen([executable])
     else:
-        terminal = shutil.which('xfce4-terminal')
+        # Une seule application de terminal pour tout LexOS. Le menu GTK
+        # reste un catalogue facultatif, mais ses fiches s'ouvrent désormais
+        # dans LexOS Pro Terminal au lieu de xfce4-terminal.
+        terminal = shutil.which('lexos-pro-terminal')
         if not terminal:
-            raise RuntimeError('Le terminal XFCE est indisponible.')
-        subprocess.Popen([terminal, '--disable-server', '--color-text=#E6E6E6',
-                          '--color-bg=#121214', '--title=Audit — ' + package,
-                          '-x', '/usr/bin/python3', str(Path(__file__).resolve()),
-                          '--console', package])
+            raise RuntimeError('LexOS Pro Terminal est indisponible.')
+        subprocess.Popen([terminal, '-e', '/usr/bin/python3',
+                          str(Path(__file__).resolve()), '--console', package])
 
 
 def skeleton(root):
@@ -361,12 +439,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--installer-squelette', type=Path)
     parser.add_argument('--console')
+    parser.add_argument('--terminal', action='store_true',
+                        help='Parcourir les outils dans LexOS Pro Terminal')
     parser.add_argument('--colorer-aide', action='store_true', help='Colorer une aide reçue sur stdin')
     args = parser.parse_args()
     if args.colorer_aide:
         print(colour_help(sys.stdin.read(), use_colour()), end='')
     elif args.installer_squelette is not None:
         skeleton(args.installer_squelette)
+    elif args.terminal:
+        menu_terminal()
     elif args.console:
         if args.console not in {p for group in catalogue().values() for p in group}:
             parser.error('Outil inconnu')
