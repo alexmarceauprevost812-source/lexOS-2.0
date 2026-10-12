@@ -278,6 +278,7 @@ class Chooser:
         self.source = None
         self.work = None
         self.deadline = 0.0
+        self.css_provider = None
 
     def hide(self):
         if self.win:
@@ -300,18 +301,20 @@ class Chooser:
         win.set_type_hint(Gdk.WindowTypeHint.UTILITY)
         win.connect("key-press-event", self.on_key)
         win.connect("destroy", self.on_destroy)
-        provider = Gtk.CssProvider()
-        provider.load_from_data(b"""
+        if self.css_provider is None:
+            provider = Gtk.CssProvider()
+            provider.load_from_data(b"""
             window.lexos-snap { background: #111827; border: 2px solid #ff8c28; border-radius: 12px; }
             label.lexos-heading { color: #ffffff; font-weight: bold; font-size: 16px; }
             label.lexos-sub { color: #f5b57a; font-size: 12px; }
             button.lexos-choice { background: #222d3b; color: #ffffff; border-radius: 7px; padding: 9px; }
             button.lexos-choice:hover { background: #79441b; }
             button.lexos-close { background: transparent; color: #ffffff; }
-        """)
-        Gtk.StyleContext.add_provider_for_screen(
-            Gdk.Screen.get_default(), provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+            """)
+            Gtk.StyleContext.add_provider_for_screen(
+                Gdk.Screen.get_default(), provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+            self.css_provider = provider
         win.get_style_context().add_class("lexos-snap")
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=9)
         outer.set_border_width(15)
@@ -445,7 +448,7 @@ class Watcher:
             if pressed and near_left:
                 self.armed = (xid, now)
             last = self.previous_frame.get(xid)
-            self.previous_frame[xid] = frame
+            self.previous_frame = {xid: frame}
             if self.chooser.win:
                 return True
             tiled = is_left_tile(frame, work)
