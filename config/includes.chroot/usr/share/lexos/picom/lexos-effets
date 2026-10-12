@@ -6,6 +6,7 @@
 set -uo pipefail
 
 SELF="$(readlink -f "$0")"
+# Le fichier de l'ISO a parfois le mode 0644. Toujours lancer avec bash.
 HOME_CONF="${XDG_CONFIG_HOME:-$HOME/.config}"
 BASE="$HOME_CONF/lexos/effets"
 STATE="$BASE/profil"
@@ -43,17 +44,39 @@ pid_valide() {
     read -r pid < "$PIDFILE" || return 1
     [[ "$pid" =~ ^[0-9]+$ && -r "/proc/$pid/cmdline" ]] || return 1
     cmd="$(tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null)" || return 1
-    [[ "$cmd" == *"$SELF --superviser"* ]]
+    # Reconnaître aussi l'ancienne copie ~/.local/bin après « miss a jour ».
+    # Le PID vient d'un fichier mode 0600 dans un dossier utilisateur mode 0700.
+    [[ "$cmd" == *"/lexos-effets --superviser"* ]]
+}
+# Un processus zombie ne compose plus rien, contrairement à un vrai picom.
+# /proc/<pid>/stat : le troisième champ est l'état Linux (Z = zombie).
+picom_vivant() {
+    local pid etat
+    for pid in $(pgrep -x picom 2>/dev/null); do
+        [[ -r "/proc/$pid/stat" ]] || continue
+        etat="$(sed -n 's/^[^)]*) \([^ ]*\).*/\1/p' "/proc/$pid/stat" 2>/dev/null)"
+        [[ "$etat" == "Z" || "$etat" == "X" || -z "$etat" ]] || return 0
+    done
+    return 1
+}
+attendre_picom_libre() {
+    local i=0
+    while picom_vivant && (( i < 60 )); do
+        sleep .1
+        ((i+=1))
+    done
+    ! picom_vivant
 }
 arreter_personnalise() {
     local pid
     if pid_valide; then
         read -r pid < "$PIDFILE"
         kill -TERM "$pid" 2>/dev/null || true
-        local i
-        for i in 1 2 3 4 5 6 7 8 9 10; do
+        local i=0
+        while (( i < 40 )); do
             pid_valide || break
-            sleep .2
+            sleep .1
+            ((i+=1))
         done
         pid_valide && { erreur "Superviseur occupé, aucun changement."; return 1; }
     fi
@@ -160,7 +183,7 @@ installer() {
 Type=Application
 Name=LexOS — effets personnalisés
 Comment=Animations de fenêtres GLX réversibles
-Exec=$SELF --autostart
+Exec=/bin/bash $SELF --autostart
 OnlyShowIn=XFCE;
 Terminal=false
 NoDisplay=true
@@ -179,8 +202,10 @@ superviser() {
     creer
     exec 9>"$BASE/verrou"
     flock -n 9 || return 0
-    if pgrep -x picom >/dev/null 2>&1; then
-        dire "Autre picom en marche; aucun deuxième compositeur." >> "$LOG"
+    # Arrêter CRT peut prendre plus que son sleep(1). Ne jamais composer
+    # en parallèle : le superviseur attend aussi la libération de picom.
+    if picom_vivant; then
+        dire "Picom déjà actif après attente; aucun deuxième compositeur." >> "$LOG"
         return 1
     fi
     printf '%s\n' "$$" > "$PIDFILE"
@@ -206,6 +231,15 @@ superviser() {
     return "$code"
 }
 
+picom_personnalise() {
+    local pid cmd
+    for pid in $(pgrep -x picom 2>/dev/null); do
+        [[ -r "/proc/$pid/cmdline" ]] || continue
+        cmd="$(tr '\\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null)" || continue
+        [[ "$cmd" == *"--config $BASE/$1.conf"* ]] && return 0
+    done
+    return 1
+}
 demarrer() {
     local profil="$1"
     local i=0
@@ -215,24 +249,22 @@ demarrer() {
         dire "Effet déjà actif. Arrête-le avant de changer."
         return 0
     fi
-    if pgrep -x picom >/dev/null 2>&1; then
-        # On ne tue QUE picom contrôlé par LexOS CRT, jamais une instance tierce.
-        if "$CRT" --pids | grep -qE '^[0-9]+$'; then
-            "$CRT" off || return 1
-        else
-            erreur "Picom externe déjà en marche, pas de modification."
-            return 1
-        fi
+    # Toujours couper le CRT demandé AVANT la moindre attente. « off »
+    # écrit ~/.config/lexos/crt=off : son ancien superviseur sait alors
+    # qu'il ne doit plus relancer picom après un arrêt non nul.
+    "$CRT" off || return 1
+    if ! attendre_picom_libre; then
+        erreur "Picom ne s'est pas arrêté en 6 s (possiblement externe). Aucun autre compositeur lancé."
+        return 1
     fi
-    "$CRT" off >/dev/null 2>&1 || true
-    nohup "$SELF" --superviser >/dev/null 2>&1 </dev/null &
-    while (( i < 10 )); do
+    nohup bash "$SELF" --superviser >/dev/null 2>&1 </dev/null &
+    while (( i < 40 )); do
         ((i+=1))
-        if pid_valide && pgrep -x picom >/dev/null 2>&1; then
+        if pid_valide && picom_personnalise "$profil"; then
             dire "✓ Profil $profil actif; ouvre et ferme une fenêtre."
             return 0
         fi
-        sleep .2
+        sleep .1
     done
     erreur "Profil non démarré; XFCE restauré. Journal : $LOG"
 }
