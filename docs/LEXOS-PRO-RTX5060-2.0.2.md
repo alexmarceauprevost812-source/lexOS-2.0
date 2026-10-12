@@ -137,11 +137,33 @@ exacte et un plan de développement sûr dans
 autres ne sont pas encore livrés.** Aucune commande expérimentale
 n'est annoncée comme fonctionnelle.
 
+## Mosaïque souris 50/50 avec choix de la seconde fenêtre
+
+L'option native XFWM4 `tile_on_move=true` place déjà une fenêtre
+sur la moitié gauche si on l'amène au bord de l'écran. LexOS Pro
+V2.0.2 propose maintenant un **assistant de sélection des autres
+fenêtres du même bureau**, ouvert sur la partie droite au relâchement
+du geste. Un clic sur la deuxième fenêtre la place à droite (EWMH).
+C'est un outil de session GTK3, indépendant de picom et du rendu NVIDIA.
+
+Une nouvelle entrée `/etc/xdg/autostart/` permet aussi aux comptes
+existants d'en bénéficier sans écraser leurs réglages personnels.
+L'assistant peut être désactivé par `lexos mosaique off`, réactivé
+par `lexos mosaique on`, ou inspecté avec `status`.
+La commande `off` conserve le mosaïquage XFWM4 et les raccourcis
+Ctrl+Windows+gauche/droite.
+
+Code, limites et protocole d'essai :
+[MOSAIQUE-50-50-ASSISTANT.md](MOSAIQUE-50-50-ASSISTANT.md).
+**Tests de structure automatisés, validation graphique réelle encore
+requise avant fusion/publication.**
+
 ## Tests avant construction
 
 ```bash
 bash tests/test_lexos_202_icons.sh
 bash tests/test_lexos_202_nvidia_glx.sh
+python3 tests/test_lexos_202_snap_assist.py
 python3 tests/test_lexos_202_desktop.py
 python3 tests/test_lexos_audit_outils.py
 bash tests/test_lexos_epingler.sh
