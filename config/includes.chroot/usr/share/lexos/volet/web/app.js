@@ -374,6 +374,68 @@ async function photoLance(mode){
   window.close();
 }
 
+/*  ═══ ANIMATIONS — menu déroulant dans les Paramètres rapides ═══
+ *  Un clic sur la tuile remplace la grille comme pour Appareil photo;
+ *  le bouton « retour » la remet, sans ouvrir de nouveau bureau ou fenêtre.
+ *  Chaque bouton demande une action nommée, en liste blanche côté Python.
+ *  Le profil confirmé par le système, jamais un bouton optimiste, est actif.
+ */
+let effetsOuvert = false;
+let effetsBusy = false;
+let effetsMessage = "";
+const EFFETS = [
+  ["crt", "📺", "Vieille télévision", "Écrasement CRT à la fermeture"],
+  ["fluide", "🪟", "Fluide", "Zoom discret et fondu"],
+  ["hologramme", "👾", "Hologramme", "Apparition simulée par fondu"],
+  ["neon", "🟠", "Néon orange", "Ombres orange et transition"],
+  ["portail", "🌀", "Portail", "Zoom vers le centre"],
+  ["off", "⏻", "Sans animation", "Rendu XFCE classique"]
+];
+const EFFETS_LABELS = Object.fromEntries(EFFETS.map(p => [p[0], p[2]]));
+
+function effetsHTML(){
+  const r = etat.rapides || {};
+  const actif = r.effet || (r.crt ? "crt" : "off");
+  const choix = EFFETS.map(([id, ic, nom, description]) =>
+    `<button class="qs-effets-bt${actif===id ? " actif" : ""}"
+             type="button" onclick="effetsChoisit('${id}')"
+             ${effetsBusy ? "disabled" : ""}
+             aria-pressed="${actif===id ? "true" : "false"}">
+        <span class="qs-effets-ic">${ic}</span>
+        <span class="qs-effets-text">
+          <span class="qs-effets-nom">${nom}</span>
+          <span class="qs-effets-desc">${description}</span>
+        </span>
+        ${actif===id ? '<span class="qs-effets-check">✓</span>' : ""}
+      </button>`).join("");
+  return `<div class="qs-effets">
+      <div class="qs-photo-tete">
+        <button class="qs-effets-retour" type="button" onclick="effetsFerme()"
+                title="Revenir aux Paramètres rapides">‹</button>
+        <span class="qs-photo-titre">Animations des fenêtres</span>
+      </div>
+      <div class="qs-effets-intro">Choisis l'animation à utiliser.</div>
+      <div class="qs-effets-choix">${choix}</div>
+      <div class="qs-effets-message" role="status" aria-live="polite">
+        ${esc(effetsMessage || (effetsBusy ? "Application en cours…" :
+          "Un seul effet peut être actif à la fois."))}
+      </div>
+    </div>`;
+}
+function effetsOuvre(){ effetsOuvert = true; photoOuvert = false; rend(); }
+function effetsFerme(){ if(effetsBusy) return; effetsOuvert = false; effetsMessage = ""; rend(); }
+async function effetsChoisit(nom){
+  if(effetsBusy || !Object.prototype.hasOwnProperty.call(EFFETS_LABELS, nom)) return;
+  effetsBusy = true;
+  effetsMessage = "Application de " + EFFETS_LABELS[nom] + "…";
+  rend();
+  const resultat = await api("rapides-effet", nom);
+  effetsBusy = false;
+  effetsMessage = resultat.ok ? "✓ " + EFFETS_LABELS[nom] + " sélectionné."
+    : "✗ " + (resultat.erreur || "L'animation n'a pas pu être appliquée.");
+  await rafraichir();
+}
+
 function rapidesHTML(){
   const r = etat.rapides || {};
   const wifiOn = !!r.wifi, btOn = !!r.bt, avionOn = !!r.avion;
@@ -414,9 +476,11 @@ function rapidesHTML(){
     //  le donne toujours, et cette page le suit (voir appliqueModeVolet()).
     //  Ce qui disparaît, c'est le raccourci, pas la possibilité.
     qsTileHTML("clavier", "⌨️", "Clavier", "Français (Québec)", false, false),
-    qsTileHTML("crt", "📺", "Effets TV 1980",
-               pasLu.has("crt") ? "Inconnu" : (r.crt ? "Activés" : "Désactivés"),
-               !pasLu.has("crt") && r.crt, pasLu.has("crt")),
+    qsTileHTML("effets", "📺", "Animations fenêtres",
+               r.effet === "indisponible" ? "Indisponible" :
+               (EFFETS_LABELS[r.effet] || (r.crt ? "Vieille télévision" : "Sans animation")),
+               r.effet !== "indisponible" && r.effet !== "off",
+               r.effet === "indisponible"),
     //  ALEX : « quand on va cliquer sur appareil photo il va apparaître le
     //  menu » — écran complet, une partie, et à côté vidéo. Le clic ne sort
     //  pas de fenêtre : il remplace le contenu de la plaque (photoHTML()).
@@ -436,7 +500,9 @@ function rapidesHTML(){
   //  La plaque montre SOIT les tuiles, SOIT le choix de l'appareil photo.
   //  Le bandeau de son, lui, reste : couper le son pendant qu'on choisit un
   //  mode de capture est une chose qu'on peut vouloir faire.
-  const dedans = photoOuvert ? photoHTML() : `<div class="qs-grid">${tuiles.join("")}</div>`;
+  const dedans = photoOuvert ? photoHTML()
+    : effetsOuvert ? effetsHTML()
+    : `<div class="qs-grid">${tuiles.join("")}</div>`;
   return `<div class="qs">
       <div class="qs-head"><span class="t">Paramètres rapides</span></div>
       ${sonHTML()}
@@ -449,6 +515,7 @@ async function rapidesClic(cle){
   //  la même raison que « vue » dans l'agenda — afficher trois boutons ne
   //  vaut pas un aller-retour réseau.
   if(cle === "photo"){ photoOuvre(); return; }
+  if(cle === "effets"){ effetsOuvre(); return; }
   await api(`rapides-${cle}`);
   await rafraichir();
 }
@@ -495,7 +562,12 @@ async function rafraichir(){ await chargeEtat(); rend(); }
 
 /*  Échap referme — Qt écoute la fermeture de la fenêtre, mais une page qui ne
     répond pas à Échap ne ressemble pas à un menu. */
-addEventListener("keydown", e => { if(e.key === "Escape") window.close(); });
+addEventListener("keydown", e => {
+  if(e.key !== "Escape") return;
+  if(effetsOuvert && !effetsBusy){ effetsFerme(); return; }
+  if(photoOuvert){ photoFerme(); return; }
+  if(!effetsBusy) window.close();
+});
 
 (async function(){
   await chargeEtat();
