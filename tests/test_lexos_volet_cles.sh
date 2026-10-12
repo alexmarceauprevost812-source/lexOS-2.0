@@ -289,6 +289,7 @@ attendu rapides-bt "bluetoothctl,pactl,pactl,pactl" "le Bluetooth relit le Bluet
 #  Les trois qui relisent tout, et c'est juste.
 attendu rapides-avion "$TOUT" "le mode avion relit les trois radios et le son : aucun gain, et c'est juste"
 attendu rapides-perf "$TOUT" "« performance » n'est pas déclarée : elle périme TOUT, le défaut sûr"
+attendu rapides-effet "$TOUT" "le changement de compositeur rafraîchit tout : pas de tuile périmée après bascule"
 attendu action-inventee "$TOUT" "une action inconnue périme TOUT — un nom mal orthographié coûte une relecture, jamais un affichage faux"
 
 #  ═══ ET AUCUNE ACTION NE DOIT ÉCHAPPER AU COMPTAGE ═══
