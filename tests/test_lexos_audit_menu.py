@@ -98,6 +98,59 @@ class Menu(unittest.TestCase):
         self.assertIn('/usr/bin/outil', '\n'.join(sortie))
         self.assertNotIn('/etc/config', '\n'.join(sortie))
 
+    def test_commande_listing_filters_only_installed_executables(self):
+        fixture = ('/usr/bin/afficher-exemple\\n'
+                   '/usr/sbin/verifier-exemple\\n'
+                   '/usr/local/bin/outil-local\\n'
+                   '/usr/share/doc/test/fichier\\n'
+                   '/etc/inconnu\\n'
+                   '/usr/bin/afficher-exemple\\n')
+        with patch.object(menu.os, 'access', return_value=True), \\
+             patch.object(menu.subprocess, 'run') as run:
+            commandes = menu.commandes_package('exemple', fixture)
+            run.assert_not_called()
+        self.assertEqual(commandes, [
+            '/usr/bin/afficher-exemple', '/usr/local/bin/outil-local',
+            '/usr/sbin/verifier-exemple'
+        ])
+
+    def test_all_commands_for_every_installed_package_is_read_only(self):
+        groupes = {'Diagnostic': ['alpha', 'beta']}
+        outputs = []
+        with patch.object(menu, 'installed', side_effect=lambda p: p == 'alpha'), \\
+             patch.object(menu, 'commandes_package',
+                          side_effect=lambda p: ['/usr/bin/exemple'] if p == 'alpha' else []), \\
+             patch.object(menu.subprocess, 'Popen') as popen:
+            total = menu.toutes_commandes(groupes, outputs.append)
+            popen.assert_not_called()
+        self.assertEqual(total, 1)
+        contenu = '\\n'.join(outputs)
+        self.assertIn('alpha', contenu)
+        self.assertIn('beta — non installé', contenu)
+        self.assertIn('/usr/bin/exemple', contenu)
+        self.assertIn('aucune lancée', contenu)
+
+    def test_100_tools_have_access_to_same_command_catalogue(self):
+        groupes = menu.catalogue(INCLUDE/'usr/share/lexos/audit-tools.packages')
+        vus = []
+        with patch.object(menu, 'installed', return_value=True), \\
+             patch.object(menu, 'commandes_package', side_effect=lambda p: vus.append(p) or []), \\
+             patch.object(menu.subprocess, 'Popen') as popen:
+            menu.toutes_commandes(groupes, lambda _: None)
+            popen.assert_not_called()
+        self.assertEqual(len(vus), 100)
+        self.assertEqual(len(set(vus)), 100)
+
+    def test_cli_and_gui_both_offer_all_command_names(self):
+        cli = (INCLUDE/'usr/bin/lexos').read_text()
+        page = (INCLUDE/'usr/lib/lexos/audit/menu.py').read_text()
+        self.assertIn('--toutes-commandes', page)
+        self.assertIn('commandes|--commandes|liste)', cli)
+        self.assertIn('audit-icones|icones-audit)', cli)
+        self.assertIn('montrer_commandes(paquet, fenetre, Gtk)', page)
+        self.assertIn('bouton = Gtk.Button(label="Commandes")', page)
+        self.assertNotIn('chemins[:40]', page)
+
     def test_terminal_audit_button_opens_same_terminal_in_a_new_tab(self):
         page = (INCLUDE/'usr/share/lexos/terminal-pro/web/index.html').read_text()
         cli = (INCLUDE/'usr/bin/lexos').read_text()
