@@ -158,7 +158,7 @@ def etat() -> dict:
 
 def choisir(mode: str) -> dict:
     """Modifier la configuration Thunar, en restaurant en cas d'échec partiel."""
-    if mode not in MODES:
+    if not isinstance(mode, str) or mode not in MODES:
         return {"ok": False, "erreur": "Mode non autorisé."}
     if not _present():
         return {"ok": False, "erreur": "Thunar ou xfconf-query n'est pas installé."}
