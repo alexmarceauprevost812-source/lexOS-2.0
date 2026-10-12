@@ -1,0 +1,304 @@
+#!/usr/bin/env bash
+# LexOS — effets de fenêtres additionnels : picom 12.5, XFCE/X11.
+# Fonctionne sans sudo et ne modifie jamais le profil CRT original.
+# Fl uide, hologramme (simulation), néon (ombre orange), portail (zoom centre).
+# Glitch RGB, vraie lumière néon, portail vers le dock et intro : non fournis.
+set -uo pipefail
+
+SELF="$(readlink -f "$0")"
+HOME_CONF="${XDG_CONFIG_HOME:-$HOME/.config}"
+BASE="$HOME_CONF/lexos/effets"
+STATE="$BASE/profil"
+PIDFILE="$BASE/superviseur.pid"
+LOG="$BASE/journal.log"
+AUTOSTART="$HOME_CONF/autostart/lexos-effets.desktop"
+SOURCE="${LEXOS_EFFETS_SOURCE:-/usr/share/lexos/picom/lexos-tv.conf}"
+CRT="${LEXOS_EFFETS_CRT:-/usr/bin/lexos-crt}"
+
+dire() { printf '%s\n' "$*"; }
+erreur() { printf '✗ %s\n' "$*" >&2; return 1; }
+creer() {
+    mkdir -p "$BASE"
+    chmod 700 "$BASE" 2>/dev/null || true
+}
+profil_valide() {
+    case "$1" in crt|fluide|hologramme|neon|portail|off) return 0;; esac
+    return 1
+}
+actuel() {
+    local p=crt
+    if [[ -r "$STATE" ]]; then read -r p < "$STATE" || true; fi
+    profil_valide "$p" && printf '%s\n' "$p" || printf 'off\n'
+}
+sauver() {
+    creer
+    local tmp="$BASE/.profil.$$"
+    printf '%s\n' "$1" > "$tmp"
+    chmod 600 "$tmp"
+    mv "$tmp" "$STATE"
+}
+pid_valide() {
+    local pid cmd
+    [[ -r "$PIDFILE" ]] || return 1
+    read -r pid < "$PIDFILE" || return 1
+    [[ "$pid" =~ ^[0-9]+$ && -r "/proc/$pid/cmdline" ]] || return 1
+    cmd="$(tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null)" || return 1
+    [[ "$cmd" == *"$SELF --superviser"* ]]
+}
+arreter_personnalise() {
+    local pid
+    if pid_valide; then
+        read -r pid < "$PIDFILE"
+        kill -TERM "$pid" 2>/dev/null || true
+        local i
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+            pid_valide || break
+            sleep .2
+        done
+        pid_valide && { erreur "Superviseur occupé, aucun changement."; return 1; }
+    fi
+}
+xfce_retour() {
+    if command -v xfconf-query >/dev/null 2>&1; then
+        xfconf-query -c xfwm4 -p /general/use_compositing -s true >/dev/null 2>&1 || true
+    fi
+}
+verifier() {
+    [[ -n "${DISPLAY:-}" && "${XDG_SESSION_TYPE:-x11}" != "wayland" ]] ||
+        { erreur "Une session graphique XFCE/X11 est nécessaire."; return 1; }
+    for c in picom python3 glxinfo xfconf-query flock; do
+        command -v "$c" >/dev/null 2>&1 || { erreur "Manque : $c"; return 1; }
+    done
+    [[ -r "$SOURCE" ]] || { erreur "Profil CRT LexOS introuvable : $SOURCE"; return 1; }
+    [[ -x "$CRT" ]] || { erreur "Commande LexOS CRT introuvable : $CRT"; return 1; }
+    local major
+    major="$(picom --version 2>/dev/null | sed -n '1s/^v\([0-9][0-9]*\).*/\1/p')"
+    [[ "$major" =~ ^[0-9]+$ ]] && (( major >= 12 )) ||
+        { erreur "Les animations exigent picom v12 ou plus."; return 1; }
+    local info
+    info="$(timeout 10 glxinfo -B 2>/dev/null)" ||
+        { erreur "glxinfo ne fonctionne pas."; return 1; }
+    grep -q '^OpenGL renderer string:' <<< "$info" || return 1
+    if grep -Eiq '^OpenGL renderer string:.*(llvmpipe|softpipe|swrast)' <<< "$info"; then
+        erreur "Accélération matérielle indisponible (llvmpipe)."
+        return 1
+    fi
+}
+
+generer() {
+    local nom="$1"
+    [[ -r "$SOURCE" ]] || { erreur "Source CRT absente."; return 1; }
+    creer
+    python3 - "$SOURCE" "$BASE/$nom.conf" "$nom" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+destination = Path(sys.argv[2])
+name = sys.argv[3]
+opening = '\nanimations = (\n'
+ending = '\n);\n\n#  ═══ CE QUI NE DOIT'
+if source.count(opening) != 1 or source.count(ending) != 1:
+    raise SystemExit("Format des animations CRT inattendu : aucune modification.")
+start = source.index(opening)
+finish = source.index(ending, start) + len('\n);')
+
+presets = {
+    # scale ouverture, scale fermeture, durée ouverture, durée fermeture
+    "fluide":     (0.95, 0.95, 0.17, 0.15),
+    "hologramme": (0.80, 0.82, 0.26, 0.22),
+    "neon":       (0.97, 0.97, 0.19, 0.17),
+    "portail":    (0.08, 0.08, 0.24, 0.24),
+}
+if name not in presets:
+    raise SystemExit("Profil non reconnu.")
+so, sc, to, tc = presets[name]
+
+def animation(event, seconds, first, last, op_start, op_end):
+    curve = ("cubic-bezier(0.0, 0.0, 0.2, 1.0)" if event == "open"
+             else "cubic-bezier(0.4, 0.0, 1.0, 1.0)")
+    return f'''  {{
+    triggers = [ "{event}" ];
+    opacity = {{ duration = {seconds:.2f}; start = {op_start}; end = {op_end}; }};
+    scale-x = {{ curve = "{curve}"; duration = {seconds:.2f}; start = {first:.2f}; end = {last:.2f}; }};
+    scale-y = {{ curve = "{curve}"; duration = {seconds:.2f}; start = {first:.2f}; end = {last:.2f}; }};
+    offset-x = "(1 - scale-x) * window-width / 2";
+    offset-y = "(1 - scale-y) * window-height / 2";
+    blur-opacity = "opacity";
+    shadow-opacity = 0;
+  }}'''
+
+animations = ('\nanimations = (\n' +
+    animation("open", to, so, 1, 0, 1) + ',\n' +
+    animation("close", tc, 1, sc, 1, 0) + '\n);')
+result = source[:start] + animations + source[finish:]
+if name == "neon":
+    for old, new in (
+        ("shadow-radius = 6;", "shadow-radius = 13;"),
+        ("shadow-opacity = 0.6;", "shadow-opacity = 0.72;"),
+        ('shadow-color = "#000000";', 'shadow-color = "#ff8428";'),
+    ):
+        if result.count(old) != 1:
+            raise SystemExit("Option de couleur inattendue : " + old)
+        result = result.replace(old, new, 1)
+# Jamais d'écriture dans /usr/share. Un fichier .tmp atomique.
+tmp = destination.with_suffix(".tmp")
+tmp.write_text(result, encoding="utf-8")
+tmp.replace(destination)
+PY
+}
+
+installer() {
+    verifier || return 1
+    local p
+    for p in fluide hologramme neon portail; do
+        generer "$p" || return 1
+    done
+    mkdir -p "$(dirname "$AUTOSTART")"
+    cat > "$AUTOSTART" <<EOF
+[Desktop Entry]
+Type=Application
+Name=LexOS — effets personnalisés
+Comment=Animations de fenêtres GLX réversibles
+Exec=$SELF --autostart
+OnlyShowIn=XFCE;
+Terminal=false
+NoDisplay=true
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+EOF
+    dire "✓ Profils créés dans $BASE"
+    dire "Disponibles : fluide, hologramme, neon, portail, crt, off"
+}
+
+superviser() {
+    local profil enfant="" code
+    profil="$(actuel)"
+    case "$profil" in fluide|hologramme|neon|portail) ;; *) return 0;; esac
+    [[ -n "${DISPLAY:-}" ]] || return 0
+    creer
+    exec 9>"$BASE/verrou"
+    flock -n 9 || return 0
+    if pgrep -x picom >/dev/null 2>&1; then
+        dire "Autre picom en marche; aucun deuxième compositeur." >> "$LOG"
+        return 1
+    fi
+    printf '%s\n' "$$" > "$PIDFILE"
+    nettoyer() {
+        trap - EXIT TERM INT HUP
+        if [[ -n "$enfant" ]]; then
+            kill -TERM "$enfant" 2>/dev/null || true
+            wait "$enfant" 2>/dev/null || true
+        fi
+        rm -f "$PIDFILE"
+        xfce_retour
+    }
+    trap 'exit 0' TERM INT HUP
+    trap nettoyer EXIT
+    xfconf-query -c xfwm4 -p /general/use_compositing -s false >/dev/null 2>&1 ||
+        return 1
+    printf '[%s] Démarrage du profil %s\n' "$(date -Is)" "$profil" >> "$LOG"
+    picom --config "$BASE/$profil.conf" >> "$LOG" 2>&1 9>&- &
+    enfant=$!
+    wait "$enfant"
+    code=$?
+    dire "Picom arrêté (code $code)" >> "$LOG"
+    return "$code"
+}
+
+demarrer() {
+    local profil="$1"
+    local i=0
+    verifier || return 1
+    generer "$profil" || return 1
+    if pid_valide; then
+        dire "Effet déjà actif. Arrête-le avant de changer."
+        return 0
+    fi
+    if pgrep -x picom >/dev/null 2>&1; then
+        # On ne tue QUE picom contrôlé par LexOS CRT, jamais une instance tierce.
+        if "$CRT" --pids | grep -qE '^[0-9]+$'; then
+            "$CRT" off || return 1
+        else
+            erreur "Picom externe déjà en marche, pas de modification."
+            return 1
+        fi
+    fi
+    "$CRT" off >/dev/null 2>&1 || true
+    nohup "$SELF" --superviser >/dev/null 2>&1 </dev/null &
+    while (( i < 10 )); do
+        ((i+=1))
+        if pid_valide && pgrep -x picom >/dev/null 2>&1; then
+            dire "✓ Profil $profil actif; ouvre et ferme une fenêtre."
+            return 0
+        fi
+        sleep .2
+    done
+    erreur "Profil non démarré; XFCE restauré. Journal : $LOG"
+}
+
+choisir() {
+    local profil="$1"
+    profil_valide "$profil" || { erreur "Profil inconnu : $profil"; return 2; }
+    if [[ "$profil" != "crt" && "$profil" != "off" ]]; then
+        verifier || return 1
+        generer "$profil" || return 1
+    fi
+    arreter_personnalise || return 1
+    sauver "$profil"
+    case "$profil" in
+        crt)
+            "$CRT" on ;;
+        off)
+            "$CRT" off
+            xfce_retour ;;
+        *)
+            demarrer "$profil" || {
+                dire "Retour au profil CRT précédent." >&2
+                sauver crt
+                "$CRT" on
+                return 1
+            } ;;
+    esac
+}
+
+statut() {
+    dire "Profil choisi : $(actuel)"
+    if pid_valide; then
+        dire "✓ Compositeur personnalisé actif."
+    else
+        dire "Compositeur personnalisé à l'arrêt."
+    fi
+    "$CRT" status 2>/dev/null || true
+    dire "Journal : $LOG"
+}
+
+aide() {
+    cat <<'EOF'
+Pack d'animations LexOS Pro — picom v12 / NVIDIA / XFCE/X11
+  lexos-effets installer     Préparer les profils et le démarrage automatique
+  lexos-effets fluide        Zoom léger + fondu
+  lexos-effets hologramme   Apparition holographique simulée
+  lexos-effets neon         Ombres orange + animation fluide
+  lexos-effets portail      Zoom vers le centre (pas vers le dock)
+  lexos-effets crt          Restaurer le CRT original (vieille télévision)
+  lexos-effets off          Désactiver les effets et restaurer XFCE
+  lexos-effets status       Voir le profil courant et l'état du compositeur
+Glitch RGB, vraie lueur shader et animation de démarrage : non inclus.
+EOF
+}
+
+case "${1:-aide}" in
+    installer|install) installer ;;
+    crt|fluide|hologramme|neon|portail|off) choisir "$1" ;;
+    status|statut) statut ;;
+    --superviser) superviser ;;
+    --autostart)
+        case "$(actuel)" in fluide|hologramme|neon|portail)
+            sleep 3
+            p="$(actuel)"
+            [[ "$p" == crt || "$p" == off ]] || demarrer "$p"
+            ;; esac ;;
+    aide|--help|-h) aide ;;
+    *) aide >&2; erreur "Commande inconnue : ${1:-}" ;;
+esac
