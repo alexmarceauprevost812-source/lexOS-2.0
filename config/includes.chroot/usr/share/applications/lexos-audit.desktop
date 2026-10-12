@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Outils d’audit
-Comment=Outils classés par catégories — LexOS Pro
-Exec=/usr/bin/python3 /usr/lib/lexos/audit/menu.py
+Name=Outils d’audit — LexOS Pro Terminal
+Comment=Catalogue d'audit dans le terminal officiel — aucune analyse lancée automatiquement
+Exec=lexos-pro-terminal -e /usr/bin/python3 /usr/lib/lexos/audit/menu.py --terminal
 Icon=/usr/share/lexos/audit-kali-logo.png
 Terminal=false
 Categories=System;Security;
