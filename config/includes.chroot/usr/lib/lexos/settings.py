@@ -2445,7 +2445,7 @@ def act_clavier(arg):
 
 def act_fichiers_vue(arg):
     """Choix sûr dans Thunar, sans sudo ni écriture des fichiers personnels."""
-    if arg not in _fichiers_vues.MODES:
+    if not isinstance(arg, str) or arg not in _fichiers_vues.MODES:
         return {"ok": False, "erreur": "Affichage de fichiers inconnu."}
     return _fichiers_vues.choisir(arg)
 
