@@ -80,6 +80,20 @@ arreter_personnalise() {
         done
         pid_valide && { erreur "Superviseur occupé, aucun changement."; return 1; }
     fi
+    # Quand le superviseur a cessé de tourner, son picom peut être en train
+    # de se fermer. Ne pas lancer un CRT pendant ce court intervalle.
+    local i=0 p occupe
+    while (( i < 50 )); do
+        occupe=0
+        for p in fluide hologramme neon portail; do
+            picom_personnalise "$p" && occupe=1
+        done
+        (( occupe == 0 )) && return 0
+        sleep .1
+        ((i+=1))
+    done
+    erreur "L'ancien picom LexOS est toujours actif. Aucun autre lancé."
+    return 1
 }
 xfce_retour() {
     if command -v xfconf-query >/dev/null 2>&1; then
@@ -286,7 +300,15 @@ choisir() {
             xfce_retour ;;
         *)
             demarrer "$profil" || {
-                dire "Retour au profil CRT précédent." >&2
+                # L'échec peut laisser un superviseur en cours de fermeture.
+                # Ne surtout pas lancer le CRT tant qu'il est actif.
+                arreter_personnalise || return 1
+                if picom_vivant && [[ -z "$("$CRT" --pids)" ]]; then
+                    sauver off
+                    erreur "Un picom externe tourne. CRT non relancé pour éviter deux compositeurs."
+                    return 1
+                fi
+                dire "Retour au profil CRT." >&2
                 sauver crt
                 "$CRT" on
                 return 1
