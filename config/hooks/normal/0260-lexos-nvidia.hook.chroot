@@ -681,7 +681,8 @@ if [ -n "$REUSSITE" ]; then
             exit 1
         fi
     done
-    if [ ! -f /usr/lib/xorg/modules/drivers/nvidia_drv.so ]; then
+    MODULE_XORG="${LEXOS_NVIDIA_XORG_MODULE:-/usr/lib/xorg/modules/drivers/nvidia_drv.so}"
+    if [ ! -f "$MODULE_XORG" ]; then
         echo "[lexos]   ÉCHEC : module Xorg nvidia_drv.so absent"
         exit 1
     fi
