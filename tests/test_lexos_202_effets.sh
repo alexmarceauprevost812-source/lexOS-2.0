@@ -2,7 +2,7 @@
 # Contrôle isolé : génère les profils sans session X ni vrais pilotes NVIDIA.
 set -euo pipefail
 R="$(cd "$(dirname "$0")/.." && pwd)"
-OUTIL="$R/config/includes.chroot/usr/bin/lexos-effets"
+OUTIL="$R/config/includes.chroot/usr/share/lexos/picom/lexos-effets"
 bash -n "$OUTIL"
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
