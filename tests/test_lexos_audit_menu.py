@@ -52,15 +52,51 @@ class Menu(unittest.TestCase):
                 self.assertEqual([n.attrib for n in a.iter()], [n.attrib for n in b.iter()])
 
     def test_terminal_does_not_run_audit_tool(self):
-        with patch.object(menu.shutil, 'which', return_value='/usr/bin/xfce4-terminal'), patch.object(menu.subprocess, 'Popen') as popen:
+        with patch.object(menu.shutil, 'which', return_value='/usr/bin/lexos-pro-terminal'), patch.object(menu.subprocess, 'Popen') as popen:
             menu.launch('hashcat')
             args = popen.call_args.args[0]
-            self.assertEqual(args[0], '/usr/bin/xfce4-terminal')
+            self.assertEqual(args[0], '/usr/bin/lexos-pro-terminal')
             self.assertEqual(args[-2:], ['--console', 'hashcat'])
-            self.assertIn('--color-text=#E6E6E6', args)
-            self.assertIn('--color-bg=#121214', args)
+            self.assertIn('-e', args)
+            self.assertNotIn('xfce4-terminal', args)
             self.assertNotIn('sudo', args)
             self.assertNotIn('shell', popen.call_args.kwargs)
+
+    def test_terminal_catalogue_has_no_automatic_command_execution(self):
+        # Cliquer « Audit » n'exécute aucune commande du catalogue.
+        answers = iter(['1', '1', 'b', 'q'])
+        sortie = []
+        with patch.object(menu, 'installed', return_value=False), \
+             patch.object(menu.subprocess, 'Popen') as popen, \
+             patch.object(menu.subprocess, 'run') as run:
+            menu.menu_terminal(lire=lambda _: next(answers), ecrire=sortie.append)
+            popen.assert_not_called()
+            run.assert_not_called()
+        self.assertIn('aucun outil', '\n'.join(sortie).lower())
+        self.assertIn('non installé', '\n'.join(sortie).lower())
+
+    def test_terminal_catalogue_rejects_untrusted_selection(self):
+        answers = iter(['; echo MALVEILLANT', '-1', '700', 'q'])
+        sortie = []
+        with patch.object(menu.subprocess, 'run') as run, \
+             patch.object(menu.subprocess, 'Popen') as popen:
+            menu.menu_terminal(lire=lambda _: next(answers), ecrire=sortie.append)
+        run.assert_not_called()
+        popen.assert_not_called()
+        self.assertIn('numéro valide', '\n'.join(sortie))
+
+    def test_terminal_catalogue_reads_only_installed_file_list(self):
+        answers = iter(['1', '1', 'q'])
+        sortie = []
+        with patch.object(menu, 'installed', return_value=True), \
+             patch.object(menu.os, 'access', return_value=True), \
+             patch.object(menu.subprocess, 'run', return_value=subprocess.CompletedProcess(
+                 [], 0, '/usr/bin/outil\n/etc/config\n', '')) as run:
+            menu.menu_terminal(lire=lambda _: next(answers), ecrire=sortie.append)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.args[0][:2], ['dpkg-query', '-L'])
+        self.assertIn('/usr/bin/outil', '\n'.join(sortie))
+        self.assertNotIn('/etc/config', '\n'.join(sortie))
 
     def test_gui_uses_current_user(self):
         with patch.object(menu.shutil, 'which', return_value='/usr/local/bin/johnny'), patch.object(menu.subprocess, 'Popen') as popen:
@@ -87,7 +123,9 @@ class Menu(unittest.TestCase):
             self.assertEqual(panel.read_bytes(), original)
             conf.write_text('LEXOS_FLAVOUR=pro\n')
             subprocess.run(['bash', str(hook)], env=env, check=True)
-            self.assertIn(b'lexos-audit.desktop', panel.read_bytes())
+            # Nouveau modèle : le lanceur Audit est dans le Terminal Pro.
+            # Le hook n'ajoute plus un deuxième bouton en haut du bureau.
+            self.assertEqual(panel.read_bytes(), original)
 
     @unittest.skipUnless(os.environ.get('DISPLAY'), 'Affichage GTK indisponible localement')
     def test_graphic_search(self):
@@ -189,7 +227,7 @@ class Menu(unittest.TestCase):
         desktop = (INCLUDE/'usr/share/applications/lexos-audit.desktop').read_text()
         self.assertIn('Icon=/usr/share/lexos/audit-kali-logo.png', desktop)
         self.assertEqual((INCLUDE/'usr/share/lexos/audit-kali-logo.png').read_bytes()[:8], b'\x89PNG\r\n\x1a\n')
-        self.assertIn('Exec=/usr/bin/python3 /usr/lib/lexos/audit/menu.py', desktop)
+        self.assertIn('Exec=lexos-pro-terminal -e /usr/bin/python3 /usr/lib/lexos/audit/menu.py --terminal', desktop)
 
 if __name__ == '__main__':
     unittest.main()
