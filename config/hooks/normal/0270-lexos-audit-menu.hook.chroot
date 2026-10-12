@@ -1,12 +1,14 @@
 #!/bin/bash
-# Ajouter le bouton uniquement au squelette de la prochaine ISO Pro.
+# LexOS Pro 2.0.2 — le catalogue d'audit habite le Terminal officiel.
+#
+# Auparavant ce hook ajoutait un second bouton « Outils d'audit » dans la
+# barre XFCE sur une ISO Pro. Le bouton « 🛡 Audit » vit maintenant DANS
+# /usr/share/lexos/terminal-pro/web/index.html, ouvert par le seul
+# lanceur Terminal du panneau. Le .desktop d'audit reste dans le menu
+# Applications pour les personnes qui veulent le chercher directement.
+#
+# Rien à migrer ni à effacer sur un compte existant : ni préférences du
+# panneau, ni raccourcis, ni dossiers d'utilisateur. Un ancien bouton Audit
+# peut être retiré manuellement dans les Préférences du panneau XFCE.
 set -euo pipefail
-CONF="${LEXOS_AUDIT_CONF:-/etc/lexos/build.conf}"
-DEST="${LEXOS_AUDIT_ROOT:-}"
-LEXOS_FLAVOUR=standard
-if [[ -r $CONF ]]; then
-    # shellcheck disable=SC1090
-    . "$CONF"
-fi
-[[ $LEXOS_FLAVOUR == pro ]] || exit 0
-/usr/bin/python3 "$DEST/usr/lib/lexos/audit/menu.py" --installer-squelette "${DEST:-/}"
+exit 0
