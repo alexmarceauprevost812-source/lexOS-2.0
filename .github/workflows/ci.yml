@@ -491,6 +491,8 @@ jobs:
           #  seconde moitié qui prouve que le défaut était réel.
           bash tests/test_lexos_nvidia_module.sh
           bash tests/test_lexos_201_live.sh
+          # Le module NVIDIA seul ne suffit pas : OpenGL/Xorg nécessaires au CRT.
+          bash tests/test_lexos_202_nvidia_glx.sh
 
       - name: LexOS 2.0.2 — icônes poubelle et paramètres XFCE
         if: ${{ !cancelled() }}
