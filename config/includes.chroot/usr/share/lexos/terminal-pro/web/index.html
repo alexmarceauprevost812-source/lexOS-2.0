@@ -924,7 +924,7 @@ const Terminal = {
       this.active.titre = "Audit";
       this.active.majTitre();
       // envoyer() conserve le texte jusqu'à la création de la session PTY.
-      this.active.envoyer("python3 /usr/lib/lexos/audit/menu.py --terminal\r");
+      this.active.envoyer("lexos audit\r");
       if(this.active.term) this.active.term.focus();
     }
   },
