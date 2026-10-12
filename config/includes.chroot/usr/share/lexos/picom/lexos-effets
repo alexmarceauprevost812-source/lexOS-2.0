@@ -235,7 +235,7 @@ picom_personnalise() {
     local pid cmd
     for pid in $(pgrep -x picom 2>/dev/null); do
         [[ -r "/proc/$pid/cmdline" ]] || continue
-        cmd="$(tr '\\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null)" || continue
+        cmd="$(tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null)" || continue
         [[ "$cmd" == *"--config $BASE/$1.conf"* ]] && return 0
     done
     return 1
