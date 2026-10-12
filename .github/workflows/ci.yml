@@ -50,7 +50,8 @@ jobs:
             config/includes.chroot/usr/lib/lexos/grub-defaut-windows \
             config/includes.chroot/usr/lib/lexos/lexos-fuseau-confirmer \
             config/includes.chroot/usr/lib/lexos/lexos-fuseau-position \
-            config/includes.chroot/usr/lib/lexos/polkit-agent
+            config/includes.chroot/usr/lib/lexos/polkit-agent \
+            config/includes.chroot/usr/share/lexos/picom/lexos-effets
 
       - name: Syntaxe des fichiers de complétion (touche Tab)
         if: ${{ !cancelled() }}
