@@ -383,7 +383,7 @@ def show():
             label = Gtk.Label(label=package + (' — non installé' if not available else ''), xalign=0)
             line.pack_start(label, True, True, 0)
             row.add(line)
-            row.set_tooltip_text('Ouvrir l’application' if package in GUI else 'Ouvrir le terminal d’audit')
+            row.set_tooltip_text('Ouvrir l’application' if package in GUI else 'Ouvrir une fiche dans LexOS Pro Terminal')
             row.audit_package = package
             tools.add(row)
             rows.append((category, package, row))
