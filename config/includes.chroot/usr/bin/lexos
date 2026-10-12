@@ -99,6 +99,9 @@ ${B}APPARENCE${R}
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
   ${A}wallpaper${R} <image> <cadrage>  remplir · ajuster · etirer · centrer · mosaique
   ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
+  ${A}vue-fichiers${R}          Choisir liste, icônes ou grandes miniatures
+                      ${D}ex. : vue-fichiers grandes · liste · icones · compact
+                      vue-fichiers apercu on|off · miniatures on|off${R}
   ${A}moteurd${R} <etat|on|off> Le démon qui garde le volet et les Paramètres au chaud
 
 ${B}LANGUE${R}
@@ -1081,6 +1084,7 @@ case "$CMD" in
 	lang|langue)          cmd_lang "$@" ;;
 	dock|barre)           cmd_dock "$@" ;;
 	ecran|écran|display|screen) exec lexos-display "$@" ;;
+	vue-fichiers|vues-fichiers|images-vue) exec /usr/bin/python3 /usr/lib/lexos/fichiers_vues.py "$@" ;;
 	perf|performance)     exec lexos-perf "$@" ;;
 	temperature|température|temp|chaleur|ventilateurs) exec lexos-temp "$@" ;;
 	lumiere|luminosite|brightness) exec lexos-brightness "$@" ;;
