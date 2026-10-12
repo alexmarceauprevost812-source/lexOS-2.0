@@ -98,6 +98,23 @@ class Menu(unittest.TestCase):
         self.assertIn('/usr/bin/outil', '\n'.join(sortie))
         self.assertNotIn('/etc/config', '\n'.join(sortie))
 
+    def test_terminal_audit_button_opens_same_terminal_in_a_new_tab(self):
+        page = (INCLUDE/'usr/share/lexos/terminal-pro/web/index.html').read_text()
+        cli = (INCLUDE/'usr/bin/lexos').read_text()
+        desktop = (INCLUDE/'usr/share/applications/lexos-audit.desktop').read_text()
+        hook = (R/'config/hooks/normal/0270-lexos-audit-menu.hook.chroot').read_text()
+        panel = (INCLUDE/'etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml').read_text()
+        self.assertIn('id="audit"', page)
+        self.assertIn('ouvrirAudit(){', page)
+        self.assertIn('this.nouvelOnglet();', page)
+        self.assertIn('this.active.envoyer("lexos audit\\r");', page)
+        self.assertIn('audit|outils-audit)', cli)
+        self.assertIn('exec /usr/bin/python3 /usr/lib/lexos/audit/menu.py --terminal', cli)
+        self.assertIn('Exec=lexos-pro-terminal -e', desktop)
+        self.assertNotIn('lexos-audit.desktop', panel)
+        self.assertNotIn('--installer-squelette', hook)
+        self.assertIn('lexos-pro-terminal.desktop', panel)
+
     def test_gui_uses_current_user(self):
         with patch.object(menu.shutil, 'which', return_value='/usr/local/bin/johnny'), patch.object(menu.subprocess, 'Popen') as popen:
             menu.launch('johnny')
