@@ -129,3 +129,101 @@ La validation sur une session XFCE réelle demeure nécessaire :
 bouton visible, nouvel onglet avec vrai PTY, retour à l'invite shell
 et conservation des raccourcis de l'utilisateur. Le catalogue ne
 promet pas que tous les outils Debian installés ont été testés.
+
+
+## LexOS 2.0.2 — toutes les commandes visibles dans le catalogue
+
+L'entrée de menu du haut reste **Terminal LexOS Pro → 🛡 Audit**. Ce
+catalogue contient toujours 100 entrées regroupées par sept catégories.
+Pour **chaque paquet installé**, LexOS lit les fichiers que
+**dpkg-query -L** déclare dans les répertoires exécutables usuels
+(/usr/bin, /usr/sbin, /usr/local/bin, /usr/local/sbin, /bin, /sbin).
+Il teste leur présence et le droit d'exécution, déduplique puis affiche
+la liste *réellement constatée*. Le nom du paquet n'est jamais pris
+automatiquement pour le nom d'un programme : exiftool par exemple
+peut appartenir à un paquet nommé autrement.
+
+Ce sont les **noms et chemins des exécutables**, pas la liste de toutes
+leurs options et sous-commandes internes. Une option ou une sous-commande
+n'apparaît que dans la documentation propre au programme; il serait
+trompeur d'affirmer que dpkg les fournit. Le catalogue n'invente donc
+ni syntaxes ni commandes, et **ne lance aucun outil automatiquement**.
+
+Dans le terminal :
+
+    lexos audit
+    lexos audit commandes
+
+Le premier ouvre le menu interactif ; le second recense d'un seul coup
+les commandes de **tous les paquets effectivement installés** parmi les
+100 entrées. Il montre « non installé » quand le paquet est absent,
+sans procéder à une installation. Le nombre de commandes varie donc
+selon les paquets présents sur la machine, pas selon un tableau figé.
+
+L'ancien catalogue GTK facultatif (lancé directement par menu.py sans
+option) affiche un bouton **Commandes** en face de chaque outil installé.
+Un clic ouvre une fenêtre de texte sélectionnable, avec la liste
+complète des exécutables du paquet, **sans les lancer**. L'ancienne
+fonction d'activation du catalogue ne change pas.
+
+### Première vague de vraies icônes Kali (facultative)
+
+L'icône propre à un outil n'est pas inventée, ni tirée d'une recherche
+d'images. La commande :
+
+    lexos audit-icones etat
+    lexos audit-icones installer
+
+tente de récupérer les SVG de 12 outils prioritaires réellement
+présents dans le manifeste LexOS :
+nmap, zenmap, wireshark, hashcat, john, aircrack-ng, sqlmap, gobuster,
+ffuf, hydra, binwalk et testdisk. **Ce sont douze candidats, pas une
+promesse de douze logos trouvés**. Le script dira exactement quels SVG
+existent dans cette version de Kali; pour chaque absent, le thème Debian
+ou LexOS reste utilisé.
+
+**Source authentique :** archive de sources du paquet officiel
+**kali-menu 2026.3.4**, publiée le 11 septembre 2026 et migrée le
+14 septembre 2026. Téléchargement chiffré en HTTPS, archive figée par
+la somme SHA-256 **publiée par l'équipe Kali** :
+
+    0f977fb202b94e0850e45cc4c5a97fa648936f325e6d5857f9839915ae032aa6
+
+Références officielles :
+- https://pkg.kali.org/news/712541/kali-menu-202634-migrated-to-kali-rolling/
+- https://archive.kali.org/kali/pool/main/k/kali-menu/
+- https://gitlab.com/kalilinux/packages/kali-menu/-/tree/kali/master/menu-icons
+
+Le script ne télécharge **rien au démarrage**, n'extrait pas l'archive
+dans /, n'exécute pas de programme du paquet, n'ajoute pas de
+dépôt Kali et **refuse sudo**. Il copie uniquement des images SVG
+statistiques vérifiées dans le dossier du compte utilisateur
+~/.local/share/lexos/audit/icones/ (ou XDG_DATA_HOME). Un SVG avec
+script, ressource externe ou contenu invalide est refusé.
+
+**Attribution et marques :** les logos graphiques appartiennent
+à leurs auteurs/titulaires. Kali signale que les licences des
+composants peuvent varier et conseille de consulter leurs fichiers
+de droits d'auteur. Le programme récupère les images uniquement
+sur action explicite et n'embarque pas la collection dans l'ISO,
+ni dans le dépôt GitHub. Les icônes qui ne sont pas couvertes par
+un droit de redistribution clair ne doivent pas être ajoutées
+automatiquement à une ISO publique.
+Voir : https://www.kali.org/docs/policy/kali-linux-open-source-policy/
+
+Aucune ISO n'est publiée, ni aucun thème Thunar ou bureau remplacé.
+L'interface demande encore une vérification graphique sur le vrai PC.
+
+### Mise à jour sur un compte LexOS Pro existant
+
+    sudo miss a jour --essai
+    sudo miss a jour
+    lexos audit commandes
+    lexos audit-icones etat
+
+Pour rechercher volontairement les logos officiels, sans sudo :
+
+    lexos audit-icones installer
+
+Fermer puis relancer **LexOS Pro Terminal** avant d'ouvrir le bouton
+🛡 Audit afin de charger les changements du HTML.
