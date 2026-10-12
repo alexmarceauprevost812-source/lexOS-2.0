@@ -113,10 +113,35 @@ Aucune clé, configuration Secure Boot ou entrée Windows n'a été changée ici
 Références : [Debian Secure Boot et DKMS](https://wiki.debian.org/SecureBoot),
 [format officiel des thèmes GRUB](https://www.gnu.org/software/grub/manual/grub/html_node/Theme-file-format.html).
 
+## NVIDIA OpenGL/Xorg + effets visuels — retour du 12 octobre 2026
+
+Le pilote CUDA/DKMS ne suffisait pas : sur la RTX 5060 réelle,
+`nvidia-smi` répondait, mais OpenGL tombait sur `llvmpipe` et
+le compositeur picom CRT ne pouvait pas utiliser GLX. L'installation
+de `nvidia-driver-libs` et `xserver-xorg-video-nvidia` (plus les
+dépendances de `nvidia-driver`), puis une nouvelle session X11,
+a rétabli le fournisseur `NVIDIA-0`, le renderer OpenGL
+`GeForce RTX 5060` et picom v12 actif.
+
+Le hook 0260 exige maintenant la **pile Xorg/GLX à la même version**
+que le pilote réel, avec `--no-remove`. Un échec arrête la
+construction Pro plutôt que de livrer une ISO en rendu logiciel.
+C'est un test de paquets en chroot, pas un test du pilote graphique
+en fonctionnement : un essai réel reste impératif avant publication.
+
+Les sept effets demandés (CRT, Hologramme, Glitch, Néon, Portail,
+Démarrage rétro, Fenêtres fluides) sont recensés avec leur faisabilité
+exacte et un plan de développement sûr dans
+[EFFETS-VISUELS-RTX5060-202.md](EFFETS-VISUELS-RTX5060-202.md).
+**CRT est existant et son moteur est confirmé en marche; les six
+autres ne sont pas encore livrés.** Aucune commande expérimentale
+n'est annoncée comme fonctionnelle.
+
 ## Tests avant construction
 
 ```bash
 bash tests/test_lexos_202_icons.sh
+bash tests/test_lexos_202_nvidia_glx.sh
 python3 tests/test_lexos_202_desktop.py
 python3 tests/test_lexos_audit_outils.py
 bash tests/test_lexos_epingler.sh
