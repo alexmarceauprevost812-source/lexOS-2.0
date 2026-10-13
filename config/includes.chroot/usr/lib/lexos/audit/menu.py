@@ -35,7 +35,9 @@ def titre_categorie(nom):
     return f"{EMOJIS.get(nom, '🧰')} {nom}"
 
 
-def catalogue(path=DATA):
+def catalogue(path=None):
+    if path is None:
+        path = DATA
     groups = {}
     current = None
     for line in path.read_text().splitlines():

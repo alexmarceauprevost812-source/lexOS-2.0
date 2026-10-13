@@ -1,6 +1,8 @@
 name: ISO de test 2.0.2 (sans publication)
 
 on:
+  push:
+    branches: [fix/lexos-202-ci-iso-20261013]
   workflow_dispatch:
     inputs:
       flavour:
@@ -16,14 +18,39 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: iso-test-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  ci:
+    name: Attendre la CI du même commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Exiger une CI complète réussie avant construction
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=""
+          for attempt in $(seq 1 60); do
+            run_id="$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml \
+              --branch "$GITHUB_REF_NAME" --commit "$GITHUB_SHA" --event push \
+              --limit 10 --json databaseId --jq '.[0].databaseId // empty')"
+            [ -z "$run_id" ] || break
+            sleep 30
+          done
+          if [ -z "$run_id" ]; then
+            echo '::error::Aucune CI push trouvée pour ce commit ; ISO non construite.'
+            exit 1
+          fi
+          gh run watch "$run_id" -R "$GITHUB_REPOSITORY" --interval 15 --exit-status
+
   iso:
     name: ISO LexOS
+    needs: ci
     runs-on: ubuntu-latest
     timeout-minutes: 300
 
@@ -47,7 +74,7 @@ jobs:
             echo "Demande lue dans .iso-build-request → saveur ${FLAVOUR:-standard}"
           fi
 
-          [ -n "$FLAVOUR" ] || FLAVOUR=standard
+          [ -n "$FLAVOUR" ] || FLAVOUR=pro
           [ -n "$SUITE" ]   || SUITE=trixie
 
           case "$FLAVOUR" in

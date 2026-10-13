@@ -587,7 +587,7 @@ Presentation {
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 Text {
-                    text: "Trente-sept sections, de l'affichage au réseau.\nTout est réglable sans ligne de commande."
+                    text: "Trente-huit sections, de l'affichage au réseau.\nTout est réglable sans ligne de commande."
                     color: "${LEX_DIM}"
                     font.pixelSize: 16
                     horizontalAlignment: Text.AlignHCenter

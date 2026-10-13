@@ -14,10 +14,13 @@ pilotes graphiques. Chaque choix est borné à des propriétés XFCONF connues.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from moteur import outils as _outils
 
 CHANNEL = "thunar"
 TIMEOUT = 4
@@ -93,7 +96,8 @@ def _commande(argv: list[str]) -> subprocess.CompletedProcess:
 
 
 def _present() -> bool:
-    return bool(shutil.which("xfconf-query") and shutil.which("thunar"))
+    return (_outils.commande_existe("xfconf-query")
+            and _outils.commande_existe("thunar"))
 
 
 def _lire(cle: str) -> Optional[str]:

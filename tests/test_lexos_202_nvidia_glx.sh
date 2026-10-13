@@ -45,9 +45,11 @@ export LEXOS_NVIDIA_XORG_MODULE="$T/nvidia_drv.so"
 touch "$LEXOS_NVIDIA_XORG_MODULE"
 
 run_guard() (
+    # Variable lue par le fragment du hook sourcé ci-dessous.
+    # shellcheck disable=SC2034
     REUSSITE="$MOCK_REUSSITE"
     version_pilote_reel() { printf '%s\n' "$MOCK_VERSION"; }
-    conf_pose() { printf '%s=%s\n' "$1" "$2" > "$T/result"; }
+    conf_pose() { printf '%s=%s\n' "$1" "$2" >> "$T/result"; }
     . "$T/fragment.sh"
 )
 
@@ -59,20 +61,29 @@ grep -Fq 'xserver-xorg-video-nvidia=615.71.09-2' "$MOCK_APT_LOG"
 grep -Fq 'nvidia-driver=615.71.09-2' "$MOCK_APT_LOG"
 
 # Version GLX erronée : la construction DOIT s'arrêter.
+: > "$T/result"
 if (MOCK_BAD_PKG=libglx-nvidia0; run_guard > /dev/null 2>&1); then
     echo "ÉCHEC : version GLX incorrecte acceptée" >&2; exit 1
 fi
+grep -Fxq 'LEXOS_NVIDIA_ETAT=absent' "$T/result"
+grep -Fxq 'LEXOS_NVIDIA_OPENGL=incomplet' "$T/result"
 
 # Dépendances impossibles / suppressions refusées : aucune publication.
+: > "$T/result"
 if (MOCK_APT_FAIL=1; run_guard > /dev/null 2>&1); then
     echo "ÉCHEC : apt a échoué mais la construction continue" >&2; exit 1
 fi
+grep -Fxq 'LEXOS_NVIDIA_ETAT=absent' "$T/result"
+grep -Fxq 'LEXOS_NVIDIA_OPENGL=incomplet' "$T/result"
 
 # Pilote Xorg réellement absent : refuser même si apt annonce OK.
 rm "$LEXOS_NVIDIA_XORG_MODULE"
+: > "$T/result"
 if run_guard > /dev/null 2>&1; then
     echo "ÉCHEC : Xorg absent accepté" >&2; exit 1
 fi
+grep -Fxq 'LEXOS_NVIDIA_ETAT=absent' "$T/result"
+grep -Fxq 'LEXOS_NVIDIA_OPENGL=incomplet' "$T/result"
 
 # Aucune pile NVIDIA voulue : ne pas installer de paquet graphique.
 : > "$MOCK_APT_LOG"

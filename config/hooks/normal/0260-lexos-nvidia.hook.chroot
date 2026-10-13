@@ -661,6 +661,8 @@ fi
 if [ -n "$REUSSITE" ]; then
     VERSION_GL="$(version_pilote_reel || true)"
     if [ -z "$VERSION_GL" ]; then
+        conf_pose LEXOS_NVIDIA_ETAT "absent"
+        conf_pose LEXOS_NVIDIA_OPENGL "incomplet"
         echo "[lexos]   ÉCHEC : version réelle du pilote inconnue pour GLX/Xorg"
         exit 1
     fi
@@ -671,18 +673,24 @@ if [ -n "$REUSSITE" ]; then
         "nvidia-driver-libs=$VERSION_GL" \
         "xserver-xorg-video-nvidia=$VERSION_GL" \
         "nvidia-driver=$VERSION_GL"; then
+        conf_pose LEXOS_NVIDIA_ETAT "absent"
+        conf_pose LEXOS_NVIDIA_OPENGL "incomplet"
         echo "[lexos]   ÉCHEC : pile NVIDIA Xorg/OpenGL incomplète"
         exit 1
     fi
     for paquet in nvidia-driver-libs xserver-xorg-video-nvidia nvidia-driver libglx-nvidia0; do
         VERSION_PKG="$(dpkg-query -W -f='${Version}' "$paquet" 2>/dev/null || true)"
         if [ "$VERSION_PKG" != "$VERSION_GL" ]; then
+            conf_pose LEXOS_NVIDIA_ETAT "absent"
+            conf_pose LEXOS_NVIDIA_OPENGL "incomplet"
             echo "[lexos]   ÉCHEC : $paquet=$VERSION_PKG (attendu $VERSION_GL)"
             exit 1
         fi
     done
     MODULE_XORG="${LEXOS_NVIDIA_XORG_MODULE:-/usr/lib/xorg/modules/drivers/nvidia_drv.so}"
     if [ ! -f "$MODULE_XORG" ]; then
+        conf_pose LEXOS_NVIDIA_ETAT "absent"
+        conf_pose LEXOS_NVIDIA_OPENGL "incomplet"
         echo "[lexos]   ÉCHEC : module Xorg nvidia_drv.so absent"
         exit 1
     fi

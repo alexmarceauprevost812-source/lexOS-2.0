@@ -17,6 +17,11 @@ menu = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(menu)
 
 class Menu(unittest.TestCase):
+    def setUp(self):
+        manifeste = patch.object(menu, 'DATA', INCLUDE/'usr/share/lexos/audit-tools.packages')
+        manifeste.start()
+        self.addCleanup(manifeste.stop)
+
     def test_console_banner_precedes_short_command_list(self):
         output = io.StringIO()
         with patch.object(menu, 'use_colour', return_value=True), \

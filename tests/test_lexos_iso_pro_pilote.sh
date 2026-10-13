@@ -298,9 +298,12 @@ titre "6. LA SAVEUR SE VOIT — et l'exemple du README ne ment plus"
 saveur() {   # saveur <contenu de build.conf> [VAR=val…] -> la ligne OS
 	local conf="$1"; shift
 	printf '%s' "$conf" > "$BANC/build.conf"
+	# Le système hôte peut être LexOS : sa saveur ne doit pas polluer la fixture.
+	: > "$BANC/os-release"
+	sed "s@/etc/os-release@$BANC/os-release@g" "$LEXFETCH" > "$BANC/lexfetch-saveur"
 	env -u LEXOS_FLAVOUR "$@" LEXOS_BUILD_CONF="$BANC/build.conf" \
 		NO_COLOR=1 TERM=dumb PATH="$PATH" HOME="$HOME" \
-		bash "$LEXFETCH" 2>/dev/null | grep -E 'OS  *:' | sed 's/.*OS  *: *//'
+		bash "$BANC/lexfetch-saveur" 2>/dev/null | grep -E 'OS  *:' | sed 's/.*OS  *: *//'
 }
 
 #  1. Par os-release — le chemin normal sur une machine LexOS. Sourcer
