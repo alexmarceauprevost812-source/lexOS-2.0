@@ -238,6 +238,7 @@ ${B}TERMINAL${R}
   ${A}pro${R}                  LEXOS PRO — tableau de bord du systeme
   ${A}terminal-pro${R}         LexOS Pro Terminal — le terminal officiel
   ${A}audit${R}                Catalogue des outils d'audit dans ce même terminal
+  ${A}audit menu${R}           Menu graphique par catégories, images et fiches terminal
   ${A}audit commandes${R}      Toutes les commandes réellement installées, en lecture seule
   ${A}audit-icones${R}         Installer des images officielles Kali vérifiées (sans sudo)
                       ${D}onglets, fenêtres divisibles, vraies commandes${R}
@@ -1202,10 +1203,11 @@ case "$CMD" in
 	#  propre nom.
 	audit|outils-audit)
 		case "${1:-}" in
+			menu) exec /usr/bin/python3 /usr/lib/lexos/audit/menu.py ;;
 			commandes|--commandes|liste)
 				exec /usr/bin/python3 /usr/lib/lexos/audit/menu.py --toutes-commandes ;;
 			"") exec /usr/bin/python3 /usr/lib/lexos/audit/menu.py --terminal ;;
-			*) echo "Choix possibles : lexos audit · lexos audit commandes" >&2; exit 2 ;;
+			*) echo "Choix possibles : lexos audit · lexos audit menu · lexos audit commandes" >&2; exit 2 ;;
 		esac ;;
 	audit-icones|icones-audit) exec /usr/bin/python3 /usr/lib/lexos/audit/icones.py "$@" ;;
 	terminal-pro|pro-terminal) exec lexos-pro-terminal "$@" ;;

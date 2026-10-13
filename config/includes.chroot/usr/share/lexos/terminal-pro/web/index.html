@@ -257,7 +257,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--orange);ou
   <div id="barre">
     <div id="marque"><span class="lys">⚜</span><span class="nomlex">LexOS</span><span>&nbsp;Pro</span></div>
     <div id="onglets" role="tablist"></div>
-    <button id="audit" type="button" title="Ouvrir les outils d’audit dans un onglet de ce terminal" aria-label="Outils d’audit"><span class="pic" aria-hidden="true">🛡</span><span class="libelle">Audit</span></button>
+    <button id="audit" type="button" title="Parcourir les catégories et ouvrir la fiche d’un outil" aria-label="Outils d’audit"><span class="pic" aria-hidden="true">🛡</span><span class="libelle">Outils d’audit</span></button>
     <button id="plus" title="Nouvelle page (Ctrl+B puis T)" aria-label="Nouvelle page">+</button>
   </div>
   <div id="travail"></div>
@@ -921,10 +921,10 @@ const Terminal = {
     }
     this.nouvelOnglet();
     if(this.active){
-      this.active.titre = "Audit";
+      this.active.titre = "Outils d’audit";
       this.active.majTitre();
       // envoyer() conserve le texte jusqu'à la création de la session PTY.
-      this.active.envoyer("lexos audit\r");
+      this.active.envoyer("lexos audit menu\r");
       if(this.active.term) this.active.term.focus();
     }
   },

@@ -30,14 +30,22 @@ KALI_SOURCE_SHA256 = "0f977fb202b94e0850e45cc4c5a97fa648936f325e6d5857f9839915ae
 KALI_SOURCE_BYTES = 1534748
 MAX_ARCHIVE = 5 * 1024 * 1024
 MAX_SVG = 400 * 1024
-# Première sélection de noms de paquets réellement présents dans LexOS.
-CIBLES = ("nmap", "zenmap", "wireshark", "hashcat", "john",
-          "aircrack-ng", "sqlmap", "gobuster", "ffuf", "hydra",
-          "binwalk", "testdisk")
+# Même sélection que le catalogue : chaque image doit correspondre à un outil.
+MANIFESTE = Path(__file__).resolve().parents[3] / 'share/lexos/audit-tools.packages'
+CIBLES = tuple(line.strip() for line in MANIFESTE.read_text().splitlines()
+               if line.strip() and not line.startswith('#')) + ('johnny',)
+IMAGES_SYSTEME = MANIFESTE.parent / 'audit/icones'
 ALIASES = {
     "john": ("john", "johnny", "john-the-ripper"),
     "aircrack-ng": ("aircrack-ng", "aircrack"),
     "testdisk": ("testdisk", "photorec"),
+    "netcat-openbsd": ("netcat-openbsd", "netcat"),
+    "python3-impacket": ("impacket", "impacket-scripts"),
+    "python3-scapy": ("scapy",),
+    "libimage-exiftool-perl": ("exiftool",),
+    "bind9-dnsutils": ("dnsutils", "dig"),
+    "gddrescue": ("gddrescue", "ddrescue"),
+    "mtr-tiny": ("mtr",),
 }
 SVG_PATH = "/menu-icons/scalable/apps/"
 
@@ -60,7 +68,13 @@ def icone_locale(paquet: str, base: Path | None = None) -> Path | None:
         return None
     chemin = (base if base is not None else repertoire()) / (paquet + ".svg")
     try:
-        return chemin if chemin.is_file() and chemin.stat().st_size > 0 else None
+        if chemin.is_file() and chemin.stat().st_size > 0:
+            return chemin
+        if base is None:
+            systeme = IMAGES_SYSTEME / (paquet + '.svg')
+            if systeme.is_file() and systeme.stat().st_size > 0:
+                return systeme
+        return None
     except OSError:
         return None
 

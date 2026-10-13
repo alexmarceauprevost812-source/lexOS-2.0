@@ -40,6 +40,14 @@ def archive_essai():
 
 
 class AuditImages(unittest.TestCase):
+    def test_official_images_embedded_for_offline_menu(self):
+        self.assertTrue(icones.icone_locale('hashcat').is_file())
+        self.assertTrue(icones.icone_locale('johnny').is_file())
+        self.assertIsNone(icones.icone_locale('unknown-package'))
+        for fichier in icones.IMAGES_SYSTEME.glob('*.svg'):
+            self.assertIn(fichier.stem, icones.CIBLES)
+            self.assertTrue(icones.svg_valide(fichier.read_bytes()), fichier.name)
+
     def test_source_and_checksum_match_published_kali_release(self):
         self.assertEqual(
             icones.KALI_SOURCE_SHA256,
@@ -47,7 +55,7 @@ class AuditImages(unittest.TestCase):
         )
         self.assertEqual(icones.KALI_SOURCE_BYTES, 1534748)
         self.assertIn("archive.kali.org", icones.KALI_SOURCE_URL)
-        self.assertEqual(len(icones.CIBLES), 12)
+        self.assertEqual(len(icones.CIBLES), 100)
 
     def test_archive_must_match_sha_before_reading_files(self):
         archive = archive_essai()

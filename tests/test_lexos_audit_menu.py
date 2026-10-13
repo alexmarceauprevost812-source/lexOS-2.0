@@ -17,6 +17,28 @@ menu = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(menu)
 
 class Menu(unittest.TestCase):
+    def test_console_banner_precedes_short_command_list(self):
+        output = io.StringIO()
+        with patch.object(menu, 'use_colour', return_value=True), \
+             patch.object(menu.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')), \
+             patch.object(menu, 'commandes_package', return_value=['/usr/bin/outil'] * 12), \
+             patch.object(menu, 'logo_banner', side_effect=lambda *args: print('IMAGE OFFICIELLE')), \
+             patch.object(menu, 'tool_help') as aide, \
+             patch.object(menu.os, 'execv') as shell, \
+             patch('sys.stdout', output):
+            menu.console('nmap')
+        self.assertTrue(output.getvalue().startswith('\033[2J\033[HIMAGE OFFICIELLE'))
+        self.assertEqual(output.getvalue().count('/usr/bin/outil'), 8)
+        self.assertIn('4 autres', output.getvalue())
+        aide.assert_not_called()
+        shell.assert_called_once_with('/bin/bash', ['/bin/bash', '-i'])
+
+    def test_categories_have_unique_readable_symbols(self):
+        groupes = menu.catalogue(INCLUDE/'usr/share/lexos/audit-tools.packages')
+        self.assertEqual(set(groupes), set(menu.EMOJIS))
+        for nom in groupes:
+            self.assertTrue(menu.titre_categorie(nom).endswith(nom))
+
     def test_all_packages_once(self):
         groups = menu.catalogue(INCLUDE/'usr/share/lexos/audit-tools.packages')
         packages = [p for group in groups.values() for p in group]
@@ -160,10 +182,10 @@ class Menu(unittest.TestCase):
         self.assertIn('id="audit"', page)
         self.assertIn('ouvrirAudit(){', page)
         self.assertIn('this.nouvelOnglet();', page)
-        self.assertIn('this.active.envoyer("lexos audit\\r");', page)
+        self.assertIn('this.active.envoyer("lexos audit menu\\r");', page)
         self.assertIn('audit|outils-audit)', cli)
         self.assertIn('exec /usr/bin/python3 /usr/lib/lexos/audit/menu.py --terminal', cli)
-        self.assertIn('Exec=lexos-pro-terminal -e', desktop)
+        self.assertIn('Exec=/usr/bin/python3 /usr/lib/lexos/audit/menu.py', desktop)
         self.assertNotIn('lexos-audit.desktop', panel)
         self.assertNotIn('--installer-squelette', hook)
         self.assertIn('lexos-pro-terminal.desktop', panel)
@@ -265,7 +287,7 @@ class Menu(unittest.TestCase):
             pixbuf.savev(str(image), 'png', [], [])
             output = io.StringIO()
             output.isatty = lambda: True
-            with patch.dict(os.environ, {'TERM': 'xterm-256color', 'NO_COLOR': ''}), patch.object(menu, 'tool_logo', return_value=image):
+            with patch.dict(os.environ, {'TERM': 'xterm-256color', 'NO_COLOR': ''}), patch.object(menu, 'icone_locale', return_value=None), patch.object(menu, 'tool_logo', return_value=image):
                 menu.logo_banner('hashcat', [], output)
             self.assertIn('▀', output.getvalue())
             self.assertIn('\033[38;2;255;128;0m', output.getvalue())
@@ -297,7 +319,8 @@ class Menu(unittest.TestCase):
         desktop = (INCLUDE/'usr/share/applications/lexos-audit.desktop').read_text()
         self.assertIn('Icon=/usr/share/lexos/audit-kali-logo.png', desktop)
         self.assertEqual((INCLUDE/'usr/share/lexos/audit-kali-logo.png').read_bytes()[:8], b'\x89PNG\r\n\x1a\n')
-        self.assertIn('Exec=lexos-pro-terminal -e /usr/bin/python3 /usr/lib/lexos/audit/menu.py --terminal', desktop)
+        self.assertIn('Name=Outils d’audit', desktop)
+        self.assertIn('Exec=/usr/bin/python3 /usr/lib/lexos/audit/menu.py', desktop)
 
 if __name__ == '__main__':
     unittest.main()

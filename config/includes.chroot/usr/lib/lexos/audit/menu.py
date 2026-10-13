@@ -25,6 +25,14 @@ LABELS = {'Reseau et DNS': 'Réseau et DNS',
           'Analyse de fichiers et recuperation': 'Analyse de fichiers et récupération',
           'Debogage et inspection': 'Débogage et inspection',
           'Audit systeme et donnees': 'Audit système et données'}
+EMOJIS = {'Réseau et DNS': '🌐', 'Web et protocoles': '🌍',
+          'Wi-Fi et interfaces': '📡', 'Mots de passe': '🔑',
+          'Analyse de fichiers et récupération': '📁',
+          'Débogage et inspection': '🔧', 'Audit système et données': '🛡️'}
+
+
+def titre_categorie(nom):
+    return f"{EMOJIS.get(nom, '🧰')} {nom}"
 
 
 def catalogue(path=DATA):
@@ -228,16 +236,18 @@ def tool_help(package):
 
 
 def console(package):
-    # Seules les aides explicitement autorisées (Nmap/Hashcat) sont lancées.
-    # Les autres outils restent des commandes à exécuter volontairement.
+    # Fiche courte : l'image reste visible, sans une longue aide automatique.
     result = subprocess.run(['dpkg-query', '-L', package], capture_output=True, text=True)
+    if use_colour():
+        print('\033[2J\033[H', end='', flush=True)
     logo_banner(package, result.stdout.splitlines())
     notice = 'Aucune opération lancée. Exécutables fournis par le paquet :'
     print(('\033[38;5;250m' + notice + '\033[0m') if use_colour() else notice, flush=True)
     paths = commandes_package(package, result.stdout)
-    for p in paths:
+    for p in paths[:8]:
         print(('\033[38;5;81m  ' + p + '\033[0m') if use_colour() else '  ' + p)
-    tool_help(package)
+    if len(paths) > 8:
+        print(f'  … {len(paths) - 8} autres : bouton « Commandes » dans le menu.')
     print('\nAide : man NOM_DE_COMMANDE. Tape exit pour fermer.\n', flush=True)
     os.execv('/bin/bash', ['/bin/bash', '-i'])
 
@@ -263,7 +273,7 @@ def menu_terminal(lire=input, ecrire=print):
     while True:
         ecrire("\nCatégories :")
         for numero, categorie in enumerate(noms, 1):
-            ecrire(f"  {numero:2}. {categorie} ({len(groupes[categorie])})")
+            ecrire(f"  {numero:2}. {titre_categorie(categorie)} ({len(groupes[categorie])})")
         entree = demander("Catégorie [numéro, q pour quitter] : ")
         if entree in ("q", "quitter", "exit", "0"):
             return
@@ -277,7 +287,7 @@ def menu_terminal(lire=input, ecrire=print):
         nom = noms[indice - 1]
         paquets = groupes[nom]
         while True:
-            ecrire(f"\n\033[1;38;5;208m{nom}\033[0m")
+            ecrire(f"\n\033[1;38;5;208m{titre_categorie(nom)}\033[0m")
             for numero, paquet in enumerate(paquets, 1):
                 ecrire(f"  {numero:2}. {paquet}")
             entree = demander("Paquet [numéro, b retour, q quitter] : ")
@@ -302,6 +312,9 @@ def menu_terminal(lire=input, ecrire=print):
             chemins = commandes_package(paquet)
             # Si une icône Kali vérifiée existe, la rendre sans protocole
             # propriétaire : de petits blocs de couleur ANSI. Sinon titre.
+            # La fiche commence en haut du terminal après sélection.
+            if use_colour():
+                ecrire('\033[2J\033[H')
             logo_banner(paquet, [])
             ecrire(f"\n{paquet} : exécutables installés :")
             for chemin in chemins:
@@ -447,9 +460,9 @@ def show():
     tools_scroll.add(tools)
     groups = catalogue()
     categories = [None] + list(groups)
-    for number, category in enumerate(categories):
+    for category in categories:
         row = Gtk.ListBoxRow()
-        label = Gtk.Label(label='Tous les outils' if category is None else f'{number:02d} · {category}', xalign=0)
+        label = Gtk.Label(label='🧰 Tous les outils' if category is None else titre_categorie(category), xalign=0)
         label.set_line_wrap(True)
         row.add(label)
         sidebar.add(row)
@@ -482,6 +495,11 @@ def show():
             label = Gtk.Label(label=package + (' — non installé' if not available else ''), xalign=0)
             line.pack_start(label, True, True, 0)
             if available:
+                ouvrir = Gtk.Button(label="Ouvrir" if package in GUI else "Terminal")
+                ouvrir.set_tooltip_text('Ouvrir cet outil' if package in GUI else
+                                        'Ouvrir la fiche avec son image en haut du terminal')
+                ouvrir.connect('clicked', lambda _bouton, p=package: activate(None, p, window))
+                line.pack_end(ouvrir, False, False, 0)
                 bouton = Gtk.Button(label="Commandes")
                 bouton.set_tooltip_text("Afficher toutes les commandes installées — lecture seule")
                 bouton.connect(
@@ -518,7 +536,7 @@ def show():
                      else category is None or category == group)
             row.set_visible(match)
             count += match
-        heading.set_text(('Résultats de recherche' if query else category or 'Tous les outils') + f' ({count})')
+        heading.set_text(('Résultats de recherche' if query else titre_categorie(category) if category else '🧰 Tous les outils') + f' ({count})')
         empty.set_visible(count == 0)
     search.connect('search-changed', refresh)
     sidebar.connect('row-selected', refresh)

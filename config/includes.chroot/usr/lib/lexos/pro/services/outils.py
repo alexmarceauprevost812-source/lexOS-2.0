@@ -52,6 +52,10 @@ class Outil:
 
 #  Les cinq rangées de la planche, dans son ordre.
 CATALOGUE = [
+    Outil("audit", "Outils d’audit", "securite", "Outils avancés",
+          TERMINAL, ["lexos", "audit", "menu"],
+          "Catégories d’audit et fiches des outils avec leurs images officielles.",
+          candidats=["lexos"]),
     # ── Poste de travail ────────────────────────────────────────────────
     Outil("maison", "Dossier personnel", "maison", "Poste de travail",
           DOSSIER, "~", "Vos fichiers, à la racine de votre compte."),
