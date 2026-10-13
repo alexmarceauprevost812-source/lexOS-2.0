@@ -1,6 +1,6 @@
 # LexOS Pro USB AI Edition — SSD externe 1 To
 
-**Statut : phase 1 — inventaire en lecture seule.** Aucune installation USB,
+**Statut : phases 1 et 2 — diagnostic et configuration prêts, sans écriture.** Aucune installation USB,
 aucune ISO USB AI, aucun partitionnement et aucun pilote supplémentaire ne sont
 réalisés à ce stade. L'édition USB AI est une **branche de développement**,
 pas une version publiée.
@@ -73,20 +73,61 @@ sauvegardes chiffrées doivent résider sur **un autre support** ; une partition
    `usb-ai/ollama/offline.env.example`. Le stockage des modèles sera
    `/data/ollama/models`, le serveur écoutera seulement sur `127.0.0.1`.
 
+
+## Phase 2 — stockage persistant et prévol Ollama (code prêt, NON activé)
+
+Cette étape ajoute des composants vérifiables sur GitHub **avant l'achat**,
+sans créer de système de fichiers, sans téléchargement de modèle et sans
+modifier les disques. Elle **ne construit pas encore un système USB amorçable**.
+
+- `usb-ai/ollama/doctor.py` : diagnostic Python en lecture seule. Il vérifie si
+  `/data` est réellement un point de montage, si le dossier des modèles existe,
+  si Ollama est installé et si le gabarit systemd a été déployé.
+- `usb-ai/systemd/ollama.service.d/10-lexos-usb-ai.conf` : gabarit de
+  configuration du service Ollama avec stockage des modèles dans
+  `/data/ollama/models`, serveur limité à l'ordinateur local et mode sans cloud.
+  **Non installé**. Le service ne doit pas démarrer tant que `/data` n'est pas
+  monté, afin de ne pas remplir par erreur la partition système.
+- `tests/usb_ai_phase2_checks.py` : scénarios isolés (volume absent, volume
+  simulé, lien symbolique, diagnostic JSON, mode strict, cohérence systemd).
+- `.github/workflows/usb-ai.yml` : validation automatique des deux phases.
+
+Commandes à exécuter plus tard sur un Linux de développement (lecture seule) :
+
+```bash
+python3 usb-ai/ollama/doctor.py
+python3 usb-ai/ollama/doctor.py --json
+python3 tests/usb_ai_phase2_checks.py
+```
+
+Si le SSD n'est pas encore présent, l'état « préparation incomplète » est
+**normal**. Le diagnostic n'assure **jamais** qu'un modèle répond hors ligne ;
+ce contrôle nécessitera un essai réel après installation et préchargement.
+
+### Garde-fous avant phase 3
+
+1. Pas de partitionnement ou d'installation sans identification certaine du
+   SSD externe, sauvegarde et validation humaine.
+2. Aucun automatisme ne doit installer le gabarit systemd tant que la
+   partition persistante n'est pas montée, testée et correctement autorisée.
+3. L'ISO pro et ses pilotes NVIDIA doivent réussir leurs vérifications
+   indépendamment ; le gabarit Ollama n'en donne aucune garantie.
+4. Les sauvegardes vitales doivent être conservées sur un **second disque**.
+
 ## Étapes suivantes — NON réalisées
 
-- Phase 2 : construction/test **en machine virtuelle ou sur un SSD neuf**, avec
+- Phase 3 (à venir) : construction/test **en machine virtuelle ou sur un SSD neuf**, avec
   installation persistante dédiée au SSD externe ; préserver le disque interne.
-- Phase 3 : Ollama installé, versions de modèles téléchargées et contrôlées
+- Phase 4 (à venir) : Ollama installé, versions de modèles téléchargées et contrôlées
   (exemple envisagé : `qwen2.5-coder:7b`), test réseau coupé puis redémarrage.
-- Phase 4 : assistant capable de proposer des corrections, les tester dans des
+- Phase 5 (à venir) : assistant capable de proposer des corrections, les tester dans des
   branches isolées et demander validation avant toute fusion.
-- Phase 5 : sauvegarde/restauration chiffrée testée sur un second support.
-- Phase 6 : essais réels BIOS/UEFI, périphériques divers, GPU NVIDIA ou CPU,
+- Phase 6 (à venir) : sauvegarde/restauration chiffrée testée sur un second support.
+- Phase 7 (à venir) : essais réels BIOS/UEFI, périphériques divers, GPU NVIDIA ou CPU,
   puis Secure Boot avec signatures et inscription de clés adaptées à la machine.
 
 **Important :** une clé MOK inscrite sur un PC ne garantit pas la confiance
 Secure Boot sur un autre PC. Les correctifs LexOS 2.0.2 sont développés dans
 une autre branche ; ils ne sont pas considérés comme validés par ce document.
 
-Aucune image ISO USB AI n'est publiée à l'issue de la phase 1.
+Aucune image ISO USB AI n'est publiée à l'issue de la phase 2.

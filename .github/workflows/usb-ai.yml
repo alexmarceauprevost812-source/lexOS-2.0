@@ -1,4 +1,4 @@
-name: LexOS USB AI - Phase 1 (lecture seule)
+name: LexOS USB AI - Phases 1 et 2 (sans ecriture)
 
 on:
   push:
@@ -23,6 +23,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Python - syntaxe
-        run: python3 -m py_compile tools/lexos-usb-ai-inventaire.py tests/usb_ai_inventaire_checks.py
+        run: python3 -m py_compile tools/lexos-usb-ai-inventaire.py tests/usb_ai_inventaire_checks.py usb-ai/ollama/doctor.py tests/usb_ai_phase2_checks.py
       - name: Tests isoles (aucun disque reel)
         run: python3 tests/usb_ai_inventaire_checks.py
+      - name: Phase 2 - Prevol stockage et Ollama (fixtures)
+        run: python3 tests/usb_ai_phase2_checks.py
+      - name: Phase 2 - diagnostic dans runner vide (non strict)
+        run: python3 usb-ai/ollama/doctor.py --json
