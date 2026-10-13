@@ -39,6 +39,7 @@ from pathlib import Path
 #  volume à 0-100 et qui dit « indisponible » plutôt qu'un chiffre inventé.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import son as _son  # noqa: E402
+import fichiers_vues as _fichiers_vues  # noqa: E402
 #  ═══ LES OUTILS DU SYSTÈME, DEMANDÉS UNE FOIS ═══
 #  « shutil.which » balaie le PATH répertoire par répertoire, et il
 #  était appelé cent dix fois dans ce dépôt, la plupart à CHAQUE
@@ -411,6 +412,9 @@ def act_ouvrir(arg):
         "usb":        lambda: _terminal("USB — LexOS", "lexos usb; echo; echo 'Formater un support : lexos format'"),
         "mac":        lambda: _terminal("Mac (Apple) — LexOS", "lexos mac"),
         "apparence":  lambda: _xfce([["xfce4-appearance-settings"]]),
+        # La vue des dossiers appartient à Thunar (et à son canal XFCONF),
+        # pas au navigateur ou à un sélecteur GTK d'une autre application.
+        "fichiers-vue": lambda: _run(["thunar"], detach=True),
         "bureau":     lambda: _xfce([["xfdesktop-settings"]]),
         "multitaches": lambda: _xfce([["xfwm4-workspace-settings"], ["xfwm4-settings"]]),
         #  ═══ « exo-preferred-applications » N'EXISTE PLUS ═══
@@ -2439,8 +2443,16 @@ def act_clavier(arg):
     return _run(["lexos-clavier", quoi, cle])
 
 
+def act_fichiers_vue(arg):
+    """Choix sûr dans Thunar, sans sudo ni écriture des fichiers personnels."""
+    if not isinstance(arg, str) or arg not in _fichiers_vues.MODES:
+        return {"ok": False, "erreur": "Affichage de fichiers inconnu."}
+    return _fichiers_vues.choisir(arg)
+
+
 ACTIONS = {
     "ouvrir": act_ouvrir,
+    "fichiers-vue": act_fichiers_vue,
     "clavier": act_clavier,
     "defaut-appli": act_defaut,
     "utilisateur": act_utilisateur,
@@ -4125,6 +4137,7 @@ def etat(cles=None):
         "distant": _distant_etat,
         "reseau": _reseau_etat,
         "defaut": _defaut_etat,
+        "fichiers_vue": _fichiers_vues.etat,
         "couleurs": _couleurs_etat,
         "tablette": _tablette_etat,
         "notif": _notif_etat,

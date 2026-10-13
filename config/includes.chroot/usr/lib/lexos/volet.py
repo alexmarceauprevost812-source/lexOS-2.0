@@ -434,6 +434,30 @@ def _perf_etat():
     return profil if profil in PERF_LABEL else None
 
 
+# Le programme expérimental est livré dans /usr/share, installé dans la
+# session par « miss a jour ». Il peut être exécuté avec bash même si le
+# fichier du dépôt a le mode 0644.
+EFFETS_SCRIPT = Path(os.environ.get(
+    "LEXOS_VOLET_EFFETS", "/usr/share/lexos/picom/lexos-effets"))
+EFFETS_PROFILS = ("crt", "fluide", "hologramme", "neon", "portail", "off")
+
+
+def _effets_rapides_profil():
+    """Choix en vigueur, sans prétendre qu'un moteur en panne fonctionne."""
+    if not EFFETS_SCRIPT.is_file():
+        return "indisponible"
+    try:
+        value = (CONF / "effets" / "profil").read_text(
+            encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        value = ""
+    if value in ("fluide", "hologramme", "neon", "portail"):
+        return value
+    # Le bouton CRT existait avant le pack : lire son propre interrupteur
+    # plutôt que le fichier du pack dont le contenu peut être ancien.
+    return "crt" if _crt_rapides_etat() else "off"
+
+
 def _crt_rapides_etat():
     try:
         return (CONF / "crt").read_text(encoding="utf-8").strip() != "off"
@@ -800,6 +824,8 @@ def _rapides_etat():
         #  à rien, plutôt que de basculer la surface du volet au hasard.
         "theme": None if lu["theme"] is _INCONNU else lu["theme"],
         "crt": False if lu["crt"] is _INCONNU else lu["crt"],
+        # Lecture d'un fichier local. La vue rend le menu sans attente réseau.
+        "effet": _effets_rapides_profil(),
         #  ═══ « volume: -1 » ET « micro: null » VEULENT DIRE INDISPONIBLE ═══
         #  Pas de pactl -> volume -1, et la page n'affiche PAS le bandeau du
         #  tout : une saveur sans serveur de son ne doit pas montrer un
@@ -906,6 +932,40 @@ def act_rapides_crt(_arg=None):
     return {"ok": r.returncode == 0}
 
 
+def act_rapides_effet(arg=None):
+    """Profil d'animation choisi dans le panneau de droite.
+
+    Liste blanche, bash + chemin absolu, aucun shell et aucun sudo.
+    « installer » corrige aussi les anciens autostarts vers la version du
+    script mise à jour par « miss a jour », sans toucher aux autres tuiles.
+    """
+    if arg not in EFFETS_PROFILS:
+        return {"ok": False, "erreur": "animation inconnue"}
+    if not EFFETS_SCRIPT.is_file():
+        return {"ok": False, "erreur": "pack d'animations absent : mets à jour LexOS"}
+    try:
+        # Les profils personnalisés installent leur autostart au premier
+        # usage. CRT/off n'en ont pas besoin.
+        if arg in ("fluide", "hologramme", "neon", "portail"):
+            prep = subprocess.run(
+                ["bash", str(EFFETS_SCRIPT), "installer"],
+                capture_output=True, text=True, timeout=15)
+            if prep.returncode != 0:
+                return {"ok": False, "erreur": (
+                    prep.stderr.strip() or prep.stdout.strip() or
+                    "préparation des animations impossible")[-320:]}
+        r = subprocess.run(
+            ["bash", str(EFFETS_SCRIPT), arg],
+            capture_output=True, text=True, timeout=30)
+    except (subprocess.SubprocessError, OSError) as exc:
+        return {"ok": False, "erreur": str(exc)[:320]}
+    if r.returncode != 0:
+        return {"ok": False, "erreur": (
+            r.stderr.strip() or r.stdout.strip() or
+            "impossible de lancer cette animation")[-320:]}
+    return {"ok": True, "message": "Animation sélectionnée"}
+
+
 def act_rapides_partage(_arg=None):
     """Ouvre Partager. detach : une fenêtre à part, le volet doit pouvoir se
     refermer sans l'emporter — même raison que act_meteo_ville."""
@@ -998,6 +1058,7 @@ ACTIONS = {
     "rapides-perf": act_rapides_perf,
     "rapides-theme": act_rapides_theme,
     "rapides-crt": act_rapides_crt,
+    "rapides-effet": act_rapides_effet,
     "rapides-partage": act_rapides_partage,
     "rapides-clavier": act_rapides_clavier,
 }

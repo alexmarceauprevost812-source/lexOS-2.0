@@ -1,9 +1,6 @@
-name: ISO de test 2.0.1 (sans publication)
+name: ISO de test 2.0.2 (sans publication)
 
 on:
-  push:
-    branches: [fix/lexos-2.0.1-live-desktop-nvidia]
-    paths: [.github/workflows/build-iso-test.yml]
   workflow_dispatch:
     inputs:
       flavour:
@@ -144,6 +141,11 @@ jobs:
       #  trois constructions de suite ont été diagnostiquées à l'aveugle
       #  faute de pouvoir lire cet inventaire. Sur stdout, il atterrit dans
       #  le journal du job, lisible par l'API.
+      - name: Signatures EFI et noyau (ne prouve pas la confiance du firmware)
+        run: |
+          sudo apt-get install -y --no-install-recommends sbsigntool
+          sudo bash tools/verifier-secure-boot-build.sh . | tee secure-boot-build.log
+
       - name: Pilote NVIDIA — inventaire et version retenue
         if: always()
         run: |
@@ -229,7 +231,7 @@ jobs:
       - name: Conserver l'ISO de test (aucune Release)
         uses: actions/upload-artifact@v4
         with:
-          name: lexos-pro-test-${{ github.sha }}
+          name: lexos-pro-202-test-${{ github.sha }}
           path: |
             *.iso
             SHA256SUMS
@@ -241,9 +243,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lexos-pro-test-log-${{ github.sha }}
+          name: lexos-pro-202-test-log-${{ github.sha }}
           path: |
             build.log
+            secure-boot-build.log
             config/includes.chroot/etc/lexos/build.conf
             chroot/etc/lexos/nvidia-report
             chroot/etc/lexos/build.conf

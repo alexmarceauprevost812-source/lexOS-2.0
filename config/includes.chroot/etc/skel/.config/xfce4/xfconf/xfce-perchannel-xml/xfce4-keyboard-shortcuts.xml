@@ -158,6 +158,10 @@
       <property name="&lt;Super&gt;Left"  type="string" value="tile_left_key"/>
       <property name="&lt;Super&gt;Right" type="string" value="tile_right_key"/>
 
+      <!-- Ctrl + Windows + flèches : mosaïque sur le même bureau. -->
+      <property name="&lt;Super&gt;&lt;Primary&gt;Left" type="string" value="tile_left_key"/>
+      <property name="&lt;Super&gt;&lt;Primary&gt;Right" type="string" value="tile_right_key"/>
+
       <!-- PARTAGER L'ÉCRAN À PLUSIEURS, ET CHOISIR LA PLACE.
            Demandé par Alex : « quand on a plusieurs partagés, on soit capable
            de le positionner à la place qu'on veut ». On n'avait que les deux

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Assistant mosaïque 50/50 LexOS
+Comment=Glisser une fenêtre au bord gauche, puis choisir l'autre à droite
+Exec=/usr/bin/python3 /usr/lib/lexos/assistant-mosaique.py --watch
+TryExec=/usr/bin/python3
+OnlyShowIn=XFCE;
+Terminal=false
+NoDisplay=true
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Phase=Applications

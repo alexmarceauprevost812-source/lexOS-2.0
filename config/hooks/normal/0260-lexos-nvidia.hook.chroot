@@ -650,6 +650,46 @@ if [ -z "$REUSSITE" ]; then
 	fi
 fi
 
+# --- PILOTE XORG + BIBLIOTHÈQUES OPENGL : retour d'expérience RTX 5060 ----
+# 12 octobre 2026, LexOS Pro réel, pilote 615.71.09 :
+# nvidia-smi et nvidia.ko fonctionnaient, mais Xorg chargeait modesetting,
+# GLX tombait sur DRISWRAST/llvmpipe et picom CRT échouait sur
+# « GLX_EXT_texture_from_pixmap ». Il manquait nvidia-driver-libs et
+# xserver-xorg-video-nvidia. Après installation et nouvelle session X11 :
+# OpenGL vendor=NVIDIA, renderer=RTX 5060, picom v12 actif.
+# Le chroot n'a PAS d'écran X11 : le test réel reste bloquant avant release.
+if [ -n "$REUSSITE" ]; then
+    VERSION_GL="$(version_pilote_reel || true)"
+    if [ -z "$VERSION_GL" ]; then
+        echo "[lexos]   ÉCHEC : version réelle du pilote inconnue pour GLX/Xorg"
+        exit 1
+    fi
+    echo "[lexos]   pilote Xorg/OpenGL NVIDIA : version $VERSION_GL exigée"
+    # --no-remove évite de supprimer DKMS. Versions explicites pour que
+    # les bibliothèques, le pilote Xorg et le module restent compatibles.
+    if ! apt-get install -y --no-remove \
+        "nvidia-driver-libs=$VERSION_GL" \
+        "xserver-xorg-video-nvidia=$VERSION_GL" \
+        "nvidia-driver=$VERSION_GL"; then
+        echo "[lexos]   ÉCHEC : pile NVIDIA Xorg/OpenGL incomplète"
+        exit 1
+    fi
+    for paquet in nvidia-driver-libs xserver-xorg-video-nvidia nvidia-driver libglx-nvidia0; do
+        VERSION_PKG="$(dpkg-query -W -f='${Version}' "$paquet" 2>/dev/null || true)"
+        if [ "$VERSION_PKG" != "$VERSION_GL" ]; then
+            echo "[lexos]   ÉCHEC : $paquet=$VERSION_PKG (attendu $VERSION_GL)"
+            exit 1
+        fi
+    done
+    MODULE_XORG="${LEXOS_NVIDIA_XORG_MODULE:-/usr/lib/xorg/modules/drivers/nvidia_drv.so}"
+    if [ ! -f "$MODULE_XORG" ]; then
+        echo "[lexos]   ÉCHEC : module Xorg nvidia_drv.so absent"
+        exit 1
+    fi
+    conf_pose LEXOS_NVIDIA_OPENGL "paquets-valides"
+    echo "[lexos]   Pile Xorg/GLX cohérente, essai sur RTX 5060 requis"
+fi
+
 # --- GARDER LA PILE : sinon live-build en jette la moitié à la fin ----------
 #  CE QUE LE JOURNAL DU BUILD 63 A MONTRÉ. Une fois le chroot fini, live-build
 #  repasse en phase « binary » et y lance un autoremove. Comme ces paquets-ci

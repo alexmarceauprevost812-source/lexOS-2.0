@@ -36,7 +36,8 @@ const NAV = [
     ["diagnostic","🩺","Diagnostic"]]},
   {grp:"Personnalisation", items:[
     ["apparence","🎨","Apparence"], ["bureau","🖼","Bureau LexOS"],
-    ["multitaches","🗔","Multi-tâches"], ["applications","🧩","Applications"],
+    ["multitaches","🗔","Multi-tâches"], ["fichiers","🗂","Fichiers et images"],
+    ["applications","🧩","Applications"],
     ["notifications","🔔","Notifications"], ["recherche","🔍","Recherche"],
     ["terminal","🖥","Terminal jour/nuit"]]},
   {grp:"Comptes", items:[
@@ -186,6 +187,7 @@ const CLES_SECTION = {
   //  l'aperçu du fond. Mesuré, pas supposé — voir le banc des clés.
   bureau:      ["fond", "intro", "dock", "crt", "apercu", "image"],
   multitaches: ["bureaux", "apercu", "crt"],
+  fichiers:    ["fichiers_vue"],
   applications:["defaut"],
   notifications:["notif"],
   recherche:   ["recherche"],
@@ -537,6 +539,18 @@ function btnOuvrir(section, libelle){
 async function ouvrir(section){
   const r = await api("ouvrir", section);
   if(!r.ok) toast("Impossible d'ouvrir : " + (r.erreur || "refusé"));
+}
+/* Les sélecteurs de fichiers des navigateurs sont indépendants de Thunar.
+   Ce réglage change uniquement le vrai gestionnaire de fichiers XFCE,
+   sans toucher aux documents et sans prétendre modifier le dialogue GTK. */
+async function choisirVueFichiers(mode){
+  const choix = ["liste","icones","grandes","compact",
+                 "apercu-on","apercu-off","miniatures-on","miniatures-off"];
+  if(!choix.includes(mode)) return;
+  const r = await api("fichiers-vue", mode);
+  if(!r.ok){ toast("✗ " + (r.erreur || "Impossible de changer l'affichage."), 4400); }
+  else { toast(r.message || "Affichage des fichiers enregistré.", 3600); }
+  await rafraichir("", ["fichiers_vue"]);
 }
 async function ouvreBoost(){
   const r = await api("ouvrir", "boost");
@@ -1982,6 +1996,68 @@ function contenu(cle){
       <p class="notice">${m.apple
         ? "Wi-Fi Broadcom, pilotage des ventilateurs et touches F1-F12 : <code>lexos mac</code> s'en occupe."
         : "Ces réglages ne servent que sur du matériel Apple. Ils restent là au cas où tu déplacerais ce disque."}</p>`;
+    }
+    case "fichiers": {
+      const f = etat.fichiers_vue || {};
+      const dispo = f.disponible !== false;
+      const vue = f.vue || "";
+      const pre = f.apercu === true;
+      const mini = f.miniatures === true;
+      const cases = [
+        ["liste", "☷ Liste détaillée", "Nom, taille, type et date"],
+        ["icones", "▦ Icônes normales", "Fichiers et dossiers en grille"],
+        ["grandes", "▣ Grandes miniatures", "Images agrandies et aperçu à droite"],
+        ["compact", "≡ Vue compacte", "Beaucoup de fichiers dans peu d'espace"]
+      ];
+      return `<h2>Fichiers et images</h2>
+        <div class="sub">Choisis comment voir les dossiers et les images dans Fichiers (Thunar).</div>
+        ${!dispo ? '<p class="notice">Thunar ou xfconf-query est absent. Impossible de changer la vue.</p>' : ""}
+        <div class="srow" style="display:block">
+          <div class="t" style="margin-bottom:8px">Présentation des fichiers</div>
+          <div class="row">
+            ${cases.map(([mode, titre, sous])=>
+              `<button type="button" class="btn ${mode===vue?"sel":"ghost"}"
+                      ${!dispo?"disabled":""}
+                      onclick="choisirVueFichiers('${mode}')"
+                      title="${sous}">${titre}</button>`).join("")}
+          </div>
+          <div class="d" style="margin-top:8px">Vue enregistrée :
+            <b>${esc(cases.find(v=>v[0]===vue)?.[1] || "Inconnue")}</b>
+          </div>
+        </div>
+        <div class="srow" style="display:block">
+          <div class="t" style="margin-bottom:8px">Prévisualisation des images</div>
+          <div class="row">
+            <button type="button" class="btn ${pre?"sel":"ghost"}"
+                    ${!dispo?"disabled":""}
+                    onclick="choisirVueFichiers('apercu-on')">🖼 Grand aperçu à droite</button>
+            <button type="button" class="btn ${f.apercu===false?"sel":"ghost"}"
+                    ${!dispo?"disabled":""}
+                    onclick="choisirVueFichiers('apercu-off')">Masquer l'aperçu</button>
+          </div>
+          <div class="d" style="margin-top:8px">
+            Sélectionne une image dans Thunar pour l'afficher plus grande dans un panneau à droite.
+          </div>
+        </div>
+        <div class="srow" style="display:block">
+          <div class="t" style="margin-bottom:8px">Miniatures des photos</div>
+          <div class="row">
+            <button type="button" class="btn ${mini?"sel":"ghost"}"
+                    ${!dispo?"disabled":""}
+                    onclick="choisirVueFichiers('miniatures-on')">Miniatures activées</button>
+            <button type="button" class="btn ${f.miniatures===false?"sel":"ghost"}"
+                    ${!dispo?"disabled":""}
+                    onclick="choisirVueFichiers('miniatures-off')">Miniatures désactivées</button>
+          </div>
+          <div class="d" style="margin-top:8px">
+            Les miniatures sont créées uniquement pour les fichiers locaux; pas de lecture automatique
+            d'images sur les partages réseau.
+          </div>
+        </div>
+        <p class="notice">Ces préférences concernent Thunar. La fenêtre « Sélectionner des fichiers »
+          d'un navigateur ou d'une autre application peut conserver sa présentation indépendante.
+          Si une fenêtre Fichiers est déjà ouverte, ferme-la puis rouvre-la pour appliquer la nouvelle vue.</p>
+        ${btnOuvrir("fichiers-vue", "Ouvrir Fichiers et voir les images")}`;
     }
     case "apparence": return `<h2>Apparence</h2><div class="sub">Thème, accent, barre d'outils</div>
       <div class="srow" style="display:block">

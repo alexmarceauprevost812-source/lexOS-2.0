@@ -249,6 +249,31 @@ html,body{height:100%;background:transparent;
 
 .qs-plaque{flex:1;background:var(--qs-plaque);
   border:1px solid var(--qs-plaque-bord);border-radius:14px;padding:10px}
+/* --- Animations : sous-menu de la tuile TV du panneau de droite -------- */
+.qs-plaque{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.qs-effets{display:flex;flex-direction:column;gap:8px}
+.qs-effets-retour{appearance:none;border:0;background:transparent;
+  color:var(--fg-dim);font:inherit;font-size:22px;padding:0 7px;cursor:pointer}
+.qs-effets-retour:hover{color:var(--ac)}
+.qs-effets-intro{font-size:11.5px;color:var(--fg-dim);padding:0 3px}
+.qs-effets-choix{display:flex;flex-direction:column;gap:6px}
+.qs-effets-bt{background:var(--bg-hi);border:1px solid var(--bd);
+  border-radius:11px;padding:8px 9px;color:var(--fg);
+  text-align:left;font:inherit;display:flex;align-items:center;gap:9px;
+  width:100%;cursor:pointer;min-width:0}
+.qs-effets-bt:hover:not(:disabled){border-color:var(--ac)}
+.qs-effets-bt.actif{background:var(--ac);border-color:var(--ac-lo);
+  color:var(--ac-txt)}
+.qs-effets-bt:disabled{opacity:.55;cursor:wait}
+.qs-effets-ic{font-size:20px;flex:none;width:26px;text-align:center}
+.qs-effets-text{display:flex;flex-direction:column;min-width:0;flex:1}
+.qs-effets-nom{font-size:12px;font-weight:700}
+.qs-effets-desc{font-size:10.5px;color:var(--fg-dim);
+  white-space:normal;overflow-wrap:anywhere}
+.qs-effets-bt.actif .qs-effets-desc{color:var(--ac-txt-dim)}
+.qs-effets-check{font-weight:800;flex:none}
+.qs-effets-message{font-size:11px;color:var(--fg-dim);
+  overflow-wrap:anywhere;padding:4px 3px 8px}
 .qs-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .qs-tile{background:var(--bg-hi);border:1px solid var(--bd);border-radius:12px;
   padding:9px 10px;text-align:left;display:flex;flex-direction:column;gap:1px;

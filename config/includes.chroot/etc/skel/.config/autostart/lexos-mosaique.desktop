@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Raccourcis mosaïque LexOS 2.0.2
+Exec=lexos-raccourcis-mosaique
+OnlyShowIn=XFCE;
+Terminal=false
+StartupNotify=false

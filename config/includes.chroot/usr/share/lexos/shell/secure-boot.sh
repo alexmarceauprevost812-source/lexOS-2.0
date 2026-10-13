@@ -1,57 +1,7 @@
-# =============================================================================
-#  LexOS — Secure Boot : actif ou non ?
-# =============================================================================
-#  POURQUOI CE FICHIER EXISTE, ET POURQUOI IL EST À PART.
-#
-#  Deux outils ont besoin de cette réponse — « lexos materiel » et
-#  « lexos tv » — et ils ne parlent pas le même shell : lexos-tv est en
-#  #!/bin/sh, lexos-materiel en #!/usr/bin/env bash. Recopier six lignes dans
-#  les deux, c'était s'exposer à ce qu'elles divergent : ce dépôt a déjà payé
-#  ça cher avec les trois palettes des panneaux web, qui disaient trois choses
-#  différentes de la même couleur.
-#
-#  D'où un seul fichier, en POSIX PUR. Ne pas le « moderniser » avec [[ ]],
-#  un tableau ou une substitution bash : il cesserait de fonctionner dans
-#  lexos-tv, et il cesserait EN SILENCE — la fonction deviendrait simplement
-#  introuvable, et l'appelant conclurait « Secure Boot inactif ».
-#
-#  ═══ CE QUE ÇA CHANGE, ET POURQUOI ÇA COMPTE MAINTENANT ═══
-#
-#  Le module NVIDIA est compilé par DKMS sur la machine. Un module DKMS n'est
-#  PAS signé. Avec Secure Boot actif, le noyau refuse de le charger.
-#
-#  Jusqu'au build 52, ça donnait un affichage dégradé. Depuis que le hook 0260
-#  met « nouveau » en liste noire — et c'était la BONNE correction, il fallait
-#  la faire, nouveau ne sait pas lire les sorties d'une RTX 50 — la situation
-#  a changé :
-#
-#      Secure Boot actif  →  nvidia.ko refusé  →  nouveau en liste noire
-#                         →  AUCUN pilote graphique du tout.
-#
-#  La liste noire a transformé une panne partielle en panne totale. C'est le
-#  prix à payer et il est justifié, mais il faut le DIRE. Alex a désactivé
-#  Secure Boot à la main sur son Alienware, donc ça marche pour lui
-#  aujourd'hui ; une mise à jour du BIOS ou une pile CMOS à plat le
-#  réactivent — les deux sont courants sur ces machines — et l'écran redevient
-#  noir sans la moindre explication.
-#
-#  SIGNER LE MODULE N'EST PAS UNE OPTION EN SESSION LIVE : inscrire une clé
-#  MOK demande une manipulation au clavier pendant le démarrage, avant tout
-#  système, et une session live oublie tout en redémarrant. On ne le promet
-#  donc pas ici — on prévient.
-#
-#  ⚠ MAIS SUR UN SYSTÈME INSTALLÉ, SI. Cette note a longtemps dit « pas une
-#  option », tout court, et c'était trop large : DKMS signe déjà le module
-#  avec une clé locale, il ne manque que de la faire accepter par le
-#  micrologiciel — ce qui est une manipulation ordinaire, une fois pour
-#  toutes. C'est ce que fait « lexos signer-pilote », et c'est la BONNE
-#  réponse sur une machine en double démarrage : le Secure Boot reste actif,
-#  donc BitLocker ne réclame rien et les jeux à anti-triche continuent.
-# =============================================================================
-#
-#  Ce fragment est SOURCÉ, pas exécuté : pas de shebang, donc shellcheck ne
-#  peut pas deviner le shell visé et refuse d'analyser (SC2148). On le lui
-#  dit, comme dans interactive.sh juste à côté.
+# LexOS — diagnostic partagé Secure Boot (POSIX, lecture seule).
+# Debian signe shim/GRUB/noyau. DKMS peut signer avec une MOK locale;
+# signature et confiance sont distinctes. Conserver Secure Boot actif.
+# Le diagnostic ne change ni NVRAM, ni partitions, ni démarrage Windows.
 # shellcheck shell=sh
 
 #  La variable EFI « SecureBoot » fait 5 octets : 4 d'attributs, puis la
@@ -92,60 +42,19 @@ secure_boot_actif() {
 #  chercher, il a envie qu'on lui dise quoi faire.
 secure_boot_dire() {
 	if secure_boot_actif; then
-		echo "SECURE BOOT : ACTIF"
-		echo
-		echo "  C'est probablement la cause de ton écran noir."
-		echo "  Le pilote NVIDIA de LexOS est compilé sur ta machine, et un"
-		echo "  pilote compilé n'est pas signé : avec Secure Boot actif, le"
-		echo "  noyau REFUSE de le charger. Et comme LexOS écarte volontairement"
-		echo "  le pilote libre « nouveau » (il ne sait pas piloter les RTX 50),"
-		echo "  il ne reste alors AUCUN pilote graphique."
-		echo
-		echo "  Le remède, une fois pour toutes :"
-		echo "    1. Redémarrer, appuyer sur F2 au logo du fabricant"
-		echo "    2. Boot  ->  Secure Boot  ->  Disabled"
-		echo "    3. Enregistrer et quitter (F10)"
-		echo
-		#  ═══ DEUX AVERTISSEMENTS QUI NE SE SÉPARENT JAMAIS DU REMÈDE ═══
-		#  Ce message-ci dit à quelqu'un de toucher au Secure Boot d'une
-		#  machine en double démarrage. Sur celle d'Alex, Windows 11 est à
-		#  côté et lui sert à jouer. Les deux conséquences sont connues,
-		#  immédiates, et aucune ne se devine :
-		#
-		#   · BitLocker. Le chiffrement de Windows scelle sa clé sur l'état
-		#     du micrologiciel, Secure Boot compris. Le changer fait réclamer
-		#     la CLÉ DE RÉCUPÉRATION au démarrage suivant de Windows. Sans
-		#     elle, Windows est inaccessible — pas « plus lent », pas
-		#     « dégradé » : inaccessible.
-		#   · Les anti-triche. Plusieurs jeux exigent Secure Boot ACTIF et
-		#     refusent de démarrer sans lui. Couper le Secure Boot pour voir
-		#     le bureau de LexOS, c'est perdre ces jeux-là sous Windows.
-		#
-		#  Un banc vérifie que ces deux mots ne peuvent pas disparaître du
-		#  message : c'est un conseil dangereux à moitié.
-		echo "  ⚠ AVANT DE LE FAIRE, SI WINDOWS EST INSTALLÉ SUR CETTE MACHINE :"
-		echo
-		echo "    · BitLocker. Si Windows est chiffré, changer l'état du Secure"
-		echo "      Boot lui fera réclamer sa CLÉ DE RÉCUPÉRATION au prochain"
-		echo "      démarrage. Sans cette clé, Windows devient inaccessible."
-		echo "      Récupère-la AVANT : dans Windows, Paramètres -> Confidentialité"
-		echo "      et sécurité -> Chiffrement de l'appareil -> Sauvegarder la clé,"
-		echo "      ou sur https://aka.ms/myrecoverykey"
-		echo
-		echo "    · Les anti-triche. Certains jeux (Valorant, Fortnite, Call of"
-		echo "      Duty…) EXIGENT le Secure Boot actif et refuseront de se"
-		echo "      lancer une fois qu'il est coupé."
-		echo
-		#  ⚠ ON NE PROMET PAS UNE COMMANDE QUI N'EXISTE PAS. Cette voie-là
-		#  arrive par étapes ; tant que l'outil n'est pas installé, on se tait
-		#  plutôt que d'envoyer quelqu'un taper une commande introuvable —
-		#  c'est déjà assez pénible d'être devant une console sans bureau.
+		echo "SECURE BOOT : ACTIF — conserver ce réglage pour Windows."
+		echo "Un module NVIDIA DKMS peut être signé avec une clé locale non reconnue."
+		echo "Cet état seul ne prouve pas la cause d'un écran noir."
 		if command -v lexos-signer-pilote >/dev/null 2>&1; then
-			echo "  Si tu veux garder Windows intact, la vraie réponse est de SIGNER"
-			echo "  le pilote au lieu de couper le Secure Boot :  sudo lexos-signer-pilote"
+			echo "Diagnostic sans changement : lexos-signer-pilote --etat"
+			echo "Sur LexOS installé : sudo lexos-signer-pilote propose l'inscription MOK."
 		fi
+		echo "En live RTX 5060 : utiliser le mode secours si NVIDIA n'est pas accepté."
+		echo "Ne pas désactiver Secure Boot ni modifier les clés UEFI pour contourner."
+		echo "Conserver la clé de récupération BitLocker avant tout changement de démarrage."
+		echo "Les jeux avec anti-triche peuvent exiger Secure Boot actif."
 	else
-		echo "Secure Boot : inactif — le pilote NVIDIA peut se charger."
+		echo "Secure Boot : inactif — aucune validation de signature imposée par ce réglage."
 	fi
 }
 
