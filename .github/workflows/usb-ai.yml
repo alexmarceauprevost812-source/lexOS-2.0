@@ -1,0 +1,28 @@
+name: LexOS USB AI - Phase 1 (lecture seule)
+
+on:
+  push:
+    branches:
+      - feature/lexos-usb-ai-1tb
+  pull_request:
+    paths:
+      - 'tools/lexos-usb-ai-inventaire.py'
+      - 'tests/usb_ai_inventaire_checks.py'
+      - 'docs/LEXOS-USB-AI-1TB.md'
+      - 'usb-ai/**'
+      - '.github/workflows/usb-ai.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventaire:
+    name: Inventaire USB sans ecriture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python - syntaxe
+        run: python3 -m py_compile tools/lexos-usb-ai-inventaire.py tests/usb_ai_inventaire_checks.py
+      - name: Tests isoles (aucun disque reel)
+        run: python3 tests/usb_ai_inventaire_checks.py
