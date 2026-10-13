@@ -29,10 +29,15 @@ cat > "$T/bin/dpkg-query" <<'SH'
 #!/bin/sh
 for arg do paquet="$arg"; done
 if [ "$paquet" = "$MOCK_BAD_PKG" ]; then
-    printf '%s' '999.0-mauvaise-version'
+    version='999.0-mauvaise-version'
 else
-    printf '%s' "$MOCK_VERSION"
+    version="$MOCK_VERSION"
 fi
+printf '%s\n' "$version"
+case "${MOCK_DPKG_MULTIARCH:-}" in
+    same) printf '%s\n' "$version" ;;
+    mismatch) printf '%s\n' '615.71.09-3' ;;
+esac
 SH
 chmod +x "$T/bin/"*
 export PATH="$T/bin:$PATH"
@@ -59,6 +64,19 @@ grep -Fxq 'LEXOS_NVIDIA_OPENGL=paquets-valides' "$T/result"
 grep -Fq 'nvidia-driver-libs=615.71.09-2' "$MOCK_APT_LOG"
 grep -Fq 'xserver-xorg-video-nvidia=615.71.09-2' "$MOCK_APT_LOG"
 grep -Fq 'nvidia-driver=615.71.09-2' "$MOCK_APT_LOG"
+
+# Un paquet présent en amd64 ET i386 ne doit pas concaténer deux versions.
+: > "$T/result"
+(export MOCK_DPKG_MULTIARCH=same; run_guard)
+grep -Fxq 'LEXOS_NVIDIA_OPENGL=paquets-valides' "$T/result"
+
+# Deux versions différentes pour un même paquet doivent rester bloquantes.
+: > "$T/result"
+if (export MOCK_DPKG_MULTIARCH=mismatch; run_guard > /dev/null 2>&1); then
+    echo "ÉCHEC : versions NVIDIA multiarchitecture divergentes acceptées" >&2; exit 1
+fi
+grep -Fxq 'LEXOS_NVIDIA_ETAT=absent' "$T/result"
+grep -Fxq 'LEXOS_NVIDIA_OPENGL=incomplet' "$T/result"
 
 # Version GLX erronée : la construction DOIT s'arrêter.
 : > "$T/result"
@@ -89,4 +107,4 @@ grep -Fxq 'LEXOS_NVIDIA_OPENGL=incomplet' "$T/result"
 : > "$MOCK_APT_LOG"
 MOCK_REUSSITE="" run_guard
 [ ! -s "$MOCK_APT_LOG" ]
-printf '✓ Garde Xorg/GLX RTX5060 : 5 scénarios vérifiés\n'
+printf '✓ Garde Xorg/GLX RTX5060 : 7 scénarios vérifiés\n'

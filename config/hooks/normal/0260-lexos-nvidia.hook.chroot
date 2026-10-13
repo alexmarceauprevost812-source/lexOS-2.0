@@ -679,7 +679,10 @@ if [ -n "$REUSSITE" ]; then
         exit 1
     fi
     for paquet in nvidia-driver-libs xserver-xorg-video-nvidia nvidia-driver libglx-nvidia0; do
-        VERSION_PKG="$(dpkg-query -W -f='${Version}' "$paquet" 2>/dev/null || true)"
+        # dpkg-query -W peut renvoyer amd64 ET i386 : sans \n, les versions
+        # se concatènent. Dédupliquer les versions identiques, tout en
+        # refusant une divergence réelle entre architectures.
+        VERSION_PKG="$(dpkg-query -W -f='${Version}\n' "$paquet" 2>/dev/null | LC_ALL=C sort -u)"
         if [ "$VERSION_PKG" != "$VERSION_GL" ]; then
             conf_pose LEXOS_NVIDIA_ETAT "absent"
             conf_pose LEXOS_NVIDIA_OPENGL "incomplet"
