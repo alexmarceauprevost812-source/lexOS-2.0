@@ -18,6 +18,6 @@ jobs:
       - name: Verifier la syntaxe bash
         run: |
           bash -n config/includes.chroot/usr/bin/lexos-distant
-          bash -n config/includes.chroot/usr/bin/lexos-remote-menu
+          bash -n config/includes.chroot/usr/lib/lexos/lexos-remote-menu
       - name: Verifier les garde-fous sans ouvrir de port
         run: python3 tests/test_lexos_remote.py
