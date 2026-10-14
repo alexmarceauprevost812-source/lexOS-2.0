@@ -1,0 +1,21 @@
+name: LexOS Terminal Android - controles UI
+on:
+  push:
+    branches: [feature/lexos-terminal-android-termux]
+    paths:
+      - 'android/lexos-terminal/**'
+      - '.github/workflows/lexos-terminal-android.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntaxe
+        run: |
+          bash -n android/lexos-terminal/clone-termux.sh
+          python3 -m py_compile android/lexos-terminal/style_termux.py
+      - name: Verifier la licence
+        run: grep -q 'GPL-3.0-only' android/lexos-terminal/README.md
