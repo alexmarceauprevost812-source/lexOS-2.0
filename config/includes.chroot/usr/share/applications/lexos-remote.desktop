@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LexOS Remote
+Name[fr_CA]=LexOS Bureau à distance
+Comment=Afficher et contrôler le même écran via Tailscale, avec QR
+Comment[fr_CA]=Partager le même bureau via Tailscale et un code QR
+Exec=lexos-remote-menu
+Icon=preferences-desktop-remote-desktop
+Terminal=false
+Categories=Network;RemoteAccess;System;
+Keywords=lexos;remote;bureau;distance;VNC;Tailscale;QR;telephone;
+StartupNotify=true

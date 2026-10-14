@@ -45,6 +45,8 @@ die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
 # libre à partir de 5900 et on ne saurait pas quoi annoncer à la personne qui
 # doit se connecter.
 PORT_VNC=5900
+# Connexion privée : aucun accès depuis le réseau local classique.
+# Le partage est impossible si Tailscale est absent.
 
 ACCUEIL="${HOME:-}"
 [[ -n "$ACCUEIL" ]] || ACCUEIL="$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6)"
@@ -68,6 +70,7 @@ ${B}LAISSER QUELQU'UN SE CONNECTER ICI${R}  (c'est vous qui montrez)
   $PROG partager --ecran <s>    N'en montre QU'UN quand on a plusieurs écrans
                                 (<s> = un nom de sortie, « lexos ecran » les
                                 liste, ou son numéro : 0, 1, 2…)
+  $PROG qr                      Montre un code QR sans mot de passe
   $PROG arreter                 Coupe le partage et efface le mot de passe
   $PROG etat                    Partage actif ? sur quelle adresse ? depuis quand ?
 
@@ -83,9 +86,9 @@ ${B}À SAVOIR AVANT DE PARTAGER${R}
   et peut tout faire. Le mot de passe est obligatoire, il vous est demandé à
   chaque fois, et il n'y en a pas par défaut.
 
-  Le trafic VNC n'est pas chiffré. Hors d'un réseau que vous maîtrisez, faites
-  passer la connexion dans un tunnel SSH : la commande exacte est affichée au
-  démarrage du partage et par « $PROG etat ».
+  Tailscale doit etre connecte sur le PC et le telephone.
+  Le port VNC ecoute UNIQUEMENT sur l'adresse privee Tailscale.
+  Le QR ne contient jamais de mot de passe ni de jeton de connexion.
 EOF
 }
 
@@ -216,14 +219,11 @@ afficher_adresses() {
 }
 
 conseil_ssh() {
-	local adresse="" utilisateur=""
-	adresse="$(premiere_adresse)"
-	utilisateur="${SUDO_USER:-${USER:-$(id -un)}}"
-	warn "Le trafic VNC n'est pas chiffré : l'image de l'écran et les touches tapées"
-	warn "circulent en clair. Sur un réseau public ou partagé, c'est lisible par d'autres."
-	say "Pour tout chiffrer, depuis la machine qui se connecte, ouvrir d'abord un tunnel :"
-	printf '    %sssh -L %s:localhost:%s %s@%s%s\n' "$B" "$PORT_VNC" "$PORT_VNC" "$utilisateur" "$adresse" "$R"
-	say "puis brancher le visionneur VNC sur ${B}localhost:$PORT_VNC${R} au lieu de $adresse."
+	local ip=""
+	ip="$(tailscale_ipv4)" || { warn "Tailscale doit etre connecte pour partager."; return 0; }
+	say "Acces VNC uniquement via Tailscale : ${B}${ip}:${PORT_VNC}${R}"
+	say "Activez Tailscale sur votre telephone, puis ouvrez cette adresse dans AVNC."
+	say "VNC seul ne chiffre pas les donnees : Tailscale transporte la connexion chiffree."
 }
 
 demander_mot_de_passe() {
@@ -343,8 +343,41 @@ clip_ecran() { # clip_ecran <sortie|index|"">
 	printf 'xinerama%s' "$idx"
 }
 
+tailscale_ipv4() {
+	local ip=""
+	command -v tailscale >/dev/null 2>&1 || return 1
+	ip="$(tailscale ip -4 2>/dev/null | head -n 1)" || return 1
+	[[ -n "$ip" ]] || return 1
+	# Une adresse ordinaire du LAN ne doit jamais etre acceptee.
+	python3 - "$ip" <<'PY_TAILSCALE_IP' || return 1
+import ipaddress
+import sys
+try:
+    adresse = ipaddress.IPv4Address(sys.argv[1])
+    if adresse not in ipaddress.IPv4Network("100.64.0.0/10"):
+        sys.exit(1)
+except ValueError:
+    sys.exit(1)
+PY_TAILSCALE_IP
+	printf '%s' "$ip"
+}
+
+cmd_qr() {
+	local ip="" pid="" url=""
+	verifier_procps
+	pid="$(partage_pid)"
+	[[ -n "$pid" ]] || die "Aucun partage actif. Lancez d'abord : lexos distant partager"
+	ip="$(tailscale_ipv4)" || die "Tailscale absent ou deconnecte. QR refuse."
+	verifier_outil qrencode qrencode || die "Impossible de generer le code QR."
+	url="vnc://${ip}:${PORT_VNC}"
+	say "Scannez ce QR sur le telephone, avec Tailscale connecte :"
+	qrencode -t UTF8 "$url" || die "Erreur de generation du QR."
+	say "Adresse a saisir dans votre application VNC : ${ip}:${PORT_VNC}"
+	say "Le QR ne contient aucun mot de passe. Autorisez seulement vos propres appareils dans Tailscale."
+}
+
 cmd_partager() {
-	local mode="" duree="-forever" pid="" ecran="" clip=""
+	local mode="" duree="-forever" pid="" ecran="" clip="" ip=""
 	local -a arguments=()
 	#  Les arguments arrivent dans n'importe quel ordre : « partager once
 	#  --ecran DP-2 » et « partager --ecran DP-2 once » doivent marcher tous
@@ -380,6 +413,8 @@ cmd_partager() {
 	fi
 
 	verifier_affichage
+	ip="$(tailscale_ipv4)" || die "Tailscale indisponible ou deconnecte : partage refuse."
+	[[ -n "$ip" ]] || die "Adresse Tailscale absente : partage refuse."
 
 	#  L'écran se choisit AVANT le mot de passe : un nom mal tapé doit se voir
 	#  tout de suite, pas après deux saisies pour rien.
@@ -390,6 +425,7 @@ cmd_partager() {
 	arguments=(
 		-display "$DISPLAY"
 		-rfbport "$PORT_VNC"
+		-listen "$ip"
 		-passwdfile "$FICHIER_MDP"
 		"$duree"
 		-bg
@@ -423,7 +459,8 @@ cmd_partager() {
 	fi
 
 	ok "Partage d'écran démarré (processus $pid)."
-	afficher_adresses
+	say "Adresse privée Tailscale : ${B}${ip}:${PORT_VNC}${R}"
+	say "QR pour le téléphone : ${B}$PROG qr${R}"
 	say "Port : ${B}$PORT_VNC${R}"
 	if [[ "$duree" == "-once" ]]; then
 		say "Mode « once » : le partage s'arrête tout seul quand la première visite se termine."
@@ -492,7 +529,7 @@ cmd_json() {
 	pid="$(partage_pid 2>/dev/null || true)"
 	ports=""
 	[[ -n "$pid" ]] && ports="$(rogner "$(ports_ecoutes "$pid" 2>/dev/null || true)")"
-	adresses="$(adresses_locales)"
+	adresses="tailscale : $(tailscale_ipv4 2>/dev/null || true)"
 	command -v remmina >/dev/null 2>&1 && remmina=true || remmina=false
 	command -v ssh     >/dev/null 2>&1 && ssh=true     || ssh=false
 
@@ -535,15 +572,13 @@ cmd_etat() {
 	depuis="$(rogner "$(ps -o lstart= -p "$pid" 2>/dev/null)")"
 	duree="$(rogner "$(ps -o etime= -p "$pid" 2>/dev/null)")"
 	[[ -n "$depuis" ]] && say "Depuis : $depuis   (soit $duree)"
-	afficher_adresses
+	conseil_ssh
 	ports="$(rogner "$(ports_ecoutes "$pid")")"
 	if [[ -n "$ports" ]]; then
 		say "Port en écoute : ${B}$ports${R}"
 	else
 		say "Port : ${B}$PORT_VNC${R} ${D}(valeur posée par cet outil, non confirmée : ss est absent)${R}"
 	fi
-	printf '\n'
-	conseil_ssh
 	printf '\n'
 	say "Pour couper :  ${B}$PROG arreter${R}"
 }
@@ -564,6 +599,7 @@ case "$commande" in
 	#  le partage démarrerait sur les quatre écrans sans qu'on comprenne
 	#  pourquoi l'option n'a servi à rien.
 	partager)               cmd_partager "$@" ;;
+	qr)                     cmd_qr ;;
 	arreter)                cmd_arreter ;;
 	etat)                   cmd_etat ;;
 	--json|json)            cmd_json ;;

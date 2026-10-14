@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# LexOS Remote : choix graphique local, sans demarrage automatique du partage.
+set -euo pipefail
+
+if ! command -v zenity >/dev/null 2>&1; then
+    printf 'Zenity absent : lancez « lexos-distant --help » depuis un terminal.\n' >&2
+    exit 1
+fi
+
+choix="$(zenity --list --title='LexOS Remote — Bureau à distance' \
+    --text='Choisissez une action. Aucun partage ne démarre sans votre accord.' \
+    --column='Action' --width=575 --height=310 \
+    'Démarrer le partage sécurisé' \
+    'Afficher le code QR' \
+    'Vérifier l’état' \
+    'Arrêter le partage' 2>/dev/null)" || exit 0
+
+case "$choix" in
+    'Démarrer le partage sécurisé') commande='lexos-distant partager' ;;
+    'Afficher le code QR')         commande='lexos-distant qr' ;;
+    'Vérifier l’état')             commande='lexos-distant etat' ;;
+    'Arrêter le partage')          commande='lexos-distant arreter' ;;
+    *) exit 0 ;;
+esac
+
+if ! command -v xfce4-terminal >/dev/null 2>&1; then
+    zenity --error --text='Terminal XFCE introuvable.' 2>/dev/null || true
+    exit 1
+fi
+# --hold garde les messages et le QR visibles; vrai terminal pour le mot de passe.
+exec xfce4-terminal --hold --title='LexOS Remote' --command="$commande"
