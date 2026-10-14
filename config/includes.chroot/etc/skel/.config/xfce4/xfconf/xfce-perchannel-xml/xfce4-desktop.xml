@@ -41,5 +41,8 @@
         Réglages du bureau → Icônes.  -->
   <property name="desktop-icons" type="empty">
     <property name="icon-size" type="uint" value="64"/>
+    <property name="file-icons" type="empty">
+      <property name="show-trash" type="bool" value="true"/>
+    </property>
   </property>
 </channel>

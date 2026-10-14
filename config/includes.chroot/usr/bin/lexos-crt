@@ -224,6 +224,12 @@ cmd_demarrer() {
 	#  puis remplace xfwm4 ; démarrer picom avant que le remplacement soit
 	#  fini le ferait composer sous un gestionnaire en train de partir.
 	sleep "${LEXOS_CRT_DELAI:-2}"
+	# Le délai de démarrage crée une fenêtre où « lexos crt off » peut
+	# désactiver le CRT. Relire le choix AVANT d'activer le compositeur.
+	if [[ "$(voulu)" != "on" ]]; then
+		log "CRT désactivé pendant le délai de lancement — pas de picom"
+		return 0
+	fi
 
 	#  LE RETOUR EN ARRIÈRE EST POSÉ AVANT LE DÉPART. Si picom meurt, si la
 	#  session se ferme, si on reçoit un signal — le compositeur de xfwm4
@@ -259,9 +265,21 @@ cmd_demarrer() {
 	#  n'auraient servi qu'à noircir le journal.
 	local essai=0 code depart duree
 	while :; do
+		# Une commande « off » peut arriver après un crash et avant
+		# une relance. Ne jamais redémarrer sur un profil désactivé.
+		if [[ "$(voulu)" != "on" ]]; then
+			log "CRT éteint par l'utilisateur — superviseur arrêté"
+			break
+		fi
 		depart="$(date +%s)"
 		picom --config "$CONF_PICOM" >>"$LOG" 2>&1
 		code=$?
+		# La demande « off » prime sur le code de sortie du processus;
+		# picom peut rendre un code non nul après SIGTERM.
+		if [[ "$(voulu)" != "on" ]]; then
+			log "CRT désactivé — aucune relance après arrêt de picom"
+			break
+		fi
 		duree=$(( $(date +%s) - depart ))
 		log "picom s'est arrêté (code $code) après ${duree} s"
 		[[ "$code" -eq 0 ]] && break

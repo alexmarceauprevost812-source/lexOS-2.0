@@ -1,0 +1,64 @@
+#!/bin/bash
+# Pro seulement : 99 paquets + Johnny, aucun dépôt Kali, aucun changement EFI.
+set -euo pipefail
+CONF="${LEXOS_AUDIT_CONF:-/etc/lexos/build.conf}"
+DEST="${LEXOS_AUDIT_ROOT:-}"
+LEXOS_FLAVOUR=standard
+if [[ -r $CONF ]]; then
+    # shellcheck disable=SC1090
+    . "$CONF"
+fi
+[[ $LEXOS_FLAVOUR == pro ]] || exit 0
+# Les paquets CUDA viennent du dépôt signé déjà posé par le hook 0260.
+manifest="$DEST/usr/share/lexos/audit-tools.packages"
+mapfile -t audit_packages < <(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' "$manifest")
+[[ ${#audit_packages[@]} == 99 ]] || { echo 'Sélection incomplète : 99 paquets attendus'; exit 1; }
+apt-get install -y --no-install-recommends "${audit_packages[@]}" cuda-nvrtc-13-4 cuda-nvrtc-dev-13-4
+mkdir -p "$DEST/etc/ld.so.conf.d"
+printf '%s\n' /usr/local/cuda-13.4/targets/x86_64-linux/lib > "$DEST/etc/ld.so.conf.d/lexos-cuda-13-4.conf"
+ldconfig
+# Épinglage du code officiel Johnny 2.2; jamais la branche master mouvante.
+commit=c862833d4be43fad559d2d3866d514017d47e0c9
+work=$(mktemp -d)
+trap 'rm -rf -- "$work"' EXIT
+build_packages=(build-essential qtbase5-dev qt5-qmake qtbase5-dev-tools git)
+new_packages=()
+for pkg in "${build_packages[@]}"; do
+    status=$(dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null || true)
+    [[ $status == 'install ok installed' ]] || new_packages+=("$pkg")
+done
+apt-get install -y --no-install-recommends "${build_packages[@]}"
+git clone --branch v2.2 --depth 1 https://github.com/openwall/johnny.git "$work/source"
+[[ $(git -C "$work/source" rev-parse HEAD) == "$commit" ]] || { echo 'Source Johnny inattendue'; exit 1; }
+(
+    cd "$work/source"
+    QT_SELECT=qt5 qmake CONFIG+=release
+    make -j2
+)
+install -Dm755 "$work/source/johnny" "$DEST/usr/local/bin/johnny"
+install -Dm644 "$work/source/LICENSE" "$DEST/usr/share/doc/lexos-johnny/LICENSE"
+mkdir -p "$DEST/usr/share/applications" "$DEST/etc/lexos"
+cat > "$DEST/usr/share/applications/johnny.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Johnny
+Comment=Interface graphique de John the Ripper
+Exec=env PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin /usr/local/bin/johnny
+Icon=dialog-password
+Terminal=false
+Categories=System;Security;
+StartupNotify=true
+EOF
+printf 'johnny=2.2\nsource=%s\ncuda-nvrtc=13.4\nvalidation_gpu=requise-au-demarrage\n' "$commit" > "$DEST/etc/lexos/audit-outils-report"
+# Retirer les outils de compilation directs ajoutés ici, sans autoremove global.
+if (( ${#new_packages[@]} )); then
+    apt-get purge -y "${new_packages[@]}"
+fi
+command -v john >/dev/null || [[ -x /usr/sbin/john ]]
+command -v hashcat >/dev/null
+test -x "$DEST/usr/local/bin/johnny"
+ldd "$DEST/usr/local/bin/johnny" > "$work/ldd-report"
+if grep -q 'not found' "$work/ldd-report"; then
+    cat "$work/ldd-report"
+    exit 1
+fi

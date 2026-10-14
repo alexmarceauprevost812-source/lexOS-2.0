@@ -58,6 +58,7 @@ command -v python3 >/dev/null 2>&1 && PY=python3
 #  mémoire. Ajouter un nom ici est un engagement ; le banc rougit sinon.
 TIERS="
 xfce4-appfinder|xfce4-appfinder|lexos-core.list.chroot
+thunar|thunar|flavours/standard/desktop.list.chroot
 system-config-printer|system-config-printer|20-desktop.list
 xfce4-notifyd-config|xfce4-notifyd|20-desktop.list
 gcm-viewer|gnome-color-manager|56-reglages.list

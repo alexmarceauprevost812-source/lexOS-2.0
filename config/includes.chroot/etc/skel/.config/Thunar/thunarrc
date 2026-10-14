@@ -51,6 +51,13 @@ LastView=ThunarIconView
 LastIconViewZoomLevel=THUNAR_ZOOM_LEVEL_100_PERCENT
 LastDetailsViewZoomLevel=THUNAR_ZOOM_LEVEL_38_PERCENT
 
+#  Image sélectionnée : aperçu dans un panneau séparé à droite. Ces valeurs
+#  sont migrées vers le canal XFCONF au PREMIER lancement de Thunar pour les
+#  nouveaux comptes seulement. Pour un compte existant, choisir dans
+#  Paramètres LexOS → Fichiers et images (via xfconf-query).
+LastImagePreviewVisible=TRUE
+MiscImagePreviewMode=THUNAR_IMAGE_PREVIEW_MODE_STANDALONE
+
 #  PAS DE BARRE DE MENUS. C'est la différence la plus visible avec la démo :
 #  « Fichier Édition Affichage Aller Favoris Aide » en haut de la fenêtre,
 #  là où la démo n'a qu'une barre mince. Thunar range alors ces menus dans le

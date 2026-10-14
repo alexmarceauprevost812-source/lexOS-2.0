@@ -50,7 +50,7 @@ titre "1. LA LISTE DES COPIES RÉTRÉCIT, ET ON DIT LESQUELLES RESTENT"
 ATTENDUS="terminal-pro.py share-server.py"
 TROUVES=""
 for F in "$LIB"/*.py; do
-  if grep -v '^[[:space:]]*#' "$F" | grep -q 'class Handler(http\.server\.'; then
+  if grep -q 'class Handler(http\.server\.' < <(grep -v '^[[:space:]]*#' "$F"); then
     TROUVES="$TROUVES $(basename "$F")"
   fi
 done
@@ -75,7 +75,7 @@ fi
 #  Et une seule fabrique de fenêtre pour les quatre fenêtres de réglages.
 NUS=""
 for F in settings volet partage ia-locale; do
-  if grep -v '^[[:space:]]*#' "$LIB/$F.py" | grep -q 'QApplication(sys\.argv)'; then
+  if grep -q 'QApplication(sys\.argv)' < <(grep -v '^[[:space:]]*#' "$LIB/$F.py"); then
     NUS="$NUS $F"
   fi
 done

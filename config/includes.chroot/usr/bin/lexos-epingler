@@ -126,11 +126,30 @@ epingle() { # epingle <chemin>
 
 desepingle() { # desepingle <chemin>
 	local f="$1" cible trouve=0 d
-	cible="$(canonique "$f")"
+	cible="$(canonique "$f")" || return 1
+	# Plank peut écrire file:/, file:/// et des URI encodées. Les copies du
+	# bureau d'une application du catalogue ont le même identifiant .desktop.
 	for d in "$LANCEURS"/*.dockitem; do
-		[[ -f "$d" ]] || continue
-		if grep -qxF "Launcher=file://$cible" "$d"; then
-			rm -f "$d" && trouve=1
+		[[ -f "$d" && ! -L "$d" ]] || continue
+		if python3 - "$d" "$cible" "$f" <<'MATCH'
+import pathlib, sys, urllib.parse
+item, target, original = sys.argv[1:]
+for line in pathlib.Path(item).read_text().splitlines():
+    if not line.startswith("Launcher="):
+        continue
+    uri = urllib.parse.urlsplit(line.split("=", 1)[1])
+    if uri.scheme == "application" and uri.netloc == pathlib.PurePath(target).name and not uri.path:
+        sys.exit(0)
+    if uri.scheme not in ("file", "application", "") or uri.netloc not in ("", "localhost"):
+        continue
+    path = urllib.parse.unquote(uri.path)
+    if path in (target, original) or pathlib.PurePath(path).name == pathlib.PurePath(target).name:
+        sys.exit(0)
+sys.exit(1)
+MATCH
+		then
+			rm -f -- "$d" || return 1
+			trouve=1
 		fi
 	done
 	if [[ "$trouve" -eq 1 ]]; then
@@ -156,7 +175,9 @@ case "${1:-aide}" in
 	--enlever|enlever)
 		shift
 		[[ $# -gt 0 ]] || die "quelle application ? « lexos epingler --enlever <app.desktop> »"
-		for f in "$@"; do desepingle "$f"; done
+		RETRAIT=0
+		for f in "$@"; do desepingle "$f" || RETRAIT=1; done
+		exit "$RETRAIT"
 		;;
 	*)
 		FAITS=0

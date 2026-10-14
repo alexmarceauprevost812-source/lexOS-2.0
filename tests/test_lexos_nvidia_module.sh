@@ -193,15 +193,31 @@ faux_dkms 'nvidia/595.71.05, 6.12.48-amd64, x86_64: installed'
 
 scene 6.12.48-amd64 6.16.3-amd64
 faux_dkms 'nvidia/595.71.05, 6.16.3-amd64, x86_64: installed'
-[ "$(porte)" = "0" ] \
-	&& ok "DKMS « installed » sur le noyau de l'image -> accepté" \
-	|| non "refusé alors que DKMS l'annonce pour le bon noyau :\n$(cat "$BANC/dit")"
+[ "$(porte)" = "1" ] \
+	&& ok "DKMS « installed » mais nvidia.ko absent -> refusé, pas de faux positif" \
+	|| non "un simple état DKMS ouvre la porte sans vrai module :\n$(cat "$BANC/dit")"
 
 scene 6.12.48-amd64 6.16.3-amd64
 faux_dkms 'nvidia/595.71.05, 6.16.3-amd64, x86_64: added'
 [ "$(porte)" = "1" ] \
 	&& ok "« added » n'est pas « installed » -> refusé" \
 	|| non "un module seulement « added » a ouvert la porte :\n$(cat "$BANC/dit")"
+
+# =============================================================================
+titre "6bis. RÉGRESSION ISO 2.0.0 : module de rétroéclairage NVIDIA ≠ pilote vidéo"
+# =============================================================================
+scene 6.12.111+deb13-amd64
+faux_dkms
+touch "$BANC/racine/lib/modules/6.12.111+deb13-amd64/updates/dkms/nvidia-wmi-ec-backlight.ko"
+[ "$(porte)" = "1" ] \
+	&& ok "nvidia-wmi-ec-backlight.ko ne fait plus passer le pilote pour installé" \
+	|| non "FAUX POSITIF : rétroéclairage pris pour nvidia.ko"
+
+scene 6.12.111+deb13-amd64
+touch "$BANC/racine/lib/modules/6.12.111+deb13-amd64/updates/dkms/nvidia.ko.zst"
+[ "$(porte)" = "0" ] \
+	&& ok "module nvidia.ko.zst comprimé reconnu" \
+	|| non "module graphique valide .ko.zst refusé"
 
 # =============================================================================
 titre "7. Les en-têtes demandés suivent le noyau de l'image, pas la suite"

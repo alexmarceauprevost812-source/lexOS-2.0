@@ -298,9 +298,12 @@ titre "6. LA SAVEUR SE VOIT — et l'exemple du README ne ment plus"
 saveur() {   # saveur <contenu de build.conf> [VAR=val…] -> la ligne OS
 	local conf="$1"; shift
 	printf '%s' "$conf" > "$BANC/build.conf"
+	# Le système hôte peut être LexOS : sa saveur ne doit pas polluer la fixture.
+	: > "$BANC/os-release"
+	sed "s@/etc/os-release@$BANC/os-release@g" "$LEXFETCH" > "$BANC/lexfetch-saveur"
 	env -u LEXOS_FLAVOUR "$@" LEXOS_BUILD_CONF="$BANC/build.conf" \
 		NO_COLOR=1 TERM=dumb PATH="$PATH" HOME="$HOME" \
-		bash "$LEXFETCH" 2>/dev/null | grep -E 'OS  *:' | sed 's/.*OS  *: *//'
+		bash "$BANC/lexfetch-saveur" 2>/dev/null | grep -E 'OS  *:' | sed 's/.*OS  *: *//'
 }
 
 #  1. Par os-release — le chemin normal sur une machine LexOS. Sourcer
@@ -376,7 +379,7 @@ else
 		muet "la liste des branches écartées n'a pas pu être lue dans le hook 0260"
 	elif [ -z "$VER_README" ]; then
 		muet "l'exemple du README n'affiche pas de ligne « Pilote NV »"
-	elif printf '%s' " $ECARTEES " | grep -q " $VER_README "; then
+	elif grep -q " $VER_README " <<< " $ECARTEES "; then
 		non "l'exemple du README montre la branche $VER_README, que le hook 0260 écarte exprès ($ECARTEES)"
 	else
 		ok "…et la version montrée est d'une branche que la cascade peut vraiment retenir (écartées : $ECARTEES)"
@@ -430,7 +433,7 @@ else
 
 	#  Et le hook doit bien LIRE build.conf pour y trouver la clé : c'est le
 	#  seul chemin qui traverse « env -i ».
-	sed -n '1,60p' "$HOOK" | grep -q '\. /etc/lexos/build\.conf' \
+	grep -q '\. /etc/lexos/build\.conf' < <(sed -n '1,60p' "$HOOK") \
 		&& ok "…et le hook source bien build.conf en tête, donc il la voit" \
 		|| non "le hook ne source plus build.conf : la clé n'arriverait nulle part"
 

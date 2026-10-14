@@ -99,6 +99,9 @@ ${B}APPARENCE${R}
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
   ${A}wallpaper${R} <image> <cadrage>  remplir · ajuster · etirer · centrer · mosaique
   ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
+  ${A}vue-fichiers${R}          Choisir liste, icônes ou grandes miniatures
+                      ${D}ex. : vue-fichiers grandes · liste · icones · compact
+                      vue-fichiers apercu on|off · miniatures on|off${R}
   ${A}moteurd${R} <etat|on|off> Le démon qui garde le volet et les Paramètres au chaud
 
 ${B}LANGUE${R}
@@ -224,10 +227,20 @@ ${B}STUDIO+${R}
   ${A}studio ouvrir${R} <atelier>  photo · peinture · vectoriel · video · capture · son
                       ${D}propose d'installer l'atelier s'il manque${R}
 
+${B}FENÊTRES 50/50${R}
+  ${A}mosaique on${R}         Glisser une fenêtre à gauche puis choisir celle de droite
+  ${A}mosaique off${R}        Désactiver uniquement l'assistant (pas l'ancrage XFCE)
+  ${A}mosaique status${R}     Voir si le choix automatique est en marche
+  ${D}Ctrl+Windows+gauche/droite : placer une fenêtre sans changer de bureau.${R}
+
 ${B}TERMINAL${R}
   ${A}applis${R}               Les applications installees, depuis le terminal
   ${A}pro${R}                  LEXOS PRO — tableau de bord du systeme
   ${A}terminal-pro${R}         LexOS Pro Terminal — le terminal officiel
+  ${A}audit${R}                Catalogue des outils d'audit dans ce même terminal
+  ${A}audit menu${R}           Menu graphique par catégories, images et fiches terminal
+  ${A}audit commandes${R}      Toutes les commandes réellement installées, en lecture seule
+  ${A}audit-icones${R}         Installer des images officielles Kali vérifiées (sans sudo)
                       ${D}onglets, fenêtres divisibles, vraies commandes${R}
   ${A}terminal-pro --classique${R} Le Terminal classique (xfce4-terminal)
                       ${D}pour vim, nano, htop… — les programmes plein écran${R}
@@ -1075,6 +1088,7 @@ case "$CMD" in
 	lang|langue)          cmd_lang "$@" ;;
 	dock|barre)           cmd_dock "$@" ;;
 	ecran|écran|display|screen) exec lexos-display "$@" ;;
+	vue-fichiers|vues-fichiers|images-vue) exec /usr/bin/python3 /usr/lib/lexos/fichiers_vues.py "$@" ;;
 	perf|performance)     exec lexos-perf "$@" ;;
 	temperature|température|temp|chaleur|ventilateurs) exec lexos-temp "$@" ;;
 	lumiere|luminosite|brightness) exec lexos-brightness "$@" ;;
@@ -1187,6 +1201,15 @@ case "$CMD" in
 	#  terminal normal je veux que ce soit lui qui le remplace. » « terminal »
 	#  reste le jour/nuit (ligne au-dessus, depuis avant) ; le voici sous son
 	#  propre nom.
+	audit|outils-audit)
+		case "${1:-}" in
+			menu) exec /usr/bin/python3 /usr/lib/lexos/audit/menu.py ;;
+			commandes|--commandes|liste)
+				exec /usr/bin/python3 /usr/lib/lexos/audit/menu.py --toutes-commandes ;;
+			"") exec /usr/bin/python3 /usr/lib/lexos/audit/menu.py --terminal ;;
+			*) echo "Choix possibles : lexos audit · lexos audit menu · lexos audit commandes" >&2; exit 2 ;;
+		esac ;;
+	audit-icones|icones-audit) exec /usr/bin/python3 /usr/lib/lexos/audit/icones.py "$@" ;;
 	terminal-pro|pro-terminal) exec lexos-pro-terminal "$@" ;;
 	#  LEXOS PRO — le tableau de bord natif (PySide6). « pro » tout court
 	#  DOIT venir APRÈS « terminal-pro » dans ce case : bash retient la
@@ -1207,6 +1230,9 @@ case "$CMD" in
 	#  L'outil vit dans son propre fichier : il doit aussi savoir se lancer
 	#  depuis lexos-wm (« --demarrer »), et une fonction enfermée ici ne le
 	#  pourrait pas. Même forme que « logitheque ».
+	#  Mosaïque glisser-déposer 50/50 : xfwm4 place à gauche, GTK propose
+	#  la seconde fenêtre à droite. Chaque compte peut désactiver le choix.
+	mosaique|mosaïque|snap) exec /usr/bin/python3 /usr/lib/lexos/assistant-mosaique.py "${@}" ;;
 	crt)                  exec lexos-crt "$@" ;;
 	signer-pilote)        exec lexos-signer-pilote "$@" ;;
 	moteurd)              exec lexos-moteurd "$@" ;;

@@ -94,9 +94,14 @@ demande secure_boot_actif && ok "actif : le cinquième octet vaut 1 → on le di
 	|| non "Secure Boot actif non détecté — l'écran noir resterait inexpliqué"
 grep -q 'SECURE BOOT : ACTIF' < <(dit secure_boot_dire) \
 	&& ok "et le message le nomme en toutes lettres" || non "message d'alerte absent"
-grep -q 'F2' < <(dit secure_boot_dire) \
-	&& ok "le message dit QUELLE TOUCHE taper (pas « voir le BIOS »)" \
-	|| non "le message n'explique pas comment le désactiver"
+grep -q 'conserver ce réglage pour Windows' < <(dit secure_boot_dire) \
+	&& ok "le diagnostic conserve Secure Boot pour Windows" \
+	|| non "le diagnostic ne rappelle pas de conserver Secure Boot"
+if grep -q 'Disabled' < <(dit secure_boot_dire); then
+	non "le diagnostic conseille encore de désactiver Secure Boot"
+else
+	ok "aucun conseil de désactivation automatique"
+fi
 
 pose_efi 0
 demande secure_boot_actif && non "Secure Boot annoncé actif alors que l'octet vaut 0" \
@@ -383,7 +388,7 @@ else
 	if [ -z "$SORTIE_ECHEC" ]; then
 		non "le message d'échec affirme encore « le menu n'a PAS d'entrée de secours » sans l'avoir mesuré"
 	else
-		printf '%s' "$SORTIE_ECHEC" | grep -q 'changé de nom' \
+		grep -q 'changé de nom' <<< "$SORTIE_ECHEC" \
 			&& ok "…et il distingue « pas d'entrée » de « marqueur renommé » : deux remèdes différents" \
 			|| non "le message ne propose qu'une lecture alors qu'il y en a deux, avec des remèdes différents"
 	fi

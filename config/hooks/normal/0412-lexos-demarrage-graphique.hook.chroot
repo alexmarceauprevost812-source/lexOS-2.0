@@ -1,0 +1,43 @@
+#!/bin/sh
+# LexOS Pro 2.0.1 — choisir le bureau en démarrage normal.
+# Le mode "Live system (amd64 fail-safe)" conserve son choix EXPLICITE
+# systemd.unit=multi-user.target dans auto/config, pour récupérer une console.
+set -eu
+
+echo "[lexos] hook 0412 : démarrage graphique par défaut"
+
+FLAVOUR="standard"
+if [ -r /etc/lexos/build.conf ]; then
+    # shellcheck disable=SC1091
+    . /etc/lexos/build.conf
+    FLAVOUR="${LEXOS_FLAVOUR:-standard}"
+fi
+
+# La saveur Pro est celle testée sur la clé USB RTX 5060.
+[ "$FLAVOUR" = "pro" ] || {
+    echo "[lexos]   saveur $FLAVOUR : politique de démarrage inchangée"
+    exit 0
+}
+
+if [ ! -x /usr/sbin/lightdm ] || [ ! -x /usr/bin/startxfce4 ]; then
+    echo "[lexos]   ERREUR : LightDM et XFCE doivent être installés pour la saveur Pro" >&2
+    exit 1
+fi
+if ! command -v systemctl >/dev/null 2>&1; then
+    echo "[lexos]   ERREUR : systemctl absent" >&2
+    exit 1
+fi
+
+# systemctl set-default/enable gèrent les liens hors ligne dans le chroot.
+# Ne PAS faire "systemctl start" pendant la construction de l'ISO.
+systemctl set-default graphical.target
+systemctl enable lightdm.service
+
+CIBLE="$(systemctl get-default)"
+ETAT="$(systemctl is-enabled lightdm.service)"
+if [ "$CIBLE" != "graphical.target" ] || [ "$ETAT" != "enabled" ]; then
+    echo "[lexos]   ERREUR : défaut=$CIBLE ; LightDM=$ETAT" >&2
+    exit 1
+fi
+echo "[lexos]   démarrage normal : graphical.target + LightDM activé"
+echo "[lexos]   fail-safe : reste en console sur demande (paramètre GRUB)"
