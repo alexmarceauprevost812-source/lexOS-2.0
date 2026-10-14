@@ -8,7 +8,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
 DISTANT = ROOT / "config/includes.chroot/usr/bin/lexos-distant"
-MENU = ROOT / "config/includes.chroot/usr/bin/lexos-remote-menu"
+MENU = ROOT / "config/includes.chroot/usr/lib/lexos/lexos-remote-menu"
 APP = ROOT / "config/includes.chroot/usr/share/applications/lexos-remote.desktop"
 BUREAU = ROOT / "config/includes.chroot/etc/skel/Bureau/LexOS-Remote.desktop"
 DESKTOP = ROOT / "config/includes.chroot/etc/skel/Desktop/LexOS-Remote.desktop"
@@ -115,7 +115,7 @@ class LexosRemote(unittest.TestCase):
             self.assertTrue(p.is_file(), str(p))
         for p in (APP, BUREAU, DESKTOP):
             contenu = p.read_text(encoding="utf-8")
-            self.assertIn("Exec=lexos-remote-menu", contenu)
+            self.assertIn("Exec=/usr/lib/lexos/lexos-remote-menu", contenu)
             self.assertIn("Terminal=false", contenu)
         self.assertIn("x11vnc", PAQUETS.read_text(encoding="utf-8").splitlines())
 

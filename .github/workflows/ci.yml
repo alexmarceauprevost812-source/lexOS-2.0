@@ -51,6 +51,7 @@ jobs:
             config/includes.chroot/usr/lib/lexos/lexos-fuseau-confirmer \
             config/includes.chroot/usr/lib/lexos/lexos-fuseau-position \
             config/includes.chroot/usr/lib/lexos/polkit-agent \
+            config/includes.chroot/usr/lib/lexos/lexos-remote-menu \
             config/includes.chroot/usr/share/lexos/picom/lexos-effets
 
       - name: Syntaxe des fichiers de complétion (touche Tab)
@@ -501,6 +502,7 @@ jobs:
           # Test explicite requis : la CI vérifie qu'aucun banc n'est orphelin.
           # Exerce les SVG de la poubelle, de Paramètres et leur liaison GTK.
           bash tests/test_lexos_202_icons.sh
+          python3 tests/test_lexos_remote.py
           python3 tests/test_lexos_202_desktop.py
           # Snap Assist 50/50 : événements de souris simulés, jamais X11 réel.
           python3 tests/test_lexos_202_snap_assist.py

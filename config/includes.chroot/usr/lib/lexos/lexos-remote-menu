@@ -12,13 +12,13 @@ choix="$(zenity --list --title='LexOS Remote — Bureau à distance' \
     --column='Action' --width=575 --height=310 \
     'Démarrer le partage sécurisé' \
     'Afficher le code QR' \
-    'Vérifier l’état' \
+    "Vérifier l'état" \
     'Arrêter le partage' 2>/dev/null)" || exit 0
 
 case "$choix" in
     'Démarrer le partage sécurisé') commande='lexos-distant partager' ;;
     'Afficher le code QR')         commande='lexos-distant qr' ;;
-    'Vérifier l’état')             commande='lexos-distant etat' ;;
+    "Vérifier l'état")             commande='lexos-distant etat' ;;
     'Arrêter le partage')          commande='lexos-distant arreter' ;;
     *) exit 0 ;;
 esac
