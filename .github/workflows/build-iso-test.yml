@@ -2,7 +2,7 @@ name: ISO de test 2.0.2 (sans publication)
 
 on:
   push:
-    branches: [fix/lexos-202-ci-iso-20261013]
+    branches: [fix/lexos-202-ci-iso-20261013, feature/lexos-remote-qr-tailscale]
   workflow_dispatch:
     inputs:
       flavour:

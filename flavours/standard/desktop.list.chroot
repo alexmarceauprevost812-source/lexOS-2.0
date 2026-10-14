@@ -85,6 +85,12 @@ bluez
 blueman
 bluez-obexd
 
+# --- Bureau a distance — present dans toute ISO graphique LexOS ------------
+# Service MANUEL : aucun partage n'est lance automatiquement.
+# L'acces via Tailscale necessite une connexion privee configuree apres
+# installation ; aucun port WAN n'est ouvert automatiquement.
+x11vnc
+
 # --- Connexion ---------------------------------------------------------------
 lightdm
 lightdm-gtk-greeter

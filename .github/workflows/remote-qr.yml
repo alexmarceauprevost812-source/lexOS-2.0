@@ -1,0 +1,23 @@
+name: LexOS Remote - tests de securite
+
+on:
+  push:
+    branches:
+      - feature/lexos-remote-qr-tailscale
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remote:
+    name: Tests VNC, QR et raccourci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verifier la syntaxe bash
+        run: |
+          bash -n config/includes.chroot/usr/bin/lexos-distant
+          bash -n config/includes.chroot/usr/lib/lexos/lexos-remote-menu
+      - name: Verifier les garde-fous sans ouvrir de port
+        run: python3 tests/test_lexos_remote.py
