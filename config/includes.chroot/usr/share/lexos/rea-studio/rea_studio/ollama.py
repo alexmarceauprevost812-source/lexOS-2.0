@@ -57,3 +57,17 @@ class Ollama:
         if not isinstance(message, dict) or not isinstance(message.get("content"), str):
             raise ValueError("Message Ollama invalide.")
         return message["content"]
+
+    def structured(self, model, messages, schema):
+        if not model.strip():
+            raise ValueError("Choisissez un modèle installé.")
+        value = self.request("/api/chat", {
+            "model": model, "messages": messages, "stream": False,
+            "format": schema, "options": {"temperature": 0, "num_predict": 6000}
+        })
+        message = value.get("message")
+        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+            raise ValueError("La génération n'a pas renvoyé de code exploitable.")
+        if value.get("done_reason") == "length":
+            raise ValueError("Le modèle a atteint sa limite de réponse. Demandez une application plus petite.")
+        return message["content"]

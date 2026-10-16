@@ -16,7 +16,7 @@ class InstallTests(unittest.TestCase):
             desktop = installer.install(root / 'prefix', root / 'xdg')
             subprocess.run(['desktop-file-validate', str(desktop)], check=True)
             result = subprocess.run([str(root / 'prefix/bin/rea-studio'), '--version'], capture_output=True, text=True, check=True)
-            self.assertIn('REA Studio 0.1.0', result.stdout)
+            self.assertIn('REA Studio 0.2.0', result.stdout)
             self.assertIn('Icon=', desktop.read_text())
             installer.install(root / 'prefix', root / 'xdg')
             self.assertTrue((root / 'prefix/bin/rea-studio').is_symlink())

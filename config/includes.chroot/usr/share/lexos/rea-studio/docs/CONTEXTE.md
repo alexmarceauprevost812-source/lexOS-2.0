@@ -37,3 +37,7 @@ Conclusion limitée : REA n’est pas identifié dans les sources effectivement
 examinées. Cela ne prouve pas son absence d’un autre dépôt, d’une autre branche
 ou de l’ordinateur cible. L’extension par commandes utilisateur permet de brancher
 le vrai outil une fois identifié, sans inventer d’API.
+
+## Mise à jour 0.2.0
+
+Le serveur Ollama de ce poste contient des modèles personnalisés dont certains noms incluent REA. Cela ne définit pas une API REA distincte. La création utilise les API réelles d’Ollama et le CLI Codex déjà connecté.

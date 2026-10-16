@@ -10,6 +10,9 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from .core import DEFAULT_TOOLS, Projects, atomic_write, launch_tool, note_path, read_json, tool_command, validate_tools
 from .ollama import Ollama
+from .providers import Codex
+from .workshop import Workshop
+from . import __version__
 
 BG, PANEL, TEXT, MUTED, ORANGE = "#0c0d0f", "#17191d", "#f5f5f5", "#b2b5bc", "#ff8a32"
 
@@ -19,11 +22,11 @@ class Studio(tk.Tk):
         super().__init__()
         self.title("REA Studio • LexOS Pro")
         self.geometry("1120x760")
-        self.minsize(800, 600)
+        self.minsize(900, 700)
         self.configure(bg=BG)
         icon_path = Path(__file__).resolve().parent.parent / "assets/rea-studio.png"
         if icon_path.exists():
-            self._icon = tk.PhotoImage(file=str(icon_path))
+            self._icon = tk.PhotoImage(master=self, file=str(icon_path))
             self.iconphoto(True, self._icon)
         self.projects = Projects(data_dir)
         self.config_dir = Path(config_dir or Path(os.getenv("XDG_CONFIG_HOME", Path.home() / ".config")) / "rea-studio")
@@ -37,12 +40,17 @@ class Studio(tk.Tk):
         if not isinstance(self.settings, dict):
             raise ValueError("Réglages invalides ; fichier conservé.")
         self.tools = validate_tools(read_json(self.config_dir / "tools.json", DEFAULT_TOOLS))
+        self.provider = tk.StringVar(master=self, value=self.settings.get("provider", "Ollama local"))
         self._style()
         self._build()
         self.reload_projects()
+        last = self.settings.get("last_project")
+        if last in self.records and Path(self.records[last]["path"]).is_dir():
+            self.project_list.selection_set(last)
+            self._select_project()
         self._poll_id = self.after(80, self.poll)
         self.protocol("WM_DELETE_WINDOW", self.close)
-        self.bind("<Control-s>", lambda e: self.save_notes())
+        self.bind("<Control-s>", lambda e: self.guard(self.save_notes))
 
     def _style(self):
         self.option_add("*Font", "{DejaVu Sans} 10")
@@ -57,11 +65,12 @@ class Studio(tk.Tk):
         style.configure("Accent.TButton", background=ORANGE, foreground="#111111")
         style.map("Accent.TButton", background=[("active", "#ffac6c")], foreground=[("disabled", "#555555")])
         style.configure("TNotebook", background=BG, borderwidth=0)
-        style.configure("TNotebook.Tab", padding=(20, 12))
+        style.configure("TNotebook.Tab", padding=(12, 10))
         style.map("TNotebook.Tab", background=[("selected", "#32302b")], foreground=[("selected", ORANGE)])
         style.configure("Treeview", background=BG, fieldbackground=BG, rowheight=34)
         style.map("Treeview", background=[("selected", "#65391e")])
         style.configure("TEntry", insertcolor=TEXT)
+        style.map("TCombobox", fieldbackground=[("readonly", BG)], foreground=[("readonly", TEXT)], selectbackground=[("readonly", BG)], selectforeground=[("readonly", TEXT)])
 
     def label(self, parent, text, size=10, color=TEXT, **kwargs):
         return tk.Label(parent, text=text, font=("DejaVu Sans", size), fg=color, anchor="w", **kwargs)
@@ -95,10 +104,25 @@ class Studio(tk.Tk):
         self.project_title.pack(fill="x", pady=(8, 4))
         self.project_path = self.label(main, "Créez un projet ou importez un dossier existant.", 9, MUTED, bg=BG, wraplength=650)
         self.project_path.pack(fill="x", pady=(0, 16))
-        notebook = ttk.Notebook(main)
+        choices = tk.Frame(main, bg=BG)
+        choices.pack(fill="x", pady=(0, 6))
+        self.provider_box = ttk.Combobox(choices, textvariable=self.provider,
+                                         values=["Ollama local", "Codex en ligne"], state="readonly", width=17)
+        self.provider_box.pack(side="left", padx=(0, 8))
+        self.provider_box.bind("<<ComboboxSelected>>", lambda e: self.provider_changed())
+        self.model = tk.StringVar(master=self, value=self.settings.get("model", ""))
+        self.models = ttk.Combobox(choices, textvariable=self.model, state="readonly", width=18)
+        self.models.pack(side="left", fill="x", expand=True)
+        self.refresh_button = self.button(choices, "Modèles", self.refresh_models)
+        self.button(choices, "Connexion", self.connection)
+        self.privacy = self.label(main, "Ollama local : génération sur votre ordinateur.", 9, MUTED, bg=BG, wraplength=680)
+        self.privacy.pack(fill="x", pady=(0, 8))
+        notebook = self.notebook = ttk.Notebook(main)
         notebook.pack(fill="both", expand=True)
+        self.workshop = Workshop(notebook, self)
+        notebook.add(self.workshop, text="Créer avec l’IA")
         notes, ai, tools = [tk.Frame(notebook, padx=16, pady=16) for _ in range(3)]
-        for frame, name in [(notes, "Notes du projet"), (ai, "IA locale"), (tools, "Outils REA")]:
+        for frame, name in [(notes, "Notes du projet"), (ai, "Discussion IA"), (tools, "Outils REA")]:
             notebook.add(frame, text=name)
         self.label(notes, "Idées, objectifs et prochaines étapes", 12).pack(fill="x", pady=(0, 8))
         self.notes = self.textbox(notes)
@@ -108,14 +132,7 @@ class Studio(tk.Tk):
         self.button(bar, "Enregistrer · Ctrl+S", self.save_notes, True)
         self.button(bar, "Ouvrir le dossier", self.open_project)
         self.label(notes, "Enregistré dans .rea-studio/notes.md du projet.", 9, MUTED).pack(fill="x", pady=(8, 0))
-        ai_top = tk.Frame(ai)
-        ai_top.pack(fill="x")
-        self.model = tk.StringVar(value=self.settings.get("model", ""))
-        self.models = ttk.Combobox(ai_top, textvariable=self.model, state="readonly", width=25)
-        self.models.pack(side="left", padx=(0, 8))
-        self.refresh_button = self.button(ai_top, "Détecter les modèles", self.refresh_models)
-        self.button(ai_top, "Connexion", self.connection)
-        self.label(ai, "Seul votre message et l’historique de cette session sont envoyés à Ollama local.", 9, MUTED, wraplength=620).pack(fill="x", pady=8)
+        self.label(ai, "Discutez avec le moteur choisi ci-dessus. Les fichiers ne sont pas lus automatiquement.", 9, MUTED, wraplength=620).pack(fill="x", pady=8)
         self.conversation = self.textbox(ai, height=7, readonly=True)
         self.prompt = self.textbox(ai, height=3, expand=False)
         self.prompt.bind("<Control-Return>", lambda e: self.guard(self.send))
@@ -134,7 +151,7 @@ class Studio(tk.Tk):
         self.button(bar, "Lancer l’outil", self.run_tool, True)
         self.button(bar, "Configurer", self.configure_tools)
         self.label(tools, "Les outils absents sont signalés. Aucune installation automatique.", 9, MUTED).pack(fill="x")
-        self.status = tk.StringVar(value="Prêt • REA Studio 0.1.0")
+        self.status = tk.StringVar(master=self, value="Prêt • REA Studio " + __version__)
         tk.Label(self, textvariable=self.status, bg=BG, fg=MUTED, anchor="w", padx=24, pady=12).pack(fill="x")
 
     def textbox(self, parent, height=12, readonly=False, expand=True):
@@ -204,6 +221,9 @@ class Studio(tk.Tk):
         self.dirty = False
         self.prompt.delete("1.0", "end")
         self.render_chat()
+        self.workshop.activate(project)
+        self.settings["last_project"] = project["id"]
+        self.persist_preferences()
         self.status.set("Projet ouvert • " + project["name"])
 
     def choose(self, project):
@@ -214,7 +234,9 @@ class Studio(tk.Tk):
     def new_project(self):
         if self.busy:
             raise ValueError("Attendez la fin de la réponse IA.")
-        parent = filedialog.askdirectory(title="Dossier parent du nouveau projet", parent=self)
+        projects_dir = Path.home() / "Documents" / "REA Studio"
+        projects_dir.mkdir(parents=True, exist_ok=True)
+        parent = filedialog.askdirectory(title="Dossier parent du nouveau projet", initialdir=projects_dir, parent=self)
         if parent:
             name = simpledialog.askstring("Nouveau projet", "Nom du nouveau dossier :", parent=self)
             if name:
@@ -244,6 +266,7 @@ class Studio(tk.Tk):
         if messagebox.askyesno("Retirer le projet", "Retirer ce projet de la liste ? Le dossier et ses notes seront conservés.", parent=self):
             self.projects.forget(p["id"])
             self.current = None
+            self.workshop.activate(None)
             self.notes.delete("1.0", "end")
             self.notes.edit_modified(False)
             self.dirty = False
@@ -274,6 +297,9 @@ class Studio(tk.Tk):
     def connection(self):
         if self.busy:
             raise ValueError("Attendez la fin de la requête IA.")
+        if self.provider.get() == "Codex en ligne":
+            messagebox.showinfo("Codex en ligne", "Utilise la connexion du programme Codex installé sur cet ordinateur.\nInternet et un compte connecté sont nécessaires.\nPour connecter un autre poste : lancer codex login dans son terminal.", parent=self)
+            return
         url = simpledialog.askstring("Ollama local", "Adresse HTTP locale du serveur :", initialvalue=self.client().base, parent=self)
         if url:
             Ollama(url)
@@ -284,36 +310,63 @@ class Studio(tk.Tk):
             self.model.set("")
             self.status.set("Connexion enregistrée • détectez les modèles")
 
-    def background(self, action, done):
+    def persist_preferences(self):
+        self.settings["model"] = self.model.get()
+        self.settings["provider"] = self.provider.get()
+        atomic_write(self.config_dir / "settings.json", json.dumps(self.settings, ensure_ascii=False, indent=2))
+
+    def provider_changed(self):
+        online = self.provider.get() == "Codex en ligne"
+        self.models.configure(state="disabled" if online else "readonly")
+        self.privacy.configure(text=("Codex en ligne : votre demande et la version à améliorer sont envoyées à OpenAI."
+                                     if online else "Ollama local : génération sur votre ordinateur."))
+        self.guard(self.persist_preferences)
+
+    def selected_client(self, generation=False):
+        if self.provider.get() == "Codex en ligne":
+            return Codex(), ""
+        model = self.model.get()
+        if not model or model not in self.models["values"]:
+            raise ValueError("Cliquez sur Modèles puis choisissez un modèle Ollama installé.")
+        return Ollama(self.settings.get("ollama_url", "http://127.0.0.1:11434"),
+                      timeout=600 if generation else 120), model
+
+    def background(self, action, done, on_error=None):
         self.busy = True
-        for widget in (self.send_button, self.refresh_button, self.clear_button):
+        for widget in (self.send_button, self.refresh_button, self.clear_button, self.provider_box):
             widget.configure(state="disabled")
+        self.workshop.set_busy(True)
         def worker():
             try:
                 result = (True, action())
             except Exception as exc:
                 result = (False, str(exc))
-            self.events.put((done, result))
+            self.events.put((done, result, on_error))
         threading.Thread(target=worker, daemon=True).start()
 
     def poll(self):
         try:
             while True:
-                done, (success, value) = self.events.get_nowait()
+                done, (success, value), on_error = self.events.get_nowait()
                 self.busy = False
                 for widget in (self.send_button, self.refresh_button, self.clear_button):
                     widget.configure(state="normal")
+                self.provider_box.configure(state="readonly")
+                self.workshop.set_busy(False)
                 if success:
                     self.guard(lambda: done(value))
                 else:
                     self.status.set("Échec • " + value)
-                    messagebox.showerror("IA locale", value, parent=self)
+                    if on_error:
+                        on_error(value)
+                    else:
+                        messagebox.showerror("IA", value, parent=self)
         except queue.Empty:
             pass
         self.tool_processes[:] = [p for p in self.tool_processes if p.poll() is None]
         self._poll_id = self.after(80, self.poll)
 
-    def refresh_models(self):
+    def refresh_models(self, silent=False):
         if self.busy:
             return
         client = self.client()
@@ -321,9 +374,10 @@ class Studio(tk.Tk):
         def done(models):
             self.models["values"] = models
             if self.model.get() not in models:
-                self.model.set(models[0] if models else "")
+                preferred = next((m for m in models if m.startswith("qwen2.5-coder:7b")), models[0] if models else "")
+                self.model.set(preferred)
             self.status.set(f"Ollama connecté • {len(models)} modèle(s) installé(s)" if models else "Aucun modèle installé. Utilisez ollama pull NOM_DU_MODELE dans un terminal.")
-        self.background(client.models, done)
+        self.background(client.models, done, (lambda error: None) if silent else None)
 
     def history(self):
         return self.histories.setdefault(self.require_project()["id"], [])
@@ -333,7 +387,7 @@ class Studio(tk.Tk):
         self.conversation.delete("1.0", "end")
         history = self.histories.get(self.current["id"], []) if self.current else []
         for msg in history:
-            self.conversation.insert("end", ("VOUS" if msg["role"] == "user" else "OLLAMA") + "\n" + msg["content"] + "\n\n")
+            self.conversation.insert("end", ("VOUS" if msg["role"] == "user" else "IA") + "\n" + msg["content"] + "\n\n")
         self.conversation.configure(state="disabled")
         self.conversation.see("end")
 
@@ -344,15 +398,11 @@ class Studio(tk.Tk):
         prompt = self.prompt.get("1.0", "end-1c").strip()
         if not prompt:
             return
-        model = self.model.get()
-        if not model or model not in self.models["values"]:
-            raise ValueError("Détectez puis choisissez un modèle local installé.")
-        client = self.client()
+        client, model = self.selected_client()
         pending = {"role": "user", "content": prompt}
         messages = [{"role": "system", "content": "Tu aides à créer des projets dans REA Studio. REA n'a pas d'API définie. Ne prétends jamais avoir exécuté des commandes ni modifié des fichiers."}, *history, pending]
-        self.settings["model"] = model
-        atomic_write(self.config_dir / "settings.json", json.dumps(self.settings, indent=2))
-        self.status.set("Ollama réfléchit… la fenêtre reste utilisable (délai maximal : 120 s)")
+        self.persist_preferences()
+        self.status.set(self.provider.get() + " réfléchit…")
         def done(reply):
             history.extend([pending, {"role": "assistant", "content": reply}])
             # Ne pas supprimer un nouveau brouillon rédigé pendant la génération.
@@ -426,6 +476,8 @@ class Studio(tk.Tk):
 def main():
     try:
         app = Studio()
+        app.provider_changed()
+        app.after(200, lambda: app.refresh_models(silent=True))
         app.mainloop()
     except tk.TclError as exc:
         raise SystemExit(f"Impossible d’ouvrir la fenêtre. Lancez REA Studio depuis une session graphique XFCE.\n{exc}") from exc

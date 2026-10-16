@@ -1,32 +1,27 @@
 # Validation — 16 octobre 2026
 
-Version 0.1.0, Python 3.13, Tk 8.6, Linux ; écran virtuel TigerVNC 1280×900
-sans port réseau, socket Unix local protégé. Un serveur HTTP simulant Ollama
-écoutait seulement sur 127.0.0.1. Aucun modèle réel n’a été exécuté.
+Version 0.2.0, Python 3.13, Tk 8.6, Linux XFCE.
 
-Résultat : **19 tests réussis, 0 ignoré, 0 échec**.
+**32 tests réussis, 0 ignoré, 0 échec**, sur écran virtuel TigerVNC sans port TCP.
+Les tests couvrent les projets et notes, les écritures atomiques, les chemins et
+liens symboliques, les limites de génération, la syntaxe Python, la réparation
+bornée d’une réponse invalide, les versions sans écrasement, le chargement des
+fichiers modifiés, le contrat HTTP Ollama, la commande Codex en lecture seule,
+les échanges en arrière-plan, les erreurs, le terminal et l’installation utilisateur.
+La réouverture du dernier projet et de sa dernière version est vérifiée.
 
-- Projets : création/import sans doublon, renommage, retrait conservant les
-  fichiers, refus des chemins invalides et des dossiers existants.
-- Stockage : registre corrompu conservé, écritures atomiques, échec de remplacement
-  conservant l’original, refus des liens de notes sortant du projet.
-- Outils : arguments passés littéralement, dossier de travail correct, absence
-  d’exécutable et de terminal signalée ; aucun shell ajouté par l’application.
-- Ollama : véritable échange HTTP avec le faux serveur, payload officiel,
-  modèles, erreurs 404, JSON et schéma invalides, refus d’hôtes distants et de
-  redirections, serveur indisponible.
-- Fenêtre : création et sélection de projets, notes enregistrées/rechargées,
-  annulation d’un changement avec notes non enregistrées, ouverture de la
-  configuration ; réponse IA asynchrone et conservation du nouveau brouillon ;
-  erreur IA sans perte du message et réactivation des commandes.
-- Installation : préfixe avec espaces et dollar, seconde installation,
-  conservation d’un lanceur existant non géré, lancement installé `--version`.
-- `shellcheck rea-studio`, validation `.desktop` et compilation de tous les
-  modules Python : succès.
-- PNG : RGBA 1254×1254, canal alpha de 0 à 255 ; icône issue du visage validé
-  par l’utilisateur. Aperçu de fenêtre réalisé sur un projet exemple temporaire.
+Deux générations réelles ont été réalisées sur ce poste :
+- Ollama local, qwen2.5-coder:7b : environ 17 secondes.
+- Codex CLI 0.162.1, connexion ChatGPT existante : environ 26 secondes.
 
-Limites : aucune construction ISO, aucun démarrage d’une ISO LexOS, aucun test
-sur le matériel utilisateur et aucune génération avec un vrai modèle Ollama.
-Les outils tiers peuvent avoir leur propre interface, configuration ou erreurs.
-Le support d’un outil REA spécifique attend son identification.
+Chacune a produit une application Tkinter de tâches et son README. Le code a été
+lu avant exécution. Les deux fenêtres ont été ouvertes, puis leurs actions
+ajouter, terminer et supprimer ont été testées avec succès. Aucun accès système
+ni réseau n’existe dans ces deux programmes exemples.
+L’interface REA Studio a été contrôlée à 1120×820 et 900×700 ; les boutons de
+création et lancement restent visibles. Les modèles locaux sont détectés sur
+le serveur réellement installé. Shellcheck et validation desktop passent.
+
+Limites : aucune construction ni démarrage d’ISO LexOS ; les applications générées
+par d’autres demandes ne sont pas garanties par ces tests. Aucune API REA inventée.
+La suite automatisée utilise des moteurs simulés et ne nécessite aucun compte IA.

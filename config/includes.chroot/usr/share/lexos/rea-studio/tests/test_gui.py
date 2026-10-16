@@ -38,6 +38,8 @@ class GuiTests(unittest.TestCase):
         self.select(second)
         self.select(first)
         self.assertEqual(app.notes.get('1.0', 'end-1c'), 'Mes idées')
+        app.notebook.select(1)
+        app.update()
         self.assertGreater(app.notes.winfo_height(), 50)
         app.geometry('800x600')
         app.update()
@@ -85,3 +87,56 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(app.prompt.get('1.0', 'end-1c'), 'À conserver')
         self.assertEqual(app.history(), [])
         self.assertFalse(app.send_button.instate(['disabled']))
+
+    def test_workshop_generates_saves_and_keeps_versions(self):
+        from test_builder import sample
+        app = self.app
+        self.select(app.projects.create(self.root, 'Création'))
+        app.models['values'] = ['test:1']
+        app.model.set('test:1')
+        workshop = app.workshop
+        workshop.example()
+        with patch('rea_studio.workshop.generate_application', return_value=sample()):
+            workshop.generate_app()
+            deadline = time.monotonic() + 3
+            while app.busy and time.monotonic() < deadline:
+                app.update()
+                time.sleep(0.01)
+        self.assertFalse(app.busy)
+        self.assertFalse((Path(app.current['path']) / 'application').exists())
+        self.assertEqual(workshop.files.size(), 2)
+        workshop.save_files()
+        first = workshop.saved
+        self.assertTrue((first / 'main.py').exists())
+        self.assertFalse(workshop.run.instate(['disabled']))
+        with patch('rea_studio.workshop.messagebox.askyesno', return_value=True), patch('rea_studio.workshop.subprocess.Popen') as popen:
+            workshop.run_application()
+        argv = popen.call_args.args[0]
+        self.assertEqual(argv[-1], str(first / 'main.py'))
+        self.assertNotIn('sudo', argv)
+        workshop.save_files()
+        self.assertNotEqual(workshop.saved, first)
+        self.assertTrue((first / 'main.py').exists())
+        from rea_studio.app import Studio
+        reopened = Studio(self.root / 'data', self.root / 'config')
+        try:
+            self.assertEqual(reopened.current['id'], app.current['id'])
+            self.assertEqual(reopened.workshop.saved, workshop.saved)
+            self.assertEqual(reopened.workshop.plan, workshop.plan)
+        finally:
+            reopened.destroy()
+
+    def test_provider_choice_and_terminal_use_account_rights(self):
+        app = self.app
+        self.select(app.projects.create(self.root, 'Terminal ; test'))
+        app.provider.set('Codex en ligne')
+        app.provider_changed()
+        client, model = app.selected_client(generation=True)
+        self.assertEqual(type(client).__name__, 'Codex')
+        self.assertTrue(app.models.instate(['disabled']))
+        with patch('rea_studio.workshop.shutil.which', return_value='/usr/bin/xfce4-terminal'), patch('rea_studio.workshop.subprocess.Popen') as popen:
+            app.workshop.open_terminal()
+        argv = popen.call_args.args[0]
+        self.assertEqual(argv[1], '--working-directory=' + app.current['path'])
+        self.assertNotIn('sudo', argv)
+        self.assertFalse(popen.call_args.kwargs.get('shell', False))

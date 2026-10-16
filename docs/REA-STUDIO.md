@@ -1,7 +1,7 @@
 # REA Studio — atelier de projets Linux
 
 REA Studio est disponible dans le menu Développement et via `rea-studio`.
-Il ajoute des projets, des notes, un client Ollama local et des outils configurables.
+La version 0.2.0 crée des applications Python/Tkinter ou HTML avec Ollama local ou Codex en ligne. Elle fournit un aperçu, des versions sans écrasement, le lancement explicite et un terminal utilisateur, ainsi que projets, notes et outils configurables.
 Le lanceur porte le visage orange choisi par l’utilisateur.
 
 La documentation, les sources et les tests sont dans

@@ -1,7 +1,7 @@
-# REA Studio 0.1.0 — LexOS Pro
+# REA Studio 0.2.0 — LexOS Pro
 
 Application Linux de bureau pour créer et retrouver des projets, enregistrer des
-notes, discuter avec Ollama local et lancer des outils installés. Interface noire
+notes, créer de petites applications avec Ollama local ou Codex en ligne, et lancer des outils installés. Interface noire
 et orange, icône encapuchonnée choisie par l’utilisateur, fenêtre redimensionnable.
 
 ## Installation sur LexOS / Debian / Ubuntu / XFCE
@@ -47,13 +47,40 @@ XFCE, autoriser ensuite l’exécution du lanceur au premier clic.
 3. Écrire dans **Notes du projet**, puis **Enregistrer** ou **Ctrl+S**.
 4. **Renommer** change uniquement le nom affiché ; **Retirer de la liste** conserve
    le dossier et les notes. Un changement de projet propose de sauvegarder les notes.
-5. **IA locale** : détecter les modèles puis envoyer un message, avec le bouton ou
-   **Ctrl+Entrée**. Les messages sont conservés en mémoire par projet pendant cette
-   session ; **Exporter** les enregistre en Markdown. Fermer l’application perd
-   les discussions non exportées. Les brouillons saisis pendant une réponse sont conservés.
-6. **Outils REA** : choisir un outil puis **Lancer**. La commande et le dossier
-   sont affichés avant le lancement. Les outils restent soumis aux droits de votre
-   session Linux. Leur état d’exécution interne n’est pas supervisé par REA Studio.
+5. **Créer avec l’IA** : sélectionner **Ollama local** ou **Codex en ligne**, choisir
+   une application de bureau Python/Tkinter ou web HTML, décrire le résultat souhaité
+   (ou **Exemple**), puis **Générer l’application**.
+6. Lire l’aperçu, cliquer **Créer les fichiers**, puis **Lancer**. Les versions sont
+   enregistrées dans `application`, `application-2`, etc., sans remplacer les précédentes.
+   Le lancement demande confirmation : le code utilise les droits de votre compte.
+7. Pour changer une application, ouvrir sa version et cocher **Améliorer la version affichée**.
+   La demande et le code de cette version sont transmis au moteur sélectionné.
+   La dernière version enregistrée est retrouvée au prochain démarrage.
+8. **Terminal** ouvre XFCE dans le dossier de l’application. Créer, modifier et lancer
+   ces projets ne nécessite pas sudo. Les permissions administrateur du système restent
+   inchangées ; installer un paquet système peut encore demander une authentification.
+9. **Discussion IA** permet une conversation séparée, exportable. Les messages non
+   exportés sont perdus à la fermeture. **Outils REA** lance des commandes explicitement
+   configurées ; la commande est présentée avant son lancement.
+
+Les nouveaux projets sont proposés sous `~/Documents/REA Studio`.
+La génération ne lance pas le code reçu. Elle contrôle les chemins, la taille,
+le schéma et la syntaxe Python, puis laisse examiner les fichiers. Un modèle peut
+produire des erreurs fonctionnelles : les vérifications ne garantissent pas la qualité
+ni l’innocuité de tout programme. Les brouillons non enregistrés restent en mémoire.
+
+## Codex en ligne
+
+Installer et connecter séparément le [CLI Codex officiel](https://developers.openai.com/codex/cli/),
+puis utiliser `codex login`. REA Studio réutilise cette connexion existante ; il ne
+stocke pas de clé API. Une connexion Internet et un compte autorisé sont nécessaires.
+Les limites du compte s’appliquent. Testé avec Codex CLI 0.162.1, connecté par ChatGPT.
+
+Le moteur utilise `codex exec` avec une sortie JSON structurée, une session éphémère,
+un répertoire temporaire et le bac à sable en lecture seule. Les fichiers du projet
+ne sont pas donnés comme dossier de travail. Le texte de la demande et, pour une
+amélioration, le contenu de la version affichée sont envoyés à OpenAI. Voir le
+[mode non interactif](https://developers.openai.com/codex/noninteractive/).
 
 ## Ollama
 
@@ -65,7 +92,7 @@ Si le serveur n’est pas déjà actif :
 ollama serve
 ```
 
-Lister les modèles installés avec `ollama list`, puis utiliser **Détecter les modèles**.
+Lister les modèles installés avec `ollama list`, puis utiliser **Modèles**.
 Un modèle peut être téléchargé séparément avec `ollama pull NOM_DU_MODELE` ;
 son choix dépend de la mémoire et du matériel. REA Studio ne télécharge aucun modèle.
 
@@ -76,9 +103,10 @@ les proxys système et les redirections sont désactivés. L’application utili
 [documentation des modèles](https://docs.ollama.com/api/tags) et du
 [chat](https://docs.ollama.com/api/chat).
 
-Seuls les messages saisis et l’historique de la discussion courante sont envoyés.
-Les notes et fichiers de projet ne sont pas lus par l’IA. Aucune réponse ne déclenche
-de commande ou d’écriture automatique. Utiliser des modèles locaux : la politique
+La discussion transmet ses messages et son historique. La création transmet la
+description et, si demandé, la version à améliorer. Les autres fichiers et les notes
+ne sont pas lus automatiquement. Les fichiers sont écrits avec **Créer les fichiers** ;
+leur exécution nécessite **Lancer**. Utiliser des modèles locaux : la politique
 d’un éventuel modèle cloud configuré dans Ollama relève du serveur Ollama.
 
 ## Extensions REA
@@ -120,7 +148,7 @@ son nom `lexos-studio`, sans être remplacé.
 
 Pour désinstaller, retirer uniquement le lien `~/.local/bin/rea-studio`, le menu
 `~/.local/share/applications/rea-studio.desktop` (ou son équivalent XDG) et les
-fichiers applicatifs `rea_studio/`, `assets/`, `rea-studio` sous
+fichiers applicatifs `rea_studio/`, `assets/rea-studio.png`, `assets/rea-studio.desktop`, `rea-studio` sous
 `~/.local/share/rea-studio`. **Conserver `projects.json` et les dossiers de projets**
 si vous souhaitez garder vos données. Aucun désinstalleur destructif automatique.
 
