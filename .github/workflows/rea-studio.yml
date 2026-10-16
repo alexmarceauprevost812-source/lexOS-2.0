@@ -1,0 +1,39 @@
+name: REA Studio Linux
+
+on:
+  push:
+    paths:
+      - 'config/includes.chroot/usr/share/lexos/rea-studio/**'
+      - 'config/includes.chroot/usr/bin/rea-studio'
+      - 'config/includes.chroot/usr/share/applications/rea-studio.desktop'
+      - 'flavours/standard/desktop.list.chroot'
+      - '.github/workflows/rea-studio.yml'
+  pull_request:
+    paths:
+      - 'config/includes.chroot/usr/share/lexos/rea-studio/**'
+      - 'config/includes.chroot/usr/bin/rea-studio'
+      - 'config/includes.chroot/usr/share/applications/rea-studio.desktop'
+      - 'flavours/standard/desktop.list.chroot'
+      - '.github/workflows/rea-studio.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer les outils de validation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk xvfb desktop-file-utils shellcheck
+      - name: Tests fonctionnels et graphiques
+        working-directory: config/includes.chroot/usr/share/lexos/rea-studio
+        run: xvfb-run -a python3 -m unittest discover -s tests -v
+      - name: Lanceurs Linux
+        run: |
+          shellcheck config/includes.chroot/usr/bin/rea-studio config/includes.chroot/usr/share/lexos/rea-studio/rea-studio
+          desktop-file-validate config/includes.chroot/usr/share/applications/rea-studio.desktop
+          grep -qx python3-tk flavours/standard/desktop.list.chroot
