@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=REA Studio
+Comment=Atelier de projets et IA locale pour LexOS Pro
+Exec=rea-studio
+Icon=/usr/share/lexos/rea-studio/assets/rea-studio.png
+Terminal=false
+Categories=Development;
+Keywords=REA;LexOS;Ollama;Projets;
+StartupNotify=false
