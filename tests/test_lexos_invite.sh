@@ -652,7 +652,11 @@ GENERE_U256="$(sed -n "s/^LEXOS_PS_UTILISATEUR_256='\(.*\)'$/\1/p" "$ENV_REPLIS"
 if [ ! -r "$MENU" ]; then
 	non "le menu d'audit est introuvable : sa couleur n'est pas vérifiable"
 else
-	VU_MENU="$(XDG_CONFIG_HOME="$BANC/replis/.config" MENU_DIR="$MENU_DIR" python3 -c "
+	#  ⚠ COLORTERM EST RETIRÉ EXPRÈS : ce point attend la valeur de la palette
+	#  256, et menu._role bascule sur la couleur VRAIE quand le terminal
+	#  l'annonce. Hériter d'un COLORTERM de l'appelant faisait donc rougir un
+	#  code juste — mesuré. Le banc fixe la profondeur qu'il interroge.
+	VU_MENU="$(env -u COLORTERM XDG_CONFIG_HOME="$BANC/replis/.config" MENU_DIR="$MENU_DIR" python3 -c "
 import os, sys
 sys.path.insert(0, os.environ['MENU_DIR'])
 import menu
@@ -761,6 +765,9 @@ else
 	rm -rf "${BANC:?}/fetch"; mkdir -p "$BANC/fetch"
 	bash "$GEN" --target "$BANC/fetch" --terminal nuit orange >/dev/null 2>&1
 	EF="$BANC/fetch/.config/lexos/terminal.env"
+	#  USER épinglé et HÔTE lu dans le même ordre que lexfetch (hostnamectl,
+	#  puis /etc/hostname, puis uname -n) : sa ligne d'identité écrit
+	#  « ${USER:-$(id -un)} », donc la variable gagne sur la commande.
 	QUI="$(id -un)"
 	for PROF in truecolor 256; do
 		#  ═══ ON FIGE L'ENVIRONNEMENT, ON NE L'HÉRITE PAS ═══
@@ -779,12 +786,12 @@ else
 		if [ "$PROF" = truecolor ]; then
 			SUF=""
 			SORTIE="$(HOME="$BANC/fetch" XDG_CONFIG_HOME="$BANC/fetch/.config" \
-				NO_COLOR="" COLORTERM=truecolor TERM=xterm-256color \
+				USER="$QUI" NO_COLOR="" COLORTERM=truecolor TERM=xterm-256color \
 				script -qec "bash '$FETCH'" /dev/null 2>/dev/null || true)"
 		else
 			SUF="_256"
 			SORTIE="$(HOME="$BANC/fetch" XDG_CONFIG_HOME="$BANC/fetch/.config" \
-				NO_COLOR="" TERM=xterm-256color \
+				USER="$QUI" NO_COLOR="" TERM=xterm-256color \
 				env -u COLORTERM script -qec "bash '$FETCH'" /dev/null 2>/dev/null || true)"
 		fi
 		ATT_U="$(sed -n "s/^LEXOS_PS_UTILISATEUR${SUF}='\(.*\)'$/\1/p" "$EF")"
@@ -838,16 +845,23 @@ else
 	elif [ "$R_LOGO" = "$R_ART" ]; then
 		non "le vert-logo et l'orange du dessin sont la même valeur — le point serait circulaire"
 	else
+		#  ⚠ ON ÉPINGLE USER, et ce n'est pas de la coquetterie : lexfetch
+		#  écrit « ${USER:-$(id -un)} », donc la VARIABLE gagne. Un banc qui
+		#  attendait « id -un » rougissait dès que l'appelant exportait un
+		#  USER différent — mesuré : quatre points. On fixe les deux côtés.
 		QUI_N="$(id -un 2>/dev/null || echo inconnu)"
-		HOTE_N="$(hostnamectl --static 2>/dev/null || hostname 2>/dev/null || echo inconnu)"
+		#  L'HÔTE SE LIT COMME lexfetch LE LIT, dans le même ordre : il essaie
+		#  hostnamectl, puis /etc/hostname, puis uname -n. « hostname » n'est
+		#  PAS dans sa liste, et les trois peuvent différer.
+		HOTE_N="$(hostnamectl --static 2>/dev/null || cat /etc/hostname 2>/dev/null || uname -n)"
 		for PROF in 256 vraie; do
 			if [ "$PROF" = vraie ]; then
 				NUE="$(HOME="$BANC/nu" XDG_CONFIG_HOME="$BANC/nu/.config" \
-					NO_COLOR="" COLORTERM=truecolor TERM=xterm-256color \
+					USER="$QUI_N" NO_COLOR="" COLORTERM=truecolor TERM=xterm-256color \
 					script -qec "bash '$FETCH'" /dev/null 2>/dev/null || true)"
 			else
 				NUE="$(HOME="$BANC/nu" XDG_CONFIG_HOME="$BANC/nu/.config" \
-					NO_COLOR="" TERM=xterm-256color \
+					USER="$QUI_N" NO_COLOR="" TERM=xterm-256color \
 					env -u COLORTERM script -qec "bash '$FETCH'" /dev/null 2>/dev/null || true)"
 			fi
 			if [ -z "$NUE" ]; then
@@ -908,6 +922,13 @@ titre "9. L'ACCENT est un rôle comme les autres — y compris en 256 couleurs"
 if [ ! -x "$GEN" ]; then
 	printf '  \033[2maccent sauté — le générateur n'"'"'est pas exécutable\033[0m\n'
 else
+	#  CE QUI SUIT EXISTE PARCE QUE LA NUIT PASSAIT AU VERT SANS RIEN MESURER.
+	#  Le repli en dur de lexos-terminal vaut justement 38;5;208, c'est-à-dire
+	#  l'accent de NUIT : une sonde qui lisait le MAUVAIS fichier verdissait
+	#  quand même pour ce mode-là, et seul le jour disait la vérité. On relève
+	#  donc les deux valeurs observées, et on exige qu'elles DIFFÈRENT — si la
+	#  sonde lit ailleurs, elle rend deux fois la même et la garde mord.
+	VU_ACC=""
 	for MODE in jour nuit; do
 		D="$BANC/acc-$MODE"; mkdir -p "$D/.config"
 		HOME="$D" XDG_CONFIG_HOME="$D/.config" bash "$GEN" --mode "$MODE" >/dev/null 2>&1 || true
@@ -938,12 +959,21 @@ else
 		#  LA BASCULE LE LIT-ELLE ? Sans COLORTERM, c'est-à-dire sur la
 		#  surface où le défaut vivait.
 		if [ -x "$BASCULE" ] && command -v script >/dev/null 2>&1; then
-			VU="$(HOME="$D" PATH="$RACINE/config/includes.chroot/usr/bin:$PATH" \
+			#  ⚠ XDG_CONFIG_HOME EST OBLIGATOIRE ICI, ET SON ABSENCE A FAIT
+			#  ROUGIR LA CI. lexos-terminal lit
+			#  « ${XDG_CONFIG_HOME:-$HOME/.config}/lexos » : la variable GAGNE
+			#  sur HOME. Épingler HOME seul laissait donc la sonde lire le
+			#  terminal.env de la machine qui fait tourner le banc — vert ici,
+			#  rouge sur le coureur, qui la définit. Troisième fois que ce
+			#  banc se fait prendre à hériter de l'environnement.
+			VU="$(HOME="$D" XDG_CONFIG_HOME="$D/.config" \
+				PATH="$RACINE/config/includes.chroot/usr/bin:$PATH" \
 				TERM=xterm-256color NO_COLOR="" \
 				env -u COLORTERM script -qec "bash '$BASCULE' etat" /dev/null 2>/dev/null || true)"
 			case "$VU" in
 				*"${ESCB}[${A_256}m"*)
-					ok "$MODE : « lexos terminal » met sa ligne « Mode » dans l'accent du thème ($A_256)" ;;
+					ok "$MODE : « lexos terminal » met sa ligne « Mode » dans l'accent du thème ($A_256)"
+					VU_ACC="$VU_ACC $MODE=$A_256" ;;
 				*)  non "$MODE : « lexos terminal » n'a pas pris l'accent $A_256 — il garde celui d'un autre thème" ;;
 			esac
 		fi
@@ -968,6 +998,19 @@ print(menu._accent())
 			done
 		fi
 	done
+
+	#  LA GARDE : deux modes, deux accents OBSERVÉS, et ils doivent différer.
+	case "$VU_ACC" in
+		*jour=*nuit=*|*nuit=*jour=*)
+			J_OBS="${VU_ACC#* jour=}"; J_OBS="${J_OBS%% *}"
+			N_OBS="${VU_ACC#* nuit=}"; N_OBS="${N_OBS%% *}"
+			if [ "$J_OBS" = "$N_OBS" ]; then
+				non "« lexos terminal » rend le MÊME accent de jour et de nuit ($J_OBS) — la sonde ne lit pas le thème qu'on lui donne"
+			else
+				ok "« lexos terminal » rend deux accents distincts selon le mode ($J_OBS / $N_OBS) — la sonde lit bien le bon fichier"
+			fi ;;
+		*)  non "l'accent de « lexos terminal » n'a pas été observé dans les deux modes — on ne conclut pas qu'il suit le thème" ;;
+	esac
 
 	#  ═══ ET LES DEUX DERNIERS PORTEURS DU VERT MACHINE ═══
 	#  Le repli de ia-agent.py valait 38;5;35 — le vert de LEXOS, pas celui
