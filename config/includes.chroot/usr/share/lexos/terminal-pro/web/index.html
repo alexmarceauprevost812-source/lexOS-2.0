@@ -842,6 +842,14 @@ async function appliquerTheme(){
     t = j && j.theme;
   }catch(e){ return; }
   if(!t) return;
+  //  ON NE REPEINT QUE SI ÇA A CHANGÉ. Cette fonction est appelée au retour de
+  //  la fenêtre ET à intervalle régulier : sans ce test, elle réassignerait le
+  //  thème de chaque volet mille fois par jour, et xterm.js redessine tout à
+  //  chaque assignation. La signature est le thème lui-même, tel que le pont
+  //  l'a rendu — rien d'autre ne décide.
+  const signature = JSON.stringify(t);
+  if(signature === __themePose) return;
+  __themePose = signature;
   const css = document.documentElement.style;
   const pose = (nom, val) => { if(val) css.setProperty(nom, val); };
   pose("--noir",   t.LEXOS_TERM_BG);       // le fond — c'est lui qui faisait
@@ -887,21 +895,40 @@ async function appliquerTheme(){
   //  ne dit rien, il fait seulement croire que le chrome suit le thème.
 }
 
-//  ON RELIT LE THÈME QUAND LA FENÊTRE REVIENT. Il peut changer pendant qu'elle
-//  est au second plan : les Réglages, un autre terminal, ou l'horaire
-//  jour/nuit automatique. Deux écouteurs, aucun sondage — et posés ICI, au
-//  niveau du module, plutôt que dans demarrage() : ils ne dépendent d'aucun
-//  DOM prêt, et un banc peut donc CONSTATER qu'ils existent au lieu de relire
-//  le code en espérant.
-//  CE QU'ILS NE COUVRENT PAS, dit plutôt que laissé à découvrir : « lexos
-//  terminal jour » tapé DANS un volet ne change pas le focus. Le repeint OSC
-//  que la commande émet corrige tout de suite le fond de CE volet ; les seize
-//  couleurs ANSI, elles, attendent le prochain retour de la fenêtre. Un
-//  sondage périodique coûterait une requête par seconde pour un cas qu'un
-//  clic résout.
+//  ═══ ON RELIT LE THÈME, DE DEUX FAÇONS, ET IL EN FAUT DEUX ═══
+//
+//  1. QUAND LA FENÊTRE REVIENT — c'est la voie immédiate. Le thème peut
+//     changer pendant qu'elle est au second plan : les Réglages, un autre
+//     terminal. Les écouteurs sont posés ICI, au niveau du module, plutôt que
+//     dans demarrage() : ils ne dépendent d'aucun DOM prêt, et un banc peut
+//     donc CONSTATER qu'ils existent au lieu de relire le code en espérant.
+//
+//  2. À INTERVALLE RÉGULIER — et c'est ce qui manquait. J'avais écrit ici
+//     qu'« un sondage coûterait une requête par seconde pour un cas qu'un clic
+//     résout ». C'était FAUX, et une relecture l'a montré : la bascule
+//     jour/nuit automatique est une minuterie systemd utilisateur
+//     (lexos-terminal-auto.timer, OnUnitActiveSec=15min) qui lance
+//     « lexos-terminal --appliquer » en Type=oneshot — SANS tty, donc sans
+//     repeint OSC possible, et avec PrivateNetwork=yes, donc sans aucun moyen
+//     de prévenir ce pont. Si la fenêtre reste au premier plan en traversant
+//     19:00, AUCUN clic ne vient : elle gardait l'ancienne palette
+//     indéfiniment. Le même trou couvre « lexos terminal jour » tapé dans un
+//     volet, où le repeint OSC ne change que le fond et le curseur, jamais les
+//     seize emplacements ANSI.
+//
+//  LE COÛT, calculé plutôt que redouté : une requête par MINUTE vers
+//  127.0.0.1, ~200 octets de réponse, et appliquerTheme() se retire tout seul
+//  quand la signature du thème est inchangée — donc aucun volet n'est repeint
+//  sans raison. La minuterie ayant un grain de 15 minutes, une minute de
+//  retard au pire est sans conséquence visible.
+//  Mieux vaudrait que le pont surveille le fichier et le dise sur le flux
+//  qu'il tient déjà ; c'est un changement de protocole, pas une ligne, et le
+//  sondage ferme le trou en attendant.
+let __themePose = null;
 const __relireTheme = () => { if(!document.hidden) appliquerTheme(); };
 document.addEventListener("visibilitychange", __relireTheme);
 window.addEventListener("focus", __relireTheme);
+setInterval(__relireTheme, 60000);
 
 function paletteXterm(){
   const v = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();

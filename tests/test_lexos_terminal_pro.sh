@@ -840,7 +840,7 @@ for (const l of fs.readFileSync(chemEnv, 'utf8').split('\n')) {
   env[t.slice(0, i).trim()] = t.slice(i + 1).trim().replace(/^'(.*)'$/, '$1');
 }
 
-const POSE = {}, ECOUTES = [], REPONSE = { rep: { ok: false }, vues: [] };
+const POSE = {}, ECOUTES = [], MINUTERIES = [], REPONSE = { rep: { ok: false }, vues: [] };
 const noeud = () => ({
   style: { setProperty: (n, v) => { POSE[n] = v; }, removeProperty(){} },
   classList: { add(){}, remove(){}, toggle(){}, contains: () => false },
@@ -870,7 +870,10 @@ const bac = {
               search: '?port=9999&jeton=BANC', hash: '',
               protocol: 'http:', host: '127.0.0.1' },
   fetch: async u => { REPONSE.vues.push(u); return REPONSE.rep; },
-  setTimeout, clearTimeout, setInterval, clearInterval,
+  setTimeout, clearTimeout, clearInterval,
+  //  On ENREGISTRE les minuteries au lieu de les lancer : le banc veut savoir
+  //  qu'il y en a une et à quelle cadence, pas attendre une minute.
+  setInterval: (f, ms) => { MINUTERIES.push(ms); return 0; },
   requestAnimationFrame: f => f(),
   atob: s => Buffer.from(s, 'base64').toString('binary'),
   btoa: s => Buffer.from(s, 'binary').toString('base64'),
@@ -890,18 +893,32 @@ if (!T || !T.paletteXterm || !T.appliquerTheme || !T.FLUX) {
 }
 console.log('charge=ok');
 console.log('ecoutes=' + ECOUTES.join(','));
+console.log('minuteries=' + MINUTERIES.join(','));
 //  AVANT tout thème : le mode démonstration ne doit pas bouger.
 console.log('demo.foreground=' + T.paletteXterm().foreground);
 
 const volet = { id: 'v1', term: { options: { theme: { marqueur: 'ANCIEN' } } } };
 T.FLUX.volets.set('v1', volet);
 REPONSE.rep = { ok: true, json: async () => ({ theme: env }) };
-T.appliquerTheme().then(() => {
+T.appliquerTheme().then(async () => {
   const th = volet.term.options.theme;
   console.log('routes=' + REPONSE.vues.join(','));
   console.log('volet.remplace=' + (th.marqueur === undefined ? 'oui' : 'non'));
   for (const c of ['background', 'foreground', 'yellow', 'green', 'white'])
     console.log('volet.' + c + '=' + th[c]);
+  //  DEUXIÈME APPEL, THÈME IDENTIQUE : rien ne doit être repeint. Sans ça, la
+  //  relecture périodique réassignerait le thème de chaque volet toutes les
+  //  minutes, et xterm.js redessine tout à chaque assignation. On marque
+  //  l'objet et on regarde s'il survit.
+  volet.term.options.theme.temoin = 'INTACT';
+  await T.appliquerTheme();
+  console.log('inchange.intact=' + (volet.term.options.theme.temoin === 'INTACT' ? 'oui' : 'non'));
+  //  TROISIÈME APPEL, THÈME DIFFÉRENT : là il DOIT repeindre.
+  const autre = Object.assign({}, env, { LEXOS_TERM_BG: '#123456' });
+  REPONSE.rep = { ok: true, json: async () => ({ theme: autre }) };
+  await T.appliquerTheme();
+  console.log('change.repeint=' + (volet.term.options.theme.temoin === undefined ? 'oui' : 'non'));
+  console.log('change.background=' + volet.term.options.theme.background);
 }, e => console.log('jete=' + (e && e.message)));
 JSBANC
 	for MODE in nuit jour; do
@@ -954,6 +971,37 @@ JSBANC
 			'#ffffff') ok "$MODE : sans pont, l'encre livrée reste le blanc de la démonstration" ;;
 			*) non "$MODE : sans pont, l'encre vaut « $(lij 'demo.foreground') » au lieu du blanc livré" ;;
 		esac
+		#  5 bis) UN THÈME INCHANGÉ NE REPEINT RIEN, un thème changé repeint.
+		#  C'est ce qui rend la relecture périodique gratuite : sans cette
+		#  garde, chaque volet serait réassigné toutes les minutes et
+		#  xterm.js redessinerait tout à chaque fois.
+		case "$(lij 'inchange.intact')" in
+			oui) ok "$MODE : un thème INCHANGÉ ne repeint aucun volet" ;;
+			*)   non "$MODE : un thème inchangé repeint quand même — la relecture périodique coûterait un redessin par minute" ;;
+		esac
+		if [ "$(lij 'change.repeint')" = oui ] && [ "$(lij 'change.background')" = '#123456' ]; then
+			ok "$MODE : un thème CHANGÉ repeint bien les volets (#123456)"
+		else
+			non "$MODE : un thème changé ne repeint pas — la garde d'idempotence bloque trop"
+		fi
+		#  5 ter) LA RELECTURE PÉRIODIQUE EXISTE, et c'est elle qui ferme le
+		#  trou de la minuterie systemd : lexos-terminal-auto.timer régénère le
+		#  thème toutes les 15 minutes en Type=oneshot, sans tty — donc sans
+		#  repeint OSC — et avec PrivateNetwork=yes, donc sans pouvoir prévenir
+		#  le pont. Une fenêtre restée au premier plan ne reçoit AUCUN
+		#  événement de focus : sans minuterie côté page, elle garderait
+		#  l'ancienne palette indéfiniment.
+		MIN="$(lij minuteries)"
+		if [ -z "$MIN" ]; then
+			non "$MODE : la page ne relit jamais le thème d'elle-même — une fenêtre au premier plan ne verrait pas la bascule automatique"
+		else
+			PREM="${MIN%%,*}"
+			if [ "$PREM" -ge 1000 ] && [ "$PREM" -le 300000 ] 2>/dev/null; then
+				ok "$MODE : la page relit le thème toute seule (${PREM} ms) — la bascule automatique n'a pas besoin d'un clic"
+			else
+				non "$MODE : la cadence de relecture est « $PREM » ms — hors de la plage raisonnable (1 s à 5 min)"
+			fi
+		fi
 		#  6) les écouteurs qui relisent le thème existent — CONSTATÉS, pas lus
 		ECO="$(lij ecoutes)"
 		MANQ=""
