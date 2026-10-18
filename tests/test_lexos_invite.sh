@@ -1069,6 +1069,78 @@ print(menu._accent())
 fi
 
 # =============================================================================
+#  ═══ 10. LE GÉNÉRATEUR ÉCRIT LÀ OÙ LES AUTRES LISENT ═══
+#  SEPTIÈME INSTANCE de cette famille, et la première dans le PRODUIT.
+#  lexos-terminal écrit son mode dans « ${XDG_CONFIG_HOME:-$HOME/.config}/lexos »,
+#  terminal-pro.py y lit le thème, lexfetch aussi — mais lexos-theme-gen
+#  écrivait dans « $TARGET/.config/lexos », donc en IGNORANT la variable.
+#  MESURÉ avant le correctif, avec XDG_CONFIG_HOME posé ailleurs : terminal-mode
+#  atterrit dans le dossier de la variable, terminal.env dans $HOME/.config.
+#  Deux dossiers. Le terminal ne voit JAMAIS la nouvelle palette — et
+#  « lexos terminal nuit » annonce « ✓ » quand même. Un succès annoncé sans
+#  rien avoir changé, ce que la consigne de ce projet interdit.
+#  ⚠ ET « --target » DOIT RESTER INTACT : les hooks de construction le passent
+#  (--target /etc/skel, --target /root) pour écrire dans le squelette du
+#  chroot ; là, XDG_CONFIG_HOME est le dossier de CELUI QUI CONSTRUIT. Ce
+#  point éprouve les TROIS cas, parce que c'est la RÈGLE qu'on garde, pas un
+#  seul de ses cas.
+printf '\n\033[1m═══ 10. LE GÉNÉRATEUR ET XDG_CONFIG_HOME ═══\033[0m\n'
+GEN="$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen"
+if [ ! -x "$GEN" ] && [ ! -r "$GEN" ]; then
+	non "lexos-theme-gen est introuvable — on ne conclut rien"
+else
+	rm -rf "${BANC:?}/xdg"; mkdir -p "$BANC/xdg/var" "$BANC/xdg/skel" "$BANC/xdg/home"
+	#  a) avec --target : la cible gagne, la variable est ignorée.
+	XDG_CONFIG_HOME="$BANC/xdg/var" HOME="$BANC/xdg/home" 		bash "$GEN" orange --terminal nuit --target "$BANC/xdg/skel" >/dev/null 2>&1 || true
+	A_CIBLE=0; A_VAR=0
+	[ -r "$BANC/xdg/skel/.config/lexos/terminal.env" ] && A_CIBLE=1
+	[ -r "$BANC/xdg/var/lexos/terminal.env" ] && A_VAR=1
+	if [ "$A_CIBLE" = 1 ] && [ "$A_VAR" = 0 ]; then
+		ok "avec --target, le thème va dans la CIBLE et la variable est ignorée (le chemin de construction ne bouge pas)"
+	else
+		non "avec --target : cible=$A_CIBLE variable=$A_VAR — la construction de l'ISO écrirait au mauvais endroit"
+	fi
+	#  b) sans --target, la VARIABLE gagne sur HOME.
+	rm -rf "$BANC/xdg/var" "$BANC/xdg/home"
+	mkdir -p "$BANC/xdg/var" "$BANC/xdg/home"
+	XDG_CONFIG_HOME="$BANC/xdg/var" HOME="$BANC/xdg/home" 		bash "$GEN" orange --terminal jour >/dev/null 2>&1 || true
+	B_VAR=0; B_HOME=0
+	[ -r "$BANC/xdg/var/lexos/terminal.env" ] && B_VAR=1
+	[ -r "$BANC/xdg/home/.config/lexos/terminal.env" ] && B_HOME=1
+	if [ "$B_VAR" = 1 ] && [ "$B_HOME" = 0 ]; then
+		ok "sans --target, la VARIABLE gagne sur HOME — le générateur écrit là où le terminal lit"
+	else
+		non "sans --target : variable=$B_VAR HOME=$B_HOME — le mode et la palette iraient dans DEUX dossiers"
+	fi
+	#  c) sans variable du tout : HOME, exactement comme avant ce correctif.
+	rm -rf "$BANC/xdg/home"; mkdir -p "$BANC/xdg/home"
+	env -u XDG_CONFIG_HOME HOME="$BANC/xdg/home" 		bash "$GEN" orange --terminal nuit >/dev/null 2>&1 || true
+	if [ -r "$BANC/xdg/home/.config/lexos/terminal.env" ]; then
+		ok "sans la variable, HOME reste le dossier — rien n'a changé pour qui ne la pose pas"
+	else
+		non "sans la variable, le thème n'atterrit plus dans HOME — ce correctif a cassé le cas ordinaire"
+	fi
+	#  d) ET LE MODE ET LA PALETTE DOIVENT ÊTRE DANS LE MÊME DOSSIER. C'est LE
+	#     point : c'est leur séparation qui faisait mentir « lexos terminal ».
+	BASC="$RACINE/config/includes.chroot/usr/bin/lexos-terminal"
+	if [ ! -r "$BASC" ]; then
+		non "lexos-terminal est introuvable — l'essentiel de ce contrôle n'est PAS vérifié"
+	else
+		rm -rf "$BANC/xdg/ens"; mkdir -p "$BANC/xdg/ens/var" "$BANC/xdg/ens/home"
+		XDG_CONFIG_HOME="$BANC/xdg/ens/var" HOME="$BANC/xdg/ens/home" 			PATH="$RACINE/config/includes.chroot/usr/bin:$PATH" 			setsid --wait bash "$BASC" nuit </dev/null >/dev/null 2>&1 || true
+		D_MODE=0; D_ENV=0
+		[ -r "$BANC/xdg/ens/var/lexos/terminal-mode" ] && D_MODE=1
+		[ -r "$BANC/xdg/ens/var/lexos/terminal.env" ] && D_ENV=1
+		D_EFF="$(sed -n 's/^LEXOS_TERM_EFFECTIF=//p' "$BANC/xdg/ens/var/lexos/terminal.env" 2>/dev/null)"
+		if [ "$D_MODE" = 1 ] && [ "$D_ENV" = 1 ] && [ "$D_EFF" = nuit ]; then
+			ok "« lexos terminal nuit » pose le mode ET la palette dans le MÊME dossier, et l'effectif y est « nuit »"
+		else
+			non "mode=$D_MODE palette=$D_ENV effectif=«$D_EFF» — le terminal lirait un thème que personne ne met à jour, pendant que la commande annonce « ✓ »"
+		fi
+	fi
+fi
+
+# =============================================================================
 printf '\n\033[1m═══ VERDICT ═══\033[0m\n'
 printf '  %d réussis, %d échoués\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ] || exit 1

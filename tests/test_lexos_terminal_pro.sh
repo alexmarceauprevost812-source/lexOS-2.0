@@ -106,11 +106,55 @@ sys.stdout.write(" ".join(mots))
 PY
 	CODE_PONT="$(cat "$BANC/pont-code.txt")"
 	MORTS=""
-	for MOTIF in "def executer" "def ansi_vers_html" "LISTE_TUI" "DELAI_MAX" "capture_output" "DEVNULL"; do
+	#  Ces quatre-là sont SANS AMBIGUÏTÉ : ils n'ont qu'un sens, celui de
+	#  l'ancien chemin. Interdits partout, sans exception.
+	for MOTIF in "def executer" "def ansi_vers_html" "LISTE_TUI" "DELAI_MAX"; do
 		grep -qF "$MOTIF" <<< "$CODE_PONT" && MORTS="$MORTS $MOTIF"
 	done
+	#  ═══ « capture_output » ET « DEVNULL » SONT GÉNÉRIQUES — ON LES SITUE ═══
+	#  CE QUI S'EST PASSÉ : ce garde les interdisait dans TOUT le fichier, et
+	#  il a rougi le jour où le menu de réglages a eu besoin de lancer
+	#  « lexos-terminal nuit » — une commande COURTE et NON INTERACTIVE, pour
+	#  laquelle capturer la sortie et fermer l'entrée est exactement juste.
+	#
+	#  LA TENTATION ÉTAIT D'ÉCRIRE « stdout=PIPE » ET « open(os.devnull) »
+	#  POUR PASSER SOUS LE GARDE. On ne le fait pas : le garde serait vert
+	#  pendant que la chose qu'il surveille serait là. Un garde qui lit une
+	#  ORTHOGRAPHE ne garde rien — c'est la règle de ce dépôt.
+	#
+	#  On le rend donc PRÉCIS plutôt que large : ces deux primitives sont
+	#  interdites dans le chemin de la SESSION, et permises dans la seule
+	#  fonction nommée ici. L'interdit garde son sens, et il devient
+	#  vérifiable : si quelqu'un les réintroduit près du pty, c'est rouge.
+	python3 - "$BACKEND" > "$BANC/pont-ou.txt" <<'PYOU'
+import ast, sys
+#  La SEULE fonction où ces primitives sont attendues.
+PERMIS = {"lancer_mode"}
+arbre = ast.parse(open(sys.argv[1], encoding="utf-8").read())
+#  ast ne dit pas dans quelle fonction est un noeud : on le pose en descendant.
+def marquer(n, ou):
+    for e in ast.iter_child_nodes(n):
+        e._ou = ou
+        suite = e.name if isinstance(e, (ast.FunctionDef, ast.AsyncFunctionDef)) else ou
+        marquer(e, suite)
+marquer(arbre, "<module>")
+fautes = set()
+for n in ast.walk(arbre):
+    ou = getattr(n, "_ou", "<module>")
+    if ou in PERMIS:
+        continue
+    if isinstance(n, ast.keyword) and n.arg == "capture_output":
+        fautes.add("capture_output dans " + ou)
+    if isinstance(n, ast.Attribute) and n.attr == "DEVNULL":
+        fautes.add("DEVNULL dans " + ou)
+    if isinstance(n, ast.Name) and n.id == "DEVNULL":
+        fautes.add("DEVNULL dans " + ou)
+sys.stdout.write(" ".join(sorted(fautes)))
+PYOU
+	HORS="$(cat "$BANC/pont-ou.txt")"
+	[ -n "$HORS" ] && MORTS="$MORTS $HORS"
 	if [ -z "$MORTS" ]; then
-		ok "l'ancien chemin (bash jetable, entrée fermée, délai, journal de lignes) a bien disparu"
+		ok "l'ancien chemin (bash jetable, entrée fermée, délai, journal de lignes) a bien disparu, et capture_output/DEVNULL ne vivent que dans lancer_mode"
 	else
 		non "l'ancien chemin est de retour dans le pont :$MORTS"
 	fi

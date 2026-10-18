@@ -627,6 +627,122 @@ dit(ennuis.length === 0,
   await p5.close(); trois.proc.kill(); quatre.proc.kill();
 }
 
+//  ═══ LE MENU « PARAMÈTRES DU TERMINAL », CLIQUÉ POUR DE VRAI ═══
+//  ALEX : « aimerai on metre en haut de la fenetre capable de changer les
+//  couleur du terminal » · « un ti menu » · « parametre du termnal ».
+//  Il ne peint RIEN : chaque clic lance « lexos-terminal jour|nuit|auto » par
+//  le pont et repeint avec le thème que le pont REND. terminal.env reste la
+//  seule source de couleur de tout LexOS.
+{
+  const pm = await nav.newPage({viewport: {width: 1200, height: 760}});
+  await pm.goto(adresse);
+  await pm.waitForFunction(() => window.__banc && window.__banc.FLUX.volets.size > 0);
+  await pm.waitForTimeout(700);
+  const lire = () => pm.evaluate(() => {
+    const p = document.getElementById("panneau-reglages");
+    const r = document.getElementById("pan-raison");
+    const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    const v = [...window.__banc.FLUX.volets.values()][0];
+    return {
+      ouvert: !p.hidden,
+      aria: document.getElementById("reglages").getAttribute("aria-expanded"),
+      coche: [...p.querySelectorAll("[data-mode]")].filter(b => b.getAttribute("aria-checked") === "true").map(b => b.dataset.mode),
+      grises: [...p.querySelectorAll("[data-mode]")].filter(b => b.disabled).map(b => b.dataset.mode),
+      raison: r.hidden ? "" : r.textContent,
+      fond: css("--noir"),
+      fondTerm: v && v.term.options.theme && v.term.options.theme.background,
+      taille: document.getElementById("pan-taille").textContent,
+    };
+  });
+  const ferme = await lire();
+  await pm.click('#reglages');
+  const ouvert = await lire();
+  dit(ferme.ouvert === false && ferme.aria === "false"
+      && ouvert.ouvert === true && ouvert.aria === "true",
+      'le menu s\'ouvre au clic et le dit aux lecteurs d\'écran (aria-expanded '
+      + ferme.aria + ' → ' + ouvert.aria + ')');
+
+  //  ═══ CE QUE LE CLIC FAIT, ET CE QU'IL DIT QUAND IL NE PEUT PAS ═══
+  //  ⚠ CE BANC TOURNE EN ROOT SUR LE COUREUR, et la route refuse en root —
+  //  en root le thème changé serait celui de root, donc l'action aurait l'air
+  //  d'avoir marché sans rien changer pour Alex. On mesure donc la BRANCHE
+  //  qui s'applique, et on DIT laquelle : en root, que le refus du pont est
+  //  montré TEL QUEL ; autrement, que la fenêtre repeint vraiment.
+  const fondAvant = (await lire()).fond;
+  await pm.click('[data-mode="jour"]');
+  await pm.waitForTimeout(3000);
+  const apres = await lire();
+  if (process.geteuid && process.geteuid() === 0) {
+    dit(/root/.test(apres.raison) && apres.fond === fondAvant,
+        'lancé EN ROOT : le menu montre la raison du pont TELLE QUELLE et ne '
+        + 'repeint rien (« ' + apres.raison.slice(0, 80) + ' »)');
+  } else {
+    dit(apres.coche.join() === "jour" && apres.fond === "#F7F5F0"
+        && apres.fondTerm === "#F7F5F0",
+        'un clic sur « Jour » lance la commande du système et repeint la page '
+        + 'ET le terminal (coché ' + JSON.stringify(apres.coche) + ', fond '
+        + apres.fond + ', fond du terminal ' + apres.fondTerm + ')');
+  }
+
+  //  La taille, par les boutons du menu — elle ne passe pas par le pont, donc
+  //  elle marche dans les deux cas.
+  //  ⚠ ON MESURE UN ÉCART, PAS UNE VALEUR. Première écriture de ce point :
+  //  « grandi === "14,5 px" », en supposant qu'on partait du défaut. Faux —
+  //  le contrôle de persistance, quelques lignes plus haut dans CE banc, a
+  //  laissé 18,5 px dans la configuration, et deux clics ont donné 20,5. Le
+  //  point rougissait sur du code juste. Un banc ne doit rien supposer de
+  //  l'état qu'il trouve : il lit avant, il lit après, il compare.
+  const avantT = parseFloat((await lire()).taille.replace(",", "."));
+  await pm.click('#pan-plus');
+  await pm.click('#pan-plus');
+  const grandi = parseFloat((await lire()).taille.replace(",", "."));
+  await pm.click('#pan-zero');
+  const remis = parseFloat((await lire()).taille.replace(",", "."));
+  const defaut = await pm.evaluate(() => window.__banc.TAILLE_DEFAUT);
+  dit(grandi === avantT + 2 && remis === defaut,
+      'les boutons de taille du menu agrandissent de deux crans et remettent '
+      + 'au défaut (' + avantT + ' → ' + grandi + ' → ' + remis
+      + ', défaut ' + defaut + ')');
+
+  await pm.keyboard.press('Escape');
+  await pm.waitForTimeout(250);
+  dit((await lire()).ouvert === false, 'Échap referme le menu');
+  await pm.close();
+}
+
+//  ═══ EN DÉMONSTRATION, LE MENU EST GRISÉ *AVEC SA RAISON* ═══
+//  La consigne du projet l'exige : toute action indisponible est désactivée
+//  avec une raison explicite — jamais grisée en silence, jamais présentée
+//  comme faite. Sans pont, « lexos terminal » ne peut pas être lancée.
+//  ⚠ ET LA TAILLE DOIT RESTER UTILISABLE : elle est locale, elle ne passe pas
+//  par le pont. Tout griser serait plus simple et faux.
+{
+  const pd = await nav.newPage({viewport: {width: 1200, height: 760}});
+  //  La page SANS ?port= ni ?jeton= : c'est exactement le mode démonstration.
+  await pd.goto(`http://127.0.0.1:${port}/index.html`);
+  await pd.waitForTimeout(1500);
+  await pd.click('#reglages');
+  const e = await pd.evaluate(() => {
+    const p = document.getElementById("panneau-reglages");
+    const r = document.getElementById("pan-raison");
+    return {grises: [...p.querySelectorAll("[data-mode]")].filter(b => b.disabled).map(b => b.dataset.mode),
+            raison: r.hidden ? "" : r.textContent};
+  });
+  dit(e.grises.length === 3 && /Indisponible/.test(e.raison)
+      && /lexos terminal/.test(e.raison),
+      'en démonstration les trois modes sont grisés AVEC leur raison ('
+      + JSON.stringify(e.grises) + ' — « ' + e.raison.slice(0, 70) + '… »)');
+  //  Même règle : un ÉCART, pas une valeur — le localStorage de cette origine
+  //  garde ce que les pages précédentes de ce banc y ont laissé.
+  const dAvant = await pd.evaluate(() => window.__banc.TAILLE);
+  await pd.click('#pan-plus');
+  const dApres = await pd.evaluate(() => window.__banc.TAILLE);
+  dit(dApres === dAvant + 1,
+      '…et la taille du texte reste utilisable sans pont — on n\'a pas tout '
+      + 'grisé (' + dAvant + ' → ' + dApres + ')');
+  await pd.close();
+}
+
 await nav.close(); proc.kill();
 JS
 

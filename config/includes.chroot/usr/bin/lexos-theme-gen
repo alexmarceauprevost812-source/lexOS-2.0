@@ -15,12 +15,15 @@ ACCENT_NAME=""
 MODE=""
 TERM_MODE=""
 TARGET="$HOME"
+#  Posé par « --target » seulement : voir CONF_DIR plus bas.
+TARGET_EXPLICITE=""
 
 # --- Arguments ---------------------------------------------------------------
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--target)
 			TARGET="${2:-$HOME}"
+			TARGET_EXPLICITE="oui"
 			shift 2
 			;;
 		--terminal)
@@ -49,7 +52,32 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-CONF_DIR="$TARGET/.config/lexos"
+#  ═══ LA VARIABLE GAGNE SUR HOME — ICI AUSSI, ENFIN ═══
+#  SEPTIÈME FOIS QUE CETTE FAMILLE FRAPPE, et la première dans le PRODUIT et
+#  non dans un banc. lexos-terminal écrit son mode dans
+#  « ${XDG_CONFIG_HOME:-$HOME/.config}/lexos », terminal-pro.py y lit le
+#  thème, lexfetch aussi — mais ce générateur-ci écrivait dans
+#  « $TARGET/.config/lexos », c'est-à-dire en IGNORANT XDG_CONFIG_HOME.
+#
+#  CE QUE ÇA DONNAIT, MESURÉ. Avec XDG_CONFIG_HOME posé ailleurs que
+#  $HOME/.config : « lexos terminal nuit » écrit terminal-mode dans le dossier
+#  de la variable, puis appelle ce script, qui régénère terminal.env dans
+#  $HOME/.config. Les deux fichiers atterrissent dans DEUX dossiers. Le
+#  terminal, qui lit par la variable, ne voit jamais la nouvelle palette — et
+#  la commande annonce « ✓ Terminal de nuit » quand même. Un succès annoncé
+#  sans rien avoir changé : exactement ce que la consigne de ce projet
+#  interdit.
+#
+#  ⚠ « --target » N'EST PAS CONCERNÉ, et c'est la raison du garde. Les hooks
+#  de construction passent « --target » pour écrire dans le squelette du
+#  chroot ; XDG_CONFIG_HOME, là, désigne le dossier de CELUI QUI CONSTRUIT et
+#  n'a rien à voir avec la cible. La variable ne l'emporte donc QUE quand
+#  personne n'a nommé de cible.
+if [[ -n "$TARGET_EXPLICITE" ]]; then
+	CONF_DIR="$TARGET/.config/lexos"
+else
+	CONF_DIR="${XDG_CONFIG_HOME:-$TARGET/.config}/lexos"
+fi
 [[ -z "$ACCENT_NAME" && -r "$CONF_DIR/accent" ]] && ACCENT_NAME="$(cat "$CONF_DIR/accent")"
 [[ -z "$ACCENT_NAME" ]] && ACCENT_NAME="orange"
 

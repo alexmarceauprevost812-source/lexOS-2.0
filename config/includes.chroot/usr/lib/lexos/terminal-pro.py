@@ -74,9 +74,11 @@ import pty
 import re
 import secrets
 import shlex
+import shutil
 import signal
 import socket
 import struct
+import subprocess
 import sys
 import tempfile
 import termios
@@ -217,6 +219,96 @@ def ecrire_reglages(nouveaux):
             except OSError:
                 pass
         return False, "%s : %s" % (dossier, e.strerror or e)
+
+
+#  ═══ LE MENU LANCE LES COMMANDES DU SYSTÈME, IL NE PEINT RIEN LUI-MÊME ═══
+#
+#  ALEX : « aimerai on metre en haut de la fenetre capable de changer les
+#  couleur du terminal ».
+#
+#  LA TENTATION ÉTAIT DE POSER LES COULEURS DANS LA PAGE. On ne le fait pas :
+#  « terminal.env » est la SEULE source de couleur de tout LexOS — l'invite,
+#  lexfetch, tmux, le menu d'audit, xfce4-terminal et cette page la lisent
+#  tous. Une page qui se peindrait elle-même dirait, dès le premier clic, le
+#  contraire de tous les autres terminaux. C'est précisément la divergence que
+#  ce dépôt a passé des jours à éliminer.
+#
+#  CE QU'ON LANCE, ET CE QU'ON NE LANCE PAS. « lexos-terminal jour|nuit|auto »
+#  ne touche QUE la palette du terminal — l'aide du système le dit :
+#  « indépendante du bureau ». « lexos accent <couleur> », lui, repeint TOUT
+#  LexOS et finit par « ferme et rouvre tes fenêtres » : Alex a demandé les
+#  couleurs du TERMINAL, donc l'accent n'est pas dans ce menu. Ce n'est pas un
+#  oubli, c'est le périmètre demandé.
+#
+#  MESURÉ AVANT D'ÉCRIRE CECI : « lexos-terminal nuit », lancé sans tty et
+#  sans DISPLAY, rend 0, écrit LEXOS_TERM_EFFECTIF=nuit et imprime une ligne
+#  (« ✓ Terminal de nuit — LexOS Noir. »). repeindre_ici() ouvre /dev/tty et
+#  rend 0 quand il n'y en a pas, donc l'absence de terminal est déjà prévue
+#  par le script lui-même.
+#
+#  LA TABLE EST FERMÉE ET LES ARGUMENTS SONT DES LITTÉRAUX. La page n'envoie
+#  qu'une CLEF ; rien de ce qu'elle dit n'atteint jamais argv. Pas de
+#  shell=True, pas de concaténation, pas de shlex : il n'y a rien à échapper
+#  puisqu'il n'y a rien de variable.
+_MODES_COMMANDE = {
+    "jour": ("lexos-terminal", "jour"),
+    "nuit": ("lexos-terminal", "nuit"),
+    "auto": ("lexos-terminal", "auto"),
+}
+
+
+def lancer_mode(mode):
+    """Lance la commande du système pour ce mode. Rend (True, dit) ou (False, raison).
+
+    LA MÉCANIQUE EST ICI, LA POLITIQUE EST DANS LA ROUTE — et c'est voulu.
+    Le refus de tourner en root appartient à la route ; le banc, lui, tourne
+    EN root sur le coureur, et doit pouvoir éprouver que la commande marche
+    vraiment. Les deux sont donc séparés, et chacun se mesure."""
+    argv = _MODES_COMMANDE.get(mode if isinstance(mode, str) else "")
+    if argv is None:
+        return False, "mode inconnu (jour, nuit ou auto)"
+    #  « Indisponible » ET SA RAISON : la consigne du projet interdit de
+    #  présenter une action comme faite quand l'outil n'est pas là.
+    chemin = shutil.which(argv[0])
+    if chemin is None:
+        return False, "Indisponible : « %s » est introuvable dans le PATH" % argv[0]
+    try:
+        r = subprocess.run((chemin,) + argv[1:], stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=25)
+    except subprocess.TimeoutExpired:
+        return False, "« %s %s » n'a pas répondu en 25 s" % argv
+    except OSError as e:
+        return False, "« %s » n'a pas pu être lancé : %s" % (argv[0], e)
+    if r.returncode != 0:
+        #  On REND ce que la commande a dit, tronqué : un échec muet
+        #  n'apprendrait rien à celui qui vient de cliquer.
+        dit = (r.stderr or r.stdout or "").strip().splitlines()
+        return False, "« %s %s » a échoué (code %d)%s" % (
+            argv[0], argv[1], r.returncode,
+            (" : " + dit[-1][:160]) if dit else "")
+    lignes = (r.stdout or "").strip().splitlines()
+    return True, (lignes[-1][:160] if lignes else "")
+
+
+def lire_mode_choisi():
+    """Le mode que l'utilisateur a CHOISI : jour, nuit, auto, suivre — ou "".
+
+    ⚠ CE N'EST PAS « LEXOS_TERM_MODE ». Je l'ai cru, et la mesure m'a démenti :
+    après « lexos terminal auto », terminal.env porte LEXOS_TERM_MODE=nuit ET
+    LEXOS_TERM_EFFECTIF=nuit — lexos-theme-gen RÉSOUT « auto » avant d'écrire,
+    si bien que les deux clefs disent la même chose et qu'aucune ne garde le
+    choix. Le choix, lui, est dans « terminal-mode », une ligne, écrite par
+    lexos-terminal lui-même (F_MODE). Mesuré : ce fichier contenait « auto »
+    au même instant où les deux clefs disaient « nuit ».
+    Sans ça le menu cocherait « Nuit » juste après un clic sur « Auto » :
+    exactement ce qu'un premier essai dans un vrai navigateur a montré."""
+    try:
+        with open(os.path.join(dossier_conf(), "terminal-mode"),
+                  encoding="utf-8") as f:
+            val = f.read(64).strip()
+    except (OSError, UnicodeDecodeError):
+        return ""
+    return val if val in _MODES else ""
 
 
 def lire_theme(chemin=None):
@@ -704,7 +796,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         entre dans la même matrice, elle n'est pas posée à côté."""
         if not self._autorise():
             return
-        return self._json(200, {"ok": True, "theme": lire_theme()})
+        return self._json(200, {"ok": True, "theme": lire_theme(),
+                                "mode_choisi": lire_mode_choisi()})
 
     #  ═══ PIÈCE 3 — LE TUYAU, SENS PONT → PAGE ═══
     def _flux(self, params):
@@ -897,6 +990,38 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                                               + raison})
         return self._json(200, {"ok": True, "reglages": lire_reglages()})
 
+    def _poser_mode(self):
+        """POST /api/mode — la palette du terminal, par la commande du système."""
+        if not self._autorise():
+            return
+        requete = self._corps()
+        if requete is None:
+            return
+        mode = requete.get("mode") if isinstance(requete, dict) else None
+        if mode not in _MODES_COMMANDE:
+            return self._json(400, {"ok": False,
+                                    "erreur": "mode inconnu (jour, nuit ou auto)"})
+        #  ═══ JAMAIS EN ROOT ═══
+        #  La consigne du projet est explicite, et ici elle a un sens concret :
+        #  en root on écrirait le thème de root, pas celui d'Alex — l'action
+        #  aurait l'air d'avoir marché et n'aurait rien changé pour lui. On
+        #  refuse donc EN DISANT POURQUOI, pour que le menu se grise avec sa
+        #  raison au lieu de mentir.
+        if os.geteuid() == 0:
+            return self._json(403, {
+                "ok": False,
+                "erreur": "Indisponible : en root, le thème changé serait celui "
+                          "de root et non le vôtre"})
+        pose, dit = lancer_mode(mode)
+        if not pose:
+            return self._json(500, {"ok": False, "erreur": dit})
+        #  LE THÈME FRAIS VOYAGE AVEC LA RÉPONSE : la page repeint tout de
+        #  suite, sans un second aller-retour pendant lequel la fenêtre
+        #  resterait dans l'ancienne palette.
+        return self._json(200, {"ok": True, "mode": mode, "dit": dit,
+                                "theme": lire_theme(),
+                                "mode_choisi": lire_mode_choisi()})
+
     def do_POST(self):
         #  ═══ REMIS À ZÉRO À CHAQUE REQUÊTE, PAS À CHAQUE CONNEXION ═══
         #  Aujourd'hui ce pont parle HTTP/1.0 : « close_connection » est vrai
@@ -913,6 +1038,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self._corps_lu = False
         if self.path == "/api/reglages":
             return self._reglages_ecrire()
+        if self.path == "/api/mode":
+            return self._poser_mode()
         if self.path in ("/api/saisie", "/api/taille", "/api/fermer",
                          "/api/ouvrir"):
             return self._route_pty(self.path)

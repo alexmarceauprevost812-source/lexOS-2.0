@@ -453,6 +453,129 @@ if __avant is None:
 else:
     os.environ["XDG_CONFIG_HOME"] = __avant
 
+#  ═══ LE MENU LANCE LA COMMANDE DU SYSTÈME, ET RIEN D'AUTRE ═══
+#  ALEX : « aimerai on metre en haut de la fenetre capable de changer les
+#  couleur du terminal ». Le menu ne peint rien lui-même : il lance
+#  « lexos-terminal jour|nuit|auto ». terminal.env reste la seule source de
+#  couleur de tout LexOS, et une page qui se peindrait elle-même dirait dès le
+#  premier clic le contraire de tous les autres terminaux.
+#
+#  CE QUE CES POINTS GARDENT. La table est FERMÉE et les arguments sont des
+#  LITTÉRAUX : la page n'envoie qu'une CLEF, et rien de ce qu'elle dit
+#  n'atteint jamais argv. Pas de shell=True, pas de concaténation — il n'y a
+#  rien à échapper puisqu'il n'y a rien de variable. On le MESURE en poussant
+#  des clefs hostiles, « jour; rm -rf / » comprise.
+dit(sorted(tp._MODES_COMMANDE) == ["auto", "jour", "nuit"],
+    "la table des commandes est fermée à trois modes (%r)"
+    % (sorted(tp._MODES_COMMANDE),))
+dit(all(isinstance(v, tuple) and v[0] == "lexos-terminal" and len(v) == 2
+        for v in tp._MODES_COMMANDE.values()),
+    "…et chaque entrée est un argv LITTÉRAL de deux éléments, jamais une chaîne "
+    "de shell (%r)" % (sorted(tp._MODES_COMMANDE.values()),))
+
+HOSTILES = []
+for __CLEF in ("accent", "jour; rm -rf /", "jour && reboot", "../../bin/sh",
+               "$(id)", "`id`", "jour nuit", "JOUR", "", None, 42, ["jour"],
+               {"mode": "jour"}, "jour\n", " jour"):
+    __ok, __dit = tp.lancer_mode(__CLEF)
+    if __ok or "inconnu" not in __dit:
+        HOSTILES.append((__CLEF, __ok, __dit))
+dit(not HOSTILES,
+    "quinze clefs hostiles sont toutes refusées « mode inconnu » — y compris "
+    "« jour; rm -rf / » (passées à travers : %r)" % (HOSTILES[:2],))
+
+#  ═══ ET LA COMMANDE MARCHE VRAIMENT ═══
+#  La MÉCANIQUE est éprouvée ici, séparément de la POLITIQUE : le refus de
+#  tourner en root appartient à la route, et ce banc tourne EN root sur le
+#  coureur. Sans cette séparation, le chemin du succès ne serait mesuré nulle
+#  part en CI.
+#  ⚠ ON ÉPINGLE XDG_CONFIG_HOME : sinon cette sonde réécrirait le thème de la
+#  machine qui fait tourner le banc. Sixième fois que ce chantier doit s'en
+#  souvenir.
+__CONF = tempfile.mkdtemp()
+__GARDE = os.environ.get("XDG_CONFIG_HOME")
+os.environ["XDG_CONFIG_HOME"] = __CONF
+#  ⚠ ET LE PATH : « lexos-terminal » n'est pas installé sur le coureur, il est
+#  DANS LE DÉPÔT. Sans cette ligne les trois points ci-dessous rougissaient en
+#  « Indisponible : « lexos-terminal » est introuvable dans le PATH » — ce qui
+#  est le bon message, mais pour la mauvaise raison. On le pointe donc sur
+#  l'arbre, comme les autres bancs de ce dépôt le font déjà.
+__BIN = os.path.dirname(sys.argv[1]).replace("/lib/lexos", "/bin")
+__PATH_GARDE = os.environ.get("PATH", "")
+os.environ["PATH"] = __BIN + os.pathsep + __PATH_GARDE
+__VUS = []
+for __M, __ATTENDU in (("nuit", "nuit"), ("jour", "jour"), ("auto", "auto")):
+    __ok, __dit = tp.lancer_mode(__M)
+    #  Le mode CHOISI, pas le mode résolu : après « auto », terminal.env porte
+    #  LEXOS_TERM_MODE=nuit ET _EFFECTIF=nuit — lexos-theme-gen RÉSOUT « auto »
+    #  avant d'écrire. Le choix est dans « terminal-mode », et c'est lui que le
+    #  menu doit cocher. Mesuré : cocher sur LEXOS_TERM_MODE faisait cocher
+    #  « Nuit » juste après un clic sur « Auto ».
+    __VUS.append((__M, __ok, tp.lire_mode_choisi(), __dit[:40]))
+dit(all(v[1] and v[2] == v[0] for v in __VUS),
+    "« lexos-terminal jour|nuit|auto » tourne et le mode CHOISI est relu tel "
+    "quel (%r)" % (__VUS,))
+dit(bool(tp.lire_theme().get("LEXOS_TERM_PALETTE")),
+    "…et le thème est régénéré derrière, palette comprise")
+#  « auto » est RÉSOLU dans terminal.env : c'est exactement pourquoi le menu ne
+#  peut pas s'y fier.
+tp.lancer_mode("auto")
+dit(tp.lire_mode_choisi() == "auto"
+    and tp.lire_theme().get("LEXOS_TERM_EFFECTIF") in ("jour", "nuit"),
+    "après « auto », le choix reste « auto » mais l'effectif est résolu (%r / %r)"
+    % (tp.lire_mode_choisi(), tp.lire_theme().get("LEXOS_TERM_EFFECTIF")))
+
+#  ═══ « INDISPONIBLE » ET SA RAISON, PLUTÔT QU'UN SUCCÈS INVENTÉ ═══
+#  La consigne du projet l'exige : si une action est impossible, on le dit et
+#  on dit pourquoi — jamais une valeur inventée, jamais un échec muet. On
+#  retire donc « lexos-terminal » du PATH et on regarde ce qui sort.
+os.environ["PATH"] = "/nulle/part"
+__ok, __dit = tp.lancer_mode("nuit")
+dit(not __ok and "Indisponible" in __dit and "lexos-terminal" in __dit
+    and "PATH" in __dit,
+    "sans « lexos-terminal » dans le PATH : « Indisponible » AVEC sa raison, "
+    "pas un succès inventé (« %s »)" % (__dit,))
+os.environ["PATH"] = __BIN + os.pathsep + __PATH_GARDE
+
+#  ═══ LA ROUTE : LES DEUX SERRURES, ET LA POLITIQUE ═══
+def mode_route(corps, entetes=BON):
+    c, r = appel("/api/mode", entetes, corps=json.dumps(corps).encode(), delai=40)
+    try:
+        return c, (json.loads(r.read()) if r is not None else {})
+    except Exception:
+        return c, {}
+
+code, _ = mode_route({"mode": "nuit"}, {"Content-Type": "application/json"})
+dit(code == 403, "POST /api/mode sans jeton : refusé (reçu %r)" % (code,))
+code, _ = mode_route({"mode": "nuit"},
+                     dict(BON, **{"Origin": "http://mechant.example"}))
+dit(code == 403, "POST /api/mode sur une origine étrangère : refusé (reçu %r)" % (code,))
+code, rep = mode_route({"mode": "accent"})
+dit(code == 400 and "inconnu" in str(rep.get("erreur", "")),
+    "un mode inconnu est refusé par la ROUTE aussi (reçu %r : %r)"
+    % (code, rep.get("erreur")))
+
+#  ═══ JAMAIS EN ROOT, ET LE REFUS DIT POURQUOI ═══
+#  Ce point mesure DEUX choses selon qui lance le banc, et le dit. En root —
+#  le cas du coureur — on exige le refus AVEC sa raison : en root le thème
+#  changé serait celui de root, donc l'action aurait l'air d'avoir marché sans
+#  rien changer pour Alex. Autrement, on exige qu'elle marche.
+code, rep = mode_route({"mode": "nuit"})
+if os.geteuid() == 0:
+    dit(code == 403 and "root" in str(rep.get("erreur", "")),
+        "lancé EN ROOT : la route refuse de changer le thème ET dit pourquoi "
+        "(reçu %r : %r)" % (code, rep.get("erreur")))
+else:
+    dit(code == 200 and rep.get("mode_choisi") == "nuit"
+        and bool(rep.get("theme")),
+        "lancé en utilisateur : la route pose le mode et REND le thème frais "
+        "pour que la page repeigne sans second aller-retour (reçu %r)" % (code,))
+if __GARDE is None:
+    os.environ.pop("XDG_CONFIG_HOME", None)
+else:
+    os.environ["XDG_CONFIG_HOME"] = __GARDE
+os.environ["PATH"] = __PATH_GARDE
+
 #  ═══ LES DEUX ÉCRITURES DES BORNES DOIVENT S'ACCORDER ═══
 #  La page porte un REPLI (let TAILLE_DEFAUT = 12,5, MIN = 7, MAX = 32) qui ne
 #  sert qu'en mode démonstration, là où il n'y a pas de pont à interroger. Si

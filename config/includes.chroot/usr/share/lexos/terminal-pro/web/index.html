@@ -164,6 +164,74 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-chr
 #audit .pic{font-size:15px;color:var(--accent-chrome)}
 #audit:hover{background:var(--chrome-hi);color:var(--accent-chrome)}
 @media(max-width:680px){#audit .libelle{display:none}#audit{padding:0 10px}}
+/* ---------- le menu « Paramètres du terminal » ---------- */
+/*  ⚠ CE MENU VIT DANS LE CHROME, donc il emploie les jetons FIGÉS
+    (--encre-chrome, --accent-chrome) et NON --texte ni --orange. Ces
+    deux-là deviennent les couleurs du THÈME : en thème clair ils valent
+    #1B1A17 et #A84007, faits pour un fond crème, et tombent à 1,08:1 et
+    3,24:1 sur le chrome resté sombre. C'est mesuré et c'est écrit vingt
+    lignes plus haut, dans :root — ce menu ne refait pas cette faute.  */
+#reglages{
+  flex:none;display:flex;align-items:center;gap:6px;
+  padding:0 12px;color:var(--texte-2);font-size:12px;
+  border-left:1px solid var(--ligne);white-space:nowrap;
+}
+#reglages .pic{font-size:14px;color:var(--accent-chrome)}
+#reglages:hover,#reglages[aria-expanded="true"]{background:var(--chrome-hi);color:var(--accent-chrome)}
+@media(max-width:680px){#reglages .libelle{display:none}#reglages{padding:0 10px}}
+.panneau{
+  position:absolute;z-index:40;top:38px;right:8px;
+  min-width:240px;max-width:min(320px, calc(100vw - 16px));
+  background:var(--chrome);color:var(--encre-chrome);
+  border:1px solid var(--ligne-vive);border-radius:8px;
+  box-shadow:0 10px 28px rgba(0,0,0,.55);
+  padding:8px;font-size:12px;
+}
+.panneau[hidden]{display:none}
+/*  --texte-2 ET NON --texte-3, et c'est une mesure qui l'a décidé. --texte-3
+    sur le chrome rend 4,27:1 : au-dessus du seuil 3:1 des GRANDS textes, mais
+    en dessous du 4,5:1 qu'exige le texte normal — et 10 px n'est pas un grand
+    texte. Se donner le seuil des grands textes pour s'y conformer aurait été
+    une complaisance. --texte-2 rend 10,82:1 ; la hiérarchie vient de la
+    taille, des capitales et de l'interlettrage, pas d'un gris trop faible.  */
+.pan-titre{
+  color:var(--texte-2);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  padding:4px 6px 6px;opacity:.92;
+}
+.pan-ligne{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pan-choix{
+  flex:none;padding:5px 10px;font-size:12px;
+  color:var(--encre-chrome);background:var(--chrome-hi);
+  border:1px solid var(--ligne-vive);border-radius:6px;
+}
+.pan-choix:hover:not([disabled]){border-color:var(--accent-chrome);color:var(--accent-chrome)}
+.pan-choix[aria-checked="true"]{
+  background:var(--accent-chrome);border-color:var(--accent-chrome);color:#1a0d04;font-weight:600;
+}
+/*  Grisé, mais JAMAIS muet : .pan-raison dit pourquoi, juste en dessous. */
+.pan-choix[disabled]{opacity:.45;cursor:not-allowed}
+.pan-rond{min-width:30px;text-align:center;font-size:14px;line-height:1}
+.pan-valeur{min-width:62px;text-align:center;color:var(--encre-chrome);font-variant-numeric:tabular-nums}
+/*  ⚠ --chrome-hi ET SURTOUT PAS --noir. J'avais écrit --noir, et c'est le
+    piège exact que :root documente vingt lignes plus haut : --noir EST posé
+    par le thème (pose("--noir", t.LEXOS_TERM_BG)), donc il devient le crème
+    #F7F5F0 en thème clair. L'encre de ce bloc, elle, est --texte-2, qui est
+    FIXE : on aurait eu #c6bdb7 sur du crème, c'est-à-dire 1,70:1 — la raison
+    d'un refus devenue illisible précisément dans le thème qu'on vient de
+    choisir. Mesuré, et corrigé avant d'être livré.
+    Les six jetons posés par le thème sont --noir, --texte, --orange, --vert,
+    --machine et les --ansi-N : aucun n'a sa place dans ce menu, qui vit dans
+    le chrome.  */
+.pan-raison{
+  margin:6px 6px 0;padding:6px 8px;
+  background:var(--chrome-hi);border-left:2px solid var(--accent-chrome);border-radius:3px;
+  color:var(--texte-2);font-size:11px;line-height:1.45;
+}
+.pan-raison[hidden]{display:none}
+.pan-sep{height:1px;background:var(--ligne);margin:8px 4px}
+/*  La ligne d'aide PORTE une information — les raccourcis — donc elle suit la
+    même règle que les titres : --texte-2, 10,82:1.  */
+.pan-aide{color:var(--texte-2);font-size:10px;padding:8px 6px 2px;line-height:1.5;opacity:.92}
 #plus:hover{color:var(--encre-chrome);background:var(--chrome-hi)}
 
 /* ---------- espace de travail ---------- */
@@ -291,7 +359,36 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-chr
     <div id="marque"><span class="lys">⚜</span><span class="nomlex">LexOS</span><span>&nbsp;Pro</span></div>
     <div id="onglets" role="tablist"></div>
     <button id="audit" type="button" title="Parcourir les catégories et ouvrir la fiche d’un outil" aria-label="Outils d’audit"><span class="pic" aria-hidden="true">🛡</span><span class="libelle">Outils d’audit</span></button>
+    <button id="reglages" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="panneau-reglages" title="Paramètres du terminal — couleurs et taille du texte" aria-label="Paramètres du terminal"><span class="pic" aria-hidden="true">⚙</span><span class="libelle">Paramètres</span></button>
     <button id="plus" title="Nouvelle page (Ctrl+B puis T)" aria-label="Nouvelle page">+</button>
+  </div>
+  <!--  ═══ LE PETIT MENU DEMANDÉ PAR ALEX ═══
+        « aimerai on metre en haut de la fenetre capable de changer les
+        couleur du terminal » — « un ti menu », « parametre du termnal ».
+        Il ne peint RIEN lui-même : il lance « lexos-terminal jour|nuit|auto »
+        par le pont, et repeint avec le thème que le pont lui rend. C'est la
+        même règle que partout ici : terminal.env est la seule source de
+        couleur, et une page qui se peindrait elle-même dirait dès le premier
+        clic le contraire de tous les autres terminaux.  -->
+  <div id="panneau-reglages" class="panneau" role="menu" aria-labelledby="reglages" hidden>
+    <div class="pan-titre" id="pan-t-couleurs">Couleurs du terminal</div>
+    <div class="pan-ligne" role="group" aria-labelledby="pan-t-couleurs">
+      <button type="button" class="pan-choix" data-mode="jour" role="menuitemradio" aria-checked="false">Jour</button>
+      <button type="button" class="pan-choix" data-mode="nuit" role="menuitemradio" aria-checked="false">Nuit</button>
+      <button type="button" class="pan-choix" data-mode="auto" role="menuitemradio" aria-checked="false">Auto</button>
+    </div>
+    <!--  Toute action indisponible est grisée AVEC SA RAISON — jamais grisée
+          en silence, jamais présentée comme faite. C'est ici qu'on l'écrit. -->
+    <div class="pan-raison" id="pan-raison" role="status" hidden></div>
+    <div class="pan-sep"></div>
+    <div class="pan-titre" id="pan-t-taille">Taille du texte</div>
+    <div class="pan-ligne" role="group" aria-labelledby="pan-t-taille">
+      <button type="button" class="pan-choix pan-rond" id="pan-moins" role="menuitem" aria-label="Réduire le texte">−</button>
+      <span class="pan-valeur" id="pan-taille" aria-live="polite">12,5 px</span>
+      <button type="button" class="pan-choix pan-rond" id="pan-plus" role="menuitem" aria-label="Agrandir le texte">+</button>
+      <button type="button" class="pan-choix" id="pan-zero" role="menuitem">Par défaut</button>
+    </div>
+    <div class="pan-aide">Ctrl&nbsp;+&nbsp;= · Ctrl&nbsp;+&nbsp;− · Ctrl&nbsp;+&nbsp;0 · Ctrl&nbsp;+&nbsp;molette</div>
   </div>
   <div id="travail"></div>
   <div id="etat">
@@ -871,8 +968,23 @@ async function appliquerTheme(){
     if(!r.ok) return;
     const j = await r.json();
     t = j && j.theme;
+    if(j && typeof j.mode_choisi === "string") __modeChoisi = j.mode_choisi;
   }catch(e){ return; }
+  return poserTheme(t);
+}
+
+//  ═══ POSER LE THÈME, SÉPARÉ DE L'ALLER LE CHERCHER ═══
+//  Le menu de réglages reçoit le thème FRAIS dans la réponse d'/api/mode : il
+//  repeint donc avec celui-là, au lieu de relancer un /api/theme pendant
+//  lequel la fenêtre resterait dans l'ancienne palette. Une seule fonction
+//  pose, pour que les deux chemins ne puissent pas peindre différemment.
+function poserTheme(t){
   if(!t) return;
+  //  RAFRAÎCHI AVANT LE CONTRÔLE DE COMPLÉTUDE, exprès : le mode choisi ne
+  //  dépend pas de la palette. Un thème périmé, qu'on refuse de poser, n'a
+  //  aucune raison de laisser le menu afficher un mode périmé.
+  __themeBrut = t;
+  if(Reglages.pret) Reglages.rafraichir();
   //  ON NE REPEINT QUE SI ÇA A CHANGÉ. Cette fonction est appelée au retour de
   //  la fenêtre ET à intervalle régulier : sans ce test, elle réassignerait le
   //  thème de chaque volet mille fois par jour, et xterm.js redessine tout à
@@ -980,7 +1092,15 @@ async function appliquerTheme(){
 //  Mieux vaudrait que le pont surveille le fichier et le dise sur le flux
 //  qu'il tient déjà ; c'est un changement de protocole, pas une ligne, et le
 //  sondage ferme le trou en attendant.
-let __themePose = null;
+let __themePose = null, __themeBrut = null;
+//  ⚠ LE MODE CHOISI NE VIENT PAS DU THÈME, et c'est une erreur que j'ai faite
+//  avant de la mesurer. Après « lexos terminal auto », terminal.env porte
+//  LEXOS_TERM_MODE=nuit et LEXOS_TERM_EFFECTIF=nuit : lexos-theme-gen RÉSOUT
+//  « auto » avant d'écrire, donc le fichier ne garde pas le choix. Le pont le
+//  lit dans « terminal-mode » et le rend à côté du thème.
+//  Constaté dans un vrai navigateur : en cochant sur LEXOS_TERM_MODE, un clic
+//  sur « Auto » faisait cocher « Nuit ».
+let __modeChoisi = "";
 const __relireTheme = () => { if(!document.hidden) appliquerTheme(); };
 document.addEventListener("visibilitychange", __relireTheme);
 window.addEventListener("focus", __relireTheme);
@@ -1105,6 +1225,10 @@ function poserTaille(px, relatif, sansRanger){
   if(TAILLE === avant) return false;
   try{ localStorage.setItem(CLE_TAILLE, String(TAILLE)); }catch(e){}
   if(!sansRanger) rangerTaille();
+  //  Le menu affiche cette valeur : qu'elle vienne d'un bouton, du clavier ou
+  //  de la molette, il doit la suivre. UN SEUL endroit le lui dit — celui qui
+  //  change la valeur.
+  if(Reglages.pret) Reglages.rafraichir();
   for(const v of FLUX.volets.values()){
     if(!v || !v.term) continue;
     try{ v.term.options.fontSize = TAILLE; }catch(e){ continue; }
@@ -1233,6 +1357,113 @@ class Onglet {
 /* =========================================================
    5. Terminal : onglets, fenêtres, raccourcis
    ========================================================= */
+//  ═══ LE MENU « PARAMÈTRES DU TERMINAL » ═══
+//  ALEX : « aimerai on metre en haut de la fenetre capable de changer les
+//  couleur du terminal » · « un ti menu » · « parametre du termnal ».
+//
+//  IL NE PEINT RIEN. Chaque clic lance « lexos-terminal jour|nuit|auto » par
+//  le pont, et la page repeint avec le thème que le pont lui REND. terminal.env
+//  reste la seule source de couleur de tout LexOS — l'invite, lexfetch, tmux,
+//  xfce4-terminal et le menu d'audit la lisent aussi. Un menu qui poserait ses
+//  propres couleurs ferait dire à cette fenêtre, dès le premier clic, le
+//  contraire de tous les autres terminaux.
+//
+//  CE QUI N'Y EST PAS, ET POURQUOI. « lexos accent <couleur> » repeint TOUT
+//  LexOS et se termine par « ferme et rouvre tes fenêtres ». Alex a demandé
+//  les couleurs du TERMINAL, et « lexos terminal » est justement celle qui est
+//  « indépendante du bureau ». L'accent n'est donc pas ici : c'est le périmètre
+//  demandé, pas un oubli — et il se pose en une ligne si Alex le veut.
+const Reglages = {
+  pret: false,
+  init(){
+    this.bouton  = document.getElementById("reglages");
+    this.panneau = document.getElementById("panneau-reglages");
+    this.raison  = document.getElementById("pan-raison");
+    this.valeur  = document.getElementById("pan-taille");
+    this.modes   = [...this.panneau.querySelectorAll("[data-mode]")];
+    if(!this.bouton || !this.panneau) return;
+    this.bouton.addEventListener("click", e => { e.stopPropagation(); this.basculer(); });
+    for(const b of this.modes)
+      b.addEventListener("click", () => this.poserMode(b.dataset.mode));
+    document.getElementById("pan-moins").addEventListener("click", () => { poserTaille(-1, true); this.rafraichir(); });
+    document.getElementById("pan-plus") .addEventListener("click", () => { poserTaille(1, true);  this.rafraichir(); });
+    document.getElementById("pan-zero") .addEventListener("click", () => { poserTaille(TAILLE_DEFAUT, false); this.rafraichir(); });
+    //  Se referme comme tout menu : Échap, clic au-dehors, ou re-clic.
+    document.addEventListener("click", e => {
+      if(this.ouvert && !this.panneau.contains(e.target)) this.fermer();
+    });
+    this.panneau.addEventListener("keydown", e => {
+      if(e.key === "Escape"){ e.stopPropagation(); this.fermer(); this.bouton.focus(); }
+    });
+    this.pret = true;
+    this.rafraichir();
+  },
+  get ouvert(){ return !this.panneau.hidden; },
+  basculer(){ this.ouvert ? this.fermer() : this.ouvrir(); },
+  ouvrir(){
+    this.rafraichir();
+    this.panneau.hidden = false;
+    this.bouton.setAttribute("aria-expanded", "true");
+    //  Le focus entre dans le menu : sans ça, Échap n'aurait rien à écouter
+    //  et la navigation au clavier s'arrêterait au bouton.
+    const prem = this.panneau.querySelector(".pan-choix:not([disabled])");
+    if(prem) prem.focus();
+  },
+  fermer(){
+    this.panneau.hidden = true;
+    this.bouton.setAttribute("aria-expanded", "false");
+  },
+  //  ═══ GRISÉ AVEC SA RAISON, JAMAIS GRISÉ EN SILENCE ═══
+  dire(texte){
+    this.raison.textContent = texte || "";
+    this.raison.hidden = !texte;
+  },
+  rafraichir(){
+    if(!this.pret) return;
+    this.valeur.textContent = String(TAILLE).replace(".", ",") + " px";
+    document.getElementById("pan-moins").disabled = (TAILLE <= TAILLE_MIN);
+    document.getElementById("pan-plus").disabled  = (TAILLE >= TAILLE_MAX);
+    const choisi = __modeChoisi;
+    for(const b of this.modes){
+      //  « suivre » est le mode que pose lexos-theme-gen quand le terminal
+      //  suit le bureau : aucun des trois boutons n'est alors coché, et c'est
+      //  juste — cocher « auto » laisserait croire à un choix qui n'a pas été
+      //  fait. Cliquer en fait un vrai choix.
+      b.setAttribute("aria-checked", String(b.dataset.mode === choisi));
+      b.disabled = !Terminal.backend || this.enCours;
+    }
+    if(!Terminal.backend)
+      this.dire("Indisponible sans le pont local : les couleurs sont posées "
+                + "par « lexos terminal », la commande du système, et cette "
+                + "page ne peut pas la lancer en mode démonstration.");
+    else if(!this.enCours && /^Indisponible sans le pont/.test(this.raison.textContent))
+      this.dire("");
+  },
+  async poserMode(mode){
+    if(!Terminal.backend || this.enCours) return;
+    this.enCours = true;
+    this.rafraichir();
+    this.dire("…");
+    const r = await poste("/api/mode", { mode: mode });
+    this.enCours = false;
+    if(r && r.ok){
+      //  ON REPEINT AVEC CE QUE LE PONT REND, pas avec un second aller-retour
+      //  pendant lequel la fenêtre resterait dans l'ancienne palette.
+      if(typeof r.mode_choisi === "string") __modeChoisi = r.mode_choisi;
+      poserTheme(r.theme);
+      this.dire(r.dit || "");
+    } else {
+      //  LE REFUS EST MONTRÉ TEL QUEL : c'est lui qui porte la raison —
+      //  « en root le thème changé serait celui de root », « lexos-terminal
+      //  est introuvable dans le PATH »… Inventer un message ici reviendrait
+      //  à cacher ce que le système a répondu.
+      this.dire((r && r.erreur)
+                || "Le pont n'a pas répondu — la couleur n'a pas changé.");
+    }
+    this.rafraichir();
+  },
+};
+
 const Terminal = {
   onglets: [], iOnglet: 0, active: null,
   backend: false, prefixe: false, utilisateur: "lexos",
@@ -1647,8 +1878,14 @@ async function demarrage(){
   //  yeux d'Alex — et chaque saut coûte un aller-retour /api/taille au pty.
   //  Les deux lectures partent ENSEMBLE : elles ne dépendent pas l'une de
   //  l'autre, et les enchaîner doublerait l'attente avant la première fenêtre.
+  //  ⚠ L'ORDRE COMPTE. Reglages.rafraichir() lit Terminal.backend pour
+  //  décider s'il se grise : initialisé avant les lignes ci-dessus, le menu
+  //  s'afficherait « indisponible » alors qu'il y a un pont. Il est donc posé
+  //  ici, après l'indicateur, et re-rafraîchi par poserTheme() quand le thème
+  //  arrive.
+  Reglages.init();
   Promise.allSettled([appliquerTheme(), adopterReglages()])
-    .finally(() => Terminal.init());
+    .finally(() => { Terminal.init(); Reglages.rafraichir(); });
 }
 if(typeof globalThis === "undefined" || !globalThis.__BANC_NE_PAS_DEMARRER__) demarrage();
 
