@@ -558,6 +558,26 @@ class Fenetre {
     this.term.attachCustomKeyEventHandler(e => {
       if(e.type !== "keydown") return true;
       if(Terminal.prefixe) return false;          /* Ctrl+B a la priorité */
+      //  ═══ Ctrl+Maj+- FAISAIT DEUX CHOSES À LA FOIS ═══
+      //  MESURÉ dans un vrai Chromium, en écoutant ce qui part vers
+      //  /api/saisie : « Control+Shift+Minus | taille 13,5 → 12,5 | envoyé au
+      //  shell : ^_(0x1f) ». Autrement dit le texte rapetissait ET readline
+      //  recevait son « undo » — un coup d'annulation invisible dans la ligne
+      //  qu'Alex était en train d'écrire.
+      //
+      //  POURQUOI preventDefault() NE SUFFISAIT PAS. clavier() est posé sur
+      //  « window » en phase de CAPTURE, donc il passe bien AVANT celui-ci ;
+      //  mais preventDefault() n'empêche que le navigateur, pas xterm.js, et
+      //  la propagation continue jusqu'à sa zone de saisie. Les quatre autres
+      //  combinaisons s'en sortaient par chance : xterm.js ne connaît aucune
+      //  séquence pour Ctrl+= , Ctrl+- ni Ctrl+0. Pour Ctrl+_ , si : 0x1F.
+      //  C'est donc ICI qu'il faut le dire, par le mécanisme que cette page
+      //  emploie déjà pour Ctrl+B.
+      //  MUTATION M29, les deux sens mesurés : cette ligne retirée, la même
+      //  frappe renvoie ^_(0x1f) ; remise, elle n'envoie rien. Et Ctrl+C
+      //  continue de passer (^C(0x3)) — on ne touche PAS à ce qui appartient
+      //  au programme qui tourne.
+      if(estToucheTaille(e)) return false;
       if(e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "c"){ this.copier(); return false; }
       if(e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "v"){ this.coller(); return false; }
       if(e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "c"
@@ -981,7 +1001,15 @@ setInterval(__relireTheme, 60000);
 //  fait ça existe déjà — ajuster() recalcule, ajuste et POSTE /api/taille —
 //  il suffit donc de la relancer après chaque changement. C'est insister()
 //  qu'on appelle, parce qu'il réessaie tant que la fenêtre n'est pas prête.
-const TAILLE_DEFAUT = 12.5, TAILLE_MIN = 7, TAILLE_MAX = 32;
+//  ⚠ CES TROIS-LÀ SONT UN REPLI, PAS LA VÉRITÉ. La vérité est dans le pont
+//  (TAILLE_MIN / TAILLE_MAX / TAILLE_DEFAUT de terminal-pro.py), parce que
+//  c'est lui qui refuse ou accepte ce qu'on lui demande d'enregistrer. La page
+//  les REÇOIT au démarrage, dans la réponse d'/api/reglages, et remplace ces
+//  valeurs par les siennes. Elles ne servent donc que là où il n'y a pas de
+//  pont du tout : le mode démonstration. « let » et non « const » pour cette
+//  raison précise — et un point de banc vérifie qu'elles s'accordent, pour que
+//  la démonstration ne permette pas une taille que le pont refuserait.
+let TAILLE_DEFAUT = 12.5, TAILLE_MIN = 7, TAILLE_MAX = 32;
 const CLE_TAILLE = "lexos.terminal.taille";
 
 //  localStorage peut jeter (fenêtre privée, stockage bloqué) et peut rendre
@@ -995,12 +1023,88 @@ function tailleLue(){
 }
 let TAILLE = tailleLue();
 
-function poserTaille(px, relatif){
+//  ═══ ET SURTOUT : ÇA DOIT SURVIVRE À UNE RELANCE ═══
+//  MESURÉ, et c'est le défaut qu'Alex aurait vu tout de suite. Le pont se lie
+//  au port 0, donc le système lui donne un port éphémère DIFFÉRENT à chaque
+//  lancement (deux tirages mesurés : 42839 puis 57411). Le localStorage est
+//  cloisonné PAR ORIGINE, et l'origine c'est « http://127.0.0.1:<port> » :
+//  réglage posé à 18,5 px, fenêtre fermée, pont relancé → la clé est nulle et
+//  on repart à 12,5. Relancé sur le MÊME port, le réglage revient — c'est la
+//  preuve que le cloisonnement est bien la cause.
+//
+//  LE RÉGLAGE VIT DONC DANS LA CONFIGURATION DE LEXOS, pas dans le
+//  navigateur : le pont le range dans « terminal-pro.json », à côté du thème.
+//  localStorage reste, en MIROIR — il répond tout de suite, avant que la
+//  requête revienne, donc pas de clignotement — et il est le seul recours en
+//  mode démonstration, quand il n'y a pas de pont du tout.
+let __tailleEnvoyee = null, __tailleMinuteur = null;
+function rangerTaille(){
+  //  ON NE POSTE PAS À CHAQUE CRAN DE MOLETTE. Une roulette lancée produit
+  //  des dizaines d'événements ; on écrit le fichier une fois, à la fin.
+  if(__tailleMinuteur) clearTimeout(__tailleMinuteur);
+  __tailleMinuteur = setTimeout(async () => {
+    __tailleMinuteur = null;
+    if(TAILLE === __tailleEnvoyee) return;
+    const vise = TAILLE;
+    const r = await poste("/api/reglages", { taille: vise });
+    if(r && r.ok){ __tailleEnvoyee = vise; return; }
+    //  ÉCHEC : on le DIT. La taille reste à l'écran — le geste d'Alex n'est
+    //  pas annulé sous ses yeux — mais il doit savoir que ça ne tiendra pas.
+    console.warn("[lexos] taille non enregistrée"
+                 + ((r && r.erreur) ? " — " + r.erreur : "")
+                 + " ; elle reviendra au défaut au prochain démarrage.");
+  }, 400);
+}
+
+//  Au démarrage, le pont a le dernier mot : il a le fichier, et il a les
+//  BORNES. La page ne les réécrit pas de son côté — deux écritures d'une même
+//  valeur finissent toujours par diverger, ce dépôt l'a payé plusieurs fois.
+async function adopterReglages(){
+  if(!(_port && _jeton)) return false;    // en démo, il n'y a pas de pont
+  let j;
+  try{
+    const r = await fetch("/api/reglages", { headers: ENTETES });
+    if(!r.ok) return false;
+    j = await r.json();
+  }catch(e){ return false; }
+  if(!(j && j.ok)) return false;
+  //  LES BORNES D'ABORD, la valeur ensuite : poserTaille() borne, et il doit
+  //  borner avec les bornes du PONT, pas avec le repli de cette page.
+  if(Number.isFinite(j.taille_min) && Number.isFinite(j.taille_max)
+     && j.taille_min < j.taille_max){
+    TAILLE_MIN = j.taille_min;
+    TAILLE_MAX = j.taille_max;
+  }
+  if(Number.isFinite(j.taille_defaut)
+     && j.taille_defaut >= TAILLE_MIN && j.taille_defaut <= TAILLE_MAX){
+    TAILLE_DEFAUT = j.taille_defaut;
+  }
+  const t = j.reglages && j.reglages.taille;
+  if(!Number.isFinite(t)) return false;
+  __tailleEnvoyee = t;
+  //  false : taille ABSOLUE. Et on ne RANGE pas ce qu'on vient de lire.
+  return poserTaille(t, false, true);
+}
+
+//  ═══ UN SEUL ENDROIT QUI DIT « CETTE TOUCHE EST POUR LA TAILLE » ═══
+//  Deux endroits en ont besoin — clavier(), qui agit, et le gestionnaire de
+//  xterm.js, qui doit se taire — et deux écritures de la même liste finissent
+//  toujours par ne plus dire la même chose. « e.key » vaut "+" quand on tient
+//  Majuscule là où le plus est au-dessus du égal, et "_" là où le tiret bas
+//  est au-dessus du trait d'union : d'où les cinq écritures.
+const TOUCHES_TAILLE = ["=", "+", "-", "_", "0"];
+function estToucheTaille(e){
+  return e.ctrlKey && !e.altKey && !e.metaKey
+         && TOUCHES_TAILLE.indexOf(e.key) !== -1;
+}
+
+function poserTaille(px, relatif, sansRanger){
   const avant = TAILLE;
   const vise = relatif ? TAILLE + px : px;
   TAILLE = Math.min(TAILLE_MAX, Math.max(TAILLE_MIN, Math.round(vise * 2) / 2));
   if(TAILLE === avant) return false;
   try{ localStorage.setItem(CLE_TAILLE, String(TAILLE)); }catch(e){}
+  if(!sansRanger) rangerTaille();
   for(const v of FLUX.volets.values()){
     if(!v || !v.term) continue;
     try{ v.term.options.fontSize = TAILLE; }catch(e){ continue; }
@@ -1360,8 +1464,7 @@ const Terminal = {
     //  Ctrl+L, qu'on ne touche surtout pas : ils appartiennent au programme
     //  qui tourne. « e.key » vaut "+" quand on tient Majuscule sur un clavier
     //  où le plus est au-dessus du égal, d'où les trois écritures.
-    if(e.ctrlKey && !e.altKey && (e.key === "=" || e.key === "+" || e.key === "-"
-                                  || e.key === "_" || e.key === "0")){
+    if(estToucheTaille(e)){
       e.preventDefault();
       if(e.key === "0") poserTaille(TAILLE_DEFAUT, false);
       else poserTaille(e.key === "-" || e.key === "_" ? -1 : 1, true);
@@ -1538,7 +1641,14 @@ async function demarrage(){
   //  laisserait la première fenêtre dans l'ancienne palette.
   //  « finally » et pas « then » : si le pont ne répond pas, le terminal
   //  s'ouvre quand même.
-  appliquerTheme().finally(() => Terminal.init());
+  //  LA TAILLE AUSSI DOIT PRÉCÉDER LA CONSTRUCTION, et pour la même raison :
+  //  « fontSize: TAILLE » est lu une seule fois, au « new XTerm ». Adoptée
+  //  après, la première fenêtre naîtrait à 12,5 px puis sauterait sous les
+  //  yeux d'Alex — et chaque saut coûte un aller-retour /api/taille au pty.
+  //  Les deux lectures partent ENSEMBLE : elles ne dépendent pas l'une de
+  //  l'autre, et les enchaîner doublerait l'attente avant la première fenêtre.
+  Promise.allSettled([appliquerTheme(), adopterReglages()])
+    .finally(() => Terminal.init());
 }
 if(typeof globalThis === "undefined" || !globalThis.__BANC_NE_PAS_DEMARRER__) demarrage();
 

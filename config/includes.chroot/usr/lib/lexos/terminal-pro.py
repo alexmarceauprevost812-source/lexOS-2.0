@@ -78,6 +78,7 @@ import signal
 import socket
 import struct
 import sys
+import tempfile
 import termios
 import threading
 import time
@@ -122,6 +123,102 @@ _CLES_THEME = ("LEXOS_TERM_BG", "LEXOS_TERM_FG", "LEXOS_TERM_TEXTE",
                "LEXOS_TERM_PALETTE")
 
 
+def dossier_conf():
+    """« ${XDG_CONFIG_HOME:-$HOME/.config}/lexos » — LA VARIABLE GAGNE.
+
+    Écrit UNE fois parce que ce dépôt s'est fait prendre cinq fois à épingler
+    HOME en oubliant XDG_CONFIG_HOME, et qu'un deuxième endroit qui calcule
+    ce chemin finirait par ne plus dire la même chose que le premier."""
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(
+        os.path.expanduser("~"), ".config")
+    return os.path.join(base, "lexos")
+
+
+#  ═══ LES RÉGLAGES DU TERMINAL — ET POURQUOI PAS DANS LE NAVIGATEUR ═══
+#
+#  ALEX, après avoir eu le zoom : « l'écriture est trop petite ». Il grossit
+#  le texte, ça marche, il ferme la fenêtre — et au rallumage il est revenu à
+#  12,5 px.
+#
+#  LA CAUSE, MESURÉE. La page rangeait sa préférence dans le localStorage du
+#  navigateur, lequel est cloisonné PAR ORIGINE. Or ce pont se lie au port 0,
+#  donc le système lui donne un port éphémère DIFFÉRENT à chaque lancement
+#  (deux tirages de suite, mesurés : 42839 puis 57411). L'origine devient
+#  « http://127.0.0.1:57411 » et la clé d'hier est introuvable. Relancé sur
+#  le MÊME port, le réglage revient — ce qui est la preuve que le cloisonnement
+#  est bien la cause, et pas une écriture ratée.
+#
+#  On ne va donc PAS figer le port : un port fixe, c'est un conflit le jour où
+#  il est pris. On range le réglage là où il appartient, avec le reste de la
+#  configuration de LexOS, et le navigateur n'en est plus que le miroir.
+TAILLE_MIN = 7.0
+TAILLE_MAX = 32.0
+TAILLE_DEFAUT = 12.5
+
+
+def _taille_valide(valeur):
+    """La taille, bornée et arrondie au demi-point — ou None.
+
+    LE PONT NE FAIT PAS CONFIANCE À LA PAGE. C'est ici que les bornes sont
+    vraies ; la page les REÇOIT au démarrage au lieu de les réécrire, et un
+    point de banc compare ses valeurs de repli à celles-ci."""
+    try:
+        t = float(valeur)
+    except (TypeError, ValueError):
+        return None
+    if not (TAILLE_MIN <= t <= TAILLE_MAX):
+        return None
+    return round(t * 2) / 2
+
+
+def lire_reglages():
+    """Les réglages rangés, validés un par un. {} si rien d'exploitable."""
+    try:
+        with open(os.path.join(dossier_conf(), "terminal-pro.json"),
+                  encoding="utf-8") as f:
+            brut = json.load(f)
+    except (OSError, UnicodeDecodeError, ValueError):
+        return {}
+    if not isinstance(brut, dict):
+        return {}
+    out = {}
+    t = _taille_valide(brut.get("taille"))
+    if t is not None:
+        out["taille"] = t
+    return out
+
+
+def ecrire_reglages(nouveaux):
+    """Fusionne et écrit. Rend (True, {}) ou (False, raison).
+
+    ÉCRITURE ATOMIQUE : un fichier temporaire dans LE MÊME dossier, puis
+    os.replace. Sans ça, une coupure au milieu de l'écriture laisserait un
+    JSON tronqué, et le terminal repartirait sur la taille par défaut sans
+    jamais dire pourquoi.
+    ET SI ON NE PEUT PAS ÉCRIRE, ON LE DIT. La consigne de ce projet est
+    explicite : jamais une valeur inventée, jamais un échec silencieux."""
+    dossier = dossier_conf()
+    garde = dict(lire_reglages())
+    garde.update(nouveaux)
+    tmp = None
+    try:
+        os.makedirs(dossier, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix=".terminal-pro.", suffix=".json",
+                                   dir=dossier)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(garde, f, ensure_ascii=False, indent=1, sort_keys=True)
+            f.write("\n")
+        os.replace(tmp, os.path.join(dossier, "terminal-pro.json"))
+        return True, ""
+    except OSError as e:
+        if tmp:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+        return False, "%s : %s" % (dossier, e.strerror or e)
+
+
 def lire_theme(chemin=None):
     """Les couleurs du thème, extraites de terminal.env sans l'exécuter.
 
@@ -129,9 +226,7 @@ def lire_theme(chemin=None):
     valide : la page garde alors la palette livrée. Un thème illisible ne
     doit jamais empêcher le terminal de s'ouvrir."""
     if chemin is None:
-        base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(
-            os.path.expanduser("~"), ".config")
-        chemin = os.path.join(base, "lexos", "terminal.env")
+        chemin = os.path.join(dossier_conf(), "terminal.env")
     valeurs = {}
     try:
         with open(chemin, encoding="utf-8") as f:
@@ -595,6 +690,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._flux(urllib.parse.parse_qs(requete))
         if chemin == "/api/theme":
             return self._theme()
+        if chemin == "/api/reglages":
+            return self._reglages_lire()
         if chemin.startswith("/api/"):
             return self._json(404, {"ok": False, "erreur": "inconnu"})
         return super().do_GET()
@@ -751,6 +848,55 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             #  la session en cours.
             return
 
+    def _reglages_lire(self):
+        """Les réglages rangés, PLUS les bornes et le défaut.
+
+        LES BORNES VOYAGENT AVEC LA VALEUR, exprès. Si la page réécrivait
+        « 7 » et « 32 » de son côté, les deux écritures finiraient par ne plus
+        dire la même chose — c'est la faute que ce dépôt a déjà payée plusieurs
+        fois sur les couleurs. Ici la page REÇOIT les bornes du pont."""
+        if not self._autorise():
+            return
+        return self._json(200, {
+            "ok": True,
+            "reglages": lire_reglages(),
+            "taille_min": TAILLE_MIN,
+            "taille_max": TAILLE_MAX,
+            "taille_defaut": TAILLE_DEFAUT,
+        })
+
+    def _reglages_ecrire(self):
+        if not self._autorise():
+            return
+        requete = self._corps()
+        if requete is None:
+            return
+        if not isinstance(requete, dict):
+            return self._json(400, {"ok": False, "erreur": "requête invalide"})
+        nouveaux = {}
+        if "taille" in requete:
+            t = _taille_valide(requete["taille"])
+            if t is None:
+                #  ON DIT LA RAISON, et on donne les bornes : une page qui
+                #  reçoit « refusé » sans savoir pourquoi retentera la même
+                #  chose indéfiniment.
+                return self._json(400, {
+                    "ok": False,
+                    "erreur": "taille hors bornes (%g à %g)"
+                              % (TAILLE_MIN, TAILLE_MAX)})
+            nouveaux["taille"] = t
+        if not nouveaux:
+            return self._json(400, {"ok": False, "erreur": "rien à régler"})
+        pose, raison = ecrire_reglages(nouveaux)
+        if not pose:
+            #  ÉCHEC D'ÉCRITURE : 500 et la raison. La page gardera la taille
+            #  à l'écran — l'utilisateur voit son geste — mais elle saura que
+            #  ça ne survivra pas, et pourra le dire.
+            return self._json(500, {"ok": False,
+                                    "erreur": "réglages non enregistrés — "
+                                              + raison})
+        return self._json(200, {"ok": True, "reglages": lire_reglages()})
+
     def do_POST(self):
         #  ═══ REMIS À ZÉRO À CHAQUE REQUÊTE, PAS À CHAQUE CONNEXION ═══
         #  Aujourd'hui ce pont parle HTTP/1.0 : « close_connection » est vrai
@@ -765,6 +911,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         #  le serveur a lu le corps resté en file comme une nouvelle ligne de
         #  requête. Avec la ligne : 404, 404, 404.
         self._corps_lu = False
+        if self.path == "/api/reglages":
+            return self._reglages_ecrire()
         if self.path in ("/api/saisie", "/api/taille", "/api/fermer",
                          "/api/ouvrir"):
             return self._route_pty(self.path)

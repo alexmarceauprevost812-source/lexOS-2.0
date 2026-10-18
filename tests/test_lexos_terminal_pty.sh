@@ -269,7 +269,7 @@ rendu "le pty" < <(lance session_pty.py)
 titre "2. LES CINQ ROUTES ET LES TROIS SERRURES (matrice complète)"
 # =============================================================================
 cat > "$BANC/routes.py" <<'PY'
-import importlib.util, json, sys, time, urllib.error, urllib.request
+import importlib.util, json, os, re, sys, tempfile, time, urllib.error, urllib.request
 spec = importlib.util.spec_from_file_location("tp", sys.argv[1])
 tp = importlib.util.module_from_spec(spec); spec.loader.exec_module(tp)
 
@@ -369,6 +369,121 @@ code, _ = appel("/api/inventee", BON)
 dit(code == 404, "une route POST inconnue répond 404 (reçu %r)" % (code,))
 code, _ = appel("/api/inventee", BON, "GET")
 dit(code == 404, "une route GET inconnue sous /api/ répond 404, sans servir de fichier")
+
+#  ═══ LES RÉGLAGES : CE QU'ALEX CHOISIT DOIT SURVIVRE À UNE RELANCE ═══
+#  LE DÉFAUT, MESURÉ. La page rangeait la taille du texte dans le
+#  localStorage, cloisonné PAR ORIGINE ; or le pont se lie au port 0, donc le
+#  système lui donne un port éphémère DIFFÉRENT à chaque lancement (deux
+#  tirages mesurés : 42839 puis 57411). Taille posée à 18,5, pont relancé →
+#  retour à 12,5. Relancé sur le MÊME port, elle revenait : c'est bien le
+#  cloisonnement, pas une écriture ratée.
+#  Le réglage vit donc dans la configuration de LexOS. Ce que ces points
+#  éprouvent, c'est le MAGASIN : les bornes, l'arrondi, les deux serrures, et
+#  surtout qu'un échec d'écriture se DISE au lieu de s'inventer un succès.
+code, j = appel("/api/reglages", BON, "GET")
+dit(code == 200 and j is not None, "/api/reglages se lit (reçu %r)" % (code,))
+LU = json.loads(j.read()) if (code == 200 and j is not None) else {}
+dit(LU.get("taille_min") == 7 and LU.get("taille_max") == 32
+    and LU.get("taille_defaut") == 12.5,
+    "…et il PORTE ses bornes et son défaut (%r à %r, défaut %r) — la page les "
+    "reçoit au lieu de les réécrire de son côté"
+    % (LU.get("taille_min"), LU.get("taille_max"), LU.get("taille_defaut")))
+
+def regler(valeur, entetes=BON):
+    c, r = appel("/api/reglages", entetes, corps=json.dumps({"taille": valeur}).encode())
+    try:
+        return c, json.loads(r.read()) if r is not None else {}
+    except Exception:
+        return c, {}
+
+code, rep = regler(18)
+dit(code == 200 and rep.get("reglages", {}).get("taille") == 18.0,
+    "une taille valide s'enregistre et se relit (reçu %r, %r)"
+    % (code, rep.get("reglages")))
+code, rep = regler(13.3)
+dit(rep.get("reglages", {}).get("taille") == 13.5,
+    "…arrondie au demi-point par le PONT, pas par la page (13,3 → %r)"
+    % (rep.get("reglages", {}).get("taille"),))
+
+#  LE PONT NE FAIT PAS CONFIANCE À LA PAGE. Chacune de ces valeurs est un
+#  refus, et le refus DIT les bornes : une page qui reçoit « non » sans savoir
+#  pourquoi retentera la même chose indéfiniment.
+REFUSES = []
+for MAUVAIS in (99, 2, "grand", None, [14], {"a": 1}, True, 1e308):
+    c, rep = regler(MAUVAIS)
+    if not (c == 400 and "bornes" in str(rep.get("erreur", ""))):
+        REFUSES.append((MAUVAIS, c, rep.get("erreur")))
+dit(not REFUSES,
+    "huit tailles aberrantes sont refusées en 400 AVEC leurs bornes "
+    "(passées à travers : %r)" % (REFUSES[:2],))
+#  Et aucune ne doit avoir ABÎMÉ ce qui était rangé.
+code, rep = regler(16)
+dit(rep.get("reglages", {}).get("taille") == 16.0,
+    "…et le magasin est intact après les refus (%r)"
+    % (rep.get("reglages", {}).get("taille"),))
+
+#  LES DEUX SERRURES, ICI AUSSI. /api/flux avait été écrite sans, et ça ne
+#  s'est vu qu'en éprouvant la matrice complète : ces deux routes-ci entrent
+#  dans la même exigence, elles ne sont pas posées à côté.
+code, _ = appel("/api/reglages", {"Content-Type": "application/json"},
+                corps=b'{"taille": 20}')
+dit(code == 403, "POST /api/reglages sans jeton : refusé (reçu %r)" % (code,))
+code, _ = appel("/api/reglages", dict(BON, **{"Origin": "http://mechant.example"}),
+                corps=b'{"taille": 20}')
+dit(code == 403, "POST /api/reglages sur une origine étrangère : refusé (reçu %r)" % (code,))
+code, _ = appel("/api/reglages", {}, "GET")
+dit(code == 403, "GET /api/reglages sans jeton : refusé (reçu %r)" % (code,))
+
+#  ═══ UN ÉCHEC D'ÉCRITURE SE DIT ═══
+#  La consigne du projet est explicite : jamais une valeur inventée, jamais un
+#  échec muet. On met donc un FICHIER là où le dossier devrait être — makedirs
+#  échoue alors même pour root, ce qu'un simple chmod ne garantit pas.
+__d = tempfile.mkdtemp()
+open(os.path.join(__d, "lexos"), "w").write("je ne suis pas un dossier")
+__avant = os.environ.get("XDG_CONFIG_HOME")
+os.environ["XDG_CONFIG_HOME"] = __d
+code, rep = regler(15)
+dit(code == 500 and "non enregistr" in str(rep.get("erreur", "")),
+    "un dossier de configuration inutilisable rend 500 ET sa raison "
+    "(reçu %r : %r)" % (code, rep.get("erreur")))
+dit(tp.lire_reglages() == {},
+    "…et la LECTURE se dégrade sans lever, pour que le terminal s'ouvre quand même")
+if __avant is None:
+    os.environ.pop("XDG_CONFIG_HOME", None)
+else:
+    os.environ["XDG_CONFIG_HOME"] = __avant
+
+#  ═══ LES DEUX ÉCRITURES DES BORNES DOIVENT S'ACCORDER ═══
+#  La page porte un REPLI (let TAILLE_DEFAUT = 12,5, MIN = 7, MAX = 32) qui ne
+#  sert qu'en mode démonstration, là où il n'y a pas de pont à interroger. Si
+#  ce repli dérivait, la démonstration laisserait choisir une taille que le
+#  pont refuserait d'enregistrer — et personne ne le verrait, puisque les deux
+#  chemins ne se croisent jamais.
+#  C'est la faute que ce dépôt a déjà payée plusieurs fois sur les couleurs :
+#  deux écritures d'une même valeur finissent toujours par diverger.
+#  argv[1] = …/usr/lib/lexos/terminal-pro.py : trois dirname pour atteindre
+#  « usr », d'où « share/lexos/terminal-pro/web ».
+__PAGE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(sys.argv[1]))),
+                      "share", "lexos", "terminal-pro", "web", "index.html")
+try:
+    __SRC = open(__PAGE, encoding="utf-8").read()
+except OSError as __e:
+    __SRC = ""
+    dit(False, "la page est introuvable (%s) — l'accord des bornes n'a PAS été "
+               "vérifié" % (__e,))
+if __SRC:
+    __M = re.search(r"let TAILLE_DEFAUT = ([\d.]+), TAILLE_MIN = ([\d.]+), "
+                    r"TAILLE_MAX = ([\d.]+);", __SRC)
+    if __M is None:
+        #  ON NE CONCLUT PAS QUAND ON N'A PAS PU LIRE.
+        dit(False, "les bornes de repli de la page ne se lisent plus sous cette "
+                   "forme — l'accord n'a PAS été vérifié, corrigez ce contrôle")
+    else:
+        __d, __mn, __mx = (float(__M.group(1)), float(__M.group(2)),
+                           float(__M.group(3)))
+        dit((__mn, __mx, __d) == (tp.TAILLE_MIN, tp.TAILLE_MAX, tp.TAILLE_DEFAUT),
+            "le repli de la page s'accorde au pont (page %g/%g/%g, pont %g/%g/%g)"
+            % (__mn, __mx, __d, tp.TAILLE_MIN, tp.TAILLE_MAX, tp.TAILLE_DEFAUT))
 
 #  ═══ LE PONT FINIT DE LIRE LA REQUÊTE AVANT D'Y RÉPONDRE ═══
 #  LE DÉFAUT, MESURÉ : les chemins d'erreur — route inconnue, origine

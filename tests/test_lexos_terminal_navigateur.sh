@@ -524,6 +524,109 @@ dit(ennuis.length === 0,
   await p2.close(); deux.proc.kill();
 }
 
+//  ═══ LA TAILLE DU TEXTE : CINQ TOUCHES, ET RIEN NE FUIT VERS LE SHELL ═══
+//  CE QUE ÇA FAISAIT, mesuré ici même en écoutant /api/saisie :
+//  « Control+Shift+Minus | taille 13,5 → 12,5 | envoyé au shell : ^_(0x1f) ».
+//  Le texte rapetissait ET readline recevait son « undo » — une annulation
+//  invisible au milieu de la ligne qu'on écrivait.
+//  preventDefault() ne suffisait pas : clavier() est en phase de CAPTURE sur
+//  « window », donc il passe bien avant, mais il n'empêche que le NAVIGATEUR,
+//  et la propagation continue jusqu'à la zone de saisie de xterm.js. Les
+//  quatre autres combinaisons s'en sortaient par chance — xterm.js ne connaît
+//  aucune séquence pour Ctrl+= , Ctrl+- ni Ctrl+0 ; pour Ctrl+_ , si.
+//  ⚠ ET LE TÉMOIN EST OBLIGATOIRE : il serait trivial de faire taire ces
+//  touches en faisant taire TOUT. Ctrl+C doit continuer de passer.
+{
+  const p3 = await nav.newPage({viewport: {width: 1200, height: 760}});
+  await p3.goto(adresse);
+  await p3.waitForFunction(() => window.__banc && window.__banc.FLUX.volets.size > 0);
+  await p3.evaluate(() => {
+    window.__SAISIES = [];
+    const vrai = window.fetch;
+    window.fetch = function(u, o){
+      if(String(u).indexOf("/api/saisie") !== -1 && o && o.body){
+        try{
+          const t = String(JSON.parse(o.body).texte || "");
+          window.__SAISIES.push([...t].map(c => {
+            const n = c.charCodeAt(0);
+            return n < 32 ? "^" + String.fromCharCode(64 + n) + "(0x" + n.toString(16) + ")" : c;
+          }).join(""));
+        }catch(e){ window.__SAISIES.push("?"); }
+      }
+      return vrai.apply(this, arguments);
+    };
+  });
+  await p3.locator('.xterm-helper-textarea').first().focus();
+  const fuites = [], bouge = [];
+  for (const combo of ['Control+Equal', 'Control+Shift+Equal', 'Control+Minus',
+                       'Control+Shift+Minus']) {
+    await p3.evaluate(() => { window.__SAISIES = []; });
+    const avant = await p3.evaluate(() => window.__banc.TAILLE);
+    await p3.keyboard.press(combo);
+    await p3.waitForTimeout(250);
+    const r = await p3.evaluate(() => ({t: window.__banc.TAILLE, s: window.__SAISIES}));
+    if (r.s.length) fuites.push(combo + ' → ' + JSON.stringify(r.s));
+    if (r.t !== avant) bouge.push(combo);
+  }
+  dit(fuites.length === 0,
+      'les touches de taille n\'envoient RIEN au shell'
+      + (fuites.length ? ' — fuites : ' + fuites.join(' | ') : ''));
+  dit(bouge.length === 4,
+      'et chacune des quatre change bien la taille (' + bouge.length + '/4)');
+  //  LE TÉMOIN.
+  await p3.evaluate(() => { window.__SAISIES = []; });
+  await p3.keyboard.press('Control+c');
+  await p3.waitForTimeout(250);
+  const ctrlc = await p3.evaluate(() => window.__SAISIES);
+  dit(ctrlc.length === 1 && /0x3/.test(ctrlc[0]),
+      'TÉMOIN : Ctrl+C atteint toujours le shell (' + JSON.stringify(ctrlc)
+      + ') — on n\'a pas fait taire tout le clavier');
+  await p3.close();
+}
+
+//  ═══ ET LA TAILLE CHOISIE SURVIT À UNE RELANCE, SUR UN AUTRE PORT ═══
+//  LE DÉFAUT, MESURÉ. Le réglage vivait dans le localStorage, cloisonné PAR
+//  ORIGINE ; le pont se lie au port 0, donc le système lui donne un port
+//  éphémère DIFFÉRENT à chaque lancement (deux tirages mesurés : 42839 puis
+//  57411). Taille posée à 18,5, pont relancé → retour à 12,5 px. C'est
+//  exactement ce qu'Alex aurait vu en rouvrant sa fenêtre.
+//  ⚠ CE CONTRÔLE DOIT DISCRIMINER. Trouver 18,5 des deux côtés ne prouve
+//  rien : l'adoption écrit la valeur du pont DANS le localStorage, en miroir.
+//  On les met donc en DÉSACCORD — le pont dit 18,5, le navigateur dit 9 — et
+//  c'est le pont qui doit gagner.
+{
+  const trois = await pont();
+  dit(trois.port !== port,
+      'le pont relancé prend bien un AUTRE port (' + port + ' → ' + trois.port
+      + ') — sans quoi ce contrôle ne mesurerait rien');
+  const p4 = await nav.newPage({viewport: {width: 1200, height: 760}});
+  const adr3 = `http://127.0.0.1:${trois.port}/index.html?port=${trois.port}&jeton=${trois.jeton}`;
+  await p4.goto(adr3);
+  await p4.waitForFunction(() => window.__banc && window.__banc.FLUX.volets.size > 0);
+  await p4.evaluate(() => window.__banc.poserTaille(18.5, false));
+  await p4.waitForTimeout(1500);            // > les 400 ms de regroupement
+  await p4.close();
+
+  const quatre = await pont();
+  const p5 = await nav.newPage({viewport: {width: 1200, height: 760}});
+  //  LE DÉSACCORD, semé avant que la page ne démarre.
+  await p5.addInitScript(() => {
+    try{ localStorage.setItem('lexos.terminal.taille', '9'); }catch(e){}
+  });
+  await p5.goto(`http://127.0.0.1:${quatre.port}/index.html?port=${quatre.port}&jeton=${quatre.jeton}`);
+  await p5.waitForFunction(() => window.__banc && window.__banc.FLUX.volets.size > 0);
+  await p5.waitForTimeout(900);
+  const apres = await p5.evaluate(() => {
+    const v = [...window.__banc.FLUX.volets.values()][0];
+    return {T: window.__banc.TAILLE, police: v && v.term.options.fontSize};
+  });
+  dit(apres.T === 18.5 && apres.police === 18.5,
+      'la taille survit à la relance sur un autre port, et le PONT a le dernier'
+      + ' mot contre un navigateur qui disait 9 (lu : ' + apres.T
+      + ', police posée : ' + apres.police + ')');
+  await p5.close(); trois.proc.kill(); quatre.proc.kill();
+}
+
 await nav.close(); proc.kill();
 JS
 
