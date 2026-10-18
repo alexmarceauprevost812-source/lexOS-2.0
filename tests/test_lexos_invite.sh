@@ -661,13 +661,28 @@ else
 	EF="$BANC/fetch/.config/lexos/terminal.env"
 	QUI="$(id -un)"
 	for PROF in truecolor 256; do
+		#  ═══ ON FIGE L'ENVIRONNEMENT, ON NE L'HÉRITE PAS ═══
+		#  Deux variables de l'appelant suffisaient à faire rougir ce
+		#  contrôle sans qu'aucun code soit en cause — mesuré, pas supposé :
+		#   · NO_COLOR : lexfetch le teste en tête et sort alors SANS la
+		#     moindre séquence. Les quatre points rougissaient.
+		#   · XDG_CONFIG_HOME : lexfetch lit « $XDG_CONFIG_HOME/lexos/
+		#     terminal.env » quand il est posé, donc pas la copie fabriquée
+		#     ici — et le point du nom en 256 restait VERT quand même,
+		#     puisque le repli en dur de lexfetch vaut justement 208. Un
+		#     faux rouge À MOITIÉ, le pire à diagnostiquer.
+		#  Ce banc a déjà payé exactement ça pour TERM (voir la note de PS0
+		#  plus haut : « vingt et un verts et un rouge, tous les jours, pour
+		#  une variable d'environnement »). On fige donc au lieu de subir.
 		if [ "$PROF" = truecolor ]; then
 			SUF=""
-			SORTIE="$(HOME="$BANC/fetch" COLORTERM=truecolor TERM=xterm-256color \
+			SORTIE="$(HOME="$BANC/fetch" XDG_CONFIG_HOME="$BANC/fetch/.config" \
+				NO_COLOR="" COLORTERM=truecolor TERM=xterm-256color \
 				script -qec "bash '$FETCH'" /dev/null 2>/dev/null || true)"
 		else
 			SUF="_256"
-			SORTIE="$(HOME="$BANC/fetch" TERM=xterm-256color \
+			SORTIE="$(HOME="$BANC/fetch" XDG_CONFIG_HOME="$BANC/fetch/.config" \
+				NO_COLOR="" TERM=xterm-256color \
 				env -u COLORTERM script -qec "bash '$FETCH'" /dev/null 2>/dev/null || true)"
 		fi
 		ATT_U="$(sed -n "s/^LEXOS_PS_UTILISATEUR${SUF}='\(.*\)'$/\1/p" "$EF")"
