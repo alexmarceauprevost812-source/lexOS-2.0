@@ -162,13 +162,25 @@ def logo_banner(package, files, stream=None):
     stream = stream or sys.stdout
     colour = stream.isatty() and not os.environ.get('NO_COLOR') and os.environ.get('TERM') != 'dumb'
     if colour:
-        print('\033[1;38;5;208m' + '━' * 44 + '\n  ' + package + ' · Outils d’audit LexOS\n' + '━' * 44 + '\033[0m', file=stream)
+        #  Le TITRE porte « LexOS » : il prend le vert de l'invite. Les deux
+        #  filets sont décoratifs : ils gardent l'accent du thème.
+        filet = '\033[1;%sm%s\033[0m' % (_accent(), '━' * 44)
+        titre = '\033[1;%sm  %s · Outils d’audit LexOS\033[0m' % (_role('LOGO', '38;5;35'), package)
+        print(filet + '\n' + titre + '\n' + filet, file=stream)
     else:
         print(package + ' · Outils d’audit LexOS', file=stream)
     if not colour:
         return
     image = icone_locale(package) or tool_logo(package, files)
     if image is None:
+        return
+    #  ⚠ L'ICÔNE EST DESSINÉE EN COULEUR VRAIE — on ne la tente donc QUE si le
+    #  terminal l'annonce. Sans ce test, une console texte ou un vieux ssh
+    #  affiche « 38;2;18;18;20m▀ » en clair, caractère par caractère, sur
+    #  vingt-quatre lignes. C'est la règle que interactive.sh applique à
+    #  l'invite depuis longtemps ; ce fichier-ci ne l'avait jamais appliquée.
+    #  Le menu reste entier sans l'icône : elle est décorative.
+    if not _vrai_couleur():
         return
     try:
         import gi
@@ -202,6 +214,64 @@ HELP = {'nmap': ['nmap', '--help'], 'hashcat': ['hashcat', '--help']}
 ANSI = re.compile(r'\x1b\[[0-9;]*m')
 
 
+#  ═══ LES COULEURS VIENNENT DU THÈME, PLUS DE CE FICHIER ═══
+#  ALEX : « la couleur de marceau pour l'orange et le vert pour LEXOS », puis
+#  « les couleurs, on les retrouve dans les autres terminaux aussi ».
+#  Ce menu écrivait « LexOS » en 1;38;5;208 — l'orange que l'invite donne
+#  maintenant au NOM de l'utilisateur. Les deux rôles étaient inversés : le
+#  mot LexOS est une IDENTITÉ, il prend le vert de l'invite ; l'accent reste
+#  l'accent, pour ce qui est décoratif.
+#  On lit donc ~/.config/lexos/terminal.env, le fichier que lexos-theme-gen
+#  écrit et que l'invite relit — jamais une valeur recopiée ici, sinon ce
+#  menu et l'invite finiraient par dire deux verts différents. Même motif
+#  qu'ia-agent.py, qui a déjà fait ce chemin.
+def _terminal_env():
+    """Lit terminal.env SANS l'exécuter : c'est un fichier que bash source,
+    mais nous n'avons pas à lui donner ce pouvoir pour trois couleurs. Un
+    fichier absent ou tordu rend {} — le menu doit s'afficher quand même."""
+    base = os.environ.get('XDG_CONFIG_HOME') or os.path.join(os.path.expanduser('~'), '.config')
+    valeurs = {}
+    try:
+        with open(os.path.join(base, 'lexos', 'terminal.env'), encoding='utf-8') as f:
+            for ligne in f:
+                ligne = ligne.strip()
+                if not ligne or ligne.startswith('#') or '=' not in ligne:
+                    continue
+                cle, _, val = ligne.partition('=')
+                valeurs[cle.strip()] = val.strip().strip("'\"")
+    except (OSError, UnicodeDecodeError):
+        pass
+    return valeurs
+
+
+def _vrai_couleur():
+    """Le terminal annonce-t-il la couleur vraie ? Même bascule que
+    __lexos_couleurs dans interactive.sh : la console texte afficherait
+    « 38;2;… » en clair au milieu du menu."""
+    return os.environ.get('COLORTERM', '') in ('truecolor', '24bit')
+
+
+def _role(nom, repli):
+    """La séquence SGR d'un rôle de l'invite (MACHINE, LOGO, UTILISATEUR…),
+    en couleur vraie si le terminal la comprend, en palette 256 sinon."""
+    env = _terminal_env()
+    cle = 'LEXOS_PS_%s' % nom if _vrai_couleur() else 'LEXOS_PS_%s_256' % nom
+    return env.get(cle) or repli
+
+
+def _accent(repli='38;5;208'):
+    """L'accent du thème — curseur, sélection, onglet actif. Il est rangé en
+    #RRGGBB ; on ne le convertit en couleur vraie que si le terminal la
+    comprend, sinon l'ancien 208 reste le repli de toujours."""
+    hexa = _terminal_env().get('LEXOS_TERM_CURSEUR', '')
+    if _vrai_couleur() and len(hexa) == 7 and hexa.startswith('#'):
+        try:
+            return '38;2;%d;%d;%d' % tuple(int(hexa[i:i + 2], 16) for i in (1, 3, 5))
+        except ValueError:
+            pass
+    return repli
+
+
 def use_colour(stream=None):
     stream = stream or sys.stdout
     return stream.isatty() and not os.environ.get('NO_COLOR') and os.environ.get('TERM') != 'dumb'
@@ -216,7 +286,10 @@ def colour_help(text, enabled=True):
     for line in text.splitlines(keepends=True):
         if re.match(r'^[A-Z][A-Z0-9 /(),&_-]+:', line):
             body = line.rstrip('\r\n')
-            result.append('\033[1;38;5;208m' + body + '\033[0m' + line[len(body):])
+            #  Titre de section d'une aide tierce : décoratif, donc l'accent
+            #  du thème — et non plus un 208 figé, qui laissait un menu orange
+            #  à qui a choisi « lexos accent bleu ».
+            result.append('\033[1;' + _accent() + 'm' + body + '\033[0m' + line[len(body):])
         else:
             def highlight(match):
                 colour = '81' if match.group().startswith(('<', '[')) else '114'
@@ -264,7 +337,7 @@ def menu_terminal(lire=input, ecrire=print):
     """
     groupes = catalogue()
     noms = list(groupes)
-    ecrire("\n\033[1;38;5;208m⚜ LexOS Pro · Catalogue d'audit\033[0m")
+    ecrire("\n\033[1;%sm⚜ LexOS Pro · Catalogue d'audit\033[0m" % _role('LOGO', '38;5;35'))
     ecrire("Consultation seulement — aucun outil n'est exécuté automatiquement.")
     def demander(texte):
         try:
@@ -289,7 +362,7 @@ def menu_terminal(lire=input, ecrire=print):
         nom = noms[indice - 1]
         paquets = groupes[nom]
         while True:
-            ecrire(f"\n\033[1;38;5;208m{titre_categorie(nom)}\033[0m")
+            ecrire("\n\033[1;%sm%s\033[0m" % (_accent(), titre_categorie(nom)))
             for numero, paquet in enumerate(paquets, 1):
                 ecrire(f"  {numero:2}. {paquet}")
             entree = demander("Paquet [numéro, b retour, q quitter] : ")

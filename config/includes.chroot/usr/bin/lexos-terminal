@@ -44,8 +44,56 @@ JOUR_FIN="19:00"
 mkdir -p "$CONF_DIR"
 
 # --- Petites sorties ---------------------------------------------------------
-A=$'\033[38;5;208m'; V=$'\033[38;5;35m'; R0=$'\033[0m'; D=$'\033[2m'
-[ -t 1 ] || { A=""; V=""; R0=""; D=""; }
+#  ═══ CES DEUX COULEURS ÉTAIENT FIGÉES, ET SUR LA MAUVAISE PALETTE ═══
+#  Elles valaient « 38;5;208 » et « 38;5;35 » en dur. Trois défauts, mesurés :
+#
+#   1. LES DEUX RÔLES ÉTAIENT INVERSÉS. Le titre « Terminal LexOS » — une
+#      IDENTITÉ — portait le 208, qui est l'orange que l'invite donne au NOM
+#      de l'utilisateur ; et le 35, qui est le vert de « LEXOS », peignait
+#      le ✓ et la valeur du mode, c'est-à-dire de la sortie MACHINE.
+#   2. LE VERT AVAIT DIVERGÉ. Le générateur écrit 38;5;40 pour la machine
+#      depuis « un vert plus visible » ; ce fichier était resté au 35. C'est
+#      le TROISIÈME porteur de cette même divergence, après interactive.sh
+#      et tmux — les deux premiers viennent d'être réparés.
+#   3. ET ELLES NE CONNAISSAIENT PAS LE MODE. Figées sur la palette de NUIT,
+#      elles s'imprimaient sur le crème que la commande venait elle-même
+#      d'installer : « lexos terminal jour » répondait en 2,21:1 pour le
+#      titre et 2,64:1 pour le ✓ — les deux SOUS le seuil AA de 4,5.
+#      Mesuré, pas supposé. Les valeurs de jour donnent 5,26 et 7,31.
+#
+#  On lit donc terminal.env, comme repeindre_ici() le fait déjà vingt lignes
+#  plus bas. Les replis restent les anciennes valeurs : sans thème généré,
+#  rien ne change pour personne.
+couleurs_du_theme() {
+	LOGO='38;5;35'; MACHINE='38;5;40'; ACCENT='38;5;208'
+	[[ -r "$ENV_FILE" ]] || return 0
+	local LEXOS_PS_LOGO="" LEXOS_PS_LOGO_256="" \
+	      LEXOS_PS_MACHINE="" LEXOS_PS_MACHINE_256="" LEXOS_TERM_CURSEUR=""
+	# shellcheck disable=SC1090
+	. "$ENV_FILE" 2>/dev/null || return 0
+	#  Couleur vraie quand le terminal l'annonce, palette 256 sinon — la même
+	#  bascule que l'invite. Personne n'exporte COLORTERM hors du terminal
+	#  Pro : la console texte et ssh lisent donc la branche 256.
+	case "${COLORTERM:-}" in
+		truecolor|24bit)
+			LOGO="${LEXOS_PS_LOGO:-$LOGO}"
+			MACHINE="${LEXOS_PS_MACHINE:-$MACHINE}"
+			if [[ ${#LEXOS_TERM_CURSEUR} -eq 7 && "${LEXOS_TERM_CURSEUR:0:1}" == "#" ]]; then
+				ACCENT="38;2;$((16#${LEXOS_TERM_CURSEUR:1:2}));$((16#${LEXOS_TERM_CURSEUR:3:2}));$((16#${LEXOS_TERM_CURSEUR:5:2}))"
+			fi
+			;;
+		*)
+			LOGO="${LEXOS_PS_LOGO_256:-$LOGO}"
+			MACHINE="${LEXOS_PS_MACHINE_256:-$MACHINE}"
+			;;
+	esac
+}
+couleurs_du_theme
+#  $A garde son nom — c'est l'ACCENT — mais il ne peint plus l'identité.
+#  $L est le vert de « LEXOS », $V le vert de ce que la machine répond.
+A=$'\033['"$ACCENT"'m'; L=$'\033['"$LOGO"'m'; V=$'\033['"$MACHINE"'m'
+R0=$'\033[0m'; D=$'\033[2m'
+[ -t 1 ] || { A=""; L=""; V=""; R0=""; D=""; }
 ok()  { printf '%s✓%s %s\n' "$V" "$R0" "$1"; }
 die() { printf '\033[1;31m✗\033[0m %s\n' "$1" >&2; exit 1; }
 
@@ -153,7 +201,7 @@ appliquer() {
 etat() {
 	local m eff; m="$(mode_courant)"; eff="$(effectif)"
 	lire_horaire
-	printf '%sTerminal LexOS%s\n' "$A" "$R0"
+	printf '%sTerminal LexOS%s\n' "$L" "$R0"
 	printf '  Mode      : %s%s%s\n' "$A" "$m" "$R0"
 	printf '  En cours  : %s%s%s\n' "$V" "$eff" "$R0"
 	case "$m" in

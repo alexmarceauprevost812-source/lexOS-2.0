@@ -88,6 +88,9 @@ segments() { python3 "$DECOUPE"; }
 
 #  Le contraste d'une séquence (38;2;r;g;b ou 38;5;n, avec ou sans « 1; »)
 #  sur un fond #hex — dans un FICHIER, pour la même raison que le découpeur.
+#  L'échappement, posé UNE fois : deux sections s'en servent, et la
+#  définir au plus tard la rendait introuvable à la première sous « set -u ».
+ESCB=$'\033'
 CONTRASTE="$BANC/contraste.py"
 cat > "$CONTRASTE" <<'PYC'
 import sys, re
@@ -632,6 +635,67 @@ else
 	fi
 fi
 
+#  ═══ ET LES DEUX AUTRES SURFACES QUI ÉCRIVENT « LexOS » ═══
+#  L'onglet Audit et la bascule jour/nuit l'écrivaient en 1;38;5;208 — l'orange
+#  que l'invite donne au NOM de l'utilisateur. Les deux rôles y étaient
+#  inversés. Ils lisent terminal.env maintenant ; on le mesure.
+MENU="$RACINE/config/includes.chroot/usr/lib/lexos/audit/menu.py"
+MENU_DIR="$RACINE/config/includes.chroot/usr/lib/lexos/audit"
+BASCULE="$RACINE/config/includes.chroot/usr/bin/lexos-terminal"
+#  Les deux séquences COMPLÈTES, relues dans le fichier généré — aucune
+#  valeur n'est écrite ici. Les deux surfaces ci-dessous ne voient pas
+#  COLORTERM, elles lisent donc la branche 256, comme la console et ssh.
+GENERE_LOGO_256="$(sed -n "s/^LEXOS_PS_LOGO_256='\(.*\)'$/\1/p" "$ENV_REPLIS")"
+GENERE_U256="$(sed -n "s/^LEXOS_PS_UTILISATEUR_256='\(.*\)'$/\1/p" "$ENV_REPLIS")"
+
+#  1) Le menu d'audit : son lecteur rend-il ce que le fichier dit ?
+if [ ! -r "$MENU" ]; then
+	non "le menu d'audit est introuvable : sa couleur n'est pas vérifiable"
+else
+	VU_MENU="$(XDG_CONFIG_HOME="$BANC/replis/.config" MENU_DIR="$MENU_DIR" python3 -c "
+import os, sys
+sys.path.insert(0, os.environ['MENU_DIR'])
+import menu
+print(menu._role('LOGO', 'REPLI'))
+" 2>/dev/null)"
+	if [ -z "$VU_MENU" ]; then
+		non "le menu d'audit n'a pas pu être interrogé — on ne conclut pas qu'il suit le thème"
+	elif [ "$VU_MENU" = "$GENERE_LOGO_256" ]; then
+		ok "le menu d'audit prend « LexOS » dans le vert du générateur ($VU_MENU)"
+	else
+		non "le menu d'audit rend « $VU_MENU » là où le générateur dit « $GENERE_LOGO_256 »"
+	fi
+	#  ON LIT LE CODE, PAS LES COMMENTAIRES : ce fichier EXPLIQUE en toutes
+	#  lettres qu'il écrivait « 1;38;5;208 » avant. Un contrôle naïf lirait
+	#  son propre récit et se déclarerait en échec.
+	if code_nu "$MENU" | grep -q '38;5;208m⚜\|38;5;208m. + .━.'; then
+		non "le menu d'audit garde un orange écrit en dur sur un titre « LexOS »"
+	else
+		ok "le menu d'audit n'écrit plus aucune couleur de « LexOS » en dur"
+	fi
+fi
+
+#  2) La bascule jour/nuit : elle IMPRIME « Terminal LexOS », on lit sa sortie.
+if [ ! -x "$BASCULE" ] || ! command -v script >/dev/null 2>&1; then
+	printf '  \033[2mbascule sautée — « lexos-terminal » ou « script » absent\033[0m\n'
+else
+	SORTIE_B="$(HOME="$BANC/replis" XDG_CONFIG_HOME="$BANC/replis/.config" \
+		NO_COLOR="" TERM=xterm-256color \
+		env -u COLORTERM script -qec "bash '$BASCULE'" /dev/null 2>/dev/null || true)"
+	if [ -z "$SORTIE_B" ]; then
+		non "« lexos-terminal » n'a rien affiché — son titre n'est pas vérifiable"
+	else
+		case "$SORTIE_B" in
+			*"${ESCB}[${GENERE_LOGO_256}mTerminal LexOS"*)
+				ok "« Terminal LexOS » porte le vert du générateur ($GENERE_LOGO_256)" ;;
+			*"${ESCB}[${GENERE_U256}mTerminal LexOS"*)
+				non "« Terminal LexOS » porte l'orange du NOM ($GENERE_U256) — les deux rôles sont inversés" ;;
+			*)
+				non "« Terminal LexOS » ne porte pas le vert du générateur ($GENERE_LOGO_256)" ;;
+		esac
+	fi
+fi
+
 # =============================================================================
 titre "7. La BANNIÈRE dit la même chose que l'invite"
 # =============================================================================
@@ -650,7 +714,6 @@ titre "7. La BANNIÈRE dit la même chose que l'invite"
 #  un tube, il sort en noir et blanc et le contrôle passerait au vert sans
 #  rien avoir mesuré. D'où « script », qui lui donne un pseudo-terminal.
 FETCH="$RACINE/config/includes.chroot/usr/bin/lexfetch"
-ESCB=$'\033'
 if ! command -v script >/dev/null 2>&1; then
 	printf '  \033[2mbannière sautée — « script » (util-linux) est absent : sans pseudo-terminal, lexfetch ne colore rien et le contrôle ne mesurerait rien\033[0m\n'
 elif [ ! -r "$FETCH" ]; then
