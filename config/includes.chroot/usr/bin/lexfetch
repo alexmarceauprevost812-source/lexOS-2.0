@@ -66,6 +66,12 @@ if [[ -n "$O" ]]; then
 	#  de l'autre serait pire — une dépendance de /usr/bin vers /usr/share
 	#  dont la panne serait silencieuse, c'est-à-dire ce défaut-ci réintroduit
 	#  par la porte de service.
+	#  ET LE NOM EST DE L'OR, PAS L'ORANGE DU DESSIN. $O peint le pavé ASCII
+	#  et la rangée de pastilles ; le NOM, lui, suit l'invite, qui replie sur
+	#  38;5;220 (#FFD700) depuis qu'Alex a demandé l'or. Les deux valaient le
+	#  même orange par coïncidence — c'est fini, et c'est tant mieux : le
+	#  banc de l'invite compare ce repli à celui d'interactive.sh.
+	U=$'\033[38;5;220m'
 	H=$'\033[38;5;35m'
 	LEXOS_TERM_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/terminal.env"
 	if [[ -r "$LEXOS_TERM_ENV" ]]; then

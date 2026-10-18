@@ -276,7 +276,17 @@ if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	#  que le banc applique. De nuit il n'y a pas d'ambiguïté (ΔE76 21,1,
 	#  ΔE2000 14,1). C'est écrit ici plutôt que découvert plus tard : la
 	#  marge de jour tient, elle ne tient pas largement.
-	TERM_UTILISATEUR="#8A4400"
+	#  ═══ L'OR DE JOUR EST UN BRONZE, ET C'EST INÉVITABLE ═══
+	#  L'or est une couleur CLAIRE : sur le crème il ne peut pas rester clair
+	#  sans disparaître. #FFD700, l'or de nuit, donne 1,29:1 ici — invisible.
+	#  Balayage des 240 cases du cube, contraste ≥ 4,5 sur le crème et teinte
+	#  dans la famille de l'or (38°–58°) : UNE SEULE case passe, le 38;5;94,
+	#  qui est déjà le repli de jour. En couleur vraie on fait mieux :
+	#  #7A5C00 donne 5,74:1 à 45° de teinte, franchement dans l'or, là où
+	#  l'ancien #8A4400 était à 30° — un orange brûlé, pas un or.
+	#  On perd 0,9 point de contraste (6,63 → 5,74) et on gagne la teinte
+	#  demandée. Mesuré, pas estimé.
+	TERM_UTILISATEUR="#7A5C00"
 	TERM_LOGO="#0F5A24"
 	TERM_CURSEUR="$ACCENT_LO"
 	TERM_SEL_BG="$ACCENT_LO"
@@ -334,7 +344,19 @@ else
 	#  (3,84:1) : #159A3D, regardé sur du noir, donne 5,72:1 et reste
 	#  nettement plus sombre que le vert machine #00D700 — le mot LEXOS se
 	#  distingue du chemin sans se confondre avec lui.
-	TERM_UTILISATEUR="#FF8700"
+	#  ═══ LE NOM EST UN OR, DEPUIS QU'ALEX L'A DEMANDÉ ═══
+	#  « sur l'image où c'est écrit marceau, j'aimerais qu'il soit de couleur
+	#  jaune or ». #FFD700 donne 14,97:1 sur le noir — le plus haut contraste
+	#  de tous les rôles — et il est à ΔE 67 de l'accent, 77 du vert LEXOS,
+	#  89 du rouge d'erreur, 76 du vert machine : il ne se confond avec rien.
+	#  Et #FFD700 EST EXACTEMENT le 38;5;220 de la palette 256, comme #00D700
+	#  l'est du 38;5;40 : la coïncidence qui empêche l'invite et le terminal
+	#  de diverger vaut donc aussi pour l'or.
+	#  L'orange #FF8700 d'avant est resté l'ACCENT — curseur, sélection,
+	#  onglet actif. Le nom et l'accent ne partagent donc plus leur couleur,
+	#  ce qui est mieux qu'avant : une signature et un objet vivant ne
+	#  devraient pas se peindre pareil.
+	TERM_UTILISATEUR="#FFD700"
 	TERM_LOGO="#159A3D"
 	TERM_CURSEUR="$ACCENT"
 	TERM_SEL_BG="$ACCENT"
@@ -1611,7 +1633,10 @@ else
 	PS_MACHINE_256="38;5;40"    # exactement #00D700, voir la section terminal plus haut
 	PS_TEXTE_256="38;5;15"      # le blanc brillant de la palette
 	PS_ERREUR_256="1;38;5;196"
-	PS_UTILISATEUR_256="38;5;208"  # exactement #FF8700, comme 40 l'est de #00D700 (8,72:1 sur noir)
+	#  220 EST EXACTEMENT #FFD700 — la troisième coïncidence du dépôt, après
+	#  #00D700/40 et #00AF5F/35. La console texte et ssh voient donc le même
+	#  or que le Terminal Pro, au bit près. 14,97:1 sur noir.
+	PS_UTILISATEUR_256="38;5;220"
 	#  « 38;5;29, le plus proche de #159A3D » : c'était FAUX, et c'est vérifié.
 	#  29 (#00875F) est à ΔE 29,2 et donne 4,63:1 — à peine au-dessus du
 	#  seuil. 35 (#00AF5F) est à ΔE 11,3, deux fois et demie plus proche, et

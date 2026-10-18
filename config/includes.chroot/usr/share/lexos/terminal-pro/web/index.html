@@ -534,7 +534,9 @@ class Fenetre {
       cursorStyle: "bar",
       fontFamily: getComputedStyle(document.documentElement).getPropertyValue("--mono").trim()
                   || "monospace",
-      fontSize: 12.5,
+      //  La taille COURANTE, pas la livrée : un volet ouvert après un
+      //  agrandissement doit naître à la même taille que ses voisins.
+      fontSize: TAILLE,
       lineHeight: 1.2,
       //  Un historique généreux : c'est lui qui remplace le journal qu'on
       //  faisait défiler à la main, et c'est xterm.js qui le tient.
@@ -939,6 +941,51 @@ document.addEventListener("visibilitychange", __relireTheme);
 window.addEventListener("focus", __relireTheme);
 setInterval(__relireTheme, 60000);
 
+//  ═══ LA TAILLE DU TEXTE ═══
+//  ALEX, capture à l'appui : « ecriture est tro petit je voir a pein quoi il
+//  est ecrit ». La page naissait à 12,5 px et rien ne permettait d'en changer.
+//
+//  ⚠ NE PAS CONFONDRE AVEC « zoom ». Ce mot est DÉJÀ pris dans cette page :
+//  le bouton zoom (Ctrl+B Z) met un volet en PLEIN ÉCRAN dans son onglet.
+//  Celui-ci grossit les CARACTÈRES. Deux choses différentes, deux noms.
+//
+//  ET CE N'EST PAS QU'UNE AFFAIRE DE POLICE. Changer la taille change le
+//  nombre de COLONNES et de LIGNES, et le pseudo-terminal du côté serveur
+//  doit l'apprendre : sinon « less », « htop » et « vim » se trompent sur la
+//  largeur et le retour à la ligne casse au milieu des mots. La chaîne qui
+//  fait ça existe déjà — ajuster() recalcule, ajuste et POSTE /api/taille —
+//  il suffit donc de la relancer après chaque changement. C'est insister()
+//  qu'on appelle, parce qu'il réessaie tant que la fenêtre n'est pas prête.
+const TAILLE_DEFAUT = 12.5, TAILLE_MIN = 7, TAILLE_MAX = 32;
+const CLE_TAILLE = "lexos.terminal.taille";
+
+//  localStorage peut jeter (fenêtre privée, stockage bloqué) et peut rendre
+//  n'importe quoi : on borne à la lecture comme à l'écriture.
+function tailleLue(){
+  try{
+    const v = parseFloat(localStorage.getItem(CLE_TAILLE));
+    if(Number.isFinite(v) && v >= TAILLE_MIN && v <= TAILLE_MAX) return v;
+  }catch(e){}
+  return TAILLE_DEFAUT;
+}
+let TAILLE = tailleLue();
+
+function poserTaille(px, relatif){
+  const avant = TAILLE;
+  const vise = relatif ? TAILLE + px : px;
+  TAILLE = Math.min(TAILLE_MAX, Math.max(TAILLE_MIN, Math.round(vise * 2) / 2));
+  if(TAILLE === avant) return false;
+  try{ localStorage.setItem(CLE_TAILLE, String(TAILLE)); }catch(e){}
+  for(const v of FLUX.volets.values()){
+    if(!v || !v.term) continue;
+    try{ v.term.options.fontSize = TAILLE; }catch(e){ continue; }
+    //  insister() et pas ajuster() : la fenêtre peut être en train de se
+    //  redessiner, et c'est lui qui réessaie jusqu'à ce que ça prenne.
+    try{ v.insister(); }catch(e){}
+  }
+  return true;
+}
+
 function paletteXterm(){
   const v = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   return {
@@ -1067,6 +1114,16 @@ const Terminal = {
     document.getElementById("plus").addEventListener("click", () => this.nouvelOnglet());
     document.getElementById("audit").addEventListener("click", () => this.ouvrirAudit());
     window.addEventListener("keydown", e => this.clavier(e), true);
+    //  Ctrl + molette, le geste que tout le monde essaie en premier.
+    //  « passive: false » est OBLIGATOIRE : sans lui le navigateur refuse le
+    //  preventDefault() et fait SON zoom par-dessus le nôtre — on aurait
+    //  alors deux grossissements qui se battent, et la grille du terminal
+    //  ne suivrait que l'un des deux.
+    window.addEventListener("wheel", e => {
+      if(!e.ctrlKey) return;
+      e.preventDefault();
+      poserTaille(e.deltaY < 0 ? 1 : -1, true);
+    }, { passive: false, capture: true });
     this.nouvelOnglet();
     setInterval(() => this.horloge(), 1000); this.horloge();
     //  La police d'écran arrive après le premier rendu : quand elle est là,
@@ -1272,6 +1329,19 @@ const Terminal = {
       else if(/^[1-9]$/.test(k)) this.allerOnglet(parseInt(k,10) - 1);
       return;
     }
+    //  ═══ Ctrl + = / - / 0 : LA TAILLE DU TEXTE ═══
+    //  On intercepte AVANT que la frappe n'atteigne le shell. Ces trois-là
+    //  sont sans emploi dans un terminal — contrairement à Ctrl+C, Ctrl+D ou
+    //  Ctrl+L, qu'on ne touche surtout pas : ils appartiennent au programme
+    //  qui tourne. « e.key » vaut "+" quand on tient Majuscule sur un clavier
+    //  où le plus est au-dessus du égal, d'où les trois écritures.
+    if(e.ctrlKey && !e.altKey && (e.key === "=" || e.key === "+" || e.key === "-"
+                                  || e.key === "_" || e.key === "0")){
+      e.preventDefault();
+      if(e.key === "0") poserTaille(TAILLE_DEFAUT, false);
+      else poserTaille(e.key === "-" || e.key === "_" ? -1 : 1, true);
+      return;
+    }
     if(e.ctrlKey && (e.key === "PageDown" || e.key === "PageUp")){
       e.preventDefault();
       const d = e.key === "PageDown" ? 1 : -1;
@@ -1410,6 +1480,11 @@ if(typeof globalThis !== "undefined"){
   globalThis.__banc = { Terminal, Fenetre, esc, aide,
                          poste, base64Octets, paletteXterm,
                          appliquerTheme, FLUX,
+                         //  La taille du texte s'éprouve comme le thème :
+                         //  en l'EXÉCUTANT sur un faux volet, pas en
+                         //  relisant le code.
+                         poserTaille, TAILLE_DEFAUT,
+                         get TAILLE(){ return TAILLE; },
                          get ACCUEIL(){ return ACCUEIL; } };
 }
 

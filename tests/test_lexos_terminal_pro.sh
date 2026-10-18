@@ -946,6 +946,33 @@ console.log('minuteries=' + MINUTERIES.join(','));
 //  AVANT tout thème : le mode démonstration ne doit pas bouger.
 console.log('demo.foreground=' + T.paletteXterm().foreground);
 
+//  ═══ LA TAILLE DU TEXTE, EXÉCUTÉE ═══
+//  On compte les AJUSTEMENTS : c'est eux qui préviennent le pseudo-terminal
+//  des nouvelles colonnes. Sans eux, less/htop/vim se trompent de largeur.
+if (T.poserTaille) {
+  let fits = 0;
+  const vol = { id: 'vt', term: { options: { fontSize: T.TAILLE } }, insister(){ fits++; } };
+  T.FLUX.volets.set('vt', vol);
+  const depart = T.TAILLE;
+  T.poserTaille(1, true);
+  console.log('taille.plus=' + T.TAILLE + '/' + vol.term.options.fontSize + '/' + fits);
+  T.poserTaille(-1, true);
+  console.log('taille.moins=' + T.TAILLE + '/' + vol.term.options.fontSize);
+  for (let k = 0; k < 80; k++) T.poserTaille(1, true);
+  console.log('taille.plafond=' + T.TAILLE);
+  const auPlafond = fits;
+  T.poserTaille(1, true);                 //  une fois AU plafond : doit être un non-geste
+  console.log('taille.borne_inerte=' + (fits === auPlafond ? 'oui' : 'non'));
+  for (let k = 0; k < 160; k++) T.poserTaille(-1, true);
+  console.log('taille.plancher=' + T.TAILLE);
+  T.poserTaille(T.TAILLE_DEFAUT, false);
+  console.log('taille.remise=' + T.TAILLE + '/' + vol.term.options.fontSize
+              + '/' + (T.TAILLE === depart ? 'retour' : 'ailleurs'));
+  T.FLUX.volets.delete('vt');
+} else {
+  console.log('taille.absent=oui');
+}
+
 const volet = { id: 'v1', term: { options: { theme: { marqueur: 'ANCIEN' } } } };
 T.FLUX.volets.set('v1', volet);
 REPONSE.rep = { ok: true, json: async () => ({ theme: env }) };
@@ -1050,6 +1077,42 @@ JSBANC
 			else
 				non "$MODE : la cadence de relecture est « $PREM » ms — hors de la plage raisonnable (1 s à 5 min)"
 			fi
+		fi
+		#  5 quater) LA TAILLE DU TEXTE — « ecriture est tro petit je voir a
+		#  pein quoi il est ecrit » (Alex, capture à l'appui). Ce qui se
+		#  mesure n'est pas que la police change : c'est que le PSEUDO-
+		#  TERMINAL l'apprenne. Changer la taille change le nombre de
+		#  colonnes ; sans ajustement, less, htop et vim se trompent de
+		#  largeur et le retour à la ligne casse au milieu des mots.
+		if [ "$(lij 'taille.absent')" = oui ]; then
+			non "$MODE : la page n'expose aucune taille de texte réglable"
+		else
+			case "$(lij 'taille.plus')" in
+				13.5/13.5/1) ok "$MODE : agrandir porte la police à 13,5 ET prévient le pseudo-terminal (1 ajustement)" ;;
+				*/*/0)       non "$MODE : la police change mais le pseudo-terminal n'est PAS prévenu — la grille mentira" ;;
+				*)           non "$MODE : agrandir rend « $(lij 'taille.plus') » au lieu de 13.5/13.5/1" ;;
+			esac
+			[ "$(lij 'taille.moins')" = "12.5/12.5" ] \
+				&& ok "$MODE : réduire revient exactement sur ses pas (12,5)" \
+				|| non "$MODE : réduire rend « $(lij 'taille.moins') » au lieu de 12.5/12.5"
+			#  LES BORNES. Sans elles, une molette emballée met la police à
+			#  300 px ou à zéro, et le terminal devient inutilisable sans
+			#  qu'aucun chemin ne permette d'en revenir.
+			P="$(lij 'taille.plafond')"; Q="$(lij 'taille.plancher')"
+			if [ -n "$P" ] && [ -n "$Q" ] \
+			   && awk -v p="$P" -v q="$Q" 'BEGIN{exit !(p <= 48 && p >= 16 && q >= 5 && q <= 10)}'; then
+				ok "$MODE : la taille est bornée ($Q à $P px) — une molette emballée ne casse rien"
+			else
+				non "$MODE : bornes « $Q à $P » — hors du raisonnable (plancher 5-10, plafond 16-48)"
+			fi
+			case "$(lij 'taille.borne_inerte')" in
+				oui) ok "$MODE : arrivé à la borne, insister de plus ne réajuste rien" ;;
+				*)   non "$MODE : à la borne, chaque geste relance un ajustement inutile du pseudo-terminal" ;;
+			esac
+			case "$(lij 'taille.remise')" in
+				*/*/retour) ok "$MODE : la remise à zéro retrouve exactement la taille livrée" ;;
+				*)          non "$MODE : la remise à zéro rend « $(lij 'taille.remise') »" ;;
+			esac
 		fi
 		#  6) les écouteurs qui relisent le thème existent — CONSTATÉS, pas lus
 		ECO="$(lij ecoutes)"

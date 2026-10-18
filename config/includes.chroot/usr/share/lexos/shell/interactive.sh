@@ -93,7 +93,7 @@ __lexos_couleurs() {
 	#  s'approche pas, il tombe juste. Ça compte plus qu'il n'y paraît —
 	#  personne n'exporte COLORTERM sauf le terminal LexOS Pro, donc la
 	#  console texte, ssh et tmux lisent CETTE ligne-ci, pas terminal.env.
-	__LEXOS_C_UTILISATEUR='38;5;208'
+	__LEXOS_C_UTILISATEUR='38;5;220'
 	__LEXOS_C_LOGO='38;5;35'
 	[ -r "$LEXOS_TERM_ENV" ] || return 0
 	# shellcheck disable=SC1090

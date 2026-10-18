@@ -489,22 +489,31 @@ PY
 		fi
 	done
 
-	#  ═══ LE NOM EST-IL VRAIMENT ORANGE ? ═══
+	#  ═══ LE NOM EST-IL VRAIMENT DE L'OR ? ═══
 	#  Jusqu'ici ce banc ne vérifiait que des DIFFÉRENCES : le nom n'est ni
 	#  le vert machine, ni le vert de LEXOS, ni le rouge d'erreur. Un nom
 	#  rose vif passait tous ces points. Or Alex n'a pas demandé « une autre
-	#  couleur », il a demandé L'ORANGE — et une demande de couleur qu'aucun
-	#  contrôle ne nomme finit par dériver au correctif suivant.
-	#  On mesure donc la TEINTE, en degrés sur la roue : l'orange tient
-	#  entre 15° et 50° — au-delà c'est le jaune, en deçà le rouge.
-	#  Livré : #FF8700 → 31,8° · #8A4400 → 29,6° · 38;5;208 → 31,8°
+	#  couleur » — et une demande de couleur qu'aucun contrôle ne nomme finit
+	#  par dériver au correctif suivant.
+	#
+	#  LA DEMANDE A CHANGÉ, ET LA PLAGE AVEC ELLE. C'était l'ORANGE (15°-50°)
+	#  jusqu'à « sur l'image où c'est écrit marceau, j'aimerais qu'il soit de
+	#  couleur jaune or ». L'or tient entre 38° et 62° sur la roue : au-delà
+	#  c'est le jaune-vert, en deçà l'orange.
+	#
+	#  ET LA PLAGE S'EST DÉPLACÉE, PAS ÉLARGIE — c'est le point. L'orange
+	#  n'est plus accepté pour le nom, parce que l'orange est désormais
+	#  l'ACCENT (curseur, sélection, onglet actif). Si le nom y revenait, la
+	#  signature et l'objet vivant se repeindraient pareil : exactement la
+	#  confusion que ce lot a passé une journée à défaire.
+	#  Livré : #FFD700 → 50,6° · #7A5C00 → 45,2° · 38;5;220 → 50,6°
 	#  · 38;5;94 → 42,2°.
 	for ROLE in "nom:$ATTENDU_U" "nom-256:$ATTENDU_U256"; do
 		H="$(python3 "$ECART" teinte "${ROLE#*:}")"
-		if awk -v h="$H" 'BEGIN{exit !(h >= 15 && h <= 50)}'; then
-			ok "$MODE : ${ROLE%%:*} est bien dans l'orange ($H° sur la roue)"
+		if awk -v h="$H" 'BEGIN{exit !(h >= 38 && h <= 62)}'; then
+			ok "$MODE : ${ROLE%%:*} est bien dans l'or ($H° sur la roue)"
 		else
-			non "$MODE : ${ROLE%%:*} est à $H° — hors de la plage orange 15°-50°, ce n'est pas ce qui a été demandé"
+			non "$MODE : ${ROLE%%:*} est à $H° — hors de la plage or 38°-62°, ce n'est pas ce qui a été demandé"
 		fi
 	done
 
@@ -877,12 +886,12 @@ else
 				*"${ESCB}[${R_NOM}m${HOTE_N}"*)
 					non "$PROF : sans thème, la bannière peint le nom ET la machine en $R_NOM — l'invite, non" ;;
 				*)
-					non "$PROF : sans thème, « $HOTE_N » ne porte ni le vert-logo ($R_LOGO) ni l'orange du nom ($R_NOM)" ;;
+					non "$PROF : sans thème, « $HOTE_N » ne porte ni le vert-logo ($R_LOGO) ni l'or du nom ($R_NOM)" ;;
 			esac
 			case "$NUE" in
 				*"${ESCB}[${R_NOM}m${QUI_N}"*)
-					ok "$PROF : sans thème, « $QUI_N » garde l'orange du nom ($R_NOM)" ;;
-				*)  non "$PROF : sans thème, « $QUI_N » ne porte pas l'orange du nom ($R_NOM)" ;;
+					ok "$PROF : sans thème, « $QUI_N » garde l'or du nom ($R_NOM)" ;;
+				*)  non "$PROF : sans thème, « $QUI_N » ne porte pas l'or du nom ($R_NOM)" ;;
 			esac
 			#  Le dessin ne doit PAS avoir été détourné : c'est le piège du
 			#  correctif facile, qui repeindrait $O et donc le logo ASCII.
