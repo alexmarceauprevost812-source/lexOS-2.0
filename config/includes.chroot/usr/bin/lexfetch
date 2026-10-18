@@ -27,6 +27,36 @@ else
 	O=''; A=''; W=''; D=''; B=''; R=''
 fi
 
+# --- Le nom et la machine suivent l'INVITE, ils ne la doublent pas ----------
+#  « marceau@lexos » est écrit ici, et l'invite le réécrit deux lignes plus
+#  bas sur le même écran. Les deux valaient 38;5;208 — par coïncidence, pas
+#  par construction : le jour où l'invite a changé d'avis sur la couleur du
+#  nom, rien n'aurait tiré la bannière avec elle, et on aurait eu deux
+#  « marceau » de deux oranges sur un seul écran.
+#  On lit donc la source — ~/.config/lexos/terminal.env, écrit par
+#  lexos-theme-gen — avec les valeurs d'avant en repli. Même bascule que
+#  __lexos_couleurs : couleur vraie quand le terminal l'annonce, palette 256
+#  sinon, parce que la console texte afficherait « 38;2;… » en clair.
+#  ON NE SOURCE PAS CE FICHIER : lexfetch lit déjà /etc/os-release et pose
+#  ses propres variables ; on en extrait les deux lignes voulues, et rien
+#  d'autre n'entre ici.
+#  $O n'est PAS détourné : il peint aussi le logo ASCII et la rangée de
+#  pastilles, qui n'ont rien à voir avec l'identité.
+U="$O"; H="$O"
+if [[ -n "$O" ]]; then
+	LEXOS_TERM_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/terminal.env"
+	if [[ -r "$LEXOS_TERM_ENV" ]]; then
+		case "${COLORTERM:-}" in
+			truecolor|24bit) _sfx='' ;;
+			*)               _sfx='_256' ;;
+		esac
+		_u="$(sed -n "s/^LEXOS_PS_UTILISATEUR${_sfx}='\(.*\)'\$/\1/p" "$LEXOS_TERM_ENV" | head -1)"
+		_l="$(sed -n "s/^LEXOS_PS_LOGO${_sfx}='\(.*\)'\$/\1/p" "$LEXOS_TERM_ENV" | head -1)"
+		[[ -n "$_u" ]] && U=$'\033['"${_u}"'m'
+		[[ -n "$_l" ]] && H=$'\033['"${_l}"'m'
+	fi
+fi
+
 # --- Art ASCII ---------------------------------------------------------------
 IFS= read -r -d '' ART <<'EOF' || true
         ▄▄██████████▄▄
@@ -179,7 +209,9 @@ fi
 
 # --- Construction du panneau d'infos ----------------------------------------
 INFO=()
-INFO+=("${B}${O}${user_name}${W}@${B}${O}${host_name}${R}")
+#  Le nom dans l'orange de l'invite, la machine dans le vert de « LEXOS » :
+#  la bannière dit la même chose que la ligne d'en dessous.
+INFO+=("${B}${U}${user_name}${W}@${B}${H}${host_name}${R}")
 INFO+=("${D}────────────────────────────────${R}")
 add() { INFO+=("${A}${1}${R}${D}:${R} ${W}${2}${R}"); }
 

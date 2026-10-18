@@ -116,6 +116,66 @@ if a < b:
 print("%.2f" % ((a+0.05)/(b+0.05)))
 PYC
 
+#  Le CONTRASTE dit si ça se lit sur le fond. Il ne dit RIEN de la distance
+#  entre deux couleurs : le nom orange et le curseur orange peuvent très
+#  bien avoir le même contraste et être indiscernables. D'où ce second
+#  outil — écart perçu (ΔE, CIELAB) et TEINTE, en degrés.
+ECART="$BANC/ecart.py"
+cat > "$ECART" <<'PYE'
+import sys, re
+def hexa(s):
+    if s.startswith("#"):
+        return s
+    m = re.match(r"(?:1;)?38;2;(\d+);(\d+);(\d+)$", s)
+    if m:
+        return "#%02X%02X%02X" % tuple(int(g) for g in m.groups())
+    m = re.match(r"(?:1;)?38;5;(\d+)$", s)
+    if not m:
+        return None
+    n = int(m.group(1)); niv = [0, 95, 135, 175, 215, 255]
+    if n >= 232:
+        v = 8 + (n-232)*10; return "#%02X%02X%02X" % (v, v, v)
+    if n >= 16:
+        k = n-16; return "#%02X%02X%02X" % (niv[k//36], niv[(k//6) % 6], niv[k % 6])
+    return None
+def lin(c):
+    c /= 255.0
+    return c/12.92 if c <= 0.04045 else ((c+0.055)/1.055)**2.4
+def rgb(h):
+    return tuple(int(h[i:i+2], 16) for i in (1, 3, 5))
+def lab(h):
+    r, g, b = (lin(v) for v in rgb(h))
+    X = 0.4124*r+0.3576*g+0.1805*b; Y = 0.2126*r+0.7152*g+0.0722*b
+    Z = 0.0193*r+0.1192*g+0.9505*b
+    def f(t):
+        return t**(1/3) if t > 0.008856 else 7.787*t+16/116
+    fx, fy, fz = f(X/0.95047), f(Y/1.0), f(Z/1.08883)
+    return (116*fy-16, 500*(fx-fy), 200*(fy-fz))
+def teinte(h):
+    r, g, b = rgb(h)
+    mx, mn = max(r, g, b), min(r, g, b)
+    d = mx - mn
+    if d == 0:
+        return -1.0
+    if mx == r:
+        t = 60*(((g-b)/d) % 6)
+    elif mx == g:
+        t = 60*(((b-r)/d) + 2)
+    else:
+        t = 60*(((r-g)/d) + 4)
+    return t
+mode = sys.argv[1]
+a = hexa(sys.argv[2])
+if a is None:
+    print("-1"); sys.exit()
+if mode == "teinte":
+    print("%.1f" % teinte(a)); sys.exit()
+b = hexa(sys.argv[3])
+if b is None:
+    print("-1"); sys.exit()
+print("%.1f" % (sum((x-y)**2 for x, y in zip(lab(a), lab(b)))**0.5))
+PYE
+
 # =============================================================================
 titre "1. UNE SEULE LIGNE — « faire en sorte que ça suive --> »"
 # =============================================================================
@@ -161,10 +221,12 @@ else
 fi
 
 # =============================================================================
-titre "2. Trois rôles : le nom en rouge clair, LEXOS en vert foncé, la machine en vert"
+titre "2. Trois rôles : le nom en ORANGE, LEXOS en vert foncé, la machine en vert"
 # =============================================================================
 #  ALEX, consigne « terminal XFCE » : « le nom de l'utilisateur en rouge
-#  clair, à côté LEXOS en vert foncé ». Le mot LEXOS REMPLACE « @\h ». Le
+#  clair, à côté LEXOS en vert foncé » — puis, captures à l'appui : « la
+#  couleur de marceau pour l'orange et le vert pour LEXOS ». Le nom a donc
+#  quitté le rouge clair ; LEXOS n'a pas bougé. Le mot LEXOS REMPLACE « @\h ». Le
 #  chemin et le chevron restent écrits par la MACHINE et portent la MÊME
 #  couleur. Ce banc ne connaît aucune valeur : il vérifie que le nom, LEXOS
 #  et le chevron portent TROIS couleurs distinctes, que chemin et chevron
@@ -207,7 +269,7 @@ else
 	if [ -n "$C_NOM" ] && [ "$C_NOM" != "$C_CHEVRON" ]; then
 		ok "le nom d'utilisateur a SA couleur ($C_NOM), distincte du vert machine"
 	else
-		non "le nom ($C_NOM) porte encore la couleur de la machine ($C_CHEVRON) — il doit être rouge clair"
+		non "le nom ($C_NOM) porte encore la couleur de la machine ($C_CHEVRON) — il doit être orange"
 	fi
 	if [ -n "$C_LOGO" ] && [ "$C_LOGO" != "$C_CHEVRON" ] && [ "$C_LOGO" != "$C_NOM" ]; then
 		ok "« LEXOS » est écrit, avec une troisième couleur ($C_LOGO) — ni celle du nom, ni celle de la machine"
@@ -351,15 +413,15 @@ for MODE in nuit jour; do
 	VU_U="$(couleur_de "$(id -un)" || true)"
 	VU_L="$(couleur_de "LEXOS" || true)"
 	[ -n "$ATTENDU_U" ] && [ "$VU_U" = "$ATTENDU_U" ] \
-		&& ok "$MODE : le rouge clair du nom est celui du fichier ($ATTENDU_U)" \
+		&& ok "$MODE : l'orange du nom est celui du fichier ($ATTENDU_U)" \
 		|| non "$MODE : le fichier dit « $ATTENDU_U » pour le nom, l'invite affiche « $VU_U »"
 	[ -n "$ATTENDU_L" ] && [ "$VU_L" = "$ATTENDU_L" ] \
 		&& ok "$MODE : le vert foncé de LEXOS est celui du fichier ($ATTENDU_L)" \
 		|| non "$MODE : le fichier dit « $ATTENDU_L » pour LEXOS, l'invite affiche « $VU_L »"
 	ATTENDU_E="$(sed -n "s/^LEXOS_PS_ERREUR='\(.*\)'$/\1/p" "$ENV")"
 	[ -n "$ATTENDU_U" ] && [ "1;$ATTENDU_U" != "$ATTENDU_E" ] && [ "$ATTENDU_U" != "${ATTENDU_E#1;}" ] \
-		&& ok "$MODE : le rouge clair du nom n'est PAS le rouge d'erreur du chevron (signature ≠ signal)" \
-		|| non "$MODE : le nom et l'erreur portent le même rouge — on ne distinguerait plus une commande en échec"
+		&& ok "$MODE : le nom n'est PAS le rouge d'erreur du chevron (signature ≠ signal)" \
+		|| non "$MODE : le nom et l'erreur portent la même couleur — on ne distinguerait plus une commande en échec"
 	[ "$VU_T" = "$ATTENDU_T" ] \
 		&& ok "$MODE : la couleur de frappe est celle du fichier ($ATTENDU_T)" \
 		|| non "$MODE : le fichier dit $ATTENDU_T, l'invite affiche $VU_T"
@@ -423,14 +485,60 @@ PY
 			non "$MODE : ${ROLE%%:*} ne donne que $R:1 sur $BG — « le vert foncé sur fond noir se lit mal »"
 		fi
 	done
+
+	#  ═══ LE NOM EST-IL VRAIMENT ORANGE ? ═══
+	#  Jusqu'ici ce banc ne vérifiait que des DIFFÉRENCES : le nom n'est ni
+	#  le vert machine, ni le vert de LEXOS, ni le rouge d'erreur. Un nom
+	#  rose vif passait tous ces points. Or Alex n'a pas demandé « une autre
+	#  couleur », il a demandé L'ORANGE — et une demande de couleur qu'aucun
+	#  contrôle ne nomme finit par dériver au correctif suivant.
+	#  On mesure donc la TEINTE, en degrés sur la roue : l'orange tient
+	#  entre 15° et 50° — au-delà c'est le jaune, en deçà le rouge.
+	#  Livré : #FF8700 → 31,8° · #8A4400 → 29,6° · 38;5;208 → 31,8°
+	#  · 38;5;94 → 42,2°.
+	for ROLE in "nom:$ATTENDU_U" "nom-256:$ATTENDU_U256"; do
+		H="$(python3 "$ECART" teinte "${ROLE#*:}")"
+		if awk -v h="$H" 'BEGIN{exit !(h >= 15 && h <= 50)}'; then
+			ok "$MODE : ${ROLE%%:*} est bien dans l'orange ($H° sur la roue)"
+		else
+			non "$MODE : ${ROLE%%:*} est à $H° — hors de la plage orange 15°-50°, ce n'est pas ce qui a été demandé"
+		fi
+	done
+
+	#  ═══ ET CET ORANGE N'EST PAS CELUI DU CURSEUR ═══
+	#  L'accent — curseur, sélection, onglet actif — est orange lui aussi.
+	#  Constater qu'ils « diffèrent » ne suffirait pas : deux oranges à ΔE 3
+	#  diffèrent et sont indiscernables à l'œil. On exige un écart PERÇU
+	#  d'au moins 10, seuil au-dessus duquel deux couleurs se lisent comme
+	#  deux. C'est tout l'écart entre une signature et un objet vivant.
+	#  Livré : ΔE 21 de nuit (#FF8700 contre #E8590C), ΔE 15 de jour
+	#  (#8A4400 contre #A84007).
+	CURSEUR="$(sed -n 's/^LEXOS_TERM_CURSEUR=//p' "$ENV")"
+	if [ -z "$CURSEUR" ]; then
+		non "$MODE : terminal.env ne dit pas la couleur du curseur — l'écart n'est pas mesurable, on ne conclut pas qu'il est bon"
+	else
+		for ROLE in "nom:$ATTENDU_U" "nom-256:$ATTENDU_U256"; do
+			D="$(python3 "$ECART" de "${ROLE#*:}" "$CURSEUR")"
+			if awk -v d="$D" 'BEGIN{exit !(d >= 10)}'; then
+				ok "$MODE : ${ROLE%%:*} se distingue du curseur $CURSEUR (ΔE $D)"
+			else
+				non "$MODE : ${ROLE%%:*} est à ΔE $D du curseur $CURSEUR — le nom se lirait comme un curseur posé dessus"
+			fi
+		done
+	fi
 done
 
 # =============================================================================
-titre "6. L'orange a quitté l'INVITE, pas le TERMINAL"
+titre "6. L'orange est revenu dans l'invite, au NOM seulement"
 # =============================================================================
-#  La demande d'Alex portait sur l'invite et la frappe. Le curseur, la
-#  sélection et l'onglet actif gardent l'accent : les retirer aussi aurait
-#  été un correctif trop large, et personne ne l'aurait vu venir.
+#  Cette section s'appelait « L'orange a quitté l'INVITE ». Elle date de la
+#  consigne où le nom était rouge clair ; Alex est revenu dessus et le nom
+#  est orange depuis. Ce qu'elle garde reste vrai et reste utile : l'ancien
+#  nom de variable ne doit pas revenir, et le curseur, la sélection et
+#  l'onglet actif gardent l'accent — les leur retirer aurait été un
+#  correctif trop large, et personne ne l'aurait vu venir.
+#  Que le nom soit orange SANS être l'orange du curseur, c'est la section 5
+#  qui le mesure, en teinte et en écart perçu.
 #  ON LIT LE CODE, PAS LES COMMENTAIRES. Les deux fichiers EXPLIQUENT que
 #  C_SAISIE s'appelait ainsi avant — un banc naïf lirait sa propre
 #  explication et se déclarerait en échec. Ce dépôt s'est déjà fait prendre
@@ -450,6 +558,63 @@ if grep -q 'CursorColor=\${TERM_CURSEUR}\|TabActivityColor=\${TERM_SAISIE}' "$GE
 	ok "le terminal garde bien l'accent pour son curseur et son onglet actif"
 else
 	non "l'accent a disparu du terminalrc : le correctif a débordé sur le curseur"
+fi
+
+# =============================================================================
+titre "7. La BANNIÈRE dit la même chose que l'invite"
+# =============================================================================
+#  ALEX : « les couleurs, on les retrouve dans les autres terminaux aussi ».
+#  Sur la console texte, lexfetch s'affiche JUSTE AU-DESSUS de l'invite —
+#  interactive.sh le lance quand DISPLAY est vide. On lit donc
+#  « marceau@lexos », puis, deux lignes plus bas, « marceau LEXOS ~ ❯ ».
+#  Deux fois le même nom sur le même écran.
+#  Les deux ont longtemps valu 38;5;208, mais par COÏNCIDENCE : lexfetch
+#  l'écrivait en dur. Le jour où l'invite a changé d'avis, rien n'aurait
+#  tiré la bannière avec elle, et c'est précisément ce qu'Alex reproche.
+#  Ce contrôle ne connaît aucune valeur : il relit ce que le générateur a
+#  écrit, et vérifie que la bannière l'emploie.
+#
+#  IL FAUT UN VRAI TERMINAL. lexfetch ne colore que si « [[ -t 1 ]] » : dans
+#  un tube, il sort en noir et blanc et le contrôle passerait au vert sans
+#  rien avoir mesuré. D'où « script », qui lui donne un pseudo-terminal.
+FETCH="$RACINE/config/includes.chroot/usr/bin/lexfetch"
+ESCB=$'\033'
+if ! command -v script >/dev/null 2>&1; then
+	printf '  \033[2mbannière sautée — « script » (util-linux) est absent : sans pseudo-terminal, lexfetch ne colore rien et le contrôle ne mesurerait rien\033[0m\n'
+elif [ ! -r "$FETCH" ]; then
+	non "lexfetch est introuvable : la bannière n'est pas vérifiable"
+else
+	rm -rf "${BANC:?}/fetch"; mkdir -p "$BANC/fetch"
+	bash "$GEN" --target "$BANC/fetch" --terminal nuit orange >/dev/null 2>&1
+	EF="$BANC/fetch/.config/lexos/terminal.env"
+	QUI="$(id -un)"
+	for PROF in truecolor 256; do
+		if [ "$PROF" = truecolor ]; then
+			SUF=""
+			SORTIE="$(HOME="$BANC/fetch" COLORTERM=truecolor TERM=xterm-256color \
+				script -qec "bash '$FETCH'" /dev/null 2>/dev/null || true)"
+		else
+			SUF="_256"
+			SORTIE="$(HOME="$BANC/fetch" TERM=xterm-256color \
+				env -u COLORTERM script -qec "bash '$FETCH'" /dev/null 2>/dev/null || true)"
+		fi
+		ATT_U="$(sed -n "s/^LEXOS_PS_UTILISATEUR${SUF}='\(.*\)'$/\1/p" "$EF")"
+		ATT_L="$(sed -n "s/^LEXOS_PS_LOGO${SUF}='\(.*\)'$/\1/p" "$EF")"
+		if [ -z "$ATT_U" ] || [ -z "$ATT_L" ]; then
+			non "$PROF : terminal.env ne dit pas les couleurs du nom et de LEXOS — on ne conclut pas que la bannière est bonne"
+		elif [ -z "$SORTIE" ]; then
+			non "$PROF : lexfetch n'a rien affiché — la bannière n'est pas vérifiable"
+		else
+			case "$SORTIE" in
+				*"${ESCB}[${ATT_U}m${QUI}"*) ok "$PROF : la bannière écrit « $QUI » dans la couleur de l'invite ($ATT_U)" ;;
+				*) non "$PROF : la bannière n'écrit pas « $QUI » en $ATT_U — elle a gardé une couleur à elle" ;;
+			esac
+			case "$SORTIE" in
+				*"${ESCB}[${ATT_L}m"*) ok "$PROF : la machine y porte le vert de « LEXOS » ($ATT_L)" ;;
+				*) non "$PROF : la machine de la bannière ne porte pas le vert de LEXOS ($ATT_L)" ;;
+			esac
+		fi
+	done
 fi
 
 # =============================================================================

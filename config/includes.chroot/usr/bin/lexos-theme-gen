@@ -62,9 +62,12 @@ case "${MODE,,}" in
 esac
 
 # --- Mode du TERMINAL : suivre le bureau, ou épinglé jour / nuit -------------
-#  DEMANDE D'ALEX, DEUXIÈME VERSION : « écriture blanc pour écriture de
-#  utilisateur, vert pour lexos ». (La première disait « orange » ; c'est
-#  celle-ci qui vaut.) C'est le rôle de TERM_TEXTE plus bas — et c'est PS1
+#  DEMANDE D'ALEX, TROISIÈME VERSION : « la couleur de marceau pour l'orange
+#  et le vert pour LEXOS ». (La première disait « orange » partout ; la
+#  deuxième « écriture blanc pour écriture de utilisateur, vert pour
+#  lexos » ; la troisième ramène l'orange, pour le NOM et lui seul. C'est
+#  celle-ci qui vaut — et cette parenthèse-ci sera à relire la prochaine
+#  fois plutôt qu'à réécrire.) C'est le rôle de TERM_TEXTE plus bas — et c'est PS1
 #  qui le porte : l'invite se termine par cette couleur SANS la refermer,
 #  PS0 la remet à zéro quand on appuie sur Entrée. Résultat : la frappe est
 #  blanche, la SORTIE de la commande ne l'est pas. Sans PS0, tout l'écran
@@ -194,26 +197,38 @@ DANGER_FG="$(texte_lisible "$DANGER")"
 #     TERM_FG_HI     le même en gras
 #     TERM_SAISIE    l'orange de l'ACCENT dans le terminal (curseur,
 #                    sélection, onglet actif) — PAS l'invite
+#     TERM_UTILISATEUR  l'orange du NOM dans l'invite. Un AUTRE orange que
+#                    TERM_SAISIE, et c'est voulu : voir plus bas.
+#     TERM_LOGO      le vert foncé du mot « LEXOS » dans l'invite
 #     TERM_TEXTE     l'encre de CE QUE VOUS TAPEZ (blanche de nuit)
 #     TERM_ERREUR    le rouge de l'échec
 #     TERM_DIM       le gris des détails (branche git)
 #     TERM_CURSEUR   le curseur
 #
-#  LA RÈGLE DE COULEUR NE CHANGE PAS d'un mode à l'autre — vert = la machine,
-#  blanc = vous, rouge = l'échec. Le jour n'est pas une autre identité, c'est
+#  LA RÈGLE DE COULEUR NE CHANGE PAS d'un mode à l'autre — orange = votre
+#  nom, vert foncé = LEXOS, vert = la machine, blanc = vous, rouge = l'échec. Le jour n'est pas une autre identité, c'est
 #  la même règle retranscrite pour un fond clair : le « blanc » de nuit y
 #  devient l'encre foncée, sans quoi la frappe disparaîtrait sur le crème.
 #
 #  ALEX, PHOTO DU TERMINAL : « écriture blanc pour écriture de utilisateur,
 #  vert pour lexos ». L'invite était orange sur son chemin et sur son
-#  chevron, et la frappe héritait de cet orange. Désormais TOUT ce que la
-#  machine écrit est vert (le nom, la machine, le chemin, le chevron) et
-#  TOUT ce qu'on tape est blanc. L'orange n'a pas disparu du terminal pour
-#  autant : il reste le curseur, la sélection et l'onglet actif — c'est
-#  TERM_SAISIE, qui ne touche plus à l'invite.
+#  chevron, et la frappe héritait de cet orange. Depuis, tout ce que la
+#  MACHINE écrit est vert (la machine, le chemin, le chevron) et tout ce
+#  qu'on tape est blanc.
+#
+#  ═══ L'ORANGE EST REVENU DANS L'INVITE, À UN SEUL ENDROIT ═══
+#  ALEX, CAPTURES À L'APPUI : « la couleur de marceau pour l'orange et le
+#  vert pour LEXOS », puis « les couleurs, on les retrouve dans les autres
+#  terminaux aussi ». Le NOM de l'utilisateur, et lui seul, devient orange :
+#  pas le chemin, pas le chevron, pas la frappe. TERM_SAISIE reste ce qu'il
+#  était — le curseur, la sélection et l'onglet actif — avec un orange
+#  VOISIN mais distinct ; TERM_UTILISATEUR, plus bas, dit pourquoi les deux
+#  ne portent pas la même valeur.
 #
 #  LES CONTRASTES SONT MESURÉS, PAS ESTIMÉS (WCAG, sur leur propre fond) :
-#     nuit  : vert 7,30 · orange 5,87 · rouge 5,37
+#     nuit  : vert 10,72 · orange 5,87 · rouge 5,37
+#  (« vert 7,30 » a longtemps été écrit ici : c'était #00AF5F, et TERM_FG
+#  est passé à #00D700 sans que la ligne suive. Remesuré.)
 #     jour  : vert 6,06 · orange 5,67 · rouge 6,00
 #  Tous au-dessus du seuil AA de 4,5, et les seize couleurs ANSI de jour
 #  aussi — vérifié une par une. Poser les couleurs de NUIT telles quelles
@@ -240,11 +255,16 @@ if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	TERM_TEXTE="#1B1A17"
 	TERM_ERREUR="#B3261E"
 	TERM_DIM="#6B675E"
-	#  Les deux rôles de l'invite (ALEX : « le nom de l'utilisateur en rouge
-	#  clair, à côté LEXOS en vert foncé »), convertis pour le crème comme
-	#  les autres : un rouge CLAIR sur du crème serait illisible. Mesurés sur
-	#  #F7F5F0 : #9A1B14 donne 7,59:1, #0F5A24 donne 7,68:1.
-	TERM_UTILISATEUR="#9A1B14"
+	#  Les deux rôles de l'invite (ALEX : « la couleur de marceau pour
+	#  l'orange et le vert pour LEXOS »), convertis pour le crème comme les
+	#  autres. L'orange VIF de la nuit ne tombe pas de lui-même : #FF8700
+	#  sur ce crème ne donne que 2,21:1 — illisible. Son ton sombre #8A4400
+	#  en donne 6,63:1. Mesurés sur #F7F5F0 : #8A4400 donne 6,63:1, #0F5A24
+	#  donne 7,68:1.
+	#  Il reste à distance des deux couleurs avec lesquelles on pourrait le
+	#  confondre de jour : le curseur ACCENT_LO #A84007 (ΔE 15) et le rouge
+	#  d'erreur #B3261E (ΔE 30).
+	TERM_UTILISATEUR="#8A4400"
 	TERM_LOGO="#0F5A24"
 	TERM_CURSEUR="$ACCENT_LO"
 	TERM_SEL_BG="$ACCENT_LO"
@@ -277,15 +297,32 @@ else
 	TERM_TEXTE="#FFFFFF"
 	TERM_ERREUR="#E5484D"
 	TERM_DIM="#8A8A90"
-	#  L'INVITE, TROIS RÔLES — ALEX : « le nom de l'utilisateur en rouge
-	#  clair, à côté LEXOS en vert foncé, ce qu'il tape en blanc franc ».
-	#  Le rouge clair : #FF7B7B, 8,37:1 sur le noir — ce n'est pas le rouge
-	#  d'erreur (#E5484D), qui reste au chevron des commandes en échec.
+	#  L'INVITE, TROIS RÔLES. ALEX disait d'abord « le nom de l'utilisateur
+	#  en rouge clair, à côté LEXOS en vert foncé, ce qu'il tape en blanc
+	#  franc » ; il dit maintenant, captures à l'appui, « la couleur de
+	#  marceau pour l'orange et le vert pour LEXOS ». Le nom quitte donc le
+	#  rouge clair (#FF7B7B, 8,37:1) ; LEXOS, lui, ne bouge pas — il était
+	#  déjà ce vert-là.
+	#
+	#  ═══ L'ORANGE DU NOM N'EST PAS CELUI DE L'ACCENT, ET C'EST VOULU ═══
+	#  L'échantillon d'Alex, relevé au pixel sur sa capture, vaut #F86701 :
+	#  à ΔE 8 de l'ACCENT #E8590C, c'est-à-dire que c'est lui, capturé. Mais
+	#  l'accent est DÉJÀ le curseur, la sélection et l'onglet actif. Donner
+	#  au nom sa valeur exacte, c'est peindre une signature avec la couleur
+	#  d'un objet vivant : on ne distinguerait plus le nom d'un curseur
+	#  posé dessus.
+	#  #FF8700 est le même orange, un cran plus haut. Mesuré sur le noir :
+	#  8,72:1 — mieux que le rouge clair qu'il remplace. ΔE 21 de l'accent,
+	#  ΔE 50 du rouge d'erreur #E5484D, qui reste au chevron des commandes
+	#  en échec et ne doit jamais se lire comme une signature.
+	#  Et #FF8700 EST EXACTEMENT le 38;5;208 de la palette 256, comme
+	#  #00D700 l'est du 38;5;40 : la coïncidence qui empêche l'invite et le
+	#  terminal de diverger tient donc aussi pour le nom.
 	#  Le vert FONCÉ se lit mal sur du noir en dessous de #0F7A2E environ
 	#  (3,84:1) : #159A3D, regardé sur du noir, donne 5,72:1 et reste
 	#  nettement plus sombre que le vert machine #00D700 — le mot LEXOS se
 	#  distingue du chemin sans se confondre avec lui.
-	TERM_UTILISATEUR="#FF7B7B"
+	TERM_UTILISATEUR="#FF8700"
 	TERM_LOGO="#159A3D"
 	TERM_CURSEUR="$ACCENT"
 	TERM_SEL_BG="$ACCENT"
@@ -1518,7 +1555,12 @@ if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	PS_MACHINE_256="38;5;22"    # vert foncé
 	PS_TEXTE_256="38;5;234"     # #1C1C1C, le plus proche de #1B1A17
 	PS_ERREUR_256="1;38;5;88"   # rouge foncé
-	PS_UTILISATEUR_256="38;5;88"   # #870000, le plus proche de #9A1B14 (9,49:1 sur crème)
+	#  Le nom de jour en 256 couleurs. Le plus proche de #8A4400 serait 130
+	#  (#AF5F00), mais il ne donne que 4,32:1 sur le crème — SOUS le seuil.
+	#  On descend d'un cran : 94 (#875F00), 5,26:1, qui passe. Ça répare au
+	#  passage une collision d'avant : le nom était 38;5;88 et l'erreur
+	#  1;38;5;88 — la même couleur à la graisse près.
+	PS_UTILISATEUR_256="38;5;94"
 	#  LEXOS de jour en 256 couleurs : le plus proche de #0F5A24 serait 22
 	#  (#005F00) — mais c'est déjà le vert machine ci-dessus, et le cube 256
 	#  n'a AUCUN vert pur plus sombre que 22 : impossible d'y garder « LEXOS
@@ -1529,7 +1571,7 @@ else
 	PS_MACHINE_256="38;5;40"    # exactement #00D700, voir la section terminal plus haut
 	PS_TEXTE_256="38;5;15"      # le blanc brillant de la palette
 	PS_ERREUR_256="1;38;5;196"
-	PS_UTILISATEUR_256="38;5;210"  # #FF8787, le plus proche de #FF7B7B (9,07:1 sur noir)
+	PS_UTILISATEUR_256="38;5;208"  # exactement #FF8700, comme 40 l'est de #00D700 (8,72:1 sur noir)
 	PS_LOGO_256="38;5;29"          # #00875F, le plus proche de #159A3D (4,63:1 — au-dessus du seuil)
 fi
 

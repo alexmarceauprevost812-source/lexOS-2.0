@@ -3107,7 +3107,8 @@ function contenu(cle){
       <p class="notice">Le changement est instantané : les fenêtres déjà
       ouvertes se repeignent, l'invite change à la ligne suivante. Rien à rouvrir.</p>
       <p class="notice">La règle de couleur ne change pas d'un mode à l'autre :
-      vert = la machine, orange = ce que vous tapez, rouge = ce qui a échoué.</p>`;
+      orange = votre nom, vert foncé = LEXOS, vert = ce que la machine écrit,
+      blanc = ce que vous tapez, rouge = ce qui a échoué.</p>`;
     }
     case "session": {
       /*  Le bouton rouge de la barre du haut ouvre exactement cette fenêtre.

@@ -295,7 +295,8 @@ PYVU
 		#  Ce contrôle a rendu « 0 px blancs et 896 px verts » sur le coureur
 		#  GitHub pendant trois constructions : l'invite s'affichait bien
 		#  (l'histogramme des couleurs le prouve — #00D700 ×725 pour le
-		#  chemin, #159A3D ×177 pour LEXOS, #FF7B7B ×108 pour le nom), et
+		#  chemin, #159A3D ×177 pour LEXOS, et le nom dans sa propre
+		#  couleur, #FF7B7B à l'époque, orange depuis), et
 		#  la frappe n'arrivait NULLE PART. Deux explications ont été tentées
 		#  et démenties avant celle-ci ; la troisième a été MESURÉE.
 		#
@@ -607,14 +608,29 @@ case "$DEV" in
 	*"${ESC}[38;2;0;215;0m"*) ok "…et le vert de la machine y est bien la valeur du terminal (38;2;0;215;0)" ;;
 	*) non "le vert de l'invite n'est pas celui du terminal" ;;
 esac
-#  LES TROIS COULEURS DE L'INVITE (consigne « terminal XFCE », partie 1) :
-#  le nom en rouge clair #FF7B7B, « LEXOS » en vert foncé #159A3D juste à
+#  LES TROIS COULEURS DE L'INVITE : le nom en ORANGE (consigne « la couleur
+#  de marceau pour l'orange »), « LEXOS » en vert foncé #159A3D juste à
 #  côté, le vert machine pour le reste — et plus de « @machine ».
+#
+#  ⚠ LA COULEUR DU NOM N'EST PLUS ÉCRITE ICI. Elle l'a été — « 38;2;255;123;123 »
+#  en toutes lettres — et le jour où Alex a changé d'avis, ce banc a rougi
+#  pour la seule raison qu'il répétait une valeur décidée ailleurs. C'est la
+#  faute que le dépôt se reproche partout : deux écritures de la même
+#  couleur finissent par diverger. On lit donc terminal.env, qui est LA
+#  source, et on vérifie que l'invite affiche CE qu'il dit — ce qui reste un
+#  vrai contrôle : si bash n'applique pas le thème, la séquence ne sera pas
+#  là. Le fait que ce soit un ORANGE, lui, est mesuré en teinte par
+#  tests/test_lexos_invite.sh ; ici on mesure l'accord entre les deux.
 QUI="$(id -un)"
-case "$DEV" in
-	*"${ESC}[38;2;255;123;123m${FIN_RL}${QUI}"*) ok "nuit : le nom « $QUI » est en rouge clair (38;2;255;123;123 = #FF7B7B)" ;;
-	*) non "nuit : le nom n'est pas en rouge clair #FF7B7B" ;;
-esac
+ATTENDU_NOM="$(sed -n "s/^LEXOS_PS_UTILISATEUR='\(.*\)'$/\1/p" "$ENV_NUIT")"
+if [ -z "$ATTENDU_NOM" ]; then
+	non "nuit : terminal.env ne dit pas la couleur du nom — rien à comparer, on ne conclut pas"
+else
+	case "$DEV" in
+		*"${ESC}[${ATTENDU_NOM}m${FIN_RL}${QUI}"*) ok "nuit : le nom « $QUI » porte la couleur du fichier ($ATTENDU_NOM)" ;;
+		*) non "nuit : le fichier dit « $ATTENDU_NOM » pour le nom, l'invite ne l'affiche pas" ;;
+	esac
+fi
 case "$DEV" in
 	*"${ESC}[38;2;21;154;61m${FIN_RL}LEXOS"*) ok "nuit : « LEXOS » est écrit en vert foncé (38;2;21;154;61 = #159A3D)" ;;
 	*) non "nuit : « LEXOS » manque, ou n'est pas en vert foncé #159A3D" ;;
