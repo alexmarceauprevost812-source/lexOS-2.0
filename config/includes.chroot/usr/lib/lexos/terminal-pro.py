@@ -71,6 +71,7 @@ import http.server
 import json
 import os
 import pty
+import re
 import secrets
 import shlex
 import signal
@@ -87,6 +88,69 @@ APP_NAME = "LexOS Pro Terminal"
 WEB_DIR = Path(os.environ.get("LEXOS_TERMINAL_PRO_WEB",
                                "/usr/share/lexos/terminal-pro/web"))
 ICON_PATH = Path("/usr/share/icons/hicolor/128x128/apps/lexos-pro-terminal.png")
+
+#  ═══ LA PALETTE VIENT DU THÈME, PLUS DE LA PAGE ═══
+#  ALEX : « les couleurs, on les retrouve dans les autres terminaux aussi ».
+#  La page portait sa propre palette en dur : un TROISIÈME orange pour le
+#  curseur (#ff6a1a, à côté de l'accent #E8590C du générateur), un vert ANSI
+#  qui n'était pas celui de LexOS, et un fond noir même en thème JOUR.
+#  Elle demande maintenant les valeurs au pont, qui les lit dans le fichier
+#  que lexos-theme-gen écrit — une seule source, comme l'invite.
+#
+#  ⚠ ON NE SOURCE PAS CE FICHIER. terminal.env est fait pour être lu par
+#  bash, et il vit dans $HOME : tout ce qui tourne sous ce compte peut y
+#  écrire. L'exécuter depuis le pont, ce serait offrir au contenu d'un
+#  fichier de configuration le droit de lancer des commandes dans le
+#  processus qui tient les pseudo-terminaux. On l'EXTRAIT, et on VALIDE.
+#
+#  La validation n'est pas décorative : « setProperty » n'est pas un filtre,
+#  et « #000;}body{background:url(http://…) » est du CSS parfaitement valide.
+#  C'est ici que la porte se ferme, pas dans la page.
+_HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
+_MODES = ("jour", "nuit", "auto", "suivre")
+#  Ce que la page a le droit de demander, et rien d'autre.
+_CLES_THEME = ("LEXOS_TERM_BG", "LEXOS_TERM_FG", "LEXOS_TERM_TEXTE",
+               "LEXOS_TERM_CURSEUR", "LEXOS_TERM_EFFECTIF")
+
+
+def lire_theme(chemin=None):
+    """Les couleurs du thème, extraites de terminal.env sans l'exécuter.
+
+    Rend {} quand le fichier manque, ne se lit pas, ou ne contient rien de
+    valide : la page garde alors la palette livrée. Un thème illisible ne
+    doit jamais empêcher le terminal de s'ouvrir."""
+    if chemin is None:
+        base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(
+            os.path.expanduser("~"), ".config")
+        chemin = os.path.join(base, "lexos", "terminal.env")
+    valeurs = {}
+    try:
+        with open(chemin, encoding="utf-8") as f:
+            lignes = f.readlines()
+    except (OSError, UnicodeDecodeError):
+        return {}
+    for ligne in lignes:
+        ligne = ligne.strip()
+        #  Les commentaires d'abord — et ici le format est « sh », donc un
+        #  « # » en début de ligne. Le dépouilleur dépend du format : dans
+        #  tmux, « #[fg=…] » est du balisage, pas un commentaire.
+        if not ligne or ligne.startswith("#") or "=" not in ligne:
+            continue
+        cle, _, val = ligne.partition("=")
+        cle = cle.strip()
+        if cle not in _CLES_THEME:
+            continue
+        val = val.strip()
+        #  Le générateur met des apostrophes sur les LEXOS_PS_*, pas sur les
+        #  LEXOS_TERM_* : on en retire UNE paire, pas davantage.
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "'\"":
+            val = val[1:-1]
+        if cle == "LEXOS_TERM_EFFECTIF":
+            if val in _MODES:
+                valeurs[cle] = val
+        elif _HEX.match(val):
+            valeurs[cle] = val
+    return valeurs
 
 #  ═══ PIÈCE 1 — UN VRAI PTY, UNE SESSION PAR VOLET ═══
 #
@@ -451,9 +515,21 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         chemin, _, requete = self.path.partition("?")
         if chemin == "/api/flux":
             return self._flux(urllib.parse.parse_qs(requete))
+        if chemin == "/api/theme":
+            return self._theme()
         if chemin.startswith("/api/"):
             return self._json(404, {"ok": False, "erreur": "inconnu"})
         return super().do_GET()
+
+    def _theme(self):
+        """Les couleurs du thème, pour que la page cesse d'avoir les siennes.
+
+        LES DEUX SERRURES COMME PARTOUT. /api/flux avait été écrite sans, et
+        ça ne s'est vu qu'en éprouvant la matrice complète : cette route-ci
+        entre dans la même matrice, elle n'est pas posée à côté."""
+        if not self._autorise():
+            return
+        return self._json(200, {"ok": True, "theme": lire_theme()})
 
     #  ═══ PIÈCE 3 — LE TUYAU, SENS PONT → PAGE ═══
     def _flux(self, params):

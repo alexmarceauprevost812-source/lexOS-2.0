@@ -266,7 +266,7 @@ PY
 rendu "le pty" < <(lance session_pty.py)
 
 # =============================================================================
-titre "2. LES QUATRE ROUTES ET LES TROIS SERRURES (matrice complète)"
+titre "2. LES CINQ ROUTES ET LES TROIS SERRURES (matrice complète)"
 # =============================================================================
 cat > "$BANC/routes.py" <<'PY'
 import importlib.util, json, sys, time, urllib.error, urllib.request
@@ -292,8 +292,12 @@ def appel(route, entetes, methode="POST", corps=b'{"fen":"z"}', delai=5):
 #  ═══ LA MATRICE : 4 routes × 3 refus. Un échantillon ne suffit pas — c'est
 #  précisément la route qu'on n'avait pas essayée (/api/flux) qui était
 #  ouverte à tout le monde.
+#  /api/theme est ENTRÉE DANS LA MATRICE, elle n'est pas posée à côté : c'est
+#  exactement la faute qu'avait faite /api/flux, écrite sans serrure et vue
+#  seulement le jour où la matrice a été complétée.
 ROUTES = (("/api/flux?fen=z", "GET"), ("/api/saisie", "POST"),
-          ("/api/taille", "POST"), ("/api/fermer", "POST"))
+          ("/api/taille", "POST"), ("/api/fermer", "POST"),
+          ("/api/theme", "GET"))
 REFUS = (("sans jeton", {"Origin": base}),
          ("jeton faux", {"X-Lexos-Jeton": "pas-le-bon", "Origin": base}),
          ("origine étrangère", {"X-Lexos-Jeton": jeton, "Origin": "http://mechant.example"}))

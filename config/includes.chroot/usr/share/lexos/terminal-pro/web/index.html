@@ -55,7 +55,6 @@
   --texte-3:     #7d726b;
   --orange:      #ff6a1a;
   --orange-clair:#ff9d5c;
-  --braise:      #E8590C;
   --vert:        #6fd99a;
   --jaune:       #f0c463;
   --rouge:       #ff6f6f;
@@ -786,6 +785,48 @@ class Fenetre {
 /*  La palette de xterm.js, tirée des MÊMES variables CSS que le reste de la
     fenêtre : deux jeux de couleurs à tenir en accord finiraient par diverger
     — c'est exactement ce qui est arrivé au fond du bureau et à ui.css. */
+//  « #RRGGBB » → « rgba(r,g,b,a) ». xterm.js veut une couleur avec alpha
+//  pour la sélection, et CSS ne sait pas mélanger deux notations.
+function teinteTransparente(hex, alpha){
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex).trim());
+  if(!m) return "rgba(255,106,26,.32)";
+  return "rgba(" + parseInt(m[1],16) + "," + parseInt(m[2],16) + "," + parseInt(m[3],16) + "," + alpha + ")";
+}
+
+//  ═══ LA PALETTE VIENT DU THÈME, PLUS D'ICI ═══
+//  ALEX : « les couleurs, on les retrouve dans les autres terminaux aussi ».
+//  Cette page portait les siennes : un TROISIÈME orange pour le curseur, un
+//  vert ANSI qui n'était pas celui de LexOS, et un fond noir même en thème
+//  JOUR. Le pont les lit dans le fichier que lexos-theme-gen écrit.
+//
+//  CE QU'ON NE TOUCHE PAS : le chrome de la fenêtre (--chrome, --ligne…)
+//  garde ses valeurs. Il n'a pas d'équivalent dans terminal.env, et les
+//  inventer ici reviendrait à réécrire la fenêtre pour un thème — ce qui
+//  n'a pas été demandé.
+//
+//  SI LE PONT NE RÉPOND PAS, ON GARDE LA PALETTE LIVRÉE. Un thème illisible
+//  ne doit pas empêcher le terminal de s'ouvrir : c'est la règle du dépôt,
+//  « on ne conclut pas quand on n'a pas pu lire ».
+async function appliquerTheme(){
+  if(!(_port && _jeton)) return;          // en démo, il n'y a pas de pont
+  let t;
+  try{
+    const r = await fetch("/api/theme", { headers: ENTETES });
+    if(!r.ok) return;
+    const j = await r.json();
+    t = j && j.theme;
+  }catch(e){ return; }
+  if(!t) return;
+  const css = document.documentElement.style;
+  const pose = (nom, val) => { if(val) css.setProperty(nom, val); };
+  pose("--noir",   t.LEXOS_TERM_BG);       // le fond — c'est lui qui faisait
+                                           // rester la fenêtre noire de jour
+  pose("--texte",  t.LEXOS_TERM_TEXTE);    // l'encre de la frappe
+  pose("--orange", t.LEXOS_TERM_CURSEUR);  // l'accent : curseur, sélection
+  pose("--vert",   t.LEXOS_TERM_FG);       // le vert ANSI que voient ls, git
+  if(t.LEXOS_TERM_EFFECTIF === "jour") document.documentElement.dataset.theme = "jour";
+}
+
 function paletteXterm(){
   const v = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   return {
@@ -793,7 +834,9 @@ function paletteXterm(){
     foreground: v("--texte") || "#ffffff",
     cursor: v("--orange") || "#ff6a1a",
     cursorAccent: v("--noir") || "#000000",
-    selectionBackground: "rgba(255,106,26,.32)",
+    //  La sélection suivait un « rgba(255,106,26,…) » écrit une seconde
+    //  fois, qui ne bougeait pas quand --orange bougeait. Elle le lit.
+    selectionBackground: teinteTransparente(v("--orange") || "#ff6a1a", .32),
     black: "#1a1512", red: v("--rouge"), green: v("--vert"), yellow: v("--jaune"),
     blue: "#7aa2ff", magenta: "#d68aff", cyan: "#5fd1d6", white: v("--texte-2"),
     brightBlack: v("--texte-3"), brightRed: v("--rouge"), brightGreen: v("--vert"),
@@ -1256,7 +1299,12 @@ async function demarrage(){
     ind.textContent = "démo — sans le pont local";
     ind.className = "absent";
   }
-  Terminal.init();
+  //  Le thème AVANT la construction : « theme: paletteXterm() » est lu une
+  //  seule fois, au « new XTerm », pas à chaque image. L'appliquer après
+  //  laisserait la première fenêtre dans l'ancienne palette.
+  //  « finally » et pas « then » : si le pont ne répond pas, le terminal
+  //  s'ouvre quand même.
+  appliquerTheme().finally(() => Terminal.init());
 }
 if(typeof globalThis === "undefined" || !globalThis.__BANC_NE_PAS_DEMARRER__) demarrage();
 

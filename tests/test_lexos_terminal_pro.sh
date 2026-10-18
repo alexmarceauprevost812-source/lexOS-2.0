@@ -524,5 +524,112 @@ grep -q 'TerminalEmulator=lexos-pro-terminal' "$HOOK" \
 	&& ok "…et le helpers.rc du squelette dit le même choix" \
 	|| non "le squelette ne nomme pas LexOS Pro Terminal comme émulateur"
 
+# =============================================================================
+titre "5. LA PALETTE VIENT DU THÈME, PLUS DE LA PAGE"
+# =============================================================================
+#  ALEX : « les couleurs, on les retrouve dans les autres terminaux aussi ».
+#  La page portait les siennes : un TROISIÈME orange pour le curseur, un vert
+#  ANSI qui n'était pas celui de LexOS, et un fond noir même en thème JOUR.
+#  Trois choses à mesurer, et elles ne se remplacent pas :
+#   · le pont EXTRAIT bien ce que le générateur écrit ;
+#   · il REFUSE ce qui n'est pas une couleur — « setProperty » n'est pas un
+#     filtre, et « #000;}body{background:url(…) » est du CSS valide ;
+#   · la page DEMANDE et APPLIQUE.
+PONT_PY="$RACINE/config/includes.chroot/usr/lib/lexos/terminal-pro.py"
+GEN_TH="$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen"
+if [ ! -r "$PONT_PY" ] || [ ! -x "$GEN_TH" ]; then
+	non "le pont ou le générateur est introuvable : la palette n'est pas vérifiable"
+else
+	rm -rf "${BANC:?}/th"; mkdir -p "$BANC/th"
+	for MODE in nuit jour; do
+		bash "$GEN_TH" --target "$BANC/th/$MODE" --terminal "$MODE" orange >/dev/null 2>&1
+	done
+	RES="$(PONT_PY="$PONT_PY" BANC="$BANC" python3 - <<'PY' 2>/dev/null
+import importlib.util, os, tempfile
+sp = importlib.util.spec_from_file_location("tp", os.environ["PONT_PY"])
+tp = importlib.util.module_from_spec(sp); sp.loader.exec_module(tp)
+banc = os.environ["BANC"]
+for mode in ("nuit", "jour"):
+    t = tp.lire_theme(os.path.join(banc, "th", mode, ".config", "lexos", "terminal.env"))
+    for cle in ("LEXOS_TERM_BG", "LEXOS_TERM_FG", "LEXOS_TERM_TEXTE",
+                "LEXOS_TERM_CURSEUR", "LEXOS_TERM_EFFECTIF"):
+        print("%s.%s=%s" % (mode, cle, t.get(cle, "")))
+#  Les valeurs hostiles, une par une.
+p = os.path.join(tempfile.mkdtemp(), "t.env")
+open(p, "w").write("# commentaire\n"
+                   "LEXOS_TERM_BG=#000;}body{background:url(http://x)\n"
+                   "LEXOS_TERM_EFFECTIF=rm -rf /\n"
+                   "PATH=/usr/mechant\n"
+                   "LEXOS_TERM_FG=#00D700\n")
+h = tp.lire_theme(p)
+print("hostile.cles=%s" % ",".join(sorted(h)))
+print("absent.vide=%s" % ("oui" if tp.lire_theme("/n/existe/pas") == {} else "non"))
+PY
+)"
+	lit() { printf '%s\n' "$RES" | sed -n "s/^$1=//p"; }
+	for MODE in nuit jour; do
+		ENVF="$BANC/th/$MODE/.config/lexos/terminal.env"
+		BON=1
+		for CLE in LEXOS_TERM_BG LEXOS_TERM_FG LEXOS_TERM_TEXTE LEXOS_TERM_CURSEUR; do
+			ATT="$(sed -n "s/^$CLE=//p" "$ENVF")"
+			[ -n "$ATT" ] && [ "$(lit "$MODE.$CLE")" = "$ATT" ] || BON=0
+		done
+		if [ "$BON" = 1 ]; then
+			ok "$MODE : le pont extrait les quatre couleurs que le générateur écrit"
+		else
+			non "$MODE : le pont n'extrait pas ce que le générateur écrit"
+		fi
+	done
+	#  Le fond de JOUR est le point qui comptait : la fenêtre restait noire.
+	if [ "$(lit 'jour.LEXOS_TERM_BG')" = "$(sed -n 's/^LEXOS_TERM_BG=//p' "$BANC/th/jour/.config/lexos/terminal.env")" ] \
+	   && [ "$(lit 'jour.LEXOS_TERM_BG')" != "$(lit 'nuit.LEXOS_TERM_BG')" ]; then
+		ok "le fond de JOUR diffère de celui de nuit — la fenêtre ne peut plus rester noire"
+	else
+		non "le fond de jour et celui de nuit sont identiques : le thème ne traverse pas"
+	fi
+	case "$(lit 'hostile.cles')" in
+		LEXOS_TERM_FG) ok "une valeur qui n'est pas une couleur est JETÉE (seul #00D700 survit)" ;;
+		*) non "le pont a laissé passer autre chose qu'une couleur : « $(lit 'hostile.cles') »" ;;
+	esac
+	[ "$(lit 'absent.vide')" = oui ] \
+		&& ok "sans fichier de thème, le pont rend vide — la page garde sa palette livrée" \
+		|| non "sans fichier de thème, le pont ne rend pas vide"
+fi
+
+#  ET LA PAGE : elle demande, et elle applique. ON LIT LE CODE APRÈS AVOIR
+#  RETIRÉ LES COMMENTAIRES — la page RACONTE qu'elle portait « #ff6a1a » et
+#  « --braise » avant, et un contrôle naïf lirait son propre récit.
+#  ⚠ ON CAPTURE, ON NE TUBE PAS DANS « grep -q ». Ce banc tourne sous
+#  « set -o pipefail » (l.35) : « grep -q » rend la main au premier résultat,
+#  le SIGPIPE tue le « sed » en amont, et le TUBE rend non-zéro alors que la
+#  chaîne cherchée est bien là. Le dépôt a déjà payé ça une fois — c'est
+#  écrit dans le message du commit qui l'a corrigé pour « lexos aide ».
+#  Mesuré ici aussi : les quatre contrôles rougissaient sur une page juste.
+PAGE_NUE="$(sed 's|//.*$||' "$PAGE")"
+case "$PAGE_NUE" in
+	*"/api/theme"*) ok "la page demande la palette au pont" ;;
+	*) non "la page ne demande jamais /api/theme : elle garde sa palette à elle" ;;
+esac
+MANQUE=""
+for V in '--noir' '--texte' '--orange' '--vert'; do
+	case "$PAGE_NUE" in
+		*"pose(\"$V\""*) ;;
+		*) MANQUE="$MANQUE $V" ;;
+	esac
+done
+if [ -z "$MANQUE" ]; then
+	ok "les quatre variables de la page sont posées depuis le thème"
+else
+	non "la page n'applique pas le thème à :$MANQUE"
+fi
+case "$PAGE_NUE" in
+	*braise*) non "« --braise » traîne encore — une couleur définie que personne n'emploie" ;;
+	*) ok "« --braise » a disparu : plus de couleur définie et jamais employée" ;;
+esac
+case "$PAGE_NUE" in
+	*'selectionBackground: "rgba('*) non "la sélection garde un orange écrit une seconde fois" ;;
+	*) ok "la sélection suit --orange au lieu d'un orange réécrit" ;;
+esac
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

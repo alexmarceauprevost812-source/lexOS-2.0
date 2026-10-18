@@ -1619,6 +1619,13 @@ LEXOS_TERM_EFFECTIF=${TERM_EFFECTIF}
 LEXOS_TERM_BG=${TERM_BG}
 LEXOS_TERM_FG=${TERM_FG}
 LEXOS_TERM_CURSEUR=${TERM_CURSEUR}
+#  L'encre de la FRAPPE, en #RRGGBB. Elle existait déjà en séquence ANSI
+#  (LEXOS_PS_TEXTE), ce qui convient à un shell mais pas à une page web :
+#  le terminal LexOS Pro est dessiné en CSS, et une feuille de style ne
+#  sait pas lire « 38;2;27;26;23 ». Même valeur, deuxième écriture —
+#  assumée ici parce qu'elle est produite au même endroit, à la même
+#  ligne, depuis la même variable : elles ne peuvent pas diverger.
+LEXOS_TERM_TEXTE=${TERM_TEXTE}
 LEXOS_PS_MACHINE='$(ansi_vrai "$TERM_FG")'
 LEXOS_PS_TEXTE='$(ansi_vrai "$TERM_TEXTE")'
 LEXOS_PS_ERREUR='1;$(ansi_vrai "$TERM_ERREUR")'
