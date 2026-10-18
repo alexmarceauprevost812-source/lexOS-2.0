@@ -288,6 +288,16 @@ def appel(route, entetes, methode="POST", corps=b'{"fen":"z"}', delai=5):
         return r.getcode(), r
     except urllib.error.HTTPError as e:
         return e.code, e
+    except Exception as e:
+        #  ═══ UN HOQUET DE TRANSPORT NE DOIT PAS EMPORTER LES AUTRES ═══
+        #  CE QUI EST ARRIVÉ EN CI : un POST sur « /api/inventee » est mort en
+        #  « BadStatusLine: {"ok": false, "erreur": "inconnu"} » — et comme
+        #  l'exception remontait, le script s'arrêtait là et VINGT-TROIS
+        #  verdicts déjà acquis étaient perdus d'un coup. « rendu » a bien dit
+        #  « aucun verdict rendu », ce qui est honnête, mais ne disait pas QUOI.
+        #  On rend donc la panne comme un code : le point qui l'attrape échoue
+        #  seul, avec sa raison, et les vingt-deux autres se prononcent.
+        return ("transport", type(e).__name__, str(e)[:70]), None
 
 #  ═══ LA MATRICE : 4 routes × 3 refus. Un échantillon ne suffit pas — c'est
 #  précisément la route qu'on n'avait pas essayée (/api/flux) qui était
@@ -356,9 +366,40 @@ dit(code == 200 and tp.session_de("vrai") is None, "/api/fermer retire la sessio
 
 #  Une route inventée ne doit pas retomber sur le service de fichiers.
 code, _ = appel("/api/inventee", BON)
-dit(code == 404, "une route POST inconnue répond 404")
+dit(code == 404, "une route POST inconnue répond 404 (reçu %r)" % (code,))
 code, _ = appel("/api/inventee", BON, "GET")
 dit(code == 404, "une route GET inconnue sous /api/ répond 404, sans servir de fichier")
+
+#  ═══ LE PONT FINIT DE LIRE LA REQUÊTE AVANT D'Y RÉPONDRE ═══
+#  LE DÉFAUT, MESURÉ : les chemins d'erreur — route inconnue, origine
+#  refusée, jeton invalide — répondaient SANS avoir lu le corps. Les octets
+#  non lus restent dans la file de réception ; à la fermeture le noyau envoie
+#  un RST au lieu d'un FIN, et le client PERD la réponse déjà reçue.
+#  Mesuré sur ce pont, 12 POST par cas : corps de 11 octets → 12 sains ;
+#  corps d'1 Mio → 10 sains et 2 « Broken pipe » sur la route inconnue, 11 et
+#  10 sur les chemins 403. Après le correctif : 12 sains partout.
+#  POURQUOI UN GROS CORPS. Avec onze octets le défaut ne se voit presque
+#  jamais — vingt passes de cette sonde et trois cents appels ciblés n'ont
+#  rien montré ici, alors que la CI est tombée dessus. La panne grandit avec
+#  le corps : on mesure donc là où elle est VISIBLE, pas là où elle se cache.
+GROS = b'{"fen":"' + b'z' * (1000 * 1000 - 10) + b'"}'
+for ROUTE, ENTETES, ATTENDU, QUOI in (
+        ("/api/inventee", BON, 404, "une route inconnue"),
+        ("/api/saisie", {"Content-Type": "application/json"}, 403, "sans jeton"),
+        ("/api/saisie", dict(BON, **{"Origin": "http://mechant.example"}), 403,
+         "sur une origine étrangère")):
+    sains = 0
+    casses = []
+    for _ in range(12):
+        c, _r = appel(ROUTE, ENTETES, corps=GROS, delai=10)
+        if c == ATTENDU:
+            sains += 1
+        else:
+            casses.append(c)
+    dit(sains == 12,
+        "%s avec un corps d'1 Mio répond %d douze fois sur douze — le pont "
+        "finit de lire avant de répondre (sains : %d, autres : %r)"
+        % (QUOI, ATTENDU, sains, casses[:2]))
 
 tp.fermer_toutes()
 srv.shutdown()

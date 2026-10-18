@@ -480,11 +480,65 @@ def fermer_toutes():
 class Handler(http.server.SimpleHTTPRequestHandler):
     jeton = ""
     port = 0
+    #  Posé par _corps() comme par _vider_corps() : le corps d'une requête ne
+    #  se lit qu'UNE fois, sinon le second read() attend des octets qui ne
+    #  viendront jamais.
+    _corps_lu = False
 
     def log_message(self, fmt, *args):
         pass
 
+    #  ═══ ON LIT TOUJOURS LA REQUÊTE AVANT D'Y RÉPONDRE ═══
+    #  CE QUE ÇA A CASSÉ, ET C'EST MESURÉ. Les chemins d'erreur — route
+    #  inconnue, origine refusée, jeton invalide — répondaient SANS avoir lu
+    #  le corps de la requête. Les octets non lus restent dans la file de
+    #  réception de la prise ; à la fermeture, le noyau envoie un RST au lieu
+    #  d'un FIN, et le client PERD la réponse qu'il avait déjà reçue.
+    #
+    #  MESURÉ sur ce pont, 12 POST sur une route inconnue : corps de
+    #  11 octets → 12 sains ; corps de 64 Kio → 12 sains ; corps d'1 Mio →
+    #  10 sains et 2 « Broken pipe ». La panne grandit avec le corps, ce qui
+    #  est la signature exacte du corps non lu.
+    #
+    #  CE QUE ÇA A DONNÉ EN CI, sur l'étape du pseudo-terminal :
+    #  « BadStatusLine: {"ok": false, "erreur": "inconnu"} » — le client a lu
+    #  le CORPS de la réponse là où il attendait la ligne de statut, puis la
+    #  sonde entière est morte et vingt-trois verdicts ont été perdus d'un
+    #  coup. Je n'ai PAS reproduit cette forme-là ici (20 passes de la sonde
+    #  complète et 300 appels ciblés, tous sains) : ce que j'ai prouvé, c'est
+    #  que le défaut existe et qu'il casse ce même appel. Que ce soit lui qui
+    #  ait produit cette ligne précise reste une déduction, pas une mesure.
+    #
+    #  LE PLAFOND N'EST PAS UNE COQUETTERIE : ce vidage a lieu AVANT le
+    #  contrôle du jeton — il faut bien lire pour pouvoir répondre « refusé »
+    #  proprement. Sans borne, un appelant local non authentifié annoncerait
+    #  « Content-Length: 10 Gio » et nous le ferions lire. Au-delà du plafond
+    #  on arrête de lire et on marque la connexion à fermer : le client peut
+    #  perdre la réponse, mais c'est SON abus, et nous restons bornés.
+    PLAFOND_VIDAGE = 1 << 20
+
+    def _vider_corps(self):
+        if self._corps_lu:
+            return
+        self._corps_lu = True
+        try:
+            reste = int(self.headers.get("Content-Length", "0") or "0")
+        except ValueError:
+            return
+        if reste > self.PLAFOND_VIDAGE:
+            self.close_connection = True
+            return
+        while reste > 0:
+            bloc = self.rfile.read(min(reste, 65536))
+            if not bloc:
+                break
+            reste -= len(bloc)
+
     def _json(self, code, donnees):
+        #  AVANT d'écrire quoi que ce soit : finir de lire ce qu'on nous a
+        #  envoyé. Un seul endroit à tenir, parce que c'est le seul endroit
+        #  par lequel le pont répond.
+        self._vider_corps()
         corps = json.dumps(donnees).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -520,12 +574,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         """Le JSON de la requête, ou None (400 déjà envoyé)."""
         try:
             taille = int(self.headers.get("Content-Length", "0"))
-            return json.loads(self.rfile.read(taille) or b"{}")
+            brut = self.rfile.read(taille)
+        except ValueError:
+            #  Content-Length illisible : rien n'a été lu, et _json videra ce
+            #  qu'il peut. On ne touche donc PAS au drapeau ici.
+            self._json(400, {"ok": False, "erreur": "requête invalide"})
+            return None
+        #  Lu pour de bon : plus personne ne doit relire cette prise.
+        self._corps_lu = True
+        try:
+            return json.loads(brut or b"{}")
         except (ValueError, json.JSONDecodeError):
             self._json(400, {"ok": False, "erreur": "requête invalide"})
             return None
 
     def do_GET(self):
+        self._corps_lu = False
         chemin, _, requete = self.path.partition("?")
         if chemin == "/api/flux":
             return self._flux(urllib.parse.parse_qs(requete))
@@ -688,6 +752,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
 
     def do_POST(self):
+        #  ═══ REMIS À ZÉRO À CHAQUE REQUÊTE, PAS À CHAQUE CONNEXION ═══
+        #  Aujourd'hui ce pont parle HTTP/1.0 : « close_connection » est vrai
+        #  après chaque réponse, donc une instance de Handler ne sert qu'une
+        #  requête et le drapeau de classe suffirait. MAIS le jour où
+        #  quelqu'un pose « protocol_version = "HTTP/1.1" » pour garder la
+        #  connexion ouverte, une même instance en servirait plusieurs, le
+        #  drapeau resterait vrai, et la deuxième requête ne serait plus vidée.
+        #  CE N'EST PAS UNE CRAINTE EN L'AIR, C'EST MESURÉ : en forçant
+        #  HTTP/1.1 et en envoyant trois POST de 200 Kio sur UNE connexion,
+        #  sans cette ligne la troisième rend « 414 Request-URI Too Long » —
+        #  le serveur a lu le corps resté en file comme une nouvelle ligne de
+        #  requête. Avec la ligne : 404, 404, 404.
+        self._corps_lu = False
         if self.path in ("/api/saisie", "/api/taille", "/api/fermer",
                          "/api/ouvrir"):
             return self._route_pty(self.path)
