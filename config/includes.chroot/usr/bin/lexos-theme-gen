@@ -267,6 +267,15 @@ if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	#  Il reste à distance des deux couleurs avec lesquelles on pourrait le
 	#  confondre de jour : le curseur ACCENT_LO #A84007 (ΔE 15) et le rouge
 	#  d'erreur #B3261E (ΔE 30).
+	#
+	#  ⚠ ET CETTE MARGE-LÀ EST PLUS MINCE QU'ELLE N'EN A L'AIR. Les ΔE de ce
+	#  dépôt sont des CIE76 — c'est la formule qui reproduit au centième tous
+	#  les chiffres déjà écrits ici, donc celle qu'on garde. Mais CIE76
+	#  SURESTIME les écarts dans les oranges sombres : le même couple nom /
+	#  curseur de jour donne ΔE2000 8,1, c'est-à-dire SOUS le seuil de 10
+	#  que le banc applique. De nuit il n'y a pas d'ambiguïté (ΔE76 21,1,
+	#  ΔE2000 14,1). C'est écrit ici plutôt que découvert plus tard : la
+	#  marge de jour tient, elle ne tient pas largement.
 	TERM_UTILISATEUR="#8A4400"
 	TERM_LOGO="#0F5A24"
 	TERM_CURSEUR="$ACCENT_LO"
