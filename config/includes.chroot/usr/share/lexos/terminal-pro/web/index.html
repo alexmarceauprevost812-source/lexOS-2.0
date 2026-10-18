@@ -849,6 +849,19 @@ async function appliquerTheme(){
   pose("--texte",  t.LEXOS_TERM_TEXTE);    // l'encre de la frappe
   pose("--orange", t.LEXOS_TERM_CURSEUR);  // l'accent : curseur, sélection
   pose("--vert",   t.LEXOS_TERM_FG);       // le vert ANSI que voient ls, git
+  //  ═══ L'ENCRE PAR DÉFAUT EST CELLE DE LA MACHINE, PAS CELLE DE LA FRAPPE ═══
+  //  Ce n'était pas le cas, et ça se voyait sur la chose la plus courante de
+  //  toutes : la SORTIE des commandes. « PS0='\e[0m' » remet le SGR à zéro
+  //  dès qu'on presse Entrée et ne pose RIEN — l'encre revient donc au
+  //  premier plan par défaut du terminal. xfce4-terminal reçoit
+  //  « ColorForeground=${TERM_FG} », c'est-à-dire le vert machine : la sortie
+  //  d'une commande non colorée y est verte. Ici, « foreground » lisait
+  //  --texte, l'encre de la FRAPPE — donc blanche de nuit, presque noire de
+  //  jour. Le terminal officiel était le seul du système à répondre en blanc.
+  //  Deuxième nom pour une même valeur, posé à la ligne d'à côté depuis la
+  //  même clef : ils ne peuvent pas diverger. --vert garde son rôle d'ANSI 2,
+  //  et --machine dit ce qu'il est.
+  pose("--machine", t.LEXOS_TERM_FG);
   //  LES SEIZE COULEURS ANSI — celles que voient « ls », « git diff », vim.
   //  Sans elles, poser le fond de JOUR ne suffisait pas : le rouge, le jaune,
   //  le bleu, le magenta, le cyan et le blanc restaient ceux de la NUIT, donc
@@ -859,16 +872,44 @@ async function appliquerTheme(){
   //  ici soit on en a seize, soit on n'en a aucune et la page garde la sienne.
   const ansi = String(t.LEXOS_TERM_PALETTE || "").split(";");
   if(ansi.length === 16) ansi.forEach((c, i) => pose("--ansi-" + i, c));
+  //  ═══ ET LES VOLETS DÉJÀ OUVERTS, SINON LE THÈME NE VAUT QU'AU DÉMARRAGE ═══
+  //  « theme: paletteXterm() » est lu UNE fois, au « new XTerm ». Sans cette
+  //  boucle, basculer jour/nuit depuis les Réglages ou depuis un autre
+  //  terminal laissait chaque volet ouvert sur son ancien fond et son
+  //  ancienne palette jusqu'à ce qu'on relance l'application. C'est le même
+  //  défaut que « les couleurs figées au démarrage » corrigé dans
+  //  lexos-terminal, de l'autre côté de la fenêtre.
+  for(const v of FLUX.volets.values()){
+    if(v && v.term) try{ v.term.options.theme = paletteXterm(); }catch(e){}
+  }
   //  Il y avait ici un « dataset.theme = jour » qu'AUCUN sélecteur CSS ne
   //  lisait — vérifié sur tout web/. Retiré : un attribut que personne ne lit
   //  ne dit rien, il fait seulement croire que le chrome suit le thème.
 }
 
+//  ON RELIT LE THÈME QUAND LA FENÊTRE REVIENT. Il peut changer pendant qu'elle
+//  est au second plan : les Réglages, un autre terminal, ou l'horaire
+//  jour/nuit automatique. Deux écouteurs, aucun sondage — et posés ICI, au
+//  niveau du module, plutôt que dans demarrage() : ils ne dépendent d'aucun
+//  DOM prêt, et un banc peut donc CONSTATER qu'ils existent au lieu de relire
+//  le code en espérant.
+//  CE QU'ILS NE COUVRENT PAS, dit plutôt que laissé à découvrir : « lexos
+//  terminal jour » tapé DANS un volet ne change pas le focus. Le repeint OSC
+//  que la commande émet corrige tout de suite le fond de CE volet ; les seize
+//  couleurs ANSI, elles, attendent le prochain retour de la fenêtre. Un
+//  sondage périodique coûterait une requête par seconde pour un cas qu'un
+//  clic résout.
+const __relireTheme = () => { if(!document.hidden) appliquerTheme(); };
+document.addEventListener("visibilitychange", __relireTheme);
+window.addEventListener("focus", __relireTheme);
+
 function paletteXterm(){
   const v = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   return {
     background: v("--noir") || "#000000",
-    foreground: v("--texte") || "#ffffff",
+    //  --machine n'est PAS défini dans :root : sans pont, il rend "" et on
+    //  retombe sur le blanc livré — le mode démonstration ne change pas.
+    foreground: v("--machine") || "#ffffff",
     cursor: v("--orange") || "#ff6a1a",
     cursorAccent: v("--noir") || "#000000",
     //  La sélection suivait un « rgba(255,106,26,…) » écrit une seconde
@@ -1326,8 +1367,13 @@ window.LexOS = {
 //  démarrage automatique (qui suppose un vrai DOM complet) pendant qu'on
 //  teste ces fonctions à la pièce.
 if(typeof globalThis !== "undefined"){
+  //  appliquerTheme et FLUX sont exposés pour que le banc MESURE le
+  //  rafraîchissement au lieu de relire le code : il pose un faux volet dans
+  //  FLUX.volets, appelle appliquerTheme(), et regarde si le thème de ce
+  //  volet a bien été réassigné. Sans ça, le contrôle serait un grep.
   globalThis.__banc = { Terminal, Fenetre, esc, aide,
                          poste, base64Octets, paletteXterm,
+                         appliquerTheme, FLUX,
                          get ACCUEIL(){ return ACCUEIL; } };
 }
 

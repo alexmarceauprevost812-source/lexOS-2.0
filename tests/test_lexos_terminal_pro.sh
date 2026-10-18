@@ -793,5 +793,179 @@ PY
 	fi
 fi
 
+titre "7. LE THÈME EST VIVANT — encre par défaut, et volets déjà ouverts"
+# =============================================================================
+#  DEUX DÉFAUTS, ET ILS SE MESURENT AU LIEU DE SE RELIRE. La page expose
+#  paletteXterm, appliquerTheme et FLUX par son crochet de banc : node charge
+#  le vrai code dans un bac à sable, on lui donne un faux volet et une fausse
+#  réponse du pont, et on REGARDE ce qui arrive.
+#
+#  1. L'ENCRE PAR DÉFAUT ÉTAIT CELLE DE LA FRAPPE. « PS0='\e[0m' » remet le
+#     SGR à zéro dès qu'on presse Entrée et ne pose rien : l'encre revient au
+#     premier plan par défaut. xfce4-terminal reçoit ColorForeground=TERM_FG,
+#     le vert machine — la sortie d'une commande non colorée y est verte.
+#     Ici « foreground » lisait --texte, l'encre de la FRAPPE : blanche de
+#     nuit, presque noire de jour. Le terminal officiel était le seul du
+#     système à répondre en blanc, sur la chose la plus courante de toutes.
+#
+#  2. LE THÈME NE VALAIT QU'AU DÉMARRAGE. « theme: paletteXterm() » est lu une
+#     seule fois, au « new XTerm ». Basculer jour/nuit depuis les Réglages ou
+#     depuis un autre terminal laissait chaque volet ouvert sur son ancien
+#     fond et son ancienne palette jusqu'à relancer l'application.
+#
+#  L'ATTENDU N'EST PAS ÉCRIT ICI : il est relu dans le terminal.env que le
+#  générateur vient de produire. Le banc compare, il ne surveille pas.
+if ! command -v node >/dev/null 2>&1 && ! command -v nodejs >/dev/null 2>&1; then
+	printf '  \033[2mthème vivant sauté — node absent, le code de la page n'"'"'a PAS été exécuté\033[0m\n'
+elif [ ! -r "$PAGE" ] || [ ! -d "$BANC/th" ]; then
+	non "la page ou les thèmes générés manquent : le thème vivant n'est pas vérifiable"
+else
+	NODE="$(command -v node || command -v nodejs)"
+	SABLE="$BANC/sable.js"
+	cat > "$SABLE" <<'JSBANC'
+//  Un bac à sable minimal : assez de DOM pour que la page se charge, et rien
+//  de plus. On ne simule pas un navigateur — on exerce les fonctions.
+const fs = require('fs'), vm = require('vm');
+const [, , chemPage, chemEnv] = process.argv;
+const src = fs.readFileSync(chemPage, 'utf8');
+const js = [...src.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+             .map(m => m[1]).join('\n');
+
+//  Le thème ATTENDU vient du fichier du générateur, pas de ce banc.
+const env = {};
+for (const l of fs.readFileSync(chemEnv, 'utf8').split('\n')) {
+  const t = l.trim();
+  if (!t || t.startsWith('#') || !t.includes('=')) continue;
+  const i = t.indexOf('=');
+  env[t.slice(0, i).trim()] = t.slice(i + 1).trim().replace(/^'(.*)'$/, '$1');
+}
+
+const POSE = {}, ECOUTES = [], REPONSE = { rep: { ok: false }, vues: [] };
+const noeud = () => ({
+  style: { setProperty: (n, v) => { POSE[n] = v; }, removeProperty(){} },
+  classList: { add(){}, remove(){}, toggle(){}, contains: () => false },
+  dataset: {}, children: [], appendChild(){}, removeChild(){}, remove(){},
+  addEventListener(){}, removeEventListener(){}, setAttribute(){}, focus(){},
+  insertAdjacentHTML(){}, querySelector: () => null, querySelectorAll: () => [],
+  getContext: () => null, getBoundingClientRect: () => ({ width: 800, height: 600 }),
+});
+const bac = {
+  __BANC_NE_PAS_DEMARRER__: true, console,
+  document: Object.assign(noeud(), {
+    documentElement: noeud(), body: noeud(), head: noeud(),
+    getElementById: () => noeud(), createElement: () => noeud(),
+    querySelector: () => null, querySelectorAll: () => [],
+    addEventListener: n => ECOUTES.push('document:' + n),
+    hidden: false, visibilityState: 'visible',
+  }),
+  getComputedStyle: () => ({ getPropertyValue: n => POSE[n] || '' }),
+  window: { addEventListener: n => ECOUTES.push('window:' + n),
+            matchMedia: () => ({ matches: false, addEventListener(){} }) },
+  addEventListener: n => ECOUTES.push('global:' + n), removeEventListener(){},
+  matchMedia: () => ({ matches: false, addEventListener(){} }),
+  navigator: { clipboard: {}, userAgent: 'banc' },
+  //  Le port et le jeton viennent de l'URL : sans eux appliquerTheme() se
+  //  retire tout de suite, et c'est voulu (mode démonstration, pas de pont).
+  location: { href: 'http://127.0.0.1/?port=9999&jeton=BANC',
+              search: '?port=9999&jeton=BANC', hash: '',
+              protocol: 'http:', host: '127.0.0.1' },
+  fetch: async u => { REPONSE.vues.push(u); return REPONSE.rep; },
+  setTimeout, clearTimeout, setInterval, clearInterval,
+  requestAnimationFrame: f => f(),
+  atob: s => Buffer.from(s, 'base64').toString('binary'),
+  btoa: s => Buffer.from(s, 'binary').toString('base64'),
+  TextDecoder, TextEncoder, AbortController, URL, URLSearchParams,
+  Headers: class {}, Request: class {}, Response: class {}, Event: class {},
+  MutationObserver: class { observe(){} disconnect(){} },
+  ResizeObserver: class { observe(){} disconnect(){} },
+  localStorage: { getItem: () => null, setItem(){}, removeItem(){} },
+};
+bac.globalThis = bac; bac.self = bac;
+vm.createContext(bac);
+try { vm.runInContext(js, bac); }
+catch (e) { console.log('charge=' + (e && e.message)); process.exit(0); }
+const T = bac.__banc;
+if (!T || !T.paletteXterm || !T.appliquerTheme || !T.FLUX) {
+  console.log('crochet=incomplet'); process.exit(0);
+}
+console.log('charge=ok');
+console.log('ecoutes=' + ECOUTES.join(','));
+//  AVANT tout thème : le mode démonstration ne doit pas bouger.
+console.log('demo.foreground=' + T.paletteXterm().foreground);
+
+const volet = { id: 'v1', term: { options: { theme: { marqueur: 'ANCIEN' } } } };
+T.FLUX.volets.set('v1', volet);
+REPONSE.rep = { ok: true, json: async () => ({ theme: env }) };
+T.appliquerTheme().then(() => {
+  const th = volet.term.options.theme;
+  console.log('routes=' + REPONSE.vues.join(','));
+  console.log('volet.remplace=' + (th.marqueur === undefined ? 'oui' : 'non'));
+  for (const c of ['background', 'foreground', 'yellow', 'green', 'white'])
+    console.log('volet.' + c + '=' + th[c]);
+}, e => console.log('jete=' + (e && e.message)));
+JSBANC
+	for MODE in nuit jour; do
+		ENVF="$BANC/th/$MODE/.config/lexos/terminal.env"
+		if [ ! -r "$ENVF" ]; then
+			non "$MODE : terminal.env manque — le thème vivant n'est pas vérifiable"
+			continue
+		fi
+		SORTIE_JS="$("$NODE" "$SABLE" "$PAGE" "$ENVF" 2>&1 || true)"
+		lij() { printf '%s\n' "$SORTIE_JS" | sed -n "s/^$1=//p" | head -1; }
+		if [ "$(lij charge)" != ok ]; then
+			non "$MODE : le code de la page n'a pas pu être chargé ($(lij charge)$(lij crochet)) — rien n'est conclu"
+			continue
+		fi
+		#  1) l'encre par défaut EST la couleur machine du générateur
+		ATT_FG="$(sed -n 's/^LEXOS_TERM_FG=//p' "$ENVF")"
+		VU_FG="$(lij 'volet.foreground')"
+		if [ -z "$ATT_FG" ]; then
+			non "$MODE : le générateur ne dit pas la couleur machine — on ne conclut pas"
+		elif [ "$VU_FG" = "$ATT_FG" ]; then
+			ok "$MODE : l'encre par défaut du terminal est la couleur machine ($VU_FG), comme ColorForeground"
+		else
+			ATT_TX="$(sed -n 's/^LEXOS_TERM_TEXTE=//p' "$ENVF")"
+			if [ "$VU_FG" = "$ATT_TX" ]; then
+				non "$MODE : l'encre par défaut est celle de la FRAPPE ($VU_FG) — la sortie des commandes ne sera pas verte"
+			else
+				non "$MODE : l'encre par défaut vaut « $VU_FG » là où la couleur machine est $ATT_FG"
+			fi
+		fi
+		#  2) le volet DÉJÀ ouvert a bien été repeint
+		case "$(lij 'volet.remplace')" in
+			oui) ok "$MODE : un volet déjà ouvert reçoit le nouveau thème sans relancer l'application" ;;
+			*)   non "$MODE : le volet déjà ouvert garde son ancien thème — il faudrait relancer l'application" ;;
+		esac
+		#  3) le fond et deux couleurs de la palette traversent jusqu'au volet
+		ATT_BG="$(sed -n 's/^LEXOS_TERM_BG=//p' "$ENVF")"
+		ATT_J="$(sed -n "s/^LEXOS_TERM_PALETTE='\(.*\)'$/\1/p" "$ENVF" | cut -d';' -f4)"
+		if [ "$(lij 'volet.background')" = "$ATT_BG" ] && [ "$(lij 'volet.yellow')" = "$ATT_J" ]; then
+			ok "$MODE : le fond ($ATT_BG) et le jaune ANSI ($ATT_J) du générateur arrivent dans le volet"
+		else
+			non "$MODE : le volet a « $(lij 'volet.background') » et « $(lij 'volet.yellow') » là où le générateur dit « $ATT_BG » et « $ATT_J »"
+		fi
+		#  4) la route demandée est la bonne, et une seule
+		case "$(lij routes)" in
+			/api/theme) ok "$MODE : la page demande /api/theme, et rien d'autre" ;;
+			*) non "$MODE : routes demandées « $(lij routes) » au lieu de /api/theme" ;;
+		esac
+		#  5) sans pont, le mode démonstration ne change pas de couleur
+		case "$(lij 'demo.foreground')" in
+			'#ffffff') ok "$MODE : sans pont, l'encre livrée reste le blanc de la démonstration" ;;
+			*) non "$MODE : sans pont, l'encre vaut « $(lij 'demo.foreground') » au lieu du blanc livré" ;;
+		esac
+		#  6) les écouteurs qui relisent le thème existent — CONSTATÉS, pas lus
+		ECO="$(lij ecoutes)"
+		MANQ=""
+		case "$ECO" in *'visibilitychange'*) ;; *) MANQ="$MANQ visibilitychange" ;; esac
+		case "$ECO" in *':focus'*) ;; *) MANQ="$MANQ focus" ;; esac
+		if [ -z "$MANQ" ]; then
+			ok "$MODE : la page se réabonne au thème quand la fenêtre revient ($ECO)"
+		else
+			non "$MODE : aucun écouteur pour relire le thème :$MANQ — un changement en arrière-plan passerait inaperçu"
+		fi
+	done
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]
