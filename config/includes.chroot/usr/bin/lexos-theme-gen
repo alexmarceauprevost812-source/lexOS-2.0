@@ -1591,6 +1591,22 @@ if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	#  plutôt que de la laisser se faire découvrir. Elle ne concerne que la
 	#  console texte en thème de jour.
 	PS_LOGO_256="38;5;23"
+	#  L'ACCENT DE JOUR EN 256 COULEURS — le septième rôle, et il manquait.
+	#  L'accent (le curseur, #A84007) n'avait pas de version palette : trois
+	#  fichiers le convertissaient eux-mêmes depuis LEXOS_TERM_CURSEUR, et
+	#  n'y arrivaient QUE sous COLORTERM. Hors du Terminal Pro — console
+	#  texte, ssh, tmux — ils restaient donc figés sur le 208 de NUIT :
+	#  « lexos terminal jour » imprimait sa ligne « Mode » à 2,21:1 sur le
+	#  crème qu'il venait lui-même d'installer. Mesuré, et c'est le chiffre
+	#  que ce fichier écrit déjà deux lignes plus haut pour le nom de nuit.
+	#
+	#  LE CUBE N'A PAS D'ORANGE DE JOUR ACCEPTABLE : le plus proche de
+	#  #A84007 est 130 (#AF5F00) à 4,32:1, sous le seuil — le même constat
+	#  que pour le nom. On prend donc 94, l'orange-brun du nom de jour :
+	#  5,26:1, et c'est le dernier orange du cube qui passe. L'accent et le
+	#  nom se confondent en 256 de jour ; ils ne se croisent sur aucune
+	#  surface, et la couleur vraie les garde distincts (#A84007 / #8A4400).
+	PS_ACCENT_256="38;5;94"
 else
 	PS_MACHINE_256="38;5;40"    # exactement #00D700, voir la section terminal plus haut
 	PS_TEXTE_256="38;5;15"      # le blanc brillant de la palette
@@ -1607,6 +1623,10 @@ else
 	#  Ça compte pour de vrai : c'est ce repli-là que lisent la console
 	#  texte, ssh et tmux, puisque personne n'y exporte COLORTERM.
 	PS_LOGO_256="38;5;35"
+	#  L'accent de nuit en 256 : 208, qui est EXACTEMENT #FF8700 et donne
+	#  8,72:1 sur noir. C'est la valeur que les trois consommateurs portaient
+	#  déjà en dur — elle ne bouge donc pas d'un octet, seul le JOUR change.
+	PS_ACCENT_256="38;5;208"
 fi
 
 cat > "$CONF_DIR/terminal.env" <<EOF
@@ -1626,18 +1646,37 @@ LEXOS_TERM_CURSEUR=${TERM_CURSEUR}
 #  assumée ici parce qu'elle est produite au même endroit, à la même
 #  ligne, depuis la même variable : elles ne peuvent pas diverger.
 LEXOS_TERM_TEXTE=${TERM_TEXTE}
+#  LES SEIZE COULEURS ANSI, pour que le terminal LexOS Pro cesse d'avoir les
+#  siennes. Elles existaient déjà par thème, juste au-dessus — mais elles
+#  n'allaient QUE dans xfce4-terminal. La page web, elle, gardait un rouge,
+#  un jaune, un bleu, un magenta, un cyan et un blanc écrits en dur dans sa
+#  feuille de style : de jour, onze de ses seize entrées tombaient sous le
+#  seuil AA sur le crème — jaune 1,51:1, blanc 1,70:1, cyan 1,66:1. Mesuré.
+#  Et les deux palettes avaient déjà divergé de nuit, jusqu'à appeler
+#  « jaune » deux couleurs à ΔE 55 l'une de l'autre.
+#
+#  ⚠ LES APOSTROPHES SONT OBLIGATOIRES, et leur absence échoue EN SILENCE :
+#  sans elles, bash lit « ; » comme un séparateur de commandes et prend
+#  « #B3261E… » pour un commentaire — la variable ne vaudrait qu'UNE couleur
+#  sur seize, sans un mot d'erreur. Mesuré avant d'écrire cette ligne.
+LEXOS_TERM_PALETTE='${TERM_PALETTE}'
 LEXOS_PS_MACHINE='$(ansi_vrai "$TERM_FG")'
 LEXOS_PS_TEXTE='$(ansi_vrai "$TERM_TEXTE")'
 LEXOS_PS_ERREUR='1;$(ansi_vrai "$TERM_ERREUR")'
 LEXOS_PS_DIM='$(ansi_vrai "$TERM_DIM")'
 LEXOS_PS_UTILISATEUR='$(ansi_vrai "$TERM_UTILISATEUR")'
 LEXOS_PS_LOGO='$(ansi_vrai "$TERM_LOGO")'
+#  L'ACCENT, septième rôle : le curseur, la valeur mise en avant, les
+#  filets décoratifs. Il était le seul rôle sans clef — d'où trois
+#  conversions à la main qui ne marchaient que sous COLORTERM.
+LEXOS_PS_ACCENT='$(ansi_vrai "$TERM_CURSEUR")'
 LEXOS_PS_MACHINE_256='${PS_MACHINE_256}'
 LEXOS_PS_TEXTE_256='${PS_TEXTE_256}'
 LEXOS_PS_ERREUR_256='${PS_ERREUR_256}'
 LEXOS_PS_DIM_256='2'
 LEXOS_PS_UTILISATEUR_256='${PS_UTILISATEUR_256}'
 LEXOS_PS_LOGO_256='${PS_LOGO_256}'
+LEXOS_PS_ACCENT_256='${PS_ACCENT_256}'
 EOF
 
 # =============================================================================

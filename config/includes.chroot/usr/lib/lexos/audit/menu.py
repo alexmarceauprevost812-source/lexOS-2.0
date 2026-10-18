@@ -260,16 +260,17 @@ def _role(nom, repli):
 
 
 def _accent(repli='38;5;208'):
-    """L'accent du thème — curseur, sélection, onglet actif. Il est rangé en
-    #RRGGBB ; on ne le convertit en couleur vraie que si le terminal la
-    comprend, sinon l'ancien 208 reste le repli de toujours."""
-    hexa = _terminal_env().get('LEXOS_TERM_CURSEUR', '')
-    if _vrai_couleur() and len(hexa) == 7 and hexa.startswith('#'):
-        try:
-            return '38;2;%d;%d;%d' % tuple(int(hexa[i:i + 2], 16) for i in (1, 3, 5))
-        except ValueError:
-            pass
-    return repli
+    """L'accent du thème — curseur, sélection, onglet actif.
+
+    IL SE LIT COMME LES SIX AUTRES RÔLES, ET C'EST NEUF. Avant, cette
+    fonction convertissait elle-même LEXOS_TERM_CURSEUR, qui est rangé en
+    #RRGGBB — elle n'y arrivait donc QUE sous COLORTERM, et la palette 256
+    gardait le 208 de nuit quel que soit le thème. Sur la console texte en
+    thème de jour, les titres de ce menu sortaient en orange vif sur le
+    crème : 2,21:1, sous le seuil AA de 4,5. Le générateur écrit maintenant
+    LEXOS_PS_ACCENT et LEXOS_PS_ACCENT_256 (94 de jour, 5,26:1 ; 208 de
+    nuit, inchangé) — il n'y a plus rien à convertir ici."""
+    return _role('ACCENT', repli)
 
 
 def use_colour(stream=None):

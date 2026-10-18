@@ -807,6 +807,205 @@ else
 fi
 
 # =============================================================================
+titre "8. SANS thème généré, la bannière et l'invite disent la même chose"
+# =============================================================================
+#  LE TROU QUE CETTE SECTION BOUCHE. Les sections 6 bis et 7 génèrent
+#  toujours un terminal.env : elles mesurent donc ce que les fichiers
+#  LISENT, jamais ce qu'ils inventent quand il n'y a rien à lire. Or c'est
+#  là que lexfetch se trompait — « H="$O" » initialisait la MACHINE, qui
+#  porte le rôle LOGO, sur l'orange du NOM. Sans thème, la bannière sortait
+#  « marceau@lexos » TOUT EN ORANGE pendant que l'invite, deux lignes plus
+#  bas, écrivait le nom en orange et LEXOS en vert. ΔE 105 entre les deux.
+#
+#  ON N'ÉCRIT AUCUNE COULEUR ICI : l'attendu est relu chez l'autre, dans
+#  les replis d'interactive.sh. Les deux sont donc COMPARÉS — c'est ce qui
+#  les empêche de diverger plus tard, et c'est tout l'intérêt du point.
+if [ ! -r "$FETCH" ] || ! command -v script >/dev/null 2>&1; then
+	printf '  \033[2mrepli de la bannière sauté — « lexfetch » ou « script » absent\033[0m\n'
+else
+	mkdir -p "$BANC/nu/.config"
+	#  Les replis de l'invite, lus dans le CODE décommenté : interactive.sh
+	#  raconte ses anciennes valeurs juste au-dessus d'elles.
+	R_NOM="$(code_nu "$SH" | sed -n "s/.*__LEXOS_C_UTILISATEUR='\([^']*\)'.*/\1/p" | head -1)"
+	R_LOGO="$(code_nu "$SH" | sed -n "s/.*__LEXOS_C_LOGO='\([^']*\)'.*/\1/p" | head -1)"
+	#  L'orange propre au dessin de lexfetch : on exige qu'il DIFFÈRE du
+	#  vert-logo avant de s'en servir, sinon la comparaison serait circulaire.
+	R_ART="$(code_nu "$FETCH" | sed -n "s/^[[:space:]]*O=\\\$'\\\\033\[\([0-9;]*\)m'.*/\1/p" | head -1)"
+	if [ -z "$R_NOM" ] || [ -z "$R_LOGO" ] || [ -z "$R_ART" ]; then
+		non "les replis d'interactive.sh ou l'orange de lexfetch sont illisibles — on ne conclut rien"
+	elif [ -e "$BANC/nu/.config/lexos/terminal.env" ]; then
+		non "le HOME de ce point n'est pas vierge — il mesurerait un thème, pas le repli"
+	elif [ "$R_LOGO" = "$R_ART" ]; then
+		non "le vert-logo et l'orange du dessin sont la même valeur — le point serait circulaire"
+	else
+		QUI_N="$(id -un 2>/dev/null || echo inconnu)"
+		HOTE_N="$(hostnamectl --static 2>/dev/null || hostname 2>/dev/null || echo inconnu)"
+		for PROF in 256 vraie; do
+			if [ "$PROF" = vraie ]; then
+				NUE="$(HOME="$BANC/nu" XDG_CONFIG_HOME="$BANC/nu/.config" \
+					NO_COLOR="" COLORTERM=truecolor TERM=xterm-256color \
+					script -qec "bash '$FETCH'" /dev/null 2>/dev/null || true)"
+			else
+				NUE="$(HOME="$BANC/nu" XDG_CONFIG_HOME="$BANC/nu/.config" \
+					NO_COLOR="" TERM=xterm-256color \
+					env -u COLORTERM script -qec "bash '$FETCH'" /dev/null 2>/dev/null || true)"
+			fi
+			if [ -z "$NUE" ]; then
+				non "$PROF : sans thème, lexfetch n'a rien affiché — rien à mesurer"
+				continue
+			fi
+			#  On s'ancre sur le NOM DE LA MACHINE, pas sur la seule séquence :
+			#  chercher le vert n'importe où passerait au vert pour un vert posé
+			#  ailleurs dans la bannière.
+			case "$NUE" in
+				*"${ESCB}[${R_LOGO}m${HOTE_N}"*)
+					ok "$PROF : sans thème, « $HOTE_N » porte le vert-logo de l'invite ($R_LOGO)" ;;
+				*"${ESCB}[${R_NOM}m${HOTE_N}"*)
+					non "$PROF : sans thème, la bannière peint le nom ET la machine en $R_NOM — l'invite, non" ;;
+				*)
+					non "$PROF : sans thème, « $HOTE_N » ne porte ni le vert-logo ($R_LOGO) ni l'orange du nom ($R_NOM)" ;;
+			esac
+			case "$NUE" in
+				*"${ESCB}[${R_NOM}m${QUI_N}"*)
+					ok "$PROF : sans thème, « $QUI_N » garde l'orange du nom ($R_NOM)" ;;
+				*)  non "$PROF : sans thème, « $QUI_N » ne porte pas l'orange du nom ($R_NOM)" ;;
+			esac
+			#  Le dessin ne doit PAS avoir été détourné : c'est le piège du
+			#  correctif facile, qui repeindrait $O et donc le logo ASCII.
+			case "$NUE" in
+				*"${ESCB}[${R_ART}m"*)
+					ok "$PROF : le dessin garde l'orange propre à la bannière ($R_ART)" ;;
+				*)  non "$PROF : le dessin a perdu son orange ($R_ART) — le correctif a détourné \$O" ;;
+			esac
+		done
+		#  ET SANS COULEUR DU TOUT, RIEN NE DOIT S'ÉCHAPPER. C'est le défaut
+		#  qu'un repli posé une ligne trop haut introduirait : mesuré, une
+		#  séquence sortait alors même que NO_COLOR est posé.
+		MUET="$(HOME="$BANC/nu" XDG_CONFIG_HOME="$BANC/nu/.config" \
+			NO_COLOR=1 TERM=xterm-256color bash "$FETCH" 2>/dev/null || true)"
+		case "$MUET" in
+			*"$ESCB["*) non "avec NO_COLOR=1, la bannière émet encore une séquence — un repli est posé hors de la garde" ;;
+			*)          ok "avec NO_COLOR=1, la bannière n'émet aucune séquence" ;;
+		esac
+	fi
+fi
+
+# =============================================================================
+titre "9. L'ACCENT est un rôle comme les autres — y compris en 256 couleurs"
+# =============================================================================
+#  CE QUE CE POINT RÉPARE, ET C'ÉTAIT DANS L'ANGLE MORT DE TOUS LES AUTRES.
+#  Six rôles (MACHINE, TEXTE, ERREUR, DIM, UTILISATEUR, LOGO) ont depuis
+#  toujours DEUX écritures dans terminal.env : la couleur vraie et la
+#  palette 256. L'accent, lui, n'était rangé qu'en #RRGGBB — et trois
+#  fichiers le convertissaient chacun de leur côté, ce qui ne marche QUE
+#  sous COLORTERM. Hors du Terminal Pro — console texte, ssh, tmux — ils
+#  restaient donc figés sur le 208 de NUIT : « lexos terminal jour »
+#  imprimait sa ligne « Mode » en orange vif sur le crème qu'il venait
+#  lui-même d'installer, à 2,21:1, sous le seuil AA.
+#
+#  Le point MESURE le contraste et IMPRIME le chiffre, pour qu'une dérive se
+#  voie avant de franchir le seuil, plutôt que d'affirmer « c'est lisible ».
+if [ ! -x "$GEN" ]; then
+	printf '  \033[2maccent sauté — le générateur n'"'"'est pas exécutable\033[0m\n'
+else
+	for MODE in jour nuit; do
+		D="$BANC/acc-$MODE"; mkdir -p "$D/.config"
+		HOME="$D" XDG_CONFIG_HOME="$D/.config" bash "$GEN" --mode "$MODE" >/dev/null 2>&1 || true
+		E="$D/.config/lexos/terminal.env"
+		if [ ! -r "$E" ]; then
+			non "$MODE : le générateur n'a pas écrit terminal.env — on ne conclut rien sur l'accent"
+			continue
+		fi
+		A_VRAI="$(sed -n "s/^LEXOS_PS_ACCENT='\(.*\)'$/\1/p" "$E")"
+		A_256="$(sed -n "s/^LEXOS_PS_ACCENT_256='\(.*\)'$/\1/p" "$E")"
+		BG="$(sed -n 's/^LEXOS_TERM_BG=//p' "$E")"
+		if [ -z "$A_VRAI" ] || [ -z "$A_256" ]; then
+			non "$MODE : terminal.env ne porte pas les deux écritures de l'accent (vraie : « $A_VRAI », 256 : « $A_256 »)"
+			continue
+		fi
+		ok "$MODE : l'accent a ses deux écritures ($A_VRAI et $A_256)"
+		#  Le contraste sur le fond DE CE MODE. C'est le défaut même : la
+		#  valeur de nuit sur le fond de jour donnait 2,21:1.
+		K="$(python3 "$CONTRASTE" "$A_256" "$BG")"
+		if [ -z "$K" ]; then
+			non "$MODE : le contraste de l'accent 256 n'a pas pu être mesuré"
+		else
+			case "$(awk -v k="$K" 'BEGIN{print (k>=4.5)?"oui":"non"}')" in
+				oui) ok "$MODE : l'accent 256 se lit sur son fond — $K:1 sur $BG" ;;
+				*)   non "$MODE : l'accent 256 ne donne que $K:1 sur $BG (seuil AA 4,5)" ;;
+			esac
+		fi
+		#  LA BASCULE LE LIT-ELLE ? Sans COLORTERM, c'est-à-dire sur la
+		#  surface où le défaut vivait.
+		if [ -x "$BASCULE" ] && command -v script >/dev/null 2>&1; then
+			VU="$(HOME="$D" PATH="$RACINE/config/includes.chroot/usr/bin:$PATH" \
+				TERM=xterm-256color NO_COLOR="" \
+				env -u COLORTERM script -qec "bash '$BASCULE' etat" /dev/null 2>/dev/null || true)"
+			case "$VU" in
+				*"${ESCB}[${A_256}m"*)
+					ok "$MODE : « lexos terminal » met sa ligne « Mode » dans l'accent du thème ($A_256)" ;;
+				*)  non "$MODE : « lexos terminal » n'a pas pris l'accent $A_256 — il garde celui d'un autre thème" ;;
+			esac
+		fi
+		#  ET LE MENU D'AUDIT, dans les deux profondeurs.
+		if [ -r "$MENU" ]; then
+			for CT in "" truecolor; do
+				ATT="$A_256"; [ -n "$CT" ] && ATT="$A_VRAI"
+				VU_A="$(XDG_CONFIG_HOME="$D/.config" COLORTERM="$CT" MENU_DIR="$MENU_DIR" python3 -c "
+import os, sys
+sys.path.insert(0, os.environ['MENU_DIR'])
+import menu
+print(menu._accent())
+" 2>/dev/null)"
+				PROF=256; [ -n "$CT" ] && PROF=vraie
+				if [ -z "$VU_A" ]; then
+					non "$MODE/$PROF : le menu d'audit n'a pas pu être interrogé sur son accent"
+				elif [ "$VU_A" = "$ATT" ]; then
+					ok "$MODE/$PROF : le menu d'audit prend l'accent du générateur ($VU_A)"
+				else
+					non "$MODE/$PROF : le menu d'audit rend « $VU_A » là où le générateur dit « $ATT »"
+				fi
+			done
+		fi
+	done
+
+	#  ═══ ET LES DEUX DERNIERS PORTEURS DU VERT MACHINE ═══
+	#  Le repli de ia-agent.py valait 38;5;35 — le vert de LEXOS, pas celui
+	#  des réponses de la machine. Le contrôle du banc du terminal cherche
+	#  « \033[ » et ne peut pas voir une couleur rangée nue : la divergence
+	#  a donc survécu à trois corrections. Ici on la COMPARE au générateur.
+	AGENT="$RACINE/config/includes.chroot/usr/lib/lexos/ia-agent.py"
+	REF_M256="$(sed -n "s/^LEXOS_PS_MACHINE_256='\(.*\)'$/\1/p" "$BANC/acc-nuit/.config/lexos/terminal.env")"
+	if [ ! -r "$AGENT" ] || [ -z "$REF_M256" ]; then
+		non "ia-agent.py ou la référence du vert machine est illisible — on ne conclut rien"
+	else
+		R_AG="$(code_nu "$AGENT" | sed -n 's/.*LEXOS_PS_MACHINE_256") or "\([^"]*\)".*/\1/p' | head -1)"
+		if [ -z "$R_AG" ]; then
+			non "le repli du vert machine de ia-agent.py est introuvable"
+		elif [ "$R_AG" = "$REF_M256" ]; then
+			ok "ia-agent.py replie le vert machine sur la valeur du générateur ($R_AG)"
+		else
+			non "ia-agent.py replie le vert machine sur $R_AG là où le générateur dit $REF_M256"
+		fi
+	fi
+	#  tmux : message-style se dit « le vert des réponses de la machine ». Le
+	#  banc ne lisait que status-left et status-style ; message-style était
+	#  resté en colour35 quand status-style est passé en colour40.
+	if [ -r "$TMUXC" ]; then
+		tmux_nu2() { sed '/^[[:space:]]*#/d' "$1"; }
+		M_MSG="$(tmux_nu2 "$TMUXC" | sed -n 's/.*message-style .*fg=colour\([0-9]*\)".*/\1/p' | head -1)"
+		M_ST="$(tmux_nu2 "$TMUXC" | sed -n 's/.*status-style .*fg=colour\([0-9]*\)".*/\1/p' | head -1)"
+		if [ -z "$M_MSG" ] || [ -z "$M_ST" ]; then
+			non "tmux : message-style ou status-style est illisible — on ne conclut rien"
+		elif [ "$M_MSG" = "$M_ST" ]; then
+			ok "tmux : les messages portent le même vert machine que la barre (colour$M_MSG)"
+		else
+			non "tmux : les messages sont en colour$M_MSG, la barre en colour$M_ST — deux verts pour un rôle"
+		fi
+	fi
+fi
+
+# =============================================================================
 printf '\n\033[1m═══ VERDICT ═══\033[0m\n'
 printf '  %d réussis, %d échoués\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ] || exit 1

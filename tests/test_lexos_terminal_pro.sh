@@ -631,5 +631,167 @@ case "$PAGE_NUE" in
 	*) ok "la sélection suit --orange au lieu d'un orange réécrit" ;;
 esac
 
+titre "6. LES SEIZE COULEURS ANSI viennent du thème, et elles se lisent"
+# =============================================================================
+#  LE DÉFAUT QUE CE BLOC MESURE, ET IL ÉTAIT À MOI. Poser le fond de JOUR
+#  sans poser la palette, c'était rendre la fenêtre illisible : le rouge, le
+#  jaune, le bleu, le magenta, le cyan et le blanc restaient ceux de la NUIT
+#  sur un fond crème. Onze des seize entrées tombaient sous le seuil AA —
+#  jaune 1,51:1, blanc 1,70:1, cyan 1,66:1. Le blanc est le pire : c'est la
+#  couleur des fichiers ordinaires de « ls ».
+#
+#  Les seize existaient déjà, par thème, dans le générateur — mais elles
+#  n'allaient QUE dans xfce4-terminal. Deux écritures de la même palette, qui
+#  avaient DÉJÀ divergé : la page appelait « jaune » une couleur à ΔE 55 de
+#  celle que le système appelle jaune.
+if [ ! -r "$PONT_PY" ] || [ ! -x "$GEN_TH" ] || [ ! -r "$PAGE" ]; then
+	non "le pont, le générateur ou la page est introuvable : la palette n'est pas vérifiable"
+else
+	#  ═══ 1) LE FICHIER : SEIZE COULEURS, ET APOSTROPHÉES ═══
+	#  L'absence d'apostrophes échoue EN SILENCE : bash lit « ; » comme un
+	#  séparateur de commandes et « #B3261E… » comme un commentaire. La
+	#  variable ne vaudrait qu'UNE couleur, sans un mot d'erreur. On ne lit
+	#  donc pas la ligne : on la fait RELIRE PAR BASH, comme les vrais
+	#  consommateurs le font.
+	for MODE in nuit jour; do
+		ENVP="$BANC/th/$MODE/.config/lexos/terminal.env"
+		if [ ! -r "$ENVP" ]; then
+			non "$MODE : terminal.env manque — la palette n'est pas vérifiable"
+			continue
+		fi
+		N_PAL="$(env -i bash -c ". '$ENVP' 2>/dev/null; printf '%s\\n' \"\${LEXOS_TERM_PALETTE:-}\"" | awk -F';' '{print NF}')"
+		case "$N_PAL" in
+			16) ok "$MODE : bash relit SEIZE couleurs depuis terminal.env" ;;
+			1)  non "$MODE : bash n'en relit qu'UNE — la ligne n'est pas apostrophée, le « ; » a tout coupé" ;;
+			*)  non "$MODE : bash relit $N_PAL couleur(s) au lieu de seize" ;;
+		esac
+	done
+
+	#  ═══ 2) LE PONT LA REND, ET LA MESURE TIENT SUR LES DEUX FONDS ═══
+	RESP="$(PONT_PY="$PONT_PY" BANC="$BANC" python3 - <<'PY' 2>/dev/null
+import importlib.util, os, tempfile
+sp = importlib.util.spec_from_file_location("tp", os.environ["PONT_PY"])
+tp = importlib.util.module_from_spec(sp); sp.loader.exec_module(tp)
+banc = os.environ["BANC"]
+
+def lum(h):
+    v = [int(h[i:i+2], 16)/255 for i in (1, 3, 5)]
+    v = [x/12.92 if x <= 0.03928 else ((x+0.055)/1.055)**2.4 for x in v]
+    return 0.2126*v[0] + 0.7152*v[1] + 0.0722*v[2]
+
+def contraste(a, b):
+    x, y = lum(a), lum(b)
+    if x < y:
+        x, y = y, x
+    return (x+0.05)/(y+0.05)
+
+for mode in ("nuit", "jour"):
+    t = tp.lire_theme(os.path.join(banc, "th", mode, ".config", "lexos", "terminal.env"))
+    pal = (t.get("LEXOS_TERM_PALETTE") or "").split(";") if t.get("LEXOS_TERM_PALETTE") else []
+    print("%s.n=%d" % (mode, len(pal)))
+    if len(pal) != 16:
+        continue
+    bg = t.get("LEXOS_TERM_BG", "#000000")
+    #  Les index 0 et 8 sont les emplacements « fond » et « atténué » de la
+    #  convention ANSI : on ne leur demande pas de contraste de texte.
+    mesures = [(contraste(c, bg), i) for i, c in enumerate(pal) if i not in (0, 8)]
+    pire, idx = min(mesures)
+    print("%s.pire=%.2f" % (mode, pire))
+    print("%s.pirecouleur=%s" % (mode, pal[idx]))
+    print("%s.sous=%d" % (mode, sum(1 for k, _ in mesures if k < 4.5)))
+
+#  Ce que le pont doit REFUSER. Une palette tronquée ou surdimensionnée est
+#  jetée EN ENTIER plutôt qu'appliquée à moitié : sinon la page poserait
+#  --ansi-0..2 et garderait les treize autres couleurs de l'autre thème.
+d = tempfile.mkdtemp()
+for nom, val in (("trois", ";".join(["#112233"]*3)),
+                 ("quarante", ";".join(["#112233"]*40)),
+                 ("injection", "#000;}body{background:url(http://x)"),
+                 ("mixte", ";".join(["#112233"]*15) + ";rouge")):
+    p = os.path.join(d, nom + ".env")
+    open(p, "w").write("LEXOS_TERM_PALETTE='%s'\n" % val)
+    print("refus.%s=%s" % (nom, "jetee" if "LEXOS_TERM_PALETTE" not in tp.lire_theme(p) else "ACCEPTEE"))
+PY
+)"
+	litp() { printf '%s\n' "$RESP" | sed -n "s/^$1=//p"; }
+	for MODE in nuit jour; do
+		case "$(litp "$MODE.n")" in
+			16) ok "$MODE : le pont rend les seize couleurs à la page" ;;
+			*)  non "$MODE : le pont rend « $(litp "$MODE.n") » couleur(s) — la page garderait la sienne" ;;
+		esac
+		SOUS="$(litp "$MODE.sous")"; PIRE="$(litp "$MODE.pire")"; PC="$(litp "$MODE.pirecouleur")"
+		if [ -z "$SOUS" ]; then
+			non "$MODE : le contraste de la palette n'a pas pu être mesuré"
+		elif [ "$SOUS" = 0 ]; then
+			ok "$MODE : les quatorze couleurs de texte se lisent sur le fond — la plus basse est $PC à $PIRE:1"
+		else
+			non "$MODE : $SOUS couleur(s) sous le seuil AA, la pire étant $PC à $PIRE:1"
+		fi
+	done
+	for CAS in trois quarante injection mixte; do
+		case "$(litp "refus.$CAS")" in
+			jetee) ok "une palette « $CAS » est JETÉE en entier" ;;
+			*)     non "le pont a accepté une palette « $CAS » — la page serait à moitié thémée" ;;
+		esac
+	done
+
+	#  ═══ 3) LA PAGE LES POSE ET LES LIT — LES SEIZE, PAS QUINZE ═══
+	PAGE_P="$(sed 's|//.*$||' "$PAGE")"
+	case "$PAGE_P" in
+		*'pose("--ansi-"'*) ok "la page pose les couleurs ANSI du thème" ;;
+		*) non "la page ne pose aucune couleur ANSI : poser le fond de jour la rendrait illisible" ;;
+	esac
+	ABSENT=""
+	for I in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+		case "$PAGE_P" in
+			*"--ansi-$I\""*) ;;
+			*) ABSENT="$ABSENT $I" ;;
+		esac
+	done
+	if [ -z "$ABSENT" ]; then
+		ok "les seize emplacements ANSI lisent la palette du thème"
+	else
+		non "des emplacements ANSI ne lisent pas le thème :$ABSENT"
+	fi
+
+	#  ═══ 4) L'ENCRE DU CHROME EST FIGÉE, ET C'EST VOULU ═══
+	#  Le même « pose » qui répare le fond avait cassé le chrome : --texte est
+	#  devenu l'encre du THÈME, et trois règles de survol la posaient sur des
+	#  fonds restés SOMBRES — 1,08:1 pour « #plus:hover », 1,19:1 pour la
+	#  croix d'onglet. Mesuré. Le chrome garde ses fonds sombres par choix,
+	#  donc son encre doit être figée aussi.
+	MAL=""
+	for R in '.onglet .x:hover' '#plus:hover' '.fen-outils button:hover'; do
+		LIGNE="$(printf '%s\n' "$PAGE_P" | sed -n "s|^$R{\(.*\)}$|\1|p" | head -1)"
+		case "$LIGNE" in
+			*'var(--texte)'*) MAL="$MAL « $R »" ;;
+		esac
+	done
+	if [ -z "$MAL" ]; then
+		ok "les survols du chrome prennent une encre figée, pas celle du thème"
+	else
+		non "des survols du chrome gardent l'encre du thème sur un fond sombre :$MAL"
+	fi
+	case "$PAGE_P" in
+		*'pose("--encre-chrome"'*) non "« --encre-chrome » est posé depuis le thème — elle doit rester figée" ;;
+		*'--encre-chrome'*) ok "« --encre-chrome » existe et n'est jamais posée depuis le thème" ;;
+		*) non "« --encre-chrome » n'existe pas : l'encre du chrome suit encore le thème" ;;
+	esac
+	#  ET L'ACCENT ET LE VERT NON PLUS NE TRAVERSENT PAS LE CHROME. Posés
+	#  depuis le thème, ils valent #A84007 et #0B6B3A en mode clair — faits
+	#  pour un fond crème, donc 3,24:1 et 3,03:1 sur le chrome resté sombre.
+	#  « var(--orange) » et « var(--vert) » n'ont donc plus rien à faire dans
+	#  la feuille de style : la palette xterm.js, elle, les lit par
+	#  « v("--orange") », une autre écriture — le contrôle les distingue.
+	FUITE=""
+	case "$PAGE_P" in *'var(--orange)'*) FUITE="$FUITE --orange" ;; esac
+	case "$PAGE_P" in *'var(--vert)'*)   FUITE="$FUITE --vert" ;; esac
+	if [ -z "$FUITE" ]; then
+		ok "l'accent et le vert du thème ne peignent plus le chrome figé"
+	else
+		non "le chrome peint encore avec une couleur du thème :$FUITE — sous AA en mode clair"
+	fi
+fi
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]

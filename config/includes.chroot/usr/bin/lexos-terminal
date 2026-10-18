@@ -68,7 +68,8 @@ couleurs_du_theme() {
 	LOGO='38;5;35'; MACHINE='38;5;40'; ACCENT='38;5;208'
 	[[ -r "$ENV_FILE" ]] || return 0
 	local LEXOS_PS_LOGO="" LEXOS_PS_LOGO_256="" \
-	      LEXOS_PS_MACHINE="" LEXOS_PS_MACHINE_256="" LEXOS_TERM_CURSEUR=""
+	      LEXOS_PS_MACHINE="" LEXOS_PS_MACHINE_256="" \
+	      LEXOS_PS_ACCENT="" LEXOS_PS_ACCENT_256=""
 	# shellcheck disable=SC1090
 	. "$ENV_FILE" 2>/dev/null || return 0
 	#  Couleur vraie quand le terminal l'annonce, palette 256 sinon — la même
@@ -78,13 +79,24 @@ couleurs_du_theme() {
 		truecolor|24bit)
 			LOGO="${LEXOS_PS_LOGO:-$LOGO}"
 			MACHINE="${LEXOS_PS_MACHINE:-$MACHINE}"
-			if [[ ${#LEXOS_TERM_CURSEUR} -eq 7 && "${LEXOS_TERM_CURSEUR:0:1}" == "#" ]]; then
-				ACCENT="38;2;$((16#${LEXOS_TERM_CURSEUR:1:2}));$((16#${LEXOS_TERM_CURSEUR:3:2}));$((16#${LEXOS_TERM_CURSEUR:5:2}))"
-			fi
+			ACCENT="${LEXOS_PS_ACCENT:-$ACCENT}"
 			;;
 		*)
 			LOGO="${LEXOS_PS_LOGO_256:-$LOGO}"
 			MACHINE="${LEXOS_PS_MACHINE_256:-$MACHINE}"
+			#  ═══ ET L'ACCENT AUSSI, SINON LE JOUR SORT À 2,21:1 ═══
+			#  Cette branche-ci — console texte, ssh, tmux : tout ce qui
+			#  n'exporte pas COLORTERM — ne touchait PAS l'accent. Il
+			#  restait donc sur le 38;5;208 de NUIT, et « lexos terminal
+			#  jour » imprimait sa ligne « Mode » en orange vif sur le
+			#  crème qu'il venait d'installer : 2,21:1, mesuré. Le même
+			#  2,21:1 que le commentaire ci-dessus dit avoir réparé pour
+			#  les deux AUTRES variables. J'avais laissé la troisième.
+			#  Le générateur écrit maintenant la clef (94 de jour, 5,26:1,
+			#  208 de nuit à l'octet près) : on la lit au lieu de
+			#  convertir soi-même un #RRGGBB qu'on ne savait traduire
+			#  qu'en couleur vraie.
+			ACCENT="${LEXOS_PS_ACCENT_256:-$ACCENT}"
 			;;
 	esac
 }

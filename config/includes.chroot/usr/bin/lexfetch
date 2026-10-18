@@ -44,6 +44,29 @@ fi
 #  pastilles, qui n'ont rien à voir avec l'identité.
 U="$O"; H="$O"
 if [[ -n "$O" ]]; then
+	#  ═══ ET LE REPLI DE LA MACHINE N'EST PAS L'ORANGE ═══
+	#  $H porte le rôle LOGO : il se peuple depuis LEXOS_PS_LOGO, dix lignes
+	#  plus bas. L'initialiser sur $O faisait sortir « marceau@lexos » TOUT
+	#  EN ORANGE dès que terminal.env manquait, ne se lisait pas, ou n'avait
+	#  pas la clé du logo — pendant que l'invite, juste en dessous, écrivait
+	#  « marceau » en orange et « LEXOS » en vert. Le désaccord bannière /
+	#  invite que ce lot existe pour supprimer, dans l'angle mort du banc,
+	#  qui générait toujours un thème. Les deux replis sont à ΔE 105 : ce ne
+	#  sont pas deux nuances voisines. Reproduit dans les trois cas de repli
+	#  et dans les deux profondeurs de couleur avant d'être corrigé.
+	#
+	#  POURQUOI ICI ET PAS DEUX LIGNES PLUS HAUT : au-dessus de la garde,
+	#  cette ligne émettrait du vert même quand lexfetch ne colore RIEN
+	#  (NO_COLOR, sortie redirigée, TERM=dumb) — mesuré, une séquence
+	#  s'échappait. $O est vide dans ce cas, donc $H doit l'être aussi.
+	#
+	#  38;5;35 est le repli de __LEXOS_C_LOGO dans interactive.sh. C'est bien
+	#  une SEPTIÈME écriture de cette valeur pour ce rôle : le banc de
+	#  l'invite les COMPARE, il ne leur fait pas confiance. Lire le fichier
+	#  de l'autre serait pire — une dépendance de /usr/bin vers /usr/share
+	#  dont la panne serait silencieuse, c'est-à-dire ce défaut-ci réintroduit
+	#  par la porte de service.
+	H=$'\033[38;5;35m'
 	LEXOS_TERM_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/terminal.env"
 	if [[ -r "$LEXOS_TERM_ENV" ]]; then
 		case "${COLORTERM:-}" in

@@ -53,6 +53,28 @@
   --texte:       #ffffff;
   --texte-2:     #c6bdb7;
   --texte-3:     #7d726b;
+  /*  L'ENCRE DU CHROME, ET ELLE EST FIGÉE EXPRÈS.
+      --texte est devenu l'encre du THÈME : appliquerTheme() la remplace par
+      #1B1A17 quand le thème est clair. Or le chrome — barre d'onglets, barre
+      d'état, fenêtre d'outils — garde ses fonds SOMBRES dans les deux
+      thèmes, par choix : seul le corps du terminal passe au crème. Marier
+      les deux donnait de l'encre sombre sur du sombre : 1,08:1 pour
+      « #plus:hover », 1,19:1 pour la croix d'onglet. Mesuré.
+      Ce jeton n'est JAMAIS posé, et c'est sa raison d'être. */
+  --encre-chrome: #ffffff;
+  /*  ET LE MÊME RAISONNEMENT POUR L'ACCENT ET LE VERT DU CHROME.
+      --orange et --vert sont devenus l'accent et le vert ANSI du THÈME :
+      appliquerTheme() les remplace par #A84007 et #0B6B3A en thème clair,
+      qui sont faits pour un fond CRÈME. Sur le chrome resté sombre ils
+      tombent à 3,24:1 et 3,03:1 — sous le seuil AA, là où ils donnaient
+      5,58:1 et 10,20:1 de nuit. Mesuré.
+      Ces deux-ci sont les valeurs que la page portait AVANT que le thème ne
+      traverse : 6,97:1 et 11,49:1 sur le chrome, dans les DEUX thèmes. Ce
+      n'est donc pas un recul — c'est rendre au chrome ce qu'il avait, et
+      laisser l'accent du thème là où il veut dire quelque chose : le
+      curseur, la sélection, le corps du terminal. */
+  --accent-chrome: #ff6a1a;
+  --vert-chrome:   #6fd99a;
   --orange:      #ff6a1a;
   --orange-clair:#ff9d5c;
   --vert:        #6fd99a;
@@ -75,7 +97,7 @@ body{
   -webkit-font-smoothing:antialiased;
 }
 button{font-family:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
-button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--orange);outline-offset:1px}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-chrome);outline-offset:1px}
 
 /* ---------- coquille ---------- */
 #app{height:100dvh;display:flex;flex-direction:column;background:var(--noir)}
@@ -97,14 +119,14 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--orange);ou
   font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;
   white-space:nowrap;
 }
-#marque .lys{color:var(--orange);font-size:14px;letter-spacing:0}
+#marque .lys{color:var(--accent-chrome);font-size:14px;letter-spacing:0}
 /*  ALEX : « je veux on voir bien LEXOS en orange en haut de écran ». */
-#marque .nomlex{color:var(--orange);letter-spacing:.02em}
+#marque .nomlex{color:var(--accent-chrome);letter-spacing:.02em}
 #onglets{display:flex;align-items:stretch;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0;position:relative}
 #onglets::-webkit-scrollbar{display:none}
 #glisseur{
   position:absolute;top:0;height:2px;left:0;width:0;
-  background:var(--orange);border-radius:0 0 2px 2px;
+  background:var(--accent-chrome);border-radius:0 0 2px 2px;
   transition:left .3s cubic-bezier(.22,.61,.36,1), width .3s cubic-bezier(.22,.61,.36,1);
   pointer-events:none;
 }
@@ -127,7 +149,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--orange);ou
   width:18px;height:18px;border-radius:3px;line-height:16px;text-align:center;
   color:var(--texte-3);font-size:14px;flex:none;
 }
-.onglet .x:hover{background:var(--ligne-vive);color:var(--texte)}
+.onglet .x:hover{background:var(--ligne-vive);color:var(--encre-chrome)}
 #plus{
   width:36px;flex:none;font-size:18px;color:var(--texte-3);
 }
@@ -139,10 +161,10 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--orange);ou
   padding:0 12px;color:var(--texte-2);font-size:12px;
   border-left:1px solid var(--ligne);white-space:nowrap;
 }
-#audit .pic{font-size:15px;color:var(--orange)}
-#audit:hover{background:var(--chrome-hi);color:var(--orange)}
+#audit .pic{font-size:15px;color:var(--accent-chrome)}
+#audit:hover{background:var(--chrome-hi);color:var(--accent-chrome)}
 @media(max-width:680px){#audit .libelle{display:none}#audit{padding:0 10px}}
-#plus:hover{color:var(--texte);background:var(--chrome-hi)}
+#plus:hover{color:var(--encre-chrome);background:var(--chrome-hi)}
 
 /* ---------- espace de travail ---------- */
 #travail{flex:1;min-height:0;position:relative;background:var(--noir)}
@@ -162,7 +184,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--orange);ou
 .noeud.row > .sep{width:1px;cursor:col-resize}
 .noeud.col > .sep{height:1px;cursor:row-resize}
 .sep::after{content:"";position:absolute;inset:-3px}
-.noeud.row > .sep:hover,.noeud.col > .sep:hover,.sep.tire{background:var(--orange)}
+.noeud.row > .sep:hover,.noeud.col > .sep:hover,.sep.tire{background:var(--accent-chrome)}
 
 /* ---------- fenêtre (pane) ---------- */
 .fen{
@@ -185,7 +207,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--orange);ou
 .fen-tete .pastille{
   width:6px;height:6px;border-radius:50%;background:var(--ligne-vive);flex:none;
 }
-.fen.actif .fen-tete .pastille{background:var(--orange)}
+.fen.actif .fen-tete .pastille{background:var(--accent-chrome)}
 .fen-tete .chemin{
   font-family:var(--mono);font-size:11px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;
@@ -197,7 +219,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--orange);ou
   color:var(--texte-3);
   display:grid;place-items:center;
 }
-.fen-outils button:hover{background:var(--ligne-vive);color:var(--texte)}
+.fen-outils button:hover{background:var(--ligne-vive);color:var(--encre-chrome)}
 .fen-outils button.danger:hover{background:#3a1414;color:var(--rouge)}
 .fen-outils svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.6}
 
@@ -243,10 +265,13 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--orange);ou
   border:1px solid var(--ligne-vive);border-radius:3px;padding:0 4px;line-height:15px;display:inline-block;
 }
 #horloge{font-variant-numeric:tabular-nums;color:var(--texte-2)}
-#prefixe-ind{color:var(--noir);background:var(--jaune);padding:0 6px;border-radius:3px;font-weight:700;display:none}
+/*  Fond JAUNE figé : son encre doit l'être aussi. --noir devient le crème
+    de jour, ce qui donnait 1,51:1 sur ce jaune-là. 12,78:1 maintenant,
+    dans les deux thèmes. */
+#prefixe-ind{color:#1B1A17;background:var(--jaune);padding:0 6px;border-radius:3px;font-weight:700;display:none}
 #prefixe-ind.on{display:inline-block}
 #backend-ind{padding:0 6px;border-radius:3px;font-weight:600}
-#backend-ind.branche{color:var(--vert)}
+#backend-ind.branche{color:var(--vert-chrome)}
 #backend-ind.absent{color:var(--rouge)}
 @media (max-width:820px){#etat .cacher-mobile{display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -824,7 +849,19 @@ async function appliquerTheme(){
   pose("--texte",  t.LEXOS_TERM_TEXTE);    // l'encre de la frappe
   pose("--orange", t.LEXOS_TERM_CURSEUR);  // l'accent : curseur, sélection
   pose("--vert",   t.LEXOS_TERM_FG);       // le vert ANSI que voient ls, git
-  if(t.LEXOS_TERM_EFFECTIF === "jour") document.documentElement.dataset.theme = "jour";
+  //  LES SEIZE COULEURS ANSI — celles que voient « ls », « git diff », vim.
+  //  Sans elles, poser le fond de JOUR ne suffisait pas : le rouge, le jaune,
+  //  le bleu, le magenta, le cyan et le blanc restaient ceux de la NUIT, donc
+  //  onze des seize entrées tombaient sous le seuil AA sur le crème — jaune
+  //  1,51:1, blanc 1,70:1, cyan 1,66:1. Le blanc est le pire oubli : c'est la
+  //  couleur des fichiers ordinaires de « ls ».
+  //  Le pont les refuse en bloc si elles ne sont pas exactement seize, donc
+  //  ici soit on en a seize, soit on n'en a aucune et la page garde la sienne.
+  const ansi = String(t.LEXOS_TERM_PALETTE || "").split(";");
+  if(ansi.length === 16) ansi.forEach((c, i) => pose("--ansi-" + i, c));
+  //  Il y avait ici un « dataset.theme = jour » qu'AUCUN sélecteur CSS ne
+  //  lisait — vérifié sur tout web/. Retiré : un attribut que personne ne lit
+  //  ne dit rien, il fait seulement croire que le chrome suit le thème.
 }
 
 function paletteXterm(){
@@ -837,11 +874,26 @@ function paletteXterm(){
     //  La sélection suivait un « rgba(255,106,26,…) » écrit une seconde
     //  fois, qui ne bougeait pas quand --orange bougeait. Elle le lit.
     selectionBackground: teinteTransparente(v("--orange") || "#ff6a1a", .32),
-    black: "#1a1512", red: v("--rouge"), green: v("--vert"), yellow: v("--jaune"),
-    blue: "#7aa2ff", magenta: "#d68aff", cyan: "#5fd1d6", white: v("--texte-2"),
-    brightBlack: v("--texte-3"), brightRed: v("--rouge"), brightGreen: v("--vert"),
-    brightYellow: v("--jaune"), brightBlue: "#7aa2ff", brightMagenta: "#d68aff",
-    brightCyan: "#5fd1d6", brightWhite: v("--texte")
+    //  Chaque entrée lit d'abord la palette du thème, et retombe sur la
+    //  valeur livrée si le pont est muet : une variable CSS non posée rend
+    //  une chaîne vide, donc « || » suffit. C'est ce qui garde la promesse
+    //  du « finally » plus bas — pont injoignable, terminal quand même.
+    black:        v("--ansi-0")  || "#1a1512",
+    red:          v("--ansi-1")  || v("--rouge"),
+    green:        v("--ansi-2")  || v("--vert"),
+    yellow:       v("--ansi-3")  || v("--jaune"),
+    blue:         v("--ansi-4")  || "#7aa2ff",
+    magenta:      v("--ansi-5")  || "#d68aff",
+    cyan:         v("--ansi-6")  || "#5fd1d6",
+    white:        v("--ansi-7")  || v("--texte-2"),
+    brightBlack:  v("--ansi-8")  || v("--texte-3"),
+    brightRed:    v("--ansi-9")  || v("--rouge"),
+    brightGreen:  v("--ansi-10") || v("--vert"),
+    brightYellow: v("--ansi-11") || v("--jaune"),
+    brightBlue:   v("--ansi-12") || "#7aa2ff",
+    brightMagenta:v("--ansi-13") || "#d68aff",
+    brightCyan:   v("--ansi-14") || "#5fd1d6",
+    brightWhite:  v("--ansi-15") || v("--texte")
   };
 }
 

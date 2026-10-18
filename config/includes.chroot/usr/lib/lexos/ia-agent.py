@@ -163,22 +163,26 @@ def _couleurs():
     #  Couleur vraie quand le terminal l'annonce, palette 256 sinon — la
     #  même bascule que __lexos_couleurs dans interactive.sh.
     vrai = os.environ.get("COLORTERM", "") in ("truecolor", "24bit")
-    vert = env.get("LEXOS_PS_MACHINE" if vrai else "LEXOS_PS_MACHINE_256") or "38;5;35"
+    #  ⚠ LE REPLI DU VERT EST 40, PAS 35. Il valait 38;5;35, qui est le vert
+    #  de « LEXOS » — pas celui des réponses de la MACHINE, qui est 38;5;40
+    #  depuis « un vert plus visible ». Quatrième porteur de cette même
+    #  divergence, après interactive.sh, tmux et lexos-terminal, tous trois
+    #  déjà réparés ; celui-ci avait survécu parce que le contrôle du banc
+    #  cherche « \033[ » et ne peut pas voir une couleur rangée nue.
+    vert = env.get("LEXOS_PS_MACHINE" if vrai else "LEXOS_PS_MACHINE_256") or "38;5;40"
     rouge = env.get("LEXOS_PS_ERREUR" if vrai else "LEXOS_PS_ERREUR_256") or "1;38;5;196"
     dim = env.get("LEXOS_PS_DIM" if vrai else "LEXOS_PS_DIM_256") or "2"
     jour = env.get("LEXOS_TERM_EFFECTIF", "nuit") == "jour"
     #  L'ACCENT AUSSI VIENT DE LÀ. Le « » » et le « ! » étaient orange 208 en
     #  dur : un utilisateur qui a choisi l'accent bleu gardait un agent orange.
-    #  LEXOS_TERM_CURSEUR est l'accent tel que le terminal le porte (le
-    #  curseur est peint avec) ; on le convertit en couleur vraie quand le
-    #  terminal la comprend, sinon 208 reste le repli de toujours.
-    accent = "38;5;208"
-    hexa = env.get("LEXOS_TERM_CURSEUR", "")
-    if vrai and len(hexa) == 7 and hexa.startswith("#"):
-        try:
-            accent = "38;2;%d;%d;%d" % tuple(int(hexa[i:i + 2], 16) for i in (1, 3, 5))
-        except ValueError:
-            pass
+    #
+    #  ET IL SE LIT MAINTENANT COMME LES AUTRES RÔLES. Cette fonction
+    #  convertissait LEXOS_TERM_CURSEUR, rangé en #RRGGBB — elle n'y
+    #  arrivait donc que sous COLORTERM, et la branche 256 restait figée sur
+    #  le 208 de NUIT : en thème de jour, sur la console texte, l'agent
+    #  répondait en orange vif sur le crème, 2,21:1. Le générateur écrit
+    #  désormais la clef (94 de jour, 5,26:1 ; 208 de nuit, inchangé).
+    accent = env.get("LEXOS_PS_ACCENT" if vrai else "LEXOS_PS_ACCENT_256") or "38;5;208"
     return {
         "accent": f"\033[{accent}m",
         "vert": f"\033[{vert}m",

@@ -108,9 +108,18 @@ ICON_PATH = Path("/usr/share/icons/hicolor/128x128/apps/lexos-pro-terminal.png")
 #  C'est ici que la porte se ferme, pas dans la page.
 _HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
 _MODES = ("jour", "nuit", "auto", "suivre")
+#  LA PALETTE A SON PROPRE VALIDATEUR, et sa LONGUEUR EST ANCRÉE À SEIZE.
+#  Ce n'est pas de la coquetterie : sans le « {15} », un terminal.env pourrait
+#  annoncer trois couleurs ou quarante, la page poserait « --ansi-0..2 » et
+#  les treize autres resteraient sur la palette livrée — un thème à moitié
+#  appliqué, sans un mot. Et ce fichier vit dans $HOME, donc tout ce qui
+#  tourne sous ce compte peut y écrire : c'est la seule borne sur ce que la
+#  page reçoit.
+_PALETTE = re.compile(r"^#[0-9A-Fa-f]{6}(;#[0-9A-Fa-f]{6}){15}$")
 #  Ce que la page a le droit de demander, et rien d'autre.
 _CLES_THEME = ("LEXOS_TERM_BG", "LEXOS_TERM_FG", "LEXOS_TERM_TEXTE",
-               "LEXOS_TERM_CURSEUR", "LEXOS_TERM_EFFECTIF")
+               "LEXOS_TERM_CURSEUR", "LEXOS_TERM_EFFECTIF",
+               "LEXOS_TERM_PALETTE")
 
 
 def lire_theme(chemin=None):
@@ -147,6 +156,11 @@ def lire_theme(chemin=None):
             val = val[1:-1]
         if cle == "LEXOS_TERM_EFFECTIF":
             if val in _MODES:
+                valeurs[cle] = val
+        elif cle == "LEXOS_TERM_PALETTE":
+            #  Seize couleurs séparées par « ; », ou rien : une palette
+            #  tronquée est refusée EN ENTIER plutôt qu'appliquée à moitié.
+            if _PALETTE.match(val):
                 valeurs[cle] = val
         elif _HEX.match(val):
             valeurs[cle] = val
