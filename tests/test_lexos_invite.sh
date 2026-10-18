@@ -727,10 +727,21 @@ else
 	rm -rf "${BANC:?}/bascule"; mkdir -p "$BANC/bascule"
 	BPATH="$RACINE/config/includes.chroot/usr/bin:$PATH"
 	#  On POSE un thème de jour, puis on demande la nuit.
-	HOME="$BANC/bascule" PATH="$BPATH" "$BASCULE" jour >/dev/null 2>&1 || true
+	#  ⚠ XDG_CONFIG_HOME EST OBLIGATOIRE SUR LES TROIS COMMANDES, et son
+	#  absence ici est passée entre les mailles. lexos-terminal lit
+	#  « ${XDG_CONFIG_HOME:-$HOME/.config} » : la VARIABLE gagne sur HOME.
+	#  Épingler HOME seul laissait donc cette sonde écrire et relire le
+	#  terminal.env de la machine qui fait tourner le banc. Vert sur un
+	#  compte sans thème, ROUGE dès qu'il y en a un — mesuré, avec un thème
+	#  de jour actif : « la confirmation sort dans l'ANCIENNE palette ».
+	#  Cinquième fois que ce banc se fait prendre à hériter de son
+	#  environnement ; la section 9 avait été corrigée, celle-ci pas.
+	HOME="$BANC/bascule" XDG_CONFIG_HOME="$BANC/bascule/.config" \
+		PATH="$BPATH" "$BASCULE" jour >/dev/null 2>&1 || true
 	AVANT="$(sed -n "s/^LEXOS_PS_MACHINE_256='\(.*\)'$/\1/p" \
 		"$BANC/bascule/.config/lexos/terminal.env" 2>/dev/null)"
-	SORTIE_SW="$(HOME="$BANC/bascule" PATH="$BPATH" TERM=xterm-256color NO_COLOR="" \
+	SORTIE_SW="$(HOME="$BANC/bascule" XDG_CONFIG_HOME="$BANC/bascule/.config" \
+		PATH="$BPATH" TERM=xterm-256color NO_COLOR="" \
 		env -u COLORTERM script -qec "'$BASCULE' nuit" /dev/null 2>/dev/null || true)"
 	APRES="$(sed -n "s/^LEXOS_PS_MACHINE_256='\(.*\)'$/\1/p" \
 		"$BANC/bascule/.config/lexos/terminal.env" 2>/dev/null)"

@@ -361,8 +361,23 @@ class Menu(unittest.TestCase):
             self.assertNotIn('\033[38;2;', rendu)
 
     def test_help_colours_preserve_content(self):
+        """⚠ CE CONTRÔLE DÉPENDAIT DU THÈME DE CELUI QUI LE LANCE.
+
+        Depuis que _accent() lit LEXOS_PS_ACCENT_256, il suit le
+        XDG_CONFIG_HOME de l'appelant : sur une machine en thème de JOUR il
+        rend 38;5;94, et ce point rougissait sur du code juste. Vert sur le
+        coureur, qui n'a pas de thème — donc invisible en CI. Reproduit :
+        avec un thème de jour actif, « FAILED (failures=1) ».
+
+        C'est la QUATRIÈME fois que ce chantier se fait prendre à hériter de
+        son environnement, après NO_COLOR, XDG_CONFIG_HOME et COLORTERM dans
+        le banc de l'invite. On épingle donc un dossier VIDE : sans thème à
+        lire, _accent() rend son repli, et le point mesure le repli — ce
+        qu'il a toujours voulu mesurer."""
         text = 'SCAN TECHNIQUES:\n  -sS --top-ports <number> [default: 100]\n'
-        coloured = menu.colour_help(text)
+        with tempfile.TemporaryDirectory() as vide, \
+                patch.dict(os.environ, {'XDG_CONFIG_HOME': vide}):
+            coloured = menu.colour_help(text)
         self.assertIn('\033[1;38;5;208mSCAN TECHNIQUES:', coloured)
         self.assertIn('\033[38;5;114m--top-ports', coloured)
         self.assertIn('\033[38;5;81m<number>', coloured)

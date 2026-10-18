@@ -995,6 +995,27 @@ T.appliquerTheme().then(async () => {
   await T.appliquerTheme();
   console.log('change.repeint=' + (volet.term.options.theme.temoin === undefined ? 'oui' : 'non'));
   console.log('change.background=' + volet.term.options.theme.background);
+
+  //  ═══ UN THÈME PÉRIMÉ NE S'APPLIQUE PAS À MOITIÉ ═══
+  //  ⚠ CE BLOC DOIT RESTER DANS LA CHAÎNE, pas à côté : appliquerTheme() est
+  //  asynchrone, et deux appels lancés en parallèle se disputent la même
+  //  fausse réponse. Mesuré — hors de la chaîne, ce point rougissait sur du
+  //  code juste.
+  //  LE CAS : une machine qui reçoit cette page sans régénérer son thème
+  //  garde un terminal.env d'AVANT — il a BG, FG et CURSEUR, mais ni
+  //  LEXOS_TERM_TEXTE ni LEXOS_TERM_PALETTE. Posé à moitié, en mode JOUR,
+  //  ça donnait le fond crème AVEC l'encre de NUIT : 1,09:1 pour la frappe.
+  const PERIME = { LEXOS_TERM_MODE: 'suivre', LEXOS_TERM_EFFECTIF: 'jour',
+                   LEXOS_TERM_BG: '#F7F5F0', LEXOS_TERM_FG: '#0B6B3A',
+                   LEXOS_TERM_CURSEUR: '#A84007' };
+  const vp = { id: 'vp', term: { options: { theme: { temoin: 'INTACT' } } }, insister(){} };
+  T.FLUX.volets.set('vp', vp);
+  const fondAvant = POSE['--noir'];
+  REPONSE.rep = { ok: true, json: async () => ({ theme: PERIME }) };
+  await T.appliquerTheme();
+  console.log('perime.volet_intact=' + (vp.term.options.theme.temoin === 'INTACT' ? 'oui' : 'non'));
+  console.log('perime.fond_inchange=' + (POSE['--noir'] === fondAvant ? 'oui' : 'non'));
+  T.FLUX.volets.delete('vp');
 }, e => console.log('jete=' + (e && e.message)));
 JSBANC
 	for MODE in nuit jour; do
@@ -1113,6 +1134,19 @@ JSBANC
 				*/*/retour) ok "$MODE : la remise à zéro retrouve exactement la taille livrée" ;;
 				*)          non "$MODE : la remise à zéro rend « $(lij 'taille.remise') »" ;;
 			esac
+		fi
+		#  5 quinquies) UN THÈME PÉRIMÉ EST REFUSÉ EN BLOC. C'est le cas RÉEL
+		#  d'une machine mise à jour sans régénérer son thème : le fichier
+		#  d'avant n'a ni LEXOS_TERM_TEXTE ni LEXOS_TERM_PALETTE. Appliqué à
+		#  moitié en mode jour, il donnait le fond crème avec l'encre de nuit
+		#  — 1,09:1 pour ce qu'on tape, 1,51 pour le jaune, 1,70 pour le blanc
+		#  de « ls ». La palette LIVRÉE, elle, est cohérente : la garder est
+		#  lisible. Refuser en bloc est donc strictement mieux que poser à
+		#  moitié, et la minuterie régénère le thème dans le quart d'heure.
+		if [ "$(lij 'perime.volet_intact')" = oui ] && [ "$(lij 'perime.fond_inchange')" = oui ]; then
+			ok "$MODE : un thème à qui il manque des clefs est refusé EN ENTIER, pas posé à moitié"
+		else
+			non "$MODE : un thème périmé est appliqué partiellement (volet intact : $(lij 'perime.volet_intact'), fond inchangé : $(lij 'perime.fond_inchange')) — fond clair + encre de nuit = illisible"
 		fi
 		#  6) les écouteurs qui relisent le thème existent — CONSTATÉS, pas lus
 		ECO="$(lij ecoutes)"

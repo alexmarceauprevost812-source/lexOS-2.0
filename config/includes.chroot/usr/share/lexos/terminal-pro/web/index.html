@@ -858,6 +858,31 @@ async function appliquerTheme(){
   //  thème de chaque volet mille fois par jour, et xterm.js redessine tout à
   //  chaque assignation. La signature est le thème lui-même, tel que le pont
   //  l'a rendu — rien d'autre ne décide.
+  //  ═══ TOUT OU RIEN : UN THÈME INCOMPLET EST REFUSÉ ═══
+  //  LE CAS RÉEL, ET IL EST ARRIVÉ À ALEX. Une machine qui reçoit cette page
+  //  sans régénérer son thème garde un terminal.env de la version d'AVANT :
+  //  il a bien LEXOS_TERM_BG, FG et CURSEUR, mais ni LEXOS_TERM_TEXTE ni
+  //  LEXOS_TERM_PALETTE, tous deux ajoutés par ce lot.
+  //  Appliqué à moitié, en mode JOUR, ça donnait le fond crème AVEC l'encre
+  //  et les ANSI de la NUIT : ce qu'on tape à 1,09:1, le jaune à 1,51, le
+  //  blanc de « ls » à 1,70. Mesuré en exécutant ce code sur un vieux
+  //  fichier. Autrement dit : exactement la fenêtre illisible que ce lot
+  //  existe pour réparer, ressuscitée par un fichier périmé.
+  //
+  //  REFUSER EN BLOC EST STRICTEMENT MIEUX QUE POSER À MOITIÉ. La palette
+  //  livrée est COHÉRENTE — fond noir, encre blanche, ANSI de nuit — donc
+  //  la garder est lisible. Et la minuterie systemd régénère le thème dans
+  //  le quart d'heure, après quoi tout s'applique : le refus ne dure pas.
+  const REQUIS = ["LEXOS_TERM_BG", "LEXOS_TERM_FG", "LEXOS_TERM_TEXTE",
+                  "LEXOS_TERM_CURSEUR", "LEXOS_TERM_PALETTE"];
+  const manque = REQUIS.filter(c => !t[c]);
+  if(manque.length){
+    //  On le DIT. Un thème refusé en silence se diagnostique mal, et la
+    //  consigne de ce projet demande la raison, pas seulement l'effet.
+    console.warn("[lexos] thème incomplet, rien appliqué — il manque "
+                 + manque.join(", ") + ". Régénérez-le : lexos terminal nuit");
+    return;
+  }
   const signature = JSON.stringify(t);
   if(signature === __themePose) return;
   __themePose = signature;
