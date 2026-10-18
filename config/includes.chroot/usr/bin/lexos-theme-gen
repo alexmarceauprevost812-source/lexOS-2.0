@@ -232,7 +232,10 @@ DANGER_FG="$(texte_lisible "$DANGER")"
 #     jour  : vert 6,06 · orange 5,67 · rouge 6,00
 #  Tous au-dessus du seuil AA de 4,5, et les seize couleurs ANSI de jour
 #  aussi — vérifié une par une. Poser les couleurs de NUIT telles quelles
-#  sur le crème donnerait 2,64 pour le vert et 3,29 pour l'orange : illisible.
+#  sur le crème donnerait 1,80 pour le vert et 3,29 pour l'orange : illisible.
+#  (« 2,64 » a traîné ici aussi : c'était encore #00AF5F. La correction
+#  avait été faite quatre lignes plus haut et pas dans cette phrase-ci —
+#  une valeur mesurée se corrige partout où elle est écrite, ou nulle part.)
 #  C'est pour ça qu'il y a deux palettes et pas une avec un fond échangé.
 #
 #  PAS DE « TERM_SAISIE_HI » NI DE « TERM_ERREUR_HI » : les variantes en gras
@@ -1566,13 +1569,35 @@ if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	#  n'a AUCUN vert pur plus sombre que 22 : impossible d'y garder « LEXOS
 	#  plus foncé que le chemin ». On prend 23 (#005F5F), le vert-bleu de
 	#  même profondeur : distinct, 6,88:1 sur le crème. Mesuré, pas estimé.
+	#
+	#  ⚠ ET LA RÈGLE S'Y INVERSE — personne ne l'avait noté. « LEXOS plus
+	#  sombre que le chemin » se mesure sur la LUMINANCE, pas sur le ratio
+	#  (sur fond clair, plus sombre donne un ratio plus HAUT). Or 38;5;23
+	#  vaut 0,0901 et 38;5;22 vaut 0,0818 : de jour, en 256 couleurs, LEXOS
+	#  est plus CLAIR que le chemin. Et 38;5;23 a une teinte de 180° —
+	#  c'est un bleu-vert, pas un vert.
+	#  Cherché, et il n'y a pas de sortie propre : le seul couple qui
+	#  tiendrait les trois contraintes déplacerait le CHEMIN vers un olive
+	#  (38;5;58), ce qui est pire. On garde 23, et on écrit l'inversion ici
+	#  plutôt que de la laisser se faire découvrir. Elle ne concerne que la
+	#  console texte en thème de jour.
 	PS_LOGO_256="38;5;23"
 else
 	PS_MACHINE_256="38;5;40"    # exactement #00D700, voir la section terminal plus haut
 	PS_TEXTE_256="38;5;15"      # le blanc brillant de la palette
 	PS_ERREUR_256="1;38;5;196"
 	PS_UTILISATEUR_256="38;5;208"  # exactement #FF8700, comme 40 l'est de #00D700 (8,72:1 sur noir)
-	PS_LOGO_256="38;5;29"          # #00875F, le plus proche de #159A3D (4,63:1 — au-dessus du seuil)
+	#  « 38;5;29, le plus proche de #159A3D » : c'était FAUX, et c'est vérifié.
+	#  29 (#00875F) est à ΔE 29,2 et donne 4,63:1 — à peine au-dessus du
+	#  seuil. 35 (#00AF5F) est à ΔE 11,3, deux fois et demie plus proche, et
+	#  donne 7,30:1. Il tient les deux autres contraintes : il reste PLUS
+	#  SOMBRE que le chemin (luminance 0,315 contre 0,486 pour le 40) et à
+	#  ΔE 48 de lui, donc le mot LEXOS ne se fond pas dans le chemin.
+	#  Et #00AF5F EST EXACTEMENT 38;5;35 — la troisième coïncidence du
+	#  dépôt, après #00D700/40 et #FF8700/208.
+	#  Ça compte pour de vrai : c'est ce repli-là que lisent la console
+	#  texte, ssh et tmux, puisque personne n'y exporte COLORTERM.
+	PS_LOGO_256="38;5;35"
 fi
 
 cat > "$CONF_DIR/terminal.env" <<EOF

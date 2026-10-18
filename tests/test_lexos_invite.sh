@@ -561,6 +561,38 @@ else
 fi
 
 # =============================================================================
+titre "6 bis. Les REPLIS d'interactive.sh disent ce que le générateur écrit"
+# =============================================================================
+#  LE SEUL MAILLON QUE PERSONNE NE MESURAIT. Les six valeurs de repli
+#  d'interactive.sh et les six PS_*_256 de lexos-theme-gen sont la MÊME
+#  couleur écrite deux fois. Le dépôt répète partout que deux écritures de la
+#  même couleur finissent par diverger — et celles-ci avaient divergé : le
+#  générateur écrivait 38;5;40 pour le chemin pendant qu'interactive.sh
+#  gardait 38;5;35, l'ancien vert d'avant « un vert plus visible ».
+#  Ce n'est pas un détail cosmétique : ces replis-là servent dès que
+#  terminal.env manque, et ils sont LA valeur lue par la console texte, ssh
+#  et tmux, puisque aucun des trois n'exporte COLORTERM.
+#
+#  ON LIT LE CODE, PAS LES COMMENTAIRES : interactive.sh explique ses propres
+#  valeurs en toutes lettres juste au-dessus d'elles. On coupe d'abord.
+rm -rf "${BANC:?}/replis"; mkdir -p "$BANC/replis"
+bash "$GEN" --target "$BANC/replis" --terminal nuit orange >/dev/null 2>&1
+ENV_REPLIS="$BANC/replis/.config/lexos/terminal.env"
+code_nu() { sed 's/#.*$//' "$1"; }
+for PAIRE in "UTILISATEUR:le nom" "LOGO:« LEXOS »" "MACHINE:le chemin"; do
+	CLE="${PAIRE%%:*}"; QUOI="${PAIRE#*:}"
+	GENERE="$(sed -n "s/^LEXOS_PS_${CLE}_256='\(.*\)'$/\1/p" "$ENV_REPLIS")"
+	REPLI="$(code_nu "$SH" | sed -n "s/.*__LEXOS_C_${CLE}='\([^']*\)'.*/\1/p" | head -1)"
+	if [ -z "$GENERE" ] || [ -z "$REPLI" ]; then
+		non "$QUOI : repli ou valeur générée introuvable (généré « $GENERE », repli « $REPLI ») — on ne conclut pas qu'ils s'accordent"
+	elif [ "$GENERE" = "$REPLI" ]; then
+		ok "$QUOI : le repli d'interactive.sh est celui du générateur ($REPLI)"
+	else
+		non "$QUOI : le générateur écrit $GENERE, interactive.sh retombe sur $REPLI — sans thème généré, la console texte affiche une autre couleur"
+	fi
+done
+
+# =============================================================================
 titre "7. La BANNIÈRE dit la même chose que l'invite"
 # =============================================================================
 #  ALEX : « les couleurs, on les retrouve dans les autres terminaux aussi ».

@@ -68,12 +68,21 @@ esac
 #  pourquoi le nom et le curseur portent deux oranges voisins et non le
 #  même.
 #
-#  Les valeurs de repli ci-dessous sont exactement celles d'avant (LexOS
-#  Noir) : sans thème généré, rien ne change pour personne.
+#  Les valeurs de repli ci-dessous sont celles que lexos-theme-gen écrit
+#  pour la NUIT en palette 256, à l'identique — et c'est une correction.
+#  Elles disaient « exactement celles d'avant (LexOS Noir) » : vrai le jour
+#  où la phrase a été écrite, faux depuis. L'invite est passée au vert
+#  38;5;40 (« un vert plus visible », demandé par Alex) et ce fichier était
+#  resté au 38;5;35 : un utilisateur sans thème généré gardait l'ancien
+#  vert, plus sourd, sans que rien ne le dise.
+#  Ces trois lignes et les trois PS_*_256 de lexos-theme-gen sont la même
+#  valeur écrite deux fois ; un banc les compare maintenant — c'est
+#  précisément ce maillon-là que lisent la console texte, ssh et tmux,
+#  puisque aucun n'exporte COLORTERM.
 LEXOS_TERM_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/terminal.env"
 
 __lexos_couleurs() {
-	__LEXOS_C_MACHINE='38;5;35'
+	__LEXOS_C_MACHINE='38;5;40'
 	__LEXOS_C_TEXTE='38;5;15'
 	__LEXOS_C_ERREUR='1;38;5;196'
 	__LEXOS_C_DIM='2'
@@ -85,7 +94,7 @@ __lexos_couleurs() {
 	#  personne n'exporte COLORTERM sauf le terminal LexOS Pro, donc la
 	#  console texte, ssh et tmux lisent CETTE ligne-ci, pas terminal.env.
 	__LEXOS_C_UTILISATEUR='38;5;208'
-	__LEXOS_C_LOGO='38;5;29'
+	__LEXOS_C_LOGO='38;5;35'
 	[ -r "$LEXOS_TERM_ENV" ] || return 0
 	# shellcheck disable=SC1090
 	. "$LEXOS_TERM_ENV" 2>/dev/null || return 0
