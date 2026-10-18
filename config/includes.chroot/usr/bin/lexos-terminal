@@ -88,12 +88,15 @@ couleurs_du_theme() {
 			;;
 	esac
 }
-couleurs_du_theme
 #  $A garde son nom — c'est l'ACCENT — mais il ne peint plus l'identité.
 #  $L est le vert de « LEXOS », $V le vert de ce que la machine répond.
-A=$'\033['"$ACCENT"'m'; L=$'\033['"$LOGO"'m'; V=$'\033['"$MACHINE"'m'
-R0=$'\033[0m'; D=$'\033[2m'
-[ -t 1 ] || { A=""; L=""; V=""; R0=""; D=""; }
+poser_couleurs() {
+	couleurs_du_theme
+	A=$'\033['"$ACCENT"'m'; L=$'\033['"$LOGO"'m'; V=$'\033['"$MACHINE"'m'
+	R0=$'\033[0m'; D=$'\033[2m'
+	[ -t 1 ] || { A=""; L=""; V=""; R0=""; D=""; }
+}
+poser_couleurs
 ok()  { printf '%s✓%s %s\n' "$V" "$R0" "$1"; }
 die() { printf '\033[1;31m✗\033[0m %s\n' "$1" >&2; exit 1; }
 
@@ -196,6 +199,16 @@ appliquer() {
 	#  ne rebasculerait plus jamais le soir.
 	printf '%s\n' "$choisi" > "$F_MODE"
 	repeindre_ici
+	#  ═══ ET ON RELIT LES COULEURS, SINON LA CONFIRMATION MENT ═══
+	#  On vient de régénérer terminal.env et de repeindre la fenêtre. Les
+	#  $A/$L/$V, eux, datent du DÉMARRAGE du programme — donc de l'ancien
+	#  thème. En basculant jour → nuit, le fond devient noir et le « ✓ »
+	#  s'imprime avec l'index de JOUR (22, un vert sombre) : illisible. Le
+	#  sens inverse met le vert vif de nuit sur le crème.
+	#  Ce défaut-ci était le mien : j'avais réparé « figé sur la palette de
+	#  nuit » et introduit « figé sur la palette du démarrage ». Signalé par
+	#  une relecture, reproduit, corrigé.
+	poser_couleurs
 }
 
 etat() {

@@ -4,17 +4,36 @@ import io
 import os
 from pathlib import Path
 import shutil
+import struct
 import subprocess
+import sys
 import tempfile
+import types
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
+import zlib
 R = Path(__file__).resolve().parents[1]
 INCLUDE = R/'config/includes.chroot'
 SCRIPT = INCLUDE/'usr/lib/lexos/audit/menu.py'
 spec = importlib.util.spec_from_file_location('audit_menu', SCRIPT)
 menu = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(menu)
+
+
+def _png_uni(chemin, largeur=4, hauteur=4, rvba=(255, 128, 0, 255)):
+    """Un PNG VALIDE écrit à la main, sans GdkPixbuf — un carré uni RVBA.
+
+    Vérifié ici-même : Pillow et ImageMagick le relisent tous deux en
+    « PNG RGBA 4x4 », premier pixel (255, 128, 0, 255)."""
+    def bloc(nom, corps):
+        return (struct.pack('>I', len(corps)) + nom + corps
+                + struct.pack('>I', zlib.crc32(nom + corps) & 0xffffffff))
+    entete = struct.pack('>IIBBBBB', largeur, hauteur, 8, 6, 0, 0, 0)
+    ligne = b'\x00' + bytes(rvba) * largeur
+    chemin.write_bytes(b'\x89PNG\r\n\x1a\n' + bloc(b'IHDR', entete)
+                       + bloc(b'IDAT', zlib.compress(ligne * hauteur))
+                       + bloc(b'IEND', b''))
 
 class Menu(unittest.TestCase):
     def setUp(self):
@@ -292,10 +311,54 @@ class Menu(unittest.TestCase):
             pixbuf.savev(str(image), 'png', [], [])
             output = io.StringIO()
             output.isatty = lambda: True
-            with patch.dict(os.environ, {'TERM': 'xterm-256color', 'NO_COLOR': ''}), patch.object(menu, 'icone_locale', return_value=None), patch.object(menu, 'tool_logo', return_value=image):
+            #  COLORTERM EST OBLIGATOIRE ICI, ET C'EST LE SUJET DU CONTRÔLE.
+            #  L'icône est dessinée en couleur VRAIE (« 38;2;r;g;b »). Sur un
+            #  terminal qui ne l'annonce pas, menu.py a raison de ne pas la
+            #  tenter : une console texte afficherait les séquences en clair,
+            #  caractère par caractère, sur vingt-quatre lignes. Le banc doit
+            #  donc se présenter comme un terminal qui la comprend.
+            with patch.dict(os.environ, {'TERM': 'xterm-256color', 'NO_COLOR': '', 'COLORTERM': 'truecolor'}), patch.object(menu, 'icone_locale', return_value=None), patch.object(menu, 'tool_logo', return_value=image):
                 menu.logo_banner('hashcat', [], output)
             self.assertIn('▀', output.getvalue())
             self.assertIn('\033[38;2;255;128;0m', output.getvalue())
+
+    def test_banner_skips_image_without_truecolor(self):
+        """Sans COLORTERM, l'icône n'est PAS tentée — mais le titre reste.
+
+        C'est la garantie neuve, et elle se mesure : avant, la bannière
+        crachait du « 38;2;… » sur une console texte. Le menu doit rester
+        entier sans l'icône, qui est décorative.
+
+        Ce contrôle-ci n'importe PAS GdkPixbuf : il mesure justement que
+        menu.py s'arrête AVANT de le charger. L'image, elle, doit rester
+        authentique — avec un fichier illisible, retirer la garde laisserait
+        le banc vert, le chargeur échouant tout seul, et l'absence de « ▀ »
+        ne prouverait plus rien."""
+        with tempfile.TemporaryDirectory() as temp:
+            image = Path(temp)/'logo.png'
+            _png_uni(image)
+            output = io.StringIO()
+            output.isatty = lambda: True
+            env = {'TERM': 'xterm-256color', 'NO_COLOR': ''}
+            #  ON PIÈGE « gi » : la garde doit l'empêcher d'être TOUCHÉ. Sans
+            #  ce piège, le contrôle serait creux là où la typelib GdkPixbuf
+            #  manque — le chargeur échouerait de lui-même, et l'absence de
+            #  « ▀ » ne dirait plus si c'est la garde qui a parlé.
+            touche = []
+            faux_gi = types.ModuleType('gi')
+            faux_gi.require_version = lambda *a, **k: touche.append(a)
+            with patch.dict(os.environ, env), \
+                    patch.dict(sys.modules, {'gi': faux_gi}), \
+                    patch.object(menu, 'icone_locale', return_value=None), \
+                    patch.object(menu, 'tool_logo', return_value=image) as logo:
+                os.environ.pop('COLORTERM', None)
+                menu.logo_banner('hashcat', [], output)
+            rendu = output.getvalue()
+            self.assertTrue(logo.called, 'le contrôle n’est pas allé jusqu’à la garde')
+            self.assertEqual(touche, [], 'GdkPixbuf chargé alors que COLORTERM est absent')
+            self.assertIn('hashcat · Outils d’audit LexOS', rendu)
+            self.assertNotIn('▀', rendu)
+            self.assertNotIn('\033[38;2;', rendu)
 
     def test_help_colours_preserve_content(self):
         text = 'SCAN TECHNIQUES:\n  -sS --top-ports <number> [default: 100]\n'

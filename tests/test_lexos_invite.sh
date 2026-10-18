@@ -668,7 +668,12 @@ print(menu._role('LOGO', 'REPLI'))
 	#  ON LIT LE CODE, PAS LES COMMENTAIRES : ce fichier EXPLIQUE en toutes
 	#  lettres qu'il écrivait « 1;38;5;208 » avant. Un contrôle naïf lirait
 	#  son propre récit et se déclarerait en échec.
-	if code_nu "$MENU" | grep -q '38;5;208m⚜\|38;5;208m. + .━.'; then
+	#  ⚠ « grep -q » EN BOUT DE TUBE EST INTERDIT ICI, et la CI le vérifie
+	#  (« Aucun banc ne renvoie un texte dans grep -q »). Il s'arrête au
+	#  premier résultat, le producteur reçoit une erreur d'écriture, et sous
+	#  « pipefail » c'est TOUT le tube qui échoue — motif trouvé, condition
+	#  fausse. La substitution de processus sort le producteur du tube.
+	if grep -q '38;5;208m⚜\|38;5;208m. + .━.' < <(code_nu "$MENU"); then
 		non "le menu d'audit garde un orange écrit en dur sur un titre « LexOS »"
 	else
 		ok "le menu d'audit n'écrit plus aucune couleur de « LexOS » en dur"
@@ -692,6 +697,40 @@ else
 				non "« Terminal LexOS » porte l'orange du NOM ($GENERE_U256) — les deux rôles sont inversés" ;;
 			*)
 				non "« Terminal LexOS » ne porte pas le vert du générateur ($GENERE_LOGO_256)" ;;
+		esac
+	fi
+fi
+
+#  ═══ ET LA BASCULE IMPRIME DANS LA NOUVELLE PALETTE, PAS L'ANCIENNE ═══
+#  « lexos terminal nuit » régénère le thème, repeint la fenêtre, PUIS
+#  confirme. Si ses couleurs datent du démarrage du programme, la
+#  confirmation sort dans l'ancienne palette : en basculant jour → nuit, le
+#  fond devient noir et le « ✓ » s'imprime avec l'index de JOUR (22, un vert
+#  sombre) — illisible. Le sens inverse met le vert vif de nuit sur le crème.
+#  Défaut réel, signalé par une relecture et reproduit avant d'être corrigé.
+if [ ! -x "$BASCULE" ] || ! command -v script >/dev/null 2>&1; then
+	printf '  \033[2mbascule à chaud sautée — « lexos-terminal » ou « script » absent\033[0m\n'
+else
+	rm -rf "${BANC:?}/bascule"; mkdir -p "$BANC/bascule"
+	BPATH="$RACINE/config/includes.chroot/usr/bin:$PATH"
+	#  On POSE un thème de jour, puis on demande la nuit.
+	HOME="$BANC/bascule" PATH="$BPATH" "$BASCULE" jour >/dev/null 2>&1 || true
+	AVANT="$(sed -n "s/^LEXOS_PS_MACHINE_256='\(.*\)'$/\1/p" \
+		"$BANC/bascule/.config/lexos/terminal.env" 2>/dev/null)"
+	SORTIE_SW="$(HOME="$BANC/bascule" PATH="$BPATH" TERM=xterm-256color NO_COLOR="" \
+		env -u COLORTERM script -qec "'$BASCULE' nuit" /dev/null 2>/dev/null || true)"
+	APRES="$(sed -n "s/^LEXOS_PS_MACHINE_256='\(.*\)'$/\1/p" \
+		"$BANC/bascule/.config/lexos/terminal.env" 2>/dev/null)"
+	if [ -z "$AVANT" ] || [ -z "$APRES" ] || [ "$AVANT" = "$APRES" ]; then
+		non "la bascule n'a pas changé de thème ($AVANT → $APRES) — on ne conclut pas sur sa couleur"
+	else
+		case "$SORTIE_SW" in
+			*"${ESCB}[${APRES}m"*)
+				ok "après la bascule, la confirmation sort dans la NOUVELLE palette ($APRES)" ;;
+			*"${ESCB}[${AVANT}m"*)
+				non "après la bascule, la confirmation sort dans l'ANCIENNE palette ($AVANT) — illisible sur le nouveau fond" ;;
+			*)
+				non "après la bascule, la confirmation ne porte ni l'ancienne ($AVANT) ni la nouvelle ($APRES) couleur" ;;
 		esac
 	fi
 fi
