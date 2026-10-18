@@ -592,6 +592,46 @@ for PAIRE in "UTILISATEUR:le nom" "LOGO:« LEXOS »" "MACHINE:le chemin"; do
 	fi
 done
 
+#  ET TMUX LIT LA MÊME PALETTE. C'est un des « autres terminaux » qu'Alex
+#  vise, il n'exporte pas COLORTERM, donc il voit la 256 — et il réécrit ces
+#  index À LA MAIN dans sa configuration. Troisième écriture de la même
+#  couleur ; elle avait déjà divergé une fois (le vert de la machine y était
+#  resté au 35 d'avant pendant que l'invite passait au 40), et elle a
+#  divergé une seconde fois pendant la correction elle-même. On la compare
+#  donc, au lieu d'y faire attention.
+TMUXC="$RACINE/config/includes.chroot/usr/share/lexos/tmux/lexos.conf"
+if [ ! -r "$TMUXC" ]; then
+	printf '  \033[2mtmux sauté — sa configuration est absente du dépôt\033[0m\n'
+else
+	#  ⚠ PAS « code_nu » ICI, ET C'EST UNE LEÇON. Dans tmux, « #[...] » est du
+	#  BALISAGE DE STYLE, pas un commentaire : « #[fg=colour35,bold]LEXOS »
+	#  est précisément la ligne qu'on veut lire, et couper à partir du
+	#  premier « # » la fait disparaître — mesuré, le contrôle a d'abord
+	#  rendu « index illisible ». La règle du dépôt (retirer les
+	#  commentaires avant de chercher un jeton) reste bonne ; ce qu'il faut
+	#  retirer dépend du format. Dans tmux, un commentaire est une LIGNE qui
+	#  commence par « # ».
+	tmux_nu() { sed '/^[[:space:]]*#/d' "$1"; }
+	T_LOGO="$(tmux_nu "$TMUXC" | sed -n 's/.*status-left .*fg=colour\([0-9]*\),bold\]LEXOS.*/\1/p' | head -1)"
+	T_MACH="$(tmux_nu "$TMUXC" | sed -n 's/.*status-style .*fg=colour\([0-9]*\)".*/\1/p' | head -1)"
+	G_LOGO="$(sed -n "s/^LEXOS_PS_LOGO_256='38;5;\(.*\)'$/\1/p" "$ENV_REPLIS")"
+	G_MACH="$(sed -n "s/^LEXOS_PS_MACHINE_256='38;5;\(.*\)'$/\1/p" "$ENV_REPLIS")"
+	if [ -z "$T_LOGO" ] || [ -z "$G_LOGO" ]; then
+		non "tmux : index de LEXOS illisible (tmux « $T_LOGO », généré « $G_LOGO ») — on ne conclut pas qu'ils s'accordent"
+	elif [ "$T_LOGO" = "$G_LOGO" ]; then
+		ok "tmux écrit « LEXOS » dans le vert de l'invite (colour$T_LOGO)"
+	else
+		non "tmux écrit « LEXOS » en colour$T_LOGO, l'invite en 38;5;$G_LOGO — deux verts pour le même mot"
+	fi
+	if [ -z "$T_MACH" ] || [ -z "$G_MACH" ]; then
+		non "tmux : index de la machine illisible — on ne conclut pas"
+	elif [ "$T_MACH" = "$G_MACH" ]; then
+		ok "tmux écrit ce que la machine dit dans le vert de l'invite (colour$T_MACH)"
+	else
+		non "tmux écrit la machine en colour$T_MACH, l'invite en 38;5;$G_MACH"
+	fi
+fi
+
 # =============================================================================
 titre "7. La BANNIÈRE dit la même chose que l'invite"
 # =============================================================================
