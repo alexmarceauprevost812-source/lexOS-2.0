@@ -777,6 +777,55 @@ PY
 		*'--encre-chrome'*) ok "« --encre-chrome » existe et n'est jamais posée depuis le thème" ;;
 		*) non "« --encre-chrome » n'existe pas : l'encre du chrome suit encore le thème" ;;
 	esac
+	#  ═══ LA RÈGLE, PAS LA LISTE DES CAS CONNUS ═══
+	#  Une règle CSS ne marie jamais un fond POSÉ par le thème avec une encre
+	#  FIGÉE, ni l'inverse : en mode clair le fond devient crème et l'encre
+	#  reste claire. C'est comme ça que « .fen-tete » mettait le chemin du
+	#  volet actif à 1,70:1 — illisible. Les surfaces qui doivent fondre avec
+	#  le terminal posent les DEUX ; le chrome n'en pose AUCUN.
+	#  Ce point VÉRIFIE L'INVARIANT sur toutes les règles de la feuille, donc
+	#  il attrapera le prochain cas tout seul — là où une liste de cas connus
+	#  ne dit rien de ce qu'on ajoutera demain.
+	MIXTES="$(PAGE="$PAGE" python3 - <<'PYINV' 2>/dev/null
+import os, re
+css = re.search(r"<style>(.*?)</style>", open(os.environ["PAGE"], encoding="utf-8").read(), re.S).group(1)
+css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+racine = dict(re.findall(r"(--[a-z0-9-]+)\s*:\s*([^;]+);",
+                         re.search(r":root\{(.*?)\}", css, re.S).group(1)))
+#  Ce que appliquerTheme() pose : on le lit DANS la page, pas ici.
+poses = set(re.findall(r'pose\("(--[a-z0-9-]+)"', open(os.environ["PAGE"], encoding="utf-8").read()))
+poses |= {"--ansi-" + str(i) for i in range(16)}
+
+def genre(v):
+    v = v.strip()
+    m = re.fullmatch(r"var\((--[a-z0-9-]+)\)", v)
+    if m:
+        nom = m.group(1)
+        if nom in poses:
+            return "pose"
+        val = (racine.get(nom) or "").strip()
+        return "fige" if val.startswith("#") else None
+    return "fige" if re.fullmatch(r"#[0-9A-Fa-f]{3,8}", v) else None
+
+for sel, corps in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+    sel = " ".join(sel.split())
+    if not sel or sel.startswith("@"):
+        continue
+    f = re.search(r"(?:^|;)\s*background(?:-color)?\s*:\s*([^;]+)", corps)
+    e = re.search(r"(?:^|;)\s*color\s*:\s*([^;]+)", corps)
+    if not (f and e):
+        continue
+    gf, ge = genre(f.group(1)), genre(e.group(1))
+    if gf and ge and gf != ge:
+        print("%s (fond %s / encre %s)" % (sel, gf, ge))
+PYINV
+)"
+	if [ -z "$MIXTES" ]; then
+		ok "aucune règle ne marie un fond posé par le thème et une encre figée"
+	else
+		non "des règles marient un fond et une encre de natures différentes : $(printf '%s' "$MIXTES" | tr '\n' ' ')"
+	fi
+
 	#  ET L'ACCENT ET LE VERT NON PLUS NE TRAVERSENT PAS LE CHROME. Posés
 	#  depuis le thème, ils valent #A84007 et #0B6B3A en mode clair — faits
 	#  pour un fond crème, donc 3,24:1 et 3,03:1 sur le chrome resté sombre.

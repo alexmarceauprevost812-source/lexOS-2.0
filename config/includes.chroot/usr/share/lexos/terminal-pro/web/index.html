@@ -198,7 +198,16 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-chr
 .fen-tete{
   display:flex;align-items:center;gap:8px;flex:none;
   height:24px;padding:0 4px 0 9px;
-  background:var(--noir);
+  /*  L'EN-TÊTE DU VOLET EST DU CHROME, PAS DE LA SURFACE DE TERMINAL.
+      Son fond lisait --noir, que le thème remplace par le crème en mode
+      clair — mais ses deux encres sont FIGÉES : le chemin du volet actif
+      (--texte-2) tombait alors à 1,70:1, illisible. Sur le fond de chrome
+      il rend 10,82:1, dans les deux thèmes.
+      LA RÈGLE, et un point de banc la fait tenir : une règle ne marie
+      jamais un fond POSÉ avec une encre FIGÉE, ni l'inverse. Les surfaces
+      qui doivent fondre avec le terminal (body, #app, #travail, .fen,
+      l'onglet actif) posent les DEUX ; le chrome n'en pose AUCUN. */
+  background:var(--chrome);
   border-bottom:1px solid var(--ligne);
   font-size:11px;color:var(--texte-3);
   user-select:none;
