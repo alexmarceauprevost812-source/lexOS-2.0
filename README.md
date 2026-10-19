@@ -729,7 +729,7 @@ visuels vectoriels — est sous **licence MIT** : réutilise, modifie, distribue
 
 Les paquets Debian embarqués dans l'ISO conservent chacun leur propre licence.
 Le logo **TI-LEX-AL** et les mascottes restent la propriété d'Alex
-Marceau-Prevost : si tu publies ta propre distribution dérivée, remplace-les
+Marceau Prevost : si tu publies ta propre distribution dérivée, remplace-les
 par tes visuels. Détails dans [LICENSE](LICENSE).
 
 LexOS n'est ni affilié à, ni approuvé par le projet Debian.

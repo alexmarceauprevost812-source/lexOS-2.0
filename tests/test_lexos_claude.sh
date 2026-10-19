@@ -47,12 +47,12 @@ grep -q 'prenom()' "$BAC/fonctions.sh" || { echo "extraction ratée : prenom() a
 grep -q 'banniere()' "$BAC/fonctions.sh" || { echo "extraction ratée : banniere() absente du bloc"; exit 1; }
 
 #  getent/id truqués : un compte « lex » dont le nom complet (GECOS) est
-#  réglé sur « Alex Marceau-Prevost » — exactement le champ que pose
+#  réglé sur « Alex Marceau Prevost » — exactement le champ que pose
 #  « lexos utilisateurs nom-complet ».
 cat > "$BAC/bin/getent" <<'EOF'
 #!/bin/sh
 if [ "$1" = "passwd" ] && [ "$2" = "lex" ]; then
-	echo "lex:x:1000:1000:${GECOS_TEST:-Alex Marceau-Prevost,,,}:/home/lex:/bin/bash"
+	echo "lex:x:1000:1000:${GECOS_TEST:-Alex Marceau Prevost,,,}:/home/lex:/bin/bash"
 fi
 EOF
 cat > "$BAC/bin/id" <<'EOF'
@@ -83,9 +83,9 @@ else
 	ok "aucun prénom écrit en dur dans le code de lexos-claude (contrairement à la démo, c'est un fichier de tout le monde)"
 fi
 
-SORTIE="$(GECOS_TEST='Alex Marceau-Prevost,,,' appelle prenom)"
+SORTIE="$(GECOS_TEST='Alex Marceau Prevost,,,' appelle prenom)"
 if [ "$SORTIE" = "Alex" ]; then
-	ok "le prénom est extrait du champ GECOS (« Alex Marceau-Prevost » -> « Alex »)"
+	ok "le prénom est extrait du champ GECOS (« Alex Marceau Prevost » -> « Alex »)"
 else
 	non "prenom() aurait dû rendre « Alex », a rendu : « $SORTIE »"
 fi

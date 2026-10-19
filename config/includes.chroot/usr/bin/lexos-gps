@@ -2,7 +2,7 @@
 # =============================================================================
 #  lexos-gps — GPS d'Alex (Map IA)
 # =============================================================================
-#  La carte de navigation écrite par Alex Marceau-Prevost : itinéraires,
+#  La carte de navigation écrite par Alex Marceau Prevost : itinéraires,
 #  recherche d'adresses, points d'intérêt, vues satellite. Données
 #  OpenStreetMap (Nominatim pour la recherche, Overpass pour les lieux),
 #  fonds de carte CartoDB et ArcGIS, calcul d'itinéraire par OSRM.
