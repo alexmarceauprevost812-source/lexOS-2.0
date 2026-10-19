@@ -1109,7 +1109,11 @@ function poserTheme(t){
   __themeManque = [];
   const signature = JSON.stringify(t);
   //  Déjà posée : la palette EST en place, donc c'est un succès — pas un refus.
-  if(signature === __themePose) return true;
+  //  Et un succès retire « theme » de l'avertissement, par CETTE sortie aussi :
+  //  la relecture d'une minute retombe le plus souvent sur un thème identique,
+  //  et c'est précisément le chemin par lequel la configuration « rentre dans
+  //  l'ordre » après un démarrage où elle n'avait pas répondu.
+  if(signature === __themePose){ direConf("theme"); return true; }
   __themePose = signature;
   const css = document.documentElement.style;
   const pose = (nom, val) => { if(val) css.setProperty(nom, val); };
@@ -1154,6 +1158,9 @@ function poserTheme(t){
   //  Il y avait ici un « dataset.theme = jour » qu'AUCUN sélecteur CSS ne
   //  lisait — vérifié sur tout web/. Retiré : un attribut que personne ne lit
   //  ne dit rien, il fait seulement croire que le chrome suit le thème.
+  //  LA FENÊTRE VIENT D'ÊTRE REPEINTE : tout avertissement qui disait qu'elle
+  //  gardait la palette livrée est désormais faux, et doit partir.
+  direConf("theme");
   return true;
 }
 
@@ -1187,6 +1194,52 @@ function poserTheme(t){
 //  qu'il tient déjà ; c'est un changement de protocole, pas une ligne, et le
 //  sondage ferme le trou en attendant.
 let __indSain = "";
+
+//  ═══ UN SEUL ENDROIT CONSTRUIT L'ÉTAT « CONFIGURATION NON LUE » ═══
+//  Il y a trois moments où cette liste change : le démarrage l'écrit, la
+//  reprise à 4 s et la relecture d'une minute la vident. Si chacun écrivait
+//  son propre message, ils finiraient par se contredire — et le défaut était
+//  déjà là : le message du démarrage n'avait AUCUN chemin de retrait autre
+//  que la reprise. Un thème qui arrive par la relecture d'une minute laissait
+//  donc la barre affirmer « le thème n'a pas été lu » et le menu annoncer
+//  « la fenêtre garde la palette livrée » longtemps après qu'elle a été
+//  repeinte. L'inverse exact du mensonge qu'on venait de corriger.
+//  « rentre » nomme ce qui vient d'aboutir ; on le retire de la liste, et on
+//  REBÂTIT l'affichage depuis ce qui reste. Appelé sans argument, c'est le
+//  démarrage qui pose l'état initial.
+function direConf(rentre){
+  if(rentre){
+    const i = __confExpiree.indexOf(rentre);
+    if(i < 0) return;                    // rien à retirer : rien à redire
+    __confExpiree.splice(i, 1);
+  }
+  const ind = document.getElementById("backend-ind");
+  if(!__confExpiree.length){
+    if(ind && ind.className === "partiel" && __indSain){
+      ind.textContent = __indSain; ind.className = "branche";
+    }
+    if(Reglages.pret) Reglages.dire("", "conf");
+    return;
+  }
+  //  L'ACCORD SUIT LA LISTE, il n'est pas écrit en dur : avec les deux
+  //  lectures en échec, « le thème et la taille du texte n'a pas pu être lu »
+  //  est une faute, et Alex lit du français, pas un gabarit.
+  const pluriel = __confExpiree.length > 1;
+  const quoi    = __confExpiree.map(c => CONF_NOM[c]).join(" et ");
+  const suite   = __confExpiree.map(c => CONF_SUITE[c]).join(" et ");
+  if(ind && __indSain){
+    ind.textContent = __indSain + " · " + quoi
+                    + (pluriel ? " n'ont pas été lus" : " n'a pas été lu");
+    ind.className = "partiel";
+  }
+  if(Reglages.pret) Reglages.dire(
+    "Le terminal est ouvert, mais " + quoi
+    + (pluriel ? " n'ont pas pu être lus" : " n'a pas pu être lu")
+    + " : le pont n'a pas répondu en " + (DELAI_CONF / 1000) + " s. La fenêtre "
+    + "garde donc " + suite + ". Nouvelle tentative en cours"
+    + (__confExpiree.indexOf("theme") >= 0
+       ? " ; le thème est de toute façon relu chaque minute." : "."), "conf");
+}
 let __themePose = null, __themeBrut = null, __themeManque = [];
 //  ⚠ LE MODE CHOISI NE VIENT PAS DU THÈME, et c'est une erreur que j'ai faite
 //  avant de la mesurer. Après « lexos terminal auto », terminal.env porte
@@ -1253,6 +1306,12 @@ let TAILLE = tailleLue();
 //  requête revienne, donc pas de clignotement — et il est le seul recours en
 //  mode démonstration, quand il n'y a pas de pont du tout.
 let __tailleEnvoyee = null, __tailleMinuteur = null;
+//  ═══ ALEX A-T-IL CHOISI SA TAILLE LUI-MÊME ? ═══
+//  Posé par rangerTaille(), c'est-à-dire par tout geste VOLONTAIRE — molette,
+//  clavier, boutons du menu — et jamais par l'adoption, qui passe par
+//  « sansRanger ». La reprise de configuration le lit pour ne pas reprendre un
+//  geste sous les yeux de celui qui vient de le faire.
+let __tailleTouchee = false;
 
 //  ═══ UN SEUL ENVOYEUR, LU PAR LES DEUX BORDS DU GESTE ═══
 //  « rapporter » dit si cet envoi a le DROIT de se plaindre. Le bord montant
@@ -1317,6 +1376,9 @@ async function envoyerTaille(vise, rapporter){
 //  GROS, il n'est simplement pas à la dernière taille. C'est la bonne façon
 //  d'échouer pour quelqu'un qui a grossi le texte parce qu'il n'y voyait rien.
 function rangerTaille(){
+  //  C'est LE chemin de tout geste volontaire : le drapeau est à sa place ici,
+  //  et nulle part ailleurs.
+  __tailleTouchee = true;
   //  ON NE POSTE PAS À CHAQUE CRAN DE MOLETTE : le bord montant ne part que
   //  si aucun geste n'est déjà en cours, donc une fois par geste.
   if(!__tailleMinuteur && TAILLE !== __tailleEnvoyee) envoyerTaille(TAILLE, false);
@@ -1413,6 +1475,8 @@ async function adopterReglages(){
   const t = j.reglages && j.reglages.taille;
   if(!Number.isFinite(t)) return false;
   __tailleEnvoyee = t;
+  //  LA TAILLE EST LUE : l'avertissement qui la disait non lue doit partir.
+  direConf("taille");
   //  false : taille ABSOLUE. Et on ne RANGE pas ce qu'on vient de lire.
   return poserTaille(t, false, true);
 }
@@ -2188,44 +2252,37 @@ async function demarrage(){
     //  symptôme qui a lancé ce lot (« l'écriture est trop petite »), mais
     //  cette fois sans cause visible. L'étiquette « conf » et non « taille »
     //  ni un mode : rafraichir() ne balaie que les messages de mode.
-    const manque = __confExpiree.slice();
-    const quoi  = manque.map(c => CONF_NOM[c]).join(" et ");
-    const suite = manque.map(c => CONF_SUITE[c]).join(" et ");
     //  ═══ DANS LA BARRE D'ÉTAT, PAS SEULEMENT DANS LE MENU ═══
     //  La barre est le SEUL endroit où cette page annonce son état, et elle
     //  est visible sans rien cliquer. Le détail complet reste dans le menu,
-    //  où il y a la place de l'écrire ; ici, la phrase courte, bâtie à partir
-    //  de la MÊME liste, pour qu'elles ne puissent pas se contredire.
-    //  L'ACCORD SUIT LA LISTE, il n'est pas écrit en dur : avec les deux
-    //  lectures en échec, « le thème et la taille du texte n'a pas pu être
-    //  lu » est une faute, et Alex lit du français, pas un gabarit.
-    const pluriel = manque.length > 1;
-    const pasLu   = pluriel ? " n'ont pas été lus" : " n'a pas été lu";
-    const pasPuLu = pluriel ? " n'ont pas pu être lus" : " n'a pas pu être lu";
-    if(ind){
-      ind.textContent = __indSain + " · " + quoi + pasLu;
-      ind.className = "partiel";
-    }
-    if(Reglages.pret) Reglages.dire(
-      "Le terminal est ouvert, mais " + quoi + pasPuLu + " : le pont "
-      + "n'a pas répondu en " + (DELAI_CONF / 1000) + " s. La fenêtre garde "
-      + "donc " + suite + ". Nouvelle tentative en cours"
-      + (manque.indexOf("theme") >= 0
-         ? " ; le thème est de toute façon relu chaque minute." : "."), "conf");
+    //  où il y a la place de l'écrire. Les deux sont bâtis au MÊME endroit,
+    //  depuis la MÊME liste, pour qu'ils ne puissent pas se contredire.
+    direConf();
     //  ET ON RÉESSAIE UNE FOIS, SANS RIEN RETENIR CETTE FOIS. Sinon la
     //  session entière resterait sur un réglage qu'on n'a pas pu lire : pour
     //  le thème la relecture d'une minute suffirait, mais la taille, elle,
     //  n'est adoptée qu'au démarrage. Les deux fonctions savent s'appliquer à
     //  des volets DÉJÀ construits — poserTheme() les repeint tous, et
     //  poserTaille() pose « fontSize » sur chacun puis insiste.
-    setTimeout(async () => {
-      __confExpiree = [];
-      await Promise.allSettled([appliquerTheme(), adopterReglages()]);
-      //  TOUJOURS MUET : on ne touche à rien, la barre garde son avertissement.
-      if(__confExpiree.length) return;
-      //  RENTRÉ DANS L'ORDRE : la barre et le menu doivent le dire aussi.
-      if(ind){ ind.textContent = __indSain; ind.className = "branche"; }
-      if(Reglages.pret) Reglages.dire("", "conf");
+    setTimeout(() => {
+      //  ⚠ ON NE RABAT PAS UNE TAILLE QU'ALEX VIENT DE CHOISIR.
+      //  adopterReglages() pose une taille ABSOLUE, et sans ranger. Si Alex,
+      //  qui ne lit pas le texte, a déjà tourné Ctrl+molette pendant ces
+      //  quatre secondes — c'est-à-dire le tout premier réflexe de quelqu'un
+      //  qui n'y voit rien, le réflexe même qui a lancé ce lot — la reprise
+      //  lui reprenait son geste sous les yeux ET laissait le pont sur SA
+      //  valeur à lui : l'écran disait 12,5 et le fichier 20.
+      //  Si la taille a été touchée, il n'y a plus rien à reprendre : la
+      //  valeur qui s'applique est la sienne, et c'est la bonne.
+      const reprendreTaille = !__tailleTouchee;
+      __confExpiree = reprendreTaille
+        ? [] : __confExpiree.filter(c => c !== "taille");
+      Promise.allSettled(reprendreTaille
+        ? [appliquerTheme(), adopterReglages()] : [appliquerTheme()])
+        //  Chaque lecture qui aboutit se retire d'elle-même par direConf() ;
+        //  ici on ne fait que rafraîchir ce qui reste, y compris la taille
+        //  qu'on a choisi de ne pas reprendre.
+        .finally(() => direConf());
     }, 4000);
   };
   Promise.allSettled([appliquerTheme(), adopterReglages()]).finally(ouvrir);

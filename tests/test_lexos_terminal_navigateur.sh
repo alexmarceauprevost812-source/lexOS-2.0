@@ -160,11 +160,28 @@ spec = importlib.util.spec_from_file_location("tp", "${BACKEND}")
 tp = importlib.util.module_from_spec(spec); spec.loader.exec_module(tp)
 srv, port, jeton = tp.demarrer_serveur()
 print("PRET %d %s" % (port, jeton), flush=True)
-time.sleep(240)`;
+time.sleep(600)`;
+//  ⚠ 600 s ET PAS 240. L'essai a droit à « timeout 420 » (voir la fin de ce
+//  fichier) depuis que les points du démarrage bloqué attendent exprès. Avec
+//  240, le pont principal s'arrêtait AU MILIEU sur une machine lente, et
+//  toutes les sections qui réutilisent son adresse rougissaient — un rouge
+//  qui ne dit pas ce qui ne va pas. C'est moi qui ai créé cet écart en
+//  portant la limite de l'essai à 420 sans toucher à celle du pont ; la
+//  règle est simple : le pont survit à l'essai, jamais l'inverse.
 //  UN PONT = UN PROCESSUS. Les identifiants de volets sont comptés par la
 //  PAGE (1, 2, 3…) : deux pages sur le même pont se disputeraient les mêmes
 //  numéros de session. Le contrôle de la grille rattrapée ouvre donc une
 //  seconde page contre un SECOND pont, à lui.
+//  Un thème COMPLET — les cinq clefs que poserTheme() exige en bloc, et les
+//  seize ANSI. Il sert au point de la guérison : on remplace le tube nommé par
+//  ce fichier-là, et la page doit pouvoir repeindre pour de bon.
+const THEME_ENTIER = ['LEXOS_TERM_MODE=nuit', 'LEXOS_TERM_EFFECTIF=nuit',
+  'LEXOS_TERM_BG=#0B0B0C', 'LEXOS_TERM_FG=#7BD88F', 'LEXOS_TERM_CURSEUR=#FF8A2B',
+  'LEXOS_TERM_TEXTE=#E8E6E3',
+  'LEXOS_TERM_PALETTE=' + Array.from({length: 16},
+    (_, i) => '#' + String(i).padStart(2, '0') + '1122').join(';'),
+].join('\n') + '\n';
+
 //  ═══ ET UN BANC N'HÉRITE PAS DU FOYER DE CELUI QUI LE LANCE ═══
 //  DIXIÈME FOIS pour ce chantier, et cette fois dans ce fichier-ci.
 //  CE QUE ÇA FAISAIT, mesuré : « pont() » passait {...process.env} tel quel,
@@ -854,8 +871,20 @@ dit(ennuis.length === 0,
     + 'EOF\n'
     + 'printf jour > "$CONF/terminal-mode"\n'
     + 'echo "OK Terminal de jour - fond creme."\n', {mode: 0o755});
+  //  ⚠ CELUI-CI AUSSI PREND UN FOYER À LUI, et c'est le plus urgent des trois.
+  //  MESURÉ, en non-root (en root la commande est refusée et la branche root
+  //  masquait tout) : le faux lexos-terminal posé en tête du PATH écrit
+  //  « ${XDG_CONFIG_HOME:-$HOME/.config}/lexos/terminal.env » avec QUATRE
+  //  clefs. Ce pont n'épinglait rien, donc ces quatre clefs atterrissaient
+  //  dans le VRAI thème de celui qui lance le banc. Thème semé à 8 lignes
+  //  avec un marqueur à moi → après le banc : 4 lignes, marqueur disparu,
+  //  LEXOS_TERM_TEXTE et LEXOS_TERM_PALETTE perdues. Autrement dit : lancer
+  //  ce banc cassait la palette du terminal de son auteur.
+  const foyerFaux = process.env.LEXOS_BANC + '/faux-theme';
+  fsb.mkdirSync(foyerFaux + '/.config/lexos', {recursive: true});
   const py2 = py;   // même pont, PATH différent
   const pr = spawn('python3', ['-c', py2], {env: {...process.env,
+    HOME: foyerFaux, XDG_CONFIG_HOME: foyerFaux + '/.config',
     LEXOS_TERMINAL_PRO_WEB: WEB, PATH: faux + ':' + process.env.LEXOS_BIN + ':' + process.env.PATH}});
   const [, p2, j2] = await new Promise(r => pr.stdout.on('data', d => {
     const m = String(d).match(/PRET (\d+) (\S+)/); if (m) r(m);
@@ -942,6 +971,9 @@ dit(ennuis.length === 0,
     dit(false, 'mkfifo indisponible — le blocage d\'une lecture de '
              + 'configuration n\'a PAS été éprouvé ici');
   } else {
+    //  UNE TAILLE RANGÉE, DIFFÉRENTE DE CELLE QU'ALEX VA POSER : sans elle,
+    //  la reprise n'aurait rien à rabattre et le point ne mesurerait rien.
+    fsb.writeFileSync(foyer + '/.config/lexos/terminal-pro.json', '{"taille": 10.0}\n');
     const b = await pont(foyer);
     const pb = await nav.newPage({viewport: {width: 1100, height: 700}});
     const t0 = Date.now();
@@ -998,6 +1030,28 @@ dit(ennuis.length === 0,
         && !/taille de texte livrée/.test(raison),
         '…et le menu porte le détail, au singulier et sans rien inventer : la '
         + 'taille, elle, avait bien été lue (« ' + raison.slice(0, 90) + '… »)');
+    //  ═══ ET QUAND ÇA RENTRE DANS L'ORDRE, LA PAGE CESSE DE L'ANNONCER ═══
+    //  LE DÉFAUT, MESURÉ : le message du démarrage n'avait AUCUN chemin de
+    //  retrait. Un thème qui arrivait par la relecture laissait la barre dire
+    //  « le thème n'a pas été lu » et le menu annoncer « la fenêtre garde la
+    //  palette livrée » — longtemps après qu'elle avait été repeinte. Le
+    //  mensonge inverse de celui qu'on venait de corriger.
+    //  On remplace le tube par un VRAI thème et on déclenche la relecture
+    //  comme le fait un retour de focus ; la barre doit redire la vérité.
+    fsb.unlinkSync(tube);
+    fsb.writeFileSync(tube, THEME_ENTIER);
+    await pb.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await pb.waitForTimeout(1200);
+    const gueri = await pb.evaluate(() => ({
+      barre: ((document.getElementById('backend-ind') || {}).textContent || '').trim(),
+      classe: ((document.getElementById('backend-ind') || {}).className || ''),
+      raison: ((document.getElementById('pan-raison') || {}).textContent || '').trim(),
+    }));
+    dit(gueri.classe === 'branche' && !/pas été lu/.test(gueri.barre)
+        && !/palette livrée/.test(gueri.raison),
+        '…et l\'avertissement PART quand la configuration finit par arriver : '
+        + 'la barre et le menu cessent tous les deux de dire le contraire '
+        + '(« ' + gueri.barre + ' », classe ' + gueri.classe + ')');
     await pb.close(); b.proc.kill();
   }
 }
@@ -1098,6 +1152,61 @@ const taillePosee = async (foyer) => {
       'fenêtre entière TUÉE 120 ms après le geste : le pont a tout de même une '
       + 'taille, et ce n\'est pas le défaut (lu : ' + t + ', défaut ' + defaut + ')');
   b.proc.kill();
+}
+
+//  ═══ LA REPRISE DE CONFIGURATION NE REPREND PAS LE GESTE D'ALEX ═══
+//  CE POINT A D'ABORD ÉTÉ UN FAUX VERT, ET LA MUTATION L'A DIT. Je l'avais
+//  écrit sur une LECTURE du code — adopterReglages() pose une taille ABSOLUE,
+//  donc la reprise à 4 s doit bien rabattre celle d'Alex — sans reproduire le
+//  scénario. Garde retirée : le point restait VERT. Raison, et elle est dans
+//  mon propre correctif : le bord montant pousse les 20 px d'Alex au pont dans
+//  la milliseconde, donc à la reprise le pont dit DÉJÀ 20 et il n'y a rien à
+//  rabattre.
+//
+//  LE DÉFAUT N'EXISTE QUE SI L'ÉCRITURE DU PONT ÉCHOUE — alors le pont garde
+//  son ancienne valeur et la reprise la rabat. Construit, et mesuré dans les
+//  deux sens, dossier de configuration en LECTURE SEULE :
+//      sans la garde : écran 20 → rabattu à 10, le fichier dit toujours 10
+//      avec la garde : écran 20, et il y reste
+//  Un point écrit sur une déduction mesure la déduction. Celui-ci mesure.
+{
+  const foyer = process.env.LEXOS_BANC + '/rabat';
+  fsb.mkdirSync(foyer + '/.config/lexos', {recursive: true});
+  const conf = foyer + '/.config/lexos';
+  //  Le tube nommé sert à déclencher le chemin du délai, donc la reprise.
+  spawnSync('mkfifo', [conf + '/terminal.env']);
+  fsb.writeFileSync(conf + '/terminal-pro.json', '{"taille": 10.0}\n');
+  fsb.chmodSync(conf, 0o500);                 // lisible, PAS inscriptible
+  //  ⚠ ROOT PASSE OUTRE LES PERMISSIONS, et on le VÉRIFIE au lieu de le
+  //  supposer : mon conteneur est root, le coureur ne l'est pas, et un banc
+  //  qui se croit vert là où la permission ne mord pas ne vaut rien.
+  let inscriptible = true;
+  try { fsb.writeFileSync(conf + '/.essai', 'x'); fsb.unlinkSync(conf + '/.essai'); }
+  catch (e) { inscriptible = false; }
+  if (inscriptible) {
+    dit(false, 'lancé EN ROOT : le dossier reste inscriptible malgré le chmod, '
+             + 'donc le seul scénario où la reprise peut rabattre la taille '
+             + 'n\'a PAS été éprouvé ici — le coureur, lui, n\'est pas root');
+  } else {
+    const b = await pont(foyer);
+    const pg = await nav.newPage({viewport: {width: 1100, height: 700}});
+    await pg.goto(`http://127.0.0.1:${b.port}/index.html?port=${b.port}&jeton=${b.jeton}`);
+    await pg.waitForSelector('.xterm', {timeout: 12000});
+    const adoptee = await pg.evaluate(() => window.__banc.TAILLE);
+    //  ALEX AGIT DANS LA FENÊTRE DE REPRISE (armée à +4 s de l'ouverture).
+    await pg.evaluate(() => window.__banc.poserTaille(20, false));
+    await pg.waitForTimeout(6500);
+    const apres = await pg.evaluate(() => window.__banc.TAILLE);
+    const range = (() => { try {
+      return JSON.parse(fsb.readFileSync(conf + '/terminal-pro.json', 'utf8')).taille;
+    } catch (e) { return null; } })();
+    dit(adoptee === 10 && range === 10 && apres === 20,
+        'la reprise de configuration ne RABAT PAS la taille qu\'Alex vient de '
+        + 'choisir, même quand l\'écriture a échoué et que le pont en garde une '
+        + 'autre (adoptée ' + adoptee + ' → geste 20 → après la reprise '
+        + apres + ', le pont dit toujours ' + range + ')');
+    await pg.close(); b.proc.kill();
+  }
 }
 
 //  ═══ ET DANS L'ORDONNANCEMENT DU PRODUIT, PAS CELUI D'UN PONT IMMORTEL ═══

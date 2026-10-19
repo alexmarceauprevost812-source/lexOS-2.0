@@ -275,6 +275,26 @@ tp = importlib.util.module_from_spec(spec); spec.loader.exec_module(tp)
 
 def dit(bon, m): print(("OK|" if bon else "NON|") + m)
 
+#  ═══ AVANT TOUTE CHOSE : UN FOYER À NOUS, POUR TOUTE LA SONDE ═══
+#  MESURÉ, et c'est la ONZIÈME fois que ce chantier se fait prendre à hériter
+#  de son environnement. Cette sonde poste /api/reglages EN ÉCRITURE trois
+#  fois (18 px, 13,3 px, 16 px) bien avant les sections qui, elles, épinglent
+#  leur dossier. Le pont résolvait donc « terminal-pro.json » sous le foyer
+#  HÉRITÉ. Semé {"taille": 11.0} dans le vrai ~/.config/lexos, banc lancé →
+#  le fichier disait {"taille": 16.0}. Lancer ce banc changeait pour de bon la
+#  taille du texte de celui qui le lance, et la LISAIT de lui.
+#
+#  ON ÉPINGLE EN HAUT, PAS SECTION PAR SECTION : c'est précisément le
+#  pointillé qui a laissé passer celle-ci. Les sections qui épinglent déjà
+#  leur propre dossier continuent de le faire et restaurent CELUI-CI, pas
+#  celui de l'appelant — elles n'en deviennent que plus sûres.
+#  HOME *ET* XDG_CONFIG_HOME, parce que le pont retombe sur « $HOME/.config »
+#  quand la variable ne porte rien (c'est « dossier_theme() »).
+__FOYER = tempfile.mkdtemp(prefix="pty-foyer-")
+os.makedirs(os.path.join(__FOYER, ".config", "lexos"), exist_ok=True)
+os.environ["HOME"] = __FOYER
+os.environ["XDG_CONFIG_HOME"] = os.path.join(__FOYER, ".config")
+
 srv, port, jeton = tp.demarrer_serveur()
 base = "http://127.0.0.1:%d" % port
 BON = {"X-Lexos-Jeton": jeton, "Origin": base, "Content-Type": "application/json"}
