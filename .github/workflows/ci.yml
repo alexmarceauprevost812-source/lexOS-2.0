@@ -1832,6 +1832,24 @@ jobs:
           test -f tests/test_lexos_diagnostic.py
           python3 -m unittest tests.test_lexos_diagnostic -v
 
+      - name: LexOS Pilotes — les mises à jour de la carte graphique
+        if: ${{ !cancelled() }}
+        run: |
+          #  Appli apportée par Alex (87d7e18). Même patron que Diagnostic :
+          #  serveur sur un port FIXE (7862), donc joignable par n'importe
+          #  quelle page web ouverte — le banc démarre le vrai serveur et
+          #  vérifie qu'un Host étranger, une origine étrangère et un POST
+          #  sans l'en-tête maison sont refusés. Il tient aussi le filtre
+          #  (seuls les paquets graphiques), l'épingle NVIDIA, les paquets
+          #  de backports redemandés à backports, et l'aide root qui refuse
+          #  de tourner sans root — ce point-là saute en root, il ne tourne
+          #  donc vraiment qu'ici, sur un coureur non-root.
+          #
+          #  Nommé en toutes lettres pour le garde-fou anti-orphelin, comme
+          #  Diagnostic juste au-dessus : il cherche le NOM DE FICHIER.
+          test -f tests/test_lexos_pilotes.py
+          python3 -m unittest tests.test_lexos_pilotes -v
+
       - name: Gros texte et bulle de capture — deux gestes du quotidien
         if: ${{ !cancelled() }}
         run: |

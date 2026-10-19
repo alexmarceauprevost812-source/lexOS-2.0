@@ -124,6 +124,7 @@ ${B}ÉNERGIE${R}
   ${A}icones-bureau${R}       Remettre les icônes du bureau d'accord avec les lanceurs ${D}(--essai)${R}
   ${A}etiquette${R} <dossier>  Écrit les 3 premières lettres SUR le dossier ${D}(--maison pour les tiens)${R}
   ${A}diagnostic${R} [onglet]  La machine en direct, dans une fenêtre ${D}(materiel|medecin|disques)${R}
+  ${A}pilotes${R}             Mises à jour de la carte graphique, dans une fenêtre ${D}(NVIDIA, Mesa, micrologiciels)${R}
   ${A}medecin${R}             « Qu'est-ce qui ne va pas ? » — le tri complet, traduit
   ${A}disques${R}             La santé des disques AVANT qu'ils meurent ${D}(SMART, espace)${R}
   ${A}materiel${R}            Ce qu'il y a DANS la machine ${D}(aussi : machine)${R}
@@ -1235,6 +1236,7 @@ case "$CMD" in
 	mosaique|mosaïque|snap) exec /usr/bin/python3 /usr/lib/lexos/assistant-mosaique.py "${@}" ;;
 	crt)                  exec lexos-crt "$@" ;;
 	signer-pilote)        exec lexos-signer-pilote "$@" ;;
+	pilotes)              exec lexos-pilotes "$@" ;;
 	moteurd)              exec lexos-moteurd "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;

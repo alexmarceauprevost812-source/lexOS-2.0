@@ -144,8 +144,13 @@ titre "1. Les outils lexos-* et leurs branchements"
 #                                Claude Code, ne se tape pas
 #   lexos-raccourcis-mosaique : migration XFCE unique lancée par autostart;
 #                             réparation manuelle documentée, sans section dédiée.
+#   lexos-pilotes-maj          : l'aide ROOT de LexOS Pilotes, lancée par
+#                                « pkexec » depuis l'appli et jamais tapée. Une
+#                                branche « lexos pilotes-maj » la lancerait SANS
+#                                root — elle n'aurait rien à faire dans le case.
 SANS_SECTION="
 lexos-raccourcis-mosaique
+lexos-pilotes-maj
 lexos-apercu
 lexos-app-settings
 lexos-claude-installation
@@ -249,6 +254,7 @@ lexos-disques
 lexos-medecin
 lexos-materiel
 lexos-signer-pilote
+lexos-pilotes
 "
 
 [ "$CSV" = 1 ] && echo "outil;parametres;dispatcher;aide;lanceur"
