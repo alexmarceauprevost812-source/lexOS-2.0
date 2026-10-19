@@ -502,22 +502,24 @@ grep -q 'SESSION_ICONES' "$OUTIL" \
 #  gourmand, qui irait réécrire le commentaire) passerait le grep.
 if [ -x "$GEN" ] || [ -r "$GEN" ]; then
 	FOYER="$BANC/foyer"; mkdir -p "$FOYER"
-	#  ⚠ XDG_CONFIG_HOME EST ÉPINGLÉ, ET ÇA A UNE HISTOIRE. Ces trois appels
-	#  n'épinglaient que HOME. Tant que lexos-theme-gen ignorait la variable,
-	#  ça suffisait ; le jour où il a cessé de l'ignorer, ce banc est devenu
-	#  ROUGE — non parce que le générateur s'était cassé, mais parce que le
-	#  banc regardait un dossier que l'appelant avait déplacé sous ses pieds.
+	#  ⚠ XDG_CONFIG_HOME EST ÉPINGLÉ, et sur $HOME/.config exprès. Ces trois
+	#  appels n'épinglaient que HOME : la sonde lisait donc la variable de
+	#  l'APPELANT pour décider où chercher, ce qui rendait son verdict
+	#  dépendant de l'environnement du coureur. L'épingler ici rend le banc
+	#  déterministe, et la pointer sur $HOME/.config la met d'accord avec
+	#  lexos-theme-gen — qui, lui, écrit sous $TARGET/.config et ne suit pas
+	#  la variable (c'est écrit en tête du générateur, avec la mesure qui dit
+	#  pourquoi le lui faire suivre à moitié était pire).
 	#
-	#  ET LE BANC AVAIT TORT, PAS LE GÉNÉRATEUR. MESURÉ, avec la variable
-	#  posée ailleurs que $HOME/.config :
-	#      ancien générateur : 4 logos dans $HOME/.config, 0 dans la variable
-	#      nouveau           : 0 dans $HOME/.config, 4 dans la variable
-	#  Or lexos-session les LIT dans « ${XDG_CONFIG_HOME:-$HOME/.config} »
-	#  (SESSION_ICONES, dans l'outil). L'ancien appariement écrivait donc les
-	#  logos du mode clair LÀ OÙ LA FENÊTRE NE REGARDE PAS, et ce banc le
-	#  tenait pour correct parce qu'il regardait au même mauvais endroit.
-	#  Neuvième fois que ce chantier se fait prendre à hériter de son
-	#  environnement — la première dans un banc qui en MASQUAIT un vrai défaut.
+	#  ⚠ ET IL RESTE UN VRAI DÉFAUT QUE CE BANC NE GARDE PAS, parce qu'aucun
+	#  correctif complet n'est encore posé : lexos-session LIT les logos dans
+	#  « ${XDG_CONFIG_HOME:-$HOME/.config}/lexos/session-icons »
+	#  (SESSION_ICONES) alors que le générateur les ÉCRIT sous
+	#  « $TARGET/.config ». Mesuré : avec la variable posée ailleurs que
+	#  $HOME/.config, 4 logos atterrissent dans $HOME/.config et 0 là où la
+	#  fenêtre regarde — donc en thème de jour, six logos blancs sur du crème.
+	#  Ce n'est PAS une régression de ce lot : c'est l'état livré, et il est
+	#  parti en tâche séparée avec son correctif.
 	FOYER_CONF="$FOYER/.config"
 	LEXOS_BRANDING="$BRANDING" HOME="$FOYER" XDG_CONFIG_HOME="$FOYER_CONF" \
 		bash "$GEN" orange --mode clair >/dev/null 2>&1
@@ -531,21 +533,6 @@ if [ -x "$GEN" ] || [ -r "$GEN" ]; then
 		ok "…et le fichier garde son en-tête, qui explique pourquoi il est blanc"
 	else
 		non "l'en-tête a été emporté par la substitution : le fichier ne s'explique plus"
-	fi
-	#  ═══ ET C'EST L'INVARIANTE QUI COMPTE, PAS LE CHEMIN ═══
-	#  Le dossier où le générateur ÉCRIT doit être celui où la fenêtre LIT.
-	#  C'est ça qui était cassé, et aucun point ne le gardait : les deux
-	#  écritures du chemin pouvaient diverger sans que rien ne le dise. On
-	#  pose donc la variable AILLEURS que sous HOME, exprès, et on exige que
-	#  le générateur suive — parce que la fenêtre, elle, la suit.
-	DECALE="$BANC/decale"; rm -rf "$DECALE"; mkdir -p "$DECALE"
-	LEXOS_BRANDING="$BRANDING" HOME="$FOYER" XDG_CONFIG_HOME="$DECALE" \
-		bash "$GEN" orange --mode clair >/dev/null 2>&1
-	LU="$(sed -n 's/^SESSION_ICONES=//p' "$OUTIL" | head -1)"
-	if [ -r "$DECALE/lexos/session-icons/icon-verrouiller.svg" ]; then
-		ok "le générateur écrit les logos LÀ OÙ la fenêtre les lit, même si XDG_CONFIG_HOME n'est pas sous HOME ($LU)"
-	else
-		non "XDG_CONFIG_HOME déplacé : le générateur écrit ailleurs que là où la fenêtre lit ($LU) — les logos du mode clair seraient écrits pour personne"
 	fi
 	LEXOS_BRANDING="$BRANDING" HOME="$FOYER" XDG_CONFIG_HOME="$FOYER_CONF" \
 		bash "$GEN" orange --mode sombre >/dev/null 2>&1

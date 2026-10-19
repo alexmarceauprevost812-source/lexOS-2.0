@@ -492,9 +492,24 @@ dit(not HOSTILES,
 #  ⚠ ON ÉPINGLE XDG_CONFIG_HOME : sinon cette sonde réécrirait le thème de la
 #  machine qui fait tourner le banc. Sixième fois que ce chantier doit s'en
 #  souvenir.
-__CONF = tempfile.mkdtemp()
+#  ⚠ HOME *ET* XDG_CONFIG_HOME, ÉPINGLÉS AU MÊME DOSSIER. Les deux, parce que
+#  les deux outils en jeu ne lisent pas le même : lexos-terminal écrit son mode
+#  dans « ${XDG_CONFIG_HOME:-$HOME/.config}/lexos » tandis que lexos-theme-gen
+#  régénère terminal.env sous « $TARGET/.config » et ne suit pas la variable
+#  (c'est écrit en tête du générateur, avec la mesure qui dit pourquoi le lui
+#  faire suivre à moitié était pire que de ne pas le faire).
+#  N'épingler que la variable faisait donc atterrir terminal-mode dans le
+#  dossier du banc et terminal.env dans le HOME de l'appelant : lire_theme()
+#  rendait {} et deux points rougissaient sur du code juste. Mesuré.
+#  Les pointer sur le MÊME dossier met les deux outils d'accord, qui est
+#  exactement la configuration livrée.
+__MAISON = tempfile.mkdtemp()
+__CONF = os.path.join(__MAISON, ".config")
+os.makedirs(__CONF, exist_ok=True)
 __GARDE = os.environ.get("XDG_CONFIG_HOME")
+__GARDE_HOME = os.environ.get("HOME")
 os.environ["XDG_CONFIG_HOME"] = __CONF
+os.environ["HOME"] = __MAISON
 #  ⚠ ET LE PATH : « lexos-terminal » n'est pas installé sur le coureur, il est
 #  DANS LE DÉPÔT. Sans cette ligne les trois points ci-dessous rougissaient en
 #  « Indisponible : « lexos-terminal » est introuvable dans le PATH » — ce qui
@@ -563,6 +578,28 @@ dit(code == 400 and "inconnu" in str(rep.get("erreur", "")),
     "un mode inconnu est refusé par la ROUTE aussi (reçu %r : %r)"
     % (code, rep.get("erreur")))
 
+#  ═══ UN « mode » NON HACHABLE NE DOIT PAS TUER LA RÉPONSE ═══
+#  TROUVÉ PAR UNE RELECTURE INDÉPENDANTE, puis reproduit ici. La route validait
+#  par « mode not in _MODES_COMMANDE » — une appartenance à un DICT, qui exige
+#  une clef hachable. Avec {"mode": []} ou {"mode": {"jour": 1}}, Python lève
+#  « TypeError: unhashable type », l'exception traverse do_POST, socketserver
+#  ferme la prise, et le client reçoit ZÉRO octet au lieu du 400. Mesuré contre
+#  le pont réel : « RemoteDisconnected: Remote end closed connection without
+#  response » pour les trois formes non hachables.
+#  ⚠ lancer_mode() avait BIEN son isinstance(mode, str) : c'est la ROUTE qui
+#  validait autrement. Deux écritures d'une même règle, et c'est la seconde qui
+#  a cédé — exactement la faute que ce dépôt traque partout ailleurs. Ce point
+#  interroge donc la ROUTE, pas la mécanique.
+MUETS = []
+for FORME in ([], {"jour": 1}, ["jour"], None, 3, True, "JOUR", {}, [[]]):
+    c, rep = mode_route({"mode": FORME})
+    if not (c == 400 and "inconnu" in str(rep.get("erreur", ""))):
+        MUETS.append((FORME, c, rep.get("erreur")))
+dit(not MUETS,
+    "neuf formes de « mode » hostiles — listes et dictionnaires compris — "
+    "reçoivent toutes un 400 AVEC sa raison, aucune ne ferme la prise en "
+    "silence (passées à travers : %r)" % (MUETS[:2],))
+
 #  ═══ JAMAIS EN ROOT, ET LE REFUS DIT POURQUOI ═══
 #  Ce point mesure DEUX choses selon qui lance le banc, et le dit. En root —
 #  le cas du coureur — on exige le refus AVEC sa raison : en root le thème
@@ -582,7 +619,54 @@ if __GARDE is None:
     os.environ.pop("XDG_CONFIG_HOME", None)
 else:
     os.environ["XDG_CONFIG_HOME"] = __GARDE
+if __GARDE_HOME is not None:
+    os.environ["HOME"] = __GARDE_HOME
 os.environ["PATH"] = __PATH_GARDE
+
+#  ═══ UN FICHIER DE RÉGLAGES HOSTILE NE DOIT PAS ÊTRE SANS RETOUR ═══
+#  TROUVÉ PAR UNE RELECTURE INDÉPENDANTE, puis reproduit ici. Un entier JSON
+#  trop grand pour un double — 400 chiffres, ou 2**1024 — fait lever
+#  « OverflowError: int too large to convert to float » à float(), et
+#  OverflowError n'hérite ni de TypeError ni de ValueError. L'exception
+#  traversait lire_reglages() et la route : « GET /api/reglages » fermait la
+#  prise sans un octet.
+#  ET C'ÉTAIT SANS RETOUR, ce qui est le pire : la page ne pouvait plus ni
+#  lire ni écrire le réglage, donc plus réparer le fichier par où elle l'avait
+#  écrit. Ce point exige les deux : que la lecture se dégrade, ET qu'une
+#  écriture REMETTE le fichier d'aplomb.
+import json as _json
+__CONF2 = tempfile.mkdtemp()
+__G2 = os.environ.get("XDG_CONFIG_HOME")
+os.environ["XDG_CONFIG_HOME"] = __CONF2
+os.makedirs(os.path.join(__CONF2, "lexos"), exist_ok=True)
+__JSON = os.path.join(__CONF2, "lexos", "terminal-pro.json")
+__SURVIVANTS = []
+for __POISON in ('{"taille": %s}' % ("9" * 400), '{"taille": %d}' % (2 ** 1024),
+                 '{"taille": [1]}', '{"taille": {"a": 1}}', '[]', 'null',
+                 'pas du json', '', '{"taille": 1e400}'):
+    with open(__JSON, "w", encoding="utf-8") as __f:
+        __f.write(__POISON)
+    try:
+        __lu = tp.lire_reglages()
+    except Exception as __e:
+        __SURVIVANTS.append((__POISON[:18], "lecture lève " + type(__e).__name__))
+        continue
+    __c, __r = appel("/api/reglages", BON, "GET")
+    if __c != 200:
+        __SURVIVANTS.append((__POISON[:18], "GET rend %r" % (__c,)))
+        continue
+    __c, __r = appel("/api/reglages", BON,
+                     corps=_json.dumps({"taille": 15}).encode())
+    if __c != 200:
+        __SURVIVANTS.append((__POISON[:18], "réparation rend %r" % (__c,)))
+dit(not __SURVIVANTS,
+    "neuf fichiers de réglages hostiles : la lecture se dégrade, la route "
+    "répond, et une écriture REMET le fichier d'aplomb — aucun n'est sans "
+    "retour (restés coincés : %r)" % (__SURVIVANTS[:2],))
+if __G2 is None:
+    os.environ.pop("XDG_CONFIG_HOME", None)
+else:
+    os.environ["XDG_CONFIG_HOME"] = __G2
 
 #  ═══ LES DEUX ÉCRITURES DES BORNES DOIVENT S'ACCORDER ═══
 #  La page porte un REPLI (let TAILLE_DEFAUT = 12,5, MIN = 7, MAX = 32) qui ne

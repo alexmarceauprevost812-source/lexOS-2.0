@@ -978,8 +978,15 @@ async function appliquerTheme(){
 //  repeint donc avec celui-là, au lieu de relancer un /api/theme pendant
 //  lequel la fenêtre resterait dans l'ancienne palette. Une seule fonction
 //  pose, pour que les deux chemins ne puissent pas peindre différemment.
+//  ⚠ CETTE FONCTION REND UN BOOLÉEN, et ce n'est pas décoratif : le menu
+//  annonçait « ✓ Terminal de jour — fond crème » alors qu'elle avait REFUSÉ le
+//  thème et que la fenêtre était restée entièrement noire. Mesuré dans un vrai
+//  Chromium, sur un terminal.env sans LEXOS_TERM_TEXTE ni LEXOS_TERM_PALETTE —
+//  c'est-à-dire le cas décrit vingt lignes plus bas comme ARRIVÉ À ALEX.
+//  Rend true si la palette est en place (posée maintenant, ou déjà posée),
+//  false si elle a été refusée.
 function poserTheme(t){
-  if(!t) return;
+  if(!t) return false;
   //  RAFRAÎCHI AVANT LE CONTRÔLE DE COMPLÉTUDE, exprès : le mode choisi ne
   //  dépend pas de la palette. Un thème périmé, qu'on refuse de poser, n'a
   //  aucune raison de laisser le menu afficher un mode périmé.
@@ -1013,10 +1020,15 @@ function poserTheme(t){
     //  consigne de ce projet demande la raison, pas seulement l'effet.
     console.warn("[lexos] thème incomplet, rien appliqué — il manque "
                  + manque.join(", ") + ". Régénérez-le : lexos terminal nuit");
-    return;
+    //  CE QUI MANQUE VOYAGE AVEC LE REFUS : l'appelant en a besoin pour le
+    //  DIRE à l'écran, et pas seulement dans une console que personne n'ouvre.
+    __themeManque = manque;
+    return false;
   }
+  __themeManque = [];
   const signature = JSON.stringify(t);
-  if(signature === __themePose) return;
+  //  Déjà posée : la palette EST en place, donc c'est un succès — pas un refus.
+  if(signature === __themePose) return true;
   __themePose = signature;
   const css = document.documentElement.style;
   const pose = (nom, val) => { if(val) css.setProperty(nom, val); };
@@ -1061,6 +1073,7 @@ function poserTheme(t){
   //  Il y avait ici un « dataset.theme = jour » qu'AUCUN sélecteur CSS ne
   //  lisait — vérifié sur tout web/. Retiré : un attribut que personne ne lit
   //  ne dit rien, il fait seulement croire que le chrome suit le thème.
+  return true;
 }
 
 //  ═══ ON RELIT LE THÈME, DE DEUX FAÇONS, ET IL EN FAUT DEUX ═══
@@ -1092,7 +1105,7 @@ function poserTheme(t){
 //  Mieux vaudrait que le pont surveille le fichier et le dise sur le flux
 //  qu'il tient déjà ; c'est un changement de protocole, pas une ligne, et le
 //  sondage ferme le trou en attendant.
-let __themePose = null, __themeBrut = null;
+let __themePose = null, __themeBrut = null, __themeManque = [];
 //  ⚠ LE MODE CHOISI NE VIENT PAS DU THÈME, et c'est une erreur que j'ai faite
 //  avant de la mesurer. Après « lexos terminal auto », terminal.env porte
 //  LEXOS_TERM_MODE=nuit et LEXOS_TERM_EFFECTIF=nuit : lexos-theme-gen RÉSOUT
@@ -1170,9 +1183,20 @@ function rangerTaille(){
     if(r && r.ok){ __tailleEnvoyee = vise; return; }
     //  ÉCHEC : on le DIT. La taille reste à l'écran — le geste d'Alex n'est
     //  pas annulé sous ses yeux — mais il doit savoir que ça ne tiendra pas.
-    console.warn("[lexos] taille non enregistrée"
-                 + ((r && r.erreur) ? " — " + r.erreur : "")
-                 + " ; elle reviendra au défaut au prochain démarrage.");
+    const pourquoi = "La taille est bien à l'écran, mais elle n'a PAS été "
+                   + "enregistrée" + ((r && r.erreur) ? " — " + r.erreur : "")
+                   + " : elle reviendra au défaut au prochain démarrage.";
+    console.warn("[lexos] " + pourquoi);
+    //  ═══ ET DANS LE PANNEAU, PAS SEULEMENT DANS LA CONSOLE ═══
+    //  Le menu affiche la taille comme une valeur ACQUISE et porte un bloc de
+    //  raison juste en dessous ; l'échec n'allait que dans console.warn.
+    //  Mesuré avec le dossier de configuration en lecture seule : le POST rend
+    //  500 « réglages non enregistrés — … Permission denied » et le panneau
+    //  affichait « 13,5 px », raison vide et cachée. Alex voyait son geste
+    //  pris, et l'apprenait au redémarrage suivant.
+    //  « taille » et non un mode : ce message ne doit pas être balayé par le
+    //  prochain rafraîchissement de mode, et il ne doit pas en balayer un.
+    if(Reglages.pret) Reglages.dire(pourquoi, "taille");
   }, 400);
 }
 
@@ -1375,6 +1399,10 @@ class Onglet {
 //  demandé, pas un oubli — et il se pose en une ligne si Alex le veut.
 const Reglages = {
   pret: false,
+  //  Les trois seuls états dont un message peut PÉRIMER (voir rafraichir).
+  //  Lu depuis le même endroit que la table du pont, par les boutons eux-mêmes
+  //  — pas réécrit à la main, pour que les deux ne divergent pas.
+  get TOUCHES_MODE(){ return this.modes.map(b => b.dataset.mode); },
   init(){
     this.bouton  = document.getElementById("reglages");
     this.panneau = document.getElementById("panneau-reglages");
@@ -1392,9 +1420,22 @@ const Reglages = {
     document.addEventListener("click", e => {
       if(this.ouvert && !this.panneau.contains(e.target)) this.fermer();
     });
-    this.panneau.addEventListener("keydown", e => {
-      if(e.key === "Escape"){ e.stopPropagation(); this.fermer(); this.bouton.focus(); }
-    });
+    //  ═══ ÉCHAP SUR LE DOCUMENT, PAS SUR LE PANNEAU ═══
+    //  CE QUE ÇA FAISAIT, MESURÉ au clavier : Tab jusqu'au ⚙, Entrée (le
+    //  panneau s'ouvre, le focus va sur « Jour »), Entrée (la commande part)
+    //  → rafraichir() grisait les trois modes, DONT celui qui avait le focus,
+    //  et le navigateur renvoyait le focus à <body>. L'écouteur étant posé sur
+    //  le panneau, Échap ne déclenchait plus rien : le panneau restait ouvert
+    //  et plus aucune touche ne le fermait. Rien ne rendait le focus.
+    //  Deux corrections, et il faut les deux : l'écouteur monte sur le
+    //  DOCUMENT (il n'a plus besoin que le focus soit dedans), et rafraichir()
+    //  ne grise plus pendant la commande — « enCours » suffit à ignorer un
+    //  second clic, sans arracher le focus de qui vient de cliquer.
+    document.addEventListener("keydown", e => {
+      if(e.key === "Escape" && this.ouvert){
+        e.stopPropagation(); this.fermer(); this.bouton.focus();
+      }
+    }, true);
     this.pret = true;
     this.rafraichir();
   },
@@ -1414,15 +1455,34 @@ const Reglages = {
     this.bouton.setAttribute("aria-expanded", "false");
   },
   //  ═══ GRISÉ AVEC SA RAISON, JAMAIS GRISÉ EN SILENCE ═══
-  dire(texte){
+  //  « pour » retient à QUEL état ce message appartient. Sans ça il survivait
+  //  à sa cause : mesuré — clic sur « Jour », puis « lexos terminal nuit »
+  //  tapé dans un volet ; au retour de focus la page relisait le thème, le
+  //  panneau cochait « Nuit », le fond redevenait noir, et la raison disait
+  //  TOUJOURS « ✓ Terminal de jour ». Un état périmé présenté comme courant.
+  dire(texte, pour){
     this.raison.textContent = texte || "";
     this.raison.hidden = !texte;
+    this.raisonPour = texte ? (pour || null) : null;
   },
   rafraichir(){
     if(!this.pret) return;
-    this.valeur.textContent = String(TAILLE).replace(".", ",") + " px";
-    document.getElementById("pan-moins").disabled = (TAILLE <= TAILLE_MIN);
-    document.getElementById("pan-plus").disabled  = (TAILLE >= TAILLE_MAX);
+    //  ═══ AUX BORNES, ON DIT QU'ON Y EST ═══
+    //  Les deux boutons étaient grisés EN SILENCE : à 32 px, « + » devenait
+    //  inerte, sortait de l'ordre de tabulation, et le bloc de raison juste
+    //  en dessous restait vide. Mesuré. La consigne de ce projet est pourtant
+    //  celle que ce menu applique aux trois modes — on l'applique aussi ici,
+    //  dans la valeur elle-même, pour ne pas écraser le message du pont.
+    const bas = (TAILLE <= TAILLE_MIN), haut = (TAILLE >= TAILLE_MAX);
+    this.valeur.textContent = String(TAILLE).replace(".", ",") + " px"
+      + (haut ? " (maximum)" : bas ? " (minimum)" : "");
+    const moins = document.getElementById("pan-moins");
+    const plus  = document.getElementById("pan-plus");
+    moins.disabled = bas;  plus.disabled = haut;
+    moins.title = bas ? "Déjà à la plus petite taille (" + TAILLE_MIN + " px)"
+                      : "Réduire le texte";
+    plus.title  = haut ? "Déjà à la plus grande taille (" + TAILLE_MAX + " px)"
+                       : "Agrandir le texte";
     const choisi = __modeChoisi;
     for(const b of this.modes){
       //  « suivre » est le mode que pose lexos-theme-gen quand le terminal
@@ -1430,13 +1490,28 @@ const Reglages = {
       //  juste — cocher « auto » laisserait croire à un choix qui n'a pas été
       //  fait. Cliquer en fait un vrai choix.
       b.setAttribute("aria-checked", String(b.dataset.mode === choisi));
-      b.disabled = !Terminal.backend || this.enCours;
+      //  ⚠ ON NE GRISE PAS PENDANT LA COMMANDE : griser le bouton qui a le
+      //  focus le renvoie à <body> et casse Échap (mesuré). « enCours » suffit
+      //  à ignorer un second clic, et aria-busy le dit aux lecteurs d'écran.
+      b.disabled = !Terminal.backend;
+      b.setAttribute("aria-busy", String(!!this.enCours));
     }
     if(!Terminal.backend)
       this.dire("Indisponible sans le pont local : les couleurs sont posées "
                 + "par « lexos terminal », la commande du système, et cette "
-                + "page ne peut pas la lancer en mode démonstration.");
-    else if(!this.enCours && /^Indisponible sans le pont/.test(this.raison.textContent))
+                + "page ne peut pas la lancer en mode démonstration.", "demo");
+    else if(this.raisonPour === "demo")
+      this.dire("");
+    //  LA RAISON MEURT AVEC SON ÉTAT. Un message qui parlait du mode « jour »
+    //  n'a plus rien à dire quand le mode choisi est devenu « nuit » — même si
+    //  c'est une autre fenêtre qui l'a changé.
+    //  ⚠ SEULS LES MESSAGES DE MODE SONT PÉRIMABLES AINSI. « taille » n'est
+    //  pas un mode : l'effacer au prochain rafraîchissement du thème — qui
+    //  arrive tout seul, toutes les soixante secondes — emporterait
+    //  l'avertissement « la taille n'a pas été enregistrée » avant qu'Alex
+    //  ait eu le temps de le lire. Il reste jusqu'à ce qu'autre chose parle.
+    else if(this.raisonPour && this.TOUCHES_MODE.indexOf(this.raisonPour) !== -1
+            && this.raisonPour !== choisi && !this.enCours)
       this.dire("");
   },
   async poserMode(mode){
@@ -1450,15 +1525,29 @@ const Reglages = {
       //  ON REPEINT AVEC CE QUE LE PONT REND, pas avec un second aller-retour
       //  pendant lequel la fenêtre resterait dans l'ancienne palette.
       if(typeof r.mode_choisi === "string") __modeChoisi = r.mode_choisi;
-      poserTheme(r.theme);
-      this.dire(r.dit || "");
+      //  ═══ ET ON NE RÉPÈTE PAS LE « ✓ » DU SYSTÈME SI RIEN N'A ÉTÉ PEINT ═══
+      //  CE QUE ÇA FAISAIT, MESURÉ dans un vrai Chromium : sur un terminal.env
+      //  périmé — sans LEXOS_TERM_TEXTE ni LEXOS_TERM_PALETTE, le cas décrit
+      //  plus haut comme ARRIVÉ À ALEX — la commande rendait 0, le panneau
+      //  cochait « jour » et affichait « ✓ Terminal de jour — fond crème »,
+      //  et la fenêtre restait ENTIÈREMENT NOIRE. Le mot « ✓ » devant une
+      //  fenêtre qui n'a pas bougé, c'est précisément ce que ce projet
+      //  interdit. poserTheme() rend maintenant s'il a peint, et on le dit.
+      if(poserTheme(r.theme) === false){
+        this.dire((r.dit ? r.dit + " " : "")
+                  + "Mais la fenêtre n'a PAS été repeinte : le thème reçu est "
+                  + "incomplet (il manque " + (__themeManque.join(", ") || "des clefs")
+                  + "). Régénérez-le : lexos terminal " + mode, mode);
+      } else {
+        this.dire(r.dit || "", mode);
+      }
     } else {
       //  LE REFUS EST MONTRÉ TEL QUEL : c'est lui qui porte la raison —
       //  « en root le thème changé serait celui de root », « lexos-terminal
       //  est introuvable dans le PATH »… Inventer un message ici reviendrait
       //  à cacher ce que le système a répondu.
       this.dire((r && r.erreur)
-                || "Le pont n'a pas répondu — la couleur n'a pas changé.");
+                || "Le pont n'a pas répondu — la couleur n'a pas changé.", mode);
     }
     this.rafraichir();
   },
@@ -1844,6 +1933,11 @@ if(typeof globalThis !== "undefined"){
                          //  relisant le code.
                          poserTaille, TAILLE_DEFAUT,
                          get TAILLE(){ return TAILLE; },
+                         //  Les bornes sont ADOPTÉES du pont au démarrage :
+                         //  un banc qui écrirait « 32 » de son côté mesurerait
+                         //  sa propre constante, pas celle qui s'applique.
+                         get TAILLE_MIN(){ return TAILLE_MIN; },
+                         get TAILLE_MAX(){ return TAILLE_MAX; },
                          get ACCUEIL(){ return ACCUEIL; } };
 }
 

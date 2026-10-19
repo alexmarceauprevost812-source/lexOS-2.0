@@ -176,11 +176,26 @@ def _taille_valide(valeur):
     point de banc compare ses valeurs de repli à celles-ci."""
     try:
         t = float(valeur)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
+        #  ═══ OverflowError N'EST NI L'UNE NI L'AUTRE ═══
+        #  MESURÉ : un entier JSON trop grand pour un double — 400 chiffres,
+        #  ou 2**1024 — fait lever « OverflowError: int too large to convert
+        #  to float » à float(), et OverflowError n'hérite ni de TypeError ni
+        #  de ValueError. L'exception traversait lire_reglages() et la route :
+        #  « GET /api/reglages » fermait la prise sans un octet de réponse.
+        #  Et c'était SANS RETOUR : la page ne pouvait plus ni lire ni écrire
+        #  le réglage, donc plus réparer le fichier par où elle l'avait écrit.
+        #  (1e400 s'en sortait déjà, lui : float("inf") puis refusé par les
+        #  bornes. C'est l'ENTIER exact qui lève, pas le flottant infini.)
         return None
     if not (TAILLE_MIN <= t <= TAILLE_MAX):
         return None
     return round(t * 2) / 2
+
+
+#  Un fichier de réglages fait quelques dizaines d'octets. Au-delà de ça, il
+#  n'est pas « gros » : il est faux, ou hostile. On ne le charge pas.
+PLAFOND_REGLAGES = 64 * 1024
 
 
 def lire_reglages():
@@ -188,8 +203,16 @@ def lire_reglages():
     try:
         with open(os.path.join(dossier_conf(), "terminal-pro.json"),
                   encoding="utf-8") as f:
-            brut = json.load(f)
-    except (OSError, UnicodeDecodeError, ValueError):
+            #  ═══ BORNÉ, ET RecursionError ATTRAPÉE ═══
+            #  json.load() sur un fichier sans borne laisse celui qui l'écrit
+            #  choisir notre mémoire ; et « [[[[…]]]] » profondément imbriqué
+            #  lève RecursionError, qui n'hérite ni d'OSError ni de
+            #  ValueError — l'exception traversait donc la route et fermait la
+            #  prise sans réponse, comme l'OverflowError juste au-dessus.
+            #  La règle de ce fichier : une lecture ne doit JAMAIS empêcher le
+            #  terminal de s'ouvrir.
+            brut = json.loads(f.read(PLAFOND_REGLAGES + 1))
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
         return {}
     if not isinstance(brut, dict):
         return {}
@@ -210,7 +233,25 @@ def ecrire_reglages(nouveaux):
     ET SI ON NE PEUT PAS ÉCRIRE, ON LE DIT. La consigne de ce projet est
     explicite : jamais une valeur inventée, jamais un échec silencieux."""
     dossier = dossier_conf()
-    garde = dict(lire_reglages())
+    #  ═══ ON FUSIONNE SUR LE FICHIER, PAS SUR CE QU'ON SAIT EN LIRE ═══
+    #  lire_reglages() ne rend que les clefs qu'il VALIDE — aujourd'hui la
+    #  seule « taille ». Fusionner sur cette vue filtrée détruisait donc toute
+    #  clef que cette version du pont ne connaît pas encore, au premier
+    #  changement de taille. Un réglage écrit par une version PLUS RÉCENTE
+    #  (ou par la main d'Alex) disparaissait sans un mot.
+    #  On repart donc du fichier BRUT, et on n'écrase que ce qu'on change.
+    garde = {}
+    try:
+        with open(os.path.join(dossier, "terminal-pro.json"),
+                  encoding="utf-8") as _f:
+            _brut = json.load(_f)
+        if isinstance(_brut, dict):
+            garde = dict(_brut)
+    except (OSError, UnicodeDecodeError, ValueError):
+        #  Illisible ou absent : on repart de rien, ce qui est le bon
+        #  comportement — mais on ne prétend pas avoir conservé quoi que ce
+        #  soit. Les clefs d'un fichier corrompu sont perdues de toute façon.
+        garde = {}
     garde.update(nouveaux)
     tmp = None
     try:
@@ -289,6 +330,19 @@ def lancer_mode(mode):
         return False, "« %s %s » n'a pas répondu en 25 s" % argv
     except OSError as e:
         return False, "« %s » n'a pas pu être lancé : %s" % (argv[0], e)
+    except UnicodeDecodeError as e:
+        #  ═══ « text=True » DÉCODE EN STRICT ═══
+        #  Un seul octet non-UTF-8 dans la sortie de lexos-terminal lève ici,
+        #  et l'exception traversait la route : le client recevait zéro octet.
+        #  Le chemin d'entrée existe — lexos-terminal SOURCE ses fichiers de
+        #  configuration (« . "$F_HORAIRE" ») et en recrache les valeurs dans
+        #  ses messages. Et c'est le pire moment pour mourir : la commande a
+        #  DÉJÀ changé le thème, donc la page annonçait « la couleur n'a pas
+        #  changé » alors qu'elle venait de changer, et ne repeignait pas.
+        #  On le dit, et on ne prétend pas que rien ne s'est passé.
+        return False, ("« %s %s » a répondu des octets illisibles (%s) — le "
+                       "thème a peut-être changé : rouvrez le menu pour voir"
+                       % (argv[0], argv[1], e.reason))
     if r.returncode != 0:
         #  On REND ce que la commande a dit, tronqué : un échec muet
         #  n'apprendrait rien à celui qui vient de cliquer.
@@ -771,6 +825,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         """Le JSON de la requête, ou None (400 déjà envoyé)."""
         try:
             taille = int(self.headers.get("Content-Length", "0"))
+            #  ═══ UN CONTENT-LENGTH NÉGATIF LIT JUSQU'À EOF ═══
+            #  rfile.read(-1) ne lit pas « rien » : il lit TOUT, donc il
+            #  attend la fermeture de la prise. Un appelant local qui annonce
+            #  « Content-Length: -1 » et ne ferme pas occupe un fil du pont
+            #  sans jamais obtenir de réponse. On traite donc le négatif comme
+            #  ce qu'il est : une requête invalide.
+            #  Et on borne aussi par le haut, pour la même raison qu'au vidage
+            #  (PLAFOND_VIDAGE) : lire ce qu'un inconnu annonce sans limite,
+            #  c'est le laisser choisir notre consommation de mémoire.
+            if taille < 0 or taille > self.PLAFOND_VIDAGE:
+                self._corps_lu = True
+                self.close_connection = True
+                self._json(400, {"ok": False, "erreur": "requête invalide"})
+                return None
             brut = self.rfile.read(taille)
         except ValueError:
             #  Content-Length illisible : rien n'a été lu, et _json videra ce
@@ -1008,7 +1076,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if requete is None:
             return
         mode = requete.get("mode") if isinstance(requete, dict) else None
-        if mode not in _MODES_COMMANDE:
+        #  ═══ « isinstance(mode, str) » D'ABORD, ET CE N'EST PAS DÉCORATIF ═══
+        #  CE QUE ÇA FAISAIT, MESURÉ. « mode not in _MODES_COMMANDE » est une
+        #  appartenance à un DICT, qui exige une clef hachable : avec
+        #  {"mode": []} ou {"mode": {"jour": 1}}, Python lève
+        #  « TypeError: unhashable type: 'list' ». L'exception traverse
+        #  _poser_mode, do_POST et socketserver, qui ferme la prise : le client
+        #  reçoit ZÉRO octet, pas le 400 « mode inconnu » qu'il aurait dû
+        #  recevoir. Reproduit contre le pont réel — « RemoteDisconnected:
+        #  Remote end closed connection without response » pour les trois
+        #  formes non hachables, et un 400 propre pour la chaîne « accent ».
+        #  La page, elle, tombe dans le catch de poste() et affiche son
+        #  message de repli au lieu de la vraie raison.
+        #  lancer_mode() avait bien ce garde ; la ROUTE validait autrement.
+        #  C'est exactement le piège « deux écritures d'une même règle » que ce
+        #  dépôt traque : la route valide désormais comme la mécanique.
+        if not isinstance(mode, str) or mode not in _MODES_COMMANDE:
             return self._json(400, {"ok": False,
                                     "erreur": "mode inconnu (jour, nuit ou auto)"})
         #  ═══ JAMAIS EN ROOT ═══

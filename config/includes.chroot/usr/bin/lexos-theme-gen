@@ -15,15 +15,12 @@ ACCENT_NAME=""
 MODE=""
 TERM_MODE=""
 TARGET="$HOME"
-#  Posé par « --target » seulement : voir CONF_DIR plus bas.
-TARGET_EXPLICITE=""
 
 # --- Arguments ---------------------------------------------------------------
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--target)
 			TARGET="${2:-$HOME}"
-			TARGET_EXPLICITE="oui"
 			shift 2
 			;;
 		--terminal)
@@ -52,32 +49,44 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-#  ═══ LA VARIABLE GAGNE SUR HOME — ICI AUSSI, ENFIN ═══
-#  SEPTIÈME FOIS QUE CETTE FAMILLE FRAPPE, et la première dans le PRODUIT et
-#  non dans un banc. lexos-terminal écrit son mode dans
-#  « ${XDG_CONFIG_HOME:-$HOME/.config}/lexos », terminal-pro.py y lit le
-#  thème, lexfetch aussi — mais ce générateur-ci écrivait dans
-#  « $TARGET/.config/lexos », c'est-à-dire en IGNORANT XDG_CONFIG_HOME.
+#  ═══ XDG_CONFIG_HOME N'EST PAS SUIVI ICI, ET C'EST UN CHOIX ASSUMÉ ═══
+#  CE SCRIPT ÉCRIT SOUS « $TARGET/.config », point. Pas seulement ce dossier-ci :
+#  aussi gtk-3.0 et gtk-4.0 (mkdir plus bas), xfce4/terminal/terminalrc,
+#  xfce4-terminal.xml et flameshot.ini. SIX sorties, un seul toit.
 #
-#  CE QUE ÇA DONNAIT, MESURÉ. Avec XDG_CONFIG_HOME posé ailleurs que
-#  $HOME/.config : « lexos terminal nuit » écrit terminal-mode dans le dossier
-#  de la variable, puis appelle ce script, qui régénère terminal.env dans
-#  $HOME/.config. Les deux fichiers atterrissent dans DEUX dossiers. Le
-#  terminal, qui lit par la variable, ne voit jamais la nouvelle palette — et
-#  la commande annonce « ✓ Terminal de nuit » quand même. Un succès annoncé
-#  sans rien avoir changé : exactement ce que la consigne de ce projet
-#  interdit.
+#  J'AI ESSAYÉ DE LUI FAIRE SUIVRE LA VARIABLE, ET JE L'AI REVENU. Le défaut de
+#  départ est réel : lexos-terminal écrit son mode dans
+#  « ${XDG_CONFIG_HOME:-$HOME/.config}/lexos », terminal-pro.py y lit le thème,
+#  lexfetch et lexos-session aussi. Avec la variable posée ailleurs que
+#  $HOME/.config, ce générateur et ses lecteurs ne regardent donc pas le même
+#  dossier. Mais corriger CETTE ligne seule a fait deux dégâts, tous deux
+#  MESURÉS, et tous deux pires que le défaut :
 #
-#  ⚠ « --target » N'EST PAS CONCERNÉ, et c'est la raison du garde. Les hooks
-#  de construction passent « --target » pour écrire dans le squelette du
-#  chroot ; XDG_CONFIG_HOME, là, désigne le dossier de CELUI QUI CONSTRUIT et
-#  n'a rien à voir avec la cible. La variable ne l'emporte donc QUE quand
-#  personne n'a nommé de cible.
-if [[ -n "$TARGET_EXPLICITE" ]]; then
-	CONF_DIR="$TARGET/.config/lexos"
-else
-	CONF_DIR="${XDG_CONFIG_HOME:-$TARGET/.config}/lexos"
-fi
+#  1. UNE CONFIGURATION EXISTANTE DEVENAIT INVISIBLE, ET LE SUCCÈS ÉTAIT
+#     ANNONCÉ QUAND MÊME. Avec accent=violet et mode=clair déjà écrits dans
+#     $HOME/.config/lexos par la version d'avant, le premier appel sans
+#     argument lisait le dossier de la variable — vide — appliquait ses replis
+#     (orange, sombre, suivre) et imprimait « Thème LexOS Noir généré —
+#     accent : orange ». Le choix de l'utilisateur effacé, sous un message de
+#     réussite. Rien n'était prévu pour reprendre l'ancien dossier.
+#
+#  2. UNE SEULE DES SIX SORTIES SUIVAIT. Mesuré dans le même essai :
+#     terminal.env partait dans le dossier de la variable tandis que
+#     terminalrc et gtk-3.0 restaient sous $HOME/.config. Donc
+#     « lexos terminal jour » repeignait l'invite et le Terminal Pro et
+#     laissait les fenêtres xfce4-terminal dans l'ancienne palette — en
+#     imprimant « ✓ Terminal de jour ». Le même mensonge qu'au départ, déplacé.
+#
+#  LE VRAI CORRECTIF existe et il est écrit : faire suivre la variable aux SIX
+#  sorties, et reprendre l'ancien dossier quand le nouveau est vide. Il touche
+#  les thèmes GTK, xfce4-terminal et flameshot — je ne peux pas l'éprouver sur
+#  la machine d'Alex, et ce n'est pas ce qu'il a demandé. Il part donc en tâche
+#  séparée plutôt qu'en passager de celle-ci.
+#
+#  CE QUE ÇA COÛTE EN ATTENDANT : rien pour qui ne pose pas XDG_CONFIG_HOME,
+#  c'est-à-dire la configuration livrée. Pour qui la pose, le générateur et ses
+#  lecteurs divergent — comme avant ce lot, ni plus ni moins.
+CONF_DIR="$TARGET/.config/lexos"
 [[ -z "$ACCENT_NAME" && -r "$CONF_DIR/accent" ]] && ACCENT_NAME="$(cat "$CONF_DIR/accent")"
 [[ -z "$ACCENT_NAME" ]] && ACCENT_NAME="orange"
 

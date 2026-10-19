@@ -150,6 +150,7 @@ cat > "$ESSAI/page.mjs" <<'JS'
 //  l'environnement (playwright n'est pas au même endroit partout).
 //  « import() » dynamique, lui, accepte une variable.
 import { spawn } from 'node:child_process';
+import fsb from 'node:fs';
 const { chromium } = await import(process.env.LEXOS_PW);
 
 const BACKEND = process.env.LEXOS_BACKEND, WEB = process.env.LEXOS_WEB;
@@ -715,10 +716,113 @@ dit(ennuis.length === 0,
       + 'au défaut (' + avantT + ' → ' + grandi + ' → ' + remis
       + ', défaut ' + defaut + ')');
 
+  //  ═══ ÉCHAP DOIT ENCORE MARCHER APRÈS UN CLIC SUR UN MODE ═══
+  //  CE QUE ÇA FAISAIT, MESURÉ au clavier : rafraichir() grisait les trois
+  //  modes pendant la commande, DONT celui qui avait le focus, et le
+  //  navigateur renvoyait le focus à <body>. L'écouteur d'Échap étant posé sur
+  //  le PANNEAU, il ne se déclenchait plus : le panneau restait ouvert et plus
+  //  aucune touche ne le fermait. Rien ne rendait le focus.
+  //  Ce point vient APRÈS le clic sur un mode, exprès — avant, il passait.
+  const apresClic = await lire();
   await pm.keyboard.press('Escape');
-  await pm.waitForTimeout(250);
-  dit((await lire()).ouvert === false, 'Échap referme le menu');
+  await pm.waitForTimeout(300);
+  const ferme2 = await lire();
+  dit(ferme2.ouvert === false,
+      'Échap referme le menu MÊME après un clic sur un mode (focus après le '
+      + 'clic : ' + apresClic.focus + ')');
+  dit(apresClic.grises.length === 0,
+      '…et les modes ne sont pas grisés pendant la commande — griser le bouton '
+      + 'qui a le focus l\'arrache (grisés : ' + JSON.stringify(apresClic.grises) + ')');
+
+  //  ═══ AUX BORNES DE LA TAILLE, ON DIT QU'ON Y EST ═══
+  //  Les deux boutons étaient grisés EN SILENCE : à 32 px « + » devenait
+  //  inerte, sortait de l'ordre de tabulation, et le bloc de raison juste en
+  //  dessous restait vide. Mesuré :
+  //  {"taille":"32 px","plusOff":true,"raison":"","titreplus":null}.
+  //  La consigne du projet est celle que ce même menu applique aux trois
+  //  modes ; elle vaut aussi pour ces deux boutons.
+  await pm.click('#reglages');
+  await pm.evaluate(() => window.__banc.poserTaille(window.__banc.TAILLE_MAX, false));
+  await pm.waitForTimeout(300);
+  const haut = await pm.evaluate(() => ({
+    t: document.getElementById("pan-taille").textContent,
+    off: document.getElementById("pan-plus").disabled,
+    titre: document.getElementById("pan-plus").title }));
+  await pm.evaluate(() => window.__banc.poserTaille(7, false));
+  await pm.waitForTimeout(300);
+  const bas = await pm.evaluate(() => ({
+    t: document.getElementById("pan-taille").textContent,
+    off: document.getElementById("pan-moins").disabled,
+    titre: document.getElementById("pan-moins").title }));
+  dit(haut.off && /maximum/.test(haut.t) && /plus grande/.test(haut.titre)
+      && bas.off && /minimum/.test(bas.t) && /plus petite/.test(bas.titre),
+      'aux deux bornes, le bouton grisé DIT pourquoi — dans la valeur et dans '
+      + 'son infobulle (« ' + haut.t + ' » / « ' + bas.t + ' »)');
+  await pm.evaluate(() => window.__banc.poserTaille(window.__banc.TAILLE_DEFAUT, false));
   await pm.close();
+}
+
+//  ═══ LE MENU NE RÉPÈTE PAS LE « ✓ » DU SYSTÈME SI RIEN N'A ÉTÉ PEINT ═══
+//  TROUVÉ PAR UNE RELECTURE INDÉPENDANTE, puis reproduit ici. poserMode()
+//  affichait r.dit SANS regarder si poserTheme() avait peint. Or poserTheme()
+//  refuse EN BLOC un thème qui ne porte pas ses cinq clefs — et c'est un cas
+//  RÉEL : « page neuve, générateur ancien », ce que dev-sync produit quand il
+//  ne pose qu'une moitié du dépôt. La commande rend 0, le panneau cochait
+//  « jour » et affichait « ✓ Terminal de jour — fond crème », et la fenêtre
+//  restait ENTIÈREMENT NOIRE. Le mot « ✓ » devant une fenêtre qui n'a pas
+//  bougé, c'est exactement ce que ce projet interdit.
+//
+//  ⚠ ON NE PEUT PAS PÉRIMER LE FICHIER À LA MAIN POUR CE CONTRÔLE : le vrai
+//  lexos-terminal RÉGÉNÈRE terminal.env en entier, donc le clic effacerait la
+//  péremption qu'on vient de poser. Mesuré — la première version de cette
+//  sonde a fait exactement ça et a conclu à tort. On met donc un FAUX
+//  lexos-terminal en tête du PATH : il réussit, imprime sa confirmation, et
+//  écrit un terminal.env incomplet.
+{
+  const faux = process.env.LEXOS_BANC + '/faux-bin';
+  fsb.mkdirSync(faux, {recursive: true});
+  fsb.writeFileSync(faux + '/lexos-terminal',
+    '#!/usr/bin/env bash\n'
+    + 'CONF="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"\n'
+    + 'mkdir -p "$CONF"\n'
+    + 'cat > "$CONF/terminal.env" <<EOF\n'
+    + 'LEXOS_TERM_EFFECTIF=jour\n'
+    + 'LEXOS_TERM_BG=#F7F5F0\n'
+    + 'LEXOS_TERM_FG=#0B6B3A\n'
+    + 'LEXOS_TERM_CURSEUR=#A84007\n'
+    + 'EOF\n'
+    + 'printf jour > "$CONF/terminal-mode"\n'
+    + 'echo "OK Terminal de jour - fond creme."\n', {mode: 0o755});
+  const py2 = py;   // même pont, PATH différent
+  const pr = spawn('python3', ['-c', py2], {env: {...process.env,
+    LEXOS_TERMINAL_PRO_WEB: WEB, PATH: faux + ':' + process.env.LEXOS_BIN + ':' + process.env.PATH}});
+  const [, p2, j2] = await new Promise(r => pr.stdout.on('data', d => {
+    const m = String(d).match(/PRET (\d+) (\S+)/); if (m) r(m);
+  }));
+  const pf = await nav.newPage({viewport: {width: 1200, height: 760}});
+  await pf.goto(`http://127.0.0.1:${p2}/index.html?port=${p2}&jeton=${j2}`);
+  await pf.waitForFunction(() => window.__banc && window.__banc.FLUX.volets.size > 0);
+  await pf.click('#reglages');
+  //  ⚠ ON COMPARE AVANT/APRÈS, PAS À UNE CONSTANTE. Première écriture de ce
+  //  point : « e.noir === "#000000" ». Faux — la page a déjà appliqué, AU
+  //  DÉMARRAGE, le thème complet que les sections précédentes de ce banc ont
+  //  laissé dans la configuration, et il peut être de JOUR. Le point rougissait
+  //  sur du code juste (fond #F7F5F0). Ce qu'on veut dire est « ce clic-ci n'a
+  //  rien repeint », donc on lit le fond AVANT.
+  const noirAvant = await pf.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--noir").trim());
+  await pf.click('[data-mode="jour"]');
+  await pf.waitForTimeout(3000);
+  const e = await pf.evaluate(() => ({
+    raison: document.getElementById("pan-raison").textContent,
+    noir: getComputedStyle(document.documentElement).getPropertyValue("--noir").trim() }));
+  dit(/PAS été repeinte/.test(e.raison) && e.noir === noirAvant,
+      'un thème incomplet : le menu relaie le « ✓ » du système MAIS dit que la '
+      + 'fenêtre n\'a pas été repeinte (fond inchangé : ' + noirAvant + ' → '
+      + e.noir + ')');
+  dit(/LEXOS_TERM_TEXTE/.test(e.raison),
+      '…et il NOMME ce qui manque, pour qu\'on sache quoi régénérer');
+  await pf.close(); pr.kill();
 }
 
 //  ═══ EN DÉMONSTRATION, LE MENU EST GRISÉ *AVEC SA RAISON* ═══
@@ -774,7 +878,7 @@ rendu() {
 }
 
 rendu < <(LEXOS_PW="$PW" LEXOS_CHROME="$CHROME" LEXOS_BACKEND="$BACKEND" LEXOS_WEB="$WEB" \
-	LEXOS_BIN="$RACINE/config/includes.chroot/usr/bin" \
+	LEXOS_BIN="$RACINE/config/includes.chroot/usr/bin" LEXOS_BANC="$ESSAI" \
           timeout 240 "$NODE" "$ESSAI/page.mjs" 2>&1)
 rm -rf "$ESSAI"
 
