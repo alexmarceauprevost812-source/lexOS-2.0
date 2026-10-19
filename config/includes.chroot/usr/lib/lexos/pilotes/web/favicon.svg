@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#050504"/>
+  <!-- carte graphique : circuit, deux ventilateurs, connecteur -->
+  <rect x="64" y="150" width="384" height="200" rx="22" fill="#0d0d0b" stroke="#FF8C1A" stroke-width="12"/>
+  <circle cx="180" cy="250" r="62" fill="none" stroke="#FF8C1A" stroke-width="10"/>
+  <circle cx="332" cy="250" r="62" fill="none" stroke="#FF8C1A" stroke-width="10"/>
+  <g stroke="#FF8C1A" stroke-width="10" stroke-linecap="round">
+    <path d="M180 200 L180 300 M130 250 L230 250"/>
+    <path d="M332 200 L332 300 M282 250 L382 250"/>
+  </g>
+  <path d="M100 350 L100 384 M140 350 L140 384 M180 350 L180 384 M220 350 L220 384" stroke="#FF8C1A" stroke-width="10" stroke-linecap="round"/>
+  <!-- flèche de mise à jour -->
+  <circle cx="404" cy="122" r="64" fill="#FF8C1A"/>
+  <path d="M404 90 L404 150 M378 124 L404 152 L430 124" fill="none" stroke="#050504" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

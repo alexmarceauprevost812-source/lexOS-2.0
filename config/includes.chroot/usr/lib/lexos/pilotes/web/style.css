@@ -1,0 +1,56 @@
+/* LexOS Pilotes — même maison que LexOS Diagnostic : orange sur noir,
+   boutons à écriture blanche. Vert et rouge gardent un SENS (bon / problème). */
+:root {
+  --noir: #050504; --panneau: #0d0d0b; --bordure: #2a2620;
+  --orange: #FF8C1A; --orange-vif: #FFA940; --orange-faible: rgba(255,140,26,.14);
+  --vert: #00AF5F; --vert-faible: rgba(0,175,95,.14);
+  --rouge: #FF4B4B; --rouge-faible: rgba(255,75,75,.14);
+  --texte: #F5F1E8; --texte-doux: #a89f8e; --texte-faible: #6b6459;
+  --police: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+  --rayon: 10px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--noir); color: var(--texte); font-family: var(--police); font-size: 14px; }
+body { background-image: radial-gradient(circle at 50% -10%, rgba(255,140,26,.07), transparent 55%); min-height: 100vh; }
+
+.entete { display: flex; align-items: center; gap: 14px; padding: 18px 24px; border-bottom: 1px solid var(--bordure); }
+.logo { width: 42px; height: 42px; }
+h1 { font-size: 18px; margin: 0; font-weight: 600; }
+.invite { color: var(--orange); }
+.attenue { color: var(--texte-faible); font-weight: 400; }
+
+main { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
+.panneau { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 16px 18px; }
+.panneau.large { grid-column: 1 / -1; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--orange); margin: 0 0 12px; }
+.titre-ligne { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+
+.liste { display: flex; flex-direction: column; gap: 8px; }
+.ligne { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; border: 1px solid var(--bordure); border-radius: 8px; flex-wrap: wrap; }
+.ligne .nom { font-weight: 600; }
+.ligne .doux { color: var(--texte-doux); }
+.puce { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: var(--orange-faible); color: var(--orange-vif); }
+.puce.bon { background: var(--vert-faible); color: var(--vert); }
+.puce.mal { background: var(--rouge-faible); color: var(--rouge); }
+
+.fiche { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; }
+.fiche dt { color: var(--texte-doux); }
+.fiche dd { margin: 0; }
+.bon { color: var(--vert); } .mal { color: var(--rouge); }
+
+.actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+button { font: inherit; color: #FFFFFF; background: var(--orange); border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer; font-weight: 600; }
+button:hover:not(:disabled) { background: var(--orange-vif); }
+button.secondaire { background: transparent; border: 1px solid var(--orange); color: #FFFFFF; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+
+.note { margin-top: 14px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--bordure); line-height: 1.5; }
+.note.attention { border-color: var(--orange); background: var(--orange-faible); }
+.note.bon { border-color: var(--vert); background: var(--vert-faible); color: var(--texte); }
+.note.mal { border-color: var(--rouge); background: var(--rouge-faible); color: var(--texte); }
+.note ul { margin: 6px 0 0; padding-left: 18px; }
+
+pre#journal { margin-top: 12px; max-height: 280px; overflow: auto; background: #000; border: 1px solid var(--bordure); border-radius: 8px; padding: 10px; color: #39FF14; font-size: 12px; white-space: pre-wrap; }
+.pied { text-align: center; color: var(--texte-faible); padding: 10px 24px 28px; font-size: 12px; }
+
+@media (max-width: 520px) { main, .entete { padding-left: 16px; padding-right: 16px; } }

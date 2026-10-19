@@ -1,0 +1,38 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS Pilotes — lanceur de l'appli des mises à jour de la carte graphique
+# =============================================================================
+#  Démarre le serveur local (usr/lib/lexos/pilotes/serveur.py) s'il ne tourne
+#  pas déjà, et ouvre la page dans le navigateur. Deuxième clic sur l'icône :
+#  on rouvre simplement un onglet sur le serveur existant.
+#
+#  L'installation passe par « pkexec lexos-pilotes-maj » : la fenêtre de mot
+#  de passe est celle du système, l'appli elle-même ne tourne jamais en root.
+# =============================================================================
+set -e
+
+MOTEUR_DIR=/usr/lib/lexos/pilotes
+PORT="${LEXOS_PILOTES_PORT:-7862}"
+URL="http://127.0.0.1:${PORT}/"
+
+deja_lance() {
+	command -v curl >/dev/null 2>&1 || return 1
+	code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 1 "$URL" 2>/dev/null || true)
+	[ "$code" = "200" ]
+}
+
+if ! command -v python3 >/dev/null 2>&1; then
+	echo "[lexos-pilotes] python3 introuvable — le paquet python3 (socle) est-il installé ?" >&2
+	exit 1
+fi
+
+if deja_lance; then
+	if command -v xdg-open >/dev/null 2>&1; then
+		xdg-open "$URL" >/dev/null 2>&1 &
+	else
+		echo "[lexos-pilotes] déjà lancé : $URL"
+	fi
+	exit 0
+fi
+
+exec python3 "$MOTEUR_DIR/serveur.py" --port "$PORT"

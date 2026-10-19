@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=LexOS Pilotes
+Name[fr]=LexOS Pilotes
+Comment=Mettre à jour le pilote de la carte graphique, Mesa et les micrologiciels
+Comment[fr]=Mettre à jour le pilote de la carte graphique, Mesa et les micrologiciels
+Exec=/usr/bin/lexos-pilotes
+Icon=lexos-pilotes
+Terminal=false
+Categories=System;Settings;HardwareSettings;
+Keywords=pilote;driver;nvidia;amd;intel;mesa;carte;graphique;gpu;mise;jour;update;rtx;
+StartupNotify=true

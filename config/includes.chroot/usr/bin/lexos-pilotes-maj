@@ -1,0 +1,15 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-pilotes-maj — l'aide root de LexOS Pilotes (lancée par pkexec)
+# =============================================================================
+#  Usage : pkexec lexos-pilotes-maj verifier|installer
+#
+#  Ne met à jour QUE les paquets graphiques (pilote NVIDIA, Mesa,
+#  micrologiciels des cartes) ; la liste est recalculée en root, elle ne
+#  vient jamais de l'interface. Voir usr/lib/lexos/pilotes/maj.py.
+#
+#  « python3 -I » : en root, on n'importe rien depuis le dossier courant ni
+#  depuis PYTHONPATH — seulement la bibliothèque standard et nos fichiers de
+#  /usr/lib/lexos/pilotes, qui appartiennent à root.
+# =============================================================================
+exec /usr/bin/python3 -I /usr/lib/lexos/pilotes/maj.py "$@"

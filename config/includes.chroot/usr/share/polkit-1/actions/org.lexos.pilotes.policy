@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+<policyconfig>
+  <vendor>LexOS</vendor>
+  <vendor_url>https://github.com/alexmarceauprevost812-source/lexOS-2.0</vendor_url>
+
+  <action id="org.lexos.pilotes.maj">
+    <description>Mettre à jour les pilotes de la carte graphique</description>
+    <description xml:lang="en">Update graphics card drivers</description>
+    <message>LexOS Pilotes doit installer les nouvelles versions du pilote graphique, de Mesa et des micrologiciels.</message>
+    <message xml:lang="en">LexOS Pilotes needs to install new graphics driver, Mesa and firmware versions.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/lexos-pilotes-maj</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>

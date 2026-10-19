@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LexOS Pilotes</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="entete">
+  <img class="logo" src="favicon.svg" alt="">
+  <h1><span class="invite">❯</span> lexos-pilotes <span class="attenue">— carte graphique</span></h1>
+</header>
+
+<main>
+  <section class="panneau">
+    <h2>Ta carte</h2>
+    <div id="cartes" class="liste">Chargement…</div>
+  </section>
+
+  <section class="panneau">
+    <h2>Pilote en service</h2>
+    <dl id="pilote" class="fiche"></dl>
+    <p id="alerte-branche" class="note attention" hidden></p>
+  </section>
+
+  <section class="panneau large">
+    <div class="titre-ligne">
+      <h2>Mises à jour</h2>
+      <span id="verifie" class="attenue"></span>
+    </div>
+    <div id="maj" class="liste"></div>
+    <div class="actions">
+      <button id="btn-verifier" class="secondaire">Vérifier maintenant</button>
+      <button id="btn-installer" disabled>Mettre à jour les pilotes</button>
+    </div>
+    <div id="resultat" class="note" hidden></div>
+    <pre id="journal" hidden></pre>
+  </section>
+</main>
+
+<footer class="pied">
+  Seuls le pilote graphique, Mesa et les micrologiciels des cartes sont touchés.
+  L'épingle NVIDIA de LexOS est toujours respectée.
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
