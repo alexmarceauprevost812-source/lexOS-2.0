@@ -184,6 +184,15 @@ else
 	non "le journal n'est plus tenu : remettre la cloche ne ramènerait rien"
 fi
 
+#  LES BULLES APPARAISSENT EN HAUT AU CENTRE (demande d'Alex, 2026-10-19).
+#  4 = XFCE_NOTIFY_POS_TOP_CENTER. Le fichier a longtemps porté « 1 » en
+#  croyant dire haut-droit : 1 est BAS-GAUCHE dans xfce4-notifyd.
+if grep -q 'name="notify-location" type="uint" value="4"' "$NOTIFYD"; then
+	ok "les notifications apparaissent en haut au centre (notify-location = 4)"
+else
+	non "notify-location n'est plus 4 : les bulles ne sortent plus en haut au centre"
+fi
+
 # =============================================================================
 titre "4. LE SON QUITTE LA BARRE — mais les touches du clavier, JAMAIS"
 # =============================================================================

@@ -15,10 +15,24 @@
         écraserait l'arrondi qu'on vient de poser. -->
   <property name="theme" type="string" value="Default"/>
 
-  <!--  1 = haut-droit. C'est là que la démo les montre, et c'est le coin
-        opposé au logo Applications : une notification ne doit jamais tomber
-        sur le bouton qu'on est en train de viser. -->
-  <property name="notify-location" type="uint" value="1"/>
+  <!--  4 = EN HAUT AU CENTRE, juste sous l'horloge. Demande d'Alex
+        (2026-10-19) : « un espace pour les notifications au centre de
+        l'écran, en haut ». C'est aussi là que se clique l'heure pour relire
+        les notifications passées (lexos-volet agenda) : elles apparaissent
+        et se retrouvent au même endroit.
+
+        ⚠ L'ANCIENNE VALEUR ÉTAIT FAUSSE, ET LE COMMENTAIRE MENTAIT.
+        Ce fichier disait « 1 = haut-droit ». Dans les sources de
+        xfce4-notifyd (common/xfce-notify-common.h, XfceNotifyPosition) :
+          0 haut-gauche · 1 BAS-GAUCHE · 2 haut-droit · 3 bas-droit
+          4 haut-centre · 5 bas-centre
+        Les bulles sortaient donc en bas à gauche — la capture d'écran
+        d'Alex le montre (« Capture d'écran » posée en bas à gauche).
+
+        Les versions récentes rangent ce réglage sous forme de texte
+        (« top-center ») ; un entier comme celui-ci est converti tout seul
+        au démarrage du démon (xfce_notify_migrate_enum_setting). -->
+  <property name="notify-location" type="uint" value="4"/>
 
   <!--  Huit secondes. Assez pour lire deux lignes sans se presser, assez peu
         pour ne pas rester en travers d'un film. -->
