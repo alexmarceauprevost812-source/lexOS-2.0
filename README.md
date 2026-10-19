@@ -9,6 +9,8 @@
 
 Basée sur Debian · Bureau XFCE façon Ubuntu · Licence MIT
 
+Créé par **Alex Marceau Prevost** — Normandin, Québec
+
 [**Site web et téléchargement**](website/index.html) — présentation, cinq
 saveurs, configuration requise, guide d'installation complet.
 
@@ -737,5 +739,7 @@ LexOS n'est ni affilié à, ni approuvé par le projet Debian.
 <div align="center">
 
 **TI·LEX·AL** — LexOS 2.0.0 « Nomad »
+
+Signé : **Alex Marceau Prevost**
 
 </div>
