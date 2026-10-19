@@ -74,7 +74,6 @@ import pty
 import re
 import secrets
 import shlex
-import shutil
 import signal
 import socket
 import struct
@@ -86,6 +85,17 @@ import threading
 import time
 import urllib.parse
 from pathlib import Path
+
+#  ═══ LES OUTILS DU SYSTÈME, DEMANDÉS UNE FOIS ═══
+#  « shutil.which » balaie le PATH répertoire par répertoire, et ce dépôt a un
+#  moteur pour ça : moteur/outils.py garde la réponse trente secondes et
+#  l'oublie sur demande. Un banc COMPTE les balayages et interdit l'appel
+#  direct dans usr/lib/lexos/ — il m'a pris la main dans le sac, et il a
+#  raison : deux mémoires pour la même question finissent par se contredire.
+#  « chemin() » et non « commande_existe() » : on a besoin du CHEMIN, et
+#  outils.py dit en toutes lettres qu'il le rend pour cette raison.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from moteur import outils as _outils  # noqa: E402
 
 APP_NAME = "LexOS Pro Terminal"
 WEB_DIR = Path(os.environ.get("LEXOS_TERMINAL_PRO_WEB",
@@ -269,7 +279,7 @@ def lancer_mode(mode):
         return False, "mode inconnu (jour, nuit ou auto)"
     #  « Indisponible » ET SA RAISON : la consigne du projet interdit de
     #  présenter une action comme faite quand l'outil n'est pas là.
-    chemin = shutil.which(argv[0])
+    chemin = _outils.chemin(argv[0])
     if chemin is None:
         return False, "Indisponible : « %s » est introuvable dans le PATH" % argv[0]
     try:

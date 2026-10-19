@@ -165,7 +165,18 @@ time.sleep(240)`;
 //  numéros de session. Le contrôle de la grille rattrapée ouvre donc une
 //  seconde page contre un SECOND pont, à lui.
 const pont = async () => {
-  const pr = spawn('python3', ['-c', py], {env: {...process.env, LEXOS_TERMINAL_PRO_WEB: WEB}});
+  //  ⚠ LE PATH DU DÉPÔT EST OBLIGATOIRE. Le menu de réglages lance
+  //  « lexos-terminal jour|nuit|auto », qui n'est pas INSTALLÉ sur le coureur :
+  //  il est DANS L'ARBRE. Sans cette ligne, le pont répond « Indisponible :
+  //  lexos-terminal est introuvable dans le PATH » — le bon message, pour la
+  //  mauvaise raison — et le point du menu rougit sur du code juste. C'est
+  //  exactement ce qui est arrivé en CI : « coché ["auto"], fond #000000 ».
+  //  ⚠ ET LE COUREUR N'EST PAS ROOT, contrairement à mon conteneur : c'est
+  //  donc la branche du SUCCÈS qui s'exécute là-bas, pas celle du refus. Un
+  //  banc qui ne tourne qu'en root n'aurait jamais vu ce défaut.
+  const pr = spawn('python3', ['-c', py], {env: {...process.env,
+    LEXOS_TERMINAL_PRO_WEB: WEB,
+    PATH: process.env.LEXOS_BIN + ':' + process.env.PATH}});
   const [, p, j] = await new Promise(r => pr.stdout.on('data', d => {
     const m = String(d).match(/PRET (\d+) (\S+)/); if (m) r(m);
   }));
@@ -763,6 +774,7 @@ rendu() {
 }
 
 rendu < <(LEXOS_PW="$PW" LEXOS_CHROME="$CHROME" LEXOS_BACKEND="$BACKEND" LEXOS_WEB="$WEB" \
+	LEXOS_BIN="$RACINE/config/includes.chroot/usr/bin" \
           timeout 240 "$NODE" "$ESSAI/page.mjs" 2>&1)
 rm -rf "$ESSAI"
 

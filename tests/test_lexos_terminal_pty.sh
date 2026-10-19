@@ -530,12 +530,20 @@ dit(tp.lire_mode_choisi() == "auto"
 #  on dit pourquoi — jamais une valeur inventée, jamais un échec muet. On
 #  retire donc « lexos-terminal » du PATH et on regarde ce qui sort.
 os.environ["PATH"] = "/nulle/part"
+#  ⚠ ET IL FAUT LE FAIRE OUBLIER, sinon ce point est INSTABLE. Le pont passe
+#  par moteur/outils.chemin(), qui garde sa réponse trente secondes : les
+#  appels ci-dessus viennent de mettre « lexos-terminal » en mémoire, donc
+#  sans cet oubli le pont le trouverait encore malgré le PATH vide, et ce
+#  point passerait ou échouerait selon l'HEURE. Mesuré en l'oubliant et en ne
+#  l'oubliant pas.
+tp._outils.oublier()
 __ok, __dit = tp.lancer_mode("nuit")
 dit(not __ok and "Indisponible" in __dit and "lexos-terminal" in __dit
     and "PATH" in __dit,
     "sans « lexos-terminal » dans le PATH : « Indisponible » AVEC sa raison, "
     "pas un succès inventé (« %s »)" % (__dit,))
 os.environ["PATH"] = __BIN + os.pathsep + __PATH_GARDE
+tp._outils.oublier()
 
 #  ═══ LA ROUTE : LES DEUX SERRURES, ET LA POLITIQUE ═══
 def mode_route(corps, entetes=BON):
