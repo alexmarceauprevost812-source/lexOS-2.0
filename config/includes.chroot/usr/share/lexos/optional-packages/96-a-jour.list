@@ -15,9 +15,14 @@
 #  Ici ils sont installés À CÔTÉ, sans remplacer « ls », « cp »… : les
 #  scripts de LexOS restent sur les GNU éprouvés, et on peut essayer les
 #  versions Rust à la main.
+#  Vérifié le 2026-10-19 dans le README.Debian de stable (trixie) : les deux
+#  s'installent À CÔTÉ, sans conflit avec coreutils ni sudo.
+#    · rust-coreutils -> /usr/lib/cargo/bin/coreutils/
+#    · sudo-rs        -> /usr/lib/cargo/bin/ + liens /usr/bin/sudo-rs,
+#                        /usr/bin/su-rs, /usr/bin/visudo-rs
+#  « sudo » reste le sudo classique ; « sudo-rs » lance la version Rust.
 rust-coreutils
-#  PAS sudo-rs : selon la version, il peut entrer en conflit avec sudo, et
-#  apt -y retirerait sudo pour l'installer. Trop risqué sans l'avoir vu.
+sudo-rs
 
 # --- Fiche système moderne ---------------------------------------------------
 #  Le successeur de neofetch. N'enlève rien à lexfetch, qui reste la fiche
