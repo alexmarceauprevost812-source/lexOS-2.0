@@ -1020,6 +1020,19 @@ if (T.poserTaille) {
 const volet = { id: 'v1', term: { options: { theme: { marqueur: 'ANCIEN' } } } };
 T.FLUX.volets.set('v1', volet);
 REPONSE.rep = { ok: true, json: async () => ({ theme: env }) };
+//  ═══ LA LISTE DE ROUTES REPART DE ZÉRO ICI ═══
+//  Le point 4 plus bas exige « /api/theme, et rien d'autre ». Son intention
+//  est celle-ci : APPLIQUER LE THÈME ne doit interroger que cette route — un
+//  ancien défaut faisait partir une commande de démarrage en plus. Mais il
+//  lisait la liste ACCUMULÉE depuis le début de ce bac à sable, qui exerce
+//  poserTaille() quatre-vingts fois juste au-dessus. Tant que la taille ne
+//  partait au pont qu'après 400 ms, rien n'y paraissait ; depuis que la
+//  première valeur d'un geste part TOUT DE SUITE, « /api/reglages » s'y
+//  trouvait et le point rougissait sur du code juste — mesuré : « routes
+//  demandées /api/reglages,/api/theme ».
+//  On resserre donc la fenêtre sur la fonction éprouvée, au lieu d'élargir
+//  ce qu'on accepte : le point continue d'exiger UNE SEULE route.
+REPONSE.vues.length = 0;
 T.appliquerTheme().then(async () => {
   const th = volet.term.options.theme;
   console.log('routes=' + REPONSE.vues.join(','));

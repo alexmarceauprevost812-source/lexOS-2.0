@@ -350,6 +350,18 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-chr
 #backend-ind{padding:0 6px;border-radius:3px;font-weight:600}
 #backend-ind.branche{color:var(--vert-chrome)}
 #backend-ind.absent{color:var(--rouge)}
+/*  ═══ TROISIÈME ÉTAT, ET IL MANQUAIT ═══
+    « branche » dit que le pont est là, « absent » qu'il n'y en a pas. Il n'y
+    avait RIEN pour « le pont est là, mais il n'a pas répondu sur sa
+    configuration » — et c'est pourtant un état réel, mesuré : la fenêtre
+    gardait la palette livrée pendant que cette barre affirmait « vrai
+    terminal » en vert, et la raison dormait dans le menu FERMÉ (mesuré :
+    panneau caché, raison dedans, « la raison est-elle dans le texte VISIBLE
+    de la page ? NON »). Une raison qu'il faut aller chercher d'un clic sur ⚙
+    n'est pas une raison affichée.
+    --accent-chrome et pas --orange : c'est un jeton FIXE du chrome, que
+    poserTheme() ne touche pas — le piège documenté en tête de :root.  */
+#backend-ind.partiel{color:var(--accent-chrome)}
 @media (max-width:820px){#etat .cacher-mobile{display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -524,15 +536,77 @@ const XFit  = window.FitAddon && window.FitAddon.FitAddon;
 
 const ENTETES = { "Content-Type": "application/json", "X-Lexos-Jeton": _jeton || "" };
 
+//  ═══ UNE LECTURE DE CONFIGURATION NE RETIENT JAMAIS LE TERMINAL ═══
+//  CE QUE ÇA FAISAIT, ET C'EST MESURÉ, pas déduit. Le démarrage attendait
+//  /api/theme et /api/reglages avant de construire le premier volet. Les deux
+//  fetch n'avaient AUCUN délai : une requête qui ne se règle jamais — ni
+//  succès, ni échec — laissait « Promise.allSettled » en suspens pour
+//  toujours, donc « Terminal.init() » n'était jamais appelé.
+//
+//  Reproduit DANS LE PONT RÉEL, sans rien simuler : « terminal.env » posé en
+//  TUBE NOMMÉ sans écrivain. « os.path.exists() » dit oui, « open() » ne rend
+//  jamais la main, /api/theme ne répond pas. Dix secondes plus tard :
+//
+//      témoin  (terminal.env normal) : 1 volet .xterm
+//      bloqué  (tube nommé)          : 0 volet .xterm
+//      et l'indicateur disait quand même « vrai terminal — pty sur 127.0.0.1:36585 »
+//
+//  La dernière ligne est le vrai scandale : la fenêtre AFFIRMAIT un terminal
+//  qu'elle n'avait pas. C'est la règle de ce dépôt — « jamais une valeur
+//  inventée » — violée sur la seule chose que le produit existe pour montrer.
+//  Sur origin/main, « Terminal.init() » était appelé SANS condition : cette
+//  mise sous condition est une régression de ce lot, pas un défaut hérité.
+//
+//  DEUX CEINTURES, parce qu'un délai ne couvre que ce qu'il connaît :
+//  1. chaque lecture s'interrompt d'elle-même au bout de DELAI_CONF ;
+//  2. une veille ouvre le terminal de toute façon, même si le blocage était
+//     ailleurs que dans le fetch (demain, dans une fonction qu'on n'a pas
+//     encore écrite). Le terminal ne doit DÉPENDRE de rien.
+//
+//  POURQUOI 2 s ET PAS 200 ms : ces deux lectures doivent PRÉCÉDER le
+//  « new XTerm » — « fontSize » et le thème y sont lus une seule fois, et les
+//  appliquer après fait sauter la première fenêtre sous les yeux d'Alex
+//  (c'est écrit plus bas, à sa place). 2 s sur une boucle locale qui lit un
+//  petit fichier, c'est mille fois le temps mesuré ; au-delà, ce n'est plus
+//  « lent », c'est « cassé ». Et interrompre ne coûte rien de définitif : le
+//  thème est relu toutes les minutes, et la taille une fois de plus ci-dessous.
+const DELAI_CONF = 2000;
+//  AbortSignal.timeout existe depuis Chromium 103. Sur un moteur plus ancien
+//  on rend « undefined » — fetch l'ignore — et c'est la veille qui couvre.
+const signalConf = () => { try{ return AbortSignal.timeout(DELAI_CONF); }
+                           catch(e){ return undefined; } };
+//  Ce que les lectures n'ont pas pu lire, pour le DIRE au lieu de le taire.
+//  DES CLEFS, PAS DES PHRASES : le message nomme ce qui a manqué ET la
+//  conséquence qui en découle, et les deux doivent venir de la MÊME source.
+//  Ma première version disait « la palette et la taille livrées » même quand
+//  seul le thème avait échoué — mesuré : le tube nommé ne bloque que
+//  /api/theme, la taille était bien lue, et le message l'annonçait perdue.
+//  Une valeur inventée dans le message qui existe pour ne pas en inventer.
+let __confExpiree = [];
+const CONF_NOM   = { theme: "le thème",          taille: "la taille du texte" };
+const CONF_SUITE = { theme: "la palette livrée", taille: "la taille de texte livrée" };
+
 //  « ~ » veut dire « le dossier personnel, décidé par le pont ». La page ne
 //  demande plus $HOME au démarrage : c'est le shell qui sait où il est, et
 //  c'est lui qui l'écrit dans son invite. Une seule source de vérité.
 let ACCUEIL = "~";
 
-async function poste(route, corps){
+//  « persistant » : « keepalive », c'est-à-dire « cette requête a le droit de
+//  survivre au document ». Un fetch ordinaire est ANNULÉ quand la page est
+//  détruite ; celui-ci part quand même. On ne le met pas partout :
+//  · OUI pour le réglage de taille, qui doit atterrir même si la fenêtre se
+//    ferme dans la même seconde — c'est tout l'objet du vidage plus bas ;
+//  · NON pour les frappes et les redimensionnements, qui n'ont aucun sens une
+//    fois le volet mort, et qui mangeraient le budget de 64 kio que le
+//    navigateur réserve aux requêtes persistantes en vol.
+//  UN SEUL ENDROIT POSE LE DRAPEAU, pour que le vidage et l'envoi normal ne
+//  puissent pas finir par ne plus faire la même requête.
+async function poste(route, corps, persistant){
   if(!_port || !_jeton) return null;
   try{
-    const r = await fetch(route, {method:"POST", headers:ENTETES, body:JSON.stringify(corps)});
+    const r = await fetch(route, {method:"POST", headers:ENTETES,
+                                  body:JSON.stringify(corps),
+                                  keepalive: !!persistant});
     return await r.json();
   }catch(e){ return null; }
 }
@@ -964,12 +1038,19 @@ async function appliquerTheme(){
   if(!(_port && _jeton)) return;          // en démo, il n'y a pas de pont
   let t;
   try{
-    const r = await fetch("/api/theme", { headers: ENTETES });
+    const r = await fetch("/api/theme",
+                          { headers: ENTETES, signal: signalConf() });
     if(!r.ok) return;
     const j = await r.json();
     t = j && j.theme;
     if(j && typeof j.mode_choisi === "string") __modeChoisi = j.mode_choisi;
-  }catch(e){ return; }
+  }catch(e){
+    //  INTERROMPU PAR LE DÉLAI, ce n'est pas la même chose qu'un pont absent :
+    //  on le retient pour que le démarrage puisse le dire.
+    if(e && e.name === "TimeoutError" && __confExpiree.indexOf("theme") < 0)
+      __confExpiree.push("theme");
+    return;
+  }
   return poserTheme(t);
 }
 
@@ -1105,6 +1186,7 @@ function poserTheme(t){
 //  Mieux vaudrait que le pont surveille le fichier et le dise sur le flux
 //  qu'il tient déjà ; c'est un changement de protocole, pas une ligne, et le
 //  sondage ferme le trou en attendant.
+let __indSain = "";
 let __themePose = null, __themeBrut = null, __themeManque = [];
 //  ⚠ LE MODE CHOISI NE VIENT PAS DU THÈME, et c'est une erreur que j'ai faite
 //  avant de la mesurer. Après « lexos terminal auto », terminal.env porte
@@ -1171,22 +1253,27 @@ let TAILLE = tailleLue();
 //  requête revienne, donc pas de clignotement — et il est le seul recours en
 //  mode démonstration, quand il n'y a pas de pont du tout.
 let __tailleEnvoyee = null, __tailleMinuteur = null;
-function rangerTaille(){
-  //  ON NE POSTE PAS À CHAQUE CRAN DE MOLETTE. Une roulette lancée produit
-  //  des dizaines d'événements ; on écrit le fichier une fois, à la fin.
-  if(__tailleMinuteur) clearTimeout(__tailleMinuteur);
-  __tailleMinuteur = setTimeout(async () => {
-    __tailleMinuteur = null;
-    if(TAILLE === __tailleEnvoyee) return;
-    const vise = TAILLE;
-    const r = await poste("/api/reglages", { taille: vise });
-    if(r && r.ok){ __tailleEnvoyee = vise; return; }
-    //  ÉCHEC : on le DIT. La taille reste à l'écran — le geste d'Alex n'est
-    //  pas annulé sous ses yeux — mais il doit savoir que ça ne tiendra pas.
-    const pourquoi = "La taille est bien à l'écran, mais elle n'a PAS été "
-                   + "enregistrée" + ((r && r.erreur) ? " — " + r.erreur : "")
-                   + " : elle reviendra au défaut au prochain démarrage.";
-    console.warn("[lexos] " + pourquoi);
+
+//  ═══ UN SEUL ENVOYEUR, LU PAR LES DEUX BORDS DU GESTE ═══
+//  « rapporter » dit si cet envoi a le DROIT de se plaindre. Le bord montant
+//  ne l'a pas : il part au premier cran d'une roulette qu'Alex est encore en
+//  train de tourner, et un échec passager afficherait « pas enregistrée »
+//  pendant que le bord descendant, lui, réussit. C'est la fin du geste qui
+//  fait foi.
+async function envoyerTaille(vise, rapporter){
+  //  PERSISTANT : le bord descendant tire 400 ms après le dernier cran, et la
+  //  fenêtre peut se fermer pendant que la requête est en vol. Sans ce
+  //  drapeau, elle mourrait là, et le bord montant n'aurait sauvé que la
+  //  PREMIÈRE valeur du geste.
+  const r = await poste("/api/reglages", { taille: vise }, true);
+  if(r && r.ok){ __tailleEnvoyee = vise; return true; }
+  if(!rapporter) return false;
+  //  ÉCHEC : on le DIT. La taille reste à l'écran — le geste d'Alex n'est
+  //  pas annulé sous ses yeux — mais il doit savoir que ça ne tiendra pas.
+  const pourquoi = "La taille est bien à l'écran, mais elle n'a PAS été "
+                 + "enregistrée" + ((r && r.erreur) ? " — " + r.erreur : "")
+                 + " : elle reviendra au défaut au prochain démarrage.";
+  console.warn("[lexos] " + pourquoi);
     //  ═══ ET DANS LE PANNEAU, PAS SEULEMENT DANS LA CONSOLE ═══
     //  Le menu affiche la taille comme une valeur ACQUISE et porte un bloc de
     //  raison juste en dessous ; l'échec n'allait que dans console.warn.
@@ -1196,9 +1283,104 @@ function rangerTaille(){
     //  pris, et l'apprenait au redémarrage suivant.
     //  « taille » et non un mode : ce message ne doit pas être balayé par le
     //  prochain rafraîchissement de mode, et il ne doit pas en balayer un.
-    if(Reglages.pret) Reglages.dire(pourquoi, "taille");
+  if(Reglages.pret) Reglages.dire(pourquoi, "taille");
+  return false;
+}
+
+//  ═══ LES DEUX BORDS DU GESTE, ET POURQUOI IL EN FAUT DEUX ═══
+//  CE QUE FAISAIT LE SEUL BORD DESCENDANT, et c'est MESURÉ avec le vrai pont
+//  et un vrai Chromium : taille posée à 17 px, puis la fenêtre fermée 120 ms
+//  après le geste.
+//
+//      attend 1,2 s avant de fermer : terminal-pro.json dit 17   — retenu
+//      ferme 120 ms après le geste  : AUCUN fichier              — PERDU
+//      fenêtre entière TUÉE à 120 ms: AUCUN fichier              — PERDU
+//
+//  Et le miroir localStorage ne rattrape rien : le pont se lie au port 0,
+//  l'origine change à chaque lancement, la clé est donc nulle au suivant
+//  (c'est écrit vingt lignes plus haut, avec les deux ports mesurés).
+//  Autrement dit : Alex grossit le texte, ferme, relance, et le texte est
+//  redevenu petit — le défaut même que ce lot existe pour supprimer,
+//  réintroduit par le minuteur qui sert à ne pas écrire à chaque cran.
+//
+//  LE VIDAGE À LA FERMETURE (plus bas) couvre la fermeture PROPRE ; mesuré,
+//  il fait passer le deuxième cas. Il ne couvre PAS la fenêtre tuée : là,
+//  aucun écouteur ne tire. Alors on arrête de courir après la destruction et
+//  on envoie la PREMIÈRE valeur tout de suite :
+//
+//    - bord montant : au premier cran, s'il n'y a rien en vol déjà ;
+//    - bord descendant : la valeur FINALE, 400 ms après le dernier cran.
+//
+//  Une roulette lancée coûte donc DEUX écritures au lieu de dizaines — la
+//  raison d'être du minuteur est intacte — et une fenêtre tuée en pleine
+//  roulette garde la première valeur au lieu de tout perdre : le texte reste
+//  GROS, il n'est simplement pas à la dernière taille. C'est la bonne façon
+//  d'échouer pour quelqu'un qui a grossi le texte parce qu'il n'y voyait rien.
+function rangerTaille(){
+  //  ON NE POSTE PAS À CHAQUE CRAN DE MOLETTE : le bord montant ne part que
+  //  si aucun geste n'est déjà en cours, donc une fois par geste.
+  if(!__tailleMinuteur && TAILLE !== __tailleEnvoyee) envoyerTaille(TAILLE, false);
+  if(__tailleMinuteur) clearTimeout(__tailleMinuteur);
+  __tailleMinuteur = setTimeout(() => {
+    __tailleMinuteur = null;
+    //  __tailleEnvoyee n'est posé qu'au SUCCÈS : si le bord montant a échoué,
+    //  ou n'est pas encore revenu, celui-ci repart — et c'est voulu.
+    if(TAILLE === __tailleEnvoyee) return;
+    envoyerTaille(TAILLE, true);
   }, 400);
 }
+
+//  ═══ ET LE MINUTEUR NE DOIT PAS EMPORTER LA DERNIÈRE VALEUR ═══
+//  Le bord montant ci-dessus sauve la PREMIÈRE valeur du geste ; celui-ci
+//  essaie de sauver la DERNIÈRE quand la fenêtre se ferme avant la fin des
+//  400 ms. Mesuré : sans lui, « ferme 120 ms après le geste » ne laissait
+//  aucun fichier ; avec lui, terminal-pro.json dit 17.
+//
+//  ⚠ ET VOICI CE QU'IL NE FAIT PAS — j'avais écrit ici qu'il « couvre la
+//  fermeture PROPRE, mesuré », et c'était FAUX. Ce mesuré venait d'un pont qui
+//  survit à la page et d'un Chromium autonome ; le produit n'est ni l'un ni
+//  l'autre. Deux limites, mesurées toutes les deux :
+//    · quand le MOTEUR s'en va avec son hôte, l'écouteur ne tire pas du tout
+//      (2 essais sur 2, aucune trace). C'est le bord montant qui sauve ce
+//      cas-là, pas celui-ci ;
+//    · et quand le pont s'arrête dans le même souffle que la fenêtre — ce que
+//      fait main() — la requête part mais n'est jamais acceptée : le fichier
+//      gardait 17 et perdait le 20. D'où la grâce bornée dans main(), qui est
+//      la pièce qui rend CE vidage capable d'atterrir dans la vraie coquille.
+//  Il attrape donc ce qu'il peut ; il n'est pas une garantie, et le dire
+//  autrement serait exactement le genre d'affirmation que ce dépôt refuse.
+//
+//  « keepalive » EST LE POINT DUR : un fetch ordinaire lancé depuis pagehide
+//  est annulé avec le document. Avec keepalive, le navigateur le laisse
+//  partir et vivre sa vie — c'est fait pour ça, et notre corps fait trente
+//  octets, loin des 64 kio permis. sendBeacon() aurait été plus court et NE
+//  MARCHE PAS ICI : il ne sait pas poser d'en-tête, donc pas « X-Lexos-Jeton »,
+//  et le pont le refuserait — la serrure ferait son travail contre nous.
+//
+//  DEUX ÉCOUTEURS, parce qu'aucun des deux n'est garanti seul : « pagehide »
+//  est celui de la fermeture, et « visibilitychange » vers caché est celui que
+//  le cycle de vie des pages donne pour le plus fiable (une fenêtre peut être
+//  tuée sans jamais rendre pagehide). Vider tôt ne coûte rien : on ne poste
+//  que s'il y a vraiment un réglage en attente.
+function viderTaille(){
+  if(!__tailleMinuteur) return;
+  clearTimeout(__tailleMinuteur); __tailleMinuteur = null;
+  if(TAILLE === __tailleEnvoyee || !_port || !_jeton) return;
+  const vise = TAILLE;
+  //  LA MÊME REQUÊTE QUE L'ENVOI NORMAL, par le même endroit. Ma première
+  //  version refaisait le fetch à la main ici : deux écritures d'une même
+  //  chose, dont l'une aurait fini par ne plus porter les bonnes en-têtes.
+  //  On n'attend pas la réponse — la page n'existera plus pour la lire — donc
+  //  pas de « await », et « rapporter » serait absurde : il n'y a plus
+  //  personne à qui dire que ça a raté. On note la valeur comme envoyée ; le
+  //  prochain démarrage lira ce que le pont a VRAIMENT.
+  poste("/api/reglages", { taille: vise }, true);
+  __tailleEnvoyee = vise;
+}
+document.addEventListener("visibilitychange",
+                          () => { if(document.hidden) viderTaille(); });
+window.addEventListener("pagehide", viderTaille);
+if(typeof globalThis !== "undefined") globalThis.__viderTaille = viderTaille;
 
 //  Au démarrage, le pont a le dernier mot : il a le fichier, et il a les
 //  BORNES. La page ne les réécrit pas de son côté — deux écritures d'une même
@@ -1207,10 +1389,15 @@ async function adopterReglages(){
   if(!(_port && _jeton)) return false;    // en démo, il n'y a pas de pont
   let j;
   try{
-    const r = await fetch("/api/reglages", { headers: ENTETES });
+    const r = await fetch("/api/reglages",
+                          { headers: ENTETES, signal: signalConf() });
     if(!r.ok) return false;
     j = await r.json();
-  }catch(e){ return false; }
+  }catch(e){
+    if(e && e.name === "TimeoutError" && __confExpiree.indexOf("taille") < 0)
+      __confExpiree.push("taille");
+    return false;
+  }
   if(!(j && j.ok)) return false;
   //  LES BORNES D'ABORD, la valeur ensuite : poserTaille() borne, et il doit
   //  borner avec les bornes du PONT, pas avec le repli de cette page.
@@ -1957,6 +2144,10 @@ async function demarrage(){
     Terminal.backend = true;
     ind.textContent = "vrai terminal — pty sur 127.0.0.1:" + _port;
     ind.className = "branche";
+    //  Gardé pour pouvoir y REVENIR si la nouvelle tentative aboutit : sans
+    //  ça la barre resterait en « partiel » après que tout est rentré dans
+    //  l'ordre, ce qui serait le même mensonge dans l'autre sens.
+    __indSain = ind.textContent;
   } else {
     ind.textContent = "démo — sans le pont local";
     ind.className = "absent";
@@ -1978,8 +2169,67 @@ async function demarrage(){
   //  ici, après l'indicateur, et re-rafraîchi par poserTheme() quand le thème
   //  arrive.
   Reglages.init();
-  Promise.allSettled([appliquerTheme(), adopterReglages()])
-    .finally(() => { Terminal.init(); Reglages.rafraichir(); });
+  //  ═══ ET LE TERMINAL S'OUVRE, QUOI QU'IL ARRIVE AUX DEUX LECTURES ═══
+  //  « ouvrir » est à UN SEUL COUP : les deux chemins qui y mènent — les
+  //  lectures qui se règlent, et la veille — peuvent arriver tous les deux,
+  //  et un double « Terminal.init() » construirait deux volets.
+  //  La veille est à DELAI_CONF + 400 ms : juste après l'interruption des
+  //  deux lectures, donc elle ne coupe jamais la parole au cas normal.
+  let __ouvert = false;
+  const ouvrir = () => {
+    if(__ouvert) return;
+    __ouvert = true;
+    Terminal.init();
+    Reglages.rafraichir();
+    if(!__confExpiree.length) return;
+    //  ═══ ON LE DIT. « Indisponible » ET SA RAISON, JAMAIS LE SILENCE ═══
+    //  Sans ces lignes, Alex voyait un terminal aux couleurs livrées et au
+    //  texte à 12,5 px sans savoir pourquoi — c'est-à-dire exactement le
+    //  symptôme qui a lancé ce lot (« l'écriture est trop petite »), mais
+    //  cette fois sans cause visible. L'étiquette « conf » et non « taille »
+    //  ni un mode : rafraichir() ne balaie que les messages de mode.
+    const manque = __confExpiree.slice();
+    const quoi  = manque.map(c => CONF_NOM[c]).join(" et ");
+    const suite = manque.map(c => CONF_SUITE[c]).join(" et ");
+    //  ═══ DANS LA BARRE D'ÉTAT, PAS SEULEMENT DANS LE MENU ═══
+    //  La barre est le SEUL endroit où cette page annonce son état, et elle
+    //  est visible sans rien cliquer. Le détail complet reste dans le menu,
+    //  où il y a la place de l'écrire ; ici, la phrase courte, bâtie à partir
+    //  de la MÊME liste, pour qu'elles ne puissent pas se contredire.
+    //  L'ACCORD SUIT LA LISTE, il n'est pas écrit en dur : avec les deux
+    //  lectures en échec, « le thème et la taille du texte n'a pas pu être
+    //  lu » est une faute, et Alex lit du français, pas un gabarit.
+    const pluriel = manque.length > 1;
+    const pasLu   = pluriel ? " n'ont pas été lus" : " n'a pas été lu";
+    const pasPuLu = pluriel ? " n'ont pas pu être lus" : " n'a pas pu être lu";
+    if(ind){
+      ind.textContent = __indSain + " · " + quoi + pasLu;
+      ind.className = "partiel";
+    }
+    if(Reglages.pret) Reglages.dire(
+      "Le terminal est ouvert, mais " + quoi + pasPuLu + " : le pont "
+      + "n'a pas répondu en " + (DELAI_CONF / 1000) + " s. La fenêtre garde "
+      + "donc " + suite + ". Nouvelle tentative en cours"
+      + (manque.indexOf("theme") >= 0
+         ? " ; le thème est de toute façon relu chaque minute." : "."), "conf");
+    //  ET ON RÉESSAIE UNE FOIS, SANS RIEN RETENIR CETTE FOIS. Sinon la
+    //  session entière resterait sur un réglage qu'on n'a pas pu lire : pour
+    //  le thème la relecture d'une minute suffirait, mais la taille, elle,
+    //  n'est adoptée qu'au démarrage. Les deux fonctions savent s'appliquer à
+    //  des volets DÉJÀ construits — poserTheme() les repeint tous, et
+    //  poserTaille() pose « fontSize » sur chacun puis insiste.
+    setTimeout(async () => {
+      __confExpiree = [];
+      await Promise.allSettled([appliquerTheme(), adopterReglages()]);
+      //  TOUJOURS MUET : on ne touche à rien, la barre garde son avertissement.
+      if(__confExpiree.length) return;
+      //  RENTRÉ DANS L'ORDRE : la barre et le menu doivent le dire aussi.
+      if(ind){ ind.textContent = __indSain; ind.className = "branche"; }
+      if(Reglages.pret) Reglages.dire("", "conf");
+    }, 4000);
+  };
+  Promise.allSettled([appliquerTheme(), adopterReglages()]).finally(ouvrir);
+  setTimeout(ouvrir, DELAI_CONF + 400);
 }
 if(typeof globalThis === "undefined" || !globalThis.__BANC_NE_PAS_DEMARRER__) demarrage();
 

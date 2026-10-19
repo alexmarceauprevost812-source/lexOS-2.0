@@ -167,6 +167,12 @@ TAILLE_MIN = 7.0
 TAILLE_MAX = 32.0
 TAILLE_DEFAUT = 12.5
 
+#  Le temps qu'on laisse à une dernière requête pour atterrir quand la fenêtre
+#  se ferme. Posé ici, à côté des bornes de la taille, parce que c'est pour le
+#  réglage de taille qu'il existe ; la mesure qui le justifie est en bas, dans
+#  main(), contre la ligne qui attend.
+GRACE_FERMETURE = 0.25
+
 
 def _taille_valide(valeur):
     """La taille, bornée et arrondie au demi-point — ou None.
@@ -243,6 +249,21 @@ def lire_reglages():
     return out
 
 
+#  ═══ POURQUOI UN VERROU SUR UNE LECTURE-MODIFICATION-ÉCRITURE ═══
+#  Ce pont est un ThreadingHTTPServer : deux POST simultanés s'exécutent dans
+#  DEUX fils. Sans verrou, les deux lisent l'ancien dictionnaire, les deux
+#  fusionnent leur clef dedans, et le dernier qui écrit efface la clef de
+#  l'autre. Avec la seule clef « taille » d'aujourd'hui le dégât est nul — les
+#  deux écrivent la même clef, le dernier gagne, et c'est une valeur valide.
+#  Mais le jour où une deuxième clef arrive (une police, un repli de couleur),
+#  « poser la taille » et « poser la police » en même temps en perdraient une,
+#  silencieusement, et c'est le genre de panne qu'on ne retrouve jamais.
+#  L'écriture est DÉJÀ atomique au niveau du fichier (os.replace) : ce verrou
+#  ne protège pas le fichier, il protège la FUSION. Deux verrous existent déjà
+#  dans ce fichier pour des raisons voisines ; celui-ci est le troisième.
+_VERROU_REGLAGES = threading.Lock()
+
+
 def ecrire_reglages(nouveaux):
     """Fusionne et écrit. Rend (True, {}) ou (False, raison).
 
@@ -253,6 +274,12 @@ def ecrire_reglages(nouveaux):
     ET SI ON NE PEUT PAS ÉCRIRE, ON LE DIT. La consigne de ce projet est
     explicite : jamais une valeur inventée, jamais un échec silencieux."""
     dossier = dossier_conf()
+    with _VERROU_REGLAGES:
+        return _ecrire_reglages_verrouille(dossier, nouveaux)
+
+
+def _ecrire_reglages_verrouille(dossier, nouveaux):
+    """La fusion et l'écriture, UNE SEULE à la fois (voir le verrou ci-dessus)."""
     #  ═══ ON FUSIONNE SUR LE FICHIER, PAS SUR CE QU'ON SAIT EN LIRE ═══
     #  lire_reglages() ne rend que les clefs qu'il VALIDE — aujourd'hui la
     #  seule « taille ». Fusionner sur cette vue filtrée détruisait donc toute
@@ -1428,6 +1455,38 @@ def main():
     #  laisserait un shell (et tout ce qu'il a lancé) vivant en fond, sans
     #  plus aucun terminal pour l'atteindre.
     fermer_toutes()
+    #  ═══ UNE DERNIÈRE REQUÊTE PEUT ÊTRE EN ROUTE QUAND LA FENÊTRE S'EN VA ═══
+    #  MESURÉ, et c'est une relecture indépendante qui a eu raison contre mon
+    #  propre commentaire. La page vide son réglage de taille en attente sur
+    #  « pagehide », avec « keepalive » pour que la requête survive au
+    #  document. Mais ici le navigateur N'EST PAS un processus à part : c'est
+    #  un QWebEngineView dans CE processus, et les trois lignes ci-dessus
+    #  s'enchaînent sans un souffle. « serveur.shutdown() » cesse d'accepter,
+    #  « sys.exit() » tue le reste : la requête partie 5 ms plus tôt n'est
+    #  jamais acceptée.
+    #
+    #  MESURÉ, et il a fallu deux essais pour y arriver — le premier harnais
+    #  était trop lâche et m'aurait fait conclure que cette grâce ne sert à
+    #  rien. Armé APRÈS la fermeture, l'arrêt arrive quelques millisecondes
+    #  trop tard et la requête atterrit de toute façon : le témoin rendait 20
+    #  là où il attendait 17. Armé AVANT, l'arrêt tombe sur la fermeture :
+    #
+    #      grâce 0     → le fichier garde 17, la dernière valeur est PERDUE
+    #      grâce 0,25  → le fichier dit 20, la dernière valeur atterrit
+    #
+    #  Les deux cas sont dans le banc du navigateur, et le second lit cette
+    #  constante DANS CE FICHIER au lieu de la réécrire de son côté.
+    #
+    #  POURQUOI UNE ATTENTE PLATE ET PAS « dès qu'il n'arrive plus rien » :
+    #  le critère « aucune requête depuis 150 ms » est DÉJÀ vrai à l'instant
+    #  de la fermeture dès qu'Alex n'a pas tapé depuis une seconde — il rendrait
+    #  donc la main tout de suite et ne servirait à rien. L'attente plate, elle,
+    #  donne toujours sa chance à la requête de fermeture.
+    #
+    #  CE QUE ÇA COÛTE : 250 ms après que la fenêtre a quitté l'écran. Elle
+    #  n'est plus affichée, le processus s'en va — personne ne le voit. C'est
+    #  le seul endroit du programme où attendre est GRATUIT.
+    time.sleep(GRACE_FERMETURE)
     serveur.shutdown()
     sys.exit(code)
 

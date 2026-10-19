@@ -149,7 +149,7 @@ cat > "$ESSAI/page.mjs" <<'JS'
 //  « import » ne prend qu'un chemin littéral ; le nôtre vient de
 //  l'environnement (playwright n'est pas au même endroit partout).
 //  « import() » dynamique, lui, accepte une variable.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fsb from 'node:fs';
 const { chromium } = await import(process.env.LEXOS_PW);
 
@@ -165,7 +165,27 @@ time.sleep(240)`;
 //  PAGE (1, 2, 3…) : deux pages sur le même pont se disputeraient les mêmes
 //  numéros de session. Le contrôle de la grille rattrapée ouvre donc une
 //  seconde page contre un SECOND pont, à lui.
-const pont = async () => {
+//  ═══ ET UN BANC N'HÉRITE PAS DU FOYER DE CELUI QUI LE LANCE ═══
+//  DIXIÈME FOIS pour ce chantier, et cette fois dans ce fichier-ci.
+//  CE QUE ÇA FAISAIT, mesuré : « pont() » passait {...process.env} tel quel,
+//  donc le pont lisait et ÉCRIVAIT dans le VRAI « ~/.config/lexos ». Le
+//  contrôle de persistance poste 18,5 px — il changeait donc pour de bon la
+//  taille du texte de celui qui lance le banc, et il la LISAIT de lui : sur
+//  une machine dont terminal-pro.json disait déjà 18,5, le contrôle passait
+//  sans rien discriminer ; sur un dossier de configuration en lecture seule,
+//  il rougissait sur du code juste. Les deux faux verdicts, dans un banc écrit
+//  pour les traquer.
+//  On épingle HOME **et** XDG_CONFIG_HOME sous le dossier d'essai : le pont
+//  retombe sur « $HOME/.config » quand la variable ne porte rien (c'est
+//  « dossier_theme() »), donc en épingler une seule laisserait la porte ouverte.
+const FOYER = process.env.LEXOS_BANC + '/foyer';
+fsb.mkdirSync(FOYER + '/.config/lexos', {recursive: true});
+
+//  « sur » : un cas qui a besoin de son PROPRE foyer en passe un (le contrôle
+//  du thème bloqué, plus bas, y pose un tube nommé — il ne doit pas le poser
+//  dans le foyer que tous les autres partagent).
+const pont = async (sur) => {
+  const foyer = sur || FOYER;
   //  ⚠ LE PATH DU DÉPÔT EST OBLIGATOIRE. Le menu de réglages lance
   //  « lexos-terminal jour|nuit|auto », qui n'est pas INSTALLÉ sur le coureur :
   //  il est DANS L'ARBRE. Sans cette ligne, le pont répond « Indisponible :
@@ -176,13 +196,54 @@ const pont = async () => {
   //  donc la branche du SUCCÈS qui s'exécute là-bas, pas celle du refus. Un
   //  banc qui ne tourne qu'en root n'aurait jamais vu ce défaut.
   const pr = spawn('python3', ['-c', py], {env: {...process.env,
+    HOME: foyer, XDG_CONFIG_HOME: foyer + '/.config',
     LEXOS_TERMINAL_PRO_WEB: WEB,
     PATH: process.env.LEXOS_BIN + ':' + process.env.PATH}});
   const [, p, j] = await new Promise(r => pr.stdout.on('data', d => {
     const m = String(d).match(/PRET (\d+) (\S+)/); if (m) r(m);
   }));
-  return {proc: pr, port: p, jeton: j};
+  return {proc: pr, port: p, jeton: j, foyer};
 };
+//  ═══ UN PONT QU'ON PEUT ARRÊTER À L'INSTANT CHOISI ═══
+//  Le pont ci-dessus vit 240 s, quelle que soit la fenêtre. LE VRAI NON :
+//  le navigateur livré est un QWebEngineView dans LE MÊME processus que le
+//  pont, et main() enchaîne « app.exec() → fermer_toutes() → grâce →
+//  serveur.shutdown() → sys.exit() » sans un souffle. Un banc qui mesure la
+//  fermeture contre un pont immortel mesure la mansuétude de page.close(),
+//  pas le produit. Celui-ci reproduit l'ordonnancement : on ferme la page,
+//  puis on dit au pont d'attendre sa grâce et de s'arrêter.
+//  ⚠ LA GRÂCE VIENT DU PONT, pas de ce fichier. Le stub l'imprime au
+//  démarrage : le point mesure donc la valeur LIVRÉE, et pas une constante
+//  réécrite ici qui finirait par ne plus dire la même chose.
+const pyArret = `
+import importlib.util, sys, time
+spec = importlib.util.spec_from_file_location("tp", "${BACKEND}")
+tp = importlib.util.module_from_spec(spec); spec.loader.exec_module(tp)
+srv, port, jeton = tp.demarrer_serveur()
+print("PRET %d %s %s" % (port, jeton, tp.GRACE_FERMETURE), flush=True)
+grace = float((sys.stdin.readline() or "0").strip() or "0")
+time.sleep(grace)
+srv.shutdown()
+print("ARRETE", flush=True)
+time.sleep(10)`;
+
+const pontArretable = async (foyer) => {
+  const pr = spawn('python3', ['-c', pyArret], {env: {...process.env,
+    HOME: foyer, XDG_CONFIG_HOME: foyer + '/.config',
+    LEXOS_TERMINAL_PRO_WEB: WEB,
+    PATH: process.env.LEXOS_BIN + ':' + process.env.PATH}});
+  pr.stderr.on('data', () => {});
+  const [, p, j, g] = await new Promise(r => pr.stdout.on('data', d => {
+    const m = String(d).match(/PRET (\d+) (\S+) (\S+)/); if (m) r(m);
+  }));
+  return {proc: pr, port: p, jeton: j, grace: parseFloat(g),
+          //  « 0 » = l'ancien enchaînement, sans grâce : le témoin négatif.
+          arreter: (g2) => new Promise(r => {
+            pr.stdout.on('data', d => { if (/ARRETE/.test(String(d))) r(); });
+            pr.stdin.write(String(g2) + '\n');
+          })};
+};
+
 const {proc, port, jeton} = await pont();
 
 const nav = await chromium.launch({executablePath: process.env.LEXOS_CHROME, args: ['--no-sandbox']});
@@ -858,6 +919,266 @@ dit(ennuis.length === 0,
   await pd.close();
 }
 
+//  ═══ LE TERMINAL NE DÉPEND D'AUCUNE LECTURE DE CONFIGURATION ═══
+//  LE DÉFAUT, MESURÉ dans ce navigateur-ci avant d'être corrigé : le
+//  démarrage attendait /api/theme et /api/reglages, sans aucun délai, avant
+//  de construire le premier volet. Une lecture qui ne se règle JAMAIS —
+//  ni succès ni échec — laissait Promise.allSettled en suspens, donc
+//  Terminal.init() n'était jamais appelé : ZÉRO volet .xterm, pendant que
+//  l'indicateur affirmait « vrai terminal — pty sur 127.0.0.1:36585 ».
+//
+//  ET ON NE SIMULE PAS LE BLOCAGE. Un faux fetch prouverait que le faux
+//  fetch bloque. On le provoque DANS LE PONT RÉEL : « terminal.env » posé en
+//  TUBE NOMMÉ sans écrivain. os.path.exists() dit oui, open() ne rend jamais
+//  la main, /api/theme ne répond pas. C'est le vrai code, vraiment bloqué.
+{
+  const foyer = process.env.LEXOS_BANC + '/bloque';
+  fsb.mkdirSync(foyer + '/.config/lexos', {recursive: true});
+  const tube = foyer + '/.config/lexos/terminal.env';
+  const mk = spawnSync('mkfifo', [tube]);
+  if (mk.status !== 0 || !fsb.existsSync(tube)) {
+    //  UN BANC QUI NE PEUT PAS MESURER LE DIT, il ne conclut pas. Rouge et
+    //  pas « sauté » : mkfifo est dans coreutils, son absence est anormale.
+    dit(false, 'mkfifo indisponible — le blocage d\'une lecture de '
+             + 'configuration n\'a PAS été éprouvé ici');
+  } else {
+    const b = await pont(foyer);
+    const pb = await nav.newPage({viewport: {width: 1100, height: 700}});
+    const t0 = Date.now();
+    await pb.goto(`http://127.0.0.1:${b.port}/index.html?port=${b.port}&jeton=${b.jeton}`,
+                  {waitUntil: 'domcontentloaded'});
+    let ouvert = true;
+    //  HUIT SECONDES : largement au-delà des 2 s du délai et des 400 ms de la
+    //  veille. Si rien ne vient en huit secondes, rien ne viendra jamais.
+    try { await pb.waitForSelector('.xterm', {timeout: 8000}); }
+    catch (e) { ouvert = false; }
+    const dt = Date.now() - t0;
+    dit(ouvert, 'une lecture de configuration qui ne répond JAMAIS n\'empêche '
+              + 'plus le terminal d\'exister (premier volet après ' + dt
+              + ' ms, pont bloqué sur un tube nommé)');
+    //  ET PAS DEUX FOIS. Les deux chemins qui mènent à Terminal.init() — les
+    //  lectures qui se règlent, et la veille — peuvent arriver tous les deux.
+    //  ⚠ CE POINT EST UN INVARIANT, PAS LE FILET DE LA DOUBLE INITIALISATION.
+    //  Mutation jouée (garde du coup unique retirée) : ce point n'a pas rougi,
+    //  il n'a pas été ATTEINT — le banc meurt avant, ailleurs. La double
+    //  initialisation est donc bien attrapée, mais par la mort du banc, pas
+    //  par cette ligne. Je l'écris plutôt que de compter un vert que je n'ai
+    //  pas mesuré.
+    //  On regarde APRÈS la nouvelle tentative (4 s) pour que le second chemin
+    //  ait eu toutes ses chances de construire un volet de trop.
+    await pb.waitForTimeout(6000);
+    const volets = await pb.evaluate(() => document.querySelectorAll('.xterm').length);
+    dit(volets === 1, 'et il n\'en construit qu\'UN : les deux chemins vers '
+                    + 'Terminal.init() ne se doublent pas (volets : ' + volets + ')');
+    //  ET IL DIT POURQUOI. Sans ça Alex voit un terminal aux couleurs livrées
+    //  sans cause visible — le symptôme qui a lancé ce lot, sans son pourquoi.
+    //  ⚠ ON NE CLIQUE PAS. Ma première version de ce point ouvrait le menu
+    //  AVANT de lire le message — elle mesurait donc un texte que personne ne
+    //  voit. Mesuré sur la page telle quelle : panneau « caché », raison
+    //  dedans, et « la raison est-elle dans le texte VISIBLE de la page ?
+    //  NON ». Le point passait au vert sur une fenêtre muette. On lit donc ce
+    //  qui est RÉELLEMENT à l'écran, et seulement ensuite le détail du menu.
+    const vu = await pb.evaluate(() => ({
+      barre: ((document.getElementById('backend-ind') || {}).textContent || '').trim(),
+      classe: ((document.getElementById('backend-ind') || {}).className || ''),
+      ecran: (document.body.innerText || '').replace(/\s+/g, ' '),
+    }));
+    dit(/thème/.test(vu.barre) && /pas été lu/.test(vu.barre)
+        && vu.classe === 'partiel' && /thème/.test(vu.ecran),
+        'et la BARRE D\'ÉTAT le dit sans qu\'on ouvre quoi que ce soit — '
+        + 'c\'est le seul endroit visible où cette page annonce son état '
+        + '(« ' + vu.barre + " », classe " + vu.classe + ')');
+    //  Et le détail complet, lui, est bien dans le menu — avec l'accord et
+    //  SANS inventer : la taille avait été lue, il ne doit pas la dire perdue.
+    await pb.click('#reglages');
+    await pb.waitForTimeout(300);
+    const raison = await pb.evaluate(() =>
+      ((document.getElementById('pan-raison') || {}).textContent || '').replace(/\s+/g, ' ').trim());
+    dit(/le thème n'a pas pu être lu/.test(raison)
+        && !/taille de texte livrée/.test(raison),
+        '…et le menu porte le détail, au singulier et sans rien inventer : la '
+        + 'taille, elle, avait bien été lue (« ' + raison.slice(0, 90) + '… »)');
+    await pb.close(); b.proc.kill();
+  }
+}
+
+//  ═══ ET LA TAILLE N'EST PAS PERDUE QUAND LA FENÊTRE SE FERME ═══
+//  LE DÉFAUT, MESURÉ : la taille partait au pont 400 ms après le geste, pour
+//  ne pas écrire le fichier à chaque cran de molette. Fenêtre fermée dans ces
+//  400 ms → AUCUN fichier, et le miroir localStorage ne rattrape rien (le
+//  pont change de port, donc d'origine, à chaque lancement). Alex grossit le
+//  texte, ferme, relance, et le texte est redevenu petit.
+//
+//  TROIS POINTS, UN PAR MÉCANIQUE, pour qu'aucun ne couvre la panne d'un
+//  autre : le bord montant, le vidage à la fermeture, et la fenêtre tuée.
+const taillePosee = async (foyer) => {
+  try { return JSON.parse(fsb.readFileSync(foyer + '/.config/lexos/terminal-pro.json', 'utf8')).taille; }
+  catch (e) { return null; }
+};
+
+{
+  //  1. BORD MONTANT : un seul changement, fermée 120 ms après.
+  const foyer = process.env.LEXOS_BANC + '/bord1';
+  fsb.mkdirSync(foyer + '/.config/lexos', {recursive: true});
+  const b = await pont(foyer);
+  const pg = await nav.newPage({viewport: {width: 1100, height: 700}});
+  await pg.goto(`http://127.0.0.1:${b.port}/index.html?port=${b.port}&jeton=${b.jeton}`);
+  await pg.waitForFunction(() => window.__banc && window.__banc.FLUX.volets.size > 0);
+  await pg.waitForTimeout(1200);
+  //  ⚠ CE POINT SE MESURE AU TEMPS, PAS À LA FERMETURE. Ma première version
+  //  fermait la page à 120 ms et vérifiait que le pont avait rangé. MUTATION
+  //  JOUÉE (bord montant retiré) : le point restait VERT — parce que le vidage
+  //  à la fermeture rangeait la valeur à sa place. Il mesurait « l'une ou
+  //  l'autre mécanique », pas celle que son nom annonce. On ne ferme donc
+  //  RIEN : la page reste ouverte, et on exige que la valeur soit déjà sur le
+  //  disque avant que le minuteur de 400 ms ait pu tirer.
+  await pg.evaluate(() => window.__banc.poserTaille(17, false));
+  await pg.waitForTimeout(150);              // BIEN EN DEÇÀ des 400 ms
+  const tot = await taillePosee(foyer);      // page TOUJOURS OUVERTE
+  //  Et le témoin qui donne son sens au point : 600 ms plus tard, le bord
+  //  descendant a de toute façon rangé. Sans lui, un pont muet rendrait ce
+  //  point rouge pour la mauvaise raison.
+  await pg.waitForTimeout(600);
+  const tard = await taillePosee(foyer);
+  dit(tot === 17 && tard === 17,
+      'la taille est sur le disque AVANT les 400 ms du minuteur, page encore '
+      + 'ouverte : c\'est le bord montant qui l\'a envoyée (à 150 ms : ' + tot
+      + ', à 750 ms : ' + tard + ')');
+  await pg.close();
+  b.proc.kill();
+}
+
+{
+  //  2. VIDAGE À LA FERMETURE : le bord montant a DÉJÀ tiré pour 17, puis on
+  //  passe à 20 — seul le minuteur porte cette seconde valeur. Si le vidage
+  //  n'existe pas, le pont garde 17 et ce point rougit SANS que le point du
+  //  bord montant bouge. Chacun mesure sa propre mécanique.
+  const foyer = process.env.LEXOS_BANC + '/bord2';
+  fsb.mkdirSync(foyer + '/.config/lexos', {recursive: true});
+  const b = await pont(foyer);
+  const pg = await nav.newPage({viewport: {width: 1100, height: 700}});
+  await pg.goto(`http://127.0.0.1:${b.port}/index.html?port=${b.port}&jeton=${b.jeton}`);
+  await pg.waitForFunction(() => window.__banc && window.__banc.FLUX.volets.size > 0);
+  await pg.waitForTimeout(1200);
+  await pg.evaluate(() => window.__banc.poserTaille(17, false));
+  await pg.waitForTimeout(300);              // le bord montant est revenu
+  const inter = await taillePosee(foyer);
+  await pg.evaluate(() => window.__banc.poserTaille(20, false));
+  await pg.waitForTimeout(120);              // toujours en deçà des 400 ms
+  await pg.close();
+  await new Promise(r => setTimeout(r, 900));
+  const t = await taillePosee(foyer);
+  dit(inter === 17 && t === 20,
+      'et la DERNIÈRE valeur du geste n\'est pas perdue non plus : le minuteur '
+      + 'est vidé quand la page s\'en va (' + inter + ' → ' + t + ', 20 attendu)');
+  b.proc.kill();
+}
+
+{
+  //  3. LA FENÊTRE TUÉE : aucun écouteur ne tire. Le vidage ne peut RIEN ici —
+  //  mesuré : avec le seul vidage, ce cas perdait encore tout. C'est le bord
+  //  montant qui sauve, et ce qu'on exige est honnête : pas forcément la
+  //  dernière valeur, mais PAS le défaut. Le texte reste gros.
+  const foyer = process.env.LEXOS_BANC + '/tue';
+  fsb.mkdirSync(foyer + '/.config/lexos', {recursive: true});
+  const b = await pont(foyer);
+  const nav2 = await chromium.launch({executablePath: process.env.LEXOS_CHROME,
+                                      args: ['--no-sandbox']});
+  const pg = await nav2.newPage({viewport: {width: 1100, height: 700}});
+  await pg.goto(`http://127.0.0.1:${b.port}/index.html?port=${b.port}&jeton=${b.jeton}`);
+  await pg.waitForFunction(() => window.__banc && window.__banc.FLUX.volets.size > 0);
+  await pg.waitForTimeout(1200);
+  const defaut = await pg.evaluate(() => window.__banc.TAILLE_DEFAUT);
+  await pg.evaluate(() => window.__banc.poserTaille(21, false));
+  await pg.waitForTimeout(120);
+  await nav2.close();                        // la fenêtre entière disparaît
+  await new Promise(r => setTimeout(r, 900));
+  const t = await taillePosee(foyer);
+  dit(t !== null && t !== defaut,
+      'fenêtre entière TUÉE 120 ms après le geste : le pont a tout de même une '
+      + 'taille, et ce n\'est pas le défaut (lu : ' + t + ', défaut ' + defaut + ')');
+  b.proc.kill();
+}
+
+//  ═══ ET DANS L'ORDONNANCEMENT DU PRODUIT, PAS CELUI D'UN PONT IMMORTEL ═══
+//  C'EST UNE RELECTURE INDÉPENDANTE QUI A EU RAISON CONTRE MON COMMENTAIRE.
+//  J'avais écrit que le vidage à la fermeture « couvre la fermeture PROPRE ;
+//  mesuré ». Ce mesuré venait d'un pont qui survit à la page et d'un Chromium
+//  autonome — deux choses que le produit n'est pas. Dans la vraie coquille, la
+//  requête de vidage part puis le pont cesse d'accepter dans le même souffle :
+//  elle n'est jamais acceptée. D'où la grâce bornée dans main(), et d'où ces
+//  deux points, dont le second est le TÉMOIN NÉGATIF sans lequel le premier ne
+//  prouverait rien.
+for (const cas of [{avecGrace: true}, {avecGrace: false}]) {
+  const nom = cas.avecGrace ? 'grace' : 'sansgrace';
+  const foyer = process.env.LEXOS_BANC + '/' + nom;
+  fsb.mkdirSync(foyer + '/.config/lexos', {recursive: true});
+  const b = await pontArretable(foyer);
+  const pg = await nav.newPage({viewport: {width: 1100, height: 700}});
+  await pg.goto(`http://127.0.0.1:${b.port}/index.html?port=${b.port}&jeton=${b.jeton}`);
+  await pg.waitForFunction(() => window.__banc && window.__banc.FLUX.volets.size > 0);
+  await pg.waitForTimeout(1200);
+  //  Deux crans : le premier part par le bord montant, le second ne vit que
+  //  dans le minuteur — c'est LUI que la fermeture doit sauver.
+  await pg.evaluate(() => window.__banc.poserTaille(17, false));
+  await pg.waitForTimeout(300);
+  await pg.evaluate(() => window.__banc.poserTaille(20, false));
+  await pg.waitForTimeout(80);
+  //  ⚠ L'ARRÊT EST ARMÉ AVANT LA FERMETURE, pas après. Armé après, le temps
+  //  d'aller-retour par l'entrée standard du pont (quelques millisecondes)
+  //  suffit à la requête de vidage pour atterrir, et le témoin négatif ne
+  //  témoigne plus de rien — MESURÉ : il rendait 20 là où il attendait 17.
+  //  Armé avant, l'arrêt tombe à la microseconde près sur la fermeture, ce qui
+  //  est l'ordonnancement du produit.
+  const arret = b.arreter(cas.avecGrace ? b.grace : 0);
+  await pg.close();
+  await arret;
+  await new Promise(r => setTimeout(r, 300));
+  const t = await taillePosee(foyer);
+  if (cas.avecGrace) {
+    dit(t === 20, 'la dernière valeur atterrit MÊME quand le pont s\'arrête '
+                + 'juste après la fenêtre, comme dans le produit — grâce de '
+                + b.grace + ' s lue dans le pont (rangé : ' + t + ', 20 attendu)');
+  } else {
+    dit(t === 17, 'TÉMOIN NÉGATIF : sans cette grâce, la dernière valeur est '
+                + 'bien perdue et seul le bord montant subsiste (rangé : ' + t
+                + ', 17 attendu) — ce point-ci mesure donc la GRÂCE, pas la '
+                + 'mansuétude du navigateur');
+  }
+  b.proc.kill();
+}
+
+{
+  //  4. ET LE MINUTEUR FAIT TOUJOURS SON TRAVAIL. Le bord montant ne doit pas
+  //  avoir rouvert la porte qu'il ferme : une roulette lancée produit des
+  //  dizaines d'événements, et le fichier ne doit pas être écrit des dizaines
+  //  de fois. On COMPTE les requêtes — on ne relit pas le code.
+  const foyer = process.env.LEXOS_BANC + '/molette';
+  fsb.mkdirSync(foyer + '/.config/lexos', {recursive: true});
+  const b = await pont(foyer);
+  const pg = await nav.newPage({viewport: {width: 1100, height: 700}});
+  await pg.goto(`http://127.0.0.1:${b.port}/index.html?port=${b.port}&jeton=${b.jeton}`);
+  await pg.waitForFunction(() => window.__banc && window.__banc.FLUX.volets.size > 0);
+  await pg.waitForTimeout(1200);
+  let posts = 0;
+  pg.on('request', r => { if (r.method() === 'POST' && r.url().endsWith('/api/reglages')) posts++; });
+  const depart = await pg.evaluate(() => window.__banc.TAILLE);
+  await pg.evaluate(async () => {
+    for (let i = 0; i < 30; i++) {
+      window.__banc.poserTaille(0.5, true);
+      await new Promise(r => requestAnimationFrame(r));
+    }
+  });
+  const arrivee = await pg.evaluate(() => window.__banc.TAILLE);
+  await pg.waitForTimeout(1500);
+  const t = await taillePosee(foyer);
+  dit(posts <= 3 && t === arrivee && arrivee !== depart,
+      'trente crans de molette coûtent ' + posts + ' écriture(s), pas trente — '
+      + 'et c\'est bien la valeur FINALE qui est rangée (' + depart + ' → '
+      + arrivee + ', rangé ' + t + ')');
+  await pg.close(); b.proc.kill();
+}
+
 await nav.close(); proc.kill();
 JS
 
@@ -879,7 +1200,13 @@ rendu() {
 
 rendu < <(LEXOS_PW="$PW" LEXOS_CHROME="$CHROME" LEXOS_BACKEND="$BACKEND" LEXOS_WEB="$WEB" \
 	LEXOS_BIN="$RACINE/config/includes.chroot/usr/bin" LEXOS_BANC="$ESSAI" \
-          timeout 240 "$NODE" "$ESSAI/page.mjs" 2>&1)
+          timeout 420 "$NODE" "$ESSAI/page.mjs" 2>&1)
+#  ⚠ 420 s ET PAS 240. Les points du démarrage bloqué attendent exprès : huit
+#  secondes pour établir qu'un volet n'arrive JAMAIS, puis six de plus pour
+#  voir si un second se construit en douce. Mesuré après l'ajout : l'essai
+#  complet tenait en 80 s sur ce conteneur, contre une limite de 240 qui
+#  l'aurait coupé au milieu — et un essai coupé rend « aucun verdict », donc
+#  un rouge qui ne dit pas ce qui ne va pas.
 rm -rf "$ESSAI"
 
 printf '\n\033[1m═══ TOTAL ═══\033[0m\n'
