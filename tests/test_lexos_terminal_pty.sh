@@ -752,9 +752,18 @@ os.environ["XDG_CONFIG_HOME"] = __CONF2
 os.makedirs(os.path.join(__CONF2, "lexos"), exist_ok=True)
 __JSON = os.path.join(__CONF2, "lexos", "terminal-pro.json")
 __SURVIVANTS = []
+#  ⚠ LES DEUX DERNIERS VIENNENT D'UNE RELECTURE (Codex, P2), et ils manquaient
+#  à cette liste. Un terminal-pro.json PROFONDÉMENT IMBRIQUÉ et un fichier
+#  ÉNORME passaient la lecture (qui rendait {}) mais tuaient l'ÉCRITURE —
+#  RecursionError pour l'un, et pour l'autre les 200 Kio étaient rechargés puis
+#  réécrits, donc conservés à jamais. Le fichier que la lecture tolérait,
+#  l'écriture ne pouvait donc pas le réparer : or c'est par l'écriture que la
+#  page répare. Les deux chemins passent désormais par la MÊME lecture.
 for __POISON in ('{"taille": %s}' % ("9" * 400), '{"taille": %d}' % (2 ** 1024),
                  '{"taille": [1]}', '{"taille": {"a": 1}}', '[]', 'null',
-                 'pas du json', '', '{"taille": 1e400}'):
+                 'pas du json', '', '{"taille": 1e400}',
+                 '{"taille": ' + '[' * 2000 + ']' * 2000 + '}',
+                 '{"bourre": "' + "x" * 200000 + '", "taille": 14}'):
     with open(__JSON, "w", encoding="utf-8") as __f:
         __f.write(__POISON)
     try:
@@ -771,9 +780,10 @@ for __POISON in ('{"taille": %s}' % ("9" * 400), '{"taille": %d}' % (2 ** 1024),
     if __c != 200:
         __SURVIVANTS.append((__POISON[:18], "réparation rend %r" % (__c,)))
 dit(not __SURVIVANTS,
-    "neuf fichiers de réglages hostiles : la lecture se dégrade, la route "
-    "répond, et une écriture REMET le fichier d'aplomb — aucun n'est sans "
-    "retour (restés coincés : %r)" % (__SURVIVANTS[:2],))
+    "onze fichiers de réglages hostiles — imbrication profonde et 200 Kio "
+    "compris : la lecture se dégrade, la route répond, et une écriture REMET "
+    "le fichier d'aplomb. Aucun n'est sans retour (restés coincés : %r)"
+    % (__SURVIVANTS[:2],))
 if __G2 is None:
     os.environ.pop("XDG_CONFIG_HOME", None)
 else:

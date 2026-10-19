@@ -198,23 +198,43 @@ def _taille_valide(valeur):
 PLAFOND_REGLAGES = 64 * 1024
 
 
-def lire_reglages():
-    """Les réglages rangés, validés un par un. {} si rien d'exploitable."""
+def _charger_reglages_brut():
+    """Le contenu de terminal-pro.json, tel quel. {} si rien d'exploitable.
+
+    ═══ UN SEUL ENDROIT, LU PAR LES DEUX CHEMINS ═══
+    SIGNALÉ PAR UNE RELECTURE (Codex, P2) et reproduit : j'avais écrit la
+    lecture BORNÉE et la fusion BRUTE dans le même lot, et je n'en avais durci
+    qu'une. Résultat mesuré, avec un terminal-pro.json de 2000 niveaux
+    d'imbrication :
+
+        lire_reglages()   → {}                   (sain)
+        ecrire_reglages() → RecursionError       (la route meurt sans réponse)
+
+    Donc le fichier que la LECTURE tolère, l'ÉCRITURE ne pouvait pas le
+    réparer — et c'est par l'écriture que la page répare. Même histoire pour le
+    plafond : la lecture refusait un fichier de 200 Kio, l'écriture le
+    rechargeait et le réécrivait en entier, conservant l'enflure à jamais.
+
+    C'est exactement la faute que ce dépôt traque et que je citais en la
+    commettant : deux écritures d'une même règle finissent toujours par ne plus
+    dire la même chose. Il n'y en a plus qu'une.
+
+    RecursionError n'hérite ni d'OSError ni de ValueError, d'où son nom
+    explicite dans la liste. Et le plafond borne ce que celui qui écrit le
+    fichier peut nous faire charger."""
     try:
         with open(os.path.join(dossier_conf(), "terminal-pro.json"),
                   encoding="utf-8") as f:
-            #  ═══ BORNÉ, ET RecursionError ATTRAPÉE ═══
-            #  json.load() sur un fichier sans borne laisse celui qui l'écrit
-            #  choisir notre mémoire ; et « [[[[…]]]] » profondément imbriqué
-            #  lève RecursionError, qui n'hérite ni d'OSError ni de
-            #  ValueError — l'exception traversait donc la route et fermait la
-            #  prise sans réponse, comme l'OverflowError juste au-dessus.
-            #  La règle de ce fichier : une lecture ne doit JAMAIS empêcher le
-            #  terminal de s'ouvrir.
             brut = json.loads(f.read(PLAFOND_REGLAGES + 1))
     except (OSError, UnicodeDecodeError, ValueError, RecursionError):
         return {}
-    if not isinstance(brut, dict):
+    return brut if isinstance(brut, dict) else {}
+
+
+def lire_reglages():
+    """Les réglages rangés, validés un par un. {} si rien d'exploitable."""
+    brut = _charger_reglages_brut()
+    if not brut:
         return {}
     out = {}
     t = _taille_valide(brut.get("taille"))
@@ -240,18 +260,11 @@ def ecrire_reglages(nouveaux):
     #  changement de taille. Un réglage écrit par une version PLUS RÉCENTE
     #  (ou par la main d'Alex) disparaissait sans un mot.
     #  On repart donc du fichier BRUT, et on n'écrase que ce qu'on change.
-    garde = {}
-    try:
-        with open(os.path.join(dossier, "terminal-pro.json"),
-                  encoding="utf-8") as _f:
-            _brut = json.load(_f)
-        if isinstance(_brut, dict):
-            garde = dict(_brut)
-    except (OSError, UnicodeDecodeError, ValueError):
-        #  Illisible ou absent : on repart de rien, ce qui est le bon
-        #  comportement — mais on ne prétend pas avoir conservé quoi que ce
-        #  soit. Les clefs d'un fichier corrompu sont perdues de toute façon.
-        garde = {}
+    #  MÊME LECTURE QUE lire_reglages(), au mot près : bornée, et toutes ses
+    #  levées attrapées. Un fichier illisible repart de rien — les clefs d'un
+    #  fichier corrompu sont perdues de toute façon — mais la route RÉPOND, et
+    #  c'est ce qui permet à la page de réparer ce que la lecture a refusé.
+    garde = dict(_charger_reglages_brut())
     garde.update(nouveaux)
     tmp = None
     try:
