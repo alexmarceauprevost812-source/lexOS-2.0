@@ -1,0 +1,42 @@
+# =============================================================================
+#  96-a-jour — ce qu'Ubuntu 26.10 apporte et que LexOS n'avait pas encore
+# =============================================================================
+#  Ajouté le 2026-10-19, à la sortie d'Ubuntu 26.10 « Stonking Stingray ».
+#  Relevé contre TOUTES les listes du dépôt : chacun de ces noms manquait.
+#
+#  ⚠ PAS ENCORE RECOUPÉ AVEC L'INDEX DE TRIXIE (l'index n'était pas joignable
+#  depuis la machine de développement). Ce n'est pas grave par construction :
+#  le hook 0250 installe les listes optionnelles en « best effort », un nom
+#  absent est noté dans /etc/lexos/optional-report et le build continue.
+#  Au premier build, relire ce rapport et retirer ici ce qui n'existe pas.
+
+# --- Les outils en Rust qu'Ubuntu 26.10 met par défaut -----------------------
+#  Ubuntu 26.10 a fini de remplacer les coreutils GNU par uutils (Rust).
+#  Ici ils sont installés À CÔTÉ, sans remplacer « ls », « cp »… : les
+#  scripts de LexOS restent sur les GNU éprouvés, et on peut essayer les
+#  versions Rust à la main.
+rust-coreutils
+#  PAS sudo-rs : selon la version, il peut entrer en conflit avec sudo, et
+#  apt -y retirerait sudo pour l'installer. Trop risqué sans l'avoir vu.
+
+# --- Fiche système moderne ---------------------------------------------------
+#  Le successeur de neofetch. N'enlève rien à lexfetch, qui reste la fiche
+#  maison.
+fastfetch
+
+# --- Accélération vidéo (lecture 4K, visio, navigateur) -----------------------
+#  Décodage matériel Intel récent et outil pour vérifier qu'il marche.
+intel-media-va-driver-non-free
+mesa-va-drivers
+vainfo
+
+# --- Micrologiciels des cartes graphiques ------------------------------------
+#  Depuis trixie, ils sont séparés de firmware-misc-nonfree : sans eux, une
+#  carte AMD ou Intel récente démarre en mode dégradé.
+firmware-amd-graphics
+firmware-intel-graphics
+firmware-linux
+
+# --- Développement ------------------------------------------------------------
+#  Go manquait à côté de Rust, Node et Python.
+golang-go

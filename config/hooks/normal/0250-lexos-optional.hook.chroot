@@ -93,7 +93,7 @@ BUREAU_COMPLET="15-essentiel.list 20-desktop.list 30-dock-effets.list \
 49-bienetre.list 51-dev-outils.list 52-ia-locale.list 54-sauvegarde.list 55-cartes.list 56-reglages.list 57-python.list \
 58-prive.list 59-diagnostic.list \
 70-gaming.list 80-securite.list 85-outils-lexos.list \
-90-decoupe-image.list 95-logitheque.list"
+90-decoupe-image.list 95-logitheque.list 96-a-jour.list"
 
 case "$FLAVOUR" in
 	minimal)

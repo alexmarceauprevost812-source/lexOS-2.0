@@ -1,4 +1,6 @@
-#  trixie-backports — ouvert POUR UNE SEULE RAISON : le moteur d'IA locale.
+#  trixie-backports — ouvert d'abord pour le moteur d'IA locale, et depuis le
+#  2026-10-19 aussi pour le noyau, les micrologiciels et Mesa (hooks 0200 et
+#  0257). Le reste du système reste sur trixie : voir backports.pref.chroot.
 #
 #  ⚠ CE QUE CETTE ARCHIVE APPORTE VRAIMENT, RELEVÉ SUR L'INDEX LE 2026-08-22 :
 #    la famille libggml* — libggml0, libggml-dev, et les backends

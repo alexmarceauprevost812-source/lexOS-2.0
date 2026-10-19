@@ -1,0 +1,98 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — graphisme et micrologiciels à jour depuis trixie-backports
+# =============================================================================
+#  Ajouté le 2026-10-19, à la sortie d'Ubuntu 26.10 (Linux 7.3, Mesa 26.2).
+#  Debian stable garde Mesa et les micrologiciels de sa sortie ; backports
+#  publie des versions plus récentes, testées pour trixie. C'est la seule
+#  façon propre d'avoir du récent SANS mélanger de paquets Ubuntu dans une
+#  base Debian (ce qui casse apt tôt ou tard).
+#
+#  CE QUE CE HOOK FAIT : il prend les paquets DÉJÀ INSTALLÉS qui viennent de
+#  Mesa et des micrologiciels, et les remonte vers backports quand une
+#  version plus récente y existe. Il n'ajoute rien de neuf.
+#
+#  LE NOYAU N'EST PAS ICI : il vient du hook 0200 (LEXOS_KERNEL_CHANNEL), qui
+#  doit passer AVANT 0260-nvidia pour que DKMS compile pour le bon noyau.
+#
+#  POURQUOI APRÈS 0250 : les micrologiciels et Mesa 32 bits (i386, pour Steam)
+#  arrivent par les listes optionnelles. Avant 0250, on en raterait la moitié.
+#
+#  POURQUOI TOUT D'UN COUP : les paquets Mesa exigent tous la MÊME version
+#  entre eux, amd64 et i386 compris. Les remonter un par un échouerait sur
+#  les dépendances ; une seule transaction, et si elle échoue, on garde ceux
+#  de trixie — l'ISO se construit quand même.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0257 : graphisme et micrologiciels depuis backports"
+
+LEXOS_KERNEL_CHANNEL="stock"
+LEXOS_DEBIAN_SUITE="trixie"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+fi
+
+if [ "${LEXOS_KERNEL_CHANNEL}" != "backports" ]; then
+	echo "[lexos]   canal « ${LEXOS_KERNEL_CHANNEL} » : rien à remonter"
+	exit 0
+fi
+
+SUITE="${LEXOS_DEBIAN_SUITE:-trixie}"
+export DEBIAN_FRONTEND=noninteractive
+
+if ! grep -rqs "${SUITE}-backports" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
+	echo "[lexos]   !! ${SUITE}-backports n'est pas ouvert — on garde trixie"
+	exit 0
+fi
+
+apt-get update -qq || { echo "[lexos]   !! index apt indisponible — on garde trixie"; exit 0; }
+
+#  Paquets installés dont le paquet SOURCE est mesa ou un micrologiciel.
+#  ${binary:Package} garde le suffixe « :i386 » quand il y en a un.
+CIBLES="$(dpkg-query -W -f='${binary:Package} ${source:Package} ${db:Status-Abbrev}\n' 2>/dev/null \
+	| awk '$3 ~ /^ii/ && ($2 == "mesa" || $2 == "firmware-nonfree" || $2 == "firmware-free" || $2 == "firmware-sof") { print $1 }' \
+	| tr '\n' ' ')"
+
+if [ -z "$CIBLES" ]; then
+	echo "[lexos]   aucun paquet Mesa ou micrologiciel installé — rien à faire"
+	exit 0
+fi
+
+#  ON NE GARDE QUE CEUX QUI ONT VRAIMENT UNE VERSION DANS BACKPORTS, et on la
+#  demande par « paquet/trixie-backports ». « -t trixie-backports » ne suffit
+#  pas : backports.pref.chroot pose un Pin-Priority 100 explicite sur toute
+#  l'archive, et un pin explicite l'emporte sur -t — apt garderait trixie.
+#  La forme paquet/suite, elle, choisit la version de cette suite, point.
+#  Et un seul nom sans version backports ferait échouer toute la transaction.
+DEMANDE=""
+for P in $CIBLES; do
+	if apt-cache madison "$P" 2>/dev/null | grep -q "${SUITE}-backports"; then
+		DEMANDE="$DEMANDE $P/${SUITE}-backports"
+	fi
+done
+
+if [ -z "$DEMANDE" ]; then
+	echo "[lexos]   rien de plus récent dans backports — on garde trixie"
+	exit 0
+fi
+
+AVANT="$(dpkg-query -W -f='${Version}' libgl1-mesa-dri 2>/dev/null || echo absent)"
+
+# shellcheck disable=SC2086
+if apt-get install -y --no-install-recommends $DEMANDE \
+	>/tmp/lexos-a-jour.log 2>&1; then
+	APRES="$(dpkg-query -W -f='${Version}' libgl1-mesa-dri 2>/dev/null || echo absent)"
+	echo "[lexos]   remontés vers backports : $(echo "$DEMANDE" | wc -w) paquet(s)"
+	echo "[lexos]   Mesa : ${AVANT} -> ${APRES}"
+else
+	echo "[lexos]   !! remontée refusée par apt — on garde les versions de trixie"
+	tail -15 /tmp/lexos-a-jour.log | sed 's/^/[lexos]      /'
+	#  apt n'a rien changé si la transaction a échoué ; on vérifie quand
+	#  même qu'il ne reste rien de cassé avant de passer la main.
+	apt-get install -f -y >/dev/null 2>&1 || true
+fi
+
+rm -f /tmp/lexos-a-jour.log
+exit 0
