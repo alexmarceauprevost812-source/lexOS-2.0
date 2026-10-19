@@ -324,22 +324,32 @@ def lancer_mode(mode):
     if chemin is None:
         return False, "Indisponible : « %s » est introuvable dans le PATH" % argv[0]
     try:
+        #  ═══ errors="replace", ET C'EST LE RELECTEUR QUI A RAISON ═══
+        #  « text=True » décode en STRICT : un seul octet non-UTF-8 dans la
+        #  sortie de lexos-terminal levait UnicodeDecodeError ici. J'avais
+        #  d'abord attrapé l'exception pour rendre un échec — et c'était la
+        #  mauvaise réponse, parce que L'ORDRE compte : lexos-terminal écrit
+        #  son mode, appelle le générateur (qui réécrit terminal.env), ET
+        #  SEULEMENT ENSUITE imprime sa ligne de confirmation. Le décodage
+        #  échoue donc APRÈS que tout l'effet a eu lieu : rendre « échec »
+        #  faisait dire au menu « la couleur n'a pas changé » alors qu'elle
+        #  venait de changer, et il ne repeignait pas — la fenêtre restait en
+        #  nuit pendant que l'invite, lexfetch, tmux et xfce4-terminal étaient
+        #  passés en jour. Le mensonge exact que ce lot existe pour empêcher.
+        #  On remplace donc les octets illisibles au lieu d'échouer : la
+        #  commande a réussi, on le dit, et la page repeint.
         r = subprocess.run((chemin,) + argv[1:], stdin=subprocess.DEVNULL,
-                           capture_output=True, text=True, timeout=25)
+                           capture_output=True, text=True, errors="replace",
+                           timeout=25)
     except subprocess.TimeoutExpired:
         return False, "« %s %s » n'a pas répondu en 25 s" % argv
     except OSError as e:
         return False, "« %s » n'a pas pu être lancé : %s" % (argv[0], e)
     except UnicodeDecodeError as e:
-        #  ═══ « text=True » DÉCODE EN STRICT ═══
-        #  Un seul octet non-UTF-8 dans la sortie de lexos-terminal lève ici,
-        #  et l'exception traversait la route : le client recevait zéro octet.
-        #  Le chemin d'entrée existe — lexos-terminal SOURCE ses fichiers de
-        #  configuration (« . "$F_HORAIRE" ») et en recrache les valeurs dans
-        #  ses messages. Et c'est le pire moment pour mourir : la commande a
-        #  DÉJÀ changé le thème, donc la page annonçait « la couleur n'a pas
-        #  changé » alors qu'elle venait de changer, et ne repeignait pas.
-        #  On le dit, et on ne prétend pas que rien ne s'est passé.
+        #  CEINTURE ET BRETELLES : errors="replace" ci-dessus rend ce chemin
+        #  inatteignable avec la bibliothèque standard d'aujourd'hui. On le
+        #  garde quand même, parce qu'une exception qui traverse cette fonction
+        #  ne rend AUCUN octet au client — et un pont muet est le pire état.
         return False, ("« %s %s » a répondu des octets illisibles (%s) — le "
                        "thème a peut-être changé : rouvrez le menu pour voir"
                        % (argv[0], argv[1], e.reason))

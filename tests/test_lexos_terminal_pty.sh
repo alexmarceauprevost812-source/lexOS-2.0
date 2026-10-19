@@ -610,6 +610,47 @@ if __RG[1] is None:
 else:
     os.environ["XDG_CONFIG_HOME"] = __RG[1]
 
+#  ═══ DES OCTETS ILLISIBLES NE DOIVENT PAS FAIRE MENTIR LA ROUTE ═══
+#  RETENU PAR LA RELECTURE (0 réfutation sur 3), et c'est l'ORDRE qui rend le
+#  défaut grave : lexos-terminal écrit son mode, appelle le générateur — qui
+#  réécrit terminal.env — ET SEULEMENT ENSUITE imprime sa confirmation. Un
+#  octet non-UTF-8 dans cette ligne (le script SOURCE des fichiers de $HOME et
+#  en recrache les valeurs) faisait lever « text=True », qui décode en strict.
+#  Mon premier correctif attrapait l'exception pour rendre un ÉCHEC : la page
+#  annonçait alors « la couleur n'a pas changé » alors qu'elle venait de
+#  changer, et ne repeignait pas — la fenêtre restait en nuit pendant que
+#  l'invite, lexfetch, tmux et xfce4-terminal étaient passés en jour.
+#  « errors="replace" » est la bonne réponse : la commande a RÉUSSI.
+__SB = tempfile.mkdtemp()
+with open(os.path.join(__SB, "lexos-terminal"), "w", encoding="utf-8") as __f:
+    __f.write(
+        '#!/usr/bin/env bash\n'
+        '#  Fidèle à l\'ORDRE du vrai : il change le thème, PUIS imprime — et\n'
+        '#  sa confirmation porte un octet non-UTF-8 (0xFF).\n'
+        'CONF="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"; mkdir -p "$CONF"\n'
+        'printf jour > "$CONF/terminal-mode"\n'
+        'cat > "$CONF/terminal.env" <<EOF\n'
+        'LEXOS_TERM_EFFECTIF=jour\n'
+        'LEXOS_TERM_BG=#F7F5F0\n'
+        'LEXOS_TERM_FG=#0B6B3A\n'
+        'LEXOS_TERM_TEXTE=#1B1A17\n'
+        'LEXOS_TERM_CURSEUR=#A84007\n'
+        'EOF\n'
+        "printf '\\xe2\\x9c\\x93 Terminal de jour \\xff illisible\\n'\n")
+os.chmod(os.path.join(__SB, "lexos-terminal"), 0o755)
+__PG2 = os.environ["PATH"]
+os.environ["PATH"] = __SB + os.pathsep + __PG2
+tp._outils.oublier()
+__OK, __DIT = tp.lancer_mode("jour")
+__T = tp.lire_theme()
+dit(__OK is True and "Terminal de jour" in __DIT
+    and __T.get("LEXOS_TERM_EFFECTIF") == "jour",
+    "une commande qui réussit en crachant un octet illisible reste un SUCCÈS, "
+    "son message est décodé en perte, et le thème est relu (ok=%r, dit=%r)"
+    % (__OK, __DIT[:46]))
+os.environ["PATH"] = __PG2
+tp._outils.oublier()
+
 #  ═══ « INDISPONIBLE » ET SA RAISON, PLUTÔT QU'UN SUCCÈS INVENTÉ ═══
 #  La consigne du projet l'exige : si une action est impossible, on le dit et
 #  on dit pourquoi — jamais une valeur inventée, jamais un échec muet. On
