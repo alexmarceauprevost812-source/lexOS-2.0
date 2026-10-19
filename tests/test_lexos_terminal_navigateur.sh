@@ -244,6 +244,44 @@ srv.shutdown()
 print("ARRETE", flush=True)
 time.sleep(10)`;
 
+//  ═══ UN PONT DONT LA LECTURE DU THÈME NE REND JAMAIS LA MAIN ═══
+//  ⚠ POURQUOI PAS UN TUBE NOMMÉ, COMME AVANT : le pont REFUSE maintenant
+//  d'ouvrir ce qui n'est pas un fichier ordinaire — un tube ne bloque donc
+//  plus rien, et le point qui s'en servait passerait au vert sans rien
+//  éprouver. Ce garde est bon, mais il ne couvre PAS un montage mort : stat()
+//  y bloque aussi. C'est pour ce cas-là que la page garde ses deux ceintures,
+//  et c'est ce cas-là qu'on injecte ici — dans le VRAI pont, en arrêtant la
+//  SEULE fonction qu'un montage mort arrêterait. Toutes les autres routes
+//  vivent : le pty, les frappes, les réglages.
+//  LE TÉMOIN EST UN FICHIER : tant qu'il existe, la lecture dort. L'effacer
+//  rend le pont sain, ce qui permet d'éprouver la guérison sur le même pont.
+const pontSourd = async (foyer) => {
+  const temoin = foyer + '/.sourd';
+  fsb.writeFileSync(temoin, '');
+  const pySourd = `
+import importlib.util, os, time
+spec = importlib.util.spec_from_file_location("tp", "${BACKEND}")
+tp = importlib.util.module_from_spec(spec); spec.loader.exec_module(tp)
+_vrai = tp.lire_theme
+def _sourd(*a, **k):
+    while os.path.exists("${temoin}"):
+        time.sleep(0.05)
+    return _vrai(*a, **k)
+tp.lire_theme = _sourd
+srv, port, jeton = tp.demarrer_serveur()
+print("PRET %d %s" % (port, jeton), flush=True)
+time.sleep(600)`;
+  const pr = spawn('python3', ['-c', pySourd], {env: {...process.env,
+    HOME: foyer, XDG_CONFIG_HOME: foyer + '/.config',
+    LEXOS_TERMINAL_PRO_WEB: WEB,
+    PATH: process.env.LEXOS_BIN + ':' + process.env.PATH}});
+  pr.stderr.on('data', () => {});
+  const [, p, j] = await new Promise(r => pr.stdout.on('data', d => {
+    const m = String(d).match(/PRET (\d+) (\S+)/); if (m) r(m);
+  }));
+  return {proc: pr, port: p, jeton: j, guerir: () => fsb.unlinkSync(temoin)};
+};
+
 const pontArretable = async (foyer) => {
   const pr = spawn('python3', ['-c', pyArret], {env: {...process.env,
     HOME: foyer, XDG_CONFIG_HOME: foyer + '/.config',
@@ -963,18 +1001,12 @@ dit(ennuis.length === 0,
 {
   const foyer = process.env.LEXOS_BANC + '/bloque';
   fsb.mkdirSync(foyer + '/.config/lexos', {recursive: true});
-  const tube = foyer + '/.config/lexos/terminal.env';
-  const mk = spawnSync('mkfifo', [tube]);
-  if (mk.status !== 0 || !fsb.existsSync(tube)) {
-    //  UN BANC QUI NE PEUT PAS MESURER LE DIT, il ne conclut pas. Rouge et
-    //  pas « sauté » : mkfifo est dans coreutils, son absence est anormale.
-    dit(false, 'mkfifo indisponible — le blocage d\'une lecture de '
-             + 'configuration n\'a PAS été éprouvé ici');
-  } else {
-    //  UNE TAILLE RANGÉE, DIFFÉRENTE DE CELLE QU'ALEX VA POSER : sans elle,
-    //  la reprise n'aurait rien à rabattre et le point ne mesurerait rien.
+  {
+    //  Un thème COMPLET sur le disque : la guérison, plus bas, doit pouvoir
+    //  repeindre pour de vrai quand le pont redevient sain.
+    fsb.writeFileSync(foyer + '/.config/lexos/terminal.env', THEME_ENTIER);
     fsb.writeFileSync(foyer + '/.config/lexos/terminal-pro.json', '{"taille": 10.0}\n');
-    const b = await pont(foyer);
+    const b = await pontSourd(foyer);
     const pb = await nav.newPage({viewport: {width: 1100, height: 700}});
     const t0 = Date.now();
     await pb.goto(`http://127.0.0.1:${b.port}/index.html?port=${b.port}&jeton=${b.jeton}`,
@@ -987,7 +1019,8 @@ dit(ennuis.length === 0,
     const dt = Date.now() - t0;
     dit(ouvert, 'une lecture de configuration qui ne répond JAMAIS n\'empêche '
               + 'plus le terminal d\'exister (premier volet après ' + dt
-              + ' ms, pont bloqué sur un tube nommé)');
+              + ' ms, lecture du thème arrêtée DANS le pont — le cas du '
+              + 'montage mort, que le garde du fichier ordinaire ne couvre pas)');
     //  ET PAS DEUX FOIS. Les deux chemins qui mènent à Terminal.init() — les
     //  lectures qui se règlent, et la veille — peuvent arriver tous les deux.
     //  ⚠ CE POINT EST UN INVARIANT, PAS LE FILET DE LA DOUBLE INITIALISATION.
@@ -1038,8 +1071,7 @@ dit(ennuis.length === 0,
     //  mensonge inverse de celui qu'on venait de corriger.
     //  On remplace le tube par un VRAI thème et on déclenche la relecture
     //  comme le fait un retour de focus ; la barre doit redire la vérité.
-    fsb.unlinkSync(tube);
-    fsb.writeFileSync(tube, THEME_ENTIER);
+    b.guerir();
     await pb.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
     await pb.waitForTimeout(1200);
     const gueri = await pb.evaluate(() => ({
@@ -1207,6 +1239,10 @@ const taillePosee = async (foyer) => {
         + apres + ', le pont dit toujours ' + range + ')');
     await pg.close(); b.proc.kill();
   }
+  //  ON REND LE DOSSIER INSCRIPTIBLE : sans ça le nettoyage du banc ne peut
+  //  pas l'effacer, et il laisse deux « rm: Permission denied » sur la sortie
+  //  d'erreur plus un dossier derrière lui. Un banc range ce qu'il a posé.
+  try { fsb.chmodSync(conf, 0o700); } catch (e) {}
 }
 
 //  ═══ ET DANS L'ORDONNANCEMENT DU PRODUIT, PAS CELUI D'UN PONT IMMORTEL ═══
@@ -1255,6 +1291,56 @@ for (const cas of [{avecGrace: true}, {avecGrace: false}]) {
                 + 'mansuétude du navigateur');
   }
   b.proc.kill();
+}
+
+//  ═══ UN VOLET DONT LE SHELL EST SORTI SUIT QUAND MÊME LES RÉGLAGES ═══
+//  LE DÉFAUT : quand un shell sort, le flux partagé RETIRE son volet de
+//  FLUX.volets — et finSession() écrit dans ce même volet « Ctrl+B puis X pour
+//  fermer ce volet ». Il RESTE donc à l'écran, exprès. Mais le thème et la
+//  taille parcouraient FLUX.volets, c'est-à-dire la liste des ABONNEMENTS AU
+//  TRANSPORT : ils sautaient tous les volets terminés. Mesuré avant le
+//  correctif — « police après le geste : 12.5 pendant que le menu annonce
+//  22 ». Alex grossit le texte, et un volet reste petit.
+{
+  const foyer = process.env.LEXOS_BANC + '/sorti';
+  fsb.mkdirSync(foyer + '/.config/lexos', {recursive: true});
+  fsb.writeFileSync(foyer + '/.config/lexos/terminal.env', THEME_ENTIER);
+  const b = await pont(foyer);
+  const pg = await nav.newPage({viewport: {width: 1100, height: 700}});
+  await pg.goto(`http://127.0.0.1:${b.port}/index.html?port=${b.port}&jeton=${b.jeton}`);
+  await pg.waitForFunction(() => window.__banc && window.__banc.FLUX.volets.size > 0);
+  await pg.waitForTimeout(1200);
+  //  LE SHELL SORT. On attend que le flux l'ait DÉSABONNÉ : sans ça le point
+  //  mesurerait un volet encore abonné, donc rien du tout.
+  await pg.evaluate(() => window.__banc.Terminal.active.envoyer('exit\n'));
+  let desabonne = true;
+  try { await pg.waitForFunction(() => window.__banc.FLUX.volets.size === 0,
+                                 {timeout: 10000}); }
+  catch (e) { desabonne = false; }
+  await pg.waitForTimeout(400);
+  const etat = await pg.evaluate(() => {
+    const f = window.__banc.Terminal.onglets[0].fenetres()[0];
+    return { visible: !!document.querySelector('.xterm'),
+             avant: f && f.term && f.term.options.fontSize };
+  });
+  await pg.evaluate(() => window.__banc.poserTaille(22, false));
+  await pg.waitForTimeout(400);
+  const apres = await pg.evaluate(() => {
+    const f = window.__banc.Terminal.onglets[0].fenetres()[0];
+    return { police: f && f.term && f.term.options.fontSize,
+             annonce: window.__banc.TAILLE };
+  });
+  if (!desabonne) {
+    dit(false, 'le shell n\'a pas rendu la main en dix secondes — le volet '
+             + 'terminé n\'a PAS été éprouvé ici');
+  } else {
+    dit(etat.visible && apres.police === apres.annonce && apres.police === 22,
+        'un volet dont le shell est SORTI reste à l\'écran ET suit la taille : '
+        + 'il n\'est plus abonné au flux, mais il est toujours un volet ('
+        + etat.avant + ' → ' + apres.police + ' px, le menu annonce '
+        + apres.annonce + ')');
+  }
+  await pg.close(); b.proc.kill();
 }
 
 {

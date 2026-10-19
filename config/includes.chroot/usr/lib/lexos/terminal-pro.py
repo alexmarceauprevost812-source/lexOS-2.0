@@ -76,6 +76,7 @@ import secrets
 import shlex
 import signal
 import socket
+import stat
 import struct
 import subprocess
 import sys
@@ -204,6 +205,30 @@ def _taille_valide(valeur):
 PLAFOND_REGLAGES = 64 * 1024
 
 
+def _fichier_ordinaire(chemin):
+    """Vrai SEULEMENT pour un fichier ordinaire — et sans jamais l'ouvrir.
+
+    ═══ POURQUOI PAS « os.path.exists », ET C'EST MESURÉ ═══
+    Un TUBE NOMMÉ existe, et « open() » dessus ne rend JAMAIS la main : ni
+    erreur, ni octet. Le fil de service reste dedans pour toujours, et le
+    délai posé côté page ne le libère PAS — interrompre un fetch ferme la
+    connexion, ça ne réveille pas le serveur.
+    MESURÉ sur ce pont : DEUX fils au repos, SEPT après cinq lectures
+    bloquées. Et la relecture du thème revient chaque minute : une fenêtre
+    laissée ouverte une heure, c'est soixante fils morts.
+
+    CE QUE CE GARDE NE FAIT PAS, et il faut le dire : « stat » ne bloque pas
+    sur un tube, mais il bloque encore sur un montage mort (NFS coupé, sshfs
+    tombé, dossier personnel chiffré non déverrouillé). Ce garde supprime la
+    classe qu'on peut CONSTRUIRE ; il ne prétend pas couvrir celle-là. C'est
+    pour celle-là que la page garde ses deux ceintures au démarrage.
+    """
+    try:
+        return stat.S_ISREG(os.stat(chemin).st_mode)
+    except OSError:
+        return False
+
+
 def _charger_reglages_brut():
     """Le contenu de terminal-pro.json, tel quel. {} si rien d'exploitable.
 
@@ -229,7 +254,12 @@ def _charger_reglages_brut():
     explicite dans la liste. Et le plafond borne ce que celui qui écrit le
     fichier peut nous faire charger."""
     try:
-        with open(os.path.join(dossier_conf(), "terminal-pro.json"),
+        #  LE GARDE D'ABORD : un tube nommé ici bloquerait le fil pour
+        #  toujours (voir _fichier_ordinaire).
+        __c = os.path.join(dossier_conf(), "terminal-pro.json")
+        if not _fichier_ordinaire(__c):
+            return {}
+        with open(__c,
                   encoding="utf-8") as f:
             brut = json.loads(f.read(PLAFOND_REGLAGES + 1))
     except (OSError, UnicodeDecodeError, ValueError, RecursionError):
@@ -432,10 +462,12 @@ def dossier_theme():
     le fichier, parce que c'est là que tous les lecteurs de LexOS regardent.
     HOME n'est consulté que lorsque la variable n'a RIEN à offrir."""
     conf = dossier_conf()
-    if os.path.exists(os.path.join(conf, "terminal.env")):
+    #  _fichier_ordinaire et pas os.path.exists : un tube nommé « existe »,
+    #  et le retenir ici ferait bloquer lire_theme() juste après.
+    if _fichier_ordinaire(os.path.join(conf, "terminal.env")):
         return conf
     base = os.path.join(os.path.expanduser("~"), ".config", "lexos")
-    if base != conf and os.path.exists(os.path.join(base, "terminal.env")):
+    if base != conf and _fichier_ordinaire(os.path.join(base, "terminal.env")):
         return base
     return conf
 
@@ -453,8 +485,10 @@ def lire_mode_choisi():
     Sans ça le menu cocherait « Nuit » juste après un clic sur « Auto » :
     exactement ce qu'un premier essai dans un vrai navigateur a montré."""
     try:
-        with open(os.path.join(dossier_conf(), "terminal-mode"),
-                  encoding="utf-8") as f:
+        __c = os.path.join(dossier_conf(), "terminal-mode")
+        if not _fichier_ordinaire(__c):
+            return ""
+        with open(__c, encoding="utf-8") as f:
             val = f.read(64).strip()
     except (OSError, UnicodeDecodeError):
         return ""
@@ -469,6 +503,11 @@ def lire_theme(chemin=None):
     doit jamais empêcher le terminal de s'ouvrir."""
     if chemin is None:
         chemin = os.path.join(dossier_theme(), "terminal.env")
+    #  LE GARDE AUSSI ICI, et pas seulement dans dossier_theme() : ce chemin
+    #  peut venir de l'appelant, et un thème illisible ne doit JAMAIS coûter
+    #  un fil de service.
+    if not _fichier_ordinaire(chemin):
+        return {}
     valeurs = {}
     try:
         with open(chemin, encoding="utf-8") as f:

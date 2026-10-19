@@ -1066,6 +1066,29 @@ async function appliquerTheme(){
 //  c'est-à-dire le cas décrit vingt lignes plus bas comme ARRIVÉ À ALEX.
 //  Rend true si la palette est en place (posée maintenant, ou déjà posée),
 //  false si elle a été refusée.
+//  ═══ TOUS LES VOLETS, Y COMPRIS CEUX DONT LE SHELL EST SORTI ═══
+//  SIGNALÉ PAR UNE RELECTURE INDÉPENDANTE, et vérifié dans le code : quand un
+//  shell sort, le flux partagé RETIRE son volet de FLUX.volets — et
+//  finSession() écrit dans ce même volet « — session terminée. Ctrl+B puis X
+//  pour fermer ce volet. ». Le volet RESTE donc à l'écran, exprès, pour qu'on
+//  puisse relire la commande qui vient de finir. Mais FLUX.volets est la liste
+//  des ABONNEMENTS AU TRANSPORT, pas la liste des volets : le thème et la
+//  taille, qui la parcouraient, sautaient tous les volets terminés. Alex
+//  grossissait le texte et un volet restait petit, pendant que le menu
+//  annonçait la nouvelle valeur.
+//  LA VRAIE LISTE est celle des onglets. On y ajoute ceux que FLUX connaît
+//  encore — un volet peut exister sans être dans un onglet, c'est le cas du
+//  banc, qui en pose un à la main pour MESURER la réassignation du thème au
+//  lieu de la relire. Une seule fonction, lue par les deux boucles : deux
+//  parcours écrits séparément finiraient par ne plus dire la même chose.
+function tousLesVolets(){
+  const vus = new Set(), liste = [];
+  const ajouter = v => { if(v && !vus.has(v)){ vus.add(v); liste.push(v); } };
+  try{ Terminal.onglets.forEach(o => o.fenetres().forEach(ajouter)); }catch(e){}
+  try{ FLUX.volets.forEach(ajouter); }catch(e){}
+  return liste;
+}
+
 function poserTheme(t){
   if(!t) return false;
   //  RAFRAÎCHI AVANT LE CONTRÔLE DE COMPLÉTUDE, exprès : le mode choisi ne
@@ -1152,7 +1175,7 @@ function poserTheme(t){
   //  ancienne palette jusqu'à ce qu'on relance l'application. C'est le même
   //  défaut que « les couleurs figées au démarrage » corrigé dans
   //  lexos-terminal, de l'autre côté de la fenêtre.
-  for(const v of FLUX.volets.values()){
+  for(const v of tousLesVolets()){
     if(v && v.term) try{ v.term.options.theme = paletteXterm(); }catch(e){}
   }
   //  Il y avait ici un « dataset.theme = jour » qu'AUCUN sélecteur CSS ne
@@ -1375,20 +1398,64 @@ async function envoyerTaille(vise, rapporter){
 //  roulette garde la première valeur au lieu de tout perdre : le texte reste
 //  GROS, il n'est simplement pas à la dernière taille. C'est la bonne façon
 //  d'échouer pour quelqu'un qui a grossi le texte parce qu'il n'y voyait rien.
+//  ═══ UNE SEULE ÉCRITURE EN VOL, ET LA DERNIÈRE VALEUR GAGNE TOUJOURS ═══
+//  CE QUE FAISAIENT DEUX BORDS LANCÉS SANS SE PARLER, et c'est MESURÉ avec le
+//  vrai pont : le bord montant part sans « await », donc il peut finir APRÈS
+//  le bord descendant. Le pont est un serveur à fils et les deux requêtes
+//  voyagent sur des connexions séparées — rien ne garantit leur ordre.
+//  Mesure, premier POST ralenti de 1,2 s dans le pont (la vraie route, la
+//  vraie écriture, seule la lenteur est provoquée) :
+//
+//      à l'écran         : 20 px   (le geste d'Alex)
+//      rangé par le pont : 17 px   ← la PREMIÈRE valeur a écrasé la dernière
+//
+//  Au lancement suivant, Alex retrouvait 17. Une valeur fausse persistée, par
+//  le correctif même qui existait pour ne plus en perdre.
+//
+//  LA PARADE : au plus UNE requête en vol. Si une valeur arrive pendant qu'une
+//  écriture voyage, on ne l'envoie pas en parallèle — on la met EN ATTENTE, et
+//  c'est celle qui finit qui déclenche la suivante. L'ordre des envois est
+//  alors l'ordre des valeurs, et le fichier ne peut plus revenir en arrière.
+//  Une seule place d'attente suffit : seule la DERNIÈRE valeur compte, les
+//  intermédiaires d'une roulette n'ont aucun intérêt.
+let __tailleEnVol = null, __tailleAttente = null;
+
+function envoyerTailleSerialise(vise, rapporter){
+  if(__tailleEnVol){
+    //  « rapporter » est COLLANT : si le bord descendant (qui a le droit de se
+    //  plaindre) est mis en attente derrière un bord montant (qui ne l'a pas),
+    //  c'est le droit de se plaindre qui doit survivre, pas l'inverse.
+    __tailleAttente = { vise: vise,
+                        rapporter: rapporter
+                                   || (__tailleAttente && __tailleAttente.rapporter) };
+    return;
+  }
+  __tailleEnVol = envoyerTaille(vise, rapporter);
+  __tailleEnVol.catch(() => {}).then(() => {
+    __tailleEnVol = null;
+    const suite = __tailleAttente;
+    __tailleAttente = null;
+    //  On ne repart que si la valeur en attente n'est pas DÉJÀ celle du pont.
+    if(suite && suite.vise !== __tailleEnvoyee)
+      envoyerTailleSerialise(suite.vise, suite.rapporter);
+  });
+}
+
 function rangerTaille(){
   //  C'est LE chemin de tout geste volontaire : le drapeau est à sa place ici,
   //  et nulle part ailleurs.
   __tailleTouchee = true;
   //  ON NE POSTE PAS À CHAQUE CRAN DE MOLETTE : le bord montant ne part que
   //  si aucun geste n'est déjà en cours, donc une fois par geste.
-  if(!__tailleMinuteur && TAILLE !== __tailleEnvoyee) envoyerTaille(TAILLE, false);
+  if(!__tailleMinuteur && TAILLE !== __tailleEnvoyee)
+    envoyerTailleSerialise(TAILLE, false);
   if(__tailleMinuteur) clearTimeout(__tailleMinuteur);
   __tailleMinuteur = setTimeout(() => {
     __tailleMinuteur = null;
     //  __tailleEnvoyee n'est posé qu'au SUCCÈS : si le bord montant a échoué,
     //  ou n'est pas encore revenu, celui-ci repart — et c'est voulu.
     if(TAILLE === __tailleEnvoyee) return;
-    envoyerTaille(TAILLE, true);
+    envoyerTailleSerialise(TAILLE, true);
   }, 400);
 }
 
@@ -1436,6 +1503,14 @@ function viderTaille(){
   //  pas de « await », et « rapporter » serait absurde : il n'y a plus
   //  personne à qui dire que ça a raté. On note la valeur comme envoyée ; le
   //  prochain démarrage lira ce que le pont a VRAIMENT.
+  //  ⚠ ICI ON NE PEUT PAS SÉRIALISER : la page n'existera plus pour attendre
+  //  qu'une requête en vol revienne. On envoie donc la dernière valeur TELLE
+  //  QUELLE, même si une plus ancienne voyage encore. Le risque de
+  //  renversement subsiste sur cette seule fenêtre, et il est accepté en
+  //  connaissance de cause : la requête en vol est partie des millisecondes
+  //  plus tôt (bord montant) ou a déjà 400 ms d'avance (bord descendant),
+  //  tandis que ne RIEN envoyer perdrait la valeur à coup sûr. Perdre parfois
+  //  l'ordre vaut mieux que perdre toujours le réglage.
   poste("/api/reglages", { taille: vise }, true);
   __tailleEnvoyee = vise;
 }
@@ -1504,7 +1579,7 @@ function poserTaille(px, relatif, sansRanger){
   //  de la molette, il doit la suivre. UN SEUL endroit le lui dit — celui qui
   //  change la valeur.
   if(Reglages.pret) Reglages.rafraichir();
-  for(const v of FLUX.volets.values()){
+  for(const v of tousLesVolets()){
     if(!v || !v.term) continue;
     try{ v.term.options.fontSize = TAILLE; }catch(e){ continue; }
     //  insister() et pas ajuster() : la fenêtre peut être en train de se

@@ -371,7 +371,8 @@ rendu "le pty" < <(lance session_pty.py)
 titre "2. LES CINQ ROUTES ET LES TROIS SERRURES (matrice complète)"
 # =============================================================================
 cat > "$BANC/routes.py" <<'PY'
-import importlib.util, json, os, re, sys, tempfile, time, urllib.error, urllib.request
+import importlib.util, json, os, re, subprocess, sys, tempfile, threading, time
+import urllib.error, urllib.request
 spec = importlib.util.spec_from_file_location("tp", sys.argv[1])
 tp = importlib.util.module_from_spec(spec); spec.loader.exec_module(tp)
 
@@ -459,14 +460,32 @@ def ecoute():
         if ligne.startswith(b"data: "):
             recu.extend(base64.b64decode(ligne[6:].strip()))
 threading.Thread(target=ecoute, daemon=True).start()
-time.sleep(1.5)
-code, r = appel("/api/saisie", BON, corps=json.dumps({"fen": "vrai", "texte": "echo BOUT_EN_BOUT\n"}).encode())
+#  ⚠ ON ATTEND QUE LE SHELL AIT PARLÉ, on ne devine pas qu'il est prêt.
+#  Ce point dormait 1,5 s « pour laisser le temps » : une session pas encore
+#  créée répond 404 à la saisie, et la frappe est perdue sans un mot. La
+#  première sortie du shell, elle, prouve que la session existe ET qu'il lit.
 t0 = time.time()
-while time.time() - t0 < 8 and b"BOUT_EN_BOUT" not in bytes(recu): time.sleep(0.05)
+while time.time() - t0 < 10 and not recu: time.sleep(0.05)
+code, r = appel("/api/saisie", BON, corps=json.dumps({"fen": "vrai", "texte": "echo BOUT_EN_BOUT\n"}).encode())
+#  ═══ ET ON ATTEND LA DEUXIÈME OCCURRENCE, PAS LA PREMIÈRE ═══
+#  LE DÉFAUT, ÉTABLI DE FAÇON DÉTERMINISTE : la boucle s'arrêtait dès que le
+#  mot paraissait UNE fois (« not in »), alors que le point en exige DEUX —
+#  l'écho de la frappe, puis la sortie réelle. Elle s'arrêtait donc sur
+#  l'ÉCHO, et si la sortie n'était pas encore arrivée à cet instant précis, le
+#  compte valait 1 et le point rougissait sur du code juste. C'est le piège
+#  exact que décrit la docstring de Volet.attend(), dans ce même fichier.
+#  Vu UNE fois sur neuf passages, à la fin d'une suite de sept bancs
+#  enchaînés, et jamais isolé (huit sur huit). Je ne l'ai pas cru sur cette
+#  seule observation : écart entre l'écho et la sortie élargi à 300 ms par
+#  « sleep 0.3; echo … », l'ancienne boucle rend 1 occurrence À COUP SÛR, la
+#  nouvelle en rend 2. Une machine chargée élargit cet écart toute seule.
+t0 = time.time()
+while time.time() - t0 < 8 and bytes(recu).count(b"BOUT_EN_BOUT") < 2: time.sleep(0.05)
 #  Deux occurrences : l'écho de la frappe, puis la sortie réelle. Une seule
 #  voudrait dire que le shell n'a rien exécuté.
-dit(bytes(recu).count(b"BOUT_EN_BOUT") >= 2,
-    "flux + saisie : la frappe atteint le shell et sa sortie revient par le flux")
+dit(code == 200 and bytes(recu).count(b"BOUT_EN_BOUT") >= 2,
+    "flux + saisie : la frappe atteint le shell et sa sortie revient par le flux "
+    "(saisie : %s, occurrences : %d)" % (code, bytes(recu).count(b"BOUT_EN_BOUT")))
 
 #  Un accent doit traverser intact : c'est tout l'intérêt du base64 dans le
 #  sens descendant (les blocs de 64 ko coupent au hasard, y compris au
@@ -973,6 +992,64 @@ for ROUTE, ENTETES, ATTENDU, QUOI in (
         "%s avec un corps d'1 Mio répond %d douze fois sur douze — le pont "
         "finit de lire avant de répondre (sains : %d, autres : %r)"
         % (QUOI, ATTENDU, sains, casses[:2]))
+
+#  ═══ UN FICHIER DE CONFIGURATION QUI BLOQUE NE COÛTE PLUS UN FIL ═══
+#  LE DÉFAUT, MESURÉ, et signalé aussi par une relecture indépendante : les
+#  trois fichiers de configuration étaient OUVERTS sans vérifier leur nature.
+#  Un TUBE NOMMÉ existe, et open() dessus ne rend JAMAIS la main — ni erreur,
+#  ni octet. Le fil de service reste dedans pour toujours, et le délai posé
+#  côté page ne le libère PAS : interrompre un fetch ferme la connexion, ça ne
+#  réveille pas le serveur. Mesuré sur ce pont :
+#
+#      DEUX fils au repos, SEPT après cinq lectures bloquées
+#
+#  Et la page relit le thème CHAQUE MINUTE : une fenêtre laissée ouverte une
+#  heure, c'était soixante fils morts.
+#  ON MESURE LES DEUX CHOSES : que les routes RÉPONDENT, et qu'aucun fil ne
+#  reste derrière. Répondre vite sans compter les fils laisserait passer la
+#  fuite ; compter les fils sans vérifier la réponse laisserait passer un pont
+#  qui refuse tout.
+__RGF = (os.environ.get("HOME"), os.environ.get("XDG_CONFIG_HOME"))
+__RT2 = tempfile.mkdtemp()
+__CF = os.path.join(__RT2, ".config", "lexos")
+os.makedirs(__CF)
+__MK = 0
+for __nom in ("terminal.env", "terminal-pro.json", "terminal-mode"):
+    __MK += subprocess.run(["mkfifo", os.path.join(__CF, __nom)]).returncode
+os.environ["HOME"] = __RT2
+os.environ["XDG_CONFIG_HOME"] = os.path.join(__RT2, ".config")
+if __MK != 0:
+    #  UN BANC QUI NE PEUT PAS MESURER LE DIT. Rouge et pas « sauté » :
+    #  mkfifo est dans coreutils, son absence est anormale.
+    dit(False, "mkfifo indisponible — le blocage d'une lecture de "
+               "configuration n'a PAS été éprouvé ici")
+else:
+    __av = threading.active_count()
+    __lents, __codes = [], []
+    for __r in ("/api/theme", "/api/reglages", "/api/theme",
+                "/api/reglages", "/api/theme"):
+        __t0 = time.time()
+        __c, _ = appel(__r, BON, "GET", delai=3)
+        __ms = (time.time() - __t0) * 1000
+        __codes.append(__c)
+        if __ms > 1000:
+            __lents.append("%s %.0f ms" % (__r, __ms))
+        time.sleep(0.05)
+    __ap = threading.active_count()
+    dit(all(c == 200 for c in __codes) and not __lents,
+        "trois fichiers de configuration en tube nommé : les routes répondent "
+        "quand même, et vite (codes %r, lents : %r)" % (__codes, __lents))
+    dit(__ap <= __av + 1,
+        "…et AUCUN fil de service ne reste bloqué derrière (%d fils avant, "
+        "%d après cinq lectures)" % (__av, __ap))
+if __RGF[0] is None:
+    os.environ.pop("HOME", None)
+else:
+    os.environ["HOME"] = __RGF[0]
+if __RGF[1] is None:
+    os.environ.pop("XDG_CONFIG_HOME", None)
+else:
+    os.environ["XDG_CONFIG_HOME"] = __RGF[1]
 
 tp.fermer_toutes()
 srv.shutdown()
