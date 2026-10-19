@@ -540,6 +540,76 @@ dit(tp.lire_mode_choisi() == "auto"
     "après « auto », le choix reste « auto » mais l'effectif est résolu (%r / %r)"
     % (tp.lire_mode_choisi(), tp.lire_theme().get("LEXOS_TERM_EFFECTIF")))
 
+#  ═══ terminal.env SE TROUVE DANS LES DEUX RACINES ═══
+#  SIGNALÉ PAR UNE RELECTURE (Codex, P2), puis reproduit ici. lexos-terminal
+#  écrit son mode dans « ${XDG_CONFIG_HOME:-$HOME/.config}/lexos » et honore
+#  donc la variable ; lexos-theme-gen régénère terminal.env sous
+#  « $TARGET/.config » et ne l'honore PAS. Pour qui pose la variable ailleurs
+#  que $HOME/.config, « lexos terminal nuit » réussissait, écrivait
+#  terminal-mode dans le dossier de la variable, et /api/mode rendait un thème
+#  VIDE — alors que cette route PROMET le thème frais.
+#  C'est donc le LECTEUR qui cède, et c'est le bon sens de la concession : lire
+#  un fichier là où il est ne casse rien, tandis que déplacer ce que le
+#  générateur écrit a déjà cassé deux choses (voir l'en-tête du générateur).
+#  CE POINT ÉPROUVE LA RÈGLE, PAS UN CAS : les deux racines séparément, ET la
+#  préséance quand les deux ont un fichier.
+__RT = tempfile.mkdtemp()
+__RG = (os.environ.get("HOME"), os.environ.get("XDG_CONFIG_HOME"))
+__ECARTS = []
+
+#  a) le fichier SOUS HOME, la variable ailleurs et vide → on le trouve.
+os.environ["HOME"] = os.path.join(__RT, "a")
+os.environ["XDG_CONFIG_HOME"] = os.path.join(__RT, "a-var")
+os.makedirs(os.path.join(__RT, "a", ".config", "lexos"), exist_ok=True)
+os.makedirs(os.environ["XDG_CONFIG_HOME"], exist_ok=True)
+with open(os.path.join(__RT, "a", ".config", "lexos", "terminal.env"), "w") as __f:
+    __f.write("LEXOS_TERM_EFFECTIF=nuit\nLEXOS_TERM_BG=#000000\n")
+if tp.lire_theme().get("LEXOS_TERM_BG") != "#000000":
+    __ECARTS.append("sous HOME : non trouvé")
+
+#  b) le fichier DANS LA VARIABLE → on le trouve aussi.
+os.environ["HOME"] = os.path.join(__RT, "b")
+os.environ["XDG_CONFIG_HOME"] = os.path.join(__RT, "b-var")
+os.makedirs(os.path.join(__RT, "b-var", "lexos"), exist_ok=True)
+with open(os.path.join(__RT, "b-var", "lexos", "terminal.env"), "w") as __f:
+    __f.write("LEXOS_TERM_EFFECTIF=jour\nLEXOS_TERM_BG=#F7F5F0\n")
+if tp.lire_theme().get("LEXOS_TERM_BG") != "#F7F5F0":
+    __ECARTS.append("dans la variable : non trouvé")
+
+#  c) LES DEUX EN ONT UN → la VARIABLE gagne, parce que c'est là que tous les
+#     lecteurs de LexOS regardent.
+os.environ["HOME"] = os.path.join(__RT, "c")
+os.environ["XDG_CONFIG_HOME"] = os.path.join(__RT, "c-var")
+os.makedirs(os.path.join(__RT, "c", ".config", "lexos"), exist_ok=True)
+os.makedirs(os.path.join(__RT, "c-var", "lexos"), exist_ok=True)
+with open(os.path.join(__RT, "c", ".config", "lexos", "terminal.env"), "w") as __f:
+    __f.write("LEXOS_TERM_BG=#111111\n")
+with open(os.path.join(__RT, "c-var", "lexos", "terminal.env"), "w") as __f:
+    __f.write("LEXOS_TERM_BG=#222222\n")
+if tp.lire_theme().get("LEXOS_TERM_BG") != "#222222":
+    __ECARTS.append("les deux : la variable ne gagne pas (%r)"
+                    % (tp.lire_theme().get("LEXOS_TERM_BG"),))
+
+#  d) AUCUN des deux → {} , et surtout pas une levée.
+os.environ["HOME"] = os.path.join(__RT, "d")
+os.environ["XDG_CONFIG_HOME"] = os.path.join(__RT, "d-var")
+try:
+    if tp.lire_theme() != {}:
+        __ECARTS.append("aucun des deux : devrait rendre {}")
+except Exception as __e:
+    __ECARTS.append("aucun des deux : LÈVE " + type(__e).__name__)
+
+dit(not __ECARTS,
+    "terminal.env est trouvé sous HOME comme dans XDG_CONFIG_HOME, la variable "
+    "gagne quand les deux en ont un, et l'absence rend {} sans lever "
+    "(écarts : %r)" % (__ECARTS,))
+if __RG[0] is not None:
+    os.environ["HOME"] = __RG[0]
+if __RG[1] is None:
+    os.environ.pop("XDG_CONFIG_HOME", None)
+else:
+    os.environ["XDG_CONFIG_HOME"] = __RG[1]
+
 #  ═══ « INDISPONIBLE » ET SA RAISON, PLUTÔT QU'UN SUCCÈS INVENTÉ ═══
 #  La consigne du projet l'exige : si une action est impossible, on le dit et
 #  on dit pourquoi — jamais une valeur inventée, jamais un échec muet. On

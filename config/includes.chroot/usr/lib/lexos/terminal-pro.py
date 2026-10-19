@@ -354,6 +354,42 @@ def lancer_mode(mode):
     return True, (lignes[-1][:160] if lignes else "")
 
 
+def dossier_theme():
+    """Où est VRAIMENT terminal.env — la variable d'abord, HOME ensuite.
+
+    ═══ POURQUOI DEUX RACINES, ET POURQUOI C'EST LE LECTEUR QUI CÈDE ═══
+    lexos-terminal écrit son mode dans « ${XDG_CONFIG_HOME:-$HOME/.config}/lexos »
+    et honore donc la variable ; lexos-theme-gen, lui, régénère terminal.env
+    sous « $TARGET/.config » et ne l'honore PAS (c'est écrit en tête du
+    générateur, avec la mesure qui dit pourquoi le lui faire suivre à moitié
+    était pire que de ne rien faire). Pour qui pose la variable ailleurs que
+    $HOME/.config, le fichier n'est donc pas là où ce pont le cherchait.
+
+    CE QUE ÇA DONNAIT, et une relecture l'a reproduit : « lexos terminal nuit »
+    réussissait, écrivait terminal-mode dans le dossier de la variable, et
+    /api/mode rendait un thème VIDE — la route promet « le thème frais » et ne
+    rendait rien. Depuis que poserTheme() rend un booléen, le menu le DIT au
+    moins (« la fenêtre n'a PAS été repeinte ») plutôt que de mentir ; mais le
+    dire ne le répare pas.
+
+    LE VRAI CORRECTIF est de faire suivre la variable aux six sorties du
+    générateur, et il est hors du périmètre de ce lot. En attendant, c'est le
+    LECTEUR qui cède, et c'est le bon sens de la concession : lire un fichier
+    là où il est ne casse rien, alors que déplacer ce que le générateur écrit a
+    déjà cassé deux choses.
+
+    L'ORDRE N'EST PAS ARBITRAIRE : le dossier de la variable gagne quand il a
+    le fichier, parce que c'est là que tous les lecteurs de LexOS regardent.
+    HOME n'est consulté que lorsque la variable n'a RIEN à offrir."""
+    conf = dossier_conf()
+    if os.path.exists(os.path.join(conf, "terminal.env")):
+        return conf
+    base = os.path.join(os.path.expanduser("~"), ".config", "lexos")
+    if base != conf and os.path.exists(os.path.join(base, "terminal.env")):
+        return base
+    return conf
+
+
 def lire_mode_choisi():
     """Le mode que l'utilisateur a CHOISI : jour, nuit, auto, suivre — ou "".
 
@@ -382,7 +418,7 @@ def lire_theme(chemin=None):
     valide : la page garde alors la palette livrée. Un thème illisible ne
     doit jamais empêcher le terminal de s'ouvrir."""
     if chemin is None:
-        chemin = os.path.join(dossier_conf(), "terminal.env")
+        chemin = os.path.join(dossier_theme(), "terminal.env")
     valeurs = {}
     try:
         with open(chemin, encoding="utf-8") as f:
