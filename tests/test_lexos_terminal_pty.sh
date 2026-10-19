@@ -50,6 +50,32 @@ LANCEUR="$RACINE/config/includes.chroot/usr/bin/lexos-pro-terminal"
 BANC="$(mktemp -d)"
 trap 'rm -rf "$BANC"' EXIT
 
+#  ═══ UN FOYER À NOUS, POUR TOUT LE BANC ═══
+#  Ce banc écrit TROIS sondes (session_pty.py, routes.py, absences.py) et
+#  n'épinglait son foyer que dans la deuxième. CE QUE ÇA A COÛTÉ : une
+#  construction rouge. Étape 90 de la CI sur 123a886 — « le mot de passe tapé
+#  est reçu », « l'écho est coupé pendant la saisie », « deux volets ont chacun
+#  leur shell » : 75 réussis, 3 échoués, sur du code JUSTE. Reproduit dans les
+#  trois cas :
+#      XDG_CONFIG_HOME posé                        → 78 / 0
+#      non posé, AVEC un terminal.env dans le foyer → 75 / 3, les trois mêmes
+#      non posé, foyer sans thème                   → 78 / 0
+#  Le coureur avait un terminal.env dans /home/runner/.config/lexos, laissé par
+#  une étape antérieure du MÊME job ; les sondes le lisaient, et les points qui
+#  lisent l'écran du shell rougissaient.
+#  Et ça laissait des traces : .bash_history dans le foyer de l'appelant,
+#  écrit par les shells que les pseudo-terminaux lancent.
+#
+#  ÉPINGLÉ ICI, AU NIVEAU DU SCRIPT, et pas sonde par sonde : c'est le
+#  pointillé qui a laissé passer celle-là. Vérifié avant de le faire : ce
+#  fichier n'emploie $HOME nulle part pour trouver un outil — seulement dans
+#  des commentaires et dans un script que ses propres sondes écrivent.
+#  HOME *ET* XDG_CONFIG_HOME : le pont retombe sur « $HOME/.config » quand la
+#  variable ne porte rien, donc en épingler une seule laisse la porte ouverte.
+export HOME="$BANC/foyer"
+export XDG_CONFIG_HOME="$BANC/foyer/.config"
+mkdir -p "$XDG_CONFIG_HOME/lexos"
+
 REUSSIS=0; ECHOUES=0
 ok()   { printf '  \033[32m✅\033[0m %s\n' "$1"; REUSSIS=$((REUSSIS+1)); }
 non()  { printf '  \033[31m❌\033[0m %s\n' "$1"; ECHOUES=$((ECHOUES+1)); }
@@ -111,7 +137,7 @@ rendu() {
 titre "1. LE PTY : ce que « claude », « sudo », « nano » et « htop » exigent"
 # =============================================================================
 cat > "$BANC/session_pty.py" <<'PY'
-import importlib.util, os, re, subprocess, sys, threading, time
+import importlib.util, os, re, subprocess, sys, termios, threading, time
 spec = importlib.util.spec_from_file_location("tp", sys.argv[1])
 tp = importlib.util.module_from_spec(spec); spec.loader.exec_module(tp)
 
@@ -143,6 +169,67 @@ class Volet:
             time.sleep(0.03)
         return False
     def vide(self): self.buf.clear()
+
+    def _echo(self):
+        """L'écho est-il actif sur l'ESCLAVE ? None si on ne peut pas le lire.
+
+        ⚠ ON LIT L'ESCLAVE, PAS LE MAÎTRE. MESURÉ : tcgetattr sur le
+        descripteur maître annonce « écho coupé » même au repos — il ne
+        reflète pas la discipline de ligne. L'esclave s'atteint par
+        /proc/<pid du shell>/fd/0.
+        """
+        try:
+            nom = os.readlink("/proc/%d/fd/0" % self.s.pid)
+            fd = os.open(nom, os.O_RDONLY | os.O_NOCTTY)
+        except OSError:
+            return None
+        try:
+            return bool(termios.tcgetattr(fd)[3] & termios.ECHO)
+        except (OSError, termios.error):
+            return None
+        finally:
+            os.close(fd)
+
+    def attend_echo_coupe(self, delai=5):
+        """Attend que la discipline de ligne ait VRAIMENT coupé l'écho.
+
+        ⚠ POURQUOI ON NE PEUT PAS TAPER DÈS QUE L'INVITE PARAÎT, et c'est
+        la cause d'une CONSTRUCTION ROUGE : getpass coupe l'écho avec
+        TCSAFLUSH, qui JETTE l'entrée déjà en attente. Taper dans la fenêtre
+        entre « l'invite est écrite » et « l'écho est coupé » fait disparaître
+        le mot de passe — et le programme reste alors en attente, puis avale
+        la commande du contrôle SUIVANT. C'est pour ça que TROIS points
+        rougissaient ensemble, jamais un seul.
+        MESURÉ : 2 échecs sur 5 passages dans un environnement IDENTIQUE.
+        J'avais d'abord cru à une cause d'environnement (XDG_CONFIG_HOME, un
+        thème hérité) sur trois observations — c'était une coïncidence, et la
+        répétition l'a démentie. Trois observations ne font pas une cause.
+
+        ⚠ ET « ÉCHO COUPÉ » SEUL NE SUFFIT PAS COMME SIGNAL : un bash
+        interactif l'a DÉJÀ coupé, parce que readline fait le sien (mesuré :
+        faux au repos). La vraie transition est : l'invite paraît, l'écho
+        REVIENT (le programme prend la main, terminal canonique), puis il
+        repart (getpass). Mesuré : 10 ms entre les deux. On attend donc de
+        l'avoir vu ACTIF, puis coupé.
+
+        Rend True si on peut taper sans risque, False si l'écho est encore
+        actif à l'échéance, None si on n'a pas pu le mesurer — et dans ce
+        dernier cas le point le DIT au lieu de conclure.
+        """
+        t0 = time.time()
+        vu_actif = False
+        while time.time() - t0 < delai:
+            e = self._echo()
+            if e is None:
+                return None
+            if e:
+                vu_actif = True
+            elif vu_actif:
+                return True
+            time.sleep(0.005)
+        #  On n'a pas vu la transition. Si l'écho est coupé MAINTENANT, c'est
+        #  qu'on est arrivés après elle : taper est sans risque.
+        return self._echo() is False
 
 v = Volet(cwd="/tmp", colonnes=80, lignes=24)
 
@@ -206,6 +293,15 @@ dit(vivant and brut.count(b"PAS_INTERROMPU") == 1 and b"^C" in brut,
 v.vide()
 v.tape("""python3 -c 'import getpass; m=getpass.getpass("mot de passe : "); print("RECU=["+m+"]")'\n""")
 dit(v.attend(b"mot de passe :"), "une invite de mot de passe s'affiche (validation n° 5)")
+#  ⚠ ON ATTEND QUE L'ÉCHO SOIT COUPÉ AVANT DE TAPER — voir attend_echo_coupe().
+__pret = v.attend_echo_coupe()
+if __pret is None:
+    dit(False, "l'état de l'écho n'a pas pu être lu — les deux points du mot "
+                "de passe ne sont PAS éprouvés ici (ni verts, ni rouges : "
+                "non mesurés)")
+elif not __pret:
+    dit(False, "l'écho était encore actif à l'échéance : taper maintenant "
+               "ferait jeter le mot de passe par TCSAFLUSH, donc on ne tape pas")
 avant = bytes(v.buf)
 v.tape("secret42\n")
 recu = v.attend(b"RECU=[secret42]")
@@ -217,6 +313,12 @@ dit(recu and b"secret42\r\n" not in apres.split(b"RECU=")[0],
     "l'écho est coupé pendant la saisie : le mot de passe ne s'affiche pas")
 
 #  ═══ 7. DEUX VOLETS = DEUX SHELLS — validation n° 10 ═══
+#  ⚠ ON ATTEND QUE LE SHELL AIT REPRIS LA MAIN. Le programme du contrôle
+#  précédent vient de rendre, et son invite revient. Sans cette attente, la
+#  commande ci-dessous partait parfois DANS ce programme — c'est la troisième
+#  moitié du même défaut : les trois points rougissaient ensemble parce que le
+#  mot de passe jeté laissait le programme en attente.
+v.attend(b"$", 5)
 w = Volet(cwd="/etc")
 v.vide(); w.vide()
 v.tape("cd /usr; echo ICI_V=$PWD\n")
