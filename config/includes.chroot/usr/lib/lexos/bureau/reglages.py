@@ -69,6 +69,11 @@ DEFAUTS = {
     "labo": True,
     "labo_delai": 1000,
     "labo_apps": ["*"],
+    #  🎛️ Mes outils : la barre mince qui descend du HAUT de l'écran, sous la
+    #  barre du haut (volume, capture, notifications, arrêt, et les outils
+    #  qu'Alex y place). ["*"] = pas encore choisi → quelques outils LexOS.
+    "outils": True,
+    "outils_apps": ["*"],
     #  Où Alex a posé ses icônes : {identifiant: [x, y]} en pixels du bureau.
     #  Vide = la grille par sections. Une icône qu'on n'a jamais déplacée
     #  reste dans la grille.
@@ -99,7 +104,7 @@ def _propre(cle: str, v):
     """La valeur v si elle est valide pour cle, sinon None."""
     if cle == "positions":
         return _positions(v)
-    if cle == "labo_apps":
+    if cle in ("labo_apps", "outils_apps"):
         if v == ["*"]:
             return ["*"]
         if not isinstance(v, list):
@@ -147,6 +152,7 @@ def lire() -> dict:
     r = dict(DEFAUTS)
     r["positions"] = {}
     r["labo_apps"] = list(DEFAUTS["labo_apps"])
+    r["outils_apps"] = list(DEFAUTS["outils_apps"])
     try:
         brut = json.loads(FICHIER.read_text("utf-8"))
     except (OSError, ValueError):

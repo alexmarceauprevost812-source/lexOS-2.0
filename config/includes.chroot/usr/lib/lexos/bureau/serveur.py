@@ -37,6 +37,7 @@ ICI = Path(__file__).resolve().parent
 sys.path.insert(0, str(ICI))
 
 import applis  # noqa: E402
+import gestes  # noqa: E402
 import reglages  # noqa: E402
 
 WEB = ICI / "web"
@@ -100,6 +101,16 @@ class Etat:
                 "tilex": bool(shutil.which("ti-lex-ia")), "dock": dock(), "zone": ZONE.lire(),
                 "labo": [e["id"] for e in labo_choisis(r, tout)],
                 "couleurs": reglages.COULEURS, "polices": reglages.POLICES}
+
+    def construire_outils(self) -> dict:
+        """🎛️ Mes outils : le son, les notifications, et les outils placés."""
+        r, tout = self._tout()
+        sections = [{"titre": t, "elements": tout[c]} for c, t in
+                    (("tilex", "ti-lex IA"), ("lexos", "LexOS"), ("bureau", "Mon bureau"),
+                     ("applis", "Toutes les applications")) if tout[c]]
+        return {"apps": outils_choisis(r, tout), "sections": sections, "prenom": prenom(),
+                "son": gestes.son_etat(), "notifs": gestes.notifications(), "dnd": gestes.ne_pas_deranger(),
+                "reglages": {k: r[k] for k in ("accent", "police", "outils_apps")}}
 
     def construire_labo(self) -> dict:
         """🧪 Mon labo : ce qu'Alex y a mis, et de quoi en ajouter."""
@@ -220,6 +231,8 @@ def fabriquer(etat: Etat):
                 return self.send_error(403)
             if chemin == "/api/labo":
                 return self._json(etat.construire_labo())
+            if chemin == "/api/outils":
+                return self._json(etat.construire_outils())
             if chemin == "/api/etat":
                 return self._json(etat.construire())
             if chemin == "/api/version":
@@ -272,6 +285,14 @@ def fabriquer(etat: Etat):
                 if not q or not shutil.which("ti-lex-ia"):
                     return self._json({"ok": False})
                 return self._json({"ok": applis._detache(["ti-lex-ia", vers, q])})
+            if chemin == "/api/son":
+                return self._json(gestes.son(d))
+            if chemin == "/api/capture":
+                return self._json({"ok": gestes.capture(str(d.get("mode", "")))})
+            if chemin == "/api/notifs":
+                return self._json(gestes.notifs(d))
+            if chemin == "/api/session":
+                return self._json({"ok": gestes.session(str(d.get("geste", "")))})
             if chemin == "/api/reglages":
                 r = reglages.ecrire(d)
                 if r["mode"] == "classique":
@@ -323,20 +344,29 @@ class ZoneTravail:
 ZONE = ZoneTravail()
 
 
+def _choisis(ids: list, tout: dict, defaut: list) -> list[dict]:
+    connus: dict[str, dict] = {}
+    for cle in ("tilex", "lexos", "bureau", "applis"):
+        for e in tout[cle]:
+            connus.setdefault(e["id"], e)
+    return [connus[i] for i in (defaut if ids == ["*"] else ids) if i in connus]
+
+
 def labo_choisis(r: dict, tout: dict) -> list[dict]:
     """Les éléments du labo, dans l'ordre d'Alex. Une appli désinstallée
     (identifiant introuvable) disparaît sans bruit ; ["*"] = pas encore
     choisi : les onglets de ti-lex IA, puis le terminal, Fichiers et le
     navigateur."""
-    connus: dict[str, dict] = {}
-    for cle in ("tilex", "lexos", "bureau", "applis"):
-        for e in tout[cle]:
-            connus.setdefault(e["id"], e)
-    ids = r["labo_apps"]
-    if ids == ["*"]:
-        ids = [e["id"] for e in tout["tilex"]]
-        ids += [e["id"] for e in tout["lexos"] if e["nom"] in ("Terminal TI-LEX", "Fichiers", "Navigateur Web")]
-    return [connus[i] for i in ids if i in connus]
+    defaut = [e["id"] for e in tout["tilex"]]
+    defaut += [e["id"] for e in tout["lexos"] if e["nom"] in ("Terminal TI-LEX", "Fichiers", "Navigateur Web")]
+    return _choisis(r["labo_apps"], tout, defaut)
+
+
+def outils_choisis(r: dict, tout: dict) -> list[dict]:
+    """Les outils qu'Alex a placés dans 🎛️ Mes outils ; au départ, trois
+    outils LexOS — à lui de les changer (« ＋ »)."""
+    defaut = [e["id"] for e in tout["lexos"] if e["nom"] in ("Paramètres", "Moniteur système", "Pilotes")]
+    return _choisis(r["outils_apps"], tout, defaut)
 
 
 DCONF = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "dconf" / "user"
@@ -415,6 +445,7 @@ def main() -> int:
     #  l'ignore d'abord, et la fenêtre du labo le prend dès qu'elle existe.
     import signal
     signal.signal(signal.SIGUSR1, signal.SIG_IGN)
+    signal.signal(signal.SIGUSR2, signal.SIG_IGN)
 
     etat = Etat()
     serveur = ThreadingHTTPServer(("127.0.0.1", args.port), fabriquer(etat))

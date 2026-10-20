@@ -48,7 +48,7 @@ def charger(maison: Path):
     os.environ["LEXOS_BUREAU_ICONES"] = str(ICONES)
     os.environ["LEXOS_BUREAU_MOTEUR_UI"] = str(TILEX / "interface")
     sys.path.insert(0, str(BUREAU))
-    for m in ("reglages", "applis", "serveur"):
+    for m in ("reglages", "applis", "gestes", "serveur"):
         sys.modules.pop(m, None)
     import reglages, applis, serveur  # noqa: E401
     return reglages, applis, serveur
@@ -125,6 +125,12 @@ class Reglages(unittest.TestCase):
         #  La liste par défaut n'est pas partagée entre deux lectures.
         self.rg.lire()["labo_apps"].append("t-x")
         self.assertEqual(self.rg.lire()["labo_apps"], ["*"])
+
+    def test_outils(self):
+        r = self.rg.lire()
+        self.assertEqual((r["outils"], r["outils_apps"]), (True, ["*"]))
+        self.assertEqual(self.rg._propre("outils_apps", ["a-0123456789abcd", "/bin/sh"]), ["a-0123456789abcd"])
+        self.assertIsNone(self.rg._propre("outils", "oui"))
 
     def test_logo_du_centre(self):
         r = self.rg.lire()
@@ -208,6 +214,14 @@ class Table(unittest.TestCase):
         self.assertEqual(noms, ["GIMP", "Mon éditeur", "Sous-dossier"])
         ident = self.ap._ident("a-", str(sys_apps / "gimp.desktop"))
         self.assertEqual(t.actions[ident], ("desktop", str(sys_apps / "gimp.desktop")))
+
+    def test_rayons(self):
+        """Le ti démon range les applis comme le menu d'XFCE."""
+        self.assertEqual(self.ap.rayon(["Network", "WebBrowser", "Utility"]), "Internet")
+        self.assertEqual(self.ap.rayon(["AudioVideo", "Player"]), "Multimédia")
+        self.assertEqual(self.ap.rayon(["Game", "ArcadeGame"]), "Jeux")
+        self.assertEqual(self.ap.rayon(["X-Inconnu"]), "Autres")
+        self.assertEqual(self.ap.rayon([]), "Autres")
 
     def test_bureau(self):
         t = self.ap.Table()
@@ -415,6 +429,42 @@ class Serveur(unittest.TestCase):
         self.etat.derniers.clear()          # la garde du double-clic ne doit pas gêner les autres tests
         self.req("POST", "/api/reglages", {"labo_apps": ["*"]})
 
+    def test_outils(self):
+        """🎛️ Mes outils : la page, le ti démon, et des gestes fermés."""
+        for f in ("/outils.html", "/outils.js", "/outils.css", "/ti-demon.png"):
+            self.assertEqual(self.req("GET", f, jeton=False)[0], 200, f)
+        self.assertEqual(self.req("GET", "/api/outils", jeton=False)[0], 403)
+        O = json.loads(self.req("GET", "/api/outils")[1])
+        for cle in ("apps", "sections", "son", "notifs", "dnd", "reglages"):
+            self.assertIn(cle, O)
+        tous = {e["id"] for s in O["sections"] for e in s["elements"]}
+        self.assertTrue({e["id"] for e in O["apps"]} <= tous)
+        #  Rien d'autre que les trois captures et les cinq gestes.
+        self.assertFalse(json.loads(self.req("POST", "/api/capture", {"mode": "; rm -rf ~"})[1])["ok"])
+        self.assertFalse(json.loads(self.req("POST", "/api/session", {"geste": "rm"})[1])["ok"])
+        r = json.loads(self.req("POST", "/api/son", {"volume": "fort"})[1])
+        self.assertFalse(r["ok"])
+        self.req("POST", "/api/reglages", {"outils_apps": ["s-maison"]})
+        O = json.loads(self.req("GET", "/api/outils")[1])
+        self.assertEqual([e["id"] for e in O["apps"]], ["s-maison"])
+        self.req("POST", "/api/reglages", {"outils_apps": ["*"]})
+
+    def test_notifications(self):
+        journal = Path(self.tmp.name, ".cache/xfce4/notifyd/log")
+        journal.parent.mkdir(parents=True, exist_ok=True)
+        journal.write_text("[1792000000]\napp_name=lexos-usb\nsummary=Clé USB branchée\nbody=LEXOS\n\n"
+                           "[1792000100]\napp_name=x\nsummary=Plus récente\n", encoding="utf-8")
+        avant = self.sv.gestes.JOURNAL_NOTIFS
+        self.sv.gestes.JOURNAL_NOTIFS = journal
+        try:
+            O = json.loads(self.req("GET", "/api/outils")[1])
+            self.assertEqual([n["titre"] for n in O["notifs"]], ["Plus récente", "Clé USB branchée"])
+            r = json.loads(self.req("POST", "/api/notifs", {"vider": True})[1])
+            self.assertEqual(r["notifs"], [])
+            self.assertEqual(journal.read_text(), "")      # écrasé, pas supprimé
+        finally:
+            self.sv.gestes.JOURNAL_NOTIFS = avant
+
     def test_double_clic_un_seul_lancement(self):
         self.req("GET", "/api/etat")
         self.lances.clear()
@@ -541,6 +591,23 @@ class Scripts(unittest.TestCase):
         self.assertIn("signal.SIGUSR1, signal.SIG_IGN", s)   # SIGUSR1 tue par défaut
         raccourcis = (INC / "etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml").read_text()
         self.assertIn('value="lexos-bureau labo"', raccourcis)
+
+    def test_outils_et_tele(self):
+        b = (INC / "usr/bin/lexos-bureau").read_text()
+        self.assertIn("outils)", b)
+        self.assertIn('pkill -USR2 -u "$(id -u)"', b)
+        s = (BUREAU / "serveur.py").read_text()
+        self.assertIn("signal.SIGUSR2, signal.SIG_IGN", s)
+        f = (BUREAU / "fenetre.py").read_text()
+        self.assertIn("class Outils(Tiroir)", f)
+        self.assertIn("grabWindow(0)", f)                 # la photo de l'écran pour la télé
+        self.assertIn('"systemctl", "poweroff"', f)        # le filet si l'arrêt ne vient pas
+        self.assertIn("rendre_l_ecran", f)                 # jamais un écran noir pour toujours
+        self.assertIn("set_input_focus", f)                # la recherche reçoit le clavier
+        js = (BUREAU / "web/outils.js").read_text()
+        self.assertIn('classList.contains("arme")', js)    # éteindre demande un 2e clic
+        raccourcis = (INC / "etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml").read_text()
+        self.assertIn('value="lexos-bureau outils"', raccourcis)
 
     def test_relancer_ne_compte_pas_comme_chute(self):
         """La vraie boucle, avec un faux moteur qui sort aussitôt : après

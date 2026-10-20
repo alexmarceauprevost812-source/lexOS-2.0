@@ -10,6 +10,8 @@
 #    lexos-bureau relancer    redémarre le bureau du Moteur (après une mise à jour)
 #    lexos-bureau labo        ouvre / ferme 🧪 Mon labo (pour un raccourci clavier ;
 #                             sinon : la souris collée en bas de l'écran)
+#    lexos-bureau outils      ouvre / ferme 🎛️ Mes outils (sinon : la souris
+#                             collée en haut de l'écran)
 #
 #  ═══ UNE SEULE FENÊTRE DE BUREAU À LA FOIS ═══
 #  Les fonds animés de 2026 ont été retirés parce qu'ils posaient une 2e
@@ -167,6 +169,13 @@ case "${1:-}" in
 		else
 			echo "Le labo vient avec le bureau du Moteur, qui ne tourne pas : lexos-bureau moteur" >&2; exit 1
 		fi ;;
+	outils)
+		#  Même chose pour la barre qui descend du haut : SIGUSR2.
+		if moteur_tourne; then
+			pkill -USR2 -u "$(id -u)" -f "python3 $ICI/serveur[.]py"
+		else
+			echo "Mes outils viennent avec le bureau du Moteur, qui ne tourne pas : lexos-bureau moteur" >&2; exit 1
+		fi ;;
 	etat)
 		echo "choisi    : $(mode_choisi)"
 		if moteur_tourne; then echo "en marche : moteur"
@@ -176,5 +185,5 @@ case "${1:-}" in
 	-h|--help|aide)
 		sed -n '3,10p' "$0" | sed '/^#$/d' | sed 's/^#  \{0,1\}//' ;;
 	*)
-		echo "Usage : lexos-bureau [moteur|classique|relancer|labo|etat]" >&2; exit 2 ;;
+		echo "Usage : lexos-bureau [moteur|classique|relancer|labo|outils|etat]" >&2; exit 2 ;;
 esac

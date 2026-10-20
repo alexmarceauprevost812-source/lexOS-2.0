@@ -1558,6 +1558,16 @@ function blocBureauMoteur(){
     <div class="row">${[[500,"½ seconde"],[1000,"1 seconde"],[2000,"2 secondes"]].map(([v, n]) =>
       `<button class="btn ${sel(B.labo_delai === v)}" onclick="setBM({labo_delai:${v}})">${n}</button>`).join("")}</div>` : ""}
   </div>
+  <div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">🎛️ Mes outils</div>
+    <div class="d" style="margin-bottom:10px">Laisse la souris collée en HAUT de l'écran : une barre mince descend
+      sous la barre du haut — le ti démon (toutes tes applis), le volume, la capture d'écran, les
+      notifications, et ⏻ pour éteindre comme une vieille télé. Même délai que le labo.</div>
+    <div class="row">
+      <button class="btn ${sel(B.outils)}" onclick="setBM({outils:true})">Activé</button>
+      <button class="btn ${sel(!B.outils)}" onclick="setBM({outils:false})">Désactivé</button>
+    </div>
+  </div>
   ${inter("horloge", "Grande horloge et « Demande à ti-lex IA… »", "Au centre, en haut, comme dans le Moteur.")}
   ${inter("tilex", "Icônes ti-lex IA", "Chat, Codex, Images, Schémas… — ouvrent ton Moteur.")}
   ${inter("lexos", "Icônes LexOS", "Fichiers, Terminal, Navigateur, Paramètres…")}

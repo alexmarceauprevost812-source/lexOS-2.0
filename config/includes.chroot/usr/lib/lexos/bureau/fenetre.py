@@ -95,7 +95,8 @@ def ouvrir(url_base: str, jeton: str, signal_pret=None, fin=None) -> int:
     vues: list = []
     etat = {"pret": False, "echecs": 0}
     labo = Labo(app, url_base, jeton, base)
-    surveiller_le_fil(labo)
+    outils = Outils(app, url_base, jeton, base)
+    surveiller_le_fil([labo, outils])
 
     def tomber(raison: str):
         #  Une page morte ou blanche n'est PAS un bureau : on sort en erreur
@@ -120,6 +121,7 @@ def ouvrir(url_base: str, jeton: str, signal_pret=None, fin=None) -> int:
         #  Le bouton 🧪 de la page change son titre en « labo-… » : c'est le
         #  seul signe qu'elle peut faire à la fenêtre du labo.
         vue.titleChanged.connect(lambda t: t.startswith("labo-") and labo.basculer())
+        vue.titleChanged.connect(lambda t: t.startswith("outils-") and outils.basculer())
         #  PETITE d'abord, et c'est voulu. Une fenêtre NORMALE de la taille de
         #  l'écran est MAXIMISÉE d'office par xfwm4, avec sa barre de titre ;
         #  et elle garde ce décalage de 24 px même une fois devenue fenêtre de
@@ -244,45 +246,107 @@ def ouvrir(url_base: str, jeton: str, signal_pret=None, fin=None) -> int:
 GARDE_S = 30
 
 
-def surveiller_le_fil(labo) -> None:
+def surveiller_le_fil(tiroirs: list) -> None:
     import threading
 
     def garde():
         while True:
             time.sleep(5)
-            if time.monotonic() - labo.battement > GARDE_S:
+            if time.monotonic() - max(t.battement for t in tiroirs) > GARDE_S:
                 print(f"[lexos-bureau] le fil de Qt ne répond plus depuis {GARDE_S} s — on rend la main",
                       file=sys.stderr, flush=True)
                 os._exit(3)
     threading.Thread(target=garde, daemon=True).start()
 
 
-#  ═══ 🧪 LE LABO — le panneau qui monte du bas de l'écran ═══
+#  ═══ LA SOURIS, LUE À X ═══
+#  XQueryPointer par python3-xlib, quelques microsecondes. PAS QCursor.pos() :
+#  dans ce processus, il rendait TOUJOURS la position du démarrage (mesuré
+#  sous Xvfb + xfwm4 : 31 lectures de suite à « 100, 300 » pendant que xdotool
+#  promenait la souris partout). Une seule connexion X et une seule lecture
+#  par tic pour les deux tiroirs (le labo en bas, les outils en haut).
+_X: dict = {"d": None, "pos": None, "quand": 0.0}
+
+
+def _x():
+    if _X["d"] is None:
+        from Xlib import display
+        _X["d"] = display.Display()
+    return _X["d"]
+
+
+def pointeur(app):
+    """La souris, en pixels Qt (logiques). None si X ne répond pas."""
+    from PySide6.QtCore import QPoint
+    maintenant = time.monotonic()
+    if _X["pos"] is not None and maintenant - _X["quand"] < 0.05:
+        return _X["pos"]
+    try:
+        p = _x().screen().root.query_pointer()
+    except Exception:
+        _X["d"] = None
+        return None
+    r = app.primaryScreen().devicePixelRatio() or 1
+    _X["pos"], _X["quand"] = QPoint(round(p.root_x / r), round(p.root_y / r)), maintenant
+    return _X["pos"]
+
+
+def plein_ecran() -> bool:
+    """Une appli en plein écran (jeu, vidéo) : les bords de l'écran sont à
+    elle — on n'y fait monter ni descendre aucun tiroir."""
+    try:
+        from Xlib import X
+        d = _x()
+        racine = d.screen().root
+        a = racine.get_full_property(d.intern_atom("_NET_ACTIVE_WINDOW"), X.AnyPropertyType)
+        if a is None or not len(a.value) or not a.value[0]:
+            return False
+        w = d.create_resource_object("window", int(a.value[0]))
+        st = w.get_full_property(d.intern_atom("_NET_WM_STATE"), X.AnyPropertyType)
+        return st is not None and d.intern_atom("_NET_WM_STATE_FULLSCREEN") in list(st.value)
+    except Exception:
+        _X["d"] = None
+        return False
+
+
+def haut_utile(g) -> int:
+    """Où commence l'écran SOUS la barre du haut : _NET_WORKAREA, que Qt ne
+    relit pas (serveur.py, ZoneTravail). La barre des outils descend de là."""
+    try:
+        d = _x()
+        p = d.screen().root.get_full_property(d.intern_atom("_NET_WORKAREA"), 0)
+        y = int(p.value[1]) if p is not None and len(p.value) >= 4 else g.y()
+    except Exception:
+        _X["d"] = None
+        y = g.y()
+    return y if g.y() <= y < g.y() + g.height() // 3 else g.y()
+
+
+#  ═══ LES TIROIRS : 🧪 le labo (en bas) et 🎛️ les outils (en haut) ═══
 #  ALEX : « on mettra la souris complètement en bas de l'écran, puis ça
-#  ouvrira un menu […] fluidement, qui monte vers les airs […] ce sera mon
-#  petit laboratoire de mes IA ».
+#  ouvrira un menu […] fluidement, qui monte vers les airs » — puis, pour le
+#  haut : « un petit menu vraiment petit […] c'est la largeur de l'écran ».
 #
-#  COMMENT ON SAIT QUE LA SOURIS EST EN BAS : on demande sa position à X
-#  (XQueryPointer par python3-xlib, quelques microsecondes) huit fois par
-#  seconde. PAS QCursor.pos() : dans ce processus, il rendait TOUJOURS la
-#  position du démarrage (mesuré sous Xvfb + xfwm4 : 31 lectures de suite à
-#  « 100, 300 » pendant que xdotool promenait la souris partout). PAS de bande invisible posée au bas de l'écran : elle volerait
-#  les clics de la dernière rangée de pixels de chaque appli (barre de
-#  défilement, barre d'état), et passerait par-dessus une vidéo en plein
-#  écran. Ici, rien n'est posé tant que le labo n'est pas ouvert.
+#  PAS de bande invisible posée au bord de l'écran : elle volerait les clics
+#  de la dernière rangée de pixels de chaque appli, et passerait par-dessus
+#  une vidéo en plein écran. Ici, rien n'est posé tant qu'un tiroir n'est pas
+#  ouvert : on regarde seulement où est la souris, huit fois par seconde.
 #
 #  LA FENÊTRE : « Qt.ToolTip » = override-redirect sous X — au-dessus des
 #  applis, hors de la barre des tâches et d'Alt+Tab, sans cadre, et xfwm4 ne
 #  la déplace pas. Transparente (le compositeur de xfwm4 est actif dans
-#  LexOS) : seul le panneau arrondi se voit. Elle ne prend pas le clavier,
-#  et n'en a pas besoin : tout se fait à la souris.
+#  LexOS) : seul le panneau se voit.
 #
-#  ELLE NE SE ROUVRE PAS EN BOUCLE : fermée, elle attend que la souris ait
-#  QUITTÉ le bas de l'écran avant de pouvoir remonter — sinon, lancer une
-#  appli avec la souris restée en bas la faisait remonter une seconde après.
-class Labo:
+#  UN TIROIR NE SE ROUVRE PAS EN BOUCLE : fermé, il attend que la souris ait
+#  QUITTÉ son bord avant de pouvoir revenir — sinon, lancer une appli avec la
+#  souris restée au bord le faisait revenir une seconde après.
+class Tiroir:
     TIC_MS = 120
-    SORTIE_MS = 650          # souris hors du panneau aussi longtemps → il redescend
+    SORTIE_MS = 650          # souris hors du panneau aussi longtemps → il s'en va
+    NOM = "labo"             # le réglage (« labo » : oui/non) et l'objet JS de la page
+    PAGE = "labo.html"
+    TITRE = "LexOS Labo"
+    SIGNAL = signal.SIGUSR1
 
     def __init__(self, app, url_base: str, jeton: str, base) -> None:
         from PySide6.QtCore import QTimer, QUrl
@@ -293,28 +357,28 @@ class Labo:
         import reglages
         self.app, self.rg = app, reglages
         self.ouvert = False
-        self.bas_depuis: float | None = None
+        self.bord_depuis: float | None = None
         self.dehors_depuis: float | None = None
-        self.attendre_sortie = True        # au démarrage aussi : la souris peut déjà être en bas
+        self.attendre_sortie = True        # au démarrage aussi : la souris peut déjà être au bord
         self.demande = False
-        self.regl = {"labo": True, "labo_delai": 1000}
+        self.regl = {self.NOM: True, "labo_delai": 1000}
         self.empreinte = None
         self.vu_regl = 0.0
-        self.x11 = None
         self.battement = time.monotonic()
         self.hauteur: int | None = None
         self.entre = False
         self.ouvert_a = 0.0
+        page_ok = "/" + self.PAGE
 
-        class PageLabo(QWebEnginePage):
+        class PageTiroir(QWebEnginePage):
             def acceptNavigationRequest(self, url, genre, principal):  # noqa: N802
                 if not principal:
                     return True
                 return (url.host() == base.host() and url.port() == base.port()
-                        and url.path() == "/labo.html")
+                        and url.path() == page_ok)
 
         vue = QWebEngineView()
-        page = PageLabo(vue)
+        page = PageTiroir(vue)
         vue.setPage(page)
         r = page.settings()
         r.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, False)
@@ -323,27 +387,27 @@ class Labo:
         except AttributeError:
             pass
         vue.setAcceptDrops(False)
-        vue.setWindowTitle("LexOS Labo")
+        vue.setWindowTitle(self.TITRE)
         vue.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         vue.setAttribute(Qt.WA_TranslucentBackground)
         vue.setAttribute(Qt.WA_ShowWithoutActivating)
         page.setBackgroundColor(QColor(0, 0, 0, 0))
         vue.titleChanged.connect(self.titre)
-        vue.load(QUrl(f"{url_base}labo.html?t={jeton}"))
+        vue.load(QUrl(f"{url_base}{self.PAGE}?t={jeton}"))
         self.vue = vue
 
-        #  « lexos-bureau labo » envoie SIGUSR1 : ouvrir / fermer (pour un
-        #  raccourci clavier). Python ne traite le signal qu'entre deux
-        #  instructions Python — le tic ci-dessous lui en donne l'occasion.
+        #  « lexos-bureau labo | outils » envoie SIGUSR1 | SIGUSR2 : ouvrir /
+        #  fermer (pour un raccourci clavier). Python ne traite le signal
+        #  qu'entre deux instructions Python — le tic lui en donne l'occasion.
         try:
-            signal.signal(signal.SIGUSR1, lambda *_: setattr(self, "demande", True))
+            signal.signal(self.SIGNAL, lambda *_: setattr(self, "demande", True))
         except ValueError:      # pas dans le fil principal (bancs)
             pass
         self.tic_minuteur = QTimer(self.vue)
         self.tic_minuteur.timeout.connect(self.tic)
         self.tic_minuteur.start(self.TIC_MS)
 
-    # ── où le panneau se pose ──
+    # ── à redéfinir par chaque tiroir ──
     def rect(self, hauteur: int | None = None):
         """Centré, collé au bas de l'écran principal. La hauteur est celle
         que la page a demandée (« taille-… »), bornée : jamais plus que
@@ -355,6 +419,19 @@ class Labo:
         h = max(240, min(maxi, hauteur or self.hauteur or maxi))
         return QRect(g.x() + (g.width() - l) // 2, g.y() + g.height() - h, l, h)
 
+    def au_bord(self, pos) -> bool:
+        r = self.rect()
+        return pos.y() >= r.bottom() - 1 and r.left() <= pos.x() <= r.right()
+
+    def zone_dedans(self):
+        """Où la souris compte comme « dans le tiroir ». Un peu de marge
+        au-dessus : on ne le ferme pas pour une souris qui le frôle."""
+        return self.vue.geometry().adjusted(-8, -40, 8, 8)
+
+    def titre_autre(self, t: str) -> None:
+        pass
+
+    # ── commun ──
     def titre(self, t: str) -> None:
         if t.startswith("fermer-"):
             self.cacher()
@@ -365,6 +442,8 @@ class Labo:
                 return
             if self.ouvert and not t.endswith("-plus-tard"):
                 self.vue.setGeometry(self.rect())
+        else:
+            self.titre_autre(t)
 
     def lire_reglages(self) -> None:
         maintenant = time.monotonic()
@@ -376,45 +455,10 @@ class Labo:
             if e != self.empreinte:
                 self.empreinte = e
                 r = self.rg.lire()
-                self.regl = {"labo": r["labo"], "labo_delai": r["labo_delai"]}
+                self.regl = {self.NOM: r[self.NOM], "labo_delai": r["labo_delai"]}
         except Exception:       # un réglage illisible ne fait pas tomber le bureau
             pass
 
-    def _x(self):
-        if self.x11 is None:
-            from Xlib import display
-            self.x11 = display.Display()
-        return self.x11
-
-    def pointeur(self):
-        """La souris, en pixels Qt (logiques). None si X ne répond pas."""
-        from PySide6.QtCore import QPoint
-        try:
-            p = self._x().screen().root.query_pointer()
-        except Exception:
-            self.x11 = None
-            return None
-        r = self.app.primaryScreen().devicePixelRatio() or 1
-        return QPoint(round(p.root_x / r), round(p.root_y / r))
-
-    def plein_ecran(self) -> bool:
-        """Une appli en plein écran (jeu, vidéo) : le bas de l'écran est à
-        elle — on n'y fait pas monter le labo."""
-        try:
-            from Xlib import X
-            d = self._x()
-            racine = d.screen().root
-            a = racine.get_full_property(d.intern_atom("_NET_ACTIVE_WINDOW"), X.AnyPropertyType)
-            if a is None or not len(a.value) or not a.value[0]:
-                return False
-            w = d.create_resource_object("window", int(a.value[0]))
-            st = w.get_full_property(d.intern_atom("_NET_WM_STATE"), X.AnyPropertyType)
-            return st is not None and d.intern_atom("_NET_WM_STATE_FULLSCREEN") in list(st.value)
-        except Exception:
-            self.x11 = None
-            return False
-
-    # ── ouvrir, fermer ──
     def ouvrir(self) -> None:
         if self.ouvert:
             return
@@ -425,20 +469,20 @@ class Labo:
         self.ouvert_a = time.monotonic()
         self.entre = False
         self.dehors_depuis = None
-        self.vue.page().runJavaScript("window.labo && labo.ouvrir()")
+        self.vue.page().runJavaScript(f"window.{self.NOM} && {self.NOM}.ouvrir()")
 
     def fermer(self) -> None:
         from PySide6.QtCore import QTimer
         if not self.ouvert:
             return
-        self.vue.page().runJavaScript("window.labo && labo.fermer()")
+        self.vue.page().runJavaScript(f"window.{self.NOM} && {self.NOM}.fermer()")
         QTimer.singleShot(700, self.cacher)     # filet : si la page ne répond pas
 
     def cacher(self) -> None:
         if self.ouvert:
             self.vue.hide()
             self.ouvert = False
-            self.bas_depuis = None
+            self.bord_depuis = None
             self.attendre_sortie = True
 
     def basculer(self) -> None:
@@ -448,24 +492,27 @@ class Labo:
             self.attendre_sortie = False
             self.ouvrir()
 
+    def occupe(self) -> bool:
+        """Vrai quand le tiroir ne doit ni se fermer ni s'ouvrir tout seul."""
+        return False
+
     def tic(self) -> None:
         self.battement = time.monotonic()
         if self.demande:
             self.demande = False
             self.basculer()
         self.lire_reglages()
-        pos = self.pointeur()
+        if self.occupe():
+            return
+        pos = pointeur(self.app)
         if pos is None:
             return
         maintenant = time.monotonic()
         if self.ouvert:
-            #  Un peu de marge au-dessus du panneau : on ne le ferme pas
-            #  pour une souris qui le frôle en remontant.
-            #  Ouvert par « lexos-bureau labo » (un raccourci clavier), la
-            #  souris peut être n'importe où : on attend qu'elle soit VENUE
-            #  dans le panneau avant de le refermer quand elle part — sinon
-            #  il redescendait aussitôt monté. Jamais venue en 8 s : il redescend.
-            if self.vue.geometry().adjusted(-8, -40, 8, 8).contains(pos):
+            #  Ouvert par un raccourci clavier, la souris peut être n'importe
+            #  où : on attend qu'elle soit VENUE dans le tiroir avant de le
+            #  fermer quand elle part. Jamais venue en 8 s : il s'en va.
+            if self.zone_dedans().contains(pos):
                 self.entre = True
                 self.dehors_depuis = None
             elif not self.entre:
@@ -477,21 +524,154 @@ class Labo:
                 self.dehors_depuis = None
                 self.fermer()
             return
-        if not self.regl["labo"]:
+        if not self.regl[self.NOM]:
             return
-        r = self.rect()
-        au_bord = pos.y() >= r.bottom() - 1 and r.left() <= pos.x() <= r.right()
-        if not au_bord:
-            self.bas_depuis = None
+        if not self.au_bord(pos):
+            self.bord_depuis = None
             self.attendre_sortie = False
             return
         if self.attendre_sortie:
             return
-        if self.bas_depuis is None:
-            self.bas_depuis = maintenant
-        elif (maintenant - self.bas_depuis) * 1000 >= self.regl["labo_delai"]:
-            self.bas_depuis = None
-            if self.plein_ecran():
+        if self.bord_depuis is None:
+            self.bord_depuis = maintenant
+        elif (maintenant - self.bord_depuis) * 1000 >= self.regl["labo_delai"]:
+            self.bord_depuis = None
+            if plein_ecran():
                 self.attendre_sortie = True
             else:
                 self.ouvrir()
+
+
+class Labo(Tiroir):
+    """🧪 Mon labo — le panneau qui monte du BAS de l'écran."""
+
+
+#  ═══ 🎛️ MES OUTILS — la barre mince qui descend du HAUT de l'écran ═══
+#  Elle descend SOUS la barre du haut (choix d'Alex : « la garder, menu en
+#  dessous »), sur toute la largeur. Le bord qui l'ouvre est le haut de
+#  l'écran SANS ses coins : le coin haut-gauche ouvre déjà la vue d'ensemble
+#  (coin-actif), et viser un coin ne doit pas ouvrir deux choses.
+class Outils(Tiroir):
+    NOM = "outils"
+    PAGE = "outils.html"
+    TITRE = "LexOS Outils"
+    SIGNAL = signal.SIGUSR2
+    COIN = 80
+
+    def __init__(self, *a, **k) -> None:
+        super().__init__(*a, **k)
+        self.en_arret = False
+
+    def rect(self, hauteur: int | None = None):
+        """Toute la largeur, sous la barre du haut. Mince (la barre seule) ;
+        plus haute quand un menu est ouvert (« taille-… » de la page)."""
+        from PySide6.QtCore import QRect
+        g = self.app.primaryScreen().geometry()
+        haut = haut_utile(g)
+        place = g.y() + g.height() - haut
+        h = max(80, min(place, hauteur or self.hauteur or 96))
+        return QRect(g.x(), haut, g.width(), h)
+
+    def au_bord(self, pos) -> bool:
+        g = self.app.primaryScreen().geometry()
+        return pos.y() <= g.y() + 1 and g.x() + self.COIN <= pos.x() <= g.right() - self.COIN
+
+    def zone_dedans(self):
+        #  La barre du haut, AU-DESSUS du tiroir, compte comme « dedans » :
+        #  la souris descend du bord de l'écran jusqu'à lui en la traversant.
+        g = self.vue.geometry()
+        haut = self.app.primaryScreen().geometry().y()
+        return g.adjusted(-8, haut - g.y(), 8, 8)
+
+    def occupe(self) -> bool:
+        return self.en_arret
+
+    def titre(self, t: str) -> None:
+        #  Pendant l'arrêt, la fenêtre couvre tout l'écran : une « taille »
+        #  partie juste avant ne doit pas la rapetisser sous la télé.
+        if self.en_arret and t.startswith(("taille-", "fermer-")):
+            return
+        super().titre(t)
+
+    def titre_autre(self, t: str) -> None:
+        if t.startswith("clavier-"):
+            #  La recherche du ti démon : une fenêtre override-redirect ne
+            #  reçoit pas le clavier toute seule, et activateWindow() de Qt
+            #  ne fait rien pour elle (mesuré : xdotool tapait dans le vide).
+            #  On donne le focus de X directement à sa fenêtre.
+            self.vue.activateWindow()
+            self.vue.setFocus()
+            try:
+                from Xlib import X
+                d = _x()
+                d.set_input_focus(int(self.vue.winId()), X.RevertToPointerRoot, X.CurrentTime)
+                d.sync()
+            except Exception:
+                _X["d"] = None
+        elif t.startswith("arret-pret-"):
+            self.executer_arret(t.split("-")[2])
+        elif t.startswith("arret-"):
+            self.tele(t.split("-")[1])
+
+    # ═══ L'ARRÊT FAÇON TÉLÉ ═══
+    #  ALEX : « quand on arrête l'ordinateur, avec une fin d'animation d'une
+    #  vieille télé des années 80 ». On photographie l'écran tel qu'il est
+    #  (sans la barre des outils : on la cache d'abord), on couvre tout
+    #  l'écran avec cette photo, et la page l'écrase en une ligne, puis en un
+    #  point lumineux, puis noir. Alors seulement on éteint.
+    def tele(self, geste: str) -> None:
+        from PySide6.QtCore import QTimer
+        if geste not in ("eteindre", "redemarrer") or self.en_arret:
+            return
+        self.en_arret = True
+        self.vue.hide()
+        QTimer.singleShot(220, lambda: self._tele_photo(geste))
+
+    def _tele_photo(self, geste: str) -> None:
+        import base64
+        from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+        ecran = self.app.primaryScreen()
+        donnees = ""
+        try:
+            photo = ecran.grabWindow(0)
+            tampon = QByteArray()
+            b = QBuffer(tampon)
+            b.open(QIODevice.WriteOnly)
+            photo.save(b, "JPG", 82)
+            donnees = "data:image/jpeg;base64," + base64.b64encode(bytes(tampon)).decode("ascii")
+        except Exception:       # pas de photo : la page éteint un écran noir, c'est tout
+            donnees = ""
+        self.vue.setGeometry(ecran.geometry())
+        self.vue.show()
+        self.vue.raise_()
+        self.ouvert = True
+        self.vue.page().runJavaScript(f"outils.tele({donnees!r}, {geste!r})")
+
+    def executer_arret(self, geste: str) -> None:
+        from PySide6.QtCore import QTimer
+        if geste not in ("eteindre", "redemarrer"):
+            return
+        #  lexos-session, comme le bouton rouge : la session se ferme
+        #  proprement (fichiers écrits), puis la machine s'éteint.
+        if shutil.which("lexos-session"):
+            subprocess.Popen(["lexos-session", geste], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        #  LE FILET. Alex : « pu capable arrêter mon ordinateur ». Si on est
+        #  encore là dans 12 s, la fermeture de session n'a pas abouti : on
+        #  demande l'arrêt directement à systemd. Et si dans 30 s on est
+        #  TOUJOURS là, on rend l'écran — jamais un écran noir pour toujours.
+        def plan_b():
+            if shutil.which("systemctl"):
+                subprocess.Popen(["systemctl", "poweroff" if geste == "eteindre" else "reboot"],
+                                 start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        def rendre_l_ecran():
+            self.en_arret = False
+            self.vue.page().runJavaScript("outils.teleRatee()")
+            self.cacher()
+            if shutil.which("notify-send"):
+                subprocess.Popen(["notify-send", "-i", "dialog-warning", "LexOS",
+                                  "L'ordinateur ne s'est pas éteint. Essaie « systemctl poweroff » dans un terminal."],
+                                 start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        QTimer.singleShot(12000, plan_b)
+        QTimer.singleShot(30000, rendre_l_ecran)

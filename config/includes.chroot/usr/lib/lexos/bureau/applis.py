@@ -169,7 +169,32 @@ def lire_desktop(chemin: Path) -> dict | None:
     cache = (e.get("NoDisplay", "").lower() == "true" or (seul and "XFCE" not in seul) or "XFCE" in sauf)
     return {"nom": nom.strip()[:60], "icone": (e.get("Icon") or "").strip(),
             "type": e.get("Type", "Application").strip(), "url": (e.get("URL") or "").strip(),
-            "cache": bool(cache)}
+            "cache": bool(cache), "categories": [x for x in (e.get("Categories") or "").split(";") if x]}
+
+
+#  Les rayons du menu d'XFCE, dans son ordre, avec les catégories freedesktop
+#  qui y mènent. Le ti démon (🎛️ Mes outils) range « Toutes les applications »
+#  dans ces rayons. La PREMIÈRE ligne qui correspond gagne : un navigateur
+#  porte souvent « Network;WebBrowser;Utility » et va dans Internet.
+RAYONS = [
+    ("Paramètres", ("Settings", "DesktopSettings", "HardwareSettings", "X-XFCE-SettingsDialog")),
+    ("Internet", ("Network", "WebBrowser", "Email", "Chat", "InstantMessaging")),
+    ("Multimédia", ("AudioVideo", "Audio", "Video", "Player", "Recorder", "Music")),
+    ("Graphisme", ("Graphics", "Photography", "2DGraphics", "3DGraphics", "RasterGraphics", "VectorGraphics")),
+    ("Développement", ("Development", "IDE", "TextEditor")),
+    ("Bureautique", ("Office", "WordProcessor", "Spreadsheet", "Presentation", "Calendar")),
+    ("Jeux", ("Game",)),
+    ("Éducation", ("Education", "Science")),
+    ("Système", ("System", "Monitor", "TerminalEmulator", "Emulator", "PackageManager", "FileManager", "Security")),
+    ("Accessoires", ("Utility", "Accessories", "Archiving", "Compression", "Calculator", "Viewer")),
+]
+
+
+def rayon(categories: list[str]) -> str:
+    for nom, cles in RAYONS:
+        if any(c in cles for c in categories):
+            return nom
+    return "Autres"
 
 
 def trouver_desktop(nom: str) -> Path | None:
@@ -355,7 +380,8 @@ class Table:
                 ident = _ident("a-", str(p))
                 if ident not in self.actions:
                     self._ajouter(ident, "desktop", str(p), chemin_icone(info["icone"]))
-                out.append({"id": ident, "nom": nom_lisible(info["nom"]), "icone": ident in self.icones, "emoji": "🧩"})
+                out.append({"id": ident, "nom": nom_lisible(info["nom"]), "icone": ident in self.icones, "emoji": "🧩",
+                            "rayon": rayon(info["categories"])})
         out.sort(key=lambda e: e["nom"].lower())
         return self._marquer(out)
 
