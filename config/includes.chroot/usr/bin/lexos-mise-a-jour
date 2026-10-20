@@ -260,12 +260,18 @@ fi
 #  Le banc élargit donc la liste par cette couture, pousse un chemin interdit
 #  dans le circuit, et exige qu'il soit refusé QUAND MÊME. Vide de sens en
 #  production : la valeur par défaut est la vraie.
+#  etc/xdg/autostart : ce qui démarre à l'ouverture de session. Sans lui,
+#  le bureau du Moteur (lexos-bureau) arrivait par une mise à jour… et ne
+#  démarrait jamais — vu chez Alex : « choisi : moteur, en marche :
+#  classique », et aucun journal. Seulement CE dossier de /etc : le reste de
+#  /etc est à la machine, pas au dépôt.
 ARBRES="${LEXOS_MAJ_ARBRES:-
 usr/bin
 usr/lib/lexos
 usr/share/lexos
 usr/share/applications
 usr/share/icons
+etc/xdg/autostart
 }"
 BASE="$SRC/config/includes.chroot"
 
