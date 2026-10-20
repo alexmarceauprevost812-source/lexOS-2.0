@@ -198,5 +198,61 @@ class AideRoot(unittest.TestCase):
                 maj.RACINE_MODULES = ancien
 
 
+class SignatureMOK(unittest.TestCase):
+    """Le guide d'inscription du certificat LexOS : quelle étape montrer.
+
+    modinfo et mokutil sont remplacés : on décrit une machine, on lit l'étape.
+    """
+
+    def setUp(self):
+        self.dossier = tempfile.TemporaryDirectory()
+        d = Path(self.dossier.name)
+        (d / "build.conf").write_text('LEXOS_SIGNATURE_CLE_ID="43:CF:A1:4C"\n', encoding="utf-8")
+        (d / "lexos-mok.der").write_bytes(b"\x30\x82")
+        (d / "cmdline").write_text("boot=live components\n", encoding="utf-8")
+        (d / "modules").write_text("snd 1 - Live 0x0\n", encoding="utf-8")
+        self.anciens = (moteur.BUILD_CONF, moteur.CERT_LEXOS, moteur.CMDLINE, moteur.PROC_MODULES,
+                        moteur._executer, moteur._cle_inscrite)
+        moteur.BUILD_CONF, moteur.CERT_LEXOS = d / "build.conf", d / "lexos-mok.der"
+        moteur.CMDLINE, moteur.PROC_MODULES = d / "cmdline", d / "modules"
+        self.cle_module = "43:cf:a1:4c"
+        self.inscrite = False
+        moteur._executer = lambda cmd, timeout=10.0: self.cle_module + "\n" if "sig_key" in cmd else None
+        moteur._cle_inscrite = lambda cert: self.inscrite
+
+    def tearDown(self):
+        (moteur.BUILD_CONF, moteur.CERT_LEXOS, moteur.CMDLINE, moteur.PROC_MODULES,
+         moteur._executer, moteur._cle_inscrite) = self.anciens
+        self.dossier.cleanup()
+
+    def test_signe_lexos_pas_inscrit(self):
+        s = moteur.signature_pilote(True)
+        self.assertEqual(s["etape"], "inscrire-lexos")
+        self.assertTrue(s["signe_par_lexos"])
+        self.assertTrue(s["en_live"])
+
+    def test_inscrit_mais_pas_charge(self):
+        self.inscrite = True
+        self.assertEqual(moteur.signature_pilote(True)["etape"], "redemarrer")
+
+    def test_charge(self):
+        moteur.PROC_MODULES.write_text("nvidia 1 - Live 0x0\n", encoding="utf-8")
+        self.assertEqual(moteur.signature_pilote(True)["etape"], "ok")
+
+    def test_secure_boot_inactif(self):
+        self.assertEqual(moteur.signature_pilote(False)["etape"], "sans-secure-boot")
+
+    def test_autre_cle(self):
+        self.cle_module = "DE:AD:BE:EF"
+        s = moteur.signature_pilote(True)
+        self.assertEqual(s["etape"], "cle-machine")
+        self.assertFalse(s["signe_par_lexos"])
+
+    def test_assistant_ligne_fixe(self):
+        # La page ne fournit rien : la commande lancée est figée dans le serveur.
+        self.assertEqual(serveur.ASSISTANT_SIGNATURE[0], "x-terminal-emulator")
+        self.assertIn("sudo lexos-signer-pilote", serveur.ASSISTANT_SIGNATURE[-1])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

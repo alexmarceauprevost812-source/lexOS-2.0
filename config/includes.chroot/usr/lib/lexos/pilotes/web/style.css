@@ -49,6 +49,8 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .note.bon { border-color: var(--vert); background: var(--vert-faible); color: var(--texte); }
 .note.mal { border-color: var(--rouge); background: var(--rouge-faible); color: var(--texte); }
 .note ul { margin: 6px 0 0; padding-left: 18px; }
+ol.etapes { margin: 8px 0 0; padding-left: 22px; line-height: 1.6; }
+ol.etapes li { margin-bottom: 4px; }
 
 pre#journal { margin-top: 12px; max-height: 280px; overflow: auto; background: #000; border: 1px solid var(--bordure); border-radius: 8px; padding: 10px; color: #39FF14; font-size: 12px; white-space: pre-wrap; }
 .pied { text-align: center; color: var(--texte-faible); padding: 10px 24px 28px; font-size: 12px; }

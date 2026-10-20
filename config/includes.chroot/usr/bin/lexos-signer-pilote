@@ -57,10 +57,22 @@
 #  ═══ CE QU'IL NE FERA JAMAIS ═══
 #  · Il ne touche PAS à la clé privée : ni copie, ni déplacement, ni affichage.
 #    Elle reste où DKMS l'a mise, sur cette machine, et nulle part ailleurs.
-#  · Il n'y a AUCUNE clé dans l'ISO. Une clé embarquée serait la même pour
-#    tout le monde : ce ne serait plus une signature, ce serait une porte.
-#  · En session live, il refuse : l'inscription d'une clé MOK demande un
-#    redémarrage, et une session live oublie tout en redémarrant.
+#  · Il n'y a AUCUNE clé PRIVÉE dans l'ISO. Une clé embarquée serait la même
+#    pour tout le monde : ce ne serait plus une signature, ce serait une porte.
+#  · En session live, il refuse d'inscrire la clé de DKMS : une session live
+#    oublie tout en redémarrant, cette clé-là comprise.
+#
+#  ═══ DEPUIS L'ISO RTX 5060 DU 20 OCTOBRE : LA CLÉ LEXOS ═══
+#  Le pilote de l'ISO est signé à la construction par une clé LexOS FIXE
+#  (hooks 0258 et 9890). La clé privée vit dans un secret GitHub, jamais dans
+#  l'ISO ; seul le CERTIFICAT public y voyage, ici :
+#      /usr/share/lexos/secure-boot/lexos-mok.der   (et à la racine de la clé)
+#  Quand le module chargé porte cette signature (modinfo sig_key = l'identifiant
+#  noté dans /etc/lexos/build.conf), c'est CE certificat que l'outil propose
+#  d'inscrire — et ça marche AUSSI depuis la session live : mokutil écrit la
+#  demande dans la NVRAM, qui survit au redémarrage, et la clé USB embarque
+#  MokManager (hook 0915). Une fois inscrit, il vaut pour toutes les ISO LexOS
+#  et pour le système installé.
 # =============================================================================
 set -u
 #  bash, pas sh : les couleurs ANSI-C ($'\033…') et « read -r » avec invite ne
@@ -94,6 +106,9 @@ MODULES="${LEXOS_MODULES:-/proc/modules}"
 #  de la machine ne dit rien — et on VÉRIFIE toujours que le fichier existe
 #  avant d'en parler.
 CERT_DEFAUT="/var/lib/dkms/mok.pub"
+#  Le certificat LexOS et l'identifiant de sa clé, notés à la construction.
+CERT_LEXOS="${LEXOS_CERT_LEXOS:-/usr/share/lexos/secure-boot/lexos-mok.der}"
+BUILD_CONF="${LEXOS_BUILD_CONF:-/etc/lexos/build.conf}"
 
 case "${1:-}" in
 	-h|--help|aide|help)
@@ -195,6 +210,20 @@ if [ -n "$MODINFO" ]; then
 	fi
 fi
 
+#  Signé par QUI ? « sig_key » est l'identifiant de la clé qui a signé. S'il
+#  est celui de la clé LexOS, c'est le certificat LexOS qu'il faut inscrire —
+#  pas celui de DKMS, qui ne signe rien de ce qui est chargé.
+PAR_LEXOS=0
+ID_LEXOS="$( . "$BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_SIGNATURE_CLE_ID:-}" )"
+if [ -n "$MODINFO" ] && [ -n "$ID_LEXOS" ] && [ -r "$CERT_LEXOS" ]; then
+	_id="$("$MODINFO" -F sig_key nvidia 2>/dev/null | head -1 | tr -d ' ' | tr 'a-f' 'A-F')"
+	if [ -n "$_id" ] && [ "$_id" = "$(printf '%s' "$ID_LEXOS" | tr 'a-f' 'A-F')" ]; then
+		PAR_LEXOS=1
+		CERT="$CERT_LEXOS"
+		CERT_SOURCE="certificat LexOS — le même pour toutes les ISO"
+	fi
+fi
+
 # =============================================================================
 #  LE RAPPORT
 # =============================================================================
@@ -211,6 +240,9 @@ else
 fi
 printf '  Module nvidia: %s%s\n' "$SIGNATURE" \
 	"$([ "$MODULE_CHARGE" -eq 1 ] && printf ', chargé' || printf ', pas chargé')"
+if [ "$PAR_LEXOS" -eq 1 ]; then
+	printf '  Signé par    : la clé LexOS (signature faite à la construction de l'"'"'ISO)\n'
+fi
 if [ -r "$CERT" ]; then
 	printf '  Certificat   : %s  (%s)\n' "$CERT" "$CERT_SOURCE"
 else
@@ -227,11 +259,14 @@ fi
 # =============================================================================
 titre "Ce que ça veut dire"
 
-if [ "$EN_LIVE" -eq 1 ]; then
+if [ "$EN_LIVE" -eq 1 ] && [ "$PAR_LEXOS" -eq 0 ]; then
+	#  Avec la clé LexOS, la session live PEUT inscrire (voir l'en-tête) : on
+	#  ne passe ici que pour un module signé par une clé de DKMS, ou pas signé.
 	cat <<'FIN'
-  On est en session LIVE, et une clé MOK ne peut PAS s'inscrire d'ici.
-  L'inscription se termine dans MokManager, un écran bleu qui s'affiche au
-  REDÉMARRAGE SUIVANT — or une session live repart de l'ISO et oublie tout.
+  On est en session LIVE, et ce module n'est PAS signé par la clé LexOS :
+  inscrire ici la clé de DKMS ne servirait à rien. L'inscription se termine
+  dans MokManager, un écran bleu qui s'affiche au REDÉMARRAGE SUIVANT — or
+  une session live repart de l'ISO et oublie tout, cette clé-là comprise.
 
   Depuis la clé USB, il n'y a que deux chemins :
     · installer LexOS, puis relancer cette commande sur le système installé ;
@@ -343,9 +378,45 @@ FIN
 		;;
 esac
 
+#  DÉJÀ INSCRIT ? « --test-key » ne fait que lire la liste MOK : il ne change
+#  rien, et il évite de redemander un mot de passe pour une clé déjà connue.
+DEJA="$(mokutil --test-key "$CERT" 2>&1 || true)"
+case "$DEJA" in
+	*"already enrolled"*)
+		printf '  Le certificat est DÉJÀ inscrit dans la liste MOK de cette machine.\n'
+		if [ "$MODULE_CHARGE" -eq 1 ]; then
+			printf '  Le pilote est chargé : il n'"'"'y a plus rien à faire.\n'
+		else
+			cat <<'FIN'
+  Le pilote n'est pourtant pas chargé. Si l'inscription vient d'être faite
+  dans MokManager, un redémarrage suffit. Sinon, pour voir la vraie raison :
+
+      sudo modprobe nvidia
+      sudo lexos tv
+FIN
+		fi
+		exit 0
+		;;
+esac
+
 # =============================================================================
 #  L'INSCRIPTION
 # =============================================================================
+if [ "$PAR_LEXOS" -eq 1 ]; then
+	cat <<'FIN'
+  Le pilote est signé par la clé LexOS. Il reste à faire ACCEPTER le
+  certificat LexOS par le micrologiciel — UNE fois pour cette machine :
+  ensuite toutes les ISO LexOS et le système installé sont acceptés.
+FIN
+	if [ "$EN_LIVE" -eq 1 ]; then
+		cat <<'FIN'
+  Depuis la session live, ça marche : la demande va dans la mémoire du
+  micrologiciel (NVRAM), et l'écran bleu s'affichera au redémarrage SUR LA
+  CLÉ USB — laisse-la branchée et redémarre dessus.
+FIN
+	fi
+	printf '\n'
+fi
 cat <<'FIN'
   Tout est prêt : le module est signé, et il ne reste qu'à faire ACCEPTER
   le certificat par le micrologiciel de la machine.
@@ -365,8 +436,9 @@ cat <<'FIN'
        · « Enroll MOK »  →  « Continue »  →  « Yes »
        · il redemande le mot de passe du point 1
        · « Reboot »
-  3. C'est fini, et c'est une fois pour toutes : les mises à jour du noyau
-     recompileront et resigneront le module avec la même clé.
+  3. C'est fini pour ce certificat. Une mise à jour du noyau qui recompile le
+     pilote sur la machine le signe avec la clé de DKMS de CETTE machine :
+     l'outil proposera alors, une seule fois, d'inscrire aussi celle-là.
 
   ⚠ SI TU RATES L'ÉCRAN BLEU (c'est courant, il passe vite) : la machine
   redémarre normalement, rien n'est cassé, et il suffit de relancer cette

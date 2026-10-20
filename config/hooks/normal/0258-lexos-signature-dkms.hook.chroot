@@ -1,0 +1,64 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — DKMS signe le pilote NVIDIA avec la clé LexOS, pendant la compilation
+# =============================================================================
+#  LE PROBLÈME. Le hook 0260 fait compiler nvidia-open par DKMS pour le noyau
+#  de l'image (7.2.9). Avec Secure Boot actif, le noyau refuse tout module qui
+#  n'est pas signé par une clé qu'il connaît. Jusqu'ici, DKMS signait dans le
+#  chroot avec une clé qu'il fabriquait LUI-MÊME à la volée : une clé jetable,
+#  inconnue de tous les micrologiciels — le module de l'ISO ne pouvait donc
+#  être accepté nulle part, Secure Boot actif.
+#
+#  LA RÉPONSE. Une clé LexOS FIXE, toujours la même d'une ISO à l'autre :
+#    · la clé PRIVÉE vit dans un secret GitHub (LEXOS_MOK_KEY), jamais dans le
+#      dépôt. Le workflow la dépose dans config/includes.chroot juste avant la
+#      construction ; live-build la recopie dans le chroot avant les hooks ;
+#    · le CERTIFICAT public est versionné (usr/share/lexos/secure-boot/
+#      lexos-mok.der) et voyage sur l'ISO, pour être inscrit UNE fois dans la
+#      liste MOK de la machine — ensuite chaque ISO LexOS est acceptée.
+#
+#  CE HOOK-CI NE FAIT QUE POSER LE RÉGLAGE. La vérification, la re-signature
+#  si DKMS a raté son coup, et surtout L'EFFACEMENT DE LA CLÉ PRIVÉE sont dans
+#  le hook 9890, qui tourne après tous les autres. Une clé qui resterait dans
+#  le chroot partirait dans le squashfs, donc dans chaque ISO téléchargée :
+#  ce ne serait plus une signature, ce serait une porte.
+#
+#  Sans clé (construction locale, fork) : rien n'est posé, et le hook 9890
+#  dira franchement que le pilote n'est pas signé par LexOS.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0258 : signature DKMS par la clé LexOS"
+
+DOSSIER="/root/lexos-signature"
+CLE="$DOSSIER/lexos-mok.key"
+CERT="/usr/share/lexos/secure-boot/lexos-mok.der"
+CONF_D="/etc/dkms/framework.conf.d"
+CONF="$CONF_D/lexos-signature.conf"
+
+if [ ! -s "$CLE" ]; then
+	echo "[lexos]   pas de clé LexOS dans le chroot — DKMS signera avec une clé jetable"
+	echo "[lexos]   (le hook 9890 le dira dans le rapport ; rien à faire ici)"
+	exit 0
+fi
+if [ ! -s "$CERT" ]; then
+	echo "[lexos]   ÉCHEC : clé privée présente mais certificat absent ($CERT)"
+	exit 1
+fi
+
+chmod 700 "$DOSSIER"
+chmod 600 "$CLE"
+
+#  Les deux noms de réglage sont ceux de dkms 3.x (mok_signing_key,
+#  mok_certificate) — les mêmes que lexos-signer-pilote lit sur un système
+#  installé. Le dossier .conf.d est lu par dkms après framework.conf : il
+#  l'emporte sans qu'on réécrive le fichier du paquet.
+mkdir -p "$CONF_D"
+cat > "$CONF" <<EOF
+# LexOS — posé par le hook 0258, RETIRÉ par le hook 9890 avant la fin de la
+# construction. Il ne doit jamais exister sur une ISO publiée.
+mok_signing_key="$CLE"
+mok_certificate="$CERT"
+EOF
+echo "[lexos]   DKMS signera avec la clé LexOS (certificat $CERT)"
+echo "[lexos] hook 0258 : ok"

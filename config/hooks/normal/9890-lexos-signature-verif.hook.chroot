@@ -1,0 +1,211 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — le pilote NVIDIA est-il VRAIMENT signé LexOS ? Puis : la clé s'en va
+# =============================================================================
+#  Le hook 0258 a demandé à DKMS de signer avec la clé LexOS. Ce hook-ci ne
+#  le croit pas sur parole — c'est la règle du dépôt depuis le build 29 :
+#
+#    1. pour CHAQUE noyau de l'image, chaque module nvidia*.ko* de DKMS doit
+#       porter la signature de la clé LexOS (modinfo sig_key = identifiant du
+#       certificat). S'il porte une autre signature — DKMS a ignoré le réglage,
+#       ou un apt plus tardif l'a recompilé — on le RE-SIGNE ici avec sign-file,
+#       l'outil du noyau, puis on revérifie ;
+#    2. la clé privée, le réglage DKMS qui la nomme, et toute clé jetable que
+#       DKMS aurait fabriquée dans /var/lib/dkms sont EFFACÉS. Ce qui reste
+#       dans le chroot part dans le squashfs, donc dans CHAQUE ISO publiée ;
+#    3. le résultat est écrit dans /etc/lexos/build.conf, pour LexOS Pilotes
+#       et lexos-signer-pilote : « signé LexOS » ou « pas signé LexOS ».
+#
+#  ⚠ LA CLÉ JETABLE DE DKMS ÉTAIT UN TROU, PAS UN DÉTAIL. Sans réglage, dkms
+#  fabrique /var/lib/dkms/mok.key à la première compilation — dans le chroot,
+#  donc dans l'ISO : la MÊME clé privée sur toutes les machines LexOS, et
+#  lexos-signer-pilote proposait d'en inscrire le certificat. Elle est
+#  supprimée ; sur un système installé, dkms en refabrique une, propre à la
+#  machine, à la prochaine compilation.
+#
+#  Avec une clé fournie, un module qu'on ne parvient pas à signer fait
+#  ÉCHOUER la construction : une ISO qui se dit signée et ne l'est pas est
+#  pire qu'une ISO qui dit qu'elle ne l'est pas.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 9890 : vérification de la signature du pilote NVIDIA"
+
+DOSSIER="/root/lexos-signature"
+CLE="$DOSSIER/lexos-mok.key"
+CERT="/usr/share/lexos/secure-boot/lexos-mok.der"
+CONF_DKMS="/etc/dkms/framework.conf.d/lexos-signature.conf"
+NOYAUX_DIR="/lib/modules"
+MARQUE="~Module signature appended~"
+
+conf_pose() {
+	#  $1 = clé, $2 = valeur — même patron que le hook 0260.
+	mkdir -p /etc/lexos
+	touch /etc/lexos/build.conf
+	if grep -q "^${1}=" /etc/lexos/build.conf; then
+		sed -i "s|^${1}=.*|${1}=\"${2}\"|" /etc/lexos/build.conf
+	else
+		echo "${1}=\"${2}\"" >> /etc/lexos/build.conf
+	fi
+}
+
+#  L'effacement est posé en piège AVANT tout le reste : même si une commande
+#  plus bas fait sortir le hook en erreur (set -e), la clé ne survit pas.
+efface_cle() {
+	if [ -e "$CLE" ] && command -v shred >/dev/null 2>&1; then
+		shred -u "$CLE" 2>/dev/null || true
+	fi
+	rm -rf "$DOSSIER"
+	rm -f "$CONF_DKMS"
+	rm -f /var/lib/dkms/mok.key /var/lib/dkms/mok.pub
+}
+trap efface_cle EXIT
+
+#  Le signataire attendu = l'identifiant de clé du certificat (Subject Key
+#  Identifier), exactement ce que modinfo affiche en « sig_key ».
+#  openssl en priorité ; le workflow dépose aussi l'identifiant à côté de la
+#  clé, pour une image où openssl manquerait.
+CLE_ID=""
+if [ -s "$CERT" ] && command -v openssl >/dev/null 2>&1; then
+	CLE_ID="$(openssl x509 -inform DER -in "$CERT" -noout -ext subjectKeyIdentifier 2>/dev/null \
+		| sed -n 's/^[[:space:]]*\([0-9A-Fa-f:]\{20,\}\)[[:space:]]*$/\1/p' | head -1)"
+fi
+if [ -z "$CLE_ID" ] && [ -s "$DOSSIER/lexos-mok.id" ]; then
+	CLE_ID="$(head -1 "$DOSSIER/lexos-mok.id")"
+fi
+CLE_ID="$(printf '%s' "$CLE_ID" | tr 'a-f' 'A-F')"
+
+#  Où est sign-file ? Debian le range dans linux-kbuild-<version> ; les
+#  en-têtes du noyau y pointent par scripts/.
+sign_file_pour() {
+	for _sf in "/usr/src/linux-headers-$1/scripts/sign-file" /usr/lib/linux-kbuild-*/scripts/sign-file; do
+		[ -x "$_sf" ] && { printf '%s' "$_sf"; return 0; }
+	done
+	return 1
+}
+
+cle_du_module() {
+	modinfo -F sig_key "$1" 2>/dev/null | head -1 | tr -d ' ' | tr 'a-f' 'A-F'
+}
+
+#  Retirer une signature déjà présente : sign-file AJOUTE la sienne à la fin,
+#  il ne remplace pas. La queue d'un module signé : la signature PKCS#7, puis
+#  une struct module_signature de 12 octets (dont sig_len, 4 octets gros-
+#  boutistes, aux octets 8 à 11), puis la marque de 28 octets.
+retire_signature() {
+	_f="$1"
+	_t="$(stat -c %s "$_f")"
+	[ "$_t" -gt 40 ] || return 0
+	_queue="$(tail -c 28 "$_f" | tr -d '\n')"
+	[ "$_queue" = "$MARQUE" ] || return 0
+	#  Le découpage en mots EST voulu : od rend douze nombres, un par octet.
+	# shellcheck disable=SC2046
+	set -- $(od -An -t u1 -j $((_t - 40)) -N 12 "$_f")
+	_signer_len="$4"; _keyid_len="$5"
+	_sig_len=$(( ($9 << 24) | (${10} << 16) | (${11} << 8) | ${12} ))
+	truncate -s $(( _t - 40 - _sig_len - _signer_len - _keyid_len )) "$_f"
+}
+
+#  Signer un module, compressé ou non, en gardant sa compression d'origine.
+signe_module() {
+	_m="$1"; _sf="$2"
+	_tmp="$(mktemp -d)"
+	case "$_m" in
+		*.ko.xz)  xz -dc "$_m" > "$_tmp/m.ko" ;;
+		*.ko.zst) zstd -qdc "$_m" > "$_tmp/m.ko" ;;
+		*.ko.gz)  gzip -dc "$_m" > "$_tmp/m.ko" ;;
+		*.ko)     cp "$_m" "$_tmp/m.ko" ;;
+		*) rm -rf "$_tmp"; return 1 ;;
+	esac
+	retire_signature "$_tmp/m.ko"
+	"$_sf" sha256 "$CLE" "$CERT" "$_tmp/m.ko" || { rm -rf "$_tmp"; return 1; }
+	case "$_m" in
+		#  Les réglages xz de Makefile.modinst du noyau : le décompresseur du
+		#  noyau n'accepte que CRC32, et le dictionnaire de 1 Mio suffit.
+		*.ko.xz)  xz -c --check=crc32 --lzma2=dict=1MiB "$_tmp/m.ko" > "$_tmp/m.out" ;;
+		*.ko.zst) zstd -q -19 -c "$_tmp/m.ko" > "$_tmp/m.out" ;;
+		*.ko.gz)  gzip -9 -c "$_tmp/m.ko" > "$_tmp/m.out" ;;
+		*.ko)     mv "$_tmp/m.ko" "$_tmp/m.out" ;;
+	esac
+	cat "$_tmp/m.out" > "$_m"
+	rm -rf "$_tmp"
+}
+
+# --- Sans clé : on le dit, on nettoie, et on s'arrête -----------------------
+if [ ! -s "$CLE" ]; then
+	echo "[lexos]   !! aucune clé LexOS fournie : le pilote NVIDIA n'est PAS signé LexOS"
+	echo "[lexos]      avec Secure Boot actif, il sera refusé tant que la machine"
+	echo "[lexos]      n'aura pas signé et inscrit sa propre clé (lexos-signer-pilote)"
+	conf_pose LEXOS_SIGNATURE_PILOTE "aucune"
+	conf_pose LEXOS_SIGNATURE_CLE_ID ""
+	echo "[lexos] hook 9890 : ok (sans signature LexOS)"
+	exit 0
+fi
+if [ -z "$CLE_ID" ]; then
+	echo "[lexos]   ÉCHEC : identifiant du certificat illisible (ni openssl, ni lexos-mok.id)"
+	exit 1
+fi
+echo "[lexos]   certificat LexOS : identifiant ${CLE_ID}"
+
+# --- Chaque module DKMS de chaque noyau -------------------------------------
+TOTAL=0; RESIGNES=0; RATES=0; NOYAUX_SIGNES=""
+for K in $(ls -1 "$NOYAUX_DIR" 2>/dev/null | sort -V); do
+	#  Seuls les modules de DKMS (updates/dkms) : nvidia-wmi-ec-backlight et
+	#  consorts sont dans l'arbre du noyau et déjà signés par Debian.
+	#  « || true » : un noyau sans dossier updates fait rendre 1 à find, et
+	#  sous set -e l'affectation tuerait le hook — clé encore en place.
+	MODS="$(find "$NOYAUX_DIR/$K/updates" -type f -name 'nvidia*.ko*' 2>/dev/null | sort || true)"
+	[ -n "$MODS" ] || continue
+	SF="$(sign_file_pour "$K" || true)"
+	for M in $MODS; do
+		TOTAL=$((TOTAL + 1))
+		if [ "$(cle_du_module "$M")" = "$CLE_ID" ]; then
+			echo "[lexos]   ✓ ${K} $(basename "$M") — signé LexOS par DKMS"
+			continue
+		fi
+		if [ -z "$SF" ]; then
+			echo "[lexos]   ✗ ${K} $(basename "$M") — autre signature, et sign-file introuvable"
+			RATES=$((RATES + 1)); continue
+		fi
+		if signe_module "$M" "$SF" && [ "$(cle_du_module "$M")" = "$CLE_ID" ]; then
+			echo "[lexos]   ✓ ${K} $(basename "$M") — re-signé LexOS ici (DKMS ne l'avait pas fait)"
+			RESIGNES=$((RESIGNES + 1))
+		else
+			echo "[lexos]   ✗ ${K} $(basename "$M") — la signature LexOS n'a pas pris"
+			RATES=$((RATES + 1))
+		fi
+	done
+	NOYAUX_SIGNES="${NOYAUX_SIGNES}${NOYAUX_SIGNES:+ }${K}"
+done
+
+if [ "$TOTAL" -eq 0 ]; then
+	#  Pas de pilote (saveur sans NVIDIA) : rien à signer, et ce n'est pas une
+	#  erreur ici — le hook 0260 juge déjà de l'absence du pilote en pro.
+	echo "[lexos]   aucun module NVIDIA de DKMS dans l'image — rien à signer"
+	conf_pose LEXOS_SIGNATURE_PILOTE "aucune"
+	conf_pose LEXOS_SIGNATURE_CLE_ID ""
+	echo "[lexos] hook 9890 : ok"
+	exit 0
+fi
+if [ "$RATES" -gt 0 ]; then
+	echo "[lexos]   ÉCHEC : ${RATES} module(s) sur ${TOTAL} sans signature LexOS"
+	exit 1
+fi
+
+conf_pose LEXOS_SIGNATURE_PILOTE "lexos"
+conf_pose LEXOS_SIGNATURE_CLE_ID "$CLE_ID"
+conf_pose LEXOS_SIGNATURE_CERT "$CERT"
+conf_pose LEXOS_SIGNATURE_NOYAUX "$NOYAUX_SIGNES"
+echo "[lexos]   ${TOTAL} module(s) signés LexOS (${RESIGNES} re-signé(s) ici) — noyau(x) : ${NOYAUX_SIGNES}"
+
+# --- La clé part, et on le VÉRIFIE ------------------------------------------
+efface_cle
+trap - EXIT
+for RESTE in "$DOSSIER" "$CONF_DKMS" /var/lib/dkms/mok.key; do
+	if [ -e "$RESTE" ]; then
+		echo "[lexos]   ÉCHEC : ${RESTE} existe encore — l'ISO emporterait une clé"
+		exit 1
+	fi
+done
+echo "[lexos]   clé privée effacée du chroot (vérifié)"
+echo "[lexos] hook 9890 : ok"

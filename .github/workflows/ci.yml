@@ -3141,6 +3141,22 @@ jobs:
           #  faite sur le CONTENU des fichiers et non sur leur nom.
           bash tests/test_lexos_signer_pilote.sh
 
+      - name: ISO RTX 5060 — noyau 7.2.9 par défaut, pilote signé LexOS, /boot en clair
+        if: ${{ !cancelled() }}
+        run: |
+          #  Le menu UEFI de l'ISO du 20 octobre démarrait 6.12 (sans pilote)
+          #  par défaut ; le pilote n'était signé par aucune clé connue ; et
+          #  un LexOS chiffré butait sur « Invalid passphrase » (GRUB contre
+          #  LUKS2 Argon2id). Le banc rejoue les hooks 0907, 0915 et 9890 sur
+          #  de vraies données : le vrai grub.cfg de cette ISO, une efi.img
+          #  pleine, un vrai module du noyau signé par le vrai sign-file.
+          #  mtools/dosfstools pour l'efi.img, python3-yaml pour
+          #  partition.conf, les en-têtes du noyau pour sign-file.
+          sudo apt-get install -y --no-install-recommends mtools dosfstools python3-yaml zstd >/dev/null
+          sudo apt-get install -y --no-install-recommends "linux-headers-$(uname -r)" >/dev/null \
+            || echo "en-têtes du noyau indisponibles : la signature réelle sera « non mesurée »"
+          bash tests/test_lexos_secure_boot_iso.sh
+
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}
         run: |

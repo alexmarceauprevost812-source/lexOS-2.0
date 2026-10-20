@@ -64,11 +64,19 @@ cat > "$BANC/bin/modinfo" <<'EOF'
 #!/bin/sh
 case "$*" in
 	*sig_id*) [ "${FAUX_SIGNE:-1}" = "1" ] && echo "PKCS#7"; exit 0 ;;
+	*sig_key*) [ -n "${FAUX_CLE:-}" ] && echo "$FAUX_CLE"; exit 0 ;;
 esac
 exit 0
 EOF
+#  « --test-key » ne fait que LIRE la liste MOK : il n'est pas tracé. Tout
+#  autre appel (--import…) l'est — c'est ce que « --etat » ne doit jamais faire.
 cat > "$BANC/bin/mokutil" <<'EOF'
 #!/bin/sh
+case "$1" in
+	--test-key)
+		[ "${FAUX_INSCRIT:-0}" = "1" ] && echo "$2 is already enrolled" || echo "$2 is not enrolled"
+		exit 0 ;;
+esac
 printf 'APPELE %s\n' "$*" >> "$LEXOS_BANC_TRACE"
 exit 0
 EOF
@@ -313,6 +321,48 @@ SALE="$(grep -vE '^\s*#' "$OUTIL" | grep -c 'try_sign_modules' || true)"
 grep -q "dkms --help" < <(grep -vE '^\s*#' "$OUTIL") \
 	&& ok "…et il demande à CE dkms s'il connaît « generate_mok » avant de le conseiller" \
 	|| non "l'outil conseille « dkms generate_mok » sans vérifier : sur dkms 3.0 (bookworm) la commande n'existe pas"
+
+# ===========================================================================
+titre "9. LE PILOTE SIGNÉ PAR LA CLÉ LEXOS : SON CERTIFICAT, MÊME EN LIVE"
+# ===========================================================================
+#  L'ISO RTX 5060 signe le pilote à la construction avec une clé LexOS fixe.
+#  Quand le module chargé porte CETTE signature, c'est le certificat LexOS
+#  qu'il faut inscrire — pas celui de DKMS, qui ne signe rien de chargé — et
+#  la session live peut le faire : la demande va dans la NVRAM, et la clé USB
+#  embarque MokManager.
+printf 'LEXOS_SIGNATURE_CLE_ID="43:CF:A1:4C"\n' > "$BANC/build.conf"
+: > "$BANC/lexos-mok.der"
+joue_lexos() {   # joue_lexos <cmdline> [VAR=val…]
+	local cmd="$1"; shift
+	joue "$cmd" "$BANC/efi-on" "$BANC/dkms/framework.conf" \
+		LEXOS_BUILD_CONF="$BANC/build.conf" LEXOS_CERT_LEXOS="$BANC/lexos-mok.der" "$@"
+}
+VU="$(joue_lexos "$BANC/cmdline-live" FAUX_CLE="43:cf:a1:4c")"
+case "$VU" in
+	*"oublie tout"*) non "module signé LexOS : la session live refuse encore, alors qu'elle peut inscrire" ;;
+	*"clé LexOS"*"CLÉ USB"*) ok "module signé LexOS en live : il propose l'inscription et dit de redémarrer sur la clé USB" ;;
+	*) non "module signé LexOS en live : rien de reconnaissable — $(printf '%s' "$VU" | tail -3 | tr '\n' ' ')" ;;
+esac
+case "$VU" in
+	*"$BANC/lexos-mok.der"*) ok "…et c'est le certificat LexOS qu'il nomme, pas celui de DKMS" ;;
+	*) non "le certificat proposé n'est pas celui de LexOS" ;;
+esac
+TRACE="$(cat "$BANC/trace" 2>/dev/null || true)"
+[ -z "$TRACE" ] \
+	&& ok "…et « --etat » n'a toujours rien inscrit" \
+	|| non "« --etat » a lancé quelque chose sur le chemin LexOS : $TRACE"
+
+VU="$(joue_lexos "$BANC/cmdline-live" FAUX_CLE="DE:AD:BE:EF")"
+case "$VU" in
+	*"oublie tout"*) ok "une AUTRE signature en live : toujours refusé (la clé de DKMS disparaît au redémarrage)" ;;
+	*) non "une signature étrangère est prise pour la clé LexOS" ;;
+esac
+
+VU="$(joue_lexos "$BANC/cmdline-installe" FAUX_CLE="43:CF:A1:4C" FAUX_INSCRIT=1)"
+case "$VU" in
+	*"DÉJÀ inscrit"*) ok "certificat déjà inscrit : il le dit au lieu de redemander un mot de passe" ;;
+	*) non "un certificat déjà inscrit n'est pas reconnu" ;;
+esac
 
 printf '\n\033[1m%d réussis, %d échoués, %d non mesurés\033[0m\n' "$REUSSIS" "$ECHOUES" "$MUETS"
 [ "$ECHOUES" -eq 0 ]

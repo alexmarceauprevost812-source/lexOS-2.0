@@ -1,0 +1,155 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — le menu UEFI de la clé démarre sur le noyau QUI A LE PILOTE
+# =============================================================================
+#  CE QU'ON A LU DANS L'ISO DU 20 OCTOBRE (build 122), PAS DEVINÉ :
+#  /live contient DEUX noyaux, 6.12.113 (celui de trixie) et 7.2.9 (celui de
+#  backports, posé par le hook 0200). Le hook 0260 compile nvidia-open pour
+#  le PLUS RÉCENT — 7.2.9 — et pour lui seul. Mais live-build écrit ses
+#  entrées génériques (« Live system (amd64) », le mode de secours, la
+#  vérification du support) avec le PREMIER noyau de sa liste : 6.12.113.
+#  L'entrée par défaut démarrait donc le noyau SANS pilote NVIDIA : sur la
+#  RTX 5060, aucun pilote — exactement ce qu'Alex a constaté.
+#
+#  CE QUE FAIT CE HOOK, dans le grub.cfg que live-build vient d'écrire :
+#    1. les entrées génériques visent le noyau le plus récent ;
+#    2. chaque entrée dit en français quel noyau elle démarre, et s'il a le
+#       pilote NVIDIA (lu dans ../chroot/lib/modules, pas supposé) ;
+#    3. chaque entrée AFFICHE ce qu'elle charge (« echo ») : si un démarrage
+#       s'arrête un jour, l'écran dit à quelle étape — noyau ou initrd — au
+#       lieu d'un retour muet au menu ;
+#    4. VÉRIFICATION, et elle est fatale : tout fichier nommé par une ligne
+#       linux/initrd doit exister dans l'image, et la première entrée doit
+#       viser le noyau le plus récent. Un menu qui pointe dans le vide ne se
+#       découvre qu'une fois la clé gravée et démarrée.
+#
+#  Le menu BIOS (isolinux) n'a pas ce défaut : il démarre /live/vmlinuz, que
+#  live-build copie depuis le noyau le plus récent.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0907 : noyau par défaut du menu UEFI"
+
+racine_image() {
+	for LEXOS_R in . binary ../binary; do
+		if [ -d "$LEXOS_R/boot" ] || [ -d "$LEXOS_R/live" ]; then
+			printf '%s' "$LEXOS_R"
+			return 0
+		fi
+	done
+	return 1
+}
+IMG="$(racine_image)" || { echo "[lexos]   !! arbre de l'image introuvable (pwd = $(pwd))"; exit 1; }
+CFG="$IMG/boot/grub/grub.cfg"
+[ -r "$CFG" ] || { echo "[lexos]   ${CFG} absent — pas de menu UEFI à corriger"; exit 0; }
+
+#  Le chroot, pour savoir quel noyau a le module nvidia. Les hooks binaires
+#  tournent depuis le dossier de l'image : le chroot est À CÔTÉ, en ../chroot.
+CHROOT=""
+for C in ../chroot chroot "$IMG/../chroot"; do
+	[ -d "$C/lib/modules" ] && { CHROOT="$C"; break; }
+done
+
+VERSIONS="$(ls -1 "$IMG/live" 2>/dev/null | sed -n 's/^vmlinuz-//p' | sort -V)"
+NB="$(printf '%s\n' "$VERSIONS" | grep -c . || true)"
+if [ "$NB" -eq 0 ]; then
+	echo "[lexos]   aucun /live/vmlinuz-<version> — rien à réordonner"
+	exit 0
+fi
+RECENT="$(printf '%s\n' "$VERSIONS" | tail -1)"
+echo "[lexos]   noyaux de l'image : $(printf '%s' "$VERSIONS" | tr '\n' ' ')→ par défaut : ${RECENT}"
+
+a_nvidia() {
+	[ -n "$CHROOT" ] || return 1
+	[ -n "$(find "$CHROOT/lib/modules/$1" -name 'nvidia.ko*' 2>/dev/null | head -1)" ]
+}
+NV_OUI=""
+for V in $VERSIONS; do
+	if a_nvidia "$V"; then
+		NV_OUI="${NV_OUI} ${V}"
+		echo "[lexos]   ${V} : module nvidia présent"
+	else
+		echo "[lexos]   ${V} : PAS de module nvidia"
+	fi
+done
+if [ -n "$CHROOT" ] && ! a_nvidia "$RECENT"; then
+	echo "[lexos]   !! le noyau le plus récent (${RECENT}) n'a pas le pilote NVIDIA"
+fi
+
+cp "$CFG" "${CFG}.lexos-avant"
+
+# --- La réécriture ------------------------------------------------------------
+#  Une entrée est « générique » quand son titre ne nomme pas de noyau
+#  (« kernel 6.12… ») : c'est elle que live-build fige sur le premier noyau.
+#  Les titres sont reconnus par motif ; un titre inconnu garde son texte et
+#  reçoit quand même le bon noyau et les « echo ».
+awk -v recent="$RECENT" -v nvoui="$NV_OUI " '
+function pilote(v) { return index(nvoui, " " v " ") ? "pilote NVIDIA" : "sans pilote NVIDIA" }
+function titre_de(l,   t) { t = l; sub(/^[ \t]*menuentry[ \t]+"/, "", t); sub(/".*$/, "", t); return t }
+function retitre(l, neuf,   avant, apres) {
+	avant = l; sub(/menuentry[ \t]+".*$/, "", avant)
+	apres = l; sub(/^[ \t]*menuentry[ \t]+"[^"]*"/, "", apres)
+	return avant "menuentry \"" neuf "\"" apres
+}
+/^[ \t]*menuentry[ \t]+"/ {
+	t = titre_de($0); generique = 1; version = recent
+	if (match(t, /kernel [^ ]+/)) { generique = 0; version = substr(t, RSTART + 7, RLENGTH - 7) }
+	if (t ~ /^Live system \([^)]*fail-safe mode\)$/)
+		$0 = retitre($0, "LexOS Live - mode de secours (noyau " recent ")")
+	else if (t ~ /^Live system \([^)]*\)$/)
+		$0 = retitre($0, "LexOS Live - noyau " recent " (" pilote(recent) ")")
+	else if (!generique && t ~ /fail-safe mode/)
+		$0 = retitre($0, "Noyau " version " - mode de secours")
+	else if (!generique)
+		$0 = retitre($0, "Noyau " version " (" pilote(version) ")")
+	dans = 1; print; next
+}
+dans && /^[ \t]*}/ { dans = 0 }
+dans && /^[ \t]*linux[ \t]+\/live\/vmlinuz-/ {
+	if (generique) sub(/vmlinuz-[^ \t]+/, "vmlinuz-" recent)
+	match($0, /^[ \t]*/); ind = substr($0, 1, RLENGTH)
+	print ind "echo \"LexOS : chargement du noyau " version "...\""
+	print; next
+}
+dans && /^[ \t]*initrd[ \t]+\/live\/initrd\.img-/ {
+	if (generique) sub(/initrd\.img-[^ \t]+/, "initrd.img-" recent)
+	match($0, /^[ \t]*/); ind = substr($0, 1, RLENGTH)
+	print ind "echo \"LexOS : chargement de l\047initrd " version "...\""
+	print; next
+}
+{ print }
+' "${CFG}.lexos-avant" > "$CFG"
+
+# --- La vérification, fatale ---------------------------------------------------
+echoue() {
+	echo "[lexos]   ÉCHEC : $1"
+	echo "[lexos]   (le menu d'origine est remis en place : ${CFG})"
+	mv "${CFG}.lexos-avant" "$CFG"
+	exit 1
+}
+
+AVANT="$(grep -c '^[[:space:]]*menuentry' "${CFG}.lexos-avant" || true)"
+APRES="$(grep -c '^[[:space:]]*menuentry' "$CFG" || true)"
+[ "$AVANT" = "$APRES" ] || echoue "entrées de menu perdues (${AVANT} -> ${APRES})"
+
+PREMIER="$(grep -m1 -E '^[[:space:]]*linux[[:space:]]+/live/' "$CFG" | awk '{print $2}')"
+[ "$PREMIER" = "/live/vmlinuz-${RECENT}" ] \
+	|| echoue "la première entrée démarre ${PREMIER:-rien}, pas /live/vmlinuz-${RECENT}"
+
+MANQUE=""
+for F in $(grep -E '^[[:space:]]*(linux|initrd)[[:space:]]+/' "$CFG" | awk '{print $2}' | sort -u); do
+	[ -f "$IMG$F" ] || MANQUE="${MANQUE} ${F}"
+done
+[ -z "$MANQUE" ] || echoue "le menu nomme des fichiers absents de l'image :${MANQUE}"
+
+grep -q 'lexos\.failsafe=1' "$CFG" || echoue "le marqueur du mode de secours a disparu"
+
+rm -f "${CFG}.lexos-avant"
+
+echo "[lexos]   entrées du menu UEFI :"
+grep -E '^[[:space:]]*menuentry' "$CFG" | sed 's/^[[:space:]]*/[lexos]     · /; s/ {$//'
+for V in $VERSIONS; do
+	T="$(stat -c %s "$IMG/live/initrd.img-$V" 2>/dev/null || echo 0)"
+	echo "[lexos]   initrd ${V} : $((T / 1048576)) Mio"
+done
+echo "[lexos] hook 0907 : ok"

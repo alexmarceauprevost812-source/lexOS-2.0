@@ -1,0 +1,137 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — MokManager sur la clé USB, et le certificat LexOS à sa racine
+# =============================================================================
+#  POURQUOI. Le pilote NVIDIA de l'ISO est signé par la clé LexOS (hooks 0258
+#  et 9890). Pour que le noyau l'accepte avec Secure Boot actif, le
+#  certificat LexOS doit être inscrit UNE fois dans la liste MOK de la
+#  machine : « mokutil --import » le dépose dans la NVRAM, puis, au
+#  redémarrage, shim lance MokManager — l'écran bleu « Enroll MOK ».
+#
+#  CE QUI MANQUAIT, lu dans l'ISO du 20 octobre : /EFI/boot ne contenait que
+#  bootx64.efi (shim) et grubx64.efi. Pas de mmx64.efi. Démarré depuis la
+#  clé, shim n'aurait rien eu à lancer — l'inscription commencée en session
+#  live n'aurait jamais pu se terminer. On le copie depuis le chroot, où
+#  shim-signed l'a installé, signé par Debian comme shim lui-même.
+#
+#  DEUX ENDROITS, PARCE QU'IL Y A DEUX FAÇONS DE DÉMARRER LA CLÉ :
+#    · boot/grub/efi.img — la partition EFI que voit le micrologiciel quand
+#      l'ISO est gravée telle quelle (balenaEtcher, dd). Elle était pleine à
+#      10 Ko près : on la RECONSTRUIT plus grande, avec tout son contenu ;
+#    · /EFI/boot de l'arborescence — quand un outil recopie les fichiers sur
+#      une clé FAT32 (Rufus en mode ISO).
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0915 : MokManager et certificat LexOS sur la clé"
+
+racine_image() {
+	for LEXOS_R in . binary ../binary; do
+		if [ -d "$LEXOS_R/boot" ] || [ -d "$LEXOS_R/live" ]; then
+			printf '%s' "$LEXOS_R"
+			return 0
+		fi
+	done
+	return 1
+}
+IMG="$(racine_image)" || { echo "[lexos]   !! arbre de l'image introuvable (pwd = $(pwd))"; exit 1; }
+
+CHROOT=""
+for C in ../chroot chroot "$IMG/../chroot"; do
+	[ -d "$C/usr" ] && { CHROOT="$C"; break; }
+done
+
+# --- Le certificat, à la racine de la clé -------------------------------------
+#  Visible depuis Windows aussi : on peut le vérifier, ou l'inscrire depuis un
+#  autre système. Il DOIT être identique à celui du chroot, que lit
+#  lexos-signer-pilote : deux certificats différents, et on inscrirait le
+#  mauvais.
+if [ -f "$IMG/lexos-mok.der" ]; then
+	if [ -n "$CHROOT" ] && [ -f "$CHROOT/usr/share/lexos/secure-boot/lexos-mok.der" ] \
+	   && ! cmp -s "$IMG/lexos-mok.der" "$CHROOT/usr/share/lexos/secure-boot/lexos-mok.der"; then
+		echo "[lexos]   ÉCHEC : lexos-mok.der de la clé ≠ celui du système live"
+		exit 1
+	fi
+	echo "[lexos]   certificat LexOS à la racine de la clé : lexos-mok.der"
+else
+	echo "[lexos]   !! lexos-mok.der absent de la racine (config/includes.binary)"
+fi
+
+# --- MokManager ---------------------------------------------------------------
+MM=""
+for C in "$CHROOT/usr/lib/shim/mmx64.efi.signed" "$CHROOT/usr/lib/shim/mmx64.efi"; do
+	[ -f "$C" ] && { MM="$C"; break; }
+done
+if [ -z "$MM" ]; then
+	echo "[lexos]   ÉCHEC : mmx64.efi introuvable dans le chroot (paquet shim-helpers-amd64-signed)"
+	exit 1
+fi
+
+#  Le dossier de shim dans l'arborescence : « EFI/boot » chez live-build, mais
+#  on le cherche plutôt que de le supposer (FAT ne distingue pas la casse,
+#  ISO 9660 si).
+DOSSIER_EFI=""
+for D in "$IMG/EFI/boot" "$IMG/EFI/BOOT" "$IMG/efi/boot"; do
+	[ -f "$D/bootx64.efi" ] || [ -f "$D/BOOTX64.EFI" ] || continue
+	DOSSIER_EFI="$D"; break
+done
+if [ -n "$DOSSIER_EFI" ]; then
+	cp "$MM" "$DOSSIER_EFI/mmx64.efi"
+	echo "[lexos]   mmx64.efi copié dans ${DOSSIER_EFI#"$IMG"/}"
+else
+	echo "[lexos]   !! EFI/boot/bootx64.efi introuvable dans l'arborescence"
+fi
+
+# --- La partition EFI (efi.img), reconstruite plus grande ---------------------
+EFIIMG="$IMG/boot/grub/efi.img"
+if [ ! -f "$EFIIMG" ]; then
+	echo "[lexos]   ÉCHEC : ${EFIIMG} absent — l'ISO ne démarrerait pas en UEFI"
+	exit 1
+fi
+for O in mcopy mdir mkfs.msdos; do
+	command -v "$O" >/dev/null 2>&1 || { echo "[lexos]   ÉCHEC : $O absent (mtools / dosfstools)"; exit 1; }
+done
+export MTOOLS_SKIP_CHECK=1
+
+TRAVAIL="$(mktemp -d)"
+trap 'rm -rf "$TRAVAIL"' EXIT
+mkdir "$TRAVAIL/contenu"
+mcopy -s -n -i "$EFIIMG" '::/*' "$TRAVAIL/contenu/"
+
+DANS=""
+for D in "$TRAVAIL/contenu/EFI/boot" "$TRAVAIL/contenu/EFI/BOOT" "$TRAVAIL/contenu/efi/boot"; do
+	[ -d "$D" ] && { DANS="$D"; break; }
+done
+[ -n "$DANS" ] || { echo "[lexos]   ÉCHEC : pas de dossier EFI/boot dans efi.img"; exit 1; }
+cp "$MM" "$DANS/mmx64.efi"
+
+AVANT="$(find "$TRAVAIL/contenu" -type f | wc -l)"
+#  Taille : le contenu + 1 Mio de marge, en Kio (mkfs.msdos -C compte en
+#  blocs de 1 Kio).
+TAILLE=$(( $(du -sk "$TRAVAIL/contenu" | cut -f1) + 1024 ))
+mkfs.msdos -C "$TRAVAIL/efi.img" "$TAILLE" >/dev/null
+mcopy -s -i "$TRAVAIL/efi.img" "$TRAVAIL/contenu/"* ::/
+
+#  Vérifier AVANT de remplacer : les mêmes fichiers plus MokManager, et shim
+#  et GRUB toujours là. Au moindre écart, l'efi.img d'origine reste.
+mkdir "$TRAVAIL/relu"
+mcopy -s -n -i "$TRAVAIL/efi.img" '::/*' "$TRAVAIL/relu/"
+APRES="$(find "$TRAVAIL/relu" -type f | wc -l)"
+if [ "$APRES" -ne "$AVANT" ]; then
+	echo "[lexos]   ÉCHEC : efi.img reconstruite avec ${APRES} fichier(s) au lieu de ${AVANT}"
+	exit 1
+fi
+for F in bootx64.efi grubx64.efi mmx64.efi; do
+	if [ -z "$(find "$TRAVAIL/relu" -iname "$F" -type f | head -1)" ]; then
+		echo "[lexos]   ÉCHEC : ${F} absent de la nouvelle efi.img"
+		exit 1
+	fi
+done
+if ! diff -r "$TRAVAIL/contenu" "$TRAVAIL/relu" >/dev/null; then
+	echo "[lexos]   ÉCHEC : le contenu relu de la nouvelle efi.img diffère"
+	exit 1
+fi
+
+cp "$TRAVAIL/efi.img" "$EFIIMG"
+echo "[lexos]   efi.img reconstruite : ${AVANT} fichiers dont mmx64.efi, $(( $(stat -c %s "$EFIIMG") / 1024 )) Kio"
+echo "[lexos] hook 0915 : ok"

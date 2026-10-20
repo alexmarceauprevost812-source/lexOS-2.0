@@ -194,12 +194,179 @@ jobs:
             echo "debootstrap : script trixie ajouté (lien vers sid)"
           fi
 
+      # ------------------------------------------------------------------
+      #  LA CLÉ DE SIGNATURE DU PILOTE NVIDIA.
+      #  La clé PRIVÉE vient du secret LEXOS_MOK_KEY, jamais du dépôt. On la
+      #  dépose dans config/includes.chroot/root/lexos-signature : live-build
+      #  la recopie dans le chroot avant les hooks, 0258 la donne à DKMS, et
+      #  9890 l'efface avant la création du squashfs. L'étape « Clé privée
+      #  absente de l'ISO » plus bas le VÉRIFIE dans l'ISO produite.
+      #  Pro sans secret = échec : une ISO RTX 5060 dont le pilote est refusé
+      #  par Secure Boot n'est pas celle qu'on veut publier.
+      # ------------------------------------------------------------------
+      - name: Clé de signature LexOS (secret)
+        env:
+          LEXOS_MOK_KEY: ${{ secrets.LEXOS_MOK_KEY }}
+        run: |
+          set -e
+          CERT=config/includes.chroot/usr/share/lexos/secure-boot/lexos-mok.der
+          D=config/includes.chroot/root/lexos-signature
+          if [ -z "$LEXOS_MOK_KEY" ]; then
+            if [ "${{ steps.quoi.outputs.flavour }}" = "pro" ]; then
+              echo "::error::Secret LEXOS_MOK_KEY absent : le pilote NVIDIA ne serait pas signé LexOS"
+              exit 1
+            fi
+            echo "Pas de secret LEXOS_MOK_KEY : construction sans signature LexOS."
+            exit 0
+          fi
+          umask 077
+          mkdir -p "$D"
+          printf '%s\n' "$LEXOS_MOK_KEY" > "$D/lexos-mok.key"
+          #  La clé doit aller avec le certificat versionné : sinon on
+          #  signerait avec une clé dont personne n'a inscrit le certificat.
+          A="$(openssl pkey -in "$D/lexos-mok.key" -pubout | sha256sum)"
+          B="$(openssl x509 -inform DER -in "$CERT" -noout -pubkey | sha256sum)"
+          [ "$A" = "$B" ] || { echo "::error::LEXOS_MOK_KEY ne correspond pas à $CERT"; exit 1; }
+          openssl x509 -inform DER -in "$CERT" -noout -ext subjectKeyIdentifier \
+            | sed -n 's/^[[:space:]]*\([0-9A-Fa-f:]\{20,\}\)[[:space:]]*$/\1/p' > "$D/lexos-mok.id"
+          echo "Clé LexOS en place (identifiant $(cat "$D/lexos-mok.id"))."
+
       - name: Construire l'ISO
         id: build
         run: |
           sudo ./build.sh \
             --flavour "${{ steps.quoi.outputs.flavour }}" \
             --suite   "${{ steps.quoi.outputs.suite }}"
+
+      - name: Effacer la clé du dossier de travail
+        if: always()
+        run: |
+          sudo shred -u config/includes.chroot/root/lexos-signature/lexos-mok.key 2>/dev/null || true
+          sudo rm -rf config/includes.chroot/root/lexos-signature
+
+      # ------------------------------------------------------------------
+      #  L'ISO PRODUITE, VÉRIFIÉE AVANT TOUTE PUBLICATION :
+      #   · aucune clé privée dans le squashfs (fatal) ;
+      #   · le certificat à la racine, MokManager dans efi.img ;
+      #   · l'entrée par défaut du menu UEFI démarre le noyau le plus récent.
+      # ------------------------------------------------------------------
+      - name: Clé privée absente de l'ISO, MokManager et menu vérifiés
+        id: verif
+        run: |
+          set -e
+          ISO="$(ls ./*.iso | head -1)"
+          M="$(mktemp -d)"
+          sudo mount -o loop,ro "$ISO" "$M"
+          trap 'sudo umount "$M"' EXIT
+          LISTE="$(sudo unsquashfs -l "$M/live/filesystem.squashfs")"
+          FUITE="$(printf '%s\n' "$LISTE" | grep -E 'lexos-signature|lexos-mok\.key|/var/lib/dkms/mok\.key|framework\.conf\.d/lexos-signature' || true)"
+          if [ -n "$FUITE" ]; then
+            echo "::error::Fichiers de clé trouvés dans le squashfs — l'ISO ne sera PAS publiée :"
+            printf '%s\n' "$FUITE"
+            exit 1
+          fi
+          echo "✓ aucune clé privée dans le squashfs"
+          cmp "$M/lexos-mok.der" config/includes.chroot/usr/share/lexos/secure-boot/lexos-mok.der
+          echo "✓ lexos-mok.der à la racine de la clé"
+          sudo apt-get install -y --no-install-recommends mtools >/dev/null
+          MTOOLS_SKIP_CHECK=1 mdir -i "$M/boot/grub/efi.img" ::/EFI/boot | tee /dev/stderr | grep -qi mmx64
+          echo "✓ MokManager (mmx64.efi) dans efi.img"
+          RECENT="$(ls "$M/live" | sed -n 's/^vmlinuz-//p' | sort -V | tail -1)"
+          PREMIER="$(grep -m1 -E '^[[:space:]]*linux' "$M/boot/grub/grub.cfg" | awk '{print $2}')"
+          echo "noyau par défaut : $PREMIER (le plus récent : $RECENT)"
+          [ "$PREMIER" = "/live/vmlinuz-$RECENT" ]
+          ls -l "$M/live"
+          {
+            echo "### Vérifications de l'ISO"
+            echo "- aucune clé privée dans le squashfs"
+            echo "- certificat \`lexos-mok.der\` à la racine, MokManager dans efi.img"
+            echo "- entrée par défaut du menu UEFI : \`$PREMIER\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ------------------------------------------------------------------
+      #  DÉMARRAGE RÉEL, SECURE BOOT ACTIF, DANS QEMU.
+      #  OVMF avec les clés Microsoft (comme un PC du commerce), l'ISO en clé
+      #  USB, rien touché au menu : l'entrée par défaut part au bout de 8 s.
+      #  Preuve que shim → GRUB → noyau 7.2.9 → initrd → système live ont
+      #  tous passé : la demande DHCP de NetworkManager (nom « lexos ») sur la
+      #  carte réseau virtuelle. Des captures d'écran partent en artefact.
+      #  Pas de carte NVIDIA dans QEMU : ce test prouve la chaîne de
+      #  démarrage, pas le pilote. Informatif : il ne bloque pas la Release.
+      # ------------------------------------------------------------------
+      - name: Démarrage QEMU + OVMF Secure Boot (entrée par défaut)
+        id: qemu
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          set -e
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 ovmf imagemagick socat >/dev/null
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' | sudo tee /etc/udev/rules.d/99-kvm.rules >/dev/null
+            sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+            ACCEL="-enable-kvm -cpu host"
+          else
+            ACCEL="-cpu max"
+          fi
+          ISO="$(ls ./*.iso | head -1)"
+          mkdir -p qemu-captures
+          cp /usr/share/OVMF/OVMF_VARS_4M.ms.fd vars.fd
+          qemu-system-x86_64 $ACCEL -machine q35,smm=on -m 6144 -smp 4 \
+            -global driver=cfi.pflash01,property=secure,value=on \
+            -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
+            -drive if=pflash,format=raw,unit=1,file=vars.fd \
+            -device qemu-xhci -drive if=none,id=cle,format=raw,readonly=on,file="$ISO" \
+            -device usb-storage,drive=cle,bootindex=1 \
+            -netdev user,id=n0 -device virtio-net-pci,netdev=n0,romfile= \
+            -object filter-dump,id=d0,netdev=n0,file=qemu-net.pcap \
+            -vga std -display none -monitor unix:qemu-mon.sock,server,nowait \
+            -serial file:qemu-serie.log &
+          QPID=$!
+          OK=0
+          for i in $(seq 1 40); do
+            sleep 15
+            echo "screendump qemu-captures/t$(printf '%03d' $((i*15))).ppm" | socat - UNIX-CONNECT:qemu-mon.sock >/dev/null 2>&1 || true
+            if python3 - qemu-net.pcap <<'PY'
+          import sys, struct
+          try:
+              d = open(sys.argv[1], "rb").read()
+          except OSError:
+              sys.exit(1)
+          i = 24
+          while i + 16 <= len(d):
+              n = struct.unpack_from("<I", d, i + 8)[0]
+              p = d[i + 16:i + 16 + n]; i += 16 + n
+              # Ethernet + IPv4 + UDP vers le port 67, et pas un PXE d'OVMF
+              if len(p) > 42 and p[12:14] == b"\x08\x00" and p[23] == 17:
+                  ihl = (p[14] & 15) * 4
+                  if struct.unpack_from(">H", p, 14 + ihl + 2)[0] == 67 and b"PXEClient" not in p:
+                      sys.exit(0)
+          sys.exit(1)
+          PY
+            then OK=1; echo "DHCP du système live reçu après $((i*15)) s"; sleep 20
+              echo "screendump qemu-captures/fin.ppm" | socat - UNIX-CONNECT:qemu-mon.sock >/dev/null 2>&1 || true
+              sleep 2; break
+            fi
+          done
+          kill "$QPID" 2>/dev/null || true
+          for f in qemu-captures/*.ppm; do [ -e "$f" ] && convert "$f" "${f%.ppm}.png" && rm -f "$f"; done
+          if [ "$OK" = 1 ]; then
+            echo "### ✅ Démarrage QEMU Secure Boot : le système live a démarré (entrée par défaut)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ⚠️ Démarrage QEMU Secure Boot : pas de signe de vie en 10 min — voir les captures" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Captures du démarrage QEMU
+        if: always() && steps.qemu.conclusion != 'skipped'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: demarrage-qemu
+          path: |
+            qemu-captures/
+            qemu-serie.log
+          retention-days: 14
+          if-no-files-found: ignore
 
       # ------------------------------------------------------------------
       #  Un rapport lisible, que la construction ait réussi ou non.
@@ -349,6 +516,21 @@ jobs:
             echo "La vérification doit afficher « Réussi / OK ». Ensuite, grave"
             echo "l'ISO sur une clé USB (EtchDroid sur téléphone, ou balenaEtcher"
             echo "sur ordinateur) et démarre dessus."
+            echo
+            echo "### Pilote NVIDIA et Secure Boot (une seule fois par machine)"
+            echo
+            echo "Le menu démarre par défaut le noyau 7.2.9, avec le pilote NVIDIA"
+            echo "signé par la clé LexOS. Avec Secure Boot actif, inscris d'abord le"
+            echo "certificat LexOS (\`lexos-mok.der\`, à la racine de la clé USB) :"
+            echo
+            echo "1. Dans la session live : ouvre **LexOS Pilotes** → *Ouvrir l'assistant"
+            echo "   d'inscription* (ou \`sudo lexos-signer-pilote\` dans un terminal)."
+            echo "   Choisis un mot de passe simple, deux fois."
+            echo "2. Redémarre **sur la clé USB**. Écran bleu MokManager : *Enroll MOK* →"
+            echo "   *Continue* → *Yes* → le mot de passe → *Reboot*."
+            echo "3. LexOS redémarre avec le pilote NVIDIA, Secure Boot toujours actif."
+            echo
+            echo "Garde la clé de récupération BitLocker de Windows sous la main."
           } > NOTES-release.md
 
           # ----------------------------------------------------------------

@@ -2581,4 +2581,13 @@ suite: trixie
 #  3. LE TERMINAL PRO : inchange depuis l'ISO 120, mais son banc mesure
 #     enfin la bonne chose (la frappe etait ecrite hors de l'ecran du banc).
 #
-build: 122
+#  ISO 123 — LexOS Pro RTX 5060 (20 octobre)
+#  1. Le menu UEFI démarre le noyau 7.2.9 (celui qui a nvidia-open) par défaut ;
+#     6.12 reste en entrée de secours, nommée « sans pilote NVIDIA ».
+#  2. Pilote NVIDIA signé par la clé LexOS (secret LEXOS_MOK_KEY) ; certificat
+#     lexos-mok.der à la racine de la clé ; MokManager embarqué ; LexOS Pilotes
+#     guide l'inscription. A EPROUVER : inscription depuis la session live.
+#  3. Installateur : /boot séparé non chiffré — fin du « Invalid passphrase ».
+#  4. initrd 7.2.9 allégé (nouveau et ses 147 Mio de micrologiciel retirés).
+#
+build: 123
