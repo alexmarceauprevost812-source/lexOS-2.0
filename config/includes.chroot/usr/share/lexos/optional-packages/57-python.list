@@ -91,3 +91,9 @@ gir1.2-notify-0.7
 #  ce que lisent le moniteur de performance et le bien-être numérique.
 python3-psutil
 python3-dbus
+
+# --- ti-lex IA (le Moteur d'Alex) : le coffre chiffré des clés API --------
+#  coffre.py et les Variables du Moteur chiffrent avec « cryptography ».
+#  Le README du Moteur dit « pip install cryptography » : sur LexOS, c'est
+#  le paquet Debian, jamais pip --break-system-packages.
+python3-cryptography

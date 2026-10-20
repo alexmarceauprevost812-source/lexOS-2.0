@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=ti-lex IA
+Name[fr]=ti-lex IA
+Comment=Le Moteur d'interface : Chat, Codex, Images, Schémas animés, IA locale
+Comment[fr]=Le Moteur d'interface : Chat, Codex, Images, Schémas animés, IA locale
+Exec=/usr/bin/ti-lex-ia
+Icon=ti-lex-ia
+Terminal=false
+Categories=Development;Utility;
+Keywords=ia;ai;chat;codex;ollama;images;moteur;tilex;ti-lex;
+StartupNotify=true
+StartupWMClass=ti-lex-ia

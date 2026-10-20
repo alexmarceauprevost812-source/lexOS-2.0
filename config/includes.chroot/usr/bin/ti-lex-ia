@@ -1,0 +1,88 @@
+#!/bin/sh
+# =============================================================================
+#  ti-lex-ia — le Moteur d'interface d'Alex, installé dans LexOS
+# =============================================================================
+#  Usage : ti-lex-ia [onglet] [question…]
+#    onglet : chat · codex · equipe · images · schemas · modeles · cle ·
+#             parametres · variables · nuage      (rien : le Moteur normal)
+#    question : seulement avec « chat » — posée et envoyée tout de suite.
+#
+#  Le Moteur vit sur la clé USB LEXOS ; installé ici, son code est dans
+#  /usr/lib/lexos/ti-lex-ia (lecture seule) et SES DONNÉES dans le compte :
+#  ~/.local/share/lexos/ti-lex-ia (mot de passe, conversations, projets…).
+#  C'est LEXOS_MOTEUR_DONNEES qui le lui dit (voir le haut de moteur.py).
+#
+#  UN SEUL MOTEUR À LA FOIS. Le premier appel le démarre ; les suivants lisent
+#  le port dans .port et ouvrent seulement une fenêtre de plus — dans le MÊME
+#  navigateur, pour garder la session : sinon chaque icône redemanderait le
+#  mot de passe du Moteur.
+# =============================================================================
+set -u
+
+ICI=/usr/lib/lexos/ti-lex-ia
+DONNEES="${XDG_DATA_HOME:-$HOME/.local/share}/lexos/ti-lex-ia"
+JOURNAL="${XDG_CACHE_HOME:-$HOME/.cache}/lexos-moteur/ti-lex-ia.log"
+ONGLET="${1:-}"
+[ $# -gt 0 ] && shift
+QUESTION="$*"
+
+case "$ONGLET" in
+	""|chat|codex|equipe|images|schemas|modeles|cle|parametres|variables|nuage) ;;
+	*) echo "Usage : ti-lex-ia [chat|codex|equipe|images|schemas|modeles|cle|parametres|variables|nuage] [question…]" >&2; exit 2 ;;
+esac
+
+#  « ouvrir=chat&q=… » : la question est encodée en %XX par python, qui est
+#  là de toute façon (le Moteur en a besoin).
+ANCRE=""
+if [ -n "$ONGLET" ]; then
+	ANCRE="#ouvrir=$ONGLET"
+	if [ -n "$QUESTION" ] && [ "$ONGLET" = chat ]; then
+		Q="$(printf '%s' "$QUESTION" | python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.stdin.read(),safe=""))')"
+		ANCRE="$ANCRE&q=$Q"
+	fi
+fi
+
+repond() {  # repond <port>
+	command -v curl >/dev/null 2>&1 || return 1
+	[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://127.0.0.1:$1/moteur/acces/etat" 2>/dev/null)" = 200 ]
+}
+
+port_actuel() {
+	P="$(cat "$DONNEES/.port" 2>/dev/null || true)"
+	case "$P" in ''|*[!0-9]*) return 1 ;; esac
+	repond "$P" && printf '%s' "$P"
+}
+
+PORT="$(port_actuel || true)"
+if [ -z "$PORT" ]; then
+	mkdir -p "$DONNEES" "$(dirname "$JOURNAL")"
+	rm -f "$DONNEES/.port"
+	LEXOS_MOTEUR_DONNEES="$DONNEES" setsid python3 "$ICI/moteur.py" --sans-navigateur \
+		>"$JOURNAL" 2>&1 </dev/null &
+	#  Le Moteur attend Ollama avant d'écouter (jusqu'à 4 min la première
+	#  fois, le temps de charger) : on patiente, en le disant.
+	N=0
+	while [ $N -lt 300 ]; do
+		PORT="$(port_actuel || true)"
+		[ -n "$PORT" ] && break
+		[ $N -eq 6 ] && command -v notify-send >/dev/null 2>&1 \
+			&& notify-send -i ti-lex-ia "ti-lex IA" "Le moteur IA démarre…" >/dev/null 2>&1
+		N=$((N + 1)); sleep 1
+	done
+	if [ -z "$PORT" ]; then
+		command -v notify-send >/dev/null 2>&1 \
+			&& notify-send -i dialog-error "ti-lex IA" "Le Moteur n'a pas démarré. Journal : $JOURNAL" >/dev/null 2>&1
+		echo "ti-lex-ia : le Moteur n'a pas démarré — voir $JOURNAL" >&2
+		exit 1
+	fi
+fi
+
+URL="http://127.0.0.1:$PORT/$ANCRE"
+PROFIL="${XDG_CACHE_HOME:-$HOME/.cache}/lexos-moteur/fenetre"
+for NAV in google-chrome-stable google-chrome chromium chromium-browser; do
+	if command -v "$NAV" >/dev/null 2>&1; then
+		exec "$NAV" --app="$URL" --user-data-dir="$PROFIL" --class=ti-lex-ia \
+			--window-size=1280,820 >/dev/null 2>&1
+	fi
+done
+exec xdg-open "$URL"

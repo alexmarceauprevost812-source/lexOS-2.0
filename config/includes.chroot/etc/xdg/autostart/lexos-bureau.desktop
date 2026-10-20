@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=LexOS Bureau
+Comment=Le bureau de LexOS, à l'allure du Moteur — xfdesktop reste en secours
+Exec=/usr/bin/lexos-bureau
+OnlyShowIn=XFCE;
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

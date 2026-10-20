@@ -1,0 +1,127 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-bureau — le bureau de LexOS, à l'allure du Moteur d'Alex
+# =============================================================================
+#  Usage :
+#    lexos-bureau             démarre le bureau (c'est ce que lance la session)
+#    lexos-bureau moteur      passe au bureau du Moteur, et le démarre
+#    lexos-bureau classique   revient au bureau XFCE d'avant (xfdesktop)
+#    lexos-bureau etat        dit lequel est choisi, et lequel tourne
+#
+#  ═══ UNE SEULE FENÊTRE DE BUREAU À LA FOIS ═══
+#  Les fonds animés de 2026 ont été retirés parce qu'ils posaient une 2e
+#  fenêtre de bureau À CÔTÉ de xfdesktop, et que xfwm4 n'ordonne pas deux
+#  fenêtres de ce calque : les icônes disparaissaient. Ce bureau-ci dessine
+#  lui-même ses icônes, et xfdesktop est ARRÊTÉ une fois la fenêtre affichée
+#  (serveur.py, arreter_xfdesktop) — il n'y en a jamais deux.
+#
+#  ═══ LE FILET : xfdesktop REVIENT SI LE BUREAU TOMBE ═══
+#  Si le moteur du bureau s'arrête sans qu'on l'ait demandé (plantage, Qt
+#  absent, pas de serveur graphique), on relance xfdesktop TOUT DE SUITE :
+#  jamais d'écran noir sans icônes. Trois chutes en cinq minutes et on
+#  arrête d'essayer pour cette session — le bureau classique reste, et une
+#  notification le dit.
+# =============================================================================
+set -u
+
+ICI=/usr/lib/lexos/bureau
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/bureau.json"
+JOURNAL="${XDG_CACHE_HOME:-$HOME/.cache}/lexos-bureau.log"
+
+mode_choisi() {
+	python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import reglages; print(reglages.lire()["mode"])' "$ICI" 2>/dev/null \
+		|| echo moteur
+}
+choisir() {
+	python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import reglages; reglages.ecrire({"mode": sys.argv[2]})' "$ICI" "$1"
+}
+moteur_tourne() { pgrep -u "$(id -u)" -f "python3 $ICI/serveur[.]py" >/dev/null 2>&1; }
+xfdesktop_relance() {
+	command -v xfdesktop >/dev/null 2>&1 || return 0
+	pgrep -u "$(id -u)" -x xfdesktop >/dev/null 2>&1 || (setsid xfdesktop >/dev/null 2>&1 &)
+}
+#  Le moteur a besoin de PySide6 + QtWebEngine (python3-pyside6.*, déjà là
+#  pour les Paramètres). Sans eux, pas la peine d'essayer : le classique.
+qt_present() { python3 -c 'import PySide6.QtWebEngineWidgets' >/dev/null 2>&1; }
+
+#  Pas de rendu matériel fiable (mode fail-safe = nomodeset, ou rendu
+#  logiciel) : Chromium dessinerait le fond sans le contenu. On lui dit de
+#  tout faire au processeur.
+sans_gpu() {
+	grep -qw nomodeset /proc/cmdline 2>/dev/null && return 0
+	command -v glxinfo >/dev/null 2>&1 \
+		&& glxinfo -B 2>/dev/null | grep -qiE 'llvmpipe|softpipe|software rasterizer' && return 0
+	return 1
+}
+
+boucle() {
+	CHUTES=0
+	DEBUT_FENETRE=$(date +%s)
+	mkdir -p "$(dirname "$JOURNAL")"
+	while :; do
+		[ "$(mode_choisi)" = moteur ] || { xfdesktop_relance; exit 0; }
+		if ! qt_present; then
+			echo "$(date '+%F %T') PySide6/QtWebEngine absent — bureau classique" >>"$JOURNAL"
+			xfdesktop_relance; exit 0
+		fi
+		DEPART=$(date +%s)
+		if sans_gpu; then
+			LEXOS_BUREAU_SANS_GPU=1 python3 "$ICI/serveur.py" >>"$JOURNAL" 2>&1
+		else
+			python3 "$ICI/serveur.py" >>"$JOURNAL" 2>&1
+		fi
+		CODE=$?
+		#  Fin de session : le serveur graphique est parti, le bureau avec
+		#  lui. Rien à relancer — surtout pas trois essais dans le vide.
+		if command -v xprop >/dev/null 2>&1 && ! xprop -root _NET_SUPPORTING_WM_CHECK >/dev/null 2>&1; then
+			exit 0
+		fi
+		#  Sortie VOULUE (« revenir au classique ») : le réglage le dit.
+		if [ "$(mode_choisi)" != moteur ]; then
+			xfdesktop_relance; exit 0
+		fi
+		#  Sinon c'est une chute : l'ancien bureau revient AVANT tout le reste.
+		xfdesktop_relance
+		echo "$(date '+%F %T') le bureau s'est arrêté (code $CODE) — xfdesktop relancé" >>"$JOURNAL"
+		MAINTENANT=$(date +%s)
+		if [ $((MAINTENANT - DEBUT_FENETRE)) -gt 300 ]; then
+			CHUTES=0; DEBUT_FENETRE=$MAINTENANT
+		fi
+		CHUTES=$((CHUTES + 1))
+		if [ "$CHUTES" -ge 3 ]; then
+			command -v notify-send >/dev/null 2>&1 && notify-send -i dialog-warning "LexOS Bureau" \
+				"Le bureau du Moteur s'est arrêté trois fois : le bureau classique reste pour cette session. Détails : $JOURNAL" >/dev/null 2>&1
+			exit 1
+		fi
+		#  Une chute après un long moment n'est pas une boucle de pannes.
+		[ $((MAINTENANT - DEPART)) -lt 20 ] && sleep 5
+		sleep 1
+	done
+}
+
+case "${1:-}" in
+	"")
+		moteur_tourne && exit 0
+		boucle ;;
+	moteur)
+		choisir moteur || exit 1
+		moteur_tourne && exit 0
+		setsid "$0" >/dev/null 2>&1 </dev/null &
+		echo "Bureau du Moteur : il remplace le bureau classique dans un instant." ;;
+	classique)
+		choisir classique || exit 1
+		#  Le moteur voit le réglage et se ferme seul (serveur.py) ; la boucle
+		#  relance alors xfdesktop. Si rien ne tournait, on le relance ici.
+		moteur_tourne || xfdesktop_relance
+		echo "Bureau classique (xfdesktop)." ;;
+	etat)
+		echo "choisi    : $(mode_choisi)"
+		if moteur_tourne; then echo "en marche : moteur"
+		elif pgrep -u "$(id -u)" -x xfdesktop >/dev/null 2>&1; then echo "en marche : classique"
+		else echo "en marche : aucun"; fi
+		echo "réglages  : $CONF" ;;
+	-h|--help|aide)
+		sed -n '3,10p' "$0" | sed 's/^#  \{0,1\}//' ;;
+	*)
+		echo "Usage : lexos-bureau [moteur|classique|etat]" >&2; exit 2 ;;
+esac

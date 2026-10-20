@@ -185,7 +185,7 @@ const CLES_SECTION = {
   apparence:   ["dock", "crt", "barreCachee", "moteurd"],
   //  « image » : la section lit etat.image (le filtre lumière chaude) pour
   //  l'aperçu du fond. Mesuré, pas supposé — voir le banc des clés.
-  bureau:      ["fond", "intro", "dock", "crt", "apercu", "image"],
+  bureau:      ["bureau_moteur", "fond", "intro", "dock", "crt", "apercu", "image"],
   multitaches: ["bureaux", "apercu", "crt"],
   fichiers:    ["fichiers_vue"],
   applications:["defaut"],
@@ -1471,6 +1471,73 @@ async function basculeMoteurd(){
   await rafraichir(r.ok ? null : ("Échec : " + (r.erreur || "commande refusée")),
                    ["moteurd"]);
 }
+/*  ═══ LE BUREAU DU MOTEUR ═══
+    Un seul geste pour tous ses réglages : un objet {clé: valeur}, validé
+    côté machine par usr/lib/lexos/bureau/reglages.py. Le bureau relit son
+    fichier toutes les deux secondes : on voit le changement derrière la
+    fenêtre des Paramètres, sans rien relancer. */
+async function setBM(changement){
+  const r = await api("bureau-moteur", changement);
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "réglage refusé"));
+}
+const NOMS_FONDS_BM = {constellation:"Constellation", aurore:"Aurore", etoiles:"Hyperespace",
+  pluie:"Pluie de code", vagues:"Vagues", braises:"Braises", aucun:"Noir pur"};
+function blocBureauMoteur(){
+  const B = etat.bureau_moteur;
+  if(!B) return "";
+  if(!B.dispo) return `<div class="srow" style="display:block"><div class="t">Bureau du Moteur</div>
+    <div class="d">Le bureau du Moteur n'est pas installé sur cette machine.</div></div>`;
+  const sel = (oui) => oui ? "sel" : "ghost";
+  const moteur = B.mode === "moteur";
+  let html = `<div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">Style du bureau</div>
+    <div class="d" style="margin-bottom:10px">Le bureau du Moteur : fond animé, icônes
+      en grille, grande horloge et « Demande à ti-lex IA… ». Le classique reste là
+      en secours, et revient tout seul si le Moteur s'arrête.</div>
+    <div class="row">
+      <button class="btn ${sel(moteur)}" onclick="setBM({mode:'moteur'})">⚡ Bureau du Moteur</button>
+      <button class="btn ${sel(!moteur)}" onclick="setBM({mode:'classique'})">Bureau classique</button>
+    </div></div>`;
+  if(!moteur) return html;
+  const pastille = ([nom, c]) => {
+    const fond = c === "arc-en-ciel"
+      ? "conic-gradient(#ff3b30,#facc15,#39ff14,#22d3ee,#6366f1,#e040fb,#ff3b30)" : c;
+    const choisi = B.accent === c;
+    return `<button title="${esc(nom)}" onclick="setBM({accent:'${jsq(c)}'})"
+      style="width:30px;height:30px;border-radius:50%;cursor:pointer;background:${fond};
+      border:2px solid ${choisi ? "#fff" : "transparent"};box-shadow:${choisi ? "0 0 0 2px " + (c.startsWith("#") ? c : "#fff") : "none"}"></button>`;
+  };
+  const tailles = [[90,"Petit"],[100,"Normal"],[115,"Grand"],[130,"Très grand"]];
+  const inter = (cle, titre, desc) => srow(titre, desc, sw(!!B[cle], `setBM({${cle}:${!B[cle]}})`));
+  html += `<div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:8px">Fond animé</div>
+    <div class="row">${B.fonds.map(f => `<button class="btn ${sel(B.anim === f)}" onclick="setBM({anim:'${jsq(f)}'})">${esc(NOMS_FONDS_BM[f] || f)}</button>`).join("")}</div>
+    <div class="t" style="margin:16px 0 8px">Couleur</div>
+    <div class="row" style="gap:8px">${B.couleurs.map(pastille).join("")}</div>
+    <div class="t" style="margin:16px 0 8px">Police</div>
+    <div class="row"><select onchange="setBM({police:this.value})">
+      ${B.polices.map(p => `<option ${p === B.police ? "selected" : ""}>${esc(p)}</option>`).join("")}
+    </select></div>
+    <div class="t" style="margin:16px 0 8px">Taille des icônes et du texte</div>
+    <div class="row">${tailles.map(([v, n]) => `<button class="btn ${sel(B.taille === v)}" onclick="setBM({taille:${v}})">${n}</button>`).join("")}</div>
+    <div class="t" style="margin:16px 0 4px">Image de fond</div>
+    <div class="d">${B.image
+      ? "Sous le fond animé : <b>" + esc(B.image.split("/").pop()) + "</b>."
+      : "Aucune — le fond animé seul, comme dans le Moteur."}
+      Une image choisie plus bas (fonds LexOS, Mes images, « Une image à moi… ») passe aussi ici.</div>
+    ${B.image ? `<div class="row" style="margin-top:8px"><button class="btn ghost" onclick="setBM({image:''})">Retirer l'image</button></div>` : ""}
+  </div>
+  ${inter("horloge", "Grande horloge et « Demande à ti-lex IA… »", "En haut à droite, comme dans le Moteur.")}
+  ${inter("tilex", "Icônes ti-lex IA", "Chat, Codex, Images, Schémas… — ouvrent ton Moteur.")}
+  ${inter("lexos", "Icônes LexOS", "Fichiers, Terminal, Navigateur, Paramètres…")}
+  ${inter("bureau", "Mon bureau", "Le dossier personnel, la corbeille et ce qu'il y a dans ton dossier Bureau.")}
+  ${inter("orbes", "Halos de couleur", "Les lueurs floues qui flottent derrière.")}
+  ${inter("grille", "Grille", "Le quadrillage discret au centre de l'écran.")}
+  ${inter("curseur", "Lueur sous la souris", "Un halo qui suit le pointeur.")}
+  ${inter("zoom", "Zoom cinéma sur l'image", "L'image de fond avance très lentement.")}`;
+  return html;
+}
+
 async function setFond(f){
   const r = await api("fond", f);
   await rafraichir(r.ok ? "Fond d'écran appliqué" : "Échec : " + (r.erreur || "commande refusée"));
@@ -2191,7 +2258,8 @@ function contenu(cle){
       collante. <code>lexos crt status</code> dit ce qui manque, le cas
       échéant. Le changement s'applique tout de suite : pas besoin de fermer
       la session.</p>`;
-    case "bureau": return `<h2>Bureau LexOS</h2><div class="sub">Fond d'écran</div>
+    case "bureau": return `<h2>Bureau LexOS</h2><div class="sub">Le bureau du Moteur, fond d'écran</div>
+      ${blocBureauMoteur()}
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Fond d'écran</div>
         <div class="row">

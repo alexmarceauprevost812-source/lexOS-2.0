@@ -1495,6 +1495,58 @@ def act_moteurd(arg):
     return {"ok": True}
 
 
+#  ═══ LE BUREAU DU MOTEUR (lexos-bureau) ═══
+#  ALEX : « fais que le bureau ressemble à ça [le Bureau de son Moteur
+#  d'interface] — juste changer le bureau et le moteur du bureau, les
+#  paramètres avec ». Ses réglages vivent dans ~/.config/lexos/bureau.json,
+#  lu par le bureau lui-même toutes les deux secondes : ce qu'on change ici
+#  se voit sur le bureau sans rien relancer.
+#  La validation n'est PAS refaite ici : reglages.ecrire() ne garde que les
+#  clés connues et les valeurs dans leurs bornes. Une seule vérité.
+BUREAU_DIR = Path(os.environ.get("LEXOS_BUREAU_DIR", "/usr/lib/lexos/bureau"))
+
+
+def _bureau_reglages():
+    if str(BUREAU_DIR) not in sys.path:
+        sys.path.insert(0, str(BUREAU_DIR))
+    import reglages  # noqa: E402  (le module du bureau, pas un paquet)
+    return reglages
+
+
+def _bureau_moteur_etat():
+    try:
+        rg = _bureau_reglages()
+    except ImportError:
+        return {"dispo": False}
+    r = rg.lire()
+    r.update({"dispo": _outils.commande_existe("lexos-bureau"),
+              "couleurs": rg.COULEURS, "polices": rg.POLICES,
+              "fonds": rg.FONDS})
+    return r
+
+
+def act_bureau_moteur(arg):
+    """Change un ou plusieurs réglages du bureau. arg : {clé: valeur}.
+
+    « mode » ne s'écrit pas seulement : il bascule le bureau tout de suite
+    (lexos-bureau moteur | classique), sinon le choix n'aurait d'effet qu'à
+    la prochaine session et le bouton aurait l'air de ne rien faire."""
+    if not isinstance(arg, dict) or not arg:
+        return {"ok": False, "erreur": "réglage attendu"}
+    try:
+        rg = _bureau_reglages()
+    except ImportError:
+        return {"ok": False, "erreur": "le bureau du Moteur n'est pas installé"}
+    avant = rg.lire()
+    try:
+        apres = rg.ecrire(arg)
+    except OSError as err:
+        return {"ok": False, "erreur": "réglage non enregistré : %s" % err}
+    if apres["mode"] != avant["mode"] and _outils.commande_existe("lexos-bureau"):
+        _run(["lexos-bureau", apres["mode"]], detach=True)
+    return {"ok": True}
+
+
 def act_intro(arg):
     """Choisir la vidéo d'ouverture, ou allumer son son.
 
@@ -2495,6 +2547,7 @@ ACTIONS = {
     "autocollant": act_autocollant,
     "coin": act_coin,
     "intro": act_intro,
+    "bureau-moteur": act_bureau_moteur,
     "geste-autocollant": act_geste_autocollant,
     "super_apercu": act_super_apercu,
     "apercu": act_apercu,
@@ -4124,6 +4177,7 @@ def etat(cles=None):
         "bluetooth": _bluetooth_complet,
         "dock": _dock_etat,
         "intro": _intro_etat,
+        "bureau_moteur": _bureau_moteur_etat,
         "bureaux": _bureaux_etat,
         "apercu": _apercu_etat,
         "usb": _usb_etat,

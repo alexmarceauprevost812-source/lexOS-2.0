@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LexOS Bureau</title>
+<link rel="stylesheet" href="polices.css">
+<link rel="stylesheet" href="bureau.css">
+</head>
+<body>
+<!-- Le décor : l'image à soi, son voile, le fond animé, les orbes, la grille,
+     la lueur qui suit la souris — dans l'ordre du Moteur (index.html). -->
+<div id="fond-image"></div>
+<div id="fond-voile"></div>
+<canvas id="fond"></canvas>
+<div id="orbes"><div class="orbe o1"></div><div class="orbe o2"></div><div class="orbe o3"></div></div>
+<div class="grille"></div>
+<div id="curseur"></div>
+
+<main id="bureau">
+  <div id="icones" class="icones" aria-label="Icônes du bureau"></div>
+  <div id="accueil" class="accueil">
+    <b class="grande-heure" id="grande-heure">--:--</b>
+    <span class="salut" id="salut"></span>
+    <form class="demande" id="demande" hidden>
+      <img src="logo.png" alt="">
+      <input id="question" placeholder="Demande à ti-lex IA…" autocomplete="off" maxlength="4000">
+      <button class="rond" aria-label="Envoyer"><svg viewBox="0 0 24 24"><path d="M3 11.5 21 3l-8.5 18-2.2-7.3z"/></svg></button>
+    </form>
+  </div>
+</main>
+
+<div id="menu" class="menu" role="menu" hidden>
+  <button data-action="parametres">🎨 Personnaliser le bureau…</button>
+  <button data-action="fond-suivant">✨ Fond animé suivant</button>
+  <hr>
+  <button data-action="dossier-bureau">📁 Ouvrir le dossier Bureau</button>
+  <button data-action="terminal">⌨️ Ouvrir un terminal</button>
+  <hr>
+  <button data-action="classique">↩️ Revenir au bureau classique</button>
+</div>
+<div id="bulle" class="bulle" hidden></div>
+
+<script src="fonds.js"></script>
+<script src="bureau.js"></script>
+</body>
+</html>
