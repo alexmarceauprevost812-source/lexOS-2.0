@@ -36,6 +36,21 @@ esac
 [ -e "${LEXOS_LISTE_NOIRE:-/etc/modprobe.d/lexos-blacklist-nouveau.conf}" ] || exit 0
 [ -n "${DESTDIR:-}" ] && [ -d "$DESTDIR" ] || exit 0
 
+#  ═══ LA FILE D'ATTENTE D'ABORD — SANS ELLE, CE HOOK NE SERVAIT À RIEN ═══
+#  Mesuré sur l'ISO build 124 : nouveau et ses 147 Mio étaient TOUJOURS dans
+#  l'initrd. Lu dans mkinitramfs 0.148.4 (trixie) : les hooks des paquets —
+#  plymouth demande tous les pilotes drm — ne copient pas les modules, ils les
+#  INSCRIVENT dans le fichier $__MODULES_TO_ADD, que mkinitramfs n'applique
+#  qu'APRÈS tous les hooks, celui-ci compris (apply_add_modules, puis
+#  dracut-install, qui recopie aussi le micrologiciel). Effacer les fichiers
+#  ne suffisait donc pas : la file les remettait aussitôt. On retire nouveau
+#  de la file, puis on efface ce qui est déjà copié.
+if [ -n "${__MODULES_TO_ADD:-}" ] && [ -f "$__MODULES_TO_ADD" ]; then
+	grep -v 'nouveau' "$__MODULES_TO_ADD" > "${__MODULES_TO_ADD}.lexos" || true
+	cat "${__MODULES_TO_ADD}.lexos" > "$__MODULES_TO_ADD"
+	rm -f "${__MODULES_TO_ADD}.lexos"
+fi
+
 for RACINE in "$DESTDIR/usr/lib" "$DESTDIR/lib"; do
 	[ -d "$RACINE" ] || continue
 	for D in "$RACINE"/modules/*/kernel/drivers/gpu/drm/nouveau; do

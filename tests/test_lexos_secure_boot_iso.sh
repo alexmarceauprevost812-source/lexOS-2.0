@@ -225,7 +225,14 @@ DESTDIR="$BANC/dest" LEXOS_LISTE_NOIRE="$BANC/absente" sh "$HOOK_I"
 	&& ok "sans liste noire : rien n'est retiré (nouveau reste le pilote de ces machines)" \
 	|| non "sans liste noire, le micrologiciel de nouveau a été retiré"
 : > "$BANC/liste-noire"
-DESTDIR="$BANC/dest" LEXOS_LISTE_NOIRE="$BANC/liste-noire" sh "$HOOK_I"
+#  La file d'attente de mkinitramfs 0.148 : plymouth y a inscrit les pilotes
+#  drm, appliqués APRÈS ce hook. C'est elle qui remettait nouveau (build 124).
+printf 'kernel/drivers/gpu/drm/nouveau/nouveau.ko.xz\nnouveau\namdgpu\ni915\n' > "$BANC/file-modules"
+DESTDIR="$BANC/dest" LEXOS_LISTE_NOIRE="$BANC/liste-noire" __MODULES_TO_ADD="$BANC/file-modules" sh "$HOOK_I"
+FILE_RESTE="$(cat "$BANC/file-modules")"
+[[ "$FILE_RESTE" != *nouveau* && "$FILE_RESTE" == *amdgpu*i915* ]] \
+	&& ok "nouveau quitte la file d'attente des modules (sinon mkinitramfs le recopie après les hooks)" \
+	|| non "file d'attente après le hook : $(printf '%s' "$FILE_RESTE" | tr '\n' ' ')"
 [ ! -d "$BANC/dest/usr/lib/firmware/nvidia/ga102" ] && [ ! -d "$BANC/dest/usr/lib/modules/7.2.9/kernel/drivers/gpu/drm/nouveau" ] \
 	&& ok "liste noire : nouveau et son micrologiciel quittent l'initramfs" \
 	|| non "nouveau ou son micrologiciel est resté"
