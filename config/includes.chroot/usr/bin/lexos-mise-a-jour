@@ -237,7 +237,12 @@ if command -v git >/dev/null 2>&1 && [[ -d "$SRC/.git" ]]; then
 	#  du code à moitié écrit sur le système — et le symptôme sera
 	#  incompréhensible, parce que le fichier fautif n'existe dans aucun
 	#  commit qu'on puisse relire.
-	SALE="$(git_depot status --porcelain 2>/dev/null)"
+	#  Les fichiers NON SUIVIS hors de config/ ne s'installent jamais : un
+	#  « tash » laissé par une touche « s » dans l'écran de git log (less
+	#  l'enregistre comme fichier) ne bloque plus la mise à jour. Sous
+	#  config/, si : ceux-là seraient copiés sur le système.
+	SALE="$(git_depot status --porcelain --untracked-files=no 2>/dev/null
+		git_depot status --porcelain --untracked-files=all -- config 2>/dev/null | grep '^??')"
 	if [[ -n "$SALE" ]]; then
 		printf '%s\n' "$SALE" | head -20 >&2
 		die "Le dépôt a des modifications non commitées (ci-dessus).
