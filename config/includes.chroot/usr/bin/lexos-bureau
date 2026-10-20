@@ -7,6 +7,7 @@
 #    lexos-bureau moteur      passe au bureau du Moteur, et le démarre
 #    lexos-bureau classique   revient au bureau XFCE d'avant (xfdesktop)
 #    lexos-bureau etat        dit lequel est choisi, et lequel tourne
+#    lexos-bureau relancer    redémarre le bureau du Moteur (après une mise à jour)
 #
 #  ═══ UNE SEULE FENÊTRE DE BUREAU À LA FOIS ═══
 #  Les fonds animés de 2026 ont été retirés parce qu'ils posaient une 2e
@@ -134,6 +135,17 @@ case "${1:-}" in
 		#  relance alors xfdesktop. Si rien ne tournait, on le relance ici.
 		moteur_tourne || xfdesktop_relance
 		echo "Bureau classique (xfdesktop)." ;;
+	relancer)
+		#  On arrête le moteur ; la boucle qui le pilote voit la chute,
+		#  remet xfdesktop une seconde, et repart avec le NOUVEAU code.
+		#  Sans boucle (rien ne tournait), on en démarre une.
+		if pgrep -u "$(id -u)" -f "/usr/bin/lexos-bureau$" >/dev/null 2>&1 && moteur_tourne; then
+			pkill -u "$(id -u)" -f "python3 $ICI/serveur[.]py"
+		else
+			pkill -u "$(id -u)" -f "python3 $ICI/serveur[.]py" 2>/dev/null
+			setsid "$0" >/dev/null 2>&1 </dev/null &
+		fi
+		echo "Le bureau du Moteur redémarre — quelques secondes." ;;
 	etat)
 		echo "choisi    : $(mode_choisi)"
 		if moteur_tourne; then echo "en marche : moteur"
@@ -141,7 +153,7 @@ case "${1:-}" in
 		else echo "en marche : aucun"; fi
 		echo "réglages  : $CONF" ;;
 	-h|--help|aide)
-		sed -n '3,10p' "$0" | sed 's/^#  \{0,1\}//' ;;
+		sed -n '3,10p' "$0" | sed '/^#$/d' | sed 's/^#  \{0,1\}//' ;;
 	*)
-		echo "Usage : lexos-bureau [moteur|classique|etat]" >&2; exit 2 ;;
+		echo "Usage : lexos-bureau [moteur|classique|relancer|etat]" >&2; exit 2 ;;
 esac

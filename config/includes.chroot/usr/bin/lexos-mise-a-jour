@@ -303,7 +303,7 @@ interdit() { # interdit <chemin relatif>
 # =============================================================================
 COPIES=0; IDENTIQUES=0; SAUVES=0; REFUSES=0
 DATE="$(date +%Y%m%d-%H%M%S)"
-CHANGE_BIN=0; CHANGE_CSS=0; CHANGE_PANNEAU=0; CHANGE_PLYMOUTH=0; CHANGE_ICONES=0
+CHANGE_BIN=0; CHANGE_CSS=0; CHANGE_PANNEAU=0; CHANGE_PLYMOUTH=0; CHANGE_ICONES=0; CHANGE_BUREAU=0
 
 #  ═══ L'index.theme DU THÈME D'ICÔNES NE VOYAGE PAS ═══
 #  ALEX, 13 SEPTEMBRE : « le répertoire personnel et le système de fichiers,
@@ -337,6 +337,7 @@ copier_un() { # copier_un <source> <relatif>
 		usr/share/lexos/gtk-panneau.css) CHANGE_PANNEAU=1 ;;
 		usr/share/lexos/*.css)           CHANGE_CSS=1 ;;
 		"$ICONES_REL"/*)                 CHANGE_ICONES=1 ;;
+		usr/lib/lexos/bureau/*|usr/share/lexos/bureau-icones/*) CHANGE_BUREAU=1 ;;
 	esac
 	case "$rel" in *plymouth*) CHANGE_PLYMOUTH=1 ;; esac
 
@@ -508,6 +509,13 @@ fi
 if [[ "$CHANGE_CSS" -eq 1 ]]; then
 	info "  ${O}lexos-theme-gen \$(cat ~/.config/lexos/accent 2>/dev/null || echo orange)${R}"
 	info "                   ${D}puis fermez et rouvrez la session${R}"; RIEN=0
+fi
+#  Le bureau du Moteur garde son code en mémoire tant qu'il tourne : vu
+#  chez Alex, la mise à jour passée, le bureau ne savait toujours pas
+#  déplacer les icônes. « lexos-bureau moteur » ne suffit pas (il voit
+#  qu'un bureau tourne déjà et ne fait rien) : il faut « relancer ».
+if [[ "$CHANGE_BUREAU" -eq 1 ]]; then
+	info "  ${O}lexos-bureau relancer${R}   ${D}le bureau du Moteur (sans sudo)${R}"; RIEN=0
 fi
 if [[ "$CHANGE_PLYMOUTH" -eq 1 ]]; then
 	info "  ${O}sudo update-initramfs -u${R}  ${D}puis REDÉMARRER — l'écran de démarrage${R}"
