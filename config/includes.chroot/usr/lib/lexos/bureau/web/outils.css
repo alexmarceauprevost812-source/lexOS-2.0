@@ -44,6 +44,25 @@ body.ouvert .demon img { animation: demon-entre .8s .1s both cubic-bezier(.2,1.5
 .demon.audit img { filter: drop-shadow(0 0 8px rgba(255,160,60,.5)); }
 .demon.audit:hover img { transform: scale(1.12) rotate(4deg); filter: drop-shadow(0 0 16px rgba(255,160,60,.95)) brightness(1.1); }
 body.ouvert .demon.audit img { animation-delay: .2s; }
+/* 🫁 Au survol, la mascotte RESPIRE : un zoom lent qui gonfle et dégonfle,
+   au ralenti, avec une lueur orange qui suit le souffle. */
+.demon.audit { transform-origin: center; }
+.demon.audit:hover, body.ouvert .demon.audit:hover { animation: respire 3.2s ease-in-out infinite; }
+.demon.audit:hover img, body.ouvert .demon.audit:hover img {
+  transform: none;
+  animation: souffle-lueur 3.2s ease-in-out infinite;
+}
+@keyframes respire {
+  0%, 100% { transform: scale(1.03); }
+  50%      { transform: scale(1.12); }
+}
+@keyframes souffle-lueur {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(var(--acc-rgb),.55)) brightness(1.02); }
+  50%      { filter: drop-shadow(0 0 20px rgba(var(--acc-rgb),1)) brightness(1.15); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .demon.audit:hover, .demon.audit:hover img { animation: none; }
+}
 @keyframes demon-entre { from { transform: scale(.4) rotate(-30deg); opacity: 0; } }
 
 /* Les outils placés par Alex */

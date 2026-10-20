@@ -451,7 +451,8 @@ def montrer_commandes(paquet, fenetre, Gtk):
     fen = Gtk.Dialog(
         title="Commandes disponibles — " + paquet,
         transient_for=fenetre, flags=Gtk.DialogFlags.MODAL)
-    fen.add_button("Fermer", Gtk.ResponseType.CLOSE)
+    fen.set_name('lexos-audit-menu')
+    fen.add_button("Fermer", Gtk.ResponseType.CLOSE).get_style_context().add_class('audit-principal')
     fen.set_default_size(680, 440)
     defile = Gtk.ScrolledWindow()
     defile.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
@@ -471,50 +472,213 @@ def montrer_commandes(paquet, fenetre, Gtk):
         fen.destroy()
 
 
+REGLAGES_BUREAU = Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config') / 'lexos' / 'bureau.json'
+MASCOTTE = Path('/usr/lib/lexos/bureau/web/mascotte-audit.png')
+ACCENT_LEXOS = '#ff7a18'
+DESCENTE_MS = 700        # le panneau qui se baisse
+APPARITION_MS = 260      # puis « pouf », le menu apparaît
+
+
+def accent_bureau(chemin=None):
+    """La couleur d'accent choisie dans les Paramètres du bureau LexOS
+    (~/.config/lexos/bureau.json), pour que la fenêtre ait le MÊME orange
+    que la plateforme. L'arc-en-ciel ou un fichier absent → orange LexOS."""
+    import json
+    try:
+        valeur = json.loads(Path(chemin or REGLAGES_BUREAU).read_text()).get('accent', '')
+    except (OSError, ValueError, AttributeError):
+        return ACCENT_LEXOS
+    return valeur.lower() if re.fullmatch(r'#[0-9a-fA-F]{6}', str(valeur)) else ACCENT_LEXOS
+
+
+def _rgb(hexa):
+    return tuple(int(hexa[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def _melanger(hexa, autre, t):
+    a, b = _rgb(hexa), _rgb(autre)
+    return '#' + ''.join(f'{round(x + (y - x) * t):02x}' for x, y in zip(a, b))
+
+
+def css_audit(accent=ACCENT_LEXOS):
+    """Le thème de la fenêtre : verre noir, liseré et boutons orange LexOS —
+    les mêmes couleurs que la barre « Mes outils » (outils.css)."""
+    r, g, b = _rgb(accent)
+    clair = _melanger(accent, '#ffffff', .35)
+    fonce = _melanger(accent, '#000000', .22)
+    lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    sur = '#0a0a0a' if lum > .45 else '#ffffff'
+    a = lambda x: f'rgba({r},{g},{b},{x})'
+    return f"""
+        window#lexos-audit-menu {{ background-color: transparent; }}
+        dialog#lexos-audit-menu, window.dialog#lexos-audit-menu {{ background-color: #0e0e0f; }}
+        #lexos-audit-menu * {{ font-family: "LX Space Grotesk", "Space Grotesk", "Cantarell", sans-serif; }}
+        #lexos-audit-menu .carte {{
+            background-color: #0e0e0f;
+            background-image: linear-gradient(180deg, rgba(22,22,24,0.99), rgba(9,9,10,0.995));
+            border: 1px solid {a(.45)}; border-radius: 18px;
+            box-shadow: 0 10px 26px rgba(0,0,0,0.6), 0 0 18px {a(.18)};
+        }}
+        #lexos-audit-menu .carte box, #lexos-audit-menu list, #lexos-audit-menu viewport,
+        #lexos-audit-menu scrolledwindow, #lexos-audit-menu paned {{
+            background-color: transparent; background-image: none; color: #e9e9ec;
+        }}
+        #lexos-audit-menu .tete {{ padding: 10px 12px 8px 14px; }}
+        #lexos-audit-menu .tete-titre {{ font-size: 17px; color: #ffffff; }}
+        #lexos-audit-menu .lueur {{
+            min-height: 2px; margin: 0 60px; border-radius: 2px;
+            background-image: linear-gradient(90deg, transparent, {accent}, {clair}, {accent}, transparent);
+            box-shadow: 0 0 12px {a(.8)};
+        }}
+        #lexos-audit-menu label {{ color: #e9e9ec; }}
+        #lexos-audit-menu entry {{
+            background-color: #161617; background-image: none; color: #ffffff;
+            border: 1px solid {a(.32)}; border-radius: 12px; padding: 6px 10px; box-shadow: none;
+        }}
+        #lexos-audit-menu entry:focus {{ border-color: {accent}; box-shadow: 0 0 10px {a(.35)}; }}
+        #lexos-audit-menu entry image {{ color: {accent}; }}
+        #lexos-audit-menu row {{ border-radius: 10px; padding: 6px 8px; transition: all 200ms ease; }}
+        #lexos-audit-menu row:hover {{ background-color: {a(.12)}; }}
+        #lexos-audit-menu row:selected {{
+            background-color: {accent};
+            background-image: linear-gradient(90deg, {accent}, {fonce});
+            box-shadow: 0 0 12px {a(.4)};
+        }}
+        #lexos-audit-menu row:selected label {{ color: {sur}; font-weight: bold; }}
+        #lexos-audit-menu row:disabled label {{ color: #6f6f76; }}
+        #lexos-audit-menu .audit-heading {{ color: {clair}; font-weight: bold; font-size: 15px; }}
+        #lexos-audit-menu button {{
+            background-color: #1a1a1d; background-image: none; color: #e9e9ec;
+            border: 1px solid {a(.35)}; border-radius: 10px; box-shadow: none;
+            text-shadow: none; -gtk-icon-shadow: none; padding: 5px 14px;
+            transition: all 220ms ease;
+        }}
+        #lexos-audit-menu button:hover {{
+            background-color: {a(.2)}; border-color: {accent}; color: #ffffff;
+            box-shadow: 0 0 10px {a(.35)};
+        }}
+        #lexos-audit-menu button:active {{ background-color: {a(.35)}; }}
+        #lexos-audit-menu button.audit-principal {{
+            background-color: {accent}; background-image: linear-gradient(180deg, {clair}, {accent});
+            color: {sur}; border-color: {accent}; font-weight: bold;
+        }}
+        #lexos-audit-menu button.audit-principal label {{ color: {sur}; }}
+        #lexos-audit-menu button.audit-x {{ border-radius: 50%; padding: 2px 9px; min-width: 0; min-height: 0; }}
+        #lexos-audit-menu button.audit-x:hover {{ background-color: {accent}; color: {sur}; }}
+        #lexos-audit-menu paned > separator {{ background-color: #26262a; background-image: none; min-width: 1px; padding: 0; margin: 0; border: none; box-shadow: none; }}
+        #lexos-audit-menu scrollbar {{ background-color: transparent; border: none; }}
+        #lexos-audit-menu scrollbar slider {{ background-color: {a(.45)}; border-radius: 8px; min-width: 6px; border: none; }}
+        #lexos-audit-menu scrollbar slider:hover {{ background-color: {accent}; }}
+        #lexos-audit-menu textview, #lexos-audit-menu textview text {{
+            background-color: #0e0e0f; color: #e9e9ec;
+        }}
+        #lexos-audit-menu tooltip, tooltip {{ background-color: #161617; color: #ffffff; border: 1px solid {a(.4)}; border-radius: 8px; }}
+    """.encode()
+
+
+def _animer(duree_ms, pas, fin=None):
+    """Appelle pas(t) avec t de 0 à 1 (adouci), à ~60 images/s."""
+    from gi.repository import GLib
+    import time
+    debut = time.monotonic()
+    def tic():
+        t = min(1.0, (time.monotonic() - debut) * 1000 / max(1, duree_ms))
+        pas(1 - (1 - t) ** 3)
+        if t >= 1:
+            if fin:
+                fin()
+            return False
+        return True
+    GLib.timeout_add(16, tic)
+
+
 def show():
     import gi
     gi.require_version('Gtk', '3.0')
-    from gi.repository import Gtk, Gdk, GdkPixbuf
+    from gi.repository import Gtk, Gdk, GdkPixbuf, GLib
     if not Gtk.init_check()[0]:
         raise SystemExit('Outils d’audit : aucun affichage graphique disponible.')
+    accent = accent_bureau()
     window = Gtk.Window(title='Outils d’audit — LexOS Pro')
     window.set_name('lexos-audit-menu')
-    window.set_default_size(720, 540)
-    window.set_position(Gtk.WindowPosition.MOUSE)
+    # Sans la barre de titre du vieux thème : notre propre en-tête orange.
+    window.set_decorated(False)
+    window.set_app_paintable(True)
+    ecran = window.get_screen()
+    compose = ecran.is_composited()
+    visuel = ecran.get_rgba_visual()
+    if visuel is not None and compose:
+        window.set_visual(visuel)
+    LARGEUR, HAUTEUR, MARGE = 780, 600, 16
+    window.set_default_size(LARGEUR + 2 * MARGE, HAUTEUR + 2 * MARGE)
+    # Taille FIXE pendant que le rideau descend : sinon la fenêtre se
+    # redimensionnerait à chaque image et l'animation saccaderait.
+    window.set_size_request(LARGEUR + 2 * MARGE, HAUTEUR + 2 * MARGE)
+    window.set_resizable(False)
     if LOGO.is_file():
         window.set_icon_from_file(str(LOGO))
     else:
         window.set_icon_name('lexos-kali-audit')
     window.connect('destroy', Gtk.main_quit)
-    def keyboard(_window, event):
-        if event.keyval == Gdk.KEY_Escape:
-            window.destroy()
-            return True
-        return False
-    window.connect('key-press-event', keyboard)
     css = Gtk.CssProvider()
-    css.load_from_data(b"""
-        #lexos-audit-menu, #lexos-audit-menu box,
-        #lexos-audit-menu list, #lexos-audit-menu viewport {
-            background-color: #121214; color: #eeeeee;
-        }
-        #lexos-audit-menu label { color: #eeeeee; }
-        #lexos-audit-menu entry { background: #202024; color: #eeeeee; }
-        #lexos-audit-menu row { border-radius: 4px; padding: 5px; }
-        #lexos-audit-menu row:hover { background-color: #303036; }
-        #lexos-audit-menu row:selected { background-color: #874000; }
-        #lexos-audit-menu row:selected label { color: #ffffff; }
-        #lexos-audit-menu row:disabled label { color: #999999; }
-        #lexos-audit-menu .audit-heading { color: #ff9c32; font-weight: bold; }
-    """)
-    Gtk.StyleContext.add_provider_for_screen(window.get_screen(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    css.load_from_data(css_audit(accent))
+    Gtk.StyleContext.add_provider_for_screen(ecran, css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    # ── Le panneau qui se baisse : un Revealer « glisse vers le bas » ──
+    rideau = Gtk.Revealer()
+    rideau.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
+    rideau.set_transition_duration(DESCENTE_MS if compose else 0)
+    rideau.set_valign(Gtk.Align.START)
+    window.add(rideau)
+    carte = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    carte.get_style_context().add_class('carte')
+    carte.set_margin_start(MARGE)
+    carte.set_margin_end(MARGE)
+    carte.set_margin_bottom(MARGE)
+    carte.set_size_request(LARGEUR, HAUTEUR)
+    rideau.add(carte)
+
+    # En-tête : la mascotte, le titre, ✕ — on peut traîner la fenêtre par là.
+    poignee = Gtk.EventBox()
+    tete = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+    tete.get_style_context().add_class('tete')
+    poignee.add(tete)
+    image_tete = MASCOTTE if MASCOTTE.is_file() else LOGO
+    if image_tete.is_file():
+        try:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(image_tete), 40, 40, True)
+            tete.pack_start(Gtk.Image.new_from_pixbuf(pixbuf), False, False, 0)
+        except Exception:
+            pass
+    titre = Gtk.Label(xalign=0)
+    titre.set_markup(f'Outils <span foreground="{accent}" weight="bold">d’audit</span>'
+                     '  <span foreground="#9a9aa2" size="small">LexOS Pro</span>')
+    titre.get_style_context().add_class('tete-titre')
+    tete.pack_start(titre, True, True, 0)
+    croix = Gtk.Button(label='✕')
+    croix.get_style_context().add_class('audit-x')
+    croix.set_tooltip_text('Fermer (Échap)')
+    croix.set_valign(Gtk.Align.CENTER)
+    tete.pack_end(croix, False, False, 0)
+    def trainer(_widget, event):
+        if event.button == 1 and event.type == Gdk.EventType.BUTTON_PRESS:
+            window.begin_move_drag(event.button, int(event.x_root), int(event.y_root), event.time)
+        return False
+    poignee.connect('button-press-event', trainer)
+    carte.pack_start(poignee, False, False, 0)
+    lueur = Gtk.Box()
+    lueur.get_style_context().add_class('lueur')
+    carte.pack_start(lueur, False, False, 0)
+
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-    box.set_border_width(10)
-    window.add(box)
+    box.set_border_width(12)
+    carte.pack_start(box, True, True, 0)
+    window.audit_contenu = box
     search = Gtk.SearchEntry(placeholder_text='Rechercher un outil ou une catégorie…')
     box.pack_start(search, False, False, 0)
     split = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
     split.set_position(260)
+    split.set_wide_handle(False)
     box.pack_start(split, True, True, 0)
     sidebar_scroll = Gtk.ScrolledWindow()
     sidebar_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -599,7 +763,7 @@ def show():
             pass
     footer.pack_start(Gtk.Label(label='Outils d’audit · LexOS Pro', xalign=0), True, True, 0)
     close = Gtk.Button(label='Fermer')
-    close.connect('clicked', lambda _button: window.destroy())
+    close.get_style_context().add_class('audit-principal')
     footer.pack_end(close, False, False, 0)
     box.pack_end(footer, False, False, 0)
     def refresh(*_args):
@@ -616,10 +780,63 @@ def show():
         empty.set_visible(count == 0)
     search.connect('search-changed', refresh)
     sidebar.connect('row-selected', refresh)
+
+    # ── Fermer en douceur : le menu s'efface, le panneau remonte ──
+    fermeture = {'en_cours': False}
+    def fermer(*_args):
+        if fermeture['en_cours']:
+            return True
+        fermeture['en_cours'] = True
+        def remonter():
+            if not compose:
+                window.destroy()
+                return
+            rideau.set_transition_duration(int(DESCENTE_MS * .6))
+            rideau.set_reveal_child(False)
+            GLib.timeout_add(int(DESCENTE_MS * .6) + 120, lambda: (window.destroy(), False)[1])
+        _animer(140, lambda t: box.set_opacity(1 - t), remonter)
+        return True
+    croix.connect('clicked', fermer)
+    close.connect('clicked', fermer)
+    def keyboard(_window, event):
+        if event.keyval == Gdk.KEY_Escape:
+            return fermer()
+        return False
+    window.connect('key-press-event', keyboard)
+
+    # ── Placée en haut, centrée sur l'écran où est la souris ──
+    def placer():
+        affichage = Gdk.Display.get_default()
+        moniteur = None
+        try:
+            _ecran, px, py = affichage.get_default_seat().get_pointer().get_position()[:3]
+            moniteur = affichage.get_monitor_at_point(px, py)
+        except Exception:
+            moniteur = affichage.get_primary_monitor() or affichage.get_monitor(0)
+        if moniteur is None:
+            window.set_position(Gtk.WindowPosition.CENTER)
+            return
+        zone = moniteur.get_workarea()
+        largeur = LARGEUR + 2 * MARGE
+        window.move(zone.x + max(0, (zone.width - largeur) // 2), zone.y + 8)
+    placer()
+
+    # ── Ouvrir : le panneau descend, puis « pouf », le menu apparaît ──
+    box.set_opacity(0)
     window.show_all()
     sidebar.select_row(sidebar.get_row_at_index(0))
     refresh()
     search.grab_focus()
+    def pouf(*_args):
+        if rideau.get_child_revealed() and not fermeture['en_cours']:
+            _animer(APPARITION_MS, box.set_opacity)
+    rideau.connect('notify::child-revealed', pouf)
+    def descendre():
+        rideau.set_reveal_child(True)
+        if not compose:
+            box.set_opacity(1)
+        return False
+    GLib.timeout_add(40, descendre)
     Gtk.main()
 
 
