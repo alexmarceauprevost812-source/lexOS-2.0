@@ -64,14 +64,14 @@ class Reglages(unittest.TestCase):
 
     def test_defauts(self):
         r = self.rg.lire()
-        self.assertEqual(r["mode"], "moteur")
+        self.assertEqual(r["mode"], "classique")
         self.assertEqual(r["anim"], "constellation")
         self.assertEqual(r["accent"], "#ff7a18")
 
     def test_valeurs_refusees(self):
         r = self.rg.ecrire({"mode": "pirate", "anim": "rm -rf", "accent": "rouge;", "taille": 9999,
                             "police": "Comic", "image": "relatif.png", "orbes": "oui", "inconnu": 1})
-        self.assertEqual(r["mode"], "moteur")
+        self.assertEqual(r["mode"], "classique")
         self.assertEqual(r["anim"], "constellation")
         self.assertEqual(r["accent"], "#ff7a18")
         self.assertEqual(r["taille"], 140)          # borné, pas refusé
@@ -149,10 +149,10 @@ class Reglages(unittest.TestCase):
     def test_fichier_abime(self):
         self.rg.FICHIER.parent.mkdir(parents=True, exist_ok=True)
         self.rg.FICHIER.write_text("{ pas du json")
-        self.assertEqual(self.rg.lire()["mode"], "moteur")
-        self.rg.FICHIER.write_text(json.dumps({"mode": "classique", "taille": "grand"}))
+        self.assertEqual(self.rg.lire()["mode"], "classique")
+        self.rg.FICHIER.write_text(json.dumps({"mode": "moteur", "taille": "grand"}))
         r = self.rg.lire()
-        self.assertEqual((r["mode"], r["taille"]), ("classique", 100))
+        self.assertEqual((r["mode"], r["taille"]), ("moteur", 100))
 
     def test_memes_choix_que_le_moteur(self):
         fond = (TILEX / "interface/fond.js").read_text(encoding="utf-8")
@@ -305,7 +305,9 @@ class Serveur(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         (Path(cls.tmp.name) / "Bureau").mkdir()
-        _, cls.ap, cls.sv = charger(Path(cls.tmp.name))
+        rg, cls.ap, cls.sv = charger(Path(cls.tmp.name))
+        #  Le défaut est « classique » : ces tests font tourner le Moteur.
+        rg.ecrire({"mode": "moteur"})
         cls.etat = cls.sv.Etat()
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), cls.sv.fabriquer(cls.etat))
         cls.port = cls.srv.server_address[1]

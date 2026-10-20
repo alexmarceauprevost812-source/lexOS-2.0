@@ -38,7 +38,10 @@ COULEURS = (
 EXT_IMAGES = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 
 DEFAUTS = {
-    "mode": "moteur",
+    #  Classique par défaut (2026-10-20, demande d'Alex) : la télé perd le
+    #  signal au démarrage sur l'Alienware ; on repart du bureau XFCE, le
+    #  Moteur reste installé et se rallume dans Paramètres → Bureau LexOS.
+    "mode": "classique",
     "accent": "#ff7a18",
     "police": "Space Grotesk",
     "taille": 100,
