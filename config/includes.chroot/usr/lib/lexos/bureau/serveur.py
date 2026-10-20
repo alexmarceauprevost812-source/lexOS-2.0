@@ -44,7 +44,7 @@ WEB = ICI / "web"
 #  20 polices dans le système, celle de ti-lex IA.
 MOTEUR_UI = Path(os.environ.get("LEXOS_BUREAU_MOTEUR_UI", "/usr/lib/lexos/ti-lex-ia/interface"))
 HOTES_LOCAUX = {"127.0.0.1", "localhost"}
-ACTIONS = ("parametres", "terminal", "dossier-bureau", "classique", "fond-suivant")
+ACTIONS = ("parametres", "terminal", "dossier-bureau", "classique", "fond-suivant", "ranger")
 
 
 def prenom() -> str:
@@ -262,6 +262,9 @@ def action(nom: str, etat: Etat) -> bool:
             else applis._detache(["x-terminal-emulator"])
     if nom == "dossier-bureau":
         return applis.lancer("ouvrir", str(applis.dossier_bureau()))
+    if nom == "ranger":
+        reglages.ecrire({"positions": {}})
+        return True
     if nom == "fond-suivant":
         r = reglages.lire()
         i = (reglages.FONDS.index(r["anim"]) + 1) % len(reglages.FONDS)

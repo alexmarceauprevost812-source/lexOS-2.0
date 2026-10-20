@@ -55,12 +55,35 @@ DEFAUTS = {
     "tilex": True,
     "lexos": True,
     "bureau": True,
+    #  Où Alex a posé ses icônes : {identifiant: [x, y]} en pixels du bureau.
+    #  Vide = la grille par sections. Une icône qu'on n'a jamais déplacée
+    #  reste dans la grille.
+    "positions": {},
 }
 BORNES = {"taille": (80, 140), "voile": (0, 90), "flou": (0, 20), "vitesse": (20, 300), "densite": (20, 200)}
 
 
+MAX_POSITIONS = 400
+_ID_ICONE = re.compile(r"^[a-z]-[a-z0-9-]{1,40}$")
+
+
+def _positions(v):
+    if not isinstance(v, dict) or len(v) > MAX_POSITIONS:
+        return None
+    propre = {}
+    for cle, xy in v.items():
+        if not (isinstance(cle, str) and _ID_ICONE.match(cle)):
+            continue
+        if (isinstance(xy, (list, tuple)) and len(xy) == 2
+                and all(isinstance(n, (int, float)) and not isinstance(n, bool) for n in xy)):
+            propre[cle] = [int(min(10000, max(0, xy[0]))), int(min(10000, max(0, xy[1])))]
+    return propre
+
+
 def _propre(cle: str, v):
     """La valeur v si elle est valide pour cle, sinon None."""
+    if cle == "positions":
+        return _positions(v)
     if cle == "mode":
         return v if v in MODES else None
     if cle == "anim":
@@ -95,6 +118,7 @@ def _propre(cle: str, v):
 
 def lire() -> dict:
     r = dict(DEFAUTS)
+    r["positions"] = {}
     try:
         brut = json.loads(FICHIER.read_text("utf-8"))
     except (OSError, ValueError):

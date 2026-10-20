@@ -1527,6 +1527,15 @@ function blocBureauMoteur(){
       Une image choisie plus bas (fonds LexOS, Mes images, « Une image à moi… ») passe aussi ici.</div>
     ${B.image ? `<div class="row" style="margin-top:8px"><button class="btn ghost" onclick="setBM({image:''})">Retirer l'image</button></div>` : ""}
   </div>
+  <div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">Place des icônes</div>
+    <div class="d">Glisse une icône n'importe où sur le bureau : elle reste où tu la lâches.
+      ${Object.keys(B.positions || {}).length
+        ? Object.keys(B.positions).length + " icône(s) déplacée(s) à la main."
+        : "Pour l'instant, toutes sont dans la grille."}</div>
+    ${Object.keys(B.positions || {}).length ? `<div class="row" style="margin-top:8px">
+      <button class="btn ghost" onclick="setBM({positions:{}})">🧲 Remettre les icônes en ordre</button></div>` : ""}
+  </div>
   ${inter("horloge", "Grande horloge et « Demande à ti-lex IA… »", "En haut à droite, comme dans le Moteur.")}
   ${inter("tilex", "Icônes ti-lex IA", "Chat, Codex, Images, Schémas… — ouvrent ton Moteur.")}
   ${inter("lexos", "Icônes LexOS", "Fichiers, Terminal, Navigateur, Paramètres…")}

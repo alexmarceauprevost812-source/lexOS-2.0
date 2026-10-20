@@ -110,26 +110,91 @@ function tuile(el, k) {
   const lanceur = el.id.startsWith("t-") ? " lanceur" : "";
   return `<button class="icone${lanceur}" data-id="${echapper(el.id)}" data-emoji="${echapper(el.emoji || "🚀")}" title="${echapper(el.nom)}" style="animation-delay:${Math.min(k, 40) * 30}ms"><span>${dedans}</span><b>${echapper(el.nom)}</b></button>`;
 }
+/*  ═══ DÉPLACER LES ICÔNES N'IMPORTE OÙ ═══
+    ALEX : « déplacer les applications dans tout l'écran ». Une icône jamais
+    déplacée reste dans la grille par sections ; glissée, elle se pose là
+    où on la lâche — calée sur une grille invisible de 100 x 100, comme
+    xfdesktop, pour que le bureau reste rangé — et sa place est gardée dans
+    bureau.json (« positions »). Clic droit → « Remettre les icônes en
+    ordre » les renvoie toutes dans la grille. */
+let POSITIONS = {};
+const PAS_X = 100, PAS_Y = 100, MARGE = 18;
+const zoom = () => (P ? P.taille / 100 : 1);
+
 function dessinerIcones(sections) {
-  let k = 0, html = "";
+  let k = 0, grille = "", libres = "";
   for (const s of sections) {
-    if (!s.elements.length) continue;
-    html += `<h5 class="groupe">${echapper(s.titre)}</h5>` + s.elements.map((e) => tuile(e, k++)).join("");
+    const restants = s.elements.filter((e) => !POSITIONS[e.id]);
+    if (restants.length) grille += `<h5 class="groupe">${echapper(s.titre)}</h5>` + restants.map((e) => tuile(e, k++)).join("");
+    for (const e of s.elements) {
+      const xy = POSITIONS[e.id];
+      if (xy) libres += tuile(e, k++).replace('<button class="icone', `<button style="left:${xy[0]}px;top:${xy[1]}px" class="libre icone`);
+    }
   }
-  $("#icones").innerHTML = html;
+  $("#icones").innerHTML = grille;
+  $("#libres").innerHTML = libres;
   //  Une image qui ne se charge pas (icône introuvable) retombe sur un émoji
   //  plutôt que de laisser un carré vide.
-  $("#icones").querySelectorAll("img").forEach((i) => i.addEventListener("error", () => {
+  document.querySelectorAll("#icones img, #libres img").forEach((i) => i.addEventListener("error", () => {
     i.replaceWith(i.closest(".icone")?.dataset.emoji || "🚀");
   }, { once: true }));
+}
+
+const GLISSE = { el: null, x0: 0, y0: 0, dx: 0, dy: 0, bouge: false, empecheClic: false, enCours: false };
+function surIcones(e) { return e.target.closest("#icones .icone, #libres .icone"); }
+document.addEventListener("pointerdown", (e) => {
+  const b = surIcones(e);
+  if (!b || e.button !== 0 || SECONDAIRE) return;
+  const r = b.getBoundingClientRect();
+  Object.assign(GLISSE, { el: b, x0: e.clientX, y0: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, bouge: false });
+});
+document.addEventListener("pointermove", (e) => {
+  const g = GLISSE;
+  if (!g.el) return;
+  if (!g.bouge) {
+    if (Math.hypot(e.clientX - g.x0, e.clientY - g.y0) < 6) return;   // un clic qui tremble n'est pas un glisser
+    g.bouge = true; g.enCours = true;
+    //  Sortie de la grille : l'icône passe dans la couche libre, à l'endroit exact où elle est.
+    const r = g.el.getBoundingClientRect();
+    $("#libres").appendChild(g.el);
+    g.el.classList.add("libre", "glisse");
+    placer(g.el, r.left, r.top);
+  }
+  placer(g.el, e.clientX - g.dx, e.clientY - g.dy);
+});
+document.addEventListener("pointerup", async () => {
+  const g = GLISSE;
+  if (!g.el) return;
+  const el = g.el; g.el = null;
+  if (!g.bouge) return;
+  g.empecheClic = true; setTimeout(() => { g.empecheClic = false; }, 50);
+  el.classList.remove("glisse");
+  //  Calée sur la grille invisible, et gardée dans l'écran.
+  const z = zoom(), boite = $("#bureau").getBoundingClientRect();
+  const maxX = Math.max(MARGE, boite.width / z - 96), maxY = Math.max(MARGE, boite.height / z - 100);
+  let x = parseFloat(el.style.left), y = parseFloat(el.style.top);
+  x = Math.min(maxX, Math.max(MARGE, MARGE + Math.round((x - MARGE) / PAS_X) * PAS_X));
+  y = Math.min(maxY, Math.max(MARGE, MARGE + Math.round((y - MARGE) / PAS_Y) * PAS_Y));
+  el.style.left = x + "px"; el.style.top = y + "px";
+  POSITIONS = { ...POSITIONS, [el.dataset.id]: [Math.round(x), Math.round(y)] };
+  try { await api("/api/reglages", { positions: POSITIONS }); } catch { bulle("La place de l'icône n'a pas pu être gardée"); }
+  g.enCours = false;
+});
+function placer(el, clientX, clientY) {
+  //  Coordonnées de l'écran -> pixels du bureau, qui peut être zoomé
+  //  (Paramètres → taille) : sans la division, l'icône fuirait la souris.
+  const z = zoom(), boite = $("#bureau").getBoundingClientRect();
+  el.style.left = (clientX - boite.left) / z + "px";
+  el.style.top = (clientY - boite.top) / z + "px";
 }
 
 /*  Un clic ouvre. Un DOUBLE-clic (le réflexe d'XFCE) ne doit pas ouvrir
     deux fois : on ignore un deuxième clic sur la même icône dans la
     seconde qui suit — et le serveur fait la même garde de son côté. */
 const DERNIERS = new Map();
-$("#icones").addEventListener("click", async (e) => {
-  const b = e.target.closest(".icone"); if (!b) return;
+document.addEventListener("click", async (e) => {
+  const b = surIcones(e); if (!b) return;
+  if (GLISSE.empecheClic) return;          // on vient de la déplacer, pas de l'ouvrir
   const maintenant = performance.now();
   if (maintenant - (DERNIERS.get(b.dataset.id) || -1e9) < 1200) return;
   DERNIERS.set(b.dataset.id, maintenant);
@@ -149,7 +214,9 @@ $("#icones").addEventListener("click", async (e) => {
 /*  Rien ne se dépose sur le bureau : il n'est pas un dossier. Sans ça, le
     navigateur intégré OUVRAIT le fichier ou le lien glissé à la place du
     bureau (la fenêtre Qt le refuse aussi, voir fenetre.py). */
-for (const t of ["dragover", "drop"]) document.addEventListener(t, (e) => e.preventDefault());
+for (const t of ["dragover", "drop", "dragstart"]) document.addEventListener(t, (e) => e.preventDefault());
+//  « dragstart » aussi : une image dans une icône lançait le glisser natif
+//  du navigateur, qui annule le nôtre (pointercancel) au premier pixel.
 
 /* ════════════════ L'accueil : horloge, salut, « Demande à ti-lex IA » ════════════════ */
 function majHorloge() {
@@ -204,7 +271,9 @@ async function charger() {
   P = e.reglages; PRENOM = e.prenom || "";
   appliquerTheme();
   appliquerDecor(!avantP || avantP.anim !== P.anim || avantP.densite !== P.densite);
-  if (!SECONDAIRE) {
+  POSITIONS = (P.positions && typeof P.positions === "object") ? P.positions : {};
+  //  Pendant qu'on glisse une icône, on ne redessine pas sous la souris.
+  if (!SECONDAIRE && !GLISSE.enCours) {
     dessinerIcones(e.sections);
     $("#accueil").classList.toggle("cache", !P.horloge);
     $("#demande").hidden = !e.tilex;

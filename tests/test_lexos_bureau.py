@@ -113,6 +113,14 @@ class Reglages(unittest.TestCase):
         self.assertEqual(erreurs, [])
         self.assertIn(self.rg.lire()["densite"], range(20, 26))
 
+    def test_positions(self):
+        r = self.rg.ecrire({"positions": {"s-corbeille": [918, 980], "a-0123456789abcd": [1.7, -5],
+                                          "../piege": [1, 1], "b-x": "pas une position",
+                                          "t-chat": [True, 3]}})
+        self.assertEqual(r["positions"], {"s-corbeille": [918, 980], "a-0123456789abcd": [1, 0]})
+        self.assertEqual(self.rg.ecrire({"positions": {}})["positions"], {})
+        self.assertEqual(self.rg.ecrire({"positions": {f"b-{i}": [1, 1] for i in range(500)}})["positions"], {})
+
     def test_fichier_abime(self):
         self.rg.FICHIER.parent.mkdir(parents=True, exist_ok=True)
         self.rg.FICHIER.write_text("{ pas du json")
@@ -315,6 +323,12 @@ class Serveur(unittest.TestCase):
         r = c.getresponse(); r.read()
         self.assertEqual(r.status, 200)
         self.assertIn("sandbox", r.getheader("Content-Security-Policy") or "")
+
+    def test_ranger(self):
+        self.req("POST", "/api/reglages", {"positions": {"s-maison": [400, 300]}})
+        self.req("POST", "/api/action", {"nom": "ranger"})
+        etat = json.loads(self.req("GET", "/api/etat")[1])
+        self.assertEqual(etat["reglages"]["positions"], {})
 
     def test_action_inconnue(self):
         self.assertEqual(json.loads(self.req("POST", "/api/action", {"nom": "rm"})[1])["ok"], False)
