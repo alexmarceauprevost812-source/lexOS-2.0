@@ -45,7 +45,7 @@ WEB = ICI / "web"
 #  20 polices dans le système, celle de ti-lex IA.
 MOTEUR_UI = Path(os.environ.get("LEXOS_BUREAU_MOTEUR_UI", "/usr/lib/lexos/ti-lex-ia/interface"))
 HOTES_LOCAUX = {"127.0.0.1", "localhost"}
-ACTIONS = ("parametres", "terminal", "dossier-bureau", "classique", "fond-suivant", "ranger")
+ACTIONS = ("parametres", "terminal", "dossier-bureau", "classique", "fond-suivant", "ranger", "audit")
 
 
 def prenom() -> str:
@@ -110,6 +110,7 @@ class Etat:
                      ("applis", "Toutes les applications")) if tout[c]]
         return {"apps": outils_choisis(r, tout), "sections": sections, "prenom": prenom(),
                 "son": gestes.son_etat(), "notifs": gestes.notifications(), "dnd": gestes.ne_pas_deranger(),
+                "audit": bool(applis.trouver_desktop("lexos-audit")),
                 "reglages": {k: r[k] for k in ("accent", "police", "outils_apps")}}
 
     def construire_labo(self) -> dict:
@@ -406,6 +407,11 @@ def action(nom: str, etat: Etat) -> bool:
     if nom == "terminal":
         return applis._detache(["exo-open", "--launch", "TerminalEmulator"]) if shutil.which("exo-open") \
             else applis._detache(["x-terminal-emulator"])
+    if nom == "audit":
+        #  La mascotte d'Alex, dans 🎛️ Mes outils : l'appli « Outils
+        #  d'audit » de LexOS, telle qu'elle est installée.
+        p = applis.trouver_desktop("lexos-audit")
+        return bool(p) and applis.lancer("desktop", str(p))
     if nom == "dossier-bureau":
         return applis.lancer("ouvrir", str(applis.dossier_bureau()))
     if nom == "ranger":

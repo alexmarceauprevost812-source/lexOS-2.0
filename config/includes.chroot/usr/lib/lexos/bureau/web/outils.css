@@ -40,6 +40,10 @@ body.ouvert .barre { transform: translateY(0); opacity: 1; transition: transform
 .demon:hover { background: rgba(var(--acc-rgb),.12); }
 .demon:hover img, .demon.actif img { transform: scale(1.12) rotate(-4deg); filter: drop-shadow(0 0 16px rgba(255,90,0,.95)) brightness(1.1); }
 body.ouvert .demon img { animation: demon-entre .8s .1s both cubic-bezier(.2,1.5,.4,1); }
+/* La mascotte : même taille et même effet que le ti démon, une lueur à elle. */
+.demon.audit img { filter: drop-shadow(0 0 8px rgba(255,160,60,.5)); }
+.demon.audit:hover img { transform: scale(1.12) rotate(4deg); filter: drop-shadow(0 0 16px rgba(255,160,60,.95)) brightness(1.1); }
+body.ouvert .demon.audit img { animation-delay: .2s; }
 @keyframes demon-entre { from { transform: scale(.4) rotate(-30deg); opacity: 0; } }
 
 /* Les outils placés par Alex */

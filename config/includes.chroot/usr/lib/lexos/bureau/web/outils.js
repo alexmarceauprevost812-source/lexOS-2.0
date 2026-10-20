@@ -80,6 +80,7 @@ function dessinerBarre() {
     `<button class="outil" data-id="${echapper(e.id)}" data-emoji="${echapper(e.emoji || "🚀")}" title="${echapper(e.nom)}" style="animation-delay:${80 + k * 40}ms"><span>${image(e)}</span></button>`).join("");
   secoursImages($("#mes-outils"));
   dessinerSon();
+  $("#audit").hidden = !O.audit;
   const n = O.notifs.length;
   $("#nb").hidden = !n; $("#nb").textContent = n > 99 ? "99+" : n;
 }
@@ -241,6 +242,10 @@ function ouvrirTout(avecChoix) {
 }
 $("#demon").addEventListener("click", () => { if (menu === "tout" && !choix) { fermerMenus(); menu = null; demanderTaille(); } else ouvrirTout(false); });
 $("#ajouter").addEventListener("click", () => ouvrirTout(true));
+$("#audit").addEventListener("click", async () => {
+  try { const r = await api("/api/action", { nom: "audit" }); if (r.ok) fermer(); else bulle("Les outils d'audit ne sont pas installés"); }
+  catch { bulle("Le bureau ne répond pas"); }
+});
 $("#tout-fermer").addEventListener("click", () => { fermerMenus(); menu = null; choix = false; demanderTaille(); });
 $("#cherche").addEventListener("input", dessinerTout);
 $("#rayons").addEventListener("click", (e) => { const b = e.target.closest("[data-rayon]"); if (!b) return; rayon = b.dataset.rayon; $("#cherche").value = ""; dessinerTout(); });
