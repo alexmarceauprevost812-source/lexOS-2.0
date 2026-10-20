@@ -226,7 +226,11 @@ if [[ -r "$WALL" ]] && command -v xfconf-query >/dev/null 2>&1; then
 	#  créées après son démarrage. On le lui demande — une seule fois, ici :
 	#  le rafraîchir à chaque passage de la boucle ci-dessous ferait clignoter
 	#  le bureau pendant une minute.
-	if appliquer_fond && command -v xfdesktop >/dev/null 2>&1; then
+	#  SEULEMENT S'IL TOURNE : « xfdesktop --reload » sans xfdesktop en marche
+	#  en DÉMARRE un (vérifié sous Xvfb, xfdesktop 4.18) — et avec le bureau du
+	#  Moteur, ça referait deux fenêtres de bureau l'une sur l'autre.
+	if appliquer_fond && command -v xfdesktop >/dev/null 2>&1 \
+	   && pgrep -u "$(id -u)" -x xfdesktop >/dev/null 2>&1; then
 		xfdesktop --reload >/dev/null 2>&1 || true
 	fi
 

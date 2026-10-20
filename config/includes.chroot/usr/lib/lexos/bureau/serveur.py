@@ -65,6 +65,9 @@ class Etat:
         #  « revenir au bureau classique ». La fenêtre Qt le SURVEILLE depuis
         #  son propre fil : on ne touche jamais Qt depuis le fil du serveur.
         self.fin = threading.Event()
+        #  Dernier lancement par icône : un double-clic (le réflexe d'XFCE)
+        #  ne doit pas ouvrir l'appli deux fois.
+        self.derniers: dict[str, float] = {}
 
     def construire(self) -> dict:
         r = reglages.lire()
@@ -112,7 +115,9 @@ def fabriquer(etat: Etat):
 
         # ── réponses ──
         def _json(self, d, code=200):
-            b = json.dumps(d, ensure_ascii=False).encode("utf-8")
+            #  ensure_ascii : un nom de fichier non-UTF-8 qui aurait échappé à
+            #  nom_lisible() ne peut plus faire tomber toute la réponse.
+            b = json.dumps(d, ensure_ascii=True).encode("ascii")
             self.send_response(code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(b)))
@@ -120,7 +125,7 @@ def fabriquer(etat: Etat):
             self.end_headers()
             self.wfile.write(b)
 
-        def _fichier(self, p: Path, cache=True):
+        def _fichier(self, p: Path, cache=True, image_seule=False):
             try:
                 b = p.read_bytes()
             except OSError:
@@ -130,6 +135,12 @@ def fabriquer(etat: Etat):
                 t = "font/woff2"
             self.send_response(200)
             self.send_header("Content-Type", t)
+            if image_seule:
+                #  Une icône vient du dossier Bureau, donc de n'importe où :
+                #  un SVG piégé ouvert COMME PAGE (glissé d'un écran à l'autre)
+                #  tournerait sur notre origine. « sandbox » lui retire tout.
+                self.send_header("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'")
+                self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Content-Length", str(len(b)))
             self.send_header("Cache-Control", "max-age=3600" if cache else "no-store")
             self.end_headers()
@@ -186,7 +197,7 @@ def fabriquer(etat: Etat):
             if chemin.startswith("/icone/"):
                 with etat.verrou:
                     p = etat.table.icones.get(chemin[len("/icone/"):])
-                return self._fichier(p, cache=False) if p else self.send_error(404)
+                return self._fichier(p, cache=False, image_seule=True) if p else self.send_error(404)
             if chemin == "/fond":
                 img = reglages.lire()["image"]
                 p = Path(img) if img else None
@@ -194,7 +205,7 @@ def fabriquer(etat: Etat):
                     bon = bool(p) and p.is_file() and p.stat().st_size < 40 * 1024 * 1024
                 except OSError:
                     bon = False
-                return self._fichier(p, cache=False) if bon else self.send_error(404)
+                return self._fichier(p, cache=False, image_seule=True) if bon else self.send_error(404)
             self.send_error(404)
 
         def _post(self):
@@ -209,9 +220,19 @@ def fabriquer(etat: Etat):
                 d = {}
             chemin = urlparse(self.path).path
             if chemin == "/api/lancer":
+                ident = str(d.get("id", ""))
                 with etat.verrou:
-                    a = etat.table.actions.get(str(d.get("id", "")))
-                return self._json({"ok": bool(a) and applis.lancer(*a)})
+                    a = etat.table.actions.get(ident)
+                    maintenant = time.monotonic()
+                    if a and maintenant - etat.derniers.get(ident, -9.0) < 1.2:
+                        return self._json({"ok": True, "deja": True})
+                    etat.derniers[ident] = maintenant
+                if not a:
+                    return self._json({"ok": False})
+                r = applis.lancer(*a)
+                if isinstance(r, str):
+                    return self._json({"ok": False, "raison": r})
+                return self._json({"ok": bool(r)})
             if chemin == "/api/demander":
                 q = str(d.get("q", "")).strip()[:4000]
                 if not q or not shutil.which("ti-lex-ia"):
@@ -254,9 +275,16 @@ def action(nom: str, etat: Etat) -> bool:
 
 
 def arreter_xfdesktop() -> None:
-    """Une seule fenêtre de bureau à la fois — voir l'en-tête de fenetre.py."""
-    if shutil.which("xfdesktop"):
-        subprocess.run(["xfdesktop", "--quit"], capture_output=True, timeout=10, check=False)
+    """Une seule fenêtre de bureau à la fois — voir l'en-tête de fenetre.py.
+    Dans un fil à part : appelé depuis Qt, un xfdesktop lent à répondre
+    gèlerait le bureau jusqu'à dix secondes."""
+    def arreter():
+        if shutil.which("xfdesktop"):
+            try:
+                subprocess.run(["xfdesktop", "--quit"], capture_output=True, timeout=10, check=False)
+            except (OSError, subprocess.SubprocessError):
+                pass
+    threading.Thread(target=arreter, daemon=True).start()
 
 
 def main() -> int:

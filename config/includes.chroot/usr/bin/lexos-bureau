@@ -38,7 +38,10 @@ choisir() {
 moteur_tourne() { pgrep -u "$(id -u)" -f "python3 $ICI/serveur[.]py" >/dev/null 2>&1; }
 xfdesktop_relance() {
 	command -v xfdesktop >/dev/null 2>&1 || return 0
-	pgrep -u "$(id -u)" -x xfdesktop >/dev/null 2>&1 || (setsid xfdesktop >/dev/null 2>&1 &)
+	#  « 9>&- » : xfdesktop ne doit pas hériter du verrou de la boucle — il
+	#  vit toute la session, et « lexos-bureau moteur » ne pourrait plus
+	#  jamais relancer le bureau du Moteur.
+	pgrep -u "$(id -u)" -x xfdesktop >/dev/null 2>&1 || (setsid xfdesktop >/dev/null 2>&1 9>&- &)
 }
 #  Le moteur a besoin de PySide6 + QtWebEngine (python3-pyside6.*, déjà là
 #  pour les Paramètres). Sans eux, pas la peine d'essayer : le classique.
@@ -54,7 +57,26 @@ sans_gpu() {
 	return 1
 }
 
+#  La session est-elle encore là ? xprop d'abord ; sinon la prise du
+#  serveur X (/tmp/.X11-unix/X<n>), toujours présente tant qu'il tourne.
+#  Sans ce contrôle, une fin de session comptait pour trois chutes.
+session_vivante() {
+	if command -v xprop >/dev/null 2>&1; then
+		xprop -root _NET_SUPPORTING_WM_CHECK >/dev/null 2>&1; return
+	fi
+	N="${DISPLAY#*:}"; N="${N%%.*}"
+	[ -n "${DISPLAY:-}" ] && [ -S "/tmp/.X11-unix/X$N" ]
+}
+
 boucle() {
+	#  UN SEUL PILOTE. « lexos-bureau moteur » tapé pendant que la boucle
+	#  attend après une chute en lançait une deuxième : deux moteurs, deux
+	#  fenêtres de bureau par écran. Le verrou est lâché à la sortie.
+	VERROU="${XDG_RUNTIME_DIR:-/tmp}/lexos-bureau-$(id -u).lock"
+	if command -v flock >/dev/null 2>&1; then
+		exec 9>"$VERROU"
+		flock -n 9 || exit 0
+	fi
 	CHUTES=0
 	DEBUT_FENETRE=$(date +%s)
 	mkdir -p "$(dirname "$JOURNAL")"
@@ -73,9 +95,7 @@ boucle() {
 		CODE=$?
 		#  Fin de session : le serveur graphique est parti, le bureau avec
 		#  lui. Rien à relancer — surtout pas trois essais dans le vide.
-		if command -v xprop >/dev/null 2>&1 && ! xprop -root _NET_SUPPORTING_WM_CHECK >/dev/null 2>&1; then
-			exit 0
-		fi
+		session_vivante || exit 0
 		#  Sortie VOULUE (« revenir au classique ») : le réglage le dit.
 		if [ "$(mode_choisi)" != moteur ]; then
 			xfdesktop_relance; exit 0

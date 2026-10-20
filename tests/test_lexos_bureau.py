@@ -87,6 +87,32 @@ class Reglages(unittest.TestCase):
         self.assertEqual(r["image"], "/home/x/fond.webp")
         self.assertEqual(self.rg.ecrire({"image": "/x/photo.avif"})["image"], "/home/x/fond.webp")
 
+    def test_image_inconnue_ne_fait_pas_tomber(self):
+        #  « ~inconnu/… » : expanduser() lève RuntimeError (relu par la relecture)
+        self.rg.FICHIER.parent.mkdir(parents=True, exist_ok=True)
+        self.rg.FICHIER.write_text(json.dumps({"image": "~utilisateur-qui-nexiste-pas/a.png"}))
+        self.assertEqual(self.rg.lire()["image"], "")
+
+    def test_fond_non_affichable_retire_image(self):
+        self.rg.ecrire({"image": "/x/ancien.png"})
+        self.rg.image_du_fond("/x/nouveau.bmp")
+        self.assertEqual(self.rg.lire()["image"], "")
+        self.rg.image_du_fond("/x/nouveau.jpg")
+        self.assertEqual(self.rg.lire()["image"], "/x/nouveau.jpg")
+
+    def test_ecritures_simultanees(self):
+        erreurs = []
+        def ecrire(i):
+            try:
+                for _ in range(20):
+                    self.rg.ecrire({"densite": 20 + i})
+            except Exception as e:  # noqa: BLE001
+                erreurs.append(e)
+        fils = [threading.Thread(target=ecrire, args=(i,)) for i in range(6)]
+        [f.start() for f in fils]; [f.join() for f in fils]
+        self.assertEqual(erreurs, [])
+        self.assertIn(self.rg.lire()["densite"], range(20, 26))
+
     def test_fichier_abime(self):
         self.rg.FICHIER.parent.mkdir(parents=True, exist_ok=True)
         self.rg.FICHIER.write_text("{ pas du json")
@@ -117,8 +143,12 @@ class Table(unittest.TestCase):
         (b / ".cache-cachee").write_text("x")
         (b / "outil.desktop").write_text("[Desktop Entry]\nType=Application\nName=Mon outil\nExec=true\nIcon=folder\n")
         (b / "casse.desktop").write_text("pas un desktop")
+        (b / "site.desktop").write_text("[Desktop Entry]\nType=Link\nName=Mon site\nURL=https://example.org\n")
+        (b / "piege.desktop").write_text("[Desktop Entry]\nType=Link\nName=Piège\nURL=file:///bin/sh\n")
+        os.close(os.open(os.path.join(str(b).encode(), b"caf\xe9.txt"), os.O_CREAT | os.O_WRONLY))
         self.maison = m
         self.avant = sorted((p.name, p.stat().st_mtime_ns) for p in b.iterdir())
+        self._detache_orig = None
         _, self.ap, _ = charger(m)
 
     def tearDown(self):
@@ -142,6 +172,32 @@ class Table(unittest.TestCase):
         #  Une photo se montre elle-même
         self.assertEqual(t.icones[el["photo.png"]["id"]].name, "photo.png")
         self.assertEqual(t.actions[el["Corbeille"]["id"]], ("ouvrir", "trash:///"))
+
+    def test_lanceur_du_bureau_doit_etre_approuve(self):
+        t = self.ap.Table()
+        el = {e["nom"]: e for e in t.section_bureau()}
+        self.assertEqual(t.actions[el["Mon outil"]["id"]][0], "desktop-bureau")
+        lances = []
+        self.ap._detache = lambda cmd: lances.append(cmd) or True
+        #  ni exécutable ni empreinte XFCE : refusé, et Fichiers s'ouvre
+        r = self.ap.lancer(*t.actions[el["Mon outil"]["id"]])
+        self.assertEqual(r, "non-approuve")
+        self.assertFalse(any(c[:2] == ["gio", "launch"] for c in lances))
+
+    def test_liens_web_seulement(self):
+        t = self.ap.Table()
+        el = {e["nom"]: e for e in t.section_bureau()}
+        lances = []
+        self.ap._detache = lambda cmd: lances.append(cmd) or True
+        self.assertEqual(self.ap.lancer(*t.actions[el["Piège"]["id"]]), "lien-refuse")
+        self.ap.lancer(*t.actions[el["Mon site"]["id"]])
+        self.assertTrue(any("https://example.org" in c for c in lances))
+
+    def test_nom_non_utf8(self):
+        t = self.ap.Table()
+        noms = [e["nom"] for e in t.section_bureau()]
+        self.assertIn("caf\ufffd.txt", noms)
+        json.dumps(noms, ensure_ascii=False).encode("utf-8")      # ne lève plus
 
     def test_rien_ne_bouge(self):
         self.ap.Table().section_bureau()
@@ -241,6 +297,24 @@ class Serveur(unittest.TestCase):
         r = json.loads(corps)["reglages"]
         self.assertEqual((r["anim"], r["mode"]), ("vagues", "moteur"))
         self.assertFalse(self.etat.fin.is_set())
+
+    def test_double_clic_un_seul_lancement(self):
+        self.req("GET", "/api/etat")
+        self.lances.clear()
+        self.req("POST", "/api/lancer", {"id": "s-corbeille"})
+        _, corps = self.req("POST", "/api/lancer", {"id": "s-corbeille"})
+        self.assertTrue(json.loads(corps).get("deja"))
+        self.assertEqual(len(self.lances), 1)
+
+    def test_icones_en_bac_a_sable(self):
+        Path(self.tmp.name, "Bureau", "x.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>")
+        etat = json.loads(self.req("GET", "/api/etat")[1])
+        ident = next(e["id"] for s in etat["sections"] for e in s["elements"] if e["nom"] == "x.svg")
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        c.request("GET", f"/icone/{ident}?t={self.etat.jeton}")
+        r = c.getresponse(); r.read()
+        self.assertEqual(r.status, 200)
+        self.assertIn("sandbox", r.getheader("Content-Security-Policy") or "")
 
     def test_action_inconnue(self):
         self.assertEqual(json.loads(self.req("POST", "/api/action", {"nom": "rm"})[1])["ok"], False)

@@ -65,7 +65,13 @@ lire() { [[ -r "$1" ]] && tr -d '[:space:]' < "$1" || printf '%s' "$2"; }
 #  l'Échap ou au clic dans le vide, ce qui revient au même à l'usage.
 apercu_moteur() {
 	if command -v xfdashboard >/dev/null 2>&1; then printf 'xfdashboard'; return 0; fi
-	if command -v xfdesktop   >/dev/null 2>&1; then printf 'xfdesktop';   return 0; fi
+	#  ⚠ SEULEMENT S'IL TOURNE. Avec le bureau du Moteur (lexos-bureau),
+	#  xfdesktop est arrêté ; « xfdesktop --windowlist » en démarrerait alors
+	#  un NOUVEAU — vérifié sous Xvfb — et on aurait deux fenêtres de bureau,
+	#  la panne même que lexos-bureau évite.
+	if command -v xfdesktop >/dev/null 2>&1 && pgrep -u "$(id -u)" -x xfdesktop >/dev/null 2>&1; then
+		printf 'xfdesktop'; return 0
+	fi
 	printf 'aucun'; return 1
 }
 

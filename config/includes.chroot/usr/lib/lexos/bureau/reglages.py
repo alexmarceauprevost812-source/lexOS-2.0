@@ -14,6 +14,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
+import tempfile
 from pathlib import Path
 
 FICHIER = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "lexos" / "bureau.json"
@@ -74,7 +76,12 @@ def _propre(cle: str, v):
             return ""
         if not isinstance(v, str) or len(v) > 1000 or "\0" in v:
             return None
-        p = Path(v).expanduser()
+        try:
+            #  « ~inconnu/… » fait lever RuntimeError à expanduser() — un
+            #  fichier abîmé à la main ne doit JAMAIS faire tomber lire().
+            p = Path(v).expanduser()
+        except (RuntimeError, ValueError):
+            return None
         return str(p) if p.is_absolute() and p.suffix.lower() in EXT_IMAGES else None
     if cle in BORNES:
         if isinstance(v, bool) or not isinstance(v, (int, float)):
@@ -111,9 +118,20 @@ def ecrire(partiel: dict) -> dict:
                 if propre is not None:
                     r[cle] = propre
     FICHIER.parent.mkdir(parents=True, exist_ok=True)
-    tmp = FICHIER.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(r, ensure_ascii=False, indent=2), "utf-8")
-    os.replace(tmp, FICHIER)
+    #  Un fichier temporaire À SOI : la page, les Paramètres et « lexos
+    #  wallpaper » peuvent écrire en même temps — un nom fixe les faisait se
+    #  marcher dessus (os.replace d'un fichier déjà déplacé par l'autre).
+    fd, tmp = tempfile.mkstemp(prefix=".bureau-", suffix=".json", dir=str(FICHIER.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(r, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, FICHIER)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     return r
 
 
@@ -122,3 +140,21 @@ def empreinte() -> str:
         return str(FICHIER.stat().st_mtime_ns)
     except OSError:
         return "0"
+
+
+def image_du_fond(chemin: str) -> None:
+    """Pour « lexos wallpaper » et lexos-fond-ecran : le fond choisi passe
+    aussi au bureau du Moteur. Un format qu'il ne sait pas afficher (avif,
+    bmp, tif, svg…) RETIRE l'image au lieu de garder la précédente : sinon
+    Alex choisirait un fond et verrait encore l'ancien."""
+    p = Path(chemin)
+    ecrire({"image": str(p) if p.suffix.lower() in EXT_IMAGES else ""})
+
+
+if __name__ == "__main__":
+    #  python3 reglages.py image /chemin/vers/fond.jpg
+    if len(sys.argv) == 3 and sys.argv[1] == "image":
+        image_du_fond(os.path.realpath(sys.argv[2]))
+    else:
+        print("usage : reglages.py image <chemin>", file=sys.stderr)
+        sys.exit(2)

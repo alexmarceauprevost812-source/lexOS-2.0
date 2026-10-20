@@ -1473,8 +1473,11 @@ def main() -> int:
                 break
     finally:
         if fichier_port:
+            #  Seulement si c'est ENCORE notre port : un autre Moteur a pu
+            #  l'écrire depuis, et on lui couperait l'herbe sous le pied.
             try:
-                fichier_port.unlink()
+                if fichier_port.read_text("utf-8").strip() == str(port):
+                    fichier_port.unlink()
             except OSError:
                 pass
         serveur.shutdown()

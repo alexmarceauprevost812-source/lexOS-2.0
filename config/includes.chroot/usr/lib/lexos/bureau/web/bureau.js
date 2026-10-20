@@ -124,14 +124,32 @@ function dessinerIcones(sections) {
   }, { once: true }));
 }
 
+/*  Un clic ouvre. Un DOUBLE-clic (le réflexe d'XFCE) ne doit pas ouvrir
+    deux fois : on ignore un deuxième clic sur la même icône dans la
+    seconde qui suit — et le serveur fait la même garde de son côté. */
+const DERNIERS = new Map();
 $("#icones").addEventListener("click", async (e) => {
   const b = e.target.closest(".icone"); if (!b) return;
+  const maintenant = performance.now();
+  if (maintenant - (DERNIERS.get(b.dataset.id) || -1e9) < 1200) return;
+  DERNIERS.set(b.dataset.id, maintenant);
   b.classList.remove("rebond"); void b.offsetWidth; b.classList.add("rebond");
   try {
     const r = await api("/api/lancer", { id: b.dataset.id });
-    if (!r.ok) bulle("Impossible d'ouvrir « " + b.title + " »");
+    if (r.raison === "non-approuve") {
+      bulle("« " + b.title + " » n'est pas encore approuvé : Fichiers s'ouvre — double-clique-le là pour l'approuver");
+    } else if (r.raison === "lien-refuse") {
+      bulle("Ce raccourci ne mène pas à une page web");
+    } else if (!r.ok) {
+      bulle("Impossible d'ouvrir « " + b.title + " »");
+    }
   } catch { bulle("Le bureau ne répond pas"); }
 });
+
+/*  Rien ne se dépose sur le bureau : il n'est pas un dossier. Sans ça, le
+    navigateur intégré OUVRAIT le fichier ou le lien glissé à la place du
+    bureau (la fenêtre Qt le refuse aussi, voir fenetre.py). */
+for (const t of ["dragover", "drop"]) document.addEventListener(t, (e) => e.preventDefault());
 
 /* ════════════════ L'accueil : horloge, salut, « Demande à ti-lex IA » ════════════════ */
 function majHorloge() {

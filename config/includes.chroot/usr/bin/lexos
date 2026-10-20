@@ -738,11 +738,10 @@ cmd_wallpaper() {
 	#  Sinon, avec le bureau du Moteur actif, Alex choisirait un fond… et ne
 	#  verrait rien changer : xfdesktop, qui le dessine, est arrêté. On passe
 	#  donc l'image au Moteur aussi (bureau.json, relu toutes les 2 s).
-	#  reglages.ecrire() refuse en silence ce qu'il ne sait pas afficher
-	#  (avif, bmp, tif…) : le Moteur garde alors son fond animé seul.
+	#  Un format qu'il ne sait pas afficher (avif, bmp, tif…) retire l'image :
+	#  le Moteur garde alors son fond animé seul, pas l'ancienne image.
 	if [[ -r /usr/lib/lexos/bureau/reglages.py ]]; then
-		python3 -c 'import sys; sys.path.insert(0, "/usr/lib/lexos/bureau"); import reglages; reglages.ecrire({"image": sys.argv[1]})' \
-			"$(readlink -f "$img")" 2>/dev/null || true
+		python3 /usr/lib/lexos/bureau/reglages.py image "$img" 2>/dev/null || true
 	fi
 
 	if (( count > 0 )); then

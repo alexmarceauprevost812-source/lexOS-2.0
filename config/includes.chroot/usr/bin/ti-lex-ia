@@ -53,12 +53,21 @@ port_actuel() {
 	repond "$P" && printf '%s' "$P"
 }
 
+mkdir -p "$DONNEES" "$(dirname "$JOURNAL")"
+#  UN SEUL DÉMARRAGE À LA FOIS. Deux clics rapprochés voyaient tous deux
+#  « pas de .port » et démarraient DEUX Moteurs, sur deux ports : deux
+#  sessions, et le mot de passe redemandé dans l'une des fenêtres.
+if command -v flock >/dev/null 2>&1; then
+	exec 9>"$DONNEES/.demarrage.lock"
+	flock -w 300 9 || true
+fi
 PORT="$(port_actuel || true)"
 if [ -z "$PORT" ]; then
-	mkdir -p "$DONNEES" "$(dirname "$JOURNAL")"
 	rm -f "$DONNEES/.port"
+	#  « 9>&- » : le Moteur NE garde PAS le verrou. Il en hériterait sinon,
+	#  le tiendrait tant qu'il tourne, et chaque clic suivant attendrait.
 	LEXOS_MOTEUR_DONNEES="$DONNEES" setsid python3 "$ICI/moteur.py" --sans-navigateur \
-		>"$JOURNAL" 2>&1 </dev/null &
+		>"$JOURNAL" 2>&1 </dev/null 9>&- &
 	#  Le Moteur attend Ollama avant d'écouter (jusqu'à 4 min la première
 	#  fois, le temps de charger) : on patiente, en le disant.
 	N=0
@@ -77,6 +86,9 @@ if [ -z "$PORT" ]; then
 	fi
 fi
 
+#  Le Moteur est prêt : on lâche le verrou avant d'ouvrir la fenêtre, pour
+#  qu'un autre clic n'attende pas que le navigateur se ferme.
+exec 9>&-
 URL="http://127.0.0.1:$PORT/$ANCRE"
 PROFIL="${XDG_CACHE_HOME:-$HOME/.cache}/lexos-moteur/fenetre"
 for NAV in google-chrome-stable google-chrome chromium chromium-browser; do

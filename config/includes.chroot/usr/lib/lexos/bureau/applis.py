@@ -108,6 +108,15 @@ def _est_dossier(p: Path) -> bool:
         return False
 
 
+def nom_lisible(nom: str) -> str:
+    """Un nom de fichier qui n'est pas de l'UTF-8 valide (vieille clé USB,
+    archive Windows) arrive en « surrogateescape » ; tel quel, il fait
+    planter json.dumps et TOUTES les icônes disparaissent. On remplace les
+    octets illisibles par « � » — pour l'affichage seulement : le chemin
+    gardé dans la table, lui, reste exact."""
+    return nom.encode("utf-8", "surrogateescape").decode("utf-8", "replace")
+
+
 def _ident(prefixe: str, cle: str) -> str:
     return prefixe + hashlib.sha1(cle.encode("utf-8", "surrogateescape")).hexdigest()[:14]
 
@@ -151,7 +160,7 @@ def lire_desktop(chemin: Path) -> dict | None:
     if not nom:
         return None
     return {"nom": nom.strip()[:60], "icone": (e.get("Icon") or "").strip(),
-            "type": e.get("Type", "Application"), "url": e.get("URL", "")}
+            "type": e.get("Type", "Application").strip(), "url": (e.get("URL") or "").strip()}
 
 
 def trouver_desktop(nom: str) -> Path | None:
@@ -288,12 +297,16 @@ class Table:
                 info = lire_desktop(p)
                 if not info:
                     continue
-                self._ajouter(ident, "desktop", str(p), chemin_icone(info["icone"]))
-                out.append({"id": ident, "nom": info["nom"], "icone": ident in self.icones,
-                            "emoji": "🚀"})
+                #  Un lanceur du dossier Bureau n'est PAS un lanceur du système :
+                #  n'importe quel téléchargement peut y atterrir. Il passe par la
+                #  même porte que dans XFCE (voir lanceur_approuve).
+                genre = "lien" if info["type"] == "Link" else "desktop-bureau"
+                self._ajouter(ident, genre, str(p), chemin_icone(info["icone"]))
+                out.append({"id": ident, "nom": nom_lisible(info["nom"]), "icone": ident in self.icones,
+                            "emoji": "🔗" if genre == "lien" else "🚀"})
             elif _est_dossier(p):
                 self._ajouter(ident, "ouvrir", str(p), visuel("fichiers"))
-                out.append({"id": ident, "nom": p.name[:60], "emoji": "📁", "icone": ident in self.icones})
+                out.append({"id": ident, "nom": nom_lisible(p.name)[:60], "emoji": "📁", "icone": ident in self.icones})
             else:
                 ext = p.suffix.lower().lstrip(".")
                 #  Une IMAGE se montre elle-même, en vignette — les autres
@@ -301,7 +314,7 @@ class Table:
                 image = ext in ("png", "jpg", "jpeg", "webp", "gif", "svg") and _poids_ok(p)
                 icone = p if image else visuel(VISUEL_FICHIER.get(ext, "texte"))
                 self._ajouter(ident, "ouvrir", str(p), icone)
-                out.append({"id": ident, "nom": p.name[:60], "icone": ident in self.icones,
+                out.append({"id": ident, "nom": nom_lisible(p.name)[:60], "icone": ident in self.icones,
                             "vignette": image, "emoji": EMOJI_FICHIER.get(ext, "📄")})
         return self._marquer(out)
 
@@ -333,7 +346,47 @@ def _detache(cmd: list[str]) -> bool:
         return False
 
 
-def lancer(genre: str, cible: str) -> bool:
+def lanceur_approuve(chemin: str) -> bool:
+    """La même règle que Thunar et xfdesktop 4.18 pour un .desktop du Bureau :
+    le fichier doit être EXÉCUTABLE, et son empreinte sha256 doit être celle
+    qu'XFCE a notée quand l'utilisateur l'a approuvé (métadonnée
+    « metadata::xfce-exe-checksum »). Les deux, sinon un .desktop téléchargé
+    (Exec= n'importe quoi, Name=« Facture.pdf ») se lancerait d'un clic.
+    Les lanceurs qu'Alex a déjà approuvés dans XFCE passent tels quels."""
+    if not os.access(chemin, os.X_OK) or not shutil.which("gio"):
+        return False
+    try:
+        r = subprocess.run(["gio", "info", "-a", "metadata::xfce-exe-checksum", chemin],
+                           capture_output=True, text=True, timeout=5, check=False)
+        m = re.search(r"metadata::xfce-exe-checksum:\s*([0-9a-f]{64})", r.stdout)
+        if not m:
+            return False
+        return hashlib.sha256(Path(chemin).read_bytes()).hexdigest() == m.group(1)
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def lancer(genre: str, cible: str) -> bool | str:
+    """True si c'est parti ; False si rien n'a pu être lancé ; une chaîne
+    pour un refus VOULU que la page doit expliquer."""
+    if genre == "desktop-bureau":
+        if lanceur_approuve(cible):
+            genre = "desktop"
+        else:
+            #  On ouvre Fichiers sur le dossier : un double-clic y montre la
+            #  question de sécurité d'XFCE, qui approuve le lanceur pour de bon.
+            if shutil.which("thunar"):
+                _detache(["thunar", str(Path(cible).parent)])
+            return "non-approuve"
+    if genre == "lien":
+        info = lire_desktop(Path(cible)) or {}
+        url = info.get("url", "")
+        if not re.match(r"^https?://", url):
+            return "lien-refuse"
+        for outil in ("exo-open", "xdg-open"):
+            if shutil.which(outil):
+                return _detache([outil, url])
+        return False
     if genre == "tilex":
         return _detache(["ti-lex-ia", cible])
     if genre == "desktop":
