@@ -141,7 +141,7 @@ H9890="$HOOKS/9890-lexos-signature-verif.hook.chroot"
 FONCTIONS="$BANC/fonctions.sh"
 {
 	printf 'MARQUE="~Module signature appended~"\n'
-	for F in retire_signature signe_module cle_du_module; do
+	for F in normalise retire_signature signe_module cle_du_module; do
 		sed -n "/^${F}() {/,/^}/p" "$H9890"
 	done
 } > "$FONCTIONS"
@@ -178,8 +178,9 @@ if [ -n "$SF" ] && [ -n "$VRAI" ] && command -v openssl >/dev/null 2>&1 && comma
 	cle_essai() {
 		openssl req -new -x509 -newkey rsa:2048 -sha256 -nodes -days 30 -subj "/CN=$1" \
 			-addext "extendedKeyUsage=codeSigning" -keyout "$BANC/$1.key" -outform DER -out "$BANC/$1.der" 2>/dev/null
-		openssl x509 -inform DER -in "$BANC/$1.der" -noout -ext subjectKeyIdentifier \
-			| sed -n 's/^[[:space:]]*\([0-9A-Fa-f:]\{20,\}\)[[:space:]]*$/\1/p' | tr 'a-f' 'A-F'
+		#  sig_key = numéro de série, sous la forme normalisée du hook.
+		openssl x509 -inform DER -in "$BANC/$1.der" -noout -serial | sed 's/^serial=//' \
+			| tr -d ' :' | tr 'a-f' 'A-F' | sed 's/^0*//'
 	}
 	ID_A="$(cle_essai LexOS-essai-A)"; ID_B="$(cle_essai LexOS-essai-B)"
 	M="$BANC/$(basename "$VRAI")"; cp "$VRAI" "$M"

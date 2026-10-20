@@ -227,9 +227,9 @@ jobs:
           A="$(openssl pkey -in "$D/lexos-mok.key" -pubout | sha256sum)"
           B="$(openssl x509 -inform DER -in "$CERT" -noout -pubkey | sha256sum)"
           [ "$A" = "$B" ] || { echo "::error::LEXOS_MOK_KEY ne correspond pas à $CERT"; exit 1; }
-          openssl x509 -inform DER -in "$CERT" -noout -ext subjectKeyIdentifier \
-            | sed -n 's/^[[:space:]]*\([0-9A-Fa-f:]\{20,\}\)[[:space:]]*$/\1/p' > "$D/lexos-mok.id"
-          echo "Clé LexOS en place (identifiant $(cat "$D/lexos-mok.id"))."
+          #  Le numéro de série : c'est ce que modinfo lit en « sig_key ».
+          openssl x509 -inform DER -in "$CERT" -noout -serial | sed 's/^serial=//' > "$D/lexos-mok.id"
+          echo "Clé LexOS en place (certificat n° $(cat "$D/lexos-mok.id"))."
 
       - name: Construire l'ISO
         id: build

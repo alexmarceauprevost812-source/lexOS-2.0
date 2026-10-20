@@ -6,8 +6,8 @@
 #  le croit pas sur parole — c'est la règle du dépôt depuis le build 29 :
 #
 #    1. pour CHAQUE noyau de l'image, chaque module nvidia*.ko* de DKMS doit
-#       porter la signature de la clé LexOS (modinfo sig_key = identifiant du
-#       certificat). S'il porte une autre signature — DKMS a ignoré le réglage,
+#       porter la signature de la clé LexOS (modinfo sig_key = numéro de série
+#       du certificat). S'il porte une autre signature — DKMS a ignoré le réglage,
 #       ou un apt plus tardif l'a recompilé — on le RE-SIGNE ici avec sign-file,
 #       l'outil du noyau, puis on revérifie ;
 #    2. la clé privée, le réglage DKMS qui la nomme, et toute clé jetable que
@@ -61,19 +61,26 @@ efface_cle() {
 }
 trap efface_cle EXIT
 
-#  Le signataire attendu = l'identifiant de clé du certificat (Subject Key
-#  Identifier), exactement ce que modinfo affiche en « sig_key ».
-#  openssl en priorité ; le workflow dépose aussi l'identifiant à côté de la
-#  clé, pour une image où openssl manquerait.
+#  Le signataire attendu = le NUMÉRO DE SÉRIE du certificat. C'est lui que
+#  modinfo affiche en « sig_key » : sign-file (celui du noyau, celui de DKMS)
+#  désigne le certificat par émetteur + numéro de série, pas par son Subject
+#  Key Identifier. Mesuré par le banc test_lexos_secure_boot_iso.sh sur un
+#  vrai module : comparer au SKID faisait tout refuser.
+#  On compare des formes NORMALISÉES : modinfo écrit « 03:79:A5:… »,
+#  openssl « 0379A5… » — sans « : », en majuscules, sans zéros de tête.
+normalise() {
+	tr -d ' :\t\n' | tr 'a-f' 'A-F' | sed 's/^0*//'
+}
 CLE_ID=""
 if [ -s "$CERT" ] && command -v openssl >/dev/null 2>&1; then
-	CLE_ID="$(openssl x509 -inform DER -in "$CERT" -noout -ext subjectKeyIdentifier 2>/dev/null \
-		| sed -n 's/^[[:space:]]*\([0-9A-Fa-f:]\{20,\}\)[[:space:]]*$/\1/p' | head -1)"
+	CLE_ID="$(openssl x509 -inform DER -in "$CERT" -noout -serial 2>/dev/null | sed 's/^serial=//')"
 fi
+#  Le workflow dépose aussi le numéro à côté de la clé, pour une image où
+#  openssl manquerait.
 if [ -z "$CLE_ID" ] && [ -s "$DOSSIER/lexos-mok.id" ]; then
 	CLE_ID="$(head -1 "$DOSSIER/lexos-mok.id")"
 fi
-CLE_ID="$(printf '%s' "$CLE_ID" | tr 'a-f' 'A-F')"
+CLE_ID="$(printf '%s' "$CLE_ID" | normalise)"
 
 #  Où est sign-file ? Debian le range dans linux-kbuild-<version> ; les
 #  en-têtes du noyau y pointent par scripts/.
@@ -85,7 +92,7 @@ sign_file_pour() {
 }
 
 cle_du_module() {
-	modinfo -F sig_key "$1" 2>/dev/null | head -1 | tr -d ' ' | tr 'a-f' 'A-F'
+	modinfo -F sig_key "$1" 2>/dev/null | normalise
 }
 
 #  Retirer une signature déjà présente : sign-file AJOUTE la sienne à la fin,
@@ -145,7 +152,7 @@ if [ -z "$CLE_ID" ]; then
 	echo "[lexos]   ÉCHEC : identifiant du certificat illisible (ni openssl, ni lexos-mok.id)"
 	exit 1
 fi
-echo "[lexos]   certificat LexOS : identifiant ${CLE_ID}"
+echo "[lexos]   certificat LexOS : numéro de série ${CLE_ID}"
 
 # --- Chaque module DKMS de chaque noyau -------------------------------------
 TOTAL=0; RESIGNES=0; RATES=0; NOYAUX_SIGNES=""

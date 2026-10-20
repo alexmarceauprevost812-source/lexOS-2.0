@@ -141,9 +141,12 @@ def signature_pilote(secure_boot_actif: Optional[bool]) -> dict:
     pas chargé), « cle-machine » (signé par une autre clé : lexos-signer-pilote),
     « inconnu ».
     """
-    id_lexos = (_lire_build_conf("LEXOS_SIGNATURE_CLE_ID") or "").upper() or None
-    sortie = _executer([MODINFO, "-F", "sig_key", "nvidia"])
-    id_module = sortie.strip().splitlines()[0].replace(" ", "").upper() if sortie and sortie.strip() else None
+    # sig_key = numéro de série du certificat signataire ; modinfo l'écrit
+    # « 03:79:… », build.conf « 379… » : on compare des formes normalisées.
+    def normalise(v: Optional[str]) -> Optional[str]:
+        return re.sub(r"[\s:]", "", v or "").upper().lstrip("0") or None
+    id_lexos = normalise(_lire_build_conf("LEXOS_SIGNATURE_CLE_ID"))
+    id_module = normalise(_executer([MODINFO, "-F", "sig_key", "nvidia"]))
     par_lexos = bool(id_lexos and id_module and id_lexos == id_module)
     charge = _module_charge("nvidia")
     inscrite = _cle_inscrite(CERT_LEXOS) if CERT_LEXOS.is_file() else None

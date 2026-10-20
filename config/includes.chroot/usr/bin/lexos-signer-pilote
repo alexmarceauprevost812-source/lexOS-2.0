@@ -67,8 +67,8 @@
 #  (hooks 0258 et 9890). La clé privée vit dans un secret GitHub, jamais dans
 #  l'ISO ; seul le CERTIFICAT public y voyage, ici :
 #      /usr/share/lexos/secure-boot/lexos-mok.der   (et à la racine de la clé)
-#  Quand le module chargé porte cette signature (modinfo sig_key = l'identifiant
-#  noté dans /etc/lexos/build.conf), c'est CE certificat que l'outil propose
+#  Quand le module chargé porte cette signature (modinfo sig_key = le numéro
+#  de série du certificat, noté dans /etc/lexos/build.conf), c'est CE certificat que l'outil propose
 #  d'inscrire — et ça marche AUSSI depuis la session live : mokutil écrit la
 #  demande dans la NVRAM, qui survit au redémarrage, et la clé USB embarque
 #  MokManager (hook 0915). Une fois inscrit, il vaut pour toutes les ISO LexOS
@@ -214,10 +214,14 @@ fi
 #  est celui de la clé LexOS, c'est le certificat LexOS qu'il faut inscrire —
 #  pas celui de DKMS, qui ne signe rien de ce qui est chargé.
 PAR_LEXOS=0
+#  sig_key = le NUMÉRO DE SÉRIE du certificat signataire. modinfo l'écrit
+#  « 03:79:A5:… », build.conf « 379A5… » : on compare sans « : », en
+#  majuscules et sans zéros de tête.
+# shellcheck disable=SC1090
 ID_LEXOS="$( . "$BUILD_CONF" 2>/dev/null; printf '%s' "${LEXOS_SIGNATURE_CLE_ID:-}" )"
 if [ -n "$MODINFO" ] && [ -n "$ID_LEXOS" ] && [ -r "$CERT_LEXOS" ]; then
-	_id="$("$MODINFO" -F sig_key nvidia 2>/dev/null | head -1 | tr -d ' ' | tr 'a-f' 'A-F')"
-	if [ -n "$_id" ] && [ "$_id" = "$(printf '%s' "$ID_LEXOS" | tr 'a-f' 'A-F')" ]; then
+	_id="$("$MODINFO" -F sig_key nvidia 2>/dev/null | tr -d ' :\t\n' | tr 'a-f' 'A-F' | sed 's/^0*//')"
+	if [ -n "$_id" ] && [ "$_id" = "$(printf '%s' "$ID_LEXOS" | tr -d ' :' | tr 'a-f' 'A-F' | sed 's/^0*//')" ]; then
 		PAR_LEXOS=1
 		CERT="$CERT_LEXOS"
 		CERT_SOURCE="certificat LexOS — le même pour toutes les ISO"
