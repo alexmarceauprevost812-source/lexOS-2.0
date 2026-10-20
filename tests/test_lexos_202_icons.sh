@@ -11,7 +11,7 @@ for ic in lexos-reglages preferences-system system-settings org.xfce.settings.ma
 done
 grep -q 'Icon=lexos-reglages' "$ROOT/config/hooks/normal/0450-lexos-settings.hook.chroot"
 grep -q 'for CAT in apps devices' "$ROOT/config/hooks/normal/0605-lexos-icones.hook.chroot"
-grep -q 'LEXOS_VERSION="2.0.2-rtx5060"' "$ROOT/lexos.conf"
+grep -q 'LEXOS_VERSION="2.0.3-rtx5060"' "$ROOT/lexos.conf"
 if command -v python3 >/dev/null 2>&1; then
   ROOT="$ROOT" python3 - <<'PY'
 import os, pathlib, xml.etree.ElementTree as ET

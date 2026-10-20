@@ -520,6 +520,15 @@ jobs:
           LEXOS_AUDIT_REQUIRE_GTK=1 xvfb-run -a /usr/bin/python3 tests/test_lexos_audit_menu.py
           bash -n tools/verifier-secure-boot-build.sh
 
+      - name: LexOS Pilotes et le bureau du Moteur — bancs Python
+        if: ${{ !cancelled() }}
+        run: |
+          #  Les deux bancs existaient, mais aucune tâche ne les lançait : le
+          #  garde « Aucun banc d'essai orphelin » les voyait rouges. Ni
+          #  serveur graphique ni apt : serveurs locaux et fausses arborescences.
+          python3 tests/test_lexos_pilotes.py -v
+          python3 tests/test_lexos_bureau.py -v
+
       - name: LEXOS PRO — services, gardes structurelles et démarrage graphique
         if: ${{ !cancelled() }}
         run: |

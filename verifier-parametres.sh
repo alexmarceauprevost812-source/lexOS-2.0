@@ -168,6 +168,10 @@ lexos-theme-gen
 lexos-settings
 lexos-ecran-telephone
 lexos-unzip
+#  L'aide ROOT de LexOS Pilotes : seul « pkexec » la lance, depuis l'appli.
+#  La taper soi-même contournerait la fenêtre qui dit ce qui va être mis à
+#  jour — elle n'a donc ni branche, ni ligne d'aide, et c'est voulu.
+lexos-pilotes-maj
 "
 
 # Applis AUTONOMES : leur maison est le menu et le dock, pas les Paramètres.
@@ -249,6 +253,9 @@ lexos-disques
 lexos-medecin
 lexos-materiel
 lexos-signer-pilote
+#  Une APPLI, comme lexos-logitheque : sa fenêtre est la page de son serveur
+#  local. Atteinte par son lanceur du menu et par « lexos pilotes ».
+lexos-pilotes
 "
 
 [ "$CSV" = 1 ] && echo "outil;parametres;dispatcher;aide;lanceur"

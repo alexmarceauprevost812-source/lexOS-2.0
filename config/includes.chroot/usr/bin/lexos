@@ -103,6 +103,7 @@ ${B}APPARENCE${R}
                       ${D}ex. : vue-fichiers grandes · liste · icones · compact
                       vue-fichiers apercu on|off · miniatures on|off${R}
   ${A}moteurd${R} <etat|on|off> Le démon qui garde le volet et les Paramètres au chaud
+  ${A}bureau${R} <moteur|classique|etat> Bureau du Moteur d'Alex ou bureau XFCE classique
 
 ${B}LANGUE${R}
   ${A}lang${R}                 Langue actuelle et langues courantes ${D}(français, québécois, anglais…)${R}
@@ -155,6 +156,7 @@ ${B}ÉNERGIE${R}
                       aucune clé de récupération et les jeux à anti-triche
                       continuent de fonctionner sous Windows. C'est toute la
                       différence avec « couper le Secure Boot dans le BIOS ».${R}
+  ${A}pilotes${R}             LexOS Pilotes : mises à jour de la carte graphique ${D}(fenêtre)${R}
   ${A}meteo${R}               Le temps qu'il fait, chez toi
   ${A}meteo ville${R} <nom>   Choisir ta ville ${D}(ex. : meteo ville Toronto)${R}
                       ${D}Aussi d'un clic sur la météo, dans la barre du haut.
@@ -1245,6 +1247,8 @@ case "$CMD" in
 	mosaique|mosaïque|snap) exec /usr/bin/python3 /usr/lib/lexos/assistant-mosaique.py "${@}" ;;
 	crt)                  exec lexos-crt "$@" ;;
 	signer-pilote)        exec lexos-signer-pilote "$@" ;;
+	pilotes)              exec lexos-pilotes "$@" ;;
+	bureau)               exec lexos-bureau "$@" ;;
 	moteurd)              exec lexos-moteurd "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;
