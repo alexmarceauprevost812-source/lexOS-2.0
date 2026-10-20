@@ -61,6 +61,26 @@ def installed(package):
     return p.returncode == 0 and p.stdout == 'install ok installed'
 
 
+def paquets_installes(paquets):
+    """UNE seule question à dpkg pour tous les outils (au lieu d'une par
+    outil : 277 appels, c'était les ~4 secondes d'attente à l'ouverture)."""
+    paquets = [x for x in paquets if x != 'johnny']
+    dispo = set()
+    if paquets:
+        try:
+            p = subprocess.run(['dpkg-query', '-W', '-f=${Package} ${Status}\\n', *paquets],
+                               capture_output=True, text=True, timeout=10)
+            for ligne in p.stdout.splitlines():
+                nom, _, etat = ligne.partition(' ')
+                if etat == 'install ok installed':
+                    dispo.add(nom.split(':')[0])
+        except (OSError, subprocess.SubprocessError):
+            pass
+    if shutil.which('johnny'):
+        dispo.add('johnny')
+    return dispo
+
+
 def tool_logo(package, files):
     """Utiliser uniquement une icône fournie par le paquet ou le thème installé."""
     names = []
@@ -475,8 +495,9 @@ def montrer_commandes(paquet, fenetre, Gtk):
 REGLAGES_BUREAU = Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config') / 'lexos' / 'bureau.json'
 MASCOTTE = Path('/usr/lib/lexos/bureau/web/mascotte-audit.png')
 ACCENT_LEXOS = '#ff7a18'
-DESCENTE_MS = 700        # le panneau qui se baisse
-APPARITION_MS = 260      # puis « pouf », le menu apparaît
+DESCENTE_MS = 480        # le panneau qui se baisse
+APPARITION_MS = 420      # puis le menu s'allume comme une vieille télé
+#  Total ≈ 0,9 s : tout est là en moins d'une seconde.
 
 
 def accent_bureau(chemin=None):
@@ -679,7 +700,59 @@ def show():
 
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
     box.set_border_width(12)
-    carte.pack_start(box, True, True, 0)
+    # La « vieille télé » : un écran noir posé PAR-DESSUS le menu. Une ligne
+    # lumineuse s'étire au centre, puis s'ouvre en hauteur et dévoile le menu.
+    ecran_tele = Gtk.Overlay()
+    ecran_tele.add(box)
+    tele = Gtk.DrawingArea()
+    tele.set_halign(Gtk.Align.FILL)
+    tele.set_valign(Gtk.Align.FILL)
+    tele.progres = 0.0
+    ar, ag, ab = (x / 255 for x in _rgb(accent))
+    def dessiner_tele(zone, cr):
+        p = zone.progres
+        w, h = zone.get_allocated_width(), zone.get_allocated_height()
+        if p >= 1:
+            return False
+        if p < .35:                       # 1) le point devient une ligne
+            q = p / .35
+            cr.set_source_rgb(0.03, 0.03, 0.035)
+            cr.paint()
+            lw = w * (0.04 + 0.96 * q)
+            cr.set_source_rgba(1, 1, 1, .95)
+            cr.rectangle((w - lw) / 2, h / 2 - 1.5, lw, 3)
+            cr.fill()
+            cr.set_source_rgba(ar, ag, ab, .55)
+            cr.rectangle((w - lw) / 2, h / 2 - 7, lw, 14)
+            cr.fill()
+        else:                             # 2) la ligne s'ouvre en hauteur
+            q = (p - .35) / .65
+            ouvert = h * q
+            haut = (h - ouvert) / 2
+            cr.set_source_rgb(0.03, 0.03, 0.035)
+            cr.rectangle(0, 0, w, haut)
+            cr.rectangle(0, haut + ouvert, w, haut + 1)
+            cr.fill()
+            cr.set_source_rgba(1, 1, 1, .25 * (1 - q))   # éclair qui s'éteint
+            cr.rectangle(0, haut, w, ouvert)
+            cr.fill()
+            cr.set_source_rgba(0, 0, 0, .18 * (1 - q))   # lignes de balayage
+            for y in range(int(haut), int(haut + ouvert), 3):
+                cr.rectangle(0, y, w, 1)
+            cr.fill()
+            for bord in (haut, haut + ouvert):            # bords lumineux
+                cr.set_source_rgba(ar, ag, ab, .7 * (1 - q))
+                cr.rectangle(0, bord - 1.5, w, 3)
+                cr.fill()
+        return False
+    tele.connect('draw', dessiner_tele)
+    try:                 # le dessin de la télé a besoin de python3-gi-cairo
+        gi.require_foreign('cairo')
+        ecran_tele.add_overlay(tele)
+        ecran_tele.set_overlay_pass_through(tele, True)
+    except (ImportError, AttributeError):
+        tele = None
+    carte.pack_start(ecran_tele, True, True, 0)
     window.audit_contenu = box
     search = Gtk.SearchEntry(placeholder_text='Rechercher un outil ou une catégorie…')
     box.pack_start(search, False, False, 0)
@@ -715,9 +788,10 @@ def show():
         sidebar.add(row)
     rows = []
     theme = Gtk.IconTheme.get_default()
+    dispo = paquets_installes([x for paquets in groups.values() for x in paquets])
     for category, packages in groups.items():
         for package in packages:
-            available = installed(package)
+            available = package in dispo
             row = Gtk.ListBoxRow()
             row.set_activatable(available)
             row.set_sensitive(available)
@@ -844,9 +918,18 @@ def show():
     sidebar.select_row(sidebar.get_row_at_index(0))
     refresh()
     search.grab_focus()
+    def allumer_tele():
+        if tele is None:                  # sans cairo : un simple fondu
+            _animer(APPARITION_MS, box.set_opacity)
+            return
+        box.set_opacity(1)
+        def pas(t):
+            tele.progres = t
+            tele.queue_draw()
+        _animer(APPARITION_MS, pas, tele.hide)
     def pouf(*_args):
         if compose and rideau.get_child_revealed() and not fermeture['en_cours']:
-            _animer(APPARITION_MS, box.set_opacity)
+            allumer_tele()
     rideau.connect('notify::child-revealed', pouf)
     def descendre():
         rideau.set_reveal_child(True)
@@ -854,7 +937,7 @@ def show():
             x, depart = cible['x'], cible['haut']
             _animer(DESCENTE_MS,
                     lambda t: window.move(x, round(depart + (cible['y'] - depart) * t)),
-                    lambda: _animer(APPARITION_MS, box.set_opacity))
+                    allumer_tele)
         return False
     GLib.timeout_add(40, descendre)
     Gtk.main()
