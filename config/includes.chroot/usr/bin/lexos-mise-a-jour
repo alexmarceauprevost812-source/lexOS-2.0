@@ -215,13 +215,29 @@ SRC="${SRC%/}"
 #  Le dépôt doit être PROPRE, et à jour
 # =============================================================================
 COMMIT="(hors git)"
+#  ═══ GIT TOURNE AU NOM DU PROPRIÉTAIRE DU DÉPÔT, JAMAIS EN ROOT ═══
+#  Cette commande se lance avec sudo. Un « git pull » fait en root dans le
+#  dossier d'Alex y crée les NOUVEAUX fichiers au nom de root — vu chez lui :
+#  son « git pull » suivant échouait, « unable to unlink old … Permission
+#  non accordée », sur tout le dossier du bureau arrivé par cette commande.
+#  (Et un git récent refuse même de lire un dépôt d'un autre compte :
+#  « dubious ownership ».) On rend donc la main au propriétaire du dossier.
+PROPRIO="$(stat -c %U "$SRC" 2>/dev/null || true)"
+git_depot() {
+	if [[ "$(id -u)" -eq 0 && -n "$PROPRIO" && "$PROPRIO" != root ]] \
+	   && command -v runuser >/dev/null 2>&1; then
+		runuser -u "$PROPRIO" -- git -C "$SRC" "$@"
+	else
+		git -C "$SRC" "$@"
+	fi
+}
 if command -v git >/dev/null 2>&1 && [[ -d "$SRC/.git" ]]; then
 	#  ═══ UN DÉPÔT EN COURS D'ÉDITION NE S'INSTALLE PAS ═══
 	#  Copier un arbre qui porte des modifications non commitées, c'est poser
 	#  du code à moitié écrit sur le système — et le symptôme sera
 	#  incompréhensible, parce que le fichier fautif n'existe dans aucun
 	#  commit qu'on puisse relire.
-	SALE="$(git -C "$SRC" status --porcelain 2>/dev/null)"
+	SALE="$(git_depot status --porcelain 2>/dev/null)"
 	if [[ -n "$SALE" ]]; then
 		printf '%s\n' "$SALE" | head -20 >&2
 		die "Le dépôt a des modifications non commitées (ci-dessus).
@@ -233,14 +249,14 @@ if command -v git >/dev/null 2>&1 && [[ -d "$SRC/.git" ]]; then
 		att "essai : « git pull » n'est PAS lancé"
 	else
 		info "${B}Récupération du dépôt${R}"
-		if git -C "$SRC" pull --ff-only 2>&1 | sed 's/^/  /'; then
+		if git_depot pull --ff-only 2>&1 | sed 's/^/  /'; then
 			:
 		else
 			att "« git pull » a échoué — on continue avec ce qui est déjà là"
 		fi
 	fi
-	COMMIT="$(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || echo '?')"
-	SUJET="$(git -C "$SRC" log -1 --pretty=%s 2>/dev/null || echo '')"
+	COMMIT="$(git_depot rev-parse --short HEAD 2>/dev/null || echo '?')"
+	SUJET="$(git_depot log -1 --pretty=%s 2>/dev/null || echo '')"
 	info "  commit : ${O}${COMMIT}${R}${SUJET:+  ${D}${SUJET}${R}}"
 else
 	att "pas un dépôt git (ou git absent) : aucune récupération, aucun commit à noter"
