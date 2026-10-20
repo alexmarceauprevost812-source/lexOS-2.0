@@ -599,6 +599,13 @@ def show():
     if not Gtk.init_check()[0]:
         raise SystemExit('Outils d’audit : aucun affichage graphique disponible.')
     accent = accent_bureau()
+    # XFCE peut couper les animations GTK (xsettings « EnableAnimations ») :
+    # le rideau sautait alors directement à la fin. Pour CETTE fenêtre, on
+    # les rallume — la descente doit se voir.
+    try:
+        Gtk.Settings.get_default().set_property('gtk-enable-animations', True)
+    except Exception:
+        pass
     window = Gtk.Window(title='Outils d’audit — LexOS Pro')
     window.set_name('lexos-audit-menu')
     # Sans la barre de titre du vieux thème : notre propre en-tête orange.
@@ -789,7 +796,11 @@ def show():
         fermeture['en_cours'] = True
         def remonter():
             if not compose:
-                window.destroy()
+                x, y = cible['x'], cible['y']
+                depart = y
+                _animer(int(DESCENTE_MS * .6),
+                        lambda t: window.move(x, round(depart + (cible['haut'] - depart) * t)),
+                        window.destroy)
                 return
             rideau.set_transition_duration(int(DESCENTE_MS * .6))
             rideau.set_reveal_child(False)
@@ -805,6 +816,7 @@ def show():
     window.connect('key-press-event', keyboard)
 
     # ── Placée en haut, centrée sur l'écran où est la souris ──
+    cible = {'x': 0, 'y': 0, 'haut': -700}
     def placer():
         affichage = Gdk.Display.get_default()
         moniteur = None
@@ -818,7 +830,12 @@ def show():
             return
         zone = moniteur.get_workarea()
         largeur = LARGEUR + 2 * MARGE
-        window.move(zone.x + max(0, (zone.width - largeur) // 2), zone.y + 8)
+        cible['x'] = zone.x + max(0, (zone.width - largeur) // 2)
+        cible['y'] = zone.y + 8
+        cible['haut'] = zone.y - (HAUTEUR + 2 * MARGE)
+        # Sans compositeur (pas de transparence), c'est la fenêtre entière
+        # qui descend : on la pose au-dessus de l'écran, puis on la glisse.
+        window.move(cible['x'], cible['y'] if compose else cible['haut'])
     placer()
 
     # ── Ouvrir : le panneau descend, puis « pouf », le menu apparaît ──
@@ -828,13 +845,16 @@ def show():
     refresh()
     search.grab_focus()
     def pouf(*_args):
-        if rideau.get_child_revealed() and not fermeture['en_cours']:
+        if compose and rideau.get_child_revealed() and not fermeture['en_cours']:
             _animer(APPARITION_MS, box.set_opacity)
     rideau.connect('notify::child-revealed', pouf)
     def descendre():
         rideau.set_reveal_child(True)
         if not compose:
-            box.set_opacity(1)
+            x, depart = cible['x'], cible['haut']
+            _animer(DESCENTE_MS,
+                    lambda t: window.move(x, round(depart + (cible['y'] - depart) * t)),
+                    lambda: _animer(APPARITION_MS, box.set_opacity))
         return False
     GLib.timeout_add(40, descendre)
     Gtk.main()
