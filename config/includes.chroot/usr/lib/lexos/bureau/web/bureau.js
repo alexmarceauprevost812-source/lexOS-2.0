@@ -24,10 +24,39 @@ async function api(chemin, corps) {
 }
 
 /* ════════════════ Marges : la barre du haut et le dock ════════════════ */
-for (const cote of ["haut", "bas", "gauche", "droite"]) {
-  const v = parseInt(PARAMS.get(cote) || "0", 10);
-  document.documentElement.style.setProperty("--" + cote, (Number.isFinite(v) ? Math.max(0, Math.min(v, 400)) : 0) + "px");
+const entier = (nom) => { const v = parseInt(PARAMS.get(nom) || "0", 10); return Number.isFinite(v) ? v : 0; };
+const ECRAN = { x: entier("gx"), y: entier("gy"), l: entier("gl"), h: entier("gh") };
+const MARGES_QT = { haut: entier("haut"), bas: entier("bas"), gauche: entier("gauche"), droite: entier("droite") };
+/*  Ce que Qt a vu au démarrage, OU ce que _NET_WORKAREA dit maintenant
+    (serveur.py, ZoneTravail) — le plus grand des deux. Sur le PC d'Alex,
+    le bureau démarrait avant la barre du haut : Qt voyait l'écran entier,
+    et la première rangée d'icônes passait SOUS la barre. */
+function poserMarges(zone) {
+  const m = { ...MARGES_QT };
+  if (Array.isArray(zone) && zone.length === 4 && ECRAN.l > 0 && ECRAN.h > 0) {
+    const [x, y, l, h] = zone, borne = (v, max) => Math.max(0, Math.min(v, max));
+    m.haut = Math.max(m.haut, borne(y - ECRAN.y, ECRAN.h / 3));
+    m.gauche = Math.max(m.gauche, borne(x - ECRAN.x, ECRAN.l / 3));
+    m.bas = Math.max(m.bas, borne(ECRAN.y + ECRAN.h - (y + h), ECRAN.h / 3));
+    m.droite = Math.max(m.droite, borne(ECRAN.x + ECRAN.l - (x + l), ECRAN.l / 3));
+  }
+  for (const [cote, v] of Object.entries(m)) {
+    document.documentElement.style.setProperty("--" + cote, Math.round(Math.max(0, Math.min(v, 400))) + "px");
+  }
 }
+/*  Le dock Plank ne réserve pas sa place (il se cache quand une fenêtre le
+    touche) : sur le bureau vide, il est PAR-DESSUS la page. Les colonnes
+    d'icônes s'en écartent — « lexos dock droite », et la colonne de droite
+    ne passe plus dessous. */
+function poserDock(dock) {
+  const r = $("#bureau").style;
+  const place = dock && dock.taille ? Math.min(200, dock.taille + 22) + "px" : "0px";
+  r.setProperty("--dock-g", dock?.cote === "left" ? place : "0px");
+  r.setProperty("--dock-d", dock?.cote === "right" ? place : "0px");
+  r.setProperty("--dock-h", dock?.cote === "top" ? place : "0px");
+  r.setProperty("--dock-b", dock?.cote === "bottom" ? place : "0px");
+}
+poserMarges(null);
 if (SECONDAIRE) document.body.classList.add("secondaire");
 
 /* ════════════════ Thème : couleur + police (comme fond.js du Moteur) ════════════════ */
@@ -122,17 +151,23 @@ const PAS_X = 100, PAS_Y = 100, MARGE = 18;
 const zoom = () => (P ? P.taille / 100 : 1);
 
 function dessinerIcones(sections) {
-  let k = 0, grille = "", libres = "";
+  //  Deux colonnes, comme la nouvelle version du Moteur : « gauche » (ti-lex
+  //  IA, puis Mon bureau) et « droite » (LexOS), collées aux bords.
+  let k = 0, libres = "";
+  const cotes = { gauche: "", droite: "" };
   for (const s of sections) {
     const restants = s.elements.filter((e) => !POSITIONS[e.id]);
-    if (restants.length) grille += `<h5 class="groupe">${echapper(s.titre)}</h5>` + restants.map((e) => tuile(e, k++)).join("");
+    const cote = s.cote === "droite" ? "droite" : "gauche";
+    if (restants.length) cotes[cote] += `<h5 class="groupe">${echapper(s.titre)}</h5><div class="grille-ic">` + restants.map((e) => tuile(e, k++)).join("") + "</div>";
     for (const e of s.elements) {
       const xy = POSITIONS[e.id];
       if (xy) libres += tuile(e, k++).replace('<button class="icone', `<button style="left:${xy[0]}px;top:${xy[1]}px" class="libre icone`);
     }
   }
-  $("#icones").innerHTML = grille;
+  $("#cote-gauche").innerHTML = cotes.gauche;
+  $("#cote-droite").innerHTML = cotes.droite;
   $("#libres").innerHTML = libres;
+  setTimeout(majFondus, 60);
   //  Une image qui ne se charge pas (icône introuvable) retombe sur un émoji
   //  plutôt que de laisser un carré vide.
   document.querySelectorAll("#icones img, #libres img").forEach((i) => i.addEventListener("error", () => {
@@ -199,17 +234,25 @@ document.addEventListener("click", async (e) => {
   if (maintenant - (DERNIERS.get(b.dataset.id) || -1e9) < 1200) return;
   DERNIERS.set(b.dataset.id, maintenant);
   b.classList.remove("rebond"); void b.offsetWidth; b.classList.add("rebond");
+  lancerIcone(b.dataset.id, b.title);
+});
+async function lancerIcone(id, titre = "") {
   try {
-    const r = await api("/api/lancer", { id: b.dataset.id });
+    const r = await api("/api/lancer", { id });
     if (r.raison === "non-approuve") {
-      bulle("« " + b.title + " » n'est pas encore approuvé : Fichiers s'ouvre — double-clique-le là pour l'approuver");
+      bulle("« " + titre + " » n'est pas encore approuvé : Fichiers s'ouvre — double-clique-le là pour l'approuver");
     } else if (r.raison === "lien-refuse") {
       bulle("Ce raccourci ne mène pas à une page web");
     } else if (!r.ok) {
-      bulle("Impossible d'ouvrir « " + b.title + " »");
+      bulle(titre ? "Impossible d'ouvrir « " + titre + " »" : "Impossible d'ouvrir ça");
     }
   } catch { bulle("Le bureau ne répond pas"); }
-});
+}
+
+/*  Le fondu du bas part quand on est rendu au bout de la colonne. */
+function majFondus() { document.querySelectorAll(".cote").forEach((c) => c.classList.toggle("tout-voit", c.scrollTop + c.clientHeight >= c.scrollHeight - 4)); }
+document.querySelectorAll(".cote").forEach((c) => c.addEventListener("scroll", majFondus, { passive: true }));
+addEventListener("resize", majFondus);
 
 /*  Rien ne se dépose sur le bureau : il n'est pas un dossier. Sans ça, le
     navigateur intégré OUVRAIT le fichier ou le lien glissé à la place du
@@ -228,15 +271,21 @@ function majHorloge() {
 }
 setInterval(majHorloge, 10000);
 
-$("#demande").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const q = $("#question").value.trim(); if (!q) return;
+async function demander(vers) {
+  const q = $("#question").value.trim();
+  if (!q) {
+    if (vers === "abo") { lancerIcone("t-abo"); return; }   // 🌐 sans question : la fenêtre « Mon abonnement »
+    return;
+  }
   $("#question").value = "";
   try {
-    const r = await api("/api/demander", { q });
-    bulle(r.ok ? "ti-lex IA s'ouvre avec ta question…" : "ti-lex IA n'est pas installé");
+    const r = await api("/api/demander", { q, vers });
+    bulle(!r.ok ? "ti-lex IA n'est pas installé"
+      : vers === "abo" ? "🌐 Mon abonnement s'ouvre avec ta question…" : "ti-lex IA s'ouvre avec ta question…");
   } catch { bulle("Le bureau ne répond pas"); }
-});
+}
+$("#demande").addEventListener("submit", (e) => { e.preventDefault(); demander("chat"); });
+$("#vers-abo").addEventListener("click", () => demander("abo"));
 
 /* ════════════════ Clic droit ════════════════ */
 const menu = $("#menu");
@@ -251,6 +300,16 @@ document.addEventListener("contextmenu", (e) => {
 document.addEventListener("click", (e) => { if (!e.target.closest("#menu")) menu.hidden = true; });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") menu.hidden = true; });
 menu.addEventListener("click", async (e) => {
+  const l = e.target.closest("[data-local]");
+  if (l) {
+    menu.hidden = true;
+    if (l.dataset.local === "logo") changerLogo(true);
+    if (l.dataset.local === "code") {
+      const actif = !P.code;
+      try { await api("/api/reglages", { code: actif }); bulle(actif ? "⌨️ Le code qui s'écrit : activé" : "⌨️ Le code qui s'écrit : désactivé"); verifier(); } catch {}
+    }
+    return;
+  }
   const b = e.target.closest("[data-action]"); if (!b) return;
   menu.hidden = true;
   try { await api("/api/action", { nom: b.dataset.action }); verifier(); } catch {}
@@ -264,6 +323,120 @@ function bulle(texte) {
   minuteurBulle = setTimeout(() => { b.hidden = true; }, 3500);
 }
 
+/* ════════════════ Le grand logo au centre (nouvelle version du Moteur) ════════════════
+   Bureau.js du Moteur, « Grand logo au centre du bureau » : la bannière
+   LexOS Nomad ou le logo rond ; un clic passe au suivant, et il penche un
+   peu vers la souris. Le choix est gardé dans bureau.json (« embleme ») :
+   le navigateur de la page n'a pas de mémoire d'une session à l'autre. */
+const LOGOS = { nomad: "lexos-nomad.png", rond: "logo.png" };
+const ORDRE_LOGOS = ["nomad", "rond"];
+const emb = $("#embleme"), embBtn = $("#embleme-btn"), embImg = $("#embleme-img");
+let logoAffiche = "";
+function appliquerEmbleme() {
+  const choix = P && LOGOS[P.embleme] ? P.embleme : (P && P.embleme === "aucun" ? "aucun" : "nomad");
+  emb.hidden = choix === "aucun";
+  $("#bureau").classList.toggle("sans-code", !P || P.code === false);
+  if (choix === "aucun" || choix === logoAffiche) return;
+  logoAffiche = choix;
+  embImg.src = LOGOS[choix];
+  emb.classList.toggle("large", choix === "nomad");
+}
+//  Une image qui manque (ti-lex IA pas installé) : pas de cadre vide au centre.
+embImg.addEventListener("error", () => { emb.hidden = true; });
+embImg.addEventListener("load", () => { if (P && P.embleme !== "aucun") emb.hidden = false; });
+//  « avecAucun » : le menu du clic droit fait aussi le tour par « pas de logo ».
+async function changerLogo(avecAucun) {
+  const tour = avecAucun ? [...ORDRE_LOGOS, "aucun"] : ORDRE_LOGOS;
+  const suivant = tour[(tour.indexOf(P.embleme) + 1) % tour.length];
+  try { await api("/api/reglages", { embleme: suivant }); verifier(); } catch { bulle("Le bureau ne répond pas"); }
+}
+embBtn.addEventListener("click", () => {
+  embBtn.classList.remove("tourne", "onde"); void embBtn.offsetWidth; embBtn.classList.add("tourne", "onde");
+  setTimeout(() => changerLogo(false), 400);
+});
+embBtn.addEventListener("animationend", (e) => { if (e.animationName === "emb-tourne") embBtn.classList.remove("tourne", "onde"); });
+document.addEventListener("mousemove", (e) => {
+  const x = e.clientX / innerWidth - .5, y = e.clientY / innerHeight - .5;
+  embBtn.style.transform = `rotateY(${x * 14}deg) rotateX(${-y * 14}deg)`;
+});
+document.addEventListener("mouseleave", () => { embBtn.style.transform = ""; });
+
+/* ⌨️ Le code qui s'écrit tout seul derrière la bannière — les morceaux
+   d'Alex, mot pour mot (bureau.js du Moteur), avec ses fautes de frappe
+   qu'on efface. Il ne tape que si on le voit : bannière Nomad affichée,
+   « code » coché, écran principal, page visible. */
+(() => {
+  const zone = $("#code");
+  const MORCEAUX = [
+`from pathlib import Path
+from lexos import bureau, ia
+
+CLE = Path("/media/LEXOS")`,
+`def dessiner_horizon(scene):
+    for ligne in scene.lignes:
+        scene.afficher(ligne)
+    return scene.horizon`,
+`# Une lumière discrète
+opacite: float = 0.35
+mouvement: str = "doux"`,
+`def composer_bureau(image, calques):
+    resultat = image.copy()
+    for calque in calques:
+        resultat = calque.appliquer(resultat)
+    return resultat`,
+`palette = {"texte": "#9c9fa2", "accent": "#ff6a00"}`,
+`async def demander(question: str) -> str:
+    modele = ia.choisir("qwen3")
+    return await modele.repondre(question)`,
+`class Nomad:
+    version = "2.0.0"
+    def demarrer(self):
+        bureau.ouvrir(theme="noir")
+        print("ti-lex IA est prêt")`,
+`for fichier in CLE.glob("**/*.gguf"):
+    ia.importer(fichier)  # tout reste sur la clé`,
+  ];
+  //  Un petit colorieur Python : mots-clés, chaînes, commentaires.
+  const MOTS = /^(def|class|return|for|in|from|import|async|await|if|else|elif|while|with|as|print|self|True|False|None|float|str|int)$/;
+  const colorier = (l) => l.replace(/(#.*$)|("[^"]*"?|'[^']*'?)|([A-Za-z_]\w*)|([^#"'A-Za-z_]+)/g, (m, com, ch, mot, autre) =>
+    com ? `<span class="tk-com">${echapper(com)}</span>`
+    : ch ? `<span class="tk-ch">${echapper(ch)}</span>`
+    : mot ? (MOTS.test(mot) ? `<span class="tk-mot">${mot}</span>` : mot)
+    : echapper(autre));
+  const MAX = 15;
+  let lignes = [""], morceau = 0, pos = 0, attente = 0, faute = null;
+  const peindre = () => {
+    zone.innerHTML = lignes.map((l, i) => `<span class="ligne">${colorier(l) || " "}${i === lignes.length - 1 ? '<i class="code-curseur"></i>' : ""}</span>`).join("");
+  };
+  const taper = () => {
+    const visible = !SECONDAIRE && !document.hidden && !emb.hidden && emb.classList.contains("large") && !$("#bureau").classList.contains("sans-code");
+    if (!visible) { setTimeout(taper, 800); return; }
+    if (attente > 0) { attente--; setTimeout(taper, 90); return; }
+    const texte = MORCEAUX[morceau];
+    if (faute !== null) {                              // petite faute de frappe… puis on efface
+      lignes[lignes.length - 1] = lignes[lignes.length - 1].slice(0, -1);
+      faute = null; peindre(); setTimeout(taper, 140); return;
+    }
+    if (pos >= texte.length) {                         // morceau fini : une ligne vide, et le suivant
+      lignes.push(""); morceau = (morceau + 1) % MORCEAUX.length; pos = 0; attente = 12;
+    } else {
+      const c = texte[pos++];
+      if (c === "\n") { lignes.push(""); attente = 2 + Math.floor(Math.random() * 4); }
+      else if (/[a-z]/.test(c) && Math.random() < .025) {   // une faute, de temps en temps
+        lignes[lignes.length - 1] += String.fromCharCode(97 + Math.floor(Math.random() * 26));
+        faute = true; pos--;
+      } else lignes[lignes.length - 1] += c;
+    }
+    while (lignes.length > MAX) lignes.shift();
+    peindre();
+    const vite = /[ (=:.,]/.test(texte[pos - 1] || "") ? 70 : 28;
+    setTimeout(taper, vite + Math.random() * 60);
+  };
+  if (calme) { lignes = MORCEAUX.slice(0, 3).join("\n\n").split("\n"); peindre(); return; }
+  lignes = (MORCEAUX[0] + "\n\n" + MORCEAUX[1] + "\n").split("\n"); morceau = 2;   // on commence avec du code déjà écrit
+  peindre(); taper();
+})();
+
 /* ════════════════ Charger, puis suivre les changements ════════════════ */
 async function charger() {
   const e = await api("/api/etat");
@@ -272,11 +445,15 @@ async function charger() {
   appliquerTheme();
   appliquerDecor(!avantP || avantP.anim !== P.anim || avantP.densite !== P.densite);
   POSITIONS = (P.positions && typeof P.positions === "object") ? P.positions : {};
+  poserMarges(e.zone);
+  poserDock(SECONDAIRE ? null : e.dock);
+  appliquerEmbleme();
   //  Pendant qu'on glisse une icône, on ne redessine pas sous la souris.
   if (!SECONDAIRE && !GLISSE.enCours) {
     dessinerIcones(e.sections);
     $("#accueil").classList.toggle("cache", !P.horloge);
     $("#demande").hidden = !e.tilex;
+    $("#vers-abo").hidden = !e.tilex;
     majHorloge();
   }
 }
@@ -295,7 +472,8 @@ async function verifier() {
     //  Sans le serveur, le bureau reste un fond noir propre plutôt qu'une
     //  erreur : lexos-bureau relance xfdesktop si le moteur est tombé.
     P = { accent: "#ff7a18", police: "Space Grotesk", taille: 100, anim: "constellation", image: "", voile: 35, flou: 0,
-          vitesse: 100, densite: 100, orbes: true, grille: true, curseur: true, zoom: true };
+          vitesse: 100, densite: 100, orbes: true, grille: true, curseur: true, zoom: true, embleme: "nomad", code: true };
+    appliquerEmbleme();
     appliquerTheme(); appliquerDecor(true);
   }
   requestAnimationFrame(boucle);

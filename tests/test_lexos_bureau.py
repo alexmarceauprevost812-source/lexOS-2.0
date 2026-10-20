@@ -113,6 +113,12 @@ class Reglages(unittest.TestCase):
         self.assertEqual(erreurs, [])
         self.assertIn(self.rg.lire()["densite"], range(20, 26))
 
+    def test_logo_du_centre(self):
+        r = self.rg.lire()
+        self.assertEqual((r["embleme"], r["code"]), ("nomad", True))
+        self.assertIsNone(self.rg._propre("embleme", "/etc/passwd"))
+        self.assertEqual(self.rg._propre("embleme", "aucun"), "aucun")
+
     def test_positions(self):
         r = self.rg.ecrire({"positions": {"s-corbeille": [918, 980], "a-0123456789abcd": [1.7, -5],
                                           "../piege": [1, 1], "b-x": "pas une position",
@@ -306,6 +312,45 @@ class Serveur(unittest.TestCase):
         self.assertEqual((r["anim"], r["mode"]), ("vagues", "moteur"))
         self.assertFalse(self.etat.fin.is_set())
 
+    def test_deux_colonnes_et_logo(self):
+        """Nouvelle version du Moteur : ti-lex IA et Mon bureau à gauche,
+        LexOS à droite ; la bannière LexOS Nomad servie avec le logo rond."""
+        etat = json.loads(self.req("GET", "/api/etat")[1])
+        cotes = {s["titre"]: s["cote"] for s in etat["sections"]}
+        self.assertEqual(cotes.get("Mon bureau"), "gauche")
+        for titre, cote in (("ti-lex IA", "gauche"), ("LexOS", "droite")):
+            if titre in cotes:
+                self.assertEqual(cotes[titre], cote)
+        self.assertIn("dock", etat)
+        self.assertIn("zone", etat)
+        code, corps = self.req("GET", "/lexos-nomad.png", jeton=False)
+        self.assertEqual(code, 200)
+        self.assertTrue(corps.startswith(b"\x89PNG"))
+        self.assertEqual(self.req("GET", "/logo.png", jeton=False)[0], 200)
+        page = self.req("GET", "/", jeton=False)[1].decode()
+        for ident in ("embleme", "embleme-img", "code", "cote-gauche", "cote-droite", "vers-abo"):
+            self.assertIn(f'id="{ident}"', page, ident)
+
+    def test_demander_seulement_chat_ou_abo(self):
+        lances = []
+        avant_d, avant_w = self.sv.applis._detache, self.sv.shutil.which
+        self.sv.applis._detache = lambda cmd: lances.append(cmd) or True
+        self.sv.shutil.which = lambda nom: "/usr/bin/" + nom
+        try:
+            self.req("POST", "/api/demander", {"q": "salut", "vers": "abo"})
+            self.req("POST", "/api/demander", {"q": "salut", "vers": "--rm"})
+            self.req("POST", "/api/demander", {"q": "salut"})
+        finally:
+            self.sv.applis._detache, self.sv.shutil.which = avant_d, avant_w
+        self.assertEqual([c[1] for c in lances], ["abo", "chat", "chat"])
+
+    def test_logo_par_la_page(self):
+        r = json.loads(self.req("POST", "/api/reglages", {"embleme": "rond", "code": False})[1])["reglages"]
+        self.assertEqual((r["embleme"], r["code"]), ("rond", False))
+        r = json.loads(self.req("POST", "/api/reglages", {"embleme": "../x", "code": "oui"})[1])["reglages"]
+        self.assertEqual((r["embleme"], r["code"]), ("rond", False))
+        self.req("POST", "/api/reglages", {"embleme": "nomad", "code": True})
+
     def test_double_clic_un_seul_lancement(self):
         self.req("GET", "/api/etat")
         self.lances.clear()
@@ -369,6 +414,20 @@ class MoteurInstalle(unittest.TestCase):
         bureau = (TILEX / "interface/bureau.js").read_text(encoding="utf-8")
         for o in onglets:
             self.assertRegex(bureau, rf"\n  {o}: \{{", o)
+
+    def test_abonnement(self):
+        """🌐 Mon abonnement (nouvelle version du Moteur) : livré, chargé par
+        la page, ouvrable par « ti-lex-ia abo » et par une icône du bureau."""
+        self.assertTrue((TILEX / "interface/abonnement.js").is_file())
+        self.assertTrue((TILEX / "interface/lexos-nomad.png").is_file())
+        index = (TILEX / "interface/index.html").read_text(encoding="utf-8")
+        self.assertIn('<script src="abonnement.js"></script>', index)
+        lanceur = (INC / "usr/bin/ti-lex-ia").read_text(encoding="utf-8")
+        self.assertRegex(lanceur, r'\|abo\) ;;')
+        sys.path.insert(0, str(BUREAU))
+        sys.modules.pop("applis", None)
+        import applis
+        self.assertIn("abo", [o for o, _, _ in applis.TILEX])
 
     def test_aucune_donnee_privee_livree(self):
         for nom in ("acces.json", ".env.coffre", "parametres.json", "nuage.json", "compteur.json"):

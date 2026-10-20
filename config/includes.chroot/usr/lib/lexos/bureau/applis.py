@@ -32,6 +32,7 @@ TILEX = [
     ("schemas", "Schémas animés", "🎬"),
     ("modeles", "Modèles", "🧠"),
     ("nuage", "IA en ligne", "☁️"),
+    ("abo", "Mon abonnement", "🌐"),
     ("variables", "Variables", "🔑"),
 ]
 

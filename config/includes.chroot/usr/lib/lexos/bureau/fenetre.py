@@ -118,6 +118,10 @@ def ouvrir(url_base: str, jeton: str, signal_pret=None, fin=None) -> int:
             "bas": max(0, g.bottom() - d.bottom()),
             "gauche": max(0, d.left() - g.left()),
             "droite": max(0, g.right() - d.right()),
+            #  La place de l'écran dans le bureau virtuel : la page s'en sert
+            #  avec _NET_WORKAREA (serveur.py, ZoneTravail), que Qt ne relit
+            #  pas quand la barre du haut arrive APRÈS le bureau.
+            "gx": g.x(), "gy": g.y(), "gl": g.width(), "gh": g.height(),
         }
         url = QUrl(f"{url_base}?{urlencode(marges)}")
         page.renderProcessTerminated.connect(lambda *_: tomber("le moteur de la page s'est arrêté"))

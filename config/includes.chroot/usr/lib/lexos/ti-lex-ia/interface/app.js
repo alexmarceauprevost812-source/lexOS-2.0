@@ -152,6 +152,7 @@ function ouvrirDepuisLien() {
   history.replaceState(null, "", location.pathname);
   const q = (p.get("q") || "").trim().slice(0, 4000);
   const l = LANCEURS[id];
+  if (id === "abo" && typeof ouvrirAbo === "function") { ouvrirAbo(q); return true; }
   if (l.action) { l.action(); return true; }
   allerA(l.vue);
   if (id === "chat" && q) {

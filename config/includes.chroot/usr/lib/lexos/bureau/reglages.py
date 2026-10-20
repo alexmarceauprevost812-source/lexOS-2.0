@@ -22,6 +22,7 @@ FICHIER = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "
 
 MODES = ("moteur", "classique")
 FONDS = ("constellation", "aurore", "etoiles", "pluie", "vagues", "braises", "aucun")
+EMBLEMES = ("nomad", "rond", "aucun")
 POLICES = ("Space Grotesk", "Inter", "Poppins", "Montserrat", "Lexend", "Nunito", "Quicksand",
            "Fredoka", "Comfortaa", "Exo 2", "Rajdhani", "Oxanium", "Orbitron", "Audiowide",
            "Righteous", "Bebas Neue", "Press Start 2P", "JetBrains Mono", "Système", "Serif classique")
@@ -55,6 +56,12 @@ DEFAUTS = {
     "tilex": True,
     "lexos": True,
     "bureau": True,
+    #  Le grand logo au centre (nouvelle version du Moteur d'Alex) : la
+    #  bannière LexOS Nomad, le logo rond, ou rien. Un clic dessus passe au
+    #  suivant ; le choix est gardé ici, pas dans le navigateur de la page.
+    "embleme": "nomad",
+    #  Le code qui s'écrit tout seul derrière la bannière Nomad.
+    "code": True,
     #  Où Alex a posé ses icônes : {identifiant: [x, y]} en pixels du bureau.
     #  Vide = la grille par sections. Une icône qu'on n'a jamais déplacée
     #  reste dans la grille.
@@ -88,6 +95,8 @@ def _propre(cle: str, v):
         return v if v in MODES else None
     if cle == "anim":
         return v if v in FONDS else None
+    if cle == "embleme":
+        return v if v in EMBLEMES else None
     if cle == "police":
         return v if v in POLICES else None
     if cle == "accent":

@@ -73,24 +73,34 @@ class Etat:
         r = reglages.lire()
         table = applis.Table()
         sections = []
+        #  « cote » : comme le Bureau du Moteur (nouvelle version), l'IA à
+        #  gauche et les outils à droite. Les fichiers d'Alex vont sous l'IA,
+        #  à gauche — là où on cherche ses fichiers sur un bureau.
         if r["tilex"]:
             s = table.section_tilex()
             if s:
-                sections.append({"titre": "ti-lex IA", "elements": s})
+                sections.append({"titre": "ti-lex IA", "cote": "gauche", "elements": s})
         if r["lexos"]:
             s = table.section_lexos()
             if s:
-                sections.append({"titre": "LexOS", "elements": s})
+                sections.append({"titre": "LexOS", "cote": "droite", "elements": s})
         if r["bureau"]:
-            sections.append({"titre": "Mon bureau", "elements": table.section_bureau()})
+            sections.append({"titre": "Mon bureau", "cote": "gauche", "elements": table.section_bureau()})
         with self.verrou:
             self.table = table
         return {"prenom": prenom(), "reglages": r, "sections": sections,
-                "tilex": bool(shutil.which("ti-lex-ia")),
+                "tilex": bool(shutil.which("ti-lex-ia")), "dock": dock(), "zone": ZONE.lire(),
                 "couleurs": reglages.COULEURS, "polices": reglages.POLICES}
 
     def version(self) -> str:
-        return reglages.empreinte() + "-" + applis.empreinte_bureau()
+        #  La base dconf du compte change quand on déplace le dock (« lexos
+        #  dock droite ») : la page refait alors sa place autour de lui.
+        try:
+            d = int(DCONF.stat().st_mtime_ns)
+        except OSError:
+            d = 0
+        z = ".".join(map(str, ZONE.lire()))
+        return reglages.empreinte() + "-" + applis.empreinte_bureau() + "-" + str(d) + "-" + z
 
 
 def fabriquer(etat: Etat):
@@ -148,7 +158,7 @@ def fabriquer(etat: Etat):
 
         def _statique(self, chemin: str):
             racine, rel = WEB, chemin.lstrip("/") or "index.html"
-            if rel == "polices.css" or rel.startswith("polices/") or rel == "logo.png":
+            if rel == "polices.css" or rel.startswith("polices/") or rel in ("logo.png", "lexos-nomad.png"):
                 racine = MOTEUR_UI
             cible = (racine / rel).resolve()
             if not cible.is_relative_to(racine.resolve()) or not applis._est_fichier(cible):
@@ -235,9 +245,13 @@ def fabriquer(etat: Etat):
                 return self._json({"ok": bool(r)})
             if chemin == "/api/demander":
                 q = str(d.get("q", "")).strip()[:4000]
+                #  « abo » : 🌐 Mon abonnement (ChatGPT, Claude, Gemini… sur
+                #  leur site officiel), la question déjà écrite. Rien d'autre
+                #  que ces deux onglets-là.
+                vers = "abo" if d.get("vers") == "abo" else "chat"
                 if not q or not shutil.which("ti-lex-ia"):
                     return self._json({"ok": False})
-                return self._json({"ok": applis._detache(["ti-lex-ia", "chat", q])})
+                return self._json({"ok": applis._detache(["ti-lex-ia", vers, q])})
             if chemin == "/api/reglages":
                 r = reglages.ecrire(d)
                 if r["mode"] == "classique":
@@ -247,6 +261,72 @@ def fabriquer(etat: Etat):
                 return self._json({"ok": action(str(d.get("nom", "")), etat)})
             self.send_error(404)
     return G
+
+
+class ZoneTravail:
+    """_NET_WORKAREA : l'écran MOINS ce que la barre du haut réserve.
+
+    POURQUOI LA PAGE NE SE FIE PLUS À QT POUR ÇA. Sur le PC d'Alex, la
+    colonne d'icônes passait SOUS la barre du haut : le bureau démarre avant
+    xfce4-panel, Qt lit l'aire disponible à ce moment-là (l'écran entier),
+    et ne la relit plus — mesuré sous Xvfb + xfwm4 : tuer et relancer
+    xfce4-panel change _NET_WORKAREA, mais availableGeometryChanged ne vient
+    jamais. On lit donc la propriété ici, à chaque « /api/version » (une
+    lecture X, quelques microsecondes), et la page refait ses marges.
+    python3-xlib est dans la liste stricte des paquets (lexos-core)."""
+
+    def __init__(self) -> None:
+        self.verrou = threading.Lock()
+        self.ecran = None
+
+    def lire(self) -> list[int]:
+        with self.verrou:
+            for _ in range(2):
+                try:
+                    if self.ecran is None:
+                        from Xlib import display  # noqa: PLC0415
+                        self.ecran = display.Display()
+                    racine = self.ecran.screen().root
+                    p = racine.get_full_property(self.ecran.intern_atom("_NET_WORKAREA"), 0)
+                    v = list(p.value[:4]) if p is not None and len(p.value) >= 4 else []
+                    return [int(n) for n in v]
+                except Exception:       # pas de Xlib, X fermé, connexion perdue
+                    try:
+                        if self.ecran is not None:
+                            self.ecran.close()
+                    except Exception:
+                        pass
+                    self.ecran = None
+            return []
+
+
+ZONE = ZoneTravail()
+
+
+DCONF = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "dconf" / "user"
+SCHEMA_DOCK = "net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
+
+
+def dock() -> dict:
+    """Où est le dock Plank, et sa taille : {"cote": "right", "taille": 64}.
+
+    Il se cache seulement quand une fenêtre le touche (« intelligent ») :
+    sur le bureau vide, il est là, PAR-DESSUS la page — et il ne réserve
+    pas sa place à l'écran (pas de « strut »). Sans ça, la colonne d'icônes
+    de droite passait sous le dock posé à droite (« lexos dock droite »)."""
+    vide = {"cote": "", "taille": 0}
+    if not shutil.which("gsettings") or not shutil.which("plank"):
+        return vide
+    try:
+        def lire(cle: str) -> str:
+            return subprocess.run(["gsettings", "get", SCHEMA_DOCK, cle], capture_output=True,
+                                  text=True, timeout=2).stdout.strip().strip("'")
+        cote, taille = lire("position"), lire("icon-size")
+    except (OSError, subprocess.SubprocessError):
+        return vide
+    if cote not in ("left", "right", "top", "bottom"):
+        return vide
+    return {"cote": cote, "taille": int(taille) if taille.isdigit() else 48}
 
 
 def action(nom: str, etat: Etat) -> bool:

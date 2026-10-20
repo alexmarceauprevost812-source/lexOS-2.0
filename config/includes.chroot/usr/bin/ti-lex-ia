@@ -4,8 +4,9 @@
 # =============================================================================
 #  Usage : ti-lex-ia [onglet] [question…]
 #    onglet : chat · codex · equipe · images · schemas · modeles · cle ·
-#             parametres · variables · nuage      (rien : le Moteur normal)
-#    question : seulement avec « chat » — posée et envoyée tout de suite.
+#             parametres · variables · nuage · abo   (rien : le Moteur normal)
+#    question : avec « chat », posée et envoyée tout de suite ; avec « abo »
+#               (🌐 Mon abonnement : ChatGPT, Claude, Gemini…), déjà écrite.
 #
 #  Le Moteur vit sur la clé USB LEXOS ; installé ici, son code est dans
 #  /usr/lib/lexos/ti-lex-ia (lecture seule) et SES DONNÉES dans le compte :
@@ -27,16 +28,16 @@ ONGLET="${1:-}"
 QUESTION="$*"
 
 case "$ONGLET" in
-	""|chat|codex|equipe|images|schemas|modeles|cle|parametres|variables|nuage) ;;
-	*) echo "Usage : ti-lex-ia [chat|codex|equipe|images|schemas|modeles|cle|parametres|variables|nuage] [question…]" >&2; exit 2 ;;
+	""|chat|codex|equipe|images|schemas|modeles|cle|parametres|variables|nuage|abo) ;;
+	*) echo "Usage : ti-lex-ia [chat|codex|equipe|images|schemas|modeles|cle|parametres|variables|nuage|abo] [question…]" >&2; exit 2 ;;
 esac
 
-#  « ouvrir=chat&q=… » : la question est encodée en %XX par python, qui est
+#  « ouvrir=chat&q=… » (ou abo) : la question est encodée en %XX par python, qui est
 #  là de toute façon (le Moteur en a besoin).
 ANCRE=""
 if [ -n "$ONGLET" ]; then
 	ANCRE="#ouvrir=$ONGLET"
-	if [ -n "$QUESTION" ] && [ "$ONGLET" = chat ]; then
+	if [ -n "$QUESTION" ] && { [ "$ONGLET" = chat ] || [ "$ONGLET" = abo ]; }; then
 		Q="$(printf '%s' "$QUESTION" | python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.stdin.read(),safe=""))')"
 		ANCRE="$ANCRE&q=$Q"
 	fi

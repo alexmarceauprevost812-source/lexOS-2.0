@@ -18,7 +18,23 @@
 <div id="curseur"></div>
 
 <main id="bureau">
-  <div id="icones" class="icones" aria-label="Icônes du bureau"></div>
+  <!-- Le grand logo au centre (nouvelle version du Moteur d'Alex) : la
+       bannière LexOS Nomad avec le code qui s'écrit derrière, ou le logo
+       rond avec son halo et ses anneaux. Un clic dessus change de logo. -->
+  <div class="embleme" id="embleme" hidden>
+    <div class="halo"></div>
+    <pre class="code" id="code" aria-hidden="true"></pre>
+    <svg class="anneaux" viewBox="0 0 200 200" aria-hidden="true">
+      <circle cx="100" cy="100" r="96" class="a1"/><circle cx="100" cy="100" r="88" class="a2"/><circle cx="100" cy="100" r="80" class="a3"/>
+    </svg>
+    <button class="embleme-img" id="embleme-btn" title="Clique pour changer de logo"><img id="embleme-img" alt="LexOS"></button>
+    <div class="embleme-nom">Lex<span>OS</span></div>
+    <small class="embleme-sous">ti-lex IA · tout en local, sur ton ordi</small>
+  </div>
+  <div id="icones" class="icones" aria-label="Icônes du bureau">
+    <div class="cote" id="cote-gauche"></div>
+    <div class="cote droite" id="cote-droite"></div>
+  </div>
   <div id="libres" class="libres" aria-label="Icônes posées par toi"></div>
   <div id="accueil" class="accueil">
     <b class="grande-heure" id="grande-heure">--:--</b>
@@ -26,6 +42,7 @@
     <form class="demande" id="demande" hidden>
       <img src="logo.png" alt="">
       <input id="question" placeholder="Demande à ti-lex IA…" autocomplete="off" maxlength="4000">
+      <button type="button" class="vers-abo" id="vers-abo" title="Demander à mon abonnement en ligne (ChatGPT, Claude, Gemini…)">🌐</button>
       <button class="rond" aria-label="Envoyer"><svg viewBox="0 0 24 24"><path d="M3 11.5 21 3l-8.5 18-2.2-7.3z"/></svg></button>
     </form>
   </div>
@@ -35,6 +52,8 @@
   <button data-action="parametres">🎨 Personnaliser le bureau…</button>
   <button data-action="fond-suivant">✨ Fond animé suivant</button>
   <button data-action="ranger">🧲 Remettre les icônes en ordre</button>
+  <button data-local="logo">🔆 Changer le logo du centre</button>
+  <button data-local="code">⌨️ Le code qui s'écrit : oui / non</button>
   <hr>
   <button data-action="dossier-bureau">📁 Ouvrir le dossier Bureau</button>
   <button data-action="terminal">⌨️ Ouvrir un terminal</button>

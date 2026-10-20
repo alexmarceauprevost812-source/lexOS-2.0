@@ -1491,8 +1491,8 @@ function blocBureauMoteur(){
   const moteur = B.mode === "moteur";
   let html = `<div class="srow" style="display:block">
     <div class="t" style="margin-bottom:4px">Style du bureau</div>
-    <div class="d" style="margin-bottom:10px">Le bureau du Moteur : fond animé, icônes
-      en grille, grande horloge et « Demande à ti-lex IA… ». Le classique reste là
+    <div class="d" style="margin-bottom:10px">Le bureau du Moteur : fond animé, ti-lex IA
+      à gauche, LexOS à droite, le grand logo au centre, l'horloge et « Demande à ti-lex IA… ». Le classique reste là
       en secours, et revient tout seul si le Moteur s'arrête.</div>
     <div class="row">
       <button class="btn ${sel(moteur)}" onclick="setBM({mode:'moteur'})">⚡ Bureau du Moteur</button>
@@ -1528,6 +1528,15 @@ function blocBureauMoteur(){
     ${B.image ? `<div class="row" style="margin-top:8px"><button class="btn ghost" onclick="setBM({image:''})">Retirer l'image</button></div>` : ""}
   </div>
   <div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">Le grand logo au centre</div>
+    <div class="d" style="margin-bottom:10px">Comme dans le Moteur : clique dessus sur le bureau pour passer au suivant.</div>
+    <div class="row">
+      <button class="btn ${sel(B.embleme === "nomad")}" onclick="setBM({embleme:'nomad'})">LexOS Nomad</button>
+      <button class="btn ${sel(B.embleme === "rond")}" onclick="setBM({embleme:'rond'})">Logo rond</button>
+      <button class="btn ${sel(B.embleme === "aucun")}" onclick="setBM({embleme:'aucun'})">Aucun</button>
+    </div></div>
+  ${B.embleme === "nomad" ? inter("code", "⌨️ Le code qui s'écrit tout seul", "Derrière la bannière LexOS Nomad, comme dans le Moteur.") : ""}
+  <div class="srow" style="display:block">
     <div class="t" style="margin-bottom:4px">Place des icônes</div>
     <div class="d">Glisse une icône n'importe où sur le bureau : elle reste où tu la lâches.
       ${Object.keys(B.positions || {}).length
@@ -1536,7 +1545,7 @@ function blocBureauMoteur(){
     ${Object.keys(B.positions || {}).length ? `<div class="row" style="margin-top:8px">
       <button class="btn ghost" onclick="setBM({positions:{}})">🧲 Remettre les icônes en ordre</button></div>` : ""}
   </div>
-  ${inter("horloge", "Grande horloge et « Demande à ti-lex IA… »", "En haut à droite, comme dans le Moteur.")}
+  ${inter("horloge", "Grande horloge et « Demande à ti-lex IA… »", "Au centre, en haut, comme dans le Moteur.")}
   ${inter("tilex", "Icônes ti-lex IA", "Chat, Codex, Images, Schémas… — ouvrent ton Moteur.")}
   ${inter("lexos", "Icônes LexOS", "Fichiers, Terminal, Navigateur, Paramètres…")}
   ${inter("bureau", "Mon bureau", "Le dossier personnel, la corbeille et ce qu'il y a dans ton dossier Bureau.")}
