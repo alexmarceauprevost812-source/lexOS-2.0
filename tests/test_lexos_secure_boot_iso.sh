@@ -47,7 +47,10 @@ scene_0907() {
 	: > "$BANC/s7/chroot/lib/modules/$K_RECENT/updates/dkms/nvidia.ko.xz"
 }
 scene_0907
-grep -m1 -E '^[[:space:]]*linux' "$BANC/s7/binary/boot/grub/grub.cfg" | grep -q "vmlinuz-$K_ANCIEN" \
+#  On capture, puis on cherche : pas de « grep -q » en bout de tube (règle
+#  du dépôt — sous pipefail, -q coupe le tube et le producteur meurt).
+DEPART="$(grep -m1 -E '^[[:space:]]*linux' "$BANC/s7/binary/boot/grub/grub.cfg")"
+[[ "$DEPART" == *"vmlinuz-$K_ANCIEN"* ]] \
 	&& ok "point de départ réel : l'ISO du 20 octobre démarrait $K_ANCIEN par défaut" \
 	|| non "la donnée de référence n'est plus celle de l'ISO du 20 octobre"
 
@@ -75,7 +78,8 @@ AVANT="$(grep -c '^[[:space:]]*menuentry' "$RACINE/tests/donnees/grub-iso-build1
 APRES="$(grep -c '^[[:space:]]*menuentry' "$CFG")"
 [ "$AVANT" = "$APRES" ] && ok "aucune entrée perdue ($APRES)" || non "entrées : $AVANT -> $APRES"
 grep -q 'lexos\.failsafe=1' "$CFG" && ok "le mode de secours garde son marqueur" || non "le marqueur lexos.failsafe=1 a disparu"
-grep -A3 'Verify integrity' "$CFG" | grep -q "vmlinuz-$K_RECENT" \
+VERIF="$(grep -A3 'Verify integrity' "$CFG")"
+[[ "$VERIF" == *"vmlinuz-$K_RECENT"* ]] \
 	&& ok "la vérification du support vise aussi le noyau récent" \
 	|| non "la vérification du support vise encore l'ancien noyau"
 
@@ -265,7 +269,7 @@ PEM="$(grep -rIl -- "${DEBUT} .*${FIN}" "$RACINE" --exclude-dir=.git 2>/dev/null
 	&& ok "le certificat public est le même dans le système et à la racine de la clé" \
 	|| non "certificat absent ou différent entre système et racine de la clé"
 SORTIE="$(sh "$HOOKS/0258-lexos-signature-dkms.hook.chroot" 2>&1)"; RC=$?
-[ "$RC" -eq 0 ] && printf '%s' "$SORTIE" | grep -q "pas de clé LexOS" \
+[ "$RC" -eq 0 ] && [[ "$SORTIE" == *"pas de clé LexOS"* ]] \
 	&& ok "sans clé, le hook 0258 ne pose rien et le dit" \
 	|| non "le hook 0258 sans clé : $SORTIE"
 WF="$RACINE/.github/workflows/build-iso.yml"

@@ -395,7 +395,6 @@ case "$DEJA" in
   Le pilote n'est pourtant pas chargé. Si l'inscription vient d'être faite
   dans MokManager, un redémarrage suffit. Sinon, pour voir la vraie raison :
 
-      sudo modprobe nvidia
       sudo lexos tv
 FIN
 		fi
