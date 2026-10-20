@@ -90,6 +90,7 @@ EMOJI_FICHIER = {
     "py": "🐍", "sh": "⚙️", "js": "📜", "html": "🌐", "json": "🧾",
 }
 MAX_BUREAU = 80
+MAX_APPLIS = 600
 
 
 def _est_fichier(p: Path) -> bool:
@@ -160,8 +161,15 @@ def lire_desktop(chemin: Path) -> dict | None:
     nom = e.get("Name[fr_CA]") or e.get("Name[fr]") or e.get("Name")
     if not nom:
         return None
+    #  « cache » : ce qu'un menu d'applications ne montre pas (NoDisplay, ou
+    #  réservé à un autre bureau que XFCE). Seule la liste « Toutes les
+    #  applications » du labo s'en sert.
+    seul = [x for x in (e.get("OnlyShowIn") or "").split(";") if x]
+    sauf = [x for x in (e.get("NotShowIn") or "").split(";") if x]
+    cache = (e.get("NoDisplay", "").lower() == "true" or (seul and "XFCE" not in seul) or "XFCE" in sauf)
     return {"nom": nom.strip()[:60], "icone": (e.get("Icon") or "").strip(),
-            "type": e.get("Type", "Application").strip(), "url": (e.get("URL") or "").strip()}
+            "type": e.get("Type", "Application").strip(), "url": (e.get("URL") or "").strip(),
+            "cache": bool(cache)}
 
 
 def trouver_desktop(nom: str) -> Path | None:
@@ -317,6 +325,38 @@ class Table:
                 self._ajouter(ident, "ouvrir", str(p), icone)
                 out.append({"id": ident, "nom": nom_lisible(p.name)[:60], "icone": ident in self.icones,
                             "vignette": image, "emoji": EMOJI_FICHIER.get(ext, "📄")})
+        return self._marquer(out)
+
+
+    def section_applis(self) -> list[dict]:
+        """TOUTES les applications installées, pour le labo (« ＋ Ajouter »).
+        Même identifiant qu'une icône LexOS pour le même fichier (« a- » +
+        empreinte du chemin) : une appli épinglée garde sa place partout.
+        Le premier dossier XDG gagne, comme dans un menu : une appli que
+        l'utilisateur a copiée dans ~/.local/share/applications passe avant
+        celle du système."""
+        vus: set[str] = set()
+        out = []
+        for d in dossiers_applications():
+            try:
+                fichiers = sorted(list(d.glob("*.desktop")) + list(d.glob("*/*.desktop")))
+            except OSError:
+                continue
+            for p in fichiers:
+                id_xdg = str(p.relative_to(d)).replace("/", "-")
+                if id_xdg in vus or len(out) >= MAX_APPLIS:
+                    continue
+                vus.add(id_xdg)
+                if not _est_fichier(p):
+                    continue
+                info = lire_desktop(p)
+                if not info or info["cache"] or info["type"] != "Application":
+                    continue
+                ident = _ident("a-", str(p))
+                if ident not in self.actions:
+                    self._ajouter(ident, "desktop", str(p), chemin_icone(info["icone"]))
+                out.append({"id": ident, "nom": nom_lisible(info["nom"]), "icone": ident in self.icones, "emoji": "🧩"})
+        out.sort(key=lambda e: e["nom"].lower())
         return self._marquer(out)
 
 

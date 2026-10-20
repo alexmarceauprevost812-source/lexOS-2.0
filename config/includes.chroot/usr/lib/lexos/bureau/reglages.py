@@ -62,15 +62,23 @@ DEFAUTS = {
     "embleme": "nomad",
     #  Le code qui s'écrit tout seul derrière la bannière Nomad.
     "code": True,
+    #  🧪 Mon labo : le panneau qui monte quand la souris reste collée en
+    #  bas de l'écran. « labo_delai » : combien de temps elle doit y rester
+    #  (ms). « labo_apps » : ce qu'Alex y a mis, dans l'ordre ; ["*"] = pas
+    #  encore choisi → les onglets de ti-lex IA, le terminal et Fichiers.
+    "labo": True,
+    "labo_delai": 1000,
+    "labo_apps": ["*"],
     #  Où Alex a posé ses icônes : {identifiant: [x, y]} en pixels du bureau.
     #  Vide = la grille par sections. Une icône qu'on n'a jamais déplacée
     #  reste dans la grille.
     "positions": {},
 }
-BORNES = {"taille": (80, 140), "voile": (0, 90), "flou": (0, 20), "vitesse": (20, 300), "densite": (20, 200)}
+BORNES = {"labo_delai": (300, 3000), "taille": (80, 140), "voile": (0, 90), "flou": (0, 20), "vitesse": (20, 300), "densite": (20, 200)}
 
 
 MAX_POSITIONS = 400
+MAX_LABO = 60
 _ID_ICONE = re.compile(r"^[a-z]-[a-z0-9-]{1,40}$")
 
 
@@ -91,6 +99,16 @@ def _propre(cle: str, v):
     """La valeur v si elle est valide pour cle, sinon None."""
     if cle == "positions":
         return _positions(v)
+    if cle == "labo_apps":
+        if v == ["*"]:
+            return ["*"]
+        if not isinstance(v, list):
+            return None
+        propre = []
+        for x in v[:MAX_LABO * 2]:
+            if isinstance(x, str) and _ID_ICONE.match(x) and x not in propre:
+                propre.append(x)
+        return propre[:MAX_LABO]
     if cle == "mode":
         return v if v in MODES else None
     if cle == "anim":
@@ -128,6 +146,7 @@ def _propre(cle: str, v):
 def lire() -> dict:
     r = dict(DEFAUTS)
     r["positions"] = {}
+    r["labo_apps"] = list(DEFAUTS["labo_apps"])
     try:
         brut = json.loads(FICHIER.read_text("utf-8"))
     except (OSError, ValueError):

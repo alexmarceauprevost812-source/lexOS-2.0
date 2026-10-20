@@ -188,3 +188,12 @@ body.secondaire #bureau { display: none; }
 .vers-abo:hover { transform: scale(1.08) rotate(-12deg); border-color: var(--orange); }
 .vers-abo[hidden] { display: none; }
 .libres { z-index: 3; }
+
+/* 🧪 Mon labo : la petite poignée en bas, au centre — elle monte un peu
+   au survol, comme pour dire « tire-moi ». */
+.vers-labo { position: fixed; z-index: 4; left: 50%; bottom: var(--bas); transform: translate(-50%, 46%); display: flex; align-items: center; gap: 8px; padding: 8px 18px 22px; border-radius: 18px 18px 0 0; border: 1px solid rgba(var(--acc-rgb),.45); border-bottom: 0; background: rgba(12,12,13,.86); backdrop-filter: blur(12px); color: var(--blanc-doux); font-size: 13px; cursor: pointer; box-shadow: 0 -6px 26px rgba(0,0,0,.5), 0 0 22px rgba(var(--acc-rgb),.18); transition: transform .35s cubic-bezier(.3,1.5,.5,1), box-shadow .3s; }
+.vers-labo[hidden] { display: none; }
+.vers-labo i { font-style: normal; font-size: 17px; }
+.vers-labo:hover { transform: translate(-50%, 18%); box-shadow: 0 -10px 34px rgba(0,0,0,.6), 0 0 34px rgba(var(--acc-rgb),.45); }
+.vers-labo::before { content: ""; position: absolute; left: 30%; right: 30%; top: -1px; height: 2px; border-radius: 2px; background: var(--orange); box-shadow: 0 0 12px var(--orange); }
+body.secondaire .vers-labo { display: none; }

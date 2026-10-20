@@ -69,28 +69,46 @@ class Etat:
         #  ne doit pas ouvrir l'appli deux fois.
         self.derniers: dict[str, float] = {}
 
-    def construire(self) -> dict:
+    def _tout(self) -> tuple[dict, dict]:
+        """Réglages + TOUTES les sections, et la table qui sait les lancer.
+
+        La table contient TOUT, même ce que le bureau cache (une section
+        décochée, les applis du labo) : le bureau et le labo partagent ce
+        serveur, et chacun reconstruit la table — si celle du bureau oubliait
+        les applis du labo, un clic dans le labo ne lancerait plus rien."""
         r = reglages.lire()
         table = applis.Table()
+        tout = {"tilex": table.section_tilex(), "lexos": table.section_lexos(),
+                "bureau": table.section_bureau(), "applis": table.section_applis()}
+        with self.verrou:
+            self.table = table
+        return r, tout
+
+    def construire(self) -> dict:
+        r, tout = self._tout()
         sections = []
         #  « cote » : comme le Bureau du Moteur (nouvelle version), l'IA à
         #  gauche et les outils à droite. Les fichiers d'Alex vont sous l'IA,
         #  à gauche — là où on cherche ses fichiers sur un bureau.
-        if r["tilex"]:
-            s = table.section_tilex()
-            if s:
-                sections.append({"titre": "ti-lex IA", "cote": "gauche", "elements": s})
-        if r["lexos"]:
-            s = table.section_lexos()
-            if s:
-                sections.append({"titre": "LexOS", "cote": "droite", "elements": s})
+        if r["tilex"] and tout["tilex"]:
+            sections.append({"titre": "ti-lex IA", "cote": "gauche", "elements": tout["tilex"]})
+        if r["lexos"] and tout["lexos"]:
+            sections.append({"titre": "LexOS", "cote": "droite", "elements": tout["lexos"]})
         if r["bureau"]:
-            sections.append({"titre": "Mon bureau", "cote": "gauche", "elements": table.section_bureau()})
-        with self.verrou:
-            self.table = table
+            sections.append({"titre": "Mon bureau", "cote": "gauche", "elements": tout["bureau"]})
         return {"prenom": prenom(), "reglages": r, "sections": sections,
                 "tilex": bool(shutil.which("ti-lex-ia")), "dock": dock(), "zone": ZONE.lire(),
+                "labo": [e["id"] for e in labo_choisis(r, tout)],
                 "couleurs": reglages.COULEURS, "polices": reglages.POLICES}
+
+    def construire_labo(self) -> dict:
+        """🧪 Mon labo : ce qu'Alex y a mis, et de quoi en ajouter."""
+        r, tout = self._tout()
+        sections = [{"titre": t, "elements": tout[c]} for c, t in
+                    (("tilex", "ti-lex IA"), ("lexos", "LexOS"), ("bureau", "Mon bureau"),
+                     ("applis", "Toutes les applications")) if tout[c]]
+        return {"apps": labo_choisis(r, tout), "sections": sections, "prenom": prenom(),
+                "reglages": {k: r[k] for k in ("accent", "police", "labo_apps")}}
 
     def version(self) -> str:
         #  La base dconf du compte change quand on déplace le dock (« lexos
@@ -200,6 +218,8 @@ def fabriquer(etat: Etat):
                 return self._statique(chemin)
             if not self._jeton_ok():
                 return self.send_error(403)
+            if chemin == "/api/labo":
+                return self._json(etat.construire_labo())
             if chemin == "/api/etat":
                 return self._json(etat.construire())
             if chemin == "/api/version":
@@ -303,6 +323,22 @@ class ZoneTravail:
 ZONE = ZoneTravail()
 
 
+def labo_choisis(r: dict, tout: dict) -> list[dict]:
+    """Les éléments du labo, dans l'ordre d'Alex. Une appli désinstallée
+    (identifiant introuvable) disparaît sans bruit ; ["*"] = pas encore
+    choisi : les onglets de ti-lex IA, puis le terminal, Fichiers et le
+    navigateur."""
+    connus: dict[str, dict] = {}
+    for cle in ("tilex", "lexos", "bureau", "applis"):
+        for e in tout[cle]:
+            connus.setdefault(e["id"], e)
+    ids = r["labo_apps"]
+    if ids == ["*"]:
+        ids = [e["id"] for e in tout["tilex"]]
+        ids += [e["id"] for e in tout["lexos"] if e["nom"] in ("Terminal TI-LEX", "Fichiers", "Navigateur Web")]
+    return [connus[i] for i in ids if i in connus]
+
+
 DCONF = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "dconf" / "user"
 SCHEMA_DOCK = "net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
 
@@ -375,6 +411,10 @@ def main() -> int:
     a.add_argument("--sans-fenetre", action="store_true")
     a.add_argument("--port", type=int, default=0)
     args = a.parse_args()
+    #  SIGUSR1 (« lexos-bureau labo ») TUE un processus par défaut : on
+    #  l'ignore d'abord, et la fenêtre du labo le prend dès qu'elle existe.
+    import signal
+    signal.signal(signal.SIGUSR1, signal.SIG_IGN)
 
     etat = Etat()
     serveur = ThreadingHTTPServer(("127.0.0.1", args.port), fabriquer(etat))

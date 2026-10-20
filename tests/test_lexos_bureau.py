@@ -113,6 +113,19 @@ class Reglages(unittest.TestCase):
         self.assertEqual(erreurs, [])
         self.assertIn(self.rg.lire()["densite"], range(20, 26))
 
+    def test_labo(self):
+        r = self.rg.lire()
+        self.assertEqual((r["labo"], r["labo_delai"], r["labo_apps"]), (True, 1000, ["*"]))
+        self.assertEqual(self.rg._propre("labo_apps", ["t-chat", "t-chat", "../x", 3, "a-0123456789abcd"]),
+                         ["t-chat", "a-0123456789abcd"])
+        self.assertIsNone(self.rg._propre("labo_apps", "t-chat"))
+        self.assertEqual(len(self.rg._propre("labo_apps", [f"a-{i:014d}" for i in range(500)])), self.rg.MAX_LABO)
+        self.assertEqual(self.rg._propre("labo_delai", 50), 300)
+        self.assertEqual(self.rg._propre("labo_delai", 99999), 3000)
+        #  La liste par défaut n'est pas partagée entre deux lectures.
+        self.rg.lire()["labo_apps"].append("t-x")
+        self.assertEqual(self.rg.lire()["labo_apps"], ["*"])
+
     def test_logo_du_centre(self):
         r = self.rg.lire()
         self.assertEqual((r["embleme"], r["code"]), ("nomad", True))
@@ -167,6 +180,34 @@ class Table(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_toutes_les_applis(self):
+        """Le labo propose TOUTES les applis d'un menu : pas NoDisplay, pas
+        celles d'un autre bureau qu'XFCE ; la copie de l'utilisateur gagne."""
+        d = self.maison / "partage"
+        sys_apps, mes_apps = d / "sys/applications", d / "moi/applications"
+        (sys_apps / "kde").mkdir(parents=True)
+        mes_apps.mkdir(parents=True)
+        entree = "[Desktop Entry]\nType=Application\nExec=true\nName={}\n{}"
+        (sys_apps / "gimp.desktop").write_text(entree.format("GIMP", ""))
+        (sys_apps / "cache.desktop").write_text(entree.format("Caché", "NoDisplay=true\n"))
+        (sys_apps / "kde-seul.desktop").write_text(entree.format("KDE seul", "OnlyShowIn=KDE;\n"))
+        (sys_apps / "pas-xfce.desktop").write_text(entree.format("Pas XFCE", "NotShowIn=XFCE;\n"))
+        (sys_apps / "kde" / "outil.desktop").write_text(entree.format("Sous-dossier", ""))
+        (sys_apps / "lien.desktop").write_text("[Desktop Entry]\nType=Link\nName=Lien\nURL=https://x\n")
+        (sys_apps / "editeur.desktop").write_text(entree.format("Éditeur système", ""))
+        (mes_apps / "editeur.desktop").write_text(entree.format("Mon éditeur", ""))
+        avant = dict(os.environ)
+        os.environ["XDG_DATA_HOME"] = str(d / "moi")
+        os.environ["XDG_DATA_DIRS"] = str(d / "sys")
+        try:
+            t = self.ap.Table()
+            noms = [e["nom"] for e in t.section_applis()]
+        finally:
+            os.environ.clear(); os.environ.update(avant)
+        self.assertEqual(noms, ["GIMP", "Mon éditeur", "Sous-dossier"])
+        ident = self.ap._ident("a-", str(sys_apps / "gimp.desktop"))
+        self.assertEqual(t.actions[ident], ("desktop", str(sys_apps / "gimp.desktop")))
 
     def test_bureau(self):
         t = self.ap.Table()
@@ -351,6 +392,29 @@ class Serveur(unittest.TestCase):
         self.assertEqual((r["embleme"], r["code"]), ("rond", False))
         self.req("POST", "/api/reglages", {"embleme": "nomad", "code": True})
 
+    def test_labo(self):
+        """🧪 Mon labo : la page, la liste (par défaut : les onglets de
+        ti-lex IA puis les outils), et un clic qui lance une appli du labo."""
+        self.assertEqual(self.req("GET", "/labo.html", jeton=False)[0], 200)
+        self.assertEqual(self.req("GET", "/labo.js", jeton=False)[0], 200)
+        self.assertEqual(self.req("GET", "/api/labo", jeton=False)[0], 403)
+        L = json.loads(self.req("GET", "/api/labo")[1])
+        titres = [s["titre"] for s in L["sections"]]
+        self.assertIn("Mon bureau", titres)
+        tous = {e["id"] for s in L["sections"] for e in s["elements"]}
+        self.assertTrue({e["id"] for e in L["apps"]} <= tous)
+        #  Le choix d'Alex, dans SON ordre ; un identifiant disparu ne casse rien.
+        self.req("POST", "/api/reglages", {"labo_apps": ["s-corbeille", "a-00000000000000", "s-maison"]})
+        L = json.loads(self.req("GET", "/api/labo")[1])
+        self.assertEqual([e["id"] for e in L["apps"]], ["s-corbeille", "s-maison"])
+        etat = json.loads(self.req("GET", "/api/etat")[1])
+        self.assertEqual(etat["labo"], ["s-corbeille", "s-maison"])
+        self.lances.clear()
+        self.req("POST", "/api/lancer", {"id": "s-maison"})
+        self.assertEqual(self.lances, [("ouvrir", str(Path(self.tmp.name)))])
+        self.etat.derniers.clear()          # la garde du double-clic ne doit pas gêner les autres tests
+        self.req("POST", "/api/reglages", {"labo_apps": ["*"]})
+
     def test_double_clic_un_seul_lancement(self):
         self.req("GET", "/api/etat")
         self.lances.clear()
@@ -460,6 +524,56 @@ class Scripts(unittest.TestCase):
     def test_shell(self):
         for s in ("usr/bin/lexos-bureau", "usr/bin/ti-lex-ia"):
             subprocess.run(["sh", "-n", str(INC / s)], check=True)
+
+    def test_labo_et_relance(self):
+        b = (INC / "usr/bin/lexos-bureau").read_text()
+        self.assertIn("labo)", b)
+        self.assertIn('pkill -USR1 -u "$(id -u)"', b)
+        #  « relancer » n'est pas une chute : trois de suite ne laissent plus
+        #  le bureau classique pour toute la session.
+        self.assertIn('if [ -e "$RELANCE" ]; then', b)
+        self.assertIn(': >"$RELANCE"', b)
+        f = (BUREAU / "fenetre.py").read_text()
+        self.assertIn("setSwapInterval(0)", f)       # le gel de glXSwapBuffers
+        self.assertIn("query_pointer", f)            # QCursor.pos restait figé
+        self.assertNotIn("QCursor.pos()\n", f)
+        s = (BUREAU / "serveur.py").read_text()
+        self.assertIn("signal.SIGUSR1, signal.SIG_IGN", s)   # SIGUSR1 tue par défaut
+        raccourcis = (INC / "etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml").read_text()
+        self.assertIn('value="lexos-bureau labo"', raccourcis)
+
+    def test_relancer_ne_compte_pas_comme_chute(self):
+        """La vraie boucle, avec un faux moteur qui sort aussitôt : après
+        trois « relance » marquées, elle tourne encore."""
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            ici = d / "bureau"; ici.mkdir()
+            (ici / "reglages.py").write_text((BUREAU / "reglages.py").read_text())
+            compte = d / "compte"
+            (ici / "serveur.py").write_text(
+                "import os,sys\n"
+                f"p='{compte}'\n"
+                "n=int(open(p).read()) if os.path.exists(p) else 0\n"
+                "open(p,'w').write(str(n+1))\n"
+                f"r='{d}/run/lexos-bureau-'+str(os.getuid())+'.relance'\n"
+                "if n < 3: open(r,'w').close()\n"
+                "sys.exit(143)\n")
+            (d / "run").mkdir()
+            (d / ".config/lexos").mkdir(parents=True)
+            (d / ".config/lexos/bureau.json").write_text('{"mode": "moteur"}')
+            script = (INC / "usr/bin/lexos-bureau").read_text().replace("ICI=/usr/lib/lexos/bureau", f"ICI={ici}")
+            (d / "lexos-bureau").write_text(script)
+            faux = d / "bin"; faux.mkdir()
+            for nom, corps in (("xfdesktop", "exit 0"), ("notify-send", "exit 0"),
+                               ("xprop", "exit 0"), ("python3", f'case "$*" in *PySide6*) exit 0;; esac; exec {sys.executable} "$@"')):
+                (faux / nom).write_text("#!/bin/sh\n" + corps + "\n"); (faux / nom).chmod(0o755)
+            env = dict(os.environ, HOME=str(d), XDG_RUNTIME_DIR=str(d / "run"), XDG_CONFIG_HOME=str(d / ".config"),
+                       XDG_CACHE_HOME=str(d / "cache"), PATH=f"{faux}:{os.environ['PATH']}", DISPLAY=":99")
+            subprocess.run(["sh", str(d / "lexos-bureau")], env=env, timeout=60,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            #  3 relances voulues + 3 vraies chutes = 6 démarrages ; sans la
+            #  marque, la boucle abandonnait au 3e.
+            self.assertEqual(compte.read_text(), "6")
 
     def test_autostart(self):
         t = (INC / "etc/xdg/autostart/lexos-bureau.desktop").read_text()

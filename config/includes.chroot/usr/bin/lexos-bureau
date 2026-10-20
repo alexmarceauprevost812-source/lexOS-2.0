@@ -8,6 +8,8 @@
 #    lexos-bureau classique   revient au bureau XFCE d'avant (xfdesktop)
 #    lexos-bureau etat        dit lequel est choisi, et lequel tourne
 #    lexos-bureau relancer    redémarre le bureau du Moteur (après une mise à jour)
+#    lexos-bureau labo        ouvre / ferme 🧪 Mon labo (pour un raccourci clavier ;
+#                             sinon : la souris collée en bas de l'écran)
 #
 #  ═══ UNE SEULE FENÊTRE DE BUREAU À LA FOIS ═══
 #  Les fonds animés de 2026 ont été retirés parce qu'ils posaient une 2e
@@ -28,6 +30,7 @@ set -u
 ICI=/usr/lib/lexos/bureau
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/bureau.json"
 JOURNAL="${XDG_CACHE_HOME:-$HOME/.cache}/lexos-bureau.log"
+RELANCE="${XDG_RUNTIME_DIR:-/tmp}/lexos-bureau-$(id -u).relance"
 
 mode_choisi() {
 	python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import reglages; print(reglages.lire()["mode"])' "$ICI" 2>/dev/null \
@@ -101,6 +104,15 @@ boucle() {
 		if [ "$(mode_choisi)" != moteur ]; then
 			xfdesktop_relance; exit 0
 		fi
+		#  « lexos-bureau relancer » : arrêt VOULU, pour prendre le nouveau
+		#  code. Ce n'est pas une chute — avant, trois « relancer » en cinq
+		#  minutes (une mise à jour, deux essais) laissaient le bureau
+		#  classique pour toute la session. On repart tout de suite.
+		if [ -e "$RELANCE" ]; then
+			rm -f "$RELANCE"
+			echo "$(date '+%F %T') relancé à la demande (nouveau code)" >>"$JOURNAL"
+			continue
+		fi
 		#  Sinon c'est une chute : l'ancien bureau revient AVANT tout le reste.
 		xfdesktop_relance
 		echo "$(date '+%F %T') le bureau s'est arrêté (code $CODE) — xfdesktop relancé" >>"$JOURNAL"
@@ -140,12 +152,21 @@ case "${1:-}" in
 		#  remet xfdesktop une seconde, et repart avec le NOUVEAU code.
 		#  Sans boucle (rien ne tournait), on en démarre une.
 		if pgrep -u "$(id -u)" -f "/usr/bin/lexos-bureau$" >/dev/null 2>&1 && moteur_tourne; then
+			: >"$RELANCE"          # la boucle saura que ce n'est pas une chute
 			pkill -u "$(id -u)" -f "python3 $ICI/serveur[.]py"
 		else
 			pkill -u "$(id -u)" -f "python3 $ICI/serveur[.]py" 2>/dev/null
 			setsid "$0" >/dev/null 2>&1 </dev/null &
 		fi
 		echo "Le bureau du Moteur redémarre — quelques secondes." ;;
+	labo)
+		#  Le labo vit dans le moteur du bureau (fenetre.py, « LE LABO ») :
+		#  SIGUSR1 lui dit d'ouvrir ou de fermer le panneau.
+		if moteur_tourne; then
+			pkill -USR1 -u "$(id -u)" -f "python3 $ICI/serveur[.]py"
+		else
+			echo "Le labo vient avec le bureau du Moteur, qui ne tourne pas : lexos-bureau moteur" >&2; exit 1
+		fi ;;
 	etat)
 		echo "choisi    : $(mode_choisi)"
 		if moteur_tourne; then echo "en marche : moteur"
@@ -155,5 +176,5 @@ case "${1:-}" in
 	-h|--help|aide)
 		sed -n '3,10p' "$0" | sed '/^#$/d' | sed 's/^#  \{0,1\}//' ;;
 	*)
-		echo "Usage : lexos-bureau [moteur|classique|relancer|etat]" >&2; exit 2 ;;
+		echo "Usage : lexos-bureau [moteur|classique|relancer|labo|etat]" >&2; exit 2 ;;
 esac

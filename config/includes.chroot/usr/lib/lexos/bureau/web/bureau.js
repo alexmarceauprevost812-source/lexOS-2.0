@@ -285,13 +285,24 @@ async function demander(vers) {
   } catch { bulle("Le bureau ne répond pas"); }
 }
 $("#demande").addEventListener("submit", (e) => { e.preventDefault(); demander("chat"); });
+
+/* 🧪 Mon labo : la fenêtre du labo appartient à fenetre.py ; la page lui
+   fait signe en changeant son titre (« labo-… »), qu'il surveille. */
+function ouvrirLabo() { document.title = "labo-" + Date.now(); }
+$("#vers-labo").addEventListener("click", ouvrirLabo);
 $("#vers-abo").addEventListener("click", () => demander("abo"));
 
 /* ════════════════ Clic droit ════════════════ */
 const menu = $("#menu");
+let LABO = [], iconeMenu = null;
 document.addEventListener("contextmenu", (e) => {
   e.preventDefault();
   if (SECONDAIRE || e.target.closest(".demande")) return;
+  //  Clic droit SUR une icône : « Ajouter à mon labo » (ou l'en retirer).
+  iconeMenu = surIcones(e);
+  const dans = iconeMenu && LABO.includes(iconeMenu.dataset.id);
+  $("#menu-labo").hidden = $("#menu-labo-hr").hidden = !iconeMenu || !P.labo;
+  $("#menu-labo").textContent = dans ? "🧪 Retirer de mon labo" : "🧪 Ajouter à mon labo";
   menu.hidden = false;
   const L = menu.offsetWidth, H = menu.offsetHeight;
   menu.style.left = Math.min(e.clientX, innerWidth - L - 8) + "px";
@@ -304,6 +315,14 @@ menu.addEventListener("click", async (e) => {
   if (l) {
     menu.hidden = true;
     if (l.dataset.local === "logo") changerLogo(true);
+    if (l.dataset.local === "labo-icone" && iconeMenu) {
+      const id = iconeMenu.dataset.id, dans = LABO.includes(id);
+      try {
+        await api("/api/reglages", { labo_apps: dans ? LABO.filter((x) => x !== id) : [...LABO, id] });
+        bulle(dans ? "Retiré de ton labo" : "🧪 Ajouté à ton labo — laisse la souris en bas de l'écran pour l'ouvrir");
+        verifier();
+      } catch { bulle("Le bureau ne répond pas"); }
+    }
     if (l.dataset.local === "code") {
       const actif = !P.code;
       try { await api("/api/reglages", { code: actif }); bulle(actif ? "⌨️ Le code qui s'écrit : activé" : "⌨️ Le code qui s'écrit : désactivé"); verifier(); } catch {}
@@ -446,6 +465,8 @@ async function charger() {
   appliquerDecor(!avantP || avantP.anim !== P.anim || avantP.densite !== P.densite);
   POSITIONS = (P.positions && typeof P.positions === "object") ? P.positions : {};
   poserMarges(e.zone);
+  LABO = Array.isArray(e.labo) ? e.labo : [];
+  $("#vers-labo").hidden = SECONDAIRE || !P.labo;
   poserDock(SECONDAIRE ? null : e.dock);
   appliquerEmbleme();
   //  Pendant qu'on glisse une icône, on ne redessine pas sous la souris.

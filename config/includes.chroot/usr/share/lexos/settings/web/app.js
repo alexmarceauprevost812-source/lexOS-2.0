@@ -1545,6 +1545,19 @@ function blocBureauMoteur(){
     ${Object.keys(B.positions || {}).length ? `<div class="row" style="margin-top:8px">
       <button class="btn ghost" onclick="setBM({positions:{}})">🧲 Remettre les icônes en ordre</button></div>` : ""}
   </div>
+  <div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">🧪 Mon labo</div>
+    <div class="d" style="margin-bottom:10px">Laisse la souris collée en bas de l'écran — même par-dessus une
+      appli — et ton labo monte : tes IA et tes outils de travail. Ajoute-les avec « ＋ Ajouter »
+      dans le labo, ou clic droit sur une icône du bureau.</div>
+    <div class="row">
+      <button class="btn ${sel(B.labo)}" onclick="setBM({labo:true})">Activé</button>
+      <button class="btn ${sel(!B.labo)}" onclick="setBM({labo:false})">Désactivé</button>
+    </div>
+    ${B.labo ? `<div class="t" style="margin:14px 0 8px">Temps avec la souris en bas avant qu'il monte</div>
+    <div class="row">${[[500,"½ seconde"],[1000,"1 seconde"],[2000,"2 secondes"]].map(([v, n]) =>
+      `<button class="btn ${sel(B.labo_delai === v)}" onclick="setBM({labo_delai:${v}})">${n}</button>`).join("")}</div>` : ""}
+  </div>
   ${inter("horloge", "Grande horloge et « Demande à ti-lex IA… »", "Au centre, en haut, comme dans le Moteur.")}
   ${inter("tilex", "Icônes ti-lex IA", "Chat, Codex, Images, Schémas… — ouvrent ton Moteur.")}
   ${inter("lexos", "Icônes LexOS", "Fichiers, Terminal, Navigateur, Paramètres…")}
