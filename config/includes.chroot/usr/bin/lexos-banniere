@@ -39,7 +39,7 @@ G=$'\033[38;5;245m'; R=$'\033[0m'
 
 COLS=$(tput cols 2>/dev/null || echo 80)
 if (( COLS < 50 )); then
-	printf '%sTI-LEX%s %sTERMINAL PRO%s %sv4%s\n' "$V" "$R" "$O" "$R" "$OR" "$R"
+	printf '%sTI-LEX%s %sTERMINAL PRO%s %sv4%s\n' "$O" "$R" "$O" "$R" "$OR" "$R"
 	exit 0
 fi
 
@@ -81,9 +81,10 @@ if (( ! FIXE )); then
 	printf '\033[%dA' "$HAUT"
 fi
 
-#  2. TI-LEX, ligne à ligne.
+#  2. TI-LEX, ligne à ligne — en ORANGE capuche (ALEX : « peux-tu le mettre
+#  orange »). La pluie, elle, reste verte.
 for l in "${LOGO[@]}"; do
-	printf '%s%s%s\033[K\n' "$V" "$l" "$R"
+	printf '%s%s%s\033[K\n' "$O" "$l" "$R"
 	pause 0.04
 done
 
