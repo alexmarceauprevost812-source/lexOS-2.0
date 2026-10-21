@@ -423,6 +423,22 @@ alias nuit='lexos terminal nuit'
 #  C'est une commande qu'on tape quand on en veut, pas un état imposé.
 alias multi='lexos-multi'
 
+#  « animation on / off » et « tilex » : définis AVANT la garde « une seule
+#  fois par shell » — sinon un shell où le fichier a déjà été lu (le
+#  terminal LexOS Pro, par exemple) ne les connaissait pas (« commande
+#  inconnue : animation »). Seule la bannière automatique reste plus bas.
+LEXOS_ANIM_FICHIER="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/animation"
+animation() {
+	case "${1:-}" in
+		on|oui)  mkdir -p "${LEXOS_ANIM_FICHIER%/*}" && printf 'on\n' > "$LEXOS_ANIM_FICHIER" \
+			&& printf '✓ Bannière animée à chaque nouveau terminal (« animation off » pour l\x27enlever).\n' ;;
+		off|non) mkdir -p "${LEXOS_ANIM_FICHIER%/*}" && printf 'off\n' > "$LEXOS_ANIM_FICHIER" \
+			&& printf '✓ Plus de bannière à l\x27ouverture (« tilex » la montre quand tu veux).\n' ;;
+		*) printf 'Usage : animation on | off\n' >&2; return 2 ;;
+	esac
+}
+alias tilex='lexos-banniere'
+
 # =============================================================================
 #  À partir d'ici : une seule fois par shell.
 # =============================================================================
@@ -491,17 +507,6 @@ fi
 #  de chiffres, TI-LEX, TERMINAL PRO v4) — seulement si on l'a allumée avec
 #  « animation on » : un terminal qui s'ouvre sans qu'on l'ait demandé doit
 #  rester instantané. « tilex » la rejoue quand on veut.
-LEXOS_ANIM_FICHIER="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/animation"
-animation() {
-	case "${1:-}" in
-		on|oui)  mkdir -p "${LEXOS_ANIM_FICHIER%/*}" && printf 'on\n' > "$LEXOS_ANIM_FICHIER" \
-			&& printf '✓ Bannière animée à chaque nouveau terminal (« animation off » pour l\x27enlever).\n' ;;
-		off|non) mkdir -p "${LEXOS_ANIM_FICHIER%/*}" && printf 'off\n' > "$LEXOS_ANIM_FICHIER" \
-			&& printf '✓ Plus de bannière à l\x27ouverture (« tilex » la montre quand tu veux).\n' ;;
-		*) printf 'Usage : animation on | off\n' >&2; return 2 ;;
-	esac
-}
-alias tilex='lexos-banniere'
 if [ -n "${BASH_VERSION:-}" ] && [ -t 1 ] && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] \
    && [ -z "${LEXOS_NO_BANNER:-}" ] && [ -r "$LEXOS_ANIM_FICHIER" ] \
    && command -v lexos-banniere >/dev/null 2>&1; then
