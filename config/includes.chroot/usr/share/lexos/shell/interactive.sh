@@ -185,7 +185,7 @@ if [ -n "${BASH_VERSION:-}" ]; then
 			#  bascule jour/nuit visible sans relancer le shell. La lecture
 			#  est une commande interne de bash sur un fichier de dix lignes,
 			#  elle ne crée aucun processus.
-			__lexos_etat() { __lexos_code=$?; __lexos_couleurs; }
+			__lexos_etat() { __lexos_code=$?; __lexos_couleurs; __lexos_style; }
 			case "${PROMPT_COMMAND:-}" in
 				*__lexos_etat*) ;;
 				"")  PROMPT_COMMAND="__lexos_etat" ;;
@@ -208,8 +208,69 @@ if [ -n "${BASH_VERSION:-}" ]; then
 			#  « @\h », puis le chemin et le chevron en vert machine, la
 			#  branche git dans le gris des détails — et la frappe blanche,
 			#  non refermée, en dernier.
-			PS1='\[\033[${__LEXOS_C_UTILISATEUR}m\]\u\[\033[0m\] \[\033[${__LEXOS_C_LOGO}m\]LEXOS\[\033[0m\] \[\033[${__LEXOS_C_MACHINE}m\]\w\[\033[0m\]\[\033[${__LEXOS_C_DIM}m\]$(__lexos_git_branch)\[\033[0m\] \[$(__lexos_fleche)\]❯\[\033[0m\] \[\033[${__LEXOS_C_TEXTE}m\]'
+			__LEXOS_PS1_CLASSIQUE='\[\033[${__LEXOS_C_UTILISATEUR}m\]\u\[\033[0m\] \[\033[${__LEXOS_C_LOGO}m\]LEXOS\[\033[0m\] \[\033[${__LEXOS_C_MACHINE}m\]\w\[\033[0m\]\[\033[${__LEXOS_C_DIM}m\]$(__lexos_git_branch)\[\033[0m\] \[$(__lexos_fleche)\]❯\[\033[0m\] \[\033[${__LEXOS_C_TEXTE}m\]'
+			PS1="$__LEXOS_PS1_CLASSIQUE"
 			PS0='\e[0m'
+
+			#  ═══ L'INVITE « TI-LEX » — UN STYLE DE PLUS, À ALLUMER ═══
+			#  ALEX (une invite modèle et la bannière « TI-LEX TERMINAL PRO
+			#  v4 ») : « ti-lex en or, lexos en orange, pro en vert — les mêmes
+			#  couleurs que la 2e image », puis le texte exact : « ti-lex_lexOS-pro ».
+			#  Sur deux lignes, comme son modèle :
+			#      ti-lex_lexOS-pro  ~/chemin ⎇ branche
+			#      ─◇ ❯
+			#  Le chemin et la branche restent, en gris discret : sans eux on
+			#  ne sait plus où on est. Le chevron garde son rouge d'échec.
+			#  C'est un STYLE, pas un remplacement : l'invite classique (une
+			#  ligne, LEXOS en vert foncé) reste celle par défaut, et son banc
+			#  ne bouge pas. « invite tilex » / « invite classique » change.
+			#  Les couleurs sont celles de la bannière : l'or du « v4 », l'orange
+			#  de « TERMINAL PRO », le vert de « TI-LEX » ; de jour, les mêmes
+			#  en foncé, sinon l'or ne se lit pas sur le crème.
+			__LEXOS_PS1_TILEX='\[\033[1;${__LEXOS_C_OR}m\]\u\[\033[0;${__LEXOS_C_VERT_TL}m\]_\[\033[1;${__LEXOS_C_ORANGE_TL}m\]lexOS\[\033[0;${__LEXOS_C_VERT_TL}m\]-\[\033[1;${__LEXOS_C_VERT_TL}m\]pro\[\033[0m\]  \[\033[${__LEXOS_C_DIM}m\]\w$(__lexos_git_branch)\[\033[0m\]\n\[\033[${__LEXOS_C_VERT_TL}m\]─◇\[\033[0m\] \[$(__lexos_fleche)\]❯\[\033[0m\] \[\033[${__LEXOS_C_TEXTE}m\]'
+			LEXOS_INVITE_FICHIER="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/invite"
+			__lexos_style_vu=""
+			__lexos_style() {
+				local st="classique"
+				if [ -r "$LEXOS_INVITE_FICHIER" ]; then
+					read -r st < "$LEXOS_INVITE_FICHIER" 2>/dev/null || st="classique"
+				fi
+				if [ "$st" = "tilex" ]; then
+					local jour=""
+					[ "${LEXOS_TERM_EFFECTIF:-}" = "jour" ] && jour=1
+					case "${COLORTERM:-}" in
+						truecolor|24bit)
+							if [ -n "$jour" ]; then
+								__LEXOS_C_OR='38;2;150;100;0'; __LEXOS_C_ORANGE_TL='38;2;176;76;0'; __LEXOS_C_VERT_TL='38;2;11;107;58'
+							else
+								__LEXOS_C_OR='38;2;255;196;0'; __LEXOS_C_ORANGE_TL='38;2;255;138;31'; __LEXOS_C_VERT_TL='38;2;57;231;95'
+							fi ;;
+						*)
+							if [ -n "$jour" ]; then
+								__LEXOS_C_OR='38;5;136'; __LEXOS_C_ORANGE_TL='38;5;130'; __LEXOS_C_VERT_TL='38;5;29'
+							else
+								__LEXOS_C_OR='38;5;220'; __LEXOS_C_ORANGE_TL='38;5;208'; __LEXOS_C_VERT_TL='38;5;41'
+							fi ;;
+					esac
+					__LEXOS_C_MACHINE="$__LEXOS_C_VERT_TL"   # le chevron dans le même vert
+					PS1="$__LEXOS_PS1_TILEX"
+				elif [ "$__lexos_style_vu" = "tilex" ]; then
+					PS1="$__LEXOS_PS1_CLASSIQUE"     # on revient au classique une fois
+				fi
+				__lexos_style_vu="$st"
+			}
+			#  « invite tilex » / « invite classique » : le choix est gardé dans
+			#  ~/.config/lexos/invite, et pris dès la prochaine invite.
+			invite() {
+				case "${1:-}" in
+					tilex|ti-lex) mkdir -p "${LEXOS_INVITE_FICHIER%/*}" && printf 'tilex\n' > "$LEXOS_INVITE_FICHIER" \
+						&& printf '✓ Invite ti-lex : or, orange et vert.\n' ;;
+					classique|lexos) mkdir -p "${LEXOS_INVITE_FICHIER%/*}" && printf 'classique\n' > "$LEXOS_INVITE_FICHIER" \
+						&& printf '✓ Invite classique.\n' ;;
+					*) printf 'Usage : invite tilex | classique\n' >&2; return 2 ;;
+				esac
+			}
+			__lexos_style
 			;;
 	esac
 fi
