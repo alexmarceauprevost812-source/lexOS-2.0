@@ -667,6 +667,18 @@ if [ -f /etc/calamares/modules/partition.conf ]; then
 			echo "[lexos]   !! partition : ${CLE} absent — double démarrage non garanti"
 		fi
 	done
+
+	#  Le /boot en clair est ce qui permet à GRUB de démarrer un LexOS chiffré
+	#  (voir partition.conf : GRUB ne sait pas ouvrir un LUKS2 en Argon2id).
+	#  Sans lui, cocher le chiffrement redonnerait « Invalid passphrase ».
+	BOOT_BLOC="$(grep -B4 -A4 -E 'mountPoint:[[:space:]]*"/boot"' "$CONF" || true)"
+	if grep -qE '^partitionLayout:' "$CONF" \
+	   && printf '%s\n' "$BOOT_BLOC" | grep -qE 'noEncrypt:[[:space:]]*true'; then
+		echo "[lexos]   partition : /boot séparé et non chiffré (GRUB n'a rien à déchiffrer)"
+	else
+		echo "[lexos]   ÉCHEC : partition.conf sans /boot non chiffré — un LexOS chiffré ne démarrerait pas"
+		exit 1
+	fi
 else
 	#  Debian ne livre AUCUN partition.conf dans calamares-settings-debian :
 	#  c'est LexOS qui l'apporte, via includes.chroot. S'il manque ici, c'est

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>labo</title>
+<link rel="stylesheet" href="polices.css">
+<link rel="stylesheet" href="labo.css">
+</head>
+<body>
+<!-- 🧪 Mon labo — le panneau qui monte du bas de l'écran (fenetre.py,
+     « LE LABO »). La fenêtre est transparente : seul ce panneau se voit. -->
+<section id="panneau" class="panneau" aria-label="Mon labo">
+  <div class="poignee"></div>
+  <header class="tete">
+    <div class="titre">
+      <b>🧪 Mon <span>labo</span></b>
+      <small id="sous">Tes IA et tes outils de travail</small>
+    </div>
+    <div class="boutons">
+      <button id="ajouter" class="bouton">＋ Ajouter</button>
+      <button id="fermer" class="bouton rond-x" title="Fermer">✕</button>
+    </div>
+  </header>
+  <div id="corps" class="corps"></div>
+  <div id="bulle" class="bulle" hidden></div>
+</section>
+<script src="fonds.js"></script>
+<script src="labo.js"></script>
+</body>
+</html>

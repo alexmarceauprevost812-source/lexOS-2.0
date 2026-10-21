@@ -400,5 +400,30 @@ case "$VERDICT" in
 	*) muet "l'unité n'a pas pu être relue ici : $VERDICT" ;;
 esac
 
+#  ═══ ACTIVÉ NE VEUT PAS DIRE DÉMARRÉ, SOUS XFCE ═══
+#  XFCE n'allume jamais graphical-session.target : sur l'Alienware (2.0.3),
+#  l'unité était « enabled » et « inactive (dead) » toute la session. C'est
+#  l'autostart qui la démarre — sans lui, le lien plus haut ne sert à rien.
+AUTO="$RACINE/config/includes.chroot/etc/xdg/autostart/lexos-moteurd.desktop"
+if [ -r "$AUTO" ] && grep -qx 'Exec=/usr/bin/lexos-moteurd session' "$AUTO"; then
+	ok "l'autostart XFCE démarre le démon (lexos-moteurd session)"
+else
+	non "rien ne démarre l'unité sous XFCE : graphical-session.target n'y est jamais atteint"
+fi
+LANCEUR="$RACINE/config/includes.chroot/usr/bin/lexos-moteurd"
+#  « session » ne doit démarrer que ce qui est activé : sinon « off » et
+#  l'interrupteur des Paramètres ne tiendraient pas d'une session à l'autre.
+if sed -n '/^\tsession)/,/;;/p' "$LANCEUR" | grep -q 'is-enabled'; then
+	ok "…et seulement s'il est activé (« off » tient)"
+else
+	non "« lexos-moteurd session » démarre l'unité même désactivée"
+fi
+#  Les limites de relance vont dans [Unit] : dans [Service], systemd les
+#  ignore (« Unknown key 'StartLimitIntervalSec' in section [Service] »).
+MAL_RANGE="$(sed -n '/^\[Service\]/,/^\[/p' "$UNITE" | grep -E '^StartLimit' || true)"
+[ -z "$MAL_RANGE" ] \
+	&& ok "les limites de relance sont dans [Unit], là où systemd les lit" \
+	|| non "limites de relance dans [Service], ignorées : $MAL_RANGE"
+
 printf '\n\033[1m%d réussis, %d échoués, %d non mesurés\033[0m\n' "$REUSSIS" "$ECHOUES" "$MUETS"
 [ "$ECHOUES" -eq 0 ]

@@ -428,17 +428,26 @@ menu menuitem:selected * {
     carte entrait en concurrence avec le SEUL élément qui doit attirer l'œil :
     le bouton de connexion. Un filet blanc à 8 % suffit à détacher la carte
     du fond, et l'orange reste au bouton. */
+/*  ═══ 2026-10-19 : LA CARTE DU MOTEUR ═══
+    ALEX : « faire que l'interface quand on rentre ressemble à ça » — l'écran
+    du cadenas de son Moteur d'interface (MOTEUR-INTERFACE, style.css,
+    « .verrou-carte ») : une carte gris très foncé aux coins bien ronds,
+    posée au centre d'une lueur orange, avec un filet ORANGE pâle autour.
+    Le fond (fond-connexion.png) est maintenant cette lueur, sans mascotte :
+    la carte ne flotte plus sur une image, elle EST l'image. Le filet passe
+    donc à l'orange à 35 % (le blanc à 8 % disparaissait sur la lueur), et
+    le bouton garde l'orange plein : l'œil va toujours d'abord à lui. */
 #login_window {
-	background-color: rgba(8, 8, 9, 0.94);
-	border: 1px solid rgba(255, 255, 255, 0.08);
-	border-radius: 18px;
-	padding: 12px;
+	background-color: rgba(17, 17, 18, 0.96);
+	border: 1px solid alpha(@lexos_accent, 0.35);
+	border-radius: 22px;
+	padding: 18px 16px 14px 16px;
 }
 #login_window #content_frame,
 #login_window #buttonbox_frame,
 #content_frame,
 #buttonbox_frame {
-	background-color: @lexos_noir;
+	background-color: transparent;
 	border: none;
 	box-shadow: none;
 }
@@ -485,13 +494,13 @@ menu menuitem:selected * {
     contenu du champ d'un pixel au moment où on clique dedans, et ce
     sautillement se voit. L'épaisseur ne bouge pas, la couleur seule parle. */
 #login_window entry {
-	background-color: #141416;
+	background-color: #0B0B0C;
 	background-image: none;
 	color: #FFFFFF;
 	caret-color: #FFFFFF;
 	border: 2px solid rgba(255, 255, 255, 0.10);
-	border-radius: 10px;
-	padding: 7px 10px;
+	border-radius: 12px;
+	padding: 10px 14px;
 }
 /*  LE NŒUD « text » À L'INTÉRIEUR DU CHAMP. Depuis GTK 3.20 le contenu d'un
     GtkEntry vit dans un nœud « text » à lui. Selon la version du greeter,
@@ -635,8 +644,14 @@ menu menuitem:selected * {
     en 700 franchit le seuil ; les baisser ferait tomber le bouton sous la
     norme sans que rien ne le dise. Si un jour quelqu'un veut du texte plus
     petit sur ce bouton, il doit repasser au noir. */
+/*  LE DÉGRADÉ DU MOTEUR (« Créer et entrer ») va de l'accent vers sa
+    version foncée. Jamais vers le clair : @lexos_accent_hi sous de
+    l'écriture blanche tombe à ~2,7:1, sous le seuil du grand texte. Les
+    deux bouts du dégradé tiennent chacun le seuil — mesuré par le banc sur
+    « background-color », qui reste l'accent plein et sert de repli à un
+    GTK qui refuserait le dégradé. */
 #login_window button {
-	background-image: none;
+	background-image: linear-gradient(to bottom, @lexos_accent, @lexos_accent_lo);
 	background-color: @lexos_accent;
 	color: #FFFFFF;
 	border: 1px solid @lexos_accent;
@@ -647,6 +662,7 @@ menu menuitem:selected * {
 	text-shadow: none;
 }
 #login_window button:hover {
+	background-image: none;
 	background-color: @lexos_accent_hi;
 	color: #FFFFFF;
 	border-color: @lexos_accent_hi;
@@ -658,6 +674,7 @@ menu menuitem:selected * {
     été pris. */
 #login_window button:active,
 #login_window button:checked {
+	background-image: none;
 	background-color: @lexos_accent_lo;
 	color: #FFFFFF;
 }
@@ -665,6 +682,7 @@ menu menuitem:selected * {
     distinguer d'un bouton vivant au premier coup d'oeil — le remplir
     d'orange pâle le ferait passer pour cliquable. */
 #login_window button:disabled {
+	background-image: none;
 	background-color: #0B0B0C;
 	color: alpha(@lexos_accent, 0.45);
 	border-color: alpha(@lexos_accent, 0.25);
@@ -744,4 +762,32 @@ tooltip.background {
 	background-color: @lexos_noir;
 	color: @lexos_accent;
 	border: 1px solid alpha(@lexos_accent, 0.5);
+}
+
+
+/* ===========================================================================
+   2026-10-19 — LA CARTE DU MOTEUR, DEUXIÈME MOITIÉ : LES MESURES
+   ===========================================================================
+   Vu sur un VRAI greeter (lightdm-gtk-greeter 2.0.9 sous Xephyr, pas
+   déduit) : la grille du greeter pose la photo à gauche et un petit bouton
+   « Se connecter » à droite. Le cadenas du Moteur, lui, est une colonne :
+   cadenas, titre, phrase, champ, puis un bouton sur TOUTE la largeur.
+
+   Le CSS ne peut pas réordonner une grille GTK. Ce qu'il peut faire :
+     · la photo est retirée (hide-user-image=true, hook 0410) — le cadenas,
+       le titre et la phrase sont DESSINÉS dans fond-connexion.png, juste
+       au-dessus de la carte, aux mêmes cotes que dans le Moteur ;
+     · le champ et la liste des comptes prennent une largeur fixe, et le
+       bouton la même : il remplit la carte comme « Créer et entrer ».
+   Les trois largeurs vont ensemble : un bouton plus étroit que le champ
+   redonne la grille du greeter, avec son bouton calé à droite. */
+#login_window entry,
+#login_window #user_combo {
+	min-width: 340px;
+}
+#login_window #login_button {
+	min-width: 340px;
+	min-height: 30px;
+	margin-top: 6px;
+	border-radius: 12px;
 }

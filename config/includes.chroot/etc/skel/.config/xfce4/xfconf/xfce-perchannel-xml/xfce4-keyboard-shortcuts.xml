@@ -61,6 +61,10 @@
       <property name="&lt;Super&gt;e"       type="string" value="thunar"/>
       <property name="&lt;Super&gt;s"       type="string" value="xfce4-appfinder"/>
       <property name="&lt;Super&gt;l"       type="string" value="lexos logitheque"/>
+      <!-- 🧪 Mon labo (le panneau qui monte du bas de l'écran) au clavier. -->
+      <property name="&lt;Super&gt;b"       type="string" value="lexos-bureau labo"/>
+      <!-- 🎛️ Mes outils (la barre qui descend du haut de l'écran) au clavier. -->
+      <property name="&lt;Super&gt;o"       type="string" value="lexos-bureau outils"/>
 
       <!-- LES RÉGLAGES DE LA FENÊTRE ACTIVE — PAS CEUX DE L'ORDINATEUR.
            Un thème de barre de titre ne sait lancer AUCUNE commande à nous

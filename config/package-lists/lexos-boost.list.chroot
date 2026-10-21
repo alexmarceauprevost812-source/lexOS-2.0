@@ -9,6 +9,7 @@ util-linux
 
 # panneau graphique
 python3-gi
+python3-gi-cairo
 gir1.2-gtk-3.0
 
 # Demande de mot de passe depuis le panneau. Le correctif livrait

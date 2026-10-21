@@ -342,15 +342,25 @@ for PRIO in 800 200; do
 		non "priorité $PRIO : la boîte vaut « $F » — ni noir franc, ni opacité ≥ 0.9"
 	fi
 
+	#  2026-10-19, CARTE DU MOTEUR : la carte est un gris très foncé
+	#  (rgb 17,17,18), plus le noir. Des cadres intérieurs noirs y feraient
+	#  deux rectangles plus sombres. Ils passent donc TRANSPARENTS : la
+	#  carte se voit au travers. Ce que ce contrôle garde, c'est la raison
+	#  pour laquelle il existe — le gris du thème ne doit JAMAIS revenir.
+	#  Noir ou transparent, les deux l'écartent.
 	F="$(resout "$BANC/contenu.json" background-color "$PRIO")"
-	[ "$F" = "#000000" ] \
-		&& ok "priorité $PRIO : le contenu (#content_frame) est noir lui aussi" \
-		|| non "priorité $PRIO : #content_frame vaut « $F » — bande grise dans la boîte"
+	case "$F" in
+		"#000000"|transparent|"rgba(0,0,0,0)"|"rgba(0, 0, 0, 0)")
+			ok "priorité $PRIO : le contenu (#content_frame) laisse voir la carte ($F)" ;;
+		*)	non "priorité $PRIO : #content_frame vaut « $F » — bande grise dans la boîte" ;;
+	esac
 
 	F="$(resout "$BANC/boutons.json" background-color "$PRIO")"
-	[ "$F" = "#000000" ] \
-		&& ok "priorité $PRIO : la rangée des boutons est noire (pas de bande grise en bas)" \
-		|| non "priorité $PRIO : #buttonbox_frame vaut « $F »"
+	case "$F" in
+		"#000000"|transparent|"rgba(0,0,0,0)"|"rgba(0, 0, 0, 0)")
+			ok "priorité $PRIO : la rangée des boutons laisse voir la carte ($F)" ;;
+		*)	non "priorité $PRIO : #buttonbox_frame vaut « $F »" ;;
+	esac
 done
 
 F="$(resout "$BANC/erreur.json" color)"
@@ -661,11 +671,14 @@ grep -q "^background=$BANC/racine/fonds/lexos-connexion.png$" "$CONF" \
 grep -q '^theme-name=LexOS-Connexion$' "$CONF" \
 	&& ok "le greeter porte le thème LexOS-Connexion" \
 	|| non "theme-name : $(grep '^theme-name=' "$CONF")"
-grep -q '^hide-user-image=false$' "$CONF" \
-	&& ok "la photo du profil choisi est affichée" \
-	|| non "hide-user-image absent — pas de photo de profil"
-grep -q '^position=50%,center 88%,end$' "$CONF" \
-	&& ok "la boîte est ancrée par le BAS (le logo reste dégagé en haut)" \
+#  2026-10-19, ÉCRAN DU MOTEUR : le cadenas remplace la photo. Le greeter
+#  mettait la photo à GAUCHE des champs, le Moteur met le cadenas EN TÊTE ;
+#  le cadenas est dessiné dans le fond, la photo est donc retirée.
+grep -q '^hide-user-image=true$' "$CONF" \
+	&& ok "pas de photo à gauche : le cadenas du Moteur est en tête de carte" \
+	|| non "hide-user-image : $(grep '^hide-user-image=' "$CONF")"
+grep -q '^position=50%,center 50%,start$' "$CONF" \
+	&& ok "la carte est au CENTRE de l'écran, comme celle du Moteur" \
 	|| non "position : $(grep '^position=' "$CONF")"
 grep -q '^icon-theme-name=LexOS$' "$CONF" \
 	&& ok "les icônes suivent le thème LexOS lu dans build.conf" \
@@ -1213,8 +1226,11 @@ fi
 grep -q '^round-user-image=true$' "$CONF_N" \
 	&& ok "la pastille reste ronde" \
 	|| non "round-user-image : $(grep '^round-user-image=' "$CONF_N")"
-grep -q '^hide-user-image=false$' "$CONF_N" \
-	&& ok "la pastille est affichée" \
+#  La pastille reste CONFIGURÉE (ronde, avatar-masque.png) pour le jour où
+#  on la remettrait, mais elle n'est plus AFFICHÉE : le cadenas du Moteur
+#  a pris sa place en tête de carte (2026-10-19).
+grep -q '^hide-user-image=true$' "$CONF_N" \
+	&& ok "la pastille est masquée — le cadenas du Moteur la remplace" \
 	|| non "hide-user-image : $(grep '^hide-user-image=' "$CONF_N")"
 
 #  ═══ LE FOND COMPLET PASSE DEVANT LES AUTRES CANDIDATS ═══
@@ -1224,15 +1240,14 @@ grep -q "^background=$BANC/racine/branding/fond-connexion.png$" "$CONF_N" \
 	&& ok "fond-connexion.png passe AVANT les anciens candidats" \
 	|| non "background : $(grep '^background=' "$CONF_N")"
 
-#  ═══ CES 88 % VONT AVEC LE FOND — ASSERTION IMPORTANTE ═══
-#  La mascotte est DESSINÉE dans le haut de fond-connexion.png : le greeter
-#  ne sait pas placer une image, on ne peut donc pas la déplacer. Si la boîte
-#  remonte, elle entre dans son visage — et c'est déjà arrivé une fois, avec
-#  un message d'erreur qui faisait grandir la boîte des deux côtés. Un futur
-#  « nettoyage » qui recentrerait la boîte casserait l'écran sans qu'aucun
-#  test ne le dise.
-grep -q '^position=50%,center 88%,end$' "$CONF_N" \
-	&& ok "la boîte reste ancrée par le bas à 88 % — elle ne monte pas dans le visage" \
+#  ═══ LA CARTE AU CENTRE VA AVEC LE FOND — ASSERTION IMPORTANTE ═══
+#  2026-10-19 : le fond est la lueur du Moteur, ronde et CENTRÉE, sans
+#  mascotte dessinée en haut. La carte doit donc être centrée elle aussi :
+#  ancrée par le bas comme avant, elle tomberait à côté de la lueur. Si une
+#  image avec un visage revient en haut du fond, la règle des 88 % revient
+#  avec elle — ces deux choses-là se décident ensemble.
+grep -q '^position=50%,center 50%,start$' "$CONF_N" \
+	&& ok "la carte reste centrée sur la lueur du Moteur" \
 	|| non "position : $(grep '^position=' "$CONF_N")"
 
 #  ═══ LE FOND EST UNE DÉCORATION : SANS LUI, ON DOIT POUVOIR SE CONNECTER ═══

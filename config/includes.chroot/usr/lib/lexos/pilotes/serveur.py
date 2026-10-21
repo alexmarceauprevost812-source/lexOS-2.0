@@ -76,6 +76,26 @@ def _lancer(action: str) -> bool:
     return True
 
 
+#  L'inscription MOK est INTERACTIVE : mokutil demande un mot de passe deux
+#  fois, au clavier, et ce mot de passe sera retapé dans l'écran bleu au
+#  redémarrage. On ne le fait donc pas transiter par cette page : on ouvre un
+#  terminal sur l'assistant, qui pose ses questions lui-même. La ligne de
+#  commande est FIXE — rien de ce que la page envoie n'y entre.
+ASSISTANT_SIGNATURE = [
+    "x-terminal-emulator", "-e", "bash", "-c",
+    "sudo lexos-signer-pilote; echo; read -rp 'Entrée pour fermer cette fenêtre… ' _",
+]
+
+
+def _ouvrir_assistant_signature() -> bool:
+    try:
+        subprocess.Popen(ASSISTANT_SIGNATURE, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        return False
+    return True
+
+
 class Gestionnaire(BaseHTTPRequestHandler):
     server_version = "LexOSPilotes/1.0"
 
@@ -142,6 +162,12 @@ class Gestionnaire(BaseHTTPRequestHandler):
             self.send_error(403, "Interdit")
             return
         chemin = urlparse(self.path).path
+        if chemin == "/api/assistant-signature":
+            if _ouvrir_assistant_signature():
+                self._json({"lance": True})
+            else:
+                self._json({"lance": False, "message": "Aucun terminal trouvé (x-terminal-emulator)."}, 500)
+            return
         actions = {"/api/verifier": "verifier", "/api/installer": "installer"}
         if chemin not in actions:
             self.send_error(404, "Introuvable")

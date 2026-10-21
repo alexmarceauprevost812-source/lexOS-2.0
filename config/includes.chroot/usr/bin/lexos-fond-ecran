@@ -135,6 +135,11 @@ appliquer() {
 		fi
 	done <<< "$props"
 	[[ "$n" -gt 0 ]] || die "Aucune propriété n'a pu être réglée."
+	#  Le bureau du Moteur (lexos-bureau) prend la même image : avec lui,
+	#  xfdesktop est arrêté et ne montrerait rien de ce qu'on vient d'écrire.
+	if [[ -r /usr/lib/lexos/bureau/reglages.py ]]; then
+		python3 /usr/lib/lexos/bureau/reglages.py image "$img" 2>/dev/null || true
+	fi
 	ok "Fond d'écran appliqué (${n} réglage(s) écran/espace) : ${img##*/}"
 	case "$img" in
 		*.gif|*.GIF)

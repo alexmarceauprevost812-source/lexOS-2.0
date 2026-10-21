@@ -254,7 +254,7 @@ class Menu(unittest.TestCase):
             self.skipTest('Affichage GTK inaccessible localement')
         def measure():
             window = next(w for w in Gtk.Window.list_toplevels() if w.get_title() == 'Outils d’audit — LexOS Pro')
-            children = window.get_child().get_children()
+            children = getattr(window, 'audit_contenu', window.get_child()).get_children()
             search, split = children[:2]
             sidebar = split.get_child1().get_child().get_child()
             right = split.get_child2()

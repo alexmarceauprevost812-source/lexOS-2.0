@@ -1,0 +1,97 @@
+/* 🧪 Mon labo — mêmes couleurs, même police, mêmes tuiles que le bureau
+   (bureau.css), dans un panneau de verre qui monte du bas de l'écran. */
+:root {
+  --noir-2: #0e0e0f; --noir-3: #161617; --ligne: #26262a;
+  --orange: #ff7a18; --orange-2: #ff9a3c; --orange-fonce: #d9580a;
+  --blanc: #ffffff; --blanc-doux: #e9e9ec; --gris: #9a9aa2;
+  --acc-rgb: 255,122,24; --sur-accent: #ffffff;
+  --police: "LX Space Grotesk", "Space Grotesk", system-ui, sans-serif;
+  --ic: 104px; --ic-img: 60px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: transparent; overflow: hidden; }
+body { color: var(--blanc); font-family: var(--police); user-select: none; cursor: default; }
+button { font: inherit; color: inherit; }
+
+/* Le panneau : caché sous le bord de l'écran, il monte quand on l'ouvre. */
+.panneau {
+  /* 24 px de marge autour : l'ombre s'y éteint AVANT le bord de la fenêtre.
+     Avec 10 px, l'ombre coupée net dessinait un rectangle gris par-dessus
+     une appli au fond blanc (vu sur Fichiers, en plein écran). */
+  position: absolute; left: 24px; right: 24px; bottom: 0; top: 24px;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, rgba(20,20,22,.94), rgba(9,9,10,.97));
+  border: 1px solid rgba(var(--acc-rgb),.45); border-bottom: 0; border-radius: 26px 26px 0 0;
+  box-shadow: 0 -4px 20px rgba(0,0,0,.5), 0 0 16px rgba(var(--acc-rgb),.16), inset 0 1px 0 rgba(255,255,255,.06);
+  transform: translateY(105%); opacity: .4;
+  transition: transform .32s cubic-bezier(.5,0,.75,0), opacity .32s;
+  overflow: hidden;
+}
+.panneau.ouvert { transform: translateY(0); opacity: 1; transition: transform .55s cubic-bezier(.2,1.12,.3,1), opacity .25s; }
+.panneau::before {   /* la lueur qui court sur le bord du haut */
+  content: ""; position: absolute; left: 12%; right: 12%; top: 0; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--orange), var(--orange-2), var(--orange), transparent);
+  box-shadow: 0 0 18px rgba(var(--acc-rgb),.8); opacity: .9;
+}
+.panneau::after {    /* un halo doux, en haut à gauche */
+  content: ""; position: absolute; width: 420px; height: 420px; left: -120px; top: -220px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--acc-rgb),.22), transparent 65%); pointer-events: none;
+}
+.poignee { width: 54px; height: 5px; border-radius: 5px; background: rgba(255,255,255,.18); margin: 10px auto 0; flex: none; }
+
+.tete { position: relative; z-index: 1; display: flex; align-items: center; gap: 14px; padding: 8px 22px 12px 26px; flex: none; }
+.titre { display: flex; flex-direction: column; gap: 2px; }
+.titre b { font-size: 24px; font-weight: 700; letter-spacing: .01em; }
+.titre b span { background: linear-gradient(135deg, var(--orange-2), var(--orange) 55%, var(--orange-fonce)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.titre small { color: var(--gris); font-size: 12.5px; }
+.boutons { margin-left: auto; display: flex; gap: 8px; }
+.bouton { height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid rgba(var(--acc-rgb),.5); background: rgba(var(--acc-rgb),.12); cursor: pointer; font-size: 13.5px; font-weight: 600; transition: background .2s, transform .2s, box-shadow .2s; }
+.bouton:hover { background: rgba(var(--acc-rgb),.26); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(var(--acc-rgb),.25); }
+.bouton.plein { background: linear-gradient(135deg, var(--orange), var(--orange-fonce)); color: var(--sur-accent); border-color: transparent; }
+.rond-x { width: 36px; padding: 0; border-color: var(--ligne); background: var(--noir-3); }
+
+.corps { position: relative; z-index: 1; flex: 1; min-height: 0; overflow-y: auto; padding: 4px 22px 22px;
+  scrollbar-width: thin; scrollbar-color: rgba(var(--acc-rgb),.5) transparent; }
+.corps::-webkit-scrollbar { width: 6px; } .corps::-webkit-scrollbar-thumb { background: rgba(var(--acc-rgb),.5); border-radius: 6px; }
+
+.grille { display: grid; grid-template-columns: repeat(auto-fill, var(--ic)); grid-auto-rows: minmax(var(--ic), auto); gap: 8px 12px; justify-content: center; }
+.groupe { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--orange); margin: 14px 4px 8px; }
+.groupe:first-child { margin-top: 2px; }
+
+/* Les tuiles : celles du bureau, un peu plus grandes. */
+.icone { position: relative; width: var(--ic); min-height: var(--ic); padding: 8px 0 4px; border: 1px solid transparent; background: transparent; border-radius: 18px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; outline: none; transition: background .2s, border-color .2s; }
+.ouvert .icone { animation: pop .5s cubic-bezier(.2,1.6,.4,1) both; }
+.icone span { font-size: calc(var(--ic-img) * .56); width: var(--ic-img); height: var(--ic-img); flex: none; display: grid; place-items: center; border-radius: 18px; background: rgba(14,14,15,.85); border: 1px solid rgba(var(--acc-rgb),.35); box-shadow: 0 8px 24px rgba(0,0,0,.5); transition: box-shadow .3s, transform .3s cubic-bezier(.3,1.6,.5,1); overflow: hidden; }
+.icone.lanceur span { background: linear-gradient(145deg, rgba(var(--acc-rgb),.35), rgba(14,14,15,.85)); border-color: rgba(var(--acc-rgb),.7); }
+.icone span img { -webkit-user-drag: none; width: 72%; height: 72%; object-fit: contain; }
+.icone span img.vignette { width: 100%; height: 100%; object-fit: cover; }
+.icone b { font-size: 12.5px; font-weight: 500; text-align: center; line-height: 1.2; max-width: calc(var(--ic) - 4px); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+.icone:hover { background: rgba(var(--acc-rgb),.12); border-color: rgba(var(--acc-rgb),.4); }
+.icone:hover span { transform: translateY(-4px) scale(1.08); box-shadow: 0 12px 30px rgba(0,0,0,.6), 0 0 24px rgba(var(--acc-rgb),.45); }
+.icone.part span { animation: decolle .6s cubic-bezier(.5,0,.3,1); }
+@keyframes pop { from { transform: scale(.6) translateY(20px); opacity: 0; } }
+@keyframes decolle { 40% { transform: scale(.9); } 70% { transform: translateY(-16px) scale(1.12); box-shadow: 0 0 40px var(--orange); } }
+
+/* Retirer : le petit × au survol. */
+.retirer { position: absolute; top: 2px; right: 8px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--ligne); background: var(--noir-3); color: var(--gris); font-size: 12px; line-height: 20px; text-align: center; opacity: 0; transform: scale(.6); transition: opacity .15s, transform .2s; }
+.icone:hover .retirer { opacity: 1; transform: scale(1); }
+.retirer:hover { background: #ff3b3b; color: #fff; border-color: #ff3b3b; }
+
+/* Mode « ＋ Ajouter » : tout ce qui existe, ce qui est déjà dans le labo est coché. */
+.choix .icone { opacity: .62; }
+.choix .icone.dedans { opacity: 1; }
+.choix .icone.dedans span { border-color: var(--orange); box-shadow: 0 0 0 2px rgba(var(--acc-rgb),.6), 0 8px 24px rgba(0,0,0,.5); }
+.choix .icone.dedans::after { content: "✓"; position: absolute; top: 2px; right: 10px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; background: var(--orange); color: var(--sur-accent); box-shadow: 0 0 12px rgba(var(--acc-rgb),.7); }
+.aide { color: var(--gris); font-size: 12.5px; text-align: center; margin: 2px 0 8px; }
+
+.vide { text-align: center; color: var(--gris); padding: 40px 10px; font-size: 14px; line-height: 1.6; }
+.vide b { display: block; font-size: 40px; margin-bottom: 8px; }
+
+.bulle { position: absolute; z-index: 3; left: 50%; bottom: 16px; transform: translateX(-50%); background: rgba(14,14,15,.96); border: 1px solid rgba(var(--acc-rgb),.5); border-radius: 12px; padding: 9px 16px; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.6); white-space: nowrap; }
+.bulle[hidden] { display: none; }
+
+/* PAS de règle sur la hauteur : la fenêtre prend la hauteur de son contenu
+   (fenetre.py, « taille-… ») — une règle « max-height » rapetissait les
+   icônes justement quand le labo en a peu. La largeur, elle, suit l'écran. */
+@media (max-width: 1000px) { :root { --ic: 92px; --ic-img: 52px; } .titre b { font-size: 20px; } }
+@media (prefers-reduced-motion: reduce) { .panneau, .panneau.ouvert { transition: none; } .ouvert .icone { animation: none; } }

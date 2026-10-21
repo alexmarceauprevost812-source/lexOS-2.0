@@ -1,0 +1,8 @@
+Icônes du bureau LexOS — dessinées par Alex Marceau Prevost (TI-LEX by Prevost).
+
+Découpées de la planche branding/icones-bureau-planche.png (8 colonnes x 4
+rangées, 132 x 132 px chacune, centrées sur chaque tuile). Pour en changer
+une : remplacer le PNG du même nom ; pour toute la planche, refaire la
+découpe aux mêmes centres (voir tests/test_lexos_bureau.py, CENTRES).
+
+Où elles servent : usr/lib/lexos/bureau/applis.py (VISUELS).

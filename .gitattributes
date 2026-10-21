@@ -30,6 +30,9 @@
 *.pf2    binary
 *.efi    binary
 *.iso    binary
+#  Le certificat Secure Boot de LexOS : un octet changé, et MokManager
+#  inscrirait une clé qui ne correspond plus à rien.
+*.der    binary
 
 #  Les SVG sont du XML : du texte, et c'est bien qu'on puisse les relire dans
 #  un diff. Mais les fins de ligne restent celles du dépôt : le fond du menu

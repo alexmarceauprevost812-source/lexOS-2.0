@@ -161,26 +161,30 @@ xft-hintstyle=hintslight
 xft-rgba=rgb
 indicators=~host;~spacer;~clock;~spacer;~layout;~session;~a11y;~power
 clock-format=%A %d %B — %H:%M
-position=50%,center 88%,end
+position=50%,center 50%,start
 default-user-image=${BRAND}/avatar-masque.png
 user-background=false
-hide-user-image=false
+hide-user-image=true
 round-user-image=true
 EOF
 
-#  « position=50%,center 88%,end » : le BAS de la boîte à 88 % de la hauteur,
-#  et non son CENTRE à 55 % comme avant. Ancrer par le bas est ce qui laisse
-#  le logo tranquille en haut — une boîte centrée grandit des DEUX côtés et
-#  finit par monter dans le visage du démon dès qu'un message d'erreur
-#  s'ajoute (« Votre mot de passe est incorrect », sur la photo d'Alex).
+#  « position=50%,center 50%,start » : le HAUT de la carte à mi-hauteur,
+#  centrée en largeur. Le cadenas, « Bienvenue sur LexOS » et la phrase sont
+#  DESSINÉS dans fond-connexion.png juste au-dessus de la mi-hauteur : la
+#  carte doit donc commencer là et grandir VERS LE BAS seulement (un message
+#  d'erreur l'allonge) — centrée, elle remonterait sur le titre.
+#  Pas de photo (hide-user-image=true) : dans le Moteur, c'est le cadenas
+#  qui est en tête de carte, et le greeter met la photo à GAUCHE des champs.
 #
-#  CES 88 % VONT AVEC LE FOND, ET LE FOND AVEC EUX. La mascotte est DESSINÉE
-#  dans le haut de fond-connexion.png (voir le choix du fond, plus haut) :
-#  le greeter ne sait pas placer une image, on ne peut donc pas déplacer la
-#  mascotte. Si la boîte remonte, elle entre dans son visage. Un « nettoyage »
-#  qui recentrerait la boîte casserait l'écran sans qu'aucun test ne le dise —
-#  c'est pour ça que le banc l'exige inchangée.
-echo "[lexos]   position : boîte ancrée par le bas à 88 % — le logo reste dégagé"
+#  2026-10-19 — ALEX : l'écran d'entrée doit ressembler à celui du cadenas de
+#  son Moteur d'interface : une carte au milieu d'une lueur orange. Le fond
+#  (fond-connexion.png) n'a donc PLUS de mascotte dessinée en haut — c'est
+#  une lueur ronde, centrée. La règle d'avant (« ancrée par le bas à 88 %,
+#  sinon la boîte entre dans le visage du démon ») n'a plus d'objet : il n'y
+#  a plus de visage, et une carte centrée sur une lueur centrée est
+#  exactement le dessin demandé. Le banc exige la nouvelle valeur ; si la
+#  mascotte revient un jour dans le fond, cette ligne doit revenir avec elle.
+echo "[lexos]   position : carte au centre de la lueur (écran du Moteur)"
 
 # =============================================================================
 #  LE DERNIER CLIGNOTEMENT : LE PASSAGE DE L'ANIMATION À L'ÉCRAN DE CONNEXION

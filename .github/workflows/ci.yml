@@ -520,6 +520,15 @@ jobs:
           LEXOS_AUDIT_REQUIRE_GTK=1 xvfb-run -a /usr/bin/python3 tests/test_lexos_audit_menu.py
           bash -n tools/verifier-secure-boot-build.sh
 
+      - name: LexOS Pilotes et le bureau du Moteur — bancs Python
+        if: ${{ !cancelled() }}
+        run: |
+          #  Les deux bancs existaient, mais aucune tâche ne les lançait : le
+          #  garde « Aucun banc d'essai orphelin » les voyait rouges. Ni
+          #  serveur graphique ni apt : serveurs locaux et fausses arborescences.
+          python3 tests/test_lexos_pilotes.py -v
+          python3 tests/test_lexos_bureau.py -v
+
       - name: LEXOS PRO — services, gardes structurelles et démarrage graphique
         if: ${{ !cancelled() }}
         run: |
@@ -1832,24 +1841,6 @@ jobs:
           test -f tests/test_lexos_diagnostic.py
           python3 -m unittest tests.test_lexos_diagnostic -v
 
-      - name: LexOS Pilotes — les mises à jour de la carte graphique
-        if: ${{ !cancelled() }}
-        run: |
-          #  Appli apportée par Alex (87d7e18). Même patron que Diagnostic :
-          #  serveur sur un port FIXE (7862), donc joignable par n'importe
-          #  quelle page web ouverte — le banc démarre le vrai serveur et
-          #  vérifie qu'un Host étranger, une origine étrangère et un POST
-          #  sans l'en-tête maison sont refusés. Il tient aussi le filtre
-          #  (seuls les paquets graphiques), l'épingle NVIDIA, les paquets
-          #  de backports redemandés à backports, et l'aide root qui refuse
-          #  de tourner sans root — ce point-là saute en root, il ne tourne
-          #  donc vraiment qu'ici, sur un coureur non-root.
-          #
-          #  Nommé en toutes lettres pour le garde-fou anti-orphelin, comme
-          #  Diagnostic juste au-dessus : il cherche le NOM DE FICHIER.
-          test -f tests/test_lexos_pilotes.py
-          python3 -m unittest tests.test_lexos_pilotes -v
-
       - name: Gros texte et bulle de capture — deux gestes du quotidien
         if: ${{ !cancelled() }}
         run: |
@@ -3158,6 +3149,22 @@ jobs:
           #  lance rien — et qu'AUCUNE clé privée n'est versionnée, recherche
           #  faite sur le CONTENU des fichiers et non sur leur nom.
           bash tests/test_lexos_signer_pilote.sh
+
+      - name: ISO RTX 5060 — noyau 7.2.9 par défaut, pilote signé LexOS, /boot en clair
+        if: ${{ !cancelled() }}
+        run: |
+          #  Le menu UEFI de l'ISO du 20 octobre démarrait 6.12 (sans pilote)
+          #  par défaut ; le pilote n'était signé par aucune clé connue ; et
+          #  un LexOS chiffré butait sur « Invalid passphrase » (GRUB contre
+          #  LUKS2 Argon2id). Le banc rejoue les hooks 0907, 0915 et 9890 sur
+          #  de vraies données : le vrai grub.cfg de cette ISO, une efi.img
+          #  pleine, un vrai module du noyau signé par le vrai sign-file.
+          #  mtools/dosfstools pour l'efi.img, python3-yaml pour
+          #  partition.conf, les en-têtes du noyau pour sign-file.
+          sudo apt-get install -y --no-install-recommends mtools dosfstools python3-yaml zstd >/dev/null
+          sudo apt-get install -y --no-install-recommends "linux-headers-$(uname -r)" >/dev/null \
+            || echo "en-têtes du noyau indisponibles : la signature réelle sera « non mesurée »"
+          bash tests/test_lexos_secure_boot_iso.sh
 
       - name: Les quatre pages qui ne servaient qu'à regarder
         if: ${{ !cancelled() }}

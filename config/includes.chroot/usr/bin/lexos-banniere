@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-banniere — la bannière TI-LEX animée, à l'ouverture du terminal
+# =============================================================================
+#  ALEX (la bannière « TI-LEX TERMINAL PRO v4 » et sa pluie de chiffres) :
+#  « ajouter de la couleur… et des animations ». Une seconde et demie :
+#    1. une pluie de 0 et de 1, en vert, qui tombe ;
+#    2. « TI-LEX » qui se dessine par-dessus, ligne à ligne, en vert ;
+#    3. « TERMINAL PRO » qui s'écrit en orange, « v4 » en or ;
+#    4. la devise, en gris.
+#  Les couleurs sont celles de l'invite « ti-lex » (interactive.sh).
+#
+#  JAMAIS GÊNANTE :
+#    · rien si la sortie n'est pas un terminal, si TERM=dumb, si NO_COLOR ;
+#    · une touche pressée pendant l'animation la termine tout de suite ;
+#    · un terminal trop étroit (< 50 colonnes) reçoit la version courte ;
+#    · « lexos-banniere --fixe » : la même, sans animation.
+#  Allumée ou éteinte par « animation on » / « animation off » (interactive.sh).
+# =============================================================================
+set -u
+
+[[ -t 1 ]] || exit 0
+[[ "${TERM:-dumb}" != "dumb" && -z "${NO_COLOR:-}" ]] || exit 0
+
+FIXE=0
+[[ "${1:-}" == "--fixe" ]] && FIXE=1
+
+case "${COLORTERM:-}" in
+	truecolor|24bit)
+		#  ALEX : « TI-LEX en vert lime », et l'orange de la capuche du ti
+		#  bonhomme (#F86A00, relevé sur sa bannière) — comme l'invite.
+		V=$'\033[1;38;2;163;255;18m'; VD=$'\033[38;2;60;120;10m'
+		O=$'\033[1;38;2;248;106;0m'; OR=$'\033[1;38;2;255;196;0m' ;;
+	*)
+		V=$'\033[1;38;5;154m'; VD=$'\033[38;5;64m'
+		O=$'\033[1;38;5;202m'; OR=$'\033[1;38;5;220m' ;;
+esac
+G=$'\033[38;5;245m'; R=$'\033[0m'
+
+COLS=$(tput cols 2>/dev/null || echo 80)
+if (( COLS < 50 )); then
+	printf '%slexOS%s %sTERMINAL PRO%s %sv4%s\n' "$O" "$R" "$O" "$R" "$OR" "$R"
+	exit 0
+fi
+
+#  ALEX : « écrire lexOS » — le grand logo dit LEXOS (la police n'a pas
+#  de minuscules).
+LOGO=(
+"██╗     ███████╗██╗  ██╗ ██████╗ ███████╗"
+"██║     ██╔════╝╚██╗██╔╝██╔═══██╗██╔════╝"
+"██║     █████╗   ╚███╔╝ ██║   ██║███████╗"
+"██║     ██╔══╝   ██╔██╗ ██║   ██║╚════██║"
+"███████╗███████╗██╔╝ ██╗╚██████╔╝███████║"
+"╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝"
+)
+TITRE="T E R M I N A L   P R O"
+DEVISE="LexOS • Développement • Cybersécurité • IA • Tout en un"
+LARGE=$(( COLS < 64 ? COLS : 64 ))
+HAUT=${#LOGO[@]}
+
+#  Une touche pressée ? On arrête l'animation (et on ne mange pas la touche
+#  plus qu'il ne faut : read -n1 la consomme, c'est le prix d'un « passer »).
+passe() { read -rs -n1 -t 0.001 _ 2>/dev/null; }
+pause() { (( FIXE )) || sleep "$1"; }
+
+if (( ! FIXE )); then
+	printf '\033[?25l'                       # le curseur se cache pendant l'animation
+	trap 'printf "\033[?25h"' EXIT INT TERM
+	#  1. La pluie : HAUT lignes de 0 et de 1, redessinées sur place.
+	for (( i = 0; i < HAUT; i++ )); do echo; done
+	for (( f = 0; f < 10; f++ )); do
+		printf '\033[%dA' "$HAUT"
+		for (( l = 0; l < HAUT; l++ )); do
+			ligne=""
+			for (( c = 0; c < LARGE; c++ )); do
+				if (( RANDOM % 4 == 0 )); then ligne+=$(( RANDOM % 2 )); else ligne+=" "; fi
+			done
+			printf '%s%s%s\033[K\n' "$( (( (l + f) % 3 )) && printf '%s' "$VD" || printf '%s' "$V")" "$ligne" "$R"
+		done
+		sleep 0.05
+		passe && break
+	done
+	printf '\033[%dA' "$HAUT"
+fi
+
+#  2. TI-LEX, ligne à ligne — en ORANGE capuche (ALEX : « peux-tu le mettre
+#  orange »). La pluie, elle, reste verte.
+for l in "${LOGO[@]}"; do
+	printf '%s%s%s\033[K\n' "$O" "$l" "$R"
+	pause 0.04
+done
+
+#  3. TERMINAL PRO qui s'écrit, puis v4 en or.
+printf '  '
+if (( FIXE )); then
+	printf '%s%s%s' "$O" "$TITRE" "$R"
+else
+	for (( i = 0; i < ${#TITRE}; i++ )); do
+		printf '%s%s%s' "$O" "${TITRE:i:1}" "$R"
+		sleep 0.012
+	done
+fi
+printf '  %sv4%s\n' "$OR" "$R"
+
+#  4. La devise.
+printf '  %s%s%s\n\n' "$G" "$DEVISE" "$R"
+(( FIXE )) || printf '\033[?25h'
+exit 0

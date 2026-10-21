@@ -350,3 +350,70 @@ kbd{display:inline-block;padding:1px 6px;border-radius:5px;
   color:#fff;font-size:11px;line-height:18px;text-align:center;cursor:pointer;
   padding:0;opacity:0;transition:opacity .15s ease}
 .wall-item:hover .wall-voir,.wall-voir:focus-visible{opacity:1;outline:none}
+
+/* =============================================================================
+   L'INTERFACE DU MOTEUR — ALEX : « avec la même interface », puis « je le
+   trouve trop compliqué ».
+   Le même langage que ti-lex IA : fond noir avec la lueur de l'accent et la
+   grille fine, cartes vitrées qui s'allument au survol, l'accent en dégradé
+   lumineux sur ce qui est choisi. Le menu passe à 7 catégories (app.js, NAV).
+   Aucune couleur en dur : tout vient des jetons de ui.css (règle du dépôt).
+   ============================================================================= */
+body{
+  background:
+    radial-gradient(1100px 600px at 85% -10%, var(--ac-halo), transparent 60%),
+    radial-gradient(800px 500px at -10% 110%, color-mix(in srgb, var(--ac) 12%, transparent), transparent 60%),
+    linear-gradient(color-mix(in srgb, var(--fg) 3%, transparent) 1px, transparent 1px) 0 0/44px 44px,
+    linear-gradient(90deg, color-mix(in srgb, var(--fg) 3%, transparent) 1px, transparent 1px) 0 0/44px 44px,
+    var(--bg);
+}
+#sidebar{width:300px;padding:0 12px 24px;display:flex;flex-direction:column;
+  background:color-mix(in srgb, var(--bg-side) 82%, transparent);
+  backdrop-filter:blur(12px);border-right:1px solid color-mix(in srgb, var(--ac) 28%, var(--bd))}
+.nav-tete{position:sticky;top:0;z-index:2;padding:18px 4px 12px;display:flex;flex-direction:column;gap:12px;
+  background:linear-gradient(var(--bg-side) 75%, transparent)}
+.nav-titre{font-size:21px;letter-spacing:.01em}
+.nav-titre b{background:linear-gradient(90deg, var(--fg), var(--ac-hi));-webkit-background-clip:text;background-clip:text;color:transparent}
+#nav-cherche{width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid var(--bd);
+  background:var(--bg);color:var(--fg);font:inherit;font-size:14.5px;outline:none;transition:border-color .2s, box-shadow .2s}
+#nav-cherche:focus{border-color:var(--ac);box-shadow:0 0 0 4px var(--ac-halo)}
+.nav-corps{display:flex;flex-direction:column;gap:6px}
+.nav-cat{display:flex;align-items:center;gap:12px;width:100%;padding:12px 12px;border-radius:14px;
+  border:1px solid transparent;background:none;color:var(--fg);font:inherit;text-align:left;cursor:pointer;
+  transition:background .2s, border-color .2s, transform .2s}
+.nav-cat:hover{background:var(--bg-hi);border-color:color-mix(in srgb, var(--ac) 40%, transparent);transform:translateX(2px)}
+.nav-cat.ouvert{background:color-mix(in srgb, var(--ac) 12%, var(--bg-side));border-color:color-mix(in srgb, var(--ac) 55%, transparent);
+  box-shadow:0 0 18px var(--ac-halo)}
+.cat-pic{width:40px;height:40px;flex:none;display:grid;place-items:center;font-size:21px;border-radius:12px;
+  background:var(--bg);border:1px solid color-mix(in srgb, var(--ac) 45%, var(--bd))}
+.nav-cat.ouvert .cat-pic{border-color:var(--ac);box-shadow:0 0 12px var(--ac-halo)}
+.cat-txt{display:flex;flex-direction:column;min-width:0;flex:1}
+.cat-txt b{font-size:16px;font-weight:700}
+.cat-txt small{color:var(--fg-dim);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cat-fl{color:var(--ac-hi);font-size:20px;transition:transform .25s}
+.nav-cat.ouvert .cat-fl{transform:rotate(90deg)}
+.nav-sous{display:flex;flex-direction:column;gap:2px;margin:2px 0 8px 20px;padding-left:12px;
+  border-left:2px solid color-mix(in srgb, var(--ac) 45%, transparent);animation:sous-ouvre .25s ease-out}
+@keyframes sous-ouvre{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.nav-item{font-size:15px;padding:9px 12px;border-radius:10px;margin-top:0}
+.nav-item.sel{background:linear-gradient(135deg, var(--ac), var(--ac-lo));color:var(--ac-txt);box-shadow:0 0 16px var(--ac-halo)}
+.nav-de{display:block;color:var(--fg-dim);font-size:11.5px;font-weight:400}
+.nav-item.sel .nav-de{color:var(--ac-txt-dim)}
+.nav-rien{color:var(--fg-dim);padding:14px 10px;font-size:13.5px}
+.grp{display:none}
+
+/* Les sections de la catégorie, en onglets en haut de la page */
+.cat-onglets{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px;padding-bottom:14px;border-bottom:1px solid var(--bd)}
+.cat-onglet{padding:8px 14px;border-radius:999px;border:1px solid var(--bd);background:color-mix(in srgb, var(--bg-side) 80%, transparent);
+  color:var(--fg);font:inherit;font-size:13.5px;cursor:pointer;transition:border-color .2s, color .2s, background .2s}
+.cat-onglet:hover{border-color:var(--ac);color:var(--ac-hi)}
+.cat-onglet.sel{background:linear-gradient(135deg, var(--ac), var(--ac-lo));border-color:var(--ac);color:var(--ac-txt);font-weight:600;box-shadow:0 0 14px var(--ac-halo)}
+
+/* Le contenu : titres et cartes vitrées comme le Moteur */
+#content{padding:26px 36px 48px}
+h2{font-size:28px;letter-spacing:.01em;text-shadow:0 0 22px var(--ac-halo)}
+.srow{background:color-mix(in srgb, var(--bg-side) 78%, transparent);backdrop-filter:blur(8px);border-radius:14px;
+  border-color:color-mix(in srgb, var(--fg) 8%, var(--bd));transition:border-color .2s, box-shadow .2s}
+.srow:hover{border-color:color-mix(in srgb, var(--ac) 45%, var(--bd));box-shadow:0 0 18px color-mix(in srgb, var(--ac) 12%, transparent)}
+.btn:not(.ghost){box-shadow:0 0 14px var(--ac-halo)}
+@media (prefers-reduced-motion: reduce){.nav-sous{animation:none}.nav-cat,.nav-cat:hover{transition:none;transform:none}}

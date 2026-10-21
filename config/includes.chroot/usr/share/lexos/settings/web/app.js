@@ -27,34 +27,40 @@ function wifiGlyph(){
   return `<i class="gly gly-wifi ${s}" title="${esc(t)}"></i>`;
 }
 
+/*  ═══ LE MENU EN SEPT CATÉGORIES ═══
+    ALEX (photo des Paramètres) : « je le trouve trop compliqué ». Six groupes
+    et 38 lignes affichées d'un coup, c'était une liste à lire, pas un menu.
+    Les mêmes 38 sections, rangées en SEPT catégories aux noms de tous les
+    jours ; seule la catégorie ouverte montre ses sections, et un champ
+    « Chercher » trouve n'importe quel réglage par son nom. */
 const NAV = [
-  {grp:"Réseau", items:[
-    ["wifi",wifiGlyph,"Wi-Fi"], ["reseau","🌐","Réseau"], ["bluetooth","🅱","Bluetooth"]]},
-  {grp:"Matériel", items:[
-    ["ecrans","🖥","Écrans"], ["son","🔊","Son"], ["energie","🔋","Énergie"],
-    ["usb","🔌","Appareils USB"], ["mac","🍎","Mac (Apple)"],
-    ["diagnostic","🩺","Diagnostic"]]},
-  {grp:"Personnalisation", items:[
+  {grp:"Internet", pic:"🌐", desc:"Wi-Fi, réseau, Bluetooth", items:[
+    ["wifi",wifiGlyph,"Wi-Fi"], ["reseau","🌐","Réseau"], ["bluetooth","🅱","Bluetooth"],
+    ["partage","📤","Partage"], ["distant","🖥","Bureau à distance"]]},
+  {grp:"Écran et son", pic:"🖥️", desc:"Écrans, son, batterie", items:[
+    ["ecrans","🖥","Écrans"], ["son","🔊","Son"], ["energie","🔋","Énergie"]]},
+  {grp:"Mon look", pic:"🎨", desc:"Couleurs, fond d'écran, bureau", items:[
     ["apparence","🎨","Apparence"], ["bureau","🖼","Bureau LexOS"],
-    ["multitaches","🗔","Multi-tâches"], ["fichiers","🗂","Fichiers et images"],
-    ["applications","🧩","Applications"],
-    ["notifications","🔔","Notifications"], ["recherche","🔍","Recherche"],
-    ["terminal","🖥","Terminal jour/nuit"]]},
-  {grp:"Comptes", items:[
-    ["comptes","👤","Comptes en ligne"], ["partage","📤","Partage"],
+    ["terminal","🖥","Terminal jour/nuit"], ["fichiers","🗂","Fichiers et images"]]},
+  {grp:"Fenêtres", pic:"🗔", desc:"Bureaux, notifications, recherche", items:[
+    ["multitaches","🗔","Multi-tâches"], ["notifications","🔔","Notifications"],
+    ["recherche","🔍","Recherche"]]},
+  {grp:"Appareils", pic:"🖱️", desc:"Souris, clavier, USB, imprimantes", items:[
+    ["souris","🖱","Souris et pavé tactile"], ["clavier","⌨","Clavier"],
+    ["usb","🔌","Appareils USB"], ["amovibles","💾","Supports amovibles"],
+    ["formatage","⚠","Formater un support"], ["imprimantes","🖨","Imprimantes"],
+    ["tablette","🖊","Tablette graphique"], ["couleurs","🌈","Gestion des couleurs"],
+    ["mac","🍎","Mac (Apple)"]]},
+  {grp:"Moi", pic:"👤", desc:"Comptes, sécurité, session", items:[
+    ["utilisateurs","🧑‍💻","Utilisateurs"], ["comptes","👤","Comptes en ligne"],
+    ["confidentialite","🛡","Confidentialité et sécurité"],
     ["bienetre","🌱","Bien-être numérique"], ["session","⏻","Fermer la session"]]},
-  {grp:"Périphériques", items:[
-    ["souris","🖱","Souris et pavé tactile"], ["couleurs","🌈","Gestion des couleurs"],
-    ["imprimantes","🖨","Imprimantes"], ["amovibles","💾","Supports amovibles"],
-    ["formatage","⚠","Formater un support"],
-    ["tablette","🖊","Tablette graphique"]]},
-  {grp:"Système", items:[
-    ["confidentialite","🛡","Confidentialité et sécurité"], ["maj","⬆","Mises à jour"],
-    ["accessibilite","♿","Accessibilité"], ["utilisateurs","🧑‍💻","Utilisateurs"],
-    ["region","🌍","Région et langue"], ["clavier","⌨","Clavier"],
-    ["datetime","🕒","Date et heure"], ["defaut","🧭","Applications par défaut"],
-    ["distant","🖥","Bureau à distance"],
-    ["tiers","⚖","Logiciels tiers"], ["apropos","◆","À propos"]]},
+  {grp:"Système", pic:"⚙️", desc:"Mises à jour, applis, langue, heure", items:[
+    ["maj","⬆","Mises à jour"], ["applications","🧩","Applications"],
+    ["defaut","🧭","Applications par défaut"], ["region","🌍","Région et langue"],
+    ["datetime","🕒","Date et heure"], ["accessibilite","♿","Accessibilité"],
+    ["diagnostic","🩺","Diagnostic"], ["tiers","⚖","Logiciels tiers"],
+    ["apropos","◆","À propos"]]},
 ];
 
 const ACCENTS = {orange:"#E8590C", "orange-rouge":"#D97757", bleu:"#1A5FB4",
@@ -185,7 +191,7 @@ const CLES_SECTION = {
   apparence:   ["dock", "crt", "barreCachee", "moteurd"],
   //  « image » : la section lit etat.image (le filtre lumière chaude) pour
   //  l'aperçu du fond. Mesuré, pas supposé — voir le banc des clés.
-  bureau:      ["fond", "intro", "dock", "crt", "apercu", "image"],
+  bureau:      ["bureau_moteur", "fond", "intro", "dock", "crt", "apercu", "image"],
   multitaches: ["bureaux", "apercu", "crt"],
   fichiers:    ["fichiers_vue"],
   applications:["defaut"],
@@ -1471,6 +1477,114 @@ async function basculeMoteurd(){
   await rafraichir(r.ok ? null : ("Échec : " + (r.erreur || "commande refusée")),
                    ["moteurd"]);
 }
+/*  ═══ LE BUREAU DU MOTEUR ═══
+    Un seul geste pour tous ses réglages : un objet {clé: valeur}, validé
+    côté machine par usr/lib/lexos/bureau/reglages.py. Le bureau relit son
+    fichier toutes les deux secondes : on voit le changement derrière la
+    fenêtre des Paramètres, sans rien relancer. */
+async function setBM(changement){
+  const r = await api("bureau-moteur", changement);
+  await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "réglage refusé"));
+}
+const NOMS_FONDS_BM = {constellation:"Constellation", aurore:"Aurore", etoiles:"Hyperespace",
+  pluie:"Pluie de code", vagues:"Vagues", braises:"Braises", aucun:"Noir pur"};
+function blocBureauMoteur(){
+  const B = etat.bureau_moteur;
+  if(!B) return "";
+  if(!B.dispo) return `<div class="srow" style="display:block"><div class="t">Bureau du Moteur</div>
+    <div class="d">Le bureau du Moteur n'est pas installé sur cette machine.</div></div>`;
+  const sel = (oui) => oui ? "sel" : "ghost";
+  const moteur = B.mode === "moteur";
+  let html = `<div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">Style du bureau</div>
+    <div class="d" style="margin-bottom:10px">Le bureau du Moteur : fond animé, ti-lex IA
+      à gauche, LexOS à droite, le grand logo au centre, l'horloge et « Demande à ti-lex IA… ». Le classique reste là
+      en secours, et revient tout seul si le Moteur s'arrête.</div>
+    <div class="row">
+      <button class="btn ${sel(moteur)}" onclick="setBM({mode:'moteur'})">⚡ Bureau du Moteur</button>
+      <button class="btn ${sel(!moteur)}" onclick="setBM({mode:'classique'})">Bureau classique</button>
+    </div></div>`;
+  if(!moteur) return html;
+  const pastille = ([nom, c]) => {
+    const fond = c === "arc-en-ciel"
+      ? "conic-gradient(#ff3b30,#facc15,#39ff14,#22d3ee,#6366f1,#e040fb,#ff3b30)" : c;
+    const choisi = B.accent === c;
+    return `<button title="${esc(nom)}" onclick="setBM({accent:'${jsq(c)}'})"
+      style="width:30px;height:30px;border-radius:50%;cursor:pointer;background:${fond};
+      border:2px solid ${choisi ? "#fff" : "transparent"};box-shadow:${choisi ? "0 0 0 2px " + (c.startsWith("#") ? c : "#fff") : "none"}"></button>`;
+  };
+  const tailles = [[90,"Petit"],[100,"Normal"],[115,"Grand"],[130,"Très grand"]];
+  const inter = (cle, titre, desc) => srow(titre, desc, sw(!!B[cle], `setBM({${cle}:${!B[cle]}})`));
+  html += `<div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:8px">Fond animé</div>
+    <div class="row">${B.fonds.map(f => `<button class="btn ${sel(B.anim === f)}" onclick="setBM({anim:'${jsq(f)}'})">${esc(NOMS_FONDS_BM[f] || f)}</button>`).join("")}</div>
+    <div class="t" style="margin:16px 0 8px">Couleur</div>
+    <div class="row" style="gap:8px">${B.couleurs.map(pastille).join("")}</div>
+    <div class="t" style="margin:16px 0 8px">Police</div>
+    <div class="row"><select onchange="setBM({police:this.value})">
+      ${B.polices.map(p => `<option ${p === B.police ? "selected" : ""}>${esc(p)}</option>`).join("")}
+    </select></div>
+    <div class="t" style="margin:16px 0 8px">Taille des icônes et du texte</div>
+    <div class="row">${tailles.map(([v, n]) => `<button class="btn ${sel(B.taille === v)}" onclick="setBM({taille:${v}})">${n}</button>`).join("")}</div>
+    <div class="t" style="margin:16px 0 4px">Image de fond</div>
+    <div class="d">${B.image
+      ? "Sous le fond animé : <b>" + esc(B.image.split("/").pop()) + "</b>."
+      : "Aucune — le fond animé seul, comme dans le Moteur."}
+      Une image choisie plus bas (fonds LexOS, Mes images, « Une image à moi… ») passe aussi ici.</div>
+    ${B.image ? `<div class="row" style="margin-top:8px"><button class="btn ghost" onclick="setBM({image:''})">Retirer l'image</button></div>` : ""}
+  </div>
+  <div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">Le grand logo au centre</div>
+    <div class="d" style="margin-bottom:10px">Comme dans le Moteur : clique dessus sur le bureau pour passer au suivant.</div>
+    <div class="row">
+      <button class="btn ${sel(B.embleme === "nomad")}" onclick="setBM({embleme:'nomad'})">LexOS Nomad</button>
+      <button class="btn ${sel(B.embleme === "rond")}" onclick="setBM({embleme:'rond'})">Logo rond</button>
+      <button class="btn ${sel(B.embleme === "aucun")}" onclick="setBM({embleme:'aucun'})">Aucun</button>
+    </div></div>
+  ${B.embleme === "nomad" ? inter("code", "⌨️ Le code qui s'écrit tout seul", "Derrière la bannière LexOS Nomad, comme dans le Moteur.") : ""}
+  <div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">Place des icônes</div>
+    <div class="d">Glisse une icône n'importe où sur le bureau : elle reste où tu la lâches.
+      ${Object.keys(B.positions || {}).length
+        ? Object.keys(B.positions).length + " icône(s) déplacée(s) à la main."
+        : "Pour l'instant, toutes sont dans la grille."}</div>
+    ${Object.keys(B.positions || {}).length ? `<div class="row" style="margin-top:8px">
+      <button class="btn ghost" onclick="setBM({positions:{}})">🧲 Remettre les icônes en ordre</button></div>` : ""}
+  </div>
+  <div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">🧪 Mon labo</div>
+    <div class="d" style="margin-bottom:10px">Laisse la souris collée en bas de l'écran — même par-dessus une
+      appli — et ton labo monte : tes IA et tes outils de travail. Ajoute-les avec « ＋ Ajouter »
+      dans le labo, ou clic droit sur une icône du bureau.</div>
+    <div class="row">
+      <button class="btn ${sel(B.labo)}" onclick="setBM({labo:true})">Activé</button>
+      <button class="btn ${sel(!B.labo)}" onclick="setBM({labo:false})">Désactivé</button>
+    </div>
+    ${B.labo ? `<div class="t" style="margin:14px 0 8px">Temps avec la souris en bas avant qu'il monte</div>
+    <div class="row">${[[500,"½ seconde"],[1000,"1 seconde"],[2000,"2 secondes"]].map(([v, n]) =>
+      `<button class="btn ${sel(B.labo_delai === v)}" onclick="setBM({labo_delai:${v}})">${n}</button>`).join("")}</div>` : ""}
+  </div>
+  <div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">🎛️ Mes outils</div>
+    <div class="d" style="margin-bottom:10px">Laisse la souris collée en HAUT de l'écran : une barre mince descend
+      sous la barre du haut — le ti démon (toutes tes applis), le volume, la capture d'écran, les
+      notifications, et ⏻ pour éteindre comme une vieille télé. Même délai que le labo.</div>
+    <div class="row">
+      <button class="btn ${sel(B.outils)}" onclick="setBM({outils:true})">Activé</button>
+      <button class="btn ${sel(!B.outils)}" onclick="setBM({outils:false})">Désactivé</button>
+    </div>
+  </div>
+  ${inter("horloge", "Grande horloge et « Demande à ti-lex IA… »", "Au centre, en haut, comme dans le Moteur.")}
+  ${inter("tilex", "Icônes ti-lex IA", "Chat, Codex, Images, Schémas… — ouvrent ton Moteur.")}
+  ${inter("lexos", "Icônes LexOS", "Fichiers, Terminal, Navigateur, Paramètres…")}
+  ${inter("bureau", "Mon bureau", "Le dossier personnel, la corbeille et ce qu'il y a dans ton dossier Bureau.")}
+  ${inter("orbes", "Halos de couleur", "Les lueurs floues qui flottent derrière.")}
+  ${inter("grille", "Grille", "Le quadrillage discret au centre de l'écran.")}
+  ${inter("curseur", "Lueur sous la souris", "Un halo qui suit le pointeur.")}
+  ${inter("zoom", "Zoom cinéma sur l'image", "L'image de fond avance très lentement.")}`;
+  return html;
+}
+
 async function setFond(f){
   const r = await api("fond", f);
   await rafraichir(r.ok ? "Fond d'écran appliqué" : "Échec : " + (r.erreur || "commande refusée"));
@@ -2191,7 +2305,8 @@ function contenu(cle){
       collante. <code>lexos crt status</code> dit ce qui manque, le cas
       échéant. Le changement s'applique tout de suite : pas besoin de fermer
       la session.</p>`;
-    case "bureau": return `<h2>Bureau LexOS</h2><div class="sub">Fond d'écran</div>
+    case "bureau": return `<h2>Bureau LexOS</h2><div class="sub">Le bureau du Moteur, fond d'écran</div>
+      ${blocBureauMoteur()}
       <div class="srow" style="display:block">
         <div class="t" style="margin-bottom:8px">Fond d'écran</div>
         <div class="row">
@@ -3523,27 +3638,83 @@ function contenu(cle){
 }
 
 /* --- Rendu ---------------------------------------------------------------- */
+let rechercheNav = "";
+const groupeDe = (cle) => NAV.find(g => g.items.some(([c]) => c === cle)) || NAV[0];
+const picDe = (pic) => typeof pic === "function" ? pic() : pic;
+const sansAccents = (t) => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+function allerA(cle){
+  sectionActive = cle;
+  location.hash = sectionActive;
+  //  1. la section apparaît TOUT DE SUITE, avec ce qu'on sait déjà ;
+  rend();
+  //  2. puis on lit LA MACHINE, pour cette section-là.
+  rafraichir();
+}
 function rendNav(){
   const nav = document.getElementById("sidebar");
-  nav.innerHTML = NAV.map(g =>
-    `<div class="grp">${g.grp}</div>` +
-    g.items.map(([cle,pic,label]) =>
-      `<button class="nav-item${cle===sectionActive?" sel":""}" data-cle="${cle}">
-         <span class="pic">${typeof pic === "function" ? pic() : pic}</span>
-         <span>${label}</span></button>`).join("")
-  ).join("");
-  nav.querySelectorAll(".nav-item").forEach(b =>
-    b.onclick = () => { sectionActive = b.dataset.cle;
-                        location.hash = sectionActive;
-                        //  1. la section apparaît TOUT DE SUITE, avec ce
-                        //     qu'on sait déjà ;
-                        rend();
-                        //  2. puis on lit LA MACHINE, pour cette section-là.
-                        rafraichir();
-                      });
+  const ouvert = groupeDe(sectionActive);
+  const q = sansAccents(rechercheNav.trim());
+  let corps;
+  if(q){
+    //  Chercher : une liste à plat de tout ce qui correspond, nom ou catégorie.
+    //  D'abord les sections dont le NOM correspond ; seulement s'il n'y en a
+    //  aucune, celles dont la catégorie correspond (« heure » doit donner
+    //  « Date et heure », pas toute la catégorie Système).
+    let trouves = [];
+    for(const g of NAV) for(const it of g.items)
+      if(sansAccents(it[2]).includes(q)) trouves.push([g, it]);
+    if(!trouves.length)
+      for(const g of NAV) for(const it of g.items)
+        if(sansAccents(g.grp + " " + g.desc).includes(q)) trouves.push([g, it]);
+    corps = trouves.length
+      ? trouves.map(([g, [cle, pic, label]]) =>
+          `<button class="nav-item${cle===sectionActive?" sel":""}" data-cle="${cle}">
+             <span class="pic">${picDe(pic)}</span><span>${label}<small class="nav-de">${g.grp}</small></span></button>`).join("")
+      : `<p class="nav-rien">Rien trouvé pour « ${esc(rechercheNav)} »</p>`;
+  } else {
+    corps = NAV.map((g, i) => {
+      const est = g === ouvert;
+      return `<button class="nav-cat${est?" ouvert":""}" data-cat="${i}" aria-expanded="${est}">
+          <span class="cat-pic">${g.pic}</span>
+          <span class="cat-txt"><b>${g.grp}</b><small>${g.desc}</small></span>
+          <span class="cat-fl">›</span></button>` +
+        (est ? `<div class="nav-sous">` + g.items.map(([cle,pic,label]) =>
+          `<button class="nav-item${cle===sectionActive?" sel":""}" data-cle="${cle}">
+             <span class="pic">${picDe(pic)}</span><span>${label}</span></button>`).join("") + `</div>` : "");
+    }).join("");
+  }
+  //  Le champ de recherche est gardé tel quel d'un rendu à l'autre : le
+  //  refaire ferait perdre le curseur à chaque lettre tapée.
+  if(!nav.querySelector(".nav-tete")){
+    nav.innerHTML = `<div class="nav-tete"><div class="nav-titre">⚙️ <b>Paramètres</b></div>
+        <input id="nav-cherche" type="search" placeholder="🔎 Chercher un réglage…" autocomplete="off"></div>
+      <div class="nav-corps"></div>`;
+    const champ = nav.querySelector("#nav-cherche");
+    champ.oninput = () => { rechercheNav = champ.value; rendNav(); };
+    champ.onkeydown = (e) => {
+      if(e.key === "Escape"){ champ.value = ""; rechercheNav = ""; rendNav(); }
+      if(e.key === "Enter"){ const b = nav.querySelector(".nav-corps .nav-item"); if(b) b.click(); }
+    };
+  }
+  nav.querySelector(".nav-corps").innerHTML = corps;
+  nav.querySelectorAll(".nav-item").forEach(b => b.onclick = () => allerA(b.dataset.cle));
+  nav.querySelectorAll(".nav-cat").forEach(b => b.onclick = () => {
+    const g = NAV[+b.dataset.cat];
+    allerA(g === groupeDe(sectionActive) ? sectionActive : g.items[0][0]);
+  });
+}
+/*  En haut de chaque page, les autres sections de la même catégorie, en
+    onglets : passer de « Son » à « Écrans » sans revenir au menu. */
+function ongletsCategorie(){
+  const g = groupeDe(sectionActive);
+  if(g.items.length < 2) return "";
+  return `<div class="cat-onglets" role="tablist" aria-label="${esc(g.grp)}">` + g.items.map(([cle,pic,label]) =>
+    `<button class="cat-onglet${cle===sectionActive?" sel":""}" role="tab" aria-selected="${cle===sectionActive}" data-cle="${cle}">${picDe(pic)} ${label}</button>`).join("") + `</div>`;
 }
 function rendSection(){
-  document.getElementById("content").innerHTML = contenu(sectionActive);
+  const c = document.getElementById("content");
+  c.innerHTML = ongletsCategorie() + contenu(sectionActive);
+  c.querySelectorAll(".cat-onglet").forEach(b => b.onclick = () => allerA(b.dataset.cle));
 }
 /*  LA FENÊTRE DOIT OBÉIR À CE QU'ON Y CHOISIT.
     Défaut trouvé en essayant pour de vrai : on choisissait « Manuscrite »,

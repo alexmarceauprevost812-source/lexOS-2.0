@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>outils</title>
+<link rel="stylesheet" href="polices.css">
+<link rel="stylesheet" href="outils.css">
+</head>
+<body>
+<!-- 🎛️ Mes outils — la barre mince qui descend du haut de l'écran, sous la
+     barre du haut (fenetre.py, « MES OUTILS »). La fenêtre est
+     transparente : seuls la barre et ses menus se voient. -->
+<header id="barre" class="barre">
+  <button id="demon" class="demon" title="Tout LexOS : toutes les applications et tous les outils">
+    <img src="ti-demon.png" alt=""><span>Tout <b>LexOS</b></span>
+  </button>
+  <!-- La mascotte d'Alex : l'appli « Outils d'audit » de LexOS. -->
+  <button id="audit" class="demon audit" title="Outils d'audit" hidden>
+    <img src="mascotte-audit.png" alt=""><span>Outils <b>d'audit</b></span>
+  </button>
+  <div class="sep"></div>
+  <div id="mes-outils" class="mes-outils"></div>
+  <button id="ajouter" class="rond-plus" title="Placer un outil dans la barre">＋</button>
+  <!-- Les bureaux virtuels : les quatre points de l'ancienne barre du haut.
+       La roulette de la souris sur la barre change aussi de bureau. -->
+  <div id="bureaux" class="bureaux" role="group" aria-label="Bureaux" title="Bureaux — ou la roulette de la souris sur la barre" hidden></div>
+  <div class="espace"></div>
+  <div id="son" class="son" hidden>
+    <button id="muet" class="muet" title="Couper / remettre le son">🔊</button>
+    <input type="range" id="volume" min="0" max="100" step="1" aria-label="Volume">
+    <b id="pct">–</b>
+  </div>
+  <button class="bouton-outil" data-menu="capture" title="Capture d'écran"><i>📷</i><span>Capture</span></button>
+  <button class="bouton-outil" data-menu="notifs" title="Notifications"><i>🔔</i><span>Notifications</span><em id="nb" hidden></em></button>
+  <button class="bouton-outil arret" data-menu="arret" title="Éteindre, redémarrer…"><i>⏻</i></button>
+</header>
+
+<!-- 📷 La capture -->
+<div id="menu-capture" class="menu" hidden>
+  <h4>📷 Capture d'écran</h4>
+  <div class="choix-capture">
+    <button data-capture="plein"><i>🖥️</i><b>L'écran entier</b><small>tout ce qui est affiché</small></button>
+    <button data-capture="zone"><i>✂️</i><b>Une zone</b><small>dessine un rectangle à la souris</small></button>
+    <button data-capture="fenetre"><i>🪟</i><b>La fenêtre</b><small>celle qui est au premier plan</small></button>
+  </div>
+  <p class="aide">Elles vont dans Images → Captures.</p>
+</div>
+
+<!-- 🔔 Les notifications -->
+<div id="menu-notifs" class="menu" hidden>
+  <div class="menu-tete"><h4>🔔 Notifications</h4>
+    <button id="dnd" class="petit">🔕 Ne pas déranger</button>
+    <button id="vider" class="petit">🧹 Vider</button></div>
+  <ul id="liste-notifs" class="liste-notifs"></ul>
+</div>
+
+<!-- ⏻ L'arrêt -->
+<div id="menu-arret" class="menu menu-arret" hidden>
+  <h4 id="arret-titre">À plus tard ?</h4>
+  <div class="gestes">
+    <button data-geste="eteindre" class="g-rouge" style="--i:0"><i>⏻</i><b>Éteindre</b></button>
+    <button data-geste="redemarrer" class="g-orange" style="--i:1"><i>🔄</i><b>Redémarrer</b></button>
+    <button data-geste="veille" class="g-bleu" style="--i:2"><i>🌙</i><b>Veille</b></button>
+    <button data-geste="deconnexion" style="--i:3"><i>🚪</i><b>Fermer la session</b></button>
+    <button data-geste="verrouiller" style="--i:4"><i>🔒</i><b>Verrouiller</b></button>
+  </div>
+  <p class="aide" id="arret-aide">Éteindre et redémarrer demandent un deuxième clic.</p>
+</div>
+
+<!-- 😈 Tout LexOS -->
+<section id="tout" class="tout" hidden>
+  <div class="tout-tete">
+    <img src="ti-demon.png" alt="">
+    <div class="tout-titre"><b>Tout <span>LexOS</span></b><small id="tout-sous">Toutes tes applications et tous tes outils</small></div>
+    <input id="cherche" placeholder="🔎 Cherche une appli…" autocomplete="off" maxlength="60">
+    <button id="tout-fermer" class="petit" title="Fermer">✕</button>
+  </div>
+  <div class="tout-corps">
+    <nav id="rayons" class="rayons"></nav>
+    <div id="grille" class="grille"></div>
+  </div>
+</section>
+
+<!-- 📺 L'arrêt façon télé des années 80 -->
+<div id="tele" class="tele" hidden>
+  <div id="tele-image" class="tele-image"></div>
+  <div class="tele-lignes"></div>
+  <div class="tele-point"></div>
+</div>
+
+<div id="bulle" class="bulle" hidden></div>
+<script src="fonds.js"></script>
+<script src="outils.js"></script>
+</body>
+</html>

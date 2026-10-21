@@ -84,10 +84,17 @@ python3-netifaces
 #  haut ; urllib3 et certifi sont ses fondations, dites explicitement.
 python3-urllib3
 python3-certifi
-#  Dessin GTK (cairo via GObject) et notifications de bureau.
-python3-gi-cairo
+#  Notifications de bureau. (python3-gi-cairo, le dessin GTK, n'est plus
+#  ici : lexos-boost.list.chroot le rend OBLIGATOIRE, et un paquet ne vit
+#  que sous un seul régime.)
 gir1.2-notify-0.7
 #  L'état de la machine (processus, mémoire, capteurs) et le bus système —
 #  ce que lisent le moniteur de performance et le bien-être numérique.
 python3-psutil
 python3-dbus
+
+# --- ti-lex IA (le Moteur d'Alex) : le coffre chiffré des clés API --------
+#  coffre.py et les Variables du Moteur chiffrent avec « cryptography ».
+#  Le README du Moteur dit « pip install cryptography » : sur LexOS, c'est
+#  le paquet Debian, jamais pip --break-system-packages.
+python3-cryptography

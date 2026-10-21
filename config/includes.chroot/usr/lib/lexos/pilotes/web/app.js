@@ -56,6 +56,8 @@ function afficherEtat(e) {
     alerte.hidden = true;
   }
 
+  afficherSignature(e.signature);
+
   // --- Les mises à jour ------------------------------------------------------
   $("verifie").textContent = depuis(e.verifie_le, e.maintenant);
   const maj = e.mises_a_jour;
@@ -68,6 +70,59 @@ function afficherEtat(e) {
     : `<div class="ligne"><span class="puce bon">À jour</span><span class="doux">Rien à installer pour la carte graphique.</span></div>`;
   $("btn-installer").disabled = !maj.length || suivi !== null;
   $("btn-installer").textContent = maj.length ? `Mettre à jour (${maj.length})` : "Mettre à jour les pilotes";
+}
+
+// Le guide d'inscription du certificat LexOS (MOK). Rien ne s'affiche quand
+// le pilote est chargé ou que Secure Boot est inactif : il n'y a rien à faire.
+const ETAPES_MOK = `
+  <ol class="etapes">
+    <li>Clique sur <b>Ouvrir l'assistant d'inscription</b>. Il demande ton mot de passe,
+      puis un <b>mot de passe d'inscription</b>, deux fois : choisis-en un simple et note-le,
+      il ne sert qu'une fois.</li>
+    <li><b>Redémarre</b>@LIVE@. Un écran bleu apparaît : <b>MokManager</b>, en anglais.</li>
+    <li>Choisis <b>Enroll MOK</b> → <b>Continue</b> → <b>Yes</b>, tape le mot de passe d'inscription,
+      puis <b>Reboot</b>.</li>
+    <li>LexOS redémarre avec le pilote NVIDIA. Secure Boot reste actif.</li>
+  </ol>
+  <p class="note">Si l'écran bleu passe trop vite, rien n'est cassé : relance l'assistant.
+    Garde la clé de récupération BitLocker de Windows à portée de main avant de changer quoi
+    que ce soit au démarrage.</p>`;
+
+function afficherSignature(s) {
+  const boite = $("signature"), texte = $("signature-texte"), btn = $("btn-signature");
+  if (!s || s.etape === "ok" || s.etape === "sans-secure-boot") {
+    boite.hidden = true;
+    return;
+  }
+  boite.hidden = false;
+  btn.hidden = true;
+  if (s.etape === "inscrire-lexos") {
+    const live = s.en_live ? " <b>sur la clé USB</b> (laisse-la branchée)" : "";
+    texte.innerHTML = `<p>Le pilote NVIDIA est signé par la <b>clé LexOS</b>, mais cette machine ne la
+      connaît pas encore : avec Secure Boot actif, elle refuse de le charger. Il faut inscrire
+      le certificat LexOS <b>une seule fois</b> — ensuite toutes les ISO LexOS et le système
+      installé sont acceptés.</p>` + ETAPES_MOK.replace("@LIVE@", live);
+    btn.hidden = false;
+  } else if (s.etape === "redemarrer") {
+    texte.innerHTML = `<p class="note bon">Le certificat LexOS est inscrit. Le pilote n'est pas encore
+      chargé : <b>redémarre</b>. S'il ne l'est toujours pas après, lance <code>sudo lexos tv</code>.</p>`;
+  } else if (s.etape === "cle-machine") {
+    texte.innerHTML = `<p>Le pilote a été recompilé sur cette machine et signé par sa propre clé
+      (DKMS), pas par la clé LexOS. L'assistant propose d'inscrire cette clé-là, une fois.</p>`;
+    btn.hidden = false;
+  } else {
+    texte.innerHTML = `<p class="note attention">Le pilote NVIDIA n'est pas chargé et sa signature n'a pas pu
+      être lue. L'assistant fait le point sans rien changer avant de te demander.</p>`;
+    btn.hidden = false;
+  }
+}
+
+async function ouvrirAssistant() {
+  const r = await fetch("/api/assistant-signature", { method: "POST", headers: { "X-LexOS": "1" } });
+  const rep = await r.json();
+  afficherResultat(rep.lance
+    ? { ok: true, message: "L'assistant s'est ouvert dans un terminal." }
+    : { ok: false, message: rep.message || "Impossible d'ouvrir l'assistant." });
 }
 
 async function charger() {
@@ -125,4 +180,5 @@ async function lancer(action) {
 
 $("btn-verifier").addEventListener("click", () => lancer("verifier"));
 $("btn-installer").addEventListener("click", () => lancer("installer"));
+$("btn-signature").addEventListener("click", ouvrirAssistant);
 charger();

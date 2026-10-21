@@ -338,6 +338,25 @@ else
 		ok "un dépôt en cours d'édition est refusé (code non nul)"
 	fi
 	rm -f "$SRC/config/includes.chroot/usr/bin/lexos-sale"
+	#  Un fichier oublié HORS de config/ (« tash », laissé par la touche « s »
+	#  dans l'écran de git log) ne s'installe jamais : il ne bloque pas.
+	printf 'x\n' > "$SRC/tash"
+	if LEXOS_MAJ_DEST="$DST" LEXOS_MAJ_ETC="$DST/etc/lexos" \
+	   bash "$OUTIL" --depuis "$SRC" --essai >/dev/null 2>&1; then
+		ok "un fichier non suivi hors de config/ ne bloque pas la mise à jour"
+	else
+		non "un « tash » oublié à la racine du dépôt BLOQUE la mise à jour"
+	fi
+	rm -f "$SRC/tash"
+	#  Un fichier non suivi SOUS config/, lui, serait installé : refusé.
+	printf 'x\n' > "$SRC/config/includes.chroot/usr/bin/lexos-oublie"
+	if LEXOS_MAJ_DEST="$DST" LEXOS_MAJ_ETC="$DST/etc/lexos" \
+	   bash "$OUTIL" --depuis "$SRC" --essai >/dev/null 2>&1; then
+		non "un fichier non suivi sous config/ a été ACCEPTÉ (il serait installé)"
+	else
+		ok "un fichier non suivi sous config/ est refusé"
+	fi
+	rm -f "$SRC/config/includes.chroot/usr/bin/lexos-oublie"
 fi
 
 #  ═══ SANS --paquets, AUCUN apt-get ═══

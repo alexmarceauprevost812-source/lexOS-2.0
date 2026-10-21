@@ -1,7 +1,7 @@
-# LexOS-Pro RTX5060 V2.0.2 — vraies entrées GRUB sur le fond approuvé.
+# LexOS-Pro RTX5060 V2.0.3 — vraies entrées GRUB sur le fond approuvé.
 desktop-image: "background.png"
 desktop-color: "#07070a"
-title-text: "LexOS-Pro RTX5060 V2.0.2"
+title-text: "LexOS-Pro RTX5060 V2.0.3"
 title-color: "#ffffff"
 title-font: "LexOS SemiBold 22"
 message-color: "#ffffff"

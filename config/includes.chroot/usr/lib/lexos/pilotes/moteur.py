@@ -18,6 +18,14 @@ import paquets
 
 RACINE_MODULES = Path(os.environ.get("LEXOS_PILOTES_MODULES", "/lib/modules"))
 LISTES_APT = Path("/var/lib/apt/lists")
+#  La signature du pilote : le certificat LexOS que l'ISO embarque, et
+#  l'identifiant de sa clé noté à la construction (hook 9890).
+CERT_LEXOS = Path(os.environ.get("LEXOS_PILOTES_CERT", "/usr/share/lexos/secure-boot/lexos-mok.der"))
+BUILD_CONF = Path(os.environ.get("LEXOS_PILOTES_BUILD_CONF", "/etc/lexos/build.conf"))
+PROC_MODULES = Path(os.environ.get("LEXOS_PILOTES_PROC_MODULES", "/proc/modules"))
+CMDLINE = Path(os.environ.get("LEXOS_PILOTES_CMDLINE", "/proc/cmdline"))
+#  modinfo vit dans /usr/sbin, hors du PATH d'un utilisateur Debian.
+MODINFO = next((c for c in ("/usr/sbin/modinfo", "/sbin/modinfo") if os.path.exists(c)), "modinfo")
 
 
 def _executer(cmd: list, timeout: float = 10.0) -> Optional[str]:
@@ -93,6 +101,84 @@ def secure_boot() -> Optional[bool]:
     return "enabled" in sortie.lower()
 
 
+def _lire_build_conf(cle: str) -> Optional[str]:
+    try:
+        for ligne in BUILD_CONF.read_text(encoding="utf-8").splitlines():
+            if ligne.startswith(cle + "="):
+                return ligne.split("=", 1)[1].strip().strip('"') or None
+    except OSError:
+        pass
+    return None
+
+
+def _module_charge(nom: str) -> bool:
+    try:
+        return any(l.split(" ", 1)[0] == nom for l in PROC_MODULES.read_text(encoding="utf-8").splitlines())
+    except OSError:
+        return False
+
+
+def _cle_inscrite(cert: Path) -> Optional[bool]:
+    """« mokutil --test-key » ne fait que LIRE la liste MOK. None = impossible à savoir."""
+    try:
+        r = subprocess.run(["mokutil", "--test-key", str(cert)], capture_output=True, text=True,
+                           timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    texte = (r.stdout + r.stderr).lower()
+    if "already enrolled" in texte:
+        return True
+    if "not enrolled" in texte:
+        return False
+    return None
+
+
+def signature_pilote(secure_boot_actif: Optional[bool]) -> dict:
+    """Où en est le pilote NVIDIA face au Secure Boot, et QUELLE étape montrer.
+
+    Étapes : « ok » (chargé), « sans-secure-boot », « inscrire-lexos »
+    (signé LexOS, certificat pas encore inscrit), « redemarrer » (inscrit mais
+    pas chargé), « cle-machine » (signé par une autre clé : lexos-signer-pilote),
+    « inconnu ».
+    """
+    # sig_key = numéro de série du certificat signataire ; modinfo l'écrit
+    # « 03:79:… », build.conf « 379… » : on compare des formes normalisées.
+    def normalise(v: Optional[str]) -> Optional[str]:
+        return re.sub(r"[\s:]", "", v or "").upper().lstrip("0") or None
+    id_lexos = normalise(_lire_build_conf("LEXOS_SIGNATURE_CLE_ID"))
+    id_module = normalise(_executer([MODINFO, "-F", "sig_key", "nvidia"]))
+    par_lexos = bool(id_lexos and id_module and id_lexos == id_module)
+    charge = _module_charge("nvidia")
+    inscrite = _cle_inscrite(CERT_LEXOS) if CERT_LEXOS.is_file() else None
+    try:
+        en_live = "boot=live" in CMDLINE.read_text(encoding="utf-8")
+    except OSError:
+        en_live = False
+
+    if charge:
+        etape = "ok"
+    elif secure_boot_actif is False:
+        etape = "sans-secure-boot"
+    elif par_lexos and inscrite is False:
+        etape = "inscrire-lexos"
+    elif par_lexos and inscrite:
+        etape = "redemarrer"
+    elif id_module and not par_lexos:
+        etape = "cle-machine"
+    else:
+        etape = "inconnu"
+    return {
+        "etape": etape,
+        "signe_par_lexos": par_lexos,
+        "cle_module": id_module,
+        "cle_lexos": id_lexos,
+        "certificat": str(CERT_LEXOS) if CERT_LEXOS.is_file() else None,
+        "certificat_inscrit": inscrite,
+        "module_charge": charge,
+        "en_live": en_live,
+    }
+
+
 def derniere_verification() -> Optional[float]:
     """Quand les index apt ont été rafraîchis pour la dernière fois."""
     try:
@@ -108,6 +194,7 @@ def instantane() -> dict:
     epingle = paquets.branche_epinglee()
     plus_recente = paquets.branche_plus_recente() if a_nvidia else None
     plan = paquets.plan_mises_a_jour()
+    sb = secure_boot()
     return {
         "cartes": cartes,
         "nvidia": {
@@ -118,7 +205,8 @@ def instantane() -> dict:
         },
         "mesa": version_paquet("libgl1-mesa-dri"),
         "noyau": noyaux(),
-        "secure_boot": secure_boot(),
+        "secure_boot": sb,
+        "signature": signature_pilote(sb) if a_nvidia else None,
         "verifie_le": derniere_verification(),
         "maintenant": time.time(),
         "mises_a_jour": [{k: p[k] for k in ("paquet", "installe", "cible", "source")} for p in plan],

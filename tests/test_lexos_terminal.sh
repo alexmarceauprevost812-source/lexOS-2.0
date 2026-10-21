@@ -542,11 +542,12 @@ titre "5. Le blanc de la frappe, le vert de la palette, le jour intact — et l'
 #  depuis ee2f559, qui est dans toutes les ISO depuis la 111. Mesuré ici sur
 #  le vrai xfce4-terminal (section 3, plus haut) : la frappe est blanche.
 #
-#  CE QU'ON GARDE, ET QU'IL NE FAUT PAS « CORRIGER » : l'encre par défaut
-#  reste VERTE. Passer TERM_FG au blanc repeindrait toute la sortie des
-#  commandes, vider la case verte de la palette (elle est écrite ${TERM_FG}),
-#  et défaire la règle de couleur du dépôt — vert = ce que la machine dit,
-#  blanc = ce qu'on tape. Ce banc tient les deux moitiés ensemble.
+#  ═══ LA RÈGLE A CHANGÉ, À LA DEMANDE D'ALEX ═══
+#  « Ajouter la couleur dans le terminal, trop vert. » L'encre par défaut
+#  (ce que la machine répond) passe à un blanc DOUX (#E4E4E7) ; le vert reste
+#  à l'invite (LEXOS_PS_MACHINE) et dans la case verte de la palette, qui
+#  s'écrivent maintenant ${TERM_VERT} — pas ${TERM_FG}. Ce banc tient les
+#  trois ensemble : texte doux, frappe blanche franche, vert toujours là.
 INTER="$RACINE/config/includes.chroot/usr/share/lexos/shell/interactive.sh"
 AGENT="$RACINE/config/includes.chroot/usr/lib/lexos/ia-agent.py"
 
@@ -554,15 +555,19 @@ genere orange nuit
 ENV_NUIT="$BANC/t/.config/lexos/terminal.env"
 FG_N="$(sed -n 's/^LEXOS_TERM_FG=//p' "$ENV_NUIT")"
 TX_N="$(sed -n "s/^LEXOS_PS_TEXTE='\(.*\)'$/\1/p" "$ENV_NUIT")"
-[ "$FG_N" = "#00D700" ] \
-	&& ok "nuit : l'encre par défaut (ce que la machine écrit) reste verte, $FG_N" \
-	|| non "nuit : l'encre par défaut vaut « $FG_N » — la règle « vert = la machine » est cassée"
+[ "$FG_N" = "#E4E4E7" ] \
+	&& ok "nuit : l'encre par défaut (ce que la machine écrit) est le blanc doux, $FG_N" \
+	|| non "nuit : l'encre par défaut vaut « $FG_N », attendu le blanc doux #E4E4E7"
+PM_N="$(sed -n "s/^LEXOS_PS_MACHINE='\(.*\)'$/\1/p" "$ENV_NUIT")"
+[ "$PM_N" = "38;2;0;215;0" ] \
+	&& ok "nuit : l'invite garde le vert machine ($PM_N)" \
+	|| non "nuit : le vert de l'invite vaut « $PM_N », attendu 38;2;0;215;0"
 [ "$TX_N" = "38;2;255;255;255" ] \
 	&& ok "nuit : la frappe est le blanc franc (38;2;255;255;255)" \
 	|| non "nuit : la frappe vaut « $TX_N », attendu 38;2;255;255;255"
 #  La case verte de la palette (position 2, « vert normal ») est écrite
-#  ${TERM_FG} dans lexos-theme-gen : si quelqu'un passe TERM_FG au blanc, il
-#  n'y a plus de vert nulle part. On lit la palette réellement écrite.
+#  ${TERM_VERT} dans lexos-theme-gen : le texte normal a beau être blanc, le
+#  vert des 16 couleurs reste. On lit la palette réellement écrite.
 PAL_N="$(sed -n 's/.*name="color-palette"[^>]*value="\([^"]*\)".*/\1/p' "$XML")"
 VERT_N="$(printf '%s' "$PAL_N" | cut -d';' -f3)"
 case "$VERT_N" in
@@ -577,13 +582,13 @@ case "$BLANC_N" in
 	*) non "nuit : le blanc brillant vaut « $BLANC_N »" ;;
 esac
 
-#  LE JOUR N'A PAS BOUGÉ : crème, encre foncée, frappe en encre foncée.
+#  LE JOUR : crème, encre foncée — le texte normal suit la frappe (#1B1A17).
 genere orange jour
 ENV_JOUR="$BANC/t/.config/lexos/terminal.env"
 FG_J="$(sed -n 's/^LEXOS_TERM_FG=//p' "$ENV_JOUR")"
 TX_J="$(sed -n "s/^LEXOS_PS_TEXTE='\(.*\)'$/\1/p" "$ENV_JOUR")"
-[ "$FG_J" = "#0B6B3A" ] && ok "jour : encre par défaut $FG_J (inchangée)" \
-	|| non "jour : l'encre par défaut a changé ($FG_J)"
+[ "$FG_J" = "#1B1A17" ] && ok "jour : encre par défaut $FG_J (l'encre foncée)" \
+	|| non "jour : l'encre par défaut vaut « $FG_J », attendu #1B1A17"
 [ "$TX_J" = "38;2;27;26;23" ] && ok "jour : la frappe reste l'encre foncée #1B1A17 — pas du blanc sur crème" \
 	|| non "jour : la frappe vaut « $TX_J » — du blanc sur crème serait invisible"
 

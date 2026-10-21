@@ -23,6 +23,8 @@ CACHE = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "le
 LOCK = CACHE / "assistant-mosaique.lock"
 POLL_MS = 160
 EDGE_PX = 48
+#  Le pointeur à moins de SNAP_PX du bord de l'écran au relâchement : moitié.
+SNAP_PX = 24
 STABLE_SEC = 0.32
 ARMED_SEC = 2.0
 
@@ -42,7 +44,7 @@ def halves(work):
             Rect(work.x + n, work.y, work.width - n, work.height))
 
 
-def is_left_tile(frame, work, tolerance=36):
+def is_left_tile(frame, work, tolerance=64):
     """Comparer le CADRE de fenêtre à la moitié utilisable (panels exclus)."""
     if min(frame.width, frame.height, work.width, work.height) <= 0:
         return False
@@ -237,18 +239,33 @@ class X11:
         self.d.flush()
 
     def place_right(self, xid, work):
-        """Utiliser _NET_MOVERESIZE_WINDOW : le WM reste propriétaire du cadre."""
+        return self.place(xid, halves(work)[1])
+
+    def place(self, xid, rect):
+        """Utiliser _NET_MOVERESIZE_WINDOW : le WM reste propriétaire du cadre.
+
+        ALEX : « les deux fenêtres pas capables […] bien divisées au centre
+        de l'écran ». Deux causes, toutes deux compensées ici :
+          · les décorations de xfwm4 (_NET_FRAME_EXTENTS) ;
+          · les fenêtres à décoration CLIENT (Chrome, les applis GTK 4…) :
+            leur ombre est DANS la fenêtre (_GTK_FRAME_EXTENTS). Sans
+            compensation, xfwm4 colle les ombres l'une contre l'autre et les
+            parties VISIBLES laissent un trou au milieu — ou débordent.
+        On place donc la partie VISIBLE sur la moitié, au pixel près."""
         win = self.win(xid)
         if not self.is_normal(win):
             return
-        _, right = halves(work)
         ext = [int(v) for v in self.prop(win, "_NET_FRAME_EXTENTS")[:4]]
         if len(ext) != 4:
             ext = [0, 0, 0, 0]
         l, r, top, bottom = ext
+        gtk = [int(v) for v in self.prop(win, "_GTK_FRAME_EXTENTS")[:4]]
+        if len(gtk) != 4 or any(v < 0 or v > 200 for v in gtk):
+            gtk = [0, 0, 0, 0]
+        gl, gr, gt, gb = gtk
         # Respecter les décorations du gestionnaire de fenêtres XFWM4.
-        client_w = max(120, right.width - l - r)
-        client_h = max(120, right.height - top - bottom)
+        client_w = max(120, rect.width - l - r + gl + gr)
+        client_h = max(120, rect.height - top - bottom + gt + gb)
         # Restaurer avant de redimensionner une fenêtre maximisée.
         self.send(win, "_NET_WM_STATE", [0,
                   self.atom("_NET_WM_STATE_MAXIMIZED_VERT"),
@@ -260,7 +277,7 @@ class X11:
             self.d.flush()
         except Exception:
             pass
-        return (right.x, right.y, client_w, client_h, xid)
+        return (rect.x - gl, rect.y - gt, client_w, client_h, xid)
 
     def finish_right(self, placement):
         x, y, w, h, xid = placement
@@ -402,6 +419,9 @@ class Watcher:
         self.left_seen = {}
         self.suppress_until = 0.0
         self.last_shown = (None, 0)
+        #  Le glisser en cours : (xid, cadre au début, a bougé ?)
+        self.drag = None
+        self.was_pressed = False
 
     def workarea(self, frame):
         from gi.repository import Gdk
@@ -415,6 +435,50 @@ class Watcher:
             return None
         a = monitor.get_workarea()
         return Rect(a.x, a.y, a.width, a.height)
+
+    def monitor(self, x, y):
+        from gi.repository import Gdk
+        display = Gdk.Display.get_default()
+        m = display.get_monitor_at_point(x, y) if display else None
+        if m is None:
+            return None, None
+        g, a = m.get_geometry(), m.get_workarea()
+        return Rect(g.x, g.y, g.width, g.height), Rect(a.x, a.y, a.width, a.height)
+
+    def snap_on_release(self, xid, pointer):
+        """ALEX : « j'accote une fenêtre sur un bord, puis une autre sur
+        l'autre bord, pour travailler avec deux fenêtres » — chacune sa
+        moitié, divisées AU CENTRE de l'écran. xfwm4 sait le faire seul
+        (tile_on_move), mais pas au pixel près avec les fenêtres à ombre
+        intégrée, ni toujours à DROITE quand le dock Plank y est posé. On
+        le fait donc ici, au relâchement du bouton, des deux côtés."""
+        mon, work = self.monitor(pointer.root_x, pointer.root_y)
+        if not mon:
+            return False
+        px, py = pointer.root_x, pointer.root_y
+        if py <= mon.y + SNAP_PX:
+            return False          # en haut : c'est « agrandir », xfwm4 s'en charge
+        left, right = halves(work)
+        if px <= mon.x + SNAP_PX:
+            cible = left
+        elif px >= mon.x + mon.width - 1 - SNAP_PX:
+            cible = right
+        else:
+            return False
+        placement = self.x.place(xid, cible)
+        if placement:
+            from gi.repository import GLib
+            #  xfwm4 pose d'abord SON carrelage au relâchement : on passe
+            #  après lui, sinon il réécrit la géométrie par-dessus la nôtre.
+            GLib.timeout_add(180, self._finish, placement)
+        return cible is left
+
+    def _finish(self, placement):
+        try:
+            self.x.finish_right(placement)
+        except Exception as exc:
+            print("LexOS mosaïque : géométrie refusée :", exc, file=sys.stderr)
+        return False
 
     def step(self):
         now = time.monotonic()
@@ -443,6 +507,27 @@ class Watcher:
                 return True
             pointer = self.x.pointer()
             pressed = bool(pointer.mask & self.x.X.Button1Mask)
+            #  Le glisser d'une FENÊTRE (son cadre bouge pendant que le bouton
+            #  est tenu) — pas une sélection de texte collée au bord.
+            if pressed:
+                if self.drag is None or self.drag[0] != xid:
+                    self.drag = [xid, frame, False]
+                else:
+                    debut = self.drag[1]
+                    #  Déplacée d'au moins 30 px (pas seulement redimensionnée).
+                    if abs(frame.x - debut.x) + abs(frame.y - debut.y) > 30:
+                        self.drag[2] = True
+            elif self.was_pressed and self.drag and self.drag[0] == xid and self.drag[2]:
+                self.drag = None
+                self.was_pressed = False
+                if self.snap_on_release(xid, pointer):
+                    #  À gauche : on laisse le choix de la 2e fenêtre se faire.
+                    self.armed = (xid, now)
+                    self.left_seen.setdefault(xid, now)
+                return True
+            else:
+                self.drag = None
+            self.was_pressed = pressed
             near_left = (work.x <= pointer.root_x <= work.x + EDGE_PX
                          and work.y <= pointer.root_y < work.y + work.height)
             if pressed and near_left:

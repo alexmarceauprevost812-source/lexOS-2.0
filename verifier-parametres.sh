@@ -144,13 +144,8 @@ titre "1. Les outils lexos-* et leurs branchements"
 #                                Claude Code, ne se tape pas
 #   lexos-raccourcis-mosaique : migration XFCE unique lancée par autostart;
 #                             réparation manuelle documentée, sans section dédiée.
-#   lexos-pilotes-maj          : l'aide ROOT de LexOS Pilotes, lancée par
-#                                « pkexec » depuis l'appli et jamais tapée. Une
-#                                branche « lexos pilotes-maj » la lancerait SANS
-#                                root — elle n'aurait rien à faire dans le case.
 SANS_SECTION="
 lexos-raccourcis-mosaique
-lexos-pilotes-maj
 lexos-apercu
 lexos-app-settings
 lexos-claude-installation
@@ -173,6 +168,10 @@ lexos-theme-gen
 lexos-settings
 lexos-ecran-telephone
 lexos-unzip
+#  L'aide ROOT de LexOS Pilotes : seul « pkexec » la lance, depuis l'appli.
+#  La taper soi-même contournerait la fenêtre qui dit ce qui va être mis à
+#  jour — elle n'a donc ni branche, ni ligne d'aide, et c'est voulu.
+lexos-pilotes-maj
 "
 
 # Applis AUTONOMES : leur maison est le menu et le dock, pas les Paramètres.
@@ -254,6 +253,8 @@ lexos-disques
 lexos-medecin
 lexos-materiel
 lexos-signer-pilote
+#  Une APPLI, comme lexos-logitheque : sa fenêtre est la page de son serveur
+#  local. Atteinte par son lanceur du menu et par « lexos pilotes ».
 lexos-pilotes
 "
 

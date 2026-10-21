@@ -1,0 +1,52 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — l'initramfs n'emporte pas « nouveau » quand LexOS l'a mis de côté
+# =============================================================================
+#  MESURÉ SUR L'ISO DU 20 OCTOBRE (build 122) : l'initrd du noyau 7.2.9 pesait
+#  260 Mo — 400 Mio une fois décompressé. Le plus gros morceau, et de loin :
+#  147 Mio de micrologiciel GSP pour « nouveau » (firmware/nvidia/ga102 et
+#  tu102, en deux versions chacun). Or sur LexOS Pro, nouveau est en liste
+#  noire (hook 0260, /etc/modprobe.d/lexos-blacklist-nouveau.conf) et
+#  nouveau.modeset=0 est sur la ligne de démarrage : ce micrologiciel n'est
+#  JAMAIS chargé. Il ne fait que rallonger la lecture de la clé USB par GRUB
+#  et réclamer au micrologiciel UEFI un bloc de mémoire de plus de 250 Mo
+#  d'un seul tenant — ce que tous ne savent pas donner.
+#
+#  CE QU'ON RETIRE, ET SEULEMENT ÇA :
+#    · le module nouveau lui-même (inutile : il est en liste noire) ;
+#    · les dossiers de micrologiciel de nouveau sous firmware/nvidia/ (ga102,
+#      tu102, ad102…). Les dossiers NUMÉROTÉS (firmware/nvidia/615.71.10/) sont
+#      ceux du pilote NVIDIA officiel : on n'y touche pas, au cas où nvidia.ko
+#      entrerait un jour dans l'initramfs.
+#
+#  Sans la liste noire (autre saveur, pilote NVIDIA absent), ce hook ne fait
+#  RIEN : nouveau reste le seul pilote de ces machines-là.
+#
+#  « zz- » et /etc/initramfs-tools/hooks : il passe après tous les hooks des
+#  paquets (plymouth recopie des pilotes drm), juste avant le depmod final de
+#  mkinitramfs.
+# =============================================================================
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+case "$1" in
+	prereqs) prereqs; exit 0 ;;
+esac
+
+#  La couture LEXOS_LISTE_NOIRE ne sert qu'au banc (tests/test_lexos_secure_boot_iso.sh).
+[ -e "${LEXOS_LISTE_NOIRE:-/etc/modprobe.d/lexos-blacklist-nouveau.conf}" ] || exit 0
+[ -n "${DESTDIR:-}" ] && [ -d "$DESTDIR" ] || exit 0
+
+for RACINE in "$DESTDIR/usr/lib" "$DESTDIR/lib"; do
+	[ -d "$RACINE" ] || continue
+	for D in "$RACINE"/modules/*/kernel/drivers/gpu/drm/nouveau; do
+		[ -d "$D" ] && rm -rf "$D"
+	done
+	for D in "$RACINE"/firmware/nvidia/*; do
+		[ -d "$D" ] || continue
+		case "${D##*/}" in
+			[0-9]*.[0-9]*) continue ;;
+		esac
+		rm -rf "$D"
+	done
+done
+exit 0
