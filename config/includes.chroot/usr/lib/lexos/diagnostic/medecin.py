@@ -178,9 +178,17 @@ def _contexte_joignabilite() -> dict:
         blocs = []
         for f in fichiers:
             try:
-                blocs.append((f.name, f.read_text(encoding="utf-8", errors="ignore")))
+                t = f.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
+            #  Les scripts que charge un terminal sont du SHELL, bavard en
+            #  explications : session-graphique.sh y CITE lexos-tv pour dire
+            #  qu'il ne le source pas. Comme pour le dispatcheur, on lit le
+            #  code, pas la prose — sinon un outil orphelin passerait pour
+            #  joignable par un commentaire.
+            if libelle == "l'ouverture d'un terminal":
+                t = re.sub(r"(?m)^\s*#.*$", "", t)
+            blocs.append((f.name, t))
         sources.append((libelle, blocs))
     return {
         "dispatcheur": texte,
