@@ -123,9 +123,16 @@ const src = lireLaPage(process.argv[2])
   + " nav: NAV, tbl: CLES_SECTION, charge: chargeEtat, apparence: appliqueApparence,"
   + " allerA, tout: rafraichirTout, rendNav, depart: () => Object.assign({}, globalThis.__depart),"
   + " racine: () => document.documentElement };\n";
+//  querySelector : un vrai élément RETROUVE ce que son innerHTML vient de
+//  poser. rendNav() écrit l'en-tête de la barre (le champ « Chercher »), puis
+//  y va chercher #nav-cherche et .nav-corps ; un stub qui rend TOUJOURS null
+//  faisait lever la page à son chargement (« champ.oninput » sur null) alors
+//  qu'elle s'ouvre sans une erreur dans Chromium. Vide, l'élément ne contient
+//  rien : null, comme dans le navigateur.
 const el = () => ({ innerHTML:"", textContent:"", hidden:true, style:{}, dataset:{},
                     classList:{add(){},remove(){},toggle(){},contains:()=>false},
-                    querySelectorAll:()=>[], querySelector:()=>null,
+                    querySelectorAll:()=>[],
+                    querySelector(s){ return this.innerHTML.includes(String(s).split(/[\s.#]+/).pop()) ? el() : null; },
                     appendChild(){}, focus(){}, addEventListener(){}, remove(){} });
 //  ═══ LA BARRE LATÉRALE REND DE VRAIS BOUTONS ═══
 //  rendNav() pose son onclick sur ce que querySelectorAll(".nav-item") lui

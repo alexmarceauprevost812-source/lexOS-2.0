@@ -233,23 +233,26 @@ if [ -n "${BASH_VERSION:-}" ]; then
 			__LEXOS_PS1_TILEX='\[\033[1;${__LEXOS_C_LIME}m\]\u\[\033[0;${__LEXOS_C_VERT_TL}m\]_\[\033[1;${__LEXOS_C_ORANGE_TL}m\]lexOS\[\033[0;${__LEXOS_C_VERT_TL}m\]-\[\033[1;${__LEXOS_C_VERT_TL}m\]pro\[\033[0m\]  \[\033[${__LEXOS_C_DIM}m\]\w$(__lexos_git_branch)\[\033[0m\]\n\[\033[${__LEXOS_C_VERT_TL}m\]─◇\[\033[0m\] \[$(__lexos_fleche)\]❯\[\033[0m\] \[\033[${__LEXOS_C_TEXTE}m\]'
 			LEXOS_INVITE_FICHIER="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/invite"
 			__lexos_style_vu=""
+			#  Pas de « local » : ce fichier est déclaré sh (shellcheck le lit
+			#  ainsi, dash aussi via /etc/profile.d) et « local » n'est pas
+			#  POSIX. Des noms en __lexos_, comme __lexos_code et __lexos_style_vu.
 			__lexos_style() {
-				local st="classique"
+				__lexos_st="classique"
 				if [ -r "$LEXOS_INVITE_FICHIER" ]; then
-					read -r st < "$LEXOS_INVITE_FICHIER" 2>/dev/null || st="classique"
+					read -r __lexos_st < "$LEXOS_INVITE_FICHIER" 2>/dev/null || __lexos_st="classique"
 				fi
-				if [ "$st" = "tilex" ]; then
-					local jour=""
-					[ "${LEXOS_TERM_EFFECTIF:-}" = "jour" ] && jour=1
+				if [ "$__lexos_st" = "tilex" ]; then
+					__lexos_jour=""
+					[ "${LEXOS_TERM_EFFECTIF:-}" = "jour" ] && __lexos_jour=1
 					case "${COLORTERM:-}" in
 						truecolor|24bit)
-							if [ -n "$jour" ]; then
+							if [ -n "$__lexos_jour" ]; then
 								__LEXOS_C_LIME='38;2;77;124;15'; __LEXOS_C_ORANGE_TL='38;2;176;76;0'; __LEXOS_C_VERT_TL='38;2;11;107;58'
 							else
 								__LEXOS_C_LIME='38;2;163;255;18'; __LEXOS_C_ORANGE_TL='38;2;248;106;0'; __LEXOS_C_VERT_TL='38;2;57;231;95'
 							fi ;;
 						*)
-							if [ -n "$jour" ]; then
+							if [ -n "$__lexos_jour" ]; then
 								__LEXOS_C_LIME='38;5;64'; __LEXOS_C_ORANGE_TL='38;5;130'; __LEXOS_C_VERT_TL='38;5;29'
 							else
 								__LEXOS_C_LIME='38;5;154'; __LEXOS_C_ORANGE_TL='38;5;202'; __LEXOS_C_VERT_TL='38;5;41'
@@ -260,7 +263,7 @@ if [ -n "${BASH_VERSION:-}" ]; then
 				elif [ "$__lexos_style_vu" = "tilex" ]; then
 					PS1="$__LEXOS_PS1_CLASSIQUE"     # on revient au classique une fois
 				fi
-				__lexos_style_vu="$st"
+				__lexos_style_vu="$__lexos_st"
 			}
 			#  « invite tilex » / « invite classique » : le choix est gardé dans
 			#  ~/.config/lexos/invite, et pris dès la prochaine invite.
@@ -335,12 +338,16 @@ if [ -n "$__lexos_bat" ]; then
 fi
 unset __lexos_bat
 #  Les pages de man en couleurs, sans outil de plus : less sait le faire.
-export LESS_TERMCAP_md=$'\033[1;38;5;208m'   # titres : orange LexOS
-export LESS_TERMCAP_me=$'\033[0m'
-export LESS_TERMCAP_us=$'\033[4;38;5;81m'    # options, arguments : bleu
-export LESS_TERMCAP_ue=$'\033[0m'
-export LESS_TERMCAP_so=$'\033[1;30;48;5;214m' # barre du bas, recherche
-export LESS_TERMCAP_se=$'\033[0m'
+#  L'échappement vient de printf, pas de $'…' : dash (sh) ne connaît pas
+#  $'…' et y laissait « $\033[… » écrit en toutes lettres.
+__lexos_esc="$(printf '\033')"
+export LESS_TERMCAP_md="${__lexos_esc}[1;38;5;208m"   # titres : orange LexOS
+export LESS_TERMCAP_me="${__lexos_esc}[0m"
+export LESS_TERMCAP_us="${__lexos_esc}[4;38;5;81m"    # options, arguments : bleu
+export LESS_TERMCAP_ue="${__lexos_esc}[0m"
+export LESS_TERMCAP_so="${__lexos_esc}[1;30;48;5;214m" # barre du bas, recherche
+export LESS_TERMCAP_se="${__lexos_esc}[0m"
+unset __lexos_esc
 export GROFF_NO_SGR=1
 alias diff='diff --color=auto'
 alias ip='ip -color=auto'
@@ -373,16 +380,29 @@ colore() {
 }
 #  « liste » (ou « le ») : le contenu d un dossier, un émoji par sorte de
 #  fichier, dans les couleurs de ls. Les dossiers d abord.
-liste() {
-	local d="${1:-.}" f n e ico
-	[ -d "$d" ] || { printf '❓ « %s » n est pas un dossier\n' "$d" >&2; return 1; }
-	local -a tous=() dossiers=() fichiers=()
-	shopt -s nullglob dotglob
-	tous=("$d"/*)
-	shopt -u nullglob dotglob
-	for f in "${tous[@]}"; do [ -d "$f" ] && dossiers+=("$f") || fichiers+=("$f"); done
-	for f in "${dossiers[@]}" "${fichiers[@]}"; do
-		n="${f##*/}"; e="${n##*.}"; [ "$e" = "$n" ] && e=""; e="${e,,}"
+#  EN SH, PAS EN BASH : /etc/profile.d fait lire ce fichier à dash aussi, et
+#  un tableau « ( ) » y est une ERREUR DE SYNTAXE — dash s'arrêtait net ici,
+#  et tout ce qui suit (alias, « animation », « tilex ») manquait. Le corps
+#  entre ( ) tient lieu de « local » ; deux passages, des tableaux ;
+#  « .[!.]* ..?* », de dotglob ; le test -e / -L, de nullglob.
+liste() (
+	d="${1:-.}"
+	[ -d "$d" ] || { printf '❓ « %s » n est pas un dossier\n' "$d" >&2; exit 1; }
+	#  UN SEUL TRI, celui de la locale — comme le faisait « "$d"/* » sous
+	#  dotglob : les fichiers cachés restent à leur place alphabétique
+	#  (.config entre Bureau et Documents), au lieu de remonter tous en tête
+	#  parce que leur motif passe en premier. Un nom qui contient un retour à
+	#  la ligne s'affiche en deux morceaux : le prix d'un tri en sh pur.
+	tous="$(for f in "$d"/.[!.]* "$d"/..?* "$d"/*; do
+		if [ -e "$f" ] || [ -L "$f" ]; then printf '%s\n' "$f"; fi   # motif sans résultat : écarté
+	done | sort)"
+	for passe in dossiers fichiers; do
+	while IFS= read -r f; do
+		[ -n "$f" ] || continue
+		if [ -d "$f" ]; then [ "$passe" = dossiers ] || continue
+		else [ "$passe" = fichiers ] || continue; fi
+		n="${f##*/}"; e="${n##*.}"; [ "$e" = "$n" ] && e=""
+		case "$e" in *[[:upper:]]*) e="$(printf '%s' "$e" | tr '[:upper:]' '[:lower:]')" ;; esac
 		if [ -L "$f" ]; then ico="🔗"
 		elif [ -d "$f" ]; then ico="📁"
 		elif [ -x "$f" ] && [ -z "$e" ]; then ico="⚙️ "
@@ -396,8 +416,11 @@ liste() {
 		esac; fi
 		printf '%s ' "$ico"
 		( cd -- "$d" && ls -d --color=always -- "$n" )
+	done <<LISTE
+$tous
+LISTE
 	done
-}
+)
 alias le='liste'
 alias ...='cd ../..'
 alias grep='grep --color=auto'

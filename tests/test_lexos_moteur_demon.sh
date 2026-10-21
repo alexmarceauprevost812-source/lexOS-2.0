@@ -413,7 +413,9 @@ fi
 LANCEUR="$RACINE/config/includes.chroot/usr/bin/lexos-moteurd"
 #  « session » ne doit démarrer que ce qui est activé : sinon « off » et
 #  l'interrupteur des Paramètres ne tiendraient pas d'une session à l'autre.
-if sed -n '/^\tsession)/,/;;/p' "$LANCEUR" | grep -q 'is-enabled'; then
+#  « < <(sed …) » et pas « sed … | grep -q » : sous pipefail, grep -q qui
+#  ferme le tuyau au premier résultat ferait échouer sed, donc la condition.
+if grep -q 'is-enabled' < <(sed -n '/^\tsession)/,/;;/p' "$LANCEUR"); then
 	ok "…et seulement s'il est activé (« off » tient)"
 else
 	non "« lexos-moteurd session » démarre l'unité même désactivée"

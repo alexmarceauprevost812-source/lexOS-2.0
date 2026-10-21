@@ -3642,14 +3642,9 @@ let rechercheNav = "";
 const groupeDe = (cle) => NAV.find(g => g.items.some(([c]) => c === cle)) || NAV[0];
 const picDe = (pic) => typeof pic === "function" ? pic() : pic;
 const sansAccents = (t) => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-function allerA(cle){
-  sectionActive = cle;
-  location.hash = sectionActive;
-  //  1. la section apparaît TOUT DE SUITE, avec ce qu'on sait déjà ;
-  rend();
-  //  2. puis on lit LA MACHINE, pour cette section-là.
-  rafraichir();
-}
+//  Le menu, les catégories et les onglets passent tous par allerA(), déclarée
+//  UNE fois plus bas (« NAVIGUER, C'EST AUSSI ALLER LIRE ») : une seconde
+//  déclaration ici était écrasée par celle-là, en silence.
 function rendNav(){
   const nav = document.getElementById("sidebar");
   const ouvert = groupeDe(sectionActive);

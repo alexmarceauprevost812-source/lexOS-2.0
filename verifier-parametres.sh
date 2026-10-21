@@ -172,6 +172,12 @@ lexos-unzip
 #  La taper soi-même contournerait la fenêtre qui dit ce qui va être mis à
 #  jour — elle n'a donc ni branche, ni ligne d'aide, et c'est voulu.
 lexos-pilotes-maj
+#  La bannière animée du terminal : un ROUAGE d'interactive.sh, comme les
+#  tuiles sont celles du panneau. Le shell la lance à l'ouverture (si
+#  « animation on ») et l'alias « tilex » la rejoue : ses deux portes sont
+#  dans le shell. Rien à régler — son seul interrupteur est « animation
+#  on / off » —, et une branche « lexos banniere » doublerait « tilex ».
+lexos-banniere
 "
 
 # Applis AUTONOMES : leur maison est le menu et le dock, pas les Paramètres.
