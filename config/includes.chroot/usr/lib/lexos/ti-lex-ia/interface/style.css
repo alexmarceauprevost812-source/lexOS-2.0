@@ -841,15 +841,23 @@ body.verrouille #app { filter: blur(10px) saturate(.6); }
 .turbo.direct:has(input:checked) b { color: #4ade80; }
 
 /* Jolies couleurs du code (éditeur + blocs de code) */
+/* La coloration du code, façon éditeur — demande d'Alex : « ajouter de la
+   couleur au Codex ». Une couleur par sorte de mot ; l'orange LexOS reste
+   aux mots-clés et aux titres. */
 .tk-mot { color: var(--orange); font-weight: 600; }
+.tk-defnom { color: #ffd166; font-weight: 600; }
 .tk-chaine { color: #a5e075; }
-.tk-nombre { color: #f9c74f; }
-.tk-com { color: #6b7280; font-style: italic; }
+.tk-nombre { color: #ffa94d; }
+.tk-constante { color: #ff8fa3; }
+.tk-com { color: #7a8394; font-style: italic; }
 .tk-fonction { color: #7cc4ff; }
 .tk-classe { color: #ffcb6b; }
 .tk-special { color: #c792ea; }
+.tk-soi { color: #ff7a8a; font-style: italic; }
+.tk-propriete { color: #8be9d4; }
 .tk-deco { color: #f472b6; }
 .tk-op { color: #89ddff; }
+.tk-par { color: #e8c48a; }
 .tk-cle { color: #7cc4ff; }
 .tk-balise { color: var(--orange); }
 .tk-attr { color: #ffcb6b; }
@@ -857,6 +865,8 @@ body.verrouille #app { filter: blur(10px) saturate(.6); }
 .tk-couleur { color: #f472b6; text-decoration: underline dotted; }
 .tk-variable { color: #c792ea; }
 .tk-option { color: #89ddff; }
+.tk-ajout { color: #7ee787; background: rgba(46,160,67,.15); }
+.tk-retrait { color: #ff7b72; background: rgba(248,81,73,.15); }
 .tk-titre { color: var(--orange); font-weight: 700; }
 
 /* ═════════════════════════ 🔑 VARIABLES D'ENVIRONNEMENT ═════════════════════════ */
