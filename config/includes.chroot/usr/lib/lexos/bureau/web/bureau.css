@@ -173,13 +173,30 @@ body.secondaire #bureau { display: none; }
 @media (max-width: 900px) { .embleme { display: none; } }
 
 /* ⌨️ Le code qui s'écrit tout seul derrière la bannière */
-.code { display: none; position: absolute; top: -4%; left: 50%; padding-left: 4px; width: 62%; height: 104%; margin: 0; overflow: hidden; pointer-events: none; font-family: "LX JetBrains Mono", ui-monospace, monospace; font-size: clamp(9px, calc(var(--t) * .0175), 15px); line-height: 1.75; color: rgba(255,255,255,.34); white-space: pre; -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 78%, transparent 100%), linear-gradient(90deg, #000 0%, #000 78%, transparent 100%); -webkit-mask-composite: source-in; mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 78%, transparent 100%), linear-gradient(90deg, #000 0%, #000 78%, transparent 100%); mask-composite: intersect; }
+.code { display: none; position: absolute; top: -4%; left: 50%; padding-left: 4px; width: 62%; height: 104%; margin: 0; overflow: hidden; pointer-events: none; font-family: "LX JetBrains Mono", ui-monospace, monospace; font-size: clamp(9px, calc(var(--t) * .0175), 15px); line-height: 1.75; color: rgba(255,255,255,.5); white-space: pre; -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 78%, transparent 100%), linear-gradient(90deg, #000 0%, #000 78%, transparent 100%); -webkit-mask-composite: source-in; mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 78%, transparent 100%), linear-gradient(90deg, #000 0%, #000 78%, transparent 100%); mask-composite: intersect; }
 .embleme.large .code { display: block; }
 #bureau.sans-code .code { display: none; }
 .code .ligne { display: block; }
-.code .tk-mot { color: rgba(var(--acc-rgb),.75); opacity: .9; }
-.code .tk-ch { color: rgba(156,207,162,.6); }
-.code .tk-com { color: rgba(255,255,255,.22); font-style: italic; }
+/* La coloration du code, façon éditeur (palette inspirée des thèmes sombres
+   d'éditeur, réchauffée vers l'orange LexOS). Le masque en dégradé de .code
+   l'estompe toujours sur les bords : elle reste un décor derrière le logo. */
+.code { --tk-op: 1; }
+.code .tk-nom    { color: rgba(232, 226, 220, .62); }
+.code .tk-mot    { color: #ff7ab8; font-weight: 600; }
+.code .tk-fn-def { color: #ffc861; font-weight: 600; }
+.code .tk-fn     { color: #7cc4ff; }
+.code .tk-classe { color: #ffd36b; font-weight: 600; }
+.code .tk-natif  { color: #5ee0d2; }
+.code .tk-const  { color: rgba(var(--acc-rgb), 1); }
+.code .tk-self   { color: #ff8a7a; font-style: italic; }
+.code .tk-var    { color: #c9b6ff; }
+.code .tk-ch     { color: #a6e36e; }
+.code .tk-nb     { color: #ffa94d; }
+.code .tk-deco   { color: #e0a3ff; }
+.code .tk-op     { color: #ff9d5c; }
+.code .tk-par    { color: rgba(255, 220, 160, .7); }
+.code .tk-com    { color: rgba(170, 160, 150, .55); font-style: italic; }
+.code .tk-pastille { display: inline-block; width: .8em; height: .8em; margin: 0 .35em; vertical-align: -.05em; border-radius: 3px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .35); }
 .code-curseur { display: inline-block; width: .6em; height: 1.15em; vertical-align: -.2em; background: var(--orange); box-shadow: 0 0 10px var(--orange); animation: clignote-dur 1s steps(1) infinite; margin-left: 1px; }
 @media (prefers-reduced-motion: reduce) { .embleme *, .embleme { animation: none !important; } }
 

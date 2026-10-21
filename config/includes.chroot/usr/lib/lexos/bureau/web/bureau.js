@@ -415,13 +415,51 @@ mouvement: str = "doux"`,
 `for fichier in CLE.glob("**/*.gguf"):
     ia.importer(fichier)  # tout reste sur la clé`,
   ];
-  //  Un petit colorieur Python : mots-clés, chaînes, commentaires.
-  const MOTS = /^(def|class|return|for|in|from|import|async|await|if|else|elif|while|with|as|print|self|True|False|None|float|str|int)$/;
-  const colorier = (l) => l.replace(/(#.*$)|("[^"]*"?|'[^']*'?)|([A-Za-z_]\w*)|([^#"'A-Za-z_]+)/g, (m, com, ch, mot, autre) =>
-    com ? `<span class="tk-com">${echapper(com)}</span>`
-    : ch ? `<span class="tk-ch">${echapper(ch)}</span>`
-    : mot ? (MOTS.test(mot) ? `<span class="tk-mot">${mot}</span>` : mot)
-    : echapper(autre));
+  //  Le colorieur Python, façon éditeur de code (demande d'Alex : « de la
+  //  coloration dans le code ») : chaque sorte de mot a SA couleur, comme
+  //  dans un vrai éditeur — mots-clés, fonctions, classes, chaînes, nombres,
+  //  commentaires, décorateurs, opérateurs. Les couleurs sont dans
+  //  bureau.css (.tk-*), pas ici.
+  const MOTS = /^(def|class|return|for|in|from|import|async|await|if|else|elif|while|with|as|try|except|finally|raise|pass|break|continue|lambda|yield|not|and|or|is|global)$/;
+  const CONST = /^(True|False|None)$/;
+  const NATIFS = /^(print|float|str|int|bool|list|dict|set|tuple|len|range|open|super|Path|enumerate|zip|isinstance)$/;
+  const colorier = (l) => {
+    let avant = "", out = "";
+    const re = /(#.*$)|("[^"]*"?|'[^']*'?)|(@\w+)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_]\w*)|(\s+)|([^\sA-Za-z_\d#"'@])/g;
+    let m;
+    while ((m = re.exec(l))) {
+      const [tout, com, ch, deco, nb, mot, esp, op] = m;
+      if (com) out += `<span class="tk-com">${echapper(com)}</span>`;
+      else if (ch) {
+        //  Une couleur « #ff6a00 » dans une chaîne : un petit carré de cette couleur.
+        const hex = /^["']#[0-9a-fA-F]{6}["']?$/.test(ch) ? ch.slice(1, 8) : "";
+        out += `<span class="tk-ch">${echapper(ch)}</span>` + (hex ? `<i class="tk-pastille" style="background:${hex}"></i>` : "");
+      }
+      else if (deco) out += `<span class="tk-deco">${echapper(deco)}</span>`;
+      else if (nb) out += `<span class="tk-nb">${nb}</span>`;
+      else if (mot) {
+        const suivant = l.slice(re.lastIndex).trimStart()[0];
+        let c = "";
+        if (avant === "def") c = "tk-fn-def";
+        else if (avant === "class") c = "tk-classe";
+        else if (MOTS.test(mot)) c = "tk-mot";
+        else if (CONST.test(mot)) c = "tk-const";
+        else if (mot === "self") c = "tk-self";
+        else if (NATIFS.test(mot)) c = "tk-natif";
+        else if (suivant === "(") c = "tk-fn";
+        else if (/^[A-Z][A-Z_\d]+$/.test(mot)) c = "tk-const";
+        else if (suivant === ":" && /^\s/.test(l) === false && /:\s*\w/.test(l.slice(re.lastIndex))) c = "tk-var";
+        else if (suivant === "=" && l.slice(re.lastIndex).trimStart()[1] === " ") c = "tk-var";
+        out += c ? `<span class="${c}">${mot}</span>` : `<span class="tk-nom">${mot}</span>`;
+        avant = mot;
+        continue;
+      }
+      else if (esp) out += esp;
+      else if (op) out += `<span class="${/[()[\]{}]/.test(op) ? "tk-par" : "tk-op"}">${echapper(op)}</span>`;
+      if (!esp) avant = "";
+    }
+    return out;
+  };
   const MAX = 15;
   let lignes = [""], morceau = 0, pos = 0, attente = 0, faute = null;
   const peindre = () => {

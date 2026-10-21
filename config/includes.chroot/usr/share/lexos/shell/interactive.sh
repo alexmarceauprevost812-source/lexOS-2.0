@@ -244,6 +244,97 @@ alias ..='cd ..'
 if command -v batcat >/dev/null 2>&1 && ! command -v bat >/dev/null 2>&1; then
 	alias bat='batcat'
 fi
+
+# --- La coloration du code ------------------------------------------------------
+#  ALEX (photo du LexOS Pro Terminal, tout en vert) : « ajouter de la couleur au
+#  code, pas juste vert comme couleur d'écriture, de la coloration dans le
+#  code ». Le vert reste la voix de la machine (l'invite, les réponses en texte
+#  simple) ; ce qui est du CODE prend les couleurs d'un éditeur :
+#    · cat sur un fichier  -> bat (mots-clés, chaînes, nombres… en couleurs)
+#    · man                 -> titres et options en couleurs
+#    · diff, ip            -> leurs couleurs à eux
+#    · colore <commande>   -> colore une sortie en texte brut (journaux, logs)
+#  Dans un tuyau ou une redirection, bat écrit du texte nu, exactement comme
+#  cat : « cat x | grep y » et « cat a > b » ne changent pas.
+__lexos_bat=""
+command -v bat >/dev/null 2>&1 && __lexos_bat=bat
+[ -z "$__lexos_bat" ] && command -v batcat >/dev/null 2>&1 && __lexos_bat=batcat
+if [ -n "$__lexos_bat" ]; then
+	#  Un thème d'éditeur sombre et vif ; « export BAT_THEME=... » dans
+	#  ~/.bashrc le remplace (liste : bat --list-themes).
+	export BAT_THEME="${BAT_THEME:-Monokai Extended}"
+	# shellcheck disable=SC2139
+	alias cat="$__lexos_bat --paging=never --style=plain"
+	#  Le texte d'aide des commandes (« ls --help | aide-couleur »), en couleurs.
+	# shellcheck disable=SC2139
+	alias aide-couleur="$__lexos_bat --paging=never --style=plain --language=help"
+fi
+unset __lexos_bat
+#  Les pages de man en couleurs, sans outil de plus : less sait le faire.
+export LESS_TERMCAP_md=$'\033[1;38;5;208m'   # titres : orange LexOS
+export LESS_TERMCAP_me=$'\033[0m'
+export LESS_TERMCAP_us=$'\033[4;38;5;81m'    # options, arguments : bleu
+export LESS_TERMCAP_ue=$'\033[0m'
+export LESS_TERMCAP_so=$'\033[1;30;48;5;214m' # barre du bas, recherche
+export LESS_TERMCAP_se=$'\033[0m'
+export GROFF_NO_SGR=1
+alias diff='diff --color=auto'
+alias ip='ip -color=auto'
+#  « colore journalctl -f », « colore cat app.log » : les dates, niveaux
+#  (ERROR, WARN, INFO), nombres, chaînes et clé=valeur en couleurs. Fait en
+#  awk, déjà présent partout : rien à installer.
+colore() {
+	if [ $# -gt 0 ]; then "$@" 2>&1; else cat; fi | LC_ALL=C.UTF-8 awk '
+	BEGIN { R="\033[0m"; ERR="\033[1;38;5;203m"; WARN="\033[1;38;5;214m";
+	        INFO="\033[38;5;81m"; CLE="\033[38;5;183m"; NB="\033[38;5;215m"; CH="\033[38;5;150m"; CRO="\033[38;5;117m" }
+	{
+		l = $0
+		#  L ORDRE COMPTE : les nombres d abord, sur le texte nu — après, les
+		#  codes de couleur posés contiendraient eux-mêmes des chiffres.
+		gsub(/[0-9][0-9.:-]*[0-9]/, NB "&" R, l)
+		gsub(/[A-Za-z_][A-Za-z0-9_.]*=/, CLE "&" R, l)
+		gsub(/\[[A-Za-z][A-Za-z0-9_.:-]*\]/, CRO "&" R, l)
+		gsub(/"[^"]*"/, CH "&" R, l)
+		#  ALEX : « ajouter au terminal des émojis, avec de la belle
+		#  coloration ». Un émoji en tête de ligne dit le niveau d un coup d oeil.
+		if (l ~ /(ERROR|ERREUR|FATAL|CRIT|Traceback|[Ee]rror:|échec|failed)/) l = "❌ " ERR l R
+		else if (l ~ /(WARN|WARNING|ATTENTION|deprecated)/) l = "⚠️  " WARN l R
+		else if (l ~ /(DEBUG|TRACE)/) l = "🔍 " l
+		else if (l ~ /(INFO|NOTICE)/) l = "💡 " l
+		else if (l ~ /( OK|[Ss]uccess|réussi|terminé|[Dd]one|✓)/) l = "✅ " l
+		else l = "   " l
+		print l
+		fflush()
+	}'
+}
+#  « liste » (ou « le ») : le contenu d un dossier, un émoji par sorte de
+#  fichier, dans les couleurs de ls. Les dossiers d abord.
+liste() {
+	local d="${1:-.}" f n e ico
+	[ -d "$d" ] || { printf '❓ « %s » n est pas un dossier\n' "$d" >&2; return 1; }
+	local -a tous=() dossiers=() fichiers=()
+	shopt -s nullglob dotglob
+	tous=("$d"/*)
+	shopt -u nullglob dotglob
+	for f in "${tous[@]}"; do [ -d "$f" ] && dossiers+=("$f") || fichiers+=("$f"); done
+	for f in "${dossiers[@]}" "${fichiers[@]}"; do
+		n="${f##*/}"; e="${n##*.}"; [ "$e" = "$n" ] && e=""; e="${e,,}"
+		if [ -L "$f" ]; then ico="🔗"
+		elif [ -d "$f" ]; then ico="📁"
+		elif [ -x "$f" ] && [ -z "$e" ]; then ico="⚙️ "
+		else case "$e" in
+			py) ico="🐍" ;; sh|bash|zsh) ico="📜" ;; js|ts|mjs) ico="🟨" ;; html|htm) ico="🌐" ;; css) ico="🎨" ;;
+			json|yaml|yml|toml|conf|cfg|ini|env) ico="🧾" ;; md|txt|rst) ico="📝" ;; pdf) ico="📕" ;;
+			png|jpg|jpeg|gif|webp|svg|bmp) ico="🖼️ " ;; mp3|ogg|flac|wav|m4a) ico="🎵" ;; mp4|mkv|webm|mov|avi) ico="🎬" ;;
+			zip|gz|xz|7z|tar|rar|zst) ico="📦" ;; deb) ico="📦" ;; iso|img) ico="💿" ;; gguf|safetensors) ico="🧠" ;;
+			c|h|cpp|rs|go|java) ico="💻" ;; csv|ods|xlsx|db|sqlite) ico="📊" ;; log) ico="📋" ;; desktop) ico="🚀" ;;
+			*) ico="📄" ;;
+		esac; fi
+		printf '%s ' "$ico"
+		( cd -- "$d" && ls -d --color=always -- "$n" )
+	done
+}
+alias le='liste'
 alias ...='cd ../..'
 alias grep='grep --color=auto'
 alias df='df -h'
