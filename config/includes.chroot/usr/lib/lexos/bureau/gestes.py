@@ -159,3 +159,85 @@ def session(geste: str) -> bool:
     if geste not in GESTES or not shutil.which("lexos-session"):
         return False
     return applis._detache(["lexos-session", geste])
+
+
+# ─── Les bureaux virtuels ────────────────────────────────────────────────
+#  ALEX (photo de la barre du haut, « les quatre petits points ») : « c'est
+#  pour changer les fenêtres de bureau, je les ai pas sur le nouveau menu
+#  d'en haut ». Puis : « mettre la souris en haut, tourner la petite roulette,
+#  ça va changer de bureau — ça affiche rien, pas d'animation ».
+#
+#  On parle EWMH directement à xfwm4 (_NET_CURRENT_DESKTOP), sans wmctrl ni
+#  xdotool : python3-xlib est déjà là pour la fenêtre du bureau. Un Display
+#  NEUF par appel : le serveur répond depuis ses propres fils, et une
+#  connexion Xlib partagée entre fils n'est pas sûre.
+#  La roulette ne fait PAS le tour (du 4 au 1) : comme « wrap_workspaces »
+#  de xfwm4, réglé à faux dans LexOS — on sait toujours où on est.
+def _x_bureaux():
+    try:
+        from Xlib import display  # noqa: PLC0415
+        return display.Display()
+    except Exception:
+        return None
+
+
+def bureaux() -> dict:
+    """{"n": 4, "actuel": 0} — ou n=0 si on ne peut pas le savoir (pas de X)."""
+    d = _x_bureaux()
+    if d is None:
+        return {"n": 0, "actuel": 0}
+    try:
+        racine = d.screen().root
+
+        def lire(nom: str) -> int | None:
+            p = racine.get_full_property(d.intern_atom(nom), 0)
+            return int(p.value[0]) if p is not None and len(p.value) else None
+
+        n = lire("_NET_NUMBER_OF_DESKTOPS") or 0
+        actuel = lire("_NET_CURRENT_DESKTOP") or 0
+        return {"n": max(0, min(n, 32)), "actuel": max(0, min(actuel, max(0, n - 1)))}
+    except Exception:
+        return {"n": 0, "actuel": 0}
+    finally:
+        try:
+            d.close()
+        except Exception:
+            pass
+
+
+def bureau(d: dict) -> dict:
+    """{"aller": 2} va au bureau 3 ; {"pas": 1} ou {"pas": -1}, au voisin."""
+    etat = bureaux()
+    n, actuel = etat["n"], etat["actuel"]
+    if n <= 1:
+        return {"ok": False, **etat}
+    cible = actuel
+    try:
+        if "aller" in d:
+            cible = int(d["aller"])
+        elif "pas" in d:
+            cible = actuel + (1 if int(d["pas"]) > 0 else -1)
+    except (TypeError, ValueError):
+        return {"ok": False, **etat}
+    cible = max(0, min(cible, n - 1))
+    if cible == actuel:
+        return {"ok": True, **etat}
+    x = _x_bureaux()
+    if x is None:
+        return {"ok": False, **etat}
+    try:
+        from Xlib import X  # noqa: PLC0415
+        from Xlib.protocol import event  # noqa: PLC0415
+        racine = x.screen().root
+        ev = event.ClientMessage(window=racine, client_type=x.intern_atom("_NET_CURRENT_DESKTOP"),
+                                 data=(32, [cible, X.CurrentTime, 0, 0, 0]))
+        racine.send_event(ev, event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask)
+        x.flush()
+        return {"ok": True, "n": n, "actuel": cible}
+    except Exception:
+        return {"ok": False, **etat}
+    finally:
+        try:
+            x.close()
+        except Exception:
+            pass

@@ -110,6 +110,7 @@ class Etat:
                      ("applis", "Toutes les applications")) if tout[c]]
         return {"apps": outils_choisis(r, tout), "sections": sections, "prenom": prenom(),
                 "son": gestes.son_etat(), "notifs": gestes.notifications(), "dnd": gestes.ne_pas_deranger(),
+                "bureaux": gestes.bureaux(),
                 "audit": bool(applis.trouver_desktop("lexos-audit")),
                 "reglages": {k: r[k] for k in ("accent", "police", "outils_apps")}}
 
@@ -288,6 +289,8 @@ def fabriquer(etat: Etat):
                 return self._json({"ok": applis._detache(["ti-lex-ia", vers, q])})
             if chemin == "/api/son":
                 return self._json(gestes.son(d))
+            if chemin == "/api/bureau":
+                return self._json(gestes.bureau(d))
             if chemin == "/api/capture":
                 return self._json({"ok": gestes.capture(str(d.get("mode", "")))})
             if chemin == "/api/notifs":

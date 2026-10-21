@@ -201,3 +201,11 @@ body.ouvert .outil { animation: tombe .45s both cubic-bezier(.2,1.5,.4,1); }
 .bulle { position: absolute; z-index: 60; left: 50%; top: 82px; transform: translateX(-50%); background: rgba(14,14,15,.96); border: 1px solid rgba(var(--acc-rgb),.5); border-radius: 12px; padding: 9px 16px; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.6); white-space: nowrap; }
 
 @media (prefers-reduced-motion: reduce) { .barre, body.ouvert .barre { transition: none; } .menu, .tout, .tuile, .outil, .gestes button { animation: none !important; } }
+
+/* ▪▪▪▪ Les bureaux virtuels (les points de l'ancienne barre du haut) */
+.bureaux { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 12px; border-radius: 22px; background: var(--noir-3); border: 1px solid var(--ligne); }
+.bureaux[hidden] { display: none; }
+.bureaux .point { width: 14px; height: 14px; padding: 0; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.55); background: transparent; cursor: pointer; }
+.bureaux .point:hover { border-color: var(--orange); background: rgba(var(--acc-rgb),.25); }
+.bureaux .point.actuel { width: 26px; border-radius: 7px; border-color: var(--orange); background: var(--orange); box-shadow: 0 0 10px rgba(var(--acc-rgb),.7); }
+.bureaux .point:focus-visible { outline: 2px solid var(--orange-2); outline-offset: 2px; }
