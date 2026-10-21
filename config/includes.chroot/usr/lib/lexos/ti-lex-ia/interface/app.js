@@ -210,7 +210,9 @@ async function chargerModeles() {
 /* Les modèles d'IMAGE ne savent pas discuter : on les garde hors des menus Chat / Codex */
 const RE_MODELE_IMAGE = /z[-_ ]?image|flux|sdxl|stable[-_ ]?diffusion|\bsd3|qwen[-_]?image|hidream/i;
 const modelesTexte = () => S.modeles.filter((m) => m.nuage || !RE_MODELE_IMAGE.test(m.name));
-const nomModele = (n) => String(n || "").startsWith("nuage:") ? "☁️ " + n.slice(6) : n;
+//  « usb: » : un modèle d'une clé USB branchée (cles_ia.py) — affiché 🔌.
+const nomModele = (n) => String(n || "").startsWith("nuage:") ? "☁️ " + n.slice(6)
+  : String(n || "").startsWith("usb:") ? "🔌 " + n.slice(4) : n;
 function expliquerErreur(msg) {
   if (/unknown model architecture|error loading model/i.test(msg))
     return "Ce modèle ne peut pas être chargé par Ollama (architecture inconnue). Si c'est un modèle d'image en .gguf (fait pour ComfyUI / stable-diffusion.cpp), il ne marche pas dans Ollama : télécharge plutôt x/z-image-turbo dans l'onglet 🎨 Images.";

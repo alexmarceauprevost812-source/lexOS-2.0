@@ -386,6 +386,10 @@ ENV_NOMS_CACHE: dict = {}          # noms des variables (jamais les valeurs), po
 NOM_VARIABLE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 
 
+# 🔌 Les IA des clés USB branchées (cles_ia.py) — démarré dans main()
+CLES = None
+
+
 # ─────────────────────────────── Fichiers .gguf ──────────────────────────────
 SAUTER = {".git", ".venv", "venv", "deps", "blobs", "lib", "node_modules",
           "heretic-runtime", "heretic-outils", "__pycache__", "huggingface",
@@ -705,11 +709,23 @@ def fabriquer_gestionnaire(moteur: Moteur, arret: threading.Event):
             if methode == "GET" and self.path.split("?", 1)[0] == "/api/tags":
                 return self._tags()
             corps = self._corps() if methode != "GET" else None
-            if corps and self.path in ("/api/chat", "/api/generate", "/api/show", "/api/delete"):
+            port_cible = moteur.port
+            if corps and self.path in ("/api/chat", "/api/generate", "/api/show", "/api/delete",
+                                       "/api/embed", "/api/embeddings"):
                 try:
                     d = json.loads(corps)
                 except ValueError:
                     d = None
+                # 🔌 un modèle d'une clé branchée (« usb:… ») : vers l'Ollama de cette clé
+                route = CLES.route(d.get("model") or d.get("name")) if isinstance(d, dict) and CLES else None
+                if route:
+                    if self.path == "/api/delete":
+                        return self._json({"error": "on ne supprime rien sur une clé branchée"}, 400)
+                    port_cible, vrai = route
+                    for k in ("model", "name"):
+                        if k in d:
+                            d[k] = vrai
+                    corps = json.dumps(d).encode()
                 if isinstance(d, dict) and est_nuage(d.get("model") or d.get("name")):
                     if self.path == "/api/show":       # pas « vision » : jamais choisi tout seul
                         return self._json({"capabilities": ["completion"], "details": {"family": "nuage"},
@@ -718,7 +734,7 @@ def fabriquer_gestionnaire(moteur: Moteur, arret: threading.Event):
                         return self._json({"error": "modèle en ligne : retire-le dans ☁️ IA en ligne"}, 400)
                     return self._nuage_chat(d, self.path == "/api/generate")
             try:
-                c = http.client.HTTPConnection("127.0.0.1", moteur.port, timeout=900)
+                c = http.client.HTTPConnection("127.0.0.1", port_cible, timeout=900)
                 c.request(methode, self.path, body=corps,
                           headers={"Content-Type": "application/json"})
                 r = c.getresponse()
@@ -752,7 +768,7 @@ def fabriquer_gestionnaire(moteur: Moteur, arret: threading.Event):
                 c.close()
             except (OSError, ValueError):
                 pass
-            return self._json({"models": modeles + NUAGE.tags()})
+            return self._json({"models": modeles + (CLES.tags() if CLES else []) + NUAGE.tags()})
 
         # ── ☁️ discussion avec un modèle en ligne (même format qu'Ollama) ──
         def _nuage_chat(self, d: dict, generer: bool = False):
@@ -1473,6 +1489,17 @@ def main() -> int:
         dire("Pas de moteur IA pour l'instant — installe-le avec « lexos ia setup ».", ROUGE)
         moteur.proc, moteur.port, moteur.version = None, 11434, "absent"
 
+    # 🔌 Les IA des clés USB branchées (Linux : /media/<compte>/…) — voir cles_ia.py
+    global CLES
+    if not WINDOWS and not a.sans_ia:
+        try:
+            from cles_ia import ClesIA
+            CLES = ClesIA(CACHE, exclure=moteur.modeles, journal=lambda m: dire(m, GRIS))
+            CLES.demarrer()
+        except Exception as e:                      # le Moteur marche sans
+            dire(f"Clés IA indisponibles : {e}", GRIS)
+            CLES = None
+
     port = port_libre(a.port, a.port + 50)
     if not port:
         dire("Aucun port libre pour l'interface.", ROUGE)
@@ -1517,6 +1544,8 @@ def main() -> int:
             except OSError:
                 pass
         serveur.shutdown()
+        if CLES:
+            CLES.arreter_tout()
         moteur.arreter()
         dire("Moteur arrêté. Tu peux débrancher la clé. ✔", ORANGE)
     return 0
