@@ -1276,6 +1276,10 @@ def fabriquer_gestionnaire(moteur: Moteur, arret: threading.Event):
                         if len(out) >= 500:
                             break
                 return self._json(out)
+            if len(parts) == 2 and parts[1] == "github":          # ⬆️ le dépôt lié, et le jeton est-il là ?
+                from github_envoi import lire_lien, nom_depot_pour
+                return self._json({"lien": lire_lien(projet), "propose": nom_depot_pour(projet.name),
+                                   "jeton": bool(os.environ.get("GITHUB_TOKEN"))})
             if len(parts) == 2 and parts[1] == "brut":            # image, etc. telle quelle
                 rel = parse_qs(u.query).get("chemin", [""])[0]
                 f = self._chemin_dans(projet, rel)
@@ -1317,6 +1321,8 @@ def fabriquer_gestionnaire(moteur: Moteur, arret: threading.Event):
             projet = self._dossier_projet(parts[0])
             if not projet or not projet.is_dir():
                 return self._json({"erreur": "projet introuvable"}, 404)
+            if len(parts) == 2 and parts[1] == "github":          # ⬆️ envoyer tout le projet sur GitHub
+                return self._envoyer_github(projet, d)
             if len(parts) == 2 and parts[1] == "televerser":      # ajouter une image / un fichier
                 import base64
                 f = self._chemin_dans(projet, str(d.get("chemin", "")).strip())
@@ -1345,6 +1351,36 @@ def fabriquer_gestionnaire(moteur: Moteur, arret: threading.Event):
                 f.write_text(str(d.get("contenu", "")), "utf-8")
                 return self._json({"ok": True})
             self._json({"erreur": "inconnu"}, 404)
+
+        # ── ⬆️ Envoyer sur GitHub (github_envoi.py) : la progression arrive ligne par ligne ──
+        def _envoyer_github(self, projet: Path, d: dict):
+            from github_envoi import envoyer, ErreurGitHub
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close")
+            self.end_headers()
+
+            def ecrire(e: dict):
+                try:
+                    self.wfile.write((json.dumps(e, ensure_ascii=False) + "\n").encode()); self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    raise ErreurGitHub("annulé")
+            try:
+                r = envoyer(projet, os.environ.get("GITHUB_TOKEN", ""), str(d.get("depot") or ""),
+                            bool(d.get("prive", True)), str(d.get("message") or ""), SAUTER, ecrire)
+                ecrire({"type": "fin", **r})
+            except ErreurGitHub as e:
+                try:
+                    ecrire({"type": "erreur", "texte": str(e)})
+                except ErreurGitHub:
+                    pass
+            except Exception as e:                          # jamais une page sans réponse
+                try:
+                    ecrire({"type": "erreur", "texte": f"envoi interrompu : {e}"})
+                except Exception:
+                    pass
+            self.close_connection = True
 
         # ── conversations (gardées SUR la clé) ──
         def _liste_conv(self):

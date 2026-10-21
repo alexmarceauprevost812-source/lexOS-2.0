@@ -166,10 +166,13 @@
             <div class="cx-feuille">
               <div class="cx-onglet-fichier"><span id="cx-nom">Aucun fichier</span><span id="cx-modifie" hidden>● modifié</span>
                 <button class="btn btn-contour mini" id="cx-lancer" title="Copie la commande pour lancer ce fichier dans ton terminal">▶ Commande pour lancer</button>
-                <button class="btn btn-plein mini brille" id="cx-sauver">💾 Enregistrer</button></div>
+                <button class="btn btn-plein mini brille" id="cx-sauver">💾 Enregistrer</button>
+                <button class="btn btn-contour mini" id="cx-github" title="Enregistre, puis envoie TOUS les fichiers du projet sur GitHub (Maj+clic : changer de dépôt)">⬆️ GitHub</button>
+                <button class="btn-icone cx-disposition" id="cx-disposition" title="Codex à droite ou en bas">◧</button></div>
               <div class="cx-code"><pre id="cx-lignes">1</pre><div class="cx-zone"><pre id="cx-couleurs" aria-hidden="true"></pre><textarea id="cx-texte" spellcheck="false" placeholder="Choisis ou crée un fichier, ou demande à Codex d'écrire du code ↓"></textarea></div></div>
             </div>
           </div>
+          <div class="cx-poignee" id="cx-poignee" role="separator" aria-orientation="vertical" title="Glisse pour changer la largeur"></div>
           <div class="cx-ia">
             <button type="button" class="cx-ia-tete" id="cx-replier" title="Afficher ou cacher la conversation">
               <span class="cx-robot">⌨️</span><span><b>Codex</b><small>écrit · corrige · explique</small></span>
@@ -598,6 +601,31 @@
 </div>
 
 <!-- ═══════════════ CLONER UN DÉPÔT GITHUB ═══════════════ -->
+<!-- ⬆️ Envoyer le projet sur GitHub (github.js) -->
+<div id="gh" hidden>
+  <form class="clone-boite" id="gh-form" autocomplete="off">
+    <div class="env-tete">
+      <div class="clone-boite-ic"><span>⬆️</span></div>
+      <div><h3>Envoyer sur GitHub</h3><small id="gh-sous">tous les fichiers du projet, avec ton GITHUB_TOKEN</small></div>
+      <button type="button" class="btn-icone" id="gh-fermer" title="Fermer">✕</button>
+    </div>
+    <label class="clone-champ">Dépôt <small>(nom, proprio/nom ou adresse — créé s'il n'existe pas)</small>
+      <input id="gh-depot" spellcheck="false"></label>
+    <label class="clone-champ">Message <small>(ce qui a changé)</small>
+      <input id="gh-message" placeholder="Mise à jour depuis LexOS" spellcheck="false" maxlength="500"></label>
+    <label class="gh-prive"><input type="checkbox" id="gh-prive" checked> 🔒 Dépôt privé (s'il est créé)</label>
+    <div class="clone-progres" id="gh-progres" hidden>
+      <div class="force-barre"><i id="gh-barre"></i></div>
+      <p id="gh-etat">connexion à GitHub…</p>
+    </div>
+    <div class="clone-fini" id="gh-fini" hidden></div>
+    <div class="clone-btns">
+      <span class="clone-prive" id="gh-jeton"></span>
+      <button class="btn btn-plein brille" id="gh-go">⬆️ Envoyer</button>
+    </div>
+  </form>
+</div>
+
 <div id="clone" hidden>
   <form class="clone-boite" id="clone-form" autocomplete="off">
     <div class="env-tete">
@@ -656,6 +684,7 @@
 <script src="images.js"></script>
 <script src="variables.js"></script>
 <script src="cloner.js"></script>
+<script src="github.js"></script>
 <script src="nuage.js"></script>
 <script src="abonnement.js"></script>
 <script src="bureau.js"></script>
