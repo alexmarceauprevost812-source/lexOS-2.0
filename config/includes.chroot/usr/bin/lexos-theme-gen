@@ -230,8 +230,18 @@ DANGER_FG="$(texte_lisible "$DANGER")"
 #  Chaque palette définit les MÊMES rôles, pour que le reste du fichier
 #  (terminalrc, GTK, invite) n'ait pas à savoir lequel des deux est actif :
 #     TERM_BG        le fond
-#     TERM_FG        le vert de la MACHINE — ce qu'elle répond
+#     TERM_FG        le texte NORMAL du terminal — ce que la machine répond
 #     TERM_FG_HI     le même en gras
+#     TERM_VERT      le vert de la MACHINE dans l'invite (chemin, chevron),
+#                    et le vert ANSI de la palette (couleur 2)
+#     TERM_VERT_HI   le même en gras (couleur 10)
+#
+#  ═══ LE TEXTE NORMAL N'EST PLUS VERT ═══
+#  ALEX : « ajouter la couleur dans le terminal, trop vert ». Tout ce que
+#  la machine répondait sortait en vert : sur un écran plein, plus rien ne
+#  ressortait — ni les couleurs de ls, ni celles du code, ni les erreurs.
+#  Le texte normal passe à un blanc doux (de jour : l'encre foncée) ; le
+#  vert reste à l'invite, et les couleurs des commandes ressortent.
 #     TERM_SAISIE    l'orange de l'ACCENT dans le terminal (curseur,
 #                    sélection, onglet actif) — PAS l'invite
 #     TERM_UTILISATEUR  l'orange du NOM dans l'invite. Un AUTRE orange que
@@ -286,8 +296,10 @@ if [[ "$TERM_EFFECTIF" == "jour" ]]; then
 	#  l'orange vif #E8590C ne donne que 3,29:1 sur ce fond, son ton sombre
 	#  #A84007 en donne 5,67. Un accent déjà foncé est repris tel quel.
 	TERM_BG="#F7F5F0"
-	TERM_FG="#0B6B3A"
-	TERM_FG_HI="#084F2B"
+	TERM_FG="#1B1A17"
+	TERM_FG_HI="#000000"
+	TERM_VERT="#0B6B3A"
+	TERM_VERT_HI="#084F2B"
 	TERM_SAISIE="$ACCENT_LO"
 	#  L'encre de la frappe. Le « blanc » de nuit n'a pas de sens sur du
 	#  crème : on prend le noir de la palette claire (#1B1A17, sa couleur
@@ -347,8 +359,12 @@ else
 	#  #00FF5F (38;5;47), pour le gras, garde le même glacis vert-menthe que
 	#  l'ancien FG_HI, juste plus haut sur l'échelle.
 	TERM_BG="#000000"
-	TERM_FG="#00D700"
-	TERM_FG_HI="#00FF5F"
+	#  Le texte normal : un blanc DOUX (#E4E4E7, 16,6:1 sur le noir) — le
+	#  blanc franc reste à ce que VOUS tapez (TERM_TEXTE) et au gras.
+	TERM_FG="#E4E4E7"
+	TERM_FG_HI="#FFFFFF"
+	TERM_VERT="#00D700"
+	TERM_VERT_HI="#00FF5F"
 	TERM_SAISIE="$ACCENT"
 	#  Le blanc demandé, franc : 21:1 sur le noir. C'est aussi la couleur
 	#  15 de TERM_PALETTE (le « blanc brillant ») — une seule valeur pour
@@ -399,8 +415,8 @@ else
 	TERM_SEL_BG="$ACCENT"
 	TERM_SEL_FG="$BTN_FG"
 	TERM_TRANSPARENCE="0.94"
-	TERM_PALETTE="#0B0B0C;#E5484D;${TERM_FG};${ACCENT};#3D8BFD;#8B5CF6;#2AA9A0;#C8C8CC"
-	TERM_PALETTE="${TERM_PALETTE};#4A4A50;#FF6B6F;${TERM_FG_HI};${ACCENT_HI};#6EA8FE;#A78BFA;#4FD6CC;#FFFFFF"
+	TERM_PALETTE="#0B0B0C;#E5484D;${TERM_VERT};${ACCENT};#3D8BFD;#8B5CF6;#2AA9A0;#C8C8CC"
+	TERM_PALETTE="${TERM_PALETTE};#4A4A50;#FF6B6F;${TERM_VERT_HI};${ACCENT_HI};#6EA8FE;#A78BFA;#4FD6CC;#FFFFFF"
 fi
 
 if [[ "$MODE" == "clair" ]]; then
@@ -1722,7 +1738,7 @@ LEXOS_TERM_TEXTE=${TERM_TEXTE}
 #  « #B3261E… » pour un commentaire — la variable ne vaudrait qu'UNE couleur
 #  sur seize, sans un mot d'erreur. Mesuré avant d'écrire cette ligne.
 LEXOS_TERM_PALETTE='${TERM_PALETTE}'
-LEXOS_PS_MACHINE='$(ansi_vrai "$TERM_FG")'
+LEXOS_PS_MACHINE='$(ansi_vrai "$TERM_VERT")'
 LEXOS_PS_TEXTE='$(ansi_vrai "$TERM_TEXTE")'
 LEXOS_PS_ERREUR='1;$(ansi_vrai "$TERM_ERREUR")'
 LEXOS_PS_DIM='$(ansi_vrai "$TERM_DIM")'
