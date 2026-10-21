@@ -82,6 +82,18 @@
     <property name="snap_to_windows"           type="bool"   value="true"/>
     <property name="snap_width"                type="int"    value="12"/>
     <property name="wrap_workspaces"           type="bool"   value="false"/>
+    <!--  ═══ ACCOTER UNE FENÊTRE AU BORD LA DIVISE, ELLE NE CHANGE PLUS DE BUREAU ═══
+          ALEX : « je mets ma souris directement sur le coin de l'écran, puis
+          ça change de bureau au complet. Je veux qu'elle se divise, et non
+          changer de bureau. »
+          Le coupable : « wrap_windows », qui n'était écrit nulle part. Son
+          défaut dans xfwm4 est VRAI : glisser une fenêtre contre le bord
+          gauche ou droit l'emporte sur l'espace de travail voisin. Il passe
+          AVANT le carrelage (tile_on_move) : la fenêtre partait sur l'autre
+          bureau au lieu de prendre sa moitié d'écran.
+          Faux ici, écrit en toutes lettres. Changer de bureau reste possible
+          sur les quatre points de la barre — un geste volontaire. -->
+    <property name="wrap_windows"              type="bool"   value="false"/>
     <property name="tile_on_move"              type="bool"   value="true"/>
     <property name="borderless_maximize"       type="bool"   value="true"/>
     <property name="click_to_focus"            type="bool"   value="true"/>
