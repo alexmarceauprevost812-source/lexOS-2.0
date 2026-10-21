@@ -486,6 +486,30 @@ if [ -n "${BASH_VERSION:-}" ] && [ -t 1 ] && [ -z "${DISPLAY:-}" ] \
 	fi
 fi
 
+# --- 🎬 La bannière TI-LEX animée, à l'ouverture d'un terminal graphique ------
+#  ALEX : « ajouter de la couleur… et des animations ». lexos-banniere (pluie
+#  de chiffres, TI-LEX, TERMINAL PRO v4) — seulement si on l'a allumée avec
+#  « animation on » : un terminal qui s'ouvre sans qu'on l'ait demandé doit
+#  rester instantané. « tilex » la rejoue quand on veut.
+LEXOS_ANIM_FICHIER="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/animation"
+animation() {
+	case "${1:-}" in
+		on|oui)  mkdir -p "${LEXOS_ANIM_FICHIER%/*}" && printf 'on\n' > "$LEXOS_ANIM_FICHIER" \
+			&& printf '✓ Bannière animée à chaque nouveau terminal (« animation off » pour l\x27enlever).\n' ;;
+		off|non) mkdir -p "${LEXOS_ANIM_FICHIER%/*}" && printf 'off\n' > "$LEXOS_ANIM_FICHIER" \
+			&& printf '✓ Plus de bannière à l\x27ouverture (« tilex » la montre quand tu veux).\n' ;;
+		*) printf 'Usage : animation on | off\n' >&2; return 2 ;;
+	esac
+}
+alias tilex='lexos-banniere'
+if [ -n "${BASH_VERSION:-}" ] && [ -t 1 ] && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] \
+   && [ -z "${LEXOS_NO_BANNER:-}" ] && [ -r "$LEXOS_ANIM_FICHIER" ] \
+   && command -v lexos-banniere >/dev/null 2>&1; then
+	read -r __lexos_anim < "$LEXOS_ANIM_FICHIER" 2>/dev/null
+	[ "${__lexos_anim:-}" = "on" ] && lexos-banniere
+	unset __lexos_anim
+fi
+
 # --- Bienvenue en console (pas dans les scripts, pas dans le terminal graphique)
 if [ -n "${BASH_VERSION:-}" ] && [ -t 1 ] && [ -z "${DISPLAY:-}" ] \
    && [ -z "${LEXOS_NO_BANNER:-}" ] && command -v lexfetch >/dev/null 2>&1; then
