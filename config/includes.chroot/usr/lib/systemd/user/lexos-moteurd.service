@@ -5,6 +5,11 @@ Documentation=man:lexos(1)
 #  s'arrête avec elle.
 PartOf=graphical-session.target
 After=graphical-session.target
+#  ⚠ CES DEUX-LÀ VONT DANS [Unit], PAS DANS [Service] : rangés plus bas,
+#  systemd les ignorait (« Unknown key 'StartLimitIntervalSec' in section
+#  [Service] ») et la limite de relances ne jouait pas.
+StartLimitBurst=5
+StartLimitIntervalSec=120
 
 [Service]
 Type=simple
@@ -17,8 +22,6 @@ ExecStart=/usr/bin/lexos-moteurd --avant
 #  elles, continuent de s'ouvrir très bien sans lui.
 Restart=on-failure
 RestartSec=5
-StartLimitBurst=5
-StartLimitIntervalSec=120
 #  Il ne parle qu'à la boucle locale et n'écrit que sous XDG_RUNTIME_DIR.
 NoNewPrivileges=yes
 #  ⚠ PAS DE PrivateNetwork : il interroge nmcli et bluetoothctl, qui passent
@@ -26,4 +29,10 @@ NoNewPrivileges=yes
 #  le permettre — il ne touche que des fichiers.
 
 [Install]
+#  ⚠ XFCE N'ALLUME JAMAIS graphical-session.target : ce WantedBy, seul, ne
+#  démarre RIEN sous LexOS (constaté sur l'Alienware, 2.0.3 : « enabled »
+#  mais « inactive (dead) » toute la session). C'est l'autostart
+#  /etc/xdg/autostart/lexos-moteurd.desktop (« lexos-moteurd session ») qui
+#  le démarre. Le WantedBy reste : c'est lui qui fait « enabled », que
+#  l'autostart et l'interrupteur des Paramètres lisent.
 WantedBy=graphical-session.target

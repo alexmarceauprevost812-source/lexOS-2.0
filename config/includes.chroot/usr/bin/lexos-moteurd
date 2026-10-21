@@ -27,6 +27,8 @@ lexos-moteurd — le démon qui garde le volet et les Paramètres au chaud
   lexos moteurd on        l'active pour cette session et les suivantes
   lexos moteurd off       l'arrête et l'empêche de revenir
   lexos moteurd --avant   le lance ICI, au premier plan (mise au point)
+  lexos moteurd session   le démarre à l'ouverture de session, s'il est activé
+                          (c'est l'autostart XFCE qui l'appelle)
 
 Sans lui, tout marche comme avant : les fenêtres montent leur propre
 serveur. Ce n'est qu'un accélérateur.
@@ -39,6 +41,18 @@ PORTS="${XDG_RUNTIME_DIR:-/tmp/lexos-$(id -u)}/lexos/moteur.json"
 case "${1:-etat}" in
 	-h|--help|aide|help) usage; exit 0 ;;
 	--avant)             exec python3 /usr/lib/lexos/moteur/demon.py ;;
+	session)
+		#  ═══ XFCE N'ALLUME PAS graphical-session.target ═══
+		#  Le WantedBy de l'unité ne la démarre donc jamais : c'est l'autostart
+		#  /etc/xdg/autostart/lexos-moteurd.desktop qui passe par ici. On ne
+		#  démarre QUE si l'unité est activée : « lexos moteurd off » et
+		#  l'interrupteur des Paramètres font « disable », et ils doivent tenir
+		#  d'une session à l'autre. DISPLAY et XAUTHORITY sont transmis au
+		#  gestionnaire utilisateur, qui ne les a pas sinon.
+		command -v systemctl >/dev/null 2>&1 || exit 0
+		systemctl --user is-enabled --quiet "$SERVICE" 2>/dev/null || exit 0
+		systemctl --user import-environment DISPLAY XAUTHORITY 2>/dev/null || true
+		exec systemctl --user start --no-block "$SERVICE" ;;
 	on)
 		command -v systemctl >/dev/null 2>&1 || { echo "systemctl est absent." >&2; exit 1; }
 		exec systemctl --user enable --now "$SERVICE" ;;

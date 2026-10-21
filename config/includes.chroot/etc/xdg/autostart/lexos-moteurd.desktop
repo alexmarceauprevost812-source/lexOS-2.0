@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LexOS — volet et Paramètres au chaud
+Name[en]=LexOS — keep the panel and Settings warm
+Comment=Démarre lexos-moteurd à l'ouverture de session (XFCE n'allume pas graphical-session.target), seulement s'il est activé
+Comment[en]=Starts lexos-moteurd at login (XFCE does not reach graphical-session.target), only when it is enabled
+Exec=/usr/bin/lexos-moteurd session
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+OnlyShowIn=XFCE;
