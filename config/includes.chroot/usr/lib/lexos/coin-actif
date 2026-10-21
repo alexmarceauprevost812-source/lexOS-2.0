@@ -34,6 +34,9 @@ import time
 SONDAGE = 0.09          # secondes entre deux lectures du pointeur
 MARGE = 5               # px : il faut être à moins de ça des DEUX bords
 SEJOUR = 0.14           # s : durée minimale dans le coin
+#  Button1Mask..Button3Mask de X11 (1<<8, 1<<9, 1<<10) : clic gauche, milieu,
+#  droit. La molette (4, 5) n'est jamais « tenue » : elle n'en fait pas partie.
+BOUTONS_TENUS = (1 << 8) | (1 << 9) | (1 << 10)
 ETAT = os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
     "lexos", "coin-actif")
@@ -68,7 +71,7 @@ def x11_ouvre():
 
 
 def pointeur(lib, dpy, racine):
-    """(x, y) du pointeur, ou None si le serveur ne répond plus."""
+    """(x, y, boutons) du pointeur, ou None si le serveur ne répond plus."""
     rr = ctypes.c_ulong(); cr = ctypes.c_ulong()
     rx = ctypes.c_int(); ry = ctypes.c_int()
     wx = ctypes.c_int(); wy = ctypes.c_int()
@@ -81,7 +84,7 @@ def pointeur(lib, dpy, racine):
         #  Le pointeur est sur un AUTRE écran (multi-écran X). Ce n'est pas
         #  une erreur : ce n'est simplement pas notre coin.
         return None
-    return rx.value, ry.value
+    return rx.value, ry.value, m.value
 
 
 def encore_demande():
@@ -139,8 +142,21 @@ def main():
             entre = None
             arme = True
             continue
-        x, y = pos
+        x, y, boutons = pos
         dedans = x < MARGE and y < MARGE
+
+        #  ═══ UN BOUTON TENU, C'EST UNE FENÊTRE QU'ON GLISSE ═══
+        #  ALEX : « je mets ma souris sur le coin de l'écran, puis ça change
+        #  de bureau au complet. Je veux qu'elle se divise. » En accotant une
+        #  fenêtre dans le coin, le pointeur passe forcément ici : la vue
+        #  s'ouvrait et recouvrait tout, au lieu de laisser xfwm4 poser la
+        #  fenêtre en moitié d'écran. Bouton enfoncé = on ne fait rien, et
+        #  le coin reste désarmé jusqu'à ce que la souris en ressorte —
+        #  relâcher la fenêtre DANS le coin ne doit pas l'ouvrir non plus.
+        if boutons & BOUTONS_TENUS:
+            entre = None
+            arme = False
+            continue
 
         if not dedans:
             entre = None

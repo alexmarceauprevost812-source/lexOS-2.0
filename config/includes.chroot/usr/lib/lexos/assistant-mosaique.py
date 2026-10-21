@@ -102,6 +102,25 @@ def x11_session():
     return bool(os.environ.get("DISPLAY")) and os.environ.get("XDG_SESSION_TYPE", "x11").lower() != "wayland"
 
 
+def xfwm4_gestes():
+    """Le carrelage au bord ON, l'emport vers le bureau voisin OFF.
+
+    ALEX : « je mets ma souris sur le coin de l'écran, puis ça change de
+    bureau au complet. Je veux qu'elle se divise. » — xfwm4 a « wrap_windows »
+    vrai par défaut : la fenêtre glissée contre le bord partait sur l'espace
+    voisin AVANT que le carrelage ne la pose en moitié d'écran.
+    Le xfwm4.xml de /etc/skel le dit déjà, mais il n'est copié qu'à la
+    CRÉATION du compte : une installation existante garde l'ancien défaut.
+    On l'écrit donc à chaque ouverture de session — « -n -t bool » crée la
+    clé si elle n'existe pas encore, sinon xfconf-query refuse en silence."""
+    for prop, valeur in (("/general/tile_on_move", "true"),
+                         ("/general/wrap_windows", "false")):
+        subprocess.run(["xfconf-query", "-c", "xfwm4", "-p", prop,
+                        "-n", "-t", "bool", "-s", valeur],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       check=False)
+
+
 def command(mode):
     if mode in ("on", "off"):
         want = mode == "on"
@@ -109,10 +128,7 @@ def command(mode):
         if want:
             # Action explicite de l'utilisateur : rétablir le geste XFWM4.
             if x11_session():
-                subprocess.run(["xfconf-query", "-c", "xfwm4", "-p",
-                                "/general/tile_on_move", "-s", "true"],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                               check=False)
+                xfwm4_gestes()
             if x11_session() and not running():
                 subprocess.Popen([sys.executable, __file__, "--watch"],
                                  start_new_session=True, stdin=subprocess.DEVNULL,
@@ -568,7 +584,13 @@ class Watcher:
 
 
 def watch():
-    if not enabled() or not x11_session():
+    if not x11_session():
+        return 0
+    #  Même assistant éteint : glisser une fenêtre au bord ne doit JAMAIS
+    #  changer de bureau. Ce lanceur part à chaque session (autostart),
+    #  c'est l'endroit qui corrige aussi les installations déjà faites.
+    xfwm4_gestes()
+    if not enabled():
         return 0
     handle = lock_handle()
     if handle is None:

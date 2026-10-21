@@ -141,7 +141,17 @@ class Integration(unittest.TestCase):
         prop = xml.find(".//property[@name='tile_on_move']")
         self.assertIsNotNone(prop)
         self.assertEqual(prop.get("value"), "true")
-        start = (CHROOT / "etc/xdg/autostart/lexos-assistant-mosaique.desktop").read_text()
+        #  Glisser au bord doit DIVISER l'écran, pas changer de bureau :
+        #  wrap_windows est vrai par défaut dans xfwm4.
+        wrap = xml.find(".//property[@name='wrap_windows']")
+        self.assertIsNotNone(wrap)
+        self.assertEqual(wrap.get("value"), "false")
+        #  Et c'est réappliqué à chaque session, pour les comptes existants.
+        source = SCRIPT.read_text()
+        self.assertIn('"/general/wrap_windows", "false"', source)
+        corner = (CHROOT / "usr/lib/lexos/coin-actif").read_text()
+        self.assertIn("boutons & BOUTONS_TENUS", corner)
+        start =(CHROOT / "etc/xdg/autostart/lexos-assistant-mosaique.desktop").read_text()
         self.assertIn("OnlyShowIn=XFCE;", start)
         self.assertIn("--watch", start)
         self.assertIn("NoDisplay=true", start)
