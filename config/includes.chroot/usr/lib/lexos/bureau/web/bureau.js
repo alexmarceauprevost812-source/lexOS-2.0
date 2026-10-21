@@ -354,7 +354,9 @@ let logoAffiche = "";
 function appliquerEmbleme() {
   const choix = P && LOGOS[P.embleme] ? P.embleme : (P && P.embleme === "aucun" ? "aucun" : "nomad");
   emb.hidden = choix === "aucun";
-  $("#bureau").classList.toggle("sans-code", !P || P.code === false);
+  //  Plus de code qui s'écrit en fond d'écran (demande d'Alex), même si un
+  //  vieux réglage dit encore « oui ».
+  $("#bureau").classList.add("sans-code");
   if (choix === "aucun" || choix === logoAffiche) return;
   logoAffiche = choix;
   embImg.src = LOGOS[choix];
@@ -491,7 +493,8 @@ mouvement: str = "doux"`,
   };
   if (calme) { lignes = MORCEAUX.slice(0, 3).join("\n\n").split("\n"); peindre(); return; }
   lignes = (MORCEAUX[0] + "\n\n" + MORCEAUX[1] + "\n").split("\n"); morceau = 2;   // on commence avec du code déjà écrit
-  peindre(); taper();
+  //  Retiré du bureau (demande d'Alex) : on ne tape plus rien.
+  void peindre; void taper;
 })();
 
 /* ════════════════ Charger, puis suivre les changements ════════════════ */

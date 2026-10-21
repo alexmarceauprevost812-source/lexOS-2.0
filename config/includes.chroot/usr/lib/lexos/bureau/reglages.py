@@ -63,8 +63,10 @@ DEFAUTS = {
     #  bannière LexOS Nomad, le logo rond, ou rien. Un clic dessus passe au
     #  suivant ; le choix est gardé ici, pas dans le navigateur de la page.
     "embleme": "nomad",
-    #  Le code qui s'écrit tout seul derrière la bannière Nomad.
-    "code": True,
+    #  Le code qui s'écrit tout seul derrière la bannière Nomad — RETIRÉ du
+    #  bureau à la demande d'Alex (« enlever les lignes de code en fond
+    #  d'écran ») ; la clé reste pour les réglages déjà écrits.
+    "code": False,
     #  🧪 Mon labo : le panneau qui monte quand la souris reste collée en
     #  bas de l'écran. « labo_delai » : combien de temps elle doit y rester
     #  (ms). « labo_apps » : ce qu'Alex y a mis, dans l'ordre ; ["*"] = pas

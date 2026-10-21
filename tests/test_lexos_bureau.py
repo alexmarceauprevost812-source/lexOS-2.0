@@ -134,7 +134,7 @@ class Reglages(unittest.TestCase):
 
     def test_logo_du_centre(self):
         r = self.rg.lire()
-        self.assertEqual((r["embleme"], r["code"]), ("nomad", True))
+        self.assertEqual((r["embleme"], r["code"]), ("nomad", False))
         self.assertIsNone(self.rg._propre("embleme", "/etc/passwd"))
         self.assertEqual(self.rg._propre("embleme", "aucun"), "aucun")
 
