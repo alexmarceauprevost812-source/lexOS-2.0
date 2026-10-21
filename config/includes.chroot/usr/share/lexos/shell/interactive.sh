@@ -227,7 +227,10 @@ if [ -n "${BASH_VERSION:-}" ]; then
 			#  Les couleurs sont celles de la bannière : l'or du « v4 », l'orange
 			#  de « TERMINAL PRO », le vert de « TI-LEX » ; de jour, les mêmes
 			#  en foncé, sinon l'or ne se lit pas sur le crème.
-			__LEXOS_PS1_TILEX='\[\033[1;${__LEXOS_C_OR}m\]\u\[\033[0;${__LEXOS_C_VERT_TL}m\]_\[\033[1;${__LEXOS_C_ORANGE_TL}m\]lexOS\[\033[0;${__LEXOS_C_VERT_TL}m\]-\[\033[1;${__LEXOS_C_VERT_TL}m\]pro\[\033[0m\]  \[\033[${__LEXOS_C_DIM}m\]\w$(__lexos_git_branch)\[\033[0m\]\n\[\033[${__LEXOS_C_VERT_TL}m\]─◇\[\033[0m\] \[$(__lexos_fleche)\]❯\[\033[0m\] \[\033[${__LEXOS_C_TEXTE}m\]'
+			#  PUIS, photo à l'appui : « ti-lex en vert lime, lexOS du même
+			#  orange que la capuche du ti bonhomme ». Relevé au pixel sur sa
+			#  bannière : la capuche vaut #F86A00. ti-lex passe au lime #A3FF12.
+			__LEXOS_PS1_TILEX='\[\033[1;${__LEXOS_C_LIME}m\]\u\[\033[0;${__LEXOS_C_VERT_TL}m\]_\[\033[1;${__LEXOS_C_ORANGE_TL}m\]lexOS\[\033[0;${__LEXOS_C_VERT_TL}m\]-\[\033[1;${__LEXOS_C_VERT_TL}m\]pro\[\033[0m\]  \[\033[${__LEXOS_C_DIM}m\]\w$(__lexos_git_branch)\[\033[0m\]\n\[\033[${__LEXOS_C_VERT_TL}m\]─◇\[\033[0m\] \[$(__lexos_fleche)\]❯\[\033[0m\] \[\033[${__LEXOS_C_TEXTE}m\]'
 			LEXOS_INVITE_FICHIER="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/invite"
 			__lexos_style_vu=""
 			__lexos_style() {
@@ -241,15 +244,15 @@ if [ -n "${BASH_VERSION:-}" ]; then
 					case "${COLORTERM:-}" in
 						truecolor|24bit)
 							if [ -n "$jour" ]; then
-								__LEXOS_C_OR='38;2;150;100;0'; __LEXOS_C_ORANGE_TL='38;2;176;76;0'; __LEXOS_C_VERT_TL='38;2;11;107;58'
+								__LEXOS_C_LIME='38;2;77;124;15'; __LEXOS_C_ORANGE_TL='38;2;176;76;0'; __LEXOS_C_VERT_TL='38;2;11;107;58'
 							else
-								__LEXOS_C_OR='38;2;255;196;0'; __LEXOS_C_ORANGE_TL='38;2;255;138;31'; __LEXOS_C_VERT_TL='38;2;57;231;95'
+								__LEXOS_C_LIME='38;2;163;255;18'; __LEXOS_C_ORANGE_TL='38;2;248;106;0'; __LEXOS_C_VERT_TL='38;2;57;231;95'
 							fi ;;
 						*)
 							if [ -n "$jour" ]; then
-								__LEXOS_C_OR='38;5;136'; __LEXOS_C_ORANGE_TL='38;5;130'; __LEXOS_C_VERT_TL='38;5;29'
+								__LEXOS_C_LIME='38;5;64'; __LEXOS_C_ORANGE_TL='38;5;130'; __LEXOS_C_VERT_TL='38;5;29'
 							else
-								__LEXOS_C_OR='38;5;220'; __LEXOS_C_ORANGE_TL='38;5;208'; __LEXOS_C_VERT_TL='38;5;41'
+								__LEXOS_C_LIME='38;5;154'; __LEXOS_C_ORANGE_TL='38;5;202'; __LEXOS_C_VERT_TL='38;5;41'
 							fi ;;
 					esac
 					__LEXOS_C_MACHINE="$__LEXOS_C_VERT_TL"   # le chevron dans le même vert
