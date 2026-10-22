@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LexOS — barre du haut éteinte
+Comment=Ferme la barre du haut de XFCE à chaque session (lexos barre-haut on pour la ravoir)
+Exec=/usr/bin/lexos-barre-haut demarrer
+TryExec=/usr/bin/lexos-barre-haut
+OnlyShowIn=XFCE;
+Terminal=false
+NoDisplay=true
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Phase=Applications

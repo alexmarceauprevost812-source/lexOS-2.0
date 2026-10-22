@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-barre-haut — la barre du haut de XFCE (xfce4-panel), éteinte pour de bon
+# =============================================================================
+#  ALEX (2026-10-22), capture de la barre à l'appui : « pour désactiver
+#  infiniment… parce qu'il apparaît tout le temps quand je redémarre mon
+#  ordi », puis : « toute la barre du haut ».
+#
+#  POURQUOI « xfce4-panel --quit » ET PAS « pkill ». xfce4-panel est un
+#  client de xfce4-session marqué « redémarrer tout de suite » : un pkill, et
+#  la session le relance dans la seconde. « --quit » lui demande de partir
+#  DE LUI-MÊME, en le disant à la session — qui ne le relance pas.
+#
+#  POURQUOI À CHAQUE SESSION. Le xfce4-session.xml de /etc/skel ne lance
+#  plus la barre, mais il n'est copié qu'à la CRÉATION du compte : un compte
+#  déjà fait garde l'ancienne liste. L'autostart lexos-barre-haut.desktop
+#  appelle donc « demarrer » à chaque ouverture de session.
+#
+#    lexos barre-haut off     éteinte (défaut), et à chaque session
+#    lexos barre-haut on      la ramener (et la relancer tout de suite)
+#    lexos barre-haut etat
+# =============================================================================
+set -uo pipefail
+
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
+ETAT="$CONF/barre-haut"
+
+lire() { [ -r "$ETAT" ] && tr -d '[:space:]' < "$ETAT" || printf 'off'; }
+
+#  ALEX : « je veux ravoir celle de LexOS Moteur en haut ». La barre du
+#  Moteur REMPLACE celle de XFCE. On ne ferme donc l'ancienne que si le
+#  bureau du Moteur est le mode choisi : en mode classique, la barre XFCE
+#  est la seule qui reste, et on ne laisse jamais l'écran sans barre.
+moteur_choisi() {
+	python3 - "$CONF/bureau.json" <<'PY' 2>/dev/null
+import json, sys
+try:
+    sys.exit(0 if json.load(open(sys.argv[1], encoding="utf-8")).get("mode") == "moteur" else 1)
+except Exception:
+    sys.exit(1)
+PY
+}
+
+eteindre() {
+	command -v xfce4-panel >/dev/null 2>&1 || return 0
+	moteur_choisi || return 0
+	#  La barre peut démarrer APRÈS cet autostart (l'ordre n'est pas garanti
+	#  sous XFCE) : on la guette 20 secondes, et on la ferme dès qu'elle
+	#  apparaît.
+	for _ in $(seq 1 20); do
+		if pgrep -u "$(id -u)" -x xfce4-panel >/dev/null 2>&1; then
+			xfce4-panel --quit >/dev/null 2>&1 || true
+			sleep 1
+			pgrep -u "$(id -u)" -x xfce4-panel >/dev/null 2>&1 || return 0
+		fi
+		sleep 1
+	done
+	return 0
+}
+
+case "${1:-etat}" in
+	off|non|0)
+		mkdir -p "$CONF"; echo off > "$ETAT"
+		eteindre
+		if moteur_choisi; then
+			echo "Barre du haut XFCE : éteinte. La barre du Moteur prend sa place."
+		else
+			echo "Barre du haut XFCE : sera éteinte dès que le bureau du Moteur roule (lexos bureau moteur)."
+		fi ;;
+	on|oui|1)
+		mkdir -p "$CONF"; echo on > "$ETAT"
+		setsid xfce4-panel >/dev/null 2>&1 &
+		echo "Barre du haut : rallumée." ;;
+	demarrer)
+		[ "$(lire)" = "on" ] && exit 0
+		eteindre ;;
+	etat|*)
+		printf 'Barre du haut : %s\n' "$(lire)" ;;
+esac

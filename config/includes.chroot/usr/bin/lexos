@@ -1249,6 +1249,7 @@ case "$CMD" in
 	signer-pilote)        exec lexos-signer-pilote "$@" ;;
 	pilotes)              exec lexos-pilotes "$@" ;;
 	bureau)               exec lexos-bureau "$@" ;;
+	barre-haut)           exec lexos-barre-haut "$@" ;;
 	moteurd)              exec lexos-moteurd "$@" ;;
 	demo|live)            cmd_demo ;;
 	install-disk|setup)   cmd_install_disk "$@" ;;
