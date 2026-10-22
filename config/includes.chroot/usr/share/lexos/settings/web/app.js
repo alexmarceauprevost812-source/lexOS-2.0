@@ -1487,7 +1487,7 @@ async function setBM(changement){
   await rafraichir(r.ok ? null : "Échec : " + (r.erreur || "réglage refusé"));
 }
 const NOMS_FONDS_BM = {constellation:"Constellation", aurore:"Aurore", etoiles:"Hyperespace",
-  pluie:"Pluie de code", vagues:"Vagues", braises:"Braises", aucun:"Noir pur"};
+  vagues:"Vagues", braises:"Braises", aucun:"Noir pur"};
 function blocBureauMoteur(){
   const B = etat.bureau_moteur;
   if(!B) return "";

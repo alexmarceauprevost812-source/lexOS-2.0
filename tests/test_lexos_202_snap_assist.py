@@ -148,7 +148,12 @@ class Integration(unittest.TestCase):
         self.assertEqual(wrap.get("value"), "false")
         #  Et c'est réappliqué à chaque session, pour les comptes existants.
         source = SCRIPT.read_text()
-        self.assertIn('"/general/wrap_windows", "false"', source)
+        self.assertIn('"/general/wrap_windows", "bool", "false"', source)
+        #  Un seul bureau, pour de bon (Alex, 2026-10-22).
+        self.assertIn('"/general/workspace_count", "int", "1"', source)
+        count = xml.find(".//property[@name='workspace_count']")
+        self.assertEqual(count.get("value"), "1")
+        self.assertIn('"coin-actif").write_text("off', source)
         corner = (CHROOT / "usr/lib/lexos/coin-actif").read_text()
         self.assertIn("boutons & BOUTONS_TENUS", corner)
         start =(CHROOT / "etc/xdg/autostart/lexos-assistant-mosaique.desktop").read_text()

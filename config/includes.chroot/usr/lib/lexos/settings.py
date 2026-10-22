@@ -1257,8 +1257,10 @@ def act_bureaux(arg):
     nouveau = nb + 1 if arg == "plus" else nb - 1
     if nouveau < 1:
         return {"ok": False, "erreur": "Il faut garder au moins un bureau"}
-    if nouveau > 5:
-        return {"ok": False, "erreur": "5 bureaux au maximum"}
+    #  Un seul bureau, pour de bon (Alex, 2026-10-22) : on ne change plus
+    #  jamais de bureau. Le « + » est donc refusé.
+    if nouveau > 1:
+        return {"ok": False, "erreur": "LexOS garde un seul bureau"}
     return _run(["xfconf-query", "-c", "xfwm4", "-p", "/general/workspace_count",
                  "-n", "-t", "int", "-s", str(nouveau)])
 

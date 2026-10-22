@@ -21,7 +21,11 @@ from pathlib import Path
 FICHIER = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "lexos" / "bureau.json"
 
 MODES = ("moteur", "classique")
-FONDS = ("constellation", "aurore", "etoiles", "pluie", "vagues", "braises", "aucun")
+#  « pluie » (Pluie de code) RETIRÉE pour de bon — ALEX, 2026-10-22, photo de la
+#  barre du haut à l'appui : les caractères orange passaient À TRAVERS la
+#  barre, derrière l'heure et les icônes. Un réglage déjà écrit à « pluie »
+#  n'est plus dans cette liste : lire() le ramène au défaut (constellation).
+FONDS = ("constellation", "aurore", "etoiles", "vagues", "braises", "aucun")
 EMBLEMES = ("nomad", "rond", "aucun")
 POLICES = ("Space Grotesk", "Inter", "Poppins", "Montserrat", "Lexend", "Nunito", "Quicksand",
            "Fredoka", "Comfortaa", "Exo 2", "Rajdhani", "Oxanium", "Orbitron", "Audiowide",

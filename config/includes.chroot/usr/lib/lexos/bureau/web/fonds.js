@@ -92,26 +92,7 @@ const FONDS = {
       }
     },
   },
-  pluie: {
-    nom: "Pluie de code", desc: "caractères qui tombent",
-    init(L, H, d) {
-      const t = Math.max(10, Math.round(16 / Math.sqrt(d)));
-      return { t, col: Array.from({ length: Math.ceil(L / t) }, () => alea(-H / t, 0)), acc: 0 };
-    },
-    dessine(x, e, L, H, dt) {
-      e.acc += dt;
-      if (e.acc < 2.2) return; e.acc = 0;
-      x.fillStyle = "rgba(7,7,7,.12)"; x.fillRect(0, 0, L, H);
-      x.font = `${e.t}px ui-monospace, monospace`;
-      const car = "LEXOS01{}<>/=+*#ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ";
-      e.col.forEach((y, i) => {
-        const c = car[Math.floor(Math.random() * car.length)];
-        x.fillStyle = Math.random() < .08 ? BL(.95) : OR(.85);
-        x.fillText(c, i * e.t, y * e.t);
-        e.col[i] = y * e.t > H && Math.random() > .975 ? 0 : y + 1;
-      });
-    },
-  },
+  //  « pluie » (Pluie de code) retirée à la demande d'Alex (2026-10-22).
   vagues: {
     nom: "Vagues", desc: "lignes qui ondulent",
     init(L, H, d) { return { t: 0, n: Math.max(4, Math.round(9 * d)) }; },
