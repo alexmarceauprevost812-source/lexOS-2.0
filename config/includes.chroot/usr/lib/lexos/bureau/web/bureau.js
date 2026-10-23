@@ -148,6 +148,92 @@ function tuile(el, k) {
     ordre » les renvoie toutes dans la grille. */
 let POSITIONS = {};
 const PAS_X = 100, PAS_Y = 100, MARGE = 18;
+
+/*  ═══ L'AIMANT : LES MÊMES CASES QUE LES AUTRES ICÔNES ═══
+    ALEX (2026-10-23, capture à l'appui) : une icône glissée se posait sur
+    une grille invisible de 100 x 100 qui n'avait rien à voir avec celle des
+    colonnes (--ic + 10 px d'écart, rangées de --ic + 6 px) : « ti-lex Chat »,
+    « Atelier IA », « REA »… tombaient entre deux rangées, à côté des autres.
+    Maintenant, les cases sont CELLES des colonnes : on lit les vraies pistes
+    de chaque grille (getComputedStyle rend les tailles en px) et on les
+    prolonge sur tout l'écran, au même pas. Une case déjà prise par une autre
+    icône est sautée : on prend la plus proche qui est libre. */
+function pistes(liste) { return String(liste).split(/\s+/).map(parseFloat).filter((v) => v > 0); }
+function casesDuBureau(sauf) {
+  //  Chaque côté garde SES cases : la colonne de gauche (ti-lex IA, Mon
+  //  bureau) et celle de droite (LexOS) ne tombent pas au même pas. Les
+  //  colonnes se prolongent vers le centre de l'écran, les rangées vers le bas.
+  const z = zoom(), bo = $("#bureau").getBoundingClientRect();
+  const L = bo.width / z, H = bo.height / z;
+  const cotes = { gauche: { xs: new Set(), ys: new Set(), bas: null, pasY: 0 }, droite: { xs: new Set(), ys: new Set(), bas: null, pasY: 0 } };
+  const prises = [];
+  let pasX = 0, l = 0, h = 0;
+  for (const g of document.querySelectorAll("#icones .grille-ic")) {
+    const cs = getComputedStyle(g), cols = pistes(cs.gridTemplateColumns), rangs = pistes(cs.gridTemplateRows);
+    if (!cols.length || !rangs.length) continue;
+    const gx = parseFloat(cs.columnGap) || 0, gy = parseFloat(cs.rowGap) || 0;
+    const r = g.getBoundingClientRect(), ox = (r.left - bo.left) / z, oy = (r.top - bo.top) / z, larg = r.width / z;
+    const rtl = !!g.closest(".cote.droite"), C = cotes[rtl ? "droite" : "gauche"];
+    const cx = []; let acc = 0;
+    for (const c of cols) { cx.push(rtl ? ox + larg - acc - c : ox + acc); acc += c + gx; }
+    const cy = []; acc = 0;
+    for (const rg of rangs) { cy.push(oy + acc); acc += rg + gy; }
+    cx.forEach((v) => C.xs.add(v)); cy.forEach((v) => C.ys.add(v));
+    if (!pasX) { pasX = cols[0] + gx; l = cols[0]; h = rangs[0]; }
+    if (!C.pasY) C.pasY = rangs[0] + gy;
+    if (C.bas === null || cy[cy.length - 1] > C.bas) C.bas = cy[cy.length - 1];
+    //  Les icônes de la grille occupent leur case.
+    [...g.children].forEach((_e, k) => prises.push([cx[k % cx.length], cy[Math.floor(k / cx.length)]]));
+  }
+  if (!pasX) {                       // plus aucune icône en colonne : on mesure une icône
+    const t = sauf || document.querySelector("#libres .icone");
+    l = t ? t.offsetWidth : 110; h = t ? t.offsetHeight : 110; pasX = l + 10;
+    cotes.gauche.xs.add(MARGE); cotes.gauche.ys.add(MARGE); cotes.gauche.bas = MARGE; cotes.gauche.pasY = h + 6;
+  }
+  const cases = [];
+  for (const [nom, C] of Object.entries(cotes)) {
+    if (!C.xs.size) continue;
+    const xs = [...C.xs].sort((a, b) => a - b), ys = [...C.ys];
+    //  Vers le centre : la gauche s'étend vers la droite, la droite vers la gauche.
+    if (nom === "gauche") for (let v = xs[xs.length - 1] + pasX; v + l <= L / 2 + pasX / 2; v += pasX) xs.push(v);
+    else for (let v = xs[0] - pasX; v >= L / 2 - pasX / 2; v -= pasX) xs.push(v);
+    //  Vers le bas, au pas des rangées, jusqu'au bas de l'écran.
+    for (let v = C.bas + C.pasY; v + h <= H; v += C.pasY) ys.push(v);
+    for (const x of xs) for (const y of ys) if (x >= 0 && y >= 0 && x + l <= L + 1) cases.push([x, y]);
+  }
+  for (const e of document.querySelectorAll("#libres .icone")) {
+    if (e === sauf) continue;
+    prises.push([parseFloat(e.style.left) || 0, parseFloat(e.style.top) || 0]);
+  }
+  return { cases, prises, l, h };
+}
+function caser(el, x, y) {
+  const c = casesDuBureau(el);
+  const libre = ([cx, cy]) => !c.prises.some(([px, py]) => Math.abs(px - cx) < c.l * .6 && Math.abs(py - cy) < c.h * .6);
+  let best = null, d = Infinity;
+  for (const k of c.cases) {
+    const dd = (k[0] - x) ** 2 + (k[1] - y) ** 2;
+    if (dd < d && libre(k)) { d = dd; best = k; }
+  }
+  return (best || [x, y]).map(Math.round);
+}
+/*  Les icônes déjà posées sur l'ANCIENNE grille de 100 x 100 sont recalées
+    une fois, à l'ouverture du bureau (après l'animation d'apparition). */
+let recalageFait = false;
+async function recalerLibres() {
+  if (recalageFait || SECONDAIRE || GLISSE.enCours) return;
+  recalageFait = true;
+  let change = false;
+  for (const e of document.querySelectorAll("#libres .icone")) {
+    const ax = parseFloat(e.style.left) || 0, ay = parseFloat(e.style.top) || 0;
+    const [x, y] = caser(e, ax, ay);
+    if (x !== Math.round(ax) || y !== Math.round(ay)) {
+      e.style.left = x + "px"; e.style.top = y + "px";
+      POSITIONS = { ...POSITIONS, [e.dataset.id]: [x, y] }; change = true;
+    }
+  }
+  if (change) { try { await api("/api/reglages", { positions: POSITIONS }); } catch { /* on réessaiera au prochain glisser */ } }
+}
 const zoom = () => (P ? P.taille / 100 : 1);
 
 function dessinerIcones(sections) {
@@ -168,6 +254,7 @@ function dessinerIcones(sections) {
   $("#cote-droite").innerHTML = cotes.droite;
   $("#libres").innerHTML = libres;
   setTimeout(majFondus, 60);
+  setTimeout(recalerLibres, 1800);
   //  Une image qui ne se charge pas (icône introuvable) retombe sur un émoji
   //  plutôt que de laisser un carré vide.
   document.querySelectorAll("#icones img, #libres img").forEach((i) => i.addEventListener("error", () => {
@@ -204,14 +291,10 @@ document.addEventListener("pointerup", async () => {
   if (!g.bouge) return;
   g.empecheClic = true; setTimeout(() => { g.empecheClic = false; }, 50);
   el.classList.remove("glisse");
-  //  Calée sur la grille invisible, et gardée dans l'écran.
-  const z = zoom(), boite = $("#bureau").getBoundingClientRect();
-  const maxX = Math.max(MARGE, boite.width / z - 96), maxY = Math.max(MARGE, boite.height / z - 100);
-  let x = parseFloat(el.style.left), y = parseFloat(el.style.top);
-  x = Math.min(maxX, Math.max(MARGE, MARGE + Math.round((x - MARGE) / PAS_X) * PAS_X));
-  y = Math.min(maxY, Math.max(MARGE, MARGE + Math.round((y - MARGE) / PAS_Y) * PAS_Y));
+  //  Calée dans les MÊMES cases que les autres icônes (aimant), et gardée dans l'écran.
+  const [x, y] = caser(el, parseFloat(el.style.left), parseFloat(el.style.top));
   el.style.left = x + "px"; el.style.top = y + "px";
-  POSITIONS = { ...POSITIONS, [el.dataset.id]: [Math.round(x), Math.round(y)] };
+  POSITIONS = { ...POSITIONS, [el.dataset.id]: [x, y] };
   try { await api("/api/reglages", { positions: POSITIONS }); } catch { bulle("La place de l'icône n'a pas pu être gardée"); }
   g.enCours = false;
 });
