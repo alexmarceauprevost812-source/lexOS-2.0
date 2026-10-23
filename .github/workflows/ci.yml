@@ -506,6 +506,8 @@ jobs:
           python3 tests/test_lexos_202_desktop.py
           # Snap Assist 50/50 : événements de souris simulés, jamais X11 réel.
           python3 tests/test_lexos_202_snap_assist.py
+          # Codex + GitHub : lister, cloner et repousser avec le jeton (faux GitHub en mémoire).
+          python3 tests/test_lexos_codex_github.py
           # Profils picom supplémentaires (sans session graphique/GPU).
           bash tests/test_lexos_202_effets.sh
           # Le menu du coin haut-droit choisit les profils sans risque de commande arbitraire.

@@ -763,8 +763,8 @@ function majTurbo() {
 $("#cx-turbo").addEventListener("change", (e) => { majTurbo(); if (e.target.checked) { etincelles($(".turbo"), 22); toast("⚡ Turbo REA activé : REA travaille tout seul dans le projet"); } });
 $("#cx-turbo").checked = !!mem.lire("lexos-turbo", ""); majTurbo();
 
-const IC_OUTIL = { web_search: "🔎", fetch_page: "🌐", list_files: "📂", read_file: "📖", write_file: "✍️", describe_image: "👁", create_image: "🎨", clone_github: "📦" };
-const NOM_OUTIL = { web_search: "cherche sur le web", fetch_page: "lit une page", list_files: "regarde les fichiers", read_file: "lit", write_file: "écrit", describe_image: "regarde l'image", create_image: "crée une image", clone_github: "clone le dépôt" };
+const IC_OUTIL = { web_search: "🔎", fetch_page: "🌐", list_files: "📂", read_file: "📖", write_file: "✍️", describe_image: "👁", create_image: "🎨", clone_github: "📦", list_github_repos: "🗂️", push_github: "⬆️" };
+const NOM_OUTIL = { web_search: "cherche sur le web", fetch_page: "lit une page", list_files: "regarde les fichiers", read_file: "lit", write_file: "écrit", describe_image: "regarde l'image", create_image: "crée une image", clone_github: "clone le dépôt", list_github_repos: "regarde tes dépôts GitHub", push_github: "pousse sur GitHub" };
 const urlBrut = (chemin) => `${urlProjet(CX.projet)}/brut?chemin=${encodeURIComponent(chemin)}`;
 
 async function demanderTurbo(question, pieces) {

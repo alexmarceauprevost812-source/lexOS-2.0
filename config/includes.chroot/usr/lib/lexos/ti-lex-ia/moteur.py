@@ -541,6 +541,12 @@ def fabriquer_gestionnaire(moteur: Moteur, arret: threading.Event):
             if self.path == "/moteur/env":
                 return self._json({"coffre": COFFRE_FICHIER.is_file(), "cryptographie": _coffre is not None,
                                    "noms": sorted(ENV_NOMS_CACHE.get("noms", []))})
+            if self.path == "/moteur/github/depots":           # 📦 tes dépôts, pour le Cloner (jeton du coffre)
+                from github_envoi import lister_depots, ErreurGitHub
+                try:
+                    return self._json({"depots": lister_depots(os.environ.get("GITHUB_TOKEN", ""))})
+                except ErreurGitHub as e:
+                    return self._json({"depots": [], "erreur": str(e)})
             if self.path == "/moteur/images":
                 IMAGES.mkdir(exist_ok=True)
                 out = []

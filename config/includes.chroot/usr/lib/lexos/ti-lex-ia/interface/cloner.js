@@ -13,9 +13,22 @@ function ouvrirClone(url) {
   choisirOu(CLONE.ou === "dans" && !dans.disabled ? "dans" : "nouveau");
   $("#clone-prive").textContent = "";
   fetch("/moteur/env").then((r) => r.json()).then((d) => {
-    $("#clone-prive").textContent = (d.noms || []).includes("GITHUB_TOKEN") ? "🔐 GITHUB_TOKEN trouvé : les dépôts privés marchent aussi" : "";
+    const jeton = (d.noms || []).includes("GITHUB_TOKEN");
+    $("#clone-prive").textContent = jeton ? "🔐 GITHUB_TOKEN trouvé : tes dépôts (privés aussi) sont dans la liste" : "";
+    if (jeton) chargerDepots();
   }).catch(() => {});
   setTimeout(() => $("#clone-url").focus(), 250);
+}
+/* Tes dépôts GitHub (avec le jeton) : on commence à taper, la liste propose. */
+async function chargerDepots() {
+  if (CLONE.depots) return;
+  try {
+    const d = await (await fetch("/moteur/github/depots")).json();
+    if (d.erreur) { $("#clone-prive").textContent = "⚠️ " + d.erreur; return; }
+    CLONE.depots = d.depots || [];
+    $("#clone-depots").innerHTML = CLONE.depots
+      .map((r) => `<option value="${echapper(r.depot)}">${r.prive ? "🔒 privé" : "public"} · ${echapper(r.branche)}</option>`).join("");
+  } catch {}
 }
 function fermerClone() {
   CLONE.ctrl?.abort();
@@ -76,6 +89,7 @@ $("#clone-form").addEventListener("submit", async (e) => {
       $("#clone-fini").hidden = false;
       $("#clone-fini").innerHTML = `<div class="clone-ok">✔</div><b>${echapper(fin.proprio)}/${echapper(fin.depot)}</b> est sur la clé !
         <small>${fin.fichiers} fichiers · ${octets(fin.taille)} · projet 📁 ${echapper(fin.projet)}${fin.dossier ? " / " + echapper(fin.dossier) : ""}</small>
+        ${fin.dossier ? "" : `<small>🔗 lié à ${echapper(fin.proprio)}/${echapper(fin.depot)} : « ⬆️ GitHub » y renverra tes changements</small>`}
         <div class="clone-btns"><button type="button" class="btn btn-contour mini" id="clone-studio">🎛️ Voir dans le Studio</button>
         <button type="button" class="btn btn-plein mini" id="clone-ouvrir">⌨️ Ouvrir dans le Codex</button></div>`;
       etincelles($(".clone-ok"), 40);

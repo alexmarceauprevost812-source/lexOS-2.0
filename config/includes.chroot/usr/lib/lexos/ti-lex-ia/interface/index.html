@@ -634,7 +634,8 @@
       <button type="button" class="btn-icone" id="clone-fermer" title="Fermer">✕</button>
     </div>
     <label class="clone-champ">Adresse du dépôt
-      <input id="clone-url" placeholder="https://github.com/proprio/depot" spellcheck="false"></label>
+      <input id="clone-url" placeholder="https://github.com/proprio/depot" spellcheck="false" list="clone-depots" autocomplete="off"></label>
+      <datalist id="clone-depots"></datalist>
     <div class="clone-ligne">
       <label class="clone-champ">Branche <small>(optionnel)</small><input id="clone-branche" placeholder="main" spellcheck="false"></label>
       <label class="clone-champ">Nom du projet<input id="clone-nom" placeholder="auto" spellcheck="false"></label>

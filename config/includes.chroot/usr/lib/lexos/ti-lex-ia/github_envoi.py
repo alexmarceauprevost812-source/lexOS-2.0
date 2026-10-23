@@ -155,6 +155,35 @@ def _ecrire_lien(projet: Path, d: dict) -> None:
     (projet / LIEN).write_text(json.dumps(d, ensure_ascii=False, indent=1) + "\n", "utf-8")
 
 
+def lier_clone(dossier: Path, complet: str, branche: str = "") -> None:
+    """Un dépôt cloné se souvient d'où il vient : « ⬆️ GitHub » le renverra
+    au MÊME dépôt (et à la même branche), sans rien redemander. Jamais miroir :
+    le dépôt existait avant LexOS, donc on n'y efface rien."""
+    _ecrire_lien(dossier, {"depot": complet, "branche": branche, "miroir": False, "clone": True})
+
+
+def lister_depots(jeton: str, recherche: str = "", maximum: int = 100) -> list[dict]:
+    """Les dépôts que le jeton peut voir (privés compris), les plus récents d'abord."""
+    if not jeton:
+        raise ErreurGitHub("Ajoute ton jeton GitHub dans 🔑 Variables, sous le nom GITHUB_TOKEN (variable globale)")
+    filtre, out = recherche.strip().lower(), []
+    for page in range(1, 6):
+        lot = _appel(jeton, "GET", f"/user/repos?per_page=100&sort=updated&page={page}"
+                                   "&affiliation=owner,collaborator,organization_member") or []
+        for d in lot:
+            if filtre and filtre not in (d.get("full_name") or "").lower():
+                continue
+            out.append({"depot": d.get("full_name", ""), "prive": bool(d.get("private")),
+                        "branche": d.get("default_branch") or "main",
+                        "ecriture": bool((d.get("permissions") or {}).get("push")),
+                        "maj": (d.get("pushed_at") or "")[:10], "description": d.get("description") or ""})
+            if len(out) >= maximum:
+                return out
+        if len(lot) < 100:
+            break
+    return out
+
+
 def analyser_depot(texte: str, defaut_proprio: str) -> tuple[str, str]:
     """« nom », « proprio/nom » ou une adresse github.com → (proprio, nom)."""
     t = texte.strip().removesuffix(".git").rstrip("/")
@@ -197,6 +226,14 @@ def envoyer(projet: Path, jeton: str, depot: str, prive: bool, message: str,
         info = _appel(jeton, "POST", chemin_cree, corps_cree)
         cree = True
     branche = info.get("default_branch") or "main"
+    #  Un dépôt cloné (ou déjà lié) retourne sur SA branche, pas forcément celle par défaut.
+    voulue = (lien.get("branche") or "").strip() if deja_lie else ""
+    if voulue and voulue != branche:
+        try:
+            if _appel(jeton, "GET", f"/repos/{proprio}/{nom}/git/ref/heads/{voulue}", ok404=True):
+                branche = voulue
+        except ErreurGitHub:
+            pass
     #  Miroir seulement pour un dépôt que LexOS a créé (le lien s'en souvient).
     miroir = cree or (deja_lie and bool(lien.get("miroir")))
 
@@ -236,7 +273,7 @@ def envoyer(projet: Path, jeton: str, depot: str, prive: bool, message: str,
     locaux = {e["path"] for e in entrees}
     retires = sorted(k for k in deja if k not in locaux) if miroir else []
     if not a_envoyer and not retires:
-        _ecrire_lien(projet, {"depot": complet, "branche": branche, "miroir": miroir})
+        _ecrire_lien(projet, {**(lien if deja_lie else {}), "depot": complet, "branche": branche, "miroir": miroir})
         return {"ok": True, "depot": complet, "url": info.get("html_url", f"https://github.com/{complet}"),
                 "rien": True, "envoyes": 0, "retires": 0, "cree": cree}
 
@@ -250,7 +287,7 @@ def envoyer(projet: Path, jeton: str, depot: str, prive: bool, message: str,
     commit = _appel(jeton, "POST", f"/repos/{proprio}/{nom}/git/commits",
                     {"message": msg, "tree": arbre["sha"], "parents": [parent]})
     _appel(jeton, "PATCH", f"/repos/{proprio}/{nom}/git/refs/heads/{branche}", {"sha": commit["sha"]})
-    _ecrire_lien(projet, {"depot": complet, "branche": branche, "miroir": miroir})
+    _ecrire_lien(projet, {**(lien if deja_lie else {}), "depot": complet, "branche": branche, "miroir": miroir})
     return {"ok": True, "depot": complet, "url": info.get("html_url", f"https://github.com/{complet}"),
             "commit": commit["sha"][:7], "envoyes": len(a_envoyer), "retires": len(retires),
             "total": len(entrees), "cree": cree, "branche": branche}

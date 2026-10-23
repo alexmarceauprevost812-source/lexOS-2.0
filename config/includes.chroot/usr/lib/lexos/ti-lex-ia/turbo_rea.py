@@ -7,7 +7,8 @@ des outils, on les exécute, on lui redonne le résultat, jusqu'à ce qu'il ait 
 (chaque fichier remplacé garde une copie « .avant-codex »).
 
 Outils : recherche web, lecture de pages, fichiers du projet, vision (décrire une
-image), création d'images (modèle d'image Ollama), clonage d'un dépôt GitHub public.
+image), création d'images (modèle d'image Ollama), et GitHub avec le jeton du coffre
+(GITHUB_TOKEN) : lister tes dépôts, cloner (privés compris) et pousser les changements.
 Volontairement AUCUN outil pour lancer des commandes : l'IA propose la commande,
 c'est toi qui la lances dans ton terminal.
 
@@ -43,7 +44,13 @@ Tu as des outils et tu t'en sers sans demander la permission :
 - list_files puis read_file avant de modifier un projet ; write_file pour créer ou remplacer un fichier (contenu COMPLET).
 - web_search puis fetch_page pour vérifier un fait ou trouver de la documentation. Ne devine pas.
 - describe_image pour regarder une image du projet ; create_image pour créer une image (logo, illustration, icône…).
-- clone_github pour copier un dépôt GitHub public dans le projet.
+- GitHub, avec le jeton GITHUB_TOKEN d'Alex (dépôts privés compris) :
+  · list_github_repos pour voir ses dépôts (quand il dit « mon dépôt X » sans l'adresse) ;
+  · clone_github pour récupérer un dépôt dans le projet — il se souvient d'où il vient ;
+  · push_github pour pousser les changements. Un dossier cloné retourne à SON dépôt et à SA branche ;
+    sans dépôt lié, il en crée un PRIVÉ. Pousse seulement quand Alex le demande (« pousse », « envoie
+    sur GitHub », « commit »…), avec un message de commit clair. Rien n'est jamais effacé sur un dépôt
+    qui existait déjà, et les .env ne partent jamais.
 Tu ne peux PAS lancer de commandes : quand il faut tester ou installer, donne la commande dans un bloc ```bash
 (Alex la lance lui-même dans son terminal, déjà placé dans le dossier du projet).
 Si un outil renvoie une erreur, corrige-toi et réessaie autrement.
@@ -84,7 +91,24 @@ OUTILS = [
             "url": {"type": "string"}, "branch": {"type": "string", "description": "branche (défaut : celle du dépôt)"},
             "dest": {"type": "string", "description": "dossier de destination dans le projet (défaut : nom du dépôt)"}},
             "required": ["url"]}}},
+    {"type": "function", "function": {"name": "list_github_repos",
+        "description": "Liste les dépôts GitHub d'Alex (avec son jeton, privés compris), les plus récents d'abord.",
+        "parameters": {"type": "object", "properties": {
+            "search": {"type": "string", "description": "filtre sur le nom (facultatif)"}}}}},
+    {"type": "function", "function": {"name": "push_github",
+        "description": "Pousse (commit + push) les fichiers d'un dossier du projet sur GitHub, sans git. "
+                       "Un dossier cloné retourne à son dépôt d'origine ; sinon donne repo (créé PRIVÉ s'il n'existe pas).",
+        "parameters": {"type": "object", "properties": {
+            "message": {"type": "string", "description": "message du commit"},
+            "path": {"type": "string", "description": "dossier à pousser (défaut : tout le projet ; ex. le dossier cloné)"},
+            "repo": {"type": "string", "description": "« nom » ou « proprio/nom » (défaut : le dépôt lié)"},
+            "private": {"type": "boolean", "description": "si le dépôt doit être créé : privé (défaut true)"}},
+            "required": ["message"]}}},
 ]
+
+#  Dossiers jamais envoyés (les mêmes que le moteur : lourds ou générés)
+SAUTER_GITHUB = {".git", ".venv", "venv", "deps", "blobs", "node_modules", "__pycache__",
+                 "heretic-runtime", "heretic-outils", "huggingface", "manifests", "manifests-v2", "site-packages"}
 
 
 class ErreurOutil(Exception):
@@ -187,6 +211,9 @@ def cloner_github(url: str, branche: str, cible: Path, progres=None, jeton: str 
             morceaux = info.filename.split("/", 1)          # enlève le dossier « depot-branche/ »
             if len(morceaux) < 2 or not morceaux[1] or info.is_dir():
                 continue
+            mode_unix = (info.external_attr >> 16) & 0o170777
+            if mode_unix & 0o170000 == 0o120000:              # lien symbolique : jamais recréé (sécurité)
+                continue
             f = (racine / morceaux[1]).resolve()
             if racine not in f.parents:                       # protection « zip slip »
                 continue
@@ -195,8 +222,16 @@ def cloner_github(url: str, branche: str, cible: Path, progres=None, jeton: str 
                 raise ErreurOutil("Dépôt trop gros.")
             f.parent.mkdir(parents=True, exist_ok=True)
             f.write_bytes(z.read(info))
+            if mode_unix & 0o111:                             # garde les scripts exécutables (build.sh…)
+                f.chmod(0o755)
             n += 1
-    return {"proprio": proprio, "depot": depot, "fichiers": n, "taille": taille, "telecharge": len(data)}
+    try:                                                      # ⬆️ GitHub saura où le renvoyer
+        from github_envoi import lier_clone
+        lier_clone(racine, f"{proprio}/{depot}", branche)
+    except Exception:
+        pass
+    return {"proprio": proprio, "depot": depot, "branche": branche, "fichiers": n, "taille": taille,
+            "telecharge": len(data)}
 
 
 class _Texte(HTMLParser):
@@ -374,7 +409,44 @@ class TurboREA:
         r = cloner_github(url, branch, cible, jeton=os.environ.get("GITHUB_TOKEN", ""))
         rel = cible.resolve().relative_to(self.dossier.resolve()).as_posix()
         self.evenement({"type": "fichier", "chemin": rel + "/"})
-        return f"Dépôt {proprio}/{depot} copié dans « {rel}/ » : {r['fichiers']} fichiers. Utilise list_files pour l'explorer."
+        return (f"Dépôt {proprio}/{depot} copié dans « {rel}/ » : {r['fichiers']} fichiers. Utilise list_files pour l'explorer. "
+                f"Pour renvoyer les changements : push_github avec path « {rel} ».")
+
+    def outil_list_github_repos(self, search: str = "") -> str:
+        import os
+        from github_envoi import lister_depots, ErreurGitHub
+        try:
+            depots = lister_depots(os.environ.get("GITHUB_TOKEN", ""), search or "", 60)
+        except ErreurGitHub as e:
+            raise ErreurOutil(str(e)) from None
+        if not depots:
+            return "Aucun dépôt trouvé" + (f" pour « {search} »." if search else ".")
+        return "\n".join(f"{d['depot']} · {'privé' if d['prive'] else 'public'} · branche {d['branche']}"
+                         f"{'' if d['ecriture'] else ' · lecture seule'} · maj {d['maj']}"
+                         + (f" — {d['description'][:80]}" if d['description'] else "") for d in depots)
+
+    def outil_push_github(self, message: str, path: str = "", repo: str = "", private: bool = True) -> str:
+        import os
+        from github_envoi import envoyer, lire_lien, ErreurGitHub
+        dossier = self._chemin(path or ".")
+        if not dossier.is_dir():
+            raise ErreurOutil(f"Pas un dossier : {path}")
+        cible = repo or lire_lien(dossier).get("depot", "")
+        self.evenement({"type": "info", "texte": f"⬆️ envoi sur GitHub{' → ' + cible if cible else ''}…"})
+
+        def progres(e: dict):
+            if e.get("type") == "etape":
+                self.evenement({"type": "info", "texte": "⬆️ " + e.get("texte", "")})
+        try:
+            r = envoyer(dossier, os.environ.get("GITHUB_TOKEN", ""), repo or "", bool(private), message or "",
+                        SAUTER_GITHUB, progres)
+        except ErreurGitHub as e:
+            raise ErreurOutil(str(e)) from None
+        if r.get("rien"):
+            return f"Déjà à jour sur {r['depot']} : rien n'a changé. {r['url']}"
+        return (f"Poussé sur {r['depot']} (branche {r.get('branche', '?')}) : commit {r.get('commit', '?')}, "
+                f"{r['envoyes']} fichier(s) envoyé(s)" + (f", {r['retires']} retiré(s)" if r.get("retires") else "")
+                + (" · dépôt créé" if r.get("cree") else "") + f". {r['url']}")
 
     # ── la boucle de l'agent ──
     def appeler(self, nom: str, args: dict) -> str:
