@@ -20,9 +20,10 @@
 #  barre du haut » — l'appareil photo, la capture de zone (carré pointillé)
 #  et le rond orange d'enregistrement. /etc/skel ne les pose plus, mais un
 #  compte déjà créé les garde dans xfconfd. « demarrer » les retire UNE fois
-#  (fanion dans ~/.local/state/lexos/barre-sans-captures), « nettoyer » le
-#  refait tout de suite. La capture elle-même reste : Impr, Maj+Impr,
-#  Ctrl+Maj+R, le menu, le dock et le volet des Paramètres rapides.
+#  (fanion dans ~/.local/state/lexos/barre-sans-captures, et de nouveau si
+#  un numéro retiré revient), « nettoyer » le refait tout de suite. La
+#  capture elle-même reste : Impr, Maj+Impr, Ctrl+Maj+R, le menu, le dock et
+#  le volet des Paramètres rapides.
 #
 #    lexos barre-haut off       éteinte (défaut) en mode Moteur, à chaque session
 #    lexos barre-haut on        la ramener (et la relancer tout de suite)
@@ -56,10 +57,13 @@ PY
 #  l'état « off » : là, eteindre la ferme.
 barre_voulue() { ! { moteur_choisi && [ "$(lire)" != "on" ]; }; }
 
-#  La barre RÉPOND-elle ? « xfce4-panel -r » ou « --quit » sans barre qui
-#  tienne son nom sur D-Bus ouvre une boîte « No running instance… » dont le
-#  bouton Execute RALLUME la barre (main.c, bloc dbus_return) : on demande
-#  donc d'abord à D-Bus. Sans gdbus, on se contente du processus.
+#  La barre RÉPOND-elle ? « xfce4-panel -r » ou « --quit » lancé sans barre
+#  qui tienne son nom sur D-Bus ouvre une boîte de dialogue (main.c, bloc
+#  dbus_return) : une erreur « Failed to restart/quit the panel » qui bloque
+#  le script jusqu'au clic — ou, selon le code d'erreur, la proposition
+#  « Execute » qui RALLUME la barre. Un processus tout juste lancé n'a pas
+#  encore pris son nom (g_bus_own_name est asynchrone). On demande donc
+#  d'abord à D-Bus ; sans gdbus, on se contente du processus.
 barre_en_marche() {
 	if command -v gdbus >/dev/null 2>&1; then
 		case "$(gdbus call --session --dest org.freedesktop.DBus \
@@ -77,9 +81,9 @@ eteindre() {
 	moteur_choisi || return 0
 	#  La barre peut démarrer APRÈS cet autostart (l'ordre n'est pas garanti
 	#  sous XFCE) : on la guette 20 secondes, et on la ferme dès qu'elle
-	#  apparaît.
+	#  RÉPOND — avant, « --quit » ouvrirait la boîte d'erreur.
 	for _ in $(seq 1 20); do
-		if pgrep -u "$(id -u)" -x xfce4-panel >/dev/null 2>&1; then
+		if pgrep -u "$(id -u)" -x xfce4-panel >/dev/null 2>&1 && barre_en_marche; then
 			xfce4-panel --quit >/dev/null 2>&1 || true
 			sleep 1
 			pgrep -u "$(id -u)" -x xfce4-panel >/dev/null 2>&1 || return 0
@@ -92,11 +96,49 @@ eteindre() {
 # --- Les anciens boutons de capture ------------------------------------------
 #  Toujours par xfconf-query, jamais en éditant le XML : xfconfd garde le
 #  canal en mémoire et réécrirait le fichier par-dessus.
+#
+#  ET TOUJOURS EN C.UTF-8. xfconf-query TRADUIT ce qu'il écrit : sous la
+#  langue de LexOS (fr_CA), « Value is an array with 1 items: » devient « La
+#  valeur est un tableau de 1 éléments : ». La première version de ce
+#  nettoyage a pris cette phrase pour un élément de lanceur et l'a ÉCRITE à
+#  la place des boutons (relecture du 2026-10-23, vrais binaires xfconf
+#  4.18 en fr_CA). Pas « C » tout court : mesuré, il change les accents en
+#  « ? » à la lecture et refuse les octets non ASCII à l'écriture.
+xq() { LC_ALL=C.UTF-8 xfconf-query -c xfce4-panel "$@"; }
+
+#  CHAQUE ÉCRITURE EST RELUE. xfconf-query rend 0 même quand xfconfd la
+#  REFUSE : mesuré sur 4.18.1, une propriété verrouillée ne change pas, et
+#  rien n'est dit (xfconf-query ignore aussi le retour du « -r »). Un refus
+#  arrête tout AVANT le fanion : la prochaine session réessaiera.
+refus() {
+	echo "Barre du haut : xfconf a refusé de changer $1 — rien n'est marqué fait, la prochaine session réessaiera." >&2
+	return 1
+}
+poser_tableau() { # poser_tableau <propriété> <type> <valeur…>
+	local prop="$1" type="$2" v
+	local -a args=()
+	shift 2
+	for v in "$@"; do args+=(-t "$type" -s "$v"); done
+	xq -p "$prop" -a "${args[@]}" >/dev/null 2>&1
+	[ "$(valeurs "$prop" | sed '/^$/d')" = "$(printf '%s\n' "$@")" ] || refus "$prop"
+}
+effacer() { # effacer <propriété> [-R]
+	xq -p "$1" -r "${@:2}" >/dev/null 2>&1
+	if xq -p "$1" >/dev/null 2>&1 || { [ "${2:-}" = "-R" ] && xq -p "$1/items" >/dev/null 2>&1; }; then
+		refus "$1"
+	fi
+}
+
+#  « fait-2 » : la première version posait « fait » même quand elle avait
+#  abîmé les lanceurs ; ce nouveau nom fait repasser une fois tout compte
+#  qu'elle a touché. « retires » garde les numéros déjà retirés.
+FAIT="$SAUVE/fait-2"
+RETIRES="$SAUVE/retires"
 
 #  Une valeur par ligne, que la propriété soit un tableau ou non.
 valeurs() {
 	local sortie
-	sortie=$(xfconf-query -c xfce4-panel -p "$1" 2>/dev/null) || return 1
+	sortie=$(xq -p "$1" 2>/dev/null) || return 1
 	case "$sortie" in
 		"Value is an array with"*) printf '%s\n' "$sortie" | tail -n +3 ;;
 		*) printf '%s\n' "$sortie" ;;
@@ -118,6 +160,30 @@ est_capture() {
 	grep -qE '^Icon=(lexos-camera|lexos-capture-zone|lexos-capture-video)$' "$f"
 }
 
+#  Un élément qui ne finit pas par « .desktop », la barre l'ignore (launcher.c,
+#  launcher_plugin_items_load) : c'est un débris — celui qu'a écrit la
+#  première version, par exemple. Il part avec la capture.
+est_debris() { case "$1" in *.desktop) return 1 ;; *) return 0 ;; esac; }
+
+deja_retire() { [ -r "$RETIRES" ] && grep -qx "$1" "$RETIRES"; }
+#  La barre peut redonner un numéro libéré à un NOUVEAU greffon d'Alex :
+#  dès qu'il porte de vrais éléments, ce numéro n'est plus le nôtre.
+oublier() { [ -w "$RETIRES" ] && sed -i "/^$1\$/d" "$RETIRES"; }
+
+#  Un numéro déjà retiré qui REVIENT. Une barre restée en mémoire avec les
+#  anciens boutons, à qui on retire un greffon d'un clic droit, réécrit
+#  plugin-ids et /plugins/plugin-N depuis sa mémoire — sans items
+#  (panel-application.c, SAVE_PLUGIN_IDS) : des lanceurs vides reviendraient.
+revenus() {
+	local id
+	[ -r "$RETIRES" ] || return 1
+	while IFS= read -r id; do
+		[ -n "$id" ] || continue
+		[ "$(valeurs "/plugins/plugin-$id")" = "launcher" ] && return 0
+	done < "$RETIRES"
+	return 1
+}
+
 #  La sauvegarde, AVANT la première écriture : le fichier de xfconfd tel
 #  quel, et une liste lisible. « xfconf-query -lv » n'y suffit pas : il
 #  écrit « <<UNSUPPORTED>> » à la place de chaque tableau, donc justement
@@ -134,12 +200,11 @@ sauvegarder() {
 }
 
 #  nettoyer [--session] — sans argument : tout de suite, même si c'est déjà
-#  fait. --session (l'autostart) : une seule fois, et en laissant à la barre
-#  le temps d'apparaître avant de la relancer.
+#  fait. --session (l'autostart) : une fois, puis seulement si un numéro
+#  retiré revient, en laissant à la barre le temps d'apparaître.
 nettoyer() {
-	local mode="${1:-}" liste prop id it pid p i n retirer=" " change=0 deja=0 avant apres
+	local mode="${1:-}" liste prop id it pid p i ote retirer=" " change=0 deja=0 relance=0 avant apres
 	local -a items garder ids args
-	[ "$mode" = "--session" ] && [ -e "$SAUVE/fait" ] && return 0
 	#  La barre appartient à la session de l'utilisateur : en root (sudo),
 	#  on toucherait au mieux les réglages de root, jamais les siens.
 	if [ "$(id -u)" -eq 0 ]; then
@@ -150,27 +215,40 @@ nettoyer() {
 		echo "Barre du haut : xfconf-query absent, rien à nettoyer ici." >&2
 		return 1
 	fi
-	if ! liste=$(xfconf-query -c xfce4-panel -l 2>/dev/null); then
+	if [ "$mode" = "--session" ] && [ -e "$FAIT" ] && ! revenus; then
+		return 0
+	fi
+	if ! liste=$(xq -l 2>/dev/null); then
 		echo "Barre du haut : réglages XFCE injoignables — à lancer dans ta session, sans sudo." >&2
 		return 1
 	fi
 	mkdir -p "$SAUVE" || return 1
 	pgrep -u "$(id -u)" -x xfce4-panel >/dev/null 2>&1 && deja=1
 
-	#  1. Les lanceurs qui ne portent QUE de la capture partent en entier ;
-	#     un lanceur mêlé ne perd que ses éléments de capture.
+	#  1. Un lanceur qui ne porte QUE de la capture (ou des débris) part en
+	#     entier ; un lanceur mêlé ne perd que ces éléments-là. Un lanceur
+	#     sans élément ne part que si c'est un numéro déjà retiré qui revient :
+	#     un lanceur vide qu'Alex aurait posé reste à lui.
 	while IFS= read -r prop; do
 		case "$prop" in /plugins/plugin-*) ;; *) continue ;; esac
 		id=${prop#/plugins/plugin-}
 		case "$id" in ''|*[!0-9]*) continue ;; esac
 		[ "$(valeurs "$prop")" = "launcher" ] || continue
 		mapfile -t items < <(valeurs "$prop/items" | sed '/^$/d')
-		[ "${#items[@]}" -gt 0 ] || continue
-		garder=()
+		garder=(); ote=0
 		for it in "${items[@]}"; do
-			est_capture "$id" "$it" || garder+=("$it")
+			if est_capture "$id" "$it" || est_debris "$it"; then
+				ote=$((ote + 1))
+			else
+				garder+=("$it")
+			fi
 		done
-		[ "${#garder[@]}" -lt "${#items[@]}" ] || continue
+		if [ "${#items[@]}" -eq 0 ]; then
+			deja_retire "$id" || continue
+		elif [ "$ote" -eq 0 ]; then
+			deja_retire "$id" && oublier "$id"
+			continue
+		fi
 		if [ "$change" = 0 ]; then
 			sauvegarder "$liste" \
 				|| { echo "Barre du haut : sauvegarde impossible dans $SAUVE, rien n'est changé." >&2; return 1; }
@@ -179,9 +257,7 @@ nettoyer() {
 		if [ "${#garder[@]}" -eq 0 ]; then
 			retirer="$retirer$id "
 		else
-			args=()
-			for it in "${garder[@]}"; do args+=(-t string -s "$it"); done
-			xfconf-query -c xfce4-panel -p "$prop/items" -a "${args[@]}" || return 1
+			poser_tableau "$prop/items" string "${garder[@]}" || return 1
 			echo "Lanceur $id : capture retirée, gardé : ${garder[*]}"
 		fi
 	done <<<"$liste"
@@ -194,21 +270,21 @@ nettoyer() {
 			case "$pid" in ''|*[!0-9]*) continue ;; esac
 			p="/panels/panel-$pid/plugin-ids"
 			mapfile -t ids < <(valeurs "$p" | sed '/^$/d')
-			args=(); n=0
+			args=()
 			for i in "${ids[@]}"; do
-				case "$retirer" in *" $i "*) ;; *) args+=(-t int -s "$i"); n=$((n + 1)) ;; esac
+				case "$retirer" in *" $i "*) ;; *) args+=("$i") ;; esac
 			done
-			[ "$n" -lt "${#ids[@]}" ] || continue
+			[ "${#args[@]}" -lt "${#ids[@]}" ] || continue
 			if [ "${#args[@]}" -gt 0 ]; then
-				xfconf-query -c xfce4-panel -p "$p" -a "${args[@]}" || return 1
+				poser_tableau "$p" int "${args[@]}" || return 1
 			else
 				#  xfconf ne garde pas de tableau vide.
-				xfconf-query -c xfce4-panel -p "$p" -r || return 1
+				effacer "$p" || return 1
 			fi
 		done < <(valeurs /panels)
 		#  3. Les greffons eux-mêmes, et tout ce qu'il y a dessous.
 		for id in $retirer; do
-			xfconf-query -c xfce4-panel -p "/plugins/plugin-$id" -r -R || return 1
+			effacer "/plugins/plugin-$id" -R || return 1
 		done
 	fi
 
@@ -220,17 +296,18 @@ nettoyer() {
 			for _ in $(seq 1 20); do barre_en_marche && break; sleep 1; done
 		fi
 		if barre_en_marche; then
-			avant=$(pgrep -u "$(id -u)" -x xfce4-panel | tr '\n' ' ')
+			avant=$(pgrep -u "$(id -u)" -x xfce4-panel | sort | paste -sd ' ')
 			xfce4-panel -r >/dev/null 2>&1 || true
 			for _ in $(seq 1 10); do
 				sleep 1
-				apres=$(pgrep -u "$(id -u)" -x xfce4-panel | tr '\n' ' ')
-				[ -n "$apres" ] && [ "$apres" != "$avant" ] && break
+				apres=$(pgrep -u "$(id -u)" -x xfce4-panel | sort | paste -sd ' ')
+				if [ -n "$apres" ] && [ "$apres" != "$avant" ]; then relance=1; break; fi
 			done
-			#  En partant, l'ancienne barre réenregistre ses greffons : on
+			#  Un « items » encore en attente peut partir quand l'ancienne
+			#  barre se ferme (launcher.c, launcher_plugin_free_data) : on
 			#  repasse derrière elle.
 			for id in $retirer; do
-				xfconf-query -c xfce4-panel -p "/plugins/plugin-$id" -r -R >/dev/null 2>&1 || true
+				xq -p "/plugins/plugin-$id" -r -R >/dev/null 2>&1 || true
 			done
 		fi
 	fi
@@ -243,7 +320,17 @@ nettoyer() {
 		mv "$PANNEAU/launcher-$id" "$SAUVE/launcher-$id.$(date +%s)" \
 			|| echo "Barre du haut : $PANNEAU/launcher-$id n'a pas pu être déplacé." >&2
 	done
-	touch "$SAUVE/fait"
+	for id in $retirer; do
+		deja_retire "$id" || echo "$id" >> "$RETIRES"
+	done
+
+	#  6. Fini seulement si plus aucune barre affichée ne garde les anciens
+	#     boutons en mémoire ; sinon la prochaine session repasse.
+	if [ "$change" = 0 ] || [ "$deja" = 0 ] || ! barre_voulue || [ "$relance" = 1 ]; then
+		touch "$FAIT"
+	else
+		echo "Barre du haut : la barre n'a pas pu être relancée — les boutons partiront à la prochaine ouverture de session." >&2
+	fi
 	if [ "$change" = 1 ]; then
 		[ "$retirer" != " " ] && echo "Barre du haut : boutons de capture retirés (greffons $(tr ' ' '\n' <<<"$retirer" | sed '/^$/d' | sort -n | paste -sd ' '))."
 		echo "Sauvegarde : $SAUVE"

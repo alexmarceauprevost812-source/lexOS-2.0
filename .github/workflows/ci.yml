@@ -1094,6 +1094,11 @@ jobs:
           for n, (genre, items, _) in greffons.items():
               if genre == "launcher" and any("capture" in i for i in items):
                   bad.append(f"plugin-{n} lance encore une capture : {items}")
+              #  Pas de lanceur, mais le greffon XFCE d'appareil photo
+              #  (xfce4-screenshooter est dans les paquets optionnels) :
+              #  ce serait le même bouton, revenu par une autre porte.
+              if re.search(r"screenshoot|capture", genre or "", re.I):
+                  bad.append(f"plugin-{n} est un greffon de capture ({genre})")
           for d in glob.glob(SKEL + "/panel/launcher-*"):
               for f in glob.glob(d + "/*.desktop"):
                   texte = open(f, encoding="utf-8").read()
@@ -1125,6 +1130,16 @@ jobs:
                   bad.append(f"{nom} a disparu de la barre")
           if not charges or charges[-1][:2] != ("launcher", ["lexos-session.desktop"]):
               bad.append("le bouton power n'est plus le dernier, tout à droite")
+          #  Et dans le MÊME ORDRE qu'avant : la barre d'avant le retrait,
+          #  privée des greffons 9, 10 et 11 — par rôles, pas par numéros.
+          def role(g, i, c):
+              return g + (":" + c.split()[0] if g == "genmon" and c else "") + (":" + i[0] if g == "launcher" and i else "")
+          ROLES = ["whiskermenu", "pager", "genmon:lexos-meteo", "separator", "genmon:lexos-heure",
+                   "separator", "genmon:lexos-peripheriques", "systray", "power-manager-plugin",
+                   "launcher:lexos-volet-rapides.desktop", "launcher:lexos-session.desktop"]
+          vus = [role(*c) for c in charges]
+          if vus != ROLES:
+              bad.append(f"l'ordre de la barre a changé : {vus} au lieu de {ROLES}")
           for n in ids:
               if n not in greffons:
                   bad.append(f"plugin-ids cite {n}, qui n'est pas déclaré")
@@ -1137,10 +1152,14 @@ jobs:
           clavier = ET.parse(XML + "xfce4-keyboard-shortcuts.xml").getroot()
           custom = {p.get("name"): p.get("value") or "" for p in
                     clavier.find("property[@name='commands']/property[@name='custom']").findall("property")}
-          for touche, quoi in [("Print", "lexos capture"), ("<Shift>Print", "lexos capture zone"),
-                               ("<Primary><Shift>r", "lexos capture video")]:
-              if quoi not in custom.get(touche, ""):
-                  bad.append(f"le raccourci {touche} ne fait plus « {quoi} »")
+          #  Comparés EN ENTIER : « lexos capture zone » contient « lexos
+          #  capture », et Impr ferait la zone sans que rien ne rougisse.
+          for touche, motif, quoi in [
+                  ("Print", r"lexos capture", "lexos capture"),
+                  ("<Shift>Print", r"lexos capture zone", "lexos capture zone"),
+                  ("<Primary><Shift>r", r'.*-e "lexos capture video"', "lexos capture video (dans un terminal)")]:
+              if not re.fullmatch(motif, custom.get(touche, "")):
+                  bad.append(f"le raccourci {touche} ne fait plus « {quoi} » (trouvé : « {custom.get(touche, '')} »)")
 
           for b in bad:
               print(f"::error::{b}")
