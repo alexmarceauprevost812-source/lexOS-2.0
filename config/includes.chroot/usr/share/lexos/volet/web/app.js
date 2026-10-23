@@ -338,9 +338,10 @@ async function sonPose(v){
  *
  *  Cet état-là vit DANS LE JS, comme « vue » pour l'agenda : afficher trois
  *  boutons ne vaut pas un aller-retour réseau. Les trois commandes existent
- *  déjà (lexos-capture plein|zone|video) et sont les mêmes que les lanceurs
- *  9, 10 et 11 de la barre : le volet est une troisième porte sur le même
- *  outil, pas une réécriture.                                              */
+ *  déjà (lexos-capture plein|zone|video) et sont les mêmes que les touches
+ *  Impr, Maj+Impr et Ctrl+Maj+R : le volet est une autre porte sur le même
+ *  outil, pas une réécriture. (Les lanceurs 9, 10 et 11 de la barre du
+ *  haut ont été retirés à la demande d'Alex, 2026-10-23.)                  */
 let photoOuvert = false;
 function photoHTML(){
   return `<div class="qs-photo">

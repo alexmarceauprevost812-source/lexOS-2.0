@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Version=1.0
-Name=Enregistrer l'écran en vidéo
-Comment=Enregistrer l'écran en vidéo avec le son du système (Espace+3, ou Ctrl+Maj+R)
-Exec=lexos-pro-terminal --hold -e "lexos capture video"
-Icon=lexos-capture-video
-Terminal=false
-Categories=AudioVideo;Recorder;

@@ -66,7 +66,7 @@ nom_libre() {
 #  lancer l'outil — jamais après, sinon le sélecteur serait déjà à l'écran.
 #
 #  Il vaut 0 par défaut : toutes les autres portes d'entrée (touche Impr écr,
-#  lanceurs de la barre, ligne de commande) gardent exactement le comportement
+#  menu, dock, ligne de commande) gardent exactement le comportement
 #  d'avant. Seul le volet le demande.
 DELAI_CAPTURE=0
 lire_delai() { # lire_delai "$@" — retire --delai N de la liste et le retient

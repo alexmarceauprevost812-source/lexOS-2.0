@@ -146,6 +146,10 @@ titre "1. Les outils lexos-* et leurs branchements"
 #                             réparation manuelle documentée, sans section dédiée.
 SANS_SECTION="
 lexos-raccourcis-mosaique
+#  La barre du haut XFCE : un autostart de session (fermer la barre sous le
+#  Moteur, retirer une fois les anciens boutons de capture). Elle a sa
+#  branche « lexos barre-haut » et sa ligne d'aide ; rien à régler ailleurs.
+lexos-barre-haut
 lexos-apercu
 lexos-app-settings
 lexos-claude-installation

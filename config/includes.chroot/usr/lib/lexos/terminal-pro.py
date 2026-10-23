@@ -1059,7 +1059,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         #  ON NE CONSOMME LE DÉMARRAGE QUE SI UN SHELL VA VRAIMENT NAÎTRE.
         #  Le consommer sans rien créer — flux rouvert sur une session déjà
         #  là, après un hoquet du tuyau — perdrait pour de bon le
-        #  « -e "lexos capture video" » du lanceur : la fenêtre s'ouvrirait
+        #  « -e "lexos capture video" » d'un lanceur : la fenêtre s'ouvrirait
         #  sur une invite nue, sans que rien n'explique pourquoi.
         suivies = {}
         try:
@@ -1413,9 +1413,9 @@ def main():
     cwd, commande, tenir = lire_arguments(sys.argv[1:])
     DEMARRAGE["cwd"] = cwd
     if commande:
-        #  --hold : la fenêtre reste après la fin de la commande. C'est ce que
-        #  le lanceur 11 du panneau attend (« lexos capture video »), sans
-        #  quoi le volet se ferme avant qu'on ait pu lire le message.
+        #  --hold : la fenêtre reste après la fin de la commande. C'est ce
+        #  qu'attend un lanceur du genre « --hold -e "lexos capture video" »,
+        #  sans quoi le volet se ferme avant qu'on ait pu lire le message.
         DEMARRAGE["cmd"] = (
             commande + "\nprintf '\\n\\033[90m— terminé. Entrée pour fermer.\\033[0m'\nread -r _\n"
             if tenir else commande)

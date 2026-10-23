@@ -104,6 +104,7 @@ ${B}APPARENCE${R}
                       vue-fichiers apercu on|off · miniatures on|off${R}
   ${A}moteurd${R} <etat|on|off> Le démon qui garde le volet et les Paramètres au chaud
   ${A}bureau${R} <moteur|classique|etat> Bureau du Moteur d'Alex ou bureau XFCE classique
+  ${A}barre-haut${R} <off|on|nettoyer> Barre XFCE du haut ${D}(nettoyer : retire les anciens boutons de capture)${R}
 
 ${B}LANGUE${R}
   ${A}lang${R}                 Langue actuelle et langues courantes ${D}(français, québécois, anglais…)${R}

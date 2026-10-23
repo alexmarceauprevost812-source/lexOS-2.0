@@ -185,7 +185,9 @@ fi
 #  Il faisait « xfce4-terminal --hold -e "lexos capture video" », parce qu'il
 #  a besoin d'un VRAI pty et de « --hold ». Les deux existent maintenant :
 #  le pty (pty.fork, une session par volet) et lire_arguments() dans
-#  terminal-pro.py, qui garde le volet ouvert après la commande. Le fichier
-#  .desktop du squelette pointe donc sur lexos-pro-terminal.
+#  terminal-pro.py, qui garde le volet ouvert après la commande.
+#  Depuis le 2026-10-23, ce lanceur n'est plus dans la barre du haut (Alex :
+#  « retirer définitivement les anciens outils ») ; « --hold » reste, pour
+#  toute commande qu'on veut lire jusqu'au bout.
 
 echo "[lexos] hook 0455 : ok"

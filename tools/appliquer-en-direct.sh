@@ -193,7 +193,10 @@ for d in config/includes.chroot/etc/skel/.config/xfce4/panel/launcher-*; do
 		|| cp -a "$d" "$HOME_CIBLE/.config/xfce4/panel/$nom"
 done
 chown -R "$CIBLE:$CIBLE" "$HOME_CIBLE/.config/xfce4/panel"
-ok "Lanceurs du panneau (capture rapide, réglages rapides) posés"
+ok "Lanceurs du panneau (réglages rapides, bouton rouge) posés"
+#  Les anciens boutons de capture (lanceurs 9-11) vivent dans xfconfd : seul
+#  « lexos barre-haut nettoyer », lancé DANS la session, les retire.
+echo "  → anciens boutons de capture : « lexos barre-haut nettoyer » dans ta session, sans sudo"
 
 # =============================================================================
 #  5. Dock Plank — lanceurs et ordre

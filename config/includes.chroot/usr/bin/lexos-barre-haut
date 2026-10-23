@@ -11,19 +11,30 @@
 #  la session le relance dans la seconde. « --quit » lui demande de partir
 #  DE LUI-MÊME, en le disant à la session — qui ne le relance pas.
 #
-#  POURQUOI À CHAQUE SESSION. Le xfce4-session.xml de /etc/skel ne lance
-#  plus la barre, mais il n'est copié qu'à la CRÉATION du compte : un compte
-#  déjà fait garde l'ancienne liste. L'autostart lexos-barre-haut.desktop
-#  appelle donc « demarrer » à chaque ouverture de session.
+#  POURQUOI À CHAQUE SESSION. xfce4-session lance la barre à chaque
+#  ouverture (Client2 du xfce4-session.xml de /etc/skel), et ce fichier
+#  n'est copié qu'à la CRÉATION du compte. L'autostart
+#  lexos-barre-haut.desktop appelle donc « demarrer » à chaque session.
 #
-#    lexos barre-haut off     éteinte (défaut), et à chaque session
-#    lexos barre-haut on      la ramener (et la relancer tout de suite)
+#  ALEX (2026-10-23) : « retirer définitivement les anciens outils de la
+#  barre du haut » — l'appareil photo, la capture de zone (carré pointillé)
+#  et le rond orange d'enregistrement. /etc/skel ne les pose plus, mais un
+#  compte déjà créé les garde dans xfconfd. « demarrer » les retire UNE fois
+#  (fanion dans ~/.local/state/lexos/barre-sans-captures), « nettoyer » le
+#  refait tout de suite. La capture elle-même reste : Impr, Maj+Impr,
+#  Ctrl+Maj+R, le menu, le dock et le volet des Paramètres rapides.
+#
+#    lexos barre-haut off       éteinte (défaut) en mode Moteur, à chaque session
+#    lexos barre-haut on        la ramener (et la relancer tout de suite)
+#    lexos barre-haut nettoyer  retirer tout de suite les anciens boutons de capture
 #    lexos barre-haut etat
 # =============================================================================
 set -uo pipefail
 
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/lexos"
 ETAT="$CONF/barre-haut"
+PANNEAU="${XDG_CONFIG_HOME:-$HOME/.config}/xfce4/panel"
+SAUVE="${XDG_STATE_HOME:-$HOME/.local/state}/lexos/barre-sans-captures"
 
 lire() { [ -r "$ETAT" ] && tr -d '[:space:]' < "$ETAT" || printf 'off'; }
 
@@ -39,6 +50,26 @@ try:
 except Exception:
     sys.exit(1)
 PY
+}
+
+#  La barre doit-elle rester à l'écran ? Non seulement en mode Moteur avec
+#  l'état « off » : là, eteindre la ferme.
+barre_voulue() { ! { moteur_choisi && [ "$(lire)" != "on" ]; }; }
+
+#  La barre RÉPOND-elle ? « xfce4-panel -r » ou « --quit » sans barre qui
+#  tienne son nom sur D-Bus ouvre une boîte « No running instance… » dont le
+#  bouton Execute RALLUME la barre (main.c, bloc dbus_return) : on demande
+#  donc d'abord à D-Bus. Sans gdbus, on se contente du processus.
+barre_en_marche() {
+	if command -v gdbus >/dev/null 2>&1; then
+		case "$(gdbus call --session --dest org.freedesktop.DBus \
+			--object-path /org/freedesktop/DBus \
+			--method org.freedesktop.DBus.NameHasOwner org.xfce.Panel 2>/dev/null)" in
+			*true*) return 0 ;;
+			*) return 1 ;;
+		esac
+	fi
+	pgrep -u "$(id -u)" -x xfce4-panel >/dev/null 2>&1
 }
 
 eteindre() {
@@ -58,6 +89,169 @@ eteindre() {
 	return 0
 }
 
+# --- Les anciens boutons de capture ------------------------------------------
+#  Toujours par xfconf-query, jamais en éditant le XML : xfconfd garde le
+#  canal en mémoire et réécrirait le fichier par-dessus.
+
+#  Une valeur par ligne, que la propriété soit un tableau ou non.
+valeurs() {
+	local sortie
+	sortie=$(xfconf-query -c xfce4-panel -p "$1" 2>/dev/null) || return 1
+	case "$sortie" in
+		"Value is an array with"*) printf '%s\n' "$sortie" | tail -n +3 ;;
+		*) printf '%s\n' "$sortie" ;;
+	esac
+}
+
+#  est_capture <numéro> <élément> — par le CONTENU, jamais par le numéro :
+#  un lanceur ajouté à la main porte un nom horodaté, et Alex a pu refaire
+#  sa barre depuis.
+est_capture() {
+	local nom="${2##*/}" f
+	case "$nom" in
+		lexos-capture.desktop|lexos-capture-photo.desktop|lexos-capture-zone.desktop|lexos-capture-video.desktop)
+			return 0 ;;
+	esac
+	f="$PANNEAU/launcher-$1/$nom"
+	[ -r "$f" ] || return 1
+	grep -qE '^Exec=.*lexos[ -]capture' "$f" && return 0
+	grep -qE '^Icon=(lexos-camera|lexos-capture-zone|lexos-capture-video)$' "$f"
+}
+
+#  La sauvegarde, AVANT la première écriture : le fichier de xfconfd tel
+#  quel, et une liste lisible. « xfconf-query -lv » n'y suffit pas : il
+#  écrit « <<UNSUPPORTED>> » à la place de chaque tableau, donc justement
+#  à la place de plugin-ids.
+sauvegarder() {
+	local base xml prop
+	base="$SAUVE/avant-$(date +%Y%m%d-%H%M%S)"
+	xml="${XDG_CONFIG_HOME:-$HOME/.config}/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"
+	if [ -r "$xml" ]; then cp "$xml" "$base.xml" || return 1; fi
+	while IFS= read -r prop; do
+		[ -n "$prop" ] || continue
+		printf '%s = %s\n' "$prop" "$(valeurs "$prop" | paste -sd '|')"
+	done <<<"$1" > "$base.txt"
+}
+
+#  nettoyer [--session] — sans argument : tout de suite, même si c'est déjà
+#  fait. --session (l'autostart) : une seule fois, et en laissant à la barre
+#  le temps d'apparaître avant de la relancer.
+nettoyer() {
+	local mode="${1:-}" liste prop id it pid p i n retirer=" " change=0 deja=0 avant apres
+	local -a items garder ids args
+	[ "$mode" = "--session" ] && [ -e "$SAUVE/fait" ] && return 0
+	#  La barre appartient à la session de l'utilisateur : en root (sudo),
+	#  on toucherait au mieux les réglages de root, jamais les siens.
+	if [ "$(id -u)" -eq 0 ]; then
+		echo "Barre du haut : à lancer SANS sudo, dans ta session : lexos barre-haut nettoyer" >&2
+		return 1
+	fi
+	if ! command -v xfconf-query >/dev/null 2>&1; then
+		echo "Barre du haut : xfconf-query absent, rien à nettoyer ici." >&2
+		return 1
+	fi
+	if ! liste=$(xfconf-query -c xfce4-panel -l 2>/dev/null); then
+		echo "Barre du haut : réglages XFCE injoignables — à lancer dans ta session, sans sudo." >&2
+		return 1
+	fi
+	mkdir -p "$SAUVE" || return 1
+	pgrep -u "$(id -u)" -x xfce4-panel >/dev/null 2>&1 && deja=1
+
+	#  1. Les lanceurs qui ne portent QUE de la capture partent en entier ;
+	#     un lanceur mêlé ne perd que ses éléments de capture.
+	while IFS= read -r prop; do
+		case "$prop" in /plugins/plugin-*) ;; *) continue ;; esac
+		id=${prop#/plugins/plugin-}
+		case "$id" in ''|*[!0-9]*) continue ;; esac
+		[ "$(valeurs "$prop")" = "launcher" ] || continue
+		mapfile -t items < <(valeurs "$prop/items" | sed '/^$/d')
+		[ "${#items[@]}" -gt 0 ] || continue
+		garder=()
+		for it in "${items[@]}"; do
+			est_capture "$id" "$it" || garder+=("$it")
+		done
+		[ "${#garder[@]}" -lt "${#items[@]}" ] || continue
+		if [ "$change" = 0 ]; then
+			sauvegarder "$liste" \
+				|| { echo "Barre du haut : sauvegarde impossible dans $SAUVE, rien n'est changé." >&2; return 1; }
+			change=1
+		fi
+		if [ "${#garder[@]}" -eq 0 ]; then
+			retirer="$retirer$id "
+		else
+			args=()
+			for it in "${garder[@]}"; do args+=(-t string -s "$it"); done
+			xfconf-query -c xfce4-panel -p "$prop/items" -a "${args[@]}" || return 1
+			echo "Lanceur $id : capture retirée, gardé : ${garder[*]}"
+		fi
+	done <<<"$liste"
+
+	#  2. Chaque barre : plugin-ids réécrit SANS ces numéros, les autres dans
+	#     l'ordre. Toujours « -a » et un « -t » par valeur : un « -s » seul
+	#     changerait le tableau en nombre, et la barre se viderait.
+	if [ "$retirer" != " " ]; then
+		while IFS= read -r pid; do
+			case "$pid" in ''|*[!0-9]*) continue ;; esac
+			p="/panels/panel-$pid/plugin-ids"
+			mapfile -t ids < <(valeurs "$p" | sed '/^$/d')
+			args=(); n=0
+			for i in "${ids[@]}"; do
+				case "$retirer" in *" $i "*) ;; *) args+=(-t int -s "$i"); n=$((n + 1)) ;; esac
+			done
+			[ "$n" -lt "${#ids[@]}" ] || continue
+			if [ "${#args[@]}" -gt 0 ]; then
+				xfconf-query -c xfce4-panel -p "$p" -a "${args[@]}" || return 1
+			else
+				#  xfconf ne garde pas de tableau vide.
+				xfconf-query -c xfce4-panel -p "$p" -r || return 1
+			fi
+		done < <(valeurs /panels)
+		#  3. Les greffons eux-mêmes, et tout ce qu'il y a dessous.
+		for id in $retirer; do
+			xfconf-query -c xfce4-panel -p "/plugins/plugin-$id" -r -R || return 1
+		done
+	fi
+
+	#  4. Une barre DÉJÀ affichée garde les anciens boutons en mémoire : elle
+	#     se relance, seulement si elle doit rester (en mode Moteur, eteindre
+	#     la ferme) et seulement si elle répond.
+	if [ "$change" = 1 ] && [ "$deja" = 1 ] && barre_voulue; then
+		if [ "$mode" = "--session" ]; then
+			for _ in $(seq 1 20); do barre_en_marche && break; sleep 1; done
+		fi
+		if barre_en_marche; then
+			avant=$(pgrep -u "$(id -u)" -x xfce4-panel | tr '\n' ' ')
+			xfce4-panel -r >/dev/null 2>&1 || true
+			for _ in $(seq 1 10); do
+				sleep 1
+				apres=$(pgrep -u "$(id -u)" -x xfce4-panel | tr '\n' ' ')
+				[ -n "$apres" ] && [ "$apres" != "$avant" ] && break
+			done
+			#  En partant, l'ancienne barre réenregistre ses greffons : on
+			#  repasse derrière elle.
+			for id in $retirer; do
+				xfconf-query -c xfce4-panel -p "/plugins/plugin-$id" -r -R >/dev/null 2>&1 || true
+			done
+		fi
+	fi
+
+	#  5. Les dossiers des lanceurs : mis de côté avec la sauvegarde, pas
+	#     effacés. Laissé seul, launcher-11 ne suffirait pas : la barre
+	#     retrouverait lexos-capture-video.desktop dans le menu.
+	for id in $retirer; do
+		[ -d "$PANNEAU/launcher-$id" ] || continue
+		mv "$PANNEAU/launcher-$id" "$SAUVE/launcher-$id.$(date +%s)" \
+			|| echo "Barre du haut : $PANNEAU/launcher-$id n'a pas pu être déplacé." >&2
+	done
+	touch "$SAUVE/fait"
+	if [ "$change" = 1 ]; then
+		[ "$retirer" != " " ] && echo "Barre du haut : boutons de capture retirés (greffons $(tr ' ' '\n' <<<"$retirer" | sed '/^$/d' | sort -n | paste -sd ' '))."
+		echo "Sauvegarde : $SAUVE"
+	else
+		echo "Barre du haut : aucun bouton de capture, rien à retirer."
+	fi
+}
+
 case "${1:-etat}" in
 	off|non|0)
 		mkdir -p "$CONF"; echo off > "$ETAT"
@@ -71,9 +265,11 @@ case "${1:-etat}" in
 		mkdir -p "$CONF"; echo on > "$ETAT"
 		setsid xfce4-panel >/dev/null 2>&1 &
 		echo "Barre du haut : rallumée." ;;
+	nettoyer|captures)
+		nettoyer ;;
 	demarrer)
-		[ "$(lire)" = "on" ] && exit 0
-		eteindre ;;
+		[ "$(lire)" = "on" ] || eteindre
+		nettoyer --session >/dev/null ;;
 	etat|*)
 		printf 'Barre du haut : %s\n' "$(lire)" ;;
 esac

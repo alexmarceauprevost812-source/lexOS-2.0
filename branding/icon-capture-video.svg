@@ -4,9 +4,10 @@
 <!--
   LexOS — icône « Enregistrer l'écran en vidéo ».
 
-  MÊME RAISON QUE icon-capture-zone.svg : les trois boutons de capture de
-  la barre du haut portaient la même icône d'appareil photo, et Alex les a
-  comptés sur sa photo de l'ISO 73.
+  Née quand les trois boutons de capture de la barre du haut portaient la
+  même icône d'appareil photo (photo d'Alex, ISO 73). Ces boutons ont quitté
+  la barre le 2026-10-23 ; l'icône reste, pour l'entrée « Enregistreur
+  d'écran » du menu.
 
   LE POINT D'ENREGISTREMENT, PAS UNE CAMÉRA. C'est ce que montre la démo :
   #qcVideo est un disque plein de la couleur d'accent (border-radius:50%,

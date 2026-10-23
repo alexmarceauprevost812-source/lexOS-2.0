@@ -539,7 +539,7 @@ dit(tp.lire_arguments(["-e", "ls", "-la", "/tmp"]) == (None, "ls -la /tmp", Fals
 dit(tp.lire_arguments(["-e", "echo", "deux mots"]) == (None, "echo 'deux mots'", False),
     "un argument qui contient une espace est protégé au recollage")
 dit(tp.lire_arguments(["--hold", "-x", "lexos", "capture", "video"]) == (None, "lexos capture video", True),
-    "--hold : le volet reste ouvert après la commande (lanceur 11 du panneau)")
+    "--hold : le volet reste ouvert après la commande (ex. « lexos capture video »)")
 dit(tp.lire_arguments([]) == (None, None, False),
     "sans argument : un shell ordinaire, rien de plus")
 PY
@@ -559,8 +559,7 @@ else
 	non "aucun pont x-terminal-emulator : brancher le lanceur nu ouvrirait des fenêtres vides"
 fi
 
-#  Le hook doit poser les deux, et ne PAS toucher au lanceur 11 du panneau,
-#  qui a besoin d'un vrai pty et de « --hold ».
+#  Le hook doit poser les deux.
 grep -q 'update-alternatives --install /usr/bin/x-terminal-emulator' "$HOOK" \
 	&& ok "le hook 0455 branche l'alternative Debian" \
 	|| non "le hook 0455 ne branche pas x-terminal-emulator"

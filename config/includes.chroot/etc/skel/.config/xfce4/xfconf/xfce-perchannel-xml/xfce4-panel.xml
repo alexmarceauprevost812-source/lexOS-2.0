@@ -75,9 +75,13 @@
       <property name="plugin-ids" type="array">
         <value type="int" value="1"/>
         <value type="int" value="14"/>
-        <value type="int" value="9"/>
-        <value type="int" value="10"/>
-        <value type="int" value="11"/>
+        <!--  LES GREFFONS 9, 10 ET 11 (appareil photo, capture de zone, rond
+              orange d'enregistrement) ONT QUITTÉ CE TABLEAU, à la demande
+              d'Alex (2026-10-23) : « retirer définitivement les anciens
+              outils de la barre du haut ». La capture reste au clavier
+              (Impr, Maj+Impr, Ctrl+Maj+R), dans le menu, le dock et le
+              volet des Paramètres rapides. Un compte déjà créé est nettoyé
+              par lexos-barre-haut au démarrage de la session. -->
         <value type="int" value="13"/>
         <value type="int" value="2"/>
         <value type="int" value="3"/>
@@ -190,22 +194,7 @@
       </property>
     </property>
 
-    <!-- 9-11 · Capture rapide (#quickcap de la démo), à côté du bouton Applications -->
-    <property name="plugin-9" type="string" value="launcher">
-      <property name="items" type="array">
-        <value type="string" value="lexos-capture-photo.desktop"/>
-      </property>
-    </property>
-    <property name="plugin-10" type="string" value="launcher">
-      <property name="items" type="array">
-        <value type="string" value="lexos-capture-zone.desktop"/>
-      </property>
-    </property>
-    <property name="plugin-11" type="string" value="launcher">
-      <property name="items" type="array">
-        <value type="string" value="lexos-capture-video.desktop"/>
-      </property>
-    </property>
+    <!-- 9-11 · Capture rapide : retirés de la barre (voir plugin-ids). -->
 
     <!-- 2 · Espace élastique -->
     <!-- 13 · Météo — « ☁ 20° », comme la démo.

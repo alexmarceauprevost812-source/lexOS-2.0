@@ -564,7 +564,7 @@ grep -q 'DELAI_CAPTURE' "$CAPTURE" \
 #  Le délai ne doit PAS changer le comportement des autres portes d'entrée.
 DEF="$(sed -n 's/^DELAI_CAPTURE=\([0-9]*\)$/\1/p' "$CAPTURE" | head -1)"
 [[ "$DEF" == "0" ]] \
-	&& ok "…et il vaut 0 par défaut : touche Impr écr et lanceurs de la barre inchangés" \
+	&& ok "…et il vaut 0 par défaut : touche Impr écr, menu et dock inchangés" \
 	|| non "le délai par défaut vaut « $DEF » : toutes les captures attendraient"
 #  Et le volet se ferme APRÈS avoir demandé l'action, pas avant.
 APRES_PHOTO="$(grep -A2 "await api(\"rapides-photo\"" "$VOLET_APP" || true)"

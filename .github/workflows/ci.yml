@@ -1048,54 +1048,144 @@ jobs:
           [ "$bad" = "0" ] && echo "  ok — tous les dossiers que GTK sait nommer ont leur poche orange, et les thèmes de repli sont stricts"
           exit $bad
 
-      - name: Les trois boutons de capture ne se ressemblent pas
+      - name: Les boutons de capture ont quitté la barre du haut — et restent joignables
         if: ${{ !cancelled() }}
         run: |
-          #  PHOTO D'ALEX, ISO 73 : « sur l'ISO, 1re image, y a 3 appareils
-          #  photo ». Les trois lanceurs de capture de la barre du haut —
-          #  photo, zone, vidéo — portaient tous « Icon=lexos-camera ». Trois
-          #  boutons voisins, identiques, dont deux étaient donc invisibles :
-          #  on ne peut pas viser ce qu'on ne distingue pas.
+          #  ALEX (2026-10-23) : « retirer définitivement les anciens outils
+          #  de la barre du haut : l'icône appareil photo, l'icône capture de
+          #  zone, le bouton rond orange d'enregistrement […] Ne touche à
+          #  rien d'autre dans la barre (heure, wifi, batterie, son,
+          #  bluetooth, bouton power restent). »
           #
-          #  La démo les a toujours distingués (#quickcap) : un appareil
-          #  photo, un CADRE (⛶ sur #qcZone), un POINT d'enregistrement
-          #  (le ::before rond de #qcVideo). L'ISO doit dire pareil.
-          bad=0
-          L=config/includes.chroot/etc/skel/.config/xfce4/panel
-          NOMS=""
-          for n in 9:photo 10:zone 11:video; do
-            d="${n%%:*}"; q="${n##*:}"
-            f="$L/launcher-$d/lexos-capture-$q.desktop"
-            [ -f "$f" ] || { echo "::error::$f manquant"; bad=1; continue; }
-            i="$(sed -n 's/^Icon=//p' "$f")"
-            [ -n "$i" ] || { echo "::error file=$f::pas d'Icon="; bad=1; continue; }
-            NOMS="$NOMS $i"
-          done
-          U="$(echo $NOMS | tr ' ' '\n' | grep -c . || true)"
-          D="$(echo $NOMS | tr ' ' '\n' | grep . | sort -u | wc -l)"
-          [ "$U" = "3" ] && [ "$D" = "3" ] || {
-            echo "::error::les trois lanceurs de capture doivent porter TROIS icônes différentes (trouvé :$NOMS)"; bad=1; }
+          #  Cette étape exigeait avant TROIS icônes distinctes pour ces trois
+          #  boutons (photo d'Alex, ISO 73 : « y a 3 appareils photo »). Les
+          #  boutons sont partis ; elle vérifie maintenant qu'ils ne
+          #  reviennent pas, que le RESTE de la barre est intact, et que la
+          #  capture reste à portée : clavier, menu, icônes rendues.
+          #
+          #  LE XML SE LIT COMME XFCE LE LIT (ElementTree), JAMAIS AU GREP :
+          #  le fichier est plein de prose qui cite « greffon 9 », et les
+          #  greffons 6 et 15 y dorment en commentaire.
+          python3 - <<'PY'
+          import glob, os, re, sys
+          import xml.etree.ElementTree as ET
 
-          #  Et chaque icône nommée doit exister comme source ET être rendue
-          #  par le hook 0300 — sinon GTK retombe sur l'icône générique et on
-          #  se retrouve avec trois carrés vides au lieu de trois cameras.
+          SKEL = "config/includes.chroot/etc/skel/.config/xfce4"
+          XML = SKEL + "/xfconf/xfce-perchannel-xml/"
+          bad = []
+
+          racine = ET.parse(XML + "xfce4-panel.xml").getroot()
+          ids = [int(v.get("value")) for v in
+                 racine.find("property[@name='panels']/property[@name='panel-1']/property[@name='plugin-ids']")]
+          greffons = {}
+          for p in racine.find("property[@name='plugins']").findall("property"):
+              enfants = {c.get("name"): c for c in p.findall("property")}
+              items = [v.get("value") for v in enfants["items"]] if "items" in enfants else []
+              commande = enfants["command"].get("value") if "command" in enfants else ""
+              greffons[int(p.get("name").split("-")[1])] = (p.get("value"), items, commande)
+
+          #  1. Plus aucun bouton de capture : ni numéro, ni déclaration, ni
+          #     lanceur dont un élément serait une capture.
+          for n in (9, 10, 11):
+              if n in ids:
+                  bad.append(f"le greffon {n} est revenu dans plugin-ids")
+              if n in greffons:
+                  bad.append(f"plugin-{n} est encore déclaré")
+          for n, (genre, items, _) in greffons.items():
+              if genre == "launcher" and any("capture" in i for i in items):
+                  bad.append(f"plugin-{n} lance encore une capture : {items}")
+          for d in glob.glob(SKEL + "/panel/launcher-*"):
+              for f in glob.glob(d + "/*.desktop"):
+                  texte = open(f, encoding="utf-8").read()
+                  if re.search(r"^Exec=.*lexos[ -]capture", texte, re.M) or \
+                     re.search(r"^Icon=lexos-(camera|capture-zone|capture-video)$", texte, re.M):
+                      bad.append(f"{f} est un bouton de capture")
+          for n in (9, 10, 11):
+              if os.path.exists(f"{SKEL}/panel/launcher-{n}"):
+                  bad.append(f"{SKEL}/panel/launcher-{n} existe encore")
+
+          #  2. Le reste de la barre, chacun à son rôle : on ne fige pas les
+          #     numéros, on exige ce qu'Alex a nommé.
+          charges = [greffons.get(n, (None, [], "")) for n in ids]
+          def present(genre, item=None, commande=None):
+              return any(g == genre and (item is None or item in i)
+                         and (commande is None or c.startswith(commande)) for g, i, c in charges)
+          for nom, attendu in [
+              ("le menu Applications", ("whiskermenu",)),
+              ("les quatre points des bureaux", ("pager",)),
+              ("la météo", ("genmon", None, "lexos-meteo")),
+              ("l'heure", ("genmon", None, "lexos-heure")),
+              ("les appareils (casque, haut-parleur)", ("genmon", None, "lexos-peripheriques")),
+              ("la zone de notification (wifi, bluetooth)", ("systray",)),
+              ("la batterie", ("power-manager-plugin",)),
+              ("le volet ▲ (son, micro)", ("launcher", "lexos-volet-rapides.desktop")),
+              ("le bouton power", ("launcher", "lexos-session.desktop")),
+          ]:
+              if not present(*attendu):
+                  bad.append(f"{nom} a disparu de la barre")
+          if not charges or charges[-1][:2] != ("launcher", ["lexos-session.desktop"]):
+              bad.append("le bouton power n'est plus le dernier, tout à droite")
+          for n in ids:
+              if n not in greffons:
+                  bad.append(f"plugin-ids cite {n}, qui n'est pas déclaré")
+              elif greffons[n][0] == "launcher":
+                  for i in greffons[n][1]:
+                      if not os.path.isfile(f"{SKEL}/panel/launcher-{n}/{i}"):
+                          bad.append(f"le lanceur {n} cite {i}, absent de launcher-{n}/")
+
+          #  3. La capture reste au clavier.
+          clavier = ET.parse(XML + "xfce4-keyboard-shortcuts.xml").getroot()
+          custom = {p.get("name"): p.get("value") or "" for p in
+                    clavier.find("property[@name='commands']/property[@name='custom']").findall("property")}
+          for touche, quoi in [("Print", "lexos capture"), ("<Shift>Print", "lexos capture zone"),
+                               ("<Primary><Shift>r", "lexos capture video")]:
+              if quoi not in custom.get(touche, ""):
+                  bad.append(f"le raccourci {touche} ne fait plus « {quoi} »")
+
+          for b in bad:
+              print(f"::error::{b}")
+          if bad:
+              sys.exit(1)
+          print(f"  ok — plus de bouton de capture ; {len(ids)} greffons, le bouton power en dernier ; Impr, Maj+Impr, Ctrl+Maj+R intacts")
+          PY
+
+          #  4. Et dans le MENU, les deux entrées de capture gardent une
+          #     icône vraiment RENDUE par le hook 0300 — sinon GTK retombe
+          #     sur l'icône générique.
           #  ON EXTRAIT LA LISTE, ON NE CHERCHE PAS LE MOT DANS LE FICHIER.
-          #  La première version faisait un « grep <nom> » sur tout le hook :
+          #  Une première version faisait un « grep <nom> » sur tout le hook :
           #  « github » y passait — il apparaît dans un bloc voisin, sans être
-          #  dans la liste. Un contrôle qui répond oui à un nom absent de la
-          #  liste ne contrôle rien, et la mutation l'a attrapé. On lit donc la
-          #  boucle « for NAME in … ; do » elle-même, continuations comprises.
+          #  dans la liste. On lit donc la boucle « for NAME in … ; do »
+          #  elle-même, continuations comprises.
+          bad=0
+          H0400=config/hooks/normal/0400-lexos-desktop.hook.chroot
           H0300=config/hooks/normal/0300-lexos-assets.hook.chroot
           LISTE="$(sed -n '/^for NAME in /,/; do$/p' "$H0300" | tr -d '\\' | tr '\n' ' ' | sed -e 's/^for NAME in //' -e 's/; do *$//')"
-          for i in $NOMS; do
+          for entree in lexos-capture lexos-capture-video; do
+            i="$(sed -n "\#^cat > /usr/share/applications/$entree.desktop#,/^EOF/p" "$H0400" | sed -n 's/^Icon=//p')"
+            [ -n "$i" ] || { echo "::error file=$H0400::l'entrée $entree.desktop n'a plus d'Icon="; bad=1; continue; }
             n="${i#lexos-}"
             [ -r "branding/icon-$n.svg" ] || {
               echo "::error::« $i » n'a pas de branding/icon-$n.svg"; bad=1; continue; }
-            echo "$LISTE" | tr ' ' '\n' | grep -qx "$n" || {
-              echo "::error file=config/hooks/normal/0300-lexos-assets.hook.chroot::« $n » n'est pas dans la liste des icônes rendues — le PNG n'existerait pas"; bad=1; }
+            case " $LISTE " in
+              *" $n "*) ;;
+              *) echo "::error file=$H0300::« $n » n'est pas dans la liste des icônes rendues — le PNG n'existerait pas"; bad=1 ;;
+            esac
           done
-          [ "$bad" = "0" ] && echo "  ok — photo, zone et vidéo portent trois dessins distincts, tous rendus"
+          [ "$bad" = "0" ] && echo "  ok — les entrées de capture du menu ont leur icône rendue"
           exit $bad
+
+      - name: Un compte déjà créé perd aussi les boutons de capture
+        if: ${{ !cancelled() }}
+        run: |
+          #  /etc/skel ne sert qu'aux comptes NEUFS : chez Alex, la barre vit
+          #  dans xfconfd. lexos-barre-haut les retire une fois, à
+          #  l'ouverture de session, par xfconf-query — banc avec un faux
+          #  xfconf-query qui reproduit ce qui a été MESURÉ sur xfconfd 4.18
+          #  (un « -s » sans « -a » change le tableau en nombre, « -lv »
+          #  n'écrit pas les tableaux) et une fausse barre qui, en partant,
+          #  réenregistre ses greffons comme xfce4-panel 4.20.
+          bash tests/test_lexos_barre_captures.sh
 
       - name: Le menu emploie la clé que whiskermenu lit vraiment
         if: ${{ !cancelled() }}
