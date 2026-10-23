@@ -3779,6 +3779,22 @@ jobs:
             || sudo snap install chromium >/dev/null 2>&1 || true
           bash tests/test_lexos_rapides_gris.sh
 
+      - name: Barre du Moteur — le volume tient dans un rond, réglé d'un clic
+        if: ${{ !cancelled() }}
+        run: |
+          #  ALEX, photo de la barre du haut du Moteur : « le bouton du volume
+          #  qui prend pas toute la place, on garde l'emoji, et ensuite on
+          #  clique dessus pour voir le choix d'ajuster le volume ». Le banc
+          #  charge la VRAIE page outils.html dans un vrai Chromium sans écran,
+          #  avec un faux /api, et clique comme Alex : largeur du bouton, menu
+          #  qui tombe dessous, glissière qui envoie le volume, muet, roulette
+          #  (5 % par cran, sans changer de bureau), fermeture.
+          command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1 \
+            || command -v google-chrome >/dev/null 2>&1 \
+            || sudo apt-get install -y --no-install-recommends chromium-browser >/dev/null 2>&1 \
+            || sudo snap install chromium >/dev/null 2>&1 || true
+          bash tests/test_lexos_outils_son.sh
+
       - name: Fuseau horaire — la position réelle, pas Toronto par défaut
         if: ${{ !cancelled() }}
         run: |

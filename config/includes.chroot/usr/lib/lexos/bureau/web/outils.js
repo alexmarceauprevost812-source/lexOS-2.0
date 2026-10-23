@@ -40,7 +40,7 @@ function signe(t) {
 }
 
 let O = null;            // la réponse de /api/outils
-let menu = null;         // "capture" | "notifs" | "arret" | "tout" | null
+let menu = null;         // "son" | "capture" | "notifs" | "arret" | "tout" | null
 let choix = false;       // « ＋ » : placer des outils dans la barre
 let rayon = "tout";
 let fermeture = null;
@@ -86,32 +86,58 @@ function dessinerBarre() {
   $("#nb").hidden = !n; $("#nb").textContent = n > 99 ? "99+" : n;
 }
 
-/* 🔊 Le son */
-let minuteurSon = null;
+/* 🔊 Le son — l'emoji seul dans la barre, le réglage dans son menu.
+   ALEX : « le bouton du volume qui prend pas toute la place, on garde
+   l'emoji, et ensuite on clique dessus pour voir le choix d'ajuster ». La
+   glissière de 170 px et son « 100 % » occupaient la barre à eux seuls. */
+let minuteurSon = null, rouletteSon = 0;
+const iconeSon = (v, muet) => muet ? "🔇" : v < 34 ? "🔈" : v < 67 ? "🔉" : "🔊";
 function dessinerSon() {
   const s = O.son;
   $("#son").hidden = !(s && s.volume >= 0);
-  if ($("#son").hidden) return;
+  if ($("#son").hidden) {
+    //  Plus de son (pactl parti, carte débranchée) : son menu ne reste pas
+    //  ouvert sur une glissière qui ne règle plus rien.
+    if (menu === "son") { fermerMenus(); menu = null; demanderTaille(); }
+    return;
+  }
   if (document.activeElement !== $("#volume")) $("#volume").value = s.volume;
   majCurseur();
-  $("#son").classList.toggle("coupe", !!s.muet);
-  $("#muet").textContent = s.muet ? "🔇" : s.volume < 34 ? "🔈" : s.volume < 67 ? "🔉" : "🔊";
 }
 function majCurseur() {
-  const v = +$("#volume").value;
+  const v = +$("#volume").value, muet = !!O?.son?.muet;
   $("#volume").style.setProperty("--v", v + "%");
   $("#pct").textContent = v + " %";
+  //  L'emoji de la barre DIT le niveau : 🔈 🔉 🔊, et 🔇 quand c'est coupé.
+  $("#son-icone").textContent = $("#muet").textContent = iconeSon(v, muet);
+  $("#son").classList.toggle("coupe", muet);
+  $("#reglage-son").classList.toggle("coupe", muet);
+  $("#son").title = muet ? "Son coupé — clique pour régler" : `Volume : ${v} % — clique pour régler`;
 }
-$("#volume").addEventListener("input", () => {
-  majCurseur();
+function envoyerVolume() {
   clearTimeout(minuteurSon);
   minuteurSon = setTimeout(async () => {
     try { O.son = await api("/api/son", { volume: +$("#volume").value }); dessinerSon(); } catch {}
   }, 60);
-});
+}
+$("#volume").addEventListener("input", () => { majCurseur(); envoyerVolume(); });
 $("#muet").addEventListener("click", async () => {
   try { O.son = await api("/api/son", { muet: "toggle" }); dessinerSon(); } catch { bulle("Le son ne répond pas"); }
 });
+//  La roulette sur 🔊 (ou dans son menu) : 5 % par cran, vers soi = moins
+//  fort. Un pavé tactile envoie de petits pas : on les additionne.
+function rouletteVolume(e) {
+  e.preventDefault();
+  if (!O?.son || O.son.volume < 0) return;
+  rouletteSon += e.deltaY || e.deltaX;
+  if (Math.abs(rouletteSon) < 40) return;
+  const pas = rouletteSon > 0 ? -5 : 5;
+  rouletteSon = 0;
+  $("#volume").value = Math.max(0, Math.min(100, +$("#volume").value + pas));
+  majCurseur(); envoyerVolume();
+}
+$("#son").addEventListener("wheel", rouletteVolume, { passive: false });
+$("#menu-son").addEventListener("wheel", rouletteVolume, { passive: false });
 
 /* ▪▪▪▪ Les bureaux virtuels — les points de l'ancienne barre du haut.
    Un clic sur un point : ce bureau. La roulette n'importe où sur la barre
@@ -138,7 +164,7 @@ $("#bureaux").addEventListener("click", (e) => {
 });
 let roulette = 0, rouletteLibre = 0;
 $("#barre").addEventListener("wheel", (e) => {
-  if (e.target.closest("#son")) return;            // la roulette sur le volume règle le volume
+  if (e.target.closest("#son")) return;            // la roulette sur 🔊 règle le volume (rouletteVolume)
   e.preventDefault();
   //  Un pavé tactile envoie des dizaines de petits pas : on les additionne,
   //  et un seul bureau par geste (pas plus d'un tous les 180 ms).

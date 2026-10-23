@@ -26,15 +26,27 @@
        La roulette de la souris sur la barre change aussi de bureau. -->
   <div id="bureaux" class="bureaux" role="group" aria-label="Bureaux" title="Bureaux — ou la roulette de la souris sur la barre" hidden></div>
   <div class="espace"></div>
-  <div id="son" class="son" hidden>
-    <button id="muet" class="muet" title="Couper / remettre le son">🔊</button>
-    <input type="range" id="volume" min="0" max="100" step="1" aria-label="Volume">
-    <b id="pct">–</b>
-  </div>
+  <!-- 🔊 Le son : l'emoji SEUL dans la barre. ALEX (photo de la barre) : « le
+       bouton du volume qui prend pas toute la place, on garde l'emoji, et
+       ensuite on clique dessus pour voir le choix d'ajuster le volume ».
+       Le réglage est dans son menu, juste dessous ; la roulette sur l'emoji
+       règle le volume sans rien ouvrir. -->
+  <button id="son" class="bouton-outil son-bouton" data-menu="son" title="Volume" aria-label="Volume" hidden><i id="son-icone">🔊</i></button>
   <button class="bouton-outil" data-menu="capture" title="Capture d'écran"><i>📷</i><span>Capture</span></button>
   <button class="bouton-outil" data-menu="notifs" title="Notifications"><i>🔔</i><span>Notifications</span><em id="nb" hidden></em></button>
   <button class="bouton-outil arret" data-menu="arret" title="Éteindre, redémarrer…"><i>⏻</i></button>
 </header>
+
+<!-- 🔊 Le volume -->
+<div id="menu-son" class="menu menu-son" hidden>
+  <h4>🔊 Volume</h4>
+  <div id="reglage-son" class="son">
+    <button id="muet" class="muet" title="Couper / remettre le son">🔊</button>
+    <input type="range" id="volume" min="0" max="100" step="1" aria-label="Volume">
+    <b id="pct">–</b>
+  </div>
+  <p class="aide">La roulette sur 🔊 règle aussi le volume, sans ouvrir ce menu.</p>
+</div>
 
 <!-- 📷 La capture -->
 <div id="menu-capture" class="menu" hidden>
