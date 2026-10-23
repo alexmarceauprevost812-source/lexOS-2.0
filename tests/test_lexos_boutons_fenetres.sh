@@ -293,9 +293,16 @@ function lireLaPage(chemin){
 
 const source = lireLaPage(process.argv[2])
   + "\n;globalThis.__banc = { contenu, pose: e => { etat = e; } };\n";
+//  querySelector : un vrai élément RETROUVE ce que son innerHTML vient de
+//  poser. rendNav() écrit l'en-tête de la barre (le champ « Chercher »), puis
+//  y va chercher #nav-cherche et .nav-corps — sans cette méthode, la page
+//  levait dès son premier rend() et le banc accusait le harnais, pas la page
+//  (la même page s'ouvre sans une erreur dans Chromium). Vide, l'élément ne
+//  contient rien : null, comme dans le navigateur.
 const el = () => ({ innerHTML:"", textContent:"", hidden:true, style:{}, dataset:{},
                     classList:{add(){},remove(){},toggle(){}},
-                    querySelectorAll:()=>[], appendChild(){}, focus(){} });
+                    querySelectorAll:()=>[], appendChild(){}, focus(){},
+                    querySelector(s){ return this.innerHTML.includes(String(s).split(/[\s.#]+/).pop()) ? el() : null; } });
 const bac = vm.createContext({
   document:{ getElementById:()=>el(), querySelectorAll:()=>[], body:el(),
              documentElement:{style:{setProperty(){}},dataset:{}}, addEventListener(){} },
@@ -596,9 +603,11 @@ function lireLaPage(chemin){
 }
 
 let ecouteur = null;
+//  Le même querySelector que le bac à sable du rendu des fonds, ci-dessus.
 const el = () => ({ innerHTML:"", textContent:"", hidden:true, style:{}, dataset:{},
                     classList:{add(){},remove(){},toggle(){}},
-                    querySelectorAll:()=>[], appendChild(){}, focus(){} });
+                    querySelectorAll:()=>[], appendChild(){}, focus(){},
+                    querySelector(s){ return this.innerHTML.includes(String(s).split(/[\s.#]+/).pop()) ? el() : null; } });
 const bac = vm.createContext({
   document:{ getElementById:()=>el(), querySelectorAll:()=>[], body:el(),
              documentElement:{style:{setProperty(){}},dataset:{}},

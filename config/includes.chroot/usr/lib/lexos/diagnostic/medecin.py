@@ -141,6 +141,19 @@ def _sources_joignabilite() -> list:
         ("un lanceur du menu", fichiers("usr/share/applications/*.desktop")),
         ("le démarrage de session", fichiers("etc/xdg/autostart/*.desktop",
                                              ".config/autostart/*.desktop")),
+        #  Le shell interactif est une porte d'entrée lui aussi : profile.d et
+        #  /etc/bash.bashrc (hook 0120) chargent interactive.sh à CHAQUE
+        #  terminal ouvert. lexos-banniere n'a pas d'autre chemin — lancée là
+        #  si « animation on », rejouée par l'alias « tilex » — et le médecin
+        #  la disait « joignable par AUCUN chemin » : le faux problème qu'un
+        #  outil de diagnostic ne doit jamais annoncer.
+        #  SEULEMENT ce qu'un terminal charge vraiment : json.sh et
+        #  secure-boot.sh sont des bibliothèques qui CITENT leurs appelants
+        #  dans leur en-tête — les compter rendrait « joignable » un outil que
+        #  seul un commentaire nomme.
+        ("l'ouverture d'un terminal", fichiers("etc/profile.d/*",
+                                               "usr/share/lexos/shell/interactive.sh",
+                                               "usr/share/lexos/shell/session-graphique.sh")),
         ("un service systemd", fichiers("usr/lib/systemd/system/*",
                                         "etc/systemd/system/*")),
         ("une règle udev", fichiers("etc/udev/rules.d/*",
@@ -165,9 +178,17 @@ def _contexte_joignabilite() -> dict:
         blocs = []
         for f in fichiers:
             try:
-                blocs.append((f.name, f.read_text(encoding="utf-8", errors="ignore")))
+                t = f.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
+            #  Les scripts que charge un terminal sont du SHELL, bavard en
+            #  explications : session-graphique.sh y CITE lexos-tv pour dire
+            #  qu'il ne le source pas. Comme pour le dispatcheur, on lit le
+            #  code, pas la prose — sinon un outil orphelin passerait pour
+            #  joignable par un commentaire.
+            if libelle == "l'ouverture d'un terminal":
+                t = re.sub(r"(?m)^\s*#.*$", "", t)
+            blocs.append((f.name, t))
         sources.append((libelle, blocs))
     return {
         "dispatcheur": texte,
