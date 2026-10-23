@@ -90,7 +90,7 @@ function dessinerBarre() {
    ALEX : « le bouton du volume qui prend pas toute la place, on garde
    l'emoji, et ensuite on clique dessus pour voir le choix d'ajuster ». La
    glissière de 170 px et son « 100 % » occupaient la barre à eux seuls. */
-let minuteurSon = null, rouletteSon = 0;
+let minuteurSon = null, rouletteSon = 0, versionSon = 0;
 const iconeSon = (v, muet) => muet ? "🔇" : v < 34 ? "🔈" : v < 67 ? "🔉" : "🔊";
 function dessinerSon() {
   const s = O.son;
@@ -105,19 +105,41 @@ function dessinerSon() {
   majCurseur();
 }
 function majCurseur() {
-  const v = +$("#volume").value, muet = !!O?.son?.muet;
-  $("#volume").style.setProperty("--v", v + "%");
+  const g = +$("#volume").value, muet = !!O?.son?.muet, reel = O?.son?.volume;
+  //  Au-delà de 100 % (la touche « volume + » de LexOS monte jusqu'à 150 %),
+  //  la glissière s'arrête à 100 : on affiche quand même le VRAI niveau.
+  const v = reel > 100 && g === 100 ? reel : g;
+  $("#volume").style.setProperty("--v", g + "%");
   $("#pct").textContent = v + " %";
   //  L'emoji de la barre DIT le niveau : 🔈 🔉 🔊, et 🔇 quand c'est coupé.
   $("#son-icone").textContent = $("#muet").textContent = iconeSon(v, muet);
   $("#son").classList.toggle("coupe", muet);
   $("#reglage-son").classList.toggle("coupe", muet);
-  $("#son").title = muet ? "Son coupé — clique pour régler" : `Volume : ${v} % — clique pour régler`;
+  $("#son").title = muet ? `Son coupé (${v} %) — clique pour régler` : `Volume : ${v} % — clique pour régler`;
 }
 function envoyerVolume() {
+  //  CHAQUE GESTE PORTE UN NUMÉRO. Une réponse arrivée après un geste plus
+  //  récent est périmée : l'appliquer remettrait la glissière en arrière, et
+  //  la roulette perdrait ses crans — 6 crans vers soi restaient bloqués à
+  //  95 % (relecture du 2026-10-23, vraie fenêtre Qt, /api/son à 25 ms).
+  const n = ++versionSon;
   clearTimeout(minuteurSon);
   minuteurSon = setTimeout(async () => {
-    try { O.son = await api("/api/son", { volume: +$("#volume").value }); dessinerSon(); } catch {}
+    const corps = { volume: +$("#volume").value };
+    //  Régler le volume remet le son : sinon la roulette sur 🔇 changerait
+    //  un niveau que personne n'entend, sans que rien ne le montre.
+    if (O?.son?.muet) corps.muet = "off";
+    try {
+      const r = await api("/api/son", corps);
+      if (n !== versionSon) return;
+      O.son = r; dessinerSon();
+      if (r.ok === false) bulle("Le son ne répond pas");
+    } catch {
+      if (n !== versionSon) return;
+      //  Rien n'a été appliqué : on revient au niveau connu, et on le dit.
+      if (O?.son) { $("#volume").value = O.son.volume; majCurseur(); }
+      bulle("Le son ne répond pas");
+    }
   }, 60);
 }
 $("#volume").addEventListener("input", () => { majCurseur(); envoyerVolume(); });
@@ -133,7 +155,15 @@ function rouletteVolume(e) {
   if (Math.abs(rouletteSon) < 40) return;
   const pas = rouletteSon > 0 ? -5 : 5;
   rouletteSon = 0;
-  $("#volume").value = Math.max(0, Math.min(100, +$("#volume").value + pas));
+  const g = +$("#volume").value;
+  if (O.son.volume > 100 && g === 100) {
+    //  Au-delà de 100 % : un cran « plus fort » ne doit pas RAMENER le son à
+    //  100, et un cran « moins fort » redescend à 100, pas d'un coup à 95.
+    if (pas > 0) return;
+    O.son.volume = 100;
+  } else {
+    $("#volume").value = Math.max(0, Math.min(100, g + pas));
+  }
   majCurseur(); envoyerVolume();
 }
 $("#son").addEventListener("wheel", rouletteVolume, { passive: false });

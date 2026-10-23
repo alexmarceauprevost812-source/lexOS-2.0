@@ -3787,8 +3787,10 @@ jobs:
           #  clique dessus pour voir le choix d'ajuster le volume ». Le banc
           #  charge la VRAIE page outils.html dans un vrai Chromium sans écran,
           #  avec un faux /api, et clique comme Alex : largeur du bouton, menu
-          #  qui tombe dessous, glissière qui envoie le volume, muet, roulette
-          #  (5 % par cran, sans changer de bureau), fermeture.
+          #  qui tombe dessous, hauteur demandée à la fenêtre, glissière qui
+          #  envoie le volume, muet, roulette (5 % par cran, sans changer de
+          #  bureau, aucun cran perdu avec un /api/son lent), panne, son qui
+          #  disparaît, niveau au-delà de 100 %, erreurs JS relevées.
           command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1 \
             || command -v google-chrome >/dev/null 2>&1 \
             || sudo apt-get install -y --no-install-recommends chromium-browser >/dev/null 2>&1 \
