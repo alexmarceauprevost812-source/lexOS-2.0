@@ -92,7 +92,36 @@ const FONDS = {
       }
     },
   },
-  //  « pluie » (Pluie de code) retirée à la demande d'Alex (2026-10-22).
+  //  ═══ PLUIE DE CODE — l'effet Matrix ═══
+  //  Retirée le 2026-10-22 (les caractères passaient À TRAVERS la barre du
+  //  haut, derrière l'heure et les icônes), RAMENÉE le 2026-10-23 à la
+  //  demande d'Alex (« je veux la ravoir sur mon bureau »). Correctif : la
+  //  pluie commence SOUS la barre du haut (--haut, posé par poserMarges) et la
+  //  bande de la barre est effacée à chaque image — plus rien ne passe dessous.
+  pluie: {
+    nom: "Pluie de code", desc: "effet Matrix, caractères qui tombent",
+    init(L, H, d) {
+      const t = Math.max(10, Math.round(16 / Math.sqrt(d)));
+      return { t, col: Array.from({ length: Math.ceil(L / t) }, () => alea(-H / t, 0)), acc: 0 };
+    },
+    dessine(x, e, L, H, dt) {
+      e.acc += dt;
+      if (e.acc < 2.2) return; e.acc = 0;
+      const haut = Math.max(0, parseInt(getComputedStyle(document.documentElement).getPropertyValue("--haut"), 10) || 0);
+      x.fillStyle = "rgba(7,7,7,.12)"; x.fillRect(0, haut, L, H - haut);
+      x.clearRect(0, 0, L, haut);
+      x.font = `${e.t}px ui-monospace, monospace`;
+      const car = "LEXOS01{}<>/=+*#ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ";
+      e.col.forEach((y, i) => {
+        const py = haut + y * e.t;
+        if (py > haut) {
+          x.fillStyle = Math.random() < .08 ? BL(.95) : OR(.85);
+          x.fillText(car[Math.floor(Math.random() * car.length)], i * e.t, py);
+        }
+        e.col[i] = py > H && Math.random() > .975 ? 0 : y + 1;
+      });
+    },
+  },
   vagues: {
     nom: "Vagues", desc: "lignes qui ondulent",
     init(L, H, d) { return { t: 0, n: Math.max(4, Math.round(9 * d)) }; },
