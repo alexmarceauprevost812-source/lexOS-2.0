@@ -295,6 +295,23 @@ def _ouvrir_journal_tache(action: str, debut: float) -> Optional[int]:
     return fd
 
 
+def _noter_resultat(fd: int) -> None:
+    """Le résultat que CE serveur a établi lui-même (fenêtre de mot de passe
+    fermée, refus de polkit, aide morte, pkexec absent) va aussi dans le
+    journal de la tâche. Sans cette ligne, le serveur suivant n'y trouvait
+    pas de « LEXOS-RESULTAT » et affichait, à chaque ouverture, « arrêtée
+    sans résultat pendant que LexOS Pilotes était fermé » : faux — l'appli
+    était ouverte, et le code était connu (relecture du 2026-10-24)."""
+    try:
+        taille = os.fstat(fd).st_size
+        fin = os.pread(fd, 1, taille - 1) if taille else b"\n"
+        ligne = "LEXOS-RESULTAT " + json.dumps(_tache["resultat"], ensure_ascii=False) + "\n"
+        os.lseek(fd, 0, os.SEEK_END)
+        os.write(fd, (("" if fin == b"\n" else "\n") + ligne).encode("utf-8"))
+    except OSError:
+        pass
+
+
 def _lancer(action: str) -> bool:
     if not _verrou.acquire(blocking=False):
         return False
@@ -323,11 +340,13 @@ def _lancer(action: str) -> bool:
                                         stdout=fd, stderr=fd, start_new_session=True)
             except OSError as exc:
                 _tache["resultat"] = {"ok": False, "message": f"pkexec introuvable : {exc} — rien n'a été changé."}
+                _noter_resultat(fd)
                 return
             _suivre_journal(fd, lambda: proc.poll() is not None)
             code = proc.wait()
             if _tache["resultat"] is None:
                 _tache["resultat"] = {"ok": False, "message": _sans_resultat(code, _tache["journal"])}
+                _noter_resultat(fd)
         finally:
             os.close(fd)
             _tache["en_cours"] = False

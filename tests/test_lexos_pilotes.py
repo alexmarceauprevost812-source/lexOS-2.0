@@ -243,6 +243,12 @@ if NOM == "pkexec":
             time.sleep(0.05)
     sys.stdout.write(P.get("sortie", ""))
     sys.stdout.flush()
+    #  Les messages de pkexec LUI-MÊME (« Error executing command… »,
+    #  « Error creating textual authentication agent… ») vont sur stderr,
+    #  comme chez le vrai (g_printerr) : une aide qui jetterait la sortie
+    #  d'erreur de pkexec ne les verrait plus, et le banc doit le voir.
+    sys.stderr.write(P.get("erreur", ""))
+    sys.stderr.flush()
     #  Noté APRÈS l'écriture : si la sortie casse (tuyau d'un serveur
     #  mort), cette ligne n'existe pas. sid : sa session à lui (setsid).
     with open(B / "pkexec-fin.jsonl", "a", encoding="utf-8") as f:
@@ -1087,11 +1093,33 @@ class Lancement(unittest.TestCase):
         }
         for attendu, (texte, code) in cas.items():
             with self.subTest(attendu):
-                res = self.lancer("verifier", {"sortie": texte, "code": code})
+                res = self.lancer("verifier", {"erreur": texte, "code": code})
                 self.assertIn(attendu, res["message"])
                 self.assertIn("rien n'a été changé", res["message"])
                 if code == 127:
                     self.assertNotIn("annulé", res["message"])
+
+    def test_resultat_connu_survit_au_serveur(self):
+        #  Fenêtre de mot de passe fermée (126) ou aucun agent (127) PENDANT
+        #  que l'appli était ouverte : le serveur suivant doit redire la même
+        #  chose, pas « arrêtée sans résultat pendant que LexOS Pilotes était
+        #  fermé » à chaque ouverture.
+        for texte, code, attendu in (
+                ("Error executing command as another user: Request dismissed\n", 126, "fermée"),
+                ("Error executing command as another user: No authentication agent found.\n", 127,
+                 "aucun agent polkit")):
+            with self.subTest(code=code):
+                premier = self.lancer("installer", {"erreur": texte, "code": code})
+                self.assertIn(attendu, premier["message"])
+                #  Un nouveau serveur : rien en mémoire, seulement le journal.
+                serveur._tache.update(action=None, en_cours=False, journal=[], resultat=None, debut=None)
+                self.assertTrue(serveur.reprendre_tache())
+                limite = time.time() + 10
+                while serveur._tache["en_cours"] and time.time() < limite:
+                    time.sleep(0.02)
+                second = serveur._tache["resultat"]
+                self.assertEqual(second, premier, "le serveur suivant ne redit pas le même résultat")
+                self.assertNotIn("était fermé", second["message"])
 
     def test_aide_morte_sans_resultat_ne_dit_pas_rien_change(self):
         #  Un autre code que 126/127, SANS résultat : l'aide a pu commencer
