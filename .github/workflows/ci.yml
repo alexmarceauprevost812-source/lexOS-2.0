@@ -514,6 +514,13 @@ jobs:
           #  lit désormais la simulation (apt-get -s) de chaque transaction,
           #  et l'épingle couvre chaque source qui a vraiment bougé.
           #
+          #  TROISIÈME TOUR. L'épingle nomme la source D'APRÈS (une
+          #  source renommée dans backports restait hors épingle :
+          #  rc 100 avec le vrai apt) ; une dépendance devenue
+          #  « Multi-Arch: same » n'est plus un faux « RETIRÉ ». Le banc
+          #  joue aussi une ligne « Inst » de dépendance suivie de
+          #  « [] » et un refus des micrologiciels (code 0 exigé).
+          #
           #  Le banc ne lance jamais apt pour de vrai : il rejoue le hook
           #  LIVRÉ avec de faux apt-get, apt-cache, dpkg et dpkg-query (qui
           #  répondent comme le vrai apt, sortie vide comprise pour un nom

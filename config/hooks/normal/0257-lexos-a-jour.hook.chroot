@@ -120,7 +120,10 @@ multiarch() {
 #  -> « libdrm2:amd64 ». Un nom d'architecture étrangère arrive déjà
 #  qualifié (« libgl1-mesa-dri:i386 ») et le reste. La partie entre
 #  parenthèses peut contenir des espaces (« Debian Backports:… ») et être
-#  suivie d'un « [] » : on ne lit que le nom et le « [arch]) » final.
+#  suivie d'un « [] », y compris sur une dépendance que la garde ne
+#  connaît QUE par ici (mesuré : « Inst libdrm-amdgpu1 […] (… [amd64]) [] »,
+#  et rien après « [amd64]) » pour libdrm2) : on ne lit que le nom et le
+#  « [arch]) », quoi qu'il y ait derrière.
 simule() {
 	LC_ALL=C apt-get -s install -y --no-install-recommends --no-remove -t "$BPO" "$@" 2>/dev/null \
 		| sed -n 's/^Inst \([^ ]*\) .*\[\([a-z0-9-]*\)\]).*$/\1 \2/p' \
@@ -259,6 +262,9 @@ fi
 
 #  Chaque transaction passe la garde JUSTE AVANT de partir : la simulation
 #  voit ainsi l'état que la vraie trouvera (micrologiciels déjà montés).
+#  « || true » sur chaque remontée : sous set -e, un refus d'apt — un .deb
+#  que le miroir n'a pas encore (« E: Unable to fetch some archives »,
+#  mesuré) — arrêterait sinon la construction de l'ISO.
 RETENU=""
 # shellcheck disable=SC2086
 if [ -n "$MICROLOGICIELS" ]; then
@@ -282,14 +288,32 @@ APRES="$(etat_installe)"
 #  Ce qui a VRAIMENT changé — pas le nombre de noms demandés : « nom
 #  source avant après », un paquet:arch par ligne, sur l'état COMPLET. Un
 #  paquet neuf (dépendance tirée) a « absent » pour version d'avant.
+#  ON COMPARE LE NOM SANS « :<arch native> ». dpkg ne qualifie un nom
+#  natif que s'il est « Multi-Arch: same » : une dépendance qui le devient
+#  dans backports s'appelait « libfoo1 » avant, « libfoo1:amd64 » après.
+#  Comparée telle quelle, elle sortait en « RETIRÉ » ET « absent -> V »,
+#  avec un faux « a DISPARU » et un paquet de trop au décompte (mesuré,
+#  vrai apt 2.8.3 : « 5 upgraded », le journal disait 6). On affiche le nom
+#  d'APRÈS.
+#  LA SOURCE ÉCRITE EST CELLE D'APRÈS — celle de la version maintenant
+#  installée, que l'épingle doit nommer. Une dépendance dont backports a
+#  renommé la source (libdrm -> libdrm-nouvelle sur le banc à vrai apt)
+#  gardait sinon « src:libdrm:any », qui ne couvre pas son pendant i386 de
+#  backports : « famille jeux » échouait de nouveau (mesuré).
 CHANGES="$( { printf '%s\n' "$AVANT" | sed 's/^/A /'; printf '%s\n' "$APRES" | sed 's/^/B /'; } \
-	| awk 'NF == 4 && $1 == "A" { v[$2] = $4; s[$2] = $3 }
-	       NF == 4 && $1 == "B" { w[$2] = $4; t[$2] = $3 }
-	       END { for (p in v) {
-	               if (!(p in w))         print p, s[p], v[p], "RETIRÉ"
-	               else if (v[p] != w[p]) print p, s[p], v[p], w[p]
+	| awk -v nat=":$NATIVE" '
+	       function cle(n) {
+	               if (nat != ":" && substr(n, length(n) - length(nat) + 1) == nat)
+	                       return substr(n, 1, length(n) - length(nat))
+	               return n
+	       }
+	       NF == 4 && $1 == "A" { k = cle($2); v[k] = $4; s[k] = $3; na[k] = $2 }
+	       NF == 4 && $1 == "B" { k = cle($2); w[k] = $4; t[k] = $3; nb[k] = $2 }
+	       END { for (k in v) {
+	               if (!(k in w))         print na[k], s[k], v[k], "RETIRÉ"
+	               else if (v[k] != w[k]) print nb[k], t[k], v[k], w[k]
 	             }
-	             for (p in w) if (!(p in v)) print p, t[p], "absent", w[p] }' \
+	             for (k in w) if (!(k in v)) print nb[k], t[k], "absent", w[k] }' \
 	| sort)"
 NB="$(printf '%s\n' "$CHANGES" | awk 'NF { n++ } END { print n + 0 }')"
 
@@ -332,6 +356,8 @@ done
 #  backports y figure aussi : sans version backports, l'épingle n'y change
 #  rien. Une source qui n'a pas bougé n'y est pas : après un refus, elle
 #  tirerait au contraire la version de backports contre celle de trixie.
+#  C'est la source D'APRÈS (voir le diff) : une source renommée dans
+#  backports est épinglée sous son nouveau nom.
 #  « src:<source>:any » et pas « src:<source> » : sans « :any », l'épingle
 #  ne vaut que pour l'architecture native (mesuré : l'i386 restait sur
 #  trixie).

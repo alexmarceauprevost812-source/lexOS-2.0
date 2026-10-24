@@ -26,7 +26,11 @@
 #      vers backports par Mesa, rendait encore « famille jeux » impossible ;
 #    · « rien de plus récent dans backports » écrit alors que la garde
 #      venait de retenir un Mesa plus récent ;
-#    · « remontés : N » comptait les noms demandés, pas ce qui avait changé.
+#    · « remontés : N » comptait les noms demandés, pas ce qui avait changé ;
+#    · l'épingle prenait la source d'AVANT : une dépendance dont backports a
+#      renommé la source restait hors épingle, et « famille jeux » échouait ;
+#    · une dépendance devenue « Multi-Arch: same » (« libfoo1 » avant,
+#      « libfoo1:amd64 » après) sortait en faux « RETIRÉ » / « a DISPARU ».
 #
 #  LE FAUX apt-cache RÉPOND COMME LE VRAI. Pour un nom inconnu dans une
 #  architecture, le vrai apt 2.8.3 ne rend RIEN (mesuré) : ce faux-là aussi.
@@ -78,7 +82,14 @@ DRM_B=2.4.125-1~bpo13+1
 #  $CTRL/retire     : un nom par ligne — retiré d'une transaction « réussie »
 #                     (ce qu'apt ne fait pas sous --no-remove : sert à
 #                     vérifier que le hook le VERRAIT quand même) ;
+#  $CTRL/crochets   : un nom par ligne — sa ligne « Inst » de simulation
+#                     finit par « [] », comme celle des noms Mesa ;
+#  $CTRL/inst       : les lignes « Inst » que la simulation a rendues ;
 #  $CTRL/appels     : chaque appel, avec la valeur de LC_ALL.
+#  Le faux compare les noms SANS « :amd64 » (l'architecture native), comme
+#  dpkg remplace « libfoo1 » par « libfoo1:amd64 » quand la nouvelle version
+#  est « Multi-Arch: same » ; et une version montée prend la source de son
+#  plan (une source renommée dans backports).
 pose_faux_outils() {
 	mkdir -p "$FAUXBIN" "$CTRL"
 	: > "$CTRL/appels"
@@ -120,36 +131,40 @@ done
 if [ -f "$C/tire" ]; then
 	awk 'NR == FNR { monte[$1] = 1; next } ($1 in monte) { print $2, $3, $4 }' "$C/plan" "$C/tire" \
 		| sort -u | while read -r d s v; do
-			cur="$(awk -v p="$d" '$1 == p { print $3 }' "$C/status")"
+			cur="$(awk -v p="${d%:amd64}" '{ m = $1; sub(/:amd64$/, "", m) } m == p { print $3 }' "$C/status")"
 			[ "$cur" = "$v" ] || echo "$d $s $v" >> "$C/plan"
 		done
 fi
 MONTES=0; NEUFS=0
 while read -r n s v; do
-	if awk -v p="$n" '$1 == p { t = 1 } END { exit !t }' "$C/status"; then MONTES=$((MONTES + 1)); else NEUFS=$((NEUFS + 1)); fi
+	if awk -v p="${n%:amd64}" '{ m = $1; sub(/:amd64$/, "", m) } m == p { t = 1 } END { exit !t }' "$C/status"; then MONTES=$((MONTES + 1)); else NEUFS=$((NEUFS + 1)); fi
 done < "$C/plan"
 if [ -n "$SIM" ]; then
 	#  La forme du vrai apt -s (LC_ALL=C) : nom natif ou « all » sans
 	#  suffixe, nom étranger qualifié ; un libellé d'archive AVEC une
-	#  espace, et parfois un « [] » après la parenthèse.
+	#  espace, et parfois un « [] » après la parenthèse — sur les noms Mesa
+	#  et ceux de $C/crochets (le vrai apt en met aussi sur une dépendance).
+	: > "$C/inst"
 	while read -r n s v; do
 		case "$n" in
 			*:amd64) nom="${n%:amd64}"; a=amd64 ;;
 			*:*)     nom="$n"; a="${n##*:}" ;;
 			*)       nom="$n"; a=all ;;
 		esac
-		cur="$(awk -v p="$n" '$1 == p { print $3 }' "$C/status")"
+		cur="$(awk -v p="$nom" '{ m = $1; sub(/:amd64$/, "", m) } m == p { print $3 }' "$C/status")"
 		suite=""
 		case "$nom" in *mesa*) suite=" []" ;; esac
-		echo "Inst $nom ${cur:+[$cur] }($v Faux Backports:stable-backports [$a])$suite"
+		if [ -f "$C/crochets" ] && grep -qxF "$nom" "$C/crochets"; then suite=" []"; fi
+		echo "Inst $nom ${cur:+[$cur] }($v Faux Backports:stable-backports [$a])$suite" | tee -a "$C/inst"
 	done < "$C/plan"
 	echo "$MONTES upgraded, $NEUFS newly installed, 0 to remove and 0 not upgraded."
 	exit 0
 fi
-awk 'NR == FNR { nv[$1] = $3; ns[$1] = $2; next }
-     ($1 in nv) { $3 = nv[$1]; vu[$1] = 1 }
+awk 'function cle(n) { sub(/:amd64$/, "", n); return n }
+     NR == FNR { k = cle($1); nv[k] = $3; ns[k] = $2; nn[k] = $1; next }
+     (cle($1) in nv) { k = cle($1); $1 = nn[k]; $2 = ns[k]; $3 = nv[k]; vu[k] = 1 }
      { print }
-     END { for (p in nv) if (!(p in vu)) print p, ns[p], nv[p] }' "$C/plan" "$C/status" > "$C/status.n"
+     END { for (p in nv) if (!(p in vu)) print nn[p], ns[p], nv[p] }' "$C/plan" "$C/status" > "$C/status.n"
 mv "$C/status.n" "$C/status"
 if [ -f "$C/retire" ]; then
 	awk 'NR == FNR { r[$1] = 1; next } !($1 in r)' "$C/retire" "$C/status" > "$C/status.n"
@@ -562,6 +577,32 @@ grep -qxF "[lexos]   rien n'a changé — refusé par apt : Mesa (voir plus haut
 $S"
 
 # =============================================================================
+titre "8c. apt REFUSE les micrologiciels -> l'ISO se construit quand même"
+# =============================================================================
+#  Un .deb que l'index annonce et que le miroir n'a pas encore (synchro en
+#  cours) : le vrai apt 2.8.3 rend 100 (« E: Unable to fetch some
+#  archives », mesuré). Le hook doit le dire et rendre 0 : sous set -e, un
+#  code non nul arrêterait live-build. Aucune autre scène ne refusait les
+#  micrologiciels — leur « || true » pouvait tomber sans qu'on le voie.
+reinit
+installe_mesa amd64 "$T"
+candidat_mesa amd64 "$T"
+installe firmware-misc-nonfree firmware-nonfree 20250410-2
+candidat firmware-misc-nonfree 20250917-1~bpo13+1
+echo "firmware-misc-nonfree" > "$CTRL/refuse"
+S="$(lance)"
+[ "$(cat "$BANC/code")" = "0" ] && ok "[micrologiciels refusés] code 0 : l'ISO se construit quand même" \
+	|| non "[micrologiciels refusés] code $(cat "$BANC/code") : la construction s'arrêterait :
+$S"
+grep -qF "micrologiciels : remontée refusée par apt — on garde les versions de trixie" <<< "$S" \
+	&& ok "[micrologiciels refusés] le refus est annoncé" || non "[micrologiciels refusés] refus non annoncé :
+$S"
+grep -qxF "[lexos]   rien n'a changé — refusé par apt : micrologiciels (voir plus haut)" <<< "$S" \
+	&& ok "[micrologiciels refusés] « rien n'a changé — refusé par apt : micrologiciels »" \
+	|| non "[micrologiciels refusés] bilan faux :
+$S"
+
+# =============================================================================
 titre "9. Rien de plus récent dans backports -> le dit, pas d'épingle"
 # =============================================================================
 reinit
@@ -604,14 +645,14 @@ titre "12. Mesa tire une bibliothèque d'une AUTRE source vers backports"
 #  (>= 2.4.125), que seul backports a. Avec la garde et l'épingle limitées
 #  à src:mesa, « famille jeux » échouait ensuite : « mesa-libgallium:i386 :
 #  Depends: libdrm2:i386 (>= 2.4.125) but it is not going to be installed ».
-scene_libdrm() { # scene_libdrm <candidat libdrm2:i386>
+scene_libdrm() { # scene_libdrm <candidat libdrm2:i386> [source de libdrm2 dans backports]
 	reinit
 	echo i386 > "$CTRL/foreign"
 	installe_mesa amd64 "$T"
 	candidat_mesa amd64 "$B"; candidat_mesa i386 "$B"
 	installe libdrm2:amd64 libdrm "$DRM_T"
 	candidat libdrm2:amd64 "$DRM_B"; candidat libdrm2:i386 "$1"
-	tire mesa-libgallium:amd64 libdrm2:amd64 libdrm "$DRM_B"
+	tire mesa-libgallium:amd64 libdrm2:amd64 "${2:-libdrm}" "$DRM_B"
 }
 
 #  12a : backports a libdrm2 dans les deux architectures -> tout monte,
@@ -635,19 +676,31 @@ fi
 
 #  12b : backports n'a libdrm2 qu'en amd64 -> Mesa reste sur trixie, et
 #  la raison nomme libdrm2 (pas un binaire Mesa : Mesa, lui, est aligné).
-scene_libdrm "$DRM_T"
-S="$(lance)"
-grep -qF 'mesa' <<< "$(transactions)" && non "[libdrm2 en retard en i386] Mesa demandé quand même : $(transactions)" \
-	|| ok "[libdrm2 en retard en i386] Mesa n'est PAS demandé à apt"
-RAISONS="$(grep -F '[lexos]      · ' <<< "$S" || true)"
-[ "$RAISONS" = "[lexos]      · libdrm2 : $DRM_B en amd64, $DRM_T en i386" ] \
-	&& ok "[libdrm2 en retard en i386] la raison nomme libdrm2, versions à l'appui" \
-	|| non "[libdrm2 en retard en i386] raison absente ou fausse :
+#  Les deux formes de la ligne « Inst » d'une dépendance, vues avec le vrai
+#  apt 2.8.3 dans la même simulation : rien après « [amd64]) » (libdrm2),
+#  ou « [] » (libdrm-amdgpu1). La garde ne connaît cette dépendance QUE par
+#  la simulation : une lecture qui ne tolère plus le « [] » la perdait, et
+#  Mesa montait seul (mesuré : « famille jeux » rc=100 ensuite).
+for variante in "libdrm2 en retard en i386" "libdrm2 en retard en i386, suivi de « [] »"; do
+	scene_libdrm "$DRM_T"
+	FIN=""
+	case "$variante" in *"[]"*) echo libdrm2 > "$CTRL/crochets"; FIN=" []" ;; esac
+	S="$(lance)"
+	grep -qxF "Inst libdrm2 [$DRM_T] ($DRM_B Faux Backports:stable-backports [amd64])$FIN" "$CTRL/inst" \
+		&& ok "[$variante] la simulation rend bien cette forme de ligne « Inst »" \
+		|| non "[$variante] ligne « Inst libdrm2 » inattendue : $(cat "$CTRL/inst")"
+	grep -qF 'mesa' <<< "$(transactions)" && non "[$variante] Mesa demandé quand même : $(transactions)" \
+		|| ok "[$variante] Mesa n'est PAS demandé à apt"
+	RAISONS="$(grep -F '[lexos]      · ' <<< "$S" || true)"
+	[ "$RAISONS" = "[lexos]      · libdrm2 : $DRM_B en amd64, $DRM_T en i386" ] \
+		&& ok "[$variante] la raison nomme libdrm2, versions à l'appui" \
+		|| non "[$variante] raison absente ou fausse :
 $S"
-grep -qF 'libgl1-mesa-dri' <<< "$(simulations)" \
-	&& ok "[libdrm2 en retard en i386] l'écart vient de la SIMULATION de la transaction Mesa" \
-	|| non "[libdrm2 en retard en i386] la transaction Mesa n'a pas été simulée : $(simulations)"
-[ ! -e "$EPINGLE" ] && ok "[libdrm2 en retard en i386] aucune épingle (rien n'a bougé)" || non "[libdrm2 en retard en i386] épingle posée : $(sources_epingle)"
+	grep -qF 'libgl1-mesa-dri' <<< "$(simulations)" \
+		&& ok "[$variante] l'écart vient de la SIMULATION de la transaction Mesa" \
+		|| non "[$variante] la transaction Mesa n'a pas été simulée : $(simulations)"
+	[ ! -e "$EPINGLE" ] && ok "[$variante] aucune épingle (rien n'a bougé)" || non "[$variante] épingle posée : $(sources_epingle)"
+done
 
 #  12c : une dépendance NEUVE (pas installée avant) -> « absent -> V »,
 #  et sa source épinglée.
@@ -676,6 +729,41 @@ S="$(lance)"
 grep -qF 'libgl1-mesa-dri:amd64' <<< "$(transactions)" \
 	&& ok "[dépendance « foreign »] Mesa monte : seul « Multi-Arch: same » impose la même version" \
 	|| non "[dépendance « foreign »] Mesa retenu à tort :
+$S"
+
+#  12e : backports a RENOMMÉ la source de la dépendance (libdrm ->
+#  libdrm-nouvelle). L'épingle doit nommer la source D'APRÈS : avec le vrai
+#  apt 2.8.3, « src:libdrm:any » ne couvrait pas le libdrm2:i386 de
+#  backports, et « famille jeux » rendait 100.
+scene_libdrm "$DRM_B" libdrm-nouvelle
+S="$(lance)"
+if strophe_ok libdrm-nouvelle && strophe_ok mesa && [ "$(sources_epingle)" = "libdrm-nouvelle mesa" ]; then
+	ok "[source renommée] épingle src:libdrm-nouvelle:any — la source de la version installée, pas l'ancienne"
+else
+	non "[source renommée] épingle sur la mauvaise source ($(sources_epingle)) : $(cat "$EPINGLE" 2>/dev/null || echo absente)"
+fi
+
+#  12f : une dépendance qui DEVIENT « Multi-Arch: same » dans backports.
+#  dpkg l'appelait « libfoo1 » avant, « libfoo1:amd64 » après : elle a
+#  seulement monté (vrai apt 2.8.3 : « 5 upgraded, 0 newly installed »).
+reinit
+echo i386 > "$CTRL/foreign"
+installe_mesa amd64 "$T"
+candidat_mesa amd64 "$B"; candidat_mesa i386 "$B"
+installe libfoo1 libfoo 1.0-1
+candidat libfoo1:amd64 1.1-1~bpo13+1; candidat libfoo1:i386 1.1-1~bpo13+1
+tire mesa-libgallium:amd64 libfoo1:amd64 libfoo 1.1-1~bpo13+1
+S="$(lance)"
+if grep -qE 'RETIRÉ|DISPARU' <<< "$S"; then
+	non "[devenue « Multi-Arch: same »] faux « RETIRÉ » / « a DISPARU » : rien n'a disparu :
+$S"
+else
+	ok "[devenue « Multi-Arch: same »] ni « RETIRÉ » ni « a DISPARU » : elle a seulement monté"
+fi
+grep -qxF "[lexos]     · libfoo1:amd64 : 1.0-1 -> 1.1-1~bpo13+1" <<< "$S" \
+	&& grep -qxF "[lexos]   changés par la remontée : 5 paquet(s), dépendances comprises" <<< "$S" \
+	&& ok "[devenue « Multi-Arch: same »] une seule ligne, au nom d'après, et « changés : 5 » comme apt" \
+	|| non "[devenue « Multi-Arch: same »] ligne ou décompte faux :
 $S"
 
 # =============================================================================
@@ -781,6 +869,22 @@ mutation epingle-sur-tout-l-installe \
 	'SOURCES="$(printf '"'"'%s\n'"'"' "$CHANGES" | awk '"'"'NF == 4 && $4 != "RETIRÉ" { print $2 }'"'"'' \
 	'SOURCES="$(printf '"'"'%s\n'"'"' "$AVANT" | awk '"'"'NF == 3 { print $2 }'"'"'' \
 	"Mesa épinglé après un refus"
+mutation sed-sans-crochets-finaux \
+	'\[\([a-z0-9-]*\)\]).*$/\1 \2/p' \
+	'\[\([a-z0-9-]*\)\])$/\1 \2/p' \
+	"[libdrm2 en retard en i386, suivi de « [] »] Mesa demandé quand même"
+mutation refus-micrologiciels-fatal \
+	'remonte "micrologiciels" $MICROLOGICIELS || true' \
+	'remonte "micrologiciels" $MICROLOGICIELS' \
+	"[micrologiciels refusés] code"
+mutation epingle-source-d-avant \
+	'else if (v[k] != w[k]) print nb[k], t[k], v[k], w[k]' \
+	'else if (v[k] != w[k]) print nb[k], s[k], v[k], w[k]' \
+	"[source renommée] épingle sur la mauvaise source"
+mutation cle-avec-architecture \
+	'return substr(n, 1, length(n) - length(nat))' \
+	'return n' \
+	"[devenue « Multi-Arch: same »] faux « RETIRÉ »"
 mutation format-colle \
 	'${Version}\n'"'"' 2>/dev/null' \
 	'${Version}'"'"' 2>/dev/null' \
