@@ -152,9 +152,19 @@ dans && /^[ \t]*initrd[ \t]+\/live\/initrd\.img-/ {
 fi
 
 # --- La vérification, fatale ---------------------------------------------------
+#  En reprise (DEJA), « .lexos-avant » est le menu réécrit au passage d'avant,
+#  PAS celui de live-build : il n'y a rien à « remettre », et le dire serait
+#  faux. live-build ne le régénère pas non plus (binary_grub_cfg est marqué
+#  fait) : chaque reprise échouerait pareil. On dit donc le seul remède.
 echoue() {
 	echo "[lexos]   ÉCHEC : $1"
-	echo "[lexos]   (le menu d'origine est remis en place : ${CFG})"
+	if [ -n "$DEJA" ]; then
+		echo "[lexos]   (menu laissé tel quel : il a été réécrit par un passage précédent,"
+		echo "[lexos]    et live-build ne le régénère pas à la reprise. Pour repartir du"
+		echo "[lexos]    menu de live-build : sudo lb clean --binary, puis sudo ./build.sh)"
+	else
+		echo "[lexos]   (le menu d'origine est remis en place : ${CFG})"
+	fi
 	mv "${CFG}.lexos-avant" "$CFG"
 	exit 1
 }
@@ -173,7 +183,17 @@ for F in $(grep -E '^[[:space:]]*(linux|initrd)[[:space:]]+/' "$CFG" | awk '{pri
 done
 [ -z "$MANQUE" ] || echoue "le menu nomme des fichiers absents de l'image :${MANQUE}"
 
-grep -q 'lexos\.failsafe=1' "$CFG" || echoue "le marqueur du mode de secours a disparu"
+#  LE MARQUEUR DU MODE DE SECOURS. Ce hook ne peut que le PERDRE : c'est
+#  fatal s'il était dans le menu de live-build et n'y est plus. S'il n'y a
+#  jamais été, la réécriture n'y est pour rien : c'est 0910, qui passe juste
+#  après, qui tranche — et lui respecte « --sans-secours »
+#  (LEXOS_SECOURS_FACULTATIF=1). Échouer ici, avant lui, fermait cette porte
+#  de sortie, avec un « a disparu » faux.
+if grep -q 'lexos\.failsafe=1' "${CFG}.lexos-avant"; then
+	grep -q 'lexos\.failsafe=1' "$CFG" || echoue "le marqueur du mode de secours a disparu"
+else
+	echo "[lexos]   pas de marqueur lexos.failsafe=1 dans le menu reçu (ce hook ne l'a pas retiré) — le hook 0910 tranche"
+fi
 
 #  CHAQUE TITRE DIT VRAI. Une entrée qui nomme un noyau (« noyau 7.2.9… »,
 #  « Noyau 6.12… ») démarre CE noyau-là ; « (pilote NVIDIA) » exige un noyau
