@@ -1986,6 +1986,16 @@ jobs:
           #  que personne ne lance ne protège rien, et ça ne se voit pas.
           test -f tests/test_lexos_diagnostic.py
           python3 -m unittest tests.test_lexos_diagnostic -v
+          #  Diagnostic et Pilotes ont CHACUN un moteur.py et un serveur.py.
+          #  Dans le même interpréteur, le premier chargé restait dans
+          #  sys.modules et l'autre banc testait le mauvais code
+          #  (AttributeError: module 'moteur' has no attribute 'RACINE_MODULES').
+          #  Chaque banc lancé seul reste vert même quand cette isolation
+          #  casse : on les lance donc aussi ENSEMBLE, dans les deux ordres
+          #  (tests/test_lexos_pilotes.py, bloc « DES NOMS DE MODULES QUI NE
+          #  DÉBORDENT PAS »). -B : aucun __pycache__ dans config/.
+          python3 -B -m unittest tests.test_lexos_diagnostic tests.test_lexos_pilotes
+          python3 -B -m unittest tests.test_lexos_pilotes tests.test_lexos_diagnostic
 
       - name: Gros texte et bulle de capture — deux gestes du quotidien
         if: ${{ !cancelled() }}
