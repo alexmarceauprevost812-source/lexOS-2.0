@@ -19,6 +19,15 @@
     installation sans aucune fenêtre ; la page annonçait pourtant « Une
     fenêtre va demander ton mot de passe ». La fenêtre est la seule
     confirmation de l'installation : elle ne doit pas pouvoir sauter.
+
+    allow_any et allow_inactive à « no », pour les DEUX actions : l'appli
+    se lance depuis la session locale active, et rien d'autre ne doit
+    pouvoir faire tourner l'aide root (ssh, cron, service, ou une session
+    locale passée en arrière-plan par un changement d'utilisateur). Avec
+    allow_any à « yes », n'importe quel compte lançait « pkexec
+    lexos-pilotes-maj installer » en root, sans fenêtre, sans même passer
+    par le serveur. Le banc (tests/test_lexos_pilotes.py, classe Polkit)
+    tient les trois colonnes de chaque action.
   -->
   <action id="org.lexos.pilotes.verifier">
     <description>Rechercher les nouvelles versions des pilotes graphiques</description>
@@ -26,8 +35,8 @@
     <message>LexOS Pilotes doit rafraîchir la liste des paquets (apt-get update). Rien n'est installé.</message>
     <message xml:lang="en">LexOS Pilotes needs to refresh the package lists (apt-get update). Nothing is installed.</message>
     <defaults>
-      <allow_any>auth_admin</allow_any>
-      <allow_inactive>auth_admin</allow_inactive>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/lexos-pilotes-maj</annotate>
@@ -41,8 +50,8 @@
     <message>LexOS Pilotes doit installer les nouvelles versions du pilote graphique, de Mesa et des micrologiciels. Aucun paquet n'est retiré : une mise à jour qui en retirerait un est refusée.</message>
     <message xml:lang="en">LexOS Pilotes needs to install new graphics driver, Mesa and firmware versions. No package is removed: an update that would remove one is refused.</message>
     <defaults>
-      <allow_any>auth_admin</allow_any>
-      <allow_inactive>auth_admin</allow_inactive>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
       <allow_active>auth_admin</allow_active>
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/lexos-pilotes-maj</annotate>

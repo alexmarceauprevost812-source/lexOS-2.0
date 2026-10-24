@@ -59,12 +59,25 @@ message) : /api/bonjour signe ce qu'on lui donne, sans jeton exigé. Sans
 ce préfixe, il suffisait de lui donner le nonce d'un ticket pour recevoir
 son sceau, et d'échanger ce faux ticket contre le jeton.
 
+═══ POURQUOI L'ARRÊT DU SERVEUR NE COUPE JAMAIS L'AIDE ROOT ═══
+L'aide écrivait dans un TUYAU vers ce serveur, dans le même groupe de
+processus. Serveur arrêté (Ctrl+C, terminal fermé, kill, fin de session) :
+Ctrl+C envoyait SIGINT à tout le groupe, apt et dpkg compris, et sinon le
+premier journal() qui suivait le retour d'apt levait BrokenPipeError —
+l'aide s'arrêtait avant le contrôle du module NVIDIA, sans résultat.
+Maintenant l'aide tourne dans SA session (setsid : aucun signal du
+terminal ne l'atteint) et écrit dans un FICHIER de notre dossier privé
+(pilotes-tache.log, 0600), verrouillé par flock tant qu'elle le tient
+ouvert. Le serveur suivant relit ce fichier : l'aide tourne encore, il la
+suit ; elle a fini, son résultat s'affiche comme si de rien n'était.
+
 Usage :
     python3 serveur.py [--port 0] [--sans-navigateur] [--nouveau]
 """
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import hmac
 import html
@@ -146,20 +159,29 @@ def _echanger_ticket(ticket: str, port: int) -> bool:
     return True
 
 
-def _sans_resultat(code: int, journal: list) -> str:
+def _sans_resultat(code: Optional[int], journal: list) -> str:
     """Ce que pkexec veut dire quand l'aide n'a rendu aucun résultat.
 
     126 : la fenêtre a été fermée. 127 : autorisation refusée OU impossible
     — pas d'agent polkit, mot de passe faux trois fois, programme absent
     (pkexec.c:905-920). Tout traduire par « Mot de passe annulé » disait à
     Alex qu'il avait annulé une fenêtre qui ne s'était jamais ouverte.
+    None : le code est perdu (l'aide a fini pendant que le serveur était
+    arrêté) — on ne dit donc ni « annulé » ni « rien n'a été changé ».
     """
     derniere = next((l.strip() for l in reversed(journal) if l.strip()), "")
     tout = " ".join(journal[-6:])
+    if code is None:
+        return ("L'aide s'est arrêtée sans résultat pendant que LexOS Pilotes était fermé"
+                + (f" : « {derniere[:200]} »" if derniere else "")
+                + ". Ce qui a été fait est dans le journal ci-dessus.")
     if code == 126:
         return "Fenêtre de mot de passe fermée — rien n'a été changé."
     if code == 127:
-        if "No authentication agent found" in tout:
+        #  « textual authentication agent » : pas d'agent graphique, et pas
+        #  de terminal pour l'agent texte de pkexec (l'aide tourne dans sa
+        #  propre session, sans terminal de contrôle).
+        if "No authentication agent found" in tout or "textual authentication agent" in tout:
             return ("Autorisation impossible : aucune fenêtre de mot de passe n'est disponible dans "
                     "cette session (aucun agent polkit ne tourne) — rien n'a été changé. Lance "
                     "« /usr/lib/lexos/polkit-agent » dans un terminal (il démarre l'agent installé), "
@@ -174,34 +196,181 @@ def _sans_resultat(code: int, journal: list) -> str:
             + ". Ce qui a été fait est dans le journal ci-dessus.")
 
 
+# ── La tâche root : un fichier verrouillé, pas un tuyau ────────────────
+
+JOURNAL_TACHE = "pilotes-tache.log"
+ENTETE_TACHE = "LEXOS-TACHE "
+
+
+def _chemin_journal_tache() -> Optional[Path]:
+    d = dossier_execution()
+    return d / JOURNAL_TACHE if d else None
+
+
+def _aide_tient(fd: int) -> bool:
+    """Vrai tant qu'une aide (ou pkexec) garde le journal ouvert. Le verrou
+    suit le fichier OUVERT, hérité par l'enfant : il reste pris après la
+    mort du serveur, et tombe quand l'aide sort. fd doit être une ouverture
+    à part (un flock sur la nôtre réussirait toujours)."""
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return True
+    except OSError:
+        return False
+    fcntl.flock(fd, fcntl.LOCK_UN)
+    return False
+
+
+def _ligne_de_tache(ligne: str) -> None:
+    if ligne.startswith(ENTETE_TACHE):
+        return
+    if ligne.startswith("LEXOS-RESULTAT "):
+        try:
+            _tache["resultat"] = json.loads(ligne[len("LEXOS-RESULTAT "):])
+        except json.JSONDecodeError:
+            pass
+        return
+    _tache["journal"].append(ligne)
+    del _tache["journal"][:-400]
+
+
+def _suivre_journal(fd: int, fini) -> None:
+    """Relit le journal de la tâche jusqu'à ce que fini() soit vrai ET que
+    tout soit lu. os.pread : on ne déplace pas la position où l'aide écrit
+    (elle partage notre ouverture du fichier)."""
+    pos, reste = 0, b""
+    while True:
+        termine = fini()
+        while True:
+            bloc = os.pread(fd, 65536, pos)
+            if not bloc:
+                break
+            pos += len(bloc)
+            *lignes, reste = (reste + bloc).split(b"\n")
+            for ligne in lignes:
+                _ligne_de_tache(ligne.decode("utf-8", "replace"))
+        if termine:
+            break
+        time.sleep(0.1)
+    if reste:
+        _ligne_de_tache(reste.decode("utf-8", "replace"))
+
+
+def _ouvrir_journal_tache(action: str, debut: float) -> Optional[int]:
+    """Le fichier où l'aide écrira : 0600, verrouillé, avec son en-tête.
+    None si une aide lancée par un AUTRE serveur le tient encore (une seule
+    tâche à la fois, même à travers un redémarrage). OSError si on ne peut
+    rien écrire du tout."""
+    f = _chemin_journal_tache()
+    if f is not None:
+        try:
+            ancien = os.open(f, os.O_RDONLY | os.O_NOFOLLOW)
+        except OSError:
+            ancien = None
+        if ancien is not None:
+            try:
+                if _aide_tient(ancien):
+                    return None
+            finally:
+                os.close(ancien)
+        try:
+            f.unlink(missing_ok=True)
+            fd = os.open(f, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        except OSError:
+            f = None
+    if f is None:
+        #  Pas de dossier privé : un fichier anonyme. La tâche ira au bout
+        #  quand même ; seul son résultat ne survivra pas au serveur.
+        fd, nom = tempfile.mkstemp(prefix="lexos-pilotes-tache-")
+        os.unlink(nom)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        return None
+    except OSError:
+        pass
+    os.write(fd, (ENTETE_TACHE + json.dumps({"action": action, "debut": debut}) + "\n").encode("utf-8"))
+    return fd
+
+
 def _lancer(action: str) -> bool:
     if not _verrou.acquire(blocking=False):
         return False
-    _tache.update(action=action, en_cours=True, journal=[], resultat=None, debut=time.time())
+    debut = time.time()
+    try:
+        fd = _ouvrir_journal_tache(action, debut)
+    except OSError as exc:
+        _tache.update(action=action, en_cours=False, journal=[], debut=debut,
+                      resultat={"ok": False, "message": f"Impossible d'écrire le journal de la tâche ({exc}) : "
+                                                         "l'aide n'a pas été lancée — rien n'a été changé."})
+        _verrou.release()
+        return True
+    if fd is None:
+        _verrou.release()
+        return False
+    _tache.update(action=action, en_cours=True, journal=[], resultat=None, debut=debut)
 
     def travail() -> None:
         try:
-            #  L'argv est FIXE : l'action vient d'une table du serveur, jamais
-            #  de la requête. Pas de shell.
-            with subprocess.Popen(["pkexec", AIDE_ROOT, action], stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT, text=True, bufsize=1) as proc:
-                assert proc.stdout is not None
-                for ligne in proc.stdout:
-                    ligne = ligne.rstrip("\n")
-                    if ligne.startswith("LEXOS-RESULTAT "):
-                        try:
-                            _tache["resultat"] = json.loads(ligne[len("LEXOS-RESULTAT "):])
-                        except json.JSONDecodeError:
-                            pass
-                    else:
-                        _tache["journal"].append(ligne)
-                        del _tache["journal"][:-400]
-                code = proc.wait()
+            try:
+                #  L'argv est FIXE : l'action vient d'une table du serveur,
+                #  jamais de la requête. Pas de shell. Sa propre session, et
+                #  le fichier pour sortie : ni Ctrl+C, ni la fermeture du
+                #  terminal, ni la mort du serveur ne coupent apt ou dpkg.
+                proc = subprocess.Popen(["pkexec", AIDE_ROOT, action], stdin=subprocess.DEVNULL,
+                                        stdout=fd, stderr=fd, start_new_session=True)
+            except OSError as exc:
+                _tache["resultat"] = {"ok": False, "message": f"pkexec introuvable : {exc} — rien n'a été changé."}
+                return
+            _suivre_journal(fd, lambda: proc.poll() is not None)
+            code = proc.wait()
             if _tache["resultat"] is None:
                 _tache["resultat"] = {"ok": False, "message": _sans_resultat(code, _tache["journal"])}
-        except OSError as exc:
-            _tache["resultat"] = {"ok": False, "message": f"pkexec introuvable : {exc} — rien n'a été changé."}
         finally:
+            os.close(fd)
+            _tache["en_cours"] = False
+            _verrou.release()
+
+    threading.Thread(target=travail, daemon=True).start()
+    return True
+
+
+def reprendre_tache() -> bool:
+    """Au démarrage : la tâche qu'un serveur précédent a lancée a continué
+    sans lui, c'est voulu. On relit son journal : l'aide tourne encore, on
+    la suit (la page affiche « en cours ») ; elle a fini, son résultat est
+    là. Rend True si une tâche a été retrouvée."""
+    f = _chemin_journal_tache()
+    if f is None:
+        return False
+    try:
+        fd = os.open(f, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        return False
+    try:
+        st = os.fstat(fd)
+        premiere = os.pread(fd, 4096, 0).split(b"\n", 1)[0].decode("utf-8", "replace")
+        infos = json.loads(premiere[len(ENTETE_TACHE):]) if premiere.startswith(ENTETE_TACHE) else {}
+        action = infos.get("action") if isinstance(infos, dict) else None
+        debut = infos.get("debut") if isinstance(infos.get("debut"), (int, float)) else None
+        valable = (stat.S_ISREG(st.st_mode) and st.st_uid == os.getuid() and not st.st_mode & 0o077
+                   and action in ("verifier", "installer"))
+    except (OSError, ValueError, AttributeError):
+        valable = False
+    if not valable or not _verrou.acquire(blocking=False):
+        os.close(fd)
+        return False
+    _tache.update(action=action, en_cours=True, journal=[], resultat=None, debut=debut)
+
+    def travail() -> None:
+        try:
+            _suivre_journal(fd, lambda: _tache["resultat"] is not None or not _aide_tient(fd))
+            if _tache["resultat"] is None:
+                _tache["resultat"] = {"ok": False, "message": _sans_resultat(None, _tache["journal"])}
+        finally:
+            os.close(fd)
             _tache["en_cours"] = False
             _verrou.release()
 
@@ -529,7 +698,8 @@ def ouvrir_page(port: int, jeton: str) -> bool:
 def _arreter(_signal, _cadre) -> None:
     #  Fin de session (SIGHUP) ou « kill » (SIGTERM) : sans ceci, Python
     #  sortait sans passer par « finally », et le fichier d'état et les
-    #  pages d'ouverture restaient derrière lui.
+    #  pages d'ouverture restaient derrière lui. Une tâche root en cours
+    #  n'est PAS touchée : elle va au bout dans sa session (voir _lancer).
     raise SystemExit(0)
 
 
@@ -555,8 +725,14 @@ def main() -> None:
         sys.exit(1)
     port = serveur.server_address[1]
     signal.signal(signal.SIGTERM, _arreter)
-    signal.signal(signal.SIGHUP, _arreter)
+    #  Sous nohup, SIGHUP est ignoré EXPRÈS (« nohup lexos-pilotes & », puis
+    #  on ferme le terminal) : on ne défait pas ce choix. Avant, ce
+    #  gestionnaire remplaçait le SIG_IGN hérité, et fermer le terminal
+    #  arrêtait le serveur.
+    if signal.getsignal(signal.SIGHUP) is not signal.SIG_IGN:
+        signal.signal(signal.SIGHUP, _arreter)
     try:
+        reprendre_tache()
         if ecrire_etat(port) is None:
             print("[lexos-pilotes] $XDG_RUNTIME_DIR inutilisable : un deuxième clic ouvrira un "
                   "deuxième serveur", file=sys.stderr)

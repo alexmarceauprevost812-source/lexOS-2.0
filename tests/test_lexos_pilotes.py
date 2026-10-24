@@ -20,7 +20,14 @@ Ce qu'on éprouve, sans apt ni carte graphique réelle :
     lanceur et le vrai serveur tournent, un faux navigateur suit la page
     d'ouverture, et un espion relit /proc/*/cmdline et /proc/*/environ
     pendant toute leur vie (classe Fuite) ;
-  · la règle polkit : « installer » redemande le mot de passe à chaque fois ;
+  · L'ARRÊT DU SERVEUR NE COUPE JAMAIS L'AIDE ROOT : le vrai serveur.py est
+    arrêté par SIGHUP, SIGTERM, Ctrl+C ou SIGKILL pendant une installation ;
+    l'aide va au bout dans sa propre session, et le serveur suivant la
+    retrouve, en cours ou finie avec son résultat. Sous nohup, SIGHUP reste
+    ignoré (classe ArretDuServeur) ;
+  · la règle polkit : « installer » redemande le mot de passe à chaque fois,
+    et aucune action ne s'ouvre hors de la session locale active
+    (allow_any et allow_inactive à « no ») ;
   · la page (app.js sous node) : « Indisponible » + raison, boutons
     désactivés avec leur raison, reprise d'une tâche déjà en cours.
 
@@ -34,6 +41,7 @@ Lancer avec /usr/bin/python3 (celui du conteneur de travail, en
 /usr/local/bin, plante à la fermeture).
 """
 import base64
+import fcntl
 import hashlib
 import hmac
 import http.client
@@ -235,10 +243,16 @@ if NOM == "pkexec":
             time.sleep(0.05)
     sys.stdout.write(P.get("sortie", ""))
     sys.stdout.flush()
+    #  Noté APRÈS l'écriture : si la sortie casse (tuyau d'un serveur
+    #  mort), cette ligne n'existe pas. sid : sa session à lui (setsid).
+    with open(B / "pkexec-fin.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps({"args": args, "sid": os.getsid(0), "pid": os.getpid()}) + "\n")
     sys.exit(P.get("code", 0))
 with open(B / "appels.jsonl", "a", encoding="utf-8") as f:
     f.write(json.dumps([NOM, *args]) + "\n")
 if NOM == "dpkg-query":
+    if S.get("dpkg_query_lent"):
+        time.sleep(S["dpkg_query_lent"])
     if S.get("dpkg_query_code"):
         print("dpkg-query: erreur simulée", file=sys.stderr)
         sys.exit(S["dpkg_query_code"])
@@ -417,7 +431,8 @@ def tearDownModule():
 def preparer_machine(scenario: dict, dpkg: dict = None, noyaux: tuple = (), entetes: tuple = (),
                      listes: bool = True) -> Path:
     """Écrit la machine décrite dans BANC : état dpkg, scénario, noyaux, index apt."""
-    for f in ("appels.jsonl", "pkexec.jsonl", "pkexec.json", "enfants.jsonl", "navigateur.jsonl", "delais.jsonl"):
+    for f in ("appels.jsonl", "pkexec.jsonl", "pkexec.json", "enfants.jsonl", "navigateur.jsonl", "delais.jsonl",
+              "pkexec-fin.jsonl"):
         (BANC / f).unlink(missing_ok=True)
     (BANC / "scenario.json").write_text(json.dumps(scenario), encoding="utf-8")
     (BANC / "dpkg.json").write_text(json.dumps(DPKG_DEFAUT if dpkg is None else dpkg), encoding="utf-8")
@@ -657,6 +672,49 @@ class Mesures(unittest.TestCase):
         self.assertEqual((m["disponible"], m["plan"]), (False, []))
         self.assertIn("dpkg-query a échoué (code 2)", m["raison"])
         self.assertFalse(moteur.instantane()["mises_a_jour"]["disponible"])
+
+    def test_dpkg_query_introuvable_ou_lent_pas_a_jour(self):
+        #  Outil absent ou délai dépassé : _lancer_outil rend le code None.
+        #  « rien à faire » serait inventé : on ne SAIT PAS.
+        preparer_machine({"politique": POLITIQUE})
+        de_cote = BANC / "dpkg-query.de-cote"
+        (FAUX / "dpkg-query").rename(de_cote)
+        try:
+            m = paquets.etat_mises_a_jour()
+        finally:
+            de_cote.rename(FAUX / "dpkg-query")
+        self.assertEqual((m["disponible"], m["plan"]), (False, []))
+        self.assertIn("dpkg-query est introuvable", m["raison"])
+        preparer_machine({"politique": POLITIQUE, "dpkg_query_lent": 5})
+        vrai = paquets._lancer_outil
+        paquets._lancer_outil = lambda cmd, timeout=30.0, env=None: vrai(
+            cmd, 0.5 if cmd[0] == "dpkg-query" else timeout, env)
+        try:
+            m = paquets.etat_mises_a_jour()
+        finally:
+            paquets._lancer_outil = vrai
+        self.assertEqual((m["disponible"], m["plan"]), (False, []))
+        self.assertIn("dpkg-query n'a pas répondu", m["raison"])
+
+    def test_paquet_rc_pas_compte(self):
+        #  « rc » : retiré, il ne reste que sa configuration (l'i386 de Steam
+        #  retiré sans purge). Sa version n'est PAS installée.
+        d = dict(DPKG_DEFAUT, **{"libgl1-mesa-dri:amd64": ["25.2.4-1~bpo13+1", "ii"],
+                                 "libgl1-mesa-dri:i386": ["25.0.7-2", "rc"]})
+        preparer_machine({}, dpkg=d)
+        self.assertEqual(moteur.version_paquet("libgl1-mesa-dri"), ("25.2.4-1~bpo13+1", None))
+
+    def test_page_simule_la_commande_de_l_aide(self):
+        #  La page simule, au mot près, ce que l'aide installera (« /trixie-
+        #  backports » compris) : sinon un retrait n'apparaît qu'APRÈS la
+        #  fenêtre de mot de passe. Le faux apt-get -s ignore ses arguments :
+        #  on lit donc son argv.
+        preparer_machine({"politique": POLITIQUE, "simulation": SIMULATION_SANS_RETRAIT})
+        moteur.mises_a_jour()
+        plan = paquets.etat_mises_a_jour()["plan"]
+        self.assertTrue(any(p["demande"] != p["paquet"] for p in plan), "le plan doit viser une suite")
+        simulations = [a for a in appels("apt-get") if "-s" in a]
+        self.assertEqual(simulations, [paquets.commande_installation([p["demande"] for p in plan], "-s")])
 
     def test_apt_cache_muet_pas_a_jour(self):
         #  apt-cache qui rend 0 sans RIEN écrire : aucune version connue.
@@ -945,6 +1003,44 @@ class AideRoot(unittest.TestCase):
         self.assertIn("FIN", e)
         self.assertLess(len(e), len(sortie))
 
+    def test_journal_d_apt_garde_son_debut(self):
+        #  Dans l'aide elle-même, pas seulement dans _extrait : l'ancienne
+        #  ligne « journal(sortie[-4000:]) » perdait ce début.
+        longue = "The following packages will be upgraded:\n  libgl1-mesa-dri\n" + "x" * 30000 + "\nFIN\n"
+        preparer_machine(self.machine(transaction=dict(TRANSACTION_REUSSIE, sortie=longue)),
+                         noyaux=((NOYAU_PROCHAIN, True),))
+        code, sortie, _res = lancer_aide()
+        self.assertEqual(code, 0, sortie[-300:])
+        self.assertIn("will be upgraded", sortie)
+        self.assertIn("FIN", sortie)
+
+    def test_modules_illisibles_jamais_redemarre(self):
+        #  /lib/modules illisible : on ne SAIT PAS si nvidia.ko est là pour le
+        #  prochain noyau. Jamais « Redémarre », et l'avertissement le dit.
+        preparer_machine(self.machine())
+        os.environ["LEXOS_PILOTES_MODULES"] = str(BANC / "modules-absent")
+        _code, sortie, res = lancer_aide()
+        self.assertFalse(res["redemarrer"], sortie[-300:])
+        self.assertNotIn("Redémarre pour", res["message"])
+        self.assertTrue(any("Impossible de lire" in a for a in res["avertissements"]), res)
+
+    def test_lecteur_disparu_l_aide_va_au_bout(self):
+        #  Celui qui lit la sortie disparaît après la première ligne : l'aide
+        #  installe quand même, vérifie le module, et sort proprement. Avant,
+        #  le journal() suivant levait BrokenPipeError, au milieu.
+        preparer_machine(self.machine(), noyaux=((NOYAU_PROCHAIN, False),), entetes=(NOYAU_PROCHAIN,))
+        prog = f"import sys; sys.path.insert(0, {str(DOSSIER)!r}); import maj\nmaj.installer()"
+        p = subprocess.Popen([PY, "-I", "-B", "-c", prog], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             env=dict(os.environ))
+        self.assertTrue(p.stdout.readline())
+        p.stdout.close()
+        erreurs = p.stderr.read().decode("utf-8", "replace")
+        p.stderr.close()
+        self.assertEqual(p.wait(60), 0, erreurs[-500:])
+        self.assertNotIn("BrokenPipeError", erreurs)
+        self.assertTrue(any("-y" in a for a in appels("apt-get")), "apt-get install -y jamais lancé")
+        self.assertIn(["autoinstall", "-k", NOYAU_PROCHAIN], appels("dkms"))
+
     def test_pas_de_shell(self):
         for f in DOSSIER.glob("*.py"):
             self.assertNotIn("shell=True", f.read_text(encoding="utf-8"), f.name)
@@ -981,6 +1077,11 @@ class Lancement(unittest.TestCase):
             "refusée par polkit": ("Error executing command as another user: Not authorized\n\nThis incident "
                                    "has been reported.\n", 127),
             #  Le 127 « générique » (programme absent…) : ni agent, ni refus.
+            #  Ni agent graphique, ni terminal pour l'agent texte (l'aide
+            #  tourne dans sa propre session) : c'est aussi « aucun agent ».
+            "aucun agent polkit ne tourne": ("Error creating textual authentication agent: Error opening "
+                                             "current controlling terminal for the process (`/dev/tty'): "
+                                             "No such device or address\n", 127),
             "code 127": ("Error executing command as another user: Cannot run program "
                          "/usr/bin/lexos-pilotes-maj: No such file or directory\n", 127),
         }
@@ -991,6 +1092,64 @@ class Lancement(unittest.TestCase):
                 self.assertIn("rien n'a été changé", res["message"])
                 if code == 127:
                     self.assertNotIn("annulé", res["message"])
+
+    def test_aide_morte_sans_resultat_ne_dit_pas_rien_change(self):
+        #  Un autre code que 126/127, SANS résultat : l'aide a pu commencer
+        #  (dpkg écrivait « Setting up »). Jamais « rien n'a été changé ».
+        res = self.lancer("installer", {"sortie": "Setting up nvidia-driver-cuda (595.91.07-1) ...\nMemoryError\n",
+                                        "code": 1})
+        self.assertIn("code 1", res["message"])
+        self.assertIn("MemoryError", res["message"])
+        self.assertNotIn("rien n'a été changé", res["message"])
+        self.assertNotIn("annulé", res["message"])
+
+    def test_derniere_ligne_sans_fin_de_ligne_lue(self):
+        #  Le journal est relu par morceaux : la dernière ligne, sans « \n »,
+        #  compte aussi (le tuyau d'avant la rendait déjà).
+        res = self.lancer("installer", {"sortie": 'Setting up x ...\nLEXOS-RESULTAT {"ok": true, "message": "fait"}'})
+        self.assertEqual(res, {"ok": True, "message": "fait"})
+        self.assertEqual(serveur._tache["journal"], ["Setting up x ..."])
+
+    def test_aide_d_un_autre_serveur_encore_en_cours(self):
+        #  Un autre serveur (« --nouveau ») a lancé une aide qui tourne encore
+        #  et tient le journal : pas de deuxième apt, et son journal reste.
+        journal = serveur.dossier_execution() / serveur.JOURNAL_TACHE
+        journal.unlink(missing_ok=True)
+        entete = serveur.ENTETE_TACHE + '{"action": "installer", "debut": 1}\n'
+        fd = os.open(journal, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            os.write(fd, entete.encode())
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            self.assertFalse(serveur._lancer("installer"), "deux apt en parallèle")
+            self.assertEqual(appels_pkexec(), [])
+            self.assertEqual(os.fstat(fd).st_ino, journal.stat().st_ino, "journal de l'autre aide remplacé")
+            self.assertEqual(journal.read_text(encoding="utf-8"), entete)
+        finally:
+            os.close(fd)
+        #  L'autre aide finie, on peut relancer.
+        res = self.lancer("verifier", {"sortie": 'LEXOS-RESULTAT {"ok": true, "message": "Index à jour."}\n'})
+        self.assertTrue(res["ok"])
+
+    def test_reprise_sans_resultat_ne_dit_pas_rien_change(self):
+        #  Le serveur était arrêté ; l'aide est morte sans résultat. Son code
+        #  est perdu : on ne dit ni « annulé » ni « rien n'a été changé ».
+        d = serveur.dossier_execution()
+        journal = d / serveur.JOURNAL_TACHE
+        journal.unlink(missing_ok=True)
+        fd = os.open(journal, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        os.write(fd, (serveur.ENTETE_TACHE + '{"action": "installer", "debut": 1}\n'
+                      "Setting up nvidia-driver-cuda (595.91.07-1) ...\n").encode())
+        os.close(fd)
+        self.assertTrue(serveur.reprendre_tache())
+        limite = time.time() + 10
+        while serveur._tache["en_cours"] and time.time() < limite:
+            time.sleep(0.02)
+        t = serveur._tache
+        self.assertEqual((t["action"], t["en_cours"]), ("installer", False))
+        self.assertIn("Setting up nvidia-driver-cuda (595.91.07-1) ...", t["journal"])
+        self.assertIn("sans résultat", t["resultat"]["message"])
+        self.assertNotIn("rien n'a été changé", t["resultat"]["message"])
+        self.assertNotIn("annulé", t["resultat"]["message"])
 
     def test_une_tache_a_la_fois(self):
         feu = BANC / "feu-vert"
@@ -1366,6 +1525,39 @@ class Ouverture(unittest.TestCase):
         self.assertFalse(page.parent.exists())
 
 
+    def test_sans_page_privee_rien_n_est_ouvert(self):
+        #  Aucune page d'ouverture possible (dossier non inscriptible, tmpfs
+        #  plein) : on n'ouvre RIEN. Surtout pas l'ancienne adresse
+        #  « #j=JETON », que tous les comptes liraient dans /proc.
+        vrai_ecrire, vrai_ouvrir = serveur.ecrire_ouverture, serveur.webbrowser.open
+        ouvertes = []
+        serveur.ecrire_ouverture = lambda port, jeton: None
+        serveur.webbrowser.open = lambda url, *a, **k: ouvertes.append(url) or True
+        try:
+            self.assertFalse(serveur.ouvrir_page(self.port, serveur.JETON))
+        finally:
+            serveur.ecrire_ouverture, serveur.webbrowser.open = vrai_ecrire, vrai_ouvrir
+        self.assertEqual(ouvertes, [])
+
+    def test_lien_symbolique_jamais_suivi(self):
+        #  $XDG_RUNTIME_DIR/lexos (ou son repli /tmp/lexos-<uid>, que tout
+        #  compte peut créer) en lien symbolique, même vers un dossier 0700 à
+        #  NOUS : refusé. Sinon le lien bascule entre le contrôle et
+        #  l'écriture, et {port, jeton} part chez celui qui l'a posé.
+        cible = Path(tempfile.mkdtemp(dir=BANC))
+        cible.chmod(0o700)
+        (self.run / "lexos").symlink_to(cible)
+        self.assertIsNone(serveur.dossier_execution())
+        self.assertIsNone(serveur.ecrire_etat(1234))
+        page = serveur.ecrire_ouverture(self.port, serveur.JETON)
+        self.assertIsNotNone(page)
+        self.assertNotEqual(page.parent.resolve(), cible.resolve())
+        self.assertEqual(list(cible.iterdir()), [], "rien n'est écrit à travers le lien")
+        self.assertEqual(page.parent.stat().st_mode & 0o777, 0o700)
+        serveur.effacer_ouvertures(self.port)
+        self.assertFalse(page.parent.exists())
+
+
 class Espion(threading.Thread):
     """Relit /proc/*/cmdline et /proc/*/environ de TOUS les processus
     lisibles, sans arrêt, et garde chaque contenu distinct vu."""
@@ -1598,6 +1790,177 @@ class Fuite(unittest.TestCase):
                 self.assertNotIn(s.decode(), texte, j.name)
 
 
+class ArretDuServeur(unittest.TestCase):
+    """L'ARRÊT DU SERVEUR NE COUPE JAMAIS L'AIDE ROOT, et nohup est respecté.
+
+    Le vrai serveur.py, arrêté de quatre façons pendant une installation :
+    SIGHUP (fin de session), SIGTERM, Ctrl+C dans son terminal (SIGINT à
+    tout le groupe) et SIGKILL. Le faux pkexec attend un feu vert : la tâche
+    est donc EN COURS quand le serveur s'arrête. On exige qu'elle aille au
+    bout (son écriture finale réussit), dans sa propre session, et que le
+    serveur suivant la retrouve : en cours s'il démarre avant sa fin,
+    terminée avec son résultat s'il démarre après. Avant, l'aide écrivait
+    dans un tuyau vers le serveur (BrokenPipeError dès qu'il s'arrêtait), et
+    Ctrl+C la tuait avec lui."""
+
+    RESULTAT = {"ok": True, "message": "3 paquet(s) mis à jour.", "redemarrer": True}
+    LIGNE = "Setting up libgl1-mesa-dri:amd64 (25.2.4-1~bpo13+1) ..."
+
+    def setUp(self):
+        _garde_faux_outils()
+        preparer_machine({"politique": POLITIQUE, "simulation": SIMULATION_SANS_RETRAIT, "lspci": LSPCI},
+                         noyaux=((NOYAU_PROCHAIN, True),))
+        self.run = Path(tempfile.mkdtemp(dir=BANC))
+        self.run.chmod(0o700)
+        self.env = {k: v for k, v in os.environ.items() if k != "BROWSER"}
+        self.env.update(XDG_RUNTIME_DIR=str(self.run), DISPLAY=":99", PYTHONDONTWRITEBYTECODE="1")
+        self.serveurs = []
+
+    def tearDown(self):
+        for s in self.serveurs:
+            if s.poll() is None:
+                s.kill()
+                s.wait(10)
+        #  Un faux pkexec resté en attente repart et sort.
+        (BANC / "feu-vert").write_text("", encoding="utf-8")
+
+    def etat(self):
+        try:
+            return json.loads((self.run / "lexos" / "pilotes.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+    def attendre(self, quoi, message, delai=15):
+        limite = time.time() + delai
+        while time.time() < limite:
+            r = quoi()
+            if r:
+                return r
+            time.sleep(0.05)
+        self.fail(message)
+
+    def demarrer(self, *options, sighup_ignore=False):
+        cmd = [PY, "-B", str(DOSSIER / "serveur.py"), *options]
+        if sighup_ignore:
+            #  Ce que fait nohup : SIGHUP ignoré, puis exec (même pid).
+            cmd = [PY, "-c", "import os, signal, sys; signal.signal(signal.SIGHUP, signal.SIG_IGN); "
+                   "os.execv(sys.argv[1], sys.argv[1:])", *cmd]
+        #  Sa propre session : le Ctrl+C simulé (SIGINT au groupe) ne touche
+        #  pas le banc.
+        p = subprocess.Popen(cmd, env=self.env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+        self.serveurs.append(p)
+        e = self.attendre(lambda: (lambda e: e if e and e.get("pid") == p.pid else None)(self.etat()),
+                          "le serveur n'a pas écrit son fichier d'état")
+        return p, e
+
+    def req(self, e, methode, chemin):
+        port = e["port"]
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            c.request(methode, chemin, headers={"Origin": f"http://127.0.0.1:{port}", "X-LexOS": "1",
+                                                "X-Jeton": e["jeton"]})
+            r = c.getresponse()
+            corps = r.read()
+        finally:
+            c.close()
+        try:
+            return r.status, json.loads(corps)
+        except ValueError:
+            return r.status, None
+
+    @staticmethod
+    def fins():
+        try:
+            return [json.loads(l) for l in (BANC / "pkexec-fin.jsonl").read_text(encoding="utf-8").splitlines()]
+        except FileNotFoundError:
+            return []
+
+    def test_sighup_herite_ignore_respecte(self):
+        #  « nohup lexos-pilotes & », puis on ferme le terminal : le serveur
+        #  reste. Avant, notre gestionnaire remplaçait le SIG_IGN hérité.
+        p, e = self.demarrer("--sans-navigateur", sighup_ignore=True)
+        p.send_signal(signal.SIGHUP)
+        time.sleep(0.5)
+        self.assertIsNone(p.poll(), "sous nohup, SIGHUP a arrêté le serveur")
+        self.assertEqual(self.req(e, "GET", "/api/tache")[0], 200)
+        p.send_signal(signal.SIGTERM)
+        self.assertEqual(p.wait(10), 0)
+        self.assertIsNone(self.etat(), "fichier d'état effacé à l'arrêt")
+
+    def test_sighup_fait_le_menage(self):
+        #  Fin de session, sans nohup : sortie propre (code 0), et rien ne
+        #  reste derrière — ni le fichier d'état (qui porte le jeton), ni une
+        #  page d'ouverture que le navigateur n'a jamais chargée.
+        p, _e = self.demarrer()
+        notes = self.attendre(lambda: (BANC / "navigateur.jsonl").exists()
+                              and (BANC / "navigateur.jsonl").read_text(encoding="utf-8").splitlines(),
+                              "le navigateur n'a pas été ouvert")
+        page = Path(unquote(urlparse(json.loads(notes[0])["argv"][0]).path))
+        self.assertTrue(page.exists())
+        p.send_signal(signal.SIGHUP)
+        self.assertEqual(p.wait(10), 0)
+        self.assertIsNone(self.etat())
+        self.assertFalse(page.exists(), "page d'ouverture laissée après SIGHUP")
+        self.assertEqual(list((self.run / "lexos").glob("*pilotes-ouvrir-*")), [])
+
+    def test_tache_root_jamais_coupee(self):
+        for arret, reprise in (("SIGHUP", "pendant"), ("Ctrl+C", "après"), ("SIGTERM", "après"),
+                               ("SIGKILL", "pendant")):
+            with self.subTest(arret=arret, reprise=reprise):
+                self._coupure(arret, reprise)
+
+    def _coupure(self, arret, reprise):
+        #  Chaque coupure part de zéro : un serveur resté d'un sous-test raté
+        #  serait « retrouvé » par le deuxième clic, et masquerait la suite.
+        for s in self.serveurs:
+            if s.poll() is None:
+                s.kill()
+                s.wait(10)
+        feu = BANC / "feu-vert"
+        feu.write_text("", encoding="utf-8")
+        time.sleep(0.1)
+        feu.unlink()
+        for f in ("pkexec.jsonl", "pkexec-fin.jsonl"):
+            (BANC / f).unlink(missing_ok=True)
+        sortie = f"{self.LIGNE}\nLEXOS-RESULTAT {json.dumps(self.RESULTAT)}\n"
+        (BANC / "pkexec.json").write_text(json.dumps({"attendre": str(feu), "sortie": sortie}), encoding="utf-8")
+        a, ea = self.demarrer("--sans-navigateur")
+        self.assertEqual(self.req(ea, "POST", "/api/installer")[0], 200)
+        self.attendre(appels_pkexec, "pkexec jamais lancé")
+        if arret == "SIGHUP":
+            a.send_signal(signal.SIGHUP)
+        elif arret == "SIGTERM":
+            a.send_signal(signal.SIGTERM)
+        elif arret == "Ctrl+C":
+            os.killpg(a.pid, signal.SIGINT)
+        else:
+            a.kill()
+        self.assertEqual(a.wait(10), -signal.SIGKILL if arret == "SIGKILL" else 0)
+        self.assertEqual(self.fins(), [], "la tâche ne devait pas encore être finie")
+        if reprise == "après":
+            feu.write_text("", encoding="utf-8")
+            self.attendre(self.fins, "la tâche root s'est arrêtée avec le serveur")
+        b, eb = self.demarrer("--sans-navigateur")
+        if reprise == "pendant":
+            _code, t = self.req(eb, "GET", "/api/tache")
+            self.assertTrue(t["en_cours"], f"le serveur suivant ne voit pas la tâche en cours : {t}")
+            self.assertEqual(t["action"], "installer")
+            self.assertEqual(self.req(eb, "POST", "/api/installer")[0], 409, "deux apt en parallèle")
+            feu.write_text("", encoding="utf-8")
+        t = self.attendre(lambda: (lambda t: t if t and not t["en_cours"] else None)(
+            self.req(eb, "GET", "/api/tache")[1]), "la tâche reprise ne finit jamais")
+        self.assertEqual(t["resultat"], self.RESULTAT, "le résultat de l'aide est perdu")
+        self.assertEqual(t["action"], "installer")
+        self.assertIn(self.LIGNE, t["journal"])
+        fin = self.fins()
+        self.assertEqual(len(fin), 1, "l'aide n'est pas allée au bout")
+        self.assertEqual(fin[0]["sid"], fin[0]["pid"], "pkexec n'a pas sa propre session : Ctrl+C l'atteint")
+        self.assertEqual(appels_pkexec(), [["/usr/bin/lexos-pilotes-maj", "installer"]])
+        b.send_signal(signal.SIGTERM)
+        self.assertEqual(b.wait(10), 0)
+
+
 class Polkit(unittest.TestCase):
     """L'action que pkexec choisit pour chaque verbe (pkexec.c:272-330)."""
 
@@ -1606,8 +1969,12 @@ class Polkit(unittest.TestCase):
         cls.actions = []
         for a in ET.parse(POLITIQUE_POLKIT).getroot().iter("action"):
             notes = {n.get("key"): n.text for n in a.iter("annotate")}
-            cls.actions.append({"id": a.get("id"), "notes": notes,
-                                "actif": a.find("defaults/allow_active").text})
+            colonnes = {}
+            for c in ("allow_any", "allow_inactive", "allow_active"):
+                e = a.find(f"defaults/{c}")
+                colonnes[c] = None if e is None else (e.text or "").strip()
+            cls.actions.append({"id": a.get("id"), "notes": notes, "actif": colonnes["allow_active"],
+                                "colonnes": colonnes})
 
     def action_pour(self, argv1):
         #  Même règle que find_action_for_path : exec.path égal, et exec.argv1
@@ -1625,6 +1992,20 @@ class Polkit(unittest.TestCase):
         a = self.action_pour("installer")
         self.assertIsNotNone(a)
         self.assertEqual(a["actif"], "auth_admin", "auth_admin_keep : 5 min d'installations sans fenêtre")
+
+    def test_aucune_colonne_sans_mot_de_passe(self):
+        #  allow_active ne suffit pas : allow_any couvre ssh, cron et les
+        #  services, allow_inactive une session passée en arrière-plan. Un
+        #  « yes » dans l'une d'elles, et n'importe quel compte faisait
+        #  tourner l'aide root sans fenêtre (pkexec lexos-pilotes-maj
+        #  installer), sans même passer par le serveur.
+        self.assertEqual(len(self.actions), 2)
+        for a in self.actions:
+            with self.subTest(a["id"]):
+                c = a["colonnes"]
+                self.assertEqual((c["allow_any"], c["allow_inactive"]), ("no", "no"))
+                self.assertIn(c["allow_active"], ("auth_admin", "auth_admin_keep"))
+        self.assertEqual(self.action_pour("installer")["colonnes"]["allow_active"], "auth_admin")
 
     def test_verifier_a_son_action(self):
         a = self.action_pour("verifier")
@@ -1736,6 +2117,17 @@ class Page(unittest.TestCase):
         self.assertIn("en cours", el["raison-actions"]["texte"])
         self.assertFalse(el["raison-actions"]["hidden"], "la raison est écrite EN CLAIR, pas dans un élément caché")
         self.assertIn("» Installation…", el["journal"]["texte"])
+
+    def test_dernier_resultat_reaffiche(self):
+        #  Page rechargée (ou serveur relancé) après une installation : son
+        #  avertissement « NE redémarre PAS » doit rester sous les yeux.
+        t = {"action": "installer", "en_cours": False, "journal": ["» Installation…"],
+             "resultat": {"ok": True, "message": "3 paquet(s) mis à jour.",
+                          "avertissements": ["dkms a échoué : NE redémarre PAS tout de suite"]}}
+        el = self.rendre(self.etat(), t)["el"]
+        self.assertFalse(el["resultat"]["hidden"])
+        self.assertIn("Dernière mise à jour", el["resultat"]["html"])
+        self.assertIn("NE redémarre PAS", el["resultat"]["html"])
 
     def test_clic_pendant_une_tache_lancee_ailleurs_suit(self):
         #  Le serveur répond 409 (une tâche lancée par un autre onglet) : la

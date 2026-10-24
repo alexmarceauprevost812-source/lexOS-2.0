@@ -41,11 +41,25 @@ DELAI_DKMS = 1800
 
 
 def journal(texte: str) -> None:
-    print(texte, flush=True)
+    try:
+        print(texte, flush=True)
+    except OSError:
+        #  Le lecteur a disparu (sortie coupée, disque plein) : on ne
+        #  s'arrête JAMAIS pour autant au milieu d'une transaction dpkg. La
+        #  suite part dans /dev/null ; apt, dpkg et le contrôle du module
+        #  NVIDIA vont au bout. Avant, BrokenPipeError arrêtait l'aide
+        #  juste après le retour d'apt-get.
+        try:
+            nul = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(nul, sys.stdout.fileno())
+            os.close(nul)
+            sys.stdout.flush()
+        except (OSError, ValueError):
+            pass
 
 
 def fin(resultat: dict, code: int = 0) -> None:
-    print("LEXOS-RESULTAT " + json.dumps(resultat, ensure_ascii=False), flush=True)
+    journal("LEXOS-RESULTAT " + json.dumps(resultat, ensure_ascii=False))
     sys.exit(code)
 
 
