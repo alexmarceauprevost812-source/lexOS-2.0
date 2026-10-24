@@ -249,6 +249,10 @@ jobs:
       #   · aucune clé privée dans le squashfs (fatal) ;
       #   · le certificat à la racine, MokManager dans efi.img ;
       #   · l'entrée par défaut du menu UEFI démarre le noyau le plus récent.
+      #  Ce dernier contrôle est ÉPROUVÉ par tests/test_lexos_secure_boot_iso.sh :
+      #  le banc extrait de cette étape (id « verif ») chaque ligne qui nomme
+      #  PREMIER ou RECENT et la joue sur le bon menu et sur celui du
+      #  20 octobre. La garde doit donc tenir sur une ligne qui les nomme.
       # ------------------------------------------------------------------
       - name: Clé privée absente de l'ISO, MokManager et menu vérifiés
         id: verif
