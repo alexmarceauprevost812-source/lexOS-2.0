@@ -496,6 +496,25 @@ jobs:
           # Le module NVIDIA seul ne suffit pas : OpenGL/Xorg nécessaires au CRT.
           bash tests/test_lexos_202_nvidia_glx.sh
 
+      - name: Mesa et micrologiciels depuis backports sans rien retirer — hook 0257 sur un banc
+        if: ${{ !cancelled() }}
+        run: |
+          #  LE CAS. Le hook 0257 remonte Mesa et les micrologiciels vers
+          #  trixie-backports. Écrit avec « apt-get install -y » sans
+          #  --no-remove et des demandes « paquet/trixie-backports » triées
+          #  par « apt-cache madison », il RETIRAIT le Mesa 32 bits et Steam
+          #  quand backports n'avait que l'amd64, rendait 0, et effaçait le
+          #  journal qui le disait. Reproduit avec le vrai apt 2.8.3 et le
+          #  vrai dpkg 1.22.6 sur une racine neuve, comme la correction.
+          #
+          #  Le banc ne lance jamais apt pour de vrai : il rejoue le hook
+          #  LIVRÉ avec de faux apt-get, apt-cache, dpkg et dpkg-query, et
+          #  vérifie la question posée à apt (-t, --no-remove, toute la
+          #  liste), la garde i386 de Mesa, l'épingle « src:mesa:any », et un
+          #  journal qui dit ce qui a VRAIMENT changé. Ses mutations prouvent
+          #  qu'il rougit quand on retire l'une de ces gardes.
+          bash tests/test_lexos_a_jour.sh
+
       - name: LexOS 2.0.2 — icônes poubelle et paramètres XFCE
         if: ${{ !cancelled() }}
         run: |

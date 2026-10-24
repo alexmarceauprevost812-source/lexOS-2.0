@@ -1,0 +1,464 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  Éprouver le hook 0257 — Mesa et micrologiciels depuis trixie-backports
+# =============================================================================
+#  Le hook tourne dans le chroot de live-build, en root, et son apt peut
+#  RETIRER des paquets : on ne le lance donc jamais pour de vrai ici. Ce banc
+#  rejoue le fichier LIVRÉ (pas une copie) avec de faux apt-get, apt-cache,
+#  dpkg et dpkg-query devant le PATH, et des chemins surchargés
+#  (LEXOS_BUILD_CONF, LEXOS_APT_ETC, LEXOS_A_JOUR_JOURNAL).
+#
+#  CE QUE LA RELECTURE DU HOOK A TROUVÉ, ET QUE CE BANC TIENT FERMÉ.
+#  Chaque défaut a d'abord été reproduit avec le VRAI apt (2.8.3) et le VRAI
+#  dpkg (1.22.6) sur une racine neuve, puis la correction mesurée de même ;
+#  les faux d'ici ne prouvent pas le comportement d'apt, ils vérifient que
+#  le hook lui pose la bonne question :
+#    · apt -y SANS --no-remove retirait le Mesa 32 bits et Steam quand
+#      backports n'avait que l'amd64, rendait 0, et effaçait le journal ;
+#    · « paquet/trixie-backports » trié par « apt-cache madison » exigeait
+#      une version de backports PLUS ANCIENNE que l'installée : refus, et
+#      plus rien ne montait ;
+#    · « Mesa : AVANT -> APRÈS » collait les versions amd64 et i386 ;
+#    · Mesa amd64 monté seul, sans épingle : le Mesa 32 bits de « lexos
+#      logitheque famille jeux » ne pouvait plus s'installer ;
+#    · « remontés : N » comptait les noms demandés, pas ce qui avait changé.
+# =============================================================================
+set -uo pipefail
+
+RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HOOK="$RACINE/config/hooks/normal/0257-lexos-a-jour.hook.chroot"
+BANC="$(mktemp -d)"
+trap 'rm -rf "$BANC"' EXIT
+
+REUSSIS=0; ECHOUES=0
+ok()   { printf '  \033[32m✅\033[0m %s\n' "$1"; REUSSIS=$((REUSSIS+1)); }
+non()  { printf '  \033[31m❌\033[0m %s\n' "$1"; ECHOUES=$((ECHOUES+1)); }
+titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
+
+[ -f "$HOOK" ] || { echo "hook 0257 introuvable"; exit 1; }
+
+FAUXBIN="$BANC/bin"
+CTRL="$BANC/ctrl"
+APT_ETC="$BANC/etc-apt"
+CONF="$BANC/build.conf"
+JOURNAL="$BANC/lexos-a-jour.log"
+EPINGLE="$APT_ETC/preferences.d/lexos-mesa-backports.pref"
+
+T=25.0.7-2+deb13u1
+B=25.2.4-1~bpo13+1
+
+# --- Les faux -----------------------------------------------------------------
+#  $CTRL/status     : « paquet:arch source version », ce qui est installé ;
+#  $CTRL/candidats  : « paquet:arch version », ce qu'apt prendrait avec -t ;
+#  $CTRL/foreign    : la sortie de dpkg --print-foreign-architectures ;
+#  $CTRL/refuse     : un nom par ligne — une transaction qui en contient un
+#                     est refusée comme apt le fait sous --no-remove ;
+#  $CTRL/retire     : un nom par ligne — retiré d'une transaction « réussie »
+#                     (ce qu'apt ne fait pas sous --no-remove : sert à
+#                     vérifier que le hook le VERRAIT quand même) ;
+#  $CTRL/appels     : chaque appel, avec la valeur de LC_ALL.
+pose_faux_outils() {
+	mkdir -p "$FAUXBIN" "$CTRL"
+	: > "$CTRL/appels"
+	cat > "$FAUXBIN/apt-get" <<'EOF'
+#!/bin/sh
+C="$FAUX_CTRL"
+echo "apt-get $* |LC_ALL=${LC_ALL:-}" >> "$C/appels"
+[ "$1" = "install" ] || exit 0
+shift
+NOMS=""
+while [ $# -gt 0 ]; do
+	case "$1" in
+		-t) shift ;;
+		-*) ;;
+		*) NOMS="$NOMS $1" ;;
+	esac
+	shift
+done
+[ -n "$NOMS" ] || exit 0
+for n in $NOMS; do
+	if [ -f "$C/refuse" ] && grep -qxF "$n" "$C/refuse"; then
+		echo "The following packages will be REMOVED:"
+		echo "  appli-qui-gene"
+		echo "E: Packages need to be removed but remove is disabled."
+		exit 100
+	fi
+done
+NB=0
+for n in $NOMS; do
+	c="$(awk -v p="$n" '$1 == p { print $2 }' "$C/candidats" 2>/dev/null)"
+	v="$(awk -v p="$n" '$1 == p { print $3 }' "$C/status")"
+	if [ -n "$c" ] && [ "$c" != "$v" ]; then
+		awk -v p="$n" -v c="$c" '$1 == p { $3 = c } { print }' "$C/status" > "$C/status.n"
+		mv "$C/status.n" "$C/status"
+		NB=$((NB + 1))
+	fi
+done
+if [ -f "$C/retire" ]; then
+	awk 'NR == FNR { r[$1] = 1; next } !($1 in r)' "$C/retire" "$C/status" > "$C/status.n"
+	mv "$C/status.n" "$C/status"
+fi
+echo "$NB upgraded, 0 newly installed, 0 to remove and 0 not upgraded."
+exit 0
+EOF
+	cat > "$FAUXBIN/apt-cache" <<'EOF'
+#!/bin/sh
+C="$FAUX_CTRL"
+echo "apt-cache $* |LC_ALL=${LC_ALL:-}" >> "$C/appels"
+[ "$1" = "policy" ] || exit 0
+eval "n=\${$#}"
+c="$(awk -v p="$n" '$1 == p { print $2 }' "$C/candidats" 2>/dev/null)"
+echo "$n:"
+echo "  Installed: (none)"
+echo "  Candidate: ${c:-(none)}"
+echo "  Version table:"
+exit 0
+EOF
+	cat > "$FAUXBIN/dpkg" <<'EOF'
+#!/bin/sh
+C="$FAUX_CTRL"
+echo "dpkg $*" >> "$C/appels"
+[ "$1" = "--print-foreign-architectures" ] && [ -f "$C/foreign" ] && cat "$C/foreign"
+exit 0
+EOF
+	#  dpkg-query : le format est VÉRIFIÉ. Si le hook change sa question, le
+	#  faux le dit au lieu de répondre à côté et de laisser le banc vert.
+	cat > "$FAUXBIN/dpkg-query" <<'EOF'
+#!/bin/sh
+C="$FAUX_CTRL"
+echo "dpkg-query $*" >> "$C/appels"
+ATTENDU='-f=${db:Status-Abbrev} ${binary:Package} ${source:Package} ${Version}\n'
+if [ "$1" != "-W" ] || [ "$2" != "$ATTENDU" ]; then
+	echo "FORMAT INATTENDU : $*" >> "$C/appels"
+	exit 3
+fi
+awk 'NF == 3 { printf "ii  %s %s %s\n", $1, $2, $3 }' "$C/status"
+exit 0
+EOF
+	chmod +x "$FAUXBIN"/apt-get "$FAUXBIN"/apt-cache "$FAUXBIN"/dpkg "$FAUXBIN"/dpkg-query
+}
+
+reinit() { # reinit [canal]
+	rm -rf "$FAUXBIN" "$CTRL" "$APT_ETC"
+	rm -f "$CONF" "$JOURNAL"
+	mkdir -p "$APT_ETC/sources.list.d" "$APT_ETC/preferences.d"
+	echo "deb https://deb.debian.org/debian/ trixie-backports main contrib non-free-firmware" \
+		> "$APT_ETC/sources.list.d/backports.list"
+	printf 'LEXOS_KERNEL_CHANNEL="%s"\nLEXOS_DEBIAN_SUITE="trixie"\n' "${1:-backports}" > "$CONF"
+	pose_faux_outils
+	: > "$CTRL/status"
+	: > "$CTRL/candidats"
+}
+
+installe() { printf '%s %s %s\n' "$1" "$2" "$3" >> "$CTRL/status"; }   # installe <paquet:arch> <source> <version>
+candidat() { printf '%s %s\n' "$1" "$2" >> "$CTRL/candidats"; }        # candidat <paquet:arch> <version>
+
+#  Mesa minimal : quatre binaires « Multi-Arch: same ».
+MESA_BIN="mesa-libgallium libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers"
+installe_mesa() { local b; for b in $MESA_BIN; do installe "$b:$1" mesa "$2"; done; }
+candidat_mesa() { local b; for b in $MESA_BIN; do candidat "$b:$1" "$2"; done; }
+
+lance() { # lance [<fichier hook>] -> sortie dans $BANC/sortie, code dans $BANC/code
+	local h="${1:-$HOOK}"
+	FAUX_CTRL="$CTRL" PATH="$FAUXBIN:$PATH" \
+	LEXOS_BUILD_CONF="$CONF" LEXOS_APT_ETC="$APT_ETC" LEXOS_A_JOUR_JOURNAL="$JOURNAL" \
+	sh "$h" > "$BANC/sortie" 2>&1
+	echo "$?" > "$BANC/code"
+	cat "$BANC/sortie"
+}
+
+#  Les appels « apt-get install » qui portent des paquets (pas « -f »).
+transactions() { grep '^apt-get install' "$CTRL/appels" | grep -v ' -f ' || true; }
+
+#  La scène de référence : Mesa amd64, i386 activé, backports a Mesa dans
+#  les deux architectures ; trois micrologiciels — un plus récent dans
+#  backports, un SANS version backports, un dont backports est PLUS ANCIEN
+#  que la version installée (une mise à jour de trixie l'a dépassé).
+scene_reference() {
+	reinit
+	echo i386 > "$CTRL/foreign"
+	installe_mesa amd64 "$T"
+	candidat_mesa amd64 "$B"; candidat_mesa i386 "$B"
+	installe firmware-misc-nonfree firmware-nonfree 20250410-2
+	candidat firmware-misc-nonfree 20250917-1~bpo13+1
+	installe firmware-intel-graphics firmware-nonfree 20250410-2
+	candidat firmware-intel-graphics 20250410-2
+	installe firmware-amd-graphics firmware-nonfree 20250808-1+deb13u1
+	candidat firmware-amd-graphics 20250808-1+deb13u1
+}
+
+# =============================================================================
+titre "1. Canal « stock » -> rien, et apt n'est pas appelé"
+# =============================================================================
+reinit stock
+installe_mesa amd64 "$T"
+S="$(lance)"
+grep -qF "canal « stock » : rien à remonter" <<< "$S" \
+	&& ok "le hook le dit et s'arrête" || non "message attendu absent :
+$S"
+[ "$(cat "$BANC/code")" = "0" ] && ok "code 0" || non "code $(cat "$BANC/code")"
+grep -q '^apt-get' "$CTRL/appels" && non "apt-get appelé sur le canal stock" || ok "aucun appel à apt-get"
+
+# =============================================================================
+titre "2. backports pas ouvert -> on garde trixie, sans transaction"
+# =============================================================================
+reinit
+rm -f "$APT_ETC/sources.list.d/backports.list"
+installe_mesa amd64 "$T"
+S="$(lance)"
+grep -qF "trixie-backports n'est pas ouvert" <<< "$S" \
+	&& ok "le hook le dit" || non "message attendu absent :
+$S"
+[ -z "$(transactions)" ] && ok "aucune transaction" || non "transaction lancée : $(transactions)"
+
+# =============================================================================
+titre "3. Scène de référence -> la BONNE question à apt, et ce qui a VRAIMENT changé"
+# =============================================================================
+scene_reference
+S="$(lance)"
+TX="$(transactions)"
+[ "$(cat "$BANC/code")" = "0" ] && ok "code 0" || non "code $(cat "$BANC/code")"
+grep -q 'FORMAT INATTENDU' "$CTRL/appels" \
+	&& non "dpkg-query interrogé avec un format que ce banc ne connaît pas : $(grep 'FORMAT INATTENDU' "$CTRL/appels")" \
+	|| ok "dpkg-query interrogé avec le format attendu (une ligne par architecture)"
+NB_TX="$(grep -c . <<< "$TX" || true)"
+[ "$NB_TX" = "2" ] && ok "deux transactions : micrologiciels, puis Mesa" || non "$NB_TX transaction(s) au lieu de 2 :
+$TX"
+MAUVAISES="$(grep -v -- ' --no-remove ' <<< "$TX" || true)"
+[ -z "$MAUVAISES" ] && ok "chaque transaction porte --no-remove : apt ne peut rien retirer" \
+	|| non "transaction SANS --no-remove (apt pourrait retirer en silence) :
+$MAUVAISES"
+MAUVAISES="$(grep -v -- ' -t trixie-backports ' <<< "$TX" || true)"
+[ -z "$MAUVAISES" ] && ok "chaque transaction passe par « -t trixie-backports »" \
+	|| non "transaction sans -t trixie-backports :
+$MAUVAISES"
+MAUVAISES="$(awk 'index($0, " -y ") == 0 || index($0, " --no-install-recommends ") == 0' <<< "$TX")"
+[ -z "$MAUVAISES" ] && ok "et -y --no-install-recommends, comme avant" || non "options manquantes :
+$MAUVAISES"
+MAUVAISES="$(grep -vE '\|LC_ALL=C$' <<< "$TX" || true)"
+[ -z "$MAUVAISES" ] && ok "apt-get install lancé sous LC_ALL=C (son bilan est relu en anglais)" \
+	|| non "transaction hors LC_ALL=C :
+$MAUVAISES"
+grep -qF '/trixie-backports' <<< "$TX" \
+	&& non "une demande « paquet/trixie-backports » est revenue (elle rétrograde) : $TX" \
+	|| ok "aucune demande « paquet/trixie-backports » (celle qui exigeait une rétrogradation)"
+grep -q '^apt-cache madison' "$CTRL/appels" \
+	&& non "« apt-cache madison » est revenu (le tri architecture par architecture)" \
+	|| ok "plus de tri par « apt-cache madison »"
+TX_FW="$(grep -F 'firmware-misc-nonfree' <<< "$TX" || true)"
+if grep -qF 'firmware-intel-graphics' <<< "$TX_FW" && grep -qF 'firmware-amd-graphics' <<< "$TX_FW"; then
+	ok "TOUS les micrologiciels sont demandés — même sans version backports, même plus récents dans trixie"
+else
+	non "un micrologiciel a été trié avant apt : $TX_FW"
+fi
+grep -qF 'mesa' <<< "$TX_FW" && non "Mesa mêlé à la transaction des micrologiciels : $TX_FW" \
+	|| ok "Mesa n'est pas dans la transaction des micrologiciels (un refus côté Mesa ne les prive pas)"
+TX_MESA="$(grep -F 'libgl1-mesa-dri:amd64' <<< "$TX" || true)"
+MANQUE=""
+for b in $MESA_BIN; do grep -qF "$b:amd64" <<< "$TX_MESA" || MANQUE="$MANQUE $b"; done
+[ -z "$MANQUE" ] && ok "les quatre binaires Mesa partent dans UNE transaction" || non "absents de la transaction Mesa :$MANQUE"
+grep -qxF "[lexos]   remontés vers backports : 5 paquet(s)" <<< "$S" \
+	&& ok "« remontés : 5 » — ce qui a changé (4 Mesa + 1 micrologiciel), pas les 7 noms demandés" \
+	|| non "décompte faux :
+$S"
+grep -qxF "[lexos]     · firmware-amd-graphics : 20250808-1+deb13u1 -> 20250808-1+deb13u1" <<< "$S" \
+	&& non "un paquet inchangé est compté comme remonté" || ok "un paquet inchangé n'est pas compté"
+grep -qxF "[lexos]     · libgl1-mesa-dri:amd64 : $T -> $B" <<< "$S" \
+	&& ok "chaque paquet remonté a sa ligne « avant -> après »" || non "ligne par paquet absente :
+$S"
+grep -qxF "[lexos]   Mesa (amd64) : $T -> $B" <<< "$S" \
+	&& ok "« Mesa (amd64) : $T -> $B »" || non "ligne Mesa absente ou fausse :
+$S"
+grep -qF "[lexos]   Mesa (i386)" <<< "$S" \
+	&& non "une ligne Mesa (i386) alors qu'aucun Mesa i386 n'est installé" || ok "pas de ligne i386 inventée"
+grep -qE '^\[lexos\]   apt \(Mesa\) : [0-9]+ upgraded, ' <<< "$S" \
+	&& ok "le bilan d'apt est recopié dans le journal de construction AVANT d'effacer le sien" \
+	|| non "bilan d'apt absent :
+$S"
+[ ! -e "$JOURNAL" ] && ok "le journal temporaire est effacé" || non "journal temporaire laissé derrière"
+if [ -f "$EPINGLE" ] \
+	&& grep -qxF 'Package: src:mesa:any' "$EPINGLE" \
+	&& grep -qxF 'Pin: release n=trixie-backports' "$EPINGLE" \
+	&& grep -qxF 'Pin-Priority: 500' "$EPINGLE"; then
+	ok "épingle posée : src:mesa:any, n=trixie-backports, 500 — l'i386 des jeux s'installera"
+else
+	non "épingle Mesa absente ou fausse : $(cat "$EPINGLE" 2>/dev/null || echo absente)"
+fi
+CACHE="$(grep -E '^apt-cache' "$CTRL/appels" || true)"
+HORS_C="$(grep -vE '\|LC_ALL=C$' <<< "$CACHE" || true)"
+if grep -qE '^apt-cache policy -t trixie-backports ' <<< "$CACHE" && [ -z "$HORS_C" ]; then
+	ok "apt-cache policy -t lu sous LC_ALL=C (« Candidate: » non traduit)"
+else
+	non "apt-cache absent ou appelé hors LC_ALL=C : $CACHE"
+fi
+
+# =============================================================================
+titre "4. Mesa installé en amd64 ET en i386 -> une ligne par architecture, rien de collé"
+# =============================================================================
+reinit
+echo i386 > "$CTRL/foreign"
+installe_mesa amd64 "$T"; installe_mesa i386 "$T"
+candidat_mesa amd64 "$B"; candidat_mesa i386 "$B"
+S="$(lance)"
+grep -qxF "[lexos]   Mesa (amd64) : $T -> $B" <<< "$S" && grep -qxF "[lexos]   Mesa (i386) : $T -> $B" <<< "$S" \
+	&& ok "« Mesa (amd64) » et « Mesa (i386) », chacune avec SA version" \
+	|| non "lignes Mesa par architecture absentes :
+$S"
+grep -qF "$T$T" <<< "$S" && non "deux versions collées : $(grep -F "$T$T" <<< "$S")" || ok "aucune version collée (« $T$T »)"
+TX="$(transactions)"
+grep -qF 'libgl1-mesa-dri:i386' <<< "$TX" && grep -qF 'libgl1-mesa-dri:amd64' <<< "$TX" \
+	&& ok "amd64 et i386 demandés dans la même transaction" || non "une architecture manque : $TX"
+grep -qxF "[lexos]   remontés vers backports : 8 paquet(s)" <<< "$S" && ok "8 paquets remontés (4 × 2 architectures)" || non "décompte faux :
+$S"
+
+# =============================================================================
+titre "5. backports n'a Mesa QU'EN amd64 -> Mesa reste sur trixie, les micrologiciels montent"
+# =============================================================================
+for variante in "i386 absent (cas de l'ISO)" "i386 installé (Steam 32 bits)"; do
+	reinit
+	echo i386 > "$CTRL/foreign"
+	installe_mesa amd64 "$T"
+	case "$variante" in *installé*) installe_mesa i386 "$T" ;; esac
+	candidat_mesa amd64 "$B"; candidat_mesa i386 "$T"
+	installe firmware-misc-nonfree firmware-nonfree 20250410-2
+	candidat firmware-misc-nonfree 20250917-1~bpo13+1
+	S="$(lance)"
+	TX="$(transactions)"
+	grep -qF 'mesa' <<< "$TX" && non "[$variante] Mesa demandé quand même : $TX" \
+		|| ok "[$variante] Mesa n'est PAS demandé à apt"
+	grep -qF "Mesa reste sur trixie : backports n'a pas la même version en i386" <<< "$S" \
+		&& grep -qF "· libgl1-mesa-dri : $B en amd64, $T en i386" <<< "$S" \
+		&& ok "[$variante] le journal dit pourquoi, versions à l'appui" \
+		|| non "[$variante] raison absente :
+$S"
+	grep -qF 'firmware-misc-nonfree' <<< "$TX" && ok "[$variante] les micrologiciels montent quand même" \
+		|| non "[$variante] micrologiciels privés de leur transaction : $TX"
+	[ ! -e "$EPINGLE" ] && ok "[$variante] pas d'épingle Mesa (Mesa n'a pas monté)" || non "[$variante] épingle posée alors que Mesa n'a pas monté"
+	grep -qxF "[lexos]   Mesa (amd64) : $T -> $T" <<< "$S" && ok "[$variante] « Mesa (amd64) : $T -> $T »" || non "[$variante] ligne Mesa fausse :
+$S"
+done
+
+# =============================================================================
+titre "6. Un binaire Mesa qui n'existe pas en i386 n'est pas un écart"
+# =============================================================================
+reinit
+echo i386 > "$CTRL/foreign"
+installe_mesa amd64 "$T"
+installe mesa-opencl-icd:amd64 mesa "$T"
+candidat_mesa amd64 "$B"; candidat_mesa i386 "$B"
+candidat mesa-opencl-icd:amd64 "$B"
+S="$(lance)"
+grep -qF 'mesa-opencl-icd:amd64' <<< "$(transactions)" \
+	&& ok "Candidate: (none) en i386 -> Mesa monte quand même" \
+	|| non "un binaire sans pendant i386 a bloqué Mesa :
+$S"
+
+# =============================================================================
+titre "7. Sans i386 activé (ISO minimal) -> pas de vérification i386"
+# =============================================================================
+reinit
+installe_mesa amd64 "$T"
+candidat_mesa amd64 "$B"; candidat_mesa i386 "$T"
+S="$(lance)"
+grep -q '^apt-cache' "$CTRL/appels" && non "apt-cache interrogé sans i386 activé" || ok "apt-cache n'est pas interrogé"
+grep -qF 'libgl1-mesa-dri:amd64' <<< "$(transactions)" && ok "Mesa monte" || non "Mesa bloqué sans raison :
+$S"
+
+# =============================================================================
+titre "8. apt REFUSE la transaction Mesa -> le dit, garde trixie, sans épingle"
+# =============================================================================
+scene_reference
+echo "mesa-libgallium:amd64" > "$CTRL/refuse"
+S="$(lance)"
+[ "$(cat "$BANC/code")" = "0" ] && ok "code 0 : l'ISO se construit quand même" || non "code $(cat "$BANC/code")"
+grep -qF "Mesa : remontée refusée par apt — on garde les versions de trixie" <<< "$S" \
+	&& ok "le refus est annoncé, côté Mesa" || non "refus non annoncé :
+$S"
+grep -qF "E: Packages need to be removed but remove is disabled." <<< "$S" \
+	&& ok "et la ligne E: d'apt est recopiée" || non "ligne E: absente"
+grep -qxF "[lexos]     · firmware-misc-nonfree : 20250410-2 -> 20250917-1~bpo13+1" <<< "$S" \
+	&& ok "les micrologiciels ont monté malgré le refus côté Mesa" || non "micrologiciels non remontés :
+$S"
+grep -qF "rien de plus récent" <<< "$S" && non "« rien de plus récent » après un refus : faux" || ok "pas de « rien de plus récent » mensonger"
+[ ! -e "$EPINGLE" ] && ok "pas d'épingle : elle tirerait Mesa de backports contre celui de trixie" || non "épingle posée après un refus"
+[ ! -e "$JOURNAL" ] && ok "journal temporaire effacé" || non "journal temporaire laissé derrière"
+
+# =============================================================================
+titre "9. Rien de plus récent dans backports -> le dit, pas d'épingle"
+# =============================================================================
+reinit
+installe_mesa amd64 "$T"
+candidat_mesa amd64 "$T"
+installe firmware-misc-nonfree firmware-nonfree 20250410-2
+candidat firmware-misc-nonfree 20250410-2
+S="$(lance)"
+grep -qxF "[lexos]   rien de plus récent dans backports — on garde trixie" <<< "$S" \
+	&& ok "« rien de plus récent dans backports »" || non "message absent :
+$S"
+grep -qF "remontés vers backports" <<< "$S" && non "« remontés » annoncé alors que rien n'a changé" || ok "aucune remontée annoncée"
+[ ! -e "$EPINGLE" ] && ok "pas d'épingle" || non "épingle posée sans remontée"
+
+# =============================================================================
+titre "10. Un paquet DISPARAÎT malgré tout -> le journal le crie"
+# =============================================================================
+scene_reference
+echo "firmware-intel-graphics" > "$CTRL/retire"
+S="$(lance)"
+grep -qxF "[lexos]     · firmware-intel-graphics : 20250410-2 -> RETIRÉ" <<< "$S" \
+	&& grep -qF "!! un paquet a DISPARU pendant la remontée" <<< "$S" \
+	&& ok "la disparition est nommée, pas noyée dans un décompte" || non "disparition non signalée :
+$S"
+
+# =============================================================================
+titre "11. Aucun paquet Mesa ni micrologiciel -> rien à faire"
+# =============================================================================
+reinit
+installe thunar:amd64 thunar 4.20.0-1
+S="$(lance)"
+grep -qF "aucun paquet Mesa ou micrologiciel installé" <<< "$S" && ok "le hook le dit" || non "message absent :
+$S"
+[ -z "$(transactions)" ] && ok "aucune transaction" || non "transaction lancée : $(transactions)"
+
+# =============================================================================
+titre "12. Mutations : le banc a des dents"
+# =============================================================================
+#  Chaque garde retirée du hook DOIT faire rougir un contrôle ci-dessus.
+#  Sans ça, ces contrôles pourraient passer au vert par construction.
+mutant() { # mutant <nom> <expression sed> -> chemin du hook muté
+	local m="$BANC/mutant-$1.sh"
+	sed "$2" "$HOOK" > "$m"
+	if cmp -s "$m" "$HOOK"; then
+		non "mutation « $1 » : le sed n'a rien changé — le hook a bougé, ce contrôle est à revoir"
+	fi
+	echo "$m"
+}
+
+M="$(mutant sans-no-remove 's/ --no-remove / /')"
+scene_reference; lance "$M" > /dev/null
+SANS="$(grep -v -- ' --no-remove ' <<< "$(transactions)" || true)"
+[ -n "$SANS" ] \
+	&& ok "sans --no-remove, le contrôle de la scène 3 rougit" \
+	|| non "mutation sans --no-remove NON attrapée"
+
+M="$(mutant sans-garde-i386 's/ && dpkg --print-foreign-architectures/ \&\& false \&\& dpkg --print-foreign-architectures/')"
+reinit; echo i386 > "$CTRL/foreign"
+installe_mesa amd64 "$T"; candidat_mesa amd64 "$B"; candidat_mesa i386 "$T"
+lance "$M" > /dev/null
+grep -qF 'mesa' <<< "$(transactions)" \
+	&& ok "sans la garde i386, la scène 5 rougit (Mesa amd64 demandé seul)" \
+	|| non "mutation sans garde i386 NON attrapée"
+
+M="$(mutant sans-epingle 's/Package: src:mesa:any/Package: src:mesa/')"
+scene_reference; lance "$M" > /dev/null
+grep -qxF 'Package: src:mesa:any' "$EPINGLE" 2>/dev/null \
+	&& non "mutation « src:mesa » (sans :any) NON attrapée" \
+	|| ok "une épingle sans « :any » (qui ne vaut que pour l'amd64) rougit la scène 3"
+
+M="$(mutant format-colle 's/${Version}\\n/${Version}/')"
+scene_reference; lance "$M" > /dev/null
+grep -q 'FORMAT INATTENDU' "$CTRL/appels" \
+	&& ok "un format dpkg-query sans \\n (versions collées) est attrapé" \
+	|| non "mutation du format dpkg-query NON attrapée"
+
+printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
+[ "$ECHOUES" -eq 0 ]
