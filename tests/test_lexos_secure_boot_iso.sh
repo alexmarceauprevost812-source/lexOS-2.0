@@ -5,8 +5,12 @@
 #  CE QUE CE BANC ÉPROUVE, sur les fichiers LIVRÉS (pas des copies) :
 #  1. hook 0907 — sur le VRAI grub.cfg de l'ISO du 20 octobre (build 122),
 #     l'entrée par défaut démarre le noyau le plus récent, celui qui a le
-#     pilote ; chaque entrée dit ce qu'elle charge ; un fichier absent fait
-#     échouer la construction et remet le menu d'origine ;
+#     pilote ; chaque titre dit vrai, entrée par entrée ; chaque entrée dit
+#     ce qu'elle charge ; rejoué (reprise de lb build) ou coupé, le hook ne
+#     gâte pas le menu ; un fichier absent, une première entrée sur l'ancien
+#     noyau ou un titre qui ment font échouer la construction et remettent
+#     le menu ; la même garde, extraite de build-iso.yml, refuse l'ISO du
+#     20 octobre ;
 #  2. hook 0915 — MokManager entre dans une efi.img PLEINE (reconstruite plus
 #     grande, contenu intact) et dans l'arborescence ; deux certificats
 #     différents font échouer ;
@@ -57,6 +61,8 @@ DEPART="$(grep -m1 -E '^[[:space:]]*linux' "$BANC/s7/binary/boot/grub/grub.cfg")
 SORTIE="$(cd "$BANC/s7/binary" && sh "$HOOKS/0907-lexos-noyau-defaut.hook.binary" 2>&1)"; RC=$?
 CFG="$BANC/s7/binary/boot/grub/grub.cfg"
 [ "$RC" -eq 0 ] && ok "le hook passe sur le vrai menu" || non "le hook échoue sur le vrai menu : $(printf '%s' "$SORTIE" | tail -3 | tr '\n' ' ')"
+#  Le menu réécrit sert de référence aux scènes qui suivent.
+cp "$CFG" "$BANC/menu-reecrit.cfg"
 PREMIER="$(grep -m1 -E '^[[:space:]]*linux' "$CFG" | awk '{print $2}')"
 [ "$PREMIER" = "/live/vmlinuz-$K_RECENT" ] \
 	&& ok "l'entrée par défaut démarre $K_RECENT" \
@@ -83,6 +89,46 @@ VERIF="$(grep -A3 'Verify integrity' "$CFG")"
 	&& ok "la vérification du support vise aussi le noyau récent" \
 	|| non "la vérification du support vise encore l'ancien noyau"
 
+#  LA CARTE DU MENU, ENTRÉE PAR ENTRÉE : titre, noyau démarré, et si la ligne
+#  met nvidia en liste noire. Trouver UN bon titre ne dit rien des autres :
+#  le mode de secours pouvait s'annoncer « (pilote NVIDIA) » — même titre
+#  que l'entrée par défaut, pilote annoncé puis désactivé — sans qu'un seul
+#  contrôle bouge. On compare donc le menu ENTIER à ce qu'il doit être.
+carte_menu() {
+	awk '
+	/^[ \t]*menuentry[ \t]+"/ { t = $0; sub(/^[ \t]*menuentry[ \t]+"/, "", t); sub(/".*$/, "", t); dans = 1; next }
+	dans && /^[ \t]*}/ { dans = 0 }
+	dans && /^[ \t]*linux[ \t]+\/live\// {
+		k = $2; sub(/^\/live\/vmlinuz-/, "", k); l = $0 " "
+		print t " | " k " | " ((l ~ /module_blacklist=([^ ]*,)?nvidia[, ]/) ? "nvidia en liste noire" : "nvidia permis")
+	}' "$1"
+}
+CARTE_ATTENDUE="LexOS Live - noyau $K_RECENT (pilote NVIDIA) | $K_RECENT | nvidia permis
+LexOS Live - mode de secours (noyau $K_RECENT) | $K_RECENT | nvidia en liste noire
+Noyau $K_ANCIEN (sans pilote NVIDIA) | $K_ANCIEN | nvidia permis
+Noyau $K_ANCIEN - mode de secours | $K_ANCIEN | nvidia en liste noire
+Noyau $K_RECENT (pilote NVIDIA) | $K_RECENT | nvidia permis
+Noyau $K_RECENT - mode de secours | $K_RECENT | nvidia en liste noire
+Verify integrity of the boot medium | $K_RECENT | nvidia permis"
+CARTE="$(carte_menu "$CFG")"
+[ "$CARTE" = "$CARTE_ATTENDUE" ] \
+	&& ok "chaque titre dit ce que l'entrée démarre ; le mode de secours ne s'annonce pas « (pilote NVIDIA) »" \
+	|| non "carte du menu inattendue : $(diff <(printf '%s\n' "$CARTE_ATTENDUE") <(printf '%s\n' "$CARTE") | tr '\n' ' ')"
+RESTE="$(ls -A "$BANC/s7/binary/boot/grub")"
+[ "$RESTE" = "grub.cfg" ] \
+	&& ok "aucun fichier de travail ne reste dans /boot/grub (il partirait dans l'ISO)" \
+	|| non "/boot/grub contient : $(printf '%s' "$RESTE" | tr '\n' ' ')"
+
+#  REPRISE DE « lb build » après l'échec d'un hook binaire suivant : live-build
+#  saute binary_grub_cfg (étape déjà faite) mais rejoue les hooks binaires,
+#  et 0907 retrouve SON menu. Rejoué avec les vrais scripts de live-build,
+#  l'ancien hook le réécrivait une seconde fois : « Noyau 6.12… (sans pilote
+#  NVIDIA) » démarrait 7.2.9 et chaque « echo » était en double.
+SORTIE="$(cd "$BANC/s7/binary" && sh "$HOOKS/0907-lexos-noyau-defaut.hook.binary" 2>&1)"; RC=$?
+[ "$RC" -eq 0 ] && cmp -s "$BANC/menu-reecrit.cfg" "$CFG" \
+	&& ok "rejoué sur son propre menu (reprise de lb build), le hook le laisse identique, octet pour octet" \
+	|| non "un second passage change le menu (rc=$RC) : $(diff "$BANC/menu-reecrit.cfg" "$CFG" | head -6 | tr '\n' ' ')"
+
 scene_0907
 rm "$BANC/s7/binary/live/initrd.img-$K_ANCIEN"
 SORTIE="$(cd "$BANC/s7/binary" && sh "$HOOKS/0907-lexos-noyau-defaut.hook.binary" 2>&1)"; RC=$?
@@ -90,6 +136,76 @@ SORTIE="$(cd "$BANC/s7/binary" && sh "$HOOKS/0907-lexos-noyau-defaut.hook.binary
 cmp -s "$RACINE/tests/donnees/grub-iso-build122.cfg" "$CFG" \
 	&& ok "…et le menu d'origine est remis en place" \
 	|| non "le menu reste à moitié réécrit après l'échec"
+
+#  UNE RÉÉCRITURE COUPÉE (disque plein…) ne laisse pas un menu tronqué qui
+#  porte déjà le marqueur « echo » : le passage suivant le croirait fini et
+#  ne ferait que le vérifier. Un faux « awk » écrit le début du menu réécrit,
+#  puis échoue ; un passage normal suit, comme une reprise de lb build.
+scene_0907
+VRAI_AWK="$(command -v awk)"
+mkdir -p "$BANC/awk-coupe"
+cat > "$BANC/awk-coupe/awk" <<EOF
+#!/bin/sh
+case "\$2" in recent=*) "$VRAI_AWK" "\$@" | head -c 900; exit 1 ;; esac
+exec "$VRAI_AWK" "\$@"
+EOF
+chmod +x "$BANC/awk-coupe/awk"
+SORTIE="$(cd "$BANC/s7/binary" && PATH="$BANC/awk-coupe:$PATH" sh "$HOOKS/0907-lexos-noyau-defaut.hook.binary" 2>&1)"; RC=$?
+INTACT="ABÎMÉ"; cmp -s "$RACINE/tests/donnees/grub-iso-build122.cfg" "$CFG" && INTACT="intact"
+SORTIE="$(cd "$BANC/s7/binary" && sh "$HOOKS/0907-lexos-noyau-defaut.hook.binary" 2>&1)"; RC2=$?
+[ "$RC" -ne 0 ] && [ "$INTACT" = "intact" ] && [ "$RC2" -eq 0 ] && cmp -s "$BANC/menu-reecrit.cfg" "$CFG" \
+	&& ok "une réécriture coupée laisse le menu d'origine, et la reprise le réécrit en entier" \
+	|| non "réécriture coupée : rc=$RC, menu d'origine $INTACT, reprise rc=$RC2"
+
+#  LA GARDE « LA PREMIÈRE ENTRÉE DÉMARRE LE NOYAU LE PLUS RÉCENT » DOIT
+#  POUVOIR ROUGIR. Sur le vrai menu, la réécriture vise toujours la première
+#  entrée : la garde n'y est jamais éprouvée, et on pouvait la retirer sans
+#  qu'un contrôle bouge. Ici, la première entrée NOMME son noyau (« Live
+#  system, kernel 6.12… ») : la réécriture ne la touche pas, elle démarre
+#  l'ancien noyau, et la construction doit échouer.
+scene_0907
+sed -n '1,2p;12,27p' "$RACINE/tests/donnees/grub-iso-build122.cfg" > "$BANC/menu-sans-generique.cfg"
+cp "$BANC/menu-sans-generique.cfg" "$CFG"
+SORTIE="$(cd "$BANC/s7/binary" && sh "$HOOKS/0907-lexos-noyau-defaut.hook.binary" 2>&1)"; RC=$?
+[ "$RC" -ne 0 ] && [[ "$SORTIE" == *"la première entrée démarre /live/vmlinuz-$K_ANCIEN"* ]] \
+   && cmp -s "$BANC/menu-sans-generique.cfg" "$CFG" \
+	&& ok "une première entrée sur $K_ANCIEN fait ÉCHOUER la construction, menu remis en place" \
+	|| non "première entrée sur $K_ANCIEN acceptée (rc=$RC) : $(printf '%s' "$SORTIE" | tail -2 | tr '\n' ' ')"
+
+#  LA GARDE « CHAQUE TITRE DIT VRAI », sur le menu que l'ancien hook laissait
+#  après une reprise : déjà réécrit (le marqueur est là), mais « Noyau 6.12…
+#  (sans pilote NVIDIA) » démarre 7.2.9. Le hook ne le réécrit pas : il doit
+#  refuser de le laisser partir.
+scene_0907
+sed "/menuentry \"Noyau $K_ANCIEN (sans pilote NVIDIA)\"/,/^}/ s|vmlinuz-$K_ANCIEN|vmlinuz-$K_RECENT|" \
+	"$BANC/menu-reecrit.cfg" > "$BANC/menu-menteur.cfg"
+cp "$BANC/menu-menteur.cfg" "$CFG"
+SORTIE="$(cd "$BANC/s7/binary" && sh "$HOOKS/0907-lexos-noyau-defaut.hook.binary" 2>&1)"; RC=$?
+! cmp -s "$BANC/menu-reecrit.cfg" "$BANC/menu-menteur.cfg" && [ "$RC" -ne 0 ] \
+   && [[ "$SORTIE" == *"des titres ne disent pas vrai"*"Noyau $K_ANCIEN (sans pilote NVIDIA)"*"démarre $K_RECENT"* ]] \
+	&& ok "un menu déjà réécrit dont un titre ment fait ÉCHOUER la construction" \
+	|| non "titre menteur accepté (rc=$RC) : $(printf '%s' "$SORTIE" | tail -2 | tr '\n' ' ')"
+
+#  LA MÊME GARDE, CÔTÉ WORKFLOW : build-iso.yml relit le grub.cfg de l'ISO
+#  produite avant de la publier. On joue SES lignes — celles de l'étape
+#  « verif » qui nomment PREMIER ou RECENT, extraites, pas recopiées — sur le
+#  bon menu et sur celui du 20 octobre. Retirer la garde, ou la rendre
+#  incapable d'échouer, laisse passer le second : ce contrôle rougit.
+WF_ISO="$RACINE/.github/workflows/build-iso.yml"
+GARDE_WF="$(awk '/^[[:space:]]*id: verif[[:space:]]*$/ { dans = 1; next }
+	dans && /^[[:space:]]*- name:/ { exit }
+	dans && /PREMIER|RECENT/ { sub(/^[[:space:]]+/, ""); print }' "$WF_ISO")"
+garde_wf() { # garde_wf <grub.cfg> — code de sortie des lignes du workflow
+	rm -rf "$BANC/iso"; mkdir -p "$BANC/iso/boot/grub"
+	cp -r "$BANC/s7/binary/live" "$BANC/iso/"
+	cp "$1" "$BANC/iso/boot/grub/grub.cfg"
+	M="$BANC/iso" bash -e -c "$GARDE_WF" >/dev/null 2>&1
+}
+garde_wf "$BANC/menu-reecrit.cfg"; RC_BON=$?
+garde_wf "$RACINE/tests/donnees/grub-iso-build122.cfg"; RC_ANCIEN=$?
+[ -n "$GARDE_WF" ] && [ "$RC_BON" -eq 0 ] && [ "$RC_ANCIEN" -ne 0 ] \
+	&& ok "build-iso.yml accepte le menu réécrit et REFUSE celui du 20 octobre (6.12 par défaut)" \
+	|| non "contrôle de build-iso.yml : menu réécrit rc=$RC_BON, menu du 20 octobre rc=$RC_ANCIEN — lignes : $(printf '%s' "${GARDE_WF:-aucune}" | tr '\n' ';')"
 
 # ===========================================================================
 titre "2. MOKMANAGER DANS UNE efi.img PLEINE (hook 0915)"

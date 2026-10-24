@@ -19,9 +19,12 @@
 #       s'arrête un jour, l'écran dit à quelle étape — noyau ou initrd — au
 #       lieu d'un retour muet au menu ;
 #    4. VÉRIFICATION, et elle est fatale : tout fichier nommé par une ligne
-#       linux/initrd doit exister dans l'image, et la première entrée doit
-#       viser le noyau le plus récent. Un menu qui pointe dans le vide ne se
-#       découvre qu'une fois la clé gravée et démarrée.
+#       linux/initrd doit exister dans l'image, la première entrée doit
+#       viser le noyau le plus récent, et chaque titre doit dire vrai. Un
+#       menu qui pointe dans le vide ne se découvre qu'une fois la clé
+#       gravée et démarrée.
+#  Rejoué sur un menu qu'il a déjà réécrit (reprise de « lb build »), il ne
+#  le réécrit pas une seconde fois : il le vérifie seulement.
 #
 #  Le menu BIOS (isolinux) n'a pas ce défaut : il démarre /live/vmlinuz, que
 #  live-build copie depuis le noyau le plus récent.
@@ -78,12 +81,38 @@ fi
 
 cp "$CFG" "${CFG}.lexos-avant"
 
+# --- Déjà réécrit ? -------------------------------------------------------------
+#  CE HOOK PEUT PASSER DEUX FOIS SUR LE MÊME MENU. Quand « lb build » reprend
+#  après l'échec d'un hook binaire SUIVANT (0915 sans mtools sur une machine
+#  de construction, par exemple), live-build saute binary_grub_cfg — son
+#  étape est déjà marquée faite — mais rejoue TOUS les hooks binaires : le
+#  grub.cfg trouvé ici est alors celui qu'on a réécrit au passage d'avant.
+#  Le réécrire encore est FAUX, pas seulement inutile : nos titres
+#  « Noyau 6.12… » ne disent plus « kernel », l'awk les prendrait pour des
+#  entrées génériques et les enverrait sur le noyau récent. Rejoué avec les
+#  vrais scripts de live-build : « Noyau 6.12.113… (sans pilote NVIDIA) »
+#  démarrait 7.2.9, chaque « echo » était en double, et aucune des
+#  vérifications d'alors ne le voyait (d'où « chaque titre dit vrai », plus
+#  bas). Le marqueur est la ligne « echo » que seul ce hook écrit : s'il est
+#  là, on ne réécrit rien, on vérifie.
+DEJA=""
+if grep -q '^[[:space:]]*echo "LexOS : chargement du noyau ' "$CFG"; then
+	DEJA=1
+	echo "[lexos]   menu déjà réécrit par un passage précédent — vérifié, pas réécrit"
+fi
+
 # --- La réécriture ------------------------------------------------------------
 #  Une entrée est « générique » quand son titre ne nomme pas de noyau
 #  (« kernel 6.12… ») : c'est elle que live-build fige sur le premier noyau.
 #  Les titres sont reconnus par motif ; un titre inconnu garde son texte et
 #  reçoit quand même le bon noyau et les « echo ».
-awk -v recent="$RECENT" -v nvoui="$NV_OUI " '
+#
+#  Le résultat s'écrit À CÔTÉ, puis remplace le menu d'un seul « mv ». Écrit
+#  en place, une réécriture coupée (disque plein…) laisserait un menu tronqué
+#  qui porte DÉJÀ le marqueur : le passage suivant le croirait fini et ne
+#  ferait que le vérifier. Ainsi, le menu est soit l'original, soit entier.
+if [ -z "$DEJA" ]; then
+	awk -v recent="$RECENT" -v nvoui="$NV_OUI " '
 function pilote(v) { return index(nvoui, " " v " ") ? "pilote NVIDIA" : "sans pilote NVIDIA" }
 function titre_de(l,   t) { t = l; sub(/^[ \t]*menuentry[ \t]+"/, "", t); sub(/".*$/, "", t); return t }
 function retitre(l, neuf,   avant, apres) {
@@ -118,7 +147,9 @@ dans && /^[ \t]*initrd[ \t]+\/live\/initrd\.img-/ {
 	print; next
 }
 { print }
-' "${CFG}.lexos-avant" > "$CFG"
+' "${CFG}.lexos-avant" > "${CFG}.lexos-neuf"
+	mv "${CFG}.lexos-neuf" "$CFG"
+fi
 
 # --- La vérification, fatale ---------------------------------------------------
 echoue() {
@@ -143,6 +174,24 @@ done
 [ -z "$MANQUE" ] || echoue "le menu nomme des fichiers absents de l'image :${MANQUE}"
 
 grep -q 'lexos\.failsafe=1' "$CFG" || echoue "le marqueur du mode de secours a disparu"
+
+#  CHAQUE TITRE DIT VRAI. Une entrée qui nomme un noyau (« noyau 7.2.9… »,
+#  « Noyau 6.12… ») démarre CE noyau-là ; « (pilote NVIDIA) » exige un noyau
+#  qui a le module ET une ligne qui ne le met pas en liste noire — le mode de
+#  secours, lui, l'y met ; « (sans pilote NVIDIA) », un noyau qui ne l'a pas.
+#  Un titre qui ment est une valeur inventée, et il ne se verrait qu'au menu,
+#  clé gravée : un passage rejoué (voir « Déjà réécrit ? ») ou un titre de
+#  live-build qui change de forme et tombe dans le mauvais motif suffisent.
+MENSONGES="$(awk -v nvoui="$NV_OUI " '
+/^[ \t]*menuentry[ \t]+"/ { t = $0; sub(/^[ \t]*menuentry[ \t]+"/, "", t); sub(/".*$/, "", t); dans = 1; next }
+dans && /^[ \t]*}/ { dans = 0 }
+dans && /^[ \t]*linux[ \t]+\/live\/vmlinuz-/ {
+	k = $2; sub(/^\/live\/vmlinuz-/, "", k); a = index(nvoui, " " k " "); l = $0 " "
+	if (match(t, /[Nn]oyau [^ )]+/) && substr(t, RSTART + 6, RLENGTH - 6) != k) print "« " t " » démarre " k
+	if (index(t, "(pilote NVIDIA)") && (!a || l ~ /module_blacklist=([^ ]*,)?nvidia[, ]/)) print "« " t " » n\047a pas le pilote"
+	if (index(t, "(sans pilote NVIDIA)") && a) print "« " t " » a le pilote"
+}' "$CFG")"
+[ -z "$MENSONGES" ] || echoue "des titres ne disent pas vrai : $(printf '%s' "$MENSONGES" | tr '\n' ' ')"
 
 rm -f "${CFG}.lexos-avant"
 
