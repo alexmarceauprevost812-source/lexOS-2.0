@@ -13,6 +13,11 @@
 #  $XDG_RUNTIME_DIR (0600), et au deuxième clic exige que le serveur prouve
 #  qu'il connaît ce jeton avant d'ouvrir quoi que ce soit.
 #
+#  LE JETON N'EST JAMAIS UN ARGUMENT, ni d'ici ni du navigateur : /proc/<pid>/
+#  cmdline est lisible par tous les comptes. Le navigateur reçoit seulement le
+#  chemin d'une page d'ouverture privée (0600), qui porte un ticket à usage
+#  unique (voir serveur.py). Rien de secret ne passe donc par « "$@" ».
+#
 #  L'installation passe par « pkexec lexos-pilotes-maj » : la fenêtre de mot
 #  de passe est celle du système, l'appli elle-même ne tourne jamais en root.
 # =============================================================================

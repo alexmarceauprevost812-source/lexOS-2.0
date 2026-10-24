@@ -34,6 +34,10 @@ import paquets  # noqa: E402
 ENV_APT = dict(os.environ, DEBIAN_FRONTEND="noninteractive", LC_ALL="C.UTF-8")
 #  Le banc détourne cette racine vers un faux arbre de noyaux.
 RACINE_MODULES = Path(os.environ.get("LEXOS_PILOTES_MODULES", "/lib/modules"))
+#  dkms seul, HORS de toute transaction dpkg : le tuer ne laisse pas dpkg à
+#  moitié configuré, et l'avertissement dit de le relancer. Le banc le
+#  raccourcit pour éprouver ce chemin avec un vrai dépassement.
+DELAI_DKMS = 1800
 
 
 def journal(texte: str) -> None:
@@ -173,7 +177,7 @@ def verifier_module(avertissements: list) -> bool:
         return False
     try:
         r = subprocess.run(["dkms", "autoinstall", "-k", noyau], capture_output=True,
-                           text=True, timeout=1800, env=ENV_APT, check=False)
+                           text=True, timeout=DELAI_DKMS, env=ENV_APT, check=False)
         sortie_dkms = ((r.stdout or "") + (r.stderr or "")).strip()
         if sortie_dkms:
             journal(_extrait(sortie_dkms, 500, 2500))
@@ -188,9 +192,10 @@ def verifier_module(avertissements: list) -> bool:
             f"{noyau} ». " + secours)
         return False
     except subprocess.TimeoutExpired:
-        journal("!! dkms n'a pas fini en 30 minutes")
+        duree = f"{DELAI_DKMS // 60} minutes" if DELAI_DKMS >= 60 else f"{DELAI_DKMS} s"
+        journal(f"!! dkms n'a pas fini en {duree}")
         avertissements.append(
-            f"La recompilation du module NVIDIA pour le noyau {noyau} n'a pas fini en 30 minutes. "
+            f"La recompilation du module NVIDIA pour le noyau {noyau} n'a pas fini en {duree}. "
             f"NE redémarre PAS : lance « sudo dkms autoinstall -k {noyau} » dans un terminal et "
             "attends qu'il rende la main. " + secours)
         return False
@@ -214,11 +219,15 @@ def _reparer() -> None:
     SANS RIEN RETIRER. L'ancien repli « apt-get install -f -y » retirait,
     en root et sans question, tout paquet aux dépendances cassées."""
     journal("» Remise d'aplomb de dpkg (dpkg --configure -a, sans rien retirer)…")
-    code, sortie = _outil(["dpkg", "--configure", "-a", "--force-confold"], delai=1800)
+    #  Pas de délai ici non plus : « dpkg --configure -a » relance le postinst
+    #  DKMS de nvidia (une compilation), et le tuer au bout de 30 minutes
+    #  laissait dpkg à moitié configuré une DEUXIÈME fois — la panne même
+    #  qu'on répare.
+    code, sortie = _outil(["dpkg", "--configure", "-a", "--force-confold"], delai=None)
     if sortie.strip():
         journal(_extrait(sortie, 500, 2500))
     code, sortie = apt(["install", "-f", "-y", "-q", "--no-remove",
-                        "-o", "Dpkg::Options::=--force-confold"], delai=1800)
+                        "-o", "Dpkg::Options::=--force-confold"], delai=None)
     if sortie.strip():
         journal(_extrait(sortie, 500, 2500))
     if code != 0:

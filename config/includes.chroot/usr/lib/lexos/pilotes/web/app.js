@@ -14,10 +14,38 @@ const mesure = (v, raison) => (v === null || v === undefined || v === "" ? indis
 const versionPaquet = (v, raison, noms) => (v ? esc(v) : raison ? indisponible(raison)
   : `<span class="mal">aucun</span> <span class="doux">(${esc(noms)} : non installé)</span>`);
 
-// Le jeton de la session : posé par le serveur dans le FRAGMENT de l'adresse
-// (« #j=… »), qui ne part jamais sur le réseau. Toute l'API l'exige — c'est
-// ce qui empêche un autre programme de la machine de pousser les boutons.
-const JETON = new URLSearchParams((location.hash || "").replace(/^#/, "")).get("j") || "";
+// Le jeton de la session. Toute l'API l'exige : c'est ce qui empêche un
+// autre programme de la machine de pousser les boutons. Il n'est JAMAIS dans
+// l'adresse : passé à xdg-open, il finissait dans /proc/<pid>/cmdline, que
+// tous les comptes lisent. L'adresse ne porte qu'un TICKET À USAGE UNIQUE
+// (« #o=… »), écrit par le serveur dans une page d'ouverture privée (0600) ;
+// on l'échange ici contre le jeton, qu'on garde dans le sessionStorage de
+// CET onglet (un rechargement le retrouve, un autre site ne le lit pas).
+const CLE_JETON = "lexos-pilotes-jeton";
+let JETON = "";
+
+async function entrer() {
+  const ticket = new URLSearchParams((location.hash || "").replace(/^#/, "")).get("o");
+  if (ticket) {
+    // Retiré de la barre d'adresse AVANT l'échange : une adresse copiée pour
+    // la partager, ou l'historique, ne portent rien d'utilisable.
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (err) { /* rien */ }
+    try {
+      const r = await fetch("/api/entree", { method: "POST", cache: "no-store",
+        headers: { "X-LexOS": "1", "X-Ticket": ticket } });
+      if (r.status === 200) {
+        JETON = (await r.json()).jeton || "";
+        try { sessionStorage.setItem(CLE_JETON, JETON); } catch (err) { /* stockage refusé : seul F5 le perd */ }
+        if (JETON) return;
+      }
+    } catch (err) {
+      // Serveur muet : charger() le dira.
+    }
+  }
+  // Rechargement (F5), ou ticket déjà dépensé (bouton Précédent) : le jeton
+  // que CET onglet a reçu, s'il en a reçu un.
+  try { JETON = sessionStorage.getItem(CLE_JETON) || ""; } catch (err) { JETON = ""; }
+}
 
 function api(chemin, options = {}) {
   const entetes = { "X-Jeton": JETON };
@@ -280,4 +308,4 @@ $("btn-verifier").addEventListener("click", () => lancer("verifier"));
 $("btn-installer").addEventListener("click", () => lancer("installer"));
 $("btn-signature").addEventListener("click", ouvrirAssistant);
 boutons();
-reprendre().then(charger);
+entrer().then(reprendre).then(charger);
