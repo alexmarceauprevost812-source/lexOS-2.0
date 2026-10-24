@@ -208,7 +208,11 @@ protege_alternative() {
 #  ET IL PEUT Y EN AVOIR DEUX. LEXOS_KERNEL_CHANNEL=backports fait installer
 #  par le hook 0200 un « linux-image-amd64 » de backports PAR-DESSUS celui de
 #  la suite, sans retirer l'ancien : le chroot se retrouve avec deux arbres
-#  sous /lib/modules, et live-build met dans l'image le plus récent.
+#  sous /lib/modules. live-build met LES DEUX noyaux dans l'image ; c'est le
+#  plus récent qu'elle démarre par défaut — le menu BIOS d'office (son
+#  /live/vmlinuz est lié au plus récent), le menu UEFI grâce au hook 0907,
+#  qui doit donc faire le même choix que noyau_cible() : « sort -V », le
+#  dernier. L'autre reste au menu UEFI, annoncé « sans pilote NVIDIA ».
 #
 #  Le préfixe LEXOS_RACINE est VIDE en usage réel. Il n'existe que pour que le
 #  banc puisse présenter une fausse arborescence de noyaux — même patron que
