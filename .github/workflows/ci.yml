@@ -507,12 +507,21 @@ jobs:
           #  journal qui le disait. Reproduit avec le vrai apt 2.8.3 et le
           #  vrai dpkg 1.22.6 sur une racine neuve, comme la correction.
           #
+          #  SECOND TOUR. La garde i386 et l'épingle ne regardaient que
+          #  src:mesa : une bibliothèque « Multi-Arch: same » d'une autre
+          #  source (libdrm2), tirée vers backports par Mesa, rendait encore
+          #  « famille jeux » impossible (rc 100 avec le vrai apt). La garde
+          #  lit désormais la simulation (apt-get -s) de chaque transaction,
+          #  et l'épingle couvre chaque source qui a vraiment bougé.
+          #
           #  Le banc ne lance jamais apt pour de vrai : il rejoue le hook
-          #  LIVRÉ avec de faux apt-get, apt-cache, dpkg et dpkg-query, et
-          #  vérifie la question posée à apt (-t, --no-remove, toute la
-          #  liste), la garde i386 de Mesa, l'épingle « src:mesa:any », et un
-          #  journal qui dit ce qui a VRAIMENT changé. Ses mutations prouvent
-          #  qu'il rougit quand on retire l'une de ces gardes.
+          #  LIVRÉ avec de faux apt-get, apt-cache, dpkg et dpkg-query (qui
+          #  répondent comme le vrai apt, sortie vide comprise pour un nom
+          #  inconnu), et vérifie la question posée à apt (-t, --no-remove,
+          #  toute la liste, la même en simulation), la garde, l'épingle, et
+          #  un journal qui dit ce qui a VRAIMENT changé. Ses mutations
+          #  rejouent TOUT le banc sur un hook privé d'une défense à la fois,
+          #  et exigent qu'un contrôle nommé rougisse — d'où sa minute.
           bash tests/test_lexos_a_jour.sh
 
       - name: LexOS 2.0.2 — icônes poubelle et paramètres XFCE
