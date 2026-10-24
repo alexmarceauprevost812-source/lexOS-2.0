@@ -10,28 +10,57 @@
 #
 #  CE QUE CE HOOK FAIT : il prend les paquets DÉJÀ INSTALLÉS qui viennent de
 #  Mesa et des micrologiciels, et les remonte vers backports quand une
-#  version plus récente y existe. Il n'ajoute rien de neuf.
+#  version plus récente y existe. Il n'ajoute aucune application, mais la
+#  nouvelle version tire ses dépendances — et « -t » les prend à backports
+#  dès qu'il les a, même quand celle de trixie suffirait (mesuré). Ces
+#  bibliothèques d'autres sources (libdrm2 sur le banc à vrai apt) suivent
+#  donc les mêmes règles que Mesa : garde multi-architecture, journal,
+#  épingle. Il NE RETIRE RIEN : apt reçoit --no-remove (voir plus bas
+#  pourquoi c'est vital).
 #
 #  LE NOYAU N'EST PAS ICI : il vient du hook 0200 (LEXOS_KERNEL_CHANNEL), qui
 #  doit passer AVANT 0260-nvidia pour que DKMS compile pour le bon noyau.
 #
-#  POURQUOI APRÈS 0250 : les micrologiciels et Mesa 32 bits (i386, pour Steam)
+#  POURQUOI APRÈS 0250 : une partie des micrologiciels (00-core.list,
+#  96-a-jour.list) et de Mesa (mesa-va-drivers, mesa-vulkan-drivers)
 #  arrivent par les listes optionnelles. Avant 0250, on en raterait la moitié.
 #
-#  POURQUOI TOUT D'UN COUP : les paquets Mesa exigent tous la MÊME version
-#  entre eux, amd64 et i386 compris. Les remonter un par un échouerait sur
-#  les dépendances ; une seule transaction, et si elle échoue, on garde ceux
-#  de trixie — l'ISO se construit quand même.
+#  LE MESA 32 BITS N'EST PAS DANS L'ISO. Ce commentaire a longtemps dit qu'il
+#  arrivait « par les listes optionnelles, pour Steam » : faux. Ses seules
+#  lignes (:i386) sont dans 75-pro-gamer.list, qui n'est plus pré-installée
+#  (0250, demande d'Alex « pour faire de la place »). Il arrive APRÈS, sur la
+#  machine, par « lexos logitheque famille jeux ». D'où deux règles plus bas,
+#  qui valent pour TOUT ce que la transaction ferait monter, pas pour la
+#  seule source mesa : ne rien remonter si backports n'a pas la même version
+#  en i386, et laisser une épingle qui aligne les deux architectures.
+#
+#  DEUX TRANSACTIONS, ET MESA D'UN SEUL COUP. Les paquets Mesa exigent tous
+#  la MÊME version entre eux, amd64 et i386 compris : les remonter un par un
+#  échouerait sur les dépendances, donc Mesa part en une seule transaction.
+#  Les micrologiciels (Architecture: all) ne dépendent pas de Mesa : ils ont
+#  la leur, pour qu'un refus côté Mesa ne les prive pas de leur mise à jour.
+#  Si une transaction échoue, on garde ce que trixie a posé — l'ISO se
+#  construit quand même.
 # =============================================================================
 set -e
 
 echo "[lexos] hook 0257 : graphisme et micrologiciels depuis backports"
 
+#  CONF/APT_ETC/JOURNAL SONT SURCHARGEABLES — pas pour qu'on les change en
+#  production, mais pour que ce hook soit ÉPROUVABLE sur un banc (même raison
+#  que dans le hook 0250) : tests/test_lexos_a_jour.sh le fait tourner avec
+#  de faux apt-get, apt-cache, dpkg et dpkg-query. Les valeurs par défaut
+#  sont les vraies.
+CONF="${LEXOS_BUILD_CONF:-/etc/lexos/build.conf}"
+APT_ETC="${LEXOS_APT_ETC:-/etc/apt}"
+JOURNAL="${LEXOS_A_JOUR_JOURNAL:-/tmp/lexos-a-jour.log}"
+EPINGLE="$APT_ETC/preferences.d/lexos-a-jour-backports.pref"
+
 LEXOS_KERNEL_CHANNEL="stock"
 LEXOS_DEBIAN_SUITE="trixie"
-if [ -r /etc/lexos/build.conf ]; then
-	# shellcheck disable=SC1091
-	. /etc/lexos/build.conf
+if [ -r "$CONF" ]; then
+	# shellcheck disable=SC1090,SC1091
+	. "$CONF"
 fi
 
 if [ "${LEXOS_KERNEL_CHANNEL}" != "backports" ]; then
@@ -40,59 +69,317 @@ if [ "${LEXOS_KERNEL_CHANNEL}" != "backports" ]; then
 fi
 
 SUITE="${LEXOS_DEBIAN_SUITE:-trixie}"
+BPO="${SUITE}-backports"
 export DEBIAN_FRONTEND=noninteractive
 
-if ! grep -rqs "${SUITE}-backports" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
-	echo "[lexos]   !! ${SUITE}-backports n'est pas ouvert — on garde trixie"
+if ! grep -rqs "$BPO" "$APT_ETC/sources.list" "$APT_ETC/sources.list.d/" 2>/dev/null; then
+	echo "[lexos]   !! ${BPO} n'est pas ouvert — on garde trixie"
 	exit 0
 fi
 
 apt-get update -qq || { echo "[lexos]   !! index apt indisponible — on garde trixie"; exit 0; }
 
-#  Paquets installés dont le paquet SOURCE est mesa ou un micrologiciel.
-#  ${binary:Package} garde le suffixe « :i386 » quand il y en a un.
-CIBLES="$(dpkg-query -W -f='${binary:Package} ${source:Package} ${db:Status-Abbrev}\n' 2>/dev/null \
-	| awk '$3 ~ /^ii/ && ($2 == "mesa" || $2 == "firmware-nonfree" || $2 == "firmware-free" || $2 == "firmware-sof") { print $1 }' \
-	| tr '\n' ' ')"
+#  « paquet:arch source version » de TOUS les paquets installés. Les cibles
+#  (source mesa ou micrologiciel) en sont tirées plus bas ; l'état complet,
+#  lui, sert à voir ce qui a VRAIMENT bougé, dépendances comprises — une
+#  bibliothèque d'une autre source montée avec Mesa passait sous silence
+#  (apt disait « 5 upgraded », le journal « 4 »). ${binary:Package} garde
+#  le suffixe « :i386 » ; le \n en fin de format donne UNE ligne par
+#  architecture — sans lui, un paquet installé en amd64 ET en i386 rendait
+#  ses deux versions collées (« 25.0.7-225.0.7-2 », même piège que dans 0260).
+etat_installe() {
+	dpkg-query -W -f='${db:Status-Abbrev} ${binary:Package} ${source:Package} ${Version}\n' 2>/dev/null \
+		| awk '$1 ~ /^ii/ { print $2, $3, $4 }' \
+		| sort
+}
 
-if [ -z "$CIBLES" ]; then
+#  La version qu'apt prendrait pour CE paquet:arch avec « -t backports ».
+#  LC_ALL=C : on lit la ligne « Candidate: », qu'une locale traduirait.
+#  Pour un nom qu'apt ne connaît pas dans cette architecture, le vrai apt
+#  ne répond RIEN (pas « Candidate: (none) ») : la fonction rend alors une
+#  chaîne vide. « (none) » ne sort que pour un nom connu sans candidat.
+candidat() {
+	LC_ALL=C apt-cache policy -t "$BPO" "$1" 2>/dev/null \
+		| awk '$1 == "Candidate:" { print $2; exit }'
+}
+
+#  La valeur « Multi-Arch » de la version <v> de <paquet:arch> : « same »,
+#  « foreign », « allowed », « no » si le champ manque ; RIEN si apt ne
+#  connaît pas cette version.
+multiarch() {
+	LC_ALL=C apt-cache show --no-all-versions "$1=$2" 2>/dev/null \
+		| awk -F': ' '$1 == "Package" { vu = 1 } $1 == "Multi-Arch" { m = $2 }
+		              END { if (vu) print (m == "" ? "no" : m) }'
+}
+
+#  simule <paquet…> : « paquet:arch » de chaque paquet que la transaction
+#  installerait ou monterait — Mesa ET ce qu'il tire —, lu dans les lignes
+#  « Inst » d'apt -s, avec EXACTEMENT les options de la vraie transaction.
+#  Forme mesurée (apt 2.8.3, LC_ALL=C) :
+#    Inst libdrm2 [2.4.124-2] (2.4.125-1~bpo13+1 Debian:stable-backports [amd64])
+#  -> « libdrm2:amd64 ». Un nom d'architecture étrangère arrive déjà
+#  qualifié (« libgl1-mesa-dri:i386 ») et le reste. La partie entre
+#  parenthèses peut contenir des espaces (« Debian Backports:… ») et être
+#  suivie d'un « [] », y compris sur une dépendance que la garde ne
+#  connaît QUE par ici (mesuré : « Inst libdrm-amdgpu1 […] (… [amd64]) [] »,
+#  et rien après « [amd64]) » pour libdrm2) : on ne lit que le nom et le
+#  « [arch]) », quoi qu'il y ait derrière.
+simule() {
+	LC_ALL=C apt-get -s install -y --no-install-recommends --no-remove -t "$BPO" "$@" 2>/dev/null \
+		| sed -n 's/^Inst \([^ ]*\) .*\[\([a-z0-9-]*\)\]).*$/\1 \2/p' \
+		| awk '{ n = $1; if (index(n, ":") == 0) n = n ":" $2; print n }'
+}
+
+#  « -t ${BPO} », SUR TOUTE LA LISTE DE LA TRANSACTION, AVEC --no-remove.
+#  Trois choix, chacun mesuré avec le vrai apt (2.8.3) et le vrai
+#  backports.pref.chroot (trixie livre apt 3.0 : pas mesuré ici) :
+#
+#    · -t SUFFIT. Ce hook (et 0200) a longtemps affirmé le contraire : que
+#      le « Package: * / Pin-Priority: 100 » de backports.pref.chroot
+#      l'emporterait sur -t et qu'apt garderait trixie. C'est faux : la
+#      release par défaut (-t) est posée AVANT les épinglages généraux et
+#      garde la main — « apt-cache policy -t trixie-backports » donne 990 à
+#      backports. Seul un épinglage NOMINATIF (libggml* à 600) la prime.
+#    · -t NE RÉTROGRADE JAMAIS. L'ancienne forme « paquet/trixie-backports »
+#      exigeait la version de backports même quand une mise à jour de trixie
+#      l'avait dépassée : apt refusait la rétrogradation, et toute la
+#      remontée tombait pour un seul micrologiciel. Avec -t, ce paquet reste
+#      où il est, et un nom SANS version backports reste simplement à la
+#      sienne — plus besoin du tri par « apt-cache madison », qui triait
+#      architecture par architecture et ne demandait que l'amd64 quand
+#      l'i386 manquait.
+#    · --no-remove : sans lui, apt -y RETIRAIT ce qui le gênait (un binaire
+#      Mesa sans version backports, le Mesa i386, Steam 32 bits…), rendait
+#      0, et le journal qui le disait était effacé. Avec lui, une
+#      transaction qui veut retirer quoi que ce soit échoue, et on retombe
+#      sur trixie. Même règle que dans 0260.
+#
+#  remonte <libellé> <paquet…> : 0 si apt a accepté la transaction.
+REFUS=""
+remonte() {
+	LIBELLE="$1"
+	shift
+	if LC_ALL=C apt-get install -y --no-install-recommends --no-remove -t "$BPO" "$@" \
+		>"$JOURNAL" 2>&1; then
+		#  La ligne-bilan d'apt, gardée dans le journal de construction
+		#  AVANT qu'on efface le fichier : « N upgraded, N newly installed,
+		#  0 to remove… ».
+		grep -E '^[0-9]+ upgraded, ' "$JOURNAL" | sed "s/^/[lexos]   apt (${LIBELLE}) : /" || true
+		return 0
+	fi
+	REFUS="$REFUS $LIBELLE"
+	echo "[lexos]   !! ${LIBELLE} : remontée refusée par apt — on garde les versions de trixie"
+	tail -15 "$JOURNAL" | sed 's/^/[lexos]      /'
+	#  apt n'a rien changé si la transaction a échoué ; on vérifie quand
+	#  même qu'il ne reste rien de cassé avant de passer la main.
+	apt-get install -f -y >/dev/null 2>&1 || true
+	return 1
+}
+
+#  LA GARDE MULTI-ARCHITECTURE, AVANT CHAQUE TRANSACTION.
+#  Un paquet « Multi-Arch: same » (Mesa, mais aussi libdrm2, libvulkan1…)
+#  doit avoir la MÊME version dans chaque architecture installée : dpkg
+#  l'exige. Si backports publie l'amd64 avant l'i386 (les machines de
+#  construction d'une architecture ont souvent du retard), monter l'amd64
+#  seul a deux issues, mesurées toutes les deux avec le vrai apt :
+#    · la version i386 déjà là -> apt la RETIRE, et Steam 32 bits avec elle
+#      (avec --no-remove : la transaction est refusée) ;
+#    · la version i386 absente (cas de l'ISO) -> « lexos logitheque famille
+#      jeux » ne peut plus jamais l'installer : « Depends: libdrm2:i386
+#      (>= 2.4.125) but it is not going to be installed ».
+#  Le premier correctif ne regardait que les binaires de src:mesa. Or Mesa
+#  de backports tire ses bibliothèques depuis backports (-t), et une seule
+#  d'entre elles en retard en i386 suffit (mesuré avec libdrm2). La garde
+#  demande donc à apt, en simulation, TOUT ce que la transaction ferait
+#  monter, et vérifie chaque paquet « Multi-Arch: same » de la liste.
+#  Sans architecture étrangère (ISO minimal), la question ne se pose pas.
+NATIVE="$(dpkg --print-architecture 2>/dev/null || true)"
+ETRANGERES="$(dpkg --print-foreign-architectures 2>/dev/null | tr '\n' ' ')"
+
+#  garde_multiarch <libellé> <paquet…> : 0 si la transaction peut partir,
+#  1 si elle désalignerait un paquet — raison écrite, versions à l'appui.
+garde_multiarch() {
+	LIBELLE="$1"
+	shift
+	[ -n "$ETRANGERES" ] || return 0
+	ECARTS=""
+	VUS=" "
+	#  Les noms demandés ET les lignes « Inst » de la simulation : si apt
+	#  refuse même de simuler (Mesa i386 installé qu'il faudrait retirer),
+	#  les noms demandés suffisent à dire pourquoi.
+	for P in $( { printf '%s\n' "$@"; simule "$@"; } | sort -u); do
+		#  « :all » (simulation) ou sans suffixe (nom demandé) : un paquet
+		#  « Architecture: all », ou natif sans « Multi-Arch: same » — dpkg
+		#  ne qualifie que ceux-là. Rien à aligner.
+		case "$P" in
+			*:all) continue ;;
+			*:*) ;;
+			*) continue ;;
+		esac
+		BASE="${P%:*}"
+		case "$VUS" in *" $BASE "*) continue ;; esac   # une fois par nom, pas par architecture
+		VUS="$VUS$BASE "
+		V="$(candidat "$P")"
+		{ [ -n "$V" ] && [ "$V" != "(none)" ]; } || continue
+		#  Seul « Multi-Arch: same » impose la même version partout. Si
+		#  apt ne sait pas répondre (rien), on vérifie quand même : dans le
+		#  doute, retenir vaut mieux que désaligner.
+		case "$(multiarch "$P" "$V")" in
+			same|"") ;;
+			*) continue ;;
+		esac
+		DETAIL="$V en ${P##*:}"
+		ECART=""
+		for A in $NATIVE $ETRANGERES; do
+			[ "$A" != "${P##*:}" ] || continue
+			C="$(candidat "$BASE:$A")"
+			#  Vide : ce nom n'existe pas dans cette architecture. « (none) » :
+			#  apt le connaît sans pouvoir l'installer. Rien à aligner.
+			{ [ -n "$C" ] && [ "$C" != "(none)" ]; } || continue
+			DETAIL="$DETAIL, $C en $A"
+			[ "$C" = "$V" ] || ECART=1
+		done
+		if [ -n "$ECART" ]; then
+			ECARTS="${ECARTS}[lexos]      · ${BASE} : ${DETAIL}
+"
+		fi
+	done
+	[ -n "$ECARTS" ] || return 0
+	echo "[lexos]   !! ${LIBELLE} reste sur ${SUITE} : backports n'a pas la même version pour chaque architecture"
+	printf '%s' "$ECARTS"
+	echo "[lexos]      (le monter quand même retirerait la version 32 bits ou l'empêcherait de s'installer)"
+	return 1
+}
+
+AVANT="$(etat_installe)"
+MESA="$(printf '%s\n' "$AVANT" | awk 'NF && $2 == "mesa" { print $1 }' | tr '\n' ' ')"
+MICROLOGICIELS="$(printf '%s\n' "$AVANT" | awk 'NF && ($2 == "firmware-nonfree" || $2 == "firmware-free" || $2 == "firmware-sof") { print $1 }' | tr '\n' ' ')"
+
+if [ -z "$MESA" ] && [ -z "$MICROLOGICIELS" ]; then
 	echo "[lexos]   aucun paquet Mesa ou micrologiciel installé — rien à faire"
 	exit 0
 fi
 
-#  ON NE GARDE QUE CEUX QUI ONT VRAIMENT UNE VERSION DANS BACKPORTS, et on la
-#  demande par « paquet/trixie-backports ». « -t trixie-backports » ne suffit
-#  pas : backports.pref.chroot pose un Pin-Priority 100 explicite sur toute
-#  l'archive, et un pin explicite l'emporte sur -t — apt garderait trixie.
-#  La forme paquet/suite, elle, choisit la version de cette suite, point.
-#  Et un seul nom sans version backports ferait échouer toute la transaction.
-DEMANDE=""
-for P in $CIBLES; do
-	if apt-cache madison "$P" 2>/dev/null | grep -q "${SUITE}-backports"; then
-		DEMANDE="$DEMANDE $P/${SUITE}-backports"
+#  Chaque transaction passe la garde JUSTE AVANT de partir : la simulation
+#  voit ainsi l'état que la vraie trouvera (micrologiciels déjà montés).
+#  « || true » sur chaque remontée : sous set -e, un refus d'apt — un .deb
+#  que le miroir n'a pas encore (« E: Unable to fetch some archives »,
+#  mesuré) — arrêterait sinon la construction de l'ISO.
+RETENU=""
+# shellcheck disable=SC2086
+if [ -n "$MICROLOGICIELS" ]; then
+	if garde_multiarch "micrologiciels" $MICROLOGICIELS; then
+		remonte "micrologiciels" $MICROLOGICIELS || true
+	else
+		RETENU="$RETENU micrologiciels"
 	fi
+fi
+# shellcheck disable=SC2086
+if [ -n "$MESA" ]; then
+	if garde_multiarch "Mesa" $MESA; then
+		remonte "Mesa" $MESA || true
+	else
+		RETENU="$RETENU Mesa"
+	fi
+fi
+
+APRES="$(etat_installe)"
+
+#  Ce qui a VRAIMENT changé — pas le nombre de noms demandés : « nom
+#  source avant après », un paquet:arch par ligne, sur l'état COMPLET. Un
+#  paquet neuf (dépendance tirée) a « absent » pour version d'avant.
+#  ON COMPARE LE NOM SANS « :<arch native> ». dpkg ne qualifie un nom
+#  natif que s'il est « Multi-Arch: same » : une dépendance qui le devient
+#  dans backports s'appelait « libfoo1 » avant, « libfoo1:amd64 » après.
+#  Comparée telle quelle, elle sortait en « RETIRÉ » ET « absent -> V »,
+#  avec un faux « a DISPARU » et un paquet de trop au décompte (mesuré,
+#  vrai apt 2.8.3 : « 5 upgraded », le journal disait 6). On affiche le nom
+#  d'APRÈS.
+#  LA SOURCE ÉCRITE EST CELLE D'APRÈS — celle de la version maintenant
+#  installée, que l'épingle doit nommer. Une dépendance dont backports a
+#  renommé la source (libdrm -> libdrm-nouvelle sur le banc à vrai apt)
+#  gardait sinon « src:libdrm:any », qui ne couvre pas son pendant i386 de
+#  backports : « famille jeux » échouait de nouveau (mesuré).
+CHANGES="$( { printf '%s\n' "$AVANT" | sed 's/^/A /'; printf '%s\n' "$APRES" | sed 's/^/B /'; } \
+	| awk -v nat=":$NATIVE" '
+	       function cle(n) {
+	               if (nat != ":" && substr(n, length(n) - length(nat) + 1) == nat)
+	                       return substr(n, 1, length(n) - length(nat))
+	               return n
+	       }
+	       NF == 4 && $1 == "A" { k = cle($2); v[k] = $4; s[k] = $3; na[k] = $2 }
+	       NF == 4 && $1 == "B" { k = cle($2); w[k] = $4; t[k] = $3; nb[k] = $2 }
+	       END { for (k in v) {
+	               if (!(k in w))         print na[k], s[k], v[k], "RETIRÉ"
+	               else if (v[k] != w[k]) print nb[k], t[k], v[k], w[k]
+	             }
+	             for (k in w) if (!(k in v)) print nb[k], t[k], "absent", w[k] }' \
+	| sort)"
+NB="$(printf '%s\n' "$CHANGES" | awk 'NF { n++ } END { print n + 0 }')"
+
+if [ "$NB" -gt 0 ]; then
+	echo "[lexos]   changés par la remontée : ${NB} paquet(s), dépendances comprises"
+	printf '%s\n' "$CHANGES" | awk 'NF { printf "[lexos]     · %s : %s -> %s\n", $1, $3, $4 }'
+elif [ -n "$REFUS" ] || [ -n "$RETENU" ]; then
+	#  Rien n'a bougé, mais PAS faute de mieux dans backports : une
+	#  transaction a été refusée par apt ou retenue par la garde (dit plus
+	#  haut). « rien de plus récent » mentirait.
+	POURQUOI=""
+	[ -z "$REFUS" ] || POURQUOI="refusé par apt :${REFUS}"
+	[ -z "$RETENU" ] || POURQUOI="${POURQUOI:+$POURQUOI ; }retenu par la garde :${RETENU}"
+	echo "[lexos]   rien n'a changé — ${POURQUOI} (voir plus haut)"
+else
+	echo "[lexos]   rien de plus récent dans backports — on garde trixie"
+fi
+if printf '%s\n' "$CHANGES" | grep -q 'RETIRÉ$'; then
+	echo "[lexos]   !! un paquet a DISPARU pendant la remontée (voir « RETIRÉ » ci-dessus)"
+fi
+
+#  Mesa par architecture : la ligne qui prouve la remontée, lisible.
+for A in $(printf '%s\n%s\n' "$AVANT" "$APRES" | awk '$1 ~ /^libgl1-mesa-dri:/ { sub(/^[^:]*:/, "", $1); print $1 }' | sort -u); do
+	V_AV="$(printf '%s\n' "$AVANT" | awk -v p="libgl1-mesa-dri:$A" '$1 == p { print $3 }')"
+	V_AP="$(printf '%s\n' "$APRES" | awk -v p="libgl1-mesa-dri:$A" '$1 == p { print $3 }')"
+	echo "[lexos]   Mesa (${A}) : ${V_AV:-absent} -> ${V_AP:-absent}"
 done
 
-if [ -z "$DEMANDE" ]; then
-	echo "[lexos]   rien de plus récent dans backports — on garde trixie"
-	exit 0
+#  L'ÉPINGLE QUI GARDE CHAQUE SOURCE D'UN SEUL TENANT, après coup. Ce qui a
+#  monté est désormais en ~bpo ; sans épingle, backports reste à 100, et
+#  tout binaire de la même source installé PLUS TARD — le Mesa 32 bits de
+#  « famille jeux », son libdrm2:i386, un mesa-opencl-icd — prendrait la
+#  version de trixie (500), incompatible avec celle qui est installée :
+#  refus, mesuré. À 500, backports fait jeu égal avec trixie pour CES
+#  sources seules, et la version la plus haute gagne.
+#  UNE STROPHE PAR SOURCE QUI A VRAIMENT BOUGÉ (Mesa, ses dépendances,
+#  les micrologiciels), lue dans le diff ci-dessus — pas seulement mesa :
+#  avec la seule « src:mesa:any », « famille jeux » échouait encore sur
+#  libdrm2:i386 (mesuré). Une dépendance neuve prise à trixie faute de
+#  backports y figure aussi : sans version backports, l'épingle n'y change
+#  rien. Une source qui n'a pas bougé n'y est pas : après un refus, elle
+#  tirerait au contraire la version de backports contre celle de trixie.
+#  C'est la source D'APRÈS (voir le diff) : une source renommée dans
+#  backports est épinglée sous son nouveau nom.
+#  « src:<source>:any » et pas « src:<source> » : sans « :any », l'épingle
+#  ne vaut que pour l'architecture native (mesuré : l'i386 restait sur
+#  trixie).
+SOURCES="$(printf '%s\n' "$CHANGES" | awk 'NF == 4 && $4 != "RETIRÉ" { print $2 }' | sort -u)"
+if [ -n "$SOURCES" ]; then
+	mkdir -p "$APT_ETC/preferences.d"
+	{
+		echo "# LexOS (hook 0257) — les sources que la remontée vers ${BPO} a fait"
+		echo "# bouger (Mesa, ses dépendances, les micrologiciels), pour TOUTES les"
+		echo "# architectures. Leurs binaires exigent souvent la même version entre"
+		echo "# eux, amd64 et i386 compris : sans cette épingle, un binaire installé"
+		echo "# plus tard (le 32 bits des jeux, par exemple) prendrait la version de"
+		echo "# ${SUITE} et apt refuserait."
+		for S in $SOURCES; do
+			echo ""
+			echo "Package: src:${S}:any"
+			echo "Pin: release n=${BPO}"
+			echo "Pin-Priority: 500"
+		done
+	} > "$EPINGLE"
+	echo "[lexos]   épinglé sur ${BPO} pour toutes les architectures ($(basename "$EPINGLE")) : $(printf '%s\n' "$SOURCES" | tr '\n' ' ' | sed 's/ $//')"
 fi
 
-AVANT="$(dpkg-query -W -f='${Version}' libgl1-mesa-dri 2>/dev/null || echo absent)"
-
-# shellcheck disable=SC2086
-if apt-get install -y --no-install-recommends $DEMANDE \
-	>/tmp/lexos-a-jour.log 2>&1; then
-	APRES="$(dpkg-query -W -f='${Version}' libgl1-mesa-dri 2>/dev/null || echo absent)"
-	echo "[lexos]   remontés vers backports : $(echo "$DEMANDE" | wc -w) paquet(s)"
-	echo "[lexos]   Mesa : ${AVANT} -> ${APRES}"
-else
-	echo "[lexos]   !! remontée refusée par apt — on garde les versions de trixie"
-	tail -15 /tmp/lexos-a-jour.log | sed 's/^/[lexos]      /'
-	#  apt n'a rien changé si la transaction a échoué ; on vérifie quand
-	#  même qu'il ne reste rien de cassé avant de passer la main.
-	apt-get install -f -y >/dev/null 2>&1 || true
-fi
-
-rm -f /tmp/lexos-a-jour.log
+rm -f "$JOURNAL"
 exit 0

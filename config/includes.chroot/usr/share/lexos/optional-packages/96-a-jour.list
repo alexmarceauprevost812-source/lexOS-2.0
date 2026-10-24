@@ -2,7 +2,9 @@
 #  96-a-jour — ce qu'Ubuntu 26.10 apporte et que LexOS n'avait pas encore
 # =============================================================================
 #  Ajouté le 2026-10-19, à la sortie d'Ubuntu 26.10 « Stonking Stingray ».
-#  Relevé contre TOUTES les listes du dépôt : chacun de ces noms manquait.
+#  Relevé contre les listes du dépôt : chacun de ces noms manquait, SAUF
+#  golang-go — il est déjà dans 50-dev.list, une famille sortie de l'ISO.
+#  Sa section, en bas, dit ce que ça change et ce qui reste à trancher.
 #
 #  ⚠ PAS ENCORE RECOUPÉ AVEC L'INDEX DE TRIXIE (l'index n'était pas joignable
 #  depuis la machine de développement). Ce n'est pas grave par construction :
@@ -43,5 +45,16 @@ firmware-intel-graphics
 firmware-linux
 
 # --- Développement ------------------------------------------------------------
-#  Go manquait à côté de Rust, Node et Python.
+#  ⚠ À TRANCHER PAR ALEX. Cette ligne est arrivée le 2026-10-19 avec pour
+#  raison « Go manquait à côté de Rust, Node et Python ». La prémisse était
+#  fausse : golang-go est déjà dans 50-dev.list, avec rustc et cargo, et
+#  cette famille est sortie de l'ISO à la demande d'Alex (« pour faire de la
+#  place », voir le hook 0250). Rust n'est donc PAS dans l'ISO, et cette
+#  ligne-ci y RAMÈNE Go, seul de sa famille.
+#  Le message du commit nomme bien golang-go : l'ajout était voulu, mais sur
+#  la foi de cette prémisse. La ligne reste en attendant la réponse :
+#    · Go reste hors de l'ISO -> supprimer la ligne ; il s'installe toujours
+#      d'une commande, « lexos logitheque famille dev » ;
+#    · Go doit être pré-installé -> l'écrire ici comme un rapatriement
+#      voulu, avec sa raison, à la manière de 85-outils-lexos.list.
 golang-go
