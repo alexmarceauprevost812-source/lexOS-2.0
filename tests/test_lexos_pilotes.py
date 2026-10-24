@@ -6,27 +6,83 @@ Ce qu'on éprouve, sans apt ni carte graphique réelle :
   · la lecture d'« apt-cache policy », y compris le dépôt NVIDIA « plat » ;
   · le plan : un paquet installé depuis backports est redemandé à backports
     (sinon apt le laisserait figé), l'épingle NVIDIA n'est jamais contournée ;
-  · la détection des cartes par lspci ;
-  · le serveur refuse les appels qui ne viennent pas de la boucle locale ;
-  · l'aide root refuse de tourner sans root et sans action connue.
+  · « on ne sait pas » n'est jamais « à jour » (pas d'index, apt-cache en
+    échec), et chaque mesure absente a sa raison ;
+  · L'AIDE ROOT POUR DE VRAI : maj.installer() tourne, avec de faux apt-get,
+    apt-cache, dpkg, dpkg-query et dkms qui jouent une machine. On lit
+    l'argv exact d'apt, ce qu'elle refuse (un retrait), ce qu'elle dit
+    quand dpkg s'arrête en route, et la vérification de nvidia.ko ;
+  · LE SERVEUR POUR DE VRAI : serveur._lancer() lance un faux pkexec, dont
+    on lit l'argv ; l'API refuse ce qui n'a pas le jeton de la session, et
+    ACCEPTE la page légitime ;
+  · le lanceur ne rouvre que NOTRE serveur, jamais un squatteur du port ;
+  · la règle polkit : « installer » redemande le mot de passe à chaque fois ;
+  · la page (app.js sous node) : « Indisponible » + raison, boutons
+    désactivés avec leur raison, reprise d'une tâche déjà en cours.
+
+JAMAIS LE VRAI PKEXEC. Le banc remplace le PATH par un dossier de faux
+outils (plus un « sort » réel) et REFUSE DE TOURNER si « pkexec », « apt-get »
+ou « dkms » se résolvent ailleurs. Avant, un garde-fou qui régressait
+laissait passer un POST jusqu'au vrai « pkexec /usr/bin/lexos-pilotes-maj
+installer » de la machine qui faisait tourner le banc.
+
+Lancer avec /usr/bin/python3 (celui du conteneur de travail, en
+/usr/local/bin, plante à la fermeture).
 """
+import hashlib
+import hmac
 import http.client
+import http.server
+import importlib
+import json
 import os
+import re
+import secrets
+import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
+import xml.etree.ElementTree as ET
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+#  Pas de __pycache__ dans config/includes.chroot : il partirait dans l'ISO
+#  (même raison que l'étape « Syntaxe Python des rouages internes » de la CI).
+sys.dont_write_bytecode = True
+
 R = Path(__file__).resolve().parents[1]
 DOSSIER = R / "config/includes.chroot/usr/lib/lexos/pilotes"
-sys.path.insert(0, str(DOSSIER))
+POLITIQUE_POLKIT = R / "config/includes.chroot/usr/share/polkit-1/actions/org.lexos.pilotes.policy"
+LANCEUR = R / "config/includes.chroot/usr/bin/lexos-pilotes"
+APP_JS = DOSSIER / "web/app.js"
 
-import paquets  # noqa: E402
-import moteur  # noqa: E402
-import serveur  # noqa: E402
+#  ═══ DES NOMS DE MODULES QUI NE DÉBORDENT PAS ═══
+#  LexOS Diagnostic a AUSSI un moteur.py et un serveur.py. Lancés dans le
+#  même interpréteur (« python3 -m unittest tests.test_lexos_diagnostic
+#  tests.test_lexos_pilotes »), le premier chargé restait dans sys.modules et
+#  l'autre banc testait le mauvais code (AttributeError: module 'moteur' has
+#  no attribute 'lire_cartes'). On importe donc les nôtres, on garde les
+#  objets, puis on rend sys.modules et sys.path tels qu'on les a trouvés.
+_NOMS = ("paquets", "moteur", "serveur", "maj")
+_deja_la = {n: sys.modules.pop(n) for n in _NOMS if n in sys.modules}
+sys.path.insert(0, str(DOSSIER))
+try:
+    paquets = importlib.import_module("paquets")
+    moteur = importlib.import_module("moteur")
+    serveur = importlib.import_module("serveur")
+    maj = importlib.import_module("maj")
+finally:
+    sys.path[:] = [p for p in sys.path if p != str(DOSSIER)]
+    for _n in _NOMS:
+        sys.modules.pop(_n, None)
+    sys.modules.update(_deja_la)
+
+#  L'interpréteur des faux outils et de l'aide root : /usr/bin/python3 si
+#  possible (règle du dépôt), sinon celui du banc.
+PY = "/usr/bin/python3" if os.path.exists("/usr/bin/python3") else sys.executable
 
 POLITIQUE = """\
 libgl1-mesa-dri:
@@ -60,6 +116,18 @@ firmware-misc-nonfree:
         100 /var/lib/dpkg/status
 """
 
+POLITIQUE_A_JOUR = """\
+libgl1-mesa-dri:
+  Installed: 25.2.4-1~bpo13+1
+  Candidate: 25.0.7-2
+  Version table:
+ *** 25.2.4-1~bpo13+1 100
+        100 http://deb.debian.org/debian trixie-backports/main amd64 Packages
+        100 /var/lib/dpkg/status
+     25.0.7-2 500
+        500 http://deb.debian.org/debian trixie/main amd64 Packages
+"""
+
 LSPCI = """\
 00:02.0 VGA compatible controller [0300]: Intel Corporation HD Graphics 520 [8086:1916] (rev 07)
 \tSubsystem: Lenovo ThinkPad T460 [17aa:2233]
@@ -70,6 +138,293 @@ LSPCI = """\
 02:00.0 Ethernet controller [0200]: Realtek RTL8111 [10ec:8168]
 \tKernel driver in use: r8169
 """
+
+#  La machine décrite par défaut : Mesa venue de backports (amd64 ET i386,
+#  comme LexOS Pro pour Steam), le pilote NVIDIA, un micrologiciel à jour,
+#  et un paquet NON graphique qui ne doit jamais être demandé.
+DPKG_DEFAUT = {
+    "libgl1-mesa-dri:amd64": ["25.0.7-2~bpo13+1", "ii"],
+    "libgl1-mesa-dri:i386": ["25.0.7-2~bpo13+1", "ii"],
+    "nvidia-driver-cuda": ["595.71.05-1", "ii"],
+    "firmware-misc-nonfree": ["20250410-2", "ii"],
+    "firefox-esr": ["128.3.0esr-1", "ii"],
+    "monappli": ["1.0", "ii"],
+}
+SIMULATION_SANS_RETRAIT = (
+    "Inst libgl1-mesa-dri [25.0.7-2~bpo13+1] (25.2.4-1~bpo13+1 Debian Backports:trixie-backports [amd64])\n"
+    "Inst nvidia-driver-cuda [595.71.05-1] (595.91.07-1 cuda [amd64])\n")
+TRANSACTION_REUSSIE = {"changer": {"libgl1-mesa-dri:amd64": ["25.2.4-1~bpo13+1", "ii"],
+                                   "libgl1-mesa-dri:i386": ["25.2.4-1~bpo13+1", "ii"],
+                                   "nvidia-driver-cuda": ["595.91.07-1", "ii"]},
+                       "sortie": "Setting up nvidia-driver-cuda (595.91.07-1) ...\n", "code": 0}
+NOYAU_EN_SERVICE_FICTIF = "6.9.12+deb13-amd64"   # a son nvidia.ko
+NOYAU_PROCHAIN = "6.16.12+bpo-amd64"             # « 6.9 » > « 6.16 » en ordre alphabétique : piège voulu
+
+#  ═══ LES FAUX OUTILS ═══
+#  Un seul programme, écrit sous chaque nom. Ils lisent la machine décrite
+#  dans $BANC_DIR (scenario.json, dpkg.json) et notent chaque appel. Le faux
+#  pkexec NE LANCE RIEN : il note son argv et rend ce qu'on lui dit.
+CODE_FAUX = r'''
+import json, os, sys, time
+from pathlib import Path
+B = Path(os.environ["BANC_DIR"])
+args = sys.argv[1:]
+def lire(nom, defaut):
+    try:
+        return json.loads((B / nom).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return defaut
+S = lire("scenario.json", {})
+def etat():
+    return lire("dpkg.json", {})
+def ecrire(e):
+    (B / "dpkg.json").write_text(json.dumps(e), encoding="utf-8")
+if NOM == "pkexec":
+    with open(B / "pkexec.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(args) + "\n")
+    P = lire("pkexec.json", {})
+    if P.get("attendre"):
+        limite = time.time() + 10
+        while not os.path.exists(P["attendre"]) and time.time() < limite:
+            time.sleep(0.05)
+    sys.stdout.write(P.get("sortie", ""))
+    sys.stdout.flush()
+    sys.exit(P.get("code", 0))
+with open(B / "appels.jsonl", "a", encoding="utf-8") as f:
+    f.write(json.dumps([NOM, *args]) + "\n")
+if NOM == "dpkg-query":
+    if S.get("dpkg_query_code"):
+        print("dpkg-query: erreur simulée", file=sys.stderr)
+        sys.exit(S["dpkg_query_code"])
+    fmt, noms, i = "${binary:Package}\t${Version}\n", [], 0
+    while i < len(args):
+        if args[i] == "-f":
+            fmt = args[i + 1]
+            i += 2
+            continue
+        if not args[i].startswith("-"):
+            noms.append(args[i])
+        i += 1
+    e, sortie, vus = etat(), [], set()
+    for cle in sorted(e):
+        base = cle.split(":")[0]
+        if noms and not any(n in (cle, base) for n in noms):
+            continue
+        vus.update(n for n in noms if n in (cle, base))
+        v, st = e[cle]
+        sortie.append(fmt.replace("${binary:Package}", cle).replace("${Package}", base)
+                      .replace("${Version}", v).replace("${db:Status-Abbrev}", st + " "))
+    sys.stdout.write("".join(sortie))
+    manquants = [n for n in noms if n not in vus]
+    for n in manquants:
+        print(f"dpkg-query: no packages found matching {n}", file=sys.stderr)
+    sys.exit(1 if manquants else 0)
+if NOM == "apt-cache":
+    if S.get("apt_cache_code"):
+        print("E: Could not open lock file (simulé)", file=sys.stderr)
+        sys.exit(S["apt_cache_code"])
+    sys.stdout.write(S.get("politique", ""))
+    sys.exit(0)
+if NOM == "apt-get":
+    if "update" in args:
+        if S.get("update_code"):
+            print("E: Could not get lock /var/lib/apt/lists/lock (simulé)", file=sys.stderr)
+            sys.exit(S["update_code"])
+        listes = Path(os.environ["LEXOS_PILOTES_LISTES_APT"])
+        listes.mkdir(parents=True, exist_ok=True)
+        (listes / "deb.debian.org_debian_dists_trixie_main_binary-amd64_Packages").write_text("")
+        sys.exit(0)
+    if "-s" in args:
+        print("NOTE: This is only a simulation!")
+        sys.stdout.write(S.get("simulation", ""))
+        sys.exit(S.get("simulation_code", 0))
+    if "-f" in args:
+        if "--no-remove" not in args and S.get("f_retirer"):
+            e = etat()
+            for n in S["f_retirer"]:
+                e.pop(n, None)
+            ecrire(e)
+        sys.exit(0)
+    if "-y" in args:
+        T = S.get("transaction", {})
+        retirer = T.get("retirer", [])
+        if retirer and "--no-remove" in args:
+            print("E: Packages need to be removed but remove is disabled.", file=sys.stderr)
+            sys.exit(100)
+        e = etat()
+        for n in retirer:
+            e.pop(n, None)
+        for n, ve in T.get("changer", {}).items():
+            e[n] = ve
+        ecrire(e)
+        sys.stdout.write(T.get("sortie", ""))
+        sys.exit(T.get("code", 0))
+    sys.exit(0)
+if NOM == "dpkg":
+    if "--compare-versions" in args:
+        os.execv(os.environ["BANC_VRAI_DPKG"], ["dpkg", *args])
+    if "--audit" in args:
+        for n, (v, st) in sorted(etat().items()):
+            if not st.startswith("ii"):
+                print(f" {n}  {v}  {st}")
+        sys.exit(0)
+    if "--configure" in args:
+        sys.exit(S.get("configure_code", 0))
+    sys.exit(0)
+if NOM == "dkms":
+    mode = S.get("dkms", "construit")
+    if mode == "construit" and "-k" in args:
+        k = args[args.index("-k") + 1]
+        d = Path(os.environ["LEXOS_PILOTES_MODULES"]) / k / "updates" / "dkms"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "nvidia.ko.xz").write_text("")
+        print(f"nvidia/595.91.07, {k}, x86_64: installed")
+        sys.exit(0)
+    print("Error! Bad return status for module build on kernel (simulé)")
+    sys.exit(10)
+if NOM == "mokutil":
+    if "--sb-state" in args:
+        print(S.get("sb", "SecureBoot disabled"))
+        sys.exit(0)
+    print("lexos-mok.der is not enrolled")
+    sys.exit(0)
+if NOM == "lspci":
+    sys.stdout.write(S.get("lspci", ""))
+    sys.exit(0)
+sys.exit(0)
+'''
+
+FAUX_OUTILS = ("pkexec", "apt-get", "apt-cache", "dpkg", "dpkg-query", "dkms", "mokutil", "lspci",
+               "x-terminal-emulator", "xdg-open")
+#  Ceux qui ne doivent JAMAIS se résoudre hors du dossier des faux.
+DANGEREUX = ("pkexec", "apt-get", "apt", "dpkg", "dkms", "sudo", "x-terminal-emulator")
+
+BANC = Path()
+FAUX = Path()
+_avant: dict = {}
+NODE = None
+
+
+def _garde_faux_outils() -> None:
+    """Le banc refuse de tourner si un outil dangereux est le vrai."""
+    for outil in DANGEREUX:
+        chemin = shutil.which(outil)
+        if chemin is not None and Path(chemin).parent != FAUX:
+            raise RuntimeError(f"REFUS : « {outil} » se résout en {chemin}, pas dans le dossier des faux "
+                               f"outils ({FAUX}). Le banc ne lancera jamais un vrai {outil}.")
+    if shutil.which("pkexec") != str(FAUX / "pkexec"):
+        raise RuntimeError("REFUS : le faux pkexec n'est pas celui du PATH.")
+
+
+def setUpModule():
+    global BANC, FAUX, NODE
+    NODE = shutil.which("node")
+    vrai_dpkg = shutil.which("dpkg")
+    vrai_sort = shutil.which("sort")
+    if not vrai_dpkg or not vrai_sort:
+        raise RuntimeError("dpkg et sort réels requis : le banc compare des versions Debian (dpkg "
+                           "--compare-versions) et trie les noyaux (sort -V).")
+    BANC = Path(tempfile.mkdtemp(prefix="banc-pilotes-"))
+    FAUX = BANC / "faux"
+    outils = BANC / "outils"
+    FAUX.mkdir()
+    outils.mkdir()
+    for nom in FAUX_OUTILS:
+        (FAUX / nom).write_text(f"#!{PY}\nNOM = {nom!r}\n{CODE_FAUX}", encoding="utf-8")
+        (FAUX / nom).chmod(0o755)
+    (outils / "sort").symlink_to(vrai_sort)
+    _avant.update(PATH=os.environ.get("PATH"), BANC_DIR=os.environ.get("BANC_DIR"),
+                  BANC_VRAI_DPKG=os.environ.get("BANC_VRAI_DPKG"),
+                  XDG_RUNTIME_DIR=os.environ.get("XDG_RUNTIME_DIR"),
+                  LEXOS_PILOTES_LISTES_APT=os.environ.get("LEXOS_PILOTES_LISTES_APT"),
+                  LEXOS_PILOTES_MODULES=os.environ.get("LEXOS_PILOTES_MODULES"),
+                  attributs=(paquets.LISTES_APT, paquets.FICHIER_EPINGLE, moteur.RACINE_MODULES, moteur.EFI))
+    #  PAS de /usr/bin ni /bin : seulement les faux, et un vrai « sort ».
+    os.environ["PATH"] = f"{FAUX}:{outils}"
+    os.environ["BANC_DIR"] = str(BANC)
+    os.environ["BANC_VRAI_DPKG"] = vrai_dpkg
+    os.environ["XDG_RUNTIME_DIR"] = str(BANC / "run")
+    (BANC / "run").mkdir(mode=0o700)
+    try:
+        _garde_faux_outils()
+    except RuntimeError:
+        #  unittest n'appelle pas tearDownModule si setUpModule échoue.
+        tearDownModule()
+        raise
+
+
+def tearDownModule():
+    for cle, valeur in _avant.items():
+        if cle == "attributs":
+            paquets.LISTES_APT, paquets.FICHIER_EPINGLE, moteur.RACINE_MODULES, moteur.EFI = valeur
+        elif valeur is None:
+            os.environ.pop(cle, None)
+        else:
+            os.environ[cle] = valeur
+    shutil.rmtree(BANC, ignore_errors=True)
+
+
+def preparer_machine(scenario: dict, dpkg: dict = None, noyaux: tuple = (), entetes: tuple = (),
+                     listes: bool = True) -> Path:
+    """Écrit la machine décrite dans BANC : état dpkg, scénario, noyaux, index apt."""
+    for f in ("appels.jsonl", "pkexec.jsonl", "pkexec.json"):
+        (BANC / f).unlink(missing_ok=True)
+    (BANC / "scenario.json").write_text(json.dumps(scenario), encoding="utf-8")
+    (BANC / "dpkg.json").write_text(json.dumps(DPKG_DEFAUT if dpkg is None else dpkg), encoding="utf-8")
+    modules = BANC / "modules"
+    shutil.rmtree(modules, ignore_errors=True)
+    modules.mkdir()
+    for k, avec_module in noyaux:
+        (modules / k).mkdir()
+        if avec_module:
+            (modules / k / "updates/dkms").mkdir(parents=True)
+            (modules / k / "updates/dkms/nvidia.ko.xz").write_text("")
+    for k in entetes:
+        (modules / k / "build").mkdir(parents=True, exist_ok=True)
+    lst = BANC / "listes"
+    shutil.rmtree(lst, ignore_errors=True)
+    lst.mkdir()
+    (lst / "partial").mkdir()
+    if listes:
+        (lst / "deb.debian.org_debian_dists_trixie_main_binary-amd64_Packages").write_text("")
+    os.environ["LEXOS_PILOTES_LISTES_APT"] = str(lst)
+    os.environ["LEXOS_PILOTES_MODULES"] = str(modules)
+    paquets.LISTES_APT = lst
+    paquets.FICHIER_EPINGLE = str(BANC / "pas-d-epingle")
+    moteur.RACINE_MODULES = modules
+    return modules
+
+
+def appels(outil: str = None) -> list:
+    try:
+        lignes = (BANC / "appels.jsonl").read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return []
+    tous = [json.loads(l) for l in lignes]
+    return [a[1:] for a in tous if outil is None or a[0] == outil]
+
+
+def appels_pkexec() -> list:
+    try:
+        return [json.loads(l) for l in (BANC / "pkexec.jsonl").read_text(encoding="utf-8").splitlines()]
+    except FileNotFoundError:
+        return []
+
+
+def lancer_aide(argv: list = None) -> tuple:
+    """maj.installer() POUR DE VRAI, dans un processus à part (il sort par
+    sys.exit), avec le PATH des faux outils. Rend (code, sortie, résultat).
+    Avec argv : maj.main() tel que pkexec le lancerait (euid 0 simulé)."""
+    if argv is None:
+        prog = f"import sys; sys.path.insert(0, {str(DOSSIER)!r}); import maj; maj.installer()"
+    else:
+        prog = (f"import os, sys; os.geteuid = lambda: 0; sys.argv = {['maj.py', *argv]!r}; "
+                f"sys.path.insert(0, {str(DOSSIER)!r}); import maj; maj.main()")
+    r = subprocess.run([PY, "-I", "-B", "-c", prog], capture_output=True, text=True, timeout=120,
+                       env=dict(os.environ))
+    lignes = [l for l in r.stdout.splitlines() if l.startswith("LEXOS-RESULTAT ")]
+    resultat = json.loads(lignes[-1][len("LEXOS-RESULTAT "):]) if lignes else None
+    return r.returncode, r.stdout + r.stderr, resultat
 
 
 class Filtre(unittest.TestCase):
@@ -124,6 +479,25 @@ class Plan(unittest.TestCase):
         self.assertEqual(paquets.branche_plus_recente(self.pol["nvidia-driver-cuda"]), "610.57.04-1")
 
 
+class Simulation(unittest.TestCase):
+    """Ce qu'on simule est ce qu'on installe, et la vraie commande ne retire rien."""
+
+    def test_lire_simulation(self):
+        lu = paquets.lire_simulation("NOTE: x\nRemv monappli [1.0]\nPurg autre:i386 [2]\n"
+                                     "Inst libgl1-mesa-dri [1.0] (2.0 x [amd64])\nConf libgl1-mesa-dri (2.0)\n")
+        self.assertEqual(lu["retraits"], ["autre:i386", "monappli"])
+        self.assertEqual(lu["installations"], ["libgl1-mesa-dri"])
+
+    def test_commande(self):
+        vraie = paquets.commande_installation(["a", "b/trixie-backports"], "-y")
+        self.assertEqual(vraie, ["install", "-y", "-q", "--only-upgrade", "--no-remove",
+                                 "-o", "Dpkg::Options::=--force-confold", "a", "b/trixie-backports"])
+        simulee = paquets.commande_installation(["a"], "-s")
+        self.assertEqual(simulee[:2], ["install", "-s"])
+        #  Sans --no-remove, la simulation LISTE les retraits au lieu d'échouer.
+        self.assertNotIn("--no-remove", simulee)
+
+
 class Cartes(unittest.TestCase):
     def test_lspci(self):
         cartes = moteur.lire_cartes(LSPCI)
@@ -135,54 +509,102 @@ class Cartes(unittest.TestCase):
         self.assertEqual(cartes[1]["pilote"], "nvidia")
 
 
-class Serveur(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), serveur.Gestionnaire)
-        cls.port = cls.srv.server_address[1]
-        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+class Mesures(unittest.TestCase):
+    """« Indisponible » + raison, jamais une valeur inventée."""
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.srv.shutdown()
-        cls.srv.server_close()
+    def setUp(self):
+        preparer_machine({"politique": POLITIQUE, "simulation": SIMULATION_SANS_RETRAIT, "lspci": LSPCI},
+                         noyaux=((NOYAU_EN_SERVICE_FICTIF, True), (NOYAU_PROCHAIN, False)))
+        moteur.EFI = BANC / "efi"
+        (BANC / "efi").mkdir(exist_ok=True)
 
-    def req(self, methode, chemin, entetes=None):
-        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
-        c.request(methode, chemin, headers=entetes or {})
-        r = c.getresponse()
-        r.read()
-        return r.status
+    def test_mesa_deux_architectures_pas_collees(self):
+        #  amd64 et i386 à la même version : UNE version, pas les deux bout à bout.
+        self.assertEqual(moteur.version_paquet("libgl1-mesa-dri"), ("25.0.7-2~bpo13+1", None))
 
-    def test_page(self):
-        self.assertEqual(self.req("GET", "/"), 200)
-        self.assertEqual(self.req("GET", "/app.js"), 200)
+    def test_mesa_architectures_divergentes_montrees(self):
+        d = dict(DPKG_DEFAUT, **{"libgl1-mesa-dri:i386": ["25.0.7-2", "ii"]})
+        (BANC / "dpkg.json").write_text(json.dumps(d), encoding="utf-8")
+        v, raison = moteur.version_paquet("libgl1-mesa-dri")
+        self.assertIsNone(raison)
+        self.assertEqual(v, "25.0.7-2 (i386) · 25.0.7-2~bpo13+1 (amd64)")
 
-    def test_hote_etranger(self):
-        self.assertEqual(self.req("GET", "/api/tache", {"Host": "evil.example"}), 403)
+    def test_paquet_absent_ou_inconnu(self):
+        self.assertEqual(moteur.version_paquet("nvidia-driver"), (None, None))
+        (BANC / "scenario.json").write_text(json.dumps({"dpkg_query_code": 2}), encoding="utf-8")
+        v, raison = moteur.version_paquet("libgl1-mesa-dri")
+        self.assertIsNone(v)
+        self.assertIn("dpkg-query a échoué", raison)
 
-    def test_post_sans_entete(self):
-        self.assertEqual(self.req("POST", "/api/installer"), 403)
+    def test_instantane_complet(self):
+        e = moteur.instantane()
+        self.assertEqual(e["mesa"], "25.0.7-2~bpo13+1")
+        self.assertEqual(e["nvidia"]["paquet"], "595.71.05-1")
+        self.assertEqual(e["noyau"]["plus_recent"], NOYAU_PROCHAIN)
+        self.assertIs(e["noyau"]["module_nvidia_plus_recent"], False)
+        self.assertIs(e["secure_boot"], False)
+        m = e["mises_a_jour"]
+        self.assertTrue(m["disponible"])
+        self.assertEqual([p["paquet"] for p in m["paquets"]], ["libgl1-mesa-dri", "nvidia-driver-cuda"])
+        self.assertEqual(m["retraits"], [])
+        self.assertEqual(e["raisons"], {})
 
-    def test_post_autre_origine(self):
-        self.assertEqual(self.req("POST", "/api/installer",
-                                  {"X-LexOS": "1", "Origin": "https://evil.example"}), 403)
+    def test_chaque_mesure_absente_a_sa_raison(self):
+        #  Pas de mokutil (machine UEFI), /lib/modules illisible, lspci absent.
+        (FAUX / "mokutil").rename(BANC / "mokutil.de-cote")
+        (FAUX / "lspci").rename(BANC / "lspci.de-cote")
+        moteur.RACINE_MODULES = BANC / "n-existe-pas"
+        try:
+            e = moteur.instantane()
+        finally:
+            (BANC / "mokutil.de-cote").rename(FAUX / "mokutil")
+            (BANC / "lspci.de-cote").rename(FAUX / "lspci")
+        self.assertIsNone(e["secure_boot"])
+        self.assertIn("mokutil", e["raisons"]["secure_boot"])
+        self.assertIsNone(e["noyau"]["module_nvidia_plus_recent"], "illisible n'est pas « absent »")
+        self.assertIn("illisible", e["raisons"]["noyau"])
+        self.assertIn("lspci", e["raisons"]["cartes"])
 
-    def test_traversee(self):
-        self.assertIn(self.req("GET", "/../serveur.py"), (403, 404))
+    def test_sans_index_apt_pas_a_jour(self):
+        #  L'ISO est construite avec « --apt-indices false ».
+        preparer_machine({"politique": POLITIQUE_A_JOUR}, listes=False)
+        m = moteur.instantane()["mises_a_jour"]
+        self.assertFalse(m["disponible"])
+        self.assertIn("jamais été téléchargée", m["raison"])
+        self.assertEqual(m["paquets"], [])
+
+    def test_apt_cache_en_echec_pas_a_jour(self):
+        preparer_machine({"apt_cache_code": 100})
+        m = moteur.instantane()["mises_a_jour"]
+        self.assertFalse(m["disponible"])
+        self.assertIn("apt-cache a échoué (code 100)", m["raison"])
+
+    def test_retrait_vu_avant_le_clic(self):
+        preparer_machine({"politique": POLITIQUE, "simulation": "Remv monappli [1.0]\n" + SIMULATION_SANS_RETRAIT})
+        m = moteur.instantane()["mises_a_jour"]
+        self.assertEqual(m["retraits"], ["monappli"])
 
 
 class AideRoot(unittest.TestCase):
+    """maj.installer() tourne VRAIMENT, face aux faux apt/dpkg/dkms."""
+
+    def setUp(self):
+        _garde_faux_outils()
+
+    def machine(self, **scenario):
+        base = {"politique": POLITIQUE, "simulation": SIMULATION_SANS_RETRAIT,
+                "transaction": TRANSACTION_REUSSIE, "dkms": "construit"}
+        base.update(scenario)
+        return base
+
     def test_refuse_sans_root(self):
         if os.geteuid() == 0:
             self.skipTest("le banc tourne en root")
-        r = subprocess.run([sys.executable, str(DOSSIER / "maj.py"), "installer"],
-                           capture_output=True, text=True)
+        r = subprocess.run([PY, "-B", str(DOSSIER / "maj.py"), "installer"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
         self.assertIn("LEXOS-RESULTAT", r.stdout)
 
     def test_module_absent_detecte(self):
-        import maj  # noqa: E402
         with tempfile.TemporaryDirectory() as d:
             racine = Path(d)
             (racine / "6.12.48+deb13-amd64/updates/dkms").mkdir(parents=True)
@@ -196,6 +618,544 @@ class AideRoot(unittest.TestCase):
                 self.assertTrue(maj.module_nvidia_present("6.12.48+deb13-amd64"))
             finally:
                 maj.RACINE_MODULES = ancien
+
+    def test_installation_normale(self):
+        modules = preparer_machine(self.machine(), noyaux=((NOYAU_EN_SERVICE_FICTIF, True), (NOYAU_PROCHAIN, False)),
+                                   entetes=(NOYAU_PROCHAIN,))
+        code, sortie, res = lancer_aide()
+        self.assertEqual(code, 0, sortie)
+        apt = appels("apt-get")
+        demandes = ["libgl1-mesa-dri/trixie-backports", "nvidia-driver-cuda"]
+        options = ["-q", "--only-upgrade"]
+        self.assertEqual(apt, [
+            ["update", "-q"],
+            ["install", "-s", *options, "-o", "Dpkg::Options::=--force-confold", *demandes],
+            ["install", "-y", *options, "--no-remove", "-o", "Dpkg::Options::=--force-confold", *demandes],
+        ], "l'argv exact d'apt : la liste recalculée en root, rien d'autre")
+        tout = json.dumps(appels())
+        self.assertNotIn("firefox-esr", tout)
+        self.assertNotIn("monappli", tout)
+        for verbe in ("upgrade", "dist-upgrade", "full-upgrade", "remove", "purge"):
+            self.assertNotIn(verbe, [a[0] for a in apt])
+        #  Le noyau du PROCHAIN démarrage (sort -V), pas celui en service.
+        self.assertEqual(appels("dkms"), [["autoinstall", "-k", NOYAU_PROCHAIN]])
+        self.assertTrue((modules / NOYAU_PROCHAIN / "updates/dkms/nvidia.ko.xz").exists())
+        self.assertTrue(res["ok"])
+        self.assertTrue(res["redemarrer"])
+        self.assertIn("Redémarre", res["message"])
+        self.assertEqual(res["avertissements"], [])
+        self.assertEqual({m["paquet"] for m in res["modifies"]},
+                         {"libgl1-mesa-dri:amd64", "libgl1-mesa-dri:i386", "nvidia-driver-cuda"})
+
+    def test_noms_en_trop_ignores(self):
+        #  Même si quelqu'un appelait l'aide avec des noms de paquets, la
+        #  liste reste celle que root recalcule.
+        preparer_machine(self.machine(), noyaux=((NOYAU_PROCHAIN, True),))
+        code, sortie, res = lancer_aide(["installer", "firefox-esr", "sudo"])
+        self.assertTrue(res["ok"], sortie)
+        tout = json.dumps(appels("apt-get"))
+        self.assertNotIn("firefox-esr", tout)
+        self.assertNotIn("sudo", tout)
+
+    def test_retrait_refuse_avant_toute_installation(self):
+        preparer_machine(self.machine(simulation="Remv monappli [1.0]\n" + SIMULATION_SANS_RETRAIT),
+                         noyaux=((NOYAU_PROCHAIN, True),))
+        code, sortie, res = lancer_aide()
+        self.assertEqual(code, 1, sortie)
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["retraits"], ["monappli"])
+        self.assertIn("monappli", res["message"])
+        self.assertIn("rien n'a été changé", res["message"])
+        self.assertFalse([a for a in appels("apt-get") if "-y" in a], "aucune vraie installation")
+        self.assertEqual(json.loads((BANC / "dpkg.json").read_text()), DPKG_DEFAUT)
+
+    def test_no_remove_seconde_serrure(self):
+        #  La simulation n'a rien vu, mais la vraie transaction voudrait
+        #  retirer : --no-remove fait abandonner apt, et dpkg n'a pas bougé.
+        transaction = {"retirer": ["monappli"], "changer": TRANSACTION_REUSSIE["changer"], "code": 0}
+        preparer_machine(self.machine(transaction=transaction), noyaux=((NOYAU_PROCHAIN, True),))
+        code, sortie, res = lancer_aide()
+        self.assertIn("monappli", json.loads((BANC / "dpkg.json").read_text()))
+        self.assertFalse(res["ok"])
+        self.assertIn("rien n'a été changé", res["message"])
+
+    def test_dpkg_arrete_en_route(self):
+        #  Le postinst DKMS échoue : paquets dépaquetés, apt rend 100.
+        transaction = {"changer": {"nvidia-driver-cuda": ["595.91.07-1", "iU"]}, "code": 100,
+                       "sortie": "Error! Bad return status for module build\nE: Sub-process /usr/bin/dpkg "
+                                 "returned an error code (1)\n"}
+        preparer_machine(self.machine(transaction=transaction, configure_code=1, dkms="echec",
+                                      f_retirer=["monappli"]),
+                         noyaux=((NOYAU_PROCHAIN, False),), entetes=(NOYAU_PROCHAIN,))
+        code, sortie, res = lancer_aide()
+        self.assertEqual(code, 1, sortie)
+        self.assertFalse(res["ok"])
+        self.assertNotIn("rien n'a été changé", res["message"])
+        self.assertIn("INTERROMPUE", res["message"])
+        self.assertIn("NE redémarre PAS", res["message"])
+        self.assertIn("nvidia-driver-cuda", res["message"])
+        self.assertFalse(res["redemarrer"])
+        #  Réparation SANS retrait : dpkg --configure -a, puis -f avec --no-remove.
+        self.assertIn(["--configure", "-a", "--force-confold"], appels("dpkg"))
+        for a in appels("apt-get"):
+            if "-f" in a:
+                self.assertIn("--no-remove", a)
+        self.assertIn("monappli", json.loads((BANC / "dpkg.json").read_text()))
+        #  Et nvidia.ko est vérifié quand même.
+        self.assertEqual(appels("dkms"), [["autoinstall", "-k", NOYAU_PROCHAIN]])
+        self.assertTrue(any("module NVIDIA" in a for a in res["avertissements"]))
+
+    def test_apt_arrete_avant_dpkg(self):
+        #  Téléchargement en échec : dpkg n'a rien touché, et ÇA se prouve.
+        transaction = {"changer": {}, "code": 100, "sortie": "E: Failed to fetch http://x (simulé)\n"}
+        preparer_machine(self.machine(transaction=transaction), noyaux=((NOYAU_PROCHAIN, True),))
+        code, sortie, res = lancer_aide()
+        self.assertFalse(res["ok"])
+        self.assertIn("rien n'a été changé", res["message"])
+        self.assertEqual([a for a in appels("dpkg") if "--compare-versions" not in a], [],
+                         "aucune réparation quand rien n'a bougé")
+
+    def test_noyau_sans_entetes(self):
+        preparer_machine(self.machine(), noyaux=((NOYAU_EN_SERVICE_FICTIF, True), (NOYAU_PROCHAIN, False)))
+        code, sortie, res = lancer_aide()
+        self.assertEqual(appels("dkms"), [], "sans en-têtes, dkms ne peut rien compiler")
+        self.assertTrue(res["ok"])
+        self.assertFalse(res["redemarrer"])
+        self.assertNotIn("Redémarre pour", res["message"])
+        self.assertIn("NE redémarre PAS", res["message"])
+        self.assertTrue(any(f"linux-headers-{NOYAU_PROCHAIN}" in a for a in res["avertissements"]))
+
+    def test_dkms_en_echec_dit_pourquoi(self):
+        preparer_machine(self.machine(dkms="echec"), noyaux=((NOYAU_PROCHAIN, False),), entetes=(NOYAU_PROCHAIN,))
+        code, sortie, res = lancer_aide()
+        self.assertIn("Bad return status", sortie, "la sortie de dkms est au journal")
+        self.assertFalse(res["redemarrer"])
+        self.assertTrue(any("Bad return status" in a for a in res["avertissements"]))
+
+    def test_dkms_absent_avertissement_garde(self):
+        preparer_machine(self.machine(), noyaux=((NOYAU_PROCHAIN, False),), entetes=(NOYAU_PROCHAIN,))
+        (FAUX / "dkms").rename(BANC / "dkms.de-cote")
+        try:
+            code, sortie, res = lancer_aide()
+        finally:
+            (BANC / "dkms.de-cote").rename(FAUX / "dkms")
+        self.assertIsNotNone(res, "l'aide plantait sans LEXOS-RESULTAT : " + sortie[-300:])
+        self.assertFalse(res["redemarrer"])
+        self.assertTrue(any("dkms est introuvable" in a for a in res["avertissements"]))
+
+    def test_apt_cache_en_echec_jamais_a_jour(self):
+        preparer_machine(self.machine(apt_cache_code=100), noyaux=((NOYAU_PROCHAIN, True),))
+        code, sortie, res = lancer_aide()
+        self.assertFalse(res["ok"])
+        self.assertIn("apt-cache", res["message"])
+        self.assertNotIn("déjà à jour", res["message"])
+        self.assertFalse([a for a in appels("apt-get") if "install" in a])
+
+    def test_deja_a_jour(self):
+        preparer_machine(self.machine(politique=POLITIQUE_A_JOUR), noyaux=((NOYAU_PROCHAIN, True),))
+        code, sortie, res = lancer_aide()
+        self.assertTrue(res["ok"])
+        self.assertIn("déjà à jour", res["message"])
+        self.assertFalse([a for a in appels("apt-get") if "install" in a])
+
+    def test_pas_de_shell(self):
+        for f in DOSSIER.glob("*.py"):
+            self.assertNotIn("shell=True", f.read_text(encoding="utf-8"), f.name)
+
+
+class Lancement(unittest.TestCase):
+    """serveur._lancer() POUR DE VRAI, face au faux pkexec."""
+
+    def setUp(self):
+        _garde_faux_outils()
+        preparer_machine({})
+
+    def lancer(self, action, pkexec):
+        (BANC / "pkexec.json").write_text(json.dumps(pkexec), encoding="utf-8")
+        self.assertTrue(serveur._lancer(action))
+        limite = time.time() + 10
+        while serveur._tache["en_cours"] and time.time() < limite:
+            time.sleep(0.02)
+        self.assertFalse(serveur._tache["en_cours"])
+        return serveur._tache["resultat"]
+
+    def test_argv_exact(self):
+        res = self.lancer("installer", {"sortie": "» Installation…\nLEXOS-RESULTAT {\"ok\": true, "
+                                                  "\"message\": \"fait\"}\n"})
+        self.assertEqual(appels_pkexec(), [["/usr/bin/lexos-pilotes-maj", "installer"]],
+                         "pkexec reçoit l'aide et l'action, AUCUN nom de paquet")
+        self.assertEqual(res, {"ok": True, "message": "fait"})
+        self.assertEqual(serveur._tache["journal"], ["» Installation…"])
+
+    def test_codes_de_pkexec(self):
+        cas = {
+            "fermée": ("Error executing command as another user: Request dismissed\n", 126),
+            "aucun agent polkit": ("Error executing command as another user: No authentication agent found.\n", 127),
+            "refusée par polkit": ("Error executing command as another user: Not authorized\n\nThis incident "
+                                   "has been reported.\n", 127),
+        }
+        for attendu, (texte, code) in cas.items():
+            with self.subTest(attendu):
+                res = self.lancer("verifier", {"sortie": texte, "code": code})
+                self.assertIn(attendu, res["message"])
+                self.assertIn("rien n'a été changé", res["message"])
+                if code == 127:
+                    self.assertNotIn("annulé", res["message"])
+
+    def test_une_tache_a_la_fois(self):
+        feu = BANC / "feu-vert"
+        feu.unlink(missing_ok=True)
+        (BANC / "pkexec.json").write_text(json.dumps({"attendre": str(feu)}), encoding="utf-8")
+        self.assertTrue(serveur._lancer("installer"))
+        try:
+            self.assertFalse(serveur._lancer("installer"), "deux apt en parallèle")
+        finally:
+            feu.write_text("")
+            limite = time.time() + 10
+            while serveur._tache["en_cours"] and time.time() < limite:
+                time.sleep(0.02)
+        self.assertEqual(len(appels_pkexec()), 1)
+
+
+class Serveur(unittest.TestCase):
+    """Le vrai Gestionnaire : refuse l'étranger, ACCEPTE la page légitime."""
+
+    @classmethod
+    def setUpClass(cls):
+        _garde_faux_outils()
+        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), serveur.Gestionnaire)
+        cls.port = cls.srv.server_address[1]
+        cls.origine = f"http://127.0.0.1:{cls.port}"
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        cls.srv.server_close()
+
+    def setUp(self):
+        preparer_machine({"politique": POLITIQUE, "simulation": SIMULATION_SANS_RETRAIT, "lspci": LSPCI},
+                         noyaux=((NOYAU_PROCHAIN, True),))
+        (BANC / "pkexec.json").write_text(json.dumps({"sortie": "LEXOS-RESULTAT {\"ok\": true, "
+                                                                "\"message\": \"Index à jour.\"}\n"}))
+
+    def req(self, methode, chemin, entetes=None):
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        c.request(methode, chemin, headers=entetes or {})
+        r = c.getresponse()
+        corps = r.read()
+        return r.status, corps
+
+    def legitime(self, **autres):
+        return {"Origin": self.origine, "X-LexOS": "1", "X-Jeton": serveur.JETON, **autres}
+
+    def attendre_fin(self):
+        limite = time.time() + 10
+        while serveur._tache["en_cours"] and time.time() < limite:
+            time.sleep(0.02)
+
+    def test_page_statique_sans_jeton(self):
+        self.assertEqual(self.req("GET", "/")[0], 200)
+        self.assertEqual(self.req("GET", "/app.js")[0], 200)
+
+    def test_api_sans_jeton_refusee(self):
+        self.assertEqual(self.req("GET", "/api/etat")[0], 403)
+        self.assertEqual(self.req("GET", "/api/tache")[0], 403)
+        sans = self.legitime()
+        del sans["X-Jeton"]
+        for chemin in ("/api/installer", "/api/verifier", "/api/assistant-signature"):
+            self.assertEqual(self.req("POST", chemin, sans)[0], 403)
+            self.assertEqual(self.req("POST", chemin, self.legitime(**{"X-Jeton": "devine"}))[0], 403)
+        self.assertEqual(appels_pkexec(), [], "aucun refus ne doit atteindre pkexec")
+
+    def test_hote_etranger(self):
+        self.assertEqual(self.req("GET", "/api/tache", {"Host": "evil.example", "X-Jeton": serveur.JETON})[0], 403)
+
+    def test_origine_etrangere_get_et_post(self):
+        for o in ("https://evil.example", "http://127.0.0.1:1", f"https://127.0.0.1:{self.port}"):
+            with self.subTest(o):
+                self.assertEqual(self.req("GET", "/api/etat", {"Origin": o, "X-Jeton": serveur.JETON})[0], 403)
+                self.assertEqual(self.req("POST", "/api/installer", self.legitime(Origin=o))[0], 403)
+        self.assertEqual(appels_pkexec(), [])
+
+    def test_post_sans_entete_maison(self):
+        entetes = self.legitime()
+        del entetes["X-LexOS"]
+        self.assertEqual(self.req("POST", "/api/installer", entetes)[0], 403)
+        self.assertEqual(appels_pkexec(), [])
+
+    def test_traversee(self):
+        self.assertIn(self.req("GET", "/../serveur.py")[0], (403, 404))
+
+    def test_ecoute_boucle_locale_seulement(self):
+        src = (DOSSIER / "serveur.py").read_text(encoding="utf-8")
+        ecoutes = re.findall(r'ThreadingHTTPServer\(\("([^"]*)"', src)
+        self.assertEqual(ecoutes, ["127.0.0.1"])
+
+    def test_action_legitime_passe(self):
+        statut, corps = self.req("POST", "/api/verifier", self.legitime())
+        self.assertEqual((statut, json.loads(corps)), (200, {"lance": True}))
+        self.attendre_fin()
+        self.assertEqual(appels_pkexec(), [["/usr/bin/lexos-pilotes-maj", "verifier"]])
+        statut, corps = self.req("GET", "/api/tache", {"X-Jeton": serveur.JETON})
+        tache = json.loads(corps)
+        self.assertEqual(statut, 200)
+        self.assertFalse(tache["en_cours"])
+        self.assertEqual(tache["resultat"], {"ok": True, "message": "Index à jour."})
+
+    def test_etat_rend_ce_que_lit_la_page(self):
+        statut, corps = self.req("GET", "/api/etat", {"X-Jeton": serveur.JETON, "Origin": self.origine})
+        self.assertEqual(statut, 200, corps[:200])
+        e = json.loads(corps)
+        js = APP_JS.read_text(encoding="utf-8")
+        attendu = {"": ["cartes", "nvidia", "mesa", "noyau", "secure_boot", "signature", "verifie_le",
+                        "maintenant", "mises_a_jour", "raisons"],
+                   "nvidia": ["version", "paquet", "branche_epinglee", "plus_recente_publiee"],
+                   "noyau": ["en_service", "plus_recent", "module_nvidia_plus_recent"],
+                   "mises_a_jour": ["disponible", "raison", "paquets", "retraits"]}
+        for parent, cles in attendu.items():
+            for cle in cles:
+                with self.subTest(f"{parent}.{cle}"):
+                    self.assertIn(cle, e[parent] if parent else e)
+                    self.assertIn(cle, js, "app.js lit cette clé par son nom")
+
+    def test_poignee_de_main(self):
+        defi = secrets.token_hex(16)
+        statut, corps = self.req("GET", f"/api/bonjour?defi={defi}")
+        self.assertEqual(statut, 200)
+        preuve = json.loads(corps)["preuve"]
+        self.assertEqual(preuve, hmac.new(serveur.JETON.encode(), defi.encode(), hashlib.sha256).hexdigest())
+        self.assertNotIn(serveur.JETON, corps.decode())
+
+    def test_contrat_app_js(self):
+        js = APP_JS.read_text(encoding="utf-8")
+        self.assertIn('"X-Jeton"', js)
+        self.assertIn('"X-LexOS"', js)
+        self.assertIn("location.hash", js)
+        routes = set(re.findall(r'"/api/([a-z-]+)"', js))
+        if '"/api/" + action' in js:
+            routes |= set(re.findall(r'lancer\("([a-z]+)"\)', js))
+        self.assertLessEqual({"etat", "tache", "verifier", "installer", "assistant-signature"}, routes)
+        src = (DOSSIER / "serveur.py").read_text(encoding="utf-8")
+        for route in sorted(routes):
+            with self.subTest(route):
+                self.assertIn(f'"/api/{route}"', src, f"app.js appelle /api/{route}, que serveur.py ignore")
+
+
+class Lanceur(unittest.TestCase):
+    """Le deuxième clic ne rouvre que NOTRE serveur."""
+
+    def setUp(self):
+        self.run = Path(tempfile.mkdtemp(dir=BANC))
+        self.run.chmod(0o700)
+        os.environ["XDG_RUNTIME_DIR"] = str(self.run)
+
+    def tearDown(self):
+        os.environ["XDG_RUNTIME_DIR"] = str(BANC / "run")
+
+    def ecrire_etat_a_la_main(self, port, jeton):
+        d = self.run / "lexos"
+        d.mkdir(mode=0o700, exist_ok=True)
+        f = d / "pilotes.json"
+        f.write_text(json.dumps({"port": port, "jeton": jeton, "pid": 1}), encoding="utf-8")
+        f.chmod(0o600)
+
+    def test_squatteur_jamais_ouvert(self):
+        class Squatteur(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                b = b'{"preuve": "0000"}'
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
+
+            def log_message(self, *a):
+                pass
+        srv = http.server.HTTPServer(("127.0.0.1", 0), Squatteur)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            self.ecrire_etat_a_la_main(srv.server_address[1], "jeton-d-un-serveur-mort")
+            self.assertIsNone(serveur.serveur_existant())
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    def test_notre_serveur_retrouve(self):
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), serveur.Gestionnaire)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            f = serveur.ecrire_etat(srv.server_address[1])
+            self.assertEqual(f.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(f.parent.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(serveur.serveur_existant(),
+                             f"http://127.0.0.1:{srv.server_address[1]}/#j={serveur.JETON}")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    def test_fichier_ou_dossier_trop_ouvert_ignore(self):
+        self.ecrire_etat_a_la_main(1, "x")
+        (self.run / "lexos/pilotes.json").chmod(0o644)
+        self.assertIsNone(serveur.serveur_existant())
+        (self.run / "lexos").chmod(0o755)
+        self.assertIsNone(serveur.dossier_execution())
+
+    def test_lanceur_ne_sonde_plus_de_port(self):
+        code = "\n".join(l for l in LANCEUR.read_text(encoding="utf-8").splitlines()
+                         if not l.lstrip().startswith("#"))
+        for interdit in ("curl", "xdg-open", "7862"):
+            self.assertNotIn(interdit, code)
+        self.assertIn('serveur.py', code)
+
+
+class Polkit(unittest.TestCase):
+    """L'action que pkexec choisit pour chaque verbe (pkexec.c:272-330)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.actions = []
+        for a in ET.parse(POLITIQUE_POLKIT).getroot().iter("action"):
+            notes = {n.get("key"): n.text for n in a.iter("annotate")}
+            cls.actions.append({"id": a.get("id"), "notes": notes,
+                                "actif": a.find("defaults/allow_active").text})
+
+    def action_pour(self, argv1):
+        #  Même règle que find_action_for_path : exec.path égal, et exec.argv1
+        #  égal QUAND il est posé ; à défaut, org.freedesktop.policykit.exec.
+        for a in self.actions:
+            n = a["notes"]
+            if n.get("org.freedesktop.policykit.exec.path") != serveur.AIDE_ROOT:
+                continue
+            if n.get("org.freedesktop.policykit.exec.argv1") not in (None, argv1):
+                continue
+            return a
+        return None
+
+    def test_installer_redemande_le_mot_de_passe(self):
+        a = self.action_pour("installer")
+        self.assertIsNotNone(a)
+        self.assertEqual(a["actif"], "auth_admin", "auth_admin_keep : 5 min d'installations sans fenêtre")
+
+    def test_verifier_a_son_action(self):
+        a = self.action_pour("verifier")
+        self.assertIsNotNone(a)
+        self.assertNotEqual(a["id"], self.action_pour("installer")["id"])
+
+    def test_chaque_action_vise_un_verbe(self):
+        for a in self.actions:
+            self.assertIn("org.freedesktop.policykit.exec.argv1", a["notes"], a["id"])
+
+
+#  La page, sous node, avec un DOM minimal et un faux fetch.
+RENDU_JS = r'''
+"use strict";
+const fs = require("fs"), vm = require("vm");
+const [, , appjs, etatF, tacheF, hash] = process.argv;
+const etat = JSON.parse(fs.readFileSync(etatF, "utf8"));
+const tache = JSON.parse(fs.readFileSync(tacheF, "utf8"));
+const el = {}, appels = [];
+const get = (id) => el[id] || (el[id] = { innerHTML: "", textContent: "", disabled: false, hidden: false,
+  title: "", className: "", scrollTop: 0, scrollHeight: 0, addEventListener() {} });
+const ctx = { document: { getElementById: get }, location: { hash }, URLSearchParams, console,
+  setInterval: () => 1, clearInterval() {},
+  fetch: async (url, o = {}) => {
+    appels.push({ url, methode: o.method || "GET", entetes: o.headers || {} });
+    const corps = url === "/api/etat" ? etat : url === "/api/tache" ? tache : { lance: true };
+    return { status: 200, json: async () => corps };
+  } };
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(appjs, "utf8"), ctx);
+setTimeout(() => {
+  const sortie = {};
+  for (const [id, e] of Object.entries(el)) sortie[id] = { html: e.innerHTML, texte: e.textContent,
+    disabled: e.disabled, title: e.title, hidden: e.hidden };
+  console.log(JSON.stringify({ el: sortie, appels }));
+}, 100);
+'''
+
+
+class Page(unittest.TestCase):
+    """app.js sous node : ce que la page AFFICHE, pas seulement ce que l'API rend."""
+
+    @classmethod
+    def setUpClass(cls):
+        if not NODE:
+            raise unittest.SkipTest("node absent : la page n'est pas rendue ici (la CI l'a)")
+        cls.rendu = BANC / "rendu.js"
+        cls.rendu.write_text(RENDU_JS, encoding="utf-8")
+
+    def etat(self, **remplace):
+        e = {"cartes": [{"nom": "NVIDIA GB206", "marque": "NVIDIA", "pilote": "nvidia"}],
+             "nvidia": {"version": "595.71.05", "paquet": "595.71.05-1", "branche_epinglee": "595",
+                        "plus_recente_publiee": "595.91.07-1"},
+             "mesa": "25.0.7-2~bpo13+1",
+             "noyau": {"en_service": "6.16.12+bpo-amd64", "plus_recent": "6.16.12+bpo-amd64",
+                       "module_nvidia_plus_recent": True},
+             "secure_boot": False, "signature": None, "verifie_le": 1000, "maintenant": 1060,
+             "mises_a_jour": {"disponible": True, "raison": None, "retraits": [],
+                              "paquets": [{"paquet": "nvidia-driver-cuda", "installe": "595.71.05-1",
+                                           "cible": "595.91.07-1", "source": "cuda"}]},
+             "raisons": {}}
+        e.update(remplace)
+        return e
+
+    def rendre(self, etat, tache=None, hash_="#j=JETON-DE-LA-PAGE"):
+        (BANC / "etat.json").write_text(json.dumps(etat), encoding="utf-8")
+        (BANC / "tache.json").write_text(json.dumps(tache or {"action": None, "en_cours": False,
+                                                              "journal": [], "resultat": None}))
+        r = subprocess.run([NODE, str(self.rendu), str(APP_JS), str(BANC / "etat.json"),
+                            str(BANC / "tache.json"), hash_], capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def test_bouton_actif_quand_tout_va_bien(self):
+        el = self.rendre(self.etat())["el"]
+        self.assertFalse(el["btn-installer"]["disabled"])
+        self.assertTrue(el["raison-actions"]["hidden"])
+
+    def test_tache_deja_en_cours_reprise(self):
+        el = self.rendre(self.etat(), {"action": "installer", "en_cours": True,
+                                       "journal": ["» Installation…"], "resultat": None})["el"]
+        for b in ("btn-installer", "btn-verifier"):
+            self.assertTrue(el[b]["disabled"], b)
+            self.assertIn("en cours", el[b]["title"])
+        self.assertIn("en cours", el["raison-actions"]["texte"])
+        self.assertIn("» Installation…", el["journal"]["texte"])
+
+    def test_indisponible_avec_raison_pas_a_jour(self):
+        m = {"disponible": False, "raison": "la liste des paquets n'a jamais été téléchargée",
+             "paquets": [], "retraits": []}
+        el = self.rendre(self.etat(mises_a_jour=m, verifie_le=None))["el"]
+        self.assertNotIn("À jour", el["maj"]["html"])
+        self.assertIn("Indisponible", el["maj"]["html"])
+        self.assertIn("jamais été téléchargée", el["maj"]["html"])
+        self.assertTrue(el["btn-installer"]["disabled"])
+        self.assertIn("jamais été téléchargée", el["btn-installer"]["title"])
+
+    def test_retrait_bouton_desactive_avec_raison(self):
+        m = {"disponible": True, "raison": None, "retraits": ["monappli"],
+             "paquets": self.etat()["mises_a_jour"]["paquets"]}
+        el = self.rendre(self.etat(mises_a_jour=m))["el"]
+        self.assertTrue(el["btn-installer"]["disabled"])
+        self.assertIn("monappli", el["btn-installer"]["title"])
+        self.assertIn("retirerait", el["maj"]["html"])
+
+    def test_mesures_absentes_disent_pourquoi(self):
+        e = self.etat(secure_boot=None, mesa=None,
+                      noyau={"en_service": "6.16", "plus_recent": None, "module_nvidia_plus_recent": None},
+                      raisons={"secure_boot": "mokutil est introuvable", "mesa": "dpkg-query a échoué",
+                               "noyau": "/lib/modules est illisible"})
+        html = self.rendre(e)["el"]["pilote"]["html"]
+        for raison in ("mokutil est introuvable", "dpkg-query a échoué", "/lib/modules est illisible"):
+            self.assertIn(raison, html)
+        self.assertNotIn("<dd>—</dd>", html)
+        self.assertNotIn("✗ absent", html, "illisible n'est pas absent")
+
+    def test_jeton_envoye_sur_toute_l_api(self):
+        appels_ = self.rendre(self.etat())["appels"]
+        self.assertTrue(appels_)
+        for a in appels_:
+            self.assertEqual(a["entetes"].get("X-Jeton"), "JETON-DE-LA-PAGE", a["url"])
 
 
 class SignatureMOK(unittest.TestCase):
@@ -252,6 +1212,24 @@ class SignatureMOK(unittest.TestCase):
         # La page ne fournit rien : la commande lancée est figée dans le serveur.
         self.assertEqual(serveur.ASSISTANT_SIGNATURE[0], "x-terminal-emulator")
         self.assertIn("sudo lexos-signer-pilote", serveur.ASSISTANT_SIGNATURE[-1])
+
+
+class GardeFou(unittest.TestCase):
+    """Le banc refuse de tourner si le PATH n'est plus celui des faux."""
+
+    def test_refus_si_vrai_pkexec_devant(self):
+        autre = BANC / "pas-les-faux"
+        autre.mkdir(exist_ok=True)
+        (autre / "pkexec").write_text("#!/bin/false\n")
+        (autre / "pkexec").chmod(0o755)
+        ancien = os.environ["PATH"]
+        os.environ["PATH"] = f"{autre}:{ancien}"
+        try:
+            with self.assertRaises(RuntimeError):
+                _garde_faux_outils()
+        finally:
+            os.environ["PATH"] = ancien
+        _garde_faux_outils()
 
 
 if __name__ == "__main__":
