@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd /usr/share/lexos/rea-studio
+exec python3 -m rea_studio "$@"

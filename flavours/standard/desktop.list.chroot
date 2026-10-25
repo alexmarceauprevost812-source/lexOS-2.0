@@ -125,3 +125,6 @@ gir1.2-gtk-3.0
 # (« policykit-1 » n'existe plus dans trixie — le paquet réel est polkitd)
 polkitd
 pkexec
+
+# --- REA Studio : fenêtre Tk pour les projets et Ollama local ------------------
+python3-tk
