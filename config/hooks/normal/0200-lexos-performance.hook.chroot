@@ -24,9 +24,13 @@ if [ "${LEXOS_KERNEL_CHANNEL:-stock}" = "backports" ]; then
 	echo "[lexos]   noyau : tentative depuis ${SUITE}-backports"
 	export DEBIAN_FRONTEND=noninteractive
 	apt-get update -qq || true
-	#  « paquet/suite » plutôt que « -t suite » : backports.pref.chroot pose un
-	#  Pin-Priority 100 explicite, qui l'emporte sur -t — apt aurait gardé le
-	#  noyau de la suite en disant « déjà à la dernière version ».
+	#  « paquet/suite » demande la version de backports pour CE seul paquet.
+	#  Ce commentaire a longtemps dit que « -t suite » n'aurait pas suffi,
+	#  le Pin-Priority 100 de backports.pref.chroot l'emportant sur -t :
+	#  faux, mesuré avec le vrai apt (2.8.3) et le vrai fichier — un
+	#  « Package: * » ne prime pas -t, qui donne 990 à backports. Pour le
+	#  noyau, les deux formes installent la même chose (mêmes lignes Inst) ;
+	#  on garde celle-ci, qui ne touche pas au reste. Voir aussi 0257.
 	if apt-get install -y \
 	     "linux-image-amd64/${SUITE}-backports" >/dev/null 2>&1; then
 		echo "[lexos]   noyau backports installé"
