@@ -88,7 +88,7 @@ memes && ok "les quatre fichiers du kit sont sur la partition" || non "kit incom
 grep -q '^-t vfat -o rw' "$B/montages" 2>/dev/null && ok "monté en écriture pour copier" || non "jamais monté en écriture"
 grep -q "+h +s ::/.lexos ::/autorun.inf" "$B/mattrib" 2>/dev/null && ok ".lexos et autorun.inf cachés (mattrib, partition démontée)" || non "rien n'a été caché"
 grep -q "$PART LEXOS" "$B/fatlabel" 2>/dev/null && ok "étiquette FAT LEXOS posée (Windows affiche « LEXOS »)" || non "étiquette FAT non posée"
-ls "$B/part" "$B/part/.lexos" | grep -q nouveau && non "un fichier .nouveau traîne" || ok "aucun fichier .nouveau ne traîne"
+grep -q nouveau <<<"$(ls "$B/part" "$B/part/.lexos")" && non "un fichier .nouveau traîne" || ok "aucun fichier .nouveau ne traîne"
 [ -z "$(ls -A "$B/run")" ] && ok "le point de montage temporaire est rendu" || non "un point de montage reste dans /run"
 
 # =============================================================================
@@ -98,7 +98,7 @@ AVANT="$(stat -c %Y "$B/part/PLAY.exe")"; sleep 1
 SORTIE="$(jouer)"
 grep -q 'rw' "$B/montages" && non "remonté en écriture alors que tout est à jour" || ok "monté en lecture seule seulement"
 [ "$(stat -c %Y "$B/part/PLAY.exe")" = "$AVANT" ] && ok "PLAY.exe n'a pas été réécrit" || non "PLAY.exe réécrit pour rien"
-echo "$SORTIE" | grep -q "déjà à jour" && ok "le journal dit « déjà à jour »" || non "journal muet"
+grep -q "déjà à jour" <<<"$SORTIE" && ok "le journal dit « déjà à jour »" || non "journal muet"
 
 # =============================================================================
 titre "3. PLAY.exe différent (mise à jour de LexOS) : remplacé"
