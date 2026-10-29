@@ -300,6 +300,67 @@ class Table(unittest.TestCase):
             self.assertIn(v, pngs)
 
 
+class SaveurNomade(unittest.TestCase):
+    """La saveur nomade (clé USB-C) démarre sur le bureau démon ; les autres
+    gardent le classique. Le serveur sert demon.html à « / » quand le
+    réglage « interface » le dit, et la page du démon ne lance que la table."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        d = Path(self.tmp.name)
+        (d / "Bureau").mkdir()
+        (d / "build.conf").write_text('LEXOS_NAME="LexOS"\nLEXOS_VERSION="2.0.2"\nLEXOS_FLAVOUR="nomade"\n')
+        (d / "cmdline").write_text("BOOT_IMAGE=/live/vmlinuz boot=live\n")
+        os.environ["LEXOS_BUILD_CONF"] = str(d / "build.conf")
+        os.environ["LEXOS_CMDLINE"] = str(d / "cmdline")
+        self.rg, self.ap, self.sv = charger(d)
+
+    def tearDown(self):
+        os.environ.pop("LEXOS_BUILD_CONF", None)
+        os.environ.pop("LEXOS_CMDLINE", None)
+        self.tmp.cleanup()
+
+    def test_defauts_nomade(self):
+        r = self.rg.lire()
+        self.assertEqual((r["mode"], r["interface"], r["demon_theme"]), ("moteur", "demon", "sang"))
+        self.assertEqual(self.rg.ecrire({"interface": "ailleurs", "demon_theme": "rose"})["interface"], "demon")
+        self.assertEqual(self.rg.ecrire({"demon_presence": 5})["demon_presence"], 20)
+
+    def test_page_demon_a_la_racine(self):
+        etat = self.sv.Etat()
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), self.sv.fabriquer(etat))
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            def get(chemin, jeton=False):
+                c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=10)
+                c.request("GET", chemin, headers={"X-Jeton": etat.jeton} if jeton else {})
+                r = c.getresponse()
+                return r.status, r.read(), r.getheader("Cache-Control")
+            code, corps, cache = get("/?t=x")
+            self.assertEqual(code, 200)
+            self.assertIn(b'src="demon.js"', corps)
+            self.assertEqual(cache, "no-store")
+            self.assertIn(b'src="bureau.js"', get("/index.html")[1])
+            for f in ("/demon.css", "/demon.js", "/tilexal-demon.png"):
+                self.assertEqual(get(f)[0], 200, f)
+            e = json.loads(get("/api/etat", jeton=True)[1])
+            self.assertEqual(e["systeme"]["saveur"], "nomade")
+            for d in e["demon"]:
+                self.assertIn(d["id"], etat.table.actions)
+            self.rg.ecrire({"interface": "moteur"})
+            self.assertIn(b'src="bureau.js"', get("/")[1])
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    def test_page_sans_mot_de_passe_ni_reseau(self):
+        html = (BUREAU / "web/demon.html").read_text(encoding="utf-8")
+        js = (BUREAU / "web/demon.js").read_text(encoding="utf-8")
+        self.assertNotIn('type="password"', html)
+        self.assertNotIn("googleapis", html)
+        self.assertIn("/api/lancer", js)
+        self.assertIn("prefers-reduced-motion", js)
+
+
 class Serveur(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

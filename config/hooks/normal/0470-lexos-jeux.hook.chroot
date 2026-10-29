@@ -14,6 +14,17 @@ set -e
 
 echo "[lexos] hook 0470 : bibliothèque de jeux"
 
+#  La saveur « nomade » (clé USB-C, légère) n'embarque aucun jeu : ni Steam,
+#  ni Lutris, ni RetroArch (0250). Une « Bibliothèque de jeux » vide dans le
+#  menu serait une promesse sans rien derrière.
+FLAVOUR="standard"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+	FLAVOUR="${LEXOS_FLAVOUR:-standard}"
+fi
+[ "$FLAVOUR" = nomade ] && { echo "[lexos]   saveur nomade : bibliothèque de jeux ignorée"; exit 0; }
+
 # Le moteur ne sert à rien sans son lanceur, et inversement : on vérifie les
 # deux ici plutôt que de le découvrir sur le bureau d'un utilisateur.
 MANQUE=0

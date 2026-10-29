@@ -39,6 +39,15 @@ if [ "$LEXOS_FLAVOUR" = "pro" ]; then
 	LEXOS_TAGLINE="Play. Build. Own your machine."
 fi
 
+# --- LexOS nomade ------------------------------------------------------------
+#  La saveur légère, celle de la clé USB-C. Elle garde le nom LexOS — ce
+#  n'est pas une autre édition, c'est le même système en plus léger — mais
+#  elle s'annonce comme telle : « saveur nomade » dans le message du jour,
+#  lexfetch et os-release (LEXOS_FLAVOUR ci-dessous), et sa propre devise.
+if [ "$LEXOS_FLAVOUR" = "nomade" ]; then
+	LEXOS_TAGLINE="Ton LexOS, dans ta poche."
+fi
+
 DEBIAN_VERSION="$(cat /etc/debian_version 2>/dev/null || echo 'unknown')"
 VERSION_CODENAME_LOWER="$(echo "$LEXOS_CODENAME" | tr '[:upper:]' '[:lower:]')"
 

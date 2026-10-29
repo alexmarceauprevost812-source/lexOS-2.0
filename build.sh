@@ -4,7 +4,7 @@
 # =============================================================================
 #  Usage :
 #     sudo ./build.sh                      # saveur par défaut (lexos.conf)
-#     sudo ./build.sh --flavour full       # minimal | standard | dev | full
+#     sudo ./build.sh --flavour full       # minimal | standard | dev | full | gaming | pro | nomade
 #     sudo ./build.sh --suite trixie       # change la base Debian
 #     sudo ./build.sh --check              # vérifie l'environnement et sort
 # =============================================================================
@@ -62,7 +62,8 @@ while [[ $# -gt 0 ]]; do
 			LexOS — construction de l'ISO
 
 			  sudo ./build.sh                     saveur par défaut (lexos.conf)
-			  sudo ./build.sh --flavour full      minimal | standard | dev | full | gaming | pro
+			  sudo ./build.sh --flavour full      minimal | standard | dev | full | gaming | pro | nomade
+			                                      (nomade : la légère, pour une clé USB-C)
 			  sudo ./build.sh --suite trixie      change la base Debian
 			  sudo ./build.sh --arch amd64        architecture cible
 			  sudo ./build.sh --check             vérifie l'environnement et sort
@@ -138,8 +139,8 @@ if [[ "$LEXOS_SECOURS_FACULTATIF" = "1" ]]; then
 fi
 
 case "$LEXOS_FLAVOUR" in
-	minimal|standard|dev|full|gaming|pro) ;;
-	*) die "Saveur inconnue : '$LEXOS_FLAVOUR' (minimal | standard | dev | full | gaming | pro)" ;;
+	minimal|standard|dev|full|gaming|pro|nomade) ;;
+	*) die "Saveur inconnue : '$LEXOS_FLAVOUR' (minimal | standard | dev | full | gaming | pro | nomade)" ;;
 esac
 
 info "Distribution : ${LEXOS_NAME} ${LEXOS_VERSION} « ${LEXOS_CODENAME} »"
@@ -326,8 +327,21 @@ apply_flavour() {
 # Seule différence qui reste entre les ISO : le matériel. Le pilote NVIDIA
 # propriétaire n'est embarqué que par la saveur « pro » (hook 0260) — le
 # portable n'a pas de carte NVIDIA et le lui poser risquerait l'écran noir.
+#
+# « nomade » est l'EXCEPTION VOULUE à cette règle : c'est la saveur légère,
+# faite pour vivre sur une clé USB-C (et démarrer dans VirtualBox depuis
+# Windows). Elle prend le bureau de « standard » et rien d'autre — ni les
+# outils de développement (dev), ni la bureautique (full), ni Wine et Vulkan
+# (gaming, pro). Sa propre liste (flavours/nomade) n'ajoute que le son
+# PipeWire en obligatoire, pour la raison écrite dans cette liste. Le reste
+# de l'allègement se fait dans le hook 0250 (listes optionnelles) et dans
+# les hooks lourds, qui s'écartent pour elle.
 case "$LEXOS_FLAVOUR" in
 	minimal)
+		;;
+	nomade)
+		apply_flavour standard
+		apply_flavour nomade
 		;;
 	*)
 		apply_flavour standard

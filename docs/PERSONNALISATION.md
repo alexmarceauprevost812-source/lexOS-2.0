@@ -231,10 +231,11 @@ Une ligne = un nom de paquet Debian. Les lignes vides et celles commençant par
 | Fichier | Portée |
 |---|---|
 | `config/package-lists/lexos-core.list.chroot` | Toutes les saveurs |
-| `flavours/standard/desktop.list.chroot` | standard, dev, full, gaming |
+| `flavours/standard/desktop.list.chroot` | standard, dev, full, gaming, nomade |
 | `flavours/dev/devtools.list.chroot` | dev, full, gaming |
 | `flavours/full/office-media.list.chroot` | full |
 | `flavours/gaming/gaming.list.chroot` | gaming |
+| `flavours/nomade/nomade.list.chroot` | nomade (la légère : elle ne reçoit que `standard` + cette liste, et un sous-ensemble des listes optionnelles — voir le hook 0250) |
 
 Pour vérifier qu'un paquet existe avant de l'ajouter :
 

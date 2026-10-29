@@ -21,7 +21,7 @@ on:
         required: true
         default: 'standard'
         type: choice
-        options: [minimal, standard, dev, full, gaming, pro]
+        options: [minimal, standard, dev, full, gaming, pro, nomade]
       suite:
         description: 'Suite Debian (trixie = Debian 13)'
         required: false
@@ -119,7 +119,7 @@ jobs:
           [ -n "$SUITE" ]   || SUITE=trixie
 
           case "$FLAVOUR" in
-            minimal|standard|dev|full|gaming|pro) ;;
+            minimal|standard|dev|full|gaming|pro|nomade) ;;
             *) echo "::error::Saveur invalide dans .iso-build-request : '$FLAVOUR'"; exit 1 ;;
           esac
 

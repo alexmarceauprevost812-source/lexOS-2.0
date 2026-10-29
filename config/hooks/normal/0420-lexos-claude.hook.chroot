@@ -27,6 +27,17 @@ echo "[lexos] hook 0420 : Claude et Claude Code"
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+#  LA SAVEUR « nomade » (clé USB-C, légère) GARDE LES ICÔNES ET LE LANCEUR,
+#  mais ne télécharge PAS Claude Code pendant la construction : c'est un
+#  téléchargement npm que le lanceur sait faire lui-même au premier clic,
+#  et la clé n'a pas à le porter pour ceux qui ne s'en serviront jamais.
+FLAVOUR="standard"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+	FLAVOUR="${LEXOS_FLAVOUR:-standard}"
+fi
+
 # --- Les DEUX icônes : Claude, et Claude Terminal ---------------------------
 #  ALEX, PHOTO DU DOCK : deux étoiles identiques, côte à côte. Les deux
 #  lanceurs portaient « Icon=lexos-claude » — le même dessin pour
@@ -127,7 +138,9 @@ have gtk-update-icon-cache && \
 #  BEST-EFFORT, ET BRUYANT : si npm manque ici ou si le réseau du chroot
 #  refuse, on le DIT en travers du journal et on continue — le service et
 #  le lanceur « lexos claude » restent les filets, exactement comme avant.
-if have npm; then
+if [ "$FLAVOUR" = nomade ]; then
+	echo "[lexos]   saveur nomade : Claude Code non embarqué (npm ignoré) — le lanceur l'installera au premier lancement"
+elif have npm; then
 	if npm install -g @anthropic-ai/claude-code >/dev/null 2>&1; then
 		V="$(claude --version 2>/dev/null || echo "version non lisible")"
 		echo "[lexos]   Claude Code embarqué dans l'image : ${V}"

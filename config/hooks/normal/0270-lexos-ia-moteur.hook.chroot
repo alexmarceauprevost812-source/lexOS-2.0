@@ -39,6 +39,28 @@ echo "[lexos] hook 0270 : backend GPU du moteur d'IA locale"
 RAPPORT="/etc/lexos/ia-moteur"
 mkdir -p /etc/lexos
 
+# --- La saveur « nomade » n'embarque pas de moteur d'IA locale -------------
+#  Elle est faite pour une clé USB-C : llama.cpp (52-ia-locale.list) n'y est
+#  pas posé par le hook 0250. On ne va donc pas interroger apt pour expliquer
+#  une absence VOULUE — le bandeau « !! » ci-dessous la ferait passer pour
+#  une panne. Le rapport le dit quand même, pour que lexos-ia-locale puisse
+#  l'expliquer et proposer Ollama.
+FLAVOUR="standard"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+	FLAVOUR="${LEXOS_FLAVOUR:-standard}"
+fi
+if [ "$FLAVOUR" = nomade ]; then
+	echo "[lexos]   saveur nomade : moteur d'IA locale non embarqué — ignoré"
+	{
+		echo "moteur=absent"
+		echo "backend=aucun"
+		echo "raison=saveur nomade (clé USB-C, légère) — aucun moteur d'IA locale embarqué"
+	} > "$RAPPORT"
+	exit 0
+fi
+
 have() { command -v "$1" >/dev/null 2>&1; }
 
 # --- Le moteur est-il seulement là ? ----------------------------------------

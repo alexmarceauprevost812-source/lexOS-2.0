@@ -64,6 +64,37 @@ LEXOS = [
     ("📤", "synchro", "Partage", ["lexos-share.desktop"]),
 ]
 
+#  ─── Le bureau démon (saveur nomade) ─────────────────────────────────────
+#  Les cases du dock et des icônes de demon.html : (clé, nom, .desktop
+#  candidats). La clé dit à la page QUEL dessin poser ; l'identifiant, lui,
+#  reste opaque et passe par la même table que tout le reste — la page ne
+#  peut toujours rien lancer qui ne soit pas ici.
+#  Le navigateur : Chromium d'abord, c'est le navigateur officiel de LexOS
+#  (hook 0445) et il est DANS l'image ; lexos-chrome ne vient qu'en dernier,
+#  parce qu'au premier clic il propose de télécharger Chrome — pas ce qu'on
+#  attend d'une clé légère.
+DEMON = [
+    ("terminal", "Terminal", ["lexos-pro-terminal.desktop", "xfce4-terminal.desktop"]),
+    ("fichiers", "Fichiers", ["thunar.desktop", "org.xfce.Thunar.desktop"]),
+    ("navigateur", "Navigateur", ["chromium.desktop", "firefox-esr.desktop", "firefox.desktop",
+                                  "lexos-chrome.desktop"]),
+    ("parametres", "Paramètres", ["lexos-settings.desktop", "xfce-settings-manager.desktop"]),
+    #  L'installateur n'a de sens qu'en session live (sur la clé) : voir
+    #  est_live(). lexos-install demande confirmation avant tout effacement.
+    ("installer", "Installer LexOS", ["lexos-install.desktop"]),
+]
+CMDLINE = Path(os.environ.get("LEXOS_CMDLINE", "/proc/cmdline"))
+
+
+def est_live() -> bool:
+    """Session démo démarrée de la clé ? Même signe que lexos-install :
+    « boot=live » sur la ligne de commande du noyau."""
+    try:
+        return "boot=live" in CMDLINE.read_text(encoding="utf-8", errors="replace").split()
+    except OSError:
+        return False
+
+
 #  Les fichiers du dossier Bureau, par extension -> icône de la planche.
 VISUEL_FICHIER = {
     "pdf": "pdf",
@@ -310,6 +341,27 @@ class Table:
                                 "icone": ident in self.icones, "emoji": emoji})
                     break
         return self._marquer(out)
+
+    def section_demon(self) -> list[dict]:
+        """Le dock et les icônes du bureau démon : {"id", "cle", "nom"}.
+        Le dossier personnel et la corbeille y sont aussi, avec les MÊMES
+        identifiants que dans « Mon bureau »."""
+        out = []
+        for cle, nom, candidats in DEMON:
+            if cle == "installer" and not est_live():
+                continue
+            for c in candidats:
+                p = trouver_desktop(c)
+                if p and lire_desktop(p):
+                    ident = _ident("a-", str(p))
+                    self._ajouter(ident, "desktop", str(p), None)
+                    out.append({"id": ident, "cle": cle, "nom": nom})
+                    break
+        for ident, cle, nom, cible in (("s-maison", "maison", "Dossier personnel", str(MAISON)),
+                                       ("s-corbeille", "corbeille", "Corbeille", "trash:///")):
+            self._ajouter(ident, "ouvrir", cible, visuel(cle))
+            out.append({"id": ident, "cle": cle, "nom": nom})
+        return out
 
     def section_bureau(self) -> list[dict]:
         out = []

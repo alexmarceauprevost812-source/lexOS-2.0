@@ -95,8 +95,46 @@ BUREAU_COMPLET="15-essentiel.list 20-desktop.list 30-dock-effets.list \
 70-gaming.list 80-securite.list 85-outils-lexos.list \
 90-decoupe-image.list 95-logitheque.list 96-a-jour.list"
 
+#  ═══ LA SAVEUR « nomade » : UN BUREAU, PAS UN ATELIER ═══
+#  Elle vit sur une clé USB-C et démarre aussi dans VirtualBox depuis
+#  Windows : chaque Go se paie en temps de copie, en usure de la clé et en
+#  lenteur au démarrage. Elle reçoit donc un sous-ensemble choisi liste par
+#  liste — ce qu'il faut pour un bureau qui marche, et rien de plus :
+#
+#    GARDÉES
+#    · 15-essentiel   agents polkit (sans eux, aucune demande de mot de
+#                     passe graphique), portail xdg, profils d'énergie ;
+#    · 20-desktop     le bureau XFCE lui-même, le verrou d'écran, le son,
+#                     les polices, le réseau (OpenVPN, WireGuard), Chromium ;
+#    · 30-dock-effets le dock (Plank) ;
+#    · 55-cartes      xdg-user-dirs — c'est lui qui crée le dossier Bureau ;
+#    · 56-reglages    les outils derrière chaque section des Paramètres ;
+#    · 57-python      les bibliothèques des applications LexOS elles-mêmes ;
+#    · 58-prive       le coffre chiffré (quatre petits paquets) ;
+#    · 85-outils-lexos ce dont LexOS SE SERT (mpv, ffmpeg, npm…) — la retirer
+#                     casserait une fonction par paquet, en silence (voir
+#                     plus haut pourquoi cette liste existe).
+#
+#    ÉCARTÉES (toutes restent livrées : la Logithèque ou apt les ramènent)
+#    · 40-partage (kdeconnect tire KDE), 41-reseau-plus (OCR, numérisation,
+#      Syncthing), 45-capture, 47-apple, 48-comptes (gnome-control-center),
+#      49-bienetre, 51-dev-outils, 52-ia-locale (llama.cpp), 54-sauvegarde,
+#      59-diagnostic, 70-gaming, 80-securite (ClamAV pèse lourd),
+#      90-decoupe-image (rembg), 95-logitheque (GNOME Logiciels + Flatpak),
+#      96-a-jour (Go, les pilotes VA). Les micrologiciels graphiques AMD et
+#      Intel ne devraient pas en souffrir : firmware-linux-nonfree (00-core)
+#      les tire en dépendance dure dans trixie. NON MESURÉ sur une vraie ISO
+#      nomade : à confirmer avec « dpkg -l firmware-amd-graphics
+#      firmware-intel-graphics » sur la première construite.
+#    · et pas d'architecture i386 : elle ne sert qu'à Steam et Wine.
+BUREAU_NOMADE="15-essentiel.list 20-desktop.list 30-dock-effets.list \
+55-cartes.list 56-reglages.list 57-python.list 58-prive.list 85-outils-lexos.list"
+
 case "$FLAVOUR" in
 	minimal)
+		;;
+	nomade)
+		LISTS="$LISTS $BUREAU_NOMADE"
 		;;
 	*)
 		LISTS="$LISTS $BUREAU_COMPLET"
@@ -142,7 +180,11 @@ echo "[lexos]   saveur ${FLAVOUR} : ${TOTAL} paquets optionnels envisagés"
 #  Preuve dans le journal : ce nombre doit être IDENTIQUE d'une saveur de
 #  bureau à l'autre. S'il diffère entre l'ISO du portable et celle de
 #  l'Alienware, c'est que les deux bureaux ne sont plus les mêmes.
-if [ "$FLAVOUR" != "minimal" ]; then
+#  « nomade » est la seule saveur de bureau qui en reçoit MOINS, et c'est
+#  voulu : on le dit pour que l'écart ne passe pas pour une panne.
+if [ "$FLAVOUR" = "nomade" ]; then
+	echo "[lexos]   saveur nomade : bureau ALLÉGÉ pour clé USB-C — ${TOTAL} paquets optionnels, $(set -- $LISTS; echo $#) listes"
+elif [ "$FLAVOUR" != "minimal" ]; then
 	echo "[lexos]   bureau identique sur toutes les saveurs : ${TOTAL} paquets optionnels, $(set -- $LISTS; echo $#) listes"
 fi
 

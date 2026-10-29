@@ -1,0 +1,22 @@
+# =============================================================================
+#  LexOS nomade — la saveur légère, faite pour une clé USB-C
+# =============================================================================
+#  build.sh lui applique « standard » (le bureau), puis CETTE liste — et rien
+#  d'autre : ni dev, ni full, ni gaming, ni pro. Elle tourne sur une clé, et
+#  dans VirtualBox depuis Windows, où chaque Go compte.
+#
+#  POURQUOI CETTE LISTE EXISTE QUAND MÊME. Le son PipeWire était obligatoire
+#  par la liste « pro » (flavours/pro/pro.list.chroot), qu'on n'applique plus
+#  ici. Sans lui, deux pannes reviendraient en silence :
+#    · blueman (obligatoire dans standard) recommande « pulseaudio-module-
+#      bluetooth | libspa-0.2-bluetooth » : sans pipewire-audio, rien
+#      n'empêche le vrai démon PulseAudio d'entrer À CÔTÉ de PipeWire ;
+#    · le greffon Bluetooth de PipeWire ne viendrait pas — un casque qui
+#      s'appaire et reste muet. Voir le long commentaire de pro.list.chroot.
+#  Mêmes quatre noms que là-bas, mêmes raisons ; rien de Wine ni de Vulkan.
+# =============================================================================
+
+pipewire
+pipewire-pulse
+wireplumber
+pipewire-audio

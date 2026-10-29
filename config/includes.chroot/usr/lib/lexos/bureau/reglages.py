@@ -19,8 +19,37 @@ import tempfile
 from pathlib import Path
 
 FICHIER = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "lexos" / "bureau.json"
+#  Ce que build.sh a écrit à la construction de l'ISO. Surchargeable pour les
+#  bancs, comme LEXOS_PILOTES_BUILD_CONF dans pilotes/moteur.py.
+BUILD_CONF = Path(os.environ.get("LEXOS_BUILD_CONF", "/etc/lexos/build.conf"))
+
+
+def saveur() -> str:
+    """La saveur de l'ISO (LEXOS_FLAVOUR de build.conf), « standard » à défaut.
+    Lue ligne à ligne, jamais exécutée : c'est un fichier shell."""
+    try:
+        for ligne in BUILD_CONF.read_text(encoding="utf-8").splitlines():
+            if ligne.startswith("LEXOS_FLAVOUR="):
+                return ligne.split("=", 1)[1].strip().strip('"').strip("'") or "standard"
+    except (OSError, UnicodeDecodeError):
+        pass
+    return "standard"
+
+
+#  ═══ LA SAVEUR « nomade » : LE BUREAU DÉMON, D'OFFICE ═══
+#  La clé USB-C (et VirtualBox depuis Windows) démarre sur le bureau du
+#  Moteur, avec la page « démon » : le logo TI-LEX-AL qui respire au centre,
+#  ses yeux rouges qui suivent la souris. Les autres saveurs gardent leurs
+#  défauts (bureau classique, page du Moteur) : la raison de la télé de
+#  l'Alienware (voir « mode » dans DEFAUTS) vaut toujours pour elles.
+NOMADE = saveur() == "nomade"
 
 MODES = ("moteur", "classique")
+#  Les deux pages du bureau du Moteur : la grille d'icônes d'origine
+#  (index.html) ou le démon (demon.html). serveur.py sert l'une ou l'autre à
+#  « / » selon ce réglage.
+INTERFACES = ("moteur", "demon")
+DEMON_THEMES = ("sang", "brasier", "spectre")
 #  « pluie » (Pluie de code, l'effet Matrix) : retirée le 2026-10-22, RAMENÉE
 #  le 2026-10-23 à la demande d'Alex — elle reste maintenant SOUS la barre du haut.
 FONDS = ("constellation", "aurore", "etoiles", "pluie", "vagues", "braises", "aucun")
@@ -43,7 +72,20 @@ DEFAUTS = {
     #  Classique par défaut (2026-10-20, demande d'Alex) : la télé perd le
     #  signal au démarrage sur l'Alienware ; on repart du bureau XFCE, le
     #  Moteur reste installé et se rallume dans Paramètres → Bureau LexOS.
-    "mode": "classique",
+    #  SAUF la saveur nomade (NOMADE, plus haut), qui démarre sur le démon.
+    "mode": "moteur" if NOMADE else "classique",
+    "interface": "demon" if NOMADE else "moteur",
+    #  Le bureau démon : son thème (Sang rouge — le look du lanceur du
+    #  téléphone d'Alex —, Brasier orange, Spectre bleu), les yeux qui suivent
+    #  la souris, l'ouverture des yeux au démarrage, la pluie de 0 et de 1, et
+    #  la « présence » du logo derrière (son opacité, en %). Le panneau
+    #  « Yeux » du dock les change ; gardés ici, pas dans le navigateur de la
+    #  page, qui n'a pas de mémoire d'une session à l'autre.
+    "demon_theme": "sang",
+    "demon_suivre": True,
+    "demon_intro": True,
+    "demon_pluie": True,
+    "demon_presence": 60,
     "accent": "#ff7a18",
     "police": "Space Grotesk",
     "taille": 100,
@@ -86,7 +128,7 @@ DEFAUTS = {
     #  reste dans la grille.
     "positions": {},
 }
-BORNES = {"labo_delai": (300, 3000), "taille": (80, 140), "voile": (0, 90), "flou": (0, 20), "vitesse": (20, 300), "densite": (20, 200)}
+BORNES = {"demon_presence": (20, 100), "labo_delai": (300, 3000), "taille": (80, 140), "voile": (0, 90), "flou": (0, 20), "vitesse": (20, 300), "densite": (20, 200)}
 
 
 MAX_POSITIONS = 400
@@ -123,6 +165,10 @@ def _propre(cle: str, v):
         return propre[:MAX_LABO]
     if cle == "mode":
         return v if v in MODES else None
+    if cle == "interface":
+        return v if v in INTERFACES else None
+    if cle == "demon_theme":
+        return v if v in DEMON_THEMES else None
     if cle == "anim":
         return v if v in FONDS else None
     if cle == "embleme":

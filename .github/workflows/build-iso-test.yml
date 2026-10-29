@@ -78,7 +78,7 @@ jobs:
           [ -n "$SUITE" ]   || SUITE=trixie
 
           case "$FLAVOUR" in
-            minimal|standard|dev|full|gaming|pro) ;;
+            minimal|standard|dev|full|gaming|pro|nomade) ;;
             *) echo "::error::Saveur invalide dans .iso-build-request : '$FLAVOUR'"; exit 1 ;;
           esac
 

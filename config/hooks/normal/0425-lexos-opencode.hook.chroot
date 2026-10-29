@@ -28,6 +28,17 @@ echo "[lexos] hook 0425 : OpenCode"
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+#  LA SAVEUR « nomade » (clé USB-C, légère) GARDE LES ICÔNES ET LE LANCEUR,
+#  mais ne télécharge PAS OpenCode pendant la construction : c'est un
+#  téléchargement npm que le lanceur sait faire lui-même au premier clic,
+#  et la clé n'a pas à le porter pour ceux qui ne s'en serviront jamais.
+FLAVOUR="standard"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+	FLAVOUR="${LEXOS_FLAVOUR:-standard}"
+fi
+
 #  Surchargeables pour éprouver ce hook sur un banc sans construire une ISO —
 #  même procédé que LEXOS_THEMES au 0610. Les défauts sont les vrais.
 ICONES_DIR="${LEXOS_ICONES_HICOLOR:-/usr/share/icons/hicolor}"
@@ -73,7 +84,9 @@ fi
 #  Se tromper de nom installerait silencieusement autre chose — l'ISO
 #  sortirait avec un programme qui n'est pas celui qu'Alex a demandé, et
 #  rien ne le dirait.
-if have npm; then
+if [ "$FLAVOUR" = nomade ]; then
+	echo "[lexos]   saveur nomade : OpenCode non embarqué (npm ignoré) — lexos-opencode l'installera au premier lancement"
+elif have npm; then
 	if npm install -g opencode-ai@latest >/dev/null 2>&1; then
 		echo "[lexos]   OpenCode embarqué dans l'image (npm, canal officiel)"
 	else

@@ -102,7 +102,7 @@ sudo apt install -y live-build debootstrap xorriso squashfs-tools \
 > Édite [`.iso-build-request`](.iso-build-request) et pousse :
 >
 > ```
-> flavour: standard      # minimal | standard | dev | full | gaming
+> flavour: standard      # minimal | standard | dev | full | gaming | pro | nomade
 > suite: trixie          # trixie | bookworm
 > build: 2               # incrémenter pour relancer
 > ```
@@ -155,6 +155,7 @@ paquets optionnels. Elles n'en diffèrent que par l'absence du pilote NVIDIA.
 | `minimal` | Console seule, aucun bureau — la seule vraiment différente | ~700 Mio |
 | `standard` | Le bureau de `pro`, sans le pilote NVIDIA | ~7 Gio |
 | `dev` · `full` · `gaming` | Alias historiques de `standard` | ~7 Gio |
+| `nomade` | La **légère**, pour une clé USB-C : bureau « démon », sans pilote NVIDIA, sans jeux, sans IA locale ni atelier de développement | plus petite que `standard` (pas encore mesurée) |
 
 ```bash
 make minimal
@@ -259,6 +260,20 @@ là quand tu démarres un vrai PC sur la clé, et inversement.
 > ⚠ Ne jamais lancer la clé dans la VM pendant qu'elle est déjà démarrée sur
 > un autre PC. Et pour une clé USB, la vitesse compte : une clé « SSD » USB 3.2
 > ou un petit SSD externe USB-C rend LexOS aussi fluide qu'un disque interne.
+
+**La saveur faite pour la clé : `nomade`.** C'est la version **légère** de
+LexOS, pensée pour vivre sur une clé USB-C et démarrer dans VirtualBox depuis
+Windows : pas de pilote NVIDIA, pas de jeux, pas de moteur d'IA locale, pas
+d'atelier de développement — un bureau complet, et rien de plus. Elle démarre
+sur le bureau « démon » : le logo TI-LEX-AL en filigrane, deux grands yeux
+rouges qui suivent la souris, s'ouvrent dans le noir au démarrage et foncent
+vers toi quand une appli s'ouvre, trois thèmes (Sang, Brasier, Spectre) et
+l'appli « Yeux » pour les régler. Tout ce qui manque reste installable par la
+Logithèque ou `apt`.
+
+```bash
+make build FLAVOUR=nomade      # ou : make nomade
+```
 
 ---
 

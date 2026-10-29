@@ -142,6 +142,10 @@ def ouvrir(url_base: str, jeton: str, signal_pret=None, fin=None) -> int:
             #  avec _NET_WORKAREA (serveur.py, ZoneTravail), que Qt ne relit
             #  pas quand la barre du haut arrive APRÈS le bureau.
             "gx": g.x(), "gy": g.y(), "gl": g.width(), "gh": g.height(),
+            #  Rendu au processeur (LEXOS_BUREAU_SANS_GPU, plus haut) : la page
+            #  allège ses effets — le bureau démon coupe ses braises et son
+            #  halo qui pulse, ce qu'un VirtualBox sans 3D paie le plus cher.
+            "leger": "1" if os.environ.get("LEXOS_BUREAU_SANS_GPU") == "1" else "0",
         }
         url = QUrl(f"{url_base}?{urlencode(marges)}")
         page.renderProcessTerminated.connect(lambda *_: tomber("le moteur de la page s'est arrêté"))

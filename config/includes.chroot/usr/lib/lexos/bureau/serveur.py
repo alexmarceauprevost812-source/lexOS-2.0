@@ -80,7 +80,8 @@ class Etat:
         r = reglages.lire()
         table = applis.Table()
         tout = {"tilex": table.section_tilex(), "lexos": table.section_lexos(),
-                "bureau": table.section_bureau(), "applis": table.section_applis()}
+                "bureau": table.section_bureau(), "applis": table.section_applis(),
+                "demon": table.section_demon()}
         with self.verrou:
             self.table = table
         return r, tout
@@ -100,7 +101,10 @@ class Etat:
         return {"prenom": prenom(), "reglages": r, "sections": sections,
                 "tilex": bool(shutil.which("ti-lex-ia")), "dock": dock(), "zone": ZONE.lire(),
                 "labo": [e["id"] for e in labo_choisis(r, tout)],
-                "couleurs": reglages.COULEURS, "polices": reglages.POLICES}
+                "couleurs": reglages.COULEURS, "polices": reglages.POLICES,
+                #  Le dock et les icônes du bureau démon (demon.html), et de
+                #  quoi signer sa devise : « LEXOS 2.0 · NOMADE ».
+                "demon": tout["demon"], "systeme": systeme()}
 
     def construire_outils(self) -> dict:
         """🎛️ Mes outils : le son, les notifications, et les outils placés."""
@@ -188,6 +192,14 @@ def fabriquer(etat: Etat):
             self.wfile.write(b)
 
         def _statique(self, chemin: str):
+            #  « / », c'est LA page du bureau : la grille du Moteur ou le
+            #  démon, selon le réglage « interface » (saveur nomade : le
+            #  démon d'office). Jamais gardée en cache : quand la page change
+            #  ce réglage, elle se recharge et doit recevoir l'AUTRE page.
+            #  « /index.html » et « /demon.html » restent servies telles quelles.
+            if chemin in ("", "/"):
+                page = "demon.html" if reglages.lire()["interface"] == "demon" else "index.html"
+                return self._fichier(WEB / page, cache=False)
             racine, rel = WEB, chemin.lstrip("/") or "index.html"
             if rel == "polices.css" or rel.startswith("polices/") or rel in ("logo.png", "lexos-nomad.png"):
                 racine = MOTEUR_UI
@@ -397,6 +409,26 @@ def dock() -> dict:
     if cote not in ("left", "right", "top", "bottom"):
         return vide
     return {"cote": cote, "taille": int(taille) if taille.isdigit() else 48}
+
+
+def systeme() -> dict:
+    """Nom, version et saveur de l'ISO, lus dans build.conf (jamais exécuté)."""
+    vals = {"LEXOS_NAME": "LexOS", "LEXOS_VERSION": "", "LEXOS_FLAVOUR": reglages.saveur()}
+    try:
+        for ligne in reglages.BUILD_CONF.read_text(encoding="utf-8").splitlines():
+            cle, _, v = ligne.partition("=")
+            if cle in ("LEXOS_NAME", "LEXOS_VERSION"):
+                vals[cle] = v.strip().strip('"').strip("'")[:40]
+    except (OSError, UnicodeDecodeError):
+        pass
+    try:
+        compte = pwd.getpwuid(os.getuid()).pw_name[:32]
+    except KeyError:
+        compte = ""
+    #  « compte » : pour l'invite du petit terminal du bureau démon
+    #  (« alex@lexos-nomade:~$ »), comme dans un vrai terminal.
+    return {"nom": vals["LEXOS_NAME"] or "LexOS", "version": vals["LEXOS_VERSION"],
+            "saveur": vals["LEXOS_FLAVOUR"][:20], "compte": compte}
 
 
 def action(nom: str, etat: Etat) -> bool:

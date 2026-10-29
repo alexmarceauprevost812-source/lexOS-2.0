@@ -1050,6 +1050,9 @@ mkdir -p "$SKEL_XFCONF"
 #  commande « lexos infos » dans le terminal.
 case "${LEXOS_FLAVOUR:-standard}" in
 	minimal) SAVEUR_AFFICHEE="" ;;
+	#  La saveur légère n'a NI le pilote NVIDIA NI les applications de la
+	#  pro : l'horloge ne doit pas lui prêter un nom qu'elle n'a pas.
+	nomade)  SAVEUR_AFFICHEE="Nomade" ;;
 	*)       SAVEUR_AFFICHEE="Pro" ;;
 esac
 

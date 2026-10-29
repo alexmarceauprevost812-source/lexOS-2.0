@@ -398,6 +398,12 @@ menu.addEventListener("click", async (e) => {
   if (l) {
     menu.hidden = true;
     if (l.dataset.local === "logo") changerLogo(true);
+    //  Le bureau démon (demon.html, la page de la saveur nomade) : le
+    //  réglage change, verifier() le voit et charger() recharge la page —
+    //  « / » sert alors le démon.
+    if (l.dataset.local === "demon") {
+      try { await api("/api/reglages", { interface: "demon" }); verifier(); } catch { bulle("Le bureau ne répond pas"); }
+    }
     if (l.dataset.local === "labo-icone" && iconeMenu) {
       const id = iconeMenu.dataset.id, dans = LABO.includes(id);
       try {
@@ -585,6 +591,9 @@ async function charger() {
   const e = await api("/api/etat");
   const avantP = P;
   P = e.reglages; PRENOM = e.prenom || "";
+  //  L'autre page du bureau a été choisie (menu, Paramètres, saveur nomade) :
+  //  « / » la sert, il suffit de recharger.
+  if (P.interface === "demon") { location.reload(); return; }
   appliquerTheme();
   appliquerDecor(!avantP || avantP.anim !== P.anim || avantP.densite !== P.densite);
   POSITIONS = (P.positions && typeof P.positions === "object") ? P.positions : {};

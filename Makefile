@@ -32,11 +32,16 @@ check: ## Vérifie que l'environnement de build est complet
 build: ## Construit l'ISO (FLAVOUR=pro par défaut)
 	@sudo ./build.sh --flavour $(FLAVOUR) --arch $(ARCH)
 
-.PHONY: pro minimal standard dev full gaming
+.PHONY: pro minimal standard dev full gaming nomade
 pro:      ## LA version de LexOS — bureau complet + pilote NVIDIA (~8 Gio)
 	@sudo ./build.sh --flavour pro
 minimal:  ## ISO sans bureau (console seule, ~700 Mio)
 	@sudo ./build.sh --flavour minimal
+#  « nomade » est l'exception : un bureau ALLÉGÉ, pour une clé USB-C (et
+#  VirtualBox depuis Windows). Le bureau « démon » aux yeux rouges, sans
+#  pilote NVIDIA, sans jeux, sans IA locale ni atelier de développement.
+nomade:   ## La légère, pour une clé USB-C — bureau démon, sans NVIDIA/jeux/IA locale
+	@sudo ./build.sh --flavour nomade
 #  Les saveurs ci-dessous donnent TOUTES le même bureau que « pro » — mêmes
 #  95 paquets stricts, mêmes 403 optionnels. Elles n'en diffèrent que par
 #  l'absence du pilote NVIDIA. Gardées pour dépanner, plus pour livrer.
