@@ -480,6 +480,13 @@ jobs:
           sudo apt-get install -y --no-install-recommends python3-yaml >/dev/null 2>&1 || true
           bash tests/test_lexos_kit_play.sh
 
+      - name: Le démarrage de la nomade — thème Plymouth, hook 0415, nom de l'ISO
+        if: ${{ !cancelled() }}
+        run: |
+          #  Les mêmes yeux rouges de Plymouth au bureau, rien de lourd dans
+          #  l'initramfs, et pour la nomade seulement.
+          bash tests/test_lexos_nomade_demarrage.sh
+
       - name: Le module NVIDIA est vérifié pour le BON noyau — hook 0260 sur un banc
         if: ${{ !cancelled() }}
         run: |

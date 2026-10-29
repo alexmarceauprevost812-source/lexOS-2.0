@@ -340,12 +340,22 @@ class SaveurNomade(unittest.TestCase):
             self.assertIn(b'src="demon.js"', corps)
             self.assertEqual(cache, "no-store")
             self.assertIn(b'src="bureau.js"', get("/index.html")[1])
-            for f in ("/demon.css", "/demon.js", "/tilexal-demon.png"):
+            for f in ("/demon.css", "/demon.js", "/logo-ti-lexos.png", "/github-perso.png",
+                      "/avatar-alex.png", "/tux.png"):
                 self.assertEqual(get(f)[0], 200, f)
+            #  La vidéo d'ouverture : servie en video/webm, sinon elle ne joue pas.
+            c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=10)
+            c.request("GET", "/demarrage-flammes.webm")
+            r = c.getresponse(); r.read()
+            self.assertEqual((r.status, r.getheader("Content-Type")), (200, "video/webm"))
             e = json.loads(get("/api/etat", jeton=True)[1])
             self.assertEqual(e["systeme"]["saveur"], "nomade")
             for d in e["demon"]:
                 self.assertIn(d["id"], etat.table.actions)
+            #  GitHub : l'adresse vient du serveur, jamais de la page.
+            self.assertEqual(etat.table.actions["s-github"], ("url", self.ap.GITHUB))
+            self.assertTrue(self.ap.GITHUB.startswith("https://github.com/"))
+            self.assertIn("noyau", e["systeme"])
             self.rg.ecrire({"interface": "moteur"})
             self.assertIn(b'src="bureau.js"', get("/")[1])
         finally:

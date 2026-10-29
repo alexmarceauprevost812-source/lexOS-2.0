@@ -84,6 +84,9 @@ DEMON = [
     ("installer", "Installer LexOS", ["lexos-install.desktop"]),
 ]
 CMDLINE = Path(os.environ.get("LEXOS_CMDLINE", "/proc/cmdline"))
+#  La tuile GitHub du bureau démon : le dépôt de LexOS. L'adresse est ÉCRITE
+#  ICI, côté serveur — la page ne fournit qu'un identifiant, jamais une URL.
+GITHUB = "https://github.com/alexmarceauprevost812-source/lexOS-2.0"
 
 
 def est_live() -> bool:
@@ -361,6 +364,8 @@ class Table:
                                        ("s-corbeille", "corbeille", "Corbeille", "trash:///")):
             self._ajouter(ident, "ouvrir", cible, visuel(cle))
             out.append({"id": ident, "cle": cle, "nom": nom})
+        self._ajouter("s-github", "url", GITHUB, None)
+        out.append({"id": "s-github", "cle": "github", "nom": "GitHub"})
         return out
 
     def section_bureau(self) -> list[dict]:
@@ -505,6 +510,15 @@ def lancer(genre: str, cible: str) -> bool | str:
         for outil in ("exo-open", "xdg-open"):
             if shutil.which(outil):
                 return _detache([outil, url])
+        return False
+    if genre == "url":
+        #  Seulement les adresses écrites dans CE fichier (GITHUB) : la table
+        #  ne contient rien d'autre sous ce genre.
+        if not re.match(r"^https://", cible):
+            return False
+        for outil in ("exo-open", "xdg-open"):
+            if shutil.which(outil):
+                return _detache([outil, cible])
         return False
     if genre == "tilex":
         return _detache(["ti-lex-ia", cible])

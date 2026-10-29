@@ -74,7 +74,8 @@ button, input { font-family: inherit; color: inherit; }
 .carte-barre { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 18px; border-bottom: 1px solid var(--bord); }
 .point { width: 16px; height: 16px; border-radius: 50%; background: #3a3a3a; }
 .point.rouge { background: var(--ac); }
-.titre { margin-left: 14px; color: var(--gris); font-size: 15px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avatar { width: 30px; height: 30px; border-radius: 50%; margin-left: 12px; object-fit: cover; background: #fff; border: 1px solid var(--ac); }
+.titre { margin-left: 4px; color: var(--gris); font-size: 15px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .engrenage { border: 0; background: transparent; color: var(--ac); cursor: pointer; padding: 6px; border-radius: 8px; }
 .engrenage:hover, .engrenage:focus-visible { background: color-mix(in srgb, var(--ac) 18%, transparent); outline: none; }
 .carte-corps { padding: 16px 20px 18px; font-size: clamp(12px, 1.8vh, 16px); line-height: 1.6; max-height: 34vh; overflow: hidden; }
@@ -90,6 +91,14 @@ button, input { font-family: inherit; color: inherit; }
 }
 .tuile svg { width: 46%; height: 46%; stroke: var(--ac); }
 .tuile img { width: 58%; height: 58%; object-fit: contain; }
+.tuile.photo { background: #f4f4f4; overflow: hidden; }
+.tuile.photo img { width: 92%; height: 92%; object-fit: contain; margin-top: 8%; }
+.tuile.tux img { width: 66%; height: 66%; }
+.apropos { width: 440px; }
+.apropos .tux { width: 34px; height: 34px; object-fit: contain; }
+.apropos .carte-corps { max-height: none; }
+.apropos .carte-corps p { white-space: normal; }
+.apropos .carte-corps .cle { min-width: 10ch; }
 .appli:hover .tuile, .appli:focus-visible .tuile { transform: translateY(-3px); border-color: color-mix(in srgb, var(--ac) 60%, var(--bord)); }
 .appli:focus-visible { outline: none; }
 .appli .nom { font-size: clamp(11px, 1.7vh, 15px); color: #d6d6d6; text-transform: lowercase; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -169,12 +178,15 @@ button, input { font-family: inherit; color: inherit; }
 /* ─── L'écran secondaire : le décor et les yeux seulement ─── */
 body.secondaire .milieu, body.secondaire .recherche, body.secondaire .points,
 body.secondaire .dock, body.secondaire .panneau { visibility: hidden; }
+.panneau.apropos { z-index: 36; }
 
 /* ─── L'ouverture : le noir, et SEULEMENT les yeux par-dessus ─── */
 @keyframes eveil { 0%,25% { opacity: 0; } 100% { opacity: 1; } }
 @keyframes cligne { 0%,40%,46%,100% { transform: scaleY(1); } 43% { transform: scaleY(.08); } 70%,76% { transform: scaleY(1); } 73% { transform: scaleY(.08); } }
 @keyframes eclat { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.2); } 30% { opacity: .9; } 100% { opacity: 0; transform: translate(-50%,-50%) scale(3.2); } }
 .intro { position: fixed; inset: 0; z-index: 30; background: #000; }
+.intro video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+.intro.eclate video { opacity: 0; transition: opacity .25s ease-out; }
 .intro.parti { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .6s ease, visibility 0s linear .6s; }
 body.en-intro .yeux { z-index: 31; }
 body.en-intro.eveil .yeux { animation: eveil 1.2s ease-out both; }

@@ -143,6 +143,14 @@ case "$LEXOS_FLAVOUR" in
 	*) die "Saveur inconnue : '$LEXOS_FLAVOUR' (minimal | standard | dev | full | gaming | pro | nomade)" ;;
 esac
 
+# « -rtx5060 » dans LEXOS_VERSION (lexos.conf) dit que l'ISO embarque le pilote
+# NVIDIA de la RTX 5060. La nomade n'en a AUCUN (hook 0260) : son numéro, et
+# donc le nom de son ISO et de sa Release, ne doit pas le prétendre.
+# auto/config fait la même coupe : il relit lexos.conf de son côté.
+if [[ "$LEXOS_FLAVOUR" = nomade ]]; then
+	LEXOS_VERSION="${LEXOS_VERSION%-rtx5060}"
+fi
+
 info "Distribution : ${LEXOS_NAME} ${LEXOS_VERSION} « ${LEXOS_CODENAME} »"
 info "Socle        : Debian ${LEXOS_DEBIAN_SUITE} / ${LEXOS_ARCH} (noyau ${LEXOS_KERNEL_CHANNEL})"
 info "Saveur       : ${LEXOS_FLAVOUR}"

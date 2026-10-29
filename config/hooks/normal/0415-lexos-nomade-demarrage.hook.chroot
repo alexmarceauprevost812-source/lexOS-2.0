@@ -1,0 +1,95 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS nomade — le démarrage : les yeux rouges, du noir au bureau
+# =============================================================================
+#  La saveur nomade vit sur une clé USB-C : son démarrage doit être LÉGER.
+#  La vidéo du démon de flammes ne va donc PAS dans Plymouth (une suite
+#  d'images plein écran dans l'initramfs, décompressée à chaque démarrage) :
+#
+#    1. Plymouth   : thème « lexos-nomade » — le noir et les deux yeux rouges
+#                    (une image de 12 Ko qui respire), et l'invite de la
+#                    phrase secrète si le disque est chiffré ;
+#    2. LightDM    : le même noir, les mêmes yeux au-dessus de la carte de
+#                    connexion (fond-connexion-nomade.png) ;
+#    3. le bureau  : demon.html joue la vidéo (bureau/web/demarrage-flammes
+#                    .webm, 2 Mo) PENDANT que le bureau se charge, et elle
+#                    finit sur les yeux — un éclat, et le bureau apparaît.
+#
+#  Les trois yeux sont le MÊME tracé (tools/gen-yeux-nomade.py reprend celui
+#  de demon.js) : on les suit du démarrage jusqu'au bureau.
+#
+#  Ce que la nomade NE garde pas : la vidéo d'après-connexion de lexos-intro
+#  (le bureau démon a la sienne — deux vidéos coup sur coup, non) et le thème
+#  Plymouth « lexos », avec son entrée en matière découpée en 1920 × 1080
+#  (≈ 20 Mo), dès que le sien est bien désigné.
+#
+#  Les autres saveurs ne reçoivent RIEN de tout ça : le thème, le fond et la
+#  vidéo de la nomade sont retirés de leur image.
+#
+#  hook 0415 : APRÈS 0300 (qui désigne le thème « lexos ») et 0410 (qui écrit
+#  lightdm-gtk-greeter.conf). L'initramfs est refait après tous les hooks
+#  (lb chroot_hacks, voir 0300) : le thème choisi ici est celui qu'il prendra.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0415 : démarrage de la saveur nomade"
+
+FLAVOUR="standard"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+	FLAVOUR="${LEXOS_FLAVOUR:-standard}"
+fi
+
+THEME_NOMADE="${LEXOS_PLYMOUTH_NOMADE:-/usr/share/plymouth/themes/lexos-nomade}"
+THEME_LEXOS="${LEXOS_PLYMOUTH_LEXOS:-/usr/share/plymouth/themes/lexos}"
+FOND="${LEXOS_FOND_NOMADE:-/usr/share/lexos/nomade/fond-connexion-nomade.png}"
+VIDEO="${LEXOS_VIDEO_NOMADE:-/usr/lib/lexos/bureau/web/demarrage-flammes.webm}"
+GREETER="${LEXOS_LIGHTDM_DIR:-/etc/lightdm}/lightdm-gtk-greeter.conf"
+BRAND="${LEXOS_BRANDING:-/usr/share/lexos/branding}"
+
+if [ "$FLAVOUR" != nomade ]; then
+	rm -rf "$THEME_NOMADE"
+	rm -f "$FOND" "$VIDEO"
+	rmdir "$(dirname "$FOND")" 2>/dev/null || true
+	echo "[lexos]   saveur ${FLAVOUR} : démarrage inchangé (thème, fond et vidéo nomade retirés)"
+	exit 0
+fi
+
+# --- 1. Plymouth -------------------------------------------------------------
+for F in lexos-nomade.plymouth lexos-nomade.script yeux.png; do
+	[ -s "$THEME_NOMADE/$F" ] || { echo "[lexos]   ÉCHEC : $THEME_NOMADE/$F absent"; exit 1; }
+done
+if command -v plymouth-set-default-theme >/dev/null 2>&1 \
+   && plymouth-set-default-theme lexos-nomade >/dev/null 2>&1; then
+	echo "[lexos]   thème Plymouth : lexos-nomade (les yeux dans le noir)"
+	#  Le thème « lexos » n'est plus celui qui démarre : son entrée en matière
+	#  ne fait que peser sur la clé. On ne le retire QUE maintenant — si le
+	#  nôtre avait été refusé, c'est lui qui aurait servi.
+	if [ -d "$THEME_LEXOS" ]; then
+		rm -rf "$THEME_LEXOS"
+		echo "[lexos]   thème Plymouth « lexos » retiré de la clé (non utilisé)"
+	fi
+else
+	echo "[lexos]   !! lexos-nomade n'a pas pu être désigné — Plymouth garde « lexos »"
+fi
+
+# --- 2. L'écran de connexion -------------------------------------------------
+if [ -s "$FOND" ] && [ -f "$GREETER" ]; then
+	sed -i "s|^background=.*|background=${FOND}|" "$GREETER"
+	echo "[lexos]   écran de connexion : les yeux rouges sur le noir"
+else
+	echo "[lexos]   !! fond nomade ou lightdm-gtk-greeter.conf absent — écran de connexion inchangé"
+fi
+
+# --- 3. Une seule vidéo après la connexion : celle du bureau démon ----------
+#  lexos-intro ne trouve plus ses fichiers et laisse la session partir sans
+#  vidéo — il le dit dans son journal. demon.html joue la sienne.
+rm -f "$BRAND/apres-connexion-16-9.mp4" "$BRAND/apres-connexion-16-9-courte.mp4"
+if [ -s "$VIDEO" ]; then
+	echo "[lexos]   vidéo d'ouverture : bureau démon ($(du -k "$VIDEO" | cut -f1) Ko)"
+else
+	echo "[lexos]   !! $VIDEO absent — le bureau démon ouvrira sur les yeux en CSS"
+fi
+
+echo "[lexos] hook 0415 : ok"

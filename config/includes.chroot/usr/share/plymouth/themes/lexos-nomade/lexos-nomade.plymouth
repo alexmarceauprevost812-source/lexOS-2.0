@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=LexOS nomade
+Description=Ecran de demarrage de LexOS nomade : deux yeux rouges dans le noir
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/lexos-nomade
+ScriptFile=/usr/share/plymouth/themes/lexos-nomade/lexos-nomade.script

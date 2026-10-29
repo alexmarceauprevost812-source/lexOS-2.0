@@ -1,0 +1,87 @@
+// =============================================================================
+//  LexOS nomade — l'ecran de demarrage : deux yeux rouges dans le noir
+// =============================================================================
+//  La saveur nomade vit sur une cle USB-C : son initramfs doit rester petit.
+//  Ce theme ne porte donc qu'UNE image (yeux.png, 12 Ko, fabriquee par
+//  tools/gen-yeux-nomade.py avec le trace des yeux du bureau demon) et la
+//  fait respirer en jouant sur son opacite. Pas de video, pas de suite
+//  d'images : la video du demon joue APRES la connexion, dans le bureau.
+//
+//  N'emploie QUE des fonctions relevees dans script.so (la liste gelee du
+//  banc tests/test_lexos_plymouth.sh) et l'arithmetique de base : pas de
+//  Math.*, pas de « % ». L'interpreteur ne se plaint jamais d'un nom
+//  inconnu — il rend une valeur nulle, et l'ecran reste noir sans un mot.
+// =============================================================================
+
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
+
+yeux_image = Image("yeux.png");
+yeux_sprite = Sprite(yeux_image);
+yeux_sprite.SetX(Window.GetWidth() / 2 - yeux_image.GetWidth() / 2);
+yeux_sprite.SetY(Window.GetHeight() * 0.40 - yeux_image.GetHeight() / 2);
+yeux_sprite.SetZ(10);
+
+// --- La respiration : une onde triangulaire, 4 s par cycle a 50 im/s -------
+Plymouth.SetRefreshRate(50);
+rafraichissements = 0;
+fun refresh_callback() {
+    rafraichissements = rafraichissements + 1;
+    if (rafraichissements >= 200) {
+        rafraichissements = 0;
+    }
+    if (rafraichissements < 100) {
+        onde = rafraichissements / 100;
+    } else {
+        onde = (200 - rafraichissements) / 100;
+    }
+    yeux_sprite.SetOpacity(0.55 + 0.45 * onde);
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+// --- La phrase secrete (LexOS installe chiffre) -----------------------------
+// Sans ces fonctions, cryptsetup attendrait la phrase sur un ecran noir sans
+// rien pour la taper. On ecrit l'invite et une puce par caractere sous les
+// yeux ; Plymouth rend l'ecran normal une fois la phrase acceptee.
+invite_sprite = Sprite();
+puces_sprite = Sprite();
+invite_sprite.SetZ(20);
+puces_sprite.SetZ(20);
+fun montrer_texte(sprite, texte, y) {
+    texte_image = Image.Text(texte, 0.92, 0.92, 0.92, 1);
+    sprite.SetImage(texte_image);
+    sprite.SetX(Window.GetWidth() / 2 - texte_image.GetWidth() / 2);
+    sprite.SetY(y);
+    sprite.SetOpacity(1);
+}
+fun password_callback(invite, puces) {
+    if (invite == "") {
+        invite = "Phrase secrete du disque";
+    }
+    montrer_texte(invite_sprite, invite, Window.GetHeight() * 0.55);
+    points = "";
+    i = 0;
+    while (i < puces) {
+        points = points + "*";
+        i = i + 1;
+    }
+    montrer_texte(puces_sprite, points + " ", Window.GetHeight() * 0.55 + 36);
+}
+fun question_callback(invite, saisie) {
+    montrer_texte(invite_sprite, invite, Window.GetHeight() * 0.55);
+    montrer_texte(puces_sprite, saisie + " ", Window.GetHeight() * 0.55 + 36);
+}
+fun normal_callback() {
+    invite_sprite.SetOpacity(0);
+    puces_sprite.SetOpacity(0);
+}
+Plymouth.SetDisplayPasswordFunction(password_callback);
+Plymouth.SetDisplayQuestionFunction(question_callback);
+Plymouth.SetDisplayNormalFunction(normal_callback);
+
+// --- Les messages de systemd ne s'affichent jamais (comme le theme lexos) --
+fun message_callback(texte) {
+    texte = texte;
+}
+Plymouth.SetDisplayMessageFunction(message_callback);
+Plymouth.SetHideMessageFunction(message_callback);

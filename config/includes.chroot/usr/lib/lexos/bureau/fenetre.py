@@ -115,6 +115,12 @@ def ouvrir(url_base: str, jeton: str, signal_pret=None, fin=None) -> int:
             reglages.setAttribute(QWebEngineSettings.WebAttribute.NavigateOnDropEnabled, False)
         except AttributeError:      # Qt < 6.4 : l'acceptNavigationRequest suffit
             pass
+        #  La vidéo d'ouverture du bureau démon (muette) doit partir seule :
+        #  personne n'a encore cliqué quand la session s'ouvre.
+        try:
+            reglages.setAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False)
+        except AttributeError:
+            pass
         vue.setAcceptDrops(False)
         vue.setWindowTitle("LexOS Bureau")
         page.setBackgroundColor(QColor("#070707"))

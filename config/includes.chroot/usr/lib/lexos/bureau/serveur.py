@@ -178,6 +178,12 @@ def fabriquer(etat: Etat):
             t = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
             if p.suffix == ".woff2":
                 t = "font/woff2"
+            #  La vidéo d'ouverture du bureau démon (demon.html). Écrit ici,
+            #  pas laissé à mimetypes : sa table dépend de /etc/mime.types, et
+            #  une vidéo servie en « octet-stream » ne joue pas — l'ouverture
+            #  retomberait sur les yeux en CSS sans dire pourquoi.
+            if p.suffix == ".webm":
+                t = "video/webm"
             self.send_response(200)
             self.send_header("Content-Type", t)
             if image_seule:
@@ -425,10 +431,32 @@ def systeme() -> dict:
         compte = pwd.getpwuid(os.getuid()).pw_name[:32]
     except KeyError:
         compte = ""
+    #  « À propos » du bureau démon (la tuile Tux) : ce que lexfetch dirait,
+    #  lu dans /proc — quelques lectures de fichiers, rien n'est lancé.
+    def lire(chemin: str, cle: str) -> str:
+        try:
+            for ligne in Path(chemin).read_text(encoding="utf-8", errors="replace").splitlines():
+                if ligne.startswith(cle):
+                    return ligne.split(":", 1)[1].strip()
+        except OSError:
+            pass
+        return ""
+    memoire = lire("/proc/meminfo", "MemTotal")
+    try:
+        memoire = f"{round(int(memoire.split()[0]) / 1048576, 1)} Gio" if memoire else ""
+    except (ValueError, IndexError):
+        memoire = ""
+    try:
+        secondes = int(float(Path("/proc/uptime").read_text().split()[0]))
+        allume = f"{secondes // 3600} h {secondes % 3600 // 60:02d}"
+    except (OSError, ValueError, IndexError):
+        allume = ""
     #  « compte » : pour l'invite du petit terminal du bureau démon
     #  (« alex@lexos-nomade:~$ »), comme dans un vrai terminal.
     return {"nom": vals["LEXOS_NAME"] or "LexOS", "version": vals["LEXOS_VERSION"],
-            "saveur": vals["LEXOS_FLAVOUR"][:20], "compte": compte}
+            "saveur": vals["LEXOS_FLAVOUR"][:20], "compte": compte,
+            "noyau": os.uname().release[:60], "processeur": lire("/proc/cpuinfo", "model name")[:80],
+            "memoire": memoire, "allume": allume}
 
 
 def action(nom: str, etat: Etat) -> bool:

@@ -258,17 +258,25 @@ const DESSINS = {
   corbeille: "M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13",
   appli: "M5 5h6v6H5z M13 5h6v6h-6z M5 13h6v6H5z M13 13h6v6h-6z",
 };
-const LIBELLES = { fichiers: "mes fichiers", maison: "dossier perso", installer: "installer lexos" };
-const ORDRE_GRILLE = ["terminal", "fichiers", "navigateur", "parametres", "maison", "corbeille", "installer"];
-const ORDRE_DOCK = ["terminal", "fichiers", "navigateur", "parametres"];
+//  Des PHOTOS plutôt que des traits pour deux tuiles : le gars de GitHub
+//  (le dépôt de LexOS) et Tux (« à propos »). Petites (≤ 192 px), dans web/.
+const PHOTOS = { github: "github-perso.png" };
+const LIBELLES = { fichiers: "mes fichiers", maison: "dossier perso", installer: "installer lexos", github: "github" };
+const ORDRE_GRILLE = ["terminal", "fichiers", "navigateur", "parametres", "github", "maison", "corbeille", "installer"];
+const ORDRE_DOCK = ["terminal", "fichiers", "navigateur", "github"];
 const trait = (cle) => `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${DESSINS[cle] || DESSINS.appli}"/></svg>`;
 const yeuxTuile = `<svg viewBox="0 0 220 60" aria-hidden="true"><path style="fill:var(--oeil)" d="${OEIL}" transform="translate(4 4)"/><path style="fill:var(--oeil)" d="${OEIL}" transform="translate(216 4) scale(-1 1)"/></svg>`;
 function tuile(e) {
   const nom = LIBELLES[e.cle] || e.nom;
-  const image = e.icone ? `<img src="/icone/${encodeURIComponent(e.id)}?t=${encodeURIComponent(JETON)}" alt="">` : trait(e.cle);
+  const photo = PHOTOS[e.cle];
+  const image = photo ? `<img src="${photo}" alt="">`
+    : e.icone ? `<img src="/icone/${encodeURIComponent(e.id)}?t=${encodeURIComponent(JETON)}" alt="">` : trait(e.cle);
   return `<button class="appli" data-id="${echapper(e.id)}" data-nom="${echapper(e.nom)}" title="${echapper(e.nom)}">`
-    + `<span class="tuile">${image}</span><span class="nom">${echapper(nom)}</span></button>`;
+    + `<span class="tuile${photo ? " photo" : ""}">${image}</span><span class="nom">${echapper(nom)}</span></button>`;
 }
+//  « À propos » : Tux, et ce que lexfetch dirait — rien n'est lancé.
+const TUILE_APROPOS = `<button class="appli" data-apropos title="À propos de ce LexOS">`
+  + `<span class="tuile tux"><img src="tux.png" alt=""></span><span class="nom">à propos</span></button>`;
 const TUILE_YEUX = `<button class="appli yeux-appli" data-yeux title="Yeux — réglages du bureau démon">`
   + `<span class="tuile yeux-tuile">${yeuxTuile}</span><span class="nom">yeux</span></button>`;
 let empreinteApplis = "";
@@ -282,10 +290,11 @@ function dessinerApplis(liste) {
 }
 function dessinerGrille() {
   const parCle = new Map(((E && E.demon) || []).map((e) => [e.cle, e]));
-  $("#grille").innerHTML = ORDRE_GRILLE.filter((k) => parCle.has(k)).map((k) => tuile(parCle.get(k))).join("") + TUILE_YEUX;
+  $("#grille").innerHTML = ORDRE_GRILLE.filter((k) => parCle.has(k)).map((k) => tuile(parCle.get(k))).join("") + TUILE_APROPOS + TUILE_YEUX;
 }
 document.addEventListener("click", (e) => {
   if (e.target.closest("[data-yeux]")) { ouvrirPanneau(!$("#panneau").classList.contains("ouvert")); return; }
+  if (e.target.closest("[data-apropos]")) { ouvrirApropos(!$("#apropos").classList.contains("ouvert")); return; }
   const b = e.target.closest("[data-id]");
   if (b) lancer(b.dataset.id, b.dataset.nom || "");
 });
@@ -336,6 +345,25 @@ $("#recherche").addEventListener("submit", async (e) => {
   if (trouvees[0]) { lancer(trouvees[0].id, trouvees[0].nom); $("#question").value = ""; chercher(); }
 });
 $("#vers-ia").addEventListener("click", () => demander($("#question").value.trim().replace(/^\?\s*/, "")));
+
+/* ════════════════ « À propos » : lexfetch, sans terminal ════════════════ */
+function ouvrirApropos(ouvert) {
+  if (ouvert) {
+    ouvrirPanneau(false);
+    const s = (E && E.systeme) || {};
+    const lignes = [
+      ["os", `${s.nom || "LexOS"}${s.version ? " " + s.version : ""}${s.saveur ? " (" + s.saveur + ")" : ""}`],
+      ["base", "Debian trixie"], ["noyau", s.noyau], ["cpu", s.processeur], ["mémoire", s.memoire],
+      ["allumé", s.allume], ["bureau", "LexOS démon"], ["créateur", "Alex Marceau Prevost"],
+    ].filter(([, v]) => v);
+    $("#apropos-corps").innerHTML = lignes.map(([k, v]) =>
+      `<p><span class="cle">${echapper(k)}</span>${echapper(v)}</p>`).join("");
+  }
+  $("#apropos").classList.toggle("ouvert", ouvert);
+  $("#apropos").setAttribute("aria-hidden", String(!ouvert));
+}
+$("#apropos-fermer").addEventListener("click", () => ouvrirApropos(false));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") ouvrirApropos(false); });
 
 /* ════════════════ L'appli « Yeux » : son panneau ════════════════ */
 function ouvrirPanneau(ouvert) {
@@ -413,27 +441,65 @@ async function verifier() {
 }
 
 /* ════════════════ L'ouverture ════════════════
-   Noir → seuls les yeux s'allument et clignent (≈ 2 s) → éclat → le
-   bureau. Un clic ou une touche l'abrège. Sautée si « les yeux s'ouvrent
-   au démarrage » est éteint, ou si le système demande moins d'animations. */
+   1. LA VIDÉO : le démon de flammes « TI-LEXOS », le zoom dans ses yeux,
+      et ses deux amandes rouges qui clignent dans le noir (13 s, muette,
+      demarrage-flammes.webm, VP9 960 × 540, 2 Mo). Quand elle finit : un
+      éclat là où étaient ses yeux, et le bureau.
+   2. SINON, les yeux en CSS : noir → seuls les yeux de la page s'allument
+      et clignent (≈ 2 s) → éclat → le bureau. C'est le cas en mode allégé
+      (pas de GPU : décoder de la vidéo au processeur pendant que le bureau
+      se charge, non), sur un écran secondaire (une seule vidéo à la fois),
+      et si la vidéo ne part pas dans les 2,5 s (fichier absent, codec).
+   Un clic ou une touche abrège les deux. Rien du tout si « les yeux
+   s'ouvrent au démarrage » est éteint, ou si le système demande moins
+   d'animations. */
 function ouverture() {
-  const intro = $("#intro"), corps = document.body;
+  const intro = $("#intro"), corps = document.body, eclat = $("#eclat");
   let fini = false;
+  const minuteurs = [];
+  const plus_tard = (f, ms) => minuteurs.push(setTimeout(f, ms));
   const finir = () => {
     if (fini) return; fini = true;
+    minuteurs.forEach(clearTimeout);
+    const v = $("video", intro); if (v) v.pause();
     intro.classList.add("parti");
     setTimeout(() => { intro.remove(); corps.classList.remove("en-intro", "eveil"); }, 650);
   };
   if (CALME || !P || !P.demon_intro) { finir(); return; }
-  const r = $("#yeux").getBoundingClientRect();
-  const eclat = $("#eclat");
-  eclat.style.left = (r.left + r.width / 2) + "px"; eclat.style.top = (r.top + r.height / 2) + "px";
-  corps.classList.add("eveil");
-  const t1 = setTimeout(() => intro.classList.add("eclate"), 2000);
-  const t2 = setTimeout(finir, 2700);
-  const abreger = () => { clearTimeout(t1); clearTimeout(t2); finir(); };
-  addEventListener("keydown", abreger, { once: true });
-  intro.addEventListener("click", abreger, { once: true });
+  addEventListener("keydown", finir, { once: true });
+  intro.addEventListener("click", finir, { once: true });
+
+  const yeuxCss = () => {
+    if (fini) return;
+    const r = $("#yeux").getBoundingClientRect();
+    eclat.style.left = (r.left + r.width / 2) + "px"; eclat.style.top = (r.top + r.height / 2) + "px";
+    corps.classList.add("en-intro", "eveil");
+    plus_tard(() => intro.classList.add("eclate"), 2000);
+    plus_tard(finir, 2700);
+  };
+  if (LEGER || SECONDAIRE) { yeuxCss(); return; }
+
+  //  Pendant la vidéo, les yeux de la page restent SOUS le voile : ce sont
+  //  ceux du démon qu'on regarde.
+  corps.classList.remove("en-intro");
+  const v = document.createElement("video");
+  v.muted = true; v.playsInline = true; v.preload = "auto"; v.autoplay = true;
+  v.src = "demarrage-flammes.webm";
+  let partie = false;
+  const repli = () => { if (partie || fini) return; partie = true; v.remove(); yeuxCss(); };
+  v.addEventListener("playing", () => { partie = true; }, { once: true });
+  v.addEventListener("error", repli, { once: true });
+  v.addEventListener("ended", () => {
+    //  La vidéo finit sur les yeux du démon, au centre, un peu au-dessus de
+    //  la mi-hauteur : l'éclat part de là.
+    eclat.style.left = "50%"; eclat.style.top = "42%";
+    intro.classList.add("eclate");
+    plus_tard(finir, 700);
+  }, { once: true });
+  intro.appendChild(v);
+  const essai = v.play(); if (essai && essai.catch) essai.catch(repli);
+  plus_tard(repli, 2500);           // rien ne joue au bout de 2,5 s : les yeux en CSS
+  plus_tard(finir, 16000);          // et jamais plus de 16 s, quoi qu'il arrive
 }
 
 (async () => {

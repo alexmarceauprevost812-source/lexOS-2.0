@@ -21,7 +21,7 @@
      les lignes de balayage, le logo qui respire en filigrane. -->
 <canvas id="pluie" class="decor" aria-hidden="true"></canvas>
 <div class="decor scan" aria-hidden="true"></div>
-<div class="decor filigrane" id="filigrane" aria-hidden="true"><img src="tilexal-demon.png" alt=""></div>
+<div class="decor filigrane" id="filigrane" aria-hidden="true"><img src="logo-ti-lexos.png" alt=""></div>
 
 <main class="ecran" id="ecran">
   <header class="haut">
@@ -41,6 +41,7 @@
     <section class="carte terminal" aria-label="Terminal">
       <div class="carte-barre">
         <i class="point rouge"></i><i class="point"></i><i class="point"></i>
+        <img class="avatar" src="avatar-alex.png" alt="Alex, créateur de LexOS" title="Alex Marceau Prevost — créateur de LexOS">
         <span class="titre" id="term-titre">moi@lexos: ~</span>
         <button class="engrenage" id="term-yeux" aria-label="Yeux — réglages du bureau démon" title="Yeux — réglages du bureau démon">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
@@ -95,6 +96,15 @@
   </div>
 </section>
 
+<!-- « À propos » (la tuile Tux) : ce que lexfetch dirait, sans terminal. -->
+<section class="panneau apropos" id="apropos" aria-label="À propos de ce LexOS" aria-hidden="true">
+  <header class="panneau-tete">
+    <div class="rang"><img src="tux.png" alt="" class="tux"><div><h2>À PROPOS</h2><p class="sous">lexfetch</p></div></div>
+    <button class="fermer" id="apropos-fermer" aria-label="Fermer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+  </header>
+  <div class="panneau-corps carte-corps" id="apropos-corps"></div>
+</section>
+
 <div id="bulle" class="bulle" role="status" hidden></div>
 
 <!-- LA PLONGÉE : quand une appli s'ouvre, les deux yeux foncent vers toi
@@ -103,12 +113,15 @@
      seulement, rien que le compositeur ne fasse seul. -->
 <div class="plongee" id="plongee" aria-hidden="true"><div class="plongee-yeux" id="plongee-yeux"></div></div>
 
-<!-- L'OUVERTURE : le noir, et seulement les deux yeux qui s'allument et
-     clignent, un éclat, puis le bureau. Ce n'est PAS un écran de
+<!-- L'OUVERTURE : la vidéo du démon de flammes qui finit sur ses yeux, OU
+     (mode allégé, moins d'animations, vidéo illisible) le noir et seulement
+     les deux yeux qui s'allument et clignent ; puis un éclat, et le bureau. Ce n'est PAS un écran de
      connexion : LightDM a déjà vérifié le mot de passe, et « Verrouiller »
      appelle le vrai verrou du système (lexos-session). Un clic ou une
      touche l'abrège. -->
 <div class="intro" id="intro" aria-hidden="true"><div class="eclat" id="eclat"></div></div>
+<!-- La vidéo du démon (13 s, muette) se glisse dans l'ouverture quand elle
+     le peut : demon.js, ouverture(). -->
 
 <script src="demon.js"></script>
 </body>

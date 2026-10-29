@@ -23,6 +23,12 @@ _ENV_ARCH="${LEXOS_ARCH:-}"
 [ -n "$_ENV_SUITE" ]   && LEXOS_DEBIAN_SUITE="$_ENV_SUITE"
 [ -n "$_ENV_ARCH" ]    && LEXOS_ARCH="$_ENV_ARCH"
 
+#  La nomade n'embarque pas le pilote NVIDIA : pas de « -rtx5060 » dans le
+#  nom de son image (même coupe que build.sh, qui écrit build.conf).
+if [ "$LEXOS_FLAVOUR" = nomade ]; then
+	LEXOS_VERSION="${LEXOS_VERSION%-rtx5060}"
+fi
+
 BACKPORTS="false"
 [ "${LEXOS_KERNEL_CHANNEL:-stock}" = "backports" ] && BACKPORTS="true"
 
