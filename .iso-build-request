@@ -52,7 +52,7 @@
 #   La Release est publiée sous « latest-<saveur> ». La seule à maintenir à
 #   jour est donc « latest-pro ». « latest-standard » reste en ligne comme
 #   trace du build 53, mais n'est plus reconstruite.
-flavour: pro
+flavour: nomade
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
@@ -2599,4 +2599,4 @@ suite: trixie
 #     dans la commande lexos et son aide ; les bancs de LexOS Pilotes et du
 #     bureau du Moteur tournent dans la CI.
 #
-build: 124
+build: 125
