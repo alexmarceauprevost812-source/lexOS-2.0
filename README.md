@@ -225,6 +225,41 @@ Pour garder LexOS **à côté** de Windows pour de bon, c'est l'installation
 normale : session démo → `lexos install-disk` → **« Installer à côté »**, qui
 rétrécit la partition Windows sans l'effacer.
 
+### LexOS dans ta poche : installé pour de vrai sur une clé USB-C
+
+LexOS ne fait pas que *démarrer* depuis une clé : il peut **vivre** dessus.
+Contrairement à la session démo, qui repart à neuf à chaque démarrage, une
+clé USB-C où LexOS est **installé** garde tout : tes fichiers, tes logiciels,
+tes réglages, ton thème. Ton ordinateur à toi, dans ta poche.
+
+Une seule installation sur la clé, deux façons de la lancer :
+
+| Façon | Comment | Touche au PC ? |
+|---|---|---|
+| **Démarrer dessus** | Brancher la clé, `F12` au démarrage, choisir la clé | Non — tout reste sur la clé |
+| **Dans Windows, sans redémarrer** | VirtualBox démarre directement sur la clé | Non — rien n'est installé sur le disque Windows |
+
+C'est **le même système** dans les deux cas : un fichier créé dans la VM est
+là quand tu démarres un vrai PC sur la clé, et inversement.
+
+**Installer LexOS sur la clé depuis Windows** (sans redémarrer) :
+
+1. Installer [VirtualBox](https://www.virtualbox.org) et télécharger l'ISO LexOS.
+2. Brancher **une seule** clé USB-C (128 Go conseillés, USB 3.2 rapide).
+3. Dans un PowerShell **administrateur** :
+   `powershell -ep bypass -f installer.ps1` — le script trouve la clé,
+   montre son nom et sa taille, et **demande confirmation avant d'effacer**.
+   Il refuse de continuer s'il voit plus d'une clé ou un disque de plus de
+   300 Go : le disque de Windows ne peut pas être touché.
+4. L'installateur LexOS s'ouvre dans VirtualBox : choisir le disque de la
+   clé, **« Effacer le disque »**, **pas de swap** (meilleur pour la durée
+   de vie d'une clé).
+5. Ensuite, un double-clic sur **« LANCER LexOS »** pour l'ouvrir dans Windows.
+
+> ⚠ Ne jamais lancer la clé dans la VM pendant qu'elle est déjà démarrée sur
+> un autre PC. Et pour une clé USB, la vitesse compte : une clé « SSD » USB 3.2
+> ou un petit SSD externe USB-C rend LexOS aussi fluide qu'un disque interne.
+
 ---
 
 ## À quoi ça ressemble
@@ -690,6 +725,12 @@ confirmation explicite.
 **Je peux garder Windows à côté ?**
 Oui. L'installateur Calamares propose « installer à côté » en plus de
 « effacer le disque ». Choisis bien — et sauvegarde avant.
+
+**Je peux emporter LexOS partout, sur une clé ?**
+Oui. LexOS peut être **installé** sur une clé USB-C, pas seulement démarré en
+démo : il garde alors tes fichiers et tes réglages, démarre sur n'importe quel
+PC (`F12`) et s'ouvre aussi dans Windows via VirtualBox, sans rien installer
+sur l'ordinateur. Voir « LexOS dans ta poche » plus haut.
 
 **Pourquoi Debian et pas Ubuntu comme socle ?**
 `live-build` est l'outil officiel Debian, il est stable et bien documenté.
