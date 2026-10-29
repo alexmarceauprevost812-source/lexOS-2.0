@@ -1,0 +1,117 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS nomade — poser (ou mettre à jour) le kit PLAY sur la clé USB-C
+# =============================================================================
+#  La clé où LexOS nomade est INSTALLÉ porte une petite partition FAT32
+#  « LEXOS » (2 Gio, créée par l'installateur : hook 0505). Branchée sur
+#  Windows, c'est la SEULE que l'Explorateur montre, et elle ne contient
+#  qu'une chose visible : PLAY.exe. Un double-clic démarre le LexOS de la
+#  clé dans VirtualBox (.lexos\jouer.ps1, accès direct aux AUTRES
+#  partitions de la clé).
+#
+#  Ce script remplit cette partition depuis /usr/share/lexos/kit-play :
+#    · s'il manque un fichier du kit, ou si l'un d'eux diffère de celui livré
+#      (empreinte sha256) — une mise à jour de LexOS fait donc suivre la clé ;
+#    · sinon il ne fait RIEN : il monte la partition en LECTURE SEULE pour
+#      comparer, et la démonte.
+#
+#  ═══ CE QU'IL NE TOUCHE JAMAIS ═══
+#  · Une partition d'un AUTRE disque : on ne cherche « LEXOS » que sur le
+#    disque qui porte la racine de ce système (lsblk remonte de / jusqu'au
+#    disque, à travers LUKS et LVM s'il y en a). Une clé USB d'un ami
+#    branchée à côté, nommée LEXOS elle aussi, est ignorée.
+#  · La partition EFI, même si elle s'appelait LEXOS : type GPT EFI refusé.
+#  · Une partition déjà montée ailleurs : on ne la monte pas une deuxième
+#    fois sous les pieds de quelqu'un.
+#  · Plus d'une candidate : on ne choisit pas au hasard, on s'abstient.
+#  · La session démo (live) : rien n'y est installé, rien à remplir.
+#
+#  JAMAIS BLOQUANT : il tourne par un minuteur, 45 s après le démarrage
+#  (lexos-kit-play.timer), hors du chemin de l'écran de connexion. Toute
+#  erreur se termine par « exit 0 » et une ligne de journal.
+# =============================================================================
+set -u
+
+KIT="${LEXOS_KIT_PLAY:-/usr/share/lexos/kit-play}"
+CONF="${LEXOS_BUILD_CONF:-/etc/lexos/build.conf}"
+#  Surchargeables pour le banc (tests/test_lexos_kit_play.sh) — les défauts
+#  sont les vrais.
+CMDLINE="${LEXOS_CMDLINE:-/proc/cmdline}"
+RUN="${LEXOS_RUN:-/run}"
+FICHIERS="PLAY.exe autorun.inf .lexos/jouer.ps1 .lexos/lexos.ico"
+ESP_TYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+
+dire() { echo "[lexos-kit-play] $*"; }
+fin()  { dire "$*"; exit 0; }
+
+#  Nomade seulement : le minuteur n'est activé que là (hook 0505), mais on
+#  ne se fie pas à une seule porte.
+grep -qs '^LEXOS_FLAVOUR="\{0,1\}nomade"\{0,1\}$' "$CONF" || fin "saveur non nomade — rien à faire"
+grep -qw 'boot=live' "$CMDLINE" 2>/dev/null && fin "session démo — rien à faire"
+[ -d "$KIT" ] && [ -f "$KIT/PLAY.exe" ] || fin "kit absent ($KIT) — rien à faire"
+command -v lsblk >/dev/null 2>&1 && command -v findmnt >/dev/null 2>&1 || fin "lsblk/findmnt absents"
+
+# --- Le disque qui porte CE système -----------------------------------------
+RACINE="$(findmnt -no SOURCE / 2>/dev/null | sed 's/\[.*//')"
+[ -b "$RACINE" ] || fin "racine introuvable ($RACINE)"
+#  -s : de la racine vers ses parents (dm-crypt, LVM, partition, disque).
+DISQUE="$(lsblk -nrspo NAME,TYPE "$RACINE" 2>/dev/null | awk '$2 == "disk" { print $1; exit }')"
+[ -b "$DISQUE" ] || fin "disque de la racine introuvable"
+
+# --- La partition « LEXOS » de CE disque, et elle seule ---------------------
+#  LABEL (étiquette FAT) ou PARTLABEL (nom GPT, posé par Calamares) : selon
+#  la version de Calamares, l'un ou l'autre — on accepte les deux, en FAT
+#  seulement.
+CANDIDATES="$(lsblk -nrpo NAME,TYPE,FSTYPE,PARTTYPE,LABEL,PARTLABEL "$DISQUE" 2>/dev/null \
+	| awk -v esp="$ESP_TYPE" '$2 == "part" && $3 == "vfat" && tolower($4) != esp && ($5 == "LEXOS" || $6 == "LEXOS") { print $1 }')"
+N="$(printf '%s\n' "$CANDIDATES" | grep -c . || true)"
+[ "$N" = 1 ] || fin "partition LEXOS : ${N} candidate(s) sur ${DISQUE} — on s'abstient"
+PART="$CANDIDATES"
+[ -z "$(findmnt -no TARGET "$PART" 2>/dev/null)" ] || fin "$PART est déjà montée — on n'y touche pas"
+
+#  L'étiquette que Windows affiche : « LEXOS » plutôt que « Lecteur USB ».
+#  fatlabel (dosfstools) écrit sur la partition démontée — c'est la nôtre.
+if [ "$(lsblk -nro LABEL "$PART" 2>/dev/null)" != "LEXOS" ] && command -v fatlabel >/dev/null 2>&1; then
+	fatlabel "$PART" LEXOS >/dev/null 2>&1 && dire "étiquette LEXOS posée sur $PART"
+fi
+
+POINT="$(mktemp -d "$RUN/lexos-kit-play.XXXXXX")" || fin "mktemp impossible"
+nettoyer() { mountpoint -q "$POINT" 2>/dev/null && umount "$POINT" 2>/dev/null; rmdir "$POINT" 2>/dev/null; }
+trap nettoyer EXIT INT TERM
+OPTIONS="nosuid,nodev,noexec,uid=0,gid=0,umask=022"
+
+# --- Comparer, en lecture seule ---------------------------------------------
+mount -t vfat -o "ro,$OPTIONS" "$PART" "$POINT" 2>/dev/null || fin "montage de $PART impossible"
+A_JOUR=1
+for F in $FICHIERS; do
+	[ -f "$POINT/$F" ] || { A_JOUR=0; break; }
+	A="$(sha256sum < "$KIT/$F" 2>/dev/null)"; B="$(sha256sum < "$POINT/$F" 2>/dev/null)"
+	[ "$A" = "$B" ] || { A_JOUR=0; break; }
+done
+umount "$POINT" 2>/dev/null || fin "démontage de $PART impossible"
+[ "$A_JOUR" = 0 ] || fin "kit déjà à jour sur $PART"
+
+# --- Copier ------------------------------------------------------------------
+mount -t vfat -o "rw,$OPTIONS" "$PART" "$POINT" 2>/dev/null || fin "montage en écriture de $PART impossible"
+ERREUR=0
+mkdir -p "$POINT/.lexos" || ERREUR=1
+for F in $FICHIERS; do
+	#  Copie à côté puis renommage : une clé arrachée en pleine copie ne
+	#  laisse pas un PLAY.exe à moitié écrit sous le bon nom.
+	cp "$KIT/$F" "$POINT/$F.nouveau" 2>/dev/null && mv -f "$POINT/$F.nouveau" "$POINT/$F" 2>/dev/null || ERREUR=1
+done
+#  Cachés pour l'Explorateur (attribut FAT « caché » + « système ») : seul
+#  PLAY reste visible. fatattr agit sur la partition montée ; jouer.ps1 le
+#  refait de toute façon au premier lancement sous Windows.
+if command -v fatattr >/dev/null 2>&1; then
+	fatattr +hs "$POINT/.lexos" "$POINT/autorun.inf" >/dev/null 2>&1 || true
+fi
+sync
+umount "$POINT" 2>/dev/null || ERREUR=1
+
+#  Sans fatattr : mattrib (mtools) travaille sur la partition DÉMONTÉE.
+if ! command -v fatattr >/dev/null 2>&1 && command -v mattrib >/dev/null 2>&1 && ! mountpoint -q "$POINT"; then
+	MTOOLS_SKIP_CHECK=1 mattrib -i "$PART" +h +s ::/.lexos ::/autorun.inf >/dev/null 2>&1 || true
+fi
+
+[ "$ERREUR" = 0 ] && fin "kit PLAY posé sur $PART" || fin "kit PLAY posé en partie sur $PART (voir ci-dessus)"

@@ -1,0 +1,136 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS nomade — le kit PLAY : une clé qui se lance d'un double-clic sous
+#  Windows
+# =============================================================================
+#  ALEX : branchée sur Windows, la clé USB-C où LexOS nomade est installé ne
+#  doit montrer qu'UNE chose : PLAY. Un double-clic, et le LexOS de la clé
+#  démarre dans VirtualBox. La même clé démarre un vrai PC par F12.
+#
+#  Trois morceaux, saveur nomade SEULEMENT :
+#    1. l'installateur (Calamares) crée, quand il efface la clé, une petite
+#       partition FAT32 « LEXOS » de 2 Gio juste après la partition EFI —
+#       la seule que Windows sait lire, donc la seule qu'il montre ;
+#    2. le kit (PLAY.exe, autorun.inf, .lexos\jouer.ps1, .lexos\lexos.ico)
+#       est livré dans /usr/share/lexos/kit-play ;
+#    3. lexos-kit-play.timer le recopie sur cette partition 45 s après le
+#       démarrage, s'il manque ou s'il a changé (usr/lib/lexos/kit-play).
+#
+#  Les autres saveurs ne reçoivent RIEN de tout ça : partition.conf reste tel
+#  qu'il est livré, et le kit, le script et ses unités sont retirés.
+#
+#  hook 0505 : APRÈS 0500, qui vérifie le /boot non chiffré du partition.conf
+#  livré — on y ajoute une entrée, on ne touche pas aux siennes.
+# =============================================================================
+set -e
+
+echo "[lexos] hook 0505 : kit PLAY de la clé (saveur nomade)"
+
+FLAVOUR="standard"
+if [ -r /etc/lexos/build.conf ]; then
+	# shellcheck disable=SC1091
+	. /etc/lexos/build.conf
+	FLAVOUR="${LEXOS_FLAVOUR:-standard}"
+fi
+
+KIT=/usr/share/lexos/kit-play
+UNITES="/usr/lib/systemd/system/lexos-kit-play.service /usr/lib/systemd/system/lexos-kit-play.timer"
+
+if [ "$FLAVOUR" != nomade ]; then
+	rm -rf "$KIT"
+	rm -f /usr/lib/lexos/kit-play $UNITES
+	echo "[lexos]   saveur ${FLAVOUR} : pas de kit PLAY — retiré de l'image"
+	exit 0
+fi
+
+# --- 2. Le kit est-il complet ? ----------------------------------------------
+MANQUE=""
+for F in PLAY.exe autorun.inf .lexos/jouer.ps1 .lexos/lexos.ico; do
+	[ -s "$KIT/$F" ] || MANQUE="$MANQUE $F"
+done
+if [ -n "$MANQUE" ]; then
+	echo "[lexos]   ÉCHEC : kit PLAY incomplet —${MANQUE} absent(s) de $KIT"
+	exit 1
+fi
+chmod 0755 /usr/lib/lexos/kit-play
+chmod 0644 $UNITES
+
+# --- 3. Le minuteur ----------------------------------------------------------
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl enable lexos-kit-play.timer >/dev/null 2>&1 \
+		&& echo "[lexos]   lexos-kit-play.timer activé" \
+		|| echo "[lexos]   !! lexos-kit-play.timer non activé — le kit ne sera pas posé tout seul"
+fi
+
+# --- 1. La partition « LEXOS » à l'installation ------------------------------
+#  VÉRIFIÉ DANS LES SOURCES DE CALAMARES 3.3.14 (celui de trixie) :
+#    · PartitionLayout.cpp : seules « name » et « size » sont obligatoires ;
+#      « mountPoint » peut manquer — la partition est créée et formatée,
+#      sans point de montage ;
+#    · mount/main.py : une partition au mountPoint vide n'est PAS montée
+#      (« if not raw_mount_point: return ») ;
+#    · fstab/main.py : elle n'a PAS de ligne dans /etc/fstab
+#      (« if not mount_point and not filesystem == "swap": return None »).
+#  Donc pas de ligne fstab, pas de montage par le système installé : seul
+#  lexos-kit-play la monte, un instant, et la rend.
+#
+#  « type » : le GUID GPT « Microsoft basic data », pour que Windows la
+#  reconnaisse comme un volume à lui (c'est aussi ce que kpmcore pose pour
+#  du FAT32 ; on l'écrit pour ne pas en dépendre).
+#  « noEncrypt » : si la case « chiffrer » est cochée, Windows doit QUAND
+#  MÊME pouvoir lire PLAY.
+#  « name » est le nom GPT (PARTLABEL) ; l'étiquette FAT que Windows affiche
+#  est posée par lexos-kit-play (fatlabel) au premier démarrage.
+#
+#  Calamares ajoute la partition EFI devant d'office : l'ordre sur la clé
+#  est donc EFI, LEXOS, /boot, /.
+CONF=/etc/calamares/modules/partition.conf
+if [ ! -f "$CONF" ]; then
+	echo "[lexos]   ÉCHEC : $CONF absent — la partition LEXOS ne serait pas créée"
+	exit 1
+fi
+if grep -qE 'name:[[:space:]]*"LEXOS"' "$CONF"; then
+	echo "[lexos]   partition LEXOS déjà dans $CONF"
+else
+	TMP="$(mktemp)"
+	awk '
+		{ print }
+		/^partitionLayout:[[:space:]]*$/ && !fait {
+			print "    - name: \"LEXOS\""
+			print "      type: \"EBD0A0A2-B9E5-4433-87C0-68B6B72699C7\""
+			print "      filesystem: \"fat32\""
+			print "      noEncrypt: true"
+			print "      size: 2G"
+			fait = 1
+		}
+	' "$CONF" > "$TMP"
+	cat "$TMP" > "$CONF"
+	rm -f "$TMP"
+fi
+
+#  Un partition.conf illisible CASSE l'installateur : on le relit comme
+#  Calamares le lira, quand python3-yaml est là, et on vérifie l'ordre.
+if python3 -c 'import yaml' 2>/dev/null; then
+	if ! python3 - "$CONF" <<'PY'
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+lay = d.get("partitionLayout") or []
+noms = [p.get("name") for p in lay]
+assert noms[:1] == ["LEXOS"], noms
+lexos = lay[0]
+assert lexos.get("filesystem") == "fat32" and lexos.get("noEncrypt") is True and "mountPoint" not in lexos, lexos
+assert any(p.get("mountPoint") == "/boot" and p.get("noEncrypt") is True for p in lay), "/boot"
+assert any(p.get("mountPoint") == "/" for p in lay), "/"
+print("[lexos]   partition.conf relu : " + " -> ".join(["EFI"] + [str(n) for n in noms]))
+PY
+	then
+		echo "[lexos]   ÉCHEC : partition.conf mal formé après l'ajout de LEXOS"
+		exit 1
+	fi
+else
+	grep -A4 -E 'name:[[:space:]]*"LEXOS"' "$CONF" | grep -q 'fat32' \
+		&& echo "[lexos]   partition LEXOS ajoutée (python3-yaml absent : relecture simple)" \
+		|| { echo "[lexos]   ÉCHEC : entrée LEXOS introuvable dans $CONF"; exit 1; }
+fi
+
+echo "[lexos] hook 0505 : ok"

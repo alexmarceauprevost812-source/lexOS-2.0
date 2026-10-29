@@ -1,0 +1,17 @@
+[Unit]
+Description=LexOS nomade - poser le kit PLAY sur la partition LEXOS de la cle
+Documentation=file:/usr/lib/lexos/kit-play
+#  Jamais en session demo : rien n'y est installe, la cle n'a pas de
+#  partition LEXOS a remplir (le script le verifie aussi).
+ConditionKernelCommandLine=!boot=live
+ConditionPathIsDirectory=/usr/share/lexos/kit-play
+
+[Service]
+#  Lance par lexos-kit-play.timer, 45 s apres le demarrage : hors du chemin
+#  de l'ecran de connexion, aucun retard au demarrage. Le script sort
+#  toujours en 0 et dit pourquoi dans le journal (journalctl -u lexos-kit-play).
+Type=oneshot
+ExecStart=/usr/lib/lexos/kit-play
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=120

@@ -275,6 +275,20 @@ Logithèque ou `apt`.
 make build FLAVOUR=nomade      # ou : make nomade
 ```
 
+**PLAY : la clé nomade se lance d'un double-clic sous Windows.** Installée
+avec la saveur `nomade`, la clé porte une petite partition « LEXOS » que
+Windows sait lire — et elle ne montre qu'une chose :
+
+1. Brancher la clé sur un PC Windows : l'Explorateur n'affiche que **PLAY**.
+2. Double-cliquer sur **PLAY** (Windows demande l'autorisation administrateur :
+   VirtualBox doit lire la clé directement).
+3. LexOS démarre dans VirtualBox, avec tes fichiers et tes réglages.
+   **VirtualBox doit être installé** (gratuit) ; s'il manque, PLAY ouvre sa
+   page de téléchargement.
+
+La **même clé** démarre aussi un vrai PC : `F12` au démarrage, choisir la clé.
+LexOS repose PLAY tout seul sur la clé s'il manque ou s'il a été mis à jour.
+
 ---
 
 ## À quoi ça ressemble

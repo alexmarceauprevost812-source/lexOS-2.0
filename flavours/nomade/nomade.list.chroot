@@ -20,3 +20,8 @@ pipewire
 pipewire-pulse
 wireplumber
 pipewire-audio
+
+# Le kit PLAY de la clé (usr/lib/lexos/kit-play, hook 0505) : mattrib cache
+# .lexos et autorun.inf sur la partition FAT32 « LEXOS », pour que Windows
+# n'y montre que PLAY.exe. fatlabel, lui, vient de dosfstools (lexos-core).
+mtools

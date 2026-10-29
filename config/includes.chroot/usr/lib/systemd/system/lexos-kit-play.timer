@@ -1,0 +1,12 @@
+[Unit]
+Description=LexOS nomade - verifier le kit PLAY de la cle apres le demarrage
+Documentation=file:/usr/lib/lexos/kit-play
+
+[Timer]
+#  Une fois par demarrage, 45 s apres : le kit suit les mises a jour de
+#  LexOS (empreintes comparees), sans jamais retarder l'ouverture de session.
+OnBootSec=45s
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

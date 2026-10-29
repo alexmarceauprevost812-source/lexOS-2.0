@@ -48,6 +48,7 @@ jobs:
             config/includes.chroot/usr/lib/lexos/demo-guard \
             config/includes.chroot/usr/lib/lexos/gpu-garde \
             config/includes.chroot/usr/lib/lexos/grub-defaut-windows \
+            config/includes.chroot/usr/lib/lexos/kit-play \
             config/includes.chroot/usr/lib/lexos/lexos-fuseau-confirmer \
             config/includes.chroot/usr/lib/lexos/lexos-fuseau-position \
             config/includes.chroot/usr/lib/lexos/polkit-agent \
@@ -467,6 +468,17 @@ jobs:
           #  entrée vide — le repli « aucun micrologiciel » ne se
           #  déclenchait donc JAMAIS.
           bash tests/test_lexos_optional_firmware.sh
+
+      - name: Le kit PLAY de la clé nomade — script et hook 0505 sur un banc
+        if: ${{ !cancelled() }}
+        run: |
+          #  La partition FAT32 « LEXOS » que Windows montre (PLAY.exe seul
+          #  visible) : le script la remplit sans jamais toucher une autre
+          #  partition, et le hook 0505 l'ajoute au partitionLayout de
+          #  Calamares pour la saveur nomade SEULEMENT, sans point de montage
+          #  (donc sans ligne dans /etc/fstab).
+          sudo apt-get install -y --no-install-recommends python3-yaml >/dev/null 2>&1 || true
+          bash tests/test_lexos_kit_play.sh
 
       - name: Le module NVIDIA est vérifié pour le BON noyau — hook 0260 sur un banc
         if: ${{ !cancelled() }}
