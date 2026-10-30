@@ -766,11 +766,15 @@ $("#reinit-disposition").addEventListener("click", () => { ouvrirPanneau(false);
 //  titre de la page est le signe que fenetre.py écoute (« outils-… »).
 $("#vers-outils").addEventListener("click", () => { ouvrirPanneau(false); document.title = "outils-" + Date.now(); });
 $("#vers-moteur").addEventListener("click", async () => {
+  if (NOMADE()) return;   // la nomade n'a pas d'autre bureau (reglages.py le refuserait aussi)
   try { await api("/api/reglages", { interface: "moteur" }); location.reload(); }
   catch { bulle("Le bureau ne répond pas"); }
 });
 
 /* ════════════════ Charger, puis suivre les changements ════════════════ */
+//  La saveur vient du serveur (build.conf) ; sans réponse, on la suppose
+//  nomade : mieux vaut cacher un bouton que proposer la page orange.
+const NOMADE = () => !E || !E.systeme || !E.systeme.saveur || E.systeme.saveur === "nomade";
 async function charger() {
   E = await api("/api/etat");
   const avant = P;
@@ -785,6 +789,8 @@ async function charger() {
   $$(".inter").forEach((b) => b.setAttribute("aria-pressed", String(!!P[b.dataset.cle])));
   if (!P.demon_suivre) regarder(0, 0);
   $("#vers-ia").hidden = !E.tilex;
+  //  Nomade : le démon est LE bureau, pour de bon — aucun retour à la page orange.
+  $("#vers-moteur").hidden = NOMADE();
   const s = E.systeme || {};
   $("#pied").textContent = `${s.nom || "LexOS"}${s.version ? " " + s.version : ""}${s.saveur ? " (" + s.saveur + ")" : ""} · Debian trixie`;
   majTerminal();

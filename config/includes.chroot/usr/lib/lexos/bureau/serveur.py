@@ -202,10 +202,13 @@ def fabriquer(etat: Etat):
             #  démon, selon le réglage « interface » (saveur nomade : le
             #  démon d'office). Jamais gardée en cache : quand la page change
             #  ce réglage, elle se recharge et doit recevoir l'AUTRE page.
-            #  « /index.html » et « /demon.html » restent servies telles quelles.
-            if chemin in ("", "/"):
-                page = "demon.html" if reglages.lire()["interface"] == "demon" else "index.html"
-                return self._fichier(WEB / page, cache=False)
+            #  « /index.html » et « /demon.html » restent servies telles quelles,
+            #  SAUF dans la nomade : là, le démon est LE bureau, pour de bon
+            #  (décision d'Alex, 2026-10-29) — « / » comme « /index.html »
+            #  rendent demon.html, quoi que dise un bureau.json d'avant.
+            if chemin in ("", "/") or (reglages.NOMADE and chemin == "/index.html"):
+                demon = reglages.NOMADE or reglages.lire()["interface"] == "demon"
+                return self._fichier(WEB / ("demon.html" if demon else "index.html"), cache=False)
             racine, rel = WEB, chemin.lstrip("/") or "index.html"
             if rel == "polices.css" or rel.startswith("polices/") or rel in ("logo.png", "lexos-nomad.png"):
                 racine = MOTEUR_UI

@@ -43,6 +43,15 @@ def saveur() -> str:
 #  défauts (bureau classique, page du Moteur) : la raison de la télé de
 #  l'Alienware (voir « mode » dans DEFAUTS) vaut toujours pour elles.
 NOMADE = saveur() == "nomade"
+#  NOMADE, ET POUR DE BON (décision d'Alex, 2026-10-29) : le démon est LE
+#  bureau — « interface » y vaut toujours « demon » (voir _propre). Et le
+#  Moteur démarre d'office : un « classique » resté dans bureau.json (une
+#  vieille installation, l'ancienne page orange) est IGNORÉ. Seul un choix
+#  fait maintenant — « lexos-bureau classique », la porte de secours, ou
+#  Paramètres → Bureau — pose ce témoin, et le classique tient alors d'une
+#  session à l'autre, jusqu'à « lexos-bureau moteur ». Le filet de
+#  lexos-bureau (xfdesktop si le Moteur tombe) n'écrit rien : il ne change pas.
+CLASSIQUE_VOULU = FICHIER.parent / "bureau-classique-voulu"
 
 MODES = ("moteur", "classique")
 #  Les deux pages du bureau du Moteur : la grille d'icônes d'origine
@@ -189,6 +198,13 @@ def _propre(cle: str, v):
     if cle == "mode":
         return v if v in MODES else None
     if cle == "interface":
+        #  NOMADE : le démon, TOUJOURS (décision d'Alex, 2026-10-29). Une
+        #  valeur gardée d'avant (« moteur », écrite par « Revenir au bureau
+        #  du Moteur » ou par le clic droit de l'ancienne page orange) ne doit
+        #  plus jamais ramener la grille orange : elle est ramenée au démon,
+        #  à la lecture comme à l'écriture — jamais d'erreur pour autant.
+        if NOMADE:
+            return "demon"
         return v if v in INTERFACES else None
     if cle == "demon_theme":
         return v if v in DEMON_THEMES else None
@@ -242,11 +258,23 @@ def lire() -> dict:
                 v = _propre(cle, brut[cle])
                 if v is not None:
                     r[cle] = v
+    if NOMADE and r["mode"] == "classique" and not CLASSIQUE_VOULU.exists():
+        r["mode"] = "moteur"
     return r
 
 
 def ecrire(partiel: dict) -> dict:
     """Fusionne les clés VALIDES de partiel ; ignore le reste. Rend l'état."""
+    if NOMADE and isinstance(partiel, dict) and partiel.get("mode") in MODES:
+        #  Le témoin AVANT lire() : c'est lui qui dit si « classique » tient.
+        try:
+            if partiel["mode"] == "classique":
+                CLASSIQUE_VOULU.parent.mkdir(parents=True, exist_ok=True)
+                CLASSIQUE_VOULU.touch()
+            else:
+                CLASSIQUE_VOULU.unlink(missing_ok=True)
+        except OSError:
+            pass
     r = lire()
     if isinstance(partiel, dict):
         for cle, v in partiel.items():

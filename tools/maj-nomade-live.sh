@@ -19,7 +19,11 @@
 #    4. retire la barre du haut XFCE (xfce4-panel) de la session de /etc/skel
 #       ET de chaque compte de /home — comme le hook 0415 le fait pour l'image —
 #       et la ferme tout de suite dans la session ouverte de celui qui lance ;
-#    5. relance le bureau démon de celui qui lance (lexos-bureau relancer).
+#    5. efface le réglage « interface » gardé dans ~/.config/lexos/bureau.json
+#       de chaque compte de /home (sauvegardé d'abord, les autres réglages
+#       gardés) : une vieille valeur ramenait la page orange — dans la nomade,
+#       le démon est LE bureau, pour de bon ;
+#    6. relance le bureau démon de celui qui lance (lexos-bureau relancer).
 #  Rejoué sans rien de neuf, il ne fait rien (« déjà à jour »).
 # =============================================================================
 set -uo pipefail
@@ -87,6 +91,11 @@ if [ "${1:-}" = "--annuler" ]; then
 	if [ -d "$DERNIERE/fichiers" ]; then
 		( cd "$DERNIERE/fichiers" && find . -type f | sed 's|^\./||' ) | while IFS= read -r f; do
 			install -D -m "$(stat -c %a "$DERNIERE/fichiers/$f")" "$DERNIERE/fichiers/$f" "$RACINE/$f"
+			#  Un fichier d'un compte (/home/…) revient À CE COMPTE, pas à root :
+			#  sinon son bureau ne pourrait plus écrire ses propres réglages.
+			case "$f" in
+				home/*) chown --reference="$(dirname "$RACINE/$f")" "$RACINE/$f" 2>/dev/null || true ;;
+			esac
 		done
 	fi
 	if [ -r "$DERNIERE/nouveaux" ]; then
@@ -156,6 +165,48 @@ retirer_barre "$RACINE/etc/skel/$SESSION_REL" "etc/skel/$SESSION_REL"
 for MAISON in "$RACINE"/home/*; do
 	[ -d "$MAISON" ] || continue
 	retirer_barre "$MAISON/$SESSION_REL" "${MAISON#"$RACINE"/}/$SESSION_REL"
+done
+
+#  Le réglage « interface » d'avant (« moteur » = la page orange), écrit par
+#  « Revenir au bureau du Moteur » ou par le clic droit de l'ancienne page.
+#  Le nouveau reglages.py l'ignore déjà dans la nomade ; on l'efface quand
+#  même, pour qu'aucun fichier ne garde la trace d'un autre bureau. Édité en
+#  JSON (les autres clés restent), sur place, propriétaire et droits gardés.
+#  Un lien symbolique n'est pas suivi : root n'écrit pas où un lien l'envoie.
+oublier_interface() {   # oublier_interface <bureau.json> <chemin relatif pour la sauvegarde>
+	[ -f "$1" ] && [ ! -L "$1" ] || return 0
+	python3 -c 'import json, sys
+try:
+    d = json.load(open(sys.argv[1], encoding="utf-8"))
+except (OSError, ValueError):
+    sys.exit(1)
+sys.exit(0 if isinstance(d, dict) and "interface" in d else 1)' "$1" 2>/dev/null || return 0
+	sauver "$2"
+	if python3 - "$1" <<'PY'
+import json, os, sys
+p = sys.argv[1]
+d = json.load(open(p, encoding="utf-8"))
+d.pop("interface", None)
+st = os.stat(p)
+tmp = p + ".maj-nomade"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(d, f, ensure_ascii=False, indent=2)
+    f.write("\n")
+os.chown(tmp, st.st_uid, st.st_gid)
+os.chmod(tmp, st.st_mode & 0o7777)
+os.replace(tmp, p)
+PY
+	then
+		dire "réglage « interface » effacé (le démon reste le bureau) : $1"
+		CHANGES=$((CHANGES + 1))
+	else
+		rm -f "$1.maj-nomade"
+		dire "!! $1 : illisible, laissé tel quel (reglages.py ignore de toute façon « interface » dans la nomade)"
+	fi
+}
+for MAISON in "$RACINE"/home/*; do
+	[ -d "$MAISON" ] || continue
+	oublier_interface "$MAISON/.config/lexos/bureau.json" "${MAISON#"$RACINE"/}/.config/lexos/bureau.json"
 done
 
 if [ "$CHANGES" = 0 ]; then

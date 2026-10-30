@@ -12,7 +12,9 @@
 #       fond de connexion posé, vidéos de lexos-intro retirées ;
 #    3. le hook 0415, saveur pro : thème, fond et vidéo nomade retirés,
 #       rien d'autre touché ;
-#    4. le nom de l'ISO nomade ne porte pas « -rtx5060 ».
+#    4. le nom de l'ISO nomade ne porte pas « -rtx5060 » ;
+#    5. pas de barre du haut, et un vieux bureau.json ne la ramène pas ;
+#    6. tools/maj-nomade-live.sh installe le bureau et efface « interface ».
 #  Aucun texte n'est passé à « grep -q » par un tuyau : sous pipefail, le
 #  tuyau cassé ferait mentir un contrôle (règle de la CI).
 # =============================================================================
@@ -155,6 +157,49 @@ moteur nomade && ok "nomade sans bureau.json : la barre XFCE est éteinte (Moteu
 	|| non "nomade sans bureau.json : la barre XFCE resterait allumée"
 moteur pro && non "pro sans bureau.json : la barre serait éteinte (le classique est son défaut)" \
 	|| ok "pro sans bureau.json : la barre reste (bureau classique par défaut)"
+
+#  c. Un « classique » resté dans bureau.json (sans le témoin d'un choix fait
+#     à la main) n'allume plus la barre XFCE dans la nomade : le Moteur gagne.
+mkdir -p "$B/compte/.config/lexos"
+echo '{"mode": "classique", "interface": "moteur"}' > "$B/compte/.config/lexos/bureau.json"
+echo 'LEXOS_FLAVOUR="nomade"' > "$B/bc.conf"
+VU="$(env HOME="$B/compte" XDG_CONFIG_HOME="$B/compte/.config" LEXOS_BUILD_CONF="$B/bc.conf" \
+	python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import reglages; r = reglages.lire(); print(r["mode"], r["interface"])' \
+	"$INC/usr/lib/lexos/bureau")"
+[ "$VU" = "moteur demon" ] && ok "nomade : un vieux « classique » / « moteur » est ignoré (Moteur + démon)" \
+	|| non "nomade : bureau.json d'avant mal lu : « $VU »"
+
+# =============================================================================
+titre "6. tools/maj-nomade-live.sh : le démon reste le bureau"
+#  Sur une fausse racine : le bureau s'installe, et le réglage « interface »
+#  d'avant est effacé de chaque compte (sauvegardé d'abord, le reste gardé).
+MAJ="$RACINE/tools/maj-nomade-live.sh"
+R="$B/racine"; mkdir -p "$R/etc/lexos" "$R/home/alex/.config/lexos" "$R/home/vide"
+echo 'LEXOS_FLAVOUR="nomade"' > "$R/etc/lexos/build.conf"
+echo '{"interface": "moteur", "demon_theme": "spectre", "mode": "moteur"}' > "$R/home/alex/.config/lexos/bureau.json"
+chmod 600 "$R/home/alex/.config/lexos/bureau.json"
+if LEXOS_RACINE="$R" LEXOS_BUILD_CONF="$R/etc/lexos/build.conf" SUDO_USER='' bash "$MAJ" > "$B/maj.log" 2>&1; then
+	ok "maj-nomade-live.sh passe sur une fausse racine"
+else
+	non "maj-nomade-live.sh échoue"; sed 's/^/      /' "$B/maj.log"
+fi
+cmp -s "$INC/usr/lib/lexos/bureau/web/demon.html" "$R/usr/lib/lexos/bureau/web/demon.html" \
+	&& cmp -s "$INC/usr/lib/lexos/bureau/reglages.py" "$R/usr/lib/lexos/bureau/reglages.py" \
+	&& ok "le bureau démon du dépôt est installé (demon.html, reglages.py)" || non "bureau non installé"
+J="$(python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); print("interface" in d, d.get("demon_theme"), d.get("mode"))' "$R/home/alex/.config/lexos/bureau.json" 2>&1)"
+[ "$J" = "False spectre moteur" ] && ok "bureau.json : « interface » effacé, les autres réglages gardés" \
+	|| non "bureau.json mal réécrit : $J"
+[ "$(stat -c %a "$R/home/alex/.config/lexos/bureau.json")" = 600 ] && ok "bureau.json garde ses droits (600)" \
+	|| non "bureau.json a changé de droits"
+SAUVE="$(find "$R/var/backups" -maxdepth 1 -type d -name 'lexos-bureau-*' | sort | tail -n1)"
+S="$(cat "$SAUVE/fichiers/home/alex/.config/lexos/bureau.json" 2>/dev/null)"
+grep -q '"interface": "moteur"' <<< "$S" && ok "l'ancien bureau.json est sauvegardé dans $(basename "$SAUVE")" \
+	|| non "pas de sauvegarde de bureau.json"
+LEXOS_RACINE="$R" LEXOS_BUILD_CONF="$R/etc/lexos/build.conf" SUDO_USER='' bash "$MAJ" > "$B/maj2.log" 2>&1
+grep -q "Déjà à jour" "$B/maj2.log" && ok "rejoué : « déjà à jour », rien de touché" || non "rejoué : il a encore changé quelque chose"
+LEXOS_RACINE="$R" LEXOS_BUILD_CONF="$R/etc/lexos/build.conf" SUDO_USER='' bash "$MAJ" --annuler > "$B/maj3.log" 2>&1
+grep -q '"interface": "moteur"' "$R/home/alex/.config/lexos/bureau.json" && [ ! -e "$R/usr/lib/lexos/bureau/reglages.py" ] \
+	&& ok "--annuler remet l'ancien bureau.json et retire ce qui avait été créé" || non "--annuler incomplet"
 
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" = 0 ]

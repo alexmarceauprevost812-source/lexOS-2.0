@@ -358,7 +358,9 @@ class SaveurNomade(unittest.TestCase):
             self.assertEqual(code, 200)
             self.assertIn(b'src="demon.js"', corps)
             self.assertEqual(cache, "no-store")
-            self.assertIn(b'src="bureau.js"', get("/index.html")[1])
+            #  Nomade : même « /index.html » rend le démon — la page orange
+            #  n'est plus jamais servie comme bureau.
+            self.assertIn(b'src="demon.js"', get("/index.html")[1])
             for f in ("/demon.css", "/demon.js", "/logo-ti-lexos.png", "/github-perso.png",
                       "/avatar-alex.png", "/tux.png"):
                 self.assertEqual(get(f)[0], 200, f)
@@ -381,11 +383,52 @@ class SaveurNomade(unittest.TestCase):
             self.assertIn(json.loads(get("/api/reseau", jeton=True)[1])["etat"], ("connecte", "deconnecte", "inconnu"))
             self.assertEqual(get("/api/reseau")[0], 403)
             self.assertIn("reseau", self.sv.ACTIONS)
-            self.rg.ecrire({"interface": "moteur"})
-            self.assertIn(b'src="bureau.js"', get("/")[1])
+            #  Nomade, pour de bon : demander l'ancienne page n'y change rien.
+            self.assertEqual(self.rg.ecrire({"interface": "moteur"})["interface"], "demon")
+            self.assertIn(b'src="demon.js"', get("/")[1])
+            #  … ni un bureau.json d'avant, écrit à la main ou par l'ancienne page.
+            fich = self.rg.FICHIER
+            fich.write_text(json.dumps({"interface": "moteur", "demon_theme": "spectre"}), "utf-8")
+            self.assertEqual(self.rg.lire()["interface"], "demon")
+            self.assertEqual(self.rg.lire()["demon_theme"], "spectre")
+            self.assertIn(b'src="demon.js"', get("/")[1])
+            self.assertIn(b'src="demon.js"', get("/index.html")[1])
+            #  Une valeur farfelue ne fait rien tomber non plus.
+            fich.write_text(json.dumps({"interface": ["?"], "mode": 3}), "utf-8")
+            self.assertEqual(get("/")[0], 200)
+            self.assertEqual(self.rg.lire()["interface"], "demon")
         finally:
             srv.shutdown()
             srv.server_close()
+
+    def test_classique_d_avant_ignore_seul_le_choix_tient(self):
+        """Un « classique » resté dans bureau.json ne coupe plus le Moteur
+        de la nomade ; « lexos-bureau classique » (la porte de secours) pose
+        un témoin et tient, jusqu'à « lexos-bureau moteur »."""
+        fich = self.rg.FICHIER
+        fich.parent.mkdir(parents=True, exist_ok=True)
+        fich.write_text(json.dumps({"mode": "classique", "interface": "moteur"}), "utf-8")
+        self.assertEqual(self.rg.lire()["mode"], "moteur")
+        self.assertEqual(self.rg.ecrire({"mode": "classique"})["mode"], "classique")
+        self.assertTrue(self.rg.CLASSIQUE_VOULU.exists())
+        self.assertEqual(self.rg.lire()["mode"], "classique")
+        self.assertEqual(self.rg.ecrire({"mode": "moteur"})["mode"], "moteur")
+        self.assertFalse(self.rg.CLASSIQUE_VOULU.exists())
+        #  Par le vrai lexos-bureau : son mode_choisi lit le même reglages.py.
+        env = dict(os.environ, LEXOS_BUREAU_DIR=str(BUREAU))
+        fich.write_text(json.dumps({"mode": "classique"}), "utf-8")
+        lire = ["python3", "-c", 'import sys; sys.path.insert(0, sys.argv[1]); import reglages; print(reglages.lire()["mode"])', str(BUREAU)]
+        self.assertEqual(subprocess.run(lire, env=env, capture_output=True, text=True).stdout.strip(), "moteur")
+
+    def test_aucun_retour_a_la_page_orange(self):
+        """Le bouton « Revenir au bureau du Moteur » est caché d'office et
+        demon.js ne le montre jamais dans la nomade."""
+        html = (BUREAU / "web/demon.html").read_text(encoding="utf-8")
+        js = (BUREAU / "web/demon.js").read_text(encoding="utf-8")
+        self.assertRegex(html, r'<button[^>]*id="vers-moteur"[^>]*\bhidden\b')
+        self.assertIn('$("#vers-moteur").hidden = NOMADE();', js)
+        self.assertIn('if (NOMADE()) return;', js)
+        self.assertIn('E.systeme.saveur === "nomade"', js)
 
     def test_page_sans_mot_de_passe_ni_reseau(self):
         html = (BUREAU / "web/demon.html").read_text(encoding="utf-8")
