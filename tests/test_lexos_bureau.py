@@ -325,6 +325,25 @@ class SaveurNomade(unittest.TestCase):
         self.assertEqual(self.rg.ecrire({"interface": "ailleurs", "demon_theme": "rose"})["interface"], "demon")
         self.assertEqual(self.rg.ecrire({"demon_presence": 5})["demon_presence"], 20)
 
+    def test_disposition_demon_aller_retour(self):
+        """Le mode « modifier » du bureau démon : l'ordre de la grille et du
+        dock, et la place du terminal, de l'heure et de la date, gardés côté
+        serveur ; tout ce qui n'est pas valide est ramené ou refusé."""
+        r = self.rg.lire()
+        self.assertEqual((r["demon_grille"], r["demon_dock"], r["demon_places"]), (["*"], ["*"], {}))
+        self.assertFalse(r["outils"])            # nomade : pas de barre qui tombe du haut
+        self.rg.ecrire({"demon_grille": ["s-maison", "x-apropos", "s-maison", "../etc", 7],
+                        "demon_dock": ["x-yeux", "s-github"],
+                        "demon_places": {"terminal": [120, -40.6], "horloge": [5000, 3],
+                                         "fenetre": [1, 1], "date": "loin"}})
+        r = self.rg.lire()
+        self.assertEqual(r["demon_grille"], ["s-maison", "x-apropos"])
+        self.assertEqual(r["demon_dock"], ["x-yeux", "s-github"])
+        self.assertEqual(r["demon_places"], {"terminal": [120, -40], "horloge": [1000, 3]})
+        self.rg.ecrire({"demon_grille": ["*"], "demon_dock": ["*"], "demon_places": {}})
+        r = self.rg.lire()
+        self.assertEqual((r["demon_grille"], r["demon_dock"], r["demon_places"]), (["*"], ["*"], {}))
+
     def test_page_demon_a_la_racine(self):
         etat = self.sv.Etat()
         srv = ThreadingHTTPServer(("127.0.0.1", 0), self.sv.fabriquer(etat))
@@ -356,6 +375,12 @@ class SaveurNomade(unittest.TestCase):
             self.assertEqual(etat.table.actions["s-github"], ("url", self.ap.GITHUB))
             self.assertTrue(self.ap.GITHUB.startswith("https://github.com/"))
             self.assertIn("noyau", e["systeme"])
+            #  Ce que portait la barre du haut : réseau et son, en lecture.
+            for route in ("/api/reseau", "/api/son"):
+                self.assertEqual(get(route, jeton=True)[0], 200, route)
+            self.assertIn(json.loads(get("/api/reseau", jeton=True)[1])["etat"], ("connecte", "deconnecte", "inconnu"))
+            self.assertEqual(get("/api/reseau")[0], 403)
+            self.assertIn("reseau", self.sv.ACTIONS)
             self.rg.ecrire({"interface": "moteur"})
             self.assertIn(b'src="bureau.js"', get("/")[1])
         finally:

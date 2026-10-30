@@ -92,4 +92,35 @@ else
 	echo "[lexos]   !! $VIDEO absent — le bureau démon ouvrira sur les yeux en CSS"
 fi
 
+# --- 4. Pas de barre du haut -------------------------------------------------
+#  ALEX (VirtualBox, clé nomade) : « désactiver le bureau d'outils en haut de
+#  l'écran ». Le bureau démon a son heure, son réseau, son son et son bouton
+#  d'arrêt : la barre XFCE (xfce4-panel) n'y fait que doublon. On la retire
+#  des clients que xfce4-session lance (le Failsafe de /etc/skel, copié à la
+#  création de chaque compte) ; lexos-barre-haut la ferme de toute façon pour
+#  un compte déjà créé (le bureau du Moteur est le défaut de la nomade).
+#  « lexos barre-haut on » la ramène pour qui la veut.
+SESSION="${LEXOS_SKEL:-/etc/skel}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml"
+if [ -f "$SESSION" ] && grep -q 'value="xfce4-panel"' "$SESSION"; then
+	if python3 - "$SESSION" <<'PY'
+import re, sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+blocs = re.findall(r'(\n[ \t]*<property name="Client(\d+)_Command".*?(?=\n[ \t]*<property name="Client\d+_Command"|\n[ \t]*</property>\s*\n[ \t]*</property>))', s, re.S)
+garder = [b for b, n in blocs if 'value="xfce4-panel"' not in b]
+if len(garder) != len(blocs) - 1:
+    sys.exit(1)
+debut = s.index(blocs[0][0]); fin = s.index(blocs[-1][0]) + len(blocs[-1][0])
+neufs = [re.sub(r'Client\d+_', f"Client{i}_", b) for i, b in enumerate(garder)]
+s = s[:debut] + "".join(neufs) + s[fin:]
+s = re.sub(r'(<property name="Count"\s+type="int"\s+value=")\d+(")', rf"\g<1>{len(garder)}\2", s, count=1)
+open(p, "w", encoding="utf-8").write(s)
+PY
+	then
+		echo "[lexos]   barre du haut (xfce4-panel) retirée de la session"
+	else
+		echo "[lexos]   !! xfce4-session.xml non modifié — lexos-barre-haut fermera la barre à chaque session"
+	fi
+fi
+
 echo "[lexos] hook 0415 : ok"

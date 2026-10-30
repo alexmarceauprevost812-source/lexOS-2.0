@@ -45,7 +45,7 @@ WEB = ICI / "web"
 #  20 polices dans le système, celle de ti-lex IA.
 MOTEUR_UI = Path(os.environ.get("LEXOS_BUREAU_MOTEUR_UI", "/usr/lib/lexos/ti-lex-ia/interface"))
 HOTES_LOCAUX = {"127.0.0.1", "localhost"}
-ACTIONS = ("parametres", "terminal", "dossier-bureau", "classique", "fond-suivant", "ranger", "audit")
+ACTIONS = ("parametres", "terminal", "dossier-bureau", "classique", "fond-suivant", "ranger", "audit", "reseau")
 
 
 def prenom() -> str:
@@ -255,6 +255,10 @@ def fabriquer(etat: Etat):
                 return self._json(etat.construire_outils())
             if chemin == "/api/etat":
                 return self._json(etat.construire())
+            if chemin == "/api/reseau":
+                return self._json(gestes.reseau_etat())
+            if chemin == "/api/son":
+                return self._json(gestes.son_etat())
             if chemin == "/api/version":
                 return self._json({"v": etat.version()})
             if chemin.startswith("/icone/"):
@@ -464,6 +468,13 @@ def action(nom: str, etat: Etat) -> bool:
         return False
     if nom == "parametres":
         for cmd in (["lexos-settings", "bureau"], ["lexos", "settings"]):
+            if shutil.which(cmd[0]):
+                return applis._detache(cmd)
+        return False
+    if nom == "reseau":
+        #  Le réseau, sans la barre du haut (bureau démon) : la section Wi-Fi
+        #  des Paramètres de LexOS, sinon l'éditeur de NetworkManager.
+        for cmd in (["lexos-settings", "wifi"], ["nm-connection-editor"]):
             if shutil.which(cmd[0]):
                 return applis._detache(cmd)
         return False

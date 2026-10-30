@@ -115,5 +115,46 @@ done
 V="$(sh -c '. "$1/lexos.conf"; LEXOS_FLAVOUR=nomade; if [ "$LEXOS_FLAVOUR" = nomade ]; then LEXOS_VERSION="${LEXOS_VERSION%-rtx5060}"; fi; echo "$LEXOS_VERSION"' _ "$RACINE")"
 case "$V" in *rtx5060*) non "version nomade : $V" ;; *) ok "version nomade : $V (pro garde $(sh -c '. "$1/lexos.conf"; echo "$LEXOS_VERSION"' _ "$RACINE"))" ;; esac
 
+# =============================================================================
+titre "5. Pas de barre du haut dans la nomade"
+#  a. Le hook retire xfce4-panel des clients de la session (/etc/skel).
+SESSION_SRC="$INC/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml"
+for SAVEUR in nomade pro; do
+	preparer "$SAVEUR"
+	mkdir -p "$B/skel/.config/xfce4/xfconf/xfce-perchannel-xml"
+	cp "$SESSION_SRC" "$B/skel/.config/xfce4/xfconf/xfce-perchannel-xml/"
+	LEXOS_SKEL="$B/skel" jouer
+	S="$(cat "$B/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml")"
+	if [ "$SAVEUR" = nomade ]; then
+		if ! grep -q 'value="xfce4-panel"' <<< "$S" && grep -q 'name="Count" *type="int" *value="4"' <<< "$S" \
+		   && grep -q 'name="Client3_Command"' <<< "$S" && ! grep -q 'name="Client4_' <<< "$S"; then
+			ok "nomade : xfce4-panel retiré de la session, clients renumérotés (4)"
+		else
+			non "nomade : session mal réécrite"
+		fi
+		python3 -c 'import sys, xml.dom.minidom as m; m.parse(sys.argv[1])' "$B/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml" \
+			&& ok "nomade : xfce4-session.xml reste un XML valide" || non "nomade : xfce4-session.xml cassé"
+	else
+		cmp -s "$SESSION_SRC" "$B/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml" \
+			&& ok "pro : session inchangée (la barre du haut reste)" || non "pro : la session a été modifiée"
+	fi
+done
+
+#  b. lexos-barre-haut voit le bureau du Moteur PAR DÉFAUT de la nomade,
+#     sans bureau.json — c'est ce qui laissait la barre allumée sur la clé.
+BARRE="$INC/usr/bin/lexos-barre-haut"
+FONCTION="$(sed -n '/^BUREAU_DIR=/,/^}/p' "$BARRE")"
+moteur() {   # moteur <saveur> → 0 si lexos-barre-haut voit le Moteur choisi
+	mkdir -p "$B/compte/.config/lexos"; rm -f "$B/compte/.config/lexos/bureau.json"
+	echo "LEXOS_FLAVOUR=\"$1\"" > "$B/bc.conf"
+	env HOME="$B/compte" XDG_CONFIG_HOME="$B/compte/.config" LEXOS_BUILD_CONF="$B/bc.conf" \
+		LEXOS_BUREAU_DIR="$INC/usr/lib/lexos/bureau" bash -c "CONF=\"\$XDG_CONFIG_HOME/lexos\"; $FONCTION
+moteur_choisi"
+}
+moteur nomade && ok "nomade sans bureau.json : la barre XFCE est éteinte (Moteur par défaut)" \
+	|| non "nomade sans bureau.json : la barre XFCE resterait allumée"
+moteur pro && non "pro sans bureau.json : la barre serait éteinte (le classique est son défaut)" \
+	|| ok "pro sans bureau.json : la barre reste (bureau classique par défaut)"
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" = 0 ]

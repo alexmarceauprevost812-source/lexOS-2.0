@@ -50,6 +50,8 @@ MODES = ("moteur", "classique")
 #  « / » selon ce réglage.
 INTERFACES = ("moteur", "demon")
 DEMON_THEMES = ("sang", "brasier", "spectre")
+#  Ce qu'on peut déplacer sur le bureau démon, en dehors des tuiles.
+DEMON_DEPLACABLES = ("terminal", "horloge", "date")
 #  « pluie » (Pluie de code, l'effet Matrix) : retirée le 2026-10-22, RAMENÉE
 #  le 2026-10-23 à la demande d'Alex — elle reste maintenant SOUS la barre du haut.
 FONDS = ("constellation", "aurore", "etoiles", "pluie", "vagues", "braises", "aucun")
@@ -86,6 +88,15 @@ DEFAUTS = {
     "demon_intro": True,
     "demon_pluie": True,
     "demon_presence": 60,
+    #  La disposition du bureau démon, déplacée à la main (mode « modifier ») :
+    #  l'ordre des tuiles de la grille et du dock (identifiants de la table
+    #  d'applis.py, ou « x-apropos », « x-yeux » ; ["*"] = la disposition
+    #  d'origine), et le décalage du petit terminal, de l'horloge et de la
+    #  date par rapport à leur place, en MILLIÈMES de l'écran — la même
+    #  disposition tient à 1280 × 800 comme à 1920 × 1080.
+    "demon_grille": ["*"],
+    "demon_dock": ["*"],
+    "demon_places": {},
     "accent": "#ff7a18",
     "police": "Space Grotesk",
     "taille": 100,
@@ -121,7 +132,10 @@ DEFAUTS = {
     #  🎛️ Mes outils : la barre mince qui descend du HAUT de l'écran, sous la
     #  barre du haut (volume, capture, notifications, arrêt, et les outils
     #  qu'Alex y place). ["*"] = pas encore choisi → quelques outils LexOS.
-    "outils": True,
+    #  SAUF la nomade : sans barre du haut, la souris va souvent au bord du
+    #  haut, et la barre des outils tombait à chaque fois. Elle reste à un
+    #  bouton : « Mes outils » dans le panneau Yeux du bureau démon.
+    "outils": not NOMADE,
     "outils_apps": ["*"],
     #  Où Alex a posé ses icônes : {identifiant: [x, y]} en pixels du bureau.
     #  Vide = la grille par sections. Une icône qu'on n'a jamais déplacée
@@ -153,7 +167,16 @@ def _propre(cle: str, v):
     """La valeur v si elle est valide pour cle, sinon None."""
     if cle == "positions":
         return _positions(v)
-    if cle in ("labo_apps", "outils_apps"):
+    if cle == "demon_places":
+        if not isinstance(v, dict):
+            return None
+        propre = {}
+        for nom, xy in v.items():
+            if (nom in DEMON_DEPLACABLES and isinstance(xy, (list, tuple)) and len(xy) == 2
+                    and all(isinstance(n, (int, float)) and not isinstance(n, bool) for n in xy)):
+                propre[nom] = [int(min(1000, max(-1000, xy[0]))), int(min(1000, max(-1000, xy[1])))]
+        return propre
+    if cle in ("labo_apps", "outils_apps", "demon_grille", "demon_dock"):
         if v == ["*"]:
             return ["*"]
         if not isinstance(v, list):
@@ -206,6 +229,9 @@ def lire() -> dict:
     r["positions"] = {}
     r["labo_apps"] = list(DEFAUTS["labo_apps"])
     r["outils_apps"] = list(DEFAUTS["outils_apps"])
+    r["demon_grille"] = list(DEFAUTS["demon_grille"])
+    r["demon_dock"] = list(DEFAUTS["demon_dock"])
+    r["demon_places"] = {}
     try:
         brut = json.loads(FICHIER.read_text("utf-8"))
     except (OSError, ValueError):

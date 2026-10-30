@@ -43,9 +43,25 @@ lire() { [ -r "$ETAT" ] && tr -d '[:space:]' < "$ETAT" || printf 'off'; }
 #  Moteur REMPLACE celle de XFCE. On ne ferme donc l'ancienne que si le
 #  bureau du Moteur est le mode choisi : en mode classique, la barre XFCE
 #  est la seule qui reste, et on ne laisse jamais l'écran sans barre.
+#  ═══ LE DÉFAUT DU BUREAU COMPTE AUSSI ═══
+#  La saveur nomade démarre sur le bureau du Moteur SANS que bureau.json
+#  existe : c'est le DÉFAUT de reglages.py (« mode » = moteur quand la saveur
+#  est nomade). Ne lire que le fichier laissait donc la barre du haut
+#  allumée sur la clé — vu par Alex dans VirtualBox. On demande à
+#  reglages.py, qui connaît le défaut ; le fichier seul reste le repli.
+BUREAU_DIR="${LEXOS_BUREAU_DIR:-/usr/lib/lexos/bureau}"
 moteur_choisi() {
-	python3 - "$CONF/bureau.json" <<'PY' 2>/dev/null
-import json, sys
+	python3 - "$CONF/bureau.json" "$BUREAU_DIR" <<'PY' 2>/dev/null
+import json, os, sys
+if os.path.isfile(os.path.join(sys.argv[2], "reglages.py")):
+    try:
+        sys.path.insert(0, sys.argv[2])
+        import reglages
+        sys.exit(0 if reglages.lire()["mode"] == "moteur" else 1)
+    except SystemExit:
+        raise
+    except Exception:
+        pass
 try:
     sys.exit(0 if json.load(open(sys.argv[1], encoding="utf-8")).get("mode") == "moteur" else 1)
 except Exception:

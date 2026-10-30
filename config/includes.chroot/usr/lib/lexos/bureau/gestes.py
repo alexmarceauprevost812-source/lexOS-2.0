@@ -80,6 +80,45 @@ def son(d: dict) -> dict:
 
 
 # ─── La capture d'écran ──────────────────────────────────────────────────
+# ─── Le réseau (bureau démon, saveur nomade : la barre du haut n'est plus là)
+def reseau_etat() -> dict:
+    """{"etat": "connecte" | "deconnecte" | "inconnu", "type": "wifi" |
+    "ethernet" | "", "nom": nom de la connexion, "signal": 0-100 ou -1}.
+    nmcli en lecture seule, deux secondes au plus : jamais de scan (le
+    « --rescan no »), qui ferait attendre la page et réveillerait la carte."""
+    vide = {"etat": "inconnu", "type": "", "nom": "", "signal": -1}
+    if not shutil.which("nmcli"):
+        return vide
+    try:
+        r = subprocess.run(["nmcli", "-t", "-f", "TYPE,STATE,CONNECTION", "device"],
+                           capture_output=True, text=True, timeout=2, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return vide
+    meilleur = None
+    for ligne in r.stdout.splitlines():
+        champs = ligne.replace("\\:", "\0").split(":")
+        if len(champs) < 3:
+            continue
+        genre, etat, nom = champs[0], champs[1], ":".join(champs[2:]).replace("\0", ":")
+        if genre in ("wifi", "ethernet") and etat == "connected":
+            if meilleur is None or genre == "ethernet":
+                meilleur = (genre, nom)
+    if meilleur is None:
+        return {**vide, "etat": "deconnecte"}
+    signal_wifi = -1
+    if meilleur[0] == "wifi":
+        try:
+            r = subprocess.run(["nmcli", "-t", "-f", "IN-USE,SIGNAL", "device", "wifi", "list", "--rescan", "no"],
+                               capture_output=True, text=True, timeout=2, check=False)
+            for ligne in r.stdout.splitlines():
+                if ligne.startswith("*:"):
+                    signal_wifi = int(ligne.split(":")[1])
+                    break
+        except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+            pass
+    return {"etat": "connecte", "type": meilleur[0], "nom": meilleur[1][:64], "signal": signal_wifi}
+
+
 def capture(mode: str) -> bool:
     """Lance la capture APRÈS que la barre soit remontée : sans ce délai, la
     photo de l'écran entier montrerait la barre elle-même, et le cadre de

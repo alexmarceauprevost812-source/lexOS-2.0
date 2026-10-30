@@ -48,29 +48,54 @@ button, input { font-family: inherit; color: inherit; }
    « fixed » ouvre toujours son propre contexte d'empilement, et les yeux ne
    pourraient plus passer AU-DESSUS du voile noir de l'ouverture. */
 .ecran {
-  position: absolute; inset: 0; display: flex; flex-direction: column; gap: 1.6vh;
+  position: absolute; inset: 0; display: flex; flex-direction: column; gap: 1.4vh;
   padding: calc(var(--haut) + var(--dock-h) + 2vh) calc(var(--droite) + var(--dock-d) + 3vw)
            calc(var(--bas) + var(--dock-b) + 2vh) calc(var(--gauche) + var(--dock-g) + 3vw);
 }
-.ecran > * { position: relative; z-index: 2; }
+.ecran > * { position: relative; z-index: 2; flex: none; }
+/*  Tout est à sa hauteur naturelle SAUF le milieu, qui prend le reste — et
+    ne déborde JAMAIS sur la recherche : la grille se découpe en pages à la
+    hauteur qu'il lui laisse (demon.js, mettreEnPages). */
+.ecran > .milieu { flex: 1 1 0; min-height: 0; }
 
 .haut { display: flex; justify-content: space-between; align-items: flex-start; }
-.horloge { font-family: var(--affiche); font-weight: 700; font-size: clamp(56px, 13vh, 150px); line-height: .95; color: #fff; letter-spacing: .02em; }
-.date { display: flex; flex-direction: column; align-items: flex-end; gap: .6vh; font-size: clamp(16px, 2.6vh, 28px); padding-top: 1.4vh; }
+.horloge { font-family: var(--affiche); font-weight: 700; font-size: clamp(48px, 12vh, 150px); line-height: .95; color: #fff; letter-spacing: .02em; }
+.date { display: flex; flex-direction: column; align-items: flex-end; gap: .6vh; font-size: clamp(15px, 2.4vh, 28px); padding-top: 1vh; }
+/* ─── Réseau, son, arrêt : ce que portait la barre du haut ─── */
+.systeme { display: flex; gap: 8px; margin-top: .6vh; }
+.sys { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--bord); background: rgba(14,14,14,.9);
+  color: #e8e8e8; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.sys svg { width: 20px; height: 20px; }
+.sys:hover, .sys:focus-visible, .sys[aria-expanded="true"] { border-color: var(--ac); outline: none; }
+.sys.arret { color: var(--ac); }
+.sys.coupe { color: #666; }
+.sys.coupe svg { opacity: .55; }
+.menu-sys {
+  position: fixed; z-index: 38; width: 300px; padding: 14px; border-radius: 16px; font-size: 14px;
+  background: rgba(10,10,10,.98); border: 1px solid color-mix(in srgb, var(--ac) 50%, var(--bord)); box-shadow: 0 18px 50px rgba(0,0,0,.75);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.menu-sys[hidden] { display: none; }
+.menu-sys p { margin: 0; }
+.menu-sys .etat { color: var(--gris); }
+.menu-sys input[type=range] { width: 100%; accent-color: var(--ac); }
+.menu-sys button { height: 40px; border-radius: 10px; border: 1px solid var(--bord); background: #151515; cursor: pointer; text-align: left; padding: 0 14px; font-size: 14px; }
+.menu-sys button:hover, .menu-sys button:focus-visible { border-color: var(--ac); outline: none; }
+.menu-sys button.arme { background: var(--ac); color: #fff; border-color: var(--ac); }
 .invite-date { color: #fff; }
 #date { color: var(--ac); }
 
 /* ─── Les yeux : deux aplats rouges en amande, coins extérieurs pointus ─── */
-.yeux { width: min(820px, 62vw); height: clamp(60px, 13vh, 150px); margin: 0 auto; transition: transform .2s ease-out; }
+.yeux { width: min(820px, 58vw); height: clamp(52px, 11vh, 150px); margin: 0 auto; transition: transform .2s ease-out; }
 .oeil { position: absolute; top: 0; width: 40%; height: 100%; overflow: visible; transform-origin: 50% 70%; }
 .oeil.gauche { left: 0; }
 .oeil.droit { right: 0; }
 .oeil-trace { fill: var(--oeil); }
 
 /* ─── Le terminal et la grille ─── */
-.milieu { flex: 1; min-height: 0; display: flex; gap: 3vw; align-items: flex-start; justify-content: center; }
+.milieu { display: flex; gap: 3vw; align-items: stretch; justify-content: center; }
 .carte { background: rgba(14,14,14,.94); border: 1px solid var(--bord); border-radius: 22px; overflow: hidden; }
-.terminal { flex: 1 1 0; max-width: 560px; min-width: 300px; }
+.terminal { flex: 1 1 0; max-width: 560px; min-width: 300px; align-self: flex-start; max-height: 100%; }
 .carte-barre { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 18px; border-bottom: 1px solid var(--bord); }
 .point { width: 16px; height: 16px; border-radius: 50%; background: #3a3a3a; }
 .point.rouge { background: var(--ac); }
@@ -78,14 +103,16 @@ button, input { font-family: inherit; color: inherit; }
 .titre { margin-left: 4px; color: var(--gris); font-size: 15px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .engrenage { border: 0; background: transparent; color: var(--ac); cursor: pointer; padding: 6px; border-radius: 8px; }
 .engrenage:hover, .engrenage:focus-visible { background: color-mix(in srgb, var(--ac) 18%, transparent); outline: none; }
-.carte-corps { padding: 16px 20px 18px; font-size: clamp(12px, 1.8vh, 16px); line-height: 1.6; max-height: 34vh; overflow: hidden; }
+.carte-corps { padding: 14px 20px 16px; font-size: clamp(12px, 1.8vh, 16px); line-height: 1.55; max-height: 34vh; overflow: hidden; }
 .carte-corps p { margin: 0; white-space: pre; }
 .carte-corps .cle { color: var(--ac); display: inline-block; min-width: 8ch; }
 
-.grille { flex: 1.5 1 0; max-width: 760px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.2vh 1.6vw; }
-.appli { display: flex; flex-direction: column; align-items: center; gap: 1vh; border: 0; background: transparent; cursor: pointer; padding: 0; min-width: 0; }
+.grille-cadre { flex: 1.5 1 0; max-width: 760px; min-width: 0; min-height: 0; overflow: hidden; }
+.grille { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--rang-ecart, 2vh) 1.6vw; align-content: start; }
+.appli { display: flex; flex-direction: column; align-items: center; gap: .8vh; border: 0; background: transparent; cursor: pointer; padding: 0; min-width: 0;
+  touch-action: none; -webkit-user-drag: none; }
 .tuile {
-  width: clamp(58px, 10vh, 108px); aspect-ratio: 1; border-radius: 26%; display: flex; align-items: center; justify-content: center;
+  width: clamp(52px, 9.4vh, 104px); aspect-ratio: 1; border-radius: 26%; display: flex; align-items: center; justify-content: center;
   background: var(--tuile); border: 1px solid var(--bord); box-shadow: 0 6px 18px rgba(0,0,0,.45);
   transition: transform .15s ease-out, border-color .15s;
 }
@@ -119,18 +146,39 @@ button, input { font-family: inherit; color: inherit; }
 .carre.plein { border-color: var(--ac-fonce); background: var(--ac-fonce); color: #fff; }
 .carre:hover, .carre:focus-visible { background: color-mix(in srgb, var(--ac) 22%, transparent); outline: none; }
 .carre.plein:hover, .carre.plein:focus-visible { background: var(--ac); }
-.points { display: flex; justify-content: center; gap: 10px; }
-.points i { width: 10px; height: 10px; border-radius: 50%; background: #3a3a3a; }
-.points i.actif { width: 34px; border-radius: 5px; background: var(--ac); }
+.points { display: flex; justify-content: center; align-items: center; gap: 10px; min-height: 14px; }
+.points button { width: 12px; height: 12px; padding: 0; border: 0; border-radius: 50%; background: #3a3a3a; cursor: pointer; transition: width .2s; }
+.points button.actif { width: 34px; border-radius: 6px; background: var(--ac); }
+.points button.cible { background: color-mix(in srgb, var(--ac) 60%, #3a3a3a); }
 
 /* ─── Le dock ─── */
 .dock {
-  align-self: center; display: flex; gap: 18px; padding: 14px 18px; border-radius: 34px;
+  align-self: center; display: flex; gap: 16px; padding: 12px 18px; border-radius: 32px; min-width: 120px; min-height: 60px;
   background: rgba(14,14,14,.94); border: 1px solid var(--bord);
 }
-.dock .tuile { width: clamp(52px, 8.4vh, 84px); }
+.dock .tuile { width: clamp(46px, 7.4vh, 80px); }
 .dock .appli .nom { display: none; }
 .yeux-tuile svg { width: 64%; height: 40%; stroke: none; overflow: visible; }
+
+/* ─── Le mode « modifier » : glisser les tuiles et les blocs ─── */
+@keyframes tremble { 0%,100% { rotate: -2deg; } 50% { rotate: 2deg; } }
+body.modifier .grille .tuile, body.modifier .dock .tuile { animation: tremble .32s ease-in-out infinite; }
+html.leger body.modifier .tuile { animation: none; }
+body.modifier [data-deplacable] { outline: 2px dashed color-mix(in srgb, var(--ac) 70%, transparent); outline-offset: 6px; cursor: grab; touch-action: none; border-radius: 14px; }
+body.modifier [data-deplacable] * { pointer-events: none; }
+body.modifier .grille-cadre, body.modifier .dock { outline: 1px dashed #444; outline-offset: 6px; border-radius: 18px; }
+.appli.fantome { position: fixed; z-index: 60; pointer-events: none; opacity: .9; translate: -50% -50%; }
+.appli.parti { opacity: .25; }
+.appli.cible-avant .tuile { box-shadow: -6px 0 0 var(--ac); }
+.appli.cible-apres .tuile { box-shadow: 6px 0 0 var(--ac); }
+.dock.cible, .grille-cadre.cible { outline: 2px solid var(--ac); outline-offset: 6px; border-radius: 18px; }
+.barre-modif {
+  position: fixed; z-index: 37; left: 50%; top: calc(var(--haut) + 10px); translate: -50% 0; display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px 10px 18px; border-radius: 16px; font-size: 13px; color: var(--gris); max-width: calc(100vw - 32px);
+  background: rgba(10,10,10,.97); border: 1px solid var(--ac);
+}
+.barre-modif[hidden] { display: none; }
+.barre-modif button { flex: none; height: 36px; padding: 0 14px; border-radius: 10px; font-size: 13px; cursor: pointer; }
 
 /* ─── Le panneau « Yeux » ─── */
 .panneau {
@@ -210,10 +258,13 @@ html.leger .filigrane { animation: none; }
 /* ─── Petits écrans (VirtualBox en 1024 x 768) : on resserre ─── */
 @media (max-width: 1100px) {
   .terminal { display: none; }
-  .grille { max-width: none; }
+  .grille-cadre { max-width: none; }
 }
-@media (max-height: 700px) {
-  .points { display: none; }
+/*  Les points restent : ce sont eux qui changent de page. On rogne plutôt
+    les yeux et l'horloge, qui n'ont pas besoin de toute leur taille. */
+@media (max-height: 720px) {
+  .yeux { height: 9vh; }
+  .ecran { gap: 1vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {
