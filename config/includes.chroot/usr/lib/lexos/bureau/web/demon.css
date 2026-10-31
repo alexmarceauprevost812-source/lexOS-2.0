@@ -271,3 +271,6 @@ html.leger .filigrane { animation: none; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .intro, .plongee { display: none; }
 }
+
+/* Le menu du clic droit : plus étroit que le menu système. */
+.menu-clic { width: 230px; padding: 8px; gap: 6px; z-index: 45; }

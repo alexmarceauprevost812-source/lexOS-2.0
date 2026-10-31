@@ -533,8 +533,45 @@ document.addEventListener("pointercancel", () => {
   clearTimeout(GLISSE.attente); GLISSE.candidat = null; GLISSE.bloc = null;
   if (GLISSE.fantome) { GLISSE.fantome.remove(); GLISSE.fantome = null; GLISSE.id = null; nettoyerCibles(); dessinerGrille(); dessinerDock(); }
 });
-//  Pas de menu contextuel sur l'appui long d'un doigt.
-document.addEventListener("contextmenu", (e) => { if (e.target.closest(".appli") || MODIF) e.preventDefault(); });
+/* ════════════════ Le clic droit : « ✋ Déplacer » ════════════════
+   ALEX : « déplacer en cliquant sur le droit de la souris », même l'heure.
+   Clic droit sur une appli, l'heure, la date, le terminal ou le fond :
+   un petit menu ; « Déplacer » passe en mode « modifier » (les tuiles
+   tremblent, on glisse où l'on veut, puis Terminé). Sur une tuile, le menu
+   offre aussi « Ouvrir ». Les champs texte gardent le menu normal. */
+function fermerMenuClic() { const m = $("#menu-clic"); if (m) m.hidden = true; }
+function ouvrirMenuClic(x, y, tuileVisee) {
+  const m = $("#menu-clic");
+  const quoi = tuileVisee ? "cette appli" : "les éléments du bureau";
+  m.innerHTML = (tuileVisee ? `<button data-clic="ouvrir">▶  Ouvrir</button>` : "")
+    + `<button data-clic="deplacer">✋  Déplacer ${quoi}</button>`;
+  m.hidden = false;
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(innerWidth - r.width - 8, x)) + "px";
+  m.style.top = Math.max(8, Math.min(innerHeight - r.height - 8, y)) + "px";
+  m.onclick = (ev) => {
+    const b = ev.target.closest("[data-clic]");
+    if (!b) return;
+    fermerMenuClic();
+    if (b.dataset.clic === "ouvrir" && tuileVisee) ouvrirTuile(tuileVisee);
+    if (b.dataset.clic === "deplacer") {
+      modeModifier(true);
+      bulle(tuileVisee ? "Glisse l'appli où tu veux, puis Terminé" : "Glisse l'heure, la date, le terminal ou les applis, puis Terminé");
+    }
+  };
+}
+document.addEventListener("contextmenu", (e) => {
+  //  L'appui long d'un doigt a déjà pris la tuile en main : pas de menu.
+  if (MODIF || GLISSE.fantome) { e.preventDefault(); return; }
+  if (e.target.closest("input, textarea, [contenteditable]")) return;
+  if (SECONDAIRE || e.target.closest(".menu-sys, .barre-modif")) { e.preventDefault(); return; }
+  e.preventDefault();
+  clearTimeout(GLISSE.attente); GLISSE.candidat = null;
+  const t = e.target.closest(".appli[data-id]");
+  ouvrirMenuClic(e.clientX, e.clientY, t && (t.closest("#grille") || t.closest("#dock")) ? t : null);
+});
+document.addEventListener("pointerdown", (e) => { if (!e.target.closest("#menu-clic")) fermerMenuClic(); }, true);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") fermerMenuClic(); });
 
 //  Le terminal, l'heure, la date : décalés de leur place, en millièmes de
 //  l'écran (réglage « demon_places »), et jamais hors de l'écran.
