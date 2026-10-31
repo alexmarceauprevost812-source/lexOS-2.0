@@ -32,7 +32,7 @@ titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 
 # =============================================================================
 titre "1. Le thème Plymouth lexos-nomade"
-for f in lexos-nomade.plymouth lexos-nomade.script yeux.png; do
+for f in lexos-nomade.plymouth lexos-nomade.script yeux.png demon.png; do
 	[ -s "$THEME/$f" ] && ok "$f présent" || non "$f absent"
 done
 TAILLE="$(du -cb "$THEME"/* | tail -n1 | cut -f1)"

@@ -1,11 +1,15 @@
 // =============================================================================
-//  LexOS nomade — l'ecran de demarrage : deux yeux rouges dans le noir
+//  LexOS nomade — l'ecran de demarrage : les yeux, puis le demon
 // =============================================================================
+//  ALEX : « l'animation du demon quand on ouvre LexOS, au tout debut ».
+//  1. le noir, puis deux yeux rouges qui s'allument et clignent deux fois ;
+//  2. les yeux s'effacent et le demon TI-LEX-AL sort du noir a leur place ;
+//  3. le demon respire (lueur et leger flottement) jusqu'a la connexion.
 //  La saveur nomade vit sur une cle USB-C : son initramfs doit rester petit.
-//  Ce theme ne porte donc qu'UNE image (yeux.png, 12 Ko, fabriquee par
-//  tools/gen-yeux-nomade.py avec le trace des yeux du bureau demon) et la
-//  fait respirer en jouant sur son opacite. Pas de video, pas de suite
-//  d'images : la video du demon joue APRES la connexion, dans le bureau.
+//  Deux images seulement : yeux.png (tools/gen-yeux-nomade.py) et demon.png
+//  (tools/gen-demon-nomade.py, 200 px de haut, agrandi UNE fois ici). Tout
+//  bouge par l'opacite et la position. La video du demon joue APRES la
+//  connexion, dans le bureau.
 //
 //  N'emploie QUE des fonctions relevees dans script.so (la liste gelee du
 //  banc tests/test_lexos_plymouth.sh) et l'arithmetique de base : pas de
@@ -16,26 +20,71 @@
 Window.SetBackgroundTopColor(0, 0, 0);
 Window.SetBackgroundBottomColor(0, 0, 0);
 
+// --- Les yeux : au centre, la ou sera la tete du demon ----------------------
 yeux_image = Image("yeux.png");
 yeux_sprite = Sprite(yeux_image);
 yeux_sprite.SetX(Window.GetWidth() / 2 - yeux_image.GetWidth() / 2);
-yeux_sprite.SetY(Window.GetHeight() * 0.40 - yeux_image.GetHeight() / 2);
-yeux_sprite.SetZ(10);
+yeux_sprite.SetY(Window.GetHeight() * 0.36 - yeux_image.GetHeight() / 2);
+yeux_sprite.SetZ(12);
+yeux_sprite.SetOpacity(0);
 
-// --- La respiration : une onde triangulaire, 4 s par cycle a 50 im/s -------
+// --- Le demon : agrandi une seule fois, au tiers de la hauteur d'ecran -----
+demon_brut = Image("demon.png");
+demon_haut = Window.GetHeight() * 0.36;
+demon_large = demon_brut.GetWidth() * demon_haut / demon_brut.GetHeight();
+demon_image = demon_brut.Scale(demon_large, demon_haut);
+demon_sprite = Sprite(demon_image);
+demon_x = Window.GetWidth() / 2 - demon_image.GetWidth() / 2;
+demon_y = Window.GetHeight() * 0.38 - demon_image.GetHeight() / 2;
+demon_sprite.SetX(demon_x);
+demon_sprite.SetY(demon_y);
+demon_sprite.SetZ(10);
+demon_sprite.SetOpacity(0);
+
+// --- L'animation, a 50 images par seconde -----------------------------------
+//    0 -  25 : le noir
+//   25 -  75 : les yeux s'allument
+//   75 - 150 : deux clignements (95-101 et 120-126)
+//  150 - 200 : les yeux s'effacent, le demon sort du noir
+//  200 -  …  : le demon respire, un cycle de 4 s
 Plymouth.SetRefreshRate(50);
 rafraichissements = 0;
+souffle = 0;
 fun refresh_callback() {
-    rafraichissements = rafraichissements + 1;
-    if (rafraichissements >= 200) {
-        rafraichissements = 0;
+    if (rafraichissements < 200) {
+        rafraichissements = rafraichissements + 1;
     }
-    if (rafraichissements < 100) {
-        onde = rafraichissements / 100;
-    } else {
-        onde = (200 - rafraichissements) / 100;
+    t = rafraichissements;
+    yeux = 0;
+    demon = 0;
+    if (t >= 25 && t < 75) {
+        yeux = (t - 25) / 50;
     }
-    yeux_sprite.SetOpacity(0.55 + 0.45 * onde);
+    if (t >= 75 && t < 150) {
+        yeux = 1;
+        if ((t >= 95 && t < 101) || (t >= 120 && t < 126)) {
+            yeux = 0.05;
+        }
+    }
+    if (t >= 150 && t < 200) {
+        yeux = (200 - t) / 50;
+        demon = (t - 150) / 50;
+    }
+    if (t >= 200) {
+        souffle = souffle + 1;
+        if (souffle >= 200) {
+            souffle = 0;
+        }
+        if (souffle < 100) {
+            onde = souffle / 100;
+        } else {
+            onde = (200 - souffle) / 100;
+        }
+        demon = 0.78 + 0.22 * onde;
+        demon_sprite.SetY(demon_y - 6 * onde);
+    }
+    yeux_sprite.SetOpacity(yeux);
+    demon_sprite.SetOpacity(demon);
 }
 Plymouth.SetRefreshFunction(refresh_callback);
 
@@ -58,18 +107,18 @@ fun password_callback(invite, puces) {
     if (invite == "") {
         invite = "Phrase secrete du disque";
     }
-    montrer_texte(invite_sprite, invite, Window.GetHeight() * 0.55);
+    montrer_texte(invite_sprite, invite, Window.GetHeight() * 0.62);
     points = "";
     i = 0;
     while (i < puces) {
         points = points + "*";
         i = i + 1;
     }
-    montrer_texte(puces_sprite, points + " ", Window.GetHeight() * 0.55 + 36);
+    montrer_texte(puces_sprite, points + " ", Window.GetHeight() * 0.62 + 36);
 }
 fun question_callback(invite, saisie) {
-    montrer_texte(invite_sprite, invite, Window.GetHeight() * 0.55);
-    montrer_texte(puces_sprite, saisie + " ", Window.GetHeight() * 0.55 + 36);
+    montrer_texte(invite_sprite, invite, Window.GetHeight() * 0.62);
+    montrer_texte(puces_sprite, saisie + " ", Window.GetHeight() * 0.62 + 36);
 }
 fun normal_callback() {
     invite_sprite.SetOpacity(0);

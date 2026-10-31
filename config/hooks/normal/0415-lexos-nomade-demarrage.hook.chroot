@@ -57,7 +57,7 @@ if [ "$FLAVOUR" != nomade ]; then
 fi
 
 # --- 1. Plymouth -------------------------------------------------------------
-for F in lexos-nomade.plymouth lexos-nomade.script yeux.png; do
+for F in lexos-nomade.plymouth lexos-nomade.script yeux.png demon.png; do
 	[ -s "$THEME_NOMADE/$F" ] || { echo "[lexos]   ÉCHEC : $THEME_NOMADE/$F absent"; exit 1; }
 done
 if command -v plymouth-set-default-theme >/dev/null 2>&1 \
