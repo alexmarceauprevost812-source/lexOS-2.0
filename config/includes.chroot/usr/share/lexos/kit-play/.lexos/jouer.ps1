@@ -51,27 +51,92 @@ if (-not $existe) {
   Start-Sleep 1
   vb discardstate $VM
 }
-$ramGo = [math]::Floor((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
-$ram = if ($ramGo -ge 24) { 8192 } elseif ($ramGo -ge 12) { 6144 } else { 4096 }
-$cpu = [math]::Max(2, [math]::Min(6, [Environment]::ProcessorCount - 2))
-vb modifyvm $VM --firmware efi --memory $ram --cpus $cpu --graphicscontroller vmsvga --vram 128 --nic1 nat --boot1 disk --boot2 none --mouse usbtablet --usbxhci on
+# =============================================================================
+#  MOTEUR D'AJUSTEMENT — la meilleure image et la meilleure vitesse pour CE PC
+# =============================================================================
+#  Alex, 31 octobre : « un moteur qui ajuste automatiquement la VM pour la
+#  meilleure qualité d'image et performance de la machine ». Relancé à chaque
+#  PLAY : la même clé branchée dans un autre PC se règle pour ce PC-là.
+#  Chaque réglage a son propre appel à VBoxManage : un réglage que cette
+#  version de VirtualBox ne connaît pas échoue seul, sans emporter les autres.
+#  Ce qui a été choisi est écrit dans %USERPROFILE%\LexOS-Nomade\reglages.txt.
+$journal = New-Object System.Collections.Generic.List[string]
+function Note($t) { $journal.Add($t) }
 
-# Image nette : par défaut l'EFI de VirtualBox démarre en 800 x 600 et le
-# démarrage (GRUB, les yeux du démon) est étiré, donc flou. On démarre à la
-# taille de l'écran du PC (plafonnée à 1920 x 1080, au-delà la clé rame), et
-# la fenêtre demande à LexOS de suivre sa taille (lexos-vm-ecran, côté LexOS).
-$ecran = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+# --- Ce que l'ordinateur a dans le ventre --------------------------------------
+$sys    = Get-CimInstance Win32_ComputerSystem
+$ramGo  = [math]::Floor($sys.TotalPhysicalMemory / 1GB)
+$fils   = [Environment]::ProcessorCount
+$coeurs = (Get-CimInstance Win32_Processor | Measure-Object -Property NumberOfCores -Sum).Sum
+if (-not $coeurs) { $coeurs = [math]::Max(1, [math]::Floor($fils / 2)) }
+$cartes = @(Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
+$gpuDedie = [bool]($cartes -match 'NVIDIA|GeForce|RTX|GTX|Radeon RX|Radeon Pro|AMD Radeon \(TM\) RX|Intel\(R\) Arc')
+$ecran  = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$verVB  = (& $VBox --version 2>$null | Select-Object -First 1)
+$majeur = 0; if ($verVB -match '^(\d+)\.') { $majeur = [int]$Matches[1] }
+#  Hyper-V (ou la sécurité basée sur la virtualisation de Windows 11) prend
+#  le processeur pour lui : VirtualBox passe alors en mode lent « NEM ».
+$hyperV = $false
+try { $hyperV = [bool]((Get-CimInstance Win32_ComputerSystem).HypervisorPresent) } catch {}
+Note "PC : $ramGo Go de mémoire, $coeurs coeurs / $fils fils, écran $($ecran.Width) x $($ecran.Height)"
+Note "Cartes graphiques : $($cartes -join ' ; ') (dédiée : $gpuDedie)"
+Note "VirtualBox $verVB ; Hyper-V actif : $hyperV"
+
+# --- Mémoire : la moitié du PC, entre 3 et 8 Go -------------------------------
+#  Au-delà de 8 Go, LexOS nomade ne s'en sert pas : autant la laisser à Windows.
+$ram = [math]::Floor($ramGo * 1024 / 2)
+$ram = [math]::Max(3072, [math]::Min(8192, $ram))
+if ($ramGo -le 6) { $ram = 2048 }
+
+# --- Processeur : les coeurs physiques, moins un pour Windows, de 2 à 8 -------
+#  Les « fils » (hyperthreading) comptent moins qu'un vrai coeur dans une VM :
+#  donner tous les fils fait ramer Windows ET LexOS.
+$cpu = [math]::Max(2, [math]::Min(8, $coeurs - 1))
+if ($fils -le 2) { $cpu = 1 }
+
+# --- Image : mémoire vidéo et accélération 3D ---------------------------------
+#  Une carte dédiée (NVIDIA, Radeon, Arc) supporte bien la 3D de VMSVGA
+#  (VirtualBox 7 et plus) : bureau plus fluide, animations du démon sans
+#  saccades. Sur un graphique intégré, la 3D fait souvent plus de mal que de
+#  bien : on la laisse fermée. Si la VM refuse de démarrer avec la 3D, on
+#  réessaie sans (voir « 6. Démarrer »).
+$vram = if ($ramGo -ge 8) { 256 } else { 128 }
+$trois_d = ($gpuDedie -and $majeur -ge 7 -and -not $hyperV)
+
+# --- Résolution de départ : celle de l'écran, plafonnée à 1920 x 1080 ---------
+#  Sans ça, l'EFI de VirtualBox démarre en 800 x 600 étiré : GRUB et les yeux
+#  du démon sont flous. Au-delà de 1080p, une clé USB n'a pas le débit.
 $res = '1280x720'
 if ($ecran.Width -ge 1366 -and $ecran.Height -ge 768)  { $res = '1366x768' }
 if ($ecran.Width -ge 1600 -and $ecran.Height -ge 900)  { $res = '1600x900' }
 if ($ecran.Width -ge 1920 -and $ecran.Height -ge 1080) { $res = '1920x1080' }
+
+# --- Appliquer -------------------------------------------------------------------
+vb modifyvm $VM --firmware efi --memory $ram --cpus $cpu --graphicscontroller vmsvga --vram $vram --nic1 nat --boot1 disk --boot2 none --mouse usbtablet --usbxhci on
+#  Les réglages de vitesse, un par un (noms de VirtualBox 7, puis ceux de 6).
+function Regler($nouveau, $ancien) {
+  & $VBox modifyvm $VM @nouveau 2>&1 | Out-Null
+  if ($LASTEXITCODE -ne 0 -and $ancien) { & $VBox modifyvm $VM @ancien 2>&1 | Out-Null }
+}
+Regler @('--ioapic', 'on') $null
+Regler @('--paravirt-provider', 'kvm') @('--paravirtprovider', 'kvm')   # horloge et interruptions natives pour Linux
+Regler @('--hwvirtex', 'on') $null
+Regler @('--nested-paging', 'on') @('--nestedpaging', 'on')
+Regler @('--large-pages', 'on') @('--largepages', 'on')
+Regler @('--accelerate-3d', $(if ($trois_d) { 'on' } else { 'off' })) @('--accelerate3d', $(if ($trois_d) { 'on' } else { 'off' }))
+
 vb setextradata $VM 'VBoxInternal2/EfiGraphicsResolution' $res
 vb setextradata $VM 'GUI/AutoresizeGuest' 'true'
 vb setextradata $VM 'GUI/LastGuestSizeHint' ($res -replace 'x', ',')
-# Pas de mise à l'échelle par VirtualBox : c'est elle qui rend l'image floue
-# sur les écrans à 125 % / 150 %. LexOS reçoit les vrais pixels.
+#  Pas de mise à l'échelle par VirtualBox : c'est elle qui rend l'image floue
+#  sur les écrans à 125 % / 150 %. LexOS reçoit les vrais pixels, et le
+#  bureau suit la taille de la fenêtre (lexos-vm-ecran, côté LexOS).
 vb setextradata $VM 'GUI/ScaleFactor' '1'
 vb setextradata $VM 'GUI/HiDPI/UnscaledOutput' 'true'
+
+Note "Choisi : $ram Mo de mémoire, $cpu processeurs, $vram Mo vidéo, 3D : $trois_d, départ en $res"
+if ($hyperV) { Note "Conseil : Hyper-V est actif sur Windows, VirtualBox tourne plus lentement. (Fonctionnalités Windows > décocher Hyper-V / Plateforme de machine virtuelle.)" }
+try { $journal | Set-Content -Path (Join-Path $Dir 'reglages.txt') -Encoding UTF8 } catch {}
 
 # 5. Relier la clé (refait à chaque fois : son numéro change selon le port)
 $Vmdk = Join-Path $Dir 'cle.vmdk'
@@ -89,4 +154,11 @@ vb storageattach $VM --storagectl SATA --port 0 --device 0 --type hdd --medium $
 
 # 6. Démarrer
 $out = & $VBox startvm $VM 2>&1
+if ($LASTEXITCODE -ne 0 -and $trois_d) {
+  #  La 3D est le réglage le plus capricieux (pilote de la carte, version de
+  #  VirtualBox) : on la retire et on réessaie avant d'abandonner.
+  Regler @('--accelerate-3d', 'off') @('--accelerate3d', 'off')
+  Add-Content -Path (Join-Path $Dir 'reglages.txt') -Value 'La 3D a empêché le démarrage : retirée pour ce PC.' -ErrorAction SilentlyContinue
+  $out = & $VBox startvm $VM 2>&1
+}
 if ($LASTEXITCODE -ne 0) { Dire "LexOS n'a pas pu démarrer :`n`n$($out | Out-String)" 'Error'; exit 1 }

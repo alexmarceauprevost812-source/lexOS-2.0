@@ -2613,4 +2613,10 @@ suite: trixie
 #  2. lexos-vm-ecran : le bureau suit la taille de la fenêtre VirtualBox
 #     (VMSVGA/vmwgfx, sans Additions invité) ; inactif sur un vrai PC.
 #
-build: 129
+#  ISO 130 — moteur d'ajustement de la VM (31 octobre)
+#  Kit PLAY : à chaque lancement, la VM se règle sur le PC — mémoire (moitié,
+#  3 à 8 Go), processeurs (coeurs physiques moins un), mémoire vidéo, 3D si
+#  carte dédiée (repli sans 3D), KVM, pagination imbriquée, grandes pages.
+#  Choix notés dans %USERPROFILE%\LexOS-Nomade\reglages.txt.
+#
+build: 130

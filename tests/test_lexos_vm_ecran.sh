@@ -58,5 +58,20 @@ jouer vmware
 grep -q "EfiGraphicsResolution" "$PLAY" && ok "kit PLAY : démarrage en haute résolution (plus de 800 x 600 flou)" || non "kit PLAY : résolution EFI absente"
 grep -q "GUI/AutoresizeGuest" "$PLAY" && ok "kit PLAY : la fenêtre demande l'ajustement" || non "kit PLAY : ajustement automatique absent"
 
+#  Le moteur d'ajustement : chaque réglage se décide d'après le PC, rien en dur.
+grep -q 'MOTEUR D.AJUSTEMENT' "$PLAY" && ok "moteur d'ajustement présent" || non "moteur d'ajustement absent"
+grep -q -- '--memory \$ram' "$PLAY" && grep -q -- '--cpus \$cpu' "$PLAY" && grep -q -- '--vram \$vram' "$PLAY" \
+	&& ok "mémoire, processeurs et mémoire vidéo calculés pour le PC" || non "réglages encore fixes"
+grep -q "Win32_VideoController" "$PLAY" && grep -q -- "--accelerate-3d" "$PLAY" \
+	&& ok "3D selon la carte graphique" || non "3D non décidée"
+grep -q "paravirt-provider', 'kvm'" "$PLAY" && grep -q "nested-paging" "$PLAY" \
+	&& ok "réglages de vitesse (KVM, pagination imbriquée)" || non "réglages de vitesse absents"
+grep -q "La 3D a empêché le démarrage" "$PLAY" && ok "repli sans 3D si la VM refuse de démarrer" || non "aucun repli sans 3D"
+grep -q "reglages.txt" "$PLAY" && ok "choix notés dans reglages.txt" || non "aucun journal des choix"
+#  Chaque réglage risqué a son propre appel : une option inconnue de la
+#  version de VirtualBox ne doit pas faire échouer tout le modifyvm.
+! grep -E '^vb modifyvm .*(--accelerate|--paravirt|--nested|--large)' "$PLAY" >/dev/null \
+	&& ok "réglages risqués isolés de l'appel principal" || non "un réglage risqué peut casser l'appel principal"
+
 printf '\n%d réussis, %d échoués\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ]
