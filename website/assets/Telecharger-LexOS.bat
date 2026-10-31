@@ -1,6 +1,6 @@
 @echo off
 rem ===========================================================================
-rem  LexOS — telecharger l'ISO EN UN SEUL FICHIER, d'un double-clic (Windows)
+rem  LexOS - telecharger l'ISO EN UN SEUL FICHIER, d'un double-clic (Windows)
 rem ===========================================================================
 rem  GitHub refuse les fichiers de plus de 2 Go : l'ISO y est en morceaux.
 rem  Ce petit programme les telecharge, les recolle, verifie l'empreinte
