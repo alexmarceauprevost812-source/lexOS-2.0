@@ -309,6 +309,37 @@ const SPECIALES = {
 };
 const trait = (cle) => `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${DESSINS[cle] || DESSINS.appli}"/></svg>`;
 const yeuxTuile = `<svg viewBox="0 0 220 60" aria-hidden="true"><path style="fill:var(--oeil)" d="${OEIL}" transform="translate(4 4)"/><path style="fill:var(--oeil)" d="${OEIL}" transform="translate(216 4) scale(-1 1)"/></svg>`;
+/*  ALEX (31 octobre) : « une animation d'écriture de code, une animation de
+    Chrome qui tourne », comme dans la démo d'origine. Deux icônes VIVANTES,
+    dessinées pour LexOS (pas le logo de Google) :
+      · le terminal : trois lignes de code qui s'écrivent, et le curseur ;
+      · le navigateur : un globe dont les trois anneaux tournent, aux
+        couleurs du thème.
+    Le mouvement est en CSS (demon.css, « Icônes vivantes ») : coupé avec
+    « réduire les animations » et en mode allégé. */
+const VIVANTES = {
+  terminal: `<svg class="vivante code" viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="2.5" y="4" width="19" height="16" rx="3" fill="none" stroke-width="1.8"/>
+    <path d="M5.8 9.2l2.4 1.8-2.4 1.8" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect class="l1" x="10" y="10.2" width="8" height="1.6" rx=".8"/>
+    <rect class="l2" x="5.8" y="13.8" width="11" height="1.6" rx=".8"/>
+    <rect class="l3" x="5.8" y="16.6" width="6" height="1.6" rx=".8"/>
+    <rect class="curseur" x="12.6" y="16.4" width="1.4" height="2" rx=".3"/></svg>`,
+  //  ALEX : « les fichiers qui s'ouvrent quand on passe la souris dessus » :
+  //  le rabat du dossier se soulève au survol, une feuille en sort.
+  fichiers: `<svg class="vivante dossier" viewBox="0 0 24 24" aria-hidden="true">
+    <path class="fond" d="M3 7.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2h-7l-2-2.5H5a2 2 0 0 0-2 2z" fill="none" stroke-width="1.8" stroke-linejoin="round"/>
+    <rect class="feuille" x="7" y="8.5" width="10" height="8" rx="1"/>
+    <path class="rabat" d="M3 11h18l-1.4 7.4A2 2 0 0 1 17.6 20H6.4a2 2 0 0 1-2-1.6z" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
+  navigateur: `<svg class="vivante globe" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" fill="none" stroke-width="1.8"/>
+    <g class="anneaux" fill="none" stroke-width="1.6">
+      <ellipse class="a1" cx="12" cy="12" rx="9" ry="3.6"/>
+      <ellipse class="a2" cx="12" cy="12" rx="3.6" ry="9"/>
+      <ellipse class="a3" cx="12" cy="12" rx="6.4" ry="9"/>
+    </g>
+    <circle class="coeur" cx="12" cy="12" r="1.6"/></svg>`,
+};
 function tuile(e) {
   //  En Professionnel, l'appli « Yeux » est simplement les réglages du bureau.
   const nom = e.special === "yeux" && THEME.pro ? "réglages" : (LIBELLES[e.cle] || e.nom);
@@ -316,6 +347,7 @@ function tuile(e) {
   if (e.special === "yeux") { image = yeuxTuile; classe = " yeux-tuile"; }
   else if (e.special === "apropos") { image = `<img src="tux.png" alt="">`; classe = " tux"; }
   else if (PHOTOS[e.cle]) { image = `<img src="${PHOTOS[e.cle]}" alt="">`; classe = " photo"; }
+  else if ((VIVANTES[e.cle] || e.cle === "dossier") && !LEGER) image = VIVANTES[e.cle] || VIVANTES.fichiers;
   else if (e.icone) image = `<img src="/icone/${encodeURIComponent(e.id)}?t=${encodeURIComponent(JETON)}" alt="">`;
   else image = trait(e.cle);
   return `<button class="appli" data-id="${echapper(e.id)}" data-nom="${echapper(e.nom)}" title="${echapper(e.nom)}" draggable="false">`
