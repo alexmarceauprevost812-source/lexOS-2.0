@@ -104,6 +104,8 @@ let THEME = THEMES.pro;
 function appliquerTheme(k) {
   THEME = THEMES[k] || THEMES.pro;
   document.documentElement.classList.toggle("pro", !!THEME.pro);
+  const libPluie = document.querySelector('.inter[data-cle="demon_pluie"] span');
+  if (libPluie) libPluie.textContent = THEME.pro ? "code qui s'écrit en fond" : "pluie de 0 et de 1";
   const r = document.documentElement.style;
   r.setProperty("--ac", THEME.ac); r.setProperty("--ac-fonce", THEME.fonce); r.setProperty("--filtre-logo", THEME.filtre);
   $$(".theme").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.theme === k)));
@@ -173,7 +175,61 @@ function pluieFixe() {
   }
   ctx.globalAlpha = 1;
 }
+/* ════════════════ Le code qui s'écrit (thème Professionnel) ════════════════
+   ALEX (31 octobre, vidéo de la démo d'origine à l'appui) : « une animation
+   d'écriture de code ». Le fond du thème Professionnel : un vrai bout de
+   script LexOS qui s'écrit lettre par lettre, en boucle, très pâle. Même
+   réglage que la pluie du thème Halloween (« demon_pluie ») ; immobile avec
+   « réduire les animations » et en mode allégé. */
+const CODE_FOND = `#!/usr/bin/env bash
+# =============================================================================
+#  lexos-cle-memoire — une clé USB comme mémoire BONUS pour LexOS
+# =============================================================================
+set -uo pipefail
+
+CONF="\${LEXOS_CLE_MEMOIRE_CONF:-/etc/lexos/cle-memoire}"
+POINT="\${LEXOS_CLE_MEMOIRE_POINT:-/mnt/lexos-memoire}"
+ETIQUETTE="LEXOS-MEMOIRE"
+
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+cmd_etat() {
+	local u m
+	u="$(uuid_conf)"; m="$(mode_conf)"
+	if [[ -z "$u" ]]; then
+		echo "  Aucune clé mémoire : LexOS utilise seulement le disque du PC."
+	elif [[ "$m" == fusion ]]; then
+		ok "Fusionnée : ton dossier = PC + clé"
+	fi
+}
+
+case "\${1:-etat}" in
+	etat|état|status)        cmd_etat ;;
+	preparer|préparer|setup) shift; cmd_preparer "$@" ;;
+	ejecter|éjecter|eject)   cmd_ejecter ;;
+	oublier|forget)          cmd_oublier ;;
+esac
+`;
+let minuteurCode = null, posCode = 0;
+function codeFond() {
+  const el = $("#code-fond");
+  clearInterval(minuteurCode); minuteurCode = null;
+  if (!el) return;
+  if (!THEME.pro || !P || !P.demon_pluie) { el.textContent = ""; return; }
+  if (LEGER || CALME) { el.textContent = CODE_FOND; return; }
+  minuteurCode = setInterval(() => {
+    if (document.hidden) return;
+    posCode = posCode >= CODE_FOND.length ? 1 : posCode + 1;
+    el.textContent = CODE_FOND.slice(0, posCode) + "▌";
+    //  Écran plein avant la fin du texte : on repart du début plutôt que
+    //  d'écrire hors de vue.
+    if (el.scrollHeight > el.clientHeight + 8) posCode = 0;
+  }, 34);
+}
 function pluie() {
+  codeFond();
   clearInterval(minuteurPluie); minuteurPluie = null;
   if (!P || !P.demon_pluie || LEGER || CALME || THEME.pro) { pluieFixe(); return; }
   minuteurPluie = setInterval(() => { if (!document.hidden) goutte(); }, 100);
@@ -325,12 +381,6 @@ const VIVANTES = {
     <rect class="l2" x="5.8" y="13.8" width="11" height="1.6" rx=".8"/>
     <rect class="l3" x="5.8" y="16.6" width="6" height="1.6" rx=".8"/>
     <rect class="curseur" x="12.6" y="16.4" width="1.4" height="2" rx=".3"/></svg>`,
-  //  ALEX : « les fichiers qui s'ouvrent quand on passe la souris dessus » :
-  //  le rabat du dossier se soulève au survol, une feuille en sort.
-  fichiers: `<svg class="vivante dossier" viewBox="0 0 24 24" aria-hidden="true">
-    <path class="fond" d="M3 7.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2h-7l-2-2.5H5a2 2 0 0 0-2 2z" fill="none" stroke-width="1.8" stroke-linejoin="round"/>
-    <rect class="feuille" x="7" y="8.5" width="10" height="8" rx="1"/>
-    <path class="rabat" d="M3 11h18l-1.4 7.4A2 2 0 0 1 17.6 20H6.4a2 2 0 0 1-2-1.6z" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
   navigateur: `<svg class="vivante globe" viewBox="0 0 24 24" aria-hidden="true">
     <circle cx="12" cy="12" r="9" fill="none" stroke-width="1.8"/>
     <g class="anneaux" fill="none" stroke-width="1.6">
@@ -340,6 +390,23 @@ const VIVANTES = {
     </g>
     <circle class="coeur" cx="12" cy="12" r="1.6"/></svg>`,
 };
+/*  ═══ LE VRAI DOSSIER LEXOS, ET SON MOUVEMENT ═══
+    ALEX : « les mêmes images des fichiers avec leur animation ». Le même
+    dessin que la démo d'origine et que le thème d'icônes de l'ISO
+    (FOLD_BACK / FOLD_FRONT, usr/share/icons/LexOS/places/scalable/folder.svg) :
+    au survol, le rabat avant pivote — le dossier s'ouvre ; au clic, un petit
+    rebond (demon.css, « Le vrai dossier »). Aux couleurs du thème ; les
+    dossiers posés sur le bureau portent leurs trois lettres, comme dans
+    Fichiers (lexos-etiquette). */
+const FOLD_BACK  = "M 44 148 a 26 26 0 0 1 26 -26 h 132 a 26 26 0 0 1 18 8 l 34 34 h 184 "
+                 + "a 26 26 0 0 1 26 26 v 214 a 26 26 0 0 1 -26 26 H 70 a 26 26 0 0 1 -26 -26 Z";
+const FOLD_FRONT = "M 78 206 h 378 a 24 24 0 0 1 23 30 l -38 156 a 26 26 0 0 1 -25 20 H 90 "
+                 + "a 26 26 0 0 1 -25 -20 L 27 236 a 24 24 0 0 1 23 -30 Z";
+const troisLettres = (nom) => sansAccents(nom).replace(/[^a-z0-9]/g, "").slice(0, 3).toUpperCase();
+const dossierLexos = (court) => `<svg class="dossier-lx" viewBox="0 0 512 512" aria-hidden="true"><g transform="translate(0,26)">`
+  + `<path class="dos" d="${FOLD_BACK}"/><g class="ff-g"><path class="poche" d="${FOLD_FRONT}"/>`
+  + (court ? `<text x="256" y="345" text-anchor="middle" font-family="ui-monospace,monospace" font-weight="700" font-size="104">${echapper(court)}</text>` : "")
+  + `</g></g></svg>`;
 function tuile(e) {
   //  En Professionnel, l'appli « Yeux » est simplement les réglages du bureau.
   const nom = e.special === "yeux" && THEME.pro ? "réglages" : (LIBELLES[e.cle] || e.nom);
@@ -347,7 +414,9 @@ function tuile(e) {
   if (e.special === "yeux") { image = yeuxTuile; classe = " yeux-tuile"; }
   else if (e.special === "apropos") { image = `<img src="tux.png" alt="">`; classe = " tux"; }
   else if (PHOTOS[e.cle]) { image = `<img src="${PHOTOS[e.cle]}" alt="">`; classe = " photo"; }
-  else if ((VIVANTES[e.cle] || e.cle === "dossier") && !LEGER) image = VIVANTES[e.cle] || VIVANTES.fichiers;
+  else if (e.cle === "fichiers") { image = dossierLexos(""); classe = " dossier-tuile"; }
+  else if (e.cle === "dossier") { image = dossierLexos(troisLettres(e.nom)); classe = " dossier-tuile"; }
+  else if (VIVANTES[e.cle] && !LEGER) image = VIVANTES[e.cle];
   else if (e.icone) image = `<img src="/icone/${encodeURIComponent(e.id)}?t=${encodeURIComponent(JETON)}" alt="">`;
   else image = trait(e.cle);
   return `<button class="appli" data-id="${echapper(e.id)}" data-nom="${echapper(e.nom)}" title="${echapper(e.nom)}" draggable="false">`
@@ -908,7 +977,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") ouvrirPann
 const INTERRUPTEURS = [
   ["demon_suivre", "les yeux suivent la souris"],
   ["demon_intro", "les yeux s'ouvrent au démarrage"],
-  ["demon_pluie", "pluie de 0 et de 1"],
+  ["demon_pluie", "pluie de 0 et de 1"],      // en Professionnel : « code qui s'écrit en fond » (appliquerTheme)
   //  ALEX : « l'outil en haut de l'écran visible et fixe ». fenetre.py relit
   //  le réglage aux 2 s : la barre se fixe ou se replie sans redémarrer.
   ["outils_fixe", "Mes outils fixés en haut"],

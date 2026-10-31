@@ -310,7 +310,7 @@ html.pro .yeux-tuile::before {
 }
 /* Dans le panneau : les réglages du démon n'ont pas de sens ici. */
 html.pro .bloc:has(#yeux-couleurs), html.pro .bloc:has(#presence),
-html.pro .inter[data-cle^="demon_"] { display: none; }
+html.pro .inter[data-cle="demon_suivre"], html.pro .inter[data-cle="demon_intro"] { display: none; }
 
 /* ════════════════ Icônes vivantes (terminal, navigateur) ════════════════
    ALEX : « animation d'écriture de code, animation de Chrome qui tourne ».
@@ -336,12 +336,27 @@ html.pro .inter[data-cle^="demon_"] { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .vivante * { animation: none !important; }
 }
-/* Le dossier qui s'ouvre : au survol, le rabat bascule vers l'avant et une
-   feuille monte. Au repos, un dossier fermé ordinaire. */
-.vivante.dossier .rabat { fill: var(--tuile); stroke: var(--ac); transform-box: view-box; transform-origin: 12px 20px; transition: transform .35s cubic-bezier(.3,1.4,.5,1); }
-.vivante.dossier .feuille { fill: var(--ac); opacity: .85; transform: translateY(2.5px); transition: transform .35s cubic-bezier(.3,1.4,.5,1); }
-.appli:hover .vivante.dossier .rabat { transform: scaleY(.62) skewX(-10deg); }
-.appli:hover .vivante.dossier .feuille { transform: translateY(-2.2px); }
+/* ═══ Le vrai dossier LexOS (demon.js, dossierLexos) ═══
+   Même dessin et même mouvement que la démo d'origine : le rabat avant
+   pivote au survol, un petit rebond au clic. La poche à la couleur du
+   thème, le dos 72 % plus sombre (comme #E8590C -> #A84007). */
+.tuile.dossier-tuile { overflow: visible; }
+.tuile svg.dossier-lx { width: 66%; height: 66%; stroke: none; overflow: visible; }
+.dossier-lx .poche { fill: var(--ac); }
+.dossier-lx .dos { fill: color-mix(in srgb, var(--ac) 72%, #000); }
+.dossier-lx text { fill: #fff; opacity: .95; }
+.dossier-lx .ff-g { transform-box: view-box; transform-origin: 256px 438px; transition: transform .3s cubic-bezier(.34,1.25,.5,1); }
+.appli:hover .dossier-lx .ff-g, .appli:focus-visible .dossier-lx .ff-g { transform: rotate(-15deg); }
+.appli:active .dossier-lx { animation: lx-rebond .4s ease; }
+@keyframes lx-rebond { 0% { transform: scale(1); } 28% { transform: scale(.86); } 58% { transform: scale(1.08); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) {
-  .vivante.dossier .rabat, .vivante.dossier .feuille { transition: none; }
+  .dossier-lx .ff-g { transition: none; } .appli:active .dossier-lx { animation: none; }
+}
+/* Le code qui s'écrit, derrière le bureau Professionnel (demon.js, codeFond).
+   Très pâle : un décor, jamais une gêne pour lire les tuiles. */
+.code-fond { display: none; }
+html.pro .code-fond {
+  display: block; z-index: 0; margin: 0; padding: 40px 34px; overflow: hidden;
+  font: 12.5px/1.7 "LX JetBrains Mono", ui-monospace, monospace; color: #b8b8bc; opacity: .16;
+  white-space: pre-wrap; word-break: break-all; user-select: none;
 }
