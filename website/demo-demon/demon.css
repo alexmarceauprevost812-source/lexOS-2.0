@@ -1,0 +1,287 @@
+/* LexOS Bureau — le bureau « démon » (saveur nomade), au style du lanceur
+   du téléphone d'Alex, mis à l'horizontale.
+
+   LÉGER PAR CONSTRUCTION. Il doit tourner sur une clé USB-C, et dans un
+   VirtualBox sans accélération 3D où Chromium dessine tout au processeur :
+     · la pluie de 0 et de 1 est une toile peinte dix fois par seconde au
+       plus (demon.js), arrêtée quand la page est cachée, figée en mode
+       allégé ou avec « réduire les animations » ;
+     · les autres animations sont en CSS, sur transform et opacity — ce que
+       le compositeur fait sans repeindre la page ;
+     · pas de backdrop-filter (le flou de ce qui est DERRIÈRE se recalcule à
+       chaque image de la pluie) ; des fonds presque opaques à la place ;
+     · le logo est un PNG à transparence : pas de mix-blend-mode ;
+     · les yeux sont des aplats (pas de dégradé, pas d'ombre) ;
+     · html.leger (LEXOS_BUREAU_SANS_GPU, passé par fenetre.py) fige la
+       pluie et la respiration du logo ; prefers-reduced-motion coupe tout. */
+
+:root {
+  --ac: #e02424; --ac-fonce: #7a1010; --oeil: #e02424; --filtre-logo: none;
+  --fond: #060606; --tuile: #141414; --bord: #262626; --texte: #e8e8e8; --gris: #9a9a9a;
+  --haut: 0px; --bas: 0px; --gauche: 0px; --droite: 0px;
+  --dock-g: 0px; --dock-d: 0px; --dock-h: 0px; --dock-b: 0px;
+  --presence: .6;
+  --affiche: 'LX Audiowide', 'LX Orbitron', 'LX Oxanium', system-ui, sans-serif;
+  --mono: 'LX JetBrains Mono', 'DejaVu Sans Mono', monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { background: var(--fond); color: var(--texte); font-family: var(--mono); user-select: none; cursor: default; }
+button, input { font-family: inherit; color: inherit; }
+.rang { display: flex; align-items: center; gap: 12px; }
+.rouge { color: var(--ac); }
+.blanc { color: #fff; }
+
+/* ─── Le décor ─── */
+.decor { position: fixed; inset: 0; pointer-events: none; }
+#pluie { z-index: 0; width: 100%; height: 100%; opacity: .55; }
+.scan { z-index: 1; background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.28) 0, rgba(0,0,0,.28) 1px, transparent 1px, transparent 3px); }
+@keyframes respire { 0%,100% { transform: translateX(-50%) scale(1); } 45% { transform: translateX(-50%) translateY(-1.2%) scale(1.03); } }
+.filigrane {
+  inset: auto; left: 50%; bottom: -6vh; width: min(78vh, 62vw); aspect-ratio: 1; z-index: 1;
+  transform: translateX(-50%); opacity: calc(var(--presence) * .32); animation: respire 6s ease-in-out infinite;
+}
+.filigrane img { width: 100%; height: 100%; display: block; filter: var(--filtre-logo); }
+
+/* ─── L'écran ─── « absolute » et PAS « fixed », sans z-index : un élément
+   « fixed » ouvre toujours son propre contexte d'empilement, et les yeux ne
+   pourraient plus passer AU-DESSUS du voile noir de l'ouverture. */
+.ecran {
+  position: absolute; inset: 0; display: flex; flex-direction: column; gap: 1.4vh;
+  padding: calc(var(--haut) + var(--dock-h) + 2vh) calc(var(--droite) + var(--dock-d) + 3vw)
+           calc(var(--bas) + var(--dock-b) + 2vh) calc(var(--gauche) + var(--dock-g) + 3vw);
+}
+.ecran > * { position: relative; z-index: 2; flex: none; }
+/*  Tout est à sa hauteur naturelle SAUF le milieu, qui prend le reste — et
+    ne déborde JAMAIS sur la recherche : la grille se découpe en pages à la
+    hauteur qu'il lui laisse (demon.js, mettreEnPages). */
+.ecran > .milieu { flex: 1 1 0; min-height: 0; }
+
+.haut { display: flex; justify-content: space-between; align-items: flex-start; }
+.horloge { font-family: var(--affiche); font-weight: 700; font-size: clamp(48px, 12vh, 150px); line-height: .95; color: #fff; letter-spacing: .02em; }
+.date { display: flex; flex-direction: column; align-items: flex-end; gap: .6vh; font-size: clamp(15px, 2.4vh, 28px); padding-top: 1vh; }
+/* ─── Réseau, son, arrêt : ce que portait la barre du haut ─── */
+.systeme { display: flex; gap: 8px; margin-top: .6vh; }
+.sys { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--bord); background: rgba(14,14,14,.9);
+  color: #e8e8e8; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.sys svg { width: 20px; height: 20px; }
+.sys:hover, .sys:focus-visible, .sys[aria-expanded="true"] { border-color: var(--ac); outline: none; }
+.sys.arret { color: var(--ac); }
+.sys.coupe { color: #666; }
+.sys.coupe svg { opacity: .55; }
+.menu-sys {
+  position: fixed; z-index: 38; width: 300px; padding: 14px; border-radius: 16px; font-size: 14px;
+  background: rgba(10,10,10,.98); border: 1px solid color-mix(in srgb, var(--ac) 50%, var(--bord)); box-shadow: 0 18px 50px rgba(0,0,0,.75);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.menu-sys[hidden] { display: none; }
+.menu-sys p { margin: 0; }
+.menu-sys .etat { color: var(--gris); }
+.menu-sys input[type=range] { width: 100%; accent-color: var(--ac); }
+.menu-sys button { height: 40px; border-radius: 10px; border: 1px solid var(--bord); background: #151515; cursor: pointer; text-align: left; padding: 0 14px; font-size: 14px; }
+.menu-sys button:hover, .menu-sys button:focus-visible { border-color: var(--ac); outline: none; }
+.menu-sys button.arme { background: var(--ac); color: #fff; border-color: var(--ac); }
+.invite-date { color: #fff; }
+#date { color: var(--ac); }
+
+/* ─── Les yeux : deux aplats rouges en amande, coins extérieurs pointus ─── */
+.yeux { width: min(820px, 58vw); height: clamp(52px, 11vh, 150px); margin: 0 auto; transition: transform .2s ease-out; }
+.oeil { position: absolute; top: 0; width: 40%; height: 100%; overflow: visible; transform-origin: 50% 70%; }
+.oeil.gauche { left: 0; }
+.oeil.droit { right: 0; }
+.oeil-trace { fill: var(--oeil); }
+
+/* ─── Le terminal et la grille ─── */
+.milieu { display: flex; gap: 3vw; align-items: stretch; justify-content: center; }
+.carte { background: rgba(14,14,14,.94); border: 1px solid var(--bord); border-radius: 22px; overflow: hidden; }
+.terminal { flex: 1 1 0; max-width: 560px; min-width: 300px; align-self: flex-start; max-height: 100%; }
+.carte-barre { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 18px; border-bottom: 1px solid var(--bord); }
+.point { width: 16px; height: 16px; border-radius: 50%; background: #3a3a3a; }
+.point.rouge { background: var(--ac); }
+.avatar { width: 30px; height: 30px; border-radius: 50%; margin-left: 12px; object-fit: cover; background: #fff; border: 1px solid var(--ac); }
+.titre { margin-left: 4px; color: var(--gris); font-size: 15px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.engrenage { border: 0; background: transparent; color: var(--ac); cursor: pointer; padding: 6px; border-radius: 8px; }
+.engrenage:hover, .engrenage:focus-visible { background: color-mix(in srgb, var(--ac) 18%, transparent); outline: none; }
+.carte-corps { padding: 14px 20px 16px; font-size: clamp(12px, 1.8vh, 16px); line-height: 1.55; max-height: 34vh; overflow: hidden; }
+.carte-corps p { margin: 0; white-space: pre; }
+.carte-corps .cle { color: var(--ac); display: inline-block; min-width: 8ch; }
+
+.grille-cadre { flex: 1.5 1 0; max-width: 760px; min-width: 0; min-height: 0; overflow: hidden; }
+.grille { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--rang-ecart, 2vh) 1.6vw; align-content: start; }
+.appli { display: flex; flex-direction: column; align-items: center; gap: .8vh; border: 0; background: transparent; cursor: pointer; padding: 0; min-width: 0;
+  touch-action: none; -webkit-user-drag: none; }
+.tuile {
+  width: clamp(52px, 9.4vh, 104px); aspect-ratio: 1; border-radius: 26%; display: flex; align-items: center; justify-content: center;
+  background: var(--tuile); border: 1px solid var(--bord); box-shadow: 0 6px 18px rgba(0,0,0,.45);
+  transition: transform .15s ease-out, border-color .15s;
+}
+.tuile svg { width: 46%; height: 46%; stroke: var(--ac); }
+.tuile img { width: 58%; height: 58%; object-fit: contain; }
+.tuile.photo { background: #f4f4f4; overflow: hidden; }
+.tuile.photo img { width: 92%; height: 92%; object-fit: contain; margin-top: 8%; }
+.tuile.tux img { width: 66%; height: 66%; }
+.apropos { width: 440px; }
+.apropos .tux { width: 34px; height: 34px; object-fit: contain; }
+.apropos .carte-corps { max-height: none; }
+.apropos .carte-corps p { white-space: normal; }
+.apropos .carte-corps .cle { min-width: 10ch; }
+.appli:hover .tuile, .appli:focus-visible .tuile { transform: translateY(-3px); border-color: color-mix(in srgb, var(--ac) 60%, var(--bord)); }
+.appli:focus-visible { outline: none; }
+.appli .nom { font-size: clamp(11px, 1.7vh, 15px); color: #d6d6d6; text-transform: lowercase; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grille .vide { grid-column: 1 / -1; color: var(--gris); font-size: 14px; padding: 2vh 0; text-align: center; }
+
+/* ─── La recherche ─── */
+.recherche {
+  align-self: center; width: min(900px, 100%); height: clamp(52px, 7vh, 68px); display: flex; align-items: center; gap: 10px;
+  padding: 0 8px 0 24px; border-radius: 999px; background: rgba(12,12,12,.95); border: 1px solid var(--bord);
+}
+.dollar { color: var(--ac); font-size: 22px; font-weight: 700; }
+#question { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; font-size: clamp(15px, 2.2vh, 20px); outline: none; }
+#question::placeholder { color: var(--gris); }
+.carre {
+  flex: none; width: clamp(48px, 6.6vh, 64px); height: 82%; border-radius: 16px; border: 2px solid var(--ac);
+  background: transparent; color: var(--ac); display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.carre.plein { border-color: var(--ac-fonce); background: var(--ac-fonce); color: #fff; }
+.carre:hover, .carre:focus-visible { background: color-mix(in srgb, var(--ac) 22%, transparent); outline: none; }
+.carre.plein:hover, .carre.plein:focus-visible { background: var(--ac); }
+.points { display: flex; justify-content: center; align-items: center; gap: 10px; min-height: 14px; }
+.points button { width: 12px; height: 12px; padding: 0; border: 0; border-radius: 50%; background: #3a3a3a; cursor: pointer; transition: width .2s; }
+.points button.actif { width: 34px; border-radius: 6px; background: var(--ac); }
+.points button.cible { background: color-mix(in srgb, var(--ac) 60%, #3a3a3a); }
+
+/* ─── Le dock ─── */
+.dock {
+  align-self: center; display: flex; gap: 16px; padding: 12px 18px; border-radius: 32px; min-width: 120px; min-height: 60px;
+  background: rgba(14,14,14,.94); border: 1px solid var(--bord);
+}
+.dock .tuile { width: clamp(46px, 7.4vh, 80px); }
+.dock .appli .nom { display: none; }
+.yeux-tuile svg { width: 64%; height: 40%; stroke: none; overflow: visible; }
+
+/* ─── Le mode « modifier » : glisser les tuiles et les blocs ─── */
+@keyframes tremble { 0%,100% { rotate: -2deg; } 50% { rotate: 2deg; } }
+body.modifier .grille .tuile, body.modifier .dock .tuile { animation: tremble .32s ease-in-out infinite; }
+html.leger body.modifier .tuile { animation: none; }
+body.modifier [data-deplacable] { outline: 2px dashed color-mix(in srgb, var(--ac) 70%, transparent); outline-offset: 6px; cursor: grab; touch-action: none; border-radius: 14px; }
+body.modifier [data-deplacable] * { pointer-events: none; }
+body.modifier .grille-cadre, body.modifier .dock { outline: 1px dashed #444; outline-offset: 6px; border-radius: 18px; }
+.appli.fantome { position: fixed; z-index: 60; pointer-events: none; opacity: .9; translate: -50% -50%; }
+.appli.parti { opacity: .25; }
+/* Les applis posées librement : une couche sur tout l'écran, chaque appli à sa place. */
+.ecran > .libres { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.libres .appli { position: absolute; pointer-events: auto; width: calc(clamp(52px, 9.4vh, 104px) + 3vw); }
+body.modifier .libres { outline: 1px dashed color-mix(in srgb, var(--ac) 35%, transparent); outline-offset: -6px; }
+.appli.cible-avant .tuile { box-shadow: -6px 0 0 var(--ac); }
+.appli.cible-apres .tuile { box-shadow: 6px 0 0 var(--ac); }
+.dock.cible, .grille-cadre.cible { outline: 2px solid var(--ac); outline-offset: 6px; border-radius: 18px; }
+.barre-modif {
+  position: fixed; z-index: 37; left: 50%; top: calc(var(--haut) + 10px); translate: -50% 0; display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px 10px 18px; border-radius: 16px; font-size: 13px; color: var(--gris); max-width: calc(100vw - 32px);
+  background: rgba(10,10,10,.97); border: 1px solid var(--ac);
+}
+.barre-modif[hidden] { display: none; }
+.barre-modif button { flex: none; height: 36px; padding: 0 14px; border-radius: 10px; font-size: 13px; cursor: pointer; }
+
+/* ─── Le panneau « Yeux » ─── */
+.panneau {
+  position: fixed; z-index: 35; right: calc(var(--droite) + var(--dock-d) + 3vw); top: 50%; width: 360px; font-family: var(--mono);
+  border: 1px solid color-mix(in srgb, var(--ac) 50%, var(--bord)); border-radius: 18px; background: rgba(10,10,10,.98);
+  box-shadow: 0 24px 70px rgba(0,0,0,.8);
+  transform: translate(40px,-50%) scale(.96); opacity: 0; visibility: hidden; pointer-events: none;
+  transition: transform .3s cubic-bezier(.2,.9,.3,1.2), opacity .2s ease, visibility 0s linear .3s;
+}
+.panneau.ouvert { transform: translate(0,-50%); opacity: 1; visibility: visible; pointer-events: auto;
+  transition: transform .3s cubic-bezier(.2,.9,.3,1.2), opacity .2s ease, visibility 0s; }
+.panneau-tete { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 14px; border-bottom: 1px solid var(--bord); }
+.panneau-tete svg { overflow: visible; }
+.panneau h2 { margin: 0; font-family: var(--affiche); font-size: 18px; letter-spacing: 3px; color: #fff; }
+.panneau .sous { margin: 0; font-size: 12px; color: var(--gris); }
+.fermer { width: 36px; height: 36px; border: 0; border-radius: 8px; background: rgba(255,255,255,.06); cursor: pointer; }
+.panneau-corps { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
+.bloc { display: flex; flex-direction: column; gap: 10px; }
+.etiquette { margin: 0; font-size: 12px; letter-spacing: 2px; color: var(--gris); }
+.themes { flex-wrap: wrap; gap: 8px; }
+.theme { height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 12px; border-radius: 15px; cursor: pointer;
+  font-size: 12px; font-weight: 600; border: 1px solid rgba(255,255,255,.15); background: transparent; }
+.theme[aria-pressed="true"] { border-color: var(--t); background: color-mix(in srgb, var(--t) 18%, transparent); }
+.theme i { width: 12px; height: 12px; border-radius: 50%; background: var(--t); }
+#presence { width: 100%; accent-color: var(--ac); }
+.inter { width: 100%; height: 42px; display: flex; align-items: center; justify-content: space-between; padding: 0 4px;
+  border: 0; background: transparent; font-size: 14px; cursor: pointer; text-align: left; }
+.inter .piste { width: 46px; height: 26px; border-radius: 13px; position: relative; flex: none; background: rgba(255,255,255,.18); transition: background .2s; }
+.inter .bouton { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .2s; }
+.inter[aria-pressed="true"] .piste { background: var(--ac); }
+.inter[aria-pressed="true"] .bouton { left: 23px; background: #000; }
+.boutons { gap: 10px; }
+.principal, .secondaire { flex: 1; height: 44px; border-radius: 12px; font-size: 14px; cursor: pointer; }
+.principal { border: 0; background: var(--ac); color: #fff; font-weight: 700; }
+.secondaire { border: 1px solid color-mix(in srgb, var(--ac) 60%, var(--bord)); background: transparent; }
+.secondaire.large { flex: none; width: 100%; }
+.pied { margin: 0; font-size: 11px; color: #777; }
+
+.bulle {
+  position: fixed; z-index: 45; left: 50%; bottom: calc(var(--bas) + var(--dock-b) + 3vh); transform: translateX(-50%);
+  max-width: min(560px, 90vw); padding: 10px 16px; border-radius: 12px; font-size: 14px;
+  background: rgba(10,10,10,.97); border: 1px solid color-mix(in srgb, var(--ac) 55%, var(--bord));
+}
+
+/* ─── L'écran secondaire : le décor et les yeux seulement ─── */
+body.secondaire .milieu, body.secondaire .recherche, body.secondaire .points,
+body.secondaire .dock, body.secondaire .panneau { visibility: hidden; }
+.panneau.apropos { z-index: 36; }
+
+/* ─── L'ouverture : le noir, et SEULEMENT les yeux par-dessus ─── */
+@keyframes eveil { 0%,25% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes cligne { 0%,40%,46%,100% { transform: scaleY(1); } 43% { transform: scaleY(.08); } 70%,76% { transform: scaleY(1); } 73% { transform: scaleY(.08); } }
+@keyframes eclat { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.2); } 30% { opacity: .9; } 100% { opacity: 0; transform: translate(-50%,-50%) scale(3.2); } }
+.intro { position: fixed; inset: 0; z-index: 30; background: #000; }
+.intro video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+.intro.eclate video { opacity: 0; transition: opacity .25s ease-out; }
+.intro.parti { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .6s ease, visibility 0s linear .6s; }
+body.en-intro .yeux { z-index: 31; }
+body.en-intro.eveil .yeux { animation: eveil 1.2s ease-out both; }
+body.en-intro.eveil .oeil { animation: cligne 2.2s ease-in-out infinite; }
+.eclat { position: fixed; width: 46vmin; height: 46vmin; border-radius: 50%; opacity: 0; left: 50%; top: 30%;
+  background: radial-gradient(circle, rgba(255,240,220,.9) 0%, color-mix(in srgb, var(--oeil) 70%, transparent) 25%, transparent 70%); }
+.intro.eclate .eclat { animation: eclat .9s ease-out forwards; }
+
+/* ─── La plongée : les yeux foncent vers toi quand une appli s'ouvre ─── */
+.plongee { position: fixed; inset: 0; z-index: 40; pointer-events: none; visibility: hidden; }
+.plongee-yeux { position: absolute; left: 0; top: 0; transform-origin: 50% 50%; will-change: transform, opacity; }
+.plongee-yeux svg { position: absolute; overflow: visible; }
+.plongee.en-cours { visibility: visible; }
+.plongee.en-cours .plongee-yeux { animation: plonge .65s cubic-bezier(.55,0,1,.45) forwards, efface .28s ease-out .62s forwards; }
+@keyframes plonge { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(var(--echelle, 30)); opacity: 1; } }
+@keyframes efface { to { opacity: 0; } }
+
+/* ─── Allégé (rendu au processeur) ─── */
+html.leger .filigrane { animation: none; }
+
+/* ─── Petits écrans (VirtualBox en 1024 x 768) : on resserre ─── */
+@media (max-width: 1100px) {
+  .terminal { display: none; }
+  .grille-cadre { max-width: none; }
+}
+/*  Les points restent : ce sont eux qui changent de page. On rogne plutôt
+    les yeux et l'horloge, qui n'ont pas besoin de toute leur taille. */
+@media (max-height: 720px) {
+  .yeux { height: 9vh; }
+  .ecran { gap: 1vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .intro, .plongee { display: none; }
+}
+
+/* Le menu du clic droit : plus étroit que le menu système. */
+.menu-clic { width: 290px; padding: 8px; gap: 4px; z-index: 45; }
+.menu-clic hr { border: 0; border-top: 1px solid var(--bord); margin: 3px 2px; width: 100%; }
+.menu-clic button { height: 36px; }
+
+/* Couleur des yeux : des pastilles rondes, sans texte. */
+.yeux-couleurs { flex-wrap: wrap; gap: 8px; }
+.yeux-couleurs .theme { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 50%; }
+.yeux-couleurs .theme i { margin: 0; width: 18px; height: 18px; }

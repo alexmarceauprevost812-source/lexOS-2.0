@@ -25,12 +25,17 @@ set -e
 SORTIE="${1:-_site}"
 
 rm -rf "$SORTIE"
-mkdir -p "$SORTIE/branding" "$SORTIE/demo"
+mkdir -p "$SORTIE/branding" "$SORTIE/demo-classique"
 
+#  /demo/ : le VRAI bureau démon (website/demo-demon, généré par
+#  tools/gen-demo-demon.py depuis le code de LexOS). L'ancienne démo du
+#  bureau XFCE reste à /demo-classique/.
 cp -r website/. "$SORTIE/"
+rm -rf "$SORTIE/demo"
+mv "$SORTIE/demo-demon" "$SORTIE/demo"
 cp branding/logo-ti-lex-al-icon.png "$SORTIE/branding/"
 sed -i 's|\.\./branding/|branding/|g' "$SORTIE"/*.html
-cp web-demo/index.html "$SORTIE/demo/index.html"
+cp web-demo/index.html "$SORTIE/demo-classique/index.html"
 
 #  .nojekyll : sans lui, GitHub ignore les fichiers et dossiers commençant
 #  par un souligné. Rien n'en porte aujourd'hui — c'est le genre de piège
@@ -40,6 +45,7 @@ touch "$SORTIE/.nojekyll"
 echo "── Contrôles ─────────────────────────────"
 test -s "$SORTIE/index.html"      || { echo "ERREUR : index.html manquant" >&2; exit 1; }
 test -s "$SORTIE/demo/index.html" || { echo "ERREUR : la démo est absente" >&2; exit 1; }
+test -s "$SORTIE/demo/demo-api.js" || { echo "ERREUR : la démo du bureau démon est incomplète (tools/gen-demo-demon.py)" >&2; exit 1; }
 test -s "$SORTIE/branding/logo-ti-lex-al-icon.png" \
 	|| { echo "ERREUR : le logo est absent" >&2; exit 1; }
 
