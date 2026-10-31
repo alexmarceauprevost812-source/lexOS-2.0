@@ -401,18 +401,17 @@ class SaveurNomade(unittest.TestCase):
             srv.shutdown()
             srv.server_close()
 
-    def test_classique_d_avant_ignore_seul_le_choix_tient(self):
-        """Un « classique » resté dans bureau.json ne coupe plus le Moteur
-        de la nomade ; « lexos-bureau classique » (la porte de secours) pose
-        un témoin et tient, jusqu'à « lexos-bureau moteur »."""
+    def test_le_demon_est_le_seul_bureau(self):
+        """Nomade (clé USB-C, branche ti-lexos-pro) : le démon est le SEUL
+        bureau (décision d'Alex, 2026-10-31). « classique » est ramené au
+        Moteur, à la lecture comme à l'écriture, et le vieux témoin part."""
         fich = self.rg.FICHIER
         fich.parent.mkdir(parents=True, exist_ok=True)
         fich.write_text(json.dumps({"mode": "classique", "interface": "moteur"}), "utf-8")
+        self.rg.CLASSIQUE_VOULU.touch()
         self.assertEqual(self.rg.lire()["mode"], "moteur")
-        self.assertEqual(self.rg.ecrire({"mode": "classique"})["mode"], "classique")
-        self.assertTrue(self.rg.CLASSIQUE_VOULU.exists())
-        self.assertEqual(self.rg.lire()["mode"], "classique")
-        self.assertEqual(self.rg.ecrire({"mode": "moteur"})["mode"], "moteur")
+        self.assertEqual(self.rg.lire()["interface"], "demon")
+        self.assertEqual(self.rg.ecrire({"mode": "classique"})["mode"], "moteur")
         self.assertFalse(self.rg.CLASSIQUE_VOULU.exists())
         #  Par le vrai lexos-bureau : son mode_choisi lit le même reglages.py.
         env = dict(os.environ, LEXOS_BUREAU_DIR=str(BUREAU))

@@ -144,6 +144,10 @@ case "${1:-}" in
 		setsid "$0" >/dev/null 2>&1 </dev/null &
 		echo "Bureau du Moteur : il remplace le bureau classique dans un instant." ;;
 	classique)
+		#  Clé USB-C (saveur nomade) : le démon est le SEUL bureau.
+		if python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import reglages; sys.exit(0 if reglages.NOMADE else 1)' "$ICI" 2>/dev/null; then
+			echo "Sur LexOS nomade, le bureau démon est le seul bureau." >&2; exit 1
+		fi
 		choisir classique || exit 1
 		#  Le moteur voit le réglage et se ferme seul (serveur.py) ; la boucle
 		#  relance alors xfdesktop. Si rien ne tournait, on le relance ici.

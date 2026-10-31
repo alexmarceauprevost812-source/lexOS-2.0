@@ -1495,7 +1495,10 @@ function blocBureauMoteur(){
     <div class="d">Le bureau du Moteur n'est pas installé sur cette machine.</div></div>`;
   const sel = (oui) => oui ? "sel" : "ghost";
   const moteur = B.mode === "moteur";
-  let html = `<div class="srow" style="display:block">
+  //  Clé USB-C (nomade) : le démon est le seul bureau, pas de choix à faire.
+  let html = B.seul_demon ? `<div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">Style du bureau</div>
+    <div class="d">Le bureau démon TI-LEX-AL est le seul bureau de LexOS nomade.</div></div>` : `<div class="srow" style="display:block">
     <div class="t" style="margin-bottom:4px">Style du bureau</div>
     <div class="d" style="margin-bottom:10px">Le bureau du Moteur : fond animé, ti-lex IA
       à gauche, LexOS à droite, le grand logo au centre, l'horloge et « Demande à ti-lex IA… ». Le classique reste là

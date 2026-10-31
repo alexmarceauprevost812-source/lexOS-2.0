@@ -1523,7 +1523,7 @@ def _bureau_moteur_etat():
     r = rg.lire()
     r.update({"dispo": _outils.commande_existe("lexos-bureau"),
               "couleurs": rg.COULEURS, "polices": rg.POLICES,
-              "fonds": rg.FONDS})
+              "fonds": rg.FONDS, "seul_demon": bool(getattr(rg, "NOMADE", False))})
     return r
 
 

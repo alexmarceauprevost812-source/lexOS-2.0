@@ -196,6 +196,11 @@ def _propre(cle: str, v):
                 propre.append(x)
         return propre[:MAX_LABO]
     if cle == "mode":
+        #  NOMADE (la clé USB-C, branche ti-lexos-pro) : le démon est le SEUL
+        #  bureau (décision d'Alex, 2026-10-31). « classique » n'est plus un
+        #  choix : il est ramené au Moteur, à la lecture comme à l'écriture.
+        if NOMADE:
+            return "moteur"
         return v if v in MODES else None
     if cle == "interface":
         #  NOMADE : le démon, TOUJOURS (décision d'Alex, 2026-10-29). Une
@@ -258,21 +263,17 @@ def lire() -> dict:
                 v = _propre(cle, brut[cle])
                 if v is not None:
                     r[cle] = v
-    if NOMADE and r["mode"] == "classique" and not CLASSIQUE_VOULU.exists():
-        r["mode"] = "moteur"
+    if NOMADE:
+        r["mode"], r["interface"] = "moteur", "demon"
     return r
 
 
 def ecrire(partiel: dict) -> dict:
     """Fusionne les clés VALIDES de partiel ; ignore le reste. Rend l'état."""
-    if NOMADE and isinstance(partiel, dict) and partiel.get("mode") in MODES:
-        #  Le témoin AVANT lire() : c'est lui qui dit si « classique » tient.
+    if NOMADE:
+        #  Plus de bureau classique sur la clé : le vieux témoin est retiré.
         try:
-            if partiel["mode"] == "classique":
-                CLASSIQUE_VOULU.parent.mkdir(parents=True, exist_ok=True)
-                CLASSIQUE_VOULU.touch()
-            else:
-                CLASSIQUE_VOULU.unlink(missing_ok=True)
+            CLASSIQUE_VOULU.unlink(missing_ok=True)
         except OSError:
             pass
     r = lire()
