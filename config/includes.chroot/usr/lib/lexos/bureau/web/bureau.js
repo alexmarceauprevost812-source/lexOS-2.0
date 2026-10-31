@@ -190,35 +190,58 @@ function casesDuBureau(sauf) {
     l = t ? t.offsetWidth : 110; h = t ? t.offsetHeight : 110; pasX = l + 10;
     cotes.gauche.xs.add(MARGE); cotes.gauche.ys.add(MARGE); cotes.gauche.bas = MARGE; cotes.gauche.pasY = h + 6;
   }
+  /*  ═══ PARTOUT DANS LA FENÊTRE DU BUREAU ═══
+      ALEX (2026-10-31) : « être capable de placer les applications partout
+      dans la fenêtre du bureau ». Avant, les cases ne partaient que des
+      rangées des colonnes, vers le bas : la bande du haut (au-dessus de la
+      1re rangée, à côté des titres de groupes) et les trous entre deux
+      groupes étaient hors d'atteinte. Maintenant, chaque côté a un QUADRILLAGE
+      COMPLET, ancré sur sa 1re case (pour rester aligné sur les colonnes),
+      prolongé dans les quatre directions jusqu'aux bords de l'écran. Les
+      rangées réelles des colonnes restent aussi des cases : une icône lâchée
+      à côté d'un groupe se cale encore pile sur sa rangée. */
   const cases = [];
   for (const [nom, C] of Object.entries(cotes)) {
     if (!C.xs.size) continue;
-    const xs = [...C.xs].sort((a, b) => a - b), ys = [...C.ys];
-    //  Vers le centre : la gauche s'étend vers la droite, la droite vers la gauche.
-    if (nom === "gauche") for (let v = xs[xs.length - 1] + pasX; v + l <= L / 2 + pasX / 2; v += pasX) xs.push(v);
-    else for (let v = xs[0] - pasX; v >= L / 2 - pasX / 2; v -= pasX) xs.push(v);
-    //  Vers le bas, au pas des rangées, jusqu'au bas de l'écran.
-    for (let v = C.bas + C.pasY; v + h <= H; v += C.pasY) ys.push(v);
-    for (const x of xs) for (const y of ys) if (x >= 0 && y >= 0 && x + l <= L + 1) cases.push([x, y]);
+    const xs0 = [...C.xs].sort((a, b) => a - b), ys0 = [...C.ys].sort((a, b) => a - b);
+    const ax = nom === "gauche" ? xs0[0] : xs0[xs0.length - 1], ay = ys0[0];
+    //  Gauche : de son bord jusqu'au milieu ; droite : du milieu jusqu'à son bord.
+    //  Un seul côté a des icônes (l'autre colonne est vide) : son quadrillage
+    //  couvre TOUTE la largeur, sinon la moitié vide serait hors d'atteinte.
+    const seul = Object.values(cotes).filter((k) => k.xs.size).length === 1;
+    const xMin = seul || nom === "gauche" ? 0 : L / 2 - pasX / 2, xMax = seul || nom === "droite" ? L : L / 2 + pasX / 2;
+    const xs = new Set(xs0), ys = new Set(ys0);
+    for (let v = ax; v >= xMin - 0.5; v -= pasX) xs.add(v);
+    for (let v = ax + pasX; v + l <= xMax + 0.5; v += pasX) xs.add(v);
+    for (let v = ay; v >= 0; v -= C.pasY) ys.add(v);
+    for (let v = ay + C.pasY; v + h <= H + 0.5; v += C.pasY) ys.add(v);
+    for (const v of ys0) for (let w = v + C.pasY; w + h <= H + 0.5; w += C.pasY) ys.add(w);
+    for (const x of xs) for (const y of ys) if (x >= 0 && y >= 0 && x + l <= L + 1 && y + h <= H + 1) cases.push([x, y]);
   }
   for (const e of document.querySelectorAll("#libres .icone")) {
     if (e === sauf) continue;
     prises.push([parseFloat(e.style.left) || 0, parseFloat(e.style.top) || 0]);
   }
-  return { cases, prises, l, h };
+  return { cases, prises, l, h, L, H };
 }
-function caser(el, x, y) {
+function caser(el, x, y, libre = false) {
   const c = casesDuBureau(el);
-  const libre = ([cx, cy]) => !c.prises.some(([px, py]) => Math.abs(px - cx) < c.l * .6 && Math.abs(py - cy) < c.h * .6);
+  //  Toujours gardée DANS la fenêtre du bureau, même lâchée à moitié dehors.
+  const dansEcran = ([px, py]) => [Math.max(0, Math.min(px, c.L - c.l)), Math.max(0, Math.min(py, c.H - c.h))].map(Math.round);
+  //  Alt enfoncé en lâchant : pose libre, au pixel près, sans aimant.
+  if (libre) return dansEcran([x, y]);
+  const estLibre = ([cx, cy]) => !c.prises.some(([px, py]) => Math.abs(px - cx) < c.l * .6 && Math.abs(py - cy) < c.h * .6);
   let best = null, d = Infinity;
   for (const k of c.cases) {
     const dd = (k[0] - x) ** 2 + (k[1] - y) ** 2;
-    if (dd < d && libre(k)) { d = dd; best = k; }
+    if (dd < d && estLibre(k)) { d = dd; best = k; }
   }
-  return (best || [x, y]).map(Math.round);
+  return dansEcran(best || [x, y]);
 }
-/*  Les icônes déjà posées sur l'ANCIENNE grille de 100 x 100 sont recalées
-    une fois, à l'ouverture du bureau (après l'animation d'apparition). */
+/*  À l'ouverture du bureau (après l'animation d'apparition), une icône libre
+    n'est recalée QUE si elle déborde de l'écran (résolution changée) ou si
+    elle chevauche une autre icône. Une icône posée au pixel près avec Alt
+    garde donc sa place d'une session à l'autre. */
 let recalageFait = false;
 async function recalerLibres() {
   if (recalageFait || SECONDAIRE || GLISSE.enCours) return;
@@ -226,6 +249,10 @@ async function recalerLibres() {
   let change = false;
   for (const e of document.querySelectorAll("#libres .icone")) {
     const ax = parseFloat(e.style.left) || 0, ay = parseFloat(e.style.top) || 0;
+    const c = casesDuBureau(e);
+    const dehors = ax < 0 || ay < 0 || ax + c.l > c.L + 1 || ay + c.h > c.H + 1;
+    const chevauche = c.prises.some(([px, py]) => Math.abs(px - ax) < c.l * .6 && Math.abs(py - ay) < c.h * .6);
+    if (!dehors && !chevauche) continue;
     const [x, y] = caser(e, ax, ay);
     if (x !== Math.round(ax) || y !== Math.round(ay)) {
       e.style.left = x + "px"; e.style.top = y + "px";
@@ -284,7 +311,7 @@ document.addEventListener("pointermove", (e) => {
   }
   placer(g.el, e.clientX - g.dx, e.clientY - g.dy);
 });
-document.addEventListener("pointerup", async () => {
+document.addEventListener("pointerup", async (e) => {
   const g = GLISSE;
   if (!g.el) return;
   const el = g.el; g.el = null;
@@ -292,7 +319,7 @@ document.addEventListener("pointerup", async () => {
   g.empecheClic = true; setTimeout(() => { g.empecheClic = false; }, 50);
   el.classList.remove("glisse");
   //  Calée dans les MÊMES cases que les autres icônes (aimant), et gardée dans l'écran.
-  const [x, y] = caser(el, parseFloat(el.style.left), parseFloat(el.style.top));
+  const [x, y] = caser(el, parseFloat(el.style.left), parseFloat(el.style.top), e.altKey);
   el.style.left = x + "px"; el.style.top = y + "px";
   POSITIONS = { ...POSITIONS, [el.dataset.id]: [x, y] };
   try { await api("/api/reglages", { positions: POSITIONS }); } catch { bulle("La place de l'icône n'a pas pu être gardée"); }
