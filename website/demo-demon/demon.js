@@ -138,6 +138,22 @@ $("#yeux-couleurs").addEventListener("click", (e) => {
   garder({ demon_oeil: P.demon_oeil });
 });
 
+/* ════════════════ La place du dock ════════════════
+   ALEX : « ajouter le dock à droite ». En colonne à droite (défaut) ou en
+   rangée en bas : body.dock-droite dans demon.css. */
+function appliquerDock(cote) {
+  const droite = cote !== "bas";
+  document.body.classList.toggle("dock-droite", droite);
+  $$("#dock-cotes [data-dock]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.dock === (droite ? "droite" : "bas"))));
+}
+$("#dock-cotes").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-dock]"); if (!b || !P) return;
+  P.demon_dock_cote = b.dataset.dock; appliquerDock(P.demon_dock_cote);
+  garder({ demon_dock_cote: P.demon_dock_cote });
+  if (E) dessinerApplis();           // la grille reprend la place laissée
+});
+appliquerDock("droite");
+
 /* ════════════════ La pluie de 0 et de 1 ════════════════
    Une toile à la résolution CSS (pas de facteur d'écran : ce sont des
    chiffres flous à 55 % d'opacité, personne ne verra la différence, et ça
@@ -1036,6 +1052,7 @@ async function charger() {
   poserDock(SECONDAIRE ? null : E.dock);
   appliquerTheme(P.demon_theme);
   appliquerYeux(P.demon_oeil);
+  appliquerDock(P.demon_dock_cote);
   if (!avant || avant.demon_pluie !== P.demon_pluie) pluie();
   appliquerPresence();
   $$(".inter").forEach((b) => b.setAttribute("aria-pressed", String(!!P[b.dataset.cle])));
@@ -1132,7 +1149,7 @@ function ouverture() {
   } catch {
     //  Sans le serveur : le décor et les yeux, sans applis, plutôt qu'une
     //  erreur. lexos-bureau relance xfdesktop si le moteur du bureau tombe.
-    P = { interface: "demon", demon_theme: "pro", demon_suivre: true, demon_intro: false, demon_pluie: true, demon_presence: 60 };
+    P = { interface: "demon", demon_dock_cote: "droite", demon_theme: "pro", demon_suivre: true, demon_intro: false, demon_pluie: true, demon_presence: 60 };
     appliquerTheme(P.demon_theme); appliquerPresence(); pluie();
   }
   ouverture();
