@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  lexos-cle-memoire — une clé USB comme mémoire BONUS pour LexOS
+# =============================================================================
+#  ALEX, 31 octobre : LexOS s'installe sur le disque du PC (« le boot au
+#  début décide de prendre 80 G sur le disque dur du PC ») et y vit
+#  normalement, clé ou pas. « La clé va juste servir de mémoire de plus […]
+#  de bonus pour LexOS. » Sans elle : tout marche, avec moins de place.
+#
+#  CE QUE ÇA FAIT. La clé préparée apparaît dans ton dossier comme
+#  ~/Mémoire, dès qu'on l'ouvre (montage automatique de systemd). Débranchée,
+#  le dossier est simplement vide d'accès : rien d'autre ne change.
+#  Non chiffrée (choix d'Alex), en ext4 : Windows ne la lit pas.
+#
+#  SEULE LA CLÉ PRÉPARÉE COMPTE. Reconnue par son UUID (/etc/lexos/cle-memoire),
+#  jamais par son nom.
+#
+#  AVANT DE DÉBRANCHER : ferme ce qui l'utilise. Elle se démonte toute seule
+#  après une minute sans servir ; « lexos cle-memoire ejecter » le fait tout
+#  de suite.
+#
+#    lexos cle-memoire                   état
+#    sudo lexos cle-memoire preparer /dev/sdX   EFFACE la clé et la règle
+#    lexos cle-memoire ejecter           la démonter pour la débrancher
+#    sudo lexos cle-memoire oublier      ne plus s'en servir (rien n'est effacé)
+# =============================================================================
+set -uo pipefail
+
+CONF="${LEXOS_CLE_MEMOIRE_CONF:-/etc/lexos/cle-memoire}"
+FSTAB="${LEXOS_FSTAB:-/etc/fstab}"
+POINT="${LEXOS_CLE_MEMOIRE_POINT:-/mnt/lexos-memoire}"
+ETIQUETTE="LEXOS-MEMOIRE"
+MARQUE="# lexos-cle-memoire"
+
+if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]]; then
+	O=$'\033[38;5;208m'; G=$'\033[32m'; Y=$'\033[33m'; E=$'\033[31m'; B=$'\033[1m'; D=$'\033[2m'; R=$'\033[0m'
+else
+	O=''; G=''; Y=''; E=''; B=''; D=''; R=''
+fi
+say()  { printf '%s»%s %s\n' "$O" "$R" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$R" "$*" >&2; }
+die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
+
+root() { [[ "$(id -u)" -eq 0 ]] || die "À lancer avec sudo : sudo lexos cle-memoire $*"; }
+uuid_conf() { [[ -r "$CONF" ]] && sed -n 's/^UUID=//p' "$CONF" | head -1; }
+
+#  La ligne fstab : « x-systemd.automount » monte la clé quand on ouvre le
+#  dossier (même branchée APRÈS le démarrage) ; « nofail » et un délai court :
+#  sans elle, le PC démarre normalement ; « idle-timeout » la démonte après
+#  une minute sans servir, pour qu'on puisse la retirer sans casse.
+ligne_fstab() {
+	printf 'UUID=%s  %s  ext4  defaults,noatime,nofail,noauto,x-systemd.automount,x-systemd.device-timeout=3s,x-systemd.idle-timeout=60  0  2  %s\n' "$1" "$POINT" "$MARQUE"
+}
+
+cmd_etat() {
+	local u
+	u="$(uuid_conf)"
+	printf '\n%sClé mémoire%s\n\n' "$B$O" "$R"
+	if [[ -z "$u" ]]; then
+		echo "  Aucune clé mémoire : LexOS utilise seulement le disque du PC."
+		echo "  ${D}Pour en ajouter une : sudo lexos cle-memoire preparer /dev/sdX${R}"
+	elif [[ -e "/dev/disk/by-uuid/$u" ]]; then
+		ok "Branchée — dans ton dossier : ~/Mémoire"
+		df -h --output=used,avail,size "$POINT" 2>/dev/null | tail -1 | awk '{print "  "$1" utilisés, "$2" libres (sur "$3")"}'
+	else
+		warn "Réglée mais débranchée : LexOS tourne sur le disque du PC seulement."
+	fi
+	echo
+}
+
+cmd_preparer() {
+	local dev="${1:-}" racine disque_racine tran rm taille modele rep part u qui
+	root preparer "$dev"
+	if [[ -z "$dev" ]]; then
+		echo "Clés USB branchées :"
+		lsblk -dno NAME,TRAN,SIZE,MODEL | awk '$2 == "usb" {print "  /dev/"$0}'
+		die "Dis laquelle : sudo lexos cle-memoire preparer /dev/sdX"
+	fi
+	[[ -b "$dev" ]] || die "$dev n'existe pas."
+	[[ "$(lsblk -dno TYPE "$dev")" == "disk" ]] || die "$dev est une partition : donne la clé entière (ex. /dev/sdb, pas /dev/sdb1)."
+
+	#  Jamais le disque qui porte LexOS (ni Windows : voir juste après).
+	racine="$(findmnt -no SOURCE / | sed 's/\[.*//')"
+	disque_racine="$(lsblk -nrspo NAME,TYPE "$racine" 2>/dev/null | awk '$2 == "disk" {print $1; exit}')"
+	[[ "$(readlink -f "$dev")" != "$(readlink -f "$disque_racine")" ]] || die "$dev est le disque où LexOS est installé. Refusé."
+	tran="$(lsblk -dno TRAN "$dev" | tr -d ' ')"
+	rm="$(lsblk -dno RM "$dev" | tr -d ' ')"
+	[[ "$tran" == "usb" || "$rm" == "1" ]] || die "$dev n'est pas une clé USB (${tran:-interne}). Refusé, pour protéger tes disques internes."
+	if lsblk -nrpo MOUNTPOINT "$dev" | grep -q .; then
+		die "$dev est en cours d'utilisation (une partition est montée). Éjecte-la d'abord."
+	fi
+
+	taille="$(lsblk -dno SIZE "$dev" | tr -d ' ')"
+	modele="$(lsblk -dno MODEL "$dev" | sed 's/ *$//')"
+	printf '\n%s⚠  TOUT CE QUI EST SUR CETTE CLÉ SERA EFFACÉ%s\n\n' "$E$B" "$R"
+	echo "  Clé : $dev — ${modele:-?} — $taille"
+	echo
+	read -r -p "  Écris OUI (en majuscules) pour continuer : " rep
+	[[ "$rep" == "OUI" ]] || die "Annulé, rien n'a été touché."
+
+	say "Formatage de la clé (ext4, nom $ETIQUETTE)…"
+	wipefs -aq "$dev" || die "wipefs a échoué."
+	parted -s "$dev" mklabel gpt mkpart memoire ext4 1MiB 100% || die "parted a échoué."
+	partprobe "$dev" 2>/dev/null; udevadm settle 2>/dev/null; sleep 1
+	part="$(lsblk -nrpo NAME,TYPE "$dev" | awk '$2 == "part" {print $1; exit}')"
+	[[ -b "$part" ]] || die "La partition de la clé n'apparaît pas."
+	mkfs.ext4 -q -F -L "$ETIQUETTE" -m 0 "$part" || die "mkfs.ext4 a échoué."
+	u="$(blkid -s UUID -o value "$part")"
+	[[ -n "$u" ]] || die "UUID de la clé illisible."
+
+	#  À toi, pas à root : sinon tu ne pourrais rien y écrire.
+	qui="${SUDO_USER:-}"
+	mkdir -p "$POINT"
+	if [[ -n "$qui" ]] && id "$qui" >/dev/null 2>&1; then
+		local tmp
+		tmp="$(mktemp -d /run/lexos-cle-memoire.XXXXXX)"
+		mount "$part" "$tmp" && chown "$qui:" "$tmp" && umount "$tmp"
+		rmdir "$tmp"
+	fi
+
+	mkdir -p "$(dirname "$CONF")"
+	printf 'UUID=%s\n' "$u" > "$CONF"
+	cp -a "$FSTAB" "$FSTAB.avant-cle-memoire" 2>/dev/null || true
+	sed -i "/$MARQUE\$/d" "$FSTAB"
+	ligne_fstab "$u" >> "$FSTAB"
+	systemctl daemon-reload 2>/dev/null
+	systemctl restart "$(systemd-escape -p --suffix=automount "$POINT")" 2>/dev/null || true
+
+	#  ~/Mémoire : le raccourci dans ton dossier.
+	if [[ -n "$qui" ]]; then
+		local maison
+		maison="$(getent passwd "$qui" | cut -d: -f6)"
+		if [[ -d "$maison" && ! -e "$maison/Mémoire" ]]; then
+			ln -s "$POINT" "$maison/Mémoire" && chown -h "$qui:" "$maison/Mémoire"
+		fi
+	fi
+	ok "Clé mémoire prête : $taille de plus pour LexOS, dans ~/Mémoire."
+	echo "  ${D}Branche-la quand tu veux : elle s'ouvre toute seule. Sans elle, LexOS marche pareil.${R}"
+}
+
+cmd_ejecter() {
+	#  Sous l'automontage, la clé n'est vraiment montée (ext4) que pendant
+	#  qu'elle sert : sinon il n'y a que le guetteur « autofs », sans danger.
+	if ! findmnt -t ext4 -no TARGET "$POINT" >/dev/null 2>&1; then
+		ok "La clé n'est pas utilisée : tu peux la débrancher."
+		return 0
+	fi
+	sync
+	if umount "$POINT" 2>/dev/null || sudo umount "$POINT" 2>/dev/null; then
+		ok "Clé éjectée : tu peux la débrancher."
+	else
+		die "Une appli utilise encore ~/Mémoire. Ferme-la, puis recommence."
+	fi
+}
+
+cmd_oublier() {
+	root oublier
+	[[ -n "$(uuid_conf)" ]] || { echo "Aucune clé mémoire réglée."; return 0; }
+	umount "$POINT" 2>/dev/null || true
+	sed -i "/$MARQUE\$/d" "$FSTAB"
+	rm -f "$CONF"
+	systemctl daemon-reload 2>/dev/null
+	ok "Clé mémoire oubliée. Ce qu'il y a dessus n'est pas effacé."
+}
+
+case "${1:-etat}" in
+	etat|état|status) cmd_etat ;;
+	preparer|préparer|setup) shift; cmd_preparer "$@" ;;
+	ejecter|éjecter|eject) cmd_ejecter ;;
+	oublier|forget) cmd_oublier ;;
+	-h|--help|aide) sed -n '/^#    lexos cle-memoire  /,/^# =====/p' "$0" | sed '$d; s/^#//' ;;
+	*) die "Commande inconnue : $1 (etat, preparer, ejecter, oublier)" ;;
+esac

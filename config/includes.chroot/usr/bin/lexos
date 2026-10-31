@@ -96,6 +96,7 @@ ${B}APPARENCE${R}
                       ${D}marqueur · architecte · fleur · cursive · tableau · craie${R}
   ${A}dock${R} <position>     Barre d'outils : ${D}droite (défaut) · gauche · bas · haut${R}
   ${A}ecran${R}               Plusieurs écrans : étendre, dupliquer, principal
+  ${A}cle-memoire${R}         Une clé USB comme espace bonus (dossier Mémoire)
   ${A}wallpaper${R} [chemin]  Changer le fond d'écran (sans argument : celui par défaut)
   ${A}wallpaper${R} <image> <cadrage>  remplir · ajuster · etirer · centrer · mosaique
   ${A}crt${R} <on|off|status> Effets d'ouverture/fermeture façon TV 1980
@@ -1101,6 +1102,7 @@ case "$CMD" in
 	lang|langue)          cmd_lang "$@" ;;
 	dock|barre)           cmd_dock "$@" ;;
 	ecran|écran|display|screen) exec lexos-display "$@" ;;
+	cle-memoire|clé-mémoire|memoire-usb) exec lexos-cle-memoire "$@" ;;
 	vue-fichiers|vues-fichiers|images-vue) exec /usr/bin/python3 /usr/lib/lexos/fichiers_vues.py "$@" ;;
 	perf|performance)     exec lexos-perf "$@" ;;
 	temperature|température|temp|chaleur|ventilateurs) exec lexos-temp "$@" ;;
