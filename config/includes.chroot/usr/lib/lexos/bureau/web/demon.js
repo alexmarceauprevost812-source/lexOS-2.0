@@ -312,7 +312,29 @@ function calculerOrdre() {
   //  Une appli arrivée depuis (ou rendue par une mise à jour) va au bout de
   //  la grille : rien ne disparaît parce qu'il n'était pas dans la liste.
   for (const id of CONNUS.keys()) if (!grille.includes(id) && !dock.includes(id)) grille.push(id);
-  ORDRE.grille = grille; ORDRE.dock = dock;
+  //  Les applis posées librement ne sont ni dans la grille ni dans le dock.
+  const libres = new Set(libresIds());
+  ORDRE.grille = grille.filter((id) => !libres.has(id)); ORDRE.dock = dock.filter((id) => !libres.has(id));
+}
+/* ════════════════ Les applis posées N'IMPORTE OÙ ════════════════
+   ALEX (2026-10-31, capture à l'appui) : « pas capable de les placer à
+   gauche de l'écran ». Une appli glissée HORS de la grille et du dock reste
+   là où on la lâche — en millièmes de l'écran (demon_places, clé
+   « app:<id> »), toujours gardée dans l'écran. La glisser dans la grille ou
+   le dock la range de nouveau. « Réinitialiser » les ramène toutes. */
+function libresIds() {
+  return Object.keys(places()).filter((k) => k.startsWith("app:")).map((k) => k.slice(4)).filter((id) => CONNUS.has(id));
+}
+function dessinerLibres() {
+  const zone = $("#libres");
+  if (!zone) return;
+  zone.innerHTML = libresIds().map((id) => tuile(CONNUS.get(id))).join("");
+  for (const el of $$(".appli", zone)) {
+    const [x, y] = places()["app:" + el.dataset.id];
+    const l = el.offsetWidth || 100, h = el.offsetHeight || 120;
+    el.style.left = Math.max(0, Math.min(innerWidth - l, x * innerWidth / 1000)) + "px";
+    el.style.top = Math.max(0, Math.min(innerHeight - h, y * innerHeight / 1000)) + "px";
+  }
 }
 
 //  Combien de rangées tiennent dans le cadre : mesuré sur une vraie tuile,
@@ -346,7 +368,7 @@ function dessinerDock() {
 }
 function dessinerApplis() {
   calculerOrdre();
-  if (!SECONDAIRE) { dessinerGrille(); dessinerDock(); }
+  if (!SECONDAIRE) { dessinerGrille(); dessinerDock(); dessinerLibres(); }
 }
 function allerPage(i) {
   const pages = Math.max(1, Math.ceil(ORDRE.grille.length / PAR_PAGE));
@@ -361,7 +383,7 @@ $("#grille-cadre").addEventListener("wheel", (e) => {
   allerPage(PAGE + (e.deltaY > 0 ? 1 : -1));
 }, { passive: true });
 let minuteurTaille = null;
-addEventListener("resize", () => { clearTimeout(minuteurTaille); minuteurTaille = setTimeout(() => { dessinerGrille(); poserPlaces(); }, 150); });
+addEventListener("resize", () => { clearTimeout(minuteurTaille); minuteurTaille = setTimeout(() => { dessinerGrille(); dessinerLibres(); poserPlaces(); }, 150); });
 
 function ouvrirTuile(b) {
   const id = b.dataset.id;
@@ -426,6 +448,7 @@ function viser(x, y) {
     return { liste: "grille", index: (+point.dataset.page) * PAR_PAGE };
   }
   const t = sous.closest(".appli[data-id]");
+  if (t && t.closest("#libres")) return null;
   if (t && t.dataset.id !== GLISSE.id) {
     const r = t.getBoundingClientRect(), apres = x > r.left + r.width / 2;
     t.classList.add(apres ? "cible-apres" : "cible-avant");
@@ -457,7 +480,34 @@ function lacher(x, y) {
   if (GLISSE.fantome) GLISSE.fantome.remove();
   const id = GLISSE.id;
   GLISSE.fantome = null; GLISSE.tuile = null; GLISSE.id = null;
-  if (!c) { dessinerGrille(); dessinerDock(); return; }
+  const libre = Object.prototype.hasOwnProperty.call(places(), "app:" + id);
+  if (!c) {
+    //  Lâchée hors de la grille et du dock : elle reste LÀ, n'importe où.
+    const t = CONNUS.get(id) && document.createElement("div");
+    let l = 100, h = 120;
+    if (t) { t.className = "libres"; t.style.cssText = "position:fixed;visibility:hidden"; t.innerHTML = tuile(CONNUS.get(id)); document.body.appendChild(t); l = t.firstChild.offsetWidth || l; h = t.firstChild.offsetHeight || h; t.remove(); }
+    const gx = Math.max(0, Math.min(innerWidth - l, x - l / 2)), gy = Math.max(0, Math.min(innerHeight - h, y - h / 2));
+    const nouvelles = { ...places(), ["app:" + id]: [Math.round(gx * 1000 / innerWidth), Math.round(gy * 1000 / innerHeight)] };
+    if (P) P.demon_places = nouvelles;
+    ORDRE.grille = ORDRE.grille.filter((k) => k !== id); ORDRE.dock = ORDRE.dock.filter((k) => k !== id);
+    dessinerGrille(); dessinerDock(); dessinerLibres();
+    garder({ demon_places: nouvelles, demon_grille: ORDRE.grille, demon_dock: ORDRE.dock });
+    return;
+  }
+  if (libre) {
+    //  Une appli libre qu'on range dans la grille ou le dock.
+    const nouvelles = { ...places() }; delete nouvelles["app:" + id];
+    if (P) P.demon_places = nouvelles;
+    if (c.liste === "dock" && ORDRE.dock.length >= DOCK_MAX) {
+      bulle(`Le dock est plein (${DOCK_MAX} tuiles) : sors-en une d'abord`);
+      if (P) P.demon_places = { ...nouvelles, ["app:" + id]: places()["app:" + id] };
+      dessinerLibres(); return;
+    }
+    ORDRE[c.liste].splice(Math.max(0, Math.min(c.index, ORDRE[c.liste].length)), 0, id);
+    dessinerGrille(); dessinerDock(); dessinerLibres();
+    garder({ demon_places: nouvelles, demon_grille: ORDRE.grille, demon_dock: ORDRE.dock });
+    return;
+  }
   const de = ORDRE.dock.includes(id) ? "dock" : "grille";
   if (c.liste === "dock" && de !== "dock" && ORDRE.dock.length >= DOCK_MAX) {
     bulle(`Le dock est plein (${DOCK_MAX} tuiles) : sors-en une d'abord`);
@@ -475,7 +525,7 @@ function lacher(x, y) {
 document.addEventListener("pointerdown", (e) => {
   if (e.button !== 0 || RECHERCHE) return;
   const b = e.target.closest(".appli[data-id]");
-  if (b && (b.closest("#grille") || b.closest("#dock"))) {
+  if (b && (b.closest("#grille") || b.closest("#dock") || b.closest("#libres"))) {
     GLISSE.x0 = e.clientX; GLISSE.y0 = e.clientY; GLISSE.candidat = b;
     if (!MODIF) {
       clearTimeout(GLISSE.attente);
@@ -531,7 +581,7 @@ document.addEventListener("pointerup", (e) => {
 });
 document.addEventListener("pointercancel", () => {
   clearTimeout(GLISSE.attente); GLISSE.candidat = null; GLISSE.bloc = null;
-  if (GLISSE.fantome) { GLISSE.fantome.remove(); GLISSE.fantome = null; GLISSE.id = null; nettoyerCibles(); dessinerGrille(); dessinerDock(); }
+  if (GLISSE.fantome) { GLISSE.fantome.remove(); GLISSE.fantome = null; GLISSE.id = null; nettoyerCibles(); dessinerGrille(); dessinerDock(); dessinerLibres(); }
 });
 /* ════════════════ Le clic droit : « ✋ Déplacer » ════════════════
    ALEX : « déplacer en cliquant sur le droit de la souris », même l'heure.
@@ -568,7 +618,7 @@ document.addEventListener("contextmenu", (e) => {
   e.preventDefault();
   clearTimeout(GLISSE.attente); GLISSE.candidat = null;
   const t = e.target.closest(".appli[data-id]");
-  ouvrirMenuClic(e.clientX, e.clientY, t && (t.closest("#grille") || t.closest("#dock")) ? t : null);
+  ouvrirMenuClic(e.clientX, e.clientY, t && (t.closest("#grille") || t.closest("#dock") || t.closest("#libres")) ? t : null);
 });
 document.addEventListener("pointerdown", (e) => { if (!e.target.closest("#menu-clic")) fermerMenuClic(); }, true);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") fermerMenuClic(); });

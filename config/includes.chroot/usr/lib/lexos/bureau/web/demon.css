@@ -169,6 +169,10 @@ body.modifier [data-deplacable] * { pointer-events: none; }
 body.modifier .grille-cadre, body.modifier .dock { outline: 1px dashed #444; outline-offset: 6px; border-radius: 18px; }
 .appli.fantome { position: fixed; z-index: 60; pointer-events: none; opacity: .9; translate: -50% -50%; }
 .appli.parti { opacity: .25; }
+/* Les applis posées librement : une couche sur tout l'écran, chaque appli à sa place. */
+.ecran > .libres { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.libres .appli { position: absolute; pointer-events: auto; width: calc(clamp(52px, 9.4vh, 104px) + 3vw); }
+body.modifier .libres { outline: 1px dashed color-mix(in srgb, var(--ac) 35%, transparent); outline-offset: -6px; }
 .appli.cible-avant .tuile { box-shadow: -6px 0 0 var(--ac); }
 .appli.cible-apres .tuile { box-shadow: 6px 0 0 var(--ac); }
 .dock.cible, .grille-cadre.cible { outline: 2px solid var(--ac); outline-offset: 6px; border-radius: 18px; }

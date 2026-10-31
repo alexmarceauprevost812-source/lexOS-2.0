@@ -157,6 +157,8 @@ BORNES = {"demon_presence": (20, 100), "labo_delai": (300, 3000), "taille": (80,
 MAX_POSITIONS = 400
 MAX_LABO = 60
 _ID_ICONE = re.compile(r"^[a-z]-[a-z0-9-]{1,40}$")
+#  Les tuiles du bureau démon : une appli de la table, ou une tuile de la page (x-…).
+_ID_APPLI_LIBRE = _ID_ICONE
 
 
 def _positions(v):
@@ -181,9 +183,17 @@ def _propre(cle: str, v):
             return None
         propre = {}
         for nom, xy in v.items():
-            if (nom in DEMON_DEPLACABLES and isinstance(xy, (list, tuple)) and len(xy) == 2
+            if not (isinstance(nom, str) and isinstance(xy, (list, tuple)) and len(xy) == 2
                     and all(isinstance(n, (int, float)) and not isinstance(n, bool) for n in xy)):
+                continue
+            if nom in DEMON_DEPLACABLES:
                 propre[nom] = [int(min(1000, max(-1000, xy[0]))), int(min(1000, max(-1000, xy[1])))]
+            elif (nom.startswith("app:") and _ID_APPLI_LIBRE.match(nom[4:])
+                    and sum(k.startswith("app:") for k in propre) < MAX_LABO * 2):
+                #  Une appli posée LIBREMENT sur le bureau démon (2026-10-31,
+                #  « pas capable de les placer à gauche de l'écran ») : sa place,
+                #  en millièmes de l'écran, depuis le coin haut-gauche.
+                propre[nom] = [int(min(1000, max(0, xy[0]))), int(min(1000, max(0, xy[1])))]
         return propre
     if cle in ("labo_apps", "outils_apps", "demon_grille", "demon_dock"):
         if v == ["*"]:

@@ -88,6 +88,9 @@
   <div class="points" id="points" role="tablist" aria-label="Pages d'applications"></div>
 
   <aside class="dock" id="dock" aria-label="Dock"></aside>
+  <!-- Les applis posées LIBREMENT, n'importe où sur l'écran (glissées hors
+       de la grille et du dock). -->
+  <div class="libres" id="libres" aria-label="Applis posées sur le bureau"></div>
 </main>
 
 <!-- L'appli « Yeux » : le panneau de réglages du démon. -->
@@ -139,7 +142,7 @@
 
 <!-- Le mode « modifier » : on déplace les tuiles, le terminal, l'heure. -->
 <div class="barre-modif" id="barre-modif" hidden>
-  <span>Glisse les tuiles (grille ⇄ dock, ou sur un point pour changer de page), le terminal, l'heure ou la date. Clic droit → Déplacer pour revenir ici.</span>
+  <span>Glisse les tuiles n'importe où sur l'écran (ou grille ⇄ dock, ou sur un point pour changer de page), le terminal, l'heure ou la date. Clic droit → Déplacer pour revenir ici.</span>
   <button class="secondaire" id="modif-reinit">Réinitialiser</button>
   <button class="principal" id="modif-fini">Terminé</button>
 </div>
