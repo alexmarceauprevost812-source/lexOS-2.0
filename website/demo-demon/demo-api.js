@@ -13,6 +13,7 @@
   "interface": "demon",
   "demon_theme": "pro",
   "demon_oeil": "rouge",
+  "demon_dock_cote": "droite",
   "demon_suivre": true,
   "demon_intro": true,
   "demon_pluie": true,

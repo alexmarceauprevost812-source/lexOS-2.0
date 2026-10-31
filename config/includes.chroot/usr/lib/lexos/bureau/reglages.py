@@ -100,6 +100,10 @@ DEFAUTS = {
     #  page, qui n'a pas de mémoire d'une session à l'autre.
     "demon_theme": "pro",
     "demon_oeil": "rouge",
+    #  ALEX (31 octobre) : « ajouter le dock à droite ». Le dock du bureau
+    #  LexOS : en colonne à DROITE (le défaut, comme la démo d'origine) ou
+    #  en rangée en bas. Choix dans les réglages du bureau.
+    "demon_dock_cote": "droite",
     "demon_suivre": True,
     "demon_intro": True,
     "demon_pluie": True,
@@ -237,6 +241,8 @@ def _propre(cle: str, v):
         return v if v in INTERFACES else None
     if cle == "demon_oeil":
         return v if v in DEMON_YEUX else None
+    if cle == "demon_dock_cote":
+        return v if v in ("droite", "bas") else None
     if cle == "demon_theme":
         return v if v in DEMON_THEMES else None
     if cle == "anim":

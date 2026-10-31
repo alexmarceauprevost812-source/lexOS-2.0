@@ -358,6 +358,16 @@ class SaveurNomade(unittest.TestCase):
         self.assertIn("html.pro #pluie, html.pro .scan, html.pro .filigrane, html.pro .yeux { display: none; }", css)
         self.assertIn('"pro"', (racine / "reglages.py").read_text("utf-8"))
 
+    def test_dock_a_droite(self):
+        """ALEX : « ajouter le dock à droite » — à droite par défaut, « bas »
+        possible, toute autre valeur refusée."""
+        self.assertEqual(self.rg.lire()["demon_dock_cote"], "droite")
+        self.assertEqual(self.rg.ecrire({"demon_dock_cote": "bas"})["demon_dock_cote"], "bas")
+        self.assertIsNone(self.rg._propre("demon_dock_cote", "gauche"))
+        racine = Path(__file__).resolve().parent.parent / "config/includes.chroot/usr/lib/lexos/bureau"
+        self.assertIn("body.dock-droite .dock", (racine / "web/demon.css").read_text("utf-8"))
+        self.assertIn('id="dock-cotes"', (racine / "web/demon.html").read_text("utf-8"))
+
     def test_disposition_demon_aller_retour(self):
         """Le mode « modifier » du bureau démon : l'ordre de la grille et du
         dock, et la place du terminal, de l'heure et de la date, gardés côté
