@@ -86,19 +86,24 @@ const OEIL = "M2 3 C26 8 62 20 97 34 C99 42 92 49 78 50 C56 51 34 42 20 30 C10 2
 $$(".oeil-trace").forEach((p) => p.setAttribute("d", OEIL));
 
 /* ════════════════ Les thèmes ════════════════
-   Sang (le rouge du téléphone) par défaut ; Brasier et Spectre repeignent
-   la même page. Les YEUX restent rouges dans les trois : ce sont les yeux
-   du démon. */
+   ALEX (31 octobre) : « un thème de bureau professionnel […] et la version
+   démon, on la garde comme un thème Halloween ».
+   Professionnel (le défaut) : le même bureau en noir et orange LexOS, sans
+   les yeux, sans le démon en filigrane, sans la pluie ni la vidéo de
+   flammes (html.pro dans demon.css). Halloween : le démon, avec ses
+   variantes Braise et Spectre — les YEUX y restent ceux du démon. */
 const THEMES = {
-  sang:    { nom: "Sang",    ac: "#e02424", fonce: "#7a1010", pluie: "#e02424", filtre: "none" },
-  brasier: { nom: "Brasier", ac: "#ff6a1a", fonce: "#7a2a06", pluie: "#ff6a1a", filtre: "none" },
-  spectre: { nom: "Spectre", ac: "#3aa0ff", fonce: "#0d3f73", pluie: "#3aa0ff", filtre: "hue-rotate(190deg) saturate(1.2)" },
+  pro:     { nom: "Professionnel",     ac: "#ff6a1a", fonce: "#7a2a06", pluie: "", filtre: "none", pro: true },
+  sang:    { nom: "Halloween",         ac: "#e02424", fonce: "#7a1010", pluie: "#e02424", filtre: "none" },
+  brasier: { nom: "Halloween braise",  ac: "#ff6a1a", fonce: "#7a2a06", pluie: "#ff6a1a", filtre: "none" },
+  spectre: { nom: "Halloween spectre", ac: "#3aa0ff", fonce: "#0d3f73", pluie: "#3aa0ff", filtre: "hue-rotate(190deg) saturate(1.2)" },
 };
 $("#themes").innerHTML = Object.entries(THEMES).map(([k, T]) =>
   `<button class="theme" data-theme="${k}" style="--t:${T.ac}"><i></i>${T.nom}</button>`).join("");
-let THEME = THEMES.sang;
+let THEME = THEMES.pro;
 function appliquerTheme(k) {
-  THEME = THEMES[k] || THEMES.sang;
+  THEME = THEMES[k] || THEMES.pro;
+  document.documentElement.classList.toggle("pro", !!THEME.pro);
   const r = document.documentElement.style;
   r.setProperty("--ac", THEME.ac); r.setProperty("--ac-fonce", THEME.fonce); r.setProperty("--filtre-logo", THEME.filtre);
   $$(".theme").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.theme === k)));
@@ -106,7 +111,8 @@ function appliquerTheme(k) {
 }
 $("#themes").addEventListener("click", (e) => {
   const b = e.target.closest(".theme"); if (!b || !P) return;
-  P.demon_theme = b.dataset.theme; appliquerTheme(P.demon_theme); majTerminal();
+  P.demon_theme = b.dataset.theme; appliquerTheme(P.demon_theme); pluie(); majTerminal();
+  if (E) dessinerApplis();
   garder({ demon_theme: P.demon_theme });
 });
 
@@ -159,7 +165,7 @@ function goutte() {
 function pluieFixe() {
   //  Une image immobile : les colonnes de chiffres, sans mouvement.
   ctx.clearRect(0, 0, toile.width, toile.height);
-  if (!P || !P.demon_pluie) return;
+  if (!P || !P.demon_pluie || THEME.pro) return;
   ctx.fillStyle = THEME.pluie; ctx.globalAlpha = .35;
   for (let i = 0; i < colonnes.length; i += 1) {
     if ((i * 7) % 3 === 0) continue;
@@ -169,7 +175,7 @@ function pluieFixe() {
 }
 function pluie() {
   clearInterval(minuteurPluie); minuteurPluie = null;
-  if (!P || !P.demon_pluie || LEGER || CALME) { pluieFixe(); return; }
+  if (!P || !P.demon_pluie || LEGER || CALME || THEME.pro) { pluieFixe(); return; }
   minuteurPluie = setInterval(() => { if (!document.hidden) goutte(); }, 100);
 }
 addEventListener("resize", () => { preparerPluie(); pluie(); });
@@ -194,7 +200,7 @@ function majTerminal() {
   const lignes = [
     ["os", `${s.nom || "LexOS"}${s.version ? " " + s.version : ""}${s.saveur ? " (" + s.saveur + ")" : ""}`],
     ["base", "Debian trixie"],
-    ["bureau", "LexOS démon"],
+    ["bureau", THEME.pro ? "LexOS" : "LexOS démon"],
     ["thème", (THEME.nom || "Sang").toLowerCase()],
     ["shell", "bash"],
   ];
@@ -304,7 +310,8 @@ const SPECIALES = {
 const trait = (cle) => `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${DESSINS[cle] || DESSINS.appli}"/></svg>`;
 const yeuxTuile = `<svg viewBox="0 0 220 60" aria-hidden="true"><path style="fill:var(--oeil)" d="${OEIL}" transform="translate(4 4)"/><path style="fill:var(--oeil)" d="${OEIL}" transform="translate(216 4) scale(-1 1)"/></svg>`;
 function tuile(e) {
-  const nom = LIBELLES[e.cle] || e.nom;
+  //  En Professionnel, l'appli « Yeux » est simplement les réglages du bureau.
+  const nom = e.special === "yeux" && THEME.pro ? "réglages" : (LIBELLES[e.cle] || e.nom);
   let image, classe = "";
   if (e.special === "yeux") { image = yeuxTuile; classe = " yeux-tuile"; }
   else if (e.special === "apropos") { image = `<img src="tux.png" alt="">`; classe = " tux"; }
@@ -846,7 +853,7 @@ function ouvrirApropos(ouvert) {
     const lignes = [
       ["os", `${s.nom || "LexOS"}${s.version ? " " + s.version : ""}${s.saveur ? " (" + s.saveur + ")" : ""}`],
       ["base", "Debian trixie"], ["noyau", s.noyau], ["cpu", s.processeur], ["mémoire", s.memoire],
-      ["allumé", s.allume], ["bureau", "LexOS démon"], ["créateur", "Alex Marceau Prevost"],
+      ["allumé", s.allume], ["bureau", THEME.pro ? "LexOS" : "LexOS démon"], ["créateur", "Alex Marceau Prevost"],
     ].filter(([, v]) => v);
     $("#apropos-corps").innerHTML = lignes.map(([k, v]) =>
       `<p><span class="cle">${echapper(k)}</span>${echapper(v)}</p>`).join("");
@@ -977,7 +984,7 @@ function ouverture() {
     intro.classList.add("parti");
     setTimeout(() => { intro.remove(); corps.classList.remove("en-intro", "eveil"); }, 650);
   };
-  if (CALME || !P || !P.demon_intro) { finir(); return; }
+  if (CALME || !P || !P.demon_intro || THEME.pro) { finir(); return; }
   addEventListener("keydown", finir, { once: true });
   intro.addEventListener("click", finir, { once: true });
 
@@ -1016,7 +1023,7 @@ function ouverture() {
 
 (async () => {
   poserMarges(null);
-  appliquerTheme("sang");
+  appliquerTheme("pro");
   majTerminal();
   try {
     VERSION = (await api("/api/version")).v;
@@ -1024,7 +1031,7 @@ function ouverture() {
   } catch {
     //  Sans le serveur : le décor et les yeux, sans applis, plutôt qu'une
     //  erreur. lexos-bureau relance xfdesktop si le moteur du bureau tombe.
-    P = { interface: "demon", demon_theme: "sang", demon_suivre: true, demon_intro: false, demon_pluie: true, demon_presence: 60 };
+    P = { interface: "demon", demon_theme: "pro", demon_suivre: true, demon_intro: false, demon_pluie: true, demon_presence: 60 };
     appliquerTheme(P.demon_theme); appliquerPresence(); pluie();
   }
   ouverture();

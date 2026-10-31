@@ -83,7 +83,7 @@ def main() -> None:
     page = (WEB / "demon.html").read_text(encoding="utf-8")
     page = page.replace('<script src="demon.js"', '<script src="demo-api.js"></script>\n<script src="demon.js"', 1)
     assert "demo-api.js" in page, "demon.html a changé : le point d'injection du script n'est plus là"
-    page = page.replace("<title>", "<title>Démo web — ", 1) if "<title>" in page else page
+    page = page.replace("<title>LexOS Bureau — démon</title>", "<title>Démo web — Bureau LexOS</title>", 1)
     (SORTIE / "index.html").write_text(page, encoding="utf-8")
     print(f"démo du bureau démon : {SORTIE.relative_to(RACINE)} "
           f"({sum(p.stat().st_size for p in SORTIE.rglob('*') if p.is_file()) // 1024} Ko)")

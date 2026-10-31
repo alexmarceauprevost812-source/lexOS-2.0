@@ -322,7 +322,9 @@ class SaveurNomade(unittest.TestCase):
 
     def test_defauts_nomade(self):
         r = self.rg.lire()
-        self.assertEqual((r["mode"], r["interface"], r["demon_theme"]), ("moteur", "demon", "sang"))
+        #  ALEX (31 octobre) : le thème Professionnel par défaut, le démon devient « Halloween ».
+        self.assertEqual((r["mode"], r["interface"], r["demon_theme"]), ("moteur", "demon", "pro"))
+        self.assertEqual(self.rg.ecrire({"demon_theme": "sang"})["demon_theme"], "sang")   # Halloween reste là
         self.assertEqual(self.rg.ecrire({"interface": "ailleurs", "demon_theme": "rose"})["interface"], "demon")
         self.assertEqual(self.rg.ecrire({"demon_presence": 5})["demon_presence"], 20)
         #  ti-lexos-pro sur la clé : « l'outil en haut de l'écran visible et fixe ».
@@ -341,6 +343,20 @@ class SaveurNomade(unittest.TestCase):
         self.assertIn("if (fixe) {", js)
         self.assertIn("fixer, tele", js)
         self.assertIn('["outils_fixe",', (racine / "web/demon.js").read_text("utf-8"))
+
+    def test_theme_professionnel(self):
+        """Le thème Professionnel : défini, par défaut, et il éteint le démon
+        (yeux, filigrane, pluie, vidéo de flammes)."""
+        racine = Path(__file__).resolve().parent.parent / "config/includes.chroot/usr/lib/lexos/bureau"
+        js = (racine / "web/demon.js").read_text("utf-8")
+        css = (racine / "web/demon.css").read_text("utf-8")
+        self.assertIn('pro:     { nom: "Professionnel"', js)
+        self.assertIn('sang:    { nom: "Halloween"', js)
+        self.assertIn('appliquerTheme("pro")', js)
+        self.assertIn("!P.demon_intro || THEME.pro", js)              # pas de flammes en pro
+        self.assertIn("LEGER || CALME || THEME.pro", js)               # pas de pluie en pro
+        self.assertIn("html.pro #pluie, html.pro .scan, html.pro .filigrane, html.pro .yeux { display: none; }", css)
+        self.assertIn('"pro"', (racine / "reglages.py").read_text("utf-8"))
 
     def test_disposition_demon_aller_retour(self):
         """Le mode « modifier » du bureau démon : l'ordre de la grille et du

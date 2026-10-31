@@ -58,7 +58,11 @@ MODES = ("moteur", "classique")
 #  (index.html) ou le démon (demon.html). serveur.py sert l'une ou l'autre à
 #  « / » selon ce réglage.
 INTERFACES = ("moteur", "demon")
-DEMON_THEMES = ("sang", "brasier", "spectre")
+#  ALEX (31 octobre) : « un thème de bureau professionnel […] et la version
+#  démon, on la garde et on la place comme un thème Halloween ». « pro » :
+#  noir et orange LexOS, sans yeux, sans démon, sans pluie — le DÉFAUT,
+#  partout. Les trois autres sont le démon (Halloween et ses variantes).
+DEMON_THEMES = ("pro", "sang", "brasier", "spectre")
 #  La couleur des YEUX du démon, à part du thème (2026-10-31, « changer les yeux de couleur »).
 DEMON_YEUX = ("rouge", "orange", "jaune", "vert", "cyan", "bleu", "violet", "blanc")
 #  Ce qu'on peut déplacer sur le bureau démon, en dehors des tuiles.
@@ -94,7 +98,7 @@ DEFAUTS = {
     #  la « présence » du logo derrière (son opacité, en %). Le panneau
     #  « Yeux » du dock les change ; gardés ici, pas dans le navigateur de la
     #  page, qui n'a pas de mémoire d'une session à l'autre.
-    "demon_theme": "sang",
+    "demon_theme": "pro",
     "demon_oeil": "rouge",
     "demon_suivre": True,
     "demon_intro": True,
