@@ -11,7 +11,7 @@
  "reglages": {
   "mode": "moteur",
   "interface": "demon",
-  "demon_theme": "sang",
+  "demon_theme": "pro",
   "demon_oeil": "rouge",
   "demon_suivre": true,
   "demon_intro": true,
@@ -320,7 +320,7 @@
   addEventListener("DOMContentLoaded", () => {
     const b = document.createElement("a");
     b.href = "/telecharger";
-    b.textContent = "Démo web du bureau démon · Télécharger le vrai LexOS →";
+    b.textContent = "Démo web du bureau LexOS · Télécharger le vrai LexOS →";
     b.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:9999;padding:7px 12px;border-radius:10px;"
       + "background:rgba(0,0,0,.72);border:1px solid rgba(255,90,0,.55);color:#ffb37a;font:600 12px system-ui,sans-serif;"
       + "text-decoration:none;backdrop-filter:blur(6px)";
