@@ -253,7 +253,11 @@ GRUB_TIMEOUT_STYLE=menu
 #  Ce que ça coûte : au premier démarrage d'un double amorçage, avant que
 #  lexos-grub-defaut n'ait tourné une fois, le menu passerait à 3 s. Il
 #  revient à 8 s au démarrage suivant.
-#  RIEN DE TOUT ÇA N'EST FAIT ICI. Le menu reste à 8 secondes.
+#  ═══ FAIT LE 31 OCTOBRE : /etc/grub.d/45_lexos-menu-cache ═══
+#  ALEX : « va falloir le faire à tout le monde » (clé USB-C vendue).
+#  Quand LexOS est SEUL (aucune entrée os-prober ET saved_entry vide), le
+#  menu est caché (Échap pour l'ouvrir). Avec un voisin, les réglages
+#  ci-dessus s'appliquent tels quels : menu visible 8 secondes.
 #  POURQUOI « saved » ET NON « 0 ».
 #  « 0 » désigne la PREMIÈRE entrée du menu — et la première entrée est
 #  LexOS, pas Windows : os-prober tourne dans 30_os-prober, après le

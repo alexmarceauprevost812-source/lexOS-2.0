@@ -1,0 +1,82 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — cacher le menu GRUB quand LexOS est SEUL sur la machine
+# =============================================================================
+#  ALEX, 31 octobre : « j'ai démarré ti-lexos sur sa clé USB, ça affiche
+#  encore l'écran GRUB » … « c'est parce que va falloir le faire à tout le
+#  monde ». Sur une clé USB-C vendue, ou sur un ordinateur où LexOS est le
+#  seul système, le menu de 8 secondes n'offre AUCUN choix : il retarde
+#  juste l'animation de démarrage et a l'air d'un écran technique.
+#
+#  CE QUI NE CHANGE PAS : le double démarrage. Le hook 0100 pose toujours
+#  GRUB_TIMEOUT=8 et GRUB_TIMEOUT_STYLE=menu, et ce script ne touche à rien
+#  quand un autre système est là. Windows à côté, Ubuntu à côté : le menu
+#  reste visible 8 secondes, comme Alex l'a demandé.
+#
+#  COMMENT ON SAIT QU'UN AUTRE SYSTÈME EST LÀ — DEUX VERROUS :
+#
+#  1. À LA CONSTRUCTION DE grub.cfg (update-grub). grub-mkconfig envoie la
+#     sortie de chaque script de /etc/grub.d dans le MÊME fichier
+#     (grub.cfg.new), dans l'ordre. Quand ce script-ci tourne (45, après
+#     30_os-prober), les entrées trouvées par os-prober sont déjà écrites
+#     dans ce fichier : on le relit via /proc/$$/fd/1 (pas
+#     /proc/self : dans un $(…), self serait le tube de la substitution). S'il y a au moins
+#     une « menuentry » dans le bloc 30_os-prober, on ne fait RIEN.
+#     Si la sortie n'est pas un fichier lisible (grub-mkconfig lancé sans
+#     -o, à l'écran), on ne fait RIEN non plus : dans le doute, le menu
+#     reste visible. Le défaut est toujours le sûr.
+#
+#  2. AU DÉMARRAGE, PAR GRUB LUI-MÊME. Le code écrit plus bas ne cache le
+#     menu que si saved_entry est vide. saved_entry n'est posé que par
+#     lexos-grub-defaut, et seulement quand un voisin existe (voir
+#     /usr/lib/lexos/grub-defaut-voisin). Un voisin installé plus tard
+#     rend donc ses 8 secondes au menu, même avant le prochain update-grub.
+#
+#  LE MENU RESTE ATTEIGNABLE. « hidden » avec 1 seconde : rien ne s'affiche,
+#  mais appuyer sur Échap (ou garder Maj enfoncé) pendant le démarrage fait
+#  apparaître le menu — pour le mode secours (recovery), par exemple.
+#
+#  POUR GARDER LE MENU TOUJOURS VISIBLE : écrire « toujours » dans
+#  /etc/lexos/menu-demarrage, puis sudo update-grub.
+#
+#  Ce fichier est à nous : aucun fichier de grub-common n'est modifié, et
+#  il survit aux mises à jour du paquet.
+# =============================================================================
+set -e
+
+CHOIX="${LEXOS_MENU_DEMARRAGE_FICHIER:-/etc/lexos/menu-demarrage}"
+if [ -r "$CHOIX" ] && grep -qi '^toujours' "$CHOIX" 2>/dev/null; then
+	exit 0
+fi
+
+# --- Verrou 1 : os-prober a-t-il trouvé un autre système ? -------------------
+SORTIE="${LEXOS_GRUB_SORTIE:-$(readlink /proc/$$/fd/1 2>/dev/null || true)}"
+case "$SORTIE" in
+	/*) ;;
+	*) exit 0 ;;   # pas un fichier (écran, tube) : on ne sait pas, on ne touche à rien
+esac
+[ -f "$SORTIE" ] && [ -r "$SORTIE" ] || exit 0
+
+VOISINS=$(awk '
+	/^### BEGIN \/etc\/grub\.d\/30_os-prober ###/ { dedans = 1; next }
+	/^### END \/etc\/grub\.d\/30_os-prober ###/   { dedans = 0; next }
+	dedans && /^[[:space:]]*menuentry[[:space:]]/  { n++ }
+	END { print n + 0 }
+' "$SORTIE" 2>/dev/null || echo 1)
+
+if [ "${VOISINS:-1}" -gt 0 ]; then
+	echo "[lexos-menu] autre système trouvé — menu de démarrage visible (8 s)" >&2
+	exit 0
+fi
+
+echo "[lexos-menu] LexOS seul — menu de démarrage caché (Échap pour l'ouvrir)" >&2
+
+# --- Verrou 2 : relu par GRUB à chaque démarrage -----------------------------
+cat <<'EOF'
+# LexOS : seul système sur cette machine — menu caché, Échap pour l'ouvrir.
+# (voir /etc/grub.d/45_lexos-menu-cache)
+if [ -z "${saved_entry}" ]; then
+	set timeout_style=hidden
+	set timeout=1
+fi
+EOF
