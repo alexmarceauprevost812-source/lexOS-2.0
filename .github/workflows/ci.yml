@@ -677,6 +677,7 @@ jobs:
           #  saved_entry au lieu d'écrire notre titre, qui se périmerait à la
           #  première mise à jour de noyau.
           bash tests/test_lexos_grub_defaut.sh
+          bash tests/test_lexos_menu_cache.sh
 
       - name: L'heure juste dans les deux systèmes — heure-dualboot sur un banc
         if: ${{ !cancelled() }}
