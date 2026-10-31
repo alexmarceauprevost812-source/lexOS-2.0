@@ -31,6 +31,17 @@
 #  tout — alors on la refait sur demande : clic droit sur le dossier ->
 #  « Étiqueter ce dossier », ou « lexos etiquette <dossier> ».
 #
+#  ═══ ET LA COULEUR ═══
+#  ALEX (31 octobre) : « être capable de changer le fichier de couleur, comme
+#  ça quand le monde va travailler avec des fichiers […] il peut retrouver
+#  plus facilement son projet ». Le dessin du dossier a deux jetons de
+#  couleur (#E8590C la poche, #A84007 le dos) : on les remplace. Ça marche
+#  aussi pour les dossiers standards — Téléchargements reste « DL », en vert.
+#  La couleur choisie est gardée sur le dossier (metadata::lexos-couleur) :
+#  ré-étiqueter un dossier après l'avoir renommé ne lui fait pas perdre sa
+#  couleur. Clic droit -> « Couleur du dossier… », ou :
+#      lexos etiquette --couleur vert <dossier>…
+#
 #  LECTURE SEULE SUR TON CONTENU. On n'écrit que deux choses : une image dans
 #  ~/.local/share/lexos/etiquettes, et l'attribut d'icône du dossier. Aucun
 #  fichier à toi n'est déplacé, renommé ni touché.
@@ -51,7 +62,10 @@ aide() {
 
     lexos etiquette <dossier>…      étiqueter ces dossiers
     lexos etiquette --maison        étiqueter les dossiers de ton dossier personnel
-    lexos etiquette --enlever <d>…  retirer l'étiquette
+    lexos etiquette --enlever <d>…  retirer l'étiquette (et la couleur)
+    lexos etiquette --couleur <c> <d>…   colorer ces dossiers
+    lexos etiquette --choisir <d>…  choisir la couleur dans une fenêtre
+    lexos etiquette --couleurs      la liste des couleurs
     lexos etiquette aide            ce texte
 
   Les dossiers standards (Documents, Images, Musique, Vidéos,
@@ -124,23 +138,58 @@ etiquette_de() { # etiquette_de <nom de dossier> → jusqu'à 3 majuscules
 #  renommer l'un changerait l'icône de l'autre.
 cle_de() { printf '%s' "$1" | md5sum | cut -c1-32; }
 
-fabrique() { # fabrique <étiquette> <destination png> → 0 si l'image est là
-	local etiq="$1" dst="$2" tmp
-	[[ -r "$MODELE" ]] || { printf '%s : dossier modèle introuvable (%s)\n' "$PROG" "$MODELE" >&2; return 1; }
+#  ─── LES COULEURS ────────────────────────────────────────────────────────
+#  La poche ; le dos est la même couleur assombrie (facteur 0,72, comme le
+#  dossier d'origine : #E8590C -> #A84007).
+declare -A COULEURS=(
+	[orange]="E8590C" [rouge]="D62828" [vert]="3FCF2E" [bleu]="2F7DE1" [cyan]="17B8C9"
+	[violet]="8E44EC" [rose]="E84393" [jaune]="E8B820" [gris]="6B7280" [noir]="2A2A2E"
+)
+ORDRE_COULEURS="orange rouge vert bleu cyan violet rose jaune gris noir"
+sombre() { # sombre RRGGBB → la même, × 0,72
+	local h="$1"
+	printf '%02X%02X%02X' $(( 16#${h:0:2} * 72 / 100 )) $(( 16#${h:2:2} * 72 / 100 )) $(( 16#${h:4:2} * 72 / 100 ))
+}
+
+#  Le dessin de départ : celui du THÈME pour un dossier standard (il porte
+#  déjà sa pastille, DL, IMG…), le dossier nu sinon (on y écrit les lettres).
+ICONES_DIR="$(dirname "$MODELE")"
+modele_de() { # modele_de <chemin> → fichier svg
+	local f=""
+	case "$(basename "$1")" in
+		Documents) f=folder-documents ;;
+		Images|Pictures) f=folder-pictures ;;
+		Musique|Music) f=folder-music ;;
+		Vidéos|Videos|Video) f=folder-videos ;;
+		Téléchargements|Telechargements|Downloads) f=folder-download ;;
+		Bureau|Desktop) f=user-desktop ;;
+		Modèles|Modeles|Templates) f=folder-templates ;;
+		Public|Publique) f=folder-publicshare ;;
+		"Projets LexOS") f=folder-projects ;;
+	esac
+	if [[ -n "$f" && -r "$ICONES_DIR/$f.svg" ]]; then printf '%s' "$ICONES_DIR/$f.svg"; else printf '%s' "$MODELE"; fi
+}
+
+fabrique() { # fabrique <étiquette ou vide> <destination png> [couleur] [modèle] → 0 si l'image est là
+	local etiq="$1" dst="$2" couleur="${3:-orange}" modele="${4:-$MODELE}" tmp poche dos
+	[[ -r "$modele" ]] || { printf '%s : dossier modèle introuvable (%s)\n' "$PROG" "$modele" >&2; return 1; }
 	command -v rsvg-convert >/dev/null 2>&1 \
 		|| { printf '%s : rsvg-convert manque — impossible de dessiner\n' "$PROG" >&2; return 1; }
+	poche="${COULEURS[$couleur]:-${COULEURS[orange]}}"
+	dos="$(sombre "$poche")"
 	tmp="$(mktemp -t lexos-etiq-XXXXXX.svg)" || return 1
 	#  Le texte est posé aux MÊMES coordonnées que les pastilles du thème
 	#  (x=256, y=345, corps 104, mono gras) : une étiquette maison qui ne
-	#  s'aligne pas avec DOC et IMG se verrait tout de suite.
-	awk -v e="$etiq" '
-		/<\/svg>/ {
+	#  s'aligne pas avec DOC et IMG se verrait tout de suite. Pas de texte
+	#  pour un dessin du thème : sa pastille y est déjà.
+	sed -e "s/#E8590C/#$poche/gI" -e "s/#A84007/#$dos/gI" "$modele" | awk -v e="$etiq" '
+		/<\/svg>/ && e != "" {
 			print "  <text x=\"256\" y=\"371\" text-anchor=\"middle\" fill=\"#ffffff\""
 			print "        opacity=\"0.95\" font-family=\"monospace\" font-weight=\"700\""
 			print "        font-size=\"104\">" e "</text>"
 		}
 		{ print }
-	' "$MODELE" > "$tmp" || { rm -f "$tmp"; return 1; }
+	' > "$tmp" || { rm -f "$tmp"; return 1; }
 	mkdir -p "$(dirname "$dst")"
 	rsvg-convert -w "$TAILLE" -h "$TAILLE" -o "$dst" "$tmp" 2>/dev/null
 	local code=$?
@@ -148,28 +197,59 @@ fabrique() { # fabrique <étiquette> <destination png> → 0 si l'image est là
 	[[ "$code" -eq 0 && -s "$dst" ]]
 }
 
-pose() { # pose <dossier>
-	local d="$1" nom etiq png
+couleur_de() { # couleur_de <dossier> → la couleur gardée sur le dossier, ou rien
+	command -v gio >/dev/null 2>&1 || return 0
+	gio info -a metadata::lexos-couleur "$1" 2>/dev/null | sed -n 's/^ *metadata::lexos-couleur: *//p' | head -1
+}
+
+pose() { # pose <dossier> [couleur]
+	local d="$1" couleur="${2:-}" nom etiq png modele
 	[[ -d "$d" ]] || { printf '%s : « %s » n'"'"'est pas un dossier — ignoré\n' "$PROG" "$d" >&2; return 1; }
 	d="$(cd "$d" && pwd)" || return 1
 	nom="$(basename "$d")"
-	etiq="$(etiquette_de "$nom")"
-	if [[ -z "$etiq" ]]; then
-		printf '%s : « %s » ne donne aucune lettre — ignoré\n' "$PROG" "$nom" >&2
-		return 1
+	[[ -n "$couleur" ]] || couleur="$(couleur_de "$d")"
+	[[ -n "$couleur" && -n "${COULEURS[$couleur]:-}" ]] || couleur="orange"
+	modele="$(modele_de "$d")"
+	etiq=""
+	if [[ "$modele" == "$MODELE" ]]; then
+		etiq="$(etiquette_de "$nom")"
+		if [[ -z "$etiq" ]]; then
+			printf '%s : « %s » ne donne aucune lettre — ignoré\n' "$PROG" "$nom" >&2
+			return 1
+		fi
 	fi
-	png="$CACHE/$(cle_de "$d").png"
-	fabrique "$etiq" "$png" || return 1
+	#  La couleur dans le nom de l'image : Fichiers garde les icônes en cache
+	#  par chemin, une image neuve se voit tout de suite.
+	rm -f "$CACHE/$(cle_de "$d")"*.png 2>/dev/null
+	png="$CACHE/$(cle_de "$d")-$couleur.png"
+	fabrique "$etiq" "$png" "$couleur" "$modele" || return 1
 	if ! command -v gio >/dev/null 2>&1; then
 		printf '%s : gio manque (paquet libglib2.0-bin) — image prête mais non posée\n' "$PROG" >&2
 		return 1
 	fi
 	if gio set -t string "$d" metadata::custom-icon "file://$png" 2>/dev/null; then
-		printf '%s  →  %s\n' "$etiq" "$d"
+		gio set -t string "$d" metadata::lexos-couleur "$couleur" 2>/dev/null
+		printf '%s%s  →  %s\n' "${etiq:-$nom}" "$([[ "$couleur" != orange ]] && printf ' (%s)' "$couleur")" "$d"
 		return 0
 	fi
 	printf '%s : le système a refusé de poser l'"'"'icône sur « %s »\n' "$PROG" "$d" >&2
 	return 1
+}
+
+#  La fenêtre « Couleur du dossier… » (clic droit dans Fichiers) : yad, livré
+#  dans lexos-core ; zenity à défaut.
+choisir() { # choisir → affiche la liste, écrit la couleur choisie
+	local c liste=()
+	if command -v yad >/dev/null 2>&1; then
+		for c in $ORDRE_COULEURS; do liste+=("$c"); done
+		yad --list --title="Couleur du dossier" --text="Choisis une couleur :" --column="Couleur" \
+			--width=300 --height=380 --center --no-headers --separator="" "${liste[@]}" 2>/dev/null | head -1
+	elif command -v zenity >/dev/null 2>&1; then
+		# shellcheck disable=SC2086
+		zenity --list --title="Couleur du dossier" --text="Choisis une couleur :" --column="Couleur" $ORDRE_COULEURS 2>/dev/null
+	else
+		printf '%s : ni yad ni zenity — utilise « lexos etiquette --couleur <couleur> <dossier> »\n' "$PROG" >&2
+	fi
 }
 
 enleve() { # enleve <dossier>
@@ -178,7 +258,8 @@ enleve() { # enleve <dossier>
 	d="$(cd "$d" && pwd)" || return 1
 	command -v gio >/dev/null 2>&1 || return 1
 	gio set -t unset "$d" metadata::custom-icon 2>/dev/null
-	rm -f "$CACHE/$(cle_de "$d").png"
+	gio set -t unset "$d" metadata::lexos-couleur 2>/dev/null
+	rm -f "$CACHE/$(cle_de "$d")"*.png
 	printf 'étiquette retirée  →  %s\n' "$d"
 }
 
@@ -201,6 +282,24 @@ case "${1:-aide}" in
 		shift
 		[[ $# -gt 0 ]] || die "quel dossier ? « lexos etiquette --enlever <dossier> »"
 		for d in "$@"; do enleve "$d"; done
+		;;
+	--couleurs)
+		for c in $ORDRE_COULEURS; do printf '  %-8s #%s\n' "$c" "${COULEURS[$c]}"; done
+		;;
+	--couleur)
+		C="${2:-}"; shift 2 2>/dev/null || shift $#
+		[[ -n "$C" && -n "${COULEURS[$C]:-}" ]] || die "quelle couleur ? ($ORDRE_COULEURS)"
+		[[ $# -gt 0 ]] || die "quel dossier ? « lexos etiquette --couleur $C <dossier> »"
+		FAITS=0
+		for d in "$@"; do pose "$d" "$C" && FAITS=$((FAITS + 1)); done
+		[[ "$FAITS" -gt 0 ]] || exit 1
+		;;
+	--choisir)
+		shift
+		[[ $# -gt 0 ]] || die "quel dossier ?"
+		C="$(choisir)"
+		[[ -n "$C" ]] || exit 0
+		for d in "$@"; do pose "$d" "$C"; done
 		;;
 	--maison)
 		FAITS=0

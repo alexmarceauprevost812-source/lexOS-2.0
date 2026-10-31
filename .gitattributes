@@ -39,3 +39,4 @@
 #  BIOS est rendu par live-build, et un CRLF s'y verrait.
 *.svg    text eol=lf
 *.svg.in text eol=lf
+*.bat text eol=crlf

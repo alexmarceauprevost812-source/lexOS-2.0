@@ -222,5 +222,34 @@ else
 	non "deux actions partagent un identifiant : Thunar en écartera une en silence"
 fi
 
+# =============================================================================
+#  LA COULEUR DES DOSSIERS — ALEX : « changer le fichier de couleur […] pour
+#  retrouver plus facilement son projet ».
+# =============================================================================
+C="$(mktemp -d)"
+mkdir -p "$C/Téléchargements" "$C/Projet École"
+coul() { env HOME="$C" XDG_DATA_HOME="$C/data" LEXOS_ICONES="$RACINE/config/includes.chroot/usr/share/icons/LexOS" bash "$OUTIL" "$@" >/dev/null 2>&1; }
+coul --couleur vert "$C/Téléchargements"
+coul --couleur bleu "$C/Projet École"
+V="$(ls "$C/data/lexos/etiquettes/"*-vert.png 2>/dev/null | head -1)"
+Bl="$(ls "$C/data/lexos/etiquettes/"*-bleu.png 2>/dev/null | head -1)"
+[[ -s "$V" ]] && ok "un dossier vert est dessiné (Téléchargements)" || non "aucun dossier vert dessiné"
+[[ -s "$Bl" ]] && ok "un dossier bleu est dessiné (Projet École)" || non "aucun dossier bleu dessiné"
+if [[ -s "$V" ]] && python3 - "$V" <<'PYV' 2>/dev/null
+import sys
+from PIL import Image
+im = Image.open(sys.argv[1]).convert("RGB")
+r, g, b = im.getpixel((im.width // 2, int(im.height * 0.78)))
+sys.exit(0 if g > r + 60 and g > b + 60 else 1)
+PYV
+then ok "la poche du dossier est bien VERTE (plus d'orange)"; else non "la couleur n'a pas été remplacée"; fi
+SOMBRE="$(bash -c 'source <(sed -n "/^sombre()/,/^}/p" "$0"); sombre E8590C' "$OUTIL")"
+[[ "$SOMBRE" == "A74008" ]] && ok "le dos est la poche assombrie (×0,72, comme le dossier orange)" || non "dos mal calculé : $SOMBRE"
+grep -q 'folder-download' "$OUTIL" && ok "un dossier standard garde son dessin (DL, IMG…) en changeant de couleur" || non "les dossiers standards perdent leur pastille"
+grep -q 'metadata::lexos-couleur' "$OUTIL" && ok "la couleur est gardée sur le dossier (ré-étiqueter ne la perd pas)" || non "couleur oubliée au ré-étiquetage"
+grep -q 'lexos-etiquette --choisir %F' "$UCA" && ok "le clic droit dans Fichiers propose « Couleur du dossier… »" || non "pas de « Couleur du dossier… » au clic droit"
+coul --couleur fuchsia "$C/Projet École"; [[ $? -ne 0 ]] && ok "une couleur inconnue est refusée" || non "couleur inconnue acceptée"
+rm -rf "$C"
+
 printf '\n\033[1m%d réussis, %d échoués\033[0m\n' "$reussis" "$echoues"
 [[ "$echoues" -eq 0 ]]

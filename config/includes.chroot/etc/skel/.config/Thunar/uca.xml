@@ -49,6 +49,18 @@
 	<directories/>
 </action>
 <action>
+	<icon>preferences-color</icon>
+	<name>Couleur du dossier…</name>
+	<submenu></submenu>
+	<unique-id>1761955200000000-1</unique-id>
+	<command>lexos-etiquette --choisir %F</command>
+	<description>Change la couleur du dossier, pour retrouver tes projets d'un coup d'œil</description>
+	<range></range>
+	<patterns>*</patterns>
+	<startup-notify/>
+	<directories/>
+</action>
+<action>
 	<icon>preferences-desktop-wallpaper</icon>
 	<name>Définir comme fond d'écran</name>
 	<submenu></submenu>
