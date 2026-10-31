@@ -59,6 +59,8 @@ MODES = ("moteur", "classique")
 #  « / » selon ce réglage.
 INTERFACES = ("moteur", "demon")
 DEMON_THEMES = ("sang", "brasier", "spectre")
+#  La couleur des YEUX du démon, à part du thème (2026-10-31, « changer les yeux de couleur »).
+DEMON_YEUX = ("rouge", "orange", "jaune", "vert", "cyan", "bleu", "violet", "blanc")
 #  Ce qu'on peut déplacer sur le bureau démon, en dehors des tuiles.
 DEMON_DEPLACABLES = ("terminal", "horloge", "date")
 #  « pluie » (Pluie de code, l'effet Matrix) : retirée le 2026-10-22, RAMENÉE
@@ -93,6 +95,7 @@ DEFAUTS = {
     #  « Yeux » du dock les change ; gardés ici, pas dans le navigateur de la
     #  page, qui n'a pas de mémoire d'une session à l'autre.
     "demon_theme": "sang",
+    "demon_oeil": "rouge",
     "demon_suivre": True,
     "demon_intro": True,
     "demon_pluie": True,
@@ -221,6 +224,8 @@ def _propre(cle: str, v):
         if NOMADE:
             return "demon"
         return v if v in INTERFACES else None
+    if cle == "demon_oeil":
+        return v if v in DEMON_YEUX else None
     if cle == "demon_theme":
         return v if v in DEMON_THEMES else None
     if cle == "anim":

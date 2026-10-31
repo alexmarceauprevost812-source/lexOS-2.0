@@ -110,6 +110,26 @@ $("#themes").addEventListener("click", (e) => {
   garder({ demon_theme: P.demon_theme });
 });
 
+/* ════════════════ La couleur des yeux ════════════════
+   ALEX (2026-10-31) : « peut-on changer les yeux de couleur ». Rouges par
+   défaut ; un choix à part du thème, dans Yeux (réglage « demon_oeil »). */
+const YEUX = {
+  rouge: ["Rouge", "#e02424"], orange: ["Orange", "#ff6a1a"], jaune: ["Jaune", "#ffd21a"], vert: ["Vert", "#39ff14"],
+  cyan: ["Cyan", "#22d3ee"], bleu: ["Bleu", "#3a6bff"], violet: ["Violet", "#b026ff"], blanc: ["Blanc", "#f4f4f4"],
+};
+$("#yeux-couleurs").innerHTML = Object.entries(YEUX).map(([k, [nom, c]]) =>
+  `<button class="theme" data-oeil="${k}" style="--t:${c}" title="${nom}" aria-label="${nom}"><i></i></button>`).join("");
+function appliquerYeux(k) {
+  const c = (YEUX[k] || YEUX.rouge)[1];
+  document.documentElement.style.setProperty("--oeil", c);
+  $$("#yeux-couleurs .theme").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.oeil === (YEUX[k] ? k : "rouge"))));
+}
+$("#yeux-couleurs").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-oeil]"); if (!b || !P) return;
+  P.demon_oeil = b.dataset.oeil; appliquerYeux(P.demon_oeil);
+  garder({ demon_oeil: P.demon_oeil });
+});
+
 /* ════════════════ La pluie de 0 et de 1 ════════════════
    Une toile à la résolution CSS (pas de facteur d'écran : ce sont des
    chiffres flous à 55 % d'opacité, personne ne verra la différence, et ça
@@ -871,6 +891,7 @@ async function charger() {
   poserMarges(E.zone);
   poserDock(SECONDAIRE ? null : E.dock);
   appliquerTheme(P.demon_theme);
+  appliquerYeux(P.demon_oeil);
   if (!avant || avant.demon_pluie !== P.demon_pluie) pluie();
   appliquerPresence();
   $$(".inter").forEach((b) => b.setAttribute("aria-pressed", String(!!P[b.dataset.cle])));
