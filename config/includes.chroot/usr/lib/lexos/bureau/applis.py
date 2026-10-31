@@ -366,6 +366,18 @@ class Table:
             out.append({"id": ident, "cle": cle, "nom": nom})
         self._ajouter("s-github", "url", GITHUB, None)
         out.append({"id": "s-github", "cle": "github", "nom": "GitHub"})
+        #  Le dossier Bureau (~/Bureau), comme sur Ubuntu : ce qu'on y crée par
+        #  le clic droit (« Nouveau dossier », « Nouveau document ») ou qu'on y
+        #  copie apparaît sur le bureau démon, au bout de la grille.
+        for e in self.section_bureau():
+            if e["id"].startswith("b-"):
+                if e.get("emoji") == "📁":
+                    cle, icone = "dossier", False            # le trait du dossier, aux couleurs du thème
+                elif e.get("vignette") or e.get("emoji") in ("🚀", "🔗"):
+                    cle, icone = "bureau", e.get("icone", False)   # une image, un lanceur : sa vraie icône
+                else:
+                    cle, icone = "document", False
+                out.append({"id": e["id"], "cle": cle, "nom": e["nom"], "icone": icone})
         return out
 
     def section_bureau(self) -> list[dict]:

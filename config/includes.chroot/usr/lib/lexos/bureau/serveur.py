@@ -45,7 +45,8 @@ WEB = ICI / "web"
 #  20 polices dans le système, celle de ti-lex IA.
 MOTEUR_UI = Path(os.environ.get("LEXOS_BUREAU_MOTEUR_UI", "/usr/lib/lexos/ti-lex-ia/interface"))
 HOTES_LOCAUX = {"127.0.0.1", "localhost"}
-ACTIONS = ("parametres", "terminal", "dossier-bureau", "classique", "fond-suivant", "ranger", "audit", "reseau")
+ACTIONS = ("parametres", "terminal", "dossier-bureau", "classique", "fond-suivant", "ranger", "audit", "reseau",
+           "nouveau-dossier", "nouveau-document", "terminal-bureau", "affichage")
 
 
 def prenom() -> str:
@@ -466,6 +467,29 @@ def systeme() -> dict:
             "memoire": memoire, "allume": allume}
 
 
+def nouveau_sur_le_bureau(dossier: bool) -> bool:
+    """« Nouveau dossier » / « Nouveau document » dans ~/Bureau, sans jamais
+    écraser : « Nouveau dossier 2 », « 3 »… Le nom vient d'ici, pas de la page."""
+    d = applis.dossier_bureau()
+    base, ext = ("Nouveau dossier", "") if dossier else ("Nouveau document", ".txt")
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+        for n in range(1, 200):
+            p = d / (f"{base}{ext}" if n == 1 else f"{base} {n}{ext}")
+            try:
+                if dossier:
+                    p.mkdir()
+                else:
+                    with open(p, "x", encoding="utf-8"):
+                        pass
+                return True
+            except FileExistsError:
+                continue
+    except OSError:
+        pass
+    return False
+
+
 def action(nom: str, etat: Etat) -> bool:
     if nom not in ACTIONS:
         return False
@@ -494,6 +518,19 @@ def action(nom: str, etat: Etat) -> bool:
     if nom == "ranger":
         reglages.ecrire({"positions": {}})
         return True
+    #  Le clic droit du bureau démon, comme celui d'Ubuntu (2026-10-31).
+    if nom in ("nouveau-dossier", "nouveau-document"):
+        return nouveau_sur_le_bureau(nom == "nouveau-dossier")
+    if nom == "terminal-bureau":
+        d = str(applis.dossier_bureau())
+        if shutil.which("exo-open"):
+            return applis._detache(["exo-open", "--working-directory", d, "--launch", "TerminalEmulator"])
+        return applis._detache(["x-terminal-emulator", "--working-directory", d])
+    if nom == "affichage":
+        for cmd in (["lexos-settings", "ecrans"], ["xfce4-display-settings"]):
+            if shutil.which(cmd[0]):
+                return applis._detache(cmd)
+        return False
     if nom == "fond-suivant":
         r = reglages.lire()
         i = (reglages.FONDS.index(r["anim"]) + 1) % len(reglages.FONDS)

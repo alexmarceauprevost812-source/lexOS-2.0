@@ -277,7 +277,9 @@ html.leger .filigrane { animation: none; }
 }
 
 /* Le menu du clic droit : plus étroit que le menu système. */
-.menu-clic { width: 230px; padding: 8px; gap: 6px; z-index: 45; }
+.menu-clic { width: 290px; padding: 8px; gap: 4px; z-index: 45; }
+.menu-clic hr { border: 0; border-top: 1px solid var(--bord); margin: 3px 2px; width: 100%; }
+.menu-clic button { height: 36px; }
 
 /* Couleur des yeux : des pastilles rondes, sans texte. */
 .yeux-couleurs { flex-wrap: wrap; gap: 8px; }

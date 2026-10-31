@@ -285,6 +285,8 @@ const DESSINS = {
   maison: "M3 11l9-7 9 7 M5 10v10h14V10 M10 20v-6h4v6",
   corbeille: "M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13",
   appli: "M5 5h6v6H5z M13 5h6v6h-6z M5 13h6v6H5z M13 13h6v6h-6z",
+  dossier: "M3 6h6l2 2h10v11H3z",
+  document: "M7 3h7l4 4v14H7z M14 3v4h4 M10 12h5 M10 16h5",
 };
 //  Des PHOTOS plutôt que des traits pour deux tuiles : le gars de GitHub
 //  (le dépôt de LexOS) et Tux (« à propos »). Petites (≤ 192 px), dans web/.
@@ -612,21 +614,52 @@ document.addEventListener("pointercancel", () => {
 function fermerMenuClic() { const m = $("#menu-clic"); if (m) m.hidden = true; }
 function ouvrirMenuClic(x, y, tuileVisee) {
   const m = $("#menu-clic");
-  const quoi = tuileVisee ? "cette appli" : "les éléments du bureau";
-  m.innerHTML = (tuileVisee ? `<button data-clic="ouvrir">▶  Ouvrir</button>` : "")
-    + `<button data-clic="deplacer">✋  Déplacer ${quoi}</button>`;
+  //  ALEX (2026-10-31) : « mettre toutes les mêmes outils que Ubuntu quand on
+  //  clique sur le droit de la souris ». Sur le fond : le menu du bureau
+  //  d'Ubuntu ; sur une appli : Ouvrir, Déplacer, et la remettre en place.
+  const libre = tuileVisee && tuileVisee.closest("#libres");
+  const ligne = (cle, texte) => `<button data-clic="${cle}">${texte}</button>`;
+  m.innerHTML = tuileVisee
+    ? ligne("ouvrir", "▶  Ouvrir") + ligne("deplacer", "✋  Déplacer cette appli")
+      + (libre ? ligne("ranger-une", "↩️  Remettre dans la grille") : "")
+    : ligne("nouveau-dossier", "📁  Nouveau dossier") + ligne("nouveau-document", "📄  Nouveau document")
+      + "<hr>"
+      + ligne("dossier-bureau", "🗂️  Ouvrir le Bureau dans Fichiers") + ligne("terminal-bureau", "⌨️  Ouvrir dans un terminal")
+      + "<hr>"
+      + ligne("deplacer", "✋  Déplacer les éléments du bureau") + ligne("ranger", "🧲  Ranger les icônes")
+      + "<hr>"
+      + ligne("fond", "🎨  Changer le fond et les couleurs…") + ligne("affichage", "🖥️  Paramètres d'affichage")
+      + ligne("parametres", "⚙️  Paramètres");
   m.hidden = false;
   const r = m.getBoundingClientRect();
   m.style.left = Math.max(8, Math.min(innerWidth - r.width - 8, x)) + "px";
   m.style.top = Math.max(8, Math.min(innerHeight - r.height - 8, y)) + "px";
-  m.onclick = (ev) => {
+  m.onclick = async (ev) => {
     const b = ev.target.closest("[data-clic]");
     if (!b) return;
     fermerMenuClic();
-    if (b.dataset.clic === "ouvrir" && tuileVisee) ouvrirTuile(tuileVisee);
-    if (b.dataset.clic === "deplacer") {
+    const c = b.dataset.clic;
+    if (c === "ouvrir" && tuileVisee) ouvrirTuile(tuileVisee);
+    else if (c === "deplacer") {
       modeModifier(true);
       bulle(tuileVisee ? "Glisse l'appli où tu veux, puis Terminé" : "Glisse l'heure, la date, le terminal ou les applis, puis Terminé");
+    } else if (c === "ranger-une" && tuileVisee) {
+      const id = tuileVisee.dataset.id, nouvelles = { ...places() };
+      delete nouvelles["app:" + id];
+      if (P) P.demon_places = nouvelles;
+      ORDRE.grille.push(id);
+      dessinerGrille(); dessinerLibres();
+      garder({ demon_places: nouvelles, demon_grille: ORDRE.grille });
+    } else if (c === "ranger") reinitialiser();
+    else if (c === "fond") ouvrirPanneau(true);
+    else {
+      //  Les actions du serveur (une liste fermée, ACTIONS dans serveur.py).
+      try {
+        const r = await api("/api/action", { nom: c });
+        if (!r.ok) bulle("Ça n'a pas marché");
+        else if (c === "nouveau-dossier") bulle("📁 Nouveau dossier créé sur le bureau");
+        else if (c === "nouveau-document") bulle("📄 Nouveau document créé sur le bureau");
+      } catch { bulle("Le bureau ne répond pas"); }
     }
   };
 }
