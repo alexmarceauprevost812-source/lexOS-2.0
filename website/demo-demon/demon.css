@@ -311,3 +311,37 @@ html.pro .yeux-tuile::before {
 /* Dans le panneau : les réglages du démon n'ont pas de sens ici. */
 html.pro .bloc:has(#yeux-couleurs), html.pro .bloc:has(#presence),
 html.pro .inter[data-cle^="demon_"] { display: none; }
+
+/* ════════════════ Icônes vivantes (terminal, navigateur) ════════════════
+   ALEX : « animation d'écriture de code, animation de Chrome qui tourne ».
+   Dessinées pour LexOS. Survolées, elles vont plus vite. */
+.tuile svg.vivante { stroke: var(--ac); }
+.vivante rect:not([fill="none"]), .vivante .coeur { fill: var(--ac); stroke: none; }
+/* Le code qui s'écrit : chaque ligne s'allonge, l'une après l'autre, puis
+   tout repart ; le curseur clignote au bout. */
+.vivante.code .l1, .vivante.code .l2, .vivante.code .l3 { transform-box: fill-box; transform-origin: left center; animation: lx-ecrit 4.2s steps(8, end) infinite; }
+.vivante.code .l2 { animation-delay: .9s; }
+.vivante.code .l3 { animation-delay: 1.8s; }
+.vivante.code .curseur { animation: lx-curseur 1s steps(1) infinite; }
+@keyframes lx-ecrit { 0% { transform: scaleX(0); } 30%, 88% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
+@keyframes lx-curseur { 50% { opacity: 0; } }
+/* Le globe : trois anneaux qui tournent à des vitesses différentes. */
+.vivante.globe .anneaux ellipse { transform-box: view-box; transform-origin: 12px 12px; }
+.vivante.globe .a1 { animation: lx-tourne 9s linear infinite; opacity: .9; }
+.vivante.globe .a2 { animation: lx-tourne 6s linear infinite reverse; opacity: .7; }
+.vivante.globe .a3 { animation: lx-tourne 12s linear infinite; opacity: .5; }
+@keyframes lx-tourne { to { transform: rotate(360deg); } }
+.appli:hover .vivante.globe .anneaux ellipse { animation-duration: 2.2s; }
+.appli:hover .vivante.code .l1, .appli:hover .vivante.code .l2, .appli:hover .vivante.code .l3 { animation-duration: 2s; }
+@media (prefers-reduced-motion: reduce) {
+  .vivante * { animation: none !important; }
+}
+/* Le dossier qui s'ouvre : au survol, le rabat bascule vers l'avant et une
+   feuille monte. Au repos, un dossier fermé ordinaire. */
+.vivante.dossier .rabat { fill: var(--tuile); stroke: var(--ac); transform-box: view-box; transform-origin: 12px 20px; transition: transform .35s cubic-bezier(.3,1.4,.5,1); }
+.vivante.dossier .feuille { fill: var(--ac); opacity: .85; transform: translateY(2.5px); transition: transform .35s cubic-bezier(.3,1.4,.5,1); }
+.appli:hover .vivante.dossier .rabat { transform: scaleY(.62) skewX(-10deg); }
+.appli:hover .vivante.dossier .feuille { transform: translateY(-2.2px); }
+@media (prefers-reduced-motion: reduce) {
+  .vivante.dossier .rabat, .vivante.dossier .feuille { transition: none; }
+}
