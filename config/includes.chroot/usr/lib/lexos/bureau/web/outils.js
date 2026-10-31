@@ -420,7 +420,18 @@ function ouvrir() {
   demanderTaille();
   charger();
 }
+/*  FIXÉE EN HAUT (réglage « outils_fixe », d'office sur la clé nomade) :
+    fenetre.py appelle outils.fixer(true). La barre ne remonte plus jamais :
+    « fermer » (Échap, une appli lancée, un clic dans le vide) referme
+    seulement les menus, et la fenêtre reprend sa hauteur de barre. */
+let fixe = false;
+function fixer(oui) {
+  fixe = !!oui;
+  document.body.classList.toggle("fixe", fixe);
+  if (fixe && !document.body.classList.contains("ouvert")) ouvrir();
+}
 function fermer() {
+  if (fixe) { clearTimeout(fermeture); fermerMenus(); menu = null; choix = false; demanderTaille(); return; }
   if (!document.body.classList.contains("ouvert")) return;
   fermerMenus(); menu = null; choix = false;
   document.body.classList.remove("ouvert");
@@ -448,5 +459,5 @@ function teleRatee() {
   bulle("L'ordinateur ne s'est pas éteint — essaie « systemctl poweroff » dans un terminal");
 }
 
-window.outils = { ouvrir, fermer, tele, teleRatee };
+window.outils = { ouvrir, fermer, fixer, tele, teleRatee };
 charger();

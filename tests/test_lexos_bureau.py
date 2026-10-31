@@ -129,6 +129,7 @@ class Reglages(unittest.TestCase):
     def test_outils(self):
         r = self.rg.lire()
         self.assertEqual((r["outils"], r["outils_apps"]), (True, ["*"]))
+        self.assertFalse(r["outils_fixe"])     # hors nomade : la barre descend au survol, comme avant
         self.assertEqual(self.rg._propre("outils_apps", ["a-0123456789abcd", "/bin/sh"]), ["a-0123456789abcd"])
         self.assertIsNone(self.rg._propre("outils", "oui"))
 
@@ -324,6 +325,22 @@ class SaveurNomade(unittest.TestCase):
         self.assertEqual((r["mode"], r["interface"], r["demon_theme"]), ("moteur", "demon", "sang"))
         self.assertEqual(self.rg.ecrire({"interface": "ailleurs", "demon_theme": "rose"})["interface"], "demon")
         self.assertEqual(self.rg.ecrire({"demon_presence": 5})["demon_presence"], 20)
+        #  ti-lexos-pro sur la clé : « l'outil en haut de l'écran visible et fixe ».
+        self.assertTrue(r["outils_fixe"])
+        self.assertFalse(self.rg.ecrire({"outils_fixe": False})["outils_fixe"])
+        self.assertIsNone(self.rg._propre("outils_fixe", "oui"))
+
+    def test_outils_fixes_branches(self):
+        """La barre fixée : fenetre.py la garde ouverte et pose la marge
+        xfwm4 ; la page ne se replie plus ; le panneau Yeux a l'interrupteur."""
+        racine = Path(__file__).resolve().parent.parent / "config/includes.chroot/usr/lib/lexos/bureau"
+        f = (racine / "fenetre.py").read_text("utf-8")
+        for bout in ('"outils_fixe"', "/general/margin_top", "def _fixer", "outils.fixer(true)", "plein_ecran()"):
+            self.assertIn(bout, f)
+        js = (racine / "web/outils.js").read_text("utf-8")
+        self.assertIn("if (fixe) {", js)
+        self.assertIn("fixer, tele", js)
+        self.assertIn('["outils_fixe",', (racine / "web/demon.js").read_text("utf-8"))
 
     def test_disposition_demon_aller_retour(self):
         """Le mode « modifier » du bureau démon : l'ordre de la grille et du

@@ -870,6 +870,9 @@ const INTERRUPTEURS = [
   ["demon_suivre", "les yeux suivent la souris"],
   ["demon_intro", "les yeux s'ouvrent au démarrage"],
   ["demon_pluie", "pluie de 0 et de 1"],
+  //  ALEX : « l'outil en haut de l'écran visible et fixe ». fenetre.py relit
+  //  le réglage aux 2 s : la barre se fixe ou se replie sans redémarrer.
+  ["outils_fixe", "Mes outils fixés en haut"],
 ];
 $("#interrupteurs").innerHTML = INTERRUPTEURS.map(([k, l]) =>
   `<button class="inter" data-cle="${k}" aria-pressed="true"><span>${l}</span><span class="piste"><span class="bouton"></span></span></button>`).join("");

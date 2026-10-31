@@ -148,6 +148,13 @@ DEFAUTS = {
     #  haut, et la barre des outils tombait à chaque fois. Elle reste à un
     #  bouton : « Mes outils » dans le panneau Yeux du bureau démon.
     "outils": not NOMADE,
+    #  ALEX (31 octobre, ti-lexos-pro sur la clé) : « l'outil en haut de
+    #  l'écran visible et fixe en haut de l'écran ». Fixée, la barre reste
+    #  affichée tout le temps (elle ne descend plus au survol, elle ne repart
+    #  plus quand la souris s'en va), et les fenêtres maximisées s'arrêtent
+    #  dessous (marge du haut de xfwm4) au lieu de passer sous elle.
+    #  D'office sur la nomade : c'est elle qui n'a plus de barre XFCE.
+    "outils_fixe": NOMADE,
     "outils_apps": ["*"],
     #  Où Alex a posé ses icônes : {identifiant: [x, y]} en pixels du bureau.
     #  Vide = la grille par sections. Une icône qu'on n'a jamais déplacée

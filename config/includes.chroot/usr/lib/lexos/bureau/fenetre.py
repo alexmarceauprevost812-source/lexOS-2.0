@@ -568,9 +568,106 @@ class Outils(Tiroir):
     SIGNAL = signal.SIGUSR2
     COIN = 80
 
+    #  ═══ FIXÉE EN HAUT (réglage « outils_fixe », d'office sur la nomade) ═══
+    #  ALEX : « l'outil en haut de l'écran visible et fixe en haut ». La barre
+    #  est montrée dès que le bureau démarre et n'est plus jamais cachée par
+    #  la souris ; « fermer » (Échap, une appli lancée) referme seulement les
+    #  menus. Pour que les fenêtres maximisées s'arrêtent SOUS elle, on pose
+    #  la marge du haut de xfwm4 (/general/margin_top) : une fenêtre
+    #  override-redirect comme celle-ci ne peut pas réserver de place
+    #  elle-même (le gestionnaire de fenêtres ignore ses « struts »).
+    MARGE = 80          # la barre : 10 px d'air + 62 px de barre + la lueur
+
     def __init__(self, *a, **k) -> None:
         super().__init__(*a, **k)
         self.en_arret = False
+        self.fixe = False
+        self.marge_posee = 0
+        self.regl["outils_fixe"] = False
+        self.vue.loadFinished.connect(self._page_prete)
+
+    def lire_reglages(self) -> None:
+        avant = self.regl.get("outils_fixe", False)
+        empreinte = self.empreinte
+        super().lire_reglages()
+        if self.empreinte != empreinte:
+            try:
+                self.regl["outils_fixe"] = bool(self.rg.lire().get("outils_fixe", False))
+            except Exception:
+                self.regl["outils_fixe"] = avant
+
+    def _page_prete(self, ok: bool) -> None:
+        #  La page a pu finir de charger APRÈS le premier « ouvrir » : sans
+        #  ce rappel, la barre fixée resterait repliée hors de l'écran.
+        if ok and self.fixe:
+            self.vue.page().runJavaScript("window.outils && (outils.fixer(true), outils.ouvrir())")
+
+    def _marge(self, px: int) -> None:
+        """La marge du haut de xfwm4, en vrais pixels. On ne remet à zéro que
+        la marge qu'on a posée soi-même."""
+        if px == self.marge_posee or not shutil.which("xfconf-query"):
+            return
+        try:
+            subprocess.run(["xfconf-query", "-c", "xfwm4", "-p", "/general/margin_top",
+                            "--create", "-t", "int", "-s", str(px)],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+            self.marge_posee = px
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    def _fixer(self, oui: bool) -> None:
+        self.fixe = oui
+        if oui:
+            r = self.app.primaryScreen().devicePixelRatio() or 1
+            self._marge(round(self.MARGE * r))
+            self.vue.page().runJavaScript("window.outils && outils.fixer(true)")
+            self.attendre_sortie = False
+            self.ouvrir()
+        else:
+            self._marge(0)
+            self.vue.page().runJavaScript("window.outils && outils.fixer(false)")
+            self.cacher()
+
+    def fermer(self) -> None:
+        if self.fixe and not self.en_arret:
+            #  Fixée : on referme les menus, la barre reste.
+            self.vue.page().runJavaScript("window.outils && outils.fermer()")
+            return
+        super().fermer()
+
+    def basculer(self) -> None:
+        if self.fixe:
+            if not self.ouvert:
+                self.ouvrir()
+            else:
+                self.fermer()
+            return
+        super().basculer()
+
+    def tic(self) -> None:
+        self.lire_reglages()
+        voulu = bool(self.regl.get("outils_fixe"))
+        if voulu != self.fixe:
+            self._fixer(voulu)
+        if not self.fixe:
+            super().tic()
+            return
+        self.battement = time.monotonic()
+        if self.demande:
+            self.demande = False
+            self.basculer()
+        #  Pendant l'arrêt façon télé, la fenêtre couvre tout l'écran : on
+        #  n'y touche pas. Sinon, la barre est toujours là — même après
+        #  « rendre l'écran » (un arrêt raté), qui l'avait cachée.
+        #  Une vidéo ou un jeu en plein écran : la barre s'efface, et revient
+        #  dès que le plein écran se termine.
+        if self.en_arret:
+            return
+        plein = plein_ecran()
+        if plein and self.ouvert:
+            self.cacher()
+        elif not plein and not self.ouvert:
+            self.ouvrir()
 
     def rect(self, hauteur: int | None = None):
         """Toute la largeur, sous la barre du haut. Mince (la barre seule) ;
@@ -578,6 +675,14 @@ class Outils(Tiroir):
         from PySide6.QtCore import QRect
         g = self.app.primaryScreen().geometry()
         haut = haut_utile(g)
+        #  Notre propre marge xfwm4 peut entrer dans _NET_WORKAREA : la barre
+        #  se poserait alors SOUS la place qu'elle s'est réservée. On la retire
+        #  (sans jamais remonter au-dessus du haut de l'écran).
+        if self.fixe and self.marge_posee:
+            r = self.app.primaryScreen().devicePixelRatio() or 1
+            sans = haut - round(self.marge_posee / r)
+            if sans >= g.y():
+                haut = sans
         place = g.y() + g.height() - haut
         h = max(80, min(place, hauteur or self.hauteur or 96))
         return QRect(g.x(), haut, g.width(), h)

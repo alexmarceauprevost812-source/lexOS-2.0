@@ -2619,4 +2619,9 @@ suite: trixie
 #  carte dédiée (repli sans 3D), KVM, pagination imbriquée, grandes pages.
 #  Choix notés dans %USERPROFILE%\LexOS-Nomade\reglages.txt.
 #
-build: 130
+#  ISO 131 — « Mes outils » fixés en haut de l'écran (31 octobre)
+#  Nomade : la barre « Mes outils » du bureau démon est toujours affichée
+#  en haut (plus de survol), les fenêtres maximisées s'arrêtent dessous
+#  (marge xfwm4), elle s'efface en plein écran. Interrupteur dans Yeux.
+#
+build: 131
