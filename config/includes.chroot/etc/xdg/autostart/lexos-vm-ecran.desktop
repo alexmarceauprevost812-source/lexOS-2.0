@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LexOS — écran ajusté à la fenêtre VirtualBox
+Name[en]=LexOS — screen follows the VirtualBox window
+Comment=Dans VirtualBox ou VMware, applique la taille de la fenêtre pour une image nette ; ne fait rien sur un vrai PC
+Comment[en]=In VirtualBox or VMware, follows the window size for a sharp picture; does nothing on real hardware
+Exec=/usr/bin/lexos-vm-ecran
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+OnlyShowIn=XFCE;

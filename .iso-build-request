@@ -2606,4 +2606,11 @@ suite: trixie
 #  2. Nomade : os-prober coupé — la clé n'ajoute plus les systèmes du PC
 #     hôte à son menu (hook 0415, zz-lexos-nomade.cfg).
 #
-build: 128
+#  ISO 129 — image nette dans VirtualBox (31 octobre)
+#  1. Kit PLAY : démarrage à la résolution de l'écran du PC (plafond
+#     1920 x 1080) au lieu de 800 x 600 étiré ; fenêtre ajustable, sans
+#     mise à l'échelle floue de VirtualBox.
+#  2. lexos-vm-ecran : le bureau suit la taille de la fenêtre VirtualBox
+#     (VMSVGA/vmwgfx, sans Additions invité) ; inactif sur un vrai PC.
+#
+build: 129

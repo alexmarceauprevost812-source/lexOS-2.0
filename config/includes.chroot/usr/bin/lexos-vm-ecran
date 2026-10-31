@@ -1,0 +1,60 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-vm-ecran — dans VirtualBox, l'écran de LexOS suit la fenêtre
+# =============================================================================
+#  ALEX, 31 octobre : « améliorer la qualité de l'image de LexOS dans la VM ».
+#
+#  POURQUOI L'IMAGE ÉTAIT FLOUE. La VM (kit PLAY) utilise la carte VMSVGA.
+#  Quand on agrandit la fenêtre, VirtualBox annonce la nouvelle taille au
+#  pilote vmwgfx du noyau, qui l'ajoute comme mode « préféré » (le « + » de
+#  xrandr). GNOME applique ce mode tout seul ; XFCE, NON. LexOS restait donc
+#  à sa petite résolution de départ, étirée dans une grande fenêtre : flou.
+#  Les « Additions invité » de VirtualBox (VBoxClient) le feraient, mais
+#  Debian ne les fournit pas, et la clé doit rester légère.
+#
+#  CE QUE FAIT CE PROGRAMME. Toutes les 2 secondes, il compare le mode
+#  préféré de l'écran virtuel à celui affiché ; s'ils diffèrent, il applique
+#  le préféré (xrandr --auto). Une commande xrandr : rien de lourd.
+#
+#  OÙ IL TOURNE. Lancé à l'ouverture de session (/etc/xdg/autostart). Il
+#  sort TOUT DE SUITE hors d'une machine virtuelle VirtualBox ou VMware :
+#  sur un vrai PC, il ne fait rien et ne touche à aucun écran.
+#
+#  « lexos-vm-ecran --une-fois » : une seule vérification (pour les tests).
+# =============================================================================
+
+VIRT="${LEXOS_VM_ECRAN_VIRT:-$(systemd-detect-virt --vm 2>/dev/null || true)}"
+case "$VIRT" in
+	oracle|vmware) ;;
+	*) exit 0 ;;
+esac
+
+command -v xrandr >/dev/null 2>&1 || exit 0
+[ -n "${DISPLAY:-}" ] || exit 0
+
+UNE_FOIS=0
+[ "${1:-}" = "--une-fois" ] && UNE_FOIS=1
+PAUSE="${LEXOS_VM_ECRAN_PAUSE:-2}"
+
+ajuster() {
+	#  Pour chaque sortie branchée : mode affiché (*) et mode préféré (+).
+	xrandr --query 2>/dev/null | awk '
+		/ connected/ { out = $1; next }
+		/^[^ ]/      { out = "" }
+		out != "" && /^ +[0-9]+x[0-9]+/ {
+			if ($0 ~ /\*/) cur[out] = $1
+			if ($0 ~ /\+/ && !(out in pref)) pref[out] = $1
+		}
+		END { for (o in pref) if (pref[o] != cur[o]) print o }
+	' | while read -r SORTIE; do
+		[ -n "$SORTIE" ] && xrandr --output "$SORTIE" --auto 2>/dev/null
+	done
+}
+
+ajuster
+[ "$UNE_FOIS" -eq 1 ] && exit 0
+
+while :; do
+	sleep "$PAUSE"
+	ajuster
+done

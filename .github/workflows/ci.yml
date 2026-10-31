@@ -479,6 +479,7 @@ jobs:
           #  (donc sans ligne dans /etc/fstab).
           sudo apt-get install -y --no-install-recommends python3-yaml >/dev/null 2>&1 || true
           bash tests/test_lexos_kit_play.sh
+          bash tests/test_lexos_vm_ecran.sh
 
       - name: Le démarrage de la nomade — thème Plymouth, hook 0415, nom de l'ISO
         if: ${{ !cancelled() }}

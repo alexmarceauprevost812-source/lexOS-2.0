@@ -56,6 +56,23 @@ $ram = if ($ramGo -ge 24) { 8192 } elseif ($ramGo -ge 12) { 6144 } else { 4096 }
 $cpu = [math]::Max(2, [math]::Min(6, [Environment]::ProcessorCount - 2))
 vb modifyvm $VM --firmware efi --memory $ram --cpus $cpu --graphicscontroller vmsvga --vram 128 --nic1 nat --boot1 disk --boot2 none --mouse usbtablet --usbxhci on
 
+# Image nette : par défaut l'EFI de VirtualBox démarre en 800 x 600 et le
+# démarrage (GRUB, les yeux du démon) est étiré, donc flou. On démarre à la
+# taille de l'écran du PC (plafonnée à 1920 x 1080, au-delà la clé rame), et
+# la fenêtre demande à LexOS de suivre sa taille (lexos-vm-ecran, côté LexOS).
+$ecran = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$res = '1280x720'
+if ($ecran.Width -ge 1366 -and $ecran.Height -ge 768)  { $res = '1366x768' }
+if ($ecran.Width -ge 1600 -and $ecran.Height -ge 900)  { $res = '1600x900' }
+if ($ecran.Width -ge 1920 -and $ecran.Height -ge 1080) { $res = '1920x1080' }
+vb setextradata $VM 'VBoxInternal2/EfiGraphicsResolution' $res
+vb setextradata $VM 'GUI/AutoresizeGuest' 'true'
+vb setextradata $VM 'GUI/LastGuestSizeHint' ($res -replace 'x', ',')
+# Pas de mise à l'échelle par VirtualBox : c'est elle qui rend l'image floue
+# sur les écrans à 125 % / 150 %. LexOS reçoit les vrais pixels.
+vb setextradata $VM 'GUI/ScaleFactor' '1'
+vb setextradata $VM 'GUI/HiDPI/UnscaledOutput' 'true'
+
 # 5. Relier la clé (refait à chaque fois : son numéro change selon le port)
 $Vmdk = Join-Path $Dir 'cle.vmdk'
 vb storageattach $VM --storagectl SATA --port 0 --device 0 --medium none
