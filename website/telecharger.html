@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Télécharger LexOS 2.0.0 « Nomad »</title>
-<meta name="description" content="Télécharger LexOS 2.0.0 « Nomad » : la version pro (~8 Gio, pilote NVIDIA compris), configuration requise, vérification du fichier ISO par empreinte SHA-256.">
+<title>Télécharger LexOS — trois versions</title>
+<meta name="description" content="Télécharger LexOS : installé sur ton PC (Pro, pilote NVIDIA compris), sur une clé USB-C qui roule dans VirtualBox (Nomade), ou sur ton PC avec une clé USB comme espace en plus (Pro + clé mémoire).">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -19,7 +19,7 @@
       <a href="installation.html">Installation</a>
       <a href="demo/">Démo</a>
       <a href="telephone.html">Téléphone</a>
-      <a class="gh-icon" href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0" target="_blank" rel="noopener" aria-label="GitHub" title="Voir le code sur GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg><span>GitHub</span></a>
+      <a class="gh-icon" href="https://github.com/alexmarceauprevost812-source/lexOS-2.0" target="_blank" rel="noopener" aria-label="GitHub" title="Voir le code sur GitHub"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg><span>GitHub</span></a>
     </nav>
     <a class="cta" href="#saveurs">Télécharger</a>
   </div>
@@ -27,28 +27,67 @@
 
 <main class="wrap narrow" style="padding-top:50px">
   <p class="kicker">Télécharger</p>
-  <h1 class="mt0">LexOS 2.0.0 « Nomad »</h1>
-  <p class="lede"><b>L'édition Pro 2.0.0 est prête.</b> Elle réunit tout :
-  jouer aux jeux Windows (Steam/Proton, Lutris, Wine), le studio création
-  (photo, musique, vidéo), Claude et Claude Code, les émulateurs, les
-  manettes. Comme l'ISO fait plus de 2&nbsp;Go, GitHub la livre en
-  <b>plusieurs morceaux</b> dans une <b>Release</b> — le guide ci-dessous te
-  tient par la main du téléchargement jusqu'au bureau, sans erreur.</p>
+  <h1 class="mt0">Choisis ta version de LexOS</h1>
+  <p class="lede">Le même LexOS, trois façons de l'avoir. Toutes sont
+  gratuites, sans compte, et se téléchargent dans les <b>Releases</b> du
+  dépôt GitHub.</p>
+
+  <div class="grid cols-3" style="margin:26px 0">
+    <div class="card accent">
+      <h3>🖥️ LexOS Pro — sur ton PC</h3>
+      <p><b>L'installation complète.</b> LexOS s'installe sur le disque de
+      ton ordinateur, à côté de Windows : au démarrage, tu choisis l'un ou
+      l'autre. Pilote NVIDIA compris (RTX 5060 et plus), jeux, studio
+      création, Claude et Claude Code.</p>
+      <p style="margin-top:10px">💾 <b>30 à 40 Go</b> sur le disque du PC
+      (25 Go minimum).</p>
+      <p style="margin-top:14px"><a class="btn" href="https://github.com/alexmarceauprevost812-source/lexOS-2.0/releases/tag/latest-pro" target="_blank" rel="noopener">⬇ ISO Pro</a></p>
+    </div>
+    <div class="card">
+      <h3>🔌 LexOS Nomade — sur une clé USB-C</h3>
+      <p><b>Ton LexOS dans ta poche.</b> Installé sur une clé USB-C, avec le
+      bureau démon. Sous Windows, un double-clic sur <b>PLAY</b> le lance
+      dans VirtualBox — la machine virtuelle se règle toute seule pour la
+      meilleure image et la meilleure vitesse du PC. Il démarre aussi
+      directement sur un PC (F12).</p>
+      <p style="margin-top:10px">💾 Une clé USB-C de <b>32 Go ou plus</b> ;
+      VirtualBox (gratuit) sur le PC Windows.</p>
+      <p style="margin-top:14px"><a class="btn" href="https://github.com/alexmarceauprevost812-source/lexOS-2.0/releases/tag/latest-nomade" target="_blank" rel="noopener">⬇ ISO Nomade</a></p>
+    </div>
+    <div class="card">
+      <h3>🧠 LexOS Pro + clé mémoire</h3>
+      <p><b>Pour ceux qui manquent de place.</b> Tout le moteur de LexOS est
+      sur ton PC (environ 40 Go suffisent) ; une clé USB s'ajoute comme
+      <b>disque d'espace</b>. Elle se fusionne avec ton dossier : tu vois
+      un seul grand espace. Sans la clé, LexOS démarre pareil, avec juste
+      moins de place.</p>
+      <p style="margin-top:10px">💾 <b>~40 Go</b> sur le PC + une clé USB
+      (la taille que tu veux).</p>
+      <p style="margin-top:14px"><a class="btn ghost" href="#cle-memoire">Comment faire →</a></p>
+    </div>
+  </div>
+
+  <p class="dim">Les trois versions partagent le même code : chaque
+  amélioration de LexOS arrive dans les trois. Les ISO font plus de 2 Go,
+  donc GitHub les livre en <b>plusieurs morceaux</b> — le guide ci-dessous
+  te tient par la main.</p>
 
   <p class="center" style="margin:22px 0">
     <a class="btn ghost" href="demo-telechargement.html">▶ Essayer la démo interactive — téléchargement + démarrage, sans rien installer</a>
   </p>
 
   <div class="notice" style="border-color:var(--ac);background:rgba(230,126,34,.08)">
-    <h2 class="mt0">⭐ Guide 100&nbsp;% : télécharger et installer l'édition Pro</h2>
+    <h2 class="mt0">⭐ Guide 100&nbsp;% : télécharger et graver une ISO</h2>
     <ol class="steps">
       <li><h3>Ouvrir la dernière ISO</h3>
       <p class="dim">Clique ici :
-      <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0/releases/latest"
-         target="_blank" rel="noopener"><b>dernière ISO LexOS Pro</b></a>.
-      Ce lien pointe <b>toujours</b> vers la version la plus récente — chaque
-      fois qu'on ajoute quelque chose, une nouvelle ISO s'y construit toute
-      seule. Rien à retenir d'autre.</p></li>
+      <a href="https://github.com/alexmarceauprevost812-source/lexOS-2.0/releases/tag/latest-pro"
+         target="_blank" rel="noopener"><b>ISO Pro</b></a> ou
+      <a href="https://github.com/alexmarceauprevost812-source/lexOS-2.0/releases/tag/latest-nomade"
+         target="_blank" rel="noopener"><b>ISO Nomade</b></a>.
+      Ces liens pointent <b>toujours</b> vers la version la plus récente —
+      chaque fois qu'on ajoute quelque chose, une nouvelle ISO s'y construit
+      toute seule.</p></li>
 
       <li><h3>Télécharger tous les morceaux</h3>
       <p class="dim">Dans la section <b>Assets</b>, télécharge <b>TOUS</b> les
@@ -60,13 +99,17 @@
       <p class="dim">Ouvre un terminal <b>dans ce dossier</b> et lance une
       seule commande :</p>
       <pre><code># Linux ou Mac
-cat lexos-2.0.0-pro*.iso.part-* &gt; lexos-2.0.0-pro-amd64.hybrid.iso</code></pre>
+cat lexos-*.iso.part-* &gt; lexos.iso</code></pre>
       <pre><code># Windows (PowerShell, dans le dossier des morceaux)
-cmd /c copy /b ((Get-ChildItem 'lexos-2.0.0-pro*.iso.part-*' | Sort-Object Name | ForEach-Object Name) -join '+') lexos-2.0.0-pro-amd64.hybrid.iso</code></pre></li>
+cmd /c copy /b ((Get-ChildItem 'lexos-*.iso.part-*' | Sort-Object Name | ForEach-Object Name) -join '+') lexos.iso</code></pre></li>
 
       <li><h3>Vérifier que le fichier est intact</h3>
-      <pre><code>sha256sum -c lexos-2.0.0-pro-amd64.hybrid.iso.sha256</code></pre>
-      <p class="dim">La réponse doit contenir <b>« Réussi » / « OK »</b>. Si ce
+      <pre><code># Linux : compare avec le fichier .sha256
+sha256sum lexos.iso
+# Windows (PowerShell)
+Get-FileHash lexos.iso -Algorithm SHA256</code></pre>
+      <p class="dim">Le code affiché doit être <b>le même</b> que celui du
+      fichier <code>.sha256</code>. Avec <code>sha256sum -c</code>, la réponse doit contenir <b>« Réussi » / « OK »</b>. Si ce
       n'est pas le cas, un morceau a mal été téléchargé — reprends l'étape 2.</p></li>
 
       <li><h3>Graver l'ISO sur une clé USB</h3>
@@ -102,7 +145,7 @@ cmd /c copy /b ((Get-ChildItem 'lexos-2.0.0-pro*.iso.part-*' | Sort-Object Name 
   <p>Pas besoin d'installer quoi que ce soit sur ta machine.</p>
   <ol class="steps">
     <li><h3>Ouvrir l'onglet Actions</h3>
-    <p class="dim">Sur la page du <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0" target="_blank" rel="noopener">dépôt GitHub</a>,
+    <p class="dim">Sur la page du <a href="https://github.com/alexmarceauprevost812-source/lexOS-2.0" target="_blank" rel="noopener">dépôt GitHub</a>,
     onglet <b>Actions</b> → workflow <b>« Construire l'ISO »</b>.</p></li>
     <li><h3>Lancer la construction</h3>
     <p class="dim">Bouton <b>Run workflow</b>, choisis la saveur (voir le
@@ -125,8 +168,8 @@ sudo apt install -y live-build debootstrap xorriso squashfs-tools \
                     syslinux-common isolinux grub-efi-amd64-bin \
                     grub-pc-bin mtools dosfstools librsvg2-bin
 
-git clone https://github.com/alexmarceauprevost812-source/lexOS-1.2.0.git
-cd lexOS-1.2.0
+git clone https://github.com/alexmarceauprevost812-source/lexOS-2.0.git
+cd lexOS-2.0
 
 make check      # contrôle que tous les outils sont là
 make build      # construit l'ISO (saveur pro, le défaut)</code></pre>
@@ -137,7 +180,7 @@ make build      # construit l'ISO (saveur pro, le défaut)</code></pre>
     <code>git clone</code>, sans avoir besoin de Git installé. Dézippe, puis
     reprends à <code>make check</code> ci-dessus.
     <div class="row" style="margin-top:12px">
-      <a class="btn ghost" href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0/archive/refs/heads/supabase.zip">⬇ Code source (.zip)</a>
+      <a class="btn ghost" href="https://github.com/alexmarceauprevost812-source/lexOS-2.0/archive/refs/heads/supabase.zip">⬇ Code source (.zip)</a>
     </div>
   </div>
 
@@ -146,26 +189,43 @@ make build      # construit l'ISO (saveur pro, le défaut)</code></pre>
   ok  Taille   : 7.8G
   ok  SHA-256  : lexos-2.0.0-pro-amd64.hybrid.iso.sha256</code></pre>
 
-  <h2 id="saveurs">Une seule version : pro</h2>
-  <p>LexOS a eu cinq saveurs, puis deux, puis <b>une</b>. Chaque étape a
-  supprimé un choix qui ne servait à rien : depuis que « pro » sait s'adapter
-  à la machine où elle démarre, il n'y a plus de « laquelle je prends ? ».</p>
+  <h2 id="saveurs">Les versions, côte à côte</h2>
   <table>
-    <tr><th>Version</th><th>Contenu</th><th>Taille</th><th>Commande</th></tr>
-    <tr><td><b>pro</b></td><td>LA version de LexOS — bureau complet, tous les
-      outils, <b>pilote NVIDIA propriétaire compris</b>. Le service
-      lexos-gpu-garde vérifie au démarrage s'il y a vraiment une carte
-      NVIDIA : sinon, il range le pilote. La même ISO démarre sur une tour
-      à RTX comme sur un portable Intel de 2016. — <b>défaut</b></td>
-      <td>~8 Gio</td><td><code>make pro</code></td></tr>
-    <tr><td><b>minimal</b></td><td>Console seule, aucun bureau — pour les
-      serveurs et le dépannage</td><td>~700 Mio</td><td><code>make minimal</code></td></tr>
+    <tr><th>Version</th><th>Où vit LexOS</th><th>Place</th><th>Pour qui</th></tr>
+    <tr><td><b>Pro</b></td><td>Sur le disque du PC, à côté de Windows</td>
+      <td>30–40 Go</td><td>Le LexOS complet, au quotidien, pilote NVIDIA compris</td></tr>
+    <tr><td><b>Nomade</b></td><td>Sur une clé USB-C (VirtualBox via PLAY, ou démarrage direct)</td>
+      <td>clé de 32 Go+</td><td>Ton LexOS partout, sans rien installer sur le PC</td></tr>
+    <tr><td><b>Pro + clé mémoire</b></td><td>Le moteur sur le PC, l'espace en plus sur une clé USB</td>
+      <td>~40 Go + une clé</td><td>Ceux qui veulent Linux mais manquent de place</td></tr>
   </table>
-  <p class="dim"><code>standard</code>, <code>dev</code>, <code>full</code> et
-  <code>gaming</code> existent encore comme <b>alias historiques</b> : ils
-  construisent tous le même bureau que pro. Les téléchargements
-  « standard » et « dev » encore en ligne datent de constructions
-  antérieures — prends <b>pro</b>, c'est la version entretenue.</p>
+
+  <h2 id="cle-memoire">🧠 Pro + clé mémoire : le mode d'emploi</h2>
+  <p>Installe d'abord <b>LexOS Pro</b> sur ton PC (environ 40 Go suffisent).
+  Ensuite :</p>
+  <ol class="steps">
+    <li><h3>Brancher une clé USB</h3>
+    <p class="dim">Elle sera <b>effacée</b> : prends une clé vide.</p></li>
+    <li><h3>Trouver son nom</h3>
+    <pre><code>lexos cle-memoire preparer</code></pre>
+    <p class="dim">La liste de tes clés USB s'affiche, par exemple
+    <code>/dev/sdb</code>.</p></li>
+    <li><h3>La préparer</h3>
+    <pre><code>sudo lexos cle-memoire preparer /dev/sdb</code></pre>
+    <p class="dim">LexOS refuse tout seul le disque du PC et celui de Windows,
+    et te demande d'écrire <b>OUI</b> avant d'effacer la clé.</p></li>
+    <li><h3>Redémarrer</h3>
+    <p class="dim">Ton dossier personnel = l'espace du PC <b>plus</b> celui de la
+    clé, comme un seul disque. Les fichiers vont d'abord sur le PC ; quand il
+    ne lui reste que 10 Go (gardés pour les mises à jour), ils vont sur la
+    clé.</p></li>
+  </ol>
+  <div class="notice warn">
+    <b>Éteins le PC avant de débrancher la clé.</b> Le système LexOS, lui,
+    n'est jamais mis sur la clé : oubliée ou brisée, LexOS démarre quand même,
+    avec l'espace du PC. Tu préfères la clé à part, comme un dossier
+    « Mémoire » ? Ajoute <code>--dossier</code> à la commande.
+  </div>
 
   <h2>Configuration requise</h2>
   <div class="grid cols-3">
@@ -183,7 +243,7 @@ make build      # construit l'ISO (saveur pro, le défaut)</code></pre>
   <h2>Vérifier l'intégrité du fichier</h2>
   <p>Chaque ISO construite est accompagnée d'une empreinte SHA-256. Avant de la
   graver, vérifie que le téléchargement n'a pas été corrompu :</p>
-  <pre><code>sha256sum -c lexos-2.0.0-pro-amd64.hybrid.iso.sha256</code></pre>
+  <pre><code>sha256sum lexos.iso</code></pre>
   <p class="dim">Si la réponse n'est pas <code>OK</code>, l'ISO est corrompue :
   recommence le téléchargement plutôt que de graver un fichier abîmé.</p>
 
@@ -202,11 +262,11 @@ make build      # construit l'ISO (saveur pro, le défaut)</code></pre>
       <a href="fonctionnalites.html">Fonctionnalités</a>
       <a href="telecharger.html">Télécharger</a>
       <a href="installation.html">Installation</a>
-      <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0" target="_blank" rel="noopener">Code source</a>
-      <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0/issues" target="_blank" rel="noopener">Signaler un problème</a>
+      <a href="https://github.com/alexmarceauprevost812-source/lexOS-2.0" target="_blank" rel="noopener">Code source</a>
+      <a href="https://github.com/alexmarceauprevost812-source/lexOS-2.0/issues" target="_blank" rel="noopener">Signaler un problème</a>
     </div>
     <p>LexOS 2.0.0 « Nomad » — TI·LEX·AL. Basé sur Debian, bureau XFCE. Licence MIT
-    pour le travail original — voir <a href="https://github.com/alexmarceauprevost812-source/lexOS-1.2.0/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>.</p>
+    pour le travail original — voir <a href="https://github.com/alexmarceauprevost812-source/lexOS-2.0/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>.</p>
   </div>
 </footer>
 
