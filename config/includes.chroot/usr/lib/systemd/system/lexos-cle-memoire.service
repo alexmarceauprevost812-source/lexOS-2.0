@@ -1,0 +1,16 @@
+[Unit]
+Description=LexOS — fusionner la clé mémoire avec le dossier personnel
+Documentation=file:/usr/bin/lexos-cle-memoire
+#  Après fstab (la clé sur /mnt/lexos-memoire si elle est là), avant toute
+#  session : personne ne doit avoir de fichier ouvert dans /home.
+After=local-fs.target
+Before=display-manager.service systemd-user-sessions.service
+ConditionPathExists=/etc/lexos/cle-memoire
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/lexos/cle-memoire-fusion
+
+[Install]
+WantedBy=multi-user.target

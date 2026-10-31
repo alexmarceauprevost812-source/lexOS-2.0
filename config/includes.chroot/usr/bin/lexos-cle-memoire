@@ -7,21 +7,26 @@
 #  normalement, clé ou pas. « La clé va juste servir de mémoire de plus […]
 #  de bonus pour LexOS. » Sans elle : tout marche, avec moins de place.
 #
-#  CE QUE ÇA FAIT. La clé préparée apparaît dans ton dossier comme
-#  ~/Mémoire, dès qu'on l'ouvre (montage automatique de systemd). Débranchée,
-#  le dossier est simplement vide d'accès : rien d'autre ne change.
+#  DEUX FAÇONS DE S'EN SERVIR :
+#    · FUSION (par défaut) — « fusionnée pour que ça soit comme 1 » : ton
+#      dossier personnel devient UN seul espace fait du PC et de la clé.
+#      Les fichiers vont sur le PC tant qu'il lui reste 10 Go (gardés pour
+#      les mises à jour), puis sur la clé. Voir /usr/lib/lexos/cle-memoire-fusion.
+#      Le SYSTÈME n'est jamais mis sur la clé : retirée ou brisée, elle
+#      n'empêche pas LexOS de démarrer.
+#    · DOSSIER (--dossier) — la clé apparaît à part, comme ~/Mémoire.
 #  Non chiffrée (choix d'Alex), en ext4 : Windows ne la lit pas.
 #
 #  SEULE LA CLÉ PRÉPARÉE COMPTE. Reconnue par son UUID (/etc/lexos/cle-memoire),
 #  jamais par son nom.
 #
-#  AVANT DE DÉBRANCHER : ferme ce qui l'utilise. Elle se démonte toute seule
-#  après une minute sans servir ; « lexos cle-memoire ejecter » le fait tout
-#  de suite.
+#  EN FUSION, NE DÉBRANCHE PAS LA CLÉ PENDANT QUE LEXOS ROULE : éteins
+#  d'abord. Branchée après le démarrage, elle se fusionne au redémarrage.
 #
 #    lexos cle-memoire                   état
-#    sudo lexos cle-memoire preparer /dev/sdX   EFFACE la clé et la règle
-#    lexos cle-memoire ejecter           la démonter pour la débrancher
+#    sudo lexos cle-memoire preparer /dev/sdX            EFFACE la clé, fusion
+#    sudo lexos cle-memoire preparer /dev/sdX --dossier  EFFACE la clé, ~/Mémoire
+#    lexos cle-memoire ejecter           (mode dossier) la démonter
 #    sudo lexos cle-memoire oublier      ne plus s'en servir (rien n'est effacé)
 # =============================================================================
 set -uo pipefail
@@ -45,21 +50,33 @@ die()  { printf '%s✗%s %s\n' "$E" "$R" "$*" >&2; exit 1; }
 root() { [[ "$(id -u)" -eq 0 ]] || die "À lancer avec sudo : sudo lexos cle-memoire $*"; }
 uuid_conf() { [[ -r "$CONF" ]] && sed -n 's/^UUID=//p' "$CONF" | head -1; }
 
-#  La ligne fstab : « x-systemd.automount » monte la clé quand on ouvre le
-#  dossier (même branchée APRÈS le démarrage) ; « nofail » et un délai court :
-#  sans elle, le PC démarre normalement ; « idle-timeout » la démonte après
+#  La ligne fstab.
+#  DOSSIER : « x-systemd.automount » monte la clé quand on ouvre ~/Mémoire
+#  (même branchée après le démarrage) ; « idle-timeout » la démonte après
 #  une minute sans servir, pour qu'on puisse la retirer sans casse.
-ligne_fstab() {
-	printf 'UUID=%s  %s  ext4  defaults,noatime,nofail,noauto,x-systemd.automount,x-systemd.device-timeout=3s,x-systemd.idle-timeout=60  0  2  %s\n' "$1" "$POINT" "$MARQUE"
+#  FUSION : montée au démarrage, AVANT la fusion (cle-memoire-fusion) ; pas
+#  d'automontage, la fusion la tient ouverte tant que LexOS roule.
+#  Les deux : « nofail » et un délai court — sans elle, le PC démarre pareil.
+ligne_fstab() { # ligne_fstab <uuid> <mode>
+	local opts="defaults,noatime,nofail,x-systemd.device-timeout=3s"
+	[[ "$2" == dossier ]] && opts="$opts,noauto,x-systemd.automount,x-systemd.idle-timeout=60"
+	printf 'UUID=%s  %s  ext4  %s  0  2  %s\n' "$1" "$POINT" "$opts" "$MARQUE"
 }
+mode_conf() { [[ -r "$CONF" ]] && sed -n 's/^MODE=//p' "$CONF" | head -1; }
 
 cmd_etat() {
-	local u
-	u="$(uuid_conf)"
+	local u m
+	u="$(uuid_conf)"; m="$(mode_conf)"
 	printf '\n%sClé mémoire%s\n\n' "$B$O" "$R"
 	if [[ -z "$u" ]]; then
 		echo "  Aucune clé mémoire : LexOS utilise seulement le disque du PC."
 		echo "  ${D}Pour en ajouter une : sudo lexos cle-memoire preparer /dev/sdX${R}"
+	elif [[ "$m" == fusion && "$(findmnt -no FSTYPE /home 2>/dev/null)" == "fuse.mergerfs" ]]; then
+		ok "Fusionnée : ton dossier = PC + clé"
+		df -h --output=used,avail,size /home 2>/dev/null | tail -1 | awk '{print "  "$1" utilisés, "$2" libres (sur "$3" au total)"}'
+	elif [[ "$m" == fusion ]]; then
+		warn "Fusion réglée, mais la clé n'était pas là au démarrage : ton dossier = PC seulement."
+		echo "  ${D}Branche la clé et redémarre pour retrouver tout ton espace.${R}"
 	elif [[ -e "/dev/disk/by-uuid/$u" ]]; then
 		ok "Branchée — dans ton dossier : ~/Mémoire"
 		df -h --output=used,avail,size "$POINT" 2>/dev/null | tail -1 | awk '{print "  "$1" utilisés, "$2" libres (sur "$3")"}'
@@ -70,7 +87,9 @@ cmd_etat() {
 }
 
 cmd_preparer() {
-	local dev="${1:-}" racine disque_racine tran rm taille modele rep part u qui
+	local dev="" mode="fusion" a
+	for a in "$@"; do case "$a" in --dossier) mode=dossier ;; --fusion) mode=fusion ;; *) dev="$a" ;; esac; done
+	local racine disque_racine tran rm taille modele rep part u qui tmp
 	root preparer "$dev"
 	if [[ -z "$dev" ]]; then
 		echo "Clés USB branchées :"
@@ -94,7 +113,12 @@ cmd_preparer() {
 	taille="$(lsblk -dno SIZE "$dev" | tr -d ' ')"
 	modele="$(lsblk -dno MODEL "$dev" | sed 's/ *$//')"
 	printf '\n%s⚠  TOUT CE QUI EST SUR CETTE CLÉ SERA EFFACÉ%s\n\n' "$E$B" "$R"
-	echo "  Clé : $dev — ${modele:-?} — $taille"
+	echo "  Clé  : $dev — ${modele:-?} — $taille"
+	if [[ "$mode" == fusion ]]; then
+		echo "  Mode : FUSION — ton dossier = PC + clé, un seul espace"
+	else
+		echo "  Mode : DOSSIER — la clé à part, dans ~/Mémoire"
+	fi
 	echo
 	read -r -p "  Écris OUI (en majuscules) pour continuer : " rep
 	[[ "$rep" == "OUI" ]] || die "Annulé, rien n'a été touché."
@@ -109,24 +133,39 @@ cmd_preparer() {
 	u="$(blkid -s UUID -o value "$part")"
 	[[ -n "$u" ]] || die "UUID de la clé illisible."
 
-	#  À toi, pas à root : sinon tu ne pourrais rien y écrire.
+	#  Le contenu de la clé. FUSION : un dossier « home » (le second morceau
+	#  de /home ; mergerfs y recrée tes dossiers avec les bons droits).
+	#  DOSSIER : la racine de la clé est à toi, sinon tu n'y écrirais rien.
 	qui="${SUDO_USER:-}"
 	mkdir -p "$POINT"
-	if [[ -n "$qui" ]] && id "$qui" >/dev/null 2>&1; then
-		local tmp
-		tmp="$(mktemp -d /run/lexos-cle-memoire.XXXXXX)"
-		mount "$part" "$tmp" && chown "$qui:" "$tmp" && umount "$tmp"
-		rmdir "$tmp"
+	tmp="$(mktemp -d /run/lexos-cle-memoire.XXXXXX)"
+	if mount "$part" "$tmp"; then
+		if [[ "$mode" == fusion ]]; then
+			mkdir -p "$tmp/home" && chmod 0755 "$tmp/home"
+		elif [[ -n "$qui" ]] && id "$qui" >/dev/null 2>&1; then
+			chown "$qui:" "$tmp"
+		fi
+		umount "$tmp"
 	fi
+	rmdir "$tmp"
 
 	mkdir -p "$(dirname "$CONF")"
-	printf 'UUID=%s\n' "$u" > "$CONF"
+	printf 'UUID=%s\nMODE=%s\nMARGE=10G\n' "$u" "$mode" > "$CONF"
 	cp -a "$FSTAB" "$FSTAB.avant-cle-memoire" 2>/dev/null || true
 	sed -i "/$MARQUE\$/d" "$FSTAB"
-	ligne_fstab "$u" >> "$FSTAB"
+	ligne_fstab "$u" "$mode" >> "$FSTAB"
 	systemctl daemon-reload 2>/dev/null
-	systemctl restart "$(systemd-escape -p --suffix=automount "$POINT")" 2>/dev/null || true
+	if [[ "$mode" == dossier ]]; then
+		systemctl restart "$(systemd-escape -p --suffix=automount "$POINT")" 2>/dev/null || true
+	fi
 
+	if [[ "$mode" == fusion ]]; then
+		systemctl enable lexos-cle-memoire.service >/dev/null 2>&1 || true
+		ok "Clé mémoire prête : au prochain démarrage, ton dossier = PC + $taille."
+		echo "  ${D}Redémarre clé branchée. Ne la débranche pas pendant que LexOS roule : éteins d'abord.${R}"
+		echo "  ${D}Sans elle, LexOS démarre quand même, avec l'espace du PC seulement.${R}"
+		return 0
+	fi
 	#  ~/Mémoire : le raccourci dans ton dossier.
 	if [[ -n "$qui" ]]; then
 		local maison
@@ -140,6 +179,9 @@ cmd_preparer() {
 }
 
 cmd_ejecter() {
+	if [[ "$(mode_conf)" == fusion ]]; then
+		die "En fusion, la clé fait partie de ton dossier : éteins l'ordinateur avant de la débrancher."
+	fi
 	#  Sous l'automontage, la clé n'est vraiment montée (ext4) que pendant
 	#  qu'elle sert : sinon il n'y a que le guetteur « autofs », sans danger.
 	if ! findmnt -t ext4 -no TARGET "$POINT" >/dev/null 2>&1; then
@@ -157,7 +199,13 @@ cmd_ejecter() {
 cmd_oublier() {
 	root oublier
 	[[ -n "$(uuid_conf)" ]] || { echo "Aucune clé mémoire réglée."; return 0; }
-	umount "$POINT" 2>/dev/null || true
+	if [[ "$(mode_conf)" == fusion ]]; then
+		systemctl disable lexos-cle-memoire.service >/dev/null 2>&1 || true
+		warn "Les fichiers rangés sur la clé y restent : au prochain démarrage, ils ne seront plus dans ton dossier."
+		echo "  ${D}Pour les ramener sur le PC (s'il a la place) : copie /mnt/lexos-memoire/home/ dans /home/ avant de redémarrer.${R}"
+	else
+		umount "$POINT" 2>/dev/null || true
+	fi
 	sed -i "/$MARQUE\$/d" "$FSTAB"
 	rm -f "$CONF"
 	systemctl daemon-reload 2>/dev/null

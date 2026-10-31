@@ -2624,4 +2624,10 @@ suite: trixie
 #  en haut (plus de survol), les fenêtres maximisées s'arrêtent dessous
 #  (marge xfwm4), elle s'efface en plein écran. Interrupteur dans Yeux.
 #
-build: 131
+#  ISO 132 — clé mémoire en fusion (31 octobre)
+#  « lexos cle-memoire preparer /dev/sdX » : LexOS sur ~40 Go du PC, une clé
+#  USB fusionnée avec le dossier personnel (mergerfs) — le PC d'abord, la clé
+#  quand il ne reste que 10 Go. Sans clé, LexOS démarre pareil. --dossier :
+#  la clé à part dans ~/Mémoire.
+#
+build: 132

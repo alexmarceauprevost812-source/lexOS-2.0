@@ -187,6 +187,9 @@ git
 htop
 tree
 rsync
+# mergerfs : « lexos cle-memoire » fusionne le dossier personnel du PC et la
+# clé USB en un seul espace (les gens qui manquent de place sur le disque).
+mergerfs
 zip
 unzip
 xz-utils

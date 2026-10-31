@@ -1,0 +1,65 @@
+#!/bin/sh
+# =============================================================================
+#  LexOS — clé mémoire en FUSION : le PC et la clé, un seul dossier
+# =============================================================================
+#  ALEX, 31 octobre : « une version pour les personnes qui veulent un Linux
+#  mais qui n'ont pas de place » — LexOS sur ~40 Go du PC, et une clé USB
+#  « fusionnée pour que ça soit comme 1, pour plus d'espace ».
+#
+#  CE QUI EST FUSIONNÉ : LE DOSSIER PERSONNEL, PAS LE SYSTÈME. Fusionner le
+#  système avec une clé (LVM sur deux disques) voudrait dire : clé retirée ou
+#  brisée = LexOS ne démarre plus, et tout est perdu. Ici, mergerfs montre
+#  /home comme UN dossier fait de deux morceaux :
+#    · le /home du PC (en premier) ;
+#    · le dossier « home » de la clé (en second).
+#  Un nouveau fichier va sur le PC tant qu'il y reste plus de MARGE libre
+#  (10 Go par défaut, gardés pour les mises à jour de LexOS : /home et le
+#  système partagent la même partition), puis sur la clé.
+#
+#  SANS LA CLÉ : ce script ne fait rien, /home est celui du PC, LexOS
+#  démarre et marche normalement — les fichiers rangés sur la clé reviennent
+#  quand elle revient (au démarrage suivant).
+#
+#  Passe APRÈS fstab (qui monte la clé sur /mnt/lexos-memoire, « nofail »)
+#  et AVANT l'écran de connexion : personne n'a encore de session ouverte.
+# =============================================================================
+set -u
+CONF="${LEXOS_CLE_MEMOIRE_CONF:-/etc/lexos/cle-memoire}"
+POINT="${LEXOS_CLE_MEMOIRE_POINT:-/mnt/lexos-memoire}"
+HOME_DIR="${LEXOS_CLE_MEMOIRE_HOME:-/home}"
+PC="${LEXOS_CLE_MEMOIRE_PC:-/run/lexos/home-pc}"
+dire() { echo "[lexos-cle-memoire] $*"; }
+
+[ -r "$CONF" ] || exit 0
+U="$(sed -n 's/^UUID=//p' "$CONF" | head -1)"
+MODE="$(sed -n 's/^MODE=//p' "$CONF" | head -1)"
+MARGE="$(sed -n 's/^MARGE=//p' "$CONF" | head -1)"
+[ "$MODE" = fusion ] || exit 0
+[ -n "$U" ] || exit 0
+
+if [ "$(findmnt -no UUID "$POINT" 2>/dev/null)" != "$U" ]; then
+	dire "clé absente : /home reste celui du PC (moins d'espace, tout marche)"
+	exit 0
+fi
+[ -d "$POINT/home" ] || { dire "la clé n'a pas de dossier home — fusion annulée"; exit 0; }
+if [ "$(findmnt -no FSTYPE "$HOME_DIR" 2>/dev/null)" = "fuse.mergerfs" ]; then
+	dire "déjà fusionné"
+	exit 0
+fi
+command -v mergerfs >/dev/null 2>&1 || { dire "mergerfs absent — fusion impossible"; exit 0; }
+
+#  Le /home du PC, gardé visible ailleurs AVANT d'être recouvert.
+mkdir -p "$PC"
+mount --bind "$HOME_DIR" "$PC" || { dire "bind du /home du PC impossible"; exit 0; }
+
+#  ff + minfreespace : le PC d'abord, la clé quand le PC n'a plus que MARGE
+#  de libre. moveonenospc : un fichier qui grossit trop pour le PC passe sur
+#  la clé au lieu d'échouer. dropcacheonclose : la clé se vide plus vite.
+OPTS="defaults,allow_other,use_ino,cache.files=off,category.create=ff,minfreespace=${MARGE:-10G},moveonenospc=true,dropcacheonclose=true,fsname=lexos-memoire"
+if mergerfs -o "$OPTS" "$PC:$POINT/home" "$HOME_DIR"; then
+	dire "fusion faite : /home = PC + clé ($(df -h --output=size "$HOME_DIR" | tail -1 | tr -d ' ') au total)"
+else
+	umount "$PC" 2>/dev/null
+	dire "mergerfs a échoué — /home reste celui du PC"
+fi
+exit 0

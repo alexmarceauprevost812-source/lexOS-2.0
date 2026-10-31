@@ -70,6 +70,17 @@ if command -v systemctl >/dev/null 2>&1; then
 		|| echo "[lexos]   !! service lexos-grub-defaut non activé"
 fi
 
+# --- Clé mémoire en fusion : le PC + une clé USB, un seul dossier ------------
+#  Demande d'Alex (31 octobre) : LexOS pour ceux qui manquent de place. Rien
+#  ne change tant qu'aucune clé n'est préparée (« sudo lexos cle-memoire
+#  preparer /dev/sdX ») : le service a une condition sur /etc/lexos/cle-memoire.
+chmod 0755 /usr/lib/lexos/cle-memoire-fusion /usr/bin/lexos-cle-memoire 2>/dev/null || true
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl enable lexos-cle-memoire.service >/dev/null 2>&1 \
+		&& echo "[lexos]   clé mémoire : prête à fusionner (lexos cle-memoire)" \
+		|| echo "[lexos]   !! service lexos-cle-memoire non activé"
+fi
+
 # --- L'heure juste dans les DEUX systèmes ------------------------------------
 #  preseed.cfg met l'horloge matérielle en UTC — le bon choix pour Linux seul,
 #  et exactement ce qui décale l'heure de 4 ou 5 h à chaque bascule quand
