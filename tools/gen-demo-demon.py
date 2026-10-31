@@ -82,6 +82,10 @@ def main() -> None:
 
     page = (WEB / "demon.html").read_text(encoding="utf-8")
     page = page.replace('<script src="demon.js"', '<script src="demo-api.js"></script>\n<script src="demon.js"', 1)
+    #  Vercel sert la démo à « /demo », SANS barre oblique finale
+    #  (vercel.json : trailingSlash false) : sans <base>, « demon.css » serait
+    #  cherché à la racine du site — page nue, sans style ni code.
+    page = page.replace("<head>", '<head>\n<base href="/demo/">', 1)
     assert "demo-api.js" in page, "demon.html a changé : le point d'injection du script n'est plus là"
     page = page.replace("<title>LexOS Bureau — démon</title>", "<title>Démo web — Bureau LexOS</title>", 1)
     (SORTIE / "index.html").write_text(page, encoding="utf-8")
