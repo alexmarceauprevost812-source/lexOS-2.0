@@ -36,7 +36,9 @@ on:
     #  est remplacée. On ne construit que depuis les branches de travail ;
     #  pour construire depuis une autre branche, le bouton « Run workflow »
     #  (workflow_dispatch) marche toujours.
-    branches: ['claude/**']
+    #  ti-lexos-pro : le projet principal d'Alex (31 octobre), l'ISO complète
+    #  de la clé USB-C avec la VM — chaque correctif ISO s'y construit tout seul.
+    branches: ['claude/**', 'ti-lexos-pro']
     #  Construction AUTOMATIQUE : dès qu'on ajoute ou change quelque chose qui
     #  entre dans l'ISO (un paquet, un réglage, un hook, un script, le
     #  branding…), une nouvelle ISO se construit et se publie toute seule en

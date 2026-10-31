@@ -123,4 +123,23 @@ PY
 	fi
 fi
 
+# --- 5. GRUB : une clé qu'on promène ne cherche PAS les systèmes du PC -------
+#  ALEX, 31 octobre : « ça affiche encore l'écran GRUB » sur sa clé USB-C.
+#  Avec os-prober actif, chaque update-grub lancé depuis la clé ajoute au
+#  menu DE LA CLÉ les systèmes du PC où elle est branchée (Windows, Kali…) :
+#  le menu reste visible, et sur l'ordinateur d'un client la clé afficherait
+#  des systèmes qui n'existent pas chez lui. Pour la nomade on le coupe.
+#  Fichier « zz- » : lu APRÈS lexos.cfg (hook 0100), donc il l'emporte, sans
+#  retirer la ligne « =false » que le hook 0500 contrôle pour les autres
+#  saveurs. Avec os-prober coupé, /etc/grub.d/45_lexos-menu-cache ne voit
+#  aucun voisin et cache le menu (Échap pour l'ouvrir).
+GRUB_D="${LEXOS_GRUB_DEFAULT_D:-/etc/default/grub.d}"
+mkdir -p "$GRUB_D"
+cat > "$GRUB_D/zz-lexos-nomade.cfg" <<'EOF'
+# LexOS nomade (clé USB-C) : ne pas chercher les systèmes du PC hôte.
+# Voir le hook 0415. Pour le double démarrage, utiliser la saveur pro.
+GRUB_DISABLE_OS_PROBER=true
+EOF
+echo "[lexos]   GRUB nomade : os-prober coupé, menu caché (Échap pour l'ouvrir)"
+
 echo "[lexos] hook 0415 : ok"

@@ -2599,4 +2599,11 @@ suite: trixie
 #     dans la commande lexos et son aide ; les bancs de LexOS Pilotes et du
 #     bureau du Moteur tournent dans la CI.
 #
-build: 127
+#  ISO 128 — TI-LEXOS Pro nomade, branche ti-lexos-pro (31 octobre)
+#  ISO complète pour la clé USB-C, VM incluse (kit PLAY sous Windows).
+#  Base : nomade-v3 (bureau démon, tuiles, grille en pages, sans barre).
+#  1. GRUB caché quand LexOS est seul (/etc/grub.d/45_lexos-menu-cache).
+#  2. Nomade : os-prober coupé — la clé n'ajoute plus les systèmes du PC
+#     hôte à son menu (hook 0415, zz-lexos-nomade.cfg).
+#
+build: 128

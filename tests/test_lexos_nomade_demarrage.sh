@@ -78,7 +78,7 @@ preparer() {   # preparer <saveur>
 jouer() {
 	env PATH="$B/bin:$PATH" LEXOS_PLYMOUTH_NOMADE="$B/r/ply/lexos-nomade" LEXOS_PLYMOUTH_LEXOS="$B/r/ply/lexos" \
 		LEXOS_FOND_NOMADE="$B/r/nomade/fond-connexion-nomade.png" LEXOS_VIDEO_NOMADE="$B/r/web/demarrage-flammes.webm" \
-		LEXOS_LIGHTDM_DIR="$B/r/lightdm" LEXOS_BRANDING="$B/r/brand" sh "$B/hook.sh" > "$B/journal" 2>&1
+		LEXOS_LIGHTDM_DIR="$B/r/lightdm" LEXOS_BRANDING="$B/r/brand" LEXOS_GRUB_DEFAULT_D="$B/r/grub.d" sh "$B/hook.sh" > "$B/journal" 2>&1
 }
 preparer nomade
 jouer && ok "le hook passe" || { non "le hook échoue"; sed 's/^/      /' "$B/journal"; }
@@ -90,6 +90,8 @@ grep -qx 'theme-name=X' "$B/r/lightdm/lightdm-gtk-greeter.conf" && ok "LightDM :
 [ ! -e "$B/r/brand/apres-connexion-16-9.mp4" ] && [ ! -e "$B/r/brand/apres-connexion-16-9-courte.mp4" ] \
 	&& ok "vidéos de lexos-intro retirées (le bureau démon joue la sienne)" || non "deux vidéos coup sur coup"
 [ -s "$B/r/web/demarrage-flammes.webm" ] && ok "vidéo du bureau démon gardée" || non "vidéo du bureau démon retirée"
+grep -qx "GRUB_DISABLE_OS_PROBER=true" "$B/r/grub.d/zz-lexos-nomade.cfg" 2>/dev/null \
+	&& ok "GRUB : os-prober coupé sur la clé (menu caché, pas les systèmes du PC hôte)" || non "GRUB : os-prober encore actif sur la clé"
 
 #  Si Plymouth refuse le thème, « lexos » doit RESTER : c'est lui qui servira.
 preparer nomade
@@ -108,6 +110,7 @@ jouer && ok "le hook passe" || non "le hook échoue"
 grep -qx 'background=/usr/share/lexos/branding/fond-connexion.png' "$B/r/lightdm/lightdm-gtk-greeter.conf" \
 	&& ok "LightDM pro inchangé" || non "LightDM pro modifié"
 [ -e "$B/r/brand/apres-connexion-16-9.mp4" ] && ok "vidéo de lexos-intro gardée pour pro" || non "vidéo de lexos-intro retirée pour pro"
+[ ! -e "$B/r/grub.d/zz-lexos-nomade.cfg" ] && ok "GRUB pro : os-prober intact (double démarrage)" || non "GRUB pro : os-prober coupé par erreur"
 
 # =============================================================================
 titre "4. Le nom de l'ISO nomade ne prétend pas embarquer le pilote RTX 5060"
