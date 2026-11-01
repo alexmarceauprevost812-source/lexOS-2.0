@@ -10,6 +10,8 @@ Développé avec :
   partie du code, des tests et de la documentation, sous la direction
   d'Alex : les idées, la vision, les choix et les essais sur ses machines
   sont les siens.
+  ChatGPT (OpenAI) — a aidé Alex à trouver le pilote graphique NVIDIA pour
+  sa RTX 5060.
 
 Le logo TI-LEX-AL et les mascottes sont la propriété de Alex Marceau Prevost.
 Voir LICENSE pour les conditions de réutilisation du code.
