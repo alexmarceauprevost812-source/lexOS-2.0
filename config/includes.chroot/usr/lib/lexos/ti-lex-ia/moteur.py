@@ -254,6 +254,8 @@ class Moteur:
 
     def _voit_la_cle(self, port: int) -> bool:
         """Cet Ollama connaît-il au moins un modèle du cerveau de la clé ?"""
+        #  TOUS les modèles de la clé, pas un seul en commun : un Ollama qui
+        #  n'en connaît qu'une partie laisserait les autres inutilisables.
         attendus = noms_modeles(self.modeles)
         if not attendus:
             return True
@@ -263,7 +265,7 @@ class Moteur:
             vus = {m.get("name") for m in json.loads(c.getresponse().read() or b"{}").get("models") or []}
         except (OSError, ValueError, AttributeError):
             return False
-        return bool(attendus & vus)
+        return attendus <= vus
 
     def demarrer(self) -> bool:
         if INSTALLE:
@@ -284,6 +286,14 @@ class Moteur:
                     dire(f"Moteur IA de LexOS trouvé (port {p}) ✔  Ollama {self.version}", ORANGE)
                     return True
         self.binaire = trouver_ollama()
+        if not self.binaire and self.sur_cle:
+            #  Le moteur fourni avec la clé elle-même (lexos-ia/ia/ollama-linux-<arch>),
+            #  cherché à partir du cerveau choisi — le même que cles_ia.py.
+            try:
+                from cles_ia import _binaire
+                self.binaire = _binaire(self.modeles, CACHE)
+            except Exception:
+                self.binaire = None
         if not self.binaire:
             dire("Aucun moteur Ollama sur la clé ni sur le PC.", ROUGE)
             return False
@@ -1585,13 +1595,17 @@ def main() -> int:
         # Paramètres, Variables… marchent sans IA) et dit quoi faire.
         dire("Pas de moteur IA pour l'instant — installe-le avec « lexos ia setup ».", ROUGE)
         moteur.proc, moteur.port, moteur.version = None, 11434, "absent"
+        #  Le cerveau de la clé n'a pas de moteur principal : on le laisse aux
+        #  🔌 clés IA (cles_ia.py), qui savent le servir à part.
+        moteur.sur_cle = False
 
     # 🔌 Les IA des clés USB branchées (Linux : /media/<compte>/…) — voir cles_ia.py
     global CLES
     if not WINDOWS and not a.sans_ia:
         try:
             from cles_ia import ClesIA
-            CLES = ClesIA(CACHE, exclure=moteur.modeles, journal=lambda m: dire(m, GRIS))
+            exclure = moteur.modeles if moteur.version != "absent" else None
+            CLES = ClesIA(CACHE, exclure=exclure, journal=lambda m: dire(m, GRIS))
             CLES.demarrer()
         except Exception as e:                      # le Moteur marche sans
             dire(f"Clés IA indisponibles : {e}", GRIS)
