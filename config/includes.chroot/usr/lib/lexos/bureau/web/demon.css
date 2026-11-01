@@ -365,11 +365,15 @@ html.pro .code-fond {
    ALEX : « ajouter le dock à droite ». Une colonne collée au bord droit,
    centrée en hauteur ; le bureau lui laisse sa place (--dock-lx), et le
    panneau des réglages s'ouvre à sa gauche. */
-body.dock-droite { --dock-lx: calc(clamp(46px, 7.4vh, 80px) + 44px); }
+body.dock-droite { --dock-lx: calc(clamp(46px, 7.4vh, 80px) + 30px); }
 body.dock-droite .ecran { padding-right: calc(var(--droite) + var(--dock-d) + var(--dock-lx) + 3vw); }
+/*  ALEX (2026-11-01) : « ajuster le new dock pour être bien accoté sur
+    l'écran ». Il touche le bord droit (plus les 14 px de vide d'avant) :
+    arrondi seulement du côté du bureau, sans bordure du côté de l'écran. */
 body.dock-droite .dock {
-  position: fixed; z-index: 30; top: 50%; right: calc(var(--droite) + var(--dock-d) + 14px); transform: translateY(-50%);
-  flex-direction: column; padding: 18px 12px; min-width: 60px; min-height: 120px; align-self: auto;
+  position: fixed; z-index: 30; top: 50%; right: calc(var(--droite) + var(--dock-d)); transform: translateY(-50%);
+  flex-direction: column; padding: 18px 14px 18px 12px; min-width: 60px; min-height: 120px; align-self: auto;
+  border-radius: 28px 0 0 28px; border-right: 0;
 }
 body.dock-droite .panneau { right: calc(var(--droite) + var(--dock-d) + var(--dock-lx) + 3vw); }
 

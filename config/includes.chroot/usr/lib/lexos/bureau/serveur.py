@@ -416,6 +416,14 @@ def dock() -> dict:
     vide = {"cote": "", "taille": 0}
     if not shutil.which("gsettings") or not shutil.which("plank"):
         return vide
+    #  Plank installé mais ÉTEINT (le cas normal depuis le 2026-11-01) : il
+    #  ne prend aucune place, et le nouveau dock se colle au vrai bord.
+    try:
+        if subprocess.run(["pgrep", "-u", str(os.getuid()), "-x", "plank"],
+                          capture_output=True, timeout=2).returncode != 0:
+            return vide
+    except (OSError, subprocess.SubprocessError):
+        return vide
     try:
         def lire(cle: str) -> str:
             return subprocess.run(["gsettings", "get", SCHEMA_DOCK, cle], capture_output=True,
@@ -579,6 +587,34 @@ def arreter_xfdesktop() -> None:
     threading.Thread(target=arreter, daemon=True).start()
 
 
+#  ═══ UN SEUL DOCK : L'ANCIEN (Plank) S'EN VA ═══
+#  ALEX (2026-11-01), capture à l'appui : « on est rendu avec 2 docks,
+#  supprimer l'ancien et garder le new ». Le nouveau dock est celui du bureau
+#  démon (demon.css, .dock), collé au bord droit. Plank était lancé par
+#  ~/.config/autostart/plank.desktop, copié de /etc/skel à la création du
+#  compte — /etc/skel ne le pose plus, mais un compte déjà créé le garde.
+#  On l'éteint donc ici, une fois le bureau affiché : « Hidden=true » dans
+#  la copie de l'utilisateur (la façon XDG de désactiver un autostart, que
+#  le Gestionnaire de session respecte), puis on ferme celui qui roule.
+#  Plank reste installé : « plank & » le ramène à la main si on y tient.
+def arreter_plank() -> None:
+    def arreter():
+        auto = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "autostart" / "plank.desktop"
+        try:
+            if auto.is_file():
+                texte = auto.read_text("utf-8")
+                if "Hidden=true" not in texte:
+                    auto.write_text(texte.rstrip("\n") + "\nHidden=true\n", "utf-8")
+        except OSError:
+            pass
+        try:
+            subprocess.run(["pkill", "-u", str(os.getuid()), "-x", "plank"],
+                           capture_output=True, timeout=5, check=False)
+        except (OSError, subprocess.SubprocessError):
+            pass
+    threading.Thread(target=arreter, daemon=True).start()
+
+
 def main() -> int:
     a = argparse.ArgumentParser(description="LexOS Bureau")
     a.add_argument("--sans-fenetre", action="store_true")
@@ -628,6 +664,7 @@ def main() -> int:
         #  marge — que la page ait peint quelque chose avant que l'ancien
         #  bureau disparaisse, sinon on verrait un écran vide entre les deux.
         QTimer.singleShot(2000, arreter_xfdesktop)
+        QTimer.singleShot(2000, arreter_plank)
 
     code = fenetre.ouvrir(url, etat.jeton, signal_pret=pret, fin=etat.fin)
     serveur.shutdown()

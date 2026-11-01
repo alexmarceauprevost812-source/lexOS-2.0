@@ -131,8 +131,12 @@ class Reglages(unittest.TestCase):
         r = self.rg.lire()
         #  Nouveau bureau officiel partout : la barre « Mes outils » est fixée
         #  en haut, plus de descente au survol (Alex, 2026-10-31).
-        self.assertEqual((r["outils"], r["outils_apps"]), (False, ["*"]))
-        self.assertTrue(r["outils_fixe"])
+        #  2026-11-01 : la barre revient, cachée — elle descend au survol du
+        #  haut après 0,3 s (« outils_delai »), au lieu d'être fixée.
+        self.assertEqual((r["outils"], r["outils_apps"], r["outils_delai"]), (True, ["*"], 300))
+        self.assertFalse(r["outils_fixe"])
+        self.assertEqual(self.rg._propre("outils_delai", 5), 100)
+        self.assertEqual(self.rg._propre("outils_delai", 99999), 3000)
         self.assertEqual(self.rg._propre("outils_apps", ["a-0123456789abcd", "/bin/sh"]), ["a-0123456789abcd"])
         self.assertIsNone(self.rg._propre("outils", "oui"))
 
@@ -331,8 +335,9 @@ class SaveurNomade(unittest.TestCase):
         self.assertEqual(self.rg.ecrire({"interface": "ailleurs", "demon_theme": "rose"})["interface"], "demon")
         self.assertEqual(self.rg.ecrire({"demon_presence": 5})["demon_presence"], 20)
         #  ti-lexos-pro sur la clé : « l'outil en haut de l'écran visible et fixe ».
-        self.assertTrue(r["outils_fixe"])
-        self.assertFalse(self.rg.ecrire({"outils_fixe": False})["outils_fixe"])
+        #  Cachée par défaut depuis le 2026-11-01 ; « fixe » reste un choix.
+        self.assertFalse(r["outils_fixe"])
+        self.assertTrue(self.rg.ecrire({"outils_fixe": True})["outils_fixe"])
         self.assertIsNone(self.rg._propre("outils_fixe", "oui"))
 
     def test_outils_fixes_branches(self):
@@ -404,7 +409,7 @@ class SaveurNomade(unittest.TestCase):
         serveur ; tout ce qui n'est pas valide est ramené ou refusé."""
         r = self.rg.lire()
         self.assertEqual((r["demon_grille"], r["demon_dock"], r["demon_places"]), (["*"], ["*"], {}))
-        self.assertFalse(r["outils"])            # nomade : pas de barre qui tombe du haut
+        self.assertTrue(r["outils"])             # 2026-11-01 : la barre descend au survol (0,3 s)
         self.rg.ecrire({"demon_grille": ["s-maison", "x-apropos", "s-maison", "../etc", 7],
                         "demon_dock": ["x-yeux", "s-github"],
                         "demon_places": {"terminal": [120, -40.6], "horloge": [5000, 3],
