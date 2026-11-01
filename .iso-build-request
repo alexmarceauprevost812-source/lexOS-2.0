@@ -2660,4 +2660,8 @@ suite: trixie
 #  ╭──(nom)─[chemin]  puis  ╰─(lexos)──➜  : le nom d'utilisateur en haut,
 #  « lexos » en dessous, à la place du petit bateau.
 #
-build: 136
+#  ISO 137 — tout de la 136, plus la ligne de vie du terminal (1er novembre)
+#  À chaque commande lancée, un battement de coeur orange traverse la ligne
+#  (environ 0,3 s) puis s'efface. LEXOS_LIGNE_VIE=0 l'éteint.
+#
+build: 137

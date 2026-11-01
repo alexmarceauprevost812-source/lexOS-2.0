@@ -212,6 +212,38 @@ if [ -n "${BASH_VERSION:-}" ]; then
 			PS1="$__LEXOS_PS1_CLASSIQUE"
 			PS0='\e[0m'
 
+			#  ═══ LA LIGNE DE VIE — QUAND ON LANCE UNE COMMANDE ═══
+			#  ALEX (2026-11-01) : « une animation comme si ce serait une ligne
+			#  de vie quand on lance une commande ». Après Entrée, avant la
+			#  sortie de la commande, un battement de coeur (comme un moniteur
+			#  cardiaque) traverse la ligne en orange, puis s'efface : la
+			#  sortie de la commande s'écrit à sa place, rien ne reste.
+			#  · PS0 est affiché après Entrée et AVANT l'exécution : c'est le
+			#    seul moment où l'on peut animer sans gêner la commande.
+			#  · On écrit directement dans /dev/tty : dans un « $( ) », bash
+			#    garde tout ce qui sort et l'affiche d'un coup à la fin —
+			#    l'animation passerait en un seul cadre, figée.
+			#  · Environ 0,3 s. Seulement avec l'invite « pro », dans un vrai
+			#    terminal. LEXOS_LIGNE_VIE=0 l'éteint (export dans ~/.bashrc).
+			__lexos_ligne_vie() {
+				[ "${LEXOS_LIGNE_VIE:-1}" = "0" ] && return 0
+				[ "${__lexos_st:-}" = "pro" ] || return 0
+				[ -t 0 ] || return 0             # stdin ; stdout est un tube dans « $( ) »
+				{
+					local largeur=30 pouls='╭╮─╱╲╱' i base c="${__LEXOS_C_CADRE:-38;5;202}" d="${__LEXOS_C_DIM:-2}"
+					base=$(printf '─%.0s' $(seq 1 $largeur))
+					printf '\033[?25l'                          # curseur caché pendant le battement
+					for ((i = 0; i <= largeur - ${#pouls}; i += 3)); do
+						printf '\r    \033[%sm%s\033[1;%sm%s\033[0;%sm%s\033[0m' \
+							"$d" "${base:0:i}" "$c" "$pouls" "$d" "${base:i+${#pouls}}"
+						sleep 0.03
+					done
+					printf '\r\033[K\033[?25h'                  # tout s'efface, le curseur revient
+				} >/dev/tty 2>/dev/null
+				return 0
+			}
+			PS0='\e[0m$(__lexos_ligne_vie)'
+
 			#  ═══ L'INVITE « TI-LEX » — UN STYLE DE PLUS, À ALLUMER ═══
 			#  ALEX (une invite modèle et la bannière « TI-LEX TERMINAL PRO
 			#  v4 ») : « ti-lex en or, lexos en orange, pro en vert — les mêmes
