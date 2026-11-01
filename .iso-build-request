@@ -52,7 +52,7 @@
 #   La Release est publiée sous « latest-<saveur> ». La seule à maintenir à
 #   jour est donc « latest-pro ». « latest-standard » reste en ligne comme
 #   trace du build 53, mais n'est plus reconstruite.
-flavour: nomade
+flavour: pro
 
 # trixie (Debian 13) | bookworm (Debian 12)
 suite: trixie
@@ -2637,4 +2637,14 @@ suite: trixie
 #  icônes vivantes, dock à droite, applis posées n'importe où, bureaux 1 2 3 4,
 #  animation d'ouverture des applis ; clé mémoire en fusion ; GRUB caché seul.
 #
-build: 133
+#  ISO 134 — LexOS Pro : un seul dock, applis ouvertes, barre au survol (1er novembre)
+#  Saveur « pro » pour de vrai (la 133, annoncée Pro, était partie en nomade).
+#  1. Plank retiré : le dock du bureau démon reste seul, collé au bord droit.
+#  2. Les applications ouvertes dans le dock (clic : devant / réduire ;
+#     molette : fermer).
+#  3. Barre du haut et « Mes outils » cachées : elles sortent après 0,3 s
+#     quand la souris touche le haut de l'écran.
+#  4. Gardien de xfwm4 : relancé s'il tombe — les boutons des fenêtres ne
+#     disparaissent plus.
+#
+build: 134
