@@ -2630,4 +2630,11 @@ suite: trixie
 #  quand il ne reste que 10 Go. Sans clé, LexOS démarre pareil. --dossier :
 #  la clé à part dans ~/Mémoire.
 #
-build: 132
+#  ISO 133 — LexOS Pro OFFICIELLE avec le nouveau bureau (31 octobre)
+#  Pro = tout : bureau, développeur, bureautique, gamer, extras Pro ; pilote
+#  NVIDIA RTX 5060 + correctif « nouveau retiré de la file » (écran noir).
+#  Nouveau bureau par défaut partout : thème Professionnel, code qui s'écrit,
+#  icônes vivantes, dock à droite, applis posées n'importe où, bureaux 1 2 3 4,
+#  animation d'ouverture des applis ; clé mémoire en fusion ; GRUB caché seul.
+#
+build: 133
