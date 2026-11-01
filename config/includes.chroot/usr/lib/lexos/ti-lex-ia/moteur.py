@@ -83,9 +83,13 @@ def compter_manifestes(dossier: Path) -> int:
     n = 0
     for sous in ("manifests", "manifests-v2"):
         d = dossier / sous
-        if d.is_dir():
-            for _, _, fichiers in os.walk(d):
-                n += len(fichiers)
+        try:
+            if not d.is_dir():
+                continue
+        except OSError:                  # dossier d'un autre compte (Permission denied)
+            continue
+        for _, _, fichiers in os.walk(d):
+            n += len(fichiers)
     return n
 
 
@@ -107,16 +111,26 @@ def noms_modeles(dossier: Path) -> set[str]:
 
 
 def cles_montees() -> list[Path]:
-    """Les clés USB montées (/media/<compte>/X, /run/media/<compte>/X)."""
-    compte = os.environ.get("USER") or Path.home().name
+    """Les clés USB vraiment montées sous /media ou /run/media (lu dans /proc/mounts).
+    On ne fouille pas /media à l'aveugle : /media/root et les dossiers des autres
+    comptes ne sont pas des clés, et y entrer donne « Permission denied »."""
     vues: list[Path] = []
-    for base in (Path("/media") / compte, Path("/run/media") / compte, Path("/media")):
-        try:
-            for p in sorted(base.iterdir()):
-                if p.is_dir() and p not in vues and p.name != compte:
-                    vues.append(p)
-        except OSError:
+    try:
+        lignes = Path("/proc/mounts").read_text().splitlines()
+    except OSError:
+        return vues
+    for ligne in lignes:
+        champs = ligne.split()
+        if len(champs) < 2:
             continue
+        point = champs[1].replace("\\040", " ")
+        if point.startswith(("/media/", "/run/media/")):
+            p = Path(point)
+            try:
+                if p.is_dir() and os.access(p, os.R_OK | os.X_OK) and p not in vues:
+                    vues.append(p)
+            except OSError:
+                continue
     return vues
 
 
