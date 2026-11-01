@@ -25,6 +25,7 @@
    "*"
   ],
   "demon_places": {},
+  "demon_ajouts": [],
   "accent": "#ff7a18",
   "police": "Space Grotesk",
   "taille": 100,
@@ -266,16 +267,34 @@
   const dire = (t) => setTimeout(() => window.bulle && window.bulle(t), 60);
   const nomDe = (id) => (ETAT.demon.find((e) => e.id === id) || {}).nom || "cette appli";
 
+  //  Les applis « installées » de la démo, pour « Ajouter une application ici… ».
+  const INSTALLEES = [
+    ["a-demo-gimp", "GIMP — retouche photo"], ["a-demo-libreoffice", "LibreOffice Writer"],
+    ["a-demo-vlc", "VLC"], ["a-demo-steam", "Steam"], ["a-demo-vscode", "Code"],
+    ["a-demo-musique", "LexOS Musique"], ["a-demo-capture", "Capture d'écran"],
+    ["a-demo-calculatrice", "Calculatrice"], ["a-demo-agenda", "Agenda"], ["a-demo-claude", "Claude"],
+  ].map(([id, nom]) => ({ id, nom, icone: false }));
+  const avecAjouts = () => {
+    const d = ETAT.demon.filter((e) => !e.ajout);
+    for (const id of ETAT.reglages.demon_ajouts || []) {
+      const a = INSTALLEES.find((x) => x.id === id);
+      if (a) d.push({ id, cle: "appli", nom: a.nom, icone: false, ajout: true });
+    }
+    ETAT.demon = d;
+    return ETAT;
+  };
   const reponses = {
     "/api/version": () => ({ v: String(version) }),
-    "/api/etat": () => ETAT,
+    "/api/etat": () => avecAjouts(),
     "/api/reseau": () => ({ etat: "connecte", type: "wifi", nom: "Démo LexOS", signal: 82 }),
     "/api/son": (d) => {
       if (d && typeof d.volume === "number") reponses.son.volume = Math.max(0, Math.min(100, d.volume));
       if (d && d.muet) reponses.son.muet = !reponses.son.muet;
       return reponses.son;
     },
-    "/api/outils": () => ({ apps: [], sections: [{ titre: "LexOS", elements: ETAT.demon.filter((e) => e.id.startsWith("a-")) }], prenom: "toi", reglages: {} }),
+    "/api/outils": () => ({ apps: [], prenom: "toi", reglages: {}, sections: [
+      { titre: "LexOS", elements: ETAT.demon.filter((e) => e.id.startsWith("a-") && !e.ajout) },
+      { titre: "Toutes les applications", elements: INSTALLEES }] }),
     "/api/reglages": (d) => {
       for (const [k, v] of Object.entries(d || {})) if (k in ETAT.reglages) ETAT.reglages[k] = v;
       ETAT.reglages.interface = "demon";            // la démo, comme la clé nomade : le démon pour de bon
@@ -284,6 +303,7 @@
     },
     "/api/lancer": (d) => {
       const id = String((d && d.id) || "");
+      if (!nomDe(id) || nomDe(id) === "cette appli") { const a = INSTALLEES.find((x) => x.id === id); if (a) { dire(`Démo : dans le vrai LexOS, « ${a.nom} » s'ouvrirait ici`); return { ok: true }; } }
       if (id === "s-github") { window.open("https://github.com/alexmarceauprevost812-source/lexOS-2.0", "_blank", "noopener"); return { ok: true }; }
       dire(`Démo : dans le vrai LexOS, « ${nomDe(id)} » s'ouvrirait ici`);
       return { ok: true };

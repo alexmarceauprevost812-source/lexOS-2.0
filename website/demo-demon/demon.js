@@ -539,7 +539,9 @@ function ouvrirTuile(b) {
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest(".appli[data-id]");
-  if (!b || MODIF || GLISSE.vientDeGlisser) return;
+  //  Une tuile de la fenêtre « Ajouter » se POSE sur le bureau, elle ne
+  //  s'ouvre pas (voir ouvrirAjout).
+  if (!b || MODIF || GLISSE.vientDeGlisser || b.closest("#ajout-liste")) return;
   ouvrirTuile(b);
 });
 
@@ -743,10 +745,14 @@ function ouvrirMenuClic(x, y, tuileVisee) {
   //  d'Ubuntu ; sur une appli : Ouvrir, Déplacer, et la remettre en place.
   const libre = tuileVisee && tuileVisee.closest("#libres");
   const ligne = (cle, texte) => `<button data-clic="${cle}">${texte}</button>`;
+  const ajoutee = tuileVisee && ajouts().includes(tuileVisee.dataset.id);
   m.innerHTML = tuileVisee
     ? ligne("ouvrir", "▶  Ouvrir") + ligne("deplacer", "✋  Déplacer cette appli")
-      + (libre ? ligne("ranger-une", "↩️  Remettre dans la grille") : "")
-    : ligne("nouveau-dossier", "📁  Nouveau dossier") + ligne("nouveau-document", "📄  Nouveau document")
+      + (libre && !ajoutee ? ligne("ranger-une", "↩️  Remettre dans la grille") : "")
+      + (ajoutee ? ligne("retirer-ajout", "🗑️  Retirer du bureau") : "")
+    : ligne("ajouter-ici", "➕  Ajouter une application ici…")
+      + "<hr>"
+      + ligne("nouveau-dossier", "📁  Nouveau dossier") + ligne("nouveau-document", "📄  Nouveau document")
       + "<hr>"
       + ligne("dossier-bureau", "🗂️  Ouvrir le Bureau dans Fichiers") + ligne("terminal-bureau", "⌨️  Ouvrir dans un terminal")
       + "<hr>"
@@ -774,7 +780,9 @@ function ouvrirMenuClic(x, y, tuileVisee) {
       ORDRE.grille.push(id);
       dessinerGrille(); dessinerLibres();
       garder({ demon_places: nouvelles, demon_grille: ORDRE.grille });
-    } else if (c === "ranger") reinitialiser();
+    } else if (c === "ajouter-ici") ouvrirAjout(x, y);
+    else if (c === "retirer-ajout" && tuileVisee) retirerAjout(tuileVisee.dataset.id);
+    else if (c === "ranger") reinitialiser();
     else if (c === "fond") ouvrirPanneau(true);
     else {
       //  Les actions du serveur (une liste fermée, ACTIONS dans serveur.py).
@@ -787,6 +795,68 @@ function ouvrirMenuClic(x, y, tuileVisee) {
     }
   };
 }
+/* ════════════════ « Ajouter une application ici… » ════════════════
+   ALEX (31 octobre) : « on peut ajouter les applications dans toute la
+   fenêtre du bureau ». Clic droit sur le fond -> la liste de TOUTES les
+   applis installées (celles de la recherche), avec un filtre ; la tuile
+   choisie se pose LÀ où on a cliqué, comme une appli glissée librement
+   (demon_places « app:<id> »). La liste des ajouts (demon_ajouts) dit au
+   serveur quelles tuiles ajouter au bureau (serveur.py, demon_avec_ajouts).
+   « Retirer du bureau » (clic droit sur la tuile) l'enlève. */
+const ajouts = () => (P && Array.isArray(P.demon_ajouts) ? P.demon_ajouts : []);
+let AJOUT_XY = [0, 0];
+async function ouvrirAjout(x, y) {
+  AJOUT_XY = [x, y];
+  ouvrirPanneau(false);
+  $("#ajout").classList.add("ouvert"); $("#ajout").setAttribute("aria-hidden", "false");
+  $("#ajout-cherche").value = "";
+  await listerAjout();
+  $("#ajout-cherche").focus();
+}
+function fermerAjout() { $("#ajout").classList.remove("ouvert"); $("#ajout").setAttribute("aria-hidden", "true"); }
+async function listerAjout() {
+  let liste = [];
+  try { liste = await toutesLesApplis(); } catch { bulle("Le bureau ne répond pas"); return; }
+  const q = sansAccents($("#ajout-cherche").value.trim());
+  const deja = new Set([...ORDRE.grille, ...ORDRE.dock, ...libresIds()]);
+  const vues = liste.filter((e) => !deja.has(e.id) && (!q || sansAccents(e.nom).includes(q))).slice(0, 80);
+  $("#ajout-liste").innerHTML = vues.length
+    ? vues.map((e) => tuile(e)).join("")
+    : `<p class="etat">${q ? "Aucune application ne correspond" : "Toutes tes applications sont déjà sur le bureau"}</p>`;
+}
+$("#ajout-cherche").addEventListener("input", listerAjout);
+$("#ajout-fermer").addEventListener("click", fermerAjout);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") fermerAjout(); });
+$("#ajout-liste").addEventListener("click", (e) => {
+  const b = e.target.closest(".appli[data-id]"); if (!b || !P) return;
+  const id = b.dataset.id, appli = (TOUTES || []).find((a) => a.id === id);
+  if (!appli) return;
+  fermerAjout();
+  //  La tuile, connue tout de suite (le serveur la rendra au prochain chargement).
+  if (E && !E.demon.some((d) => d.id === id)) E.demon.push({ id, cle: "appli", nom: appli.nom, icone: appli.icone, ajout: true });
+  CONNUS.set(id, { id, cle: "appli", nom: appli.nom, icone: appli.icone, ajout: true });
+  const l = 100, h = 120, [x, y] = AJOUT_XY;
+  const gx = Math.max(0, Math.min(innerWidth - l, x - l / 2)), gy = Math.max(0, Math.min(innerHeight - h, y - h / 2));
+  P.demon_ajouts = [...ajouts().filter((k) => k !== id), id];
+  P.demon_places = { ...places(), ["app:" + id]: [Math.round(gx * 1000 / innerWidth), Math.round(gy * 1000 / innerHeight)] };
+  ORDRE.grille = ORDRE.grille.filter((k) => k !== id); ORDRE.dock = ORDRE.dock.filter((k) => k !== id);
+  dessinerGrille(); dessinerDock(); dessinerLibres();
+  garder({ demon_ajouts: P.demon_ajouts, demon_places: P.demon_places });
+  bulle(`« ${appli.nom} » ajoutée au bureau`);
+});
+function retirerAjout(id) {
+  if (!P) return;
+  P.demon_ajouts = ajouts().filter((k) => k !== id);
+  const nouvelles = { ...places() }; delete nouvelles["app:" + id];
+  P.demon_places = nouvelles;
+  if (E) E.demon = E.demon.filter((d) => d.id !== id);
+  CONNUS.delete(id);
+  ORDRE.grille = ORDRE.grille.filter((k) => k !== id); ORDRE.dock = ORDRE.dock.filter((k) => k !== id);
+  dessinerGrille(); dessinerDock(); dessinerLibres();
+  garder({ demon_ajouts: P.demon_ajouts, demon_places: nouvelles, demon_grille: ORDRE.grille, demon_dock: ORDRE.dock });
+  bulle("Retirée du bureau (l'application reste installée)");
+}
+
 document.addEventListener("contextmenu", (e) => {
   //  L'appui long d'un doigt a déjà pris la tuile en main : pas de menu.
   if (MODIF || GLISSE.fantome) { e.preventDefault(); return; }

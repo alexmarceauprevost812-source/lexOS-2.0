@@ -148,6 +148,19 @@
 
 <!-- Le menu du clic droit : « Déplacer » (et « Ouvrir » sur une tuile). -->
 <div class="menu-sys menu-clic" id="menu-clic" role="menu" hidden></div>
+<!-- « Ajouter une application ici… » (clic droit sur le bureau) : TOUTES les
+     applis installées, avec une recherche ; celle qu'on choisit se pose là
+     où on a cliqué. -->
+<section class="panneau ajout" id="ajout" aria-label="Ajouter une application au bureau" aria-hidden="true">
+  <header class="panneau-tete">
+    <div><h2>AJOUTER</h2><p class="sous">une application sur le bureau</p></div>
+    <button class="fermer" id="ajout-fermer" aria-label="Fermer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
+  </header>
+  <div class="panneau-corps">
+    <input id="ajout-cherche" placeholder="chercher une application…" maxlength="80" aria-label="Chercher une application">
+    <nav class="ajout-liste" id="ajout-liste" aria-label="Applications installées"></nav>
+  </div>
+</section>
 
 <!-- Le mode « modifier » : on déplace les tuiles, le terminal, l'heure. -->
 <div class="barre-modif" id="barre-modif" hidden>
