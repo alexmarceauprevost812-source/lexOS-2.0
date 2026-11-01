@@ -357,6 +357,7 @@ class Tiroir:
     PAGE = "labo.html"
     TITRE = "LexOS Labo"
     SIGNAL = signal.SIGUSR1
+    DELAI = "labo_delai"     # le réglage qui dit combien de temps rester au bord (ms)
 
     def __init__(self, app, url_base: str, jeton: str, base) -> None:
         from PySide6.QtCore import QTimer, QUrl
@@ -371,7 +372,7 @@ class Tiroir:
         self.dehors_depuis: float | None = None
         self.attendre_sortie = True        # au démarrage aussi : la souris peut déjà être au bord
         self.demande = False
-        self.regl = {self.NOM: True, "labo_delai": 1000}
+        self.regl = {self.NOM: True, "delai": 1000}
         self.empreinte = None
         self.vu_regl = 0.0
         self.battement = time.monotonic()
@@ -465,7 +466,7 @@ class Tiroir:
             if e != self.empreinte:
                 self.empreinte = e
                 r = self.rg.lire()
-                self.regl = {self.NOM: r[self.NOM], "labo_delai": r["labo_delai"]}
+                self.regl = {self.NOM: r[self.NOM], "delai": r[self.DELAI]}
         except Exception:       # un réglage illisible ne fait pas tomber le bureau
             pass
 
@@ -544,7 +545,7 @@ class Tiroir:
             return
         if self.bord_depuis is None:
             self.bord_depuis = maintenant
-        elif (maintenant - self.bord_depuis) * 1000 >= self.regl["labo_delai"]:
+        elif (maintenant - self.bord_depuis) * 1000 >= self.regl["delai"]:
             self.bord_depuis = None
             if plein_ecran():
                 self.attendre_sortie = True
@@ -567,6 +568,11 @@ class Outils(Tiroir):
     TITRE = "LexOS Outils"
     SIGNAL = signal.SIGUSR2
     COIN = 80
+    #  0,3 s au bord du haut, puis la barre descend (réglage « outils_delai »).
+    #  Le tic passe à 50 ms ici : à 120 ms, 0,3 s devenait 0,36 à 0,48 s.
+    #  Lire la position de la souris ne coûte presque rien.
+    DELAI = "outils_delai"
+    TIC_MS = 50
 
     #  ═══ FIXÉE EN HAUT (réglage « outils_fixe », d'office sur la nomade) ═══
     #  ALEX : « l'outil en haut de l'écran visible et fixe en haut ». La barre

@@ -62,7 +62,12 @@
             bord haut — le défaut corrigé au build 70. -->
       <property name="icon-size"       type="uint"   value="40"/>
       <property name="mode"            type="uint"   value="0"/>
-      <property name="autohide-behavior" type="uint" value="0"/>
+      <!--  ALEX (2026-11-01) : « désactiver l'outil en haut de l'écran, on va
+            le voir juste quand on met la souris là ». 2 = toujours cachée :
+            elle descend quand la souris touche le haut, après 0,3 s
+            (popup-delay dans usr/share/lexos/gtk-panneau.css). Un compte
+            déjà créé reçoit ce réglage par « lexos barre-haut auto ». -->
+      <property name="autohide-behavior" type="uint" value="2"/>
       <property name="enter-opacity"   type="uint"   value="100"/>
       <property name="leave-opacity"   type="uint"   value="100"/>
       <!--  0 = « laisser le thème peindre le fond ». C'est indispensable et

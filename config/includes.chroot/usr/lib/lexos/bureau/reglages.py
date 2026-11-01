@@ -160,26 +160,23 @@ DEFAUTS = {
     #  🎛️ Mes outils : la barre mince qui descend du HAUT de l'écran, sous la
     #  barre du haut (volume, capture, notifications, arrêt, et les outils
     #  qu'Alex y place). ["*"] = pas encore choisi → quelques outils LexOS.
-    #  SAUF la nomade : sans barre du haut, la souris va souvent au bord du
-    #  haut, et la barre des outils tombait à chaque fois. Elle reste à un
-    #  bouton : « Mes outils » dans le panneau Yeux du bureau démon.
-    #  Depuis que le nouveau bureau est officiel PARTOUT (2026-10-31), la Pro
-    #  n'a plus de barre XFCE non plus : même réglage que la clé.
-    "outils": False,
-    #  ALEX (31 octobre, ti-lexos-pro sur la clé) : « l'outil en haut de
-    #  l'écran visible et fixe en haut de l'écran ». Fixée, la barre reste
-    #  affichée tout le temps (elle ne descend plus au survol, elle ne repart
-    #  plus quand la souris s'en va), et les fenêtres maximisées s'arrêtent
-    #  dessous (marge du haut de xfwm4) au lieu de passer sous elle.
-    #  D'office sur la nomade : c'est elle qui n'a plus de barre XFCE.
-    "outils_fixe": True,
+    #  ALEX (2026-11-01) : « désactiver l'outil en haut de l'écran, on va le
+    #  voir juste quand on met la souris là, 0.3 sec avant son apparition ».
+    #  Ça remplace le choix du 31 octobre (barre fixe toujours affichée, et
+    #  « outils » éteint sur la nomade et la Pro) : la barre est de nouveau
+    #  là, mais cachée — elle descend au survol du haut, après 0,3 s.
+    "outils": True,
+    "outils_fixe": False,
+    #  Son propre délai, séparé de celui du labo (1 s en bas) : le haut doit
+    #  répondre plus vite.
+    "outils_delai": 300,
     "outils_apps": ["*"],
     #  Où Alex a posé ses icônes : {identifiant: [x, y]} en pixels du bureau.
     #  Vide = la grille par sections. Une icône qu'on n'a jamais déplacée
     #  reste dans la grille.
     "positions": {},
 }
-BORNES = {"demon_presence": (20, 100), "labo_delai": (300, 3000), "taille": (80, 140), "voile": (0, 90), "flou": (0, 20), "vitesse": (20, 300), "densite": (20, 200)}
+BORNES = {"demon_presence": (20, 100), "labo_delai": (300, 3000), "outils_delai": (100, 3000), "taille": (80, 140), "voile": (0, 90), "flou": (0, 20), "vitesse": (20, 300), "densite": (20, 200)}
 
 
 MAX_POSITIONS = 400

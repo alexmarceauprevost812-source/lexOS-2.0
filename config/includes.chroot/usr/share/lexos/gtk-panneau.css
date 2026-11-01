@@ -592,3 +592,15 @@ iconview.view .cell:hover {
     finissent toujours par diverger : c'est ce dépôt qui l'a appris à ses
     dépens, et cette règle-ci en était un exemple — elle nommait des nœuds
     (« iconview ») que la vue de Thunar ne porte même pas. */
+
+/* --- La barre du haut cachée : elle sort après 0,3 s ---------------------- */
+/*  ALEX (2026-11-01) : la barre ne se voit que quand la souris touche le haut
+    de l'écran, « 0.3 sec avant son apparition ». xfce4-panel n'a pas de
+    réglage xfconf pour ce délai : ce sont des propriétés de style GTK de la
+    fenêtre du panneau (panel-window.c, « popup-delay » 225 ms par défaut,
+    « popdown-delay » 350 ms). Le masquage lui-même est autohide-behavior=2
+    dans xfce4-panel.xml. */
+#XfcePanelWindow {
+	-XfcePanelWindow-popup-delay: 300;
+	-XfcePanelWindow-popdown-delay: 400;
+}
