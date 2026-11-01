@@ -2682,4 +2682,14 @@ suite: trixie
 #  📦 quand ça installe ; ❌ erreur (code N) en rouge ; ✅ terminé (durée)
 #  après une commande d'au moins 3 secondes.
 #
-build: 140
+#  ISO 141 — « Mon téléphone » et une seule barre en haut (1er novembre)
+#  Tout de la 140, plus :
+#  1. Mon téléphone (lexos-telephone), comme « Lien avec le mobile » de
+#     Windows : l'écran du téléphone Android dans une fenêtre (scrcpy, USB
+#     ou Wi-Fi), envoyer des fichiers (KDE Connect, sinon code QR, ou en
+#     les glissant sur la fenêtre), recevoir photos et fichiers (code QR),
+#     faire sonner le téléphone.
+#  2. En mode Moteur, l'ancienne barre XFCE ne revient plus : seule la barre
+#     Mes outils sort quand la souris touche le haut.
+#
+build: 141

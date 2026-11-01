@@ -1,0 +1,32 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-telephone — « Mon téléphone », le Lien avec le mobile de LexOS
+# =============================================================================
+#  ALEX (2026-11-01) : « ajouter une application comme Windows, exemple
+#  partager des fichiers, même l'écran du téléphone ». Une fenêtre qui
+#  réunit scrcpy (l'écran), KDE Connect et lexos-share (les fichiers).
+#  Le code : /usr/lib/lexos/pro/telephone_app.py et services/telephone.py.
+#  Même garde que lexos-pro : jamais en root, et PySide6 manquant = le dire.
+# =============================================================================
+set -eu
+
+RACINE="${LEXOS_PRO_RACINE:-/usr/lib/lexos}"
+if [ ! -d "$RACINE/pro" ]; then
+	ICI="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+	[ -d "$ICI/../lib/lexos/pro" ] && RACINE="$(CDPATH='' cd -- "$ICI/../lib/lexos" && pwd)"
+fi
+[ -d "$RACINE/pro" ] || { echo "Mon téléphone : « $RACINE/pro » est introuvable." >&2; exit 1; }
+
+if [ "$(id -u)" = "0" ] && [ -z "${LEXOS_PRO_AUTORISER_ROOT:-}" ]; then
+	echo "Mon téléphone ne se lance pas en root : utilise ton compte habituel." >&2
+	exit 2
+fi
+
+PY="${LEXOS_PRO_PYTHON:-python3}"
+if ! "$PY" -c 'import PySide6' >/dev/null 2>&1; then
+	echo "Mon téléphone a besoin de PySide6 :" >&2
+	echo "  sudo apt install python3-pyside6.qtwidgets python3-pyside6.qtgui" >&2
+	exit 3
+fi
+
+exec "$PY" -c 'import sys; sys.path.insert(0, sys.argv[1]); from pro.telephone_app import principal; sys.exit(principal(sys.argv[2:]))' "$RACINE" "lexos-telephone" "$@"

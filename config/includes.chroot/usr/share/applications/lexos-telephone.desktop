@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Mon téléphone
+Comment=Voir l'écran du téléphone, lui envoyer et recevoir des fichiers
+Exec=lexos-telephone
+Icon=phone
+Terminal=false
+Categories=Utility;Network;
+Keywords=telephone;téléphone;phone;android;ecran;écran;scrcpy;partage;fichiers;kdeconnect;mobile;lien;
+StartupNotify=true
+StartupWMClass=lexos-telephone
