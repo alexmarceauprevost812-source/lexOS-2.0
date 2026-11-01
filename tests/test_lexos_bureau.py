@@ -878,3 +878,35 @@ class Scripts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class AppsOuvertes(unittest.TestCase):
+    """Les applications ouvertes du dock (taches.py) : sans écran X, rien à
+    montrer et aucun geste possible ; la page ne vise jamais une fenêtre
+    que la liste ne contient pas."""
+
+    def setUp(self):
+        self.ancien = os.environ.pop("DISPLAY", None)
+        if str(BUREAU) not in sys.path:
+            sys.path.insert(0, str(BUREAU))
+        import taches
+        self.t = taches
+
+    def tearDown(self):
+        if self.ancien is not None:
+            os.environ["DISPLAY"] = self.ancien
+
+    def test_sans_ecran(self):
+        self.assertEqual(self.t.lister(), {"fenetres": []})
+        self.assertEqual(self.t.publique({"fenetres": []}), {"fenetres": []})
+        self.assertFalse(self.t.geste("0x1234", "basculer"))
+        self.assertFalse(self.t.geste("pas-un-nombre", "fermer"))
+        self.assertIsNone(self.t.icone("0x1234"))
+
+    def test_routes_et_page(self):
+        src = (BUREAU / "serveur.py").read_text("utf-8")
+        for bout in ('"/api/fenetres"', '"/api/fenetre-icone/"', '"/api/fenetre"'):
+            self.assertIn(bout, src)
+        js = (BUREAU / "web/demon.js").read_text("utf-8")
+        self.assertIn('id="ouvertes"', js)
+        self.assertIn("setInterval(majOuvertes", js)

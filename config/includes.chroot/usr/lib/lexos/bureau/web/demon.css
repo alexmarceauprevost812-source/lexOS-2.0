@@ -424,3 +424,21 @@ body.dock-droite .panneau { right: calc(var(--droite) + var(--dock-d) + var(--do
 .lancement.en-cours .lancement-curseur { animation: lx-curseur-l .9s steps(1) infinite; }
 @keyframes lx-curseur-l { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .lancement { display: none; } }
+
+/* ═══ Les applications ouvertes, dans le dock (demon.js, dessinerOuvertes) ═══
+   Après un trait fin, sous les lanceurs ; le point orange marque celle qui
+   est devant, et une appli réduite est un peu effacée. */
+.ouvertes { display: flex; flex-direction: inherit; gap: inherit; align-items: center; }
+.ouvertes:not(.vide) { border-top: 1px solid var(--bord); padding-top: 14px; }
+body:not(.dock-droite) .ouvertes:not(.vide) { border-top: 0; padding-top: 0; border-left: 1px solid var(--bord); padding-left: 14px; }
+.fen { position: relative; display: flex; flex-direction: column; align-items: center; background: none; border: 0; padding: 0; cursor: pointer; }
+.fen .tuile { width: clamp(46px, 7.4vh, 80px); }
+.fen .tuile img { width: 62%; height: 62%; object-fit: contain; }
+.fen .lettre { font-family: var(--mono); font-weight: 700; font-size: 1.6em; color: var(--ac); }
+.fen .point { position: absolute; bottom: -7px; width: 6px; height: 6px; border-radius: 50%; background: var(--ac); opacity: .45; }
+body.dock-droite .fen .point { bottom: auto; top: 50%; left: -8px; transform: translateY(-50%); }
+.fen.active .point { opacity: 1; box-shadow: 0 0 8px var(--ac); }
+.fen.reduite .tuile { opacity: .5; }
+.fen:hover .tuile { transform: scale(1.06); transition: transform .15s; }
+/*  Beaucoup d'applis ouvertes : le dock défile au lieu de sortir de l'écran. */
+body.dock-droite .dock { max-height: calc(100vh - 32px); overflow-y: auto; scrollbar-width: none; }

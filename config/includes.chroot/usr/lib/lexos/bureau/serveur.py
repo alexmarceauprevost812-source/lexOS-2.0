@@ -38,6 +38,7 @@ sys.path.insert(0, str(ICI))
 
 import applis  # noqa: E402
 import gestes  # noqa: E402
+import taches
 import reglages  # noqa: E402
 
 WEB = ICI / "web"
@@ -266,6 +267,12 @@ def fabriquer(etat: Etat):
             if chemin == "/api/bureaux":
                 #  Le bureau virtuel affiché (les boutons 1 2 3 4 du bureau démon).
                 return self._json(gestes.bureaux())
+            if chemin == "/api/fenetres":
+                #  Les applications ouvertes, pour le dock (taches.py).
+                return self._json(taches.publique(taches.lister()))
+            if chemin.startswith("/api/fenetre-icone/"):
+                p = taches.icone(chemin[len("/api/fenetre-icone/"):])
+                return self._fichier(p, cache=False, image_seule=True) if p else self.send_error(404)
             if chemin == "/api/version":
                 return self._json({"v": etat.version()})
             if chemin.startswith("/icone/"):
@@ -316,6 +323,9 @@ def fabriquer(etat: Etat):
                 if not q or not shutil.which("ti-lex-ia"):
                     return self._json({"ok": False})
                 return self._json({"ok": applis._detache(["ti-lex-ia", vers, q])})
+            if chemin == "/api/fenetre":
+                geste = "fermer" if d.get("geste") == "fermer" else "basculer"
+                return self._json({"ok": taches.geste(str(d.get("id", ""))[:20], geste)})
             if chemin == "/api/son":
                 return self._json(gestes.son(d))
             if chemin == "/api/bureau":

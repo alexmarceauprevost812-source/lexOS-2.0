@@ -544,8 +544,54 @@ function dessinerGrille() {
   dessinerPoints(pages);
 }
 function dessinerDock() {
-  $("#dock").innerHTML = ORDRE.dock.map((id) => tuile(CONNUS.get(id))).join("");
+  $("#dock").innerHTML = ORDRE.dock.map((id) => tuile(CONNUS.get(id))).join("")
+    + `<div class="ouvertes" id="ouvertes" aria-label="Applications ouvertes"></div>`;
+  dessinerOuvertes();
 }
+
+/* ════════════════ Les applications ouvertes, dans le dock ════════════════
+   ALEX (2026-11-01) : « ajouter dans le new dock les applications ouvertes ».
+   Sous les lanceurs, après un trait : une tuile par fenêtre ouverte
+   (taches.py, /api/fenetres), avec un point orange sous celle qui est
+   devant. Un clic la ramène devant ; un clic sur celle qui est déjà devant
+   la réduit. Un clic du milieu (la molette) la ferme.
+   Ces tuiles sont des « .fen », PAS des « .appli » : elles ne se glissent
+   pas et ne se rangent pas dans la grille — elles vivent et meurent avec
+   leur fenêtre. */
+let FENETRES = [], empreinteFen = "";
+function dessinerOuvertes() {
+  const o = $("#ouvertes"); if (!o) return;
+  o.classList.toggle("vide", !FENETRES.length);
+  o.innerHTML = FENETRES.map((f) => {
+    const image = f.icone
+      ? `<img src="/api/fenetre-icone/${encodeURIComponent(f.id)}?t=${encodeURIComponent(JETON)}" alt="">`
+      : `<span class="lettre">${echapper((f.classe || f.nom || "?").trim().charAt(0).toUpperCase())}</span>`;
+    return `<button class="fen${f.active && !f.reduite ? " active" : ""}${f.reduite ? " reduite" : ""}" data-fen="${echapper(f.id)}" title="${echapper(f.nom)}">`
+      + `<span class="tuile">${image}</span><span class="point" aria-hidden="true"></span></button>`;
+  }).join("");
+}
+async function majOuvertes() {
+  if (SECONDAIRE || document.hidden) return;
+  try {
+    const r = await api("/api/fenetres");
+    const liste = Array.isArray(r.fenetres) ? r.fenetres : [];
+    const e = JSON.stringify(liste);
+    if (e === empreinteFen) return;            // rien n'a bougé : on ne redessine pas
+    empreinteFen = e; FENETRES = liste; dessinerOuvertes();
+  } catch { /* le serveur se relance : on réessaie au prochain tour */ }
+}
+async function gesteFenetre(id, geste) {
+  try { await api("/api/fenetre", { id, geste }); } catch { bulle("Le bureau ne répond pas"); }
+  setTimeout(majOuvertes, 250);
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".fen[data-fen]"); if (!b || MODIF) return;
+  gesteFenetre(b.dataset.fen, "basculer");
+});
+document.addEventListener("auxclick", (e) => {
+  const b = e.target.closest(".fen[data-fen]"); if (!b || e.button !== 1) return;
+  e.preventDefault(); gesteFenetre(b.dataset.fen, "fermer");
+});
 function dessinerApplis() {
   calculerOrdre();
   if (!SECONDAIRE) { dessinerGrille(); dessinerDock(); dessinerLibres(); }
@@ -1288,4 +1334,6 @@ function ouverture() {
   setInterval(majReseau, 15000);
   majBureaux();
   setInterval(majBureaux, 2000);           // un raccourci clavier a pu changer de bureau
+  majOuvertes();
+  setInterval(majOuvertes, 1500);          // les applis ouvertes du dock
 })();
