@@ -232,6 +232,11 @@ if [ -n "${BASH_VERSION:-}" ]; then
 			#  bannière : la capuche vaut #F86A00. ti-lex passe au lime #A3FF12.
 			__LEXOS_PS1_TILEX='\[\033[1;${__LEXOS_C_LIME}m\]\u\[\033[0;${__LEXOS_C_VERT_TL}m\]_\[\033[1;${__LEXOS_C_ORANGE_TL}m\]lexOS\[\033[0;${__LEXOS_C_VERT_TL}m\]-\[\033[1;${__LEXOS_C_VERT_TL}m\]pro\[\033[0m\]  \[\033[${__LEXOS_C_DIM}m\]\w$(__lexos_git_branch)\[\033[0m\]\n\[\033[${__LEXOS_C_VERT_TL}m\]─◇\[\033[0m\] \[$(__lexos_fleche)\]❯\[\033[0m\] \[\033[${__LEXOS_C_TEXTE}m\]'
 			#  ═══ L'INVITE « PRO » — LE PETIT BATEAU (DÉFAUT DEPUIS LE 2026-10-31) ═══
+			#  ALEX (2026-11-01) : « écrire le nom d'utilisateur en haut et lexos
+			#  en bas du nom d'utilisateur ». Le nom seul sur la 1re ligne, et
+			#  « lexos » prend la place du bateau sur la 2e :
+			#      ╭──(alex)─[~/Projets] ⎇ main
+			#      ╰─(lexos)──➜ 
 			#  ALEX : « reconstruire le terminal pour la saveur du thème
 			#  professionnel […] une invite spéciale un peu comme Kali, mais
 			#  version LexOS […] à la place, en bas, on ferait comme un ti
@@ -250,7 +255,7 @@ if [ -n "${BASH_VERSION:-}" ]; then
 					printf '\033[%sm' "$__LEXOS_C_ERREUR"
 				fi
 			}
-			__LEXOS_PS1_PRO='\[\033[0;${__LEXOS_C_CADRE}m\]╭──(\[\033[1;${__LEXOS_C_TEXTE}m\]\u\[\033[0;${__LEXOS_C_CADRE}m\]@\[\033[1;${__LEXOS_C_CADRE}m\]lexos\[\033[0;${__LEXOS_C_CADRE}m\])─[\[\033[0;${__LEXOS_C_TEXTE}m\]\w\[\033[0;${__LEXOS_C_CADRE}m\]]\[\033[0;${__LEXOS_C_DIM}m\]$(__lexos_git_branch)\[\033[0m\]\n\[\033[0;${__LEXOS_C_CADRE}m\]╰─(__________\[$(__lexos_fleche_pro)\]➜\[\033[0m\] \[\033[${__LEXOS_C_TEXTE}m\]'
+			__LEXOS_PS1_PRO='\[\033[0;${__LEXOS_C_CADRE}m\]╭──(\[\033[1;${__LEXOS_C_TEXTE}m\]\u\[\033[0;${__LEXOS_C_CADRE}m\])─[\[\033[0;${__LEXOS_C_TEXTE}m\]\w\[\033[0;${__LEXOS_C_CADRE}m\]]\[\033[0;${__LEXOS_C_DIM}m\]$(__lexos_git_branch)\[\033[0m\]\n\[\033[0;${__LEXOS_C_CADRE}m\]╰─(\[\033[1;${__LEXOS_C_CADRE}m\]lexos\[\033[0;${__LEXOS_C_CADRE}m\])──\[$(__lexos_fleche_pro)\]➜\[\033[0m\] \[\033[${__LEXOS_C_TEXTE}m\]'
 			LEXOS_INVITE_FICHIER="${XDG_CONFIG_HOME:-$HOME/.config}/lexos/invite"
 			__lexos_style_vu=""
 			#  Pas de « local » : ce fichier est déclaré sh (shellcheck le lit

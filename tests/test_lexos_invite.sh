@@ -1082,12 +1082,13 @@ PRO_XDG="$BANC/pro-config"; mkdir -p "$PRO_XDG"
 pro() { HOME="$BANC/home" XDG_CONFIG_HOME="$PRO_XDG" COLORTERM="$2" TERM=xterm-256color bash --norc --noprofile -i -c \
 	". \"$SH\"; __lexos_code=$1; printf '%s' \"\${PS1@P}\"" 2>/dev/null | tr -d '\001\002'; }
 VU="$(pro 0 truecolor)"; TXT="$(printf '%s' "$VU" | sed 's/\x1b\[[0-9;]*m//g')"
-case "$TXT" in *"╭──("*"@lexos)─["*"]"*) ok "ligne 1 : ╭──(nom@lexos)─[chemin]" ;; *) non "ligne 1 inattendue : $TXT" ;; esac
-case "$TXT" in *"╰─(__________➜ "*) ok "ligne 2 : le petit bateau ╰─(__________➜" ;; *) non "pas de petit bateau : $TXT" ;; esac
+case "$TXT" in *"╭──("*")─["*"]"*) ok "ligne 1 : ╭──(nom)─[chemin]" ;; *) non "ligne 1 inattendue : $TXT" ;; esac
+case "$TXT" in *"@lexos)"*) non "ligne 1 : « @lexos » ne doit plus y être : $TXT" ;; *) ok "ligne 1 : le nom seul, sans @lexos" ;; esac
+case "$TXT" in *"╰─(lexos)──➜ "*) ok "ligne 2 : « lexos » sous le nom ╰─(lexos)──➜" ;; *) non "pas de « lexos » en 2e ligne : $TXT" ;; esac
 case "$VU" in *"38;2;255;106;26m"*) ok "cadre en orange LexOS (#FF6A1A)" ;; *) non "cadre pas orange" ;; esac
 ERR="$(pro 1 truecolor)"
-case "$ERR" in *"__________"*"38;5;196m"*"➜"*) ok "la flèche du bateau devient rouge après une erreur" ;;
-	*"__________"*"196"*) ok "la flèche du bateau devient rouge après une erreur" ;; *) non "flèche pas rouge après une erreur" ;; esac
+case "$ERR" in *"lexos"*")──"*"38;5;196m"*"➜"*) ok "la flèche du bateau devient rouge après une erreur" ;;
+	*")──"*"196"*) ok "la flèche du bateau devient rouge après une erreur" ;; *) non "flèche pas rouge après une erreur" ;; esac
 case "$(pro 0 "")" in *"38;5;202m"*) ok "repli 256 couleurs : orange 202" ;; *) non "repli 256 couleurs absent" ;; esac
 
 # =============================================================================

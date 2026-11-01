@@ -2656,4 +2656,8 @@ suite: trixie
 #  2. Plus de fenêtre « Bienvenue » après l'animation d'ouverture (elle
 #     reste dans le menu) ; la vidéo d'ouverture, elle, reste.
 #
-build: 135
+#  ISO 136 — tout de la 135, plus la nouvelle invite du terminal (1er novembre)
+#  ╭──(nom)─[chemin]  puis  ╰─(lexos)──➜  : le nom d'utilisateur en haut,
+#  « lexos » en dessous, à la place du petit bateau.
+#
+build: 136
