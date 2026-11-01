@@ -260,6 +260,31 @@ def html_vers_texte(h: str) -> str:
     return re.sub(r"\n\s*\n+", "\n\n", "".join(p.morceaux)).strip()
 
 
+def chercher_web(query: str, max_results: int = 5) -> str:
+    """Recherche web (DuckDuckGo, sans clé) — Turbo REA ET le chat de ti-lex IA."""
+    n = max(1, min(int(max_results or 5), 10))
+    try:
+        from ddgs import DDGS                   # si présent (libs de REA sur la clé)
+        res = list(DDGS().text(query, max_results=n))
+        if res:
+            return "\n\n".join(f"{r.get('title', '')}\n{r.get('href', '')}\n{r.get('body', '')}" for r in res)
+    except Exception:
+        pass
+    data, _ = _telecharger("https://html.duckduckgo.com/html/?" + urllib.parse.urlencode({"q": query}), MAX_PAGE, "text/html")
+    page = data.decode("utf-8", "replace")
+    sortie = []
+    for m in re.finditer(r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>.*?(?:class="result__snippet"[^>]*>(.*?)</a>)?', page, re.S):
+        lien = html.unescape(m.group(1))
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(lien).query).get("uddg")
+        lien = q[0] if q else lien
+        titre = html.unescape(re.sub("<.*?>", "", m.group(2)))
+        extrait = html.unescape(re.sub("<.*?>", "", m.group(3) or ""))
+        sortie.append(f"{titre}\n{lien}\n{extrait}")
+        if len(sortie) >= n:
+            break
+    return "\n\n".join(sortie) or "Aucun résultat."
+
+
 class TurboREA:
     def __init__(self, projet: Path, ollama: str, modele: str, vision: str | None, modele_image: str | None,
                  evenement):
@@ -314,27 +339,7 @@ class TurboREA:
 
     # ── outils ──
     def outil_web_search(self, query: str, max_results: int = 5) -> str:
-        n = max(1, min(int(max_results or 5), 10))
-        try:
-            from ddgs import DDGS                   # si présent (libs de REA sur la clé)
-            res = list(DDGS().text(query, max_results=n))
-            if res:
-                return "\n\n".join(f"{r.get('title', '')}\n{r.get('href', '')}\n{r.get('body', '')}" for r in res)
-        except Exception:
-            pass
-        data, _ = _telecharger("https://html.duckduckgo.com/html/?" + urllib.parse.urlencode({"q": query}), MAX_PAGE, "text/html")
-        page = data.decode("utf-8", "replace")
-        sortie = []
-        for m in re.finditer(r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>.*?(?:class="result__snippet"[^>]*>(.*?)</a>)?', page, re.S):
-            lien = html.unescape(m.group(1))
-            q = urllib.parse.parse_qs(urllib.parse.urlparse(lien).query).get("uddg")
-            lien = q[0] if q else lien
-            titre = html.unescape(re.sub("<.*?>", "", m.group(2)))
-            extrait = html.unescape(re.sub("<.*?>", "", m.group(3) or ""))
-            sortie.append(f"{titre}\n{lien}\n{extrait}")
-            if len(sortie) >= n:
-                break
-        return "\n\n".join(sortie) or "Aucun résultat."
+        return chercher_web(query, max_results)
 
     def outil_fetch_page(self, url: str) -> str:
         data, typ = _telecharger(url, MAX_PAGE)

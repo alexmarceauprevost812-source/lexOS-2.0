@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=LexOS · Monter les clés USB
+Comment=Monte les clés USB branchées comme un disque dur (modèles IA de la clé visibles dans ti-lex IA)
+Exec=lexos-monter-cles --veille
+Icon=drive-removable-media
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

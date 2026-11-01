@@ -34,6 +34,26 @@ import time
 import http.client
 from pathlib import Path
 
+def _monter_cles(journal) -> None:
+    """Monte les clés USB pas encore montées, comme un disque dur."""
+    global _MONTEUR
+    if _MONTEUR is None:
+        try:
+            import importlib.machinery, importlib.util
+            chargeur = importlib.machinery.SourceFileLoader("lexos_monter_cles", "/usr/bin/lexos-monter-cles")
+            spec = importlib.util.spec_from_loader("lexos_monter_cles", chargeur)
+            _MONTEUR = importlib.util.module_from_spec(spec)
+            chargeur.exec_module(_MONTEUR)
+        except (OSError, ImportError, SyntaxError):
+            _MONTEUR = False
+    if _MONTEUR:
+        try:
+            _MONTEUR.monter(journal)
+        except Exception as e:                     # jamais tomber
+            journal(f"[clés IA] montage : {e}")
+
+
+_MONTEUR = None
 PREFIXE = "usb:"
 PORTS = range(11451, 11471)
 SOUS_DOSSIERS = ("lexos-ia/ia/modeles", "LEXOS/lexos-ia/ia/modeles", "ollama-models",
@@ -159,6 +179,10 @@ class ClesIA:
             self.fin.wait(5)
 
     def _tour(self) -> None:
+        #  ALEX (2026-11-01) : « connecter la clé USB comme si elle serait un
+        #  disque dur » — une clé branchée mais pas montée est montée d'abord
+        #  (udisks2, voir /usr/bin/lexos-monter-cles), puis ses modèles lus.
+        _monter_cles(self.dire)
         vus = chercher(self.exclure)
         with self.verrou:
             for d in [d for d in self.actifs if d not in vus]:

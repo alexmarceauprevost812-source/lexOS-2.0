@@ -1367,3 +1367,8 @@ body.verrouille #app { filter: blur(10px) saturate(.6); }
 #gh-fini { line-height: 1.7; }
 #gh-fini a { color: var(--orange); }
 #cx-github { flex: none; }
+
+/* 🔎 Recherche web du chat : allumé = couleur du thème qui brille */
+.btn-web { opacity: .55; transition: opacity .2s, transform .2s, filter .2s; }
+.btn-web:hover { opacity: .9; }
+.btn-web.actif { opacity: 1; filter: drop-shadow(0 0 8px var(--orange, #ff7a18)); transform: scale(1.08); }

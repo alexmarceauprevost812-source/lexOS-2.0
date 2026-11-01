@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""LexOS · 💽 Monter les clés USB comme un disque dur, toutes seules.
+
+ALEX (2026-11-01) : « connecter la clé USB pour avoir le modèle IA local,
+connecter la clé USB comme si elle serait un disque dur ». Avec le bureau du
+Moteur, plus rien ne montait une clé branchée : elle restait invisible, et
+ti-lex IA disait « aucun modèle de texte sur la clé ».
+
+COMMENT. On demande à udisks2 (déjà dans LexOS) de monter chaque partition
+USB qui a un système de fichiers et qui n'est pas montée : elle arrive dans
+/media/<compte>/<NOM>, exactement comme un disque dur, visible dans Fichiers
+et par ti-lex IA (cles_ia.py y trouve lexos-ia/ia/modeles tout seul).
+
+PRUDENCES.
+  · Seulement les disques USB ou amovibles — jamais les disques internes
+    (Windows, la partition de LexOS…).
+  · Une clé qu'on a démontée à la main n'est pas remontée tant qu'elle n'a
+    pas été débranchée puis rebranchée.
+  · Pas de mot de passe demandé (--no-user-interaction) : si udisks refuse,
+    on n'insiste pas.
+
+  lexos-monter-cles           monte ce qui est branché, une fois
+  lexos-monter-cles --veille  surveille et monte à chaque branchement
+"""
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+import sys
+import time
+
+# Les partitions déjà essayées (montées ou refusées) depuis leur branchement.
+_essayees: set[str] = set()
+IGNORES = {"swap", "crypto_LUKS", "LVM2_member", "linux_raid_member", "BitLocker"}
+
+
+def _partitions() -> list[dict]:
+    try:
+        sortie = subprocess.run(
+            ["lsblk", "-J", "-p", "-o", "NAME,TRAN,RM,HOTPLUG,FSTYPE,MOUNTPOINT,LABEL,UUID,TYPE"],
+            capture_output=True, text=True, timeout=10).stdout
+        arbre = json.loads(sortie or "{}").get("blockdevices", [])
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return []
+    out = []
+
+    def descendre(dev: dict, usb: bool) -> None:
+        usb = usb or dev.get("tran") == "usb" or dev.get("rm") in (True, "1") or dev.get("hotplug") in (True, "1")
+        if usb and dev.get("fstype") and dev.get("fstype") not in IGNORES and dev.get("type") in ("part", "disk"):
+            out.append(dev)
+        for enfant in dev.get("children") or []:
+            descendre(enfant, usb)
+
+    for d in arbre:
+        if d.get("type") == "disk":
+            descendre(d, False)
+    return out
+
+
+def monter(journal=print) -> list[str]:
+    """Monte les partitions USB pas encore montées. Rend les points de montage."""
+    if not shutil.which("udisksctl"):
+        return []
+    parts = _partitions()
+    branchees = {p.get("uuid") or p["name"] for p in parts}
+    _essayees.intersection_update(branchees)        # débranchée → oubliée
+    montes = []
+    for p in parts:
+        cle = p.get("uuid") or p["name"]
+        if p.get("mountpoint") or cle in _essayees:
+            continue
+        _essayees.add(cle)
+        try:
+            r = subprocess.run(["udisksctl", "mount", "-b", p["name"], "--no-user-interaction"],
+                               capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        nom = p.get("label") or p["name"]
+        if r.returncode == 0:
+            ou = r.stdout.strip().rsplit(" at ", 1)[-1].rstrip(".")
+            montes.append(ou)
+            journal(f"💽 Clé « {nom} » montée comme un disque : {ou}")
+        else:
+            journal(f"💽 Clé « {nom} » : montage refusé ({(r.stderr or r.stdout).strip()[:160]})")
+    return montes
+
+
+def main() -> int:
+    if "--veille" in sys.argv:
+        while True:
+            try:
+                monter()
+            except Exception as e:                  # jamais tomber
+                print(f"[monter-cles] {e}", flush=True)
+            time.sleep(3)
+    monter()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

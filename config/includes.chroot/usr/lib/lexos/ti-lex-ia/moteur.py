@@ -614,6 +614,8 @@ def fabriquer_gestionnaire(moteur: Moteur, arret: threading.Event):
                 return self._importer()
             if self.path == "/moteur/rea":
                 return self._turbo_rea()
+            if self.path == "/moteur/web":                  # 🔎 recherche web pour le chat
+                return self._recherche_web()
             if self.path == "/moteur/env":
                 return self._env()
             if self.path == "/moteur/cloner":
@@ -1148,6 +1150,35 @@ def fabriquer_gestionnaire(moteur: Moteur, arret: threading.Event):
                     gi.write_text(actuel + ("\n" if actuel and not actuel.endswith("\n") else "") + "\n".join(ajout) + "\n", "utf-8")
                 return self._json({"ok": True, "fichier": f"{portee}/{nom_fichier}", "n": len(final)})
             self._json({"erreur": "action inconnue"}, 400)
+
+        # ── 🔎 Recherche web pour l'IA locale du chat (ALEX, 2026-11-01 : « ajouter
+        #    une IA locale capable de rechercher sur le web ») : le Moteur cherche
+        #    (DuckDuckGo, sans clé), lit les 2 premières pages, et le chat donne
+        #    tout ça au modèle local avant sa réponse. Le modèle reste sur le PC.
+        def _recherche_web(self):
+            from turbo_rea import chercher_web, ErreurOutil, _telecharger, html_vers_texte, MAX_PAGE
+            try:
+                d = json.loads(self._corps() or b"{}")
+            except ValueError:
+                return self._json({"erreur": "json invalide"}, 400)
+            q = str(d.get("q", "")).strip()[:300]
+            if not q:
+                return self._json({"erreur": "question manquante"}, 400)
+            try:
+                res = chercher_web(q, 6)
+            except (ErreurOutil, OSError) as e:
+                return self._json({"erreur": f"recherche impossible : {e}"}, 502)
+            liens = re.findall(r"^(https?://\S+)$", res, re.M)
+            pages = []
+            for lien in liens[:2]:
+                try:
+                    data, typ = _telecharger(lien, MAX_PAGE)
+                    t = data.decode("utf-8", "replace")
+                    t = html_vers_texte(t) if "html" in typ.lower() else t
+                    pages.append({"url": lien, "texte": t[:3000]})
+                except Exception:
+                    continue
+            return self._json({"resultats": res, "pages": pages, "liens": liens[:6]})
 
         # ── ⚡ Turbo REA : l'agent travaille dans le projet et raconte ce qu'il fait ──
         def _turbo_rea(self):

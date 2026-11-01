@@ -463,6 +463,31 @@ function rendrePieces() {
 }
 $("#pieces").addEventListener("click", (e) => { const b = e.target.closest("[data-i]"); if (b) { S.images.splice(+b.dataset.i, 1); rendrePieces(); } });
 
+/* 🔎 Recherche web (ALEX, 2026-11-01 : « ajouter une IA locale capable de
+   rechercher sur le web ») : bouton allumé → avant chaque réponse, le Moteur
+   cherche sur le web et le modèle LOCAL répond avec ces résultats, en citant
+   ses sources. Le choix est gardé d'une fois à l'autre (si le navigateur le
+   permet). */
+let WEB = false;
+try { WEB = localStorage.getItem("lexos-web") === "1"; } catch {}
+function majWeb() { const b = $("#web"); if (b) { b.classList.toggle("actif", WEB); b.setAttribute("aria-pressed", String(WEB)); } }
+$("#web")?.addEventListener("click", () => {
+  WEB = !WEB; majWeb();
+  try { localStorage.setItem("lexos-web", WEB ? "1" : "0"); } catch {}
+  toast(WEB ? "🔎 Recherche web activée : ton IA locale cherche avant de répondre" : "🔎 Recherche web coupée");
+});
+majWeb();
+async function contexteWeb(question) {
+  const r = await fetch("/moteur/web", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ q: question }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.erreur) throw new Error(d.erreur || "recherche web impossible");
+  const pages = (d.pages || []).map((p) => `--- Page : ${p.url}\n${p.texte}`).join("\n\n");
+  return { role: "system", content:
+    `Date d'aujourd'hui : ${new Date().toLocaleDateString("fr-CA")}. Voici des résultats de recherche web trouvés à l'instant pour la question de l'utilisateur. ` +
+    `Sers-t'en pour répondre de façon exacte et à jour, en français. Cite tes sources avec leurs liens à la fin. Si les résultats ne répondent pas, dis-le.\n\n` +
+    `=== Résultats ===\n${d.resultats || "Aucun résultat."}\n\n${pages}` };
+}
+
 async function envoyer() {
   const texte = saisie.value.trim();
   const modele = $("#modele").value;
@@ -494,9 +519,16 @@ async function envoyer() {
   $("#stop").hidden = false; btn.hidden = true;
 
   try {
+    let messages = S.conv.messages;
+    if (WEB) {
+      remplirIA(t, "🔎 *Je cherche sur le web…*", "");
+      try { messages = [await contexteWeb(texte), ...S.conv.messages]; }
+      catch (e) { toast("🔎 " + e.message + " — je réponds sans le web", true); }
+      remplirIA(t, "", "");
+    }
     const r = await fetch("/api/chat", {
       method: "POST", headers: { "Content-Type": "application/json" }, signal: S.ctrl.signal,
-      body: JSON.stringify({ model: modele, messages: S.conv.messages, stream: true }),
+      body: JSON.stringify({ model: modele, messages, stream: true }),
     });
     if (!r.ok || !r.body) throw new Error((await r.text()).slice(0, 200) || "Erreur " + r.status);
     const lecteur = r.body.getReader(), dec = new TextDecoder();
