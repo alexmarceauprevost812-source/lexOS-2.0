@@ -45,7 +45,10 @@ WEB = ICI / "web"
 #  20 polices dans le système, celle de ti-lex IA.
 MOTEUR_UI = Path(os.environ.get("LEXOS_BUREAU_MOTEUR_UI", "/usr/lib/lexos/ti-lex-ia/interface"))
 HOTES_LOCAUX = {"127.0.0.1", "localhost"}
-ACTIONS = ("parametres", "terminal", "dossier-bureau", "classique", "fond-suivant", "ranger", "audit")
+#  Plus de « classique » ni de « fond-suivant » ici (demande d'Alex,
+#  1er nov. 2026) : changer de bureau, de fond animé ou de logo se fait
+#  SEULEMENT dans les Paramètres → Bureau LexOS, plus avec le clic droit.
+ACTIONS = ("parametres", "terminal", "dossier-bureau", "ranger", "audit")
 
 
 def prenom() -> str:
@@ -419,15 +422,6 @@ def action(nom: str, etat: Etat) -> bool:
         return applis.lancer("ouvrir", str(applis.dossier_bureau()))
     if nom == "ranger":
         reglages.ecrire({"positions": {}})
-        return True
-    if nom == "fond-suivant":
-        r = reglages.lire()
-        i = (reglages.FONDS.index(r["anim"]) + 1) % len(reglages.FONDS)
-        reglages.ecrire({"anim": reglages.FONDS[i]})
-        return True
-    if nom == "classique":
-        reglages.ecrire({"mode": "classique"})
-        etat.fin.set()
         return True
     return False
 

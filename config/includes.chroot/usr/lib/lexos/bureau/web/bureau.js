@@ -397,7 +397,6 @@ menu.addEventListener("click", async (e) => {
   const l = e.target.closest("[data-local]");
   if (l) {
     menu.hidden = true;
-    if (l.dataset.local === "logo") changerLogo(true);
     if (l.dataset.local === "labo-icone" && iconeMenu) {
       const id = iconeMenu.dataset.id, dans = LABO.includes(id);
       try {
