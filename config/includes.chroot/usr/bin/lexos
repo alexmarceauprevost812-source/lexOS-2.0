@@ -1114,6 +1114,7 @@ case "$CMD" in
 	share|partage)        exec lexos-share "$@" ;;
 	receive|recevoir)     exec lexos-share receive ;;
 	ecran-telephone)      exec lexos-ecran-telephone "$@" ;;
+	jumelage|jumeler)     exec lexos-jumelage "$@" ;;
 	logitheque|boutique|store) exec lexos-logitheque "$@" ;;
 	usb)                  exec lexos-usb "$@" ;;
 	vide-memoire|vider)   exec lexos-usb import "$@" ;;

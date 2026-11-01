@@ -2647,4 +2647,13 @@ suite: trixie
 #  4. Gardien de xfwm4 : relancé s'il tombe — les boutons des fenêtres ne
 #     disparaissent plus.
 #
-build: 134
+#  ISO 135 — aide à l'installation par le téléphone ; démarrage sans fenêtre (1er novembre)
+#  Tout le contenu de la 134, plus :
+#  1. « lexos jumelage » (menu : Aide à l'installation (téléphone)) : un code
+#     QR que le lanceur LexOS PRO 2.4 scanne ; le téléphone montre ce qui
+#     bloque l'installation (pilote NVIDIA, Secure Boot, disques, Windows,
+#     erreurs) avec la solution. Lecture seule, réseau local, code secret.
+#  2. Plus de fenêtre « Bienvenue » après l'animation d'ouverture (elle
+#     reste dans le menu) ; la vidéo d'ouverture, elle, reste.
+#
+build: 135

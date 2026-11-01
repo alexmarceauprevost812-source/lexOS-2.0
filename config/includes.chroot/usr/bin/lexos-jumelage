@@ -1,0 +1,10 @@
+#!/bin/sh
+# =============================================================================
+#  lexos-jumelage — jumeler le téléphone pour aider à installer LexOS
+# =============================================================================
+#  Affiche un code QR ; le lanceur LexOS PRO du téléphone le scanne et montre
+#  le diagnostic du PC (carte graphique, pilote, disques, démarrage, erreurs)
+#  avec la solution des problèmes connus. Lecture seule. Voir
+#  /usr/lib/lexos/jumelage/serveur.py.
+# =============================================================================
+exec python3 /usr/lib/lexos/jumelage/serveur.py "$@"

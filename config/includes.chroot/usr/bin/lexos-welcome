@@ -16,8 +16,15 @@ for arg in "$@"; do
 	esac
 done
 
-# Au démarrage automatique : on ne montre rien si l'utilisateur a déjà répondu.
-if (( FIRST_RUN )) && [[ -f "$STAMP" ]]; then
+# Au démarrage automatique : plus RIEN ne s'ouvre.
+#  ALEX (2026-11-01) : « toutes les fenêtres qui s'ouvrent à l'ouverture du
+#  PC, j'aimerais pas les voir » — « celles qui ouvrent juste après
+#  l'animation ». La vidéo d'ouverture reste ; cette fenêtre-ci, non. En
+#  session live, le fanion ne survivait pas au redémarrage : elle revenait à
+#  CHAQUE démarrage. /etc/skel ne la lance plus, et un compte déjà créé (qui
+#  garde son autostart « --first-run ») s'arrête ici. Elle s'ouvre toujours
+#  à la main : menu « Bienvenue », ou « lexos-welcome ».
+if (( FIRST_RUN )); then
 	exit 0
 fi
 

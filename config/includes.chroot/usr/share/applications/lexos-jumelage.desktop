@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Aide à l'installation (téléphone)
+Comment=Jumeler le lanceur LexOS PRO pour voir le diagnostic du PC sur le téléphone
+Exec=lexos-jumelage
+Icon=phone
+Terminal=true
+Categories=System;
+Keywords=jumeler;telephone;installation;diagnostic;qr;
