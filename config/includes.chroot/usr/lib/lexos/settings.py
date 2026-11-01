@@ -1523,7 +1523,9 @@ def _bureau_moteur_etat():
     r = rg.lire()
     r.update({"dispo": _outils.commande_existe("lexos-bureau"),
               "couleurs": rg.COULEURS, "polices": rg.POLICES,
-              "fonds": rg.FONDS})
+              "fonds": rg.FONDS,
+              "themes": [{"id": k, "nom": t["nom"], "pic": t["pic"], "desc": t["desc"], "accent": t["accent"]}
+                         for k, t in getattr(rg, "THEMES", {}).items()]})
     return r
 
 

@@ -447,15 +447,11 @@ function appliquerEmbleme() {
 //  Une image qui manque (ti-lex IA pas installé) : pas de cadre vide au centre.
 embImg.addEventListener("error", () => { emb.hidden = true; });
 embImg.addEventListener("load", () => { if (P && P.embleme !== "aucun") emb.hidden = false; });
-//  « avecAucun » : le menu du clic droit fait aussi le tour par « pas de logo ».
-async function changerLogo(avecAucun) {
-  const tour = avecAucun ? [...ORDRE_LOGOS, "aucun"] : ORDRE_LOGOS;
-  const suivant = tour[(tour.indexOf(P.embleme) + 1) % tour.length];
-  try { await api("/api/reglages", { embleme: suivant }); verifier(); } catch { bulle("Le bureau ne répond pas"); }
-}
+//  ALEX (2026-11-01) : le bureau ne se change plus à la souris — le logo se
+//  choisit SEULEMENT dans Paramètres → Bureau LexOS (thèmes compris). Un clic
+//  sur le logo le fait juste tourner, pour le plaisir.
 embBtn.addEventListener("click", () => {
   embBtn.classList.remove("tourne", "onde"); void embBtn.offsetWidth; embBtn.classList.add("tourne", "onde");
-  setTimeout(() => changerLogo(false), 400);
 });
 embBtn.addEventListener("animationend", (e) => { if (e.animationName === "emb-tourne") embBtn.classList.remove("tourne", "onde"); });
 document.addEventListener("mousemove", (e) => {

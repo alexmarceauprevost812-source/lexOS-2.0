@@ -1504,6 +1504,23 @@ function blocBureauMoteur(){
       <button class="btn ${sel(moteur)}" onclick="setBM({mode:'moteur'})">⚡ Bureau du Moteur</button>
       <button class="btn ${sel(!moteur)}" onclick="setBM({mode:'classique'})">Bureau classique</button>
     </div></div>`;
+  /*  ═══ LES THÈMES DE BUREAU ═══
+      ALEX (2026-11-01) : LexOS Moteur et ses saveurs, LexOS Démon, LexOS
+      Professionnel — ICI seulement, jamais au clic droit du bureau. Un clic
+      pose le thème (et allume le bureau du Moteur s'il ne l'est pas). */
+  if((B.themes || []).length) html += `<div class="srow" style="display:block">
+    <div class="t" style="margin-bottom:4px">Thème de bureau</div>
+    <div class="d" style="margin-bottom:10px">Un clic change tout d'un coup : couleur, fond animé, image, logo
+      et police. Tu peux ensuite retoucher chaque réglage plus bas.${B.theme === "" ? " <b>En ce moment : personnalisé.</b>" : ""}</div>
+    <div class="row" style="gap:10px;flex-wrap:wrap">${B.themes.map(t => {
+      const choisi = moteur && B.theme === t.id;
+      return `<button class="btn ${sel(choisi)}" title="${esc(t.desc)}"
+        onclick="setBM(${esc(JSON.stringify(moteur ? {theme:t.id} : {theme:t.id, mode:"moteur"}))})"
+        style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:200px;min-height:86px;padding:12px 14px;text-align:left;
+        border-left:4px solid ${esc(t.accent)}">
+        <span style="font-size:15px;font-weight:700">${esc(t.pic)} ${esc(t.nom)}</span>
+        <span style="font-size:11.5px;opacity:.75;font-weight:400;white-space:normal">${esc(t.desc)}</span></button>`;
+    }).join("")}</div></div>`;
   if(!moteur) return html;
   const pastille = ([nom, c]) => {
     const fond = c === "arc-en-ciel"
@@ -1535,7 +1552,7 @@ function blocBureauMoteur(){
   </div>
   <div class="srow" style="display:block">
     <div class="t" style="margin-bottom:4px">Le grand logo au centre</div>
-    <div class="d" style="margin-bottom:10px">Comme dans le Moteur : clique dessus sur le bureau pour passer au suivant.</div>
+    <div class="d" style="margin-bottom:10px">Il se choisit ici seulement (ou avec un thème plus haut).</div>
     <div class="row">
       <button class="btn ${sel(B.embleme === "nomad")}" onclick="setBM({embleme:'nomad'})">LexOS Nomad</button>
       <button class="btn ${sel(B.embleme === "rond")}" onclick="setBM({embleme:'rond'})">Logo rond</button>

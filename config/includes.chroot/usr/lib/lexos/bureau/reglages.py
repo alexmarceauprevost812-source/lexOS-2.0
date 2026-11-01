@@ -39,6 +39,49 @@ COULEURS = (
 )
 EXT_IMAGES = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 
+#  ═══ LES THÈMES DE BUREAU ═══
+#  ALEX (2026-11-01) : « ajouter des thèmes de LexOS dans les Paramètres :
+#  LexOS Moteur et toutes ses saveurs, et LexOS Démon, LexOS Professionnel »
+#  — « ne pas le changer avec le clic droit de la souris, le voir juste dans
+#  les Paramètres ». Un thème est un PAQUET de réglages (couleur, fond animé,
+#  image, logo, police…) posé d'un seul clic ; chaque réglage reste ensuite
+#  modifiable un par un. Toucher un de ces réglages à la main fait passer le
+#  thème à « » (personnalisé) : les Paramètres ne mentent pas sur ce qui est
+#  à l'écran. Les images viennent du hook 0300 (/usr/share/backgrounds/lexos) ;
+#  une image absente est simplement laissée de côté.
+FONDS_LEXOS = "/usr/share/backgrounds/lexos"
+THEMES = {
+    "moteur": {"nom": "LexOS Moteur", "pic": "⚡", "desc": "L'original : orange LexOS, constellation, bannière Nomad",
+               "accent": "#ff7a18", "anim": "constellation", "image": "", "embleme": "nomad",
+               "police": "Space Grotesk", "voile": 35, "vitesse": 100, "densite": 100, "orbes": True, "grille": True},
+    "moteur-braise": {"nom": "Moteur · Braise", "pic": "🔥", "desc": "Le fond LexOS noir et braise, avec des braises qui montent",
+                      "accent": "#e8590c", "anim": "braises", "image": FONDS_LEXOS + "/wallpaper.png", "embleme": "rond",
+                      "police": "Space Grotesk", "voile": 30, "vitesse": 100, "densite": 100, "orbes": True, "grille": False},
+    "moteur-nuit": {"nom": "Moteur · Nuit", "pic": "🌌", "desc": "Étoiles et aurore bleu Québec",
+                    "accent": "#1e6bff", "anim": "aurore", "image": "", "embleme": "nomad",
+                    "police": "Lexend", "voile": 35, "vitesse": 80, "densite": 100, "orbes": True, "grille": True},
+    "moteur-matrix": {"nom": "Moteur · Matrix", "pic": "💚", "desc": "La pluie de code, en vert néon",
+                      "accent": "#39ff14", "anim": "pluie", "image": "", "embleme": "rond",
+                      "police": "JetBrains Mono", "voile": 35, "vitesse": 100, "densite": 100, "orbes": False, "grille": False},
+    "nomad": {"nom": "LexOS Nomad", "pic": "🧭", "desc": "Le fond officiel Nomad (TI·LEX·AL 2.0.0)",
+              "accent": "#e8590c", "anim": "etoiles", "image": FONDS_LEXOS + "/wallpaper-nomad.png", "embleme": "aucun",
+              "police": "Space Grotesk", "voile": 20, "vitesse": 100, "densite": 80, "orbes": False, "grille": False},
+    "securite": {"nom": "LexOS Sécurité", "pic": "🛡️", "desc": "Pluie de binaire rouge, chapeau et masque",
+                 "accent": "#ff3b30", "anim": "pluie", "image": FONDS_LEXOS + "/wallpaper-secu.png", "embleme": "aucun",
+                 "police": "JetBrains Mono", "voile": 30, "vitesse": 100, "densite": 80, "orbes": False, "grille": False},
+    "crt": {"nom": "LexOS CRT", "pic": "📺", "desc": "Le téléviseur des années 80, lignes de balayage",
+            "accent": "#ffc53d", "anim": "aucun", "image": FONDS_LEXOS + "/wallpaper-crt.png", "embleme": "rond",
+            "police": "Press Start 2P", "voile": 15, "vitesse": 100, "densite": 100, "orbes": False, "grille": False},
+    "demon": {"nom": "LexOS Démon", "pic": "😈", "desc": "Rouge sang et braises, l'esprit du ti démon",
+              "accent": "#c81e1e", "anim": "braises", "image": "", "embleme": "rond",
+              "police": "Orbitron", "voile": 40, "vitesse": 130, "densite": 140, "orbes": True, "grille": False},
+    "pro": {"nom": "LexOS Professionnel", "pic": "💼", "desc": "Sobre et calme : argent, aurore lente, sans logo",
+            "accent": "#cbd5e1", "anim": "aurore", "image": "", "embleme": "aucun",
+            "police": "Inter", "voile": 50, "vitesse": 50, "densite": 60, "orbes": False, "grille": False},
+}
+#  Les réglages qu'un thème pose : en toucher un à la main = thème personnalisé.
+CLES_THEME = ("accent", "anim", "image", "embleme", "police", "voile", "vitesse", "densite", "orbes", "grille")
+
 DEFAUTS = {
     #  Classique par défaut (2026-10-20, demande d'Alex) : la télé perd le
     #  signal au démarrage sur l'Alienware ; on repart du bureau XFCE, le
@@ -89,6 +132,8 @@ DEFAUTS = {
     #  Vide = la grille par sections. Une icône qu'on n'a jamais déplacée
     #  reste dans la grille.
     "positions": {},
+    #  Le thème de bureau choisi dans les Paramètres (THEMES) ; « » = personnalisé.
+    "theme": "moteur",
 }
 BORNES = {"labo_delai": (300, 3000), "outils_delai": (100, 3000), "taille": (80, 140), "voile": (0, 90), "flou": (0, 20), "vitesse": (20, 300), "densite": (20, 200)}
 
@@ -127,6 +172,8 @@ def _propre(cle: str, v):
         return propre[:MAX_LABO]
     if cle == "mode":
         return v if v in MODES else None
+    if cle == "theme":
+        return v if v == "" or v in THEMES else None
     if cle == "anim":
         return v if v in FONDS else None
     if cle == "embleme":
@@ -181,8 +228,19 @@ def ecrire(partiel: dict) -> dict:
     """Fusionne les clés VALIDES de partiel ; ignore le reste. Rend l'état."""
     r = lire()
     if isinstance(partiel, dict):
+        partiel = dict(partiel)
+        theme = partiel.pop("theme", None)
+        if theme in THEMES:
+            #  Le paquet du thème d'abord, puis ce qui a été demandé en plus.
+            paquet = {k: v for k, v in THEMES[theme].items() if k in CLES_THEME}
+            if paquet.get("image") and not Path(paquet["image"]).is_file():
+                paquet["image"] = ""
+            partiel = {**paquet, **partiel}
+            r["theme"] = theme
+        elif any(k in CLES_THEME for k in partiel):
+            r["theme"] = ""
         for cle, v in partiel.items():
-            if cle in DEFAUTS:
+            if cle in DEFAUTS and cle != "theme":
                 propre = _propre(cle, v)
                 if propre is not None:
                     r[cle] = propre
