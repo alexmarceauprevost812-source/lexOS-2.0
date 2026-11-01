@@ -2671,4 +2671,10 @@ suite: trixie
 #  2. ls, grep, gcc en couleurs LexOS (tons sombres de jour).
 #  3. Mode jour : beige chaud #F0EEE6 (comme Anthropic) au lieu du blanc.
 #
-build: 138
+#  ISO 139 — bureaux 2, 3 et 4 : l'heure et les applis (1er novembre)
+#  Tout de la 138, plus : sur les bureaux virtuels 2 à 4, seulement l'heure,
+#  la date, le dock et les applis qu'on y pose n'importe où (clic droit →
+#  ajouter une application ici). Le terminal ti-lex-al@lexos-pro, la grille
+#  et la recherche restent sur le premier bureau. Chaque bureau garde ses applis.
+#
+build: 139

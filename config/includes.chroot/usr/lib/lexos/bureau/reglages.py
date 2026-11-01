@@ -125,6 +125,13 @@ DEFAUTS = {
     #  fenêtre du bureau ». N'importe quelle appli installée, posée sur le
     #  bureau démon là où on a cliqué (sa place est dans demon_places).
     "demon_ajouts": [],
+    #  ALEX (2026-11-01) : « dans le bureau 2, 3 et 4, on peut ajouter les
+    #  applications sur toute la fenêtre, juste voir l'heure et les
+    #  applications — garder le terminal (ti-lex-al@lexos-pro) seulement dans
+    #  le premier ». Les applis posées sur les bureaux virtuels 2 à 4 :
+    #  {"1": {"app:<id>": [x, y]}, "2": {…}, "3": {…}} (« 1 » = le bureau 2),
+    #  en millièmes de l'écran, comme demon_places.
+    "demon_autres": {},
     "accent": "#ff7a18",
     "police": "Space Grotesk",
     "taille": 100,
@@ -203,6 +210,18 @@ def _propre(cle: str, v):
     """La valeur v si elle est valide pour cle, sinon None."""
     if cle == "positions":
         return _positions(v)
+    if cle == "demon_autres":
+        if not isinstance(v, dict):
+            return None
+        out = {}
+        for b, pl in v.items():
+            if not (isinstance(b, str) and b in ("1", "2", "3", "4", "5", "6", "7", "8") and isinstance(pl, dict)):
+                continue
+            #  Seulement des applis : le terminal, l'heure et la date ne
+            #  vivent que sur le premier bureau.
+            apps = {k: xy for k, xy in pl.items() if isinstance(k, str) and k.startswith("app:")}
+            out[b] = _propre("demon_places", apps) or {}
+        return out
     if cle == "demon_places":
         if not isinstance(v, dict):
             return None
@@ -293,6 +312,7 @@ def lire() -> dict:
     r["demon_dock"] = list(DEFAUTS["demon_dock"])
     r["demon_ajouts"] = []
     r["demon_places"] = {}
+    r["demon_autres"] = {}
     try:
         brut = json.loads(FICHIER.read_text("utf-8"))
     except (OSError, ValueError):

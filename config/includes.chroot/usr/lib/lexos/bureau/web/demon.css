@@ -442,3 +442,11 @@ body.dock-droite .fen .point { bottom: auto; top: 50%; left: -8px; transform: tr
 .fen:hover .tuile { transform: scale(1.06); transition: transform .15s; }
 /*  Beaucoup d'applis ouvertes : le dock défile au lieu de sortir de l'écran. */
 body.dock-droite .dock { max-height: calc(100vh - 32px); overflow-y: auto; scrollbar-width: none; }
+
+/* ═══ Les bureaux 2, 3 et 4 : l'heure et les applis seulement (demon.js, bureauAutre) ═══
+   Le terminal (ti-lex-al@lexos-pro), la grille, ses points et la recherche ne
+   vivent que sur le premier bureau ; ici, les applis se posent n'importe où. */
+body.bureau-autre .carte.terminal,
+body.bureau-autre #grille-cadre,
+body.bureau-autre #points,
+body.bureau-autre #recherche { display: none !important; }

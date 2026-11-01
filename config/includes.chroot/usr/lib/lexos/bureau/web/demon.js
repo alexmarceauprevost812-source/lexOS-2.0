@@ -491,7 +491,8 @@ function calculerOrdre() {
   grille = [...new Set(grille)].filter((id) => !dock.includes(id));
   //  Une appli arrivée depuis (ou rendue par une mise à jour) va au bout de
   //  la grille : rien ne disparaît parce qu'il n'était pas dans la liste.
-  for (const id of CONNUS.keys()) if (!grille.includes(id) && !dock.includes(id)) grille.push(id);
+  const ailleurs = new Set(Object.values(autres()).flatMap((pl) => Object.keys(pl || {}).filter((k) => k.startsWith("app:")).map((k) => k.slice(4))));
+  for (const id of CONNUS.keys()) if (!grille.includes(id) && !dock.includes(id) && !(ailleurs.has(id) && !Object.prototype.hasOwnProperty.call(placesUn(), "app:" + id))) grille.push(id);
   //  Les applis posées librement ne sont ni dans la grille ni dans le dock.
   const libres = new Set(libresIds());
   ORDRE.grille = grille.filter((id) => !libres.has(id)); ORDRE.dock = dock.filter((id) => !libres.has(id));
@@ -647,6 +648,13 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && MODIF) m
 
 function garderOrdre() { garder({ demon_grille: ORDRE.grille, demon_dock: ORDRE.dock }); }
 async function reinitialiser() {
+  if (bureauAutre()) {
+    //  Sur les bureaux 2 à 4, « réinitialiser » vide ce bureau-là seulement.
+    P.demon_autres = { ...autres(), [String(BUREAUX.actuel)]: {} };
+    garder({ demon_autres: P.demon_autres }); dessinerApplis();
+    bulle("Bureau " + (BUREAUX.actuel + 1) + " vidé");
+    return;
+  }
   try {
     await api("/api/reglages", { demon_grille: ["*"], demon_dock: ["*"], demon_places: {} });
     P.demon_grille = ["*"]; P.demon_dock = ["*"]; P.demon_places = {};
@@ -716,24 +724,24 @@ function lacher(x, y) {
     if (t) { t.className = "libres"; t.style.cssText = "position:fixed;visibility:hidden"; t.innerHTML = tuile(CONNUS.get(id)); document.body.appendChild(t); l = t.firstChild.offsetWidth || l; h = t.firstChild.offsetHeight || h; t.remove(); }
     const gx = Math.max(0, Math.min(innerWidth - l, x - l / 2)), gy = Math.max(0, Math.min(innerHeight - h, y - h / 2));
     const nouvelles = { ...places(), ["app:" + id]: [Math.round(gx * 1000 / innerWidth), Math.round(gy * 1000 / innerHeight)] };
-    if (P) P.demon_places = nouvelles;
+    ecrirePlaces(nouvelles);
     ORDRE.grille = ORDRE.grille.filter((k) => k !== id); ORDRE.dock = ORDRE.dock.filter((k) => k !== id);
     dessinerGrille(); dessinerDock(); dessinerLibres();
-    garder({ demon_places: nouvelles, demon_grille: ORDRE.grille, demon_dock: ORDRE.dock });
+    garder({ ...placesAGarder(), demon_grille: ORDRE.grille, demon_dock: ORDRE.dock });
     return;
   }
   if (libre) {
     //  Une appli libre qu'on range dans la grille ou le dock.
     const nouvelles = { ...places() }; delete nouvelles["app:" + id];
-    if (P) P.demon_places = nouvelles;
+    ecrirePlaces(nouvelles);
     if (c.liste === "dock" && ORDRE.dock.length >= DOCK_MAX) {
       bulle(`Le dock est plein (${DOCK_MAX} tuiles) : sors-en une d'abord`);
-      if (P) P.demon_places = { ...nouvelles, ["app:" + id]: places()["app:" + id] };
+      ecrirePlaces({ ...nouvelles, ["app:" + id]: places()["app:" + id] });
       dessinerLibres(); return;
     }
     ORDRE[c.liste].splice(Math.max(0, Math.min(c.index, ORDRE[c.liste].length)), 0, id);
     dessinerGrille(); dessinerDock(); dessinerLibres();
-    garder({ demon_places: nouvelles, demon_grille: ORDRE.grille, demon_dock: ORDRE.dock });
+    garder({ ...placesAGarder(), demon_grille: ORDRE.grille, demon_dock: ORDRE.dock });
     return;
   }
   const de = ORDRE.dock.includes(id) ? "dock" : "grille";
@@ -798,9 +806,9 @@ document.addEventListener("pointerup", (e) => {
     const g = GLISSE.bloc, cle = g.el.dataset.deplacable;
     GLISSE.bloc = null;
     const nouvelles = { ...places(), [cle]: [Math.round((g.dx + e.clientX - g.x0) * 1000 / innerWidth), Math.round((g.dy + e.clientY - g.y0) * 1000 / innerHeight)] };
-    if (P) P.demon_places = nouvelles;
+    ecrirePlaces(nouvelles);
     poserPlaces();
-    garder({ demon_places: nouvelles });
+    garder(placesAGarder());
     return;
   }
   if (GLISSE.fantome) lacher(e.clientX, e.clientY);
@@ -856,10 +864,10 @@ function ouvrirMenuClic(x, y, tuileVisee) {
     } else if (c === "ranger-une" && tuileVisee) {
       const id = tuileVisee.dataset.id, nouvelles = { ...places() };
       delete nouvelles["app:" + id];
-      if (P) P.demon_places = nouvelles;
+      ecrirePlaces(nouvelles);
       ORDRE.grille.push(id);
       dessinerGrille(); dessinerLibres();
-      garder({ demon_places: nouvelles, demon_grille: ORDRE.grille });
+      garder({ ...placesAGarder(), demon_grille: ORDRE.grille });
     } else if (c === "ajouter-ici") ouvrirAjout(x, y);
     else if (c === "retirer-ajout" && tuileVisee) retirerAjout(tuileVisee.dataset.id);
     else if (c === "ranger") reinitialiser();
@@ -918,22 +926,22 @@ $("#ajout-liste").addEventListener("click", (e) => {
   const l = 100, h = 120, [x, y] = AJOUT_XY;
   const gx = Math.max(0, Math.min(innerWidth - l, x - l / 2)), gy = Math.max(0, Math.min(innerHeight - h, y - h / 2));
   P.demon_ajouts = [...ajouts().filter((k) => k !== id), id];
-  P.demon_places = { ...places(), ["app:" + id]: [Math.round(gx * 1000 / innerWidth), Math.round(gy * 1000 / innerHeight)] };
+  ecrirePlaces({ ...places(), ["app:" + id]: [Math.round(gx * 1000 / innerWidth), Math.round(gy * 1000 / innerHeight)] });
   ORDRE.grille = ORDRE.grille.filter((k) => k !== id); ORDRE.dock = ORDRE.dock.filter((k) => k !== id);
   dessinerGrille(); dessinerDock(); dessinerLibres();
-  garder({ demon_ajouts: P.demon_ajouts, demon_places: P.demon_places });
+  garder({ demon_ajouts: P.demon_ajouts, ...placesAGarder() });
   bulle(`« ${appli.nom} » ajoutée au bureau`);
 });
 function retirerAjout(id) {
   if (!P) return;
   P.demon_ajouts = ajouts().filter((k) => k !== id);
   const nouvelles = { ...places() }; delete nouvelles["app:" + id];
-  P.demon_places = nouvelles;
+  ecrirePlaces(nouvelles);
   if (E) E.demon = E.demon.filter((d) => d.id !== id);
   CONNUS.delete(id);
   ORDRE.grille = ORDRE.grille.filter((k) => k !== id); ORDRE.dock = ORDRE.dock.filter((k) => k !== id);
   dessinerGrille(); dessinerDock(); dessinerLibres();
-  garder({ demon_ajouts: P.demon_ajouts, demon_places: nouvelles, demon_grille: ORDRE.grille, demon_dock: ORDRE.dock });
+  garder({ demon_ajouts: P.demon_ajouts, ...placesAGarder(), demon_grille: ORDRE.grille, demon_dock: ORDRE.dock });
   bulle("Retirée du bureau (l'application reste installée)");
 }
 
@@ -952,7 +960,37 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") fermerMenu
 
 //  Le terminal, l'heure, la date : décalés de leur place, en millièmes de
 //  l'écran (réglage « demon_places »), et jamais hors de l'écran.
-const places = () => (P && P.demon_places && typeof P.demon_places === "object" ? P.demon_places : {});
+const placesUn = () => (P && P.demon_places && typeof P.demon_places === "object" ? P.demon_places : {});
+/*  ═══ LES BUREAUX 2, 3 ET 4 : L'HEURE ET LES APPLIS, RIEN D'AUTRE ═══
+    ALEX (2026-11-01) : « dans le bureau 2, 3 et 4, on peut ajouter les
+    applications sur toute la fenêtre, juste voir l'heure et les applications,
+    garder le terminal (ti-lex-al@lexos-pro) seulement dans le premier ».
+    Sur ces bureaux, la page cache le terminal, la grille, ses points et la
+    recherche (body.bureau-autre, demon.css) ; les applis s'y posent
+    n'importe où (clic droit → « ajouter une application ici », ou glissées
+    depuis le dock), et chaque bureau garde les siennes (réglage
+    « demon_autres »). L'heure, la date et le dock restent partout. */
+const bureauAutre = () => BUREAUX.actuel > 0 && !SECONDAIRE;
+const autres = () => (P && P.demon_autres && typeof P.demon_autres === "object" ? P.demon_autres : {});
+const places = () => {
+  if (!bureauAutre()) return placesUn();
+  const un = Object.fromEntries(Object.entries(placesUn()).filter(([k]) => !k.startsWith("app:")));
+  return { ...un, ...(autres()[String(BUREAUX.actuel)] || {}) };
+};
+//  Garde de nouvelles places là où elles vont : le premier bureau, ou le
+//  bureau virtuel affiché (ses applis seulement).
+function ecrirePlaces(n) {
+  if (!P) return;
+  if (!bureauAutre()) { P.demon_places = n; return; }
+  const apps = Object.fromEntries(Object.entries(n).filter(([k]) => k.startsWith("app:")));
+  P.demon_autres = { ...autres(), [String(BUREAUX.actuel)]: apps };
+}
+const placesAGarder = () => (bureauAutre() ? { demon_autres: autres() } : { demon_places: placesUn() });
+let bureauVu = 0;
+function appliquerBureau() {
+  document.body.classList.toggle("bureau-autre", bureauAutre());
+  if (BUREAUX.actuel !== bureauVu) { bureauVu = BUREAUX.actuel; if (typeof dessinerApplis === "function") dessinerApplis(); }
+}
 function poserPlaces() {
   for (const el of $$("[data-deplacable]")) {
     const xy = places()[el.dataset.deplacable];
@@ -1128,13 +1166,13 @@ function dessinerBureaux() {
 async function majBureaux() {
   if (document.hidden || SECONDAIRE) return;
   try { BUREAUX = await api("/api/bureaux"); } catch { BUREAUX = { n: 0, actuel: 0 }; }
-  dessinerBureaux();
+  dessinerBureaux(); appliquerBureau();
 }
 $("#bureaux-lx").addEventListener("click", async (e) => {
   const b = e.target.closest("[data-bureau]"); if (!b) return;
   try {
     const r = await api("/api/bureau", { aller: +b.dataset.bureau });
-    if (r && r.n) { BUREAUX = { n: r.n, actuel: r.actuel }; dessinerBureaux(); }
+    if (r && r.n) { BUREAUX = { n: r.n, actuel: r.actuel }; dessinerBureaux(); appliquerBureau(); }
   } catch { bulle("Le bureau ne répond pas"); }
 });
 
