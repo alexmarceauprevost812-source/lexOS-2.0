@@ -187,15 +187,26 @@ if [ -n "${BASH_VERSION:-}" ]; then
 			#  elle ne crée aucun processus.
 			__lexos_etat() { __lexos_code=$?; __lexos_couleurs; __lexos_style; __lexos_erreur_rouge; }
 			#  ROUGE QUAND ÇA ÉCHOUE (ALEX, 2026-11-01 : « si erreur le classique
-			#  en rouge »). Une ligne « ✕ erreur (code N) » sous la sortie d'une
+			#  en rouge »). Une ligne « ❌ erreur (code N) » sous la sortie d'une
 			#  commande ratée — une SEULE fois : Entrée sur une ligne vide garde
 			#  le même $?, d'où le numéro d'historique retenu. Ctrl+C (130) ne
 			#  compte pas comme une erreur. Invite « pro » seulement.
 			__lexos_erreur_rouge() {
 				[ "${__lexos_st:-}" = "pro" ] || return 0
 				__lr_n=$(HISTTIMEFORMAT='' history 1 2>/dev/null | sed 's/^ *\([0-9]*\).*/\1/')
-				if [ "${__lexos_code:-0}" != "0" ] && [ "$__lexos_code" != "130" ] && [ -n "$__lr_n" ] && [ "$__lr_n" != "${__lexos_hist_vu:-}" ]; then
-					printf '\033[1;%sm  ✕ erreur (code %s)\033[0m\n' "${__LEXOS_C_ERREUR:-38;5;196}" "$__lexos_code"
+				#  ÉMOJIS (ALEX, 2026-11-01 : « des émojis outil, travail dans le
+				#  terminal ») : ❌ quand ça échoue ; ✅ quand une commande d'au
+				#  moins 3 secondes a fini sans erreur (avec sa durée) — une
+				#  commande instantanée n'ajoute rien, pour ne pas polluer.
+				#  __lexos_t0 : l'heure de départ, posée par PS0 (voir plus bas).
+				if [ -n "$__lr_n" ] && [ "$__lr_n" != "${__lexos_hist_vu:-}" ]; then
+					__lr_d=$(( SECONDS - ${__lexos_t0:-$SECONDS} ))
+					if [ "${__lexos_code:-0}" != "0" ] && [ "$__lexos_code" != "130" ]; then
+						printf '\033[1;%sm  ❌ erreur (code %s)\033[0m\n' "${__LEXOS_C_ERREUR:-38;5;196}" "$__lexos_code"
+					elif [ "${__lexos_code:-0}" = "0" ] && [ "$__lr_d" -ge 3 ]; then
+						printf '\033[1;%sm  ✅ terminé\033[0;%sm (%s s)\033[0m\n' "${__LEXOS_C_MACHINE:-38;5;40}" "${__LEXOS_C_DIM:-2}" "$__lr_d"
+					fi
+					unset __lr_d
 				fi
 				__lexos_hist_vu="$__lr_n"
 				unset __lr_n
@@ -252,7 +263,7 @@ if [ -n "${BASH_VERSION:-}" ]; then
 					#  des commandes en BLANC ». La commande tapée se lit dans
 					#  l'historique (déjà à jour quand PS0 s'affiche).
 					__lv_l=30 __lv_i=0 __lv_d="${__LEXOS_C_DIM:-2}" __lv_c='38;5;220'     # jaune : ça travaille
-					__lv_bleu='38;5;39'
+					__lv_bleu='38;5;39' __lv_emo='🔧'          # 🔧 ça travaille, 📦 ça installe
 					if [ "${LEXOS_TERM_EFFECTIF:-}" = "jour" ]; then __lv_c='38;5;136'; __lv_bleu='38;5;25'; fi   # de jour : tons sombres
 					__lv_cmd=" $(HISTTIMEFORMAT='' history 1 2>/dev/null | sed 's/^ *[0-9]* *//') "
 					case "$__lv_cmd" in
@@ -260,22 +271,27 @@ if [ -n "${BASH_VERSION:-}" ]; then
 						*" dpkg -i "*|*" pip install "*|*" pip3 install "*|*" pipx install "*|*" npm install "*|*" npm i "*|\
 						*" npm update "*|*" flatpak install "*|*" snap install "*|*" cargo install "*|*" lexos-mise-a-jour "*|\
 						*" lexos upgrade "*|*" lexos maj "*|*" maj "*|*" lexos installer "*|*" git clone "*|*" git pull "*)
-							__lv_c="$__lv_bleu" ;;                                                # bleu : ça installe
+							__lv_c="$__lv_bleu"; __lv_emo='📦' ;;                                                # bleu : ça installe
 					esac
 					printf '\033[?25l'                          # curseur caché pendant le battement
 					while [ "$__lv_i" -le $((__lv_l - 6)) ]; do
-						printf '\r    \033[%sm%s\033[1;%sm╭╮─╱╲╱\033[0;%sm%s\033[0m' \
+						printf '\r  %s \033[%sm%s\033[1;%sm╭╮─╱╲╱\033[0;%sm%s\033[0m' "$__lv_emo" \
 							"$__lv_d" "$(printf "%${__lv_i}s" '' | sed 's/ /─/g')" "$__lv_c" \
 							"$__lv_d" "$(printf "%$((__lv_l - 6 - __lv_i))s" '' | sed 's/ /─/g')"
 						sleep 0.03
 						__lv_i=$((__lv_i + 3))
 					done
 					printf '\r\033[K\033[?25h'                  # tout s'efface, le curseur revient
-					unset __lv_l __lv_i __lv_c __lv_d __lv_cmd __lv_bleu
+					unset __lv_l __lv_i __lv_c __lv_d __lv_cmd __lv_bleu __lv_emo
 				} >/dev/tty 2>/dev/null
 				return 0
 			}
-			PS0='\e[0m$(__lexos_ligne_vie)'
+			#  « ${__lexos_t0v[__lexos_t0=SECONDS]} » : l'indice d'un tableau est
+			#  calculé DANS le shell lui-même — c'est ce qui pose l'heure de
+			#  départ de la commande (pour le ✅ et sa durée) ; le « $( ) » de
+			#  la ligne de vie, lui, tourne dans un sous-shell qui oublie tout.
+			#  Dans des apostrophes : dash ne lit jamais ce texte.
+			PS0='\e[0m${__lexos_t0v[__lexos_t0=SECONDS]}$(__lexos_ligne_vie)'
 
 			#  ═══ L'INVITE « TI-LEX » — UN STYLE DE PLUS, À ALLUMER ═══
 			#  ALEX (une invite modèle et la bannière « TI-LEX TERMINAL PRO

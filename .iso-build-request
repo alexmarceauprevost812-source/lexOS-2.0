@@ -2677,4 +2677,9 @@ suite: trixie
 #  ajouter une application ici). Le terminal ti-lex-al@lexos-pro, la grille
 #  et la recherche restent sur le premier bureau. Chaque bureau garde ses applis.
 #
-build: 139
+#  ISO 140 — émojis de travail dans le terminal (1er novembre)
+#  Tout de la 139, plus : 🔧 devant la ligne de vie quand ça travaille,
+#  📦 quand ça installe ; ❌ erreur (code N) en rouge ; ✅ terminé (durée)
+#  après une commande d'au moins 3 secondes.
+#
+build: 140

@@ -1103,7 +1103,7 @@ case "$(sed -n '/__lexos_ligne_vie()/,/^\t\t\t}/p' "$INTER")" in
 	*"38;5;39"*"38;5;220"*|*"38;5;220"*"38;5;39"*) ok "ligne de vie : bleu pour une installation, jaune sinon" ;;
 	*) non "ligne de vie : couleurs bleu/jaune absentes" ;;
 esac
-grep -q '✕ erreur (code' "$INTER" && ok "une ligne rouge « ✕ erreur » après une commande ratée" || non "pas de ligne rouge d'erreur"
+grep -q '❌ erreur (code' "$INTER" && ok "une ligne rouge « ❌ erreur » après une commande ratée" || non "pas de ligne rouge d'erreur"
 printf '  %d réussis, %d échoués\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ] || exit 1
 printf '  \033[32mL'"'"'invite tient sur une ligne, en vert, et ce qu'"'"'on tape est blanc.\033[0m\n'
