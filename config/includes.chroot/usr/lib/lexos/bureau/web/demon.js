@@ -332,12 +332,46 @@ function plonger() {
 
 /* ════════════════ Ouvrir une appli ════════════════ */
 const DERNIERS = new Map();
-async function lancer(id, nom) {
+/* ════════════════ L'ouverture d'une appli (animerOuverture) ════════════════
+   ALEX (31 octobre) : « quand on clique sur une application, on voit
+   l'application avec une animation d'écriture fluide du nom de l'appli, et
+   après on rentre directement dans l'appli, comme le thème sur mon
+   téléphone ». L'icône part de SA place et grossit au centre, sur un voile
+   flouté ; le nom s'écrit lettre par lettre (chaque lettre glisse et
+   s'éclaire) ; puis tout s'efface et l'appli, lancée DÈS LE CLIC, est là.
+   Jamais plus de 1,8 s. Coupé avec « réduire les animations ». */
+let finLancement = null;
+function animerOuverture(tuileEl, nom) {
+  if (LEGER || CALME || SECONDAIRE || !tuileEl) return;
+  const z = $("#lancement"), ic = $("#lancement-icone"), n = $("#lancement-nom");
+  const source = tuileEl.querySelector(".tuile");
+  if (!z || !source) return;
+  clearTimeout(finLancement);
+  ic.className = "lancement-icone " + source.className.replace(/\btuile\b/, "").trim();
+  ic.innerHTML = source.innerHTML;
+  const lettres = [...String(nom || "")];
+  n.innerHTML = lettres.map((c, i) => `<span style="animation-delay:${180 + i * 42}ms">${c === " " ? "&nbsp;" : echapper(c)}</span>`).join("")
+    + `<i class="lancement-curseur" style="animation-delay:${180 + lettres.length * 42}ms"></i>`;
+  //  L'icône part de là où était la tuile (une transformation « FLIP »).
+  const r = source.getBoundingClientRect();
+  const taille = Math.min(innerWidth, innerHeight) * .2;
+  const dx = r.left + r.width / 2 - innerWidth / 2, dy = r.top + r.height / 2 - (innerHeight / 2 - taille * .35);
+  z.style.setProperty("--depart", `translate(${dx}px, ${dy}px) scale(${(r.width / taille).toFixed(3)})`);
+  z.style.setProperty("--taille", taille + "px");
+  z.classList.remove("en-cours", "sortie"); void z.offsetWidth; z.classList.add("en-cours");
+  const duree = Math.min(1800, 1000 + lettres.length * 42);
+  finLancement = setTimeout(() => {
+    z.classList.add("sortie");
+    finLancement = setTimeout(() => z.classList.remove("en-cours", "sortie"), 360);
+  }, duree);
+}
+async function lancer(id, nom, tuileEl) {
   const maintenant = performance.now();
   if (maintenant - (DERNIERS.get(id) || -1e9) < 1200) return;   // le double-clic d'XFCE
   DERNIERS.set(id, maintenant);
   const demande = api("/api/lancer", { id });                    // part tout de suite
-  plonger();
+  animerOuverture(tuileEl, nom);
+  if (!THEME.pro) plonger();                                     // Halloween : les yeux foncent aussi
   try {
     const r = await demande;
     if (r.raison === "non-approuve") bulle(`« ${nom} » n'est pas encore approuvé : Fichiers s'ouvre — double-clique-le là pour l'approuver`);
@@ -535,7 +569,7 @@ function ouvrirTuile(b) {
   const id = b.dataset.id;
   if (id === "x-yeux") { ouvrirPanneau(!$("#panneau").classList.contains("ouvert")); return; }
   if (id === "x-apropos") { ouvrirApropos(!$("#apropos").classList.contains("ouvert")); return; }
-  lancer(id, b.dataset.nom || "");
+  lancer(id, b.dataset.nom || "", b);
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest(".appli[data-id]");
@@ -932,7 +966,7 @@ $("#recherche").addEventListener("submit", async (e) => {
   const q = $("#question").value.trim();
   if (q.startsWith("?")) return demander(q.slice(1).trim());
   await chercher();
-  if (trouvees[0]) { lancer(trouvees[0].id, trouvees[0].nom); $("#question").value = ""; chercher(); }
+  if (trouvees[0]) { lancer(trouvees[0].id, trouvees[0].nom, $(`#grille .appli[data-id="${CSS.escape(trouvees[0].id)}"]`)); $("#question").value = ""; chercher(); }
 });
 $("#vers-ia").addEventListener("click", () => demander($("#question").value.trim().replace(/^\?\s*/, "")));
 

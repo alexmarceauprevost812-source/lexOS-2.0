@@ -86,12 +86,16 @@ COULEURS = (
 EXT_IMAGES = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 
 DEFAUTS = {
-    #  Classique par défaut (2026-10-20, demande d'Alex) : la télé perd le
-    #  signal au démarrage sur l'Alienware ; on repart du bureau XFCE, le
-    #  Moteur reste installé et se rallume dans Paramètres → Bureau LexOS.
-    #  SAUF la saveur nomade (NOMADE, plus haut), qui démarre sur le démon.
-    "mode": "moteur" if NOMADE else "classique",
-    "interface": "demon" if NOMADE else "moteur",
+    #  LE NOUVEAU BUREAU LEXOS, OFFICIEL PARTOUT (2026-10-31, demande
+    #  d'Alex : « que le nouveau bureau soit officiel »). Le bureau démon en
+    #  thème Professionnel — heure, tuiles, dock à droite, bureaux 1 2 3 4 —
+    #  est le défaut de TOUTES les saveurs, plus seulement de la nomade.
+    #  Historique : depuis le 2026-10-20 la Pro démarrait en classique (XFCE)
+    #  parce que la télé de l'Alienware perdait le signal au démarrage du
+    #  Moteur. Si ça revient : « lexos bureau classique » dans un terminal
+    #  (Ctrl+Alt+T), ou Paramètres → Bureau LexOS → Classique.
+    "mode": "moteur",
+    "interface": "demon",
     #  Le bureau démon : son thème (Sang rouge — le look du lanceur du
     #  téléphone d'Alex —, Brasier orange, Spectre bleu), les yeux qui suivent
     #  la souris, l'ouverture des yeux au démarrage, la pluie de 0 et de 1, et
@@ -159,14 +163,16 @@ DEFAUTS = {
     #  SAUF la nomade : sans barre du haut, la souris va souvent au bord du
     #  haut, et la barre des outils tombait à chaque fois. Elle reste à un
     #  bouton : « Mes outils » dans le panneau Yeux du bureau démon.
-    "outils": not NOMADE,
+    #  Depuis que le nouveau bureau est officiel PARTOUT (2026-10-31), la Pro
+    #  n'a plus de barre XFCE non plus : même réglage que la clé.
+    "outils": False,
     #  ALEX (31 octobre, ti-lexos-pro sur la clé) : « l'outil en haut de
     #  l'écran visible et fixe en haut de l'écran ». Fixée, la barre reste
     #  affichée tout le temps (elle ne descend plus au survol, elle ne repart
     #  plus quand la souris s'en va), et les fenêtres maximisées s'arrêtent
     #  dessous (marge du haut de xfwm4) au lieu de passer sous elle.
     #  D'office sur la nomade : c'est elle qui n'a plus de barre XFCE.
-    "outils_fixe": NOMADE,
+    "outils_fixe": True,
     "outils_apps": ["*"],
     #  Où Alex a posé ses icônes : {identifiant: [x, y]} en pixels du bureau.
     #  Vide = la grille par sections. Une icône qu'on n'a jamais déplacée

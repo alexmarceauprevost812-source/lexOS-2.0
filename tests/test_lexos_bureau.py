@@ -64,14 +64,15 @@ class Reglages(unittest.TestCase):
 
     def test_defauts(self):
         r = self.rg.lire()
-        self.assertEqual(r["mode"], "classique")
+        #  Le nouveau bureau LexOS, officiel partout (Alex, 2026-10-31).
+        self.assertEqual((r["mode"], r["interface"]), ("moteur", "demon"))
         self.assertEqual(r["anim"], "constellation")
         self.assertEqual(r["accent"], "#ff7a18")
 
     def test_valeurs_refusees(self):
         r = self.rg.ecrire({"mode": "pirate", "anim": "rm -rf", "accent": "rouge;", "taille": 9999,
                             "police": "Comic", "image": "relatif.png", "orbes": "oui", "inconnu": 1})
-        self.assertEqual(r["mode"], "classique")
+        self.assertEqual(r["mode"], "moteur")
         self.assertEqual(r["anim"], "constellation")
         self.assertEqual(r["accent"], "#ff7a18")
         self.assertEqual(r["taille"], 140)          # borné, pas refusé
@@ -128,8 +129,10 @@ class Reglages(unittest.TestCase):
 
     def test_outils(self):
         r = self.rg.lire()
-        self.assertEqual((r["outils"], r["outils_apps"]), (True, ["*"]))
-        self.assertFalse(r["outils_fixe"])     # hors nomade : la barre descend au survol, comme avant
+        #  Nouveau bureau officiel partout : la barre « Mes outils » est fixée
+        #  en haut, plus de descente au survol (Alex, 2026-10-31).
+        self.assertEqual((r["outils"], r["outils_apps"]), (False, ["*"]))
+        self.assertTrue(r["outils_fixe"])
         self.assertEqual(self.rg._propre("outils_apps", ["a-0123456789abcd", "/bin/sh"]), ["a-0123456789abcd"])
         self.assertIsNone(self.rg._propre("outils", "oui"))
 
@@ -150,7 +153,7 @@ class Reglages(unittest.TestCase):
     def test_fichier_abime(self):
         self.rg.FICHIER.parent.mkdir(parents=True, exist_ok=True)
         self.rg.FICHIER.write_text("{ pas du json")
-        self.assertEqual(self.rg.lire()["mode"], "classique")
+        self.assertEqual(self.rg.lire()["mode"], "moteur")
         self.rg.FICHIER.write_text(json.dumps({"mode": "moteur", "taille": "grand"}))
         r = self.rg.lire()
         self.assertEqual((r["mode"], r["taille"]), ("moteur", 100))
@@ -592,7 +595,9 @@ class Serveur(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertTrue(corps.startswith(b"\x89PNG"))
         self.assertEqual(self.req("GET", "/logo.png", jeton=False)[0], 200)
-        page = self.req("GET", "/", jeton=False)[1].decode()
+        #  « / » sert maintenant le nouveau bureau (démon) par défaut : la page
+        #  du Moteur reste servie à son nom, index.html.
+        page = self.req("GET", "/index.html", jeton=False)[1].decode()
         for ident in ("embleme", "embleme-img", "code", "cote-gauche", "cote-droite", "vers-abo"):
             self.assertIn(f'id="{ident}"', page, ident)
 

@@ -158,8 +158,10 @@ moteur_choisi"
 }
 moteur nomade && ok "nomade sans bureau.json : la barre XFCE est éteinte (Moteur par défaut)" \
 	|| non "nomade sans bureau.json : la barre XFCE resterait allumée"
-moteur pro && non "pro sans bureau.json : la barre serait éteinte (le classique est son défaut)" \
-	|| ok "pro sans bureau.json : la barre reste (bureau classique par défaut)"
+#  Depuis le 2026-10-31, le nouveau bureau est officiel PARTOUT : la Pro aussi
+#  démarre sur le Moteur (démon) et la barre XFCE y est éteinte.
+moteur pro && ok "pro sans bureau.json : nouveau bureau par défaut, la barre XFCE est éteinte" \
+	|| non "pro sans bureau.json : la Pro devrait démarrer sur le nouveau bureau"
 
 #  c. Un « classique » resté dans bureau.json (sans le témoin d'un choix fait
 #     à la main) n'allume plus la barre XFCE dans la nomade : le Moteur gagne.
