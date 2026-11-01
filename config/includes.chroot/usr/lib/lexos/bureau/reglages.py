@@ -80,13 +80,17 @@ DEFAUTS = {
     #  barre du haut (volume, capture, notifications, arrêt, et les outils
     #  qu'Alex y place). ["*"] = pas encore choisi → quelques outils LexOS.
     "outils": True,
+    #  ALEX (2026-11-01) : « on va le voir juste quand on met la souris
+    #  [en haut], 0.3 sec avant son apparition ». Son propre délai, séparé
+    #  de celui du labo (1 s en bas) : le haut doit répondre plus vite.
+    "outils_delai": 300,
     "outils_apps": ["*"],
     #  Où Alex a posé ses icônes : {identifiant: [x, y]} en pixels du bureau.
     #  Vide = la grille par sections. Une icône qu'on n'a jamais déplacée
     #  reste dans la grille.
     "positions": {},
 }
-BORNES = {"labo_delai": (300, 3000), "taille": (80, 140), "voile": (0, 90), "flou": (0, 20), "vitesse": (20, 300), "densite": (20, 200)}
+BORNES = {"labo_delai": (300, 3000), "outils_delai": (100, 3000), "taille": (80, 140), "voile": (0, 90), "flou": (0, 20), "vitesse": (20, 300), "densite": (20, 200)}
 
 
 MAX_POSITIONS = 400

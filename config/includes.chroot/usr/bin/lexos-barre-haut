@@ -29,6 +29,13 @@
 #    lexos barre-haut on        la ramener (et la relancer tout de suite)
 #    lexos barre-haut nettoyer  retirer tout de suite les anciens boutons de capture
 #    lexos barre-haut etat
+#    lexos barre-haut auto      cachée, elle sort quand la souris touche le haut (0,3 s)
+#    lexos barre-haut fixe      toujours affichée (l'ancien comportement)
+#
+#  ALEX (2026-11-01) : « désactiver l'outil en haut de l'écran, on va le voir
+#  juste quand on met la souris là ». /etc/skel pose autohide-behavior=2 pour
+#  les nouveaux comptes ; « demarrer » le pose UNE fois sur un compte déjà
+#  créé (fanion barre-auto-1), puis laisse Alex libre de revenir à « fixe ».
 # =============================================================================
 set -uo pipefail
 
@@ -339,6 +346,24 @@ nettoyer() {
 	fi
 }
 
+# --- Cachée ou fixe -----------------------------------------------------------
+#  autohide-behavior : 0 = toujours là, 2 = toujours cachée. Écrit pour CHAQUE
+#  barre (panel-1, panel-2…), par xfconf-query : la barre suit tout de suite,
+#  sans relance. Relu après, comme le reste (xfconf peut refuser en silence).
+masquage() { # masquage <0|2>
+	local pid p ok=0
+	command -v xfconf-query >/dev/null 2>&1 || { echo "Barre du haut : xfconf-query absent." >&2; return 1; }
+	while IFS= read -r pid; do
+		case "$pid" in ''|*[!0-9]*) continue ;; esac
+		p="/panels/panel-$pid/autohide-behavior"
+		xq -p "$p" -n -t uint -s "$1" >/dev/null 2>&1 || xq -p "$p" -s "$1" >/dev/null 2>&1
+		[ "$(valeurs "$p")" = "$1" ] || { refus "$p"; return 1; }
+		ok=1
+	done < <(valeurs /panels)
+	[ "$ok" = 1 ]
+}
+AUTO_FAIT="${XDG_STATE_HOME:-$HOME/.local/state}/lexos/barre-auto-1"
+
 case "${1:-etat}" in
 	off|non|0)
 		mkdir -p "$CONF"; echo off > "$ETAT"
@@ -354,7 +379,14 @@ case "${1:-etat}" in
 		echo "Barre du haut : rallumée." ;;
 	nettoyer|captures)
 		nettoyer ;;
+	auto|cachee|cachée)
+		masquage 2 && echo "Barre du haut : cachée — elle sort quand la souris touche le haut (0,3 s)." ;;
+	fixe|visible)
+		masquage 0 && echo "Barre du haut : toujours affichée." ;;
 	demarrer)
+		if [ ! -e "$AUTO_FAIT" ] && command -v xfconf-query >/dev/null 2>&1; then
+			mkdir -p "$(dirname "$AUTO_FAIT")" && masquage 2 >/dev/null 2>&1 && touch "$AUTO_FAIT"
+		fi
 		[ "$(lire)" = "on" ] || eteindre
 		nettoyer --session >/dev/null ;;
 	etat|*)

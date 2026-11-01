@@ -330,6 +330,14 @@ grep -q 'rien à retirer' <<<"$SORTIE" && ok "« nettoyer » refait : « rien à
 [ "$(ecritures "$H")" = "0" ] && ok "…sans une seule écriture" || non "le deuxième passage a écrit dans xfconf"
 [ "$(grep -c '^-r$' "$H/barre.appels")" = "1" ] && ok "…et sans relancer la barre" || non "la barre a été relancée pour rien"
 : > "$H/xfconf.json.log"
+#  Première session après la mise à jour : la barre passe en « cachée »
+#  (autohide-behavior=2) UNE fois, demande d'Alex du 2026-11-01.
+lancer "$H" demarrer >/dev/null 2>&1
+grep -q -- '/panels/panel-1/autohide-behavior .*-s 2' "$H/xfconf.json.log" \
+	&& ok "« demarrer » cache la barre une première fois (autohide-behavior=2)" \
+	|| non "la barre n'a pas été passée en cachée : $(tr '\n' ';' < "$H/xfconf.json.log")"
+[ -e "$H/.local/state/lexos/barre-auto-1" ] && ok "…et pose le fanion barre-auto-1" || non "pas de fanion barre-auto-1"
+: > "$H/xfconf.json.log"
 lancer "$H" demarrer >/dev/null 2>&1
 [ "$(ecritures "$H")" = "0" ] && ! grep -q -- ' -l$' "$H/xfconf.json.log" \
 	&& ok "« demarrer » avec le fanion : ni écriture, ni relecture de toute la barre (juste les numéros retirés)" \
