@@ -241,13 +241,13 @@
    le contraste 6,1:1 mesuré plus haut), et --ac-halo, qui se dérive tout seul.
    ============================================================================= */
 :root[data-mode="clair"]{
-  --bg:#F7F5F0;        /* blanc cassé, jamais blanc pur                       */
-  --bg-side:#EFEBE3;
-  --bg-alt:#EFEBE3;
-  --bg-hi:#E5DFD3;
+  --bg:#F0EEE6;        /* beige chaud (comme Anthropic) : le blanc « flashe »  */
+  --bg-side:#E8E5DA;
+  --bg-alt:#E8E5DA;
+  --bg-hi:#DED9CB;
   --fg:#1B1A17;
   --fg-dim:#6B675E;
-  --bd:#D9D2C3;
+  --bd:#CFC8B8;
 
   /*  Les états gagnent un cran de profondeur : le vert et l'ambre de la démo
       sont réglés pour un fond noir ; posés sur du crème, ils passent du gris

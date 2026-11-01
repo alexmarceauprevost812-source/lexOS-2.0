@@ -185,7 +185,21 @@ if [ -n "${BASH_VERSION:-}" ]; then
 			#  bascule jour/nuit visible sans relancer le shell. La lecture
 			#  est une commande interne de bash sur un fichier de dix lignes,
 			#  elle ne crée aucun processus.
-			__lexos_etat() { __lexos_code=$?; __lexos_couleurs; __lexos_style; }
+			__lexos_etat() { __lexos_code=$?; __lexos_couleurs; __lexos_style; __lexos_erreur_rouge; }
+			#  ROUGE QUAND ÇA ÉCHOUE (ALEX, 2026-11-01 : « si erreur le classique
+			#  en rouge »). Une ligne « ✕ erreur (code N) » sous la sortie d'une
+			#  commande ratée — une SEULE fois : Entrée sur une ligne vide garde
+			#  le même $?, d'où le numéro d'historique retenu. Ctrl+C (130) ne
+			#  compte pas comme une erreur. Invite « pro » seulement.
+			__lexos_erreur_rouge() {
+				[ "${__lexos_st:-}" = "pro" ] || return 0
+				__lr_n=$(HISTTIMEFORMAT='' history 1 2>/dev/null | sed 's/^ *\([0-9]*\).*/\1/')
+				if [ "${__lexos_code:-0}" != "0" ] && [ "$__lexos_code" != "130" ] && [ -n "$__lr_n" ] && [ "$__lr_n" != "${__lexos_hist_vu:-}" ]; then
+					printf '\033[1;%sm  ✕ erreur (code %s)\033[0m\n' "${__LEXOS_C_ERREUR:-38;5;196}" "$__lexos_code"
+				fi
+				__lexos_hist_vu="$__lr_n"
+				unset __lr_n
+			}
 			case "${PROMPT_COMMAND:-}" in
 				*__lexos_etat*) ;;
 				"")  PROMPT_COMMAND="__lexos_etat" ;;
@@ -229,16 +243,35 @@ if [ -n "${BASH_VERSION:-}" ]; then
 				[ "${LEXOS_LIGNE_VIE:-1}" = "0" ] && return 0
 				[ "${__lexos_st:-}" = "pro" ] || return 0
 				[ -t 0 ] || return 0             # stdin ; stdout est un tube dans « $( ) »
+				#  EN SH, PAS EN BASH : dash lit aussi ce fichier (/etc/profile.d) et
+				#  analyse TOUT le corps, même sous « if BASH_VERSION » — un
+				#  « for (( )) » ou un « ${x:0:n} » l'arrêtait net à cette ligne.
 				{
-					local largeur=30 pouls='╭╮─╱╲╱' i base c="${__LEXOS_C_CADRE:-38;5;202}" d="${__LEXOS_C_DIM:-2}"
-					base=$(printf '─%.0s' $(seq 1 $largeur))
+					#  ALEX (2026-11-01) : « si ça installe quelque chose en BLEU, si ça
+					#  travaille en JAUNE, si erreur le classique en ROUGE, l'écriture
+					#  des commandes en BLANC ». La commande tapée se lit dans
+					#  l'historique (déjà à jour quand PS0 s'affiche).
+					__lv_l=30 __lv_i=0 __lv_d="${__LEXOS_C_DIM:-2}" __lv_c='38;5;220'     # jaune : ça travaille
+					__lv_bleu='38;5;39'
+					if [ "${LEXOS_TERM_EFFECTIF:-}" = "jour" ]; then __lv_c='38;5;136'; __lv_bleu='38;5;25'; fi   # de jour : tons sombres
+					__lv_cmd=" $(HISTTIMEFORMAT='' history 1 2>/dev/null | sed 's/^ *[0-9]* *//') "
+					case "$__lv_cmd" in
+						*" apt install "*|*" apt-get install "*|*" apt upgrade "*|*" apt full-upgrade "*|*" apt-get upgrade "*|\
+						*" dpkg -i "*|*" pip install "*|*" pip3 install "*|*" pipx install "*|*" npm install "*|*" npm i "*|\
+						*" npm update "*|*" flatpak install "*|*" snap install "*|*" cargo install "*|*" lexos-mise-a-jour "*|\
+						*" lexos upgrade "*|*" lexos maj "*|*" maj "*|*" lexos installer "*|*" git clone "*|*" git pull "*)
+							__lv_c="$__lv_bleu" ;;                                                # bleu : ça installe
+					esac
 					printf '\033[?25l'                          # curseur caché pendant le battement
-					for ((i = 0; i <= largeur - ${#pouls}; i += 3)); do
-						printf '\r    \033[%sm%s\033[1;%sm%s\033[0;%sm%s\033[0m' \
-							"$d" "${base:0:i}" "$c" "$pouls" "$d" "${base:i+${#pouls}}"
+					while [ "$__lv_i" -le $((__lv_l - 6)) ]; do
+						printf '\r    \033[%sm%s\033[1;%sm╭╮─╱╲╱\033[0;%sm%s\033[0m' \
+							"$__lv_d" "$(printf "%${__lv_i}s" '' | sed 's/ /─/g')" "$__lv_c" \
+							"$__lv_d" "$(printf "%$((__lv_l - 6 - __lv_i))s" '' | sed 's/ /─/g')"
 						sleep 0.03
+						__lv_i=$((__lv_i + 3))
 					done
 					printf '\r\033[K\033[?25h'                  # tout s'efface, le curseur revient
+					unset __lv_l __lv_i __lv_c __lv_d __lv_cmd __lv_bleu
 				} >/dev/tty 2>/dev/null
 				return 0
 			}
@@ -492,6 +525,38 @@ LISTE
 alias le='liste'
 alias ...='cd ../..'
 alias grep='grep --color=auto'
+#  ═══ DE LA COULEUR PARTOUT (ALEX, 2026-11-01 : « ajouter de la couleur au terminal ») ═══
+#  Les couleurs de LexOS sur ce que les commandes affichent. Rien à
+#  installer : ls, grep, gcc et les autres lisent ces variables d'eux-mêmes.
+#  En sh pur (export, alias) : dash lit aussi ce fichier.
+alias ls='ls --color=auto'
+alias egrep='grep -E --color=auto'
+alias fgrep='grep -F --color=auto'
+#  ls : dossiers en ORANGE gras (la couleur de LexOS), programmes en vert,
+#  liens en cyan, archives en rouge, images et vidéos en violet, musique en
+#  jaune, code en bleu, documents en blanc, fichiers cachés de config en gris.
+#  De JOUR (fond beige), les mêmes rôles en tons sombres : un vert ou un
+#  jaune vif disparaîtraient sur le beige. Le mode se lit dans le fichier
+#  du thème, comme le reste des couleurs de l'invite.
+__lc_dir=208 __lc_lien=51 __lc_exe=46 __lc_arch=203 __lc_img=177 __lc_vid=141 __lc_son=220 __lc_code=75 __lc_json=117 __lc_doc=252 __lc_conf=245 __lc_log=242
+if [ -r "${LEXOS_TERM_ENV:-}" ] && grep -q '^LEXOS_TERM_EFFECTIF=jour' "$LEXOS_TERM_ENV" 2>/dev/null; then
+	__lc_dir=130 __lc_lien=30 __lc_exe=28 __lc_arch=124 __lc_img=90 __lc_vid=54 __lc_son=94 __lc_code=25 __lc_json=24 __lc_doc=236 __lc_conf=242 __lc_log=244
+fi
+LS_COLORS="di=1;38;5;$__lc_dir:ln=38;5;$__lc_lien:or=1;38;5;196:mi=1;38;5;196:ex=1;38;5;$__lc_exe:so=38;5;213:pi=38;5;222:bd=38;5;214:cd=38;5;214:su=1;37;41:sg=1;30;43:tw=1;30;48;5;208:ow=1;38;5;208;48;5;236:st=1;37;44"
+for __lc_e in tar gz tgz xz zst bz2 zip 7z rar deb iso img apk; do LS_COLORS="$LS_COLORS:*.$__lc_e=38;5;$__lc_arch"; done
+for __lc_e in png jpg jpeg gif webp svg; do LS_COLORS="$LS_COLORS:*.$__lc_e=38;5;$__lc_img"; done
+for __lc_e in mp4 mkv webm mov; do LS_COLORS="$LS_COLORS:*.$__lc_e=38;5;$__lc_vid"; done
+for __lc_e in mp3 flac ogg wav m4a; do LS_COLORS="$LS_COLORS:*.$__lc_e=38;5;$__lc_son"; done
+for __lc_e in py sh js ts html css kt c rs go; do LS_COLORS="$LS_COLORS:*.$__lc_e=38;5;$__lc_code"; done
+LS_COLORS="$LS_COLORS:*.json=38;5;$__lc_json:*.md=38;5;$__lc_doc:*.txt=38;5;$__lc_doc:*.pdf=38;5;209:*.docx=38;5;$__lc_doc:*.odt=38;5;$__lc_doc"
+LS_COLORS="$LS_COLORS:*.conf=38;5;$__lc_conf:*.cfg=38;5;$__lc_conf:*.ini=38;5;$__lc_conf:*.log=38;5;$__lc_log:*.bak=38;5;240:*~=38;5;240"
+unset __lc_dir __lc_lien __lc_exe __lc_arch __lc_img __lc_vid __lc_son __lc_code __lc_json __lc_doc __lc_conf __lc_log __lc_e
+export LS_COLORS
+#  grep : ce qui correspond en ORANGE gras, le nom du fichier en violet, le
+#  numéro de ligne en vert.
+export GREP_COLORS='ms=1;38;5;208:mc=1;38;5;208:sl=:cx=:fn=38;5;177:ln=38;5;46:bn=38;5;46:se=38;5;240'
+#  gcc / g++ : erreurs en rouge, avertissements en orange, notes en cyan.
+export GCC_COLORS='error=01;38;5;196:warning=01;38;5;208:note=01;38;5;51:caret=01;38;5;46:locus=01:quote=01'
 alias df='df -h'
 alias du='du -h'
 alias free='free -h'

@@ -2664,4 +2664,11 @@ suite: trixie
 #  À chaque commande lancée, un battement de coeur orange traverse la ligne
 #  (environ 0,3 s) puis s'efface. LEXOS_LIGNE_VIE=0 l'éteint.
 #
-build: 137
+#  ISO 138 — couleurs du terminal et jour en beige (1er novembre)
+#  1. Ligne de vie : BLEU quand ça installe, JAUNE quand ça travaille ;
+#     « ✕ erreur (code N) » en ROUGE après une commande ratée ; la frappe
+#     reste BLANCHE. Réécrite en sh : dash relit de nouveau interactive.sh.
+#  2. ls, grep, gcc en couleurs LexOS (tons sombres de jour).
+#  3. Mode jour : beige chaud #F0EEE6 (comme Anthropic) au lieu du blanc.
+#
+build: 138

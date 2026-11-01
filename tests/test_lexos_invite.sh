@@ -1093,6 +1093,17 @@ case "$(pro 0 "")" in *"38;5;202m"*) ok "repli 256 couleurs : orange 202" ;; *) 
 
 # =============================================================================
 printf '\n\033[1m═══ VERDICT ═══\033[0m\n'
+#  ═══ DASH DOIT POUVOIR LIRE CE FICHIER ═══
+#  /etc/profile.d le fait lire à sh (dash), qui analyse TOUT le corps, même
+#  sous « if BASH_VERSION ». La ligne de vie (2026-11-01) avait d'abord un
+#  « for (( )) » : dash s'arrêtait net, et la suite du fichier manquait.
+INTER="$(dirname "$0")/../config/includes.chroot/usr/share/lexos/shell/interactive.sh"
+if sh -n "$INTER" 2>/dev/null; then ok "sh (dash) analyse interactive.sh sans erreur"; else non "sh (dash) refuse interactive.sh : $(sh -n "$INTER" 2>&1 | head -1)"; fi
+case "$(sed -n '/__lexos_ligne_vie()/,/^\t\t\t}/p' "$INTER")" in
+	*"38;5;39"*"38;5;220"*|*"38;5;220"*"38;5;39"*) ok "ligne de vie : bleu pour une installation, jaune sinon" ;;
+	*) non "ligne de vie : couleurs bleu/jaune absentes" ;;
+esac
+grep -q '✕ erreur (code' "$INTER" && ok "une ligne rouge « ✕ erreur » après une commande ratée" || non "pas de ligne rouge d'erreur"
 printf '  %d réussis, %d échoués\n' "$REUSSIS" "$ECHOUES"
 [ "$ECHOUES" -eq 0 ] || exit 1
 printf '  \033[32mL'"'"'invite tient sur une ligne, en vert, et ce qu'"'"'on tape est blanc.\033[0m\n'

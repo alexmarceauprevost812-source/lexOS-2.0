@@ -805,8 +805,8 @@ dit(ennuis.length === 0,
         'lancé EN ROOT : le menu montre la raison du pont TELLE QUELLE et ne '
         + 'repeint rien (« ' + apres.raison.slice(0, 80) + ' »)');
   } else {
-    dit(apres.coche.join() === "jour" && apres.fond === "#F7F5F0"
-        && apres.fondTerm === "#F7F5F0",
+    dit(apres.coche.join() === "jour" && apres.fond === "#F0EEE6"
+        && apres.fondTerm === "#F0EEE6",
         'un clic sur « Jour » lance la commande du système et repeint la page '
         + 'ET le terminal (coché ' + JSON.stringify(apres.coche) + ', fond '
         + apres.fond + ', fond du terminal ' + apres.fondTerm + ')');
