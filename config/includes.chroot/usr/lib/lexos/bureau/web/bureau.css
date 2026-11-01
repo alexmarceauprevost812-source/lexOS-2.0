@@ -172,10 +172,16 @@ body.secondaire #bureau { display: none; }
 @media (max-width: 1100px) { .embleme.large { --t: min(40vw, 70vh); } }
 @media (max-width: 900px) { .embleme { display: none; } }
 
-/* ⌨️ Le code qui s'écrit tout seul derrière la bannière */
-.code { display: none; position: absolute; top: -4%; left: 50%; padding-left: 4px; width: 62%; height: 104%; margin: 0; overflow: hidden; pointer-events: none; font-family: "LX JetBrains Mono", ui-monospace, monospace; font-size: clamp(9px, calc(var(--t) * .0175), 15px); line-height: 1.75; color: rgba(255,255,255,.5); white-space: pre; -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 78%, transparent 100%), linear-gradient(90deg, #000 0%, #000 78%, transparent 100%); -webkit-mask-composite: source-in; mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 78%, transparent 100%), linear-gradient(90deg, #000 0%, #000 78%, transparent 100%); mask-composite: intersect; }
-.embleme.large .code { display: block; }
-#bureau.sans-code .code { display: none; }
+/* ⌨️ Le panneau de code à droite (ALEX, 2026-11-01 : « ajouter le code à
+   droite ») : une petite fenêtre d'éditeur vitrée, centrée en hauteur, où
+   le code s'écrit tout seul. Derrière les icônes, jamais sous la souris. */
+.code-droite { position: absolute; z-index: 1; right: 2.5vw; top: calc(24% + var(--dock-h, 0px)); bottom: 16%; width: min(25vw, 520px); display: flex; flex-direction: column; pointer-events: none; border-radius: 14px; background: rgba(8, 8, 10, .42); border: 1px solid rgba(var(--acc-rgb), .28); box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 18px 60px rgba(0,0,0,.55), 0 0 40px rgba(var(--acc-rgb), .12); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); overflow: hidden; animation: monte .9s .4s both cubic-bezier(.2,1.2,.4,1); }
+.code-droite[hidden] { display: none; }
+.code-tete { flex: none; display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-bottom: 1px solid rgba(var(--acc-rgb), .18); font: 600 12px "LX JetBrains Mono", ui-monospace, monospace; color: rgba(255,255,255,.55); letter-spacing: .03em; }
+.code-tete i { width: 10px; height: 10px; border-radius: 50%; background: #ff5f57; } .code-tete i:nth-child(2) { background: #febc2e; } .code-tete i:nth-child(3) { background: #28c840; }
+.code-tete span { margin-left: 8px; }
+.code { display: block; flex: 1; min-height: 0; margin: 0; padding: 10px 14px; overflow: hidden; font-family: "LX JetBrains Mono", ui-monospace, monospace; font-size: clamp(10px, .78vw, 14px); line-height: 1.7; color: rgba(255,255,255,.6); white-space: pre; -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 100%); mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 100%); }
+@media (max-width: 900px) { .code-droite { display: none; } }
 .code .ligne { display: block; }
 /* La coloration du code, façon éditeur (palette inspirée des thèmes sombres
    d'éditeur, réchauffée vers l'orange LexOS). Le masque en dégradé de .code

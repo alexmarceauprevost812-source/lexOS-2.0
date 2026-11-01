@@ -23,13 +23,18 @@
        rond avec son halo et ses anneaux. Un clic dessus change de logo. -->
   <div class="embleme" id="embleme" hidden>
     <div class="halo"></div>
-    <pre class="code" id="code" aria-hidden="true"></pre>
     <svg class="anneaux" viewBox="0 0 200 200" aria-hidden="true">
       <circle cx="100" cy="100" r="96" class="a1"/><circle cx="100" cy="100" r="88" class="a2"/><circle cx="100" cy="100" r="80" class="a3"/>
     </svg>
     <button class="embleme-img" id="embleme-btn" title="Clique pour changer de logo"><img id="embleme-img" alt="LexOS"></button>
     <div class="embleme-nom">Lex<span>OS</span></div>
     <small class="embleme-sous">ti-lex IA · tout en local, sur ton ordi</small>
+  </div>
+  <!-- ALEX (2026-11-01) : « ajouter le code à droite » — le code qui
+       s'écrit tout seul, dans un panneau sur le côté droit du bureau. -->
+  <div class="code-droite" id="code-droite" aria-hidden="true" hidden>
+    <div class="code-tete"><i></i><i></i><i></i><span>moteur.py</span></div>
+    <pre class="code" id="code"></pre>
   </div>
   <div id="icones" class="icones" aria-label="Icônes du bureau">
     <div class="cote" id="cote-gauche"></div>

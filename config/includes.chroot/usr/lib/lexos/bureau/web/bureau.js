@@ -436,9 +436,9 @@ let logoAffiche = "";
 function appliquerEmbleme() {
   const choix = P && LOGOS[P.embleme] ? P.embleme : (P && P.embleme === "aucun" ? "aucun" : "nomad");
   emb.hidden = choix === "aucun";
-  //  Plus de code qui s'écrit en fond d'écran (demande d'Alex), même si un
-  //  vieux réglage dit encore « oui ».
-  $("#bureau").classList.add("sans-code");
+  //  Le code qui s'écrit : dans son panneau à droite (demande d'Alex,
+  //  2026-11-01), allumé ou coupé dans les Paramètres (« code_droite »).
+  $("#code-droite").hidden = SECONDAIRE || !(P && P.code_droite !== false);
   if (choix === "aucun" || choix === logoAffiche) return;
   logoAffiche = choix;
   embImg.src = LOGOS[choix];
@@ -540,13 +540,13 @@ mouvement: str = "doux"`,
     }
     return out;
   };
-  const MAX = 15;
+  const MAX = 26;
   let lignes = [""], morceau = 0, pos = 0, attente = 0, faute = null;
   const peindre = () => {
     zone.innerHTML = lignes.map((l, i) => `<span class="ligne">${colorier(l) || " "}${i === lignes.length - 1 ? '<i class="code-curseur"></i>' : ""}</span>`).join("");
   };
   const taper = () => {
-    const visible = !SECONDAIRE && !document.hidden && !emb.hidden && emb.classList.contains("large") && !$("#bureau").classList.contains("sans-code");
+    const visible = !SECONDAIRE && !document.hidden && !$("#code-droite").hidden && innerWidth > 900;
     if (!visible) { setTimeout(taper, 800); return; }
     if (attente > 0) { attente--; setTimeout(taper, 90); return; }
     const texte = MORCEAUX[morceau];
@@ -571,8 +571,7 @@ mouvement: str = "doux"`,
   };
   if (calme) { lignes = MORCEAUX.slice(0, 3).join("\n\n").split("\n"); peindre(); return; }
   lignes = (MORCEAUX[0] + "\n\n" + MORCEAUX[1] + "\n").split("\n"); morceau = 2;   // on commence avec du code déjà écrit
-  //  Retiré du bureau (demande d'Alex) : on ne tape plus rien.
-  void peindre; void taper;
+  peindre(); taper();
 })();
 
 /* ════════════════ Charger, puis suivre les changements ════════════════ */
@@ -612,7 +611,7 @@ async function verifier() {
     //  Sans le serveur, le bureau reste un fond noir propre plutôt qu'une
     //  erreur : lexos-bureau relance xfdesktop si le moteur est tombé.
     P = { accent: "#ff7a18", police: "Space Grotesk", taille: 100, anim: "constellation", image: "", voile: 35, flou: 0,
-          vitesse: 100, densite: 100, orbes: true, grille: true, curseur: true, zoom: true, embleme: "nomad", code: true };
+          vitesse: 100, densite: 100, orbes: true, grille: true, curseur: true, zoom: true, embleme: "nomad", code: true, code_droite: true };
     appliquerEmbleme();
     appliquerTheme(); appliquerDecor(true);
   }

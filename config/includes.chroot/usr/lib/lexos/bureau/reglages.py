@@ -112,6 +112,11 @@ DEFAUTS = {
     #  bureau à la demande d'Alex (« enlever les lignes de code en fond
     #  d'écran ») ; la clé reste pour les réglages déjà écrits.
     "code": False,
+    #  ALEX (2026-11-01) : « ajouter le code à droite » — le code qui s'écrit
+    #  tout seul revient, mais dans un panneau sur le CÔTÉ DROIT du bureau
+    #  (plus derrière la bannière). Nouvelle clé pour qu'un vieux « code:
+    #  false » ne le cache pas. Se coupe dans Paramètres → Bureau LexOS.
+    "code_droite": True,
     #  🧪 Mon labo : le panneau qui monte quand la souris reste collée en
     #  bas de l'écran. « labo_delai » : combien de temps elle doit y rester
     #  (ms). « labo_apps » : ce qu'Alex y a mis, dans l'ordre ; ["*"] = pas

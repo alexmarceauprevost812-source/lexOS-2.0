@@ -1558,7 +1558,7 @@ function blocBureauMoteur(){
       <button class="btn ${sel(B.embleme === "rond")}" onclick="setBM({embleme:'rond'})">Logo rond</button>
       <button class="btn ${sel(B.embleme === "aucun")}" onclick="setBM({embleme:'aucun'})">Aucun</button>
     </div></div>
-  ${B.embleme === "nomad" ? inter("code", "⌨️ Le code qui s'écrit tout seul", "Derrière la bannière LexOS Nomad, comme dans le Moteur.") : ""}
+  ${inter("code_droite", "⌨️ Le code à droite", "Un panneau sur le côté droit du bureau où le code s'écrit tout seul.")}
   <div class="srow" style="display:block">
     <div class="t" style="margin-bottom:4px">Place des icônes</div>
     <div class="d">Glisse une icône n'importe où sur le bureau : elle reste où tu la lâches.
