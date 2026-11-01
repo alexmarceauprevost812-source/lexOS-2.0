@@ -16,6 +16,59 @@ mkdir -p "$CONF_DIR"
 
 log() { printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" >> "$LOG"; }
 
+# --- Le gardien de xfwm4 -----------------------------------------------------
+#  ALEX (2026-11-01) : « pas capable de baisser ou fermer des fenêtres » —
+#  les fenêtres n'avaient plus de barre de titre : xfwm4 n'était plus là.
+#  Il était lancé UNE fois (« exec xfwm4 --replace ») par la session de
+#  secours, qui ne relance jamais ses clients : un plantage, et le bureau
+#  restait sans gestionnaire de fenêtres jusqu'au prochain redémarrage.
+#
+#  Ici, lexos-wm reste le parent et relance xfwm4 s'il s'arrête — SAUF si
+#  un autre gestionnaire a pris sa place : « xfwm4 --replace » tapé à la
+#  main fait QUITTER l'ancien, et le relancer recommencerait une bagarre de
+#  remplacements. On regarde donc s'il reste un gestionnaire en marche
+#  avant de relancer. Cinq arrêts en une minute : on cesse, et on le note
+#  dans wm.log, plutôt que de faire clignoter l'écran sans fin.
+gestionnaire_present() {
+	pgrep -u "$(id -u)" -x xfwm4 >/dev/null 2>&1 \
+		|| pgrep -u "$(id -u)" -x compiz >/dev/null 2>&1
+}
+#  L'écran X est-il encore là ? Par sa prise /tmp/.X11-unix/X<n>, que Xorg
+#  retire en partant — sans dépendre de xset ou xdpyinfo, qui peuvent manquer.
+ecran_ouvert() {
+	local n="${DISPLAY:-}"
+	[ -n "$n" ] || return 1
+	n="${n#*:}"; n="${n%%.*}"
+	[ -S "/tmp/.X11-unix/X$n" ]
+}
+garder_xfwm4() {
+	local code debut morts=0 fenetre=0
+	while :; do
+		debut=$(date +%s)
+		xfwm4 --replace >>"$LOG" 2>&1
+		code=$?
+		#  Session qui se ferme : X est parti, rien à relancer.
+		ecran_ouvert || { log "écran fermé — fin du gardien"; return 0; }
+		sleep 2
+		if gestionnaire_present; then
+			log "xfwm4 (code $code) remplacé par un autre gestionnaire — on le laisse"
+			#  On reste là : si celui qui l'a remplacé meurt à son tour
+			#  (un terminal fermé, par exemple), on reprend la main.
+			while gestionnaire_present; do sleep 3; done
+			ecran_ouvert || return 0
+			log "plus aucun gestionnaire de fenêtres — xfwm4 revient"
+			continue
+		fi
+		if [ $(( $(date +%s) - fenetre )) -gt 60 ]; then fenetre=$debut; morts=0; fi
+		morts=$((morts + 1))
+		log "xfwm4 s'est arrêté (code $code) — relance $morts/5"
+		if [ "$morts" -ge 5 ]; then
+			log "xfwm4 s'arrête en boucle — le gardien abandonne (Alt+F4 ferme encore les fenêtres)"
+			return 1
+		fi
+	done
+}
+
 # --- Effets demandés ? -------------------------------------------------------
 WANT="on"
 [[ -r /etc/lexos/build.conf ]] && WANT="$(
@@ -26,7 +79,7 @@ WANT="on"
 
 if [[ "$WANT" != "on" ]]; then
 	log "effets CRT désactivés — xfwm4"
-	exec xfwm4 --replace
+	garder_xfwm4; exit $?
 fi
 
 # =============================================================================
@@ -72,7 +125,7 @@ if [[ "${LEXOS_WM_COMPIZ:-0}" != "1" ]]; then
 	if command -v lexos-crt >/dev/null 2>&1; then
 		setsid lexos-crt --demarrer >/dev/null 2>&1 &
 	fi
-	exec xfwm4 --replace
+	garder_xfwm4; exit $?
 fi
 
 # =============================================================================
@@ -155,4 +208,5 @@ if command -v lexos-crt >/dev/null 2>&1; then
 	setsid lexos-crt --demarrer >/dev/null 2>&1 &
 fi
 
-exec xfwm4 --replace
+garder_xfwm4
+exit $?
