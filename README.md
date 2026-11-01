@@ -9,7 +9,7 @@
 
 Basée sur Debian · Bureau XFCE façon Ubuntu · Licence MIT
 
-Créé par **Alex Marceau Prevost** — Normandin, Québec
+Créé par **Alex Marceau Prevost** — Normandin, Québec · développé avec **Claude** (Anthropic), assistant IA
 
 [**Site web et téléchargement**](website/index.html) — présentation, cinq
 saveurs, configuration requise, guide d'installation complet.

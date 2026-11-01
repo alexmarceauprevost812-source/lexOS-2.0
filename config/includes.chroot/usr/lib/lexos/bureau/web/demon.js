@@ -1100,7 +1100,7 @@ function ouvrirApropos(ouvert) {
     const lignes = [
       ["os", `${s.nom || "LexOS"}${s.version ? " " + s.version : ""}${s.saveur ? " (" + s.saveur + ")" : ""}`],
       ["base", "Debian trixie"], ["noyau", s.noyau], ["cpu", s.processeur], ["mémoire", s.memoire],
-      ["allumé", s.allume], ["bureau", THEME.pro ? "LexOS" : "LexOS démon"], ["créateur", "Alex Marceau Prevost"],
+      ["allumé", s.allume], ["bureau", THEME.pro ? "LexOS" : "LexOS démon"], ["créateur", "Alex Marceau Prevost"], ["avec", "Claude (Anthropic), assistant IA"],
     ].filter(([, v]) => v);
     $("#apropos-corps").innerHTML = lignes.map(([k, v]) =>
       `<p><span class="cle">${echapper(k)}</span>${echapper(v)}</p>`).join("");
