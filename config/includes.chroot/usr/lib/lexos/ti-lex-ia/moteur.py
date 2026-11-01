@@ -317,6 +317,9 @@ class Moteur:
             return False
         env = dict(os.environ, OLLAMA_MODELS=str(self.modeles),
                    OLLAMA_HOST=f"127.0.0.1:{self.port}")
+        if self.sur_cle:
+            #  Comme cles_ia.py : on ne fait JAMAIS le ménage des blobs sur la clé.
+            env["OLLAMA_NOPRUNE"] = "1"
         if INSTALLE:
             self.modeles.mkdir(parents=True, exist_ok=True)
         CACHE.mkdir(parents=True, exist_ok=True)
