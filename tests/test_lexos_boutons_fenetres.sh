@@ -79,7 +79,8 @@ for m in re.finditer(r'onclick="([^"]+)"', src):
         appelees.add(f)
 #  Ce ne sont pas des fonctions de la page : des méthodes et des natifs.
 NATIF = {"event","Number","String","confirm","alert","parseInt","replace",
-         "stopPropagation","then","preventDefault","encodeURIComponent"}
+         "stopPropagation","then","preventDefault","encodeURIComponent",
+         "stringify"}   # JSON.stringify (thèmes de bureau, Paramètres)
 print("APPELS:%d" % len(appelees))
 print("MANQUE:" + ",".join(sorted(appelees - declarees - NATIF)))
 PY

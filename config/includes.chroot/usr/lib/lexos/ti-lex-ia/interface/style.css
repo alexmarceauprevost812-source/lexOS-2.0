@@ -1367,3 +1367,17 @@ body.verrouille #app { filter: blur(10px) saturate(.6); }
 #gh-fini { line-height: 1.7; }
 #gh-fini a { color: var(--orange); }
 #cx-github { flex: none; }
+
+/* ─── Les yeux du démon (accueil du Chat) ─── */
+.yeux-demon { position: relative; width: min(300px, 60vw); height: 44px; margin: -4px auto 4px; transition: transform .2s ease-out; filter: drop-shadow(0 0 10px rgba(224, 36, 36, .55)); }
+.oeil-demon { position: absolute; top: 0; width: 40%; height: 100%; overflow: visible; transform-origin: 50% 70%; }
+.oeil-demon.gauche { left: 0; }
+.oeil-demon.droit { right: 0; }
+.oeil-demon-trace { fill: #e02424; }
+.yeux-demon.cligne .oeil-demon { animation: oeil-cligne .22s ease-in-out; }
+@keyframes oeil-cligne { 50% { transform: scaleY(.08); } }
+
+/* ─── Le cerveau sur la clé ─── */
+.etat-cerveau { font-size: 12px; color: var(--orange); margin-top: 2px; }
+.note-cerveau { font-size: 13px; color: var(--blanc-doux); line-height: 1.5; border: 1px solid var(--orange); border-radius: 12px; padding: 10px 14px; margin: 0 0 14px; background: rgba(255, 122, 0, .06); }
+@media (prefers-reduced-motion: reduce) { .yeux-demon { transition: none; } .yeux-demon.cligne .oeil-demon { animation: none; } }

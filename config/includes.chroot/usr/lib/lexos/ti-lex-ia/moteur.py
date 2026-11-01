@@ -83,19 +83,95 @@ def compter_manifestes(dossier: Path) -> int:
     n = 0
     for sous in ("manifests", "manifests-v2"):
         d = dossier / sous
-        if d.is_dir():
-            for _, _, fichiers in os.walk(d):
-                n += len(fichiers)
+        try:
+            if not d.is_dir():
+                continue
+        except OSError:                  # dossier d'un autre compte (Permission denied)
+            continue
+        for _, _, fichiers in os.walk(d):
+            n += len(fichiers)
     return n
+
+
+def noms_modeles(dossier: Path) -> set[str]:
+    """Noms Ollama (« qwen3:8b ») lus dans les manifestes d'un dossier de modèles."""
+    noms: set[str] = set()
+    for sous in ("manifests", "manifests-v2"):
+        d = dossier / sous
+        if not d.is_dir():
+            continue
+        for racine, _, fichiers in os.walk(d):
+            for f in fichiers:
+                parts = (Path(racine) / f).relative_to(d).parts   # hôte/espace/modèle/étiquette
+                if len(parts) == 4:
+                    _, espace, modele, etiquette = parts
+                    noms.add(f"{modele}:{etiquette}" if espace == "library"
+                             else f"{espace}/{modele}:{etiquette}")
+    return noms
+
+
+def cles_montees() -> list[Path]:
+    """Les clés USB vraiment montées sous /media ou /run/media (lu dans /proc/mounts).
+    On ne fouille pas /media à l'aveugle : /media/root et les dossiers des autres
+    comptes ne sont pas des clés, et y entrer donne « Permission denied »."""
+    vues: list[Path] = []
+    try:
+        lignes = Path("/proc/mounts").read_text().splitlines()
+    except OSError:
+        return vues
+    for ligne in lignes:
+        champs = ligne.split()
+        if len(champs) < 2:
+            continue
+        point = champs[1].replace("\\040", " ")
+        if point.startswith(("/media/", "/run/media/")):
+            p = Path(point)
+            try:
+                if p.is_dir() and os.access(p, os.R_OK | os.X_OK) and p not in vues:
+                    vues.append(p)
+            except OSError:
+                continue
+    return vues
+
+
+def systeme_fichiers(chemin: Path) -> str:
+    """Type du système de fichiers qui porte ce chemin (ext4, exfat, vfat…)."""
+    meilleur, type_fs = "", ""
+    try:
+        cible = str(chemin.resolve())
+        for ligne in Path("/proc/mounts").read_text().splitlines():
+            champs = ligne.split()
+            if len(champs) < 3:
+                continue
+            point = champs[1].replace("\\040", " ")
+            if (cible == point or cible.startswith(point.rstrip("/") + "/")) and len(point) > len(meilleur):
+                meilleur, type_fs = point, champs[2]
+    except OSError:
+        pass
+    return type_fs
+
+
+def cerveau_sur_cle() -> Path | None:
+    """ALEX (2026-11-01) : le cerveau (les modèles) vit sur la clé, dans ia/modeles.
+    LexOS est sur le disque, la clé sert d'espace de stockage comme un disque."""
+    candidats = []
+    for cle in cles_montees():
+        candidats += [cle / "ia" / "modeles", cle / "lexos-ia" / "ia" / "modeles"]
+    pleins = [c for c in candidats if compter_manifestes(c)]
+    return max(pleins, key=compter_manifestes) if pleins else None
 
 
 def choisir_modeles(force: str | None) -> Path:
     if force:
         return Path(force).resolve()
     if INSTALLE:
-        # Les modèles de LexOS : ceux que « lexos ia » a téléchargés
+        # D'abord le cerveau de la clé USB branchée (ia/modeles), puis les
+        # modèles de LexOS : ceux que « lexos ia » a téléchargés
         # (OLLAMA_MODELS, posé par ia-locale.py dans environment.d), sinon
         # l'emplacement par défaut d'Ollama.
+        cle = cerveau_sur_cle()
+        if cle:
+            return cle
         return Path(os.environ.get("OLLAMA_MODELS") or Path.home() / ".ollama" / "models")
     candidats = [CLE / "lexos-ia" / "ia" / "modeles", CLE / "ollama-models"]
     meilleurs = sorted(candidats, key=compter_manifestes, reverse=True)
@@ -140,6 +216,12 @@ def trouver_ollama() -> Path | None:
                 shutil.copytree(dossier, local)
                 lb.chmod(0o755)
             return lb
+    # Ollama installé dans le compte (~/.local/ollama), sans sudo : c'est là
+    # qu'il va quand la clé est en exFAT (les liens de ses librairies GPU n'y
+    # passent pas) — les modèles, eux, restent sur la clé.
+    perso = Path.home() / ".local" / "ollama" / "bin" / "ollama"
+    if perso.is_file() and os.access(perso, os.X_OK):
+        return perso
     systeme = shutil.which("ollama")
     if systeme:
         dire("Moteur absent de la clé : j'utilise l'Ollama du PC avec les modèles de la clé.", GRIS)
@@ -181,6 +263,23 @@ class Moteur:
         self.version = "?"
         self.debut = time.time()
         self.journal = CACHE / "ollama-moteur.log"
+        #  Le cerveau est-il sur une clé USB (et pas sur le disque du PC) ?
+        self.sur_cle = INSTALLE and any(c in modeles.parents or c == modeles for c in cles_montees())
+
+    def _voit_la_cle(self, port: int) -> bool:
+        """Cet Ollama connaît-il au moins un modèle du cerveau de la clé ?"""
+        #  TOUS les modèles de la clé, pas un seul en commun : un Ollama qui
+        #  n'en connaît qu'une partie laisserait les autres inutilisables.
+        attendus = noms_modeles(self.modeles)
+        if not attendus:
+            return True
+        try:
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+            c.request("GET", "/api/tags")
+            vus = {m.get("name") for m in json.loads(c.getresponse().read() or b"{}").get("models") or []}
+        except (OSError, ValueError, AttributeError):
+            return False
+        return attendus <= vus
 
     def demarrer(self) -> bool:
         if INSTALLE:
@@ -188,13 +287,27 @@ class Moteur:
             # On s'en sert tel quel : en démarrer un deuxième doublerait la
             # mémoire graphique prise par les modèles. Et on ne l'ARRÊTE pas
             # en quittant — il n'est pas à nous (self.proc reste None).
+            #  Exception : le cerveau est sur la clé et cet Ollama-là ne le voit
+            #  pas (le service de LexOS lit ~/.ollama) — on démarre alors le
+            #  nôtre, sur un autre port, avec les modèles de la clé.
             for p in (11434,):
                 v = ollama_repond(p)
                 if v is not None:
+                    if self.sur_cle and not self._voit_la_cle(p):
+                        dire("Un Ollama tourne déjà, mais sans le cerveau de la clé : j'en démarre un pour elle.", GRIS)
+                        break
                     self.port, self.version = p, v.get("version", "?")
                     dire(f"Moteur IA de LexOS trouvé (port {p}) ✔  Ollama {self.version}", ORANGE)
                     return True
         self.binaire = trouver_ollama()
+        if not self.binaire and self.sur_cle:
+            #  Le moteur fourni avec la clé elle-même (lexos-ia/ia/ollama-linux-<arch>),
+            #  cherché à partir du cerveau choisi — le même que cles_ia.py.
+            try:
+                from cles_ia import _binaire
+                self.binaire = _binaire(self.modeles, CACHE)
+            except Exception:
+                self.binaire = None
         if not self.binaire:
             dire("Aucun moteur Ollama sur la clé ni sur le PC.", ROUGE)
             return False
@@ -204,6 +317,9 @@ class Moteur:
             return False
         env = dict(os.environ, OLLAMA_MODELS=str(self.modeles),
                    OLLAMA_HOST=f"127.0.0.1:{self.port}")
+        if self.sur_cle:
+            #  Comme cles_ia.py : on ne fait JAMAIS le ménage des blobs sur la clé.
+            env["OLLAMA_NOPRUNE"] = "1"
         if INSTALLE:
             self.modeles.mkdir(parents=True, exist_ok=True)
         CACHE.mkdir(parents=True, exist_ok=True)
@@ -873,6 +989,8 @@ def fabriquer_gestionnaire(moteur: Moteur, arret: threading.Event):
                 "cle": str(CLE), "pc": socket.gethostname(),
                 "systeme": f"{platform.system()} {platform.release()}",
                 "modeles": str(moteur.modeles), "binaire": str(moteur.binaire),
+                "cerveau": {"sur_cle": moteur.sur_cle, "fs": systeme_fichiers(moteur.modeles),
+                            "nombre": len(noms_modeles(moteur.modeles))},
                 "depuis": moteur.debut, "defaut": defaut, "codex": codex, "disque": disque,
                 "gguf": chercher_gguf(),
             })
@@ -1494,13 +1612,17 @@ def main() -> int:
         # Paramètres, Variables… marchent sans IA) et dit quoi faire.
         dire("Pas de moteur IA pour l'instant — installe-le avec « lexos ia setup ».", ROUGE)
         moteur.proc, moteur.port, moteur.version = None, 11434, "absent"
+        #  Le cerveau de la clé n'a pas de moteur principal : on le laisse aux
+        #  🔌 clés IA (cles_ia.py), qui savent le servir à part.
+        moteur.sur_cle = False
 
     # 🔌 Les IA des clés USB branchées (Linux : /media/<compte>/…) — voir cles_ia.py
     global CLES
     if not WINDOWS and not a.sans_ia:
         try:
             from cles_ia import ClesIA
-            CLES = ClesIA(CACHE, exclure=moteur.modeles, journal=lambda m: dire(m, GRIS))
+            exclure = moteur.modeles if moteur.version != "absent" else None
+            CLES = ClesIA(CACHE, exclure=exclure, journal=lambda m: dire(m, GRIS))
             CLES.demarrer()
         except Exception as e:                      # le Moteur marche sans
             dire(f"Clés IA indisponibles : {e}", GRIS)

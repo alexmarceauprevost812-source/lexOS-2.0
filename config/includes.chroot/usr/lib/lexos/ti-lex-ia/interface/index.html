@@ -84,6 +84,7 @@
     <div class="carte-etat">
       <div class="etat-ligne"><span class="point" id="point"></span><b id="etat-texte">Connexion…</b></div>
       <div class="etat-pc" id="etat-pc">—</div>
+      <div class="etat-cerveau" id="etat-cerveau" hidden>🧠 Cerveau sur la clé</div>
       <div class="voyage"><span class="usb">⇄</span> se déplace avec la clé</div>
       <button id="verrouiller" class="btn btn-contour petit">🔒 Verrouiller</button>
       <button id="eteindre" class="btn btn-contour petit">⏻ Éteindre et débrancher</button>
@@ -113,6 +114,11 @@
           <div class="accueil-logo">
             <img src="logo.png" alt="">
             <div class="halo"></div>
+          </div>
+          <!-- Les yeux du démon (bureau nomade-v3) : ils suivent la souris -->
+          <div class="yeux-demon" id="yeux-demon" aria-hidden="true">
+            <svg class="oeil-demon gauche" viewBox="0 0 100 52" preserveAspectRatio="none"><path class="oeil-demon-trace"/></svg>
+            <svg class="oeil-demon droit" viewBox="0 0 100 52" preserveAspectRatio="none"><path class="oeil-demon-trace" transform="translate(100 0) scale(-1 1)"/></svg>
           </div>
           <h2 class="machine" data-texte="Salut Alex. Ton IA est branchée.">&nbsp;</h2>
           <p>Tout roule depuis la clé USB-C : modèles, moteur, conversations. Rien n'est installé sur ce PC.</p>
@@ -369,6 +375,7 @@
     <section class="vue" id="vue-modeles">
       <div class="vue-defile">
         <h2 class="titre-vue">Modèles sur la clé</h2>
+        <p class="note-cerveau" id="note-exfat" hidden>🧠 Ton cerveau est sur une clé en <b>exFAT</b>. Un gros téléchargement directement sur la clé peut figer : télécharge d'abord sur le disque de LexOS, puis copie le modèle dans <code>ia/modeles</code> sur la clé.</p>
         <div class="cartes" id="cartes-modeles"></div>
         <h2 class="titre-vue">Fichiers .gguf trouvés <small>à importer dans le moteur</small></h2>
         <div class="cartes" id="cartes-gguf"></div>
@@ -689,5 +696,6 @@
 <script src="nuage.js"></script>
 <script src="abonnement.js"></script>
 <script src="bureau.js"></script>
+<script src="yeux.js"></script>
 </body>
 </html>
