@@ -117,6 +117,10 @@ DEFAUTS = {
     "demon_grille": ["*"],
     "demon_dock": ["*"],
     "demon_places": {},
+    #  ALEX (31 octobre) : « on peut ajouter les applications dans toute la
+    #  fenêtre du bureau ». N'importe quelle appli installée, posée sur le
+    #  bureau démon là où on a cliqué (sa place est dans demon_places).
+    "demon_ajouts": [],
     "accent": "#ff7a18",
     "police": "Space Grotesk",
     "taille": 100,
@@ -213,7 +217,7 @@ def _propre(cle: str, v):
                 #  en millièmes de l'écran, depuis le coin haut-gauche.
                 propre[nom] = [int(min(1000, max(0, xy[0]))), int(min(1000, max(0, xy[1])))]
         return propre
-    if cle in ("labo_apps", "outils_apps", "demon_grille", "demon_dock"):
+    if cle in ("labo_apps", "outils_apps", "demon_grille", "demon_dock", "demon_ajouts"):
         if v == ["*"]:
             return ["*"]
         if not isinstance(v, list):
@@ -284,6 +288,7 @@ def lire() -> dict:
     r["outils_apps"] = list(DEFAUTS["outils_apps"])
     r["demon_grille"] = list(DEFAUTS["demon_grille"])
     r["demon_dock"] = list(DEFAUTS["demon_dock"])
+    r["demon_ajouts"] = []
     r["demon_places"] = {}
     try:
         brut = json.loads(FICHIER.read_text("utf-8"))

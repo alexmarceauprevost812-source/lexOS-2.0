@@ -105,7 +105,7 @@ class Etat:
                 "couleurs": reglages.COULEURS, "polices": reglages.POLICES,
                 #  Le dock et les icônes du bureau démon (demon.html), et de
                 #  quoi signer sa devise : « LEXOS 2.0 · NOMADE ».
-                "demon": tout["demon"], "systeme": systeme()}
+                "demon": demon_avec_ajouts(r, tout), "systeme": systeme()}
 
     def construire_outils(self) -> dict:
         """🎛️ Mes outils : le son, les notifications, et les outils placés."""
@@ -423,6 +423,26 @@ def dock() -> dict:
     if cote not in ("left", "right", "top", "bottom"):
         return vide
     return {"cote": cote, "taille": int(taille) if taille.isdigit() else 48}
+
+
+def demon_avec_ajouts(r: dict, tout: dict) -> list[dict]:
+    """Les tuiles du bureau démon, PLUS les applis qu'Alex y a ajoutées (« on
+    peut ajouter les applications dans toute la fenêtre du bureau »). Une
+    appli ajoutée est cherchée dans TOUTES les sections : celle qui a été
+    désinstallée depuis disparaît d'elle-même, sans laisser de tuile morte."""
+    out = list(tout["demon"])
+    vus = {e["id"] for e in out}
+    index = {}
+    for cle in ("applis", "lexos", "tilex", "bureau"):
+        for e in tout.get(cle) or []:
+            index.setdefault(e.get("id"), e)
+    for ident in r.get("demon_ajouts") or []:
+        e = index.get(ident)
+        if e and ident not in vus:
+            vus.add(ident)
+            out.append({"id": ident, "cle": "appli", "nom": e.get("nom", ""), "icone": bool(e.get("icone")),
+                        "ajout": True})
+    return out
 
 
 def systeme() -> dict:

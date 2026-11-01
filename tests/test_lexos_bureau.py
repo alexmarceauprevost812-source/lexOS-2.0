@@ -358,6 +358,23 @@ class SaveurNomade(unittest.TestCase):
         self.assertIn("html.pro #pluie, html.pro .scan, html.pro .filigrane, html.pro .yeux { display: none; }", css)
         self.assertIn('"pro"', (racine / "reglages.py").read_text("utf-8"))
 
+    def test_ajouter_une_appli_au_bureau(self):
+        """ALEX : « ajouter les applications dans toute la fenêtre du bureau ».
+        Les ajouts sont gardés (ids valides seulement) et le serveur rend leurs
+        tuiles ; une appli désinstallée depuis disparaît d'elle-même."""
+        r = self.rg.ecrire({"demon_ajouts": ["a-0123456789abcd", "../etc", 7, "a-0123456789abcd"]})
+        self.assertEqual(r["demon_ajouts"], ["a-0123456789abcd"])
+        import importlib, sys as _s
+        racine = Path(__file__).resolve().parent.parent / "config/includes.chroot/usr/lib/lexos/bureau"
+        if str(racine) not in _s.path:
+            _s.path.insert(0, str(racine))
+        serveur = importlib.import_module("serveur")
+        tout = {"demon": [{"id": "s-maison", "cle": "maison", "nom": "Dossier personnel"}],
+                "applis": [{"id": "a-0123456789abcd", "nom": "GIMP", "icone": True}], "lexos": [], "tilex": [], "bureau": []}
+        d = serveur.demon_avec_ajouts({"demon_ajouts": ["a-0123456789abcd", "a-desinstallee"]}, tout)
+        self.assertEqual([e["id"] for e in d], ["s-maison", "a-0123456789abcd"])
+        self.assertEqual(d[1], {"id": "a-0123456789abcd", "cle": "appli", "nom": "GIMP", "icone": True, "ajout": True})
+
     def test_dock_a_droite(self):
         """ALEX : « ajouter le dock à droite » — à droite par défaut, « bas »
         possible, toute autre valeur refusée."""
