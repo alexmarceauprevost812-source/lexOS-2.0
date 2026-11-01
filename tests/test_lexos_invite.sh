@@ -42,6 +42,10 @@ RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SH="$RACINE/config/includes.chroot/usr/share/lexos/shell/interactive.sh"
 GEN="$RACINE/config/includes.chroot/usr/bin/lexos-theme-gen"
 BANC="$(mktemp -d)"
+#  Depuis le 2026-10-31, l'invite par défaut est « pro » (le petit bateau,
+#  section en fin de banc). Ce banc éprouve l'invite CLASSIQUE : son dossier
+#  de réglages « vide » la choisit explicitement.
+mkdir -p "$BANC/vide-config/lexos" && printf 'classique\n' > "$BANC/vide-config/lexos/invite"
 trap 'rm -rf "$BANC"' EXIT
 mkdir -p "$BANC/home"
 
@@ -59,6 +63,8 @@ titre(){ printf '\n\033[1m═══ %s ═══\033[0m\n' "$1"; }
 #  interactive.sh se retire avant même de poser l'invite.
 invite() {
 	local code="$1" ct="$2" xdg="${3:-$BANC/vide-config}"
+	#  Ce banc éprouve l'invite CLASSIQUE (l'invite « pro » a sa section).
+	[ -e "$xdg/lexos/invite" ] || { mkdir -p "$xdg/lexos" && printf 'classique\n' > "$xdg/lexos/invite"; }
 	HOME="$BANC/home" XDG_CONFIG_HOME="$xdg" COLORTERM="$ct" TERM=xterm-256color \
 		bash --norc --noprofile -i -c \
 		". \"$SH\"; __lexos_code=$code; printf '%s' \"\${PS1@P}\"" 2>/dev/null
@@ -1067,6 +1073,22 @@ print(menu._accent())
 		fi
 	fi
 fi
+
+# =============================================================================
+titre "L'invite « pro » : le petit bateau (défaut depuis le 2026-10-31)"
+#  ALEX : « une invite spéciale un peu comme Kali, mais version LexOS […]
+#  comme un ti bateau (__________-> ». Sans choix écrit, c'est elle.
+PRO_XDG="$BANC/pro-config"; mkdir -p "$PRO_XDG"
+pro() { HOME="$BANC/home" XDG_CONFIG_HOME="$PRO_XDG" COLORTERM="$2" TERM=xterm-256color bash --norc --noprofile -i -c \
+	". \"$SH\"; __lexos_code=$1; printf '%s' \"\${PS1@P}\"" 2>/dev/null | tr -d '\001\002'; }
+VU="$(pro 0 truecolor)"; TXT="$(printf '%s' "$VU" | sed 's/\x1b\[[0-9;]*m//g')"
+case "$TXT" in *"╭──("*"@lexos)─["*"]"*) ok "ligne 1 : ╭──(nom@lexos)─[chemin]" ;; *) non "ligne 1 inattendue : $TXT" ;; esac
+case "$TXT" in *"╰─(__________➜ "*) ok "ligne 2 : le petit bateau ╰─(__________➜" ;; *) non "pas de petit bateau : $TXT" ;; esac
+case "$VU" in *"38;2;255;106;26m"*) ok "cadre en orange LexOS (#FF6A1A)" ;; *) non "cadre pas orange" ;; esac
+ERR="$(pro 1 truecolor)"
+case "$ERR" in *"__________"*"38;5;196m"*"➜"*) ok "la flèche du bateau devient rouge après une erreur" ;;
+	*"__________"*"196"*) ok "la flèche du bateau devient rouge après une erreur" ;; *) non "flèche pas rouge après une erreur" ;; esac
+case "$(pro 0 "")" in *"38;5;202m"*) ok "repli 256 couleurs : orange 202" ;; *) non "repli 256 couleurs absent" ;; esac
 
 # =============================================================================
 printf '\n\033[1m═══ VERDICT ═══\033[0m\n'

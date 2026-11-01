@@ -603,6 +603,9 @@ TX_J="$(sed -n "s/^LEXOS_PS_TEXTE='\(.*\)'$/\1/p" "$ENV_JOUR")"
 #  séquence : le blanc non refermé est donc suivi d'un \002 final.
 ESC=$'\033'; FIN_RL=$'\002'
 genere orange nuit
+#  Ces vérifications portent sur l'invite CLASSIQUE (l'invite « pro », le
+#  petit bateau, défaut depuis le 2026-10-31, a son banc : test_lexos_invite.sh).
+mkdir -p "$BANC/t/.config/lexos" && printf 'classique\n' > "$BANC/t/.config/lexos/invite"
 DEV="$(HOME="$BANC/t" XDG_CONFIG_HOME="$BANC/t/.config" COLORTERM=truecolor TERM=xterm-256color \
 	bash --norc -ic ". '$INTER' 2>/dev/null; printf '%s' \"\${PS1@P}\"" 2>/dev/null)"
 case "$DEV" in

@@ -290,6 +290,23 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-chr
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;
 }
 .fen.actif .fen-tete .chemin{color:var(--texte-2)}
+/*  « ÇA TRAVAILLE » — ALEX : « une animation quand ça travaille, pour voir
+    que ça travaille et non que la commande fait un bogue ». Dans l'en-tête
+    du volet, jamais dans le texte du terminal : le petit bateau de l'invite
+    (__➜) avance sur une vague, avec le nom de la commande. Rien pour une
+    commande de moins de 0,4 s ; coupé avec « réduire les animations »
+    (le nom reste). */
+.fen-tete .travail{display:inline-flex;align-items:center;gap:6px;flex:none;
+  font-family:var(--mono);font-size:11px;color:#ff6a1a;margin-right:6px}
+.fen-tete .travail[hidden]{display:none}
+.bateau-vague{position:relative;display:inline-block;width:38px;height:10px;overflow:hidden;
+  background:linear-gradient(90deg,transparent 0 10%,#ff6a1a33 10% 90%,transparent 90%) bottom/100% 1px no-repeat}
+.bateau-vague::before{content:"__➜";position:absolute;left:-30px;top:-3px;font:700 10px/1 var(--mono);color:#ff6a1a;
+  animation:lx-navigue 1.1s linear infinite}
+@keyframes lx-navigue{to{transform:translateX(68px)}}
+.travail-nom::after{content:"…";animation:lx-points 1.2s steps(4) infinite;display:inline-block;width:1.2em;overflow:hidden;vertical-align:bottom}
+@keyframes lx-points{0%{width:0}100%{width:1.2em}}
+@media (prefers-reduced-motion:reduce){.bateau-vague::before,.travail-nom::after{animation:none}}
 .fen-outils{display:flex;gap:1px;flex:none}
 .fen-outils button{
   width:22px;height:18px;border-radius:3px;
@@ -635,6 +652,36 @@ const ICONES = {
   x:     '<svg viewBox="0 0 12 12"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"/><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"/></svg>'
 };
 
+/*  ═══ « ÇA TRAVAILLE » : qui tourne au premier plan, volet par volet ═══
+    Toutes les 0,5 s, le pont dit pour chaque volet si une commande travaille
+    (POST /api/occupe → tcgetpgrp côté pont). L'animation n'apparaît qu'après
+    0,4 s : un « ls » ne fait pas clignoter l'en-tête. */
+const TRAVAIL = {
+  depuis: new Map(),
+  async tic(){
+    if (document.hidden) return;
+    let fens = [];
+    try { Terminal.onglets.forEach(o => o.fenetres().forEach(f => fens.push(f))); } catch(e) { return; }
+    await Promise.all(fens.map(async f => {
+      if (!f.pret || f.fermee || !f.el) return;
+      const r = await poste("/api/occupe", { fen: String(f.id) });
+      const zone = f.el.querySelector(".travail"); if (!zone) return;
+      if (r && r.occupe) {
+        if (!this.depuis.has(f.id)) this.depuis.set(f.id, performance.now());
+        if (performance.now() - this.depuis.get(f.id) >= 400) {
+          zone.querySelector(".travail-nom").textContent = r.cmd || "commande";
+          zone.title = `« ${r.cmd || "commande"} » travaille — rien n'est bloqué`;
+          zone.hidden = false;
+        }
+      } else {
+        this.depuis.delete(f.id);
+        zone.hidden = true;
+      }
+    }));
+  },
+};
+setInterval(() => TRAVAIL.tic(), 500);
+
 class Fenetre {
   constructor(cwd){
     this.id = ++compteurFen;
@@ -651,6 +698,7 @@ class Fenetre {
       '<div class="fen-tete">'+
         '<span class="pastille"></span>'+
         '<span class="chemin"></span>'+
+        '<span class="travail" hidden title="Une commande travaille"><i class="bateau-vague"></i><b class="travail-nom"></b></span>'+
         '<span class="fen-outils">'+
           '<button data-a="droite" title="Diviser à droite (Ctrl+B D)" aria-label="Diviser à droite">'+ICONES.droite+'</button>'+
           '<button data-a="bas" title="Diviser en bas (Ctrl+B B)" aria-label="Diviser en bas">'+ICONES.bas+'</button>'+

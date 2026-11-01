@@ -760,6 +760,30 @@ class Session:
         except OSError:
             return -1
 
+    def occupe(self):
+        """Le nom du programme qui travaille au premier plan, ou None quand
+        c'est le shell qui attend (l'invite est là).
+
+        ALEX (31 octobre) : « une animation quand ça travaille, pour voir que
+        ça travaille et non que la commande fait un bogue ». Le pty sait qui
+        tient le premier plan (tcgetpgrp) : si ce n'est plus le groupe du
+        shell, une commande tourne. Rien n'est écrit DANS le terminal — une
+        animation mêlée à la sortie la casserait, et effacerait la question
+        d'un mot de passe sudo ; c'est la page qui l'affiche, à côté."""
+        if self.fini:
+            return None
+        try:
+            premier = os.tcgetpgrp(self.maitre)
+        except OSError:
+            return None
+        if premier <= 0 or premier == self._pgid():
+            return None
+        try:
+            with open(f"/proc/{premier}/comm", encoding="utf-8", errors="replace") as f:
+                return f.read().strip()[:32] or "commande"
+        except OSError:
+            return "commande"
+
     def vivante(self):
         if self.fini:
             return False
@@ -1259,7 +1283,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path == "/api/mode":
             return self._poser_mode()
         if self.path in ("/api/saisie", "/api/taille", "/api/fermer",
-                         "/api/ouvrir"):
+                         "/api/ouvrir", "/api/occupe"):
             return self._route_pty(self.path)
         return self._json(404, {"ok": False, "erreur": "inconnu"})
 
@@ -1276,6 +1300,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         if chemin == "/api/fermer":
             return self._json(200, {"ok": True, "ferme": fermer_session(fen)})
+
+        if chemin == "/api/occupe":
+            #  Une commande travaille-t-elle dans ce volet ? (Session.occupe)
+            ses = session_de(fen)
+            nom = ses.occupe() if ses is not None else None
+            return self._json(200, {"ok": True, "occupe": nom is not None, "cmd": nom or ""})
 
         #  ═══ /api/ouvrir — CRÉER LA SESSION SANS TENIR DE CONNEXION ═══
         #  C'était /api/flux qui créait le shell, en même temps qu'il ouvrait
