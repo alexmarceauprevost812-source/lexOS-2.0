@@ -89,13 +89,75 @@ def compter_manifestes(dossier: Path) -> int:
     return n
 
 
+def noms_modeles(dossier: Path) -> set[str]:
+    """Noms Ollama (« qwen3:8b ») lus dans les manifestes d'un dossier de modèles."""
+    noms: set[str] = set()
+    for sous in ("manifests", "manifests-v2"):
+        d = dossier / sous
+        if not d.is_dir():
+            continue
+        for racine, _, fichiers in os.walk(d):
+            for f in fichiers:
+                parts = (Path(racine) / f).relative_to(d).parts   # hôte/espace/modèle/étiquette
+                if len(parts) == 4:
+                    _, espace, modele, etiquette = parts
+                    noms.add(f"{modele}:{etiquette}" if espace == "library"
+                             else f"{espace}/{modele}:{etiquette}")
+    return noms
+
+
+def cles_montees() -> list[Path]:
+    """Les clés USB montées (/media/<compte>/X, /run/media/<compte>/X)."""
+    compte = os.environ.get("USER") or Path.home().name
+    vues: list[Path] = []
+    for base in (Path("/media") / compte, Path("/run/media") / compte, Path("/media")):
+        try:
+            for p in sorted(base.iterdir()):
+                if p.is_dir() and p not in vues and p.name != compte:
+                    vues.append(p)
+        except OSError:
+            continue
+    return vues
+
+
+def systeme_fichiers(chemin: Path) -> str:
+    """Type du système de fichiers qui porte ce chemin (ext4, exfat, vfat…)."""
+    meilleur, type_fs = "", ""
+    try:
+        cible = str(chemin.resolve())
+        for ligne in Path("/proc/mounts").read_text().splitlines():
+            champs = ligne.split()
+            if len(champs) < 3:
+                continue
+            point = champs[1].replace("\\040", " ")
+            if (cible == point or cible.startswith(point.rstrip("/") + "/")) and len(point) > len(meilleur):
+                meilleur, type_fs = point, champs[2]
+    except OSError:
+        pass
+    return type_fs
+
+
+def cerveau_sur_cle() -> Path | None:
+    """ALEX (2026-11-01) : le cerveau (les modèles) vit sur la clé, dans ia/modeles.
+    LexOS est sur le disque, la clé sert d'espace de stockage comme un disque."""
+    candidats = []
+    for cle in cles_montees():
+        candidats += [cle / "ia" / "modeles", cle / "lexos-ia" / "ia" / "modeles"]
+    pleins = [c for c in candidats if compter_manifestes(c)]
+    return max(pleins, key=compter_manifestes) if pleins else None
+
+
 def choisir_modeles(force: str | None) -> Path:
     if force:
         return Path(force).resolve()
     if INSTALLE:
-        # Les modèles de LexOS : ceux que « lexos ia » a téléchargés
+        # D'abord le cerveau de la clé USB branchée (ia/modeles), puis les
+        # modèles de LexOS : ceux que « lexos ia » a téléchargés
         # (OLLAMA_MODELS, posé par ia-locale.py dans environment.d), sinon
         # l'emplacement par défaut d'Ollama.
+        cle = cerveau_sur_cle()
+        if cle:
+            return cle
         return Path(os.environ.get("OLLAMA_MODELS") or Path.home() / ".ollama" / "models")
     candidats = [CLE / "lexos-ia" / "ia" / "modeles", CLE / "ollama-models"]
     meilleurs = sorted(candidats, key=compter_manifestes, reverse=True)
@@ -140,6 +202,12 @@ def trouver_ollama() -> Path | None:
                 shutil.copytree(dossier, local)
                 lb.chmod(0o755)
             return lb
+    # Ollama installé dans le compte (~/.local/ollama), sans sudo : c'est là
+    # qu'il va quand la clé est en exFAT (les liens de ses librairies GPU n'y
+    # passent pas) — les modèles, eux, restent sur la clé.
+    perso = Path.home() / ".local" / "ollama" / "bin" / "ollama"
+    if perso.is_file() and os.access(perso, os.X_OK):
+        return perso
     systeme = shutil.which("ollama")
     if systeme:
         dire("Moteur absent de la clé : j'utilise l'Ollama du PC avec les modèles de la clé.", GRIS)
@@ -181,6 +249,21 @@ class Moteur:
         self.version = "?"
         self.debut = time.time()
         self.journal = CACHE / "ollama-moteur.log"
+        #  Le cerveau est-il sur une clé USB (et pas sur le disque du PC) ?
+        self.sur_cle = INSTALLE and any(c in modeles.parents or c == modeles for c in cles_montees())
+
+    def _voit_la_cle(self, port: int) -> bool:
+        """Cet Ollama connaît-il au moins un modèle du cerveau de la clé ?"""
+        attendus = noms_modeles(self.modeles)
+        if not attendus:
+            return True
+        try:
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+            c.request("GET", "/api/tags")
+            vus = {m.get("name") for m in json.loads(c.getresponse().read() or b"{}").get("models") or []}
+        except (OSError, ValueError, AttributeError):
+            return False
+        return bool(attendus & vus)
 
     def demarrer(self) -> bool:
         if INSTALLE:
@@ -188,9 +271,15 @@ class Moteur:
             # On s'en sert tel quel : en démarrer un deuxième doublerait la
             # mémoire graphique prise par les modèles. Et on ne l'ARRÊTE pas
             # en quittant — il n'est pas à nous (self.proc reste None).
+            #  Exception : le cerveau est sur la clé et cet Ollama-là ne le voit
+            #  pas (le service de LexOS lit ~/.ollama) — on démarre alors le
+            #  nôtre, sur un autre port, avec les modèles de la clé.
             for p in (11434,):
                 v = ollama_repond(p)
                 if v is not None:
+                    if self.sur_cle and not self._voit_la_cle(p):
+                        dire("Un Ollama tourne déjà, mais sans le cerveau de la clé : j'en démarre un pour elle.", GRIS)
+                        break
                     self.port, self.version = p, v.get("version", "?")
                     dire(f"Moteur IA de LexOS trouvé (port {p}) ✔  Ollama {self.version}", ORANGE)
                     return True
@@ -873,6 +962,8 @@ def fabriquer_gestionnaire(moteur: Moteur, arret: threading.Event):
                 "cle": str(CLE), "pc": socket.gethostname(),
                 "systeme": f"{platform.system()} {platform.release()}",
                 "modeles": str(moteur.modeles), "binaire": str(moteur.binaire),
+                "cerveau": {"sur_cle": moteur.sur_cle, "fs": systeme_fichiers(moteur.modeles),
+                            "nombre": len(noms_modeles(moteur.modeles))},
                 "depuis": moteur.debut, "defaut": defaut, "codex": codex, "disque": disque,
                 "gguf": chercher_gguf(),
             })

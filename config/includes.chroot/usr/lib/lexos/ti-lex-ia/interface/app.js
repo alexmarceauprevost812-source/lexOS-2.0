@@ -175,6 +175,10 @@ function afficherEtat() {
   if (!e) return marquer(false, "Moteur injoignable");
   marquer(true, "Moteur actif", e.ollama);
   $("#etat-pc").textContent = `Sur ${e.pc} · port ${e.port}`;
+  //  ALEX (2026-11-01) : le cerveau (les modèles) vit sur la clé USB.
+  const cerveau = e.cerveau || {};
+  $("#etat-cerveau").hidden = !cerveau.sur_cle;
+  $("#note-exfat").hidden = !(cerveau.sur_cle && /^(exfat|vfat|msdos|fat)/i.test(cerveau.fs || ""));
   // Vue clé
   if (e.disque) {
     const pct = Math.round((1 - e.disque.libre / e.disque.total) * 100);
@@ -185,7 +189,8 @@ function afficherEtat() {
   const lignes = [
     ["Clé montée à", e.cle], ["PC actuel", e.pc], ["Système", e.systeme],
     ["Moteur Ollama", e.binaire], ["Version", e.ollama], ["Port du moteur", e.port],
-    ["Dossier des modèles", e.modeles], ["Conversations", "MOTEUR-INTERFACE/conversations (sur la clé)"],
+    ["Dossier des modèles", e.modeles],
+    ["🧠 Cerveau", cerveau.sur_cle ? `sur la clé USB (${cerveau.nombre ?? 0} modèle${cerveau.nombre === 1 ? "" : "s"}, ${cerveau.fs || "?"})` : "sur le disque du PC"], ["Conversations", "MOTEUR-INTERFACE/conversations (sur la clé)"],
     ["Interface", "v" + e.version],
   ];
   $("#infos-cle").innerHTML = lignes.map(([k, v], i) => `<div class="info-ligne" style="animation-delay:${i * 60}ms"><span>${echapper(k)}</span><b>${echapper(String(v ?? "—"))}</b></div>`).join("");
