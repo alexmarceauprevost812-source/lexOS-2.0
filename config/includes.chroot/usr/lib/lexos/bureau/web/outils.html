@@ -22,9 +22,10 @@
   <div class="sep"></div>
   <div id="mes-outils" class="mes-outils"></div>
   <button id="ajouter" class="rond-plus" title="Placer un outil dans la barre">＋</button>
-  <!-- Les bureaux virtuels : les quatre points de l'ancienne barre du haut.
-       La roulette de la souris sur la barre change aussi de bureau. -->
-  <div id="bureaux" class="bureaux" role="group" aria-label="Bureaux" title="Bureaux — ou la roulette de la souris sur la barre" hidden></div>
+  <!-- ALEX (2026-11-01) : « les anciens outils en haut, les enlever pour de
+       bon ». Partis : les points des bureaux virtuels (l'ancienne barre du
+       haut) et le 📷 Capture. La capture reste au clavier : Impr, Maj+Impr,
+       Ctrl+Maj+R, et dans le menu. -->
   <div class="espace"></div>
   <!-- 🔊 Le son : l'emoji SEUL dans la barre. ALEX (photo de la barre) : « le
        bouton du volume qui prend pas toute la place, on garde l'emoji, et
@@ -32,7 +33,6 @@
        Le réglage est dans son menu, juste dessous ; la roulette sur l'emoji
        règle le volume sans rien ouvrir. -->
   <button id="son" class="bouton-outil son-bouton" data-menu="son" title="Volume" aria-label="Volume" hidden><i id="son-icone">🔊</i></button>
-  <button class="bouton-outil" data-menu="capture" title="Capture d'écran"><i>📷</i><span>Capture</span></button>
   <button class="bouton-outil" data-menu="notifs" title="Notifications"><i>🔔</i><span>Notifications</span><em id="nb" hidden></em></button>
   <button class="bouton-outil arret" data-menu="arret" title="Éteindre, redémarrer…"><i>⏻</i></button>
 </header>
@@ -46,17 +46,6 @@
     <b id="pct">–</b>
   </div>
   <p class="aide">La roulette sur 🔊 règle aussi le volume, sans ouvrir ce menu.</p>
-</div>
-
-<!-- 📷 La capture -->
-<div id="menu-capture" class="menu" hidden>
-  <h4>📷 Capture d'écran</h4>
-  <div class="choix-capture">
-    <button data-capture="plein"><i>🖥️</i><b>L'écran entier</b><small>tout ce qui est affiché</small></button>
-    <button data-capture="zone"><i>✂️</i><b>Une zone</b><small>dessine un rectangle à la souris</small></button>
-    <button data-capture="fenetre"><i>🪟</i><b>La fenêtre</b><small>celle qui est au premier plan</small></button>
-  </div>
-  <p class="aide">Elles vont dans Images → Captures.</p>
 </div>
 
 <!-- 🔔 Les notifications -->

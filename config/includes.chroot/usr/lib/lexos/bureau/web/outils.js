@@ -40,7 +40,7 @@ function signe(t) {
 }
 
 let O = null;            // la réponse de /api/outils
-let menu = null;         // "son" | "capture" | "notifs" | "arret" | "tout" | null
+let menu = null;         // "son" | "notifs" | "arret" | "tout" | null
 let choix = false;       // « ＋ » : placer des outils dans la barre
 let rayon = "tout";
 let fermeture = null;
@@ -80,7 +80,6 @@ function dessinerBarre() {
     `<button class="outil" data-id="${echapper(e.id)}" data-emoji="${echapper(e.emoji || "🚀")}" title="${echapper(e.nom)}" style="animation-delay:${80 + k * 40}ms"><span>${image(e)}</span></button>`).join("");
   secoursImages($("#mes-outils"));
   dessinerSon();
-  dessinerBureaux();
   $("#audit").hidden = !O.audit;
   const n = O.notifs.length;
   $("#nb").hidden = !n; $("#nb").textContent = n > 99 ? "99+" : n;
@@ -169,43 +168,6 @@ function rouletteVolume(e) {
 $("#son").addEventListener("wheel", rouletteVolume, { passive: false });
 $("#menu-son").addEventListener("wheel", rouletteVolume, { passive: false });
 
-/* ▪▪▪▪ Les bureaux virtuels — les points de l'ancienne barre du haut.
-   Un clic sur un point : ce bureau. La roulette n'importe où sur la barre
-   (sauf sur le volume) : le bureau voisin, tout de suite, sans animation —
-   demande d'Alex : « la souris en haut, la petite roulette, ça change de
-   bureau, ça affiche rien ». */
-function dessinerBureaux() {
-  const b = O.bureaux || { n: 0, actuel: 0 };
-  const zone = $("#bureaux");
-  zone.hidden = !(b.n > 1);
-  if (zone.hidden) return;
-  if (zone.children.length !== b.n) {
-    zone.innerHTML = Array.from({ length: b.n }, (_, i) =>
-      `<button class="point" data-bureau="${i}" title="Bureau ${i + 1}" aria-label="Bureau ${i + 1}"></button>`).join("");
-  }
-  [...zone.children].forEach((p, i) => { p.classList.toggle("actuel", i === b.actuel); p.setAttribute("aria-pressed", i === b.actuel); });
-}
-async function allerBureau(corps) {
-  try { const r = await api("/api/bureau", corps); if (r && r.n) { O.bureaux = { n: r.n, actuel: r.actuel }; dessinerBureaux(); } } catch {}
-}
-$("#bureaux").addEventListener("click", (e) => {
-  const p = e.target.closest("[data-bureau]");
-  if (p) allerBureau({ aller: +p.dataset.bureau });
-});
-let roulette = 0, rouletteLibre = 0;
-$("#barre").addEventListener("wheel", (e) => {
-  if (e.target.closest("#son")) return;            // la roulette sur 🔊 règle le volume (rouletteVolume)
-  e.preventDefault();
-  //  Un pavé tactile envoie des dizaines de petits pas : on les additionne,
-  //  et un seul bureau par geste (pas plus d'un tous les 180 ms).
-  roulette += e.deltaY || e.deltaX;
-  const maintenant = performance.now();
-  if (Math.abs(roulette) < 40 || maintenant < rouletteLibre) return;
-  const pas = roulette > 0 ? 1 : -1;
-  roulette = 0; rouletteLibre = maintenant + 180;
-  allerBureau({ pas });
-}, { passive: false });
-
 /* ════════ Les menus qui tombent ════════ */
 function placerSous(el, bouton) {
   const b = bouton.getBoundingClientRect();
@@ -232,12 +194,6 @@ $$(".bouton-outil").forEach((b) => b.addEventListener("click", () => {
   const avant = menu;
   fermerMenus(); menu = null;
   if (avant !== b.dataset.menu) ouvrirMenu(b.dataset.menu, b); else demanderTaille();
-}));
-
-/* 📷 La capture : la barre remonte d'abord, la photo vient après (gestes.py attend). */
-$$("[data-capture]").forEach((b) => b.addEventListener("click", async () => {
-  fermer();
-  try { const r = await api("/api/capture", { mode: b.dataset.capture }); if (!r.ok) bulle("La capture d'écran n'est pas disponible"); } catch {}
 }));
 
 /* 🔔 Les notifications */

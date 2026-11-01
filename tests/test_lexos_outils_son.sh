@@ -173,8 +173,9 @@ cat > "$BANC/scenario.js" <<'JS'
       await dodo(400);
       R.paveTactile = __etat.volume;
       R.bureauIntact = nbBureau() === b0;
-      roue($("#bureaux"), 100); await dodo(300);
-      R.bureauAilleurs = nbBureau() > b0;
+      roue($("#barre"), 100); await dodo(300);
+      R.bureauAilleurs = nbBureau() === b0;   // plus de bureaux virtuels dans la barre
+      R.sansAnciens = !$("#bureaux") && !$('[data-menu="capture"]') && !$("#menu-capture");
 
       document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
       await dodo(200);
@@ -184,8 +185,8 @@ cat > "$BANC/scenario.js" <<'JS'
       son.click(); await dodo(200);
       R.bascule = rouvert && menuSon.hidden;
       son.click(); await dodo(200);
-      $('[data-menu="capture"]').click(); await dodo(300);
-      R.unSeulMenu = menuSon.hidden && !$("#menu-capture").hidden;
+      $('[data-menu="notifs"]').click(); await dodo(300);
+      R.unSeulMenu = menuSon.hidden && !$("#menu-notifs").hidden;
     } else if (cas === "rafale") {
       //  Six crans vers soi, un toutes les 70 ms, /api/son qui répond en 25 ms.
       for (let k = 0; k < 6; k++) { roue(son, 100); await dodo(70); }
@@ -308,12 +309,13 @@ echo "== La roulette"
 [ "$(champ "$R" rouletteMenu)" = "40" ] && ok "dans le menu aussi : 45 → 40" || non "la roulette dans le menu : « $(champ "$R" rouletteMenu) »"
 [ "$(champ "$R" paveTactile)" = "35" ] && ok "les petits pas d'un pavé tactile s'additionnent : 12 × 4 = un cran (40 → 35)" || non "pavé tactile : « $(champ "$R" paveTactile) »"
 [ "$(champ "$R" bureauIntact)" = "true" ] && ok "…sans jamais changer de bureau" || non "la roulette sur le volume a changé de bureau"
-[ "$(champ "$R" bureauAilleurs)" = "true" ] && ok "ailleurs sur la barre, la roulette change toujours de bureau" || non "la roulette ne change plus de bureau"
+[ "$(champ "$R" bureauAilleurs)" = "true" ] && ok "ailleurs sur la barre, la roulette ne change plus de bureau" || non "la roulette change encore de bureau"
+[ "$(champ "$R" sansAnciens)" = "true" ] && ok "les anciens outils (points des bureaux, 📷 Capture) sont partis" || non "un ancien outil est encore dans la barre du haut"
 
 echo "== Fermer"
 [ "$(champ "$R" fermeDehors)" = "true" ] && ok "un clic à côté referme le menu du son" || non "le menu du son reste ouvert après un clic à côté"
 [ "$(champ "$R" bascule)" = "true" ] && ok "🔊 ouvre, 🔊 referme" || non "re-cliquer sur 🔊 ne referme pas"
-[ "$(champ "$R" unSeulMenu)" = "true" ] && ok "ouvrir Capture referme le volume : un seul menu à la fois" || non "deux menus ouverts en même temps"
+[ "$(champ "$R" unSeulMenu)" = "true" ] && ok "ouvrir Notifications referme le volume : un seul menu à la fois" || non "deux menus ouverts en même temps"
 
 echo "== La roulette en rafale, avec un /api/son qui met 25 ms (trois pactl)"
 R="$(lancer "?cas=rafale&latence=25")"

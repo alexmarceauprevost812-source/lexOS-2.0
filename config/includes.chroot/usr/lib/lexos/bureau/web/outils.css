@@ -114,12 +114,6 @@ body.ouvert .outil { animation: tombe .45s both cubic-bezier(.2,1.5,.4,1); }
 .petit.allume { background: rgba(var(--acc-rgb),.28); border-color: var(--orange); }
 .aide { margin-top: 10px; font-size: 12px; color: var(--gris); }
 
-.choix-capture { display: flex; gap: 10px; }
-.choix-capture button { width: 150px; padding: 14px 10px; border-radius: 16px; border: 1px solid var(--ligne); background: var(--noir-3); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; animation: pop .45s both cubic-bezier(.2,1.6,.4,1); transition: transform .25s cubic-bezier(.3,1.6,.5,1), border-color .2s, background .2s; }
-.choix-capture button:nth-child(2) { animation-delay: .05s; } .choix-capture button:nth-child(3) { animation-delay: .1s; }
-.choix-capture i { font-style: normal; font-size: 32px; }
-.choix-capture b { font-size: 13.5px; } .choix-capture small { font-size: 11px; color: var(--gris); }
-.choix-capture button:hover { transform: translateY(-4px) scale(1.04); border-color: var(--orange); background: rgba(var(--acc-rgb),.12); }
 @keyframes pop { from { transform: scale(.6); opacity: 0; } }
 
 .liste-notifs { list-style: none; max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; width: 420px; scrollbar-width: thin; scrollbar-color: rgba(var(--acc-rgb),.5) transparent; }
@@ -206,10 +200,3 @@ body.ouvert .outil { animation: tombe .45s both cubic-bezier(.2,1.5,.4,1); }
 
 @media (prefers-reduced-motion: reduce) { .barre, body.ouvert .barre { transition: none; } .menu, .tout, .tuile, .outil, .gestes button { animation: none !important; } }
 
-/* ▪▪▪▪ Les bureaux virtuels (les points de l'ancienne barre du haut) */
-.bureaux { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 12px; border-radius: 22px; background: var(--noir-3); border: 1px solid var(--ligne); }
-.bureaux[hidden] { display: none; }
-.bureaux .point { width: 14px; height: 14px; padding: 0; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.55); background: transparent; cursor: pointer; }
-.bureaux .point:hover { border-color: var(--orange); background: rgba(var(--acc-rgb),.25); }
-.bureaux .point.actuel { width: 26px; border-radius: 7px; border-color: var(--orange); background: var(--orange); box-shadow: 0 0 10px rgba(var(--acc-rgb),.7); }
-.bureaux .point:focus-visible { outline: 2px solid var(--orange-2); outline-offset: 2px; }
