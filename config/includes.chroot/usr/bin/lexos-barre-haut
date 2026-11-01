@@ -31,6 +31,8 @@
 #    lexos barre-haut etat
 #    lexos barre-haut auto      cachée, elle sort quand la souris touche le haut (0,3 s)
 #    lexos barre-haut fixe      toujours affichée (l'ancien comportement)
+#    (« demarrer » lance aussi le gardien : en mode Moteur, l'ancienne barre
+#     XFCE est refermée chaque fois qu'elle revient — voir gardien())
 #
 #  ALEX (2026-11-01) : « désactiver l'outil en haut de l'écran, on va le voir
 #  juste quand on met la souris là ». /etc/skel pose autohide-behavior=2 pour
@@ -380,6 +382,29 @@ masquage() { # masquage <0|2>
 }
 AUTO_FAIT="${XDG_STATE_HOME:-$HOME/.local/state}/lexos/barre-auto-1"
 
+# --- Le gardien : l'ancienne barre ne revient JAMAIS en mode Moteur -----------
+#  ALEX (2026-11-01) : « les 2 outils en haut de l'écran quand je place la
+#  souris : enlever le plus ancien et garder celui de LexOS Moteur ». La
+#  barre XFCE, cachée au survol depuis l'ISO 134, sortait EN MÊME TEMPS que
+#  🎛️ Mes outils du Moteur. « eteindre » ne la guettait que 20 secondes à
+#  l'ouverture : relancée plus tard (par la session, par lexos-wm après
+#  Compiz, ou par un « xfce4-panel -r »), elle restait pour toute la session.
+#  Le gardien la referme dès qu'elle RÉPOND (jamais avant : « --quit » sur
+#  une barre muette ouvre une boîte d'erreur, voir barre_en_marche), toutes
+#  les 5 s, tant que la session XFCE vit. « lexos barre-haut on » la laisse
+#  tranquille ; en mode classique aussi (c'est alors la seule barre).
+gardien() {
+	command -v xfce4-panel >/dev/null 2>&1 || return 0
+	local moi; moi="$(id -u)"
+	while pgrep -u "$moi" -x xfce4-session >/dev/null 2>&1; do
+		if [ "$(lire)" != "on" ] && pgrep -u "$moi" -x xfce4-panel >/dev/null 2>&1 \
+			&& moteur_choisi && barre_en_marche; then
+			xfce4-panel --quit >/dev/null 2>&1 || true
+		fi
+		sleep 5
+	done
+}
+
 case "${1:-etat}" in
 	off|non|0)
 		mkdir -p "$CONF"; echo off > "$ETAT"
@@ -404,7 +429,14 @@ case "${1:-etat}" in
 			mkdir -p "$(dirname "$AUTO_FAIT")" && masquage 2 >/dev/null 2>&1 && touch "$AUTO_FAIT"
 		fi
 		[ "$(lire)" = "on" ] || eteindre
-		nettoyer --session >/dev/null ;;
+		nettoyer --session >/dev/null
+		#  Un seul gardien par session : il s'arrête avec xfce4-session.
+		if [ "${LEXOS_BARRE_GARDIEN:-1}" != "0" ] \
+			&& ! pgrep -u "$(id -u)" -f "lexos-barre-haut gardien" >/dev/null 2>&1; then
+			setsid "$0" gardien >/dev/null 2>&1 < /dev/null &
+		fi ;;
+	gardien)
+		gardien ;;
 	etat|*)
 		printf 'Barre du haut : %s\n' "$(lire)" ;;
 esac
