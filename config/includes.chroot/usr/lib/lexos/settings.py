@@ -1257,10 +1257,10 @@ def act_bureaux(arg):
     nouveau = nb + 1 if arg == "plus" else nb - 1
     if nouveau < 1:
         return {"ok": False, "erreur": "Il faut garder au moins un bureau"}
-    #  Un seul bureau, pour de bon (Alex, 2026-10-22) : on ne change plus
-    #  jamais de bureau. Le « + » est donc refusé.
-    if nouveau > 1:
-        return {"ok": False, "erreur": "LexOS garde un seul bureau"}
+    #  ALEX (2026-10-31) : plusieurs bureaux de nouveau (on en change d'un
+    #  clic volontaire). Huit au plus : au-delà, les boutons ne tiennent plus.
+    if nouveau > 8:
+        return {"ok": False, "erreur": "Huit bureaux au plus"}
     return _run(["xfconf-query", "-c", "xfwm4", "-p", "/general/workspace_count",
                  "-n", "-t", "int", "-s", str(nouveau)])
 

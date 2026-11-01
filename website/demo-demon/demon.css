@@ -382,3 +382,11 @@ body.dock-droite .panneau { right: calc(var(--droite) + var(--dock-d) + var(--do
 .ajout-liste .tuile { width: 62px; }
 .ajout-liste .appli .nom { font-size: 11.5px; }
 .ajout-liste .etat { grid-column: 1 / -1; text-align: center; opacity: .7; }
+
+/* ═══ Les bureaux virtuels (demon.js, dessinerBureaux) ═══ */
+.bureaux-lx { display: flex; gap: 6px; justify-content: flex-end; margin: 6px 0 2px; }
+.bureaux-lx[hidden] { display: none; }
+.bureaux-lx .bur { width: 30px; height: 30px; border-radius: 9px; border: 1px solid var(--bord); background: rgba(14,14,14,.85);
+  font: 700 13px var(--mono); color: #bdbdbd; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+.bureaux-lx .bur:hover { border-color: var(--ac); color: #fff; }
+.bureaux-lx .bur.actif { background: var(--ac); border-color: var(--ac); color: #000; }

@@ -115,15 +115,30 @@ def xfwm4_gestes():
     clé si elle n'existe pas encore, sinon xfconf-query refuse en silence."""
     for prop, genre, valeur in (("/general/tile_on_move", "bool", "true"),
                                 ("/general/wrap_windows", "bool", "false"),
-                                #  ALEX (2026-10-22) : « désactiver infiniment »
-                                #  — un seul bureau, à chaque session.
-                                ("/general/workspace_count", "int", "1")):
+                                #  La molette ne change jamais de bureau (le
+                                #  geste anodin qu'Alex voulait voir disparaître).
+                                ("/general/scroll_workspaces", "bool", "false")):
         subprocess.run(["xfconf-query", "-c", "xfwm4", "-p", prop,
                         "-n", "-t", genre, "-s", valeur],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                        check=False)
-    #  Le coin haut-gauche (coin-actif) éteint pour de bon : avec un seul
-    #  bureau, la vue des bureaux n'a plus rien à montrer. Le veilleur relit
+    #  ALEX (2026-10-31) : « ajouter d'autres fenêtres de bureau ». Le
+    #  « un seul bureau » imposé depuis le 2026-10-22 est levé : on passe à
+    #  QUATRE bureaux une seule fois (témoin « bureaux-4 »), puis le choix
+    #  fait dans Paramètres est respecté — plus rien n'est réimposé.
+    temoin = BASE / "bureaux-4"
+    if not temoin.exists():
+        r = subprocess.run(["xfconf-query", "-c", "xfwm4", "-p", "/general/workspace_count",
+                            "-n", "-t", "int", "-s", "4"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        if r.returncode == 0:
+            try:
+                BASE.mkdir(parents=True, exist_ok=True)
+                temoin.write_text("ok\n", encoding="utf-8")
+            except OSError:
+                pass
+    #  Le coin haut-gauche (coin-actif) reste éteint : changer de bureau se
+    #  fait d'un clic volontaire, jamais en frôlant un coin. Le veilleur relit
     #  ce fichier chaque seconde et s'arrête seul en y lisant « off ».
     try:
         BASE.mkdir(parents=True, exist_ok=True)

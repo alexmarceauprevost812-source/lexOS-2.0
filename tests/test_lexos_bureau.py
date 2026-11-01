@@ -375,6 +375,16 @@ class SaveurNomade(unittest.TestCase):
         self.assertEqual([e["id"] for e in d], ["s-maison", "a-0123456789abcd"])
         self.assertEqual(d[1], {"id": "a-0123456789abcd", "cle": "appli", "nom": "GIMP", "icone": True, "ajout": True})
 
+    def test_bureaux_virtuels(self):
+        """ALEX : « changer de fenêtre de bureau » — les boutons 1 2 3 4 du
+        bureau démon, branchés sur /api/bureaux et /api/bureau."""
+        racine = Path(__file__).resolve().parent.parent / "config/includes.chroot/usr/lib/lexos/bureau"
+        js = (racine / "web/demon.js").read_text("utf-8")
+        self.assertIn('api("/api/bureaux")', js)
+        self.assertIn('api("/api/bureau", { aller:', js)
+        self.assertIn('id="bureaux-lx"', (racine / "web/demon.html").read_text("utf-8"))
+        self.assertIn('chemin == "/api/bureaux"', (racine / "serveur.py").read_text("utf-8"))
+
     def test_dock_a_droite(self):
         """ALEX : « ajouter le dock à droite » — à droite par défaut, « bas »
         possible, toute autre valeur refusée."""

@@ -101,11 +101,15 @@
     <property name="raise_on_click"            type="bool"   value="true"/>
     <property name="cycle_draw_frame"          type="bool"   value="true"/>
     <property name="cycle_preview"             type="bool"   value="true"/>
-    <!--  UN SEUL BUREAU, POUR DE BON. ALEX (2026-10-22) : « pour désactiver
-          infiniment » — l'écran ne doit plus jamais changer de bureau. Aussi
-          réimposé à chaque session par assistant-mosaique (xfwm4_gestes),
-          et le bouton « + » des Paramètres ne peut plus en ajouter. -->
-    <property name="workspace_count"           type="int"    value="1"/>
+    <!--  QUATRE BUREAUX, ET ON N'EN CHANGE QUE VOLONTAIREMENT.
+          ALEX (2026-10-22) : « désactiver infiniment » — l'écran changeait
+          de bureau tout seul (molette, fenêtre glissée au bord). Puis
+          (2026-10-31) : « ajouter d'autres fenêtres de bureau pour être
+          capable de changer de fenêtre de bureau ». Les deux tiennent :
+          quatre bureaux, MAIS la molette (scroll_workspaces) et le bord
+          (wrap_windows) restent coupés ; on change en cliquant sur les
+          boutons 1 2 3 4 du bureau LexOS, ou par Ctrl+Alt+flèches. -->
+    <property name="workspace_count"           type="int"    value="4"/>
 
     <!-- LA ROULETTE NE CHANGE DE BUREAU QU'EN HAUT À GAUCHE, SUR LES POINTS.
          Demande d'Alex, après essai sur sa machine : la molette au milieu du

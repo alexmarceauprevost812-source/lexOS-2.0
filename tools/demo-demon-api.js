@@ -86,6 +86,17 @@
     },
   };
   reponses.son = { volume: 60, muet: false };
+  //  Les bureaux virtuels de la démo : quatre, comme LexOS.
+  const bureaux = { n: 4, actuel: 0 };
+  reponses["/api/bureaux"] = () => bureaux;
+  reponses["/api/bureau"] = (d) => {
+    const i = Number(d && d.aller);
+    if (Number.isInteger(i) && i >= 0 && i < bureaux.n && i !== bureaux.actuel) {
+      bureaux.actuel = i;
+      dire(`Bureau ${i + 1} — dans le vrai LexOS, ses fenêtres à lui apparaîtraient ici`);
+    }
+    return { ok: true, ...bureaux };
+  };
 
   const fetchVrai = window.fetch.bind(window);
   window.fetch = async (entree, init) => {

@@ -263,6 +263,9 @@ def fabriquer(etat: Etat):
                 return self._json(gestes.reseau_etat())
             if chemin == "/api/son":
                 return self._json(gestes.son_etat())
+            if chemin == "/api/bureaux":
+                #  Le bureau virtuel affiché (les boutons 1 2 3 4 du bureau démon).
+                return self._json(gestes.bureaux())
             if chemin == "/api/version":
                 return self._json({"v": etat.version()})
             if chemin.startswith("/icone/"):

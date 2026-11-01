@@ -1032,6 +1032,32 @@ $("#menu-sys").addEventListener("input", (e) => {
   minuteurSon = setTimeout(() => api("/api/son", { volume: v }).catch(() => {}), 120);
 });
 
+/* ════════════════ Les bureaux virtuels : 1 2 3 4 ════════════════
+   ALEX (31 octobre) : « ajouter d'autres fenêtres de bureau pour être
+   capable de changer de fenêtre de bureau ». Un bouton par bureau, à côté du
+   réseau ; un clic y va (gestes.bureau, _NET_CURRENT_DESKTOP). Jamais par la
+   molette ni par un bord d'écran : c'est ce qu'Alex avait fait couper. */
+let BUREAUX = { n: 0, actuel: 0 };
+function dessinerBureaux() {
+  const z = $("#bureaux-lx");
+  z.hidden = BUREAUX.n <= 1 || SECONDAIRE;
+  if (z.hidden) return;
+  z.innerHTML = Array.from({ length: BUREAUX.n }, (_, i) =>
+    `<button class="bur${i === BUREAUX.actuel ? " actif" : ""}" data-bureau="${i}" aria-pressed="${i === BUREAUX.actuel}" title="Bureau ${i + 1}">${i + 1}</button>`).join("");
+}
+async function majBureaux() {
+  if (document.hidden || SECONDAIRE) return;
+  try { BUREAUX = await api("/api/bureaux"); } catch { BUREAUX = { n: 0, actuel: 0 }; }
+  dessinerBureaux();
+}
+$("#bureaux-lx").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-bureau]"); if (!b) return;
+  try {
+    const r = await api("/api/bureau", { aller: +b.dataset.bureau });
+    if (r && r.n) { BUREAUX = { n: r.n, actuel: r.actuel }; dessinerBureaux(); }
+  } catch { bulle("Le bureau ne répond pas"); }
+});
+
 /* ════════════════ « À propos » : lexfetch, sans terminal ════════════════ */
 function ouvrirApropos(ouvert) {
   if (ouvert) {
@@ -1226,4 +1252,6 @@ function ouverture() {
   setInterval(verifier, 2000);
   majReseau();
   setInterval(majReseau, 15000);
+  majBureaux();
+  setInterval(majBureaux, 2000);           // un raccourci clavier a pu changer de bureau
 })();
